@@ -2,7 +2,8 @@
 
 See [`doc/design-decisions.md`](./doc/design-decisions.md) for project setup and why every choice was made.
 
-In this project, all values are considered non-null unless specified as `@Nullable`. To enforce this, every package must have a `package-info.json` with the following code:
+In this project, all values are considered non-null unless specified as `@Nullable`. To enforce this, every package must
+have a `package-info.json` with the following code:
 
 ```java
 @ParametersAreNonnullByDefault
