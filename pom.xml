@@ -151,7 +151,7 @@
                             <spaces>true</spaces>
                             <spacesPerTab>2</spacesPerTab>
                         </indent>
-                        <jackson/>
+                        <prettier/>
                     </yaml>
                 </configuration>
             </plugin>
