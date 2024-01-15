@@ -3,7 +3,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>org.prlprg</groupId>
-    <artifactId>r-jit-server</artifactId>
+    <artifactId>r-compile-server</artifactId>
     <version>0.1-SNAPSHOT</version>
     <packaging>jar</packaging>
 
