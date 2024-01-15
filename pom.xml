@@ -211,6 +211,12 @@
                         <version>${pmdVersion}</version>
                     </dependency>
                 </dependencies>
+                <!-- This prevents the warning "Unable to locate Source XRef to link to - DISABLED" -->
+                <!-- If we want source-links in the `site` pmd report we need to add jxr instead, -->
+                <!-- but IDEs display their own pmd report which already has source-links -->
+                <configuration>
+                    <linkXRef>false</linkXRef>
+                </configuration>
             </plugin>
             <!-- JUnit5, unit test runner -->
             <plugin>
