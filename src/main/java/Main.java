@@ -2,9 +2,9 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
-import nrc.rds.RDSReader;
-import nrc.sexp.SEXP;
-import nrc.util.IO;
+import org.prlprg.rds.RDSReader;
+import org.prlprg.sexp.SEXP;
+import org.prlprg.util.IO;
 
 public class Main {
 

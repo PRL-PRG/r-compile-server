@@ -2,10 +2,7 @@ package org.prlprg.bc;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.prlprg.bc.BcCode;
-import org.prlprg.bc.BcData;
-import org.prlprg.bc.BcInstr;
-import org.prlprg.bc.BcOp;
+import org.prlprg.sexp.IntSXP;
 
 import java.util.List;
 
@@ -15,26 +12,26 @@ public class BcTests {
     @Test
     @DisplayName("Create bytecode array")
     void createBcArray() {
-        var bcArray = new BcCode.Builder().addAll(List.of(
-                new BcInstr(BcOp.LDCONST, new BcData.ConstantIdx(0)),
-                new BcInstr(BcOp.LDCONST, new BcData.ConstantIdx(1)),
-                new BcInstr(BcOp.ADD, null),
-                new BcInstr(BcOp.RETURN, null)
-        )).build();
-        assertEquals(4, bcArray.size());
-        assertEquals(BcOp.LDCONST, bcArray.get(0).op());
-        assertEquals(BcOp.LDCONST, bcArray.get(1).op());
-        assertEquals(BcOp.ADD, bcArray.get(2).op());
-        assertEquals(BcOp.RETURN, bcArray.get(3).op());
-        var data0 = bcArray.get(0).data();
-        var data1 = bcArray.get(1).data();
-        var data2 = bcArray.get(2).data();
-        var data3 = bcArray.get(3).data();
-        assertInstanceOf(BcData.ConstantIdx.class, data0);
-        assertInstanceOf(BcData.ConstantIdx.class, data1);
-        assertNull(data2);
-        assertNull(data3);
-        assertEquals(0, ((BcData.ConstantIdx) data0).idx());
-        assertEquals(1, ((BcData.ConstantIdx) data1).idx());
+        var bcBuilder = new Bc.Builder();
+        bcBuilder.addAllInstrs(List.of(
+                new BcInstr.LdConst(bcBuilder.addConst(new IntSXP(1))),
+                new BcInstr.LdConst(bcBuilder.addConst(new IntSXP(2))),
+                new BcInstr.Add(),
+                new BcInstr.Return()
+        ));
+        var bc = bcBuilder.build();
+        assertEquals(4, bc.code().size());
+        assertEquals(BcOp.LDCONST, bc.code().get(0).op());
+        assertEquals(BcOp.LDCONST, bc.code().get(1).op());
+        assertEquals(BcOp.ADD, bc.code().get(2).op());
+        assertEquals(BcOp.RETURN, bc.code().get(3).op());
+        var consts = bc.consts().stream().toList();
+        assertEquals(2, consts.size());
+        assertEquals(new IntSXP(1), consts.get(0));
+        assertEquals(new IntSXP(2), consts.get(1));
+        assertEquals(0, ((BcInstr.LdConst)bc.code().get(0)).data().idx().idx);
+        assertEquals(bc.consts(), ((BcInstr.LdConst)bc.code().get(0)).data().idx().pool);
+        assertEquals(1, ((BcInstr.LdConst)bc.code().get(1)).data().idx().idx);
+        assertEquals(bc.consts(), ((BcInstr.LdConst)bc.code().get(1)).data().idx().pool);
     }
 }
