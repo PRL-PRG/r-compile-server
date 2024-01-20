@@ -3,9 +3,7 @@ package org.prlprg.compile;
 import org.prlprg.bc.Bc;
 import org.prlprg.bc.BcInstr;
 import org.prlprg.sexp.*;
-import org.prlprg.util.Left;
 import org.prlprg.util.NotImplementedException;
-import org.prlprg.util.Right;
 
 import javax.annotation.Nullable;
 import java.util.*;
@@ -64,7 +62,8 @@ public class Compiler implements SEXPConsts {
     void compileCall(LangSXP call, Context ctx) {
         var args = call.args();
         switch (call.fun()) {
-            case SymSXP fun -> compileCallSymFun(fun, args, call, ctx);
+            case RegSymSXP fun -> compileCallSymFun(fun, args, call, ctx);
+            case SpecialSymSXP fun -> throw new IllegalStateException("Trying to call special symbol: " + fun);
             case LangSXP fun -> compileCallExprFun(fun, args, ctx);
         }
     }
@@ -73,7 +72,7 @@ public class Compiler implements SEXPConsts {
         throw new NotImplementedException();
     }
 
-    private void compileCallSymFun(SymSXP fun, ListSXP args, LangSXP call, Context ctx) {
+    private void compileCallSymFun(RegSymSXP fun, ListSXP args, LangSXP call, Context ctx) {
         cb.addInstr(new BcInstr.GetFun(cb.addConst(fun)));
         var nse = MAYBE_NSE_SYMBOLS.contains(fun.name());
         compileArgs(args, nse, ctx);
@@ -87,7 +86,7 @@ public class Compiler implements SEXPConsts {
             var val = arg.value();
 
             switch (val) {
-                case SymSXP x when x == ELIPSIS -> throw new NotImplementedException();
+                case SymSXP x when x.equals(ELLIPSIS) -> throw new NotImplementedException();
                 case SymSXP x when x == MISSING_ARG -> {
                     cb.addInstr(new BcInstr.DoMissing());
                     compileTag(tag, ctx);
@@ -101,16 +100,16 @@ public class Compiler implements SEXPConsts {
                     compileTag(tag, ctx);
                 }
                 default -> {
-                    compileConstArg(val, ctx);
+                    compileConstArg(val);
                     compileTag(tag, ctx);
                 }
             }
         }
     }
 
-    private void compileConstArg(SEXP arg, Context ctx) {
+    private void compileConstArg(SEXP arg) {
         switch (arg) {
-            case NilSXP x -> cb.addInstr(new BcInstr.PushNullArg());
+            case NilSXP ignored -> cb.addInstr(new BcInstr.PushNullArg());
             case LglSXP x when x == TRUE -> cb.addInstr(new BcInstr.PushTrueArg());
             case LglSXP x when x == FALSE -> cb.addInstr(new BcInstr.PushFalseArg());
             default -> cb.addInstr(new BcInstr.PushConstArg(cb.addConst(arg)));

@@ -38,4 +38,9 @@ record ListSXPImpl(ImmutableList<TaggedElem> data, Attributes headAttributes) im
     public int size() {
         return data.size();
     }
+
+    @Override
+    public ListSXPImpl withAttributes(Attributes attributes) {
+        return new ListSXPImpl(data, attributes);
+    }
 }

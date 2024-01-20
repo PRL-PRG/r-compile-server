@@ -33,4 +33,9 @@ public record ExprSXP(ImmutableList<SEXP> data, Attributes attributes) implement
     public int size() {
         return data.size();
     }
+
+    @Override
+    public ExprSXP withAttributes(Attributes attributes) {
+        return new ExprSXP(data, attributes);
+    }
 }

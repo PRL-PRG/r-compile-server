@@ -14,4 +14,9 @@ public record LangSXP(SymOrLangSXP fun, ListSXP args, @Override Attributes attri
     public String toString() {
         return "LangSxp(fun=" + fun + ", args=" + args + ", " + attributes + ")";
     }
+
+    @Override
+    public LangSXP withAttributes(Attributes attributes) {
+        return new LangSXP(fun, args, attributes);
+    }
 }

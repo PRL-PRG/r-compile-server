@@ -42,4 +42,9 @@ public record StrSXP(ImmutableList<String> data, Attributes attributes) implemen
     public int size() {
         return data.size();
     }
+
+    @Override
+    public StrSXP withAttributes(Attributes attributes) {
+        return new StrSXP(data, attributes);
+    }
 }

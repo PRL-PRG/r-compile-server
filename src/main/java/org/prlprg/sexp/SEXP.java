@@ -9,4 +9,8 @@ public interface SEXP {
     default Attributes attributes() {
         return Attributes.NONE;
     }
+
+    default SEXP withAttributes(Attributes attributes) {
+        throw new UnsupportedOperationException("Cannot set attributes on " + type());
+    }
 }

@@ -12,5 +12,4 @@ public record BCodeSXP(Bc bc) implements SEXP {
     public String toString() {
         return "BCodeSXP(" + bc + ")";
     }
-
 }

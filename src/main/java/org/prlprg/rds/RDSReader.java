@@ -84,11 +84,11 @@ public class RDSReader implements Closeable {
                 case REAL -> readReals(flags);
                 case LGL -> readLogicals(flags);
                 case VEC -> readVec(flags);
-                case ENV -> readEnv(flags);
+                case ENV -> readEnv();
                 case STR -> readStrs(flags);
                 case LANG -> readLang(flags);
                 case BCODE -> readByteCode();
-                case EXPR -> readExpr(flags);
+                case EXPR -> readExpr();
                 default -> throw new RDSException("Unsupported SEXP type: " + s.sexp());
             };
             case RDSItemType.Special s -> switch (s) {
@@ -105,7 +105,7 @@ public class RDSReader implements Closeable {
         };
     }
 
-    private ExprSXP readExpr(Flags flags) throws IOException {
+    private ExprSXP readExpr() throws IOException {
         // ??? Should flags be used somewhere here? At least for sanity assertions?
         var length = in.readInt();
         var sexps = new ArrayList<SEXP>(length);
@@ -208,12 +208,12 @@ public class RDSReader implements Closeable {
             tagSexp = readItem();
             String tag;
 
-            if (tagSexp instanceof SymSXP sym) {
+            if (tagSexp instanceof RegSymSXP sym) {
                 tag = sym.name();
             } else if (tagSexp instanceof NilSXP) {
                 tag = null;
             } else {
-                throw new RDSException("Expected symbol or nil");
+                throw new RDSException("Expected regular symbol or nil");
             }
 
             var head = readByteCodeLang(RDSItemType.valueOf(in.readInt()), reps);
@@ -287,19 +287,27 @@ public class RDSReader implements Closeable {
         return new StrSXP(strings.build(), attributes);
     }
 
-    private EnvSXP readEnv(Flags flags) throws IOException {
-        // FIXME: Refs when all SEXPs are immutable (may need to allow them to be mutable after all).
-        var item = new EnvSXP();
+    private RegEnvSXP readEnv() throws IOException {
+        // ??? Should flags be used somewhere here? At least for sanity assertions?
+        var item = RegEnvSXP.uninitialized();
         refTable.add(item);
 
         var locked = in.readInt();
-        var enclos = readItem();
-        var frame = readItem();
-        var hashtab = readItem();
+        if (locked != 0 && locked != 1) {
+            throw new RDSException("Expected 0 or 1 (LOCKED)");
+        }
+        if (!(readItem() instanceof EnvSXP enclos)) {
+            throw new RDSException("Expected environment (ENCLOS)");
+        }
+        if (!(readItem() instanceof ListSXP frame)) {
+            throw new RDSException("Expected list (FRAME)");
+        }
+        // We read the hash table,
+        // but immediately discard it because we represent environments differently and it's redundant.
+        readItem();
+        var attributes = readAttributes();
 
-        item.setAttributes(readAttributes());
-
-        // TODO: add content to the environment
+        item.init(locked != 0, enclos, frame, attributes);
         return item;
     }
 
@@ -341,16 +349,16 @@ public class RDSReader implements Closeable {
             var attributes = readAttributes(flags);
 
             var tag = switch (readTag(flags)) {
-                case SymSXP s -> s.name();
+                case RegSymSXP s -> s.name();
                 case NilSXP ignored -> null;
-                default -> throw new RDSException("Expected symbol or nil");
+                default -> throw new RDSException("Expected regular symbol or nil");
             };
 
             var item = readItem();
 
-            // FIXME: Are the attributes outside of the item? If so that complicates things
-            if (attributes != null) {
-                item.setAttributes(attributes);
+            // FIXME: Are the attributes really outside of the item?
+            if (attributes != Attributes.NONE) {
+                item = item.withAttributes(attributes);
             }
 
             data.add(new TaggedElem(tag, item));
@@ -408,10 +416,10 @@ public class RDSReader implements Closeable {
         }
     }
 
-    private SymSXP readSymbol() throws IOException {
+    private RegSymSXP readSymbol() throws IOException {
         var flags = readFlags();
         var s = readString(flags);
-        var item = new SymSXP(s);
+        var item = new RegSymSXP(s);
 
         refTable.add(item);
 

@@ -42,4 +42,9 @@ public record RealSXP(ImmutableDoubleArray data, Attributes attributes) implemen
     public int size() {
         return data.length();
     }
+
+    @Override
+    public RealSXP withAttributes(Attributes attributes) {
+        return new RealSXP(data, attributes);
+    }
 }

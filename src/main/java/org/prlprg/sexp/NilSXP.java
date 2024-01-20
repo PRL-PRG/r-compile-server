@@ -16,7 +16,7 @@ public final class NilSXP implements ListSXP {
 
     @Override
     public String toString() {
-        return "NilSXP";
+        return "NULL";
     }
 
     /** In GNU-R, nil is equivalent to an empty list, so this is always {@code true}. */
@@ -41,5 +41,10 @@ public final class NilSXP implements ListSXP {
     @Override
     public EmptyIterator<TaggedElem> iterator() {
         return new EmptyIterator<>();
+    }
+
+    @Override
+    public ListSXP withAttributes(Attributes attributes) {
+        throw new UnsupportedOperationException("Cannot set attributes on NULL");
     }
 }

@@ -43,4 +43,9 @@ public record LglSXP(ImmutableList<Logical> data, Attributes attributes) impleme
     public int size() {
         return data.size();
     }
+
+    @Override
+    public LglSXP withAttributes(Attributes attributes) {
+        return new LglSXP(data, attributes);
+    }
 }

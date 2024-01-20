@@ -42,4 +42,9 @@ public record IntSXP(ImmutableIntArray data, Attributes attributes) implements V
     public int size() {
         return data.length();
     }
+
+    @Override
+    public IntSXP withAttributes(Attributes attributes) {
+        return new IntSXP(data, attributes);
+    }
 }

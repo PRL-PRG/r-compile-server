@@ -29,4 +29,7 @@ public interface ListSXP extends ListOrVectorSXP<TaggedElem> {
             }
         }
     }
+
+    @Override
+    ListSXP withAttributes(Attributes attributes);
 }

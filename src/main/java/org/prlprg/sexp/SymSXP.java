@@ -1,8 +1,8 @@
 package org.prlprg.sexp;
 
-public record SymSXP(String name) implements SymOrLangSXP {
+public sealed interface SymSXP extends SymOrLangSXP permits RegSymSXP, SpecialSymSXP {
     @Override
-    public SEXPType type() {
+    default SEXPType type() {
         return SEXPType.SYM;
     }
 }

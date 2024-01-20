@@ -14,4 +14,9 @@ public record CloSXP(ListSXP formals, SEXP body, EnvSXP env, Attributes attribut
     public String toString() {
         return "CloSXP(formals=" + formals + ", body=" + body + ", env=" + env + ", attrs=" + attributes() + ")";
     }
+
+    @Override
+    public CloSXP withAttributes(Attributes attributes) {
+        return new CloSXP(formals, body, env, attributes);
+    }
 }

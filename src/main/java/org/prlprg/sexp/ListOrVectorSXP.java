@@ -8,4 +8,7 @@ public interface ListOrVectorSXP<T> extends SEXP, Iterable<T> {
     default boolean isEmpty() {
         return size() == 0;
     }
+
+    @Override
+    ListOrVectorSXP<T> withAttributes(Attributes attributes);
 }

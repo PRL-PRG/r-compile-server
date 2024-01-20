@@ -2,7 +2,6 @@ package org.prlprg.sexp;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.UnmodifiableIterator;
-import com.google.common.primitives.ImmutableIntArray;
 import org.prlprg.primitive.Complex;
 
 import java.util.Collection;
@@ -42,5 +41,10 @@ public record ComplexSXP(ImmutableList<Complex> data, Attributes attributes) imp
     @Override
     public int size() {
         return data.size();
+    }
+
+    @Override
+    public ComplexSXP withAttributes(Attributes attributes) {
+        return new ComplexSXP(data, attributes);
     }
 }

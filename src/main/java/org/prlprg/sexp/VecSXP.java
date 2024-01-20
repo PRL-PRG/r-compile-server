@@ -33,4 +33,9 @@ public record VecSXP(ImmutableList<SEXP> data, Attributes attributes) implements
     public int size() {
         return data.size();
     }
+
+    @Override
+    public VecSXP withAttributes(Attributes attributes) {
+        return new VecSXP(data, attributes);
+    }
 }
