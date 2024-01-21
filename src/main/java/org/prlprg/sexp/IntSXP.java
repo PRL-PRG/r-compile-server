@@ -1,32 +1,33 @@
 package org.prlprg.sexp;
 
+import com.google.common.collect.Iterators;
+import com.google.common.collect.UnmodifiableIterator;
 import com.google.common.primitives.ImmutableIntArray;
 
+import javax.annotation.concurrent.Immutable;
 import java.util.Collection;
 import java.util.PrimitiveIterator;
 
-public record IntSXP(ImmutableIntArray data, Attributes attributes) implements VectorSXP<Integer> {
+@Immutable
+public interface IntSXP extends VectorSXP<Integer> {
+    ImmutableIntArray subArray(int startIndex, int endIndex);
+
     @Override
-    public SEXPType type() {
+    default SEXPType type() {
         return SEXPType.INT;
     }
 
-    public IntSXP(Collection<Integer> data, Attributes attributes) {
-        this(ImmutableIntArray.copyOf(data), attributes);
-    }
+    @Override Attributes attributes();
 
-    public IntSXP(Collection<Integer> data) {
-        this(ImmutableIntArray.copyOf(data), Attributes.NONE);
-    }
+    @Override
+    IntSXP withAttributes(Attributes attributes);
+}
 
-    public IntSXP(int data, Attributes attributes) {
-        this(ImmutableIntArray.of(data), attributes);
+record IntSXPImpl(ImmutableIntArray data, @Override Attributes attributes) implements IntSXP {
+    @Override
+    public ImmutableIntArray subArray(int startIndex, int endIndex) {
+        return data.subArray(startIndex, endIndex);
     }
-
-    public IntSXP(int data) {
-        this(ImmutableIntArray.of(data), Attributes.NONE);
-    }
-
 
     @Override
     public PrimitiveIterator.OfInt iterator() {
@@ -44,7 +45,34 @@ public record IntSXP(ImmutableIntArray data, Attributes attributes) implements V
     }
 
     @Override
+    public String toString() {
+        return VectorSXPUtil.toString(this, data().stream());
+    }
+
+    @Override
     public IntSXP withAttributes(Attributes attributes) {
-        return new IntSXP(data, attributes);
+        return SEXP.integer(data, attributes);
+    }
+}
+
+final class SimpleIntSXPImpl extends SimpleScalarSXPImpl<Integer> implements IntSXP {
+    SimpleIntSXPImpl(int data) {
+        super(data);
+    }
+
+    @Override
+    public ImmutableIntArray subArray(int startIndex, int endIndex) {
+        if (startIndex == endIndex && (startIndex == 0 || startIndex == 1)) {
+            return ImmutableIntArray.of();
+        } else if (startIndex == 0 && endIndex == 1) {
+            return ImmutableIntArray.of(data);
+        } else {
+            throw new IndexOutOfBoundsException("subArray of simple scalar; startIndex=" + startIndex + ", endIndex=" + endIndex);
+        }
+    }
+
+    @Override
+    public IntSXP withAttributes(Attributes attributes) {
+        return SEXP.integer(data, attributes);
     }
 }

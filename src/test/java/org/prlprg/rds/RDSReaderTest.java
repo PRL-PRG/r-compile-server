@@ -6,15 +6,15 @@ import static org.junit.jupiter.api.Assertions.fail;
 import org.junit.jupiter.api.Test;
 
 import org.prlprg.RPlatform;
+import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.IntSXP;
 import org.prlprg.sexp.LglSXP;
 import org.prlprg.sexp.RealSXP;
-import org.prlprg.sexp.SEXPConsts;
 
 import java.util.Objects;
 
-public class RDSReaderTest implements SEXPConsts {
+public class RDSReaderTest {
 
     @Test
     public void testInts() throws Exception {
@@ -23,7 +23,7 @@ public class RDSReaderTest implements SEXPConsts {
             assertEquals(-RPlatform.INT_MAX, ints.get(0));
             assertEquals(-1, ints.get(1));
             assertEquals(0, ints.get(2));
-            assertEquals(NA_INT, ints.get(3));
+            assertEquals(Constants.NA_INT, ints.get(3));
             assertEquals(1, ints.get(4));
             assertEquals(RPlatform.INT_MAX, ints.get(5));
         } else {
@@ -51,7 +51,7 @@ public class RDSReaderTest implements SEXPConsts {
             // assertEquals(nums[0], Double.MIN_VALUE);
             assertEquals(-1.0, reals.get(1));
             assertEquals(.0, reals.get(2));
-            assertEquals(SEXPConsts.NA_REAL, reals.get(3));
+            assertEquals(Constants.NA_REAL, reals.get(3));
             assertEquals(1.0, reals.get(4));
             assertEquals(Double.MAX_VALUE, reals.get(5));
         } else {

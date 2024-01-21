@@ -2,30 +2,25 @@ package org.prlprg.sexp;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.UnmodifiableIterator;
-import com.google.common.primitives.ImmutableIntArray;
 import org.prlprg.primitive.Logical;
 
-import java.util.Collection;
+import javax.annotation.concurrent.Immutable;
 
-public record LglSXP(ImmutableList<Logical> data, Attributes attributes) implements VectorSXP<Logical> {
+@Immutable
+public interface LglSXP extends VectorSXP<Logical> {
     @Override
-    public SEXPType type() {
+    default SEXPType type() {
         return SEXPType.LGL;
     }
 
-    public LglSXP(Collection<Logical> data, Attributes attributes) {
-        this(ImmutableList.copyOf(data), attributes);
-    }
+    @Override Attributes attributes();
 
-    public LglSXP(Collection<Logical> data) {
-        this(ImmutableList.copyOf(data), Attributes.NONE);
-    }
+    @Override
+    LglSXP withAttributes(Attributes attributes);
+}
 
-    public LglSXP(Logical data, Attributes attributes) {
-        this(ImmutableList.of(data), attributes);
-    }
-
-    public LglSXP(Logical data) {
+record LglSXPImpl(ImmutableList<Logical> data, @Override Attributes attributes) implements LglSXP {
+    public LglSXPImpl(Logical data) {
         this(ImmutableList.of(data), Attributes.NONE);
     }
 
@@ -45,7 +40,28 @@ public record LglSXP(ImmutableList<Logical> data, Attributes attributes) impleme
     }
 
     @Override
+    public String toString() {
+        return VectorSXPUtil.toString(this, data.stream());
+    }
+
+    @Override
     public LglSXP withAttributes(Attributes attributes) {
-        return new LglSXP(data, attributes);
+        return SEXP.logical(data, attributes);
+    }
+}
+
+
+final class SimpleLglSXPImpl extends SimpleScalarSXPImpl<Logical> implements LglSXP {
+    static final SimpleLglSXPImpl TRUE = new SimpleLglSXPImpl(Logical.TRUE);
+    static final SimpleLglSXPImpl FALSE = new SimpleLglSXPImpl(Logical.FALSE);
+    static final SimpleLglSXPImpl NA = new SimpleLglSXPImpl(Logical.NA);
+
+    private SimpleLglSXPImpl(Logical data) {
+        super(data);
+    }
+
+    @Override
+    public LglSXP withAttributes(Attributes attributes) {
+        return SEXP.logical(data, attributes);
     }
 }

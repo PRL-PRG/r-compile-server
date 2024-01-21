@@ -2,17 +2,20 @@ package org.prlprg.sexp;
 
 import javax.annotation.Nullable;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
- * Environment which has ENCLOS, FRAME, HASHTAB, and ATTR.
- *
- * These are mutable, like they are in R. Most other SEXPs are immutable.
+ * A mutable {@link LocalEnvSXP}: a mutable environment which has ENCLOS, FRAME, HASHTAB, and ATTR.
+ * <p>
+ * Most other SEXPs are immutable. The reason these are mutable is because we preserve the mutability of SEXPs in R.
+ * In R, if you assign an SEXP to a variable and then modify it, for other SEXP types the variable won't change, but for
+ * environments it will.
  */
-public final class RegEnvSXP implements EnvSXP {
+public final class RegEnvSXP implements LocalEnvSXP {
     private boolean isInitialized;
     private boolean isLocked;
     private @Nullable EnvSXP enclos;
-    private SequencedMap<String, SEXP> frame;
+    private final SequencedMap<String, SEXP> frame;
     private @Nullable Attributes attributes;
 
     /** Create an uninitialized environment. You must then call {@link #init} before any other methods. */
@@ -29,7 +32,7 @@ public final class RegEnvSXP implements EnvSXP {
     }
 
     /** Create a new empty (initialized, unlocked) environment. */
-    public RegEnvSXP(EnvSXP enclos) {
+    RegEnvSXP(EnvSXP enclos) {
         this.isInitialized = true;
         this.isLocked = false;
         this.enclos = enclos;
@@ -51,35 +54,45 @@ public final class RegEnvSXP implements EnvSXP {
         this.attributes = attributes;
     }
 
-    /** The environment's parent. */
+    @Override
     public EnvSXP enclos() {
         checkInitialized();
         return Objects.requireNonNull(enclos);
     }
 
     @Override
-    public @Nullable EnvSXP knownParent() {
-        return enclos();
-    }
-
-    /** The bindings within this environment and not parents. */
     public SequencedMap<String, SEXP> frame() {
         checkInitialized();
         return Collections.unmodifiableSequencedMap(Objects.requireNonNull(frame));
     }
 
-    /** The environment's attributes. */
     @Override
     public Attributes attributes() {
         checkInitialized();
         return Objects.requireNonNull(attributes);
     }
 
-    /** Whether the environment is locked. */
+    @Override
     public boolean isLocked() {
         checkInitialized();
         return isLocked;
     }
+
+    /** Lookup a binding in the environment or parents.
+     *
+     * @return {@code null} if not found. */
+    @Override
+    public @Nullable SEXP get(String name) {
+        checkInitialized();
+        var frame = Objects.requireNonNull(this.frame);
+        var inFrame = frame.get(name);
+        if (inFrame != null) {
+            return inFrame;
+        }
+        var enclos = Objects.requireNonNull(this.enclos);
+        return enclos.get(name);
+    }
+
 
     /** Change the environment's parent. */
     public void setEnclos(EnvSXP enclos) {
@@ -93,7 +106,7 @@ public final class RegEnvSXP implements EnvSXP {
         this.attributes = attributes;
     }
 
-    /** Lock the environment.
+    /** Lock the environment. Trying to mutate it afterward will throw {@link IllegalStateException}.
      *
      * @throws IllegalStateException If the environment is already locked.
      */
@@ -103,20 +116,6 @@ public final class RegEnvSXP implements EnvSXP {
             throw new IllegalStateException("Environment is already locked");
         }
         isLocked = true;
-    }
-
-    /** Lookup a binding in the environment or parents.
-     *
-     * @return {@code null} if not found. */
-    public @Nullable SEXP get(String name) {
-        checkInitialized();
-        var frame = Objects.requireNonNull(this.frame);
-        var inFrame = frame.get(name);
-        if (inFrame != null) {
-            return inFrame;
-        }
-        var enclos = Objects.requireNonNull(this.enclos);
-        return enclos.get(name);
     }
 
     /** Modify a binding in the environment. Call with {@code null} to remove.
@@ -138,16 +137,18 @@ public final class RegEnvSXP implements EnvSXP {
 
     @Override
     public String toString() {
-        return "RegEnvSXP{" +
-                "isInitialized=" + isInitialized +
-                ", enclos=" + enclos +
-                ", frame=" + frame +
-                ", attr=" + attributes +
-                '}';
+        return SEXPUtil.toString(this, "isInitialized=" + isInitialized, "enclos=" + enclos,
+                frame.isEmpty() ? "" : "\n  ; " + frame.sequencedEntrySet().stream().map(e -> e.getKey() + "=" + e.getValue()).collect(Collectors.joining("\n  , "))
+        );
     }
 
+    /** Create a copy of this environment with the given attributes.
+     * <p>
+     * This does <i>not</i> mutate the environment and change its own attributes.
+     * Call {@link #setAttributes} to do that.
+     */
     @Override
-    public RegEnvSXP withAttributes(Attributes attributes) {
+    public LocalEnvSXP withAttributes(Attributes attributes) {
         this.setAttributes(attributes);
         return this;
     }

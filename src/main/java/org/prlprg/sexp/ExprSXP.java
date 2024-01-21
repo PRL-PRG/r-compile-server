@@ -3,22 +3,25 @@ package org.prlprg.sexp;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.UnmodifiableIterator;
 
-import java.util.Collection;
+import javax.annotation.concurrent.Immutable;
 
-public record ExprSXP(ImmutableList<SEXP> data, Attributes attributes) implements VectorSXP<SEXP> {
+/** R expression vector.
+ *
+ * @apiNote Immutable because we assume it can't contain environments or any other mutable SEXPs.
+ */
+@Immutable
+public interface ExprSXP extends VectorSXP<SEXP> {
     @Override
-    public SEXPType type() {
+    default SEXPType type() {
         return SEXPType.EXPR;
     }
 
-    public ExprSXP(Collection<SEXP> data, Attributes attributes) {
-        this(ImmutableList.copyOf(data), attributes);
-    }
+    @Override Attributes attributes();
 
-    public ExprSXP(Collection<SEXP> data) {
-        this(ImmutableList.copyOf(data), Attributes.NONE);
-    }
+    @Override ExprSXP withAttributes(Attributes attributes);
+}
 
+record ExprSXPImpl(ImmutableList<SEXP> data, @Override Attributes attributes) implements ExprSXP {
     @Override
     public UnmodifiableIterator<SEXP> iterator() {
         return data.iterator();
@@ -35,7 +38,12 @@ public record ExprSXP(ImmutableList<SEXP> data, Attributes attributes) implement
     }
 
     @Override
+    public String toString() {
+        return VectorSXPUtil.toString(this, data().stream());
+    }
+
+    @Override
     public ExprSXP withAttributes(Attributes attributes) {
-        return new ExprSXP(data, attributes);
+        return SEXP.expr(data, attributes);
     }
 }

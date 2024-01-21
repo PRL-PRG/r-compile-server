@@ -103,9 +103,4 @@ public enum SEXPType {
             default -> throw new IllegalArgumentException("Unknown SEXP type: " + i);
         };
     }
-
-    @Override
-    public String toString() {
-        return this.name() + "SXP";
-    }
 }

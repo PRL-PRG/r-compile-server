@@ -5,20 +5,19 @@ import com.google.common.collect.UnmodifiableIterator;
 
 import java.util.Collection;
 
-public record VecSXP(ImmutableList<SEXP> data, Attributes attributes) implements VectorSXP<SEXP> {
+public interface VecSXP extends VectorSXP<SEXP> {
     @Override
-    public SEXPType type() {
+    default SEXPType type() {
         return SEXPType.VEC;
     }
 
-    public VecSXP(Collection<SEXP> data, Attributes attributes) {
-        this(ImmutableList.copyOf(data), attributes);
-    }
+    @Override Attributes attributes();
 
-    public VecSXP(Collection<SEXP> data) {
-        this(ImmutableList.copyOf(data), Attributes.NONE);
-    }
+    @Override
+    VecSXP withAttributes(Attributes attributes);
+}
 
+record VecSXPImpl(ImmutableList<SEXP> data, @Override Attributes attributes) implements VecSXP {
     @Override
     public UnmodifiableIterator<SEXP> iterator() {
         return data.iterator();
@@ -35,7 +34,12 @@ public record VecSXP(ImmutableList<SEXP> data, Attributes attributes) implements
     }
 
     @Override
+    public String toString() {
+        return VectorSXPUtil.toString(this, data.stream());
+    }
+
+    @Override
     public VecSXP withAttributes(Attributes attributes) {
-        return new VecSXP(data, attributes);
+        return SEXP.vec(data, attributes);
     }
 }

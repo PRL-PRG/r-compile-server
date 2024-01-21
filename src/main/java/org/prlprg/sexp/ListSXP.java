@@ -2,24 +2,10 @@ package org.prlprg.sexp;
 
 import com.google.common.collect.ImmutableList;
 
-import java.util.Collection;
+import java.util.Iterator;
+import java.util.stream.Collectors;
 
 public interface ListSXP extends ListOrVectorSXP<TaggedElem> {
-    static ListSXP of(ImmutableList<TaggedElem> data, Attributes attributes) {
-        return new ListSXPImpl(data, attributes);
-    }
-
-    static ListSXP of(ImmutableList<TaggedElem> data) {
-        return new ListSXPImpl(data, Attributes.NONE);
-    }
-    static ListSXP of(Collection<TaggedElem> data, Attributes attributes) {
-        return new ListSXPImpl(data, attributes);
-    }
-
-    static ListSXP of(Collection<TaggedElem> data) {
-        return new ListSXPImpl(data, Attributes.NONE);
-    }
-
     static void flatten(ListSXP src, ImmutableList.Builder<TaggedElem> target) {
         for (var i : src) {
             if (i.value() instanceof ListSXP lst) {
@@ -32,4 +18,36 @@ public interface ListSXP extends ListOrVectorSXP<TaggedElem> {
 
     @Override
     ListSXP withAttributes(Attributes attributes);
+}
+
+record ListSXPImpl(ImmutableList<TaggedElem> data, @Override Attributes attributes) implements ListSXP {
+    @Override
+    public SEXPType type() {
+        return data.isEmpty() ? SEXPType.NIL : SEXPType.LIST;
+    }
+
+    @Override
+    public Iterator<TaggedElem> iterator() {
+        return data.iterator();
+    }
+
+    @Override
+    public TaggedElem get(int i) {
+        return data.get(i);
+    }
+
+    @Override
+    public int size() {
+        return data.size();
+    }
+
+    @Override
+    public String toString() {
+        return "(" + data.stream().map(TaggedElem::toString).collect(Collectors.joining(", ")) + ")";
+    }
+
+    @Override
+    public ListSXPImpl withAttributes(Attributes attributes) {
+        return new ListSXPImpl(data, attributes);
+    }
 }

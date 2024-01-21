@@ -1,15 +1,15 @@
 package org.prlprg.sexp;
 
-/** Unique symbol (equality by identity) */
+/** Unique symbol (equality by identity). */
 public final class SpecialSymSXP implements SymSXP {
-    private final String toString;
+    private final String label;
 
-    public SpecialSymSXP(String toString) {
-        this.toString = toString;
+    SpecialSymSXP(String label) {
+        this.label = label;
     }
 
     @Override
     public String toString() {
-        return toString;
+        return "<" + label + ">";
     }
 }

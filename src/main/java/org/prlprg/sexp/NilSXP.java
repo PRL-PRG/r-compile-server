@@ -2,12 +2,14 @@ package org.prlprg.sexp;
 
 import org.prlprg.util.EmptyIterator;
 
+import javax.annotation.concurrent.Immutable;
 
+@Immutable
 public final class NilSXP implements ListSXP {
+    static final NilSXP INSTANCE = new NilSXP();
+
     private NilSXP() {
     }
-
-    static final NilSXP INSTANCE = new NilSXP();
 
     @Override
     public SEXPType type() {
@@ -28,7 +30,7 @@ public final class NilSXP implements ListSXP {
     /** In GNU-R, nil is equivalent to an empty list, so this always throws {@link UnsupportedOperationException}. */
     @Override
     public TaggedElem get(int i) {
-        throw new UnsupportedOperationException("NilSXP is empty");
+        throw new UnsupportedOperationException("NULL is empty");
     }
 
     /** In GNU-R, nil is equivalent to an empty list, so this always returns {@code 0}. */

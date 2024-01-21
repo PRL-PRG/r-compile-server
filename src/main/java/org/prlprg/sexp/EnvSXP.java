@@ -3,7 +3,7 @@ package org.prlprg.sexp;
 import javax.annotation.Nullable;
 
 // TODO: Also namespaces and packages
-public sealed interface EnvSXP extends SEXP permits RegEnvSXP, SpecialEnvSXP {
+public sealed interface EnvSXP extends SEXP permits LocalEnvSXP, SpecialEnvSXP {
     /** @return {@code null} if unknown or different in different contexts. */
     @Nullable EnvSXP knownParent();
 

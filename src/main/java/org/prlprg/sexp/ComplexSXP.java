@@ -4,30 +4,22 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.UnmodifiableIterator;
 import org.prlprg.primitive.Complex;
 
-import java.util.Collection;
+import javax.annotation.concurrent.Immutable;
 
-public record ComplexSXP(ImmutableList<Complex> data, Attributes attributes) implements VectorSXP<Complex> {
+@Immutable
+public interface ComplexSXP extends VectorSXP<Complex> {
     @Override
-    public SEXPType type() {
+    default SEXPType type() {
         return SEXPType.CPLX;
     }
 
-    public ComplexSXP(Collection<Complex> data, Attributes attributes) {
-        this(ImmutableList.copyOf(data), attributes);
-    }
+    @Override Attributes attributes();
 
-    public ComplexSXP(Collection<Complex> data) {
-        this(ImmutableList.copyOf(data), Attributes.NONE);
-    }
+    @Override
+    ComplexSXP withAttributes(Attributes attributes);
+}
 
-    public ComplexSXP(Complex data, Attributes attributes) {
-        this(ImmutableList.of(data), attributes);
-    }
-
-    public ComplexSXP(Complex data) {
-        this(ImmutableList.of(data), Attributes.NONE);
-    }
-
+record ComplexSXPImpl(ImmutableList<Complex> data, @Override Attributes attributes) implements ComplexSXP {
     @Override
     public UnmodifiableIterator<Complex> iterator() {
         return data.iterator();
@@ -44,7 +36,23 @@ public record ComplexSXP(ImmutableList<Complex> data, Attributes attributes) imp
     }
 
     @Override
+    public String toString() {
+        return VectorSXPUtil.toString(this, data().stream());
+    }
+
+    @Override
     public ComplexSXP withAttributes(Attributes attributes) {
-        return new ComplexSXP(data, attributes);
+        return new ComplexSXPImpl(data, attributes);
+    }
+}
+
+final class SimpleComplexSXPImpl extends SimpleScalarSXPImpl<Complex> implements ComplexSXP {
+    SimpleComplexSXPImpl(Complex data) {
+        super(data);
+    }
+
+    @Override
+    public ComplexSXP withAttributes(Attributes attributes) {
+        return SEXP.complex(data, attributes);
     }
 }

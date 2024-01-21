@@ -10,10 +10,9 @@ import java.util.Map;
 
 /** Attributes on an {@link SEXP}. */
 @Immutable
-public sealed class Attributes extends ForwardingMap<String, SEXP> {
+public final class Attributes extends ForwardingMap<String, SEXP> {
     private final ImmutableMap<String, SEXP> attrs;
 
-    public static final Attributes EMPTY = new Empty();
     public static final Attributes NONE = new Attributes();
 
     private Attributes() {
@@ -33,21 +32,12 @@ public sealed class Attributes extends ForwardingMap<String, SEXP> {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (!(o instanceof Attributes that)) return false;
-        // ??? Should NONE equal EMPTY?
-        if (getClass() != o.getClass()) return false;
         return Objects.equal(attrs, that.attrs);
     }
 
     @Override
     public int hashCode() {
         return Objects.hashCode(super.hashCode(), attrs);
-    }
-
-    private static final class Empty extends Attributes {
-        @Override
-        public String toString() {
-            return "EMPTY_ATTR";
-        }
     }
 
     /** Build an {@link Attributes} instance. */
