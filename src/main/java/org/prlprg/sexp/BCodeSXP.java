@@ -5,7 +5,7 @@ import org.prlprg.bc.Bc;
 import javax.annotation.concurrent.Immutable;
 
 @Immutable
-public interface BCodeSXP extends SEXP {
+public sealed interface BCodeSXP extends SEXP {
     Bc bc();
 
     @Override
@@ -17,6 +17,6 @@ public interface BCodeSXP extends SEXP {
 record BCodeSXPImpl(Bc bc) implements BCodeSXP {
     @Override
     public String toString() {
-        return SEXPUtil.toString(this, bc());
+        return SEXPs.toString(this, bc());
     }
 }

@@ -1,15 +1,12 @@
 package org.prlprg.sexp;
 
-import com.google.common.collect.Iterators;
-import com.google.common.collect.UnmodifiableIterator;
 import com.google.common.primitives.ImmutableIntArray;
 
 import javax.annotation.concurrent.Immutable;
-import java.util.Collection;
 import java.util.PrimitiveIterator;
 
 @Immutable
-public interface IntSXP extends VectorSXP<Integer> {
+public sealed interface IntSXP extends VectorSXP<Integer> {
     ImmutableIntArray subArray(int startIndex, int endIndex);
 
     @Override
@@ -46,12 +43,12 @@ record IntSXPImpl(ImmutableIntArray data, @Override Attributes attributes) imple
 
     @Override
     public String toString() {
-        return VectorSXPUtil.toString(this, data().stream());
+        return VectorSXPs.toString(this, data().stream());
     }
 
     @Override
     public IntSXP withAttributes(Attributes attributes) {
-        return SEXP.integer(data, attributes);
+        return SEXPs.integer(data, attributes);
     }
 }
 
@@ -73,6 +70,29 @@ final class SimpleIntSXPImpl extends SimpleScalarSXPImpl<Integer> implements Int
 
     @Override
     public IntSXP withAttributes(Attributes attributes) {
-        return SEXP.integer(data, attributes);
+        return SEXPs.integer(data, attributes);
+    }
+}
+
+
+final class EmptyIntSXPImpl extends EmptyVectorSXPImpl<Integer> implements IntSXP {
+    static final EmptyIntSXPImpl INSTANCE = new EmptyIntSXPImpl();
+
+    private EmptyIntSXPImpl() {
+        super();
+    }
+
+    @Override
+    public ImmutableIntArray subArray(int startIndex, int endIndex) {
+        if (startIndex == 0 && endIndex == 0) {
+            return ImmutableIntArray.of();
+        } else {
+            throw new IndexOutOfBoundsException("subArray of empty vector; startIndex=" + startIndex + ", endIndex=" + endIndex);
+        }
+    }
+
+    @Override
+    public IntSXP withAttributes(Attributes attributes) {
+        return SEXPs.integer(ImmutableIntArray.of(), attributes);
     }
 }

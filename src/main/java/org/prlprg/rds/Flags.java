@@ -44,4 +44,11 @@ class Flags {
     public int unpackRefIndex() {
         return flags >> 8;
     }
+
+    @Override
+    public String toString() {
+        return "Flags{" + "type=" + getType() + ", levels=" + decodeLevels() + ", isUTF8=" + isUTF8()
+                + ", hasAttributes=" + hasAttributes() + ", hasTag=" + hasTag() + ", refIndex=" + unpackRefIndex()
+                + '}';
+    }
 }

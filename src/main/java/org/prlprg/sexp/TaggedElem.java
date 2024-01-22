@@ -16,7 +16,7 @@ public record TaggedElem(@Nullable String tag, SEXP value) {
     @Override
     public String toString() {
         return tag == null ? value.toString() :
-                value == SEXP.MISSING_ARG ? tag + "=" :
+                value == SEXPs.MISSING_ARG ? tag + "=" :
                 tag + "=" + value;
     }
 }

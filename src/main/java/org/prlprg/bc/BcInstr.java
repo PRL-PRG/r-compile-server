@@ -23,23 +23,36 @@ public sealed interface BcInstr {
      * @return The instruction and the index in the list where the next instruction starts
      */
     static Pair<BcInstr, Integer> fromRaw(ImmutableIntArray bytecodes, int i, Function<Integer, ConstPool.Idx> makePoolIdx) {
-        var op = BcOp.valueOf(bytecodes.get(i++));
+        BcOp op;
+        try {
+            op = BcOp.valueOf(bytecodes.get(i++));
+        } catch (IllegalArgumentException e) {
+            throw new BcFromRawException("invalid opcode " + bytecodes.get(i - 1));
+        }
+
         var instr = switch (op) {
             case LDNULL -> new LdNull();
             case LDTRUE -> new LdTrue();
             case LDFALSE -> new LdFalse();
             case LDCONST -> new LdConst(makePoolIdx.apply(bytecodes.get(i++)));
+            case GETVAR -> new GetVar(makePoolIdx.apply(bytecodes.get(i++)));
             case GETFUN -> new GetFun(makePoolIdx.apply(bytecodes.get(i++)));
             case CALL -> new Call(makePoolIdx.apply(bytecodes.get(i++)));
+            case CALLBUILTIN -> new CallBuiltin(makePoolIdx.apply(bytecodes.get(i++)));
             case DOMISSING -> new DoMissing();
             case PUSHNULLARG -> new PushNullArg();
             case PUSHTRUEARG -> new PushTrueArg();
             case PUSHFALSEARG -> new PushFalseArg();
             case PUSHCONSTARG -> new PushConstArg(makePoolIdx.apply(bytecodes.get(i++)));
+            case PUSHARG -> new PushArg();
+            case POP -> new Pop();
             case MAKEPROM -> new MakeProm(makePoolIdx.apply(bytecodes.get(i++)));
             case RETURN -> new Return();
-            case ADD -> new Add();
-            default -> throw new NotImplementedException();
+            case ADD -> new Add(makePoolIdx.apply(bytecodes.get(i++)));
+            case BASEGUARD -> new BaseGuard(makePoolIdx.apply(bytecodes.get(i++)), bytecodes.get(i++));
+            case GETBUILTIN -> new GetBuiltin(makePoolIdx.apply(bytecodes.get(i++)));
+            case BCMISMATCH -> throw new BcFromRawException("invalid opcode " + BcOp.BCMISMATCH.value());
+            default -> throw new NotImplementedException(op);
         };
         return new Pair<>(instr, i);
     }
@@ -92,6 +105,18 @@ public sealed interface BcInstr {
         }
     }
 
+    record GetVar(ConstPool.Idx idx) implements BcInstr {
+        @Override
+        public BcOp op() {
+            return BcOp.GETVAR;
+        }
+
+        @Override
+        public BcData.ConstantIdx data() {
+            return new BcData.ConstantIdx(idx);
+        }
+    }
+
     record GetFun(ConstPool.Idx idx) implements BcInstr {
         @Override
         public BcOp op() {
@@ -104,7 +129,7 @@ public sealed interface BcInstr {
         }
     }
 
-    record Call(ConstPool.Idx idx) implements BcInstr {
+    record Call(ConstPool.Idx call) implements BcInstr {
         @Override
         public BcOp op() {
             return BcOp.CALL;
@@ -112,7 +137,19 @@ public sealed interface BcInstr {
 
         @Override
         public BcData.ConstantIdx data() {
-            return new BcData.ConstantIdx(idx);
+            return new BcData.ConstantIdx(call);
+        }
+    }
+
+    record CallBuiltin(ConstPool.Idx call) implements BcInstr {
+        @Override
+        public BcOp op() {
+            return BcOp.CALLBUILTIN;
+        }
+
+        @Override
+        public BcData.ConstantIdx data() {
+            return new BcData.ConstantIdx(call);
         }
     }
 
@@ -176,6 +213,30 @@ public sealed interface BcInstr {
         }
     }
 
+    record PushArg() implements BcInstr {
+        @Override
+        public BcOp op() {
+            return BcOp.PUSHARG;
+        }
+
+        @Override
+        public BcData.None data() {
+            return new BcData.None();
+        }
+    }
+
+    record Pop() implements BcInstr {
+        @Override
+        public BcOp op() {
+            return BcOp.POP;
+        }
+
+        @Override
+        public BcData.None data() {
+            return new BcData.None();
+        }
+    }
+
     record MakeProm(ConstPool.Idx idx) implements BcInstr {
         @Override
         public BcOp op() {
@@ -200,15 +261,40 @@ public sealed interface BcInstr {
         }
     }
 
-    record Add() implements BcInstr {
+    record Add(ConstPool.Idx call) implements BcInstr {
         @Override
         public BcOp op() {
             return BcOp.ADD;
         }
 
         @Override
-        public BcData.None data() {
-            return new BcData.None();
+        public BcData.ConstantIdx data() {
+            return new BcData.ConstantIdx(call);
+        }
+    }
+
+    // TODO: Make label an enum
+    record BaseGuard(ConstPool.Idx expr, int label) implements BcInstr {
+        @Override
+        public BcOp op() {
+            return BcOp.BASEGUARD;
+        }
+
+        @Override
+        public BcData.BaseGuard data() {
+            return new BcData.BaseGuard(expr, label);
+        }
+    }
+
+    record GetBuiltin(ConstPool.Idx symbol) implements BcInstr {
+        @Override
+        public BcOp op() {
+            return BcOp.GETBUILTIN;
+        }
+
+        @Override
+        public BcData.ConstantIdx data() {
+            return new BcData.ConstantIdx(symbol);
         }
     }
 }

@@ -3,6 +3,7 @@ package org.prlprg.bc;
 import com.google.common.collect.ForwardingList;
 import com.google.common.collect.ImmutableList;
 import com.google.common.primitives.ImmutableIntArray;
+import com.google.errorprone.annotations.CanIgnoreReturnValue;
 
 import javax.annotation.concurrent.Immutable;
 import java.util.Collection;
@@ -35,11 +36,26 @@ public final class BcCode extends ForwardingList<BcInstr> {
         var builder = new Builder();
         int i = 0;
         while (i < bytecodes.length()) {
-            var instrAndI = BcInstr.fromRaw(bytecodes, i, makePoolIdx);
-            builder.add(instrAndI.a());
-            i = instrAndI.b();
+            try {
+                var instrAndI = BcInstr.fromRaw(bytecodes, i, makePoolIdx);
+                builder.add(instrAndI.a());
+                i = instrAndI.b();
+            } catch (BcFromRawException e) {
+                throw new BcFromRawException(
+                        "malformed bytecode at " + i + "\nBytecode up to this point: " + builder.build(),
+                        e);
+            }
         }
         return builder.build();
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder("=== CODE ===");
+        for (BcInstr instr : instrs) {
+            sb.append("\n").append(instr);
+        }
+        return sb.toString();
     }
 
     /**
@@ -59,6 +75,7 @@ public final class BcCode extends ForwardingList<BcInstr> {
         /**
          * Append an instruction.
          */
+        @CanIgnoreReturnValue
         public Builder add(BcInstr instr) {
             builder.add(instr);
             return this;
@@ -67,6 +84,7 @@ public final class BcCode extends ForwardingList<BcInstr> {
         /**
          * Append instructions.
          */
+        @CanIgnoreReturnValue
         public Builder addAll(Collection<? extends BcInstr> c) {
             builder.addAll(c);
             return this;

@@ -1,6 +1,6 @@
 package org.prlprg.sexp;
 
-public interface CloSXP extends SEXP {
+public sealed interface CloSXP extends SEXP {
     ListSXP formals();
 
     SEXP body();
@@ -21,11 +21,11 @@ public interface CloSXP extends SEXP {
 record CloSXPImpl(ListSXP formals, SEXP body, EnvSXP env, @Override Attributes attributes) implements CloSXP {
     @Override
     public String toString() {
-        return SEXPUtil.toString(this, env(), formals(), "\n  → ", body());
+        return SEXPs.toString(this, env(), formals(), "\n  → ", body());
     }
 
     @Override
     public CloSXP withAttributes(Attributes attributes) {
-        return SEXP.closure(formals, body, env, attributes);
+        return SEXPs.closure(formals, body, env, attributes);
     }
 }

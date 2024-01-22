@@ -137,7 +137,7 @@ public final class RegEnvSXP implements LocalEnvSXP {
 
     @Override
     public String toString() {
-        return SEXPUtil.toString(this, "isInitialized=" + isInitialized, "enclos=" + enclos,
+        return SEXPs.toString(this, "isInitialized=" + isInitialized, "enclos=" + enclos,
                 frame.isEmpty() ? "" : "\n  ; " + frame.sequencedEntrySet().stream().map(e -> e.getKey() + "=" + e.getValue()).collect(Collectors.joining("\n  , "))
         );
     }

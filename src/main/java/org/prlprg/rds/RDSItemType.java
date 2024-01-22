@@ -6,7 +6,7 @@ sealed interface RDSItemType {
     int i();
 
     default boolean isSexp(SEXPType type) {
-        return this instanceof Sexp s && s.sexp() == type;
+        return (this instanceof Sexp s && s.sexp() == type) || (this == Special.NILVALUE_SXP && type == SEXPType.NIL);
     }
 
     static RDSItemType valueOf(int i) {

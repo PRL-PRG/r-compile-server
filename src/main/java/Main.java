@@ -23,8 +23,7 @@ public class Main {
     }
 
     private void compile(InputStream input) throws IOException {
-        var reader = new RDSReader(IO.maybeDecompress(input));
-        compile(reader.read());
+        compile(RDSReader.readStream(IO.maybeDecompress(input)));
     }
 
     private void compile(SEXP sexp) {

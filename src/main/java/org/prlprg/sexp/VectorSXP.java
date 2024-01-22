@@ -2,14 +2,14 @@ package org.prlprg.sexp;
 
 import java.util.stream.BaseStream;
 
-public interface VectorSXP<T> extends ListOrVectorSXP<T> {
+public sealed interface VectorSXP<T> extends ListOrVectorSXP<T> permits ComplexSXP, ExprSXP, IntSXP, LglSXP, RealSXP, StrSXP, VecSXP, SimpleScalarSXPImpl, EmptyVectorSXPImpl {
     @Override Attributes attributes();
 
     @Override
     VectorSXP<T> withAttributes(Attributes attributes);
 }
 
-final class VectorSXPUtil {
+final class VectorSXPs {
     static final int VECTOR_TRUNCATE_SIZE = 100;
 
     static String toString(SEXP sexp, BaseStream<?, ?> data) {
@@ -25,9 +25,9 @@ final class VectorSXPUtil {
                 }
             }
         }
-        return SEXPUtil.toString(sexp, dataString);
+        return SEXPs.toString(sexp, dataString);
     }
 
-    private VectorSXPUtil() {
+    private VectorSXPs() {
     }
 }

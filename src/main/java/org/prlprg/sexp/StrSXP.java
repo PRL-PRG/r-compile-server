@@ -9,7 +9,7 @@ import org.prlprg.primitive.Constants;
 import javax.annotation.concurrent.Immutable;
 
 @Immutable
-public interface StrSXP extends VectorSXP<String> {
+public sealed interface StrSXP extends VectorSXP<String> {
     @Override
     default SEXPType type() {
         return SEXPType.STR;
@@ -39,12 +39,12 @@ record StrSXPImpl(ImmutableList<String> data, @Override Attributes attributes) i
 
     @Override
     public String toString() {
-        return VectorSXPUtil.toString(this, data.stream().map(StrSXPUtil::escapeString));
+        return VectorSXPs.toString(this, data.stream().map(StrSXPs::quoteString));
     }
 
     @Override
     public StrSXP withAttributes(Attributes attributes) {
-        return SEXP.string(data, attributes);
+        return SEXPs.string(data, attributes);
     }
 }
 
@@ -55,16 +55,28 @@ final class SimpleStrSXPImpl extends SimpleScalarSXPImpl<String> implements StrS
 
     @Override
     public String toString() {
-        return StrSXPUtil.escapeString(data);
+        return StrSXPs.quoteString(data);
     }
 
     @Override
     public StrSXP withAttributes(Attributes attributes) {
-        return SEXP.string(data, attributes);
+        return SEXPs.string(data, attributes);
     }
 }
 
-final class StrSXPUtil {
+final class EmptyStrSXPImpl extends EmptyVectorSXPImpl<String> implements StrSXP {
+    static final EmptyStrSXPImpl INSTANCE = new EmptyStrSXPImpl();
+
+    private EmptyStrSXPImpl() {
+    }
+
+    @Override
+    public StrSXP withAttributes(Attributes attributes) {
+        return SEXPs.string(ImmutableList.of(), attributes);
+    }
+}
+
+final class StrSXPs {
     private static final Escaper rEscaper = Escapers.builder()
             .addEscape('"', "\\\"")
             .addEscape('\\', "\\\\")
@@ -73,10 +85,10 @@ final class StrSXPUtil {
             .addEscape('\t', "\\t")
             .build();
 
-    static String escapeString(String s) {
-        return Constants.isNaString(s) ? "NA" : rEscaper.escape(s);
+    static String quoteString(String s) {
+        return Constants.isNaString(s) ? "NA" : "\"" + rEscaper.escape(s) + "\"";
     }
 
-    private StrSXPUtil() {
+    private StrSXPs() {
     }
 }

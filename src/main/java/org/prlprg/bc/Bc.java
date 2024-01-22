@@ -12,14 +12,23 @@ public record Bc(BcCode code, ConstPool consts) {
      * The only version of R bytecodes we support, which is also the latest version.
      * The bytecode's version is denoted by the first integer in its code.
      */
-    public static int R_BC_VERSION = 13;
+    public static int R_BC_VERSION = 12;
 
     /** Create from the raw GNU-R representation, bytecodes not including the initial version number. */
     public static Bc fromRaw(ImmutableIntArray bytecodes, List<SEXP> consts) throws BcFromRawException {
         var poolAndMakeIdx = ConstPool.fromRaw(consts);
         var pool = poolAndMakeIdx.a();
         var makePoolIdx = poolAndMakeIdx.b();
-        return new Bc(BcCode.fromRaw(bytecodes, makePoolIdx), pool);
+        try {
+            return new Bc(BcCode.fromRaw(bytecodes, makePoolIdx), pool);
+        } catch (BcFromRawException e) {
+            throw new BcFromRawException("malformed bytecode\nConstants: " + pool, e);
+        }
+    }
+
+    @Override
+    public String toString() {
+        return code() + "\n" + consts;
     }
 
     /** Equivalent to `CodeBuffer` in other projects */

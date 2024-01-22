@@ -104,6 +104,20 @@ public final class ConstPool extends ForwardingCollection<SEXP> {
         return new Pair<>(pool, (i) -> new Idx(pool, i));
     }
 
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder("=== CONSTS " + debugId() + " ===");
+        var idx = 0;
+        for (var c : this) {
+            sb.append("\n").append(idx++).append(": ").append(c);
+        }
+        return sb.toString();
+    }
+
+    private String debugId() {
+        return "@" + hashCode();
+    }
+
     /** A typed index into a bytecode pool.
      * <p>
      * It also contains a reference to the owner pool which is checked at runtime for extra safety.
@@ -143,7 +157,7 @@ public final class ConstPool extends ForwardingCollection<SEXP> {
 
         @Override
         public String toString() {
-            return "Idx(" + idx + " of " + pool + ")";
+            return "Idx(" + idx + " of " + pool.debugId() + ")";
         }
     }
 
@@ -158,7 +172,7 @@ public final class ConstPool extends ForwardingCollection<SEXP> {
 
         @Override
         public String toString() {
-            return "Idx(" + idx + " of " + pool + " type " + sexpClass.getSimpleName() + ")";
+            return "Idx(" + idx + " of " + pool.debugId() + " type " + sexpClass.getSimpleName() + ")";
         }
     }
 

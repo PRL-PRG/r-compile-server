@@ -2,11 +2,13 @@ package org.prlprg.rds;
 
 import com.google.common.collect.ImmutableList;
 import org.prlprg.bc.Bc;
+import org.prlprg.bc.BcFromRawException;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.*;
 import org.prlprg.util.NotImplementedException;
 
+import javax.annotation.Nullable;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
@@ -23,7 +25,7 @@ public class RDSReader implements Closeable {
     // FIXME: this should include the logic from platform.c
     private Charset nativeEncoding = Charset.defaultCharset();
 
-    public RDSReader(InputStream in) {
+    private RDSReader(InputStream in) {
         this.in = new RDSInputStream(in);
     }
 
@@ -33,7 +35,7 @@ public class RDSReader implements Closeable {
         }
     }
 
-    private void initialize() throws IOException {
+    private void readHeader() throws IOException {
         var type = in.readByte();
         if (type != 'X') {
             throw new RDSException("Unsupported type (possibly compressed)");
@@ -62,7 +64,7 @@ public class RDSReader implements Closeable {
     }
 
     public SEXP read() throws IOException {
-        initialize();
+        readHeader();
         var sexp = readItem();
         if (!in.isAtEnd()) {
             throw new RDSException("Expected end of file");
@@ -75,7 +77,7 @@ public class RDSReader implements Closeable {
 
         return switch (flags.getType()) {
             case RDSItemType.Sexp s -> switch (s.sexp()) {
-                case NIL -> SEXP.NULL;
+                case NIL -> SEXPs.NULL;
                 case SYM -> readSymbol();
                 case CLO -> readClosure(flags);
                 case LIST -> readList(flags);
@@ -91,11 +93,11 @@ public class RDSReader implements Closeable {
                 default -> throw new RDSException("Unsupported SEXP type: " + s.sexp());
             };
             case RDSItemType.Special s -> switch (s) {
-                case NILVALUE_SXP -> SEXP.NULL;
-                case MISSINGARG_SXP -> SEXP.MISSING_ARG;
-                case GLOBALENV_SXP -> SEXP.GLOBAL_ENV;
-                case BASEENV_SXP -> SEXP.BASE_ENV;
-                case EMPTYENV_SXP -> SEXP.EMPTY_ENV;
+                case NILVALUE_SXP -> SEXPs.NULL;
+                case MISSINGARG_SXP -> SEXPs.MISSING_ARG;
+                case GLOBALENV_SXP -> SEXPs.GLOBAL_ENV;
+                case BASEENV_SXP -> SEXPs.BASE_ENV;
+                case EMPTYENV_SXP -> SEXPs.EMPTY_ENV;
                 case REFSXP -> readRef(flags);
                 case BCREPDEF, BCREPREF -> throw new RDSException("Unexpected bytecode reference here (not in bytecode)");
                 case ATTRLANGSXP, ATTRLISTSXP -> throw new RDSException("Unexpected attr here");
@@ -111,7 +113,7 @@ public class RDSReader implements Closeable {
         for (int i = 0; i < length; i++) {
             sexps.add(readItem());
         }
-        return SEXP.expr(sexps);
+        return SEXPs.expr(sexps);
     }
 
     private BCodeSXP readByteCode() throws IOException {
@@ -132,7 +134,11 @@ public class RDSReader implements Closeable {
 
         var bytecode = code.subArray(1, code.size());
         var consts = readByteCodeConsts(reps);
-        return SEXP.bcode(Bc.fromRaw(bytecode, consts));
+        try {
+            return SEXPs.bcode(Bc.fromRaw(bytecode, consts));
+        } catch (BcFromRawException e) {
+            throw new RDSException("Error reading bytecode", e);
+        }
     }
 
     private List<SEXP> readByteCodeConsts(SEXP[] reps) throws IOException {
@@ -188,7 +194,7 @@ public class RDSReader implements Closeable {
 
         if (type.isSexp(SEXPType.LANG) || type == RDSItemType.Special.ATTRLANGSXP) {
             tagSexp = readItem();
-            if (tagSexp != SEXP.NULL) {
+            if (tagSexp != SEXPs.NULL) {
                 throw new RDSException("Expected NULL tag");
             }
 
@@ -202,7 +208,7 @@ public class RDSReader implements Closeable {
                 throw new RDSException("Expected list, got: " + args.type());
             }
 
-            ans = SEXP.lang(funSymOrLang, argsList, attributes);
+            ans = SEXPs.lang(funSymOrLang, argsList, attributes);
         } else if (type.isSexp(SEXPType.LIST) || type == RDSItemType.Special.ATTRLISTSXP) {
             tagSexp = readItem();
             String tag;
@@ -226,7 +232,7 @@ public class RDSReader implements Closeable {
             }
             ListSXP.flatten(tailList, data);
 
-            ans = SEXP.list(data.build(), attributes);
+            ans = SEXPs.list(data.build(), attributes);
         } else {
             throw new RDSException("Unexpected bclang type: " + type);
         }
@@ -258,7 +264,7 @@ public class RDSReader implements Closeable {
         if (!(readItem() instanceof ListSXP args)) {
             throw new RDSException("Expected list");
         }
-        return SEXP.lang(fun, args, attributes);
+        return SEXPs.lang(fun, args, attributes);
     }
 
     private String readChars() throws IOException {
@@ -283,7 +289,7 @@ public class RDSReader implements Closeable {
         }
 
         var attributes = readAttributes(flags);
-        return SEXP.string(strings.build(), attributes);
+        return SEXPs.string(strings.build(), attributes);
     }
 
     private LocalEnvSXP readEnv() throws IOException {
@@ -317,55 +323,55 @@ public class RDSReader implements Closeable {
             data.add(readItem());
         }
         var attributes = readAttributes(flags);
-        return SEXP.vec(data.build(), attributes);
+        return SEXPs.vec(data.build(), attributes);
     }
 
     private LglSXP readLogicals(Flags flags) throws IOException {
         var length = in.readInt();
         var data = in.readInts(length);
         var attributes = readAttributes(flags);
-        return SEXP.logical(Arrays.stream(data).mapToObj(Logical::valueOf).collect(ImmutableList.toImmutableList()), attributes);
+        return SEXPs.logical(Arrays.stream(data).mapToObj(Logical::valueOf).collect(ImmutableList.toImmutableList()), attributes);
     }
 
     private RealSXP readReals(Flags flags) throws IOException {
         var length = in.readInt();
         var data = in.readDoubles(length);
         var attributes = readAttributes(flags);
-        return SEXP.real(data, attributes);
+        return SEXPs.real(data, attributes);
     }
 
     private IntSXP readInts(Flags flags) throws IOException {
         var length = in.readInt();
         var data = in.readInts(length);
         var attributes = readAttributes(flags);
-        return SEXP.integer(data, attributes);
+        return SEXPs.integer(data, attributes);
     }
 
     private ListSXP readList(Flags flags) throws IOException {
         var data = ImmutableList.<TaggedElem>builder();
+        Attributes attributes = null;
 
         while (!flags.getType().isSexp(SEXPType.NIL)) {
-            var attributes = readAttributes(flags);
-
-            var tag = switch (readTag(flags)) {
-                case RegSymSXP s -> s.name();
-                case NilSXP ignored -> null;
-                default -> throw new RDSException("Expected regular symbol or nil");
-            };
-
-            var item = readItem();
-
-            // FIXME: Are the attributes really outside of the item?
-            if (attributes != Attributes.NONE) {
-                item = item.withAttributes(attributes);
+            if (!flags.getType().isSexp(SEXPType.LIST)) {
+                throw new RDSException("Expected list (reading in the middle or at the end of a list)");
+            }
+            if (attributes == null) {
+                attributes = readAttributes(flags);
+            } else {
+                var discard = readAttributes(flags);
+                if (!discard.isEmpty()) {
+                    throw new RDSException("Unexpected attributes in the middle of a list");
+                }
             }
 
+            var tag = readTag(flags);
+            var item = readItem();
             data.add(new TaggedElem(tag, item));
 
             flags = readFlags();
         }
 
-        return SEXP.list(data.build());
+        return SEXPs.list(data.build());
     }
 
     private CloSXP readClosure(Flags flags) throws IOException {
@@ -378,14 +384,18 @@ public class RDSReader implements Closeable {
         }
         var body = readItem();
 
-        return SEXP.closure(formals, body, env, attributes);
+        return SEXPs.closure(formals, body, env, attributes);
     }
 
-    private SEXP readTag(Flags flags) throws IOException {
+    private @Nullable String readTag(Flags flags) throws IOException {
         if (flags.hasTag()) {
-            return readItem();
+            if (readItem() instanceof RegSymSXP s) {
+                return s.name();
+            } else {
+                throw new RDSException("Expected tag to be a symbol");
+            }
         } else {
-            return SEXP.NULL;
+            return null;
         }
     }
 
@@ -418,7 +428,7 @@ public class RDSReader implements Closeable {
     private RegSymSXP readSymbol() throws IOException {
         var flags = readFlags();
         var s = readString(flags);
-        var item = SEXP.symbol(s);
+        var item = SEXPs.symbol(s);
 
         refTable.add(item);
 

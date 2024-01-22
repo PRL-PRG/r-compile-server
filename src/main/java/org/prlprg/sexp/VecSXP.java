@@ -3,9 +3,7 @@ package org.prlprg.sexp;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.UnmodifiableIterator;
 
-import java.util.Collection;
-
-public interface VecSXP extends VectorSXP<SEXP> {
+public sealed interface VecSXP extends VectorSXP<SEXP> {
     @Override
     default SEXPType type() {
         return SEXPType.VEC;
@@ -35,11 +33,11 @@ record VecSXPImpl(ImmutableList<SEXP> data, @Override Attributes attributes) imp
 
     @Override
     public String toString() {
-        return VectorSXPUtil.toString(this, data.stream());
+        return VectorSXPs.toString(this, data.stream());
     }
 
     @Override
     public VecSXP withAttributes(Attributes attributes) {
-        return SEXP.vec(data, attributes);
+        return SEXPs.vec(data, attributes);
     }
 }

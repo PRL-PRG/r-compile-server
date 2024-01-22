@@ -2,7 +2,7 @@ package org.prlprg.bc;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.prlprg.sexp.SEXP;
+import org.prlprg.sexp.SEXPs;
 
 import java.util.List;
 
@@ -14,9 +14,9 @@ public class BcTests {
     void createBcArray() {
         var bcBuilder = new Bc.Builder();
         bcBuilder.addAllInstrs(List.of(
-                new BcInstr.LdConst(bcBuilder.addConst(SEXP.integer(1))),
-                new BcInstr.LdConst(bcBuilder.addConst(SEXP.integer(2))),
-                new BcInstr.Add(),
+                new BcInstr.LdConst(bcBuilder.addConst(SEXPs.integer(1))),
+                new BcInstr.LdConst(bcBuilder.addConst(SEXPs.integer(2))),
+                new BcInstr.Add(bcBuilder.addConst(SEXPs.NULL)),
                 new BcInstr.Return()
         ));
         var bc = bcBuilder.build();
@@ -26,12 +26,15 @@ public class BcTests {
         assertEquals(BcOp.ADD, bc.code().get(2).op());
         assertEquals(BcOp.RETURN, bc.code().get(3).op());
         var consts = bc.consts().stream().toList();
-        assertEquals(2, consts.size());
-        assertEquals(SEXP.integer(1), consts.get(0));
-        assertEquals(SEXP.integer(2), consts.get(1));
+        assertEquals(3, consts.size());
+        assertEquals(SEXPs.integer(1), consts.get(0));
+        assertEquals(SEXPs.integer(2), consts.get(1));
+        assertEquals(SEXPs.NULL, consts.get(2));
         assertEquals(0, ((BcInstr.LdConst)bc.code().get(0)).data().idx().idx);
         assertEquals(bc.consts(), ((BcInstr.LdConst)bc.code().get(0)).data().idx().pool);
         assertEquals(1, ((BcInstr.LdConst)bc.code().get(1)).data().idx().idx);
         assertEquals(bc.consts(), ((BcInstr.LdConst)bc.code().get(1)).data().idx().pool);
+        assertEquals(2, ((BcInstr.Add)bc.code().get(2)).data().idx().idx);
+        assertEquals(bc.consts(), ((BcInstr.Add)bc.code().get(2)).data().idx().pool);
     }
 }

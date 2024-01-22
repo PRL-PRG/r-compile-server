@@ -7,7 +7,7 @@ import org.prlprg.primitive.Logical;
 import javax.annotation.concurrent.Immutable;
 
 @Immutable
-public interface LglSXP extends VectorSXP<Logical> {
+public sealed interface LglSXP extends VectorSXP<Logical> {
     @Override
     default SEXPType type() {
         return SEXPType.LGL;
@@ -20,10 +20,6 @@ public interface LglSXP extends VectorSXP<Logical> {
 }
 
 record LglSXPImpl(ImmutableList<Logical> data, @Override Attributes attributes) implements LglSXP {
-    public LglSXPImpl(Logical data) {
-        this(ImmutableList.of(data), Attributes.NONE);
-    }
-
     @Override
     public UnmodifiableIterator<Logical> iterator() {
         return data.iterator();
@@ -41,12 +37,12 @@ record LglSXPImpl(ImmutableList<Logical> data, @Override Attributes attributes) 
 
     @Override
     public String toString() {
-        return VectorSXPUtil.toString(this, data.stream());
+        return VectorSXPs.toString(this, data.stream());
     }
 
     @Override
     public LglSXP withAttributes(Attributes attributes) {
-        return SEXP.logical(data, attributes);
+        return SEXPs.logical(data, attributes);
     }
 }
 
@@ -62,6 +58,19 @@ final class SimpleLglSXPImpl extends SimpleScalarSXPImpl<Logical> implements Lgl
 
     @Override
     public LglSXP withAttributes(Attributes attributes) {
-        return SEXP.logical(data, attributes);
+        return SEXPs.logical(data, attributes);
+    }
+}
+
+final class EmptyLglSXPImpl extends EmptyVectorSXPImpl<Logical> implements LglSXP {
+    static final EmptyLglSXPImpl INSTANCE = new EmptyLglSXPImpl();
+
+    private EmptyLglSXPImpl() {
+        super();
+    }
+
+    @Override
+    public LglSXP withAttributes(Attributes attributes) {
+        return SEXPs.logical(ImmutableList.of(), attributes);
     }
 }

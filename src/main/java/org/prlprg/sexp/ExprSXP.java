@@ -10,7 +10,7 @@ import javax.annotation.concurrent.Immutable;
  * @apiNote Immutable because we assume it can't contain environments or any other mutable SEXPs.
  */
 @Immutable
-public interface ExprSXP extends VectorSXP<SEXP> {
+public sealed interface ExprSXP extends VectorSXP<SEXP> {
     @Override
     default SEXPType type() {
         return SEXPType.EXPR;
@@ -39,11 +39,11 @@ record ExprSXPImpl(ImmutableList<SEXP> data, @Override Attributes attributes) im
 
     @Override
     public String toString() {
-        return VectorSXPUtil.toString(this, data().stream());
+        return VectorSXPs.toString(this, data().stream());
     }
 
     @Override
     public ExprSXP withAttributes(Attributes attributes) {
-        return SEXP.expr(data, attributes);
+        return SEXPs.expr(data, attributes);
     }
 }

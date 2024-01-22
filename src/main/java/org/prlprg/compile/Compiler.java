@@ -17,7 +17,7 @@ public class Compiler {
         var body = source.body();
 
         // FIXME: this is wrong -- need a special cmpFun to include the formals and others. EMPTY_ENV is also wrong
-        return compile(body, SEXP.EMPTY_ENV);
+        return compile(body, SEXPs.EMPTY_ENV);
     }
 
     public static Bc compile(SEXP expr, EnvSXP env) {
@@ -51,8 +51,8 @@ public class Compiler {
 
         switch (expr) {
             case NilSXP x -> cb.addInstr(new BcInstr.LdNull());
-            case LglSXP x when x == SEXP.TRUE -> cb.addInstr(new BcInstr.LdTrue());
-            case LglSXP x when x == SEXP.FALSE -> cb.addInstr(new BcInstr.LdFalse());
+            case LglSXP x when x == SEXPs.TRUE -> cb.addInstr(new BcInstr.LdTrue());
+            case LglSXP x when x == SEXPs.FALSE -> cb.addInstr(new BcInstr.LdFalse());
             default -> cb.addInstr(new BcInstr.LdConst(cb.addConst(expr)));
         }
 
@@ -86,8 +86,8 @@ public class Compiler {
             var val = arg.value();
 
             switch (val) {
-                case SymSXP x when x == SEXP.ELLIPSIS -> throw new NotImplementedException();
-                case SymSXP x when x == SEXP.MISSING_ARG -> {
+                case SymSXP x when x == SEXPs.ELLIPSIS -> throw new NotImplementedException();
+                case SymSXP x when x == SEXPs.MISSING_ARG -> {
                     cb.addInstr(new BcInstr.DoMissing());
                     compileTag(tag, ctx);
                 }
@@ -110,15 +110,15 @@ public class Compiler {
     private void compileConstArg(SEXP arg) {
         switch (arg) {
             case NilSXP ignored -> cb.addInstr(new BcInstr.PushNullArg());
-            case LglSXP x when x == SEXP.TRUE -> cb.addInstr(new BcInstr.PushTrueArg());
-            case LglSXP x when x == SEXP.FALSE -> cb.addInstr(new BcInstr.PushFalseArg());
+            case LglSXP x when x == SEXPs.TRUE -> cb.addInstr(new BcInstr.PushTrueArg());
+            case LglSXP x when x == SEXPs.FALSE -> cb.addInstr(new BcInstr.PushFalseArg());
             default -> cb.addInstr(new BcInstr.PushConstArg(cb.addConst(arg)));
         }
     }
 
     private void compileNormArg(SEXP arg, boolean nse, Context ctx) {
         cb.addInstr(new BcInstr.MakeProm(cb.addConst(
-                nse ? arg : SEXP.bcode(Compiler.compile(arg, makePromiseContext(ctx)))
+                nse ? arg : SEXPs.bcode(Compiler.compile(arg, makePromiseContext(ctx)))
         )));
     }
 

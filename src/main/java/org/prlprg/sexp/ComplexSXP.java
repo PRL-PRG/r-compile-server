@@ -7,7 +7,7 @@ import org.prlprg.primitive.Complex;
 import javax.annotation.concurrent.Immutable;
 
 @Immutable
-public interface ComplexSXP extends VectorSXP<Complex> {
+public sealed interface ComplexSXP extends VectorSXP<Complex> {
     @Override
     default SEXPType type() {
         return SEXPType.CPLX;
@@ -37,7 +37,7 @@ record ComplexSXPImpl(ImmutableList<Complex> data, @Override Attributes attribut
 
     @Override
     public String toString() {
-        return VectorSXPUtil.toString(this, data().stream());
+        return VectorSXPs.toString(this, data().stream());
     }
 
     @Override
@@ -53,6 +53,19 @@ final class SimpleComplexSXPImpl extends SimpleScalarSXPImpl<Complex> implements
 
     @Override
     public ComplexSXP withAttributes(Attributes attributes) {
-        return SEXP.complex(data, attributes);
+        return SEXPs.complex(data, attributes);
+    }
+}
+
+final class EmptyComplexSXPImpl extends EmptyVectorSXPImpl<Complex> implements ComplexSXP {
+    static final EmptyComplexSXPImpl INSTANCE = new EmptyComplexSXPImpl();
+
+    private EmptyComplexSXPImpl() {
+        super();
+    }
+
+    @Override
+    public ComplexSXP withAttributes(Attributes attributes) {
+        return SEXPs.complex(ImmutableList.of(), attributes);
     }
 }

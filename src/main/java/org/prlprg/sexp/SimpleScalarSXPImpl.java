@@ -1,5 +1,6 @@
 package org.prlprg.sexp;
 
+import com.google.common.base.Objects;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.UnmodifiableIterator;
 
@@ -7,7 +8,7 @@ import javax.annotation.concurrent.Immutable;
 
 /** Class for representing a scalar SEXP of a primitive type with no attributes. */
 @Immutable
-abstract class SimpleScalarSXPImpl<T> implements VectorSXP<T> {
+abstract non-sealed class SimpleScalarSXPImpl<T> implements VectorSXP<T> {
     final T data;
 
     protected SimpleScalarSXPImpl(T data) {
@@ -40,5 +41,17 @@ abstract class SimpleScalarSXPImpl<T> implements VectorSXP<T> {
     @Override
     public Attributes attributes() {
         return Attributes.NONE;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof SimpleScalarSXPImpl<?> that)) return false;
+        return Objects.equal(data, that.data);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hashCode(data);
     }
 }

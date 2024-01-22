@@ -1,9 +1,11 @@
 package org.prlprg.sexp;
 
+import org.prlprg.primitive.Names;
+
 import javax.annotation.concurrent.Immutable;
 
 @Immutable
-public non-sealed interface LangSXP extends SymOrLangSXP {
+public sealed interface LangSXP extends SymOrLangSXP {
     SymOrLangSXP fun();
 
     ListSXP args();
@@ -21,14 +23,23 @@ public non-sealed interface LangSXP extends SymOrLangSXP {
 record LangSXPImpl(SymOrLangSXP fun, ListSXP args, @Override Attributes attributes) implements LangSXP {
     @Override
     public String toString() {
-        // TODO: Special print `{`, `if`, `while`, `for`, ...
-        var default_ = "" + fun() + args();
-        return attributes().isEmpty() ? default_ :
-                SEXPUtil.toString(this, default_, attributes());
+        return attributes().isEmpty() ? deparse() :
+                SEXPs.toString(this, deparse(), attributes());
+    }
+
+    // TODO: Special print `{`, `if`, `while`, `for`, ...
+    private String deparse() {
+        if (fun instanceof RegSymSXP funSym) {
+            var funName = funSym.name();
+            if (Names.BINOPS.contains(funName) && args.size() == 2) {
+                return args.get(0) + " " + funName + " " + args.get(1);
+            }
+        }
+        return "" + fun() + args();
     }
 
     @Override
     public LangSXP withAttributes(Attributes attributes) {
-        return SEXP.lang(fun, args, attributes);
+        return SEXPs.lang(fun, args, attributes);
     }
 }

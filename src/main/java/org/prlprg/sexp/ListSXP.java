@@ -5,7 +5,7 @@ import com.google.common.collect.ImmutableList;
 import java.util.Iterator;
 import java.util.stream.Collectors;
 
-public interface ListSXP extends ListOrVectorSXP<TaggedElem> {
+public sealed interface ListSXP extends ListOrVectorSXP<TaggedElem> permits NilSXP, ListSXPImpl {
     static void flatten(ListSXP src, ImmutableList.Builder<TaggedElem> target) {
         for (var i : src) {
             if (i.value() instanceof ListSXP lst) {
