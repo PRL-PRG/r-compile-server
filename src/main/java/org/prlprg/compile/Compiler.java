@@ -41,7 +41,9 @@ public class Compiler {
     }
 
     private void compileSym(SymSXP e, Context ctx) {
-        throw new NotImplementedException();
+        if (e == SEXPs.ELLIPSIS) {
+            cb.addInstr(new BcInstr.DotsErr());
+        }
     }
 
     private void compileConst(SEXP expr, Context ctx) {

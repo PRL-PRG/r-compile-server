@@ -39,7 +39,7 @@ public record Bc(BcCode code, ConstPool consts) {
         /**
          * Append a constant and return its index.
          */
-        public ConstPool.Idx addConst(SEXP c) {
+        public <S extends SEXP> ConstPool.TypedIdx<S> addConst(S c) {
             return consts.add(c);
         }
 
@@ -53,7 +53,7 @@ public record Bc(BcCode code, ConstPool consts) {
         /**
          * Append a collection of constants and return its index.
          */
-        public ImmutableList<ConstPool.Idx> addAllConsts(Collection<? extends SEXP> c) {
+        public <S extends SEXP> ImmutableList<ConstPool.TypedIdx<S>> addAllConsts(Collection<? extends S> c) {
             return consts.addAll(c);
         }
 

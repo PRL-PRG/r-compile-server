@@ -8,7 +8,6 @@ import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import javax.annotation.concurrent.Immutable;
 import java.util.Collection;
 import java.util.List;
-import java.util.function.Function;
 
 /**
  * An array of bytecode instructions, which make up the code of a closure or promise.
@@ -31,13 +30,13 @@ public final class BcCode extends ForwardingList<BcInstr> {
      *
      * @param makePoolIdx A function to create pool indices from raw integers
      */
-    static BcCode fromRaw(ImmutableIntArray bytecodes, Function<Integer, ConstPool.Idx> makePoolIdx)
+    static BcCode fromRaw(ImmutableIntArray bytecodes, ConstPool.MakeIdx makePoolIdx)
             throws BcFromRawException {
         var builder = new Builder();
         int i = 0;
         while (i < bytecodes.length()) {
             try {
-                var instrAndI = BcInstr.fromRaw(bytecodes, i, makePoolIdx);
+                var instrAndI = BcInstrs.fromRaw(bytecodes, i, makePoolIdx);
                 builder.add(instrAndI.a());
                 i = instrAndI.b();
             } catch (BcFromRawException e) {
