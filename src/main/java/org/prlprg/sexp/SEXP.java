@@ -1,18 +1,6 @@
 package org.prlprg.sexp;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.primitives.ImmutableDoubleArray;
-import com.google.common.primitives.ImmutableIntArray;
-import org.prlprg.bc.Bc;
-import org.prlprg.primitive.Complex;
-import org.prlprg.primitive.Constants;
-import org.prlprg.primitive.Logical;
-
 import javax.annotation.Nullable;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public sealed interface SEXP permits StrOrRegSymSXP, SymOrLangSXP, ListOrVectorSXP, CloSXP, EnvSXP, BCodeSXP {
     SEXPType type();

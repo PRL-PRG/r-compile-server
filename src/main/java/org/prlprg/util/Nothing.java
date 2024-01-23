@@ -5,7 +5,7 @@ package org.prlprg.util;
  * Useful in generics and other compound types, e.g. `@Nullable Nothing` is only `null`, and a function which returns
  * `Nothing` is guaranteed not to return
  */
-public class Nothing {
+public final class Nothing {
     private Nothing() {
         throw new UnsupportedOperationException("Nothing can't be constructed");
     }

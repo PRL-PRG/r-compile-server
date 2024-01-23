@@ -1,5 +1,6 @@
 package org.prlprg.compile;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.prlprg.bc.Bc;
 import org.prlprg.bc.BcInstr;
 import org.prlprg.sexp.*;
@@ -63,13 +64,17 @@ public class Compiler {
         }
     }
 
+    @SuppressFBWarnings(
+            value = "DLS_DEAD_LOCAL_STORE",
+            justification = "False positive, probably because of ignored switch case"
+    )
     private void compileConst(SEXP expr, Context ctx) {
         if (expr.type() == SEXPType.PROM || expr.type() == SEXPType.BCODE) {
             throw new CompilerException("Unexpected type: " + expr.type());
         }
 
         switch (expr) {
-            case NilSXP x -> cb.addInstr(new BcInstr.LdNull());
+            case NilSXP ignored -> cb.addInstr(new BcInstr.LdNull());
             case LglSXP x when x == SEXPs.TRUE -> cb.addInstr(new BcInstr.LdTrue());
             case LglSXP x when x == SEXPs.FALSE -> cb.addInstr(new BcInstr.LdFalse());
             default -> cb.addInstr(new BcInstr.LdConst(cb.addConst(expr)));
@@ -104,6 +109,10 @@ public class Compiler {
         checkTailCall(ctx);
     }
 
+    @SuppressFBWarnings(
+            value = "DLS_DEAD_LOCAL_STORE",
+            justification = "False positive, probably because of ignored switch case"
+    )
     private void compileArgs(ListSXP args, boolean nse, Context ctx) {
         for (var arg : args) {
             var tag = arg.tag();
@@ -137,10 +146,14 @@ public class Compiler {
 
     private void compileNormArg(SEXP arg, boolean nse, Context ctx) {
         cb.addInstr(new BcInstr.MakeProm(cb.addConst(
-                nse ? arg : SEXPs.bcode(Compiler.compile(arg, makePromiseContext(ctx)))
+                nse ? arg : SEXPs.bcode(compile(arg, makePromiseContext(ctx)))
         )));
     }
 
+    @SuppressFBWarnings(
+            value = "DLS_DEAD_LOCAL_STORE",
+            justification = "False positive, probably because of ignored switch case"
+    )
     private void compileConstArg(SEXP arg) {
         switch (arg) {
             case NilSXP ignored -> cb.addInstr(new BcInstr.PushNullArg());

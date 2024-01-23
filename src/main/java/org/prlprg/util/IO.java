@@ -17,7 +17,7 @@ public final class IO {
             return pb;
         }
 
-        int magick = ((buff[1] & 0xFF) << 8) | buff[0];
+        int magick = (buff[0] & 0xFF) | ((buff[1] & 0xFF) << 8);
 
         if (magick == GZIPInputStream.GZIP_MAGIC) {
             return new GZIPInputStream(pb);

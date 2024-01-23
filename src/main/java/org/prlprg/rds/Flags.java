@@ -1,9 +1,9 @@
 package org.prlprg.rds;
 
-class Flags {
-    private static final int UTF8_MASK = (1 << 3);
-    private static final int ATTR_MASK = (1 << 9);
-    private static final int TAG_MASK = (1 << 10);
+final class Flags {
+    private static final int UTF8_MASK = 1 << 3;
+    private static final int ATTR_MASK = 1 << 9;
+    private static final int TAG_MASK = 1 << 10;
 
     private final int flags;
 

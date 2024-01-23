@@ -3,6 +3,7 @@ package org.prlprg.bc;
 import com.google.common.base.Objects;
 import com.google.common.collect.ForwardingCollection;
 import com.google.common.collect.ImmutableList;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.prlprg.sexp.*;
 import org.prlprg.util.Either;
 import org.prlprg.util.Pair;
@@ -15,6 +16,11 @@ import java.util.*;
  * A pool (array) of constants. Underneath this is an immutable list, but the elements are only accessible with typed
  * integers.
  */
+@SuppressFBWarnings(
+        value = "JCIP_FIELD_ISNT_FINAL_IN_IMMUTABLE_CLASS",
+        justification = "The class isn't technically immutable but is after we use the thread-unsafe builder, " +
+                "so practically we treat it as immutable"
+)
 @Immutable
 public final class ConstPool extends ForwardingCollection<SEXP> {
     @Nullable
@@ -167,6 +173,10 @@ public final class ConstPool extends ForwardingCollection<SEXP> {
         }
     }
 
+    @SuppressFBWarnings(
+            value = "EQ_DOESNT_OVERRIDE_EQUALS",
+            justification = "Idx and TypedIdx only compare `pool` and `index`, we want different types to be equal"
+    )
     public static final class TypedIdx<S extends SEXP> extends Idx {
         private final Class<S> sexpInterface;
 
