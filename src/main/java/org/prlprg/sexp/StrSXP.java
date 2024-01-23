@@ -9,10 +9,15 @@ import org.prlprg.primitive.Constants;
 import javax.annotation.concurrent.Immutable;
 
 @Immutable
-public sealed interface StrSXP extends VectorSXP<String> {
+public sealed interface StrSXP extends VectorSXP<String>, StrOrRegSymSXP {
     @Override
     default SEXPType type() {
         return SEXPType.STR;
+    }
+
+    @Override
+    default String reifyString() {
+        return isEmpty() ? "" : get(0);
     }
 
     @Override Attributes attributes();

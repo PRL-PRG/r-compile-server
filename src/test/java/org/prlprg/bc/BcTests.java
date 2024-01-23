@@ -14,6 +14,9 @@ public class BcTests {
     void createBcArray() {
         var bcBuilder = new Bc.Builder();
         var ast = SEXPs.lang(SEXPs.symbol("+"), SEXPs.list(SEXPs.integer(1), SEXPs.integer(2)));
+        // It doesn't make sense to implement SEXP#clone because you'd just reuse the SEXP since they are immutable.
+        // Only SEXP.withXYZ(...) methods.
+        var astClone = SEXPs.lang(SEXPs.symbol("+"), SEXPs.list(SEXPs.integer(1), SEXPs.integer(2)));
         bcBuilder.addAllInstrs(List.of(
                 new BcInstr.LdConst(bcBuilder.addConst(SEXPs.integer(1))),
                 new BcInstr.LdConst(bcBuilder.addConst(SEXPs.integer(2))),
@@ -30,7 +33,7 @@ public class BcTests {
         assertEquals(3, consts.size());
         assertEquals(SEXPs.integer(1), consts.get(0));
         assertEquals(SEXPs.integer(2), consts.get(1));
-        assertEquals(SEXPs.NULL, consts.get(2));
+        assertEquals(astClone, consts.get(2));
         assertEquals(0, ((BcInstr.LdConst)bc.code().get(0)).constant().idx);
         assertEquals(bc.consts(), ((BcInstr.LdConst)bc.code().get(0)).constant().pool);
         assertEquals(1, ((BcInstr.LdConst)bc.code().get(1)).constant().idx);

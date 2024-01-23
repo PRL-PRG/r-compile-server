@@ -14,7 +14,7 @@ import java.util.Collection;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public sealed interface SEXP permits SymOrLangSXP, ListOrVectorSXP, CloSXP, EnvSXP, BCodeSXP {
+public sealed interface SEXP permits StrOrRegSymSXP, SymOrLangSXP, ListOrVectorSXP, CloSXP, EnvSXP, BCodeSXP {
     SEXPType type();
 
     /** @return {@code null} if the SEXP doesn't support attributes ({@link #withAttributes} throws an exception)

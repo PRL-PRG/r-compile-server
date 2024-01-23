@@ -3,7 +3,6 @@ package org.prlprg.compile;
 import org.prlprg.bc.Bc;
 import org.prlprg.bc.BcInstr;
 import org.prlprg.sexp.*;
-import org.prlprg.util.NotImplementedException;
 
 import javax.annotation.Nullable;
 import java.util.*;
@@ -35,14 +34,32 @@ public class Compiler {
         // TODO: check we do not attempt to compile BCSXP or PROMSXP
         switch (expr) {
             case LangSXP e -> compileCall(e, ctx);
-            case SymSXP e -> compileSym(e, ctx);
+            case SpecialSymSXP e -> throw new CompilerException("unhandled special symbol: " + e);
+            case RegSymSXP e -> compileRegSym(e, ctx);
             default -> compileConst(expr, ctx);
         }
     }
 
-    private void compileSym(SymSXP e, Context ctx) {
-        if (e == SEXPs.ELLIPSIS) {
+    private void compileRegSym(RegSymSXP e, Context ctx) {
+        compileRegSym(e, ctx, false);
+    }
+
+    private void compileRegSym(RegSymSXP e, Context ctx, boolean missingOk) {
+        if (e.isEllipsis()) {
+            // notifyWrongDotsUse
             cb.addInstr(new BcInstr.DotsErr());
+        } else if (e.isDdSym()) {
+            // if (!findLocVar("...", ctx))
+            //     notifyWrongDotsUse
+            var idx = cb.addConst(e);
+            cb.addInstr(missingOk ? new BcInstr.DdValMissOk(idx) : new BcInstr.DdVal(idx));
+            checkTailCall(ctx);
+        } else {
+            // if (!findVar(sym, ctx))
+            //     notifyUndefVar
+            var idx = cb.addConst(e);
+            cb.addInstr(missingOk ? new BcInstr.GetVarMissOk(idx) : new BcInstr.GetVar(idx));
+            checkTailCall(ctx);
         }
     }
 
@@ -66,12 +83,8 @@ public class Compiler {
         switch (call.fun()) {
             case RegSymSXP fun -> compileCallSymFun(fun, args, call, ctx);
             case SpecialSymSXP fun -> throw new IllegalStateException("Trying to call special symbol: " + fun);
-            case LangSXP fun -> compileCallExprFun(fun, args, ctx);
+            case LangSXP fun -> compileCallExprFun(fun, args, call, ctx);
         }
-    }
-
-    private void compileCallExprFun(LangSXP fun, ListSXP args, Context ctx) {
-        throw new NotImplementedException();
     }
 
     private void compileCallSymFun(RegSymSXP fun, ListSXP args, LangSXP call, Context ctx) {
@@ -82,31 +95,50 @@ public class Compiler {
         checkTailCall(ctx);
     }
 
+    private void compileCallExprFun(LangSXP fun, ListSXP args, LangSXP call, Context ctx) {
+        var ncntxt = ctx.makeNonTailContext();
+        compileExpr(fun, ncntxt);
+        cb.addInstr(new BcInstr.CheckFun());
+        compileArgs(args, false, ctx);
+        cb.addInstr(new BcInstr.Call(cb.addConst(call)));
+        checkTailCall(ctx);
+    }
+
     private void compileArgs(ListSXP args, boolean nse, Context ctx) {
         for (var arg : args) {
             var tag = arg.tag();
             var val = arg.value();
 
             switch (val) {
-                case SymSXP x when x == SEXPs.ELLIPSIS -> throw new NotImplementedException();
-                case SymSXP x when x == SEXPs.MISSING_ARG -> {
+                case SymSXP x when x.isMissing() -> {
                     cb.addInstr(new BcInstr.DoMissing());
-                    compileTag(tag, ctx);
+                    compileTag(tag);
                 }
+                case SymSXP x when x.isEllipsis() ->
+                    // if (!findLocVar("...", ctx))
+                    //     notifyWrongDotsUse
+                    cb.addInstr(new BcInstr.DoDots());
                 case SymSXP x -> {
                     compileNormArg(x, nse, ctx);
-                    compileTag(tag, ctx);
+                    compileTag(tag);
                 }
                 case LangSXP x -> {
                     compileNormArg(x, nse, ctx);
-                    compileTag(tag, ctx);
+                    compileTag(tag);
                 }
+                case BCodeSXP ignored -> throw new CompilerException("can't compile byte code literals in code");
                 default -> {
                     compileConstArg(val);
-                    compileTag(tag, ctx);
+                    compileTag(tag);
                 }
             }
         }
+    }
+
+    private void compileNormArg(SEXP arg, boolean nse, Context ctx) {
+        cb.addInstr(new BcInstr.MakeProm(cb.addConst(
+                nse ? arg : SEXPs.bcode(Compiler.compile(arg, makePromiseContext(ctx)))
+        )));
     }
 
     private void compileConstArg(SEXP arg) {
@@ -116,12 +148,6 @@ public class Compiler {
             case LglSXP x when x == SEXPs.FALSE -> cb.addInstr(new BcInstr.PushFalseArg());
             default -> cb.addInstr(new BcInstr.PushConstArg(cb.addConst(arg)));
         }
-    }
-
-    private void compileNormArg(SEXP arg, boolean nse, Context ctx) {
-        cb.addInstr(new BcInstr.MakeProm(cb.addConst(
-                nse ? arg : SEXPs.bcode(Compiler.compile(arg, makePromiseContext(ctx)))
-        )));
     }
 
     private Context makePromiseContext(Context ctx) {
@@ -134,8 +160,10 @@ public class Compiler {
         return new Context(false, true, ctx.cenv());
     }
 
-    private void compileTag(@Nullable String tag, Context ctx) {
-        throw new NotImplementedException();
+    private void compileTag(@Nullable String tag) {
+        if (tag != null && !tag.isEmpty()) {
+            cb.addInstr(new BcInstr.SetTag(cb.addConst(SEXPs.string(tag))));
+        }
     }
 
     private void checkTailCall(Context ctx) {

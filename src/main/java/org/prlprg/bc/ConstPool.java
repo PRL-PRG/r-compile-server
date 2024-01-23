@@ -172,8 +172,8 @@ public final class ConstPool extends ForwardingCollection<SEXP> {
 
         private TypedIdx(ConstPool pool, int idx, Class<S> sexpInterface) {
             super(pool, idx);
-            if (!sexpInterface.isInterface() || !SEXP.class.isAssignableFrom(sexpInterface)) {
-                throw new IllegalArgumentException("sexpInterface must be an interface which inherits SEXP");
+            if (!SEXP.class.isAssignableFrom(sexpInterface)) {
+                throw new IllegalArgumentException("sexpInterface must be inherit SEXP: " + sexpInterface);
             }
             this.sexpInterface = sexpInterface;
         }
@@ -200,12 +200,12 @@ public final class ConstPool extends ForwardingCollection<SEXP> {
             return of(i, LangSXP.class);
         }
 
-        TypedIdx<SymSXP> sym(int i) {
-            return of(i, SymSXP.class);
+        TypedIdx<RegSymSXP> sym(int i) {
+            return of(i, RegSymSXP.class);
         }
 
-        @Nullable TypedIdx<SymSXP> symOrNil(int i) {
-            return tryOf(i, SymSXP.class);
+        @Nullable TypedIdx<RegSymSXP> symOrNil(int i) {
+            return tryOf(i, RegSymSXP.class);
         }
 
         @Nullable TypedIdx<LangSXP> langOrNegative(int i) {
@@ -216,12 +216,24 @@ public final class ConstPool extends ForwardingCollection<SEXP> {
             return tryOf(i, IntSXP.class);
         }
 
+        @Nullable TypedIdx<StrOrRegSymSXP> strOrSymOrNil(int i) {
+            var asStrOrSymbol = tryOf(i, StrOrRegSymSXP.class);
+            if (asStrOrSymbol != null) {
+                return asStrOrSymbol;
+            }
+            var asNil = tryOf(i, NilSXP.class);
+            if (asNil != null) {
+                return null;
+            } else {
+                throw new IllegalArgumentException("Expected StrSXP, SymSXP or NilSXP, got " + pool.get(new Idx(pool, i)));
+            }
+        }
+
         @Nullable Either<TypedIdx<StrSXP>, TypedIdx<NilSXP>> strOrNilOrOther(int i) {
             var asSymbol = tryOf(i, StrSXP.class);
             if (asSymbol != null) {
                 return Either.left(asSymbol);
             }
-
             var asNil = tryOf(i, NilSXP.class);
             if (asNil != null) {
                 return Either.right(asNil);

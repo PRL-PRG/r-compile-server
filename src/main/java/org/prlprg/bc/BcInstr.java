@@ -87,7 +87,7 @@ public sealed interface BcInstr {
         }
     }
 
-    record StartFor(ConstPool.TypedIdx<LangSXP> ast, ConstPool.TypedIdx<SymSXP> elemName, BcLabel end) implements BcInstr {
+    record StartFor(ConstPool.TypedIdx<LangSXP> ast, ConstPool.TypedIdx<RegSymSXP> elemName, BcLabel end) implements BcInstr {
         @Override
         public BcOp op() {
             return BcOp.STARTFOR;
@@ -150,56 +150,56 @@ public sealed interface BcInstr {
         }
     }
 
-    record GetVar(ConstPool.TypedIdx<SymSXP> name) implements BcInstr {
+    record GetVar(ConstPool.TypedIdx<RegSymSXP> name) implements BcInstr {
         @Override
         public BcOp op() {
             return BcOp.GETVAR;
         }
     }
 
-    record DdVal(ConstPool.TypedIdx<SymSXP> name) implements BcInstr {
+    record DdVal(ConstPool.TypedIdx<RegSymSXP> name) implements BcInstr {
         @Override
         public BcOp op() {
             return BcOp.DDVAL;
         }
     }
 
-    record SetVar(ConstPool.TypedIdx<SymSXP> name) implements BcInstr {
+    record SetVar(ConstPool.TypedIdx<RegSymSXP> name) implements BcInstr {
         @Override
         public BcOp op() {
             return BcOp.SETVAR;
         }
     }
 
-    record GetFun(ConstPool.TypedIdx<SymSXP> name) implements BcInstr {
+    record GetFun(ConstPool.TypedIdx<RegSymSXP> name) implements BcInstr {
         @Override
         public BcOp op() {
             return BcOp.GETFUN;
         }
     }
 
-    record GetGlobFun(ConstPool.TypedIdx<SymSXP> name) implements BcInstr {
+    record GetGlobFun(ConstPool.TypedIdx<RegSymSXP> name) implements BcInstr {
         @Override
         public BcOp op() {
             return BcOp.GETGLOBFUN;
         }
     }
 
-    record GetSymFun(ConstPool.TypedIdx<SymSXP> name) implements BcInstr {
+    record GetSymFun(ConstPool.TypedIdx<RegSymSXP> name) implements BcInstr {
         @Override
         public BcOp op() {
             return BcOp.GETSYMFUN;
         }
     }
 
-    record GetBuiltin(ConstPool.TypedIdx<SymSXP> name) implements BcInstr {
+    record GetBuiltin(ConstPool.TypedIdx<RegSymSXP> name) implements BcInstr {
         @Override
         public BcOp op() {
             return BcOp.GETBUILTIN;
         }
     }
 
-    record GetIntlBuiltin(ConstPool.TypedIdx<SymSXP> name) implements BcInstr {
+    record GetIntlBuiltin(ConstPool.TypedIdx<RegSymSXP> name) implements BcInstr {
         @Override
         public BcOp op() {
             return BcOp.GETINTLBUILTIN;
@@ -228,7 +228,7 @@ public sealed interface BcInstr {
         }
     }
 
-    record SetTag(@Nullable ConstPool.TypedIdx<SymSXP> tag) implements BcInstr {
+    record SetTag(@Nullable ConstPool.TypedIdx<StrOrRegSymSXP> tag) implements BcInstr {
         @Override
         public BcOp op() {
             return BcOp.SETTAG;
@@ -451,14 +451,14 @@ public sealed interface BcInstr {
         }
     }
 
-    record StartAssign(ConstPool.TypedIdx<SymSXP> name) implements BcInstr {
+    record StartAssign(ConstPool.TypedIdx<RegSymSXP> name) implements BcInstr {
         @Override
         public BcOp op() {
             return BcOp.STARTASSIGN;
         }
     }
 
-    record EndAssign(ConstPool.TypedIdx<SymSXP> name) implements BcInstr {
+    record EndAssign(ConstPool.TypedIdx<RegSymSXP> name) implements BcInstr {
         @Override
         public BcOp op() {
             return BcOp.ENDASSIGN;
@@ -535,14 +535,14 @@ public sealed interface BcInstr {
         }
     }
 
-    record Dollar(ConstPool.TypedIdx<LangSXP> ast, ConstPool.TypedIdx<SymSXP> member) implements BcInstr {
+    record Dollar(ConstPool.TypedIdx<LangSXP> ast, ConstPool.TypedIdx<RegSymSXP> member) implements BcInstr {
         @Override
         public BcOp op() {
             return BcOp.DOLLAR;
         }
     }
 
-    record DollarGets(ConstPool.TypedIdx<LangSXP> ast, ConstPool.TypedIdx<SymSXP> member) implements BcInstr {
+    record DollarGets(ConstPool.TypedIdx<LangSXP> ast, ConstPool.TypedIdx<RegSymSXP> member) implements BcInstr {
         @Override
         public BcOp op() {
             return BcOp.DOLLARGETS;
@@ -670,14 +670,14 @@ public sealed interface BcInstr {
         }
     }
 
-    record GetVarMissOk(ConstPool.TypedIdx<SymSXP> name) implements BcInstr {
+    record GetVarMissOk(ConstPool.TypedIdx<RegSymSXP> name) implements BcInstr {
         @Override
         public BcOp op() {
             return BcOp.GETVAR_MISSOK;
         }
     }
 
-    record DdValMissOk(ConstPool.TypedIdx<SymSXP> name) implements BcInstr {
+    record DdValMissOk(ConstPool.TypedIdx<RegSymSXP> name) implements BcInstr {
         @Override
         public BcOp op() {
             return BcOp.DDVAL_MISSOK;
@@ -691,21 +691,21 @@ public sealed interface BcInstr {
         }
     }
 
-    record SetVar2(ConstPool.TypedIdx<SymSXP> name) implements BcInstr {
+    record SetVar2(ConstPool.TypedIdx<RegSymSXP> name) implements BcInstr {
         @Override
         public BcOp op() {
             return BcOp.SETVAR2;
         }
     }
 
-    record StartAssign2(ConstPool.TypedIdx<SymSXP> name) implements BcInstr {
+    record StartAssign2(ConstPool.TypedIdx<RegSymSXP> name) implements BcInstr {
         @Override
         public BcOp op() {
             return BcOp.STARTASSIGN2;
         }
     }
 
-    record EndAssign2(ConstPool.TypedIdx<SymSXP> name) implements BcInstr {
+    record EndAssign2(ConstPool.TypedIdx<RegSymSXP> name) implements BcInstr {
         @Override
         public BcOp op() {
             return BcOp.ENDASSIGN2;
@@ -986,7 +986,7 @@ class BcInstrs {
                 case CHECKFUN -> new BcInstr.CheckFun();
                 case MAKEPROM -> new BcInstr.MakeProm(makePoolIdx.any(bytecodes.get(i++)));
                 case DOMISSING -> new BcInstr.DoMissing();
-                case SETTAG -> new BcInstr.SetTag(makePoolIdx.symOrNil(bytecodes.get(i++)));
+                case SETTAG -> new BcInstr.SetTag(makePoolIdx.strOrSymOrNil(bytecodes.get(i++)));
                 case DODOTS -> new BcInstr.DoDots();
                 case PUSHARG -> new BcInstr.PushArg();
                 case PUSHCONSTARG -> new BcInstr.PushConstArg(makePoolIdx.any(bytecodes.get(i++)));

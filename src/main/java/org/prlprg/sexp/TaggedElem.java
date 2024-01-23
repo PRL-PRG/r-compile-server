@@ -4,8 +4,8 @@ import javax.annotation.Nullable;
 
 public record TaggedElem(@Nullable String tag, SEXP value) {
     public TaggedElem {
-        if (tag != null && tag.isBlank()) {
-            throw new IllegalArgumentException("Tag cannot be blank, should be null instead");
+        if (tag != null && tag.isEmpty()) {
+            throw new IllegalArgumentException("Tag cannot be empty, should be null instead");
         }
     }
 
