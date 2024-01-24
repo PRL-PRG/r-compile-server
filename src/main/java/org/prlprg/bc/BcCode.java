@@ -2,6 +2,8 @@ package org.prlprg.bc;
 
 import com.google.common.collect.ForwardingList;
 import com.google.common.collect.ImmutableList;
+import com.google.common.primitives.ImmutableIntArray;
+import com.google.errorprone.annotations.CanIgnoreReturnValue;
 
 import javax.annotation.concurrent.Immutable;
 import java.util.Collection;
@@ -24,6 +26,37 @@ public final class BcCode extends ForwardingList<BcInstr> {
         return instrs;
     }
 
+    /** Create from the raw GNU-R representation, not including the initial version number.
+     *
+     * @param makePoolIdx A function to create pool indices from raw integers
+     */
+    static BcCode fromRaw(ImmutableIntArray bytecodes, ConstPool.MakeIdx makePoolIdx)
+            throws BcFromRawException {
+        var builder = new Builder();
+        int i = 0;
+        while (i < bytecodes.length()) {
+            try {
+                var instrAndI = BcInstrs.fromRaw(bytecodes, i, makePoolIdx);
+                builder.add(instrAndI.a());
+                i = instrAndI.b();
+            } catch (BcFromRawException e) {
+                throw new BcFromRawException(
+                        "malformed bytecode at " + i + "\nBytecode up to this point: " + builder.build(),
+                        e);
+            }
+        }
+        return builder.build();
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder("=== CODE ===");
+        for (BcInstr instr : instrs) {
+            sb.append("\n").append(instr);
+        }
+        return sb.toString();
+    }
+
     /**
      * A builder class for creating BcArray instances.
      * <p>
@@ -41,6 +74,7 @@ public final class BcCode extends ForwardingList<BcInstr> {
         /**
          * Append an instruction.
          */
+        @CanIgnoreReturnValue
         public Builder add(BcInstr instr) {
             builder.add(instr);
             return this;
@@ -49,13 +83,14 @@ public final class BcCode extends ForwardingList<BcInstr> {
         /**
          * Append instructions.
          */
+        @CanIgnoreReturnValue
         public Builder addAll(Collection<? extends BcInstr> c) {
             builder.addAll(c);
             return this;
         }
 
         /**
-         * Build the array.
+         * Finish building the array.
          *
          * @return The array.
          */
