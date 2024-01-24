@@ -86,6 +86,9 @@
                                 <include>pom.xml</include>
                                 <include>README.md</include>
                             </includes>
+                            <excludes>
+                                <exclude>**/*.rds</exclude>
+                            </excludes>
                             <trimTrailingWhitespace/>
                             <endWithNewline/>
                         </format>
