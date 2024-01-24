@@ -3,7 +3,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>org.prlprg</groupId>
-    <artifactId>r-jit-server</artifactId>
+    <artifactId>r-compile-server</artifactId>
     <version>0.1-SNAPSHOT</version>
     <packaging>jar</packaging>
 
@@ -16,15 +16,6 @@
         <maven.compiler.target>${maven.compiler.source}</maven.compiler.target>
         <pmdVersion>7.0.0-rc4</pmdVersion>
     </properties>
-
-    <repositories>
-        <!-- renjin, R VM in Java -->
-        <repository>
-            <id>bedatadriven</id>
-            <name>bedatadriven public repo</name>
-            <url>https://nexus.bedatadriven.com/content/groups/public/</url>
-        </repository>
-    </repositories>
 
     <dependencyManagement>
         <dependencies>
@@ -40,12 +31,6 @@
     </dependencyManagement>
 
     <dependencies>
-        <!-- renjin, R VM in Java -->
-        <dependency>
-            <groupId>org.renjin</groupId>
-            <artifactId>renjin-script-engine</artifactId>
-            <version>RELEASE</version>
-        </dependency>
         <!-- ZeroMQ, socket communication -->
         <dependency>
             <groupId>org.zeromq</groupId>
@@ -166,7 +151,7 @@
                             <spaces>true</spaces>
                             <spacesPerTab>2</spacesPerTab>
                         </indent>
-                        <jackson/>
+                        <prettier/>
                     </yaml>
                 </configuration>
             </plugin>
@@ -226,6 +211,12 @@
                         <version>${pmdVersion}</version>
                     </dependency>
                 </dependencies>
+                <!-- This prevents the warning "Unable to locate Source XRef to link to - DISABLED" -->
+                <!-- If we want source-links in the `site` pmd report we need to add jxr instead, -->
+                <!-- but IDEs display their own pmd report which already has source-links -->
+                <configuration>
+                    <linkXRef>false</linkXRef>
+                </configuration>
             </plugin>
             <!-- JUnit5, unit test runner -->
             <plugin>
