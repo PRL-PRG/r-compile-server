@@ -1,8 +1,10 @@
 package org.prlprg.sexp;
 
+import org.prlprg.interpreter.AbstractSEXP;
+
 import javax.annotation.Nullable;
 
-public sealed interface SEXP permits StrOrRegSymSXP, SymOrLangSXP, ListOrVectorSXP, CloSXP, EnvSXP, BCodeSXP {
+public sealed interface SEXP extends AbstractSEXP permits StrOrRegSymSXP, SymOrLangSXP, ListOrVectorSXP, CloSXP, EnvSXP, BCodeSXP {
     SEXPType type();
 
     /** @return {@code null} if the SEXP doesn't support attributes ({@link #withAttributes} throws an exception)
@@ -11,7 +13,12 @@ public sealed interface SEXP permits StrOrRegSymSXP, SymOrLangSXP, ListOrVectorS
         return null;
     }
 
-    /** @throws UnsupportedOperationException if the SEXP doesn't support attributes. */
+    /** Returns an SEXP which would be equal except it has the given attributes instead of its old ones.
+     * <b>If the SEXP is a {@link RegEnvSXP}, it will mutate in-place and return itself.
+     * If the SEXP is a list or vector containing environments, this performs a shallow copy,
+     * so mutating the environments in one version will affect the other</b>.
+     *
+     * @throws UnsupportedOperationException if the SEXP doesn't support attributes. */
     default SEXP withAttributes(Attributes attributes) {
         throw new UnsupportedOperationException("Cannot set attributes on " + type());
     }
