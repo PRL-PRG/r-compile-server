@@ -49,8 +49,8 @@ public class Interpreter<S extends AbstractSEXP, C extends AbstractCtx<S>, Step 
                     retValue = stack.pop();
                     return;
                 }
-                case BcInstr.Goto i -> pc = i.label().offsetFrom(oldPc);
-                case BcInstr.BrIfNot i -> stepper.test(constants.get(i.ast()), stack.pop(), () -> pc = i.label().offsetFrom(oldPc), () -> pc = oldPc);
+                case BcInstr.Goto i -> pc = i.label().target;
+                case BcInstr.BrIfNot i -> stepper.test(constants.get(i.ast()), stack.pop(), () -> pc = i.label().target, () -> pc = oldPc);
                 case BcInstr.Pop i -> stack.pop();
                 case BcInstr.Dup i -> stack.push(stack.peek());
                 case BcInstr.PrintValue i -> stepper.print(stack.pop());

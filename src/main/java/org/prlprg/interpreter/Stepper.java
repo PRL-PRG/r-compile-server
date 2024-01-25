@@ -27,5 +27,5 @@ public interface Stepper<S extends AbstractSEXP, C extends AbstractCtx<S>> {
     /** Print the SEXP equivalent to GNU-R {@code PrintValue}.
      * This is not a debug-print, although for a simple evaluator maybe {@code toString} to whatever stream will
      * suffice.*/
-    void print(S sexp);
+    void print(S sexp) throws EvalError;
 }
