@@ -8,19 +8,17 @@ import javax.annotation.concurrent.Immutable;
 
 /** Class for representing a scalar SEXP of a primitive type with no attributes. */
 @Immutable
-abstract non-sealed class SimpleScalarSXPImpl<T> implements VectorSXP<T> {
+abstract class SimpleScalarSXPImpl<T> {
     final T data;
 
     protected SimpleScalarSXPImpl(T data) {
         this.data = data;
     }
 
-    @Override
     public UnmodifiableIterator<T> iterator() {
         return Iterators.forArray(data);
     }
 
-    @Override
     public T get(int i) {
         if (i != 0) {
             throw new IndexOutOfBoundsException();
@@ -28,7 +26,6 @@ abstract non-sealed class SimpleScalarSXPImpl<T> implements VectorSXP<T> {
         return data;
     }
 
-    @Override
     public int size() {
         return 1;
     }
@@ -38,7 +35,6 @@ abstract non-sealed class SimpleScalarSXPImpl<T> implements VectorSXP<T> {
         return data.toString();
     }
 
-    @Override
     public Attributes attributes() {
         return Attributes.NONE;
     }

@@ -17,7 +17,8 @@ target/
 .classpath
 .factorypath
 .project
-.settings
+# We actually want to sync this to ensure NonNullByDefault
+# .settings
 .springBeans
 .sts4-cache
 

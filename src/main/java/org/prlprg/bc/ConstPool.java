@@ -64,7 +64,7 @@ public final class ConstPool extends ForwardingCollection<SEXP> {
 
 
     /** If the SEXP is a constant, returns its index. Otherwise returns null. */
-    public <S extends SEXP> @Nullable TypedIdx<S> indexOf(S c) {
+    public @Nullable <S extends SEXP> TypedIdx<S> indexOf(S c) {
         if (consts == null) {
             throw new IllegalStateException("ConstPool is not yet built");
         }
@@ -280,7 +280,7 @@ public final class ConstPool extends ForwardingCollection<SEXP> {
             return idx;
         }
 
-        private <S extends SEXP> @Nullable TypedIdx<S> tryOf(int i, Class<S> sexpInterface) {
+        private @Nullable <S extends SEXP> TypedIdx<S> tryOf(int i, Class<S> sexpInterface) {
             var idx = new TypedIdx<>(pool, i, sexpInterface);
             if (!idx.checkType()) {
                 return null;
@@ -316,7 +316,7 @@ public final class ConstPool extends ForwardingCollection<SEXP> {
         public <S extends SEXP> TypedIdx<S> add(S c) {
             // This only works because TypedIdx is covariant the and generic gets erased.
             // We actually cast TypedIdx<something more specific than S> into TypedIdx<S>.
-            @SuppressWarnings("unchecked") var idx = (TypedIdx<S>)consts.computeIfAbsent(c, (ignored) -> new TypedIdx<S>(pool, consts.size(), (Class<S>)c.getClass()));
+            @SuppressWarnings("unchecked") var idx = (TypedIdx<S>)consts.computeIfAbsent(c, (ignored) -> new TypedIdx<>(pool, consts.size(), (Class<S>)c.getClass()));
             return idx;
         }
 
