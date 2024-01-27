@@ -3,7 +3,8 @@ package org.prlprg.sexp;
 import java.util.stream.BaseStream;
 
 public sealed interface VectorSXP<T> extends ListOrVectorSXP<T> permits ComplexSXP, ExprSXP, IntSXP, LglSXP, RealSXP, StrSXP, VecSXP, SimpleScalarSXPImpl, EmptyVectorSXPImpl {
-    @Override Attributes attributes();
+    @Override
+    Attributes attributes();
 
     @Override
     VectorSXP<T> withAttributes(Attributes attributes);

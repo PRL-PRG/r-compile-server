@@ -4,9 +4,12 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.primitives.ImmutableIntArray;
 import org.prlprg.sexp.SEXP;
 
-import java.util.*;
+import java.util.Collection;
+import java.util.List;
 
-/** A complete R bytecode, consisting of a version, array of instructions and associated data, and constants. */
+/**
+ * A complete R bytecode, consisting of a version, array of instructions and associated data, and constants.
+ */
 public record Bc(BcCode code, ConstPool consts) {
     /**
      * The only version of R bytecodes we support, which is also the latest version.
@@ -14,7 +17,9 @@ public record Bc(BcCode code, ConstPool consts) {
      */
     public static final int R_BC_VERSION = 12;
 
-    /** Create from the raw GNU-R representation, bytecodes not including the initial version number. */
+    /**
+     * Create from the raw GNU-R representation, bytecodes not including the initial version number.
+     */
     public static Bc fromRaw(ImmutableIntArray bytecodes, List<SEXP> consts) throws BcFromRawException {
         var poolAndMakeIdx = ConstPool.fromRaw(consts);
         var pool = poolAndMakeIdx.a();
@@ -31,7 +36,9 @@ public record Bc(BcCode code, ConstPool consts) {
         return code() + "\n" + consts;
     }
 
-    /** Equivalent to `CodeBuffer` in other projects */
+    /**
+     * Equivalent to `CodeBuffer` in other projects
+     */
     public static class Builder {
         private final BcCode.Builder code = new BcCode.Builder();
         private final ConstPool.Builder consts = new ConstPool.Builder();

@@ -13,7 +13,8 @@ public sealed interface ComplexSXP extends VectorSXP<Complex> {
         return SEXPType.CPLX;
     }
 
-    @Override Attributes attributes();
+    @Override
+    Attributes attributes();
 
     @Override
     ComplexSXP withAttributes(Attributes attributes);

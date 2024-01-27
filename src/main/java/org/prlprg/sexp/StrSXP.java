@@ -20,7 +20,8 @@ public sealed interface StrSXP extends VectorSXP<String>, StrOrRegSymSXP {
         return isEmpty() ? "" : get(0);
     }
 
-    @Override Attributes attributes();
+    @Override
+    Attributes attributes();
 
     @Override
     StrSXP withAttributes(Attributes attributes);

@@ -2,7 +2,9 @@ package org.prlprg.util;
 
 import java.util.Iterator;
 
-/** An iterator which has no elements. */
+/**
+ * An iterator which has no elements.
+ */
 public record EmptyIterator<T>() implements Iterator<T> {
     @Override
     public boolean hasNext() {

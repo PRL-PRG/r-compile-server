@@ -134,12 +134,16 @@ public enum BcOp {
     INCLNKSTK,
     DECLNKSTK;
 
-    /** Returns the operation represented by the given integer in GNU-R. */
+    /**
+     * Returns the operation represented by the given integer in GNU-R.
+     */
     public static BcOp valueOf(int i) {
         return values()[i];
     }
 
-    /** Returns the integer representation of this operation in GNU-R. */
+    /**
+     * Returns the integer representation of this operation in GNU-R.
+     */
     public int value() {
         return ordinal();
     }

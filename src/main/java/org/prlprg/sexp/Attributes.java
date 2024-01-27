@@ -8,7 +8,9 @@ import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import javax.annotation.concurrent.Immutable;
 import java.util.Map;
 
-/** Attributes on an {@link SEXP}. */
+/**
+ * Attributes on an {@link SEXP}.
+ */
 @Immutable
 public final class Attributes extends ForwardingMap<String, SEXP> {
     private final ImmutableMap<String, SEXP> attrs;
@@ -40,18 +42,24 @@ public final class Attributes extends ForwardingMap<String, SEXP> {
         return Objects.hashCode(super.hashCode(), attrs);
     }
 
-    /** Build an {@link Attributes} instance. */
+    /**
+     * Build an {@link Attributes} instance.
+     */
     public static class Builder {
         private final ImmutableMap.Builder<String, SEXP> attrs = ImmutableMap.builder();
 
-        /** Add an attribute. */
+        /**
+         * Add an attribute.
+         */
         @CanIgnoreReturnValue
         public Builder put(String key, SEXP value) {
             attrs.put(key, value);
             return this;
         }
 
-        /** Finish building the {@link Attributes} instance. */
+        /**
+         * Finish building the {@link Attributes} instance.
+         */
         public Attributes build() {
             return new Attributes(attrs.build());
         }

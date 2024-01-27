@@ -5,7 +5,8 @@ import com.google.common.collect.UnmodifiableIterator;
 
 import javax.annotation.concurrent.Immutable;
 
-/** R expression vector.
+/**
+ * R expression vector.
  *
  * @apiNote Immutable because we assume it can't contain environments or any other mutable SEXPs.
  */
@@ -16,9 +17,11 @@ public sealed interface ExprSXP extends VectorSXP<SEXP> {
         return SEXPType.EXPR;
     }
 
-    @Override Attributes attributes();
+    @Override
+    Attributes attributes();
 
-    @Override ExprSXP withAttributes(Attributes attributes);
+    @Override
+    ExprSXP withAttributes(Attributes attributes);
 }
 
 record ExprSXPImpl(ImmutableList<SEXP> data, @Override Attributes attributes) implements ExprSXP {

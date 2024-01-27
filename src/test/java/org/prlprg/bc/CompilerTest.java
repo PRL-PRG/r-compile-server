@@ -6,13 +6,14 @@ import org.prlprg.rds.RDSReader;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.util.Tests;
 
-import java.util.Objects;
-
 public class CompilerTest implements Tests {
     @Test
     public void testBasic() throws Exception {
         var source = (CloSXP) RDSReader.readStream(getResourceAsStream("f1.rds"));
         var bc = Compiler.compileFun(source);
         System.out.println(bc);
+        System.out.println("---");
+        var target = (CloSXP) RDSReader.readStream(getResourceAsStream("f1-O0.rds"));
+        System.out.println(target);
     }
 }

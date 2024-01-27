@@ -1,5 +1,7 @@
 package org.prlprg.util;
 
+import edu.umd.cs.findbugs.annotations.NonNull;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PushbackInputStream;
@@ -9,7 +11,7 @@ public final class IO {
     private IO() {
     }
 
-    public static InputStream maybeDecompress(InputStream input) throws IOException {
+    public static InputStream maybeDecompress(@NonNull InputStream input) throws IOException {
         final PushbackInputStream pb = new PushbackInputStream(input, 2);
         byte[] buff = pb.readNBytes(2);
         pb.unread(buff);

@@ -1,7 +1,10 @@
 package org.prlprg.sexp;
 
 import javax.annotation.Nullable;
-import java.util.*;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Objects;
+import java.util.SequencedMap;
 import java.util.stream.Collectors;
 
 /**
@@ -18,7 +21,9 @@ public final class RegEnvSXP implements LocalEnvSXP {
     private final SequencedMap<String, SEXP> frame;
     private @Nullable Attributes attributes;
 
-    /** Create an uninitialized environment. You must then call {@link #init} before any other methods. */
+    /**
+     * Create an uninitialized environment. You must then call {@link #init} before any other methods.
+     */
     public static RegEnvSXP uninitialized() {
         return new RegEnvSXP();
     }
@@ -31,7 +36,9 @@ public final class RegEnvSXP implements LocalEnvSXP {
         this.attributes = null;
     }
 
-    /** Create a new empty (initialized, unlocked) environment. */
+    /**
+     * Create a new empty (initialized, unlocked) environment.
+     */
     RegEnvSXP(EnvSXP enclos) {
         this.isInitialized = true;
         this.isLocked = false;
@@ -40,7 +47,9 @@ public final class RegEnvSXP implements LocalEnvSXP {
         this.attributes = Attributes.NONE;
     }
 
-    /** Initialize an uninitialized environment with data. */
+    /**
+     * Initialize an uninitialized environment with data.
+     */
     public void init(boolean isLocked, EnvSXP enclos, ListSXP frame, Attributes attributes) {
         if (isInitialized) {
             throw new IllegalStateException("Already initialized");
@@ -78,9 +87,11 @@ public final class RegEnvSXP implements LocalEnvSXP {
         return isLocked;
     }
 
-    /** Lookup a binding in the environment or parents.
+    /**
+     * Lookup a binding in the environment or parents.
      *
-     * @return {@code null} if not found. */
+     * @return {@code null} if not found.
+     */
     @Override
     public @Nullable SEXP get(String name) {
         checkInitialized();
@@ -94,19 +105,24 @@ public final class RegEnvSXP implements LocalEnvSXP {
     }
 
 
-    /** Change the environment's parent. */
+    /**
+     * Change the environment's parent.
+     */
     public void setEnclos(EnvSXP enclos) {
         checkInitialized();
         this.enclos = enclos;
     }
 
-    /** Change the environment's attributes. */
+    /**
+     * Change the environment's attributes.
+     */
     public void setAttributes(Attributes attributes) {
         checkInitialized();
         this.attributes = attributes;
     }
 
-    /** Lock the environment. Trying to mutate it afterward will throw {@link IllegalStateException}.
+    /**
+     * Lock the environment. Trying to mutate it afterward will throw {@link IllegalStateException}.
      *
      * @throws IllegalStateException If the environment is already locked.
      */
@@ -118,7 +134,8 @@ public final class RegEnvSXP implements LocalEnvSXP {
         isLocked = true;
     }
 
-    /** Modify a binding in the environment. Call with {@code null} to remove.
+    /**
+     * Modify a binding in the environment. Call with {@code null} to remove.
      *
      * @throws IllegalStateException if the environment is locked.
      */
@@ -142,7 +159,8 @@ public final class RegEnvSXP implements LocalEnvSXP {
         );
     }
 
-    /** Create a copy of this environment with the given attributes.
+    /**
+     * Create a copy of this environment with the given attributes.
      * <p>
      * This does <i>not</i> mutate the environment and change its own attributes.
      * Call {@link #setAttributes} to do that.

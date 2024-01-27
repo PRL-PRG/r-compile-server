@@ -1,10 +1,6 @@
 package org.prlprg.rds;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.fail;
-
 import org.junit.jupiter.api.Test;
-
 import org.prlprg.RPlatform;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
@@ -12,6 +8,9 @@ import org.prlprg.sexp.*;
 import org.prlprg.util.Tests;
 
 import java.util.Objects;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.fail;
 
 public class RDSReaderTest implements Tests {
 

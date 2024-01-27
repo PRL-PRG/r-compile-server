@@ -10,7 +10,10 @@ import org.prlprg.util.Pair;
 
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
-import java.util.*;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.List;
 
 /**
  * A pool (array) of constants. Underneath this is an immutable list, but the elements are only accessible with typed
@@ -37,8 +40,10 @@ public final class ConstPool extends ForwardingCollection<SEXP> {
         return consts;
     }
 
-    /** Get the element at the given pool index
-     * @throws WrongPoolException if the index is for a different pool
+    /**
+     * Get the element at the given pool index
+     *
+     * @throws WrongPoolException        if the index is for a different pool
      * @throws IndexOutOfBoundsException if the index is out of bounds
      */
     public SEXP get(Idx idx) {
@@ -48,8 +53,10 @@ public final class ConstPool extends ForwardingCollection<SEXP> {
         return consts.get(idx.unwrapIdx(this));
     }
 
-    /** Get the element at the given pool index
-     * @throws WrongPoolException if the index is for a different pool
+    /**
+     * Get the element at the given pool index
+     *
+     * @throws WrongPoolException        if the index is for a different pool
      * @throws IndexOutOfBoundsException if the index is out of bounds
      */
     public <S extends SEXP> S get(TypedIdx<S> idx) {
@@ -58,12 +65,14 @@ public final class ConstPool extends ForwardingCollection<SEXP> {
         }
         assert idx.checkType();
         @SuppressWarnings("unchecked")
-        var res = (S)consts.get(idx.unwrapIdx(this));
+        var res = (S) consts.get(idx.unwrapIdx(this));
         return res;
     }
 
 
-    /** If the SEXP is a constant, returns its index. Otherwise returns null. */
+    /**
+     * If the SEXP is a constant, returns its index. Otherwise returns null.
+     */
     public <S extends SEXP> @Nullable TypedIdx<S> indexOf(S c) {
         if (consts == null) {
             throw new IllegalStateException("ConstPool is not yet built");
@@ -74,12 +83,14 @@ public final class ConstPool extends ForwardingCollection<SEXP> {
         }
         // This is only valid because TypedIdx is covariant, and only accepted because Java erases generics.
         // The conversion from Class<? extends S> to Class<S> changes the generic.
-        @SuppressWarnings("unchecked") var idx = new TypedIdx<>(this, i, (Class<S>)c.getClass());
+        @SuppressWarnings("unchecked") var idx = new TypedIdx<>(this, i, (Class<S>) c.getClass());
         assert idx.checkType();
         return idx;
     }
 
-    /** Iterate all indices */
+    /**
+     * Iterate all indices
+     */
     public Iterable<Idx> indices() {
         return () -> new Iterator<>() {
             int i = 0;
@@ -102,7 +113,8 @@ public final class ConstPool extends ForwardingCollection<SEXP> {
         };
     }
 
-    /** Create from the raw GNU-R representation.
+    /**
+     * Create from the raw GNU-R representation.
      *
      * @return The pool and a function to create pool indices from raw integers, since that isn't ordinarily exposed.
      */
@@ -121,7 +133,13 @@ public final class ConstPool extends ForwardingCollection<SEXP> {
         StringBuilder sb = new StringBuilder("=== CONSTS " + debugId() + " ===");
         var idx = 0;
         for (var c : this) {
-            sb.append("\n").append(idx++).append(": ").append(c);
+            var cStr = c.toString();
+            sb.append("\n").append(idx++).append(": ");
+            if (cStr.contains(System.lineSeparator())) {
+                sb.append(System.lineSeparator()).append(c).append(System.lineSeparator());
+            } else {
+                sb.append(c);
+            }
         }
         return sb.toString();
     }
@@ -130,7 +148,8 @@ public final class ConstPool extends ForwardingCollection<SEXP> {
         return "@" + hashCode();
     }
 
-    /** A typed index into a bytecode pool.
+    /**
+     * A typed index into a bytecode pool.
      * <p>
      * It also contains a reference to the owner pool which is checked at runtime for extra safety.
      */
@@ -147,7 +166,7 @@ public final class ConstPool extends ForwardingCollection<SEXP> {
          * Return the underlying index if the given pool is the one this was originally created with.
          *
          * @throws WrongPoolException if the given pool is not the one this was originally created with
-         * */
+         */
         protected int unwrapIdx(ConstPool parent) {
             if (parent != pool) {
                 throw new WrongPoolException();
@@ -190,7 +209,7 @@ public final class ConstPool extends ForwardingCollection<SEXP> {
 
         private boolean checkType() {
             // The cast to Idx is required because the TypedIdx version does an `assert`.
-            return sexpInterface.isInstance(pool.get((Idx)this));
+            return sexpInterface.isInstance(pool.get((Idx) this));
         }
 
         @Override
@@ -214,19 +233,23 @@ public final class ConstPool extends ForwardingCollection<SEXP> {
             return of(i, RegSymSXP.class);
         }
 
-        @Nullable TypedIdx<RegSymSXP> symOrNil(int i) {
+        @Nullable
+        TypedIdx<RegSymSXP> symOrNil(int i) {
             return tryOf(i, RegSymSXP.class);
         }
 
-        @Nullable TypedIdx<LangSXP> langOrNegative(int i) {
+        @Nullable
+        TypedIdx<LangSXP> langOrNegative(int i) {
             return i >= 0 ? tryOf(i, LangSXP.class) : null;
         }
 
-        @Nullable TypedIdx<IntSXP> intOrOther(int i) {
+        @Nullable
+        TypedIdx<IntSXP> intOrOther(int i) {
             return tryOf(i, IntSXP.class);
         }
 
-        @Nullable TypedIdx<StrOrRegSymSXP> strOrSymOrNil(int i) {
+        @Nullable
+        TypedIdx<StrOrRegSymSXP> strOrSymOrNil(int i) {
             var asStrOrSymbol = tryOf(i, StrOrRegSymSXP.class);
             if (asStrOrSymbol != null) {
                 return asStrOrSymbol;
@@ -239,7 +262,8 @@ public final class ConstPool extends ForwardingCollection<SEXP> {
             }
         }
 
-        @Nullable Either<TypedIdx<StrSXP>, TypedIdx<NilSXP>> strOrNilOrOther(int i) {
+        @Nullable
+        Either<TypedIdx<StrSXP>, TypedIdx<NilSXP>> strOrNilOrOther(int i) {
             var asSymbol = tryOf(i, StrSXP.class);
             if (asSymbol != null) {
                 return Either.left(asSymbol);
@@ -275,7 +299,7 @@ public final class ConstPool extends ForwardingCollection<SEXP> {
             var idx = new TypedIdx<>(pool, i, sexpInterface);
             if (!idx.checkType()) {
                 // The cast to Idx is required because the TypedIdx version does an `assert`.
-                throw new IllegalArgumentException("Expected " + sexpInterface.getSimpleName() + ", got " + pool.get((Idx)idx));
+                throw new IllegalArgumentException("Expected " + sexpInterface.getSimpleName() + ", got " + pool.get((Idx) idx));
             }
             return idx;
         }
@@ -316,7 +340,7 @@ public final class ConstPool extends ForwardingCollection<SEXP> {
         public <S extends SEXP> TypedIdx<S> add(S c) {
             // This only works because TypedIdx is covariant the and generic gets erased.
             // We actually cast TypedIdx<something more specific than S> into TypedIdx<S>.
-            @SuppressWarnings("unchecked") var idx = (TypedIdx<S>)consts.computeIfAbsent(c, (ignored) -> new TypedIdx<S>(pool, consts.size(), (Class<S>)c.getClass()));
+            @SuppressWarnings("unchecked") var idx = (TypedIdx<S>) consts.computeIfAbsent(c, (ignored) -> new TypedIdx<S>(pool, consts.size(), (Class<S>) c.getClass()));
             return idx;
         }
 

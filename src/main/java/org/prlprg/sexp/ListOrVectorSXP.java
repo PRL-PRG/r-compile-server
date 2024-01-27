@@ -1,6 +1,8 @@
 package org.prlprg.sexp;
 
-/** A list or vector SEXP (2 main collection types in GNU-R) */
+/**
+ * A list or vector SEXP (2 main collection types in GNU-R)
+ */
 public sealed interface ListOrVectorSXP<T> extends SEXP, Iterable<T> permits ListSXP, VectorSXP {
     T get(int i);
 

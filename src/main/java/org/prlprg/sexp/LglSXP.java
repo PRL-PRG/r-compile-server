@@ -13,7 +13,8 @@ public sealed interface LglSXP extends VectorSXP<Logical> {
         return SEXPType.LGL;
     }
 
-    @Override Attributes attributes();
+    @Override
+    Attributes attributes();
 
     @Override
     LglSXP withAttributes(Attributes attributes);

@@ -9,7 +9,8 @@ public sealed interface VecSXP extends VectorSXP<SEXP> {
         return SEXPType.VEC;
     }
 
-    @Override Attributes attributes();
+    @Override
+    Attributes attributes();
 
     @Override
     VecSXP withAttributes(Attributes attributes);

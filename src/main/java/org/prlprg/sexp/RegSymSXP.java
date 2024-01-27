@@ -3,7 +3,9 @@ package org.prlprg.sexp;
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableList;
 
-/** Symbol which isn't "unbound value" or "missing arg" */
+/**
+ * Symbol which isn't "unbound value" or "missing arg"
+ */
 public final class RegSymSXP implements SymSXP, StrOrRegSymSXP {
     private static final ImmutableList<String> LITERAL_NAMES = ImmutableList.of("TRUE", "FALSE", "NULL", "NA", "Inf", "NaN");
 
@@ -21,12 +23,16 @@ public final class RegSymSXP implements SymSXP, StrOrRegSymSXP {
         isEscaped = name.chars().anyMatch(c -> !Character.isAlphabetic(c) && c != '.' && c != '_');
     }
 
-    /** Returns the name of this symbol. */
+    /**
+     * Returns the name of this symbol.
+     */
     public String name() {
         return name;
     }
 
-    /** Whether this is a double-dot symbol ({@code ..0}, {@code ..1}, ...). */
+    /**
+     * Whether this is a double-dot symbol ({@code ..0}, {@code ..1}, ...).
+     */
     public boolean isDdSym() {
         return name.startsWith("..") && name.substring(2).chars().allMatch(Character::isDigit);
     }

@@ -26,7 +26,8 @@ public final class BcCode extends ForwardingList<BcInstr> {
         return instrs;
     }
 
-    /** Create from the raw GNU-R representation, not including the initial version number.
+    /**
+     * Create from the raw GNU-R representation, not including the initial version number.
      *
      * @param makePoolIdx A function to create pool indices from raw integers
      */

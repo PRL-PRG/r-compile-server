@@ -12,7 +12,8 @@ public sealed interface RealSXP extends VectorSXP<Double> {
         return SEXPType.REAL;
     }
 
-    @Override Attributes attributes();
+    @Override
+    Attributes attributes();
 
     @Override
     RealSXP withAttributes(Attributes attributes);

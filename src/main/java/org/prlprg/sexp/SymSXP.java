@@ -9,17 +9,23 @@ public sealed interface SymSXP extends SymOrLangSXP permits RegSymSXP, SpecialSy
         return SEXPType.SYM;
     }
 
-    /** Whether this is the ellipsis symbol. */
+    /**
+     * Whether this is the ellipsis symbol.
+     */
     default boolean isEllipsis() {
         return this == SEXPs.ELLIPSIS;
     }
 
-    /** Whether this is the missing symbol. */
+    /**
+     * Whether this is the missing symbol.
+     */
     default boolean isMissing() {
         return this == SEXPs.MISSING_ARG;
     }
 
-    /** Whether this is the unbound value symbol. */
+    /**
+     * Whether this is the unbound value symbol.
+     */
     default boolean isUnbound() {
         return this == SEXPs.UNBOUND_VALUE;
     }

@@ -1,15 +1,21 @@
 package org.prlprg.primitive;
 
-/** GNU-R "logical": a boolean which also permits NA (trinary). */
+/**
+ * GNU-R "logical": a boolean which also permits NA (trinary).
+ */
 public enum Logical {
     FALSE(0),
     TRUE(1),
     NA(Integer.MIN_VALUE);
 
-    /** The value in GNU-R */
+    /**
+     * The value in GNU-R
+     */
     final int i;
 
-    /** Convert from GNU-R representation. */
+    /**
+     * Convert from GNU-R representation.
+     */
     public static Logical valueOf(int i) {
         return switch (i) {
             case 0 -> FALSE;

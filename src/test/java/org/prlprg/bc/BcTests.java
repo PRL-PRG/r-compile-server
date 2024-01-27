@@ -6,7 +6,7 @@ import org.prlprg.sexp.SEXPs;
 
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class BcTests {
     @Test
@@ -34,11 +34,11 @@ public class BcTests {
         assertEquals(SEXPs.integer(1), consts.get(0));
         assertEquals(SEXPs.integer(2), consts.get(1));
         assertEquals(astClone, consts.get(2));
-        assertEquals(0, ((BcInstr.LdConst)bc.code().get(0)).constant().idx);
-        assertEquals(bc.consts(), ((BcInstr.LdConst)bc.code().get(0)).constant().pool);
-        assertEquals(1, ((BcInstr.LdConst)bc.code().get(1)).constant().idx);
-        assertEquals(bc.consts(), ((BcInstr.LdConst)bc.code().get(1)).constant().pool);
-        assertEquals(2, ((BcInstr.Add)bc.code().get(2)).ast().idx);
-        assertEquals(bc.consts(), ((BcInstr.Add)bc.code().get(2)).ast().pool);
+        assertEquals(0, ((BcInstr.LdConst) bc.code().get(0)).constant().idx);
+        assertEquals(bc.consts(), ((BcInstr.LdConst) bc.code().get(0)).constant().pool);
+        assertEquals(1, ((BcInstr.LdConst) bc.code().get(1)).constant().idx);
+        assertEquals(bc.consts(), ((BcInstr.LdConst) bc.code().get(1)).constant().pool);
+        assertEquals(2, ((BcInstr.Add) bc.code().get(2)).ast().idx);
+        assertEquals(bc.consts(), ((BcInstr.Add) bc.code().get(2)).ast().pool);
     }
 }

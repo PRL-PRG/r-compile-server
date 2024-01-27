@@ -6,53 +6,101 @@ package org.prlprg.sexp;
  * @apiNote If you want to represent an arbitrary (AKA possibly malformed) type just use {@code int}.
  */
 public enum SEXPType {
-    /** nil = NULL */
+    /**
+     * nil = NULL
+     */
     NIL(0),
-    /** symbols */
+    /**
+     * symbols
+     */
     SYM(1),
-    /** lists of dotted pairs */
+    /**
+     * lists of dotted pairs
+     */
     LIST(2),
-    /** closures */
+    /**
+     * closures
+     */
     CLO(3),
-    /** environments */
+    /**
+     * environments
+     */
     ENV(4),
-    /** promises: [un]evaluated closure arguments */
+    /**
+     * promises: [un]evaluated closure arguments
+     */
     PROM(5),
-    /** language constructs (special lists) */
+    /**
+     * language constructs (special lists)
+     */
     LANG(6),
-    /** special forms */
+    /**
+     * special forms
+     */
     SPECIAL(7),
-    /** builtin non-special forms */
+    /**
+     * builtin non-special forms
+     */
     BUILTIN(8),
-    /** "scalar" string type (internal only) */
+    /**
+     * "scalar" string type (internal only)
+     */
     CHAR(9),
-    /** logical vectors */
+    /**
+     * logical vectors
+     */
     LGL(10),
-    /** integer vectors */
+    /**
+     * integer vectors
+     */
     INT(13),
-    /** real variables */
+    /**
+     * real variables
+     */
     REAL(14),
-    /** complex variables */
+    /**
+     * complex variables
+     */
     CPLX(15),
-    /** string vectors */
+    /**
+     * string vectors
+     */
     STR(16),
-    /** dot-dot-dot object */
+    /**
+     * dot-dot-dot object
+     */
     DOT(17),
-    /** make "any" args work */
+    /**
+     * make "any" args work
+     */
     ANY(18),
-    /** generic vectors */
+    /**
+     * generic vectors
+     */
     VEC(19),
-    /** expressions vectors */
+    /**
+     * expressions vectors
+     */
     EXPR(20),
-    /** byte code */
+    /**
+     * byte code
+     */
     BCODE(21),
-    /** external pointer */
+    /**
+     * external pointer
+     */
     EXTPTR(22),
-    /** weak reference */
+    /**
+     * weak reference
+     */
     WEAKREF(23),
-    /** raw bytes */
+    /**
+     * raw bytes
+     */
     RAW(24),
-    /** S4 non-vector */
+    /**
+     * S4 non-vector
+     */
     S4(25);
     // These types are in GNU-R but they should never actually show up unless something's seriously wrong.
     // /** fresh node created in new page */
@@ -62,14 +110,18 @@ public enum SEXPType {
     // /** closure, builtin, special */
     // FUN(99);
 
-    /** The integer which represents this type in GNU-R */
+    /**
+     * The integer which represents this type in GNU-R
+     */
     public final int i;
 
     SEXPType(int i) {
         this.i = i;
     }
 
-    /** Return the SEXP type represented by the given integer value. */
+    /**
+     * Return the SEXP type represented by the given integer value.
+     */
     public static SEXPType valueOf(int i) {
         // These will never change so we don't have to worry about code synchronization
         return switch (i) {

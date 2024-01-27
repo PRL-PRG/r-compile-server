@@ -1,10 +1,11 @@
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-
+import edu.umd.cs.findbugs.annotations.NonNull;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.util.IO;
+
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 
 public class Main {
 
@@ -22,7 +23,7 @@ public class Main {
         }
     }
 
-    private void compile(InputStream input) throws IOException {
+    private void compile(@NonNull InputStream input) throws IOException {
         compile(RDSReader.readStream(IO.maybeDecompress(input)));
     }
 

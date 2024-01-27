@@ -6,25 +6,27 @@ import org.prlprg.bc.BcInstr;
 import org.prlprg.sexp.*;
 
 import javax.annotation.Nullable;
-import java.util.*;
+import java.util.Set;
+
 
 public class Compiler {
     private static final Set<String> MAYBE_NSE_SYMBOLS = Set.of("bquote");
 
     private final Bc.Builder cb = new Bc.Builder();
 
-    public static Bc compileFun(CloSXP source) {
-        var body = source.body();
+    public static Bc compileFun(CloSXP fun) {
+        var locals = CodeTools.findLocals(fun.body());
+        locals.addAll(fun.formals().names());
 
-        // FIXME: this is wrong -- need a special cmpFun to include the formals and others. EMPTY_ENV is also wrong
-        return compile(body, SEXPs.EMPTY_ENV);
+        var cenv = new CompilerEnv(fun.env(), locals);
+        var ctx = new Context(true, true, cenv);
+
+        // TODO: may call browser?
+        // TODO: srcref
+
+        return compile(fun.body(), ctx);
     }
-
-    public static Bc compile(SEXP expr, EnvSXP env) {
-        // TODO: add local variables into the context environment?
-        return compile(expr, new Context(true, true, env));
-    }
-
+    
     private static Bc compile(SEXP expr, Context ctx) {
         var compiler = new Compiler();
         compiler.compileExpr(expr, ctx);
@@ -33,31 +35,28 @@ public class Compiler {
 
     private void compileExpr(SEXP expr, Context ctx) {
         // TODO: check we do not attempt to compile BCSXP or PROMSXP
+        // TODO: constant fold
         switch (expr) {
             case LangSXP e -> compileCall(e, ctx);
             case SpecialSymSXP e -> throw new CompilerException("unhandled special symbol: " + e);
-            case RegSymSXP e -> compileRegSym(e, ctx);
+            case RegSymSXP e -> compileSym(e, ctx, false);
             default -> compileConst(expr, ctx);
         }
     }
 
-    private void compileRegSym(RegSymSXP e, Context ctx) {
-        compileRegSym(e, ctx, false);
-    }
-
-    private void compileRegSym(RegSymSXP e, Context ctx, boolean missingOk) {
+    private void compileSym(RegSymSXP e, Context ctx, boolean missingOk) {
         if (e.isEllipsis()) {
-            // notifyWrongDotsUse
+            // TODO: notifyWrongDotsUse
             cb.addInstr(new BcInstr.DotsErr());
         } else if (e.isDdSym()) {
-            // if (!findLocVar("...", ctx))
-            //     notifyWrongDotsUse
+            // TODO: if (!findLocVar("...", ctx))
+            //       notifyWrongDotsUse
             var idx = cb.addConst(e);
             cb.addInstr(missingOk ? new BcInstr.DdValMissOk(idx) : new BcInstr.DdVal(idx));
             checkTailCall(ctx);
         } else {
-            // if (!findVar(sym, ctx))
-            //     notifyUndefVar
+            // TODO: if (!findVar(sym, ctx))
+            //       notifyUndefVar
             var idx = cb.addConst(e);
             cb.addInstr(missingOk ? new BcInstr.GetVarMissOk(idx) : new BcInstr.GetVar(idx));
             checkTailCall(ctx);
@@ -86,9 +85,15 @@ public class Compiler {
     void compileCall(LangSXP call, Context ctx) {
         var args = call.args();
         switch (call.fun()) {
-            case RegSymSXP fun -> compileCallSymFun(fun, args, call, ctx);
+            case RegSymSXP fun -> {
+                // TODO: inlining
+                compileCallSymFun(fun, args, call, ctx);
+            }
             case SpecialSymSXP fun -> throw new IllegalStateException("Trying to call special symbol: " + fun);
-            case LangSXP fun -> compileCallExprFun(fun, args, call, ctx);
+            case LangSXP fun -> {
+                // TODO: break / next
+                compileCallExprFun(fun, args, call, ctx);
+            }
         }
     }
 
@@ -124,9 +129,9 @@ public class Compiler {
                     compileTag(tag);
                 }
                 case SymSXP x when x.isEllipsis() ->
-                    // if (!findLocVar("...", ctx))
-                    //     notifyWrongDotsUse
-                    cb.addInstr(new BcInstr.DoDots());
+                    // TODO: if (!findLocVar("...", ctx))
+                    //       notifyWrongDotsUse
+                        cb.addInstr(new BcInstr.DoDots());
                 case SymSXP x -> {
                     compileNormArg(x, nse, ctx);
                     compileTag(tag);
@@ -135,6 +140,7 @@ public class Compiler {
                     compileNormArg(x, nse, ctx);
                     compileTag(tag);
                 }
+                // TODO: case PromSXP ignored -> throw new CompilerException("can't compile promises in code");
                 case BCodeSXP ignored -> throw new CompilerException("can't compile byte code literals in code");
                 default -> {
                     compileConstArg(val);
@@ -146,7 +152,7 @@ public class Compiler {
 
     private void compileNormArg(SEXP arg, boolean nse, Context ctx) {
         cb.addInstr(new BcInstr.MakeProm(cb.addConst(
-                nse ? arg : SEXPs.bcode(compile(arg, makePromiseContext(ctx)))
+                nse ? arg : SEXPs.bcode(compile(arg, ctx.makePromisecContext()))
         )));
     }
 
@@ -161,16 +167,6 @@ public class Compiler {
             case LglSXP x when x == SEXPs.FALSE -> cb.addInstr(new BcInstr.PushFalseArg());
             default -> cb.addInstr(new BcInstr.PushConstArg(cb.addConst(arg)));
         }
-    }
-
-    private Context makePromiseContext(Context ctx) {
-        /*
-         * cntxt$needRETURNJMP <- TRUE
-         * if (! is.null(cntxt$loop))
-         * cntxt$loop$gotoOK <- FALSE
-         */
-        // TODO?
-        return new Context(false, true, ctx.cenv());
     }
 
     private void compileTag(@Nullable String tag) {

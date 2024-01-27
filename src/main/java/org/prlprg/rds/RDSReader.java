@@ -6,12 +6,11 @@ import org.prlprg.bc.BcFromRawException;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.*;
+import org.prlprg.util.IO;
 import org.prlprg.util.NotImplementedException;
 
 import javax.annotation.Nullable;
-import java.io.Closeable;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -32,6 +31,12 @@ public class RDSReader implements Closeable {
     public static SEXP readStream(InputStream input) throws IOException {
         try (var reader = new RDSReader(input)) {
             return reader.read();
+        }
+    }
+
+    public static SEXP readFile(File file) throws IOException {
+        try (var input = new FileInputStream(file)) {
+            return RDSReader.readStream(IO.maybeDecompress(input));
         }
     }
 
@@ -99,9 +104,11 @@ public class RDSReader implements Closeable {
                 case BASEENV_SXP -> SEXPs.BASE_ENV;
                 case EMPTYENV_SXP -> SEXPs.EMPTY_ENV;
                 case REFSXP -> readRef(flags);
-                case BCREPDEF, BCREPREF -> throw new RDSException("Unexpected bytecode reference here (not in bytecode)");
+                case BCREPDEF, BCREPREF ->
+                        throw new RDSException("Unexpected bytecode reference here (not in bytecode)");
                 case ATTRLANGSXP, ATTRLISTSXP -> throw new RDSException("Unexpected attr here");
-                case UNBOUNDVALUE_SXP, GENERICREFSXP, BASENAMESPACE_SXP, NAMESPACESXP, PACKAGESXP, PERSISTSXP, CLASSREFSXP -> throw new NotImplementedException();
+                case UNBOUNDVALUE_SXP, GENERICREFSXP, BASENAMESPACE_SXP, NAMESPACESXP, PACKAGESXP, PERSISTSXP, CLASSREFSXP ->
+                        throw new NotImplementedException();
             };
         };
     }

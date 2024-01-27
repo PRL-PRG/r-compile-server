@@ -12,7 +12,8 @@ public sealed interface CloSXP extends SEXP {
         return SEXPType.CLO;
     }
 
-    @Override Attributes attributes();
+    @Override
+    Attributes attributes();
 
     @Override
     CloSXP withAttributes(Attributes attributes);

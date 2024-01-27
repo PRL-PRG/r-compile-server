@@ -14,7 +14,8 @@ public sealed interface IntSXP extends VectorSXP<Integer> {
         return SEXPType.INT;
     }
 
-    @Override Attributes attributes();
+    @Override
+    Attributes attributes();
 
     @Override
     IntSXP withAttributes(Attributes attributes);
