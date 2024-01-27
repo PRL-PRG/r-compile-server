@@ -36,7 +36,7 @@ public class RDSReader implements Closeable {
 
     public static SEXP readFile(File file) throws IOException {
         try (var input = new FileInputStream(file)) {
-            return RDSReader.readStream(IO.maybeDecompress(input));
+            return readStream(IO.maybeDecompress(input));
         }
     }
 

@@ -26,7 +26,7 @@ public class Compiler {
 
         return compile(fun.body(), ctx);
     }
-    
+
     private static Bc compile(SEXP expr, Context ctx) {
         var compiler = new Compiler();
         compiler.compileExpr(expr, ctx);
