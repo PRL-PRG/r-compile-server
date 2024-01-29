@@ -168,4 +168,3 @@
     useful (`val`, `@Synchronized`, `@SneakyThrows`).
   - Also concerns with Lombok adding complexity, Lombok becoming unmaintained, Lombok not being supported by IDEs (
     although at least IntelliJ supports it), Lombok being confusing.
-
