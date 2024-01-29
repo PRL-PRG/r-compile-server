@@ -60,7 +60,7 @@
     </dependencies>
     <build>
         <plugins>
-            <!-- git-build-hook, install git hooks when you run commands like `mvn verify` so you don't forget -->
+            <!-- git-build-hook, install git hooks when you run any maven command so you don't forget -->
             <plugin>
                 <groupId>com.rudikershaw.gitbuildhook</groupId>
                 <artifactId>git-build-hook-maven-plugin</artifactId>
@@ -73,10 +73,10 @@
                 </configuration>
                 <executions>
                     <execution>
+                        <phase>initialize</phase>
                         <goals>
                             <goal>install</goal>
                         </goals>
-                        <phase>initialize</phase>
                     </execution>
                 </executions>
             </plugin>
@@ -84,7 +84,7 @@
             <plugin>
                 <groupId>com.diffplug.spotless</groupId>
                 <artifactId>spotless-maven-plugin</artifactId>
-                <version>2.41.1</version>
+                <version>2.43.0</version>
                 <!-- `executions` is required to run this on verify -->
                 <executions>
                     <execution>
@@ -98,17 +98,9 @@
                         <!-- Generally handle trailing whitespace and newline -->
                         <format>
                             <includes>
-                                <include>src/**/*</include>
-                                <include>tools/**/*</include>
                                 <include>.gitignore</include>
                                 <include>.gitattributes</include>
-                                <include>Makefile</include>
-                                <include>pom.xml</include>
-                                <include>README.md</include>
                             </includes>
-                            <excludes>
-                                <exclude>**/*.rds</exclude>
-                            </excludes>
                             <trimTrailingWhitespace/>
                             <endWithNewline/>
                         </format>
@@ -124,6 +116,8 @@
                                 <tabs>true</tabs>
                                 <spacesPerTab>4</spacesPerTab>
                             </indent>
+                            <trimTrailingWhitespace/>
+                            <endWithNewline/>
                         </format>
                     </formats>
                     <java>
@@ -133,11 +127,19 @@
                         <excludes>
                             <exclude>target/**/*</exclude>
                         </excludes>
-                        <cleanthat/>
-                        <googleJavaFormat/>
+                        <cleanthat>
+                            <version>2.18</version>
+                        </cleanthat>
+                        <googleJavaFormat>
+                            <version>1.19.2</version>
+                            <style>GOOGLE</style>
+                            <formatJavadoc>true</formatJavadoc>
+                        </googleJavaFormat>
                         <importOrder/>
                         <removeUnusedImports/>
                         <formatAnnotations/>
+                        <trimTrailingWhitespace/>
+                        <endWithNewline/>
                     </java>
                     <markdown>
                         <includes>
@@ -151,6 +153,8 @@
                             <spacesPerTab>2</spacesPerTab>
                         </indent>
                         <flexmark/>
+                        <trimTrailingWhitespace/>
+                        <endWithNewline/>
                     </markdown>
                     <pom>
                         <includes>
@@ -160,7 +164,11 @@
                             <spaces>true</spaces>
                             <spacesPerTab>2</spacesPerTab>
                         </indent>
-                        <sortPom/>
+                        <sortPom>
+                            <expandEmptyElements>false</expandEmptyElements>
+                        </sortPom>
+                        <trimTrailingWhitespace/>
+                        <endWithNewline/>
                     </pom>
                     <yaml>
                         <includes>
@@ -175,6 +183,8 @@
                             <spacesPerTab>2</spacesPerTab>
                         </indent>
                         <prettier/>
+                        <trimTrailingWhitespace/>
+                        <endWithNewline/>
                     </yaml>
                 </configuration>
             </plugin>
