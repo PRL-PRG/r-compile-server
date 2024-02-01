@@ -60,9 +60,11 @@
   </dependencies>
   <build>
     <testResources>
+      <!-- Resources including R scripts which are treated as data -->
       <testResource>
         <directory>src/test/resources</directory>
       </testResource>
+      <!-- R scripts which are treated as code -->
       <testResource>
         <directory>src/test/R</directory>
       </testResource>
