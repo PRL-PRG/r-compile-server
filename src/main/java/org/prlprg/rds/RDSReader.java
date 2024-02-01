@@ -6,6 +6,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -32,6 +34,10 @@ public class RDSReader implements Closeable {
     try (var reader = new RDSReader(input)) {
       return reader.read();
     }
+  }
+
+  public static SEXP readFile(Path path) throws IOException {
+    return readStream(Files.newInputStream(path));
   }
 
   private void readHeader() throws IOException {
