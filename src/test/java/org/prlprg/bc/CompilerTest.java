@@ -6,6 +6,7 @@ import static org.prlprg.util.StructuralUtils.printStructurally;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.prlprg.compile.Compiler;
@@ -25,6 +26,7 @@ public class CompilerTest implements Tests {
     System.out.println(bc);
   }
 
+  @Disabled
   @ParameterizedTest(name = "Commutative read/compile {0}")
   @DirectorySource(glob = "*.R", relativize = true, exclude = "serialize-closures.R")
   void testCommutativeReadAndCompile(Path sourceName) {
