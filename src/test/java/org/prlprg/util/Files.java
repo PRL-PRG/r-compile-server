@@ -1,5 +1,6 @@
 package org.prlprg.util;
 
+import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -33,7 +34,7 @@ public class Files {
     try (var filesHandle = java.nio.file.Files.walk(root, depth)) {
       var files = filesHandle.filter(file -> !file.equals(root));
       if (!includeDirs) {
-        files = files.filter(java.nio.file.Files::isRegularFile);
+        files = files.filter(Files::isRegularFile);
       }
       if (glob != null) {
         files = files.filter(p -> globMatcher.matches(p.getFileName()));
@@ -122,12 +123,25 @@ public class Files {
     }
   }
 
+  @CanIgnoreReturnValue
+  public static boolean deleteIfExists(Path path) {
+    try {
+      return java.nio.file.Files.deleteIfExists(path);
+    } catch (IOException e) {
+      throw new RuntimeException("Failed to delete " + path, e);
+    }
+  }
+
   public static boolean exists(Path path) {
     return java.nio.file.Files.exists(path);
   }
 
   public static boolean isDirectory(Path path) {
     return java.nio.file.Files.isDirectory(path);
+  }
+
+  public static boolean isRegularFile(Path path) {
+    return java.nio.file.Files.isRegularFile(path);
   }
 
   // endregion
