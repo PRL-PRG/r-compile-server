@@ -2,7 +2,7 @@
 
 everything_staged=$(git diff --name-only)
 
-if [ -z "$everything_staged" ]; then
+if [ -n "$everything_staged" ]; then
   # Don't commit because, after we reformat, the formatting will be unstaged, but it's too hard to determine (and maybe
   # ambiguous) what are the formatting differences and what was originally unstaged.
   mvn spotless:check || {
