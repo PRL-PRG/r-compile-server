@@ -32,13 +32,54 @@ public final class BcCode extends ForwardingList<BcInstr> {
    */
   static BcCode fromRaw(ImmutableIntArray bytecodes, ConstPool.MakeIdx makePoolIdx)
       throws BcFromRawException {
+    if (bytecodes.isEmpty()) {
+      throw new BcFromRawException("Bytecode is empty, needs at least version number");
+    }
+    if (bytecodes.get(0) != Bc.R_BC_VERSION) {
+      throw new BcFromRawException("Unsupported bytecode version: " + bytecodes.get(0));
+    }
+
+    var labelMap = labelFactoryFromRaw(bytecodes);
+
     var builder = new Builder();
-    int i = 0;
+    int i = 1;
+    int sanityCheckJ = 0;
     while (i < bytecodes.length()) {
       try {
-        var instrAndI = BcInstrs.fromRaw(bytecodes, i, makePoolIdx);
-        builder.add(instrAndI.a());
+        var instrAndI = BcInstrs.fromRaw(bytecodes, i, labelMap, makePoolIdx);
+        var instr = instrAndI.a();
         i = instrAndI.b();
+
+        builder.add(instr);
+        sanityCheckJ++;
+
+        try {
+          var sanityCheckJFromI = labelMap.make(i).target;
+          if (sanityCheckJFromI != sanityCheckJ) {
+            throw new AssertionError(
+                "expected target offset " + sanityCheckJ + ", got " + sanityCheckJFromI);
+          }
+        } catch (IllegalArgumentException | AssertionError e) {
+          throw new AssertionError(
+              "BcInstrs.fromRaw and BcInstrs.sizeFromRaw are out of sync, at instruction " + instr,
+              e);
+        }
+      } catch (BcFromRawException e) {
+        throw new BcFromRawException(
+            "malformed bytecode at " + i + "\nBytecode up to this point: " + builder.build(), e);
+      }
+    }
+    return builder.build();
+  }
+
+  static BcLabel.Factory labelFactoryFromRaw(ImmutableIntArray bytecodes) {
+    var builder = new BcLabel.Factory.Builder();
+    int i = 1;
+    while (i < bytecodes.length()) {
+      try {
+        var size = BcInstrs.sizeFromRaw(bytecodes, i);
+        builder.step(size, 1);
+        i += size;
       } catch (BcFromRawException e) {
         throw new BcFromRawException(
             "malformed bytecode at " + i + "\nBytecode up to this point: " + builder.build(), e);

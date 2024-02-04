@@ -145,14 +145,9 @@ public class RDSReader implements Closeable {
           default -> throw new RDSException("Expected IntSXP");
         };
 
-    if (code.get(0) != Bc.R_BC_VERSION) {
-      throw new RDSException("Unsupported byte code version: " + code.get(0));
-    }
-
-    var bytecode = code.subArray(1, code.size());
     var consts = readByteCodeConsts(reps);
     try {
-      return SEXPs.bcode(Bc.fromRaw(bytecode, consts));
+      return SEXPs.bcode(Bc.fromRaw(code.data(), consts));
     } catch (BcFromRawException e) {
       throw new RDSException("Error reading bytecode", e);
     }

@@ -944,21 +944,21 @@ class BcInstrs {
   /**
    * Create from the raw GNU-R representation.
    *
-   * @param bytecodes The full list of instruction bytecodes including ones before and after this
-   *     one
-   * @param i The index in the list where this instruction starts
-   * @param makePoolIdx A function to create pool indices from raw integers
-   * @return The instruction and the index in the list where the next instruction starts
+   * @param bytecodes The full list of GNU-R bytecodes including ones before and after this one.
+   * @param i The index in the list where this instruction starts.
+   * @param Label So we can create labels from GNU-R labels.
+   * @param makePoolIdx A function to create pool indices from raw integers.
+   * @return The instruction and the index in the list where the next instruction starts.
    * @apiNote This has to be in a separate class because it's package-private but interface methods
    *     are public.
    */
   static Pair<BcInstr, Integer> fromRaw(
-      ImmutableIntArray bytecodes, int i, ConstPool.MakeIdx makePoolIdx) {
+      ImmutableIntArray bytecodes, int i, BcLabel.Factory Label, ConstPool.MakeIdx makePoolIdx) {
     BcOp op;
     try {
       op = BcOp.valueOf(bytecodes.get(i++));
     } catch (IllegalArgumentException e) {
-      throw new BcFromRawException("invalid opcode (instruction) " + bytecodes.get(i - 1));
+      throw new BcFromRawException("invalid opcode (instruction) at " + bytecodes.get(i - 1));
     }
 
     try {
@@ -967,16 +967,15 @@ class BcInstrs {
             case BCMISMATCH ->
                 throw new BcFromRawException("invalid opcode " + BcOp.BCMISMATCH.value());
             case RETURN -> new BcInstr.Return();
-            case GOTO -> new BcInstr.Goto(new BcLabel(bytecodes.get(i++)));
+            case GOTO -> new BcInstr.Goto(Label.make(bytecodes.get(i++)));
             case BRIFNOT ->
                 new BcInstr.BrIfNot(
-                    makePoolIdx.lang(bytecodes.get(i++)), new BcLabel(bytecodes.get(i++)));
+                    makePoolIdx.lang(bytecodes.get(i++)), Label.make(bytecodes.get(i++)));
             case POP -> new BcInstr.Pop();
             case DUP -> new BcInstr.Dup();
             case PRINTVALUE -> new BcInstr.PrintValue();
             case STARTLOOPCNTXT ->
-                new BcInstr.StartLoopCntxt(
-                    bytecodes.get(i++) != 0, new BcLabel(bytecodes.get(i++)));
+                new BcInstr.StartLoopCntxt(bytecodes.get(i++) != 0, Label.make(bytecodes.get(i++)));
             case ENDLOOPCNTXT -> new BcInstr.EndLoopCntxt(bytecodes.get(i++) != 0);
             case DOLOOPNEXT -> new BcInstr.DoLoopNext();
             case DOLOOPBREAK -> new BcInstr.DoLoopBreak();
@@ -984,8 +983,8 @@ class BcInstrs {
                 new BcInstr.StartFor(
                     makePoolIdx.lang(bytecodes.get(i++)),
                     makePoolIdx.sym(bytecodes.get(i++)),
-                    new BcLabel(bytecodes.get(i++)));
-            case STEPFOR -> new BcInstr.StepFor(new BcLabel(bytecodes.get(i++)));
+                    Label.make(bytecodes.get(i++)));
+            case STEPFOR -> new BcInstr.StepFor(Label.make(bytecodes.get(i++)));
             case ENDFOR -> new BcInstr.EndFor();
             case SETLOOPVAL -> new BcInstr.SetLoopVal();
             case INVISIBLE -> new BcInstr.Invisible();
@@ -1039,23 +1038,23 @@ class BcInstrs {
             case ENDASSIGN -> new BcInstr.EndAssign(makePoolIdx.sym(bytecodes.get(i++)));
             case STARTSUBSET ->
                 new BcInstr.StartSubset(
-                    makePoolIdx.lang(bytecodes.get(i++)), new BcLabel(bytecodes.get(i++)));
+                    makePoolIdx.lang(bytecodes.get(i++)), Label.make(bytecodes.get(i++)));
             case DFLTSUBSET -> new BcInstr.DfltSubset();
             case STARTSUBASSIGN ->
                 new BcInstr.StartSubassign(
-                    makePoolIdx.lang(bytecodes.get(i++)), new BcLabel(bytecodes.get(i++)));
+                    makePoolIdx.lang(bytecodes.get(i++)), Label.make(bytecodes.get(i++)));
             case DFLTSUBASSIGN -> new BcInstr.DfltSubassign();
             case STARTC ->
                 new BcInstr.StartC(
-                    makePoolIdx.lang(bytecodes.get(i++)), new BcLabel(bytecodes.get(i++)));
+                    makePoolIdx.lang(bytecodes.get(i++)), Label.make(bytecodes.get(i++)));
             case DFLTC -> new BcInstr.DfltC();
             case STARTSUBSET2 ->
                 new BcInstr.StartSubset2(
-                    makePoolIdx.lang(bytecodes.get(i++)), new BcLabel(bytecodes.get(i++)));
+                    makePoolIdx.lang(bytecodes.get(i++)), Label.make(bytecodes.get(i++)));
             case DFLTSUBSET2 -> new BcInstr.DfltSubset2();
             case STARTSUBASSIGN2 ->
                 new BcInstr.StartSubassign2(
-                    makePoolIdx.lang(bytecodes.get(i++)), new BcLabel(bytecodes.get(i++)));
+                    makePoolIdx.lang(bytecodes.get(i++)), Label.make(bytecodes.get(i++)));
             case DFLTSUBASSIGN2 -> new BcInstr.DfltSubassign2();
             case DOLLAR ->
                 new BcInstr.Dollar(
@@ -1080,11 +1079,11 @@ class BcInstrs {
                 new BcInstr.MatSubassign(makePoolIdx.langOrNegative(bytecodes.get(i++)));
             case AND1ST ->
                 new BcInstr.And1st(
-                    makePoolIdx.lang(bytecodes.get(i++)), new BcLabel(bytecodes.get(i++)));
+                    makePoolIdx.lang(bytecodes.get(i++)), Label.make(bytecodes.get(i++)));
             case AND2ND -> new BcInstr.And2nd(makePoolIdx.lang(bytecodes.get(i++)));
             case OR1ST ->
                 new BcInstr.Or1st(
-                    makePoolIdx.lang(bytecodes.get(i++)), new BcLabel(bytecodes.get(i++)));
+                    makePoolIdx.lang(bytecodes.get(i++)), Label.make(bytecodes.get(i++)));
             case OR2ND -> new BcInstr.Or2nd(makePoolIdx.lang(bytecodes.get(i++)));
             case GETVAR_MISSOK -> new BcInstr.GetVarMissOk(makePoolIdx.sym(bytecodes.get(i++)));
             case DDVAL_MISSOK -> new BcInstr.DdValMissOk(makePoolIdx.sym(bytecodes.get(i++)));
@@ -1107,10 +1106,10 @@ class BcInstrs {
             case RETURNJMP -> new BcInstr.ReturnJmp();
             case STARTSUBSET_N ->
                 new BcInstr.StartSubsetN(
-                    makePoolIdx.lang(bytecodes.get(i++)), new BcLabel(bytecodes.get(i++)));
+                    makePoolIdx.lang(bytecodes.get(i++)), Label.make(bytecodes.get(i++)));
             case STARTSUBASSIGN_N ->
                 new BcInstr.StartSubassignN(
-                    makePoolIdx.lang(bytecodes.get(i++)), new BcLabel(bytecodes.get(i++)));
+                    makePoolIdx.lang(bytecodes.get(i++)), Label.make(bytecodes.get(i++)));
             case VECSUBSET2 ->
                 new BcInstr.VecSubset2(makePoolIdx.langOrNegative(bytecodes.get(i++)));
             case MATSUBSET2 ->
@@ -1121,10 +1120,10 @@ class BcInstrs {
                 new BcInstr.MatSubassign2(makePoolIdx.langOrNegative(bytecodes.get(i++)));
             case STARTSUBSET2_N ->
                 new BcInstr.StartSubset2N(
-                    makePoolIdx.lang(bytecodes.get(i++)), new BcLabel(bytecodes.get(i++)));
+                    makePoolIdx.lang(bytecodes.get(i++)), Label.make(bytecodes.get(i++)));
             case STARTSUBASSIGN2_N ->
                 new BcInstr.StartSubassign2N(
-                    makePoolIdx.lang(bytecodes.get(i++)), new BcLabel(bytecodes.get(i++)));
+                    makePoolIdx.lang(bytecodes.get(i++)), Label.make(bytecodes.get(i++)));
             case SUBSET_N ->
                 new BcInstr.SubsetN(
                     makePoolIdx.langOrNegative(bytecodes.get(i++)), bytecodes.get(i++));
@@ -1148,7 +1147,7 @@ class BcInstrs {
             case SEQLEN -> new BcInstr.SeqLen(makePoolIdx.lang(bytecodes.get(i++)));
             case BASEGUARD ->
                 new BcInstr.BaseGuard(
-                    makePoolIdx.lang(bytecodes.get(i++)), new BcLabel(bytecodes.get(i++)));
+                    makePoolIdx.lang(bytecodes.get(i++)), Label.make(bytecodes.get(i++)));
             case INCLNK -> new BcInstr.IncLnk();
             case DECLNK -> new BcInstr.DecLnk();
             case DECLNK_N -> new BcInstr.DeclnkN(bytecodes.get(i++));
@@ -1156,6 +1155,167 @@ class BcInstrs {
             case DECLNKSTK -> new BcInstr.DecLnkStk();
           };
       return new Pair<>(instr, i);
+    } catch (IllegalArgumentException e) {
+      throw new BcFromRawException("invalid opcode " + op + " (arguments)", e);
+    } catch (ArrayIndexOutOfBoundsException e) {
+      throw new BcFromRawException(
+          "invalid opcode " + op + " (arguments, unexpected end of bytecode stream)");
+    }
+  }
+
+  /**
+   * Get the GNU-R size of the instruction at the position without creating it.
+   *
+   * @param bytecodes The full list of GNU-R bytecodes including ones before and after this one.
+   * @param i The index in the list where this instruction starts.
+   * @return The size of the instruction (we don't return next position because it can be computed
+   *     from this).
+   * @apiNote This has to be in a separate class because it's package-private but interface methods
+   *     are public.
+   */
+  @SuppressWarnings({"DuplicateBranchesInSwitch", "DuplicatedCode"})
+  static int sizeFromRaw(ImmutableIntArray bytecodes, int i) {
+    BcOp op;
+    try {
+      op = BcOp.valueOf(bytecodes.get(i++));
+    } catch (IllegalArgumentException e) {
+      throw new BcFromRawException("invalid opcode (instruction) " + bytecodes.get(i - 1));
+    }
+
+    try {
+      return 1
+          + switch (op) {
+            case BCMISMATCH ->
+                throw new BcFromRawException("invalid opcode " + BcOp.BCMISMATCH.value());
+            case RETURN -> 0;
+            case GOTO -> 1;
+            case BRIFNOT -> 2;
+            case POP -> 0;
+            case DUP -> 0;
+            case PRINTVALUE -> 0;
+            case STARTLOOPCNTXT -> 2;
+            case ENDLOOPCNTXT -> 1;
+            case DOLOOPNEXT -> 0;
+            case DOLOOPBREAK -> 0;
+            case STARTFOR -> 3;
+            case STEPFOR -> 1;
+            case ENDFOR -> 0;
+            case SETLOOPVAL -> 0;
+            case INVISIBLE -> 0;
+            case LDCONST -> 1;
+            case LDNULL -> 0;
+            case LDTRUE -> 0;
+            case LDFALSE -> 0;
+            case GETVAR -> 1;
+            case DDVAL -> 1;
+            case SETVAR -> 1;
+            case GETFUN -> 1;
+            case GETGLOBFUN -> 1;
+            case GETSYMFUN -> 1;
+            case GETBUILTIN -> 1;
+            case GETINTLBUILTIN -> 1;
+            case CHECKFUN -> 0;
+            case MAKEPROM -> 1;
+            case DOMISSING -> 0;
+            case SETTAG -> 1;
+            case DODOTS -> 0;
+            case PUSHARG -> 0;
+            case PUSHCONSTARG -> 1;
+            case PUSHNULLARG -> 0;
+            case PUSHTRUEARG -> 0;
+            case PUSHFALSEARG -> 0;
+            case CALL -> 1;
+            case CALLBUILTIN -> 1;
+            case CALLSPECIAL -> 1;
+            case MAKECLOSURE -> 1;
+            case UMINUS -> 1;
+            case UPLUS -> 1;
+            case ADD -> 1;
+            case SUB -> 1;
+            case MUL -> 1;
+            case DIV -> 1;
+            case EXPT -> 1;
+            case SQRT -> 1;
+            case EXP -> 1;
+            case EQ -> 1;
+            case NE -> 1;
+            case LT -> 1;
+            case LE -> 1;
+            case GE -> 1;
+            case GT -> 1;
+            case AND -> 1;
+            case OR -> 1;
+            case NOT -> 1;
+            case DOTSERR -> 0;
+            case STARTASSIGN -> 1;
+            case ENDASSIGN -> 1;
+            case STARTSUBSET -> 2;
+            case DFLTSUBSET -> 0;
+            case STARTSUBASSIGN -> 2;
+            case DFLTSUBASSIGN -> 0;
+            case STARTC -> 2;
+            case DFLTC -> 0;
+            case STARTSUBSET2 -> 2;
+            case DFLTSUBSET2 -> 0;
+            case STARTSUBASSIGN2 -> 2;
+            case DFLTSUBASSIGN2 -> 0;
+            case DOLLAR -> 2;
+            case DOLLARGETS -> 2;
+            case ISNULL -> 0;
+            case ISLOGICAL -> 0;
+            case ISINTEGER -> 0;
+            case ISDOUBLE -> 0;
+            case ISCOMPLEX -> 0;
+            case ISCHARACTER -> 0;
+            case ISSYMBOL -> 0;
+            case ISOBJECT -> 0;
+            case ISNUMERIC -> 0;
+            case VECSUBSET -> 1;
+            case MATSUBSET -> 1;
+            case VECSUBASSIGN -> 1;
+            case MATSUBASSIGN -> 1;
+            case AND1ST -> 2;
+            case AND2ND -> 1;
+            case OR1ST -> 2;
+            case OR2ND -> 1;
+            case GETVAR_MISSOK -> 1;
+            case DDVAL_MISSOK -> 1;
+            case VISIBLE -> 0;
+            case SETVAR2 -> 1;
+            case STARTASSIGN2 -> 1;
+            case ENDASSIGN2 -> 1;
+            case SETTER_CALL -> 2;
+            case GETTER_CALL -> 1;
+            case SWAP -> 0;
+            case DUP2ND -> 0;
+            case SWITCH -> 4;
+            case RETURNJMP -> 0;
+            case STARTSUBSET_N -> 2;
+            case STARTSUBASSIGN_N -> 2;
+            case VECSUBSET2 -> 1;
+            case MATSUBSET2 -> 1;
+            case VECSUBASSIGN2 -> 1;
+            case MATSUBASSIGN2 -> 1;
+            case STARTSUBSET2_N -> 2;
+            case STARTSUBASSIGN2_N -> 2;
+            case SUBSET_N -> 2;
+            case SUBSET2_N -> 2;
+            case SUBASSIGN_N -> 2;
+            case SUBASSIGN2_N -> 2;
+            case LOG -> 1;
+            case LOGBASE -> 1;
+            case MATH1 -> 2;
+            case DOTCALL -> 2;
+            case COLON -> 1;
+            case SEQALONG -> 1;
+            case SEQLEN -> 1;
+            case BASEGUARD -> 2;
+            case INCLNK -> 0;
+            case DECLNK -> 0;
+            case DECLNK_N -> 1;
+            case INCLNKSTK -> 0;
+            case DECLNKSTK -> 0;
+          };
     } catch (IllegalArgumentException e) {
       throw new BcFromRawException("invalid opcode (arguments) " + op, e);
     } catch (ArrayIndexOutOfBoundsException e) {
