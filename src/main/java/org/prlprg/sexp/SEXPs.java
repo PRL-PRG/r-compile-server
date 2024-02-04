@@ -12,6 +12,7 @@ import org.prlprg.primitive.Complex;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
 
+/** All global SEXPs and methods to create SEXPs are here so they're easy to find. */
 public final class SEXPs {
   // region constants
   public static final NilSXP NULL = NilSXP.INSTANCE;
