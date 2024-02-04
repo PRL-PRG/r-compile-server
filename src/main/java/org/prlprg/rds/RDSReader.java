@@ -17,7 +17,7 @@ import org.prlprg.bc.BcFromRawException;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.*;
-import org.prlprg.util.NotImplementedException;
+import org.prlprg.util.NotImplementedError;
 
 public class RDSReader implements Closeable {
   private final RDSInputStream in;
@@ -116,7 +116,7 @@ public class RDSReader implements Closeable {
                     PACKAGESXP,
                     PERSISTSXP,
                     CLASSREFSXP ->
-                throw new NotImplementedException();
+                throw new NotImplementedError();
           };
     };
   }
