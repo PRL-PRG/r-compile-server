@@ -1,3 +1,4 @@
+/** GNU-R simple struct datatypes and values which aren't s-exoressions or contexts. */
 @ParametersAreNonnullByDefault
 @FieldsAreNonNullByDefault
 @ReturnTypesAreNonNullByDefault

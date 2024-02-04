@@ -1,3 +1,4 @@
+/** Deserialize (and later serialize) S-expressions. */
 @ParametersAreNonnullByDefault
 @FieldsAreNonNullByDefault
 @ReturnTypesAreNonNullByDefault
