@@ -1,6 +1,6 @@
 package org.prlprg.sexp;
 
-import javax.annotation.Nullable;
+import java.util.Optional;
 
 /**
  * A scope containing name-value bindings and parent environment. However, global environments we abstract the bindings
@@ -9,24 +9,15 @@ import javax.annotation.Nullable;
  * their structure.
  */
 // TODO: Also namespaces and packages
-public sealed interface EnvSXP extends SEXP permits LocalEnvSXP, SpecialEnvSXP {
-    /**
-     * @return {@code null} if unknown or different in different contexts.
-     */
-    @Nullable
-    EnvSXP knownParent();
+public sealed interface EnvSXP extends SEXP permits BaseEnvSXP, EmptyEnvSXP, GlobalEnvSXP, NamespaceEnvSXP, UserEnvSXP {
+    default EnvSXP parent() {
+        return EmptyEnvSXP.INSTANCE;
+    }
 
-    /**
-     * @return {@code null} if not present, unknown, or different in different contexts
-     */
-    @Nullable
-    SEXP get(String name);
+    Optional<SEXP> get(String name);
 
     @Override
     default SEXPType type() {
         return SEXPType.ENV;
     }
-
-    @Override
-    EnvSXP withAttributes(Attributes attributes);
 }

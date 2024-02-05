@@ -2,6 +2,7 @@ package org.prlprg.sexp;
 
 import javax.annotation.Nullable;
 
+// FIXME: can we simplify the attributes?
 public sealed interface SEXP permits StrOrRegSymSXP, SymOrLangSXP, ListOrVectorSXP, CloSXP, EnvSXP, BCodeSXP {
     SEXPType type();
 

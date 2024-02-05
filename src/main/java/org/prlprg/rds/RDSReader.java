@@ -1,6 +1,7 @@
 package org.prlprg.rds;
 
 import com.google.common.collect.ImmutableList;
+import org.prlprg.RSession;
 import org.prlprg.bc.Bc;
 import org.prlprg.bc.BcFromRawException;
 import org.prlprg.primitive.Constants;
@@ -15,8 +16,11 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 
 public class RDSReader implements Closeable {
+    // FIXME: this should be a parameter
+    private final RSession session = new RSession();
     private final RDSInputStream in;
     private final List<SEXP> refTable = new ArrayList<>(128);
 
@@ -99,8 +103,8 @@ public class RDSReader implements Closeable {
             case RDSItemType.Special s -> switch (s) {
                 case NILVALUE_SXP -> SEXPs.NULL;
                 case MISSINGARG_SXP -> SEXPs.MISSING_ARG;
-                case GLOBALENV_SXP -> SEXPs.GLOBAL_ENV;
-                case BASEENV_SXP -> SEXPs.BASE_ENV;
+                case GLOBALENV_SXP -> session.globalEnv();
+                case BASEENV_SXP -> session.baseEnv();
                 case EMPTYENV_SXP -> SEXPs.EMPTY_ENV;
                 case REFSXP -> readRef(flags);
                 case NAMESPACESXP -> readNamespace();
@@ -119,7 +123,8 @@ public class RDSReader implements Closeable {
             throw new RDSException("Expected 2-element list, got: " + namespaceInfo);
         }
 
-        var namespace = new SpecialEnvSXP(namespaceInfo.get(0));
+        // FIXME: this should be loaded from RSession
+        var namespace = new NamespaceEnvSXP(SEXPs.EMPTY_ENV, namespaceInfo.get(0), namespaceInfo.get(1));
         refTable.add(namespace);
 
         return namespace;
@@ -327,8 +332,8 @@ public class RDSReader implements Closeable {
         return SEXPs.string(strings.build(), attributes);
     }
 
-    private LocalEnvSXP readEnv() throws IOException {
-        var item = RegEnvSXP.uninitialized();
+    private UserEnvSXP readEnv() throws IOException {
+        var item = new UserEnvSXP();
         refTable.add(item);
 
         var locked = in.readInt();
@@ -344,9 +349,13 @@ public class RDSReader implements Closeable {
         // We read the hash table,
         // but immediately discard it because we represent environments differently and it's redundant.
         readItem();
-        var attributes = readAttributes();
 
-        item.init(locked != 0, enclos, frame, attributes);
+        item.setParent(enclos);
+        item.setAttributes(readAttributes());
+        for (var elem : frame) {
+            item.set(Objects.requireNonNull(elem.tag()), elem.value());
+        }
+
         return item;
     }
 

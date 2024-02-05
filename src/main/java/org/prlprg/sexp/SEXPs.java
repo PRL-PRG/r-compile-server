@@ -33,13 +33,7 @@ public final class SEXPs {
 
     public static final RegSymSXP ELLIPSIS = new RegSymSXP("...");
 
-    public static final SpecialEnvSXP GLOBAL_ENV = new SpecialEnvSXP("GLOBAL_ENV");
-
-    public static final SpecialEnvSXP BASE_ENV = new SpecialEnvSXP("BASE_ENV");
-
-    public static final SpecialEnvSXP BASE_NAMESPACE = new SpecialEnvSXP("BASE_NAMESPACE");
-
-    public static final SpecialEnvSXP EMPTY_ENV = new SpecialEnvSXP("EMPTY_ENV");
+    public static final EmptyEnvSXP EMPTY_ENV = EmptyEnvSXP.INSTANCE;
     // endregion
 
     // region constructors
@@ -351,10 +345,6 @@ public final class SEXPs {
 
     public static CloSXP closure(ListSXP formals, SEXP body, EnvSXP environment, Attributes attributes) {
         return new CloSXPImpl(formals, body, environment, attributes);
-    }
-
-    public static RegEnvSXP environment(EnvSXP enclos) {
-        return new RegEnvSXP(enclos);
     }
 
     public static LangSXP lang(SymOrLangSXP fun, ListSXP args) {
