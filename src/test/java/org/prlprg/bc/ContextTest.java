@@ -3,10 +3,14 @@ package org.prlprg.bc;
 import org.junit.jupiter.api.Test;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.sexp.CloSXP;
+import org.prlprg.sexp.PromSXP;
 import org.prlprg.sexp.SEXP;
+import org.prlprg.sexp.SEXPs;
 
 import java.io.File;
 import java.io.PrintWriter;
+import java.util.HashSet;
+import java.util.Optional;
 
 import static com.google.common.truth.Truth.assertThat;
 
@@ -51,7 +55,7 @@ class R {
     }
 }
 
-public class CodeToolsTest {
+public class ContextTest {
     @Test
     public void testFindLocals() {
         var fun = R.eval("""
@@ -64,7 +68,9 @@ public class CodeToolsTest {
                 """).cast(CloSXP.class);
 
         var ctx = Context.functionContext(fun);
-        var locals = CodeTools.findLocals(ctx, fun.formals(), fun.body());
+        var locals = new HashSet<>();
+        locals.addAll(ctx.findLocals(fun.formals()));
+        locals.addAll(ctx.findLocals(fun.body()));
         assertThat(locals).containsExactly("y", "z", "zz");
     }
 
@@ -78,10 +84,45 @@ public class CodeToolsTest {
                 }
                 """).cast(CloSXP.class);
 
-        // TODO: make the find locals instance method on context
         var ctx = Context.functionContext(fun);
-        var locals = CodeTools.findLocals(ctx, fun.formals(), fun.body());
+        var locals = new HashSet<>();
+        locals.addAll(ctx.findLocals(fun.formals()));
+        locals.addAll(ctx.findLocals(fun.body()));
         assertThat(locals).containsExactly("local", "x");
+    }
+
+    @Test
+    public void testBindingInNestedFunction() {
+        var fun = R.eval("""
+                f <- function(x, y=1) {
+                    a <- 1
+                    function (z) {
+                        b <- 2
+                        x + y + z + a + b
+                    }
+                }
+                f()
+                """).cast(CloSXP.class);
+
+        var ctx = Context.functionContext(fun);
+        System.out.println(ctx);
+
+        var x = ctx.binding("x");
+        assertThat(x).hasValue(new Binding(fun.env(), Optional.of(SEXPs.MISSING_ARG)));
+
+        var y = ctx.binding("y").get();
+        assertThat(y.env()).isEqualTo(fun.env());
+        assertThat(y.value().get()).isInstanceOf(PromSXP.class);
+
+        var a = ctx.binding("a").get();
+        assertThat(a.env()).isEqualTo(fun.env());
+        assertThat(a.value()).isEqualTo(Optional.of(SEXPs.real(1)));
+
+        var z = ctx.binding("z").get();
+        assertThat(z.value()).isEmpty();
+
+        var b = ctx.binding("b").get();
+        assertThat(b.value()).isEmpty();
     }
 
     @Test

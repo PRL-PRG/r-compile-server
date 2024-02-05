@@ -20,6 +20,13 @@ public final class NamespaceEnvSXP implements EnvSXP {
 
     @Override
     public Optional<SEXP> get(String name) {
+        // TODO: implement
+        return Optional.empty();
+    }
+
+    @Override
+    public Optional<SEXP> getLocal(String name) {
+        // TODO: implement
         return Optional.empty();
     }
 

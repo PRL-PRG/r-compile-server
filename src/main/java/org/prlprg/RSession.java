@@ -9,7 +9,7 @@ public class RSession {
 
     public RSession() {
         this.baseEnv = new BaseEnvSXP();
-        this.globalEnv = new GlobalEnvSXP();
+        this.globalEnv = new GlobalEnvSXP(baseEnv);
     }
 
     public BaseEnvSXP baseEnv() {

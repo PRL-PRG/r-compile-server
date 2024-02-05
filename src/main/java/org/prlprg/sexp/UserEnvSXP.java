@@ -11,15 +11,23 @@ public final class UserEnvSXP implements EnvSXP {
     private @Nullable Attributes attributes;
 
     public UserEnvSXP() {
-        this.parent = EmptyEnvSXP.INSTANCE;
+        this(EmptyEnvSXP.INSTANCE);
+    }
+
+    public UserEnvSXP(EnvSXP parent) {
+        this.parent = parent;
         this.entries = new HashMap<>();
     }
 
     @Override
     public Optional<SEXP> get(String name) {
-        return Optional.ofNullable(entries.get(name)).or(() -> parent.get(name));
+        return getLocal(name).or(() -> parent.get(name));
     }
 
+    @Override
+    public Optional<SEXP> getLocal(String name) {
+        return Optional.ofNullable(entries.get(name));
+    }
 
     @Override
     public String toString() {

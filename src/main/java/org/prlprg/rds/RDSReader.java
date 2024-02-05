@@ -98,6 +98,7 @@ public class RDSReader implements Closeable {
                 case LANG -> readLang(flags);
                 case BCODE -> readByteCode();
                 case EXPR -> readExpr();
+                case PROM -> readPromise(flags);
                 default -> throw new RDSException("Unsupported SEXP type: " + s.sexp());
             };
             case RDSItemType.Special s -> switch (s) {
@@ -111,10 +112,25 @@ public class RDSReader implements Closeable {
                 case BCREPDEF, BCREPREF ->
                         throw new RDSException("Unexpected bytecode reference here (not in bytecode)");
                 case ATTRLANGSXP, ATTRLISTSXP -> throw new RDSException("Unexpected attr here");
-                case UNBOUNDVALUE_SXP, GENERICREFSXP, BASENAMESPACE_SXP, PACKAGESXP, PERSISTSXP, CLASSREFSXP ->
+                case UNBOUNDVALUE_SXP -> SEXPs.UNBOUND_VALUE;
+                case GENERICREFSXP, BASENAMESPACE_SXP, PACKAGESXP, PERSISTSXP, CLASSREFSXP ->
                         throw new RDSException("Unsupported RDS special type: " + s);
             };
         };
+    }
+
+    private SEXP readPromise(Flags flags) throws IOException {
+        var attributes = readAttributes(flags);
+        if (!(readItem() instanceof EnvSXP env)) {
+            throw new RDSException("Expected promise ENV to be environment");
+        }
+        var val = readItem();
+        var expr = readItem();
+
+        // TODO: attributes?
+        var item = new PromSXP(expr, val, env);
+
+        return item;
     }
 
     private SEXP readNamespace() throws IOException {
