@@ -1,4 +1,4 @@
-package org.prlprg.compile;
+package org.prlprg.bc;
 
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.EnvSXP;

@@ -1,8 +1,6 @@
-package org.prlprg.compile;
+package org.prlprg.bc;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
-import org.prlprg.bc.Bc;
-import org.prlprg.bc.BcInstr;
 import org.prlprg.sexp.*;
 
 import javax.annotation.Nullable;

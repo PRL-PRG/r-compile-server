@@ -1,8 +1,6 @@
 package org.prlprg.bc;
 
 import org.junit.jupiter.api.Test;
-import org.prlprg.compile.CodeTools;
-import org.prlprg.compile.Context;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.SEXP;
