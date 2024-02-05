@@ -2,6 +2,7 @@ package org.prlprg.bc;
 
 import org.junit.jupiter.api.Test;
 import org.prlprg.compile.CodeTools;
+import org.prlprg.compile.Context;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.SEXP;
@@ -23,7 +24,7 @@ class R {
                 w.println(source);
             }
 
-            var code = String.format("saveRDS(eval(parse(file=\"%s\")), \"%s\")", sourceFile.getAbsoluteFile(), targetFile.getAbsoluteFile());
+            var code = String.format("saveRDS(eval(parse(file=\"%s\")), \"%s\", compress=FALSE)", sourceFile.getAbsoluteFile(), targetFile.getAbsoluteFile());
             runCode(code);
 
             var sxp = RDSReader.readFile(targetFile).cast();
@@ -33,7 +34,7 @@ class R {
 
             return sxp;
         } catch (Exception e) {
-            throw new RuntimeException("Unable to parse R source", e);
+            throw new RuntimeException("Unable to eval R source", e);
         }
     }
 
@@ -64,7 +65,34 @@ public class CodeToolsTest {
                 }
                 """).cast(CloSXP.class);
 
-        var locals = CodeTools.findLocals(fun.formals(), fun.body());
+        var ctx = Context.functionContext(fun);
+        var locals = CodeTools.findLocals(ctx, fun.formals(), fun.body());
         assertThat(locals).containsExactly("y", "z", "zz");
+    }
+
+    @Test
+    public void testFindLocalsWithShadowing() {
+        var fun = R.eval("""
+                function (f, x, y) {
+                    local <- f
+                    local(x <- y)
+                    x
+                }
+                """).cast(CloSXP.class);
+
+        // TODO: make the find locals instance method on context
+        var ctx = Context.functionContext(fun);
+        var locals = CodeTools.findLocals(ctx, fun.formals(), fun.body());
+        assertThat(locals).containsExactly("local", "x");
+    }
+
+    @Test
+    public void testFindLocalsWithShadowingInOtherEnvironment() {
+    }
+
+    @Test
+    public void testFrameTypes() {
+        var fun = R.eval("tools:::Rcmd").cast(CloSXP.class);
+        System.out.println(fun);
     }
 }

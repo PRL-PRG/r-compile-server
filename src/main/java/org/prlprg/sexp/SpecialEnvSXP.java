@@ -12,7 +12,7 @@ import javax.annotation.Nullable;
 public final class SpecialEnvSXP implements EnvSXP {
     private final String label;
 
-    SpecialEnvSXP(String label) {
+    public SpecialEnvSXP(String label) {
         this.label = label;
     }
 

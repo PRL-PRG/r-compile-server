@@ -6,6 +6,7 @@ import com.google.common.collect.ImmutableList;
 /**
  * Symbol which isn't "unbound value" or "missing arg"
  */
+// TODO: rename
 public final class RegSymSXP implements SymSXP, StrOrRegSymSXP {
     private static final ImmutableList<String> LITERAL_NAMES = ImmutableList.of("TRUE", "FALSE", "NULL", "NA", "Inf", "NaN");
 

@@ -7,7 +7,6 @@ import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.*;
 import org.prlprg.util.IO;
-import org.prlprg.util.NotImplementedException;
 
 import javax.annotation.Nullable;
 import java.io.*;
@@ -104,13 +103,42 @@ public class RDSReader implements Closeable {
                 case BASEENV_SXP -> SEXPs.BASE_ENV;
                 case EMPTYENV_SXP -> SEXPs.EMPTY_ENV;
                 case REFSXP -> readRef(flags);
+                case NAMESPACESXP -> readNamespace();
                 case BCREPDEF, BCREPREF ->
                         throw new RDSException("Unexpected bytecode reference here (not in bytecode)");
                 case ATTRLANGSXP, ATTRLISTSXP -> throw new RDSException("Unexpected attr here");
-                case UNBOUNDVALUE_SXP, GENERICREFSXP, BASENAMESPACE_SXP, NAMESPACESXP, PACKAGESXP, PERSISTSXP, CLASSREFSXP ->
-                        throw new NotImplementedException();
+                case UNBOUNDVALUE_SXP, GENERICREFSXP, BASENAMESPACE_SXP, PACKAGESXP, PERSISTSXP, CLASSREFSXP ->
+                        throw new RDSException("Unsupported RDS special type: " + s);
             };
         };
+    }
+
+    private SEXP readNamespace() throws IOException {
+        var namespaceInfo = readStringVec();
+        if (namespaceInfo.size() != 2) {
+            throw new RDSException("Expected 2-element list, got: " + namespaceInfo);
+        }
+
+        var namespace = new SpecialEnvSXP(namespaceInfo.get(0));
+        refTable.add(namespace);
+
+        return namespace;
+    }
+
+    private StrSXP readStringVec() throws IOException {
+        if (in.readInt() != 0) {
+            // cf. InStringVec
+            throw new RDSException("names in persistent strings are not supported yet");
+        }
+
+        var length = in.readInt();
+        var strings = new ArrayList<String>(length);
+
+        for (int i = 0; i < length; i++) {
+            strings.add(readChars());
+        }
+
+        return SEXPs.string(strings);
     }
 
     private ExprSXP readExpr() throws IOException {
@@ -300,7 +328,6 @@ public class RDSReader implements Closeable {
     }
 
     private LocalEnvSXP readEnv() throws IOException {
-        // ??? Should flags be used somewhere here? At least for sanity assertions?
         var item = RegEnvSXP.uninitialized();
         refTable.add(item);
 

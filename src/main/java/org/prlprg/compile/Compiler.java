@@ -8,21 +8,46 @@ import org.prlprg.sexp.*;
 import javax.annotation.Nullable;
 import java.util.Set;
 
+enum OptimizationLevel {
+    /**
+     * No inlining
+     */
+    LEVEL_0,
+
+    /**
+     * Functions in the base packages found through a namespace that are not shadowed by
+     * function arguments or visible local assignments may be inlined.
+     */
+    LEVEL_1,
+
+    /**
+     * In addition to the inlining permitted by Level 1, functions that are syntactically special
+     * or are considered core language functions and are found via the global environment at compile
+     * time may be inlined. Other functions in the base packages found via the global environment
+     * may be inlined with a guard that ensures at runtime that the inlined function has not been
+     * masked; if it has, then the call in handled by the AST interpreter.
+     */
+    LEVEL_2,
+    /**
+     * Any function in the base packages found via the global environment may be inlined.
+     */
+    LEVEL_3
+}
 
 public class Compiler {
     private static final Set<String> MAYBE_NSE_SYMBOLS = Set.of("bquote");
 
     private final Bc.Builder cb = new Bc.Builder();
 
+    private final OptimizationLevel optimizationLevel = OptimizationLevel.LEVEL_1;
+
     public static Bc compileFun(CloSXP fun) {
-        var locals = CodeTools.findLocals(fun.body());
-        locals.addAll(fun.formals().names());
+        var ctx = Context.functionContext(fun);
 
-        var cenv = new CompilerEnv(fun.env(), locals);
-        var ctx = new Context(true, true, cenv);
-
-        // TODO: may call browser?
-        // TODO: srcref
+        // TODO: if (mayCallBrowser(body(f), ncntxt)) return(f)
+        // TODO: location
+        // TODO: attributes - set after compilation
+        // TODO: S4?
 
         return compile(fun.body(), ctx);
     }
@@ -37,7 +62,7 @@ public class Compiler {
         // TODO: check we do not attempt to compile BCSXP or PROMSXP
         // TODO: constant fold
         switch (expr) {
-            case LangSXP e -> compileCall(e, ctx);
+            case LangSXP e -> compileCall(e, ctx, true);
             case SpecialSymSXP e -> throw new CompilerException("unhandled special symbol: " + e);
             case RegSymSXP e -> compileSym(e, ctx, false);
             default -> compileConst(expr, ctx);
@@ -82,12 +107,14 @@ public class Compiler {
         checkTailCall(ctx);
     }
 
-    void compileCall(LangSXP call, Context ctx) {
+    void compileCall(LangSXP call, Context ctx, boolean canInline) {
         var args = call.args();
         switch (call.fun()) {
             case RegSymSXP fun -> {
-                // TODO: inlining
-                compileCallSymFun(fun, args, call, ctx);
+                if (!(canInline && tryInline(fun, call, ctx))) {
+                    // TODO: check call
+                    compileCallSymFun(fun, args, call, ctx);
+                }
             }
             case SpecialSymSXP fun -> throw new IllegalStateException("Trying to call special symbol: " + fun);
             case LangSXP fun -> {
@@ -95,6 +122,12 @@ public class Compiler {
                 compileCallExprFun(fun, args, call, ctx);
             }
         }
+    }
+
+    private boolean tryInline(RegSymSXP fun, LangSXP call, Context ctx) {
+        var name = fun.name();
+
+        return false;
     }
 
     private void compileCallSymFun(RegSymSXP fun, ListSXP args, LangSXP call, Context ctx) {
@@ -106,8 +139,7 @@ public class Compiler {
     }
 
     private void compileCallExprFun(LangSXP fun, ListSXP args, LangSXP call, Context ctx) {
-        var ncntxt = ctx.makeNonTailContext();
-        compileExpr(fun, ncntxt);
+        compileExpr(fun, ctx.makeNonTailContext());
         cb.addInstr(new BcInstr.CheckFun());
         compileArgs(args, false, ctx);
         cb.addInstr(new BcInstr.Call(cb.addConst(call)));
@@ -152,7 +184,7 @@ public class Compiler {
 
     private void compileNormArg(SEXP arg, boolean nse, Context ctx) {
         cb.addInstr(new BcInstr.MakeProm(cb.addConst(
-                nse ? arg : SEXPs.bcode(compile(arg, ctx.makePromisecContext()))
+                nse ? arg : SEXPs.bcode(compile(arg, ctx.makePromiseContext()))
         )));
     }
 
