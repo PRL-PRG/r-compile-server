@@ -62,7 +62,7 @@ public class CompilerTest implements Tests {
             var ourBc = printStructurally(Compiler.compileFun(astClos));
             var rBc = printStructurally(((BCodeSXP) bcClos.body()).bc());
             assertEquals(ourBc, rBc, "`compile(read(ast)) == read(R.compile(ast))`");
-            assertSnapshot(bcOutPath, bcClos::toString, "`print(bc)`");
+            assertSnapshot(bcOutPath, () -> printStructurally(bcClos), "`print(bc)`");
           });
     }
   }
