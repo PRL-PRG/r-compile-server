@@ -1,18 +1,30 @@
 package org.prlprg.sexp;
 
+import com.google.common.collect.ImmutableMap;
+
+import java.util.HashMap;
 import java.util.Optional;
 
 public final class BaseEnvSXP implements EnvSXP {
+    private final ImmutableMap<String, SEXP> bindings;
+
+    public BaseEnvSXP(HashMap<String, SEXP> bindings) {
+        this.bindings = ImmutableMap.copyOf(bindings);
+    }
+
+    @Override
+    public EnvSXP parent() {
+        return SEXPs.EMPTY_ENV;
+    }
+
     @Override
     public Optional<SEXP> get(String name) {
-        // FIXME: implement
-        return Optional.empty();
+        return getLocal(name);
     }
 
     @Override
     public Optional<SEXP> getLocal(String name) {
-        // FIXME: implement
-        return Optional.empty();
+        return Optional.ofNullable(bindings.get(name));
     }
 
     @Override

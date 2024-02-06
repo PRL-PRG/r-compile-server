@@ -38,8 +38,8 @@ public final class BcCode extends ForwardingList<BcInstr> {
         while (i < bytecodes.length()) {
             try {
                 var instrAndI = BcInstrs.fromRaw(bytecodes, i, makePoolIdx);
-                builder.add(instrAndI.a());
-                i = instrAndI.b();
+                builder.add(instrAndI.first());
+                i = instrAndI.second();
             } catch (BcFromRawException e) {
                 throw new BcFromRawException(
                         "malformed bytecode at " + i + "\nBytecode up to this point: " + builder.build(),

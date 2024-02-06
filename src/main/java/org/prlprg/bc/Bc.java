@@ -22,8 +22,8 @@ public record Bc(BcCode code, ConstPool consts) {
      */
     public static Bc fromRaw(ImmutableIntArray bytecodes, List<SEXP> consts) throws BcFromRawException {
         var poolAndMakeIdx = ConstPool.fromRaw(consts);
-        var pool = poolAndMakeIdx.a();
-        var makePoolIdx = poolAndMakeIdx.b();
+        var pool = poolAndMakeIdx.first();
+        var makePoolIdx = poolAndMakeIdx.second();
         try {
             return new Bc(BcCode.fromRaw(bytecodes, makePoolIdx), pool);
         } catch (BcFromRawException e) {

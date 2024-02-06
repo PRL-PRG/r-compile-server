@@ -1,7 +1,7 @@
 package org.prlprg.util;
 
-public record Pair<A, B>(A a, B b) {
-    public static <A, B> Pair<A, B> of(A a, B b) {
-        return new Pair<>(a, b);
+public record Pair<A, B>(A first, B second) {
+    public static <A, B> Pair<A, B> of(A first, B second) {
+        return new Pair<>(first, second);
     }
 }

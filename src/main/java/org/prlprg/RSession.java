@@ -1,22 +1,42 @@
 package org.prlprg;
 
-import org.prlprg.sexp.BaseEnvSXP;
-import org.prlprg.sexp.GlobalEnvSXP;
+import org.prlprg.rds.RDSReader;
+import org.prlprg.sexp.*;
+import org.prlprg.util.IO;
+
+import javax.annotation.Nullable;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Objects;
 
 public class RSession {
-    private final BaseEnvSXP baseEnv;
-    private final GlobalEnvSXP globalEnv;
+    private @Nullable BaseEnvSXP baseEnv = null;
+    private @Nullable GlobalEnvSXP globalEnv = null;
 
-    public RSession() {
-        this.baseEnv = new BaseEnvSXP();
-        this.globalEnv = new GlobalEnvSXP(baseEnv);
+    private static BaseEnvSXP loadBaseEnv() {
+        try {
+            var names = RDSReader.readStream(IO.maybeDecompress(Objects.requireNonNull(RSession.class.getResourceAsStream("/R/base.RDS")))).cast(StrSXP.class);
+
+            var frame = new HashMap<String, SEXP>(names.size());
+            names.forEach(x -> frame.put(x, SEXPs.UNBOUND_VALUE));
+
+            return new BaseEnvSXP(frame);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to load the base environment", e);
+        }
     }
 
     public BaseEnvSXP baseEnv() {
+        if (baseEnv == null) {
+            baseEnv = loadBaseEnv();
+        }
         return baseEnv;
     }
 
     public GlobalEnvSXP globalEnv() {
+        if (globalEnv == null) {
+            globalEnv = new GlobalEnvSXP(baseEnv());
+        }
         return globalEnv;
     }
 }

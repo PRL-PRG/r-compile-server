@@ -20,6 +20,11 @@ public final class UserEnvSXP implements EnvSXP {
     }
 
     @Override
+    public EnvSXP parent() {
+        return parent;
+    }
+
+    @Override
     public Optional<SEXP> get(String name) {
         return getLocal(name).or(() -> parent.get(name));
     }

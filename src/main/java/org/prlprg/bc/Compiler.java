@@ -6,38 +6,32 @@ import org.prlprg.sexp.*;
 import javax.annotation.Nullable;
 import java.util.Set;
 
-enum OptimizationLevel {
-    /**
-     * No inlining
-     */
-    LEVEL_0,
+public class Compiler {
+    private static final Set<String> MAYBE_NSE_SYMBOLS = Set.of("bquote");
+    private static final Set<String> ALLOWED_INLINES = Set.of(
+            "^", "~", "<", "<<-", "<=", "<-", "=", "==", ">", ">=",
+            "|", "||", "-", ":", "!", "!=", "/", "(", "[", "[<-", "[[",
+            "[[<-", "{", "@", "$", "$<-", "*", "&", "&&", "%/%", "%*%",
+            "%%", "+",
+            "::", ":::", "@<-",
+            "break", "for", "function", "if", "next", "repeat", "while",
+            "local", "return", "switch"
+    );
 
-    /**
-     * Functions in the base packages found through a namespace that are not shadowed by
+    private final Bc.Builder cb = new Bc.Builder();
+
+    /*
+     * 0 - No inlining
+     * 1 - Functions in the base packages found through a namespace that are not shadowed by
      * function arguments or visible local assignments may be inlined.
-     */
-    LEVEL_1,
-
-    /**
-     * In addition to the inlining permitted by Level 1, functions that are syntactically special
+     * 2 - In addition to the inlining permitted by Level 1, functions that are syntactically special
      * or are considered core language functions and are found via the global environment at compile
      * time may be inlined. Other functions in the base packages found via the global environment
      * may be inlined with a guard that ensures at runtime that the inlined function has not been
      * masked; if it has, then the call in handled by the AST interpreter.
+     * 3 - Any function in the base packages found via the global environment may be inlined.
      */
-    LEVEL_2,
-    /**
-     * Any function in the base packages found via the global environment may be inlined.
-     */
-    LEVEL_3
-}
-
-public class Compiler {
-    private static final Set<String> MAYBE_NSE_SYMBOLS = Set.of("bquote");
-
-    private final Bc.Builder cb = new Bc.Builder();
-
-    private final OptimizationLevel optimizationLevel = OptimizationLevel.LEVEL_1;
+    private final int optimizationLevel = 2;
 
     public static Bc compileFun(CloSXP fun) {
         var ctx = Context.functionContext(fun);
@@ -123,7 +117,19 @@ public class Compiler {
     }
 
     private boolean tryInline(RegSymSXP fun, LangSXP call, Context ctx) {
-        var name = fun.name();
+        if (optimizationLevel == 0) {
+            return false;
+        }
+
+//        ctx.binding(fun.name()).map(b -> {
+//            switch (b.env()) {
+//                case BaseEnvSXP e when optimizationLevel >= 2 && ALLOWED_INLINES.contains(fun.name()) -> {
+//                }
+//                case BaseEnvSXP e when optimizationLevel >= 3 -> {
+//                }
+//                default -> false;
+//            }
+//        }).orElse(false);
 
         return false;
     }
@@ -206,7 +212,7 @@ public class Compiler {
     }
 
     private void checkTailCall(Context ctx) {
-        if (ctx.tailCall()) {
+        if (ctx.isTailCall()) {
             cb.addInstr(new BcInstr.Return());
         }
     }

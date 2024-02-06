@@ -1,12 +1,12 @@
 package org.prlprg.sexp;
 
+import org.prlprg.util.Pair;
+
 import java.util.Optional;
 import java.util.function.Consumer;
 
 public sealed interface EnvSXP extends SEXP permits BaseEnvSXP, EmptyEnvSXP, GlobalEnvSXP, NamespaceEnvSXP, UserEnvSXP {
-    default EnvSXP parent() {
-        return EmptyEnvSXP.INSTANCE;
-    }
+    EnvSXP parent();
 
     /**
      * Get the value of a symbol in the environment, following the parent chain.
@@ -35,4 +35,7 @@ public sealed interface EnvSXP extends SEXP permits BaseEnvSXP, EmptyEnvSXP, Glo
     }
 
 
+    default Optional<Pair<EnvSXP, SEXP>> find(String name) {
+        return getLocal(name).map(v -> new Pair<>(this, v)).or(() -> parent().find(name));
+    }
 }

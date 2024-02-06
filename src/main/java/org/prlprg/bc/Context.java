@@ -1,6 +1,7 @@
 package org.prlprg.bc;
 
 import org.prlprg.sexp.*;
+import org.prlprg.util.Pair;
 
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -8,74 +9,64 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-/**
- * @param topLevel   {@code true} for top level expressions, {@code false} otherwise (e.g., compilation of function arguments).
- * @param tailCall   {@code true} for expressions that appear in tail position and should be followed by return, or {@code false}
- *                   when the result is ignored, or whether the expression is contained in a loop.
- * @param returnJump {@code true} indicated that the call to return needs {@code RETURNJMP}.
- * @param cenv
- */
-public record Context(boolean topLevel, boolean tailCall, boolean returnJump, Environment cenv) {
-    public static Context topLevelContext(Environment cenv) {
+public class Context {
+    private final boolean topLevel;
+    private final boolean tailCall;
+    private final boolean returnJump;
+    private final EnvSXP cenv;
+
+    /**
+     * @param topLevel   {@code true} for top level expressions, {@code false} otherwise (e.g., compilation of function arguments).
+     * @param tailCall   {@code true} for expressions that appear in tail position and should be followed by return, or {@code false}
+     *                   when the result is ignored, or whether the expression is contained in a loop.
+     * @param returnJump {@code true} indicated that the call to return needs {@code RETURNJMP}.
+     * @param cenv
+     */
+    public Context(boolean topLevel, boolean tailCall, boolean returnJump, EnvSXP cenv) {
+        this.topLevel = topLevel;
+        this.tailCall = tailCall;
+        this.returnJump = returnJump;
+        this.cenv = cenv;
+    }
+
+    public static Context topLevelContext(EnvSXP cenv) {
         return new Context(true, true, false, cenv);
     }
 
     public static Context functionContext(CloSXP fun) {
-        var cenv = Environment.fromEnv(fun.env());
+        var cenv = new UserEnvSXP(fun.env());
         var ctx = new Context(false, true, false, cenv);
 
-        var locals = new HashSet<String>();
-
-        locals.addAll(fun.formals().names());
-        fun.formals().values().forEach(x -> locals.addAll(ctx.findLocals(x)));
-        locals.addAll(ctx.findLocals(fun.body()));
-
-        cenv.add(new Frame.Local(new UserEnvSXP(fun.env()), locals));
+        fun.formals().names().forEach(x -> cenv.set(x, SEXPs.UNBOUND_VALUE));
+        for (var v : fun.formals().values()) {
+            ctx.findLocals(v).forEach(x -> cenv.set(x, SEXPs.UNBOUND_VALUE));
+        }
+        ctx.findLocals(fun.body()).forEach(x -> cenv.set(x, SEXPs.UNBOUND_VALUE));
 
         return ctx;
     }
 
-    Context makeNonTailContext() {
+    public Context makeNonTailContext() {
         return new Context(false, true, false, cenv);
     }
 
-    Context makePromiseContext() {
+    public Context makePromiseContext() {
         // TODO: check loop?
         // The promise context also sets returnJump since a return call that is triggered by forcing a promise
         // requires a longjmp to return from the appropriate function.
         return new Context(false, true, true, cenv);
     }
 
-    public boolean baseVersion(String name) {
-        return binding(name).map(b -> b.env() instanceof BaseEnvSXP).orElse(false);
+    public boolean isBaseVersion(String name) {
+        return cenv.find(name).map(b -> b.first() instanceof BaseEnvSXP).orElse(false);
     }
 
-    public Optional<Binding> binding(String name) {
-        for (var frame : cenv.frames()) {
-            switch (frame) {
-                case Frame.Global(var e) -> {
-                    var b = e.getLocal(name);
-                    if (b.isPresent()) {
-                        return Optional.of(new Binding(e, b));
-                    }
-                }
-                case Frame.Local(var e, var extras) -> {
-                    if (extras.contains(name)) {
-                        return Optional.of(new Binding(e, Optional.empty()));
-                    }
-                    var b = e.getLocal(name);
-                    if (b.isPresent()) {
-                        return Optional.of(new Binding(e, b));
-                    }
-                }
-            }
-        }
-
-        return Optional.empty();
+    public Optional<Pair<EnvSXP, SEXP>> resolve(String name) {
+        return cenv.find(name);
     }
 
     public Set<String> findLocals(SEXP e) {
-        var shadowed = Set.of("quote", "expression", "local").stream().filter(x -> !baseVersion(x)).collect(Collectors.toSet());
+        var shadowed = Set.of("quote", "expression", "local").stream().filter(x -> !isBaseVersion(x)).collect(Collectors.toSet());
 
         var locals = new HashSet<String>();
         var todo = new LinkedList<>();
@@ -119,18 +110,19 @@ public record Context(boolean topLevel, boolean tailCall, boolean returnJump, En
                     }
                     case "~", "expression", "quote" -> {
                         // they do not evaluate their arguments and so do not contribute new local variables.
-                        if (locals.contains(s.name())) {
+                        if (shadowed.contains(s.name()) || locals.contains(s.name())) {
                             todo.addAll(l.args().values());
                         }
                         yield Optional.<String>empty();
                     }
                     case "local" -> {
+
                         // local calls without an environment argument create a new environment
                         // for evaluating their expression and do not add new local variables.
                         // If an environment argument is present then this might be the current
                         // environment and so assignments in the expression are considered to
                         // create possible local variables.
-                        if (locals.contains(s.name()) || l.args().size() != 1) {
+                        if (shadowed.contains(s.name()) || locals.contains(s.name()) || l.args().size() != 1) {
                             todo.addAll(l.args().values());
                         }
                         yield Optional.<String>empty();
@@ -171,5 +163,9 @@ public record Context(boolean topLevel, boolean tailCall, boolean returnJump, En
                 }
             }
         }
+    }
+
+    public boolean isTailCall() {
+        return tailCall;
     }
 }

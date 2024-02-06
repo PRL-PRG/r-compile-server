@@ -1,5 +1,7 @@
 package org.prlprg.sexp;
 
+import org.prlprg.util.Pair;
+
 import java.util.Optional;
 import java.util.function.Consumer;
 
@@ -27,6 +29,11 @@ public final class EmptyEnvSXP implements EnvSXP {
 
     @Override
     public Optional<SEXP> getLocal(String name) {
+        return Optional.empty();
+    }
+
+    @Override
+    public Optional<Pair<EnvSXP, SEXP>> find(String name) {
         return Optional.empty();
     }
 
