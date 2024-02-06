@@ -59,6 +59,16 @@
     </dependency>
   </dependencies>
   <build>
+    <testResources>
+      <!-- Resources including R scripts which are treated as data -->
+      <testResource>
+        <directory>src/test/resources</directory>
+      </testResource>
+      <!-- R scripts which are treated as code -->
+      <testResource>
+        <directory>src/test/R</directory>
+      </testResource>
+    </testResources>
     <plugins>
       <!-- git-build-hook, install git hooks when you run any maven command so you don't forget -->
       <plugin>
@@ -257,6 +267,11 @@
       <plugin>
         <artifactId>maven-surefire-plugin</artifactId>
         <version>3.2.2</version>
+        <!-- Run tests in parallel. You can annotate tests with @NotThreadSafe if necessary -->
+        <configuration>
+          <parallel>all</parallel>
+          <threadCount>8</threadCount>
+        </configuration>
         <!-- automatically runs on `test` (and `verify` because `verify` invokes `test`) -->
       </plugin>
     </plugins>
