@@ -31,9 +31,13 @@ public class Compiler {
      * masked; if it has, then the call in handled by the AST interpreter.
      * 3 - Any function in the base packages found via the global environment may be inlined.
      */
-    private final int optimizationLevel = 2;
+    private final int optimizationLevel;
 
-    public static Bc compileFun(CloSXP fun) {
+    public Compiler(int optimizationLevel) {
+        this.optimizationLevel = optimizationLevel;
+    }
+
+    public Bc compileFun(CloSXP fun) {
         var ctx = Context.functionContext(fun);
 
         // TODO: if (mayCallBrowser(body(f), ncntxt)) return(f)
@@ -44,10 +48,9 @@ public class Compiler {
         return compile(fun.body(), ctx);
     }
 
-    private static Bc compile(SEXP expr, Context ctx) {
-        var compiler = new Compiler();
-        compiler.compileExpr(expr, ctx);
-        return compiler.cb.build();
+    private Bc compile(SEXP expr, Context ctx) {
+        compileExpr(expr, ctx);
+        return cb.build();
     }
 
     private void compileExpr(SEXP expr, Context ctx) {
@@ -121,17 +124,17 @@ public class Compiler {
             return false;
         }
 
-//        ctx.binding(fun.name()).map(b -> {
-//            switch (b.env()) {
-//                case BaseEnvSXP e when optimizationLevel >= 2 && ALLOWED_INLINES.contains(fun.name()) -> {
-//                }
-//                case BaseEnvSXP e when optimizationLevel >= 3 -> {
-//                }
-//                default -> false;
-//            }
-//        }).orElse(false);
-
-        return false;
+        // it seems that there is no way to pattern match on Optional
+        var bindingOpt = ctx.resolve(fun.name());
+        if (bindingOpt.isEmpty()) {
+            return false;
+        }
+        var binding = bindingOpt.get();
+        if (binding.first() instanceof BaseEnvSXP) {
+            return tryInlineBase(fun.name(), call, ctx);
+        } else {
+            return false;
+        }
     }
 
     private void compileCallSymFun(RegSymSXP fun, ListSXP args, LangSXP call, Context ctx) {
@@ -215,5 +218,48 @@ public class Compiler {
         if (ctx.isTailCall()) {
             cb.addInstr(new BcInstr.Return());
         }
+    }
+
+    private boolean tryInlineBase(String name, LangSXP call, Context ctx) {
+        if (optimizationLevel < 2) {
+            return false;
+        }
+        if (optimizationLevel == 2 && !ALLOWED_INLINES.contains(name)) {
+            return false;
+        }
+
+        switch (name) {
+            case "{" -> inlineBlock(call, ctx);
+            default -> {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * The inlining handler for { needs to consider that a pair of braces { and } can surround zero, one,
+     * or more expressions. A set of empty braces is equivalent to the constant NULL. If there is more
+     * than one expression, then all the values of all expressions other than the last are ignored. These
+     * expressions are compiled in a no-value context (currently equivalent to a non-tail-call context), and
+     * then code is generated to pop their values off the stack. The final expression is then compiled
+     * according to the context in which the braces expression occurs.
+     *
+     * @param call
+     * @param ctx
+     */
+    private void inlineBlock(LangSXP call, Context ctx) {
+        var n = call.args().size();
+        if (n == 0) {
+            compile(SEXPs.NULL, ctx);
+            return;
+        }
+
+        if (n > 1) {
+            var nctx = ctx.makeNonTailContext();
+            call.args().values().subList(0, n - 1).forEach(x -> compileExpr(x, nctx));
+        }
+
+        compile(call.arg(n - 1).value(), ctx);
     }
 }
