@@ -1,4 +1,4 @@
-.snapshots/**/*.fail*
+**/src/test/snapshots/**/*.fail*
 
 ### Build ###
 target/
