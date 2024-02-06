@@ -1,8 +1,8 @@
-/** GNU-R simple struct datatypes and values which aren't s-exoressions or contexts. */
+/** Socket setup and communication with clients, and protocols. */
 @ParametersAreNonnullByDefault
 @FieldsAreNonNullByDefault
 @ReturnTypesAreNonNullByDefault
-package org.prlprg.primitive;
+package org.prlprg.server;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 import org.prlprg.util.FieldsAreNonNullByDefault;

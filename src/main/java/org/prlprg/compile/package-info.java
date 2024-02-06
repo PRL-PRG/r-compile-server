@@ -1,3 +1,4 @@
+/** Compile GNU-R ASTs (S-expressions) into bytecode. */
 @ParametersAreNonnullByDefault
 @FieldsAreNonNullByDefault
 @ReturnTypesAreNonNullByDefault

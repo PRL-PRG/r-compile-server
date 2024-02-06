@@ -1,3 +1,4 @@
+/** GNU-R bytecode representation. */
 @ParametersAreNonnullByDefault
 @FieldsAreNonNullByDefault
 @ReturnTypesAreNonNullByDefault

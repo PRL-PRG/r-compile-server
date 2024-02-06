@@ -1,3 +1,4 @@
+/** Misc stuff which could go in any package. */
 @ParametersAreNonnullByDefault
 @FieldsAreNonNullByDefault
 @ReturnTypesAreNonNullByDefault

@@ -6,6 +6,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -15,7 +17,7 @@ import org.prlprg.bc.BcFromRawException;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.*;
-import org.prlprg.util.NotImplementedException;
+import org.prlprg.util.NotImplementedError;
 
 public class RDSReader implements Closeable {
   private final RDSInputStream in;
@@ -32,6 +34,10 @@ public class RDSReader implements Closeable {
     try (var reader = new RDSReader(input)) {
       return reader.read();
     }
+  }
+
+  public static SEXP readFile(Path path) throws IOException {
+    return readStream(Files.newInputStream(path));
   }
 
   private void readHeader() throws IOException {
@@ -110,7 +116,7 @@ public class RDSReader implements Closeable {
                     PACKAGESXP,
                     PERSISTSXP,
                     CLASSREFSXP ->
-                throw new NotImplementedException();
+                throw new NotImplementedError();
           };
     };
   }
@@ -139,14 +145,9 @@ public class RDSReader implements Closeable {
           default -> throw new RDSException("Expected IntSXP");
         };
 
-    if (code.get(0) != Bc.R_BC_VERSION) {
-      throw new RDSException("Unsupported byte code version: " + code.get(0));
-    }
-
-    var bytecode = code.subArray(1, code.size());
     var consts = readByteCodeConsts(reps);
     try {
-      return SEXPs.bcode(Bc.fromRaw(bytecode, consts));
+      return SEXPs.bcode(Bc.fromRaw(code.data(), consts));
     } catch (BcFromRawException e) {
       throw new RDSException("Error reading bytecode", e);
     }

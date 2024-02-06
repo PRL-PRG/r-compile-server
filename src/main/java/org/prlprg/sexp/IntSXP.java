@@ -6,7 +6,7 @@ import javax.annotation.concurrent.Immutable;
 
 @Immutable
 public sealed interface IntSXP extends VectorSXP<Integer> {
-  ImmutableIntArray subArray(int startIndex, int endIndex);
+  ImmutableIntArray data();
 
   @Override
   default SEXPType type() {
@@ -20,12 +20,8 @@ public sealed interface IntSXP extends VectorSXP<Integer> {
   IntSXP withAttributes(Attributes attributes);
 }
 
-record IntSXPImpl(ImmutableIntArray data, @Override Attributes attributes) implements IntSXP {
-  @Override
-  public ImmutableIntArray subArray(int startIndex, int endIndex) {
-    return data.subArray(startIndex, endIndex);
-  }
-
+record IntSXPImpl(@Override ImmutableIntArray data, @Override Attributes attributes)
+    implements IntSXP {
   @Override
   public PrimitiveIterator.OfInt iterator() {
     return data.stream().iterator();
@@ -58,15 +54,8 @@ final class SimpleIntSXPImpl extends SimpleScalarSXPImpl<Integer> implements Int
   }
 
   @Override
-  public ImmutableIntArray subArray(int startIndex, int endIndex) {
-    if (startIndex == endIndex && (startIndex == 0 || startIndex == 1)) {
-      return ImmutableIntArray.of();
-    } else if (startIndex == 0 && endIndex == 1) {
-      return ImmutableIntArray.of(data);
-    } else {
-      throw new IndexOutOfBoundsException(
-          "subArray of simple scalar; startIndex=" + startIndex + ", endIndex=" + endIndex);
-    }
+  public ImmutableIntArray data() {
+    return ImmutableIntArray.of(data);
   }
 
   @Override
@@ -83,13 +72,8 @@ final class EmptyIntSXPImpl extends EmptyVectorSXPImpl<Integer> implements IntSX
   }
 
   @Override
-  public ImmutableIntArray subArray(int startIndex, int endIndex) {
-    if (startIndex == 0 && endIndex == 0) {
-      return ImmutableIntArray.of();
-    } else {
-      throw new IndexOutOfBoundsException(
-          "subArray of empty vector; startIndex=" + startIndex + ", endIndex=" + endIndex);
-    }
+  public ImmutableIntArray data() {
+    return ImmutableIntArray.of();
   }
 
   @Override
