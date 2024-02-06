@@ -4,8 +4,10 @@ import com.google.common.primitives.ImmutableIntArray;
 import java.util.PrimitiveIterator;
 import javax.annotation.concurrent.Immutable;
 
+/** Integer vector SEXP. */
 @Immutable
-public sealed interface IntSXP extends VectorSXP<Integer> {
+public sealed interface IntSXP extends VectorSXP<Integer>
+    permits EmptyIntSXPImpl, IntSXPImpl, SimpleIntSXP {
   ImmutableIntArray data();
 
   @Override
@@ -14,12 +16,10 @@ public sealed interface IntSXP extends VectorSXP<Integer> {
   }
 
   @Override
-  Attributes attributes();
-
-  @Override
   IntSXP withAttributes(Attributes attributes);
 }
 
+/** Int vector which doesn't fit any of the more specific subclasses. */
 record IntSXPImpl(@Override ImmutableIntArray data, @Override Attributes attributes)
     implements IntSXP {
   @Override
@@ -48,22 +48,7 @@ record IntSXPImpl(@Override ImmutableIntArray data, @Override Attributes attribu
   }
 }
 
-final class SimpleIntSXPImpl extends SimpleScalarSXPImpl<Integer> implements IntSXP {
-  SimpleIntSXPImpl(int data) {
-    super(data);
-  }
-
-  @Override
-  public ImmutableIntArray data() {
-    return ImmutableIntArray.of(data);
-  }
-
-  @Override
-  public IntSXP withAttributes(Attributes attributes) {
-    return SEXPs.integer(data, attributes);
-  }
-}
-
+/** Empty int vector with no ALTREP, ATTRIB, or OBJECT. */
 final class EmptyIntSXPImpl extends EmptyVectorSXPImpl<Integer> implements IntSXP {
   static final EmptyIntSXPImpl INSTANCE = new EmptyIntSXPImpl();
 

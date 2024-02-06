@@ -16,12 +16,12 @@ import org.prlprg.primitive.Logical;
 public final class SEXPs {
   // region constants
   public static final NilSXP NULL = NilSXP.INSTANCE;
-  public static final LglSXP TRUE = SimpleLglSXPImpl.TRUE;
-  public static final LglSXP FALSE = SimpleLglSXPImpl.FALSE;
-  public static final LglSXP NA_LOGICAL = SimpleLglSXPImpl.NA;
-  public static final IntSXP NA_INTEGER = new SimpleIntSXPImpl(Constants.NA_INT);
-  public static final RealSXP NA_REAL = new SimpleRealSXPImpl(Constants.NA_REAL);
-  public static final StrSXP NA_STRING = new SimpleStrSXPImpl(Constants.NA_STRING);
+  public static final SimpleLglSXP TRUE = SimpleLglSXP.TRUE;
+  public static final SimpleLglSXP FALSE = SimpleLglSXP.FALSE;
+  public static final SimpleLglSXP NA_LOGICAL = SimpleLglSXP.NA;
+  public static final SimpleIntSXP NA_INTEGER = new SimpleIntSXP(Constants.NA_INT);
+  public static final RealSXP NA_REAL = new SimpleRealSXP(Constants.NA_REAL);
+  public static final StrSXP NA_STRING = new SimpleStrSXP(Constants.NA_STRING);
   public static final LglSXP EMPTY_LOGICAL = EmptyLglSXPImpl.INSTANCE;
   public static final IntSXP EMPTY_INTEGER = EmptyIntSXPImpl.INSTANCE;
   public static final RealSXP EMPTY_REAL = EmptyRealSXPImpl.INSTANCE;
@@ -52,20 +52,20 @@ public final class SEXPs {
     };
   }
 
-  public static IntSXP integer(int data) {
-    return new SimpleIntSXPImpl(data);
+  public static SimpleIntSXP integer(int data) {
+    return new SimpleIntSXP(data);
   }
 
-  public static RealSXP real(double data) {
-    return new SimpleRealSXPImpl(data);
+  public static SimpleRealSXP real(double data) {
+    return new SimpleRealSXP(data);
   }
 
-  public static StrSXP string(String data) {
-    return new SimpleStrSXPImpl(data);
+  public static SimpleStrSXP string(String data) {
+    return new SimpleStrSXP(data);
   }
 
-  public static ComplexSXP complex(Complex data) {
-    return new SimpleComplexSXPImpl(data);
+  public static SimpleComplexSXP complex(Complex data) {
+    return new SimpleComplexSXP(data);
   }
 
   public static IntSXP integer(int first, int... rest) {
@@ -120,8 +120,8 @@ public final class SEXPs {
     return expr(ImmutableList.copyOf(data));
   }
 
-  public static ComplexSXP complex(double real, double imaginary) {
-    return new SimpleComplexSXPImpl(new Complex(real, imaginary));
+  public static SimpleComplexSXP complex(double real, double imaginary) {
+    return new SimpleComplexSXP(new Complex(real, imaginary));
   }
 
   public static LglSXP logical(Logical data, Attributes attributes) {
