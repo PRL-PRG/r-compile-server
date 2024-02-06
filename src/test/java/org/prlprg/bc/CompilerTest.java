@@ -17,6 +17,18 @@ public class CompilerTest implements Tests {
         System.out.println(bc);
     }
 
+    @Test
+    public void testInlineIf() {
+        var fun = R.eval("""
+                function (x) if (x) 1 else 2
+                """).cast(CloSXP.class);
+
+        var compiler = new Compiler(3);
+        var bc = compiler.compileFun(fun);
+        System.out.println(bc);
+    }
+
+
 //    @Test
 //    public void testBasic() throws Exception {
 //        var source = (CloSXP) RDSReader.readStream(getResourceAsStream("f1.rds"));

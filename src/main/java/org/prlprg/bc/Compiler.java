@@ -4,6 +4,7 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.prlprg.sexp.*;
 
 import javax.annotation.Nullable;
+import java.util.Optional;
 import java.util.Set;
 
 public class Compiler {
@@ -230,6 +231,7 @@ public class Compiler {
 
         switch (name) {
             case "{" -> inlineBlock(call, ctx);
+            case "if" -> inlineCondition(call, ctx);
             default -> {
                 return false;
             }
@@ -261,5 +263,39 @@ public class Compiler {
         }
 
         compile(call.arg(n - 1).value(), ctx);
+    }
+
+    private void inlineCondition(LangSXP call, Context ctx) {
+        var test = call.arg(0).value();
+        var thenBranch = call.arg(1).value();
+        var elseBranch = Optional.<SEXP>empty();
+        if (call.args().size() == 3) {
+            elseBranch = Optional.of(call.arg(2).value());
+        }
+
+        // TODO: constant fold
+
+        var nctx = ctx.makeNonTailContext();
+        compile(test, nctx);
+        var callidx = cb.addConst(call);
+        var elseLabel = cb.makeLabel();
+        cb.addInstr(new BcInstr.BrIfNot(callidx, elseLabel));
+        compile(thenBranch, ctx);
+        if (ctx.isTailCall()) {
+            cb.putLabel(elseLabel);
+            elseBranch.ifPresentOrElse(branch -> compile(branch, ctx), () -> {
+                cb.addInstr(new BcInstr.LdNull());
+                cb.addInstr(new BcInstr.Invisible());
+                cb.addInstr(new BcInstr.Return());
+            });
+        } else {
+            var endLabel = cb.makeLabel();
+            cb.addInstr(new BcInstr.Goto(endLabel));
+            cb.putLabel(elseLabel);
+            elseBranch.ifPresentOrElse(branch -> compile(branch, ctx), () -> {
+                cb.addInstr(new BcInstr.LdNull());
+            });
+            cb.putLabel(endLabel);
+        }
     }
 }

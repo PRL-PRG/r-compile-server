@@ -4,6 +4,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.primitives.ImmutableIntArray;
 import org.prlprg.sexp.SEXP;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
@@ -42,6 +43,7 @@ public record Bc(BcCode code, ConstPool consts) {
     public static class Builder {
         private final BcCode.Builder code = new BcCode.Builder();
         private final ConstPool.Builder consts = new ConstPool.Builder();
+        private final List<BcLabel> labels = new ArrayList<>();
 
         /**
          * Append a constant and return its index.
@@ -79,6 +81,15 @@ public record Bc(BcCode code, ConstPool consts) {
         public Bc build() {
             return new Bc(code.build(), consts.build());
         }
-    }
 
+        public BcLabel makeLabel() {
+            var l = new BcLabel(labels.size());
+            labels.add(l);
+            return l;
+        }
+
+        public void putLabel(BcLabel label) {
+            label.setLoc(code.size());
+        }
+    }
 }

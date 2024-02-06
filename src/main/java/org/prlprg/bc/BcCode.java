@@ -6,6 +6,7 @@ import com.google.common.primitives.ImmutableIntArray;
 import com.google.errorprone.annotations.CanIgnoreReturnValue;
 
 import javax.annotation.concurrent.Immutable;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
@@ -52,8 +53,9 @@ public final class BcCode extends ForwardingList<BcInstr> {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder("=== CODE ===");
+        var idx = 0;
         for (BcInstr instr : instrs) {
-            sb.append("\n").append(instr);
+            sb.append("\n").append(idx++).append(": ").append(instr);
         }
         return sb.toString();
     }
@@ -64,7 +66,7 @@ public final class BcCode extends ForwardingList<BcInstr> {
      * Not synchronized, so don't use from multiple threads.
      */
     public static class Builder {
-        ImmutableList.Builder<BcInstr> builder = ImmutableList.builder();
+        List<BcInstr> code = new ArrayList<>();
 
         /**
          * Create a new builder.
@@ -77,7 +79,7 @@ public final class BcCode extends ForwardingList<BcInstr> {
          */
         @CanIgnoreReturnValue
         public Builder add(BcInstr instr) {
-            builder.add(instr);
+            code.add(instr);
             return this;
         }
 
@@ -86,7 +88,7 @@ public final class BcCode extends ForwardingList<BcInstr> {
          */
         @CanIgnoreReturnValue
         public Builder addAll(Collection<? extends BcInstr> c) {
-            builder.addAll(c);
+            code.addAll(c);
             return this;
         }
 
@@ -96,7 +98,11 @@ public final class BcCode extends ForwardingList<BcInstr> {
          * @return The array.
          */
         public BcCode build() {
-            return new BcCode(builder.build());
+            return new BcCode(ImmutableList.copyOf(code));
+        }
+
+        public int size() {
+            return code.size();
         }
     }
 }

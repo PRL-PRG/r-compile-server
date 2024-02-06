@@ -47,7 +47,7 @@ public class Context {
     }
 
     public Context makeNonTailContext() {
-        return new Context(false, true, false, cenv);
+        return new Context(topLevel, false, returnJump, cenv);
     }
 
     public Context makePromiseContext() {
