@@ -15,11 +15,6 @@ public sealed interface StrSXP extends VectorSXP<String>, StrOrRegSymSXP {
   }
 
   @Override
-  default String reifyString() {
-    return isEmpty() ? "" : get(0);
-  }
-
-  @Override
   Attributes attributes();
 
   @Override

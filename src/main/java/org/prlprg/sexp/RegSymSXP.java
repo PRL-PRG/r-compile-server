@@ -33,11 +33,6 @@ public final class RegSymSXP implements SymSXP, StrOrRegSymSXP {
   }
 
   @Override
-  public String reifyString() {
-    return name;
-  }
-
-  @Override
   public String toString() {
     return isEscaped ? "`" + name + "`" : name;
   }
