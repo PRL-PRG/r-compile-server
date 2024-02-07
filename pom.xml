@@ -1,287 +1,286 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
-    <modelVersion>4.0.0</modelVersion>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
 
-    <groupId>org.prlprg</groupId>
-    <artifactId>r-compile-server</artifactId>
-    <version>0.1-SNAPSHOT</version>
-    <packaging>jar</packaging>
+  <groupId>org.prlprg</groupId>
+  <artifactId>r-compile-server</artifactId>
+  <version>0.1-SNAPSHOT</version>
+  <packaging>jar</packaging>
 
-    <name>r-jit-server</name>
-    <url>https://maven.apache.org</url>
+  <name>r-jit-server</name>
+  <url>https://maven.apache.org</url>
 
-    <properties>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <maven.compiler.source>21</maven.compiler.source>
-        <maven.compiler.target>${maven.compiler.source}</maven.compiler.target>
-        <pmdVersion>7.0.0-rc4</pmdVersion>
-    </properties>
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <maven.compiler.source>21</maven.compiler.source>
+    <maven.compiler.target>${maven.compiler.source}</maven.compiler.target>
+    <pmdVersion>7.0.0-rc4</pmdVersion>
+  </properties>
 
-    <dependencyManagement>
-        <dependencies>
-            <!-- JUnit5, unit tests -->
-            <dependency>
-                <groupId>org.junit</groupId>
-                <artifactId>junit-bom</artifactId>
-                <version>5.10.1</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-        </dependencies>
-    </dependencyManagement>
-
+  <dependencyManagement>
     <dependencies>
-        <!-- ZeroMQ, socket communication -->
-        <dependency>
-            <groupId>org.zeromq</groupId>
-            <artifactId>jeromq</artifactId>
-            <version>0.5.4</version>
-        </dependency>
-        <!-- Guava, utilities -->
-        <dependency>
-            <groupId>com.google.guava</groupId>
-            <artifactId>guava</artifactId>
-            <version>33.0.0-jre</version>
-        </dependency>
-        <!-- jsr305, annotations for IDEs and static analyses -->
-        <!-- (jsr305 is apparently deprecated, but seems to be the most well-supported annotation library) -->
-        <dependency>
-            <groupId>com.github.spotbugs</groupId>
-            <artifactId>spotbugs-annotations</artifactId>
-            <version>4.8.3</version>
-            <optional>true</optional>
-        </dependency>
-        <!-- JUnit5, unit tests -->
-        <dependency>
-            <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <!-- Truth assertions, unit tests -->
-        <dependency>
-            <groupId>com.google.truth</groupId>
-            <artifactId>truth</artifactId>
-            <version>1.3.0</version>
-            <scope>test</scope>
-        </dependency>
+      <!-- JUnit5, unit tests -->
+      <dependency>
+        <groupId>org.junit</groupId>
+        <artifactId>junit-bom</artifactId>
+        <version>5.10.1</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
     </dependencies>
-    <build>
-        <testResources>
-            <!-- Resources including R scripts which are treated as data -->
-            <testResource>
-                <directory>src/test/resources</directory>
-            </testResource>
-            <!-- R scripts which are treated as code -->
-            <testResource>
-                <directory>src/test/R</directory>
-            </testResource>
-        </testResources>
-        <plugins>
-            <!-- git-build-hook, install git hooks when you run any maven command so you don't forget -->
-            <plugin>
-                <groupId>com.rudikershaw.gitbuildhook</groupId>
-                <artifactId>git-build-hook-maven-plugin</artifactId>
-                <version>3.4.1</version>
-                <configuration>
-                    <installHooks>
-                        <pre-commit>.githooks/pre-commit.sh</pre-commit>
-                        <pre-push>.githooks/pre-push.sh</pre-push>
-                    </installHooks>
-                </configuration>
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>install</goal>
-                        </goals>
-                        <phase>initialize</phase>
-                    </execution>
-                </executions>
-            </plugin>
-            <!-- spotless, formatter better than checkstyle -->
-            <plugin>
-                <groupId>com.diffplug.spotless</groupId>
-                <artifactId>spotless-maven-plugin</artifactId>
-                <version>2.43.0</version>
-                <configuration>
-                    <formats>
-                        <!-- Generally handle trailing whitespace and newline -->
-                        <format>
-                            <includes>
-                                <include>.gitignore</include>
-                                <include>.gitattributes</include>
-                                <include>.git-blame-ignore-revs</include>
-                                <include>.githooks/**</include>
-                            </includes>
-                            <trimTrailingWhitespace/>
-                            <endWithNewline/>
-                        </format>
-                        <!-- Makefile -->
-                        <format>
-                            <includes>
-                                <include>**/Makefile</include>
-                            </includes>
-                            <excludes>
-                                <exclude>target/**/*</exclude>
-                            </excludes>
-                            <indent>
-                                <tabs>true</tabs>
-                                <spacesPerTab>4</spacesPerTab>
-                            </indent>
-                            <trimTrailingWhitespace/>
-                            <endWithNewline/>
-                        </format>
-                    </formats>
-                    <java>
-                        <includes>
-                            <include>**/*.java</include>
-                        </includes>
-                        <excludes>
-                            <exclude>target/**/*</exclude>
-                        </excludes>
-                        <cleanthat>
-                            <version>2.18</version>
-                        </cleanthat>
-                        <googleJavaFormat>
-                            <version>1.19.2</version>
-                            <style>GOOGLE</style>
-                            <formatJavadoc>true</formatJavadoc>
-                        </googleJavaFormat>
-                        <importOrder/>
-                        <removeUnusedImports/>
-                        <formatAnnotations/>
-                        <trimTrailingWhitespace/>
-                        <endWithNewline/>
-                    </java>
-                    <markdown>
-                        <includes>
-                            <include>**/*.md</include>
-                        </includes>
-                        <excludes>
-                            <exclude>target/**/*</exclude>
-                        </excludes>
-                        <indent>
-                            <spaces>true</spaces>
-                            <spacesPerTab>2</spacesPerTab>
-                        </indent>
-                        <flexmark/>
-                        <trimTrailingWhitespace/>
-                        <endWithNewline/>
-                    </markdown>
-                    <pom>
-                        <includes>
-                            <include>pom.xml</include>
-                        </includes>
-                        <indent>
-                            <spaces>true</spaces>
-                            <spacesPerTab>2</spacesPerTab>
-                        </indent>
-                        <sortPom>
-                            <expandEmptyElements>false</expandEmptyElements>
-                        </sortPom>
-                        <trimTrailingWhitespace/>
-                        <endWithNewline/>
-                    </pom>
-                    <yaml>
-                        <includes>
-                            <include>**/*.yaml</include>
-                            <include>**/*.yml</include>
-                        </includes>
-                        <excludes>
-                            <exclude>target/**/*</exclude>
-                        </excludes>
-                        <indent>
-                            <spaces>true</spaces>
-                            <spacesPerTab>2</spacesPerTab>
-                        </indent>
-                        <prettier/>
-                        <trimTrailingWhitespace/>
-                        <endWithNewline/>
-                    </yaml>
-                </configuration>
-                <!-- `executions` is required to run this on verify -->
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>check</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
-            <!-- spotbugs, static analysis on bytecode -->
-            <plugin>
-                <groupId>com.github.spotbugs</groupId>
-                <artifactId>spotbugs-maven-plugin</artifactId>
-                <version>4.8.2.0</version>
-                <!-- `executions` is required to run this on verify -->
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>check</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
-            <!-- pmd (and cpd), static analysis on syntax -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-pmd-plugin</artifactId>
-                <version>3.21.2</version>
-                <!-- This prevents the warning "Unable to locate Source XRef to link to - DISABLED" -->
-                <!-- If we want source-links in the `site` pmd report we need to add jxr instead, -->
-                <!-- but IDEs display their own pmd report which already has source-links -->
-                <configuration>
-                    <linkXRef>false</linkXRef>
-                </configuration>
-                <!-- Use pmd 7 which supports Java 21, not whatever is provided by maven-pmd-plugin -->
-                <dependencies>
-                    <dependency>
-                        <groupId>net.sourceforge.pmd</groupId>
-                        <artifactId>pmd-compat6</artifactId>
-                        <version>${pmdVersion}</version>
-                    </dependency>
-                    <dependency>
-                        <groupId>net.sourceforge.pmd</groupId>
-                        <artifactId>pmd-core</artifactId>
-                        <version>${pmdVersion}</version>
-                    </dependency>
-                    <dependency>
-                        <groupId>net.sourceforge.pmd</groupId>
-                        <artifactId>pmd-java</artifactId>
-                        <version>${pmdVersion}</version>
-                    </dependency>
-                    <dependency>
-                        <groupId>net.sourceforge.pmd</groupId>
-                        <artifactId>pmd-javascript</artifactId>
-                        <version>${pmdVersion}</version>
-                    </dependency>
-                    <dependency>
-                        <groupId>net.sourceforge.pmd</groupId>
-                        <artifactId>pmd-jsp</artifactId>
-                        <version>${pmdVersion}</version>
-                    </dependency>
-                </dependencies>
-                <!-- `executions` is required to run this on verify -->
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>check</goal>
-                            <goal>cpd-check</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
-            <!-- JUnit5, unit test runner -->
-            <plugin>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <version>3.2.2</version>
-                <!-- Run tests in parallel. You can annotate tests with @NotThreadSafe if necessary -->
-                <configuration>
-                    <parallel>all</parallel>
-                    <threadCount>8</threadCount>
-                </configuration>
-                <!-- automatically runs on `test` (and `verify` because `verify` invokes `test`) -->
-            </plugin>
-        </plugins>
-    </build>
+  </dependencyManagement>
+
+  <dependencies>
+    <!-- ZeroMQ, socket communication -->
+    <dependency>
+      <groupId>org.zeromq</groupId>
+      <artifactId>jeromq</artifactId>
+      <version>0.5.4</version>
+    </dependency>
+    <!-- Guava, utilities -->
+    <dependency>
+      <groupId>com.google.guava</groupId>
+      <artifactId>guava</artifactId>
+      <version>33.0.0-jre</version>
+    </dependency>
+    <!-- jsr305, annotations for IDEs and static analyses -->
+    <!-- (jsr305 is apparently deprecated, but seems to be the most well-supported annotation library) -->
+    <dependency>
+      <groupId>com.github.spotbugs</groupId>
+      <artifactId>spotbugs-annotations</artifactId>
+      <version>4.8.3</version>
+      <optional>true</optional>
+    </dependency>
+    <!-- JUnit5, unit tests -->
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!-- Truth assertions, unit tests -->
+    <dependency>
+      <groupId>com.google.truth</groupId>
+      <artifactId>truth</artifactId>
+      <version>1.3.0</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+  <build>
+    <testResources>
+      <!-- Resources including R scripts which are treated as data -->
+      <testResource>
+        <directory>src/test/resources</directory>
+      </testResource>
+      <!-- R scripts which are treated as code -->
+      <testResource>
+        <directory>src/test/R</directory>
+      </testResource>
+    </testResources>
+    <plugins>
+      <!-- git-build-hook, install git hooks when you run any maven command so you don't forget -->
+      <plugin>
+        <groupId>com.rudikershaw.gitbuildhook</groupId>
+        <artifactId>git-build-hook-maven-plugin</artifactId>
+        <version>3.4.1</version>
+        <configuration>
+          <installHooks>
+            <pre-commit>.githooks/pre-commit.sh</pre-commit>
+            <pre-push>.githooks/pre-push.sh</pre-push>
+          </installHooks>
+        </configuration>
+        <executions>
+          <execution>
+            <goals>
+              <goal>install</goal>
+            </goals>
+            <phase>initialize</phase>
+          </execution>
+        </executions>
+      </plugin>
+      <!-- spotless, formatter better than checkstyle -->
+      <plugin>
+        <groupId>com.diffplug.spotless</groupId>
+        <artifactId>spotless-maven-plugin</artifactId>
+        <version>2.43.0</version>
+        <configuration>
+          <formats>
+            <!-- Generally handle trailing whitespace and newline -->
+            <format>
+              <includes>
+                <include>.gitignore</include>
+                <include>.gitattributes</include>
+                <include>.git-blame-ignore-revs</include>
+                <include>.githooks/**</include>
+              </includes>
+              <trimTrailingWhitespace/>
+              <endWithNewline/>
+            </format>
+            <!-- Makefile -->
+            <format>
+              <includes>
+                <include>**/Makefile</include>
+              </includes>
+              <excludes>
+                <exclude>target/**/*</exclude>
+              </excludes>
+              <indent>
+                <tabs>true</tabs>
+                <spacesPerTab>4</spacesPerTab>
+              </indent>
+              <trimTrailingWhitespace/>
+              <endWithNewline/>
+            </format>
+          </formats>
+          <java>
+            <includes>
+              <include>**/*.java</include>
+            </includes>
+            <excludes>
+              <exclude>target/**/*</exclude>
+            </excludes>
+            <cleanthat>
+              <version>2.18</version>
+            </cleanthat>
+            <googleJavaFormat>
+              <version>1.19.2</version>
+              <style>GOOGLE</style>
+              <formatJavadoc>true</formatJavadoc>
+            </googleJavaFormat>
+            <importOrder/>
+            <removeUnusedImports/>
+            <formatAnnotations/>
+            <trimTrailingWhitespace/>
+            <endWithNewline/>
+          </java>
+          <markdown>
+            <includes>
+              <include>**/*.md</include>
+            </includes>
+            <excludes>
+              <exclude>target/**/*</exclude>
+            </excludes>
+            <indent>
+              <spaces>true</spaces>
+              <spacesPerTab>2</spacesPerTab>
+            </indent>
+            <flexmark/>
+            <trimTrailingWhitespace/>
+            <endWithNewline/>
+          </markdown>
+          <pom>
+            <includes>
+              <include>pom.xml</include>
+            </includes>
+            <indent>
+              <spaces>true</spaces>
+              <spacesPerTab>2</spacesPerTab>
+            </indent>
+            <sortPom>
+              <expandEmptyElements>false</expandEmptyElements>
+            </sortPom>
+            <trimTrailingWhitespace/>
+            <endWithNewline/>
+          </pom>
+          <yaml>
+            <includes>
+              <include>**/*.yaml</include>
+              <include>**/*.yml</include>
+            </includes>
+            <excludes>
+              <exclude>target/**/*</exclude>
+            </excludes>
+            <indent>
+              <spaces>true</spaces>
+              <spacesPerTab>2</spacesPerTab>
+            </indent>
+            <prettier/>
+            <trimTrailingWhitespace/>
+            <endWithNewline/>
+          </yaml>
+        </configuration>
+        <!-- `executions` is required to run this on verify -->
+        <executions>
+          <execution>
+            <goals>
+              <goal>check</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+      <!-- spotbugs, static analysis on bytecode -->
+      <plugin>
+        <groupId>com.github.spotbugs</groupId>
+        <artifactId>spotbugs-maven-plugin</artifactId>
+        <version>4.8.2.0</version>
+        <!-- `executions` is required to run this on verify -->
+        <executions>
+          <execution>
+            <goals>
+              <goal>check</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+      <!-- pmd (and cpd), static analysis on syntax -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-pmd-plugin</artifactId>
+        <version>3.21.2</version>
+        <!-- This prevents the warning "Unable to locate Source XRef to link to - DISABLED" -->
+        <!-- If we want source-links in the `site` pmd report we need to add jxr instead, -->
+        <!-- but IDEs display their own pmd report which already has source-links -->
+        <configuration>
+          <linkXRef>false</linkXRef>
+        </configuration>
+        <!-- Use pmd 7 which supports Java 21, not whatever is provided by maven-pmd-plugin -->
+        <dependencies>
+          <dependency>
+            <groupId>net.sourceforge.pmd</groupId>
+            <artifactId>pmd-compat6</artifactId>
+            <version>${pmdVersion}</version>
+          </dependency>
+          <dependency>
+            <groupId>net.sourceforge.pmd</groupId>
+            <artifactId>pmd-core</artifactId>
+            <version>${pmdVersion}</version>
+          </dependency>
+          <dependency>
+            <groupId>net.sourceforge.pmd</groupId>
+            <artifactId>pmd-java</artifactId>
+            <version>${pmdVersion}</version>
+          </dependency>
+          <dependency>
+            <groupId>net.sourceforge.pmd</groupId>
+            <artifactId>pmd-javascript</artifactId>
+            <version>${pmdVersion}</version>
+          </dependency>
+          <dependency>
+            <groupId>net.sourceforge.pmd</groupId>
+            <artifactId>pmd-jsp</artifactId>
+            <version>${pmdVersion}</version>
+          </dependency>
+        </dependencies>
+        <!-- `executions` is required to run this on verify -->
+        <executions>
+          <execution>
+            <goals>
+              <goal>check</goal>
+              <goal>cpd-check</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+      <!-- JUnit5, unit test runner -->
+      <plugin>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>3.2.2</version>
+        <!-- Run tests in parallel. You can annotate tests with @NotThreadSafe if necessary -->
+        <configuration>
+          <parallel>all</parallel>
+          <threadCount>8</threadCount>
+        </configuration>
+        <!-- automatically runs on `test` (and `verify` because `verify` invokes `test`) -->
+      </plugin>
+    </plugins>
+  </build>
 </project>
