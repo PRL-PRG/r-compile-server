@@ -2,7 +2,6 @@ package org.prlprg.bc;
 
 import com.google.common.primitives.ImmutableIntArray;
 import javax.annotation.Nullable;
-import javax.annotation.concurrent.Immutable;
 import org.prlprg.sexp.*;
 import org.prlprg.util.Either;
 import org.prlprg.util.Pair;
@@ -11,7 +10,6 @@ import org.prlprg.util.Pair;
  * A single bytecode instruction, consists of an operation and arguments. The operation is
  * determined by its subtype, arguments are determined by its fields.
  */
-@Immutable
 public sealed interface BcInstr {
   /** The instruction's operation. */
   BcOp op();

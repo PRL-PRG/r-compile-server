@@ -130,7 +130,7 @@ public final class ConstPool extends ForwardingCollection<SEXP> {
     var idx = 0;
     for (var c : this) {
       var cStr = c.toString();
-      sb.append(String.format("\n%3d: ", idx++));
+      sb.append(String.format("%n%3d: ", idx++));
       if (cStr.contains(System.lineSeparator())) {
         sb.append(System.lineSeparator()).append(c).append(System.lineSeparator());
       } else {

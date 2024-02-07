@@ -121,7 +121,8 @@ public class RDSReader implements Closeable {
   }
 
   private SEXP readPromise(Flags flags) throws IOException {
-    var attributes = readAttributes(flags);
+    readAttributes(flags);
+
     if (!(readItem() instanceof EnvSXP env)) {
       throw new RDSException("Expected promise ENV to be environment");
     }
@@ -129,9 +130,7 @@ public class RDSReader implements Closeable {
     var expr = readItem();
 
     // TODO: attributes?
-    var item = new PromSXP(expr, val, env);
-
-    return item;
+    return new PromSXP(expr, val, env);
   }
 
   private SEXP readNamespace() throws IOException {
@@ -192,10 +191,9 @@ public class RDSReader implements Closeable {
       throw new RDSException("Unsupported byte code version: " + code.get(0));
     }
 
-    var bytecode = code.subArray(1, code.size());
     var consts = readByteCodeConsts(reps);
     try {
-      return SEXPs.bcode(Bc.fromRaw(bytecode, consts));
+      return SEXPs.bcode(Bc.fromRaw(code.data(), consts));
     } catch (BcFromRawException e) {
       throw new RDSException("Error reading bytecode", e);
     }

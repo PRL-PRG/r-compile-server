@@ -8,41 +8,54 @@ import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.PromSXP;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.util.Pair;
+import org.prlprg.util.R;
 
 public class ContextTest {
   @Test
   public void testFindLocals() {
     var fun =
-        R.eval(
+        (CloSXP)
+            R.eval(
                 """
                 function (x) {
-                    y$a$b <- 1
-                    z$b <- 2
-                    zz <- a$b
-                    x + zz + z
+                  y$a$b <- 1
+                  z$b <- 2
+                  zz <- a$b
+                  x + zz + z
                 }
-                """)
-            .cast(CloSXP.class);
+                """);
 
     var ctx = Context.functionContext(fun);
-    var locals = new HashSet<>();
-    locals.addAll(ctx.findLocals(fun.formals()));
-    locals.addAll(ctx.findLocals(fun.body()));
-    assertThat(locals).containsExactly("y", "z", "zz");
+    assertThat(ctx.findLocals(fun.body())).containsExactly("y", "z", "zz");
+  }
+
+  @Test
+  public void testFindLocalsInFormals() {
+    var fun =
+        (CloSXP)
+            R.eval(
+                """
+                function(x, y={ x<- 1}) {
+                  y; x
+                }
+                """);
+
+    var ctx = Context.functionContext(fun);
+    assertThat(ctx.findLocals(fun.formals())).containsExactly("x");
   }
 
   @Test
   public void testFindLocalsWithShadowing() {
     var fun =
-        R.eval(
+        (CloSXP)
+            R.eval(
                 """
                 function (f, x, y) {
                     local <- f
                     local(x <- y)
                     x
                 }
-                """)
-            .cast(CloSXP.class);
+                """);
 
     var ctx = Context.functionContext(fun);
     var locals = new HashSet<>();
@@ -55,7 +68,8 @@ public class ContextTest {
   @Test
   public void testBindingInNestedFunction() {
     var fun =
-        R.eval(
+        (CloSXP)
+            R.eval(
                 """
                 f <- function(x, y=1) {
                     a <- 1
@@ -65,8 +79,7 @@ public class ContextTest {
                     }
                 }
                 f()
-                """)
-            .cast(CloSXP.class);
+                """);
 
     var ctx = Context.functionContext(fun);
     System.out.println(ctx);
@@ -101,7 +114,8 @@ public class ContextTest {
     */
 
     var fun =
-        R.eval(
+        (CloSXP)
+            R.eval(
                 """
                 f <- function() {
                     local <- function(a) a
@@ -111,8 +125,7 @@ public class ContextTest {
                     }
                 }
                 f()
-                """)
-            .cast(CloSXP.class);
+                """);
 
     var ctx = Context.functionContext(fun);
     assertThat(ctx.findLocals(fun.body())).containsExactly("x");

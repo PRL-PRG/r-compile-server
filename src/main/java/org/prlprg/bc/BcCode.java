@@ -4,6 +4,7 @@ import com.google.common.collect.ForwardingList;
 import com.google.common.collect.ImmutableList;
 import com.google.common.primitives.ImmutableIntArray;
 import com.google.errorprone.annotations.CanIgnoreReturnValue;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import javax.annotation.concurrent.Immutable;
@@ -14,15 +15,15 @@ import javax.annotation.concurrent.Immutable;
  */
 @Immutable
 public final class BcCode extends ForwardingList<BcInstr> {
-  final ImmutableList<BcInstr> instrs;
+  final ImmutableList<BcInstr> code;
 
-  private BcCode(ImmutableList<BcInstr> instrs) {
-    this.instrs = instrs;
+  private BcCode(Collection<BcInstr> code) {
+    this.code = ImmutableList.copyOf(code);
   }
 
   @Override
   protected List<BcInstr> delegate() {
-    return instrs;
+    return code;
   }
 
   /**
@@ -54,7 +55,7 @@ public final class BcCode extends ForwardingList<BcInstr> {
         sanityCheckJ++;
 
         try {
-          var sanityCheckJFromI = labelMap.make(i).target;
+          var sanityCheckJFromI = labelMap.make(i).getTarget();
           if (sanityCheckJFromI != sanityCheckJ) {
             throw new AssertionError(
                 "expected target offset " + sanityCheckJ + ", got " + sanityCheckJFromI);
@@ -91,8 +92,9 @@ public final class BcCode extends ForwardingList<BcInstr> {
   @Override
   public String toString() {
     StringBuilder sb = new StringBuilder("=== CODE ===");
-    for (BcInstr instr : instrs) {
-      sb.append("\n").append(instr);
+    var idx = 0;
+    for (BcInstr instr : code) {
+      sb.append(String.format("%n%3d: ", idx++)).append(instr);
     }
     return sb.toString();
   }
@@ -103,8 +105,7 @@ public final class BcCode extends ForwardingList<BcInstr> {
    * <p>Not synchronized, so don't use from multiple threads.
    */
   public static class Builder {
-    private final ImmutableList.Builder<BcInstr> builder = ImmutableList.builder();
-    private int size = 0;
+    private final List<BcInstr> code = new ArrayList<>();
 
     /** Create a new builder. */
     public Builder() {}
@@ -112,16 +113,14 @@ public final class BcCode extends ForwardingList<BcInstr> {
     /** Append an instruction. */
     @CanIgnoreReturnValue
     public Builder add(BcInstr instr) {
-      builder.add(instr);
-      size++;
+      code.add(instr);
       return this;
     }
 
     /** Append instructions. */
     @CanIgnoreReturnValue
     public Builder addAll(Collection<? extends BcInstr> c) {
-      builder.addAll(c);
-      size += c.size();
+      code.addAll(c);
       return this;
     }
 
@@ -131,11 +130,11 @@ public final class BcCode extends ForwardingList<BcInstr> {
      * @return The array.
      */
     public BcCode build() {
-      return new BcCode(builder.build());
+      return new BcCode(code);
     }
 
     public int size() {
-      return size;
+      return code.size();
     }
   }
 }
