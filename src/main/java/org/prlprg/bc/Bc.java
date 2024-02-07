@@ -35,7 +35,7 @@ public record Bc(BcCode code, ConstPool consts) {
 
   @Override
   public String toString() {
-    return code() + "\n" + consts;
+    return code + "\n" + consts;
   }
 
   /** Equivalent to `CodeBuffer` in other projects */
@@ -80,7 +80,7 @@ public record Bc(BcCode code, ConstPool consts) {
       return l;
     }
 
-    public void putLabel(BcLabel label) {
+    public void patchLabel(BcLabel label) {
       label.setTarget(code.size());
     }
   }

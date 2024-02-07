@@ -38,11 +38,18 @@ public class Context {
     var cenv = new UserEnvSXP(fun.env());
     var ctx = new Context(false, true, false, cenv);
 
-    fun.formals().names().forEach(x -> cenv.set(x, SEXPs.UNBOUND_VALUE));
-    for (var v : fun.formals().values()) {
-      ctx.findLocals(v).forEach(x -> cenv.set(x, SEXPs.UNBOUND_VALUE));
+    return ctx.makeFunctionContext(fun.formals(), fun.body());
+  }
+
+  public Context makeFunctionContext(ListSXP formals, SEXP body) {
+    var env = new UserEnvSXP(cenv);
+    var ctx = new Context(false, true, false, cenv);
+
+    formals.names().forEach(x -> env.set(x, SEXPs.UNBOUND_VALUE));
+    for (var v : formals.values()) {
+      ctx.findLocals(v).forEach(x -> env.set(x, SEXPs.UNBOUND_VALUE));
     }
-    ctx.findLocals(fun.body()).forEach(x -> cenv.set(x, SEXPs.UNBOUND_VALUE));
+    ctx.findLocals(body).forEach(x -> env.set(x, SEXPs.UNBOUND_VALUE));
 
     return ctx;
   }

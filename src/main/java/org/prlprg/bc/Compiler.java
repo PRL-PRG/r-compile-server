@@ -5,6 +5,7 @@ import java.util.Optional;
 import java.util.Set;
 import javax.annotation.Nullable;
 import org.prlprg.sexp.*;
+import org.prlprg.bc.BcInstr.*;
 
 public class Compiler {
   private static final Set<String> MAYBE_NSE_SYMBOLS = Set.of("bquote");
@@ -84,6 +85,7 @@ public class Compiler {
     // TODO: attributes - set after compilation
     // TODO: S4?
 
+    // TODO: parameters
     return compile(fun.body(), ctx);
   }
 
@@ -106,18 +108,18 @@ public class Compiler {
   private void compileSym(RegSymSXP e, Context ctx, boolean missingOk) {
     if (e.isEllipsis()) {
       // TODO: notifyWrongDotsUse
-      cb.addInstr(new BcInstr.DotsErr());
+      cb.addInstr(new DotsErr());
     } else if (e.isDdSym()) {
       // TODO: if (!findLocVar("...", ctx))
       //       notifyWrongDotsUse
       var idx = cb.addConst(e);
-      cb.addInstr(missingOk ? new BcInstr.DdValMissOk(idx) : new BcInstr.DdVal(idx));
+      cb.addInstr(missingOk ? new DdValMissOk(idx) : new DdVal(idx));
       checkTailCall(ctx);
     } else {
       // TODO: if (!findVar(sym, ctx))
       //       notifyUndefVar
       var idx = cb.addConst(e);
-      cb.addInstr(missingOk ? new BcInstr.GetVarMissOk(idx) : new BcInstr.GetVar(idx));
+      cb.addInstr(missingOk ? new GetVarMissOk(idx) : new GetVar(idx));
       checkTailCall(ctx);
     }
   }
@@ -131,10 +133,10 @@ public class Compiler {
     }
 
     switch (expr) {
-      case NilSXP ignored -> cb.addInstr(new BcInstr.LdNull());
-      case LglSXP x when x == SEXPs.TRUE -> cb.addInstr(new BcInstr.LdTrue());
-      case LglSXP x when x == SEXPs.FALSE -> cb.addInstr(new BcInstr.LdFalse());
-      default -> cb.addInstr(new BcInstr.LdConst(cb.addConst(expr)));
+      case NilSXP ignored -> cb.addInstr(new LdNull());
+      case LglSXP x when x == SEXPs.TRUE -> cb.addInstr(new LdTrue());
+      case LglSXP x when x == SEXPs.FALSE -> cb.addInstr(new LdFalse());
+      default -> cb.addInstr(new LdConst(cb.addConst(expr)));
     }
 
     checkTailCall(ctx);
@@ -177,18 +179,18 @@ public class Compiler {
   }
 
   private void compileCallSymFun(RegSymSXP fun, ListSXP args, LangSXP call, Context ctx) {
-    cb.addInstr(new BcInstr.GetFun(cb.addConst(fun)));
+    cb.addInstr(new GetFun(cb.addConst(fun)));
     var nse = MAYBE_NSE_SYMBOLS.contains(fun.name());
     compileArgs(args, nse, ctx);
-    cb.addInstr(new BcInstr.Call(cb.addConst(call)));
+    cb.addInstr(new Call(cb.addConst(call)));
     checkTailCall(ctx);
   }
 
   private void compileCallExprFun(LangSXP fun, ListSXP args, LangSXP call, Context ctx) {
     compileExpr(fun, ctx.makeNonTailContext());
-    cb.addInstr(new BcInstr.CheckFun());
+    cb.addInstr(new CheckFun());
     compileArgs(args, false, ctx);
-    cb.addInstr(new BcInstr.Call(cb.addConst(call)));
+    cb.addInstr(new Call(cb.addConst(call)));
     checkTailCall(ctx);
   }
 
@@ -202,13 +204,13 @@ public class Compiler {
 
       switch (val) {
         case SymSXP x when x.isMissing() -> {
-          cb.addInstr(new BcInstr.DoMissing());
+          cb.addInstr(new DoMissing());
           compileTag(tag);
         }
         case SymSXP x when x.isEllipsis() ->
             // TODO: if (!findLocVar("...", ctx))
             //       notifyWrongDotsUse
-            cb.addInstr(new BcInstr.DoDots());
+            cb.addInstr(new DoDots());
         case SymSXP x -> {
           compileNormArg(x, nse, ctx);
           compileTag(tag);
@@ -217,8 +219,8 @@ public class Compiler {
           compileNormArg(x, nse, ctx);
           compileTag(tag);
         }
-          // TODO: case PromSXP ignored -> throw new CompilerException("can't compile promises in
-          // code");
+        case PromSXP ignored ->
+            throw new CompilerException("can't compile promises in code");
         case BCodeSXP ignored ->
             throw new CompilerException("can't compile byte code literals in code");
         default -> {
@@ -231,7 +233,7 @@ public class Compiler {
 
   private void compileNormArg(SEXP arg, boolean nse, Context ctx) {
     cb.addInstr(
-        new BcInstr.MakeProm(
+        new MakeProm(
             cb.addConst(nse ? arg : SEXPs.bcode(compile(arg, ctx.makePromiseContext())))));
   }
 
@@ -240,22 +242,22 @@ public class Compiler {
       justification = "False positive, probably because of ignored switch case")
   private void compileConstArg(SEXP arg) {
     switch (arg) {
-      case NilSXP ignored -> cb.addInstr(new BcInstr.PushNullArg());
-      case LglSXP x when x == SEXPs.TRUE -> cb.addInstr(new BcInstr.PushTrueArg());
-      case LglSXP x when x == SEXPs.FALSE -> cb.addInstr(new BcInstr.PushFalseArg());
-      default -> cb.addInstr(new BcInstr.PushConstArg(cb.addConst(arg)));
+      case NilSXP ignored -> cb.addInstr(new PushNullArg());
+      case LglSXP x when x == SEXPs.TRUE -> cb.addInstr(new PushTrueArg());
+      case LglSXP x when x == SEXPs.FALSE -> cb.addInstr(new PushFalseArg());
+      default -> cb.addInstr(new PushConstArg(cb.addConst(arg)));
     }
   }
 
   private void compileTag(@Nullable String tag) {
     if (tag != null && !tag.isEmpty()) {
-      cb.addInstr(new BcInstr.SetTag(cb.addConst(SEXPs.string(tag))));
+      cb.addInstr(new SetTag(cb.addConst(SEXPs.string(tag))));
     }
   }
 
   private void checkTailCall(Context ctx) {
     if (ctx.isTailCall()) {
-      cb.addInstr(new BcInstr.Return());
+      cb.addInstr(new Return());
     }
   }
 
@@ -270,6 +272,7 @@ public class Compiler {
     switch (name) {
       case "{" -> inlineBlock(call, ctx);
       case "if" -> inlineCondition(call, ctx);
+      case "function" -> inlineFunction(call, ctx);
       default -> {
         return false;
       }
@@ -278,12 +281,16 @@ public class Compiler {
   }
 
   /**
-   * The inlining handler for { needs to consider that a pair of braces { and } can surround zero,
+   * From the R documentation:
+   *
+   * <p><quote>
+   * The inlining handler for `{` needs to consider that a pair of braces { and } can surround zero,
    * one, or more expressions. A set of empty braces is equivalent to the constant NULL. If there is
    * more than one expression, then all the values of all expressions other than the last are
    * ignored. These expressions are compiled in a no-value context (currently equivalent to a
    * non-tail-call context), and then code is generated to pop their values off the stack. The final
    * expression is then compiled according to the context in which the braces expression occurs.
+   * </quote></p>
    *
    * @param call
    * @param ctx
@@ -296,8 +303,7 @@ public class Compiler {
     }
 
     if (n > 1) {
-      var nctx = ctx.makeNonTailContext();
-      call.args().values().subList(0, n - 1).forEach(x -> compileExpr(x, nctx));
+      call.args().values().subList(0, n - 1).forEach(x -> compileExpr(x, ctx.makeNonTailContext()));
     }
 
     compile(call.arg(n - 1).value(), ctx);
@@ -315,29 +321,62 @@ public class Compiler {
 
     var nctx = ctx.makeNonTailContext();
     compile(test, nctx);
-    var callidx = cb.addConst(call);
+    
     var elseLabel = cb.makeLabel();
-    cb.addInstr(new BcInstr.BrIfNot(callidx, elseLabel));
+    cb.addInstr(new BrIfNot(cb.addConst(call), elseLabel));
+    
     compile(thenBranch, ctx);
+
     if (ctx.isTailCall()) {
-      cb.putLabel(elseLabel);
+      cb.patchLabel(elseLabel);
       elseBranch.ifPresentOrElse(
           branch -> compile(branch, ctx),
           () -> {
-            cb.addInstr(new BcInstr.LdNull());
-            cb.addInstr(new BcInstr.Invisible());
-            cb.addInstr(new BcInstr.Return());
+            cb.addInstr(new LdNull());
+            cb.addInstr(new Invisible());
+            cb.addInstr(new Return());
           });
     } else {
       var endLabel = cb.makeLabel();
-      cb.addInstr(new BcInstr.Goto(endLabel));
-      cb.putLabel(elseLabel);
+      cb.addInstr(new Goto(endLabel));
+      cb.patchLabel(elseLabel);
       elseBranch.ifPresentOrElse(
           branch -> compile(branch, ctx),
           () -> {
-            cb.addInstr(new BcInstr.LdNull());
+            cb.addInstr(new LdNull());
           });
-      cb.putLabel(endLabel);
+      cb.patchLabel(endLabel);
     }
+  }
+
+  /**
+   * From the R documentation:
+   *
+   * <p><quote>
+   * Compiling of function expressions is somewhat similar to compiling promises for function arguments.
+   * The body of a function is compiled into a separate byte code object and stored in the
+   * constant pool together with the formals. Then code is emitted for creating a closure from the
+   * formals, compiled body, and the current environment. For now, only the body of functions is
+   * compiled, not the default argument expressions. This should be changed in future versions of the
+   * compiler.
+   * </quote></p>
+   * @param call
+   * @param ctx
+   */
+  private void inlineFunction(LangSXP call, Context ctx) {
+    // TODO: sourcerefs
+    // TODO: if (mayCallBrowser(body, cntxt)) return(FALSE)
+
+    var formals = (ListSXP) call.arg(0).value();
+    var body = call.arg(1).value();
+    var nctx = ctx.makeFunctionContext(formals, body);
+
+    var compiler = new Compiler(optimizationLevel);
+    var cbody = compiler.compile(body, nctx);
+    var cbodysxp = SEXPs.bcode(cbody);
+
+    cb.addInstr(new MakeClosure(cb.addConst(SEXPs.vec(formals, cbodysxp))));
+
+    checkTailCall(ctx);
   }
 }

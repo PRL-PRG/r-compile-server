@@ -40,6 +40,20 @@ public class CompilerTest implements Tests {
     System.out.println(bc);
   }
 
+  @Test
+  public void testInlineFunction() {
+    var fun =
+        (CloSXP)
+            R.eval(
+                """
+                                            function (x) function(y) y
+                                            """);
+
+    var compiler = new Compiler(3);
+    var bc = compiler.compileFun(fun);
+    System.out.println(bc);
+  }
+
   @Disabled
   @ParameterizedTest(name = "Commutative read/compile {0}")
   @DirectorySource(glob = "*.R", relativize = true, exclude = "serialize-closures.R")
