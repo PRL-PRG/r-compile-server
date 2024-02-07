@@ -19,6 +19,8 @@ public sealed interface LangSXP extends SymOrLangSXP {
 
   @Override
   LangSXP withAttributes(Attributes attributes);
+
+  TaggedElem arg(int i);
 }
 
 record LangSXPImpl(SymOrLangSXP fun, ListSXP args, @Override Attributes attributes)
@@ -42,5 +44,10 @@ record LangSXPImpl(SymOrLangSXP fun, ListSXP args, @Override Attributes attribut
   @Override
   public LangSXP withAttributes(Attributes attributes) {
     return SEXPs.lang(fun, args, attributes);
+  }
+
+  @Override
+  public TaggedElem arg(int i) {
+    return args.get(i);
   }
 }

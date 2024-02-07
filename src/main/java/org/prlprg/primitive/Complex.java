@@ -1,8 +1,6 @@
 package org.prlprg.primitive;
 
-/**
- * Complex number
- */
+/** Complex number */
 public record Complex(double real, double imaginary) {
   @Override
   public String toString() {

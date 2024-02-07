@@ -2,11 +2,10 @@ package org.prlprg.bc;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.primitives.ImmutableIntArray;
-import org.prlprg.sexp.SEXP;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import org.prlprg.sexp.SEXP;
 
 /**
  * A complete R bytecode, consisting of a version, array of instructions and associated data, and
@@ -25,38 +24,25 @@ public record Bc(BcCode code, ConstPool consts) {
   public static Bc fromRaw(ImmutableIntArray bytecodes, List<SEXP> consts)
       throws BcFromRawException {
     var poolAndMakeIdx = ConstPool.fromRaw(consts);
-    var pool = poolAndMakeIdx.a();
-    var makePoolIdx = poolAndMakeIdx.b();
+    var pool = poolAndMakeIdx.first();
+    var makePoolIdx = poolAndMakeIdx.second();
     try {
       return new Bc(BcCode.fromRaw(bytecodes, makePoolIdx), pool);
     } catch (BcFromRawException e) {
       throw new BcFromRawException("malformed bytecode\nConstants: " + pool, e);
     }
   }
-    /**
-     * Create from the raw GNU-R representation, bytecodes not including the initial version number.
-     */
-    public static Bc fromRaw(ImmutableIntArray bytecodes, List<SEXP> consts) throws BcFromRawException {
-        var poolAndMakeIdx = ConstPool.fromRaw(consts);
-        var pool = poolAndMakeIdx.first();
-        var makePoolIdx = poolAndMakeIdx.second();
-        try {
-            return new Bc(BcCode.fromRaw(bytecodes, makePoolIdx), pool);
-        } catch (BcFromRawException e) {
-            throw new BcFromRawException("malformed bytecode\nConstants: " + pool, e);
-        }
-    }
 
   @Override
   public String toString() {
     return code() + "\n" + consts;
   }
 
-    /** Equivalent to `CodeBuffer` in other projects */
-    public static class Builder {
-        private final BcCode.Builder code = new BcCode.Builder();
-        private final ConstPool.Builder consts = new ConstPool.Builder();
-        private final List<BcLabel> labels = new ArrayList<>();
+  /** Equivalent to `CodeBuffer` in other projects */
+  public static class Builder {
+    private final BcCode.Builder code = new BcCode.Builder();
+    private final ConstPool.Builder consts = new ConstPool.Builder();
+    private final List<BcLabel> labels = new ArrayList<>();
 
     /** Append a constant and return its index. */
     public <S extends SEXP> ConstPool.TypedIdx<S> addConst(S c) {
@@ -79,23 +65,23 @@ public record Bc(BcCode code, ConstPool consts) {
       code.addAll(c);
     }
 
-        /**
-         * Finish building the bytecode.
-         *
-         * @return The bytecode.
-         */
-        public Bc build() {
-            return new Bc(code.build(), consts.build());
-        }
-
-        public BcLabel makeLabel() {
-            var l = new BcLabel(labels.size());
-            labels.add(l);
-            return l;
-        }
-
-        public void putLabel(BcLabel label) {
-            label.setLoc(code.size());
-        }
+    /**
+     * Finish building the bytecode.
+     *
+     * @return The bytecode.
+     */
+    public Bc build() {
+      return new Bc(code.build(), consts.build());
     }
+
+    public BcLabel makeLabel() {
+      var l = new BcLabel(labels.size());
+      labels.add(l);
+      return l;
+    }
+
+    public void putLabel(BcLabel label) {
+      label.setTarget(code.size());
+    }
+  }
 }

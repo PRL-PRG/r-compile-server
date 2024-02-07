@@ -5,9 +5,7 @@ import com.google.common.collect.Iterators;
 import com.google.common.collect.UnmodifiableIterator;
 import javax.annotation.concurrent.Immutable;
 
-/**
- * Class for representing a scalar SEXP of a primitive type with no attributes.
- */
+/** Class for representing a scalar SEXP of a primitive type with no attributes. */
 @Immutable
 abstract class SimpleScalarSXPImpl<T> {
   final T data;

@@ -47,8 +47,8 @@ public final class BcCode extends ForwardingList<BcInstr> {
     while (i < bytecodes.length()) {
       try {
         var instrAndI = BcInstrs.fromRaw(bytecodes, i, labelMap, makePoolIdx);
-        var instr = instrAndI.a();
-        i = instrAndI.b();
+        var instr = instrAndI.first();
+        i = instrAndI.second();
 
         builder.add(instr);
         sanityCheckJ++;
@@ -103,7 +103,8 @@ public final class BcCode extends ForwardingList<BcInstr> {
    * <p>Not synchronized, so don't use from multiple threads.
    */
   public static class Builder {
-    ImmutableList.Builder<BcInstr> builder = ImmutableList.builder();
+    private final ImmutableList.Builder<BcInstr> builder = ImmutableList.builder();
+    private int size = 0;
 
     /** Create a new builder. */
     public Builder() {}
@@ -112,6 +113,7 @@ public final class BcCode extends ForwardingList<BcInstr> {
     @CanIgnoreReturnValue
     public Builder add(BcInstr instr) {
       builder.add(instr);
+      size++;
       return this;
     }
 
@@ -119,6 +121,7 @@ public final class BcCode extends ForwardingList<BcInstr> {
     @CanIgnoreReturnValue
     public Builder addAll(Collection<? extends BcInstr> c) {
       builder.addAll(c);
+      size += c.size();
       return this;
     }
 
@@ -129,6 +132,10 @@ public final class BcCode extends ForwardingList<BcInstr> {
      */
     public BcCode build() {
       return new BcCode(builder.build());
+    }
+
+    public int size() {
+      return size;
     }
   }
 }

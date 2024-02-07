@@ -1,15 +1,8 @@
 package org.prlprg.bc;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.prlprg.util.Assertions.assertSnapshot;
-import static org.prlprg.util.StructuralUtils.printStructurally;
-
-import java.io.IOException;
-import java.nio.file.Path;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.prlprg.compile.Compiler;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.sexp.BCodeSXP;
 import org.prlprg.sexp.CloSXP;
@@ -17,6 +10,12 @@ import org.prlprg.util.DirectorySource;
 import org.prlprg.util.Files;
 import org.prlprg.util.SubTest;
 import org.prlprg.util.Tests;
+
+import java.nio.file.Path;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.prlprg.util.Assertions.assertSnapshot;
+import static org.prlprg.util.StructuralUtils.printStructurally;
 
 public class CompilerTest implements Tests {
 
@@ -33,9 +32,11 @@ public class CompilerTest implements Tests {
 
     @Test
     public void testInlineIf() {
-        var fun = R.eval("""
-                function (x) if (x) 1 else 2
-                """).cast(CloSXP.class);
+        var fun =
+                R.eval("""
+                                function (x) if (x) 1 else 2
+                                """)
+                        .cast(CloSXP.class);
 
         var compiler = new Compiler(3);
         var bc = compiler.compileFun(fun);
@@ -73,9 +74,10 @@ public class CompilerTest implements Tests {
             SubTest.run(
                     name,
                     () -> {
-                        var astClos = (CloSXP) RDSReader.readFile(astPath);
-                        var bcClos = (CloSXP) RDSReader.readFile(bcPath);
-                        var ourBc = printStructurally(Compiler.compileFun(astClos));
+                        var astClos = (CloSXP) RDSReader.readFile(astPath.toFile());
+                        var bcClos = (CloSXP) RDSReader.readFile(bcPath.toFile());
+                        var compiler = new Compiler(3);
+                        var ourBc = printStructurally(compiler.compileFun(astClos));
                         var rBc = printStructurally(((BCodeSXP) bcClos.body()).bc());
                         assertEquals(ourBc, rBc, "`compile(read(ast)) == read(R.compile(ast))`");
                         assertSnapshot(bcOutPath, bcClos::toString, "`print(bc)`");

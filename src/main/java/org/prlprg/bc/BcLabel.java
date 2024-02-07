@@ -7,9 +7,17 @@ import com.google.errorprone.annotations.CanIgnoreReturnValue;
 /** A branch instruction destination. */
 public final class BcLabel {
   /** Index of the instruction the branch instruction jumps to. */
-  public final int target;
+  public int target = -1;
 
-  private BcLabel(int target) {
+  public BcLabel(int target) {
+    this.target = target;
+  }
+
+  public int getTarget() {
+    return target;
+  }
+
+  void setTarget(int target) {
     this.target = target;
   }
 

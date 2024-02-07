@@ -4,7 +4,10 @@ import com.google.common.base.Objects;
 import com.google.common.collect.ForwardingCollection;
 import com.google.common.collect.ImmutableList;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
-import java.util.*;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.List;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import org.prlprg.sexp.*;
@@ -103,7 +106,7 @@ public final class ConstPool extends ForwardingCollection<SEXP> {
             return new Idx(ConstPool.this, i++);
           }
         };
-    }
+  }
 
   /**
    * Create from the raw GNU-R representation.
@@ -121,21 +124,21 @@ public final class ConstPool extends ForwardingCollection<SEXP> {
     return new Pair<>(pool, new MakeIdx(pool));
   }
 
-    @Override
-    public String toString() {
-        StringBuilder sb = new StringBuilder("=== CONSTS " + debugId() + " ===");
-        var idx = 0;
-        for (var c : this) {
-            var cStr = c.toString();
-            sb.append(String.format("\n%3d: ", idx++));
-            if (cStr.contains(System.lineSeparator())) {
-                sb.append(System.lineSeparator()).append(c).append(System.lineSeparator());
-            } else {
-                sb.append(c);
-            }
-        }
-        return sb.toString();
+  @Override
+  public String toString() {
+    StringBuilder sb = new StringBuilder("=== CONSTS " + debugId() + " ===");
+    var idx = 0;
+    for (var c : this) {
+      var cStr = c.toString();
+      sb.append(String.format("\n%3d: ", idx++));
+      if (cStr.contains(System.lineSeparator())) {
+        sb.append(System.lineSeparator()).append(c).append(System.lineSeparator());
+      } else {
+        sb.append(c);
+      }
     }
+    return sb.toString();
+  }
 
   private String debugId() {
     return "@" + hashCode();
