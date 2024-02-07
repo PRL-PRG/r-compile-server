@@ -2,36 +2,27 @@ package org.prlprg.sexp;
 
 import javax.annotation.Nullable;
 
-// FIXME: can we simplify the attributes?
-public sealed interface SEXP permits BCodeSXP, CloSXP, EnvSXP, ListOrVectorSXP, PromSXP, StrOrRegSymSXP, SymOrLangSXP {
-    SEXPType type();
+public sealed interface SEXP
+    permits StrOrRegSymSXP, SymOrLangSXP, ListOrVectorSXP, CloSXP, EnvSXP, BCodeSXP {
+  SEXPType type();
 
-    /**
-     * @return {@code null} if the SEXP doesn't support attributes ({@link #withAttributes} throws an exception)
-     * and {@code Attributes.NONE} if it does but there are none.
-     */
-    default @Nullable Attributes attributes() {
-        return null;
-    }
+  /**
+   * @return {@code null} if the SEXP doesn't support attributes ({@link #withAttributes} throws an
+   *     exception) and {@code Attributes.NONE} if it does but there are none.
+   */
+  default @Nullable Attributes attributes() {
+    return null;
+  }
 
-    /**
-     * @throws UnsupportedOperationException if the SEXP doesn't support attributes.
-     */
-    default SEXP withAttributes(Attributes attributes) {
-        throw new UnsupportedOperationException("Cannot set attributes on " + type());
-    }
-
-    @SuppressWarnings("unchecked")
-    default <T extends SEXP> T cast(T... reified) {
-        var clazz = (Class<? extends T>) reified.getClass().getComponentType();
-        return cast(clazz);
-    }
-
-    default <T extends SEXP> T cast(Class<T> clazz) {
-        if (clazz.isAssignableFrom(this.getClass())) {
-            return clazz.cast(this);
-        } else {
-            throw new ClassCastException("Unable to cast " + this.getClass() + " to " + clazz);
-        }
-    }
+  /**
+   * Returns an SEXP which would be equal except it has the given attributes instead of its old
+   * ones. <b>If the SEXP is a {@link RegEnvSXP}, it will mutate in-place and return itself. If the
+   * SEXP is a list or vector containing environments, this performs a shallow copy, so mutating the
+   * environments in one version will affect the other</b>.
+   *
+   * @throws UnsupportedOperationException if the SEXP doesn't support attributes.
+   */
+  default SEXP withAttributes(Attributes attributes) {
+    throw new UnsupportedOperationException("Cannot set attributes on " + type());
+  }
 }
