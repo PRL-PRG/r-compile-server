@@ -55,7 +55,7 @@ public final class BcCode extends ForwardingList<BcInstr> {
         StringBuilder sb = new StringBuilder("=== CODE ===");
         var idx = 0;
         for (BcInstr instr : instrs) {
-            sb.append("\n").append(idx++).append(": ").append(instr);
+            sb.append(String.format("\n%3d: ", idx++)).append(instr);
         }
         return sb.toString();
     }

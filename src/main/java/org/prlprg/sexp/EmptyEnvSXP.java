@@ -3,7 +3,6 @@ package org.prlprg.sexp;
 import org.prlprg.util.Pair;
 
 import java.util.Optional;
-import java.util.function.Consumer;
 
 public final class EmptyEnvSXP implements EnvSXP {
     static final EmptyEnvSXP INSTANCE = new EmptyEnvSXP();
@@ -11,16 +10,15 @@ public final class EmptyEnvSXP implements EnvSXP {
     private EmptyEnvSXP() {
     }
 
+    /**
+     * Empty environment has no parent.
+     * It is an error to call this method.
+     */
     @Override
     public EnvSXP parent() {
         throw new UnsupportedOperationException("the empty environment has no parent");
     }
 
-
-    @Override
-    public void visit(Consumer<EnvSXP> visitor) {
-        // do nothing
-    }
 
     @Override
     public Optional<SEXP> get(String name) {
