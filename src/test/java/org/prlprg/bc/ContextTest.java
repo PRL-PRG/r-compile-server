@@ -4,106 +4,112 @@ import static com.google.common.truth.Truth.assertThat;
 
 import java.util.HashSet;
 import org.junit.jupiter.api.Test;
+import org.prlprg.RSession;
+import org.prlprg.rsession.TestRSession;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.PromSXP;
 import org.prlprg.sexp.SEXPs;
+import org.prlprg.util.GNUR;
 import org.prlprg.util.Pair;
-import org.prlprg.util.R;
 
 public class ContextTest {
-  @Test
-  public void testFindLocals() {
-    var fun =
-        (CloSXP)
-            R.eval(
-                """
-                function (x) {
-                  y$a$b <- 1
-                  z$b <- 2
-                  zz <- a$b
-                  x + zz + z
-                }
-                """);
 
-    var ctx = Context.functionContext(fun);
-    assertThat(ctx.findLocals(fun.body())).containsExactly("y", "z", "zz");
-  }
+    private final RSession rsession = new TestRSession();
+    private final GNUR R = new GNUR(rsession);
 
-  @Test
-  public void testFindLocalsInFormals() {
-    var fun =
-        (CloSXP)
-            R.eval(
-                """
-                function(x, y={ x<- 1}) {
-                  y; x
-                }
-                """);
+    @Test
+    public void testFindLocals() {
+        var fun =
+                (CloSXP)
+                        R.eval(
+                                """
+                                        function (x) {
+                                          y$a$b <- 1
+                                          z$b <- 2
+                                          zz <- a$b
+                                          x + zz + z
+                                        }
+                                        """);
 
-    var ctx = Context.functionContext(fun);
-    assertThat(ctx.findLocals(fun.formals())).containsExactly("x");
-  }
+        var ctx = Context.functionContext(fun);
+        assertThat(ctx.findLocals(fun.body())).containsExactly("y", "z", "zz");
+    }
 
-  @Test
-  public void testFindLocalsWithShadowing() {
-    var fun =
-        (CloSXP)
-            R.eval(
-                """
-                function (f, x, y) {
-                    local <- f
-                    local(x <- y)
-                    x
-                }
-                """);
+    @Test
+    public void testFindLocalsInFormals() {
+        var fun =
+                (CloSXP)
+                        R.eval(
+                                """
+                                        function(x, y={ x<- 1}) {
+                                          y; x
+                                        }
+                                        """);
 
-    var ctx = Context.functionContext(fun);
-    var locals = new HashSet<>();
-    locals.addAll(ctx.findLocals(fun.formals()));
-    locals.addAll(ctx.findLocals(fun.body()));
-    assertThat(locals).containsExactly("local", "x");
-  }
+        var ctx = Context.functionContext(fun);
+        assertThat(ctx.findLocals(fun.formals())).containsExactly("x");
+    }
 
-  @SuppressWarnings("OptionalGetWithoutIsPresent")
-  @Test
-  public void testBindingInNestedFunction() {
-    var fun =
-        (CloSXP)
-            R.eval(
-                """
-                f <- function(x, y=1) {
-                    a <- 1
-                    function (z) {
-                        b <- 2
-                        x + y + z + a + b
-                    }
-                }
-                f()
-                """);
+    @Test
+    public void testFindLocalsWithShadowing() {
+        var fun =
+                (CloSXP)
+                        R.eval(
+                                """
+                                        function (f, x, y) {
+                                            local <- f
+                                            local(x <- y)
+                                            x
+                                        }
+                                        """);
 
-    var ctx = Context.functionContext(fun);
-    System.out.println(ctx);
+        var ctx = Context.functionContext(fun);
+        var locals = new HashSet<>();
+        locals.addAll(ctx.findLocals(fun.formals()));
+        locals.addAll(ctx.findLocals(fun.body()));
+        assertThat(locals).containsExactly("local", "x");
+    }
 
-    var x = ctx.resolve("x");
-    assertThat(x).hasValue(new Pair<>(fun.env(), SEXPs.MISSING_ARG));
+    @SuppressWarnings("OptionalGetWithoutIsPresent")
+    @Test
+    public void testBindingInNestedFunction() {
+        var fun =
+                (CloSXP)
+                        R.eval(
+                                """
+                                        f <- function(x, y=1) {
+                                            a <- 1
+                                            function (z) {
+                                                b <- 2
+                                                x + y + z + a + b
+                                            }
+                                        }
+                                        f()
+                                        """);
 
-    var y = ctx.resolve("y").get();
-    assertThat(y.first()).isEqualTo(fun.env());
-    assertThat(y.second()).isInstanceOf(PromSXP.class);
+        var ctx = Context.functionContext(fun);
+        System.out.println(ctx);
 
-    var a = ctx.resolve("a").get();
-    assertThat(a.first()).isEqualTo(fun.env());
-    assertThat(a.second()).isEqualTo(SEXPs.real(1));
+        var x = ctx.resolve("x");
+        assertThat(x).hasValue(new Pair<>(fun.env(), SEXPs.MISSING_ARG));
 
-    var z = ctx.resolve("z").get();
-    assertThat(z.second()).isEqualTo(SEXPs.UNBOUND_VALUE);
+        var y = ctx.resolve("y").get();
+        assertThat(y.first()).isEqualTo(fun.env());
+        assertThat(y.second()).isInstanceOf(PromSXP.class);
 
-    var b = ctx.resolve("b").get();
-    assertThat(b.second()).isEqualTo(SEXPs.UNBOUND_VALUE);
-  }
+        var a = ctx.resolve("a").get();
+        assertThat(a.first()).isEqualTo(fun.env());
+        assertThat(a.second()).isEqualTo(SEXPs.real(1));
 
-  @Test
-  public void testFindLocalsWithShadowingInOtherEnvironment() {
+        var z = ctx.resolve("z").get();
+        assertThat(z.second()).isEqualTo(SEXPs.UNBOUND_VALUE);
+
+        var b = ctx.resolve("b").get();
+        assertThat(b.second()).isEqualTo(SEXPs.UNBOUND_VALUE);
+    }
+
+    @Test
+    public void testFindLocalsWithShadowingInOtherEnvironment() {
     /*
     > local <- function(a) a
     > f <- function(y) { local(x <- y); x }
@@ -113,27 +119,27 @@ public class ContextTest {
     > [1] 42
     */
 
-    var fun =
-        (CloSXP)
-            R.eval(
-                """
-                f <- function() {
-                    local <- function(a) a
-                    function (y) {
-                        local(x <- y)
-                        x
-                    }
-                }
-                f()
-                """);
+        var fun =
+                (CloSXP)
+                        R.eval(
+                                """
+                                        f <- function() {
+                                            local <- function(a) a
+                                            function (y) {
+                                                local(x <- y)
+                                                x
+                                            }
+                                        }
+                                        f()
+                                        """);
 
-    var ctx = Context.functionContext(fun);
-    assertThat(ctx.findLocals(fun.body())).containsExactly("x");
-  }
+        var ctx = Context.functionContext(fun);
+        assertThat(ctx.findLocals(fun.body())).containsExactly("x");
+    }
 
-  @Test
-  public void testFrameTypes() {
-    var fun = R.eval("tools:::Rcmd").cast(CloSXP.class);
-    System.out.println(fun);
-  }
+    @Test
+    public void testFrameTypes() {
+        var fun = (CloSXP) R.eval("tools:::Rcmd");
+        System.out.println(fun);
+    }
 }

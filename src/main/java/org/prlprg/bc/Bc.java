@@ -38,7 +38,6 @@ public record Bc(BcCode code, ConstPool consts) {
     return code + "\n" + consts;
   }
 
-  /** Equivalent to `CodeBuffer` in other projects */
   public static class Builder {
     private final BcCode.Builder code = new BcCode.Builder();
     private final ConstPool.Builder consts = new ConstPool.Builder();
@@ -65,15 +64,6 @@ public record Bc(BcCode code, ConstPool consts) {
       code.addAll(c);
     }
 
-    /**
-     * Finish building the bytecode.
-     *
-     * @return The bytecode.
-     */
-    public Bc build() {
-      return new Bc(code.build(), consts.build());
-    }
-
     public BcLabel makeLabel() {
       var l = new BcLabel(labels.size());
       labels.add(l);
@@ -82,6 +72,15 @@ public record Bc(BcCode code, ConstPool consts) {
 
     public void patchLabel(BcLabel label) {
       label.setTarget(code.size());
+    }
+
+    /**
+     * Finish building the bytecode.
+     *
+     * @return The bytecode.
+     */
+    public Bc build() {
+      return new Bc(code.build(), consts.build());
     }
   }
 }

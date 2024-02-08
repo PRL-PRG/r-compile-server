@@ -18,27 +18,27 @@ import org.prlprg.sexp.*;
 import org.prlprg.util.IO;
 
 public class RDSReader implements Closeable {
-  // FIXME: this should be a parameter
-  private final RSession session = new RSession();
+  private final RSession session;
   private final RDSInputStream in;
   private final List<SEXP> refTable = new ArrayList<>(128);
 
   // FIXME: this should include the logic from platform.c
   private Charset nativeEncoding = Charset.defaultCharset();
 
-  private RDSReader(InputStream in) {
+  private RDSReader(RSession session, InputStream in) {
+    this.session = session;
     this.in = new RDSInputStream(in);
   }
 
-  public static SEXP readStream(InputStream input) throws IOException {
-    try (var reader = new RDSReader(input)) {
+  public static SEXP readStream(RSession session, InputStream input) throws IOException {
+    try (var reader = new RDSReader(session, input)) {
       return reader.read();
     }
   }
 
-  public static SEXP readFile(File file) throws IOException {
+  public static SEXP readFile(RSession session, File file) throws IOException {
     try (var input = new FileInputStream(file)) {
-      return readStream(IO.maybeDecompress(input));
+      return readStream(session, IO.maybeDecompress(input));
     }
   }
 

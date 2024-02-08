@@ -12,7 +12,7 @@ public class Context {
   private final boolean topLevel;
   private final boolean tailCall;
   private final boolean returnJump;
-  private final EnvSXP cenv;
+  private final EnvSXP environment;
 
   /**
    * @param topLevel {@code true} for top level expressions, {@code false} otherwise (e.g.,
@@ -21,29 +21,29 @@ public class Context {
    *     followed by return, or {@code false} when the result is ignored, or whether the expression
    *     is contained in a loop.
    * @param returnJump {@code true} indicated that the call to return needs {@code RETURNJMP}.
-   * @param cenv
+   * @param environment the compilation environment.
    */
-  public Context(boolean topLevel, boolean tailCall, boolean returnJump, EnvSXP cenv) {
+  public Context(boolean topLevel, boolean tailCall, boolean returnJump, EnvSXP environment) {
     this.topLevel = topLevel;
     this.tailCall = tailCall;
     this.returnJump = returnJump;
-    this.cenv = cenv;
+    this.environment = environment;
   }
 
-  public static Context topLevelContext(EnvSXP cenv) {
-    return new Context(true, true, false, cenv);
+  public static Context topLevelContext(EnvSXP env) {
+    return new Context(true, true, false, env);
   }
 
   public static Context functionContext(CloSXP fun) {
-    var cenv = new UserEnvSXP(fun.env());
-    var ctx = new Context(false, true, false, cenv);
+    var env = new UserEnvSXP(fun.env());
+    var ctx = new Context(false, true, false, env);
 
     return ctx.makeFunctionContext(fun.formals(), fun.body());
   }
 
   public Context makeFunctionContext(ListSXP formals, SEXP body) {
-    var env = new UserEnvSXP(cenv);
-    var ctx = new Context(false, true, false, cenv);
+    var env = new UserEnvSXP(environment);
+    var ctx = new Context(false, true, false, env);
 
     formals.names().forEach(x -> env.set(x, SEXPs.UNBOUND_VALUE));
     for (var v : formals.values()) {
@@ -55,7 +55,7 @@ public class Context {
   }
 
   public Context makeNonTailContext() {
-    return new Context(topLevel, false, returnJump, cenv);
+    return new Context(topLevel, false, returnJump, environment);
   }
 
   public Context makePromiseContext() {
@@ -63,15 +63,15 @@ public class Context {
     // The promise context also sets returnJump since a return call that is triggered by forcing a
     // promise
     // requires a longjmp to return from the appropriate function.
-    return new Context(false, true, true, cenv);
+    return new Context(false, true, true, environment);
   }
 
   public boolean isBaseVersion(String name) {
-    return cenv.find(name).map(b -> b.first() instanceof BaseEnvSXP).orElse(false);
+    return environment.find(name).map(b -> b.first() instanceof BaseEnvSXP).orElse(false);
   }
 
   public Optional<Pair<EnvSXP, SEXP>> resolve(String name) {
-    return cenv.find(name);
+    return environment.find(name);
   }
 
   public Set<String> findLocals(SEXP e) {
@@ -99,7 +99,7 @@ public class Context {
                 var args = l.args().values();
                 todo.addAll(args.subList(1, args.size()));
 
-                RegSymSXP sym = l.arg(0).value().cast();
+                var sym = (RegSymSXP) l.arg(0).value();
                 yield Optional.of(sym.name());
               }
               case "assign", "delayedAssign" -> {

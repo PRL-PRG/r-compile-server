@@ -2,15 +2,21 @@ package org.prlprg.util;
 
 import java.io.File;
 import java.io.PrintWriter;
+import org.prlprg.RSession;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.sexp.SEXP;
 
-public class R {
+// TODO: keep a session open
+public class GNUR {
   public static final String R_BIN = "R";
 
-  private R() {}
+  private final RSession rsession;
 
-  public static SEXP eval(String source) {
+  public GNUR(RSession rsession) {
+    this.rsession = rsession;
+  }
+
+  public SEXP eval(String source) {
     try {
       var sourceFile = File.createTempFile("RCS-test", ".R");
       var targetFile = File.createTempFile("RCS-test", ".rds");
@@ -25,7 +31,7 @@ public class R {
               sourceFile.getAbsoluteFile(), targetFile.getAbsoluteFile());
       runCode(code);
 
-      var sxp = RDSReader.readFile(targetFile).cast();
+      var sxp = RDSReader.readFile(rsession, targetFile);
 
       assert (sourceFile.delete());
       assert (targetFile.delete());

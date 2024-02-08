@@ -25,18 +25,4 @@ public sealed interface SEXP
   default SEXP withAttributes(Attributes attributes) {
     throw new UnsupportedOperationException("Cannot set attributes on " + type());
   }
-
-  @SuppressWarnings("unchecked")
-  default <T extends SEXP> T cast(T... reified) {
-    var clazz = (Class<? extends T>) reified.getClass().getComponentType();
-    return cast(clazz);
-  }
-
-  default <T extends SEXP> T cast(Class<T> clazz) {
-    if (clazz.isAssignableFrom(this.getClass())) {
-      return clazz.cast(this);
-    } else {
-      throw new ClassCastException("Unable to cast " + this.getClass() + " to " + clazz);
-    }
-  }
 }

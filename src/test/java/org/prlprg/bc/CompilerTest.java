@@ -5,66 +5,44 @@ import static org.prlprg.util.Assertions.assertSnapshot;
 import static org.prlprg.util.StructuralUtils.printStructurally;
 
 import java.nio.file.Path;
-import org.junit.jupiter.api.Disabled;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.prlprg.RSession;
 import org.prlprg.rds.RDSReader;
+import org.prlprg.rsession.TestRSession;
 import org.prlprg.sexp.BCodeSXP;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.util.*;
 
 public class CompilerTest implements Tests {
 
-  @Test
-  public void testInlineBlock() {
-    var fun = (CloSXP) R.eval("""
-                function (x) {}
-                """);
+  private final RSession rsession = new TestRSession();
+  private final GNUR R = new GNUR(rsession);
 
-    var compiler = new Compiler(3);
-    var bc = compiler.compileFun(fun);
-    System.out.println(bc);
-  }
+  //    @Test
+  //    public void testInlineBlock() {
+  //        var fun = (CloSXP) R.eval("""
+  //                function (x) {}
+  //                """);
+  //
+  //        var compiler = new Compiler(3);
+  //        var bc = compiler.compileFun(fun);
+  //        System.out.println(bc);
+  //    }
 
-  @Test
-  public void testInlineIf() {
-    var fun =
-        (CloSXP)
-            R.eval(
-                """
-                                function (x) if (x) 1 else 2
-                                """);
-
-    var compiler = new Compiler(3);
-    var bc = compiler.compileFun(fun);
-    System.out.println(bc);
-  }
-
-  @Test
-  public void testInlineFunction() {
-    var fun =
-        (CloSXP)
-            R.eval(
-                """
-                                            function (x) function(y) y
-                                            """);
-
-    var compiler = new Compiler(3);
-    var bc = compiler.compileFun(fun);
-    System.out.println(bc);
-  }
-
-  @Disabled
   @ParameterizedTest(name = "Commutative read/compile {0}")
   @DirectorySource(glob = "*.R", relativize = true, exclude = "serialize-closures.R")
   void testCommutativeReadAndCompile(Path sourceName) {
+    var bootstrapScript = getResourcePath("serialize-closures.R");
     var sourcePath = getResourcePath(sourceName);
     var compiledRoot = getSnapshotPath(sourceName);
 
     // Generate `compiledRoot` from `sourcePath` using GNU-R if necessary
-    if (Files.exists(compiledRoot) && Files.isOlder(compiledRoot, sourcePath)) {
+    if (Files.exists(compiledRoot)
+        && (Files.isOlder(compiledRoot, sourcePath)
+            || Files.isOlder(compiledRoot, bootstrapScript))) {
       Files.deleteRecursively(compiledRoot);
     }
+
     if (!Files.exists(compiledRoot)) {
       // Generate `compiledRoot` from `sourcePath` using GNU-R
       cmd(
@@ -85,12 +63,16 @@ public class CompilerTest implements Tests {
       SubTest.run(
           name,
           () -> {
-            var astClos = (CloSXP) RDSReader.readFile(astPath.toFile());
-            var bcClos = (CloSXP) RDSReader.readFile(bcPath.toFile());
+            var astClos = (CloSXP) RDSReader.readFile(rsession, astPath.toFile());
+            var bcClos = (CloSXP) RDSReader.readFile(rsession, bcPath.toFile());
             var compiler = new Compiler(3);
-            var ourBc = printStructurally(compiler.compileFun(astClos));
-            var rBc = printStructurally(((BCodeSXP) bcClos.body()).bc());
-            assertEquals(ourBc, rBc, "`compile(read(ast)) == read(R.compile(ast))`");
+            var ourBc = compiler.compileFun(astClos);
+            var rBc = ((BCodeSXP) bcClos.body()).bc();
+            // FIXME: remove expressionsIndex and srcrefsIndex for now
+            assertEquals(
+                printStructurally(ourBc),
+                printStructurally(rBc),
+                "`compile(read(ast)) == read(R.compile(ast))`");
             assertSnapshot(bcOutPath, bcClos::toString, "`print(bc)`");
           });
     }
