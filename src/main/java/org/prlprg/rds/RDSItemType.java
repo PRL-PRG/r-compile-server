@@ -40,6 +40,7 @@ sealed interface RDSItemType {
     };
   }
 
+  /** SEXPType encoded as an RDS item type. */
   record Sexp(SEXPType sexp) implements RDSItemType {
     @Override
     public int i() {
@@ -47,6 +48,7 @@ sealed interface RDSItemType {
     }
   }
 
+  /** Special RDS item types. */
   enum Special implements RDSItemType {
     REFSXP(255),
     NILVALUE_SXP(254),

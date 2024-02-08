@@ -1,4 +1,6 @@
-/** Socket setup and communication with clients, and protocols. */
+/**
+ * Socket setup and communication with clients (which are running an instance of R), and protocols.
+ */
 @ParametersAreNonnullByDefault
 @FieldsAreNonNullByDefault
 @ReturnTypesAreNonNullByDefault

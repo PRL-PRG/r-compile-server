@@ -12,6 +12,7 @@ public final class SimpleLglSXP extends SimpleScalarSXPImpl<Logical> implements 
     super(data);
   }
 
+  @SuppressWarnings("MissingJavadoc")
   public Logical value() {
     return data;
   }

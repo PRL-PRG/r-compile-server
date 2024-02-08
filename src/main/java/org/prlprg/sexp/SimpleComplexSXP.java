@@ -8,6 +8,7 @@ public final class SimpleComplexSXP extends SimpleScalarSXPImpl<Complex> impleme
     super(data);
   }
 
+  @SuppressWarnings("MissingJavadoc")
   public Complex value() {
     return data;
   }

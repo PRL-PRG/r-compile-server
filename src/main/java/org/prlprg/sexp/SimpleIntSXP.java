@@ -8,6 +8,7 @@ public final class SimpleIntSXP extends SimpleScalarSXPImpl<Integer> implements 
     super(data);
   }
 
+  @SuppressWarnings("MissingJavadoc")
   public int value() {
     return data;
   }

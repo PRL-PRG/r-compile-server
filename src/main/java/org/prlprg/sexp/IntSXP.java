@@ -8,6 +8,10 @@ import javax.annotation.concurrent.Immutable;
 @Immutable
 public sealed interface IntSXP extends VectorSXP<Integer>
     permits EmptyIntSXPImpl, IntSXPImpl, SimpleIntSXP {
+  /**
+   * The data contained in this vector. Note that if it's an empty or scalar, those aren't actually
+   * backed by an {@link ImmutableIntArray}, so this gets created and returns every access.
+   */
   ImmutableIntArray data();
 
   @Override

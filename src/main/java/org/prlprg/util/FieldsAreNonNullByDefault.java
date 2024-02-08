@@ -6,6 +6,7 @@ import java.lang.annotation.RetentionPolicy;
 import javax.annotation.Nonnull;
 import javax.annotation.meta.TypeQualifierDefault;
 
+@SuppressWarnings("MissingJavadoc")
 @Nonnull
 @TypeQualifierDefault(ElementType.FIELD)
 @Retention(RetentionPolicy.RUNTIME)

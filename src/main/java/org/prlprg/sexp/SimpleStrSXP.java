@@ -6,6 +6,7 @@ public final class SimpleStrSXP extends SimpleScalarSXPImpl<String> implements S
     super(data);
   }
 
+  @SuppressWarnings("MissingJavadoc")
   public String value() {
     return data;
   }

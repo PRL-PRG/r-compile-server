@@ -6,6 +6,7 @@ public final class SimpleRealSXP extends SimpleScalarSXPImpl<Double> implements 
     super(data);
   }
 
+  @SuppressWarnings("MissingJavadoc")
   public double value() {
     return data;
   }

@@ -1,9 +1,12 @@
 package org.prlprg.primitive;
 
-/** GNU-R "logical": a boolean which also permits NA (trinary). */
+/** R "logical": a boolean which also permits NA (trinary). */
 public enum Logical {
+  @SuppressWarnings("MissingJavadoc")
   FALSE(0),
+  @SuppressWarnings("MissingJavadoc")
   TRUE(1),
+  @SuppressWarnings("MissingJavadoc")
   NA(Integer.MIN_VALUE);
 
   /** The value in GNU-R */

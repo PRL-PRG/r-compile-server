@@ -1,7 +1,8 @@
 package org.prlprg.compile;
 
+/** Exception thrown from {@link Compiler}. */
 public class CompilerException extends RuntimeException {
-  public CompilerException(String message) {
+  CompilerException(String message) {
     super(message);
   }
 }

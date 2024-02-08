@@ -11,6 +11,7 @@ import org.prlprg.util.Pair;
  * A single bytecode instruction, consists of an operation and arguments. The operation is
  * determined by its subtype, arguments are determined by its fields.
  */
+@SuppressWarnings("MissingJavadoc")
 @Immutable
 public sealed interface BcInstr {
   /** The instruction's operation. */
@@ -300,15 +301,15 @@ public sealed interface BcInstr {
   }
 
   record MakeClosure(ConstPool.TypedIdx<VecSXP> formalsBodyAndMaybeSrcRef) implements BcInstr {
-    ListSXP formals(ConstPool pool) {
+    public ListSXP formals(ConstPool pool) {
       return (ListSXP) pool.get(this.formalsBodyAndMaybeSrcRef).get(0);
     }
 
-    SEXP body(ConstPool pool) {
+    public SEXP body(ConstPool pool) {
       return pool.get(formalsBodyAndMaybeSrcRef).get(1);
     }
 
-    SEXP srcRef(ConstPool pool) {
+    public SEXP srcRef(ConstPool pool) {
       var formalsBodyAndMaybeSrcRef = pool.get(this.formalsBodyAndMaybeSrcRef);
       return formalsBodyAndMaybeSrcRef.size() < 3 ? SEXPs.NULL : formalsBodyAndMaybeSrcRef.get(2);
     }
