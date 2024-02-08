@@ -103,7 +103,7 @@ public final class BcCode extends ForwardingList<BcInstr> {
    * <p>Not synchronized, so don't use from multiple threads.
    */
   public static class Builder {
-    ImmutableList.Builder<BcInstr> builder = ImmutableList.builder();
+    final ImmutableList.Builder<BcInstr> builder = ImmutableList.builder();
 
     /** Create a new builder. */
     public Builder() {}
