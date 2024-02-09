@@ -1,11 +1,11 @@
 package org.prlprg.bc;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.primitives.ImmutableIntArray;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
+import java.util.*;
+import org.prlprg.primitive.Constants;
+import org.prlprg.sexp.IntSXP;
 import org.prlprg.sexp.SEXP;
+import org.prlprg.sexp.SEXPs;
 
 /**
  * A complete R bytecode, consisting of a version, array of instructions and associated data, and
@@ -42,6 +42,21 @@ public record Bc(BcCode code, ConstPool consts) {
     private final BcCode.Builder code = new BcCode.Builder();
     private final ConstPool.Builder consts = new ConstPool.Builder();
     private final List<BcLabel> labels = new ArrayList<>();
+    private final ImmutableIntArray.Builder expressions =
+        ImmutableIntArray.builder()
+            // to have the same length as codeBuf
+            .add(Constants.NA_INT);
+    private final ImmutableIntArray.Builder srcRefs =
+        ImmutableIntArray.builder()
+            // to have the same length as codeBuf
+            .add(Constants.NA_INT);
+    private final Stack<SEXP> currentExpr = new Stack<>();
+    private final Stack<IntSXP> currentSrcRef = new Stack<>();
+    private boolean trackSrcRefs = true;
+
+    public void setTrackSrcRefs(boolean trackSrcRefs) {
+      this.trackSrcRefs = trackSrcRefs;
+    }
 
     /** Append a constant and return its index. */
     public <S extends SEXP> ConstPool.TypedIdx<S> addConst(S c) {
@@ -51,17 +66,18 @@ public record Bc(BcCode code, ConstPool consts) {
     /** Append an instruction. */
     public void addInstr(BcInstr instr) {
       code.add(instr);
-    }
+      assert (!currentExpr.isEmpty());
 
-    /** Append a collection of constants and return its index. */
-    public <S extends SEXP> ImmutableList<ConstPool.TypedIdx<S>> addAllConsts(
-        Collection<? extends S> c) {
-      return consts.addAll(c);
-    }
+      for (var i = 0; i <= instr.op().nArgs(); i++) {
+        // R uses 1-based indexing
+        expressions.add(addConst(currentExpr.peek()).idx + 1);
 
-    /** Append instructions. */
-    public void addAllInstrs(Collection<? extends BcInstr> c) {
-      code.addAll(c);
+        if (trackSrcRefs) {
+          assert (!currentSrcRef.isEmpty());
+          // R uses 1-based indexing
+          srcRefs.add(addConst(currentSrcRef.peek()).idx + 1);
+        }
+      }
     }
 
     public BcLabel makeLabel() {
@@ -80,7 +96,39 @@ public record Bc(BcCode code, ConstPool consts) {
      * @return The bytecode.
      */
     public Bc build() {
+      var expressionsIndex = SEXPs.integer(expressions.build());
+      // expressionsIndex.attributes().put("class", SEXPs.string("expressionsIndex"));
+      addConst(expressionsIndex);
+
+      if (trackSrcRefs) {
+        var srcRefsIndex = SEXPs.integer(srcRefs.build());
+        // srcRefsIndex.attributes().put("class", SEXPs.string("srcrefsIndex"));
+        addConst(srcRefsIndex);
+      }
+
       return new Bc(code.build(), consts.build());
+    }
+
+    public void pushLoc(SEXP expr, Optional<IntSXP> srcRef) {
+      currentExpr.push(expr);
+      if (trackSrcRefs) {
+        currentSrcRef.push(srcRef.orElse(currentSrcRef.peek()));
+      }
+    }
+
+    public void popLoc() {
+      currentExpr.pop();
+      if (trackSrcRefs) {
+        currentSrcRef.pop();
+      }
+    }
+
+    public SEXP getCurrentExpr() {
+      return currentExpr.peek();
+    }
+
+    public Optional<IntSXP> getCurrentSrcRef() {
+      return trackSrcRefs ? Optional.of(currentSrcRef.peek()) : Optional.empty();
     }
   }
 }

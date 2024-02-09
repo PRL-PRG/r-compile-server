@@ -117,13 +117,6 @@ public final class BcCode extends ForwardingList<BcInstr> {
       return this;
     }
 
-    /** Append instructions. */
-    @CanIgnoreReturnValue
-    public Builder addAll(Collection<? extends BcInstr> c) {
-      code.addAll(c);
-      return this;
-    }
-
     /**
      * Finish building the array.
      *

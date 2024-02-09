@@ -1,7 +1,7 @@
 package org.prlprg.bc;
 
 import com.google.common.base.Objects;
-import com.google.common.collect.ForwardingCollection;
+import com.google.common.collect.ForwardingList;
 import com.google.common.collect.ImmutableList;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.Collection;
@@ -24,13 +24,13 @@ import org.prlprg.util.Pair;
         "The class isn't technically immutable but is after we use the thread-unsafe builder, "
             + "so practically we treat it as immutable")
 @Immutable
-public final class ConstPool extends ForwardingCollection<SEXP> {
+public final class ConstPool extends ForwardingList<SEXP> {
   @Nullable private ImmutableList<SEXP> consts;
 
   private ConstPool() {}
 
   @Override
-  protected Collection<SEXP> delegate() {
+  protected List<SEXP> delegate() {
     if (consts == null) {
       throw new IllegalStateException("ConstPool is not yet built");
     }

@@ -44,6 +44,7 @@ public class CompilerTest implements Tests {
     }
 
     if (!Files.exists(compiledRoot)) {
+      System.out.println("Serializing closures");
       // Generate `compiledRoot` from `sourcePath` using GNU-R
       cmd(
           "R",
@@ -68,7 +69,7 @@ public class CompilerTest implements Tests {
             var compiler = new Compiler(3);
             var ourBc = compiler.compileFun(astClos);
             var rBc = ((BCodeSXP) bcClos.body()).bc();
-            // FIXME: remove expressionsIndex and srcrefsIndex for now
+
             assertEquals(
                 printStructurally(ourBc),
                 printStructurally(rBc),

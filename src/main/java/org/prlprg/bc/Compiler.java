@@ -7,8 +7,11 @@ import org.prlprg.sexp.*;
 import javax.annotation.Nullable;
 import java.util.Optional;
 import java.util.Set;
+import java.util.Stack;
 
 public class Compiler {
+    record Loc(SEXP expr, Optional<IntSXP> srcRef) {}
+
     private static final Set<String> MAYBE_NSE_SYMBOLS = Set.of("bquote");
     private static final Set<String> ALLOWED_INLINES =
             Set.of(
@@ -78,30 +81,57 @@ public class Compiler {
         this.optimizationLevel = optimizationLevel;
     }
 
+
+
     public Bc compileFun(CloSXP fun) {
         var ctx = Context.functionContext(fun);
 
         // TODO: if (mayCallBrowser(body(f), ncntxt)) return(f)
-        // TODO: location
         // TODO: attributes - set after compilation
         // TODO: S4?
 
-        // TODO: parameters
-        return compile(fun.body(), ctx);
+        var body = fun.body();
+        var srcRef = Optional.<IntSXP>empty();
+        if (!(body instanceof LangSXP b && (b.fun() instanceof RegSymSXP sym && sym.name().equals("{")))) { // FIXME: ugly
+            // try to get the srcRef from the function itself
+            // normally, it would be attached to the `{`
+            srcRef = fun.getSrcRef();
+        } else {
+            srcRef = extractSrcRef(body, 0);
+        }
+
+        if (srcRef.isEmpty()) {
+            // from R documentation:
+            // when top-level srcref is null, we speculate there will be no
+            // source references within the compiled expressions either,
+            // disabling the tracking makes the resulting constant pool smaller
+            cb.setTrackSrcRefs(false);
+        }
+
+        // the bytecode compiler only compiles function body, not the default parameter expressions
+        return compile(body, ctx, new Loc(body, srcRef));
     }
 
     private Bc compile(SEXP expr, Context ctx) {
+        return compile(expr, ctx, new Loc(expr, extractSrcRef(expr, 0)));
+    }
+
+    private Bc compile(SEXP expr, Context ctx, Loc loc) {
+        cb.pushLoc(loc.expr(), loc.srcRef());
+
         compileExpr(expr, ctx);
+        cb.popLoc();
         return cb.build();
     }
 
     private void compileExpr(SEXP expr, Context ctx) {
-        // TODO: check we do not attempt to compile BCSXP or PROMSXP
         // TODO: constant fold
         switch (expr) {
             case LangSXP e -> compileCall(e, ctx, true);
             case SpecialSymSXP e -> throw new CompilerException("unhandled special symbol: " + e);
             case RegSymSXP e -> compileSym(e, ctx, false);
+            case PromSXP ignored -> throw new CompilerException("cannot compile promise literals in code");
+            case BCodeSXP ignored -> throw new CompilerException("cannot compile byte code literals in code");
             default -> compileConst(expr, ctx);
         }
     }
@@ -144,6 +174,7 @@ public class Compiler {
     }
 
     void compileCall(LangSXP call, Context ctx, boolean canInline) {
+        cb.pushLoc(call, extractSrcRef(call, 0));
         var args = call.args();
         switch (call.fun()) {
             case RegSymSXP fun -> {
@@ -158,6 +189,7 @@ public class Compiler {
                 compileCallExprFun(fun, args, call, ctx);
             }
         }
+        cb.popLoc();
     }
 
     private boolean tryInline(RegSymSXP fun, LangSXP call, Context ctx) {
@@ -230,9 +262,12 @@ public class Compiler {
     }
 
     private void compileNormArg(SEXP arg, boolean nse, Context ctx) {
-        cb.addInstr(
-                new MakeProm(
-                        cb.addConst(nse ? arg : SEXPs.bcode(compile(arg, ctx.makePromiseContext())))));
+        if (!nse) {
+            var compiler = new Compiler(optimizationLevel);
+            var bc = compiler.compile(arg, ctx.makePromiseContext(), new Loc(cb.getCurrentExpr(), cb.getCurrentSrcRef()));
+            arg = SEXPs.bcode(bc);
+        }
+        cb.addInstr(new MakeProm(cb.addConst(arg)));
     }
 
     @SuppressFBWarnings(
@@ -313,7 +348,8 @@ public class Compiler {
         }
 
         if (n > 1) {
-            call.args().values().subList(0, n - 1).forEach(x -> compileExpr(x, ctx.makeNonTailContext()));
+            var nctx = ctx.makeNonTailContext();
+            call.args().values().subList(0, n - 1).forEach(x -> compileExpr(x, nctx));
         }
 
         compile(call.arg(n - 1).value(), ctx);
@@ -329,8 +365,7 @@ public class Compiler {
 
         // TODO: constant fold
 
-        var nctx = ctx.makeNonTailContext();
-        compile(test, nctx);
+        compile(test, ctx.makeNonTailContext());
 
         var elseLabel = cb.makeLabel();
         cb.addInstr(new BrIfNot(cb.addConst(call), elseLabel));
@@ -380,10 +415,9 @@ public class Compiler {
 
         var formals = (ListSXP) call.arg(0).value();
         var body = call.arg(1).value();
-        var nctx = ctx.makeFunctionContext(formals, body);
 
         var compiler = new Compiler(optimizationLevel);
-        var cbody = compiler.compile(body, nctx);
+        var cbody = compiler.compile(body, ctx.makeFunctionContext(formals, body));
         var cbodysxp = SEXPs.bcode(cbody);
 
         cb.addInstr(new MakeClosure(cb.addConst(SEXPs.vec(formals, cbodysxp))));
@@ -453,5 +487,22 @@ public class Compiler {
         } else {
             return false;
         }
+    }
+
+    private static Optional<IntSXP> extractSrcRef(SEXP expr, int idx) {
+        return Optional.ofNullable(expr.attributes())
+                .flatMap(x -> Optional.ofNullable(x.get("srcref")))
+                .flatMap(
+                        x -> {
+                            if (x instanceof IntSXP y && y.size() >= 6) {
+                                return Optional.of(y);
+                            } else if (x instanceof VecSXP y
+                                    && y.size() >= idx
+                                    && y.get(idx) instanceof IntSXP z
+                                    && z.size() >= 6) {
+                                return Optional.of(z);
+                            }
+                            return Optional.empty();
+                        });
     }
 }
