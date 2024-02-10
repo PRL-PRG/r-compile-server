@@ -66,11 +66,6 @@ public class Compiler {
      */
     private final SEXP expr;
 
-    /**
-     * The location of the initial expression.
-     */
-    private final Loc loc;
-
     private Context ctx;
 
     /*
@@ -89,13 +84,13 @@ public class Compiler {
     private Compiler(SEXP expr, Context ctx, Loc loc) {
         this.expr = expr;
         this.ctx = ctx;
-        this.loc = loc;
+        cb.pushLoc(loc);
     }
 
     public Compiler(CloSXP fun) {
         this(fun.body(), Context.functionContext(fun), functionLoc(fun));
 
-        if (loc.srcRef() == null) {
+        if (cb.getCurrentLoc().srcRef() == null) {
             // from R documentation:
             // when top-level srcref is null, we speculate there will be no
             // source references within the compiled expressions either,
@@ -116,7 +111,8 @@ public class Compiler {
 
     public Bc compile() {
         cb.addConst(expr);
-        return compile(expr);
+        compile(expr);
+        return cb.build();
     }
 
     private static Loc functionLoc(CloSXP fun) {
@@ -134,19 +130,15 @@ public class Compiler {
         return new Loc(body, srcRef);
     }
 
-    private Bc compile(SEXP expr) {
-        return compile(expr, new Loc(expr, extractSrcRef(expr, 0)));
+    private void compile(SEXP expr) {
+        compile(expr, true);
     }
 
-    private Bc compile(SEXP expr, Loc loc) {
-        cb.pushLoc(loc);
+    private void compile(SEXP expr, boolean pushloc) {
+        if (pushloc) {
+            cb.pushLoc(new Loc(expr, extractSrcRef(expr, 0)));
+        }
 
-        compileExpr(expr);
-        cb.popLoc();
-        return cb.build();
-    }
-
-    private void compileExpr(SEXP expr) {
         // TODO: constant fold
         switch (expr) {
             case LangSXP e -> compileCall(e, true);
@@ -155,6 +147,10 @@ public class Compiler {
             case PromSXP ignored -> throw new CompilerException("cannot compile promise literals in code");
             case BCodeSXP ignored -> throw new CompilerException("cannot compile byte code literals in code");
             default -> compileConst(expr);
+        }
+
+        if (pushloc) {
+            cb.popLoc();
         }
     }
 
@@ -242,7 +238,7 @@ public class Compiler {
     }
 
     private void compileCallExprFun(LangSXP fun, ListSXP args, LangSXP call) {
-        with(ctx.nonTailContext(), () -> compileExpr(fun));
+        with(ctx.nonTailContext(), () -> compile(fun));
         cb.addInstr(new CheckFun());
         compileArgs(args, false);
         cb.addInstr(new Call(cb.addConst(call)));
@@ -373,14 +369,18 @@ public class Compiler {
                 for (var i = 0; i < n - 1; i++) {
                     var arg = call.arg(i).value();
                     // i + 1 because the block srcref's first element is the opening brace
-                    compile(arg, new Loc(arg, extractSrcRef(call, i + 1)));
-
+                    cb.pushLoc(new Loc(arg, extractSrcRef(call, i + 1)));
+                    compile(arg, false);
+                    cb.addInstr(new Pop());
+                    cb.popLoc();
                 }
             });
         }
 
         var last = call.arg(n - 1).value();
-        compile(last, new Loc(last, extractSrcRef(call, n)));
+        cb.pushLoc(new Loc(last, extractSrcRef(call, n)));
+        compile(last, false);
+        cb.popLoc();
     }
 
     private void inlineCondition(LangSXP call) {
@@ -487,12 +487,12 @@ public class Compiler {
             // TODO: notifyWrongArgCount("(", cntxt, loc = cb$savecurloc())
             return tryCompileBuiltin(call);
         } else if (ctx.isTailCall()) {
-            with(ctx.nonTailContext(), () -> compileExpr(call.arg(0).value()));
+            with(ctx.nonTailContext(), () -> compile(call.arg(0).value()));
             cb.addInstr(new Visible());
             cb.addInstr(new Return());
             return true;
         } else {
-            compileExpr(call.arg(0).value());
+            compile(call.arg(0).value());
             return true;
         }
     }

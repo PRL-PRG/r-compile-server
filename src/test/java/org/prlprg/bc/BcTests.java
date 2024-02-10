@@ -11,6 +11,8 @@ public class BcTests {
   @DisplayName("Create bytecode array")
   void createBcArray() {
     var bcBuilder = new Bc.Builder();
+    bcBuilder.setTrackSrcRefs(false);
+    bcBuilder.setTrackExpressions(false);
     var ast = SEXPs.lang(SEXPs.symbol("+"), SEXPs.list(SEXPs.integer(1), SEXPs.integer(2)));
     // It doesn't make sense to implement SEXP#clone because you'd just reuse the SEXP since
     // they are immutable.

@@ -1,16 +1,16 @@
 package org.prlprg.bc;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.prlprg.util.Assertions.assertSnapshot;
 import static org.prlprg.util.StructuralUtils.printStructurally;
 
-import java.nio.file.Path;
-import org.junit.jupiter.params.ParameterizedTest;
+import java.io.File;
+import java.io.IOException;
+import org.junit.jupiter.api.Test;
 import org.prlprg.RSession;
-import org.prlprg.rds.RDSReader;
 import org.prlprg.rsession.TestRSession;
 import org.prlprg.sexp.BCodeSXP;
 import org.prlprg.sexp.CloSXP;
+import org.prlprg.sexp.SEXPs;
 import org.prlprg.util.*;
 
 public class CompilerTest implements Tests {
@@ -18,64 +18,60 @@ public class CompilerTest implements Tests {
   private final RSession rsession = new TestRSession();
   private final GNUR R = new GNUR(rsession);
 
-  //    @Test
-  //    public void testInlineBlock() {
-  //        var fun = (CloSXP) R.eval("""
-  //                function (x) {}
-  //                """);
-  //
-  //        var compiler = new Compiler(3);
-  //        var bc = compiler.compileFun(fun);
-  //        System.out.println(bc);
-  //    }
+  @Test
+  public void testEmptyBlock() {
+    assertBytecode("""
+        function() {}
+    """);
+  }
 
-  @ParameterizedTest(name = "Commutative read/compile {0}")
-  @DirectorySource(glob = "*.R", relativize = true, exclude = "serialize-closures.R")
-  void testCommutativeReadAndCompile(Path sourceName) {
-    var bootstrapScript = getResourcePath("serialize-closures.R");
-    var sourcePath = getResourcePath(sourceName);
-    var compiledRoot = getSnapshotPath(sourceName);
+  @Test
+  public void testSingleExpressionBlock() {
+    assertBytecode("""
+        function() { 1 }
+    """);
+  }
 
-    // Generate `compiledRoot` from `sourcePath` using GNU-R if necessary
-    if (Files.exists(compiledRoot)
-        && (Files.isOlder(compiledRoot, sourcePath)
-            || Files.isOlder(compiledRoot, bootstrapScript))) {
-      Files.deleteRecursively(compiledRoot);
+  @Test
+  public void testMultipleExpressionBlock() {
+    assertBytecode("""
+        function() { 1; 2 }
+    """);
+  }
+
+  private void assertBytecode(String code) {
+    assertBytecode(code, 2);
+  }
+
+  private void assertBytecode(String funCode, int optimizationLevel) {
+    File temp;
+    try {
+      temp = File.createTempFile("R-snapshot", ".R");
+      Files.writeString(temp.toPath(), funCode);
+    } catch (IOException e) {
+      throw new RuntimeException(e);
     }
 
-    if (!Files.exists(compiledRoot)) {
-      System.out.println("Serializing closures");
-      // Generate `compiledRoot` from `sourcePath` using GNU-R
-      cmd(
-          "R",
-          "-s",
-          "-f",
-          getResourcePath("serialize-closures.R"),
-          "--args",
-          sourcePath,
-          compiledRoot);
-    }
+    String code =
+        "parse(file = '"
+            + temp.getAbsolutePath()
+            + "', keep.source = TRUE)" // TODO: set conditionally
+            + " |> eval()"
+            + " |> compiler::cmpfun(options = list(optimize="
+            + optimizationLevel
+            + "))";
 
-    // Test each closure in the file
-    for (var astPath : Files.listDir(compiledRoot, "*.ast.rds", 1, false, false)) {
-      var name = astPath.getFileName().toString().split("\\.")[0];
-      var bcPath = compiledRoot.resolve(name + ".bc.rds");
-      var bcOutPath = compiledRoot.resolve(name + ".bc.out");
-      SubTest.run(
-          name,
-          () -> {
-            var astClos = (CloSXP) RDSReader.readFile(rsession, astPath.toFile());
-            var bcClos = (CloSXP) RDSReader.readFile(rsession, bcPath.toFile());
-            var compiler = new Compiler(astClos);
-            var ourBc = compiler.compile();
-            var rBc = ((BCodeSXP) bcClos.body()).bc();
+    var gnurfun = (CloSXP) R.eval(code);
+    var gnurbc = ((BCodeSXP) gnurfun.body()).bc();
+    var astfun = SEXPs.closure(gnurfun.formals(), gnurbc.consts().getFirst(), gnurfun.env());
 
-            assertEquals(
-                printStructurally(rBc),
-                printStructurally(ourBc),
-                "`compile(read(ast)) == read(R.compile(ast))`");
-            assertSnapshot(bcOutPath, bcClos::toString, "`print(bc)`");
-          });
-    }
+    var compiler = new Compiler(astfun);
+    compiler.setOptimizationLevel(optimizationLevel);
+    var ourbc = compiler.compile();
+
+    assertEquals(
+        printStructurally(gnurbc),
+        printStructurally(ourbc),
+        "`compile(read(ast)) == read(R.compile(ast))`");
   }
 }

@@ -27,6 +27,11 @@ public final class Attributes extends ForwardingMap<String, SEXP> {
     return attrs;
   }
 
+  public Attributes including(String key, SEXP value) {
+    return new Attributes(
+        new ImmutableMap.Builder<String, SEXP>().putAll(attrs).put(key, value).build());
+  }
+
   @Override
   public boolean equals(Object o) {
     if (this == o) return true;

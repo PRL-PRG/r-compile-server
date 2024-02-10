@@ -53,9 +53,14 @@ public record Bc(BcCode code, ConstPool consts) {
     private final Stack<SEXP> currentExpr = new Stack<>();
     private final Stack<IntSXP> currentSrcRef = new Stack<>();
     private boolean trackSrcRefs = true;
+    private boolean trackExpressions = true;
 
-    public void setTrackSrcRefs(boolean trackSrcRefs) {
-      this.trackSrcRefs = trackSrcRefs;
+    public void setTrackSrcRefs(boolean track) {
+      this.trackSrcRefs = track;
+    }
+
+    public void setTrackExpressions(boolean track) {
+      this.trackExpressions = track;
     }
 
     /** Append a constant and return its index. */
@@ -66,16 +71,20 @@ public record Bc(BcCode code, ConstPool consts) {
     /** Append an instruction. */
     public void addInstr(BcInstr instr) {
       code.add(instr);
-      assert (!currentExpr.isEmpty());
 
-      for (var i = 0; i <= instr.op().nArgs(); i++) {
-        // R uses 1-based indexing
-        expressions.add(addConst(currentExpr.peek()).idx + 1);
+      if (trackExpressions) {
+        assert (!currentExpr.isEmpty());
+        for (var i = 0; i <= instr.op().nArgs(); i++) {
+          // R uses 1-based indexing
+          expressions.add(addConst(currentExpr.peek()).idx);
+        }
+      }
 
-        if (trackSrcRefs) {
+      if (trackSrcRefs) {
+        for (var i = 0; i <= instr.op().nArgs(); i++) {
           assert (!currentSrcRef.isEmpty());
           // R uses 1-based indexing
-          srcRefs.add(addConst(currentSrcRef.peek()).idx + 1);
+          srcRefs.add(addConst(currentSrcRef.peek()).idx);
         }
       }
     }
@@ -96,13 +105,13 @@ public record Bc(BcCode code, ConstPool consts) {
      * @return The bytecode.
      */
     public Bc build() {
-      var expressionsIndex = SEXPs.integer(expressions.build());
-      // expressionsIndex.attributes().put("class", SEXPs.string("expressionsIndex"));
-      addConst(expressionsIndex);
+      if (trackExpressions) {
+        var expressionsIndex = SEXPs.integer(expressions.build()).withClass("expressionsIndex");
+        addConst(expressionsIndex);
+      }
 
       if (trackSrcRefs) {
-        var srcRefsIndex = SEXPs.integer(srcRefs.build());
-        // srcRefsIndex.attributes().put("class", SEXPs.string("srcrefsIndex"));
+        var srcRefsIndex = SEXPs.integer(srcRefs.build()).withClass("srcrefsIndex");
         addConst(srcRefsIndex);
       }
 

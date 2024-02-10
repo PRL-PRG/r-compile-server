@@ -25,4 +25,9 @@ public sealed interface SEXP
   default SEXP withAttributes(Attributes attributes) {
     throw new UnsupportedOperationException("Cannot set attributes on " + type());
   }
+
+  default SEXP withClass(String name) {
+    var attrs = attributes().including("class", new SimpleStrSXPImpl(name));
+    return withAttributes(attrs);
+  }
 }
