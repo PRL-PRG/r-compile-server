@@ -184,7 +184,7 @@ public final class ConstPool extends ForwardingList<SEXP> {
 
     @Override
     public String toString() {
-      return "Idx(" + idx + " of " + pool.debugId() + ")";
+      return String.format("%s.%d", pool.debugId(), idx);
     }
   }
 
@@ -207,17 +207,6 @@ public final class ConstPool extends ForwardingList<SEXP> {
       // The cast to Idx is required because the TypedIdx version does an `assert`.
       return sexpInterface.isInstance(pool.get((Idx) this));
     }
-
-    @Override
-    public String toString() {
-      return "Idx("
-          + idx
-          + " of "
-          + pool.debugId()
-          + " type "
-          + sexpInterface.getSimpleName()
-          + ")";
-    }
   }
 
   static final class MakeIdx {
@@ -235,19 +224,23 @@ public final class ConstPool extends ForwardingList<SEXP> {
       return of(i, RegSymSXP.class);
     }
 
-    @Nullable TypedIdx<RegSymSXP> symOrNil(int i) {
+    @Nullable
+    TypedIdx<RegSymSXP> symOrNil(int i) {
       return tryOf(i, RegSymSXP.class);
     }
 
-    @Nullable TypedIdx<LangSXP> langOrNegative(int i) {
+    @Nullable
+    TypedIdx<LangSXP> langOrNegative(int i) {
       return i >= 0 ? tryOf(i, LangSXP.class) : null;
     }
 
-    @Nullable TypedIdx<IntSXP> intOrOther(int i) {
+    @Nullable
+    TypedIdx<IntSXP> intOrOther(int i) {
       return tryOf(i, IntSXP.class);
     }
 
-    @Nullable TypedIdx<StrOrRegSymSXP> strOrSymOrNil(int i) {
+    @Nullable
+    TypedIdx<StrOrRegSymSXP> strOrSymOrNil(int i) {
       var asStrOrSymbol = tryOf(i, StrOrRegSymSXP.class);
       if (asStrOrSymbol != null) {
         return asStrOrSymbol;
@@ -261,7 +254,8 @@ public final class ConstPool extends ForwardingList<SEXP> {
       }
     }
 
-    @Nullable Either<TypedIdx<StrSXP>, TypedIdx<NilSXP>> strOrNilOrOther(int i) {
+    @Nullable
+    Either<TypedIdx<StrSXP>, TypedIdx<NilSXP>> strOrNilOrOther(int i) {
       var asSymbol = tryOf(i, StrSXP.class);
       if (asSymbol != null) {
         return Either.left(asSymbol);

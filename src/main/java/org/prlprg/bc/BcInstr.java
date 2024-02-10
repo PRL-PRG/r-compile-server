@@ -297,17 +297,17 @@ public sealed interface BcInstr {
     }
   }
 
-  record MakeClosure(ConstPool.TypedIdx<VecSXP> formalsBodyAndMaybeSrcRef) implements BcInstr {
+  record MakeClosure(ConstPool.TypedIdx<VecSXP> arg) implements BcInstr {
     ListSXP formals(ConstPool pool) {
-      return (ListSXP) pool.get(this.formalsBodyAndMaybeSrcRef).get(0);
+      return (ListSXP) pool.get(this.arg).get(0);
     }
 
     SEXP body(ConstPool pool) {
-      return pool.get(formalsBodyAndMaybeSrcRef).get(1);
+      return pool.get(arg).get(1);
     }
 
     SEXP srcRef(ConstPool pool) {
-      var formalsBodyAndMaybeSrcRef = pool.get(this.formalsBodyAndMaybeSrcRef);
+      var formalsBodyAndMaybeSrcRef = pool.get(this.arg);
       return formalsBodyAndMaybeSrcRef.size() < 3 ? SEXPs.NULL : formalsBodyAndMaybeSrcRef.get(2);
     }
 

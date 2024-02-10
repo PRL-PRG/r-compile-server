@@ -18,8 +18,6 @@ public sealed interface IntSXP extends VectorSXP<Integer> {
 
   @Override
   IntSXP withAttributes(Attributes attributes);
-
-  ImmutableIntArray subArray(int startIndex, int endIndex);
 }
 
 record IntSXPImpl(@Override ImmutableIntArray data, @Override Attributes attributes)
@@ -48,11 +46,6 @@ record IntSXPImpl(@Override ImmutableIntArray data, @Override Attributes attribu
   public IntSXP withAttributes(Attributes attributes) {
     return SEXPs.integer(data, attributes);
   }
-
-  @Override
-  public ImmutableIntArray subArray(int startIndex, int endIndex) {
-    return data.subArray(startIndex, endIndex);
-  }
 }
 
 final class SimpleIntSXPImpl extends SimpleScalarSXPImpl<Integer> implements IntSXP {
@@ -68,15 +61,6 @@ final class SimpleIntSXPImpl extends SimpleScalarSXPImpl<Integer> implements Int
   @Override
   public IntSXP withAttributes(Attributes attributes) {
     return SEXPs.integer(data, attributes);
-  }
-
-  @Override
-  public ImmutableIntArray subArray(int startIndex, int endIndex) {
-    if (startIndex == 0 && endIndex == 1) {
-      return data();
-    } else {
-      throw new IndexOutOfBoundsException("startIndex=" + startIndex + ", endIndex=" + endIndex);
-    }
   }
 }
 
@@ -95,10 +79,5 @@ final class EmptyIntSXPImpl extends EmptyVectorSXPImpl<Integer> implements IntSX
   @Override
   public IntSXP withAttributes(Attributes attributes) {
     return SEXPs.integer(ImmutableIntArray.of(), attributes);
-  }
-
-  @Override
-  public ImmutableIntArray subArray(int startIndex, int endIndex) {
-    throw new IndexOutOfBoundsException("Empty int vector");
   }
 }
