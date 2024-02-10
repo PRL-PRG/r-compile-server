@@ -146,4 +146,10 @@ public class RDSReaderTest implements Tests {
     var body = sexp.body();
     assertThat(body).isInstanceOf(BCodeSXP.class);
   }
+
+  @Test
+  public void testExpression() throws Exception {
+    var sexp = R.eval("parse(text='function() {}', keep.source = TRUE)");
+    assertThat(sexp).isInstanceOf(ExprSXP.class);
+  }
 }

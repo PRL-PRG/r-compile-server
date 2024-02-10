@@ -97,7 +97,7 @@ public class RDSReader implements Closeable {
             case STR -> readStrs(flags);
             case LANG -> readLang(flags);
             case BCODE -> readByteCode();
-            case EXPR -> readExpr();
+            case EXPR -> readExpr(flags);
             case PROM -> readPromise(flags);
             default -> throw new RDSException("Unsupported SEXP type: " + s.sexp());
           };
@@ -163,14 +163,15 @@ public class RDSReader implements Closeable {
     return SEXPs.string(strings);
   }
 
-  private ExprSXP readExpr() throws IOException {
-    // ??? Should flags be used somewhere here? At least for sanity assertions?
+  private ExprSXP readExpr(Flags flags) throws IOException {
     var length = in.readInt();
     var sexps = new ArrayList<SEXP>(length);
     for (int i = 0; i < length; i++) {
       sexps.add(readItem());
     }
-    return SEXPs.expr(sexps);
+
+    Attributes attributes = readAttributes(flags);
+    return SEXPs.expr(sexps, attributes);
   }
 
   private BCodeSXP readByteCode() throws IOException {
@@ -361,21 +362,45 @@ public class RDSReader implements Closeable {
     if (locked != 0 && locked != 1) {
       throw new RDSException("Expected 0 or 1 (LOCKED)");
     }
-    if (!(readItem() instanceof EnvSXP enclos)) {
-      throw new RDSException("Expected environment (ENCLOS)");
-    }
-    if (!(readItem() instanceof ListSXP frame)) {
-      throw new RDSException("Expected list (FRAME)");
-    }
-    // We read the hash table,
-    // but immediately discard it because we represent environments differently and it's redundant.
-    readItem();
 
-    item.setParent(enclos);
-    item.setAttributes(readAttributes());
-    for (var elem : frame) {
-      item.set(Objects.requireNonNull(elem.tag()), elem.value());
+    // enclosing environment - parent
+    switch (readItem()) {
+      case EnvSXP parent -> item.setParent(parent);
+      case NilSXP ignored -> item.setParent(session.baseEnv());
+      default -> throw new RDSException("Expected environment (ENCLOS)");
     }
+
+    // frame
+    switch (readItem()) {
+      case NilSXP ignored -> {}
+      case ListSXP frame -> {
+        for (var elem : frame) {
+          item.set(Objects.requireNonNull(elem.tag()), elem.value());
+        }
+      }
+      default -> throw new RDSException("Expected list (FRAME)");
+    }
+
+    // hashtab
+    switch (readItem()) {
+      case NilSXP ignored -> {}
+      case VecSXP hashtab -> {
+        for (var elem : hashtab) {
+          switch (elem) {
+            case NilSXP ignored -> {}
+            case ListSXP list -> {
+              for (var e : list) {
+                item.set(Objects.requireNonNull(e.tag()), e.value());
+              }
+            }
+            default -> throw new RDSException("Expected list for the hashtab entries");
+          }
+        }
+      }
+      default -> throw new RDSException("Expected list (HASHTAB)");
+    }
+
+    item.setAttributes(readAttributes());
 
     return item;
   }
