@@ -7,11 +7,8 @@ import org.prlprg.sexp.*;
 import javax.annotation.Nullable;
 import java.util.Optional;
 import java.util.Set;
-import java.util.Stack;
 
 public class Compiler {
-    record Loc(SEXP expr, Optional<IntSXP> srcRef) {}
-
     private static final Set<String> MAYBE_NSE_SYMBOLS = Set.of("bquote");
     private static final Set<String> ALLOWED_INLINES =
             Set.of(
@@ -64,6 +61,18 @@ public class Compiler {
 
     private final Bc.Builder cb = new Bc.Builder();
 
+    /**
+     * The initial expression to compile.
+     */
+    private final SEXP expr;
+
+    /**
+     * The location of the initial expression.
+     */
+    private final Loc loc;
+
+    private Context ctx;
+
     /*
      * 0 - No inlining
      * 1 - Functions in the base packages found through a namespace that are not shadowed by
@@ -75,23 +84,45 @@ public class Compiler {
      * masked; if it has, then the call in handled by the AST interpreter.
      * 3 - Any function in the base packages found via the global environment may be inlined.
      */
-    private final int optimizationLevel;
+    private int optimizationLevel = 2;
 
-    public Compiler(int optimizationLevel) {
-        this.optimizationLevel = optimizationLevel;
+    private Compiler(SEXP expr, Context ctx, Loc loc) {
+        this.expr = expr;
+        this.ctx = ctx;
+        this.loc = loc;
     }
 
+    public Compiler(CloSXP fun) {
+        this(fun.body(), Context.functionContext(fun), functionLoc(fun));
 
+        if (loc.srcRef() == null) {
+            // from R documentation:
+            // when top-level srcref is null, we speculate there will be no
+            // source references within the compiled expressions either,
+            // disabling the tracking makes the resulting constant pool smaller
+            cb.setTrackSrcRefs(false);
+        }
+    }
 
-    public Bc compileFun(CloSXP fun) {
-        var ctx = Context.functionContext(fun);
+    private Compiler fork(SEXP expr, Context ctx, Loc loc) {
+        var compiler = new Compiler(expr, ctx, loc);
+        compiler.setOptimizationLevel(optimizationLevel);
+        return compiler;
+    }
 
-        // TODO: if (mayCallBrowser(body(f), ncntxt)) return(f)
-        // TODO: attributes - set after compilation
-        // TODO: S4?
+    public void setOptimizationLevel(int level) {
+        this.optimizationLevel = level;
+    }
 
+    public Bc compile() {
+        cb.addConst(expr);
+        return compile(expr);
+    }
+
+    private static Loc functionLoc(CloSXP fun) {
         var body = fun.body();
-        var srcRef = Optional.<IntSXP>empty();
+
+        IntSXP srcRef;
         if (!(body instanceof LangSXP b && (b.fun() instanceof RegSymSXP sym && sym.name().equals("{")))) { // FIXME: ugly
             // try to get the srcRef from the function itself
             // normally, it would be attached to the `{`
@@ -100,54 +131,45 @@ public class Compiler {
             srcRef = extractSrcRef(body, 0);
         }
 
-        if (srcRef.isEmpty()) {
-            // from R documentation:
-            // when top-level srcref is null, we speculate there will be no
-            // source references within the compiled expressions either,
-            // disabling the tracking makes the resulting constant pool smaller
-            cb.setTrackSrcRefs(false);
-        }
-
-        // the bytecode compiler only compiles function body, not the default parameter expressions
-        return compile(body, ctx, new Loc(body, srcRef));
+        return new Loc(body, srcRef);
     }
 
-    private Bc compile(SEXP expr, Context ctx) {
-        return compile(expr, ctx, new Loc(expr, extractSrcRef(expr, 0)));
+    private Bc compile(SEXP expr) {
+        return compile(expr, new Loc(expr, extractSrcRef(expr, 0)));
     }
 
-    private Bc compile(SEXP expr, Context ctx, Loc loc) {
-        cb.pushLoc(loc.expr(), loc.srcRef());
+    private Bc compile(SEXP expr, Loc loc) {
+        cb.pushLoc(loc);
 
-        compileExpr(expr, ctx);
+        compileExpr(expr);
         cb.popLoc();
         return cb.build();
     }
 
-    private void compileExpr(SEXP expr, Context ctx) {
+    private void compileExpr(SEXP expr) {
         // TODO: constant fold
         switch (expr) {
-            case LangSXP e -> compileCall(e, ctx, true);
+            case LangSXP e -> compileCall(e, true);
             case SpecialSymSXP e -> throw new CompilerException("unhandled special symbol: " + e);
-            case RegSymSXP e -> compileSym(e, ctx, false);
+            case RegSymSXP e -> compileSym(e, false);
             case PromSXP ignored -> throw new CompilerException("cannot compile promise literals in code");
             case BCodeSXP ignored -> throw new CompilerException("cannot compile byte code literals in code");
-            default -> compileConst(expr, ctx);
+            default -> compileConst(expr);
         }
     }
 
-    private void compileSym(RegSymSXP e, Context ctx, boolean missingOk) {
+    private void compileSym(RegSymSXP e, boolean missingOk) {
         if (e.isEllipsis()) {
             // TODO: notifyWrongDotsUse
             cb.addInstr(new DotsErr());
         } else if (e.isDdSym()) {
-            // TODO: if (!findLocVar("...", ctx))
+            // TODO: if (!findLocVar("..."))
             //       notifyWrongDotsUse
             var idx = cb.addConst(e);
             cb.addInstr(missingOk ? new DdValMissOk(idx) : new DdVal(idx));
             checkTailCall(ctx);
         } else {
-            // TODO: if (!findVar(sym, ctx))
+            // TODO: if (!findVar(sym))
             //       notifyUndefVar
             var idx = cb.addConst(e);
             cb.addInstr(missingOk ? new GetVarMissOk(idx) : new GetVar(idx));
@@ -158,7 +180,7 @@ public class Compiler {
     @SuppressFBWarnings(
             value = "DLS_DEAD_LOCAL_STORE",
             justification = "False positive, probably because of ignored switch case")
-    private void compileConst(SEXP expr, Context ctx) {
+    private void compileConst(SEXP expr) {
         if (expr.type() == SEXPType.PROM || expr.type() == SEXPType.BCODE) {
             throw new CompilerException("Unexpected type: " + expr.type());
         }
@@ -173,55 +195,56 @@ public class Compiler {
         checkTailCall(ctx);
     }
 
-    void compileCall(LangSXP call, Context ctx, boolean canInline) {
-        cb.pushLoc(call, extractSrcRef(call, 0));
+    void compileCall(LangSXP call, boolean canInline) {
+        cb.pushLoc(new Loc(call, extractSrcRef(call, 0)));
         var args = call.args();
         switch (call.fun()) {
             case RegSymSXP fun -> {
-                if (!(canInline && tryInline(fun, call, ctx))) {
+                if (!(canInline && tryInline(fun, call))) {
                     // TODO: check call
-                    compileCallSymFun(fun, args, call, ctx);
+                    compileCallSymFun(fun, args, call);
                 }
             }
             case SpecialSymSXP fun -> throw new IllegalStateException("Trying to call special symbol: " + fun);
             case LangSXP fun -> {
                 // TODO: break / next
-                compileCallExprFun(fun, args, call, ctx);
+                compileCallExprFun(fun, args, call);
             }
         }
         cb.popLoc();
     }
 
-    private boolean tryInline(RegSymSXP fun, LangSXP call, Context ctx) {
+    private boolean tryInline(RegSymSXP fun, LangSXP call) {
         if (optimizationLevel == 0) {
             return false;
         }
 
         // it seems that there is no way to pattern match on Optional
+        // FIXME: use null instead
         var bindingOpt = ctx.resolve(fun.name());
         if (bindingOpt.isEmpty()) {
             return false;
         }
         var binding = bindingOpt.get();
         if (binding.first() instanceof BaseEnvSXP) {
-            return tryInlineBase(fun.name(), call, ctx);
+            return tryInlineBase(fun.name(), call);
         } else {
             return false;
         }
     }
 
-    private void compileCallSymFun(RegSymSXP fun, ListSXP args, LangSXP call, Context ctx) {
+    private void compileCallSymFun(RegSymSXP fun, ListSXP args, LangSXP call) {
         cb.addInstr(new GetFun(cb.addConst(fun)));
         var nse = MAYBE_NSE_SYMBOLS.contains(fun.name());
-        compileArgs(args, nse, ctx);
+        compileArgs(args, nse);
         cb.addInstr(new Call(cb.addConst(call)));
         checkTailCall(ctx);
     }
 
-    private void compileCallExprFun(LangSXP fun, ListSXP args, LangSXP call, Context ctx) {
-        compileExpr(fun, ctx.makeNonTailContext());
+    private void compileCallExprFun(LangSXP fun, ListSXP args, LangSXP call) {
+        with(ctx.nonTailContext(), () -> compileExpr(fun));
         cb.addInstr(new CheckFun());
-        compileArgs(args, false, ctx);
+        compileArgs(args, false);
         cb.addInstr(new Call(cb.addConst(call)));
         checkTailCall(ctx);
     }
@@ -229,7 +252,7 @@ public class Compiler {
     @SuppressFBWarnings(
             value = "DLS_DEAD_LOCAL_STORE",
             justification = "False positive, probably because of ignored switch case")
-    private void compileArgs(ListSXP args, boolean nse, Context ctx) {
+    private void compileArgs(ListSXP args, boolean nse) {
         for (var arg : args) {
             var tag = arg.tag();
             var val = arg.value();
@@ -240,15 +263,15 @@ public class Compiler {
                     compileTag(tag);
                 }
                 case SymSXP x when x.isEllipsis() ->
-                    // TODO: if (!findLocVar("...", ctx))
+                    // TODO: if (!findLocVar("..."))
                     //       notifyWrongDotsUse
                         cb.addInstr(new DoDots());
                 case SymSXP x -> {
-                    compileNormArg(x, nse, ctx);
+                    compileNormArg(x, nse);
                     compileTag(tag);
                 }
                 case LangSXP x -> {
-                    compileNormArg(x, nse, ctx);
+                    compileNormArg(x, nse);
                     compileTag(tag);
                 }
                 case PromSXP ignored -> throw new CompilerException("can't compile promises in code");
@@ -261,10 +284,10 @@ public class Compiler {
         }
     }
 
-    private void compileNormArg(SEXP arg, boolean nse, Context ctx) {
+    private void compileNormArg(SEXP arg, boolean nse) {
         if (!nse) {
-            var compiler = new Compiler(optimizationLevel);
-            var bc = compiler.compile(arg, ctx.makePromiseContext(), new Loc(cb.getCurrentExpr(), cb.getCurrentSrcRef()));
+            var compiler = fork(arg, ctx.promiseContext(), cb.getCurrentLoc());
+            var bc = compiler.compile();
             arg = SEXPs.bcode(bc);
         }
         cb.addInstr(new MakeProm(cb.addConst(arg)));
@@ -299,10 +322,9 @@ public class Compiler {
      *
      * @param name
      * @param call
-     * @param ctx
      * @return true if the function was inlined, false otherwise
      */
-    private boolean tryInlineBase(String name, LangSXP call, Context ctx) {
+    private boolean tryInlineBase(String name, LangSXP call) {
         if (optimizationLevel < 2) {
             return false;
         }
@@ -311,11 +333,11 @@ public class Compiler {
         }
 
         switch (name) {
-            case "{" -> inlineBlock(call, ctx);
-            case "if" -> inlineCondition(call, ctx);
-            case "function" -> inlineFunction(call, ctx);
+            case "{" -> inlineBlock(call);
+            case "if" -> inlineCondition(call);
+            case "function" -> inlineFunction(call);
             case "(" -> {
-                return tryInlineParentheses(call, ctx);
+                return tryInlineParentheses(call);
             }
             default -> {
                 return false;
@@ -338,24 +360,30 @@ public class Compiler {
      * </quote></p>
      *
      * @param call
-     * @param ctx
      */
-    private void inlineBlock(LangSXP call, Context ctx) {
+    private void inlineBlock(LangSXP call) {
         var n = call.args().size();
         if (n == 0) {
-            compile(SEXPs.NULL, ctx);
+            compile(SEXPs.NULL);
             return;
         }
 
-        if (n > 1) {
-            var nctx = ctx.makeNonTailContext();
-            call.args().values().subList(0, n - 1).forEach(x -> compileExpr(x, nctx));
+        if (n > 0) {
+            with(ctx.nonTailContext(), () -> {
+                for (var i = 0; i < n - 1; i++) {
+                    var arg = call.arg(i).value();
+                    // i + 1 because the block srcref's first element is the opening brace
+                    compile(arg, new Loc(arg, extractSrcRef(call, i + 1)));
+
+                }
+            });
         }
 
-        compile(call.arg(n - 1).value(), ctx);
+        var last = call.arg(n - 1).value();
+        compile(last, new Loc(last, extractSrcRef(call, n)));
     }
 
-    private void inlineCondition(LangSXP call, Context ctx) {
+    private void inlineCondition(LangSXP call) {
         var test = call.arg(0).value();
         var thenBranch = call.arg(1).value();
         var elseBranch = Optional.<SEXP>empty();
@@ -365,17 +393,17 @@ public class Compiler {
 
         // TODO: constant fold
 
-        compile(test, ctx.makeNonTailContext());
+        with(ctx.nonTailContext(), () -> compile(test));
 
         var elseLabel = cb.makeLabel();
         cb.addInstr(new BrIfNot(cb.addConst(call), elseLabel));
 
-        compile(thenBranch, ctx);
+        compile(thenBranch);
 
         if (ctx.isTailCall()) {
             cb.patchLabel(elseLabel);
             elseBranch.ifPresentOrElse(
-                    branch -> compile(branch, ctx),
+                    this::compile,
                     () -> {
                         cb.addInstr(new LdNull());
                         cb.addInstr(new Invisible());
@@ -386,7 +414,7 @@ public class Compiler {
             cb.addInstr(new Goto(endLabel));
             cb.patchLabel(elseLabel);
             elseBranch.ifPresentOrElse(
-                    branch -> compile(branch, ctx),
+                    this::compile,
                     () -> {
                         cb.addInstr(new LdNull());
                     });
@@ -407,17 +435,16 @@ public class Compiler {
      * </quote></p>
      *
      * @param call
-     * @param ctx
      */
-    private void inlineFunction(LangSXP call, Context ctx) {
+    private void inlineFunction(LangSXP call) {
         // TODO: sourcerefs
         // TODO: if (mayCallBrowser(body, cntxt)) return(FALSE)
 
         var formals = (ListSXP) call.arg(0).value();
         var body = call.arg(1).value();
 
-        var compiler = new Compiler(optimizationLevel);
-        var cbody = compiler.compile(body, ctx.makeFunctionContext(formals, body));
+        var compiler = fork(body, ctx.functionContext(formals, body), cb.getCurrentLoc());
+        var cbody = compiler.compile();
         var cbodysxp = SEXPs.bcode(cbody);
 
         cb.addInstr(new MakeClosure(cb.addConst(SEXPs.vec(formals, cbodysxp))));
@@ -452,30 +479,35 @@ public class Compiler {
      * </quote></p>
      *
      * @param call
-     * @param ctx
      */
-    private boolean tryInlineParentheses(LangSXP call, Context ctx) {
+    private boolean tryInlineParentheses(LangSXP call) {
         if (anyDots(call.args())) {
-            return tryCompileBuiltin(call, ctx);
+            return tryCompileBuiltin(call);
         } else if (call.args().size() != 2) {
             // TODO: notifyWrongArgCount("(", cntxt, loc = cb$savecurloc())
-            return tryCompileBuiltin(call, ctx);
+            return tryCompileBuiltin(call);
         } else if (ctx.isTailCall()) {
-            var nctx = ctx.makeNonTailContext();
-            compileExpr(call.arg(0).value(), nctx);
+            with(ctx.nonTailContext(), () -> compileExpr(call.arg(0).value()));
             cb.addInstr(new Visible());
             cb.addInstr(new Return());
             return true;
         } else {
-            compileExpr(call.arg(0).value(), ctx);
+            compileExpr(call.arg(0).value());
             return true;
         }
     }
 
-    private boolean tryCompileBuiltin(LangSXP call, Context ctx) {
+    private boolean tryCompileBuiltin(LangSXP call) {
         return false;
     }
 
+    private void with(Context ctx, Runnable r) {
+        var old = this.ctx;
+        this.ctx = ctx;
+        r.run();
+        this.ctx = old;
+    }
+    
     private static boolean anyDots(ListSXP l) {
         return l.values().stream().anyMatch(x -> !missing(x) && x instanceof SymSXP s && s.isEllipsis());
     }
@@ -489,20 +521,23 @@ public class Compiler {
         }
     }
 
-    private static Optional<IntSXP> extractSrcRef(SEXP expr, int idx) {
-        return Optional.ofNullable(expr.attributes())
-                .flatMap(x -> Optional.ofNullable(x.get("srcref")))
-                .flatMap(
-                        x -> {
-                            if (x instanceof IntSXP y && y.size() >= 6) {
-                                return Optional.of(y);
-                            } else if (x instanceof VecSXP y
-                                    && y.size() >= idx
-                                    && y.get(idx) instanceof IntSXP z
-                                    && z.size() >= 6) {
-                                return Optional.of(z);
-                            }
-                            return Optional.empty();
-                        });
+    private static @Nullable IntSXP extractSrcRef(SEXP expr, int idx) {
+        var attrs = expr.attributes();
+        if (attrs == null) {
+            return null;
+        }
+
+        var srcref = attrs.get("srcref");
+        if (srcref == null) {
+            return null;
+        }
+
+        if (srcref instanceof IntSXP i && i.size() >= 6) {
+            return i;
+        } else if (srcref instanceof VecSXP v && v.size() >= idx && v.get(idx) instanceof IntSXP i && i.size() >= 6) {
+            return i;
+        } else {
+            return null;
+        }
     }
 }

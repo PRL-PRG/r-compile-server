@@ -66,13 +66,13 @@ public class CompilerTest implements Tests {
           () -> {
             var astClos = (CloSXP) RDSReader.readFile(rsession, astPath.toFile());
             var bcClos = (CloSXP) RDSReader.readFile(rsession, bcPath.toFile());
-            var compiler = new Compiler(3);
-            var ourBc = compiler.compileFun(astClos);
+            var compiler = new Compiler(astClos);
+            var ourBc = compiler.compile();
             var rBc = ((BCodeSXP) bcClos.body()).bc();
 
             assertEquals(
-                printStructurally(ourBc),
                 printStructurally(rBc),
+                printStructurally(ourBc),
                 "`compile(read(ast)) == read(R.compile(ast))`");
             assertSnapshot(bcOutPath, bcClos::toString, "`print(bc)`");
           });

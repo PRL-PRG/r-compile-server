@@ -23,25 +23,21 @@ public class Context {
    * @param returnJump {@code true} indicated that the call to return needs {@code RETURNJMP}.
    * @param environment the compilation environment.
    */
-  public Context(boolean topLevel, boolean tailCall, boolean returnJump, EnvSXP environment) {
+  Context(boolean topLevel, boolean tailCall, boolean returnJump, EnvSXP environment) {
     this.topLevel = topLevel;
     this.tailCall = tailCall;
     this.returnJump = returnJump;
     this.environment = environment;
   }
 
-  public static Context topLevelContext(EnvSXP env) {
-    return new Context(true, true, false, env);
-  }
-
   public static Context functionContext(CloSXP fun) {
     var env = new UserEnvSXP(fun.env());
     var ctx = new Context(false, true, false, env);
 
-    return ctx.makeFunctionContext(fun.formals(), fun.body());
+    return ctx.functionContext(fun.formals(), fun.body());
   }
 
-  public Context makeFunctionContext(ListSXP formals, SEXP body) {
+  public Context functionContext(ListSXP formals, SEXP body) {
     var env = new UserEnvSXP(environment);
     var ctx = new Context(false, true, false, env);
 
@@ -54,11 +50,11 @@ public class Context {
     return ctx;
   }
 
-  public Context makeNonTailContext() {
+  public Context nonTailContext() {
     return new Context(topLevel, false, returnJump, environment);
   }
 
-  public Context makePromiseContext() {
+  public Context promiseContext() {
     // TODO: check loop?
     // The promise context also sets returnJump since a return call that is triggered by forcing a
     // promise

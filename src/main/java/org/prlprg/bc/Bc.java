@@ -109,10 +109,11 @@ public record Bc(BcCode code, ConstPool consts) {
       return new Bc(code.build(), consts.build());
     }
 
-    public void pushLoc(SEXP expr, Optional<IntSXP> srcRef) {
-      currentExpr.push(expr);
+    public void pushLoc(Loc loc) {
+      currentExpr.push(loc.expr());
       if (trackSrcRefs) {
-        currentSrcRef.push(srcRef.orElse(currentSrcRef.peek()));
+        var srcRef = loc.srcRef();
+        currentSrcRef.push(srcRef != null ? srcRef : currentSrcRef.peek());
       }
     }
 
@@ -123,12 +124,8 @@ public record Bc(BcCode code, ConstPool consts) {
       }
     }
 
-    public SEXP getCurrentExpr() {
-      return currentExpr.peek();
-    }
-
-    public Optional<IntSXP> getCurrentSrcRef() {
-      return trackSrcRefs ? Optional.of(currentSrcRef.peek()) : Optional.empty();
+    public Loc getCurrentLoc() {
+      return new Loc(currentExpr.peek(), trackSrcRefs ? currentSrcRef.peek() : null);
     }
   }
 }
