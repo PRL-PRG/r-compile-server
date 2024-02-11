@@ -352,9 +352,12 @@ public class Compiler {
       case "if" -> this::inlineCondition;
       case "function" -> this::inlineFunction;
       case "(" -> this::inlineParentheses;
+      case "local" -> this::inlineLocal;
       default -> {
         if (rsession.isBuiltin(name)) {
           yield (c) -> inlineBuiltin(c, false);
+        } else if (rsession.isSpecial(name)) {
+          yield this::inlineSpecial;
         } else {
           yield null;
         }
@@ -518,14 +521,14 @@ public class Compiler {
 
     var formals = (ListSXP) call.arg(0).value();
     var body = call.arg(1).value();
-    var sref = call.args().size() > 2 ? call.arg(2).value() : null;
+    var sref = call.args().size() > 2 ? call.arg(2).value() : SEXPs.NULL;
 
     var compiler = fork(body, ctx.functionContext(formals, body), cb.getCurrentLoc());
     var cbody = compiler.compile();
     var cbodysxp = SEXPs.bcode(cbody);
 
     // FIXME: ugly
-    var cnst = sref == null ? SEXPs.vec(formals, cbodysxp) : SEXPs.vec(formals, cbodysxp, sref);
+    var cnst = SEXPs.vec(formals, cbodysxp, sref);
 
     cb.addInstr(new MakeClosure(cb.addConst(cnst)));
 
@@ -643,6 +646,33 @@ public class Compiler {
           compileTag(arg.tag());
         }
       }
+  }
+
+  private boolean inlineSpecial(LangSXP call) {
+    cb.addInstr(new CallSpecial(cb.addConst(call)));
+    checkTailCall();
+
+    return true;
+  }
+
+  private boolean inlineLocal(LangSXP call) {
+    // From the R documentation:
+    //
+    // > While local is currently implemented as a closure, because of its importance relative to local
+    // > variable determination it is a good idea to inline it as well. The current semantics are such that
+    // > the interpreter treats
+    // >   local(expr)
+    // > essentially the same as
+    // >   (function() expr)()
+
+    if (call.args().size() != 1) {
+        return false;
+    }
+
+    var closure = SEXPs.lang(
+            SEXPs.lang(SEXPs.symbol("function"), SEXPs.list(SEXPs.NULL, call.arg(0).value())), SEXPs.list());
+    compile(closure);
+    return true;
   }
 
   private void usingCtx(Context ctx, Runnable thunk) {

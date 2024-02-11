@@ -91,6 +91,20 @@ public class CompilerTest implements Tests {
     """, 2);
   }
 
+  @Test
+  public void specialsInlining() {
+    assertBytecode("""
+      function() rep(1, 10)
+    """);
+  }
+
+  @Test
+  public void inlineLocal() {
+    assertBytecode("""
+function(x) local(x)
+""");
+  }
+
   private void assertBytecode(String code) {
     assertBytecode(code, 2);
   }

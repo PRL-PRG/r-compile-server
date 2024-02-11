@@ -14,10 +14,12 @@ import org.prlprg.util.IO;
 public class TestRSession implements RSession {
   private static final String BASE_SYMBOLS_RDS_FILE = "base.RDS";
   private static final String BUILTINS_SYMBOLS_RDS_FILE = "builtins.RDS";
+  private static final String SPECIALS_SYMBOLS_RDS_FILE = "specials.RDS";
 
   private @Nullable BaseEnvSXP baseEnv = null;
   private @Nullable GlobalEnvSXP globalEnv = null;
   private @Nullable Set<String> builtins = null;
+  private @Nullable Set<String> specials = null;
 
   private BaseEnvSXP loadBaseEnv() {
     try {
@@ -73,8 +75,31 @@ public class TestRSession implements RSession {
     return builtins;
   }
 
+  public synchronized Set<String> specials() {
+    if (specials == null) {
+      try {
+        var names =
+            (StrSXP)
+                RDSReader.readStream(
+                    this,
+                    IO.maybeDecompress(
+                        Objects.requireNonNull(
+                            TestRSession.class.getResourceAsStream(SPECIALS_SYMBOLS_RDS_FILE))));
+        specials = ImmutableSet.copyOf(names);
+      } catch (Exception e) {
+        throw new RuntimeException("Failed to load specials", e);
+      }
+    }
+
+    return specials;
+  }
+
   @Override
   public boolean isBuiltin(String name) {
     return builtins().contains(name);
+  }
+
+  public boolean isSpecial(String name) {
+    return specials().contains(name);
   }
 }

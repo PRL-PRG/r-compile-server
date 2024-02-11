@@ -318,10 +318,6 @@ public final class SEXPs {
     return list(Arrays.stream(data).map(TaggedElem::new).collect(Collectors.toList()));
   }
 
-  public static ListSXP list(TaggedElem... data) {
-    return list(ImmutableList.copyOf(data));
-  }
-
   public static ListSXP list(ImmutableList<TaggedElem> data) {
     return list(data, Attributes.NONE);
   }

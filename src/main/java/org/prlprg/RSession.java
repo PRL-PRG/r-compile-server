@@ -9,4 +9,6 @@ public interface RSession {
   GlobalEnvSXP globalEnv();
 
   boolean isBuiltin(String name);
+
+  boolean isSpecial(String name);
 }
