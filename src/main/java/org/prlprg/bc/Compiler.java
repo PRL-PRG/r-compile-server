@@ -353,6 +353,7 @@ public class Compiler {
       case "function" -> this::inlineFunction;
       case "(" -> this::inlineParentheses;
       case "local" -> this::inlineLocal;
+      case "return" -> this::inlineReturn;
       default -> {
         if (rsession.isBuiltin(name)) {
           yield (c) -> inlineBuiltin(c, false);
@@ -672,6 +673,29 @@ public class Compiler {
     var closure = SEXPs.lang(
             SEXPs.lang(SEXPs.symbol("function"), SEXPs.list(SEXPs.NULL, call.arg(0).value())), SEXPs.list());
     compile(closure);
+    return true;
+  }
+
+  private boolean inlineReturn(LangSXP call) {
+    // From the R documentation:
+    //
+    // > A call to return causes a return from the associated function call, as determined by the lexical
+    // > context in which the return expression is defined. If the return is captured in a closure and is
+    // > executed within a callee then this requires a longjmp. A longjmp is also needed if the return call
+    // > occurs within a loop that is compiled to a separate code object to support a setjmp for break or
+    // > next calls. The RETURNJMP instruction is provided for this purpose. In all other cases an ordinary
+    // > RETURN instruction can be used. return calls with ..., which may be legal if ... contains only one
+    // > argument, or missing arguments or more than one argument, which will produce runtime errors,
+    // > are compiled as generic SPECIAL calls.
+    if (dotsOrMissing(call.args()) || call.args().size() > 1) {
+      return inlineSpecial(call);
+    }
+
+    var v = call.args().isEmpty() ? SEXPs.NULL : call.arg(0).value();
+
+    usingCtx(ctx.nonTailContext(), () -> compile(v));
+    cb.addInstr(ctx.needReturnJump() ?new ReturnJmp() : new Return());
+
     return true;
   }
 

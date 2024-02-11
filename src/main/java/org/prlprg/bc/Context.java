@@ -183,6 +183,10 @@ public class Context {
     return tailCall;
   }
 
+  public boolean needReturnJump() {
+    return returnJump;
+  }
+
   public Context argContext() {
     return new Context(false, false, returnJump, environment);
   }

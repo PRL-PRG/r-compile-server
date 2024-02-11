@@ -105,6 +105,13 @@ function(x) local(x)
 """);
   }
 
+  @Test
+  public void inlineReturn() {
+    assertBytecode("""
+function(x) return(x)
+""");
+  }
+
   private void assertBytecode(String code) {
     assertBytecode(code, 2);
   }
