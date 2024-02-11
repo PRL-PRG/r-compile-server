@@ -15,11 +15,13 @@ public class TestRSession implements RSession {
   private static final String BASE_SYMBOLS_RDS_FILE = "base.RDS";
   private static final String BUILTINS_SYMBOLS_RDS_FILE = "builtins.RDS";
   private static final String SPECIALS_SYMBOLS_RDS_FILE = "specials.RDS";
+  private static final String BUILTINS_INTERNAL_SYMBOLS_RDS_FILE = "builtins-internal.RDS";
 
   private @Nullable BaseEnvSXP baseEnv = null;
   private @Nullable GlobalEnvSXP globalEnv = null;
   private @Nullable Set<String> builtins = null;
   private @Nullable Set<String> specials = null;
+  private @Nullable Set<String> builtinsInternal = null;
 
   private BaseEnvSXP loadBaseEnv() {
     try {
@@ -94,6 +96,26 @@ public class TestRSession implements RSession {
     return specials;
   }
 
+  public synchronized Set<String> builtinsInternal() {
+    if (builtinsInternal == null) {
+      try {
+        var names =
+            (StrSXP)
+                RDSReader.readStream(
+                    this,
+                    IO.maybeDecompress(
+                        Objects.requireNonNull(
+                            TestRSession.class.getResourceAsStream(
+                                BUILTINS_INTERNAL_SYMBOLS_RDS_FILE))));
+        builtinsInternal = ImmutableSet.copyOf(names);
+      } catch (Exception e) {
+        throw new RuntimeException("Failed to load specials", e);
+      }
+    }
+
+    return builtinsInternal;
+  }
+
   @Override
   public boolean isBuiltin(String name) {
     return builtins().contains(name);
@@ -101,5 +123,10 @@ public class TestRSession implements RSession {
 
   public boolean isSpecial(String name) {
     return specials().contains(name);
+  }
+
+  @Override
+  public boolean isBuiltinInternal(String name) {
+    return builtinsInternal().contains(name);
   }
 }

@@ -14,6 +14,7 @@ import org.prlprg.sexp.*;
 // FIXME: use null instead of Optional (except for return types)
 // FIXME: update the SEXP API based on the experience with this code
 //   - especially the clumsy ListSXP
+
 public class Compiler {
   private static final Set<String> MAYBE_NSE_SYMBOLS = Set.of("bquote");
   private static final Set<String> ALLOWED_INLINES =
@@ -354,6 +355,7 @@ public class Compiler {
       case "(" -> this::inlineParentheses;
       case "local" -> this::inlineLocal;
       case "return" -> this::inlineReturn;
+      case ".Internal" -> this::inlineInternal;
       default -> {
         if (rsession.isBuiltin(name)) {
           yield (c) -> inlineBuiltin(c, false);
@@ -697,6 +699,23 @@ public class Compiler {
     cb.addInstr(ctx.needReturnJump() ?new ReturnJmp() : new Return());
 
     return true;
+  }
+
+  private boolean inlineInternal(LangSXP call) {
+    if (!(call.arg(0).value() instanceof LangSXP subCall)) {
+      return false;
+    }
+    if (!(subCall.fun() instanceof RegSymSXP sym)) {
+      return false;
+    }
+
+    // we cannot do the .Internal(is.builtin.internal(sym)) check
+    // so we will believe that the rsession is right
+    if (rsession.isBuiltinInternal(sym.name())) {
+      return inlineBuiltin(subCall, true);
+    } else {
+      return inlineSpecial(call);
+    }
   }
 
   private void usingCtx(Context ctx, Runnable thunk) {

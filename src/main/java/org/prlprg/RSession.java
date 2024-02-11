@@ -11,4 +11,6 @@ public interface RSession {
   boolean isBuiltin(String name);
 
   boolean isSpecial(String name);
+
+  boolean isBuiltinInternal(String name);
 }

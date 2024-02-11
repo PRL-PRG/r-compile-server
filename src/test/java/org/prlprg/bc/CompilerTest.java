@@ -112,6 +112,17 @@ function(x) return(x)
 """);
   }
 
+  @Test
+  public void inlineBuiltinsInternal() {
+    assertBytecode("""
+function(x) .Internal(inspect(x))
+""");
+
+    assertBytecode("""
+function(x) .Internal(inspect2(x))
+""");
+  }
+
   private void assertBytecode(String code) {
     assertBytecode(code, 2);
   }
