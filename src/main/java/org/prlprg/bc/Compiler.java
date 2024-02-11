@@ -161,11 +161,11 @@ public class Compiler {
                 case LangSXP e -> compileCall(e, true);
                 case RegSymSXP e -> compileSym(e, false);
                 case SpecialSymSXP e ->
-                    throw new CompilerException("unhandled special symbol: " + e);
+                    stop("unhandled special symbol: ");
                 case PromSXP ignored ->
-                    throw new CompilerException("cannot compile promise literals in code");
+                    stop("cannot compile promise literals in code");
                 case BCodeSXP ignored ->
-                    throw new CompilerException("cannot compile byte code literals in code");
+                    stop("cannot compile byte code literals in code");
                 default -> compileConst(expr);
               }
             });
@@ -184,13 +184,13 @@ public class Compiler {
       //       notifyWrongDotsUse
       var idx = cb.addConst(e);
       cb.addInstr(missingOk ? new DdValMissOk(idx) : new DdVal(idx));
-      checkTailCall(ctx);
+      checkTailCall();
     } else {
       // TODO: if (!findVar(sym))
       //       notifyUndefVar
       var idx = cb.addConst(e);
       cb.addInstr(missingOk ? new GetVarMissOk(idx) : new GetVar(idx));
-      checkTailCall(ctx);
+      checkTailCall();
     }
   }
 
@@ -198,10 +198,6 @@ public class Compiler {
       value = "DLS_DEAD_LOCAL_STORE",
       justification = "False positive, probably because of ignored switch case")
   private void compileConst(SEXP expr) {
-    if (expr.type() == SEXPType.PROM || expr.type() == SEXPType.BCODE) {
-      throw new CompilerException("Unexpected type: " + expr.type());
-    }
-
     switch (expr) {
       case NilSXP ignored -> cb.addInstr(new LdNull());
       case LglSXP x when x == SEXPs.TRUE -> cb.addInstr(new LdTrue());
@@ -209,7 +205,7 @@ public class Compiler {
       default -> cb.addInstr(new LdConst(cb.addConst(expr)));
     }
 
-    checkTailCall(ctx);
+    checkTailCall();
   }
 
   void compileCall(LangSXP call, boolean canInline) {
@@ -259,7 +255,7 @@ public class Compiler {
     var nse = MAYBE_NSE_SYMBOLS.contains(fun.name());
     compileArgs(args, nse);
     cb.addInstr(new Call(cb.addConst(call)));
-    checkTailCall(ctx);
+    checkTailCall();
   }
 
   private void compileCallExprFun(LangSXP fun, ListSXP args, LangSXP call) {
@@ -267,7 +263,7 @@ public class Compiler {
     cb.addInstr(new CheckFun());
     compileArgs(args, false);
     cb.addInstr(new Call(cb.addConst(call)));
-    checkTailCall(ctx);
+    checkTailCall();
   }
 
   @SuppressFBWarnings(
@@ -295,9 +291,8 @@ public class Compiler {
           compileNormArg(x, nse);
           compileTag(tag);
         }
-        case PromSXP ignored -> throw new CompilerException("can't compile promises in code");
-        case BCodeSXP ignored ->
-            throw new CompilerException("can't compile byte code literals in code");
+        case PromSXP ignored -> stop("can't compile promises in code");
+        case BCodeSXP ignored -> stop("can't compile byte code literals in code");
         default -> {
           compileConstArg(val);
           compileTag(tag);
@@ -333,7 +328,7 @@ public class Compiler {
     }
   }
 
-  private void checkTailCall(Context ctx) {
+  private void checkTailCall() {
     if (ctx.isTailCall()) {
       cb.addInstr(new Return());
     }
@@ -475,7 +470,7 @@ public class Compiler {
 
     cb.addInstr(new MakeClosure(cb.addConst(cnst)));
 
-    checkTailCall(ctx);
+    checkTailCall();
   }
 
   /**
@@ -508,10 +503,10 @@ public class Compiler {
    */
   private boolean tryInlineParentheses(LangSXP call) {
     if (anyDots(call.args())) {
-      return tryCompileBuiltin(call);
-    } else if (call.args().size() != 2) {
+      return tryCompileBuiltin(call, false);
+    } else if (call.args().size() != 1) {
       // TODO: notifyWrongArgCount("(", cntxt, loc = cb$savecurloc())
-      return tryCompileBuiltin(call);
+      return tryCompileBuiltin(call, false);
     } else if (ctx.isTailCall()) {
       usingCtx(ctx.nonTailContext(), () -> compile(call.arg(0).value()));
       cb.addInstr(new Visible());
@@ -523,8 +518,70 @@ public class Compiler {
     }
   }
 
-  private boolean tryCompileBuiltin(LangSXP call) {
+  private boolean tryCompileBuiltin(LangSXP call, boolean internal) {
+    if (!(call.fun() instanceof RegSymSXP fun)) {
+      return false;
+    }
+
+    var args = call.args();
+    if (dotsOrMissing(args)) {
+      return false;
+    }
+
+    // function
+    if (internal) {
+      cb.addInstr(new GetIntlBuiltin(cb.addConst(fun)));
+    } else {
+      cb.addInstr(new GetBuiltin(cb.addConst(fun)));
+    }
+
+    // args
+    usingCtx(ctx.argContext(), () -> compileBuiltinArgs(args, false));
+
+    // call
+    cb.addInstr(new CallBuiltin(cb.addConst(call)));
+    checkTailCall();
+
     return false;
+  }
+
+  private void compileBuiltinArgs(ListSXP args, boolean missingOK) {
+    for (var arg : args) {
+      if (missing(arg.value())) {
+        if (missingOK) {
+          cb.addInstr(new DoMissing());
+          compileTag(arg.tag());
+        } else {
+          stop("missing arguments are not allowed");
+        }
+      } else if (arg.value() instanceof BCodeSXP) {
+        stop("cannot compile byte code literals in code");
+      } else if (arg.value() instanceof PromSXP) {
+        stop("cannot compile promise literals in code");
+      } else {
+        switch (arg.value()) {
+          case RegSymSXP sym ->
+            constantFold(arg.value()).ifPresentOrElse(
+                    this::compileConstArg,
+                    () -> {
+                      compileSym(sym, missingOK);
+                      cb.addInstr(new PushArg());
+                    }
+            );
+            case LangSXP call -> {
+              // FIXME: GNUR does:
+              //  cmp(a, cb, ncntxt)
+              //  which is weird since it says in the doc:
+              //  > ... Constant folding is needed here since it doesn’t go through cmp.
+              //  a possible reason why to go through cmp is to set location...
+              compileCall(call, true);
+              cb.addInstr(new PushArg());
+            }
+            default -> compileConstArg(arg.value());
+          }
+          compileTag(arg.tag());
+        }
+      }
   }
 
   private void usingCtx(Context ctx, Runnable thunk) {
@@ -538,9 +595,8 @@ public class Compiler {
     return switch (expr) {
       case LangSXP l -> constantFoldCall(l);
       case RegSymSXP s -> constantFoldSym(s);
-      case PromSXP ignored -> throw new CompilerException("cannot constant fold literal promises");
-      case BCodeSXP ignored ->
-          throw new CompilerException("cannot constant fold literal bytecode objects");
+      case PromSXP ignored -> stop("cannot constant fold literal promises");
+      case BCodeSXP ignored -> stop("cannot constant fold literal bytecode objects");
       default -> checkConst(expr);
     };
   }
@@ -592,9 +648,21 @@ public class Compiler {
     }
   }
 
+  private <R> R stop(String message) throws CompilerException {
+    return stop(message, cb.getCurrentLoc());
+  }
+
+  private <R> R stop(String message, Loc loc) throws CompilerException {
+    throw new CompilerException(message, loc);
+  }
+
   private static boolean anyDots(ListSXP l) {
     return l.values().stream()
         .anyMatch(x -> !missing(x) && x instanceof SymSXP s && s.isEllipsis());
+  }
+
+  private static boolean dotsOrMissing(ListSXP l) {
+    return l.values().stream().anyMatch(x -> missing(x) || x instanceof SymSXP s && s.isEllipsis());
   }
 
   private static boolean missing(SEXP x) {

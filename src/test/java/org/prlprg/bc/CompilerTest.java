@@ -60,6 +60,19 @@ public class CompilerTest implements Tests {
     """);
   }
 
+  @Test
+  public void testFunctionLeftParenInlining() {
+    assertBytecode("""
+        function(x) (x)
+    """);
+
+    assertBytecode("""
+        function(x) (...)
+    """);
+
+    // TODO: (x <- 1)
+  }
+
   private void assertBytecode(String code) {
     assertBytecode(code, 2);
   }
@@ -84,7 +97,9 @@ public class CompilerTest implements Tests {
 
     var gnurfun = (CloSXP) R.eval(code);
     var gnurbc = ((BCodeSXP) gnurfun.body()).bc();
-    var astfun = SEXPs.closure(gnurfun.formals(), gnurbc.consts().getFirst(), gnurfun.env());
+    var astfun =
+        SEXPs.closure(
+            gnurfun.formals(), gnurbc.consts().getFirst(), gnurfun.env(), gnurfun.attributes());
 
     var compiler = new Compiler(astfun);
     compiler.setOptimizationLevel(optimizationLevel);

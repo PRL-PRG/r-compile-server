@@ -182,4 +182,8 @@ public class Context {
   public boolean isTailCall() {
     return tailCall;
   }
+
+  public Context argContext() {
+    return new Context(false, false, returnJump, environment);
+  }
 }
