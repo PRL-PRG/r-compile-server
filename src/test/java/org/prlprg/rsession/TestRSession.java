@@ -1,18 +1,23 @@
 package org.prlprg.rsession;
 
+import com.google.common.collect.ImmutableSet;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Objects;
+import java.util.Set;
+import javax.annotation.Nullable;
 import org.prlprg.RSession;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.sexp.*;
 import org.prlprg.util.IO;
 
-import javax.annotation.Nullable;
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.Objects;
-
 public class TestRSession implements RSession {
+  private static final String BASE_SYMBOLS_RDS_FILE = "base.RDS";
+  private static final String BUILTINS_SYMBOLS_RDS_FILE = "builtins.RDS";
+
   private @Nullable BaseEnvSXP baseEnv = null;
   private @Nullable GlobalEnvSXP globalEnv = null;
+  private @Nullable Set<String> builtins = null;
 
   private BaseEnvSXP loadBaseEnv() {
     try {
@@ -23,7 +28,8 @@ public class TestRSession implements RSession {
               RDSReader.readStream(
                   this,
                   IO.maybeDecompress(
-                      Objects.requireNonNull(TestRSession.class.getResourceAsStream("base.RDS"))));
+                      Objects.requireNonNull(
+                          TestRSession.class.getResourceAsStream(BASE_SYMBOLS_RDS_FILE))));
 
       var frame = new HashMap<String, SEXP>(names.size());
       names.forEach(x -> frame.put(x, SEXPs.UNBOUND_VALUE));
@@ -46,5 +52,29 @@ public class TestRSession implements RSession {
       globalEnv = new GlobalEnvSXP(baseEnv());
     }
     return globalEnv;
+  }
+
+  public synchronized Set<String> builtins() {
+    if (builtins == null) {
+      try {
+        var names =
+            (StrSXP)
+                RDSReader.readStream(
+                    this,
+                    IO.maybeDecompress(
+                        Objects.requireNonNull(
+                            TestRSession.class.getResourceAsStream(BUILTINS_SYMBOLS_RDS_FILE))));
+        builtins = ImmutableSet.copyOf(names);
+      } catch (Exception e) {
+        throw new RuntimeException("Failed to load builtins", e);
+      }
+    }
+
+    return builtins;
+  }
+
+  @Override
+  public boolean isBuiltin(String name) {
+    return builtins().contains(name);
   }
 }

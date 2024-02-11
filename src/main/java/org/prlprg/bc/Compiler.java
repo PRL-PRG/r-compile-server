@@ -3,10 +3,14 @@ package org.prlprg.bc;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import javax.annotation.Nullable;
+
+import org.prlprg.RSession;
 import org.prlprg.bc.BcInstr.*;
 import org.prlprg.sexp.*;
 
+// FIXME: use null instead of Optional (except for return types)
 public class Compiler {
   private static final Set<String> MAYBE_NSE_SYMBOLS = Set.of("bquote");
   private static final Set<String> ALLOWED_INLINES =
@@ -58,6 +62,8 @@ public class Compiler {
           "return",
           "switch");
 
+  private static final Set<String> FORBIDDEN_INLINES = Set.of("standardGeneric");
+
   private static final int MAX_CONST_SIZE = 10;
 
   // I also did not know:
@@ -72,6 +78,8 @@ public class Compiler {
   private static final Set<String> ALLOWED_FOLDABLE_FUNS = Set.of();
 
   private final Bc.Builder cb = new Bc.Builder();
+
+  private final RSession rsession;
 
   /** The initial expression to compile. */
   private final SEXP expr;
@@ -91,9 +99,10 @@ public class Compiler {
    */
   private int optimizationLevel = 2;
 
-  private Compiler(SEXP expr, Context ctx, Loc loc) {
+  private Compiler(SEXP expr, Context ctx, RSession rsession, Loc loc) {
     this.expr = expr;
     this.ctx = ctx;
+    this.rsession = rsession;
 
     if (loc.srcRef() == null) {
       // from R documentation:
@@ -106,12 +115,12 @@ public class Compiler {
     cb.setCurrentLoc(loc);
   }
 
-  public Compiler(CloSXP fun) {
-    this(fun.body(), Context.functionContext(fun), functionLoc(fun));
+  public Compiler(CloSXP fun, RSession rsession) {
+    this(fun.body(), Context.functionContext(fun), rsession, functionLoc(fun));
   }
 
   private Compiler fork(SEXP expr, Context ctx, Loc loc) {
-    var compiler = new Compiler(expr, ctx, loc);
+    var compiler = new Compiler(expr, ctx, rsession, loc);
     compiler.setOptimizationLevel(optimizationLevel);
     return compiler;
   }
@@ -208,14 +217,14 @@ public class Compiler {
     checkTailCall();
   }
 
-  void compileCall(LangSXP call, boolean canInline) {
+  private void compileCall(LangSXP call, boolean canInline) {
     var loc = cb.getCurrentLoc();
     cb.setCurrentLoc(new Loc(call, extractSrcRef(call, 0)));
 
     var args = call.args();
     switch (call.fun()) {
       case RegSymSXP fun -> {
-        if (!(canInline && tryInline(fun, call))) {
+        if (!(canInline && tryInlineCall(fun, call))) {
           // TODO: check call
           compileCallSymFun(fun, args, call);
         }
@@ -229,25 +238,6 @@ public class Compiler {
     }
 
     cb.setCurrentLoc(loc);
-  }
-
-  private boolean tryInline(RegSymSXP fun, LangSXP call) {
-    if (optimizationLevel == 0) {
-      return false;
-    }
-
-    // it seems that there is no way to pattern match on Optional
-    // FIXME: use null instead
-    var bindingOpt = ctx.resolve(fun.name());
-    if (bindingOpt.isEmpty()) {
-      return false;
-    }
-    var binding = bindingOpt.get();
-    if (binding.first() instanceof BaseEnvSXP) {
-      return tryInlineBase(fun.name(), call);
-    } else {
-      return false;
-    }
   }
 
   private void compileCallSymFun(RegSymSXP fun, ListSXP args, LangSXP call) {
@@ -334,6 +324,23 @@ public class Compiler {
     }
   }
 
+  private boolean tryInlineCall(RegSymSXP fun, LangSXP call) {
+    if (optimizationLevel == 0) {
+      return false;
+    }
+
+    // it seems that there is no way to pattern match on Optional
+    var binding = ctx.resolve(fun.name()).orElse(null);
+    if (binding == null) {
+      return false;
+    }
+    if (binding.first() instanceof BaseEnvSXP) {
+      return tryInlineBase(fun.name(), call, true);
+    } else {
+      return false;
+    }
+  }
+
   /**
    * Tries to inline a function from the base package.
    *
@@ -341,27 +348,59 @@ public class Compiler {
    * @param call
    * @return true if the function was inlined, false otherwise
    */
-  private boolean tryInlineBase(String name, LangSXP call) {
-    if (optimizationLevel < 2) {
-      return false;
-    }
-    if (optimizationLevel == 2 && !ALLOWED_INLINES.contains(name)) {
+  private boolean tryInlineBase(String name, LangSXP call, boolean allowWithGuard) {
+    boolean guarded = false;
+
+    if (FORBIDDEN_INLINES.contains(name)) {
       return false;
     }
 
-    switch (name) {
-      case "{" -> inlineBlock(call);
-      case "if" -> inlineCondition(call);
-      case "function" -> inlineFunction(call);
-      case "(" -> {
-        return tryInlineParentheses(call);
+    if (optimizationLevel < 1) {
+      return false;
+    }
+
+    if (optimizationLevel == 2) {
+      if (!ALLOWED_INLINES.contains(name)) {
+        if (allowWithGuard) {
+          guarded = true;
+        } else {
+          return false;
+        }
       }
+    }
+
+    Function<LangSXP, Boolean> inline = switch (name) {
+      case "{" -> this::inlineBlock;
+      case "if" -> this::inlineCondition;
+      case "function" -> this::inlineFunction;
+      case "(" -> this::inlineParentheses;
       default -> {
-        return false;
+        if (rsession.isBuiltin(name)) {
+          yield (c) -> inlineBuiltin(c, false);
+        } else {
+          yield null;
+        }
       }
+    };
+
+    if (inline == null) {
+      return false;
     }
 
-    return true;
+    if (guarded) {
+          var end = cb.makeLabel();
+          usingCtx(ctx.nonTailContext(), () -> {
+            cb.addInstr(new BaseGuard(cb.addConst(call), end));
+            if (!inline.apply(call)) {
+              compileCall(call, false);
+            }
+          });
+          cb.patchLabel(end);
+          checkTailCall();
+          return true;
+    } else {
+      return inline.apply(call);
+    }
   }
 
   /**
@@ -377,7 +416,7 @@ public class Compiler {
    *
    * @param call
    */
-  private void inlineBlock(LangSXP call) {
+  private boolean inlineBlock(LangSXP call) {
     var n = call.args().size();
     if (n == 0) {
       compile(SEXPs.NULL);
@@ -403,9 +442,11 @@ public class Compiler {
       compile(last, false);
       cb.setCurrentLoc(loc);
     }
+
+    return true;
   }
 
-  private void inlineCondition(LangSXP call) {
+  private boolean inlineCondition(LangSXP call) {
     var test = call.arg(0).value();
     var thenBranch = call.arg(1).value();
     var elseBranch = Optional.ofNullable(call.args().size() == 3 ? call.arg(2).value() : null);
@@ -439,6 +480,8 @@ public class Compiler {
           });
       cb.patchLabel(endLabel);
     }
+
+    return true;
   }
 
   /**
@@ -453,7 +496,7 @@ public class Compiler {
    *
    * @param call
    */
-  private void inlineFunction(LangSXP call) {
+  private boolean inlineFunction(LangSXP call) {
     // TODO: sourcerefs
     // TODO: if (mayCallBrowser(body, cntxt)) return(FALSE)
 
@@ -471,6 +514,8 @@ public class Compiler {
     cb.addInstr(new MakeClosure(cb.addConst(cnst)));
 
     checkTailCall();
+
+    return true;
   }
 
   /**
@@ -501,12 +546,12 @@ public class Compiler {
    *
    * @param call
    */
-  private boolean tryInlineParentheses(LangSXP call) {
+  private boolean inlineParentheses(LangSXP call) {
     if (anyDots(call.args())) {
-      return tryCompileBuiltin(call, false);
+      return inlineBuiltin(call, false);
     } else if (call.args().size() != 1) {
       // TODO: notifyWrongArgCount("(", cntxt, loc = cb$savecurloc())
-      return tryCompileBuiltin(call, false);
+      return inlineBuiltin(call, false);
     } else if (ctx.isTailCall()) {
       usingCtx(ctx.nonTailContext(), () -> compile(call.arg(0).value()));
       cb.addInstr(new Visible());
@@ -518,7 +563,7 @@ public class Compiler {
     }
   }
 
-  private boolean tryCompileBuiltin(LangSXP call, boolean internal) {
+  private boolean inlineBuiltin(LangSXP call, boolean internal) {
     if (!(call.fun() instanceof RegSymSXP fun)) {
       return false;
     }
@@ -542,7 +587,7 @@ public class Compiler {
     cb.addInstr(new CallBuiltin(cb.addConst(call)));
     checkTailCall();
 
-    return false;
+    return true;
   }
 
   private void compileBuiltinArgs(ListSXP args, boolean missingOK) {

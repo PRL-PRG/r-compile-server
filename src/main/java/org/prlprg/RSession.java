@@ -7,4 +7,6 @@ public interface RSession {
   BaseEnvSXP baseEnv();
 
   GlobalEnvSXP globalEnv();
+
+  boolean isBuiltin(String name);
 }

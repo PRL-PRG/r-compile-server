@@ -73,6 +73,21 @@ public class CompilerTest implements Tests {
     // TODO: (x <- 1)
   }
 
+  @Test
+  public void builtinsInlining() {
+    assertBytecode("""
+      function() invisible(1)
+    """, 2);
+
+    assertBytecode("""
+      function() invisible(1)
+    """, 3);
+
+    assertBytecode("""
+      function(...) invisible(...)
+    """, 2);
+  }
+
   private void assertBytecode(String code) {
     assertBytecode(code, 2);
   }
@@ -101,7 +116,7 @@ public class CompilerTest implements Tests {
         SEXPs.closure(
             gnurfun.formals(), gnurbc.consts().getFirst(), gnurfun.env(), gnurfun.attributes());
 
-    var compiler = new Compiler(astfun);
+    var compiler = new Compiler(astfun, rsession);
     compiler.setOptimizationLevel(optimizationLevel);
     var ourbc = compiler.compile();
 
