@@ -1,6 +1,7 @@
 package org.prlprg.bc;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
@@ -11,6 +12,8 @@ import org.prlprg.bc.BcInstr.*;
 import org.prlprg.sexp.*;
 
 // FIXME: use null instead of Optional (except for return types)
+// FIXME: update the SEXP API based on the experience with this code
+//   - especially the clumsy ListSXP
 public class Compiler {
   private static final Set<String> MAYBE_NSE_SYMBOLS = Set.of("bquote");
   private static final Set<String> ALLOWED_INLINES =
@@ -341,6 +344,24 @@ public class Compiler {
     }
   }
 
+  private @Nullable Function<LangSXP, Boolean> getBaseInlineHandler(String name) {
+    // feels better this way than to pay the price to allocate the whole, big
+    // inlining table at class construction
+    return switch (name) {
+      case "{" -> this::inlineBlock;
+      case "if" -> this::inlineCondition;
+      case "function" -> this::inlineFunction;
+      case "(" -> this::inlineParentheses;
+      default -> {
+        if (rsession.isBuiltin(name)) {
+          yield (c) -> inlineBuiltin(c, false);
+        } else {
+          yield null;
+        }
+      }
+    };
+  }
+
   /**
    * Tries to inline a function from the base package.
    *
@@ -369,20 +390,7 @@ public class Compiler {
       }
     }
 
-    Function<LangSXP, Boolean> inline = switch (name) {
-      case "{" -> this::inlineBlock;
-      case "if" -> this::inlineCondition;
-      case "function" -> this::inlineFunction;
-      case "(" -> this::inlineParentheses;
-      default -> {
-        if (rsession.isBuiltin(name)) {
-          yield (c) -> inlineBuiltin(c, false);
-        } else {
-          yield null;
-        }
-      }
-    };
-
+    var inline = getBaseInlineHandler(name);
     if (inline == null) {
       return false;
     }
@@ -390,8 +398,16 @@ public class Compiler {
     if (guarded) {
           var end = cb.makeLabel();
           usingCtx(ctx.nonTailContext(), () -> {
+            // The BASEGUARD checks the validity of the inline code, i.e. if what
+            // was from base at compile time hasn't changed.
+            // if the inlined code is not valid the guard instruction will evaluate the call in
+            // the AST interpreter and jump over the inlined code.
             cb.addInstr(new BaseGuard(cb.addConst(call), end));
             if (!inline.apply(call)) {
+              // At this point the guard is useless and the following code
+              // should run.
+              // I guess the likelihood that something changed is slim,
+              // to care about removing it.
               compileCall(call, false);
             }
           });

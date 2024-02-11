@@ -75,14 +75,17 @@ public class CompilerTest implements Tests {
 
   @Test
   public void builtinsInlining() {
+    // expecting a guard
     assertBytecode("""
       function() invisible(1)
     """, 2);
 
+    // no guard
     assertBytecode("""
       function() invisible(1)
     """, 3);
 
+    // guard and regular function call
     assertBytecode("""
       function(...) invisible(...)
     """, 2);
