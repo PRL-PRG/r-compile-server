@@ -39,6 +39,27 @@ public class CompilerTest implements Tests {
     """);
   }
 
+  @Test
+  public void testIf() {
+    assertBytecode("""
+        function(x) if (x) 1
+    """);
+  }
+
+  @Test
+  public void testIfElse() {
+    assertBytecode("""
+        function(x) if (x) 1 else 2
+    """);
+  }
+
+  @Test
+  public void testFunctionInlining() {
+    assertBytecode("""
+        function(x) function(y) 1
+    """);
+  }
+
   private void assertBytecode(String code) {
     assertBytecode(code, 2);
   }

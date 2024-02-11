@@ -2,6 +2,7 @@ package org.prlprg.bc;
 
 import com.google.common.primitives.ImmutableIntArray;
 import java.util.*;
+import javax.annotation.Nullable;
 import org.prlprg.primitive.Constants;
 import org.prlprg.sexp.IntSXP;
 import org.prlprg.sexp.SEXP;
@@ -50,8 +51,9 @@ public record Bc(BcCode code, ConstPool consts) {
         ImmutableIntArray.builder()
             // to have the same length as codeBuf
             .add(Constants.NA_INT);
-    private final Stack<SEXP> currentExpr = new Stack<>();
-    private final Stack<IntSXP> currentSrcRef = new Stack<>();
+
+    private @Nullable SEXP currentExpr = null;
+    private @Nullable IntSXP currentSrcRef = null;
     private boolean trackSrcRefs = true;
     private boolean trackExpressions = true;
 
@@ -73,18 +75,16 @@ public record Bc(BcCode code, ConstPool consts) {
       code.add(instr);
 
       if (trackExpressions) {
-        assert (!currentExpr.isEmpty());
+        assert (currentExpr != null);
         for (var i = 0; i <= instr.op().nArgs(); i++) {
-          // R uses 1-based indexing
-          expressions.add(addConst(currentExpr.peek()).idx);
+          expressions.add(addConst(currentExpr).idx);
         }
       }
 
       if (trackSrcRefs) {
+        assert (currentSrcRef != null);
         for (var i = 0; i <= instr.op().nArgs(); i++) {
-          assert (!currentSrcRef.isEmpty());
-          // R uses 1-based indexing
-          srcRefs.add(addConst(currentSrcRef.peek()).idx);
+          srcRefs.add(addConst(currentSrcRef).idx);
         }
       }
     }
@@ -118,23 +118,18 @@ public record Bc(BcCode code, ConstPool consts) {
       return new Bc(code.build(), consts.build());
     }
 
-    public void pushLoc(Loc loc) {
-      currentExpr.push(loc.expr());
-      if (trackSrcRefs) {
-        var srcRef = loc.srcRef();
-        currentSrcRef.push(srcRef != null ? srcRef : currentSrcRef.peek());
+    public void setCurrentLoc(Loc loc) {
+      if (trackExpressions) {
+        this.currentExpr = loc.expr();
       }
-    }
 
-    public void popLoc() {
-      currentExpr.pop();
-      if (trackSrcRefs) {
-        currentSrcRef.pop();
+      if (trackSrcRefs && loc.srcRef() != null) {
+        this.currentSrcRef = loc.srcRef();
       }
     }
 
     public Loc getCurrentLoc() {
-      return new Loc(currentExpr.peek(), trackSrcRefs ? currentSrcRef.peek() : null);
+      return new Loc(trackExpressions ? currentExpr : null, trackSrcRefs ? currentSrcRef : null);
     }
   }
 }

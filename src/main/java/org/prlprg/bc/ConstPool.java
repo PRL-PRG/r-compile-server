@@ -141,7 +141,12 @@ public final class ConstPool extends ForwardingList<SEXP> {
   }
 
   private String debugId() {
-    return "@" + hashCode();
+    // FIXME: this is bad!
+    if (consts != null) {
+      return "@" + hashCode();
+    } else {
+      return "@";
+    }
   }
 
   /**
@@ -224,23 +229,19 @@ public final class ConstPool extends ForwardingList<SEXP> {
       return of(i, RegSymSXP.class);
     }
 
-    @Nullable
-    TypedIdx<RegSymSXP> symOrNil(int i) {
+    @Nullable TypedIdx<RegSymSXP> symOrNil(int i) {
       return tryOf(i, RegSymSXP.class);
     }
 
-    @Nullable
-    TypedIdx<LangSXP> langOrNegative(int i) {
+    @Nullable TypedIdx<LangSXP> langOrNegative(int i) {
       return i >= 0 ? tryOf(i, LangSXP.class) : null;
     }
 
-    @Nullable
-    TypedIdx<IntSXP> intOrOther(int i) {
+    @Nullable TypedIdx<IntSXP> intOrOther(int i) {
       return tryOf(i, IntSXP.class);
     }
 
-    @Nullable
-    TypedIdx<StrOrRegSymSXP> strOrSymOrNil(int i) {
+    @Nullable TypedIdx<StrOrRegSymSXP> strOrSymOrNil(int i) {
       var asStrOrSymbol = tryOf(i, StrOrRegSymSXP.class);
       if (asStrOrSymbol != null) {
         return asStrOrSymbol;
@@ -254,8 +255,7 @@ public final class ConstPool extends ForwardingList<SEXP> {
       }
     }
 
-    @Nullable
-    Either<TypedIdx<StrSXP>, TypedIdx<NilSXP>> strOrNilOrOther(int i) {
+    @Nullable Either<TypedIdx<StrSXP>, TypedIdx<NilSXP>> strOrNilOrOther(int i) {
       var asSymbol = tryOf(i, StrSXP.class);
       if (asSymbol != null) {
         return Either.left(asSymbol);

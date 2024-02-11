@@ -7,6 +7,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import javax.annotation.Nullable;
 import org.prlprg.bc.Bc;
 import org.prlprg.primitive.Complex;
 import org.prlprg.primitive.Constants;
@@ -353,8 +354,9 @@ public final class SEXPs {
   }
 
   public static CloSXP closure(
-      ListSXP formals, SEXP body, EnvSXP environment, Attributes attributes) {
-    return new CloSXPImpl(formals, body, environment, attributes);
+      ListSXP formals, SEXP body, EnvSXP environment, @Nullable Attributes attributes) {
+    return new CloSXPImpl(
+        formals, body, environment, attributes == null ? Attributes.NONE : attributes);
   }
 
   public static LangSXP lang(SymOrLangSXP fun, ListSXP args) {
