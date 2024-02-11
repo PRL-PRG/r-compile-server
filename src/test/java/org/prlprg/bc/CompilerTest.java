@@ -123,6 +123,47 @@ function(x) .Internal(inspect2(x))
 """);
   }
 
+  @Test
+  public void inlineLogicalAnd() {
+    assertBytecode("""
+function(x, y) x && y
+""");
+
+    assertBytecode("""
+function(x, y, z) x && y && z
+""");
+
+    assertBytecode("""
+function(x, y) x && y && (x && y)
+""");
+  }
+
+  @Test
+  public void inlineLogicalOr() {
+    assertBytecode("""
+function(x, y) x || y
+""");
+
+    assertBytecode("""
+function(x, y, z) x || y || z
+""");
+
+    assertBytecode("""
+function(x, y) x || y || (x || y)
+""");
+  }
+
+  @Test
+  public void inlineLogicalAndOr() {
+    assertBytecode("""
+function(x, y) x && y || y
+""");
+
+    assertBytecode("""
+function(x, y, z) x || y && z
+""");
+  }
+
   private void assertBytecode(String code) {
     assertBytecode(code, 2);
   }

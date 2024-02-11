@@ -356,6 +356,8 @@ public class Compiler {
       case "local" -> this::inlineLocal;
       case "return" -> this::inlineReturn;
       case ".Internal" -> this::inlineInternal;
+      case "&&" -> (c) -> inlineLogicalAndOr(c, true);
+      case "||" -> (c) -> inlineLogicalAndOr(c, false);
       default -> {
         if (rsession.isBuiltin(name)) {
           yield (c) -> inlineBuiltin(c, false);
@@ -716,6 +718,44 @@ public class Compiler {
     } else {
       return inlineSpecial(call);
     }
+  }
+
+  /**
+   * From the R documentation:
+   *
+   * > In many languages it is possible to convert the expression a && b to an equivalent if expression
+   * > of the form
+   * >    if (a) { if (b) TRUE else FALSE }
+   * > Similarly, in these languages the expression a || b is equivalent to
+   * >    if (a) TRUE else if (b) TRUE else FALSE
+   * > Compilation of these expressions is thus reduced to compiling if expressions.
+   * > Unfortunately, because of the possibility of NA values, these equivalencies do not hold in R. In
+   * > R, NA || TRUE should evaluate to TRUE and NA && FALSE to FALSE. This is handled by introducing
+   * > special instructions AND1ST and AND2ND for && expressions and OR1ST and OR2ND for ||.
+   * > The code generator for && expressions generates code to evaluate the first argument and then
+   * > emits an AND1ST instruction. The AND1ST instruction has one operand, the label for the instruction
+   * > following code for the second argument. If the value on the stack produced by the first argument
+   * > is FALSE then AND1ST jumps to the label and skips evaluation of the second argument; the value
+   * > of the expression is FALSE. The code for the second argument is generated next, followed by an
+   * > AND2ND instruction. This removes the values of the two arguments to && from the stack and pushes
+   * > the value of the expression onto the stack. A RETURN instruction is generated if the && expression
+   * > was in tail position.
+   */
+  private boolean inlineLogicalAndOr(LangSXP call, boolean and) {
+    var callIdx = cb.addConst(call);
+    var label = cb.makeLabel();
+
+    usingCtx(ctx.argContext(), () -> {
+      compile(call.arg(0).value());
+      cb.addInstr(and ? new And1st(callIdx, label) : new Or1st(callIdx, label));
+      compile(call.arg(1).value());
+      cb.addInstr(and ? new And2nd(callIdx) : new Or2nd(callIdx));
+    });
+
+    cb.patchLabel(label);
+    checkTailCall();
+
+    return true;
   }
 
   private void usingCtx(Context ctx, Runnable thunk) {
