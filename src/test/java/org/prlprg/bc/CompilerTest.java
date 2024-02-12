@@ -166,17 +166,47 @@ function(x, y, z) x || y && z
 
   @Test
   public void inlineRepeat() {
-    //    assertBytecode("""
-    //      function(x) repeat(x)
-    //    """);
+    assertBytecode("""
+          function(x) repeat(x)
+        """);
 
     assertBytecode("""
       function(x, y) repeat({ if (x) break() else y })
     """);
 
-    //    assertBytecode("""
-    //      function(x, y) repeat({ if (x) next() else y })
-    //    """);
+    assertBytecode("""
+          function(x, y) repeat({ if (x) next() else y })
+        """);
+
+    assertBytecode("""
+          function(x, y=break()) repeat({ if (x) y else 1 })
+        """);
+  }
+
+  @Test
+  public void inlineWhile() {
+    assertBytecode("""
+          function(x) while(x) 1
+        """);
+
+    assertBytecode("""
+      function(x, y) while(x) { break() }
+    """);
+
+    assertBytecode("""
+      function(x, y) while(x) { if (y) break() else 1 }
+    """);
+  }
+
+  @Test
+  public void inlineFor() {
+    assertBytecode("""
+function(x) for (i in x) 1
+""");
+
+    assertBytecode("""
+function(x) for (i in x) if (i) break() else 1
+""");
   }
 
   private void assertBytecode(String code) {

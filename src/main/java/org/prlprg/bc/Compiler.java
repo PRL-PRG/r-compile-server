@@ -4,7 +4,9 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import javax.annotation.Nullable;
 
 import org.prlprg.RSession;
@@ -368,6 +370,8 @@ public class Compiler {
       case "repeat" -> this::inlineRepeat;
       case "break" -> (c) -> inlineBreakNext(c, false);
       case "next" -> (c) -> inlineBreakNext(c, true);
+      case "while" -> this::inlineWhile;
+      case "for" -> this::inlineFor;
       default -> {
         if (rsession.isBuiltin(name)) {
           yield (c) -> inlineBuiltin(c, false);
@@ -770,14 +774,18 @@ public class Compiler {
 
   private boolean inlineRepeat(LangSXP call) {
     var body = call.arg(0).value();
+    return inlineSimpleLoop(call, body, this::compileRepeatBody);
+  }
+
+  private boolean inlineSimpleLoop(LangSXP call, SEXP body, Consumer<SEXP> cmpBody) {
     if (canSkipLoopContext(body, true)) {
-      compileRepeatBody(body);
+      cmpBody.accept(body);
     } else {
       usingCtx(ctx.returnJumpContext(), () -> {
-        var loopEnd = cb.makeLabel();
-        cb.addInstr(new StartLoopCntxt(false, loopEnd));
-        compileRepeatBody(body);
-        cb.patchLabel(loopEnd);
+        var endLabel = cb.makeLabel();
+        cb.addInstr(new StartLoopCntxt(false, endLabel));
+        cmpBody.accept(body);
+        cb.patchLabel(endLabel);
         cb.addInstr(new EndLoopCntxt(false));
       });
     }
@@ -792,13 +800,13 @@ public class Compiler {
   }
 
   private void compileRepeatBody(SEXP body) {
-    var loopStart = cb.makeLabel();
-    var loopEnd = cb.makeLabel();
-    cb.patchLabel(loopStart);
-    usingCtx(ctx.loopContext(loopStart, loopEnd), () -> compile(body));
+    var startLabel = cb.makeLabel();
+    var endLabel = cb.makeLabel();
+    cb.patchLabel(startLabel);
+    usingCtx(ctx.loopContext(startLabel, endLabel), () -> compile(body));
     cb.addInstr(new Pop());
-    cb.addInstr(new Goto(loopStart));
-    cb.patchLabel(loopEnd);
+    cb.addInstr(new Goto(startLabel));
+    cb.patchLabel(endLabel);
   }
 
   private boolean inlineBreakNext(LangSXP call, boolean next) {
@@ -816,6 +824,84 @@ public class Compiler {
       return inlineSpecial(call);
     }
   }
+
+  private boolean inlineWhile(LangSXP call) {
+    var test = call.arg(0).value();
+    var body = call.arg(1).value();
+
+    return inlineSimpleLoop(call, body, (b) -> compileWhileBody(call, test, b));
+  }
+
+  private void compileWhileBody(LangSXP call, SEXP test, SEXP body) {
+    var startLabel = cb.makeLabel();
+    var endLabel = cb.makeLabel();
+    cb.patchLabel(startLabel);
+    usingCtx(ctx.loopContext(startLabel, endLabel), () -> {
+      compile(test);
+      cb.addInstr(new BrIfNot(cb.addConst(call), endLabel));
+      compile(body);
+      cb.addInstr(new Pop());
+      cb.addInstr(new Goto(startLabel));
+    });
+    cb.patchLabel(endLabel);
+  }
+
+  private boolean inlineFor(LangSXP call) {
+    var loopVar = call.arg(0).value();
+    var seq = call.arg(1).value();
+    var body = call.arg(2).value();
+
+    if (!(loopVar instanceof RegSymSXP loopSym)) {
+      // From R source code:
+      // > ## not worth warning here since the parser should not allow this
+      return false;
+    }
+
+    usingCtx(ctx.nonTailContext(), () -> compile(seq));
+
+    if (canSkipLoopContext(body, true)) {
+      compileForBody(call, body, loopSym);
+    } else {
+      usingCtx(ctx.returnJumpContext(), () -> {
+        var startLabel = cb.makeLabel();
+        var endLabel = cb.makeLabel();
+        cb.addInstr(new StartFor(cb.addConst(call), cb.addConst(loopSym), startLabel));
+        cb.patchLabel(startLabel);
+        cb.addInstr(new StartLoopCntxt(true, endLabel));
+        compileForBody(call, body, null);
+        cb.patchLabel(endLabel);
+        cb.addInstr(new EndLoopCntxt(true));
+      });
+    }
+
+    cb.addInstr(new EndFor());
+    if (ctx.isTailCall()) {
+      cb.addInstr(new Invisible());
+      cb.addInstr(new Return());
+    }
+
+    return true;
+  }
+
+  private void compileForBody(LangSXP call, SEXP body, @Nullable RegSymSXP loopSym) {
+    var bodyLabel = cb.makeLabel();
+    var loopLabel = cb.makeLabel();
+    var endLabel = cb.makeLabel();
+
+    if (loopSym == null) {
+      cb.addInstr(new Goto(loopLabel));
+    } else {
+      cb.addInstr(new StartFor(cb.addConst(call), cb.addConst(loopSym), loopLabel));
+    }
+
+    cb.patchLabel(bodyLabel);
+    usingCtx(ctx.loopContext(loopLabel, endLabel), () -> compile(body));
+    cb.addInstr(new Pop());
+    cb.patchLabel(loopLabel);
+    cb.addInstr(new StepFor(bodyLabel));
+    cb.patchLabel(endLabel);
+  }
+
 
   private void usingCtx(Context ctx, Runnable thunk) {
     var old = this.ctx;
@@ -904,7 +990,7 @@ public class Compiler {
           //    > `break` <- function() print("b")
           //    > i <- 0
           //    > repeat({ i <<- i + 1; if (i == 10) break; })
-          //  I mean it will likely make the hell break loose if it is not a base version...
+          //  I mean all of this is very much unsound, just why in this case do we care less?
           return false;
         } else if (LOOP_STOP_FUNS.contains(name) && ctx.isBaseVersion(name)) {
           return true;
