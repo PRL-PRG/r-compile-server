@@ -59,16 +59,8 @@
     </dependency>
   </dependencies>
   <build>
-    <testResources>
-      <!-- Resources including R scripts which are treated as data -->
-      <testResource>
-        <directory>src/test/resources</directory>
-      </testResource>
-      <!-- R scripts which are treated as code -->
-      <testResource>
-        <directory>src/test/R</directory>
-      </testResource>
-    </testResources>
+    <!-- Snapshots aren't test resources, because we have to write to them, so we access them
+         at their actual locations (bundled are overridden on recompile). -->
     <plugins>
       <!-- git-build-hook, install git hooks when you run any maven command so you don't forget -->
       <plugin>
