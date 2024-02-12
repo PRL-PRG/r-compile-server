@@ -268,6 +268,21 @@ function(x) for (i in x) if (i) break() else 1
         """);
   }
 
+  @Test
+  public void inlineDollar() {
+    assertBytecode(
+        """
+                # xs <- list(a=1, b=list(c=2))
+                function(xs) {
+                    xs$a
+                    xs$"a"
+                    xs$b$c
+                    xs$"b"$c
+                    xs$"b"$"c"
+                }
+            """);
+  }
+
   private void assertBytecode(String code) {
     assertBytecode(code, 2);
   }

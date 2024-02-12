@@ -402,6 +402,7 @@ public class Compiler {
       case "&" -> (c) -> inlinePrim2(c, And::new);
       case "|" -> (c) -> inlinePrim2(c, Or::new);
       case "!" -> (c) -> inlinePrim1(c, Not::new);
+      case "$" -> this::inlineDollar;
       case String s when MATH1_FUNS.contains(s) -> (c) -> inlineMath1(c, MATH1_FUNS.indexOf(s));
       case String s when rsession.isBuiltin(s) -> (c) -> inlineBuiltin(c, false);
       case String s when rsession.isSpecial(s) -> this::inlineSpecial;
@@ -1011,6 +1012,31 @@ public class Compiler {
 
     checkTailCall();
     return true;
+  }
+
+  private boolean inlineDollar(LangSXP call) {
+    if (anyDots(call.args()) || call.args().size() != 2) {
+      return inlineSpecial(call);
+    }
+
+    SEXP sym;
+    if (call.arg(1).value() instanceof StrSXP s && s.size() == 1 && !s.get(0).isEmpty()) {
+      // > list(a=1)$"a"
+      sym = SEXPs.symbol(s.get(0));
+    } else {
+      sym = call.arg(1).value();
+    }
+
+    if (sym instanceof RegSymSXP s) {
+      usingCtx(ctx.argContext(), () -> compile(call.arg(0).value()));
+      var callIdx = cb.addConst(call);
+      var symIdx = cb.addConst(s);
+      cb.addInstr(new Dollar(callIdx, symIdx));
+      checkTailCall();
+      return true;
+    } else {
+      return inlineSpecial(call);
+    }
   }
 
   private void usingCtx(Context ctx, Runnable thunk) {
