@@ -417,6 +417,9 @@ public class Compiler {
       case "is.object" -> (c) -> inlineIsXyz(c, IsObject::new);
       case "is.symbol" -> (c) -> inlineIsXyz(c, IsSymbol::new);
       case ".Call" -> this::inlineDotCall;
+      case ":" -> (c) -> inlinePrim2(c, Colon::new);
+      case "seq_along" -> (c) -> inlinePrim1(c, SeqAlong::new);
+      case "seq_len" -> (c) -> inlinePrim1(c, SeqLen::new);
       case String s when MATH1_FUNS.contains(s) -> (c) -> inlineMath1(c, MATH1_FUNS.indexOf(s));
       case String s when rsession.isBuiltin(s) -> (c) -> inlineBuiltin(c, false);
       case String s when rsession.isSpecial(s) -> this::inlineSpecial;

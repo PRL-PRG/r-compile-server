@@ -314,6 +314,16 @@ function(x) for (i in x) if (i) break() else 1
                 """);
   }
 
+  @Test
+  public void inlineIntGeneratingSequences() {
+    assertBytecode(
+        """
+                    function(x, xs) {
+                      list(x:100, seq_along(xs), seq_len(x))
+                    }
+                """);
+  }
+
   private void assertBytecode(String code) {
     assertBytecode(code, 2);
   }
