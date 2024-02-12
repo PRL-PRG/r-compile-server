@@ -2,6 +2,7 @@ package org.prlprg.bc;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -368,10 +369,18 @@ public class Compiler {
       case "&&" -> (c) -> inlineLogicalAndOr(c, true);
       case "||" -> (c) -> inlineLogicalAndOr(c, false);
       case "repeat" -> this::inlineRepeat;
-      case "break" -> (c) -> inlineBreakNext(c, false);
-      case "next" -> (c) -> inlineBreakNext(c, true);
+      case "break" -> (c) -> inlineBreakNext(c, true);
+      case "next" -> (c) -> inlineBreakNext(c, false);
       case "while" -> this::inlineWhile;
       case "for" -> this::inlineFor;
+      case "+" -> (c) -> inlineAddSub(c, true);
+      case "-" -> (c) -> inlineAddSub(c, false);
+      case "*" -> (c) -> inlinePrim2(c, Mul::new);
+      case "/" -> (c) -> inlinePrim2(c, Div::new);
+      case "^" -> (c) -> inlinePrim2(c, Expt::new);
+      case "exp" -> (c) -> inlinePrim1(c, Exp::new);
+      case "sqrt" -> (c) -> inlinePrim1(c, Sqrt::new);
+      case "log" -> this::inlineLog;
       default -> {
         if (rsession.isBuiltin(name)) {
           yield (c) -> inlineBuiltin(c, false);
@@ -755,15 +764,15 @@ public class Compiler {
    * > the value of the expression onto the stack. A RETURN instruction is generated if the && expression
    * > was in tail position.
    */
-  private boolean inlineLogicalAndOr(LangSXP call, boolean and) {
+  private boolean inlineLogicalAndOr(LangSXP call, boolean isAnd) {
     var callIdx = cb.addConst(call);
     var label = cb.makeLabel();
 
     usingCtx(ctx.argContext(), () -> {
       compile(call.arg(0).value());
-      cb.addInstr(and ? new And1st(callIdx, label) : new Or1st(callIdx, label));
+      cb.addInstr(isAnd ? new And1st(callIdx, label) : new Or1st(callIdx, label));
       compile(call.arg(1).value());
-      cb.addInstr(and ? new And2nd(callIdx) : new Or2nd(callIdx));
+      cb.addInstr(isAnd ? new And2nd(callIdx) : new Or2nd(callIdx));
     });
 
     cb.patchLabel(label);
@@ -809,11 +818,11 @@ public class Compiler {
     cb.patchLabel(endLabel);
   }
 
-  private boolean inlineBreakNext(LangSXP call, boolean next) {
+  private boolean inlineBreakNext(LangSXP call, boolean isBreak) {
     // Java's pattern matching is so pathetic that it is simply not worth it
     if (ctx.loop() instanceof Loop.InLoop loop) {
       if (loop.gotoOK()) {
-        cb.addInstr(new Goto(next ? loop.start() : loop.end()));
+        cb.addInstr(new Goto(isBreak ? loop.end() : loop.start()));
         return true;
       } else {
         return inlineSpecial(call);
@@ -902,6 +911,75 @@ public class Compiler {
     cb.patchLabel(endLabel);
   }
 
+  private boolean inlineAddSub(LangSXP call, boolean isAdd) {
+    if (call.args().size() == 2) {
+      return inlinePrim2(call, (idx) -> isAdd ? new Add(idx) : new Sub(idx));
+    } else {
+      return inlinePrim1(call, (idx) -> isAdd ? new UPlus(idx) : new UMinus(idx));
+    }
+  }
+
+  private boolean inlinePrim1(LangSXP call, Function<ConstPool.TypedIdx<LangSXP>, BcInstr> makeOp) {
+    if (dotsOrMissing(call.args())) {
+      return inlineBuiltin(call, false);
+    }
+
+    if (call.args().size() != 1) {
+      // TODO: notifyWrongArgCount(e[[1]], cntxt, loc = cb$savecurloc())
+      return inlineBuiltin(call, false);
+    }
+
+    usingCtx(ctx.nonTailContext(), () -> compile(call.arg(0).value()));
+    cb.addInstr(makeOp.apply(cb.addConst(call)));
+    checkTailCall();
+    return true;
+  }
+
+  private boolean inlinePrim2(LangSXP call, Function<ConstPool.TypedIdx<LangSXP>, BcInstr> makeOp) {
+    if (dotsOrMissing(call.args())) {
+      return inlineBuiltin(call, false);
+    }
+
+    if (call.args().size() != 2) {
+      // TODO: notifyWrongArgCount(e[[1]], cntxt, loc = cb$savecurloc())
+      return inlineBuiltin(call, false);
+    }
+
+    usingCtx(ctx.nonTailContext(), () -> {
+      compile(call.arg(0).value());
+
+      // From the R documentation:
+      // > the second argument has to
+      // > be compiled with an argument context since the stack already has the value of the first argument
+      // > on it and that would need to be popped before a jump.
+      usingCtx(ctx.argContext(), () -> compile(call.arg(1).value()));
+    });
+
+    cb.addInstr(makeOp.apply(cb.addConst(call)));
+    checkTailCall();
+
+    return true;
+  }
+
+  private boolean inlineLog(LangSXP call) {
+    if (dotsOrMissing(call.args()) ||
+            call.args().names().stream().anyMatch(Objects::nonNull) ||
+            call.args().isEmpty() || call.args().size() > 2) {
+      return inlineBuiltin(call, false);
+    }
+
+    var idx = cb.addConst(call);
+    usingCtx(ctx.nonTailContext(), () -> compile(call.arg(0).value()));
+    if (call.args().size() == 1) {
+      cb.addInstr(new Log(idx));
+    } else {
+      usingCtx(ctx.argContext(), () -> compile(call.arg(1).value()));
+      cb.addInstr(new LogBase(idx));
+    }
+
+    checkTailCall();
+    return true;
+  }
 
   private void usingCtx(Context ctx, Runnable thunk) {
     var old = this.ctx;
@@ -996,6 +1074,12 @@ public class Compiler {
           return true;
         } else if (EVAL_FUNS.contains(name)) {
           // FIXME: again no check if it is a base version
+
+          // From R documentation:
+          // > Loops that include a call to eval (or evalq, source) are compiled with
+          // > context to support a programming pattern present e.g. in package Rmpi: a server application is
+          // > implemented using an infinite loop, which evaluates de-serialized code received from the client; the
+          // > server shuts down when it receives a serialized version of break.
           return false;
         } else if (LOOP_TOP_FUNS.contains(name) && ctx.isBaseVersion(name)) {
           // recursively check the rest of the body

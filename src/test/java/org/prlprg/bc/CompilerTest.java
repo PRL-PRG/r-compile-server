@@ -209,6 +209,36 @@ function(x) for (i in x) if (i) break() else 1
 """);
   }
 
+  @Test
+  public void inlineArithmetics() {
+    assertBytecode("""
+  function(x, y) x + y
+  """);
+
+    assertBytecode("""
+  function(x, y) x - y
+  """);
+
+    assertBytecode("""
+  function(x, y) {
+    list(x + y - x + 10, -x + 1, +y)
+  }
+  """);
+
+    assertBytecode(
+        """
+  function(x, y) {
+    list(x * y / x * 10, exp(x) ^ 2, sqrt(exp(x)))
+  }
+  """);
+
+    assertBytecode("""
+      function(x, y) {
+        list(log(x), log(x, y))
+      }
+      """);
+  }
+
   private void assertBytecode(String code) {
     assertBytecode(code, 2);
   }
