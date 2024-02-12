@@ -256,6 +256,18 @@ function(x) for (i in x) if (i) break() else 1
     """);
   }
 
+  @Test
+  public void inlineLogical() {
+    assertBytecode(
+        """
+            function(x, y) {
+                list(
+                  x == y, x != y, x < y, x <= y, x > y, x >= y, x & y, x | y, !x
+                )
+            }
+        """);
+  }
+
   private void assertBytecode(String code) {
     assertBytecode(code, 2);
   }

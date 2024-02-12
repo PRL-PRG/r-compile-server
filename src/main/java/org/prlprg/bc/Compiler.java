@@ -393,6 +393,15 @@ public class Compiler {
       case "exp" -> (c) -> inlinePrim1(c, Exp::new);
       case "sqrt" -> (c) -> inlinePrim1(c, Sqrt::new);
       case "log" -> this::inlineLog;
+      case "==" -> (c) -> inlinePrim2(c, Eq::new);
+      case "!=" -> (c) -> inlinePrim2(c, Ne::new);
+      case "<" -> (c) -> inlinePrim2(c, Lt::new);
+      case "<=" -> (c) -> inlinePrim2(c, Le::new);
+      case ">" -> (c) -> inlinePrim2(c, Gt::new);
+      case ">=" -> (c) -> inlinePrim2(c, Ge::new);
+      case "&" -> (c) -> inlinePrim2(c, And::new);
+      case "|" -> (c) -> inlinePrim2(c, Or::new);
+      case "!" -> (c) -> inlinePrim1(c, Not::new);
       case String s when MATH1_FUNS.contains(s) -> (c) -> inlineMath1(c, MATH1_FUNS.indexOf(s));
       case String s when rsession.isBuiltin(s) -> (c) -> inlineBuiltin(c, false);
       case String s when rsession.isSpecial(s) -> this::inlineSpecial;
