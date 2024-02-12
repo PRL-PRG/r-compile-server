@@ -324,6 +324,18 @@ function(x) for (i in x) if (i) break() else 1
                 """);
   }
 
+  // TODO: with / require
+
+  @Test
+  public void multiColon() {
+    assertBytecode(
+        """
+                        function() {
+                          list(compiler::cmpfun, compiler:::makeCenv)
+                        }
+                    """);
+  }
+
   private void assertBytecode(String code) {
     assertBytecode(code, 2);
   }

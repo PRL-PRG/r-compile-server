@@ -20,6 +20,10 @@ import org.prlprg.sexp.*;
 //   - especially the clumsy ListSXP
 
 // TODO: 11.4 Inlining simple .Internal functions
+// TODO: 12 The switch function
+// TODO: 13 Assignments expressions
+// TODO: 16 Improved subset and sub-assignment handling
+// TODO: simple interpreter for the constantFoldCode
 public class Compiler {
   private static final Set<String> MAYBE_NSE_SYMBOLS = Set.of("bquote");
   private static final Set<String> ALLOWED_INLINES =
@@ -420,7 +424,9 @@ public class Compiler {
       case ":" -> (c) -> inlinePrim2(c, Colon::new);
       case "seq_along" -> (c) -> inlinePrim1(c, SeqAlong::new);
       case "seq_len" -> (c) -> inlinePrim1(c, SeqLen::new);
-      case String s when MATH1_FUNS.contains(s) -> (c) -> inlineMath1(c, MATH1_FUNS.indexOf(s));
+      case "::", ":::" -> this::inlineMultiColon;
+      case "with", "require" -> this::compileSuppressingUndefined;
+        case String s when MATH1_FUNS.contains(s) -> (c) -> inlineMath1(c, MATH1_FUNS.indexOf(s));
       case String s when rsession.isBuiltin(s) -> (c) -> inlineBuiltin(c, false);
       case String s when rsession.isSpecial(s) -> this::inlineSpecial;
       default -> null;
@@ -1079,6 +1085,25 @@ public class Compiler {
     cb.addInstr(new DotCall(cb.addConst(call), call.args().size() - 1));
 
     checkTailCall();
+    return true;
+  }
+
+  private boolean inlineMultiColon(LangSXP call) {
+    if (!dotsOrMissing(call.args()) && call.args().size() == 2) {
+      if (call.arg(0).value() instanceof StrOrRegSymSXP s1 &&
+              call.arg(1).value() instanceof StrOrRegSymSXP s2) {
+        var args = SEXPs.list(SEXPs.string(s1.reifyString()), SEXPs.string(s2.reifyString()));
+        compileCallSymFun((RegSymSXP) call.fun(), args, call);
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  private boolean compileSuppressingUndefined(LangSXP call) {
+    // TODO: cntxt$suppressUndefined <- TRUE
+    compileCallSymFun((RegSymSXP) call.fun(), call.args(), call);
     return true;
   }
 
