@@ -2,6 +2,7 @@ package org.prlprg.bc;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -68,6 +69,17 @@ public class Compiler {
           "local",
           "return",
           "switch");
+
+  // one-parameter functions evaluated by the math1 function in arithmetic.c
+  // the order is important
+  private static final List<String> MATH1_FUNS = List.of(
+          "floor", "ceiling", "sign",
+          "expm1", "log1p",
+          "cos", "sin", "tan", "acos", "asin", "atan",
+          "cosh", "sinh", "tanh", "acosh", "asinh", "atanh",
+          "lgamma", "gamma", "digamma", "trigamma",
+          "cospi", "sinpi", "tanpi"
+  );
 
   private static final Set<String> FORBIDDEN_INLINES = Set.of("standardGeneric");
 
@@ -381,15 +393,10 @@ public class Compiler {
       case "exp" -> (c) -> inlinePrim1(c, Exp::new);
       case "sqrt" -> (c) -> inlinePrim1(c, Sqrt::new);
       case "log" -> this::inlineLog;
-      default -> {
-        if (rsession.isBuiltin(name)) {
-          yield (c) -> inlineBuiltin(c, false);
-        } else if (rsession.isSpecial(name)) {
-          yield this::inlineSpecial;
-        } else {
-          yield null;
-        }
-      }
+      case String s when MATH1_FUNS.contains(s) -> (c) -> inlineMath1(c, MATH1_FUNS.indexOf(s));
+      case String s when rsession.isBuiltin(s) -> (c) -> inlineBuiltin(c, false);
+      case String s when rsession.isSpecial(s) -> this::inlineSpecial;
+      default -> null;
     };
   }
 
@@ -976,6 +983,22 @@ public class Compiler {
       usingCtx(ctx.argContext(), () -> compile(call.arg(1).value()));
       cb.addInstr(new LogBase(idx));
     }
+
+    checkTailCall();
+    return true;
+  }
+
+  private boolean inlineMath1(LangSXP call, int idx) {
+    if (dotsOrMissing(call.args())) {
+        return inlineBuiltin(call, false);
+    }
+    if (call.args().size() != 1) {
+      // TODO: notifyWrongArgCount(e[[1]], cntxt, loc = cb$savecurloc())
+        return inlineBuiltin(call, false);
+    }
+
+    usingCtx(ctx.nonTailContext(), () -> compile(call.arg(0).value()));
+    cb.addInstr(new Math1(cb.addConst(call), idx));
 
     checkTailCall();
     return true;
