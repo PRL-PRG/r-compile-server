@@ -97,6 +97,9 @@ public class Compiler {
 
   private static final Set<String> ALLOWED_FOLDABLE_FUNS = Set.of();
 
+  // should match DOTCALL_MAX in eval.c
+  private static final int DOTCALL_MAX = 16;
+
   private final Bc.Builder cb = new Bc.Builder();
 
   private final RSession rsession;
@@ -413,6 +416,7 @@ public class Compiler {
       case "is.null" -> (c) -> inlineIsXyz(c, IsNull::new);
       case "is.object" -> (c) -> inlineIsXyz(c, IsObject::new);
       case "is.symbol" -> (c) -> inlineIsXyz(c, IsSymbol::new);
+      case ".Call" -> this::inlineDotCall;
       case String s when MATH1_FUNS.contains(s) -> (c) -> inlineMath1(c, MATH1_FUNS.indexOf(s));
       case String s when rsession.isBuiltin(s) -> (c) -> inlineBuiltin(c, false);
       case String s when rsession.isSpecial(s) -> this::inlineSpecial;
@@ -1056,6 +1060,21 @@ public class Compiler {
 
     usingCtx(ctx.argContext(), () -> compile(c.arg(0).value()));
     cb.addInstr(makeOp.get());
+    checkTailCall();
+    return true;
+  }
+
+  private boolean inlineDotCall(LangSXP call) {
+    if (dotsOrMissing(call.args()) ||
+            call.args().names().stream().anyMatch(Objects::nonNull) ||
+            call.args().isEmpty() || call.args().size() > DOTCALL_MAX) {
+      return inlineBuiltin(call, false);
+    }
+
+    usingCtx(ctx.nonTailContext(), () -> compile(call.arg(0).value()));
+    usingCtx(ctx.argContext(), () -> call.args().values(1).forEach(this::compile));
+    cb.addInstr(new DotCall(cb.addConst(call), call.args().size() - 1));
+
     checkTailCall();
     return true;
   }

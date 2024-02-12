@@ -303,6 +303,17 @@ function(x) for (i in x) if (i) break() else 1
                 """);
   }
 
+  @Test
+  public void inlineDotCall() {
+    assertBytecode(
+        """
+                    function(x) {
+                      .Call("bar")
+                      .Call("foo", x, 1, TRUE)
+                    }
+                """);
+  }
+
   private void assertBytecode(String code) {
     assertBytecode(code, 2);
   }
