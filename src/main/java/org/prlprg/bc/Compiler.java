@@ -19,6 +19,7 @@ import org.prlprg.sexp.*;
 // FIXME: update the SEXP API based on the experience with this code
 //   - especially the clumsy ListSXP
 
+// TODO: 11.4 Inlining simple .Internal functions
 public class Compiler {
   private static final Set<String> MAYBE_NSE_SYMBOLS = Set.of("bquote");
   private static final Set<String> ALLOWED_INLINES =
@@ -403,6 +404,15 @@ public class Compiler {
       case "|" -> (c) -> inlinePrim2(c, Or::new);
       case "!" -> (c) -> inlinePrim1(c, Not::new);
       case "$" -> this::inlineDollar;
+      case "is.character" -> (c) -> inlineIsXyz(c, IsCharacter::new);
+      case "is.complex" -> (c) -> inlineIsXyz(c, IsComplex::new);
+      case "is.double" -> (c) -> inlineIsXyz(c, IsDouble::new);
+      case "is.integer" -> (c) -> inlineIsXyz(c, IsInteger::new);
+      case "is.logical" -> (c) -> inlineIsXyz(c, IsLogical::new);
+      case "is.name" -> (c) -> inlineIsXyz(c, IsSymbol::new);
+      case "is.null" -> (c) -> inlineIsXyz(c, IsNull::new);
+      case "is.object" -> (c) -> inlineIsXyz(c, IsObject::new);
+      case "is.symbol" -> (c) -> inlineIsXyz(c, IsSymbol::new);
       case String s when MATH1_FUNS.contains(s) -> (c) -> inlineMath1(c, MATH1_FUNS.indexOf(s));
       case String s when rsession.isBuiltin(s) -> (c) -> inlineBuiltin(c, false);
       case String s when rsession.isSpecial(s) -> this::inlineSpecial;
@@ -1037,6 +1047,17 @@ public class Compiler {
     } else {
       return inlineSpecial(call);
     }
+  }
+
+  private boolean inlineIsXyz(LangSXP c, Supplier<BcInstr> makeOp) {
+    if (anyDots(c.args()) || c.args().size() != 1) {
+      return inlineBuiltin(c, false);
+    }
+
+    usingCtx(ctx.argContext(), () -> compile(c.arg(0).value()));
+    cb.addInstr(makeOp.get());
+    checkTailCall();
+    return true;
   }
 
   private void usingCtx(Context ctx, Runnable thunk) {

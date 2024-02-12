@@ -283,6 +283,26 @@ function(x) for (i in x) if (i) break() else 1
             """);
   }
 
+  @Test
+  public void inlineIsXYZ() {
+    assertBytecode(
+        """
+                    function(x) {
+                      list(
+                        is.character(x),
+                        is.complex(x),
+                        is.double(x),
+                        is.integer(x),
+                        is.logical(x),
+                        is.name(x),
+                        is.null(x),
+                        is.object(x),
+                        is.symbol(x)
+                      )
+                    }
+                """);
+  }
+
   private void assertBytecode(String code) {
     assertBytecode(code, 2);
   }
