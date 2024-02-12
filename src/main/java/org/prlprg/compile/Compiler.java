@@ -7,11 +7,17 @@ import org.prlprg.bc.Bc;
 import org.prlprg.bc.BcInstr;
 import org.prlprg.sexp.*;
 
+/**
+ * The GNU-R bytecode compiler reimplemented in Java.
+ *
+ * <p>This is <b>not</b> the PIR or native code compiler.
+ */
 public class Compiler {
   private static final Set<String> MAYBE_NSE_SYMBOLS = Set.of("bquote");
 
   private final Bc.Builder cb = new Bc.Builder();
 
+  /** Compile a function. */
   public static Bc compileFun(CloSXP source) {
     var body = source.body();
 
@@ -20,6 +26,7 @@ public class Compiler {
     return compile(body, SEXPs.EMPTY_ENV);
   }
 
+  /** TODO what does this method do? */
   public static Bc compile(SEXP expr, EnvSXP env) {
     // TODO: add local variables into the context environment?
     return compile(expr, new Context(true, true, env));

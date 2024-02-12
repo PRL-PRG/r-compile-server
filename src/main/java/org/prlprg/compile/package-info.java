@@ -1,4 +1,4 @@
-/** Compile GNU-R ASTs (S-expressions) into bytecode. */
+/** Compile SEXP ASTs into bytecode. */
 @ParametersAreNonnullByDefault
 @FieldsAreNonNullByDefault
 @ReturnTypesAreNonNullByDefault

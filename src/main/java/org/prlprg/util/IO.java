@@ -5,9 +5,11 @@ import java.io.InputStream;
 import java.io.PushbackInputStream;
 import java.util.zip.GZIPInputStream;
 
+/** IO utilities. */
 public final class IO {
   private IO() {}
 
+  /** Returns a gzip-decompressing wrapper if it's GZIP compressed, otherwise returns as-is. */
   public static InputStream maybeDecompress(InputStream input) throws IOException {
     final PushbackInputStream pb = new PushbackInputStream(input, 2);
     byte[] buff = pb.readNBytes(2);

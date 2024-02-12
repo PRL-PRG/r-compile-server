@@ -3,10 +3,13 @@ package org.prlprg.sexp;
 import javax.annotation.concurrent.Immutable;
 import org.prlprg.primitive.Names;
 
+/** AST function call ("language object") SEXP. */
 @Immutable
 public sealed interface LangSXP extends SymOrLangSXP {
+  /** The function being called. */
   SymOrLangSXP fun();
 
+  /** The function arguments (all ASTs). */
   ListSXP args();
 
   @Override

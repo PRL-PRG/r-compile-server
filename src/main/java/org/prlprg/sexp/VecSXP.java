@@ -3,6 +3,7 @@ package org.prlprg.sexp;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.UnmodifiableIterator;
 
+/** Generic vector SEXP = vector which contains SEXPs. */
 public sealed interface VecSXP extends VectorSXP<SEXP> {
   @Override
   default SEXPType type() {

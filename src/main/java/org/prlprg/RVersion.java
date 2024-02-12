@@ -12,6 +12,11 @@ public record RVersion(int major, int minor, int patch, @Nullable String suffix)
   /** The latest version we handle. */
   public static final RVersion LATEST_AWARE = new RVersion(4, 3, 2);
 
+  /**
+   * Parse a version number from a string.
+   *
+   * @throws IllegalArgumentException if the string is not a valid version number.
+   */
   public static RVersion parse(String textual) {
     var parts = textual.split("\\.");
 

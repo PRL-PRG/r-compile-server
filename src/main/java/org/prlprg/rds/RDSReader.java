@@ -19,6 +19,7 @@ import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.*;
 import org.prlprg.util.NotImplementedError;
 
+/** Deserializes R SEXPs from the RDS format. */
 public class RDSReader implements Closeable {
   private final RDSInputStream in;
   private final List<SEXP> refTable = new ArrayList<>(128);
@@ -30,17 +31,29 @@ public class RDSReader implements Closeable {
     this.in = new RDSInputStream(in);
   }
 
-  public static SEXP readStream(InputStream input) throws IOException {
+  /**
+   * Deserialize R SEXPs from a stream of data in the RDS format.
+   *
+   * @throws IOException if an I/O error occurs from the stream.
+   * @throws RDSException if the RDS data is malformed.
+   */
+  public static SEXP readStream(InputStream input) throws IOException, RDSException {
     try (var reader = new RDSReader(input)) {
       return reader.read();
     }
   }
 
-  public static SEXP readFile(Path path) throws IOException {
+  /**
+   * Deserialize R SEXPs from a {@code .rds} file.
+   *
+   * @throws IOException if an I/O error occurs from the stream.
+   * @throws RDSException if the RDS data is malformed.
+   */
+  public static SEXP readFile(Path path) throws IOException, RDSException {
     return readStream(Files.newInputStream(path));
   }
 
-  private void readHeader() throws IOException {
+  private void readHeader() throws IOException, RDSException {
     var type = in.readByte();
     if (type != 'X') {
       throw new RDSException("Unsupported type (possibly compressed)");
@@ -68,7 +81,7 @@ public class RDSReader implements Closeable {
     }
   }
 
-  public SEXP read() throws IOException {
+  private SEXP read() throws IOException, RDSException {
     readHeader();
     var sexp = readItem();
     if (!in.isAtEnd()) {
@@ -77,7 +90,7 @@ public class RDSReader implements Closeable {
     return sexp;
   }
 
-  private SEXP readItem() throws IOException {
+  private SEXP readItem() throws IOException, RDSException {
     var flags = readFlags();
 
     return switch (flags.getType()) {
@@ -121,7 +134,7 @@ public class RDSReader implements Closeable {
     };
   }
 
-  private ExprSXP readExpr() throws IOException {
+  private ExprSXP readExpr() throws IOException, RDSException {
     // ??? Should flags be used somewhere here? At least for sanity assertions?
     var length = in.readInt();
     var sexps = new ArrayList<SEXP>(length);
@@ -131,13 +144,13 @@ public class RDSReader implements Closeable {
     return SEXPs.expr(sexps);
   }
 
-  private BCodeSXP readByteCode() throws IOException {
+  private BCodeSXP readByteCode() throws IOException, RDSException {
     var length = in.readInt();
     var reps = new SEXP[length];
     return readByteCode1(reps);
   }
 
-  private BCodeSXP readByteCode1(SEXP[] reps) throws IOException {
+  private BCodeSXP readByteCode1(SEXP[] reps) throws IOException, RDSException {
     @SuppressWarnings("SwitchStatementWithTooFewBranches")
     var code =
         switch (readItem()) {
@@ -153,7 +166,7 @@ public class RDSReader implements Closeable {
     }
   }
 
-  private List<SEXP> readByteCodeConsts(SEXP[] reps) throws IOException {
+  private List<SEXP> readByteCodeConsts(SEXP[] reps) throws IOException, RDSException {
     var length = in.readInt();
     var consts = new ArrayList<SEXP>(length);
     for (int i = 0; i < length; i++) {
@@ -178,7 +191,7 @@ public class RDSReader implements Closeable {
     return consts;
   }
 
-  private SEXP readByteCodeLang(RDSItemType type, SEXP[] reps) throws IOException {
+  private SEXP readByteCodeLang(RDSItemType type, SEXP[] reps) throws IOException, RDSException {
     return switch (type) {
       case RDSItemType.Sexp s ->
           switch (s.sexp()) {
@@ -194,7 +207,7 @@ public class RDSReader implements Closeable {
     };
   }
 
-  private SEXP readByteCodeLang1(RDSItemType type, SEXP[] reps) throws IOException {
+  private SEXP readByteCodeLang1(RDSItemType type, SEXP[] reps) throws IOException, RDSException {
     var pos = -1;
     if (type == RDSItemType.Special.BCREPDEF) {
       pos = in.readInt();
@@ -268,7 +281,7 @@ public class RDSReader implements Closeable {
     return refTable.get(index - 1);
   }
 
-  private LangSXP readLang(Flags flags) throws IOException {
+  private LangSXP readLang(Flags flags) throws IOException, RDSException {
     var attributes = readAttributes(flags);
     // FIXME: not sure what it is good for
     readTag(flags);
@@ -282,7 +295,7 @@ public class RDSReader implements Closeable {
     return SEXPs.lang(fun, args, attributes);
   }
 
-  private String readChars() throws IOException {
+  private String readChars() throws IOException, RDSException {
     var flags = readFlags();
     if (!flags.getType().isSexp(SEXPType.CHAR)) {
       throw new RDSException("Expected CHAR");
@@ -295,7 +308,7 @@ public class RDSReader implements Closeable {
     }
   }
 
-  private StrSXP readStrs(Flags flags) throws IOException {
+  private StrSXP readStrs(Flags flags) throws IOException, RDSException {
     var length = in.readInt();
     var strings = ImmutableList.<String>builderWithExpectedSize(length);
 
@@ -307,7 +320,7 @@ public class RDSReader implements Closeable {
     return SEXPs.string(strings.build(), attributes);
   }
 
-  private LocalEnvSXP readEnv() throws IOException {
+  private LocalEnvSXP readEnv() throws IOException, RDSException {
     // ??? Should flags be used somewhere here? At least for sanity assertions?
     var item = RegEnvSXP.uninitialized();
     refTable.add(item);
@@ -332,7 +345,7 @@ public class RDSReader implements Closeable {
     return item;
   }
 
-  private VecSXP readVec(Flags flags) throws IOException {
+  private VecSXP readVec(Flags flags) throws IOException, RDSException {
     var length = in.readInt();
     var data = ImmutableList.<SEXP>builderWithExpectedSize(length);
     for (int i = 0; i < length; i++) {
@@ -342,7 +355,7 @@ public class RDSReader implements Closeable {
     return SEXPs.vec(data.build(), attributes);
   }
 
-  private LglSXP readLogicals(Flags flags) throws IOException {
+  private LglSXP readLogicals(Flags flags) throws IOException, RDSException {
     var length = in.readInt();
     var data = in.readInts(length);
     var attributes = readAttributes(flags);
@@ -351,21 +364,21 @@ public class RDSReader implements Closeable {
         attributes);
   }
 
-  private RealSXP readReals(Flags flags) throws IOException {
+  private RealSXP readReals(Flags flags) throws IOException, RDSException {
     var length = in.readInt();
     var data = in.readDoubles(length);
     var attributes = readAttributes(flags);
     return SEXPs.real(data, attributes);
   }
 
-  private IntSXP readInts(Flags flags) throws IOException {
+  private IntSXP readInts(Flags flags) throws IOException, RDSException {
     var length = in.readInt();
     var data = in.readInts(length);
     var attributes = readAttributes(flags);
     return SEXPs.integer(data, attributes);
   }
 
-  private ListSXP readList(Flags flags) throws IOException {
+  private ListSXP readList(Flags flags) throws IOException, RDSException {
     var data = ImmutableList.<TaggedElem>builder();
     Attributes attributes = null;
 
@@ -392,7 +405,7 @@ public class RDSReader implements Closeable {
     return SEXPs.list(data.build());
   }
 
-  private CloSXP readClosure(Flags flags) throws IOException {
+  private CloSXP readClosure(Flags flags) throws IOException, RDSException {
     var attributes = readAttributes(flags);
     if (!(readItem() instanceof EnvSXP env)) {
       throw new RDSException("Expected CLOENV to be environment");
@@ -405,7 +418,7 @@ public class RDSReader implements Closeable {
     return SEXPs.closure(formals, body, env, attributes);
   }
 
-  private @Nullable String readTag(Flags flags) throws IOException {
+  private @Nullable String readTag(Flags flags) throws IOException, RDSException {
     if (flags.hasTag()) {
       if (readItem() instanceof RegSymSXP s) {
         return s.name();
@@ -417,7 +430,7 @@ public class RDSReader implements Closeable {
     }
   }
 
-  private Attributes readAttributes(Flags flags) throws IOException {
+  private Attributes readAttributes(Flags flags) throws IOException, RDSException {
     if (flags.hasAttributes()) {
       return readAttributes();
     } else {
@@ -425,7 +438,7 @@ public class RDSReader implements Closeable {
     }
   }
 
-  private Attributes readAttributes() throws IOException {
+  private Attributes readAttributes() throws IOException, RDSException {
     if (readItem() instanceof ListSXP xs) {
       var attrs = new Attributes.Builder();
 

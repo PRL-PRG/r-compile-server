@@ -1,4 +1,4 @@
-/** Deserialize (and later serialize) S-expressions. */
+/** Deserialize (and later serialize) SEXPs. */
 @ParametersAreNonnullByDefault
 @FieldsAreNonNullByDefault
 @ReturnTypesAreNonNullByDefault
