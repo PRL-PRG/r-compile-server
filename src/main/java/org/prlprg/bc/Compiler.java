@@ -236,8 +236,15 @@ public class Compiler {
       case SpecialSymSXP fun ->
           throw new IllegalStateException("Trying to call special symbol: " + fun);
       case LangSXP fun -> {
-        // TODO: break / next
-        compileCallExprFun(fun, args, call);
+        if (fun.fun() instanceof RegSymSXP sym && LOOP_BREAK_FUNS.contains(sym.name())) {
+          // From the R source code:
+          //  ## **** this hack is needed for now because of the way the
+          //  ## **** parser handles break() and next() calls
+          // Consequently, the RDSReader returns a LangSXP(LangSXP(break/next, NULL), NULL) for break() and next() calls
+          compile(fun);
+        } else {
+          compileCallExprFun(fun, args, call);
+        }
       }
     }
 
@@ -358,6 +365,9 @@ public class Compiler {
       case ".Internal" -> this::inlineInternal;
       case "&&" -> (c) -> inlineLogicalAndOr(c, true);
       case "||" -> (c) -> inlineLogicalAndOr(c, false);
+      case "repeat" -> this::inlineRepeat;
+      case "break" -> (c) -> inlineBreakNext(c, false);
+      case "next" -> (c) -> inlineBreakNext(c, true);
       default -> {
         if (rsession.isBuiltin(name)) {
           yield (c) -> inlineBuiltin(c, false);
@@ -698,7 +708,7 @@ public class Compiler {
     var v = call.args().isEmpty() ? SEXPs.NULL : call.arg(0).value();
 
     usingCtx(ctx.nonTailContext(), () -> compile(v));
-    cb.addInstr(ctx.needReturnJump() ?new ReturnJmp() : new Return());
+    cb.addInstr(ctx.isReturnJump() ?new ReturnJmp() : new Return());
 
     return true;
   }
@@ -756,6 +766,55 @@ public class Compiler {
     checkTailCall();
 
     return true;
+  }
+
+  private boolean inlineRepeat(LangSXP call) {
+    var body = call.arg(0).value();
+    if (canSkipLoopContext(body, true)) {
+      compileRepeatBody(body);
+    } else {
+      usingCtx(ctx.returnJumpContext(), () -> {
+        var loopEnd = cb.makeLabel();
+        cb.addInstr(new StartLoopCntxt(false, loopEnd));
+        compileRepeatBody(body);
+        cb.patchLabel(loopEnd);
+        cb.addInstr(new EndLoopCntxt(false));
+      });
+    }
+
+    cb.addInstr(new LdNull());
+    if (ctx.isTailCall()) {
+      cb.addInstr(new Invisible());
+      cb.addInstr(new Return());
+    }
+
+    return true;
+  }
+
+  private void compileRepeatBody(SEXP body) {
+    var loopStart = cb.makeLabel();
+    var loopEnd = cb.makeLabel();
+    cb.patchLabel(loopStart);
+    usingCtx(ctx.loopContext(loopStart, loopEnd), () -> compile(body));
+    cb.addInstr(new Pop());
+    cb.addInstr(new Goto(loopStart));
+    cb.patchLabel(loopEnd);
+  }
+
+  private boolean inlineBreakNext(LangSXP call, boolean next) {
+    // Java's pattern matching is so pathetic that it is simply not worth it
+    if (ctx.loop() instanceof Loop.InLoop loop) {
+      if (loop.gotoOK()) {
+        cb.addInstr(new Goto(next ? loop.start() : loop.end()));
+        return true;
+      } else {
+        return inlineSpecial(call);
+      }
+    } else {
+      // TODO: notifyWrongBreakNext("break", cntxt, loc = cb$savecurloc())
+      //   or notifyWrongBreakNext("next", cntxt, loc = cb$savecurloc())
+      return inlineSpecial(call);
+    }
   }
 
   private void usingCtx(Context ctx, Runnable thunk) {
@@ -828,6 +887,39 @@ public class Compiler {
 
   private <R> R stop(String message, Loc loc) throws CompilerException {
     throw new CompilerException(message, loc);
+  }
+
+  private static final Set<String> LOOP_STOP_FUNS = Set.of("function", "for", "while", "repeat");
+  private static final Set<String> LOOP_TOP_FUNS = Set.of("(", "{", "if");
+  private static final Set<String> LOOP_BREAK_FUNS = Set.of("break", "next");
+  private static final Set<String> EVAL_FUNS = Set.of("eval", "evalq", "source");
+
+  private boolean canSkipLoopContext(SEXP body, boolean breakOK) {
+    if (body instanceof LangSXP l) {
+      if (l.fun() instanceof RegSymSXP s) {
+        var name = s.name();
+        if (!breakOK && LOOP_BREAK_FUNS.contains(name)) {
+          // FIXME: why don't we need to check if it is a base version?
+          //  GNUR does not do that, but:
+          //    > `break` <- function() print("b")
+          //    > i <- 0
+          //    > repeat({ i <<- i + 1; if (i == 10) break; })
+          //  I mean it will likely make the hell break loose if it is not a base version...
+          return false;
+        } else if (LOOP_STOP_FUNS.contains(name) && ctx.isBaseVersion(name)) {
+          return true;
+        } else if (EVAL_FUNS.contains(name)) {
+          // FIXME: again no check if it is a base version
+          return false;
+        } else if (LOOP_TOP_FUNS.contains(name) && ctx.isBaseVersion(name)) {
+          // recursively check the rest of the body
+          return l.args().values().stream().noneMatch(x -> !missing(x) && !canSkipLoopContext(x, false));
+        }
+      } else {
+        return l.asList().stream().noneMatch(x -> !missing(x) && !canSkipLoopContext(x, false));
+      }
+    }
+    return true;
   }
 
   private static boolean anyDots(ListSXP l) {

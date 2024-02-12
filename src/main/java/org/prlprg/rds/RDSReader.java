@@ -318,7 +318,7 @@ public class RDSReader implements Closeable {
   private LangSXP readLang(Flags flags) throws IOException {
     var attributes = readAttributes(flags);
     // FIXME: not sure what it is good for
-    readTag(flags);
+    var tag = readTag(flags);
 
     if (!(readItem() instanceof SymOrLangSXP fun)) {
       throw new RDSException("Expected symbol or language");

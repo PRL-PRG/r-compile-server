@@ -13,6 +13,7 @@ public class Context {
   private final boolean tailCall;
   private final boolean returnJump;
   private final EnvSXP environment;
+  private final Loop loop;
 
   /**
    * @param topLevel {@code true} for top level expressions, {@code false} otherwise (e.g.,
@@ -22,24 +23,26 @@ public class Context {
    *     is contained in a loop.
    * @param returnJump {@code true} indicated that the call to return needs {@code RETURNJMP}.
    * @param environment the compilation environment.
+   * @param loop
    */
-  Context(boolean topLevel, boolean tailCall, boolean returnJump, EnvSXP environment) {
+  Context(boolean topLevel, boolean tailCall, boolean returnJump, EnvSXP environment, Loop loop) {
     this.topLevel = topLevel;
     this.tailCall = tailCall;
     this.returnJump = returnJump;
     this.environment = environment;
+    this.loop = loop;
   }
 
   public static Context functionContext(CloSXP fun) {
     var env = new UserEnvSXP(fun.env());
-    var ctx = new Context(false, true, false, env);
+    var ctx = new Context(false, true, false, env, new Loop.NotInLoop());
 
     return ctx.functionContext(fun.formals(), fun.body());
   }
 
   public Context functionContext(ListSXP formals, SEXP body) {
     var env = new UserEnvSXP(environment);
-    var ctx = new Context(false, true, false, env);
+    var ctx = new Context(false, true, false, env, loop);
 
     formals.names().forEach(x -> env.set(x, SEXPs.UNBOUND_VALUE));
     for (var v : formals.values()) {
@@ -51,15 +54,32 @@ public class Context {
   }
 
   public Context nonTailContext() {
-    return new Context(topLevel, false, returnJump, environment);
+    return new Context(topLevel, false, returnJump, environment, loop);
+  }
+
+  public Context returnJumpContext() {
+    return new Context(topLevel, tailCall, true, environment, loop);
   }
 
   public Context promiseContext() {
-    // TODO: check loop?
     // The promise context also sets returnJump since a return call that is triggered by forcing a
     // promise
     // requires a longjmp to return from the appropriate function.
-    return new Context(false, true, true, environment);
+    return new Context(false, true, true, environment, loop.gotoNotOK());
+  }
+
+  public Context argContext() {
+    return new Context(false, false, returnJump, environment, loop.gotoNotOK());
+  }
+
+  public Context loopContext(BcLabel start, BcLabel end) {
+    var nctx = nonTailContext();
+    return new Context(
+        nctx.topLevel,
+        nctx.tailCall,
+        nctx.returnJump,
+        nctx.environment,
+        new Loop.InLoop(start, end, true));
   }
 
   public boolean isBaseVersion(String name) {
@@ -183,11 +203,11 @@ public class Context {
     return tailCall;
   }
 
-  public boolean needReturnJump() {
+  public boolean isReturnJump() {
     return returnJump;
   }
 
-  public Context argContext() {
-    return new Context(false, false, returnJump, environment);
+  public Loop loop() {
+    return loop;
   }
 }

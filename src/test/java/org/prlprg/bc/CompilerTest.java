@@ -164,6 +164,21 @@ function(x, y, z) x || y && z
 """);
   }
 
+  @Test
+  public void inlineRepeat() {
+    //    assertBytecode("""
+    //      function(x) repeat(x)
+    //    """);
+
+    assertBytecode("""
+      function(x, y) repeat({ if (x) break() else y })
+    """);
+
+    //    assertBytecode("""
+    //      function(x, y) repeat({ if (x) next() else y })
+    //    """);
+  }
+
   private void assertBytecode(String code) {
     assertBytecode(code, 2);
   }

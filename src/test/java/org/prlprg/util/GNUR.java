@@ -6,7 +6,6 @@ import org.prlprg.RSession;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.sexp.SEXP;
 
-// TODO: keep a session open
 public class GNUR {
   public static final String R_BIN = "R";
 
@@ -16,6 +15,7 @@ public class GNUR {
     this.rsession = rsession;
   }
 
+  // TODO: keep a session open - do not start a new R every time
   public SEXP eval(String source) {
     try {
       var sourceFile = File.createTempFile("RCS-test", ".R");

@@ -1,5 +1,6 @@
 package org.prlprg.sexp;
 
+import com.google.common.collect.ImmutableList;
 import javax.annotation.concurrent.Immutable;
 import org.prlprg.primitive.Names;
 
@@ -21,6 +22,8 @@ public sealed interface LangSXP extends SymOrLangSXP {
   LangSXP withAttributes(Attributes attributes);
 
   TaggedElem arg(int i);
+
+  ImmutableList<SEXP> asList();
 }
 
 record LangSXPImpl(SymOrLangSXP fun, ListSXP args, @Override Attributes attributes)
@@ -38,7 +41,7 @@ record LangSXPImpl(SymOrLangSXP fun, ListSXP args, @Override Attributes attribut
         return args.get(0) + " " + funName + " " + args.get(1);
       }
     }
-    return "" + fun() + args();
+    return fun().toString() + (args() instanceof NilSXP ? "()" : args().toString());
   }
 
   @Override
@@ -49,5 +52,10 @@ record LangSXPImpl(SymOrLangSXP fun, ListSXP args, @Override Attributes attribut
   @Override
   public TaggedElem arg(int i) {
     return args.get(i);
+  }
+
+  @Override
+  public ImmutableList<SEXP> asList() {
+    return new ImmutableList.Builder<SEXP>().add(fun).addAll(args.values()).build();
   }
 }
