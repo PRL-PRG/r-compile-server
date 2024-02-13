@@ -1,17 +1,39 @@
 package org.prlprg.sexp;
 
 import com.google.common.base.Objects;
+import com.google.common.collect.ImmutableList;
 import java.util.Optional;
 
 // TODO: move to SymSXP.java?
 /** Symbol which isn't "unbound value" or "missing arg" */
 public final class RegSymSXP implements SymSXP, StrOrRegSymSXP {
+  static final ImmutableList<String> LITERAL_NAMES =
+      ImmutableList.of("TRUE", "FALSE", "NULL", "NA", "Inf", "NaN");
+
   private final String name;
   private final boolean isEscaped;
 
+  /** Returns whether a symbol with the given name must be quoted in backticks. */
+  public static boolean isEscaped(String name) {
+    return LITERAL_NAMES.contains(name)
+        || name.chars().anyMatch(c -> !Character.isAlphabetic(c) && c != '.' && c != '_');
+  }
+
+  /**
+   * If the symbol with the given name must be quoted in backticks, returns it like that, otherwise
+   * as-is.
+   */
+  public static String escape(String name) {
+    return isEscaped(name) ? "`" + name.replace("`", "\\`") + "`" : name;
+  }
+
   RegSymSXP(String name) {
+    if (name.isEmpty()) {
+      // GNU-R would throw "Error: attempt to use zero-length variable name"
+      throw new IllegalArgumentException("Symbol name cannot be empty");
+    }
     this.name = name;
-    isEscaped = name.chars().anyMatch(c -> !Character.isAlphabetic(c) && c != '.' && c != '_');
+    isEscaped = isEscaped(name);
   }
 
   /** Returns the name of this symbol. */
@@ -30,7 +52,7 @@ public final class RegSymSXP implements SymSXP, StrOrRegSymSXP {
 
   @Override
   public String toString() {
-    return isEscaped ? "`" + name + "`" : name;
+    return isEscaped ? "`" + name.replace("`", "\\`") + "`" : name;
   }
 
   @Override

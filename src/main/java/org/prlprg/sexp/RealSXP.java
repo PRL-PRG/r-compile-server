@@ -18,7 +18,14 @@ public sealed interface RealSXP extends NumericSXP<Double>
   }
 
   @Override
-  Attributes attributes();
+  default boolean hasNaOrNaN() {
+    for (var real : this) {
+      if (Double.isNaN(real)) {
+        return true;
+      }
+    }
+    return false;
+  }
 
   @Override
   RealSXP withAttributes(Attributes attributes);

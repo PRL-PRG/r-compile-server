@@ -60,7 +60,14 @@ public class Context {
     var env = new UserEnvSXP(environment);
     var ctx = new Context(true, true, false, env, loop);
 
-    formals.names().forEach(x -> env.set(x, SEXPs.UNBOUND_VALUE));
+    formals
+        .names()
+        .forEach(
+            x ->
+                env.set(
+                    x.orElseThrow(
+                        () -> new IllegalStateException("unexpected formal without name")),
+                    SEXPs.UNBOUND_VALUE));
     for (var v : formals.values()) {
       ctx.findLocals(v).forEach(x -> env.set(x, SEXPs.UNBOUND_VALUE));
     }

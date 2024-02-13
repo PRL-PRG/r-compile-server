@@ -19,7 +19,7 @@ public final class UserEnvSXP extends AbstractEnvSXP implements EnvSXP {
 
   @Override
   public String toString() {
-    return "<environment: " + hashCode() + ">";
+    return "<environment: " + "@" + Integer.toString(hashCode(), 16) + ">";
   }
 
   @Override

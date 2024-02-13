@@ -8,6 +8,8 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
+import org.jetbrains.annotations.Unmodifiable;
+import org.prlprg.util.MapListView;
 
 /**
  * R "list". Confusingly, this is actually like <a href="https://www.lua.org/pil/2.5.html">Lua's
@@ -21,10 +23,13 @@ public sealed interface ListSXP extends ListOrVectorSXP<TaggedElem> permits NilS
   @Override
   ListSXP withAttributes(Attributes attributes);
 
+  @Unmodifiable
   List<SEXP> values();
 
+  @Unmodifiable
   List<SEXP> values(int fromIndex);
 
+  @Unmodifiable
   List<String> names();
 
   List<String> names(int fromIndex);
@@ -68,12 +73,12 @@ record ListSXPImpl(ImmutableList<TaggedElem> data, @Override Attributes attribut
   }
 
   @Override
-  public List<SEXP> values() {
-    return data.stream().map(TaggedElem::value).toList();
+  public @Unmodifiable List<SEXP> values() {
+    return new MapListView<>(data, TaggedElem::value);
   }
 
   @Override
-  public List<SEXP> values(int fromIndex) {
+  public @Unmodifiable List<SEXP> values(int fromIndex) {
     return values().subList(fromIndex, size());
   }
 

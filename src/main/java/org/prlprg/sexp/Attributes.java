@@ -19,7 +19,16 @@ public final class Attributes extends ForwardingMap<String, SEXP> {
     attrs = ImmutableMap.of();
   }
 
-  private Attributes(ImmutableMap<String, SEXP> attrs) {
+  public Attributes(Map<String, SEXP> attrs) {
+    this(ImmutableMap.copyOf(attrs));
+  }
+
+  public Attributes(ImmutableMap<String, SEXP> attrs) {
+    for (var name : attrs.keySet()) {
+      if (name.isEmpty()) {
+        throw new IllegalArgumentException("Attribute name cannot be empty");
+      }
+    }
     this.attrs = attrs;
   }
 

@@ -11,11 +11,16 @@ public sealed interface VectorSXP<T> extends ListOrVectorSXP<T>
         ScalarSXPImpl,
         ExprSXP,
         LglSXP,
-        NumericSXP,
+        PrimVectorSXP,
         StrSXP,
         VecSXP {
   @Override
   Attributes attributes();
+
+  /** Does the collection have exactly one element? */
+  default boolean isScalar() {
+    return size() == 1;
+  }
 
   @Override
   VectorSXP<T> withAttributes(Attributes attributes);

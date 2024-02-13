@@ -114,4 +114,29 @@ public enum SEXPType {
       default -> throw new IllegalArgumentException("Unknown SEXP type: " + i);
     };
   }
+
+  /** Is this a primitive vector type? */
+  public boolean isPrimitiveVector() {
+    return switch (this) {
+      case NIL,
+              LIST,
+              SYM,
+              LANG,
+              CLO,
+              PROM,
+              EXTPTR,
+              WEAKREF,
+              ENV,
+              SPECIAL,
+              BUILTIN,
+              S4,
+              BCODE,
+              DOT,
+              ANY,
+              VEC,
+              EXPR ->
+          false;
+      case CHAR, LGL, INT, REAL, CPLX, STR, RAW -> true;
+    };
+  }
 }
