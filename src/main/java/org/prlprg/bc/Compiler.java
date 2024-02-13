@@ -1,7 +1,6 @@
 package org.prlprg.bc;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
-
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -10,7 +9,6 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
-
 import org.prlprg.RSession;
 import org.prlprg.bc.BcInstr.*;
 import org.prlprg.sexp.*;
@@ -77,14 +75,32 @@ public class Compiler {
 
   // one-parameter functions evaluated by the math1 function in arithmetic.c
   // the order is important
-  private static final List<String> MATH1_FUNS = List.of(
-          "floor", "ceiling", "sign",
-          "expm1", "log1p",
-          "cos", "sin", "tan", "acos", "asin", "atan",
-          "cosh", "sinh", "tanh", "acosh", "asinh", "atanh",
-          "lgamma", "gamma", "digamma", "trigamma",
-          "cospi", "sinpi", "tanpi"
-  );
+  private static final List<String> MATH1_FUNS =
+      List.of(
+          "floor",
+          "ceiling",
+          "sign",
+          "expm1",
+          "log1p",
+          "cos",
+          "sin",
+          "tan",
+          "acos",
+          "asin",
+          "atan",
+          "cosh",
+          "sinh",
+          "tanh",
+          "acosh",
+          "asinh",
+          "atanh",
+          "lgamma",
+          "gamma",
+          "digamma",
+          "trigamma",
+          "cospi",
+          "sinpi",
+          "tanpi");
 
   private static final Set<String> FORBIDDEN_INLINES = Set.of("standardGeneric");
 
@@ -196,12 +212,9 @@ public class Compiler {
               switch (expr) {
                 case LangSXP e -> compileCall(e, true);
                 case RegSymSXP e -> compileSym(e, false);
-                case SpecialSymSXP e ->
-                    stop("unhandled special symbol: ");
-                case PromSXP ignored ->
-                    stop("cannot compile promise literals in code");
-                case BCodeSXP ignored ->
-                    stop("cannot compile byte code literals in code");
+                case SpecialSymSXP e -> stop("unhandled special symbol: ");
+                case PromSXP ignored -> stop("cannot compile promise literals in code");
+                case BCodeSXP ignored -> stop("cannot compile byte code literals in code");
                 default -> compileConst(expr);
               }
             });
@@ -263,7 +276,8 @@ public class Compiler {
           // From the R source code:
           //  ## **** this hack is needed for now because of the way the
           //  ## **** parser handles break() and next() calls
-          // Consequently, the RDSReader returns a LangSXP(LangSXP(break/next, NULL), NULL) for break() and next() calls
+          // Consequently, the RDSReader returns a LangSXP(LangSXP(break/next, NULL), NULL) for
+          // break() and next() calls
           compile(fun);
         } else {
           compileCallExprFun(fun, args, call);
@@ -426,7 +440,7 @@ public class Compiler {
       case "seq_len" -> (c) -> inlinePrim1(c, SeqLen::new);
       case "::", ":::" -> this::inlineMultiColon;
       case "with", "require" -> this::compileSuppressingUndefined;
-        case String s when MATH1_FUNS.contains(s) -> (c) -> inlineMath1(c, MATH1_FUNS.indexOf(s));
+      case String s when MATH1_FUNS.contains(s) -> (c) -> inlineMath1(c, MATH1_FUNS.indexOf(s));
       case String s when rsession.isBuiltin(s) -> (c) -> inlineBuiltin(c, false);
       case String s when rsession.isSpecial(s) -> this::inlineSpecial;
       default -> null;
@@ -467,8 +481,10 @@ public class Compiler {
     }
 
     if (guarded) {
-          var end = cb.makeLabel();
-          usingCtx(ctx.nonTailContext(), () -> {
+      var end = cb.makeLabel();
+      usingCtx(
+          ctx.nonTailContext(),
+          () -> {
             // The BASEGUARD checks the validity of the inline code, i.e. if what
             // was from base at compile time hasn't changed.
             // if the inlined code is not valid the guard instruction will evaluate the call in
@@ -482,9 +498,9 @@ public class Compiler {
               compileCall(call, false);
             }
           });
-          cb.patchLabel(end);
-          checkTailCall();
-          return true;
+      cb.patchLabel(end);
+      checkTailCall();
+      return true;
     } else {
       return inline.apply(call);
     }
@@ -693,27 +709,27 @@ public class Compiler {
       } else {
         switch (arg.value()) {
           case RegSymSXP sym ->
-            constantFold(arg.value()).ifPresentOrElse(
-                    this::compileConstArg,
-                    () -> {
-                      compileSym(sym, missingOK);
-                      cb.addInstr(new PushArg());
-                    }
-            );
-            case LangSXP call -> {
-              // FIXME: GNUR does:
-              //  cmp(a, cb, ncntxt)
-              //  which is weird since it says in the doc:
-              //  > ... Constant folding is needed here since it doesn’t go through cmp.
-              //  a possible reason why to go through cmp is to set location...
-              compileCall(call, true);
-              cb.addInstr(new PushArg());
-            }
-            default -> compileConstArg(arg.value());
+              constantFold(arg.value())
+                  .ifPresentOrElse(
+                      this::compileConstArg,
+                      () -> {
+                        compileSym(sym, missingOK);
+                        cb.addInstr(new PushArg());
+                      });
+          case LangSXP call -> {
+            // FIXME: GNUR does:
+            //  cmp(a, cb, ncntxt)
+            //  which is weird since it says in the doc:
+            //  > ... Constant folding is needed here since it doesn’t go through cmp.
+            //  a possible reason why to go through cmp is to set location...
+            compileCall(call, true);
+            cb.addInstr(new PushArg());
           }
-          compileTag(arg.tag());
+          default -> compileConstArg(arg.value());
         }
+        compileTag(arg.tag());
       }
+    }
   }
 
   private boolean inlineSpecial(LangSXP call) {
@@ -726,19 +742,23 @@ public class Compiler {
   private boolean inlineLocal(LangSXP call) {
     // From the R documentation:
     //
-    // > While local is currently implemented as a closure, because of its importance relative to local
-    // > variable determination it is a good idea to inline it as well. The current semantics are such that
+    // > While local is currently implemented as a closure, because of its importance relative to
+    // local
+    // > variable determination it is a good idea to inline it as well. The current semantics are
+    // such that
     // > the interpreter treats
     // >   local(expr)
     // > essentially the same as
     // >   (function() expr)()
 
     if (call.args().size() != 1) {
-        return false;
+      return false;
     }
 
-    var closure = SEXPs.lang(
-            SEXPs.lang(SEXPs.symbol("function"), SEXPs.list(SEXPs.NULL, call.arg(0).value())), SEXPs.list());
+    var closure =
+        SEXPs.lang(
+            SEXPs.lang(SEXPs.symbol("function"), SEXPs.list(SEXPs.NULL, call.arg(0).value())),
+            SEXPs.list());
     compile(closure);
     return true;
   }
@@ -746,13 +766,20 @@ public class Compiler {
   private boolean inlineReturn(LangSXP call) {
     // From the R documentation:
     //
-    // > A call to return causes a return from the associated function call, as determined by the lexical
-    // > context in which the return expression is defined. If the return is captured in a closure and is
-    // > executed within a callee then this requires a longjmp. A longjmp is also needed if the return call
-    // > occurs within a loop that is compiled to a separate code object to support a setjmp for break or
-    // > next calls. The RETURNJMP instruction is provided for this purpose. In all other cases an ordinary
-    // > RETURN instruction can be used. return calls with ..., which may be legal if ... contains only one
-    // > argument, or missing arguments or more than one argument, which will produce runtime errors,
+    // > A call to return causes a return from the associated function call, as determined by the
+    // lexical
+    // > context in which the return expression is defined. If the return is captured in a closure
+    // and is
+    // > executed within a callee then this requires a longjmp. A longjmp is also needed if the
+    // return call
+    // > occurs within a loop that is compiled to a separate code object to support a setjmp for
+    // break or
+    // > next calls. The RETURNJMP instruction is provided for this purpose. In all other cases an
+    // ordinary
+    // > RETURN instruction can be used. return calls with ..., which may be legal if ... contains
+    // only one
+    // > argument, or missing arguments or more than one argument, which will produce runtime
+    // errors,
     // > are compiled as generic SPECIAL calls.
     if (dotsOrMissing(call.args()) || call.args().size() > 1) {
       return inlineSpecial(call);
@@ -761,7 +788,7 @@ public class Compiler {
     var v = call.args().isEmpty() ? SEXPs.NULL : call.arg(0).value();
 
     usingCtx(ctx.nonTailContext(), () -> compile(v));
-    cb.addInstr(ctx.isReturnJump() ?new ReturnJmp() : new Return());
+    cb.addInstr(ctx.isReturnJump() ? new ReturnJmp() : new Return());
 
     return true;
   }
@@ -786,34 +813,34 @@ public class Compiler {
   /**
    * From the R documentation:
    *
-   * > In many languages it is possible to convert the expression a && b to an equivalent if expression
-   * > of the form
-   * >    if (a) { if (b) TRUE else FALSE }
-   * > Similarly, in these languages the expression a || b is equivalent to
-   * >    if (a) TRUE else if (b) TRUE else FALSE
-   * > Compilation of these expressions is thus reduced to compiling if expressions.
-   * > Unfortunately, because of the possibility of NA values, these equivalencies do not hold in R. In
-   * > R, NA || TRUE should evaluate to TRUE and NA && FALSE to FALSE. This is handled by introducing
-   * > special instructions AND1ST and AND2ND for && expressions and OR1ST and OR2ND for ||.
-   * > The code generator for && expressions generates code to evaluate the first argument and then
-   * > emits an AND1ST instruction. The AND1ST instruction has one operand, the label for the instruction
-   * > following code for the second argument. If the value on the stack produced by the first argument
-   * > is FALSE then AND1ST jumps to the label and skips evaluation of the second argument; the value
-   * > of the expression is FALSE. The code for the second argument is generated next, followed by an
-   * > AND2ND instruction. This removes the values of the two arguments to && from the stack and pushes
-   * > the value of the expression onto the stack. A RETURN instruction is generated if the && expression
-   * > was in tail position.
+   * <p>> In many languages it is possible to convert the expression a && b to an equivalent if
+   * expression > of the form > if (a) { if (b) TRUE else FALSE } > Similarly, in these languages
+   * the expression a || b is equivalent to > if (a) TRUE else if (b) TRUE else FALSE > Compilation
+   * of these expressions is thus reduced to compiling if expressions. > Unfortunately, because of
+   * the possibility of NA values, these equivalencies do not hold in R. In > R, NA || TRUE should
+   * evaluate to TRUE and NA && FALSE to FALSE. This is handled by introducing > special
+   * instructions AND1ST and AND2ND for && expressions and OR1ST and OR2ND for ||. > The code
+   * generator for && expressions generates code to evaluate the first argument and then > emits an
+   * AND1ST instruction. The AND1ST instruction has one operand, the label for the instruction >
+   * following code for the second argument. If the value on the stack produced by the first
+   * argument > is FALSE then AND1ST jumps to the label and skips evaluation of the second argument;
+   * the value > of the expression is FALSE. The code for the second argument is generated next,
+   * followed by an > AND2ND instruction. This removes the values of the two arguments to && from
+   * the stack and pushes > the value of the expression onto the stack. A RETURN instruction is
+   * generated if the && expression > was in tail position.
    */
   private boolean inlineLogicalAndOr(LangSXP call, boolean isAnd) {
     var callIdx = cb.addConst(call);
     var label = cb.makeLabel();
 
-    usingCtx(ctx.argContext(), () -> {
-      compile(call.arg(0).value());
-      cb.addInstr(isAnd ? new And1st(callIdx, label) : new Or1st(callIdx, label));
-      compile(call.arg(1).value());
-      cb.addInstr(isAnd ? new And2nd(callIdx) : new Or2nd(callIdx));
-    });
+    usingCtx(
+        ctx.argContext(),
+        () -> {
+          compile(call.arg(0).value());
+          cb.addInstr(isAnd ? new And1st(callIdx, label) : new Or1st(callIdx, label));
+          compile(call.arg(1).value());
+          cb.addInstr(isAnd ? new And2nd(callIdx) : new Or2nd(callIdx));
+        });
 
     cb.patchLabel(label);
     checkTailCall();
@@ -830,13 +857,15 @@ public class Compiler {
     if (canSkipLoopContext(body, true)) {
       cmpBody.accept(body);
     } else {
-      usingCtx(ctx.returnJumpContext(), () -> {
-        var endLabel = cb.makeLabel();
-        cb.addInstr(new StartLoopCntxt(false, endLabel));
-        cmpBody.accept(body);
-        cb.patchLabel(endLabel);
-        cb.addInstr(new EndLoopCntxt(false));
-      });
+      usingCtx(
+          ctx.returnJumpContext(),
+          () -> {
+            var endLabel = cb.makeLabel();
+            cb.addInstr(new StartLoopCntxt(false, endLabel));
+            cmpBody.accept(body);
+            cb.patchLabel(endLabel);
+            cb.addInstr(new EndLoopCntxt(false));
+          });
     }
 
     cb.addInstr(new LdNull());
@@ -885,13 +914,15 @@ public class Compiler {
     var startLabel = cb.makeLabel();
     var endLabel = cb.makeLabel();
     cb.patchLabel(startLabel);
-    usingCtx(ctx.loopContext(startLabel, endLabel), () -> {
-      compile(test);
-      cb.addInstr(new BrIfNot(cb.addConst(call), endLabel));
-      compile(body);
-      cb.addInstr(new Pop());
-      cb.addInstr(new Goto(startLabel));
-    });
+    usingCtx(
+        ctx.loopContext(startLabel, endLabel),
+        () -> {
+          compile(test);
+          cb.addInstr(new BrIfNot(cb.addConst(call), endLabel));
+          compile(body);
+          cb.addInstr(new Pop());
+          cb.addInstr(new Goto(startLabel));
+        });
     cb.patchLabel(endLabel);
   }
 
@@ -911,16 +942,18 @@ public class Compiler {
     if (canSkipLoopContext(body, true)) {
       compileForBody(call, body, loopSym);
     } else {
-      usingCtx(ctx.returnJumpContext(), () -> {
-        var startLabel = cb.makeLabel();
-        var endLabel = cb.makeLabel();
-        cb.addInstr(new StartFor(cb.addConst(call), cb.addConst(loopSym), startLabel));
-        cb.patchLabel(startLabel);
-        cb.addInstr(new StartLoopCntxt(true, endLabel));
-        compileForBody(call, body, null);
-        cb.patchLabel(endLabel);
-        cb.addInstr(new EndLoopCntxt(true));
-      });
+      usingCtx(
+          ctx.returnJumpContext(),
+          () -> {
+            var startLabel = cb.makeLabel();
+            var endLabel = cb.makeLabel();
+            cb.addInstr(new StartFor(cb.addConst(call), cb.addConst(loopSym), startLabel));
+            cb.patchLabel(startLabel);
+            cb.addInstr(new StartLoopCntxt(true, endLabel));
+            compileForBody(call, body, null);
+            cb.patchLabel(endLabel);
+            cb.addInstr(new EndLoopCntxt(true));
+          });
     }
 
     cb.addInstr(new EndFor());
@@ -985,15 +1018,18 @@ public class Compiler {
       return inlineBuiltin(call, false);
     }
 
-    usingCtx(ctx.nonTailContext(), () -> {
-      compile(call.arg(0).value());
+    usingCtx(
+        ctx.nonTailContext(),
+        () -> {
+          compile(call.arg(0).value());
 
-      // From the R documentation:
-      // > the second argument has to
-      // > be compiled with an argument context since the stack already has the value of the first argument
-      // > on it and that would need to be popped before a jump.
-      usingCtx(ctx.argContext(), () -> compile(call.arg(1).value()));
-    });
+          // From the R documentation:
+          // > the second argument has to
+          // > be compiled with an argument context since the stack already has the value of the
+          // first argument
+          // > on it and that would need to be popped before a jump.
+          usingCtx(ctx.argContext(), () -> compile(call.arg(1).value()));
+        });
 
     cb.addInstr(makeOp.apply(cb.addConst(call)));
     checkTailCall();
@@ -1002,9 +1038,10 @@ public class Compiler {
   }
 
   private boolean inlineLog(LangSXP call) {
-    if (dotsOrMissing(call.args()) ||
-            call.args().names().stream().anyMatch(Objects::nonNull) ||
-            call.args().isEmpty() || call.args().size() > 2) {
+    if (dotsOrMissing(call.args())
+        || call.args().names().stream().anyMatch(Objects::nonNull)
+        || call.args().isEmpty()
+        || call.args().size() > 2) {
       return inlineBuiltin(call, false);
     }
 
@@ -1023,11 +1060,11 @@ public class Compiler {
 
   private boolean inlineMath1(LangSXP call, int idx) {
     if (dotsOrMissing(call.args())) {
-        return inlineBuiltin(call, false);
+      return inlineBuiltin(call, false);
     }
     if (call.args().size() != 1) {
       // TODO: notifyWrongArgCount(e[[1]], cntxt, loc = cb$savecurloc())
-        return inlineBuiltin(call, false);
+      return inlineBuiltin(call, false);
     }
 
     usingCtx(ctx.nonTailContext(), () -> compile(call.arg(0).value()));
@@ -1074,9 +1111,10 @@ public class Compiler {
   }
 
   private boolean inlineDotCall(LangSXP call) {
-    if (dotsOrMissing(call.args()) ||
-            call.args().names().stream().anyMatch(Objects::nonNull) ||
-            call.args().isEmpty() || call.args().size() > DOTCALL_MAX) {
+    if (dotsOrMissing(call.args())
+        || call.args().names().stream().anyMatch(Objects::nonNull)
+        || call.args().isEmpty()
+        || call.args().size() > DOTCALL_MAX) {
       return inlineBuiltin(call, false);
     }
 
@@ -1092,17 +1130,19 @@ public class Compiler {
     if (!dotsOrMissing(call.args()) && call.args().size() == 2) {
 
       // FIXME: ugly
-      String s1 = switch(call.arg(0).value()) {
-        case StrSXP s when s.size() == 1 -> s.get(0);
-        case RegSymSXP s -> s.name();
-        default -> null;
-      };
+      String s1 =
+          switch (call.arg(0).value()) {
+            case StrSXP s when s.size() == 1 -> s.get(0);
+            case RegSymSXP s -> s.name();
+            default -> null;
+          };
 
-      String s2 = switch(call.arg(1).value()) {
-        case StrSXP s when s.size() == 1 -> s.get(0);
-        case RegSymSXP s -> s.name();
-        default -> null;
-      };
+      String s2 =
+          switch (call.arg(1).value()) {
+            case StrSXP s when s.size() == 1 -> s.get(0);
+            case RegSymSXP s -> s.name();
+            default -> null;
+          };
 
       if (s1 == null || s2 == null) {
         return false;
@@ -1218,13 +1258,16 @@ public class Compiler {
 
           // From R documentation:
           // > Loops that include a call to eval (or evalq, source) are compiled with
-          // > context to support a programming pattern present e.g. in package Rmpi: a server application is
-          // > implemented using an infinite loop, which evaluates de-serialized code received from the client; the
+          // > context to support a programming pattern present e.g. in package Rmpi: a server
+          // application is
+          // > implemented using an infinite loop, which evaluates de-serialized code received from
+          // the client; the
           // > server shuts down when it receives a serialized version of break.
           return false;
         } else if (LOOP_TOP_FUNS.contains(name) && ctx.isBaseVersion(name)) {
           // recursively check the rest of the body
-          return l.args().values().stream().noneMatch(x -> !missing(x) && !canSkipLoopContext(x, false));
+          return l.args().values().stream()
+              .noneMatch(x -> !missing(x) && !canSkipLoopContext(x, false));
         }
       } else {
         return l.asList().stream().noneMatch(x -> !missing(x) && !canSkipLoopContext(x, false));
