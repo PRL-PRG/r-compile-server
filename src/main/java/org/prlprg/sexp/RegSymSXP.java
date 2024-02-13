@@ -2,6 +2,7 @@ package org.prlprg.sexp;
 
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableList;
+import java.util.Optional;
 
 /** Symbol which isn't "unbound value" or "missing arg" */
 public final class RegSymSXP implements SymSXP, StrOrRegSymSXP {
@@ -25,6 +26,10 @@ public final class RegSymSXP implements SymSXP, StrOrRegSymSXP {
   /** Returns the name of this symbol. */
   public String name() {
     return name;
+  }
+
+  public Optional<String> reifyString() {
+    return Optional.of(name);
   }
 
   /** Whether this is a double-dot symbol ({@code ..0}, {@code ..1}, ...). */

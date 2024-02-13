@@ -103,30 +103,28 @@ public class Context {
     // the code is following compiler:::findLocals1 from R
     while (!todo.isEmpty()) {
       var elem = todo.removeFirst();
-      if (elem instanceof LangSXP l && l.fun() instanceof RegSymSXP s) {
+      if (elem instanceof LangSXP l && l.fun() instanceof RegSymSXP fun) {
+        var args = l.args().values();
         var local =
-            switch (s.name()) {
+            switch (fun.name()) {
               case "=", "<-" -> {
-                var args = l.args().values();
                 todo.addAll(args.subList(1, args.size()));
                 yield getAssignedVar(l);
               }
               case "for" -> {
-                var args = l.args().values();
                 todo.addAll(args.subList(1, args.size()));
 
-                var sym = (RegSymSXP) l.arg(0).value();
+                var sym = (RegSymSXP) args.getFirst();
                 yield Optional.of(sym.name());
               }
               case "assign", "delayedAssign" -> {
                 // The variable in assign and delayedAssign expressions is considered
                 // local if it is an explicit
                 // character string and there is no environment argument.
-                var args = l.args().values();
                 todo.addAll(args.subList(1, args.size()));
 
                 if (args.size() == 2 && args.getFirst() instanceof StrOrRegSymSXP v) {
-                  yield Optional.of(v.reifyString());
+                  yield v.reifyString();
                 } else {
                   yield Optional.<String>empty();
                 }
@@ -142,27 +140,26 @@ public class Context {
               case "~", "expression", "quote" -> {
                 // they do not evaluate their arguments and so do not contribute new local
                 // variables.
-                if (shadowed.contains(s.name()) || locals.contains(s.name())) {
-                  todo.addAll(l.args().values());
+                if (shadowed.contains(fun.name()) || locals.contains(fun.name())) {
+                  todo.addAll(args);
                 }
                 yield Optional.<String>empty();
               }
               case "local" -> {
-
                 // local calls without an environment argument create a new environment
                 // for evaluating their expression and do not add new local variables.
                 // If an environment argument is present then this might be the current
                 // environment and so assignments in the expression are considered to
                 // create possible local variables.
-                if (shadowed.contains(s.name())
-                    || locals.contains(s.name())
-                    || l.args().size() != 1) {
-                  todo.addAll(l.args().values());
+                if (shadowed.contains(fun.name())
+                    || locals.contains(fun.name())
+                    || args.size() != 1) {
+                  todo.addAll(args);
                 }
                 yield Optional.<String>empty();
               }
               default -> {
-                todo.addAll(l.args().values());
+                todo.addAll(args);
                 yield Optional.<String>empty();
               }
             };
@@ -180,7 +177,7 @@ public class Context {
     if (v == SEXPs.MISSING_ARG) {
       throw new CompilerException("Bad assignment: " + l);
     } else if (v instanceof StrOrRegSymSXP s) {
-      return Optional.of(s.reifyString());
+      return s.reifyString();
     } else {
       if (l.args().isEmpty()) {
         throw new CompilerException("Bad assignment: " + l);
@@ -190,7 +187,7 @@ public class Context {
           return getAssignedVar(ll);
         }
         case StrOrRegSymSXP s -> {
-          return Optional.of(s.reifyString());
+          return s.reifyString();
         }
         default -> {
           throw new CompilerException("Bad assignment: " + l);

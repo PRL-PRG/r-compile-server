@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import java.util.Objects;
 import org.junit.jupiter.api.Test;
-import org.prlprg.RPlatform;
 import org.prlprg.RSession;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
@@ -27,12 +26,12 @@ public class RDSReaderTest implements Tests {
 
     if (sexp instanceof IntSXP ints) {
       assertEquals(6, ints.size());
-      assertEquals(-RPlatform.INT_MAX, ints.get(0));
+      assertEquals(Constants.INT_MIN, ints.get(0));
       assertEquals(-1, ints.get(1));
       assertEquals(0, ints.get(2));
       assertEquals(Constants.NA_INT, ints.get(3));
       assertEquals(1, ints.get(4));
-      assertEquals(RPlatform.INT_MAX, ints.get(5));
+      assertEquals(Integer.MAX_VALUE, ints.get(5));
     } else {
       fail("Expected IntSXP");
     }

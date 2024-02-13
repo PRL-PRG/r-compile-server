@@ -1090,12 +1090,27 @@ public class Compiler {
 
   private boolean inlineMultiColon(LangSXP call) {
     if (!dotsOrMissing(call.args()) && call.args().size() == 2) {
-      if (call.arg(0).value() instanceof StrOrRegSymSXP s1 &&
-              call.arg(1).value() instanceof StrOrRegSymSXP s2) {
-        var args = SEXPs.list(SEXPs.string(s1.reifyString()), SEXPs.string(s2.reifyString()));
-        compileCallSymFun((RegSymSXP) call.fun(), args, call);
-        return true;
+
+      // FIXME: ugly
+      String s1 = switch(call.arg(0).value()) {
+        case StrSXP s when s.size() == 1 -> s.get(0);
+        case RegSymSXP s -> s.name();
+        default -> null;
+      };
+
+      String s2 = switch(call.arg(1).value()) {
+        case StrSXP s when s.size() == 1 -> s.get(0);
+        case RegSymSXP s -> s.name();
+        default -> null;
+      };
+
+      if (s1 == null || s2 == null) {
+        return false;
       }
+
+      var args = SEXPs.list(SEXPs.string(s1), SEXPs.string(s2));
+      compileCallSymFun((RegSymSXP) call.fun(), args, call);
+      return true;
     }
 
     return false;
