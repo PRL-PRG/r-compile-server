@@ -1,26 +1,35 @@
 package org.prlprg.sexp;
 
-public final class PromSXP implements SEXP {
-  private final SEXP expr;
-  private final SEXP val;
-  private final EnvSXP env;
+import javax.annotation.Nullable;
 
-  public PromSXP(SEXP expr, SEXP val, EnvSXP env) {
-    this.expr = expr;
-    this.val = val;
-    this.env = env;
+public record PromSXP(SEXP expr, SEXP val, EnvSXP env) implements SEXP {
+  public PromSXP {
+    if (val instanceof PromSXP) {
+      throw new IllegalArgumentException("Promises cannot be nested");
+    }
   }
 
-  public SEXP getExpr() {
-    return expr;
+  /** Returns the value if evaluated, otherwise {@code null}. */
+  public @Nullable SEXP boundVal() {
+    return val == SEXPs.UNBOUND_VALUE ? null : val;
   }
 
-  public SEXP getVal() {
-    return val;
+  /**
+   * Whether the promise will run code when forced. Otherwise, its value is already computed.
+   *
+   * <p>This is the opposite of {@link #isEvaluated()}.
+   */
+  public boolean isLazy() {
+    return val == SEXPs.UNBOUND_VALUE;
   }
 
-  public EnvSXP getEnv() {
-    return env;
+  /**
+   * Whether the promise's value is already computed.
+   *
+   * <p>This is the opposite of {@link #isLazy()}.
+   */
+  public boolean isEvaluated() {
+    return val != SEXPs.UNBOUND_VALUE;
   }
 
   @Override

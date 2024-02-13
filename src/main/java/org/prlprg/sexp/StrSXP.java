@@ -9,7 +9,7 @@ import javax.annotation.concurrent.Immutable;
 
 /** String vector SEXP. */
 @Immutable
-public sealed interface StrSXP extends VectorSXP<String>, StrOrRegSymSXP
+public sealed interface StrSXP extends PrimVectorSXP<String>, StrOrRegSymSXP
     permits EmptyStrSXPImpl, ScalarStrSXP, StrSXPImpl {
   @Override
   default SEXPType type() {
@@ -22,7 +22,14 @@ public sealed interface StrSXP extends VectorSXP<String>, StrOrRegSymSXP
   }
 
   @Override
-  Attributes attributes();
+  default boolean hasNaOrNaN() {
+    for (var string : this) {
+      if (Constants.isNaString(string)) {
+        return true;
+      }
+    }
+    return false;
+  }
 
   @Override
   StrSXP withAttributes(Attributes attributes);

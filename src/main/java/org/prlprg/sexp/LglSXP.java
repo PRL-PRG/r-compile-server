@@ -7,7 +7,7 @@ import org.prlprg.primitive.Logical;
 
 /** Logical vector SEXP. */
 @Immutable
-public sealed interface LglSXP extends VectorSXP<Logical>
+public sealed interface LglSXP extends PrimVectorSXP<Logical>
     permits EmptyLglSXPImpl, LglSXPImpl, ScalarLglSXP {
   @Override
   default SEXPType type() {
@@ -15,7 +15,14 @@ public sealed interface LglSXP extends VectorSXP<Logical>
   }
 
   @Override
-  Attributes attributes();
+  default boolean hasNaOrNaN() {
+    for (var logical : this) {
+      if (logical == Logical.NA) {
+        return true;
+      }
+    }
+    return false;
+  }
 
   @Override
   LglSXP withAttributes(Attributes attributes);

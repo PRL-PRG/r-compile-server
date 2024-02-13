@@ -12,7 +12,7 @@ import org.prlprg.primitive.Complex;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
 
-/** All global SEXPs and methods to create SEXPs are here so they're easy to find. */
+/** All global {@link SEXP}s and methods to create SEXPs are here so they're easy to find. */
 @SuppressWarnings("MissingJavadoc")
 public final class SEXPs {
   // region constants
@@ -43,9 +43,7 @@ public final class SEXPs {
   static {
     Set.of("TRUE", "FALSE", "NULL", "NA", "Inf", "NaN")
         .forEach(
-            x -> {
-              SYMBOL_POOL.put(x, new RegSymSXP(x));
-            });
+            x -> SYMBOL_POOL.put(x, new RegSymSXP(x)));
   }
 
   public static final EmptyEnvSXP EMPTY_ENV = EmptyEnvSXP.INSTANCE;
@@ -406,7 +404,7 @@ public final class SEXPs {
             ? ""
             : "\n  | "
                 + attributes.entrySet().stream()
-                    .map(e -> e.getKey() + " = " + e.getValue())
+                    .map(e -> RegSymSXP.escape(e.getKey()) + " = " + e.getValue())
                     .collect(Collectors.joining("\n  , ")))
         + ">";
   }

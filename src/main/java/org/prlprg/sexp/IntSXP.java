@@ -3,6 +3,7 @@ package org.prlprg.sexp;
 import com.google.common.primitives.ImmutableIntArray;
 import java.util.PrimitiveIterator;
 import javax.annotation.concurrent.Immutable;
+import org.prlprg.primitive.Constants;
 
 /** Integer vector SEXP. */
 @Immutable
@@ -17,6 +18,16 @@ public sealed interface IntSXP extends NumericSXP<Integer>
   @Override
   default SEXPType type() {
     return SEXPType.INT;
+  }
+
+  @Override
+  default boolean hasNaOrNaN() {
+    for (var integer : this) {
+      if (integer == Constants.NA_INT) {
+        return true;
+      }
+    }
+    return false;
   }
 
   @Override

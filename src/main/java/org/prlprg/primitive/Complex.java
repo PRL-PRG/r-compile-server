@@ -50,4 +50,9 @@ public record Complex(double real, double imag) {
   public Complex minus() {
     return new Complex(-real, -imag);
   }
+
+  /** Is either the real or imaginary part NA or NaN? */
+  public boolean isNaOrNaN() {
+    return Double.isNaN(real) || Double.isNaN(imaginary);
+  }
 }

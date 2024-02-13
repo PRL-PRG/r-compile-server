@@ -38,11 +38,17 @@ public sealed interface SEXP
   Class<? extends SEXP> getCanonicalType();
 
   /**
-   * @return {@code null} if the SEXP doesn't support attributes ({@link #withAttributes} throws an
-   *     exception) and {@link Attributes.NONE} if it does but there are none.
+   * @return {@code null} if the SEXP type doesn't support attributes ({@link #withAttributes}
+   *     throws an exception) and {@link Attributes.NONE} if it does but there are none.
    */
   default @Nullable Attributes attributes() {
     return null;
+  }
+
+  /** Whether the SEXP type supports attributes and this SEXP has any. */
+  default boolean hasAttributes() {
+    var attributes = attributes();
+    return attributes != null && !attributes.isEmpty();
   }
 
   /**
