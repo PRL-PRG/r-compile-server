@@ -5,20 +5,20 @@ import com.google.common.collect.UnmodifiableIterator;
 import javax.annotation.concurrent.Immutable;
 import org.prlprg.primitive.Complex;
 
+/** Complex vector SEXP. */
 @Immutable
-public sealed interface ComplexSXP extends VectorSXP<Complex> {
+public sealed interface ComplexSXP extends VectorSXP<Complex>
+    permits ComplexSXPImpl, EmptyComplexSXPImpl, SimpleComplexSXP {
   @Override
   default SEXPType type() {
     return SEXPType.CPLX;
   }
 
   @Override
-  Attributes attributes();
-
-  @Override
   ComplexSXP withAttributes(Attributes attributes);
 }
 
+/** Complex vector which doesn't fit any of the more specific subclasses. */
 record ComplexSXPImpl(ImmutableList<Complex> data, @Override Attributes attributes)
     implements ComplexSXP {
   @Override
@@ -47,17 +47,7 @@ record ComplexSXPImpl(ImmutableList<Complex> data, @Override Attributes attribut
   }
 }
 
-final class SimpleComplexSXPImpl extends SimpleScalarSXPImpl<Complex> implements ComplexSXP {
-  SimpleComplexSXPImpl(Complex data) {
-    super(data);
-  }
-
-  @Override
-  public ComplexSXP withAttributes(Attributes attributes) {
-    return SEXPs.complex(data, attributes);
-  }
-}
-
+/** Empty complex vector with no ALTREP, ATTRIB, or OBJECT. */
 final class EmptyComplexSXPImpl extends EmptyVectorSXPImpl<Complex> implements ComplexSXP {
   static final EmptyComplexSXPImpl INSTANCE = new EmptyComplexSXPImpl();
 

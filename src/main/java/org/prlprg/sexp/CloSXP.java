@@ -2,11 +2,15 @@ package org.prlprg.sexp;
 
 import javax.annotation.Nullable;
 
+/** Closure SEXP. */
 public sealed interface CloSXP extends SEXP {
+  /** The argument names and default values. */
   ListSXP formals();
 
+  /** The closure body. */
   SEXP body();
 
+  /** The environment where the closure was created. */
   EnvSXP env();
 
   @Override

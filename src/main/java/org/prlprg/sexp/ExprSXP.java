@@ -17,9 +17,6 @@ public sealed interface ExprSXP extends VectorSXP<SEXP> {
   }
 
   @Override
-  Attributes attributes();
-
-  @Override
   ExprSXP withAttributes(Attributes attributes);
 }
 

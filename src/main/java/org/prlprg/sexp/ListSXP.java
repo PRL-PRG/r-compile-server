@@ -5,7 +5,22 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * R "list". Confusingly, this is actually like <a href="https://www.lua.org/pil/2.5.html">Lua's
+ * table</a> because each element can have an optional name (still ordered and have indices).
+ * Otherwise, it's the same as a generic vector in that its elements are {@link SEXP}s.
+ *
+ * @implNote In GNU-R this is represented as a linked list, but we internally use an array-list
+ *     because it's more efficient.
+ */
 public sealed interface ListSXP extends ListOrVectorSXP<TaggedElem> permits NilSXP, ListSXPImpl {
+  /**
+   * Flatten {@code src} while adding its elements to {@code target}. Ex:
+   *
+   * <pre>
+   *   b = []; flatten([1, [2, 3], 4], b) ==> b = [1, 2, 3, 4]
+   * </pre>
+   */
   static void flatten(ListSXP src, ImmutableList.Builder<TaggedElem> target) {
     for (var i : src) {
       if (i.value() instanceof ListSXP lst) {

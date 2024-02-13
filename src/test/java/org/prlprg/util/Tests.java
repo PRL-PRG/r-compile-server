@@ -117,7 +117,7 @@ class TestsPrivate {
       System.err.println("Can't infer snapshot resources root, so we'll use a temporary directory");
       return Files.createTempDirectory(".snapshots");
     }
-    return basePath.getParent().resolve(".snapshots");
+    return basePath.getParent().resolve("src/test/snapshots");
   }
 
   private TestsPrivate() {}

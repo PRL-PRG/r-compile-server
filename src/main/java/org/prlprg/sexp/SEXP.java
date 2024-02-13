@@ -2,8 +2,20 @@ package org.prlprg.sexp;
 
 import javax.annotation.Nullable;
 
+/**
+ * R runtime object: every value, expression, AST node, etc. in R's runtime is an SEXP.
+ *
+ * <p>I believe the name comes from <a
+ * href="https://en.wikipedia.org/wiki/S_expression">S-expressions</a>, but confusingly I also
+ * suspect GNU-R SEXPs aren't actually S-expressions.
+ */
 public sealed interface SEXP
-    permits StrOrRegSymSXP, SymOrLangSXP, ListOrVectorSXP, CloSXP, EnvSXP, BCodeSXP, PromSXP {
+    permits StrOrRegSymSXP, SymOrLangSXP, ListOrVectorSXP, CloSXP, EnvSXP, BCodeSXP {
+  /**
+   * SEXPTYPE. It's important to distinguish these from the SEXP's class, because there's a class
+   * for every type but not vice versa due to subclasses (e.g. simple-scalar ints have the same
+   * {@link SEXPType} as any other int vector).
+   */
   SEXPType type();
 
   /**

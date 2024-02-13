@@ -12,6 +12,7 @@ import javax.annotation.concurrent.Immutable;
 public final class Attributes extends ForwardingMap<String, SEXP> {
   private final ImmutableMap<String, SEXP> attrs;
 
+  @SuppressWarnings("MissingJavadoc")
   public static final Attributes NONE = new Attributes();
 
   private Attributes() {

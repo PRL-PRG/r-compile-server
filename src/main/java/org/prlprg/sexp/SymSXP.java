@@ -2,6 +2,7 @@ package org.prlprg.sexp;
 
 import javax.annotation.concurrent.Immutable;
 
+/** R Identifier. */
 @Immutable
 public sealed interface SymSXP extends SymOrLangSXP permits RegSymSXP, SpecialSymSXP {
   @Override

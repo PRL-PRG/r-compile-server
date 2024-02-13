@@ -109,7 +109,7 @@ public final class ConstPool extends ForwardingList<SEXP> {
   }
 
   /**
-   * Create from the raw GNU-R representation.
+   * Create from a constant list (raw GNU-R representation).
    *
    * @return The pool and a function to create pool indices from raw integers, since that isn't
    *     ordinarily exposed.
@@ -193,6 +193,10 @@ public final class ConstPool extends ForwardingList<SEXP> {
     }
   }
 
+  /**
+   * A {@link Idx} (typed index into a bytecode pool) which further checks that the {@link SEXP} is
+   * of a specific type.
+   */
   @SuppressFBWarnings(
       value = "EQ_DOESNT_OVERRIDE_EQUALS",
       justification =
@@ -309,6 +313,7 @@ public final class ConstPool extends ForwardingList<SEXP> {
     }
   }
 
+  /** Caused by trying to subscript one bytecode pool with an index from another. */
   public static class WrongPoolException extends RuntimeException {
     private WrongPoolException() {
       super("Wrong pool");

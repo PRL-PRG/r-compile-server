@@ -1,6 +1,7 @@
 package org.prlprg.bc;
 
 /** Bytecode operations. Synced with those in `gnur/src/eval.c`. */
+@SuppressWarnings({"MissingJavadoc", "SpellCheckingInspection"})
 public enum BcOp {
   BCMISMATCH,
   RETURN,

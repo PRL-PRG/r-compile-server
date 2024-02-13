@@ -7,16 +7,13 @@ import com.google.common.escape.Escapers;
 import javax.annotation.concurrent.Immutable;
 import org.prlprg.primitive.Constants;
 
+/** String vector SEXP. */
 @Immutable
-public sealed interface StrSXP extends VectorSXP<String>, StrOrRegSymSXP {
+public sealed interface StrSXP extends VectorSXP<String>, StrOrRegSymSXP
+    permits EmptyStrSXPImpl, SimpleStrSXP, StrSXPImpl {
   @Override
   default SEXPType type() {
     return SEXPType.STR;
-  }
-
-  @Override
-  default String reifyString() {
-    return isEmpty() ? "" : get(0);
   }
 
   @Override
@@ -26,6 +23,7 @@ public sealed interface StrSXP extends VectorSXP<String>, StrOrRegSymSXP {
   StrSXP withAttributes(Attributes attributes);
 }
 
+/** String vector which doesn't fit any of the more specific subclasses. */
 record StrSXPImpl(ImmutableList<String> data, @Override Attributes attributes) implements StrSXP {
   @Override
   public UnmodifiableIterator<String> iterator() {
@@ -53,22 +51,7 @@ record StrSXPImpl(ImmutableList<String> data, @Override Attributes attributes) i
   }
 }
 
-final class SimpleStrSXPImpl extends SimpleScalarSXPImpl<String> implements StrSXP {
-  SimpleStrSXPImpl(String data) {
-    super(data);
-  }
-
-  @Override
-  public String toString() {
-    return StrSXPs.quoteString(data);
-  }
-
-  @Override
-  public StrSXP withAttributes(Attributes attributes) {
-    return SEXPs.string(data, attributes);
-  }
-}
-
+/** Empty string vector with no ALTREP, ATTRIB, or OBJECT. */
 final class EmptyStrSXPImpl extends EmptyVectorSXPImpl<String> implements StrSXP {
   static final EmptyStrSXPImpl INSTANCE = new EmptyStrSXPImpl();
 

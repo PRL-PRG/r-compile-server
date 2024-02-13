@@ -5,8 +5,10 @@ import com.google.common.collect.UnmodifiableIterator;
 import javax.annotation.concurrent.Immutable;
 import org.prlprg.primitive.Logical;
 
+/** Logical vector SEXP. */
 @Immutable
-public sealed interface LglSXP extends VectorSXP<Logical> {
+public sealed interface LglSXP extends VectorSXP<Logical>
+    permits EmptyLglSXPImpl, LglSXPImpl, SimpleLglSXP {
   @Override
   default SEXPType type() {
     return SEXPType.LGL;
@@ -19,6 +21,7 @@ public sealed interface LglSXP extends VectorSXP<Logical> {
   LglSXP withAttributes(Attributes attributes);
 }
 
+/** Logical vector which doesn't fit any of the more specific subclasses. */
 record LglSXPImpl(ImmutableList<Logical> data, @Override Attributes attributes) implements LglSXP {
   @Override
   public UnmodifiableIterator<Logical> iterator() {
@@ -46,21 +49,7 @@ record LglSXPImpl(ImmutableList<Logical> data, @Override Attributes attributes) 
   }
 }
 
-final class SimpleLglSXPImpl extends SimpleScalarSXPImpl<Logical> implements LglSXP {
-  static final SimpleLglSXPImpl TRUE = new SimpleLglSXPImpl(Logical.TRUE);
-  static final SimpleLglSXPImpl FALSE = new SimpleLglSXPImpl(Logical.FALSE);
-  static final SimpleLglSXPImpl NA = new SimpleLglSXPImpl(Logical.NA);
-
-  private SimpleLglSXPImpl(Logical data) {
-    super(data);
-  }
-
-  @Override
-  public LglSXP withAttributes(Attributes attributes) {
-    return SEXPs.logical(data, attributes);
-  }
-}
-
+/** Empty logical vector with no ALTREP, ATTRIB, or OBJECT. */
 final class EmptyLglSXPImpl extends EmptyVectorSXPImpl<Logical> implements LglSXP {
   static final EmptyLglSXPImpl INSTANCE = new EmptyLglSXPImpl();
 

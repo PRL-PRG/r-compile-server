@@ -1,11 +1,12 @@
 package org.prlprg.rds;
 
-public class RDSException extends RuntimeException {
-  public RDSException(String message) {
+/** Thrown when deserializing R objects from malformed RDS. */
+public class RDSException extends Exception {
+  RDSException(String message) {
     super(message);
   }
 
-  public RDSException(String message, Throwable cause) {
+  RDSException(String message, Throwable cause) {
     super(message, cause);
   }
 }

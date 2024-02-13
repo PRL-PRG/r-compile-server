@@ -1,4 +1,3 @@
-/** S-expressions (GNU-R object type): the different types and associated data. */
 @ParametersAreNonnullByDefault
 @FieldsAreNonNullByDefault
 @ReturnTypesAreNonNullByDefault
