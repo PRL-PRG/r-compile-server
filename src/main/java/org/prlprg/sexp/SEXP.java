@@ -1,5 +1,6 @@
 package org.prlprg.sexp;
 
+import java.util.Objects;
 import javax.annotation.Nullable;
 
 /**
@@ -10,7 +11,7 @@ import javax.annotation.Nullable;
  * suspect GNU-R SEXPs aren't actually S-expressions.
  */
 public sealed interface SEXP
-    permits StrOrRegSymSXP, SymOrLangSXP, ListOrVectorSXP, CloSXP, EnvSXP, BCodeSXP {
+    permits StrOrRegSymSXP, SymOrLangSXP, ListOrVectorSXP, CloSXP, EnvSXP, BCodeSXP, PromSXP {
   /**
    * SEXPTYPE. It's important to distinguish these from the SEXP's class, because there's a class
    * for every type but not vice versa due to subclasses (e.g. simple-scalar ints have the same
@@ -28,7 +29,7 @@ public sealed interface SEXP
 
   /**
    * Returns an SEXP which would be equal except it has the given attributes instead of its old
-   * ones. <b>If the SEXP is a {@link RegEnvSXP}, it will mutate in-place and return itself. If the
+   * ones. <b>If the SEXP is a {@link UserEnvSXP}, it will mutate in-place and return itself. If the
    * SEXP is a list or vector containing environments, this performs a shallow copy, so mutating the
    * environments in one version will affect the other</b>.
    *
@@ -36,5 +37,10 @@ public sealed interface SEXP
    */
   default SEXP withAttributes(Attributes attributes) {
     throw new UnsupportedOperationException("Cannot set attributes on " + type());
+  }
+
+  default SEXP withClass(String name) {
+    var attrs = Objects.requireNonNull(attributes()).including("class", SEXPs.string(name));
+    return withAttributes(attrs);
   }
 }

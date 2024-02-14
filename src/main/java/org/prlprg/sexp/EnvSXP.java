@@ -1,30 +1,46 @@
 package org.prlprg.sexp;
 
-import javax.annotation.Nullable;
+import java.util.Optional;
+import org.prlprg.util.Pair;
 
-/**
- * A scope containing name-value bindings and parent environment. However, global environments we
- * abstract the bindings so that we can compile in agnostic context (see {@link SpecialEnvSXP}.
- * Environments are also special in that they can be mutable and equality is defined by their
- * identity, while most R objects are immutable and equality is defined by their structure.
- */
-// TODO: Also namespaces and packages
-public sealed interface EnvSXP extends SEXP permits LocalEnvSXP, SpecialEnvSXP {
+public sealed interface EnvSXP extends SEXP
+    permits BaseEnvSXP, EmptyEnvSXP, GlobalEnvSXP, NamespaceEnvSXP, UserEnvSXP {
   /**
-   * @return {@code null} if unknown or different in different contexts.
+   * Environments are linked in a parent chain. Every environment, except the empty environment, has
+   * a parent that will be returned by this function.
+   *
+   * @return the parent environment
    */
-  @Nullable EnvSXP knownParent();
+  EnvSXP parent();
 
   /**
-   * @return {@code null} if not present, unknown, or different in different contexts
+   * Get the value of a symbol in the environment, following the parent chain.
+   *
+   * @param name the name of the symbol
+   * @return the value of the symbol, if found
    */
-  @Nullable SEXP get(String name);
+  Optional<SEXP> get(String name);
+
+  /**
+   * Get the value of a symbol in the environment, without following the parent chain.
+   *
+   * @param name the name of the symbol
+   * @return the value of the symbol, if found
+   */
+  Optional<SEXP> getLocal(String name);
 
   @Override
   default SEXPType type() {
     return SEXPType.ENV;
   }
 
-  @Override
-  EnvSXP withAttributes(Attributes attributes);
+  /**
+   * Try to find the value of a symbol in the environment, following the parent chain.
+   *
+   * @param name the name of the symbol
+   * @return the value of the symbol and the environment where it was found, if found
+   */
+  default Optional<Pair<EnvSXP, SEXP>> find(String name) {
+    return getLocal(name).map(v -> new Pair<>(this, v)).or(() -> parent().find(name));
+  }
 }

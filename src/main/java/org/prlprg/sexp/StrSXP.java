@@ -4,6 +4,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.UnmodifiableIterator;
 import com.google.common.escape.Escaper;
 import com.google.common.escape.Escapers;
+import java.util.Optional;
 import javax.annotation.concurrent.Immutable;
 import org.prlprg.primitive.Constants;
 
@@ -49,6 +50,11 @@ record StrSXPImpl(ImmutableList<String> data, @Override Attributes attributes) i
   public StrSXP withAttributes(Attributes attributes) {
     return SEXPs.string(data, attributes);
   }
+
+  @Override
+  public Optional<String> reifyString() {
+    return size() == 1 ? Optional.of(get(0)) : Optional.empty();
+  }
 }
 
 /** Empty string vector with no ALTREP, ATTRIB, or OBJECT. */
@@ -60,6 +66,11 @@ final class EmptyStrSXPImpl extends EmptyVectorSXPImpl<String> implements StrSXP
   @Override
   public StrSXP withAttributes(Attributes attributes) {
     return SEXPs.string(ImmutableList.of(), attributes);
+  }
+
+  @Override
+  public Optional<String> reifyString() {
+    return Optional.empty();
   }
 }
 

@@ -1,8 +1,7 @@
-/** Compile SEXP ASTs into bytecode. */
 @ParametersAreNonnullByDefault
 @FieldsAreNonNullByDefault
 @ReturnTypesAreNonNullByDefault
-package org.prlprg.compile;
+package org.prlprg.rsession;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 import org.prlprg.util.FieldsAreNonNullByDefault;

@@ -1,5 +1,7 @@
 package org.prlprg.sexp;
 
+import java.util.Collections;
+import java.util.List;
 import javax.annotation.concurrent.Immutable;
 import org.prlprg.util.EmptyIterator;
 
@@ -48,6 +50,25 @@ public final class NilSXP implements ListSXP {
   @Override
   public EmptyIterator<TaggedElem> iterator() {
     return new EmptyIterator<>();
+  }
+
+  @Override
+  public List<SEXP> values() {
+    return Collections.emptyList();
+  }
+
+  @Override
+  public List<SEXP> values(int fromIndex) {
+    if (fromIndex == 0) {
+      return Collections.emptyList();
+    } else {
+      throw new UnsupportedOperationException("NULL is empty");
+    }
+  }
+
+  @Override
+  public List<String> names() {
+    return Collections.emptyList();
   }
 
   @Override

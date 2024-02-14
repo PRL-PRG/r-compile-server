@@ -1,5 +1,7 @@
 package org.prlprg.sexp;
 
+import javax.annotation.Nullable;
+
 /** Closure SEXP. */
 public sealed interface CloSXP extends SEXP {
   /** The argument names and default values. */
@@ -21,6 +23,8 @@ public sealed interface CloSXP extends SEXP {
 
   @Override
   CloSXP withAttributes(Attributes attributes);
+
+  @Nullable IntSXP getSrcRef();
 }
 
 record CloSXPImpl(ListSXP formals, SEXP body, EnvSXP env, @Override Attributes attributes)
@@ -33,5 +37,10 @@ record CloSXPImpl(ListSXP formals, SEXP body, EnvSXP env, @Override Attributes a
   @Override
   public CloSXP withAttributes(Attributes attributes) {
     return SEXPs.closure(formals, body, env, attributes);
+  }
+
+  @Override
+  public @Nullable IntSXP getSrcRef() {
+    return (IntSXP) attributes.get("srcref");
   }
 }

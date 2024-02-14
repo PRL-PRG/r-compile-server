@@ -2,6 +2,7 @@ package org.prlprg.sexp;
 
 import com.google.common.collect.ImmutableList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.stream.Collectors;
 
 /**
@@ -32,6 +33,12 @@ public sealed interface ListSXP extends ListOrVectorSXP<TaggedElem> permits NilS
 
   @Override
   ListSXP withAttributes(Attributes attributes);
+
+  List<SEXP> values();
+
+  List<SEXP> values(int fromIndex);
+
+  List<String> names();
 }
 
 record ListSXPImpl(ImmutableList<TaggedElem> data, @Override Attributes attributes)
@@ -44,6 +51,21 @@ record ListSXPImpl(ImmutableList<TaggedElem> data, @Override Attributes attribut
   @Override
   public Iterator<TaggedElem> iterator() {
     return data.iterator();
+  }
+
+  @Override
+  public List<SEXP> values() {
+    return data.stream().map(TaggedElem::value).toList();
+  }
+
+  @Override
+  public List<SEXP> values(int fromIndex) {
+    return values().subList(1, size());
+  }
+
+  @Override
+  public List<String> names() {
+    return data.stream().map(TaggedElem::tag).toList();
   }
 
   @Override

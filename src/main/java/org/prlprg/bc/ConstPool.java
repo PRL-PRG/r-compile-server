@@ -1,10 +1,13 @@
 package org.prlprg.bc;
 
 import com.google.common.base.Objects;
-import com.google.common.collect.ForwardingCollection;
+import com.google.common.collect.ForwardingList;
 import com.google.common.collect.ImmutableList;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
-import java.util.*;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.List;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import org.prlprg.sexp.*;
@@ -21,13 +24,13 @@ import org.prlprg.util.Pair;
         "The class isn't technically immutable but is after we use the thread-unsafe builder, "
             + "so practically we treat it as immutable")
 @Immutable
-public final class ConstPool extends ForwardingCollection<SEXP> {
+public final class ConstPool extends ForwardingList<SEXP> {
   @Nullable private ImmutableList<SEXP> consts;
 
   private ConstPool() {}
 
   @Override
-  protected Collection<SEXP> delegate() {
+  protected List<SEXP> delegate() {
     if (consts == null) {
       throw new IllegalStateException("ConstPool is not yet built");
     }
@@ -126,13 +129,24 @@ public final class ConstPool extends ForwardingCollection<SEXP> {
     StringBuilder sb = new StringBuilder("=== CONSTS " + debugId() + " ===");
     var idx = 0;
     for (var c : this) {
-      sb.append("\n").append(idx++).append(": ").append(c);
+      var cStr = c.toString();
+      sb.append(String.format("%n%3d: ", idx++));
+      if (cStr.contains(System.lineSeparator())) {
+        sb.append(System.lineSeparator()).append(c).append(System.lineSeparator());
+      } else {
+        sb.append(c);
+      }
     }
     return sb.toString();
   }
 
   private String debugId() {
-    return "@" + hashCode();
+    // FIXME: this is bad!
+    if (consts != null) {
+      return "@" + hashCode();
+    } else {
+      return "@";
+    }
   }
 
   /**
@@ -175,7 +189,7 @@ public final class ConstPool extends ForwardingCollection<SEXP> {
 
     @Override
     public String toString() {
-      return "Idx(" + idx + " of " + pool.debugId() + ")";
+      return String.format("%s.%d", pool.debugId(), idx);
     }
   }
 
@@ -201,17 +215,6 @@ public final class ConstPool extends ForwardingCollection<SEXP> {
     private boolean checkType() {
       // The cast to Idx is required because the TypedIdx version does an `assert`.
       return sexpInterface.isInstance(pool.get((Idx) this));
-    }
-
-    @Override
-    public String toString() {
-      return "Idx("
-          + idx
-          + " of "
-          + pool.debugId()
-          + " type "
-          + sexpInterface.getSimpleName()
-          + ")";
     }
   }
 

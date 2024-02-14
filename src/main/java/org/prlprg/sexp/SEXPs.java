@@ -7,6 +7,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import javax.annotation.Nullable;
 import org.prlprg.bc.Bc;
 import org.prlprg.primitive.Complex;
 import org.prlprg.primitive.Constants;
@@ -34,13 +35,7 @@ public final class SEXPs {
 
   public static final RegSymSXP ELLIPSIS = new RegSymSXP("...");
 
-  public static final SpecialEnvSXP GLOBAL_ENV = new SpecialEnvSXP("GLOBAL_ENV");
-
-  public static final SpecialEnvSXP BASE_ENV = new SpecialEnvSXP("BASE_ENV");
-
-  public static final SpecialEnvSXP BASE_NAMESPACE = new SpecialEnvSXP("BASE_NAMESPACE");
-
-  public static final SpecialEnvSXP EMPTY_ENV = new SpecialEnvSXP("EMPTY_ENV");
+  public static final EmptyEnvSXP EMPTY_ENV = EmptyEnvSXP.INSTANCE;
 
   // endregion
 
@@ -324,10 +319,6 @@ public final class SEXPs {
     return list(Arrays.stream(data).map(TaggedElem::new).collect(Collectors.toList()));
   }
 
-  public static ListSXP list(TaggedElem... data) {
-    return list(ImmutableList.copyOf(data));
-  }
-
   public static ListSXP list(ImmutableList<TaggedElem> data) {
     return list(data, Attributes.NONE);
   }
@@ -360,12 +351,9 @@ public final class SEXPs {
   }
 
   public static CloSXP closure(
-      ListSXP formals, SEXP body, EnvSXP environment, Attributes attributes) {
-    return new CloSXPImpl(formals, body, environment, attributes);
-  }
-
-  public static RegEnvSXP environment(EnvSXP enclos) {
-    return new RegEnvSXP(enclos);
+      ListSXP formals, SEXP body, EnvSXP environment, @Nullable Attributes attributes) {
+    return new CloSXPImpl(
+        formals, body, environment, attributes == null ? Attributes.NONE : attributes);
   }
 
   public static LangSXP lang(SymOrLangSXP fun, ListSXP args) {

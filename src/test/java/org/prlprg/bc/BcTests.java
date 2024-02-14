@@ -1,8 +1,7 @@
 package org.prlprg.bc;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.prlprg.sexp.SEXPs;
@@ -12,17 +11,18 @@ public class BcTests {
   @DisplayName("Create bytecode array")
   void createBcArray() {
     var bcBuilder = new Bc.Builder();
+    bcBuilder.setTrackSrcRefs(false);
+    bcBuilder.setTrackExpressions(false);
     var ast = SEXPs.lang(SEXPs.symbol("+"), SEXPs.list(SEXPs.integer(1), SEXPs.integer(2)));
     // It doesn't make sense to implement SEXP#clone because you'd just reuse the SEXP since
     // they are immutable.
     // Only SEXP.withXYZ(...) methods.
     var astClone = SEXPs.lang(SEXPs.symbol("+"), SEXPs.list(SEXPs.integer(1), SEXPs.integer(2)));
-    bcBuilder.addAllInstrs(
-        List.of(
-            new BcInstr.LdConst(bcBuilder.addConst(SEXPs.integer(1))),
-            new BcInstr.LdConst(bcBuilder.addConst(SEXPs.integer(2))),
-            new BcInstr.Add(bcBuilder.addConst(ast)),
-            new BcInstr.Return()));
+    bcBuilder.addInstr(new BcInstr.LdConst(bcBuilder.addConst(SEXPs.integer(1))));
+    bcBuilder.addInstr(new BcInstr.LdConst(bcBuilder.addConst(SEXPs.integer(2))));
+    bcBuilder.addInstr(new BcInstr.Add(bcBuilder.addConst(ast)));
+    bcBuilder.addInstr(new BcInstr.Return());
+
     var bc = bcBuilder.build();
     assertEquals(4, bc.code().size());
     assertEquals(BcOp.LDCONST, bc.code().get(0).op());

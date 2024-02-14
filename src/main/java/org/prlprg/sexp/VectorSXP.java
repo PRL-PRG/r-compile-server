@@ -22,10 +22,10 @@ final class VectorSXPs {
       dataString.append(dataIter.next());
       if (dataIter.hasNext()) {
         dataString.append(",");
-        if (dataString.length() >= VECTOR_TRUNCATE_SIZE) {
-          dataString.append("...");
-          break;
-        }
+        //        if (dataString.length() >= VECTOR_TRUNCATE_SIZE) {
+        //          dataString.append("...");
+        //          break;
+        //        }
       }
     }
     return SEXPs.toString(sexp, dataString);

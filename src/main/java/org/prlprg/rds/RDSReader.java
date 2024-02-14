@@ -1,59 +1,49 @@
 package org.prlprg.rds;
 
 import com.google.common.collect.ImmutableList;
-import java.io.Closeable;
-import java.io.IOException;
-import java.io.InputStream;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import java.io.*;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import javax.annotation.Nullable;
+import org.prlprg.RSession;
 import org.prlprg.bc.Bc;
 import org.prlprg.bc.BcFromRawException;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.*;
-import org.prlprg.util.NotImplementedError;
+import org.prlprg.util.IO;
 
-/** Deserializes R SEXPs from the RDS format. */
 public class RDSReader implements Closeable {
+  private final RSession session;
   private final RDSInputStream in;
   private final List<SEXP> refTable = new ArrayList<>(128);
 
   // FIXME: this should include the logic from platform.c
   private Charset nativeEncoding = Charset.defaultCharset();
 
-  private RDSReader(InputStream in) {
+  private RDSReader(RSession session, InputStream in) {
+    this.session = session;
     this.in = new RDSInputStream(in);
   }
 
-  /**
-   * Deserialize R SEXPs from a stream of data in the RDS format.
-   *
-   * @throws IOException if an I/O error occurs from the stream.
-   * @throws RDSException if the RDS data is malformed.
-   */
-  public static SEXP readStream(InputStream input) throws IOException, RDSException {
-    try (var reader = new RDSReader(input)) {
+  public static SEXP readStream(RSession session, InputStream input) throws IOException {
+    try (var reader = new RDSReader(session, input)) {
       return reader.read();
     }
   }
 
-  /**
-   * Deserialize R SEXPs from a {@code .rds} file.
-   *
-   * @throws IOException if an I/O error occurs from the stream.
-   * @throws RDSException if the RDS data is malformed.
-   */
-  public static SEXP readFile(Path path) throws IOException, RDSException {
-    return readStream(Files.newInputStream(path));
+  public static SEXP readFile(RSession session, File file) throws IOException {
+    try (var input = new FileInputStream(file)) {
+      return readStream(session, IO.maybeDecompress(input));
+    }
   }
 
-  private void readHeader() throws IOException, RDSException {
+  private void readHeader() throws IOException {
     var type = in.readByte();
     if (type != 'X') {
       throw new RDSException("Unsupported type (possibly compressed)");
@@ -81,7 +71,7 @@ public class RDSReader implements Closeable {
     }
   }
 
-  private SEXP read() throws IOException, RDSException {
+  public SEXP read() throws IOException {
     readHeader();
     var sexp = readItem();
     if (!in.isAtEnd()) {
@@ -90,7 +80,7 @@ public class RDSReader implements Closeable {
     return sexp;
   }
 
-  private SEXP readItem() throws IOException, RDSException {
+  private SEXP readItem() throws IOException {
     var flags = readFlags();
 
     return switch (flags.getType()) {
@@ -108,55 +98,100 @@ public class RDSReader implements Closeable {
             case STR -> readStrs(flags);
             case LANG -> readLang(flags);
             case BCODE -> readByteCode();
-            case EXPR -> readExpr();
+            case EXPR -> readExpr(flags);
+            case PROM -> readPromise(flags);
             default -> throw new RDSException("Unsupported SEXP type: " + s.sexp());
           };
       case RDSItemType.Special s ->
           switch (s) {
             case NILVALUE_SXP -> SEXPs.NULL;
             case MISSINGARG_SXP -> SEXPs.MISSING_ARG;
-            case GLOBALENV_SXP -> SEXPs.GLOBAL_ENV;
-            case BASEENV_SXP -> SEXPs.BASE_ENV;
+            case GLOBALENV_SXP -> session.globalEnv();
+            case BASEENV_SXP -> session.baseEnv();
             case EMPTYENV_SXP -> SEXPs.EMPTY_ENV;
             case REFSXP -> readRef(flags);
+            case NAMESPACESXP -> readNamespace();
             case BCREPDEF, BCREPREF ->
                 throw new RDSException("Unexpected bytecode reference here (not in bytecode)");
             case ATTRLANGSXP, ATTRLISTSXP -> throw new RDSException("Unexpected attr here");
-            case UNBOUNDVALUE_SXP,
-                    GENERICREFSXP,
-                    BASENAMESPACE_SXP,
-                    NAMESPACESXP,
-                    PACKAGESXP,
-                    PERSISTSXP,
-                    CLASSREFSXP ->
-                throw new NotImplementedError();
+            case UNBOUNDVALUE_SXP -> SEXPs.UNBOUND_VALUE;
+            case GENERICREFSXP, BASENAMESPACE_SXP, PACKAGESXP, PERSISTSXP, CLASSREFSXP ->
+                throw new RDSException("Unsupported RDS special type: " + s);
           };
     };
   }
 
-  private ExprSXP readExpr() throws IOException, RDSException {
-    // ??? Should flags be used somewhere here? At least for sanity assertions?
+  private SEXP readPromise(Flags flags) throws IOException {
+    readAttributes(flags);
+
+    if (!(readItem() instanceof EnvSXP env)) {
+      throw new RDSException("Expected promise ENV to be environment");
+    }
+    var val = readItem();
+    var expr = readItem();
+
+    // TODO: attributes?
+    return new PromSXP(expr, val, env);
+  }
+
+  private SEXP readNamespace() throws IOException {
+    var namespaceInfo = readStringVec();
+    if (namespaceInfo.size() != 2) {
+      throw new RDSException("Expected 2-element list, got: " + namespaceInfo);
+    }
+
+    // FIXME: this should be loaded from RSession
+    var namespace =
+        new NamespaceEnvSXP(SEXPs.EMPTY_ENV, namespaceInfo.get(0), namespaceInfo.get(1));
+    refTable.add(namespace);
+
+    return namespace;
+  }
+
+  private StrSXP readStringVec() throws IOException {
+    if (in.readInt() != 0) {
+      // cf. InStringVec
+      throw new RDSException("names in persistent strings are not supported yet");
+    }
+
+    var length = in.readInt();
+    var strings = new ArrayList<String>(length);
+
+    for (int i = 0; i < length; i++) {
+      strings.add(readChars());
+    }
+
+    return SEXPs.string(strings);
+  }
+
+  private ExprSXP readExpr(Flags flags) throws IOException {
     var length = in.readInt();
     var sexps = new ArrayList<SEXP>(length);
     for (int i = 0; i < length; i++) {
       sexps.add(readItem());
     }
-    return SEXPs.expr(sexps);
+
+    Attributes attributes = readAttributes(flags);
+    return SEXPs.expr(sexps, attributes);
   }
 
-  private BCodeSXP readByteCode() throws IOException, RDSException {
+  private BCodeSXP readByteCode() throws IOException {
     var length = in.readInt();
     var reps = new SEXP[length];
     return readByteCode1(reps);
   }
 
-  private BCodeSXP readByteCode1(SEXP[] reps) throws IOException, RDSException {
+  private BCodeSXP readByteCode1(SEXP[] reps) throws IOException {
     @SuppressWarnings("SwitchStatementWithTooFewBranches")
     var code =
         switch (readItem()) {
           case IntSXP s -> s;
           default -> throw new RDSException("Expected IntSXP");
         };
+
+    if (code.get(0) != Bc.R_BC_VERSION) {
+      throw new RDSException("Unsupported byte code version: " + code.get(0));
+    }
 
     var consts = readByteCodeConsts(reps);
     try {
@@ -166,7 +201,7 @@ public class RDSReader implements Closeable {
     }
   }
 
-  private List<SEXP> readByteCodeConsts(SEXP[] reps) throws IOException, RDSException {
+  private List<SEXP> readByteCodeConsts(SEXP[] reps) throws IOException {
     var length = in.readInt();
     var consts = new ArrayList<SEXP>(length);
     for (int i = 0; i < length; i++) {
@@ -191,7 +226,7 @@ public class RDSReader implements Closeable {
     return consts;
   }
 
-  private SEXP readByteCodeLang(RDSItemType type, SEXP[] reps) throws IOException, RDSException {
+  private SEXP readByteCodeLang(RDSItemType type, SEXP[] reps) throws IOException {
     return switch (type) {
       case RDSItemType.Sexp s ->
           switch (s.sexp()) {
@@ -207,7 +242,7 @@ public class RDSReader implements Closeable {
     };
   }
 
-  private SEXP readByteCodeLang1(RDSItemType type, SEXP[] reps) throws IOException, RDSException {
+  private SEXP readByteCodeLang1(RDSItemType type, SEXP[] reps) throws IOException {
     var pos = -1;
     if (type == RDSItemType.Special.BCREPDEF) {
       pos = in.readInt();
@@ -281,7 +316,7 @@ public class RDSReader implements Closeable {
     return refTable.get(index - 1);
   }
 
-  private LangSXP readLang(Flags flags) throws IOException, RDSException {
+  private LangSXP readLang(Flags flags) throws IOException {
     var attributes = readAttributes(flags);
     // FIXME: not sure what it is good for
     readTag(flags);
@@ -295,7 +330,7 @@ public class RDSReader implements Closeable {
     return SEXPs.lang(fun, args, attributes);
   }
 
-  private String readChars() throws IOException, RDSException {
+  private String readChars() throws IOException {
     var flags = readFlags();
     if (!flags.getType().isSexp(SEXPType.CHAR)) {
       throw new RDSException("Expected CHAR");
@@ -308,7 +343,7 @@ public class RDSReader implements Closeable {
     }
   }
 
-  private StrSXP readStrs(Flags flags) throws IOException, RDSException {
+  private StrSXP readStrs(Flags flags) throws IOException {
     var length = in.readInt();
     var strings = ImmutableList.<String>builderWithExpectedSize(length);
 
@@ -320,32 +355,59 @@ public class RDSReader implements Closeable {
     return SEXPs.string(strings.build(), attributes);
   }
 
-  private LocalEnvSXP readEnv() throws IOException, RDSException {
-    // ??? Should flags be used somewhere here? At least for sanity assertions?
-    var item = RegEnvSXP.uninitialized();
+  @SuppressFBWarnings("DLS_DEAD_LOCAL_STORE")
+  private UserEnvSXP readEnv() throws IOException {
+    var item = new UserEnvSXP();
     refTable.add(item);
 
     var locked = in.readInt();
     if (locked != 0 && locked != 1) {
       throw new RDSException("Expected 0 or 1 (LOCKED)");
     }
-    if (!(readItem() instanceof EnvSXP enclos)) {
-      throw new RDSException("Expected environment (ENCLOS)");
-    }
-    if (!(readItem() instanceof ListSXP frame)) {
-      throw new RDSException("Expected list (FRAME)");
-    }
-    // We read the hash table,
-    // but immediately discard it because we represent environments differently and it's
-    // redundant.
-    readItem();
-    var attributes = readAttributes();
 
-    item.init(locked != 0, enclos, frame, attributes);
+    // enclosing environment - parent
+    switch (readItem()) {
+      case EnvSXP parent -> item.setParent(parent);
+      case NilSXP ignored -> item.setParent(session.baseEnv());
+      default -> throw new RDSException("Expected environment (ENCLOS)");
+    }
+
+    // frame
+    switch (readItem()) {
+      case NilSXP ignored -> {}
+      case ListSXP frame -> {
+        for (var elem : frame) {
+          item.set(Objects.requireNonNull(elem.tag()), elem.value());
+        }
+      }
+      default -> throw new RDSException("Expected list (FRAME)");
+    }
+
+    // hashtab
+    switch (readItem()) {
+      case NilSXP ignored -> {}
+      case VecSXP hashtab -> {
+        for (var elem : hashtab) {
+          switch (elem) {
+            case NilSXP ignored -> {}
+            case ListSXP list -> {
+              for (var e : list) {
+                item.set(Objects.requireNonNull(e.tag()), e.value());
+              }
+            }
+            default -> throw new RDSException("Expected list for the hashtab entries");
+          }
+        }
+      }
+      default -> throw new RDSException("Expected list (HASHTAB)");
+    }
+
+    item.setAttributes(readAttributes());
+
     return item;
   }
 
-  private VecSXP readVec(Flags flags) throws IOException, RDSException {
+  private VecSXP readVec(Flags flags) throws IOException {
     var length = in.readInt();
     var data = ImmutableList.<SEXP>builderWithExpectedSize(length);
     for (int i = 0; i < length; i++) {
@@ -355,7 +417,7 @@ public class RDSReader implements Closeable {
     return SEXPs.vec(data.build(), attributes);
   }
 
-  private LglSXP readLogicals(Flags flags) throws IOException, RDSException {
+  private LglSXP readLogicals(Flags flags) throws IOException {
     var length = in.readInt();
     var data = in.readInts(length);
     var attributes = readAttributes(flags);
@@ -364,21 +426,21 @@ public class RDSReader implements Closeable {
         attributes);
   }
 
-  private RealSXP readReals(Flags flags) throws IOException, RDSException {
+  private RealSXP readReals(Flags flags) throws IOException {
     var length = in.readInt();
     var data = in.readDoubles(length);
     var attributes = readAttributes(flags);
     return SEXPs.real(data, attributes);
   }
 
-  private IntSXP readInts(Flags flags) throws IOException, RDSException {
+  private IntSXP readInts(Flags flags) throws IOException {
     var length = in.readInt();
     var data = in.readInts(length);
     var attributes = readAttributes(flags);
     return SEXPs.integer(data, attributes);
   }
 
-  private ListSXP readList(Flags flags) throws IOException, RDSException {
+  private ListSXP readList(Flags flags) throws IOException {
     var data = ImmutableList.<TaggedElem>builder();
     Attributes attributes = null;
 
@@ -405,7 +467,7 @@ public class RDSReader implements Closeable {
     return SEXPs.list(data.build());
   }
 
-  private CloSXP readClosure(Flags flags) throws IOException, RDSException {
+  private CloSXP readClosure(Flags flags) throws IOException {
     var attributes = readAttributes(flags);
     if (!(readItem() instanceof EnvSXP env)) {
       throw new RDSException("Expected CLOENV to be environment");
@@ -418,7 +480,7 @@ public class RDSReader implements Closeable {
     return SEXPs.closure(formals, body, env, attributes);
   }
 
-  private @Nullable String readTag(Flags flags) throws IOException, RDSException {
+  private @Nullable String readTag(Flags flags) throws IOException {
     if (flags.hasTag()) {
       if (readItem() instanceof RegSymSXP s) {
         return s.name();
@@ -430,7 +492,7 @@ public class RDSReader implements Closeable {
     }
   }
 
-  private Attributes readAttributes(Flags flags) throws IOException, RDSException {
+  private Attributes readAttributes(Flags flags) throws IOException {
     if (flags.hasAttributes()) {
       return readAttributes();
     } else {
@@ -438,7 +500,7 @@ public class RDSReader implements Closeable {
     }
   }
 
-  private Attributes readAttributes() throws IOException, RDSException {
+  private Attributes readAttributes() throws IOException {
     if (readItem() instanceof ListSXP xs) {
       var attrs = new Attributes.Builder();
 
