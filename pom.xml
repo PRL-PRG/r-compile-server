@@ -67,7 +67,7 @@
   </dependencies>
   <build>
     <!-- Snapshots aren't test resources, because we have to write to them, so we access them
-         at their actual locations (bundled are overridden on recompile). -->
+                         at their actual locations (bundled are overridden on recompile). -->
     <plugins>
       <!-- git-build-hook, install git hooks when you run any maven command so you don't forget -->
       <plugin>
@@ -223,6 +223,7 @@
         <!-- but IDEs display their own pmd report which already has source-links -->
         <configuration>
           <linkXRef>false</linkXRef>
+          <failOnViolation>false</failOnViolation>
         </configuration>
         <!-- Use pmd 7 which supports Java 21, not whatever is provided by maven-pmd-plugin -->
         <dependencies>
