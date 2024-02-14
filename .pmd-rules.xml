@@ -25,6 +25,10 @@ under the License.
     <description>
         This is the default pmd ruleset with the following changes:
 
+        - Remove UnnecessaryImport, because it marks star imports in static members which aren't unnecessary, and
+          unused imports don't signal bugs.
+        - Remove UselessParenthesis, because we don't care and extra parentheses don't signal bugs.
+
         See https://pmd.github.io/latest/pmd_userdocs_making_rulesets.html.
 
         [0] https://raw.githubusercontent.com/apache/maven-pmd-plugin/pmd7/src/main/resources/rulesets/java/maven-pmd-plugin-default.xml
@@ -43,11 +47,9 @@ under the License.
     <rule ref="category/java/codestyle.xml/ForLoopShouldBeWhileLoop" />
     <rule ref="category/java/codestyle.xml/TooManyStaticImports" />
     <rule ref="category/java/codestyle.xml/UnnecessaryFullyQualifiedName" />
-    <rule ref="category/java/codestyle.xml/UnnecessaryImport" />
     <rule ref="category/java/codestyle.xml/UnnecessaryModifier" />
     <rule ref="category/java/codestyle.xml/UnnecessaryReturn" />
     <rule ref="category/java/codestyle.xml/UnnecessarySemicolon" />
-    <rule ref="category/java/codestyle.xml/UselessParentheses" />
     <rule ref="category/java/codestyle.xml/UselessQualifiedThis" />
 
     <rule ref="category/java/design.xml/CollapsibleIfStatements" />
