@@ -1,6 +1,7 @@
 package org.prlprg.rds;
 
 import com.google.common.collect.ImmutableList;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.*;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -318,7 +319,7 @@ public class RDSReader implements Closeable {
   private LangSXP readLang(Flags flags) throws IOException {
     var attributes = readAttributes(flags);
     // FIXME: not sure what it is good for
-    var tag = readTag(flags);
+    readTag(flags);
 
     if (!(readItem() instanceof SymOrLangSXP fun)) {
       throw new RDSException("Expected symbol or language");
@@ -354,6 +355,7 @@ public class RDSReader implements Closeable {
     return SEXPs.string(strings.build(), attributes);
   }
 
+  @SuppressFBWarnings("DLS_DEAD_LOCAL_STORE")
   private UserEnvSXP readEnv() throws IOException {
     var item = new UserEnvSXP();
     refTable.add(item);

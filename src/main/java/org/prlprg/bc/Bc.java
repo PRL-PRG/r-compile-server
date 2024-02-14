@@ -95,7 +95,7 @@ public record Bc(BcCode code, ConstPool consts) {
       return l;
     }
 
-    public void patchLabel(BcLabel label) {
+    void patchLabel(BcLabel label) {
       label.setTarget(code.size());
     }
 

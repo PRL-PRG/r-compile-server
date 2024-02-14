@@ -1169,6 +1169,7 @@ public class Compiler {
     this.ctx = old;
   }
 
+  @SuppressFBWarnings("DLS_DEAD_LOCAL_STORE")
   private Optional<SEXP> constantFold(SEXP expr) {
     return switch (expr) {
       case LangSXP l -> constantFoldCall(l);
@@ -1179,6 +1180,7 @@ public class Compiler {
     };
   }
 
+  @SuppressFBWarnings("DLS_DEAD_LOCAL_STORE")
   private Optional<SEXP> checkConst(SEXP e) {
     var r =
         switch (e) {

@@ -1,6 +1,7 @@
 package org.prlprg.bc;
 
 import com.google.common.primitives.ImmutableIntArray;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import javax.annotation.Nullable;
 import org.prlprg.sexp.*;
 import org.prlprg.util.Either;
@@ -11,6 +12,7 @@ import org.prlprg.util.Pair;
  * determined by its subtype, arguments are determined by its fields.
  */
 @SuppressWarnings("MissingJavadoc")
+@SuppressFBWarnings({"EI_EXPOSE_REP2", "EI_EXPOSE_REP"})
 public sealed interface BcInstr {
   /** The instruction's operation. */
   BcOp op();
