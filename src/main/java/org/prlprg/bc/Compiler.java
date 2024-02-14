@@ -22,6 +22,7 @@ import org.prlprg.sexp.*;
 // TODO: 13 Assignments expressions
 // TODO: 16 Improved subset and sub-assignment handling
 // TODO: simple interpreter for the constantFoldCode
+@SuppressWarnings("PMD.UnnecessaryImport")
 public class Compiler {
   private static final Set<String> MAYBE_NSE_SYMBOLS = Set.of("bquote");
   private static final Set<String> ALLOWED_INLINES =
@@ -183,7 +184,8 @@ public class Compiler {
 
     IntSXP srcRef;
     if (!(body instanceof LangSXP b
-        && (b.fun() instanceof RegSymSXP sym && sym.name().equals("{")))) { // FIXME: ugly
+        && b.fun() instanceof RegSymSXP sym
+        && sym.name().equals("{"))) { // FIXME: ugly
       // try to get the srcRef from the function itself
       // normally, it would be attached to the `{`
       srcRef = fun.getSrcRef();
@@ -465,13 +467,11 @@ public class Compiler {
       return false;
     }
 
-    if (optimizationLevel == 2) {
-      if (!ALLOWED_INLINES.contains(name)) {
-        if (allowWithGuard) {
-          guarded = true;
-        } else {
-          return false;
-        }
+    if (optimizationLevel == 2 && !ALLOWED_INLINES.contains(name)) {
+      if (allowWithGuard) {
+        guarded = true;
+      } else {
+        return false;
       }
     }
 

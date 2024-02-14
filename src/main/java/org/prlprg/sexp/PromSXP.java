@@ -11,6 +11,18 @@ public final class PromSXP implements SEXP {
     this.env = env;
   }
 
+  public SEXP getExpr() {
+    return expr;
+  }
+
+  public SEXP getVal() {
+    return val;
+  }
+
+  public EnvSXP getEnv() {
+    return env;
+  }
+
   @Override
   public SEXPType type() {
     return SEXPType.PROM;

@@ -75,14 +75,14 @@ public record Bc(BcCode code, ConstPool consts) {
       code.add(instr);
 
       if (trackExpressions) {
-        assert (currentExpr != null);
+        assert currentExpr != null;
         for (var i = 0; i <= instr.op().nArgs(); i++) {
           expressions.add(addConst(currentExpr).idx);
         }
       }
 
       if (trackSrcRefs) {
-        assert (currentSrcRef != null);
+        assert currentSrcRef != null;
         for (var i = 0; i <= instr.op().nArgs(); i++) {
           srcRefs.add(addConst(currentSrcRef).idx);
         }
