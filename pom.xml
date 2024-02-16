@@ -130,9 +130,6 @@
             <excludes>
               <exclude>target/**/*</exclude>
             </excludes>
-            <cleanthat>
-              <version>2.18</version>
-            </cleanthat>
             <googleJavaFormat>
               <version>1.19.2</version>
               <style>GOOGLE</style>
