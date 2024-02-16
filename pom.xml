@@ -77,7 +77,6 @@
         <configuration>
           <installHooks>
             <pre-commit>.githooks/pre-commit.sh</pre-commit>
-            <pre-push>.githooks/pre-push.sh</pre-push>
           </installHooks>
         </configuration>
         <executions>
