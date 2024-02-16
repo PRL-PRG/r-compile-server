@@ -10,23 +10,19 @@ import org.prlprg.util.SmallSet;
 /**
  * Intermediate representation <a href="https://en.wikipedia.org/wiki/Basic_block">basic-block</a>
  * (straight-line sequence of {@link Node}s).
- *
- * <p>The generic parameter lets you restrict the type of nodes in this block. {@link CFG#castNodes}
- * will enforce that all nodes conform to a particular type and then return the same block with a
- * different generic. See the {@link org.prlprg.ir} package documentation for more details.
  */
-public class BB<N extends Node> extends ForwardingList<Instr> {
-  private final CFG<N> parent;
+public class BB extends ForwardingList<Instr> {
+  private final CFG parent;
   private final List<Instr> instrs = new ArrayList<>();
-  private @Nullable BB<N> predecessor;
-  private final Set<BB<N>> successors = new SmallSet<>(2);
+  private Set<BB> predecessors = new SmallSet<>(4);
+  private @Nullable Jump jump = null;
 
-  BB(CFG<N> parent) {
+  BB(CFG parent) {
     this.parent = parent;
   }
 
   /** CFG containing this block. */
-  public CFG<N> cfg() {
+  public CFG cfg() {
     return parent;
   }
 

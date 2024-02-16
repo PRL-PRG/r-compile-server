@@ -1,29 +1,29 @@
 package org.prlprg.ir;
 
-import javax.annotation.concurrent.Immutable;
-
-/**
- * Intermediate representation value or instruction.
- *
- * <p>This class contains nested sub-interfaces which let you refine the type of nodes represented
- * in the IR (e.g. only permit PIR nodes). Unfortunately you will have to manually cast arguments
- * since those may be {@link Node} or non-specific subtypes.
- *
- * <p>IR nodes are immutable but {@link BB}s and {@link CFG}s aren't. You can call {@link
- * CFG#replace} to replace all occurrences of a node with another.
- *
- * <p>See the {@link org.prlprg.ir} package documentation for more details.
- */
-@Immutable
+/** Intermediate representation value or instruction. */
 public interface Node {
   /** BB containing this node. */
-  BB<?> bb();
+  BB bb();
 
   /** CFG containing this node. */
-  default CFG<?> cfg() {
+  default CFG cfg() {
     return bb().cfg();
   }
 
-  /** Instruction was created directly from a GNU-R bytecode instruction. */
+  /** Node was created directly from GNU-R bytecode. */
   sealed interface GnuR extends Node permits Instr.GnuR {}
+  // /** Node corresponds to a PIR value. */
+  // sealed interface PIR extends Node permits ... {}
+}
+
+abstract class NodeImpl implements Node {
+  private final BB bb;
+
+  NodeImpl(BB bb) {
+    this.bb = bb;
+  }
+
+  BB bb() {
+    return bb;
+  }
 }
