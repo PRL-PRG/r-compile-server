@@ -21,4 +21,3 @@ clean:
 # Install pre-commit and pre-push hooks
 setup:
 	cp -f .githooks/pre-commit.sh .git/hooks/pre-commit
-	cp -f .githooks/pre-push.sh .git/hooks/pre-push
