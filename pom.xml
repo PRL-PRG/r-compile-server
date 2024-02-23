@@ -77,7 +77,6 @@
         <configuration>
           <installHooks>
             <pre-commit>.githooks/pre-commit.sh</pre-commit>
-            <pre-push>.githooks/pre-push.sh</pre-push>
           </installHooks>
         </configuration>
         <executions>
@@ -130,9 +129,6 @@
             <excludes>
               <exclude>target/**/*</exclude>
             </excludes>
-            <cleanthat>
-              <version>2.18</version>
-            </cleanthat>
             <googleJavaFormat>
               <version>1.19.2</version>
               <style>GOOGLE</style>
@@ -218,12 +214,15 @@
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-pmd-plugin</artifactId>
         <version>3.21.2</version>
-        <!-- This prevents the warning "Unable to locate Source XRef to link to - DISABLED" -->
-        <!-- If we want source-links in the `site` pmd report we need to add jxr instead, -->
-        <!-- but IDEs display their own pmd report which already has source-links -->
         <configuration>
+          <!-- This prevents the warning "Unable to locate Source XRef to link to - DISABLED" -->
+          <!-- If we want source-links in the `site` pmd report we need to add jxr instead, -->
+          <!-- but IDEs display their own pmd report which already has source-links -->
           <linkXRef>false</linkXRef>
-          <failOnViolation>false</failOnViolation>
+          <!-- Use a custom ruleset -->
+          <rulesets>
+            <ruleset>.pmd-rules.xml</ruleset>
+          </rulesets>
         </configuration>
         <!-- Use pmd 7 which supports Java 21, not whatever is provided by maven-pmd-plugin -->
         <dependencies>

@@ -20,7 +20,7 @@ target/
 .classpath
 .factorypath
 .project
-# We actually want to sync this to ensure NonNullByDefault
+# We actually want to sync this
 # .settings
 .springBeans
 .sts4-cache
@@ -36,7 +36,8 @@ build/
 !**/src/test/**/build/
 
 ### VS Code ###
-.vscode/
+# We actually want to sync this
+# .vscode/
 
 ### Mac OS ###
 .DS_Store

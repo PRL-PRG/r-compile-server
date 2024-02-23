@@ -12,6 +12,7 @@ import javax.annotation.Nullable;
 import org.prlprg.RSession;
 import org.prlprg.bc.BcInstr.*;
 import org.prlprg.sexp.*;
+import org.prlprg.util.NotImplementedError;
 
 // FIXME: use null instead of Optional (except for return types)
 // FIXME: update the SEXP API based on the experience with this code
@@ -22,7 +23,6 @@ import org.prlprg.sexp.*;
 // TODO: 13 Assignments expressions
 // TODO: 16 Improved subset and sub-assignment handling
 // TODO: simple interpreter for the constantFoldCode
-@SuppressWarnings("PMD.UnnecessaryImport")
 public class Compiler {
   private static final Set<String> MAYBE_NSE_SYMBOLS = Set.of("bquote");
   private static final Set<String> ALLOWED_INLINES =
@@ -850,10 +850,10 @@ public class Compiler {
 
   private boolean inlineRepeat(LangSXP call) {
     var body = call.arg(0).value();
-    return inlineSimpleLoop(call, body, this::compileRepeatBody);
+    return inlineSimpleLoop(body, this::compileRepeatBody);
   }
 
-  private boolean inlineSimpleLoop(LangSXP call, SEXP body, Consumer<SEXP> cmpBody) {
+  private boolean inlineSimpleLoop(SEXP body, Consumer<SEXP> cmpBody) {
     if (canSkipLoopContext(body, true)) {
       cmpBody.accept(body);
     } else {
@@ -907,7 +907,7 @@ public class Compiler {
     var test = call.arg(0).value();
     var body = call.arg(1).value();
 
-    return inlineSimpleLoop(call, body, (b) -> compileWhileBody(call, test, b));
+    return inlineSimpleLoop(body, (b) -> compileWhileBody(call, test, b));
   }
 
   private void compileWhileBody(LangSXP call, SEXP test, SEXP body) {
@@ -1208,13 +1208,13 @@ public class Compiler {
   }
 
   private Optional<SEXP> constantFoldCall(LangSXP call) {
-    //        if (!(call.fun() instanceof RegSymSXP funSym && isFoldableFun(funSym))) {
-    //            return Optional.empty();
-    //        }
+    if (!(call.fun() instanceof RegSymSXP funSym && isFoldableFun(funSym))) {
+      return Optional.empty();
+    }
 
     // fold args -- check consts
     // do.call <- need a basic interpreter
-    return Optional.empty();
+    throw new NotImplementedError();
   }
 
   private boolean isFoldableFun(RegSymSXP sym) {
