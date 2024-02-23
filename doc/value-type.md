@@ -1,6 +1,6 @@
 # `ValueType`: fine-grained SEXP types (not to be confused with `SEXPTYPE`)
 
-We want to create a **type system** for R values (SEXPs) which lets us perform effective optimizations as easy as possible (and without causing other issues like excessive overhead).
+We want to create a **type system** for R values (SEXPs) which lets us perform effective optimizations in a straightforward way.
 
 ## `PirType`: PIR node types
 
@@ -13,6 +13,24 @@ We want to create a **type system** for R values (SEXPs) which lets us perform e
 - `TypeFlag` is an enum containing possible flags which make the type less precise, e.g. `maybeNotScalar`, `maybeObject`, and `maybeNAOrNaN`. But it also contains `rtype`, which is the tag that determines whether the `PirType` represents an SEXP or non-SEXP type.
 
 `void` is the type of instructions which don't return a value. This is represented by an empty `NativeTypeSet` and only the `rtype` flag ("bottom" native type).
+
+### `Effect`: PIR instruction effects
+
+- `Visibility`: may change `R_Visible`
+- `Warn`: may produce a warning
+- `Error`: may produce an error
+- `Force`: may force a promise
+- `Reflection`: may perform reflection
+- `LeaksArg`: may leak some of its arguments ("leak" = runtime value may still be alive after its SSA value dies?)
+- `ChangesContext`: may push, pop, or drop context (those are the only 3 instructions that have this effect, besides `Effects::Any()` instructions)
+- `ReadsEnv`: may read from an environment (the local environment and maybe parents)
+- `WritesEnv`: may write to an environment (not specified whether local, e.g. both `StVar` and `StVarSuper` have this effect)
+- `LeaksEnv`: may leak an environment (argument? This is only on `PushContext` and `Effects::Any()` instructions)
+- `TriggerDeopt`: may cause a deopt (only on `Assume` and `Effects::Any()` instructions)
+- `ExecuteCode`: may run arbitrary code. This is set on instructions with `Effects::Any()` like `Force`, and some of their other effects may be `reset` like `Reflection`, but this never does; so an instruction may have this but not `Reflection`, and that means it runs code which is "unknown" except guaranteed not to perform reflection.
+- `UpdatesMetadata`: idk what this is. It's never tested directly, only `reset` by `getStrongEffects`; it affects when we check that effect sets are empty e.g. `getObservableEffects()`, but so does `ExecuteCode`. So would it affect evaluation whatsoever if we were to remove?
+- `DependsOnAssume`: prevents the instruction from getting moved to before the latest `Assume`
+- `MutatesArgument`: may mutate one of its arguments (only set on `UpdatePromise` and `Effects::Any()` instructions)
 
 ### Split SEXP and non-SEXP types
 
@@ -41,7 +59,7 @@ TODO
 
 ### Instruction `Effects`
 
-TODO these should also be reworked?
+TODO maybe these should also be reworked? I don't see any issue but I don't know.
 
 ## What information is useful?
 
@@ -77,6 +95,11 @@ Possibilities to include:
 - Is the value **maybe altrep**?
   - How has PIR been dealing with `ALTREP` anyways? Maybe all `ALTREP` have attributes? Maybe there just aren't enough `ALTREP` to trigger bugs?
 
+### Effects
+
+- `ReadsGlobalEnv` and `WritesGlobalEnv`: does the value potentially access a global environment? Since we have want to reuse functions across global environments. e.g. `StVar` initially could, but if we know the variable is in-scope it won't; similarly `StVarSuper` if the variable is in a parent scope.
+  - Maybe refine which environments an instruction with `ReadsEnv`/`WritesEnv`/`LeaksEnv` may access.
+
 ### What kinds of operations do we want to primarily target?
 
 - Scalar computations
@@ -90,3 +113,4 @@ However, there's also the question of how much of the computations in these stru
 So, what is common R code that takes a long time (and is worth speedup) and the bulk of this time isn't spent in C calls?
 
 - The R bytecode compiler itself?
+- Various popular R packages, or is that too ambitious? We can search for a popular but simple package.
