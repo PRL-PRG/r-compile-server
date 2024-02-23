@@ -11,7 +11,8 @@ import java.util.Set;
 public class CFG {
   private final Set<BB> bbs = new HashSet<>();
 
-  /** Replace all occurences of {@code oldNode} with {@code newNode}.
+  /**
+   * Replace all occurences of {@code oldNode} with {@code newNode}.
    *
    * @throws IllegalArgumentException if {@code oldNode} is not in this CFG.
    * @throws IllegalArgumentException if {@code newNode} is an incompatible type.

@@ -4,6 +4,7 @@ import org.prlprg.ir.Instr.GnuR;
 
 class Instrs {
   record Return() implements GnuR {}
+  /*
   record Unreachable() implements Instr {}
   record Goto(BcLabel label) implements GnuR
   record BrIfNot(ConstPool.TypedIdx<LangSXP> ast, BcLabel label) implements GnuR
@@ -132,4 +133,5 @@ class Instrs {
   record DeclnkN(int n) implements GnuR
   record IncLnkStk() implements GnuR
   record DecLnkStk() implements GnuR
+   */
 }

@@ -13,7 +13,7 @@ import org.prlprg.primitive.Complex;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
 
-/** All global SEXPs and methods to create SEXPs are here so they're easy to find. */
+/** All global {@link SEXP}s and methods to create SEXPs are here so they're easy to find. */
 @SuppressWarnings("MissingJavadoc")
 public final class SEXPs {
   // region constants

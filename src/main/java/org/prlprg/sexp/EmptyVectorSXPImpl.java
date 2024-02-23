@@ -6,7 +6,7 @@ import javax.annotation.concurrent.Immutable;
 
 /** Class for representing a scalar SEXP of a primitive type with no attributes. */
 @Immutable
-abstract non-sealed class EmptyVectorSXPImpl<T> implements VectorSXP<T> {
+abstract non-sealed class EmptyVectorSXPImpl<T> implements PrimVectorSXP<T> {
   protected EmptyVectorSXPImpl() {}
 
   @Override

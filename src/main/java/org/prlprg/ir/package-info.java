@@ -6,8 +6,8 @@
  * href="https://github.com/reactorlabs/rir/blob/master/documentation/pir.md">PIR</a>.
  *
  * <p>The CFG has a lot of invariants which can't be enforced at compile-time, and gets put into
- * invalid states during passes, so we rely heavily on runtime checks which run after each pass,
- * as well as those which may run after smaller transactions which temporarily rely on invalid state.
+ * invalid states during passes, so we rely heavily on runtime checks which run after each pass, as
+ * well as those which may run after smaller transactions which temporarily rely on invalid state.
  */
 @ParametersAreNonnullByDefault
 @FieldsAreNonNullByDefault

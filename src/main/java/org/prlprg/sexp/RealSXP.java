@@ -6,7 +6,7 @@ import javax.annotation.concurrent.Immutable;
 
 /** Real vector SEXP. */
 @Immutable
-public sealed interface RealSXP extends VectorSXP<Double>
+public sealed interface RealSXP extends PrimVectorSXP<Double>
     permits EmptyRealSXPImpl, RealSXPImpl, SimpleRealSXP {
   @Override
   default SEXPType type() {
@@ -14,7 +14,14 @@ public sealed interface RealSXP extends VectorSXP<Double>
   }
 
   @Override
-  Attributes attributes();
+  default boolean hasNaOrNaN() {
+    for (var real : this) {
+      if (Double.isNaN(real)) {
+        return true;
+      }
+    }
+    return false;
+  }
 
   @Override
   RealSXP withAttributes(Attributes attributes);

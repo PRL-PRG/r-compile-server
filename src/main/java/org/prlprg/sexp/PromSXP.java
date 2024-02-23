@@ -23,6 +23,11 @@ public final class PromSXP implements SEXP {
     return env;
   }
 
+  /** Whether the promise will run code when forced. Otherwise, its value is already computed. */
+  public boolean isLazy() {
+    return val == SEXPs.UNBOUND_VALUE;
+  }
+
   @Override
   public SEXPType type() {
     return SEXPType.PROM;

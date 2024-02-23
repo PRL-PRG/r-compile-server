@@ -4,9 +4,14 @@ import java.util.stream.BaseStream;
 
 /** SEXP vector (immutable list). */
 public sealed interface VectorSXP<T> extends ListOrVectorSXP<T>
-    permits ComplexSXP, ExprSXP, IntSXP, LglSXP, RealSXP, StrSXP, VecSXP, EmptyVectorSXPImpl {
+    permits PrimVectorSXP, ExprSXP, VecSXP {
   @Override
   Attributes attributes();
+
+  /** Does the collection have exactly one element? */
+  default boolean isScalar() {
+    return size() == 1;
+  }
 
   @Override
   VectorSXP<T> withAttributes(Attributes attributes);

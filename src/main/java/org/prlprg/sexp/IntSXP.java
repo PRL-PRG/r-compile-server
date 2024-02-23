@@ -3,10 +3,11 @@ package org.prlprg.sexp;
 import com.google.common.primitives.ImmutableIntArray;
 import java.util.PrimitiveIterator;
 import javax.annotation.concurrent.Immutable;
+import org.prlprg.primitive.Constants;
 
 /** Integer vector SEXP. */
 @Immutable
-public sealed interface IntSXP extends VectorSXP<Integer>
+public sealed interface IntSXP extends PrimVectorSXP<Integer>
     permits EmptyIntSXPImpl, IntSXPImpl, SimpleIntSXP {
   /**
    * The data contained in this vector. Note that if it's an empty or scalar, those aren't actually
@@ -17,6 +18,16 @@ public sealed interface IntSXP extends VectorSXP<Integer>
   @Override
   default SEXPType type() {
     return SEXPType.INT;
+  }
+
+  @Override
+  default boolean hasNaOrNaN() {
+    for (var integer : this) {
+      if (integer == Constants.NA_INT) {
+        return true;
+      }
+    }
+    return false;
   }
 
   @Override
