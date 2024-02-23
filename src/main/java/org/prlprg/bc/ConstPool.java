@@ -259,8 +259,23 @@ public final class ConstPool extends ForwardingList<SEXP> {
       }
     }
 
+    // FIXME: refactor
     @Nullable Either<TypedIdx<StrSXP>, TypedIdx<NilSXP>> strOrNilOrOther(int i) {
       var asSymbol = tryOf(i, StrSXP.class);
+      if (asSymbol != null) {
+        return Either.left(asSymbol);
+      }
+      var asNil = tryOf(i, NilSXP.class);
+      if (asNil != null) {
+        return Either.right(asNil);
+      } else {
+        return null;
+      }
+    }
+
+    // FIXME: refactor
+    @Nullable Either<TypedIdx<IntSXP>, TypedIdx<NilSXP>> intOrNilOrOther(int i) {
+      var asSymbol = tryOf(i, IntSXP.class);
       if (asSymbol != null) {
         return Either.left(asSymbol);
       }

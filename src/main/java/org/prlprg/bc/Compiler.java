@@ -1,10 +1,7 @@
 package org.prlprg.bc;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
-import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -12,6 +9,7 @@ import javax.annotation.Nullable;
 import org.prlprg.RSession;
 import org.prlprg.bc.BcInstr.*;
 import org.prlprg.sexp.*;
+import org.prlprg.util.Either;
 
 // FIXME: use null instead of Optional (except for return types)
 // FIXME: update the SEXP API based on the experience with this code
@@ -442,6 +440,7 @@ public class Compiler {
       case "seq_len" -> (c) -> inlinePrim1(c, SeqLen::new);
       case "::", ":::" -> this::inlineMultiColon;
       case "with", "require" -> this::compileSuppressingUndefined;
+      case "switch" -> this::inlineSwitch;
       case String s when MATH1_FUNS.contains(s) -> (c) -> inlineMath1(c, MATH1_FUNS.indexOf(s));
       case String s when rsession.isBuiltin(s) -> (c) -> inlineBuiltin(c, false);
       case String s when rsession.isSpecial(s) -> this::inlineSpecial;
@@ -625,7 +624,7 @@ public class Compiler {
    * From the R documentation:
    *
    * <p><quote>
-   *     In R an expression of the form (expr) is interpreted as a call to the function ( with the argument
+   * In R an expression of the form (expr) is interpreted as a call to the function ( with the argument
    * expr. Parentheses are used to guide the parser, and for the most part (expr) is equivalent to expr.
    * There are two exceptions:
    * <ul>
@@ -639,7 +638,7 @@ public class Compiler {
    *         functions — it could be made a feature of the read-eval-print loop — but for now it is a
    *         feature of the interpreter that the compiler should preserve.</li>
    * </ul>
-   *
+   * <p>
    * The inlining handler for <code>(</code> calls handles a <code>...</code> argument case or a case with
    * fewer or more than one argument as a generic BUILTIN call. If the expression is in tail position
    * then the argument is compiled in a non-tail-call context, a VISIBLE instruction is emitted to set
@@ -1156,6 +1155,182 @@ public class Compiler {
     return false;
   }
 
+  private boolean inlineSwitch(LangSXP call) {
+    if (call.args().isEmpty() || anyDots(call.args())) {
+      return inlineSpecial(call);
+    }
+
+    // before reading on a taste of switch in R:
+    //
+    // > switch("b", a=1,b=,c=,e=2,b=3,b=4,c=,d=5,6)
+    //
+    // so you can appreciate the complexity of the
+    // code bellow
+
+    // 1. extract the switch expression components
+    var expr = call.arg(0).value();
+    var cases = call.args().values(1);
+
+    // TODO:
+    //  if (cases.isEmpty())
+    //  notifyNoSwitchcases(cntxt, loc = cb$savecurloc())
+
+    var names = call.args().names(1);
+    // allow for corner cases like switch(x, 1) which always
+    // returns 1 if x is a character scalar.
+    if (cases.size() == 1 && names.getFirst() == null) {
+      names = List.of("");
+    }
+
+    // 2. figure out which type of switch (numeric / character) we are compiling
+
+    // number of default cases
+    boolean haveNames;
+    boolean haveCharDefault;
+
+    var numberOfDefaults = names.stream().filter(Objects::isNull).count();
+    if (numberOfDefaults == cases.size()) {
+      // none of the case is named -- this might be the first case when the expr is numeric
+      haveNames = false;
+      haveCharDefault = false;
+    } else if (numberOfDefaults == 1) {
+      // one default
+      haveNames = true;
+      haveCharDefault = true;
+    } else if (numberOfDefaults == 0) {
+      // no default case
+      haveNames = true;
+      haveCharDefault = false;
+    } else {
+      // more than one default (which confuses the fuck out of me)
+      // TODO:
+      //  notifyMultipleSwitchDefaults(ndflt, cntxt, loc = cb$savecurloc())
+      return inlineSpecial(call);
+    }
+
+    // a boolean vector indicating which (if any) arguments are missing
+    var miss = cases.stream().map(this::missing).toList();
+
+    // 3. build labels for cases
+
+    // the label for code that signals an error if
+    // a numerical selector expression chooses a case with an empty argument
+    var missLabel = miss.stream().anyMatch(x -> x) ? cb.makeLabel() : null;
+
+    // will be for code that invisibly procures the value NULL, which is the default case for a
+    // numerical selector argument and also for a character selector when no unnamed default case is provided.
+    var defaultLabel = cb.makeLabel();
+    var labels = new ArrayList<BcLabel>(miss.size() + 1);
+    miss.stream().map(x -> x ? missLabel : cb.makeLabel()).forEachOrdered(labels::add);
+    labels.add(defaultLabel);
+
+    // needed as the GOTO target for a switch expression that is not in tail position
+    var endLabel = ctx.isTailCall() ? null : cb.makeLabel();
+
+    var nLabels = new ArrayList<BcLabel>();
+    var uniqueNames = new ArrayList<String>();
+
+    if (haveNames) {
+      names.stream().distinct().forEachOrdered(uniqueNames::add);
+      if (haveCharDefault) {
+        uniqueNames.add("");
+      }
+
+      // the following acrobacy is so we, quite unexpectedly IMHO
+      // switch("b", a=1,b=,c=,e=2,b=3,b=4,c=,d=5,6)
+      // compile a code that returns 2 (matching e label on b input)
+      for (var n : uniqueNames) {
+        var start = names.indexOf(n);
+        var firstNonMissing = miss.subList(start, miss.size()).indexOf(false);
+
+        nLabels.add(firstNonMissing == -1 ? defaultLabel : labels.get(firstNonMissing));
+      }
+
+      if (!haveCharDefault) {
+        uniqueNames.add("");
+        nLabels.add(defaultLabel);
+      }
+    }
+
+    // 4. compile the expression on which we dispatch to the cases
+    usingCtx(ctx.nonTailContext(), () -> compile(expr));
+    var callIdx = cb.addConst(call);
+
+    // 5. emit the switch instruction
+    var switchIdx = 0;
+    if (haveNames) {
+      var cni = cb.addConst(SEXPs.string(uniqueNames));
+      switchIdx = cb.addInstr(new Switch(callIdx, Either.left(cni), null, null));
+    } else {
+      var cni = cb.addConst(SEXPs.NULL);
+      switchIdx = cb.addInstr(new Switch(callIdx, Either.right(cni), null, null));
+    }
+
+    // hacky - but if we want to generate the same bytecode as GNU-R
+    // i.e. the same arguments to the constpool we have to follow
+    // this logic.
+    // unless we completely change how the BcLabel work
+
+    cb.addInstrPatch(
+        switchIdx,
+        (instr) -> {
+          var oldSwitch = (Switch) instr;
+          var numLabelsIdx = SEXPs.integer(labels.stream().map(BcLabel::getTarget).toList());
+          Switch newSwitch;
+
+          if (haveNames) {
+            var chrLabelsIdx = SEXPs.integer(nLabels.stream().map(BcLabel::getTarget).toList());
+            newSwitch = new Switch(
+                    oldSwitch.ast(),
+                    oldSwitch.names(),
+                    Either.left(cb.addConst(chrLabelsIdx)),
+                    cb.addConst(numLabelsIdx));
+          } else {
+            newSwitch = new Switch(
+                    oldSwitch.ast(),
+                    oldSwitch.names(),
+                    Either.right(cb.addConst(SEXPs.NULL)),
+                    cb.addConst(numLabelsIdx));
+          }
+
+          return newSwitch;
+        });
+
+    // 6. patch the labels and compile the cases
+
+    // code for the default case
+    cb.patchLabel(defaultLabel);
+    cb.addInstr(new LdNull());
+    if (ctx.isTailCall()) {
+      cb.addInstr(new Invisible());
+      cb.addInstr(new Return());
+    } else {
+      cb.addInstr(new Goto(endLabel));
+    }
+
+    // code for the non-empty cases
+
+    // > Finally the labels and code for the non-empty alternatives are written to the code buffer. In
+    // > non-tail position the code is followed by a GOTO instruction that jumps to endLabel. The final case
+    // > does not need this GOTO.
+    for (int i=0; i<cases.size(); i++) {
+      if (miss.get(i)) {
+        continue;
+      }
+      cb.patchLabel(labels.get(i));
+      compile(cases.get(i));
+      if (!ctx.isTailCall()) {
+        cb.addInstr(new Goto(endLabel));
+      }
+    }
+
+    if (!ctx.isTailCall()) {
+      cb.patchLabel(endLabel);
+    }
+
+    return true;
+  }
+
   private boolean compileSuppressingUndefined(LangSXP call) {
     // TODO: cntxt$suppressUndefined <- TRUE
     compileCallSymFun((RegSymSXP) call.fun(), call.args(), call);
@@ -1278,16 +1453,16 @@ public class Compiler {
     return true;
   }
 
-  private static boolean anyDots(ListSXP l) {
+  private boolean anyDots(ListSXP l) {
     return l.values().stream()
         .anyMatch(x -> !missing(x) && x instanceof SymSXP s && s.isEllipsis());
   }
 
-  private static boolean dotsOrMissing(ListSXP l) {
+  private boolean dotsOrMissing(ListSXP l) {
     return l.values().stream().anyMatch(x -> missing(x) || x instanceof SymSXP s && s.isEllipsis());
   }
 
-  private static boolean missing(SEXP x) {
+  private boolean missing(SEXP x) {
     // FIXME: this is a great oversimplification from the do_missing in R
     if (x instanceof SymSXP s) {
       return s.isMissing();

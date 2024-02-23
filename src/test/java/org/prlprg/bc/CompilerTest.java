@@ -336,6 +336,15 @@ function(x) for (i in x) if (i) break() else 1
                     """);
   }
 
+  @Test
+  public void inlineSwitch() {
+    assertBytecode("""
+function(x) {
+  switch(x, 1, 2, 3)
+}
+""");
+  }
+
   private void assertBytecode(String code) {
     assertBytecode(code, 2);
   }

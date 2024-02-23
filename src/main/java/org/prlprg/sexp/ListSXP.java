@@ -39,6 +39,8 @@ public sealed interface ListSXP extends ListOrVectorSXP<TaggedElem> permits NilS
   List<SEXP> values(int fromIndex);
 
   List<String> names();
+
+  List<String> names(int fromIndex);
 }
 
 record ListSXPImpl(ImmutableList<TaggedElem> data, @Override Attributes attributes)
@@ -66,6 +68,11 @@ record ListSXPImpl(ImmutableList<TaggedElem> data, @Override Attributes attribut
   @Override
   public List<String> names() {
     return data.stream().map(TaggedElem::tag).toList();
+  }
+
+  @Override
+  public List<String> names(int fromIndex) {
+    return names().subList(1, size());
   }
 
   @Override

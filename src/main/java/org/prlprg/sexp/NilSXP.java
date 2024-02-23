@@ -72,6 +72,15 @@ public final class NilSXP implements ListSXP {
   }
 
   @Override
+  public List<String> names(int fromIndex) {
+    if (fromIndex == 0) {
+      return Collections.emptyList();
+    } else {
+      throw new UnsupportedOperationException("NULL is empty");
+    }
+  }
+
+  @Override
   public ListSXP withAttributes(Attributes attributes) {
     throw new UnsupportedOperationException("Cannot set attributes on NULL");
   }

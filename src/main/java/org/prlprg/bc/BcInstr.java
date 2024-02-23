@@ -749,8 +749,8 @@ public sealed interface BcInstr {
   record Switch(
       ConstPool.TypedIdx<LangSXP> ast,
       @Nullable Either<ConstPool.TypedIdx<StrSXP>, ConstPool.TypedIdx<NilSXP>> names,
-      @Nullable ConstPool.TypedIdx<IntSXP> cOffsets,
-      @Nullable ConstPool.TypedIdx<IntSXP> iOffsets)
+      @Nullable Either<ConstPool.TypedIdx<IntSXP>, ConstPool.TypedIdx<NilSXP>> chrSelectorLabelsIdx,
+      @Nullable ConstPool.TypedIdx<IntSXP> numSelectorLabelsIdx)
       implements BcInstr {
     @Override
     public BcOp op() {
@@ -1102,7 +1102,7 @@ class BcInstrs {
                 new BcInstr.Switch(
                     makePoolIdx.lang(bytecodes.get(i++)),
                     makePoolIdx.strOrNilOrOther(bytecodes.get(i++)),
-                    makePoolIdx.intOrOther(bytecodes.get(i++)),
+                    makePoolIdx.intOrNilOrOther(bytecodes.get(i++)),
                     makePoolIdx.intOrOther(bytecodes.get(i++)));
             case RETURNJMP -> new BcInstr.ReturnJmp();
             case STARTSUBSET_N ->

@@ -7,6 +7,7 @@ import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.function.Function;
 import javax.annotation.concurrent.Immutable;
 
 /**
@@ -128,6 +129,11 @@ public final class BcCode extends ForwardingList<BcInstr> {
 
     public int size() {
       return code.size();
+    }
+
+    public void patch(int idx, Function<BcInstr, BcInstr> patch) {
+      assert (idx >= 0 && idx < code.size());
+      code.set(idx, patch.apply(code.get(idx)));
     }
   }
 }

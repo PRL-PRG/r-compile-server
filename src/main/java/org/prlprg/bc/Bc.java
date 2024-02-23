@@ -2,6 +2,7 @@ package org.prlprg.bc;
 
 import com.google.common.primitives.ImmutableIntArray;
 import java.util.*;
+import java.util.function.Function;
 import javax.annotation.Nullable;
 import org.prlprg.primitive.Constants;
 import org.prlprg.sexp.IntSXP;
@@ -56,6 +57,7 @@ public record Bc(BcCode code, ConstPool consts) {
     private @Nullable IntSXP currentSrcRef = null;
     private boolean trackSrcRefs = true;
     private boolean trackExpressions = true;
+    private final Map<Integer, Function<BcInstr, BcInstr>> patches = new HashMap<>();
 
     public void setTrackSrcRefs(boolean track) {
       this.trackSrcRefs = track;
@@ -71,7 +73,8 @@ public record Bc(BcCode code, ConstPool consts) {
     }
 
     /** Append an instruction. */
-    public void addInstr(BcInstr instr) {
+    public int addInstr(BcInstr instr) {
+      var idx = code.size();
       code.add(instr);
 
       if (trackExpressions) {
@@ -87,6 +90,8 @@ public record Bc(BcCode code, ConstPool consts) {
           srcRefs.add(addConst(currentSrcRef).idx);
         }
       }
+
+      return idx;
     }
 
     public BcLabel makeLabel() {
@@ -105,6 +110,10 @@ public record Bc(BcCode code, ConstPool consts) {
      * @return The bytecode.
      */
     public Bc build() {
+      // this is the cb$patchlabels()
+      patches.forEach(code::patch);
+
+      // this is the cb$commitlocs()
       if (trackExpressions) {
         var expressionsIndex = SEXPs.integer(expressions.build()).withClass("expressionsIndex");
         addConst(expressionsIndex);
@@ -130,6 +139,10 @@ public record Bc(BcCode code, ConstPool consts) {
 
     public Loc getCurrentLoc() {
       return new Loc(trackExpressions ? currentExpr : null, trackSrcRefs ? currentSrcRef : null);
+    }
+
+    public void addInstrPatch(int instrIdx, Function<BcInstr, BcInstr> patch) {
+      patches.put(instrIdx, patch);
     }
   }
 }
