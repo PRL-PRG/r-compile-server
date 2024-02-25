@@ -23,9 +23,22 @@ public final class PromSXP implements SEXP {
     return env;
   }
 
-  /** Whether the promise will run code when forced. Otherwise, its value is already computed. */
+  /**
+   * Whether the promise will run code when forced. Otherwise, its value is already computed.
+   *
+   * <p>This is the opposite of {@link #isEvaluated()}.
+   */
   public boolean isLazy() {
     return val == SEXPs.UNBOUND_VALUE;
+  }
+
+  /**
+   * Whether the promise's value is already computed.
+   *
+   * <p>This is the opposite of {@link #isLazy()}.
+   */
+  public boolean isEvaluated() {
+    return val != SEXPs.UNBOUND_VALUE;
   }
 
   @Override

@@ -4,7 +4,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * Intermediate representation <a
+ * IR (intermediate representation) <a
  * href="https://en.wikipedia.org/wiki/Control-flow_graph">control-flow-graph</a> (graph of {@link
  * Node}s which corresponds to a program; more specifically, a graph of {@link BB}s).
  */

@@ -1,6 +1,6 @@
 package org.prlprg.ir;
 
-/** Intermediate representation value or instruction. */
+/** IR (intermediate representation) node; value or instruction. */
 public interface Node {
   /** BB containing this node. */
   BB bb();

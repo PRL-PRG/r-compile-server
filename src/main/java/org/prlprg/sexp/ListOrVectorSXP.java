@@ -1,5 +1,8 @@
 package org.prlprg.sexp;
 
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
+
 /** A list or vector SEXP (the 2 main collection types in R) */
 public sealed interface ListOrVectorSXP<T> extends SEXP, Iterable<T> permits ListSXP, VectorSXP {
   /**
@@ -19,4 +22,8 @@ public sealed interface ListOrVectorSXP<T> extends SEXP, Iterable<T> permits Lis
 
   @Override
   ListOrVectorSXP<T> withAttributes(Attributes attributes);
+
+  default Stream<T> stream() {
+    return StreamSupport.stream(spliterator(), false);
+  }
 }

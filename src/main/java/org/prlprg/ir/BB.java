@@ -8,8 +8,9 @@ import javax.annotation.Nullable;
 import org.prlprg.util.SmallSet;
 
 /**
- * Intermediate representation <a href="https://en.wikipedia.org/wiki/Basic_block">basic-block</a>
- * (straight-line sequence of {@link Node}s).
+ * IR (intermediate representation) <a
+ * href="https://en.wikipedia.org/wiki/Basic_block">basic-block</a> (straight-line sequence of
+ * {@link Node}s).
  */
 public class BB extends ForwardingList<Instr> {
   private final CFG parent;
