@@ -1,4 +1,4 @@
-package org.prlprg.ir;
+package org.prlprg.ir.node;
 
 import org.prlprg.ir.type.RType;
 import org.prlprg.sexp.SEXP;

@@ -63,6 +63,15 @@ public sealed interface RBaseType extends Lattice<RBaseType> {
     };
   }
 
+  /** Is this a primitive vector type? */
+  default Troolean isPrimitiveVector() {
+    return switch (this) {
+      case Any() -> Troolean.MAYBE;
+      case Vector(var elementType) -> elementType.isPrimitive();
+      default -> Troolean.NO;
+    };
+  }
+
   @Override
   default boolean isSubsetOf(RBaseType other) {
     return other instanceof Any
@@ -162,35 +171,115 @@ public sealed interface RBaseType extends Lattice<RBaseType> {
         };
   }
 
-  record Any() implements RBaseType {}
+  record Any() implements RBaseType {
+    @Override
+    public String toString() {
+      return "any";
+    }
+  }
 
-  record Vector(RVectorElementType elementType) implements RBaseType {}
+  record Vector(RVectorElementType elementType) implements RBaseType {
+    @Override
+    public String toString() {
+      return "vec(" + elementType + ")";
+    }
+  }
 
-  record ListAny() implements RBaseType {}
+  record ListAny() implements RBaseType {
+    @Override
+    public String toString() {
+      return "list";
+    }
+  }
 
-  record Promise(boolean isEvaluated, RBaseType valueType) implements RBaseType {}
+  record Promise(boolean isEvaluated, RBaseType valueType) implements RBaseType {
+    @Override
+    public String toString() {
+      return (isEvaluated ? "prom" : "lazy") + "(" + valueType + ")";
+    }
+  }
 
-  record Language() implements RBaseType {}
+  record Language() implements RBaseType {
+    @Override
+    public String toString() {
+      return "lang";
+    }
+  }
 
-  record Expression() implements RBaseType {}
+  record Expression() implements RBaseType {
+    @Override
+    public String toString() {
+      return "expr";
+    }
+  }
 
-  record Closure() implements RBaseType {}
+  record Closure() implements RBaseType {
+    @Override
+    public String toString() {
+      return "clos";
+    }
+  }
 
-  record S4() implements RBaseType {}
+  record S4() implements RBaseType {
+    @Override
+    public String toString() {
+      return "s4";
+    }
+  }
 
-  record ExternalPtr() implements RBaseType {}
+  record ExternalPtr() implements RBaseType {
+    @Override
+    public String toString() {
+      return "extptr";
+    }
+  }
 
-  record WeakRef() implements RBaseType {}
+  record WeakRef() implements RBaseType {
+    @Override
+    public String toString() {
+      return "weakref";
+    }
+  }
 
-  record Dots() implements RBaseType {}
+  record Dots() implements RBaseType {
+    @Override
+    public String toString() {
+      return "dots";
+    }
+  }
 
-  record Env() implements RBaseType {}
+  record Env() implements RBaseType {
+    @Override
+    public String toString() {
+      return "env";
+    }
+  }
 
-  record Bytecode() implements RBaseType {}
+  record Bytecode() implements RBaseType {
+    @Override
+    public String toString() {
+      return "bytecode";
+    }
+  }
 
-  record Symbol() implements RBaseType {}
+  record Symbol() implements RBaseType {
+    @Override
+    public String toString() {
+      return "sym";
+    }
+  }
 
-  record Special() implements RBaseType {}
+  record Special() implements RBaseType {
+    @Override
+    public String toString() {
+      return "sbltn";
+    }
+  }
 
-  record Builtin() implements RBaseType {}
+  record Builtin() implements RBaseType {
+    @Override
+    public String toString() {
+      return "bltn";
+    }
+  }
 }

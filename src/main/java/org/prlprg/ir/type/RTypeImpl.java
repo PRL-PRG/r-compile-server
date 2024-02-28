@@ -3,7 +3,9 @@ package org.prlprg.ir.type;
 import java.util.Objects;
 import java.util.logging.Logger;
 import javax.annotation.Nullable;
+import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.SEXP;
+import org.prlprg.sexp.SEXPs;
 
 record RTypeImpl(
     @Override @Nullable SEXP exactValue,
@@ -12,6 +14,14 @@ record RTypeImpl(
     @Override RTypeFlags flags)
     implements RType {
   private static final Logger LOG = Logger.getLogger(RTypeImpl.class.getName());
+
+  public RTypeImpl {
+    // Some sanity checks, since we have parallel representations
+    assert closure == null || base instanceof RBaseType.Closure;
+    assert exactValue == null || base.sexpType() == exactValue.type();
+    assert !(exactValue instanceof CloSXP) || closure != null;
+    assert exactValue != SEXPs.MISSING_ARG || flags.isMissing() == NoOrMaybe.MAYBE;
+  }
 
   @Override
   public boolean isSubsetOf(RType other) {
@@ -70,6 +80,28 @@ record RTypeImpl(
       }
     };
   }
+
+  @Override
+  public boolean equals(Object obj) {
+    if (!(obj instanceof RType r)) {
+      return false;
+    }
+    return isSubsetOf(r) && r.isSubsetOf(this);
+  }
+
+  @Override
+  public int hashCode() {
+    // Too complicated to generate a decent hash where equals implies hashCode.equals
+    return 0;
+  }
+
+  @Override
+  public String toString() {
+    if (exactValue != null) {
+      return exactValue.toString();
+    }
+    return "" + flags + (closure != null ? closure : base);
+  }
 }
 
 final class RTypeNothing implements RType {
@@ -112,6 +144,25 @@ final class RTypeNothing implements RType {
   public RType intersection(RType other) {
     return this;
   }
+
+  @Override
+  public boolean equals(Object obj) {
+    if (!(obj instanceof RType r)) {
+      return false;
+    }
+    return isSubsetOf(r) && r.isSubsetOf(this);
+  }
+
+  @Override
+  public int hashCode() {
+    // Too complicated to generate a decent hash where equals implies hashCode.equals
+    return 0;
+  }
+
+  @Override
+  public String toString() {
+    return "⊥";
+  }
 }
 
 final class RTypeAny implements RType {
@@ -153,5 +204,24 @@ final class RTypeAny implements RType {
   @Override
   public RType intersection(RType other) {
     return other;
+  }
+
+  @Override
+  public boolean equals(Object obj) {
+    if (!(obj instanceof RType r)) {
+      return false;
+    }
+    return isSubsetOf(r) && r.isSubsetOf(this);
+  }
+
+  @Override
+  public int hashCode() {
+    // Too complicated to generate a decent hash where equals implies hashCode.equals
+    return 0;
+  }
+
+  @Override
+  public String toString() {
+    return "⊤";
   }
 }

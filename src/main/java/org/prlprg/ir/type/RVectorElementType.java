@@ -61,6 +61,13 @@ public enum RVectorElementType implements Lattice<RVectorElementType> {
     this.vectorSexpType = vectorSexpType;
   }
 
+  /** Is this a primitive vector type? */
+  Troolean isPrimitive() {
+    return vectorSexpType == null
+        ? Troolean.MAYBE
+        : Troolean.of(vectorSexpType.isPrimitiveVector());
+  }
+
   @Override
   public boolean isSubsetOf(RVectorElementType other) {
     return other == ANY || this == other;

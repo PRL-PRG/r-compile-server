@@ -5,6 +5,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import javax.annotation.Nullable;
+import org.prlprg.ir.node.Instr;
+import org.prlprg.ir.node.Jumps;
+import org.prlprg.ir.node.Node;
 import org.prlprg.util.SmallSet;
 
 /**
@@ -16,7 +19,7 @@ public class BB extends ForwardingList<Instr> {
   private final CFG parent;
   private final List<Instr> instrs = new ArrayList<>();
   private Set<BB> predecessors = new SmallSet<>(4);
-  private @Nullable Jump jump = null;
+  private @Nullable Jumps jump = null;
 
   BB(CFG parent) {
     this.parent = parent;

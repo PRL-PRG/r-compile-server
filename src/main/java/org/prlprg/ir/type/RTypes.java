@@ -18,6 +18,24 @@ public class RTypes {
    */
   public static final RType ANY = new RTypeAny();
 
+  /**
+   * The type of a function we know absolutely nothing about besides it being a function (could be a
+   * special or builtin).
+   */
+  public static final RType FUN = ANY;
+
+  /**
+   * The type of a function we know absolutely nothing about besides it being a special or builtin
+   * function.
+   */
+  public static final RType SYMFUN = FUN;
+
+  /**
+   * The type of a value we know absolutely nothing about besides it not having attributes, object,
+   * or lazy.
+   */
+  public static final RType SIMPLE_ANY = ANY;
+
   /** The (most precise representable) type of the given value. */
   public static RType of(SEXP value) {
     return new RTypeImpl(value, RBaseType.of(value), RClosureType.of(value), RTypeFlags.of(value));
@@ -38,10 +56,25 @@ public class RTypes {
     throw new NotImplementedError();
   }
 
+  /** The type after a arithmetic bytecode instruction. */
+  public static RType arithmeticOp(RType... types) {
+    throw new NotImplementedError();
+  }
+
+  /** The type after a comparison bytecode instruction. */
+  public static RType comparisonOp(RType... types) {
+    throw new NotImplementedError();
+  }
+
+  /** The type after a simple "and", "or", or "not" bytecode instruction. */
+  public static RType booleanOp(RType... types) {
+    throw new NotImplementedError();
+  }
+
   /**
    * The type of a value we know has a specific {@link SEXPType} and no weirdness (no object or
-   * attributes), produced by builtins e.g. {@code LdFun}. If {@code type} is the type of a
-   * primitive vector, this will also return the type for a scalar.
+   * attributes), produced by builtins. If {@code type} is the type of a primitive vector, this will
+   * also return the type for a scalar.
    */
   public static RType simple(SEXPType type) {
     throw new NotImplementedError();

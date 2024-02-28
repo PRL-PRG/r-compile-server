@@ -2,6 +2,7 @@ package org.prlprg.ir;
 
 import java.util.HashSet;
 import java.util.Set;
+import org.prlprg.ir.node.Node;
 
 /**
  * IR (intermediate representation) <a

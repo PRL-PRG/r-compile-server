@@ -7,103 +7,116 @@ import org.prlprg.sexp.*;
 /**
  * Various yes/no/maybe {@link RType} properties which affect optimizations.
  *
- * @param isPromise Is the SEXP wrapped in a promise? ({@code null} if bottom type.)
- * @param isLazy Is the SEXP an unevaluated thunk? (If so, reading may execute code which, depending
- *     on other properties, my have side effects.)
+ * @param hasAttributes Does the SEXP have attributes?
+ * @param isObject Is the SEXP an object?
+ * @param isMissing Is the SEXP the missing value?
  * @param isScalar If the SEXP is a vector, does it only have one element? ({@code null} if not a
  *     vector.)
- * @param hasAttributes Does the SEXP have attributes? ({@code null} if bottom type.)
- * @param isObject Is the SEXP an object? ({@code null} if bottom type.)
- * @param isFastVecElt Can we fastcase accessing elements of the SEXP? ({@code YES} if not a
+ * @param isFastVecElt Can we fastcase accessing elements of the SEXP? ({@code null} if not a
  *     vector.)
  * @param hasNaOrNaN If the SEXP is a primitive vector, does it include an NA or NaN? ({@code null}
  *     if not a primitive vector.)
- * @param isMissing Is the SEXP the missing value? ({@code null} if bottom type.)
- * @param isUnbound Is the SEXP the unbound value? ({@code null} if bottom type.)
  */
 public record RTypeFlags(
-    @Nullable Troolean isPromise,
-    NoOrMaybe isLazy,
-    @Nullable Troolean isScalar,
-    @Nullable Troolean hasAttributes,
-    @Nullable Troolean isObject,
-    YesOrMaybe isFastVecElt,
-    @Nullable Troolean hasNaOrNaN,
-    @Nullable Troolean isMissing,
-    @Nullable Troolean isUnbound)
+    NoOrMaybe hasAttributes,
+    NoOrMaybe isObject,
+    NoOrMaybe isMissing,
+    @Nullable YesOrMaybe isScalar,
+    @Nullable YesOrMaybe isFastVecElt,
+    @Nullable NoOrMaybe hasNaOrNaN)
     implements BoundedLattice<RTypeFlags> {
   static final RTypeFlags BOTTOM =
-      new RTypeFlags(null, NoOrMaybe.NO, null, null, null, YesOrMaybe.YES, null, null, null);
+      new RTypeFlags(NoOrMaybe.NO, NoOrMaybe.NO, NoOrMaybe.NO, null, null, null);
 
   static final RTypeFlags TOP =
       new RTypeFlags(
-          Troolean.MAYBE,
           NoOrMaybe.MAYBE,
-          Troolean.MAYBE,
-          Troolean.MAYBE,
-          Troolean.MAYBE,
+          NoOrMaybe.MAYBE,
+          NoOrMaybe.MAYBE,
           YesOrMaybe.MAYBE,
-          Troolean.MAYBE,
-          Troolean.MAYBE,
-          Troolean.MAYBE);
+          YesOrMaybe.MAYBE,
+          NoOrMaybe.MAYBE);
 
   /** The flags which the given value has. */
   public static RTypeFlags of(SEXP value) {
-    var asPromise = value instanceof PromSXP p ? p : null;
     var asVector = value instanceof VectorSXP<?> v ? v : null;
     var asPrimVector = value instanceof PrimVectorSXP<?> pv ? pv : null;
     return new RTypeFlags(
-        Troolean.of(asPromise != null),
-        NoOrMaybe.of(asPromise != null && asPromise.isLazy()),
-        asVector == null ? null : Troolean.of(asVector.isScalar()),
-        Troolean.of(value.hasAttributes()),
-        Troolean.MAYBE, // TODO Troolean.of(value.isObject()),
-        YesOrMaybe.MAYBE, // TODO asVector == null ? YesOrMaybe.YES :
-        // YesOrMaybe.of(asVector.isFastVecElt()),
-        asPrimVector == null ? null : Troolean.of(asPrimVector.hasNaOrNaN()),
-        Troolean.of(value == SEXPs.MISSING_ARG),
-        Troolean.of(value == SEXPs.UNBOUND_VALUE));
+        NoOrMaybe.of(value.hasAttributes()),
+        NoOrMaybe.MAYBE, // TODO NoOrMaybe.of(value.isObject()),
+        NoOrMaybe.of(value == SEXPs.MISSING_ARG),
+        asVector == null ? null : YesOrMaybe.of(asVector.isScalar()),
+        null, // TODO asVector == null ? YesOrMaybe.YES : YesOrMaybe.of(asVector.isFastVecElt())
+        asPrimVector == null ? null : NoOrMaybe.of(asPrimVector.hasNaOrNaN()));
   }
 
   @Override
   public boolean isSubsetOf(RTypeFlags other) {
-    return Troolean.isSubset(isPromise, other.isPromise)
-        && isLazy.isSubsetOf(other.isLazy)
-        && Troolean.isSubset(isScalar, other.isScalar)
-        && Troolean.isSubset(hasAttributes, other.hasAttributes)
-        && Troolean.isSubset(isObject, other.isObject)
-        && isFastVecElt.isSubsetOf(other.isFastVecElt)
-        && Troolean.isSubset(hasNaOrNaN, other.hasNaOrNaN)
-        && Troolean.isSubset(isMissing, other.isMissing)
-        && Troolean.isSubset(isUnbound, other.isUnbound);
+    return hasAttributes.isSubsetOf(other.hasAttributes)
+        && isObject.isSubsetOf(other.isObject)
+        && isMissing.isSubsetOf(other.isMissing)
+        && (isScalar != YesOrMaybe.MAYBE || other.isScalar == YesOrMaybe.MAYBE)
+        && (isFastVecElt != YesOrMaybe.MAYBE || other.isFastVecElt == YesOrMaybe.MAYBE)
+        && (hasNaOrNaN != NoOrMaybe.MAYBE || other.hasNaOrNaN == NoOrMaybe.MAYBE);
   }
 
   @Override
   public RTypeFlags union(RTypeFlags other) {
     return new RTypeFlags(
-        Troolean.union(isPromise, other.isPromise),
-        isLazy.union(other.isLazy),
-        Troolean.union(isScalar, other.isScalar),
-        Troolean.union(hasAttributes, other.hasAttributes),
-        Troolean.union(isObject, other.isObject),
-        isFastVecElt.union(other.isFastVecElt),
-        Troolean.union(hasNaOrNaN, other.hasNaOrNaN),
-        Troolean.union(isMissing, other.isMissing),
-        Troolean.union(isUnbound, other.isUnbound));
+        hasAttributes.union(other.hasAttributes),
+        isObject.union(other.isObject),
+        isMissing.union(other.isMissing),
+        isScalar == null
+            ? other.isScalar
+            : other.isScalar == null ? isScalar : isScalar.union(other.isScalar),
+        isFastVecElt == null
+            ? other.isFastVecElt
+            : other.isFastVecElt == null ? isFastVecElt : isFastVecElt.union(other.isFastVecElt),
+        hasNaOrNaN == null
+            ? other.hasNaOrNaN
+            : other.hasNaOrNaN == null ? hasNaOrNaN : hasNaOrNaN.union(other.hasNaOrNaN));
   }
 
   @Nonnull
   @Override
   public RTypeFlags intersection(RTypeFlags other) {
     return new RTypeFlags(
-        Troolean.intersection(isPromise, other.isPromise),
-        isLazy.intersection(other.isLazy),
-        Troolean.intersection(isScalar, other.isScalar),
-        Troolean.intersection(hasAttributes, other.hasAttributes),
-        Troolean.intersection(isObject, other.isObject),
-        isFastVecElt.intersection(other.isFastVecElt),
-        Troolean.intersection(hasNaOrNaN, other.hasNaOrNaN),
-        Troolean.intersection(isMissing, other.isMissing),
-        Troolean.intersection(isUnbound, other.isUnbound));
+        hasAttributes.intersection(other.hasAttributes),
+        isObject.intersection(other.isObject),
+        isMissing.intersection(other.isMissing),
+        isScalar == null || other.isScalar == null ? null : isScalar.intersection(other.isScalar),
+        isFastVecElt == null || other.isFastVecElt == null
+            ? null
+            : isFastVecElt.intersection(other.isFastVecElt),
+        hasNaOrNaN == null || other.hasNaOrNaN == null
+            ? null
+            : hasNaOrNaN.intersection(other.hasNaOrNaN));
+  }
+
+  @Override
+  public String toString() {
+    var builder = new StringBuilder();
+    if (hasAttributes == NoOrMaybe.MAYBE) {
+      builder.append("A");
+    }
+    if (isObject == NoOrMaybe.MAYBE) {
+      builder.append("O");
+    }
+    if (isMissing == NoOrMaybe.MAYBE) {
+      builder.append("M");
+    }
+    if (isScalar == YesOrMaybe.MAYBE) {
+      builder.append("!S");
+    }
+    if (isFastVecElt == YesOrMaybe.MAYBE) {
+      builder.append("!F");
+    }
+    if (hasNaOrNaN == NoOrMaybe.MAYBE) {
+      builder.append("N");
+    }
+    if (!builder.isEmpty()) {
+      builder.append("?");
+    }
+    return builder.toString();
   }
 }

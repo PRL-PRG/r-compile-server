@@ -110,6 +110,18 @@ public record RClosureType(
         hasDots || other.hasDots);
   }
 
+  @Override
+  public String toString() {
+    var builder = new StringBuilder().append("(");
+    for (int i = 0; i < argumentNames.size(); i++) {
+      if (i > 0) {
+        builder.append(", ");
+      }
+      builder.append(argumentNames.get(i)).append(":").append(argumentTypes.get(i));
+    }
+    return builder.append(") -> ").append(returnType).toString();
+  }
+
   private static Stream<String> commonArgumentNames(RClosureType lhs, RClosureType rhs) {
     return lhs.argumentNames.stream().filter(rhs.argumentNames::contains);
   }
@@ -142,6 +154,11 @@ public record RClosureType(
     @Override
     public Argument intersection(Argument other) {
       return new Argument(type.intersection(other.type), isRequired || other.isRequired);
+    }
+
+    @Override
+    public String toString() {
+      return (isRequired ? "" : "?") + type;
     }
   }
 }

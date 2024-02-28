@@ -1,4 +1,7 @@
-package org.prlprg.ir;
+package org.prlprg.ir.node;
+
+import org.prlprg.ir.BB;
+import org.prlprg.ir.CFG;
 
 /** IR (intermediate representation) node; value or instruction. */
 public interface Node {
@@ -9,11 +12,6 @@ public interface Node {
   default CFG cfg() {
     return bb().cfg();
   }
-
-  /** Node was created directly from GNU-R bytecode. */
-  sealed interface GnuR extends Node permits Instr.GnuR {}
-  // /** Node corresponds to a PIR value. */
-  // sealed interface PIR extends Node permits ... {}
 }
 
 abstract class NodeImpl implements Node {
@@ -23,7 +21,8 @@ abstract class NodeImpl implements Node {
     this.bb = bb;
   }
 
-  BB bb() {
+  @Override
+  public BB bb() {
     return bb;
   }
 }
