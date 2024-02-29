@@ -1,6 +1,7 @@
 package org.prlprg.ir.node;
 
 import org.prlprg.ir.BB;
+import org.prlprg.ir.CFG;
 import org.prlprg.sexp.LangSXP;
 import org.prlprg.sexp.RegSymSXP;
 
@@ -10,7 +11,12 @@ public class Jumps {
   // We expose `Jump.Data` instead of (hypothetical) `Jumps.Data`
   // so that `Jumps` only exposes records (outside package code will never want to pattern-match on
   // `Void` or ...).
-  sealed interface Void extends Jump.Data {}
+  sealed interface Void extends Jump.Data<Jump> {
+    @Override
+    default Jump make(CFG cfg) {
+      return new VoidJumpImpl(cfg, this);
+    }
+  }
 
   sealed interface ForLoop extends ForLoopJump.Data {}
 

@@ -2,15 +2,16 @@ package org.prlprg.ir.node;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Streams;
+import com.pushtorefresh.javac_warning_annotation.Warning;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.RecordComponent;
 import java.util.Arrays;
 import java.util.Collection;
-import org.prlprg.ir.BB;
+import org.prlprg.ir.CFG;
 import org.prlprg.util.Reflection;
 
 /** IR instruction: statement or jump. e.g. GNU-R bytecode or PIR instructions. */
-public interface Instr<D extends Instr.Data> extends Node {
+public interface Instr extends NodeWithCfg {
   /** The instruction's arguments, which are the other nodes it depends on. */
   ImmutableList<Node> args();
 
@@ -32,19 +33,24 @@ public interface Instr<D extends Instr.Data> extends Node {
    * The instruction's data, which determines what type of instruction it is and contains specificly
    * typed children. This is useful for pattern-matching.
    */
-  D data();
+  Data<?> data();
 
   /** Check that arguments are of the correct dynamic type and set cached data. */
   void verify();
 
-  sealed interface Data permits Stmt.Data, Jump.Data {}
+  sealed interface Data<I extends Instr> permits Jump.Data, Stmt.Data {
+    /** Create an instruction containing this data. */
+    @Warning("Only exposed for BB.insert, call a BB method instead.")
+    I make(CFG cfg);
+  }
 }
 
-abstract class InstrImpl<D extends Instr.Data> extends NodeImpl implements Instr<D> {
+abstract class InstrImpl<D extends Instr.Data<?>> implements Instr {
+  private final CFG cfg;
   private D data;
 
-  InstrImpl(BB bb, D data) {
-    super(bb);
+  InstrImpl(CFG cfg, D data) {
+    this.cfg = cfg;
     this.data = data;
     verify();
   }
@@ -148,6 +154,11 @@ abstract class InstrImpl<D extends Instr.Data> extends NodeImpl implements Instr
           "Instr.Data has Collection component which isn't a straightforward generic type, don't know how to handle");
     }
     return elemClass;
+  }
+
+  @Override
+  public CFG cfg() {
+    return cfg;
   }
 
   @Override

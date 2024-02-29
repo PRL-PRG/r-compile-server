@@ -4,19 +4,24 @@ import com.google.common.collect.ImmutableCollection;
 import com.google.common.collect.ImmutableList;
 import java.util.Arrays;
 import org.prlprg.ir.BB;
+import org.prlprg.ir.CFG;
 import org.prlprg.util.Reflection;
 
 /** IR instruction which is the final instruction and outgoing edge of a basic block. */
-public interface Jump<D extends Jump.Data> extends Instr<D> {
+public interface Jump extends Instr {
   /** The BBs that this jump can go to. */
   ImmutableCollection<BB> targets();
 
-  sealed interface Data extends Instr.Data permits ForLoopJump.Data, Jumps.Void {}
+  @Override
+  Data<?> data();
+
+  sealed interface Data<I extends Jump> extends Instr.Data<I>
+      permits ForLoopJump.Data, Jumps.Void {}
 }
 
-abstract class JumpImpl<D extends Jump.Data> extends InstrImpl<D> implements Jump<D> {
-  JumpImpl(BB bb, D data) {
-    super(bb, data);
+abstract class JumpImpl<D extends Jump.Data<?>> extends InstrImpl<D> implements Jump {
+  JumpImpl(CFG cfg, D data) {
+    super(cfg, data);
   }
 
   @Override
@@ -28,5 +33,17 @@ abstract class JumpImpl<D extends Jump.Data> extends InstrImpl<D> implements Jum
         .filter(cmp -> cmp.getType() == BB.class)
         .map(cmp -> (BB) Reflection.getComponent(data(), cmp))
         .collect(ImmutableList.toImmutableList());
+  }
+}
+
+/** {@link Jump} which doesn't return anything. */
+final class VoidJumpImpl extends JumpImpl<Jumps.Void> {
+  VoidJumpImpl(CFG cfg, Jumps.Void data) {
+    super(cfg, data);
+  }
+
+  @Override
+  public ImmutableList<Node> returns() {
+    return ImmutableList.of();
   }
 }

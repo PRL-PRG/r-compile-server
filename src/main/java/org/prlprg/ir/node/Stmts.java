@@ -2,6 +2,7 @@ package org.prlprg.ir.node;
 
 import com.google.common.collect.ImmutableList;
 import javax.annotation.Nullable;
+import org.prlprg.ir.CFG;
 import org.prlprg.ir.type.RType;
 import org.prlprg.ir.type.RTypes;
 import org.prlprg.sexp.*;
@@ -14,7 +15,12 @@ class Stmts {
   // `Stmts.RValue`
   // so that `Stmts` only exposes records (outside package code will never want to pattern-match on
   // `Void` or ...).
-  sealed interface Void extends Stmt.Data {}
+  sealed interface Void extends Stmt.Data<Stmt> {
+    @Override
+    default Stmt make(CFG cfg) {
+      return new VoidStmtImpl(cfg, this);
+    }
+  }
 
   sealed interface RValue_ extends RValueStmt.Data {}
 
@@ -246,7 +252,7 @@ class Stmts {
 
   record DotsErr() implements Void {}
 
-  record StartAssign(RegSymSXP name, RValue value, Env env) implements Instr.Data {}
+  record StartAssign(RegSymSXP name, RValue value, Env env) implements Stmt.Data {}
 
   record EndAssign(RegSymSXP name, RValue lhs, RValue rhs, Env env) implements Void {}
 

@@ -1,5 +1,7 @@
 package org.prlprg.ir.type;
 
+import java.util.Arrays;
+import java.util.stream.Stream;
 import org.prlprg.ir.CFG;
 import org.prlprg.rshruntime.TypeFeedback;
 import org.prlprg.sexp.*;
@@ -78,6 +80,26 @@ public class RTypes {
    */
   public static RType simple(SEXPType type) {
     throw new NotImplementedError();
+  }
+
+  /** Type which is the union of all given types. */
+  public static RType union(RType... types) {
+    return union(Arrays.stream(types));
+  }
+
+  /** Type which is the union of all given types. */
+  public static RType union(Stream<RType> types) {
+    return types.reduce(RType::union).orElse(NOTHING);
+  }
+
+  /** Type which is the intersection of all given types. */
+  public static RType intersection(RType... types) {
+    return intersection(Arrays.stream(types));
+  }
+
+  /** Type which is the intersection of all given types. */
+  public static RType intersection(Stream<RType> types) {
+    return types.reduce(RType::intersection).orElse(ANY);
   }
 
   private RTypes() {}

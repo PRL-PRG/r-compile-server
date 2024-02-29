@@ -1,28 +1,22 @@
 package org.prlprg.ir.node;
 
-import org.prlprg.ir.BB;
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import org.prlprg.ir.CFG;
 
 /** IR (intermediate representation) node; value or instruction. */
 public interface Node {
-  /** BB containing this node. */
-  BB bb();
-
-  /** CFG containing this node. */
-  default CFG cfg() {
-    return bb().cfg();
-  }
+  /**
+   * CFG containing the node, or {@code null} if it's a shared static node (e.g. {@code
+   * R_GlobalEnv}.
+   */
+  @Nullable CFG cfg();
 }
 
-abstract class NodeImpl implements Node {
-  private final BB bb;
-
-  NodeImpl(BB bb) {
-    this.bb = bb;
-  }
-
+/** An IR node with a non-null {@link CFG}. */
+interface NodeWithCfg extends Node {
+  @SuppressWarnings("NullableProblems")
   @Override
-  public BB bb() {
-    return bb;
-  }
+  @Nonnull
+  CFG cfg();
 }

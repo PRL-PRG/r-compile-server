@@ -1,19 +1,33 @@
 package org.prlprg.ir.node;
 
-import org.prlprg.ir.BB;
+import com.google.common.collect.ImmutableList;
+import org.prlprg.ir.CFG;
 
 /**
  * IR instruction which isn't the final instruction of a basic block and doesn't affect control
  * flow.
  */
-public interface Stmt<D extends Stmt.Data> extends Instr<D> {
-  // This has no fields that Instr/Jump don't
+public interface Stmt extends Instr {
+  @Override
+  Data<?> data();
 
-  sealed interface Data extends Instr.Data permits RValueStmt.Data, Stmts.Void {}
+  sealed interface Data<I extends Stmt> extends Instr.Data<I> permits RValueStmt.Data, Stmts.Void {}
 }
 
-abstract class StmtImpl<D extends Stmt.Data> extends InstrImpl<D> implements Stmt<D> {
-  StmtImpl(BB bb, D data) {
-    super(bb, data);
+abstract class StmtImpl<D extends Stmt.Data<?>> extends InstrImpl<D> implements Stmt {
+  StmtImpl(CFG cfg, D data) {
+    super(cfg, data);
+  }
+}
+
+/** {@link Stmt} (IR instruction) which doesn't produce anything. */
+final class VoidStmtImpl extends StmtImpl<Stmts.Void> {
+  VoidStmtImpl(CFG cfg, Stmts.Void data) {
+    super(cfg, data);
+  }
+
+  @Override
+  public ImmutableList<Node> returns() {
+    return ImmutableList.of();
   }
 }
