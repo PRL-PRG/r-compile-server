@@ -47,7 +47,7 @@ public class BB {
    * @return The inserted statement.
    * @throws IllegalArgumentException If the before statement wasn't found.
    */
-  public Stmt insertBefore(Stmt.Data<?> stmtData, Stmt before) {
+  public <I extends Stmt> I insertBefore(Stmt.Data<I> stmtData, Stmt before) {
     int index = stmts.indexOf(before);
     if (index == -1) {
       throw new IllegalArgumentException("Before not in " + this + ": " + before);
@@ -63,7 +63,7 @@ public class BB {
    * @return The inserted statement.
    * @throws IllegalArgumentException If the before statement wasn't found.
    */
-  public Stmt insertAfter(Stmt.Data<?> stmtData, Stmt after) {
+  public <I extends Stmt> I insertAfter(Stmt.Data<I> stmtData, Stmt after) {
     int index = stmts.indexOf(after);
     if (index == -1) {
       throw new IllegalArgumentException("After not in " + this + ": " + after);
@@ -78,7 +78,7 @@ public class BB {
    *
    * @return Ths inserted statement.
    */
-  public Stmt prepend(Stmt.Data<?> stmtData) {
+  public <I extends Stmt> I prepend(Stmt.Data<I> stmtData) {
     var stmt = stmtData.make(cfg());
     stmts.addFirst(stmt);
     return stmt;
@@ -89,7 +89,7 @@ public class BB {
    *
    * @return Ths inserted statement.
    */
-  public Stmt append(Stmt.Data<?> stmtData) {
+  public <I extends Stmt> I append(Stmt.Data<I> stmtData) {
     var stmt = stmtData.make(cfg());
     stmts.add(stmt);
     return stmt;
@@ -101,7 +101,7 @@ public class BB {
    * @return The added jump.
    * @throws IllegalArgumentException If it already has one.
    */
-  public Jump add(Jump.Data<?> jumpData) {
+  public <I extends Jump> I add(Jump.Data<I> jumpData) {
     if (this.jump != null) {
       throw new IllegalStateException(this + " already has a jump");
     }
@@ -138,7 +138,6 @@ public class BB {
       throw new IllegalArgumentException(
           "Replace oldInstr not in BB: " + oldInstr + " not in:\n" + this);
     }
-
     return cfg().replace(oldInstr, newData);
   }
 
@@ -149,10 +148,10 @@ public class BB {
   //  (including removed auxillary nodes, not just instructions)
 
   /**
-   * Try to replace the instruction if present and return if we done so. Also replace it in
+   * Try to replace the instruction if present and return if we done so. Doesn't replace it in
    * arguments.
    */
-  boolean tryReplaceAndReplaceInArgs(Instr oldInstr, Instr newInstr) {
+  boolean tryOnlyReplace(Instr oldInstr, Instr newInstr) {
     assert oldInstr.cfg() == cfg() && newInstr.cfg() == cfg();
     if (oldInstr instanceof Phi) {
       throw new UnsupportedOperationException(
@@ -177,8 +176,6 @@ public class BB {
         stmts.set(s);
         assert !replaced : "In " + this + ", replaced multiple times: " + oldInstr;
         replaced = true;
-      } else {
-        instr.replace(oldInstr, newInstr);
       }
     }
     if (jump != null) {
@@ -190,11 +187,23 @@ public class BB {
         setJump(j);
         assert !replaced : "In " + this + ", replaced multiple times: " + oldInstr;
         replaced = true;
-      } else {
-        jump.replace(oldInstr, newInstr);
       }
     }
     return replaced;
+  }
+
+  /** Replace the node in the arguments of every argument-containing node in this BB. */
+  void replaceInArgs(Node oldNode, Node newNode) {
+    assert oldNode.cfg() == cfg() && newNode.cfg() == cfg();
+    for (var phi : phis) {
+      phi.replace(oldNode, newNode);
+    }
+    for (var stmt : stmts) {
+      stmt.replace(oldNode, newNode);
+    }
+    if (jump != null) {
+      jump.replace(oldNode, newNode);
+    }
   }
 
   /** Set jump and update successors. */

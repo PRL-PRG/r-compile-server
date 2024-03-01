@@ -23,7 +23,6 @@ public class CFG {
    * @throws IllegalArgumentException if {@code newData} is an incompatible type.
    */
   public <I extends Instr> I replace(I oldInstr, Instr.Data<I> newData) {
-    // TODO: Make this work with auxillary nodes
     if (oldInstr.data().equals(newData)) {
       return oldInstr;
     }
@@ -34,7 +33,7 @@ public class CFG {
     var newInstr = newData.make(this);
     var replaced = false;
     for (var bb : bbs) {
-      var newlyReplaced = bb.tryReplaceAndReplaceInArgs(oldInstr, newInstr);
+      var newlyReplaced = bb.tryOnlyReplace(oldInstr, newInstr);
       assert !replaced || !newlyReplaced
           : "Replaced multiple times in different BBs: " + oldInstr + " in: " + this;
       replaced = replaced || newlyReplaced;
@@ -42,7 +41,29 @@ public class CFG {
     assert replaced
         : "oldInstr has this CFG as its parent but wasn't found (improperly deleted BB?): "
             + oldInstr;
+    replaceInstrReturnsInArgs(oldInstr, newInstr);
     return newInstr;
+  }
+
+  /**
+   * Replace the instruction return values in the arguments of every argument-containing node in
+   * this BB.
+   */
+  private void replaceInstrReturnsInArgs(Instr oldInstr, Instr newInstr) {
+    var oldReturns = oldInstr.returns();
+    var newReturns = newInstr.returns();
+    if (oldReturns.size() != newReturns.size()) {
+      throw new IllegalArgumentException(
+          "Ttried to replace an instruction with a different number of returns: "
+              + oldInstr
+              + " -> "
+              + newInstr);
+    }
+    for (int i = 0; i < oldReturns.size(); i++) {
+      for (var bb : bbs) {
+        bb.replaceInArgs(oldReturns.get(i), newReturns.get(i));
+      }
+    }
   }
 
   // TODO: make sure when we split, delete BBs, phi nodes are updated if necessary, and removed
