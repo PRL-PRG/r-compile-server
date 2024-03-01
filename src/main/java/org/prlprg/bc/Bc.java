@@ -1,38 +1,42 @@
 package org.prlprg.bc;
 
-import com.google.common.primitives.ImmutableIntArray;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
+
 import javax.annotation.Nullable;
+
 import org.prlprg.primitive.Constants;
 import org.prlprg.sexp.IntSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
 
+import com.google.common.primitives.ImmutableIntArray;
+
 /**
- * A complete R bytecode, consisting of a version, array of instructions and associated data, and
+ * A complete R bytecode, consisting of a version, array of instructions and
+ * associated data, and
  * constants.
  */
 public record Bc(BcCode code, ConstPool consts) {
+
   /**
-   * The only version of R bytecodes we support, which is also the latest version. The bytecode's
+   * The only version of R bytecodes we support, which is also the latest version.
+   * The bytecode's
    * version is denoted by the first integer in its code.
    */
   public static final int R_BC_VERSION = 12;
 
   /**
-   * Create from the raw GNU-R representation, bytecodes not including the initial version number.
+   * Create from the raw GNU-R representation, bytecodes not including the initial
+   * version number.
    */
   public static Bc fromRaw(ImmutableIntArray bytecodes, List<SEXP> consts)
       throws BcFromRawException {
-    var poolAndMakeIdx = ConstPool.fromRaw(consts);
-    var pool = poolAndMakeIdx.first();
-    var makePoolIdx = poolAndMakeIdx.second();
-    try {
-      return new Bc(BcCode.fromRaw(bytecodes, makePoolIdx), pool);
-    } catch (BcFromRawException e) {
-      throw new BcFromRawException("malformed bytecode\nConstants: " + pool, e);
-    }
+    var factory = new FromRawBCFactory(bytecodes, consts);
+    return factory.create();
   }
 
   @Override
@@ -44,14 +48,12 @@ public record Bc(BcCode code, ConstPool consts) {
     private final BcCode.Builder code = new BcCode.Builder();
     private final ConstPool.Builder consts = new ConstPool.Builder();
     private final List<BcLabel> labels = new ArrayList<>();
-    private final ImmutableIntArray.Builder expressions =
-        ImmutableIntArray.builder()
-            // to have the same length as codeBuf
-            .add(Constants.NA_INT);
-    private final ImmutableIntArray.Builder srcRefs =
-        ImmutableIntArray.builder()
-            // to have the same length as codeBuf
-            .add(Constants.NA_INT);
+    private final ImmutableIntArray.Builder expressions = ImmutableIntArray.builder()
+        // to have the same length as codeBuf
+        .add(Constants.NA_INT);
+    private final ImmutableIntArray.Builder srcRefs = ImmutableIntArray.builder()
+        // to have the same length as codeBuf
+        .add(Constants.NA_INT);
 
     private @Nullable SEXP currentExpr = null;
     private @Nullable IntSXP currentSrcRef = null;
@@ -68,7 +70,7 @@ public record Bc(BcCode code, ConstPool consts) {
     }
 
     /** Append a constant and return its index. */
-    public <S extends SEXP> ConstPool.TypedIdx<S> addConst(S c) {
+    public <S extends SEXP> ConstPool.Idx<S> addConst(S c) {
       return consts.add(c);
     }
 
@@ -80,14 +82,14 @@ public record Bc(BcCode code, ConstPool consts) {
       if (trackExpressions) {
         assert currentExpr != null;
         for (var i = 0; i <= instr.op().nArgs(); i++) {
-          expressions.add(addConst(currentExpr).idx);
+          expressions.add(addConst(currentExpr).idx());
         }
       }
 
       if (trackSrcRefs) {
         assert currentSrcRef != null;
         for (var i = 0; i <= instr.op().nArgs(); i++) {
-          srcRefs.add(addConst(currentSrcRef).idx);
+          srcRefs.add(addConst(currentSrcRef).idx());
         }
       }
 

@@ -340,7 +340,9 @@ function(x) for (i in x) if (i) break() else 1
   public void inlineSwitch() {
     assertBytecode("""
 function(x) {
-  switch(x, 1, 2, 3)
+  if (switch(x, 1, 2, g(3))) {
+    if (y) 4 else 5
+  }
 }
 """);
   }

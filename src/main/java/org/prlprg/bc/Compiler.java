@@ -16,90 +16,87 @@ import org.prlprg.util.Either;
 //   - especially the clumsy ListSXP
 
 // TODO: 11.4 Inlining simple .Internal functions
-// TODO: 12 The switch function
 // TODO: 13 Assignments expressions
 // TODO: 16 Improved subset and sub-assignment handling
 // TODO: simple interpreter for the constantFoldCode
 @SuppressWarnings("PMD.UnnecessaryImport")
 public class Compiler {
   private static final Set<String> MAYBE_NSE_SYMBOLS = Set.of("bquote");
-  private static final Set<String> ALLOWED_INLINES =
-      Set.of(
-          "^",
-          "~",
-          "<",
-          "<<-",
-          "<=",
-          "<-",
-          "=",
-          "==",
-          ">",
-          ">=",
-          "|",
-          "||",
-          "-",
-          ":",
-          "!",
-          "!=",
-          "/",
-          "(",
-          "[",
-          "[<-",
-          "[[",
-          "[[<-",
-          "{",
-          "@",
-          "$",
-          "$<-",
-          "*",
-          "&",
-          "&&",
-          "%/%",
-          "%*%",
-          "%%",
-          "+",
-          "::",
-          ":::",
-          "@<-",
-          "break",
-          "for",
-          "function",
-          "if",
-          "next",
-          "repeat",
-          "while",
-          "local",
-          "return",
-          "switch");
+  private static final Set<String> ALLOWED_INLINES = Set.of(
+      "^",
+      "~",
+      "<",
+      "<<-",
+      "<=",
+      "<-",
+      "=",
+      "==",
+      ">",
+      ">=",
+      "|",
+      "||",
+      "-",
+      ":",
+      "!",
+      "!=",
+      "/",
+      "(",
+      "[",
+      "[<-",
+      "[[",
+      "[[<-",
+      "{",
+      "@",
+      "$",
+      "$<-",
+      "*",
+      "&",
+      "&&",
+      "%/%",
+      "%*%",
+      "%%",
+      "+",
+      "::",
+      ":::",
+      "@<-",
+      "break",
+      "for",
+      "function",
+      "if",
+      "next",
+      "repeat",
+      "while",
+      "local",
+      "return",
+      "switch");
 
   // one-parameter functions evaluated by the math1 function in arithmetic.c
   // the order is important
-  private static final List<String> MATH1_FUNS =
-      List.of(
-          "floor",
-          "ceiling",
-          "sign",
-          "expm1",
-          "log1p",
-          "cos",
-          "sin",
-          "tan",
-          "acos",
-          "asin",
-          "atan",
-          "cosh",
-          "sinh",
-          "tanh",
-          "acosh",
-          "asinh",
-          "atanh",
-          "lgamma",
-          "gamma",
-          "digamma",
-          "trigamma",
-          "cospi",
-          "sinpi",
-          "tanpi");
+  private static final List<String> MATH1_FUNS = List.of(
+      "floor",
+      "ceiling",
+      "sign",
+      "expm1",
+      "log1p",
+      "cos",
+      "sin",
+      "tan",
+      "acos",
+      "asin",
+      "atan",
+      "cosh",
+      "sinh",
+      "tanh",
+      "acosh",
+      "asinh",
+      "atanh",
+      "lgamma",
+      "gamma",
+      "digamma",
+      "trigamma",
+      "cospi",
+      "sinpi",
+      "tanpi");
 
   private static final Set<String> FORBIDDEN_INLINES = Set.of("standardGeneric");
 
@@ -130,14 +127,20 @@ public class Compiler {
 
   /*
    * 0 - No inlining
-   * 1 - Functions in the base packages found through a namespace that are not shadowed by
+   * 1 - Functions in the base packages found through a namespace that are not
+   * shadowed by
    * function arguments or visible local assignments may be inlined.
-   * 2 - In addition to the inlining permitted by Level 1, functions that are syntactically special
-   * or are considered core language functions and are found via the global environment at compile
-   * time may be inlined. Other functions in the base packages found via the global environment
-   * may be inlined with a guard that ensures at runtime that the inlined function has not been
+   * 2 - In addition to the inlining permitted by Level 1, functions that are
+   * syntactically special
+   * or are considered core language functions and are found via the global
+   * environment at compile
+   * time may be inlined. Other functions in the base packages found via the
+   * global environment
+   * may be inlined with a guard that ensures at runtime that the inlined function
+   * has not been
    * masked; if it has, then the call in handled by the AST interpreter.
-   * 3 - Any function in the base packages found via the global environment may be inlined.
+   * 3 - Any function in the base packages found via the global environment may be
+   * inlined.
    */
   private int optimizationLevel = 2;
 
@@ -230,22 +233,20 @@ public class Compiler {
       cb.addInstr(new DotsErr());
     } else if (e.isDdSym()) {
       // TODO: if (!findLocVar("..."))
-      //       notifyWrongDotsUse
+      // notifyWrongDotsUse
       var idx = cb.addConst(e);
       cb.addInstr(missingOk ? new DdValMissOk(idx) : new DdVal(idx));
       checkTailCall();
     } else {
       // TODO: if (!findVar(sym))
-      //       notifyUndefVar
+      // notifyUndefVar
       var idx = cb.addConst(e);
       cb.addInstr(missingOk ? new GetVarMissOk(idx) : new GetVar(idx));
       checkTailCall();
     }
   }
 
-  @SuppressFBWarnings(
-      value = "DLS_DEAD_LOCAL_STORE",
-      justification = "False positive, probably because of ignored switch case")
+  @SuppressFBWarnings(value = "DLS_DEAD_LOCAL_STORE", justification = "False positive, probably because of ignored switch case")
   private void compileConst(SEXP expr) {
     switch (expr) {
       case NilSXP ignored -> cb.addInstr(new LdNull());
@@ -270,13 +271,14 @@ public class Compiler {
         }
       }
       case SpecialSymSXP fun ->
-          throw new IllegalStateException("Trying to call special symbol: " + fun);
+        throw new IllegalStateException("Trying to call special symbol: " + fun);
       case LangSXP fun -> {
         if (fun.fun() instanceof RegSymSXP sym && LOOP_BREAK_FUNS.contains(sym.name())) {
           // From the R source code:
-          //  ## **** this hack is needed for now because of the way the
-          //  ## **** parser handles break() and next() calls
-          // Consequently, the RDSReader returns a LangSXP(LangSXP(break/next, NULL), NULL) for
+          // ## **** this hack is needed for now because of the way the
+          // ## **** parser handles break() and next() calls
+          // Consequently, the RDSReader returns a LangSXP(LangSXP(break/next, NULL),
+          // NULL) for
           // break() and next() calls
           compile(fun);
         } else {
@@ -304,9 +306,7 @@ public class Compiler {
     checkTailCall();
   }
 
-  @SuppressFBWarnings(
-      value = "DLS_DEAD_LOCAL_STORE",
-      justification = "False positive, probably because of ignored switch case")
+  @SuppressFBWarnings(value = "DLS_DEAD_LOCAL_STORE", justification = "False positive, probably because of ignored switch case")
   private void compileArgs(ListSXP args, boolean nse) {
     for (var arg : args) {
       var tag = arg.tag();
@@ -318,9 +318,9 @@ public class Compiler {
           compileTag(tag);
         }
         case SymSXP x when x.isEllipsis() ->
-            // TODO: if (!findLocVar("..."))
-            //       notifyWrongDotsUse
-            cb.addInstr(new DoDots());
+          // TODO: if (!findLocVar("..."))
+          // notifyWrongDotsUse
+          cb.addInstr(new DoDots());
         case SymSXP x -> {
           compileNormArg(x, nse);
           compileTag(tag);
@@ -348,9 +348,7 @@ public class Compiler {
     cb.addInstr(new MakeProm(cb.addConst(arg)));
   }
 
-  @SuppressFBWarnings(
-      value = "DLS_DEAD_LOCAL_STORE",
-      justification = "False positive, probably because of ignored switch case")
+  @SuppressFBWarnings(value = "DLS_DEAD_LOCAL_STORE", justification = "False positive, probably because of ignored switch case")
   private void compileConstArg(SEXP arg) {
     switch (arg) {
       case NilSXP ignored -> cb.addInstr(new PushNullArg());
@@ -486,7 +484,8 @@ public class Compiler {
           () -> {
             // The BASEGUARD checks the validity of the inline code, i.e. if what
             // was from base at compile time hasn't changed.
-            // if the inlined code is not valid the guard instruction will evaluate the call in
+            // if the inlined code is not valid the guard instruction will evaluate the call
+            // in
             // the AST interpreter and jump over the inlined code.
             cb.addInstr(new BaseGuard(cb.addConst(call), end));
             if (!inline.apply(call)) {
@@ -508,12 +507,19 @@ public class Compiler {
   /**
    * From the R documentation:
    *
-   * <p><quote> The inlining handler for `{` needs to consider that a pair of braces { and } can
-   * surround zero, one, or more expressions. A set of empty braces is equivalent to the constant
-   * NULL. If there is more than one expression, then all the values of all expressions other than
-   * the last are ignored. These expressions are compiled in a no-value context (currently
-   * equivalent to a non-tail-call context), and then code is generated to pop their values off the
-   * stack. The final expression is then compiled according to the context in which the braces
+   * <p>
+   * <quote> The inlining handler for `{` needs to consider that a pair of braces
+   * { and } can
+   * surround zero, one, or more expressions. A set of empty braces is equivalent
+   * to the constant
+   * NULL. If there is more than one expression, then all the values of all
+   * expressions other than
+   * the last are ignored. These expressions are compiled in a no-value context
+   * (currently
+   * equivalent to a non-tail-call context), and then code is generated to pop
+   * their values off the
+   * stack. The final expression is then compiled according to the context in
+   * which the braces
    * expression occurs. </quote>
    *
    * @param call
@@ -589,11 +595,17 @@ public class Compiler {
   /**
    * From the R documentation:
    *
-   * <p><quote> Compiling of function expressions is somewhat similar to compiling promises for
-   * function arguments. The body of a function is compiled into a separate byte code object and
-   * stored in the constant pool together with the formals. Then code is emitted for creating a
-   * closure from the formals, compiled body, and the current environment. For now, only the body of
-   * functions is compiled, not the default argument expressions. This should be changed in future
+   * <p>
+   * <quote> Compiling of function expressions is somewhat similar to compiling
+   * promises for
+   * function arguments. The body of a function is compiled into a separate byte
+   * code object and
+   * stored in the constant pool together with the formals. Then code is emitted
+   * for creating a
+   * closure from the formals, compiled body, and the current environment. For
+   * now, only the body of
+   * functions is compiled, not the default argument expressions. This should be
+   * changed in future
    * versions of the compiler. </quote>
    *
    * @param call
@@ -623,28 +635,40 @@ public class Compiler {
   /**
    * From the R documentation:
    *
-   * <p><quote>
-   * In R an expression of the form (expr) is interpreted as a call to the function ( with the argument
-   * expr. Parentheses are used to guide the parser, and for the most part (expr) is equivalent to expr.
+   * <p>
+   * <quote>
+   * In R an expression of the form (expr) is interpreted as a call to the
+   * function ( with the argument
+   * expr. Parentheses are used to guide the parser, and for the most part (expr)
+   * is equivalent to expr.
    * There are two exceptions:
    * <ul>
-   *     <li>Since ( is a function an expression of the form <code>(...)</code> is legal whereas
-   *         just <code>...</code> may not be,
-   *         depending on the context. A runtime error will occur unless the <code>...</code> argument expands to
-   *         exactly one non-missing argument.</li>
-   *     <li>In tail position a call to ( sets the visible flag to TRUE. So at top level for example the result
-   *         of an assignment expression x <- 1 would not be printed, but the result of <code>(x <- 1<code/>
+   * <li>Since ( is a function an expression of the form <code>(...)</code> is
+   * legal whereas
+   * just <code>...</code> may not be,
+   * depending on the context. A runtime error will occur unless the
+   * <code>...</code> argument expands to
+   * exactly one non-missing argument.</li>
+   * <li>In tail position a call to ( sets the visible flag to TRUE. So at top
+   * level for example the result
+   * of an assignment expression x <- 1 would not be printed, but the result of
+   * <code>(x <- 1<code/>
    *         would be printed. It is not clear that this feature really needs to be preserved within
    *         functions — it could be made a feature of the read-eval-print loop — but for now it is a
    *         feature of the interpreter that the compiler should preserve.</li>
    * </ul>
    * <p>
-   * The inlining handler for <code>(</code> calls handles a <code>...</code> argument case or a case with
-   * fewer or more than one argument as a generic BUILTIN call. If the expression is in tail position
-   * then the argument is compiled in a non-tail-call context, a VISIBLE instruction is emitted to set
-   * the visible flag to TRUE, and a RETURN instruction is emitted. If the expression is in non-tail
+   * The inlining handler for <code>(</code> calls handles a <code>...</code>
+   * argument case or a case with
+   * fewer or more than one argument as a generic BUILTIN call. If the expression
+   * is in tail position
+   * then the argument is compiled in a non-tail-call context, a VISIBLE
+   * instruction is emitted to set
+   * the visible flag to TRUE, and a RETURN instruction is emitted. If the
+   * expression is in non-tail
    * position, then code for the argument is generated in the current context.
-   * </quote></p>
+   * </quote>
+   * </p>
    *
    * @param call
    */
@@ -708,19 +732,19 @@ public class Compiler {
       } else {
         switch (arg.value()) {
           case RegSymSXP sym ->
-              constantFold(arg.value())
-                  .ifPresentOrElse(
-                      this::compileConstArg,
-                      () -> {
-                        compileSym(sym, missingOK);
-                        cb.addInstr(new PushArg());
-                      });
+            constantFold(arg.value())
+                .ifPresentOrElse(
+                    this::compileConstArg,
+                    () -> {
+                      compileSym(sym, missingOK);
+                      cb.addInstr(new PushArg());
+                    });
           case LangSXP call -> {
             // FIXME: GNUR does:
-            //  cmp(a, cb, ncntxt)
-            //  which is weird since it says in the doc:
-            //  > ... Constant folding is needed here since it doesn’t go through cmp.
-            //  a possible reason why to go through cmp is to set location...
+            // cmp(a, cb, ncntxt)
+            // which is weird since it says in the doc:
+            // > ... Constant folding is needed here since it doesn’t go through cmp.
+            // a possible reason why to go through cmp is to set location...
             compileCall(call, true);
             cb.addInstr(new PushArg());
           }
@@ -741,23 +765,24 @@ public class Compiler {
   private boolean inlineLocal(LangSXP call) {
     // From the R documentation:
     //
-    // > While local is currently implemented as a closure, because of its importance relative to
+    // > While local is currently implemented as a closure, because of its
+    // importance relative to
     // local
-    // > variable determination it is a good idea to inline it as well. The current semantics are
+    // > variable determination it is a good idea to inline it as well. The current
+    // semantics are
     // such that
     // > the interpreter treats
-    // >   local(expr)
+    // > local(expr)
     // > essentially the same as
-    // >   (function() expr)()
+    // > (function() expr)()
 
     if (call.args().size() != 1) {
       return false;
     }
 
-    var closure =
-        SEXPs.lang(
-            SEXPs.lang(SEXPs.symbol("function"), SEXPs.list(SEXPs.NULL, call.arg(0).value())),
-            SEXPs.list());
+    var closure = SEXPs.lang(
+        SEXPs.lang(SEXPs.symbol("function"), SEXPs.list(SEXPs.NULL, call.arg(0).value())),
+        SEXPs.list());
     compile(closure);
     return true;
   }
@@ -765,19 +790,26 @@ public class Compiler {
   private boolean inlineReturn(LangSXP call) {
     // From the R documentation:
     //
-    // > A call to return causes a return from the associated function call, as determined by the
+    // > A call to return causes a return from the associated function call, as
+    // determined by the
     // lexical
-    // > context in which the return expression is defined. If the return is captured in a closure
+    // > context in which the return expression is defined. If the return is
+    // captured in a closure
     // and is
-    // > executed within a callee then this requires a longjmp. A longjmp is also needed if the
+    // > executed within a callee then this requires a longjmp. A longjmp is also
+    // needed if the
     // return call
-    // > occurs within a loop that is compiled to a separate code object to support a setjmp for
+    // > occurs within a loop that is compiled to a separate code object to support
+    // a setjmp for
     // break or
-    // > next calls. The RETURNJMP instruction is provided for this purpose. In all other cases an
+    // > next calls. The RETURNJMP instruction is provided for this purpose. In all
+    // other cases an
     // ordinary
-    // > RETURN instruction can be used. return calls with ..., which may be legal if ... contains
+    // > RETURN instruction can be used. return calls with ..., which may be legal
+    // if ... contains
     // only one
-    // > argument, or missing arguments or more than one argument, which will produce runtime
+    // > argument, or missing arguments or more than one argument, which will
+    // produce runtime
     // errors,
     // > are compiled as generic SPECIAL calls.
     if (dotsOrMissing(call.args()) || call.args().size() > 1) {
@@ -812,20 +844,35 @@ public class Compiler {
   /**
    * From the R documentation:
    *
-   * <p>> In many languages it is possible to convert the expression a && b to an equivalent if
-   * expression > of the form > if (a) { if (b) TRUE else FALSE } > Similarly, in these languages
-   * the expression a || b is equivalent to > if (a) TRUE else if (b) TRUE else FALSE > Compilation
-   * of these expressions is thus reduced to compiling if expressions. > Unfortunately, because of
-   * the possibility of NA values, these equivalencies do not hold in R. In > R, NA || TRUE should
-   * evaluate to TRUE and NA && FALSE to FALSE. This is handled by introducing > special
-   * instructions AND1ST and AND2ND for && expressions and OR1ST and OR2ND for ||. > The code
-   * generator for && expressions generates code to evaluate the first argument and then > emits an
-   * AND1ST instruction. The AND1ST instruction has one operand, the label for the instruction >
-   * following code for the second argument. If the value on the stack produced by the first
-   * argument > is FALSE then AND1ST jumps to the label and skips evaluation of the second argument;
-   * the value > of the expression is FALSE. The code for the second argument is generated next,
-   * followed by an > AND2ND instruction. This removes the values of the two arguments to && from
-   * the stack and pushes > the value of the expression onto the stack. A RETURN instruction is
+   * <p>
+   * > In many languages it is possible to convert the expression a && b to an
+   * equivalent if
+   * expression > of the form > if (a) { if (b) TRUE else FALSE } > Similarly, in
+   * these languages
+   * the expression a || b is equivalent to > if (a) TRUE else if (b) TRUE else
+   * FALSE > Compilation
+   * of these expressions is thus reduced to compiling if expressions. >
+   * Unfortunately, because of
+   * the possibility of NA values, these equivalencies do not hold in R. In > R,
+   * NA || TRUE should
+   * evaluate to TRUE and NA && FALSE to FALSE. This is handled by introducing >
+   * special
+   * instructions AND1ST and AND2ND for && expressions and OR1ST and OR2ND for ||.
+   * > The code
+   * generator for && expressions generates code to evaluate the first argument
+   * and then > emits an
+   * AND1ST instruction. The AND1ST instruction has one operand, the label for the
+   * instruction >
+   * following code for the second argument. If the value on the stack produced by
+   * the first
+   * argument > is FALSE then AND1ST jumps to the label and skips evaluation of
+   * the second argument;
+   * the value > of the expression is FALSE. The code for the second argument is
+   * generated next,
+   * followed by an > AND2ND instruction. This removes the values of the two
+   * arguments to && from
+   * the stack and pushes > the value of the expression onto the stack. A RETURN
+   * instruction is
    * generated if the && expression > was in tail position.
    */
   private boolean inlineLogicalAndOr(LangSXP call, boolean isAnd) {
@@ -897,7 +944,7 @@ public class Compiler {
       }
     } else {
       // TODO: notifyWrongBreakNext("break", cntxt, loc = cb$savecurloc())
-      //   or notifyWrongBreakNext("next", cntxt, loc = cb$savecurloc())
+      // or notifyWrongBreakNext("next", cntxt, loc = cb$savecurloc())
       return inlineSpecial(call);
     }
   }
@@ -991,7 +1038,7 @@ public class Compiler {
     }
   }
 
-  private boolean inlinePrim1(LangSXP call, Function<ConstPool.TypedIdx<LangSXP>, BcInstr> makeOp) {
+  private boolean inlinePrim1(LangSXP call, Function<ConstPool.Idx<LangSXP>, BcInstr> makeOp) {
     if (dotsOrMissing(call.args())) {
       return inlineBuiltin(call, false);
     }
@@ -1007,7 +1054,7 @@ public class Compiler {
     return true;
   }
 
-  private boolean inlinePrim2(LangSXP call, Function<ConstPool.TypedIdx<LangSXP>, BcInstr> makeOp) {
+  private boolean inlinePrim2(LangSXP call, Function<ConstPool.Idx<LangSXP>, BcInstr> makeOp) {
     if (dotsOrMissing(call.args())) {
       return inlineBuiltin(call, false);
     }
@@ -1024,7 +1071,8 @@ public class Compiler {
 
           // From the R documentation:
           // > the second argument has to
-          // > be compiled with an argument context since the stack already has the value of the
+          // > be compiled with an argument context since the stack already has the value
+          // of the
           // first argument
           // > on it and that would need to be popped before a jump.
           usingCtx(ctx.argContext(), () -> compile(call.arg(1).value()));
@@ -1129,19 +1177,17 @@ public class Compiler {
     if (!dotsOrMissing(call.args()) && call.args().size() == 2) {
 
       // FIXME: ugly
-      String s1 =
-          switch (call.arg(0).value()) {
-            case StrSXP s when s.size() == 1 -> s.get(0);
-            case RegSymSXP s -> s.name();
-            default -> null;
-          };
+      String s1 = switch (call.arg(0).value()) {
+        case StrSXP s when s.size() == 1 -> s.get(0);
+        case RegSymSXP s -> s.name();
+        default -> null;
+      };
 
-      String s2 =
-          switch (call.arg(1).value()) {
-            case StrSXP s when s.size() == 1 -> s.get(0);
-            case RegSymSXP s -> s.name();
-            default -> null;
-          };
+      String s2 = switch (call.arg(1).value()) {
+        case StrSXP s when s.size() == 1 -> s.get(0);
+        case RegSymSXP s -> s.name();
+        default -> null;
+      };
 
       if (s1 == null || s2 == null) {
         return false;
@@ -1172,8 +1218,8 @@ public class Compiler {
     var cases = call.args().values(1);
 
     // TODO:
-    //  if (cases.isEmpty())
-    //  notifyNoSwitchcases(cntxt, loc = cb$savecurloc())
+    // if (cases.isEmpty())
+    // notifyNoSwitchcases(cntxt, loc = cb$savecurloc())
 
     var names = call.args().names(1);
     // allow for corner cases like switch(x, 1) which always
@@ -1190,7 +1236,8 @@ public class Compiler {
 
     var numberOfDefaults = names.stream().filter(Objects::isNull).count();
     if (numberOfDefaults == cases.size()) {
-      // none of the case is named -- this might be the first case when the expr is numeric
+      // none of the case is named -- this might be the first case when the expr is
+      // numeric
       haveNames = false;
       haveCharDefault = false;
     } else if (numberOfDefaults == 1) {
@@ -1204,7 +1251,7 @@ public class Compiler {
     } else {
       // more than one default (which confuses the fuck out of me)
       // TODO:
-      //  notifyMultipleSwitchDefaults(ndflt, cntxt, loc = cb$savecurloc())
+      // notifyMultipleSwitchDefaults(ndflt, cntxt, loc = cb$savecurloc())
       return inlineSpecial(call);
     }
 
@@ -1217,14 +1264,17 @@ public class Compiler {
     // a numerical selector expression chooses a case with an empty argument
     var missLabel = miss.stream().anyMatch(x -> x) ? cb.makeLabel() : null;
 
-    // will be for code that invisibly procures the value NULL, which is the default case for a
-    // numerical selector argument and also for a character selector when no unnamed default case is provided.
+    // will be for code that invisibly procures the value NULL, which is the default
+    // case for a
+    // numerical selector argument and also for a character selector when no unnamed
+    // default case is provided.
     var defaultLabel = cb.makeLabel();
     var labels = new ArrayList<BcLabel>(miss.size() + 1);
     miss.stream().map(x -> x ? missLabel : cb.makeLabel()).forEachOrdered(labels::add);
     labels.add(defaultLabel);
 
-    // needed as the GOTO target for a switch expression that is not in tail position
+    // needed as the GOTO target for a switch expression that is not in tail
+    // position
     var endLabel = ctx.isTailCall() ? null : cb.makeLabel();
 
     var nLabels = new ArrayList<BcLabel>();
@@ -1257,19 +1307,34 @@ public class Compiler {
     var callIdx = cb.addConst(call);
 
     // 5. emit the switch instruction
+
+    // this is more complicated than it should be, but there is no easy way around the restrictions how
+    // the BC representation is set:
+    // - instructions are records thus immutable with non-null fields
+    // - we want the BC to be the same as GNU-R one
+    //
+    // In R: the labels for the individual cases are represented by
+    // lists which are directly placed in the bytecode itself.
+    // At the end, when R is closing the code buffer, it calls cb$patchLabels()
+    // which in turns all "chars" and "lists" pushes into const pool.
+    // The effect is that the label vectors will be pushed last, and so we need to
+    // follow the same logic and path the instruction at the end.
+    //
+    // So we cannot really add any meaningful args to switch at this point, we need to patch it later.
+
+    var nullInxToBeReplaced = new ConstPool.Idx<>(0, NilSXP.class);
+    var intInxToBeReplaced = new ConstPool.Idx<>(0, IntSXP.class);
     var switchIdx = 0;
+
     if (haveNames) {
       var cni = cb.addConst(SEXPs.string(uniqueNames));
-      switchIdx = cb.addInstr(new Switch(callIdx, Either.left(cni), null, null));
+      switchIdx = cb.addInstr(new Switch(callIdx, cni, null, null));
     } else {
-      var cni = cb.addConst(SEXPs.NULL);
-      switchIdx = cb.addInstr(new Switch(callIdx, Either.right(cni), null, null));
+      // even though we use null to represent NilSXP
+      // we still need to add it into the const pool here so the order is kept
+      cb.addConst(SEXPs.NULL);
+      switchIdx = cb.addInstr(new Switch(callIdx, null, null, null));
     }
-
-    // hacky - but if we want to generate the same bytecode as GNU-R
-    // i.e. the same arguments to the constpool we have to follow
-    // this logic.
-    // unless we completely change how the BcLabel work
 
     cb.addInstrPatch(
         switchIdx,
@@ -1281,16 +1346,16 @@ public class Compiler {
           if (haveNames) {
             var chrLabelsIdx = SEXPs.integer(nLabels.stream().map(BcLabel::getTarget).toList());
             newSwitch = new Switch(
-                    oldSwitch.ast(),
-                    oldSwitch.names(),
-                    Either.left(cb.addConst(chrLabelsIdx)),
-                    cb.addConst(numLabelsIdx));
+                oldSwitch.ast(),
+                oldSwitch.names(),
+                cb.addConst(chrLabelsIdx),
+                cb.addConst(numLabelsIdx));
           } else {
             newSwitch = new Switch(
-                    oldSwitch.ast(),
-                    oldSwitch.names(),
-                    Either.right(cb.addConst(SEXPs.NULL)),
-                    cb.addConst(numLabelsIdx));
+                oldSwitch.ast(),
+                oldSwitch.names(),
+                null,
+                cb.addConst(numLabelsIdx));
           }
 
           return newSwitch;
@@ -1310,10 +1375,12 @@ public class Compiler {
 
     // code for the non-empty cases
 
-    // > Finally the labels and code for the non-empty alternatives are written to the code buffer. In
-    // > non-tail position the code is followed by a GOTO instruction that jumps to endLabel. The final case
+    // > Finally the labels and code for the non-empty alternatives are written to
+    // the code buffer. In
+    // > non-tail position the code is followed by a GOTO instruction that jumps to
+    // endLabel. The final case
     // > does not need this GOTO.
-    for (int i=0; i<cases.size(); i++) {
+    for (int i = 0; i < cases.size(); i++) {
       if (miss.get(i)) {
         continue;
       }
@@ -1357,16 +1424,15 @@ public class Compiler {
 
   @SuppressFBWarnings("DLS_DEAD_LOCAL_STORE")
   private Optional<SEXP> checkConst(SEXP e) {
-    var r =
-        switch (e) {
-          case NilSXP ignored -> e;
-          case ListOrVectorSXP<?> xs when xs.size() <= MAX_CONST_SIZE ->
-              switch (xs.type()) {
-                case INT, REAL, LGL, CPLX, STR -> e;
-                default -> null;
-              };
+    var r = switch (e) {
+      case NilSXP ignored -> e;
+      case ListOrVectorSXP<?> xs when xs.size() <= MAX_CONST_SIZE ->
+        switch (xs.type()) {
+          case INT, REAL, LGL, CPLX, STR -> e;
           default -> null;
         };
+      default -> null;
+    };
 
     return Optional.ofNullable(r);
   }
@@ -1383,9 +1449,9 @@ public class Compiler {
   }
 
   private Optional<SEXP> constantFoldCall(LangSXP call) {
-    //        if (!(call.fun() instanceof RegSymSXP funSym && isFoldableFun(funSym))) {
-    //            return Optional.empty();
-    //        }
+    // if (!(call.fun() instanceof RegSymSXP funSym && isFoldableFun(funSym))) {
+    // return Optional.empty();
+    // }
 
     // fold args -- check consts
     // do.call <- need a basic interpreter
@@ -1422,11 +1488,12 @@ public class Compiler {
         var name = s.name();
         if (!breakOK && LOOP_BREAK_FUNS.contains(name)) {
           // FIXME: why don't we need to check if it is a base version?
-          //  GNUR does not do that, but:
-          //    > `break` <- function() print("b")
-          //    > i <- 0
-          //    > repeat({ i <<- i + 1; if (i == 10) break; })
-          //  I mean all of this is very much unsound, just why in this case do we care less?
+          // GNUR does not do that, but:
+          // > `break` <- function() print("b")
+          // > i <- 0
+          // > repeat({ i <<- i + 1; if (i == 10) break; })
+          // I mean all of this is very much unsound, just why in this case do we care
+          // less?
           return false;
         } else if (LOOP_STOP_FUNS.contains(name) && ctx.isBaseVersion(name)) {
           return true;
@@ -1435,9 +1502,11 @@ public class Compiler {
 
           // From R documentation:
           // > Loops that include a call to eval (or evalq, source) are compiled with
-          // > context to support a programming pattern present e.g. in package Rmpi: a server
+          // > context to support a programming pattern present e.g. in package Rmpi: a
+          // server
           // application is
-          // > implemented using an infinite loop, which evaluates de-serialized code received from
+          // > implemented using an infinite loop, which evaluates de-serialized code
+          // received from
           // the client; the
           // > server shuts down when it receives a serialized version of break.
           return false;
