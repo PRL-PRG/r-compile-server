@@ -7,26 +7,79 @@ import java.util.function.BiFunction;
 import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import org.prlprg.ir.type.BaseRType.Closure;
+import org.prlprg.ir.type.RClosureTypeImpl.Argument;
 import org.prlprg.sexp.CloSXP;
-import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
 
+public sealed interface RClosureType extends RType {
+  @Override
+  @Nullable CloSXP exactValue();
+
+  @SuppressWarnings("NullableProblems")
+  @Override
+  @Nonnull
+  BaseRType base();
+
+  @Override
+  @Nonnull
+  AttributesType attributes();
+
+  /** Names of known (required and optional) arguments. */
+  ImmutableList<String> knownArgumentNames();
+
+  /** Types of known (required and optional) arguments. */
+  ImmutableList<Argument> knownArgumentTypes();
+
+  /** Whether the closure may have more arguments than we know of. */
+  NoOrMaybe hasMoreArgs();
+
+  /** Known return type. */
+  RType returnType();
+
+  /**
+   * Returns the type of the argument at index {@code i}, or {@code null} if the index is past the
+   * end of the known arguments (if {@link #hasMoreArgs()} is {@code false} it's guaranteed an
+   * illegal extra argument, otherwise that and the argument itself are unknown). If this has dots
+   * and the index is at or after them, it will return an {@code Any} argument.
+   */
+  @Nullable Argument knownArgumentType(int index);
+
+  /**
+   * Returns the type of the argument named {@code name}, or {@code null} if that isn't one of the
+   * known arguments (if {@link #hasMoreArgs()} is {@code false} it's guaranteed an illegal extra
+   * argument, otherwise that and the argument itself are unknown). If {@code dotsCoversAll} is true
+   * and this has dots, it will return an {@code Any} argument if there's no argument with the name
+   * (if this has dots but you pass {@code "..."}, even if {@code dotsCoversAll} is false it will
+   * return an {@code Any} argument).
+   */
+  @Nullable Argument knownArgumentType(String name, boolean dotsCoversAll);
+
+  /** Are dots in the known arguments? */
+  default boolean hasKnownDots() {
+    return knownArgumentNames().contains("...");
+  }
+
+  /** Does the closure have dots? */
+  default Troolean hasDots() {
+    return hasKnownDots() ? Troolean.YES : Troolean.of(hasMoreArgs());
+  }
+}
+
 /** The argument and return types of a closure which are relevant for static analysis. */
-public record RClosureType(
-    RType returnType,
-    ImmutableList<String> argumentNames,
-    ImmutableList<Argument> argumentTypes,
-    boolean hasDots)
-    implements BoundedLattice<RClosureType> {
-  public RClosureType {
-    if (argumentNames.size() != argumentTypes.size()) {
-      throw new IllegalArgumentException("argumentNames and argumentTypes must have the same size");
-    }
-    if (hasDots && !argumentNames.contains("...")) {
-      throw new IllegalArgumentException("hasDots is true but there's no '...' in argumentNames");
-    }
-    if (!hasDots && argumentNames.contains("...")) {
-      throw new IllegalArgumentException("hasDots is false but there's a '...' in argumentNames");
+record RClosureTypeImpl(
+    @Override @Nullable CloSXP exactValue,
+    @Override AttributesType attributes,
+    @Override MaybeNat referenceCount,
+    @Override ImmutableList<String> knownArgumentNames,
+    @Override ImmutableList<Argument> knownArgumentTypes,
+    @Override NoOrMaybe hasMoreArgs,
+    @Override RType returnType)
+    implements RClosureType {
+  public RClosureTypeImpl {
+    if (knownArgumentNames.size() != knownArgumentTypes.size()) {
+      throw new IllegalArgumentException(
+          "knownArgumentNames and knownArgumentTypes must have the same size");
     }
   }
 
@@ -34,131 +87,208 @@ public record RClosureType(
    * Returns the information we can get out of arguments / expected return of the value if it's a
    * closure, otherwise {@code null}.
    */
-  public static @Nullable RClosureType of(SEXP value) {
-    if (!(value instanceof CloSXP clos)) {
-      return null;
-    }
-    return new RClosureType(
-        RTypes.ANY,
-        ImmutableList.copyOf(clos.formals().names()),
-        clos.formals().values().stream()
-            .map(x -> new Argument(RTypes.ANY, x == SEXPs.MISSING_ARG))
+  public static RClosureType exact(CloSXP value) {
+    return new RClosureTypeImpl(
+        value,
+        AttributesTypes.exact(value.attributes()),
+        MaybeNat.UNKNOWN,
+        ImmutableList.copyOf(value.formals().names()),
+        value.formals().values().stream()
+            .map(x -> new Argument(RTypes.ANY, NoOrMaybe.of(x == SEXPs.MISSING_ARG)))
             .collect(ImmutableList.toImmutableList()),
-        clos.formals().names().stream().anyMatch(x -> Objects.equals(x, "...")));
+        NoOrMaybe.NO,
+        RTypes.ANY);
   }
 
-  /**
-   * Returns the type of the argument at index {@code i}, or {@code null} if the index is out of
-   * bounds. If this has dots and the index is at or after them, it will return an any argument.
-   */
-  public @Nullable Argument argumentType(int index) {
+  @Override
+  public @Nullable Argument knownArgumentType(int index) {
     if (index < 0) {
       throw new IllegalArgumentException("index must be non-negative");
     }
-    var dotsIndex = argumentNames.indexOf("...");
+    var dotsIndex = knownArgumentNames.indexOf("...");
     if (dotsIndex > -1 && index >= dotsIndex) {
-      return argumentTypes.get(dotsIndex);
+      return knownArgumentTypes.get(dotsIndex);
     }
-    return index < argumentTypes.size() ? argumentTypes.get(index) : null;
+    if (index < knownArgumentTypes.size()) {
+      return knownArgumentTypes.get(index);
+    }
+    return null;
   }
 
-  /**
-   * Returns the type of the argument named {@code name}, or {@code null} if that isn't one of the
-   * arguments. If {@code dotsCoversAll} is true and this has dots, it will return an any argument
-   * if there's no argument with the name ({@code "..."} will still return an argument).
-   */
-  public @Nullable Argument argumentType(String name, boolean dotsCoversAll) {
-    int index = argumentNames.indexOf(name);
+  @Override
+  public @Nullable Argument knownArgumentType(String name, boolean dotsCoversAll) {
+    int index = knownArgumentNames.indexOf(name);
     if (index != -1) {
-      return argumentTypes.get(index);
+      return knownArgumentTypes.get(index);
     }
-    return dotsCoversAll && hasDots ? Objects.requireNonNull(argumentType("...", false)) : null;
+    return dotsCoversAll && hasKnownDots()
+        ? Objects.requireNonNull(knownArgumentType("...", false))
+        : null;
   }
 
   @Override
-  public boolean isSubsetOf(RClosureType other) {
-    return returnType.isSubsetOf(other.returnType)
-        && argumentNames.containsAll(other.argumentNames)
-        && zipArgumentTypes(this, other, Argument::isSupersetOf).allMatch(x -> x)
-        && (hasDots || !other.hasDots);
+  public BaseRType base() {
+    return new Closure();
   }
 
   @Override
-  public RClosureType union(RClosureType other) {
-    return new RClosureType(
-        returnType.union(other.returnType),
-        Streams.concat(
-                commonArgumentNames(this, other),
-                other.argumentNamesMissingFrom(this),
-                argumentNamesMissingFrom(other))
-            .collect(ImmutableList.toImmutableList()),
-        Streams.concat(
-                zipArgumentTypes(this, other, Argument::intersection),
-                other.argumentTypesMissingFrom(this),
-                argumentTypesMissingFrom(other))
-            .collect(ImmutableList.toImmutableList()),
-        hasDots && other.hasDots);
+  public boolean isSubsetOf(RType other) {
+    return switch (other) {
+      case RAnyType ignored -> true;
+      case RClosureType o ->
+          knownArgumentNames().containsAll(o.knownArgumentNames())
+              && zipArgumentTypes(this, o, Argument::isSupersetOf).allMatch(x -> x)
+              && hasMoreArgs().isSubsetOf(o.hasMoreArgs())
+              && returnType().isSubsetOf(o.returnType());
+      default -> false;
+    };
   }
 
-  @Nonnull
   @Override
-  public RClosureType intersection(RClosureType other) {
-    return new RClosureType(
-        returnType.intersection(other.returnType),
-        commonArgumentNames(this, other).collect(ImmutableList.toImmutableList()),
-        zipArgumentTypes(this, other, Argument::union).collect(ImmutableList.toImmutableList()),
-        hasDots || other.hasDots);
+  public RType union(RType other) {
+    switch (other) {
+      case RAnyType ignored -> {
+        return RTypes.NOTHING;
+      }
+      case RNothingType ignored -> {
+        return this;
+      }
+      case RMissingOrType o -> {
+        return RTypes.missingOr(union(o.notMissing()));
+      }
+      default -> {}
+    }
+    if (Objects.equals(other.exactValue(), exactValue())) {
+      return this;
+    }
+
+    if (other instanceof RClosureTypeImpl o) {
+      return new RClosureTypeImpl(
+          Objects.equals(o.exactValue(), exactValue()) ? exactValue : null,
+          attributes().union(o.attributes()),
+          referenceCount().union(o.referenceCount()),
+          Streams.concat(
+                  commonArgumentNames(this, o),
+                  o.argumentNamesMissingFrom(this),
+                  argumentNamesMissingFrom(o))
+              .collect(ImmutableList.toImmutableList()),
+          Streams.concat(
+                  zipArgumentTypes(this, o, Argument::intersection),
+                  o.argumentTypesMissingFrom(this),
+                  argumentTypesMissingFrom(o))
+              .collect(ImmutableList.toImmutableList()),
+          hasMoreArgs().union(o.hasMoreArgs()),
+          returnType().union(o.returnType()));
+    } else {
+      return new ROtherTypeImpl(
+          exactValue,
+          new BaseRType.Any(),
+          attributes().union(other.attributes()),
+          referenceCount().union(other.referenceCount()));
+    }
+  }
+
+  @Override
+  public RType intersection(RType other) {
+    switch (other) {
+      case RAnyType ignored -> {
+        return this;
+      }
+      case RNothingType ignored -> {
+        return RTypes.NOTHING;
+      }
+      case RMissingOrType o -> {
+        return RTypes.missingOr(intersection(o.notMissing()));
+      }
+      default -> {}
+    }
+    if (Objects.equals(other.exactValue(), exactValue())) {
+      return this;
+    } else if (other.exactValue() != null && exactValue() != null) {
+      return RTypes.NOTHING;
+    }
+    var mergedAttributes = attributes().intersection(Objects.requireNonNull(other.attributes()));
+    if (mergedAttributes == null) {
+      return RTypes.NOTHING;
+    }
+    var mergedReferenceCount = referenceCount().intersection(other.referenceCount());
+    if (mergedReferenceCount == null) {
+      return RTypes.NOTHING;
+    }
+
+    return switch (other) {
+      case RClosureTypeImpl o ->
+          new RClosureTypeImpl(
+              exactValue,
+              mergedAttributes,
+              mergedReferenceCount,
+              commonArgumentNames(this, o).collect(ImmutableList.toImmutableList()),
+              zipArgumentTypes(this, o, Argument::union).collect(ImmutableList.toImmutableList()),
+              hasMoreArgs().intersection(o.hasMoreArgs()),
+              returnType().intersection(o.returnType()));
+      case ROtherType ignored ->
+          new RClosureTypeImpl(
+              exactValue,
+              mergedAttributes,
+              mergedReferenceCount,
+              knownArgumentNames(),
+              knownArgumentTypes(),
+              hasMoreArgs(),
+              returnType());
+      default -> RTypes.NOTHING;
+    };
   }
 
   @Override
   public String toString() {
     var builder = new StringBuilder().append("(");
-    for (int i = 0; i < argumentNames.size(); i++) {
+    for (int i = 0; i < knownArgumentNames.size(); i++) {
       if (i > 0) {
         builder.append(", ");
       }
-      builder.append(argumentNames.get(i)).append(":").append(argumentTypes.get(i));
+      builder.append(knownArgumentNames.get(i)).append(":").append(knownArgumentTypes.get(i));
     }
     return builder.append(") -> ").append(returnType).toString();
   }
 
   private static Stream<String> commonArgumentNames(RClosureType lhs, RClosureType rhs) {
-    return lhs.argumentNames.stream().filter(rhs.argumentNames::contains);
+    return lhs.knownArgumentNames().stream().filter(rhs.knownArgumentNames()::contains);
   }
 
   private static <R> Stream<R> zipArgumentTypes(
       RClosureType lhs, RClosureType rhs, BiFunction<Argument, Argument, R> f) {
     return commonArgumentNames(lhs, rhs)
-        .map(x -> f.apply(lhs.argumentType(x, false), rhs.argumentType(x, false)));
+        .map(x -> f.apply(lhs.knownArgumentType(x, false), rhs.knownArgumentType(x, false)));
   }
 
   private Stream<String> argumentNamesMissingFrom(RClosureType other) {
-    return argumentNames.stream().filter(x -> !other.argumentNames.contains(x));
+    return knownArgumentNames().stream().filter(x -> !other.knownArgumentNames().contains(x));
   }
 
   private Stream<Argument> argumentTypesMissingFrom(RClosureType other) {
-    return argumentNamesMissingFrom(other).map(x -> argumentType(x, false));
+    return argumentNamesMissingFrom(other).map(x -> knownArgumentType(x, false));
   }
 
-  public record Argument(RType type, boolean isRequired) implements BoundedLattice<Argument> {
+  public record Argument(RType type, NoOrMaybe isRequired) implements BoundedLattice<Argument> {
     @Override
     public boolean isSubsetOf(Argument other) {
-      return type.isSubsetOf(other.type) && (!isRequired || other.isRequired);
+      return type.isSubsetOf(other.type)
+          && (isRequired == NoOrMaybe.NO || other.isRequired != NoOrMaybe.NO);
     }
 
     @Override
     public Argument union(Argument other) {
-      return new Argument(type.union(other.type), isRequired && other.isRequired);
+      return new Argument(type.union(other.type), isRequired.intersection(other.isRequired));
     }
 
     @Override
     public Argument intersection(Argument other) {
-      return new Argument(type.intersection(other.type), isRequired || other.isRequired);
+      return new Argument(type.intersection(other.type), isRequired.union(other.isRequired));
     }
 
     @Override
     public String toString() {
-      return (isRequired ? "" : "?") + type;
+      return (isRequired == NoOrMaybe.NO ? "" : "?") + type;
     }
   }
 }

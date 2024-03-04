@@ -2,6 +2,34 @@
 
 We want to create a **type system** for R values (SEXPs) which lets us perform effective optimizations in a straightforward way.
 
+RType:
++ Any
++ Vector< T >   (T = any, int, string, bool, raw, complex, double, exp)
++ ListAny
++ Promise<T> (T = RType)
++ Call                      // language object
++ VectorCall           // expression object
++ Closure
++ ?S4
++ ?ExternalRef
++ ?WeakRef
++ ?Dots
++ ?Environment
++ ?Bytecode
++ Symbol
++ Special
++ Builtin
+
+Promise<T>  ==> EvaluatedPromise<T>
+
+"Native types"
+
+The data part of SEXP:
+
+https://cran.r-project.org/doc/manuals/r-release/R-ints.html#SEXPTYPEs
+
+---
+
 ## `PirType`: PIR node types
 
 `PirType` are the fine-grained SEXP types in PIR. But they also encompass non-SEXP instructions: every IR node has a `PirType` (e.g. `Env#type == env`; an instruction's "type" is the type of the value it produces) and some nodes contain data which is not an SEXP (checkpoint, frame-state, deopt-reason, and context).
@@ -32,19 +60,16 @@ We want to create a **type system** for R values (SEXPs) which lets us perform e
 - `DependsOnAssume`: prevents the instruction from getting moved to before the latest `Assume`
 - `MutatesArgument`: may mutate one of its arguments (only set on `UpdatePromise` and `Effects::Any()` instructions)
 
-### Split SEXP and non-SEXP types
+### Can we split SEXP and non-SEXP types?
 
-I suggest we should not represent both SEXP and non-SEXP types in one data-structure, and it would be easy to separate them. Furthermore, I believe we should reuse the Java type system for "native types", and create `ValueType` for SEXP-types.
+I believe we can reuse the Java type system for "native types", and create `ValueType` for SEXP-types.
 
+- Do the instructions with native types ever change their type? Can an instruction class which may return type `void` ever return a different type?
 - What are native types used for? I know to sanity-check instruction arguments (prevent passing an argument of an incompatible type), but are there other use cases?
   - What are the use cases of pir-types that may also apply to native types?
 - Is there such thing as a union of native types (it can be represented but is it used in practice)? Likewise, is there ever a native type with flags besides `rtype`?
-- Does an instruction which return a native type ever possibly return something different (a non-native or different native type) or vice versa?
-  - Including `void`: does an instruction ever conditionally return `void` or an SEXP-type?
 
-In PIR, instruction arguments and return types are only typed at runtime. Any instruction lets you statically get or set arguments of any IR node type, but if you set argument of the wrong type, the verifier will complain. Also, instructions can change their return type (which complicates things); an argument's type may initially be correct, but change to the wrong type after a pass, and if so the verifier will complain.
-
-We could refine our IR so that SEXP-types are still flexible in this way with SEXP-types: instructions which take SEXP arguments take `Value`s and have static `ValueType`s which are checked by the verifier; and instructions which return SEXPs inherit `Value` and return a `ValueType` which may change after optimizations. But native types are statically typed: e.g. an instruction which takes a frame-state has a `FrameState` argument in its constructor and a `FrameState` field, and `FrameState` is the only instruction (or interface subclassed by every instruction) which returns a frame-state. Because presumably, the SEXP-types may change a lot during optimizations, so we can't statically check them, but the native types are much simpler, they never change (in return or argument position) so they *can* be statically checked.
+In PIR, instruction arguments and return types are only typed at runtime. Any instruction lets you statically get or set arguments of any IR node type, but if you set argument of the wrong type, the verifier will complain. Part of the reason is that instructions can change their return (and maybe argument) types, which can't be statically enforced; an argument's type may initially be correct, but change to the wrong type after a pass, and if so the verifier will complain. However, I couldn't find any instance of this with native types.
 
 ### Rework `RType` and `TypeFlags`
 

@@ -24,6 +24,14 @@ public enum Troolean implements Lattice<Troolean> {
     return value ? YES : NO;
   }
 
+  public static Troolean of(YesOrMaybe value) {
+    return value == YesOrMaybe.YES ? YES : MAYBE;
+  }
+
+  public static Troolean of(NoOrMaybe value) {
+    return value == NoOrMaybe.NO ? NO : MAYBE;
+  }
+
   public static boolean isSubset(@Nullable Troolean lhs, @Nullable Troolean rhs) {
     if (lhs == null) {
       return true;

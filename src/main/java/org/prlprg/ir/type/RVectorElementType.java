@@ -68,6 +68,22 @@ public enum RVectorElementType implements Lattice<RVectorElementType> {
         : Troolean.of(vectorSexpType.isPrimitiveVector());
   }
 
+  /**
+   * Converts to a {@link RPrimVecElementType} (permits less values), or {@code null} if this isn't
+   * a primitive type.
+   */
+  public @Nullable RPrimVecElementType toPrimVecElementType() {
+    return switch (this) {
+      case INT -> RPrimVecElementType.INT;
+      case STRING -> RPrimVecElementType.STRING;
+      case LOGICAL -> RPrimVecElementType.LOGICAL;
+      case RAW -> RPrimVecElementType.RAW;
+      case COMPLEX -> RPrimVecElementType.COMPLEX;
+      case DOUBLE -> RPrimVecElementType.DOUBLE;
+      case SEXP, EXPRESSION, ANY -> null;
+    };
+  }
+
   @Override
   public boolean isSubsetOf(RVectorElementType other) {
     return other == ANY || this == other;
