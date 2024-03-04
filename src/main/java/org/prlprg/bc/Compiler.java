@@ -439,6 +439,7 @@ public class Compiler {
       case "::", ":::" -> this::inlineMultiColon;
       case "with", "require" -> this::compileSuppressingUndefined;
       case "switch" -> this::inlineSwitch;
+      case "<-", "=", "<<-" -> this::inlineAssign;
       case String s when MATH1_FUNS.contains(s) -> (c) -> inlineMath1(c, MATH1_FUNS.indexOf(s));
       case String s when rsession.isBuiltin(s) -> (c) -> inlineBuiltin(c, false);
       case String s when rsession.isSpecial(s) -> this::inlineSpecial;
@@ -1396,6 +1397,81 @@ public class Compiler {
     }
 
     return true;
+  }
+
+  private boolean inlineAssign(LangSXP call) {
+    if (! checkAssign(call, cb.getCurrentLoc())) {
+      return inlineSpecial(call);
+    }
+
+    var superAssign = call.fun().equals(SEXPs.SUPER_ASSIGN);
+    var lhs = call.arg(0).value();
+    var value = call.arg(1).value();
+    var symbol = Context.getAssignVar(call);
+
+    if (superAssign && Context.getAssignVar(call).flatMap(ctx::resolve).isEmpty()) {
+      // TODO: notifyNoSuperAssignVar(symbol, cntxt, loc = cb$savecurloc())
+    }
+
+    if (symbol.isPresent() && lhs instanceof StrOrRegSymSXP) {
+      compileSymbolAssign(symbol.get(), value, superAssign);
+      return true;
+    } else if (symbol.isPresent() && lhs instanceof LangSXP left) {
+      return compileComplexAssign(symbol.get(), left, value, superAssign);
+    } else {
+      return inlineSpecial(call);
+    }
+  }
+
+  private void compileSymbolAssign(String symbol, SEXP value, boolean superAssign) {
+    usingCtx(ctx.nonTailContext(), () -> compile(value));
+    var ci = cb.addConst(SEXPs.symbol(symbol));
+    cb.addInstr(superAssign ? new SetVar2(ci) : new SetVar(ci));
+
+    // TODO: make this a helper
+    if (ctx.isTailCall()) {
+      cb.addInstr(new Invisible());
+      cb.addInstr(new Return());
+    }
+  }
+
+  /*
+   * >> Assignments for complex LVAL specifications. This is the stuff that
+   * >> nightmares are made of ...
+   */
+  private boolean compileComplexAssign(String symbol, LangSXP lhs, SEXP value, boolean superAssign) {
+    return false;
+  }
+
+  private boolean checkAssign(LangSXP call, Loc loc) {
+    if (call.args().size() != 2) {
+      return false;
+    }
+
+    var lhs = call.arg(0).value();
+    return switch(lhs) {
+      case RegSymSXP ignored -> true;
+      case StrSXP s -> s.size() == 1;
+      case LangSXP ignored -> {
+        while (lhs instanceof LangSXP l) {
+          var fun = l.fun();
+          var args = l.args();
+
+          // >> A valid left hand side call must have a function that is either a symbol or is of the form foo::bar
+          // >> or foo:::bar, and the first argument must be a symbol or another valid left hand side call.
+          if (!(fun instanceof RegSymSXP) &&
+                  !(fun instanceof LangSXP && args.size() == 2) &&
+                      args.get(0).value() instanceof RegSymSXP innerFun &&
+                        (innerFun.name().equals("::") || innerFun.name().equals(":::"))) {
+              // TODO: notifyBadAssignFun(fun, cntxt, loc)
+              yield false;
+          }
+          lhs = l.arg(0).value();
+        }
+        yield lhs instanceof RegSymSXP;
+      }
+      default -> false;
+    };
   }
 
   private boolean compileSuppressingUndefined(LangSXP call) {

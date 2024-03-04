@@ -34,6 +34,7 @@ public final class SEXPs {
   public static final SpecialSymSXP MISSING_ARG = new SpecialSymSXP("MISSING_ARG");
 
   public static final RegSymSXP ELLIPSIS = new RegSymSXP("...");
+  public static final RegSymSXP SUPER_ASSIGN = new RegSymSXP("<<-");
 
   public static final EmptyEnvSXP EMPTY_ENV = EmptyEnvSXP.INSTANCE;
 

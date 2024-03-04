@@ -109,7 +109,7 @@ public class Context {
             switch (fun.name()) {
               case "=", "<-" -> {
                 todo.addAll(args.subList(1, args.size()));
-                yield getAssignedVar(l);
+                yield getAssignVar(l);
               }
               case "for" -> {
                 todo.addAll(args.subList(1, args.size()));
@@ -172,7 +172,7 @@ public class Context {
     return locals;
   }
 
-  private static Optional<String> getAssignedVar(LangSXP l) {
+  public static Optional<String> getAssignVar(LangSXP l) {
     var v = l.arg(0).value();
     if (v == SEXPs.MISSING_ARG) {
       throw new CompilerException("Bad assignment: " + l);
@@ -184,7 +184,7 @@ public class Context {
       }
       switch (l.arg(0).value()) {
         case LangSXP ll -> {
-          return getAssignedVar(ll);
+          return getAssignVar(ll);
         }
         case StrOrRegSymSXP s -> {
           return s.reifyString();

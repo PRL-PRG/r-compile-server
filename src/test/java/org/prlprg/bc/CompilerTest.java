@@ -347,6 +347,29 @@ function(x) {
 """);
   }
 
+  @Test
+  public void inlineAssign() {
+    assertBytecode("""
+function() {
+  x <- 1
+}
+""");
+
+    assertBytecode("""
+function() {
+  y <<- 2
+}
+""");
+
+    //    assertBytecode("""
+    // function() {
+    //  pkg::y <- 2
+    //  pkg:::z <- 3
+    //  pkg:::z <<- 3
+    // }
+    // """);
+  }
+
   private void assertBytecode(String code) {
     assertBytecode(code, 2);
   }
