@@ -54,6 +54,11 @@ public interface Phi extends NodeWithCfg {
   }
 
   /** Whether this φ-node contains the given input. */
+  default boolean containsInput(Node inputNode) {
+    return inputs().stream().anyMatch(input -> input.node().equals(inputNode));
+  }
+
+  /** Whether this φ-node contains the given input. */
   default boolean containsInput(BB incomingBb) {
     return inputs().stream().anyMatch(input -> input.incomingBb().equals(incomingBb));
   }

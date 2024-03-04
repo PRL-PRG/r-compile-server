@@ -126,19 +126,18 @@ public class BB {
       throw new IllegalArgumentException(
           "Replace oldInstr not in CFG: " + oldInstr + " not in:\n" + cfg());
     }
-    if (oldInstr instanceof Phi && !phis.contains(oldInstr)) {
-      throw new IllegalArgumentException(
-          "Replace oldInstr not in BB: " + oldInstr + " not in:\n" + this);
-    }
-    if (oldInstr instanceof Stmt && !stmts.contains(oldInstr)) {
-      throw new IllegalArgumentException(
-          "Replace oldInstr not in BB: " + oldInstr + " not in:\n" + this);
-    }
-    if (oldInstr instanceof Jump && jump != oldInstr) {
-      throw new IllegalArgumentException(
-          "Replace oldInstr not in BB: " + oldInstr + " not in:\n" + this);
-    }
-    return cfg().replace(oldInstr, newData);
+    return switch (oldInstr) {
+      case Phi phi when !phis.contains(phi) ->
+          throw new IllegalArgumentException(
+              "Replace oldInstr not in BB: " + oldInstr + " not in:\n" + this);
+      case Stmt stmt when !stmts.contains(stmt) ->
+          throw new IllegalArgumentException(
+              "Replace oldInstr not in BB: " + oldInstr + " not in:\n" + this);
+      case Jump jump1 when jump != jump1 ->
+          throw new IllegalArgumentException(
+              "Replace oldInstr not in BB: " + oldInstr + " not in:\n" + this);
+      default -> cfg().replace(oldInstr, newData);
+    };
   }
 
   // TODO make sure that other functions to replace nodes update their occurrences (probably just
@@ -192,6 +191,32 @@ public class BB {
     return replaced;
   }
 
+  /** Try to remove any of the given instructions which are present, and return those removed. */
+  public Set<Instr> tryOnlyRemove(Set<Instr> instrs1) {
+    var removed = new SmallSet<Instr>(Math.min(instrs1.size(), 8));
+    var phis = this.phis.iterator();
+    while (phis.hasNext()) {
+      var instr = phis.next();
+      if (instrs1.contains(instr)) {
+        phis.remove();
+        removed.add(instr);
+      }
+    }
+    var stmts = this.stmts.listIterator();
+    while (stmts.hasNext()) {
+      var instr = stmts.next();
+      if (instrs1.contains(instr)) {
+        stmts.remove();
+        removed.add(instr);
+      }
+    }
+    if (jump != null && instrs1.contains(jump)) {
+      setJump(null);
+      removed.add(jump);
+    }
+    return removed;
+  }
+
   /** Replace the node in the arguments of every argument-containing node in this BB. */
   void replaceInArgs(Node oldNode, Node newNode) {
     assert oldNode.cfg() == cfg() && newNode.cfg() == cfg();
@@ -206,16 +231,33 @@ public class BB {
     }
   }
 
+  /**
+   * @throws IllegalArgumentException If the node is in any of the arguments.
+   */
+  void checkNotInArgs(Node node) {
+    if (phis.stream().anyMatch(phi -> phi.containsInput(node))) {
+      throw new IllegalArgumentException("Node in φ inputs: " + node);
+    }
+    if (stmts.stream().anyMatch(stmt -> stmt.args().contains(node))) {
+      throw new IllegalArgumentException("Node in stmt inputs: " + node);
+    }
+    if (jump != null && jump.args().contains(node)) {
+      throw new IllegalArgumentException("Node in jump inputs: " + node);
+    }
+  }
+
   /** Set jump and update successors. */
-  private void setJump(Jump jump) {
+  private void setJump(@Nullable Jump jump) {
     if (this.jump != null) {
       for (var succ : this.jump.targets()) {
         succ.predecessors.remove(this);
       }
     }
     this.jump = jump;
-    for (var succ : jump.targets()) {
-      succ.predecessors.add(this);
+    if (jump != null) {
+      for (var succ : jump.targets()) {
+        succ.predecessors.add(this);
+      }
     }
   }
 }

@@ -37,7 +37,7 @@ class Stmts {
   record LdConst(SEXP constant) implements RValue_ {
     @Override
     public RType computeType() {
-      return RTypes.of(constant);
+      return RTypes.exact(constant);
     }
   }
 
@@ -104,7 +104,7 @@ class Stmts {
   record DoMissing() implements RValue_ {
     @Override
     public RType computeType() {
-      return RTypes.of(SEXPs.MISSING_ARG);
+      return RTypes.exact(SEXPs.MISSING_ARG);
     }
   }
 

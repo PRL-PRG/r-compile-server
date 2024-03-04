@@ -73,7 +73,7 @@ record ForLoopVarImpl(@Override CFG cfg, @Override ForLoopJump origin) implement
       return RTypes.NOTHING;
     }
     return switch (seqType.isPrimitiveVector()) {
-      case Troolean.NO -> RTypes.of(SEXPs.NULL);
+      case Troolean.NO -> RTypes.exact(SEXPs.NULL);
       case Troolean.YES -> RTypes.simple(Objects.requireNonNull(seqType.sexpType()));
       case Troolean.MAYBE -> RTypes.SIMPLE_ANY;
     };

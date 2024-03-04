@@ -1,7 +1,10 @@
 package org.prlprg.ir;
 
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.prlprg.ir.node.Instr;
 import org.prlprg.ir.node.Node;
 
@@ -46,6 +49,47 @@ public class CFG {
   }
 
   /**
+   * Remove the given instructions.
+   *
+   * @throws IllegalArgumentException if any is not in this CFG.
+   * @throws IllegalArgumentException if any is a dependency of another instruction in this CFG.
+   */
+  public void remove(Instr... instrs) {
+    remove(Arrays.stream(instrs));
+  }
+
+  /**
+   * Remove the given instructions.
+   *
+   * @throws IllegalArgumentException if any is not in this CFG.
+   * @throws IllegalArgumentException if any is a dependency of another instruction in this CFG.
+   */
+  public void remove(Stream<Instr> instrs) {
+    var instrs1 = instrs.collect(Collectors.toUnmodifiableSet());
+    for (var instr : instrs1) {
+      if (instr.cfg() != this) {
+        throw new IllegalArgumentException(
+            "Remove instr not in CFG: " + instr + " not in:\n" + this);
+      }
+      if (instr.returns().stream().anyMatch(n -> n.cfg() != this)) {
+        throw new IllegalArgumentException(
+            "Remove instr with returns not in CFG: " + instr + " not in:\n" + this);
+      }
+    }
+    var removed = new HashSet<Instr>(instrs1.size());
+    for (var bb : bbs) {
+      var newlyRemoved = bb.tryOnlyRemove(instrs1);
+      assert newlyRemoved.stream().noneMatch(removed::contains)
+          : "Removed multiple times in different BBs: " + newlyRemoved + " in: " + this;
+      removed.addAll(newlyRemoved);
+    }
+    assert removed.equals(instrs1)
+        : "All instrs have this as parent but not all were removed (improperly deleted BB?): "
+            + instrs1;
+    checkInstrReturnsRemovedInArgs(instrs1);
+  }
+
+  /**
    * Replace the instruction return values in the arguments of every argument-containing node in
    * this BB.
    */
@@ -62,6 +106,20 @@ public class CFG {
     for (int i = 0; i < oldReturns.size(); i++) {
       for (var bb : bbs) {
         bb.replaceInArgs(oldReturns.get(i), newReturns.get(i));
+      }
+    }
+  }
+
+  /**
+   * @throws IllegalArgumentException If any of the removed instructions' return values are still in
+   *     the arguments of (non-removed) instructions.
+   */
+  private void checkInstrReturnsRemovedInArgs(Set<Instr> instrs) {
+    for (var instr : instrs) {
+      for (var return1 : instr.returns()) {
+        for (var bb : bbs) {
+          bb.checkNotInArgs(return1);
+        }
       }
     }
   }
