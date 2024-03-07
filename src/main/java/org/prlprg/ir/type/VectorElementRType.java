@@ -4,7 +4,7 @@ import javax.annotation.Nullable;
 import org.prlprg.sexp.SEXPType;
 
 /** The "main" type of a vector's elements. */
-public enum RVectorElementType implements Lattice<RVectorElementType> {
+public enum VectorElementRType implements Lattice<VectorElementRType> {
   ANY(null),
   SEXP(SEXPType.VEC),
   INT(SEXPType.INT),
@@ -19,7 +19,7 @@ public enum RVectorElementType implements Lattice<RVectorElementType> {
    * Returns the element type of a vector with the given {@link SEXPType}, or {@code null} if it
    * isn't a vector SEXPType.
    */
-  public static @Nullable RVectorElementType of(SEXPType type) {
+  public static @Nullable VectorElementRType of(SEXPType type) {
     return switch (type) {
       case NIL,
               LIST,
@@ -57,7 +57,7 @@ public enum RVectorElementType implements Lattice<RVectorElementType> {
    */
   public final @Nullable SEXPType vectorSexpType;
 
-  RVectorElementType(@Nullable SEXPType vectorSexpType) {
+  VectorElementRType(@Nullable SEXPType vectorSexpType) {
     this.vectorSexpType = vectorSexpType;
   }
 
@@ -69,33 +69,33 @@ public enum RVectorElementType implements Lattice<RVectorElementType> {
   }
 
   /**
-   * Converts to a {@link RPrimVecElementType} (permits less values), or {@code null} if this isn't
+   * Converts to a {@link PrimVecElementRType} (permits less values), or {@code null} if this isn't
    * a primitive type.
    */
-  public @Nullable RPrimVecElementType toPrimVecElementType() {
+  public @Nullable PrimVecElementRType toPrimVecElementType() {
     return switch (this) {
-      case INT -> RPrimVecElementType.INT;
-      case STRING -> RPrimVecElementType.STRING;
-      case LOGICAL -> RPrimVecElementType.LOGICAL;
-      case RAW -> RPrimVecElementType.RAW;
-      case COMPLEX -> RPrimVecElementType.COMPLEX;
-      case DOUBLE -> RPrimVecElementType.DOUBLE;
+      case INT -> PrimVecElementRType.INT;
+      case STRING -> PrimVecElementRType.STRING;
+      case LOGICAL -> PrimVecElementRType.LOGICAL;
+      case RAW -> PrimVecElementRType.RAW;
+      case COMPLEX -> PrimVecElementRType.COMPLEX;
+      case DOUBLE -> PrimVecElementRType.DOUBLE;
       case SEXP, EXPRESSION, ANY -> null;
     };
   }
 
   @Override
-  public boolean isSubsetOf(RVectorElementType other) {
+  public boolean isSubsetOf(VectorElementRType other) {
     return other == ANY || this == other;
   }
 
   @Override
-  public RVectorElementType union(RVectorElementType other) {
+  public VectorElementRType union(VectorElementRType other) {
     return this == other ? this : ANY;
   }
 
   @Nullable @Override
-  public RVectorElementType intersection(RVectorElementType other) {
+  public VectorElementRType intersection(VectorElementRType other) {
     return other == ANY ? this : this == ANY ? other : this == other ? this : null;
   }
 }

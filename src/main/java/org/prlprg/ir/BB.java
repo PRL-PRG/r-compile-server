@@ -152,16 +152,6 @@ public class BB {
    */
   boolean tryOnlyReplace(Instr oldInstr, Instr newInstr) {
     assert oldInstr.cfg() == cfg() && newInstr.cfg() == cfg();
-    if (oldInstr instanceof Phi) {
-      throw new UnsupportedOperationException(
-          "In " + this + ", tried to replace a phi (can this happen? If so we must implement)");
-    }
-    if (newInstr instanceof Phi) {
-      throw new UnsupportedOperationException(
-          "In "
-              + this
-              + ", tried to replace an instruction with a phi (can this happen? If so we must implement)");
-    }
 
     var replaced = false;
     var stmts = this.stmts.listIterator();
@@ -192,8 +182,8 @@ public class BB {
   }
 
   /** Try to remove any of the given instructions which are present, and return those removed. */
-  public Set<Instr> tryOnlyRemove(Set<Instr> instrs1) {
-    var removed = new SmallSet<Instr>(Math.min(instrs1.size(), 8));
+  public Set<InstrOrPhi> tryOnlyRemove(Set<InstrOrPhi> instrs1) {
+    var removed = new SmallSet<InstrOrPhi>(Math.min(instrs1.size(), 8));
     var phis = this.phis.iterator();
     while (phis.hasNext()) {
       var instr = phis.next();

@@ -6,6 +6,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.prlprg.ir.node.Instr;
+import org.prlprg.ir.node.InstrOrPhi;
 import org.prlprg.ir.node.Node;
 
 /**
@@ -54,7 +55,7 @@ public class CFG {
    * @throws IllegalArgumentException if any is not in this CFG.
    * @throws IllegalArgumentException if any is a dependency of another instruction in this CFG.
    */
-  public void remove(Instr... instrs) {
+  public void remove(InstrOrPhi... instrs) {
     remove(Arrays.stream(instrs));
   }
 
@@ -64,7 +65,7 @@ public class CFG {
    * @throws IllegalArgumentException if any is not in this CFG.
    * @throws IllegalArgumentException if any is a dependency of another instruction in this CFG.
    */
-  public void remove(Stream<Instr> instrs) {
+  public void remove(Stream<InstrOrPhi> instrs) {
     var instrs1 = instrs.collect(Collectors.toUnmodifiableSet());
     for (var instr : instrs1) {
       if (instr.cfg() != this) {
@@ -76,7 +77,7 @@ public class CFG {
             "Remove instr with returns not in CFG: " + instr + " not in:\n" + this);
       }
     }
-    var removed = new HashSet<Instr>(instrs1.size());
+    var removed = new HashSet<InstrOrPhi>(instrs1.size());
     for (var bb : bbs) {
       var newlyRemoved = bb.tryOnlyRemove(instrs1);
       assert newlyRemoved.stream().noneMatch(removed::contains)
@@ -114,7 +115,7 @@ public class CFG {
    * @throws IllegalArgumentException If any of the removed instructions' return values are still in
    *     the arguments of (non-removed) instructions.
    */
-  private void checkInstrReturnsRemovedInArgs(Set<Instr> instrs) {
+  private void checkInstrReturnsRemovedInArgs(Set<InstrOrPhi> instrs) {
     for (var instr : instrs) {
       for (var return1 : instr.returns()) {
         for (var bb : bbs) {

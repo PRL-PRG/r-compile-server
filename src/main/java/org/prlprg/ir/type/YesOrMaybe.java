@@ -10,21 +10,31 @@ public enum YesOrMaybe implements BoundedLattice<YesOrMaybe> {
     return value ? YES : MAYBE;
   }
 
+  /** Returns true unless this is maybe and other is yes. */
   @Override
   public boolean isSubsetOf(YesOrMaybe other) {
     return this == YES || other == MAYBE;
   }
 
+  /** Returns true unless this is yes and other is maybe. */
   @Override
   public boolean isSupersetOf(YesOrMaybe other) {
     return this == MAYBE || other == YES;
   }
 
+  /**
+   * Returns yes if both are yes, otherwise maybe. Equivalent to {@code &&}ing the boolean
+   * representation.
+   */
   @Override
   public YesOrMaybe union(YesOrMaybe other) {
     return this == YES ? other : this;
   }
 
+  /**
+   * Returns yes if either are yes, otherwise maybe. Equivalent to {@code ||}ing the boolean
+   * representation.
+   */
   @Override
   public YesOrMaybe intersection(YesOrMaybe other) {
     return this == YES ? this : other;

@@ -8,7 +8,7 @@ import org.prlprg.ir.CFG;
 import org.prlprg.util.Reflection;
 
 /** IR instruction which is the final instruction and outgoing edge of a basic block. */
-public interface Jump extends Instr {
+public non-sealed interface Jump extends Instr {
   /** The BBs that this jump can go to. */
   ImmutableCollection<BB> targets();
 
@@ -19,7 +19,7 @@ public interface Jump extends Instr {
       permits ForLoopJump.Data, Jumps.Void {}
 }
 
-abstract class JumpImpl<D extends Jump.Data<?>> extends InstrImpl<D> implements Jump {
+abstract non-sealed class JumpImpl<D extends Jump.Data<?>> extends InstrImpl<D> implements Jump {
   JumpImpl(CFG cfg, D data) {
     super(cfg, data);
   }

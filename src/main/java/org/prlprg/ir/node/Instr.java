@@ -11,7 +11,7 @@ import org.prlprg.ir.CFG;
 import org.prlprg.util.Reflection;
 
 /** IR instruction: statement or jump. e.g. GNU-R bytecode or PIR instructions. */
-public interface Instr extends NodeWithCfg {
+public sealed interface Instr extends InstrOrPhi permits InstrImpl, Jump, Stmt {
   /** The instruction's arguments, which are the other nodes it depends on. */
   ImmutableList<Node> args();
 
@@ -20,14 +20,8 @@ public interface Instr extends NodeWithCfg {
    * single value (may or may not be {@link RValue}), this will be itself. An instruction may return
    * multiple values (e.g. {@code StartFor}), in which case this contains multiple nodes.
    */
+  @Override
   ImmutableList<Node> returns();
-
-  /**
-   * Replace the node in arguments.
-   *
-   * @throws IllegalArgumentException If you try to replace with a node of incompatible type.
-   */
-  void replace(Node old, Node replacement);
 
   /**
    * The instruction's data, which determines what type of instruction it is and contains specificly
@@ -45,7 +39,8 @@ public interface Instr extends NodeWithCfg {
   }
 }
 
-abstract class InstrImpl<D extends Instr.Data<?>> implements Instr {
+abstract sealed class InstrImpl<D extends Instr.Data<?>> implements Instr
+    permits JumpImpl, StmtImpl {
   private final CFG cfg;
   private D data;
 

@@ -7,14 +7,14 @@ import org.prlprg.ir.CFG;
  * IR instruction which isn't the final instruction of a basic block and doesn't affect control
  * flow.
  */
-public interface Stmt extends Instr {
+public non-sealed interface Stmt extends Instr {
   @Override
   Data<?> data();
 
   sealed interface Data<I extends Stmt> extends Instr.Data<I> permits RValueStmt.Data, Stmts.Void {}
 }
 
-abstract class StmtImpl<D extends Stmt.Data<?>> extends InstrImpl<D> implements Stmt {
+abstract non-sealed class StmtImpl<D extends Stmt.Data<?>> extends InstrImpl<D> implements Stmt {
   StmtImpl(CFG cfg, D data) {
     super(cfg, data);
   }

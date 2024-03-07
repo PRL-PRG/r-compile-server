@@ -10,21 +10,31 @@ public enum NoOrMaybe implements BoundedLattice<NoOrMaybe> {
     return value ? MAYBE : NO;
   }
 
+  /** Returns true unless this is maybe and other is no. */
   @Override
   public boolean isSubsetOf(NoOrMaybe other) {
     return this == NO || other == MAYBE;
   }
 
+  /** Returns true unless this is no and other is maybe. */
   @Override
   public boolean isSupersetOf(NoOrMaybe other) {
     return this == MAYBE || other == NO;
   }
 
+  /**
+   * Returns no if both are no, otherwise maybe. Equivalent to {@code ||}ing the boolean
+   * representation.
+   */
   @Override
   public NoOrMaybe union(NoOrMaybe other) {
     return this == NO ? other : this;
   }
 
+  /**
+   * Returns no if either are no, otherwise maybe. Equivalent to {@code &&}ing the boolean
+   * representation.
+   */
   @Override
   public NoOrMaybe intersection(NoOrMaybe other) {
     return this == NO ? this : other;

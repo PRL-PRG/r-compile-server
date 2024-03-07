@@ -1,5 +1,6 @@
 package org.prlprg.ir.node;
 
+import com.google.common.collect.ImmutableList;
 import com.pushtorefresh.javac_warning_annotation.Warning;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -20,7 +21,7 @@ import org.prlprg.ir.CFG;
  * <p>φ nodes can temporarily have only 0 or 1 input; however, the {@link CFG} should have a cleanup
  * phase where it deletes or replaces those.
  */
-public interface Phi extends NodeWithCfg {
+public non-sealed interface Phi extends InstrOrPhi {
   /**
    * Create a new φ-node for the given node class. It should implement the necessary superclass so
    * that it's acceptable to replace a node of this class with this φ.
@@ -86,11 +87,13 @@ public interface Phi extends NodeWithCfg {
   void removeInputs(Iterable<BB> incomingBbs);
 
   /**
-   * Replace the node in arguments.
-   *
-   * @throws IllegalArgumentException If you try to replace with a node of incompatible type.
+   * Returns {@code this}, since a phi is an instruction which simply "returns" one of its
+   * arguments.
    */
-  void replace(Node old, Node replacement);
+  @Override
+  default ImmutableList<Node> returns() {
+    return ImmutableList.of(this);
+  }
 
   record Input<N extends Node>(BB incomingBb, N node) {}
 }
