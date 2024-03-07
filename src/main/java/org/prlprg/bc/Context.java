@@ -33,16 +33,20 @@ public class Context {
     this.loop = loop;
   }
 
+  public static Context topLevelContext(EnvSXP env) {
+    return new Context(true, true, false, env, new Loop.NotInLoop());
+  }
+
   public static Context functionContext(CloSXP fun) {
     var env = new UserEnvSXP(fun.env());
-    var ctx = new Context(false, true, false, env, new Loop.NotInLoop());
+    var ctx = topLevelContext(env);
 
     return ctx.functionContext(fun.formals(), fun.body());
   }
 
   public Context functionContext(ListSXP formals, SEXP body) {
     var env = new UserEnvSXP(environment);
-    var ctx = new Context(false, true, false, env, loop);
+    var ctx = new Context(true, true, false, env, loop);
 
     formals.names().forEach(x -> env.set(x, SEXPs.UNBOUND_VALUE));
     for (var v : formals.values()) {
@@ -196,12 +200,34 @@ public class Context {
     }
   }
 
+  public static Optional<SymOrLangSXP> getAssignFun(SEXP fun) {
+    if (fun instanceof RegSymSXP s) {
+      return Optional.of(SEXPs.symbol(s.name() + "<-"));
+    } else
+    // >> check for and handle foo::bar(x) <- y assignments here
+    if (fun instanceof LangSXP l
+        && l.args().size() == 2
+        && l.fun() instanceof RegSymSXP funSym
+        && (funSym.name().equals("::") || funSym.name().equals(":::"))
+        && l.arg(0).value() instanceof RegSymSXP
+        && l.arg(1).value() instanceof RegSymSXP) {
+      var args = l.args().set(1, null, SEXPs.symbol(l.arg(1) + "<-"));
+      return Optional.of(SEXPs.lang(l.fun(), args));
+    } else {
+      return Optional.empty();
+    }
+  }
+
   public boolean isTailCall() {
     return tailCall;
   }
 
   public boolean isReturnJump() {
     return returnJump;
+  }
+
+  public boolean isTopLevel() {
+    return topLevel;
   }
 
   public Loop loop() {

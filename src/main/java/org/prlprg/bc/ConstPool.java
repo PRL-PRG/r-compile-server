@@ -126,23 +126,19 @@ public final class ConstPool extends ForwardingList<SEXP> {
     }
 
     // FIXME: do we need this?
-    @Nullable
-    Idx<LangSXP> indexLangOrNilIfNegative(int i) {
+    @Nullable Idx<LangSXP> indexLangOrNilIfNegative(int i) {
       return i >= 0 ? orNil(i, LangSXP.class) : null;
     }
 
-    @Nullable
-    Idx<StrOrRegSymSXP> indexStrOrSymOrNil(int i) {
+    @Nullable Idx<StrOrRegSymSXP> indexStrOrSymOrNil(int i) {
       return orNil(i, StrOrRegSymSXP.class);
     }
 
-    @Nullable
-    Idx<StrSXP> indexStrOrNil(int i) {
+    @Nullable Idx<StrSXP> indexStrOrNil(int i) {
       return orNil(i, StrSXP.class);
     }
 
-    @Nullable
-    Idx<IntSXP> indexIntOrNil(int i) {
+    @Nullable Idx<IntSXP> indexIntOrNil(int i) {
       return orNil(i, IntSXP.class);
     }
 
@@ -164,8 +160,7 @@ public final class ConstPool extends ForwardingList<SEXP> {
       return idx;
     }
 
-    @Nullable
-    <S extends SEXP> Idx<S> orNil(int i, Class<S> clazz) {
+    @Nullable <S extends SEXP> Idx<S> orNil(int i, Class<S> clazz) {
       var idx = new Idx<>(i, clazz);
       if (validateIndex(idx)) {
         return idx;

@@ -1,7 +1,9 @@
 package org.prlprg.sexp;
 
+import com.google.common.collect.ImmutableList;
 import java.util.Collections;
 import java.util.List;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import org.prlprg.util.EmptyIterator;
 
@@ -75,6 +77,27 @@ public final class NilSXP implements ListSXP {
   public List<String> names(int fromIndex) {
     if (fromIndex == 0) {
       return Collections.emptyList();
+    } else {
+      throw new UnsupportedOperationException("NULL is empty");
+    }
+  }
+
+  @Override
+  public ListSXP set(int index, @Nullable String tag, SEXP value) {
+    throw new UnsupportedOperationException("NULL is empty");
+  }
+
+  @Override
+  public ListSXP appended(String tag, SEXP value) {
+    return new ListSXPImpl(
+        new ImmutableList.Builder<TaggedElem>().add(new TaggedElem(tag, value)).build(),
+        Attributes.NONE);
+  }
+
+  @Override
+  public ListSXP subList(int fromIndex) {
+    if (fromIndex == 0) {
+      return this;
     } else {
       throw new UnsupportedOperationException("NULL is empty");
     }

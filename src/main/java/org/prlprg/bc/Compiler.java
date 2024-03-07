@@ -9,7 +9,6 @@ import javax.annotation.Nullable;
 import org.prlprg.RSession;
 import org.prlprg.bc.BcInstr.*;
 import org.prlprg.sexp.*;
-import org.prlprg.util.Either;
 
 // FIXME: use null instead of Optional (except for return types)
 // FIXME: update the SEXP API based on the experience with this code
@@ -22,81 +21,83 @@ import org.prlprg.util.Either;
 @SuppressWarnings("PMD.UnnecessaryImport")
 public class Compiler {
   private static final Set<String> MAYBE_NSE_SYMBOLS = Set.of("bquote");
-  private static final Set<String> ALLOWED_INLINES = Set.of(
-      "^",
-      "~",
-      "<",
-      "<<-",
-      "<=",
-      "<-",
-      "=",
-      "==",
-      ">",
-      ">=",
-      "|",
-      "||",
-      "-",
-      ":",
-      "!",
-      "!=",
-      "/",
-      "(",
-      "[",
-      "[<-",
-      "[[",
-      "[[<-",
-      "{",
-      "@",
-      "$",
-      "$<-",
-      "*",
-      "&",
-      "&&",
-      "%/%",
-      "%*%",
-      "%%",
-      "+",
-      "::",
-      ":::",
-      "@<-",
-      "break",
-      "for",
-      "function",
-      "if",
-      "next",
-      "repeat",
-      "while",
-      "local",
-      "return",
-      "switch");
+  private static final Set<String> ALLOWED_INLINES =
+      Set.of(
+          "^",
+          "~",
+          "<",
+          "<<-",
+          "<=",
+          "<-",
+          "=",
+          "==",
+          ">",
+          ">=",
+          "|",
+          "||",
+          "-",
+          ":",
+          "!",
+          "!=",
+          "/",
+          "(",
+          "[",
+          "[<-",
+          "[[",
+          "[[<-",
+          "{",
+          "@",
+          "$",
+          "$<-",
+          "*",
+          "&",
+          "&&",
+          "%/%",
+          "%*%",
+          "%%",
+          "+",
+          "::",
+          ":::",
+          "@<-",
+          "break",
+          "for",
+          "function",
+          "if",
+          "next",
+          "repeat",
+          "while",
+          "local",
+          "return",
+          "switch");
 
   // one-parameter functions evaluated by the math1 function in arithmetic.c
   // the order is important
-  private static final List<String> MATH1_FUNS = List.of(
-      "floor",
-      "ceiling",
-      "sign",
-      "expm1",
-      "log1p",
-      "cos",
-      "sin",
-      "tan",
-      "acos",
-      "asin",
-      "atan",
-      "cosh",
-      "sinh",
-      "tanh",
-      "acosh",
-      "asinh",
-      "atanh",
-      "lgamma",
-      "gamma",
-      "digamma",
-      "trigamma",
-      "cospi",
-      "sinpi",
-      "tanpi");
+  private static final List<String> MATH1_FUNS =
+      List.of(
+          "floor",
+          "ceiling",
+          "sign",
+          "expm1",
+          "log1p",
+          "cos",
+          "sin",
+          "tan",
+          "acos",
+          "asin",
+          "atan",
+          "cosh",
+          "sinh",
+          "tanh",
+          "acosh",
+          "asinh",
+          "atanh",
+          "lgamma",
+          "gamma",
+          "digamma",
+          "trigamma",
+          "cospi",
+          "sinpi",
+          "tanpi");
 
   private static final Set<String> FORBIDDEN_INLINES = Set.of("standardGeneric");
 
@@ -246,7 +247,9 @@ public class Compiler {
     }
   }
 
-  @SuppressFBWarnings(value = "DLS_DEAD_LOCAL_STORE", justification = "False positive, probably because of ignored switch case")
+  @SuppressFBWarnings(
+      value = "DLS_DEAD_LOCAL_STORE",
+      justification = "False positive, probably because of ignored switch case")
   private void compileConst(SEXP expr) {
     switch (expr) {
       case NilSXP ignored -> cb.addInstr(new LdNull());
@@ -271,7 +274,7 @@ public class Compiler {
         }
       }
       case SpecialSymSXP fun ->
-        throw new IllegalStateException("Trying to call special symbol: " + fun);
+          throw new IllegalStateException("Trying to call special symbol: " + fun);
       case LangSXP fun -> {
         if (fun.fun() instanceof RegSymSXP sym && LOOP_BREAK_FUNS.contains(sym.name())) {
           // From the R source code:
@@ -306,7 +309,9 @@ public class Compiler {
     checkTailCall();
   }
 
-  @SuppressFBWarnings(value = "DLS_DEAD_LOCAL_STORE", justification = "False positive, probably because of ignored switch case")
+  @SuppressFBWarnings(
+      value = "DLS_DEAD_LOCAL_STORE",
+      justification = "False positive, probably because of ignored switch case")
   private void compileArgs(ListSXP args, boolean nse) {
     for (var arg : args) {
       var tag = arg.tag();
@@ -318,9 +323,9 @@ public class Compiler {
           compileTag(tag);
         }
         case SymSXP x when x.isEllipsis() ->
-          // TODO: if (!findLocVar("..."))
-          // notifyWrongDotsUse
-          cb.addInstr(new DoDots());
+            // TODO: if (!findLocVar("..."))
+            // notifyWrongDotsUse
+            cb.addInstr(new DoDots());
         case SymSXP x -> {
           compileNormArg(x, nse);
           compileTag(tag);
@@ -348,7 +353,9 @@ public class Compiler {
     cb.addInstr(new MakeProm(cb.addConst(arg)));
   }
 
-  @SuppressFBWarnings(value = "DLS_DEAD_LOCAL_STORE", justification = "False positive, probably because of ignored switch case")
+  @SuppressFBWarnings(
+      value = "DLS_DEAD_LOCAL_STORE",
+      justification = "False positive, probably because of ignored switch case")
   private void compileConstArg(SEXP arg) {
     switch (arg) {
       case NilSXP ignored -> cb.addInstr(new PushNullArg());
@@ -508,19 +515,12 @@ public class Compiler {
   /**
    * From the R documentation:
    *
-   * <p>
-   * <quote> The inlining handler for `{` needs to consider that a pair of braces
-   * { and } can
-   * surround zero, one, or more expressions. A set of empty braces is equivalent
-   * to the constant
-   * NULL. If there is more than one expression, then all the values of all
-   * expressions other than
-   * the last are ignored. These expressions are compiled in a no-value context
-   * (currently
-   * equivalent to a non-tail-call context), and then code is generated to pop
-   * their values off the
-   * stack. The final expression is then compiled according to the context in
-   * which the braces
+   * <p><quote> The inlining handler for `{` needs to consider that a pair of braces { and } can
+   * surround zero, one, or more expressions. A set of empty braces is equivalent to the constant
+   * NULL. If there is more than one expression, then all the values of all expressions other than
+   * the last are ignored. These expressions are compiled in a no-value context (currently
+   * equivalent to a non-tail-call context), and then code is generated to pop their values off the
+   * stack. The final expression is then compiled according to the context in which the braces
    * expression occurs. </quote>
    *
    * @param call
@@ -596,17 +596,11 @@ public class Compiler {
   /**
    * From the R documentation:
    *
-   * <p>
-   * <quote> Compiling of function expressions is somewhat similar to compiling
-   * promises for
-   * function arguments. The body of a function is compiled into a separate byte
-   * code object and
-   * stored in the constant pool together with the formals. Then code is emitted
-   * for creating a
-   * closure from the formals, compiled body, and the current environment. For
-   * now, only the body of
-   * functions is compiled, not the default argument expressions. This should be
-   * changed in future
+   * <p><quote> Compiling of function expressions is somewhat similar to compiling promises for
+   * function arguments. The body of a function is compiled into a separate byte code object and
+   * stored in the constant pool together with the formals. Then code is emitted for creating a
+   * closure from the formals, compiled body, and the current environment. For now, only the body of
+   * functions is compiled, not the default argument expressions. This should be changed in future
    * versions of the compiler. </quote>
    *
    * @param call
@@ -733,13 +727,13 @@ public class Compiler {
       } else {
         switch (arg.value()) {
           case RegSymSXP sym ->
-            constantFold(arg.value())
-                .ifPresentOrElse(
-                    this::compileConstArg,
-                    () -> {
-                      compileSym(sym, missingOK);
-                      cb.addInstr(new PushArg());
-                    });
+              constantFold(arg.value())
+                  .ifPresentOrElse(
+                      this::compileConstArg,
+                      () -> {
+                        compileSym(sym, missingOK);
+                        cb.addInstr(new PushArg());
+                      });
           case LangSXP call -> {
             // FIXME: GNUR does:
             // cmp(a, cb, ncntxt)
@@ -781,9 +775,10 @@ public class Compiler {
       return false;
     }
 
-    var closure = SEXPs.lang(
-        SEXPs.lang(SEXPs.symbol("function"), SEXPs.list(SEXPs.NULL, call.arg(0).value())),
-        SEXPs.list());
+    var closure =
+        SEXPs.lang(
+            SEXPs.lang(SEXPs.symbol("function"), SEXPs.list(SEXPs.NULL, call.arg(0).value())),
+            SEXPs.list());
     compile(closure);
     return true;
   }
@@ -845,35 +840,20 @@ public class Compiler {
   /**
    * From the R documentation:
    *
-   * <p>
-   * > In many languages it is possible to convert the expression a && b to an
-   * equivalent if
-   * expression > of the form > if (a) { if (b) TRUE else FALSE } > Similarly, in
-   * these languages
-   * the expression a || b is equivalent to > if (a) TRUE else if (b) TRUE else
-   * FALSE > Compilation
-   * of these expressions is thus reduced to compiling if expressions. >
-   * Unfortunately, because of
-   * the possibility of NA values, these equivalencies do not hold in R. In > R,
-   * NA || TRUE should
-   * evaluate to TRUE and NA && FALSE to FALSE. This is handled by introducing >
-   * special
-   * instructions AND1ST and AND2ND for && expressions and OR1ST and OR2ND for ||.
-   * > The code
-   * generator for && expressions generates code to evaluate the first argument
-   * and then > emits an
-   * AND1ST instruction. The AND1ST instruction has one operand, the label for the
-   * instruction >
-   * following code for the second argument. If the value on the stack produced by
-   * the first
-   * argument > is FALSE then AND1ST jumps to the label and skips evaluation of
-   * the second argument;
-   * the value > of the expression is FALSE. The code for the second argument is
-   * generated next,
-   * followed by an > AND2ND instruction. This removes the values of the two
-   * arguments to && from
-   * the stack and pushes > the value of the expression onto the stack. A RETURN
-   * instruction is
+   * <p>> In many languages it is possible to convert the expression a && b to an equivalent if
+   * expression > of the form > if (a) { if (b) TRUE else FALSE } > Similarly, in these languages
+   * the expression a || b is equivalent to > if (a) TRUE else if (b) TRUE else FALSE > Compilation
+   * of these expressions is thus reduced to compiling if expressions. > Unfortunately, because of
+   * the possibility of NA values, these equivalencies do not hold in R. In > R, NA || TRUE should
+   * evaluate to TRUE and NA && FALSE to FALSE. This is handled by introducing > special
+   * instructions AND1ST and AND2ND for && expressions and OR1ST and OR2ND for ||. > The code
+   * generator for && expressions generates code to evaluate the first argument and then > emits an
+   * AND1ST instruction. The AND1ST instruction has one operand, the label for the instruction >
+   * following code for the second argument. If the value on the stack produced by the first
+   * argument > is FALSE then AND1ST jumps to the label and skips evaluation of the second argument;
+   * the value > of the expression is FALSE. The code for the second argument is generated next,
+   * followed by an > AND2ND instruction. This removes the values of the two arguments to && from
+   * the stack and pushes > the value of the expression onto the stack. A RETURN instruction is
    * generated if the && expression > was in tail position.
    */
   private boolean inlineLogicalAndOr(LangSXP call, boolean isAnd) {
@@ -1178,17 +1158,19 @@ public class Compiler {
     if (!dotsOrMissing(call.args()) && call.args().size() == 2) {
 
       // FIXME: ugly
-      String s1 = switch (call.arg(0).value()) {
-        case StrSXP s when s.size() == 1 -> s.get(0);
-        case RegSymSXP s -> s.name();
-        default -> null;
-      };
+      String s1 =
+          switch (call.arg(0).value()) {
+            case StrSXP s when s.size() == 1 -> s.get(0);
+            case RegSymSXP s -> s.name();
+            default -> null;
+          };
 
-      String s2 = switch (call.arg(1).value()) {
-        case StrSXP s when s.size() == 1 -> s.get(0);
-        case RegSymSXP s -> s.name();
-        default -> null;
-      };
+      String s2 =
+          switch (call.arg(1).value()) {
+            case StrSXP s when s.size() == 1 -> s.get(0);
+            case RegSymSXP s -> s.name();
+            default -> null;
+          };
 
       if (s1 == null || s2 == null) {
         return false;
@@ -1309,7 +1291,8 @@ public class Compiler {
 
     // 5. emit the switch instruction
 
-    // this is more complicated than it should be, but there is no easy way around the restrictions how
+    // this is more complicated than it should be, but there is no easy way around the restrictions
+    // how
     // the BC representation is set:
     // - instructions are records thus immutable with non-null fields
     // - we want the BC to be the same as GNU-R one
@@ -1321,7 +1304,8 @@ public class Compiler {
     // The effect is that the label vectors will be pushed last, and so we need to
     // follow the same logic and path the instruction at the end.
     //
-    // So we cannot really add any meaningful args to switch at this point, we need to patch it later.
+    // So we cannot really add any meaningful args to switch at this point, we need to patch it
+    // later.
 
     var nullInxToBeReplaced = new ConstPool.Idx<>(0, NilSXP.class);
     var intInxToBeReplaced = new ConstPool.Idx<>(0, IntSXP.class);
@@ -1346,17 +1330,15 @@ public class Compiler {
 
           if (haveNames) {
             var chrLabelsIdx = SEXPs.integer(nLabels.stream().map(BcLabel::getTarget).toList());
-            newSwitch = new Switch(
-                oldSwitch.ast(),
-                oldSwitch.names(),
-                cb.addConst(chrLabelsIdx),
-                cb.addConst(numLabelsIdx));
+            newSwitch =
+                new Switch(
+                    oldSwitch.ast(),
+                    oldSwitch.names(),
+                    cb.addConst(chrLabelsIdx),
+                    cb.addConst(numLabelsIdx));
           } else {
-            newSwitch = new Switch(
-                oldSwitch.ast(),
-                oldSwitch.names(),
-                null,
-                cb.addConst(numLabelsIdx));
+            newSwitch =
+                new Switch(oldSwitch.ast(), oldSwitch.names(), null, cb.addConst(numLabelsIdx));
           }
 
           return newSwitch;
@@ -1400,32 +1382,33 @@ public class Compiler {
   }
 
   private boolean inlineAssign(LangSXP call) {
-    if (! checkAssign(call, cb.getCurrentLoc())) {
+    if (!checkAssign(call, cb.getCurrentLoc())) {
       return inlineSpecial(call);
     }
 
     var superAssign = call.fun().equals(SEXPs.SUPER_ASSIGN);
     var lhs = call.arg(0).value();
     var value = call.arg(1).value();
-    var symbol = Context.getAssignVar(call);
+    var symbolOpt = Context.getAssignVar(call);
 
     if (superAssign && Context.getAssignVar(call).flatMap(ctx::resolve).isEmpty()) {
       // TODO: notifyNoSuperAssignVar(symbol, cntxt, loc = cb$savecurloc())
     }
 
-    if (symbol.isPresent() && lhs instanceof StrOrRegSymSXP) {
-      compileSymbolAssign(symbol.get(), value, superAssign);
+    if (symbolOpt.isPresent() && lhs instanceof StrOrRegSymSXP) {
+      compileSymbolAssign(symbolOpt.get(), value, superAssign);
       return true;
-    } else if (symbol.isPresent() && lhs instanceof LangSXP left) {
-      return compileComplexAssign(symbol.get(), left, value, superAssign);
+    } else if (symbolOpt.isPresent() && lhs instanceof LangSXP left) {
+      compileComplexAssign(symbolOpt.get(), left, value, superAssign);
+      return true;
     } else {
       return inlineSpecial(call);
     }
   }
 
-  private void compileSymbolAssign(String symbol, SEXP value, boolean superAssign) {
+  private void compileSymbolAssign(String name, SEXP value, boolean superAssign) {
     usingCtx(ctx.nonTailContext(), () -> compile(value));
-    var ci = cb.addConst(SEXPs.symbol(symbol));
+    var ci = cb.addConst(SEXPs.symbol(name));
     cb.addInstr(superAssign ? new SetVar2(ci) : new SetVar(ci));
 
     // TODO: make this a helper
@@ -1439,8 +1422,145 @@ public class Compiler {
    * >> Assignments for complex LVAL specifications. This is the stuff that
    * >> nightmares are made of ...
    */
-  private boolean compileComplexAssign(String symbol, LangSXP lhs, SEXP value, boolean superAssign) {
+  private void compileComplexAssign(String name, LangSXP lhs, SEXP value, boolean superAssign) {
+
+    // > The stack invariant maintained by the assignment process is
+    // > that the current right hand side value is on the top, followed by the evaluated left hand
+    // side values,
+    // > the binding cell, and the original right hand side value. Thus the start instruction leaves
+    // the right
+    // > hand side value on the top, then the value of the left hand side variable, the binding
+    // cell, and again
+    // > the right hand side value on the stack.
+    if (!superAssign && ctx.resolve(name).isEmpty()) {
+      // TODO: notifyUndefVar(symbol, cntxt, loc = cb$savecurloc())
+    }
+
+    if (!ctx.isTopLevel()) {
+      cb.addInstr(new IncLnkStk());
+    }
+    usingCtx(ctx.nonTailContext(), () -> compile(value));
+    var csi = cb.addConst(SEXPs.symbol(name));
+    cb.addInstr(superAssign ? new StartAssign2(csi) : new StartAssign(csi));
+
+    var flat = flattenPlace(lhs, cb.getCurrentLoc());
+
+    usingCtx(
+        ctx.argContext(),
+        () -> {
+          for (int i = flat.size() - 1; i >= 1; i--) {
+            compileGetterCall(flat.get(i));
+          }
+          compileSetterCall(flat.getFirst(), value);
+          for (int i = 1; i < flat.size(); i++) {
+            compileSetterCall(flat.get(i), SEXPs.ASSIGN_VTMP);
+          }
+        });
+
+    cb.addInstr(superAssign ? new EndAssign2(csi) : new EndAssign(csi));
+    if (!ctx.isTopLevel()) {
+      cb.addInstr(new IncLnkStk());
+    }
+    // TODO: make this a helper
+    if (ctx.isTailCall()) {
+      cb.addInstr(new Invisible());
+      cb.addInstr(new Return());
+    }
+  }
+
+  private void compileSetterCall(FlattenLHS flhs, SEXP value) {
+    var afun =
+        Context.getAssignFun(flhs.temp().fun())
+            .orElseThrow(() -> new CompilerException("invalid function in complex assignment"));
+    var aargs = flhs.temp().args().set(0, null, SEXPs.ASSIGN_TMP).appended("value", value);
+    var acall = SEXPs.lang(afun, aargs);
+
+    var sloc = cb.getCurrentLoc();
+
+    var cargs = flhs.original().args().appended("value", value);
+    var cexpr = SEXPs.lang(afun, cargs);
+    cb.setCurrentLoc(new Loc(cexpr, null));
+
+    if (afun instanceof RegSymSXP afunSym) {
+      if (!trySetterInline(afunSym, flhs, acall)) {
+        var ci = cb.addConst(afunSym);
+        cb.addInstr(new GetFun(ci));
+        cb.addInstr(new PushNullArg());
+        compileArgs(flhs.temp().args().subList(1), false);
+        var cci = cb.addConst(acall);
+        var cvi = cb.addConst(value);
+        cb.addInstr(new SetterCall(cci, cvi));
+      }
+    } else {
+      compile(afun);
+      cb.addInstr(new CheckFun());
+      cb.addInstr(new PushNullArg());
+      compileArgs(flhs.temp().args().subList(1), false);
+      var cci = cb.addConst(acall);
+      var cvi = cb.addConst(value);
+      cb.addInstr(new SetterCall(cci, cvi));
+    }
+
+    cb.setCurrentLoc(sloc);
+  }
+
+  private boolean trySetterInline(RegSymSXP afunSym, FlattenLHS flhs, LangSXP acall) {
+    // FIXME: implement
     return false;
+  }
+
+  private void compileGetterCall(FlattenLHS flhs) {
+    var sloc = cb.getCurrentLoc();
+    cb.setCurrentLoc(new Loc(flhs.original(), null));
+    var fun = flhs.temp().fun();
+    if (fun instanceof RegSymSXP funSym) {
+      if (!tryGetterInline(funSym, flhs)) {
+        var ci = cb.addConst(funSym);
+        cb.addInstr(new GetFun(ci));
+        cb.addInstr(new PushNullArg());
+        compileArgs(flhs.temp().args().subList(1), false);
+        var cci = cb.addConst(flhs.temp());
+        cb.addInstr(new GetterCall(cci));
+        cb.addInstr(new SpecialSwap());
+      }
+    } else {
+      compile(fun);
+      cb.addInstr(new CheckFun());
+      cb.addInstr(new PushNullArg());
+      compileArgs(flhs.temp().args().subList(1), false);
+      var cci = cb.addConst(flhs.temp());
+      cb.addInstr(new GetterCall(cci));
+      cb.addInstr(new SpecialSwap());
+    }
+
+    cb.setCurrentLoc(sloc);
+  }
+
+  private boolean tryGetterInline(RegSymSXP funSym, FlattenLHS flhs) {
+    // FIXME: implement
+    return false;
+  }
+
+  record FlattenLHS(LangSXP original, LangSXP temp) {}
+
+  private List<FlattenLHS> flattenPlace(SEXP lhs, Loc loc) {
+    var places = new ArrayList<FlattenLHS>();
+
+    while (lhs instanceof LangSXP orig) {
+      if (orig.args().isEmpty()) {
+        stop("bad assignment 1", loc);
+      }
+
+      var temp = SEXPs.lang(orig.fun(), orig.args().set(0, null, SEXPs.ASSIGN_TMP));
+      places.add(new FlattenLHS(orig, temp));
+      lhs = orig.arg(0).value();
+    }
+
+    if (!(lhs instanceof RegSymSXP)) {
+      stop("bad assignment 2", loc);
+    }
+
+    return places;
   }
 
   private boolean checkAssign(LangSXP call, Loc loc) {
@@ -1449,7 +1569,7 @@ public class Compiler {
     }
 
     var lhs = call.arg(0).value();
-    return switch(lhs) {
+    return switch (lhs) {
       case RegSymSXP ignored -> true;
       case StrSXP s -> s.size() == 1;
       case LangSXP ignored -> {
@@ -1457,14 +1577,16 @@ public class Compiler {
           var fun = l.fun();
           var args = l.args();
 
-          // >> A valid left hand side call must have a function that is either a symbol or is of the form foo::bar
-          // >> or foo:::bar, and the first argument must be a symbol or another valid left hand side call.
-          if (!(fun instanceof RegSymSXP) &&
-                  !(fun instanceof LangSXP && args.size() == 2) &&
-                      args.get(0).value() instanceof RegSymSXP innerFun &&
-                        (innerFun.name().equals("::") || innerFun.name().equals(":::"))) {
-              // TODO: notifyBadAssignFun(fun, cntxt, loc)
-              yield false;
+          // >> A valid left hand side call must have a function that is either a symbol or is of
+          // the form foo::bar
+          // >> or foo:::bar, and the first argument must be a symbol or another valid left hand
+          // side call.
+          if (!(fun instanceof RegSymSXP)
+              && !(fun instanceof LangSXP && args.size() == 2)
+              && args.get(0).value() instanceof RegSymSXP innerFun
+              && (innerFun.name().equals("::") || innerFun.name().equals(":::"))) {
+            // TODO: notifyBadAssignFun(fun, cntxt, loc)
+            yield false;
           }
           lhs = l.arg(0).value();
         }
@@ -1500,15 +1622,16 @@ public class Compiler {
 
   @SuppressFBWarnings("DLS_DEAD_LOCAL_STORE")
   private Optional<SEXP> checkConst(SEXP e) {
-    var r = switch (e) {
-      case NilSXP ignored -> e;
-      case ListOrVectorSXP<?> xs when xs.size() <= MAX_CONST_SIZE ->
-        switch (xs.type()) {
-          case INT, REAL, LGL, CPLX, STR -> e;
+    var r =
+        switch (e) {
+          case NilSXP ignored -> e;
+          case ListOrVectorSXP<?> xs when xs.size() <= MAX_CONST_SIZE ->
+              switch (xs.type()) {
+                case INT, REAL, LGL, CPLX, STR -> e;
+                default -> null;
+              };
           default -> null;
         };
-      default -> null;
-    };
 
     return Optional.ofNullable(r);
   }

@@ -1,19 +1,16 @@
 package org.prlprg.bc;
 
+import com.google.common.collect.ForwardingList;
+import com.google.common.collect.ImmutableList;
+import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Function;
-
 import javax.annotation.concurrent.Immutable;
 
-import com.google.common.collect.ForwardingList;
-import com.google.common.collect.ImmutableList;
-import com.google.errorprone.annotations.CanIgnoreReturnValue;
-
 /**
- * An array of bytecode instructions, which make up the code of a closure or
- * promise. A complete
+ * An array of bytecode instructions, which make up the code of a closure or promise. A complete
  * bytecode is {@link Bc}, which also includes a constant pool.
  */
 @Immutable
@@ -42,15 +39,13 @@ public final class BcCode extends ForwardingList<BcInstr> {
   /**
    * A builder class for creating BcArray instances.
    *
-   * <p>
-   * Not synchronized, so don't use from multiple threads.
+   * <p>Not synchronized, so don't use from multiple threads.
    */
   public static class Builder {
     private final List<BcInstr> code = new ArrayList<>();
 
     /** Create a new builder. */
-    public Builder() {
-    }
+    public Builder() {}
 
     /** Append an instruction. */
     @CanIgnoreReturnValue

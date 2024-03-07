@@ -4,6 +4,7 @@ import com.google.common.collect.ImmutableList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.stream.Collectors;
+import javax.annotation.Nullable;
 
 /**
  * R "list". Confusingly, this is actually like <a href="https://www.lua.org/pil/2.5.html">Lua's
@@ -41,6 +42,12 @@ public sealed interface ListSXP extends ListOrVectorSXP<TaggedElem> permits NilS
   List<String> names();
 
   List<String> names(int fromIndex);
+
+  ListSXP set(int index, @Nullable String tag, SEXP value);
+
+  ListSXP appended(String value, SEXP value1);
+
+  ListSXP subList(int fromIndex);
 }
 
 record ListSXPImpl(ImmutableList<TaggedElem> data, @Override Attributes attributes)
@@ -73,6 +80,29 @@ record ListSXPImpl(ImmutableList<TaggedElem> data, @Override Attributes attribut
   @Override
   public List<String> names(int fromIndex) {
     return names().subList(1, size());
+  }
+
+  @Override
+  public ListSXP set(int index, @Nullable String tag, SEXP value) {
+    return new ListSXPImpl(
+        ImmutableList.<TaggedElem>builder()
+            .addAll(data.subList(0, index))
+            .add(new TaggedElem(tag, value))
+            .addAll(data.subList(index + 1, data.size()))
+            .build(),
+        attributes);
+  }
+
+  @Override
+  public ListSXP appended(@Nullable String tag, SEXP value) {
+    return new ListSXPImpl(
+        ImmutableList.<TaggedElem>builder().addAll(data).add(new TaggedElem(tag, value)).build(),
+        attributes);
+  }
+
+  @Override
+  public ListSXP subList(int fromIndex) {
+    return new ListSXPImpl(data.subList(fromIndex, data.size()), attributes);
   }
 
   @Override

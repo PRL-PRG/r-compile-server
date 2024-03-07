@@ -348,7 +348,7 @@ function(x) {
   }
 
   @Test
-  public void inlineAssign() {
+  public void inlineAssign1() {
     assertBytecode("""
 function() {
   x <- 1
@@ -361,13 +361,32 @@ function() {
 }
 """);
 
-    //    assertBytecode("""
-    // function() {
-    //  pkg::y <- 2
-    //  pkg:::z <- 3
-    //  pkg:::z <<- 3
-    // }
-    // """);
+    assertBytecode(
+        """
+     function() {
+      a::b <- 1
+      a:::b <- 3
+      a:::b <<- 3
+     }
+     """);
+  }
+
+  @Test
+  public void inlineAssign2() {
+    assertBytecode("""
+function() {
+  f(x) <- 1
+}
+""");
+  }
+
+  @Test
+  public void inlineAssign3() {
+    assertBytecode("""
+function() {
+f(g(h(x, k), j), i) <- v
+}
+""");
   }
 
   private void assertBytecode(String code) {

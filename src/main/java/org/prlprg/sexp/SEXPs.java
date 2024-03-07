@@ -35,6 +35,8 @@ public final class SEXPs {
 
   public static final RegSymSXP ELLIPSIS = new RegSymSXP("...");
   public static final RegSymSXP SUPER_ASSIGN = new RegSymSXP("<<-");
+  public static final RegSymSXP ASSIGN_TMP = new RegSymSXP("*tmp*");
+  public static final RegSymSXP ASSIGN_VTMP = new RegSymSXP("*vtmp*");
 
   public static final EmptyEnvSXP EMPTY_ENV = EmptyEnvSXP.INSTANCE;
 
