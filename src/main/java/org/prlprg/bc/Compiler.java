@@ -1,5 +1,6 @@
 package org.prlprg.bc;
 
+import com.google.common.base.Functions;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.*;
 import java.util.function.Consumer;
@@ -382,16 +383,10 @@ public class Compiler {
       return false;
     }
 
-    // it seems that there is no way to pattern match on Optional
-    var binding = ctx.resolve(fun.name()).orElse(null);
-    if (binding == null) {
-      return false;
-    }
-    if (binding.first() instanceof BaseEnvSXP) {
-      return tryInlineBase(fun.name(), call, true);
-    } else {
-      return false;
-    }
+    return getInlineInfo(fun.name(), true)
+            .filter(info -> info.env() instanceof BaseEnvSXP)
+            .map(info -> tryInlineBase(call, info))
+            .orElse(false);
   }
 
   private @Nullable Function<LangSXP, Boolean> getBaseInlineHandler(String name) {
@@ -454,6 +449,46 @@ public class Compiler {
     };
   }
 
+  @FunctionalInterface
+  interface SetterFunction {
+    boolean call(SymOrLangSXP afun, FlattenLHS flhs, LangSXP call);
+  }
+
+  private Optional<SetterFunction> getSetterInlineHandler(InlineInfo info) {
+    if (!(info.env instanceof BaseEnvSXP)) {
+      return Optional.empty();
+    }
+
+    SetterFunction fun = switch (info.name) {
+        case "$<-" -> this::inlineDollarAssign;
+        default -> null;
+    };
+
+    return Optional.ofNullable(fun);
+  }
+
+  record InlineInfo(String name, EnvSXP env, @Nullable SEXP value, boolean guard) {}
+
+  private Optional<InlineInfo> getInlineInfo(String name, boolean guardOK) {
+    boolean guarded;
+
+    if (FORBIDDEN_INLINES.contains(name) || optimizationLevel < 1) {
+      return Optional.empty();
+    }
+
+    if (optimizationLevel == 2 && !ALLOWED_INLINES.contains(name)) {
+      if (guardOK) {
+        guarded = true;
+      } else {
+        return Optional.empty();
+      }
+    } else {
+        guarded = false;
+    }
+
+    return ctx.resolve(name).map(x -> new InlineInfo(name, x.first(), x.second(), guarded));
+  }
+
   /**
    * Tries to inline a function from the base package.
    *
@@ -461,32 +496,17 @@ public class Compiler {
    * @param call
    * @return true if the function was inlined, false otherwise
    */
-  private boolean tryInlineBase(String name, LangSXP call, boolean allowWithGuard) {
-    boolean guarded = false;
+  private boolean tryInlineBase(LangSXP call, InlineInfo info) {
+    assert(info.env() instanceof BaseEnvSXP);
 
-    if (FORBIDDEN_INLINES.contains(name)) {
-      return false;
-    }
-
-    if (optimizationLevel < 1) {
-      return false;
-    }
-
-    if (optimizationLevel == 2 && !ALLOWED_INLINES.contains(name)) {
-      if (allowWithGuard) {
-        guarded = true;
-      } else {
-        return false;
-      }
-    }
-
-    var inline = getBaseInlineHandler(name);
+    var inline = getBaseInlineHandler(info.name);
     if (inline == null) {
       return false;
     }
 
-    if (guarded) {
+    if (info.guard()) {
       var end = cb.makeLabel();
+
       usingCtx(
           ctx.nonTailContext(),
           () -> {
@@ -510,6 +530,15 @@ public class Compiler {
     } else {
       return inline.apply(call);
     }
+  }
+
+  private boolean trySetterInline(RegSymSXP afunSym, FlattenLHS flhs, LangSXP acall) {
+    return getInlineInfo(afunSym.name(), false)
+            .flatMap(this::getSetterInlineHandler)
+            .map(handler -> handler.call(afunSym, flhs, acall))
+            .orElse(false);
+
+
   }
 
   /**
@@ -1504,11 +1533,6 @@ public class Compiler {
     cb.setCurrentLoc(sloc);
   }
 
-  private boolean trySetterInline(RegSymSXP afunSym, FlattenLHS flhs, LangSXP acall) {
-    // FIXME: implement
-    return false;
-  }
-
   private void compileGetterCall(FlattenLHS flhs) {
     var sloc = cb.getCurrentLoc();
     cb.setCurrentLoc(new Loc(flhs.original(), null));
@@ -1594,6 +1618,26 @@ public class Compiler {
       }
       default -> false;
     };
+  }
+
+  private boolean inlineDollarAssign(SymOrLangSXP afun, FlattenLHS flhs, LangSXP call) {
+    var place = flhs.temp();
+    if (anyDots(place.args()) || place.args().size() != 2) {
+      return false;
+    } else {
+        SEXP sym = place.arg(1).value();
+        if (sym instanceof StrSXP s) {
+          sym = SEXPs.symbol(s.get(0));
+        }
+        if (sym instanceof RegSymSXP s) {
+          var ci = cb.addConst(call);
+          var csi = cb.addConst(s);
+          cb.addInstr(new DollarGets(ci, csi));
+          return true;
+        } else {
+          return false;
+        }
+    }
   }
 
   private boolean compileSuppressingUndefined(LangSXP call) {

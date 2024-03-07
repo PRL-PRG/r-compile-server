@@ -378,6 +378,11 @@ function() {
   f(x) <- 1
 }
 """);
+    assertBytecode("""
+function() {
+  pkg::f(x) <- 1
+}
+""");
   }
 
   @Test
@@ -385,6 +390,17 @@ function() {
     assertBytecode("""
 function() {
 f(g(h(x, k), j), i) <- v
+}
+""");
+  }
+
+  @Test
+  public void inlineDollarAssign() {
+    assertBytecode("""
+function() {
+ x$y <- 1
+ x$"z" <- 2
+ a::b$c <- 3
 }
 """);
   }
