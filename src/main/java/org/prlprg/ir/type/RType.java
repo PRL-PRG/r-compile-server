@@ -307,7 +307,7 @@ public final class RType implements BoundedLattice<RType> {
       }
     }
 
-    return promise == null || other.promise == null || promise.isSubsetOf(other.promise);
+    return Lattice.isSubset(promise, other.promise);
   }
 
   @Override
@@ -339,8 +339,7 @@ public final class RType implements BoundedLattice<RType> {
       }
     }
 
-    var resultPromise =
-        promise == null || other.promise == null ? null : promise.intersection(other.promise);
+    var resultPromise = Lattice.intersection(promise, other.promise);
     return resultPromise == null ? RTypes.NOTHING : new RType(resultTypes.build(), resultPromise);
   }
 
@@ -378,10 +377,7 @@ public final class RType implements BoundedLattice<RType> {
       }
     }
 
-    var resultPromise =
-        promise == null
-            ? other.promise
-            : other.promise == null ? promise : promise.union(other.promise);
+    var resultPromise = Lattice.union(promise, other.promise);
 
     var resultTypes1 = resultTypes.build();
     if (resultTypes1.size() > MAX_TYPES) {
@@ -408,15 +404,19 @@ public final class RType implements BoundedLattice<RType> {
 
   @Override
   public String toString() {
-    return sexpTypes.isEmpty()
-        ? "⊥"
-        : isAny()
-            ? "⊤"
-            : onlySexpType() != null
-                ? onlySexpType().toString()
-                : "("
-                    + sexpTypes.stream().map(Object::toString).reduce((a, b) -> a + " | " + b).get()
-                    + ")";
+    return (promise == null ? "" : promise)
+        + (sexpTypes.isEmpty()
+            ? "⊥"
+            : Objects.equals(onlySexpType(), RTypes.ANY.onlySexpType())
+                ? "⊤"
+                : onlySexpType() != null
+                    ? onlySexpType().toString()
+                    : "("
+                        + sexpTypes.stream()
+                            .map(Object::toString)
+                            .reduce((a, b) -> a + " | " + b)
+                            .get()
+                        + ")");
   }
 
   // endregion

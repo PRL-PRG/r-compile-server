@@ -250,16 +250,36 @@ sealed interface RPromiseType extends Lattice<RPromiseType> {
   RPromiseType LAZY_PROMISE = new InexactPromise(Troolean.YES);
 
   /** Value isn't a promise. */
-  record Value() implements RPromiseType {}
+  record Value() implements RPromiseType {
+    @Override
+    public String toString() {
+      return "";
+    }
+  }
 
   /** Value may or may not be a promise. */
-  record MaybePromise(NoOrMaybe isLazy1) implements RPromiseType {}
+  record MaybePromise(NoOrMaybe isLazy1) implements RPromiseType {
+    @Override
+    public String toString() {
+      return isLazy1 == NoOrMaybe.NO ? "^?" : "~?";
+    }
+  }
 
   /** Value is definitely a promise, but we don't have the exact value. */
   record InexactPromise(Troolean isLazy, @Override MaybeNat referenceCount)
       implements RPromiseType {
     public InexactPromise(Troolean isLazy) {
       this(isLazy, MaybeNat.UNKNOWN);
+    }
+
+    @Override
+    public String toString() {
+      return (referenceCount == MaybeNat.UNKNOWN ? "" : "{" + referenceCount + "}")
+          + switch (isLazy) {
+            case YES -> "~!";
+            case NO -> "^!";
+            case MAYBE -> "~?^";
+          };
     }
   }
 
@@ -268,6 +288,14 @@ sealed interface RPromiseType extends Lattice<RPromiseType> {
       implements RPromiseType {
     public ExactPromise(PromSXP exactValue) {
       this(exactValue, MaybeNat.UNKNOWN);
+    }
+
+    @Override
+    public String toString() {
+      return (referenceCount == MaybeNat.UNKNOWN ? "" : "{" + referenceCount + "}")
+          + "*"
+          + (exactValue.isLazy() ? "~" : "^")
+          + "!";
     }
   }
 }

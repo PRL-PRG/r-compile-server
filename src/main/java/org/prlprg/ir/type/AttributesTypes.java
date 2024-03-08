@@ -10,10 +10,10 @@ import org.prlprg.util.NotImplementedError;
  */
 public class AttributesTypes {
   /** Known to have no attributes. */
-  public static final AttributesType NONE = null;
+  public static final AttributesType NONE = new TODOAttributesType();
 
   /** Completely unknown attributes. */
-  public static final AttributesType UNKNOWN = null;
+  public static final AttributesType UNKNOWN = new TODOAttributesType();
 
   /** The type of exactly these attributes ({@code NONE} if they are {@code null}). */
   static AttributesType exact(@Nullable Attributes attributes) {

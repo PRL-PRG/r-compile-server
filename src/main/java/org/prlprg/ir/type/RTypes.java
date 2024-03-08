@@ -28,7 +28,7 @@ public class RTypes {
           RPromiseType.MAYBE_LAZY_PROMISE);
 
   /** The type of a value we know absolutely nothing about, except that it's not a promise. */
-  public static final RType VALUE =
+  public static final RType ANY_VALUE =
       new RType(
           ImmutableSet.of(
               new RGenericValueType(
@@ -39,7 +39,7 @@ public class RTypes {
    * The type of a function we know absolutely nothing about besides it being a function (could be a
    * special or builtin).
    */
-  public static final RType FUN =
+  public static final RType ANY_FUN =
       new RType(
           ImmutableSet.of(
               new RFunctionTypeImpl(
@@ -57,7 +57,7 @@ public class RTypes {
    * The type of a function we know absolutely nothing about besides it being a special or builtin
    * function.
    */
-  public static final RType SYMFUN = FUN;
+  public static final RType SYMFUN = ANY_FUN;
 
   /**
    * The type of a value we know absolutely nothing about besides it not having attributes, object,

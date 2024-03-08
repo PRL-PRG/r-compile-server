@@ -7,6 +7,32 @@ import javax.annotation.Nullable;
  * and its parts.
  */
 public interface Lattice<T extends Lattice<T>> {
+  /** Is this a subtype of the given type? Treats {@code null} as "bottom". */
+  static <T extends Lattice<T>> boolean isSubset(@Nullable T lhs, @Nullable T rhs) {
+    return lhs == null || (rhs != null && lhs.isSubsetOf(rhs));
+  }
+
+  /** Is this a supertype of the given type? Treats {@code null} as "bottom". */
+  static <T extends Lattice<T>> boolean isSuperset(@Nullable T lhs, @Nullable T rhs) {
+    return rhs == null || (lhs != null && lhs.isSupersetOf(rhs));
+  }
+
+  /**
+   * Returns the most precise representable superset (also called "join"). Treats {@code null} as
+   * "bottom".
+   */
+  static <T extends Lattice<T>> @Nullable T union(@Nullable T lhs, @Nullable T rhs) {
+    return lhs == null ? rhs : rhs == null ? lhs : lhs.union(rhs);
+  }
+
+  /**
+   * Returns the least precise representable subset (also called "meet"). Treats {@code null} as
+   * "bottom" (which means it may return {@code null} if the types are disjoint.
+   */
+  static <T extends Lattice<T>> @Nullable T intersection(@Nullable T lhs, @Nullable T rhs) {
+    return lhs == null || rhs == null ? null : lhs.intersection(rhs);
+  }
+
   /** Is this a subtype of the given type? */
   boolean isSubsetOf(T other);
 

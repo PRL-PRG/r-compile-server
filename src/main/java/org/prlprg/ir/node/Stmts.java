@@ -50,7 +50,7 @@ class Stmts {
   record GetFun(RegSymSXP name, Env env) implements RValue_ {
     @Override
     public RType computeType() {
-      return RTypes.FUN;
+      return RTypes.ANY_FUN;
     }
   }
 

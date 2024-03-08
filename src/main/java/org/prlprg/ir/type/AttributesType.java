@@ -11,3 +11,26 @@ public interface AttributesType extends Lattice<AttributesType> {
   /** If we know the exact attributes, otherwise {@code null}. */
   @Nullable Attributes exact();
 }
+
+// TODO: replace with actual subtype(s).
+class TODOAttributesType implements AttributesType {
+  @Nullable @Override
+  public Attributes exact() {
+    return null;
+  }
+
+  @Override
+  public boolean isSubsetOf(AttributesType other) {
+    return true;
+  }
+
+  @Override
+  public AttributesType union(AttributesType other) {
+    return this;
+  }
+
+  @Nullable @Override
+  public AttributesType intersection(AttributesType other) {
+    return this;
+  }
+}
