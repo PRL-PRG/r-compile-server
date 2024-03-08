@@ -128,7 +128,7 @@ public final class RType implements BoundedLattice<RType> {
    *
    * <p>Returns {@code null} if this is the nothing type.
    */
-  @Nullable BaseRType base() {
+  public @Nullable BaseRType base() {
     BaseRType.NotPromise base = null;
     for (var sexpType : sexpTypes) {
       base = base == null ? sexpType.base() : (BaseRType.NotPromise) base.union(sexpType.base());
@@ -154,7 +154,7 @@ public final class RType implements BoundedLattice<RType> {
    *
    * <p>Returns {@code null} if this is the nothing type.
    */
-  @Nullable AttributesType attributes() {
+  public @Nullable AttributesType attributes() {
     AttributesType attributes = null;
     for (var sexpType : sexpTypes) {
       attributes =
@@ -178,7 +178,7 @@ public final class RType implements BoundedLattice<RType> {
    *
    * <p>Returns {@code null} if this is the nothing type.
    */
-  @Nullable MaybeNat referenceCount() {
+  public @Nullable MaybeNat referenceCount() {
     MaybeNat referenceCount = null;
     for (var sexpType : sexpTypes) {
       referenceCount =
@@ -431,6 +431,7 @@ public final class RType implements BoundedLattice<RType> {
     if (promise == null && !sexpTypes.isEmpty()) {
       throw new IllegalArgumentException("PromiseRType must be non-null if there are RSexpTypes");
     }
+
     this.sexpTypes = sexpTypes;
     this.promise = promise;
   }

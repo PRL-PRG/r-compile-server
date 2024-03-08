@@ -1,12 +1,10 @@
 package org.prlprg.ir.node;
 
 import com.google.common.collect.ImmutableList;
-import javax.annotation.Nullable;
 import org.prlprg.ir.CFG;
 import org.prlprg.ir.type.RType;
 import org.prlprg.ir.type.RTypes;
 import org.prlprg.sexp.*;
-import org.prlprg.util.NotImplementedError;
 
 /** {@link Stmt.Data} pattern-matchable records. */
 class Stmts {
@@ -23,14 +21,6 @@ class Stmts {
   }
 
   sealed interface RValue_ extends RValueStmt.Data {}
-
-  record PrintValue(RValue value) implements Void {}
-
-  record EndLoopCntxt(boolean isForLoop) implements Void {}
-
-  record EndFor(RValue seq) implements Void {}
-
-  record SetLoopVal() implements Void {}
 
   record Invisible() implements Void {}
 
@@ -64,63 +54,12 @@ class Stmts {
     }
   }
 
-  record GetGlobFun(RegSymSXP name) implements RValue_ {
-    @Override
-    public RType computeType() {
-      return RTypes.FUN;
-    }
-  }
-
-  record GetSymFun(RegSymSXP name) implements RValue_ {
-    @Override
-    public RType computeType() {
-      return RTypes.SYMFUN;
-    }
-  }
-
-  record GetBuiltin(RegSymSXP name) implements RValue_ {
-    @Override
-    public RType computeType() {
-      return RTypes.simple(SEXPType.BUILTIN);
-    }
-  }
-
-  record GetIntlBuiltin(RegSymSXP name) implements RValue_ {
-    @Override
-    public RType computeType() {
-      return RTypes.simple(SEXPType.BUILTIN);
-    }
-  }
-
   record CheckFun(RValue value) implements Void {}
 
   record MakeProm(SEXP code, Env env) implements RValue_ {
     @Override
     public RType computeType() {
       return RTypes.simple(SEXPType.PROM);
-    }
-  }
-
-  record DoMissing() implements RValue_ {
-    @Override
-    public RType computeType() {
-      return RTypes.exact(SEXPs.MISSING_ARG);
-    }
-  }
-
-  record SetTag(@Nullable StrOrRegSymSXP tag, RValue arg) implements RValue_ {
-    @Override
-    public RType computeType() {
-      // Actually doesn't change the value, just sets the tag of where it's located (the call
-      // arguments list)
-      return arg.type();
-    }
-  }
-
-  record DoDots(Env env) implements RValue_ {
-    @Override
-    public RType computeType() {
-      return RTypes.ANY;
     }
   }
 
@@ -249,101 +188,4 @@ class Stmts {
       implements BooleanBinOp {}
 
   record Not(LangSXP ast, @Override RValue arg, Env env) implements BooleanUnOp {}
-
-  record DotsErr() implements Void {}
-
-  record StartAssign(RegSymSXP name, RValue value, Env env) implements Stmt.Data {}
-
-  record EndAssign(RegSymSXP name, RValue lhs, RValue rhs, Env env) implements Void {}
-
-  record DfltSubset(RValue call, ImmutableList<RValue> args, Env env) implements RValue_ {
-    @Override
-    public RType computeType() {
-      throw new NotImplementedError();
-    }
-  }
-
-  record DfltSubassign(RValue call, ImmutableList<RValue> args, Env env) implements RValue_ {
-    @Override
-    public RType computeType() {
-      throw new NotImplementedError();
-    }
-  }
-
-  record DfltC(RValue call, ImmutableList<RValue> args, Env env) implements RValue_ {
-    @Override
-    public RType computeType() {
-      throw new NotImplementedError();
-    }
-  }
-
-  record DfltSubset2(RValue call, ImmutableList<RValue> args, Env env) implements RValue_ {
-    @Override
-    public RType computeType() {
-      throw new NotImplementedError();
-    }
-  }
-
-  record DfltSubassign2(RValue call, ImmutableList<RValue> args, Env env) implements RValue_ {
-    @Override
-    public RType computeType() {
-      throw new NotImplementedError();
-    }
-  }
-  /* record Dollar(LangSXP ast, RegSymSXP member) implements GnuR
-  record DollarGets(LangSXP ast, RegSymSXP member) implements GnuR
-  record IsNull() implements GnuR
-  record IsLogical() implements GnuR
-  record IsInteger() implements GnuR
-  record IsDouble() implements GnuR
-  record IsComplex() implements GnuR
-  record IsCharacter() implements GnuR
-  record IsSymbol() implements GnuR
-  record IsObject() implements GnuR
-  record IsNumeric() implements GnuR
-  record VecSubset(@Nullable LangSXP ast) implements GnuR
-  record MatSubset(@Nullable LangSXP ast) implements GnuR
-  record VecSubassign(@Nullable LangSXP ast) implements GnuR
-  record MatSubassign(@Nullable LangSXP ast) implements GnuR
-  record And1st(LangSXP ast, BcLabel shortCircuit) implements GnuR
-  record And2nd(LangSXP ast) implements GnuR
-  record Or1st(LangSXP ast, BcLabel shortCircuit) implements GnuR
-  record Or2nd(LangSXP ast) implements GnuR
-  record GetVarMissOk(RegSymSXP name) implements GnuR
-  record DdValMissOk(RegSymSXP name) implements GnuR
-  record Visible() implements GnuR
-  record SetVar2(RegSymSXP name) implements GnuR
-  record StartAssign2(RegSymSXP name) implements GnuR
-  record EndAssign2(RegSymSXP name) implements GnuR
-  record SetterCall(LangSXP ast, ConstPool.Idx valueExpr) implements GnuR
-  record GetterCall(LangSXP ast) implements GnuR
-  record SpecialSwap() implements GnuR
-  record Dup2nd() implements GnuR
-  record Switch(LangSXP ast, @Nullable Either<StrSXP, NilSXP> names, @Nullable IntSXP cOffsets, @Nullable IntSXP iOffsets) implements GnuR
-  record ReturnJmp() implements GnuR
-  record StartSubsetN(LangSXP ast, BcLabel after) implements GnuR
-  record StartSubassignN(LangSXP ast, BcLabel after) implements GnuR
-  record VecSubset2(@Nullable LangSXP ast) implements GnuR
-  record MatSubset2(@Nullable LangSXP ast) implements GnuR
-  record VecSubassign2(@Nullable LangSXP ast) implements GnuR
-  record MatSubassign2(@Nullable LangSXP ast) implements GnuR
-  record StartSubset2N(LangSXP ast, BcLabel after) implements GnuR
-  record StartSubassign2N(LangSXP ast, BcLabel after) implements GnuR
-  record SubsetN(@Nullable LangSXP ast, int n) implements GnuR
-  record Subset2N(@Nullable LangSXP ast, int n) implements GnuR
-  record SubassignN(@Nullable LangSXP ast, int n) implements GnuR
-  record Subassign2N(@Nullable LangSXP ast, int n) implements GnuR
-  record Log(LangSXP ast) implements GnuR
-  record LogBase(LangSXP ast) implements GnuR
-  record Math1(LangSXP ast, int funId) implements GnuR
-  record DotCall(LangSXP ast, int numArgs) implements GnuR
-  record Colon(LangSXP ast) implements GnuR
-  record SeqAlong(LangSXP ast) implements GnuR
-  record SeqLen(LangSXP ast) implements GnuR
-  record BaseGuard(LangSXP expr, BcLabel after) implements GnuR
-  record IncLnk() implements GnuR
-  record DecLnk() implements GnuR
-  record DeclnkN(int n) implements GnuR
-  record IncLnkStk() implements GnuR
-  record DecLnkStk() implements GnuR */
 }

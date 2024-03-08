@@ -32,8 +32,6 @@ public non-sealed interface Phi extends InstrOrPhi {
   static Phi forClass(Class<?> nodeClass, CFG cfg) {
     if (RValue.class.isAssignableFrom(nodeClass)) {
       return new RValuePhiImpl(cfg);
-    } else if (ForLoopInfo.class.isAssignableFrom(nodeClass)) {
-      return new ForLoopInfoPhiImpl(cfg);
     } else {
       throw new UnsupportedOperationException(
           "No φ type implemented for the given class: " + nodeClass);
