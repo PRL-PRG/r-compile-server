@@ -12,7 +12,7 @@ import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
 
 /** Function (closure, builtin, or special) {@link RType} projection. */
-public sealed interface RFunctionType extends RSexpType {
+public sealed interface RFunctionType extends RValueType {
   /** Whether this is a closure, builtin, or special, if known. */
   @Nullable FunctionRType functionType();
 
@@ -140,7 +140,7 @@ record RFunctionTypeImpl(
   }
 
   @Override
-  public BaseRType base() {
+  public BaseRType.NotPromise base() {
     return functionType == null
         ? BaseRType.ANY_FUN
         : switch (functionType) {
@@ -151,10 +151,10 @@ record RFunctionTypeImpl(
   }
 
   @Override
-  public boolean isSubsetOf(RSexpType other) {
-    return RGenericSexpType.commonIsSubset(this, other)
+  public boolean isSubsetOf(RValueType other) {
+    return RGenericValueType.commonIsSubset(this, other)
         && switch (other) {
-          case RGenericSexpType ignored -> true;
+          case RGenericValueType ignored -> true;
           case RFunctionTypeImpl o ->
               knownArgumentNames().containsAll(o.knownArgumentNames())
                   && zipArgumentTypes(this, o, Argument::isSupersetOf).allMatch(x -> x)
@@ -165,8 +165,8 @@ record RFunctionTypeImpl(
   }
 
   @Override
-  public RSexpType union(RSexpType other) {
-    var commonUnion = RGenericSexpType.commonUnion(this, other);
+  public RValueType union(RValueType other) {
+    var commonUnion = RGenericValueType.commonUnion(this, other);
     return !(other instanceof RFunctionTypeImpl o)
         ? commonUnion
         : new RFunctionTypeImpl(
@@ -189,13 +189,13 @@ record RFunctionTypeImpl(
   }
 
   @Override
-  public @Nullable RSexpType intersection(RSexpType other) {
-    var commonIntersection = RGenericSexpType.commonIntersection(this, other);
+  public @Nullable RValueType intersection(RValueType other) {
+    var commonIntersection = RGenericValueType.commonIntersection(this, other);
     if (commonIntersection == null) {
       return null;
     }
     return switch (other) {
-      case RGenericSexpType ignored -> commonIntersection;
+      case RGenericValueType ignored -> commonIntersection;
       case RFunctionTypeImpl o -> {
         if (functionType() != null
             && o.functionType() != null
@@ -222,7 +222,7 @@ record RFunctionTypeImpl(
 
   @Override
   public String toString() {
-    var builder = RGenericSexpType.commonToStringStart(this).append("(");
+    var builder = RGenericValueType.commonToStringStart(this).append("(");
     for (int i = 0; i < knownArgumentNames.size(); i++) {
       if (i > 0) {
         builder.append(", ");

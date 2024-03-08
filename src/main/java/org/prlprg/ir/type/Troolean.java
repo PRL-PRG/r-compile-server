@@ -97,6 +97,18 @@ public enum Troolean implements Lattice<Troolean> {
     return isSubset(this, other);
   }
 
+  public boolean isSubsetOf(YesOrMaybe other) {
+    return isSubset(this, Troolean.of(other));
+  }
+
+  public boolean isSubsetOf(NoOrMaybe other) {
+    return isSubset(this, Troolean.of(other));
+  }
+
+  public boolean isSubsetOf(boolean other) {
+    return isSubset(this, Troolean.of(other));
+  }
+
   @Override
   public boolean isSupersetOf(Troolean other) {
     return isSuperset(this, other);

@@ -17,15 +17,15 @@ import org.prlprg.sexp.SEXPs;
  *
  * Note that the {@link RType} may be one of these, we just don't know.
  */
-record RGenericSexpType(
+record RGenericValueType(
     @Override @Nullable SEXP exactValue,
-    @Override BaseRType base,
+    @Override BaseRType.NotPromise base,
     @Override AttributesType attributes,
     @Override MaybeNat referenceCount)
-    implements RSexpType {
-  private static final Logger COMMON_LOG = Logger.getLogger(RSexpType.class.getName());
+    implements RValueType {
+  private static final Logger COMMON_LOG = Logger.getLogger(RValueType.class.getName());
 
-  public RGenericSexpType {
+  public RGenericValueType {
     // Some sanity checks, since we have parallel representations
     assert exactValue == null || base.sexpType() == exactValue.type();
     assert !(base instanceof BaseRType.Closure) : "should be RClosureTypeImpl";
@@ -36,23 +36,26 @@ record RGenericSexpType(
 
   /**
    * Returns the most precise type this SEXP is an instance of, <b>unless</b> it can be an instance
-   * of a specific {@link RSexpType} (that is, the most precise type {@link RGenericSexpType} is
+   * of a specific {@link RValueType} (that is, the most precise type {@link RGenericValueType} is
    * capable of holding).
+   *
+   * @throws IllegalArgumentException if {@code value} is a promise.
    */
-  static RGenericSexpType exact(SEXP value) {
-    return new RGenericSexpType(
-        value,
-        BaseRType.of(value.type()),
-        AttributesTypes.exact(value.attributes()),
-        MaybeNat.UNKNOWN);
+  static RGenericValueType exact(SEXP value) {
+    if (!(BaseRType.of(value.type()) instanceof BaseRType.NotPromise baseType)) {
+      throw new IllegalArgumentException(
+          "Value is a promise, should be represented in RPromiseType: " + value);
+    }
+    return new RGenericValueType(
+        value, baseType, AttributesTypes.exact(value.attributes()), MaybeNat.UNKNOWN);
   }
 
   @Override
-  public boolean isSubsetOf(RSexpType other) {
+  public boolean isSubsetOf(RValueType other) {
     return commonIsSubset(this, other);
   }
 
-  static boolean commonIsSubset(RSexpType self, RSexpType other) {
+  static boolean commonIsSubset(RValueType self, RValueType other) {
     if (other.exactValue() != null) {
       return self.exactValue() != null && self.exactValue().equals(other.exactValue());
     }
@@ -62,16 +65,16 @@ record RGenericSexpType(
   }
 
   @Override
-  public RSexpType union(RSexpType other) {
+  public RValueType union(RValueType other) {
     return commonUnion(this, other);
   }
 
-  static RSexpType commonUnion(RSexpType self, RSexpType other) {
+  static RValueType commonUnion(RValueType self, RValueType other) {
     if (Objects.equals(self.exactValue(), other.exactValue())) {
       return self;
     }
 
-    return new RGenericSexpType(
+    return new RGenericValueType(
         null,
         self.base().union(other.base()),
         self.attributes().union(other.attributes()),
@@ -79,14 +82,14 @@ record RGenericSexpType(
   }
 
   @Override
-  public @Nullable RSexpType intersection(RSexpType other) {
+  public @Nullable RValueType intersection(RValueType other) {
     return commonIntersection(this, other);
   }
 
-  static @Nullable RSexpType commonIntersection(RSexpType self, RSexpType other) {
+  static @Nullable RValueType commonIntersection(RValueType self, RValueType other) {
     // Handles this case in child classes
-    if (!(self instanceof RGenericSexpType)
-        && !(other instanceof RGenericSexpType)
+    if (!(self instanceof RGenericValueType)
+        && !(other instanceof RGenericValueType)
         && self.getClass() != other.getClass()) {
       return null;
     }
@@ -115,7 +118,7 @@ record RGenericSexpType(
       return null;
     }
 
-    return new RGenericSexpType(
+    return new RGenericValueType(
         mergedExactValue, mergedBase, mergedAttributes, mergedReferenceCount);
   }
 
@@ -128,7 +131,7 @@ record RGenericSexpType(
     return sb.toString();
   }
 
-  static StringBuilder commonToStringStart(RSexpType self) {
+  static StringBuilder commonToStringStart(RValueType self) {
     var sb = new StringBuilder();
     if (!self.attributes().equals(AttributesTypes.UNKNOWN)) {
       sb.append("[").append(self.attributes()).append("]");

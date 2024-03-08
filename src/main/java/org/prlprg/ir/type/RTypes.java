@@ -14,7 +14,7 @@ import org.prlprg.util.NotImplementedError;
  */
 public class RTypes {
   /** The type of an expression which hangs, errors, or otherwise diverts control flow. */
-  public static final RType NOTHING = new RType(ImmutableSet.of());
+  public static final RType NOTHING = new RType(ImmutableSet.of(), null);
 
   /**
    * The type of a value we know absolutely nothing about (this is common, e.g. arbitrary {@code
@@ -23,8 +23,17 @@ public class RTypes {
   public static final RType ANY =
       new RType(
           ImmutableSet.of(
-              new RGenericSexpType(
-                  null, BaseRType.ANY, AttributesTypes.UNKNOWN, MaybeNat.UNKNOWN)));
+              new RGenericValueType(
+                  null, BaseRType.ANY_VALUE, AttributesTypes.UNKNOWN, MaybeNat.UNKNOWN)),
+          RPromiseType.MAYBE_LAZY_PROMISE);
+
+  /** The type of a value we know absolutely nothing about, except that it's not a promise. */
+  public static final RType VALUE =
+      new RType(
+          ImmutableSet.of(
+              new RGenericValueType(
+                  null, BaseRType.ANY_VALUE, AttributesTypes.UNKNOWN, MaybeNat.UNKNOWN)),
+          RPromiseType.VALUE);
 
   /**
    * The type of a function we know absolutely nothing about besides it being a function (could be a
@@ -41,7 +50,8 @@ public class RTypes {
                   ImmutableList.of(),
                   ImmutableList.of(),
                   NoOrMaybe.MAYBE,
-                  ANY)));
+                  ANY)),
+          RPromiseType.VALUE);
 
   /**
    * The type of a function we know absolutely nothing about besides it being a special or builtin
@@ -56,13 +66,19 @@ public class RTypes {
   public static final RType SIMPLE_ANY =
       new RType(
           ImmutableSet.of(
-              new RGenericSexpType(null, BaseRType.ANY, AttributesTypes.NONE, MaybeNat.UNKNOWN)));
+              new RGenericValueType(
+                  null, BaseRType.ANY_VALUE, AttributesTypes.NONE, MaybeNat.UNKNOWN)),
+          RPromiseType.VALUE);
 
   /** The {@link RType} of the missing value. */
-  public static final RType OF_MISSING = new RType(ImmutableSet.of(RMissingType.INSTANCE));
+  public static final RType OF_MISSING =
+      new RType(ImmutableSet.of(RMissingType.INSTANCE), RPromiseType.VALUE);
 
   /** The (most precise representable) type of the given value. */
   public static RType exact(SEXP value) {
+    if (value instanceof PromSXP p) {
+      return exact(p.val()).promiseWrapped(new RPromiseType.ExactPromise(p));
+    }
     if (value == SEXPs.MISSING_ARG) {
       return OF_MISSING;
     }
@@ -71,8 +87,9 @@ public class RTypes {
             switch (value) {
               case CloSXP closure -> RFunctionTypeImpl.exact(closure);
               case PrimVectorSXP<?> primVec -> RPrimVecTypeImpl.exact(primVec);
-              default -> RGenericSexpType.exact(value);
-            }));
+              default -> RGenericValueType.exact(value);
+            }),
+        RPromiseType.VALUE);
   }
 
   /** Either the missing value or the given type. */
@@ -87,14 +104,6 @@ public class RTypes {
 
   /** The return type of this static call. TODO: Replace param call with {@code Closure} */
   public static RType staticCallReturn(CFG call) {
-    throw new NotImplementedError();
-  }
-
-  /** The type after forcing this type. */
-  public static RType force(RType forced) {
-    // TODO:
-    //  - Put `isLazy` in RType, override attributes() to return `AttributesType.NONE` and all
-    //    projection methods to return `null`, add method `force` which clears `isLazy`
     throw new NotImplementedError();
   }
 

@@ -5,7 +5,7 @@ import org.prlprg.sexp.SEXPs;
 import org.prlprg.sexp.SpecialSymSXP;
 
 /** A singleton type whose only instance is the missing value. */
-final class RMissingType implements RSexpType {
+final class RMissingType implements RValueType {
   static final RMissingType INSTANCE = new RMissingType();
 
   @Override
@@ -14,7 +14,7 @@ final class RMissingType implements RSexpType {
   }
 
   @Override
-  public BaseRType base() {
+  public BaseRType.NotPromise base() {
     return BaseRType.SYMBOL;
   }
 
@@ -29,17 +29,22 @@ final class RMissingType implements RSexpType {
   }
 
   @Override
-  public boolean isSubsetOf(RSexpType other) {
+  public NoOrMaybe isMissing() {
+    return NoOrMaybe.MAYBE;
+  }
+
+  @Override
+  public boolean isSubsetOf(RValueType other) {
     return this == other;
   }
 
   @Override
-  public RSexpType union(RSexpType other) {
-    return this == other ? this : RGenericSexpType.commonUnion(this, other);
+  public RValueType union(RValueType other) {
+    return this == other ? this : RGenericValueType.commonUnion(this, other);
   }
 
   @Override
-  public @Nullable RSexpType intersection(RSexpType other) {
+  public @Nullable RValueType intersection(RValueType other) {
     return this == other ? this : null;
   }
 

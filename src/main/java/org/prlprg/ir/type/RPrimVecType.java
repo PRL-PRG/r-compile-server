@@ -5,7 +5,7 @@ import org.prlprg.sexp.PrimVectorSXP;
 import org.prlprg.util.NotImplementedError;
 
 /** Primitive vector {@link RType} projection. */
-public sealed interface RPrimVecType extends RSexpType {
+public sealed interface RPrimVecType extends RValueType {
   @Override
   @Nullable PrimVectorSXP<?> exactValue();
 
@@ -81,16 +81,16 @@ record RPrimVecTypeImpl(
   }
 
   @Override
-  public BaseRType base() {
+  public BaseRType.NotPromise base() {
     return new BaseRType.Vector(
         elementType() != null ? elementType().toVectorElementType() : VectorElementRType.ANY);
   }
 
   @Override
-  public boolean isSubsetOf(RSexpType other) {
-    return RGenericSexpType.commonIsSubset(this, other)
+  public boolean isSubsetOf(RValueType other) {
+    return RGenericValueType.commonIsSubset(this, other)
         && switch (other) {
-          case RGenericSexpType ignored -> true;
+          case RGenericValueType ignored -> true;
           case RPrimVecTypeImpl o ->
               isNumeric().isSubsetOf(o.isNumeric())
                   && isNumericOrLogical().isSubsetOf(o.isNumericOrLogical())
@@ -101,8 +101,8 @@ record RPrimVecTypeImpl(
   }
 
   @Override
-  public RSexpType union(RSexpType other) {
-    var commonUnion = RGenericSexpType.commonUnion(this, other);
+  public RValueType union(RValueType other) {
+    var commonUnion = RGenericValueType.commonUnion(this, other);
     return !(other instanceof RPrimVecTypeImpl o)
         ? commonUnion
         : new RPrimVecTypeImpl(
@@ -117,13 +117,13 @@ record RPrimVecTypeImpl(
   }
 
   @Override
-  public @Nullable RSexpType intersection(RSexpType other) {
-    var commonIntersection = RGenericSexpType.commonIntersection(this, other);
+  public @Nullable RValueType intersection(RValueType other) {
+    var commonIntersection = RGenericValueType.commonIntersection(this, other);
     if (commonIntersection == null) {
       return null;
     }
     return switch (other) {
-      case RGenericSexpType ignored -> commonIntersection;
+      case RGenericValueType ignored -> commonIntersection;
       case RPrimVecTypeImpl o -> {
         if (elementType() != null && o.elementType() != null && elementType() != o.elementType()) {
           yield null;
@@ -151,7 +151,7 @@ record RPrimVecTypeImpl(
 
   @Override
   public String toString() {
-    var builder = RGenericSexpType.commonToStringStart(this);
+    var builder = RGenericValueType.commonToStringStart(this);
     if (length.isKnown()) {
       builder.append("[").append(length).append("]");
     }

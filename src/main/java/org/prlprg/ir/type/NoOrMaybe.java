@@ -10,6 +10,11 @@ public enum NoOrMaybe implements BoundedLattice<NoOrMaybe> {
     return value ? MAYBE : NO;
   }
 
+  /** Converts yes into maybe. */
+  public static NoOrMaybe of(Troolean value) {
+    return value == Troolean.NO ? NO : MAYBE;
+  }
+
   /** Returns true unless this is maybe and other is no. */
   @Override
   public boolean isSubsetOf(NoOrMaybe other) {
