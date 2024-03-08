@@ -35,7 +35,7 @@ public sealed interface RPrimVecType extends RValueType {
   /** Whether the vector contains NAs or NaNs. */
   NoOrMaybe hasNAOrNaN();
 
-  /** Whether we can do fast access (no {@code class}, {@code dims}, ...). */
+  /** Whether we can do fast access (no {@code class}, {@code dim}, ...). */
   default boolean fastAccess() {
     // TODO check in AttributesType
     throw new NotImplementedError();

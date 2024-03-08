@@ -16,6 +16,11 @@ public record TaggedElem(@Nullable String tag, SEXP value) {
     this(null, value);
   }
 
+  /** Whether the tag is non-null. */
+  public boolean hasTag() {
+    return tag != null;
+  }
+
   @Override
   public String toString() {
     return tag == null

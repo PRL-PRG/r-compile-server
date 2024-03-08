@@ -3,6 +3,7 @@ package org.prlprg.ir.type;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.stream.Stream;
 import org.prlprg.ir.CFG;
 import org.prlprg.rshruntime.TypeFeedback;
@@ -137,6 +138,11 @@ public class RTypes {
   }
 
   /** Type which is the union of all given types. */
+  public static RType union(Collection<RType> types) {
+    return union(types.stream());
+  }
+
+  /** Type which is the union of all given types. */
   public static RType union(Stream<RType> types) {
     return types.reduce(RType::union).orElse(NOTHING);
   }
@@ -144,6 +150,11 @@ public class RTypes {
   /** Type which is the intersection of all given types. */
   public static RType intersection(RType... types) {
     return intersection(Arrays.stream(types));
+  }
+
+  /** Type which is the intersection of all given types. */
+  public static RType intersection(Collection<RType> types) {
+    return intersection(types.stream());
   }
 
   /** Type which is the intersection of all given types. */

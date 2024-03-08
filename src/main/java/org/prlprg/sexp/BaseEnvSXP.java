@@ -1,13 +1,13 @@
 package org.prlprg.sexp;
 
 import com.google.common.collect.ImmutableMap;
-import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 
 public final class BaseEnvSXP implements EnvSXP {
   private final ImmutableMap<String, SEXP> bindings;
 
-  public BaseEnvSXP(HashMap<String, SEXP> bindings) {
+  public BaseEnvSXP(Map<String, SEXP> bindings) {
     this.bindings = ImmutableMap.copyOf(bindings);
   }
 

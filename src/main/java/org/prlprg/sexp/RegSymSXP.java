@@ -6,7 +6,7 @@ import java.util.Optional;
 
 /** Symbol which isn't "unbound value" or "missing arg" */
 public final class RegSymSXP implements SymSXP, StrOrRegSymSXP {
-  private static final ImmutableList<String> LITERAL_NAMES =
+  static final ImmutableList<String> LITERAL_NAMES =
       ImmutableList.of("TRUE", "FALSE", "NULL", "NA", "Inf", "NaN");
 
   private final String name;
@@ -16,11 +16,10 @@ public final class RegSymSXP implements SymSXP, StrOrRegSymSXP {
     if (name.isBlank()) {
       throw new IllegalArgumentException("Symbol name cannot be blank");
     }
-    if (LITERAL_NAMES.contains(name)) {
-      throw new IllegalArgumentException("Symbol name reserved by literal: " + name);
-    }
     this.name = name;
-    isEscaped = name.chars().anyMatch(c -> !Character.isAlphabetic(c) && c != '.' && c != '_');
+    isEscaped =
+        LITERAL_NAMES.contains(name)
+            || name.chars().anyMatch(c -> !Character.isAlphabetic(c) && c != '.' && c != '_');
   }
 
   /** Returns the name of this symbol. */

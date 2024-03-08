@@ -29,7 +29,7 @@ sealed interface RValueType extends Lattice<RValueType>
 
   /**
    * Whether the object has attributes and what we know about them; in particular, if it may or does
-   * have certain attributes (e.g. {@code names}, {@code class}, {@code dims}, ...), and if they are
+   * have certain attributes (e.g. {@code names}, {@code class}, {@code dim}, ...), and if they are
    * exact values.
    */
   AttributesType attributes();
