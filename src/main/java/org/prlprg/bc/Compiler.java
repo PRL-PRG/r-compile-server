@@ -178,7 +178,7 @@ public class Compiler {
 
   public Bc compile() {
     cb.addConst(expr);
-    compile(expr, false);
+    compile(expr, false, false);
     return cb.build();
   }
 
@@ -200,10 +200,18 @@ public class Compiler {
   }
 
   private void compile(SEXP expr) {
-    compile(expr, true);
+    compile(expr, false, true);
   }
 
-  private void compile(SEXP expr, boolean setLoc) {
+  /**
+   * Compiles an expression.
+   * This is the entry point for the recursive compilation process.
+   *
+   * @param expr the expression to compile
+   * @param missingOK passing this flag to {@code compileSym}
+   * @param setLoc whether to set the current location from {@code expr}
+   */
+  private void compile(SEXP expr, boolean missingOK, boolean setLoc) {
     Loc loc = null;
     if (setLoc) {
       loc = cb.getCurrentLoc();
@@ -216,8 +224,8 @@ public class Compiler {
             () -> {
               switch (expr) {
                 case LangSXP e -> compileCall(e, true);
-                case RegSymSXP e -> compileSym(e, false);
-                case SpecialSymSXP e -> stop("unhandled special symbol: ");
+                case RegSymSXP e -> compileSym(e, missingOK);
+                case SpecialSymSXP e -> stop("unhandled special symbol: " + e);
                 case PromSXP ignored -> stop("cannot compile promise literals in code");
                 case BCodeSXP ignored -> stop("cannot compile byte code literals in code");
                 default -> compileConst(expr);
@@ -229,21 +237,26 @@ public class Compiler {
     }
   }
 
-  private void compileSym(RegSymSXP e, boolean missingOk) {
-    if (e.isEllipsis()) {
+  /**
+   *
+   * @param sym the symbol to compile
+   * @param missingOK specifies whether to use DDLVAL_MISSOK or DDLVAL instruction
+   */
+  private void compileSym(RegSymSXP sym, boolean missingOK) {
+    if (sym.isEllipsis()) {
       // TODO: notifyWrongDotsUse
       cb.addInstr(new DotsErr());
-    } else if (e.isDdSym()) {
+    } else if (sym.isDdSym()) {
       // TODO: if (!findLocVar("..."))
       // notifyWrongDotsUse
-      var idx = cb.addConst(e);
-      cb.addInstr(missingOk ? new DdValMissOk(idx) : new DdVal(idx));
+      var idx = cb.addConst(sym);
+      cb.addInstr(missingOK ? new DdValMissOk(idx) : new DdVal(idx));
       checkTailCall();
     } else {
       // TODO: if (!findVar(sym))
       // notifyUndefVar
-      var idx = cb.addConst(e);
-      cb.addInstr(missingOk ? new GetVarMissOk(idx) : new GetVar(idx));
+      var idx = cb.addConst(sym);
+      cb.addInstr(missingOK ? new GetVarMissOk(idx) : new GetVar(idx));
       checkTailCall();
     }
   }
@@ -492,8 +505,8 @@ public class Compiler {
   /**
    * Tries to inline a function from the base package.
    *
-   * @param name
    * @param call
+   * @param info
    * @return true if the function was inlined, false otherwise
    */
   private boolean tryInlineBase(LangSXP call, InlineInfo info) {
@@ -569,7 +582,7 @@ public class Compiler {
                 var arg = call.arg(i).value();
                 // i + 1 because the block srcref's first element is the opening brace
                 cb.setCurrentLoc(new Loc(arg, extractSrcRef(call, i + 1)));
-                compile(arg, false);
+                compile(arg, false, false);
                 cb.addInstr(new Pop());
               }
             });
@@ -577,7 +590,7 @@ public class Compiler {
 
       var last = call.arg(n - 1).value();
       cb.setCurrentLoc(new Loc(last, extractSrcRef(call, n)));
-      compile(last, false);
+      compile(last, false, false);
       cb.setCurrentLoc(loc);
     }
 
