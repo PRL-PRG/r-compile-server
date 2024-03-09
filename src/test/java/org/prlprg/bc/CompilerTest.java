@@ -405,6 +405,81 @@ function() {
 """);
   }
 
+  @Test
+  public void inlineSquareAssign1() {
+    assertBytecode("""
+function() {
+ x[y == 1] <- 1
+ x[[y == 1]] <- 1
+}
+""");
+  }
+
+  @Test
+  public void inlineSquareAssign2() {
+    assertBytecode("""
+function() {
+ x[y == 1, z == 2] <- 1
+ x[[y == 1, z == 2]] <- 1
+}
+""");
+  }
+
+  @Test
+  public void inlineSquareAssign3() {
+    assertBytecode("""
+function() {
+ x[y == 1, ] <- 1
+ x[[y == 1, ]] <- 1
+}
+""");
+  }
+
+  @Test
+  public void inlineSquareAssign4() {
+    assertBytecode("""
+function() {
+ x$y[-c(1,2)] <- 1
+}
+""");
+  }
+
+  @Test
+  public void inlineSquareSubset1() {
+    assertBytecode("""
+function() {
+ x[y == 1]
+}
+""");
+  }
+
+  @Test
+  public void inlineSquareSubset2() {
+    assertBytecode("""
+function() {
+ x[y == 1, z == 2]
+}
+""");
+  }
+
+  @Test
+  public void inlineSquareSubset3() {
+    assertBytecode("""
+function() {
+ x[y == 1,]
+}
+""");
+  }
+
+  @Test
+  public void inlineSquareSubset4() {
+    assertBytecode("""
+function() {
+ x[a=1,]
+}
+""");
+  }
+
   private void assertBytecode(String code) {
     assertBytecode(code, 2);
   }

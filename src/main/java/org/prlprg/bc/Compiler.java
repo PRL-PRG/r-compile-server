@@ -1,8 +1,8 @@
 package org.prlprg.bc;
 
-import com.google.common.base.Functions;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.*;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -204,8 +204,7 @@ public class Compiler {
   }
 
   /**
-   * Compiles an expression.
-   * This is the entry point for the recursive compilation process.
+   * Compiles an expression. This is the entry point for the recursive compilation process.
    *
    * @param expr the expression to compile
    * @param missingOK passing this flag to {@code compileSym}
@@ -238,7 +237,6 @@ public class Compiler {
   }
 
   /**
-   *
    * @param sym the symbol to compile
    * @param missingOK specifies whether to use DDLVAL_MISSOK or DDLVAL instruction
    */
@@ -381,7 +379,7 @@ public class Compiler {
 
   private void compileTag(@Nullable String tag) {
     if (tag != null && !tag.isEmpty()) {
-      cb.addInstr(new SetTag(cb.addConst(SEXPs.string(tag))));
+      cb.addInstr(new SetTag(cb.addConst(SEXPs.symbol(tag))));
     }
   }
 
@@ -397,9 +395,9 @@ public class Compiler {
     }
 
     return getInlineInfo(fun.name(), true)
-            .filter(info -> info.env() instanceof BaseEnvSXP)
-            .map(info -> tryInlineBase(call, info))
-            .orElse(false);
+        .filter(info -> info.env() instanceof BaseEnvSXP)
+        .map(info -> tryInlineBase(call, info))
+        .orElse(false);
   }
 
   private @Nullable Function<LangSXP, Boolean> getBaseInlineHandler(String name) {
@@ -455,6 +453,8 @@ public class Compiler {
       case "with", "require" -> this::compileSuppressingUndefined;
       case "switch" -> this::inlineSwitch;
       case "<-", "=", "<<-" -> this::inlineAssign;
+      case "[" -> (call) -> inlineSubset(false, call);
+      case "[[" -> (call) -> inlineSubset(true, call);
       case String s when MATH1_FUNS.contains(s) -> (c) -> inlineMath1(c, MATH1_FUNS.indexOf(s));
       case String s when rsession.isBuiltin(s) -> (c) -> inlineBuiltin(c, false);
       case String s when rsession.isSpecial(s) -> this::inlineSpecial;
@@ -462,20 +462,35 @@ public class Compiler {
     };
   }
 
-  @FunctionalInterface
-  interface SetterFunction {
-    boolean call(SymOrLangSXP afun, FlattenLHS flhs, LangSXP call);
-  }
-
-  private Optional<SetterFunction> getSetterInlineHandler(InlineInfo info) {
+  private Optional<BiFunction<FlattenLHS, LangSXP, Boolean>> getSetterInlineHandler(
+      InlineInfo info) {
     if (!(info.env instanceof BaseEnvSXP)) {
       return Optional.empty();
     }
 
-    SetterFunction fun = switch (info.name) {
-        case "$<-" -> this::inlineDollarAssign;
-        default -> null;
-    };
+    BiFunction<FlattenLHS, LangSXP, Boolean> fun =
+        switch (info.name) {
+          case "$<-" -> this::inlineDollarAssign;
+          case "[<-" -> (flhs, call) -> inlineSquareBracketAssign(false, flhs, call);
+          case "[[<-" -> (flhs, call) -> inlineSquareBracketAssign(true, flhs, call);
+          default -> null;
+        };
+
+    return Optional.ofNullable(fun);
+  }
+
+  private Optional<Function<LangSXP, Boolean>> getGetterInlineHandler(InlineInfo info) {
+    if (!(info.env instanceof BaseEnvSXP)) {
+      return Optional.empty();
+    }
+
+    Function<LangSXP, Boolean> fun =
+        switch (info.name) {
+          case "$" -> this::inlineDollarSubset;
+          case "[" -> (call) -> inlineSquareBracketSubSet(false, call);
+          case "[[" -> (call) -> inlineSquareBracketSubSet(true, call);
+          default -> null;
+        };
 
     return Optional.ofNullable(fun);
   }
@@ -496,7 +511,7 @@ public class Compiler {
         return Optional.empty();
       }
     } else {
-        guarded = false;
+      guarded = false;
     }
 
     return ctx.resolve(name).map(x -> new InlineInfo(name, x.first(), x.second(), guarded));
@@ -510,7 +525,7 @@ public class Compiler {
    * @return true if the function was inlined, false otherwise
    */
   private boolean tryInlineBase(LangSXP call, InlineInfo info) {
-    assert(info.env() instanceof BaseEnvSXP);
+    assert (info.env() instanceof BaseEnvSXP);
 
     var inline = getBaseInlineHandler(info.name);
     if (inline == null) {
@@ -547,11 +562,16 @@ public class Compiler {
 
   private boolean trySetterInline(RegSymSXP afunSym, FlattenLHS flhs, LangSXP acall) {
     return getInlineInfo(afunSym.name(), false)
-            .flatMap(this::getSetterInlineHandler)
-            .map(handler -> handler.call(afunSym, flhs, acall))
-            .orElse(false);
+        .flatMap(this::getSetterInlineHandler)
+        .map(handler -> handler.apply(flhs, acall))
+        .orElse(false);
+  }
 
-
+  private boolean tryGetterInline(RegSymSXP afunSym, LangSXP call) {
+    return getInlineInfo(afunSym.name(), false)
+        .flatMap(this::getGetterInlineHandler)
+        .map(handler -> handler.apply(call))
+        .orElse(false);
   }
 
   /**
@@ -767,13 +787,15 @@ public class Compiler {
       } else if (arg.value() instanceof PromSXP) {
         stop("cannot compile promise literals in code");
       } else {
+        // FIXME: is this constant folding needed?
+        //  - could we just dispatch to normal compile which in turn will do it as well?
         switch (arg.value()) {
           case RegSymSXP sym ->
               constantFold(arg.value())
                   .ifPresentOrElse(
                       this::compileConstArg,
                       () -> {
-                        compileSym(sym, missingOK);
+                        usingCtx(ctx.argContext(), () -> compileSym(sym, missingOK));
                         cb.addInstr(new PushArg());
                       });
           case LangSXP call -> {
@@ -782,7 +804,7 @@ public class Compiler {
             // which is weird since it says in the doc:
             // > ... Constant folding is needed here since it doesn’t go through cmp.
             // a possible reason why to go through cmp is to set location...
-            compileCall(call, true);
+            usingCtx(ctx.argContext(), () -> compileCall(call, true));
             cb.addInstr(new PushArg());
           }
           default -> compileConstArg(arg.value());
@@ -1109,7 +1131,7 @@ public class Compiler {
 
   private boolean inlineLog(LangSXP call) {
     if (dotsOrMissing(call.args())
-        || call.args().names().stream().anyMatch(Objects::nonNull)
+        || call.args().hasTags()
         || call.args().isEmpty()
         || call.args().size() > 2) {
       return inlineBuiltin(call, false);
@@ -1182,7 +1204,7 @@ public class Compiler {
 
   private boolean inlineDotCall(LangSXP call) {
     if (dotsOrMissing(call.args())
-        || call.args().names().stream().anyMatch(Objects::nonNull)
+        || call.args().hasTags()
         || call.args().isEmpty()
         || call.args().size() > DOTCALL_MAX) {
       return inlineBuiltin(call, false);
@@ -1547,16 +1569,19 @@ public class Compiler {
   }
 
   private void compileGetterCall(FlattenLHS flhs) {
+    var place = flhs.temp();
     var sloc = cb.getCurrentLoc();
+
     cb.setCurrentLoc(new Loc(flhs.original(), null));
-    var fun = flhs.temp().fun();
+
+    var fun = place.fun();
     if (fun instanceof RegSymSXP funSym) {
-      if (!tryGetterInline(funSym, flhs)) {
+      if (!tryGetterInline(funSym, place)) {
         var ci = cb.addConst(funSym);
         cb.addInstr(new GetFun(ci));
         cb.addInstr(new PushNullArg());
-        compileArgs(flhs.temp().args().subList(1), false);
-        var cci = cb.addConst(flhs.temp());
+        compileArgs(place.args().subList(1), false);
+        var cci = cb.addConst(place);
         cb.addInstr(new GetterCall(cci));
         cb.addInstr(new SpecialSwap());
       }
@@ -1564,18 +1589,13 @@ public class Compiler {
       compile(fun);
       cb.addInstr(new CheckFun());
       cb.addInstr(new PushNullArg());
-      compileArgs(flhs.temp().args().subList(1), false);
-      var cci = cb.addConst(flhs.temp());
+      compileArgs(place.args().subList(1), false);
+      var cci = cb.addConst(place);
       cb.addInstr(new GetterCall(cci));
       cb.addInstr(new SpecialSwap());
     }
 
     cb.setCurrentLoc(sloc);
-  }
-
-  private boolean tryGetterInline(RegSymSXP funSym, FlattenLHS flhs) {
-    // FIXME: implement
-    return false;
   }
 
   record FlattenLHS(LangSXP original, LangSXP temp) {}
@@ -1633,24 +1653,201 @@ public class Compiler {
     };
   }
 
-  private boolean inlineDollarAssign(SymOrLangSXP afun, FlattenLHS flhs, LangSXP call) {
+  private boolean inlineDollarSubset(LangSXP call) {
+    if (anyDots(call.args()) || call.args().size() != 2) {
+      return false;
+    }
+
+    var what = call.arg(1).value();
+    if (what instanceof StrSXP str) {
+      what = SEXPs.symbol(str.get(0));
+    }
+    if (what instanceof RegSymSXP sym) {
+      var ci = cb.addConst(call);
+      var csi = cb.addConst(sym);
+
+      cb.addInstr(new Dup2nd());
+      cb.addInstr(new Dollar(ci, csi));
+      cb.addInstr(new SpecialSwap());
+
+      return true;
+    } else {
+      return false;
+    }
+  }
+
+  private boolean inlineSquareBracketSubSet(boolean doubleBracket, LangSXP call) {
+    if (dotsOrMissing(call.args()) || call.args().hasTags() || call.args().size() < 2) {
+      // inline cmpGetterDispatch
+
+      if (anyDots(call.args())) {
+        return false;
+      }
+
+      var ci = cb.addConst(call);
+      var label = cb.makeLabel();
+      cb.addInstr(new Dup2nd());
+      cb.addInstr(doubleBracket ? new StartSubset2(ci, label) : new StartSubset(ci, label));
+
+      var args = call.args().subList(1);
+      compileBuiltinArgs(args, true);
+
+      cb.addInstr(doubleBracket ? new DfltSubset2() : new DfltSubset());
+      cb.patchLabel(label);
+      cb.addInstr(new SpecialSwap());
+
+      return true;
+    }
+
+    var ci = cb.addConst(call);
+    var label = cb.makeLabel();
+    cb.addInstr(new Dup2nd());
+    cb.addInstr(doubleBracket ? new StartSubset2N(ci, label) : new StartSubsetN(ci, label));
+    var indices = call.args().subList(1);
+    compileIndices(indices);
+
+    switch (indices.size()) {
+      case 1:
+        cb.addInstr(doubleBracket ? new VecSubset2(ci) : new VecSubset(ci));
+        break;
+      case 2:
+        cb.addInstr(doubleBracket ? new MatSubset2(ci) : new MatSubset(ci));
+        break;
+      default:
+        cb.addInstr(
+            doubleBracket ? new Subset2N(ci, indices.size()) : new SubsetN(ci, indices.size()));
+    }
+
+    cb.patchLabel(label);
+    cb.addInstr(new SpecialSwap());
+
+    return true;
+  }
+
+  private boolean inlineDollarAssign(FlattenLHS flhs, LangSXP call) {
     var place = flhs.temp();
     if (anyDots(place.args()) || place.args().size() != 2) {
       return false;
     } else {
-        SEXP sym = place.arg(1).value();
-        if (sym instanceof StrSXP s) {
-          sym = SEXPs.symbol(s.get(0));
-        }
-        if (sym instanceof RegSymSXP s) {
-          var ci = cb.addConst(call);
-          var csi = cb.addConst(s);
-          cb.addInstr(new DollarGets(ci, csi));
-          return true;
-        } else {
-          return false;
-        }
+      SEXP sym = place.arg(1).value();
+      if (sym instanceof StrSXP s) {
+        sym = SEXPs.symbol(s.get(0));
+      }
+      if (sym instanceof RegSymSXP s) {
+        var ci = cb.addConst(call);
+        var csi = cb.addConst(s);
+        cb.addInstr(new DollarGets(ci, csi));
+        return true;
+      } else {
+        return false;
+      }
     }
+  }
+
+  private boolean inlineSquareBracketAssign(boolean doubleSquare, FlattenLHS flhs, LangSXP call) {
+    var place = flhs.temp();
+
+    if (dotsOrMissing(place.args()) || place.args().hasTags() || place.args().size() < 2) {
+      // inlined cmpSetterDispatch
+      if (anyDots(place.args())) {
+        return false;
+      }
+
+      var ci = cb.addConst(call);
+      var endLabel = cb.makeLabel();
+      cb.addInstr(
+          doubleSquare ? new StartSubassign2(ci, endLabel) : new StartSubassign(ci, endLabel));
+      var args = place.args().subList(1);
+      compileBuiltinArgs(args, true);
+      cb.addInstr(doubleSquare ? new DfltSubassign2() : new DfltSubassign());
+      cb.patchLabel(endLabel);
+      return true;
+    }
+
+    var ci = cb.addConst(call);
+    var label = cb.makeLabel();
+    cb.addInstr(doubleSquare ? new StartSubassign2N(ci, label) : new StartSubassignN(ci, label));
+    var indices = place.args().subList(1);
+    compileIndices(indices);
+
+    switch (indices.size()) {
+      case 1:
+        cb.addInstr(doubleSquare ? new VecSubassign2(ci) : new VecSubassign(ci));
+        break;
+      case 2:
+        cb.addInstr(doubleSquare ? new MatSubassign2(ci) : new MatSubassign(ci));
+        break;
+      default:
+        cb.addInstr(
+            doubleSquare
+                ? new Subassign2N(ci, indices.size())
+                : new SubassignN(ci, indices.size()));
+    }
+
+    cb.patchLabel(label);
+
+    return true;
+  }
+
+  private void compileIndices(ListSXP indices) {
+    for (var idx : indices.values()) {
+      compile(idx, true, true);
+    }
+  }
+
+  private boolean inlineSubset(boolean doubleSquare, LangSXP call) {
+    if (dotsOrMissing(call.args()) || call.args().hasTags() || call.args().size() < 2) {
+      if (anyDots(call.args()) || call.args().isEmpty()) {
+        return inlineSpecial(call);
+      }
+
+      var oe = call.arg(0).value();
+      if (missing(oe)) {
+        return inlineSpecial(call);
+      }
+      usingCtx(ctx.argContext(), () -> compile(oe));
+      var ci = cb.addConst(call);
+      var endLabel = cb.makeLabel();
+      cb.addInstr(doubleSquare ? new StartSubset2(ci, endLabel) : new StartSubset(ci, endLabel));
+      var args = call.args().subList(1);
+      compileBuiltinArgs(args, true);
+      cb.addInstr(doubleSquare ? new DfltSubset2() : new DfltSubset());
+      cb.patchLabel(endLabel);
+
+      // why is it a tail call? it should not be
+
+      checkTailCall();
+      return true;
+    }
+
+    var oe = call.arg(0).value();
+    if (missing(oe)) {
+      stop("cannot compile this expression");
+    }
+
+    var ci = cb.addConst(call);
+    var endLabel = cb.makeLabel();
+    usingCtx(ctx.argContext(), () -> compile(oe));
+    cb.addInstr(doubleSquare ? new StartSubset2N(ci, endLabel) : new StartSubsetN(ci, endLabel));
+    var indices = call.args().subList(1);
+    usingCtx(ctx.argContext(), () -> compileIndices(indices));
+
+    switch (indices.size()) {
+      case 1:
+        cb.addInstr(doubleSquare ? new VecSubset2(ci) : new VecSubset(ci));
+        break;
+      case 2:
+        cb.addInstr(doubleSquare ? new MatSubset2(ci) : new MatSubset(ci));
+        break;
+      default:
+        cb.addInstr(
+            doubleSquare ? new Subset2N(ci, indices.size()) : new SubsetN(ci, indices.size()));
+    }
+
+    cb.patchLabel(endLabel);
+    checkTailCall();
+
+    return true;
   }
 
   private boolean compileSuppressingUndefined(LangSXP call) {

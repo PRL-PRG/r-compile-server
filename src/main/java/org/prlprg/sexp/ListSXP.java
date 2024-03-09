@@ -3,6 +3,7 @@ package org.prlprg.sexp;
 import com.google.common.collect.ImmutableList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
@@ -48,6 +49,10 @@ public sealed interface ListSXP extends ListOrVectorSXP<TaggedElem> permits NilS
   ListSXP appended(String value, SEXP value1);
 
   ListSXP subList(int fromIndex);
+
+  default boolean hasTags() {
+    return names().stream().anyMatch(Objects::nonNull);
+  }
 }
 
 record ListSXPImpl(ImmutableList<TaggedElem> data, @Override Attributes attributes)
