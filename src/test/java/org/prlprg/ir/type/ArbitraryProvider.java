@@ -22,8 +22,9 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
             RTypes.NOTHING,
             RTypes.ANY,
             RTypes.ANY_VALUE,
+            RTypes.ANY_VALUE_NOT_MISSING,
             RTypes.ANY_FUN,
-            RTypes.SIMPLE_ANY,
+            RTypes.ANY_SIMPLE,
             RTypes.OF_MISSING),
         // sexpTypes().map(RTypes::simple),
         sexps().map(RTypes::exact));
@@ -37,7 +38,8 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
 
   public static Arbitrary<MaybeNat> maybeNats() {
     return Arbitraries.oneOf(
-        Arbitraries.just(MaybeNat.UNKNOWN), Arbitraries.integers().map(MaybeNat::of));
+        Arbitraries.just(MaybeNat.UNKNOWN),
+        Arbitraries.integers().greaterOrEqual(0).map(MaybeNat::of));
   }
 
   @Override

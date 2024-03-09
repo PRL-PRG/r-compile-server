@@ -13,7 +13,7 @@ public interface AttributesType extends Lattice<AttributesType> {
 }
 
 // TODO: replace with actual subtype(s).
-class TODOAttributesType implements AttributesType {
+record TODOAttributesType() implements AttributesType {
   @Nullable @Override
   public Attributes exact() {
     return null;
@@ -29,8 +29,8 @@ class TODOAttributesType implements AttributesType {
     return this;
   }
 
-  @Nullable @Override
-  public AttributesType intersection(AttributesType other) {
+  @Override
+  public @Nullable AttributesType intersection(AttributesType other) {
     return this;
   }
 }

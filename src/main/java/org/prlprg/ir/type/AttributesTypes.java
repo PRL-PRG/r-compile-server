@@ -2,7 +2,6 @@ package org.prlprg.ir.type;
 
 import javax.annotation.Nullable;
 import org.prlprg.sexp.Attributes;
-import org.prlprg.util.NotImplementedError;
 
 /**
  * All global {@link AttributesType}s and methods to create {@link AttributesType}s are here so
@@ -20,7 +19,8 @@ public class AttributesTypes {
     if (attributes == null) {
       return NONE;
     }
-    throw new NotImplementedError();
+    // throw new NotImplementedError();
+    return UNKNOWN;
   }
 
   private AttributesTypes() {}

@@ -26,7 +26,7 @@ public sealed interface MaybeNat extends Lattice<MaybeNat> {
   default @Override MaybeNat union(MaybeNat other) {
     return switch (other) {
       case Known(var otherValue) -> union(otherValue);
-      case Unknown() -> this;
+      case Unknown() -> other;
     };
   }
 

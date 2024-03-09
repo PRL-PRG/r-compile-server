@@ -3,6 +3,7 @@ package org.prlprg.ir.type;
 import java.util.Objects;
 import java.util.logging.Logger;
 import javax.annotation.Nullable;
+import org.prlprg.sexp.ListSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
 
@@ -21,17 +22,18 @@ record RGenericValueType(
     @Override @Nullable SEXP exactValue,
     @Override BaseRType.NotPromise base,
     @Override AttributesType attributes,
-    @Override MaybeNat referenceCount)
+    @Override MaybeNat referenceCount,
+    @Override NoOrMaybe isMissing)
     implements RValueType {
   private static final Logger COMMON_LOG = Logger.getLogger(RValueType.class.getName());
 
   public RGenericValueType {
     // Some sanity checks, since we have parallel representations
-    assert exactValue == null || base.sexpType() == exactValue.type();
-    assert !(base instanceof BaseRType.Closure) : "should be RClosureTypeImpl";
-    assert !(base instanceof BaseRType.Vector(var elem) && elem.isPrimitive() == Troolean.YES)
-        : "should be RPrimVecTypeImpl";
-    assert exactValue != SEXPs.MISSING_ARG : "should be RMissingOrTypeImpl";
+    // (though we don't check for SEXPs that need specific types, because those create generic types
+    //  to reuse the subset/union/intersection code)
+    assert exactValue == null
+        || base instanceof BaseRType.AnyList && exactValue instanceof ListSXP
+        || base.sexpType() == exactValue.type();
   }
 
   /**
@@ -42,12 +44,17 @@ record RGenericValueType(
    * @throws IllegalArgumentException if {@code value} is a promise.
    */
   static RGenericValueType exact(SEXP value) {
-    if (!(BaseRType.of(value.type()) instanceof BaseRType.NotPromise baseType)) {
+    if (!(BaseRType.of(value.type()) instanceof BaseRType.NotPromise base)) {
       throw new IllegalArgumentException(
           "Value is a promise, should be represented in RPromiseType: " + value);
     }
+    // Some sanity checks, since we have parallel representations
+    assert !(base instanceof BaseRType.Closure) : "should be RClosureTypeImpl";
+    assert !(base instanceof BaseRType.Vector(var elem) && elem.isPrimitive() == Troolean.YES)
+        : "should be RPrimVecTypeImpl";
+    assert value != SEXPs.MISSING_ARG : "should be RMissingOrTypeImpl";
     return new RGenericValueType(
-        value, baseType, AttributesTypes.exact(value.attributes()), MaybeNat.UNKNOWN);
+        value, base, AttributesTypes.exact(value.attributes()), MaybeNat.UNKNOWN, NoOrMaybe.NO);
   }
 
   @Override
@@ -78,7 +85,8 @@ record RGenericValueType(
         null,
         self.base().union(other.base()),
         self.attributes().union(other.attributes()),
-        self.referenceCount().union(other.referenceCount()));
+        self.referenceCount().union(other.referenceCount()),
+        self.isMissing().union(other.isMissing()));
   }
 
   @Override
@@ -117,9 +125,10 @@ record RGenericValueType(
     if (mergedReferenceCount == null) {
       return null;
     }
+    var mergedIsMissing = self.isMissing().intersection(other.isMissing());
 
     return new RGenericValueType(
-        mergedExactValue, mergedBase, mergedAttributes, mergedReferenceCount);
+        mergedExactValue, mergedBase, mergedAttributes, mergedReferenceCount, mergedIsMissing);
   }
 
   @Override

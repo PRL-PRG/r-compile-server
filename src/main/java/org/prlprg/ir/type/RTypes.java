@@ -25,7 +25,11 @@ public class RTypes {
       new RType(
           ImmutableSet.of(
               new RGenericValueType(
-                  null, BaseRType.ANY_VALUE, AttributesTypes.UNKNOWN, MaybeNat.UNKNOWN)),
+                  null,
+                  BaseRType.ANY_VALUE,
+                  AttributesTypes.UNKNOWN,
+                  MaybeNat.UNKNOWN,
+                  NoOrMaybe.MAYBE)),
           RPromiseType.MAYBE_LAZY_PROMISE);
 
   /** The type of a value we know absolutely nothing about, except that it's not a promise. */
@@ -33,7 +37,26 @@ public class RTypes {
       new RType(
           ImmutableSet.of(
               new RGenericValueType(
-                  null, BaseRType.ANY_VALUE, AttributesTypes.UNKNOWN, MaybeNat.UNKNOWN)),
+                  null,
+                  BaseRType.ANY_VALUE,
+                  AttributesTypes.UNKNOWN,
+                  MaybeNat.UNKNOWN,
+                  NoOrMaybe.MAYBE)),
+          RPromiseType.VALUE);
+
+  /**
+   * The type of a value we know absolutely nothing about, except that it's not a promise or
+   * missing.
+   */
+  public static final RType ANY_VALUE_NOT_MISSING =
+      new RType(
+          ImmutableSet.of(
+              new RGenericValueType(
+                  null,
+                  BaseRType.ANY_VALUE,
+                  AttributesTypes.UNKNOWN,
+                  MaybeNat.UNKNOWN,
+                  NoOrMaybe.NO)),
           RPromiseType.VALUE);
 
   /**
@@ -58,17 +81,17 @@ public class RTypes {
    * The type of a function we know absolutely nothing about besides it being a special or builtin
    * function.
    */
-  public static final RType SYMFUN = ANY_FUN;
+  public static final RType ANY_SYM_FUN = ANY_FUN;
 
   /**
    * The type of a value we know absolutely nothing about besides it not having attributes, object,
-   * or lazy.
+   * promise-wrapped, or missing (e.g. AST node).
    */
-  public static final RType SIMPLE_ANY =
+  public static final RType ANY_SIMPLE =
       new RType(
           ImmutableSet.of(
               new RGenericValueType(
-                  null, BaseRType.ANY_VALUE, AttributesTypes.NONE, MaybeNat.UNKNOWN)),
+                  null, BaseRType.ANY_VALUE, AttributesTypes.NONE, MaybeNat.UNKNOWN, NoOrMaybe.NO)),
           RPromiseType.VALUE);
 
   /** The {@link RType} of the missing value. */

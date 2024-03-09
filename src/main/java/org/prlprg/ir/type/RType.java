@@ -390,16 +390,17 @@ public final class RType implements BoundedLattice<RType> {
   // endregion
 
   // region `equals`, `hashCode`, `toString`
+
   @Override
   public boolean equals(Object o) {
     if (this == o) return true;
     if (!(o instanceof RType rType)) return false;
-    return Objects.equals(sexpTypes, rType.sexpTypes);
+    return Objects.equals(sexpTypes, rType.sexpTypes) && Objects.equals(promise, rType.promise);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hashCode(sexpTypes);
+    return Objects.hash(sexpTypes, promise);
   }
 
   @Override

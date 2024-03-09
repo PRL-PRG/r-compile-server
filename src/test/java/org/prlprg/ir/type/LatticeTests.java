@@ -4,9 +4,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import java.util.Objects;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import net.jqwik.api.Arbitraries;
@@ -14,41 +11,36 @@ import net.jqwik.api.Arbitrary;
 import net.jqwik.api.ForAll;
 import net.jqwik.api.Property;
 import net.jqwik.api.Provide;
-import net.jqwik.api.Tuple.Tuple2;
+import net.jqwik.api.Tuple;
+import net.jqwik.api.Tuple.Tuple3;
+import org.opentest4j.AssertionFailedError;
 import org.prlprg.util.Reflection;
 
 public class LatticeTests {
-  @SuppressWarnings("unchecked")
-  private final ImmutableMap<Class<Lattice<?>>, Object> LATTICES_AND_ANYS =
-      ImmutableSet.of(
-              YesOrMaybe.MAYBE,
-              NoOrMaybe.MAYBE,
-              Troolean.MAYBE,
-              MaybeNat.UNKNOWN,
-              AttributesTypes.UNKNOWN
-              // TODO
-              // new RFunctionTypeImpl(null, null, AttributesTypes.UNKNOWN, MaybeNat.UNKNOWN,
-              // ImmutableList.of(), ImmutableList.of(), NoOrMaybe.MAYBE, RTypes.ANY),
-              // new RPrimVecTypeImpl(null, AttributesTypes.UNKNOWN, MaybeNat.UNKNOWN, null,
-              // YesOrMaybe.MAYBE, YesOrMaybe.MAYBE, MaybeNat.UNKNOWN, NoOrMaybe.MAYBE),
-              // new RGenericValueType(null, BaseRType.ANY_VALUE, AttributesTypes.UNKNOWN,
-              // MaybeNat.UNKNOWN)
-              )
-          .stream()
-          .collect(
-              ImmutableMap.toImmutableMap(
-                  x -> (Class<Lattice<?>>) x.getClass(), Function.identity()));
+  private final ImmutableMap<Class<?>, Lattice<?>> LATTICES_AND_ANYS =
+      ImmutableMap.of(
+          YesOrMaybe.class, YesOrMaybe.MAYBE,
+          NoOrMaybe.class, NoOrMaybe.MAYBE,
+          Troolean.class, Troolean.MAYBE,
+          MaybeNat.class, MaybeNat.UNKNOWN,
+          AttributesType.class, AttributesTypes.UNKNOWN);
 
   @Property
-  void isCoherent_Lattice(@ForAll("latticePairs") Tuple2<Lattice<?>, Lattice<?>> lattices) {
-    var lhs = lattices.get1();
-    var rhs = lattices.get2();
-    assert lhs.getClass() == rhs.getClass();
-    var any = Objects.requireNonNull(LATTICES_AND_ANYS.get(lhs.getClass()));
-    // I don't think Java's type system permits us to call this directly, because we can't
-    // instantiate with a generic parameter because it's at runtime (the call still works at runtime
-    // without a known generic parameter due to erasure).
-    Reflection.call(this, "isCoherent", lhs, rhs, any);
+  void isCoherent_Lattice(
+      @ForAll("latticePairsAndClasses") Tuple3<Object, Object, Object> lattices) {
+    var lhs = (Lattice<?>) lattices.get1();
+    var rhs = (Lattice<?>) lattices.get2();
+    var clazz = (Class<?>) lattices.get3();
+    var any = LATTICES_AND_ANYS.get(clazz);
+    try {
+      // I don't think Java's type system permits us to call this directly, because we can't
+      // instantiate with a generic parameter because it's at runtime (the call still works at
+      // runtime
+      // without a known generic parameter due to erasure).
+      Reflection.callByName(this, LatticeTests.class, "isCoherent", lhs, rhs, any);
+    } catch (AssertionFailedError e) {
+      throw new AssertionError(clazz.getSimpleName() + ": " + e.getMessage(), e.getCause());
+    }
   }
 
   @Property
@@ -66,17 +58,17 @@ public class LatticeTests {
     assertTrue(lhs.isSubsetOf(top), "a ≤ ⊤");
     assertTrue(Lattice.isSubset(bottom, lhs), "⊥ ≤ a");
     assertTrue(lhs.isSubsetOf(lhs), "a ≤ a");
-    assertEquals(rhs.isSupersetOf(lhs), lhs.isSubsetOf(rhs), "a ≤ b ⇒ b ≥ a");
+    assertEquals(rhs.isSupersetOf(lhs), lhs.isSubsetOf(rhs), "a ≤ b ⇔ b ≥ a");
     assertEquals(
-        !rhs.isSubsetOf(lhs), lhs.isSubsetOf(rhs) && !lhs.equals(rhs), "a ≤ b & a ≠ b ⇒ b ≠ a");
+        lhs.equals(rhs), lhs.isSubsetOf(rhs) && rhs.isSubsetOf(lhs), "a ≤ b & b ≤ a ⇔ a = b");
+    assertEquals(
+        lhs.equals(rhs), lhs.isSubsetOf(rhs) && lhs.isSupersetOf(rhs), "a ≤ b & a ≥ b ⇔ a = b");
 
     // Subset of union and intersection
     assertTrue(lhs.isSubsetOf(lhs.union(rhs)), "a ≤ (a ∨ b)");
     assertTrue(rhs.isSubsetOf(lhs.union(rhs)), "b ≤ (a ∨ b)");
     assertTrue(Lattice.isSubset(lhs.intersection(rhs), lhs), "(a ∧ b) ≤ a");
     assertTrue(Lattice.isSubset(lhs.intersection(rhs), rhs), "(a ∧ b) ≤ b");
-    assertEquals(
-        lhs.equals(rhs), lhs.isSubsetOf(rhs) && rhs.isSubsetOf(lhs), "a ≤ b & b ≤ a ⇒ a = b");
 
     // Union and intersection
     assertEquals(lhs, lhs.union(lhs), "a ∨ a = a");
@@ -92,10 +84,14 @@ public class LatticeTests {
   }
 
   @Provide
-  Arbitrary<Tuple2<Lattice<?>, Lattice<?>>> latticePairs() {
+  Arbitrary<Tuple3<Object, Object, Object>> latticePairsAndClasses() {
     return Arbitraries.oneOf(
         LATTICES_AND_ANYS.keySet().stream()
-            .map(clazz -> Arbitraries.defaultFor(clazz).tuple2())
+            .map(
+                clazz ->
+                    Arbitraries.defaultFor(clazz)
+                        .tuple2()
+                        .map(t -> Tuple.of((Object) t.get1(), (Object) t.get2(), (Object) clazz)))
             .collect(Collectors.toUnmodifiableList()));
   }
 }
