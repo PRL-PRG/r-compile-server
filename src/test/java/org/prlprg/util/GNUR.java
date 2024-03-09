@@ -1,21 +1,44 @@
 package org.prlprg.util;
 
-import java.io.File;
-import java.io.PrintWriter;
+import static java.lang.String.format;
+
+import java.io.*;
+import java.util.UUID;
+import javax.annotation.concurrent.NotThreadSafe;
 import org.prlprg.RSession;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.sexp.SEXP;
 
-public class GNUR {
+@NotThreadSafe
+public class GNUR implements AutoCloseable {
   public static final String R_BIN = "R";
 
   private final RSession rsession;
+  private final Process rprocess;
+  private final PrintStream rin;
+  private final BufferedReader rout;
 
-  public GNUR(RSession rsession) {
+  public GNUR(RSession rsession, Process rprocess) {
     this.rsession = rsession;
+    this.rprocess = rprocess;
+    this.rin = new PrintStream(rprocess.getOutputStream());
+    this.rout = new BufferedReader(new InputStreamReader(rprocess.getInputStream()));
   }
 
-  // TODO: keep a session open - do not start a new R every time
+  private void run(String code) {
+    var requestId = UUID.randomUUID().toString();
+
+    if (!rprocess.isAlive()) {
+      throw new RuntimeException("R is not running");
+    }
+
+    rin.println(code);
+    rin.printf("cat('%s\n')", requestId);
+    rin.println();
+    rin.flush();
+    waitForCommand(requestId);
+  }
+
   public SEXP eval(String source) {
     try {
       var sourceFile = File.createTempFile("RCS-test", ".R");
@@ -26,10 +49,11 @@ public class GNUR {
       }
 
       var code =
-          String.format(
-              "saveRDS(eval(parse(file=\"%s\")), \"%s\", compress=FALSE)",
+          format(
+              "saveRDS(eval(parse(file='%s'), envir=new.env(parent=baseenv())), '%s', compress=FALSE)",
               sourceFile.getAbsoluteFile(), targetFile.getAbsoluteFile());
-      runCode(code);
+
+      run(code);
 
       var sxp = RDSReader.readFile(rsession, targetFile);
 
@@ -42,19 +66,51 @@ public class GNUR {
     }
   }
 
-  private static void runCode(String code) {
+  private void waitForCommand(String requestId) {
+    var output = new StringBuilder();
     try {
-      var pb =
-          new ProcessBuilder(R_BIN, "--slave", "--vanilla", "--no-save", "-e", code)
-              .redirectErrorStream(true);
-      var proc = pb.start();
-      var output = new String(proc.getInputStream().readAllBytes());
-      var exit = proc.waitFor();
-      if (exit != 0) {
-        throw new RuntimeException("R exited with code " + exit + ":\n" + output);
+      while (true) {
+        if (!rprocess.isAlive()) {
+          throw new RuntimeException("R exited unexpectedly");
+        }
+
+        var line = rout.readLine();
+        if (line == null) {
+          throw new RuntimeException("R exited unexpectedly");
+        }
+
+        if (line.equals(requestId)) {
+          return;
+        }
+
+        output.append(line).append("\n");
       }
     } catch (Exception e) {
-      throw new RuntimeException("Unable to run R code: " + code, e);
+      int exit;
+      try {
+        exit = rprocess.waitFor();
+
+        throw new RuntimeException(
+            "R REPL died (status: " + exit + ") Output so far:\n " + output, e);
+
+      } catch (InterruptedException ex) {
+        throw new RuntimeException("Interrupted waiting for R process to finish dying", ex);
+      }
+    }
+  }
+
+  @Override
+  public void close() {
+    rprocess.destroy();
+  }
+
+  public static GNUR spawn(RSession session) {
+    try {
+      var proc =
+          new ProcessBuilder(R_BIN, "--slave", "--vanilla").redirectErrorStream(true).start();
+      return new GNUR(session, proc);
+    } catch (Exception e) {
+      throw new RuntimeException("Unable to start R", e);
     }
   }
 }

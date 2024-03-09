@@ -6,20 +6,12 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import java.util.Objects;
 import org.junit.jupiter.api.Test;
-import org.prlprg.RSession;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
-import org.prlprg.rsession.TestRSession;
 import org.prlprg.sexp.*;
-import org.prlprg.util.GNUR;
-import org.prlprg.util.Tests;
+import org.prlprg.util.AbstractGNURBasedTest;
 
-public class RDSReaderTest implements Tests {
-  private final RSession rsession = new TestRSession();
-  private final GNUR R = new GNUR(rsession);
-
-  // TODO: rewrite using GNUR
-
+public class RDSReaderTest extends AbstractGNURBasedTest {
   @Test
   public void testInts() throws Exception {
     var sexp = R.eval("c(-.Machine$integer.max, -1L, 0L, NA, 1L, .Machine$integer.max)");

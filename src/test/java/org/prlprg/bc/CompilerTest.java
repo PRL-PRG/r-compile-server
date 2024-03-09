@@ -6,17 +6,13 @@ import static org.prlprg.util.StructuralUtils.printStructurally;
 import java.io.File;
 import java.io.IOException;
 import org.junit.jupiter.api.Test;
-import org.prlprg.RSession;
-import org.prlprg.rsession.TestRSession;
 import org.prlprg.sexp.BCodeSXP;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.util.*;
+import org.prlprg.util.AbstractGNURBasedTest;
 
-public class CompilerTest implements Tests {
-
-  private final RSession rsession = new TestRSession();
-  private final GNUR R = new GNUR(rsession);
+public class CompilerTest extends AbstractGNURBasedTest implements Tests {
 
   @Test
   public void testEmptyBlock() {
@@ -449,6 +445,7 @@ function() {
     assertBytecode("""
 function() {
  x[y == 1]
+ x[[y == 1]]
 }
 """);
   }
@@ -458,6 +455,7 @@ function() {
     assertBytecode("""
 function() {
  x[y == 1, z == 2]
+ x[[y == 1, z == 2]]
 }
 """);
   }
@@ -467,6 +465,7 @@ function() {
     assertBytecode("""
 function() {
  x[y == 1,]
+ x[[y == 1,]]
 }
 """);
   }
@@ -476,6 +475,7 @@ function() {
     assertBytecode("""
 function() {
  x[a=1,]
+ x[[a=1,]]
 }
 """);
   }
