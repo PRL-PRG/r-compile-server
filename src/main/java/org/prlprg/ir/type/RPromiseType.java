@@ -292,8 +292,8 @@ sealed interface RPromiseType extends Lattice<RPromiseType> {
 
     @Override
     public String toString() {
-      return (referenceCount == MaybeNat.UNKNOWN ? "" : "{" + referenceCount + "}")
-          + "*"
+      return "*"
+          + (referenceCount == MaybeNat.UNKNOWN ? "" : "{" + referenceCount + "}")
           + (exactValue.isLazy() ? "~" : "^")
           + "!";
     }

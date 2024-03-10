@@ -35,7 +35,12 @@ final class RMissingType implements RValueType {
 
   @Override
   public boolean isSubsetOf(RValueType other) {
-    return this == other;
+    return RGenericValueType.commonIsSubset(this, other);
+  }
+
+  /** If true, in {@link RType#union(RType)} this should merge with the other type. */
+  boolean shouldMergeWithGeneric(RGenericValueType other) {
+    return RGenericValueType.commonIsSubset(this, other, false);
   }
 
   @Override
@@ -45,7 +50,7 @@ final class RMissingType implements RValueType {
 
   @Override
   public @Nullable RValueType intersection(RValueType other) {
-    return this == other ? this : null;
+    return other.isMissing() == NoOrMaybe.MAYBE ? this : null;
   }
 
   @Override
@@ -53,5 +58,7 @@ final class RMissingType implements RValueType {
     return "miss";
   }
 
-  private RMissingType() {}
+  private RMissingType() {
+    RGenericValueType.commonSanityChecks(this);
+  }
 }

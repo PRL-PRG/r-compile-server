@@ -9,14 +9,18 @@ public sealed interface RPrimVecType extends RValueType {
   @Override
   @Nullable PrimVectorSXP<?> exactValue();
 
-  /** The type of the vector or {@code null} if all we know is it's a primitive vector. */
-  @Nullable PrimVecElementRType elementType();
+  /** The type of primitive vector it is. */
+  PrimVecElementRType elementType();
 
   /** Is this a primitive vector of numbers (int, real, or complex)? */
-  YesOrMaybe isNumeric();
+  default Troolean isNumeric() {
+    return elementType().isNumeric();
+  }
 
   /** Is this a primitive vector of numbers (int, real, or complex) or logicals? */
-  YesOrMaybe isNumericOrLogical();
+  default Troolean isNumericOrLogical() {
+    return elementType().isNumericOrLogical();
+  }
 
   /** The length of the vector, if known. */
   MaybeNat length();
@@ -46,25 +50,10 @@ record RPrimVecTypeImpl(
     @Override @Nullable PrimVectorSXP<?> exactValue,
     @Override AttributesType attributes,
     @Override MaybeNat referenceCount,
-    @Override @Nullable PrimVecElementRType elementType,
-    @Override YesOrMaybe isNumeric,
-    @Override YesOrMaybe isNumericOrLogical,
+    @Override PrimVecElementRType elementType,
     @Override MaybeNat length,
     @Override NoOrMaybe hasNAOrNaN)
     implements RPrimVecType {
-  public RPrimVecTypeImpl {
-    if (isNumeric == YesOrMaybe.YES && isNumericOrLogical != YesOrMaybe.YES) {
-      throw new IllegalArgumentException("isNumeric must imply isNumericOrLogical");
-    }
-    if (elementType != null && YesOrMaybe.of(elementType.isNumeric()) != isNumeric) {
-      throw new IllegalArgumentException("elementType must match isNumeric");
-    }
-    if (elementType != null
-        && YesOrMaybe.of(elementType.isNumericOrLogical()) != isNumericOrLogical) {
-      throw new IllegalArgumentException("elementType must match isNumericOrLogical");
-    }
-  }
-
   /** Returns the most precise type this primitive vector is an instance of. */
   static RPrimVecType exact(PrimVectorSXP<?> value) {
     var elementType = PrimVecElementRType.of(value.type());
@@ -74,16 +63,17 @@ record RPrimVecTypeImpl(
         AttributesTypes.exact(value.attributes()),
         MaybeNat.UNKNOWN,
         elementType,
-        YesOrMaybe.of(elementType.isNumeric()),
-        YesOrMaybe.of(elementType.isNumericOrLogical()),
         MaybeNat.of(value.size()),
         NoOrMaybe.of(value.hasNaOrNaN()));
   }
 
+  RPrimVecTypeImpl {
+    RGenericValueType.commonSanityChecks(this);
+  }
+
   @Override
   public BaseRType.NotPromise base() {
-    return new BaseRType.Vector(
-        elementType() != null ? elementType().toVectorElementType() : VectorElementRType.ANY);
+    return new BaseRType.Vector(elementType().toVectorElementType());
   }
 
   @Override
@@ -92,10 +82,9 @@ record RPrimVecTypeImpl(
         && switch (other) {
           case RGenericValueType ignored -> true;
           case RPrimVecTypeImpl o ->
-              isNumeric().isSubsetOf(o.isNumeric())
-                  && isNumericOrLogical().isSubsetOf(o.isNumericOrLogical())
-                  && length().isSubsetOf(o.length())
-                  && hasNAOrNaN().isSubsetOf(o.hasNAOrNaN());
+              elementType.isSubsetOf(o.elementType)
+                  && length.isSubsetOf(o.length)
+                  && hasNAOrNaN.isSubsetOf(o.hasNAOrNaN);
           default -> false;
         };
   }
@@ -109,11 +98,9 @@ record RPrimVecTypeImpl(
             (PrimVectorSXP<?>) commonUnion.exactValue(),
             commonUnion.attributes(),
             commonUnion.referenceCount(),
-            elementType() == o.elementType() ? elementType() : null,
-            isNumeric().union(o.isNumeric()),
-            isNumericOrLogical().union(o.isNumericOrLogical()),
-            length().union(o.length()),
-            hasNAOrNaN().union(o.hasNAOrNaN()));
+            elementType.union(o.elementType),
+            length.union(o.length),
+            hasNAOrNaN.union(o.hasNAOrNaN));
   }
 
   @Override
@@ -123,13 +110,20 @@ record RPrimVecTypeImpl(
       return null;
     }
     return switch (other) {
-      case RGenericValueType ignored -> commonIntersection;
+      case RGenericValueType ignored ->
+          new RPrimVecTypeImpl(
+              (PrimVectorSXP<?>) commonIntersection.exactValue(),
+              commonIntersection.attributes(),
+              commonIntersection.referenceCount(),
+              elementType,
+              length,
+              hasNAOrNaN);
       case RPrimVecTypeImpl o -> {
-        if (elementType() != null && o.elementType() != null && elementType() != o.elementType()) {
+        var mergedElementType = elementType.intersection(o.elementType);
+        if (mergedElementType == null) {
           yield null;
         }
-        var mergedElementType = elementType() != null ? elementType() : o.elementType();
-        var mergedLength = length().intersection(o.length());
+        var mergedLength = length.intersection(o.length);
         if (mergedLength == null) {
           yield null;
         }
@@ -138,10 +132,8 @@ record RPrimVecTypeImpl(
             commonIntersection.attributes(),
             commonIntersection.referenceCount(),
             mergedElementType,
-            isNumeric().intersection(o.isNumeric()),
-            isNumericOrLogical().intersection(o.isNumericOrLogical()),
             mergedLength,
-            hasNAOrNaN().intersection(o.hasNAOrNaN()));
+            hasNAOrNaN.intersection(o.hasNAOrNaN));
       }
       default ->
           throw new AssertionError(
@@ -151,22 +143,18 @@ record RPrimVecTypeImpl(
 
   @Override
   public String toString() {
-    var builder = RGenericValueType.commonToStringStart(this);
-    if (length.isKnown()) {
-      builder.append("[").append(length).append("]");
+    var sb = RGenericValueType.commonToStringStart(this);
+    if (exactValue != null) {
+      return sb.toString();
     }
+
     if (hasNAOrNaN == NoOrMaybe.NO) {
-      builder.append("*");
+      sb.append("*");
     }
-    if (elementType != null) {
-      builder.append(elementType);
-    } else if (isNumeric == YesOrMaybe.YES) {
-      builder.append("num");
-    } else if (isNumericOrLogical == YesOrMaybe.YES) {
-      builder.append("num|lgl");
-    } else {
-      builder.append("prim");
+    if (length.isKnown()) {
+      sb.append("[").append(length).append("]");
     }
-    return builder.toString();
+    sb.append(elementType);
+    return sb.toString();
   }
 }

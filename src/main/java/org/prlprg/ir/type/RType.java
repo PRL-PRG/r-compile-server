@@ -260,7 +260,7 @@ public final class RType implements BoundedLattice<RType> {
   }
 
   /** If the union contains a generic {@link RValueType}, returns it, otherwise {@code null}. */
-  private @Nullable RValueType genericInstance() {
+  private @Nullable RGenericValueType genericInstance() {
     return instance(RGenericValueType.class);
   }
 
@@ -278,14 +278,6 @@ public final class RType implements BoundedLattice<RType> {
   public boolean isSubsetOf(RType other) {
     // We could fastcase `isNothing()` and `isAny()`, but we don't need to.
     // (At least they are disabled now to ensure this algorithm works in tests).
-
-    // This checks for other.isNothing(),
-    // and ensures that if `other` has a specific `RSexpType` that we don't,
-    // as long as the other `RSexpType`s are subsets we're a strict subset
-    // (e.g. `clos' | vec' < clos | vec | missing`, `clos' | other' < clos | vec | other`).
-    if (sexpTypes.size() > other.sexpTypes.size()) {
-      return false;
-    }
 
     var myGenericInstance = genericInstance();
     var otherGenericInstance = other.genericInstance();
@@ -328,11 +320,9 @@ public final class RType implements BoundedLattice<RType> {
       var myInstance = instance(clazz);
       var otherInstance = other.instance(clazz);
       var myInstanceOrMaybeGeneric =
-          myInstance != null ? myInstance : otherGenericInstance == null ? myGenericInstance : null;
+          myInstance != null ? myInstance : otherInstance != null ? myGenericInstance : null;
       var otherInstanceOrMaybeGeneric =
-          otherInstance != null
-              ? otherInstance
-              : myGenericInstance == null ? otherGenericInstance : null;
+          otherInstance != null ? otherInstance : myInstance != null ? otherGenericInstance : null;
       if (myInstanceOrMaybeGeneric != null && otherInstanceOrMaybeGeneric != null) {
         Optional.ofNullable(myInstanceOrMaybeGeneric.intersection(otherInstanceOrMaybeGeneric))
             .ifPresent(resultTypes::add);
@@ -352,28 +342,40 @@ public final class RType implements BoundedLattice<RType> {
 
     var myGenericInstance = genericInstance();
     var otherGenericInstance = other.genericInstance();
-    if (myGenericInstance != null || otherGenericInstance != null) {
-      var mergedGenericInstance =
-          myGenericInstance == null
-              ? otherGenericInstance
-              : otherGenericInstance == null
-                  ? myGenericInstance
-                  : myGenericInstance.union(otherGenericInstance);
+    var mergedGenericInstance =
+        (myGenericInstance == null && otherGenericInstance == null)
+            ? null
+            : myGenericInstance == null
+                ? otherGenericInstance
+                : otherGenericInstance == null
+                    ? myGenericInstance
+                    : (RGenericValueType) myGenericInstance.union(otherGenericInstance);
+    if (mergedGenericInstance != null) {
+      // Merge with missing if possible to keep the union normalized.
+      var myMissing = instance(RMissingType.class);
+      var otherMissing = other.instance(RMissingType.class);
+      if ((myMissing != null && myMissing.shouldMergeWithGeneric(mergedGenericInstance))
+          || (otherMissing != null && otherMissing.shouldMergeWithGeneric(mergedGenericInstance))) {
+        mergedGenericInstance = mergedGenericInstance.orMissing();
+      }
+
       resultTypes.add(mergedGenericInstance);
     }
 
     for (var clazz : RValueType.SPECIFIC_TYPES) {
       var myInstance = instance(clazz);
       var otherInstance = other.instance(clazz);
-      if (myInstance != null && otherInstance != null) {
-        var mergedInstance = myInstance.union(otherInstance);
+
+      var mergedInstance =
+          myInstance == null && otherInstance == null
+              ? null
+              : myInstance == null
+                  ? otherInstance
+                  : otherInstance == null ? myInstance : myInstance.union(otherInstance);
+      // Don't add if it's already a subset to keep the union normalized.
+      if (mergedInstance != null
+          && (mergedGenericInstance == null || !mergedInstance.isSubsetOf(mergedGenericInstance))) {
         resultTypes.add(mergedInstance);
-      }
-      if (myInstance != null && otherInstance == null) {
-        resultTypes.add(myInstance);
-      }
-      if (myInstance == null && otherInstance != null) {
-        resultTypes.add(otherInstance);
       }
     }
 
@@ -423,17 +425,72 @@ public final class RType implements BoundedLattice<RType> {
   // endregion
 
   RType(ImmutableSet<RValueType> sexpTypes, @Nullable RPromiseType promise) {
-    if (sexpTypes.size() > MAX_TYPES) {
-      throw new IllegalArgumentException("Too many RSexpTypes violates invariant");
-    }
-    if (sexpTypes.stream().map(Object::getClass).distinct().count() < sexpTypes.size()) {
-      throw new IllegalArgumentException("Multiple RSexpTypes of same class violates invariant");
-    }
     if (promise == null && !sexpTypes.isEmpty()) {
       throw new IllegalArgumentException("PromiseRType must be non-null if there are RSexpTypes");
     }
+    if (sexpTypes.size() > MAX_TYPES) {
+      throw new IllegalArgumentException(
+          "Too many RSexpTypes, they should be unioned into a generic type (losing information, but at this point it's unlikely to matter)");
+    }
+    checkNormalization(sexpTypes);
 
     this.sexpTypes = sexpTypes;
     this.promise = promise;
+  }
+
+  /**
+   * Checks some types in the union (input) should be combined, and throws an exception if not.
+   * Specifically, throws if:
+   *
+   * <ul>
+   *   <li>There are multiple instances of the same specific type, or multiple instances of a
+   *       generic type. These should be combined.
+   *   <li>One of the types in this set is a subset of the other. This can only happen where the the
+   *       which is a subset is a specific type, and the other is a generic type. In this case, the
+   *       subset type should be removed from the union.
+   *   <li>There's a missing type, and a generic type which would be a subset other than being not
+   *       missing. In this case, the missing type should be removed and generic type should be set
+   *       to maybe missing.
+   *       <p>The union needs to be "normalized" for {@link #isSubsetOf(RType)} and {@link
+   *       #equals(Object)} to be correct.
+   */
+  private static void checkNormalization(ImmutableSet<RValueType> sexpTypes) {
+    if (sexpTypes.size() < 2) {
+      return;
+    }
+
+    if (sexpTypes.stream().map(Object::getClass).distinct().count() < sexpTypes.size()) {
+      throw new IllegalArgumentException(
+          "RSexpTypes aren't normalized: multiple RSexpTypes of same class. They should be unioned.");
+    }
+
+    var genericType =
+        (RGenericValueType)
+            sexpTypes.stream().filter(RGenericValueType.class::isInstance).findAny().orElse(null);
+    if (genericType == null) {
+      return;
+    }
+
+    var subsetType =
+        sexpTypes.stream()
+            .filter(sexpType -> sexpType != genericType && sexpType.isSubsetOf(genericType))
+            .findFirst()
+            .orElse(null);
+    if (subsetType != null) {
+      throw new IllegalArgumentException(
+          "RSexpTypes aren't normalized: we have a union of a generic type and at least one specific type that is a subset of said generic type. The subset type should be removed.\nGeneric type: "
+              + genericType
+              + "\nSpecific type: "
+              + subsetType);
+    }
+
+    var missingType =
+        (RMissingType)
+            sexpTypes.stream().filter(RMissingType.class::isInstance).findAny().orElse(null);
+    if (missingType != null && missingType.shouldMergeWithGeneric(genericType)) {
+      throw new IllegalArgumentException(
+          "RSexpTypes aren't normalized: we have a union of a generic type and the missing type, and the generic type would be a subset of the missing type if it weren't missing. The missing type should be removed and the generic type should be set to maybe missing.\nGeneric type: "
+              + genericType);
+    }
   }
 }

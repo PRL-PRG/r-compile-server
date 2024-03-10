@@ -181,7 +181,7 @@ public sealed interface BaseRType extends Lattice<BaseRType> {
     return other instanceof Any
         ? this
         : other instanceof AnyValue
-            ? (isPromise() == Troolean.NO ? this : null)
+            ? (this instanceof Any ? other : isPromise() == Troolean.NO ? this : null)
             : switch (this) {
               case Any() -> other;
               case AnyValue() -> other.isPromise() == Troolean.NO ? other : null;

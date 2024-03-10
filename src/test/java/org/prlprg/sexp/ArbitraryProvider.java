@@ -10,10 +10,11 @@ import java.util.Set;
 import net.jqwik.api.Arbitraries;
 import net.jqwik.api.Arbitrary;
 import net.jqwik.api.Combinators;
+import net.jqwik.api.arbitraries.StringArbitrary;
 import net.jqwik.api.providers.TypeUsage;
 
 public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvider {
-  private static final int MAX_DEPTH = 2;
+  private static final int MAX_DEPTH = 3;
   private static final int MAX_SIZE = 7;
   private static final int MAX_LENGTH = 20;
 
@@ -23,22 +24,21 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
   }
 
   public static Arbitrary<SEXP> sexps() {
-    return sexps(true, MAX_DEPTH);
+    return sexps(MAX_DEPTH);
   }
 
-  private static Arbitrary<SEXP> sexps(boolean allowPromises, int maxDepth) {
+  private static Arbitrary<SEXP> sexps(int maxDepth) {
     if (maxDepth < 0) {
       throw new IllegalArgumentException("maxDepth must be non-negative");
     }
     return maxDepth == 0
-        ? sexpsWithoutAttributes(allowPromises, 0)
-        : Arbitraries.lazyOf(
-            () -> sexpsWithoutAttributes(allowPromises, maxDepth),
-            () ->
-                Combinators.combine(
-                        sexpsWithoutAttributes(allowPromises, maxDepth), attributes(maxDepth - 1))
-                    .as(SEXP::withAttributes)
-                    .ignoreException(UnsupportedOperationException.class));
+        ? sexpsWithoutAttributes(0)
+        : Arbitraries.lazyOf(() -> sexpsWithoutAttributes(maxDepth));
+    // () ->
+    //     Combinators.combine(
+    //             sexpsWithoutAttributes(allowPromises, maxDepth), attributes(maxDepth - 1))
+    //         .as(SEXP::withAttributes)
+    //         .ignoreException(UnsupportedOperationException.class));
   }
 
   public static Arbitrary<Attributes> attributes() {
@@ -47,29 +47,27 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
 
   private static Arbitrary<Attributes> attributes(int maxDepth) {
     return Arbitraries.maps(
-            symbolStrings().edgeCases(c -> c.add("names", "dim", "class")), sexps(false, maxDepth))
+            symbolStrings().edgeCases(c -> c.add("names", "dim", "class")),
+            sexpsNoPromises(maxDepth).filter(s -> !(s instanceof PromSXP)))
         .map(Attributes::new);
   }
 
-  private static Arbitrary<SEXP> sexpsWithoutAttributes(boolean allowPromises, int maxDepth) {
+  private static Arbitrary<SEXP> sexpsNoPromises(int maxDepth) {
+    return sexps(maxDepth).filter(s -> !(s instanceof PromSXP));
+  }
+
+  private static Arbitrary<SEXP> sexpsWithoutAttributes(int maxDepth) {
     if (maxDepth < 0) {
       throw new IllegalArgumentException("maxDepth must be non-negative");
     }
 
-    if (maxDepth == 0) {
-      return basicSexps();
-    }
-    var notPromises =
-        Arbitraries.lazyOf(
-            ArbitraryProvider::basicSexps,
-            () -> lists(allowPromises, maxDepth - 1),
-            () -> languages(maxDepth - 1),
-            () -> exprs(maxDepth - 1),
-            () -> envs(maxDepth - 1));
-    if (!allowPromises) {
-      return notPromises;
-    }
-    return Arbitraries.lazyOf(() -> notPromises, () -> promises(maxDepth - 1));
+    return maxDepth == 0 ? basicSexps() : Arbitraries.lazyOf(ArbitraryProvider::basicSexps);
+    // () -> promises(maxDepth - 1));
+    // () -> closures(maxDepth - 1),
+    // () -> lists(maxDepth - 1));
+    // () -> languages(maxDepth - 1),
+    // () -> exprs(maxDepth - 1),
+    // () -> envs(maxDepth - 1));
   }
 
   private static Arbitrary<EnvSXP> envs(int maxDepth) {
@@ -78,24 +76,23 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
     }
     return maxDepth == 0
         ? staticEnvs(maxDepth).map(s -> s)
-        : Arbitraries.lazyOf(
-            () -> staticEnvs(maxDepth),
-            () ->
-                Combinators.combine(
-                        envs(maxDepth - 1),
-                        taggedElems(true, maxDepth - 1)
-                            .filter(TaggedElem::hasTag)
-                            .list()
-                            .ofMaxSize(MAX_SIZE))
-                    .as(
-                        (parent, elems) -> {
-                          var env = new UserEnvSXP(parent);
-                          for (var elem : elems) {
-                            assert elem.tag() != null;
-                            env.set(elem.tag(), elem.value());
-                          }
-                          return env;
-                        }));
+        : Arbitraries.lazyOf(() -> staticEnvs(maxDepth));
+    // () ->
+    //     Combinators.combine(
+    //             envs(maxDepth - 1),
+    //             taggedElems(true, maxDepth - 1)
+    //                 .filter(TaggedElem::hasTag)
+    //                 .list()
+    //                 .ofMaxSize(MAX_SIZE))
+    //         .as(
+    //             (parent, elems) -> {
+    //               var env = new UserEnvSXP(parent);
+    //               for (var elem : elems) {
+    //                 assert elem.tag() != null;
+    //                 env.set(elem.tag(), elem.value());
+    //               }
+    //               return env;
+    //             }));
   }
 
   private static Arbitrary<EnvSXP> staticEnvs(int maxDepth) {
@@ -125,28 +122,40 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
   }
 
   private static Arbitrary<BaseEnvSXP> baseEnvs(int maxDepth) {
-    return Arbitraries.maps(strings(), sexps(true, maxDepth)).map(BaseEnvSXP::new);
+    return Arbitraries.maps(shortStrings(), sexps(maxDepth)).map(BaseEnvSXP::new);
   }
 
   private static Arbitrary<ExprSXP> exprs(int maxDepth) {
     return astSexps(maxDepth).list().ofMaxSize(MAX_SIZE).map(SEXPs::expr);
   }
 
-  private static Arbitrary<ListSXP> lists(boolean allowPromises, int maxDepth) {
-    return taggedElems(allowPromises, maxDepth).list().ofMaxSize(MAX_SIZE).map(SEXPs::list);
+  private static Arbitrary<ListSXP> lists(int maxDepth) {
+    return taggedElems(maxDepth).list().ofMaxSize(MAX_SIZE).map(SEXPs::list);
   }
 
   private static Arbitrary<ListSXP> astLists(int maxDepth) {
     return astTaggedElems(maxDepth).list().ofMaxSize(MAX_SIZE).map(SEXPs::list);
   }
 
+  public static Arbitrary<CloSXP> closures() {
+    return closures(MAX_DEPTH);
+  }
+
+  private static Arbitrary<CloSXP> closures(int maxDepth) {
+    return Combinators.combine(lists(maxDepth), sexps(maxDepth), envs(maxDepth)).as(SEXPs::closure);
+  }
+
+  public static Arbitrary<PromSXP> promises() {
+    return promises(MAX_DEPTH);
+  }
+
   private static Arbitrary<PromSXP> promises(int maxDepth) {
-    return Combinators.combine(sexps(false, maxDepth), sexps(false, maxDepth), envs(maxDepth))
+    return Combinators.combine(sexpsNoPromises(maxDepth), sexpsNoPromises(maxDepth), envs(0))
         .as(PromSXP::new);
   }
 
-  private static Arbitrary<TaggedElem> taggedElems(boolean allowPromises, int maxDepth) {
-    return Combinators.combine(symbolStrings().injectNull(0.33), sexps(allowPromises, maxDepth))
+  private static Arbitrary<TaggedElem> taggedElems(int maxDepth) {
+    return Combinators.combine(symbolStrings().injectNull(0.33), sexps(maxDepth))
         .as(TaggedElem::new);
   }
 
@@ -189,7 +198,7 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
             SEXPs.MISSING_ARG),
         integers().list().ofMaxSize(MAX_SIZE).map(SEXPs::integer),
         doubles().list().ofMaxSize(MAX_SIZE).map(SEXPs::real),
-        strings().list().ofMaxSize(MAX_SIZE).map(SEXPs::string),
+        shortStrings().list().ofMaxSize(MAX_SIZE).map(SEXPs::string),
         logicals().list().ofMaxSize(MAX_SIZE).map(SEXPs::logical),
         complexes().list().ofMaxSize(MAX_SIZE).map(SEXPs::complex));
   }
@@ -199,7 +208,7 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
         Arbitraries.just(SEXPs.NULL),
         integers().map(SEXPs::integer),
         doubles().map(SEXPs::real),
-        strings().map(SEXPs::string),
+        shortStrings().map(SEXPs::string),
         logicals().map(SEXPs::logical),
         complexes().map(SEXPs::complex),
         symbols());
@@ -209,8 +218,14 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
     return symbolStrings().map(SEXPs::symbol);
   }
 
+  /** Generates valid symbol (and tag) names. */
   public static Arbitrary<String> symbolStrings() {
-    return strings().ascii().ofMaxLength(MAX_LENGTH).filter(s -> !s.isBlank());
+    return shortStrings().ascii().filter(s -> !s.isBlank());
+  }
+
+  /** Returns strings which aren't too long, because we really don't need to test those. */
+  public static StringArbitrary shortStrings() {
+    return strings().ofMaxLength(MAX_LENGTH);
   }
 
   @Override

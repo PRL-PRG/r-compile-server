@@ -1,6 +1,5 @@
 package org.prlprg.ir.type;
 
-import java.util.Objects;
 import java.util.logging.Logger;
 import javax.annotation.Nullable;
 import org.prlprg.sexp.ListSXP;
@@ -26,14 +25,19 @@ record RGenericValueType(
     @Override NoOrMaybe isMissing)
     implements RValueType {
   private static final Logger COMMON_LOG = Logger.getLogger(RValueType.class.getName());
+  // Disabled in property tests where we generate weird cases
+  static boolean ENABLE_WEIRD_CASE_LOGS = true;
+
+  /** Called in the initializer of all {@link RValueType}s. */
+  static void commonSanityChecks(RValueType self) {
+    assert self.exactValue() == null
+            || self.base() instanceof BaseRType.AnyList && self.exactValue() instanceof ListSXP
+            || self.base().sexpType() == self.exactValue().type()
+        : "RValueType has exact value but not exact base type: " + self;
+  }
 
   public RGenericValueType {
-    // Some sanity checks, since we have parallel representations
-    // (though we don't check for SEXPs that need specific types, because those create generic types
-    //  to reuse the subset/union/intersection code)
-    assert exactValue == null
-        || base instanceof BaseRType.AnyList && exactValue instanceof ListSXP
-        || base.sexpType() == exactValue.type();
+    commonSanityChecks(this);
   }
 
   /**
@@ -57,18 +61,28 @@ record RGenericValueType(
         value, base, AttributesTypes.exact(value.attributes()), MaybeNat.UNKNOWN, NoOrMaybe.NO);
   }
 
+  /** Returns the same type, but with missingness set to "maybe". */
+  RGenericValueType orMissing() {
+    return new RGenericValueType(exactValue, base, attributes, referenceCount, NoOrMaybe.MAYBE);
+  }
+
   @Override
   public boolean isSubsetOf(RValueType other) {
     return commonIsSubset(this, other);
   }
 
   static boolean commonIsSubset(RValueType self, RValueType other) {
+    return commonIsSubset(self, other, true);
+  }
+
+  static boolean commonIsSubset(RValueType self, RValueType other, boolean considerMissingness) {
     if (other.exactValue() != null) {
       return self.exactValue() != null && self.exactValue().equals(other.exactValue());
     }
     return self.base().isSubsetOf(other.base())
         && self.attributes().isSubsetOf(other.attributes())
-        && self.referenceCount().isSubsetOf(other.referenceCount());
+        && self.referenceCount().isSubsetOf(other.referenceCount())
+        && (!considerMissingness || self.isMissing().isSubsetOf(other.isMissing()));
   }
 
   @Override
@@ -77,7 +91,7 @@ record RGenericValueType(
   }
 
   static RValueType commonUnion(RValueType self, RValueType other) {
-    if (Objects.equals(self.exactValue(), other.exactValue())) {
+    if (self.exactValue() != null && self.exactValue().equals(other.exactValue())) {
       return self;
     }
 
@@ -91,7 +105,11 @@ record RGenericValueType(
 
   @Override
   public @Nullable RValueType intersection(RValueType other) {
-    return commonIntersection(this, other);
+    // If `other` is a specific type, the intersection will be, so we need to call the other's
+    // method (or implement every subtype case here; calling the other method is easier).
+    return other instanceof RGenericValueType
+        ? commonIntersection(this, other)
+        : other.intersection(this);
   }
 
   static @Nullable RValueType commonIntersection(RValueType self, RValueType other) {
@@ -102,14 +120,16 @@ record RGenericValueType(
       return null;
     }
 
-    if (Objects.equals(self.exactValue(), other.exactValue())) {
+    if (self.exactValue() != null && self.exactValue().equals(other.exactValue())) {
       return self;
     } else if (self.exactValue() != null && other.exactValue() != null) {
-      COMMON_LOG.warning(
-          "Intersection of two different exact values, can this happen? "
-              + self.exactValue()
-              + " and "
-              + other.exactValue());
+      if (ENABLE_WEIRD_CASE_LOGS) {
+        COMMON_LOG.warning(
+            "Intersection of two different exact values, can this happen? "
+                + self.exactValue()
+                + " and "
+                + other.exactValue());
+      }
       return null;
     }
     var mergedExactValue = self.exactValue() != null ? self.exactValue() : other.exactValue();
@@ -134,19 +154,28 @@ record RGenericValueType(
   @Override
   public String toString() {
     var sb = commonToStringStart(this);
+    if (exactValue != null) {
+      return sb.toString();
+    }
+
     if (!base.equals(BaseRType.ANY)) {
       sb.append(base);
+    }
+    if (isMissing == NoOrMaybe.MAYBE) {
+      sb.append("|miss");
     }
     return sb.toString();
   }
 
   static StringBuilder commonToStringStart(RValueType self) {
     var sb = new StringBuilder();
-    if (!self.attributes().equals(AttributesTypes.UNKNOWN)) {
-      sb.append("[").append(self.attributes()).append("]");
-    }
     if (!self.referenceCount().equals(MaybeNat.UNKNOWN)) {
-      sb.append("{").append(self.referenceCount()).append("}");
+      sb.append("#").append(self.referenceCount());
+    }
+    if (self.exactValue() != null) {
+      sb.append("{").append(self.exactValue()).append("}");
+    } else if (!self.attributes().equals(AttributesTypes.UNKNOWN)) {
+      sb.append("[").append(self.attributes()).append("]");
     }
     return sb;
   }
