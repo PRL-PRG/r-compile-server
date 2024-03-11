@@ -68,14 +68,14 @@ record RGenericValueType(
 
   @Override
   public boolean isSubsetOf(RValueType other) {
-    return commonIsSubset(this, other);
+    return genericIsSubset(this, other);
   }
 
-  static boolean commonIsSubset(RValueType self, RValueType other) {
-    return commonIsSubset(self, other, true);
+  static boolean genericIsSubset(RValueType self, RValueType other) {
+    return genericIsSubset(self, other, true);
   }
 
-  static boolean commonIsSubset(RValueType self, RValueType other, boolean considerMissingness) {
+  static boolean genericIsSubset(RValueType self, RValueType other, boolean considerMissingness) {
     if (other.exactValue() != null) {
       return self.exactValue() != null && self.exactValue().equals(other.exactValue());
     }
@@ -87,10 +87,10 @@ record RGenericValueType(
 
   @Override
   public RValueType union(RValueType other) {
-    return commonUnion(this, other);
+    return genericUnion(this, other);
   }
 
-  static RValueType commonUnion(RValueType self, RValueType other) {
+  static RValueType genericUnion(RValueType self, RValueType other) {
     if (self.exactValue() != null && self.exactValue().equals(other.exactValue())) {
       return self;
     }
@@ -108,11 +108,11 @@ record RGenericValueType(
     // If `other` is a specific type, the intersection will be, so we need to call the other's
     // method (or implement every subtype case here; calling the other method is easier).
     return other instanceof RGenericValueType
-        ? commonIntersection(this, other)
+        ? genericIntersection(this, other)
         : other.intersection(this);
   }
 
-  static @Nullable RValueType commonIntersection(RValueType self, RValueType other) {
+  static @Nullable RValueType genericIntersection(RValueType self, RValueType other) {
     // Handles this case in child classes
     if (!(self instanceof RGenericValueType)
         && !(other instanceof RGenericValueType)

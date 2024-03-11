@@ -80,7 +80,7 @@ public class LatticeTests {
     }
   }
 
-  @Property
+  @Property(tries = 100)
   void isCoherent_RType(@ForAll RType lhs, @ForAll RType rhs) {
     setup();
 

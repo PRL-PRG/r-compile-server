@@ -25,8 +25,8 @@ public final class Attributes extends ForwardingMap<String, SEXP> {
 
   public Attributes(ImmutableMap<String, SEXP> attrs) {
     for (var name : attrs.keySet()) {
-      if (name.isBlank()) {
-        throw new IllegalArgumentException("Attribute name cannot be blank");
+      if (name.isEmpty()) {
+        throw new IllegalArgumentException("Attribute name cannot be empty");
       }
     }
     this.attrs = attrs;

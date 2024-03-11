@@ -4,6 +4,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import javax.annotation.Nullable;
+import org.prlprg.util.Pair;
 
 public final class UserEnvSXP implements EnvSXP {
   private EnvSXP parent;
@@ -17,6 +18,13 @@ public final class UserEnvSXP implements EnvSXP {
   public UserEnvSXP(EnvSXP parent) {
     this.parent = parent;
     this.entries = new HashMap<>();
+  }
+
+  public UserEnvSXP(EnvSXP parent, Iterable<Pair<String, SEXP>> frame) {
+    this(parent);
+    for (var elem : frame) {
+      set(elem.first(), elem.second());
+    }
   }
 
   @Override

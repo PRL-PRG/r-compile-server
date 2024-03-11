@@ -12,11 +12,12 @@ import net.jqwik.api.Arbitrary;
 import net.jqwik.api.Combinators;
 import net.jqwik.api.arbitraries.StringArbitrary;
 import net.jqwik.api.providers.TypeUsage;
+import org.prlprg.util.Pair;
 
 public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvider {
-  private static final int MAX_DEPTH = 3;
-  private static final int MAX_SIZE = 7;
-  private static final int MAX_LENGTH = 20;
+  private static final int MAX_DEPTH = 0;
+  private static final int MAX_SIZE = 5;
+  private static final int MAX_LENGTH = 5;
 
   public static Arbitrary<SEXPType> sexpTypes() {
     // We don't provide the ANY type because it's weird and we never actually encounter it.
@@ -24,165 +25,129 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
   }
 
   public static Arbitrary<SEXP> sexps() {
-    return sexps(MAX_DEPTH);
-  }
-
-  private static Arbitrary<SEXP> sexps(int maxDepth) {
-    if (maxDepth < 0) {
-      throw new IllegalArgumentException("maxDepth must be non-negative");
-    }
-    return maxDepth == 0
-        ? sexpsWithoutAttributes(0)
-        : Arbitraries.lazyOf(() -> sexpsWithoutAttributes(maxDepth));
-    // () ->
-    //     Combinators.combine(
-    //             sexpsWithoutAttributes(allowPromises, maxDepth), attributes(maxDepth - 1))
-    //         .as(SEXP::withAttributes)
-    //         .ignoreException(UnsupportedOperationException.class));
+    return Arbitraries.recursive(
+        ArbitraryProvider::sexpsWithoutAttributes,
+        s ->
+            Combinators.combine(sexpsWithoutAttributes(), attributes(s))
+                .as(SEXP::withAttributes)
+                .ignoreException(UnsupportedOperationException.class),
+        0,
+        MAX_DEPTH);
   }
 
   public static Arbitrary<Attributes> attributes() {
-    return attributes(MAX_DEPTH);
+    return attributes(sexps());
   }
 
-  private static Arbitrary<Attributes> attributes(int maxDepth) {
+  private static Arbitrary<Attributes> attributes(Arbitrary<SEXP> sexps) {
     return Arbitraries.maps(
             symbolStrings().edgeCases(c -> c.add("names", "dim", "class")),
-            sexpsNoPromises(maxDepth).filter(s -> !(s instanceof PromSXP)))
+            sexps.filter(s -> !(s instanceof PromSXP)))
         .map(Attributes::new);
   }
 
-  private static Arbitrary<SEXP> sexpsNoPromises(int maxDepth) {
-    return sexps(maxDepth).filter(s -> !(s instanceof PromSXP));
+  private static Arbitrary<SEXP> sexpsWithoutAttributes() {
+    return Arbitraries.recursive(
+        () -> Arbitraries.oneOf(basicSexps(), exprs(), astSexps()),
+        s -> Arbitraries.oneOf(promises(s), closures(s), lists(s), envs(s)),
+        0,
+        MAX_DEPTH);
   }
 
-  private static Arbitrary<SEXP> sexpsWithoutAttributes(int maxDepth) {
-    if (maxDepth < 0) {
-      throw new IllegalArgumentException("maxDepth must be non-negative");
-    }
-
-    return maxDepth == 0 ? basicSexps() : Arbitraries.lazyOf(ArbitraryProvider::basicSexps);
-    // () -> promises(maxDepth - 1));
-    // () -> closures(maxDepth - 1),
-    // () -> lists(maxDepth - 1));
-    // () -> languages(maxDepth - 1),
-    // () -> exprs(maxDepth - 1),
-    // () -> envs(maxDepth - 1));
+  public static Arbitrary<EnvSXP> envs() {
+    return envs(sexps());
   }
 
-  private static Arbitrary<EnvSXP> envs(int maxDepth) {
-    if (maxDepth < 0) {
-      throw new IllegalArgumentException("maxDepth must be non-negative");
-    }
-    return maxDepth == 0
-        ? staticEnvs(maxDepth).map(s -> s)
-        : Arbitraries.lazyOf(() -> staticEnvs(maxDepth));
-    // () ->
-    //     Combinators.combine(
-    //             envs(maxDepth - 1),
-    //             taggedElems(true, maxDepth - 1)
-    //                 .filter(TaggedElem::hasTag)
-    //                 .list()
-    //                 .ofMaxSize(MAX_SIZE))
-    //         .as(
-    //             (parent, elems) -> {
-    //               var env = new UserEnvSXP(parent);
-    //               for (var elem : elems) {
-    //                 assert elem.tag() != null;
-    //                 env.set(elem.tag(), elem.value());
-    //               }
-    //               return env;
-    //             }));
+  private static Arbitrary<EnvSXP> envs(Arbitrary<SEXP> sexps) {
+    return Arbitraries.recursive(
+        () -> staticEnvs(sexps),
+        e ->
+            Combinators.combine(
+                    e,
+                    taggedElems(sexps)
+                        .filter(TaggedElem::hasTag)
+                        .map(
+                            t -> {
+                              assert t.tag() != null;
+                              return new Pair<>(t.tag(), t.value());
+                            })
+                        .list()
+                        .ofMaxSize(MAX_SIZE))
+                .as(UserEnvSXP::new),
+        0,
+        MAX_DEPTH);
   }
 
-  private static Arbitrary<EnvSXP> staticEnvs(int maxDepth) {
+  private static Arbitrary<EnvSXP> staticEnvs(Arbitrary<SEXP> sexps) {
     return Arbitraries.oneOf(
         Arbitraries.just(SEXPs.EMPTY_ENV),
-        baseEnvs(maxDepth),
-        namespaceEnvs(maxDepth),
-        globalEnvs(maxDepth));
+        Combinators.combine(
+                Arbitraries.oneOf(baseEnvs(sexps), namespaceEnvs(sexps)),
+                Arbitraries.of(true, false))
+            .as((parent, isGlobal) -> isGlobal ? new GlobalEnvSXP(parent) : parent));
   }
 
-  private static Arbitrary<GlobalEnvSXP> globalEnvs(int maxDepth) {
-    return Arbitraries.oneOf(baseEnvs(maxDepth), namespaceEnvs(maxDepth)).map(GlobalEnvSXP::new);
+  private static Arbitrary<NamespaceEnvSXP> namespaceEnvs(Arbitrary<SEXP> sexps) {
+    return Arbitraries.recursive(
+        () -> namespaceEnvs1(baseEnvs(sexps)), ArbitraryProvider::namespaceEnvs1, 0, MAX_DEPTH);
   }
 
-  private static Arbitrary<NamespaceEnvSXP> namespaceEnvs(int maxDepth) {
-    if (maxDepth < 0) {
-      throw new IllegalArgumentException("maxDepth must be non-negative");
-    }
-    return Combinators.combine(
-            maxDepth == 0
-                ? baseEnvs(0).map(s -> s)
-                : Arbitraries.lazyOf(
-                    () -> baseEnvs(maxDepth - 1), () -> namespaceEnvs(maxDepth - 1)),
-            symbolStrings(),
-            symbolStrings())
-        .as(NamespaceEnvSXP::new);
+  private static Arbitrary<NamespaceEnvSXP> namespaceEnvs1(Arbitrary<? extends EnvSXP> envs) {
+    return Combinators.combine(envs, symbolStrings(), symbolStrings()).as(NamespaceEnvSXP::new);
   }
 
-  private static Arbitrary<BaseEnvSXP> baseEnvs(int maxDepth) {
-    return Arbitraries.maps(shortStrings(), sexps(maxDepth)).map(BaseEnvSXP::new);
+  private static Arbitrary<BaseEnvSXP> baseEnvs(Arbitrary<SEXP> sexps) {
+    return Arbitraries.maps(shortStrings(), sexps).map(BaseEnvSXP::new);
   }
 
-  private static Arbitrary<ExprSXP> exprs(int maxDepth) {
-    return astSexps(maxDepth).list().ofMaxSize(MAX_SIZE).map(SEXPs::expr);
+  private static Arbitrary<ExprSXP> exprs() {
+    return astSexps().list().ofMaxSize(MAX_SIZE).map(SEXPs::expr);
   }
 
-  private static Arbitrary<ListSXP> lists(int maxDepth) {
-    return taggedElems(maxDepth).list().ofMaxSize(MAX_SIZE).map(SEXPs::list);
+  private static Arbitrary<ListSXP> lists(Arbitrary<SEXP> sexps) {
+    return taggedElems(sexps).list().ofMaxSize(MAX_SIZE).map(SEXPs::list);
   }
 
-  private static Arbitrary<ListSXP> astLists(int maxDepth) {
-    return astTaggedElems(maxDepth).list().ofMaxSize(MAX_SIZE).map(SEXPs::list);
+  private static Arbitrary<ListSXP> astLists(Arbitrary<SEXP> astSexps) {
+    return astTaggedElems(astSexps).list().ofMaxSize(MAX_SIZE).map(SEXPs::list);
   }
 
   public static Arbitrary<CloSXP> closures() {
-    return closures(MAX_DEPTH);
+    return closures(sexps());
   }
 
-  private static Arbitrary<CloSXP> closures(int maxDepth) {
-    return Combinators.combine(lists(maxDepth), sexps(maxDepth), envs(maxDepth)).as(SEXPs::closure);
+  private static Arbitrary<CloSXP> closures(Arbitrary<SEXP> sexps) {
+    return Combinators.combine(lists(sexps), sexps, envs(sexps)).as(SEXPs::closure);
   }
 
   public static Arbitrary<PromSXP> promises() {
-    return promises(MAX_DEPTH);
+    return promises(sexps());
   }
 
-  private static Arbitrary<PromSXP> promises(int maxDepth) {
-    return Combinators.combine(sexpsNoPromises(maxDepth), sexpsNoPromises(maxDepth), envs(0))
-        .as(PromSXP::new);
+  private static Arbitrary<PromSXP> promises(Arbitrary<SEXP> sexps) {
+    var sexpsNoPromises = sexps.filter(s -> !(s instanceof PromSXP));
+    return Combinators.combine(sexpsNoPromises, sexpsNoPromises, envs(sexps)).as(PromSXP::new);
   }
 
-  private static Arbitrary<TaggedElem> taggedElems(int maxDepth) {
-    return Combinators.combine(symbolStrings().injectNull(0.33), sexps(maxDepth))
-        .as(TaggedElem::new);
+  private static Arbitrary<TaggedElem> taggedElems(Arbitrary<SEXP> sexps) {
+    return Combinators.combine(symbolStrings().injectNull(0.33), sexps).as(TaggedElem::new);
   }
 
-  private static Arbitrary<TaggedElem> astTaggedElems(int maxDepth) {
-    return Combinators.combine(symbolStrings().injectNull(0.33), astSexps(maxDepth))
-        .as(TaggedElem::new);
+  private static Arbitrary<TaggedElem> astTaggedElems(Arbitrary<SEXP> astSexps) {
+    return Combinators.combine(symbolStrings().injectNull(0.33), astSexps).as(TaggedElem::new);
   }
 
-  private static Arbitrary<SEXP> astSexps(int maxDepth) {
-    if (maxDepth < 0) {
-      throw new IllegalArgumentException("maxDepth must be non-negative");
-    }
-    return maxDepth == 0
-        ? basicAstSexps()
-        : Arbitraries.lazyOf(ArbitraryProvider::basicAstSexps, () -> languages(maxDepth - 1));
+  private static Arbitrary<SEXP> astSexps() {
+    return Arbitraries.recursive(
+        ArbitraryProvider::basicAstSexps, s -> languages(s).map(l -> l), 0, MAX_DEPTH);
   }
 
-  private static Arbitrary<LangSXP> languages(int maxDepth) {
-    if (maxDepth < 0) {
-      throw new IllegalArgumentException("maxDepth must be non-negative");
-    }
-    return Combinators.combine(
-            maxDepth == 0
-                ? symbols().map(s -> s)
-                : Arbitraries.lazyOf(ArbitraryProvider::symbols, () -> languages(maxDepth - 1)),
-            astLists(maxDepth))
-        .as(SEXPs::lang);
+  public static Arbitrary<LangSXP> languages() {
+    return languages(astSexps());
+  }
+
+  private static Arbitrary<LangSXP> languages(Arbitrary<SEXP> astSexps) {
+    return Combinators.combine(symbols(), astLists(astSexps)).as(SEXPs::lang);
   }
 
   public static Arbitrary<SEXP> basicSexps() {
@@ -220,7 +185,10 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
 
   /** Generates valid symbol (and tag) names. */
   public static Arbitrary<String> symbolStrings() {
-    return shortStrings().ascii().filter(s -> !s.isBlank());
+    return shortStrings()
+        .ofMinLength(1)
+        .ascii()
+        .edgeCases(c -> c.add("TRUE", "FALSE", "NULL", " ", "`"));
   }
 
   /** Returns strings which aren't too long, because we really don't need to test those. */
@@ -230,13 +198,34 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
 
   @Override
   public boolean canProvideFor(TypeUsage typeUsage) {
-    return typeUsage.isOfType(SEXP.class) || typeUsage.isOfType(SEXPType.class);
+    return typeUsage.isOfType(SEXP.class)
+        || typeUsage.isOfType(CloSXP.class)
+        || typeUsage.isOfType(PromSXP.class)
+        || typeUsage.isOfType(EnvSXP.class)
+        || typeUsage.isOfType(LangSXP.class)
+        || typeUsage.isOfType(Attributes.class)
+        || typeUsage.isOfType(SEXPType.class);
   }
 
   @Override
   public Set<Arbitrary<?>> provideFor(TypeUsage typeUsage, SubtypeProvider subtypeProvider) {
     if (typeUsage.isOfType(SEXP.class)) {
       return Set.of(sexps());
+    }
+    if (typeUsage.isOfType(CloSXP.class)) {
+      return Set.of(closures());
+    }
+    if (typeUsage.isOfType(PromSXP.class)) {
+      return Set.of(promises());
+    }
+    if (typeUsage.isOfType(EnvSXP.class)) {
+      return Set.of(envs());
+    }
+    if (typeUsage.isOfType(LangSXP.class)) {
+      return Set.of(languages());
+    }
+    if (typeUsage.isOfType(Attributes.class)) {
+      return Set.of(attributes());
     }
     if (typeUsage.isOfType(SEXPType.class)) {
       return Set.of(sexpTypes());

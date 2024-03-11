@@ -7,6 +7,7 @@ import java.util.function.BiFunction;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.prlprg.sexp.CloSXP;
+import org.prlprg.sexp.RegSymSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
 
@@ -93,6 +94,9 @@ record RFunctionTypeImpl(
       throw new IllegalArgumentException(
           "knownParameterNames and knownParameterTypes must have the same size");
     }
+    if (knownParameterNames.stream().anyMatch(String::isEmpty)) {
+      throw new IllegalArgumentException("knownParameterNames cannot contain empty strings");
+    }
   }
 
   /** Returns the most precise type this closure is an instance of. */
@@ -152,7 +156,7 @@ record RFunctionTypeImpl(
 
   @Override
   public boolean isSubsetOf(RValueType other) {
-    return RGenericValueType.commonIsSubset(this, other)
+    return RGenericValueType.genericIsSubset(this, other)
         && switch (other) {
           case RGenericValueType ignored -> true;
           case RFunctionTypeImpl o ->
@@ -166,14 +170,14 @@ record RFunctionTypeImpl(
 
   @Override
   public RValueType union(RValueType other) {
-    var commonUnion = RGenericValueType.commonUnion(this, other);
+    var genericUnion = RGenericValueType.genericUnion(this, other);
     return !(other instanceof RFunctionTypeImpl o)
-        ? commonUnion
+        ? genericUnion
         : new RFunctionTypeImpl(
-            commonUnion.exactValue(),
+            genericUnion.exactValue(),
             functionType == o.functionType ? functionType : null,
-            commonUnion.attributes(),
-            commonUnion.referenceCount(),
+            genericUnion.attributes(),
+            genericUnion.referenceCount(),
             Streams.concat(
                     commonParameterNames(this, o),
                     o.parameterNamesMissingFrom(this),
@@ -190,17 +194,17 @@ record RFunctionTypeImpl(
 
   @Override
   public @Nullable RValueType intersection(RValueType other) {
-    var commonIntersection = RGenericValueType.commonIntersection(this, other);
-    if (commonIntersection == null) {
+    var genericIntersection = RGenericValueType.genericIntersection(this, other);
+    if (genericIntersection == null) {
       return null;
     }
     return switch (other) {
       case RGenericValueType ignored ->
           new RFunctionTypeImpl(
-              commonIntersection.exactValue(),
-              FunctionRType.of(commonIntersection.base()),
-              commonIntersection.attributes(),
-              commonIntersection.referenceCount(),
+              genericIntersection.exactValue(),
+              FunctionRType.of(genericIntersection.base()),
+              genericIntersection.attributes(),
+              genericIntersection.referenceCount(),
               knownParameterNames,
               knownParameterTypes,
               hasMoreParams,
@@ -212,10 +216,10 @@ record RFunctionTypeImpl(
         var mergedFunctionType = functionType != null ? functionType : o.functionType;
 
         yield new RFunctionTypeImpl(
-            commonIntersection.exactValue(),
+            genericIntersection.exactValue(),
             mergedFunctionType,
-            commonIntersection.attributes(),
-            commonIntersection.referenceCount(),
+            genericIntersection.attributes(),
+            genericIntersection.referenceCount(),
             commonParameterNames(this, o).collect(ImmutableList.toImmutableList()),
             zipParameterTypes(this, o, ParameterRType::union)
                 .collect(ImmutableList.toImmutableList()),
@@ -224,7 +228,7 @@ record RFunctionTypeImpl(
       }
       default ->
           throw new AssertionError(
-              "RGenericSexpType.commonIntersection should've returned null for different specific types");
+              "RGenericSexpType.genericIntersection should've returned null for different specific types");
     };
   }
 
@@ -240,7 +244,9 @@ record RFunctionTypeImpl(
       if (i > 0) {
         sb.append(", ");
       }
-      sb.append(knownParameterNames.get(i)).append(":").append(knownParameterTypes.get(i));
+      sb.append(RegSymSXP.escape(knownParameterNames.get(i)))
+          .append(": ")
+          .append(knownParameterTypes.get(i));
     }
     return sb.append(") → ").append(returnType).toString();
   }

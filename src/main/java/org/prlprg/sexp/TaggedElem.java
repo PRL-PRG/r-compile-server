@@ -25,6 +25,6 @@ public record TaggedElem(@Nullable String tag, SEXP value) {
   public String toString() {
     return tag == null
         ? value.toString()
-        : value == SEXPs.MISSING_ARG ? tag + "=" : tag + "=" + value;
+        : RegSymSXP.escape(tag) + "=" + (value == SEXPs.MISSING_ARG ? "" : value);
   }
 }

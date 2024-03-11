@@ -1,14 +1,13 @@
 package org.prlprg.ir.type;
 
 import static org.prlprg.sexp.ArbitraryProvider.attributes;
-import static org.prlprg.sexp.ArbitraryProvider.basicSexps;
-import static org.prlprg.sexp.ArbitraryProvider.closures;
 import static org.prlprg.sexp.ArbitraryProvider.promises;
 import static org.prlprg.sexp.ArbitraryProvider.sexps;
 import static org.prlprg.sexp.ArbitraryProvider.symbolStrings;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
+import java.util.Optional;
 import java.util.Set;
 import net.jqwik.api.Arbitraries;
 import net.jqwik.api.Arbitrary;
@@ -19,11 +18,20 @@ import net.jqwik.api.providers.TypeUsage;
 import org.prlprg.sexp.PrimVectorSXP;
 
 public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvider {
+  private static int MAX_DEPTH = 1;
+  private static int MAX_SIZE = 3;
+
   public static Arbitrary<RType> rTypes() {
-    return Arbitraries.lazyOf(
+    return Arbitraries.recursive(
         ArbitraryProvider::basicRTypes,
-        () -> basicRTypes().list().ofMaxSize(5).map(RTypes::union),
-        () -> basicRTypes().list().ofMaxSize(5).map(RTypes::intersection));
+        r ->
+            Arbitraries.oneOf(
+                r.list().ofMaxSize(MAX_SIZE).map(RTypes::union),
+                r.list().ofMaxSize(MAX_SIZE).map(RTypes::intersection),
+                Combinators.combine(rFunctionTypes(r), rPromiseTypes())
+                    .as((t, p) -> new RType(ImmutableSet.of(t), p))),
+        0,
+        MAX_DEPTH);
   }
 
   public static Arbitrary<RType> basicRTypes() {
@@ -36,11 +44,9 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
             RTypes.ANY_FUN,
             RTypes.ANY_SIMPLE,
             RTypes.OF_MISSING),
-        // sexpTypes().map(RTypes::simple),
         Combinators.combine(rPrimVecTypes(), rPromiseTypes())
             .as((t, p) -> new RType(ImmutableSet.of(t), p)),
-        Combinators.combine(rFunctionTypes(), rPromiseTypes())
-            .as((t, p) -> new RType(ImmutableSet.of(t), p)),
+        // sexpTypes().map(RTypes::simple),
         sexps().map(RTypes::exact));
   }
 
@@ -54,22 +60,19 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
   }
 
   public static Arbitrary<RFunctionType> rFunctionTypes() {
+    return rFunctionTypes(rTypes());
+  }
+
+  private static Arbitrary<RFunctionType> rFunctionTypes(Arbitrary<RType> rTypes) {
     return Combinators.combine(
-            closures(),
             Arbitraries.defaultFor(FunctionRType.class),
             attributesTypes(),
             maybeNats(),
-            Combinators.combine(symbolStrings(), parameterRTypes()).as(Tuple::of).list(),
+            Combinators.combine(symbolStrings(), parameterRTypes(rTypes)).as(Tuple::of).list(),
             Arbitraries.defaultFor(NoOrMaybe.class),
-            rTypes())
+            rTypes)
         .as(
-            (exactValue,
-                functionType,
-                attributes,
-                referenceCount,
-                knownArguments,
-                hasMoreArgs,
-                returnType) -> {
+            (functionType, attributes, referenceCount, knownArguments, hasMoreArgs, returnType) -> {
               var knownArgumentNames =
                   knownArguments.stream()
                       .map(Tuple2::get1)
@@ -79,7 +82,7 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
                       .map(Tuple2::get2)
                       .collect(ImmutableList.toImmutableList());
               return new RFunctionTypeImpl(
-                  exactValue,
+                  null,
                   functionType,
                   attributes,
                   referenceCount,
@@ -92,7 +95,7 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
 
   public static Arbitrary<RPrimVecType> rPrimVecTypes() {
     return Combinators.combine(
-            basicSexps().filter(s -> s instanceof PrimVectorSXP<?>).map(s -> (PrimVectorSXP<?>) s),
+            nulls(PrimVectorSXP.class),
             attributesTypes(),
             maybeNats(),
             Arbitraries.defaultFor(PrimVecElementRType.class),
@@ -101,8 +104,16 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
         .as(RPrimVecTypeImpl::new);
   }
 
+  public static <T> Arbitrary<T> nulls(@SuppressWarnings("unused") Class<T> clazz) {
+    return Arbitraries.just(Optional.<T>empty()).map(s -> s.orElse(null));
+  }
+
   public static Arbitrary<ParameterRType> parameterRTypes() {
-    return Combinators.combine(rTypes(), Arbitraries.defaultFor(NoOrMaybe.class))
+    return parameterRTypes(rTypes());
+  }
+
+  private static Arbitrary<ParameterRType> parameterRTypes(Arbitrary<RType> rTypes) {
+    return Combinators.combine(rTypes, Arbitraries.defaultFor(NoOrMaybe.class))
         .as(ParameterRType::new);
   }
 

@@ -35,17 +35,17 @@ final class RMissingType implements RValueType {
 
   @Override
   public boolean isSubsetOf(RValueType other) {
-    return RGenericValueType.commonIsSubset(this, other);
+    return RGenericValueType.genericIsSubset(this, other);
   }
 
   /** If true, in {@link RType#union(RType)} this should merge with the other type. */
   boolean shouldMergeWithGeneric(RGenericValueType other) {
-    return RGenericValueType.commonIsSubset(this, other, false);
+    return RGenericValueType.genericIsSubset(this, other, false);
   }
 
   @Override
   public RValueType union(RValueType other) {
-    return this == other ? this : RGenericValueType.commonUnion(this, other);
+    return this == other ? this : RGenericValueType.genericUnion(this, other);
   }
 
   @Override

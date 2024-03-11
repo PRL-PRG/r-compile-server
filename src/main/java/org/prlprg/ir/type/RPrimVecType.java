@@ -78,7 +78,7 @@ record RPrimVecTypeImpl(
 
   @Override
   public boolean isSubsetOf(RValueType other) {
-    return RGenericValueType.commonIsSubset(this, other)
+    return RGenericValueType.genericIsSubset(this, other)
         && switch (other) {
           case RGenericValueType ignored -> true;
           case RPrimVecTypeImpl o ->
@@ -91,13 +91,13 @@ record RPrimVecTypeImpl(
 
   @Override
   public RValueType union(RValueType other) {
-    var commonUnion = RGenericValueType.commonUnion(this, other);
+    var genericUnion = RGenericValueType.genericUnion(this, other);
     return !(other instanceof RPrimVecTypeImpl o)
-        ? commonUnion
+        ? genericUnion
         : new RPrimVecTypeImpl(
-            (PrimVectorSXP<?>) commonUnion.exactValue(),
-            commonUnion.attributes(),
-            commonUnion.referenceCount(),
+            (PrimVectorSXP<?>) genericUnion.exactValue(),
+            genericUnion.attributes(),
+            genericUnion.referenceCount(),
             elementType.union(o.elementType),
             length.union(o.length),
             hasNAOrNaN.union(o.hasNAOrNaN));
@@ -105,16 +105,16 @@ record RPrimVecTypeImpl(
 
   @Override
   public @Nullable RValueType intersection(RValueType other) {
-    var commonIntersection = RGenericValueType.commonIntersection(this, other);
-    if (commonIntersection == null) {
+    var genericIntersection = RGenericValueType.genericIntersection(this, other);
+    if (genericIntersection == null) {
       return null;
     }
     return switch (other) {
       case RGenericValueType ignored ->
           new RPrimVecTypeImpl(
-              (PrimVectorSXP<?>) commonIntersection.exactValue(),
-              commonIntersection.attributes(),
-              commonIntersection.referenceCount(),
+              (PrimVectorSXP<?>) genericIntersection.exactValue(),
+              genericIntersection.attributes(),
+              genericIntersection.referenceCount(),
               elementType,
               length,
               hasNAOrNaN);
@@ -128,16 +128,16 @@ record RPrimVecTypeImpl(
           yield null;
         }
         yield new RPrimVecTypeImpl(
-            (PrimVectorSXP<?>) commonIntersection.exactValue(),
-            commonIntersection.attributes(),
-            commonIntersection.referenceCount(),
+            (PrimVectorSXP<?>) genericIntersection.exactValue(),
+            genericIntersection.attributes(),
+            genericIntersection.referenceCount(),
             mergedElementType,
             mergedLength,
             hasNAOrNaN.intersection(o.hasNAOrNaN));
       }
       default ->
           throw new AssertionError(
-              "RGenericSexpType.commonIntersection should've returned null for different specific types");
+              "RGenericSexpType.genericIntersection should've returned null for different specific types");
     };
   }
 
