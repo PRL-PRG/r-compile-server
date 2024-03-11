@@ -34,6 +34,10 @@ public final class NamespaceEnvSXP implements EnvSXP {
     return version;
   }
 
+  public String getName() {
+    return name;
+  }
+
   @Override
   public String toString() {
     // TODO: add some link to the R session?

@@ -43,4 +43,8 @@ public sealed interface SEXP
     var attrs = Objects.requireNonNull(attributes()).including("class", SEXPs.string(name));
     return withAttributes(attrs);
   }
+
+  default boolean isObject() {
+    return attributes() != null && Objects.requireNonNull(attributes()).containsKey("class");
+  }
 }

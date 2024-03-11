@@ -17,7 +17,7 @@ public class RDSOutputStream implements Closeable {
     out.close();
   }
 
-  public void writeByte(int v) throws IOException {
+  public void writeByte(byte v) throws IOException {
     out.writeByte(v);
   }
 

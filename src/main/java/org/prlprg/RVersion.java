@@ -50,6 +50,15 @@ public record RVersion(int major, int minor, int patch, @Nullable String suffix)
     this(major, minor, patch, null);
   }
 
+  /**
+   * Encode the version as an integer. It is used for the RDS serialization for instance.
+   *
+   * @return
+   */
+  public int encode() {
+    return patch + 256 * minor + 65536 * major;
+  }
+
   @Override
   public String toString() {
     return major + "." + minor + "." + patch + (suffix == null ? "" : "-" + suffix);
