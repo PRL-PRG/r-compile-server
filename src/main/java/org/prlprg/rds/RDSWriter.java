@@ -16,6 +16,10 @@ public class RDSWriter implements Closeable {
   private final RDSOutputStream out;
   private final List<SEXP> refTable = new ArrayList<>(128);
 
+  public static final int IS_OBJECT_BIT_MASK = 1 << 8;
+  public static final int HAS_ATTR_BIT_MASK = 1 << 9;
+  public static final int HAS_TAG_BIT_MASK = 1 << 10;
+
   private RDSWriter(RSession session, OutputStream out) {
     this.session = session;
     this.out = new RDSOutputStream(out);
@@ -29,8 +33,9 @@ public class RDSWriter implements Closeable {
   }
 
   public void writeheader(SEXP sexp) throws IOException {
-    // Could also be "X" (XDR) and "A" (ASCII) but we only support binary
-    out.writeByte((byte) 'B');
+    // Could also be "B" (binary) and "A" (ASCII) but we only support XDR.
+    // XDR just means big endian and DataInputStream/DataOutputStream from Java use BigEndian
+    out.writeByte((byte) 'X');
     out.writeByte((byte) '\n');
 
     // Always write version 3 of the encoding
@@ -50,7 +55,7 @@ public class RDSWriter implements Closeable {
 
   public void write(SEXP sexp) throws IOException {
     writeheader(sexp);
-    throw new UnsupportedOperationException("not implemented yet");
+    writeItem(sexp);
   }
 
   // See
@@ -103,7 +108,7 @@ public class RDSWriter implements Closeable {
     // Symbols
     if (s instanceof RegSymSXP sym) {
       refTable.add(s);
-      out.writeByte((byte) SEXPType.SYM.ordinal());
+      out.writeByte((byte) SEXPType.SYM.i);
       // write the name (cannot be NA)
       out.writeInt(sym.name().length());
       out.writeString(sym.name());
@@ -115,15 +120,15 @@ public class RDSWriter implements Closeable {
       StrSXP name = (StrSXP) Objects.requireNonNull(s.attributes()).get("name");
       assert name != null;
       if (name.get(0).startsWith("package:")) {
-        out.writeInt(RDSItemType.Special.PACKAGESXP.ordinal());
+        out.writeInt(RDSItemType.Special.PACKAGESXP.i());
         writeItem(name);
       } // Namespace
       else if (s instanceof NamespaceEnvSXP) {
-        out.writeInt(RDSItemType.Special.NAMESPACESXP.ordinal());
+        out.writeInt(RDSItemType.Special.NAMESPACESXP.i());
         // TODO: build STRSXP with name and version
         throw new UnsupportedOperationException("not implemented yet");
       } else { // Any other env
-        out.writeInt(SEXPType.ENV.ordinal());
+        out.writeInt(SEXPType.ENV.i);
         out.writeInt(0); // FIXME: should be 1 if locked, 0 if not locked
         // Enclosure
         // Frame
@@ -131,49 +136,44 @@ public class RDSWriter implements Closeable {
         // Attributes
       }
     } else {
-      int hastag =
+      boolean hastag =
           switch (s.type()) {
-            case LIST, LANG, PROM -> {
-              yield 0;
-            } // we assume no tag
-            case CLO -> {
-              yield 1;
-            }
-            default -> {
-              yield 0;
-            }
+            case LIST, LANG, PROM -> false; // we assume no tag
+            case CLO -> true;
+            default -> false;
           };
       // Flags
-      int hasattr = s.type() != SEXPType.CHAR && s.attributes() != null ? 1 : 0;
+      boolean hasattr =
+          s.type() != SEXPType.CHAR
+              && s.attributes() != null
+              && !Objects.requireNonNull(s.attributes()).isEmpty();
       // levels in the sxpinfo gp field
-      int flags = packFlags(s.type().ordinal(), 0, s.isObject() ? 1 : 0, hasattr, hastag);
+      int flags = packFlags(s.type().i, 0, s.isObject(), hasattr, hastag);
       out.writeInt(flags);
 
       switch (s) {
-        case ListSXP l -> writeDottedPairObjects(l, hasattr == 1);
-        case LangSXP l -> writeDottedPairObjects(l, hasattr == 1);
-        case PromSXP p -> writeDottedPairObjects(p, hasattr == 1);
-        case CloSXP c -> writeDottedPairObjects(c, hasattr == 1);
+        case ListSXP l -> writeDottedPairObjects(l, hasattr);
+        case LangSXP l -> writeDottedPairObjects(l, hasattr);
+        case PromSXP p -> writeDottedPairObjects(p, hasattr);
+        case CloSXP c -> writeDottedPairObjects(c, hasattr);
           // External pointer
           // weakreference
           // special
           // builtin
-        case StrSXP str -> writeStrSxp(str, hasattr == 1);
-        case VectorSXP vec -> writeVector(vec, hasattr == 1);
+        case StrSXP str -> writeStrSxp(str, hasattr);
+        case VectorSXP vec -> writeVector(vec, hasattr);
         case BCodeSXP bcode -> writeBCode(bcode);
 
         default -> throw new UnsupportedOperationException("Unsupported SEXP type: " + s.type());
       }
     }
-
-    throw new UnsupportedOperationException("not implemented yet");
   }
 
   // Handles LISTSXP (pairlist, LANGSXP, PROMSXP and DOTSXP
   private void writeDottedPairObjects(SEXP s, boolean hasattr) throws IOException {
     // first, attributes
     if (hasattr) {
-      writeAttributes(s.attributes());
+      writeAttributes(Objects.requireNonNull(s.attributes()));
     }
 
     // tag (except for closures
@@ -202,8 +202,20 @@ public class RDSWriter implements Closeable {
     }
   }
 
-  private int packFlags(int type, int levs, int isobj, int hasattr, int hastag) {
-    throw new UnsupportedOperationException("not implemented yet");
+  private int packFlags(int type, int levs, boolean isobj, boolean hasattr, boolean hastag) {
+    int val = type;
+    val |= levs << 12;
+    if (isobj) {
+      val |= IS_OBJECT_BIT_MASK;
+    }
+    if (hasattr) {
+      val |= HAS_ATTR_BIT_MASK;
+    }
+    if (hastag) {
+      val |= HAS_TAG_BIT_MASK;
+    }
+
+    return val;
   }
 
   private void writeAttributes(Attributes attrs) throws IOException {
@@ -228,7 +240,7 @@ public class RDSWriter implements Closeable {
     }
   }
 
-  private void writeVector(VectorSXP s, boolean hasattr) throws IOException {
+  private <T> void writeVector(VectorSXP<T> s, boolean hasattr) throws IOException {
     out.writeInt(s.size());
 
     switch (s) {
