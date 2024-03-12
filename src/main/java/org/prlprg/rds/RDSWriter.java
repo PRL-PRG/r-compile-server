@@ -176,7 +176,7 @@ public class RDSWriter implements Closeable {
       writeAttributes(Objects.requireNonNull(s.attributes()));
     }
 
-    // tag (except for closures
+    // tag (except for closures)
     // TODO
 
     // car
@@ -225,6 +225,7 @@ public class RDSWriter implements Closeable {
   private void writeChars(String s) throws IOException {
     // Never NA because we assume so
     // We only consider scalar Na strings
+    // TODO: write flags also here
     out.writeInt(s.length());
     out.writeString(s);
   }
