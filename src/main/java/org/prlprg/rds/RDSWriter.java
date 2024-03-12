@@ -250,7 +250,6 @@ public class RDSWriter implements Closeable {
           writeItem(val);
         }
       }
-
       case ExprSXP expr -> {
         for (var val : expr) {
           writeItem(val);

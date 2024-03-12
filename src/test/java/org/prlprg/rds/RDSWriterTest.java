@@ -1,5 +1,6 @@
 package org.prlprg.rds;
 
+import static java.lang.Double.NaN;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -7,6 +8,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import org.junit.jupiter.api.Test;
 import org.prlprg.RSession;
+import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
 import org.prlprg.rsession.TestRSession;
 import org.prlprg.sexp.*;
@@ -58,5 +60,40 @@ public class RDSWriterTest implements Tests {
     } else {
       fail("Expected LglSXP");
     }
+  }
+
+  @Test
+  public void testReals() throws Exception {
+    var reals = SEXPs.real(5.2, 4.0, Constants.NA_REAL, 2.0, NaN, 1.0);
+    var output = new ByteArrayOutputStream();
+
+    RDSWriter.writeStream(rsession, output, reals);
+
+    var input = new ByteArrayInputStream(output.toByteArray());
+    var sexp = RDSReader.readStream(rsession, input);
+
+    if (sexp instanceof RealSXP read_reals) {
+      assertEquals(6, read_reals.size());
+      assertEquals(5.2, read_reals.get(0));
+      assertEquals(4.0, read_reals.get(1));
+      assertEquals(Constants.NA_REAL, read_reals.get(2));
+      assertEquals(2.0, read_reals.get(3));
+      assertEquals(NaN, read_reals.get(4));
+      assertEquals(1.0, read_reals.get(5));
+    } else {
+      fail("Expected RealSXP");
+    }
+  }
+
+  @Test
+  public void testNull() throws Exception {
+    var output = new ByteArrayOutputStream();
+
+    RDSWriter.writeStream(rsession, output, SEXPs.NULL);
+
+    var input = new ByteArrayInputStream(output.toByteArray());
+    var sexp = RDSReader.readStream(rsession, input);
+
+    assertEquals(SEXPs.NULL, sexp);
   }
 }
