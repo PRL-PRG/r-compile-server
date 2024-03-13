@@ -32,6 +32,12 @@ public class RDSWriter implements Closeable {
     }
   }
 
+  public static void writeFile(RSession session, File file, SEXP sexp) throws IOException {
+    try (var output = new FileOutputStream(file)) {
+      writeStream(session, output, sexp);
+    }
+  }
+
   public void writeheader(SEXP sexp) throws IOException {
     // Could also be "B" (binary) and "A" (ASCII) but we only support XDR.
     // XDR just means big endian and DataInputStream/DataOutputStream from Java use BigEndian
@@ -186,6 +192,14 @@ public class RDSWriter implements Closeable {
           writeItem(i);
         }
       }
+      case ListSXP l -> {
+        for (var i : l) {
+          assert i.tag() != null;
+          writeSymbol(i.tag());
+          writeItem(i.value());
+        }
+        writeItem(SEXPs.NULL);
+      }
       case PromSXP p -> {
         // a promise has the value, expression and environment, in this order
         writeItem(p.getVal());
@@ -219,7 +233,11 @@ public class RDSWriter implements Closeable {
   }
 
   private void writeAttributes(Attributes attrs) throws IOException {
-    throw new UnsupportedOperationException("not implemented yet");
+
+    // convert to ListSXP
+    var l = attrs.entrySet().stream().map(e -> new TaggedElem(e.getKey(), e.getValue())).toList();
+    // Write it
+    writeItem(SEXPs.list(l));
   }
 
   private void writeChars(String s) throws IOException {
@@ -282,6 +300,14 @@ public class RDSWriter implements Closeable {
   }
 
   private void writeBCode(BCodeSXP s) throws IOException {
+    throw new UnsupportedOperationException("not implemented yet");
+  }
+
+  private void writeSymbol(SymSXP s) throws IOException {
+    throw new UnsupportedOperationException("not implemented yet");
+  }
+
+  private void writeSymbol(String s) throws IOException {
     throw new UnsupportedOperationException("not implemented yet");
   }
 
