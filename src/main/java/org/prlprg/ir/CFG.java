@@ -1,13 +1,13 @@
 package org.prlprg.ir;
 
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-import org.prlprg.ir.node.Instr;
-import org.prlprg.ir.node.InstrOrPhi;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.NoSuchElementException;
 import org.prlprg.ir.node.Node;
+import org.prlprg.ir.node.NodeId;
+import org.prlprg.ir.node.NodeIdImpl;
 
 /**
  * IR (intermediate representation) <a
@@ -15,114 +15,159 @@ import org.prlprg.ir.node.Node;
  * Node}s which corresponds to a program; more specifically, a graph of {@link BB}s).
  */
 public class CFG {
-  private final Set<BB> bbs = new HashSet<>();
+  private final BB entry = new BB(this, "");
+  private final Map<BBId, BB> bbs = new HashMap<>();
+  private final Map<NodeId<?>, Node> nodes = new HashMap<>();
+  private final Map<String, Integer> nextBbId = new HashMap<>();
+  private final Map<String, Integer> nextNodeId = new HashMap<>();
+  private final List<CFGAction<?>> history = new ArrayList<>();
+  private int nextBbIdIdx = 0;
+  private int nextNodeIdIdx = 0;
+
+  /** Create a new CFG, with a single basic block and no instructions. */
+  public CFG() {
+    bbs.put(entry.id(), entry);
+  }
+
+  /** The basic block that is the entry of this graph. */
+  public BB entry() {
+    return entry;
+  }
 
   /**
-   * Create a new instruction with {@code newData} and replace all occurences of {@code oldInstr}
-   * with it.
+   * Get the basic block with the associated id.
    *
-   * @return The newly-created instruction, or {@code oldInstr} if it's equivalent to what would
-   *     replace it.
-   * @throws IllegalArgumentException if {@code oldInstr} is not in this CFG.
-   * @throws IllegalArgumentException if {@code newData} is an incompatible type.
+   * @throws NoSuchElementException If there's no basic block with the id.
    */
-  public <I extends Instr> I replace(I oldInstr, Instr.Data<I> newData) {
-    if (oldInstr.data().equals(newData)) {
-      return oldInstr;
+  public BB get(BBId id) {
+    var bb = bbs.get(id);
+    if (bb == null) {
+      throw new NoSuchElementException("No basic block with id: " + id);
     }
-    if (oldInstr.cfg() != this) {
-      throw new IllegalArgumentException(
-          "Replace oldInstr not in CFG: " + oldInstr + " not in:\n" + this);
-    }
-    var newInstr = newData.make(this);
-    var replaced = false;
-    for (var bb : bbs) {
-      var newlyReplaced = bb.tryOnlyReplace(oldInstr, newInstr);
-      assert !replaced || !newlyReplaced
-          : "Replaced multiple times in different BBs: " + oldInstr + " in: " + this;
-      replaced = replaced || newlyReplaced;
-    }
-    assert replaced
-        : "oldInstr has this CFG as its parent but wasn't found (improperly deleted BB?): "
-            + oldInstr;
-    replaceInstrReturnsInArgs(oldInstr, newInstr);
-    return newInstr;
+    return bb;
   }
 
   /**
-   * Remove the given instructions.
+   * Get the basic block with the associated id.
    *
-   * @throws IllegalArgumentException if any is not in this CFG.
-   * @throws IllegalArgumentException if any is a dependency of another instruction in this CFG.
+   * @throws NoSuchElementException If there's no node with the id.
    */
-  public void remove(InstrOrPhi... instrs) {
-    remove(Arrays.stream(instrs));
+  @SuppressWarnings("unchecked")
+  public <N extends Node> N get(NodeId<N> id) {
+    var node = nodes.get(id);
+    if (node == null) {
+      throw new NoSuchElementException("No node with id: " + id);
+    }
+    return (N) node;
+  }
+
+  /** Create and insert a new basic block. */
+  public BB addBB() {
+    return addBB("");
+  }
+
+  /** Create and insert a new basic block, and attach a short description to the block's id. */
+  public BB addBB(String desc) {
+    var bb = new BB(this, desc);
+    record(new CFGAction.AddBB(bb.id()));
+    bbs.put(id, bb);
+    return bb;
   }
 
   /**
-   * Remove the given instructions.
+   * Remove a basic block from the CFG.
    *
-   * @throws IllegalArgumentException if any is not in this CFG.
-   * @throws IllegalArgumentException if any is a dependency of another instruction in this CFG.
+   * <p>Existing basic blocks and instructions may still reference it, but these references must be
+   * removed before {@link #verify()} is called.
+   *
+   * @throws IllegalArgumentException If the basic block was never in the CFG.
+   * @throws IllegalArgumentException If the basic block was already removed.
    */
-  public void remove(Stream<InstrOrPhi> instrs) {
-    var instrs1 = instrs.collect(Collectors.toUnmodifiableSet());
-    for (var instr : instrs1) {
-      if (instr.cfg() != this) {
-        throw new IllegalArgumentException(
-            "Remove instr not in CFG: " + instr + " not in:\n" + this);
-      }
-      if (instr.returns().stream().anyMatch(n -> n.cfg() != this)) {
-        throw new IllegalArgumentException(
-            "Remove instr with returns not in CFG: " + instr + " not in:\n" + this);
-      }
+  public void remove(BBId bbId) {
+    var bb = bbs.remove(bbId);
+    if (bb == null) {
+      throw new IllegalArgumentException("BB already removed");
     }
-    var removed = new HashSet<InstrOrPhi>(instrs1.size());
-    for (var bb : bbs) {
-      var newlyRemoved = bb.tryOnlyRemove(instrs1);
-      assert newlyRemoved.stream().noneMatch(removed::contains)
-          : "Removed multiple times in different BBs: " + newlyRemoved + " in: " + this;
-      removed.addAll(newlyRemoved);
-    }
-    assert removed.equals(instrs1)
-        : "All instrs have this as parent but not all were removed (improperly deleted BB?): "
-            + instrs1;
-    checkInstrReturnsRemovedInArgs(instrs1);
+    record(new CFGAction.RemoveBB(bbId));
   }
 
   /**
-   * Replace the instruction return values in the arguments of every argument-containing node in
-   * this BB.
+   * Remove a basic block from the CFG.
+   *
+   * <p>Existing basic blocks and instructions may still reference it, but these references must be
+   * removed before {@link #verify()} is called.
+   *
+   * @throws IllegalArgumentException If the basic block was never in the CFG.
+   * @throws IllegalArgumentException If the basic block was already removed.
    */
-  private void replaceInstrReturnsInArgs(Instr oldInstr, Instr newInstr) {
-    var oldReturns = oldInstr.returns();
-    var newReturns = newInstr.returns();
-    if (oldReturns.size() != newReturns.size()) {
-      throw new IllegalArgumentException(
-          "Ttried to replace an instruction with a different number of returns: "
-              + oldInstr
-              + " -> "
-              + newInstr);
-    }
-    for (int i = 0; i < oldReturns.size(); i++) {
-      for (var bb : bbs) {
-        bb.replaceInArgs(oldReturns.get(i), newReturns.get(i));
-      }
+  public void remove(BB bb) {
+    remove(bb.id());
+  }
+
+  /**
+   * Verify some CFG invariants. Specifically:
+   *
+   * <ul>
+   *   <li>Instructions don't have arguments that were removed from the CFG (or not present
+   *       initially).
+   *   <li>Every basic block is connected to the entry block.
+   *   <li>Instruction arguments all either originate from earlier in the block, or are
+   *       CFG-independent. <i>Except</i> in basic blocks with exactly one predecessor, instruction
+   *       arguments may be from that predecessor or, if it also has one predecessor, its
+   *       predecessor and so on.
+   *   <li>Only basic blocks with two or more predecessors have phi nodes. Phi nodes have an entry
+   *       from every predecessor.
+   *   <li>Instruction {@link RValue} arguments are of the correct (dynamic) type.
+   * </ul>
+   *
+   * @throws CFGVerifyException if one of the invariants are broken.
+   */
+  public void verify() {
+    // TODO
+  }
+
+  /** Pretty-print this CFG. */
+  String print() {
+    // TODO
+    return toString();
+  }
+
+  /**
+   * Mark a node as belonging to this CFG.
+   *
+   * <p>This is called from {@link BB} when it adds a node. Tracked nodes are used for verification.
+   */
+  void track(Node node) {
+    var wasAdded = nodes.add(node);
+    if (!wasAdded) {
+      throw new IllegalArgumentException("Node was already tracked");
     }
   }
 
   /**
-   * @throws IllegalArgumentException If any of the removed instructions' return values are still in
-   *     the arguments of (non-removed) instructions.
+   * Mark a node as no longer belonging to this CFG.
+   *
+   * <p>This is called from {@link BB} when it removes a node, and {@link CFG} itself when it
+   * removes a {@link BB}. Tracked nodes are used for verification.
    */
-  private void checkInstrReturnsRemovedInArgs(Set<InstrOrPhi> instrs) {
-    for (var instr : instrs) {
-      for (var return1 : instr.returns()) {
-        for (var bb : bbs) {
-          bb.checkNotInArgs(return1);
-        }
-      }
+  void untrack(Node node) {
+    boolean wasRemoved = nodes.remove(node);
+    if (!wasRemoved) {
+      throw new IllegalArgumentException("Node was never tracked");
     }
+    removedNodes.put(node, IncompleteCFGOperationException.make(() -> "Node removed: " + node));
+  }
+
+  private void record(CFGAction<?> action) {
+    history.add(action);
+  }
+
+  private BBId nextBBId() {
+    return new BBIdImpl(nextBbIdIdx++);
+  }
+
+  private <N extends Node> NodeId<N> nextNodeId(Class<N> clazz) {
+    return new NodeIdImpl<>(clazz, nextNodeIdIdx++);
   }
 
   // TODO: make sure when we split, delete BBs, phi nodes are updated if necessary, and removed

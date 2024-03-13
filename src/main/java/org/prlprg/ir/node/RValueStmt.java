@@ -12,23 +12,18 @@ public interface RValueStmt extends Stmt, RValue {
   sealed interface Data extends Stmt.Data<RValueStmt> permits Stmts.RValue_ {
     /** Compute the type from arguments. */
     RType computeType();
-
-    @Override
-    default RValueStmt make(CFG cfg) {
-      return new RValueStmtImpl(cfg, this);
-    }
   }
 }
 
-final class RValueStmtImpl extends StmtImpl<RValueStmt.Data> implements RValueStmt {
+final class RValueStmtImpl extends StmtImpl<Stmts.RValue_> implements RValueStmt {
   private final ImmutableList<Node> returns = ImmutableList.of(this);
 
   // It gets initialized in `verify` which is called from the constructor
   @SuppressWarnings("NotNullFieldNotInitialized")
   private RType type;
 
-  RValueStmtImpl(CFG cfg, RValueStmt.Data data) {
-    super(cfg, data);
+  RValueStmtImpl(CFG cfg, Stmts.RValue_ data) {
+    super(Stmts.RValue_.class, cfg, data);
   }
 
   @Override

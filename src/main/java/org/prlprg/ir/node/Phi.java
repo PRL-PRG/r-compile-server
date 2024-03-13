@@ -12,37 +12,52 @@ import org.prlprg.ir.CFG;
 /**
  * <a
  * href="https://mapping-high-level-constructs-to-llvm-ir.readthedocs.io/en/latest/control-structures/ssa-phi.html">SSA
- * φ-node.</a>
+ * φ-node</a>: a node referenced within a basic block that may originate from more than one of its
+ * predecessors.
  *
- * <p>Each φ only handles nodes of a particular type, e.g. {@link RValue}s or {@link ForLoopInfo}s.
+ * <p>Each φ only handles nodes of a particular type, e.g. {@link RValue}s or {@code ForLoopInfo}s.
  * This interface is also extended for specific classes so that it can inherit them, e.g. {@link
- * RValuePhi} and {@link ForLoopInfoPhi}.
+ * RValuePhi} and {@code ForLoopInfoPhi}.
  *
- * <p>φ nodes can temporarily have only 0 or 1 input; however, the {@link CFG} should have a cleanup
- * phase where it deletes or replaces those.
+ * <p>φ nodes can temporarily have only 0 or 1 input. However, before {@link CFG#verify()}, nodes
+ * with one input must be replaced with the input itself, and nodes with 0 inputs must be removed.
  */
-public non-sealed interface Phi extends InstrOrPhi {
+public non-sealed interface Phi<N extends Node> extends InstrOrPhi {
   /**
    * Create a new φ-node for the given node class. It should implement the necessary superclass so
    * that it's acceptable to replace a node of this class with this φ.
    *
    * @throws UnsupportedOperationException If there's no φ type implemented for the given class.
    */
-  @Warning("Only exposed for BB, call BB.addPhi instead.")
-  static Phi forClass(Class<?> nodeClass, CFG cfg) {
-    if (RValue.class.isAssignableFrom(nodeClass)) {
-      return new RValuePhiImpl(cfg);
+  @SuppressWarnings("unchecked")
+  @Warning("Call BB.addPhi instead.")
+  static <N extends Node> Phi<N> forClass(Class<N> nodeClass, CFG cfg) {
+    if (nodeClass == RValue.class) {
+      return (Phi<N>) new RValuePhiImpl(cfg);
     } else {
       throw new UnsupportedOperationException(
           "No φ type implemented for the given class: " + nodeClass);
     }
   }
 
+  /**
+   * The type of node this is a phi node for. All incoming nodes are an instance of this class, as
+   * well as the phi itself (revealed via {@link #cast()}).
+   */
+  Class<N> nodeClass();
+
+  /** Cast the phi to its node class. */
+  @SuppressWarnings("unchecked")
+  default N cast() {
+    assert nodeClass().isInstance(this);
+    return (N) this;
+  }
+
   /** (Readonly) list of inputs to this φ-node. */
-  List<Input<?>> inputs();
+  List<Input<N>> inputs();
 
   /** Stream input {@link Node}s. */
-  Stream<?> inputNodes();
+  Stream<N> inputNodes();
 
   /** Stream input {@link BB}s. */
   Stream<BB> incomingBbs();
@@ -66,9 +81,8 @@ public non-sealed interface Phi extends InstrOrPhi {
    * Add an input to this φ-node.
    *
    * @throws IllegalArgumentException If there's already an input from the incoming {@link BB}.
-   * @throws IllegalArgumentException If you try to add a node of incompatible type.
    */
-  void addInput(BB incomingBb, Node node);
+  void addInput(BB incomingBb, N node);
 
   /**
    * Remove an input from this φ-node.
@@ -93,21 +107,31 @@ public non-sealed interface Phi extends InstrOrPhi {
     return ImmutableList.of(this);
   }
 
+  @Override
+  NodeId<N> id();
+
   record Input<N extends Node>(BB incomingBb, N node) {}
 }
 
-abstract class PhiImpl<N extends Node> implements Phi {
+abstract class PhiImpl<N extends Node> implements Phi<N> {
   private final Class<N> nodeClass;
   private final CFG cfg;
+  private final NodeId<N> id;
   private final List<Input<N>> inputs = new ArrayList<>();
 
   PhiImpl(Class<N> nodeClass, CFG cfg) {
     this.nodeClass = nodeClass;
     this.cfg = cfg;
+    id = new NodeId<N>(nodeClass, "φ" + TODO);
   }
 
   @Override
-  public List<Input<?>> inputs() {
+  public Class<N> nodeClass() {
+    return nodeClass;
+  }
+
+  @Override
+  public List<Input<N>> inputs() {
     return Collections.unmodifiableList(inputs);
   }
 
@@ -121,12 +145,8 @@ abstract class PhiImpl<N extends Node> implements Phi {
     return inputs().stream().map(Input::incomingBb);
   }
 
-  @SuppressWarnings("unchecked")
   @Override
-  public void addInput(BB incomingBb, Node node) {
-    if (!nodeClass.isInstance(node)) {
-      throw new IllegalArgumentException("Tried to add a node of incompatible type: " + node);
-    }
+  public void addInput(BB incomingBb, N node) {
     if (inputs.stream().anyMatch(input -> input.incomingBb().equals(incomingBb))) {
       throw new IllegalArgumentException(
           "There's already an input from the incoming BB: " + incomingBb);
@@ -162,6 +182,11 @@ abstract class PhiImpl<N extends Node> implements Phi {
         inputs.set(new Input<>(input.incomingBb(), (N) replacement));
       }
     }
+  }
+
+  @Override
+  public NodeId<N> id() {
+    return id;
   }
 
   @Override

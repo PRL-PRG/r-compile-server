@@ -15,7 +15,7 @@ import net.jqwik.api.providers.TypeUsage;
 import org.prlprg.util.Pair;
 
 public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvider {
-  private static final int MAX_DEPTH = 0;
+  private static final int MAX_DEPTH = 1;
   private static final int MAX_SIZE = 5;
   private static final int MAX_LENGTH = 5;
 

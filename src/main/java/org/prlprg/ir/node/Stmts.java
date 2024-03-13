@@ -20,7 +20,12 @@ class Stmts {
     }
   }
 
-  sealed interface RValue_ extends RValueStmt.Data {}
+  sealed interface RValue_ extends RValueStmt.Data {
+    @Override
+    default RValueStmt make(CFG cfg) {
+      return new RValueStmtImpl(cfg, this);
+    }
+  }
 
   record Invisible() implements Void {}
 

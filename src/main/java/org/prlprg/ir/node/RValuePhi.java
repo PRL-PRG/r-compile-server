@@ -9,7 +9,7 @@ import org.prlprg.ir.type.RTypes;
  * href="https://mapping-high-level-constructs-to-llvm-ir.readthedocs.io/en/latest/control-structures/ssa-phi.html">SSA
  * φ-node.</a>) of {@link RValue}s.
  */
-public interface RValuePhi extends Phi, RValue {}
+public interface RValuePhi extends Phi<RValue>, RValue {}
 
 final class RValuePhiImpl extends PhiImpl<RValue> implements RValuePhi {
   RValuePhiImpl(CFG cfg) {

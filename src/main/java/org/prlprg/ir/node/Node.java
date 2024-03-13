@@ -11,10 +11,35 @@ public interface Node {
    * R_GlobalEnv}.
    */
   @Nullable CFG cfg();
+
+  /**
+   * Unique identifier and a short description of the node.
+   *
+   * <p>If {@link #cfg()} is non-null, the returned ID must be unique to this node within the CFG.
+   * If {@link #cfg()} is null, the returned ID must be unique within <b>every</b> CFG.
+   *
+   * <p>Ids follow the common syntax, derived from <a
+   * href="https://mlir.llvm.org/docs/LangRef/">MLIR's</a>:
+   *
+   * <ul>
+   *   <li>Global node ids don't start with {@code %}, so they won't conflict with local nodes.
+   *   <li>Local instructions start with {@code %} followed by a brief description, and then a
+   *       number if needed to disambiguate them from other local nodes. Use {@link
+   *       CFG#localInstrId(String)} to create.
+   *   <li>Phis start with {@code φ} followed by a brief description. The description is chosen from
+   *       the incoming nodes blocks and is guaranteed to be unique without a disambiguating number.
+   *   <li>Derived nodes from instructions with multiple return values have the id {@code
+   *       <origin>#<desc>}, e.g. {@code %for2#info}.
+   * </ul>
+   */
+  NodeId<?> id();
 }
 
 /** An IR node with a non-null {@link CFG}. */
 interface NodeWithCfg extends Node {
+  // We must explicitly annotate with `@Nonnull`, otherwise IntelliJ assumes this is still nullable.
+  // Unfortunately, IntelliJ still thinks `@Nonnull` is a useless annotation, so we must also
+  // suppress the warning.
   @SuppressWarnings("NullableProblems")
   @Override
   @Nonnull

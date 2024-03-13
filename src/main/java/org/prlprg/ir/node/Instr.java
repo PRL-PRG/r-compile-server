@@ -7,51 +7,90 @@ import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.RecordComponent;
 import java.util.Arrays;
 import java.util.Collection;
+import org.prlprg.ir.BB;
 import org.prlprg.ir.CFG;
+import org.prlprg.ir.type.RType;
 import org.prlprg.util.Reflection;
 
-/** IR instruction: statement or jump. e.g. GNU-R bytecode or PIR instructions. */
-public sealed interface Instr extends InstrOrPhi permits InstrImpl, Jump, Stmt {
+/**
+ * IR instruction: {@link Stmt} or {@link Jump}. An instruction is a single operation in a basic
+ * block; a {@link Stmt} is an straight-line instruction and a {@link Jump} affects control flow by
+ * moving to a new block.
+ *
+ * <p>This type is mutable and does not have subclasses for each specific instruction, while {@link
+ * Instr.Data} is immutable and does. Don't construct {@link Instr}s directly, instead via {@link
+ * BB} methods such as {@link BB#append(Stmt.Data)} and {@link BB#replace(Instr, Instr.Data)}, which
+ * take {@link Instr.Data} as an argument and construct the {@link Instr} themselves.
+ */
+public sealed interface Instr extends InstrOrPhi permits Jump, Stmt {
   /** The instruction's arguments, which are the other nodes it depends on. */
   ImmutableList<Node> args();
 
   /**
    * The instruction's return values, which other nodes may depend on. If the instruction produces a
    * single value (may or may not be {@link RValue}), this will be itself. An instruction may return
-   * multiple values (e.g. {@code StartFor}), in which case this contains multiple nodes.
+   * multiple values, in which case this contains multiple nodes. "Void" instructions return
+   * nothing.
    */
   @Override
   ImmutableList<Node> returns();
 
   /**
    * The instruction's data, which determines what type of instruction it is and contains specificly
-   * typed children. This is useful for pattern-matching.
+   * typed children. This is useful for pattern-matching:
+   *
+   * <pre>
+   *   switch (i.data()) {
+   *     case Jumps.Goto(var next) -> ...
+   *     case Jumps.Branch(var cond, var ifTrue, var ifFalse) -> ...
+   *     ...
+   *   }
+   * </pre>
    */
   Data<?> data();
 
-  /** Check that arguments are of the correct dynamic type and set cached data. */
+  /**
+   * Whether the instruction's data can be replaced with the specified instance. Calling {@link
+   * #replaceData(Data)} will not throw iff this returns {@code true}.
+   */
+  boolean canReplaceDataWith(Data<?> newData);
+
+  /**
+   * Replace the instruction's data.
+   *
+   * <p>Usually you should call {@link BB#replace(Instr, Data)} instead, because this will fail if
+   * the data isn't the correct class.
+   *
+   * @throws IllegalArgumentException If the new type of data isn't compatible with the instruction.
+   */
+  void replaceData(Data<?> newData);
+
+  /** Check that arguments are of the correct dynamic type ({@link RType}) and set cached data. */
   void verify();
 
   sealed interface Data<I extends Instr> permits Jump.Data, Stmt.Data {
     /** Create an instruction containing this data. */
-    @Warning("Only exposed for BB.insert, call a BB method instead.")
+    @Warning("Only exposed for `BB`, call a `BB` method such as `append` instead.")
     I make(CFG cfg);
   }
 }
 
-abstract sealed class InstrImpl<D extends Instr.Data<?>> implements Instr
+abstract sealed class InstrImpl<D extends Instr.Data<?>> implements NodeWithCfg
     permits JumpImpl, StmtImpl {
+  private final Class<D> dataClass;
   private final CFG cfg;
   private D data;
 
-  InstrImpl(CFG cfg, D data) {
+  InstrImpl(Class<D> dataClass, CFG cfg, D data) {
+    this.dataClass = dataClass;
     this.cfg = cfg;
     this.data = data;
+    cfg.track(this);
     verify();
   }
 
-  @Override
-  public ImmutableList<Node> args() {
+  // @Override
+  public final ImmutableList<Node> args() {
     // Reflectively get all Node record components
     var cls = data().getClass();
     assert cls.isRecord() : "Instr.Data must be a record";
@@ -77,8 +116,8 @@ abstract sealed class InstrImpl<D extends Instr.Data<?>> implements Instr
     return Streams.concat(singleArgs, argLists).collect(ImmutableList.toImmutableList());
   }
 
-  @Override
-  public void replace(Node old, Node replacement) {
+  // @Override
+  public final void replace(Node old, Node replacement) {
     // Reflectively look through the nodes,
     // and throw an exception if `old` isn't present or `replacement` is the wrong type.
     // Also, build an array of new constructor arguments, where `old` is replaced with
@@ -152,16 +191,35 @@ abstract sealed class InstrImpl<D extends Instr.Data<?>> implements Instr
   }
 
   @Override
-  public CFG cfg() {
+  public final CFG cfg() {
     return cfg;
   }
 
-  @Override
-  public D data() {
+  // @Override
+  public final D data() {
     return data;
   }
 
-  @Override
+  // @Override
+  public final boolean canReplaceDataWith(Instr.Data<?> newData) {
+    return dataClass.isInstance(newData);
+  }
+
+  @SuppressWarnings("unchecked")
+  // @Override
+  public final void replaceData(Instr.Data<?> newData) {
+    if (!dataClass.isInstance(newData)) {
+      throw new IllegalArgumentException(
+          "Can't replace data in "
+              + getClass().getSimpleName()
+              + " with incompatible type "
+              + newData.getClass().getSimpleName());
+    }
+
+    data = (D) newData;
+  }
+
+  // @Override
   public void verify() {
     // TODO: Check RValue argument types via annotations
     //  also have annotations for if the RValue is a specific subclass or a Phi where each target is

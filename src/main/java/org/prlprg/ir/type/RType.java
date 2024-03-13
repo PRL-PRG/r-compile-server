@@ -10,6 +10,7 @@ import org.prlprg.ir.node.RValue;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPType;
 import org.prlprg.sexp.SEXPs;
+import org.prlprg.util.Strings;
 
 /**
  * {@link RValue} type; a runtime value's ({@link SEXP})'s type, with information relevant to
@@ -414,12 +415,7 @@ public final class RType implements BoundedLattice<RType> {
                 ? "⊤"
                 : onlySexpType() != null
                     ? onlySexpType().toString()
-                    : "("
-                        + sexpTypes.stream()
-                            .map(Object::toString)
-                            .reduce((a, b) -> a + " | " + b)
-                            .get()
-                        + ")");
+                    : "(" + Strings.join(" | ", sexpTypes) + ")");
   }
 
   // endregion
