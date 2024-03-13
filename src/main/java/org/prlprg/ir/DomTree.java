@@ -1,11 +1,12 @@
 package org.prlprg.ir;
 
-import com.google.common.collect.HashBiMap;
 import java.util.ArrayDeque;
-import java.util.HashMap;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Optional;
 import java.util.SequencedMap;
+import java.util.SequencedSet;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -15,6 +16,10 @@ import org.prlprg.util.YCombinator;
 /**
  * <a href="https://en.wikipedia.org/wiki/Dominator_(graph_theory)">Dominator tree</a> of a {@link
  * CFG}: this shows you nodes that are guaranteed to be run before other nodes.
+ *
+ * <p>Disclaimer: much of the code is taken from <a
+ * href="https://github.com/reactorlabs/rir/blob/0c2896fbc82f505e61ed8db416e113905d8f2237/rir/src/compiler/analysis/cfg.cpp">Ř
+ * (src/compiler/analysis/cfg.cpp:DominatorTree)</a>, translated into Java.
  */
 public class DomTree {
   private final CFG cfg;
@@ -27,12 +32,11 @@ public class DomTree {
    */
   private final SequencedMap<BB, BB> idoms = new LinkedHashMap<>();
 
+  /** Inverse of {@code idoms} for fast traversal. */
+  private final SequencedMap<BB, SequencedSet<BB>> idominees = new LinkedHashMap<>();
+
   DomTree(CFG cfg) {
     this.cfg = cfg;
-
-    // Code to generate `idoms` is taken from
-    // https://github.com/reactorlabs/rir/blob/0c2896fbc82f505e61ed8db416e113905d8f2237/rir/src/compiler/analysis/cfg.cpp#L67,
-    // translated into Java.
 
     // We use the Lengauer-Tarjan algorithm [LT79] for computing dominators.
     // The algorithmic complexity is O(N log N), where N is the number of edges
@@ -147,37 +151,38 @@ public class DomTree {
 
     // Indexed by BB id. `dfnum[b]` is the dfnum of block `b`, `vertex[i]` is
     // the node whose dfnum is `i`
-    var dfnum = HashBiMap.<BB, Integer>create(size);
+    var dfnum = new LinkedHashMap<BB, Integer>(size);
+    var vertex = new LinkedHashMap<Integer, BB>(size);
 
     // Indexed by BB id. `parent[n->id]` is the node that is the parent of `n`
     // in the DFS tree.
-    var parent = new HashMap<BB, BB>(size);
+    var parent = new LinkedHashMap<BB, BB>(size);
 
     // Indexed by BB id. `semi[n->id]` is the semidominator of `n`.
-    var semi = new HashMap<BB, BB>(size);
+    var semi = new LinkedHashMap<BB, BB>(size);
 
     // Indexed by BB id. `n` has the same dominator as `samedom[n->id]`, i.e.,
     // idom(n) == idom(samedom(n)). This is used for the deferred application
     // of the Dominator Theorem, clause 2.
-    var samedom = new HashMap<BB, BB>(size);
+    var samedom = new LinkedHashMap<BB, BB>(size);
 
     // Indexed by BB id. `bucket[s->id]` is the set of nodes that `s`
     // semidominates. Used to defer the dominator calculation until after
     // linking.
-    var bucket = new HashMap<BB, SmallSet<BB>>(size);
+    var bucket = new LinkedHashMap<BB, SmallSet<BB>>(size);
 
     // Indexed by BB id. Spanning forest for the CFG. `ancestor[n->id]` is an
     // ancestor (not necessarily parent) of `n`, i.e., any node above `n` in
     // the spanning forest. This is gradually built as the algorithm runs; at
     // the end, it will be a spanning tree.
-    var ancestor = new HashMap<BB, BB>(size);
+    var ancestor = new LinkedHashMap<BB, BB>(size);
 
     // Indexed by BB id. While `ancestor[n->id]` points to some ancestor of
     // `n`, it may skip over some nodes. We need to remember the node along
     // that possibly skipped path (which includes `n` but not
     // `ancestor[n->id]`) which has the semidominator with lowest dfnum; that
     // node is `best[n->id]`.
-    var best = new HashMap<BB, BB>(size);
+    var best = new LinkedHashMap<BB, BB>(size);
 
     // Add the edge `n -> p` (where `p` is the parent of `n`) to the spanning
     // forest, represented by `ancestor`.
@@ -237,6 +242,7 @@ public class DomTree {
       // We haven't visited or numbered `n` yet.
       if (dfnum.getOrDefault(n, 0) == 0) {
         dfnum.put(n, N);
+        vertex.put(N, n);
         parent.put(n, p);
         N++;
 
@@ -250,7 +256,7 @@ public class DomTree {
     // Step 2. Iterate over nodes (skipping the root) in descending dfnum
     // order.
     for (var i = N - 1; i >= 1; --i) {
-      var n = dfnum.inverse().get(i);
+      var n = vertex.get(i);
       var p = parent.get(n);
 
       // Parent of `n` is a candidate semidominator (since it's a proper
@@ -275,7 +281,7 @@ public class DomTree {
           var u = ancestorWithLowestSemi.apply(v);
           s1 = semi.get(u);
         }
-        if (dfnum.getOrDefault(s1, 0) < dfnum.getOrDefault(s)) {
+        if (dfnum.getOrDefault(s1, 0) < dfnum.getOrDefault(s, 0)) {
           // Take the one with the lowest dfnum as the new candidate
           // semidominator. After this loop, we will have found the
           // candidate with the lowest dfnum.
@@ -318,7 +324,7 @@ public class DomTree {
     // Step 4. Iterate over the nodes (skipping the root) in ascending dfnum
     // order.
     for (var i = 1; i < N; ++i) {
-      var n = dfnum.inverse().get(i);
+      var n = vertex.get(i);
       // Perform the deferred dominator calculations, based on the second
       // clause of the Dominator Theorem.
       if (samedom.containsKey(n)) {
@@ -327,6 +333,11 @@ public class DomTree {
         var y = samedom.get(n);
         idoms.put(n, idoms.get(y));
       }
+    }
+
+    // Build the reverse map for fast access.
+    for (var entry : idoms.entrySet()) {
+      idominees.computeIfAbsent(entry.getValue(), k -> new SmallSet<>()).add(entry.getKey());
     }
   }
 
@@ -340,9 +351,18 @@ public class DomTree {
     return cfg.entry();
   }
 
-  /** The immediate dominator of a basic block. */
+  /**
+   * The immediate dominator of a basic block: the block which strictly dominates {@code bb}
+   * (guaranteed to run before), but doesn't strictly dominate any other strict dominator of {@code
+   * bb}.
+   */
   public BB idom(BB bb) {
     return idoms.get(bb);
+  }
+
+  /** The blocks which this one immediately dominates. */
+  public SequencedSet<BB> idominees(BB bb) {
+    return idominees.getOrDefault(bb, LinkedHashSet.newLinkedHashSet(0));
   }
 
   /** The set of BBs dominated by the input set. */
@@ -352,7 +372,6 @@ public class DomTree {
     // - a BB is dominated by the input set if it is contained in the input set.
     // - a BB is dominated by the input set if all its inputs are dominated by
     //   the input set.
-
     var result = new SmallSet<BB>();
     var seen = new SmallSet<BB>();
     var todo = new ArrayDeque<BB>();
@@ -396,22 +415,57 @@ public class DomTree {
     return result;
   }
 
-  /** Does {@code lhs} dominate {@code rhs} (not necessarily immediate)? */
+  /**
+   * Does {@code lhs} dominate {@code rhs} (not necessarily immediate)?
+   *
+   * <p>If so, {@code lhs} <b>equals {@code rhs} or</b> is guaranteed to run before {@code rhs}.
+   */
   public boolean dominates(BB lhs, BB rhs) {
     // Start with node `b`, because `a` dominates `b` if `a` equals `b`. Then
     // walk up the dominator tree, comparing each visited node to `a`.
-    var dominator = rhs;
-    while (dominator != null) {
-      if (dominator == lhs) {
+    var x = rhs;
+    while (x != null) {
+      if (x == lhs) {
         return true;
       }
-      dominator = idoms.get(dominator);
+      x = idoms.get(x);
     }
     return false;
   }
 
-  /** The dominator tree of a basic block. */
-  public Iterable<BB> children(BB bb) {
-    return null;
+  /**
+   * Does {@code lhs} dominate {@code rhs} (not necessarily immediate)?
+   *
+   * <p>If so, {@code lhs} is guaranteed to run before {@code rhs} (and <b>is not {@code rhs}
+   * itself</b>.
+   */
+  public boolean strictlyDominates(BB lhs, BB rhs) {
+    return lhs != rhs && dominates(lhs, rhs);
+  }
+
+  /** Iterate the dominator tree starting from the given node, breadth-first. */
+  public Iterator<BB> dominees(BB start) {
+    return new CfgIterator.DomTreeBfs(this, start);
+  }
+
+  /**
+   * The set of nodes which {@code bb} dominates an immediate predecessor of but does not directly
+   * strictly dominate. Informally, where {@code bb}'s dominance "ends".
+   */
+  public SmallSet<BB> frontier(BB bb) {
+    var result = new SmallSet<BB>();
+    var dominees = new CfgIterator.DomTreeBfs(this, bb);
+    while (dominees.hasNext()) {
+      var cur = dominees.next(d -> strictlyDominates(bb, d));
+      if (!strictlyDominates(bb, cur)) {
+        for (var pred : cur.predecessors()) {
+          if (strictlyDominates(bb, pred)) {
+            result.add(cur);
+            break;
+          }
+        }
+      }
+    }
+    return result;
   }
 }

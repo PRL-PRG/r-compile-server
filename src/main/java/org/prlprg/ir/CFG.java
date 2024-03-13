@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.SequencedSet;
 import java.util.Set;
+import org.prlprg.ir.CfgIterator.DomTreeBfs;
 
 /**
  * IR (intermediate representation) <a
@@ -185,7 +186,7 @@ public class CFG {
    * This overload lets you reuse an existing {@link DomTree} instead of recomputing.
    */
   public Iterable<BB> dominators(DomTree tree) {
-    return () -> new CfgIterator.Dominator(this, tree);
+    return () -> new DomTreeBfs(tree);
   }
 
   /**
