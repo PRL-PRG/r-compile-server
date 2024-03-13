@@ -143,7 +143,7 @@ public final class ConstPool extends ForwardingList<SEXP> {
   private String debugId() {
     // FIXME: this is bad!
     if (consts != null) {
-      return "@" + hashCode();
+      return "@" + Integer.toString(hashCode(), 16);
     } else {
       return "@";
     }

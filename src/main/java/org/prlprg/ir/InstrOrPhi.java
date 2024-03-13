@@ -1,4 +1,4 @@
-package org.prlprg.ir.node;
+package org.prlprg.ir;
 
 import com.google.common.collect.ImmutableList;
 

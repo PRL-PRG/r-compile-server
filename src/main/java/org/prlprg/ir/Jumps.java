@@ -1,7 +1,4 @@
-package org.prlprg.ir.node;
-
-import org.prlprg.ir.BB;
-import org.prlprg.ir.CFG;
+package org.prlprg.ir;
 
 /** {@link Jump.Data} pattern-matchable records. */
 public class Jumps {

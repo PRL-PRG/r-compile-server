@@ -1,7 +1,6 @@
-package org.prlprg.ir.node;
+package org.prlprg.ir;
 
 import com.google.common.collect.ImmutableList;
-import org.prlprg.ir.CFG;
 
 /**
  * IR instruction which isn't the final instruction of a basic block and doesn't affect control

@@ -1,12 +1,10 @@
 package org.prlprg.ir;
 
 import javax.annotation.Nullable;
-import org.prlprg.ir.node.Instr;
-import org.prlprg.ir.node.Jump;
-import org.prlprg.ir.node.Node;
-import org.prlprg.ir.node.NodeId;
-import org.prlprg.ir.node.Phi;
-import org.prlprg.ir.node.Stmt;
+import org.prlprg.ir.Instr;
+import org.prlprg.ir.Jump;
+import org.prlprg.ir.Node;
+import org.prlprg.ir.NodeId;
 
 /** An individual operation performed on a graph (including basic block or instruction). Every
  * single CFG operation can produce one of these.

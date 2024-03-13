@@ -1,7 +1,6 @@
-package org.prlprg.ir.node;
+package org.prlprg.ir;
 
 import com.google.common.collect.ImmutableList;
-import org.prlprg.ir.CFG;
 import org.prlprg.ir.type.RType;
 import org.prlprg.ir.type.RTypes;
 import org.prlprg.sexp.*;

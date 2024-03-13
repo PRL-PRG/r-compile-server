@@ -1,4 +1,4 @@
-package org.prlprg.ir.node;
+package org.prlprg.ir;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Streams;
@@ -7,8 +7,6 @@ import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.RecordComponent;
 import java.util.Arrays;
 import java.util.Collection;
-import org.prlprg.ir.BB;
-import org.prlprg.ir.CFG;
 import org.prlprg.ir.type.RType;
 import org.prlprg.util.Reflection;
 

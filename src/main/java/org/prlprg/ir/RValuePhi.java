@@ -1,6 +1,5 @@
-package org.prlprg.ir.node;
+package org.prlprg.ir;
 
-import org.prlprg.ir.CFG;
 import org.prlprg.ir.type.RType;
 import org.prlprg.ir.type.RTypes;
 
@@ -12,8 +11,8 @@ import org.prlprg.ir.type.RTypes;
 public interface RValuePhi extends Phi<RValue>, RValue {}
 
 final class RValuePhiImpl extends PhiImpl<RValue> implements RValuePhi {
-  RValuePhiImpl(CFG cfg) {
-    super(RValue.class, cfg);
+  RValuePhiImpl(CFG cfg, Input<RValue> firstInput) {
+    super(RValue.class, cfg, firstInput);
   }
 
   @Override

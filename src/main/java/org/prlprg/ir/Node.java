@@ -1,8 +1,7 @@
-package org.prlprg.ir.node;
+package org.prlprg.ir;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import org.prlprg.ir.CFG;
 
 /** IR (intermediate representation) node; value or instruction. */
 public interface Node {
@@ -25,7 +24,7 @@ public interface Node {
    *   <li>Global node ids don't start with {@code %}, so they won't conflict with local nodes.
    *   <li>Local instructions start with {@code %} followed by a brief description, and then a
    *       number if needed to disambiguate them from other local nodes. Use {@link
-   *       CFG#localInstrId(String)} to create.
+   *       CFG#nextNodeId(String)} to create.
    *   <li>Phis start with {@code φ} followed by a brief description. The description is chosen from
    *       the incoming nodes blocks and is guaranteed to be unique without a disambiguating number.
    *   <li>Derived nodes from instructions with multiple return values have the id {@code

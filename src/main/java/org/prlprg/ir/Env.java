@@ -1,4 +1,4 @@
-package org.prlprg.ir.node;
+package org.prlprg.ir;
 
 import javax.annotation.Nullable;
 import org.prlprg.ir.type.RType;

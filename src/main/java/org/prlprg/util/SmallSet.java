@@ -2,9 +2,10 @@ package org.prlprg.util;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
-import java.util.Set;
+import java.util.SequencedSet;
 
 /**
  * Set backed by an array, so it's good for sets which will only contain at most a few elements.
@@ -13,9 +14,17 @@ import java.util.Set;
  * <p><a
  * href="https://stackoverflow.com/questions/12346594/small-sets-in-java-which-datastructure">Source</a>
  */
-public class SmallSet<T> implements Set<T> {
+public class SmallSet<T> implements SequencedSet<T> {
   private Object[] array;
   private int size = 0;
+
+  /**
+   * Create a new SmallSet with a default capacity of 4. If the capacity is exceeded, it will
+   * reallocate.
+   */
+  public SmallSet() {
+    this(4);
+  }
 
   /**
    * Create a new SmallSet with the given capacity. If the capacity is exceeded, it will reallocate.
@@ -29,6 +38,14 @@ public class SmallSet<T> implements Set<T> {
   @SuppressWarnings("unchecked")
   public T get(int position) {
     return (T) array[position];
+  }
+
+  /** Remove the element which, since this is backed by an array, is stored at the given index. */
+  public void removeAt(int position) {
+    if (position < size - 1) {
+      System.arraycopy(array, position + 1, array, position, size - position - 1);
+    }
+    size--;
   }
 
   @Override
@@ -60,10 +77,7 @@ public class SmallSet<T> implements Set<T> {
   public boolean remove(Object o) {
     var index = Arrays.binarySearch(array, 0, size, o, Comparator.comparingInt(Object::hashCode));
     if (index >= 0) {
-      if (index < size - 1) {
-        System.arraycopy(array, index + 1, array, index, size - index - 1);
-      }
-      size--;
+      removeAt(index);
       return true;
     }
     return false;
@@ -143,6 +157,11 @@ public class SmallSet<T> implements Set<T> {
       public T next() {
         return get(index++);
       }
+
+      @Override
+      public void remove() {
+        removeAt(index);
+      }
     };
   }
 
@@ -163,5 +182,101 @@ public class SmallSet<T> implements Set<T> {
       }
       return a;
     }
+  }
+
+  @Override
+  public SequencedSet<T> reversed() {
+    return new SequencedSet<>() {
+      @Override
+      public SequencedSet<T> reversed() {
+        return SmallSet.this;
+      }
+
+      @Override
+      public int size() {
+        return SmallSet.this.size();
+      }
+
+      @Override
+      public boolean isEmpty() {
+        return SmallSet.this.isEmpty();
+      }
+
+      @Override
+      public boolean contains(Object o) {
+        return SmallSet.this.contains(o);
+      }
+
+      @Override
+      public Iterator<T> iterator() {
+        return new Iterator<>() {
+          private int index = size;
+
+          @Override
+          public boolean hasNext() {
+            return index > 0;
+          }
+
+          @Override
+          public T next() {
+            return get(--index);
+          }
+
+          @Override
+          public void remove() {
+            removeAt(index);
+          }
+        };
+      }
+
+      @Override
+      public Object[] toArray() {
+        var array = SmallSet.this.toArray();
+        Collections.reverse(Arrays.asList(array));
+        return array;
+      }
+
+      @Override
+      public <T1> T1[] toArray(T1[] a) {
+        var array = SmallSet.this.toArray(a);
+        Collections.reverse(Arrays.asList(array));
+        return array;
+      }
+
+      @Override
+      public boolean add(T t) {
+        return SmallSet.this.add(t);
+      }
+
+      @Override
+      public boolean remove(Object o) {
+        return SmallSet.this.remove(o);
+      }
+
+      @Override
+      public boolean containsAll(Collection<?> c) {
+        return SmallSet.this.containsAll(c);
+      }
+
+      @Override
+      public boolean addAll(Collection<? extends T> c) {
+        return SmallSet.this.addAll(c);
+      }
+
+      @Override
+      public boolean removeAll(Collection<?> c) {
+        return SmallSet.this.removeAll(c);
+      }
+
+      @Override
+      public boolean retainAll(Collection<?> c) {
+        return SmallSet.this.retainAll(c);
+      }
+
+      @Override
+      public void clear() {
+        SmallSet.this.clear();
+      }
+    };
   }
 }

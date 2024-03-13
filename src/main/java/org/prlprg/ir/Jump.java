@@ -1,16 +1,18 @@
-package org.prlprg.ir.node;
+package org.prlprg.ir;
 
-import com.google.common.collect.ImmutableCollection;
 import com.google.common.collect.ImmutableList;
 import java.util.Arrays;
-import org.prlprg.ir.BB;
-import org.prlprg.ir.CFG;
+import java.util.SequencedCollection;
 import org.prlprg.util.Reflection;
 
 /** IR instruction which is the final instruction and outgoing edge of a basic block. */
 public non-sealed interface Jump extends Instr {
-  /** The BBs that this jump can go to. */
-  ImmutableCollection<BB> targets();
+  /**
+   * (A view of) {@link BB}s that this jump can go to.
+   *
+   * <p>These are ordered to ensure deterministic traversal.
+   */
+  SequencedCollection<BB> targets();
 
   @Override
   Data<?> data();
@@ -24,7 +26,7 @@ abstract non-sealed class JumpImpl<D extends Jump.Data<?>> extends InstrImpl<D> 
   }
 
   @Override
-  public ImmutableCollection<BB> targets() {
+  public SequencedCollection<BB> targets() {
     // Reflectively get all BB record components
     var cls = data().getClass();
     assert cls.isRecord() : "Instr.Data must be a record";

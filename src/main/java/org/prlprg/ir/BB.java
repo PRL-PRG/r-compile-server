@@ -1,19 +1,25 @@
 package org.prlprg.ir;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.NoSuchElementException;
+import java.util.SequencedCollection;
+import java.util.SequencedSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
-import org.prlprg.ir.node.Instr;
-import org.prlprg.ir.node.InstrOrPhi;
-import org.prlprg.ir.node.Jump;
-import org.prlprg.ir.node.Node;
-import org.prlprg.ir.node.Phi;
-import org.prlprg.ir.node.Stmt;
+import org.prlprg.ir.Instr;
+import org.prlprg.ir.InstrOrPhi;
+import org.prlprg.ir.Jump;
+import org.prlprg.ir.Node;
 import org.prlprg.util.SmallSet;
 
 /**
@@ -24,18 +30,15 @@ import org.prlprg.util.SmallSet;
 public final class BB {
   private final CFG parent;
   private final BBId id;
-  private final Set<BB> predecessors = new SmallSet<>(4);
-  private final Set<Phi> phis = new SmallSet<>(4);
+  private final List<BB> predecessors = new ArrayList<>(4);
+  // These are ordered to ensure deterministic traversal
+  private final SequencedSet<Phi<?>> phis = new LinkedHashSet<>();
   private final List<Stmt> stmts = new ArrayList<>();
   private @Nullable Jump jump = null;
 
   BB(CFG parent, String desc) {
     this.parent = parent;
-    this.id = new BBIdImpl(parent.nextBbId(desc));
-  }
-
-  BB(CFG parent) {
-    this(parent, "");
+    this.id = new BBIdImpl(parent.nextBBId(desc));
   }
 
   /** CFG containing this block. */
@@ -48,6 +51,50 @@ public final class BB {
     return id;
   }
 
+  /** Returns (a view of) the BBs whose jumps point to this.
+   *
+   * <p>These are ordered to ensure deterministic traversal.*/
+  public SequencedCollection<BB> predecessors() {
+    return Collections.unmodifiableSequencedCollection(predecessors);
+  }
+
+  /** Returns (a view of) the statements in this BB. */
+  public List<Stmt> stmts() {
+    return Collections.unmodifiableList(stmts);
+  }
+
+  /** Returns the statement at the given index in this BB.
+   *
+   * @throws IndexOutOfBoundsException If the index is out of range.
+   */
+  public Stmt stmt(int index) {
+    return stmts.get(index);
+  }
+
+  /** Returns the index of the given statement in this BB.
+   *
+   * @throws NoSuchElementException If the statement isn't in this BB.
+   */
+  public int indexOf(Stmt stmt) {
+    int index = stmts.indexOf(stmt);
+    if (index == -1) {
+      throw new NoSuchElementException("Not in " + id() + ": " + stmt);
+    }
+    return index;
+  }
+
+  /** Returns this BB's jump. */
+  public @Nullable Jump jump() {
+    return jump;
+  }
+
+  /** Returns (a view of) the BBs this one's jump points to.
+   *
+   * <p>These are ordered to ensure deterministic traversal.*/
+  public SequencedCollection<BB> successors() {
+    return jump == null ? List.of() : Collections.unmodifiableSequencedCollection(jump.targets());
+  }
+
   /**
    * Add an empty φ node for nodes of the given class to this BB and return it. The {@link Phi}
    * should implement the necessary superclass so that it's acceptable to replace a node of this
@@ -55,8 +102,8 @@ public final class BB {
    *
    * @throws UnsupportedOperationException If there's no φ type implemented for the given class.
    */
-  public Phi addPhi(Class<? extends Node> nodeClass) {
-    var phi = Phi.forClass(nodeClass, cfg());
+  public <N extends Node> Phi<N> addPhi(Class<N> nodeClass, BB firstIncomingBB, N firstInput) {
+    var phi = Phi.forClass(nodeClass, cfg(), firstIncomingBB, firstInput);
     phis.add(phi);
     return phi;
   }

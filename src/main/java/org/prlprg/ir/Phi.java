@@ -1,4 +1,4 @@
-package org.prlprg.ir.node;
+package org.prlprg.ir;
 
 import com.google.common.collect.ImmutableList;
 import com.pushtorefresh.javac_warning_annotation.Warning;
@@ -6,8 +6,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Stream;
-import org.prlprg.ir.BB;
-import org.prlprg.ir.CFG;
 
 /**
  * <a
@@ -31,9 +29,12 @@ public non-sealed interface Phi<N extends Node> extends InstrOrPhi {
    */
   @SuppressWarnings("unchecked")
   @Warning("Call BB.addPhi instead.")
-  static <N extends Node> Phi<N> forClass(Class<N> nodeClass, CFG cfg) {
+  static <N extends Node> Phi<N> forClass(
+      Class<N> nodeClass, CFG cfg, BB firstIncomingBB, N firstNode) {
+    var firstInput = new Input<>(firstIncomingBB, firstNode);
+
     if (nodeClass == RValue.class) {
-      return (Phi<N>) new RValuePhiImpl(cfg);
+      return (Phi<N>) new RValuePhiImpl(cfg, firstInput);
     } else {
       throw new UnsupportedOperationException(
           "No φ type implemented for the given class: " + nodeClass);
@@ -119,10 +120,10 @@ abstract class PhiImpl<N extends Node> implements Phi<N> {
   private final NodeId<N> id;
   private final List<Input<N>> inputs = new ArrayList<>();
 
-  PhiImpl(Class<N> nodeClass, CFG cfg) {
+  PhiImpl(Class<N> nodeClass, CFG cfg, Input<N> firstInput) {
     this.nodeClass = nodeClass;
     this.cfg = cfg;
-    id = new NodeId<N>(nodeClass, "φ" + TODO);
+    id = new PhiId<>(nodeClass, cfg, firstInput);
   }
 
   @Override
