@@ -471,6 +471,7 @@ public class Compiler {
           case "$<-" -> this::inlineDollarAssign;
           case "[<-" -> (flhs, call) -> inlineSquareBracketAssign(false, flhs, call);
           case "[[<-" -> (flhs, call) -> inlineSquareBracketAssign(true, flhs, call);
+          case "@<-" -> this::inlineSlotAssign;
           default -> null;
         };
 
@@ -1846,6 +1847,19 @@ public class Compiler {
     checkTailCall();
 
     return true;
+  }
+
+  private boolean inlineSlotAssign(FlattenLHS flhs, LangSXP call) {
+    var place = flhs.temp();
+
+    if (!dotsOrMissing(place.args()) && place.args().size() == 2 && place.args().get(1).value() instanceof RegSymSXP s) {
+      var newPlace = SEXPs.lang(place.fun(), place.args().set(1, null, SEXPs.string(s.name())));
+      var vexpr = call.args().values().getLast();
+      compileSetterCall(new FlattenLHS(flhs.original(), newPlace), vexpr);
+      return true;
+    } else {
+      return false;
+    }
   }
 
   private boolean compileSuppressingUndefined(LangSXP call) {

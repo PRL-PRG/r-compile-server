@@ -480,6 +480,18 @@ function() {
 """);
   }
 
+  @Test
+  public void inlineSlotAssign() {
+    assertBytecode(
+        """
+function() {
+  setClass("A", slots = list(x = "numeric"))
+  a <- new("A", x = 42)
+  a@x <- 43
+}
+""");
+  }
+
   private void assertBytecode(String code) {
     assertBytecode(code, 2);
   }
