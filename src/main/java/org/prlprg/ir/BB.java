@@ -7,6 +7,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -16,6 +17,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
+import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.ir.Instr;
 import org.prlprg.ir.InstrOrPhi;
 import org.prlprg.ir.Jump;
@@ -27,7 +29,7 @@ import org.prlprg.util.SmallSet;
  * href="https://en.wikipedia.org/wiki/Basic_block">basic-block</a> (straight-line sequence of
  * {@link Node}s).
  */
-public final class BB {
+public final class BB implements Iterable<InstrOrPhi> {
   private final CFG parent;
   private final BBId id;
   private final List<BB> predecessors = new ArrayList<>(4);
@@ -51,15 +53,80 @@ public final class BB {
     return id;
   }
 
+  /** (A view of) the basic block's children: phis, statements, and jump.
+   *
+   * <p>Be aware that mutating the block will affect this iterator the same way it would be
+   * affected while iterating {@link #stmts()}, or will affect the jump before it's reached. */
+  public @UnmodifiableView Iterator<InstrOrPhi> iterator() {
+    return new Iterator<>() {
+      private int i = 0;
+      private final Iterator<Phi<?>> phis = BB.this.phis.iterator();
+      private final Iterator<Stmt> stmts = BB.this.stmts.iterator();
+
+      @Override
+      public boolean hasNext() {
+        return i < 3;
+      }
+
+      @Override
+      public InstrOrPhi next() {
+        if (i == 0) {
+          if (phis.hasNext()) {
+            return phis.next();
+          }
+          i++;
+        }
+        if (i == 1) {
+          if (stmts.hasNext()) {
+            return stmts.next();
+          }
+          i++;
+        }
+        if (i == 2) {
+          if (jump != null) {
+            i++;
+            return jump;
+          }
+        }
+        throw new NoSuchElementException();
+      }
+
+      @Override
+      public void remove() {
+        switch (i) {
+          case 0 -> phis.remove();
+          case 1 -> stmts.remove();
+          case 2 -> setJump(null);
+          default -> throw new IllegalStateException();
+        }
+      }
+    };
+  }
+
+  /** #phis + #instrs + (jump ? 1 : 0) */
+  public int size() {
+    return phis.size() + stmts.size() + (jump == null ? 0 : 1);
+  }
+
   /** Returns (a view of) the BBs whose jumps point to this.
    *
    * <p>These are ordered to ensure deterministic traversal.*/
-  public SequencedCollection<BB> predecessors() {
+  public @UnmodifiableView SequencedCollection<BB> predecessors() {
     return Collections.unmodifiableSequencedCollection(predecessors);
   }
 
+  /** Whether this block has a single predecessor. */
+  public boolean hasSinglePredecessor() {
+    return predecessors.size() == 1;
+  }
+
+  /** If this block has exactly one predecessor, returns it, otherwise {@code null}. */
+  public @Nullable BB onlyPredecessor() {
+    return hasSinglePredecessor() ? predecessors.getFirst() : null;
+  }
+
   /** Returns (a view of) the statements in this BB. */
-  public List<Stmt> stmts() {
+  public @UnmodifiableView List<Stmt> stmts() {
     return Collections.unmodifiableList(stmts);
   }
 
@@ -91,7 +158,7 @@ public final class BB {
   /** Returns (a view of) the BBs this one's jump points to.
    *
    * <p>These are ordered to ensure deterministic traversal.*/
-  public SequencedCollection<BB> successors() {
+  public @UnmodifiableView SequencedCollection<BB> successors() {
     return jump == null ? List.of() : Collections.unmodifiableSequencedCollection(jump.targets());
   }
 

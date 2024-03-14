@@ -7,6 +7,8 @@ import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.RecordComponent;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
+import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.ir.type.RType;
 import org.prlprg.util.Reflection;
 
@@ -21,8 +23,10 @@ import org.prlprg.util.Reflection;
  * take {@link Instr.Data} as an argument and construct the {@link Instr} themselves.
  */
 public sealed interface Instr extends InstrOrPhi permits Jump, Stmt {
-  /** The instruction's arguments, which are the other nodes it depends on. */
-  ImmutableList<Node> args();
+  /** (A view of) the instruction's arguments, which are the other nodes it depends on. */
+  @Override
+  @UnmodifiableView
+  List<Node> args();
 
   /**
    * The instruction's return values, which other nodes may depend on. If the instruction produces a

@@ -51,6 +51,12 @@
       <version>4.8.3</version>
       <optional>true</optional>
     </dependency>
+    <!-- JetBrains annotations, specifically for `@Contract` and `@UnmodifiableView` -->
+    <dependency>
+      <groupId>org.jetbrains</groupId>
+      <artifactId>annotations</artifactId>
+      <version>24.1.0</version>
+    </dependency>
     <!-- javac-warning-annotation, @Warning annotation so we can annotate unsafe methods -->
     <dependency>
       <groupId>com.pushtorefresh</groupId>

@@ -3,6 +3,7 @@ package org.prlprg.ir;
 import com.google.common.collect.ImmutableList;
 import java.util.Arrays;
 import java.util.SequencedCollection;
+import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.util.Reflection;
 
 /** IR instruction which is the final instruction and outgoing edge of a basic block. */
@@ -12,7 +13,7 @@ public non-sealed interface Jump extends Instr {
    *
    * <p>These are ordered to ensure deterministic traversal.
    */
-  SequencedCollection<BB> targets();
+  @UnmodifiableView SequencedCollection<BB> targets();
 
   @Override
   Data<?> data();

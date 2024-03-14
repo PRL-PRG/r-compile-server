@@ -10,6 +10,7 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
+import org.jetbrains.annotations.UnmodifiableView;
 
 /** Iterate every {@link BB} in a {@link CFG} in some order. */
 public abstract sealed class CfgIterator implements Iterator<BB> {
@@ -24,6 +25,23 @@ public abstract sealed class CfgIterator implements Iterator<BB> {
     remainingBBIds = new HashSet<>(cfg.bbIds());
   }
 
+  /**
+   * Returns the next element (see {@link #next()}), except applies the predicate and if it returns
+   * {@code false}, will skip the nodes the next would add to the worklist (note that another node
+   * may add them to the worklist later, so any node in particular may only be delayed).
+   */
+  public abstract BB next(Predicate<BB> predicate);
+
+  /**
+   * Iterates the remaining elements, except the consumer also returns a boolean that indicates
+   * whether to delay or skip subsequent nodes in the same way as {@link #next(Predicate)}.
+   */
+  public void forEachRemaining1(Predicate<BB> consumer) {
+    while (hasNext()) {
+      next(consumer);
+    }
+  }
+
   @Override
   public boolean hasNext() {
     return !worklist.isEmpty();
@@ -34,13 +52,6 @@ public abstract sealed class CfgIterator implements Iterator<BB> {
     return next(bb -> true);
   }
 
-  /**
-   * Returns the next element (see {@link #next()}), except applies the predicate and if it returns
-   * {@code false}, will skip the nodes the next would add to the worklist (note that another node
-   * may add them to the worklist later, so any node in particular may only be delayed).
-   */
-  public abstract BB next(Predicate<BB> predicate);
-
   @Override
   public void remove() {
     if (current == null) {
@@ -50,6 +61,7 @@ public abstract sealed class CfgIterator implements Iterator<BB> {
   }
 
   /** (A view of) blocks yet to be iterated. */
+  @UnmodifiableView
   Set<BBId> remainingBBIds() {
     return Collections.unmodifiableSet(remainingBBIds);
   }

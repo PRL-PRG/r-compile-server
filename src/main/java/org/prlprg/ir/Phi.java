@@ -3,9 +3,14 @@ package org.prlprg.ir;
 import com.google.common.collect.ImmutableList;
 import com.pushtorefresh.javac_warning_annotation.Warning;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.stream.Stream;
+import org.jetbrains.annotations.UnmodifiableView;
+import org.prlprg.util.MapListView;
 
 /**
  * <a
@@ -34,7 +39,7 @@ public non-sealed interface Phi<N extends Node> extends InstrOrPhi {
     var firstInput = new Input<>(firstIncomingBB, firstNode);
 
     if (nodeClass == RValue.class) {
-      return (Phi<N>) new RValuePhiImpl(cfg, firstInput);
+      return (Phi<N>) new RValuePhiImpl(cfg, (Input<RValue>) firstInput);
     } else {
       throw new UnsupportedOperationException(
           "No φ type implemented for the given class: " + nodeClass);
@@ -54,8 +59,8 @@ public non-sealed interface Phi<N extends Node> extends InstrOrPhi {
     return (N) this;
   }
 
-  /** (Readonly) list of inputs to this φ-node. */
-  List<Input<N>> inputs();
+  /** (A view of) inputs to this φ-node. */
+  @UnmodifiableView List<Input<N>> inputs();
 
   /** Stream input {@link Node}s. */
   Stream<N> inputNodes();
@@ -99,6 +104,12 @@ public non-sealed interface Phi<N extends Node> extends InstrOrPhi {
    */
   void removeInputs(Iterable<BB> incomingBbs);
 
+  /** (A view of) the nodes in {@link Phi#inputs()}. */
+  @Override
+  default @UnmodifiableView List<Node> args() {
+    return new MapListView<>(inputs(), Input::node);
+  }
+
   /**
    * Returns {@code this}, since a phi is an instruction which simply "returns" one of its
    * arguments.
@@ -109,7 +120,7 @@ public non-sealed interface Phi<N extends Node> extends InstrOrPhi {
   }
 
   @Override
-  NodeId<N> id();
+  NodeId<Phi<N>> id();
 
   record Input<N extends Node>(BB incomingBb, N node) {}
 }
@@ -117,13 +128,13 @@ public non-sealed interface Phi<N extends Node> extends InstrOrPhi {
 abstract class PhiImpl<N extends Node> implements Phi<N> {
   private final Class<N> nodeClass;
   private final CFG cfg;
-  private final NodeId<N> id;
+  private final PhiId<Phi<N>> id;
   private final List<Input<N>> inputs = new ArrayList<>();
 
   PhiImpl(Class<N> nodeClass, CFG cfg, Input<N> firstInput) {
     this.nodeClass = nodeClass;
     this.cfg = cfg;
-    id = new PhiId<>(nodeClass, cfg, firstInput);
+    id = new PhiId<>(this, cfg, firstInput.node().id());
   }
 
   @Override
@@ -186,7 +197,7 @@ abstract class PhiImpl<N extends Node> implements Phi<N> {
   }
 
   @Override
-  public NodeId<N> id() {
+  public NodeId<Phi<N>> id() {
     return id;
   }
 

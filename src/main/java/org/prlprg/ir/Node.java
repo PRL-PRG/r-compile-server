@@ -32,6 +32,12 @@ public interface Node {
    * </ul>
    */
   NodeId<?> id();
+
+  /**
+   * The instruction that created this node. If this node is a phi or instruction, it will be
+   * itself. If this node is a global, it will be {@code null}.
+   */
+  @Nullable InstrOrPhi origin();
 }
 
 /** An IR node with a non-null {@link CFG}. */
