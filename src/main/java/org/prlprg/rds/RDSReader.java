@@ -12,7 +12,6 @@ import java.util.Objects;
 import javax.annotation.Nullable;
 import org.prlprg.RSession;
 import org.prlprg.bc.Bc;
-import org.prlprg.bc.BcFromRawException;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.*;
@@ -194,11 +193,8 @@ public class RDSReader implements Closeable {
     }
 
     var consts = readByteCodeConsts(reps);
-    try {
-      return SEXPs.bcode(Bc.fromRaw(code.data(), consts));
-    } catch (BcFromRawException e) {
-      throw new RDSException("Error reading bytecode", e);
-    }
+    var factory = new GNURByteCodeDecoderFactory(code.data(), consts);
+    return SEXPs.bcode(factory.create());
   }
 
   private List<SEXP> readByteCodeConsts(SEXP[] reps) throws IOException {

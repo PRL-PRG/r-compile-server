@@ -16,8 +16,6 @@ import org.prlprg.sexp.*;
 //   - especially the clumsy ListSXP
 
 // TODO: 11.4 Inlining simple .Internal functions
-// TODO: 13 Assignments expressions
-// TODO: 16 Improved subset and sub-assignment handling
 // TODO: simple interpreter for the constantFoldCode
 @SuppressWarnings("PMD.UnnecessaryImport")
 public class Compiler {

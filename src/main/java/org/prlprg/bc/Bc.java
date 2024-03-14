@@ -24,15 +24,6 @@ public record Bc(BcCode code, ConstPool consts) {
    */
   public static final int R_BC_VERSION = 12;
 
-  /**
-   * Create from the raw GNU-R representation, bytecodes not including the initial version number.
-   */
-  public static Bc fromRaw(ImmutableIntArray bytecodes, List<SEXP> consts)
-      throws BcFromRawException {
-    var factory = new FromRawBCFactory(bytecodes, consts);
-    return factory.create();
-  }
-
   @Override
   public String toString() {
     return code + "\n" + consts;

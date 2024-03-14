@@ -1,19 +1,20 @@
-package org.prlprg.bc;
+package org.prlprg.rds;
 
 import com.google.common.primitives.ImmutableIntArray;
 import java.util.List;
+import org.prlprg.bc.*;
 import org.prlprg.sexp.IntSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
 
-class FromRawBCFactory {
+class GNURByteCodeDecoderFactory {
   private final ImmutableIntArray byteCode;
   private final ConstPool.Builder cpb;
   private final BcCode.Builder cbb;
   private final LabelMapping labelMapping;
   int curr;
 
-  FromRawBCFactory(ImmutableIntArray byteCode, List<SEXP> consts) {
+  GNURByteCodeDecoderFactory(ImmutableIntArray byteCode, List<SEXP> consts) {
     this.byteCode = byteCode;
 
     cpb = new ConstPool.Builder(consts);
@@ -29,12 +30,12 @@ class FromRawBCFactory {
     return new Bc(code, pool);
   }
 
-  private BcCode buildCode() throws BcFromRawException {
+  private BcCode buildCode() {
     if (byteCode.isEmpty()) {
-      throw new BcFromRawException("Bytecode is empty, needs at least version number");
+      throw new IllegalArgumentException("Bytecode is empty, needs at least version number");
     }
     if (byteCode.get(0) != Bc.R_BC_VERSION) {
-      throw new BcFromRawException("Unsupported bytecode version: " + byteCode.get(0));
+      throw new IllegalArgumentException("Unsupported bytecode version: " + byteCode.get(0));
     }
 
     int sanityCheckJ = 0;
@@ -57,8 +58,8 @@ class FromRawBCFactory {
               "BcInstrs.fromRaw and BcInstrs.sizeFromRaw are out of sync, at instruction " + instr,
               e);
         }
-      } catch (BcFromRawException e) {
-        throw new BcFromRawException(
+      } catch (IllegalArgumentException e) {
+        throw new IllegalArgumentException(
             "malformed bytecode at " + curr + "\nBytecode up to this point: " + cbb.build(), e);
       }
     }
@@ -71,13 +72,14 @@ class FromRawBCFactory {
     try {
       op = BcOp.valueOf(byteCode.get(curr++));
     } catch (IllegalArgumentException e) {
-      throw new BcFromRawException("invalid opcode (instruction) at " + byteCode.get(curr - 1));
+      throw new IllegalArgumentException(
+          "invalid opcode (instruction) at " + byteCode.get(curr - 1));
     }
 
     try {
       return switch (op) {
         case BCMISMATCH ->
-            throw new BcFromRawException("invalid opcode " + BcOp.BCMISMATCH.value());
+            throw new IllegalArgumentException("invalid opcode " + BcOp.BCMISMATCH.value());
         case RETURN -> new BcInstr.Return();
         case GOTO -> new BcInstr.Goto(labelMapping.make(byteCode.get(curr++)));
         case BRIFNOT ->
@@ -278,9 +280,9 @@ class FromRawBCFactory {
         case DECLNKSTK -> new BcInstr.DecLnkStk();
       };
     } catch (IllegalArgumentException e) {
-      throw new BcFromRawException("invalid opcode " + op + " (arguments)", e);
+      throw new IllegalArgumentException("invalid opcode " + op + " (arguments)", e);
     } catch (ArrayIndexOutOfBoundsException e) {
-      throw new BcFromRawException(
+      throw new IllegalArgumentException(
           "invalid opcode " + op + " (arguments, unexpected end of bytecode stream)");
     }
   }
@@ -349,8 +351,8 @@ class LabelMapping {
         var size = 1 + op.nArgs();
         builder.step(size, 1);
         i += size;
-      } catch (BcFromRawException e) {
-        throw new BcFromRawException(
+      } catch (IllegalArgumentException e) {
+        throw new IllegalArgumentException(
             "malformed bytecode at " + i + "\nBytecode up to this point: " + builder.build(), e);
       }
     }

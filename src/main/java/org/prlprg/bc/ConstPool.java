@@ -113,36 +113,36 @@ public final class ConstPool extends ForwardingList<SEXP> {
       return new ConstPool(ImmutableList.copyOf(values));
     }
 
-    Idx<SEXP> indexAny(int i) {
+    public Idx<SEXP> indexAny(int i) {
       return checkedIndex(new Idx<>(i, SEXP.class));
     }
 
-    Idx<LangSXP> indexLang(int i) {
+    public Idx<LangSXP> indexLang(int i) {
       return checkedIndex(new Idx<>(i, LangSXP.class));
     }
 
-    Idx<RegSymSXP> indexSym(int i) {
+    public Idx<RegSymSXP> indexSym(int i) {
       return checkedIndex(new Idx<>(i, RegSymSXP.class));
     }
 
     // FIXME: do we need this?
-    @Nullable Idx<LangSXP> indexLangOrNilIfNegative(int i) {
+    public @Nullable Idx<LangSXP> indexLangOrNilIfNegative(int i) {
       return i >= 0 ? orNil(i, LangSXP.class) : null;
     }
 
-    @Nullable Idx<StrOrRegSymSXP> indexStrOrSymOrNil(int i) {
+    public @Nullable Idx<StrOrRegSymSXP> indexStrOrSymOrNil(int i) {
       return orNil(i, StrOrRegSymSXP.class);
     }
 
-    @Nullable Idx<StrSXP> indexStrOrNil(int i) {
+    public @Nullable Idx<StrSXP> indexStrOrNil(int i) {
       return orNil(i, StrSXP.class);
     }
 
-    @Nullable Idx<IntSXP> indexIntOrNil(int i) {
+    public @Nullable Idx<IntSXP> indexIntOrNil(int i) {
       return orNil(i, IntSXP.class);
     }
 
-    Idx<VecSXP> indexClosure(int i) {
+    public Idx<VecSXP> indexClosure(int i) {
       var idx = checkedIndex(new Idx<>(i, VecSXP.class));
 
       // check vector shape
@@ -160,7 +160,7 @@ public final class ConstPool extends ForwardingList<SEXP> {
       return idx;
     }
 
-    @Nullable <S extends SEXP> Idx<S> orNil(int i, Class<S> clazz) {
+    public @Nullable <S extends SEXP> Idx<S> orNil(int i, Class<S> clazz) {
       var idx = new Idx<>(i, clazz);
       if (validateIndex(idx)) {
         return idx;
