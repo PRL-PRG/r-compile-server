@@ -3,11 +3,8 @@ package org.prlprg.ir;
 import com.google.common.collect.ImmutableList;
 import com.pushtorefresh.javac_warning_annotation.Warning;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
-import java.util.ListIterator;
 import java.util.stream.Stream;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.util.MapListView;
@@ -60,7 +57,8 @@ public non-sealed interface Phi<N extends Node> extends InstrOrPhi {
   }
 
   /** (A view of) inputs to this φ-node. */
-  @UnmodifiableView List<Input<N>> inputs();
+  @UnmodifiableView
+  List<Input<N>> inputs();
 
   /** Stream input {@link Node}s. */
   Stream<N> inputNodes();

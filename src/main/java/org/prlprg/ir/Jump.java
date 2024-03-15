@@ -13,7 +13,8 @@ public non-sealed interface Jump extends Instr {
    *
    * <p>These are ordered to ensure deterministic traversal.
    */
-  @UnmodifiableView SequencedCollection<BB> targets();
+  @UnmodifiableView
+  SequencedCollection<BB> targets();
 
   @Override
   Data<?> data();

@@ -1,9 +1,11 @@
 package org.prlprg.ir;
 
 import javax.annotation.Nullable;
+import org.prlprg.util.NotImplementedError;
 
-/** An individual operation performed on a graph (including basic block or instruction). Every
- * single CFG operation can produce one of these.
+/**
+ * An individual operation performed on a graph (including basic block or instruction). Every single
+ * CFG operation can produce one of these.
  *
  * <p>The purpose of these are for debugging: we can have a history of all the operations performed
  * on a CFG, so when it fails verification, we can see exactly what happened and guess why it didn't
@@ -14,14 +16,16 @@ import javax.annotation.Nullable;
  */
 public sealed interface CFGCommand<Ret> {
 
-  /** Rerun this command on the CFG.
+  /**
+   * Rerun this command on the CFG.
    *
    * @throws IllegalArgumentException If you try to rerun the command and the CFG is in a state that
-   *                                  makes it invalid (guaranteed not to happen if you replay in
-   *                                  the same state as before the command occurred).
+   *     makes it invalid (guaranteed not to happen if you replay in the same state as before the
+   *     command occurred).
    */
   default Ret replay(CFG cfg) {
-    return switch (this) {
+    throw new NotImplementedError();
+    /* return switch (this) {
       case AddBB(var desc) -> cfg.addBB(desc);
       case AddPhi(var bbId, var nodeClass) -> cfg.get(bbId).addPhi(nodeClass);
       case AddStmt(var bbId, var index, var desc, var args) -> cfg.get(bbId).insert(index, desc, args);
@@ -50,15 +54,16 @@ public sealed interface CFGCommand<Ret> {
       case EndSection endSection -> {
         // Do nothing
       }
-    }
+    } */
   }
 
-  /** Run the reverse command on the CFG. If the CFG is in the same state as after the command
+  /**
+   * Run the reverse command on the CFG. If the CFG is in the same state as after the command
    * occurred, it will end up in the state before.
    *
    * @throws IllegalArgumentException If you try to rewind the command and the CFG is in a state
-   *                                  that makes it invalid (guaranteed not to happen if you rewind
-   *                                  in the same state as after the command was recorded).
+   *     that makes it invalid (guaranteed not to happen if you rewind in the same state as after
+   *     the command was recorded).
    */
   default void rewind(CFG cfg) {
     // TODO
@@ -72,36 +77,77 @@ public sealed interface CFGCommand<Ret> {
   // region command subtypes
   /** Command performed on a {@link BB} directly (as opposed to one of its children). */
   sealed interface OnBB<Ret> extends CFGCommand<Ret> {}
+
   /** Command performed on a {@link Stmt} or {@link Phi} inside a {@link BB}. */
-  sealed interface InBB<Ret> extends CFGCommand<Ret> { BBId bbId(); }
+  sealed interface InBB<Ret> extends CFGCommand<Ret> {
+    BBId bbId();
+  }
+
   /** Doesn't do anything but is useful in logs. */
   sealed interface Marker extends CFGCommand<Void> {}
+
   sealed interface AddInstrOrPhi<I extends InstrOrPhi> extends InBB<I> {}
-  sealed interface RemoveInstrOrPhi<I extends InstrOrPhi, Ret> extends InBB<Ret> { NodeId<I> nodeId(); }
-  sealed interface UpdateInstrOrPhi<I extends InstrOrPhi, Ret> extends InBB<Ret> { NodeId<I> nodeId(); }
-  sealed interface UpdateInstr<I extends Instr, D extends Instr.Data<?>> extends UpdateInstrOrPhi<I, D> { D newArgs(); }
+
+  sealed interface RemoveInstrOrPhi<I extends InstrOrPhi, Ret> extends InBB<Ret> {
+    NodeId<I> nodeId();
+  }
+
+  sealed interface UpdateInstrOrPhi<I extends InstrOrPhi, Ret> extends InBB<Ret> {
+    NodeId<I> nodeId();
+  }
+
+  sealed interface UpdateInstr<I extends Instr, D extends Instr.Data<?>>
+      extends UpdateInstrOrPhi<I, D> {
+    D newArgs();
+  }
+
   // endregion
 
   // region commands
   record AddBB(String desc) implements OnBB<BB> {}
-  record AddPhi<N extends Node>(BBId bbId, Class<N> nodeClass, Phi.Input<N> firstInput) implements AddInstrOrPhi<Phi<N>> {}
-  record AddStmt<I extends Stmt>(BBId bbId, int index, String desc, Stmt.Data<I> args) implements AddInstrOrPhi<I> {}
-  record AddJump<I extends Jump>(BBId bbId, String desc, Jump.Data<I> args) implements AddInstrOrPhi<I> {}
+
+  record AddPhi<N extends Node>(BBId bbId, Class<N> nodeClass, Phi.Input<N> firstInput)
+      implements AddInstrOrPhi<Phi<N>> {}
+
+  record AddStmt<I extends Stmt>(BBId bbId, int index, String desc, Stmt.Data<I> args)
+      implements AddInstrOrPhi<I> {}
+
+  record AddJump<I extends Jump>(BBId bbId, String desc, Jump.Data<I> args)
+      implements AddInstrOrPhi<I> {}
 
   record RemoveBB(BBId bbId) implements OnBB<BB> {}
-  record RemovePhi<N extends Node>(BBId bbId, NodeId<Phi<N>> nodeId) implements RemoveInstrOrPhi<Phi<N>, Phi<N>> {}
-  record RemoveStmt<I extends Stmt>(BBId bbId, NodeId<I> nodeId) implements RemoveInstrOrPhi<I, RemovedStmt<I>> {}
-  record RemoveJump<I extends Jump>(BBId bbId, NodeId<I> nodeId) implements RemoveInstrOrPhi<I, I> {}
 
-  record AddPhiInput<N extends Node>(BBId bbId, NodeId<Phi<N>> nodeId, BBId incomingBBId, NodeId<N> inputId) implements UpdateInstrOrPhi<Phi<N>, Phi.Input<N>> {}
-  record RemovePhiInput<N extends Node>(BBId bbId, NodeId<Phi<N>> nodeId, BBId incomingBBId, NodeId<N> inputId) implements UpdateInstrOrPhi<Phi<N>, Phi.Input<N>> {}
-  record UpdateStmt<I extends Stmt>(BBId bbId, NodeId<I> nodeId, @Nullable String newDesc, Stmt.Data<I> newArgs) implements UpdateInstr<I, Stmt.Data<I>> {}
-  record UpdateJump<I extends Jump>(BBId bbId, NodeId<I> nodeId, @Nullable String newDesc, Jump.Data<I> newArgs) implements UpdateInstr<I, Jump.Data<I>> {}
+  record RemovePhi<N extends Node>(BBId bbId, NodeId<Phi<N>> nodeId)
+      implements RemoveInstrOrPhi<Phi<N>, Phi<N>> {}
+
+  record RemoveStmt<I extends Stmt>(BBId bbId, NodeId<I> nodeId)
+      implements RemoveInstrOrPhi<I, RemovedStmt<I>> {}
+
+  record RemoveJump<I extends Jump>(BBId bbId, NodeId<I> nodeId)
+      implements RemoveInstrOrPhi<I, I> {}
+
+  record AddPhiInput<N extends Node>(
+      BBId bbId, NodeId<Phi<N>> nodeId, BBId incomingBBId, NodeId<N> inputId)
+      implements UpdateInstrOrPhi<Phi<N>, Phi.Input<N>> {}
+
+  record RemovePhiInput<N extends Node>(
+      BBId bbId, NodeId<Phi<N>> nodeId, BBId incomingBBId, NodeId<N> inputId)
+      implements UpdateInstrOrPhi<Phi<N>, Phi.Input<N>> {}
+
+  record UpdateStmt<I extends Stmt>(
+      BBId bbId, NodeId<I> nodeId, @Nullable String newDesc, Stmt.Data<I> newArgs)
+      implements UpdateInstr<I, Stmt.Data<I>> {}
+
+  record UpdateJump<I extends Jump>(
+      BBId bbId, NodeId<I> nodeId, @Nullable String newDesc, Jump.Data<I> newArgs)
+      implements UpdateInstr<I, Jump.Data<I>> {}
 
   /** Doesn't do anything but is useful in logs. */
   record BeginSection(String desc) implements Marker {}
+
   /** Doesn't do anything but is useful in logs. */
   record EndSection(String desc) implements Marker {}
+
   // endregion
 
   // region associated types

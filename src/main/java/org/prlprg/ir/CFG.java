@@ -32,6 +32,7 @@ public class CFG {
   private final Map<NodeId<?>, Node> nodes = new HashMap<>();
   private final Map<String, Integer> nextBbIds = new HashMap<>();
   private final Map<String, Integer> nextNodeIds = new HashMap<>();
+  private final @Nullable CFG preHistory = null;
   private final List<CFGAction<?>> history = new ArrayList<>();
 
   /** Create a new CFG, with a single basic block and no instructions. */
@@ -236,7 +237,7 @@ public class CFG {
       if (bb.predecessors().size() < 2 && !bb.phis().isEmpty()) {
         errors.add(new CFGVerifyException.BrokenInvariant("Phi in single-predecessor BB: " + bb.id(), findActionIdx((c, o) ->
             (c instanceof CFGCommand.AddInstrOrPhi<?> add && add.bbId().equals(bb.id()) && o instanceof Phi) ||
-                throw new NotImplementedError("TODO find the RemoveJump or UpdateJump instruction which removed this BB");
+                (c instanceof CFGCommand.RemoveJump<?> remove && remove.)
         )));
       }
 
@@ -281,7 +282,7 @@ public class CFG {
       }
 
       prevBB = bb;
-    });
+    }
 
     for (var remainingBBId : iter.remainingBBIds()) {
       // Every basic block is connected to the entry block.
@@ -293,6 +294,11 @@ public class CFG {
     if (!errors.isEmpty()) {
       throw new CFGVerifyException(this, errors);
     }
+  }
+
+  /** Access a view of the CFG before {@link #history()}. */
+  public CFG preHistory() {
+    // TODO
   }
 
   /**
@@ -341,6 +347,7 @@ public class CFG {
 
   /** Clear the CFG's history. */
   public void clearHistory() {
+    preHistory = clone();
     history.clear();
   }
 
