@@ -67,6 +67,8 @@ public class RDSWriter implements Closeable {
   // See
   // https://github.com/wch/r-source/blob/65892cc124ac20a44950e6e432f9860b1d6e9bf4/src/main/serialize.c#L1021
   public void writeItem(SEXP s) throws IOException {
+    // TODO: write the flags at the beginning.
+
     // ALTREP: TODO
 
     // Persisted through the ref table? TODO
@@ -113,11 +115,7 @@ public class RDSWriter implements Closeable {
 
     // Symbols
     if (s instanceof RegSymSXP sym) {
-      refTable.add(s);
-      out.writeByte((byte) SEXPType.SYM.i);
-      // write the name (cannot be NA)
-      out.writeInt(sym.name().length());
-      out.writeString(sym.name());
+      writeSymbol(sym);
     } else if (s.type() == SEXPType.ENV) {
       refTable.add(s);
 
@@ -136,15 +134,18 @@ public class RDSWriter implements Closeable {
       } else { // Any other env
         out.writeInt(SEXPType.ENV.i);
         out.writeInt(0); // FIXME: should be 1 if locked, 0 if not locked
+        assert s instanceof UserEnvSXP;
+        // TODO
         // Enclosure
         // Frame
         // Hashtab
         // Attributes
+        writeAttributes(s.attributes());
       }
     } else {
       boolean hastag =
           switch (s.type()) {
-            case LIST, LANG, PROM -> false; // we assume no tag
+            case LIST, LANG, PROM -> false; // we assume no tag (will be corrected later for List)
             case CLO -> true;
             default -> false;
           };
@@ -154,21 +155,22 @@ public class RDSWriter implements Closeable {
               && s.attributes() != null
               && !Objects.requireNonNull(s.attributes()).isEmpty();
       // levels in the sxpinfo gp field
-      int flags = packFlags(s.type().i, 0, s.isObject(), hasattr, hastag);
-      out.writeInt(flags);
+
+      var rds_type = new RDSItemType.Sexp(s.type());
+      var flags = new Flags(rds_type, 0, false, s.isObject(), hasattr, hastag, 0);
 
       switch (s) {
-        case ListSXP l -> writeDottedPairObjects(l, hasattr);
-        case LangSXP l -> writeDottedPairObjects(l, hasattr);
-        case PromSXP p -> writeDottedPairObjects(p, hasattr);
-        case CloSXP c -> writeDottedPairObjects(c, hasattr);
+        case ListSXP l -> writeDottedPairObjects(l, hasattr, flags);
+        case LangSXP l -> writeDottedPairObjects(l, hasattr, flags);
+        case PromSXP p -> writeDottedPairObjects(p, hasattr, flags);
+        case CloSXP c -> writeDottedPairObjects(c, hasattr, flags);
           // External pointer
           // weakreference
           // special
           // builtin
-        case StrSXP str -> writeStrSxp(str, hasattr);
-        case VectorSXP vec -> writeVector(vec, hasattr);
-        case BCodeSXP bcode -> writeBCode(bcode);
+        case StrSXP str -> writeStrSxp(str, hasattr, flags.encode());
+        case VectorSXP vec -> writeVector(vec, hasattr, flags.encode());
+        case BCodeSXP bcode -> writeBCode(bcode, flags.encode());
 
         default -> throw new UnsupportedOperationException("Unsupported SEXP type: " + s.type());
       }
@@ -176,27 +178,48 @@ public class RDSWriter implements Closeable {
   }
 
   // Handles LISTSXP (pairlist, LANGSXP, PROMSXP and DOTSXP
-  private void writeDottedPairObjects(SEXP s, boolean hasattr) throws IOException {
+  private void writeDottedPairObjects(SEXP s, boolean hasattr, Flags flags) throws IOException {
+    if (s instanceof ListSXP l && !l.isEmpty() && l.get(0).tag() != null) {
+      var new_flags =
+          new Flags(flags.getType(), 0, flags.isUTF8(), flags.isObject(), false, true, 0);
+      out.writeInt(new_flags.encode());
+    } else {
+      out.writeInt(flags.encode());
+    }
+    // We should write the flag here first
     // first, attributes
     if (hasattr) {
       writeAttributes(Objects.requireNonNull(s.attributes()));
     }
 
-    // tag (except for closures)
-    // TODO
-
-    // car
     switch (s) {
       case LangSXP l -> {
-        for (var i : l.asList()) {
-          writeItem(i);
-        }
+        // write the fun
+        writeItem(l.fun());
+        // write the args
+        writeItem(l.args());
       }
       case ListSXP l -> {
-        for (var i : l) {
-          assert i.tag() != null;
-          writeSymbol(i.tag());
-          writeItem(i.value());
+        int i = 0;
+        for (var e : l) {
+          if (i > 0) {
+            var new_flags =
+                new Flags(
+                    flags.getType(),
+                    0,
+                    flags.isUTF8(),
+                    flags.isObject(),
+                    false,
+                    e.tag() != null,
+                    0);
+            out.writeInt(new_flags.encode());
+          }
+
+          if (e.tag() != null) {
+            writeSymbol(e.tag());
+          }
+          writeItem(e.value());
+          i++;
         }
         writeItem(SEXPs.NULL);
       }
@@ -243,12 +266,14 @@ public class RDSWriter implements Closeable {
   private void writeChars(String s) throws IOException {
     // Never NA because we assume so
     // We only consider scalar Na strings
-    // TODO: write flags also here
+    int flags = packFlags(SEXPType.CHAR.i, 0, false, false, false);
+    out.writeInt(flags);
     out.writeInt(s.length());
     out.writeString(s);
   }
 
-  private void writeStrSxp(StrSXP s, boolean hasattr) throws IOException {
+  private void writeStrSxp(StrSXP s, boolean hasattr, int flags) throws IOException {
+    out.writeInt(flags);
     out.writeInt(s.size());
     for (var str : s) {
       writeChars(str);
@@ -259,7 +284,8 @@ public class RDSWriter implements Closeable {
     }
   }
 
-  private <T> void writeVector(VectorSXP<T> s, boolean hasattr) throws IOException {
+  private <T> void writeVector(VectorSXP<T> s, boolean hasattr, int flags) throws IOException {
+    out.writeInt(flags);
     out.writeInt(s.size());
 
     switch (s) {
@@ -299,16 +325,31 @@ public class RDSWriter implements Closeable {
     }
   }
 
-  private void writeBCode(BCodeSXP s) throws IOException {
+  private void writeBCode(BCodeSXP s, int flags) throws IOException {
+    out.writeInt(flags);
     throw new UnsupportedOperationException("not implemented yet");
   }
 
   private void writeSymbol(SymSXP s) throws IOException {
-    throw new UnsupportedOperationException("not implemented yet");
+    switch (s) {
+      case RegSymSXP regSymSXP -> writeSymbol(regSymSXP);
+      case SpecialSymSXP specialSymSXP when specialSymSXP.isEllipsis() -> {
+        out.writeByte((byte) SEXPType.SYM.i);
+        writeChars("..."); // Really?
+      }
+      default ->
+          throw new UnsupportedOperationException("Unreachable: implemented in special sexps.");
+    }
+  }
+
+  private void writeSymbol(RegSymSXP s) throws IOException {
+    refTable.add(s);
+    writeSymbol(s.name());
   }
 
   private void writeSymbol(String s) throws IOException {
-    throw new UnsupportedOperationException("not implemented yet");
+    out.writeInt(SEXPType.SYM.i);
+    writeChars(s);
   }
 
   @Override

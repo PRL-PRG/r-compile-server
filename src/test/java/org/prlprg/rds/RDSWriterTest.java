@@ -173,4 +173,46 @@ public class RDSWriterTest implements Tests {
       fail("Expected VecSXP");
     }
   }
+
+  @Test
+  public void testList() throws Exception {
+    var elems =
+        new TaggedElem[] {
+          new TaggedElem("a", SEXPs.integer(1)),
+          new TaggedElem("b", SEXPs.logical(Logical.TRUE)),
+          new TaggedElem("c", SEXPs.real(3.14, 2.71))
+        };
+    var list = SEXPs.list(elems, Attributes.NONE);
+    var output = new ByteArrayOutputStream();
+
+    RDSWriter.writeStream(rsession, output, list);
+
+    var input = new ByteArrayInputStream(output.toByteArray());
+    var sexp = RDSReader.readStream(rsession, input);
+
+    if (sexp instanceof ListSXP l) {
+      assertEquals(3, l.size());
+      assertEquals("a", l.get(0).tag());
+      if (l.get(0).value() instanceof IntSXP i) {
+        assertEquals(1, i.get(0));
+      } else {
+        fail("Expected IntSXP for the 1st element of the ListSXP");
+      }
+      assertEquals("b", l.get(1).tag());
+      if (l.get(1).value() instanceof LglSXP lgl) {
+        assertEquals(Logical.TRUE, lgl.get(0));
+      } else {
+        fail("Expected LglSXP for the 2nd element of the ListSXP");
+      }
+      assertEquals("c", l.get(2).tag());
+      if (l.get(2).value() instanceof RealSXP r) {
+        assertEquals(3.14, r.get(0));
+        assertEquals(2.71, r.get(1));
+      } else {
+        fail("Expected RealSXP for the 3rd element of the ListSXP");
+      }
+    } else {
+      fail("Expected ListSXP");
+    }
+  }
 }

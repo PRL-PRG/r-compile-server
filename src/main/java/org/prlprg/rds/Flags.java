@@ -5,6 +5,8 @@ final class Flags {
   private static final int ATTR_MASK = 1 << 9;
   private static final int TAG_MASK = 1 << 10;
 
+  private static final int OBJECT_MASK = 1 << 8;
+
   private final int flags;
 
   public Flags(int flags) {
@@ -20,6 +22,7 @@ final class Flags {
       RDSItemType type,
       int levels,
       boolean isUTF8,
+      boolean isObject,
       boolean hasAttributes,
       boolean hasTag,
       int refIndex) {
@@ -27,6 +30,7 @@ final class Flags {
         type.i()
             | (levels << 12)
             | (isUTF8 ? UTF8_MASK : 0)
+            | (isObject ? OBJECT_MASK : 0)
             | (hasAttributes ? ATTR_MASK : 0)
             | (hasTag ? TAG_MASK : 0)
             | (refIndex << 8);
@@ -42,6 +46,10 @@ final class Flags {
 
   public boolean isUTF8() {
     return (decodeLevels() & UTF8_MASK) != 0;
+  }
+
+  public boolean isObject() {
+    return (flags & OBJECT_MASK) != 0;
   }
 
   public boolean hasAttributes() {
@@ -65,6 +73,8 @@ final class Flags {
         + decodeLevels()
         + ", isUTF8="
         + isUTF8()
+        + ", isObject="
+        + isObject()
         + ", hasAttributes="
         + hasAttributes()
         + ", hasTag="
@@ -72,5 +82,9 @@ final class Flags {
         + ", refIndex="
         + unpackRefIndex()
         + '}';
+  }
+
+  public int encode() {
+    return flags;
   }
 }

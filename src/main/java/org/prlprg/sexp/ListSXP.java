@@ -13,7 +13,8 @@ import java.util.stream.Collectors;
  * @implNote In GNU-R this is represented as a linked list, but we internally use an array-list
  *     because it's more efficient.
  */
-public sealed interface ListSXP extends ListOrVectorSXP<TaggedElem> permits NilSXP, ListSXPImpl {
+public sealed interface ListSXP extends ListOrVectorSXP<TaggedElem>, LangOrListSXP
+    permits NilSXP, ListSXPImpl {
   /**
    * Flatten {@code src} while adding its elements to {@code target}. Ex:
    *
