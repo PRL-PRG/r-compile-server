@@ -1,5 +1,6 @@
 package org.prlprg.sexp;
 
+import java.util.Map;
 import java.util.Optional;
 import org.prlprg.util.Pair;
 
@@ -43,4 +44,6 @@ public sealed interface EnvSXP extends SEXP
   default Optional<Pair<EnvSXP, SEXP>> find(String name) {
     return getLocal(name).map(v -> new Pair<>(this, v)).or(() -> parent().find(name));
   }
+
+  Iterable<? extends Map.Entry<? extends String, ? extends SEXP>> bindings();
 }

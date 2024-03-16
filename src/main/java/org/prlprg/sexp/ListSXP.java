@@ -4,7 +4,9 @@ import com.google.common.collect.ImmutableList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import javax.annotation.Nullable;
 
 /**
@@ -25,10 +27,14 @@ public sealed interface ListSXP extends ListOrVectorSXP<TaggedElem> permits NilS
    */
   static void flatten(ListSXP src, ImmutableList.Builder<TaggedElem> target) {
     for (var i : src) {
-      if (i.value() instanceof ListSXP lst) {
-        flatten(lst, target);
-      } else {
-        target.add(i);
+      switch (i.value()) {
+        case NilSXP _ignored -> {
+          // NULL in R actually a list, but in this case it is a single element in a list which we
+          // want to add
+          target.add(i);
+        }
+        case ListSXP lst -> flatten(lst, target);
+        default -> target.add(i);
       }
     }
   }
@@ -46,13 +52,21 @@ public sealed interface ListSXP extends ListOrVectorSXP<TaggedElem> permits NilS
 
   ListSXP set(int index, @Nullable String tag, SEXP value);
 
-  ListSXP appended(String value, SEXP value1);
+  ListSXP appended(String tag, SEXP value);
+
+  ListSXP appended(ListSXP other);
 
   ListSXP subList(int fromIndex);
 
   default boolean hasTags() {
     return names().stream().anyMatch(Objects::nonNull);
   }
+
+  ListSXP remove(String tag);
+
+  Stream<TaggedElem> stream();
+
+  Optional<TaggedElem> get(String name);
 }
 
 record ListSXPImpl(ImmutableList<TaggedElem> data, @Override Attributes attributes)
@@ -106,8 +120,36 @@ record ListSXPImpl(ImmutableList<TaggedElem> data, @Override Attributes attribut
   }
 
   @Override
+  public ListSXP appended(ListSXP other) {
+    return new ListSXPImpl(
+        ImmutableList.<TaggedElem>builder().addAll(data).addAll(other.iterator()).build(),
+        attributes);
+  }
+
+  @Override
   public ListSXP subList(int fromIndex) {
     return new ListSXPImpl(data.subList(fromIndex, data.size()), attributes);
+  }
+
+  @Override
+  public ListSXP remove(String tag) {
+    var builder = ImmutableList.<TaggedElem>builder();
+    for (var i : this) {
+      if (!tag.equals(i.tag())) {
+        builder.add(i);
+      }
+    }
+    return new ListSXPImpl(builder.build(), Objects.requireNonNull(attributes()));
+  }
+
+  @Override
+  public Stream<TaggedElem> stream() {
+    return data.stream();
+  }
+
+  @Override
+  public Optional<TaggedElem> get(String name) {
+    return Optional.empty();
   }
 
   @Override

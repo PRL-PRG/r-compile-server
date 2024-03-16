@@ -385,7 +385,7 @@ function() {
   public void inlineAssign3() {
     assertBytecode("""
 function() {
-f(g(h(x, k), j), i) <- v
+  f(g(h(x, k), j), i) <- v
 }
 """);
   }
@@ -490,6 +490,20 @@ function() {
   a@x <- 43
 }
 """);
+  }
+
+  @Test
+  public void inlineIdentical() {
+    assertBytecode("""
+function(x) {
+  identical(unzip, "internal")
+}
+""");
+  }
+
+  @Test
+  public void baseFunctions() {
+    assertBytecode("utils::unzip");
   }
 
   private void assertBytecode(String code) {

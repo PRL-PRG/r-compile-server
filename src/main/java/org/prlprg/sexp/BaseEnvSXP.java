@@ -2,6 +2,7 @@ package org.prlprg.sexp;
 
 import com.google.common.collect.ImmutableMap;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 
 public final class BaseEnvSXP implements EnvSXP {
@@ -9,6 +10,10 @@ public final class BaseEnvSXP implements EnvSXP {
 
   public BaseEnvSXP(HashMap<String, SEXP> bindings) {
     this.bindings = ImmutableMap.copyOf(bindings);
+  }
+
+  public BaseEnvSXP(EnvSXP env) {
+    this.bindings = ImmutableMap.copyOf(env.bindings());
   }
 
   @Override
@@ -24,6 +29,11 @@ public final class BaseEnvSXP implements EnvSXP {
   @Override
   public Optional<SEXP> getLocal(String name) {
     return Optional.ofNullable(bindings.get(name));
+  }
+
+  @Override
+  public Iterable<? extends Map.Entry<? extends String, ? extends SEXP>> bindings() {
+    return bindings.entrySet();
   }
 
   @Override

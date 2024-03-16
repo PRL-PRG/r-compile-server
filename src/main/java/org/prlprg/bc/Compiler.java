@@ -11,6 +11,8 @@ import org.prlprg.RSession;
 import org.prlprg.bc.BcInstr.*;
 import org.prlprg.sexp.*;
 
+import static java.util.stream.Collectors.toList;
+
 // FIXME: use null instead of Optional (except for return types)
 // FIXME: update the SEXP API based on the experience with this code
 //   - especially the clumsy ListSXP
@@ -97,6 +99,25 @@ public class Compiler {
           "cospi",
           "sinpi",
           "tanpi");
+
+  private static final Set<String> SAFE_BASE_INTERNALS =
+          Set.of("atan2", "besselY", "beta", "choose",
+                  "drop", "inherits", "is.vector", "lbeta", "lchoose",
+                  "nchar", "polyroot", "typeof", "vector", "which.max",
+                  "which.min", "is.loaded", "identical",
+                  "match", "rep.int", "rep_len");
+
+  private static final Set<String> SAFE_STATS_INTERNALS =
+          Set.of("dbinom", "dcauchy", "dgeom", "dhyper", "dlnorm",
+                  "dlogis", "dnorm", "dpois", "dunif", "dweibull",
+                  "fft", "mvfft", "pbinom", "pcauchy",
+                  "pgeom", "phyper", "plnorm", "plogis", "pnorm",
+                  "ppois", "punif", "pweibull", "qbinom", "qcauchy",
+                  "qgeom", "qhyper", "qlnorm", "qlogis", "qnorm",
+                  "qpois", "qunif", "qweibull", "rbinom", "rcauchy",
+                  "rgeom", "rhyper", "rlnorm", "rlogis", "rnorm",
+                  "rpois", "rsignrank",  "runif", "rweibull",
+                  "rwilcox", "ptukey", "qtukey");
 
   private static final Set<String> FORBIDDEN_INLINES = Set.of("standardGeneric");
 
@@ -408,7 +429,7 @@ public class Compiler {
       case "(" -> this::inlineParentheses;
       case "local" -> this::inlineLocal;
       case "return" -> this::inlineReturn;
-      case ".Internal" -> this::inlineInternal;
+      case ".Internal" -> this::inlineDotInternalCall;
       case "&&" -> (c) -> inlineLogicalAndOr(c, true);
       case "||" -> (c) -> inlineLogicalAndOr(c, false);
       case "repeat" -> this::inlineRepeat;
@@ -456,6 +477,7 @@ public class Compiler {
       case String s when MATH1_FUNS.contains(s) -> (c) -> inlineMath1(c, MATH1_FUNS.indexOf(s));
       case String s when rsession.isBuiltin(s) -> (c) -> inlineBuiltin(c, false);
       case String s when rsession.isSpecial(s) -> this::inlineSpecial;
+      case String s when SAFE_BASE_INTERNALS.contains(s) ->  this::inlineSimpleInternal;
       default -> null;
     };
   }
@@ -847,30 +869,6 @@ public class Compiler {
   }
 
   private boolean inlineReturn(LangSXP call) {
-    // From the R documentation:
-    //
-    // > A call to return causes a return from the associated function call, as
-    // determined by the
-    // lexical
-    // > context in which the return expression is defined. If the return is
-    // captured in a closure
-    // and is
-    // > executed within a callee then this requires a longjmp. A longjmp is also
-    // needed if the
-    // return call
-    // > occurs within a loop that is compiled to a separate code object to support
-    // a setjmp for
-    // break or
-    // > next calls. The RETURNJMP instruction is provided for this purpose. In all
-    // other cases an
-    // ordinary
-    // > RETURN instruction can be used. return calls with ..., which may be legal
-    // if ... contains
-    // only one
-    // > argument, or missing arguments or more than one argument, which will
-    // produce runtime
-    // errors,
-    // > are compiled as generic SPECIAL calls.
     if (dotsOrMissing(call.args()) || call.args().size() > 1) {
       return inlineSpecial(call);
     }
@@ -883,7 +881,7 @@ public class Compiler {
     return true;
   }
 
-  private boolean inlineInternal(LangSXP call) {
+  private boolean inlineDotInternalCall(LangSXP call) {
     if (!(call.arg(0).value() instanceof LangSXP subCall)) {
       return false;
     }
@@ -898,6 +896,97 @@ public class Compiler {
     } else {
       return inlineSpecial(call);
     }
+  }
+
+  private boolean isSimpleFormals(CloSXP def) {
+    var formals = def.formals();
+    var names = formals.names();
+    if (names.contains("...")) {
+      return false;
+    }
+    return formals.values().stream().allMatch(x -> !missing(x) || !(
+            // FIXME: ugly
+            x instanceof RegSymSXP || x instanceof LangSXP || x instanceof PromSXP || x instanceof BCodeSXP
+            ));
+  }
+
+  private boolean isSimpleArgs(LangSXP call, List<String> formals) {
+    for (var arg : call.args().values()) {
+      if (missing(arg)) {
+        return false;
+      } else if (arg instanceof RegSymSXP sym) {
+        if (!formals.contains(sym.name())) {
+          return false;
+        }
+        // FIXME: ugly
+      } else if (arg instanceof LangSXP || arg instanceof PromSXP || arg instanceof BCodeSXP) {
+          return false;
+      }
+    }
+
+    return true;
+  }
+
+  private boolean isSimpleInternal(CloSXP def) {
+    if (!isSimpleFormals(def)) {
+      return false;
+    }
+    var b = def.body();
+
+    // FIXME: ugly
+    if (b instanceof LangSXP lb && lb.args().size() == 1 && lb.fun() instanceof RegSymSXP sym && sym.name().equals("{")) {
+      b = lb.arg(0).value();
+    }
+
+    if (b instanceof LangSXP lb && lb.fun() instanceof RegSymSXP sym && sym.name().equals(".Internal")) {
+      var icall = lb.arg(0).value();
+      // FIXME: ugly
+        if (icall instanceof LangSXP ilb && ilb.fun() instanceof RegSymSXP isym) {
+            var internalBuiltin =  rsession.isBuiltinInternal(isym.name());
+            var simpleArgs = isSimpleArgs(ilb, def.formals().names());
+            return internalBuiltin && simpleArgs;
+        }
+    }
+    return false;
+  } 
+
+  private Optional<LangSXP> trySimpleInternalCall(LangSXP call, CloSXP def) {
+    if (!dotsOrMissing(call.args()) && isSimpleInternal(def)) {
+      var forms = def.formals();
+      var b = def.body();
+
+      // FIXME: ugly
+      if (b instanceof LangSXP lb && lb.args().size() == 1 && lb.fun() instanceof RegSymSXP sym && sym.name().equals("{")) {
+        b = lb.arg(0).value();
+      }
+
+      // FIXME: ugly
+      if (b instanceof LangSXP icall) {
+        var matched = Primitives.matchCall(def, icall);
+        var cenv = matched.args().appended(def.formals());
+        var args = cenv.stream().map((x) ->
+          (x.value() instanceof RegSymSXP sym) ? cenv.get(sym.name()).orElse(x) : x
+        ).toList();
+        var newCall = SEXPs.lang(SEXPs.symbol(".Internal"), SEXPs.list(SEXPs.lang(icall.fun(), SEXPs.list(args))));
+        return Optional.of(newCall);
+      }
+    }
+    return Optional.empty();
+  }
+
+  private boolean inlineSimpleInternal(LangSXP call) {
+    if (anyDots(call.args())) {
+      return false;
+    }
+
+    if (call.fun() instanceof RegSymSXP fun) {
+      return ctx.findFunDef(fun.name())
+              .flatMap(def -> trySimpleInternalCall(call, def))
+              .map(this::inlineDotInternalCall)
+              .orElse(false);
+    }
+
+    return false;
   }
 
   /**

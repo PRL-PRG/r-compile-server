@@ -12,7 +12,7 @@ public sealed interface SymSXP extends SymOrLangSXP permits RegSymSXP, SpecialSy
 
   /** Whether this is the ellipsis symbol. */
   default boolean isEllipsis() {
-    return this == SEXPs.ELLIPSIS;
+    return this == SEXPs.DOTS_SYMBOL;
   }
 
   /** Whether this is the missing symbol. */

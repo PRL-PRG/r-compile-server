@@ -99,6 +99,8 @@ public class RDSReader implements Closeable {
             case BCODE -> readByteCode();
             case EXPR -> readExpr(flags);
             case PROM -> readPromise(flags);
+            case BUILTIN -> readBuiltin(false);
+            case SPECIAL -> readBuiltin(true);
             default -> throw new RDSException("Unsupported SEXP type: " + s.sexp());
           };
       case RDSItemType.Special s ->
@@ -106,7 +108,7 @@ public class RDSReader implements Closeable {
             case NILVALUE_SXP -> SEXPs.NULL;
             case MISSINGARG_SXP -> SEXPs.MISSING_ARG;
             case GLOBALENV_SXP -> session.globalEnv();
-            case BASEENV_SXP -> session.baseEnv();
+            case BASEENV_SXP, BASENAMESPACE_SXP -> session.baseEnv();
             case EMPTYENV_SXP -> SEXPs.EMPTY_ENV;
             case REFSXP -> readRef(flags);
             case NAMESPACESXP -> readNamespace();
@@ -114,10 +116,16 @@ public class RDSReader implements Closeable {
                 throw new RDSException("Unexpected bytecode reference here (not in bytecode)");
             case ATTRLANGSXP, ATTRLISTSXP -> throw new RDSException("Unexpected attr here");
             case UNBOUNDVALUE_SXP -> SEXPs.UNBOUND_VALUE;
-            case GENERICREFSXP, BASENAMESPACE_SXP, PACKAGESXP, PERSISTSXP, CLASSREFSXP ->
+            case GENERICREFSXP, PACKAGESXP, PERSISTSXP, CLASSREFSXP ->
                 throw new RDSException("Unsupported RDS special type: " + s);
           };
     };
+  }
+
+  private SEXP readBuiltin(boolean speacial) throws IOException {
+    var length = in.readInt();
+    var name = in.readString(length, nativeEncoding);
+    return speacial ? SEXPs.special(name) : SEXPs.builtin(name);
   }
 
   private SEXP readPromise(Flags flags) throws IOException {
@@ -140,8 +148,9 @@ public class RDSReader implements Closeable {
     }
 
     // FIXME: this should be loaded from RSession
+    // FIXME: hardcoding baseenv is not great
     var namespace =
-        new NamespaceEnvSXP(SEXPs.EMPTY_ENV, namespaceInfo.get(0), namespaceInfo.get(1));
+        new NamespaceEnvSXP(session.baseEnv(), namespaceInfo.get(0), namespaceInfo.get(1));
     refTable.add(namespace);
 
     return namespace;
@@ -249,11 +258,10 @@ public class RDSReader implements Closeable {
             ? readAttributes()
             : Attributes.NONE;
 
-    SEXP tagSexp;
+    SEXP tagSexp = readItem();
     SEXP ans;
 
     if (type.isSexp(SEXPType.LANG) || type == RDSItemType.Special.ATTRLANGSXP) {
-      tagSexp = readItem();
       if (tagSexp != SEXPs.NULL) {
         throw new RDSException("Expected NULL tag");
       }
@@ -270,7 +278,6 @@ public class RDSReader implements Closeable {
 
       ans = SEXPs.lang(funSymOrLang, argsList, attributes);
     } else if (type.isSexp(SEXPType.LIST) || type == RDSItemType.Special.ATTRLISTSXP) {
-      tagSexp = readItem();
       String tag;
 
       if (tagSexp instanceof RegSymSXP sym) {

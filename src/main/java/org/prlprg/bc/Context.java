@@ -233,4 +233,12 @@ public class Context {
   public Loop loop() {
     return loop;
   }
+
+  public Optional<CloSXP> findFunDef(String name) {
+    return environment
+        .find(name)
+        .map(Pair::second)
+        .filter(CloSXP.class::isInstance)
+        .map(CloSXP.class::cast);
+  }
 }

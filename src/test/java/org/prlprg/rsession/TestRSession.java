@@ -12,7 +12,8 @@ import org.prlprg.sexp.*;
 import org.prlprg.util.IO;
 
 public class TestRSession implements RSession {
-  private static final String BASE_SYMBOLS_RDS_FILE = "base.RDS";
+  private static final String BASE_SYMBOLS_RDS_FILE = "basevars.RDS";
+  private static final String BASE_ENV_RDS_FILE = "baseenv.RDS";
   private static final String BUILTINS_SYMBOLS_RDS_FILE = "builtins.RDS";
   private static final String SPECIALS_SYMBOLS_RDS_FILE = "specials.RDS";
   private static final String BUILTINS_INTERNAL_SYMBOLS_RDS_FILE = "builtins-internal.RDS";
@@ -23,7 +24,7 @@ public class TestRSession implements RSession {
   private @Nullable Set<String> specials = null;
   private @Nullable Set<String> builtinsInternal = null;
 
-  private BaseEnvSXP loadBaseEnv() {
+  private BaseEnvSXP loadBaseEnv0() {
     try {
       // this will work as long as the base.RDS does not need
       // to load base or global environment itself
@@ -39,6 +40,25 @@ public class TestRSession implements RSession {
       names.forEach(x -> frame.put(x, SEXPs.UNBOUND_VALUE));
 
       return new BaseEnvSXP(frame);
+    } catch (IOException e) {
+      throw new RuntimeException("Failed to load the base environment", e);
+    }
+  }
+
+  private BaseEnvSXP loadBaseEnv() {
+    try {
+      this.baseEnv = loadBaseEnv0();
+      // this will work as long as the base.RDS does not need
+      // to load base or global environment itself
+      var newEnv =
+          (EnvSXP)
+              RDSReader.readStream(
+                  this,
+                  IO.maybeDecompress(
+                      Objects.requireNonNull(
+                          TestRSession.class.getResourceAsStream(BASE_ENV_RDS_FILE))));
+
+      return new BaseEnvSXP(newEnv);
     } catch (IOException e) {
       throw new RuntimeException("Failed to load the base environment", e);
     }

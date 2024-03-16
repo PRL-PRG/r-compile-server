@@ -217,13 +217,16 @@ class GNURByteCodeDecoderFactory {
           var chrLabelsIdx = cpb.indexIntOrNil(byteCode.get(curr++));
           var numlabelsIdx = cpb.indexIntOrNil(byteCode.get(curr++));
 
-          // FIXME: why could it be null?
+          // in the case switch does not have any named labels this will be null,
           if (chrLabelsIdx != null) {
             cpb.reset(chrLabelsIdx, this::remapLabels);
           }
 
-          // FIXME: why could it be null?
-          if (numlabelsIdx != null) {
+          // FIXME: can this ever be null? there always have to be some number labels? or in the
+          // case of empty switch?
+          // in some cases, the number labels can be the same as the chrLabels
+          // and we do not want to remap twice
+          if (numlabelsIdx != null && !numlabelsIdx.equals(chrLabelsIdx)) {
             cpb.reset(numlabelsIdx, this::remapLabels);
           }
 
@@ -320,15 +323,9 @@ class LabelMapping {
     var target = posMap.get(gnurLabel);
     if (target == -1) {
       var gnurEarlier = gnurLabel - 1;
-      int earlier;
-      do {
-        earlier = posMap.get(gnurEarlier);
-      } while (earlier == -1);
+      int earlier = posMap.get(gnurEarlier);
       var gnurLater = gnurLabel + 1;
-      int later;
-      do {
-        later = posMap.get(gnurLater);
-      } while (later == -1);
+      int later = posMap.get(gnurLater);
       throw new IllegalArgumentException(
           "GNU-R position maps to the middle of one of our instructions: "
               + gnurLabel

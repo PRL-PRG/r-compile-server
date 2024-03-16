@@ -1,5 +1,6 @@
 package org.prlprg.sexp;
 
+import java.util.Map;
 import java.util.Optional;
 
 public final class NamespaceEnvSXP implements EnvSXP {
@@ -28,6 +29,11 @@ public final class NamespaceEnvSXP implements EnvSXP {
   public Optional<SEXP> getLocal(String name) {
     // TODO: implement
     return Optional.empty();
+  }
+
+  @Override
+  public Iterable<? extends Map.Entry<? extends String, ? extends SEXP>> bindings() {
+    throw new UnsupportedOperationException();
   }
 
   public String getVersion() {

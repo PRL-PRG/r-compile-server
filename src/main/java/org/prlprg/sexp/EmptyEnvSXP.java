@@ -1,6 +1,8 @@
 package org.prlprg.sexp;
 
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import org.prlprg.util.Pair;
 
 public final class EmptyEnvSXP implements EnvSXP {
@@ -27,6 +29,11 @@ public final class EmptyEnvSXP implements EnvSXP {
   @Override
   public Optional<Pair<EnvSXP, SEXP>> find(String name) {
     return Optional.empty();
+  }
+
+  @Override
+  public Iterable<? extends Map.Entry<? extends String, ? extends SEXP>> bindings() {
+    return Set.of();
   }
 
   @Override

@@ -35,6 +35,11 @@ public final class UserEnvSXP implements EnvSXP {
   }
 
   @Override
+  public Iterable<? extends Map.Entry<? extends String, ? extends SEXP>> bindings() {
+    return entries.entrySet();
+  }
+
+  @Override
   public String toString() {
     return "<environment: " + hashCode() + ">";
   }

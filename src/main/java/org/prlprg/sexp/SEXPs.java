@@ -33,7 +33,7 @@ public final class SEXPs {
 
   public static final SpecialSymSXP MISSING_ARG = new SpecialSymSXP("MISSING_ARG");
 
-  public static final RegSymSXP ELLIPSIS = new RegSymSXP("...");
+  public static final RegSymSXP DOTS_SYMBOL = new RegSymSXP("...");
   public static final RegSymSXP SUPER_ASSIGN = new RegSymSXP("<<-");
   public static final RegSymSXP ASSIGN_TMP = new RegSymSXP("*tmp*");
   public static final RegSymSXP ASSIGN_VTMP = new RegSymSXP("*vtmp*");
@@ -369,7 +369,7 @@ public final class SEXPs {
 
   public static RegSymSXP symbol(String name) {
     if (name.equals("...")) {
-      return ELLIPSIS;
+      return DOTS_SYMBOL;
     }
     return new RegSymSXP(name);
   }
@@ -392,4 +392,12 @@ public final class SEXPs {
   }
 
   private SEXPs() {}
+
+  public static SEXP builtin(String name) {
+    return new BuiltinSXP(name);
+  }
+
+  public static SEXP special(String name) {
+    return new SpecialSXP(name);
+  }
 }

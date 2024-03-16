@@ -143,4 +143,31 @@ public class RDSReaderTest extends AbstractGNURBasedTest {
     var sexp = R.eval("parse(text='function() {}', keep.source = TRUE)");
     assertThat(sexp).isInstanceOf(ExprSXP.class);
   }
+
+  @Test
+  public void testNullInParams() throws Exception {
+    var sexp = R.eval("quote(match('AsIs', cl, 0L, NULL))");
+    // FIXME: assert on the number of parameters
+    assertThat(sexp).isInstanceOf(LangSXP.class);
+  }
+
+  @Test
+  public void testNullInParamsInBC() throws Exception {
+    var sexp = (BCodeSXP) R.eval("compiler::compile(quote(match('AsIs', cl, 0L, NULL)))");
+    var ast = (LangSXP) sexp.bc().consts().getFirst();
+    // here we want to make sure that the trailing NULL did not get lost
+    assertThat(ast.args()).hasSize(4);
+  }
+
+  @Test
+  public void testFormatAsIs() throws Exception {
+    var sexp = R.eval("format.AsIs");
+    assertThat(sexp).isInstanceOf(CloSXP.class);
+  }
+
+  @Test
+  public void testRoundPOSIXt() throws Exception {
+    var sexp = R.eval("round.POSIXt");
+    assertThat(sexp).isInstanceOf(CloSXP.class);
+  }
 }
