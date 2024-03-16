@@ -13,9 +13,6 @@ public final class RegSymSXP implements SymSXP, StrOrRegSymSXP {
   private final boolean isEscaped;
 
   RegSymSXP(String name) {
-    if (name.isBlank()) {
-      throw new IllegalArgumentException("Symbol name cannot be blank");
-    }
     if (LITERAL_NAMES.contains(name)) {
       throw new IllegalArgumentException("Symbol name reserved by literal: " + name);
     }
