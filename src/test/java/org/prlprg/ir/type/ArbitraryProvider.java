@@ -68,7 +68,10 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
             Arbitraries.defaultFor(FunctionRType.class),
             attributesTypes(),
             maybeNats(),
-            Combinators.combine(symbolStrings(), parameterRTypes(rTypes)).as(Tuple::of).list(),
+            Combinators.combine(symbolStrings(), parameterRTypes(rTypes))
+                .as(Tuple::of)
+                .list()
+                .ofMaxSize(MAX_SIZE),
             Arbitraries.defaultFor(NoOrMaybe.class),
             rTypes)
         .as(
