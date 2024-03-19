@@ -5,15 +5,12 @@ import static org.prlprg.sexp.ArbitraryProvider.promises;
 import static org.prlprg.sexp.ArbitraryProvider.sexps;
 import static org.prlprg.sexp.ArbitraryProvider.symbolStrings;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import java.util.Optional;
 import java.util.Set;
 import net.jqwik.api.Arbitraries;
 import net.jqwik.api.Arbitrary;
 import net.jqwik.api.Combinators;
-import net.jqwik.api.Tuple;
-import net.jqwik.api.Tuple.Tuple2;
 import net.jqwik.api.providers.TypeUsage;
 import org.prlprg.sexp.PrimVectorSXP;
 
@@ -68,32 +65,9 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
             Arbitraries.defaultFor(FunctionRType.class),
             attributesTypes(),
             maybeNats(),
-            Combinators.combine(symbolStrings(), parameterRTypes(rTypes))
-                .as(Tuple::of)
-                .list()
-                .ofMaxSize(MAX_SIZE),
-            Arbitraries.defaultFor(NoOrMaybe.class),
-            rTypes)
-        .as(
-            (functionType, attributes, referenceCount, knownArguments, hasMoreArgs, returnType) -> {
-              var knownArgumentNames =
-                  knownArguments.stream()
-                      .map(Tuple2::get1)
-                      .collect(ImmutableList.toImmutableList());
-              var knownArgumentTypes =
-                  knownArguments.stream()
-                      .map(Tuple2::get2)
-                      .collect(ImmutableList.toImmutableList());
-              return new RFunctionTypeImpl(
-                  null,
-                  functionType,
-                  attributes,
-                  referenceCount,
-                  knownArgumentNames,
-                  knownArgumentTypes,
-                  hasMoreArgs,
-                  returnType);
-            });
+            overloadRTypes(),
+            Arbitraries.defaultFor(Troolean.class))
+        .as(RFunctionTypeImpl::new);
   }
 
   public static Arbitrary<RPrimVecType> rPrimVecTypes() {
@@ -111,13 +85,30 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
     return Arbitraries.just(Optional.<T>empty()).map(s -> s.orElse(null));
   }
 
+  public static Arbitrary<OverloadRType> overloadRTypes() {
+    return overloadRTypes(rTypes());
+  }
+
+  private static Arbitrary<OverloadRType> overloadRTypes(Arbitrary<RType> rTypes) {
+    return Combinators.combine(parameterRTypes(rTypes).list(), rEffects(), rTypes)
+        .as(OverloadRTypes::of);
+  }
+
   public static Arbitrary<ParameterRType> parameterRTypes() {
     return parameterRTypes(rTypes());
   }
 
   private static Arbitrary<ParameterRType> parameterRTypes(Arbitrary<RType> rTypes) {
-    return Combinators.combine(rTypes, Arbitraries.defaultFor(NoOrMaybe.class))
+    return Combinators.combine(symbolStrings(), Arbitraries.defaultFor(NoOrMaybe.class), rTypes)
         .as(ParameterRType::new);
+  }
+
+  public static Arbitrary<ArgumentRType> argumentRTypes() {
+    return argumentRTypes(rTypes());
+  }
+
+  private static Arbitrary<ArgumentRType> argumentRTypes(Arbitrary<RType> rTypes) {
+    return Combinators.combine(symbolStrings(), rTypes).as(ArgumentRType::new);
   }
 
   public static Arbitrary<AttributesType> attributesTypes() {
@@ -155,6 +146,10 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
         Arbitraries.defaultFor(VectorElementRType.class).map(BaseRType.Vector::new));
   }
 
+  public static Arbitrary<REffects> rEffects() {
+    return Arbitraries.subsetOf(REffect.values()).map(REffects::new);
+  }
+
   public static Arbitrary<MaybeNat> maybeNats() {
     return Arbitraries.oneOf(
         Arbitraries.just(MaybeNat.UNKNOWN),
@@ -167,10 +162,13 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
         || typeUsage.isOfType(RPromiseType.class)
         || typeUsage.isOfType(RFunctionType.class)
         || typeUsage.isOfType(RPrimVecType.class)
+        || typeUsage.isOfType(OverloadRType.class)
         || typeUsage.isOfType(ParameterRType.class)
+        || typeUsage.isOfType(ArgumentRType.class)
         || typeUsage.isOfType(AttributesType.class)
         || typeUsage.isOfType(BaseRType.class)
         || typeUsage.isOfType(BaseRType.NotPromise.class)
+        || typeUsage.isOfType(REffects.class)
         || typeUsage.isOfType(MaybeNat.class);
   }
 
@@ -188,6 +186,9 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
     if (typeUsage.isOfType(RPrimVecType.class)) {
       return Set.of(rPrimVecTypes());
     }
+    if (typeUsage.isOfType(OverloadRType.class)) {
+      return Set.of(overloadRTypes());
+    }
     if (typeUsage.isOfType(ParameterRType.class)) {
       return Set.of(parameterRTypes());
     }
@@ -199,6 +200,9 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
     }
     if (typeUsage.isOfType(BaseRType.NotPromise.class)) {
       return Set.of(baseRTypesNotPromises());
+    }
+    if (typeUsage.isOfType(REffects.class)) {
+      return Set.of(rEffects());
     }
     if (typeUsage.isOfType(MaybeNat.class)) {
       return Set.of(maybeNats());

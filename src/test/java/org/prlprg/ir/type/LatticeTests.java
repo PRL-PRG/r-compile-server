@@ -30,7 +30,6 @@ public class LatticeTests {
               Tuple.of(BaseRType.class, BaseRType.ANY),
               Tuple.of(VectorElementRType.class, VectorElementRType.ANY),
               Tuple.of(PrimVecElementRType.class, PrimVecElementRType.ANY),
-              Tuple.of(ParameterRType.class, new ParameterRType(RTypes.ANY, NoOrMaybe.MAYBE)),
               Tuple.of(RPromiseType.class, RPromiseType.MAYBE_LAZY_PROMISE),
               Tuple.of(
                   RFunctionType.class,
@@ -40,9 +39,7 @@ public class LatticeTests {
                       AttributesTypes.UNKNOWN,
                       MaybeNat.UNKNOWN,
                       ImmutableList.of(),
-                      ImmutableList.of(),
-                      NoOrMaybe.MAYBE,
-                      RTypes.ANY)),
+                      Troolean.MAYBE)),
               Tuple.of(
                   RPrimVecType.class,
                   new RPrimVecTypeImpl(
@@ -80,7 +77,14 @@ public class LatticeTests {
     }
   }
 
-  @Property(tries = 100)
+  @Property
+  void isCoherent_REffects(@ForAll REffects lhs, @ForAll REffects rhs) {
+    setup();
+
+    isCoherent(lhs, rhs, REffects.ARBITRARY, REffects.PURE);
+  }
+
+  @Property
   void isCoherent_RType(@ForAll RType lhs, @ForAll RType rhs) {
     setup();
 

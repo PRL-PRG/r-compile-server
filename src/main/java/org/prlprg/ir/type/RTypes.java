@@ -72,9 +72,7 @@ public class RTypes {
                   AttributesTypes.UNKNOWN,
                   MaybeNat.UNKNOWN,
                   ImmutableList.of(),
-                  ImmutableList.of(),
-                  NoOrMaybe.MAYBE,
-                  ANY)),
+                  Troolean.MAYBE)),
           RPromiseType.VALUE);
 
   /**
