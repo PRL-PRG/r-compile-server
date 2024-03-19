@@ -12,19 +12,27 @@ public non-sealed interface Stmt extends Instr {
   @Override
   Data<?> data();
 
+  @Override
+  NodeId<? extends Stmt> id();
+
   sealed interface Data<I extends Stmt> extends Instr.Data<I> permits RValueStmt.Data, Stmts.Void {}
 }
 
 abstract non-sealed class StmtImpl<D extends Stmt.Data<?>> extends InstrImpl<D> implements Stmt {
-  StmtImpl(Class<D> dataClass, CFG cfg, D data) {
-    super(dataClass, cfg, data);
+  StmtImpl(Class<D> dataClass, CFG cfg, String desc, D data) {
+    super(dataClass, cfg, desc, data);
+  }
+
+  @Override
+  public NodeId<? extends Stmt> id() {
+    return uncheckedCastId();
   }
 }
 
 /** {@link Stmt} (IR instruction) which doesn't produce anything. */
 final class VoidStmtImpl extends StmtImpl<Stmts.Void> {
-  VoidStmtImpl(CFG cfg, Stmts.Void data) {
-    super(Stmts.Void.class, cfg, data);
+  VoidStmtImpl(CFG cfg, String desc, Stmts.Void data) {
+    super(Stmts.Void.class, cfg, desc, data);
   }
 
   @Override

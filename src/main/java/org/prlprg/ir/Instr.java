@@ -70,10 +70,13 @@ public sealed interface Instr extends InstrOrPhi permits Jump, Stmt {
   /** Check that arguments are of the correct dynamic type ({@link RType}) and set cached data. */
   void verify();
 
+  @Override
+  NodeId<? extends Instr> id();
+
   sealed interface Data<I extends Instr> permits Jump.Data, Stmt.Data {
-    /** Create an instruction containing this data. */
+    /** Create an instruction containing this data and a small description (or empty string). */
     @Warning("Only exposed for `BB`, call a `BB` method such as `append` instead.")
-    I make(CFG cfg);
+    I make(CFG cfg, String desc);
   }
 }
 
@@ -81,12 +84,14 @@ abstract sealed class InstrImpl<D extends Instr.Data<?>> implements NodeWithCfg
     permits JumpImpl, StmtImpl {
   private final Class<D> dataClass;
   private final CFG cfg;
+  private final InstrId<?> id;
   private D data;
 
-  InstrImpl(Class<D> dataClass, CFG cfg, D data) {
+  InstrImpl(Class<D> dataClass, CFG cfg, String desc, D data) {
     this.dataClass = dataClass;
     this.cfg = cfg;
     this.data = data;
+    id = new InstrId<>((Instr) this, cfg, desc);
     cfg.track(this);
     verify();
   }
@@ -226,5 +231,15 @@ abstract sealed class InstrImpl<D extends Instr.Data<?>> implements NodeWithCfg
     // TODO: Check RValue argument types via annotations
     //  also have annotations for if the RValue is a specific subclass or a Phi where each target is
     // said subclass.
+  }
+
+  @Override
+  public NodeId<? extends Instr> id() {
+    return uncheckedCastId();
+  }
+
+  @SuppressWarnings("unchecked")
+  protected <T extends Instr> NodeId<T> uncheckedCastId() {
+    return (NodeId<T>) id;
   }
 }

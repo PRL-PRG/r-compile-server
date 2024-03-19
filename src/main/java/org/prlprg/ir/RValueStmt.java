@@ -6,6 +6,9 @@ import org.prlprg.ir.type.RType;
 /** {@link Stmt} (IR instruction) which produces an {@link RValue}. */
 public interface RValueStmt extends Stmt, RValue {
   @Override
+  NodeId<? extends RValueStmt> id();
+
+  @Override
   Data data();
 
   sealed interface Data extends Stmt.Data<RValueStmt> permits Stmts.RValue_ {
@@ -21,8 +24,8 @@ final class RValueStmtImpl extends StmtImpl<Stmts.RValue_> implements RValueStmt
   @SuppressWarnings("NotNullFieldNotInitialized")
   private RType type;
 
-  RValueStmtImpl(CFG cfg, Stmts.RValue_ data) {
-    super(Stmts.RValue_.class, cfg, data);
+  RValueStmtImpl(CFG cfg, String desc, Stmts.RValue_ data) {
+    super(Stmts.RValue_.class, cfg, desc, data);
   }
 
   @Override
@@ -41,5 +44,10 @@ final class RValueStmtImpl extends StmtImpl<Stmts.RValue_> implements RValueStmt
   @Override
   public RType type() {
     return type;
+  }
+
+  @Override
+  public NodeId<? extends RValueStmt> id() {
+    return uncheckedCastId();
   }
 }

@@ -13,9 +13,11 @@ public class Envs {
 
 class StaticEnvImpl implements Env {
   private final String name;
+  private final NodeId<?> id;
 
   public StaticEnvImpl(String name) {
     this.name = name;
+    id = new GlobalNodeId<>(this, name);
   }
 
   @Nullable @Override
@@ -31,6 +33,16 @@ class StaticEnvImpl implements Env {
   @Nullable @Override
   public CFG cfg() {
     return null;
+  }
+
+  @Nullable @Override
+  public InstrOrPhi origin() {
+    return null;
+  }
+
+  @Override
+  public NodeId<?> id() {
+    return id;
   }
 
   @Override

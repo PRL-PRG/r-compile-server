@@ -19,12 +19,15 @@ public non-sealed interface Jump extends Instr {
   @Override
   Data<?> data();
 
+  @Override
+  NodeId<? extends Jump> id();
+
   sealed interface Data<I extends Jump> extends Instr.Data<I> permits Jumps.Void {}
 }
 
 abstract non-sealed class JumpImpl<D extends Jump.Data<?>> extends InstrImpl<D> implements Jump {
-  JumpImpl(Class<D> dataClass, CFG cfg, D data) {
-    super(dataClass, cfg, data);
+  JumpImpl(Class<D> dataClass, CFG cfg, String desc, D data) {
+    super(dataClass, cfg, desc, data);
   }
 
   @Override
@@ -37,12 +40,17 @@ abstract non-sealed class JumpImpl<D extends Jump.Data<?>> extends InstrImpl<D> 
         .map(cmp -> (BB) Reflection.getComponent(data(), cmp))
         .collect(ImmutableList.toImmutableList());
   }
+
+  @Override
+  public NodeId<? extends Jump> id() {
+    return uncheckedCastId();
+  }
 }
 
 /** {@link Jump} which doesn't return anything. */
 final class VoidJumpImpl extends JumpImpl<Jumps.Void> {
-  VoidJumpImpl(CFG cfg, Jumps.Void data) {
-    super(Jumps.Void.class, cfg, data);
+  VoidJumpImpl(CFG cfg, String desc, Jumps.Void data) {
+    super(Jumps.Void.class, cfg, desc, data);
   }
 
   @Override

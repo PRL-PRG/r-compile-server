@@ -10,12 +10,31 @@ import java.util.Objects;
 public interface NodeId<N extends Node> {
   /** Specific class of the node with this id. */
   Class<? extends N> clazz();
+
+  /**
+   * Get the id's description, without the preceeding '%' or 'φ' if it's local.
+   *
+   * <p><i>Don't</i> print or compare ids with this, use {@link Object#toString()} for the real
+   * string representation. This is because a regular instruction, phi, and global may have the same
+   * {@code desc}, but they will always have a different string representation. This is used
+   * internally to construct ids whose descriptions are derived from other ids.
+   */
+  default String desc() {
+    return toString().substring(1);
+  }
 }
 
 abstract class NodeIdImpl<N extends Node> implements NodeId<N> {
   private final Class<? extends N> clazz;
   private final String id;
 
+  /**
+   * Create a node id using the class of the given node and given unique-ing data.
+   *
+   * <p>The node is not actually stored in the id, only its class is stored internally for internal
+   * assertions. Equality is only determined by the class of the id itself (not node), and the other
+   * arguments to this constructor.
+   */
   @SuppressWarnings("unchecked")
   protected NodeIdImpl(N node, String id) {
     this.clazz = (Class<? extends N>) node.getClass();
@@ -45,26 +64,54 @@ abstract class NodeIdImpl<N extends Node> implements NodeId<N> {
 }
 
 class GlobalNodeId<N extends Node> extends NodeIdImpl<N> {
+  /**
+   * Create a node id using the class of the given node and given unique-ing data.
+   *
+   * <p>The node is not actually stored in the id, only its class is stored internally for internal
+   * assertions. Equality is only determined by the class of the id itself (not node), and the other
+   * arguments to this constructor.
+   */
   public GlobalNodeId(N node, String id) {
     super(node, id);
   }
 }
 
 class InstrId<N extends Instr> extends NodeIdImpl<N> {
+  /**
+   * Create a node id using the class of the given node and given unique-ing data.
+   *
+   * <p>The node is not actually stored in the id, only its class is stored internally for internal
+   * assertions. Equality is only determined by the class of the id itself (not node), and the other
+   * arguments to this constructor.
+   */
   public InstrId(N node, CFG cfg, String desc) {
     super(node, "%" + cfg.nextNodeId(desc));
   }
 }
 
 class PhiId<N extends Phi<?>> extends NodeIdImpl<N> {
+  /**
+   * Create a node id using the class of the given node and given unique-ing data.
+   *
+   * <p>The node is not actually stored in the id, only its class is stored internally for internal
+   * assertions. Equality is only determined by the class of the id itself (not node), and the other
+   * arguments to this constructor.
+   */
   public PhiId(N node, CFG cfg, NodeId<?> firstInputId) {
-    super(node, "φ" + cfg.nextNodeId(firstInputId.toString().substring(1)));
+    super(node, "φ" + cfg.nextNodeId(firstInputId.desc()));
     assert firstInputId.toString().startsWith("%") || firstInputId.toString().startsWith("φ")
         : "phi can't have global node as its first input";
   }
 }
 
 class AuxillaryNodeId<N extends Node> extends NodeIdImpl<N> {
+  /**
+   * Create a node id using the class of the given node and given unique-ing data.
+   *
+   * <p>The node is not actually stored in the id, only its class is stored internally for internal
+   * assertions. Equality is only determined by the class of the id itself (not node), and the other
+   * arguments to this constructor.
+   */
   public AuxillaryNodeId(N node, NodeId<?> base, String id) {
     super(node, base + "#" + id);
   }

@@ -1,12 +1,9 @@
 package org.prlprg.ir;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -18,10 +15,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
-import org.prlprg.ir.Instr;
-import org.prlprg.ir.InstrOrPhi;
-import org.prlprg.ir.Jump;
-import org.prlprg.ir.Node;
 import org.prlprg.util.SmallSet;
 
 /**
@@ -53,10 +46,12 @@ public final class BB implements Iterable<InstrOrPhi> {
     return id;
   }
 
-  /** (A view of) the basic block's children: phis, statements, and jump.
+  /**
+   * (A view of) the basic block's children: phis, statements, and jump.
    *
-   * <p>Be aware that mutating the block will affect this iterator the same way it would be
-   * affected while iterating {@link #stmts()}, or will affect the jump before it's reached. */
+   * <p>Be aware that mutating the block will affect this iterator the same way it would be affected
+   * while iterating {@link #stmts()}, or will affect the jump before it's reached.
+   */
   public @UnmodifiableView Iterator<InstrOrPhi> iterator() {
     return new Iterator<>() {
       private int i = 0;
@@ -108,9 +103,11 @@ public final class BB implements Iterable<InstrOrPhi> {
     return phis.size() + stmts.size() + (jump == null ? 0 : 1);
   }
 
-  /** Returns (a view of) the BBs whose jumps point to this.
+  /**
+   * Returns (a view of) the BBs whose jumps point to this.
    *
-   * <p>These are ordered to ensure deterministic traversal.*/
+   * <p>These are ordered to ensure deterministic traversal.
+   */
   public @UnmodifiableView SequencedCollection<BB> predecessors() {
     return Collections.unmodifiableSequencedCollection(predecessors);
   }
@@ -130,7 +127,8 @@ public final class BB implements Iterable<InstrOrPhi> {
     return Collections.unmodifiableList(stmts);
   }
 
-  /** Returns the statement at the given index in this BB.
+  /**
+   * Returns the statement at the given index in this BB.
    *
    * @throws IndexOutOfBoundsException If the index is out of range.
    */
@@ -138,7 +136,8 @@ public final class BB implements Iterable<InstrOrPhi> {
     return stmts.get(index);
   }
 
-  /** Returns the index of the given statement in this BB.
+  /**
+   * Returns the index of the given statement in this BB.
    *
    * @throws NoSuchElementException If the statement isn't in this BB.
    */
@@ -155,9 +154,11 @@ public final class BB implements Iterable<InstrOrPhi> {
     return jump;
   }
 
-  /** Returns (a view of) the BBs this one's jump points to.
+  /**
+   * Returns (a view of) the BBs this one's jump points to.
    *
-   * <p>These are ordered to ensure deterministic traversal.*/
+   * <p>These are ordered to ensure deterministic traversal.
+   */
   public @UnmodifiableView SequencedCollection<BB> successors() {
     return jump == null ? List.of() : Collections.unmodifiableSequencedCollection(jump.targets());
   }
@@ -178,15 +179,18 @@ public final class BB implements Iterable<InstrOrPhi> {
   /**
    * Insert a statement in this BB immediately before the given statement.
    *
+   * @param desc A small description of the statement, or an empty string. This is useful for
+   *     debugging and error messages.
+   * @param args The statement's arguments (data).
    * @return The inserted statement.
    * @throws IllegalArgumentException If the before statement wasn't found.
    */
-  public <I extends Stmt> I insertBefore(Stmt.Data<I> args, Stmt before) {
+  public <I extends Stmt> I insertBefore(String desc, Stmt.Data<I> args, Stmt before) {
     int index = stmts.indexOf(before);
     if (index == -1) {
       throw new IllegalArgumentException("Before not in " + this + ": " + before);
     }
-    var stmt = args.make(cfg());
+    var stmt = args.make(cfg(), desc);
     stmts.add(index, stmt);
     return stmt;
   }
@@ -194,15 +198,17 @@ public final class BB implements Iterable<InstrOrPhi> {
   /**
    * Insert a statement in this BB immediately before the given statement.
    *
-   * @return The inserted statement.
+   * @param desc A small description of the statement, or an empty string. This is useful for
+   *     debugging and error messages.
+   * @param args The statement's arguments (data). * @return The inserted statement.
    * @throws IllegalArgumentException If the before statement wasn't found.
    */
-  public <I extends Stmt> I insertAfter(Stmt.Data<I> args, Stmt after) {
+  public <I extends Stmt> I insertAfter(String desc, Stmt.Data<I> args, Stmt after) {
     int index = stmts.indexOf(after);
     if (index == -1) {
       throw new IllegalArgumentException("After not in " + this + ": " + after);
     }
-    var stmt = args.make(cfg());
+    var stmt = args.make(cfg(), desc);
     stmts.add(index + 1, stmt);
     return stmt;
   }
@@ -210,10 +216,13 @@ public final class BB implements Iterable<InstrOrPhi> {
   /**
    * Insert a statement at the start of this BB, after the φ nodes.
    *
+   * @param desc A small description of the statement, or an empty string. This is useful for
+   *     debugging and error messages.
+   * @param args The statement's arguments (data).
    * @return Ths inserted statement.
    */
-  public <I extends Stmt> I prepend(Stmt.Data<I> args) {
-    var stmt = args.make(cfg());
+  public <I extends Stmt> I prepend(String desc, Stmt.Data<I> args) {
+    var stmt = args.make(cfg(), desc);
     stmts.addFirst(stmt);
     return stmt;
   }
@@ -221,10 +230,13 @@ public final class BB implements Iterable<InstrOrPhi> {
   /**
    * Insert a statement at the end of this BB.
    *
+   * @param desc A small description of the statement, or an empty string. This is useful for
+   *     debugging and error messages.
+   * @param args The statement's arguments (data).
    * @return Ths inserted statement.
    */
-  public <I extends Stmt> I append(Stmt.Data<I> args) {
-    var stmt = args.make(cfg());
+  public <I extends Stmt> I append(String desc, Stmt.Data<I> args) {
+    var stmt = args.make(cfg(), desc);
     stmts.add(stmt);
     return stmt;
   }
@@ -232,14 +244,17 @@ public final class BB implements Iterable<InstrOrPhi> {
   /**
    * Add a jump to this BB.
    *
+   * @param desc A small description of the jump, or an empty string. This is useful for debugging
+   *     and error messages.
+   * @param args The jump's arguments (data).
    * @return The added jump.
    * @throws IllegalArgumentException If it already has one.
    */
-  public <I extends Jump> I add(Jump.Data<I> args) {
+  public <I extends Jump> I add(String desc, Jump.Data<I> args) {
     if (this.jump != null) {
       throw new IllegalStateException(this + " already has a jump");
     }
-    var jump = args.make(cfg());
+    var jump = args.make(cfg(), desc);
     setJump(jump);
     return jump;
   }
@@ -248,12 +263,15 @@ public final class BB implements Iterable<InstrOrPhi> {
    * Create a new instruction with {@code newArgs} and replace all occurrences of {@code oldInstr}
    * with it.
    *
+   * @param newDesc A small description of the new instruction, or an empty string, or {@code null}
+   *     to take the old instruction's description. This is useful for debugging and error messages.
+   * @param newArgs The new instruction's arguments (data).
    * @return The newly-created instruction, or {@code oldInstr} if replacement can be done without
-   *         by mutating it.
+   *     by mutating it.
    * @throws IllegalArgumentException if {@code oldInstr} is not in this BB.
    * @throws IllegalArgumentException if {@code newArgs} is an incompatible type.
    */
-  public <I extends Instr> I replace(I oldInstr, Instr.Data<I> newArgs) {
+  public <I extends Instr> I replace(I oldInstr, @Nullable String newDesc, Instr.Data<I> newArgs) {
     if (oldInstr.cfg() != cfg()) {
       throw new IllegalArgumentException(
           "Replace oldInstr not in CFG: " + oldInstr + " not in:\n" + cfg());
@@ -283,18 +301,19 @@ public final class BB implements Iterable<InstrOrPhi> {
       }
       return oldInstr;
     } else {
-      newInstr = newArgs.make(cfg());
+      newInstr = newArgs.make(cfg(), newDesc == null ? oldInstr.id().desc() : newDesc);
       switch (newInstr) {
         case Stmt s -> {
           assert oldInstr instanceof Stmt;
-          stmts.set(stmts.indexOf((Stmt)oldInstr), s);
+          stmts.set(stmts.indexOf((Stmt) oldInstr), s);
         }
         case Jump j -> setJump(j);
       }
       cfg().untrack(oldInstr);
       var oldRets = oldInstr.returns();
       var newRets = newInstr.returns();
-      assert oldRets.size() == newRets.size() : "instruction being replaced with one that has a different number of return values";
+      assert oldRets.size() == newRets.size()
+          : "instruction being replaced with one that has a different number of return values";
     }
     return newInstr;
   }
@@ -369,8 +388,12 @@ public final class BB implements Iterable<InstrOrPhi> {
       cfg().untrack(instr);
     }
     if (removed.size() != instrs.size()) {
-      throw new IllegalArgumentException("Not all instructions were removed:" + instrs.stream().filter(i -> !removed.contains(i)).map(i -> "\n- " + i).collect(
-          Collectors.joining()));
+      throw new IllegalArgumentException(
+          "Not all instructions were removed:"
+              + instrs.stream()
+                  .filter(i -> !removed.contains(i))
+                  .map(i -> "\n- " + i)
+                  .collect(Collectors.joining()));
     }
   }
 

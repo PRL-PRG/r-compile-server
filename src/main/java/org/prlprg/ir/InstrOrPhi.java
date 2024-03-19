@@ -33,4 +33,7 @@ public sealed interface InstrOrPhi extends NodeWithCfg permits Instr, Phi {
   default InstrOrPhi origin() {
     return this;
   }
+
+  @Override
+  NodeId<? extends InstrOrPhi> id();
 }

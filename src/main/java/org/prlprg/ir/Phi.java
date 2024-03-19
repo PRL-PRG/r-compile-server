@@ -118,7 +118,7 @@ public non-sealed interface Phi<N extends Node> extends InstrOrPhi {
   }
 
   @Override
-  NodeId<Phi<N>> id();
+  NodeId<? extends Phi<N>> id();
 
   record Input<N extends Node>(BB incomingBb, N node) {}
 }
@@ -126,7 +126,7 @@ public non-sealed interface Phi<N extends Node> extends InstrOrPhi {
 abstract class PhiImpl<N extends Node> implements Phi<N> {
   private final Class<N> nodeClass;
   private final CFG cfg;
-  private final PhiId<Phi<N>> id;
+  private final PhiId<?> id;
   private final List<Input<N>> inputs = new ArrayList<>();
 
   PhiImpl(Class<N> nodeClass, CFG cfg, Input<N> firstInput) {
@@ -195,12 +195,17 @@ abstract class PhiImpl<N extends Node> implements Phi<N> {
   }
 
   @Override
-  public NodeId<Phi<N>> id() {
-    return id;
+  public CFG cfg() {
+    return cfg;
   }
 
   @Override
-  public CFG cfg() {
-    return cfg;
+  public NodeId<? extends Phi<N>> id() {
+    return uncheckedCastId();
+  }
+
+  @SuppressWarnings("unchecked")
+  protected <T extends Phi<N>> NodeId<T> uncheckedCastId() {
+    return (NodeId<T>) id;
   }
 }

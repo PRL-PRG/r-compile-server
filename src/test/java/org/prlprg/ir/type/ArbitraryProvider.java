@@ -5,6 +5,7 @@ import static org.prlprg.sexp.ArbitraryProvider.promises;
 import static org.prlprg.sexp.ArbitraryProvider.sexps;
 import static org.prlprg.sexp.ArbitraryProvider.symbolStrings;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import java.util.Optional;
 import java.util.Set;
@@ -12,6 +13,7 @@ import net.jqwik.api.Arbitraries;
 import net.jqwik.api.Arbitrary;
 import net.jqwik.api.Combinators;
 import net.jqwik.api.providers.TypeUsage;
+import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.PrimVectorSXP;
 
 public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvider {
@@ -62,10 +64,11 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
 
   private static Arbitrary<RFunctionType> rFunctionTypes(Arbitrary<RType> rTypes) {
     return Combinators.combine(
+            nulls(CloSXP.class),
             Arbitraries.defaultFor(FunctionRType.class),
             attributesTypes(),
             maybeNats(),
-            overloadRTypes(),
+            overloadRTypes().list().map(ImmutableList::copyOf),
             Arbitraries.defaultFor(Troolean.class))
         .as(RFunctionTypeImpl::new);
   }

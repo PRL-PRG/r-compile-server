@@ -67,11 +67,13 @@ public sealed interface CFGCommand<Ret> {
    */
   default void rewind(CFG cfg) {
     // TODO
+    throw new NotImplementedError();
   }
 
   /** The command that {@link #replay(CFG)}ing would {@link #rewind(CFG)} this action. */
   default CFGCommand reverse() {
     // TODO
+    throw new NotImplementedError();
   }
 
   // region command subtypes

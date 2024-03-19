@@ -14,7 +14,6 @@ import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
-import org.prlprg.ir.CFGCommand.AddInstrOrPhi;
 import org.prlprg.ir.CfgIterator.DomTreeBfs;
 import org.prlprg.util.NotImplementedError;
 
@@ -99,7 +98,7 @@ public class CFG {
     var bb = new BB(this, desc);
     assert !bbs.containsKey(bb.id());
     bbs.put(bb.id(), bb);
-    record(new CFGCommand.AddBB(desc));
+    /*WIP record(new CFGCommand.AddBB(desc)); */
     return bb;
   }
 
@@ -118,7 +117,7 @@ public class CFG {
       throw new IllegalArgumentException("BB already removed");
     }
     assert removed == bb;
-    record(new CFGCommand.RemoveBB(bb.id()));
+    /*WIP record(new CFGCommand.RemoveBB(bb.id())); */
   }
 
   /**
@@ -135,7 +134,7 @@ public class CFG {
     if (bb == null) {
       throw new IllegalArgumentException("BB already removed");
     }
-    record(new CFGCommand.RemoveBB(bbId));
+    /*WIP record(new CFGCommand.RemoveBB(bbId)); */
   }
 
   /**
@@ -234,12 +233,12 @@ public class CFG {
 
       // Only basic blocks with two or more predecessors have phi nodes. Phi nodes have an entry
       // from every predecessor.
-      if (bb.predecessors().size() < 2 && !bb.phis().isEmpty()) {
+      /*WIP if (bb.predecessors().size() < 2 && !bb.phis().isEmpty()) {
         errors.add(new CFGVerifyException.BrokenInvariant("Phi in single-predecessor BB: " + bb.id(), findActionIdx((c, o) ->
             (c instanceof CFGCommand.AddInstrOrPhi<?> add && add.bbId().equals(bb.id()) && o instanceof Phi) ||
                 (c instanceof CFGCommand.RemoveJump<?> remove && remove.)
         )));
-      }
+      }*/
 
       for (var instrOrPhi : bb) {
         assert instrOrPhi.cfg() == this;
@@ -252,18 +251,29 @@ public class CFG {
             if (!nodes.containsKey(arg.id())) {
               // Instructions don't have arguments that were removed from the CFG (or not present
               // initially).
-              errors.add(new CFGVerifyException.BrokenInvariant("Untracked (removed?) arg: " + arg.id(), findActionIdx(c ->
-                c instanceof CFGCommand.RemoveInstrOrPhi<?, ?> remove && remove.nodeId().equals(arg.id())
-              )));
+              errors.add(
+                  new CFGVerifyException.BrokenInvariant(
+                      "Untracked (removed?) arg: " + arg.id(),
+                      findActionIdx(
+                          c ->
+                              c instanceof CFGCommand.RemoveInstrOrPhi<?, ?> remove
+                                  && remove.nodeId().equals(arg.id()))));
             } else if (instrOrPhi instanceof Instr instr && !prevNodes.contains(arg)) {
               // Instruction arguments all either originate from earlier in the block, or are
               // CFG-independent. *Except* in basic blocks with exactly one predecessor, instruction
               // arguments may be from that predecessor or, if it also has one predecessor, its
               // predecessor and so on.
-              errors.add(new CFGVerifyException.BrokenInvariant("Arg not defined before use, or control flow ambiguity (so needs to be a phi): " + arg.id(), findActionIdx((c, o) ->
-                  (c instanceof CFGCommand.UpdateInstr<?, ?> update && update.nodeId().equals(instr.id()) && update.newArgs().equals(instr.data())) ||
-                      (c instanceof CFGCommand.AddInstrOrPhi<?> && o == arg.origin())
-              )));
+              errors.add(
+                  new CFGVerifyException.BrokenInvariant(
+                      "Arg not defined before use, or control flow ambiguity (so needs to be a phi): "
+                          + arg.id(),
+                      findActionIdx(
+                          (c, o) ->
+                              (c instanceof CFGCommand.UpdateInstr<?, ?> update
+                                      && update.nodeId().equals(instr.id())
+                                      && update.newArgs().equals(instr.data()))
+                                  || (c instanceof CFGCommand.AddInstrOrPhi<?>
+                                      && o == arg.origin()))));
             }
           }
         }
@@ -273,9 +283,7 @@ public class CFG {
           // from every predecessor.
           // TODO
 
-          for (var input : phi.inputs()) {
-
-          }
+          for (var input : phi.inputs()) {}
         }
 
         prevNodes.addAll(instrOrPhi.returns());
@@ -286,9 +294,13 @@ public class CFG {
 
     for (var remainingBBId : iter.remainingBBIds()) {
       // Every basic block is connected to the entry block.
-      errors.add(new CFGVerifyException.BrokenInvariant("BB not reachable: " + remainingBBId, findActionIdx(c ->
-        c instanceof CFGCommand.RemoveBB removeBB && removeBB.bbId().equals(remainingBBId)
-      )));
+      errors.add(
+          new CFGVerifyException.BrokenInvariant(
+              "BB not reachable: " + remainingBBId,
+              findActionIdx(
+                  c ->
+                      c instanceof CFGCommand.RemoveBB removeBB
+                          && removeBB.bbId().equals(remainingBBId))));
     }
 
     if (!errors.isEmpty()) {
@@ -299,6 +311,7 @@ public class CFG {
   /** Access a view of the CFG before {@link #history()}. */
   public CFG preHistory() {
     // TODO
+    throw new NotImplementedError();
   }
 
   /**
@@ -309,14 +322,18 @@ public class CFG {
     return Collections.unmodifiableList(history);
   }
 
-  /** Returns the most recent action in {@link #history()} whose command satisfies the predicate, or
-   * {@code null} if none do. */
+  /**
+   * Returns the most recent action in {@link #history()} whose command satisfies the predicate, or
+   * {@code null} if none do.
+   */
   public @Nullable CFGAction<?> findAction(Predicate<CFGCommand<?>> predicate) {
     return findAction((cmd, output) -> predicate.test(cmd));
   }
 
-  /** Returns the most recent action in {@link #history()} which satisfies the predicate, or
-   * {@code null} if none do. */
+  /**
+   * Returns the most recent action in {@link #history()} which satisfies the predicate, or {@code
+   * null} if none do.
+   */
   public @Nullable CFGAction<?> findAction(BiPredicate<CFGCommand<?>, Object> predicate) {
     for (var i = history.size() - 1; i >= 0; i--) {
       var a = history.get(i);
@@ -327,14 +344,18 @@ public class CFG {
     return null;
   }
 
-  /** Returns the index of the most recent action in {@link #history()} whose command satisfies the
-   * predicate, or {@code -1} if none do. */
+  /**
+   * Returns the index of the most recent action in {@link #history()} whose command satisfies the
+   * predicate, or {@code -1} if none do.
+   */
   public int findActionIdx(Predicate<CFGCommand<?>> predicate) {
     return findActionIdx((cmd, output) -> predicate.test(cmd));
   }
 
-  /** Returns the index of the most recent action in {@link #history()} which satisfies the
-   * predicate, or {@code -1} if none do. */
+  /**
+   * Returns the index of the most recent action in {@link #history()} which satisfies the
+   * predicate, or {@code -1} if none do.
+   */
   public int findActionIdx(BiPredicate<CFGCommand<?>, Object> predicate) {
     for (var i = history.size() - 1; i >= 0; i--) {
       var a = history.get(i);
@@ -347,7 +368,7 @@ public class CFG {
 
   /** Clear the CFG's history. */
   public void clearHistory() {
-    preHistory = clone();
+    /*WIP preHistory = clone(); */
     history.clear();
   }
 
