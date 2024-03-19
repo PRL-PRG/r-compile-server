@@ -29,6 +29,13 @@ public sealed interface EnvSXP extends SEXP
    */
   Optional<SEXP> getLocal(String name);
 
+  /**
+   * Get the number of symbols in the environment (locally)
+   *
+   * @return the number of symbols in the environment
+   */
+  int size();
+
   @Override
   default SEXPType type() {
     return SEXPType.ENV;

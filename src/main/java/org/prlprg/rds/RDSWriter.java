@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.StreamSupport;
+import javax.annotation.Nullable;
 import org.prlprg.RSession;
 import org.prlprg.RVersion;
 import org.prlprg.primitive.Logical;
@@ -118,29 +119,31 @@ public class RDSWriter implements Closeable {
       writeSymbol(sym);
     } else if (s.type() == SEXPType.ENV) {
       refTable.add(s);
-
-      // Package
-      // TODO: add PackageEnv to the EnvSXP interface
-      StrSXP name = (StrSXP) Objects.requireNonNull(s.attributes()).get("name");
-      assert name != null;
-      if (name.get(0).startsWith("package:")) {
-        out.writeInt(RDSItemType.Special.PACKAGESXP.i());
-        writeItem(name);
-      } // Namespace
-      else if (s instanceof NamespaceEnvSXP) {
+      if (s instanceof NamespaceEnvSXP) {
         out.writeInt(RDSItemType.Special.NAMESPACESXP.i());
         // TODO: build STRSXP with name and version
         throw new UnsupportedOperationException("not implemented yet");
-      } else { // Any other env
+      } else if (s instanceof UserEnvSXP env) { // Any other env
         out.writeInt(SEXPType.ENV.i);
         out.writeInt(0); // FIXME: should be 1 if locked, 0 if not locked
-        assert s instanceof UserEnvSXP;
-        // TODO
         // Enclosure
+        writeItem(env.parent());
         // Frame
-        // Hashtab
+        writeItem(env.frame());
+        // Hashtab (NULL or VECSXP)
+        writeItem(SEXPs.NULL); // simple version here.
+        // Otherwise, we would have to actually do the hashing as it is done in R
+
         // Attributes
-        writeAttributes(s.attributes());
+        // R always write something here, as it does not write a hastag bit in the flags
+        // (it actually has no flags; it just writes the type ENV)
+        if ((env.attributes() != null) && !Objects.requireNonNull(env.attributes()).isEmpty()) {
+          writeAttributes(env.attributes());
+        } else {
+          writeItem(SEXPs.NULL);
+        }
+      } else {
+        throw new UnsupportedOperationException("Unsupported env type: " + s.type());
       }
     } else {
       boolean hastag =
@@ -255,8 +258,10 @@ public class RDSWriter implements Closeable {
     return val;
   }
 
-  private void writeAttributes(Attributes attrs) throws IOException {
-
+  private void writeAttributes(@Nullable Attributes attrs) throws IOException {
+    if (attrs == null || attrs.isEmpty()) {
+      return;
+    }
     // convert to ListSXP
     var l = attrs.entrySet().stream().map(e -> new TaggedElem(e.getKey(), e.getValue())).toList();
     // Write it

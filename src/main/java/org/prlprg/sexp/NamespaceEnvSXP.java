@@ -30,6 +30,12 @@ public final class NamespaceEnvSXP implements EnvSXP {
     return Optional.empty();
   }
 
+  @Override
+  public int size() {
+    // FIXME: implement
+    return 0;
+  }
+
   public String getVersion() {
     return version;
   }

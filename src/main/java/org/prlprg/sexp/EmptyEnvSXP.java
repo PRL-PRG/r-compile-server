@@ -25,6 +25,11 @@ public final class EmptyEnvSXP implements EnvSXP {
   }
 
   @Override
+  public int size() {
+    return 0;
+  }
+
+  @Override
   public Optional<Pair<EnvSXP, SEXP>> find(String name) {
     return Optional.empty();
   }

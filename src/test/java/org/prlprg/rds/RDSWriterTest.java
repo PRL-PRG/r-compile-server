@@ -43,7 +43,7 @@ public class RDSWriterTest implements Tests {
   }
 
   @Test
-  public void testInts_withRef() throws Exception {
+  public void testInts_withR() throws Exception {
     var ints = SEXPs.integer(5, 4, 3, 2, 1);
     var output =
         R.eval(
@@ -213,6 +213,59 @@ public class RDSWriterTest implements Tests {
       }
     } else {
       fail("Expected ListSXP");
+    }
+  }
+
+  @Test
+  public void testEnv() throws Exception {
+    var env = new UserEnvSXP();
+    env.set("a", SEXPs.integer(1));
+    env.set("b", SEXPs.logical(Logical.TRUE));
+    env.set("c", SEXPs.real(3.14, 2.71));
+    env.set("d", SEXPs.string("foo", "bar"));
+    env.setAttributes(new Attributes.Builder().put("test", SEXPs.logical(Logical.TRUE)).build());
+
+    var output = new ByteArrayOutputStream();
+
+    RDSWriter.writeStream(rsession, output, env);
+
+    var input = new ByteArrayInputStream(output.toByteArray());
+    var sexp = RDSReader.readStream(rsession, input);
+
+    if (sexp instanceof UserEnvSXP read_env) {
+      assertEquals(4, read_env.size());
+      assertEquals(SEXPs.integer(1), read_env.get("a").orElseThrow());
+      assertEquals(SEXPs.logical(Logical.TRUE), read_env.get("b").orElseThrow());
+      assertEquals(SEXPs.real(3.14, 2.71), read_env.get("c").orElseThrow());
+      assertEquals(SEXPs.string("foo", "bar"), read_env.get("d").orElseThrow());
+      assertEquals(
+          new Attributes.Builder().put("test", SEXPs.logical(Logical.TRUE)).build(),
+          read_env.attributes());
+    } else {
+      fail("Expected UserEnvSXP");
+    }
+  }
+
+  @Test
+  public void testEnv_withR() throws Exception {
+    var env = new UserEnvSXP();
+    env.set("a", SEXPs.integer(1));
+    env.set("b", SEXPs.logical(Logical.TRUE));
+    env.set("c", SEXPs.real(3.14, 2.71));
+    env.set("d", SEXPs.string("foo", "bar"));
+
+    var output =
+        R.eval(
+            """
+    typeof(input) == "environment" #&& input$a == 1L && input$b == TRUE &&  identical(input$c, c(3.14, 2.71)) && identical(input$d, c("foo", "bar"))
+    """,
+            env);
+
+    if (output instanceof LglSXP read_lgls) {
+      assertEquals(1, read_lgls.size());
+      assertEquals(Logical.TRUE, read_lgls.get(0));
+    } else {
+      fail("Expected LglSXP");
     }
   }
 }
