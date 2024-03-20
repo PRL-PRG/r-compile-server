@@ -1,4 +1,4 @@
-package org.prlprg.ir.type;
+package org.prlprg.ir.type.lattice;
 
 import com.pushtorefresh.javac_warning_annotation.Warning;
 import javax.annotation.Nullable;

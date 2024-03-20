@@ -1,4 +1,4 @@
-package org.prlprg.ir.type;
+package org.prlprg.ir.type.lattice;
 
 /** A type with 2 possible values: no or maybe (a descriptive boolean). */
 public enum NoOrMaybe implements BoundedLattice<NoOrMaybe> {

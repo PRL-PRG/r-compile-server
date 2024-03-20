@@ -4,17 +4,20 @@ package org.prlprg.ir.type;
 public enum REffect {
   /** Changes R_Visible. */
   Visibility,
-  /** Logs a warning. Example: {@code CheckTrueFalse} warns if the vector used in an if
-   * condition has length > 1.
+  /**
+   * Logs a warning. Example: {@code CheckTrueFalse} warns if the vector used in an if condition has
+   * length > 1.
    */
   Warn,
-  /** Raises an error. Example: {@code ForSeqSize} raises an error if the collection to loop over
-   * is not indexable.
+  /**
+   * Raises an error. Example: {@code ForSeqSize} raises an error if the collection to loop over is
+   * not indexable.
    */
   Error,
   /** Performs arbitrary reflection. */
   Reflection,
-  /** "Leaks" a non-environment argument: makes it so that the runtime value is no longer tracked by
+  /**
+   * "Leaks" a non-environment argument: makes it so that the runtime value is no longer tracked by
    * SSA (e.g. stores in an environment).
    */
   LeaksNonEnvArg,
@@ -22,14 +25,18 @@ public enum REffect {
   ReadsEnvArg,
   /** Mutates its environment argument. */
   WritesEnvArg,
-  /** Leaks its environment argument: makes it so that the runtime value is no longer tracked by
-   * SSA (e.g. adds it to an {@code RCNTXT}). */
+  /**
+   * Leaks its environment argument: makes it so that the runtime value is no longer tracked by SSA
+   * (e.g. adds it to an {@code RCNTXT}).
+   */
   LeaksEnvArg,
-  /** May push, pop, or mutate the top {@code RCNTXT}. Contexts are for calls, unoptimized for
-   * loops, and unoptimized subassign, and some other operations.
+  /**
+   * May push, pop, or mutate the top {@code RCNTXT}. Contexts are for calls, unoptimized for loops,
+   * and unoptimized subassign, and some other operations.
    *
    * <p>If code changes contexts internally but always leaves them the same after it exits, it
-   * doesn't have this effect. */
+   * doesn't have this effect.
+   */
   ChangesContext,
   /** Triggers deoptimization. */
   TriggerDeopt,

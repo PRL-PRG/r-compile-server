@@ -32,7 +32,7 @@ public record ArgumentRType(@Nullable String name, RType type) {
   public boolean isNamed() {
     return name != null;
   }
-  
+
   public boolean isDots() {
     return name != null && name.equals("...");
   }

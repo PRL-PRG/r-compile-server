@@ -1,6 +1,9 @@
 package org.prlprg.ir.type;
 
 import javax.annotation.Nullable;
+import org.prlprg.ir.type.lattice.Lattice;
+import org.prlprg.ir.type.lattice.NoOrMaybe;
+import org.prlprg.ir.type.lattice.Troolean;
 
 /**
  * A value's type (part of {@link RType}) that encodes whether or not a value is in a promise, and

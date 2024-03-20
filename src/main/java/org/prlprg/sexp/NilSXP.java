@@ -2,7 +2,9 @@ package org.prlprg.sexp;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import javax.annotation.concurrent.Immutable;
+import org.jetbrains.annotations.Unmodifiable;
 import org.prlprg.util.EmptyIterator;
 
 /**
@@ -53,12 +55,12 @@ public final class NilSXP implements ListSXP {
   }
 
   @Override
-  public List<SEXP> values() {
+  public @Unmodifiable List<SEXP> values() {
     return Collections.emptyList();
   }
 
   @Override
-  public List<SEXP> values(int fromIndex) {
+  public @Unmodifiable List<SEXP> values(int fromIndex) {
     if (fromIndex == 0) {
       return Collections.emptyList();
     } else {
@@ -67,7 +69,7 @@ public final class NilSXP implements ListSXP {
   }
 
   @Override
-  public List<String> names() {
+  public @Unmodifiable List<Optional<String>> names() {
     return Collections.emptyList();
   }
 

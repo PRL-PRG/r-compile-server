@@ -5,6 +5,7 @@ import java.util.Collection;
 import java.util.StringJoiner;
 import java.util.function.Function;
 import java.util.stream.Collector;
+import javax.annotation.Nullable;
 
 public class Strings {
   @SafeVarargs
@@ -32,6 +33,10 @@ public class Strings {
         StringJoiner::merge,
         StringJoiner::toString,
         Collector.Characteristics.UNORDERED);
+  }
+
+  public static @Nullable String stripPrefix(String str, String prefix) {
+    return str.startsWith(prefix) ? str.substring(prefix.length()) : null;
   }
 
   private Strings() {}

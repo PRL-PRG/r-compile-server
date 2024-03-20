@@ -1,7 +1,5 @@
 package org.prlprg;
 
-import java.util.Arrays;
-import java.util.stream.Collectors;
 import org.prlprg.util.Strings;
 
 /** Environment variables to configure the application. */
@@ -9,6 +7,7 @@ public class Config {
   // region actual configuration variables
   /** If true, adds extra verification checks. */
   public static CfgDebugLevel CFG_DEBUG_LEVEL = get("CFG_DEBUG_LEVEL", CfgDebugLevel.VERIFY);
+
   // endregion
 
   // region associated enums
@@ -24,6 +23,7 @@ public class Config {
       return this == VERIFY_AND_TRACK;
     }
   }
+
   // endregion
 
   // region boilerplate getters

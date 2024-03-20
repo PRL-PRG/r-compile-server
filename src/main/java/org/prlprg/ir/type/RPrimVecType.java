@@ -1,6 +1,9 @@
 package org.prlprg.ir.type;
 
 import javax.annotation.Nullable;
+import org.prlprg.ir.type.lattice.MaybeNat;
+import org.prlprg.ir.type.lattice.NoOrMaybe;
+import org.prlprg.ir.type.lattice.Troolean;
 import org.prlprg.sexp.PrimVectorSXP;
 import org.prlprg.util.NotImplementedError;
 

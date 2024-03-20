@@ -2,6 +2,9 @@ package org.prlprg.ir.type;
 
 import java.util.Objects;
 import javax.annotation.Nullable;
+import org.prlprg.ir.type.lattice.Lattice;
+import org.prlprg.ir.type.lattice.Troolean;
+import org.prlprg.ir.type.lattice.YesOrMaybe;
 import org.prlprg.sexp.PromSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPType;

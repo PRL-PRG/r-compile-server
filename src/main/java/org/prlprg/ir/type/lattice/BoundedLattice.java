@@ -1,6 +1,7 @@
-package org.prlprg.ir.type;
+package org.prlprg.ir.type.lattice;
 
 import javax.annotation.Nonnull;
+import org.prlprg.ir.type.RType;
 
 /**
  * Bounded lattice from type theory (lattice with top and bottom). These methods are common in

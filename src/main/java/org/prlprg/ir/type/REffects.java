@@ -7,12 +7,14 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Set;
 import javax.annotation.concurrent.Immutable;
+import org.prlprg.ir.type.lattice.BoundedLattice;
 
 /** Set of effects an instruction or function overload may be performed when executed or called. */
 @Immutable
 public final class REffects extends ForwardingSet<REffect> implements BoundedLattice<REffects> {
   /** Instruction or function overload has no effects. */
   public static REffects PURE = new REffects();
+
   /** Instruction or function overload has every effect. */
   public static REffects ARBITRARY = new REffects(REffect.values());
 
@@ -43,13 +45,19 @@ public final class REffects extends ForwardingSet<REffect> implements BoundedLat
   /** Returns the effects with the new flags removed. */
   public REffects without(REffect... newFlags) {
     var newFlags1 = ImmutableSet.copyOf(newFlags);
-    return new REffects(ImmutableSet.copyOf(flags).stream().filter(f -> !newFlags1.contains(f)).collect(ImmutableSet.toImmutableSet()));
+    return new REffects(
+        ImmutableSet.copyOf(flags).stream()
+            .filter(f -> !newFlags1.contains(f))
+            .collect(ImmutableSet.toImmutableSet()));
   }
 
   /** Returns the effects with the new flags removed. */
   public REffects without(Iterable<REffect> newFlags) {
     var newFlags1 = ImmutableSet.copyOf(newFlags);
-    return new REffects(ImmutableSet.copyOf(flags).stream().filter(f -> !newFlags1.contains(f)).collect(ImmutableSet.toImmutableSet()));
+    return new REffects(
+        ImmutableSet.copyOf(flags).stream()
+            .filter(f -> !newFlags1.contains(f))
+            .collect(ImmutableSet.toImmutableSet()));
   }
 
   /** Whether this contains any of the given flags. */
@@ -79,12 +87,15 @@ public final class REffects extends ForwardingSet<REffect> implements BoundedLat
 
   @Override
   public REffects intersection(REffects other) {
-    return new REffects(ImmutableSet.copyOf(flags).stream().filter(other.flags::contains).collect(ImmutableSet.toImmutableSet()));
+    return new REffects(
+        ImmutableSet.copyOf(flags).stream()
+            .filter(other.flags::contains)
+            .collect(ImmutableSet.toImmutableSet()));
   }
 
   @Override
   public REffects union(REffects other) {
-    return new REffects(ImmutableSet.copyOf(flags).stream().filter(other.flags::contains).collect(ImmutableSet.toImmutableSet()));
+    return new REffects(ImmutableSet.<REffect>builder().addAll(flags).addAll(other.flags).build());
   }
 
   @Override

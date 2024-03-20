@@ -1,6 +1,8 @@
 package org.prlprg.ir.type;
 
 import javax.annotation.Nullable;
+import org.prlprg.ir.type.lattice.Lattice;
+import org.prlprg.ir.type.lattice.Troolean;
 import org.prlprg.sexp.SEXPType;
 
 /** The "main" type of a primitive vector's elements. */

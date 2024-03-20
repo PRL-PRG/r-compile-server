@@ -1,23 +1,29 @@
 package org.prlprg.sexp;
 
-import static net.jqwik.api.Arbitraries.doubles;
-import static net.jqwik.api.Arbitraries.integers;
+import static net.jqwik.api.Arbitraries.just;
+import static net.jqwik.api.Arbitraries.oneOf;
+import static net.jqwik.api.Arbitraries.recursive;
 import static net.jqwik.api.Arbitraries.strings;
+import static org.prlprg.primitive.ArbitraryProvider.basicInts;
+import static org.prlprg.primitive.ArbitraryProvider.basicReals;
 import static org.prlprg.primitive.ArbitraryProvider.complexes;
 import static org.prlprg.primitive.ArbitraryProvider.logicals;
 
+import java.util.Optional;
 import java.util.Set;
 import net.jqwik.api.Arbitraries;
 import net.jqwik.api.Arbitrary;
 import net.jqwik.api.Combinators;
+import net.jqwik.api.Tuple;
 import net.jqwik.api.arbitraries.StringArbitrary;
 import net.jqwik.api.providers.TypeUsage;
 import org.prlprg.util.Pair;
+import org.prlprg.util.Streams;
 
 public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvider {
-  private static final int MAX_DEPTH = 1;
-  private static final int MAX_SIZE = 5;
-  private static final int MAX_LENGTH = 5;
+  private static final int MAX_DEPTH = 2;
+  private static final int MAX_SIZE = 3;
+  private static final int MAX_LENGTH = 4;
 
   public static Arbitrary<SEXPType> sexpTypes() {
     // We don't provide the ANY type because it's weird and we never actually encounter it.
@@ -25,7 +31,7 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
   }
 
   public static Arbitrary<SEXP> sexps() {
-    return Arbitraries.recursive(
+    return recursive(
         ArbitraryProvider::sexpsWithoutAttributes,
         s ->
             Combinators.combine(sexpsWithoutAttributes(), attributes(s))
@@ -47,9 +53,9 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
   }
 
   private static Arbitrary<SEXP> sexpsWithoutAttributes() {
-    return Arbitraries.recursive(
-        () -> Arbitraries.oneOf(basicSexps(), exprs(), astSexps()),
-        s -> Arbitraries.oneOf(promises(s), closures(s), lists(s), envs(s)),
+    return recursive(
+        () -> oneOf(basicSexps(), exprs(), astSexps()),
+        s -> oneOf(promises(s), closures(s), lists(s), envs(s)),
         0,
         MAX_DEPTH);
   }
@@ -59,7 +65,7 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
   }
 
   private static Arbitrary<EnvSXP> envs(Arbitrary<SEXP> sexps) {
-    return Arbitraries.recursive(
+    return recursive(
         () -> staticEnvs(sexps),
         e ->
             Combinators.combine(
@@ -79,16 +85,15 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
   }
 
   private static Arbitrary<EnvSXP> staticEnvs(Arbitrary<SEXP> sexps) {
-    return Arbitraries.oneOf(
-        Arbitraries.just(SEXPs.EMPTY_ENV),
+    return oneOf(
+        just(SEXPs.EMPTY_ENV),
         Combinators.combine(
-                Arbitraries.oneOf(baseEnvs(sexps), namespaceEnvs(sexps)),
-                Arbitraries.of(true, false))
+                oneOf(baseEnvs(sexps), namespaceEnvs(sexps)), Arbitraries.of(true, false))
             .as((parent, isGlobal) -> isGlobal ? new GlobalEnvSXP(parent) : parent));
   }
 
   private static Arbitrary<NamespaceEnvSXP> namespaceEnvs(Arbitrary<SEXP> sexps) {
-    return Arbitraries.recursive(
+    return recursive(
         () -> namespaceEnvs1(baseEnvs(sexps)), ArbitraryProvider::namespaceEnvs1, 0, MAX_DEPTH);
   }
 
@@ -117,7 +122,15 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
   }
 
   private static Arbitrary<CloSXP> closures(Arbitrary<SEXP> sexps) {
-    return Combinators.combine(lists(sexps), sexps, envs(sexps)).as(SEXPs::closure);
+    return Combinators.combine(
+            lists(sexps)
+                .filter(
+                    l ->
+                        Streams.hasNoDuplicates(
+                            l.names().stream().filter(Optional::isPresent).map(Optional::get))),
+            sexps,
+            envs(sexps))
+        .as(SEXPs::closure);
   }
 
   public static Arbitrary<PromSXP> promises() {
@@ -138,8 +151,7 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
   }
 
   private static Arbitrary<SEXP> astSexps() {
-    return Arbitraries.recursive(
-        ArbitraryProvider::basicAstSexps, s -> languages(s).map(l -> l), 0, MAX_DEPTH);
+    return recursive(ArbitraryProvider::basicAstSexps, s -> languages(s).map(l -> l), 0, MAX_DEPTH);
   }
 
   public static Arbitrary<LangSXP> languages() {
@@ -151,7 +163,7 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
   }
 
   public static Arbitrary<SEXP> basicSexps() {
-    return Arbitraries.oneOf(
+    return oneOf(
         basicAstSexps(),
         Arbitraries.of(
             SEXPs.EMPTY_ENV,
@@ -161,18 +173,18 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
             SEXPs.EMPTY_INTEGER,
             SEXPs.EMPTY_REAL,
             SEXPs.MISSING_ARG),
-        integers().list().ofMaxSize(MAX_SIZE).map(SEXPs::integer),
-        doubles().list().ofMaxSize(MAX_SIZE).map(SEXPs::real),
+        basicInts().list().ofMaxSize(MAX_SIZE).map(SEXPs::integer),
+        basicReals().list().ofMaxSize(MAX_SIZE).map(SEXPs::real),
         shortStrings().list().ofMaxSize(MAX_SIZE).map(SEXPs::string),
         logicals().list().ofMaxSize(MAX_SIZE).map(SEXPs::logical),
         complexes().list().ofMaxSize(MAX_SIZE).map(SEXPs::complex));
   }
 
   public static Arbitrary<SEXP> basicAstSexps() {
-    return Arbitraries.oneOf(
-        Arbitraries.just(SEXPs.NULL),
-        integers().map(SEXPs::integer),
-        doubles().map(SEXPs::real),
+    return oneOf(
+        just(SEXPs.NULL),
+        basicInts().map(SEXPs::integer),
+        basicReals().map(SEXPs::real),
         shortStrings().map(SEXPs::string),
         logicals().map(SEXPs::logical),
         complexes().map(SEXPs::complex),
@@ -185,10 +197,9 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
 
   /** Generates valid symbol (and tag) names. */
   public static Arbitrary<String> symbolStrings() {
-    return shortStrings()
-        .ofMinLength(1)
-        .ascii()
-        .edgeCases(c -> c.add("TRUE", "FALSE", "NULL", " ", "`"));
+    return Arbitraries.frequencyOf(
+        Tuple.of(8, Arbitraries.of("foo", "bar", "baz", "abc")),
+        Tuple.of(2, Arbitraries.of("NULL", " ", "|g", "0")));
   }
 
   /** Returns strings which aren't too long, because we really don't need to test those. */

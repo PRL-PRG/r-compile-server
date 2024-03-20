@@ -2,6 +2,9 @@ package org.prlprg.ir.type;
 
 import java.util.logging.Logger;
 import javax.annotation.Nullable;
+import org.prlprg.ir.type.lattice.MaybeNat;
+import org.prlprg.ir.type.lattice.NoOrMaybe;
+import org.prlprg.ir.type.lattice.Troolean;
 import org.prlprg.sexp.ListSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;

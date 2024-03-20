@@ -1,6 +1,7 @@
 package org.prlprg.ir.type;
 
 import javax.annotation.Nullable;
+import org.prlprg.ir.type.lattice.Lattice;
 import org.prlprg.sexp.Attributes;
 
 /**

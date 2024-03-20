@@ -1,4 +1,4 @@
-package org.prlprg.ir.type;
+package org.prlprg.ir.type.lattice;
 
 /** A type with 2 possible values: yes or maybe (a descriptive boolean). */
 public enum YesOrMaybe implements BoundedLattice<YesOrMaybe> {

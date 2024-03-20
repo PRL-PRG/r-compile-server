@@ -1,6 +1,7 @@
-package org.prlprg.ir.type;
+package org.prlprg.ir.type.lattice;
 
 import javax.annotation.Nullable;
+import org.prlprg.ir.type.RType;
 
 /**
  * Lattice from type theory which is bounded at the top. These methods are common in {@link RType}

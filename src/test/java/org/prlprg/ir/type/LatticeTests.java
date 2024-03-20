@@ -10,12 +10,19 @@ import javax.annotation.Nullable;
 import net.jqwik.api.Arbitraries;
 import net.jqwik.api.Arbitrary;
 import net.jqwik.api.ForAll;
+import net.jqwik.api.GenerationMode;
 import net.jqwik.api.Property;
 import net.jqwik.api.Provide;
 import net.jqwik.api.Tuple;
 import net.jqwik.api.Tuple.Tuple2;
 import net.jqwik.api.Tuple.Tuple3;
+import net.jqwik.api.lifecycle.BeforeContainer;
 import org.opentest4j.AssertionFailedError;
+import org.prlprg.ir.type.lattice.Lattice;
+import org.prlprg.ir.type.lattice.MaybeNat;
+import org.prlprg.ir.type.lattice.NoOrMaybe;
+import org.prlprg.ir.type.lattice.Troolean;
+import org.prlprg.ir.type.lattice.YesOrMaybe;
 import org.prlprg.util.Reflection;
 
 public class LatticeTests {
@@ -52,16 +59,15 @@ public class LatticeTests {
           .stream()
           .collect(ImmutableMap.toImmutableMap(Tuple2::get1, Tuple2::get2));
 
+  @BeforeContainer
   static void setup() {
     // Disable weird case logs because we generate weird types
     RGenericValueType.ENABLE_WEIRD_CASE_LOGS = false;
   }
 
-  @Property
+  @Property(generation = GenerationMode.RANDOMIZED, tries = 25)
   void isCoherent_Lattice(
       @ForAll("latticePairsAndClasses") Tuple3<Object, Object, Object> lattices) {
-    setup();
-
     var lhs = (Lattice<?>) lattices.get1();
     var rhs = (Lattice<?>) lattices.get2();
     var clazz = (Class<?>) lattices.get3();
@@ -79,15 +85,11 @@ public class LatticeTests {
 
   @Property
   void isCoherent_REffects(@ForAll REffects lhs, @ForAll REffects rhs) {
-    setup();
-
     isCoherent(lhs, rhs, REffects.ARBITRARY, REffects.PURE);
   }
 
-  @Property
+  @Property(generation = GenerationMode.RANDOMIZED, tries = 25)
   void isCoherent_RType(@ForAll RType lhs, @ForAll RType rhs) {
-    setup();
-
     isCoherent(lhs, rhs, RTypes.ANY, RTypes.NOTHING);
   }
 
@@ -96,7 +98,31 @@ public class LatticeTests {
     isCoherent(lhs, rhs, top, null);
   }
 
+  @SuppressWarnings("EqualsWithItself")
   private <T extends Lattice<T>> void isCoherent(T lhs, T rhs, T top, @Nullable T bottom) {
+    // This seems obvious, but may not hold due to NaN equality. It *should* hold.
+    //
+    // A simple record with a double will preserve equality even with NaN:
+    //     record Foo(double value) {}
+    //     ==>
+    //     new Foo(Double.NaN).Foo(Double.NaN) == true
+    //
+    // But it's easy to get this wrong with boilerplate `equals`:
+    //     class Foo {
+    //         double value;
+    //         public boolean equals(Object o) {
+    //             return o instanceof Foo f && f.value == value;
+    //         }
+    //     }
+    //     ==>
+    //     new Foo(Double.NaN).equals(new Foo(Double.NaN)) == false
+    //
+    // This ruins basic lattice guarantees, so wrt types that have exact values, we want them to
+    // equal themselves.
+    //
+    assertEquals(lhs, lhs, "a = a (check NaN)");
+    assertEquals(rhs, rhs, "b = b (check NaN)");
+
     // Subset
     assertTrue(lhs.isSubsetOf(top), "a ≤ ⊤");
     assertTrue(Lattice.isSubset(bottom, lhs), "⊥ ≤ a");

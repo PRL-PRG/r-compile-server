@@ -4,6 +4,9 @@ import com.google.common.collect.ImmutableSet;
 import java.util.Arrays;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
+import org.prlprg.ir.type.lattice.Lattice;
+import org.prlprg.ir.type.lattice.MaybeNat;
+import org.prlprg.ir.type.lattice.NoOrMaybe;
 import org.prlprg.sexp.SEXP;
 
 /**

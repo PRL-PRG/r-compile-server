@@ -8,12 +8,16 @@ import com.google.common.collect.Streams;
 import com.google.common.primitives.ImmutableIntArray;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Function;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.Unmodifiable;
+import org.prlprg.ir.type.generic.GenericOverloadEffects;
+import org.prlprg.ir.type.generic.GenericOverloadReturnType;
+import org.prlprg.ir.type.lattice.NoOrMaybe;
+import org.prlprg.ir.type.lattice.YesOrMaybe;
 import org.prlprg.util.Strings;
 
-/** A function overload: if we call the function with these arguments, it will return this value and
+/**
+ * A function overload: if we call the function with these arguments, it will return this value and
  * have these effects.
  */
 public sealed interface OverloadRType {
@@ -23,20 +27,22 @@ public sealed interface OverloadRType {
   /** Parameter names mapped to their corresponding types. */
   ImmutableMap<String, ParameterRType> parameterMap();
 
-  /** Returns a list which maps the index of each <i>argument</i> to that of the matching
+  /**
+   * Returns a list which maps the index of each <i>argument</i> to that of the matching
    * <i>parameter</i>, where <b>matching</b> is defined the same way as {@code matchArgs_NR} in
    * {@code match.c} of GNU-R.
    *
    * <p>Specifically, matching is defined as (in order of priority, so if an argument/parameter pair
    * satisfies an earlier clause, they will match that way):
+   *
    * <ul>
-   *   <li>Both are named, and the names are equal.</li>
+   *   <li>Both are named, and the names are equal.
    *   <li>Both are named, the argument name is a prefix of the parameter name, and the matching
-   *   parameter is before the dots parameter (if present).</li>
+   *       parameter is before the dots parameter (if present).
    *   <li>The argument isn't named, and in the list of unnamed arguments, has the same index as a
-   *   parameter that is in the list of parameters still not matched by name that are before the
-   *   dots parameter (if present).</li>
-   *   <li>If the dots parameter is present, any remaining arguments match it.</li>
+   *       parameter that is in the list of parameters still not matched by name that are before the
+   *       dots parameter (if present).
+   *   <li>If the dots parameter is present, any remaining arguments match it.
    * </ul>
    *
    * Returns {@code null} if the arguments don't all match <i>or</i> there are unmatched required
@@ -134,10 +140,12 @@ public sealed interface OverloadRType {
     return ImmutableIntArray.copyOf(matches);
   }
 
-  /** If every argument has a matching parameter, returns the normalized list where each argument's
+  /**
+   * If every argument has a matching parameter, returns the normalized list where each argument's
    * index is that of the parameter, and indices of optional parameters are arguments with the
    * parameter's types. Returns {@code null} if there are any unmatched arguments or required
-   * parameters. */
+   * parameters.
+   */
   default @Nullable @Unmodifiable NormalizedArityRType normalizeToMatch(
       List<ArgumentRType> arguments) {
     var indices = matchIndices(arguments);
@@ -169,15 +177,18 @@ public sealed interface OverloadRType {
     return new NormalizedArityRTypeImpl(ImmutableList.copyOf(normalizedTypes), dotArgs.build());
   }
 
-  /** Whether arguments of the given names and types can be applied to this overload. Specifically:
+  /**
+   * Whether arguments of the given names and types can be applied to this overload. Specifically:
+   *
    * <ul>
-   *   <li>All required parameter types must have a matching argument type.</li>
-   *   <li>All argument types must have a matching parameter type, <i>or</i> this overload must
-   *   have a dots parameter type.</li>
-   *   <li>All argument types must be subtypes of the matching parameter type.</li>
+   *   <li>All required parameter types must have a matching argument type.
+   *   <li>All argument types must have a matching parameter type, <i>or</i> this overload must have
+   *       a dots parameter type.
+   *   <li>All argument types must be subtypes of the matching parameter type.
    * </ul>
-   * where <b>matching</b> is defined the same way as {@link #matchIndices(List)} and
-   * {@code matchArgs_NR} in {@code match.c} of GNU-R.
+   *
+   * where <b>matching</b> is defined the same way as {@link #matchIndices(List)} and {@code
+   * matchArgs_NR} in {@code match.c} of GNU-R.
    */
   default boolean matches(List<ArgumentRType> arguments) {
     var indices = matchIndices(arguments);
@@ -195,13 +206,15 @@ public sealed interface OverloadRType {
     return true;
   }
 
-  /** Whether <b>normalized</b> arguments of the given names and types can be applied to this
+  /**
+   * Whether <b>normalized</b> arguments of the given names and types can be applied to this
    * overload. Specifically:
+   *
    * <ul>
-   *   <li>All required parameter types must have a matching argument type.</li>
-   *   <li>All argument types must have a matching parameter type, <i>or</i> this overload must
-   *   have a dots parameter type.</li>
-   *   <li>All argument types must be subtypes of the matching parameter type.</li>
+   *   <li>All required parameter types must have a matching argument type.
+   *   <li>All argument types must have a matching parameter type, <i>or</i> this overload must have
+   *       a dots parameter type.
+   *   <li>All argument types must be subtypes of the matching parameter type.
    * </ul>
    *
    * <p>The arguments must be normalized with {@link #normalizeToMatch(List)}. If that returns
@@ -210,26 +223,30 @@ public sealed interface OverloadRType {
   @SuppressWarnings("UnstableApiUsage")
   default boolean matchesNormalized(NormalizedArityRType arguments) {
     if (arguments.types().size() != parameters().size()) {
-      throw new IllegalArgumentException("normalized arguments must have the same size as"
-          + "parameters");
+      throw new IllegalArgumentException(
+          "normalized arguments must have the same size as" + "parameters");
     }
-    return Streams.zip(arguments.types().stream(), parameters().stream(), (a, p) -> a.isSubsetOf(p.type()))
+    return Streams.zip(
+            arguments.types().stream(), parameters().stream(), (a, p) -> a.isSubsetOf(p.type()))
         .allMatch(x -> x);
   }
 
-  /** Effects performed given <b>normalized</b> arguments of the following types, or {@code null}
-   * for arbitrary arguments (arguments affect the effects if the function is generic, e.g. if it
-   * forces a promise, it will have effects based on the promise type).
+  /**
+   * Effects performed given <b>normalized</b> arguments of the following types, or {@code null} for
+   * arbitrary arguments (arguments affect the effects if the function is generic, e.g. if it forces
+   * a promise, it will have effects based on the promise type).
    *
-   * <p>The arguments must be normalized with {@link #normalizeToMatch(List)}*/
+   * <p>The arguments must be normalized with {@link #normalizeToMatch(List)}
+   */
   REffects effects(@Nullable NormalizedArityRType arguments);
 
-
-  /** Return type given <b>normalized</b> arguments of the following types, or {@code null} for
+  /**
+   * Return type given <b>normalized</b> arguments of the following types, or {@code null} for
    * arbitrary arguments (arguments affect the return type if the function is generic, e.g. returns
    * its first arg).
    *
-   * <p>The arguments must be normalized with {@link #normalizeToMatch(List)}*/
+   * <p>The arguments must be normalized with {@link #normalizeToMatch(List)}
+   */
   RType returnType(@Nullable NormalizedArityRType arguments);
 
   /**
@@ -251,10 +268,10 @@ public sealed interface OverloadRType {
   }
 
   /**
-   * Returns the name and type of the parameter named {@code name}, or {@code null} if that isn't
-   * in the parameter list. If {@code dotsCoversAll} is true and this has dots, it will return the
-   * dots parameter if there's no other parameter with the name (if you pass {@code "..."} and this
-   * has a dots parameter, it will return it regardless).
+   * Returns the name and type of the parameter named {@code name}, or {@code null} if that isn't in
+   * the parameter list. If {@code dotsCoversAll} is true and this has dots, it will return the dots
+   * parameter if there's no other parameter with the name (if you pass {@code "..."} and this has a
+   * dots parameter, it will return it regardless).
    */
   default @Nullable ParameterRType parameter(String name, boolean dotsCoversAll) {
     var p = parameterMap().get(name);
@@ -265,8 +282,8 @@ public sealed interface OverloadRType {
   }
 
   /**
-   * Returns the name and type of the parameter named {@code name}, or {@code null} if that isn't
-   * in the parameter list. If this has dots, it will return the dots parameter if there's no other
+   * Returns the name and type of the parameter named {@code name}, or {@code null} if that isn't in
+   * the parameter list. If this has dots, it will return the dots parameter if there's no other
    * parameter with the name.
    */
   default @Nullable ParameterRType parameter(String name) {
@@ -286,17 +303,21 @@ public sealed interface OverloadRType {
     return parameterMap().containsKey("...");
   }
 
-  /** Returns true if the other overload is completely redundant by this one; specifically, if its
+  /**
+   * Returns true if the other overload is completely redundant by this one; specifically, if its
    * parameters are a subset of this one's parameters, it has strictly less effects, and its return
    * type is a superset
    */
   default boolean subsumes(OverloadRType other) {
-    return parametersAreSuperset(other) == YesOrMaybe.YES && effectsAreSubset(other) &&
-        returnTypeIsSubset(other);
+    return parametersAreSuperset(other) == YesOrMaybe.YES
+        && effectsAreSubset(other)
+        && returnTypeIsSubset(other);
   }
 
-  /** Returns true if any argument list that matches the other overload is guaranteed to match this
-   * one. Note that this may return false for some cases where it's still guaranteed. */
+  /**
+   * Returns true if any argument list that matches the other overload is guaranteed to match this
+   * one. Note that this may return false for some cases where it's still guaranteed.
+   */
   default YesOrMaybe parametersAreSuperset(OverloadRType other) {
     if (parameters().size() < other.parameters().size()) {
       return YesOrMaybe.MAYBE;
@@ -304,7 +325,8 @@ public sealed interface OverloadRType {
     for (int i = 0; i < other.parameters().size(); i++) {
       var param = parameters().get(i);
       var otherParam = other.parameters().get(i);
-      if (!Objects.equal(param.name(), otherParam.name()) || !param.isSupersetOf(otherParam.isRequired(), otherParam.type())) {
+      if (!Objects.equal(param.name(), otherParam.name())
+          || !param.isSupersetOf(otherParam.isRequired(), otherParam.type())) {
         return YesOrMaybe.MAYBE;
       }
     }
@@ -316,12 +338,16 @@ public sealed interface OverloadRType {
     return YesOrMaybe.YES;
   }
 
-  /** Returns true if the other overload's effects are always a subset of this one's effects, no
-   * matter what arguments are supplied as long as both get the same arguments. */
+  /**
+   * Returns true if the other overload's effects are always a subset of this one's effects, no
+   * matter what arguments are supplied as long as both get the same arguments.
+   */
   boolean effectsAreSubset(OverloadRType other);
 
-  /** Returns true if the other overload's return type is always subset of this one's return type,
-   * no matter what arguments are supplied as long as both get the same arguments. */
+  /**
+   * Returns true if the other overload's return type is always subset of this one's return type, no
+   * matter what arguments are supplied as long as both get the same arguments.
+   */
   boolean returnTypeIsSubset(OverloadRType other);
 }
 
@@ -330,26 +356,36 @@ final class OverloadRTypeImpl implements OverloadRType {
   private final ImmutableMap<String, ParameterRType> parameterMap;
   private final int dotsIndex;
   private final REffects fallbackEffects;
-  private final @Nullable Function<NormalizedArityRType, REffects> genericEffects;
+  private final @Nullable GenericOverloadEffects genericEffects;
   private final RType fallbackReturnType;
-  private final @Nullable Function<NormalizedArityRType, RType> genericReturnType;
-  
+  private final @Nullable GenericOverloadReturnType genericReturnType;
+
   OverloadRTypeImpl(
       ImmutableList<ParameterRType> parameters,
       REffects fallbackEffects,
-      @Nullable Function<NormalizedArityRType, REffects> genericEffects,
+      @Nullable GenericOverloadEffects genericEffects,
       RType fallbackReturnType,
-      @Nullable Function<NormalizedArityRType, RType> genericReturnType) {
+      @Nullable GenericOverloadReturnType genericReturnType) {
     this.parameters = parameters;
-    parameterMap = parameters.stream().filter(ParameterRType::isNamed)
-        .collect(ImmutableMap.toImmutableMap(ParameterRType::name, x -> x));
+    try {
+      parameterMap =
+          parameters.stream()
+              .filter(ParameterRType::isNamed)
+              .collect(ImmutableMap.toImmutableMap(ParameterRType::name, x -> x));
+    } catch (IllegalArgumentException e) {
+      var message = Strings.stripPrefix(e.getMessage(), "Multiple entries with same key: ");
+      if (message != null) {
+        throw new IllegalArgumentException("Multiple parameters with same name: " + message, e);
+      }
+      throw e;
+    }
     dotsIndex = Iterables.indexOf(parameters, ParameterRType::isDots);
     this.fallbackEffects = fallbackEffects;
     this.fallbackReturnType = fallbackReturnType;
     this.genericEffects = genericEffects;
     this.genericReturnType = genericReturnType;
   }
-  
+
   @Override
   public ImmutableList<ParameterRType> parameters() {
     return parameters;
@@ -362,12 +398,16 @@ final class OverloadRTypeImpl implements OverloadRType {
 
   @Override
   public REffects effects(@Nullable NormalizedArityRType arguments) {
-    return genericEffects == null || arguments == null ? fallbackEffects : genericEffects.apply(arguments);
+    return genericEffects == null || arguments == null
+        ? fallbackEffects
+        : genericEffects.givenArguments(arguments);
   }
 
   @Override
   public RType returnType(@Nullable NormalizedArityRType arguments) {
-    return genericReturnType == null || arguments == null ? fallbackReturnType : genericReturnType.apply(arguments);
+    return genericReturnType == null || arguments == null
+        ? fallbackReturnType
+        : genericReturnType.givenArguments(arguments);
   }
 
   @Override
@@ -378,39 +418,51 @@ final class OverloadRTypeImpl implements OverloadRType {
   @Override
   public boolean effectsAreSubset(OverloadRType other) {
     return switch (other) {
-      case OverloadRTypeImpl o -> fallbackEffects.isSubsetOf(o.fallbackEffects) &&
-          (o.genericEffects == null || o.genericEffects.equals(genericEffects));
+      case OverloadRTypeImpl o ->
+          fallbackEffects.isSubsetOf(o.fallbackEffects)
+              && (o.genericEffects == null
+                  || (genericEffects != null
+                      && genericEffects.isDefinitelySubsetOf(o.genericEffects)));
     };
   }
 
   @Override
   public boolean returnTypeIsSubset(OverloadRType other) {
     return switch (other) {
-      case OverloadRTypeImpl o -> fallbackReturnType.isSubsetOf(o.fallbackReturnType) &&
-          (o.genericReturnType == null || o.genericReturnType.equals(genericReturnType));
+      case OverloadRTypeImpl o ->
+          fallbackReturnType.isSubsetOf(o.fallbackReturnType)
+              && (o.genericReturnType == null
+                  || (genericReturnType != null
+                      && genericReturnType.isDefinitelySubsetOf(o.genericReturnType)));
     };
   }
 
   @Override
   public boolean equals(Object o) {
-    if (this == o)
-      return true;
-    if (!(o instanceof OverloadRTypeImpl that))
-      return false;
-    return Objects.equal(parameters, that.parameters) && Objects.equal(fallbackEffects,
-        that.fallbackEffects) && Objects.equal(genericEffects, that.genericEffects)
-        && Objects.equal(fallbackReturnType, that.fallbackReturnType) && Objects.equal(
-        genericReturnType, that.genericReturnType);
+    if (this == o) return true;
+    if (!(o instanceof OverloadRTypeImpl that)) return false;
+    return Objects.equal(parameters, that.parameters)
+        && Objects.equal(fallbackEffects, that.fallbackEffects)
+        && Objects.equal(genericEffects, that.genericEffects)
+        && Objects.equal(fallbackReturnType, that.fallbackReturnType)
+        && Objects.equal(genericReturnType, that.genericReturnType);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hashCode(parameters, fallbackEffects, genericEffects, fallbackReturnType,
-        genericReturnType);
+    return Objects.hashCode(
+        parameters, fallbackEffects, genericEffects, fallbackReturnType, genericReturnType);
   }
 
   @Override
   public String toString() {
-    return "(" + Strings.join(", ", parameters) + ") →" + (genericEffects == null ? "" : "*") + fallbackEffects + (genericReturnType == null ? "" : "*") + " " + fallbackReturnType;
+    return "("
+        + Strings.join(", ", parameters)
+        + ") →"
+        + (genericEffects == null ? "" : "*")
+        + fallbackEffects
+        + (genericReturnType == null ? "" : "*")
+        + " "
+        + fallbackReturnType;
   }
 }
