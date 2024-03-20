@@ -8,6 +8,7 @@ import java.util.Collections;
 import java.util.Set;
 import javax.annotation.concurrent.Immutable;
 import org.prlprg.ir.type.lattice.BoundedLattice;
+import org.prlprg.util.Strings;
 
 /** Set of effects an instruction or function overload may be performed when executed or called. */
 @Immutable
@@ -96,6 +97,11 @@ public final class REffects extends ForwardingSet<REffect> implements BoundedLat
   @Override
   public REffects union(REffects other) {
     return new REffects(ImmutableSet.<REffect>builder().addAll(flags).addAll(other.flags).build());
+  }
+
+  @Override
+  public String toString() {
+    return flags.stream().sorted().collect(Strings.joining(""));
   }
 
   @Override

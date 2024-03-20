@@ -44,7 +44,7 @@ public final class UserEnvSXP implements EnvSXP {
 
   @Override
   public String toString() {
-    return "<environment: " + hashCode() + ">";
+    return "<environment: " + "@" + Integer.toString(hashCode(), 16) + ">";
   }
 
   @Override

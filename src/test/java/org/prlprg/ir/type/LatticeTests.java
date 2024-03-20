@@ -65,7 +65,7 @@ public class LatticeTests {
     RGenericValueType.ENABLE_WEIRD_CASE_LOGS = false;
   }
 
-  @Property(generation = GenerationMode.RANDOMIZED, tries = 25)
+  @Property(generation = GenerationMode.RANDOMIZED, tries = 100)
   void isCoherent_Lattice(
       @ForAll("latticePairsAndClasses") Tuple3<Object, Object, Object> lattices) {
     var lhs = (Lattice<?>) lattices.get1();
@@ -88,7 +88,7 @@ public class LatticeTests {
     isCoherent(lhs, rhs, REffects.ARBITRARY, REffects.PURE);
   }
 
-  @Property(generation = GenerationMode.RANDOMIZED, tries = 25)
+  @Property(generation = GenerationMode.RANDOMIZED, tries = 100)
   void isCoherent_RType(@ForAll RType lhs, @ForAll RType rhs) {
     isCoherent(lhs, rhs, RTypes.ANY, RTypes.NOTHING);
   }
@@ -119,7 +119,6 @@ public class LatticeTests {
     //
     // This ruins basic lattice guarantees, so wrt types that have exact values, we want them to
     // equal themselves.
-    //
     assertEquals(lhs, lhs, "a = a (check NaN)");
     assertEquals(rhs, rhs, "b = b (check NaN)");
 

@@ -278,7 +278,7 @@ sealed interface RPromiseType extends Lattice<RPromiseType> {
 
     @Override
     public String toString() {
-      return (referenceCount == MaybeNat.UNKNOWN ? "" : "{" + referenceCount + "}")
+      return (referenceCount == MaybeNat.UNKNOWN ? "" : "#" + referenceCount)
           + switch (isLazy) {
             case YES -> "~!";
             case NO -> "^!";
@@ -297,7 +297,7 @@ sealed interface RPromiseType extends Lattice<RPromiseType> {
     @Override
     public String toString() {
       return "*"
-          + (referenceCount == MaybeNat.UNKNOWN ? "" : "{" + referenceCount + "}")
+          + (referenceCount == MaybeNat.UNKNOWN ? "" : "#" + referenceCount)
           + (exactValue.isLazy() ? "~" : "^")
           + "!";
     }

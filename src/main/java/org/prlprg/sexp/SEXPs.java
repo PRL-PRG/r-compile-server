@@ -383,7 +383,7 @@ public final class SEXPs {
             ? ""
             : "\n  | "
                 + attributes.entrySet().stream()
-                    .map(e -> e.getKey() + " = " + e.getValue())
+                    .map(e -> RegSymSXP.escape(e.getKey()) + " = " + e.getValue())
                     .collect(Collectors.joining("\n  , ")))
         + ">";
   }

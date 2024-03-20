@@ -40,7 +40,7 @@ record CloSXPImpl(ListSXP formals, SEXP body, EnvSXP env, @Override Attributes a
 
   @Override
   public String toString() {
-    return SEXPs.toString(this, env(), formals(), "\n  → ", body());
+    return SEXPs.toString(this, env(), formals(), "\n  ⇒ ", body());
   }
 
   @Override

@@ -3,8 +3,8 @@ package org.prlprg.ir.type;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Streams;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.prlprg.ir.type.lattice.MaybeNat;
@@ -84,30 +84,45 @@ record RFunctionTypeImpl(
    * with superset (less-specific) parameters are after.
    */
   static ImmutableList<OverloadRType> normalizeOverloadsWrtSubsuming(
-      Collection<OverloadRType> overloads) {
+      List<OverloadRType> overloads) {
     var list = new ArrayList<>(overloads);
-    // Sort so that overloads with subsuming parameters are *before*,
-    // since those after may be removed.
-    list.sort(
-        (o1, o2) -> {
-          if (o1.parametersAreSuperset(o2) == YesOrMaybe.YES) {
-            return 1;
-          }
-          if (o2.parametersAreSuperset(o1) == YesOrMaybe.YES) {
-            return -1;
-          }
-          return 0;
-        });
-    // Remove overloads that are subsumed by others.
+
+    // Remove overloads that are subsumed by others, first by setting to `null`, then removing all
+    // `null`s.
     for (var i = 0; i < list.size(); i++) {
       var o1 = list.get(i);
-      list.subList(i, list.size()).removeIf(o1::subsumes);
+      if (o1 == null) continue;
+      for (var j = 0; j < list.size(); j++) {
+        var o2 = list.get(j);
+        if (o2 == null || i == j) continue;
+        if (o1.subsumes(o2)) {
+          list.set(j, null);
+        }
+      }
     }
-    // Reverse the order so that overloads with subsuming parameters are *after*.
-    return ImmutableList.copyOf(list.reversed());
+    list.removeIf(Objects::isNull);
+
+    // Sort so that overloads with superset parameters are after.
+    // Ensure the list order is otherwise deterministic for tests/assertions
+    // (`normalizeOverloadsWrtSubsuming(normalizeOverloadsWrtSubsuming(x)) =
+    // normalizeOverloadsWrtSubsuming(x)`).
+    list.sort(
+        (o1, o2) -> {
+          var o1SupersetsO2 = o1.parametersAreSuperset(o2) == YesOrMaybe.YES;
+          var o2SupersetsO1 = o2.parametersAreSuperset(o1) == YesOrMaybe.YES;
+          // We need the !o2SupersetsO1 and !o1SupersetsO2 checks to keep deterministic if they are
+          // the same.
+          if (o1SupersetsO2 && !o2SupersetsO1) {
+            return 1;
+          }
+          if (o2SupersetsO1 && !o1SupersetsO2) {
+            return -1;
+          }
+          return Integer.compare(o1.hashCode(), o2.hashCode());
+        });
+    return ImmutableList.copyOf(list);
   }
 
-  @SuppressWarnings("UnstableApiUsage")
   RFunctionTypeImpl {
     RGenericValueType.commonSanityChecks(this);
     if (hasDots != Troolean.YES && knownOverloads.stream().anyMatch(OverloadRType::hasDots)) {
@@ -116,11 +131,7 @@ record RFunctionTypeImpl(
     if (hasDots == Troolean.YES && knownOverloads.stream().noneMatch(OverloadRType::hasDots)) {
       throw new IllegalArgumentException("hasDots must be MAYBE or NO if no overload have dots");
     }
-    assert Streams.zip(
-                knownOverloads.stream(),
-                normalizeOverloadsWrtSubsuming(knownOverloads).stream(),
-                (a, b) -> a == b)
-            .allMatch(x -> x)
+    assert knownOverloads.equals(normalizeOverloadsWrtSubsuming(knownOverloads))
         : "overloads aren't normalized (sorted and deduped) wrt. subsuming:\noriginal:\n- "
             + Strings.join("\n- ", knownOverloads)
             + "\nnormalized:\n- "
@@ -160,7 +171,8 @@ record RFunctionTypeImpl(
           case RGenericValueType ignored -> true;
           case RFunctionTypeImpl o ->
               o.knownOverloads.stream()
-                  .allMatch(oko -> knownOverloads.stream().anyMatch(ko -> ko.subsumes(oko)));
+                      .allMatch(oko -> knownOverloads.stream().anyMatch(ko -> ko.subsumes(oko)))
+                  && hasDots.isSubsetOf(o.hasDots);
           default -> false;
         };
   }
@@ -231,6 +243,9 @@ record RFunctionTypeImpl(
       return sb.toString();
     }
 
+    if (hasDots == Troolean.MAYBE) {
+      sb.append(".?");
+    }
     switch (knownOverloads.size()) {
       case 0 -> sb.append(base());
       case 1 -> sb.append(knownOverloads.getFirst());

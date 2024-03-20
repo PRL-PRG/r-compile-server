@@ -21,7 +21,11 @@ import org.prlprg.util.Pair;
 import org.prlprg.util.Streams;
 
 public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvider {
-  private static final int MAX_DEPTH = 2;
+  // Setting this to more than 1 seems to create very large cases which take unreasonable amounts of
+  // time to generate. The issue is probably that there are nested generations (e.g. can generate a
+  // nested RType which has a nested SEXP), but also jqwik makes it hard to debug and it could be
+  // something else.
+  private static final int MAX_DEPTH = 1;
   private static final int MAX_SIZE = 3;
   private static final int MAX_LENGTH = 4;
 
