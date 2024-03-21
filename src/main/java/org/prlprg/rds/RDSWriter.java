@@ -2,9 +2,7 @@ package org.prlprg.rds;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 import java.util.stream.StreamSupport;
 import javax.annotation.Nullable;
 import org.prlprg.RSession;
@@ -68,8 +66,6 @@ public class RDSWriter implements Closeable {
   // See
   // https://github.com/wch/r-source/blob/65892cc124ac20a44950e6e432f9860b1d6e9bf4/src/main/serialize.c#L1021
   public void writeItem(SEXP s) throws IOException {
-    // TODO: write the flags at the beginning.
-
     // ALTREP: TODO
 
     // Persisted through the ref table? TODO
@@ -167,6 +163,7 @@ public class RDSWriter implements Closeable {
         case LangSXP l -> writeDottedPairObjects(l, hasattr, flags);
         case PromSXP p -> writeDottedPairObjects(p, hasattr, flags);
         case CloSXP c -> writeDottedPairObjects(c, hasattr, flags);
+          // ComplexSXP
           // External pointer
           // weakreference
           // special
@@ -330,8 +327,75 @@ public class RDSWriter implements Closeable {
     }
   }
 
+  private void scanForCircles(SEXP sexp, HashSet<SEXP> nobcodes) {
+    switch (sexp) {
+      case LangOrListSXP l -> {
+        if (!nobcodes.contains(l)) {
+          nobcodes.add(l);
+          for (var e :
+              switch (l) {
+                case LangSXP lang -> lang.args();
+                case ListSXP list -> list;
+              }) {
+            scanForCircles(e.value(), nobcodes);
+          }
+        }
+      }
+      case BCodeSXP bc -> {
+        for (var e : bc.bc().consts()) {
+          scanForCircles(e, nobcodes);
+        }
+      }
+      default -> throw new RuntimeException("Unexpected sexp type: " + sexp.type());
+    }
+  }
+
+  private void writeBCLang(SEXP s, HashSet<SEXP> reps) throws IOException {
+    throw new UnsupportedOperationException("not implemented yet");
+  }
+
+  private void writeBC1(BCodeSXP s, HashSet<SEXP> reps) throws IOException {
+    var code_bytes = s.bc().code().toRaw();
+    writeItem(SEXPs.integer(code_bytes));
+
+    var consts = s.bc().consts();
+    out.writeInt(consts.size());
+
+    // Iterate the constant pool and write the values
+    for (var c : consts) {
+      switch (c) {
+        case BCodeSXP bc -> {
+          out.writeInt(c.type().i);
+          writeBC1(bc, reps);
+        }
+        case LangOrListSXP l -> {
+          writeBCLang(l, reps);
+        }
+        default -> {
+          out.writeInt(c.type().i);
+          writeItem(c);
+        }
+      }
+    }
+  }
+
   private void writeBCode(BCodeSXP s, int flags) throws IOException {
     out.writeInt(flags);
+
+    // Scan for circles
+    // prepend the result it with a scalar integer starting with 1
+    var nobcodes = new HashSet<SEXP>();
+    scanForCircles(s, nobcodes);
+    out.writeInt(nobcodes.size() + 1);
+
+    // Decode the bytecode (we will get a vector of integers)
+    // write the vector of integers
+
+    // write the number of consts in the bytecode
+    // iterate the consts: if it s bytecode, write the type and recurse
+    // if it is langsxp or listsxp,  write them , using the BCREDPEF, ATTRALANGSXP and ATTRLISTSXP
+    // else write the type and the value
+
     throw new UnsupportedOperationException("not implemented yet");
   }
 

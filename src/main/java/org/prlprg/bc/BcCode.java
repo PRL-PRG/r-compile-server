@@ -99,6 +99,18 @@ public final class BcCode extends ForwardingList<BcInstr> {
     return sb.toString();
   }
 
+  public ImmutableIntArray toRaw() {
+    var builder = ImmutableIntArray.builder();
+    builder.add(Bc.R_BC_VERSION);
+    for (var instr : code) {
+      builder.add(instr.op().value());
+      for (var i = 0; i < instr.op().nArgs(); i++) {
+        builder.add(instr.op().nArgs());
+      }
+    }
+    return builder.build();
+  }
+
   /**
    * A builder class for creating BcArray instances.
    *
