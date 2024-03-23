@@ -9,7 +9,6 @@ import org.prlprg.sexp.SEXPType;
 public enum PrimVecElementRType implements Lattice<PrimVecElementRType> {
   ANY(null),
   NUMERIC_OR_LOGICAL(null),
-  NUMERIC(null),
   INT(SEXPType.INT),
   STRING(SEXPType.STR),
   LOGICAL(SEXPType.LGL),
@@ -64,7 +63,7 @@ public enum PrimVecElementRType implements Lattice<PrimVecElementRType> {
   /** Is this an integer, complex, or double? */
   public Troolean isNumeric() {
     return switch (this) {
-      case NUMERIC, INT, COMPLEX, DOUBLE -> Troolean.YES;
+      case INT, COMPLEX, DOUBLE -> Troolean.YES;
       case ANY, NUMERIC_OR_LOGICAL -> Troolean.MAYBE;
       case STRING, LOGICAL, RAW -> Troolean.NO;
     };
@@ -73,7 +72,7 @@ public enum PrimVecElementRType implements Lattice<PrimVecElementRType> {
   /** Is this an integer, complex, double, or logical? */
   public Troolean isNumericOrLogical() {
     return switch (this) {
-      case NUMERIC_OR_LOGICAL, NUMERIC, INT, COMPLEX, DOUBLE, LOGICAL -> Troolean.YES;
+      case NUMERIC_OR_LOGICAL, INT, COMPLEX, DOUBLE, LOGICAL -> Troolean.YES;
       case ANY -> Troolean.MAYBE;
       case STRING, RAW -> Troolean.NO;
     };
@@ -84,7 +83,6 @@ public enum PrimVecElementRType implements Lattice<PrimVecElementRType> {
     return switch (this) {
       case ANY -> VectorElementRType.PRIMITIVE;
       case NUMERIC_OR_LOGICAL -> VectorElementRType.NUMERIC_OR_LOGICAL;
-      case NUMERIC -> VectorElementRType.NUMERIC;
       case INT -> VectorElementRType.INT;
       case STRING -> VectorElementRType.STRING;
       case LOGICAL -> VectorElementRType.LOGICAL;
@@ -120,7 +118,6 @@ public enum PrimVecElementRType implements Lattice<PrimVecElementRType> {
     return switch (type) {
       case PRIMITIVE -> ANY;
       case NUMERIC_OR_LOGICAL -> NUMERIC_OR_LOGICAL;
-      case NUMERIC -> NUMERIC;
       case INT -> INT;
       case STRING -> STRING;
       case LOGICAL -> LOGICAL;

@@ -1,13 +1,11 @@
 package org.prlprg.ir.type;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.stream.Stream;
 import org.prlprg.ir.CFG;
 import org.prlprg.ir.type.lattice.MaybeNat;
-import org.prlprg.ir.type.lattice.NoOrMaybe;
 import org.prlprg.ir.type.lattice.Troolean;
 import org.prlprg.rshruntime.TypeFeedback;
 import org.prlprg.sexp.*;
@@ -18,7 +16,7 @@ import org.prlprg.util.NotImplementedError;
  */
 public class RTypes {
   /** The type of an expression which hangs, errors, or otherwise diverts control flow. */
-  public static final RType NOTHING = new RType(ImmutableSet.of(), null);
+  public static final RType NOTHING = new RType();
 
   /**
    * The type of a value we know absolutely nothing about (this is common, e.g. arbitrary {@code
@@ -26,26 +24,18 @@ public class RTypes {
    */
   public static final RType ANY =
       new RType(
-          ImmutableSet.of(
-              new RGenericValueType(
-                  null,
-                  BaseRType.ANY_VALUE,
-                  AttributesTypes.UNKNOWN,
-                  MaybeNat.UNKNOWN,
-                  NoOrMaybe.MAYBE)),
-          RPromiseType.MAYBE_LAZY_PROMISE);
+          new RGenericValueType(
+              null, BaseRType.ANY_VALUE, AttributesTypes.UNKNOWN, MaybeNat.UNKNOWN),
+          RPromiseType.MAYBE_LAZY_PROMISE,
+          Troolean.MAYBE);
 
   /** The type of a value we know absolutely nothing about, except that it's not a promise. */
   public static final RType ANY_VALUE =
       new RType(
-          ImmutableSet.of(
-              new RGenericValueType(
-                  null,
-                  BaseRType.ANY_VALUE,
-                  AttributesTypes.UNKNOWN,
-                  MaybeNat.UNKNOWN,
-                  NoOrMaybe.MAYBE)),
-          RPromiseType.VALUE);
+          new RGenericValueType(
+              null, BaseRType.ANY_VALUE, AttributesTypes.UNKNOWN, MaybeNat.UNKNOWN),
+          RPromiseType.VALUE,
+          Troolean.MAYBE);
 
   /**
    * The type of a value we know absolutely nothing about, except that it's not a promise or
@@ -53,14 +43,10 @@ public class RTypes {
    */
   public static final RType ANY_VALUE_NOT_MISSING =
       new RType(
-          ImmutableSet.of(
-              new RGenericValueType(
-                  null,
-                  BaseRType.ANY_VALUE,
-                  AttributesTypes.UNKNOWN,
-                  MaybeNat.UNKNOWN,
-                  NoOrMaybe.NO)),
-          RPromiseType.VALUE);
+          new RGenericValueType(
+              null, BaseRType.ANY_VALUE, AttributesTypes.UNKNOWN, MaybeNat.UNKNOWN),
+          RPromiseType.VALUE,
+          Troolean.NO);
 
   /**
    * The type of a function we know absolutely nothing about besides it being a function (could be a
@@ -68,15 +54,15 @@ public class RTypes {
    */
   public static final RType ANY_FUN =
       new RType(
-          ImmutableSet.of(
-              new RFunctionTypeImpl(
-                  null,
-                  null,
-                  AttributesTypes.UNKNOWN,
-                  MaybeNat.UNKNOWN,
-                  ImmutableList.of(),
-                  Troolean.MAYBE)),
-          RPromiseType.VALUE);
+          new RFunctionTypeImpl(
+              null,
+              null,
+              AttributesTypes.UNKNOWN,
+              MaybeNat.UNKNOWN,
+              ImmutableList.of(),
+              Troolean.MAYBE),
+          RPromiseType.VALUE,
+          Troolean.NO);
 
   /**
    * The type of a function we know absolutely nothing about besides it being a special or builtin
@@ -90,36 +76,29 @@ public class RTypes {
    */
   public static final RType ANY_SIMPLE =
       new RType(
-          ImmutableSet.of(
-              new RGenericValueType(
-                  null, BaseRType.ANY_VALUE, AttributesTypes.NONE, MaybeNat.UNKNOWN, NoOrMaybe.NO)),
-          RPromiseType.VALUE);
+          new RGenericValueType(null, BaseRType.ANY_VALUE, AttributesTypes.NONE, MaybeNat.UNKNOWN),
+          RPromiseType.VALUE,
+          Troolean.NO);
 
   /** The {@link RType} of the missing value. */
-  public static final RType OF_MISSING =
-      new RType(ImmutableSet.of(RMissingType.INSTANCE), RPromiseType.VALUE);
+  public static final RType OF_MISSING = new RType(null, RPromiseType.VALUE, Troolean.YES);
 
   /** The (most precise representable) type of the given value. */
   public static RType exact(SEXP value) {
     if (value instanceof PromSXP p) {
-      return exact(p.val()).promiseWrapped(new RPromiseType.ExactPromise(p));
+      return exact(p.val()).promiseWrapped(new RPromiseType.Promise(p));
     }
     if (value == SEXPs.MISSING_ARG) {
       return OF_MISSING;
     }
     return new RType(
-        ImmutableSet.of(
-            switch (value) {
-              case CloSXP closure -> RFunctionTypeImpl.exact(closure);
-              case PrimVectorSXP<?> primVec -> RPrimVecTypeImpl.exact(primVec);
-              default -> RGenericValueType.exact(value);
-            }),
-        RPromiseType.VALUE);
-  }
-
-  /** Either the missing value or the given type. */
-  public static RType missingOr(RType other) {
-    return other.union(OF_MISSING);
+        switch (value) {
+          case CloSXP closure -> RFunctionTypeImpl.exact(closure);
+          case PrimVectorSXP<?> primVec -> RPrimVecTypeImpl.exact(primVec);
+          default -> RGenericValueType.exact(value);
+        },
+        RPromiseType.VALUE,
+        Troolean.NO);
   }
 
   /** The type of a value which passes the assumptions generated by the feedback. */

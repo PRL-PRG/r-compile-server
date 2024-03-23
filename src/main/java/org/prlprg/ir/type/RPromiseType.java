@@ -1,9 +1,7 @@
 package org.prlprg.ir.type;
 
-import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import org.prlprg.ir.type.lattice.Lattice;
-import org.prlprg.ir.type.lattice.MaybeNat;
 import org.prlprg.ir.type.lattice.NoOrMaybe;
 import org.prlprg.ir.type.lattice.Troolean;
 import org.prlprg.sexp.PromSXP;
@@ -21,9 +19,7 @@ sealed interface RPromiseType extends Lattice<RPromiseType> {
     return switch (this) {
       case Value() -> PromiseRType.VALUE;
       case MaybePromise(var isLazy) -> PromiseRType.of(Troolean.MAYBE, isLazy);
-      case InexactPromise(var isLazy, var ignored) -> PromiseRType.of(Troolean.YES, isLazy);
-      case ExactPromise(var exactValue, var ignored) ->
-          PromiseRType.of(Troolean.YES, exactValue.isLazy());
+      case Promise(var isLazy, var ignored) -> PromiseRType.of(Troolean.YES, isLazy);
     };
   }
 
@@ -37,16 +33,6 @@ sealed interface RPromiseType extends Lattice<RPromiseType> {
     return promiseType().isLazy();
   }
 
-  /** Reference count of the inner value. */
-  default MaybeNat referenceCount() {
-    return switch (this) {
-      case Value() -> MaybeNat.UNKNOWN;
-      case MaybePromise(var ignored) -> MaybeNat.UNKNOWN;
-      case InexactPromise(var ignored, var referenceCount) -> referenceCount;
-      case ExactPromise(var ignored, var referenceCount) -> referenceCount;
-    };
-  }
-
   /** If this has only one instance and it's known, returns it. */
   default @Nullable PromSXP exactValue() {
     // Overridden in ExactPromise
@@ -58,10 +44,8 @@ sealed interface RPromiseType extends Lattice<RPromiseType> {
     return switch (this) {
       case Value() -> this;
       case MaybePromise(var ignored) -> new MaybePromise(NoOrMaybe.NO);
-      case InexactPromise(var ignored, var referenceCount) ->
-          new InexactPromise(Troolean.NO, referenceCount);
-      case ExactPromise(var exactValue, var referenceCount) ->
-          exactValue.isLazy() ? new InexactPromise(Troolean.NO, referenceCount) : this;
+      case Promise(var isLazy, var exactValue) ->
+          new Promise(Troolean.NO, isLazy == Troolean.NO ? exactValue : null);
     };
   }
 
@@ -71,23 +55,13 @@ sealed interface RPromiseType extends Lattice<RPromiseType> {
       case Value() -> other instanceof Value || other instanceof MaybePromise;
       case MaybePromise(var isLazy) ->
           other instanceof MaybePromise(var otherIsLazy) && isLazy.isSubsetOf(otherIsLazy);
-      case InexactPromise(var isLazy, var referenceCount) ->
-          switch (other) {
-            case MaybePromise(var otherIsLazy) -> isLazy.isSubsetOf(otherIsLazy);
-            case InexactPromise(var otherIsLazy, var otherReferenceCount) ->
-                isLazy.isSubsetOf(otherIsLazy) && referenceCount.isSubsetOf(otherReferenceCount);
-            default -> false;
-          };
-      case ExactPromise(var exactValue, var referenceCount) ->
+      case Promise(var isLazy, var exactValue) ->
           switch (other) {
             case Value() -> false;
-            case MaybePromise(var isLazy) -> Troolean.of(exactValue.isLazy()).isSubsetOf(isLazy);
-            case InexactPromise(var isLazy, var otherReferenceCount) ->
-                Troolean.of(exactValue.isLazy()).isSubsetOf(isLazy)
-                    && referenceCount.isSubsetOf(otherReferenceCount);
-            case ExactPromise(var otherExactValue, var otherReferenceCount) ->
-                exactValue.equals(otherExactValue)
-                    && referenceCount.isSubsetOf(otherReferenceCount);
+            case MaybePromise(var otherIsLazy) -> isLazy.isSubsetOf(otherIsLazy);
+            case Promise(var otherIsLazy, var otherExactValue) ->
+                isLazy.isSubsetOf(otherIsLazy)
+                    && (otherExactValue == null || otherExactValue.equals(exactValue));
           };
     };
   }
@@ -99,48 +73,24 @@ sealed interface RPromiseType extends Lattice<RPromiseType> {
           switch (other) {
             case Value() -> this;
             case MaybePromise ignored -> other;
-            case InexactPromise(var isLazy, var ignored) -> new MaybePromise(NoOrMaybe.of(isLazy));
-            case ExactPromise(var exactValue, var ignored) ->
-                new MaybePromise(NoOrMaybe.of(exactValue.isLazy()));
+            case Promise(var isLazy, var ignored) -> new MaybePromise(NoOrMaybe.of(isLazy));
           };
       case MaybePromise(var isLazy) ->
           switch (other) {
             case Value() -> this;
             case MaybePromise(var otherIsLazy) -> new MaybePromise(isLazy.union(otherIsLazy));
-            case InexactPromise(var otherIsLazy, var ignored) ->
+            case Promise(var otherIsLazy, var ignored) ->
                 new MaybePromise(isLazy.union(NoOrMaybe.of(otherIsLazy)));
-            case ExactPromise(var otherExactValue, var ignored) ->
-                new MaybePromise(isLazy.union(NoOrMaybe.of(otherExactValue.isLazy())));
           };
-      case InexactPromise(var isLazy, var referenceCount) ->
+      case Promise(var isLazy, var exactValue) ->
           switch (other) {
             case Value() -> new MaybePromise(NoOrMaybe.of(isLazy));
             case MaybePromise(var otherIsLazy) ->
                 new MaybePromise(NoOrMaybe.of(isLazy).union(otherIsLazy));
-            case InexactPromise(var otherIsLazy, var otherReferenceCount) ->
-                new InexactPromise(
-                    isLazy.union(otherIsLazy), referenceCount.union(otherReferenceCount));
-            case ExactPromise(var otherExactValue, var otherReferenceCount) ->
-                new InexactPromise(
-                    isLazy.union(Troolean.of(otherExactValue.isLazy())),
-                    referenceCount.union(otherReferenceCount));
-          };
-      case ExactPromise(var exactValue, var referenceCount) ->
-          switch (other) {
-            case Value() -> new MaybePromise(NoOrMaybe.of(exactValue.isLazy()));
-            case MaybePromise(var isLazy) ->
-                new MaybePromise(NoOrMaybe.of(exactValue.isLazy()).union(isLazy));
-            case InexactPromise(var isLazy, var otherReferenceCount) ->
-                new InexactPromise(
-                    Troolean.of(exactValue.isLazy()).union(isLazy),
-                    referenceCount.union(otherReferenceCount));
-            case ExactPromise(var otherExactValue, var otherReferenceCount) ->
-                exactValue.equals(otherExactValue)
-                    ? new ExactPromise(exactValue, referenceCount.union(otherReferenceCount))
-                    : new InexactPromise(
-                        Troolean.of(exactValue.isLazy())
-                            .union(Troolean.of(otherExactValue.isLazy())),
-                        referenceCount.union(otherReferenceCount));
+            case Promise(var otherIsLazy, var otherExactValue) ->
+                exactValue != null && exactValue.equals(otherExactValue)
+                    ? this
+                    : new Promise(isLazy.union(otherIsLazy), null);
           };
     };
   }
@@ -152,25 +102,22 @@ sealed interface RPromiseType extends Lattice<RPromiseType> {
           switch (other) {
             case Value() -> this;
             case MaybePromise ignored -> this;
-            case InexactPromise ignored -> null;
-            case ExactPromise ignored -> null;
+            case Promise ignored -> null;
           };
       case MaybePromise(var isLazy) ->
           switch (other) {
             case Value() -> other;
             case MaybePromise(var otherIsLazy) ->
                 new MaybePromise(isLazy.intersection(otherIsLazy));
-            case InexactPromise(var otherIsLazy, var referenceCount) -> {
+            case Promise(var otherIsLazy, var exactValue) -> {
               var isLazy1 = Troolean.of(isLazy).intersection(otherIsLazy);
               if (isLazy1 == null) {
                 yield null;
               }
-              yield new InexactPromise(isLazy1, referenceCount);
+              yield new Promise(isLazy1, exactValue);
             }
-            case ExactPromise(var exactValue, var ignored) ->
-                isLazy == NoOrMaybe.NO && exactValue.isLazy() ? null : other;
           };
-      case InexactPromise(var isLazy, var referenceCount) ->
+      case Promise(var isLazy, var exactValue) ->
           switch (other) {
             case Value() -> null;
             case MaybePromise(var otherIsLazy) -> {
@@ -178,56 +125,19 @@ sealed interface RPromiseType extends Lattice<RPromiseType> {
               if (isLazy1 == null) {
                 yield null;
               }
-              yield new InexactPromise(isLazy1, referenceCount);
+              yield new Promise(isLazy1, exactValue);
             }
-            case InexactPromise(var otherIsLazy, var otherReferenceCount) -> {
+            case Promise(var otherIsLazy, var otherExactValue) -> {
+              if (exactValue != null
+                  && otherExactValue != null
+                  && !exactValue.equals(otherExactValue)) {
+                yield null;
+              }
               var isLazy1 = isLazy.intersection(otherIsLazy);
               if (isLazy1 == null) {
                 yield null;
               }
-              var referenceCount1 = referenceCount.intersection(otherReferenceCount);
-              if (referenceCount1 == null) {
-                yield null;
-              }
-              yield new InexactPromise(isLazy1, referenceCount1);
-            }
-            case ExactPromise(var exactValue, var otherReferenceCount) -> {
-              var isLazy1 = isLazy.intersection(Troolean.of(exactValue.isLazy()));
-              if (isLazy1 == null) {
-                yield null;
-              }
-              var referenceCount1 = referenceCount.intersection(otherReferenceCount);
-              if (referenceCount1 == null) {
-                yield null;
-              }
-              yield new ExactPromise(exactValue, referenceCount1);
-            }
-          };
-      case ExactPromise(var exactValue, var referenceCount) ->
-          switch (other) {
-            case Value() -> null;
-            case MaybePromise(var isLazy) ->
-                isLazy == NoOrMaybe.NO && exactValue.isLazy() ? null : this;
-            case InexactPromise(var isLazy, var otherReferenceCount) -> {
-              var isLazy1 = Troolean.of(exactValue.isLazy()).intersection(isLazy);
-              if (isLazy1 == null) {
-                yield null;
-              }
-              var referenceCount1 = referenceCount.intersection(otherReferenceCount);
-              if (referenceCount1 == null) {
-                yield null;
-              }
-              yield new ExactPromise(exactValue, referenceCount1);
-            }
-            case ExactPromise(var otherExactValue, var otherReferenceCount) -> {
-              if (!exactValue.equals(otherExactValue)) {
-                yield null;
-              }
-              var referenceCount1 = referenceCount.intersection(otherReferenceCount);
-              if (referenceCount1 == null) {
-                yield null;
-              }
-              yield new ExactPromise(exactValue, referenceCount1);
+              yield new Promise(isLazy1, exactValue == null ? otherExactValue : exactValue);
             }
           };
     };
@@ -245,13 +155,13 @@ sealed interface RPromiseType extends Lattice<RPromiseType> {
   RPromiseType MAYBE_LAZY_PROMISE = new MaybePromise(NoOrMaybe.MAYBE);
 
   /** Value is a non-lazy promise that has no other known information. */
-  RPromiseType STRICT_PROMISE = new InexactPromise(Troolean.NO);
+  RPromiseType STRICT_PROMISE = new Promise(Troolean.NO);
 
   /** Value is a maybe lazy promise that has no other known information. */
-  RPromiseType PROMISE_MAYBE_LAZY = new InexactPromise(Troolean.MAYBE);
+  RPromiseType PROMISE_MAYBE_LAZY = new Promise(Troolean.MAYBE);
 
   /** Value is a lazy promise that has no other known information. */
-  RPromiseType LAZY_PROMISE = new InexactPromise(Troolean.YES);
+  RPromiseType LAZY_PROMISE = new Promise(Troolean.YES);
 
   /** Value isn't a promise. */
   record Value() implements RPromiseType {
@@ -269,36 +179,30 @@ sealed interface RPromiseType extends Lattice<RPromiseType> {
     }
   }
 
-  /** Value is definitely a promise, but we don't have the exact value. */
-  record InexactPromise(Troolean isLazy, @Override MaybeNat referenceCount)
-      implements RPromiseType {
-    public InexactPromise(Troolean isLazy) {
-      this(isLazy, MaybeNat.UNKNOWN);
+  /** Value is definitely a promise. */
+  record Promise(Troolean isLazy, @Override @Nullable PromSXP exactValue) implements RPromiseType {
+    public Promise {
+      if (exactValue != null && isLazy != Troolean.of(exactValue.isLazy())) {
+        throw new IllegalArgumentException("isLazy and exactValue.isLazy() must match");
+      }
+    }
+
+    public Promise(PromSXP exactValue) {
+      this(Troolean.of(exactValue.isLazy()), exactValue);
+    }
+
+    public Promise(Troolean isLazy) {
+      this(isLazy, null);
     }
 
     @Override
     public String toString() {
-      return (referenceCount == MaybeNat.UNKNOWN ? "" : "#" + referenceCount)
-          + switch (isLazy) {
-            case YES -> "~!";
-            case NO -> "^!";
+      return switch (isLazy) {
+            case YES -> "~";
+            case NO -> "^";
             case MAYBE -> "~?^";
-          };
-    }
-  }
-
-  /** The type has only one instance, which is the inner SEXP. */
-  record ExactPromise(@Override @Nonnull PromSXP exactValue, @Override MaybeNat referenceCount)
-      implements RPromiseType {
-    public ExactPromise(PromSXP exactValue) {
-      this(exactValue, MaybeNat.UNKNOWN);
-    }
-
-    @Override
-    public String toString() {
-      return "*"
-          + (referenceCount == MaybeNat.UNKNOWN ? "" : "#" + referenceCount)
-          + (exactValue.isLazy() ? "~" : "^")
+          }
+          + (exactValue == null ? "" : "*")
           + "!";
     }
   }

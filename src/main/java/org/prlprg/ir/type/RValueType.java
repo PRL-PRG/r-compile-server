@@ -1,29 +1,19 @@
 package org.prlprg.ir.type;
 
-import com.google.common.collect.ImmutableSet;
-import java.util.Arrays;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import org.prlprg.ir.type.lattice.Lattice;
 import org.prlprg.ir.type.lattice.MaybeNat;
-import org.prlprg.ir.type.lattice.NoOrMaybe;
 import org.prlprg.sexp.SEXP;
 
 /**
- * Part of an {@link RType}, which represents the type of a runtime value assuming that it's a
- * particular shape we care about (see "permits" classes for these types).
+ * the runtime type of an SEXP which is guaranteed not to be a promise. There are subclasses for
+ * each particular type we care about (e.g. functions, primitive vectors), as well as {@link
+ * RGenericValueType} for everything else (including "unknown").
  */
 @Immutable
 sealed interface RValueType extends Lattice<RValueType>
-    permits RFunctionType, RPrimVecType, RMissingType, RGenericValueType {
-  /** All subtypes with extra information; all subclasses except {@link RGenericValueType}. */
-  @SuppressWarnings("unchecked")
-  ImmutableSet<Class<? extends RValueType>> SPECIFIC_TYPES =
-      Arrays.stream(RValueType.class.getPermittedSubclasses())
-          .filter(cls -> cls != RGenericValueType.class)
-          .map(cls -> (Class<? extends RValueType>) cls)
-          .collect(ImmutableSet.toImmutableSet());
-
+    permits RFunctionType, RPrimVecType, RGenericValueType {
   /** If this is a constant, the exact value. */
   @Nullable SEXP exactValue();
 
@@ -39,12 +29,4 @@ sealed interface RValueType extends Lattice<RValueType>
 
   /** If there's 0, 1, n, or unknown references to this value. */
   MaybeNat referenceCount();
-
-  /**
-   * Whether the value is missing. If the value is definitely missing, this will return maybe, but
-   * {@link #exactValue()} will be {@code R_MissingVal}.
-   */
-  default NoOrMaybe isMissing() {
-    return NoOrMaybe.NO;
-  }
 }

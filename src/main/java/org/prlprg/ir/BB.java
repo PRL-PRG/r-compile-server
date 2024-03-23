@@ -288,15 +288,24 @@ public final class BB implements Iterable<InstrOrPhi> {
 
     I newInstr;
     if (oldInstr.canReplaceDataWith(newArgs)) {
+      var wasEmpty = false;
       if (oldInstr instanceof Jump j) {
         for (var succ : j.targets()) {
           succ.predecessors.remove(this);
         }
+        wasEmpty = j.targets().isEmpty();
       }
       oldInstr.replaceData(newArgs);
       if (oldInstr instanceof Jump j) {
         for (var succ : j.targets()) {
           succ.predecessors.add(this);
+        }
+
+        var isEmpty = j.targets().isEmpty();
+        if (!wasEmpty && isEmpty) {
+          cfg().markExit(this);
+        } else if (wasEmpty && !isEmpty) {
+          cfg().unmarkExit(this);
         }
       }
       return oldInstr;
@@ -467,6 +476,14 @@ public final class BB implements Iterable<InstrOrPhi> {
       for (var succ : jump.targets()) {
         succ.predecessors.add(this);
       }
+    }
+
+    var wasExit = this.jump == null || this.jump.targets().isEmpty();
+    var isExit = jump == null || jump.targets().isEmpty();
+    if (!wasExit && isExit) {
+      cfg().markExit(this);
+    } else if (wasExit && !isExit) {
+      cfg().unmarkExit(this);
     }
   }
 }

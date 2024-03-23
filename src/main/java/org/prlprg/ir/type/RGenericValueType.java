@@ -3,29 +3,26 @@ package org.prlprg.ir.type;
 import java.util.logging.Logger;
 import javax.annotation.Nullable;
 import org.prlprg.ir.type.lattice.MaybeNat;
-import org.prlprg.ir.type.lattice.NoOrMaybe;
 import org.prlprg.ir.type.lattice.Troolean;
 import org.prlprg.sexp.ListSXP;
 import org.prlprg.sexp.SEXP;
-import org.prlprg.sexp.SEXPs;
 
 /**
- * An {@link RType} which isn't guaranteed to be a:
+ * An {@link RValueType} for a runtime value which isn't guaranteed to be a:
  *
  * <ul>
  *   <li>closure
  *   <li>primitive vector
- *   <li>missing value
+ *   <li>something else more specific
  * </ul>
  *
- * Note that the {@link RType} may be one of these, we just don't know.
+ * Note that the instance may be one of these, we just don't know.
  */
 record RGenericValueType(
     @Override @Nullable SEXP exactValue,
     @Override BaseRType.NotPromise base,
     @Override AttributesType attributes,
-    @Override MaybeNat referenceCount,
-    @Override NoOrMaybe isMissing)
+    @Override MaybeNat referenceCount)
     implements RValueType {
   private static final Logger COMMON_LOG = Logger.getLogger(RValueType.class.getName());
   // Disabled in property tests where we generate weird cases
@@ -59,14 +56,8 @@ record RGenericValueType(
     assert !(base instanceof BaseRType.Closure) : "should be RClosureTypeImpl";
     assert !(base instanceof BaseRType.Vector(var elem) && elem.isPrimitive() == Troolean.YES)
         : "should be RPrimVecTypeImpl";
-    assert value != SEXPs.MISSING_ARG : "should be RMissingOrTypeImpl";
     return new RGenericValueType(
-        value, base, AttributesTypes.exact(value.attributes()), MaybeNat.UNKNOWN, NoOrMaybe.NO);
-  }
-
-  /** Returns the same type, but with missingness set to "maybe". */
-  RGenericValueType orMissing() {
-    return new RGenericValueType(exactValue, base, attributes, referenceCount, NoOrMaybe.MAYBE);
+        value, base, AttributesTypes.exact(value.attributes()), MaybeNat.UNKNOWN);
   }
 
   @Override
@@ -75,17 +66,12 @@ record RGenericValueType(
   }
 
   static boolean genericIsSubset(RValueType self, RValueType other) {
-    return genericIsSubset(self, other, true);
-  }
-
-  static boolean genericIsSubset(RValueType self, RValueType other, boolean considerMissingness) {
     if (other.exactValue() != null) {
       return self.exactValue() != null && self.exactValue().equals(other.exactValue());
     }
     return self.base().isSubsetOf(other.base())
         && self.attributes().isSubsetOf(other.attributes())
-        && self.referenceCount().isSubsetOf(other.referenceCount())
-        && (!considerMissingness || self.isMissing().isSubsetOf(other.isMissing()));
+        && self.referenceCount().isSubsetOf(other.referenceCount());
   }
 
   @Override
@@ -102,8 +88,7 @@ record RGenericValueType(
         null,
         self.base().union(other.base()),
         self.attributes().union(other.attributes()),
-        self.referenceCount().union(other.referenceCount()),
-        self.isMissing().union(other.isMissing()));
+        self.referenceCount().union(other.referenceCount()));
   }
 
   @Override
@@ -148,10 +133,9 @@ record RGenericValueType(
     if (mergedReferenceCount == null) {
       return null;
     }
-    var mergedIsMissing = self.isMissing().intersection(other.isMissing());
 
     return new RGenericValueType(
-        mergedExactValue, mergedBase, mergedAttributes, mergedReferenceCount, mergedIsMissing);
+        mergedExactValue, mergedBase, mergedAttributes, mergedReferenceCount);
   }
 
   @Override
@@ -160,12 +144,8 @@ record RGenericValueType(
     if (exactValue != null) {
       return sb.toString();
     }
-
     if (!base.equals(BaseRType.ANY)) {
       sb.append(base);
-    }
-    if (isMissing == NoOrMaybe.MAYBE) {
-      sb.append("|miss");
     }
     return sb.toString();
   }

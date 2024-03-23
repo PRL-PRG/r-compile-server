@@ -10,7 +10,6 @@ public enum VectorElementRType implements Lattice<VectorElementRType> {
   ANY(null),
   PRIMITIVE(null),
   NUMERIC_OR_LOGICAL(null),
-  NUMERIC(null),
   SEXP(SEXPType.VEC),
   INT(SEXPType.INT),
   STRING(SEXPType.STR),
@@ -65,7 +64,7 @@ public enum VectorElementRType implements Lattice<VectorElementRType> {
   /** Is this a primitive vector type? */
   Troolean isPrimitive() {
     return switch (this) {
-      case PRIMITIVE, NUMERIC_OR_LOGICAL, NUMERIC, INT, STRING, LOGICAL, RAW, COMPLEX, DOUBLE ->
+      case PRIMITIVE, NUMERIC_OR_LOGICAL, INT, STRING, LOGICAL, RAW, COMPLEX, DOUBLE ->
           Troolean.YES;
       case ANY -> Troolean.MAYBE;
       case SEXP, EXPRESSION -> Troolean.NO;
@@ -79,23 +78,13 @@ public enum VectorElementRType implements Lattice<VectorElementRType> {
           case ANY -> false;
           case PRIMITIVE -> other == PRIMITIVE;
           case NUMERIC_OR_LOGICAL -> other == NUMERIC_OR_LOGICAL || other == PRIMITIVE;
-          case NUMERIC -> other == NUMERIC || other == NUMERIC_OR_LOGICAL || other == PRIMITIVE;
           case SEXP -> other == SEXP;
-          case INT ->
-              other == INT || other == NUMERIC || other == NUMERIC_OR_LOGICAL || other == PRIMITIVE;
+          case INT -> other == INT || other == NUMERIC_OR_LOGICAL || other == PRIMITIVE;
           case STRING -> other == STRING || other == PRIMITIVE;
           case LOGICAL -> other == LOGICAL || other == NUMERIC_OR_LOGICAL || other == PRIMITIVE;
           case RAW -> other == RAW || other == PRIMITIVE;
-          case COMPLEX ->
-              other == COMPLEX
-                  || other == NUMERIC
-                  || other == NUMERIC_OR_LOGICAL
-                  || other == PRIMITIVE;
-          case DOUBLE ->
-              other == DOUBLE
-                  || other == NUMERIC
-                  || other == NUMERIC_OR_LOGICAL
-                  || other == PRIMITIVE;
+          case COMPLEX -> other == COMPLEX || other == NUMERIC_OR_LOGICAL || other == PRIMITIVE;
+          case DOUBLE -> other == DOUBLE || other == NUMERIC_OR_LOGICAL || other == PRIMITIVE;
           case EXPRESSION -> other == EXPRESSION;
         };
   }
@@ -105,21 +94,19 @@ public enum VectorElementRType implements Lattice<VectorElementRType> {
     var primitiveFallback = other.isSubsetOf(PRIMITIVE) ? PRIMITIVE : ANY;
     var numericOrLogicalFallback =
         other.isSubsetOf(NUMERIC_OR_LOGICAL) ? NUMERIC_OR_LOGICAL : primitiveFallback;
-    var numericFallback = other.isSubsetOf(NUMERIC) ? NUMERIC : numericOrLogicalFallback;
     return other == ANY
         ? ANY
         : switch (this) {
           case ANY -> ANY;
           case PRIMITIVE -> primitiveFallback;
           case NUMERIC_OR_LOGICAL -> numericOrLogicalFallback;
-          case NUMERIC -> numericFallback;
           case SEXP -> other == SEXP ? SEXP : ANY;
-          case INT -> other == INT ? INT : numericFallback;
+          case INT -> other == INT ? INT : numericOrLogicalFallback;
           case STRING -> other == STRING ? STRING : primitiveFallback;
           case LOGICAL -> other == LOGICAL ? LOGICAL : numericOrLogicalFallback;
           case RAW -> other == RAW ? RAW : primitiveFallback;
-          case COMPLEX -> other == COMPLEX ? COMPLEX : numericFallback;
-          case DOUBLE -> other == DOUBLE ? DOUBLE : numericFallback;
+          case COMPLEX -> other == COMPLEX ? COMPLEX : numericOrLogicalFallback;
+          case DOUBLE -> other == DOUBLE ? DOUBLE : numericOrLogicalFallback;
           case EXPRESSION -> other == EXPRESSION ? EXPRESSION : ANY;
         };
   }
@@ -135,7 +122,6 @@ public enum VectorElementRType implements Lattice<VectorElementRType> {
       case ANY -> "any";
       case PRIMITIVE -> "prim";
       case NUMERIC_OR_LOGICAL -> "num|lgl";
-      case NUMERIC -> "num";
       case SEXP -> "vec";
       case INT -> "int";
       case STRING -> "str";

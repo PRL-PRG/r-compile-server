@@ -39,6 +39,7 @@ public class CFG {
     markExit(entry);
   }
 
+  // region general properties
   /** The basic block that is the entry of this graph. */
   public BB entry() {
     return entry;
@@ -50,6 +51,8 @@ public class CFG {
    * <p>Be aware that if the graph has free nodes, they may be included in this even though they are
    * technically never reached. (A graph with free nodes is in a temporarily-invalid state and will
    * produce errors in {@link #verify()}.)
+   *
+   * <p>Mutating the CFG will affect the set.
    */
   public @UnmodifiableView Set<BB> exits() {
     return Collections.unmodifiableSet(exits);
@@ -61,46 +64,12 @@ public class CFG {
    * <p>Don't iterate the CFG this way, because it's not deterministic. Instead, use {@link
    * CFGIterator} or {@link #bfs()}, {@link #dfs()}, {@link #dominators()}, etc. (which internally
    * use {@link CFGIterator}).
+   *
+   * <p>Mutating the CFG will affect the set.
    */
   @UnmodifiableView
   Set<BBId> bbIds() {
     return Collections.unmodifiableSet(bbs.keySet());
-  }
-
-  /** Create, insert, and return a new basic block. */
-  public BB addBB() {
-    return addBB("");
-  }
-
-  /** Create insert, and return a new basic block, and attach a short name to the block's id. */
-  public BB addBB(String name) {
-    var bb = new BB(this, name);
-    assert !bbs.containsKey(bb.id());
-    bbs.put(bb.id(), bb);
-    markExit(bb);
-    /*WIP record(new CFGCommand.AddBB(name)); */
-    return bb;
-  }
-
-  /**
-   * Remove a basic block from the CFG.
-   *
-   * <p>Existing basic blocks and instructions may still reference it, but these references must be
-   * removed before {@link #verify()} is called.
-   *
-   * @throws IllegalArgumentException If the basic block was never in the CFG.
-   * @throws IllegalArgumentException If the basic block was already removed.
-   */
-  public void remove(BB bb) {
-    var removed = bbs.remove(bb.id());
-    if (removed == null) {
-      throw new IllegalArgumentException("BB already removed");
-    }
-    if (bb.successors().isEmpty()) {
-      unmarkExit(bb);
-    }
-    assert removed == bb;
-    /*WIP record(new CFGCommand.RemoveBB(bb.id())); */
   }
 
   /**
@@ -113,6 +82,9 @@ public class CFG {
     return new DomTree(this);
   }
 
+  // endregion
+
+  // region iterate
   /**
    * Iterate through every basic block, starting with the entry and recursing through successors
    * breadth-first.
@@ -162,6 +134,135 @@ public class CFG {
     return () -> new DomTreeBfs(tree);
   }
 
+  // endregion
+
+  // region mutate
+  /** Create, insert, and return a new basic block. */
+  public BB addBB() {
+    return addBB("");
+  }
+
+  /** Create insert, and return a new basic block, and attach a short name to the block's id. */
+  public BB addBB(String name) {
+    var bb = new BB(this, name);
+    assert !bbs.containsKey(bb.id());
+    bbs.put(bb.id(), bb);
+    markExit(bb);
+    record(new CFGCommand.AddBB(name), bb);
+    return bb;
+  }
+
+  /**
+   * Remove a basic block from the CFG.
+   *
+   * <p>Existing basic blocks and instructions may still reference it, but these references must be
+   * removed before {@link #verify()} is called.
+   *
+   * @throws IllegalArgumentException If the basic block was never in the CFG.
+   * @throws IllegalArgumentException If the basic block was already removed.
+   */
+  public void remove(BBId bbId) {
+    var bb = bbs.remove(bbId);
+    if (bb == null) {
+      throw new IllegalArgumentException("BB never in CFG");
+    }
+    if (bb.successors().isEmpty()) {
+      unmarkExit(bb);
+    }
+    record(new CFGCommand.RemoveBB(bbId), bb);
+  }
+
+  /**
+   * Remove a basic block from the CFG.
+   *
+   * <p>Existing basic blocks and instructions may still reference it, but these references must be
+   * removed before {@link #verify()} is called.
+   *
+   * @throws IllegalArgumentException If the basic block was never in the CFG.
+   * @throws IllegalArgumentException If the basic block was already removed.
+   */
+  public void remove(BB bb) {
+    var removed = bbs.remove(bb.id());
+    if (removed == null) {
+      throw new IllegalArgumentException("BB already removed");
+    }
+    if (bb.successors().isEmpty()) {
+      unmarkExit(bb);
+    }
+    assert removed == bb;
+    record(new CFGCommand.RemoveBB(bb.id()), bb);
+  }
+
+  // endregion
+
+  // region history
+  /** Access a view of the CFG before {@link #history()}. */
+  public CFG preHistory() {
+    // TODO
+    throw new NotImplementedError();
+  }
+
+  /**
+   * Access (a view of) the CFG's history: most recent actions performed which may let you recreate
+   * it.
+   */
+  public List<CFGAction<?>> history() {
+    return Collections.unmodifiableList(history);
+  }
+
+  /**
+   * Returns the most recent action in {@link #history()} whose command satisfies the predicate, or
+   * {@code null} if none do.
+   */
+  public @Nullable CFGAction<?> findAction(Predicate<CFGCommand<?>> predicate) {
+    return findAction((cmd, output) -> predicate.test(cmd));
+  }
+
+  /**
+   * Returns the most recent action in {@link #history()} which satisfies the predicate, or {@code
+   * null} if none do.
+   */
+  public @Nullable CFGAction<?> findAction(BiPredicate<CFGCommand<?>, Object> predicate) {
+    for (var i = history.size() - 1; i >= 0; i--) {
+      var a = history.get(i);
+      if (predicate.test(a.command(), a.output())) {
+        return a;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Returns the index of the most recent action in {@link #history()} whose command satisfies the
+   * predicate, or {@code -1} if none do.
+   */
+  public int findActionIdx(Predicate<CFGCommand<?>> predicate) {
+    return findActionIdx((cmd, output) -> predicate.test(cmd));
+  }
+
+  /**
+   * Returns the index of the most recent action in {@link #history()} which satisfies the
+   * predicate, or {@code -1} if none do.
+   */
+  public int findActionIdx(BiPredicate<CFGCommand<?>, Object> predicate) {
+    for (var i = history.size() - 1; i >= 0; i--) {
+      var a = history.get(i);
+      if (predicate.test(a.command(), a.output())) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  /** Clear the CFG's history. */
+  public void clearHistory() {
+    /*WIP preHistory = clone(); */
+    history.clear();
+  }
+
+  // endregion
+
+  // region debugging (verify and toString)
   /**
    * Verify some CFG invariants. Specifically:
    *
@@ -274,70 +375,6 @@ public class CFG {
     }
   }
 
-  /** Access a view of the CFG before {@link #history()}. */
-  public CFG preHistory() {
-    // TODO
-    throw new NotImplementedError();
-  }
-
-  /**
-   * Access (a view of) the CFG's history: most recent actions performed which may let you recreate
-   * it.
-   */
-  public List<CFGAction<?>> history() {
-    return Collections.unmodifiableList(history);
-  }
-
-  /**
-   * Returns the most recent action in {@link #history()} whose command satisfies the predicate, or
-   * {@code null} if none do.
-   */
-  public @Nullable CFGAction<?> findAction(Predicate<CFGCommand<?>> predicate) {
-    return findAction((cmd, output) -> predicate.test(cmd));
-  }
-
-  /**
-   * Returns the most recent action in {@link #history()} which satisfies the predicate, or {@code
-   * null} if none do.
-   */
-  public @Nullable CFGAction<?> findAction(BiPredicate<CFGCommand<?>, Object> predicate) {
-    for (var i = history.size() - 1; i >= 0; i--) {
-      var a = history.get(i);
-      if (predicate.test(a.command(), a.output())) {
-        return a;
-      }
-    }
-    return null;
-  }
-
-  /**
-   * Returns the index of the most recent action in {@link #history()} whose command satisfies the
-   * predicate, or {@code -1} if none do.
-   */
-  public int findActionIdx(Predicate<CFGCommand<?>> predicate) {
-    return findActionIdx((cmd, output) -> predicate.test(cmd));
-  }
-
-  /**
-   * Returns the index of the most recent action in {@link #history()} which satisfies the
-   * predicate, or {@code -1} if none do.
-   */
-  public int findActionIdx(BiPredicate<CFGCommand<?>, Object> predicate) {
-    for (var i = history.size() - 1; i >= 0; i--) {
-      var a = history.get(i);
-      if (predicate.test(a.command(), a.output())) {
-        return i;
-      }
-    }
-    return -1;
-  }
-
-  /** Clear the CFG's history. */
-  public void clearHistory() {
-    /*WIP preHistory = clone(); */
-    history.clear();
-  }
-
   @Override
   public String toString() {
     var sb = new StringBuilder();
@@ -354,6 +391,9 @@ public class CFG {
     return sb.toString();
   }
 
+  // endregion
+
+  // region for BB and Node
   /**
    * Mark a basic block as being an exit.
    *
@@ -439,11 +479,12 @@ public class CFG {
     }
     return result;
   }
+  // endregion
 
   // TODO: make sure when we split, delete BBs, phi nodes are updated if necessary, and removed
   // nodes aren't
   //  dependencies of other nodes in the CFG (including removed auxillary nodes, not just
   // instructions).
 
-  // TODO: Fancy toString for this, BB, Instr, and all nodes
+  // TODO: Fancy toString for Instr and nodes
 }

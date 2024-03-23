@@ -11,7 +11,6 @@ import static org.prlprg.sexp.ArbitraryProvider.promises;
 import static org.prlprg.sexp.ArbitraryProvider.sexps;
 import static org.prlprg.sexp.ArbitraryProvider.symbolStrings;
 
-import com.google.common.collect.ImmutableSet;
 import java.util.Optional;
 import java.util.Set;
 import net.jqwik.api.Arbitraries;
@@ -41,8 +40,8 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
             oneOf(
                 r.list().ofMaxSize(MAX_SIZE).map(RTypes::union),
                 r.list().ofMaxSize(MAX_SIZE).map(RTypes::intersection),
-                Combinators.combine(rFunctionTypes(r), rPromiseTypes())
-                    .as((t, p) -> new RType(ImmutableSet.of(t), p))),
+                Combinators.combine(rFunctionTypes(r), rPromiseTypes(), defaultFor(NoOrMaybe.class))
+                    .as(RType::new)),
         0,
         MAX_DEPTH);
   }
@@ -57,8 +56,8 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
             RTypes.ANY_FUN,
             RTypes.ANY_SIMPLE,
             RTypes.OF_MISSING),
-        Combinators.combine(rPrimVecTypes(), rPromiseTypes())
-            .as((t, p) -> new RType(ImmutableSet.of(t), p)),
+        Combinators.combine(rPrimVecTypes(), rPromiseTypes(), defaultFor(NoOrMaybe.class))
+            .as(RType::new),
         // sexpTypes().map(RTypes::simple),
         sexps().map(RTypes::exact));
   }
@@ -66,10 +65,14 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
   static Arbitrary<RPromiseType> rPromiseTypes() {
     return oneOf(
         Arbitraries.of(
-            RPromiseType.MAYBE_LAZY_PROMISE, RPromiseType.MAYBE_STRICT_PROMISE, RPromiseType.VALUE),
-        Combinators.combine(defaultFor(Troolean.class), maybeNats())
-            .as(RPromiseType.InexactPromise::new),
-        Combinators.combine(promises(), maybeNats()).as(RPromiseType.ExactPromise::new));
+            RPromiseType.VALUE,
+            RPromiseType.MAYBE_STRICT_PROMISE,
+            RPromiseType.MAYBE_LAZY_PROMISE,
+            RPromiseType.STRICT_PROMISE,
+            RPromiseType.PROMISE_MAYBE_LAZY,
+            RPromiseType.LAZY_PROMISE),
+        defaultFor(Troolean.class).map(RPromiseType.Promise::new),
+        promises().map(RPromiseType.Promise::new));
   }
 
   public static Arbitrary<RFunctionType> rFunctionTypes() {
