@@ -74,9 +74,11 @@ public sealed interface Instr extends InstrOrPhi permits Jump, Stmt {
   NodeId<? extends Instr> id();
 
   sealed interface Data<I extends Instr> permits Jump.Data, Stmt.Data {
-    /** Create an instruction containing this data and a small description (or empty string). */
+    /**
+     * Create an instruction containing this data and a small descriptive name (or empty string).
+     */
     @Warning("Only exposed for `BB`, call a `BB` method such as `append` instead.")
-    I make(CFG cfg, String desc);
+    I make(CFG cfg, String name);
   }
 }
 
@@ -87,11 +89,11 @@ abstract sealed class InstrImpl<D extends Instr.Data<?>> implements NodeWithCfg
   private final InstrId<?> id;
   private D data;
 
-  InstrImpl(Class<D> dataClass, CFG cfg, String desc, D data) {
+  InstrImpl(Class<D> dataClass, CFG cfg, String name, D data) {
     this.dataClass = dataClass;
     this.cfg = cfg;
     this.data = data;
-    id = new InstrId<>((Instr) this, cfg, desc);
+    id = new InstrId<>((Instr) this, cfg, name);
     cfg.track(this);
     verify();
   }

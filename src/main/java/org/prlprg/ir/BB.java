@@ -31,9 +31,9 @@ public final class BB implements Iterable<InstrOrPhi> {
   private final List<Stmt> stmts = new ArrayList<>();
   private @Nullable Jump jump = null;
 
-  BB(CFG parent, String desc) {
+  BB(CFG parent, String name) {
     this.parent = parent;
-    this.id = new BBIdImpl(parent.nextBBId(desc));
+    this.id = new BBIdImpl(parent.nextBBId(name));
   }
 
   /** CFG containing this block. */
@@ -179,18 +179,18 @@ public final class BB implements Iterable<InstrOrPhi> {
   /**
    * Insert a statement in this BB immediately before the given statement.
    *
-   * @param desc A small description of the statement, or an empty string. This is useful for
-   *     debugging and error messages.
+   * @param name A name of the statement, or an empty string. This is useful for debugging and error
+   *     messages.
    * @param args The statement's arguments (data).
    * @return The inserted statement.
    * @throws IllegalArgumentException If the before statement wasn't found.
    */
-  public <I extends Stmt> I insertBefore(String desc, Stmt.Data<I> args, Stmt before) {
+  public <I extends Stmt> I insertBefore(String name, Stmt.Data<I> args, Stmt before) {
     int index = stmts.indexOf(before);
     if (index == -1) {
       throw new IllegalArgumentException("Before not in " + this + ": " + before);
     }
-    var stmt = args.make(cfg(), desc);
+    var stmt = args.make(cfg(), name);
     stmts.add(index, stmt);
     return stmt;
   }
@@ -198,17 +198,17 @@ public final class BB implements Iterable<InstrOrPhi> {
   /**
    * Insert a statement in this BB immediately before the given statement.
    *
-   * @param desc A small description of the statement, or an empty string. This is useful for
-   *     debugging and error messages.
+   * @param name A small name for the statement, or an empty string. This is useful for debugging
+   *     and error messages.
    * @param args The statement's arguments (data). * @return The inserted statement.
    * @throws IllegalArgumentException If the before statement wasn't found.
    */
-  public <I extends Stmt> I insertAfter(String desc, Stmt.Data<I> args, Stmt after) {
+  public <I extends Stmt> I insertAfter(String name, Stmt.Data<I> args, Stmt after) {
     int index = stmts.indexOf(after);
     if (index == -1) {
       throw new IllegalArgumentException("After not in " + this + ": " + after);
     }
-    var stmt = args.make(cfg(), desc);
+    var stmt = args.make(cfg(), name);
     stmts.add(index + 1, stmt);
     return stmt;
   }
@@ -216,13 +216,13 @@ public final class BB implements Iterable<InstrOrPhi> {
   /**
    * Insert a statement at the start of this BB, after the φ nodes.
    *
-   * @param desc A small description of the statement, or an empty string. This is useful for
-   *     debugging and error messages.
+   * @param name A small name for the statement, or an empty string. This is useful for debugging
+   *     and error messages.
    * @param args The statement's arguments (data).
    * @return Ths inserted statement.
    */
-  public <I extends Stmt> I prepend(String desc, Stmt.Data<I> args) {
-    var stmt = args.make(cfg(), desc);
+  public <I extends Stmt> I prepend(String name, Stmt.Data<I> args) {
+    var stmt = args.make(cfg(), name);
     stmts.addFirst(stmt);
     return stmt;
   }
@@ -230,13 +230,13 @@ public final class BB implements Iterable<InstrOrPhi> {
   /**
    * Insert a statement at the end of this BB.
    *
-   * @param desc A small description of the statement, or an empty string. This is useful for
-   *     debugging and error messages.
+   * @param name A small name for the statement, or an empty string. This is useful for debugging
+   *     and error messages.
    * @param args The statement's arguments (data).
    * @return Ths inserted statement.
    */
-  public <I extends Stmt> I append(String desc, Stmt.Data<I> args) {
-    var stmt = args.make(cfg(), desc);
+  public <I extends Stmt> I append(String name, Stmt.Data<I> args) {
+    var stmt = args.make(cfg(), name);
     stmts.add(stmt);
     return stmt;
   }
@@ -244,17 +244,17 @@ public final class BB implements Iterable<InstrOrPhi> {
   /**
    * Add a jump to this BB.
    *
-   * @param desc A small description of the jump, or an empty string. This is useful for debugging
-   *     and error messages.
+   * @param name A small name for the jump, or an empty string. This is useful for debugging and
+   *     error messages.
    * @param args The jump's arguments (data).
    * @return The added jump.
    * @throws IllegalArgumentException If it already has one.
    */
-  public <I extends Jump> I add(String desc, Jump.Data<I> args) {
+  public <I extends Jump> I add(String name, Jump.Data<I> args) {
     if (this.jump != null) {
       throw new IllegalStateException(this + " already has a jump");
     }
-    var jump = args.make(cfg(), desc);
+    var jump = args.make(cfg(), name);
     setJump(jump);
     return jump;
   }
@@ -263,15 +263,15 @@ public final class BB implements Iterable<InstrOrPhi> {
    * Create a new instruction with {@code newArgs} and replace all occurrences of {@code oldInstr}
    * with it.
    *
-   * @param newDesc A small description of the new instruction, or an empty string, or {@code null}
-   *     to take the old instruction's description. This is useful for debugging and error messages.
+   * @param newName A small name for the new instruction, or an empty string, or {@code null} to
+   *     take the old instruction's name. This is useful for debugging and error messages.
    * @param newArgs The new instruction's arguments (data).
    * @return The newly-created instruction, or {@code oldInstr} if replacement can be done without
    *     by mutating it.
    * @throws IllegalArgumentException if {@code oldInstr} is not in this BB.
    * @throws IllegalArgumentException if {@code newArgs} is an incompatible type.
    */
-  public <I extends Instr> I replace(I oldInstr, @Nullable String newDesc, Instr.Data<I> newArgs) {
+  public <I extends Instr> I replace(I oldInstr, @Nullable String newName, Instr.Data<I> newArgs) {
     if (oldInstr.cfg() != cfg()) {
       throw new IllegalArgumentException(
           "Replace oldInstr not in CFG: " + oldInstr + " not in:\n" + cfg());
@@ -301,7 +301,7 @@ public final class BB implements Iterable<InstrOrPhi> {
       }
       return oldInstr;
     } else {
-      newInstr = newArgs.make(cfg(), newDesc == null ? oldInstr.id().desc() : newDesc);
+      newInstr = newArgs.make(cfg(), newName == null ? oldInstr.id().name() : newName);
       switch (newInstr) {
         case Stmt s -> {
           assert oldInstr instanceof Stmt;

@@ -14,15 +14,15 @@ class Stmts {
   // `Void` or ...).
   sealed interface Void extends Stmt.Data<Stmt> {
     @Override
-    default Stmt make(CFG cfg, String desc) {
-      return new VoidStmtImpl(cfg, desc, this);
+    default Stmt make(CFG cfg, String name) {
+      return new VoidStmtImpl(cfg, name, this);
     }
   }
 
   sealed interface RValue_ extends RValueStmt.Data {
     @Override
-    default RValueStmt make(CFG cfg, String desc) {
-      return new RValueStmtImpl(cfg, desc, this);
+    default RValueStmt make(CFG cfg, String name) {
+      return new RValueStmtImpl(cfg, name, this);
     }
   }
 

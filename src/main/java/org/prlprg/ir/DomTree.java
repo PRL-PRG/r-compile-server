@@ -445,7 +445,7 @@ public class DomTree {
 
   /** Iterate the dominator tree starting from the given node, breadth-first. */
   public Iterator<BB> dominees(BB start) {
-    return new CfgIterator.DomTreeBfs(this, start);
+    return new CFGIterator.DomTreeBfs(this, start);
   }
 
   /**
@@ -454,7 +454,7 @@ public class DomTree {
    */
   public SmallSet<BB> frontier(BB bb) {
     var result = new SmallSet<BB>();
-    var dominees = new CfgIterator.DomTreeBfs(this, bb);
+    var dominees = new CFGIterator.DomTreeBfs(this, bb);
     while (dominees.hasNext()) {
       var cur = dominees.next(d -> strictlyDominates(bb, d));
       if (!strictlyDominates(bb, cur)) {

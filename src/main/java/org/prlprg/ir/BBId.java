@@ -6,9 +6,9 @@ package org.prlprg.ir;
  */
 public interface BBId {}
 
-record BBIdImpl(String desc) implements BBId {
+record BBIdImpl(String name) implements BBId {
   @Override
   public String toString() {
-    return "^" + desc;
+    return "^" + name;
   }
 }

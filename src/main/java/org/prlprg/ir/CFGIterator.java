@@ -12,15 +12,20 @@ import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
 
-/** Iterate every {@link BB} in a {@link CFG} in some order. */
-public abstract sealed class CfgIterator implements Iterator<BB> {
+/**
+ * Iterate every {@link BB} in a {@link CFG} in some order.
+ *
+ * <p>Iterating a CFG while it's getting modified is possible. Newly-inserted blocks won't be
+ * iterated, and removed blocks that haven't yet been iterated will be skipped.
+ */
+public abstract sealed class CFGIterator implements Iterator<BB> {
   protected final CFG cfg;
   protected final HashSet<BBId> remainingBBIds;
   protected final ArrayDeque<BB> worklist = new ArrayDeque<>();
   protected @Nullable BB current;
 
   /** Create a new iterator, starting with the entry basic block. */
-  protected CfgIterator(CFG cfg) {
+  protected CFGIterator(CFG cfg) {
     this.cfg = cfg;
     remainingBBIds = new HashSet<>(cfg.bbIds());
   }
@@ -67,7 +72,7 @@ public abstract sealed class CfgIterator implements Iterator<BB> {
   }
 
   /** Forward breadth-first iterator. */
-  public static final class Bfs extends CfgIterator {
+  public static final class Bfs extends CFGIterator {
     /** Iterate nodes starting at the entry. */
     public Bfs(CFG cfg) {
       super(cfg);
@@ -125,7 +130,7 @@ public abstract sealed class CfgIterator implements Iterator<BB> {
   }
 
   /** Forward depth-first iterator. */
-  public static final class Dfs extends CfgIterator {
+  public static final class Dfs extends CFGIterator {
     /** Iterate nodes starting at the entry. */
     public Dfs(CFG cfg) {
       super(cfg);
@@ -183,7 +188,7 @@ public abstract sealed class CfgIterator implements Iterator<BB> {
   }
 
   /** Reverse breadth-first iterator. */
-  public static final class ReverseBfs extends CfgIterator {
+  public static final class ReverseBfs extends CFGIterator {
     /** Iterate nodes starting at the exits. */
     public ReverseBfs(CFG cfg) {
       super(cfg);
@@ -241,7 +246,7 @@ public abstract sealed class CfgIterator implements Iterator<BB> {
   }
 
   /** Reverse depth-first iterator. */
-  public static final class ReverseDfs extends CfgIterator {
+  public static final class ReverseDfs extends CFGIterator {
     /** Iterate nodes starting at the exits. */
     public ReverseDfs(CFG cfg) {
       super(cfg);
@@ -299,7 +304,7 @@ public abstract sealed class CfgIterator implements Iterator<BB> {
   }
 
   /** Dominator tree (breadth-first) iterator. */
-  public static final class DomTreeBfs extends CfgIterator {
+  public static final class DomTreeBfs extends CFGIterator {
     private final DomTree tree;
 
     /** Iterate nodes starting at the root of the dominator tree. */

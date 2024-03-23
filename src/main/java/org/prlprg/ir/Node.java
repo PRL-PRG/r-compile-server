@@ -12,7 +12,7 @@ public interface Node {
   @Nullable CFG cfg();
 
   /**
-   * Unique identifier and a short description of the node.
+   * Unique identifier and a short descriptive name of the node.
    *
    * <p>If {@link #cfg()} is non-null, the returned ID must be unique to this node within the CFG.
    * If {@link #cfg()} is null, the returned ID must be unique within <b>every</b> CFG.
@@ -22,13 +22,14 @@ public interface Node {
    *
    * <ul>
    *   <li>Global node ids don't start with {@code %}, so they won't conflict with local nodes.
-   *   <li>Local instructions start with {@code %} followed by a brief description, and then a
-   *       number if needed to disambiguate them from other local nodes. Use {@link
-   *       CFG#nextNodeId(String)} to create.
-   *   <li>Phis start with {@code φ} followed by a brief description. The description is chosen from
-   *       the incoming nodes blocks and is guaranteed to be unique without a disambiguating number.
+   *   <li>Local instructions start with {@code %} followed by a descriptive name, and then a number
+   *       if needed to disambiguate them from other local nodes. Use {@link CFG#nextNodeId(String)}
+   *       to create.
+   *   <li>Phis start with {@code φ} followed by a descriptive name and number if needed. The name
+   *       is the same as that of the first input value. Be aware that a phi and local instruction
+   *       may exist whose ids are only different in the {@code %}/{@code φ} prefix.
    *   <li>Derived nodes from instructions with multiple return values have the id {@code
-   *       <origin>#<desc>}, e.g. {@code %for2#info}.
+   *       <origin>#<name>}, e.g. {@code %for2#info}.
    * </ul>
    */
   NodeId<?> id();

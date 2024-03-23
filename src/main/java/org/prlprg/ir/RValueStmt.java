@@ -24,8 +24,8 @@ final class RValueStmtImpl extends StmtImpl<Stmts.RValue_> implements RValueStmt
   @SuppressWarnings("NotNullFieldNotInitialized")
   private RType type;
 
-  RValueStmtImpl(CFG cfg, String desc, Stmts.RValue_ data) {
-    super(Stmts.RValue_.class, cfg, desc, data);
+  RValueStmtImpl(CFG cfg, String name, Stmts.RValue_ data) {
+    super(Stmts.RValue_.class, cfg, name, data);
   }
 
   @Override

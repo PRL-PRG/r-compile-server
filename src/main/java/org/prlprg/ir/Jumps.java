@@ -8,8 +8,8 @@ public class Jumps {
   // `Void` or ...).
   sealed interface Void extends Jump.Data<Jump> {
     @Override
-    default Jump make(CFG cfg, String desc) {
-      return new VoidJumpImpl(cfg, desc, this);
+    default Jump make(CFG cfg, String name) {
+      return new VoidJumpImpl(cfg, name, this);
     }
   }
 

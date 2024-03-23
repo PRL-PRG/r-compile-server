@@ -3,23 +3,23 @@ package org.prlprg.ir;
 import java.util.Objects;
 
 /**
- * CFG-unique {@code N} identifier which can refer to a future node in {@link CFGCommand}s. Every
- * local node has an id unique within its CFG, and every global node has an id unique within
- * <b>every</b> CFG.
+ * CFG-unique identifier for a node of class {@code N}, which can refer to a future node in {@link
+ * CFGCommand}s. Every local node has an id unique within its CFG, and every global node has an id
+ * unique within <b>every</b> CFG.
  */
 public interface NodeId<N extends Node> {
   /** Specific class of the node with this id. */
   Class<? extends N> clazz();
 
   /**
-   * Get the id's description, without the preceeding '%' or 'φ' if it's local.
+   * Get the id's string representation, without the preceeding '%' or 'φ' if it's local.
    *
    * <p><i>Don't</i> print or compare ids with this, use {@link Object#toString()} for the real
    * string representation. This is because a regular instruction, phi, and global may have the same
-   * {@code desc}, but they will always have a different string representation. This is used
-   * internally to construct ids whose descriptions are derived from other ids.
+   * {@code name}, but they will always have a different string representation. This is used
+   * internally to construct ids whose string representations are derived from other ids.
    */
-  default String desc() {
+  default String name() {
     return toString().substring(1);
   }
 }
@@ -29,7 +29,7 @@ abstract class NodeIdImpl<N extends Node> implements NodeId<N> {
   private final String id;
 
   /**
-   * Create a node id using the class of the given node and given unique-ing data.
+   * Create a node id using the class of the given node and given descriptive name.
    *
    * <p>The node is not actually stored in the id, only its class is stored internally for internal
    * assertions. Equality is only determined by the class of the id itself (not node), and the other
@@ -65,7 +65,7 @@ abstract class NodeIdImpl<N extends Node> implements NodeId<N> {
 
 class GlobalNodeId<N extends Node> extends NodeIdImpl<N> {
   /**
-   * Create a node id using the class of the given node and given unique-ing data.
+   * Create a node id using the class of the given node and given descriptive name.
    *
    * <p>The node is not actually stored in the id, only its class is stored internally for internal
    * assertions. Equality is only determined by the class of the id itself (not node), and the other
@@ -78,27 +78,27 @@ class GlobalNodeId<N extends Node> extends NodeIdImpl<N> {
 
 class InstrId<N extends Instr> extends NodeIdImpl<N> {
   /**
-   * Create a node id using the class of the given node and given unique-ing data.
+   * Create a node id using the class of the given node and given descriptive name.
    *
    * <p>The node is not actually stored in the id, only its class is stored internally for internal
    * assertions. Equality is only determined by the class of the id itself (not node), and the other
    * arguments to this constructor.
    */
-  public InstrId(N node, CFG cfg, String desc) {
-    super(node, "%" + cfg.nextNodeId(desc));
+  public InstrId(N node, CFG cfg, String name) {
+    super(node, "%" + cfg.nextNodeId(name));
   }
 }
 
 class PhiId<N extends Phi<?>> extends NodeIdImpl<N> {
   /**
-   * Create a node id using the class of the given node and given unique-ing data.
+   * Create a node id using the class of the given node and given descriptive name.
    *
    * <p>The node is not actually stored in the id, only its class is stored internally for internal
    * assertions. Equality is only determined by the class of the id itself (not node), and the other
    * arguments to this constructor.
    */
   public PhiId(N node, CFG cfg, NodeId<?> firstInputId) {
-    super(node, "φ" + cfg.nextNodeId(firstInputId.desc()));
+    super(node, "φ" + cfg.nextNodeId(firstInputId.name()));
     assert firstInputId.toString().startsWith("%") || firstInputId.toString().startsWith("φ")
         : "phi can't have global node as its first input";
   }
@@ -106,7 +106,7 @@ class PhiId<N extends Phi<?>> extends NodeIdImpl<N> {
 
 class AuxillaryNodeId<N extends Node> extends NodeIdImpl<N> {
   /**
-   * Create a node id using the class of the given node and given unique-ing data.
+   * Create a node id using the class of the given node and given descriptive name.
    *
    * <p>The node is not actually stored in the id, only its class is stored internally for internal
    * assertions. Equality is only determined by the class of the id itself (not node), and the other

@@ -26,10 +26,10 @@ public sealed interface CFGCommand<Ret> {
   default Ret replay(CFG cfg) {
     throw new NotImplementedError();
     /* return switch (this) {
-      case AddBB(var desc) -> cfg.addBB(desc);
+      case AddBB(var name) -> cfg.addBB(name);
       case AddPhi(var bbId, var nodeClass) -> cfg.get(bbId).addPhi(nodeClass);
-      case AddStmt(var bbId, var index, var desc, var args) -> cfg.get(bbId).insert(index, desc, args);
-      case AddJump(var bbId, var desc, var args) -> cfg.get(bbId).add(desc, args);
+      case AddStmt(var bbId, var index, var name, var args) -> cfg.get(bbId).insert(index, name, args);
+      case AddJump(var bbId, var name, var args) -> cfg.get(bbId).add(name, args);
       case RemoveBB(var bbId) -> cfg.remove(bbId);
       case RemovePhi(var bbId, var phiId) -> cfg.get(bbId).remove(phiId);
       case RemovePhi removePhi -> {
@@ -71,7 +71,7 @@ public sealed interface CFGCommand<Ret> {
   }
 
   /** The command that {@link #replay(CFG)}ing would {@link #rewind(CFG)} this action. */
-  default CFGCommand reverse() {
+  default CFGCommand<?> reverse() {
     // TODO
     throw new NotImplementedError();
   }
@@ -106,15 +106,15 @@ public sealed interface CFGCommand<Ret> {
   // endregion
 
   // region commands
-  record AddBB(String desc) implements OnBB<BB> {}
+  record AddBB(String name) implements OnBB<BB> {}
 
   record AddPhi<N extends Node>(BBId bbId, Class<N> nodeClass, Phi.Input<N> firstInput)
       implements AddInstrOrPhi<Phi<N>> {}
 
-  record AddStmt<I extends Stmt>(BBId bbId, int index, String desc, Stmt.Data<I> args)
+  record AddStmt<I extends Stmt>(BBId bbId, int index, String name, Stmt.Data<I> args)
       implements AddInstrOrPhi<I> {}
 
-  record AddJump<I extends Jump>(BBId bbId, String desc, Jump.Data<I> args)
+  record AddJump<I extends Jump>(BBId bbId, String name, Jump.Data<I> args)
       implements AddInstrOrPhi<I> {}
 
   record RemoveBB(BBId bbId) implements OnBB<BB> {}
@@ -145,10 +145,10 @@ public sealed interface CFGCommand<Ret> {
       implements UpdateInstr<I, Jump.Data<I>> {}
 
   /** Doesn't do anything but is useful in logs. */
-  record BeginSection(String desc) implements Marker {}
+  record BeginSection(String name) implements Marker {}
 
   /** Doesn't do anything but is useful in logs. */
-  record EndSection(String desc) implements Marker {}
+  record EndSection(String name) implements Marker {}
 
   // endregion
 

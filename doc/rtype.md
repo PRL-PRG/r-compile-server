@@ -4,9 +4,11 @@
 
 Nothing (`⊥`, subtype of everything else) is an empty union and null `RPromiseType`. Every other `RType` has non-null `RPromiseType`. Any (`⊤`, supertype of everything else) is union containing a single "any" `RValueType` that is a supertype of every other `RValueType`, and a "maybe lazy, maybe promise-wrapped" `RPromiseType` that is also a supertype of every other `RPromiseType`.
 
+Maybe merge `RPromiseType` into `RValueType`, add a new subclass `RNothingType`, and just use that directly instead of `RType`?
+
 ## `RValueType`
 
-`RValueType`s are specialized types, such as closures and primitive vectors, which have extra detail the compiler tracks for optimizations (e.g. call specialization and unboxing). `RType` being a union means that we can represent polymorphic types, like a number or string, closure or `NULL`, object or primitive vector or missing, etc. (which are presumably common since R is dynamic). These unions are particularly useful because, while they can't be optimized to any specialized element on their own, we can insert a speculative guard to refine to each and then optimize.
+`RValueType`s are specialized types, such as closures and primitive vectors, which have extra detail the compiler tracks for optimizations (e.g. call specialization and unboxing). `RType` being a union means that we can represent polymorphic types, like a number or string, closure or `NULL`, object or primitive vector or missing, etc. (which could be common since R is dynamic, e.g. a polymorphic function type which can't be specialized based on the input, or one where the return discriminant isn't inferrable from the input type). These unions are particularly useful because, while they can't be optimized to any specialized variant on their own, we can insert a speculative guard to refine to each and then optimize.
 
 `RValueType` also has one subclass, `RGenericValueType`, which contains no specialized details and may be a supertype of other `RValueType`s (the other `RValueType`s are disjoint to one another). The reason it can be a supertype of the specialized `RValueTypes` is so that, we don't need a massive union to represent the "any" type. `RGenericValueType` also encompasses "boring" types which don't have a specialized `RValueType` on their own, like `NULL` and external pointers. These are distinguished by `BaseRType`, which is a simplified type within `RType`.
 
@@ -25,7 +27,7 @@ These are common properties in every `RValueType` which propagate to the `RType`
 
 ## Specific `RValueType`s
 
-These can be accessed via methods like `function` and `primVec` in `RType`, which return the instance iff it's the only element of the `RType` union. TODO a method to split the `RType` if it's a union of multiple `RValueType`s, to speculate on each one.
+These can be accessed via methods like `function` and `primVec` in `RType`, which return the instance iff it's the only variant of the `RType` union. TODO a method to split the `RType` if it's a union of multiple `RValueType`s, to speculate on each one.
 
 ### Functions
 

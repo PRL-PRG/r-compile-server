@@ -7,14 +7,13 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.NoSuchElementException;
 import java.util.SequencedSet;
 import java.util.Set;
 import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
-import org.prlprg.ir.CfgIterator.DomTreeBfs;
+import org.prlprg.ir.CFGIterator.DomTreeBfs;
 import org.prlprg.util.NotImplementedError;
 
 /**
@@ -37,6 +36,7 @@ public class CFG {
   /** Create a new CFG, with a single basic block and no instructions. */
   public CFG() {
     bbs.put(entry.id(), entry);
+    markExit(entry);
   }
 
   /** The basic block that is the entry of this graph. */
@@ -55,50 +55,30 @@ public class CFG {
     return Collections.unmodifiableSet(exits);
   }
 
-  /** (A view of) ids of every basic block in the CFG. */
-  public @UnmodifiableView Set<BBId> bbIds() {
+  /**
+   * (A view of) ids of every basic block in the CFG.
+   *
+   * <p>Don't iterate the CFG this way, because it's not deterministic. Instead, use {@link
+   * CFGIterator} or {@link #bfs()}, {@link #dfs()}, {@link #dominators()}, etc. (which internally
+   * use {@link CFGIterator}).
+   */
+  @UnmodifiableView
+  Set<BBId> bbIds() {
     return Collections.unmodifiableSet(bbs.keySet());
   }
 
-  /**
-   * Get the basic block with the associated id.
-   *
-   * @throws NoSuchElementException If there's no basic block with the id.
-   */
-  public BB get(BBId id) {
-    var bb = bbs.get(id);
-    if (bb == null) {
-      throw new NoSuchElementException("No basic block with id: " + id);
-    }
-    return bb;
-  }
-
-  /**
-   * Get the node with the associated id.
-   *
-   * @throws NoSuchElementException If there's no node with the id.
-   */
-  @SuppressWarnings("unchecked")
-  public <N extends Node> N get(NodeId<N> id) {
-    var node = nodes.get(id);
-    if (node == null) {
-      throw new NoSuchElementException("No node with id: " + id);
-    }
-    assert id.clazz().isInstance(node);
-    return (N) node;
-  }
-
-  /** Create and insert a new basic block. */
+  /** Create, insert, and return a new basic block. */
   public BB addBB() {
     return addBB("");
   }
 
-  /** Create and insert a new basic block, and attach a short description to the block's id. */
-  public BB addBB(String desc) {
-    var bb = new BB(this, desc);
+  /** Create insert, and return a new basic block, and attach a short name to the block's id. */
+  public BB addBB(String name) {
+    var bb = new BB(this, name);
     assert !bbs.containsKey(bb.id());
     bbs.put(bb.id(), bb);
-    /*WIP record(new CFGCommand.AddBB(desc)); */
+    markExit(bb);
+    /*WIP record(new CFGCommand.AddBB(name)); */
     return bb;
   }
 
@@ -116,25 +96,11 @@ public class CFG {
     if (removed == null) {
       throw new IllegalArgumentException("BB already removed");
     }
+    if (bb.successors().isEmpty()) {
+      unmarkExit(bb);
+    }
     assert removed == bb;
     /*WIP record(new CFGCommand.RemoveBB(bb.id())); */
-  }
-
-  /**
-   * Remove a basic block from the CFG.
-   *
-   * <p>Existing basic blocks and instructions may still reference it, but these references must be
-   * removed before {@link #verify()} is called.
-   *
-   * @throws IllegalArgumentException If the basic block was never in the CFG.
-   * @throws IllegalArgumentException If the basic block was already removed.
-   */
-  public void remove(BBId bbId) {
-    var bb = bbs.remove(bbId);
-    if (bb == null) {
-      throw new IllegalArgumentException("BB already removed");
-    }
-    /*WIP record(new CFGCommand.RemoveBB(bbId)); */
   }
 
   /**
@@ -152,7 +118,7 @@ public class CFG {
    * breadth-first.
    */
   public Iterable<BB> bfs() {
-    return () -> new CfgIterator.Bfs(this);
+    return () -> new CFGIterator.Bfs(this);
   }
 
   /**
@@ -160,7 +126,7 @@ public class CFG {
    * depth-first.
    */
   public Iterable<BB> dfs() {
-    return () -> new CfgIterator.Dfs(this);
+    return () -> new CFGIterator.Dfs(this);
   }
 
   /**
@@ -168,7 +134,7 @@ public class CFG {
    * breadth-first.
    */
   public Iterable<BB> reverseBfs() {
-    return () -> new CfgIterator.ReverseBfs(this);
+    return () -> new CFGIterator.ReverseBfs(this);
   }
 
   /**
@@ -176,7 +142,7 @@ public class CFG {
    * depth-first.
    */
   public Iterable<BB> reverseDfs() {
-    return () -> new CfgIterator.ReverseDfs(this);
+    return () -> new CFGIterator.ReverseDfs(this);
   }
 
   /**
@@ -218,7 +184,7 @@ public class CFG {
     var errors = new ArrayList<CFGVerifyException.BrokenInvariant>();
 
     // Must be DFS so that we can cache defined nodes in onlyPred blocks...
-    var iter = new CfgIterator.Dfs(this);
+    var iter = new CFGIterator.Dfs(this);
     // ...which we do here in `prevNodes`: during iteration, `prevNodes` holds nodes guaranteed to
     // be defined before the current instruction without control flow ambiguity, that is,
     // referencable ones.
@@ -375,7 +341,7 @@ public class CFG {
   @Override
   public String toString() {
     var sb = new StringBuilder();
-    var iter = new CfgIterator.Bfs(this);
+    var iter = new CFGIterator.Bfs(this);
     iter.forEachRemaining(sb::append);
 
     if (!iter.remainingBBIds().isEmpty()) {
@@ -452,24 +418,24 @@ public class CFG {
     history.add(new CFGAction<>(command, output));
   }
 
-  /** Returns {@code desc} if unique to the CFG, otherwise disambiguates with a suffix. */
-  String nextBBId(String desc) {
-    return nextId(desc, nextBbIds);
+  /** Returns {@code name} if unique to the CFG, otherwise disambiguates with a suffix. */
+  String nextBBId(String name) {
+    return nextId(name, nextBbIds);
   }
 
-  /** Returns {@code desc} if unique to the CFG, otherwise disambiguates with a suffix. */
-  String nextNodeId(String desc) {
-    return nextId(desc, nextNodeIds);
+  /** Returns {@code name} if unique to the CFG, otherwise disambiguates with a suffix. */
+  String nextNodeId(String name) {
+    return nextId(name, nextNodeIds);
   }
 
-  private String nextId(String desc, Map<String, Integer> nextIds) {
+  private String nextId(String name, Map<String, Integer> nextIds) {
     String result;
-    if (nextIds.containsKey(desc)) {
-      result = (desc.isEmpty() ? "" : desc + "@") + nextIds.get(desc);
-      nextIds.put(desc, nextIds.get(desc) + 1);
+    if (nextIds.containsKey(name)) {
+      result = (name.isEmpty() ? "" : name + "@") + nextIds.get(name);
+      nextIds.put(name, nextIds.get(name) + 1);
     } else {
-      result = desc;
-      nextIds.put(desc, 0);
+      result = name;
+      nextIds.put(name, 0);
     }
     return result;
   }
