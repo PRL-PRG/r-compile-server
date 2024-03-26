@@ -1,20 +1,17 @@
-package org.prlprg.ir;
+package org.prlprg.ir.cfg;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.SequencedSet;
-import java.util.Set;
-import java.util.function.BiPredicate;
-import java.util.function.Predicate;
-import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
-import org.prlprg.ir.CFGIterator.DomTreeBfs;
-import org.prlprg.util.NotImplementedError;
+import org.prlprg.ir.cfg.CFGIterator.DomTreeBfs;
+import org.prlprg.ir.cfg.CFGVerifyException.MissingJump;
+import org.prlprg.ir.cfg.CFGVerifyException.PhisInSinglePredecessorBB;
 
 /**
  * IR (intermediate representation) <a
@@ -30,8 +27,6 @@ public class CFG {
   private final Map<NodeId<?>, Node> nodes = new HashMap<>();
   private final Map<String, Integer> nextBbIds = new HashMap<>();
   private final Map<String, Integer> nextNodeIds = new HashMap<>();
-  private final @Nullable CFG preHistory = null;
-  private final List<CFGAction<?>> history = new ArrayList<>();
 
   /** Create a new CFG, with a single basic block and no instructions. */
   public CFG() {
@@ -52,31 +47,33 @@ public class CFG {
    * technically never reached. (A graph with free nodes is in a temporarily-invalid state and will
    * produce errors in {@link #verify()}.)
    *
-   * <p>Mutating the CFG will affect the set.
+   * <p>Mutating the CFG will update the set.
+   *
+   * <p>These are ordered to ensure deterministic traversal.
    */
-  public @UnmodifiableView Set<BB> exits() {
-    return Collections.unmodifiableSet(exits);
+  public @UnmodifiableView Collection<BB> exits() {
+    return Collections.unmodifiableCollection(exits);
   }
 
   /**
    * (A view of) ids of every basic block in the CFG.
    *
    * <p>Don't iterate the CFG this way, because it's not deterministic. Instead, use {@link
-   * CFGIterator} or {@link #bfs()}, {@link #dfs()}, {@link #dominators()}, etc. (which internally
-   * use {@link CFGIterator}).
+   * CFGIterator} or {@link #bfs()}, {@link #dfs()}, {@link #dominees()}, etc. (which internally use
+   * {@link CFGIterator}).
    *
-   * <p>Mutating the CFG will affect the set.
+   * <p>Mutating the CFG will update the set.
    */
   @UnmodifiableView
-  Set<BBId> bbIds() {
-    return Collections.unmodifiableSet(bbs.keySet());
+  Collection<BBId> bbIds() {
+    return Collections.unmodifiableCollection(bbs.keySet());
   }
 
   /**
    * Computes a dominator tree. It lets you query for which nodes are guaranteed to be run before
    * other nodes.
    *
-   * <p>Be careful, mutating the CFG won't affect the tree.
+   * <p>Be careful, mutating the CFG won't update the tree.
    */
   public DomTree domTree() {
     return new DomTree(this);
@@ -88,6 +85,9 @@ public class CFG {
   /**
    * Iterate through every basic block, starting with the entry and recursing through successors
    * breadth-first.
+   *
+   * <p>Adding BBs to the CFG won't add them to the iterator, but removing BBs will remove them and
+   * possibly their successors.
    */
   public Iterable<BB> bfs() {
     return () -> new CFGIterator.Bfs(this);
@@ -96,6 +96,9 @@ public class CFG {
   /**
    * Iterate through every basic block, starting with the entry and recursing through successors
    * depth-first.
+   *
+   * <p>Adding BBs to the CFG won't add them to the iterator, but removing BBs will remove them and
+   * possibly their successors.
    */
   public Iterable<BB> dfs() {
     return () -> new CFGIterator.Dfs(this);
@@ -104,6 +107,9 @@ public class CFG {
   /**
    * Iterate through every basic block, starting with the exits and recursing through predecessors
    * breadth-first.
+   *
+   * <p>Adding BBs to the CFG won't add them to the iterator, but removing BBs will remove them and
+   * possibly their predecessors.
    */
   public Iterable<BB> reverseBfs() {
     return () -> new CFGIterator.ReverseBfs(this);
@@ -112,6 +118,9 @@ public class CFG {
   /**
    * Iterate through every basic block, starting with the exits and recursing through predecessors
    * depth-first.
+   *
+   * <p>Adding BBs to the CFG won't add them to the iterator, but removing BBs will remove them and
+   * possibly their predecessors.
    */
   public Iterable<BB> reverseDfs() {
     return () -> new CFGIterator.ReverseDfs(this);
@@ -119,18 +128,25 @@ public class CFG {
 
   /**
    * Iterate through every basic block, starting with the entry and recursing through <a
-   * href="https://en.wikipedia.org/wiki/Dominator_(graph_theory)">dominators</a> breadth-first.
+   * href="https://en.wikipedia.org/wiki/Dominator_(graph_theory)">immediately dominated nodes</a>
+   * breadth-first.
+   *
+   * <p>Adding BBs to the CFG won't add them to the iterator, but removing BBs will remove them and
+   * possibly their dominees.
    */
-  public Iterable<BB> dominators() {
-    return dominators(domTree());
+  public Iterable<BB> dominees() {
+    return dominees(domTree());
   }
 
   /**
    * Iterate through every basic block, starting with the entry and recursing through <a
-   * href="https://en.wikipedia.org/wiki/Dominator_(graph_theory)">dominators</a> breadth-first.
-   * This overload lets you reuse an existing {@link DomTree} instead of recomputing.
+   * href="https://en.wikipedia.org/wiki/Dominator_(graph_theory)">immediately dominated nodes</a>
+   * breadth-first. This overload lets you reuse an existing {@link DomTree} instead of recomputing.
+   *
+   * <p>Adding BBs to the CFG won't add them to the iterator, but removing BBs will remove them and
+   * possibly their dominees.
    */
-  public Iterable<BB> dominators(DomTree tree) {
+  public Iterable<BB> dominees(DomTree tree) {
     return () -> new DomTreeBfs(tree);
   }
 
@@ -148,7 +164,6 @@ public class CFG {
     assert !bbs.containsKey(bb.id());
     bbs.put(bb.id(), bb);
     markExit(bb);
-    record(new CFGCommand.AddBB(name), bb);
     return bb;
   }
 
@@ -169,7 +184,6 @@ public class CFG {
     if (bb.successors().isEmpty()) {
       unmarkExit(bb);
     }
-    record(new CFGCommand.RemoveBB(bbId), bb);
   }
 
   /**
@@ -190,93 +204,64 @@ public class CFG {
       unmarkExit(bb);
     }
     assert removed == bb;
-    record(new CFGCommand.RemoveBB(bb.id()), bb);
   }
 
   // endregion
 
-  // region history
-  /** Access a view of the CFG before {@link #history()}. */
-  public CFG preHistory() {
-    // TODO
-    throw new NotImplementedError();
-  }
-
+  // region cleanup verify, and toString
   /**
-   * Access (a view of) the CFG's history: most recent actions performed which may let you recreate
-   * it.
+   * Cleanup the CFG. Specifically:
+   *
+   * <ul>
+   *   <li>Remove phi nodes with no users.
+   *   <li>Convert branch instructions where both branches are the same BB into single-branch
+   *       variants.
+   *   <li>Merge the basic blocks which have only one successor to a basic block with only one
+   *       predecessor.
+   *   <li>Remove "pure" statements with no users (including temporary {@link
+   *       org.prlprg.ir.cfg.Stmts.Placeholder.NoOp} statements).
+   *   <li>Replace phi nodes that have a single input with that input.
+   *   <li>Remove basic blocks that are unreachable from the entry block (remove basic blocks with
+   *       zero predecessors recursively).
+   * </ul>
+   *
+   * <p>{@link #verify()} will fail on CFGs that aren't cleaned up. Generally, after a set of
+   * optimizations you will call this method and then optionally {@link #verify()}.
    */
-  public List<CFGAction<?>> history() {
-    return Collections.unmodifiableList(history);
-  }
-
-  /**
-   * Returns the most recent action in {@link #history()} whose command satisfies the predicate, or
-   * {@code null} if none do.
-   */
-  public @Nullable CFGAction<?> findAction(Predicate<CFGCommand<?>> predicate) {
-    return findAction((cmd, output) -> predicate.test(cmd));
-  }
-
-  /**
-   * Returns the most recent action in {@link #history()} which satisfies the predicate, or {@code
-   * null} if none do.
-   */
-  public @Nullable CFGAction<?> findAction(BiPredicate<CFGCommand<?>, Object> predicate) {
-    for (var i = history.size() - 1; i >= 0; i--) {
-      var a = history.get(i);
-      if (predicate.test(a.command(), a.output())) {
-        return a;
+  public void cleanup() {
+    var iter = new CFGIterator.Dfs(this);
+    while (iter.hasNext()) {
+      var bb = iter.next();
+      if (bb.predecessors().isEmpty() && bb != entry) {
+        remove(bb);
       }
+
+      // Remove temporary NoOp statements
+      bb.cleanupStmts();
     }
-    return null;
-  }
 
-  /**
-   * Returns the index of the most recent action in {@link #history()} whose command satisfies the
-   * predicate, or {@code -1} if none do.
-   */
-  public int findActionIdx(Predicate<CFGCommand<?>> predicate) {
-    return findActionIdx((cmd, output) -> predicate.test(cmd));
-  }
-
-  /**
-   * Returns the index of the most recent action in {@link #history()} which satisfies the
-   * predicate, or {@code -1} if none do.
-   */
-  public int findActionIdx(BiPredicate<CFGCommand<?>, Object> predicate) {
-    for (var i = history.size() - 1; i >= 0; i--) {
-      var a = history.get(i);
-      if (predicate.test(a.command(), a.output())) {
-        return i;
-      }
+    for (var remainingBBId : iter.remainingBBIds()) {
+      // Remove basic blocks that are unreachable from the entry block.
+      remove(remainingBBId);
     }
-    return -1;
   }
 
-  /** Clear the CFG's history. */
-  public void clearHistory() {
-    /*WIP preHistory = clone(); */
-    history.clear();
-  }
-
-  // endregion
-
-  // region debugging (verify and toString)
   /**
    * Verify some CFG invariants. Specifically:
    *
    * <ul>
+   *   <li>Every basic block has a non-null jump (could be a {@link Jumps.Return} or {@link
+   *       Jumps.Unreachable}).
+   *   <li>Only basic blocks with two or more predecessors have phi nodes.
+   *   <li>Phi nodes have an entry from every predecessor.
    *   <li>Instructions don't have arguments that were removed from the CFG (or not present
    *       initially).
-   *   <li>Every basic block is connected to the entry block.
    *   <li>Instruction arguments all either originate from earlier in the block, or are
    *       CFG-independent. <i>Except</i> in basic blocks with exactly one predecessor, instruction
    *       arguments may be from that predecessor or, if it also has one predecessor, its
    *       predecessor and so on.
-   *   <li>Only basic blocks with two or more predecessors have phi nodes. Phi nodes have an entry
-   *       from every predecessor.
    *   <li>Instruction {@link RValue} arguments are of the correct (dynamic) type.
+   *   <li>Every basic block is connected to the entry block.
    * </ul>
    *
    * @throws CFGVerifyException if one of the invariants are broken.
@@ -298,14 +283,30 @@ public class CFG {
         prevNodes.clear();
       }
 
-      // Only basic blocks with two or more predecessors have phi nodes. Phi nodes have an entry
-      // from every predecessor.
-      /*WIP if (bb.predecessors().size() < 2 && !bb.phis().isEmpty()) {
-        errors.add(new CFGVerifyException.BrokenInvariant("Phi in single-predecessor BB: " + bb.id(), findActionIdx((c, o) ->
-            (c instanceof CFGCommand.AddInstrOrPhi<?> add && add.bbId().equals(bb.id()) && o instanceof Phi) ||
-                (c instanceof CFGCommand.RemoveJump<?> remove && remove.)
-        )));
-      }*/
+      // Every basic block has a non-null jump.
+      if (bb.jump() == null) {
+        errors.add(new MissingJump(bb.id()));
+      }
+
+      // Only basic blocks with two or more predecessors have phi nodes.
+      if (bb.predecessors().size() < 2 && !bb.phis().isEmpty()) {
+        errors.add(new PhisInSinglePredecessorBB(bb.id()));
+      }
+
+      for (var phi : bb.phis()) {
+        // Phi nodes have an entry from every predecessor.
+        for (var input : phi.inputs()) {
+          if (!bb.predecessors().contains(input.incomingBb())) {
+            errors.add(
+                new CFGVerifyException.ExtraInputInPhi(bb.id(), phi.id(), input.incomingBb()));
+          }
+        }
+        for (var pred : bb.predecessors()) {
+          if (!phi.containsInput(pred)) {
+            errors.add(new CFGVerifyException.MissingInputInPhi(bb.id(), phi.id(), pred.id()));
+          }
+        }
+      }
 
       for (var instrOrPhi : bb) {
         assert instrOrPhi.cfg() == this;
@@ -318,39 +319,18 @@ public class CFG {
             if (!nodes.containsKey(arg.id())) {
               // Instructions don't have arguments that were removed from the CFG (or not present
               // initially).
-              errors.add(
-                  new CFGVerifyException.BrokenInvariant(
-                      "Untracked (removed?) arg: " + arg.id(),
-                      findActionIdx(
-                          c ->
-                              c instanceof CFGCommand.RemoveInstrOrPhi<?, ?> remove
-                                  && remove.nodeId().equals(arg.id()))));
+              errors.add(new CFGVerifyException.UntrackedArg(bb.id(), instrOrPhi.id(), arg.id()));
             } else if (instrOrPhi instanceof Instr instr && !prevNodes.contains(arg)) {
               // Instruction arguments all either originate from earlier in the block, or are
               // CFG-independent. *Except* in basic blocks with exactly one predecessor, instruction
               // arguments may be from that predecessor or, if it also has one predecessor, its
               // predecessor and so on.
               errors.add(
-                  new CFGVerifyException.BrokenInvariant(
-                      "Arg not defined before use, or control flow ambiguity (so needs to be a phi): "
-                          + arg.id(),
-                      findActionIdx(
-                          (c, o) ->
-                              (c instanceof CFGCommand.UpdateInstr<?, ?> update
-                                      && update.nodeId().equals(instr.id())
-                                      && update.newArgs().equals(instr.data()))
-                                  || (c instanceof CFGCommand.AddInstrOrPhi<?>
-                                      && o == arg.origin()))));
+                  new CFGVerifyException.ArgNotDefinedBeforeUse(bb.id(), instr.id(), arg.id()));
             }
+
+            // TODO: Instruction `RValue` arguments are of the correct (dynamic) type.
           }
-        }
-
-        if (instrOrPhi instanceof Phi<?> phi) {
-          // Only basic blocks with two or more predecessors have phi nodes. Phi nodes have an entry
-          // from every predecessor.
-          // TODO
-
-          for (var input : phi.inputs()) {}
         }
 
         prevNodes.addAll(instrOrPhi.returns());
@@ -361,13 +341,7 @@ public class CFG {
 
     for (var remainingBBId : iter.remainingBBIds()) {
       // Every basic block is connected to the entry block.
-      errors.add(
-          new CFGVerifyException.BrokenInvariant(
-              "BB not reachable: " + remainingBBId,
-              findActionIdx(
-                  c ->
-                      c instanceof CFGCommand.RemoveBB removeBB
-                          && removeBB.bbId().equals(remainingBBId))));
+      errors.add(new CFGVerifyException.NotReachable(remainingBBId));
     }
 
     if (!errors.isEmpty()) {
@@ -447,15 +421,6 @@ public class CFG {
   void untrack(NodeId<?> nodeId) {
     var removed = nodes.remove(nodeId);
     assert removed != null : "Node was never tracked";
-  }
-
-  /**
-   * Record that an action was performed on the CFG.
-   *
-   * <p>This is called from {@link BB} and {@link Phi} when they mutate themselves.
-   */
-  <Ret> void record(CFGCommand<Ret> command, Ret output) {
-    history.add(new CFGAction<>(command, output));
   }
 
   /** Returns {@code name} if unique to the CFG, otherwise disambiguates with a suffix. */

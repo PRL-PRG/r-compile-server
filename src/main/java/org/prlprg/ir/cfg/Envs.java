@@ -1,4 +1,4 @@
-package org.prlprg.ir;
+package org.prlprg.ir.cfg;
 
 import javax.annotation.Nullable;
 import org.prlprg.sexp.SEXP;

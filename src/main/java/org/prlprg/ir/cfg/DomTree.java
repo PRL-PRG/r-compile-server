@@ -1,4 +1,4 @@
-package org.prlprg.ir;
+package org.prlprg.ir.cfg;
 
 import java.util.ArrayDeque;
 import java.util.Iterator;

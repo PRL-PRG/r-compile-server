@@ -1,4 +1,4 @@
-package org.prlprg.ir;
+package org.prlprg.ir.cfg;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Streams;
@@ -19,8 +19,9 @@ import org.prlprg.util.Reflection;
  *
  * <p>This type is mutable and does not have subclasses for each specific instruction, while {@link
  * Instr.Data} is immutable and does. Don't construct {@link Instr}s directly, instead via {@link
- * BB} methods such as {@link BB#append(Stmt.Data)} and {@link BB#replace(Instr, Instr.Data)}, which
- * take {@link Instr.Data} as an argument and construct the {@link Instr} themselves.
+ * BB} methods such as {@link BB#append(String, Stmt.Data)} and {@link BB#subst(Instr, String,
+ * Instr.Data)}, which take {@link Instr.Data} as an argument and construct the {@link Instr}
+ * themselves.
  */
 public sealed interface Instr extends InstrOrPhi permits Jump, Stmt {
   /** (A view of) the instruction's arguments, which are the other nodes it depends on. */
@@ -60,8 +61,8 @@ public sealed interface Instr extends InstrOrPhi permits Jump, Stmt {
   /**
    * Replace the instruction's data.
    *
-   * <p>Usually you should call {@link BB#replace(Instr, Data)} instead, because this will fail if
-   * the data isn't the correct class.
+   * <p>Usually you should call {@link BB#subst(Instr, String, Data)} instead, because this will
+   * fail if the data isn't the correct class.
    *
    * @throws IllegalArgumentException If the new type of data isn't compatible with the instruction.
    */

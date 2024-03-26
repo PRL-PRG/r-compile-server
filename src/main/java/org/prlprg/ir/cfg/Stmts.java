@@ -1,4 +1,4 @@
-package org.prlprg.ir;
+package org.prlprg.ir.cfg;
 
 import com.google.common.collect.ImmutableList;
 import org.prlprg.ir.type.RType;
@@ -24,6 +24,20 @@ class Stmts {
     default RValueStmt make(CFG cfg, String name) {
       return new RValueStmtImpl(cfg, name, this);
     }
+  }
+
+  /**
+   * Temporary placeholders that shouldn't be inserted or replaced directly. Instead, these are
+   * inserted and replaced indirectly in insert, replace, and remove operations for other
+   * instructions, to improve performance by batching array changes and non-local substitutions for
+   * later.
+   */
+  sealed interface Placeholder {
+    /**
+     * Instead of removing a statement in {@link BB}'s list, we replace with this, so that the BB
+     * can batch remove statements to improve performance.
+     */
+    record NoOp() implements Void, Placeholder {}
   }
 
   record Invisible() implements Void {}

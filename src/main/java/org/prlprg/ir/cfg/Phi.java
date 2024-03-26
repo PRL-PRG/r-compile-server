@@ -1,4 +1,4 @@
-package org.prlprg.ir;
+package org.prlprg.ir.cfg;
 
 import com.google.common.collect.ImmutableList;
 import com.pushtorefresh.javac_warning_annotation.Warning;

@@ -1,4 +1,4 @@
-package org.prlprg.ir;
+package org.prlprg.ir.cfg;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;

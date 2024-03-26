@@ -1,4 +1,4 @@
-package org.prlprg.ir;
+package org.prlprg.ir.cfg;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -36,6 +36,7 @@ public final class BB implements Iterable<InstrOrPhi> {
     this.id = new BBIdImpl(parent.nextBBId(name));
   }
 
+  // region parent and self
   /** CFG containing this block. */
   public CFG cfg() {
     return parent;
@@ -44,6 +45,35 @@ public final class BB implements Iterable<InstrOrPhi> {
   /** Uniquely identifies this block within {@link #cfg()}. */
   public BBId id() {
     return id;
+  }
+
+  // endregion
+
+  // region predecessors and successors
+  /**
+   * Returns (a view of) the BBs whose jumps point to this.
+   *
+   * <p>These are ordered to ensure deterministic traversal.
+   */
+  public @UnmodifiableView Collection<BB> predecessors() {
+    return Collections.unmodifiableCollection(predecessors);
+  }
+
+  /**
+   * Returns (a view of) the BBs this one's jump points to.
+   *
+   * <p>These are ordered to ensure deterministic traversal.
+   */
+  public @UnmodifiableView SequencedCollection<BB> successors() {
+    return jump == null ? List.of() : Collections.unmodifiableSequencedCollection(jump.targets());
+  }
+
+  // endregion
+
+  // region count, iterate, and access nodes
+  /** #phis + #instrs + (jump ? 1 : 0) */
+  public int size() {
+    return phis.size() + stmts.size() + (jump == null ? 0 : 1);
   }
 
   /**
@@ -98,20 +128,6 @@ public final class BB implements Iterable<InstrOrPhi> {
     };
   }
 
-  /** #phis + #instrs + (jump ? 1 : 0) */
-  public int size() {
-    return phis.size() + stmts.size() + (jump == null ? 0 : 1);
-  }
-
-  /**
-   * Returns (a view of) the BBs whose jumps point to this.
-   *
-   * <p>These are ordered to ensure deterministic traversal.
-   */
-  public @UnmodifiableView SequencedCollection<BB> predecessors() {
-    return Collections.unmodifiableSequencedCollection(predecessors);
-  }
-
   /** Whether this block has a single predecessor. */
   public boolean hasSinglePredecessor() {
     return predecessors.size() == 1;
@@ -120,6 +136,15 @@ public final class BB implements Iterable<InstrOrPhi> {
   /** If this block has exactly one predecessor, returns it, otherwise {@code null}. */
   public @Nullable BB onlyPredecessor() {
     return hasSinglePredecessor() ? predecessors.getFirst() : null;
+  }
+
+  /**
+   * Returns (a view of) the phis in this BB.
+   *
+   * <p>These are ordered to ensure deterministic traversal.
+   */
+  public @UnmodifiableView Collection<Phi<?>> phis() {
+    return Collections.unmodifiableCollection(phis);
   }
 
   /** Returns (a view of) the statements in this BB. */
@@ -149,20 +174,15 @@ public final class BB implements Iterable<InstrOrPhi> {
     return index;
   }
 
-  /** Returns this BB's jump. */
+  /** Returns this BB's jump, or {@code null} if unset. */
   public @Nullable Jump jump() {
     return jump;
   }
 
-  /**
-   * Returns (a view of) the BBs this one's jump points to.
-   *
-   * <p>These are ordered to ensure deterministic traversal.
-   */
-  public @UnmodifiableView SequencedCollection<BB> successors() {
-    return jump == null ? List.of() : Collections.unmodifiableSequencedCollection(jump.targets());
-  }
+  // endregion
 
+  // region mutate nodes
+  // region add nodes
   /**
    * Add an empty φ node for nodes of the given class to this BB and return it. The {@link Phi}
    * should implement the necessary superclass so that it's acceptable to replace a node of this
@@ -259,6 +279,9 @@ public final class BB implements Iterable<InstrOrPhi> {
     return jump;
   }
 
+  // endregion
+
+  // region replace nodes
   /**
    * Create a new instruction with {@code newArgs} and replace all occurrences of {@code oldInstr}
    * with it.
@@ -271,7 +294,7 @@ public final class BB implements Iterable<InstrOrPhi> {
    * @throws IllegalArgumentException if {@code oldInstr} is not in this BB.
    * @throws IllegalArgumentException if {@code newArgs} is an incompatible type.
    */
-  public <I extends Instr> I replace(I oldInstr, @Nullable String newName, Instr.Data<I> newArgs) {
+  public <I extends Instr> I subst(I oldInstr, @Nullable String newName, Instr.Data<I> newArgs) {
     if (oldInstr.cfg() != cfg()) {
       throw new IllegalArgumentException(
           "Replace oldInstr not in CFG: " + oldInstr + " not in:\n" + cfg());
@@ -333,6 +356,7 @@ public final class BB implements Iterable<InstrOrPhi> {
   // those later.
   //  (including removed auxillary nodes, not just instructions)
 
+  // region remove nodes
   /**
    * Remove the given instructions. Other instructions may still reference them, but these
    * references must go away before {@link CFG#verify()}.
@@ -384,7 +408,7 @@ public final class BB implements Iterable<InstrOrPhi> {
     while (stmts.hasNext()) {
       var instr = stmts.next();
       if (instrs.contains(instr)) {
-        stmts.remove();
+        stmts.set(new Stmts.Placeholder.NoOp().make(parent, "removed#" + instr.id().name()));
         removed.add(instr);
       }
     }
@@ -406,61 +430,25 @@ public final class BB implements Iterable<InstrOrPhi> {
     }
   }
 
-  /** Try to remove any of the given instructions which are present, and return those removed. */
-  public Set<InstrOrPhi> tryOnlyRemove(Set<InstrOrPhi> instrs1) {
-    var removed = new SmallSet<InstrOrPhi>(Math.min(instrs1.size(), 8));
-    var phis = this.phis.iterator();
-    while (phis.hasNext()) {
-      var instr = phis.next();
-      if (instrs1.contains(instr)) {
-        phis.remove();
-        removed.add(instr);
+  // endregion
+  // endregion
+
+  // region cfg methods
+  void cleanupStmts() {
+    var stmts = new ArrayList<Stmt>(this.stmts.size());
+    for (var stmt : this.stmts) {
+      if (stmt.data() instanceof Stmts.Placeholder.NoOp) {
+        continue;
       }
+      stmts.add(stmt);
     }
-    var stmts = this.stmts.listIterator();
-    while (stmts.hasNext()) {
-      var instr = stmts.next();
-      if (instrs1.contains(instr)) {
-        stmts.remove();
-        removed.add(instr);
-      }
-    }
-    if (jump != null && instrs1.contains(jump)) {
-      setJump(null);
-      removed.add(jump);
-    }
-    return removed;
+    this.stmts.clear();
+    this.stmts.addAll(stmts);
   }
 
-  /** Replace the node in the arguments of every argument-containing node in this BB. */
-  void replaceInArgs(Node oldNode, Node newNode) {
-    assert oldNode.cfg() == cfg() && newNode.cfg() == cfg();
-    for (var phi : phis) {
-      phi.replace(oldNode, newNode);
-    }
-    for (var stmt : stmts) {
-      stmt.replace(oldNode, newNode);
-    }
-    if (jump != null) {
-      jump.replace(oldNode, newNode);
-    }
-  }
+  // endregion
 
-  /**
-   * @throws IllegalArgumentException If the node is in any of the arguments.
-   */
-  void checkNotInArgs(Node node) {
-    if (phis.stream().anyMatch(phi -> phi.containsInput(node))) {
-      throw new IllegalArgumentException("Node in φ inputs: " + node);
-    }
-    if (stmts.stream().anyMatch(stmt -> stmt.args().contains(node))) {
-      throw new IllegalArgumentException("Node in stmt inputs: " + node);
-    }
-    if (jump != null && jump.args().contains(node)) {
-      throw new IllegalArgumentException("Node in jump inputs: " + node);
-    }
-  }
-
+  // region shared private methods
   /** Set jump and update successors. */
   private void setJump(@Nullable Jump jump) {
     if (jump == this.jump) {
@@ -486,4 +474,5 @@ public final class BB implements Iterable<InstrOrPhi> {
       cfg().unmarkExit(this);
     }
   }
+  // endregion
 }

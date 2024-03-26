@@ -1,4 +1,4 @@
-package org.prlprg.ir;
+package org.prlprg.ir.cfg;
 
 /** {@link Jump.Data} pattern-matchable records. */
 public class Jumps {

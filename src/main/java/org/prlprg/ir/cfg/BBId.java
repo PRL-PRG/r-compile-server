@@ -1,4 +1,4 @@
-package org.prlprg.ir;
+package org.prlprg.ir.cfg;
 
 /**
  * CFG-unique {@link BB} identifier which can refer to a future basic block in {@link CFGCommand}s.

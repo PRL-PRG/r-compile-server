@@ -4,7 +4,7 @@ import com.google.common.collect.ImmutableList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.stream.Stream;
-import org.prlprg.ir.CFG;
+import org.prlprg.ir.cfg.CFG;
 import org.prlprg.ir.type.lattice.MaybeNat;
 import org.prlprg.ir.type.lattice.Troolean;
 import org.prlprg.rshruntime.TypeFeedback;

@@ -1,4 +1,4 @@
-package org.prlprg.ir;
+package org.prlprg.ir.cfg;
 
 import com.google.common.collect.ImmutableList;
 import java.util.Arrays;

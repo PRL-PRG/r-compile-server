@@ -1,4 +1,4 @@
-package org.prlprg.ir;
+package org.prlprg.ir.cfg;
 
 /** Helper to add instructions and blocks to a {@link CFG}. */
 public class IRBuilder {
