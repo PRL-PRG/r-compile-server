@@ -85,7 +85,7 @@ public class ContextTest extends AbstractGNURBasedTest {
 
     var ctx = Context.functionContext(fun);
     var x = ctx.resolve("x");
-    assertThat(x).hasValue(new Pair<>(fun.env(), SEXPs.MISSING_ARG));
+    assertThat(x).hasValue(Pair.of(fun.env(), SEXPs.MISSING_ARG));
 
     var y = ctx.resolve("y").get();
     assertThat(y.first()).isEqualTo(fun.env());

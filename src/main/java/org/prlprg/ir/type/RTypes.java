@@ -4,9 +4,11 @@ import com.google.common.collect.ImmutableList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.stream.Stream;
-import org.prlprg.ir.CFG;
+import org.prlprg.ir.cfg.CFG;
 import org.prlprg.ir.type.lattice.MaybeNat;
+import org.prlprg.ir.type.lattice.NoOrMaybe;
 import org.prlprg.ir.type.lattice.Troolean;
+import org.prlprg.primitive.BuiltinId;
 import org.prlprg.rshruntime.TypeFeedback;
 import org.prlprg.sexp.*;
 import org.prlprg.util.NotImplementedError;
@@ -80,8 +82,50 @@ public class RTypes {
           RPromiseType.VALUE,
           Troolean.NO);
 
+  /**
+   * The type of a value we know absolutely nothing about besides it not having attributes, object,
+   * promise-wrapped, or missing, and being a primitive vector.
+   */
+  public static final RType ANY_SIMPLE_PRIM_VEC =
+      new RType(
+          new RPrimVecTypeImpl(
+              null,
+              AttributesTypes.NONE,
+              MaybeNat.UNKNOWN,
+              PrimVecElementRType.ANY,
+              MaybeNat.UNKNOWN,
+              NoOrMaybe.MAYBE),
+          RPromiseType.VALUE,
+          Troolean.NO);
+
   /** The {@link RType} of the missing value. */
   public static final RType OF_MISSING = new RType(null, RPromiseType.VALUE, Troolean.YES);
+
+  /** The {@link RType} of a simple scalar logical that can't be NA. */
+  public static final RType BOOL =
+      new RType(
+          new RPrimVecTypeImpl(
+              null,
+              AttributesTypes.NONE,
+              MaybeNat.UNKNOWN,
+              PrimVecElementRType.LOGICAL,
+              MaybeNat.of(1),
+              NoOrMaybe.NO),
+          RPromiseType.VALUE,
+          Troolean.NO);
+
+  /** A simple scalar integer, real, or logical that doesn't permit NA. */
+  public static final RType NUMERIC_OR_LOGICAL_NO_NA =
+      new RType(
+          new RPrimVecTypeImpl(
+              null,
+              AttributesTypes.NONE,
+              MaybeNat.UNKNOWN,
+              PrimVecElementRType.NUMERIC_OR_LOGICAL,
+              MaybeNat.of(1),
+              NoOrMaybe.NO),
+          RPromiseType.VALUE,
+          Troolean.NO);
 
   /** The (most precise representable) type of the given value. */
   public static RType exact(SEXP value) {
@@ -111,17 +155,20 @@ public class RTypes {
     throw new NotImplementedError();
   }
 
-  /** The type after a arithmetic bytecode instruction. */
+  /** The type after a arithmetic bytecode instruction, whose arguments have the given types. */
   public static RType arithmeticOp(RType... types) {
     throw new NotImplementedError();
   }
 
-  /** The type after a comparison bytecode instruction. */
+  /** The type after a comparison bytecode instruction, whose arguments have the given types. */
   public static RType comparisonOp(RType... types) {
     throw new NotImplementedError();
   }
 
-  /** The type after a simple "and", "or", or "not" bytecode instruction. */
+  /**
+   * The type after a simple "and", "or", or "not" bytecode instruction, whose arguments have the
+   * given types.
+   */
   public static RType booleanOp(RType... types) {
     throw new NotImplementedError();
   }
@@ -132,6 +179,14 @@ public class RTypes {
    * also return the type for a scalar.
    */
   public static RType simple(SEXPType type) {
+    throw new NotImplementedError();
+  }
+
+  public static RType toForSeq(RType type) {
+    throw new NotImplementedError();
+  }
+
+  public static RType builtin(BuiltinId id) {
     throw new NotImplementedError();
   }
 

@@ -4,7 +4,7 @@ import java.util.Objects;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
-import org.prlprg.ir.RValue;
+import org.prlprg.ir.cfg.RValue;
 import org.prlprg.ir.type.BaseRType.Promise;
 import org.prlprg.ir.type.lattice.BoundedLattice;
 import org.prlprg.ir.type.lattice.Lattice;
@@ -217,6 +217,13 @@ public final class RType implements BoundedLattice<RType> {
     }
   }
 
+  // region helpers
+  /** Returns whether instances are R objects, or {@code null} if this is the nothing type. */
+  public @Nullable Troolean isObject() {
+    return attributes() == null ? null : attributes().isObject();
+  }
+
+  // endregion
   // endregion
 
   // region specific `RValueType` projections

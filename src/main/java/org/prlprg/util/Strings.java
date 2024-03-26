@@ -14,7 +14,7 @@ public class Strings {
   }
 
   @SafeVarargs
-  public static <T> String join(String sep, Function<T, String> toString, T... items) {
+  public static <T, S> String join(String sep, Function<T, S> toString, T... items) {
     return Arrays.stream(items).map(toString).collect(joining(sep));
   }
 
@@ -22,7 +22,7 @@ public class Strings {
     return items.stream().collect(joining(sep));
   }
 
-  public static <T> String join(String sep, Function<T, String> toString, Collection<T> items) {
+  public static <T, S> String join(String sep, Function<T, S> toString, Collection<T> items) {
     return items.stream().map(toString).collect(joining(sep));
   }
 

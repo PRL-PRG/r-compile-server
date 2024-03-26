@@ -2,6 +2,7 @@ package org.prlprg.ir.type;
 
 import javax.annotation.Nullable;
 import org.prlprg.ir.type.lattice.Lattice;
+import org.prlprg.ir.type.lattice.Troolean;
 import org.prlprg.sexp.Attributes;
 
 /**
@@ -11,6 +12,8 @@ import org.prlprg.sexp.Attributes;
 public interface AttributesType extends Lattice<AttributesType> {
   /** If we know the exact attributes, otherwise {@code null}. */
   @Nullable Attributes exact();
+
+  Troolean isObject();
 }
 
 // TODO: replace with actual subtype(s).
@@ -18,6 +21,11 @@ record TODOAttributesType() implements AttributesType {
   @Nullable @Override
   public Attributes exact() {
     return null;
+  }
+
+  @Override
+  public Troolean isObject() {
+    return Troolean.MAYBE;
   }
 
   @Override
