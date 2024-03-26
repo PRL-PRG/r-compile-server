@@ -50,7 +50,7 @@ public sealed interface EnvSXP extends SEXP
    * @return the value of the symbol and the environment where it was found, if found
    */
   default Optional<Pair<EnvSXP, SEXP>> find(String name) {
-    return getLocal(name).map(v -> new Pair<>(this, v)).or(() -> parent().find(name));
+    return getLocal(name).map(v -> Pair.of(this, v)).or(() -> parent().find(name));
   }
 
   Iterable<? extends Map.Entry<? extends String, ? extends SEXP>> bindings();

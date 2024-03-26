@@ -79,7 +79,7 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
                         .map(
                             t -> {
                               assert t.tag() != null;
-                              return new Pair<>(t.tag(), t.value());
+                              return Pair.of(t.tag(), t.value());
                             })
                         .list()
                         .ofMaxSize(MAX_SIZE))

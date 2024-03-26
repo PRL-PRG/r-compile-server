@@ -7,8 +7,8 @@ public class StructuralUtils {
   private static final String HASH_PATTERN = "-?[0-9a-fA-F]{1,16}";
   private static final Set<Pair<Pattern, String>> PATTERNS =
       Set.of(
-          new Pair<>(Pattern.compile("@" + HASH_PATTERN), "#"),
-          new Pair<>(Pattern.compile("<environment: " + HASH_PATTERN + ">"), "<environment: #>"));
+          Pair.of(Pattern.compile("@" + HASH_PATTERN), "#"),
+          Pair.of(Pattern.compile("<environment: " + HASH_PATTERN + ">"), "<environment: #>"));
 
   /**
    * Calls {@link Object#toString}, then replaces obvious references and hash-codes with
