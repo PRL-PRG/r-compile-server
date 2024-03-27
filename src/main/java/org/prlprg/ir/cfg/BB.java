@@ -1,5 +1,6 @@
 package org.prlprg.ir.cfg;
 
+import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -15,6 +16,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
+import org.prlprg.ir.cfg.Stmt.Data;
+import org.prlprg.util.Pair;
 import org.prlprg.util.SmallSet;
 
 /**
@@ -216,12 +219,47 @@ public final class BB implements Iterable<InstrOrPhi> {
   }
 
   /**
-   * Insert a statement in this BB immediately before the given statement.
+   * Insert statements in this BB immediately before the given statement.
+   *
+   * @param namesAndArgs The name and argument of each statement. See {@link #insertBefore(String,
+   *     Data, Stmt)}.
+   * @return The inserted statements.
+   * @throws IllegalArgumentException If the before statement wasn't found.
+   */
+  public <I extends Stmt> ImmutableList<I> insertBefore(
+      Stream<Pair<String, Data<I>>> namesAndArgs, Stmt before) {
+    int index = stmts.indexOf(before);
+    if (index == -1) {
+      throw new IllegalArgumentException("Before not in " + this + ": " + before);
+    }
+    var stmts =
+        namesAndArgs
+            .map(nameAndArg -> nameAndArg.second().make(cfg(), nameAndArg.first()))
+            .collect(ImmutableList.toImmutableList());
+    this.stmts.addAll(index, stmts);
+    return stmts;
+  }
+
+  /**
+   * Insert statements in this BB immediately before the given statement.
+   *
+   * @param namesAndArgs The name and argument of each statement. See {@link #insertBefore(String,
+   *     Data, Stmt)}.
+   * @return The inserted statements.
+   * @throws IllegalArgumentException If the before statement wasn't found.
+   */
+  public <I extends Stmt> ImmutableList<I> insertBefore(
+      List<Pair<String, Data<I>>> namesAndArgs, Stmt before) {
+    return insertBefore(namesAndArgs.stream(), before);
+  }
+
+  /**
+   * Insert a statement in this BB immediately after the given statement.
    *
    * @param name A small name for the statement, or an empty string. This is useful for debugging
    *     and error messages.
    * @param args The statement's arguments (data). * @return The inserted statement.
-   * @throws IllegalArgumentException If the before statement wasn't found.
+   * @throws IllegalArgumentException If the after statement wasn't found.
    */
   public <I extends Stmt> I insertAfter(String name, Stmt.Data<I> args, Stmt after) {
     int index = stmts.indexOf(after);
@@ -231,6 +269,41 @@ public final class BB implements Iterable<InstrOrPhi> {
     var stmt = args.make(cfg(), name);
     stmts.add(index + 1, stmt);
     return stmt;
+  }
+
+  /**
+   * Insert statements in this BB immediately after the given statement.
+   *
+   * @param namesAndArgs The name and argument of each statement. See {@link #insertAfter(String,
+   *     Data, Stmt)}.
+   * @return The inserted statements.
+   * @throws IllegalArgumentException If the after statement wasn't found.
+   */
+  public <I extends Stmt> ImmutableList<I> insertAfter(
+      Stream<Pair<String, Data<I>>> namesAndArgs, Stmt after) {
+    int index = stmts.indexOf(after);
+    if (index == -1) {
+      throw new IllegalArgumentException("After not in " + this + ": " + after);
+    }
+    var stmts =
+        namesAndArgs
+            .map(nameAndArg -> nameAndArg.second().make(cfg(), nameAndArg.first()))
+            .collect(ImmutableList.toImmutableList());
+    this.stmts.addAll(index + 1, stmts);
+    return stmts;
+  }
+
+  /**
+   * Insert statements in this BB immediately after the given statement.
+   *
+   * @param namesAndArgs The name and argument of each statement. See {@link #insertAfter(String,
+   *     Data, Stmt)}.
+   * @return The inserted statements.
+   * @throws IllegalArgumentException If the after statement wasn't found.
+   */
+  public <I extends Stmt> ImmutableList<I> insertAfter(
+      List<Pair<String, Data<I>>> namesAndArgs, Stmt after) {
+    return insertAfter(namesAndArgs.stream(), after);
   }
 
   /**
@@ -248,6 +321,34 @@ public final class BB implements Iterable<InstrOrPhi> {
   }
 
   /**
+   * Insert statements at the start of this BB, after the φ nodes.
+   *
+   * @param namesAndArgs The name and argument of each statement. See {@link #prepend(String,
+   *     Data)}.
+   * @return Ths inserted statement.
+   */
+  public <I extends Stmt> ImmutableList<I> prepend(
+      Stream<Pair<String, Stmt.Data<I>>> namesAndArgs) {
+    var stmts =
+        namesAndArgs
+            .map(nameAndArg -> nameAndArg.second().make(cfg(), nameAndArg.first()))
+            .collect(ImmutableList.toImmutableList());
+    this.stmts.addAll(0, stmts);
+    return stmts;
+  }
+
+  /**
+   * Insert statements at the start of this BB, after the φ nodes.
+   *
+   * @param namesAndArgs The name and argument of each statement. See {@link #prepend(String,
+   *     Data)}.
+   * @return Ths inserted statement.
+   */
+  public <I extends Stmt> ImmutableList<I> prepend(List<Pair<String, Stmt.Data<I>>> namesAndArgs) {
+    return prepend(namesAndArgs.stream());
+  }
+
+  /**
    * Insert a statement at the end of this BB.
    *
    * @param name A small name for the statement, or an empty string. This is useful for debugging
@@ -262,6 +363,31 @@ public final class BB implements Iterable<InstrOrPhi> {
   }
 
   /**
+   * Insert statements at the end of this BB.
+   *
+   * @param namesAndArgs The name and argument of each statement. See {@link #append(String, Data)}.
+   * @return Ths inserted statement.
+   */
+  public <I extends Stmt> ImmutableList<I> append(Stream<Pair<String, Stmt.Data<I>>> namesAndArgs) {
+    var stmts =
+        namesAndArgs
+            .map(nameAndArg -> nameAndArg.second().make(cfg(), nameAndArg.first()))
+            .collect(ImmutableList.toImmutableList());
+    this.stmts.addAll(stmts);
+    return stmts;
+  }
+
+  /**
+   * Insert statements at the end of this BB.
+   *
+   * @param namesAndArgs The name and argument of each statement. See {@link #append(String, Data)}.
+   * @return Ths inserted statement.
+   */
+  public <I extends Stmt> ImmutableList<I> append(List<Pair<String, Stmt.Data<I>>> namesAndArgs) {
+    return append(namesAndArgs.stream());
+  }
+
+  /**
    * Add a jump to this BB.
    *
    * @param name A small name for the jump, or an empty string. This is useful for debugging and
@@ -270,7 +396,7 @@ public final class BB implements Iterable<InstrOrPhi> {
    * @return The added jump.
    * @throws IllegalArgumentException If it already has one.
    */
-  public <I extends Jump> I add(String name, Jump.Data<I> args) {
+  public <I extends Jump> I addJump(String name, Jump.Data<I> args) {
     if (this.jump != null) {
       throw new IllegalStateException(this + " already has a jump");
     }
@@ -283,71 +409,95 @@ public final class BB implements Iterable<InstrOrPhi> {
 
   // region replace nodes
   /**
-   * Create a new instruction with {@code newArgs} and replace all occurrences of {@code oldInstr}
-   * with it.
+   * Replace the data within {@code oldInstr} with {@code newArgs} and update accordingly. This is
+   * equivalent to removing {@code oldInstr} and inserting a new instruction with {@code newArgs} in
+   * its place, then replacing {@code oldInstr}'s return values in arguments with those from the new
+   * instruction. However, it has a much lower time complexity (O(1) without checks).
    *
-   * @param newName A small name for the new instruction, or an empty string, or {@code null} to
-   *     take the old instruction's name. This is useful for debugging and error messages.
+   * @param newName A small name for the new instruction, an empty string, or {@code null} to take
+   *     the old instruction's name (empty string makes the new instruction unnamed). This is useful
+   *     for debugging and error messages.
    * @param newArgs The new instruction's arguments (data).
-   * @return The newly-created instruction, or {@code oldInstr} if replacement can be done without
-   *     by mutating it.
    * @throws IllegalArgumentException if {@code oldInstr} is not in this BB.
-   * @throws IllegalArgumentException if {@code newArgs} is an incompatible type.
+   * @throws IllegalArgumentException if {@code newArgs} is an incompatible type. Specifically, it
+   *     must produce contain the same # of values as {@code oldInstr}. If not, you must call {@link
+   *     BB#replaceNoSubst(InstrOrPhi, String, Instr.Data)}, and be aware that those won't replace
+   *     the instruction's return values in arguments (those must either not exist or be replaced
+   *     manually).
    */
-  public <I extends Instr> I subst(I oldInstr, @Nullable String newName, Instr.Data<I> newArgs) {
-    if (oldInstr.cfg() != cfg()) {
+  public <I extends Instr> void subst(I instr, @Nullable String newName, Instr.Data<I> newArgs) {
+    if (instr.cfg() != cfg()) {
       throw new IllegalArgumentException(
-          "Replace oldInstr not in CFG: " + oldInstr + " not in:\n" + cfg());
+          "Replace instr not in CFG: " + instr + " not in:\n" + cfg());
     }
-    switch (oldInstr) {
+    switch (instr) {
       case Stmt stmt when !stmts.contains(stmt) ->
           throw new IllegalArgumentException(
-              "Replace oldInstr not in BB: " + oldInstr + " not in:\n" + this);
+              "Replace instr not in BB: " + instr + " not in:\n" + this);
       case Jump jump1 when jump != jump1 ->
           throw new IllegalArgumentException(
-              "Replace oldInstr not in BB: " + oldInstr + " not in:\n" + this);
+              "Replace instr not in BB: " + instr + " not in:\n" + this);
       default -> {}
     }
 
-    I newInstr;
-    if (oldInstr.canReplaceDataWith(newArgs)) {
-      var wasEmpty = false;
-      if (oldInstr instanceof Jump j) {
-        for (var succ : j.targets()) {
-          succ.predecessors.remove(this);
-        }
-        wasEmpty = j.targets().isEmpty();
-      }
-      oldInstr.replaceData(newArgs);
-      if (oldInstr instanceof Jump j) {
-        for (var succ : j.targets()) {
-          succ.predecessors.add(this);
-        }
-
-        var isEmpty = j.targets().isEmpty();
-        if (!wasEmpty && isEmpty) {
-          cfg().markExit(this);
-        } else if (wasEmpty && !isEmpty) {
-          cfg().unmarkExit(this);
-        }
-      }
-      return oldInstr;
-    } else {
-      newInstr = newArgs.make(cfg(), newName == null ? oldInstr.id().name() : newName);
-      switch (newInstr) {
-        case Stmt s -> {
-          assert oldInstr instanceof Stmt;
-          stmts.set(stmts.indexOf((Stmt) oldInstr), s);
-        }
-        case Jump j -> setJump(j);
-      }
-      cfg().untrack(oldInstr);
-      var oldRets = oldInstr.returns();
-      var newRets = newInstr.returns();
-      assert oldRets.size() == newRets.size()
-          : "instruction being replaced with one that has a different number of return values";
+    if (newName == null) {
+      newName = instr.id().name();
     }
-    return newInstr;
+
+    if (!instr.canReplaceDataWith(newArgs)) {
+      throw new IllegalArgumentException(
+          "Incompatible data for replacement: " + instr + " -> " + newArgs);
+    }
+
+    var wasEmpty = false;
+    var wasDifferentName = !newName.equals(instr.id().name());
+    if (instr instanceof Jump j) {
+      for (var succ : j.targets()) {
+        succ.predecessors.remove(this);
+      }
+      wasEmpty = j.targets().isEmpty();
+    }
+    if (wasDifferentName) {
+      cfg().untrack(instr);
+    }
+
+    instr.unsafeReplaceData(newName, newArgs);
+
+    if (wasDifferentName) {
+      cfg().track(instr);
+    }
+    if (instr instanceof Jump j) {
+      for (var succ : j.targets()) {
+        succ.predecessors.add(this);
+      }
+
+      var isEmpty = j.targets().isEmpty();
+      if (!wasEmpty && isEmpty) {
+        cfg().markExit(this);
+      } else if (wasEmpty && !isEmpty) {
+        cfg().unmarkExit(this);
+      }
+    }
+  }
+
+  /**
+   * Create a new instruction with {@code newArgs} and replace {@code oldInstrOrPhi} with it. If
+   * {@code oldInstrOrPhi} is a phi, the new instruction will be inserted at the beginning of the
+   * block.
+   *
+   * <p><i>This won't replace any return values of {@code oldInstr}.</i> Use {@link #subst(Instr,
+   * String, Instr.Data)} to do that if both instructions have the same # of return values,
+   * otherwise you must replace them manually (if there are any).
+   *
+   * @param newName A small name for the new instruction, an empty string, or {@code null} to take
+   *     the old instruction's name (empty string makes the new instruction unnamed). This is useful
+   *     for debugging and error messages.
+   * @param newArgs The new instruction's arguments (data).
+   * @throws IllegalArgumentException if {@code oldInstr} is not in this BB.
+   */
+  public void replaceNoSubst(
+      InstrOrPhi oldInstrOrPhi, @Nullable String newName, Instr.Data<?> newArgs) {
+    // TODO
   }
 
   // TODO make sure that other functions to replace nodes update their occurrences (probably just
@@ -404,12 +554,27 @@ public final class BB implements Iterable<InstrOrPhi> {
         removed.add(instr);
       }
     }
-    var stmts = this.stmts.listIterator();
-    while (stmts.hasNext()) {
-      var instr = stmts.next();
-      if (instrs.contains(instr)) {
-        stmts.set(new Stmts.Placeholder.NoOp().make(parent, "removed#" + instr.id().name()));
-        removed.add(instr);
+    if (instrs.size() > 1) {
+      // Micro-optimization: we create a new list so that we have O(n) instead of O(n*removed)
+      // time complexity.
+      var stmts = new ArrayList<Stmt>(this.stmts.size());
+      for (var stmt : this.stmts) {
+        if (!instrs.contains(stmt)) {
+          stmts.add(stmt);
+        } else {
+          removed.add(stmt);
+        }
+      }
+      this.stmts.clear();
+      this.stmts.addAll(stmts);
+    } else {
+      var stmts = this.stmts.listIterator();
+      while (stmts.hasNext()) {
+        var instr = stmts.next();
+        if (instrs.contains(instr)) {
+          stmts.set(new Stmts.Placeholder.NoOp().make(parent, "removed#" + instr.id().name()));
+          removed.add(instr);
+        }
       }
     }
     if (jump != null && instrs.contains(jump)) {

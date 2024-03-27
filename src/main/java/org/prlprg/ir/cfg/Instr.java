@@ -54,19 +54,19 @@ public sealed interface Instr extends InstrOrPhi permits Jump, Stmt {
 
   /**
    * Whether the instruction's data can be replaced with the specified instance. Calling {@link
-   * #replaceData(Data)} will not throw iff this returns {@code true}.
+   * BB#subst(Instr, String, Data)} will not throw iff this returns {@code true}.
    */
   boolean canReplaceDataWith(Data<?> newData);
 
   /**
-   * Replace the instruction's data.
+   * Replace the instruction's name and data without updating certain information like CFG tracking
+   * and BB predecessors.
    *
-   * <p>Usually you should call {@link BB#subst(Instr, String, Data)} instead, because this will
-   * fail if the data isn't the correct class.
+   * <p>Call {@link BB#subst(Instr, String, Data)} instead.
    *
    * @throws IllegalArgumentException If the new type of data isn't compatible with the instruction.
    */
-  void replaceData(Data<?> newData);
+  void unsafeReplaceData(String newName, Data<?> newData);
 
   /** Check that arguments are of the correct dynamic type ({@link RType}) and set cached data. */
   void verify();
@@ -217,7 +217,7 @@ abstract sealed class InstrImpl<D extends Instr.Data<?>> implements NodeWithCfg
 
   @SuppressWarnings("unchecked")
   // @Override
-  public final void replaceData(Instr.Data<?> newData) {
+  public final void unsafeReplaceData(Instr.Data<?> newData) {
     if (!dataClass.isInstance(newData)) {
       throw new IllegalArgumentException(
           "Can't replace data in "

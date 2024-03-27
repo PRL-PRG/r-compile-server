@@ -209,6 +209,8 @@ public class CFG {
   // endregion
 
   // region cleanup verify, and toString
+  // these could be abstracted to a CFGUtils class if necessary, since they only call public
+  // methods. Still, I think CFG#cleanup is better than CFGUtils.cleanup(CFG).
   /**
    * Cleanup the CFG. Specifically:
    *
@@ -329,7 +331,8 @@ public class CFG {
                   new CFGVerifyException.ArgNotDefinedBeforeUse(bb.id(), instr.id(), arg.id()));
             }
 
-            // TODO: Instruction `RValue` arguments are of the correct (dynamic) type.
+            // TODO: Instruction `RValue` arguments are of the correct (dynamic) type (need to add
+            //  annotation).
           }
         }
 
