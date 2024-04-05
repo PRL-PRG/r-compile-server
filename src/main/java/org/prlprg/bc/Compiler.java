@@ -11,8 +11,6 @@ import org.prlprg.RSession;
 import org.prlprg.bc.BcInstr.*;
 import org.prlprg.sexp.*;
 
-import static java.util.stream.Collectors.toList;
-
 // FIXME: use null instead of Optional (except for return types)
 // FIXME: update the SEXP API based on the experience with this code
 //   - especially the clumsy ListSXP
@@ -101,23 +99,76 @@ public class Compiler {
           "tanpi");
 
   private static final Set<String> SAFE_BASE_INTERNALS =
-          Set.of("atan2", "besselY", "beta", "choose",
-                  "drop", "inherits", "is.vector", "lbeta", "lchoose",
-                  "nchar", "polyroot", "typeof", "vector", "which.max",
-                  "which.min", "is.loaded", "identical",
-                  "match", "rep.int", "rep_len");
+      Set.of(
+          "atan2",
+          "besselY",
+          "beta",
+          "choose",
+          "drop",
+          "inherits",
+          "is.vector",
+          "lbeta",
+          "lchoose",
+          "nchar",
+          "polyroot",
+          "typeof",
+          "vector",
+          "which.max",
+          "which.min",
+          "is.loaded",
+          "identical",
+          "match",
+          "rep.int",
+          "rep_len");
 
   private static final Set<String> SAFE_STATS_INTERNALS =
-          Set.of("dbinom", "dcauchy", "dgeom", "dhyper", "dlnorm",
-                  "dlogis", "dnorm", "dpois", "dunif", "dweibull",
-                  "fft", "mvfft", "pbinom", "pcauchy",
-                  "pgeom", "phyper", "plnorm", "plogis", "pnorm",
-                  "ppois", "punif", "pweibull", "qbinom", "qcauchy",
-                  "qgeom", "qhyper", "qlnorm", "qlogis", "qnorm",
-                  "qpois", "qunif", "qweibull", "rbinom", "rcauchy",
-                  "rgeom", "rhyper", "rlnorm", "rlogis", "rnorm",
-                  "rpois", "rsignrank",  "runif", "rweibull",
-                  "rwilcox", "ptukey", "qtukey");
+      Set.of(
+          "dbinom",
+          "dcauchy",
+          "dgeom",
+          "dhyper",
+          "dlnorm",
+          "dlogis",
+          "dnorm",
+          "dpois",
+          "dunif",
+          "dweibull",
+          "fft",
+          "mvfft",
+          "pbinom",
+          "pcauchy",
+          "pgeom",
+          "phyper",
+          "plnorm",
+          "plogis",
+          "pnorm",
+          "ppois",
+          "punif",
+          "pweibull",
+          "qbinom",
+          "qcauchy",
+          "qgeom",
+          "qhyper",
+          "qlnorm",
+          "qlogis",
+          "qnorm",
+          "qpois",
+          "qunif",
+          "qweibull",
+          "rbinom",
+          "rcauchy",
+          "rgeom",
+          "rhyper",
+          "rlnorm",
+          "rlogis",
+          "rnorm",
+          "rpois",
+          "rsignrank",
+          "runif",
+          "rweibull",
+          "rwilcox",
+          "ptukey",
+          "qtukey");
 
   private static final Set<String> FORBIDDEN_INLINES = Set.of("standardGeneric");
 
@@ -182,7 +233,7 @@ public class Compiler {
   }
 
   public Compiler(CloSXP fun, RSession rsession) {
-    this(fun.body(), Context.functionContext(fun), rsession, functionLoc(fun));
+    this(fun.bodyAST(), Context.functionContext(fun), rsession, functionLoc(fun));
   }
 
   private Compiler fork(SEXP expr, Context ctx, Loc loc) {
@@ -202,7 +253,7 @@ public class Compiler {
   }
 
   private static Loc functionLoc(CloSXP fun) {
-    var body = fun.body();
+    var body = fun.bodyAST();
 
     IntSXP srcRef;
     if (!(body instanceof LangSXP b
@@ -477,7 +528,7 @@ public class Compiler {
       case String s when MATH1_FUNS.contains(s) -> (c) -> inlineMath1(c, MATH1_FUNS.indexOf(s));
       case String s when rsession.isBuiltin(s) -> (c) -> inlineBuiltin(c, false);
       case String s when rsession.isSpecial(s) -> this::inlineSpecial;
-      case String s when SAFE_BASE_INTERNALS.contains(s) ->  this::inlineSimpleInternal;
+      case String s when SAFE_BASE_INTERNALS.contains(s) -> this::inlineSimpleInternal;
       default -> null;
     };
   }
@@ -862,7 +913,8 @@ public class Compiler {
 
     var closure =
         SEXPs.lang(
-            SEXPs.lang(SEXPs.symbol("function"), SEXPs.list(SEXPs.NULL, call.arg(0).value())),
+            SEXPs.lang(
+                SEXPs.symbol("function"), SEXPs.list(SEXPs.NULL, call.arg(0).value(), SEXPs.NULL)),
             SEXPs.list());
     compile(closure);
     return true;
@@ -904,10 +956,16 @@ public class Compiler {
     if (names.contains("...")) {
       return false;
     }
-    return formals.values().stream().allMatch(x -> !missing(x) || !(
-            // FIXME: ugly
-            x instanceof RegSymSXP || x instanceof LangSXP || x instanceof PromSXP || x instanceof BCodeSXP
-            ));
+    return formals.values().stream()
+        .allMatch(
+            x ->
+                !missing(x)
+                    || !(
+                    // FIXME: ugly
+                    x instanceof RegSymSXP
+                        || x instanceof LangSXP
+                        || x instanceof PromSXP
+                        || x instanceof BCodeSXP));
   }
 
   private boolean isSimpleArgs(LangSXP call, List<String> formals) {
@@ -920,7 +978,7 @@ public class Compiler {
         }
         // FIXME: ugly
       } else if (arg instanceof LangSXP || arg instanceof PromSXP || arg instanceof BCodeSXP) {
-          return false;
+        return false;
       }
     }
 
@@ -931,43 +989,64 @@ public class Compiler {
     if (!isSimpleFormals(def)) {
       return false;
     }
-    var b = def.body();
+    var b = def.bodyAST();
 
     // FIXME: ugly
-    if (b instanceof LangSXP lb && lb.args().size() == 1 && lb.fun() instanceof RegSymSXP sym && sym.name().equals("{")) {
+    if (b instanceof LangSXP lb
+        && lb.args().size() == 1
+        && lb.fun() instanceof RegSymSXP sym
+        && sym.name().equals("{")) {
       b = lb.arg(0).value();
     }
 
-    if (b instanceof LangSXP lb && lb.fun() instanceof RegSymSXP sym && sym.name().equals(".Internal")) {
+    if (b instanceof LangSXP lb
+        && lb.fun() instanceof RegSymSXP sym
+        && sym.name().equals(".Internal")) {
       var icall = lb.arg(0).value();
       // FIXME: ugly
-        if (icall instanceof LangSXP ilb && ilb.fun() instanceof RegSymSXP isym) {
-            var internalBuiltin =  rsession.isBuiltinInternal(isym.name());
-            var simpleArgs = isSimpleArgs(ilb, def.formals().names());
-            return internalBuiltin && simpleArgs;
-        }
+      if (icall instanceof LangSXP ilb && ilb.fun() instanceof RegSymSXP isym) {
+        var internalBuiltin = rsession.isBuiltinInternal(isym.name());
+        var simpleArgs = isSimpleArgs(ilb, def.formals().names());
+        return internalBuiltin && simpleArgs;
+      }
     }
     return false;
-  } 
+  }
 
   private Optional<LangSXP> trySimpleInternalCall(LangSXP call, CloSXP def) {
     if (!dotsOrMissing(call.args()) && isSimpleInternal(def)) {
       var forms = def.formals();
-      var b = def.body();
+      var b = def.bodyAST();
 
       // FIXME: ugly
-      if (b instanceof LangSXP lb && lb.args().size() == 1 && lb.fun() instanceof RegSymSXP sym && sym.name().equals("{")) {
+      if (b instanceof LangSXP lb
+          && lb.args().size() == 1
+          && lb.fun() instanceof RegSymSXP sym
+          && sym.name().equals("{")) {
+        // unwrap block if there is one
+        b = lb.arg(0).value();
+      }
+
+      if (!(b instanceof LangSXP lb)) {
+        return Optional.empty();
+      } else {
+        // unwrap the call to .Internal
         b = lb.arg(0).value();
       }
 
       // FIXME: ugly
       if (b instanceof LangSXP icall) {
-        var matched = Primitives.matchCall(def, icall);
-        var cenv = matched.args().appended(def.formals());
-        var args = cenv.stream().map((x) ->
-          (x.value() instanceof RegSymSXP sym) ? cenv.get(sym.name()).orElse(x) : x
-        ).toList();
-        var newCall = SEXPs.lang(SEXPs.symbol(".Internal"), SEXPs.list(SEXPs.lang(icall.fun(), SEXPs.list(args))));
+        var cenv = new HashMap<String, SEXP>();
+        def.formals().forEach((x) -> cenv.put(x.tag(), x.value()));
+        Primitives.matchCall(def, call).args().forEach((x) -> cenv.put(x.tag(), x.value()));
+
+        var args =
+            icall.args().stream()
+                .map((x) -> (x.value() instanceof RegSymSXP sym) ? cenv.get(sym.name()) : x.value())
+                .toList();
+        var newCall =
+            SEXPs.lang(
+                SEXPs.symbol(".Internal"), SEXPs.list(SEXPs.lang(icall.fun(), SEXPs.list2(args))));
         return Optional.of(newCall);
       }
     }
@@ -981,9 +1060,9 @@ public class Compiler {
 
     if (call.fun() instanceof RegSymSXP fun) {
       return ctx.findFunDef(fun.name())
-              .flatMap(def -> trySimpleInternalCall(call, def))
-              .map(this::inlineDotInternalCall)
-              .orElse(false);
+          .flatMap(def -> trySimpleInternalCall(call, def))
+          .map(this::inlineDotInternalCall)
+          .orElse(false);
     }
 
     return false;
@@ -1941,7 +2020,9 @@ public class Compiler {
   private boolean inlineSlotAssign(FlattenLHS flhs, LangSXP call) {
     var place = flhs.temp();
 
-    if (!dotsOrMissing(place.args()) && place.args().size() == 2 && place.args().get(1).value() instanceof RegSymSXP s) {
+    if (!dotsOrMissing(place.args())
+        && place.args().size() == 2
+        && place.args().get(1).value() instanceof RegSymSXP s) {
       var newPlace = SEXPs.lang(place.fun(), place.args().set(1, null, SEXPs.string(s.name())));
       var vexpr = call.args().values().getLast();
       compileSetterCall(new FlattenLHS(flhs.original(), newPlace), vexpr);

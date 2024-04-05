@@ -50,7 +50,7 @@ public class GNUR implements AutoCloseable {
 
       var code =
           format(
-              "saveRDS(eval(parse(file='%s'), envir=new.env(parent=baseenv())), '%s', compress=FALSE)",
+              "saveRDS(eval(parse(file='%s'), envir=new.env(parent=baseenv())), '%s', version=2, compress=FALSE)",
               sourceFile.getAbsoluteFile(), targetFile.getAbsoluteFile());
 
       run(code);

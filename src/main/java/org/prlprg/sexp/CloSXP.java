@@ -7,6 +7,9 @@ public sealed interface CloSXP extends SEXP {
   /** The argument names and default values. */
   ListSXP formals();
 
+  /** If the body is a BCodeSXP, returns the AST which is stored in the first constant pool slot. */
+  SEXP bodyAST();
+
   /** The closure body. */
   SEXP body();
 
@@ -31,7 +34,16 @@ record CloSXPImpl(ListSXP formals, SEXP body, EnvSXP env, @Override Attributes a
     implements CloSXP {
   @Override
   public String toString() {
-    return SEXPs.toString(this, env(), formals(), "\n  → ", body());
+    return SEXPs.toString(this, env(), formals(), "\n  → ", body);
+  }
+
+  @Override
+  public SEXP bodyAST() {
+    if (body instanceof BCodeSXP bc) {
+      return bc.bc().consts().getFirst();
+    } else {
+      return body;
+    }
   }
 
   @Override

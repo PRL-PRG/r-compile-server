@@ -126,6 +126,11 @@ public final class NilSXP implements ListSXP {
   }
 
   @Override
+  public ListSXP prepend(TaggedElem elem) {
+    return SEXPs.list(List.of(elem));
+  }
+
+  @Override
   public ListSXP withAttributes(Attributes attributes) {
     throw new UnsupportedOperationException("Cannot set attributes on NULL");
   }

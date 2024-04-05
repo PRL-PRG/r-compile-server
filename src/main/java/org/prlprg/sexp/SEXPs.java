@@ -319,7 +319,7 @@ public final class SEXPs {
   }
 
   public static ListSXP list(SEXP... data) {
-    return list(Arrays.stream(data).map(TaggedElem::new).collect(Collectors.toList()));
+    return list(Arrays.stream(data).map(TaggedElem::new).toList());
   }
 
   public static ListSXP list(ImmutableList<TaggedElem> data) {
@@ -328,6 +328,11 @@ public final class SEXPs {
 
   public static ListSXP list(Collection<TaggedElem> data) {
     return list(ImmutableList.copyOf(data));
+  }
+
+  // FIXME: ugly
+  public static ListSXP list2(Collection<SEXP> data) {
+    return list(data.stream().map(TaggedElem::new).toList());
   }
 
   public static ListSXP list(TaggedElem[] data, Attributes attributes) {

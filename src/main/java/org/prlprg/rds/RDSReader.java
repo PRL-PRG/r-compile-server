@@ -12,6 +12,7 @@ import java.util.Objects;
 import javax.annotation.Nullable;
 import org.prlprg.RSession;
 import org.prlprg.bc.Bc;
+import org.prlprg.primitive.Complex;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.*;
@@ -52,22 +53,15 @@ public class RDSReader implements Closeable {
 
     // versions
     var formatVersion = in.readInt();
+    if (formatVersion != 2) {
+      // we do not support RDS version 3 because it uses ALTREP
+      throw new RDSException("Unsupported RDS version: " + formatVersion);
+    }
+
     // writer version
     in.readInt();
     // minimal reader version
     in.readInt();
-
-    // native encoding for version == 3
-    switch (formatVersion) {
-      case 2:
-        break;
-      case 3:
-        var natEncSize = in.readInt();
-        nativeEncoding = Charset.forName(in.readString(natEncSize, StandardCharsets.US_ASCII));
-        break;
-      default:
-        throw new RDSException("Unsupported version: " + formatVersion);
-    }
   }
 
   public SEXP read() throws IOException {
@@ -101,6 +95,7 @@ public class RDSReader implements Closeable {
             case PROM -> readPromise(flags);
             case BUILTIN -> readBuiltin(false);
             case SPECIAL -> readBuiltin(true);
+            case CPLX -> readComplex(flags);
             default -> throw new RDSException("Unsupported SEXP type: " + s.sexp());
           };
       case RDSItemType.Special s ->
@@ -116,29 +111,43 @@ public class RDSReader implements Closeable {
                 throw new RDSException("Unexpected bytecode reference here (not in bytecode)");
             case ATTRLANGSXP, ATTRLISTSXP -> throw new RDSException("Unexpected attr here");
             case UNBOUNDVALUE_SXP -> SEXPs.UNBOUND_VALUE;
-            case GENERICREFSXP, PACKAGESXP, PERSISTSXP, CLASSREFSXP ->
+            case GENERICREFSXP, PACKAGESXP, PERSISTSXP, CLASSREFSXP, ALTREPSXP ->
                 throw new RDSException("Unsupported RDS special type: " + s);
           };
     };
   }
 
-  private SEXP readBuiltin(boolean speacial) throws IOException {
+  private SEXP readComplex(Flags flags) throws IOException {
+    var length = in.readInt();
+    var cplx = ImmutableList.<Complex>builder();
+    for (int i = 0; i < length; i++) {
+      var real = in.readDouble();
+      var im = in.readDouble();
+      cplx.add(new Complex(real, im));
+    }
+    var attributes = readAttributes(flags);
+    return SEXPs.complex(cplx.build(), attributes);
+  }
+
+  private SEXP readBuiltin(boolean special) throws IOException {
     var length = in.readInt();
     var name = in.readString(length, nativeEncoding);
-    return speacial ? SEXPs.special(name) : SEXPs.builtin(name);
+    return special ? SEXPs.special(name) : SEXPs.builtin(name);
   }
 
   private SEXP readPromise(Flags flags) throws IOException {
     readAttributes(flags);
-
-    if (!(readItem() instanceof EnvSXP env)) {
-      throw new RDSException("Expected promise ENV to be environment");
-    }
+    var tag = flags.hasTag() ? readItem() : SEXPs.NULL;
     var val = readItem();
     var expr = readItem();
 
-    // TODO: attributes?
-    return new PromSXP(expr, val, env);
+    if (tag instanceof NilSXP) {
+      return new PromSXP(expr, val, SEXPs.EMPTY_ENV);
+    } else if (tag instanceof EnvSXP env) {
+      return new PromSXP(expr, val, env);
+    } else {
+      throw new RDSException("Expected promise ENV to be environment");
+    }
   }
 
   private SEXP readNamespace() throws IOException {
@@ -291,15 +300,12 @@ public class RDSReader implements Closeable {
       var head = readByteCodeLang(RDSItemType.valueOf(in.readInt()), reps);
       var tail = readByteCodeLang(RDSItemType.valueOf(in.readInt()), reps);
 
-      var data = new ImmutableList.Builder<TaggedElem>();
-      data.add(new TaggedElem(tag, head));
-
       if (!(tail instanceof ListSXP tailList)) {
         throw new RDSException("Expected list, got: " + tail.type());
       }
-      ListSXP.flatten(tailList, data);
 
-      ans = SEXPs.list(data.build(), attributes);
+      ans = tailList.prepend(new TaggedElem(tag, head)).withAttributes(attributes);
+
     } else {
       throw new RDSException("Unexpected bclang type: " + type);
     }

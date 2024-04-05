@@ -18,27 +18,6 @@ import javax.annotation.Nullable;
  *     because it's more efficient.
  */
 public sealed interface ListSXP extends ListOrVectorSXP<TaggedElem> permits NilSXP, ListSXPImpl {
-  /**
-   * Flatten {@code src} while adding its elements to {@code target}. Ex:
-   *
-   * <pre>
-   *   b = []; flatten([1, [2, 3], 4], b) ==> b = [1, 2, 3, 4]
-   * </pre>
-   */
-  static void flatten(ListSXP src, ImmutableList.Builder<TaggedElem> target) {
-    for (var i : src) {
-      switch (i.value()) {
-        case NilSXP _ignored -> {
-          // NULL in R actually a list, but in this case it is a single element in a list which we
-          // want to add
-          target.add(i);
-        }
-        case ListSXP lst -> flatten(lst, target);
-        default -> target.add(i);
-      }
-    }
-  }
-
   @Override
   ListSXP withAttributes(Attributes attributes);
 
@@ -67,6 +46,8 @@ public sealed interface ListSXP extends ListOrVectorSXP<TaggedElem> permits NilS
   Stream<TaggedElem> stream();
 
   Optional<TaggedElem> get(String name);
+
+  ListSXP prepend(TaggedElem elem);
 }
 
 record ListSXPImpl(ImmutableList<TaggedElem> data, @Override Attributes attributes)
@@ -150,6 +131,12 @@ record ListSXPImpl(ImmutableList<TaggedElem> data, @Override Attributes attribut
   @Override
   public Optional<TaggedElem> get(String name) {
     return Optional.empty();
+  }
+
+  @Override
+  public ListSXP prepend(TaggedElem elem) {
+    return new ListSXPImpl(
+        ImmutableList.<TaggedElem>builder().add(elem).addAll(data).build(), attributes);
   }
 
   @Override

@@ -1,9 +1,8 @@
 package org.prlprg.bc;
 
 import com.google.common.collect.ImmutableList;
-import org.prlprg.sexp.*;
-
 import java.util.ArrayList;
+import org.prlprg.sexp.*;
 
 public class Primitives {
 

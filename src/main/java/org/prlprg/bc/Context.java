@@ -41,7 +41,7 @@ public class Context {
     var env = new UserEnvSXP(fun.env());
     var ctx = topLevelContext(env);
 
-    return ctx.functionContext(fun.formals(), fun.body());
+    return ctx.functionContext(fun.formals(), fun.bodyAST());
   }
 
   public Context functionContext(ListSXP formals, SEXP body) {

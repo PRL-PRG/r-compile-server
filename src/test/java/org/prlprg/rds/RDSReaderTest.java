@@ -120,7 +120,7 @@ public class RDSReaderTest extends AbstractGNURBasedTest {
     assertEquals(new TaggedElem("x", SEXPs.MISSING_ARG), formals.get(0));
 
     // TODO: this should really be a snapshot test
-    var body = sexp.body();
+    var body = sexp.bodyAST();
     assertThat(body).isInstanceOf(LangSXP.class);
     assertThat(body.toString()).isEqualTo("\"abc\" + x + length(y)");
   }
@@ -166,8 +166,20 @@ public class RDSReaderTest extends AbstractGNURBasedTest {
   }
 
   @Test
+  public void testComplex() throws Exception {
+    var sexp = R.eval("c(-1+1i, 0+0i, 1+1i)");
+    assertThat(sexp).isInstanceOf(ComplexSXP.class);
+  }
+
+  @Test
   public void testRoundPOSIXt() throws Exception {
     var sexp = R.eval("round.POSIXt");
+    assertThat(sexp).isInstanceOf(CloSXP.class);
+  }
+
+  @Test
+  public void testLocalFuncationBC() throws Exception {
+    var sexp = R.eval("compiler::cmpfun(function(x) local(x))");
     assertThat(sexp).isInstanceOf(CloSXP.class);
   }
 }
