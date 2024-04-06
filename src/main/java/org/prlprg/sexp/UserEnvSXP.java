@@ -28,8 +28,7 @@ public final class UserEnvSXP extends AbstractEnvSXP implements EnvSXP {
     return this;
   }
 
-  @Nullable
-  public Attributes getAttributes() {
+  @Nullable public Attributes getAttributes() {
     return attributes;
   }
 }

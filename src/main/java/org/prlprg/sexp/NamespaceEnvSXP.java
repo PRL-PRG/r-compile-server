@@ -12,7 +12,7 @@ public final class NamespaceEnvSXP extends AbstractEnvSXP implements EnvSXP {
     this.name = name;
     this.version = version;
   }
-  
+
   public String getVersion() {
     return version;
   }

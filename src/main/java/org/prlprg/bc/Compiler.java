@@ -465,7 +465,7 @@ public class Compiler {
     }
 
     return getInlineInfo(fun.name(), true)
-        .filter(info -> info.env() instanceof BaseEnvSXP)
+        .filter(info -> info.env().isBase())
         .map(info -> tryInlineBase(call, info))
         .orElse(false);
   }
@@ -535,7 +535,7 @@ public class Compiler {
 
   private Optional<BiFunction<FlattenLHS, LangSXP, Boolean>> getSetterInlineHandler(
       InlineInfo info) {
-    if (!(info.env instanceof BaseEnvSXP)) {
+    if (!(info.env().isBase())) {
       return Optional.empty();
     }
 
@@ -552,7 +552,7 @@ public class Compiler {
   }
 
   private Optional<Function<LangSXP, Boolean>> getGetterInlineHandler(InlineInfo info) {
-    if (!(info.env instanceof BaseEnvSXP)) {
+    if (!info.env().isBase()) {
       return Optional.empty();
     }
 
@@ -578,7 +578,7 @@ public class Compiler {
     // IMHO the following reads better than the using flatMap
     var res = ctx.resolve(name).orElse(null);
     if (res == null) {
-        return Optional.empty();
+      return Optional.empty();
     }
 
     if (res.first() instanceof NamespaceEnvSXP) {
@@ -607,7 +607,7 @@ public class Compiler {
    * @return true if the function was inlined, false otherwise
    */
   private boolean tryInlineBase(LangSXP call, InlineInfo info) {
-    assert (info.env() instanceof BaseEnvSXP);
+    assert (info.env().isBase());
 
     var inline = getBaseInlineHandler(info.name);
     if (inline == null) {
@@ -1207,6 +1207,9 @@ public class Compiler {
 
     usingCtx(ctx.nonTailContext(), () -> compile(seq));
 
+    var ci = cb.addConst(loopSym);
+    var callIdx = cb.addConst(call);
+
     if (canSkipLoopContext(body, true)) {
       compileForBody(call, body, loopSym);
     } else {
@@ -1215,7 +1218,7 @@ public class Compiler {
           () -> {
             var startLabel = cb.makeLabel();
             var endLabel = cb.makeLabel();
-            cb.addInstr(new StartFor(cb.addConst(call), cb.addConst(loopSym), startLabel));
+            cb.addInstr(new StartFor(callIdx, ci, startLabel));
             cb.patchLabel(startLabel);
             cb.addInstr(new StartLoopCntxt(true, endLabel));
             compileForBody(call, body, null);
@@ -2085,9 +2088,7 @@ public class Compiler {
   private Optional<SEXP> constantFoldSym(RegSymSXP sym) {
     var name = sym.name();
     if (ALLOWED_FOLDABLE_CONSTS.contains(name)) {
-      return ctx.resolve(name)
-          .filter(x -> x.first() instanceof BaseEnvSXP)
-          .flatMap(x -> checkConst(x.second()));
+      return ctx.resolve(name).filter(x -> x.first().isBase()).flatMap(x -> checkConst(x.second()));
     } else {
       return Optional.empty();
     }
@@ -2107,7 +2108,7 @@ public class Compiler {
     var name = sym.name();
     if (ALLOWED_FOLDABLE_FUNS.contains(name)) {
       return ctx.resolve(name)
-          .filter(x -> x.first() instanceof BaseEnvSXP && x.second() instanceof CloSXP)
+          .filter(x -> x.first().isBase() && x.second() instanceof CloSXP)
           .isPresent();
     } else {
       return false;
@@ -2127,6 +2128,11 @@ public class Compiler {
   private static final Set<String> LOOP_BREAK_FUNS = Set.of("break", "next");
   private static final Set<String> EVAL_FUNS = Set.of("eval", "evalq", "source");
 
+  private boolean canSkipLoopContextList(ListSXP list, boolean breakOK) {
+    return list.values().stream()
+            .noneMatch(x -> !missing(x) && !canSkipLoopContext(x, breakOK));
+  }
+
   private boolean canSkipLoopContext(SEXP body, boolean breakOK) {
     if (body instanceof LangSXP l) {
       if (l.fun() instanceof RegSymSXP s) {
@@ -2142,6 +2148,10 @@ public class Compiler {
           return false;
         } else if (LOOP_STOP_FUNS.contains(name) && ctx.isBaseVersion(name)) {
           return true;
+        } else if (LOOP_TOP_FUNS.contains(name) && ctx.isBaseVersion(name)) {
+          // recursively check the rest of the body
+          // this branch keeps the breakOK!
+          return canSkipLoopContextList(l.args(), breakOK);
         } else if (EVAL_FUNS.contains(name)) {
           // FIXME: again no check if it is a base version
 
@@ -2155,13 +2165,12 @@ public class Compiler {
           // the client; the
           // > server shuts down when it receives a serialized version of break.
           return false;
-        } else if (LOOP_TOP_FUNS.contains(name) && ctx.isBaseVersion(name)) {
+        } else {
           // recursively check the rest of the body
-          return l.args().values().stream()
-              .noneMatch(x -> !missing(x) && !canSkipLoopContext(x, false));
+          return canSkipLoopContextList(l.args(), false);
         }
       } else {
-        return l.asList().stream().noneMatch(x -> !missing(x) && !canSkipLoopContext(x, false));
+          return canSkipLoopContextList(l.asList(), false);
       }
     }
     return true;

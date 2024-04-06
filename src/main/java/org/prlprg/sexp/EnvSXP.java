@@ -61,4 +61,10 @@ public sealed interface EnvSXP extends SEXP
    * @return the number of symbols in the environment
    */
   int size();
+
+  default boolean isBase() {
+    // FIXME: add to some constants
+    return this instanceof BaseEnvSXP
+        || this instanceof NamespaceEnvSXP ns && ns.getName().equals("base");
+  }
 }

@@ -87,15 +87,7 @@ public class Context {
   }
 
   public boolean isBaseVersion(String name) {
-    return environment
-        .find(name)
-        .map(
-            b ->
-                (b.first() instanceof BaseEnvSXP)
-                    // FIXME: add to some contants
-                    // FIXME: create a utility method
-                    || (b.first() instanceof NamespaceEnvSXP ns && ns.getName().equals("base")))
-        .orElse(false);
+    return environment.find(name).map(b -> b.first().isBase()).orElse(false);
   }
 
   public Optional<Pair<EnvSXP, SEXP>> resolve(String name) {

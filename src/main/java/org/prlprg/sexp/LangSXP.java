@@ -26,7 +26,7 @@ public sealed interface LangSXP extends SymOrLangSXP {
 
   TaggedElem arg(int i);
 
-  ImmutableList<SEXP> asList();
+  ListSXP asList();
 }
 
 record LangSXPImpl(SymOrLangSXP fun, ListSXP args, @Override Attributes attributes)
@@ -58,7 +58,8 @@ record LangSXPImpl(SymOrLangSXP fun, ListSXP args, @Override Attributes attribut
   }
 
   @Override
-  public ImmutableList<SEXP> asList() {
-    return new ImmutableList.Builder<SEXP>().add(fun).addAll(args.values()).build();
+  public ListSXP asList() {
+    var l = new ImmutableList.Builder<SEXP>().add(fun).addAll(args.values()).build();
+    return SEXPs.list2(l);
   }
 }
