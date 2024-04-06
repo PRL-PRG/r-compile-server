@@ -51,4 +51,14 @@ public sealed interface SEXP
     var attrs = Objects.requireNonNull(attributes()).including("class", SEXPs.string(name));
     return withAttributes(attrs);
   }
+
+  /**
+   * The implementation of the is.function() which eventually calls the isFunction() from
+   * Rinlinedfuns.h
+   *
+   * @return {@code true} if this SEXP is a function (closure, builtin, or special).
+   */
+  default boolean isFunction() {
+    return this instanceof CloSXP || this instanceof BuiltinSXP || this instanceof SpecialSXP;
+  }
 }

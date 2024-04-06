@@ -1,5 +1,6 @@
 package org.prlprg.bc;
 
+import com.google.common.collect.ImmutableList;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.*;
 import java.util.function.BiFunction;
@@ -183,7 +184,7 @@ public class Compiler {
   // @5c0d6769c910 01 SYMSXP g0c0 [MARK,REF(4),LCK,gp=0x4000] "T" (has value)
   private static final Set<String> ALLOWED_FOLDABLE_CONSTS = Set.of("pi", "T", "F");
 
-  private static final Set<String> ALLOWED_FOLDABLE_FUNS = Set.of();
+  private static final Set<String> ALLOWED_FOLDABLE_FUNS = Set.of("c");
 
   // should match DOTCALL_MAX in eval.c
   private static final int DOTCALL_MAX = 16;
@@ -2095,20 +2096,53 @@ public class Compiler {
   }
 
   private Optional<SEXP> constantFoldCall(LangSXP call) {
-    // if (!(call.fun() instanceof RegSymSXP funSym && isFoldableFun(funSym))) {
-    // return Optional.empty();
-    // }
+    if (!(call.fun() instanceof RegSymSXP funSym && isFoldableFun(funSym))) {
+      return Optional.empty();
+    }
 
-    // fold args -- check consts
-    // do.call <- need a basic interpreter
-    return Optional.empty();
+    var args = new ImmutableList.Builder<SEXP>();
+    for (var arg : call.args().values()) {
+      if (missing(arg)) {
+        return Optional.empty();
+      }
+      var val = constantFold(arg).flatMap(this::checkConst);
+      if (val.isPresent()) {
+        args.add(val.get());
+      } else {
+        return Optional.empty();
+      }
+    }
+
+    return switch (funSym.name()) {
+      case "c" -> constantFoldC(args.build());
+      default -> Optional.empty();
+    };
+  }
+
+  private Optional<SEXP> constantFoldC(List<SEXP> args) {
+    var type = args.getFirst().type();
+    if (args.stream().anyMatch(x -> x.type() != type)) {
+      throw new IllegalArgumentException("All elements must be of the same type");
+    }
+
+    return switch (type) {
+      // FIXME: add support for other primitives
+      case STR -> {
+        var strings = new ImmutableList.Builder<String>();
+        for (var arg : args) {
+          strings.addAll(((StrSXP) arg).iterator());
+        }
+        yield Optional.of(SEXPs.string(strings.build()));
+      }
+      default -> Optional.empty();
+    };
   }
 
   private boolean isFoldableFun(RegSymSXP sym) {
     var name = sym.name();
     if (ALLOWED_FOLDABLE_FUNS.contains(name)) {
       return ctx.resolve(name)
-          .filter(x -> x.first().isBase() && x.second() instanceof CloSXP)
+          .filter(x -> x.first().isBase() && x.second().isFunction())
           .isPresent();
     } else {
       return false;
@@ -2129,8 +2163,7 @@ public class Compiler {
   private static final Set<String> EVAL_FUNS = Set.of("eval", "evalq", "source");
 
   private boolean canSkipLoopContextList(ListSXP list, boolean breakOK) {
-    return list.values().stream()
-            .noneMatch(x -> !missing(x) && !canSkipLoopContext(x, breakOK));
+    return list.values().stream().noneMatch(x -> !missing(x) && !canSkipLoopContext(x, breakOK));
   }
 
   private boolean canSkipLoopContext(SEXP body, boolean breakOK) {
@@ -2170,7 +2203,7 @@ public class Compiler {
           return canSkipLoopContextList(l.args(), false);
         }
       } else {
-          return canSkipLoopContextList(l.asList(), false);
+        return canSkipLoopContextList(l.asList(), false);
       }
     }
     return true;
