@@ -5,6 +5,7 @@ import static com.google.common.truth.Truth.assertThat;
 import java.util.HashSet;
 import org.junit.jupiter.api.Test;
 import org.prlprg.sexp.CloSXP;
+import org.prlprg.sexp.NamespaceEnvSXP;
 import org.prlprg.sexp.PromSXP;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.util.AbstractGNURBasedTest;
@@ -133,7 +134,13 @@ public class ContextTest extends AbstractGNURBasedTest {
 
   @Test
   public void testFrameTypes() {
-    var fun = (CloSXP) R.eval("tools:::Rcmd");
-    System.out.println(fun);
+    var fun = (CloSXP) R.eval("utils::unzip");
+    var ctx = Context.functionContext(fun);
+    // FIXME: ugly - can we have some matchers for this?
+    var identical = ctx.resolve("identical").get();
+    assertThat(identical.first() instanceof NamespaceEnvSXP ns && ns.getName().equals("base"))
+        .isTrue();
+
+    System.out.println(ctx);
   }
 }

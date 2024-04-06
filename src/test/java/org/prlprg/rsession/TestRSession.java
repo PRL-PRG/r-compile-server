@@ -3,6 +3,7 @@ package org.prlprg.rsession;
 import com.google.common.collect.ImmutableSet;
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import javax.annotation.Nullable;
@@ -19,15 +20,16 @@ public class TestRSession implements RSession {
   private static final String BUILTINS_INTERNAL_SYMBOLS_RDS_FILE = "builtins-internal.RDS";
 
   private @Nullable BaseEnvSXP baseEnv = null;
+  private @Nullable NamespaceEnvSXP baseNamespace = null;
   private @Nullable GlobalEnvSXP globalEnv = null;
   private @Nullable Set<String> builtins = null;
   private @Nullable Set<String> specials = null;
   private @Nullable Set<String> builtinsInternal = null;
 
-  private BaseEnvSXP loadBaseEnv0() {
+  private void bootstrapBase() {
     try {
-      // this will work as long as the base.RDS does not need
-      // to load base or global environment itself
+      // 1. Load just the symbol names. This will work as long as loading the STRSXP does not need
+      // baseenv itself
       var names =
           (StrSXP)
               RDSReader.readStream(
@@ -36,21 +38,17 @@ public class TestRSession implements RSession {
                       Objects.requireNonNull(
                           TestRSession.class.getResourceAsStream(BASE_SYMBOLS_RDS_FILE))));
 
-      var frame = new HashMap<String, SEXP>(names.size());
-      names.forEach(x -> frame.put(x, SEXPs.UNBOUND_VALUE));
+      // 2. Create empty bindings
+      var bindings = new HashMap<String, SEXP>(names.size());
+      names.forEach(x -> bindings.put(x, SEXPs.UNBOUND_VALUE));
 
-      return new BaseEnvSXP(frame);
-    } catch (IOException e) {
-      throw new RuntimeException("Failed to load the base environment", e);
-    }
-  }
+      // 3. Create a temporary baseenv and temporart base namespace
+      baseEnv = new BaseEnvSXP(bindings);
+      // the 4.3.2 should correspond to the R version that written the RDS files used in this class
+      baseNamespace = new NamespaceEnvSXP("base", "4.3.2", baseEnv, bindings);
 
-  private BaseEnvSXP loadBaseEnv() {
-    try {
-      this.baseEnv = loadBaseEnv0();
-      // this will work as long as the base.RDS does not need
-      // to load base or global environment itself
-      var newEnv =
+      // 4. Load the values
+      var temp =
           (EnvSXP)
               RDSReader.readStream(
                   this,
@@ -58,15 +56,29 @@ public class TestRSession implements RSession {
                       Objects.requireNonNull(
                           TestRSession.class.getResourceAsStream(BASE_ENV_RDS_FILE))));
 
-      return new BaseEnvSXP(newEnv);
+      // 5. update them in the baseenv and base namespace
+      temp.bindings()
+          .forEach(
+              x -> {
+                baseEnv.set(x.getKey(), x.getValue());
+                baseNamespace.set(x.getKey(), x.getValue());
+              });
     } catch (IOException e) {
       throw new RuntimeException("Failed to load the base environment", e);
     }
   }
 
+  @Override
+  public NamespaceEnvSXP baseNamespace() {
+    if (baseNamespace == null) {
+      bootstrapBase();
+    }
+    return baseNamespace;
+  }
+
   public synchronized BaseEnvSXP baseEnv() {
     if (baseEnv == null) {
-      baseEnv = loadBaseEnv();
+      bootstrapBase();
     }
     return baseEnv;
   }
@@ -148,5 +160,14 @@ public class TestRSession implements RSession {
   @Override
   public boolean isBuiltinInternal(String name) {
     return builtinsInternal().contains(name);
+  }
+
+  @Override
+  public NamespaceEnvSXP getNamespace(String name, String version) {
+    if (name.equals("base")) {
+      return baseNamespace();
+    } else {
+      return new NamespaceEnvSXP(name, version, baseNamespace(), Map.of());
+    }
   }
 }

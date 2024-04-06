@@ -5,10 +5,7 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.*;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 import javax.annotation.Nullable;
 import org.prlprg.RSession;
 import org.prlprg.bc.Bc;
@@ -19,7 +16,7 @@ import org.prlprg.sexp.*;
 import org.prlprg.util.IO;
 
 public class RDSReader implements Closeable {
-  private final RSession session;
+  private final RSession rsession;
   private final RDSInputStream in;
   private final List<SEXP> refTable = new ArrayList<>(128);
 
@@ -27,7 +24,7 @@ public class RDSReader implements Closeable {
   private Charset nativeEncoding = Charset.defaultCharset();
 
   private RDSReader(RSession session, InputStream in) {
-    this.session = session;
+    this.rsession = session;
     this.in = new RDSInputStream(in);
   }
 
@@ -102,8 +99,9 @@ public class RDSReader implements Closeable {
           switch (s) {
             case NILVALUE_SXP -> SEXPs.NULL;
             case MISSINGARG_SXP -> SEXPs.MISSING_ARG;
-            case GLOBALENV_SXP -> session.globalEnv();
-            case BASEENV_SXP, BASENAMESPACE_SXP -> session.baseEnv();
+            case GLOBALENV_SXP -> rsession.globalEnv();
+            case BASEENV_SXP -> rsession.baseEnv();
+            case BASENAMESPACE_SXP -> rsession.baseNamespace();
             case EMPTYENV_SXP -> SEXPs.EMPTY_ENV;
             case REFSXP -> readRef(flags);
             case NAMESPACESXP -> readNamespace();
@@ -156,10 +154,7 @@ public class RDSReader implements Closeable {
       throw new RDSException("Expected 2-element list, got: " + namespaceInfo);
     }
 
-    // FIXME: this should be loaded from RSession
-    // FIXME: hardcoding baseenv is not great
-    var namespace =
-        new NamespaceEnvSXP(session.baseEnv(), namespaceInfo.get(0), namespaceInfo.get(1));
+    var namespace = rsession.getNamespace(namespaceInfo.get(0), namespaceInfo.get(1));
     refTable.add(namespace);
 
     return namespace;
@@ -377,7 +372,7 @@ public class RDSReader implements Closeable {
     // enclosing environment - parent
     switch (readItem()) {
       case EnvSXP parent -> item.setParent(parent);
-      case NilSXP ignored -> item.setParent(session.baseEnv());
+      case NilSXP ignored -> item.setParent(rsession.baseEnv());
       default -> throw new RDSException("Expected environment (ENCLOS)");
     }
 
@@ -411,9 +406,7 @@ public class RDSReader implements Closeable {
       default -> throw new RDSException("Expected list (HASHTAB)");
     }
 
-    item.setAttributes(readAttributes());
-
-    return item;
+    return item.withAttributes(readAttributes());
   }
 
   private VecSXP readVec(Flags flags) throws IOException {

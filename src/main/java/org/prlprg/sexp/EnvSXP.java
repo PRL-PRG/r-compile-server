@@ -5,7 +5,7 @@ import java.util.Optional;
 import org.prlprg.util.Pair;
 
 public sealed interface EnvSXP extends SEXP
-    permits BaseEnvSXP, EmptyEnvSXP, GlobalEnvSXP, NamespaceEnvSXP, UserEnvSXP {
+    permits AbstractEnvSXP, BaseEnvSXP, EmptyEnvSXP, GlobalEnvSXP, NamespaceEnvSXP, UserEnvSXP {
   /**
    * Environments are linked in a parent chain. Every environment, except the empty environment, has
    * a parent that will be returned by this function.
@@ -21,6 +21,14 @@ public sealed interface EnvSXP extends SEXP
    * @return the value of the symbol, if found
    */
   Optional<SEXP> get(String name);
+
+  /**
+   * Set the value of a symbol in the environment.
+   *
+   * @param name the name of the symbol
+   * @param value the value of the symbol
+   */
+  void set(String name, SEXP value);
 
   /**
    * Get the value of a symbol in the environment, without following the parent chain.
@@ -46,4 +54,11 @@ public sealed interface EnvSXP extends SEXP
   }
 
   Iterable<? extends Map.Entry<? extends String, ? extends SEXP>> bindings();
+
+  /**
+   * Get the number of symbols in the environment.
+   *
+   * @return the number of symbols in the environment
+   */
+  int size();
 }

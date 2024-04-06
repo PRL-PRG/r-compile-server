@@ -570,12 +570,22 @@ public class Compiler {
   record InlineInfo(String name, EnvSXP env, @Nullable SEXP value, boolean guard) {}
 
   private Optional<InlineInfo> getInlineInfo(String name, boolean guardOK) {
-    boolean guarded;
-
     if (FORBIDDEN_INLINES.contains(name) || optimizationLevel < 1) {
       return Optional.empty();
     }
 
+    // FIXME: working with optionals in Java is not that great
+    // IMHO the following reads better than the using flatMap
+    var res = ctx.resolve(name).orElse(null);
+    if (res == null) {
+        return Optional.empty();
+    }
+
+    if (res.first() instanceof NamespaceEnvSXP) {
+      return Optional.of(new InlineInfo(name, res.first(), res.second(), false));
+    }
+
+    boolean guarded;
     if (optimizationLevel == 2 && !ALLOWED_INLINES.contains(name)) {
       if (guardOK) {
         guarded = true;
@@ -586,7 +596,7 @@ public class Compiler {
       guarded = false;
     }
 
-    return ctx.resolve(name).map(x -> new InlineInfo(name, x.first(), x.second(), guarded));
+    return Optional.of(new InlineInfo(name, res.first(), res.second(), guarded));
   }
 
   /**

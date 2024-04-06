@@ -1,39 +1,9 @@
 package org.prlprg.sexp;
 
-import java.util.Map;
-import java.util.Optional;
 
-public final class GlobalEnvSXP implements EnvSXP {
-  private final EnvSXP parent;
-
+public final class GlobalEnvSXP extends AbstractEnvSXP implements EnvSXP {
   public GlobalEnvSXP(EnvSXP parent) {
-    this.parent = parent;
-  }
-
-  @Override
-  public EnvSXP parent() {
-    return parent;
-  }
-
-  // FIXME: parent should return the proper namespaces
-  //  in default R session that is:
-  //  stats, graphics, grDevices, utils, datasets, methods, Autoloads, base
-
-  @Override
-  public Optional<SEXP> get(String name) {
-    // FIXME: implement
-    return Optional.empty();
-  }
-
-  @Override
-  public Optional<SEXP> getLocal(String name) {
-    // FIXME: implement
-    return Optional.empty();
-  }
-
-  @Override
-  public Iterable<? extends Map.Entry<? extends String, ? extends SEXP>> bindings() {
-    throw new UnsupportedOperationException();
+    super(parent);
   }
 
   @Override
