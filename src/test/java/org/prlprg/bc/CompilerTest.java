@@ -13,9 +13,15 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.prlprg.sexp.*;
-import org.prlprg.util.*;
+import org.prlprg.sexp.BCodeSXP;
+import org.prlprg.sexp.CloSXP;
+import org.prlprg.sexp.RealSXP;
+import org.prlprg.sexp.SEXP;
+import org.prlprg.sexp.SEXPs;
+import org.prlprg.sexp.StrSXP;
 import org.prlprg.util.AbstractGNURBasedTest;
+import org.prlprg.util.Files;
+import org.prlprg.util.Tests;
 
 public class CompilerTest extends AbstractGNURBasedTest implements Tests {
 

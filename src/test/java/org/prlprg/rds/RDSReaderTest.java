@@ -8,7 +8,19 @@ import java.util.Objects;
 import org.junit.jupiter.api.Test;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
-import org.prlprg.sexp.*;
+import org.prlprg.sexp.BCodeSXP;
+import org.prlprg.sexp.CloSXP;
+import org.prlprg.sexp.ComplexSXP;
+import org.prlprg.sexp.ExprSXP;
+import org.prlprg.sexp.IntSXP;
+import org.prlprg.sexp.LangSXP;
+import org.prlprg.sexp.LglSXP;
+import org.prlprg.sexp.ListSXP;
+import org.prlprg.sexp.RealSXP;
+import org.prlprg.sexp.SEXPs;
+import org.prlprg.sexp.StrSXP;
+import org.prlprg.sexp.TaggedElem;
+import org.prlprg.sexp.VecSXP;
 import org.prlprg.util.AbstractGNURBasedTest;
 
 public class RDSReaderTest extends AbstractGNURBasedTest {

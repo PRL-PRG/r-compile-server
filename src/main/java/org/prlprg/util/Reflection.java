@@ -1,17 +1,22 @@
 package org.prlprg.util;
 
 import com.google.common.collect.Streams;
+import io.github.classgraph.ClassGraph;
+import java.lang.annotation.Annotation;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.lang.reflect.RecordComponent;
 import java.util.Arrays;
+import java.util.Objects;
+import java.util.function.Function;
+import java.util.stream.Stream;
+import org.prlprg.parseprint.ParseMethod;
 
 public class Reflection {
   /** Reflectively construct the class, converting all exceptions to runtime exceptions. */
   public static <T> T construct(Class<T> cls, Object... arguments) {
     try {
       return cls.getConstructor().newInstance(arguments);
-    } catch (InstantiationException | IllegalAccessException | NoSuchMethodException e) {
-      throw new RuntimeException("failed to reflectively construct", e);
     } catch (InvocationTargetException e) {
       if (e.getCause() instanceof RuntimeException e1) {
         throw e1;
@@ -19,15 +24,36 @@ public class Reflection {
         throw e1;
       }
       throw new RuntimeException("checked exception in reflectively called constructor", e);
+    } catch (ReflectiveOperationException e) {
+      throw new RuntimeException("failed to reflectively construct", e);
     }
   }
 
+  /**
+   * Reflectively get the record components, converting all exceptions to runtime exceptions.
+   *
+   * @throws IllegalArgumentException If {@code target} isn't a record.
+   */
+  public static Iterable<Object> getComponents(Record target) {
+    return () -> streamComponents(target).iterator();
+  }
+
+  /**
+   * Reflectively get the record components, converting all exceptions to runtime exceptions.
+   *
+   * @throws IllegalArgumentException If {@code target} isn't a record.
+   */
+  public static Stream<Object> streamComponents(Record target) {
+    if (!target.getClass().isRecord()) {
+      throw new IllegalArgumentException("target is not a record");
+    }
+    return Arrays.stream(target.getClass().getRecordComponents()).map(c -> getComponent(target, c));
+  }
+
   /** Reflectively get the record component, converting all exceptions to runtime exceptions. */
-  public static Object getComponent(Object target, RecordComponent component) {
+  public static Object getComponent(Record target, RecordComponent component) {
     try {
       return component.getAccessor().invoke(target);
-    } catch (IllegalAccessException e) {
-      throw new RuntimeException("failed to reflectively get record component", e);
     } catch (InvocationTargetException e) {
       if (e.getCause() instanceof RuntimeException e1) {
         throw e1;
@@ -36,6 +62,8 @@ public class Reflection {
       }
       throw new RuntimeException(
           "checked exception in reflectively called record component accessor", e);
+    } catch (ReflectiveOperationException e) {
+      throw new RuntimeException("failed to reflectively get record component", e);
     }
   }
 
@@ -81,8 +109,6 @@ public class Reflection {
       var result = method.invoke(target, arguments);
       method.setAccessible(oldIsAccessible);
       return result;
-    } catch (IllegalAccessException e) {
-      throw new RuntimeException("failed to reflectively call method", e);
     } catch (InvocationTargetException e) {
       if (e.getCause() instanceof RuntimeException e1) {
         throw e1;
@@ -90,7 +116,48 @@ public class Reflection {
         throw e1;
       }
       throw new RuntimeException("checked exception in reflectively called method", e);
+    } catch (ReflectiveOperationException e) {
+      throw new RuntimeException("failed to reflectively call method", e);
     }
+  }
+
+  /** Return the superclass, its superclass, and so on. */
+  public static Stream<Class<?>> streamSuperclassChain(Class<?> cls, boolean includeSelf) {
+    return Stream.iterate(
+        includeSelf ? cls : cls.getSuperclass(), Objects::nonNull, Class::getSuperclass);
+  }
+
+  /** Return the superclass, its superclass, and so on. */
+  public static Iterable<Class<?>> superclassChain(Class<?> cls, boolean includeSelf) {
+    return () -> streamSuperclassChain(cls, includeSelf).iterator();
+  }
+
+  /**
+   * Find and process all methods with the annotation in {@link org.prlprg}.
+   *
+   * <p>Uses <a href="https://github.com/classgraph/classgraph">ClassGraph</a>.
+   *
+   * @param processMethods function is provided with a stream of methods that all have an annotation
+   *     of the given class, and its return is returned by this function.
+   */
+  public static <R> R findAndProcessMethodsWithAnnotation(
+      Class<? extends Annotation> annotationClass, Function<Stream<Method>, R> processMethods) {
+    try (var scanResult = Reflection.classGraph().enableMethodInfo().scan()) {
+      var stream =
+          scanResult.getClassesWithMethodAnnotation(annotationClass).loadClasses().stream()
+              .flatMap(clazz -> Arrays.stream(clazz.getDeclaredMethods()))
+              .filter(method -> method.getAnnotation(ParseMethod.class) != null);
+      return processMethods.apply(stream);
+    }
+  }
+
+  /**
+   * Creates a {@link ClassGraph} to scan reflection data in {@link org.prlprg}.
+   *
+   * <p>Main purpose is to get all locations of some annotation.
+   */
+  private static ClassGraph classGraph() {
+    return new ClassGraph().acceptPackages("org.prlprg");
   }
 
   private Reflection() {}

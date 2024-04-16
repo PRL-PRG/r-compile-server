@@ -3,10 +3,23 @@ package org.prlprg.bc;
 import com.google.common.collect.ForwardingList;
 import com.google.common.collect.ImmutableList;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import javax.annotation.concurrent.Immutable;
-import org.prlprg.sexp.*;
+import org.prlprg.sexp.IntSXP;
+import org.prlprg.sexp.LangSXP;
+import org.prlprg.sexp.ListSXP;
+import org.prlprg.sexp.NilSXP;
+import org.prlprg.sexp.RegSymSXP;
+import org.prlprg.sexp.SEXP;
+import org.prlprg.sexp.StrOrRegSymSXP;
+import org.prlprg.sexp.StrSXP;
+import org.prlprg.sexp.VecSXP;
 
 /** A pool (array) of constants. */
 @Immutable

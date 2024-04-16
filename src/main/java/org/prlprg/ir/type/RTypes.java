@@ -10,7 +10,12 @@ import org.prlprg.ir.type.lattice.NoOrMaybe;
 import org.prlprg.ir.type.lattice.Troolean;
 import org.prlprg.primitive.BuiltinId;
 import org.prlprg.rshruntime.TypeFeedback;
-import org.prlprg.sexp.*;
+import org.prlprg.sexp.CloSXP;
+import org.prlprg.sexp.PrimVectorSXP;
+import org.prlprg.sexp.PromSXP;
+import org.prlprg.sexp.SEXP;
+import org.prlprg.sexp.SEXPType;
+import org.prlprg.sexp.SEXPs;
 import org.prlprg.util.NotImplementedError;
 
 /**

@@ -2,7 +2,15 @@ package org.prlprg.bc;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import javax.annotation.Nullable;
-import org.prlprg.sexp.*;
+import org.prlprg.sexp.IntSXP;
+import org.prlprg.sexp.LangSXP;
+import org.prlprg.sexp.ListSXP;
+import org.prlprg.sexp.RegSymSXP;
+import org.prlprg.sexp.SEXP;
+import org.prlprg.sexp.SEXPs;
+import org.prlprg.sexp.StrOrRegSymSXP;
+import org.prlprg.sexp.StrSXP;
+import org.prlprg.sexp.VecSXP;
 
 /**
  * A single bytecode instruction, consists of an operation and arguments. The operation is
