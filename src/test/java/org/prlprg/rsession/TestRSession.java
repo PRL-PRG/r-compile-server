@@ -9,7 +9,11 @@ import java.util.Set;
 import javax.annotation.Nullable;
 import org.prlprg.RSession;
 import org.prlprg.rds.RDSReader;
-import org.prlprg.sexp.*;
+import org.prlprg.sexp.BaseEnvSXP;
+import org.prlprg.sexp.GlobalEnvSXP;
+import org.prlprg.sexp.SEXP;
+import org.prlprg.sexp.SEXPs;
+import org.prlprg.sexp.StrSXP;
 import org.prlprg.util.IO;
 
 // http://adv-r.had.co.nz/Environments.html

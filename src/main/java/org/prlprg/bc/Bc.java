@@ -1,7 +1,8 @@
 package org.prlprg.bc;
 
 import com.google.common.primitives.ImmutableIntArray;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Function;
 import javax.annotation.Nullable;
 import org.prlprg.primitive.Constants;
