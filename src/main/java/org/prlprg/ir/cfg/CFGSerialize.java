@@ -1,8 +1,11 @@
 package org.prlprg.ir.cfg;
 
 import com.google.common.collect.ImmutableList;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Formatter;
 import java.util.HashMap;
 import java.util.Map;
@@ -10,9 +13,13 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.prlprg.ir.type.REffects;
 import org.prlprg.ir.type.RType;
+import org.prlprg.sexp.RegSymSXP;
+import org.prlprg.sexp.SEXPs;
+import org.prlprg.util.Reflection;
 import org.prlprg.util.Strings;
 
 interface CFGSerialize extends CFGQuery, CFGIntrinsicMutate {
@@ -126,6 +133,7 @@ class CFGSerializeInstrOrPhiParser {
   private final Function<Integer, BB> getBB;
   private final Map<String, Node> pirIdToNode;
   private int index = 0;
+  private boolean parsedAnArg = false;
 
   CFGSerializeInstrOrPhiParser(
       BB bb, String instrString, Function<Integer, BB> getBB, Map<String, Node> pirIdToNode) {
@@ -219,13 +227,51 @@ class CFGSerializeInstrOrPhiParser {
             } while (trySkip(", "));
             yield phi;
           }
-          case "LdArg" -> {
-            var argIndex = lexUInt();
-            yield bb.append(name, new StmtData.LdArg(argIndex));
+          case "StVar" ->
+              bb.append(
+                  "",
+                  new StmtData.StVar(
+                      parseArg(RegSymSXP.class),
+                      parseArg(RValue.class),
+                      parseArg(Env.class),
+                      false));
+          case "StArg" ->
+              bb.append(
+                  "",
+                  new StmtData.StVar(
+                      parseArg(RegSymSXP.class),
+                      parseArg(RValue.class),
+                      parseArg(Env.class),
+                      true));
+          default -> {
+            @SuppressWarnings("unchecked")
+            var instrClass =
+                (Class<? extends InstrData<?>>)
+                    switch (instrTypeName) {
+                      case "Missing" -> StmtData.IsMissing.class;
+                      case "MkArg" -> StmtData.MkProm.class;
+                      case "UpdatePromise" -> StmtData.StrictifyProm.class;
+                      case "Is" -> StmtData.GnuRIs.class;
+                      default ->
+                          Stream.concat(
+                                  Arrays.stream(StmtData.class.getNestMembers()),
+                                  Arrays.stream(JumpData.class.getNestMembers()))
+                              .filter(c -> c.getSimpleName().equals(instrTypeName))
+                              .findFirst()
+                              .orElseThrow();
+                    };
+            // Relies on `.map` being ordered
+            var args =
+                Arrays.stream(instrClass.getRecordComponents())
+                    .map(c -> parseArg(c.getType(), c.getGenericType()))
+                    .toArray();
+
+            var data = Reflection.construct(instrClass, args);
+            yield switch (data) {
+              case StmtData<?> s -> bb.append("", s);
+              case JumpData<?> j -> bb.addJump("", j);
+            };
           }
-          default ->
-              throw new UnsupportedOperationException(
-                  "Unhandled instruction type: " + instrTypeName);
         };
 
     // rType is null if the instruction corresponds to a `NativeType`
@@ -241,13 +287,57 @@ class CFGSerializeInstrOrPhiParser {
               + ", but found "
               + rValue.type();
     }
-    //noinspection RedundantIfStatement
-    if (instrOrPhi instanceof Instr instr) {
-      assert instr.effects().isSubsetOf(effects)
-          : "Expected effects of " + instr + " to be " + effects + ", but found " + instr.effects();
-    }
+    assert !(instrOrPhi instanceof Instr instr) || instr.effects().isSubsetOf(effects)
+        : "Expected effects of "
+            + instrOrPhi
+            + " to be "
+            + effects
+            + ", but found "
+            + ((Instr) instrOrPhi).effects();
 
     return instrOrPhi;
+  }
+
+  private <T> T parseArg(Class<T> type) {
+    return parseArg(type, type);
+  }
+
+  private <T> T parseArg(Class<T> clazz, @Nullable Type genericType) {
+    skipWhitespace();
+    if (parsedAnArg) {
+      assertAndSkip(",");
+      skipWhitespace();
+    } else {
+      parsedAnArg = true;
+    }
+
+    Object result;
+    if (Node.class.isAssignableFrom(clazz)) {
+      var argPirId = lexUntilWhitespace();
+      result = pirIdToNode.get(argPirId);
+    } else if (Collection.class.isAssignableFrom(clazz)) {
+      assert genericType instanceof ParameterizedType;
+      var elemType = (Class<?>) ((ParameterizedType) genericType).getActualTypeArguments()[0];
+
+      assertAndSkip("[");
+      var args = new ArrayList<>();
+      while (true) {
+        args.add(parseArg(elemType));
+        skipWhitespace();
+        if (trySkip("]")) {
+          break;
+        }
+        assertAndSkip(",");
+        skipWhitespace();
+      }
+      result = args;
+    } else if (Parseable.class.isAssignableFrom(clazz)) {
+      result = SEXPs.symbol(lexUntilWhitespace());
+    } else {
+      throw new UnsupportedOperationException("Unsupported argument type: " + clazz);
+    }
+
+    return clazz.cast(result);
   }
 
   private int lexUInt() {
@@ -363,7 +453,7 @@ class CFGSerializeInstrOrPhiPrinter {
   private void printInstrTypeName() {
     var name =
         switch (instrOrPhi) {
-          case Phi<?> ignored -> "Phi";
+          case Phi<?> _ -> "Phi";
           case Stmt i when i.data() instanceof StmtData.StVar s && s.isArg() -> "StArg";
             // These namings in PIR are very confusing, so they are different in the Java compiler
           case Stmt i when i.data() instanceof StmtData.IsMissing -> "Missing";
@@ -378,7 +468,7 @@ class CFGSerializeInstrOrPhiPrinter {
   private void printEffects() {
     var effects =
         switch (instrOrPhi) {
-          case Phi<?> ignored -> "";
+          case Phi<?> _ -> "";
             // TODO: Print effects in PIR's format, not ours
           case Instr i -> i.effects();
         };
@@ -399,13 +489,32 @@ class CFGSerializeInstrOrPhiPrinter {
   }
 
   private void printDataArgs(InstrData<?> data) {
-    switch (data) {
-      case StmtData.LdVar(var name, var env) -> f.format("%s, %s", name, env);
-      case StmtData.StVar(var name, var value, var env, var ignored) ->
-          f.format("%s, %s, %s", name, value, env);
-      case StmtData.LdArg(var idx) -> f.format("%d", idx);
-      default ->
-          throw new UnsupportedOperationException("Unhandled instruction to print PIR args of");
+    // ???: Print like PIR does? I think it's better to make PIR print like this instead
+    // Reflectively get record components and print them
+    if (!(data instanceof Record r)) {
+      throw new IllegalArgumentException("InstrData must be a record");
+    }
+    printElems(Reflection.getComponents(r));
+  }
+
+  private void printElems(Iterable<?> elems) {
+    var isFirst = true;
+    for (var e : elems) {
+      if (!isFirst) {
+        sb.append(", ");
+      }
+      isFirst = false;
+
+      switch (e) {
+        case Collection<?> c -> {
+          sb.append("[");
+          printElems(c);
+          sb.append("]");
+        }
+        case BB b -> sb.append("BB").append(bbToIdx.get(b));
+        case Node n -> sb.append(nodeToPirId.get(n));
+        default -> sb.append(e);
+      }
     }
   }
 }

@@ -121,14 +121,15 @@ abstract sealed class InstrImpl<D extends InstrData<?>> implements NodeWithCfg
 
   private void computeArgs() {
     // Reflectively get all Node record components
-    var cls = data().getClass();
-    assert cls.isRecord() : "Instr.Data must be a record";
-    var components = cls.getRecordComponents();
+    if (!(data instanceof Record r)) {
+      throw new AssertionError("InstrData must be a record");
+    }
+    var components = data.getClass().getRecordComponents();
 
     var singleArgs =
         Arrays.stream(components)
             .filter(cmp -> Node.class.isAssignableFrom(cmp.getType()))
-            .map(cmp -> (Node) Reflection.getComponent(data(), cmp));
+            .map(cmp -> (Node) Reflection.getComponent(r, cmp));
     var argLists =
         Arrays.stream(components)
             .filter(
@@ -140,7 +141,7 @@ abstract sealed class InstrImpl<D extends InstrData<?>> implements NodeWithCfg
                 })
             .flatMap(
                 cmp ->
-                    ((Collection<?>) Reflection.getComponent(data(), cmp))
+                    ((Collection<?>) Reflection.getComponent(r, cmp))
                         .stream().map(Node.class::cast));
     args = Streams.concat(singleArgs, argLists).collect(ImmutableList.toImmutableList());
   }
@@ -149,15 +150,17 @@ abstract sealed class InstrImpl<D extends InstrData<?>> implements NodeWithCfg
     // Reflectively look through the arguments AKA record components,
     // and throw an exception if `old` isn't present or `replacement` is the wrong type.
     // Also, build an array of new arguments, where `old` is replaced with `replacement`.
-    var cls = Classes.classOf(data());
-    assert cls.isRecord() : "Instr.Data must be a record";
+    if (!(data instanceof Record r)) {
+      throw new AssertionError("InstrData must be a record");
+    }
+    var cls = Classes.classOf(data);
     var components = cls.getRecordComponents();
 
     var found = false;
     var newValues = new Object[components.length];
     for (var i = 0; i < components.length; i++) {
       var cmp = components[i];
-      var value = Reflection.getComponent(data(), cmp);
+      var value = Reflection.getComponent(r, cmp);
 
       if (value.equals(old)) {
         assert !found : argTypeStr + " to replace found multiple times";
@@ -215,12 +218,12 @@ abstract sealed class InstrImpl<D extends InstrData<?>> implements NodeWithCfg
 
   private static Class<?> collectionComponentElementClass(RecordComponent cmp) {
     assert cmp.getType() == ImmutableList.class
-        : "Instr.Data has Collection component which isn't an ImmutableList";
+        : "InstrData has Collection component which isn't an ImmutableList";
     if (!(cmp.getGenericType() instanceof ParameterizedType p)
         || p.getActualTypeArguments().length == 1
         || !(p.getActualTypeArguments()[0] instanceof Class<?> elemClass)) {
       throw new AssertionError(
-          "Instr.Data has Collection component which isn't a straightforward generic type, don't know how to handle");
+          "InstrData has Collection component which isn't a straightforward generic type, don't know how to handle");
     }
     return elemClass;
   }
@@ -317,19 +320,20 @@ abstract sealed class InstrImpl<D extends InstrData<?>> implements NodeWithCfg
     // Reflectively get all record components, assert that all `@SameLen` annotations are on a
     // collection and refer to an earlier collection, and check that both collections have the same
     // length.
+    if (!(data instanceof Record r)) {
+      throw new AssertionError("InstrData must be a record");
+    }
     var cls = data().getClass();
-    assert cls.isRecord() : "Instr.Data must be a record";
     var components = cls.getRecordComponents();
 
     assert !cls.isAnnotationPresent(SameLen.class)
-        : "Instr.Data must not have @SameLen annotation. Put it on the individual components.";
+        : "InstrData must not have @SameLen annotation. Put it on the individual components.";
 
     var collectionSizes = new HashMap<String, Integer>();
     for (var component : components) {
       var isCollection = Collection.class.isAssignableFrom(component.getType());
       var collectionName = component.getName();
-      var collection =
-          isCollection ? (Collection<?>) Reflection.getComponent(data(), component) : null;
+      var collection = isCollection ? (Collection<?>) Reflection.getComponent(r, component) : null;
       if (isCollection) {
         collectionSizes.put(collectionName, collection.size());
       }
@@ -366,9 +370,10 @@ abstract sealed class InstrImpl<D extends InstrData<?>> implements NodeWithCfg
     // Reflectively get all record components, filter to ones with `@TypeIs` annotations, check that
     // their type is an `RValue` or a list of `RValue`s, and check that the argument is of the
     // expected type.
-    var cls = data().getClass();
-    assert cls.isRecord() : "Instr.Data must be a record";
-    var components = cls.getRecordComponents();
+    if (!(data instanceof Record r)) {
+      throw new AssertionError("InstrData must be a record");
+    }
+    var components = data.getClass().getRecordComponents();
 
     for (var i = 0; i < components.length; i++) {
       var component = components[i];
@@ -387,7 +392,7 @@ abstract sealed class InstrImpl<D extends InstrData<?>> implements NodeWithCfg
           : "Only `RValue`s or lists of `RValue`s can have `@TypeIs` annotation: argument "
               + i
               + " has a `@TypeIs` annotation but isn't an `RValue` or list of them";
-      var arg = Reflection.getComponent(data(), component);
+      var arg = Reflection.getComponent(r, component);
 
       if (isRValue) {
         var rValue = (RValue) arg;

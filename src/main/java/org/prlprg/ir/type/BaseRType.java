@@ -53,7 +53,7 @@ public sealed interface BaseRType extends Lattice<BaseRType> {
       case AnyFun() -> null;
       case Vector(var elementType) -> elementType.vectorSexpType;
       case AnyList() -> SEXPType.LIST;
-      case Promise(var ignored, var ignored2) -> SEXPType.PROM;
+      case Promise(var _, var _) -> SEXPType.PROM;
       case Language() -> SEXPType.LANG;
       case Expression() -> SEXPType.EXPR;
       case Closure() -> SEXPType.CLO;
@@ -96,7 +96,7 @@ public sealed interface BaseRType extends Lattice<BaseRType> {
   default Troolean isPromise() {
     return switch (this) {
       case Any() -> Troolean.MAYBE;
-      case Promise(var ignored, var ignored2) -> Troolean.YES;
+      case Promise(var _, var _) -> Troolean.YES;
       default -> Troolean.NO;
     };
   }
@@ -105,7 +105,7 @@ public sealed interface BaseRType extends Lattice<BaseRType> {
   default NotPromise forced() {
     return switch (this) {
       case Any() -> ANY_VALUE;
-      case Promise(var ignored, var valueType) -> valueType;
+      case Promise(_, var valueType) -> valueType;
       default -> (NotPromise) this;
     };
   }

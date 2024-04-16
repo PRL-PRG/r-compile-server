@@ -481,7 +481,7 @@ public class Compiler {
 
   private void compileConst(SEXP val) {
     switch (val) {
-      case NilSXP ignored -> cb.addInstr(new LdNull());
+      case NilSXP _ -> cb.addInstr(new LdNull());
       case LglSXP x when x == SEXPs.TRUE -> cb.addInstr(new LdTrue());
       case LglSXP x when x == SEXPs.FALSE -> cb.addInstr(new LdFalse());
       default -> cb.addInstr(new LdConst(cb.addConst(val)));
@@ -495,8 +495,8 @@ public class Compiler {
       case LangSXP e -> compileCall(e, true);
       case RegSymSXP e -> compileSym(e, missingOK);
       case SpecialSymSXP e -> stop("unhandled special symbol: " + e);
-      case PromSXP ignored -> stop("cannot compile promise literals in code");
-      case BCodeSXP ignored -> stop("cannot compile byte code literals in code");
+      case PromSXP _ -> stop("cannot compile promise literals in code");
+      case BCodeSXP _ -> stop("cannot compile byte code literals in code");
       default -> compileConst(expr);
     }
   }
@@ -598,8 +598,8 @@ public class Compiler {
           compileNormArg(x, nse);
           compileTag(tag);
         }
-        case PromSXP ignored -> stop("can't compile promises in code");
-        case BCodeSXP ignored -> stop("can't compile byte code literals in code");
+        case PromSXP _ -> stop("can't compile promises in code");
+        case BCodeSXP _ -> stop("can't compile byte code literals in code");
         default -> {
           compileConstArg(val);
           compileTag(tag);
@@ -623,7 +623,7 @@ public class Compiler {
 
   private void compileConstArg(SEXP arg) {
     switch (arg) {
-      case NilSXP ignored -> cb.addInstr(new PushNullArg());
+      case NilSXP _ -> cb.addInstr(new PushNullArg());
       case LglSXP x when x == SEXPs.TRUE -> cb.addInstr(new PushTrueArg());
       case LglSXP x when x == SEXPs.FALSE -> cb.addInstr(new PushFalseArg());
       default -> cb.addInstr(new PushConstArg(cb.addConst(arg)));
@@ -1940,9 +1940,9 @@ public class Compiler {
 
     var lhs = call.arg(0);
     return switch (lhs) {
-      case RegSymSXP ignored -> true;
+      case RegSymSXP _ -> true;
       case StrSXP s -> s.size() == 1;
-      case LangSXP ignored -> {
+      case LangSXP _ -> {
         while (lhs instanceof LangSXP l) {
           var fun = l.fun();
           var args = l.args();
@@ -2192,8 +2192,8 @@ public class Compiler {
     return switch (expr) {
       case LangSXP l -> constantFoldCall(l);
       case RegSymSXP s -> constantFoldSym(s);
-      case PromSXP ignored -> stop("cannot constant fold literal promises");
-      case BCodeSXP ignored -> stop("cannot constant fold literal bytecode objects");
+      case PromSXP _ -> stop("cannot constant fold literal promises");
+      case BCodeSXP _ -> stop("cannot constant fold literal bytecode objects");
       default -> checkConst(expr);
     };
   }
@@ -2201,7 +2201,7 @@ public class Compiler {
   private Optional<SEXP> checkConst(SEXP e) {
     var r =
         switch (e) {
-          case NilSXP ignored -> e;
+          case NilSXP _ -> e;
           case VectorSXP<?> xs when xs.size() <= MAX_CONST_SIZE -> e;
           default -> null;
         };
