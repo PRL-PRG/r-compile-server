@@ -37,6 +37,12 @@
       <artifactId>jeromq</artifactId>
       <version>0.6.0</version>
     </dependency>
+    <!-- ClassGraph, reflection (specifically, get all members with an annotation) -->
+    <dependency>
+      <groupId>io.github.classgraph</groupId>
+      <artifactId>classgraph</artifactId>
+      <version>4.8.170</version>
+    </dependency>
     <!-- Guava, utilities -->
     <dependency>
       <groupId>com.google.guava</groupId>
