@@ -19,7 +19,7 @@ sealed interface RPromiseType extends Lattice<RPromiseType> {
     return switch (this) {
       case Value() -> PromiseRType.VALUE;
       case MaybePromise(var isLazy) -> PromiseRType.of(Troolean.MAYBE, isLazy);
-      case Promise(var isLazy, var ignored) -> PromiseRType.of(Troolean.YES, isLazy);
+      case Promise(var isLazy, var _) -> PromiseRType.of(Troolean.YES, isLazy);
     };
   }
 
@@ -43,7 +43,7 @@ sealed interface RPromiseType extends Lattice<RPromiseType> {
   default RPromiseType strict() {
     return switch (this) {
       case Value() -> this;
-      case MaybePromise(var ignored) -> new MaybePromise(NoOrMaybe.NO);
+      case MaybePromise(var _) -> new MaybePromise(NoOrMaybe.NO);
       case Promise(var isLazy, var exactValue) ->
           new Promise(Troolean.NO, isLazy == Troolean.NO ? exactValue : null);
     };
@@ -72,14 +72,14 @@ sealed interface RPromiseType extends Lattice<RPromiseType> {
       case Value() ->
           switch (other) {
             case Value() -> this;
-            case MaybePromise ignored -> other;
-            case Promise(var isLazy, var ignored) -> new MaybePromise(NoOrMaybe.of(isLazy));
+            case MaybePromise _ -> other;
+            case Promise(var isLazy, var _) -> new MaybePromise(NoOrMaybe.of(isLazy));
           };
       case MaybePromise(var isLazy) ->
           switch (other) {
             case Value() -> this;
             case MaybePromise(var otherIsLazy) -> new MaybePromise(isLazy.union(otherIsLazy));
-            case Promise(var otherIsLazy, var ignored) ->
+            case Promise(var otherIsLazy, var _) ->
                 new MaybePromise(isLazy.union(NoOrMaybe.of(otherIsLazy)));
           };
       case Promise(var isLazy, var exactValue) ->
@@ -101,8 +101,8 @@ sealed interface RPromiseType extends Lattice<RPromiseType> {
       case Value() ->
           switch (other) {
             case Value() -> this;
-            case MaybePromise ignored -> this;
-            case Promise ignored -> null;
+            case MaybePromise _ -> this;
+            case Promise _ -> null;
           };
       case MaybePromise(var isLazy) ->
           switch (other) {

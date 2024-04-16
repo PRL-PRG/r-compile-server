@@ -37,11 +37,13 @@ abstract non-sealed class JumpImpl<D extends JumpData<?>> extends InstrImpl<D> i
   @Override
   public ImmutableList<BB> targets() {
     // Reflectively get all BB record components
-    var cls = data().getClass();
-    assert cls.isRecord() : "Instr.Data must be a record";
-    return Arrays.stream(cls.getRecordComponents())
+    if (!(data() instanceof Record r)) {
+      throw new IllegalArgumentException("data is not a record");
+    }
+
+    return Arrays.stream(data().getClass().getRecordComponents())
         .filter(cmp -> cmp.getType() == BB.class)
-        .map(cmp -> (BB) Reflection.getComponent(data(), cmp))
+        .map(cmp -> (BB) Reflection.getComponent(r, cmp))
         .collect(ImmutableList.toImmutableList());
   }
 

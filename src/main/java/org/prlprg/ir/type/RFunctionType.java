@@ -168,7 +168,7 @@ record RFunctionTypeImpl(
   public boolean isSubsetOf(RValueType other) {
     return RGenericValueType.genericIsSubset(this, other)
         && switch (other) {
-          case RGenericValueType ignored -> true;
+          case RGenericValueType _ -> true;
           case RFunctionTypeImpl o ->
               o.knownOverloads.stream()
                       .allMatch(oko -> knownOverloads.stream().anyMatch(ko -> ko.subsumes(oko)))
@@ -203,7 +203,7 @@ record RFunctionTypeImpl(
       return null;
     }
     return switch (other) {
-      case RGenericValueType ignored ->
+      case RGenericValueType _ ->
           new RFunctionTypeImpl(
               genericIntersection.exactValue(),
               FunctionRType.of(genericIntersection.base()),

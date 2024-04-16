@@ -337,9 +337,9 @@ public interface BBCompoundMutate extends BBIntrinsicMutate, BBQuery {
                 Collectors.groupingBy(
                     i ->
                         switch (i) {
-                          case Phi<?> ignored -> Phi.class;
-                          case Stmt ignored -> Stmt.class;
-                          case Jump ignored -> Jump.class;
+                          case Phi<?> _ -> Phi.class;
+                          case Stmt _ -> Stmt.class;
+                          case Jump _ -> Jump.class;
                         },
                     Collectors.toSet()));
     @SuppressWarnings("unchecked")

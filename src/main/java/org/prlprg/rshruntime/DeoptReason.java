@@ -1,6 +1,6 @@
 package org.prlprg.rshruntime;
 
-public record DeoptReason(Type type, FeedbackOrigin origin) {
+public record DeoptReason(Type type, BcLocation origin) {
   enum Type {
     Unknown,
     Typecheck,

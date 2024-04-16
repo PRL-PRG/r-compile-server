@@ -10,6 +10,7 @@ import org.prlprg.ir.type.RType;
 import org.prlprg.ir.type.RTypes;
 import org.prlprg.primitive.BuiltinId;
 import org.prlprg.primitive.IsTypeCheck;
+import org.prlprg.rshruntime.BcLocation;
 import org.prlprg.sexp.*;
 import org.prlprg.util.NotImplementedError;
 
@@ -80,8 +81,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
   // Order of the following is the same as in PIR `instruction.h`
 
   @EffectsAre(REffect.ReadsEnvArg)
-  record FrameState_(
-      Env env, BCodeSXP code, int pcOffset, ImmutableList<RValue> stack, boolean inPromise)
+  record FrameState_(BcLocation location, ImmutableList<RValue> stack, Env env, boolean inPromise)
       implements StmtData<FrameState> {
     @Override
     public FrameState make(CFG cfg, String name) {

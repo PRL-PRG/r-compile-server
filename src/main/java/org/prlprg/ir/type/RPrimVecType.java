@@ -83,7 +83,7 @@ record RPrimVecTypeImpl(
   public boolean isSubsetOf(RValueType other) {
     return RGenericValueType.genericIsSubset(this, other)
         && switch (other) {
-          case RGenericValueType ignored -> true;
+          case RGenericValueType _ -> true;
           case RPrimVecTypeImpl o ->
               elementType.isSubsetOf(o.elementType)
                   && length.isSubsetOf(o.length)
@@ -113,7 +113,7 @@ record RPrimVecTypeImpl(
       return null;
     }
     return switch (other) {
-      case RGenericValueType ignored ->
+      case RGenericValueType _ ->
           new RPrimVecTypeImpl(
               (PrimVectorSXP<?>) genericIntersection.exactValue(),
               genericIntersection.attributes(),

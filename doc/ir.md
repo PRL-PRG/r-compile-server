@@ -7,11 +7,11 @@ Some properties:
 
 ## Mutability
 
-`CFG` and `BB` are mutable by the user. `Node`s are internally mutable, but the user must mutate them via operations on `CFG` or `BB`. `Instr`s store their content in `Instr.Data` which is an immutable record for easy construction and pattern matching; the instruction itself must be mutable so its data can be replaced without affecting other instructions' data (which would recursively affect other instructions and so on, making constructing a cyclic dependency impossible besides having ridiculous time complexity).
+`CFG` and `BB` are mutable by the user. `Node`s are internally mutable, but the user must mutate them via operations on `CFG` or `BB`. `Instr`s store their content in `InstrData` which is an immutable record for easy construction and pattern matching; the instruction itself must be mutable so its data can be replaced without affecting other instructions' data (which would recursively affect other instructions and so on, making constructing a cyclic dependency impossible besides having ridiculous time complexity).
 
 ## Package structure
 
-`BB` has to access internal `CFG` functions to update exits, track/untrack nodes, and split/merge without adding recording operations (because we record the split or merge entirely, we don't want to record adding or removing the BB which is part of it). `BB` also has to access an internal function in `Instr.Data` to create instructions, so unfortunately we also must put `Instr` in the same package. From there, we put `Node` in the same package too because why not (instructions comprise the majority of nodes, and other nodes are simply auxillary so their constructor must be internal and visible to the instruction).
+`BB` has to access internal `CFG` functions to update exits, track/untrack nodes, and split/merge without adding recording operations (because we record the split or merge entirely, we don't want to record adding or removing the BB which is part of it). `BB` also has to access an internal function in `InstrData` to create instructions, so unfortunately we also must put `Instr` in the same package. From there, we put `Node` in the same package too because why not (instructions comprise the majority of nodes, and other nodes are simply auxillary so their constructor must be internal and visible to the instruction).
 
 A lot of other classes are in the `cfg` package.
 

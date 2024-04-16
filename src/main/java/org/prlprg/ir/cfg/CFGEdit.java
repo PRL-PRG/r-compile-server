@@ -329,7 +329,7 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
     @Override
     public Iterable<? extends CFGEdit<?>> subEdits() {
       return IntStream.range(fromIndex, toIndex)
-          .mapToObj(ignored -> new RemoveStmt(bbId, fromIndex))
+          .mapToObj(_ -> new RemoveStmt(bbId, fromIndex))
           .toList();
     }
   }

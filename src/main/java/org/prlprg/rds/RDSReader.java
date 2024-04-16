@@ -380,13 +380,13 @@ public class RDSReader implements Closeable {
     // enclosing environment - parent
     switch (readItem()) {
       case EnvSXP parent -> item.setParent(parent);
-      case NilSXP ignored -> item.setParent(rsession.baseEnv());
+      case NilSXP _ -> item.setParent(rsession.baseEnv());
       default -> throw new RDSException("Expected environment (ENCLOS)");
     }
 
     // frame
     switch (readItem()) {
-      case NilSXP ignored -> {}
+      case NilSXP _ -> {}
       case ListSXP frame -> {
         for (var elem : frame) {
           item.set(Objects.requireNonNull(elem.tag()), elem.value());
@@ -397,11 +397,11 @@ public class RDSReader implements Closeable {
 
     // hashtab
     switch (readItem()) {
-      case NilSXP ignored -> {}
+      case NilSXP _ -> {}
       case VecSXP hashtab -> {
         for (var elem : hashtab) {
           switch (elem) {
-            case NilSXP ignored -> {}
+            case NilSXP _ -> {}
             case ListSXP list -> {
               for (var e : list) {
                 item.set(Objects.requireNonNull(e.tag()), e.value());
