@@ -3,7 +3,6 @@ package org.prlprg.ir.cfg;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import org.prlprg.ir.cfg.JumpData.Checkpoint_;
 
 /**
  * Branch ({@link Jump} IR instruction) which contains a set of assumptions. If all of those
@@ -15,20 +14,30 @@ public interface Checkpoint extends Jump {
   NodeId<? extends Checkpoint> id();
 
   @Override
-  Checkpoint_ data();
+  JumpData.Checkpoint data();
 }
 
-final class CheckpointImpl extends JumpImpl<Checkpoint_> implements Checkpoint {
+final class CheckpointImpl extends JumpImpl<JumpData.Checkpoint> implements Checkpoint {
   private final List<Assumption> assumptions = new ArrayList<>();
 
-  CheckpointImpl(CFG cfg, String name, Checkpoint_ data) {
-    super(Checkpoint_.class, cfg, name, data);
+  CheckpointImpl(CFG cfg, String name, JumpData.Checkpoint data) {
+    super(JumpData.Checkpoint.class, cfg, name, data);
+
+    // This isn't handled by `verify` because at the time of the call, `assumptions` is still null.
+    while (assumptions.size() < data.numAssumptions()) {
+      assumptions.add(new AssumptionImpl(this, assumptions.size()));
+    }
   }
 
+  @SuppressWarnings("ConstantValue")
   @Override
   public void verify() throws InstrVerifyException {
     super.verify();
 
+    if (assumptions == null) {
+      // `verify` called during initialization
+      return;
+    }
     if (assumptions.size() > data().numAssumptions()) {
       assumptions.subList(data().numAssumptions(), assumptions.size()).clear();
     }

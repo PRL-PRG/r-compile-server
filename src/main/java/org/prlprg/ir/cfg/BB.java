@@ -8,6 +8,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.SequencedCollection;
@@ -85,16 +86,26 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
   }
 
   @Override
-  public @UnmodifiableView Iterator<InstrOrPhi> iterator() {
+  public Iterator<InstrOrPhi> iterator() {
     return new Iterator<>() {
       private int i = 0;
       private final Iterator<Phi<?>> phis = BB.this.phis.iterator();
-      private final Iterator<Stmt> stmts = BB.this.stmts.iterator();
+      private final ListIterator<Stmt> stmts = BB.this.stmts.listIterator();
       private @Nullable InstrOrPhi next;
 
       @Override
       public boolean hasNext() {
-        return i < 3;
+        var end = 3;
+        if (jump == null) {
+          end--;
+          if (!stmts.hasNext()) {
+            end--;
+            if (!phis.hasNext()) {
+              end--;
+            }
+          }
+        }
+        return i < end;
       }
 
       @Override
@@ -135,8 +146,71 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
           default -> throw new IllegalStateException("remove() called beyond end of iteration");
         }
         cfg().untrack(next);
+        switch (i) {
+          case 0 -> cfg().record(new CFGEdit.RemovePhi(id, ((Phi<?>) next).id()));
+          case 1 -> cfg().record(new CFGEdit.RemoveStmt(id, stmts.nextIndex()));
+          case 2 -> cfg().record(new CFGEdit.RemoveJump(id));
+        }
       }
     };
+  }
+
+  @Override
+  public Iterable<Instr> instrs() {
+    return () ->
+        new Iterator<>() {
+          private int i = 0;
+          private final ListIterator<Stmt> stmts = BB.this.stmts.listIterator();
+          private @Nullable Instr next;
+
+          @Override
+          public boolean hasNext() {
+            var end = 2;
+            if (jump == null) {
+              end--;
+              if (!stmts.hasNext()) {
+                end--;
+              }
+            }
+            return i < end;
+          }
+
+          @Override
+          public Instr next() {
+            if (i == 0) {
+              if (stmts.hasNext()) {
+                next = stmts.next();
+                return next;
+              }
+              i++;
+            }
+            if (i == 1) {
+              if (jump != null) {
+                i++;
+                next = jump;
+                return next;
+              }
+            }
+            throw new NoSuchElementException();
+          }
+
+          @Override
+          public void remove() {
+            if (next == null) {
+              throw new IllegalStateException("next() not called");
+            }
+            switch (i) {
+              case 0 -> stmts.remove();
+              case 1 -> setJump(null);
+              default -> throw new IllegalStateException("remove() called beyond end of iteration");
+            }
+            cfg().untrack(next);
+            switch (i) {
+              case 0 -> cfg().record(new CFGEdit.RemoveStmt(id, stmts.nextIndex()));
+              case 1 -> cfg().record(new CFGEdit.RemoveJump(id));
+            }
+          }
+        };
   }
 
   @Override
@@ -198,7 +272,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     if (index < 0 || index > stmts.size()) {
       throw new IndexOutOfBoundsException("Index out of range: " + index);
     }
-    var newBB = cfg().doAddBB("←" + id.name());
+    var newBB = cfg().doAddBB(id.name());
 
     for (var pred : predecessors) {
       assert pred.jump != null && pred.jump.targets().contains(this)
@@ -221,7 +295,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     if (index < 0 || index > stmts.size()) {
       throw new IndexOutOfBoundsException("Index out of range: " + index);
     }
-    var newBB = cfg().doAddBB(id.name() + "→");
+    var newBB = cfg().doAddBB(id.name());
 
     for (var succ : successors()) {
       assert succ.predecessors.contains(this)
@@ -438,23 +512,23 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
   }
 
   @Override
-  public <N extends Node> void addPhiInput(Phi<N> phi, BB incomingBb, N node) {
+  public <N extends Node> void addPhiInput(Phi<N> phi, BB incomingBB, N node) {
     if (!phis.contains(phi)) {
       throw new NoSuchElementException("Phi not in " + id() + ": " + phi);
     }
-    phi.unsafeAddInput(incomingBb, node);
+    phi.unsafeAddInput(incomingBB, node);
 
-    cfg().record(new AddPhiInput<>(id, phi.id(), incomingBb.id, Node.idOf(node)));
+    cfg().record(new AddPhiInput<>(id, phi.id(), incomingBB.id, Node.idOf(node)));
   }
 
   @Override
-  public <N extends Node> N removePhiInput(Phi<N> phi, BB incomingBb) {
+  public <N extends Node> N removePhiInput(Phi<N> phi, BB incomingBB) {
     if (!phis.contains(phi)) {
       throw new NoSuchElementException("Phi not in " + id() + ": " + phi);
     }
-    var input = phi.unsafeRemoveInput(incomingBb);
+    var input = phi.unsafeRemoveInput(incomingBB);
 
-    cfg().record(new CFGEdit.RemovePhiInput<>(id, phi.id(), incomingBb.id));
+    cfg().record(new CFGEdit.RemovePhiInput<>(id, phi.id(), incomingBB.id));
     return input;
   }
 

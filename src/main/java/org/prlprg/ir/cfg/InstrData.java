@@ -1,5 +1,9 @@
 package org.prlprg.ir.cfg;
 
+import com.google.common.collect.ImmutableMap;
+import java.util.Arrays;
+import java.util.function.Function;
+import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.prlprg.ir.type.REffects;
 
@@ -9,6 +13,15 @@ import org.prlprg.ir.type.REffects;
  * @see Instr for why we have this separate from instructions.
  */
 public sealed interface InstrData<I extends Instr> permits JumpData, StmtData {
+  @SuppressWarnings("unchecked")
+  ImmutableMap<String, Class<? extends InstrData<?>>> CLASSES =
+      Stream.concat(
+              Arrays.stream(StmtData.class.getNestMembers()),
+              Arrays.stream(JumpData.class.getNestMembers()))
+          .filter(c -> c.isRecord() && InstrData.class.isAssignableFrom(c))
+          .map(c -> (Class<? extends InstrData<?>>) c)
+          .collect(ImmutableMap.toImmutableMap(Class::getSimpleName, Function.identity()));
+
   /** Create an instruction containing this data and a small descriptive name (or empty string). */
   I make(CFG cfg, String name);
 

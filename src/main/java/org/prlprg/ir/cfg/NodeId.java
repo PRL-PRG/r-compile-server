@@ -1,13 +1,18 @@
 package org.prlprg.ir.cfg;
 
 import java.util.Objects;
+import org.prlprg.parseprint.ParseMethod;
+import org.prlprg.parseprint.Parser;
+import org.prlprg.parseprint.SkipWhitespace;
 import org.prlprg.util.Classes;
+import org.prlprg.util.InterfaceHiddenMembers;
 
 /**
  * CFG-unique identifier for a node of class {@code N}, which can refer to a future node in {@link
  * CFGEdit}s. Every local node has an id unique within its CFG, and every global node has an id
  * unique within <b>every</b> CFG.
  */
+@InterfaceHiddenMembers(NodeIdImpl.class)
 public interface NodeId<N extends Node> {
   /** Specific class of the node with this id. */
   Class<? extends N> clazz();
@@ -21,7 +26,8 @@ public interface NodeId<N extends Node> {
    * internally to construct ids whose string representations are derived from other ids.
    */
   default String name() {
-    return toString().substring(1);
+    var full = toString();
+    return full.startsWith("%") || full.startsWith("φ") ? full.substring(1) : full;
   }
 }
 
@@ -38,6 +44,11 @@ abstract class NodeIdImpl<N extends Node> implements NodeId<N> {
    */
   protected NodeIdImpl(N node, String id) {
     this.clazz = Classes.classOf(node);
+    this.id = id;
+  }
+
+  private NodeIdImpl(Class<? extends N> clazz, String id) {
+    this.clazz = clazz;
     this.id = id;
   }
 
@@ -60,6 +71,39 @@ abstract class NodeIdImpl<N extends Node> implements NodeId<N> {
   @Override
   public String toString() {
     return id;
+  }
+
+  /**
+   * Node ID parsed from a string.
+   *
+   * <p>This means that, unlike other constructed ids constructed directly from strings, it may be
+   * equal to an existing ID in the CFG.
+   */
+  private static final class Parsed extends NodeIdImpl<Node> {
+    public Parsed(String id) {
+      super(Node.class, id);
+    }
+  }
+
+  @ParseMethod(SkipWhitespace.NONE)
+  private static NodeId<?> parse(Parser p) {
+    var s = p.scanner();
+
+    // IDs are literal, so keep the type/disambiguator and quoted content including all punctuation.
+    var type = s.trySkip('%') ? '%' : s.trySkip('φ') ? 'φ' : "";
+    var content = NodesAndBBIds.readIdNameLiterally(s);
+    var auxMembers = new StringBuilder();
+    while (s.trySkip('#')) {
+      auxMembers
+          .append('#')
+          .append(
+              s.readWhile(
+                  s.nextCharSatisfies(Character::isDigit)
+                      ? Character::isDigit
+                      : NodesAndBBIds::isValidUnescapedIdChar));
+    }
+
+    return new Parsed(type + content + auxMembers);
   }
 }
 
@@ -85,7 +129,7 @@ final class InstrId<N extends Instr> extends NodeIdImpl<N> {
    * arguments to this constructor.
    */
   public InstrId(N node, CFG cfg, String name) {
-    super(node, "%" + cfg.nextNodeId(name));
+    super(node, '%' + cfg.nextNodeId(name));
   }
 }
 
@@ -98,19 +142,22 @@ final class PhiId<N extends Phi<?>> extends NodeIdImpl<N> {
    * arguments to this constructor.
    */
   public PhiId(N node, CFG cfg, String name) {
-    super(node, "φ" + cfg.nextNodeId(name));
+    super(node, 'φ' + cfg.nextNodeId(name));
   }
 }
 
 final class AuxillaryNodeId<N extends Node> extends NodeIdImpl<N> {
   /**
-   * Create a node id using the class of the given node and given descriptive name.
+   * Create a node id using the class of the given node and given descriptive member name.
    *
    * <p>The node is not actually stored in the id, only its class is stored internally for internal
    * assertions. Equality is only determined by the class of the id itself (not node), and the other
    * arguments to this constructor.
    */
-  public AuxillaryNodeId(N node, NodeId<?> base, String id) {
-    super(node, base + "#" + id);
+  public AuxillaryNodeId(N node, NodeId<?> base, String memberId) {
+    super(node, base + "#" + memberId);
+    assert NodesAndBBIds.isValidUnescapedId(memberId)
+            || memberId.chars().allMatch(Character::isDigit)
+        : "auxillary node's member ID must be a valid CFG id or number";
   }
 }

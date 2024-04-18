@@ -1,6 +1,6 @@
 package org.prlprg.parseprint;
 
-/** Skip all whitespace, all except newlines, or nothing? For {@link Lexer} and {@link Parser}. */
+/** Skip all whitespace, all except newlines, or nothing? For {@link Scanner} and {@link Parser}. */
 public enum SkipWhitespace {
   /** Skip all whitespace. */
   ALL,

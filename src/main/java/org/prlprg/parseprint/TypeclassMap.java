@@ -1,17 +1,20 @@
 package org.prlprg.parseprint;
 
+import com.google.common.collect.Streams;
 import java.lang.annotation.Annotation;
 import java.util.ArrayDeque;
-import java.util.Arrays;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import javax.annotation.Nullable;
+import org.prlprg.util.Classes;
 import org.prlprg.util.InterfaceHiddenMembers;
 import org.prlprg.util.InvalidAnnotationError;
+import org.prlprg.util.Pair;
 
 /**
  * A Rust/Haskell-style typeclass system, built lazily using reflection.
@@ -162,6 +165,8 @@ class TypeclassMap<A extends Annotation, M extends TypeclassMethod> {
   private final Map<Class<?>, Map<Class<?>, M>> methods = new HashMap<>();
   private final Set<Class<?>> registeredObjectClasses = new HashSet<>();
   private final Set<Class<?>> registeredContextClasses = new HashSet<>();
+  // So we only have to resolve a specific object and context class once.
+  private final Map<Pair<Class<?>, Class<?>>, Optional<M>> memoizedLookups = new HashMap<>();
 
   public TypeclassMap(Class<A> annotationClass, TypeclassMethodLoader<A, M> loader) {
     this.annotationClass = annotationClass;
@@ -207,6 +212,14 @@ class TypeclassMap<A extends Annotation, M extends TypeclassMethod> {
    *     TypeclassMethodLoader} may also throw this.
    */
   public @Nullable M lookup(Class<?> clazz, Class<?> contextClass) {
+    var args = Pair.<Class<?>, Class<?>>of(clazz, contextClass);
+    if (memoizedLookups.containsKey(args)) {
+      return memoizedLookups.get(args).orElse(null);
+    }
+
+    // We *must* use the boxed version
+    clazz = clazz.isPrimitive() ? Classes.boxed(clazz) : clazz;
+
     lazilyRegisterObjectClassAndSupers(clazz);
     lazilyRegisterContextClass(contextClass);
 
@@ -214,12 +227,15 @@ class TypeclassMap<A extends Annotation, M extends TypeclassMethod> {
     if (contextClass != Void.class) {
       var result = lookupSpecificContext(clazz, contextClass);
       if (result != null) {
+        memoizedLookups.put(args, Optional.of(result));
         return result;
       }
     }
 
     // Try to find a method for no context, or return null.
-    return lookupSpecificContext(clazz, Void.class);
+    var result = lookupSpecificContext(clazz, Void.class);
+    memoizedLookups.put(args, Optional.ofNullable(result));
+    return result;
   }
 
   /**
@@ -256,17 +272,20 @@ class TypeclassMap<A extends Annotation, M extends TypeclassMethod> {
 
   private void lazilyRegisterObjectClassAndSupers(Class<?> clazz) {
     if (!registeredObjectClasses.add(clazz)) {
-      // This means we registered all superclasses as well.
+      // This means we registered all future superclasses as well.
       return;
     }
+    registerObjectClass(clazz);
 
     for (var superclass : methodSuperclassChain(clazz, false)) {
       if (!registeredObjectClasses.add(superclass)) {
-        // This means we registered all superclasses as well.
-        break;
-      } else {
-        registerObjectClass(superclass);
+        // This *doesn't* necessarily mean we registered all future superclasses as well, since they
+        // may not just real superclasses, but siblings of the current class if it's itself a
+        // superclass (a potential optimization is to extract the iterator adn tell it to stop
+        // iterating parents).
+        continue;
       }
+      registerObjectClass(superclass);
     }
   }
 
@@ -289,16 +308,19 @@ class TypeclassMap<A extends Annotation, M extends TypeclassMethod> {
       var actualObjectClass = typeclassMethod.objectClass();
       var contextClass = typeclassMethod.contextClass();
 
-      if (actualObjectClass != clazz) {
+      // Have to check the superclass chain (vs `isAssignableFrom`) because we allow the classes in
+      // @InterfaceHiddenMembers annotations to register the method.
+      if (Streams.stream(methodSuperclassChain(actualObjectClass, true)).noneMatch(clazz::equals)) {
         throw new InvalidAnnotationError(
             method,
             "method in object class "
                 + clazz
-                + " is for a different object class "
-                + actualObjectClass);
+                + " is for "
+                + actualObjectClass
+                + "; it's only allowed to be for itself or a subclass");
       }
 
-      registerMethod(classMethods, clazz, contextClass, typeclassMethod);
+      registerMethod(classMethods, actualObjectClass, contextClass, typeclassMethod);
     }
   }
 
@@ -346,9 +368,11 @@ class TypeclassMap<A extends Annotation, M extends TypeclassMethod> {
     return () ->
         new Iterator<>() {
           final Deque<Class<?>> worklist = new ArrayDeque<>();
+          final Set<Class<?>> seen = new HashSet<>();
 
           {
             worklist.add(clazz);
+            seen.add(clazz);
             if (!includeSelf) {
               next();
             }
@@ -363,13 +387,19 @@ class TypeclassMap<A extends Annotation, M extends TypeclassMethod> {
           public Class<?> next() {
             var next = worklist.removeFirst();
 
-            if (next.isInterface() && next.isAnnotationPresent(InterfaceHiddenMembers.class)) {
+            if (next.isInterface()
+                && next.isAnnotationPresent(InterfaceHiddenMembers.class)
+                && seen.add(next.getAnnotation(InterfaceHiddenMembers.class).value())) {
               worklist.add(next.getAnnotation(InterfaceHiddenMembers.class).value());
             }
-            if (next.getSuperclass() != null) {
+            if (next.getSuperclass() != null && seen.add(next.getSuperclass())) {
               worklist.add(next.getSuperclass());
             }
-            worklist.addAll(Arrays.asList(next.getInterfaces()));
+            for (var iface : next.getInterfaces()) {
+              if (seen.add(iface)) {
+                worklist.add(iface);
+              }
+            }
 
             return next;
           }

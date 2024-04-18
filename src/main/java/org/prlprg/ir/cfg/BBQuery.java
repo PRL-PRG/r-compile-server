@@ -52,13 +52,24 @@ interface BBQuery extends Iterable<InstrOrPhi> {
   int numInstrs();
 
   /**
-   * (A view of) the basic block's children: phis, statements, and jump.
+   * The basic block's children: phis, statements, and jump.
+   *
+   * <p>The iterator supports removing the current element.
    *
    * <p>Be aware that mutating the block will affect this iterator the same way it would be affected
    * while iterating {@link #stmts()}, or will affect the jump before it's reached.
    */
-  @UnmodifiableView
   Iterator<InstrOrPhi> iterator();
+
+  /**
+   * The basic block's instructions: statements and jump.
+   *
+   * <p>The iterator supports removing the current element.
+   *
+   * <p>Be aware that mutating the block will affect this iterator the same way it would be affected
+   * while iterating {@link #stmts()}, or will affect the jump before it's reached.
+   */
+  Iterable<Instr> instrs();
 
   /** Returns whether this BB contains the given instruction or phi. */
   boolean contains(InstrOrPhi instr);

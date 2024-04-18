@@ -58,7 +58,7 @@ interface BBInline extends BBCompoundMutate {
                     .map(
                         i -> {
                           var newIncomingBB =
-                              Objects.requireNonNull(oldToNewBBs.get(i.incomingBb().id()));
+                              Objects.requireNonNull(oldToNewBBs.get(i.incomingBB().id()));
                           return new Phi.Input<>(newIncomingBB, i.node());
                         })
                     .toList());

@@ -11,6 +11,24 @@ import org.prlprg.sexp.PromSXP;
  * it's lazy, the exact value if promise and known, and reference count if promise and known.
  */
 sealed interface RPromiseType extends Lattice<RPromiseType> {
+
+  /**
+   * Returns a type with the given information (strictness and laziness) and nothing else.
+   *
+   * <p>Specifically, {@link PromiseRType} can't encode exact values, but {@link RPromiseType} can,
+   * so the returned type has no exact value.
+   */
+  static RPromiseType of(PromiseRType promiseType) {
+    return switch (promiseType) {
+      case VALUE -> VALUE;
+      case MAYBE_PROMISE -> MAYBE_STRICT_PROMISE;
+      case MAYBE_LAZY_PROMISE -> MAYBE_LAZY_PROMISE;
+      case PROMISE -> STRICT_PROMISE;
+      case PROMISE_MAYBE_LAZY -> PROMISE_MAYBE_LAZY;
+      case LAZY -> LAZY_PROMISE;
+    };
+  }
+
   /**
    * Whether this is a promise, and if so, whether it's lazy. {@code this} without the exact value
    * and reference count information.
@@ -46,6 +64,21 @@ sealed interface RPromiseType extends Lattice<RPromiseType> {
       case MaybePromise(var _) -> new MaybePromise(NoOrMaybe.NO);
       case Promise(var isLazy, var exactValue) ->
           new Promise(Troolean.NO, isLazy == Troolean.NO ? exactValue : null);
+    };
+  }
+
+  /**
+   * If this is strict, returns maybe-lazy. Otherwise returns itself.
+   *
+   * <p>In particular, if this is a value, returns maybe-promise.
+   */
+  default RPromiseType notStrict() {
+    return switch (this) {
+      case Value() -> this;
+      case MaybePromise(var isLazy) ->
+          isLazy != NoOrMaybe.NO ? this : new MaybePromise(NoOrMaybe.MAYBE);
+      case Promise(var isLazy, var _) ->
+          isLazy != Troolean.NO ? this : new Promise(Troolean.MAYBE, null);
     };
   }
 

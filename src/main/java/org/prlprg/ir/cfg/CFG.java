@@ -17,13 +17,15 @@ import org.prlprg.ir.cfg.CFGIterator.DomTreeBfs;
 import org.prlprg.ir.cfg.CFGVerifyException.BrokenInvariant;
 import org.prlprg.ir.cfg.CFGVerifyException.MissingJump;
 import org.prlprg.ir.cfg.CFGVerifyException.PhisInSinglePredecessorBB;
+import org.prlprg.parseprint.Printer;
 
 /**
  * IR (intermediate representation) <a
  * href="https://en.wikipedia.org/wiki/Control-flow_graph">control-flow-graph</a> (graph of {@link
  * Node}s which corresponds to a program; more specifically, a graph of {@link BB}s).
  */
-public class CFG implements CFGQuery, CFGIntrinsicMutate, CFGCleanup, CFGVerify, CFGSerialize {
+public class CFG
+    implements CFGQuery, CFGIntrinsicMutate, CFGCleanup, CFGVerify, CFGParsePrint, CFGPirSerialize {
   private final List<CFGObserver> observers = new ArrayList<>();
   private final BB entry;
   // These are ordered to ensure deterministic traversal
@@ -36,8 +38,8 @@ public class CFG implements CFGQuery, CFGIntrinsicMutate, CFGCleanup, CFGVerify,
 
   /** Create a new CFG, with a single basic block and no instructions. */
   public CFG() {
-    nextNodeIds.put("", 0);
-    nextBbIds.put("", 0);
+    nextNodeIds.put("n", 0);
+    nextBbIds.put("bb", 0);
     entry = new BB(this, "");
     bbs.put(entry.id(), entry);
     markExit(entry);
@@ -89,7 +91,7 @@ public class CFG implements CFGQuery, CFGIntrinsicMutate, CFGCleanup, CFGVerify,
 
   @Override
   public <N extends Node> Phi.Input<N> get(Phi.InputId<N> inputId) {
-    var bb = get(inputId.incomingBbId());
+    var bb = get(inputId.incomingBBId());
     var node = get(inputId.nodeId());
     return new Phi.Input<>(bb, node);
   }
@@ -248,9 +250,9 @@ public class CFG implements CFGQuery, CFGIntrinsicMutate, CFGCleanup, CFGVerify,
       for (var phi : bb.phis()) {
         // Phi nodes have an entry from every predecessor.
         for (var input : phi.inputs()) {
-          if (!bb.predecessors().contains(input.incomingBb())) {
+          if (!bb.predecessors().contains(input.incomingBB())) {
             errors.add(
-                new CFGVerifyException.ExtraInputInPhi(bb.id(), phi.id(), input.incomingBb()));
+                new CFGVerifyException.ExtraInputInPhi(bb.id(), phi.id(), input.incomingBB()));
           }
         }
         for (var pred : bb.predecessors()) {
@@ -304,18 +306,7 @@ public class CFG implements CFGQuery, CFGIntrinsicMutate, CFGCleanup, CFGVerify,
 
   @Override
   public String toString() {
-    var sb = new StringBuilder();
-    var iter = new CFGIterator.Bfs(this);
-    iter.forEachRemaining(sb::append);
-
-    if (!iter.remainingBBIds().isEmpty()) {
-      sb.append("!!! Free BBs:\n");
-      for (var bbId : iter.remainingBBIds()) {
-        sb.append(bbs.get(bbId));
-      }
-    }
-
-    return sb.toString();
+    return Printer.toString(this);
   }
 
   // endregion
@@ -328,7 +319,12 @@ public class CFG implements CFGQuery, CFGIntrinsicMutate, CFGCleanup, CFGVerify,
     }
   }
 
-  /** Insert and return a new basic block without recording it. */
+  /**
+   * Insert and return a new basic block without recording it.
+   *
+   * <p>This should only be called by {@link CFG} and {@link BB} in {@linkplain CFGEdit.Intrinsic
+   * intrinsic} edits.
+   */
   BB doAddBB(String name) {
     var bb = new BB(this, name);
     assert !bbs.containsKey(bb.id());
@@ -449,35 +445,29 @@ public class CFG implements CFGQuery, CFGIntrinsicMutate, CFGCleanup, CFGVerify,
   }
 
   /**
-   * Returns {@code name} if unique to the CFG, otherwise disambiguates with a suffix.
+   * Escapes and disambiguates {@code name}, or replaces with a default id if empty.
    *
    * <p>This is called within {@link BBId} (importantly not {@link BB} itself), so don't call again
    * or it would be redundant.
    */
   String nextBBId(String name) {
-    return nextId(name, nextBbIds);
+    if (name.isEmpty()) {
+      name = "bb";
+    }
+    return NodesAndBBIds.nextId(name, nextBbIds);
   }
 
   /**
-   * Returns {@code name} if unique to the CFG, otherwise disambiguates with a suffix.
+   * Escapes and disambiguates {@code name}, or replaces with a default id if empty.
    *
    * <p>This is called within {@link PhiId} and {@link InstrId} (importantly not {@link Phi} or
    * {@link Instr} themselves), so don't call again or it would be redundant.
    */
   String nextNodeId(String name) {
-    return nextId(name, nextNodeIds);
-  }
-
-  private String nextId(String name, Map<String, Integer> nextIds) {
-    String result;
-    if (nextIds.containsKey(name)) {
-      result = (name.isEmpty() ? "" : name + "@") + nextIds.get(name);
-      nextIds.put(name, nextIds.get(name) + 1);
-    } else {
-      result = name;
-      nextIds.put(name, 0);
+    if (name.isEmpty()) {
+      name = "n";
     }
-    return result;
+    return NodesAndBBIds.nextId(name, nextNodeIds);
   }
   // endregion
 

@@ -4,11 +4,12 @@ import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.Writer;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
-import java.util.Collection;
 import java.util.function.Consumer;
 import javax.annotation.Nullable;
+import org.prlprg.util.InvalidAnnotationError;
 
 /**
  * Print objects to a stream of text whose classes have a registered {@link PrintMethod}, and uses
@@ -29,6 +30,10 @@ public class Printer {
   private static final TypeclassMap<PrintMethod, PrintMethod_> PRINT_METHODS =
       new TypeclassMap<>(PrintMethod.class, PrintMethod_::load);
 
+  static {
+    PRINT_METHODS.registerBuiltins(BuiltinPrintMethods.class);
+  }
+
   private final PrettyPrintWriter writer;
   private final @Nullable Object context;
 
@@ -36,6 +41,16 @@ public class Printer {
   private Printer(PrettyPrintWriter writer, @Nullable Object context) {
     this.writer = writer;
     this.context = context;
+  }
+
+  /** Use a printer to print the given object to a string. */
+  public static String toString(Object o) {
+    return use(p -> p.print(o));
+  }
+
+  /** Use a printer and context to print the given object to a string. */
+  public static String toString(Object o, Object ctx) {
+    return use(p -> p.withContext(ctx).print(o));
   }
 
   /** Use a printer and return the output as a string. */
@@ -70,17 +85,39 @@ public class Printer {
    *
    * <p>This doesn't invalidate this printer, you can even use both printers simultaneously. They
    * share the same stream.
+   *
+   * @throws IllegalArgumentException If the context itself is a printer, because you probably meant
+   *     to use that printer directly.
    */
-  public Printer withContext(Object context) {
+  public Printer withContext(@Nullable Object context) {
+    if (context instanceof Printer) {
+      throw new IllegalArgumentException(
+          "Can't assign printer as context, did you mean to use that printer directly?");
+    }
     return new Printer(writer, context);
   }
 
   // endregion constructors
 
+  // region getters
   /** The underlying writer which can be used to write text directly, indent, and dedent. */
   public PrettyPrintWriter writer() {
     return writer;
   }
+
+  /**
+   * The context associated with the printer.
+   *
+   * <p>This isn't typed, because the dispatched {@code print} methods will have the correct context
+   * type. Those methods should use that context instead. This is for printers which take no
+   * context, but may want to special-case when a context with a certain type or annotation is
+   * provided.
+   */
+  public @Nullable Object context() {
+    return context;
+  }
+
+  // endregion getters
 
   // region print non-terminals
   /**
@@ -102,12 +139,12 @@ public class Printer {
   }
 
   /**
-   * Print a collection as a list of the form {@code [a,b,...]}.
+   * Print an iterable as a list of the form {@code [a,b,...]}.
    *
    * @param whitespaceAfterComma whether to print a space after each comma.
    * @see #print(Object)
    */
-  public void printAsList(Collection<?> list, boolean whitespaceAfterComma) {
+  public void printAsList(Iterable<?> list, boolean whitespaceAfterComma) {
     writer.write('[');
     var first = true;
     for (var item : list) {
@@ -130,52 +167,65 @@ public class Printer {
       @Override Class<?> objectClass,
       @Override Class<?> contextClass,
       Method method,
-      boolean isStatic)
+      boolean isStatic,
+      boolean isContextInstanceMethod)
       implements TypeclassMethod {
     static PrintMethod_ load(PrintMethod annotation, Method method) {
       var isStatic = Modifier.isStatic(method.getModifiers());
 
       // Check invariants
-      var ARITY_MESSAGE =
-          "If static, the print method must take the object to be printed as its first argument. The next argument must be the printer, and optionally, there may be an additional context argument..";
       if (isStatic) {
         if (method.getParameterCount() != 2 && method.getParameterCount() != 3) {
-          throw new IllegalArgumentException(
-              "static print method must take 2 or 3 arguments.\n" + ARITY_MESSAGE);
+          throw new InvalidAnnotationError(
+              method,
+              "static print method must take 2 or 3 arguments (the object to be printed, printer, and optionally the context).");
         }
         if (method.getParameterTypes()[1] != Printer.class) {
-          throw new IllegalArgumentException(
-              "static print method must take a Printer as its second argument.\n" + ARITY_MESSAGE);
+          throw new InvalidAnnotationError(
+              method,
+              "static print method must take a Printer as its second argument (first is the object to be printed).");
         }
       } else {
         if (method.getParameterCount() != 1 && method.getParameterCount() != 2) {
-          throw new IllegalArgumentException(
-              "non-static print method must take 1 or 2 arguments.\n" + ARITY_MESSAGE);
+          throw new InvalidAnnotationError(
+              method,
+              "non-static print method must take 1 or 2 arguments (the printer, and optionally the object or context).");
         }
-        if (method.getParameterTypes()[0] != Printer.class) {
-          throw new IllegalArgumentException(
-              "non-static print method must take a Printer as its first argument.\n"
-                  + ARITY_MESSAGE);
+        if (method.getParameterTypes()[0] != Printer.class
+            && (method.getParameterCount() != 2
+                || method.getParameterTypes()[1] != Printer.class)) {
+          throw new InvalidAnnotationError(
+              method,
+              "non-static print method must take a Printer as its first or second argument (if first, the second argument is context and the instance is the object; if second, the first argument is object and the instance is the context).");
         }
       }
       if (method.getExceptionTypes().length != 0) {
-        throw new IllegalArgumentException("print method must not throw checked exceptions");
+        throw new InvalidAnnotationError(method, "print method must not throw checked exceptions.");
       }
       if (!Modifier.isPrivate(method.getModifiers())) {
-        throw new IllegalArgumentException("print method must be private.");
+        throw new InvalidAnnotationError(method, "print method must be private.");
       }
 
       // Get remaining method metadata
-      var objectClass = isStatic ? method.getParameterTypes()[0] : method.getDeclaringClass();
+      var isContextInstanceMethod =
+          !isStatic
+              && method.getParameterCount() == 2
+              && method.getParameterTypes()[1] == Printer.class;
+      var objectClass =
+          isStatic || isContextInstanceMethod
+              ? method.getParameterTypes()[0]
+              : method.getDeclaringClass();
       var contextClass =
           isStatic
               ? (method.getParameterCount() == 3 ? method.getParameterTypes()[2] : Void.class)
-              : (method.getParameterCount() == 2 ? method.getParameterTypes()[1] : Void.class);
+              : isContextInstanceMethod
+                  ? method.getDeclaringClass()
+                  : (method.getParameterCount() == 2 ? method.getParameterTypes()[1] : Void.class);
 
       // Configure method
       method.setAccessible(true);
 
-      return new PrintMethod_(objectClass, contextClass, method, isStatic);
+      return new PrintMethod_(objectClass, contextClass, method, isStatic, isContextInstanceMethod);
     }
 
     void invoke(Printer p, Object object) {
@@ -184,11 +234,22 @@ public class Printer {
           method.invoke(null, object, p, p.context);
         } else if (isStatic) {
           method.invoke(null, object, p);
+        } else if (isContextInstanceMethod && takesContext()) {
+          method.invoke(p.context, object, p);
+        } else if (isContextInstanceMethod) {
+          method.invoke(p.context, p);
         } else if (takesContext()) {
           method.invoke(object, p, p.context);
         } else {
           method.invoke(object, p);
         }
+      } catch (InvocationTargetException e) {
+        if (e.getCause() instanceof RuntimeException e1) {
+          throw e1;
+        } else if (e.getCause() instanceof Error e1) {
+          throw e1;
+        }
+        throw new AssertionError("checked exception in reflectively called print method", e);
       } catch (ReflectiveOperationException e) {
         throw new RuntimeException("failed to invoke print method", e);
       }
