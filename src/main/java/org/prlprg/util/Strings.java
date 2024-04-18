@@ -39,5 +39,46 @@ public class Strings {
     return str.startsWith(prefix) ? str.substring(prefix.length()) : null;
   }
 
+  /** Escape the string and surround in double-quotes. */
+  public static String quote(String str) {
+    return '"' + escape(str) + '"';
+  }
+
+  /** Escape the character and surround in single-quotes. */
+  public static String quote(int chr) {
+    return '\'' + escape(chr) + '\'';
+  }
+
+  /** Escape the character and surround in single-quotes. */
+  public static String quote(char chr) {
+    return '\'' + escape(chr) + '\'';
+  }
+
+  /** Escape the string, don't surround in double-quotes. */
+  public static String escape(String str) {
+    var sb = new StringBuilder();
+    for (var c : str.toCharArray()) {
+      sb.append(escape(c));
+    }
+    return sb.toString();
+  }
+
+  /** Escape the character, don't surround in single-quotes. */
+  public static String escape(int c) {
+    return switch (c) {
+      case '\n' -> "\\n";
+      case '\r' -> "\\r";
+      case '\t' -> "\\t";
+      case '\'' -> "\\'";
+      case '\\' -> "\\\\";
+      default -> Character.toString(c);
+    };
+  }
+
+  /** Escape the character, don't surround in single-quotes. */
+  public static String escape(char c) {
+    return escape((int) c);
+  }
+
   private Strings() {}
 }

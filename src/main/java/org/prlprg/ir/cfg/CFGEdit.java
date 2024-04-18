@@ -460,6 +460,7 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
   // endregion
 }
 
+/** Private utility class for {@link CFGEdit}. */
 final class CFGEdits {
   /**
    * Prepends "Undo " to the label if it isn't already prepended, otherwise removes it (so {@code

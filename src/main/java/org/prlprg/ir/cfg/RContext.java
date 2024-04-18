@@ -7,8 +7,8 @@ import org.prlprg.ir.cfg.StmtData.PushContext;
  * Context}).
  *
  * <p>IR node which corresponds to a runtime context. But there is only one, which is this
- * instruction type. If more need to be added, we'll need to extract a {@link Node} interface and
- * rename this to {@code RContextStmt}.
+ * instruction type. If more need to be added (or there can be {@link Phi}s), we'll need to extract
+ * a {@link Node} interface and rename this to {@code RContextStmt}.
  */
 public interface RContext extends Stmt {
   @Override

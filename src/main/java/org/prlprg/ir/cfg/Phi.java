@@ -19,14 +19,39 @@ import org.prlprg.util.MapListView;
  * φ-node</a>: a node referenced within a basic block that may originate from more than one of its
  * predecessors.
  *
- * <p>Each φ only handles nodes of a particular type, e.g. {@link RValue}s or {@code ForLoopInfo}s.
+ * <p>Each φ only handles nodes of a particular type, e.g. {@link RValue}s or {@link FrameState}s.
  * This interface is also extended for specific classes so that it can inherit them, e.g. {@link
- * RValuePhi} and {@code ForLoopInfoPhi}.
+ * RValuePhi} and {@link FrameStatePhi}.
  *
  * <p>φ nodes can temporarily have only 0 or 1 input. However, before {@link CFG#verify()}, nodes
  * with one input must be replaced with the input itself, and nodes with 0 inputs must be removed.
  */
 public non-sealed interface Phi<N extends Node> extends InstrOrPhi {
+  /**
+   * Returns the most specific class with a {@link Phi} implementation where both input nodes are
+   * subclasses.
+   *
+   * <p>This <i>does not</i> return the phi class itself. For example, if both nodes are {@link
+   * RValue}s and not {@link Env}s, it would return {@link RValue}, not {@link RValuePhi}.
+   *
+   * @throws IllegalArgumentException if there are no such classes.
+   */
+  static Class<? extends Node> commonInputSuperclass(
+      Class<? extends Node> a, Class<? extends Node> b) {
+    if (Env.class.isAssignableFrom(a) && Env.class.isAssignableFrom(b)) {
+      return Env.class;
+    } else if (RValue.class.isAssignableFrom(a) && RValue.class.isAssignableFrom(b)) {
+      return RValue.class;
+    } else if (DeoptReason.class.isAssignableFrom(a) && DeoptReason.class.isAssignableFrom(b)) {
+      return DeoptReason.class;
+    } else if (FrameState.class.isAssignableFrom(a) && FrameState.class.isAssignableFrom(b)) {
+      return FrameState.class;
+    } else {
+      throw new IllegalArgumentException(
+          "No common φ type implemented for the given classes: " + a + " and " + b);
+    }
+  }
+
   /**
    * Create a new φ-node for the given node class. It should implement the necessary superclass so
    * that it's acceptable to replace a node of this class with this φ.
@@ -41,11 +66,31 @@ public non-sealed interface Phi<N extends Node> extends InstrOrPhi {
       @Nullable String name,
       Collection<? extends Input<? extends N>> inputs) {
     Phi<?> phi;
-    if (nodeClass == RValue.class) {
+    if (Env.class.isAssignableFrom(nodeClass)) {
+      phi = new EnvPhiImpl(cfg, name, inputs);
+    } else if (RValue.class.isAssignableFrom(nodeClass)) {
       phi = new RValuePhiImpl(cfg, name, inputs);
+    } else if (DeoptReason.class.isAssignableFrom(nodeClass)) {
+      phi = new DeoptReasonPhiImpl(cfg, name, inputs);
+    } else if (FrameState.class.isAssignableFrom(nodeClass)) {
+      phi = new FrameStatePhiImpl(cfg, name, inputs);
     } else {
       throw new UnsupportedOperationException(
           "No φ type implemented for the given class: " + nodeClass);
+    }
+    for (var input : inputs) {
+      if (!nodeClass.isInstance(input.node())) {
+        throw new IllegalArgumentException(
+            "Input node isn't an instance of the Phi's assigned class: "
+                + input.node()
+                + " is not an instance of "
+                + nodeClass
+                + (phi.nodeClass().isInstance(input.node)
+                    ? "\nNote: it *is* an instance of the actual Phi class, but you passed a more specific instance to "
+                        + nodeClass
+                        + " when you should've passed a superclass (necessary to pass the correct class because if it was Env and you passed an RValue, it would break)."
+                    : ""));
+      }
     }
     return (Phi<N>) phi;
   }
@@ -76,7 +121,7 @@ public non-sealed interface Phi<N extends Node> extends InstrOrPhi {
   Stream<N> inputNodes();
 
   /** Stream input {@link BB}s. */
-  Stream<BB> incomingBbs();
+  Stream<BB> incomingBBs();
 
   /** The number of inputs to this φ-node. */
   default int numInputs() {
@@ -89,8 +134,8 @@ public non-sealed interface Phi<N extends Node> extends InstrOrPhi {
   }
 
   /** Whether this φ-node contains the given input. */
-  default boolean containsInput(BB incomingBb) {
-    return inputs().stream().anyMatch(input -> input.incomingBb().equals(incomingBb));
+  default boolean containsInput(BB incomingBB) {
+    return inputs().stream().anyMatch(input -> input.incomingBB().equals(incomingBB));
   }
 
   /**
@@ -101,7 +146,7 @@ public non-sealed interface Phi<N extends Node> extends InstrOrPhi {
    *
    * @throws IllegalArgumentException If there's already an input from the incoming {@link BB}.
    */
-  void unsafeAddInput(BB incomingBb, N node);
+  void unsafeAddInput(BB incomingBB, N node);
 
   /**
    * Remove an input from this φ-node.
@@ -112,7 +157,7 @@ public non-sealed interface Phi<N extends Node> extends InstrOrPhi {
    * @return The input corresponding to the incoming BB, which was just removed.
    * @throws NoSuchElementException If the input isn't present.
    */
-  N unsafeRemoveInput(BB incomingBb);
+  N unsafeRemoveInput(BB incomingBB);
 
   /**
    * Replace the incoming BB of an input if the corresponding node satisfies the predicate.
@@ -156,20 +201,20 @@ public non-sealed interface Phi<N extends Node> extends InstrOrPhi {
       @Nullable String name,
       Collection<? extends InputId<? extends N>> inputIds) {}
 
-  record Input<N extends Node>(BB incomingBb, N node) {
-    public static <N extends Node> Input<N> of(BB incomingBb, N node) {
-      return new Input<>(incomingBb, node);
+  record Input<N extends Node>(BB incomingBB, N node) {
+    public static <N extends Node> Input<N> of(BB incomingBB, N node) {
+      return new Input<>(incomingBB, node);
     }
 
     @SuppressWarnings("unchecked")
     public InputId<N> id() {
-      return InputId.of(incomingBb.id(), (NodeId<? extends N>) node.id());
+      return InputId.of(incomingBB.id(), (NodeId<? extends N>) node.id());
     }
   }
 
-  record InputId<N extends Node>(BBId incomingBbId, NodeId<? extends N> nodeId) {
-    public static <N extends Node> InputId<N> of(BBId incomingBbId, NodeId<? extends N> nodeId) {
-      return new InputId<>(incomingBbId, nodeId);
+  record InputId<N extends Node>(BBId incomingBBId, NodeId<? extends N> nodeId) {
+    public static <N extends Node> InputId<N> of(BBId incomingBBId, NodeId<? extends N> nodeId) {
+      return new InputId<>(incomingBBId, nodeId);
     }
   }
 }
@@ -209,24 +254,24 @@ abstract class PhiImpl<N extends Node> implements Phi<N> {
   }
 
   @Override
-  public Stream<BB> incomingBbs() {
-    return inputs().stream().map(Input::incomingBb);
+  public Stream<BB> incomingBBs() {
+    return inputs().stream().map(Input::incomingBB);
   }
 
   @Override
-  public void unsafeAddInput(BB incomingBb, N node) {
-    if (inputs.stream().anyMatch(input -> input.incomingBb().equals(incomingBb))) {
+  public void unsafeAddInput(BB incomingBB, N node) {
+    if (inputs.stream().anyMatch(input -> input.incomingBB().equals(incomingBB))) {
       throw new IllegalArgumentException(
-          "There's already an input from the incoming BB: " + incomingBb);
+          "There's already an input from the incoming BB: " + incomingBB);
     }
-    inputs.add(new Input<>(incomingBb, node));
+    inputs.add(new Input<>(incomingBB, node));
   }
 
   @Override
-  public N unsafeRemoveInput(BB incomingBb) {
-    var idx = Iterables.indexOf(inputs, input -> input.incomingBb().equals(incomingBb));
+  public N unsafeRemoveInput(BB incomingBB) {
+    var idx = Iterables.indexOf(inputs, input -> input.incomingBB().equals(incomingBB));
     if (idx == -1) {
-      throw new NoSuchElementException("The input isn't present: " + incomingBb);
+      throw new NoSuchElementException("The input isn't present: " + incomingBB);
     }
     return inputs.remove(idx).node();
   }
@@ -236,7 +281,7 @@ abstract class PhiImpl<N extends Node> implements Phi<N> {
     var inputs = this.inputs.listIterator();
     while (inputs.hasNext()) {
       var input = inputs.next();
-      if (input.incomingBb().equals(old)) {
+      if (input.incomingBB().equals(old)) {
         if (predicate.test(input.node())) {
           inputs.set(new Input<>(replacement, input.node()));
         }
@@ -257,7 +302,7 @@ abstract class PhiImpl<N extends Node> implements Phi<N> {
     while (inputs.hasNext()) {
       var input = inputs.next();
       if (input.node().equals(old)) {
-        inputs.set(new Input<>(input.incomingBb(), (N) replacement));
+        inputs.set(new Input<>(input.incomingBB(), (N) replacement));
       }
     }
   }

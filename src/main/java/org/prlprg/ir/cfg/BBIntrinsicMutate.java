@@ -176,7 +176,7 @@ interface BBIntrinsicMutate {
    * @throws NoSuchElementException If the φ-node isn't in this BB.
    * @throws IllegalArgumentException If there's already an input from the incoming {@link BB}.
    */
-  <N extends Node> void addPhiInput(Phi<N> phi, BB incomingBb, N node);
+  <N extends Node> void addPhiInput(Phi<N> phi, BB incomingBB, N node);
 
   /**
    * Remove an input from a {@link Phi} in this BB.
@@ -185,7 +185,7 @@ interface BBIntrinsicMutate {
    * @throws NoSuchElementException If the φ-node isn't in this BB.
    * @throws IllegalArgumentException If the input isn't present.
    */
-  <N extends Node> N removePhiInput(Phi<N> phi, BB incomingBb);
+  <N extends Node> N removePhiInput(Phi<N> phi, BB incomingBB);
 
   /**
    * Replace the data within {@code oldInstr} with {@code newArgs} and update accordingly. This is

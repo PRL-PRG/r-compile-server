@@ -1,8 +1,11 @@
 package org.prlprg.primitive;
 
+import org.prlprg.parseprint.EnumSerialCaseIs;
 import org.prlprg.sexp.SEXPType;
+import org.prlprg.util.StringCase;
 
 /** Possible runtime type to be tested by GNU-R {@code is}. */
+@EnumSerialCaseIs(StringCase.PASCAL)
 public enum IsTypeCheck {
   NIL(SEXPType.NIL.i),
   LGL(SEXPType.LGL.i),

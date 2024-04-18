@@ -10,11 +10,13 @@ import java.lang.annotation.Target;
  * Annotation to put on a static method that takes a {@link Parser}, and optionally additionally a
  * context object, and returns an object that is parsed using them.
  *
- * <p>{@link Parser} looks within the class itself to find the {@code ParseMethod} for that class,
- * you cannot put it in a separate class (orphan rule). The method's arguments must be {@link
- * Parser} and optionally something else, it must return an instance of the class it's declared in,
- * it can't throw any checked exceptions, and it must be private (since using {@link
- * Parser#parse(Class)} is preferred).
+ * <p>To find the {@code ParseMethod} for that class, {@link Parser} looks within the object class
+ * itself and superclasses as well as context class (but <i>not</i> context superclasses). You
+ * cannot put it anywhere else (orphan rule). The method's arguments must be (in order) {@link
+ * Parser}, optionally something else (context), and optionally a {@link Class} (parsed class). The
+ * context may be the instance receiver, otherwise the method must be static. The method must return
+ * an instance of the class it parses. It can't throw any checked exceptions, and it must be private
+ * (since using {@link Parser#parse(Class)} is preferred).
  *
  * @see PrintMethod
  */

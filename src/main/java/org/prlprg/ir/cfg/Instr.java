@@ -8,6 +8,8 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Optional;
+import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.checkerframework.checker.index.qual.SameLen;
 import org.jetbrains.annotations.UnmodifiableView;
@@ -134,15 +136,26 @@ abstract sealed class InstrImpl<D extends InstrData<?>> implements NodeWithCfg
         Arrays.stream(components)
             .filter(
                 cmp -> {
-                  if (!Collection.class.isAssignableFrom(cmp.getType())) {
+                  if (cmp.getType() != Optional.class
+                      && !Collection.class.isAssignableFrom(cmp.getType())) {
                     return false;
                   }
-                  return Node.class.isAssignableFrom(collectionComponentElementClass(cmp));
+                  return Node.class.isAssignableFrom(
+                      optionalOrCollectionComponentElementClass(cmp));
                 })
             .flatMap(
                 cmp ->
-                    ((Collection<?>) Reflection.getComponent(r, cmp))
-                        .stream().map(Node.class::cast));
+                    switch (Reflection.getComponent(r, cmp)) {
+                      case Optional<?> o -> o.map(Node.class::cast).stream();
+                      case Collection<?> c ->
+                          c.stream()
+                              .flatMap(
+                                  e ->
+                                      e instanceof Optional<?> e1
+                                          ? e1.map(Node.class::cast).stream()
+                                          : Stream.of((Node) e));
+                      default -> throw new UnreachableError();
+                    });
     args = Streams.concat(singleArgs, argLists).collect(ImmutableList.toImmutableList());
   }
 
@@ -177,8 +190,26 @@ abstract sealed class InstrImpl<D extends InstrData<?>> implements NodeWithCfg
         }
 
         value = replacement;
+      } else if (value instanceof Optional<?> o) {
+        var elemClass = optionalOrCollectionComponentElementClass(cmp);
+        if (o.isPresent() && o.get().equals(old)) {
+          assert !found : argTypeStr + " to replace found multiple times";
+          found = true;
+
+          if (!elemClass.isInstance(replacement)) {
+            throw new IllegalArgumentException(
+                "Replacement "
+                    + argTypeStr
+                    + " (in optional) is of wrong type: required "
+                    + cmp.getType().getSimpleName()
+                    + " but it's a "
+                    + replacement.getClass().getSimpleName());
+          }
+
+          value = Optional.of(replacement);
+        }
       } else if (value instanceof Collection<?> c) {
-        var elemClass = collectionComponentElementClass(cmp);
+        var elemClass = optionalOrCollectionComponentElementClass(cmp);
         var builder = ImmutableList.builderWithExpectedSize(c.size());
         for (var item : c) {
           if (item.equals(old)) {
@@ -196,6 +227,23 @@ abstract sealed class InstrImpl<D extends InstrData<?>> implements NodeWithCfg
             }
 
             builder.add(replacement);
+          } else if (item instanceof Optional<?> o) {
+            if (o.isPresent() && o.get().equals(old)) {
+              assert !found : argTypeStr + " to replace found multiple times";
+              found = true;
+
+              if (!elemClass.isInstance(replacement)) {
+                throw new IllegalArgumentException(
+                    "Replacement "
+                        + argTypeStr
+                        + " (in optional in collection) is of wrong type: required "
+                        + cmp.getType().getSimpleName()
+                        + " but it's a "
+                        + replacement.getClass().getSimpleName());
+              }
+
+              builder.add(Optional.of(replacement));
+            }
           } else {
             builder.add(item);
           }
@@ -216,16 +264,27 @@ abstract sealed class InstrImpl<D extends InstrData<?>> implements NodeWithCfg
     replace("node", old, replacement);
   }
 
-  private static Class<?> collectionComponentElementClass(RecordComponent cmp) {
-    assert cmp.getType() == ImmutableList.class
+  /**
+   * If this is an {@code Optional<T>}, {@code ImmutableList<T>}, or {@code
+   * ImmutableList<Optional<T>>}, returns {@code T}.
+   */
+  private static Class<?> optionalOrCollectionComponentElementClass(RecordComponent cmp) {
+    assert cmp.getType() == Optional.class || cmp.getType() == ImmutableList.class
         : "InstrData has Collection component which isn't an ImmutableList";
-    if (!(cmp.getGenericType() instanceof ParameterizedType p)
-        || p.getActualTypeArguments().length == 1
-        || !(p.getActualTypeArguments()[0] instanceof Class<?> elemClass)) {
-      throw new AssertionError(
-          "InstrData has Collection component which isn't a straightforward generic type, don't know how to handle");
+    if (cmp.getGenericType() instanceof ParameterizedType p
+        && p.getActualTypeArguments().length == 1) {
+      if (p.getActualTypeArguments()[0] instanceof ParameterizedType innerP
+          && innerP.getRawType() == Optional.class
+          && innerP.getActualTypeArguments().length == 1
+          && innerP.getActualTypeArguments()[0] instanceof Class<?> elemClass) {
+        return elemClass;
+      } else if (p.getActualTypeArguments()[0] instanceof Class<?> elemClass) {
+        return elemClass;
+      }
     }
-    return elemClass;
+    throw new AssertionError(
+        "InstrData has Collection component which isn't a straightforward generic type, don't know how to handle: "
+            + cmp.getGenericType());
   }
 
   // @Override
@@ -308,12 +367,31 @@ abstract sealed class InstrImpl<D extends InstrData<?>> implements NodeWithCfg
 
   // @Override
   public void verify() throws InstrVerifyException {
+    verifyNoNullableArgs();
     verifySameLenInData();
     computeArgs();
     computeEffects();
     // TODO: also have annotations for if the RValue is a specific subclass?
     verifyRValueArgsAreOfCorrectTypes();
     data.verify();
+  }
+
+  private void verifyNoNullableArgs() throws InstrVerifyException {
+    // Reflectively get all record components, assert that none of them are nullable.
+    if (!(data instanceof Record)) {
+      throw new AssertionError("InstrData must be a record");
+    }
+    var cls = data().getClass();
+    var components = cls.getRecordComponents();
+
+    for (var component : components) {
+      if (component.isAnnotationPresent(Nullable.class)) {
+        throw new InstrVerifyException(
+            "Argument "
+                + component.getName()
+                + " is `@Nullable`. InstrData arguments must be `Optional` (since they are often streamed it's easier this way).");
+      }
+    }
   }
 
   private void verifySameLenInData() throws InstrVerifyException {
@@ -385,10 +463,15 @@ abstract sealed class InstrImpl<D extends InstrData<?>> implements NodeWithCfg
       var expectedType = TypeIsUtil.parse(annotation);
 
       var isRValue = RValue.class.isAssignableFrom(component.getType());
+      var isOptionalRValue =
+          component.getType() == Optional.class
+              && RValue.class.isAssignableFrom(
+                  optionalOrCollectionComponentElementClass(component));
       var isListOfRValues =
           List.class.isAssignableFrom(component.getType())
-              && RValue.class.isAssignableFrom(collectionComponentElementClass(component));
-      assert isRValue || isListOfRValues
+              && RValue.class.isAssignableFrom(
+                  optionalOrCollectionComponentElementClass(component));
+      assert isRValue || isOptionalRValue || isListOfRValues
           : "Only `RValue`s or lists of `RValue`s can have `@TypeIs` annotation: argument "
               + i
               + " has a `@TypeIs` annotation but isn't an `RValue` or list of them";
@@ -405,20 +488,51 @@ abstract sealed class InstrImpl<D extends InstrData<?>> implements NodeWithCfg
                   + " but it's a "
                   + rValue.type());
         }
+      } else if (isOptionalRValue) {
+        var rValue = (RValue) ((Optional<?>) arg).orElse(null);
+        if (rValue != null && !rValue.isInstanceOf(expectedType)) {
+          throw new InstrVerifyException(
+              "Argument "
+                  + i
+                  + " is of wrong type: expected "
+                  + expectedType
+                  + " (or null) but it's a "
+                  + rValue.type());
+        }
       } else {
         var rValues = (List<?>) arg;
         for (var j = 0; j < rValues.size(); j++) {
-          var rValue = (RValue) rValues.get(j);
-          if (!rValue.isInstanceOf(expectedType)) {
-            throw new InstrVerifyException(
-                "Argument "
-                    + i
-                    + " element "
-                    + j
-                    + " is of wrong type: expected "
-                    + expectedType
-                    + " but it's a "
-                    + rValue.type());
+          switch (rValues.get(j)) {
+            case Optional<?> optRValue -> {
+              var rValue = (RValue) optRValue.orElse(null);
+              if (rValue != null && !rValue.isInstanceOf(expectedType)) {
+                throw new InstrVerifyException(
+                    "Argument "
+                        + i
+                        + " element "
+                        + j
+                        + " is of wrong type: expected "
+                        + expectedType
+                        + " (or null) but it's a "
+                        + rValue.type());
+              }
+            }
+            case RValue rValue -> {
+              if (!rValue.isInstanceOf(expectedType)) {
+                throw new InstrVerifyException(
+                    "Argument "
+                        + i
+                        + " element "
+                        + j
+                        + " is of wrong type: expected "
+                        + expectedType
+                        + " but it's a "
+                        + rValue.type());
+              }
+            }
+            default ->
+                throw new AssertionError(
+                    "`optionalOrCollectionComponentElementClass` returned something for this list, so it should either be a list of `RValue`s or `Optional`s");
           }
         }
       }

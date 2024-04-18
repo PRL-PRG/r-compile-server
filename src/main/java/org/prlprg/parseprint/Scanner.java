@@ -13,15 +13,22 @@ import java.io.StringReader;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import org.prlprg.util.IOThrowingSupplier;
+import org.prlprg.util.Strings;
 
 /**
- * Parse terminals (e.g. identifiers, numbers, specific punctuation) from a stream of text.
+ * Read specific structure (e.g. identifiers, numbers, specific punctuation) from a stream of text.
  *
- * <p>Unlike a traditional lexer there's no fixed set of tokens. Instead, you call a method to parse
- * exactly the terminal you expect.
+ * <p>Also keeps track of the {@linkplain Scanner#position offset, line, and column} from since when
+ * it started scanning.
+ *
+ * <p>This is essentially a version of {@link java.util.Scanner} with slightly different use case.
+ *
+ * <p>This isn't a lexer, because there's no fixed set of tokens. Instead, you call a method to
+ * parse exactly what you expect. If a lexer is needed (if we must lookahead structured "tokens"
+ * instead of unstructured characters), it could be added {@link Parser} and {@link Scanner}.
  */
-public class Lexer {
-  private final PushbackReader input;
+public class Scanner {
+  private PushbackReader input;
   private final StringBuilder stringBuffer = new StringBuilder(128);
   private char[] charBuffer = new char[1024];
   private boolean isReading;
@@ -32,34 +39,42 @@ public class Lexer {
   private long column = 1;
 
   // region constructors
-  /** Adapt the {@link Reader} for lexing. */
-  public Lexer(Reader input) {
+  /** Adapt the {@link Reader} for scanning. */
+  public Scanner(Reader input) {
     this.input = new PushbackReader(input, 128);
   }
 
-  /** Lex the given string. */
-  public Lexer(String input) {
+  /** Scan the given string. */
+  public Scanner(String input) {
     this(new StringReader(input));
   }
 
-  /** Open the file and lex its contents. */
-  public Lexer(File input) throws FileNotFoundException {
+  /** Open the file and scan its contents. */
+  public Scanner(File input) throws FileNotFoundException {
     this(new BufferedReader(new FileReader(input)));
   }
 
-  /** Lex the given stream. */
-  public Lexer(InputStream input) {
+  /** Scan the given stream. */
+  public Scanner(InputStream input) {
     this(new BufferedReader(new InputStreamReader(input)));
   }
 
   // endregion
 
   // region getters and setters
+  /** The current offset, line, and column in the input. */
   public Position position() {
     return new Position(offset, line, column);
   }
 
+  /**
+   * Did the scanner reach the end of the input?
+   *
+   * <p>If the {@linkplain #skipsWhitespace() whitespace policy} is set and whitespace is all that
+   * remains in the input, this will skip all of it and return {@code true}.
+   */
   public boolean isAtEof() {
+    skipWhitespaceAccordingToPolicy();
     return isAtEof;
   }
 
@@ -111,7 +126,7 @@ public class Lexer {
    */
   public int readUInt() {
     if (!nextCharSatisfies(Character::isDigit)) {
-      throw fail("digit(s)", Character.toString(peekChar()));
+      throw fail("digit(s)", Strings.quote(peekChar()));
     }
 
     try {
@@ -128,7 +143,7 @@ public class Lexer {
    */
   public long readULong() {
     if (!nextCharSatisfies(Character::isDigit)) {
-      throw fail("digit(s)", Character.toString(peekChar()));
+      throw fail("digit(s)", Strings.quote(peekChar()));
     }
 
     try {
@@ -136,6 +151,26 @@ public class Lexer {
     } catch (NumberFormatException e) {
       throw fail("integer is too large to parse");
     }
+  }
+
+  /**
+   * Read some digits and return a signed integer.
+   *
+   * @throws ParseException if the next character isn't a digit.
+   */
+  public int readInt() {
+    return runWithWhitespacePolicy(
+        SkipWhitespace.NONE, () -> trySkip('-') ? -readUInt() : readUInt());
+  }
+
+  /**
+   * Read some digits and return a signed long.
+   *
+   * @throws ParseException if the next character isn't a digit.
+   */
+  public long readLong() {
+    return runWithWhitespacePolicy(
+        SkipWhitespace.NONE, () -> trySkip('-') ? -readULong() : readULong());
   }
 
   /**
@@ -203,7 +238,7 @@ public class Lexer {
           if (!nextCharSatisfies(c -> Character.isDigit(c) || c == '.' || c == '-')) {
             throw fail(
                 "decimal number (digit(s), '.', '-', \"Infinity\", \"-Infinity\", \"NaN\", or \"-NaN\")",
-                Character.toString(peekChar()));
+                Strings.quote(peekChar()));
           }
 
           var string = new StringBuilder();
@@ -227,6 +262,122 @@ public class Lexer {
   }
 
   /**
+   * Read a valid Java identifier.
+   *
+   * @throws ParseException if the next character isn't a letter or underscore (the beginning of an
+   *     identifier) or the entire identifier is only an underscore.
+   */
+  public String readJavaIdentifier() {
+    if (!nextCharSatisfies(c -> Character.isLetter(c) || c == '_')) {
+      throw fail("start of identifier (letter or '_')", Strings.quote(peekChar()));
+    }
+
+    var result = readWhile(c -> Character.isLetterOrDigit(c) || c == '_');
+    if (result.equals("_")) {
+      throw fail("\"_\" isn't a valid identifier");
+    }
+    return result;
+  }
+
+  /**
+   * Read a string surrounded with the given quotes and return the unquoted (unescaped) content.
+   *
+   * @throws IllegalArgumentException if the quote isn't '"', '\'', or '`'.
+   * @throws ParseException if the next character isn't the beginning quote, or if there's no end
+   *     quote before EOF.
+   */
+  public String readQuoted(int quote) {
+    if (quote != '"' && quote != '\'' && quote != '`') {
+      throw new IllegalArgumentException("quote must be '\"', '\\'', or '`'");
+    }
+    var sb = new StringBuilder();
+
+    assertAndSkip(quote);
+    while (true) {
+      var c = readChar();
+      if (c == quote) {
+        return sb.toString();
+      } else if (c == '\\') {
+        switch (readChar()) {
+          case 'n' -> sb.append('\n');
+          case 'r' -> sb.append('\r');
+          case 't' -> sb.append('\t');
+          case '"' -> sb.append('"');
+          case '\\' -> sb.append('\\');
+          case '\'' -> sb.append('\'');
+          case '`' -> sb.append('`');
+          case 'x' -> {
+            var hex = readFixedLength(2);
+            try {
+              sb.append(Integer.parseInt(hex, 16));
+            } catch (NumberFormatException e) {
+              throw fail("Invalid hex escape sequence");
+            }
+          }
+          case 'u' -> {
+            var hex = readFixedLength(4);
+            try {
+              sb.append(Integer.parseInt(hex, 16));
+            } catch (NumberFormatException e) {
+              throw fail("Invalid 4-byte unicode escape sequence");
+            }
+          }
+          default -> throw fail("Unhandled escape sequence");
+        }
+      } else if (c == -1) {
+        throw fail("unclosed string (needs " + Strings.quote(quote) + ")");
+      } else {
+        sb.appendCodePoint(c);
+      }
+    }
+  }
+
+  /**
+   * Read a string surrounded with the given quotes and return as-is, including quotes and escapes.
+   *
+   * @throws ParseException if the next character isn't the beginning quote, or if there's no end
+   *     quote before EOF.
+   */
+  public String readQuotedLiterally(int quote) {
+    if (quote != '"' && quote != '\'' && quote != '`') {
+      throw new IllegalArgumentException("quote must be '\"', '\\'', or '`'");
+    }
+    var sb = new StringBuilder().appendCodePoint(quote);
+
+    assertAndSkip(quote);
+    while (true) {
+      var c = readChar();
+      sb.appendCodePoint(c);
+      if (c == quote) {
+        return sb.toString();
+      } else if (c == '\\') {
+        switch (readChar()) {
+          case 'n', 'r', 't', '"', '\\', '\'', '`' -> {}
+          case 'x' -> {
+            var hex = readFixedLength(2);
+            sb.append(hex);
+            try {
+              Integer.parseInt(hex, 16);
+            } catch (NumberFormatException e) {
+              throw fail("Invalid hex escape sequence");
+            }
+          }
+          case 'u' -> {
+            var hex = readFixedLength(4);
+            sb.append(hex);
+            try {
+              Integer.parseInt(hex, 16);
+            } catch (NumberFormatException e) {
+              throw fail("Invalid 4-byte unicode escape sequence");
+            }
+          }
+          default -> throw fail("Unhandled escape sequence");
+        }
+      }
+    }
+  }
+
+  /**
    * Read characters until, but not including, the first whitespace.
    *
    * <p>If EOF is reached, this <i>doesn't</i> throw {@link ParseException}.
@@ -235,6 +386,60 @@ public class Lexer {
    */
   public String readUntilWhitespace() {
     return readUntil(c -> Character.isWhitespace(c) || c == -1);
+  }
+
+  /**
+   * Read characters until <b>and including</b> the end of the current line or EOF.
+   *
+   * @see #readUntil(String)
+   * @see #readUntil(Predicate)
+   */
+  public String readToEndOfLine() {
+    return readUntil('\n', true);
+  }
+
+  /**
+   * Read characters until, but not including, {@code s}.
+   *
+   * @throws ParseException on EOF iff {@code acceptEof} is false.
+   * @see #readUntil(String, boolean)
+   * @see #readUntil(int)
+   */
+  public String readUntil(String s) {
+    return readUntil(s, false);
+  }
+
+  /**
+   * Read characters until, but not including, {@code s}.
+   *
+   * @throws ParseException on EOF iff {@code acceptEof} is false.
+   * @see #readUntil(int)
+   */
+  public String readUntil(String s, boolean acceptEof) {
+    if (s.length() == 1) {
+      return readUntil(s.codePointAt(0), acceptEof);
+    }
+    if (nextCharsAre(s)) {
+      return "";
+    }
+
+    var result = new StringBuilder();
+    var firstChar = s.codePointAt(0);
+
+    while (true) {
+      // `acceptEof` of `readUntil(char, boolean)` is true because if `acceptEof` of
+      // `readUntil(String, boolean)` is false, we throw a better exception.
+      result.append(readUntil(firstChar, true));
+
+      if (!acceptEof && isAtEof) {
+        throw fail(Strings.quote(s) + "...", "eof");
+      }
+      if (isAtEof || nextCharsAre(s)) {
+        return result.toString();
+      }
+
+      result.appendCodePoint(readChar());
+    }
   }
 
   /**
@@ -286,7 +491,7 @@ public class Lexer {
    * @see #readWhile(Predicate)
    */
   public String readUntil(Predicate<Integer> charPredicate) {
-    var result = doReadUntil(charPredicate);
+    var result = doReadUntil(charPredicate, true);
     advancePosition(result);
     return result;
   }
@@ -300,7 +505,7 @@ public class Lexer {
    * @see #peekWhile(Predicate)
    */
   public String peekUntil(Predicate<Integer> charPredicate) {
-    var result = doReadUntil(charPredicate);
+    var result = doReadUntil(charPredicate, false);
     doUnread(result);
     return result;
   }
@@ -320,7 +525,7 @@ public class Lexer {
       return false;
     }
     advancePosition(s);
-    return false;
+    return true;
   }
 
   /**
@@ -348,10 +553,10 @@ public class Lexer {
     if (!actual.equals(s)) {
       doUnread(actual);
       throw fail(
-          '"' + s + "\"...",
+          Strings.quote(s) + "...",
           actual.isEmpty()
               ? "eof"
-              : '"' + actual + '"' + (actual.length() == s.length() ? "..." : " then EOF"));
+              : Strings.quote(actual) + (actual.length() == s.length() ? "..." : " then EOF"));
     }
     advancePosition(s);
   }
@@ -361,9 +566,7 @@ public class Lexer {
     var actual = doReadChar();
     if (actual != c) {
       doUnread(actual);
-      throw fail(
-          "'" + Character.toString(c) + "'...",
-          actual == -1 ? "eof" : "'" + Character.toString(actual) + "'...");
+      throw fail(Strings.quote(c) + "...", actual == -1 ? "eof" : Strings.quote(actual) + "...");
     }
     advancePosition(actual);
   }
@@ -403,6 +606,49 @@ public class Lexer {
     return c;
   }
 
+  /**
+   * Read until the given <b>1-based</b> column is reached.
+   *
+   * @throws ParseException if the column is already passed.
+   * @throws ParseException if a newline is encountered before the column.
+   */
+  public String readUntilColumn(long column) {
+    return readUntilColumn(column, false);
+  }
+
+  /**
+   * Read until the given <b>1-based</b> column is reached.
+   *
+   * @throws ParseException if the column is already passed and {@code okToBeAfter} is false.
+   * @throws ParseException if a newline is encountered before the column.
+   */
+  public String readUntilColumn(long column, boolean okToBeAfter) {
+    if (column < 1) {
+      throw new IllegalArgumentException("column must be positive (1-based)");
+    }
+
+    if (this.column == column) {
+      return "";
+    }
+
+    if (this.column > column) {
+      if (!okToBeAfter) {
+        throw fail("column " + column, "column " + this.column);
+      }
+      return "";
+    }
+
+    var length = (int) (column - this.column);
+    var string = doReadUpToLength(length);
+    if (string.length() < length || string.contains("\n")) {
+      doUnread(string);
+      throw fail("at least " + length + " non-newline characters", Strings.quote(string));
+    }
+    advancePosition(string);
+    assert column == this.column;
+    return string;
+  }
+
   /** Read exactly {@code length} characters. Otherwise throws {@link ParseException}. */
   public String readFixedLength(int length) {
     var string = doReadUpToLength(length);
@@ -411,6 +657,13 @@ public class Lexer {
       throw fail("at least " + length + " characters", string.length() + " characters then EOF");
     }
     advancePosition(string);
+    return string;
+  }
+
+  /** Peek up to {@code length} characters. */
+  public String peekUpToLength(int length) {
+    var string = doReadUpToLength(length);
+    doUnread(string);
     return string;
   }
 
@@ -441,10 +694,8 @@ public class Lexer {
           // If EOF isn't expected, will fail and report so later.
           handleEof(true);
           break;
-        }
-
-        if (!includeNewlines && next == '\n' || !Character.isWhitespace(next)) {
-          doUnread(next);
+        } else if ((!includeNewlines && next == '\n') || !Character.isWhitespace(next)) {
+          input.unread(next);
           break;
         }
 
@@ -464,7 +715,7 @@ public class Lexer {
    *
    * @throws ParseException on EOF <i>iff</i> {@code charPredicate(-1)} is false.
    */
-  public String doReadUntil(Predicate<Integer> charPredicate) {
+  private String doReadUntil(Predicate<Integer> charPredicate, boolean commit) {
     if (isAtEof) {
       handleEof(charPredicate.test(-1));
       return "";
@@ -483,13 +734,17 @@ public class Lexer {
                 break;
               }
 
-              stringBuffer.append(next);
+              stringBuffer.appendCodePoint(next);
             }
 
             return stringBuffer.toString();
           });
     } catch (ParseException e) {
-      doUnread(stringBuffer.toString());
+      if (commit) {
+        advancePosition(stringBuffer.toString());
+      } else {
+        doUnread(stringBuffer.toString());
+      }
       throw e;
     } finally {
       stringBuffer.setLength(0);
@@ -528,7 +783,7 @@ public class Lexer {
    *
    * <p>Returns -1 on EOF.
    */
-  public int doReadChar() {
+  private int doReadChar() {
     if (isAtEof) {
       return -1;
     }
@@ -554,19 +809,34 @@ public class Lexer {
     }
   }
 
-  /** Unread characters and rethrow {@link IOException}. */
+  /** Unread character and rethrow {@link IOException}. */
   private void doUnread(int c) {
+    assert c != -1 : "can't unread EOF";
     try {
-      input.unread(c);
+      if (isAtEof) {
+        isAtEof = false;
+        // PushbackReader can't unread when it encounters EOF,
+        // so we just create an entirely new reader.
+        input = new PushbackReader(new StringReader(String.valueOf((char) c)), 1);
+      } else {
+        input.unread(c);
+      }
     } catch (IOException e) {
-      throw new RuntimeException("failed to unread characters", e);
+      throw new RuntimeException("failed to unread character", e);
     }
   }
 
   /** Unread characters and rethrow {@link IOException}. */
   private void doUnread(String s) {
     try {
-      input.unread(s.toCharArray());
+      if (isAtEof) {
+        isAtEof = false;
+        // PushbackReader can't unread when it encounters EOF,
+        // so we just create an entirely new reader.
+        input = new PushbackReader(new StringReader(s), s.length());
+      } else {
+        input.unread(s.toCharArray());
+      }
     } catch (IOException e) {
       throw new RuntimeException("failed to unread characters", e);
     }
@@ -584,30 +854,20 @@ public class Lexer {
     }
   }
 
-  /** Move {@link #position()} for the given characters. */
+  /** Move {@link #position()} after the given characters. */
   private void advancePosition(String s) {
-    offset += s.length();
-    var lineIdx = 0;
-    while (true) {
-      var nextLineIdx = s.indexOf('\n', lineIdx);
-      if (nextLineIdx == -1) {
-        break;
-      }
-      line++;
-      lineIdx = nextLineIdx + 1;
-    }
-    column = s.length() - lineIdx + 1;
+    setPosition(position().advanced(s));
   }
 
-  /** Move {@link #position()} for the given character. */
+  /** Move {@link #position()} after the given character. */
   private void advancePosition(int c) {
-    offset++;
-    if (c == '\n') {
-      line++;
-      column = 1;
-    } else {
-      column++;
-    }
+    setPosition(position().advanced(c));
+  }
+
+  private void setPosition(Position p) {
+    offset = p.offset();
+    line = p.line();
+    column = p.column();
   }
 
   // endregion read helpers

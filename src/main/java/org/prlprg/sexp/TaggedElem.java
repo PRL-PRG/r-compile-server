@@ -1,6 +1,10 @@
 package org.prlprg.sexp;
 
 import javax.annotation.Nullable;
+import org.prlprg.parseprint.ParseMethod;
+import org.prlprg.parseprint.Parser;
+import org.prlprg.parseprint.PrintMethod;
+import org.prlprg.parseprint.Printer;
 
 /** An R "list" element which consists of an optional string tag (name) and SEXP value. */
 public record TaggedElem(@Nullable String tag, SEXP value) {
@@ -21,19 +25,19 @@ public record TaggedElem(@Nullable String tag, SEXP value) {
     return tag != null;
   }
 
-  @Override
-  public String toString() {
-    return tag == null
-        ? value.toString()
-        : RegSymSXP.escape(tag) + "=" + (value == SEXPs.MISSING_ARG ? "" : value);
-  }
-
   public SEXP namedValue() {
     if (tag == null) {
       return value;
     } else {
       return value.withNames(tag);
     }
+  }
+
+  @Override
+  public String toString() {
+    return tag == null
+        ? value.toString()
+        : RegSymSXP.escape(tag) + "=" + (value == SEXPs.MISSING_ARG ? "" : value);
   }
 
   /**
@@ -44,5 +48,30 @@ public record TaggedElem(@Nullable String tag, SEXP value) {
    */
   public String tagOrEmpty() {
     return tag == null ? "" : tag;
+  }
+
+  @ParseMethod
+  private static TaggedElem parse(Parser p) {
+    var s = p.scanner();
+
+    var tag =
+        s.nextCharIs('=')
+            ? null
+            : s.nextCharIs('`') ? s.readQuoted('`') : s.readWhile(RegSymSXP::isValidUnescapedChar);
+    var value = s.trySkip('=') ? p.parse(SEXP.class) : SEXPs.MISSING_ARG;
+    return new TaggedElem(tag, value);
+  }
+
+  @PrintMethod
+  private void print(Printer p) {
+    var w = p.writer();
+
+    if (tag != null) {
+      w.write(RegSymSXP.escape(tag));
+    }
+    if (value != SEXPs.MISSING_ARG) {
+      w.write('=');
+      p.print(value);
+    }
   }
 }

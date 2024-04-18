@@ -1,23 +1,29 @@
 package org.prlprg.ir.cfg;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.primitives.ImmutableIntArray;
+import java.util.Optional;
 import javax.annotation.Nullable;
 import org.checkerframework.checker.index.qual.SameLen;
 import org.prlprg.ir.closure.Closure;
+import org.prlprg.ir.closure.ClosureVersion;
 import org.prlprg.ir.type.REffect;
 import org.prlprg.ir.type.REffects;
 import org.prlprg.ir.type.RType;
 import org.prlprg.ir.type.RTypes;
+import org.prlprg.ir.type.lattice.NoOrMaybe;
+import org.prlprg.ir.type.lattice.Troolean;
+import org.prlprg.ir.type.lattice.YesOrMaybe;
 import org.prlprg.primitive.BuiltinId;
 import org.prlprg.primitive.IsTypeCheck;
-import org.prlprg.sexp.BCodeSXP;
+import org.prlprg.rshruntime.BcAddress;
+import org.prlprg.rshruntime.BcLocation;
 import org.prlprg.sexp.LangSXP;
 import org.prlprg.sexp.ListSXP;
 import org.prlprg.sexp.RegSymSXP;
 import org.prlprg.sexp.SEXP;
+import org.prlprg.sexp.SEXPType;
 import org.prlprg.sexp.SymOrLangSXP;
-import org.prlprg.sexp.SymSXP;
-import org.prlprg.util.NotImplementedError;
 
 /**
  * Each type of statement (non-jump) instruction as a pattern-matchable record.
@@ -44,6 +50,46 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
     @Override
     default RValueStmt make(CFG cfg, String name) {
       return new RValueStmtImpl(cfg, name, this);
+    }
+  }
+
+  sealed interface Env_ extends RValue_ {
+    @Nullable Env parent();
+
+    @Override
+    default RType computeType() {
+      return RTypes.simple(SEXPType.ENV);
+    }
+
+    @Override
+    default EnvStmt make(CFG cfg, String name) {
+      return new EnvStmtImpl(cfg, name, this);
+    }
+  }
+
+  /** A call instruction (e.g. {@link Call}, {@link NamedCall}, etc.). */
+  sealed interface Call_ extends RValue_ {
+    LangSXP ast();
+
+    @Nullable RValue fun();
+
+    /** {@code null} except in named calls. */
+    default @Nullable ImmutableList<Optional<RegSymSXP>> names() {
+      return null;
+    }
+
+    ImmutableList<RValue> args();
+
+    /** {@code null} except in static calls (? instead of {@code names} ?). */
+    default @Nullable ImmutableIntArray arglistOrder() {
+      return null;
+    }
+
+    Env env();
+
+    @Override
+    default org.prlprg.ir.cfg.Call make(CFG cfg, String name) {
+      return new CallImpl(cfg, name, this);
     }
   }
 
@@ -86,11 +132,25 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
   // Order of the following is the same as in PIR `instruction.h`
 
   @EffectsAre(REffect.ReadsEnvArg)
-  record FrameState_(BcLocation location, ImmutableList<RValue> stack, Env env, boolean inPromise)
-      implements StmtData<FrameState> {
+  record FrameState(
+      BcLocation location,
+      boolean inPromise,
+      ImmutableList<RValue> stack,
+      Env env,
+      Optional<org.prlprg.ir.cfg.FrameState> inlined)
+      implements StmtData<FrameStateStmt> {
+    public FrameState(
+        BcLocation location,
+        boolean inPromise,
+        ImmutableList<RValue> stack,
+        Env env,
+        @Nullable org.prlprg.ir.cfg.FrameState inlined) {
+      this(location, inPromise, stack, env, Optional.ofNullable(inlined));
+    }
+
     @Override
-    public FrameState make(CFG cfg, String name) {
-      return new FrameStateImpl(cfg, name, this);
+    public FrameStateStmt make(CFG cfg, String name) {
+      return new FrameStateStmtImpl(cfg, name, this);
     }
   }
 
@@ -117,8 +177,16 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
   record Length(RValue value) implements RValue_ {}
 
   @EffectsAre({})
-  @TypeIs("ANY")
-  record LdArg(int index) implements RValue_ {}
+  record LdArg(int index, RType type) implements RValue_ {
+    public LdArg(int index) {
+      this(index, RTypes.ANY);
+    }
+
+    @Override
+    public RType computeType() {
+      return type;
+    }
+  }
 
   @TypeIs("LGL")
   @EffectsAre({REffect.Error, REffect.ReadsEnvArg})
@@ -156,7 +224,16 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
 
   @TypeIs("PROM")
   @EffectsAre({})
-  record MkProm(SEXP code, @Nullable RValue eagerArg, Env env) implements RValue_ {}
+  record MkProm(SEXP code, Optional<RValue> eagerArg, Env env, NoOrMaybe performsReflection)
+      implements RValue_ {
+    public MkProm(SEXP code, @Nullable RValue eagerArg, Env env, NoOrMaybe performsReflection) {
+      this(code, Optional.ofNullable(eagerArg), env, performsReflection);
+    }
+
+    public MkProm(SEXP code, @Nullable RValue eagerArg, Env env) {
+      this(code, eagerArg, env, NoOrMaybe.MAYBE);
+    }
+  }
 
   @EffectsAre(REffect.LeaksNonEnvArg)
   record StrictifyProm(@TypeIs("PROM") RValue promise, RValue value) implements RValue_ {
@@ -167,16 +244,44 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
   }
 
   @EffectsAre({})
-  @TypeIs("CLOS")
+  @TypeIs("CLO")
   record MkCls(
-      Closure closure, ListSXP formals, SymOrLangSXP srcRef, BCodeSXP originalBody, Env lexicalEnv)
+      Closure closure, ListSXP formals, SymOrLangSXP srcRef, BcAddress originalBody, Env parent)
       implements RValue_ {}
 
-  @EffectsAreAribtrary
-  record Force(RValue promise, FrameState frameState) implements RValue_ {
+  record Force(RValue promise, Optional<org.prlprg.ir.cfg.FrameState> frameState, Env env)
+      implements RValue_ {
+    public Force(RValue promise, @Nullable org.prlprg.ir.cfg.FrameState frameState, Env env) {
+      this(promise, Optional.ofNullable(frameState), env);
+    }
+
     @Override
     public RType computeType() {
       return promise.type().forced();
+    }
+
+    /**
+     * Whether the forced {@link SEXP} is guaranteed to already be evaluated.
+     *
+     * <p>If {@link YesOrMaybe#YES}, the force simply unwraps it if it's a promise.
+     */
+    public YesOrMaybe isStrict() {
+      var isLazy = promise.type().isLazy();
+      return YesOrMaybe.of(isLazy == null || isLazy == Troolean.NO);
+    }
+
+    @Override
+    public REffects computeEffects() {
+      if (isStrict() == YesOrMaybe.YES) {
+        return REffects.PURE;
+      }
+      var effects = REffects.ARBITRARY;
+      if (promise instanceof Stmt s
+          && s.data() instanceof MkProm p
+          && p.performsReflection() == NoOrMaybe.NO) {
+        effects = effects.without(REffect.Reflection);
+      }
+      return effects;
     }
   }
 
@@ -224,12 +329,14 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
 
     @Override
     default RType computeType() {
-      throw new NotImplementedError();
+      // TODO
+      return RTypes.ANY;
     }
 
     @Override
     default REffects computeEffects() {
-      throw new NotImplementedError();
+      // TODO
+      return REffects.ARBITRARY;
     }
   }
 
@@ -278,12 +385,14 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
 
     @Override
     default RType computeType() {
-      throw new NotImplementedError();
+      // TODO
+      return RTypes.ANY;
     }
 
     @Override
     default REffects computeEffects() {
-      throw new NotImplementedError();
+      // TODO
+      return REffects.ARBITRARY;
     }
   }
 
@@ -328,7 +437,8 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
   record SetVecElt(RValue value, RValue vector, RValue index) implements RValue_ {
     @Override
     public RType computeType() {
-      throw new NotImplementedError();
+      // TODO
+      return RTypes.ANY;
     }
   }
 
@@ -405,9 +515,22 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
   @EffectsAre({})
   record IsType(RType type, RValue value) implements RValue_ {}
 
+  /** Type coercion. */
   @EffectsAre({})
-  @TypeIs("ENV")
-  record LdFunctionEnv() implements RValue_ {}
+  record CastType(RType type, RValue value) implements RValue_ {
+    @Override
+    public RType computeType() {
+      return type;
+    }
+  }
+
+  @EffectsAre({})
+  record LdFunctionEnv() implements Env_ {
+    @Override
+    public @Nullable Env parent() {
+      return null;
+    }
+  }
 
   @EffectsAre(REffect.Visibility)
   record Visible() implements Void {}
@@ -530,28 +653,28 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
   record Div(LangSXP ast, @Override RValue lhs, @Override RValue rhs, Env env)
       implements ArithmeticBinOp {}
 
-  record Expt(LangSXP ast, @Override RValue lhs, @Override RValue rhs, Env env)
+  record IDiv(LangSXP ast, @Override RValue lhs, @Override RValue rhs, Env env)
       implements ArithmeticBinOp {}
 
-  record Sqrt(LangSXP ast, @Override RValue lhs, @Override RValue rhs, Env env)
+  record Mod(LangSXP ast, @Override RValue lhs, @Override RValue rhs, Env env)
       implements ArithmeticBinOp {}
 
-  record Exp(LangSXP ast, @Override RValue lhs, @Override RValue rhs, Env env)
+  record Pow(LangSXP ast, @Override RValue lhs, @Override RValue rhs, Env env)
       implements ArithmeticBinOp {}
 
   record Eq(LangSXP ast, @Override RValue lhs, @Override RValue rhs, Env env)
       implements ComparisonBinOp {}
 
-  record Ne(LangSXP ast, @Override RValue lhs, @Override RValue rhs, Env env)
+  record Neq(LangSXP ast, @Override RValue lhs, @Override RValue rhs, Env env)
       implements ComparisonBinOp {}
 
   record Lt(LangSXP ast, @Override RValue lhs, @Override RValue rhs, Env env)
       implements ComparisonBinOp {}
 
-  record Le(LangSXP ast, @Override RValue lhs, @Override RValue rhs, Env env)
+  record Lte(LangSXP ast, @Override RValue lhs, @Override RValue rhs, Env env)
       implements ComparisonBinOp {}
 
-  record Ge(LangSXP ast, @Override RValue lhs, @Override RValue rhs, Env env)
+  record Gte(LangSXP ast, @Override RValue lhs, @Override RValue rhs, Env env)
       implements ComparisonBinOp {}
 
   record Gt(LangSXP ast, @Override RValue lhs, @Override RValue rhs, Env env)
@@ -565,40 +688,120 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
 
   record Not(LangSXP ast, @Override RValue arg, Env env) implements BooleanUnOp {}
 
-  @EffectsAreAribtrary
-  @TypeIs("ANY_VALUE")
   record Colon(LangSXP ast, RValue lhs, RValue rhs, Env env) implements RValue_ {
     @Override
     public RType computeType() {
-      throw new NotImplementedError();
+      // TODO
+      return RTypes.ANY;
     }
 
     @Override
     public REffects computeEffects() {
-      throw new NotImplementedError();
+      // TODO
+      return REffects.ARBITRARY;
     }
   }
 
   @TypeIs("ANY")
   @EffectsAreAribtrary()
-  record Call(LangSXP ast, RValue fun, ImmutableList<RValue> args, Env env, FrameState_ fs)
-      implements RValue_ {}
+  record Call(
+      @Override LangSXP ast,
+      @TypeIs("ANY_FUN") @Override RValue fun,
+      @Override ImmutableList<RValue> args,
+      @Override Env env,
+      Optional<org.prlprg.ir.cfg.FrameState> fs)
+      implements Call_ {
+    public Call(
+        LangSXP ast,
+        RValue fun,
+        ImmutableList<RValue> args,
+        Env env,
+        @Nullable org.prlprg.ir.cfg.FrameState fs) {
+      this(ast, fun, args, env, Optional.ofNullable(fs));
+    }
+  }
 
   @TypeIs("ANY")
   @EffectsAreAribtrary()
   record NamedCall(
-      LangSXP ast,
-      RValue fun,
-      ImmutableList<SymSXP> names,
-      @SameLen("names") ImmutableList<RValue> args,
-      Env env,
-      FrameState_ fs)
-      implements RValue_ {}
+      @Override LangSXP ast,
+      @TypeIs("ANY_FUN") @Override RValue fun,
+      @Override ImmutableList<Optional<RegSymSXP>> names,
+      @SameLen("names") @Override ImmutableList<RValue> args,
+      @Override Env env,
+      Optional<org.prlprg.ir.cfg.FrameState> fs)
+      implements Call_ {
+    public NamedCall(
+        LangSXP ast,
+        RValue fun,
+        ImmutableList<Optional<RegSymSXP>> names,
+        ImmutableList<RValue> args,
+        Env env,
+        @Nullable org.prlprg.ir.cfg.FrameState fs) {
+      this(ast, fun, names, args, env, Optional.ofNullable(fs));
+    }
+  }
+
+  record StaticCall(
+      @Override LangSXP ast,
+      @TypeIs("CLO") Optional<RValue> runtimeClosure,
+      ClosureVersion closureVersion,
+      ClosureVersion.OptimizationContext givenContext,
+      @Override ImmutableList<RValue> args,
+      @Override @SameLen("args") ImmutableIntArray arglistOrder,
+      @Override Env env,
+      Optional<org.prlprg.ir.cfg.FrameState> fs)
+      implements Call_ {
+    public StaticCall(
+        LangSXP ast,
+        @Nullable RValue runtimeClosure,
+        ClosureVersion closureVersion,
+        ClosureVersion.OptimizationContext givenContext,
+        ImmutableList<RValue> args,
+        ImmutableIntArray arglistOrder,
+        Env env,
+        @Nullable org.prlprg.ir.cfg.FrameState fs) {
+      this(
+          ast,
+          Optional.ofNullable(runtimeClosure),
+          closureVersion,
+          givenContext,
+          args,
+          arglistOrder,
+          env,
+          Optional.ofNullable(fs));
+    }
+
+    @Override
+    public @Nullable RValue fun() {
+      return runtimeClosure.orElse(null);
+    }
+
+    @Override
+    public RType computeType() {
+      // TODO: Compute from closureVersion applied in givenContext (and maybe callerEnv) to args
+      return RTypes.ANY;
+    }
+
+    @Override
+    public REffects computeEffects() {
+      // TODO: Compute from closureVersion applied in givenContext (and maybe callerEnv) to args
+      return REffects.ARBITRARY;
+    }
+  }
 
   @EffectsAreAribtrary()
   record CallBuiltin(
-      LangSXP ast, BuiltinId builtin, RValue fun, ImmutableList<RValue> args, Env env)
-      implements RValue_ {
+      @Override LangSXP ast,
+      BuiltinId builtin,
+      @Override ImmutableList<RValue> args,
+      @Override Env env)
+      implements Call_ {
+    @Override
+    public @Nullable RValue fun() {
+      return null;
+    }
+
     @Override
     public RType computeType() {
       return RTypes.builtin(builtin);
@@ -607,13 +810,17 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
 
   @EffectsAre({REffect.Visibility, REffect.Warn, REffect.Error})
   record CallSafeBuiltin(
-      LangSXP ast,
+      @Override LangSXP ast,
       BuiltinId builtin,
-      RValue fun,
-      ImmutableList<RValue> args,
-      Env env,
+      @Override ImmutableList<RValue> args,
+      @Override Env env,
       ImmutableList<Assumption> assumption)
-      implements RValue_ {
+      implements Call_ {
+    @Override
+    public @Nullable RValue fun() {
+      return null;
+    }
+
     @Override
     public RType computeType() {
       return RTypes.builtin(builtin);
@@ -621,36 +828,63 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
   }
 
   @EffectsAre(REffect.LeaksNonEnvArg)
-  @TypeIs("ENV")
   record MkEnv(
-      Env lexicalEnv,
-      ImmutableList<SymSXP> names,
+      @Override Env parent,
+      ImmutableList<RegSymSXP> names,
       @SameLen("names") ImmutableList<RValue> values,
-      @SameLen("names") ImmutableList<Boolean> missingness)
-      implements StmtData<EnvStmt> {
-    @Override
-    public EnvStmt make(CFG cfg, String name) {
-      return new EnvStmtImpl(cfg, name, this);
+      @SameLen("names") ImmutableList<Boolean> missingness,
+      int context,
+      boolean isStub)
+      implements Env_ {
+    public MkEnv(
+        Env parent,
+        ImmutableList<RegSymSXP> names,
+        ImmutableList<RValue> values,
+        ImmutableList<Boolean> missingness) {
+      this(parent, names, values, missingness, 1, false);
     }
   }
 
   @EffectsAre({})
-  @TypeIs("ENV")
-  record MaterializeEnv(Env env) implements RValue_ {}
+  record MaterializeEnv(Env env) implements Env_ {
+    @Override
+    public @Nullable Env parent() {
+      return env.parent();
+    }
+  }
 
   @EffectsAre(REffect.ReadsEnvArg)
   @TypeIs("BOOL")
   record IsEnvStub(Env env) implements RValue_ {}
 
   @EffectsAre({REffect.ChangesContext, REffect.LeaksNonEnvArg, REffect.LeaksEnvArg})
-  record PushContext(RValue ast, RValue op, Call call, Env sysParent)
+  record PushContext(
+      RValue ast,
+      RValue op,
+      ImmutableList<RValue> ctxArgs,
+      Optional<ImmutableIntArray> arglistOrder,
+      Env sysParent)
       implements StmtData<RContext> {
+    public PushContext(
+        RValue ast,
+        RValue op,
+        ImmutableList<RValue> args,
+        @Nullable ImmutableIntArray arglistOrder,
+        Env sysParent) {
+      this(ast, op, args, Optional.ofNullable(arglistOrder), sysParent);
+    }
+
+    public PushContext(RValue ast, RValue op, org.prlprg.ir.cfg.Call call, Env sysParent) {
+      this(ast, op, call.data().args(), call.data().arglistOrder(), sysParent);
+    }
+
     @Override
     public RContext make(CFG cfg, String name) {
       return new RContextImpl(cfg, name, this);
     }
   }
 
+  @TypeIs("ANY_VALUE")
   @EffectsAre(REffect.ChangesContext)
   record PopContext(RValue res, RContext context) implements RValue_ {}
 
@@ -667,5 +901,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
 
   @EffectsAre(REffect.LeaksNonEnvArg)
   @TypeIs("DOTS")
-  record DotsList(ImmutableList<SymSXP> names, ImmutableList<RValue> values) implements RValue_ {}
+  record DotsList(
+      ImmutableList<Optional<RegSymSXP>> names, @SameLen("names") ImmutableList<RValue> values)
+      implements RValue_ {}
 }

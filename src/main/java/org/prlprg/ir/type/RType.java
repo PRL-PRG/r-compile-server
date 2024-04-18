@@ -58,7 +58,7 @@ public final class RType implements BoundedLattice<RType> {
   // region `RType` specific methods
   /**
    * Whether this is maybe or definitely a promise, and if so, laziness and potentially exact
-   * promise value {@code null} if this is the nothing type.
+   * promise value. {@code null} if this is the nothing type.
    */
   public @Nullable PromiseRType promise() {
     return promise == null ? null : promise.promiseType();
@@ -85,6 +85,18 @@ public final class RType implements BoundedLattice<RType> {
   }
 
   /**
+   * If this type is definitely non-lazy, returns the maybe-lazy equivalent. Otherwise returns
+   * itself (including if this is the nothing type).
+   *
+   * <p>In particular, if this is a value, returns a maybe-promise.
+   */
+  public RType notStrict() {
+    return promise == null || promise.isLazy() != Troolean.NO
+        ? this
+        : new RType(inner, promise.notStrict(), missing);
+  }
+
+  /**
    * If this type is maybe or definitely a promise, returns the inner value type. Otherwise returns
    * itself (including if this is the nothing type).
    */
@@ -92,6 +104,16 @@ public final class RType implements BoundedLattice<RType> {
     return promise == null || promise.isPromise() == Troolean.NO
         ? this
         : new RType(inner, RPromiseType.VALUE, missing);
+  }
+
+  /**
+   * If this type is a value, returns a maybe-strict-promise. Otherwise returns itself (including if
+   * this is the nothing type).
+   */
+  public RType promiseWrapped() {
+    return promise == null || promise.isPromise() != Troolean.NO
+        ? this
+        : new RType(inner, RPromiseType.STRICT_PROMISE, missing);
   }
 
   /**
@@ -131,6 +153,13 @@ public final class RType implements BoundedLattice<RType> {
     return equals(RTypes.ANY);
   }
 
+  // region helpers
+  /** Is the type a lazy promise? Returns {@code null} if it's the nothing type. */
+  public @Nullable Troolean isLazy() {
+    return promise == null ? null : promise.isLazy();
+  }
+
+  // endregion
   // endregion
 
   // This contains all the accessors in RValueType, and accessors to return the specific RValueType

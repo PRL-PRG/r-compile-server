@@ -8,7 +8,6 @@ import java.util.Collections;
 import java.util.Set;
 import javax.annotation.concurrent.Immutable;
 import org.prlprg.ir.type.lattice.BoundedLattice;
-import org.prlprg.util.NotImplementedError;
 import org.prlprg.util.Strings;
 
 /** Set of effects an instruction or function overload may be performed when executed or called. */
@@ -30,12 +29,14 @@ public final class REffects extends ForwardingSet<REffect> implements BoundedLat
 
   /** The effects of a arithmetic bytecode instruction, whose arguments have the given types. */
   public static REffects arithmeticOp(RType... types) {
-    throw new NotImplementedError();
+    // TODO
+    return ARBITRARY;
   }
 
   /** The effects of a comparison bytecode instruction, whose arguments have the given types. */
   public static REffects comparisonOp(RType... types) {
-    throw new NotImplementedError();
+    // TODO
+    return ARBITRARY;
   }
 
   /**
@@ -43,7 +44,8 @@ public final class REffects extends ForwardingSet<REffect> implements BoundedLat
    * given types.
    */
   public static REffects booleanOp(RType... types) {
-    throw new NotImplementedError();
+    // TODO
+    return ARBITRARY;
   }
 
   private final ImmutableSet<REffect> flags;

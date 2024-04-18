@@ -1,0 +1,224 @@
+package org.prlprg.ir.cfg;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+import java.io.StringReader;
+import java.io.StringWriter;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Formatter;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Supplier;
+import org.jetbrains.annotations.Unmodifiable;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.prlprg.ir.cfg.CFGEdit.Intrinsic;
+import org.prlprg.parseprint.ParseException;
+import org.prlprg.parseprint.Printer;
+import org.prlprg.util.DirectorySource;
+import org.prlprg.util.Files;
+import org.prlprg.util.Pair;
+
+public class CFGTests {
+  @ParameterizedTest
+  @DirectorySource(root = "pir-prints", depth = Integer.MAX_VALUE, glob = "*.log")
+  public void testPirIsParseableAndPrintableWithoutError(Path pirPath) {
+    var original = Files.readString(pirPath);
+    var cfgs = readPirCfgs(pirPath, original, CFG::new, false);
+    var roundTrip = writePirCfgs(cfgs);
+    var defaultStr = writeCfgs(cfgs);
+
+    System.out.println("Native serialized representation:");
+    System.out.println(entireRegion(defaultStr));
+    System.out.println();
+    System.out.println("Reprinted (round-trip) PIR representation:");
+    System.out.println(entireRegion(roundTrip));
+    System.out.println();
+    System.out.println("Original PIR representation:");
+    System.out.println(entireRegion(original));
+  }
+
+  @ParameterizedTest
+  @DirectorySource(root = "pir-prints", depth = Integer.MAX_VALUE, glob = "*.log")
+  public void testPirObserverCanRecreate(Path pirPath) {
+    var original = Files.readString(pirPath);
+
+    // Silently fails on parse exceptions because we're not testing parsing.
+    Pair<List<CFG>, Map<CFG, List<CFGEdit.Intrinsic<?>>>> cfgsAndEdits =
+        readPirCfgsAndStoreEdits(pirPath, original, true);
+    var cfgs = cfgsAndEdits.first();
+    var editsForEveryCfg = cfgsAndEdits.second();
+
+    for (var cfg : cfgs) {
+      System.err.println(cfg);
+
+      var edits = editsForEveryCfg.get(cfg);
+
+      var copy = new CFG();
+      for (var edit : edits) {
+        System.err.println(edit);
+        edit.apply(copy);
+      }
+
+      var repr = cfg.toString();
+      var copyRepr = copy.toString();
+
+      assertEquals(repr, copyRepr, "Recreated CFG does not match original");
+
+      System.err.println();
+    }
+  }
+
+  @ParameterizedTest
+  @DirectorySource(root = "pir-prints", depth = Integer.MAX_VALUE, glob = "*.log")
+  public void testPirObserverCanUndo(Path pirPath) {
+    var original = Files.readString(pirPath);
+
+    // Silently fails on parse exceptions because we're not testing parsing.
+    Pair<List<CFG>, Map<CFG, List<CFGEdit.Intrinsic<?>>>> cfgsAndEdits =
+        readPirCfgsAndStoreEdits(pirPath, original, true);
+    var cfgs = cfgsAndEdits.first();
+    var editsForEveryCfg = cfgsAndEdits.second();
+
+    for (var cfg : cfgs) {
+      System.err.println(cfg);
+
+      var edits = editsForEveryCfg.get(cfg);
+
+      for (var edit : edits.reversed()) {
+        System.err.println(edit);
+        edit.apply(cfg);
+      }
+
+      assertEquals(
+          new CFG().toString(), cfg.toString(), "Undoing all edits should result in an empty CFG");
+
+      System.err.println();
+    }
+  }
+
+  /**
+   * Enable this test to get "click to show difference" in IntelliJ, to inspect the PIR reprints
+   * "by-eye". They will never be the same because PIR's print representation loses information.
+   */
+  @Disabled
+  @ParameterizedTest
+  @DirectorySource(root = "pir-prints", depth = Integer.MAX_VALUE, glob = "*.log")
+  public void testPirByEye(Path pirPath) {
+    var original = Files.readString(pirPath);
+    var cfgs = readPirCfgs(pirPath, original, CFG::new, false);
+    var roundTrip = writePirCfgs(cfgs);
+
+    // This will fail, but it will show a message that lets you see the difference.
+    // It's only important that there aren't unexplained discrepancies.
+    assertEquals(original, roundTrip);
+  }
+
+  // region helpers
+  private Pair<List<CFG>, Map<CFG, List<Intrinsic<?>>>> readPirCfgsAndStoreEdits(
+      Path pirPath, String source, boolean silentlyFailOnParseException) {
+    var editsForEveryCfg = new HashMap<CFG, List<CFGEdit.Intrinsic<?>>>();
+    var cfgs =
+        readPirCfgs(
+            pirPath,
+            source,
+            () -> {
+              var cfg = new CFG();
+
+              var edits = new ArrayList<CFGEdit.Intrinsic<?>>();
+              editsForEveryCfg.put(cfg, edits);
+              cfg.addObserver(edits::add);
+
+              return cfg;
+            },
+            silentlyFailOnParseException);
+
+    return Pair.of(cfgs, editsForEveryCfg);
+  }
+
+  private @Unmodifiable List<CFG> readPirCfgs(
+      Path pirPath, String source, Supplier<CFG> cfgFactory, boolean silentlyFailOnParseException) {
+    var pirReader = new StringReader(source);
+
+    List<CFG> cfgs = new ArrayList<>();
+    try {
+      CFGPirSerialize.manyFromPIR(pirReader, cfgFactory).forEach(cfgs::add);
+    } catch (ParseException e) {
+      System.err.println(
+          "Failed to parse "
+              + pirPath
+              + "\n"
+              + region(source, e.position().line(), e.position().column()));
+      if (!silentlyFailOnParseException) {
+        throw e;
+      }
+    } catch (Throwable e) {
+      System.err.println("Exception while parsing " + pirPath + "\n" + entireRegion(source));
+      throw e;
+    }
+
+    pirReader.close();
+    return cfgs;
+  }
+
+  private String writePirCfgs(List<CFG> cfgs) {
+    var pirWriter = new StringWriter();
+    for (var cfg : cfgs) {
+      cfg.toPir(pirWriter);
+    }
+    return pirWriter.toString();
+  }
+
+  private String writeCfgs(List<CFG> cfgs) {
+    return Printer.use(
+        p -> {
+          for (var cfg : cfgs) {
+            p.print(cfg);
+          }
+        });
+  }
+
+  // endregion
+
+  // region print regions
+  private static final int NUM_REGION_CONTEXT_LINES = 2;
+
+  private String region(String source, long errorLineNum, long errorColNum) {
+    if (errorLineNum < 0 || errorColNum < 0) {
+      throw new IllegalArgumentException("errorLineNum and errorColNum must be positive");
+    }
+
+    long firstLineNum = errorLineNum - NUM_REGION_CONTEXT_LINES;
+    long lastLineNum = errorLineNum + NUM_REGION_CONTEXT_LINES;
+
+    var s = new StringBuilder();
+    var f = new Formatter(s);
+    var lines = source.lines().iterator();
+    for (long lineNum = 1; lines.hasNext(); lineNum++) {
+      var line = lines.next();
+      if (lineNum == firstLineNum - 1 || lineNum == lastLineNum + 1) {
+        s.append("      ...\n");
+      } else if (lineNum >= firstLineNum && lineNum <= lastLineNum) {
+        f.format("%4d: %s\n", lineNum, line);
+        if (lineNum == errorLineNum) {
+          s.append(" ".repeat((int) errorColNum + 5)).append("^\n");
+        }
+      }
+    }
+    return s.toString();
+  }
+
+  private String entireRegion(String source) {
+    var s = new StringBuilder();
+    var f = new Formatter(s);
+    var lines = source.lines().iterator();
+    for (long lineNum = 1; lines.hasNext(); lineNum++) {
+      var line = lines.next();
+      f.format("%4d: %s\n", lineNum, line);
+    }
+    return s.toString();
+  }
+  // endregion print regions
+}

@@ -1,85 +1,106 @@
 package org.prlprg.parseprint;
 
+import org.prlprg.util.Reflection;
+import org.prlprg.util.StringCase;
+import org.prlprg.util.Strings;
+
 /**
  * Provides {@link ParseMethod}s for types outside of {@link org.prlprg}. Types inside, we put the
  * {@link ParseMethod} in the type directly.
  */
 class BuiltinParseMethods {
-  private BuiltinParseMethods() {}
-
   @ParseMethod(SkipWhitespace.NONE)
-  static String parseString(Parser p) {
-    var l = p.lexer();
-    var sb = new StringBuilder();
+  private static String parseString(Parser p) {
+    return p.scanner().readQuoted('"');
+  }
 
-    l.assertAndSkip('"');
-    while (true) {
-      var c = l.readChar();
-      switch (c) {
-        case '"' -> {
-          return sb.toString();
-        }
-        case '\\' -> {
-          switch (l.readChar()) {
-            case 'n' -> sb.append('\n');
-            case 'r' -> sb.append('\r');
-            case 't' -> sb.append('\t');
-            case '"' -> sb.append('"');
-            case '\\' -> sb.append('\\');
-            case '\'' -> sb.append('\'');
-            case 'x' -> {
-              var hex = l.readFixedLength(2);
-              try {
-                sb.append(Integer.parseInt(hex, 16));
-              } catch (NumberFormatException e) {
-                throw l.fail("Invalid hex escape sequence");
-              }
-            }
-            case 'u' -> {
-              var hex = l.readFixedLength(4);
-              try {
-                sb.append((char) Integer.parseInt(hex, 16));
-              } catch (NumberFormatException e) {
-                throw l.fail("Invalid unicode escape sequence");
-              }
-            }
-            default -> throw l.fail("Unhandled escape sequence");
-          }
-        }
-        default -> sb.append(c);
-      }
-    }
+  // These *must* be the boxed variants.
+  @ParseMethod(SkipWhitespace.NONE)
+  private static Integer parseInt(Parser p) {
+    return p.scanner().trySkip('-') ? -p.scanner().readUInt() : p.scanner().readUInt();
   }
 
   @ParseMethod(SkipWhitespace.NONE)
-  static int parseInt(Parser p) {
-    return p.lexer().trySkip('-') ? -p.lexer().readUInt() : p.lexer().readUInt();
+  private static Long parseLong(Parser p) {
+    return p.scanner().trySkip('-') ? -p.scanner().readULong() : p.scanner().readULong();
   }
 
   @ParseMethod(SkipWhitespace.NONE)
-  static long parseLong(Parser p) {
-    return p.lexer().trySkip('-') ? -p.lexer().readULong() : p.lexer().readULong();
+  private static Float parseFloat(Parser p) {
+    return p.scanner().readFloat();
   }
 
   @ParseMethod(SkipWhitespace.NONE)
-  static float parseFloat(Parser p) {
-    return p.lexer().readFloat();
+  private static Double parseDouble(Parser p) {
+    return p.scanner().readDouble();
   }
 
   @ParseMethod(SkipWhitespace.NONE)
-  static double parseDouble(Parser p) {
-    return p.lexer().readDouble();
-  }
-
-  @ParseMethod(SkipWhitespace.NONE)
-  static boolean parseBoolean(Parser p) {
-    var l = p.lexer();
-    if (l.trySkip("true")) {
+  private static Boolean parseBoolean(Parser p) {
+    var s = p.scanner();
+    if (s.trySkip("true")) {
       return true;
-    } else if (l.trySkip("false")) {
+    } else if (s.trySkip("false")) {
       return false;
     } else {
-      throw l.fail("Expected boolean");
+      throw s.fail("Expected boolean");
     }
   }
+
+  @ParseMethod(SkipWhitespace.NONE)
+  private static <E extends Enum<E>> Enum<E> parseEnum(Parser p, Class<E> enumClass) {
+    var s = p.scanner();
+    var ctx = p.context();
+    var name = s.readJavaIdentifier();
+
+    var stringCase =
+        ctx != null && ctx.getClass().isAnnotationPresent(EnumSerialCaseIs.class)
+            ? ctx.getClass().getAnnotation(EnumSerialCaseIs.class).value()
+            : enumClass.isAnnotationPresent(EnumSerialCaseIs.class)
+                ? enumClass.getAnnotation(EnumSerialCaseIs.class).value()
+                : StringCase.SCREAMING_SNAKE;
+    name = StringCase.convert(name, stringCase, StringCase.SCREAMING_SNAKE);
+
+    try {
+      return Enum.valueOf(enumClass, name);
+    } catch (IllegalArgumentException e) {
+      throw s.fail(
+          "one of (" + Strings.join(", ", Enum::name, enumClass.getEnumConstants()) + ")", name);
+    }
+  }
+
+  @ParseMethod
+  private Record parseRecord(Parser p) {
+    if (!(p.context() instanceof ClassProvidingContext ctx)) {
+      throw new IllegalStateException(
+          "Can't parse record the builtin way without a context inheriting ClassProvidingContext");
+    }
+    var s = p.scanner();
+
+    var className = s.readJavaIdentifier();
+    var clazz = ctx.getClass(className);
+    if (clazz == null) {
+      throw s.fail("Unknown record class: " + className);
+    }
+    if (!clazz.isRecord()) {
+      throw s.fail("Class isn't a record: " + className);
+    }
+
+    var components = clazz.getRecordComponents();
+    var arguments = new Object[components.length];
+    if (arguments.length > 0) {
+      s.assertAndSkip('(');
+      for (var i = 0; i < components.length; i++) {
+        if (i > 0) {
+          s.assertAndSkip(',');
+        }
+        arguments[i] = p.parse(components[i].getGenericType(), SkipWhitespace.ALL);
+      }
+      s.assertAndSkip(')');
+    }
+
+    return (Record) Reflection.construct(clazz, arguments);
+  }
+
+  private BuiltinParseMethods() {}
 }

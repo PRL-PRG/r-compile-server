@@ -1,14 +1,10 @@
 package org.prlprg.ir.cfg;
 
-import com.google.common.collect.ImmutableList;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 /** IR (intermediate representation) node; value or instruction. */
 public interface Node {
-  /** All shared static nodes. */
-  ImmutableList<Node> GLOBALS = ImmutableList.of(Envs.GLOBAL, Envs.NOT_CLOSED, Envs.ELIDED);
-
   /**
    * CFG containing the node, or {@code null} if it's a shared static node (e.g. {@code
    * R_GlobalEnv}.

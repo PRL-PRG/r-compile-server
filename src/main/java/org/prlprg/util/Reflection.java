@@ -1,34 +1,13 @@
 package org.prlprg.util;
 
 import com.google.common.collect.Streams;
-import io.github.classgraph.ClassGraph;
-import java.lang.annotation.Annotation;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.lang.reflect.RecordComponent;
 import java.util.Arrays;
-import java.util.Objects;
-import java.util.function.Function;
 import java.util.stream.Stream;
-import org.prlprg.parseprint.ParseMethod;
 
 public class Reflection {
-  /** Reflectively construct the class, converting all exceptions to runtime exceptions. */
-  public static <T> T construct(Class<T> cls, Object... arguments) {
-    try {
-      return cls.getConstructor().newInstance(arguments);
-    } catch (InvocationTargetException e) {
-      if (e.getCause() instanceof RuntimeException e1) {
-        throw e1;
-      } else if (e.getCause() instanceof Error e1) {
-        throw e1;
-      }
-      throw new RuntimeException("checked exception in reflectively called constructor", e);
-    } catch (ReflectiveOperationException e) {
-      throw new RuntimeException("failed to reflectively construct", e);
-    }
-  }
-
   /**
    * Reflectively get the record components, converting all exceptions to runtime exceptions.
    *
@@ -68,17 +47,75 @@ public class Reflection {
   }
 
   /**
-   * Reflectively call the method in the given class with the given name, converting all exceptions
-   * to runtime exceptions.
+   * Reflectively construct the class, converting all exceptions to runtime exceptions.
    *
-   * <p>It only searches methods within the given class, but can call private methods. It finds the
-   * only overload with the method name that can be called with the given arguments, and will call
-   * regardless of whether the types are correct. It also can't call var-args methods.
+   * <p>It can call private constructors. It finds the only overload whose parameter types the given
+   * arguments are instances of, and it can't find var-args methods.
    *
    * @throws IllegalArgumentException If no methods in {@code target} have {@code methodName}.
    * @throws IllegalArgumentException If multiple methods in {@code target} have {@code methodName}.
    */
-  @SuppressWarnings("UnusedReturnValue")
+  @SuppressWarnings("unchecked")
+  public static <T> T construct(Class<T> target, Object... arguments) {
+    try {
+      @SuppressWarnings("UnstableApiUsage")
+      var constructors =
+          Arrays.stream(target.getConstructors())
+              .filter(
+                  m ->
+                      !m.isVarArgs()
+                          && m.getParameterCount() == arguments.length
+                          && Streams.zip(
+                                  Arrays.stream(m.getParameterTypes())
+                                      .map(c -> c.isPrimitive() ? Classes.boxed(c) : c),
+                                  Arrays.stream(arguments),
+                                  Class::isInstance)
+                              .allMatch(b -> b))
+              .toList();
+      var constructor =
+          switch (constructors.size()) {
+            case 0 ->
+                throw new IllegalArgumentException(
+                    "no constructors in "
+                        + target
+                        + " support arguments of types ["
+                        + Strings.join(", ", o -> o.getClass().getName(), arguments)
+                        + "]");
+            case 1 -> (Constructor<T>) constructors.getFirst();
+            default ->
+                throw new IllegalArgumentException(
+                    "multiple constructors in "
+                        + target
+                        + " support arguments of types ["
+                        + Strings.join(", ", o -> o.getClass().getName(), arguments)
+                        + "]");
+          };
+
+      constructor.setAccessible(true);
+      return constructor.newInstance(arguments);
+    } catch (InvocationTargetException e) {
+      if (e.getCause() instanceof RuntimeException e1) {
+        throw e1;
+      } else if (e.getCause() instanceof Error e1) {
+        throw e1;
+      }
+      throw new RuntimeException("checked exception in reflectively called constructor", e);
+    } catch (ReflectiveOperationException e) {
+      throw new RuntimeException("failed to reflectively construct", e);
+    }
+  }
+
+  /**
+   * Reflectively call the method in the given class with the given name, converting all exceptions
+   * to runtime exceptions.
+   *
+   * <p>It only searches methods within the given class, but can call private methods. It finds the
+   * only overload with the method name and parameter types which the given arguments are instances
+   * of, and it can't find var-args methods.
+   *
+   * @throws IllegalArgumentException If no methods in {@code target} have {@code methodName}.
+   * @throws IllegalArgumentException If multiple methods in {@code target} have {@code methodName}.
+   */
   public static Object callByName(
       Object target, Class<?> methodClass, String methodName, Object... arguments) {
     try {
@@ -91,24 +128,37 @@ public class Reflection {
                           && !m.isVarArgs()
                           && m.getParameterCount() == arguments.length
                           && Streams.zip(
-                                  Arrays.stream(m.getParameterTypes()),
+                                  Arrays.stream(m.getParameterTypes())
+                                      .map(c -> c.isPrimitive() ? Classes.boxed(c) : c),
                                   Arrays.stream(arguments),
                                   Class::isInstance)
                               .allMatch(b -> b))
               .toList();
       var method =
           switch (methods.size()) {
-            case 0 -> throw new IllegalArgumentException("no methods in target have methodName");
+            case 0 ->
+                throw new IllegalArgumentException(
+                    "no methods in "
+                        + target
+                        + " named "
+                        + methodName
+                        + " supporting arguments of types ["
+                        + Strings.join(", ", o -> o.getClass().getName(), arguments)
+                        + "]");
             case 1 -> methods.getFirst();
             default ->
-                throw new IllegalArgumentException("multiple methods in target have methodName");
+                throw new IllegalArgumentException(
+                    "multiple methods in "
+                        + target
+                        + " named "
+                        + methodName
+                        + " supporting arguments of types ["
+                        + Strings.join(", ", o -> o.getClass().getName(), arguments)
+                        + "]");
           };
 
-      var oldIsAccessible = method.canAccess(target);
       method.setAccessible(true);
-      var result = method.invoke(target, arguments);
-      method.setAccessible(oldIsAccessible);
-      return result;
+      return method.invoke(target, arguments);
     } catch (InvocationTargetException e) {
       if (e.getCause() instanceof RuntimeException e1) {
         throw e1;
@@ -119,45 +169,6 @@ public class Reflection {
     } catch (ReflectiveOperationException e) {
       throw new RuntimeException("failed to reflectively call method", e);
     }
-  }
-
-  /** Return the superclass, its superclass, and so on. */
-  public static Stream<Class<?>> streamSuperclassChain(Class<?> cls, boolean includeSelf) {
-    return Stream.iterate(
-        includeSelf ? cls : cls.getSuperclass(), Objects::nonNull, Class::getSuperclass);
-  }
-
-  /** Return the superclass, its superclass, and so on. */
-  public static Iterable<Class<?>> superclassChain(Class<?> cls, boolean includeSelf) {
-    return () -> streamSuperclassChain(cls, includeSelf).iterator();
-  }
-
-  /**
-   * Find and process all methods with the annotation in {@link org.prlprg}.
-   *
-   * <p>Uses <a href="https://github.com/classgraph/classgraph">ClassGraph</a>.
-   *
-   * @param processMethods function is provided with a stream of methods that all have an annotation
-   *     of the given class, and its return is returned by this function.
-   */
-  public static <R> R findAndProcessMethodsWithAnnotation(
-      Class<? extends Annotation> annotationClass, Function<Stream<Method>, R> processMethods) {
-    try (var scanResult = Reflection.classGraph().enableMethodInfo().scan()) {
-      var stream =
-          scanResult.getClassesWithMethodAnnotation(annotationClass).loadClasses().stream()
-              .flatMap(clazz -> Arrays.stream(clazz.getDeclaredMethods()))
-              .filter(method -> method.getAnnotation(ParseMethod.class) != null);
-      return processMethods.apply(stream);
-    }
-  }
-
-  /**
-   * Creates a {@link ClassGraph} to scan reflection data in {@link org.prlprg}.
-   *
-   * <p>Main purpose is to get all locations of some annotation.
-   */
-  private static ClassGraph classGraph() {
-    return new ClassGraph().acceptPackages("org.prlprg");
   }
 
   private Reflection() {}

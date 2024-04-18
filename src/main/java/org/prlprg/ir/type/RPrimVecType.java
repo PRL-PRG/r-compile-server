@@ -5,7 +5,6 @@ import org.prlprg.ir.type.lattice.MaybeNat;
 import org.prlprg.ir.type.lattice.NoOrMaybe;
 import org.prlprg.ir.type.lattice.Troolean;
 import org.prlprg.sexp.PrimVectorSXP;
-import org.prlprg.util.NotImplementedError;
 
 /** Primitive vector {@link RType} projection. */
 public sealed interface RPrimVecType extends RValueType {
@@ -43,10 +42,16 @@ public sealed interface RPrimVecType extends RValueType {
   NoOrMaybe hasNAOrNaN();
 
   /** Whether we can do fast access (no {@code class}, {@code dim}, ...). */
-  default boolean fastAccess() {
+  default Troolean fastAccess() {
     // TODO check in AttributesType
-    throw new NotImplementedError();
+    return Troolean.MAYBE;
   }
+
+  /** Returns the same type but not scalar. */
+  RPrimVecType notScalar();
+
+  /** Returns the same type but not NA or NaN. */
+  RPrimVecType notNAOrNaN();
 }
 
 record RPrimVecTypeImpl(
@@ -72,6 +77,18 @@ record RPrimVecTypeImpl(
 
   RPrimVecTypeImpl {
     RGenericValueType.commonSanityChecks(this);
+  }
+
+  @Override
+  public RPrimVecType notScalar() {
+    return new RPrimVecTypeImpl(
+        exactValue, attributes, referenceCount, elementType, MaybeNat.UNKNOWN, hasNAOrNaN);
+  }
+
+  @Override
+  public RPrimVecType notNAOrNaN() {
+    return new RPrimVecTypeImpl(
+        exactValue, attributes, referenceCount, elementType, length, NoOrMaybe.NO);
   }
 
   @Override
