@@ -1,8 +1,6 @@
 basevars <- ls("package:base", all.names = TRUE)
 types <- sapply(basevars, \(x) typeof(get(x)))
 
-print(types)
-
 saveRDS(basevars[types == "special"], "specials.RDS", version = 2)
 saveRDS(basevars[types == "builtin"], "builtins.RDS", version = 2)
 
@@ -18,3 +16,5 @@ saveRDS(basevars, "basevars.RDS", version = 2)
 saveRDS(base_env, "baseenv.RDS", version = 2)
 
 saveRDS(builtins(internal = TRUE), "builtins-internal.RDS", version = 2)
+
+saveRDS(basevars[types == "closure"], "base-closures.RDS", version = 2)

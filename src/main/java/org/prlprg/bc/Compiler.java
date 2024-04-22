@@ -21,7 +21,7 @@ import org.prlprg.sexp.*;
 @SuppressWarnings("PMD.UnnecessaryImport")
 public class Compiler {
   private static final Set<String> MAYBE_NSE_SYMBOLS = Set.of("bquote");
-  private static final Set<String> ALLOWED_INLINES =
+  private static final Set<String> LANGUAGE_FUNS =
       Set.of(
           "^",
           "~",
@@ -582,22 +582,20 @@ public class Compiler {
       return Optional.empty();
     }
 
+    InlineInfo info = null;
+
+    // FIXME: this considers everything else "global" which is not true, but cannot be
+    // fixed until we have a proper environment chain supported in the Rsession
+
     if (res.first() instanceof NamespaceEnvSXP) {
-      return Optional.of(new InlineInfo(name, res.first(), res.second(), false));
+      info = new InlineInfo(name, res.first(), res.second(), false);
+    } else if (optimizationLevel >= 3 || (optimizationLevel == 2 && LANGUAGE_FUNS.contains(name))) {
+      info = new InlineInfo(name, res.first(), res.second(), false);
+    } else if (guardOK && res.first().isBase()) {
+      info = new InlineInfo(name, res.first(), res.second(), true);
     }
 
-    boolean guarded;
-    if (optimizationLevel == 2 && !ALLOWED_INLINES.contains(name)) {
-      if (guardOK) {
-        guarded = true;
-      } else {
-        return Optional.empty();
-      }
-    } else {
-      guarded = false;
-    }
-
-    return Optional.of(new InlineInfo(name, res.first(), res.second(), guarded));
+    return Optional.ofNullable(info);
   }
 
   /**
@@ -2140,10 +2138,9 @@ public class Compiler {
 
   private boolean isFoldableFun(RegSymSXP sym) {
     var name = sym.name();
+
     if (ALLOWED_FOLDABLE_FUNS.contains(name)) {
-      return ctx.resolve(name)
-          .filter(x -> x.first().isBase() && x.second().isFunction())
-          .isPresent();
+      return getInlineInfo(name, false).map(x -> x.env.isBase() && x.value != null && x.value.isFunction()).orElse(false);
     } else {
       return false;
     }
