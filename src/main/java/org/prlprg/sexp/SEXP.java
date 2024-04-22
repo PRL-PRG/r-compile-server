@@ -1,5 +1,8 @@
 package org.prlprg.sexp;
 
+import com.google.common.collect.Streams;
+import java.util.Collection;
+import java.util.List;
 import java.util.Objects;
 import javax.annotation.Nullable;
 
@@ -60,5 +63,30 @@ public sealed interface SEXP
    */
   default boolean isFunction() {
     return this instanceof CloSXP || this instanceof BuiltinSXP || this instanceof SpecialSXP;
+  }
+
+  default SEXP withNames(String name) {
+    return withNames(SEXPs.string(name));
+  }
+
+  default SEXP withNames(Collection<String> names) {
+    return withNames(SEXPs.string(names));
+  }
+
+  default SEXP withNames(StrSXP names) {
+    if (names.isEmpty()) {
+      return withAttributes(Objects.requireNonNull(attributes()).excluding("names"));
+    } else {
+      return withAttributes(Objects.requireNonNull(attributes()).including("names", names));
+    }
+  }
+
+  default List<String> names() {
+    var names = Objects.requireNonNull(attributes()).get("names");
+    if (names == null) {
+      return List.of();
+    } else {
+      return Streams.stream((StrSXP) names).toList();
+    }
   }
 }

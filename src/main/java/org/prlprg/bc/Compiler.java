@@ -184,7 +184,7 @@ public class Compiler {
   // @5c0d6769c910 01 SYMSXP g0c0 [MARK,REF(4),LCK,gp=0x4000] "T" (has value)
   private static final Set<String> ALLOWED_FOLDABLE_CONSTS = Set.of("pi", "T", "F");
 
-  private static final Set<String> ALLOWED_FOLDABLE_FUNS = Set.of("c");
+  private static final Set<String> ALLOWED_FOLDABLE_FUNS = Set.of("c", "*");
 
   // should match DOTCALL_MAX in eval.c
   private static final int DOTCALL_MAX = 16;
@@ -1512,12 +1512,12 @@ public class Compiler {
         uniqueNames.add("");
       }
 
-      // the following acrobacy is so we, quite unexpectedly IMHO
+      // the following acrobacy is, so we compile, quite unexpectedly IMHO,
       // switch("b", a=1,b=,c=,e=2,b=3,b=4,c=,d=5,6)
-      // compile a code that returns 2 (matching e label on b input)
+      // a code that returns 2 (matching e label on b input)
       for (var n : uniqueNames) {
         var start = names.indexOf(n);
-        var firstNonMissing = miss.subList(start, miss.size()).indexOf(false);
+        var firstNonMissing = start + miss.subList(start, miss.size()).indexOf(false);
 
         nLabels.add(firstNonMissing == -1 ? defaultLabel : labels.get(firstNonMissing));
       }
@@ -2099,11 +2099,11 @@ public class Compiler {
     }
 
     var args = new ImmutableList.Builder<SEXP>();
-    for (var arg : call.args().values()) {
-      if (missing(arg)) {
+    for (var arg : call.args()) {
+      if (missing(arg.value())) {
         return Optional.empty();
       }
-      var val = constantFold(arg).flatMap(this::checkConst);
+      var val = constantFold(arg.namedValue()).flatMap(this::checkConst);
       if (val.isPresent()) {
         args.add(val.get());
       } else {
@@ -2113,27 +2113,65 @@ public class Compiler {
 
     return switch (funSym.name()) {
       case "c" -> constantFoldC(args.build());
+      case "*" -> constantFoldMul(args.build());
       default -> Optional.empty();
     };
   }
 
-  private Optional<SEXP> constantFoldC(List<SEXP> args) {
+  private Optional<SEXP> constantFoldMul(ImmutableList<SEXP> args) {
+    var type = args.getFirst().type();
+    if (args.stream().anyMatch(x -> x.type() != type && SEXPs.isScalar(x))) {
+      throw new IllegalArgumentException("All elements must be of the same type");
+    }
+
+    return switch (type) {
+      case INT -> {
+        var res = 1;
+        for (var arg : args) {
+          res *= ((IntSXP) arg).get(0);
+        }
+        yield Optional.of(SEXPs.integer(res));
+      }
+      case REAL -> {
+        var res = 1;
+        for (var arg : args) {
+          res *= ((RealSXP) arg).get(0);
+        }
+        yield Optional.of(SEXPs.real(res));
+      }
+      default -> Optional.empty();
+    };
+  }
+
+  private Optional<SEXP> constantFoldC(List<? extends SEXP> args) {
     var type = args.getFirst().type();
     if (args.stream().anyMatch(x -> x.type() != type)) {
       throw new IllegalArgumentException("All elements must be of the same type");
     }
 
-    return switch (type) {
+    Optional<SEXP> vals = switch (type) {
       // FIXME: add support for other primitives
       case STR -> {
-        var strings = new ImmutableList.Builder<String>();
+        var xs = new ImmutableList.Builder<String>();
         for (var arg : args) {
-          strings.addAll(((StrSXP) arg).iterator());
+          xs.addAll(((StrSXP) arg).iterator());
         }
-        yield Optional.of(SEXPs.string(strings.build()));
+        yield Optional.of(SEXPs.string(xs.build()));
+      }
+      case REAL -> {
+        var xs = new ImmutableList.Builder<Double>();
+        for (var arg : args) {
+          xs.addAll(((RealSXP) arg).iterator());
+        }
+        yield Optional.of(SEXPs.real(xs.build()));
       }
       default -> Optional.empty();
     };
+
+    return vals.map(x -> {
+      var names = args.stream().map(SEXP::names).reduce(new ArrayList<>(), (acc, y) -> { if (y != null) {acc.addAll(y);} return acc;});
+      return x.withNames(names);
+    });
   }
 
   private boolean isFoldableFun(RegSymSXP sym) {

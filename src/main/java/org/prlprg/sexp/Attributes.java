@@ -45,6 +45,18 @@ public final class Attributes extends ForwardingMap<String, SEXP> {
     return Objects.hashCode(super.hashCode(), attrs);
   }
 
+  public Attributes excluding(String name) {
+    var builder = new ImmutableMap.Builder<String, SEXP>();
+    attrs.forEach(
+        (key, value) -> {
+          if (!key.equals(name)) {
+            builder.put(key, value);
+          }
+        });
+
+    return new Attributes(builder.build());
+  }
+
   /** Build an {@link Attributes} instance. */
   public static class Builder {
     private final ImmutableMap.Builder<String, SEXP> attrs = ImmutableMap.builder();

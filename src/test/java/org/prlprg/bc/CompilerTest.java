@@ -6,6 +6,7 @@ import static org.prlprg.util.StructuralUtils.printStructurally;
 import com.google.common.collect.Streams;
 import java.io.File;
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
@@ -13,10 +14,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.prlprg.rsession.TestRSession;
-import org.prlprg.sexp.BCodeSXP;
-import org.prlprg.sexp.CloSXP;
-import org.prlprg.sexp.SEXPs;
-import org.prlprg.sexp.StrSXP;
+import org.prlprg.sexp.*;
 import org.prlprg.util.*;
 import org.prlprg.util.AbstractGNURBasedTest;
 
@@ -658,6 +656,54 @@ function (zipfile, files = NULL, list = FALSE, overwrite = TRUE,
         3);
   }
 
+  @Test
+  public void constantFoldMul1() {
+    var code =
+        """
+        function() {
+          2 * 3 * 4
+        }
+        """;
+    assertBytecode(code);
+  }
+
+  @Test
+  public void constantFoldMul2() {
+    var code =
+        """
+            function(x) {
+              2 * 3 * x
+            }
+            """;
+    var bc = compile(code, 2);
+    // FIXME: use some matchers
+    var i = (BcInstr.LdConst) bc.code().getFirst();
+    var v = ((RealSXP) bc.consts().get(i.constant()));
+    assertEquals(1, v.size());
+    assertEquals(6, v.get(0));
+    assertBytecode(code);
+  }
+
+  @Test
+  public void constantFold3() {
+    var code =
+        """
+            function(x) c(i = 1, d = 1, s = 1)
+            """;
+    var bc = compile(code, 3);
+    // FIXME: use some matchers
+    var i = (BcInstr.LdConst) bc.code().getFirst();
+    var v = ((RealSXP) bc.consts().get(i.constant()));
+    assertEquals(3, v.size());
+    assertEquals(List.of("i", "d", "s"), v.names());
+    assertBytecode(code);
+  }
+
+  @Test
+  public void test1() {
+    //  assertBytecode("`-.POSIXt`");
+  }
+
   @ParameterizedTest
   @MethodSource("stdlibFunctions")
   public void functions(String name) {
@@ -704,13 +750,21 @@ function (zipfile, files = NULL, list = FALSE, overwrite = TRUE,
         SEXPs.closure(
             gnurfun.formals(), gnurbc.consts().getFirst(), gnurfun.env(), gnurfun.attributes());
 
-    var compiler = new Compiler(astfun, rsession);
-    compiler.setOptimizationLevel(optimizationLevel);
-    var ourbc = compiler.compile();
+    var ourbc = compile(astfun, optimizationLevel);
 
     assertEquals(
         printStructurally(gnurbc),
         printStructurally(ourbc),
         "`compile(read(ast)) == read(R.compile(ast))`");
+  }
+
+  private Bc compile(String fun, int optimizationLevel) {
+    return compile((CloSXP) R.eval(fun), optimizationLevel);
+  }
+
+  private Bc compile(CloSXP fun, int optimizationLevel) {
+    var compiler = new Compiler(fun, rsession);
+    compiler.setOptimizationLevel(optimizationLevel);
+    return compiler.compile();
   }
 }

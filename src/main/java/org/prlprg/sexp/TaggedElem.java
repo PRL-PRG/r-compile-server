@@ -22,4 +22,12 @@ public record TaggedElem(@Nullable String tag, SEXP value) {
         ? value.toString()
         : value == SEXPs.MISSING_ARG ? tag + "=" : tag + "=" + value;
   }
+
+  public SEXP namedValue() {
+    if (tag == null) {
+      return value;
+    } else {
+      return value.withNames(tag);
+    }
+  }
 }
