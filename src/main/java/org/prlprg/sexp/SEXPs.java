@@ -405,11 +405,4 @@ public final class SEXPs {
   public static SEXP special(String name) {
     return new SpecialSXP(name);
   }
-
-  public static boolean isScalar(SEXP x) {
-    return switch (x.type()) {
-      case VEC, LGL, INT, REAL, STR, CPLX -> ((VectorSXP<?>) x).size() == 1;
-      default -> false;
-    };
-  }
 }

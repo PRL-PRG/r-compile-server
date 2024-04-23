@@ -701,7 +701,11 @@ function (zipfile, files = NULL, list = FALSE, overwrite = TRUE,
 
   @Test
   public void test1() {
-    //  assertBytecode("`-.POSIXt`");
+    assertBytecode(
+        """
+function() c(opts[opts != 1L], if (true) 2:6 else 1:2)
+""",
+        2);
   }
 
   @ParameterizedTest

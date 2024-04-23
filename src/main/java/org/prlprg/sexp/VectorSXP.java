@@ -4,12 +4,16 @@ import java.util.stream.BaseStream;
 
 /** SEXP vector (immutable list). */
 public sealed interface VectorSXP<T> extends ListOrVectorSXP<T>
-    permits ComplexSXP, ExprSXP, IntSXP, LglSXP, RealSXP, StrSXP, VecSXP, EmptyVectorSXPImpl {
+    permits ComplexSXP, EmptyVectorSXPImpl, ExprSXP, LglSXP, NumericSXP, StrSXP, VecSXP {
   @Override
   Attributes attributes();
 
   @Override
   VectorSXP<T> withAttributes(Attributes attributes);
+
+  default boolean isScalar() {
+    return size() == 1;
+  }
 }
 
 final class VectorSXPs {

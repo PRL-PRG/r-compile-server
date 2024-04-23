@@ -15,4 +15,24 @@ public final class SimpleRealSXP extends SimpleScalarSXPImpl<Double> implements 
   public RealSXP withAttributes(Attributes attributes) {
     return SEXPs.real(data, attributes);
   }
+
+  @Override
+  public int[] asInts() {
+    return new int[] {data.intValue()};
+  }
+
+  @Override
+  public int asInt() {
+    return data.intValue();
+  }
+
+  @Override
+  public double[] asReals() {
+    return new double[] {data};
+  }
+
+  @Override
+  public double asReal() {
+    return data;
+  }
 }

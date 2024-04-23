@@ -1,6 +1,7 @@
 package org.prlprg.bc;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.primitives.ImmutableIntArray;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.*;
 import java.util.function.BiFunction;
@@ -11,6 +12,8 @@ import javax.annotation.Nullable;
 import org.prlprg.RSession;
 import org.prlprg.bc.BcInstr.*;
 import org.prlprg.sexp.*;
+
+import static org.prlprg.sexp.SEXPType.INT;
 
 // FIXME: use null instead of Optional (except for return types)
 // FIXME: update the SEXP API based on the experience with this code
@@ -184,7 +187,7 @@ public class Compiler {
   // @5c0d6769c910 01 SYMSXP g0c0 [MARK,REF(4),LCK,gp=0x4000] "T" (has value)
   private static final Set<String> ALLOWED_FOLDABLE_CONSTS = Set.of("pi", "T", "F");
 
-  private static final Set<String> ALLOWED_FOLDABLE_FUNS = Set.of("c", "*");
+  private static final Set<String> ALLOWED_FOLDABLE_FUNS = Set.of("c", "*", ":");
 
   // should match DOTCALL_MAX in eval.c
   private static final int DOTCALL_MAX = 16;
@@ -703,7 +706,22 @@ public class Compiler {
     var thenBranch = call.arg(1).value();
     var elseBranch = Optional.ofNullable(call.args().size() == 3 ? call.arg(2).value() : null);
 
-    // TODO: constant fold
+    var ct = constantFold(test).orElse(null);
+
+    if (ct instanceof LglSXP lgl && lgl.isScalar()) {
+      if (lgl == SEXPs.TRUE) {
+        compile(thenBranch);
+      } else if (elseBranch.isPresent()) {
+        compile(elseBranch.get());
+      } else if (ctx.isTailCall()) {
+        cb.addInstr(new LdNull());
+        cb.addInstr(new Invisible());
+        cb.addInstr(new Return());
+      } else {
+        cb.addInstr(new LdNull());
+      }
+      return true;
+    }
 
     usingCtx(ctx.nonTailContext(), () -> compile(test));
 
@@ -868,8 +886,6 @@ public class Compiler {
       } else if (arg.value() instanceof PromSXP) {
         stop("cannot compile promise literals in code");
       } else {
-        // FIXME: is this constant folding needed?
-        //  - could we just dispatch to normal compile which in turn will do it as well?
         switch (arg.value()) {
           case RegSymSXP sym ->
               constantFold(arg.value())
@@ -880,12 +896,7 @@ public class Compiler {
                         cb.addInstr(new PushArg());
                       });
           case LangSXP call -> {
-            // FIXME: GNUR does:
-            // cmp(a, cb, ncntxt)
-            // which is weird since it says in the doc:
-            // > ... Constant folding is needed here since it doesn’t go through cmp.
-            // a possible reason why to go through cmp is to set location...
-            usingCtx(ctx.argContext(), () -> compileCall(call, true));
+            usingCtx(ctx.argContext(), () -> compile(call));
             cb.addInstr(new PushArg());
           }
           default -> compileConstArg(arg.value());
@@ -2114,28 +2125,61 @@ public class Compiler {
     return switch (funSym.name()) {
       case "c" -> constantFoldC(args.build());
       case "*" -> constantFoldMul(args.build());
+      case ":" -> constantFoldColon(args.build());
       default -> Optional.empty();
     };
   }
 
-  private Optional<SEXP> constantFoldMul(ImmutableList<SEXP> args) {
-    var type = args.getFirst().type();
-    if (args.stream().anyMatch(x -> x.type() != type && SEXPs.isScalar(x))) {
-      throw new IllegalArgumentException("All elements must be of the same type");
+  private Optional<SEXP> constantFoldColon(ImmutableList<SEXP> args) {
+    if (args.size() != 2) {
+      return Optional.empty();
     }
 
-    return switch (type) {
+    if (!(args.get(0) instanceof NumericSXP<?> min) || min.isEmpty()) {
+      return Optional.empty();
+    }
+
+    if (!(args.get(1) instanceof NumericSXP<?> max) || min.isEmpty()) {
+      return Optional.empty();
+    }
+
+    var imin = min.asInt();
+    var imax = max.asInt();
+    var ints = ImmutableIntArray.builder(Math.abs(imax - imin));
+    var inc = imin < imax ? 1 : -1;
+    for (var i = imin; i != imax + inc; i += inc) {
+      ints.add(i);
+    }
+
+    return Optional.of(SEXPs.integer(ints.build()));
+  }
+
+  private Optional<SEXP> constantFoldMul(ImmutableList<SEXP> args) {
+    var maxType = INT;
+
+    for (var arg : args) {
+      if (!(arg instanceof NumericSXP<?>)) {
+        return Optional.empty();
+      }
+
+      if (arg.type().ordinal() > maxType.ordinal()) {
+        maxType = arg.type();
+      }
+    }
+
+    // FIXME: refactor
+    return switch (maxType) {
       case INT -> {
         var res = 1;
         for (var arg : args) {
-          res *= ((IntSXP) arg).get(0);
+          res *= ((NumericSXP<?>) arg).asInt();
         }
         yield Optional.of(SEXPs.integer(res));
       }
       case REAL -> {
-        var res = 1;
+        var res = 1.0;
         for (var arg : args) {
-          res *= ((RealSXP) arg).get(0);
+          res *= ((NumericSXP<?>) arg).asReal();
         }
         yield Optional.of(SEXPs.real(res));
       }
@@ -2149,8 +2193,8 @@ public class Compiler {
       throw new IllegalArgumentException("All elements must be of the same type");
     }
 
+    // FIXME: refactor and add support for other primitives
     Optional<SEXP> vals = switch (type) {
-      // FIXME: add support for other primitives
       case STR -> {
         var xs = new ImmutableList.Builder<String>();
         for (var arg : args) {

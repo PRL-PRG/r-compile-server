@@ -6,7 +6,7 @@ import javax.annotation.concurrent.Immutable;
 
 /** Integer vector SEXP. */
 @Immutable
-public sealed interface IntSXP extends VectorSXP<Integer>
+public sealed interface IntSXP extends NumericSXP<Integer>
     permits EmptyIntSXPImpl, IntSXPImpl, SimpleIntSXP {
   /**
    * The data contained in this vector. Note that if it's an empty or scalar, those aren't actually
@@ -50,6 +50,30 @@ record IntSXPImpl(@Override ImmutableIntArray data, @Override Attributes attribu
   public IntSXP withAttributes(Attributes attributes) {
     return SEXPs.integer(data, attributes);
   }
+
+  @Override
+  public int[] asInts() {
+    return data.toArray();
+  }
+
+  @Override
+  public int asInt() {
+    return data.get(0);
+  }
+
+  @Override
+  public double[] asReals() {
+    var dbls = new double[data.length()];
+    for (int i = 0; i < dbls.length; i++) {
+      dbls[i] = data.get(i);
+    }
+    return dbls;
+  }
+
+  @Override
+  public double asReal() {
+    return data.get(0);
+  }
 }
 
 /** Empty int vector with no ALTREP, ATTRIB, or OBJECT. */
@@ -68,5 +92,25 @@ final class EmptyIntSXPImpl extends EmptyVectorSXPImpl<Integer> implements IntSX
   @Override
   public IntSXP withAttributes(Attributes attributes) {
     return SEXPs.integer(ImmutableIntArray.of(), attributes);
+  }
+
+  @Override
+  public int[] asInts() {
+    return new int[0];
+  }
+
+  @Override
+  public int asInt() {
+    throw new ArrayIndexOutOfBoundsException("Empty int vector");
+  }
+
+  @Override
+  public double[] asReals() {
+    return new double[0];
+  }
+
+  @Override
+  public double asReal() {
+    throw new ArrayIndexOutOfBoundsException("Empty int vector");
   }
 }

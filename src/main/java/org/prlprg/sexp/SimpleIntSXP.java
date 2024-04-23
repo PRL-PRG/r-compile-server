@@ -22,4 +22,24 @@ public final class SimpleIntSXP extends SimpleScalarSXPImpl<Integer> implements 
   public IntSXP withAttributes(Attributes attributes) {
     return SEXPs.integer(data, attributes);
   }
+
+  @Override
+  public int[] asInts() {
+    return new int[] {data};
+  }
+
+  @Override
+  public int asInt() {
+    return data;
+  }
+
+  @Override
+  public double[] asReals() {
+    return new double[] {data.doubleValue()};
+  }
+
+  @Override
+  public double asReal() {
+    return data.doubleValue();
+  }
 }
