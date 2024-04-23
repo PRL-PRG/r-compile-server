@@ -187,7 +187,7 @@ public class Compiler {
   // @5c0d6769c910 01 SYMSXP g0c0 [MARK,REF(4),LCK,gp=0x4000] "T" (has value)
   private static final Set<String> ALLOWED_FOLDABLE_CONSTS = Set.of("pi", "T", "F");
 
-  private static final Set<String> ALLOWED_FOLDABLE_FUNS = Set.of("c", "*", ":");
+  private static final Set<String> ALLOWED_FOLDABLE_FUNS = Set.of("c", "*", ":", "-");
 
   // should match DOTCALL_MAX in eval.c
   private static final int DOTCALL_MAX = 16;
@@ -2126,6 +2126,19 @@ public class Compiler {
       case "c" -> constantFoldC(args.build());
       case "*" -> constantFoldMul(args.build());
       case ":" -> constantFoldColon(args.build());
+      case "-" -> constantFoldMinus(args.build());
+      default -> Optional.empty();
+    };
+  }
+
+  private Optional<SEXP> constantFoldMinus(ImmutableList<SEXP> args) {
+    if (args.size() != 1) {
+      return Optional.empty();
+    }
+
+    return switch (args.getFirst()) {
+      case IntSXP i -> Optional.of(SEXPs.integer(-i.asInt()));
+      case RealSXP r -> Optional.of(SEXPs.real(-r.asReal()));
       default -> Optional.empty();
     };
   }
