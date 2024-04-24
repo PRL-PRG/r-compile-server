@@ -2224,6 +2224,10 @@ public class Compiler {
   }
 
   private Optional<SEXP> constantFoldC(List<? extends SEXP> args) {
+    if (args.isEmpty()) {
+      return Optional.of(SEXPs.NULL);
+    }
+
     var type = args.getFirst().type();
     if (args.stream().anyMatch(x -> x.type() != type)) {
       throw new IllegalArgumentException("All elements must be of the same type");
