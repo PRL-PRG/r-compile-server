@@ -2096,11 +2096,7 @@ public class Compiler {
     var r =
         switch (e) {
           case NilSXP ignored -> e;
-          case ListOrVectorSXP<?> xs when xs.size() <= MAX_CONST_SIZE ->
-              switch (xs.type()) {
-                case INT, REAL, LGL, CPLX, STR -> e;
-                default -> null;
-              };
+          case VectorSXP<?> xs when xs.size()<= MAX_CONST_SIZE -> e;
           default -> null;
         };
 
@@ -2126,7 +2122,7 @@ public class Compiler {
       if (missing(arg.value())) {
         return Optional.empty();
       }
-      var val = constantFold(arg.namedValue()).flatMap(this::checkConst);
+      var val = constantFold(arg.namedValue());
       if (val.isPresent()) {
         args.add(val.get());
       } else {
@@ -2134,7 +2130,7 @@ public class Compiler {
       }
     }
 
-    return switch (funSym.name()) {
+    Optional<SEXP> ct = switch (funSym.name()) {
       case "c" -> constantFoldC(args.build());
       case "*" -> constantFoldMul(args.build());
       case ":" -> constantFoldColon(args.build());
@@ -2142,6 +2138,8 @@ public class Compiler {
       case "^" -> constantFoldExp(args.build());
       default -> Optional.empty();
     };
+
+    return ct.flatMap(this::checkConst);
   }
 
   private Optional<SEXP> constantFoldExp(ImmutableList<SEXP> args) {
