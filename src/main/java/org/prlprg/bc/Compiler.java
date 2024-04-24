@@ -1713,7 +1713,7 @@ public class Compiler {
 
     cb.addInstr(superAssign ? new EndAssign2(csi) : new EndAssign(csi));
     if (!ctx.isTopLevel()) {
-      cb.addInstr(new IncLnkStk());
+      cb.addInstr(new DecLnkStk());
     }
     // TODO: make this a helper
     if (ctx.isTailCall()) {
