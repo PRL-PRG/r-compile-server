@@ -64,7 +64,7 @@ public class RDSReader implements Closeable {
   public SEXP read() throws IOException {
     readHeader();
     var sexp = readItem();
-    if (!in.isAtEnd()) {
+    if (in.readRaw() != -1) {
       throw new RDSException("Expected end of file");
     }
     return sexp;

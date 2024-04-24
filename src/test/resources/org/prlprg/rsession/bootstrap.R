@@ -17,4 +17,9 @@ saveRDS(base_env, "baseenv.RDS", version = 2)
 
 saveRDS(builtins(internal = TRUE), "builtins-internal.RDS", version = 2)
 
-saveRDS(basevars[types == "closure"], "base-closures.RDS", version = 2)
+basenamespace <- getNamespace("base")
+base_closures <- basevars[types == "closure"]
+base_closures <- base_closures[sapply(base_closures, \(x) identical(environment(get(x)), basenamespace))]
+
+cat("saving ", length(base_closures), " closures\n")
+saveRDS(base_closures, "base-closures.RDS", version = 2)
