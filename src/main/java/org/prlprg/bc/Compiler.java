@@ -8,6 +8,7 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.IntStream;
 import javax.annotation.Nullable;
 import org.prlprg.RSession;
 import org.prlprg.bc.BcInstr.*;
@@ -1471,7 +1472,7 @@ public class Compiler {
     boolean haveNames;
     boolean haveCharDefault;
 
-    var numberOfDefaults = names.stream().filter(Objects::isNull).count();
+    var numberOfDefaults = names.stream().filter(String::isEmpty).count();
     if (numberOfDefaults == cases.size()) {
       // none of the case is named -- this might be the first case when the expr is
       // numeric
@@ -1499,7 +1500,7 @@ public class Compiler {
 
     // the label for code that signals an error if
     // a numerical selector expression chooses a case with an empty argument
-    var missLabel = miss.stream().anyMatch(x -> x) ? cb.makeLabel() : null;
+    var missLabel = miss.contains(true) ? cb.makeLabel() : null;
 
     // will be for code that invisibly procures the value NULL, which is the default
     // case for a
@@ -1507,7 +1508,7 @@ public class Compiler {
     // default case is provided.
     var defaultLabel = cb.makeLabel();
     var labels = new ArrayList<BcLabel>(miss.size() + 1);
-    miss.stream().map(x -> x ? missLabel : cb.makeLabel()).forEachOrdered(labels::add);
+    miss.stream().map(x -> x ? missLabel : cb.makeLabel()).forEach(labels::add);
     labels.add(defaultLabel);
 
     // needed as the GOTO target for a switch expression that is not in tail
@@ -1518,7 +1519,7 @@ public class Compiler {
     var uniqueNames = new ArrayList<String>();
 
     if (haveNames) {
-      names.stream().distinct().forEachOrdered(uniqueNames::add);
+      names.stream().distinct().filter(x -> !x.isEmpty()).forEachOrdered(uniqueNames::add);
       if (haveCharDefault) {
         uniqueNames.add("");
       }
@@ -1526,11 +1527,17 @@ public class Compiler {
       // the following acrobacy is, so we compile, quite unexpectedly IMHO,
       // switch("b", a=1,b=,c=,e=2,b=3,b=4,c=,d=5,6)
       // a code that returns 2 (matching e label on b input)
+      var aidxBuilder = ImmutableIntArray.builder();
+      IntStream.range(0, miss.size())
+              .filter(x -> !miss.get(x))
+              .forEach(aidxBuilder::add);
+      aidxBuilder.add(names.size());
+      var aidx = aidxBuilder.build();
+
       for (var n : uniqueNames) {
         var start = names.indexOf(n);
-        var firstNonMissing = start + miss.subList(start, miss.size()).indexOf(false);
-
-        nLabels.add(firstNonMissing == -1 ? defaultLabel : labels.get(firstNonMissing));
+        var idx = aidx.stream().filter(x -> x >= start).min().getAsInt();
+        nLabels.add(labels.get(idx));
       }
 
       if (!haveCharDefault) {
@@ -1560,9 +1567,6 @@ public class Compiler {
     //
     // So we cannot really add any meaningful args to switch at this point, we need to patch it
     // later.
-
-    var nullInxToBeReplaced = new ConstPool.Idx<>(0, NilSXP.class);
-    var intInxToBeReplaced = new ConstPool.Idx<>(0, IntSXP.class);
     var switchIdx = 0;
 
     if (haveNames) {
@@ -1598,7 +1602,15 @@ public class Compiler {
           return newSwitch;
         });
 
-    // 6. patch the labels and compile the cases
+    // 6. compile the cases
+
+    // > emit code to signal an error if a numeric switch hist an
+    // > empty alternative (fall through, as for character, might
+    // > make more sense but that isn't the way switch() works)
+    if (miss.contains(true)) {
+      cb.patchLabel(missLabel);
+      compile(SEXPs.lang(SEXPs.symbol("stop"), SEXPs.list(SEXPs.string("empty alternative in numeric switch"))));
+    }
 
     // code for the default case
     cb.patchLabel(defaultLabel);

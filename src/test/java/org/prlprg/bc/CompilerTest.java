@@ -703,7 +703,14 @@ function (zipfile, files = NULL, list = FALSE, overwrite = TRUE,
   public void test1() {
     assertBytecode(
         """
-function() c(opts[opts != 1L], if (true) 2:6 else 1:2)
+function() switch(x, integer = , complex = , numeric = all.equal.numeric(target,
+                   current, ...), character = all.equal.character(target,
+                   current, ...), logical = , raw = all.equal.raw(target,
+                   current, ...), S4 = attr.all.equal(target, current, ...),
+                   if (data.class(target) != data.class(current)) {
+                       gettextf("target is %s, current is %s", data.class(target),
+                           data.class(current))
+                   } else NULL)
 """,
         2);
   }

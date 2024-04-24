@@ -38,7 +38,7 @@ public sealed interface ListSXP extends ListOrVectorSXP<TaggedElem> permits NilS
   ListSXP subList(int fromIndex);
 
   default boolean hasTags() {
-    return names().stream().anyMatch(Objects::nonNull);
+    return names().stream().anyMatch(x -> !x.isEmpty());
   }
 
   ListSXP remove(String tag);
@@ -69,17 +69,17 @@ record ListSXPImpl(ImmutableList<TaggedElem> data, @Override Attributes attribut
 
   @Override
   public List<SEXP> values(int fromIndex) {
-    return values().subList(1, size());
+    return values().subList(fromIndex, size());
   }
 
   @Override
   public List<String> names() {
-    return data.stream().map(TaggedElem::tag).toList();
+    return data.stream().map(TaggedElem::tagOrEmpty).toList();
   }
 
   @Override
   public List<String> names(int fromIndex) {
-    return names().subList(1, size());
+    return names().subList(fromIndex, size());
   }
 
   @Override
