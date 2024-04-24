@@ -2247,6 +2247,13 @@ public class Compiler {
         }
         yield Optional.of(SEXPs.real(xs.build()));
       }
+      case INT -> {
+        var xs = new ImmutableList.Builder<Integer>();
+        for (var arg : args) {
+          xs.addAll(((IntSXP) arg).iterator());
+        }
+        yield Optional.of(SEXPs.integer(xs.build()));
+      }
       default -> Optional.empty();
     };
 
