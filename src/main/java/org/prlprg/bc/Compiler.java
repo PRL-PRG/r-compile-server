@@ -1,6 +1,7 @@
 package org.prlprg.bc;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.math.DoubleMath;
 import com.google.common.primitives.ImmutableIntArray;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.*;
@@ -188,7 +189,7 @@ public class Compiler {
   // @5c0d6769c910 01 SYMSXP g0c0 [MARK,REF(4),LCK,gp=0x4000] "T" (has value)
   private static final Set<String> ALLOWED_FOLDABLE_CONSTS = Set.of("pi", "T", "F");
 
-  private static final Set<String> ALLOWED_FOLDABLE_FUNS = Set.of("c", "*", ":", "-", "^", "(");
+  private static final Set<String> ALLOWED_FOLDABLE_FUNS = Set.of("c", "*", ":", "-", "^", "(", "log2");
 
   // should match DOTCALL_MAX in eval.c
   private static final int DOTCALL_MAX = 16;
@@ -2117,7 +2118,7 @@ public class Compiler {
       return Optional.empty();
     }
 
-    var args = new ImmutableList.Builder<SEXP>();
+    var argsBuilder = new ImmutableList.Builder<SEXP>();
     for (var arg : call.args()) {
       if (missing(arg.value())) {
         return Optional.empty();
@@ -2125,23 +2126,42 @@ public class Compiler {
       var namedArg = arg.value().attributes() != null ? arg.namedValue() : arg.value();
       var val = constantFold(namedArg);
       if (val.isPresent()) {
-        args.add(val.get());
+        argsBuilder.add(val.get());
       } else {
         return Optional.empty();
       }
     }
 
+    var args = argsBuilder.build();
     Optional<SEXP> ct = switch (funSym.name()) {
-      case "c" -> constantFoldC(args.build());
-      case "*" -> constantFoldMul(args.build());
-      case ":" -> constantFoldColon(args.build());
-      case "-" -> constantFoldMinus(args.build());
-      case "^" -> constantFoldExp(args.build());
-      case "(" -> constantFoldParen(args.build());
+      case "c" -> constantFoldC(args);
+      case "*" -> constantFoldMul(args);
+      case ":" -> constantFoldColon(args);
+      case "-" -> constantFoldMinus(args);
+      case "^" -> constantFoldExp(args);
+      case "(" -> constantFoldParen(args);
+      case "log2" -> constantFoldLog2(args);
       default -> Optional.empty();
     };
 
     return ct.flatMap(this::checkConst);
+  }
+
+  private Optional<SEXP> constantFoldLog2(ImmutableList<SEXP> args) {
+    if (args.isEmpty() || args.size() > MAX_CONST_SIZE) {
+      return Optional.empty();
+    }
+
+    var res = new double[args.size()];
+    for (var i = 0; i < args.size(); i++) {
+      if (args.get(i) instanceof NumericSXP<?> n) {
+        res[i] = DoubleMath.log2(n.asReal());
+      } else {
+        return Optional.empty();
+      }
+    }
+
+    return Optional.of(SEXPs.real(res));
   }
 
   private Optional<SEXP> constantFoldParen(ImmutableList<SEXP> args) {

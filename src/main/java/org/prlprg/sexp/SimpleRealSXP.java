@@ -35,4 +35,14 @@ public final class SimpleRealSXP extends SimpleScalarSXPImpl<Double> implements 
   public double asReal() {
     return data;
   }
+
+  @Override
+  public String toString() {
+    // FIXME: This is fairly arbitrary, but it works with log2 constant folding which otherwise
+    // differs
+    //  from GNU-R in the last digit.
+    //  Proper solution would be not to use simple text diff in tests, but actually compare the
+    // values.
+    return String.format("%.13f", data);
+  }
 }

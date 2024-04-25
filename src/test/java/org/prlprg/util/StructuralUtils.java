@@ -22,6 +22,7 @@ public class StructuralUtils {
   public static String printStructurally(Object object) {
     var string = object.toString();
 
+    // FIXME: is this needed?
     // Get hashes in order of occurrence
     for (var pattern : PATTERNS) {
       var hashMatcher = pattern.first().matcher(string);
