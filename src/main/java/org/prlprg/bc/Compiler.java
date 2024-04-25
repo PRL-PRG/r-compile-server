@@ -2148,17 +2148,16 @@ public class Compiler {
   }
 
   private Optional<SEXP> constantFoldLog2(ImmutableList<SEXP> args) {
-    if (args.isEmpty() || args.size() > MAX_CONST_SIZE) {
+    if (args.size() != 1) {
+      return Optional.empty();
+    }
+    if (!(args.getFirst() instanceof NumericSXP<?> n)) {
       return Optional.empty();
     }
 
-    var res = new double[args.size()];
-    for (var i = 0; i < args.size(); i++) {
-      if (args.get(i) instanceof NumericSXP<?> n) {
-        res[i] = DoubleMath.log2(n.asReal());
-      } else {
-        return Optional.empty();
-      }
+    var res = Arrays.copyOf(n.asReals(), n.size());
+    for (var i = 0; i < res.length; i++) {
+      res[i] = DoubleMath.log2(res[i]);
     }
 
     return Optional.of(SEXPs.real(res));
@@ -2176,8 +2175,9 @@ public class Compiler {
       return Optional.empty();
     }
 
+    // FIXME: check size
     if (args.get(0) instanceof NumericSXP<?> base && args.get(1) instanceof NumericSXP<?> exp) {
-      return Optional.of(SEXPs.real(Math.pow(base.asReal(), exp.asReal())));
+      return Optional.of(SEXPs.real(Math.pow(base.asReal(0), exp.asReal(0))));
     } else {
       return Optional.empty();
     }
@@ -2187,10 +2187,26 @@ public class Compiler {
     if (args.size() != 1) {
       return Optional.empty();
     }
+    if (!(args.getFirst() instanceof NumericSXP<?> n)) {
+      return Optional.empty();
+    }
 
     return switch (args.getFirst()) {
-      case IntSXP i -> Optional.of(SEXPs.integer(-i.asInt()));
-      case RealSXP r -> Optional.of(SEXPs.real(-r.asReal()));
+      case IntSXP i -> {
+
+        var res = Arrays.copyOf(i.asInts(), i.size());
+        for (var j = 0; j < res.length; j++) {
+          res[j] = -res[j];
+        }
+        yield Optional.of(SEXPs.integer(res));
+      }
+      case RealSXP r -> {
+        var res = Arrays.copyOf(r.asReals(), r.size());
+        for (var j = 0; j < res.length; j++) {
+          res[j] = -res[j];
+        }
+        yield Optional.of(SEXPs.real(res));
+      }
       default -> Optional.empty();
     };
   }
@@ -2200,16 +2216,16 @@ public class Compiler {
       return Optional.empty();
     }
 
-    if (!(args.get(0) instanceof NumericSXP<?> min) || min.isEmpty()) {
+    if (!(args.get(0) instanceof NumericSXP<?> min) || min.size() != 1) {
       return Optional.empty();
     }
 
-    if (!(args.get(1) instanceof NumericSXP<?> max) || min.isEmpty()) {
+    if (!(args.get(1) instanceof NumericSXP<?> max) || min.size() != 1) {
       return Optional.empty();
     }
 
-    var imin = min.asInt();
-    var imax = max.asInt();
+    var imin = min.asInt(0);
+    var imax = max.asInt(0);
     var ints = ImmutableIntArray.builder(Math.abs(imax - imin));
     var inc = imin < imax ? 1 : -1;
     for (var i = imin; i != imax + inc; i += inc) {
@@ -2221,6 +2237,8 @@ public class Compiler {
 
   private Optional<SEXP> constantFoldMul(ImmutableList<SEXP> args) {
     var maxType = INT;
+
+    // TODO: check size
 
     for (var arg : args) {
       if (!(arg instanceof NumericSXP<?>)) {
@@ -2237,14 +2255,14 @@ public class Compiler {
       case INT -> {
         var res = 1;
         for (var arg : args) {
-          res *= ((NumericSXP<?>) arg).asInt();
+          res *= ((NumericSXP<?>) arg).asInt(0);
         }
         yield Optional.of(SEXPs.integer(res));
       }
       case REAL -> {
         var res = 1.0;
         for (var arg : args) {
-          res *= ((NumericSXP<?>) arg).asReal();
+          res *= ((NumericSXP<?>) arg).asReal(0);
         }
         yield Optional.of(SEXPs.real(res));
       }

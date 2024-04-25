@@ -22,8 +22,12 @@ public final class SimpleRealSXP extends SimpleScalarSXPImpl<Double> implements 
   }
 
   @Override
-  public int asInt() {
-    return data.intValue();
+  public int asInt(int index) {
+    if (index == 0) {
+      return data.intValue();
+    } else {
+      throw new ArrayIndexOutOfBoundsException("Index out of bounds: " + index);
+    }
   }
 
   @Override
@@ -32,8 +36,12 @@ public final class SimpleRealSXP extends SimpleScalarSXPImpl<Double> implements 
   }
 
   @Override
-  public double asReal() {
-    return data;
+  public double asReal(int index) {
+    if (index == 0) {
+      return data;
+    } else {
+      throw new ArrayIndexOutOfBoundsException("Index out of bounds: " + index);
+    }
   }
 
   @Override

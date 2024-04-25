@@ -57,8 +57,8 @@ record IntSXPImpl(@Override ImmutableIntArray data, @Override Attributes attribu
   }
 
   @Override
-  public int asInt() {
-    return data.get(0);
+  public int asInt(int index) {
+    return data.get(index);
   }
 
   @Override
@@ -71,8 +71,8 @@ record IntSXPImpl(@Override ImmutableIntArray data, @Override Attributes attribu
   }
 
   @Override
-  public double asReal() {
-    return data.get(0);
+  public double asReal(int index) {
+    return get(index);
   }
 }
 
@@ -100,7 +100,7 @@ final class EmptyIntSXPImpl extends EmptyVectorSXPImpl<Integer> implements IntSX
   }
 
   @Override
-  public int asInt() {
+  public int asInt(int index) {
     throw new ArrayIndexOutOfBoundsException("Empty int vector");
   }
 
@@ -110,7 +110,7 @@ final class EmptyIntSXPImpl extends EmptyVectorSXPImpl<Integer> implements IntSX
   }
 
   @Override
-  public double asReal() {
+  public double asReal(int index) {
     throw new ArrayIndexOutOfBoundsException("Empty int vector");
   }
 }

@@ -57,8 +57,8 @@ record RealSXPImpl(ImmutableDoubleArray data, @Override Attributes attributes) i
   }
 
   @Override
-  public int asInt() {
-    return (int) data.get(0);
+  public int asInt(int index) {
+    return (int) data.get(index);
   }
 
   @Override
@@ -67,8 +67,8 @@ record RealSXPImpl(ImmutableDoubleArray data, @Override Attributes attributes) i
   }
 
   @Override
-  public double asReal() {
-    return data.get(0);
+  public double asReal(int index) {
+    return data.get(index);
   }
 }
 
@@ -91,7 +91,7 @@ final class EmptyRealSXPImpl extends EmptyVectorSXPImpl<Double> implements RealS
   }
 
   @Override
-  public int asInt() {
+  public int asInt(int index) {
     throw new ArrayIndexOutOfBoundsException("Empty real vector");
   }
 
@@ -101,7 +101,7 @@ final class EmptyRealSXPImpl extends EmptyVectorSXPImpl<Double> implements RealS
   }
 
   @Override
-  public double asReal() {
+  public double asReal(int index) {
     throw new ArrayIndexOutOfBoundsException("Empty real vector");
   }
 }

@@ -629,8 +629,7 @@ function(x) {
   public void test1() {
     assertBytecode(
         """
-function() switch(x,
-                   days = 60 * 60 * 24 * x)
+function() -(c(1, 2))
 """,
         2);
   }
