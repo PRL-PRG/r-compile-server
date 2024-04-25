@@ -2122,7 +2122,8 @@ public class Compiler {
       if (missing(arg.value())) {
         return Optional.empty();
       }
-      var val = constantFold(arg.namedValue());
+      var namedArg = arg.value().attributes() != null ? arg.namedValue() : arg.value();
+      var val = constantFold(namedArg);
       if (val.isPresent()) {
         args.add(val.get());
       } else {
