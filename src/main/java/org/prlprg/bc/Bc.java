@@ -1,10 +1,7 @@
 package org.prlprg.bc;
 
 import com.google.common.primitives.ImmutableIntArray;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Function;
 import javax.annotation.Nullable;
 import org.prlprg.primitive.Constants;
@@ -46,7 +43,7 @@ public record Bc(BcCode code, ConstPool consts) {
     private @Nullable IntSXP currentSrcRef = null;
     private boolean trackSrcRefs = true;
     private boolean trackExpressions = true;
-    private final Map<Integer, Function<BcInstr, BcInstr>> patches = new HashMap<>();
+    private final Map<Integer, Function<BcInstr, BcInstr>> patches = new LinkedHashMap<>();
 
     public void setTrackSrcRefs(boolean track) {
       this.trackSrcRefs = track;
