@@ -189,7 +189,7 @@ public class Compiler {
   // @5c0d6769c910 01 SYMSXP g0c0 [MARK,REF(4),LCK,gp=0x4000] "T" (has value)
   private static final Set<String> ALLOWED_FOLDABLE_CONSTS = Set.of("pi", "T", "F");
 
-  private static final Set<String> ALLOWED_FOLDABLE_FUNS = Set.of("c", "*", ":", "-", "^", "(", "log2");
+  private static final Set<String> ALLOWED_FOLDABLE_FUNS = Set.of("c", "*", "/", ":", "-", "^", "(", "log2");
 
   // should match DOTCALL_MAX in eval.c
   private static final int DOTCALL_MAX = 16;
@@ -2136,6 +2136,7 @@ public class Compiler {
     Optional<SEXP> ct = switch (funSym.name()) {
       case "c" -> constantFoldC(args);
       case "*" -> constantFoldMul(args);
+      case "/" -> constantFoldDiv(args);
       case ":" -> constantFoldColon(args);
       case "-" -> constantFoldMinus(args);
       case "^" -> constantFoldExp(args);
@@ -2238,10 +2239,11 @@ public class Compiler {
   private Optional<SEXP> constantFoldMul(ImmutableList<SEXP> args) {
     var maxType = INT;
 
-    // TODO: check size
-
     for (var arg : args) {
-      if (!(arg instanceof NumericSXP<?>)) {
+      if (!(arg instanceof NumericSXP<?> n)) {
+        return Optional.empty();
+      }
+      if (n.size() != 1) {
         return Optional.empty();
       }
 
@@ -2268,6 +2270,30 @@ public class Compiler {
       }
       default -> Optional.empty();
     };
+  }
+
+  private Optional<SEXP> constantFoldDiv(ImmutableList<SEXP> args) {
+    if (args.size() != 2) {
+        return Optional.empty();
+    }
+
+    var opers = new double[2];
+
+    for (int i=0; i<2; i++) {
+      if (!(args.get(i) instanceof NumericSXP<?> n)) {
+        return Optional.empty();
+      }
+      if (n.size() != 1) {
+        return Optional.empty();
+      }
+      opers[i] = n.asReal(0);
+    }
+
+    if (opers[1] == 0) {
+        return Optional.empty();
+    }
+
+    return Optional.of(SEXPs.real(opers[0] / opers[1]));
   }
 
   private Optional<SEXP> constantFoldC(List<? extends SEXP> args) {
