@@ -13,6 +13,7 @@ import java.util.stream.IntStream;
 import javax.annotation.Nullable;
 import org.prlprg.RSession;
 import org.prlprg.bc.BcInstr.*;
+import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.*;
 
 import static org.prlprg.sexp.SEXPType.INT;
@@ -2307,6 +2308,7 @@ public class Compiler {
     }
 
     // FIXME: refactor and add support for other primitives
+    // TODO: check size
     Optional<SEXP> vals = switch (type) {
       case STR -> {
         var xs = new ImmutableList.Builder<String>();
@@ -2328,6 +2330,13 @@ public class Compiler {
           xs.addAll(((IntSXP) arg).iterator());
         }
         yield Optional.of(SEXPs.integer(xs.build()));
+      }
+      case LGL -> {
+        var xs = new ImmutableList.Builder<Logical>();
+        for (var arg : args) {
+          xs.addAll(((LglSXP) arg).iterator());
+        }
+        yield Optional.of(SEXPs.logical(xs.build()));
       }
       default -> Optional.empty();
     };
