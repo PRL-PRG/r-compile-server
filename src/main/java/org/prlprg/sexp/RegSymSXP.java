@@ -1,21 +1,14 @@
 package org.prlprg.sexp;
 
 import com.google.common.base.Objects;
-import com.google.common.collect.ImmutableList;
 import java.util.Optional;
 
 /** Symbol which isn't "unbound value" or "missing arg" */
 public final class RegSymSXP implements SymSXP, StrOrRegSymSXP {
-  private static final ImmutableList<String> LITERAL_NAMES =
-      ImmutableList.of("TRUE", "FALSE", "NULL", "NA", "Inf", "NaN");
-
   private final String name;
   private final boolean isEscaped;
 
   RegSymSXP(String name) {
-    if (LITERAL_NAMES.contains(name)) {
-      throw new IllegalArgumentException("Symbol name reserved by literal: " + name);
-    }
     this.name = name;
     isEscaped = name.chars().anyMatch(c -> !Character.isAlphabetic(c) && c != '.' && c != '_');
   }

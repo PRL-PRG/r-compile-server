@@ -3,8 +3,7 @@ package org.prlprg.sexp;
 import com.google.common.collect.ImmutableList;
 import com.google.common.primitives.ImmutableDoubleArray;
 import com.google.common.primitives.ImmutableIntArray;
-import java.util.Arrays;
-import java.util.Collection;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
@@ -33,10 +32,20 @@ public final class SEXPs {
 
   public static final SpecialSymSXP MISSING_ARG = new SpecialSymSXP("MISSING_ARG");
 
-  public static final RegSymSXP DOTS_SYMBOL = new RegSymSXP("...");
-  public static final RegSymSXP SUPER_ASSIGN = new RegSymSXP("<<-");
-  public static final RegSymSXP ASSIGN_TMP = new RegSymSXP("*tmp*");
-  public static final RegSymSXP ASSIGN_VTMP = new RegSymSXP("*vtmp*");
+  private static final Map<String, RegSymSXP> SYMBOL_POOL = new HashMap<>();
+
+  public static final RegSymSXP DOTS_SYMBOL = symbol("...");
+  public static final RegSymSXP SUPER_ASSIGN = symbol("<<-");
+  public static final RegSymSXP ASSIGN_TMP = symbol("*tmp*");
+  public static final RegSymSXP ASSIGN_VTMP = symbol("*vtmp*");
+
+  static {
+    Set.of("TRUE", "FALSE", "NULL", "NA", "Inf", "NaN")
+        .forEach(
+            x -> {
+              SYMBOL_POOL.put(x, new RegSymSXP(x));
+            });
+  }
 
   public static final EmptyEnvSXP EMPTY_ENV = EmptyEnvSXP.INSTANCE;
 
@@ -373,10 +382,7 @@ public final class SEXPs {
   }
 
   public static RegSymSXP symbol(String name) {
-    if (name.equals("...")) {
-      return DOTS_SYMBOL;
-    }
-    return new RegSymSXP(name);
+    return SYMBOL_POOL.computeIfAbsent(name, RegSymSXP::new);
   }
 
   // endregion
