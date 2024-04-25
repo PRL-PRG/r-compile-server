@@ -680,19 +680,49 @@ function (e1, e2)
   }
 
   @ParameterizedTest
-  @MethodSource("stdlibFunctions")
-  public void functions(String name) {
+  @MethodSource("baseFunctionsList")
+  public void baseFunctions(String name) {
     assertBytecode(name);
   }
 
-  private Stream<Arguments> stdlibFunctions() throws IOException {
-    StrSXP names =
+  @ParameterizedTest
+  @MethodSource("toolsFunctionsList")
+  public void toolsFunctions(String name) {
+    assertBytecode("tools:::" + name);
+  }
+
+  private Stream<Arguments> baseFunctionsList() throws IOException {
+    StrSXP base =
         (StrSXP)
             readRDS(
                 Objects.requireNonNull(
-                    TestRSession.class.getResourceAsStream("base-closures.RDS")));
+                    TestRSession.class.getResourceAsStream("base-functions.RDS")));
 
-    return Streams.stream(names.iterator())
+    return Streams.stream(base.iterator())
+        .map(x -> SEXPs.symbol(x).toString()) // escapes the symbol if necessary
+        .map(Arguments::of);
+  }
+
+  private Stream<Arguments> toolsFunctionsList() throws IOException {
+    StrSXP base =
+        (StrSXP)
+            readRDS(
+                Objects.requireNonNull(
+                    TestRSession.class.getResourceAsStream("tools-functions.RDS")));
+
+    return Streams.stream(base.iterator())
+        .map(x -> SEXPs.symbol(x).toString()) // escapes the symbol if necessary
+        .map(Arguments::of);
+  }
+
+  private Stream<Arguments> stdlibFunctions() throws IOException {
+    StrSXP base =
+        (StrSXP)
+            readRDS(
+                Objects.requireNonNull(
+                    TestRSession.class.getResourceAsStream("base-functions.RDS")));
+
+    return Streams.stream(base.iterator())
         .map(x -> SEXPs.symbol(x).toString()) // escapes the symbol if necessary
         .map(Arguments::of);
   }

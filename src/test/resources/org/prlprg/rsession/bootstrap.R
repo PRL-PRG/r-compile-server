@@ -24,9 +24,17 @@ saveRDS(basevars, "basevars.RDS", version = 2)
 cat("saving ", length(base_env), " baseenv symbols\n")
 saveRDS(base_env, "baseenv.RDS", version = 2)
 
-base_namespace <- getNamespace("base")
-base_closures <- basevars[types == "closure"]
-base_closures <- base_closures[sapply(base_closures, \(x) identical(environment(get(x)), base_namespace))]
+list_functions <- function(name) {
+    namespace <- getNamespace(name)
+    p <- function(x) {
+      f <- get(x, envir=namespace)
+      is.function(f) && identical(environment(f), namespace)
+    }
+    Filter(p, ls(namespace, all.names = TRUE))
+}
 
-cat("saving ", length(base_closures), " closures\n")
-saveRDS(base_closures, "base-closures.RDS", version = 2)
+for (name in c("base", "tools")) {
+    funs <- list_functions(name)
+    cat("saving", name, length(funs), "functions\n")
+    saveRDS(funs, paste0(name, "-functions.RDS"), version = 2)
+}
