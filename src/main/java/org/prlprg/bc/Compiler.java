@@ -188,7 +188,7 @@ public class Compiler {
   // @5c0d6769c910 01 SYMSXP g0c0 [MARK,REF(4),LCK,gp=0x4000] "T" (has value)
   private static final Set<String> ALLOWED_FOLDABLE_CONSTS = Set.of("pi", "T", "F");
 
-  private static final Set<String> ALLOWED_FOLDABLE_FUNS = Set.of("c", "*", ":", "-", "^");
+  private static final Set<String> ALLOWED_FOLDABLE_FUNS = Set.of("c", "*", ":", "-", "^", "(");
 
   // should match DOTCALL_MAX in eval.c
   private static final int DOTCALL_MAX = 16;
@@ -337,12 +337,12 @@ public class Compiler {
   @SuppressFBWarnings(
       value = "DLS_DEAD_LOCAL_STORE",
       justification = "False positive, probably because of ignored switch case")
-  private void compileConst(SEXP expr) {
-    switch (expr) {
+  private void compileConst(SEXP val) {
+    switch (val) {
       case NilSXP ignored -> cb.addInstr(new LdNull());
       case LglSXP x when x == SEXPs.TRUE -> cb.addInstr(new LdTrue());
       case LglSXP x when x == SEXPs.FALSE -> cb.addInstr(new LdFalse());
-      default -> cb.addInstr(new LdConst(cb.addConst(expr)));
+      default -> cb.addInstr(new LdConst(cb.addConst(val)));
     }
 
     checkTailCall();
@@ -2136,10 +2136,18 @@ public class Compiler {
       case ":" -> constantFoldColon(args.build());
       case "-" -> constantFoldMinus(args.build());
       case "^" -> constantFoldExp(args.build());
+      case "(" -> constantFoldParen(args.build());
       default -> Optional.empty();
     };
 
     return ct.flatMap(this::checkConst);
+  }
+
+  private Optional<SEXP> constantFoldParen(ImmutableList<SEXP> args) {
+    if (args.size() != 1) {
+      return Optional.empty();
+    }
+    return constantFold(args.getFirst());
   }
 
   private Optional<SEXP> constantFoldExp(ImmutableList<SEXP> args) {
