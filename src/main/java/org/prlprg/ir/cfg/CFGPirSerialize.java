@@ -286,6 +286,9 @@ class PirInstrOrPhiParseContext {
     } else if (s.trySkip("nil")) {
       pirIdToNode.put(pirId, new Constant(SEXPs.NULL));
       return "constant_null";
+    } else if (s.trySkip("missingArg")) {
+      pirIdToNode.put(pirId, new Constant(SEXPs.MISSING_ARG));
+      return "constant_missing";
     }
 
     for (var deoptType : org.prlprg.rshruntime.DeoptReason.Type.values()) {
@@ -395,7 +398,7 @@ class PirInstrOrPhiParseContext {
             } else {
               env = (Env) frameStateOrEnv;
             }
-            yield new StmtData.Force(promise, frameState, env == null ? Envs.ELIDED : env);
+            yield new StmtData.Force(promise, frameState, env == null ? StaticEnv.ELIDED : env);
           }
           case "MkCls" -> {
             var cls = p.parse(Closure.class);
@@ -420,7 +423,9 @@ class PirInstrOrPhiParseContext {
             s.assertAndSkip(", ");
             // If the next character is whitespace, the env is null (I assume same as elided).
             var env =
-                s.nextCharSatisfies(Character::isWhitespace) ? Envs.ELIDED : p.parse(Env.class);
+                s.nextCharSatisfies(Character::isWhitespace)
+                    ? StaticEnv.ELIDED
+                    : p.parse(Env.class);
             yield new StmtData.MkProm(
                 SEXPs.symbol("stubPromiseRef <" + prom + ">"), eagerArg, env, performsReflection);
           }
@@ -479,7 +484,7 @@ class PirInstrOrPhiParseContext {
             var fun = p.parse(RValue.class);
             var callArgs = parseCallArgs(p);
             var fs = s.trySkip(", ") ? p.parse(FrameState.class) : null;
-            yield new StmtData.Call(stubLangSxp(), fun, callArgs, Envs.NOT_CLOSED, fs);
+            yield new StmtData.Call(stubLangSxp(), fun, callArgs, StaticEnv.NOT_CLOSED, fs);
           }
           case "NamedCall" -> {
             var fun = p.parse(RValue.class);
@@ -490,7 +495,7 @@ class PirInstrOrPhiParseContext {
                 fun,
                 namedCallArgs.first(),
                 namedCallArgs.second(),
-                Envs.NOT_CLOSED,
+                StaticEnv.NOT_CLOSED,
                 fs);
           }
           case "StaticCall" -> {
@@ -504,19 +509,19 @@ class PirInstrOrPhiParseContext {
                 stubOptimizationContext(),
                 callArgs,
                 stubArglistOrder(callArgs),
-                Envs.NOT_CLOSED,
+                StaticEnv.NOT_CLOSED,
                 fs);
           }
           case "CallBuiltin" -> {
             var builtin = p.parse(BuiltinId.class);
             var callArgs = parseCallArgs(p);
-            yield new StmtData.CallBuiltin(stubLangSxp(), builtin, callArgs, Envs.NOT_CLOSED);
+            yield new StmtData.CallBuiltin(stubLangSxp(), builtin, callArgs, StaticEnv.NOT_CLOSED);
           }
           case "CallSafeBuiltin" -> {
             var builtin = p.parse(BuiltinId.class);
             var callArgs = parseCallArgs(p);
             yield new StmtData.CallSafeBuiltin(
-                stubLangSxp(), builtin, callArgs, Envs.NOT_CLOSED, ImmutableList.of());
+                stubLangSxp(), builtin, callArgs, StaticEnv.NOT_CLOSED, ImmutableList.of());
           }
           case "PushContext" -> {
             var allArgs = new ArrayList<RValue>();
@@ -603,7 +608,7 @@ class PirInstrOrPhiParseContext {
 
                 if (s.nextCharSatisfies(c -> c == -1 || Character.isWhitespace(c))) {
                   // null env; I assume this works the same as elided.
-                  args[i] = Envs.ELIDED;
+                  args[i] = StaticEnv.ELIDED;
                   continue;
                 }
 
@@ -792,7 +797,10 @@ class PirInstrOrPhiParseContext {
         } catch (ParseException e) {
           throw s.fail("unrecognized RType: " + s.readWhile(Character::isLetter));
         }
-        type = sexpType == SEXPType.PROM ? RTypes.ANY_PROM : RTypes.simple(sexpType);
+        type =
+            sexpType == SEXPType.PROM
+                ? RTypes.ANY_PROM
+                : sexpType == SEXPType.SYM ? RTypes.ANY_SIMPLE : RTypes.simple(sexpType);
       }
 
       // Attributes
@@ -1163,7 +1171,7 @@ class PirInstrOrPhiPrintContext {
           p.print(f.frameState().get());
           w.write(", ");
         }
-        if (f.env() != Envs.ELIDED) {
+        if (f.env() != StaticEnv.ELIDED) {
           p.print(f.env());
         }
       }
@@ -1692,11 +1700,11 @@ abstract sealed class PirId {
       }
       case '?' -> {
         s.assertAndSkip('?');
-        return new PirId.GlobalNamed(Envs.NOT_CLOSED);
+        return new PirId.GlobalNamed(StaticEnv.NOT_CLOSED);
       }
       case '%', 'e' -> {
         if (s.trySkip("elided")) {
-          return new PirId.GlobalNamed(Envs.ELIDED);
+          return new PirId.GlobalNamed(StaticEnv.ELIDED);
         }
 
         sb.appendCodePoint(s.readChar());
@@ -1731,12 +1739,22 @@ abstract sealed class PirId {
       }
       case -1 -> throw s.fail("PIR ID", "EOF");
       default -> {
-        if (s.trySkip("deparse")) {
-          // Usually (not guaranteed!) to be `deparse(...>`.
+        if (s.nextCharsAre("::")
+            || s.nextCharIs('.')
+            || s.nextCharsAre("is.")
+            || s.nextCharsAre("isNamespace")
+            || s.nextCharsAre("getNamespace")
+            || s.nextCharsAre("packageSlot")
+            || s.nextCharsAre("deparse")) {
+          // Usually (not guaranteed!) to be `some_fn(...)`.
+          var name = s.readUntil('(');
           s.assertAndSkip('(');
-          var desc = s.readUntil("...>");
-          s.assertAndSkip("...>");
-          return new PirId.GlobalNotFullySerialized("deparse(" + desc + "...");
+          var args = s.readUntil(c -> c == ')' || c == '>');
+          var ended = s.trySkip(')');
+          if (!ended) {
+            s.assertAndSkip('>');
+          }
+          return new PirId.GlobalNotFullySerialized(name + '(' + args + (ended ? ')' : "..."));
         } else if (s.trySkip("function")) {
           // Usually (not guaranteed!) to be `function(...) <...>` or `function(...>`.
           s.assertAndSkip('(');
@@ -1757,16 +1775,6 @@ abstract sealed class PirId {
             desc = "...";
           }
           return new PirId.GlobalNotFullySerialized("fn(" + argsOrDesc + ") => " + desc);
-        } else if (s.trySkip("is.baseenv")) {
-          s.assertAndSkip('(');
-          var args = s.readUntil(')');
-          s.assertAndSkip(')');
-          return new PirId.GlobalNotFullySerialized("is.baseenv(" + args + ")");
-        } else if (s.trySkip("getNamespace")) {
-          s.assertAndSkip('(');
-          var args = s.readUntil(')');
-          s.assertAndSkip(')');
-          return new PirId.GlobalNotFullySerialized("getNamespace(" + args + ")");
         }
 
         if (s.trySkip("true") || s.trySkip("opaqueTrue")) {
@@ -1780,6 +1788,8 @@ abstract sealed class PirId {
           return new PirId.GlobalReal(Constants.NA_REAL);
         } else if (s.trySkip("nil")) {
           return new PirId.GlobalNamed(new Constant(SEXPs.NULL));
+        } else if (s.trySkip("missingArg")) {
+          return new PirId.GlobalNamed(new Constant(SEXPs.MISSING_ARG));
         }
 
         for (var deoptType : org.prlprg.rshruntime.DeoptReason.Type.values()) {
@@ -1798,8 +1808,10 @@ abstract sealed class PirId {
           sb.append(p.parse(RegSymSXP.class).name());
           var name = sb.toString();
           return new PirId.GlobalNamed(
-              // TODO: Other named globals, currently just returns a stub invalid node.
-              Objects.requireNonNull(Nodes.GLOBALS.getOrDefault(name, InvalidNode.TODO_GLOBAL)),
+              Objects.requireNonNull(
+                  StaticEnv.ALL.containsKey(name)
+                      ? StaticEnv.ALL.get(name)
+                      : InvalidNode.TODO_GLOBAL),
               name);
         }
 

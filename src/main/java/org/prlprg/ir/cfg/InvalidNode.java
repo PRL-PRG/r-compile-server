@@ -9,6 +9,12 @@ import org.prlprg.sexp.SEXP;
 public record InvalidNode(String desc) implements DeoptReason, Env, FrameState {
   public static final InvalidNode TODO_GLOBAL = new InvalidNode("TODO_GLOBAL");
 
+  public InvalidNode {
+    if (desc.contains("}")) {
+      throw new IllegalArgumentException("Description must not contain '}' (makes parsing harder)");
+    }
+  }
+
   @Override
   public @Nullable Env parent() {
     return null;
@@ -35,7 +41,12 @@ public record InvalidNode(String desc) implements DeoptReason, Env, FrameState {
   }
 
   @Override
-  public NodeId<InvalidNode> id() {
-    return new GlobalNodeId<>(this, "<" + desc + ">");
+  public GlobalNodeId<InvalidNode> id() {
+    return new GlobalNodeIdImpl<>(this);
+  }
+
+  @Override
+  public String toString() {
+    return "{invalid:" + desc + "}";
   }
 }

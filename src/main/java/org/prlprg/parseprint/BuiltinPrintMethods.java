@@ -64,6 +64,8 @@ class BuiltinPrintMethods {
         } else {
           w.write(", ");
         }
+        w.write(component.getName());
+        w.write('=');
         p.print(Reflection.getComponent(data, component));
       }
       w.write(')');

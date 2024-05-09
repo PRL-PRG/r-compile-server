@@ -10,11 +10,11 @@ import java.util.Formatter;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import org.jetbrains.annotations.Unmodifiable;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.prlprg.ir.cfg.CFGEdit.Intrinsic;
 import org.prlprg.parseprint.ParseException;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.util.DirectorySource;
@@ -28,8 +28,7 @@ public class CFGTests {
     var original = Files.readString(pirPath);
 
     // Silently fails on parse exceptions because we're not testing parsing.
-    Pair<List<CFG>, Map<CFG, List<CFGEdit.Intrinsic<?>>>> cfgsAndEdits =
-        readPirCfgsAndStoreEdits(pirPath, original, true);
+    var cfgsAndEdits = readPirCfgsAndStoreEdits(pirPath, original);
     var cfgs = cfgsAndEdits.first();
     var editsForEveryCfg = cfgsAndEdits.second();
 
@@ -39,9 +38,13 @@ public class CFGTests {
       var edits = editsForEveryCfg.get(cfg);
 
       var copy = new CFG();
-      for (var edit : edits) {
+      for (var editAndInverse : edits) {
+        var edit = editAndInverse.first();
+        var inverse = editAndInverse.second();
         System.err.println(edit);
-        edit.apply(copy);
+        var inverse2 = edit.apply(copy);
+
+        assertEquals(inverse, inverse2, "Applying edit on copy doesn't produce the same inverse");
       }
 
       var repr = cfg.toString();
@@ -59,8 +62,7 @@ public class CFGTests {
     var original = Files.readString(pirPath);
 
     // Silently fails on parse exceptions because we're not testing parsing.
-    Pair<List<CFG>, Map<CFG, List<CFGEdit.Intrinsic<?>>>> cfgsAndEdits =
-        readPirCfgsAndStoreEdits(pirPath, original, true);
+    var cfgsAndEdits = readPirCfgsAndStoreEdits(pirPath, original);
     var cfgs = cfgsAndEdits.first();
     var editsForEveryCfg = cfgsAndEdits.second();
 
@@ -69,9 +71,13 @@ public class CFGTests {
 
       var edits = editsForEveryCfg.get(cfg);
 
-      for (var edit : edits.reversed()) {
-        System.err.println(edit);
-        edit.apply(cfg);
+      for (var editAndInverse : edits.reversed()) {
+        var edit = editAndInverse.first();
+        var inverse = editAndInverse.second();
+        System.err.println(inverse + " <- " + edit);
+        var edit2 = inverse.apply(cfg);
+
+        assertEquals(edit, edit2, "Applying inverse doesn't produce the original edit");
       }
 
       assertEquals(
@@ -81,12 +87,22 @@ public class CFGTests {
     }
   }
 
-  @Disabled
   @ParameterizedTest
   @DirectorySource(root = "pir-prints", depth = Integer.MAX_VALUE, glob = "*.log")
   public void testPirIsParseableAndPrintableWithoutError(Path pirPath) {
     var original = Files.readString(pirPath);
-    var cfgs = readPirCfgs(pirPath, original, CFG::new, false);
+    var cfgs =
+        readPirCfgs(
+            pirPath,
+            original,
+            CFG::new,
+            e ->
+                e.getMessage().contains("non-trivial SEXP constant")
+                    ||
+                    // Badly formatted strings in PIR
+                    e.getMessage().contains("unclosed string")
+                    || e.getMessage().contains("escape sequence")
+                    || e.getMessage().contains("expected \", \"..., but found \"\",\"..."));
     var roundTrip = writePirCfgs(cfgs);
     var defaultStr = writeCfgs(cfgs);
 
@@ -109,7 +125,7 @@ public class CFGTests {
   @DirectorySource(root = "pir-prints", depth = Integer.MAX_VALUE, glob = "*.log")
   public void testPirByEye(Path pirPath) {
     var original = Files.readString(pirPath);
-    var cfgs = readPirCfgs(pirPath, original, CFG::new, false);
+    var cfgs = readPirCfgs(pirPath, original, CFG::new, _ -> false);
     var roundTrip = writePirCfgs(cfgs);
 
     // This will fail, but it will show a message that lets you see the difference.
@@ -118,29 +134,43 @@ public class CFGTests {
   }
 
   // region helpers
-  private Pair<List<CFG>, Map<CFG, List<Intrinsic<?>>>> readPirCfgsAndStoreEdits(
-      Path pirPath, String source, boolean silentlyFailOnParseException) {
-    var editsForEveryCfg = new HashMap<CFG, List<CFGEdit.Intrinsic<?>>>();
+  private Pair<List<CFG>, Map<CFG, List<Pair<CFGEdit.Intrinsic<?>, CFGEdit.Intrinsic<?>>>>>
+      readPirCfgsAndStoreEdits(Path pirPath, String source) {
+    var observersForEveryCfg = new HashMap<CFG, CFGObserver>();
+    var editsForEveryCfg =
+        new HashMap<CFG, List<Pair<CFGEdit.Intrinsic<?>, CFGEdit.Intrinsic<?>>>>();
     var cfgs =
         readPirCfgs(
             pirPath,
             source,
             () -> {
-              var cfg = new CFG();
+              var edits = new ArrayList<Pair<CFGEdit.Intrinsic<?>, CFGEdit.Intrinsic<?>>>();
+              CFGObserver observer = (edit, inverse) -> edits.add(Pair.of(edit, inverse));
 
-              var edits = new ArrayList<CFGEdit.Intrinsic<?>>();
+              var cfg = new CFG();
+              cfg.addObserver(observer);
+
+              observersForEveryCfg.put(cfg, observer);
               editsForEveryCfg.put(cfg, edits);
-              cfg.addObserver(edits::add);
 
               return cfg;
             },
-            silentlyFailOnParseException);
+            _ -> true);
+
+    for (var cfgAndObserver : observersForEveryCfg.entrySet()) {
+      var cfg = cfgAndObserver.getKey();
+      var observer = cfgAndObserver.getValue();
+      cfg.removeObserver(observer);
+    }
 
     return Pair.of(cfgs, editsForEveryCfg);
   }
 
   private @Unmodifiable List<CFG> readPirCfgs(
-      Path pirPath, String source, Supplier<CFG> cfgFactory, boolean silentlyFailOnParseException) {
+      Path pirPath,
+      String source,
+      Supplier<CFG> cfgFactory,
+      Predicate<ParseException> silentlyFailOnParseException) {
     var pirReader = new StringReader(source);
 
     List<CFG> cfgs = new ArrayList<>();
@@ -152,7 +182,9 @@ public class CFGTests {
               + pirPath
               + "\n"
               + region(source, e.position().line(), e.position().column()));
-      if (!silentlyFailOnParseException) {
+      if (silentlyFailOnParseException.test(e)) {
+        e.printStackTrace();
+      } else {
         throw e;
       }
     } catch (Throwable e) {

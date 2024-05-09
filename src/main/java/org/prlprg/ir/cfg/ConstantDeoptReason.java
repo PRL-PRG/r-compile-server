@@ -16,7 +16,12 @@ public record ConstantDeoptReason(org.prlprg.rshruntime.DeoptReason deoptReason)
   }
 
   @Override
-  public NodeId<? extends DeoptReason> id() {
-    return new GlobalNodeId<>(this, "{" + deoptReason + '}');
+  public GlobalNodeId<? extends DeoptReason> id() {
+    return new GlobalNodeIdImpl<>(this);
+  }
+
+  @Override
+  public String toString() {
+    return "{dr:" + deoptReason + "}";
   }
 }

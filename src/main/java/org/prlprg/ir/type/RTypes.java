@@ -119,7 +119,8 @@ public class RTypes {
       new RType(
           new RGenericValueType(null, BaseRType.DOTS, AttributesTypes.NONE, MaybeNat.UNKNOWN),
           RPromiseType.VALUE,
-          Troolean.NO);
+          // Yes, this can be missing
+          Troolean.MAYBE);
 
   /** TODO: Define {@code SEXPs.EXPANDED_DOTS} and make this {@link RTypes#exact(SEXP)}? */
   public static final RType EXPANDED_DOTS =
