@@ -6,8 +6,8 @@ interface CFGVerify extends CFGQuery {
    * Verify some CFG invariants. Specifically:
    *
    * <ul>
-   *   <li>Every basic block has a non-null jump (could be a {@link Jumps.Return} or {@link
-   *       Jumps.Unreachable}).
+   *   <li>Every basic block has a non-null jump (could be a {@link JumpData.Return} or {@link
+   *       JumpData.Unreachable}).
    *   <li>Only basic blocks with two or more predecessors have phi nodes.
    *   <li>Phi nodes have an entry from every predecessor.
    *   <li>Instructions don't have arguments that were removed from the CFG (or not present

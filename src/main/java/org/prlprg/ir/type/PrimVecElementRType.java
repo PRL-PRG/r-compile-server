@@ -43,7 +43,6 @@ public enum PrimVecElementRType implements Lattice<PrimVecElementRType> {
       case CHAR ->
           throw new IllegalArgumentException(
               "char vectors aren't expected here, we may need to add them to RType");
-        //noinspection DuplicatedCode
       case LGL -> LOGICAL;
       case INT -> INT;
       case REAL -> DOUBLE;

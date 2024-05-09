@@ -227,13 +227,13 @@ public class PrettyPrintWriter {
           }
 
           @Override
-          public Appendable append(CharSequence csq, int start, int end) throws IOException {
+          public Appendable append(CharSequence csq, int start, int end) {
             write(csq.subSequence(start, end).toString());
             return this;
           }
 
           @Override
-          public Appendable append(char c) throws IOException {
+          public Appendable append(char c) {
             write(c);
             return this;
           }

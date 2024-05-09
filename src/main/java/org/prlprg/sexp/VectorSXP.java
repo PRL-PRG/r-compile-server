@@ -1,5 +1,7 @@
 package org.prlprg.sexp;
 
+import static org.prlprg.Config.VECTOR_TRUNCATE_SIZE;
+
 import java.util.stream.BaseStream;
 import org.prlprg.primitive.Complex;
 import org.prlprg.primitive.Logical;
@@ -85,8 +87,6 @@ public sealed interface VectorSXP<T> extends ListOrVectorSXP<T>
 }
 
 final class VectorSXPs {
-  static final int VECTOR_TRUNCATE_SIZE = 100;
-
   static String toString(SEXP sexp, BaseStream<?, ?> data) {
     var dataString = new StringBuilder();
     var dataIter = data.iterator();
@@ -94,10 +94,10 @@ final class VectorSXPs {
       dataString.append(dataIter.next());
       if (dataIter.hasNext()) {
         dataString.append(",");
-        //        if (dataString.length() >= VECTOR_TRUNCATE_SIZE) {
-        //          dataString.append("...");
-        //          break;
-        //        }
+        if (VECTOR_TRUNCATE_SIZE > 0 && dataString.length() >= VECTOR_TRUNCATE_SIZE) {
+          dataString.append("...");
+          break;
+        }
       }
     }
     return SEXPs.toString(sexp, dataString);

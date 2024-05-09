@@ -10,8 +10,8 @@ interface CFGCleanup extends CFGQuery, CFGIntrinsicMutate {
    *       variants.
    *   <li>Merge the basic blocks which have only one successor to a basic block with only one
    *       predecessor.
-   *   <li>Remove "pure" statements with no users (including temporary {@link
-   *       Stmts.Placeholder.NoOp} statements).
+   *   <li>Remove "pure" statements with no users (including temporary {@link StmtData.NoOp}
+   *       statements).
    *   <li>Replace phi nodes that have a single input with that input.
    *   <li>Remove basic blocks that are unreachable from the entry block (remove basic blocks with
    *       zero predecessors recursively).

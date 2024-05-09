@@ -168,7 +168,6 @@ public class Context {
                   // contribute any new
                   // local variables.
                   Optional.empty();
-
               case "~", "expression", "quote" -> {
                 // they do not evaluate their arguments and so do not contribute new local
                 // variables.
@@ -214,15 +213,11 @@ public class Context {
       if (call.args().isEmpty()) {
         throw new CompilerException("Bad assignment: " + call);
       }
-      switch (call.arg(0)) {
-        case LangSXP ll -> {
-          return getAssignVar(ll);
-        }
-        case StrOrRegSymSXP s -> {
-          return s.reifyString();
-        }
+      return switch (call.arg(0)) {
+        case LangSXP ll -> getAssignVar(ll);
+        case StrOrRegSymSXP s -> s.reifyString();
         default -> throw new CompilerException("Bad assignment: " + call);
-      }
+      };
     }
   }
 

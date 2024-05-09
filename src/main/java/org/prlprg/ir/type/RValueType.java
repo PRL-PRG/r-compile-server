@@ -15,6 +15,8 @@ import org.prlprg.sexp.SEXP;
 sealed interface RValueType extends Lattice<RValueType>
     permits RFunctionType, RPrimVecType, RGenericValueType {
   /** If this is a constant, the exact value. */
+  // Overridden in record so IntelliJ can't detect that this doesn't apply.
+  @SuppressWarnings("EmptyMethod")
   @Nullable SEXP exactValue();
 
   /** The base type of the value (e.g. is it a symbol? Builtin?). */

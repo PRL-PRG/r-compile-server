@@ -1,7 +1,5 @@
 /**
  * {@link org.prlprg.ir.cfg.CFG}, {@link org.prlprg.ir.cfg.BB}, and {@link org.prlprg.ir.cfg.Node}s.
- *
- * <p>Usually you should access via {@link CFGBuilder} instead, to keep track of history.
  */
 @ParametersAreNonnullByDefault
 @FieldsAreNonNullByDefault

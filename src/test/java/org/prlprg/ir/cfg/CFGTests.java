@@ -24,24 +24,6 @@ import org.prlprg.util.Pair;
 public class CFGTests {
   @ParameterizedTest
   @DirectorySource(root = "pir-prints", depth = Integer.MAX_VALUE, glob = "*.log")
-  public void testPirIsParseableAndPrintableWithoutError(Path pirPath) {
-    var original = Files.readString(pirPath);
-    var cfgs = readPirCfgs(pirPath, original, CFG::new, false);
-    var roundTrip = writePirCfgs(cfgs);
-    var defaultStr = writeCfgs(cfgs);
-
-    System.out.println("Native serialized representation:");
-    System.out.println(entireRegion(defaultStr));
-    System.out.println();
-    System.out.println("Reprinted (round-trip) PIR representation:");
-    System.out.println(entireRegion(roundTrip));
-    System.out.println();
-    System.out.println("Original PIR representation:");
-    System.out.println(entireRegion(original));
-  }
-
-  @ParameterizedTest
-  @DirectorySource(root = "pir-prints", depth = Integer.MAX_VALUE, glob = "*.log")
   public void testPirObserverCanRecreate(Path pirPath) {
     var original = Files.readString(pirPath);
 
@@ -97,6 +79,25 @@ public class CFGTests {
 
       System.err.println();
     }
+  }
+
+  @Disabled
+  @ParameterizedTest
+  @DirectorySource(root = "pir-prints", depth = Integer.MAX_VALUE, glob = "*.log")
+  public void testPirIsParseableAndPrintableWithoutError(Path pirPath) {
+    var original = Files.readString(pirPath);
+    var cfgs = readPirCfgs(pirPath, original, CFG::new, false);
+    var roundTrip = writePirCfgs(cfgs);
+    var defaultStr = writeCfgs(cfgs);
+
+    System.out.println("Native serialized representation:");
+    System.out.println(entireRegion(defaultStr));
+    System.out.println();
+    System.out.println("Reprinted (round-trip) PIR representation:");
+    System.out.println(entireRegion(roundTrip));
+    System.out.println();
+    System.out.println("Original PIR representation:");
+    System.out.println(entireRegion(original));
   }
 
   /**

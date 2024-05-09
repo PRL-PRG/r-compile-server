@@ -2412,20 +2412,11 @@ public class Compiler {
     }
 
     var srcref = attrs.get("srcref");
-    if (srcref == null) {
-      return Optional.empty();
-    }
-
-    if (srcref instanceof IntSXP i && i.size() >= 6) {
-      return Optional.of(i);
-    } else if (srcref instanceof VecSXP v
-        && v.size() >= idx
-        && v.get(idx) instanceof IntSXP i
-        && i.size() >= 6) {
-      return Optional.of(i);
-    } else {
-      return Optional.empty();
-    }
+    return switch (srcref) {
+      case IntSXP i when i.size() >= 6 -> Optional.of(i);
+      case VecSXP v when v.size() >= idx && v.get(idx) instanceof IntSXP i && i.size() >= 6 -> Optional.of(i);
+      case null, default -> Optional.empty();
+    };
   }
 
   /**

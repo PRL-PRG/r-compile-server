@@ -1,6 +1,5 @@
 package org.prlprg.ir.type.lattice;
 
-import com.pushtorefresh.javac_warning_annotation.Warning;
 import javax.annotation.Nullable;
 
 /** A number which may be unknown. */
@@ -62,7 +61,6 @@ public sealed interface MaybeNat extends Lattice<MaybeNat> {
   }
 
   record Known(int value) implements MaybeNat {
-    @Warning("Use MaybeNat.of(value) instead.")
     public Known {
       if (value < 0) {
         throw new IllegalArgumentException("Can't be negative");
@@ -76,7 +74,6 @@ public sealed interface MaybeNat extends Lattice<MaybeNat> {
   }
 
   record Unknown() implements MaybeNat {
-    @Warning("Use MaybeNat.UNKNOWN instead.")
     public Unknown {}
 
     @Override

@@ -18,14 +18,14 @@ public final class REffects extends ForwardingSet<REffect> implements BoundedLat
    *
    * <p>This is a subset of all other REffects.
    */
-  public static REffects PURE = new REffects();
+  public static final REffects PURE = new REffects();
 
   /**
    * Instruction or function overload has every effect.
    *
    * <p>This is a superset of all other REffects.
    */
-  public static REffects ARBITRARY = new REffects(REffect.values());
+  public static final REffects ARBITRARY = new REffects(REffect.values());
 
   /** The effects of a arithmetic bytecode instruction, whose arguments have the given types. */
   public static REffects arithmeticOp(RType... types) {

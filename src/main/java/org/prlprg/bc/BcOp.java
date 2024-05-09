@@ -143,12 +143,8 @@ public enum BcOp {
     return ordinal();
   }
 
-  /**
-   * Returns the number of arguments this operation takes.
-   *
-   * @return
-   */
-  @SuppressWarnings("DuplicateBranchesInSwitch")
+  /** Returns the number of arguments this operation takes. */
+  @SuppressWarnings({"DuplicateBranchesInSwitch", "DuplicatedCode"})
   public int nArgs() {
     return switch (this) {
       case BCMISMATCH -> throw new IllegalStateException("invalid opcode " + BCMISMATCH.value());

@@ -545,7 +545,7 @@ class PirInstrOrPhiParseContext {
           }
           case "Assume", "AssumeNot" -> {
             // TODO: Add assumptions (tests and fail reasons) to checkpoint
-            s.readToEndOfLine();
+            s.readUntilEndOfLine();
             yield new StmtData.NoOp();
           }
           case "Checkpoint" -> {

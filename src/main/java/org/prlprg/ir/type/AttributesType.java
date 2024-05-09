@@ -45,7 +45,7 @@ record TODOAttributesType() implements AttributesType {
   }
 
   @Override
-  public @Nullable AttributesType intersection(AttributesType other) {
+  public AttributesType intersection(AttributesType other) {
     return this;
   }
 }

@@ -1,5 +1,6 @@
 package org.prlprg.ir.cfg;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.Collection;
 
 /** Thrown by {@link CFG#verify()} when one of the CFG's invariants is broken. */
@@ -15,6 +16,7 @@ public class CFGVerifyException extends IllegalStateException {
     return sb.toString();
   }
 
+  @SuppressFBWarnings("CT_CONSTRUCTOR_THROW")
   CFGVerifyException(CFG cfg, Collection<BrokenInvariant> brokenInvariants) {
     super(message(cfg, brokenInvariants));
     if (brokenInvariants.isEmpty()) {
@@ -41,7 +43,7 @@ public class CFGVerifyException extends IllegalStateException {
     }
   }
 
-  public record ExtraInputInPhi(BBId bbId, NodeId<? extends Phi<?>> phiId, BB inputId)
+  public record ExtraInputInPhi(BBId bbId, NodeId<? extends Phi<?>> phiId, BBId inputId)
       implements BrokenInvariant {
     @Override
     public String message() {

@@ -133,8 +133,7 @@ sealed interface RPromiseType extends Lattice<RPromiseType> {
     return switch (this) {
       case Value() ->
           switch (other) {
-            case Value() -> this;
-            case MaybePromise _ -> this;
+            case Value(), MaybePromise _ -> this;
             case Promise _ -> null;
           };
       case MaybePromise(var isLazy) ->

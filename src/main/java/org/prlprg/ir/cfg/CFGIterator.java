@@ -1,5 +1,6 @@
 package org.prlprg.ir.cfg;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.ArrayDeque;
 import java.util.Collection;
 import java.util.Collections;
@@ -18,6 +19,7 @@ import org.jetbrains.annotations.UnmodifiableView;
  * <p>Iterating a CFG while it's getting modified is possible. Newly-inserted blocks won't be
  * iterated, and removed blocks that haven't yet been iterated will be skipped.
  */
+@SuppressFBWarnings({"EI_EXPOSE_REP", "EI_EXPOSE_REP2"})
 public abstract sealed class CFGIterator implements Iterator<BB> {
   protected final CFG cfg;
   protected final HashSet<BBId> remainingBBIds;
