@@ -5,7 +5,7 @@ import com.google.common.base.Objects;
 /** A branch instruction destination. */
 public final class BcLabel {
   /** Index of the instruction the branch instruction jumps to. */
-  private int target = -1;
+  private int target;
 
   public BcLabel(int target) {
     this.target = target;

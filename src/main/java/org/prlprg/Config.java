@@ -3,10 +3,14 @@ package org.prlprg;
 import org.prlprg.util.Strings;
 
 /** Environment variables to configure the application. */
+@SuppressWarnings("SameParameterValue")
 public class Config {
   // region actual configuration variables
   /** If true, adds extra verification checks. */
-  public static CfgDebugLevel CFG_DEBUG_LEVEL = get("CFG_DEBUG_LEVEL", CfgDebugLevel.VERIFY);
+  public static final CfgDebugLevel CFG_DEBUG_LEVEL = get("CFG_DEBUG_LEVEL", CfgDebugLevel.VERIFY);
+
+  /** Maximum number of characters vectors will print in `toString` before being truncated. */
+  public static final int VECTOR_TRUNCATE_SIZE = get("VECTOR_TRUNCATE_SIZE", 1000);
 
   // endregion
 
@@ -47,9 +51,9 @@ public class Config {
     }
   }
 
-  private static boolean get(String name, boolean defaultValue) {
+  private static int get(String name, int defaultValue) {
     String value = System.getenv(name);
-    return value != null ? Boolean.parseBoolean(value) : defaultValue;
+    return value != null ? Integer.parseInt(value) : defaultValue;
   }
 
   private Config() {}

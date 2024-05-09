@@ -347,7 +347,7 @@ public final class RType implements BoundedLattice<RType> {
             ? "⊤"
             : ""
                 + promise
-                + switch (missing) {
+                + switch (Objects.requireNonNull(missing)) {
                   case YES -> "miss";
                   case MAYBE -> "miss|" + inner;
                   case NO -> inner;

@@ -1,5 +1,6 @@
 package org.prlprg.ir.cfg;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -24,6 +25,7 @@ import org.prlprg.parseprint.Printer;
  * href="https://en.wikipedia.org/wiki/Control-flow_graph">control-flow-graph</a> (graph of {@link
  * Node}s which corresponds to a program; more specifically, a graph of {@link BB}s).
  */
+@SuppressFBWarnings({"EI_EXPOSE_REP", "EI_EXPOSE_REP2"})
 public class CFG
     implements CFGQuery, CFGIntrinsicMutate, CFGCleanup, CFGVerify, CFGParsePrint, CFGPirSerialize {
   private final List<CFGObserver> observers = new ArrayList<>();
@@ -37,6 +39,7 @@ public class CFG
   private final Map<String, Integer> nextNodeIds = new HashMap<>();
 
   /** Create a new CFG, with a single basic block and no instructions. */
+  @SuppressFBWarnings("CT_CONSTRUCTOR_THROW")
   public CFG() {
     nextNodeIds.put("n", 0);
     nextBbIds.put("bb", 0);
@@ -252,7 +255,7 @@ public class CFG
         for (var input : phi.inputs()) {
           if (!bb.predecessors().contains(input.incomingBB())) {
             errors.add(
-                new CFGVerifyException.ExtraInputInPhi(bb.id(), phi.id(), input.incomingBB()));
+                new CFGVerifyException.ExtraInputInPhi(bb.id(), phi.id(), input.incomingBB().id()));
           }
         }
         for (var pred : bb.predecessors()) {

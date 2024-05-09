@@ -48,9 +48,7 @@ public sealed interface BaseRType extends Lattice<BaseRType> {
    */
   default @Nullable SEXPType sexpType() {
     return switch (this) {
-      case Any() -> null;
-      case AnyValue() -> null;
-      case AnyFun() -> null;
+      case Any(), AnyValue(), AnyFun() -> null;
       case Vector(var elementType) -> elementType.vectorSexpType;
       case AnyList() -> SEXPType.LIST;
       case Promise(var _, var _) -> SEXPType.PROM;
@@ -82,12 +80,8 @@ public sealed interface BaseRType extends Lattice<BaseRType> {
   /** Is this a function type? (closure, builtin, or special) */
   default Troolean isFunction() {
     return switch (this) {
-      case Any() -> Troolean.MAYBE;
-      case AnyValue() -> Troolean.MAYBE;
-      case AnyFun() -> Troolean.YES;
-      case Closure() -> Troolean.YES;
-      case Special() -> Troolean.YES;
-      case Builtin() -> Troolean.YES;
+      case Any(), AnyValue() -> Troolean.MAYBE;
+      case AnyFun(), Closure(), Special(), Builtin() -> Troolean.YES;
       default -> Troolean.NO;
     };
   }
@@ -115,8 +109,7 @@ public sealed interface BaseRType extends Lattice<BaseRType> {
     return other instanceof Any
         || (other instanceof AnyValue && isPromise() == Troolean.NO)
         || switch (this) {
-          case Any() -> false;
-          case AnyValue() -> false;
+          case Any(), AnyValue() -> false;
           case AnyFun() -> other instanceof AnyFun;
           case Vector(var elementType) ->
               other instanceof Vector(var otherElementType)

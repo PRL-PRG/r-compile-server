@@ -1,5 +1,6 @@
 package org.prlprg.ir.cfg;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import javax.annotation.Nullable;
 import org.prlprg.ir.type.RType;
 import org.prlprg.ir.type.RTypes;
@@ -13,6 +14,7 @@ import org.prlprg.sexp.SEXPs;
  *
  * <p>Global environments aren't constants. Use {@link Envs Envs.SOMETHING} instead.
  */
+@SuppressFBWarnings("SING_SINGLETON_HAS_NONPRIVATE_CONSTRUCTOR")
 public record Constant(SEXP constant) implements RValue {
   private static final Constant TRUE = new Constant(SEXPs.TRUE);
   private static final Constant FALSE = new Constant(SEXPs.FALSE);
@@ -31,7 +33,7 @@ public record Constant(SEXP constant) implements RValue {
   }
 
   /** {@link Node} of a simple logical constant. */
-  public static Constant logical(Logical value) {
+  public static synchronized Constant logical(Logical value) {
     return switch (value) {
       case TRUE -> TRUE;
       case FALSE -> FALSE;

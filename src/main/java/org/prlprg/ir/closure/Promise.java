@@ -9,4 +9,8 @@ public class Promise {
     // TODO: Maybe change constructor
     this.cfg = cfg;
   }
+
+  public CFG cfg() {
+    return cfg;
+  }
 }

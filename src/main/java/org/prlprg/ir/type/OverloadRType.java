@@ -315,8 +315,8 @@ public sealed interface OverloadRType {
   }
 
   /**
-   * Returns true if any argument list that matches the other overload is guaranteed to match this
-   * one. Note that this may return false for some cases where it's still guaranteed.
+   * Returns YES if any argument list that matches the other overload is guaranteed to match this
+   * one. Note that this may return MAYBE for some cases where it's still guaranteed.
    */
   default YesOrMaybe parametersAreSuperset(OverloadRType other) {
     if (parameters().size() < other.parameters().size()) {

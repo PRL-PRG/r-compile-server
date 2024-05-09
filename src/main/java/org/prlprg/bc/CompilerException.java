@@ -13,4 +13,8 @@ public class CompilerException extends RuntimeException {
     super(message);
     this.loc = loc;
   }
+
+  public @Nullable Loc loc() {
+    return loc;
+  }
 }

@@ -1,5 +1,6 @@
 package org.prlprg.ir.cfg;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.ArrayDeque;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -40,6 +41,7 @@ public class DomTree {
    *
    * @see CFG#domTree()
    */
+  @SuppressFBWarnings("CT_CONSTRUCTOR_THROW")
   DomTree(CFG cfg) {
     this.cfg = cfg;
 

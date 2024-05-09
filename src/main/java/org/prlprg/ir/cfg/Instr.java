@@ -65,6 +65,8 @@ public sealed interface Instr extends InstrOrPhi permits Jump, Stmt {
    * guaranteed to be the same class as all instances that satisfy the predicate {@link
    * #canReplaceDataWith}.
    */
+  // Transitively overridden so IntelliJ can't detect that this doesn't apply.
+  @SuppressWarnings("EmptyMethod")
   InstrData<?> data();
 
   /**

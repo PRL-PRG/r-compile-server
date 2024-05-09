@@ -6,7 +6,7 @@ import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 
 public record FeedbackIndex(FeedbackKind kind, int indexOfKind) {
-  public static int UNDEFINED_INDEX = -1;
+  public static final int UNDEFINED_INDEX = -1;
 
   public static FeedbackIndex call(int indexOfKind) {
     return new FeedbackIndex(FeedbackKind.CALL, indexOfKind);

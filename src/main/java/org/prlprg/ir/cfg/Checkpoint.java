@@ -1,5 +1,6 @@
 package org.prlprg.ir.cfg;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -30,6 +31,7 @@ final class CheckpointImpl extends JumpImpl<JumpData.Checkpoint> implements Chec
   }
 
   @SuppressWarnings("ConstantValue")
+  @SuppressFBWarnings("RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE")
   @Override
   public void verify() throws InstrVerifyException {
     super.verify();

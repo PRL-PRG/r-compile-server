@@ -89,6 +89,7 @@ public enum VectorElementRType implements Lattice<VectorElementRType> {
         };
   }
 
+  @SuppressWarnings("DuplicatedCode")
   @Override
   public VectorElementRType union(VectorElementRType other) {
     var primitiveFallback = other.isSubsetOf(PRIMITIVE) ? PRIMITIVE : ANY;

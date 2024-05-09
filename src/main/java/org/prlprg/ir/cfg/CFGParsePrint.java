@@ -25,7 +25,7 @@ class CFGParsePrintImpl {
     while (!s.isAtEof()) {
       if (s.trySkip("//")) {
         // Comment
-        s.readToEndOfLine();
+        s.readPastEndOfLine();
       } else if (s.nextCharIs('^')) {
         // BB (it adds itself when parsed)
         cfgP.parse(BB.class);

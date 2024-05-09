@@ -1,5 +1,6 @@
 package org.prlprg.ir.cfg;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import javax.annotation.Nullable;
 import org.prlprg.ir.type.RType;
 
@@ -9,6 +10,8 @@ public interface RValueStmt extends Stmt, RValue {
   NodeId<? extends RValueStmt> id();
 
   @Override
+  // Transitively overridden so IntelliJ can't detect that this doesn't apply.
+  @SuppressWarnings("EmptyMethod")
   StmtData.RValue_ data();
 }
 
@@ -23,6 +26,7 @@ abstract class AbstractRValueStmtImpl<D extends StmtData.RValue_> extends SelfRe
     implements RValueStmt {
   // It gets initialized in `verify` which is called from the constructor
   @SuppressWarnings("NotNullFieldNotInitialized")
+  @SuppressFBWarnings("NP_NONNULL_FIELD_NOT_INITIALIZED_IN_CONSTRUCTOR")
   private RType type;
 
   AbstractRValueStmtImpl(Class<D> clazz, CFG cfg, String name, D data) {
