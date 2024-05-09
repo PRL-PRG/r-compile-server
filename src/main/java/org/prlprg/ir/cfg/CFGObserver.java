@@ -10,7 +10,7 @@ package org.prlprg.ir.cfg;
 @FunctionalInterface
 public interface CFGObserver {
   /** Records that an edit (mutation) was just performed. */
-  void record(CFGEdit.Intrinsic<?> edit);
+  void record(CFGEdit.Intrinsic<?> edit, CFGEdit.Intrinsic<?> inverse);
 
   /**
    * Records that a user-defined section has begun.

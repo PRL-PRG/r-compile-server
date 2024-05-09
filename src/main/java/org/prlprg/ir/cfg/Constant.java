@@ -12,7 +12,7 @@ import org.prlprg.sexp.SEXPs;
 /**
  * A constant {@link RValue}: an IR node of a {@link SEXP} constant.
  *
- * <p>Global environments aren't constants. Use {@link Envs Envs.SOMETHING} instead.
+ * <p>Global environments aren't constants. Use {@link StaticEnv Envs.SOMETHING} instead.
  */
 @SuppressFBWarnings("SING_SINGLETON_HAS_NONPRIVATE_CONSTRUCTOR")
 public record Constant(SEXP constant) implements RValue {
@@ -72,7 +72,12 @@ public record Constant(SEXP constant) implements RValue {
   }
 
   @Override
-  public NodeId<Constant> id() {
-    return new GlobalNodeId<>(this, "{" + constant + '}');
+  public GlobalNodeId<Constant> id() {
+    return new GlobalNodeIdImpl<>(this);
+  }
+
+  @Override
+  public String toString() {
+    return "{const:" + constant + "}";
   }
 }

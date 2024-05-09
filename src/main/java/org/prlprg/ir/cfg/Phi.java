@@ -36,6 +36,7 @@ public non-sealed interface Phi<N extends Node> extends InstrOrPhi {
    *
    * @throws IllegalArgumentException if there are no such classes.
    */
+  // FIXME(jakob): Fix Env and RValue because some RValues (e.g. `CallSafeBuiltin`) can be Envs.
   static Class<? extends Node> commonInputSuperclass(
       Class<? extends Node> a, Class<? extends Node> b) {
     if (Env.class.isAssignableFrom(a) && Env.class.isAssignableFrom(b)) {
@@ -188,9 +189,7 @@ public non-sealed interface Phi<N extends Node> extends InstrOrPhi {
   NodeId<? extends Phi<N>> id();
 
   record Args<N extends Node>(
-      Class<? extends N> nodeClass,
-      @Nullable String name,
-      Collection<? extends Input<? extends N>> inputs) {
+      Class<? extends N> nodeClass, String name, Collection<? extends Input<? extends N>> inputs) {
     public IdArgs<N> id() {
       return new IdArgs<>(nodeClass, name, inputs.stream().map(Input::id).toList());
     }
@@ -198,7 +197,7 @@ public non-sealed interface Phi<N extends Node> extends InstrOrPhi {
 
   record IdArgs<N extends Node>(
       Class<? extends N> nodeClass,
-      @Nullable String name,
+      String name,
       Collection<? extends InputId<? extends N>> inputIds) {}
 
   record Input<N extends Node>(BB incomingBB, N node) {

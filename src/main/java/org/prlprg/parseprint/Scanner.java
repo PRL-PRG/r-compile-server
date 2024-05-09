@@ -311,7 +311,7 @@ public class Scanner {
             try {
               sb.append(Integer.parseInt(hex, 16));
             } catch (NumberFormatException e) {
-              throw fail("Invalid hex escape sequence");
+              throw fail("invalid hex escape sequence");
             }
           }
           case 'u' -> {
@@ -319,10 +319,10 @@ public class Scanner {
             try {
               sb.append(Integer.parseInt(hex, 16));
             } catch (NumberFormatException e) {
-              throw fail("Invalid 4-byte unicode escape sequence");
+              throw fail("invalid 4-byte unicode escape sequence");
             }
           }
-          default -> throw fail("Unhandled escape sequence");
+          default -> throw fail("unhandled escape sequence");
         }
       } else if (c == -1) {
         throw fail("unclosed string (needs " + Strings.quote(quote) + ")");
@@ -389,12 +389,26 @@ public class Scanner {
   }
 
   /**
-   * Read characters until <b>and including</b> the end of the current line or EOF.
+   * Read characters up to <b>and including</b> the end of the current line or EOF.
    *
    * @see #readUntil(String)
    * @see #readUntil(Predicate)
    */
-  public String readToEndOfLine() {
+  public String readPastEndOfLine() {
+    var result = readUntilEndOfLine();
+    if (trySkip('\n')) {
+      result += '\n';
+    }
+    return result;
+  }
+
+  /**
+   * Read characters up to, <b>but not including</b>, the end of the current line or EOF.
+   *
+   * @see #readUntil(String)
+   * @see #readUntil(Predicate)
+   */
+  public String readUntilEndOfLine() {
     return readUntil('\n', true);
   }
 
@@ -774,7 +788,7 @@ public class Scanner {
             handleEof(true);
           }
 
-          return new String(charBuffer, 0, read);
+          return read == -1 ? "" : new String(charBuffer, 0, read);
         });
   }
 
@@ -828,6 +842,10 @@ public class Scanner {
 
   /** Unread characters and rethrow {@link IOException}. */
   private void doUnread(String s) {
+    if (s.isEmpty()) {
+      return;
+    }
+
     try {
       if (isAtEof) {
         isAtEof = false;

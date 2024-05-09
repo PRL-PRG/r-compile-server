@@ -15,7 +15,21 @@ public non-sealed interface Stmt extends Instr {
   @Override
   NodeId<? extends Stmt> id();
 
-  record Args<I extends Stmt>(String name, StmtData<I> data) {}
+  record Args<I extends Stmt>(String name, StmtData<I> data) {
+    public IdArgs<I> id() {
+      return new IdArgs<>(name, MapToIdIn.of(data));
+    }
+  }
+
+  record IdArgs<I extends Stmt>(String name, MapToIdIn<? extends StmtData<I>> data) {
+    public IdArgs(String name, StmtData<I> data) {
+      this(name, MapToIdIn.of(data));
+    }
+
+    public Args<I> decode(CFG cfg) {
+      return new Args<>(name, data.decode(cfg));
+    }
+  }
 }
 
 abstract non-sealed class StmtImpl<D extends StmtData<?>> extends InstrImpl<D> implements Stmt {

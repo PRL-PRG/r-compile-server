@@ -58,9 +58,11 @@ interface CFGQuery {
   BB get(BBId bbId);
 
   /**
-   * Get the node in the CFG with the given id.
+   * Get the node in the CFG with the given id, or if the node ID is global, get its corresponding
+   * node.
    *
-   * @throws NoSuchElementException If the node with the given id is not in the CFG.
+   * @throws NoSuchElementException If the node with the given id is not global and is not in the
+   *     CFG.
    */
   <N extends Node> N get(NodeId<N> nodeId);
 

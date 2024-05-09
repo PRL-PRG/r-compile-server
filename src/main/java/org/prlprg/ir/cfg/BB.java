@@ -1,6 +1,8 @@
 package org.prlprg.ir.cfg;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -13,16 +15,18 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.SequencedCollection;
 import java.util.SequencedSet;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
-import org.prlprg.ir.cfg.CFGEdit.AddPhiInput;
-import org.prlprg.ir.cfg.Stmt.Args;
+import org.prlprg.util.UnreachableError;
 
 /**
  * IR (intermediate representation) <a
  * href="https://en.wikipedia.org/wiki/Basic_block">basic-block</a> (straight-line sequence of
  * {@link Node}s).
  */
+@SuppressFBWarnings({"EI_EXPOSE_REP", "EI_EXPOSE_REP2"})
 public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, BBInline {
   private final CFG parent;
   private final BBId id;
@@ -147,9 +151,24 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
         }
         cfg().untrack(next);
         switch (i) {
-          case 0 -> cfg().record(new CFGEdit.RemovePhi(id, ((Phi<?>) next).id()));
-          case 1 -> cfg().record(new CFGEdit.RemoveStmt(id, stmts.nextIndex()));
-          case 2 -> cfg().record(new CFGEdit.RemoveJump(id));
+          case 0 ->
+              cfg()
+                  .record(
+                      new CFGEdit.RemovePhi(BB.this, (Phi<?>) next),
+                      new CFGEdit.InsertPhi<>(BB.this, (Phi<?>) next));
+          case 1 -> {
+            var index = stmts.nextIndex();
+            cfg()
+                .record(
+                    new CFGEdit.RemoveStmt(BB.this, index),
+                    new CFGEdit.InsertStmt<>(BB.this, index, (Stmt) next));
+          }
+          case 2 ->
+              cfg()
+                  .record(
+                      new CFGEdit.RemoveJump(BB.this),
+                      new CFGEdit.InsertJump<>(BB.this, (Jump) next));
+          default -> throw new UnreachableError();
         }
       }
     };
@@ -206,8 +225,19 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
             }
             cfg().untrack(next);
             switch (i) {
-              case 0 -> cfg().record(new CFGEdit.RemoveStmt(id, stmts.nextIndex()));
-              case 1 -> cfg().record(new CFGEdit.RemoveJump(id));
+              case 0 -> {
+                var index = stmts.nextIndex();
+                cfg()
+                    .record(
+                        new CFGEdit.RemoveStmt(BB.this, index),
+                        new CFGEdit.InsertStmt<>(BB.this, index, (Stmt) next));
+              }
+              case 1 ->
+                  cfg()
+                      .record(
+                          new CFGEdit.RemoveJump(BB.this),
+                          new CFGEdit.InsertJump<>(BB.this, (Jump) next));
+              default -> throw new UnreachableError();
             }
           }
         };
@@ -286,7 +316,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     phis.clear();
     stmts.subList(0, index).clear();
 
-    cfg().record(new CFGEdit.SplitBB(id, index));
+    cfg().record(new CFGEdit.SplitBB(this, index), new CFGEdit.MergeBBs(newBB, this));
     return newBB;
   }
 
@@ -322,7 +352,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
       }
     }
 
-    cfg().record(new CFGEdit.SplitBB(id, index));
+    cfg().record(new CFGEdit.SplitBB(this, index), new CFGEdit.MergeBBs(this, newBB));
     return newBB;
   }
 
@@ -347,6 +377,8 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
       pred.jump.replace(succ, this);
     }
 
+    var resplitIndex = stmts.size();
+
     stmts.addAll(succ.stmts);
     jump = succ.jump;
     succ.stmts.clear();
@@ -354,7 +386,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
 
     cfg().doRemove(succ);
 
-    cfg().record(new CFGEdit.MergeBBs(id, succ.id));
+    cfg().record(new CFGEdit.MergeBBs(this, succ), new CFGEdit.SplitBB(this, resplitIndex));
   }
 
   // endregion
@@ -369,10 +401,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     phis.add(phi);
     cfg().track(phi);
 
-    cfg()
-        .record(
-            new CFGEdit.InsertPhi<>(
-                id, nodeClass, name, inputs.stream().map(Phi.Input::id).toList()));
+    cfg().record(new CFGEdit.InsertPhi<>(this, phi), new CFGEdit.RemovePhi(this, phi));
     return phi;
   }
 
@@ -385,7 +414,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     this.phis.addAll(phis);
     cfg().trackAll(phis);
 
-    cfg().record(new CFGEdit.InsertPhis(id, phiArgs.stream().map(Phi.Args::id).toList()));
+    cfg().record(CFGEdit.InsertPhis.altNew(this, phis), new CFGEdit.RemovePhis(this, phis));
     return phis;
   }
 
@@ -398,7 +427,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     stmts.add(index, stmt);
     cfg().track(stmt);
 
-    cfg().record(new CFGEdit.InsertStmt<>(id, index, name, args));
+    cfg().record(new CFGEdit.InsertStmt<>(this, index, stmt), new CFGEdit.RemoveStmt(this, index));
     return stmt;
   }
 
@@ -415,13 +444,16 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     this.stmts.addAll(index, stmts);
     cfg().trackAll(stmts);
 
-    cfg().record(new CFGEdit.InsertStmts(id, index, namesAndArgs));
+    cfg()
+        .record(
+            CFGEdit.InsertStmts.altNew(this, index, stmts),
+            new CFGEdit.RemoveStmts(this, index, stmts.size()));
     return stmts;
   }
 
   @Override
   public ImmutableList<? extends Stmt> insertAllAt(
-      Map<Integer, ? extends Args<?>> indicesNamesAndArgs) {
+      Map<Integer, ? extends Stmt.Args<?>> indicesNamesAndArgs) {
     for (var index : indicesNamesAndArgs.keySet()) {
       if (index < 0 || index > stmts.size()) {
         throw new IndexOutOfBoundsException("Index out of range: " + index);
@@ -433,6 +465,8 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     // Also remember that later indices must not be offset by earlier ones.
     var origStmts = new ArrayList<>(stmts);
     var newStmtsBuilder = ImmutableList.<Stmt>builderWithExpectedSize(indicesNamesAndArgs.size());
+    var indicesStmts =
+        ImmutableMap.<Integer, Stmt>builderWithExpectedSize(indicesNamesAndArgs.size());
     stmts.clear();
     for (var i = 0; i < origStmts.size(); i++) {
       if (indicesNamesAndArgs.containsKey(i)) {
@@ -440,6 +474,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
         var stmt = nameAndArg.data().make(cfg(), nameAndArg.name());
         stmts.add(stmt);
         newStmtsBuilder.add(stmt);
+        indicesStmts.put(i, stmt);
       }
 
       stmts.add(origStmts.get(i));
@@ -448,7 +483,10 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     var newStmts = newStmtsBuilder.build();
     cfg().trackAll(newStmts);
 
-    cfg().record(new CFGEdit.InsertStmts2(id, indicesNamesAndArgs));
+    cfg()
+        .record(
+            CFGEdit.InsertStmts2.altNew(this, indicesStmts.build()),
+            new CFGEdit.RemoveStmts2(this, stmts));
     return newStmts;
   }
 
@@ -461,7 +499,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     setJump(jump);
     cfg().track(jump);
 
-    cfg().record(new CFGEdit.InsertJump<>(id, name, args));
+    cfg().record(new CFGEdit.InsertJump<>(this, jump), new CFGEdit.RemoveJump(this));
     return jump;
   }
 
@@ -486,7 +524,10 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     cfg().untrack(oldStmt);
     cfg().track(newStmt);
 
-    cfg().record(new CFGEdit.ReplaceStmt<>(id, index, newName, newArgs));
+    cfg()
+        .record(
+            new CFGEdit.ReplaceStmt<>(this, index, newStmt),
+            new CFGEdit.ReplaceStmt<>(this, index, oldStmt));
     return newStmt;
   }
 
@@ -507,18 +548,22 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     cfg().untrack(oldJump);
     cfg().track(newJump);
 
-    cfg().record(new CFGEdit.ReplaceJump<>(id, newName, newArgs));
+    cfg()
+        .record(new CFGEdit.ReplaceJump<>(this, newJump), new CFGEdit.ReplaceJump<>(this, oldJump));
     return newJump;
   }
 
   @Override
-  public <N extends Node> void addPhiInput(Phi<N> phi, BB incomingBB, N node) {
+  public <N extends Node> void addPhiInput(Phi<N> phi, BB incomingBB, N input) {
     if (!phis.contains(phi)) {
       throw new NoSuchElementException("Phi not in " + id() + ": " + phi);
     }
-    phi.unsafeAddInput(incomingBB, node);
+    phi.unsafeAddInput(incomingBB, input);
 
-    cfg().record(new AddPhiInput<>(id, phi.id(), incomingBB.id, Node.idOf(node)));
+    cfg()
+        .record(
+            new CFGEdit.AddPhiInput<>(this, phi, incomingBB, input),
+            new CFGEdit.RemovePhiInput<>(this, phi, incomingBB));
   }
 
   @Override
@@ -528,7 +573,10 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     }
     var input = phi.unsafeRemoveInput(incomingBB);
 
-    cfg().record(new CFGEdit.RemovePhiInput<>(id, phi.id(), incomingBB.id));
+    cfg()
+        .record(
+            new CFGEdit.RemovePhiInput<>(this, phi, incomingBB),
+            new CFGEdit.AddPhiInput<>(this, phi, incomingBB, input));
     return input;
   }
 
@@ -570,6 +618,8 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
       cfg().untrack(instr);
     }
 
+    @SuppressWarnings("unchecked")
+    var oldArgs = (InstrData<I>) instr.data();
     instr.unsafeReplaceData(newName, newArgs);
 
     if (nameChanged) {
@@ -588,7 +638,10 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
       }
     }
 
-    cfg().record(new CFGEdit.SubstInstr<>(id, oldId, newName, newArgs));
+    cfg()
+        .record(
+            new CFGEdit.SubstInstr<>(this, oldId, instr.id().name(), newArgs),
+            new CFGEdit.SubstInstr<>(this, Node.idOf(instr), oldId.name(), oldArgs));
   }
 
   // endregion
@@ -601,7 +654,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     }
     cfg().untrack(phi);
 
-    cfg().record(new CFGEdit.RemovePhi(id, phi.id()));
+    cfg().record(new CFGEdit.RemovePhi(this, phi), new CFGEdit.InsertPhi<>(this, phi));
   }
 
   @Override
@@ -614,7 +667,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     }
     cfg().untrackAll(this.phis);
 
-    cfg().record(new CFGEdit.RemovePhis(id, phis.stream().map(Phi::id).toList()));
+    cfg().record(new CFGEdit.RemovePhis(this, phis), CFGEdit.InsertPhis.altNew(this, phis));
   }
 
   @Override
@@ -625,7 +678,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     var stmt = stmts.remove(index);
     cfg().untrack(stmt);
 
-    cfg().record(new CFGEdit.RemoveStmt(id, index));
+    cfg().record(new CFGEdit.RemoveStmt(this, index), new CFGEdit.InsertStmt<>(this, index, stmt));
     return stmt;
   }
 
@@ -639,13 +692,17 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     }
     var stmts = this.stmts.subList(fromIndex, toIndex);
     cfg().untrackAll(stmts);
+    var reInsert = CFGEdit.InsertStmts.altNew(this, fromIndex, stmts);
     stmts.clear();
 
-    cfg().record(new CFGEdit.RemoveStmts(id, fromIndex, toIndex));
+    cfg().record(new CFGEdit.RemoveStmts(this, fromIndex, toIndex), reInsert);
   }
 
   @Override
   public void removeAllStmts(Collection<? extends Stmt> stmts) {
+    var stmtsAtIndices =
+        stmts.stream().collect(Collectors.toMap(this.stmts::indexOf, Function.identity()));
+
     var oldSize = this.stmts.size();
     this.stmts.removeAll(stmts);
     if (this.stmts.size() != oldSize - stmts.size()) {
@@ -654,7 +711,10 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
 
     cfg().untrackAll(stmts);
 
-    cfg().record(new CFGEdit.RemoveStmts2(id, stmts));
+    cfg()
+        .record(
+            new CFGEdit.RemoveStmts2(this, stmts),
+            CFGEdit.InsertStmts2.altNew(this, stmtsAtIndices));
   }
 
   @Override
@@ -666,7 +726,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     setJump(null);
     cfg().untrack(jump);
 
-    cfg().record(new CFGEdit.RemoveJump(id));
+    cfg().record(new CFGEdit.RemoveJump(this), new CFGEdit.InsertJump<>(this, jump));
     return jump;
   }
 

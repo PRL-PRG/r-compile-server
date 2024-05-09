@@ -94,6 +94,8 @@ class BuiltinParseMethods {
         if (i > 0) {
           s.assertAndSkip(',');
         }
+        s.assertAndSkip(components[i].getName());
+        s.assertAndSkip('=');
         arguments[i] = p.parse(components[i].getGenericType(), SkipWhitespace.ALL);
       }
       s.assertAndSkip(')');

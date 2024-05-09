@@ -84,12 +84,19 @@ public class CFG
   }
 
   @Override
-  @SuppressWarnings("unchecked")
   public <N extends Node> N get(NodeId<N> nodeId) {
-    if (!nodes.containsKey(nodeId)) {
-      throw new NoSuchElementException("BB not in CFG");
+    if (nodeId instanceof GlobalNodeId<N> g) {
+      return g.node();
     }
-    return (N) nodes.get(nodeId);
+
+    if (!nodes.containsKey(nodeId)) {
+      throw new NoSuchElementException("node not global and not in CFG");
+    }
+    @SuppressWarnings("unchecked")
+    var node = (N) nodes.get(nodeId);
+    assert nodeId.clazz() == null || nodeId.clazz().isInstance(node)
+        : "node with id has wrong class: " + nodeId.clazz() + " -> " + node;
+    return node;
   }
 
   @Override
@@ -153,7 +160,7 @@ public class CFG
   @Override
   public BB addBB(String name) {
     var bb = doAddBB(name);
-    record(new CFGEdit.InsertBB(name));
+    record(new CFGEdit.InsertBB(bb.id().name()), new CFGEdit.RemoveBB(bb));
     return bb;
   }
 
@@ -316,9 +323,9 @@ public class CFG
 
   // region for BB and Node
   /** Record an edit to this CFG. */
-  void record(CFGEdit.Intrinsic<?> edit) {
+  void record(CFGEdit.Intrinsic<?> edit, CFGEdit.Intrinsic<?> inverse) {
     for (var observer : observers) {
-      observer.record(edit);
+      observer.record(edit, inverse);
     }
   }
 
@@ -435,7 +442,7 @@ public class CFG
   /** Mark a node as belonging to this CFG. */
   private void track(Node node) {
     var id = node.id();
-    assert id.clazz().isInstance(node);
+    assert id.clazz() == null || id.clazz().isInstance(node);
     var old = nodes.put(id, node);
     assert old == null : "Node with id already tracked: " + id + "\nold: " + old + "\nnew: " + node;
   }

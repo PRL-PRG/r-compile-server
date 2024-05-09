@@ -26,7 +26,21 @@ public non-sealed interface Jump extends Instr {
   @Override
   NodeId<? extends Jump> id();
 
-  record Args<I extends Jump>(String name, JumpData<I> data) {}
+  record Args<I extends Jump>(String name, JumpData<I> data) {
+    public IdArgs<I> id() {
+      return new IdArgs<>(name, MapToIdIn.of(data));
+    }
+  }
+
+  record IdArgs<I extends Jump>(String name, MapToIdIn<? extends JumpData<I>> data) {
+    public IdArgs(String name, JumpData<I> data) {
+      this(name, MapToIdIn.of(data));
+    }
+
+    public Args<I> decode(CFG cfg) {
+      return new Args<>(name, data.decode(cfg));
+    }
+  }
 }
 
 abstract non-sealed class JumpImpl<D extends JumpData<?>> extends InstrImpl<D> implements Jump {
