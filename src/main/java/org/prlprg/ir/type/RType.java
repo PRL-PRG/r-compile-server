@@ -126,11 +126,14 @@ public final class RType implements BoundedLattice<RType> {
         : new RType(inner, promise, missing);
   }
 
-  /** If the type is maybe or definitely missing, returns the non-missing equivalent. */
+  /**
+   * If the type is maybe missing, returns the non-missing equivalent. If definitely missing, return
+   * the nothing type.
+   */
   public RType notMissing() {
     return missing == null || missing == Troolean.NO
         ? this
-        : new RType(inner, promise, Troolean.NO);
+        : missing == Troolean.YES ? RTypes.NOTHING : new RType(inner, promise, Troolean.NO);
   }
 
   /** Returns the maybe-missing equivalent of this type. */

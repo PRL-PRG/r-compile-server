@@ -352,7 +352,7 @@ class PirInstrOrPhiParseContext {
             s.assertAndSkip(", ");
             var r = p.parse(RValue.class);
             s.assertAndSkip(", ");
-            var env = p.parse(Env.class);
+            var env = p.parse(RValue.class);
             yield new StmtData.StVar(varName, r, env, instrTypeName.equals("StArg"));
           }
           case "Is" -> {
@@ -389,21 +389,21 @@ class PirInstrOrPhiParseContext {
             var frameStateOrEnv =
                 s.nextCharSatisfies(Character::isWhitespace) ? null : p.parse(Node.class);
             FrameState frameState = null;
-            Env env = null;
+            RValue env = null;
             if (s.trySkip(", ")) {
               frameState = (FrameState) frameStateOrEnv;
-              env = p.parse(Env.class);
+              env = p.parse(RValue.class);
             } else if (frameStateOrEnv instanceof FrameState f) {
               frameState = f;
             } else {
-              env = (Env) frameStateOrEnv;
+              env = (RValue) frameStateOrEnv;
             }
             yield new StmtData.Force(promise, frameState, env == null ? StaticEnv.ELIDED : env);
           }
           case "MkCls" -> {
             var cls = p.parse(Closure.class);
             s.assertAndSkip(", ");
-            var env = p.parse(Env.class);
+            var env = p.parse(RValue.class);
             yield new StmtData.MkCls(
                 cls,
                 SEXPs.NULL,
@@ -425,7 +425,7 @@ class PirInstrOrPhiParseContext {
             var env =
                 s.nextCharSatisfies(Character::isWhitespace)
                     ? StaticEnv.ELIDED
-                    : p.parse(Env.class);
+                    : p.parse(RValue.class);
             yield new StmtData.MkProm(
                 SEXPs.symbol("stubPromiseRef <" + prom + ">"), eagerArg, env, performsReflection);
           }
@@ -434,7 +434,7 @@ class PirInstrOrPhiParseContext {
             var names = ImmutableList.<RegSymSXP>builder();
             var values = ImmutableList.<RValue>builder();
             var missingness = ImmutableList.<Boolean>builder();
-            Env parent;
+            RValue parent;
             int context;
             while (true) {
               var name1 = p.parse(RegSymSXP.class);
@@ -444,10 +444,10 @@ class PirInstrOrPhiParseContext {
               s.assertAndSkip(", ");
 
               if (s.trySkip("context ")) {
-                if (!name1.toString().equals("parent") || missing || !(value instanceof Env e)) {
+                if (!name1.toString().equals("parent") || missing) {
                   throw s.fail("expected the last key/value pair to be \"parent=<env>\"");
                 }
-                parent = e;
+                parent = value;
                 context = s.readInt();
                 break;
               }
@@ -466,7 +466,7 @@ class PirInstrOrPhiParseContext {
             s.assertAndSkip(": ");
             var stack = p.parseList(RValue.class, SkipWhitespace.ALL_EXCEPT_NEWLINES);
             s.assertAndSkip(", env=");
-            var env = p.parse(Env.class);
+            var env = p.parse(RValue.class);
             var inlined = s.trySkip(", next=") ? p.parse(FrameState.class) : null;
             yield new StmtData.FrameState(location, inPromise, stack, env, inlined);
           }
@@ -529,12 +529,15 @@ class PirInstrOrPhiParseContext {
               allArgs.add(p.parse(RValue.class));
             } while (s.trySkip(", "));
 
-            var ctxArgs = ImmutableList.copyOf(allArgs.subList(0, allArgs.size() - 3));
+            ImmutableList<RValue> ctxArgs;
+            try {
+              ctxArgs = ImmutableList.copyOf(allArgs.subList(0, allArgs.size() - 3));
+            } catch (IllegalArgumentException e) {
+              throw s.fail("non-trivial SEXP argument (function) to PushContext");
+            }
             var ast = allArgs.get(allArgs.size() - 3);
             var op = allArgs.get(allArgs.size() - 2);
-            if (!(allArgs.getLast() instanceof Env sysParent)) {
-              throw s.fail("expected last PushContext argument to be an environment");
-            }
+            var sysParent = allArgs.getLast();
             yield new StmtData.PushContext(ast, op, ctxArgs, (ImmutableIntArray) null, sysParent);
           }
           case "Branch" -> {
@@ -603,7 +606,7 @@ class PirInstrOrPhiParseContext {
                 continue;
               }
 
-              if (i == components.length - 1 && components[i].getType() == Env.class) {
+              if (i == components.length - 1 && components[i].isAnnotationPresent(IsEnv.class)) {
                 // This is the last argument and it's an env
 
                 if (s.nextCharSatisfies(c -> c == -1 || Character.isWhitespace(c))) {
@@ -697,14 +700,12 @@ class PirInstrOrPhiParseContext {
               ? null
               : Parser.parseEntireString(nameString, RegSymSXP.class, p.context());
     } catch (ParseException e) {
-      throw s.fail(
-          "failed to parse name in name/value pair:" + nameString + "\nerror: " + e.getMessage());
+      throw s.fail("failed to parse name in name/value pair: " + nameString, e);
     }
     try {
       value = Parser.parseEntireString(valueString, RValue.class, p.context());
     } catch (ParseException e) {
-      throw s.fail(
-          "failed to parse value in name/value pair:" + valueString + "\nerror: " + e.getMessage());
+      throw s.fail("failed to parse value in name/value pair: " + valueString, e);
     }
 
     return Pair.of(Optional.ofNullable(name), value);
@@ -771,7 +772,7 @@ class PirInstrOrPhiParseContext {
       RType type;
 
       // Base type
-      if (s.trySkip("(cls|spec|blt)")) {
+      if (s.trySkip("(cls|spec|blt)") || s.trySkip("cls|spec|blt")) {
         type = RTypes.ANY_FUN;
       } else if (s.trySkip("miss")) {
         type = RTypes.OF_MISSING;
@@ -783,6 +784,10 @@ class PirInstrOrPhiParseContext {
         type = RTypes.NUMERIC_OR_LOGICAL;
       } else if (s.trySkip("code")) {
         // This matches lang, bcode, and externalSxp. We can only encode this as ANY_SIMPLE.
+        type = RTypes.ANY_SIMPLE;
+      } else if (s.trySkip("char")) {
+        // Character vectors should never be in the PIR IR, this is an overly broad and maybe buggy
+        // PIR type.
         type = RTypes.ANY_SIMPLE;
       } else if (s.trySkip("other")) {
         type = RTypes.ANY_SIMPLE;
@@ -844,7 +849,7 @@ class PirInstrOrPhiParseContext {
         return SEXPType.RAW;
       } else if (s.trySkip("vec")) {
         return SEXPType.VEC;
-      } else if (s.trySkip("chr")) {
+      } else if (s.trySkip("char")) {
         return SEXPType.CHAR;
       } else if (s.trySkip("real")) {
         return SEXPType.REAL;
@@ -1332,7 +1337,7 @@ class PirInstrOrPhiPrintContext {
             continue;
           }
 
-          if (first && c.getType() == Env.class) {
+          if (first && c.isAnnotationPresent(IsEnv.class)) {
             // This is the last argument and it's an env, but it's also the first argument.
             // PIR instructions with no non-env arguments and an env have a leading comma, due to
             // the way they are printed and it wasn't worth the effort to fix.
@@ -1550,7 +1555,11 @@ abstract sealed class PirId {
   static PirId of(InstrOrPhi instrOrPhi, int bbIndex, int instrIndex) {
     return (instrOrPhi instanceof Instr i && i.data() instanceof StmtData.Void)
         ? new PirId.Anonymous()
-        : new PirId.Local((instrOrPhi instanceof Env ? "e" : "%") + bbIndex + "." + instrIndex);
+        : new PirId.Local(
+            (instrOrPhi instanceof RValue r && r.isEnv() == Troolean.YES ? "e" : "%")
+                + bbIndex
+                + "."
+                + instrIndex);
   }
 
   private static final class GlobalNamed extends PirId {
@@ -1691,7 +1700,21 @@ abstract sealed class PirId {
       case ' ' -> {
         return new PirId.Anonymous();
       }
+      case '=' -> {
+        s.assertAndSkip('=');
+        return new PirId.GlobalNamed(Constant.symbol("="));
+      }
+      case '~' -> {
+        s.assertAndSkip('~');
+        return new PirId.GlobalNamed(Constant.symbol("="));
+      }
       case '<' -> {
+        if (s.trySkip("<-")) {
+          return new PirId.GlobalNamed(Constant.symbol("<-"));
+        } else if (s.trySkip("<<-")) {
+          return new PirId.GlobalNamed(Constant.symbol("<--"));
+        }
+
         // e.g. `<blt list>`
         s.assertAndSkip('<');
         var desc = s.readUntil('>');
@@ -1705,6 +1728,10 @@ abstract sealed class PirId {
       case '%', 'e' -> {
         if (s.trySkip("elided")) {
           return new PirId.GlobalNamed(StaticEnv.ELIDED);
+        } else if (s.trySkip("expression")) {
+          return new PirId.GlobalNamed(Constant.symbol("expression"));
+        } else if (s.nextCharsAre("evalseq")) {
+          throw s.fail("non-trivial SEXP constant");
         }
 
         sb.appendCodePoint(s.readChar());
@@ -1737,6 +1764,7 @@ abstract sealed class PirId {
         var c = s.readChar();
         return new PirId.GlobalNamed(new InvalidNode("TODO_builtin_" + c), Character.toString(c));
       }
+      case '$', '@' -> throw s.fail("non-trivial SEXP constant");
       case -1 -> throw s.fail("PIR ID", "EOF");
       default -> {
         if (s.nextCharsAre("::")
@@ -1757,7 +1785,9 @@ abstract sealed class PirId {
           return new PirId.GlobalNotFullySerialized(name + '(' + args + (ended ? ')' : "..."));
         } else if (s.trySkip("function")) {
           // Usually (not guaranteed!) to be `function(...) <...>` or `function(...>`.
-          s.assertAndSkip('(');
+          if (!s.trySkip('(')) {
+            return new PirId.GlobalNamed(InvalidNode.TODO_GLOBAL);
+          }
           var argsOrDesc = s.readUntil(c -> c == ')' || c == '>');
           if (s.trySkip('>')) {
             // `function(...>`.

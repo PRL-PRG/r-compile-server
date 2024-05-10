@@ -15,6 +15,8 @@ import org.checkerframework.checker.index.qual.SameLen;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.ir.type.REffects;
 import org.prlprg.ir.type.RType;
+import org.prlprg.ir.type.RTypes;
+import org.prlprg.sexp.SEXPType;
 import org.prlprg.util.Classes;
 import org.prlprg.util.Reflection;
 import org.prlprg.util.UnreachableError;
@@ -447,9 +449,9 @@ abstract sealed class InstrImpl<D extends InstrData<?>> implements NodeWithCfg
   }
 
   private void verifyRValueArgsAreOfCorrectTypes() throws InstrVerifyException {
-    // Reflectively get all record components, filter to ones with `@TypeIs` annotations, check that
-    // their type is an `RValue` or a list of `RValue`s, and check that the argument is of the
-    // expected type.
+    // Reflectively get all record components, filter to ones with `@TypeIs` and `@IsEnv`
+    // annotations, check that their type is an `RValue` or a list of `RValue`s, and check that the
+    // argument is of the expected type.
     if (!(data instanceof Record r)) {
       throw new AssertionError("InstrData must be a record");
     }
@@ -458,11 +460,19 @@ abstract sealed class InstrImpl<D extends InstrData<?>> implements NodeWithCfg
     for (var i = 0; i < components.length; i++) {
       var component = components[i];
 
-      var annotation = component.getAnnotation(TypeIs.class);
-      if (annotation == null) {
+      var typeIsAnnotation = component.getAnnotation(TypeIs.class);
+      var isEnvAnnotation = component.getAnnotation(IsEnv.class);
+      if (typeIsAnnotation != null && isEnvAnnotation != null) {
+        throw new AssertionError(
+            "a Java element can't have both `@TypeIs` and `@IsEnv` annotations");
+      }
+      if (typeIsAnnotation == null && isEnvAnnotation == null) {
         continue;
       }
-      var expectedType = TypeIsUtil.parse(annotation);
+      var expectedType =
+          typeIsAnnotation != null
+              ? TypeIsUtil.parse(typeIsAnnotation)
+              : RTypes.simple(SEXPType.ENV);
 
       var isRValue = RValue.class.isAssignableFrom(component.getType());
       var isOptionalRValue =
@@ -474,9 +484,9 @@ abstract sealed class InstrImpl<D extends InstrData<?>> implements NodeWithCfg
               && RValue.class.isAssignableFrom(
                   optionalOrCollectionComponentElementClass(component));
       assert isRValue || isOptionalRValue || isListOfRValues
-          : "Only `RValue`s or lists of `RValue`s can have `@TypeIs` annotation: argument "
+          : "Only `RValue`s or lists of `RValue`s can have `@TypeIs` or `@IsEnv` annotation: argument "
               + i
-              + " has a `@TypeIs` annotation but isn't an `RValue` or list of them";
+              + " has a `@TypeIs` or `@IsEnv` annotation but isn't an `RValue` or list of them";
       var arg = Reflection.getComponent(r, component);
 
       if (isRValue) {

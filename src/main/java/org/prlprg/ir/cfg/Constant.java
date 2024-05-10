@@ -56,6 +56,11 @@ public record Constant(SEXP constant) implements RValue {
     return new Constant(SEXPs.string(value));
   }
 
+  /** {@link Node} of a symbol. */
+  public static Constant symbol(String name) {
+    return new Constant(SEXPs.symbol(name));
+  }
+
   @Override
   public RType type() {
     return RTypes.exact(constant);

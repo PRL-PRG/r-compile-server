@@ -3,10 +3,12 @@ package org.prlprg.ir.cfg;
 import com.google.common.collect.ImmutableMap;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
-import org.prlprg.sexp.SEXP;
+import org.prlprg.ir.type.RType;
+import org.prlprg.ir.type.RTypes;
+import org.prlprg.sexp.SEXPType;
 
 /** Global static environment, e.g. {@code R_GlobalEnv}, {@code notClosed}. */
-public sealed interface StaticEnv extends Env {
+public sealed interface StaticEnv extends RValue {
   StaticEnv GLOBAL = new StaticEnvImpl("R_GlobalEnv");
   StaticEnv NOT_CLOSED = new StaticEnvImpl("notClosed");
   StaticEnv ELIDED = new StaticEnvImpl("elided");
@@ -18,15 +20,20 @@ public sealed interface StaticEnv extends Env {
 
   /** Descriptive, uniquely identifying name of this environment. */
   String name();
+
+  @Override
+  GlobalNodeId<? extends StaticEnv> id();
 }
 
 final class StaticEnvImpl implements StaticEnv {
   private final String name;
   private final GlobalNodeId<StaticEnvImpl> id;
+  private final EnvAux envAux;
 
   public StaticEnvImpl(String name) {
     this.name = name;
     id = new GlobalNodeIdImpl<>(this);
+    envAux = new EnvAux(null);
   }
 
   @Override
@@ -34,14 +41,14 @@ final class StaticEnvImpl implements StaticEnv {
     return name;
   }
 
-  @Nullable @Override
-  public Env parent() {
-    return null;
+  @Override
+  public RType type() {
+    return RTypes.simple(SEXPType.ENV);
   }
 
-  @Nullable @Override
-  public SEXP sexp() {
-    return null;
+  @Override
+  public EnvAux envAux() {
+    return envAux;
   }
 
   @Nullable @Override
@@ -55,7 +62,7 @@ final class StaticEnvImpl implements StaticEnv {
   }
 
   @Override
-  public GlobalNodeId<? extends Env> id() {
+  public GlobalNodeId<? extends StaticEnv> id() {
     return id;
   }
 

@@ -21,13 +21,14 @@ public record BuiltinId(int index) {
   }
 
   /** The id of the builtin function with the given name (in R). */
-  public static BuiltinId named(String ignored) {
-    return new BuiltinId(0);
+  public static BuiltinId named(String name) {
+    // TODO: this isn't the actual ID or name
+    return new BuiltinId(name.equals("environment") ? 1 : 0);
   }
 
   /** Returns the name (in R) of the builtin function with this id. */
   public String name() {
-    return "TODO_BUILTIN_NAME";
+    return index == 1 ? "environment" : "TODO_BUILTIN_NAME";
   }
 
   /** Returns the symbol in R which refers to the builtin function with this id. */

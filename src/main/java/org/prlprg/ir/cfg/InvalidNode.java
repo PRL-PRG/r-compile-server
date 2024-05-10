@@ -3,26 +3,15 @@ package org.prlprg.ir.cfg;
 import javax.annotation.Nullable;
 import org.prlprg.ir.type.RType;
 import org.prlprg.ir.type.RTypes;
-import org.prlprg.sexp.SEXP;
 
 /** Node representing missing, invalid, or placeholder data. */
-public record InvalidNode(String desc) implements DeoptReason, Env, FrameState {
+public record InvalidNode(String desc) implements DeoptReason, RValue, FrameState {
   public static final InvalidNode TODO_GLOBAL = new InvalidNode("TODO_GLOBAL");
 
   public InvalidNode {
     if (desc.contains("}")) {
       throw new IllegalArgumentException("Description must not contain '}' (makes parsing harder)");
     }
-  }
-
-  @Override
-  public @Nullable Env parent() {
-    return null;
-  }
-
-  @Override
-  public @Nullable SEXP sexp() {
-    return null;
   }
 
   @Override
