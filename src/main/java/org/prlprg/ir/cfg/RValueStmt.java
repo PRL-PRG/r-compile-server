@@ -3,6 +3,8 @@ package org.prlprg.ir.cfg;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import javax.annotation.Nullable;
 import org.prlprg.ir.type.RType;
+import org.prlprg.ir.type.RTypes;
+import org.prlprg.sexp.SEXPType;
 
 /** {@link Stmt} (IR instruction) which produces an {@link RValue}. */
 public interface RValueStmt extends Stmt, RValue {
@@ -18,9 +20,6 @@ public interface RValueStmt extends Stmt, RValue {
 /**
  * Needed because, besides {@link RValueStmtImpl}, there is also {@link CallImpl}, and both share
  * this code.
- *
- * <p>There is <i>also</i> {@link EnvStmtImpl}, but it has a static type, so it doesn't share most
- * of the code.
  */
 abstract class AbstractRValueStmtImpl<D extends StmtData.RValue_> extends SelfReturningStmtImpl<D>
     implements RValueStmt {
@@ -28,6 +27,8 @@ abstract class AbstractRValueStmtImpl<D extends StmtData.RValue_> extends SelfRe
   @SuppressWarnings("NotNullFieldNotInitialized")
   @SuppressFBWarnings("NP_NONNULL_FIELD_NOT_INITIALIZED_IN_CONSTRUCTOR")
   private RType type;
+
+  private @Nullable EnvAux envAux;
 
   AbstractRValueStmtImpl(Class<D> clazz, CFG cfg, String name, D data) {
     super(clazz, cfg, name, data);
@@ -40,21 +41,37 @@ abstract class AbstractRValueStmtImpl<D extends StmtData.RValue_> extends SelfRe
         InstrImpl.mergeComputed(
             "Type",
             data().computeType(),
-            computeTypeFromAnnotation(data().getClass().getAnnotation(TypeIs.class)));
+            computeTypeFromAnnotations(
+                data().getClass().getAnnotation(TypeIs.class),
+                data().getClass().getAnnotation(IsEnv.class)));
+    envAux = data().computeEnvAux();
+    assert envAux != null || !data().getClass().isAnnotationPresent(IsEnv.class)
+        : "values which are guaranteed to be environments (have the `@IsEnv` annotation) must return an `EnvAux`";
     // TODO: perhaps trigger verify of all instructions containing this one if `type` is now
     //  different? or we will reconfigure all instructions during verification.
   }
 
-  private static @Nullable RType computeTypeFromAnnotation(@Nullable TypeIs annotation) {
-    if (annotation == null) {
+  private static @Nullable RType computeTypeFromAnnotations(
+      @Nullable TypeIs typeIsAnnotation, @Nullable IsEnv isEnvAnnotation) {
+    if (typeIsAnnotation != null && isEnvAnnotation != null) {
+      throw new AssertionError("Cannot have both @TypeIs and @IsEnv annotations");
+    }
+    if (typeIsAnnotation == null && isEnvAnnotation == null) {
       return null;
     }
-    return TypeIsUtil.parse(annotation);
+    return typeIsAnnotation != null
+        ? TypeIsUtil.parse(typeIsAnnotation)
+        : RTypes.simple(SEXPType.ENV);
   }
 
   @Override
   public RType type() {
     return type;
+  }
+
+  @Override
+  public @Nullable EnvAux envAux() {
+    return envAux;
   }
 
   @Override

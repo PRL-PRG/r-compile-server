@@ -22,7 +22,6 @@ import org.prlprg.sexp.LangSXP;
 import org.prlprg.sexp.ListSXP;
 import org.prlprg.sexp.RegSymSXP;
 import org.prlprg.sexp.SEXP;
-import org.prlprg.sexp.SEXPType;
 import org.prlprg.sexp.SymOrLangSXP;
 
 /**
@@ -47,23 +46,17 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
       return null;
     }
 
+    /**
+     * Compute the environment data from the arguments if this is guaranteed to be an environment,
+     * otherwise return {@code null}.
+     */
+    default @Nullable EnvAux computeEnvAux() {
+      return null;
+    }
+
     @Override
     default RValueStmt make(CFG cfg, String name) {
       return new RValueStmtImpl(cfg, name, this);
-    }
-  }
-
-  sealed interface Env_ extends RValue_ {
-    @Nullable Env parent();
-
-    @Override
-    default RType computeType() {
-      return RTypes.simple(SEXPType.ENV);
-    }
-
-    @Override
-    default EnvStmt make(CFG cfg, String name) {
-      return new EnvStmtImpl(cfg, name, this);
     }
   }
 
@@ -85,7 +78,8 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
       return null;
     }
 
-    Env env();
+    @IsEnv
+    RValue env();
 
     @Override
     default org.prlprg.ir.cfg.Call make(CFG cfg, String name) {
@@ -136,14 +130,14 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
       BcLocation location,
       boolean inPromise,
       ImmutableList<RValue> stack,
-      Env env,
+      @IsEnv RValue env,
       Optional<org.prlprg.ir.cfg.FrameState> inlined)
       implements StmtData<FrameStateStmt> {
     public FrameState(
         BcLocation location,
         boolean inPromise,
         ImmutableList<RValue> stack,
-        Env env,
+        @IsEnv RValue env,
         @Nullable org.prlprg.ir.cfg.FrameState inlined) {
       this(location, inPromise, stack, env, Optional.ofNullable(inlined));
     }
@@ -156,11 +150,11 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
 
   @TypeIs("ANY_FUN")
   @EffectsAreAribtrary()
-  record LdFun(RegSymSXP name, Env env) implements RValue_ {}
+  record LdFun(RegSymSXP name, @IsEnv RValue env) implements RValue_ {}
 
   @TypeIs("ANY")
   @EffectsAre({REffect.Error, REffect.ReadsEnvArg})
-  record LdVar(RegSymSXP name, Env env) implements RValue_ {}
+  record LdVar(RegSymSXP name, @IsEnv RValue env) implements RValue_ {}
 
   // TODO: It says in PIR that this should eventually be replaced with a non-dispatching extract
   //  call (probably an old comment so idk if it's still relevant)
@@ -190,7 +184,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
 
   @TypeIs("LGL")
   @EffectsAre({REffect.Error, REffect.ReadsEnvArg})
-  record IsMissing(RegSymSXP varName, Env env) implements RValue_ {}
+  record IsMissing(RegSymSXP varName, @IsEnv RValue env) implements RValue_ {}
 
   @EffectsAre(REffect.Error)
   record ChkMissing(RValue value) implements RValue_ {
@@ -209,28 +203,30 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
   }
 
   @EffectsAre({REffect.LeaksNonEnvArg, REffect.ReadsEnvArg, REffect.WritesEnvArg})
-  record StVarSuper(RegSymSXP name, RValue r, Env env) implements Void {}
+  record StVarSuper(RegSymSXP name, RValue r, @IsEnv RValue env) implements Void {}
 
   @TypeIs("ANY")
   @EffectsAre({REffect.Error, REffect.ReadsEnvArg})
-  record LdVarSuper(RegSymSXP name, Env env) implements RValue_ {}
+  record LdVarSuper(RegSymSXP name, @IsEnv RValue env) implements RValue_ {}
 
   @EffectsAre({REffect.LeaksNonEnvArg, REffect.WritesEnvArg})
-  record StVar(RegSymSXP name, RValue r, Env env, boolean isArg) implements Void {
-    public StVar(RegSymSXP name, RValue r, Env env) {
+  record StVar(RegSymSXP name, RValue r, @IsEnv RValue env, boolean isArg) implements Void {
+    public StVar(RegSymSXP name, RValue r, @IsEnv RValue env) {
       this(name, r, env, false);
     }
   }
 
   @TypeIs("PROM")
   @EffectsAre({})
-  record MkProm(SEXP code, Optional<RValue> eagerArg, Env env, NoOrMaybe performsReflection)
+  record MkProm(
+      SEXP code, Optional<RValue> eagerArg, @IsEnv RValue env, NoOrMaybe performsReflection)
       implements RValue_ {
-    public MkProm(SEXP code, @Nullable RValue eagerArg, Env env, NoOrMaybe performsReflection) {
+    public MkProm(
+        SEXP code, @Nullable RValue eagerArg, @IsEnv RValue env, NoOrMaybe performsReflection) {
       this(code, Optional.ofNullable(eagerArg), env, performsReflection);
     }
 
-    public MkProm(SEXP code, @Nullable RValue eagerArg, Env env) {
+    public MkProm(SEXP code, @Nullable RValue eagerArg, @IsEnv RValue env) {
       this(code, eagerArg, env, NoOrMaybe.MAYBE);
     }
   }
@@ -246,12 +242,17 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
   @EffectsAre({})
   @TypeIs("CLO")
   record MkCls(
-      Closure closure, ListSXP formals, SymOrLangSXP srcRef, BcAddress originalBody, Env parent)
+      Closure closure,
+      ListSXP formals,
+      SymOrLangSXP srcRef,
+      BcAddress originalBody,
+      @IsEnv RValue parent)
       implements RValue_ {}
 
-  record Force(RValue promise, Optional<org.prlprg.ir.cfg.FrameState> frameState, Env env)
+  record Force(RValue promise, Optional<org.prlprg.ir.cfg.FrameState> frameState, @IsEnv RValue env)
       implements RValue_ {
-    public Force(RValue promise, @Nullable org.prlprg.ir.cfg.FrameState frameState, Env env) {
+    public Force(
+        RValue promise, @Nullable org.prlprg.ir.cfg.FrameState frameState, @IsEnv RValue env) {
       this(promise, Optional.ofNullable(frameState), env);
     }
 
@@ -325,7 +326,8 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
 
     ImmutableList<RValue> indices();
 
-    Env env();
+    @IsEnv
+    RValue env();
 
     @Override
     default RType computeType() {
@@ -381,7 +383,8 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
 
     ImmutableList<RValue> indices();
 
-    Env env();
+    @IsEnv
+    RValue env();
 
     @Override
     default RType computeType() {
@@ -430,7 +433,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
     }
   }
 
-  record Subassign1_1D(LangSXP ast, RValue value, RValue vector, RValue index, Env env)
+  record Subassign1_1D(LangSXP ast, RValue value, RValue vector, RValue index, @IsEnv RValue env)
       implements SubassignN_1D {}
 
   @EffectsAre(REffect.Error)
@@ -442,15 +445,15 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
     }
   }
 
-  record Subassign2_1D(LangSXP ast, RValue value, RValue vector, RValue index, Env env)
+  record Subassign2_1D(LangSXP ast, RValue value, RValue vector, RValue index, @IsEnv RValue env)
       implements SubassignN_1D {}
 
   record Subassign1_2D(
-      LangSXP ast, RValue value, RValue matrix, RValue index1, RValue index2, Env env)
+      LangSXP ast, RValue value, RValue matrix, RValue index1, RValue index2, @IsEnv RValue env)
       implements SubassignN_2D {}
 
   record Subassign2_2D(
-      LangSXP ast, RValue value, RValue matrix, RValue index1, RValue index2, Env env)
+      LangSXP ast, RValue value, RValue matrix, RValue index1, RValue index2, @IsEnv RValue env)
       implements SubassignN_2D {}
 
   record Subassign1_3D(
@@ -460,7 +463,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
       RValue index1,
       RValue index2,
       RValue index3,
-      Env env)
+      @IsEnv RValue env)
       implements Subassign {
     @Override
     public RValue vecOrMtx() {
@@ -473,18 +476,20 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
     }
   }
 
-  record Extract1_1D(LangSXP ast, RValue vector, RValue index, Env env) implements ExtractN_1D {}
+  record Extract1_1D(LangSXP ast, RValue vector, RValue index, @IsEnv RValue env)
+      implements ExtractN_1D {}
 
-  record Extract2_1D(LangSXP ast, RValue vector, RValue index, Env env) implements ExtractN_1D {}
+  record Extract2_1D(LangSXP ast, RValue vector, RValue index, @IsEnv RValue env)
+      implements ExtractN_1D {}
 
-  record Extract1_2D(LangSXP ast, RValue matrix, RValue index1, RValue index2, Env env)
+  record Extract1_2D(LangSXP ast, RValue matrix, RValue index1, RValue index2, @IsEnv RValue env)
       implements ExtractN_2D {}
 
-  record Extract2_2D(LangSXP ast, RValue matrix, RValue index1, RValue index2, Env env)
+  record Extract2_2D(LangSXP ast, RValue matrix, RValue index1, RValue index2, @IsEnv RValue env)
       implements ExtractN_2D {}
 
   record Extract1_3D(
-      LangSXP ast, RValue matrix, RValue index1, RValue index2, RValue index3, Env env)
+      LangSXP ast, RValue matrix, RValue index1, RValue index2, RValue index3, @IsEnv RValue env)
       implements Extract {
     @Override
     public RValue vecOrMtx() {
@@ -525,10 +530,11 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
   }
 
   @EffectsAre({})
-  record LdFunctionEnv() implements Env_ {
+  @IsEnv
+  record LdFunctionEnv() implements RValue_ {
     @Override
-    public @Nullable Env parent() {
-      return null;
+    public EnvAux computeEnvAux() {
+      return new EnvAux(null);
     }
   }
 
@@ -636,59 +642,59 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
     }
   }
 
-  record UMinus(LangSXP ast, @Override RValue arg, Env env) implements ArithmeticUnOp {}
+  record UMinus(LangSXP ast, @Override RValue arg, @IsEnv RValue env) implements ArithmeticUnOp {}
 
-  record UPlus(LangSXP ast, @Override RValue lhs, @Override RValue rhs, Env env)
+  record UPlus(LangSXP ast, @Override RValue lhs, @Override RValue rhs, @IsEnv RValue env)
       implements ArithmeticBinOp {}
 
-  record Add(LangSXP ast, @Override RValue lhs, @Override RValue rhs, Env env)
+  record Add(LangSXP ast, @Override RValue lhs, @Override RValue rhs, @IsEnv RValue env)
       implements ArithmeticBinOp {}
 
-  record Sub(LangSXP ast, @Override RValue lhs, @Override RValue rhs, Env env)
+  record Sub(LangSXP ast, @Override RValue lhs, @Override RValue rhs, @IsEnv RValue env)
       implements ArithmeticBinOp {}
 
-  record Mul(LangSXP ast, @Override RValue lhs, @Override RValue rhs, Env env)
+  record Mul(LangSXP ast, @Override RValue lhs, @Override RValue rhs, @IsEnv RValue env)
       implements ArithmeticBinOp {}
 
-  record Div(LangSXP ast, @Override RValue lhs, @Override RValue rhs, Env env)
+  record Div(LangSXP ast, @Override RValue lhs, @Override RValue rhs, @IsEnv RValue env)
       implements ArithmeticBinOp {}
 
-  record IDiv(LangSXP ast, @Override RValue lhs, @Override RValue rhs, Env env)
+  record IDiv(LangSXP ast, @Override RValue lhs, @Override RValue rhs, @IsEnv RValue env)
       implements ArithmeticBinOp {}
 
-  record Mod(LangSXP ast, @Override RValue lhs, @Override RValue rhs, Env env)
+  record Mod(LangSXP ast, @Override RValue lhs, @Override RValue rhs, @IsEnv RValue env)
       implements ArithmeticBinOp {}
 
-  record Pow(LangSXP ast, @Override RValue lhs, @Override RValue rhs, Env env)
+  record Pow(LangSXP ast, @Override RValue lhs, @Override RValue rhs, @IsEnv RValue env)
       implements ArithmeticBinOp {}
 
-  record Eq(LangSXP ast, @Override RValue lhs, @Override RValue rhs, Env env)
+  record Eq(LangSXP ast, @Override RValue lhs, @Override RValue rhs, @IsEnv RValue env)
       implements ComparisonBinOp {}
 
-  record Neq(LangSXP ast, @Override RValue lhs, @Override RValue rhs, Env env)
+  record Neq(LangSXP ast, @Override RValue lhs, @Override RValue rhs, @IsEnv RValue env)
       implements ComparisonBinOp {}
 
-  record Lt(LangSXP ast, @Override RValue lhs, @Override RValue rhs, Env env)
+  record Lt(LangSXP ast, @Override RValue lhs, @Override RValue rhs, @IsEnv RValue env)
       implements ComparisonBinOp {}
 
-  record Lte(LangSXP ast, @Override RValue lhs, @Override RValue rhs, Env env)
+  record Lte(LangSXP ast, @Override RValue lhs, @Override RValue rhs, @IsEnv RValue env)
       implements ComparisonBinOp {}
 
-  record Gte(LangSXP ast, @Override RValue lhs, @Override RValue rhs, Env env)
+  record Gte(LangSXP ast, @Override RValue lhs, @Override RValue rhs, @IsEnv RValue env)
       implements ComparisonBinOp {}
 
-  record Gt(LangSXP ast, @Override RValue lhs, @Override RValue rhs, Env env)
+  record Gt(LangSXP ast, @Override RValue lhs, @Override RValue rhs, @IsEnv RValue env)
       implements ComparisonBinOp {}
 
-  record LAnd(LangSXP ast, @Override RValue lhs, @Override RValue rhs, Env env)
+  record LAnd(LangSXP ast, @Override RValue lhs, @Override RValue rhs, @IsEnv RValue env)
       implements BooleanBinOp {}
 
-  record LOr(LangSXP ast, @Override RValue lhs, @Override RValue rhs, Env env)
+  record LOr(LangSXP ast, @Override RValue lhs, @Override RValue rhs, @IsEnv RValue env)
       implements BooleanBinOp {}
 
-  record Not(LangSXP ast, @Override RValue arg, Env env) implements BooleanUnOp {}
+  record Not(LangSXP ast, @Override RValue arg, @IsEnv RValue env) implements BooleanUnOp {}
 
-  record Colon(LangSXP ast, RValue lhs, RValue rhs, Env env) implements RValue_ {
+  record Colon(LangSXP ast, RValue lhs, RValue rhs, @IsEnv RValue env) implements RValue_ {
     @Override
     public RType computeType() {
       // TODO
@@ -708,14 +714,14 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
       @Override LangSXP ast,
       @TypeIs("ANY_FUN") @Override RValue fun,
       @Override ImmutableList<RValue> args,
-      @Override Env env,
+      @Override @IsEnv RValue env,
       Optional<org.prlprg.ir.cfg.FrameState> fs)
       implements Call_ {
     public Call(
         LangSXP ast,
         RValue fun,
         ImmutableList<RValue> args,
-        Env env,
+        @IsEnv RValue env,
         @Nullable org.prlprg.ir.cfg.FrameState fs) {
       this(ast, fun, args, env, Optional.ofNullable(fs));
     }
@@ -728,7 +734,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
       @TypeIs("ANY_FUN") @Override RValue fun,
       @Override ImmutableList<Optional<RegSymSXP>> names,
       @SameLen("names") @Override ImmutableList<RValue> args,
-      @Override Env env,
+      @Override @IsEnv RValue env,
       Optional<org.prlprg.ir.cfg.FrameState> fs)
       implements Call_ {
     public NamedCall(
@@ -736,7 +742,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
         RValue fun,
         ImmutableList<Optional<RegSymSXP>> names,
         ImmutableList<RValue> args,
-        Env env,
+        @IsEnv RValue env,
         @Nullable org.prlprg.ir.cfg.FrameState fs) {
       this(ast, fun, names, args, env, Optional.ofNullable(fs));
     }
@@ -749,7 +755,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
       ClosureVersion.OptimizationContext givenContext,
       @Override ImmutableList<RValue> args,
       @Override @SameLen("args") ImmutableIntArray arglistOrder,
-      @Override Env env,
+      @Override @IsEnv RValue env,
       Optional<org.prlprg.ir.cfg.FrameState> fs)
       implements Call_ {
     public StaticCall(
@@ -759,7 +765,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
         ClosureVersion.OptimizationContext givenContext,
         ImmutableList<RValue> args,
         ImmutableIntArray arglistOrder,
-        Env env,
+        @IsEnv RValue env,
         @Nullable org.prlprg.ir.cfg.FrameState fs) {
       this(
           ast,
@@ -795,7 +801,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
       @Override LangSXP ast,
       BuiltinId builtin,
       @Override ImmutableList<RValue> args,
-      @Override Env env)
+      @Override @IsEnv RValue env)
       implements Call_ {
     @Override
     public @Nullable RValue fun() {
@@ -813,7 +819,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
       @Override LangSXP ast,
       BuiltinId builtin,
       @Override ImmutableList<RValue> args,
-      @Override Env env,
+      @Override @IsEnv RValue env,
       ImmutableList<Assumption> assumption)
       implements Call_ {
     @Override
@@ -828,34 +834,42 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
   }
 
   @EffectsAre(REffect.LeaksNonEnvArg)
+  @IsEnv
   record MkEnv(
-      @Override Env parent,
+      @Override @IsEnv RValue parent,
       ImmutableList<RegSymSXP> names,
       @SameLen("names") ImmutableList<RValue> values,
       @SameLen("names") ImmutableList<Boolean> missingness,
       int context,
       boolean isStub)
-      implements Env_ {
+      implements RValue_ {
     public MkEnv(
-        Env parent,
+        @IsEnv RValue parent,
         ImmutableList<RegSymSXP> names,
         ImmutableList<RValue> values,
         ImmutableList<Boolean> missingness) {
       this(parent, names, values, missingness, 1, false);
     }
+
+    @Override
+    public EnvAux computeEnvAux() {
+      return new EnvAux(parent);
+    }
   }
 
   @EffectsAre({})
-  record MaterializeEnv(Env env) implements Env_ {
+  @IsEnv
+  record MaterializeEnv(@IsEnv RValue env) implements RValue_ {
     @Override
-    public @Nullable Env parent() {
-      return env.parent();
+    public EnvAux computeEnvAux() {
+      var envAux = env.envAux();
+      return new EnvAux(envAux == null ? null : envAux.parent());
     }
   }
 
   @EffectsAre(REffect.ReadsEnvArg)
   @TypeIs("BOOL")
-  record IsEnvStub(Env env) implements RValue_ {}
+  record IsEnvStub(@IsEnv RValue env) implements RValue_ {}
 
   @EffectsAre({REffect.ChangesContext, REffect.LeaksNonEnvArg, REffect.LeaksEnvArg})
   record PushContext(
@@ -863,18 +877,19 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
       RValue op,
       ImmutableList<RValue> ctxArgs,
       Optional<ImmutableIntArray> arglistOrder,
-      Env sysParent)
+      @IsEnv RValue sysParent)
       implements StmtData<RContext> {
     public PushContext(
         RValue ast,
         RValue op,
         ImmutableList<RValue> args,
         @Nullable ImmutableIntArray arglistOrder,
-        Env sysParent) {
+        @IsEnv RValue sysParent) {
       this(ast, op, args, Optional.ofNullable(arglistOrder), sysParent);
     }
 
-    public PushContext(RValue ast, RValue op, org.prlprg.ir.cfg.Call call, Env sysParent) {
+    public PushContext(
+        RValue ast, RValue op, org.prlprg.ir.cfg.Call call, @IsEnv RValue sysParent) {
       this(ast, op, call.data().args(), call.data().arglistOrder(), sysParent);
     }
 
@@ -893,7 +908,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
 
   @EffectsAre(REffect.ReadsEnvArg)
   @TypeIs("DOTS_ARG")
-  record LdDots(Env env) implements RValue_ {}
+  record LdDots(@IsEnv RValue env) implements RValue_ {}
 
   @EffectsAre({})
   @TypeIs("EXPANDED_DOTS")

@@ -12,6 +12,7 @@ import java.io.Reader;
 import java.io.StringReader;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import javax.annotation.Nullable;
 import org.prlprg.util.IOThrowingSupplier;
 import org.prlprg.util.Strings;
 
@@ -825,7 +826,10 @@ public class Scanner {
 
   /** Unread character and rethrow {@link IOException}. */
   private void doUnread(int c) {
-    assert c != -1 : "can't unread EOF";
+    if (c == -1) {
+      return;
+    }
+
     try {
       if (isAtEof) {
         isAtEof = false;
@@ -898,7 +902,12 @@ public class Scanner {
 
   /** Return a {@link ParseException} at the current position. */
   public ParseException fail(String message) {
-    throw new ParseException(position(), message);
+    return fail(message, (Throwable) null);
+  }
+
+  /** Return a {@link ParseException} at the current position. */
+  public ParseException fail(String message, @Nullable Throwable cause) {
+    throw new ParseException(position(), message, cause);
   }
   // endregion throw
 }

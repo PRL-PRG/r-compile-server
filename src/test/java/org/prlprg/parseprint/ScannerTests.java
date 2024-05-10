@@ -13,7 +13,7 @@ public class ScannerTests {
     assertEquals("oo bar!\n", scanner.readPastEndOfLine());
 
     var scanner2 = new Scanner("Test\n2\n3");
-    assertEquals("Test", scanner2.readPastEndOfLine());
+    assertEquals("Test\n", scanner2.readPastEndOfLine());
     assertEquals('2', scanner2.readChar());
     assertEquals("\n", scanner2.readPastEndOfLine());
     assertEquals("3", scanner2.readPastEndOfLine());

@@ -38,7 +38,7 @@ public sealed interface InstrData<I extends Instr> permits JumpData, StmtData {
    *
    * <p>e.g. check that arguments are of the correct types that are too dynamic or otherwise
    * inexpressible in Java's type system, in a way that annotating the arguments with {@link TypeIs}
-   * won't do on its own.
+   * and {@link IsEnv} won't do on its own.
    *
    * @throws InstrVerifyException If there are issues with the instruction data.
    */

@@ -97,12 +97,20 @@ public class CFGTests {
             original,
             CFG::new,
             e ->
-                e.getMessage().contains("non-trivial SEXP constant")
+                e.getMessage().contains("non-trivial")
                     ||
                     // Badly formatted strings in PIR
                     e.getMessage().contains("unclosed string")
                     || e.getMessage().contains("escape sequence")
-                    || e.getMessage().contains("expected \", \"..., but found \"\",\"..."));
+                    || e.getMessage().contains("expected \", \"..., but found \"\",\"...")
+                    || (e.getCause() != null
+                        && e.getCause().getMessage().contains("unclosed string"))
+                    // Type is too long which makes it harder to parse, since we rely on column
+                    // numbers to skip over effects
+                    || e.getMessage().contains("expected column 19, but found column")
+                    // LdFun [[
+                    || (e.getCause() != null
+                        && e.getCause().getMessage().contains("symbol name cannot be empty")));
     var roundTrip = writePirCfgs(cfgs);
     var defaultStr = writeCfgs(cfgs);
 

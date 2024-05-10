@@ -45,7 +45,7 @@ public final class RegSymSXP implements SymSXP, StrOrRegSymSXP {
         : "Constructed a \"...\" symbol, use SEXPs.ELLIPSIS instead (that's why this is package-private)";
     if (name.isEmpty()) {
       // GNU-R would throw "Error: attempt to use zero-length variable name"
-      throw new IllegalArgumentException("Symbol name cannot be empty");
+      throw new IllegalArgumentException("symbol name cannot be empty");
     }
 
     this.name = name;

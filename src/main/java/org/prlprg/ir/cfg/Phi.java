@@ -32,16 +32,13 @@ public non-sealed interface Phi<N extends Node> extends InstrOrPhi {
    * subclasses.
    *
    * <p>This <i>does not</i> return the phi class itself. For example, if both nodes are {@link
-   * RValue}s and not {@link Env}s, it would return {@link RValue}, not {@link RValuePhi}.
+   * RValue}s, it would return {@link RValue}, not {@link RValuePhi}.
    *
    * @throws IllegalArgumentException if there are no such classes.
    */
-  // FIXME(jakob): Fix Env and RValue because some RValues (e.g. `CallSafeBuiltin`) can be Envs.
   static Class<? extends Node> commonInputSuperclass(
       Class<? extends Node> a, Class<? extends Node> b) {
-    if (Env.class.isAssignableFrom(a) && Env.class.isAssignableFrom(b)) {
-      return Env.class;
-    } else if (RValue.class.isAssignableFrom(a) && RValue.class.isAssignableFrom(b)) {
+    if (RValue.class.isAssignableFrom(a) && RValue.class.isAssignableFrom(b)) {
       return RValue.class;
     } else if (DeoptReason.class.isAssignableFrom(a) && DeoptReason.class.isAssignableFrom(b)) {
       return DeoptReason.class;
@@ -67,9 +64,7 @@ public non-sealed interface Phi<N extends Node> extends InstrOrPhi {
       @Nullable String name,
       Collection<? extends Input<? extends N>> inputs) {
     Phi<?> phi;
-    if (Env.class.isAssignableFrom(nodeClass)) {
-      phi = new EnvPhiImpl(cfg, name, inputs);
-    } else if (RValue.class.isAssignableFrom(nodeClass)) {
+    if (RValue.class.isAssignableFrom(nodeClass)) {
       phi = new RValuePhiImpl(cfg, name, inputs);
     } else if (DeoptReason.class.isAssignableFrom(nodeClass)) {
       phi = new DeoptReasonPhiImpl(cfg, name, inputs);

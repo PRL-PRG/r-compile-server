@@ -31,7 +31,7 @@ public sealed interface JumpData<I extends Jump> extends InstrData<I> {
   record Branch(RValue condition, BB ifTrue, BB ifFalse) implements Void {}
 
   @EffectsAreAribtrary
-  record NonLocalReturn(RValue value, Env env) implements Void {
+  record NonLocalReturn(RValue value, @IsEnv RValue env) implements Void {
     @Override
     public JumpData<Jump> replaceReturnWith(BB newTarget) {
       throw new UnsupportedOperationException(

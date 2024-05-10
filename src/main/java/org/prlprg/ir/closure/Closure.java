@@ -7,7 +7,8 @@ import java.util.Optional;
 import java.util.Set;
 import javax.annotation.Nullable;
 import org.prlprg.ir.cfg.CFG;
-import org.prlprg.ir.cfg.Env;
+import org.prlprg.ir.cfg.IsEnv;
+import org.prlprg.ir.cfg.RValue;
 import org.prlprg.ir.cfg.StaticEnv;
 import org.prlprg.sexp.BCodeSXP;
 import org.prlprg.sexp.CloSXP;
@@ -19,7 +20,7 @@ import org.prlprg.sexp.SymSXP;
 /** A closure. */
 public class Closure {
   private final @Nullable CloSXP origin = null;
-  private final Env env = StaticEnv.NOT_CLOSED;
+  private final @IsEnv RValue env = StaticEnv.NOT_CLOSED;
   private final SEXP ast;
   private final String name;
   private final Parameters parameters;
@@ -62,7 +63,7 @@ public class Closure {
   }
 
   /** Envirioment of the closure. */
-  public Env env() {
+  public @IsEnv RValue env() {
     return env;
   }
 
