@@ -633,52 +633,25 @@ function(x) {
   //        2);
   //  }
 
+  //  @ParameterizedTest
+  //  @MethodSource("baseFunctionsList")
+  //  public void baseFunctions(String name) {
+  //    assertBytecode(name);
+  //  }
+
   @ParameterizedTest
-  @MethodSource("baseFunctionsList")
-  public void baseFunctions(String name) {
+  @MethodSource("stdlibFunctionsList")
+  public void stdlibFunctions(String name) {
     assertBytecode(name);
   }
 
-  @ParameterizedTest
-  @MethodSource("toolsFunctionsList")
-  public void toolsFunctions(String name) {
-    assertBytecode("tools:::" + name);
-  }
-
-  private Stream<Arguments> baseFunctionsList() throws IOException {
+  private Stream<Arguments> stdlibFunctionsList() throws IOException {
     StrSXP base =
         (StrSXP)
             readRDS(
-                Objects.requireNonNull(
-                    TestRSession.class.getResourceAsStream("base-functions.RDS")));
+                Objects.requireNonNull(TestRSession.class.getResourceAsStream("functions.RDS")));
 
-    return Streams.stream(base.iterator())
-        .map(x -> SEXPs.symbol(x).toString()) // escapes the symbol if necessary
-        .map(Arguments::of);
-  }
-
-  private Stream<Arguments> toolsFunctionsList() throws IOException {
-    StrSXP base =
-        (StrSXP)
-            readRDS(
-                Objects.requireNonNull(
-                    TestRSession.class.getResourceAsStream("tools-functions.RDS")));
-
-    return Streams.stream(base.iterator())
-        .map(x -> SEXPs.symbol(x).toString()) // escapes the symbol if necessary
-        .map(Arguments::of);
-  }
-
-  private Stream<Arguments> stdlibFunctions() throws IOException {
-    StrSXP base =
-        (StrSXP)
-            readRDS(
-                Objects.requireNonNull(
-                    TestRSession.class.getResourceAsStream("base-functions.RDS")));
-
-    return Streams.stream(base.iterator())
-        .map(x -> SEXPs.symbol(x).toString()) // escapes the symbol if necessary
-        .map(Arguments::of);
+    return Streams.stream(base.iterator()).map(Arguments::of);
   }
 
   private void assertBytecode(String code) {
@@ -704,24 +677,27 @@ function(x) {
             + "))";
 
     var time = System.currentTimeMillis();
-    var gnurfun = (CloSXP) R.eval(code);
-    var gnurbc = ((BCodeSXP) gnurfun.body()).bc();
-    var astfun =
+
+    var gnurFun = (CloSXP) R.eval(code);
+    var gnurBc = ((BCodeSXP) gnurFun.body()).bc();
+    var astFun =
         SEXPs.closure(
-            gnurfun.formals(), gnurbc.consts().getFirst(), gnurfun.env(), gnurfun.attributes());
+            gnurFun.formals(), gnurBc.consts().getFirst(), gnurFun.env(), gnurFun.attributes());
 
     System.out.println("Eval time: " + (System.currentTimeMillis() - time) + "ms");
+
     time = System.currentTimeMillis();
-    var ourbc = compile(astfun, optimizationLevel);
+    var ourBc = compile(astFun, optimizationLevel);
     System.out.println("Compilation time: " + (System.currentTimeMillis() - time) + "ms");
+
     time = System.currentTimeMillis();
-    var eq = gnurbc.equals(ourbc);
+    var eq = gnurBc.equals(ourBc);
     System.out.println("Eq " + eq + " time: " + (System.currentTimeMillis() - time) + "ms");
 
     if (!eq) {
       // bytecode can be large, so we only want to do it when it is different
-      var theirs = printStructurally(gnurbc);
-      var ours = printStructurally(ourbc);
+      var theirs = printStructurally(gnurBc);
+      var ours = printStructurally(ourBc);
 
       assertEquals(theirs, ours, "`compile(read(ast)) == read(R.compile(ast))`");
     }

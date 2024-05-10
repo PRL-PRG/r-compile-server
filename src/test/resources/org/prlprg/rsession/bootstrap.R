@@ -17,6 +17,9 @@ saveRDS(simple_builtin_internals, "builtins-internal.RDS", version = 2)
 base_env_funs <- basevars[sapply(basevars, \(x) is.function(get(x)))]
 base_env <- sapply(base_env_funs, \(x) if (x %in% builtin_internals) get(x) else as.function(c(formals(get(x)), list(NULL))))
 base_env <- as.environment(base_env)
+base_env$pi <- pi
+base_env$T <- T
+base_env$F <- F
 
 cat("saving ", length(basevars), " base variables\n")
 saveRDS(basevars, "basevars.RDS", version = 2)
@@ -33,8 +36,8 @@ list_functions <- function(name) {
     Filter(p, ls(namespace, all.names = TRUE))
 }
 
-for (name in c("base", "tools")) {
-    funs <- list_functions(name)
-    cat("saving", name, length(funs), "functions\n")
-    saveRDS(funs, paste0(name, "-functions.RDS"), version = 2)
-}
+pkgs <- c("base", "tools", "utils", "graphics", "methods", "stats")
+funs <- sapply(pkgs, \(x) paste0(x, ":::`", list_functions(x), "`"))
+funs <- do.call(c, funs)
+cat("saving", length(funs), "functions\n")
+saveRDS(funs, "functions.RDS", version = 2)
