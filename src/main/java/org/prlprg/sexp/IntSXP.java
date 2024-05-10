@@ -21,6 +21,11 @@ public sealed interface IntSXP extends NumericSXP<Integer>
 
   @Override
   IntSXP withAttributes(Attributes attributes);
+
+  @Override
+  default Class<? extends SEXP> getCanonicalType() {
+    return IntSXP.class;
+  }
 }
 
 /** Int vector which doesn't fit any of the more specific subclasses. */

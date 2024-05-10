@@ -11,6 +11,11 @@ public sealed interface VecSXP extends VectorSXP<SEXP> {
   }
 
   @Override
+  default Class<? extends SEXP> getCanonicalType() {
+    return VecSXP.class;
+  }
+
+  @Override
   Attributes attributes();
 
   @Override

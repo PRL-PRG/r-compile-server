@@ -67,4 +67,9 @@ public sealed interface EnvSXP extends SEXP
     return this instanceof BaseEnvSXP
         || this instanceof NamespaceEnvSXP ns && ns.getName().equals("base");
   }
+
+  @Override
+  default Class<? extends SEXP> getCanonicalType() {
+    return EnvSXP.class;
+  }
 }

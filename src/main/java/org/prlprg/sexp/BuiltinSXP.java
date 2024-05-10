@@ -5,4 +5,9 @@ public record BuiltinSXP(String name) implements SEXP {
   public SEXPType type() {
     return SEXPType.BUILTIN;
   }
+
+  @Override
+  public Class<? extends SEXP> getCanonicalType() {
+    return BuiltinSXP.class;
+  }
 }

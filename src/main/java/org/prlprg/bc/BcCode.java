@@ -6,6 +6,7 @@ import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Function;
 import javax.annotation.concurrent.Immutable;
 
@@ -34,6 +35,20 @@ public final class BcCode extends ForwardingList<BcInstr> {
       sb.append(String.format("%n%3d: ", idx++)).append(instr);
     }
     return sb.toString();
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) return true;
+    if (o == null || getClass() != o.getClass()) return false;
+    if (!super.equals(o)) return false;
+    BcCode bcInstrs = (BcCode) o;
+    return Objects.equals(code, bcInstrs.code);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(super.hashCode(), code);
   }
 
   /**

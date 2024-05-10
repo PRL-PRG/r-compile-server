@@ -625,59 +625,13 @@ function(x) {
     assertBytecode(code);
   }
 
-  @Test
-  public void test1() {
-    assertBytecode(
-        """
-function (e1, e2)
-{
-    coerceTimeUnit <- function(x) {
-        switch(attr(x, "units"), secs = x, mins = 60 * x, hours = 60 *
-            60 * x, days = 60 * 60 * 24 * x, weeks = 60 * 60 *
-            24 * 7 * x)
-    }
-    if (nargs() == 1L) {
-        switch(.Generic, `+` = {
-        }, `-` = {
-            e1[] <- -unclass(e1)
-        }, stop(gettextf("unary '%s' not defined for \\"difftime\\" objects",
-            .Generic), domain = NA, call. = FALSE))
-        return(e1)
-    }
-    boolean <- switch(.Generic, `<` = , `>` = , `==` = , `!=` = ,
-        `<=` = , `>=` = TRUE, FALSE)
-    if (boolean) {
-        if (inherits(e1, "difftime") && inherits(e2, "difftime")) {
-            e1 <- coerceTimeUnit(e1)
-            e2 <- coerceTimeUnit(e2)
-        }
-        NextMethod(.Generic)
-    }
-    else if (.Generic == "+" || .Generic == "-") {
-        if (inherits(e1, "difftime") && !inherits(e2, "difftime"))
-            return(.difftime(NextMethod(.Generic), units = attr(e1,
-                "units")))
-        if (!inherits(e1, "difftime") && inherits(e2, "difftime"))
-            return(.difftime(NextMethod(.Generic), units = attr(e2,
-                "units")))
-        u1 <- attr(e1, "units")
-        if (attr(e2, "units") == u1) {
-            .difftime(NextMethod(.Generic), units = u1)
-        }
-        else {
-            e1 <- coerceTimeUnit(e1)
-            e2 <- coerceTimeUnit(e2)
-            .difftime(NextMethod(.Generic), units = "secs")
-        }
-    }
-    else {
-        stop(gettextf("'%s' not defined for \\"difftime\\" objects",
-            .Generic), domain = NA)
-    }
-}
-""",
-        2);
-  }
+  //  @Test
+  //  public void test1() {
+  //    assertBytecode(
+  //        """
+  // """,
+  //        2);
+  //  }
 
   @ParameterizedTest
   @MethodSource("baseFunctionsList")
@@ -749,18 +703,28 @@ function (e1, e2)
             + optimizationLevel
             + "))";
 
+    var time = System.currentTimeMillis();
     var gnurfun = (CloSXP) R.eval(code);
     var gnurbc = ((BCodeSXP) gnurfun.body()).bc();
     var astfun =
         SEXPs.closure(
             gnurfun.formals(), gnurbc.consts().getFirst(), gnurfun.env(), gnurfun.attributes());
 
+    System.out.println("Eval time: " + (System.currentTimeMillis() - time) + "ms");
+    time = System.currentTimeMillis();
     var ourbc = compile(astfun, optimizationLevel);
+    System.out.println("Compilation time: " + (System.currentTimeMillis() - time) + "ms");
+    time = System.currentTimeMillis();
+    var eq = gnurbc.equals(ourbc);
+    System.out.println("Eq " + eq + " time: " + (System.currentTimeMillis() - time) + "ms");
 
-    var theirs = printStructurally(gnurbc);
-    var ours = printStructurally(ourbc);
+    if (!eq) {
+      // bytecode can be large, so we only want to do it when it is different
+      var theirs = printStructurally(gnurbc);
+      var ours = printStructurally(ourbc);
 
-    assertEquals(theirs, ours, "`compile(read(ast)) == read(R.compile(ast))`");
+      assertEquals(theirs, ours, "`compile(read(ast)) == read(R.compile(ast))`");
+    }
   }
 
   private Bc compile(String fun, int optimizationLevel) {

@@ -25,6 +25,11 @@ public final class NilSXP implements ListSXP {
   }
 
   @Override
+  public Class<? extends SEXP> getCanonicalType() {
+    return NilSXP.class;
+  }
+
+  @Override
   public String toString() {
     return "NULL";
   }

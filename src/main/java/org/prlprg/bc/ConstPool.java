@@ -49,6 +49,20 @@ public final class ConstPool extends ForwardingList<SEXP> {
     return sb.toString();
   }
 
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) return true;
+    if (o == null || getClass() != o.getClass()) return false;
+    if (!super.equals(o)) return false;
+    ConstPool other = (ConstPool) o;
+    return consts.equals(other.consts);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(super.hashCode(), consts);
+  }
+
   // FIXME: use some global id
   private String debugId() {
     return "@" + hashCode();
@@ -64,6 +78,12 @@ public final class ConstPool extends ForwardingList<SEXP> {
     public String toString() {
       // TODO: add sexp type?
       return String.format("%d", idx);
+    }
+
+    public static <S extends SEXP> Idx<S> create(int i, S value) {
+      @SuppressWarnings("unchecked")
+      var idx = new Idx<>(i, (Class<S>) value.getCanonicalType());
+      return idx;
     }
   }
 
@@ -99,9 +119,7 @@ public final class ConstPool extends ForwardingList<SEXP> {
                 return x;
               });
 
-      @SuppressWarnings("unchecked")
-      var idx = (Idx<S>) new Idx<>(i, c.getClass());
-      return idx;
+      return Idx.create(i, c);
     }
 
     /**
@@ -113,16 +131,25 @@ public final class ConstPool extends ForwardingList<SEXP> {
       return new ConstPool(ImmutableList.copyOf(values));
     }
 
-    public Idx<SEXP> indexAny(int i) {
-      return checkedIndex(new Idx<>(i, SEXP.class));
+    public Idx<SEXP> index(int i) {
+      return Idx.create(i, values.get(i));
+    }
+
+    private <S extends SEXP> Idx<S> index(int i, Class<S> type) {
+      var value = values.get(i);
+      if (type.isInstance(value)) {
+        return Idx.create(i, type.cast(value));
+      } else {
+        throw new IllegalArgumentException("Expected " + type + ", but got " + value.getClass());
+      }
     }
 
     public Idx<LangSXP> indexLang(int i) {
-      return checkedIndex(new Idx<>(i, LangSXP.class));
+      return index(i, LangSXP.class);
     }
 
     public Idx<RegSymSXP> indexSym(int i) {
-      return checkedIndex(new Idx<>(i, RegSymSXP.class));
+      return index(i, RegSymSXP.class);
     }
 
     // FIXME: do we need this?
@@ -143,7 +170,7 @@ public final class ConstPool extends ForwardingList<SEXP> {
     }
 
     public Idx<VecSXP> indexClosure(int i) {
-      var idx = checkedIndex(new Idx<>(i, VecSXP.class));
+      var idx = index(i, VecSXP.class);
 
       // check vector shape
       var vec = (VecSXP) values.get(i);
@@ -161,40 +188,19 @@ public final class ConstPool extends ForwardingList<SEXP> {
     }
 
     public @Nullable <S extends SEXP> Idx<S> orNil(int i, Class<S> clazz) {
-      var idx = new Idx<>(i, clazz);
-      if (validateIndex(idx)) {
-        return idx;
+      var value = values.get(i);
+      if (clazz.isInstance(value)) {
+        return Idx.create(i, clazz.cast(value));
+      } else if (value instanceof NilSXP) {
+        return null;
       } else {
-        if (validateIndex(new Idx<>(i, NilSXP.class))) {
-          return null;
-        } else {
-          throw new IllegalArgumentException(
-              "Expected " + clazz + " or NilSXP, but got " + values.get(i).getClass());
-        }
-      }
-    }
-
-    private <S extends SEXP> Idx<S> checkedIndex(Idx<S> idx) {
-      if (!validateIndex(idx)) {
         throw new IllegalArgumentException(
-            "At index "
-                + idx.idx()
-                + " expected "
-                + idx.type()
-                + ", got "
-                + values.get(idx.idx).getClass());
+            "Expected " + clazz + " or NilSXP, but got " + value.getClass());
       }
-      return idx;
-    }
-
-    private <S extends SEXP> boolean validateIndex(Idx<S> idx) {
-      var v = values.get(idx.idx());
-      return idx.type().isAssignableFrom(v.getClass());
     }
 
     @SuppressWarnings("unchecked")
     public <S extends SEXP> void reset(Idx<S> idx, Function<S, S> fun) {
-      checkedIndex(idx);
       values.set(idx.idx(), fun.apply((S) values.get(idx.idx())));
     }
   }

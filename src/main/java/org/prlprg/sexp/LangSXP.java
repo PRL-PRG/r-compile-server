@@ -19,6 +19,11 @@ public sealed interface LangSXP extends SymOrLangSXP {
   }
 
   @Override
+  default Class<? extends SEXP> getCanonicalType() {
+    return LangSXP.class;
+  }
+
+  @Override
   Attributes attributes();
 
   @Override

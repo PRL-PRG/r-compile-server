@@ -103,7 +103,7 @@ class GNURByteCodeDecoderFactory {
         case ENDFOR -> new BcInstr.EndFor();
         case SETLOOPVAL -> new BcInstr.SetLoopVal();
         case INVISIBLE -> new BcInstr.Invisible();
-        case LDCONST -> new BcInstr.LdConst(cpb.indexAny(byteCode.get(curr++)));
+        case LDCONST -> new BcInstr.LdConst(cpb.index(byteCode.get(curr++)));
         case LDNULL -> new BcInstr.LdNull();
         case LDTRUE -> new BcInstr.LdTrue();
         case LDFALSE -> new BcInstr.LdFalse();
@@ -116,12 +116,12 @@ class GNURByteCodeDecoderFactory {
         case GETBUILTIN -> new BcInstr.GetBuiltin(cpb.indexSym(byteCode.get(curr++)));
         case GETINTLBUILTIN -> new BcInstr.GetIntlBuiltin(cpb.indexSym(byteCode.get(curr++)));
         case CHECKFUN -> new BcInstr.CheckFun();
-        case MAKEPROM -> new BcInstr.MakeProm(cpb.indexAny(byteCode.get(curr++)));
+        case MAKEPROM -> new BcInstr.MakeProm(cpb.index(byteCode.get(curr++)));
         case DOMISSING -> new BcInstr.DoMissing();
         case SETTAG -> new BcInstr.SetTag(cpb.indexStrOrSymOrNil(byteCode.get(curr++)));
         case DODOTS -> new BcInstr.DoDots();
         case PUSHARG -> new BcInstr.PushArg();
-        case PUSHCONSTARG -> new BcInstr.PushConstArg(cpb.indexAny(byteCode.get(curr++)));
+        case PUSHCONSTARG -> new BcInstr.PushConstArg(cpb.index(byteCode.get(curr++)));
         case PUSHNULLARG -> new BcInstr.PushNullArg();
         case PUSHTRUEARG -> new BcInstr.PushTrueArg();
         case PUSHFALSEARG -> new BcInstr.PushFalseArg();
@@ -207,7 +207,7 @@ class GNURByteCodeDecoderFactory {
         case ENDASSIGN2 -> new BcInstr.EndAssign2(cpb.indexSym(byteCode.get(curr++)));
         case SETTER_CALL ->
             new BcInstr.SetterCall(
-                cpb.indexLang(byteCode.get(curr++)), cpb.indexAny(byteCode.get(curr++)));
+                cpb.indexLang(byteCode.get(curr++)), cpb.index(byteCode.get(curr++)));
         case GETTER_CALL -> new BcInstr.GetterCall(cpb.indexLang(byteCode.get(curr++)));
         case SWAP -> new BcInstr.SpecialSwap();
         case DUP2ND -> new BcInstr.Dup2nd();

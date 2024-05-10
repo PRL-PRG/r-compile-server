@@ -19,6 +19,11 @@ public sealed interface LglSXP extends VectorSXP<Logical>
 
   @Override
   LglSXP withAttributes(Attributes attributes);
+
+  @Override
+  default Class<? extends SEXP> getCanonicalType() {
+    return LglSXP.class;
+  }
 }
 
 /** Logical vector which doesn't fit any of the more specific subclasses. */

@@ -18,6 +18,11 @@ public sealed interface RealSXP extends NumericSXP<Double>
 
   @Override
   RealSXP withAttributes(Attributes attributes);
+
+  @Override
+  default Class<? extends SEXP> getCanonicalType() {
+    return RealSXP.class;
+  }
 }
 
 /** Real vector which doesn't fit any of the more specific subclasses. */

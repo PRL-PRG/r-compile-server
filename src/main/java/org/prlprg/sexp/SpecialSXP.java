@@ -7,4 +7,9 @@ public final class SpecialSXP implements SEXP {
   public SEXPType type() {
     return SEXPType.SPECIAL;
   }
+
+  @Override
+  public Class<? extends SEXP> getCanonicalType() {
+    return SpecialSXP.class;
+  }
 }

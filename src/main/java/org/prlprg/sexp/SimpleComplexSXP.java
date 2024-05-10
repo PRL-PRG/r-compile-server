@@ -2,6 +2,7 @@ package org.prlprg.sexp;
 
 import org.prlprg.primitive.Complex;
 
+// TODO: move to ComplexSXP.java?
 /** Simple scalar complex = vector of size 1 with no ALTERP, ATTRIB, or OBJECT. */
 public final class SimpleComplexSXP extends SimpleScalarSXPImpl<Complex> implements ComplexSXP {
   SimpleComplexSXP(Complex data) {

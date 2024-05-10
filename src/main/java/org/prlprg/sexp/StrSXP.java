@@ -18,6 +18,11 @@ public sealed interface StrSXP extends VectorSXP<String>, StrOrRegSymSXP
   }
 
   @Override
+  default Class<? extends SEXP> getCanonicalType() {
+    return StrSXP.class;
+  }
+
+  @Override
   Attributes attributes();
 
   @Override

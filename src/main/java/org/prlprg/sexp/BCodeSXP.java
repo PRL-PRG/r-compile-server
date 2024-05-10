@@ -20,6 +20,11 @@ public sealed interface BCodeSXP extends SEXP {
   default SEXPType type() {
     return SEXPType.BCODE;
   }
+
+  @Override
+  default Class<? extends SEXP> getCanonicalType() {
+    return BCodeSXP.class;
+  }
 }
 
 record BCodeSXPImpl(Bc bc) implements BCodeSXP {

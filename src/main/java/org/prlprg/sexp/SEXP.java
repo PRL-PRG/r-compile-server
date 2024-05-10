@@ -31,8 +31,17 @@ public sealed interface SEXP
   SEXPType type();
 
   /**
+   * The canonical class of this SEXP in the Java land. For example, there are specialized classes
+   * for simple scalars, but they all have the same SEXPType. Every SEXP that override the {@link
+   * #type()} method should also override this method.
+   *
+   * @return the Java class of this SEXP
+   */
+  Class<? extends SEXP> getCanonicalType();
+
+  /**
    * @return {@code null} if the SEXP doesn't support attributes ({@link #withAttributes} throws an
-   *     exception) and {@code Attributes.NONE} if it does but there are none.
+   *     exception) and {@link Attributes.NONE} if it does but there are none.
    */
   default @Nullable Attributes attributes() {
     return null;

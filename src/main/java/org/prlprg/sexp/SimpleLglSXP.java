@@ -2,6 +2,7 @@ package org.prlprg.sexp;
 
 import org.prlprg.primitive.Logical;
 
+// TODO: move to LglSXP.java?
 /** Simple scalar logical = logical vector of size 1 with no ALTREP, ATTRIB, or OBJECT. */
 public final class SimpleLglSXP extends SimpleScalarSXPImpl<Logical> implements LglSXP {
   static final SimpleLglSXP TRUE = new SimpleLglSXP(Logical.TRUE);

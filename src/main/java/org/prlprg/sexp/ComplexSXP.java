@@ -16,6 +16,11 @@ public sealed interface ComplexSXP extends VectorSXP<Complex>
 
   @Override
   ComplexSXP withAttributes(Attributes attributes);
+
+  @Override
+  default Class<? extends SEXP> getCanonicalType() {
+    return ComplexSXP.class;
+  }
 }
 
 /** Complex vector which doesn't fit any of the more specific subclasses. */

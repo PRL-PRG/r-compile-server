@@ -48,6 +48,11 @@ public sealed interface ListSXP extends ListOrVectorSXP<TaggedElem> permits NilS
   Optional<TaggedElem> get(String name);
 
   ListSXP prepend(TaggedElem elem);
+
+  @Override
+  default Class<? extends SEXP> getCanonicalType() {
+    return ListSXP.class;
+  }
 }
 
 record ListSXPImpl(ImmutableList<TaggedElem> data, @Override Attributes attributes)
