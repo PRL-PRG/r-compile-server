@@ -1,7 +1,9 @@
 package org.prlprg.ir.cfg;
 
+import java.util.function.Supplier;
+
 interface CFGIntrinsicMutate {
-  // region mutate
+  // region mutate BBs
   /** Create, insert, and return a new basic block. */
   BB addBB();
 
@@ -31,32 +33,69 @@ interface CFGIntrinsicMutate {
    */
   BB remove(BBId bbId);
 
-  // endregion
+  // endregion mutate BBs
 
   // region additional recording operations
   /**
-   * Indicate to the recorder (argument provided to {@link CFG ( CFGRecorder )}) that a user-defined
+   * Indicate to the CFG's {@linkplain CFG#withObserver(CFGObserver, Runnable) observers} that a new
    * section has begun.
    *
    * <p>Edits between this and the later {@link #endSection()} call at the same level will be put
    * put into a {@link CFGEdit.Section}.
+   *
+   * @see #section(String, Runnable)
    */
   void beginSection(String label);
 
   /**
-   * Indicate to the recorder (argument provided to {@link CFG( CFGObserver )}) that a user-defined
-   * section has ended.
+   * Indicate to the CFG's {@linkplain CFG#withObserver(CFGObserver, Runnable) observers} that the
+   * newest in-progress section has ended.
    *
    * <p>Edits between this and prior {@link #beginSection(String)} call at the same level will be
    * put into a {@link CFGEdit.Section}.
    *
    * @throws IllegalStateException If there is no section to end.
+   * @see #section(String, Runnable)
    */
   void endSection();
 
   /**
-   * Indicate to the recorder (argument provided to {@link CFG( CFGObserver )}) that a user-defined
-   * divider has been added.
+   * Run the given function, and indicate to the CFG's {@linkplain CFG#withObserver(CFGObserver,
+   * Runnable) observers} that the edits performed by the function are in a section with the given
+   * label.
+   *
+   * <p>This combines {@link #beginSection(String)} and {@link #endSection()}. Notably, this calls
+   * {@code endSection} even if the action throws an exception.
+   */
+  default void section(String label, Runnable action) {
+    beginSection(label);
+    try {
+      action.run();
+    } finally {
+      endSection();
+    }
+  }
+
+  /**
+   * Run the given function, and indicate to the CFG's {@linkplain CFG#withObserver(CFGObserver,
+   * Runnable) observers} that the edits performed by the function are in a section with the given
+   * label.
+   *
+   * <p>This combines {@link #beginSection(String)} and {@link #endSection()}. Notably, this calls
+   * {@code endSection} even if the action throws an exception.
+   */
+  default <T> T section(String label, Supplier<T> action) {
+    beginSection(label);
+    try {
+      return action.get();
+    } finally {
+      endSection();
+    }
+  }
+
+  /**
+   * Indicate to the CFG's {@linkplain CFG#withObserver(CFGObserver, Runnable) }} that a divider has
+   * been added.
    *
    * <p>This will record a {@link CFGEdit.Divider}.
    */

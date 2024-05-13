@@ -89,6 +89,21 @@ public class CFGTests {
 
   @ParameterizedTest
   @DirectorySource(root = "pir-prints", depth = Integer.MAX_VALUE, glob = "*.log")
+  public void testPirVerifies(Path pirPath) {
+    var original = Files.readString(pirPath);
+    var cfgs = readPirCfgs(pirPath, original, CFG::new, _ -> true);
+    for (var cfg : cfgs) {
+      try {
+        cfg.verify();
+      } catch (CFGVerifyException e) {
+        throw new AssertionError("Failed to verify " + pirPath, e);
+      }
+      System.err.println("OK");
+    }
+  }
+
+  @ParameterizedTest
+  @DirectorySource(root = "pir-prints", depth = Integer.MAX_VALUE, glob = "*.log")
   public void testPirIsParseableAndPrintableWithoutError(Path pirPath) {
     var original = Files.readString(pirPath);
     var cfgs =
@@ -185,18 +200,20 @@ public class CFGTests {
     try {
       CFGPirSerialize.manyFromPIR(pirReader, cfgFactory).forEach(cfgs::add);
     } catch (ParseException e) {
-      System.err.println(
+      var msg =
           "Failed to parse "
               + pirPath
               + "\n"
-              + region(source, e.position().line(), e.position().column()));
+              + region(source, e.position().line(), e.position().column());
       if (silentlyFailOnParseException.test(e)) {
+        System.err.println(msg);
         e.printStackTrace();
       } else {
-        throw e;
+        throw new AssertionError(msg, e);
       }
     } catch (Throwable e) {
-      System.err.println("Exception while parsing " + pirPath + "\n" + entireRegion(source));
+      System.err.println(
+          "Uncaught error or exception while parsing " + pirPath + "\n" + entireRegion(source));
       throw e;
     }
 

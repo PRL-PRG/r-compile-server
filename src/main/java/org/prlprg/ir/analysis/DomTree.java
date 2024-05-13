@@ -1,5 +1,6 @@
-package org.prlprg.ir.cfg;
+package org.prlprg.ir.analysis;
 
+import edu.umd.cs.findbugs.annotations.Nullable;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.ArrayDeque;
 import java.util.Iterator;
@@ -11,6 +12,9 @@ import java.util.SequencedSet;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+import org.prlprg.ir.cfg.BB;
+import org.prlprg.ir.cfg.CFG;
+import org.prlprg.ir.cfg.CFGIterator.DomTreeBfs;
 import org.prlprg.util.SmallSet;
 import org.prlprg.util.YCombinator;
 
@@ -359,12 +363,65 @@ public class DomTree {
   }
 
   /**
+   * Does {@code lhs} dominate {@code rhs} (not necessarily immediate)?
+   *
+   * <p>If so, {@code lhs} <b>equals {@code rhs} or</b> is guaranteed to run before {@code rhs}.
+   */
+  public boolean dominates(BB lhs, BB rhs) {
+    // Start with node `b`, because `a` dominates `b` if `a` equals `b`. Then
+    // walk up the dominator tree, comparing each visited node to `a`.
+    var x = rhs;
+    while (x != null) {
+      if (x == lhs) {
+        return true;
+      }
+      x = idoms.get(x);
+    }
+    return false;
+  }
+
+  /**
+   * Does {@code lhs} dominate {@code rhs} (not necessarily immediate)?
+   *
+   * <p>If so, {@code lhs} is guaranteed to run before {@code rhs} (and <b>is not {@code rhs}
+   * itself</b>.
+   */
+  public boolean strictlyDominates(BB lhs, BB rhs) {
+    return lhs != rhs && dominates(lhs, rhs);
+  }
+
+  /**
    * The immediate dominator of a basic block: the block which strictly dominates {@code bb}
    * (guaranteed to run before), but doesn't strictly dominate any other strict dominator of {@code
    * bb}.
    */
-  public BB idom(BB bb) {
+  public BB idominator(BB bb) {
     return idoms.get(bb);
+  }
+
+  /**
+   * Iterates the dominators of the given block, starting with itself if {@code strict} is false,
+   * otherwise the {@linkplain #idominator(BB) immediate dominator}.
+   */
+  public Iterator<BB> dominators(BB bb, boolean strict) {
+    return new Iterator<>() {
+      private @Nullable BB next = strict ? idoms.get(bb) : bb;
+
+      @Override
+      public boolean hasNext() {
+        return next != null;
+      }
+
+      @Override
+      public BB next() {
+        var prev = next;
+        if (prev == null) {
+          throw new IllegalStateException("No more dominators");
+        }
+        next = idoms.get(next);
+        return prev;
+      }
+    };
   }
 
   /** The blocks which this one immediately dominates. */
@@ -372,8 +429,13 @@ public class DomTree {
     return idominees.getOrDefault(bb, LinkedHashSet.newLinkedHashSet(0));
   }
 
+  /** Iterate the dominator tree starting from the given block, breadth-first. */
+  public Iterator<BB> dominees(BB start) {
+    return new DomTreeBfs(this, start);
+  }
+
   /** The set of BBs dominated by the input set. */
-  public SmallSet<BB> doms(Set<BB> input) {
+  public SmallSet<BB> dominees(Set<BB> input) {
     // Given a set of BBs, compute the set of BBs dominated by the input set.
     // Inductive definition:
     // - a BB is dominated by the input set if it is contained in the input set.
@@ -423,45 +485,12 @@ public class DomTree {
   }
 
   /**
-   * Does {@code lhs} dominate {@code rhs} (not necessarily immediate)?
-   *
-   * <p>If so, {@code lhs} <b>equals {@code rhs} or</b> is guaranteed to run before {@code rhs}.
-   */
-  public boolean dominates(BB lhs, BB rhs) {
-    // Start with node `b`, because `a` dominates `b` if `a` equals `b`. Then
-    // walk up the dominator tree, comparing each visited node to `a`.
-    var x = rhs;
-    while (x != null) {
-      if (x == lhs) {
-        return true;
-      }
-      x = idoms.get(x);
-    }
-    return false;
-  }
-
-  /**
-   * Does {@code lhs} dominate {@code rhs} (not necessarily immediate)?
-   *
-   * <p>If so, {@code lhs} is guaranteed to run before {@code rhs} (and <b>is not {@code rhs}
-   * itself</b>.
-   */
-  public boolean strictlyDominates(BB lhs, BB rhs) {
-    return lhs != rhs && dominates(lhs, rhs);
-  }
-
-  /** Iterate the dominator tree starting from the given node, breadth-first. */
-  public Iterator<BB> dominees(BB start) {
-    return new CFGIterator.DomTreeBfs(this, start);
-  }
-
-  /**
-   * The set of nodes which {@code bb} dominates an immediate predecessor of but does not directly
+   * The set of blocks which {@code bb} dominates an immediate predecessor of but does not directly
    * strictly dominate. Informally, where {@code bb}'s dominance "ends".
    */
   public SmallSet<BB> frontier(BB bb) {
     var result = new SmallSet<BB>();
-    var dominees = new CFGIterator.DomTreeBfs(this, bb);
+    var dominees = new DomTreeBfs(this, bb);
     while (dominees.hasNext()) {
       var cur = dominees.next(d -> strictlyDominates(bb, d));
       if (!strictlyDominates(bb, cur)) {

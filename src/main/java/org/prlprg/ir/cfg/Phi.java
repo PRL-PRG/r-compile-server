@@ -1,17 +1,20 @@
 package org.prlprg.ir.cfg;
 
+import static org.prlprg.AppConfig.EAGERLY_VERIFY_PHI_INPUTS;
+
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Iterables;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
-import java.util.NoSuchElementException;
-import java.util.function.Predicate;
+import java.util.LinkedHashMap;
+import java.util.SequencedCollection;
+import java.util.SequencedMap;
 import java.util.stream.Stream;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
-import org.prlprg.util.MapListView;
+import org.prlprg.parseprint.ParseMethod;
+import org.prlprg.parseprint.Parser;
+import org.prlprg.parseprint.PrintMethod;
+import org.prlprg.parseprint.Printer;
 
 /**
  * <a
@@ -38,7 +41,14 @@ public non-sealed interface Phi<N extends Node> extends InstrOrPhi {
    */
   static Class<? extends Node> commonInputSuperclass(
       Class<? extends Node> a, Class<? extends Node> b) {
-    if (RValue.class.isAssignableFrom(a) && RValue.class.isAssignableFrom(b)) {
+    if (InvalidNode.class.isAssignableFrom(a) && InvalidNode.class.isAssignableFrom(b)) {
+      // WARNING: If every node is invalid, the phi will only be able to have invalid node inputs,
+      // which is an issue because it may be set with valid inputs later. Currently this never
+      // happens, but if it does, the solution is to make it so that when `commonInputSuperclass`
+      // returns `InvalidNode` for all classes, replace the entire phi with an invalid node (because
+      // whatever we're doing we already accepted we'll have invalid stub nodes).
+      return InvalidNode.class;
+    } else if (RValue.class.isAssignableFrom(a) && RValue.class.isAssignableFrom(b)) {
       return RValue.class;
     } else if (DeoptReason.class.isAssignableFrom(a) && DeoptReason.class.isAssignableFrom(b)) {
       return DeoptReason.class;
@@ -48,47 +58,6 @@ public non-sealed interface Phi<N extends Node> extends InstrOrPhi {
       throw new IllegalArgumentException(
           "No common φ type implemented for the given classes: " + a + " and " + b);
     }
-  }
-
-  /**
-   * Create a new φ-node for the given node class. It should implement the necessary superclass so
-   * that it's acceptable to replace a node of this class with this φ.
-   *
-   * @throws IllegalArgumentException If inputs is empty.
-   * @throws UnsupportedOperationException If there's no φ type implemented for the given class.
-   */
-  @SuppressWarnings("unchecked")
-  static <N extends Node> Phi<N> forClass(
-      Class<? extends N> nodeClass,
-      CFG cfg,
-      @Nullable String name,
-      Collection<? extends Input<? extends N>> inputs) {
-    Phi<?> phi;
-    if (RValue.class.isAssignableFrom(nodeClass)) {
-      phi = new RValuePhiImpl(cfg, name, inputs);
-    } else if (DeoptReason.class.isAssignableFrom(nodeClass)) {
-      phi = new DeoptReasonPhiImpl(cfg, name, inputs);
-    } else if (FrameState.class.isAssignableFrom(nodeClass)) {
-      phi = new FrameStatePhiImpl(cfg, name, inputs);
-    } else {
-      throw new UnsupportedOperationException(
-          "No φ type implemented for the given class: " + nodeClass);
-    }
-    for (var input : inputs) {
-      if (!nodeClass.isInstance(input.node())) {
-        throw new IllegalArgumentException(
-            "Input node isn't an instance of the Phi's assigned class: "
-                + input.node()
-                + " is not an instance of "
-                + nodeClass
-                + (phi.nodeClass().isInstance(input.node)
-                    ? "\nNote: it *is* an instance of the actual Phi class, but you passed a more specific instance to "
-                        + nodeClass
-                        + " when you should've passed a superclass (necessary to pass the correct class because if it was Env and you passed an RValue, it would break)."
-                    : ""));
-      }
-    }
-    return (Phi<N>) phi;
   }
 
   /**
@@ -109,15 +78,29 @@ public non-sealed interface Phi<N extends Node> extends InstrOrPhi {
     return (N) this;
   }
 
-  /** (A view of) inputs to this φ-node. */
+  /** (A view of) the inputs to this φ-node. */
   @UnmodifiableView
-  List<Input<N>> inputs();
+  SequencedMap<BB, N> inputs();
 
-  /** Stream input {@link Node}s. */
-  Stream<N> inputNodes();
+  /** A stream of the inputs to this φ-node, represented as {@link Phi.Input}s. */
+  default Stream<Input<N>> streamInputs() {
+    return inputs().entrySet().stream().map(e -> new Input<>(e.getKey(), e.getValue()));
+  }
 
-  /** Stream input {@link BB}s. */
-  Stream<BB> incomingBBs();
+  /** An iterable of the inputs to this φ-node, represented as {@link Phi.Input}s. */
+  default Iterable<Input<N>> iterInputs() {
+    return streamInputs()::iterator;
+  }
+
+  /** (A view of) the input {@link BB}s. */
+  default @UnmodifiableView SequencedCollection<BB> incomingBBs() {
+    return inputs().sequencedKeySet();
+  }
+
+  /** (A view of) the input {@link Node}s. */
+  default @UnmodifiableView SequencedCollection<N> inputNodes() {
+    return inputs().sequencedValues();
+  }
 
   /** The number of inputs to this φ-node. */
   default int numInputs() {
@@ -125,50 +108,59 @@ public non-sealed interface Phi<N extends Node> extends InstrOrPhi {
   }
 
   /** Whether this φ-node contains the given input. */
+  @SuppressWarnings("SuspiciousMethodCalls")
   default boolean containsInput(Node inputNode) {
-    return inputs().stream().anyMatch(input -> input.node().equals(inputNode));
+    return inputs().containsValue(inputNode);
   }
 
   /** Whether this φ-node contains the given input. */
   default boolean containsInput(BB incomingBB) {
-    return inputs().stream().anyMatch(input -> input.incomingBB().equals(incomingBB));
+    return inputs().containsKey(incomingBB);
   }
 
   /**
-   * Add an input to this φ-node.
+   * Get the input from the given {@link BB}, i.e. the phi's value when control jumps from that
+   * block to the phi's origin block.
    *
-   * <p>This is "unsafe" because the operation isn't recorded. It should only be used internally by
-   * {@link BB}.
-   *
-   * @throws IllegalArgumentException If there's already an input from the incoming {@link BB}.
+   * @throws IllegalArgumentException if the given block isn't in the phi, i.e. isn't a predecessor.
    */
-  void unsafeAddInput(BB incomingBB, N node);
+  default N input(BB incomingBB) {
+    var result = inputs().get(incomingBB);
+    if (result == null) {
+      throw new IllegalArgumentException(
+          "basic block not in phi (not a predecessor): " + incomingBB.id());
+    }
+    return result;
+  }
 
   /**
-   * Remove an input from this φ-node.
+   * Change the input from the given basic block to the given node. Returns the old node.
    *
-   * <p>This is "unsafe" because the operation isn't recorded. It should only be used internally by
-   * {@link BB}.
-   *
-   * @return The input corresponding to the incoming BB, which was just removed.
-   * @throws NoSuchElementException If the input isn't present.
+   * @throws IllegalArgumentException If the incoming BB isn't in the input set.
+   * @throws IllegalArgumentException If the node is of an incompatible type (the type is also
+   *     restricted by the generic argument, but the phi may be upcasted due to erasure).
    */
-  N unsafeRemoveInput(BB incomingBB);
+  N setInput(BB incomingBB, N node);
 
   /**
-   * Replace the incoming BB of an input if the corresponding node satisfies the predicate.
+   * {@link #setInput(BB, N)} using the input and node of the provided {@link Input} data-structure.
    *
-   * <p>This is "unsafe" because the operation isn't recorded. It should only be used internally by
-   * {@link BB}.
-   *
-   * @throws NoSuchElementException If the old incoming BB isn't present.
+   * @throws IllegalArgumentException If the incoming BB isn't in the input set.
+   * @throws IllegalArgumentException If the node is of an incompatible type (the type is also
+   *     restricted by the generic argument, but the phi may be upcasted due to erasure).
    */
-  void unsafeReplaceIncomingBB(BB old, BB replacement, Predicate<N> predicate);
+  default N setInput(Input<N> newInput) {
+    return setInput(newInput.incomingBB(), newInput.node());
+  }
 
-  /** (A view of) the nodes in {@link Phi#inputs()}. */
+  /** {@link Phi#inputNodes()} but accessible from {@link InstrOrPhi}. */
+  // The collection is covariant here because it's unmodifiable.
+  // We could alternatively make all `args()` `SequencedCollection<? extends Node>`, but it doesn't
+  // matter and this is a smaller signature.
+  @SuppressWarnings("unchecked")
   @Override
-  default @UnmodifiableView List<Node> args() {
-    return new MapListView<>(inputs(), Input::node);
+  default @UnmodifiableView SequencedCollection<Node> args() {
+    return (SequencedCollection<Node>) inputNodes();
   }
 
   /**
@@ -180,11 +172,19 @@ public non-sealed interface Phi<N extends Node> extends InstrOrPhi {
     return ImmutableList.of(this);
   }
 
+  /** true (phis never have side-effects). */
+  @Override
+  default boolean isPure() {
+    return true;
+  }
+
   @Override
   NodeId<? extends Phi<N>> id();
 
   record Args<N extends Node>(
-      Class<? extends N> nodeClass, String name, Collection<? extends Input<? extends N>> inputs) {
+      Class<? extends N> nodeClass,
+      String name,
+      SequencedCollection<? extends Input<? extends N>> inputs) {
     public IdArgs<N> id() {
       return new IdArgs<>(nodeClass, name, inputs.stream().map(Input::id).toList());
     }
@@ -193,7 +193,7 @@ public non-sealed interface Phi<N extends Node> extends InstrOrPhi {
   record IdArgs<N extends Node>(
       Class<? extends N> nodeClass,
       String name,
-      Collection<? extends InputId<? extends N>> inputIds) {}
+      SequencedCollection<? extends InputId<? extends N>> inputIds) {}
 
   record Input<N extends Node>(BB incomingBB, N node) {
     public static <N extends Node> Input<N> of(BB incomingBB, N node) {
@@ -210,6 +210,11 @@ public non-sealed interface Phi<N extends Node> extends InstrOrPhi {
     public static <N extends Node> InputId<N> of(BBId incomingBBId, NodeId<? extends N> nodeId) {
       return new InputId<>(incomingBBId, nodeId);
     }
+
+    @Override
+    public String toString() {
+      return incomingBBId + ":" + nodeId;
+    }
   }
 }
 
@@ -217,19 +222,70 @@ abstract class PhiImpl<N extends Node> implements Phi<N> {
   private final Class<N> nodeClass;
   private final CFG cfg;
   private final PhiId<?> id;
-  private final List<Input<N>> inputs;
+  private final SequencedMap<BB, N> inputs;
+
+  /**
+   * Create a new φ-node for nodes of the given class.
+   *
+   * <p>The phi's node class will be either the given class <i>or</i> a superclass, and the phi
+   * itself inherits its node class. The phi's node class will be specific enough so that it's
+   * acceptable to replace a node of the given class with this φ, anywhere.
+   *
+   * @throws IllegalArgumentException If inputs is empty.
+   * @throws UnsupportedOperationException If there's no φ type implemented for the given class.
+   */
+  @SuppressWarnings("unchecked")
+  static <N extends Node> Phi<N> forClass(
+      Class<? extends N> nodeSubclass,
+      CFG cfg,
+      @Nullable String name,
+      SequencedCollection<? extends Input<?>> inputs) {
+    Phi<?> phi;
+    if (RValue.class.isAssignableFrom(nodeSubclass)) {
+      phi = new RValuePhiImpl(cfg, name, inputs);
+    } else if (DeoptReason.class.isAssignableFrom(nodeSubclass)) {
+      phi = new DeoptReasonPhiImpl(cfg, name, inputs);
+    } else if (FrameState.class.isAssignableFrom(nodeSubclass)) {
+      phi = new FrameStatePhiImpl(cfg, name, inputs);
+    } else {
+      throw new UnsupportedOperationException(
+          "No φ type implemented for the given class: " + nodeSubclass);
+    }
+    return (Phi<N>) phi;
+  }
 
   @SuppressWarnings("unchecked")
-  PhiImpl(Class<N> nodeClass, CFG cfg, @Nullable String name, Collection<?> inputs) {
-    this.inputs = new ArrayList<>((Collection<Input<N>>) inputs);
+  protected PhiImpl(
+      Class<N> nodeClass, CFG cfg, @Nullable String name, Collection<? extends Input<?>> inputs) {
+    this.inputs = new LinkedHashMap<>(inputs.size());
+    for (var input : inputs) {
+      assert !this.inputs.containsKey(input.incomingBB())
+          : "duplicate incoming BB on Phi init: " + input.incomingBB();
+      this.inputs.put(input.incomingBB(), (N) input.node());
+    }
     this.nodeClass = nodeClass;
     this.cfg = cfg;
 
     if (name == null) {
-      name = this.inputs.isEmpty() ? "" : this.inputs.getFirst().node().id().name();
+      name = this.inputs.isEmpty() ? "" : this.inputs.firstEntry().getValue().id().name();
     }
 
     id = new PhiId<>(this, cfg, name);
+
+    for (var inputNode : inputNodes()) {
+      if (!nodeClass.isInstance(inputNode)) {
+        throw new IllegalArgumentException(
+            "Input node isn't an instance of the Phi's node class: "
+                + inputNode
+                + " ("
+                + inputNode.getClass().getSimpleName()
+                + ") is not an instance of "
+                + nodeClass);
+      }
+    }
+    streamInputs().forEach(this::verifyInputIfEagerConfig);
+    assert nodeClass.isAssignableFrom(InvalidNode.class)
+        : "InvalidNode should be an instance of any phi class";
   }
 
   @Override
@@ -238,65 +294,101 @@ abstract class PhiImpl<N extends Node> implements Phi<N> {
   }
 
   @Override
-  public List<Input<N>> inputs() {
-    return Collections.unmodifiableList(inputs);
+  public SequencedMap<BB, N> inputs() {
+    return Collections.unmodifiableSequencedMap(inputs);
+  }
+
+  /**
+   * Add an "unset" node to the phi's inputs for the given BB.
+   *
+   * <p>This is "unsafe" because no {@linkplain CFGEdit edit} is recorded. It's called from {@link
+   * BB} when it adds a predecessor.
+   */
+  @SuppressWarnings("unchecked")
+  void unsafeAddUnsetInput(BB incomingBB) {
+    assert !inputs.containsKey(incomingBB)
+        : "phi is in an inconsistent state, it has an input that it was told to add: " + incomingBB;
+    inputs.put(incomingBB, (N) InvalidNode.UNSET_PHI_INPUT);
+  }
+
+  /**
+   * Remove the node in the phi's inputs for the given BB.
+   *
+   * <p>This is "unsafe" because no {@linkplain CFGEdit edit} is recorded. It's called from {@link
+   * BB} when it removes a predecessor.
+   */
+  void unsafeRemoveInput(BB incomingBB) {
+    assert inputs.containsKey(incomingBB)
+        : "phi is in an inconsistent state, it doesn't have an input that it was told to remove: "
+            + incomingBB;
+    inputs.remove(incomingBB);
+  }
+
+  /**
+   * Replace the incoming BB of an input with a different one. The input's node remains the same.
+   *
+   * <p>This is "unsafe" because no {@linkplain CFGEdit edit} is recorded. It should only be used
+   * internally by {@link BB}.
+   */
+  void unsafeReplaceIncomingBB(BB oldBB, BB replacementBB) {
+    var node = this.inputs.remove(oldBB);
+    assert node != null : "The old incoming BB isn't in the phi's inputs: " + oldBB;
+    this.inputs.put(replacementBB, node);
   }
 
   @Override
-  public Stream<N> inputNodes() {
-    return inputs.stream().map(Input::node);
-  }
-
-  @Override
-  public Stream<BB> incomingBBs() {
-    return inputs().stream().map(Input::incomingBB);
-  }
-
-  @Override
-  public void unsafeAddInput(BB incomingBB, N node) {
-    if (inputs.stream().anyMatch(input -> input.incomingBB().equals(incomingBB))) {
+  public N setInput(BB incomingBB, N node) {
+    var oldNode = inputs.get(incomingBB);
+    if (oldNode == null) {
       throw new IllegalArgumentException(
-          "There's already an input from the incoming BB: " + incomingBB);
+          "Incoming BB not a predecessor: " + incomingBB + " (node=" + node + ")");
     }
-    inputs.add(new Input<>(incomingBB, node));
-  }
+    if (!nodeClass.isInstance(node)) {
+      throw new IllegalArgumentException(
+          "Tried to add an input of incompatible type: "
+              + node
+              + " ("
+              + node.getClass().getSimpleName()
+              + ") is not an instance of the phi's node class "
+              + nodeClass.getSimpleName());
+    }
+    inputs.put(incomingBB, node);
+    verifyInputIfEagerConfig(new Input<>(incomingBB, node));
 
-  @Override
-  public N unsafeRemoveInput(BB incomingBB) {
-    var idx = Iterables.indexOf(inputs, input -> input.incomingBB().equals(incomingBB));
-    if (idx == -1) {
-      throw new NoSuchElementException("The input isn't present: " + incomingBB);
-    }
-    return inputs.remove(idx).node();
-  }
-
-  @Override
-  public void unsafeReplaceIncomingBB(BB old, BB replacement, Predicate<N> predicate) {
-    var inputs = this.inputs.listIterator();
-    while (inputs.hasNext()) {
-      var input = inputs.next();
-      if (input.incomingBB().equals(old)) {
-        if (predicate.test(input.node())) {
-          inputs.set(new Input<>(replacement, input.node()));
-        }
-        break;
-      }
-    }
-    throw new NoSuchElementException("The old incoming BB isn't present: " + old);
+    cfg.record(
+        new CFGEdit.SetPhiInput<>(this, incomingBB, node),
+        new CFGEdit.SetPhiInput<>(this, incomingBB, oldNode));
+    return oldNode;
   }
 
   @SuppressWarnings("unchecked")
   @Override
-  public void replace(Node old, Node replacement) {
+  public void replaceInArgs(Node old, Node replacement) {
     if (!nodeClass.isInstance(replacement)) {
       throw new IllegalArgumentException(
-          "Tried to replace with a node of incompatible type: " + replacement);
+          "Tried to replace with a node of incompatible type: "
+              + replacement
+              + " ("
+              + replacement.getClass().getSimpleName()
+              + ") is not an instance of the phi's node class "
+              + nodeClass.getSimpleName());
     }
-    var inputs = this.inputs.listIterator();
-    while (inputs.hasNext()) {
-      var input = inputs.next();
-      if (input.node().equals(old)) {
-        inputs.set(new Input<>(input.incomingBB(), (N) replacement));
+    for (var input : this.inputs.entrySet()) {
+      if (input.getValue().equals(old)) {
+        input.setValue((N) replacement);
+      }
+    }
+
+    cfg.record(
+        new CFGEdit.ReplaceInArgs(this, old, replacement),
+        new CFGEdit.ReplaceInArgs(this, replacement, old));
+  }
+
+  private void verifyInputIfEagerConfig(Phi.Input<?> input) {
+    if (EAGERLY_VERIFY_PHI_INPUTS) {
+      var issue = cfg().verifyPhiInput(this, input);
+      if (issue != null) {
+        throw new CFGVerifyException(cfg(), issue);
       }
     }
   }
@@ -314,5 +406,20 @@ abstract class PhiImpl<N extends Node> implements Phi<N> {
   @SuppressWarnings("unchecked")
   protected <T extends Phi<N>> NodeId<T> uncheckedCastId() {
     return (NodeId<T>) id;
+  }
+
+  @Override
+  public String toString() {
+    return Printer.toString(this);
+  }
+
+  @ParseMethod
+  private Phi<?> parse(Parser p) {
+    throw new UnsupportedOperationException("can't parse a Phi outside of a BB");
+  }
+
+  @PrintMethod
+  private void print(Printer p) {
+    p.withContext(new BBParseOrPrintContext(cfg(), null)).print(this);
   }
 }

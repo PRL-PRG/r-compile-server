@@ -1,6 +1,6 @@
 package org.prlprg.sexp;
 
-import static org.prlprg.Config.VECTOR_TRUNCATE_SIZE;
+import static org.prlprg.AppConfig.VECTOR_TRUNCATE_SIZE;
 
 import java.util.stream.BaseStream;
 import org.prlprg.primitive.Complex;

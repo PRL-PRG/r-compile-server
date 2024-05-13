@@ -1,8 +1,9 @@
 /**
  * <a href="https://en.wikipedia.org/wiki/Static_single-assignment_form">SSA-form</a> <a
- * href="https://en.wikipedia.org/wiki/Intermediate_representation">Intermediate representation</a>.
+ * href="https://en.wikipedia.org/wiki/Intermediate_representation">Intermediate representation</a>
+ * data-structures and operations.
  *
- * <p>This IR contains instructions corresponding to GNU-R bytecode and is a superset of <a
+ * <p>This IR is derived from <a
  * href="https://github.com/reactorlabs/rir/blob/master/documentation/pir.md">PIR</a>.
  *
  * <p>The CFG has a lot of invariants which can't be enforced at compile-time, and gets put into

@@ -16,6 +16,10 @@ import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.ir.type.REffects;
 import org.prlprg.ir.type.RType;
 import org.prlprg.ir.type.RTypes;
+import org.prlprg.parseprint.ParseMethod;
+import org.prlprg.parseprint.Parser;
+import org.prlprg.parseprint.PrintMethod;
+import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.SEXPType;
 import org.prlprg.util.Classes;
 import org.prlprg.util.Reflection;
@@ -28,11 +32,79 @@ import org.prlprg.util.UnreachableError;
  *
  * <p>This type is mutable and does not have subclasses for each specific instruction, while {@link
  * InstrData} is immutable and does. Don't construct {@link Instr}s directly, instead via {@link BB}
- * methods such as {@link BB#insertAt(int, String, StmtData)} and {@link BB#subst(Instr, String,
- * InstrData)}, which take {@link InstrData} as an argument and construct the {@link Instr}
+ * methods such as {@link BB#insertAt(int, String, StmtData)} and {@link BB#replace(int, String,
+ * StmtData)}, which take {@link InstrData} as an argument and construct the {@link Instr}
  * themselves.
  */
 public sealed interface Instr extends InstrOrPhi permits Jump, Stmt {
+  /**
+   * Mutate the instruction: specifically, change its {@linkplain #data() data} to a new instance of
+   * a compatible type.
+   *
+   * <p>If the data isn't of a compatible type, you must use {@link BatchSubst} to entirely replace
+   * the instruction with a new one, both in its {@linkplain BB basic block} and in other
+   * instruction's data. Note that {@link BatchSubst}'s time complexity is O(<# instructions in
+   * CFG>), while this methods's is O(1), so this method is preferred when possible.
+   *
+   * <p>This can't be an instance method because the type parameter of {@link InstrData} is
+   * invariant and restricts type of {@code instr}. Since Java's generics aren't very good you may
+   * still need to cast the {@code args}, fortunately the compatibility is also checked at runtime.
+   */
+  static <I extends Instr> void mutate(I instr, @Nullable String newName, InstrData<I> newArgs) {
+    var oldId = Node.idOf(instr);
+    boolean nameChanged;
+    if (newName == null) {
+      newName = oldId.name();
+      nameChanged = false;
+    } else {
+      nameChanged = !newName.equals(oldId.name());
+    }
+
+    if (!((InstrImpl<?>) instr).canReplaceDataWith(newArgs)) {
+      throw new IllegalArgumentException(
+          "Incompatible data for replacement: " + instr + " -> " + newArgs);
+    }
+
+    var wasEmpty = false;
+    if (instr instanceof Jump j) {
+      for (var succ : j.targets()) {
+        succ.unsafeRemovePredecessor(((JumpImpl<?>) j).bb());
+      }
+      wasEmpty = j.targets().isEmpty();
+    }
+    if (nameChanged) {
+      instr.cfg().untrack(instr);
+    }
+
+    @SuppressWarnings("unchecked")
+    var oldArgs = (InstrData<I>) instr.data();
+    ((InstrImpl<?>) instr).unsafeReplaceData(newName, newArgs);
+
+    if (nameChanged) {
+      instr.cfg().track(instr);
+    }
+    if (instr instanceof Jump j) {
+      var bb = ((JumpImpl<?>) j).bb();
+
+      for (var succ : j.targets()) {
+        succ.unsafeAddPredecessor(bb);
+      }
+
+      var isEmpty = j.targets().isEmpty();
+      if (!wasEmpty && isEmpty) {
+        instr.cfg().markExit(bb);
+      } else if (wasEmpty && !isEmpty) {
+        instr.cfg().unmarkExit(bb);
+      }
+    }
+
+    instr
+        .cfg()
+        .record(
+            new CFGEdit.MutateInstr<>(oldId, instr.id().name(), newArgs),
+            new CFGEdit.MutateInstr<>(Node.idOf(instr), oldId.name(), oldArgs));
+  }
+
   /** (A shallow copy of) the instruction's arguments, which are the other nodes it depends on. */
   @Override
   ImmutableList<Node> args();
@@ -50,6 +122,11 @@ public sealed interface Instr extends InstrOrPhi permits Jump, Stmt {
   /** Side-effects performed when this instruction is executed. */
   REffects effects();
 
+  /** Whether the instruction produces no side-effects. */
+  default boolean isPure() {
+    return effects().isEmpty();
+  }
+
   /**
    * The instruction's data, which determines what type of instruction it is and contains specificly
    * typed children. This is useful for pattern-matching:
@@ -62,29 +139,15 @@ public sealed interface Instr extends InstrOrPhi permits Jump, Stmt {
    *   }
    * </pre>
    *
-   * <p>Unlike {@link Node#id()}, the erased type in {@link InstrData} isn't guaranteed to be equal
-   * to this object's class. It's merely guaranteed to be a superclass. Specifically, it's
-   * guaranteed to be the same class as all instances that satisfy the predicate {@link
-   * #canReplaceDataWith}.
+   * <p>The erased type in {@link InstrData} isn't guaranteed to be equal to this object's class,
+   * it's merely guaranteed to be a superclass. Specifically, it's guaranteed to be the same class
+   * as any {@link InstrData} which can be replaced in this instruction via {@link
+   * Instr#mutate(Instr, String, InstrData)} (without throwing a runtime exception).
    */
-  // Transitively overridden so IntelliJ can't detect that this doesn't apply.
+  // Overridden via an class that doesn't implement `Instr` so it doesn't mess up `Instr`'s sealed
+  // interface hierarchy. So IntelliJ can't detect that `EmptyMethod` doesn't apply.
   @SuppressWarnings("EmptyMethod")
   InstrData<?> data();
-
-  /**
-   * Whether the instruction's data can be replaced with the specified instance. Calling {@link
-   * BB#subst(Instr, String, InstrData)} will not throw iff this returns {@code true}.
-   */
-  boolean canReplaceDataWith(InstrData<?> newData);
-
-  /**
-   * Replace the instruction's name and data without updating BB predecessors.
-   *
-   * <p>Call {@link BB#subst(Instr, String, InstrData)} instead.
-   *
-   * @throws IllegalArgumentException If the new type of data isn't compatible with the instruction.
-   */
-  void unsafeReplaceData(String newName, InstrData<?> newData);
 
   /**
    * Check that arguments are of the correct dynamic type ({@link RType}) and set cached data.
@@ -163,7 +226,15 @@ abstract sealed class InstrImpl<D extends InstrData<?>> implements NodeWithCfg
     args = Streams.concat(singleArgs, argLists).collect(ImmutableList.toImmutableList());
   }
 
-  protected final void replace(String argTypeStr, Object old, Object replacement) {
+  /**
+   * Replace the object in {@link #data()}.
+   *
+   * <p>This is "unsafe" because no {@linkplain CFGEdit edit} is recorded. It should only be used
+   * internally by {@link InstrImpl} and subclasses.
+   *
+   * @throws IllegalArgumentException If the old object wasn't in {@link #data()}.
+   */
+  protected final void unsafeReplaceInData(String argTypeStr, Object old, Object replacement) {
     // Reflectively look through the arguments AKA record components,
     // and throw an exception if `old` isn't present or `replacement` is the wrong type.
     // Also, build an array of new arguments, where `old` is replaced with `replacement`.
@@ -263,9 +334,12 @@ abstract sealed class InstrImpl<D extends InstrData<?>> implements NodeWithCfg
     verify();
   }
 
-  // @Override
-  public final void replace(Node old, Node replacement) {
-    replace("node", old, replacement);
+  public final void replaceInArgs(Node old, Node replacement) {
+    unsafeReplaceInData("node", old, replacement);
+
+    cfg.record(
+        new CFGEdit.ReplaceInArgs((Instr) this, old, replacement),
+        new CFGEdit.ReplaceInArgs((Instr) this, replacement, old));
   }
 
   /**
@@ -349,15 +423,26 @@ abstract sealed class InstrImpl<D extends InstrData<?>> implements NodeWithCfg
     return data;
   }
 
-  // @Override
+  /**
+   * Whether the instruction's data can be replaced with the specified instance. Calling {@link
+   * Instr#mutate(Instr, String, InstrData)} will not throw iff this returns {@code true}.
+   */
   public final boolean canReplaceDataWith(InstrData<?> newData) {
     return dataClass.isInstance(newData);
   }
 
+  /**
+   * Replace the instruction's name and data <i>without</i> updating BB predecessors or recording an
+   * {@linkplain CFGEdit edit}.
+   *
+   * <p>Call {@link Instr#mutate(Instr, String, InstrData)} to update predecessors and record an
+   * edit.
+   *
+   * @throws IllegalArgumentException If the new type of data isn't compatible with the instruction.
+   */
   @SuppressWarnings("unchecked")
-  // @Override (can't override because it's not a subclass itself, although its own subclasses are)
   public final void unsafeReplaceData(String newName, InstrData<?> newData) {
-    if (!dataClass.isInstance(newData)) {
+    if (!canReplaceDataWith(newData)) {
       throw new IllegalArgumentException(
           "Can't replace data in "
               + getClass().getSimpleName()
@@ -559,5 +644,20 @@ abstract sealed class InstrImpl<D extends InstrData<?>> implements NodeWithCfg
   @SuppressWarnings("unchecked")
   protected <T extends Instr> NodeId<T> uncheckedCastId() {
     return (NodeId<T>) id;
+  }
+
+  @Override
+  public String toString() {
+    return Printer.toString(this);
+  }
+
+  @ParseMethod
+  private Instr parse(Parser p) {
+    throw new UnsupportedOperationException("can't parse a Phi outside of a BB");
+  }
+
+  @PrintMethod
+  private void print(Printer p) {
+    p.withContext(new BBParseOrPrintContext(cfg(), null)).print(this);
   }
 }

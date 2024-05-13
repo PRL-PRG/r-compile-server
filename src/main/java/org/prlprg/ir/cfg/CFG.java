@@ -1,5 +1,7 @@
 package org.prlprg.ir.cfg;
 
+import com.google.common.collect.Iterators;
+import com.google.common.collect.Streams;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -13,7 +15,12 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.SequencedMap;
 import java.util.SequencedSet;
+import java.util.function.Predicate;
+import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
+import org.prlprg.ir.analysis.CFGAnalyses;
+import org.prlprg.ir.analysis.DefUseAnalysis;
+import org.prlprg.ir.analysis.DomTree;
 import org.prlprg.ir.cfg.CFGIterator.DomTreeBfs;
 import org.prlprg.ir.cfg.CFGVerifyException.BrokenInvariant;
 import org.prlprg.ir.cfg.CFGVerifyException.MissingJump;
@@ -27,7 +34,14 @@ import org.prlprg.parseprint.Printer;
  */
 @SuppressFBWarnings({"EI_EXPOSE_REP", "EI_EXPOSE_REP2"})
 public class CFG
-    implements CFGQuery, CFGIntrinsicMutate, CFGCleanup, CFGVerify, CFGParsePrint, CFGPirSerialize {
+    implements CFGQuery,
+        CFGAnalyses,
+        CFGIntrinsicMutate,
+        CFGCompoundMutate,
+        CFGCleanup,
+        CFGVerify,
+        CFGParsePrint,
+        CFGPirSerialize {
   private final List<CFGObserver> observers = new ArrayList<>();
   private final BB entry;
   // These are ordered to ensure deterministic traversal
@@ -35,14 +49,19 @@ public class CFG
   private final SequencedMap<BBId, BB> bbs = new LinkedHashMap<>();
   // These don't need to be ordered, because we don't traverse them directly
   private final Map<NodeId<?>, Node> nodes = new HashMap<>();
-  private final Map<String, Integer> nextBbIds = new HashMap<>();
-  private final Map<String, Integer> nextNodeIds = new HashMap<>();
+  private final InstrPhiOrBBIdMap nextBbIds = new InstrPhiOrBBIdMap();
+  private final InstrPhiOrBBIdMap nextInstrOrPhiIds = new InstrPhiOrBBIdMap();
+  //
+  private @Nullable DomTree cachedDomTree;
+  private @Nullable DefUseAnalysis cachedDefUseAnalysis;
 
   /** Create a new CFG, with a single basic block and no instructions. */
   @SuppressFBWarnings("CT_CONSTRUCTOR_THROW")
   public CFG() {
-    nextNodeIds.put("n", 0);
-    nextBbIds.put("bb", 0);
+    // Prevent blocks and nodes from having these ids without a disambiguator
+    nextInstrOrPhiIds.next("n");
+    nextBbIds.next("bb");
+    //
     entry = new BB(this, "");
     bbs.put(entry.id(), entry);
     markExit(entry);
@@ -106,12 +125,7 @@ public class CFG
     return new Phi.Input<>(bb, node);
   }
 
-  @Override
-  public DomTree domTree() {
-    return new DomTree(this);
-  }
-
-  // endregion
+  // endregion general properties
 
   // region iterate
   @Override
@@ -149,9 +163,28 @@ public class CFG
     return () -> new DomTreeBfs(tree);
   }
 
-  // endregion
+  // endregion iterate
 
-  // region mutate
+  // region analyses
+  @Override
+  public DomTree domTree() {
+    if (cachedDomTree == null) {
+      cachedDomTree = CFGCleanup.super.domTree();
+    }
+    return cachedDomTree;
+  }
+
+  @Override
+  public DefUseAnalysis defUses() {
+    if (cachedDefUseAnalysis == null) {
+      cachedDefUseAnalysis = CFGCleanup.super.defUses();
+    }
+    return cachedDefUseAnalysis;
+  }
+
+  // endregion analyses
+
+  // region mutate BBs
   @Override
   public BB addBB() {
     return addBB("");
@@ -167,6 +200,7 @@ public class CFG
   @Override
   public void remove(BB bb) {
     doRemove(bb);
+    record(new CFGEdit.RemoveBB(bb), new CFGEdit.InsertBB(bb.id().name()));
   }
 
   @Override
@@ -176,31 +210,7 @@ public class CFG
     return bb;
   }
 
-  // endregion
-
-  // region additional recording operations
-  @Override
-  public void beginSection(String label) {
-    for (var observer : observers) {
-      observer.beginSection(label);
-    }
-  }
-
-  @Override
-  public void endSection() {
-    for (var observer : observers) {
-      observer.endSection();
-    }
-  }
-
-  @Override
-  public void recordDivider(String label) {
-    for (var observer : observers) {
-      observer.recordDivider(label);
-    }
-  }
-
-  // endregion
+  // endregion mutate BBs
 
   // region observers
   @Override
@@ -226,26 +236,52 @@ public class CFG
     }
   }
 
-  // endregion
+  // endregion observers
+
+  // region additional recording operations
+  @Override
+  public void beginSection(String label) {
+    for (var observer : observers) {
+      observer.beginSection(label);
+    }
+  }
+
+  @Override
+  public void endSection() {
+    for (var observer : observers) {
+      observer.endSection();
+    }
+  }
+
+  @Override
+  public void recordDivider(String label) {
+    for (var observer : observers) {
+      observer.recordDivider(label);
+    }
+  }
+
+  private void invalidateCaches() {
+    cachedDomTree = null;
+    cachedDefUseAnalysis = null;
+  }
+
+  // endregion additional recording operations
 
   // region verify and toString
   @Override
   public void verify() {
+    var domTree = domTree();
     var errors = new ArrayList<BrokenInvariant>();
 
-    // Must be DFS so that we can cache defined nodes in onlyPred blocks...
-    var iter = new CFGIterator.Dfs(this);
-    // ...which we do here in `prevNodes`: during iteration, `prevNodes` holds nodes guaranteed to
-    // be defined before the current instruction without control flow ambiguity, that is,
-    // referencable ones.
-    var prevNodes = new HashSet<Node>();
-    BB prevBB = null;
+    // Must be dom-tree so that we store nodes encountered from dominators to correctly report that
+    // they don't need to be in phi nodes (unlike those not in dominators).
+    var iter = new CFGIterator.DomTreeBfs(domTree);
+    var prevNodesInBBs = new HashMap<BB, HashSet<Node>>();
     while (iter.hasNext()) {
       var bb = iter.next();
 
-      if (!bb.hasSinglePredecessor() || bb.onlyPredecessor() != prevBB) {
-        prevNodes.clear();
-      }
+      var prevNodes = new HashSet<Node>(bb.numChildren());
+      prevNodesInBBs.put(bb, prevNodes);
 
       // Every basic block has a non-null jump.
       if (bb.jump() == null) {
@@ -257,21 +293,8 @@ public class CFG
         errors.add(new PhisInSinglePredecessorBB(bb.id()));
       }
 
-      for (var phi : bb.phis()) {
-        // Phi nodes have an entry from every predecessor.
-        for (var input : phi.inputs()) {
-          if (!bb.predecessors().contains(input.incomingBB())) {
-            errors.add(
-                new CFGVerifyException.ExtraInputInPhi(bb.id(), phi.id(), input.incomingBB().id()));
-          }
-        }
-        for (var pred : bb.predecessors()) {
-          if (!phi.containsInput(pred)) {
-            errors.add(new CFGVerifyException.MissingInputInPhi(bb.id(), phi.id(), pred.id()));
-          }
-        }
-      }
-
+      // Instructions and phis don't have arguments that were removed from the CFG (or were never in
+      // the CFG).
       for (var instrOrPhi : bb) {
         assert instrOrPhi.cfg() == this;
 
@@ -281,27 +304,47 @@ public class CFG
 
           if (arg.cfg() != null) {
             if (!nodes.containsKey(arg.id())) {
-              // Instructions don't have arguments that were removed from the CFG (or not present
-              // initially).
               errors.add(new CFGVerifyException.UntrackedArg(bb.id(), instrOrPhi.id(), arg.id()));
-            } else if (instrOrPhi instanceof Instr instr && !prevNodes.contains(arg)) {
-              // Instruction arguments all either originate from earlier in the block, or are
-              // CFG-independent. *Except* in basic blocks with exactly one predecessor, instruction
-              // arguments may be from that predecessor or, if it also has one predecessor, its
-              // predecessor and so on.
-              errors.add(
-                  new CFGVerifyException.ArgNotDefinedBeforeUse(bb.id(), instr.id(), arg.id()));
             }
-
-            // TODO: Instruction `RValue` arguments are of the correct (dynamic) type (need to add
-            //  annotation).
           }
         }
-
-        prevNodes.addAll(instrOrPhi.returns());
       }
 
-      prevBB = bb;
+      // Every phi input node is global or originates from a block that the incoming BB dominates
+      // (non-strict, so includes the incoming block itself).
+      for (var phi : bb.phis()) {
+        for (var input : phi.iterInputs()) {
+          var broken = verifyPhiInput(phi, input);
+          if (broken != null) {
+            errors.add(broken);
+          }
+        }
+      }
+
+      // Every instruction argument is either global, originates from earlier in the instruction's
+      // block, or originates from a strictly dominating block.
+      prevNodes.addAll(bb.phis());
+      for (var instr : bb.instrs()) {
+        for (var arg : instr.args()) {
+          // `prevNodesInBBs` will contain iff the argument originates from earlier in the current
+          // block OR the argument originates from anywhere in a strictly dominating block.
+          if (arg.origin() != null
+              && Streams.stream(domTree.dominators(bb, false))
+                  .noneMatch(d -> prevNodesInBBs.get(d).contains(arg.origin()))) {
+            errors.add(
+                new CFGVerifyException.ArgNotDefinedBeforeUse(bb.id(), instr.id(), arg.id()));
+          }
+        }
+        // The lines where we add to `prevNodes` (this one and the one above the for loop) ensure
+        // the invariant in the above comment.
+        prevNodes.addAll(instr.returns());
+      }
+
+      // Instruction-specific checks ({@link Instr#verify()}). Example: every {@link RValue}
+      // instruction argument is of the correct (dynamic) type.
+      for (var instr : bb.instrs()) {
+        instr.verify();
+      }
     }
 
     for (var remainingBBId : iter.remainingBBIds()) {
@@ -314,16 +357,44 @@ public class CFG
     }
   }
 
+  @Nullable BrokenInvariant verifyPhiInput(Phi<?> phi, Phi.Input<?> input) {
+    // Every phi input node is global or originates from a block that the incoming BB dominates
+    // (non-strict, so includes the incoming block itself).
+    var incomingBB = input.incomingBB();
+    var node = input.node();
+
+    if (node.cfg() == null) {
+      // Node is global.
+      return null;
+    }
+
+    var domTree = domTree();
+    var defUses = defUses();
+
+    var originBB = defUses.originBB(node);
+    Predicate<BB> isValidIncomingBB =
+        bb -> Iterators.contains(domTree.dominators(bb, false), originBB);
+    return isValidIncomingBB.test(incomingBB)
+        ? null
+        : new CFGVerifyException.IncorrectIncomingBBInPhi(
+            incomingBB.id(),
+            phi.id(),
+            originBB.id(),
+            incomingBB.id(),
+            phi.incomingBBs().stream().filter(isValidIncomingBB).map(BB::id).toList());
+  }
+
   @Override
   public String toString() {
     return Printer.toString(this);
   }
 
-  // endregion
+  // endregion verify and toString
 
-  // region for BB and Node
+  // region for BB and node
   /** Record an edit to this CFG. */
   void record(CFGEdit.Intrinsic<?> edit, CFGEdit.Intrinsic<?> inverse) {
+    invalidateCaches();
     for (var observer : observers) {
       observer.record(edit, inverse);
     }
@@ -351,13 +422,17 @@ public class CFG
    */
   void doRemove(BB bb) {
     var removed = bbs.remove(bb.id());
+
     if (removed == null) {
       throw new IllegalArgumentException("BB already removed");
     }
+    assert removed == bb;
+
+    nextBbIds.remove(bb.id().name());
+
     if (bb.successors().isEmpty()) {
       unmarkExit(bb);
     }
-    assert removed == bb;
   }
 
   /**
@@ -400,8 +475,8 @@ public class CFG
   /**
    * Mark an instructions and/or phis <i>and their auxillary values</i> as belonging to this CFG.
    *
-   * <p>This is called from {@link BB} when it inserts or replaces an instruction or phi. Tracked
-   * nodes are used for verification.
+   * <p>This is called from {@link BB} when it inserts or replaces an instruction or phi. All local
+   * nodes in the CFG must be tracked (global nodes are <i>not</i> tracked).
    */
   void trackAll(Collection<? extends InstrOrPhi> instrOrPhis) {
     for (var instrOrPhi : instrOrPhis) {
@@ -413,7 +488,8 @@ public class CFG
    * Mark an instruction or phi <i>and its auxillary values</i> as no longer belonging to this CFG.
    *
    * <p>This is called from {@link BB} when it replaces or removes an instruction or phi, and {@link
-   * CFG} itself when it removes a {@link BB}. Tracked nodes are used for verification.
+   * CFG} itself when it removes a {@link BB}. All local nodes in the CFG must be tracked (global
+   * nodes are <i>not</i> tracked)
    */
   void untrack(InstrOrPhi instrOrPhi) {
     untrack((Node) instrOrPhi);
@@ -424,6 +500,8 @@ public class CFG
         }
       }
     }
+
+    nextInstrOrPhiIds.remove(instrOrPhi.id().name());
   }
 
   /**
@@ -433,24 +511,38 @@ public class CFG
    * <p>This is called from {@link BB} when it replaces or removes an instruction or phi, and {@link
    * CFG} itself when it removes a {@link BB}. Tracked nodes are used for verification.
    */
-  void untrackAll(Collection<? extends Node> instrOrPhis) {
+  void untrackAll(Collection<? extends InstrOrPhi> instrOrPhis) {
     for (var instrOrPhi : instrOrPhis) {
       untrack(instrOrPhi);
     }
   }
 
-  /** Mark a node as belonging to this CFG. */
+  /**
+   * Mark a node as belonging to this CFG.
+   *
+   * <p>If the node is an instruction or phi, it may in the future require extra code to fully
+   * untrack. This method should remain private.
+   */
   private void track(Node node) {
+    assert node.cfg() == this : "node to track is global or belongs to a different CFG: " + node;
+
     var id = node.id();
     assert id.clazz() == null || id.clazz().isInstance(node);
     var old = nodes.put(id, node);
-    assert old == null : "Node with id already tracked: " + id + "\nold: " + old + "\nnew: " + node;
+    assert old == null : "node with id already tracked: " + id + "\nold: " + old + "\nnew: " + node;
   }
 
-  /** Mark a node as no longer belonging to this CFG. */
+  /**
+   * Mark a node as no longer belonging to this CFG.
+   *
+   * <p>If the node is an instruction or phi, it requires extra code to fully untrack. This method
+   * should remain private.
+   */
   private void untrack(Node node) {
+    assert node.cfg() == this : "node to untrack is global or belongs to a different CFG: " + node;
+
     var removed = nodes.remove(node.id());
-    assert removed != null : "Node was never tracked";
+    assert removed != null : "node was never tracked";
     assert removed == node;
   }
 
@@ -458,33 +550,26 @@ public class CFG
    * Escapes and disambiguates {@code name}, or replaces with a default id if empty.
    *
    * <p>This is called within {@link BBId} (importantly not {@link BB} itself), so don't call again
-   * or it would be redundant.
+   * or it will be redundant.
    */
   String nextBBId(String name) {
     if (name.isEmpty()) {
       name = "bb";
     }
-    return NodesAndBBIds.nextId(name, nextBbIds);
+    return nextBbIds.next(name);
   }
 
   /**
    * Escapes and disambiguates {@code name}, or replaces with a default id if empty.
    *
    * <p>This is called within {@link PhiId} and {@link InstrId} (importantly not {@link Phi} or
-   * {@link Instr} themselves), so don't call again or it would be redundant.
+   * {@link Instr} themselves), so don't call again or it will be redundant.
    */
-  String nextNodeId(String name) {
+  String nextInstrOrPhiId(String name) {
     if (name.isEmpty()) {
       name = "n";
     }
-    return NodesAndBBIds.nextId(name, nextNodeIds);
+    return nextInstrOrPhiIds.next(name);
   }
-  // endregion
-
-  // TODO: make sure when we split, delete BBs, phi nodes are updated if necessary, and removed
-  // nodes aren't
-  //  dependencies of other nodes in the CFG (including removed auxillary nodes, not just
-  // instructions).
-
-  // TODO: Fancy toString for Instr and nodes
+  // endregion for BB and node
 }

@@ -2,6 +2,7 @@ package org.prlprg.ir.cfg;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterables;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -19,6 +20,11 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
+import org.prlprg.parseprint.ParseMethod;
+import org.prlprg.parseprint.Parser;
+import org.prlprg.parseprint.PrintMethod;
+import org.prlprg.parseprint.Printer;
+import org.prlprg.util.Strings;
 import org.prlprg.util.UnreachableError;
 
 /**
@@ -53,12 +59,12 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     return id;
   }
 
-  // endregion
+  // endregion parent and self
 
   // region predecessors and successors (access)
   @Override
-  public @UnmodifiableView Collection<BB> predecessors() {
-    return Collections.unmodifiableCollection(predecessors);
+  public @UnmodifiableView SequencedCollection<BB> predecessors() {
+    return Collections.unmodifiableSequencedCollection(predecessors);
   }
 
   @Override
@@ -76,7 +82,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     return jump == null ? List.of() : Collections.unmodifiableSequencedCollection(jump.targets());
   }
 
-  // endregion
+  // endregion predecessors and successors (access)
 
   // region count, iterate, and access nodes
   @Override
@@ -292,8 +298,8 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     return jump;
   }
 
-  // endregion
-  // endregion
+  // endregion count, iterate, and access nodes
+  // endregion access
 
   // region mutate
   // region split and merge
@@ -307,7 +313,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     for (var pred : predecessors) {
       assert pred.jump != null && pred.jump.targets().contains(this)
           : "BB has predecessor whose jump doesn't point to it";
-      pred.jump.replace(this, newBB);
+      ((JumpImpl<?>) pred.jump).unsafeReplaceInTargets(this, newBB);
     }
 
     newBB.phis.addAll(phis);
@@ -331,26 +337,19 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
       assert succ.predecessors.contains(this)
           : "BB has successor whose predecessors set doesn't contain it";
       succ.predecessors.set(succ.predecessors.indexOf(this), newBB);
+      for (var phi : succ.phis) {
+        ((PhiImpl<?>) phi).unsafeReplaceIncomingBB(this, newBB);
+      }
     }
 
     newBB.stmts.addAll(stmts.subList(index, stmts.size()));
     newBB.jump = jump;
+    if (newBB.jump != null) {
+      ((JumpImpl<?>) newBB.jump).unsafeSetBB(newBB);
+    }
     stmts.subList(index, stmts.size()).clear();
     jump = null;
     addJump("", new JumpData.Goto(newBB));
-
-    for (var succ : newBB.successors()) {
-      for (var phi : succ.phis) {
-        // We don't want to record this because it's part of the SplitBB edit.
-        phi.unsafeReplaceIncomingBB(
-            this,
-            newBB,
-            node -> {
-              var origin = node.origin();
-              return origin != null && newBB.contains(origin);
-            });
-      }
-    }
 
     cfg().record(new CFGEdit.SplitBB(this, index), new CFGEdit.MergeBBs(this, newBB));
     return newBB;
@@ -374,13 +373,25 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     for (var pred : succ.predecessors) {
       assert pred.jump != null && pred.jump.targets().contains(succ)
           : "Successor has predecessor whose jump doesn't point to it";
-      pred.jump.replace(succ, this);
+      ((JumpImpl<?>) pred.jump).unsafeReplaceInTargets(succ, this);
+    }
+
+    for (var succ2 : succ.successors()) {
+      assert succ2.predecessors.contains(succ)
+          : "BB has successor whose predecessors set doesn't contain it";
+      succ2.predecessors.set(succ2.predecessors.indexOf(succ), this);
+      for (var phi : succ2.phis) {
+        ((PhiImpl<?>) phi).unsafeReplaceIncomingBB(succ, this);
+      }
     }
 
     var resplitIndex = stmts.size();
 
     stmts.addAll(succ.stmts);
     jump = succ.jump;
+    if (jump != null) {
+      ((JumpImpl<?>) jump).unsafeSetBB(this);
+    }
     succ.stmts.clear();
     succ.jump = null;
 
@@ -389,15 +400,16 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     cfg().record(new CFGEdit.MergeBBs(this, succ), new CFGEdit.SplitBB(this, resplitIndex));
   }
 
-  // endregion
+  // endregion split and merge
 
   // region add nodes
   @Override
   public <N extends Node> Phi<N> addPhi(
       Class<? extends N> nodeClass,
       @Nullable String name,
-      Collection<? extends Phi.Input<? extends N>> inputs) {
-    var phi = Phi.forClass(nodeClass, cfg(), name, inputs);
+      SequencedCollection<? extends Phi.Input<? extends N>> inputs) {
+    var phi = PhiImpl.<N>forClass(nodeClass, cfg(), name, inputs);
+    verifyPhiInputBBs(phi);
     phis.add(phi);
     cfg().track(phi);
 
@@ -409,13 +421,31 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
   public ImmutableList<? extends Phi<?>> addPhis(Collection<? extends Phi.Args<?>> phiArgs) {
     var phis =
         phiArgs.stream()
-            .map(args -> Phi.<Node>forClass(args.nodeClass(), cfg(), args.name(), args.inputs()))
+            .map(
+                args -> PhiImpl.<Node>forClass(args.nodeClass(), cfg(), args.name(), args.inputs()))
             .collect(ImmutableList.toImmutableList());
+    for (var phi : phis) {
+      verifyPhiInputBBs(phi);
+    }
     this.phis.addAll(phis);
     cfg().trackAll(phis);
 
     cfg().record(CFGEdit.InsertPhis.altNew(this, phis), new CFGEdit.RemovePhis(this, phis));
     return phis;
+  }
+
+  private void verifyPhiInputBBs(Phi<?> phi) {
+    if (!Iterables.elementsEqual(predecessors, phi.incomingBBs())) {
+      throw new IllegalArgumentException(
+          "Phi's incoming BBs must equal its origin BB's predecessors:"
+              + "\nOrigin BB's predecessors: ["
+              + predecessors.stream().map(BB::id).collect(Strings.joining(", "))
+              + "]\nPhi incoming BBs: ["
+              + phi.incomingBBs().stream().map(BB::id).collect(Strings.joining(", "))
+              + "]\n* Phi input nodes: ["
+              + Strings.join(", ", phi.inputNodes())
+              + "]");
+    }
   }
 
   @Override
@@ -503,12 +533,11 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     return jump;
   }
 
-  // endregion
+  // endregion add nodes
 
-  // region update nodes (replace and subst)
+  // region replace nodes
   @Override
-  public <I extends Stmt> I replaceNoSubst(
-      int index, @Nullable String newName, StmtData<I> newArgs) {
+  public <I extends Stmt> I replace(int index, @Nullable String newName, StmtData<I> newArgs) {
     if (index < 0 || index >= stmts.size()) {
       throw new IndexOutOfBoundsException("Index out of range: " + index);
     }
@@ -532,7 +561,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
   }
 
   @Override
-  public <I extends Jump> I replaceJumpNoSubst(@Nullable String newName, JumpData<I> newArgs) {
+  public <I extends Jump> I replaceJump(@Nullable String newName, JumpData<I> newArgs) {
     if (jump == null) {
       throw new IllegalStateException(id() + " doesn't have a jump");
     }
@@ -553,98 +582,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     return newJump;
   }
 
-  @Override
-  public <N extends Node> void addPhiInput(Phi<N> phi, BB incomingBB, N input) {
-    if (!phis.contains(phi)) {
-      throw new NoSuchElementException("Phi not in " + id() + ": " + phi);
-    }
-    phi.unsafeAddInput(incomingBB, input);
-
-    cfg()
-        .record(
-            new CFGEdit.AddPhiInput<>(this, phi, incomingBB, input),
-            new CFGEdit.RemovePhiInput<>(this, phi, incomingBB));
-  }
-
-  @Override
-  public <N extends Node> N removePhiInput(Phi<N> phi, BB incomingBB) {
-    if (!phis.contains(phi)) {
-      throw new NoSuchElementException("Phi not in " + id() + ": " + phi);
-    }
-    var input = phi.unsafeRemoveInput(incomingBB);
-
-    cfg()
-        .record(
-            new CFGEdit.RemovePhiInput<>(this, phi, incomingBB),
-            new CFGEdit.AddPhiInput<>(this, phi, incomingBB, input));
-    return input;
-  }
-
-  @Override
-  public <I extends Instr> void subst(I instr, @Nullable String newName, InstrData<I> newArgs) {
-    if (instr.cfg() != cfg()) {
-      throw new IllegalArgumentException("Replace instr not in CFG: " + instr);
-    }
-    switch (instr) {
-      case Stmt stmt when !stmts.contains(stmt) ->
-          throw new IllegalArgumentException("Replace instr not in " + id() + ": " + instr);
-      case Jump jump1 when jump != jump1 ->
-          throw new IllegalArgumentException("Replace instr not in " + id() + ": " + instr);
-      default -> {}
-    }
-
-    var oldId = Node.idOf(instr);
-    boolean nameChanged;
-    if (newName == null) {
-      newName = oldId.name();
-      nameChanged = false;
-    } else {
-      nameChanged = !newName.equals(oldId.name());
-    }
-
-    if (!instr.canReplaceDataWith(newArgs)) {
-      throw new IllegalArgumentException(
-          "Incompatible data for replacement: " + instr + " -> " + newArgs);
-    }
-
-    var wasEmpty = false;
-    if (instr instanceof Jump j) {
-      for (var succ : j.targets()) {
-        succ.predecessors.remove(this);
-      }
-      wasEmpty = j.targets().isEmpty();
-    }
-    if (nameChanged) {
-      cfg().untrack(instr);
-    }
-
-    @SuppressWarnings("unchecked")
-    var oldArgs = (InstrData<I>) instr.data();
-    instr.unsafeReplaceData(newName, newArgs);
-
-    if (nameChanged) {
-      cfg().track(instr);
-    }
-    if (instr instanceof Jump j) {
-      for (var succ : j.targets()) {
-        succ.predecessors.add(this);
-      }
-
-      var isEmpty = j.targets().isEmpty();
-      if (!wasEmpty && isEmpty) {
-        cfg().markExit(this);
-      } else if (wasEmpty && !isEmpty) {
-        cfg().unmarkExit(this);
-      }
-    }
-
-    cfg()
-        .record(
-            new CFGEdit.SubstInstr<>(this, oldId, instr.id().name(), newArgs),
-            new CFGEdit.SubstInstr<>(this, Node.idOf(instr), oldId.name(), oldArgs));
-  }
-
-  // endregion
+  // endregion replace nodes
 
   // region remove nodes
   @Override
@@ -730,10 +668,40 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     return jump;
   }
 
-  // endregion
-  // endregion
+  // endregion remove nodes
+  // endregion mutate
 
-  // region shared private methods
+  // region misc internal methods
+  /**
+   * Add a predecessor without notifying successors or recording an {@linkplain CFGEdit edit} (so,
+   * if called alone, it will leave the {@link CFG} in an illegal state).
+   *
+   * <p>This <i>will</i> add an input to phis within the block for the new predecessor.
+   *
+   * <p>Called by {@link Instr#mutate(Instr, String, InstrData)} so it can't be private.
+   */
+  void unsafeAddPredecessor(BB predecessor) {
+    predecessors.add(predecessor);
+    for (var phi : phis) {
+      ((PhiImpl<?>) phi).unsafeAddUnsetInput(predecessor);
+    }
+  }
+
+  /**
+   * Remove a predecessor without notifying successors or recording an {@linkplain CFGEdit edit}
+   * (so, if called alone, it will leave the {@link CFG} in an illegal state).
+   *
+   * <p>This <i>will</i> remove the input to phis within the block for the old predecessor.
+   *
+   * <p>Called by {@link Instr#mutate(Instr, String, InstrData)} so it can't be private.
+   */
+  void unsafeRemovePredecessor(BB predecessor) {
+    predecessors.remove(predecessor);
+    for (var phi : phis) {
+      ((PhiImpl<?>) phi).unsafeRemoveInput(predecessor);
+    }
+  }
+
   /** Set jump and update successors. Doesn't update CFG tracking. */
   private void setJump(@Nullable Jump jump) {
     if (jump == this.jump) {
@@ -741,14 +709,16 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     }
     if (this.jump != null) {
       for (var succ : this.jump.targets()) {
-        succ.predecessors.remove(this);
+        succ.unsafeRemovePredecessor(this);
       }
+      ((JumpImpl<?>) this.jump).unsafeSetBB(null);
     }
     this.jump = jump;
     if (jump != null) {
       for (var succ : jump.targets()) {
-        succ.predecessors.add(this);
+        succ.unsafeAddPredecessor(this);
       }
+      ((JumpImpl<?>) jump).unsafeSetBB(this);
     }
 
     var wasExit = this.jump == null || this.jump.targets().isEmpty();
@@ -759,5 +729,21 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
       cfg().unmarkExit(this);
     }
   }
-  // endregion
+
+  // endregion misc internal methods
+
+  @Override
+  public String toString() {
+    return Printer.toString(this);
+  }
+
+  @ParseMethod
+  private BB parse(Parser p) {
+    return p.withContext(new CFGParseOrPrintContext(cfg())).parse(BB.class);
+  }
+
+  @PrintMethod
+  private void print(Printer p) {
+    p.withContext(new CFGParseOrPrintContext(cfg())).print(this);
+  }
 }

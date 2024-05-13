@@ -252,7 +252,9 @@ public class Scanner {
           }
           if (trySkip('e') || trySkip('E')) {
             string.append('e');
-            if (trySkip('-')) {
+            if (trySkip('+')) {
+              string.append('+');
+            } else if (trySkip('-')) {
               string.append('-');
             }
             string.append(readWhile(Character::isDigit));

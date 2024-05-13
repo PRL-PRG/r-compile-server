@@ -1,11 +1,8 @@
-/**
- * {@link org.prlprg.ir.cfg.CFG}, {@link org.prlprg.ir.cfg.BB}, and {@link org.prlprg.ir.cfg.Node}
- * data types and basic operations, as well as every type of value and instruction.
- */
+/** Data-structures which compute and cache the result of control-flow and data-flow analyses. */
 @ParametersAreNonnullByDefault
 @FieldsAreNonNullByDefault
 @ReturnTypesAreNonNullByDefault
-package org.prlprg.ir.cfg;
+package org.prlprg.ir.analysis;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 import org.prlprg.util.FieldsAreNonNullByDefault;
