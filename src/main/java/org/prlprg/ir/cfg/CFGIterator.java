@@ -12,6 +12,7 @@ import java.util.function.Predicate;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
+import org.prlprg.ir.analysis.DomTree;
 
 /**
  * Iterate every {@link BB} in a {@link CFG} in some order.

@@ -41,8 +41,8 @@ public interface Node {
    * <ul>
    *   <li>Global node ids don't start with {@code %}, so they won't conflict with local nodes.
    *   <li>Local instructions start with {@code %} followed by a descriptive name, and then a number
-   *       if needed to disambiguate them from other local nodes. Use {@link CFG#nextNodeId(String)}
-   *       to create.
+   *       if needed to disambiguate them from other local nodes. Use {@link
+   *       CFG#nextInstrOrPhiId(String)} to create.
    *   <li>Phis start with {@code φ} followed by a descriptive name and number if needed. The name
    *       is the same as that of the first input value. Be aware that a phi and local instruction
    *       may exist whose ids are only different in the {@code %}/{@code φ} prefix.

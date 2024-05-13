@@ -109,7 +109,7 @@ final class InstrId<N extends Instr> extends NodeIdImpl<N> {
    * The name is also escaped and disambiguated within the {@link CFG} if necessary.
    */
   public InstrId(N node, CFG cfg, String name) {
-    this(Classes.classOf(node), cfg.nextNodeId(name));
+    this(Classes.classOf(node), cfg.nextInstrOrPhiId(name));
   }
 
   private InstrId(@Nullable Class<? extends N> clazz, String name) {
@@ -121,7 +121,7 @@ final class InstrId<N extends Instr> extends NodeIdImpl<N> {
     var s = p.scanner();
 
     s.assertAndSkip('%');
-    return new InstrId<>(null, NodesAndBBIds.readIdNameLiterally(s));
+    return new InstrId<>(null, InstrPhiAndBBIds.readIdNameLiterally(s));
   }
 }
 
@@ -133,7 +133,7 @@ final class PhiId<N extends Phi<?>> extends NodeIdImpl<N> {
    * The name is also escaped and disambiguated within the {@link CFG} if necessary.
    */
   public PhiId(N node, CFG cfg, String name) {
-    this(Classes.classOf(node), cfg.nextNodeId(name));
+    this(Classes.classOf(node), cfg.nextInstrOrPhiId(name));
   }
 
   private PhiId(@Nullable Class<? extends N> clazz, String name) {
@@ -145,7 +145,7 @@ final class PhiId<N extends Phi<?>> extends NodeIdImpl<N> {
     var s = p.scanner();
 
     s.assertAndSkip('φ');
-    return new PhiId<>(null, NodesAndBBIds.readIdNameLiterally(s));
+    return new PhiId<>(null, InstrPhiAndBBIds.readIdNameLiterally(s));
   }
 }
 
@@ -164,7 +164,7 @@ final class AuxillaryNodeId<N extends Node> extends NodeIdImpl<N> {
   @SuppressFBWarnings("CT_CONSTRUCTOR_THROW")
   private AuxillaryNodeId(@Nullable Class<? extends N> clazz, NodeId<?> base, String memberId) {
     super(clazz, base + "#" + memberId, memberId);
-    if (!NodesAndBBIds.isValidUnescapedId(memberId)
+    if (!InstrPhiAndBBIds.isValidUnescapedId(memberId)
         && !memberId.chars().allMatch(Character::isDigit)) {
       throw new IllegalArgumentException(
           "Auxillary node's member ID must be a valid CFG id or number");
@@ -180,7 +180,7 @@ final class AuxillaryNodeId<N extends Node> extends NodeIdImpl<N> {
         s.readWhile(
             s.nextCharSatisfies(Character::isDigit)
                 ? Character::isDigit
-                : NodesAndBBIds::isValidUnescapedIdChar);
+                : InstrPhiAndBBIds::isValidUnescapedIdChar);
     return new AuxillaryNodeId<>((Class<? extends Node>) null, base, memberId);
   }
 }

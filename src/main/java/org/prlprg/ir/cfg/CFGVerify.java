@@ -9,14 +9,16 @@ interface CFGVerify extends CFGQuery {
    *   <li>Every basic block has a non-null jump (could be a {@link JumpData.Return} or {@link
    *       JumpData.Unreachable}).
    *   <li>Only basic blocks with two or more predecessors have phi nodes.
-   *   <li>Phi nodes have an entry from every predecessor.
-   *   <li>Instructions don't have arguments that were removed from the CFG (or not present
-   *       initially).
-   *   <li>Instruction arguments all either originate from earlier in the block, or are
-   *       CFG-independent. <i>Except</i> in basic blocks with exactly one predecessor, instruction
-   *       arguments may be from that predecessor or, if it also has one predecessor, its
-   *       predecessor and so on.
-   *   <li>Instruction {@link RValue} arguments are of the correct (dynamic) type.
+   *   <li>Instructions and phis don't have arguments that were removed from the CFG (or were never
+   *       in the CFG).
+   *   <li>Every phi input node is global or originates from a block that the incoming BB dominates
+   *       (non-strict, so includes the incoming block itself).
+   *   <li>Every phi input's node is global or originates a block that non-strictly dominates the
+   *       input's incoming block.
+   *   <li>Every instruction argument is either global, originates from earlier in the instruction's
+   *       block, or originates from a strictly dominating block.
+   *   <li>Instruction-specific checks ({@link Instr#verify()}). Example: every {@link RValue}
+   *       instruction argument is of the correct (dynamic) type.
    *   <li>Every basic block is connected to the entry block.
    * </ul>
    *

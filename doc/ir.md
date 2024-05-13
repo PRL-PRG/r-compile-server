@@ -7,7 +7,7 @@ Some properties:
 
 ## Mutability
 
-`CFG` and `BB` are mutable by the user. `Node`s are internally mutable, but the user must mutate them via operations on `CFG` or `BB`. `Instr`s store their content in `InstrData` which is an immutable record for easy construction and pattern matching; the instruction itself must be mutable so its data can be replaced without affecting other instructions' data (which would recursively affect other instructions and so on, making constructing a cyclic dependency impossible besides having ridiculous time complexity).
+`CFG` and `BB`, and `InstrOrPhi`s are mutable by the user. `Instr`s store their content in `InstrData` which is an immutable record for easy construction and pattern matching; the instruction itself must be mutable so its data can be replaced without affecting other instructions' data (which would recursively affect other instructions and so on, making constructing a cyclic dependency impossible besides having ridiculous time complexity).
 
 ## Package structure
 
@@ -25,7 +25,7 @@ A lot of other classes are in the `cfg` package.
 
 Various ways to improve efficiency:
 
-- When possible, substitution is implemented by changing the instruction's internal data, so we don't have to find and mutate the instructions that reference it, which is expensive. However, this isn't possible when subsititing an instruction with an existing instruction, a new instruction which has a different # of return values, or a new instruction whose superclass is a different one of `Phi | Statement | Jump`. Since these cases are expensive, we delay them: first we change the instruction data to make it a "proxy" instruction which refers to the real replacement, and then at the end of the pass, actually replace every occurrence of every proxy. The time complexity of batching many of these substitutions is `O(#instructions)`, as opposed to `O(#instructions * #toSubst)` if we substituted immediately.
+- When possible, substitution is implemented by mutating the instruction (chaging it's internal data), so we don't have to find and mutate the instructions that reference it, which is expensive. However, this isn't possible when subsititing an instruction with an existing instruction, a new instruction which has a different # of return values, or a new instruction whose superclass is a different one of `Phi | Statement | Jump`. Since these cases are expensive, we delay and batch substitute them in `BatchSubst`. The time complexity of batching many of these substitutions is `O(#instructions)`, as opposed to `O(#instructions * #toSubst)` if we substituted immediately.
 
 - We also batch inserting or removing multiple instructions when possible, unless we're inserting or removing from the end of a basic block. Basic blocks store instructions in an array, so inserting or removing instructions from a basic block with a large list of them may be expensive.
 
@@ -34,6 +34,6 @@ General collection data structures:
 - The `CFG` class contains a `SequencedMap` of basic block ids to the blocks it contains, a `Map` of node ids to nodes the blocks contain, and a `SequencedSet` of basic block exits.
 - The `BB` class contains an `ArrayList` of predecessors, a `SequencedSet` of phis, and an `ArrayList` of statements. Successors are stored with a `@Nullable Jump`.
 - The `Phi` subclasses contain an `ArrayList` of inputs.
-- Instruction data is stored in Java records. Currently nodes and jump targets are computed on access, maybe the JVM optimizes this or it's not a performance issue (since there are at most a few nodes or targets in an instruction), otherwise we'll need to cache.
+- Instruction data is stored in Java records. Node arguments and jump targets are memoized every time the instruction's data changes.
 
-`BB` and `Node` store a pointer to their `CFG`, but nodes don't store a pointer to their `BB`.
+`BB` and `Node` store a pointer to their `CFG`, but nodes don't store a pointer to their `BB`, except jumps.

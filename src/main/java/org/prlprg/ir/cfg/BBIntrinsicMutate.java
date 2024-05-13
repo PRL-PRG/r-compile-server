@@ -4,7 +4,7 @@ import com.google.common.collect.ImmutableList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.NoSuchElementException;
+import java.util.SequencedCollection;
 import javax.annotation.Nullable;
 import org.prlprg.ir.cfg.Phi.Input;
 import org.prlprg.ir.cfg.Stmt.Args;
@@ -77,16 +77,20 @@ interface BBIntrinsicMutate {
    * @param name A name of the phi, an empty string, or {@code null} to inherit the first input name
    *     (or empty string if there are no inputs). This is useful for debugging and error messages.
    * @throws UnsupportedOperationException If there's no φ type implemented for the given class.
+   * @throws IllegalArgumentException If {@code inputs} doesn't contain an input for each of this
+   *     block's predecessors, in the same order.
    */
   <N extends Node> Phi<N> addPhi(
       Class<? extends N> nodeClass,
       @Nullable String name,
-      Collection<? extends Input<? extends N>> inputs);
+      SequencedCollection<? extends Input<? extends N>> inputs);
 
   /**
    * Add φ nodes, whose input nodes are of the given type, to this BB and returns them.
    *
-   * @see #addPhi(Class, String, Collection)
+   * @see #addPhi(Class, String, SequencedCollection)
+   * @throws IllegalArgumentException If any of phi's input (sequenced) set doesn't contain an input
+   *     for each of this block's predecessors, in the same order.
    */
   ImmutableList<? extends Phi<?>> addPhis(Collection<? extends Phi.Args<?>> phiArgs);
 
@@ -141,7 +145,7 @@ interface BBIntrinsicMutate {
    * Create a new statement with {@code newArgs} and replace the statement at {@code index} with it.
    *
    * <p><i>This won't replace occurrences of any return values of the old statement.</i> Use {@link
-   * #subst(Instr, String, InstrData)} to do that if both statements have the same # of return
+   * Instr#mutate(Instr, String, InstrData)} to do that if both statements have the same # of return
    * values, otherwise you must replace them manually (if there are any).
    *
    * @param newName A small name for the new statement, an empty string, or {@code null} to take the
@@ -151,14 +155,14 @@ interface BBIntrinsicMutate {
    * @return The new statement.
    * @throws IndexOutOfBoundsException If the index is out of range.
    */
-  <I extends Stmt> I replaceNoSubst(int index, @Nullable String newName, StmtData<I> newArgs);
+  <I extends Stmt> I replace(int index, @Nullable String newName, StmtData<I> newArgs);
 
   /**
    * Create a new jump with {@code newArgs} and replace the BB's current jump with it.
    *
    * <p><i>This won't replace occurrences of any return values of the old jump.</i> Use {@link
-   * #subst(Instr, String, InstrData)} to do that if both jumps have the same # of return values,
-   * otherwise you must replace them manually (if there are any).
+   * Instr#mutate(Instr, String, InstrData)} to do that if both jumps have the same # of return
+   * values, otherwise you must replace them manually (if there are any).
    *
    * @param newName A small name for the new jump, an empty string, or {@code null} to take the old
    *     jump's name (empty string makes the new jump unnamed). This is useful for debugging and
@@ -168,46 +172,7 @@ interface BBIntrinsicMutate {
    * @throws IllegalStateException If the BB doesn't have a jump. If this is the case, use {@link
    *     BB#addJump(String, JumpData)} instead.
    */
-  <I extends Jump> I replaceJumpNoSubst(@Nullable String newName, JumpData<I> newArgs);
-
-  /**
-   * Add an input to a {@link Phi} in this BB.
-   *
-   * @throws NoSuchElementException If the φ-node isn't in this BB.
-   * @throws IllegalArgumentException If there's already an input from the incoming {@link BB}.
-   */
-  <N extends Node> void addPhiInput(Phi<N> phi, BB incomingBB, N node);
-
-  /**
-   * Remove an input from a {@link Phi} in this BB.
-   *
-   * @return The input corresponding to the incoming BB, which was just removed.
-   * @throws NoSuchElementException If the φ-node isn't in this BB.
-   * @throws IllegalArgumentException If the input isn't present.
-   */
-  <N extends Node> N removePhiInput(Phi<N> phi, BB incomingBB);
-
-  /**
-   * Replace the data within {@code oldInstr} with {@code newArgs} and update accordingly. This is
-   * equivalent to removing {@code oldInstr} and inserting a new instruction with {@code newArgs} in
-   * its place, then replacing {@code oldInstr}'s return values in arguments with those from the new
-   * instruction. However, it has a much lower time complexity (O(1) without the assertions).
-   *
-   * @param newName A small name for the new instruction, an empty string, or {@code null} to take
-   *                the old instruction's name (empty string makes the new instruction unnamed).
-   *                This is useful for debugging and error messages.
-   * @param newArgs The new instruction's arguments (data).
-   * @throws IllegalArgumentException if {@code oldInstr} is not in this BB.
-   * @throws IllegalArgumentException if {@code newArgs} is an incompatible type. Specifically, it
-   *                                  must produce contain the same # of values as {@code oldInstr}.
-   *                                  If not, you must call
-   *                                  {@link BB#replaceNoSubst(int, String, StmtData)} or
-   *                                  {@link BB#replaceJumpNoSubst(String, JumpData), and be aware
-   *                                  that those won't replace the instruction's return values in
-   *                                  arguments (those must either not exist or be replaced
-   *                                  manually).
-   */
-  <I extends Instr> void subst(I instr, @Nullable String newName, InstrData<I> newArgs);
+  <I extends Jump> I replaceJump(@Nullable String newName, JumpData<I> newArgs);
 
   // endregion
 

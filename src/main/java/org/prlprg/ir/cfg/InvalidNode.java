@@ -7,6 +7,7 @@ import org.prlprg.ir.type.RTypes;
 /** Node representing missing, invalid, or placeholder data. */
 public record InvalidNode(String desc) implements DeoptReason, RValue, FrameState {
   public static final InvalidNode TODO_GLOBAL = new InvalidNode("TODO_GLOBAL");
+  static final InvalidNode UNSET_PHI_INPUT = new InvalidNode("unsetPhiInput");
 
   public InvalidNode {
     if (desc.contains("}")) {

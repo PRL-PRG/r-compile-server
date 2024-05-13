@@ -96,8 +96,8 @@ public sealed interface MapToIdIn<T extends InstrData<?>> {
   }
 }
 
-record MapToIdInImpl<T extends InstrData<?>>(Class<? extends T> clazz, ImmutableList<Object> args)
-    implements MapToIdIn<T> {
+record MapToIdInImpl<T extends InstrData<?>>(
+    Class<? extends T> clazz, @Override ImmutableList<Object> components) implements MapToIdIn<T> {
   private static Object fromId(Object o, CFG cfg) {
     return switch (o) {
       case BBId id -> cfg.get(id);
@@ -114,7 +114,7 @@ record MapToIdInImpl<T extends InstrData<?>>(Class<? extends T> clazz, Immutable
 
   @Override
   public T decode(CFG cfg) {
-    return Reflection.construct(clazz, args.stream().map(o -> fromId(o, cfg)).toArray());
+    return Reflection.construct(clazz, components.stream().map(o -> fromId(o, cfg)).toArray());
   }
 
   @Override
@@ -125,7 +125,7 @@ record MapToIdInImpl<T extends InstrData<?>>(Class<? extends T> clazz, Immutable
         + "["
         + Streams.zip(
                 Arrays.stream(clazz.getRecordComponents()),
-                args.stream(),
+                components.stream(),
                 (c, a) -> c.getName() + "=" + a)
             .collect(Strings.joining(", "))
         + "]";
@@ -152,17 +152,17 @@ record MapToIdInImpl<T extends InstrData<?>>(Class<? extends T> clazz, Immutable
     var class1 = (Class<? extends InstrData<?>>) clazz;
 
     // ???: Abstract duplicate code from BuiltinParseMethods and BuiltinPrintMethods?
-    var components = clazz.getRecordComponents();
-    var arguments = new Object[components.length];
+    var componentsDescriptors = clazz.getRecordComponents();
+    var arguments = new Object[componentsDescriptors.length];
     if (arguments.length > 0) {
       s.assertAndSkip('(');
-      for (var i = 0; i < components.length; i++) {
+      for (var i = 0; i < componentsDescriptors.length; i++) {
         if (i > 0) {
           s.assertAndSkip(',');
         }
-        s.assertAndSkip(components[i].getName());
+        s.assertAndSkip(componentsDescriptors[i].getName());
         s.assertAndSkip('=');
-        arguments[i] = p.parse(components[i].getGenericType(), SkipWhitespace.ALL);
+        arguments[i] = p.parse(componentsDescriptors[i].getGenericType(), SkipWhitespace.ALL);
       }
       s.assertAndSkip(')');
     }
@@ -173,19 +173,19 @@ record MapToIdInImpl<T extends InstrData<?>>(Class<? extends T> clazz, Immutable
   @PrintMethod
   private void print(Printer p) {
     var w = p.writer();
-    var components = clazz.getRecordComponents();
+    var componentDescriptors = clazz.getRecordComponents();
 
     w.write('%');
     w.write(clazz.getSimpleName());
-    if (!args.isEmpty()) {
+    if (!components.isEmpty()) {
       w.write('(');
-      for (var i = 0; i < args.size(); i++) {
+      for (var i = 0; i < components.size(); i++) {
         if (i > 0) {
           w.write(", ");
         }
-        w.write(components[i].getName());
+        w.write(componentDescriptors[i].getName());
         w.write('=');
-        p.print(args.get(i));
+        p.print(components.get(i));
       }
       w.write(')');
     }

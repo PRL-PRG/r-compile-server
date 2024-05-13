@@ -1,8 +1,11 @@
 package org.prlprg.ir.cfg;
 
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.NoSuchElementException;
+import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
+import org.prlprg.ir.analysis.DomTree;
 
 interface CFGQuery {
   // region general properties
@@ -73,21 +76,15 @@ interface CFGQuery {
    */
   <N extends Node> Phi.Input<N> get(Phi.InputId<N> inputId);
 
-  /**
-   * Computes a dominator tree. It lets you query for which nodes are guaranteed to be run before
-   * other nodes.
-   *
-   * <p>Be careful, mutating the CFG won't update the tree.
-   */
-  DomTree domTree();
+  // endregion general properties
 
-  // endregion
-
-  // region iterate
+  // region iterate BBs
   /**
    * Iterate through every basic block in a deterministic but unspecified way.
    *
-   * <p>Modifying the CFG during iteration causes undefined behavior.
+   * <p>Adding or removing BBs in the CFG during iteration (including {@linkplain
+   * BB#splitNewSuccessor(int) splitting}/{@linkplain BB#mergeWithSuccessor(BB) merging}) causes
+   * undefined behavior.
    */
   Iterable<BB> iter();
 
@@ -146,5 +143,46 @@ interface CFGQuery {
    * possibly their dominees.
    */
   Iterable<BB> dominees(DomTree tree);
-  // endregion
+
+  // endregion iterate BBs
+
+  // region iterate nodes
+  /**
+   * Iterate through every instruction and phi (within every {@linkplain BB basic block}.
+   *
+   * <p>BBs are iterated with {@link CFG#iter()} (in a deterministic but unspecified way).
+   * Instructions and phis are iterated sequentially within the BB.
+   *
+   * <p>Be aware that this iterable may be very large. Also, mutating the {@link CFG} will affect
+   * the iterator.
+   */
+  default Iterable<InstrOrPhi> instrsAndPhis() {
+    return () ->
+        new Iterator<>() {
+          private final Iterator<BB> bbIter = iter().iterator();
+          private @Nullable Iterator<InstrOrPhi> instrIter =
+              bbIter.hasNext() ? bbIter.next().iterator() : null;
+
+          @Override
+          public boolean hasNext() {
+            while (instrIter != null && !instrIter.hasNext()) {
+              if (bbIter.hasNext()) {
+                instrIter = bbIter.next().iterator();
+              } else {
+                instrIter = null;
+              }
+            }
+            return instrIter != null;
+          }
+
+          @Override
+          public InstrOrPhi next() {
+            if (instrIter == null) {
+              throw new IllegalStateException("No more instructions or phis in the CFG.");
+            }
+            return instrIter.next();
+          }
+        };
+  }
+  // endregion iterate nodes
 }

@@ -26,7 +26,7 @@ interface BBQuery extends Iterable<InstrOrPhi> {
    * <p>These are ordered to ensure deterministic traversal.
    */
   @UnmodifiableView
-  Collection<BB> predecessors();
+  SequencedCollection<BB> predecessors();
 
   /** Whether this block has a single predecessor. */
   boolean hasSinglePredecessor();
@@ -45,7 +45,12 @@ interface BBQuery extends Iterable<InstrOrPhi> {
   // endregion
 
   // region count, iterate, and access nodes
-  /** #phis + #instrs == #phis + #stmts + (jump ? 1 : 0) */
+  /**
+   * {@code #phis + #instrs == #phis + #stmts + (jump ? 1 : 0)}
+   *
+   * <p>This doesn't include descendants (i.e. auxiliary nodes AKA nodes from instructions with
+   * multiple return values).
+   */
   int numChildren();
 
   /** #stmts + (jump ? 1 : 0) */

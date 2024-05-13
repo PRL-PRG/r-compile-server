@@ -1,6 +1,6 @@
 package org.prlprg.ir.cfg;
 
-import java.util.Collection;
+import java.util.SequencedCollection;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -14,7 +14,8 @@ public interface FrameStatePhi extends Phi<FrameState>, FrameState {
 }
 
 final class FrameStatePhiImpl extends PhiImpl<FrameState> implements FrameStatePhi {
-  FrameStatePhiImpl(CFG cfg, @Nullable String name, Collection<?> inputs) {
+  FrameStatePhiImpl(
+      CFG cfg, @Nullable String name, SequencedCollection<? extends Input<?>> inputs) {
     super(FrameState.class, cfg, name, inputs);
   }
 

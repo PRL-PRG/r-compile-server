@@ -3,6 +3,7 @@ package org.prlprg.ir.cfg;
 import com.google.common.collect.ImmutableList;
 import java.util.Collection;
 import java.util.List;
+import java.util.SequencedCollection;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -17,24 +18,6 @@ import org.prlprg.util.Triple;
 
 public interface BBCompoundMutate extends BBIntrinsicMutate, BBQuery {
   // region insert
-  /**
-   * Add a φ node, whose input nodes are of the given type, to this BB and return it.
-   *
-   * <p>The phi node will have no inputs: either use {@link #addPhiInput(Phi, BB, Node)} to add
-   * them, or call {@link #addPhi(Class, String, Collection)} instead of this.
-   *
-   * <p>The returned {@link Phi} implements the necessary superclass so that it's acceptable to
-   * replace a node of this class with it.
-   *
-   * @param name A name of the phi, an empty string, or {@code null} to inherit the first input name
-   *     (or empty string if there are no inputs). This is useful for debugging and error messages.
-   * @throws UnsupportedOperationException If there's no φ type implemented for the given class.
-   * @see #addPhi(Class, String, Collection)
-   */
-  default <N extends Node> Phi<N> addPhi(Class<? extends N> nodeClass, @Nullable String name) {
-    return addPhi(nodeClass, name, List.of());
-  }
-
   /**
    * Insert a statement at the end of the current {@link BB}.
    *
@@ -69,7 +52,7 @@ public interface BBCompoundMutate extends BBIntrinsicMutate, BBQuery {
    * @param args The instruction's arguments (data).
    * @return The inserted instruction.
    * @throws IndexOutOfBoundsException If the index is out of range.
-   * @see #addPhi(Class, String, Collection)
+   * @see #addPhi(Class, String, SequencedCollection)
    * @see #insertAt(int, String, StmtData)
    * @see #addJump(String, JumpData)
    */
@@ -112,8 +95,8 @@ public interface BBCompoundMutate extends BBIntrinsicMutate, BBQuery {
    *       a phi, this block will be split at {@code oldInstrOrPhi}'s location, and the phis and
    *       instructions before will become a new block which will be this block's only predecessor.
    *       <p><i>This won't replace occurrences of any return values of {@code oldInstr}.</i> Use
-   *       {@link #subst(Instr, String, InstrData)} to do that if both instructions have the same #
-   *       of return values, otherwise you must replace them manually (if there are any).
+   *       {@link Instr#mutate(Instr, String, InstrData)} to do that if both instructions have the
+   *       same # of return values, otherwise you must replace them manually (if there are any).
    *
    * @param newName A small name for the new instruction, an empty string, or {@code null} to take
    *     the old instruction's name (empty string makes the new instruction unnamed). This is useful
@@ -126,67 +109,71 @@ public interface BBCompoundMutate extends BBIntrinsicMutate, BBQuery {
   @SuppressWarnings("unchecked")
   default <I extends Stmt> I replaceNoSubst(
       InstrOrPhi oldInstrOrPhi, @Nullable String newName, BBInsertion<I> newArgs) {
-    if (newName == null) {
-      newName = oldInstrOrPhi.id().name();
-    }
+    var newName1 = newName != null ? newName : oldInstrOrPhi.id().name();
 
-    return switch ((BBInsertion<?>) newArgs) {
-      case PhiInsertion<?> phiInsertion -> {
-        switch (oldInstrOrPhi) {
-          case Phi<?> oldPhi -> {
-            if (!contains(oldPhi)) {
-              throw new IllegalArgumentException("Not in " + id() + ": " + oldPhi);
-            }
-            remove(oldPhi);
-          }
-          case Stmt oldStmt -> {
-            var index = indexOf(oldStmt);
-            switch (index) {
-              case -1 -> throw new IllegalArgumentException("Not in " + id() + ": " + oldStmt);
-              case 0 -> remove(oldStmt);
-              default -> splitNewPredecessor(index);
-            }
-          }
-          case Jump oldJump -> {
-            if (jump() != oldJump) {
-              throw new IllegalArgumentException("Not in " + id() + ": " + oldJump);
-            }
-            splitNewPredecessor(stmts().size());
-          }
-        }
-        yield (I) addPhi(phiInsertion.nodeClass(), newName, phiInsertion.inputs());
-      }
-      case StmtInsertion<?>(var data) -> (I) replaceNoSubst(oldInstrOrPhi, newName, data);
-      case JumpInsertion<?> jumpInsertion -> {
-        BB newBB;
-        switch (oldInstrOrPhi) {
-          case Phi<?> oldPhi -> {
-            if (!contains(oldPhi)) {
-              throw new IllegalArgumentException("Not in " + id() + ": " + oldPhi);
-            }
-            remove(oldPhi);
-            newBB = splitNewSuccessor(0);
-          }
-          case Stmt oldStmt -> {
-            var index = indexOf(oldStmt);
-            if (index == -1) {
-              throw new IllegalArgumentException("Not in " + id() + ": " + oldStmt);
-            } else if (index == stmts().size() && jump() == null) {
-              newBB = null;
-            } else {
-              newBB = splitNewSuccessor(index);
-            }
-          }
-          case Jump oldJump -> {
-            if (jump() != oldJump) {
-              throw new IllegalArgumentException("Not in " + id() + ": " + oldJump);
-            }
-            newBB = null;
-          }
-        }
-        yield (I) addJump(newName, jumpInsertion.compute(newBB));
-      }
-    };
+    return cfg()
+        .section(
+            "BB#replace",
+            () ->
+                switch ((BBInsertion<?>) newArgs) {
+                  case PhiInsertion<?> phiInsertion -> {
+                    switch (oldInstrOrPhi) {
+                      case Phi<?> oldPhi -> {
+                        if (!contains(oldPhi)) {
+                          throw new IllegalArgumentException("Not in " + id() + ": " + oldPhi);
+                        }
+                        remove(oldPhi);
+                      }
+                      case Stmt oldStmt -> {
+                        var index = indexOf(oldStmt);
+                        switch (index) {
+                          case -1 ->
+                              throw new IllegalArgumentException("Not in " + id() + ": " + oldStmt);
+                          case 0 -> remove(oldStmt);
+                          default -> splitNewPredecessor(index);
+                        }
+                      }
+                      case Jump oldJump -> {
+                        if (jump() != oldJump) {
+                          throw new IllegalArgumentException("Not in " + id() + ": " + oldJump);
+                        }
+                        splitNewPredecessor(stmts().size());
+                      }
+                    }
+                    yield (I) addPhi(phiInsertion.nodeClass(), newName1, phiInsertion.inputs());
+                  }
+                  case StmtInsertion<?>(var data) ->
+                      (I) replaceNoSubst(oldInstrOrPhi, newName, data);
+                  case JumpInsertion<?> jumpInsertion -> {
+                    BB newBB;
+                    switch (oldInstrOrPhi) {
+                      case Phi<?> oldPhi -> {
+                        if (!contains(oldPhi)) {
+                          throw new IllegalArgumentException("Not in " + id() + ": " + oldPhi);
+                        }
+                        remove(oldPhi);
+                        newBB = splitNewSuccessor(0);
+                      }
+                      case Stmt oldStmt -> {
+                        var index = indexOf(oldStmt);
+                        if (index == -1) {
+                          throw new IllegalArgumentException("Not in " + id() + ": " + oldStmt);
+                        } else if (index == stmts().size() && jump() == null) {
+                          newBB = null;
+                        } else {
+                          newBB = splitNewSuccessor(index);
+                        }
+                      }
+                      case Jump oldJump -> {
+                        if (jump() != oldJump) {
+                          throw new IllegalArgumentException("Not in " + id() + ": " + oldJump);
+                        }
+                        newBB = null;
+                      }
+                    }
+                    yield (I) addJump(newName1, jumpInsertion.compute(newBB));
+                  }
+                });
   }
 
   /**
@@ -200,8 +187,8 @@ public interface BBCompoundMutate extends BBIntrinsicMutate, BBQuery {
    * </ul>
    *
    * <p><i>This won't replace occurrences of any return values of {@code oldInstrOrPhi}.</i> Use
-   * {@link #subst(Instr, String, InstrData)} to do that if both instructions have the same # of
-   * return values, otherwise you must replace them manually (if there are any).
+   * {@link Instr#mutate(Instr, String, InstrData)} to do that if both instructions have the same #
+   * of return values, otherwise you must replace them manually (if there are any).
    *
    * @param newName A small name for the new instruction, an empty string, or {@code null} to take
    *     the old instruction's name (empty string makes the new instruction unnamed). This is useful
@@ -212,33 +199,35 @@ public interface BBCompoundMutate extends BBIntrinsicMutate, BBQuery {
    */
   default <I extends Stmt> I replaceNoSubst(
       InstrOrPhi oldInstrOrPhi, @Nullable String newName, StmtData<I> newArgs) {
-    if (newName == null) {
-      newName = oldInstrOrPhi.id().name();
-    }
+    var newName1 = newName != null ? newName : oldInstrOrPhi.id().name();
 
-    return switch (oldInstrOrPhi) {
-      case Phi<?> oldPhi -> {
-        if (!contains(oldPhi)) {
-          throw new IllegalArgumentException("Not in " + id() + ": " + oldPhi);
-        }
-        remove(oldPhi);
-        yield insertAt(0, newName, newArgs);
-      }
-      case Stmt oldStmt -> {
-        var index = stmts().indexOf(oldStmt);
-        if (index == -1) {
-          throw new IllegalArgumentException("Not in " + id() + ": " + oldStmt);
-        }
-        yield replaceNoSubst(index, newName, newArgs);
-      }
-      case Jump oldJump -> {
-        if (jump() != oldJump) {
-          throw new IllegalArgumentException("Not in " + id() + ": " + oldJump);
-        }
-        removeJump();
-        yield append(newName, newArgs);
-      }
-    };
+    return cfg()
+        .section(
+            "BB#replace",
+            () ->
+                switch (oldInstrOrPhi) {
+                  case Phi<?> oldPhi -> {
+                    if (!contains(oldPhi)) {
+                      throw new IllegalArgumentException("Not in " + id() + ": " + oldPhi);
+                    }
+                    remove(oldPhi);
+                    yield insertAt(0, newName1, newArgs);
+                  }
+                  case Stmt oldStmt -> {
+                    var index = stmts().indexOf(oldStmt);
+                    if (index == -1) {
+                      throw new IllegalArgumentException("Not in " + id() + ": " + oldStmt);
+                    }
+                    yield replace(index, newName, newArgs);
+                  }
+                  case Jump oldJump -> {
+                    if (jump() != oldJump) {
+                      throw new IllegalArgumentException("Not in " + id() + ": " + oldJump);
+                    }
+                    removeJump();
+                    yield append(newName1, newArgs);
+                  }
+                });
   }
 
   /**
@@ -250,12 +239,16 @@ public interface BBCompoundMutate extends BBIntrinsicMutate, BBQuery {
    * @throws IllegalArgumentException if any of the old instructions aren't in this BB.
    * @see #replaceNoSubst(InstrOrPhi, String, StmtData)
    */
-  default ImmutableList<? extends Stmt> replaceNoSubst(
+  default ImmutableList<? extends Stmt> replaceAllNoSubst(
       Collection<Triple<? extends InstrOrPhi, String, ? extends StmtData<?>>>
           oldInstrsAndNewNamesAndArgs) {
-    return oldInstrsAndNewNamesAndArgs.stream()
-        .map(triple -> replaceNoSubst(triple.first(), triple.second(), triple.third()))
-        .collect(ImmutableList.toImmutableList());
+    return cfg()
+        .section(
+            "BB#replaceAll",
+            () ->
+                oldInstrsAndNewNamesAndArgs.stream()
+                    .map(triple -> replaceNoSubst(triple.first(), triple.second(), triple.third()))
+                    .collect(ImmutableList.toImmutableList()));
   }
 
   /**
@@ -263,28 +256,35 @@ public interface BBCompoundMutate extends BBIntrinsicMutate, BBQuery {
    * provided by {@code newNamesAndArgs}.
    *
    * <p><i>This won't replace occurrences of any return values of old statements.</i> Use {@link
-   * #subst(Instr, String, InstrData)} to do that if each statement has a corresponding one and they
-   * both have the same # of return values, otherwise you must replace occurrences of the old
-   * statements manually (if there are any).
+   * Instr#mutate(Instr, String, InstrData)} to do that if each statement has a corresponding one
+   * and they both have the same # of return values, otherwise you must replace occurrences of the
+   * old statements manually (if there are any).
    *
    * @param newNamesAndArgs The new statements' names and arguments (data). <i>Unlike in {@link
-   *     #replaceNoSubst(int, String, StmtData)}, the names of each statement must be provided.</i>
+   *     #replace(int, String, StmtData)}, the names of each statement must be provided.</i>
    * @return The new statements.
    * @throws IllegalArgumentException If {@code fromIndex} is greater than {@code toIndex}.
    * @throws IndexOutOfBoundsException If {@code fromIndex} or {@code toIndex} are out of range. *
-   * @see #replaceNoSubst(int, String, StmtData)
+   * @see #replace(int, String, StmtData)
    */
   default ImmutableList<? extends Stmt> replaceAllNoSubst(
       int fromIndex, int toIndex, List<Args<?>> newNamesAndArgs) {
-    if (fromIndex > toIndex) {
-      throw new IllegalArgumentException("fromIndex > toIndex: " + fromIndex + " > " + toIndex);
-    }
-    if (fromIndex < 0 || toIndex >= stmts().size()) {
-      throw new IndexOutOfBoundsException("Sublist out of range: " + fromIndex + " to " + toIndex);
-    }
+    return cfg()
+        .section(
+            "BB#replaceAll",
+            () -> {
+              if (fromIndex > toIndex) {
+                throw new IllegalArgumentException(
+                    "fromIndex > toIndex: " + fromIndex + " > " + toIndex);
+              }
+              if (fromIndex < 0 || toIndex >= stmts().size()) {
+                throw new IndexOutOfBoundsException(
+                    "Sublist out of range: " + fromIndex + " to " + toIndex);
+              }
 
-    removeAllAt(fromIndex, toIndex);
-    return insertAllAt(fromIndex, newNamesAndArgs);
+              removeAllAt(fromIndex, toIndex);
+              return insertAllAt(fromIndex, newNamesAndArgs);
+            });
   }
 
   // endregion
@@ -331,47 +331,58 @@ public interface BBCompoundMutate extends BBIntrinsicMutate, BBQuery {
    * @see #remove(InstrOrPhi)
    */
   default void removeAll(Collection<? extends InstrOrPhi> instrsOrPhis) {
-    var grouped =
-        instrsOrPhis.stream()
-            .collect(
-                Collectors.groupingBy(
-                    i ->
-                        switch (i) {
-                          case Phi<?> _ -> Phi.class;
-                          case Stmt _ -> Stmt.class;
-                          case Jump _ -> Jump.class;
-                        },
-                    Collectors.toSet()));
-    @SuppressWarnings("unchecked")
-    var phis = (Set<Phi<?>>) grouped.get(Phi.class);
-    @SuppressWarnings("unchecked")
-    var stmts = (Set<Stmt>) grouped.get(Stmt.class);
-    var jump =
-        grouped.containsKey(Jump.class) ? (Jump) grouped.get(Jump.class).iterator().next() : null;
+    cfg()
+        .section(
+            "BB#removeAll",
+            () -> {
+              var grouped =
+                  instrsOrPhis.stream()
+                      .collect(
+                          Collectors.groupingBy(
+                              i ->
+                                  switch (i) {
+                                    case Phi<?> _ -> Phi.class;
+                                    case Stmt _ -> Stmt.class;
+                                    case Jump _ -> Jump.class;
+                                  },
+                              Collectors.toSet()));
+              @SuppressWarnings("unchecked")
+              var phis = (Set<Phi<?>>) grouped.get(Phi.class);
+              @SuppressWarnings("unchecked")
+              var stmts = (Set<Stmt>) grouped.get(Stmt.class);
+              var jump =
+                  grouped.containsKey(Jump.class)
+                      ? (Jump) grouped.get(Jump.class).iterator().next()
+                      : null;
 
-    if (phis != null) {
-      var oldNumPhis = phis().size();
-      removeAllPhis(phis);
-      if (phis().size() != oldNumPhis - phis.size()) {
-        throw new IllegalArgumentException(
-            "Not all removed phis were in " + id() + ":\n- " + Strings.join("\n-", phis));
-      }
-    }
-    if (stmts != null) {
-      var oldNumStmts = stmts().size();
-      removeAllStmts(stmts);
-      if (stmts().size() != oldNumStmts - stmts.size()) {
-        throw new IllegalArgumentException(
-            "Not all removed stmts were in " + id() + ":\n- " + Strings.join("\n-", stmts));
-      }
-    }
-    if (jump != null) {
-      if (jump == jump()) {
-        removeJump();
-      } else {
-        throw new IllegalArgumentException("Removed jump not wasn't in " + id() + ":\n- " + jump);
-      }
-    }
+              if (phis != null) {
+                var oldNumPhis = phis().size();
+                removeAllPhis(phis);
+                if (phis().size() != oldNumPhis - phis.size()) {
+                  throw new IllegalArgumentException(
+                      "Not all removed phis were in " + id() + ":\n- " + Strings.join("\n-", phis));
+                }
+              }
+              if (stmts != null) {
+                var oldNumStmts = stmts().size();
+                removeAllStmts(stmts);
+                if (stmts().size() != oldNumStmts - stmts.size()) {
+                  throw new IllegalArgumentException(
+                      "Not all removed stmts were in "
+                          + id()
+                          + ":\n- "
+                          + Strings.join("\n-", stmts));
+                }
+              }
+              if (jump != null) {
+                if (jump == jump()) {
+                  removeJump();
+                } else {
+                  throw new IllegalArgumentException(
+                      "Removed jump not wasn't in " + id() + ":\n- " + jump);
+                }
+              }
+            });
   }
 
   /**
@@ -381,14 +392,30 @@ public interface BBCompoundMutate extends BBIntrinsicMutate, BBQuery {
    * @see #remove(InstrOrPhi)
    */
   default void filter(Predicate<InstrOrPhi> predicate) {
-    var removedPhis = phis().stream().filter(predicate).toList();
-    var removedStmts = stmts().stream().filter(predicate).toList();
-    var removedJump = jump() != null && predicate.test(jump()) ? jump() : null;
-    removeAllPhis(removedPhis);
-    removeAllStmts(removedStmts);
-    if (removedJump != null) {
-      remove(removedJump);
-    }
+    cfg()
+        .section(
+            "BB#filter",
+            () -> {
+              var removedPhis = phis().stream().filter(predicate).toList();
+              var removedStmts = stmts().stream().filter(predicate).toList();
+              var removedJump = jump() != null && predicate.test(jump()) ? jump() : null;
+              removeAllPhis(removedPhis);
+              removeAllStmts(removedStmts);
+              if (removedJump != null) {
+                remove(removedJump);
+              }
+            });
+  }
+
+  /**
+   * Remove phis and instructions which pass the predicate (true false). Other instructions may
+   * still reference them, but these references must go away before {@link CFG#verify()}.
+   *
+   * @see #filter(Predicate)
+   * @see #remove(InstrOrPhi)
+   */
+  default void removeWhere(Predicate<InstrOrPhi> predicate) {
+    filter(Predicate.not(predicate));
   }
   // endregion
 }

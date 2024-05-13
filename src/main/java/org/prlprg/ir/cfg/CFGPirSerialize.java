@@ -119,10 +119,21 @@ class PirCFGParseContext {
     var cfg = cfgFactory.get();
     var bbs = new LazyBBList(cfg);
     var pirIdToNode = new PirIdToNodeMap();
-    var bbP = p.withContext(new PirBBParseContext(bbs, pirIdToNode));
+    var bbCtx = new PirBBParseContext(bbs, pirIdToNode);
+    var bbP = p.withContext(bbCtx);
 
     while (p.scanner().nextCharsAre("BB")) {
       bbP.parse(BB.class);
+    }
+
+    bbCtx.patchDelayed();
+    var freeBBs = new CFGIterator.Dfs(cfg);
+    freeBBs.forEachRemaining(_ -> {});
+    for (var bbId : freeBBs.remainingBBIds()) {
+      var bb = cfg.get(bbId);
+      if (bb.numChildren() == 0) {
+        cfg.remove(bb);
+      }
     }
 
     return cfg;
@@ -149,6 +160,7 @@ class LazyBBList {
 class PirBBParseContext {
   private final LazyBBList bbs;
   private final PirIdToNodeMap pirIdToNode;
+  private final List<PirInstrOrPhiParseContext> instrCtxs = new ArrayList<>();
 
   PirBBParseContext(LazyBBList bbs, PirIdToNodeMap pirIdToNode) {
     this.bbs = bbs;
@@ -169,12 +181,22 @@ class PirBBParseContext {
     s.assertAndSkip('\n');
 
     var bb = bbs.get(bbIndex);
-    var instrP = p.withContext(new PirInstrOrPhiParseContext(bb, bbs, pirIdToNode));
+    var instrCtx = new PirInstrOrPhiParseContext(bb, bbs, pirIdToNode);
+    var instrP = p.withContext(instrCtx);
+
     while (s.nextCharsAre("  ")) {
       instrP.parse(InstrOrPhi.class);
     }
 
+    instrCtxs.add(instrCtx);
+
     return bb;
+  }
+
+  void patchDelayed() {
+    for (var instrCtx : instrCtxs) {
+      instrCtx.patchDelayed();
+    }
   }
 }
 
@@ -184,6 +206,7 @@ class PirInstrOrPhiParseContext {
   private final LazyBBList bbs;
   private final PirIdToNodeMap pirIdToNode;
   private final ArgContext argContext = new ArgContext();
+  private final List<Pair<Phi<Node>, List<Phi.Input<Node>>>> delayedPhiInputs = new ArrayList<>();
 
   PirInstrOrPhiParseContext(BB bb, LazyBBList bbs, PirIdToNodeMap pirIdToNode) {
     this.bb = bb;
@@ -209,6 +232,8 @@ class PirInstrOrPhiParseContext {
 
     var pirType = p.parse(PirType.class);
     s.readUntilColumn(19);
+    // "(real|complex)$-" is exactly at column 19
+    s.trySkip(' ');
     var pirId = p.parse(PirId.class);
     s.skipWhitespace(false);
     if (!pirId.isAnonymous()) {
@@ -289,6 +314,10 @@ class PirInstrOrPhiParseContext {
     } else if (s.trySkip("missingArg")) {
       pirIdToNode.put(pirId, new Constant(SEXPs.MISSING_ARG));
       return "constant_missing";
+    } else if (s.trySkip("function(")) {
+      s.readUntilEndOfLine();
+      pirIdToNode.put(pirId, new InvalidNode("bytecode stub"));
+      return "constant_bytecode";
     }
 
     for (var deoptType : org.prlprg.rshruntime.DeoptReason.Type.values()) {
@@ -301,7 +330,7 @@ class PirInstrOrPhiParseContext {
       }
     }
 
-    // TODO: Other constants which can be assigned to variables?
+    // REACH: Other constants which can be assigned to variables?
     return null;
   }
 
@@ -310,7 +339,7 @@ class PirInstrOrPhiParseContext {
     var name = pirId.name();
 
     if (instrTypeName.equals("Phi")) {
-      List<Phi.Input<?>> inputs = new ArrayList<>();
+      Map<BB, Node> inputs = new HashMap<>();
       do {
         var argPirId = p.parse(PirId.class);
         s.assertAndSkip(":BB");
@@ -318,25 +347,35 @@ class PirInstrOrPhiParseContext {
         var argNode = pirIdToNode.get(argPirId);
         var argBB = bbs.get(argBBIndex);
 
-        inputs.add(new Phi.Input<>(argBB, argNode));
+        inputs.put(argBB, argNode);
 
         s.skipWhitespace(false);
       } while (s.trySkip(", "));
 
       // Java's type system is bad, idk why the casts are necessary but they are.
       @SuppressWarnings("unchecked")
-      var phi =
-          bb.addPhi(
-              inputs.stream()
-                  .map(i -> (Object) i.node().getClass())
-                  .reduce(
-                      (c1, c2) ->
-                          Phi.commonInputSuperclass(
-                              (Class<? extends Node>) c1, (Class<? extends Node>) c2))
-                  .map(c -> (Class<? extends Node>) c)
-                  .orElseThrow(() -> s.fail("phi needs at least one input")),
-              name,
-              inputs);
+      var inputClass =
+          inputs.values().stream()
+              .map(i -> (Object) i.getClass())
+              .reduce(
+                  (c1, c2) ->
+                      Phi.commonInputSuperclass(
+                          (Class<? extends Node>) c1, (Class<? extends Node>) c2))
+              .map(c -> (Class<? extends Node>) c)
+              .orElseThrow(() -> s.fail("phi needs at least one input"));
+      var inputsNow =
+          bb.predecessors().stream()
+              .filter(inputs::containsKey)
+              .map(pred -> new Phi.Input<>(pred, inputs.get(pred)))
+              .toList();
+      var delayedInputs =
+          inputs.entrySet().stream()
+              .filter(e -> !bb.predecessors().contains(e.getKey()))
+              .map(e -> new Phi.Input<>(e.getKey(), e.getValue()))
+              .toList();
+
+      var phi = bb.addPhi(inputClass, name, inputsNow);
+      delayedPhiInputs.add(Pair.of(phi, delayedInputs));
       return phi;
     }
 
@@ -552,12 +591,12 @@ class PirInstrOrPhiParseContext {
             yield new JumpData.Branch(cond, trueBB, falseBB);
           }
           case "Assume", "AssumeNot" -> {
-            // TODO: Add assumptions (tests and fail reasons) to checkpoint
+            // REACH: Add assumptions (tests and fail reasons) to checkpoint
             s.readUntilEndOfLine();
             yield new StmtData.NoOp();
           }
           case "Checkpoint" -> {
-            // TODO: Add assumptions (tests and fail reasons) to checkpoint
+            // REACH: Add assumptions (tests and fail reasons) to checkpoint
             s.assertAndSkip("-> BB");
             var passBBIndex = s.readUInt();
             var passBB = bbs.get(passBBIndex);
@@ -711,6 +750,16 @@ class PirInstrOrPhiParseContext {
     return Pair.of(Optional.ofNullable(name), value);
   }
 
+  void patchDelayed() {
+    for (var delayedPhiInputs : delayedPhiInputs) {
+      var phi = delayedPhiInputs.first();
+      var inputs = delayedPhiInputs.second();
+      for (var input : inputs) {
+        phi.setInput(input);
+      }
+    }
+  }
+
   private LangSXP stubLangSxp() {
     return SEXPs.lang(SEXPs.symbol("stub"), SEXPs.NULL);
   }
@@ -823,13 +872,13 @@ class PirInstrOrPhiParseContext {
         type = type.promiseWrapped();
       }
       if (s.trySkip('-')) {
-        // TODO: Remove attributes
+        // REACH: Remove attributes
       } else if (s.trySkip('_')) {
-        // TODO: Add all attributes except notFastVecElt
+        // REACH: Add all attributes except notFastVecElt
       } else if (s.trySkip('+')) {
-        // TODO: Add all attributes except object
+        // REACH: Add all attributes except object
       } else {
-        // TODO: Add unknown attributes
+        // REACH: Add unknown attributes
       }
       if (s.trySkip(" | miss")) {
         type = type.maybeMissing();
@@ -1137,12 +1186,14 @@ class PirInstrOrPhiPrintContext {
   void printArgs(InstrOrPhi self, Printer p) {
     var w = p.writer();
     if (self instanceof Phi<?> phi) {
-      for (var input : phi.inputs()) {
-        p.print(nodeToPirId.get(input.node()));
-        w.write(":BB");
-        p.print(bbToIdx.get(input.incomingBB()));
-        w.write(", ");
-      }
+      phi.streamInputs()
+          .forEach(
+              input -> {
+                p.print(nodeToPirId.get(input.node()));
+                w.write(":BB");
+                p.print(bbToIdx.get(input.incomingBB()));
+                w.write(", ");
+              });
       return;
     }
     var data = ((Instr) self).data();
@@ -1259,7 +1310,7 @@ class PirInstrOrPhiPrintContext {
       }
       case StmtData.StaticCall c -> {
         p.print(c.closureVersion().closure().name());
-        // TODO: tryOptimizationDispatch hint
+        // REACH: tryOptimizationDispatch hint
         printCallArgs(c, p);
         if (c.fs().isPresent()) {
           w.write(", ");
@@ -1306,7 +1357,7 @@ class PirInstrOrPhiPrintContext {
         w.write(" (if false)");
       }
       case JumpData.Checkpoint c -> {
-        // TODO: Print assumptions (tests and fail reasons) separately
+        // REACH: Print assumptions (tests and fail reasons) separately
         w.write("-> BB");
         p.print(bbToIdx.get(c.ifPass()));
         w.write(" (default) | BB");
@@ -1503,7 +1554,8 @@ class PirIdToNodeMap {
       return id.getGlobal();
     } catch (UnsupportedOperationException e) {
       if (e.getMessage().startsWith("PIR ID not global:")) {
-        // TODO: Handle the case where instructions are defined after they are used becuase of loops
+        // REACH: Handle the case where instructions are defined after they are used becuase of
+        // loops
         // throw new IllegalArgumentException("PIR ID not seen before and not anonymous: " + id);
         return new InvalidNode("Defined later: " + id);
       }
@@ -1547,7 +1599,7 @@ abstract sealed class PirId {
 
   static PirId global(Node global) {
     if (global.cfg() != null) {
-      throw new IllegalArgumentException("Node must be global i.e. not be in a CFG");
+      throw new IllegalArgumentException("node must be global i.e. not be in a CFG");
     }
     return new GlobalNamed(global);
   }
@@ -1681,11 +1733,6 @@ abstract sealed class PirId {
     boolean isAnonymous() {
       return true;
     }
-
-    @PrintMethod
-    private void print(Printer p) {
-      throw new UnsupportedOperationException("Anonymous PirId should never be printed");
-    }
   }
 
   // ???: Can more globals be directly referenced in PIR? If so, we'll need more parsers, and also
@@ -1694,43 +1741,44 @@ abstract sealed class PirId {
 
   @ParseMethod(SkipWhitespace.NONE)
   private static PirId parse(Parser p) {
+    // This code is really bad, and special-cases all the things that can be encountered where a
+    // "PIR node" (e.g. %0.1, e2.3) may be, since these can also be SEXPs, which are printed in a
+    // weird way (e.g. single quote is a valid "PIR node").
     var s = p.scanner();
     var sb = new StringBuilder();
-    switch (s.peekChar()) {
-      case ' ' -> {
-        return new PirId.Anonymous();
-      }
+    return switch (s.peekChar()) {
+      case ',', ' ' -> new PirId.Anonymous();
       case '=' -> {
         s.assertAndSkip('=');
-        return new PirId.GlobalNamed(Constant.symbol("="));
+        yield new PirId.GlobalNamed(Constant.symbol("="));
       }
       case '~' -> {
         s.assertAndSkip('~');
-        return new PirId.GlobalNamed(Constant.symbol("="));
+        yield new PirId.GlobalNamed(Constant.symbol("="));
       }
       case '<' -> {
         if (s.trySkip("<-")) {
-          return new PirId.GlobalNamed(Constant.symbol("<-"));
+          yield new PirId.GlobalNamed(Constant.symbol("<-"));
         } else if (s.trySkip("<<-")) {
-          return new PirId.GlobalNamed(Constant.symbol("<--"));
+          yield new PirId.GlobalNamed(Constant.symbol("<--"));
         }
 
         // e.g. `<blt list>`
         s.assertAndSkip('<');
         var desc = s.readUntil('>');
         s.assertAndSkip('>');
-        return new PirId.GlobalNotFullySerialized(desc);
+        yield new PirId.GlobalNotFullySerialized(desc);
       }
       case '?' -> {
         s.assertAndSkip('?');
-        return new PirId.GlobalNamed(StaticEnv.NOT_CLOSED);
+        yield new PirId.GlobalNamed(StaticEnv.NOT_CLOSED);
       }
       case '%', 'e' -> {
         if (s.trySkip("elided")) {
-          return new PirId.GlobalNamed(StaticEnv.ELIDED);
+          yield new PirId.GlobalNamed(StaticEnv.ELIDED);
         } else if (s.trySkip("expression")) {
-          return new PirId.GlobalNamed(Constant.symbol("expression"));
-        } else if (s.nextCharsAre("evalseq")) {
+          yield new PirId.GlobalNamed(Constant.symbol("expression"));
+        } else if (s.nextCharsAre("evalseq") || s.nextCharsAre("elNamed")) {
           throw s.fail("non-trivial SEXP constant");
         }
 
@@ -1739,20 +1787,28 @@ abstract sealed class PirId {
         s.assertAndSkip('.');
         sb.append('.');
         sb.append(s.readUInt());
-        return new PirId.Local(sb.toString());
+        yield new PirId.Local(sb.toString());
       }
       case '"' -> {
-        return new PirId.GlobalString(p.parse(String.class));
+        var content = p.parse(String.class);
+        if (content.contains("\n")) {
+          // May be a standalone double quote, which produces weird error messages.
+          throw s.fail("non-trivial SEXP constant");
+        }
+        yield new PirId.GlobalString(content);
       }
       case '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9' -> {
+        if (s.trySkip("-nan")) {
+          yield new PirId.GlobalReal(Double.NaN);
+        }
         var num = s.readDecimalString();
         var isInteger = false;
         try {
           if (s.trySkip('L')) {
             isInteger = true;
-            return new PirId.GlobalInt(Integer.parseInt(num));
+            yield new PirId.GlobalInt(Integer.parseInt(num));
           } else {
-            return new PirId.GlobalReal(Double.parseDouble(num));
+            yield new PirId.GlobalReal(Double.parseDouble(num));
           }
         } catch (NumberFormatException e) {
           throw new AssertionError(
@@ -1760,11 +1816,11 @@ abstract sealed class PirId {
         }
       }
       case '(', '{' -> {
-        // TODO these builtins
+        // REACH: these builtins
         var c = s.readChar();
-        return new PirId.GlobalNamed(new InvalidNode("TODO_builtin_" + c), Character.toString(c));
+        yield new PirId.GlobalNamed(new InvalidNode("TODO_builtin_" + c), Character.toString(c));
       }
-      case '$', '@' -> throw s.fail("non-trivial SEXP constant");
+      case '!', '$', '@', '[' -> throw s.fail("non-trivial SEXP constant");
       case -1 -> throw s.fail("PIR ID", "EOF");
       default -> {
         if (s.nextCharsAre("::")
@@ -1773,7 +1829,8 @@ abstract sealed class PirId {
             || s.nextCharsAre("isNamespace")
             || s.nextCharsAre("getNamespace")
             || s.nextCharsAre("packageSlot")
-            || s.nextCharsAre("deparse")) {
+            || s.nextCharsAre("deparse")
+            || s.nextCharsAre("list")) {
           // Usually (not guaranteed!) to be `some_fn(...)`.
           var name = s.readUntil('(');
           s.assertAndSkip('(');
@@ -1782,62 +1839,42 @@ abstract sealed class PirId {
           if (!ended) {
             s.assertAndSkip('>');
           }
-          return new PirId.GlobalNotFullySerialized(name + '(' + args + (ended ? ')' : "..."));
+          yield new PirId.GlobalNotFullySerialized(name + '(' + args + (ended ? ')' : "..."));
         } else if (s.trySkip("function")) {
-          // Usually (not guaranteed!) to be `function(...) <...>` or `function(...>`.
-          if (!s.trySkip('(')) {
-            return new PirId.GlobalNamed(InvalidNode.TODO_GLOBAL);
-          }
-          var argsOrDesc = s.readUntil(c -> c == ')' || c == '>');
-          if (s.trySkip('>')) {
-            // `function(...>`.
-            return new PirId.GlobalNotFullySerialized("fn(" + argsOrDesc + "...");
-          }
-          // `function(...)...>` or `function(...) ...>`, or `function(...) <...>`.
-          s.assertAndSkip(')');
-          if (!s.trySkip("...") && !s.trySkip(" ...") && !s.trySkip(" <")) {
-            throw s.fail("non-trivial SEXP constant");
-          }
-          var desc = s.readUntil("...>");
-          s.assertAndSkip("...>");
-          // This happens in `function(...)...>` and `function(...) ...>`.
-          if (desc.isEmpty()) {
-            desc = "...";
-          }
-          return new PirId.GlobalNotFullySerialized("fn(" + argsOrDesc + ") => " + desc);
+          throw s.fail("non-trivial SEXP constant");
         }
 
         if (s.trySkip("true") || s.trySkip("opaqueTrue")) {
-          return new PirId.GlobalLogical(Logical.TRUE);
+          yield new PirId.GlobalLogical(Logical.TRUE);
         } else if (s.trySkip("false") || s.trySkip("opaqueFalse")) {
-          return new PirId.GlobalLogical(Logical.FALSE);
+          yield new PirId.GlobalLogical(Logical.FALSE);
         } else if (s.trySkip("na-lgl")) {
-          return new PirId.GlobalLogical(Logical.NA);
+          yield new PirId.GlobalLogical(Logical.NA);
         } else if (s.trySkip("NA")) {
           // PIR doesn't store what kind of NA.
-          return new PirId.GlobalReal(Constants.NA_REAL);
+          yield new PirId.GlobalReal(Constants.NA_REAL);
         } else if (s.trySkip("nil")) {
-          return new PirId.GlobalNamed(new Constant(SEXPs.NULL));
+          yield new PirId.GlobalNamed(new Constant(SEXPs.NULL));
         } else if (s.trySkip("missingArg")) {
-          return new PirId.GlobalNamed(new Constant(SEXPs.MISSING_ARG));
+          yield new PirId.GlobalNamed(new Constant(SEXPs.MISSING_ARG));
         }
 
         for (var deoptType : org.prlprg.rshruntime.DeoptReason.Type.values()) {
           var deoptTypeName =
               StringCase.convert(deoptType.name(), StringCase.SCREAMING_SNAKE, StringCase.PASCAL);
           if (s.nextCharsAre(deoptTypeName + '@')) {
-            return new PirId.GlobalNamed(
+            yield new PirId.GlobalNamed(
                 new ConstantDeoptReason(p.parse(org.prlprg.rshruntime.DeoptReason.class)));
           }
         }
 
-        // TODO: other globals, either must be in GlobalNamed if we want to keep the name for the
+        // REACH: other globals, either must be in GlobalNamed if we want to keep the name for the
         //  Java compiler, or explicitly handle above otherwise.
 
         if (Character.isLetter(s.peekChar())) {
           sb.append(p.parse(RegSymSXP.class).name());
           var name = sb.toString();
-          return new PirId.GlobalNamed(
+          yield new PirId.GlobalNamed(
               Objects.requireNonNull(
                   StaticEnv.ALL.containsKey(name)
                       ? StaticEnv.ALL.get(name)
@@ -1847,7 +1884,7 @@ abstract sealed class PirId {
 
         throw s.fail("unhandled start to PIR ID: " + Strings.quote(s.peekChar()));
       }
-    }
+    };
   }
 
   protected PirId(String id, String name) {

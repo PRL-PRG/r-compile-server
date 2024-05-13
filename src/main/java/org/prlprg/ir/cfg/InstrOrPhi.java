@@ -1,6 +1,7 @@
 package org.prlprg.ir.cfg;
 
 import java.util.List;
+import java.util.SequencedCollection;
 import org.jetbrains.annotations.UnmodifiableView;
 
 /** Either {@link Instr} or {@link Phi}. An immediate child node of a basic block. */
@@ -11,7 +12,7 @@ public sealed interface InstrOrPhi extends NodeWithCfg permits Instr, Phi {
    * block.
    */
   @UnmodifiableView
-  List<Node> args();
+  SequencedCollection<Node> args();
 
   /**
    * (A view of) the instruction's or phi's return values, which other nodes may depend on. This is
@@ -21,15 +22,19 @@ public sealed interface InstrOrPhi extends NodeWithCfg permits Instr, Phi {
   @UnmodifiableView
   List<Node> returns();
 
+  /** Whether the instruction or phi produces no side-effects (for phis this is always true). */
+  boolean isPure();
+
   /**
-   * Replace the node in arguments.
+   * Replace {@code old} with {@code replacement} in {@link #args()} and (if instruction) {@link
+   * Instr#data()}.
    *
    * @throws IllegalArgumentException If the old node wasn't in {@link #args()}.
    * @throws IllegalArgumentException If you try to replace with a node of incompatible type.
    */
-  void replace(Node old, Node replacement);
+  void replaceInArgs(Node old, Node replacement);
 
-  /** Itself. */
+  /** Itself (overrides {@link Node#origin()}). */
   @Override
   default InstrOrPhi origin() {
     return this;

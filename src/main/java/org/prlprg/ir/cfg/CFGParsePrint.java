@@ -66,7 +66,7 @@ class CFGParseOrPrintContext {
     var s = p.scanner();
 
     s.assertAndSkip('^');
-    var name = NodesAndBBIds.readIdName(s);
+    var name = InstrPhiAndBBIds.readIdName(s);
     var bb = cfg.addBB(name);
 
     var bbP = p.withContext(new BBParseOrPrintContext(cfg, bb));
@@ -136,20 +136,23 @@ class CFGParseOrPrintContext {
 
 class BBParseOrPrintContext {
   private final CFG cfg;
-  private final BB bb;
+  private final @Nullable BB bb;
   private final DataContext dataContext = new DataContext();
 
-  public BBParseOrPrintContext(CFG cfg, BB bb) {
+  public BBParseOrPrintContext(CFG cfg, @Nullable BB bb) {
     this.cfg = cfg;
     this.bb = bb;
   }
 
   @ParseMethod
   private Phi<?> parsePhi(Parser p) {
+    if (bb == null) {
+      throw new UnsupportedOperationException("Can't parse phis or instructions without `bb`");
+    }
     var s = p.scanner();
 
     s.assertAndSkip('φ');
-    var name = NodesAndBBIds.readIdName(s);
+    var name = InstrPhiAndBBIds.readIdName(s);
 
     var inputP = p.withContext(dataContext);
     var inputs = new ArrayList<Phi.Input<?>>();
@@ -180,25 +183,30 @@ class BBParseOrPrintContext {
 
     var inputP = p.withContext(dataContext);
     w.write('(');
-    var first = true;
-    for (var input : phi.inputs()) {
-      if (first) {
-        first = false;
-      } else {
-        w.write(", ");
-      }
-      inputP.print(input);
-    }
+    boolean[] first = {true};
+    phi.streamInputs()
+        .forEach(
+            input -> {
+              if (first[0]) {
+                first[0] = false;
+              } else {
+                w.write(", ");
+              }
+              inputP.print(input);
+            });
     w.write(')');
   }
 
   @ParseMethod
   private Instr parseInstr(Parser p) {
+    if (bb == null) {
+      throw new UnsupportedOperationException("Can't parse phis or instructions without `bb`");
+    }
     var s = p.scanner();
 
     String name;
     if (s.trySkip('%')) {
-      name = NodesAndBBIds.readIdName(s);
+      name = InstrPhiAndBBIds.readIdName(s);
       s.assertAndSkip('=');
     } else {
       name = "";

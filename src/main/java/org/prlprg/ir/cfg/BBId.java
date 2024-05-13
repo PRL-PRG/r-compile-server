@@ -67,7 +67,7 @@ sealed class BBIdImpl implements BBId {
   private BBId parseBBId(Parser p) {
     var s = p.scanner();
     s.assertAndSkip('^');
-    return new Parsed(NodesAndBBIds.readIdNameLiterally(s));
+    return new Parsed(InstrPhiAndBBIds.readIdNameLiterally(s));
   }
 
   @PrintMethod
