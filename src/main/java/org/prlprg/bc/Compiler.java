@@ -255,10 +255,14 @@ public class Compiler {
     this.optimizationLevel = level;
   }
 
-  public Bc compile() {
+  public Optional<Bc> compile() {
+    if (mayCallBrowser(expr)) {
+      return Optional.empty();
+    }
+
     cb.addConst(expr);
     compile(expr, false, false);
-    return cb.build();
+    return Optional.of(cb.build());
   }
 
   private static Loc functionLoc(CloSXP fun) {
@@ -438,8 +442,7 @@ public class Compiler {
   private void compileNormArg(SEXP arg, boolean nse) {
     if (!nse) {
       var compiler = fork(arg, ctx.promiseContext(), cb.getCurrentLoc());
-      var bc = compiler.compile();
-      arg = SEXPs.bcode(bc);
+      arg = compiler.compile().<SEXP>map(SEXPs::bcode).orElse(arg);
     }
     cb.addInstr(new MakeProm(cb.addConst(arg)));
   }
@@ -773,15 +776,16 @@ public class Compiler {
    */
   private boolean inlineFunction(LangSXP call) {
     // TODO: sourcerefs
-    // TODO: if (mayCallBrowser(body, cntxt)) return(FALSE)
+    if (mayCallBrowser(call)) {
+      return (false);
+    }
 
     var formals = (ListSXP) call.arg(0).value();
     var body = call.arg(1).value();
     var sref = call.args().size() > 2 ? call.arg(2).value() : SEXPs.NULL;
 
     var compiler = fork(body, ctx.functionContext(formals, body), cb.getCurrentLoc());
-    var cbody = compiler.compile();
-    var cbodysxp = SEXPs.bcode(cbody);
+    var cbodysxp = compiler.compile().<SEXP>map(SEXPs::bcode).orElse(body);
 
     // FIXME: ugly
     var cnst = SEXPs.vec(formals, cbodysxp, sref);
@@ -2482,6 +2486,25 @@ public class Compiler {
       return i;
     } else {
       return null;
+    }
+  }
+
+  private boolean mayCallBrowser(SEXP body) {
+    if (body instanceof LangSXP call) {
+      if (call.fun() instanceof RegSymSXP s) {
+        var name = s.name();
+        if (name.equals("browser")) {
+          return true;
+        } else if (name.equals("function") && ctx.isBaseVersion(name)) {
+          return false;
+        } else {
+          return call.args().values().stream().anyMatch(this::mayCallBrowser);
+        }
+      } else {
+        return false;
+      }
+    } else {
+      return false;
     }
   }
 }

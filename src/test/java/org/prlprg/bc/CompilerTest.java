@@ -543,7 +543,8 @@ function(x) {
               2 * 3 * x
             }
             """;
-    var bc = compile(code, 2);
+    var sexp = compile(code, 2);
+    var bc = ((BCodeSXP) sexp).bc();
     // FIXME: use some matchers
     var i = (BcInstr.LdConst) bc.code().getFirst();
     var v = ((RealSXP) bc.consts().get(i.constant()));
@@ -557,7 +558,8 @@ function(x) {
     var code = """
             function(x) c(i = 1, d = 1, s = 1)
             """;
-    var bc = compile(code, 3);
+    var sexp = compile(code, 3);
+    var bc = ((BCodeSXP) sexp).bc();
     // FIXME: use some matchers
     var i = (BcInstr.LdConst) bc.code().getFirst();
     var v = ((RealSXP) bc.consts().get(i.constant()));
@@ -620,37 +622,52 @@ function(x) {
     var time = System.currentTimeMillis();
 
     var gnurFun = (CloSXP) R.eval(code);
-    var gnurBc = ((BCodeSXP) gnurFun.body()).bc();
-    var astFun =
-        SEXPs.closure(
-            gnurFun.formals(), gnurBc.consts().getFirst(), gnurFun.env(), gnurFun.attributes());
-
     System.out.println("Eval time: " + (System.currentTimeMillis() - time) + "ms");
 
-    time = System.currentTimeMillis();
-    var ourBc = compile(astFun, optimizationLevel);
-    System.out.println("Compilation time: " + (System.currentTimeMillis() - time) + "ms");
+    var astFun =
+            SEXPs.closure(
+                    gnurFun.formals(), gnurFun.bodyAST(), gnurFun.env(), gnurFun.attributes());
 
-    time = System.currentTimeMillis();
-    var eq = gnurBc.equals(ourBc);
-    System.out.println("Eq " + eq + " time: " + (System.currentTimeMillis() - time) + "ms");
+    if (gnurFun.body() instanceof BCodeSXP gnurBc) {
+      time = System.currentTimeMillis();
+      var ourBody = compile(astFun, optimizationLevel);
+      System.out.println("Compilation time: " + (System.currentTimeMillis() - time) + "ms");
 
-    if (!eq) {
-      // bytecode can be large, so we only want to do it when it is different
-      var theirs = printStructurally(gnurBc);
-      var ours = printStructurally(ourBc);
+      if (ourBody instanceof BCodeSXP ourBc) {
+        time = System.currentTimeMillis();
+        var eq = gnurBc.equals(ourBc);
+        System.out.println("Eq " + eq + " time: " + (System.currentTimeMillis() - time) + "ms");
 
-      assertEquals(theirs, ours, "`compile(read(ast)) == read(R.compile(ast))`");
+        if (!eq) {
+          // bytecode can be large, so we only want to do it when it is different
+          var theirs = printStructurally(gnurBc);
+          var ours = printStructurally(ourBc);
+
+          assertEquals(theirs, ours, "`compile(read(ast)) == read(R.compile(ast))`");
+        }
+      } else {
+        assertEquals(printStructurally(gnurBc), ourBody.toString());
+      }
+    } else {
+      time = System.currentTimeMillis();
+      var ourBody = compile(astFun, optimizationLevel);
+      System.out.println("Compilation time: " + (System.currentTimeMillis() - time) + "ms");
+
+      if (ourBody instanceof BCodeSXP ourBc) {
+        assertEquals(astFun.body().toString(), printStructurally(ourBc));
+      } else {
+        assertEquals(astFun.body(), ourBody);
+      }
     }
   }
 
-  private Bc compile(String fun, int optimizationLevel) {
+  private SEXP compile(String fun, int optimizationLevel) {
     return compile((CloSXP) R.eval(fun), optimizationLevel);
   }
 
-  private Bc compile(CloSXP fun, int optimizationLevel) {
+  private SEXP compile(CloSXP fun, int optimizationLevel) {
     var compiler = new Compiler(fun, rsession);
     compiler.setOptimizationLevel(optimizationLevel);
-    return compiler.compile();
+    return compiler.compile().<SEXP>map(SEXPs::bcode).orElse(fun.body());
   }
 }
