@@ -1,6 +1,7 @@
 package org.prlprg.primitive;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import java.util.Set;
 import org.prlprg.sexp.SEXPs;
 
 /** Constants for R runtime primitives. Other constants are in {@link SEXPs}. */
@@ -28,6 +29,14 @@ public final class Constants {
    */
   @SuppressWarnings("StringOperationCanBeSimplified")
   public static final String NA_STRING = new String("!!!NA_STRING!!!");
+
+  /** String representations of true values. (cf. StringTrue and truenames in util.c) */
+  public static final Set<String> TRUE_NAMES = Set.of("T", "True", "TRUE", "true");
+
+  /** String representations of false values. (cf. StringFalse and falsenames in util.c) */
+  public static final Set<String> FALSE_NAMES = Set.of("F", "False", "FALSE", "false");
+
+  public static final Complex NA_COMPLEX = new Complex(NA_REAL, NA_REAL);
 
   /** Check if a string is the NA string. */
   @SuppressWarnings("StringEquality")

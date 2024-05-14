@@ -27,8 +27,7 @@ public sealed interface CloSXP extends SEXP {
   @Override
   CloSXP withAttributes(Attributes attributes);
 
-  @Nullable
-  IntSXP getSrcRef();
+  @Nullable IntSXP getSrcRef();
 
   @Override
   default Class<? extends SEXP> getCanonicalType() {

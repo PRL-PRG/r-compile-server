@@ -8,7 +8,7 @@ import org.prlprg.primitive.Logical;
 /** Logical vector SEXP. */
 @Immutable
 public sealed interface LglSXP extends VectorSXP<Logical>
-    permits EmptyLglSXPImpl, LglSXPImpl, SimpleLglSXP {
+    permits EmptyLglSXPImpl, LglSXPImpl, ScalarLglSXP {
   @Override
   default SEXPType type() {
     return SEXPType.LGL;
@@ -46,6 +46,27 @@ record LglSXPImpl(ImmutableList<Logical> data, @Override Attributes attributes) 
   @Override
   public String toString() {
     return VectorSXPs.toString(this, data.stream());
+  }
+
+  @Override
+  public LglSXP withAttributes(Attributes attributes) {
+    return SEXPs.logical(data, attributes);
+  }
+}
+
+/** Simple scalar logical = logical vector of size 1 with no ALTREP, ATTRIB, or OBJECT. */
+final class ScalarLglSXP extends ScalarSXPImpl<Logical> implements LglSXP {
+  static final ScalarLglSXP TRUE = new ScalarLglSXP(Logical.TRUE);
+  static final ScalarLglSXP FALSE = new ScalarLglSXP(Logical.FALSE);
+  static final ScalarLglSXP NA = new ScalarLglSXP(Logical.NA);
+
+  private ScalarLglSXP(Logical data) {
+    super(data);
+  }
+
+  @SuppressWarnings("MissingJavadoc")
+  public Logical value() {
+    return data;
   }
 
   @Override

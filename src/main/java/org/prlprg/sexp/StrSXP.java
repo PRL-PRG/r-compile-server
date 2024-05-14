@@ -11,7 +11,7 @@ import org.prlprg.primitive.Constants;
 /** String vector SEXP. */
 @Immutable
 public sealed interface StrSXP extends VectorSXP<String>, StrOrRegSymSXP
-    permits EmptyStrSXPImpl, SimpleStrSXP, StrSXPImpl {
+    permits EmptyStrSXPImpl, ScalarStrSXP, StrSXPImpl {
   @Override
   default SEXPType type() {
     return SEXPType.STR;
@@ -59,6 +59,32 @@ record StrSXPImpl(ImmutableList<String> data, @Override Attributes attributes) i
   @Override
   public Optional<String> reifyString() {
     return size() == 1 ? Optional.of(get(0)) : Optional.empty();
+  }
+}
+
+final class ScalarStrSXP extends ScalarSXPImpl<String> implements StrSXP {
+  ScalarStrSXP(String data) {
+    super(data);
+  }
+
+  @SuppressWarnings("MissingJavadoc")
+  public String value() {
+    return data;
+  }
+
+  @Override
+  public String toString() {
+    return StrSXPs.quoteString(data);
+  }
+
+  @Override
+  public StrSXP withAttributes(Attributes attributes) {
+    return SEXPs.string(data, attributes);
+  }
+
+  @Override
+  public Optional<String> reifyString() {
+    return Optional.of(data);
   }
 }
 

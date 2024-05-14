@@ -7,7 +7,7 @@ import javax.annotation.concurrent.Immutable;
 /** Integer vector SEXP. */
 @Immutable
 public sealed interface IntSXP extends NumericSXP<Integer>
-    permits EmptyIntSXPImpl, IntSXPImpl, SimpleIntSXP {
+    permits EmptyIntSXPImpl, IntSXPImpl, ScalarIntSXP {
   /**
    * The data contained in this vector. Note that if it's an empty or scalar, those aren't actually
    * backed by an {@link ImmutableIntArray}, so this gets created and returns every access.
@@ -57,27 +57,58 @@ record IntSXPImpl(@Override ImmutableIntArray data, @Override Attributes attribu
   }
 
   @Override
-  public int[] asInts() {
-    return data.toArray();
-  }
-
-  @Override
   public int asInt(int index) {
     return data.get(index);
   }
 
   @Override
-  public double[] asReals() {
-    var dbls = new double[data.length()];
-    for (int i = 0; i < dbls.length; i++) {
-      dbls[i] = data.get(i);
+  public double asReal(int index) {
+    return get(index);
+  }
+}
+
+/** Simple scalar integer = int vector of size 1 with no ALTREP, ATTRIB, or OBJECT. */
+final class ScalarIntSXP extends ScalarSXPImpl<Integer> implements IntSXP {
+  ScalarIntSXP(int data) {
+    super(data);
+  }
+
+  @SuppressWarnings("MissingJavadoc")
+  public int value() {
+    return data;
+  }
+
+  @Override
+  public ImmutableIntArray data() {
+    return ImmutableIntArray.of(data);
+  }
+
+  @Override
+  public IntSXP withAttributes(Attributes attributes) {
+    return SEXPs.integer(data, attributes);
+  }
+
+  @Override
+  public String[] coerceToStrings() {
+    return new String[] {String.valueOf(data)};
+  }
+
+  @Override
+  public int asInt(int index) {
+    if (index == 0) {
+      return data;
+    } else {
+      throw new ArrayIndexOutOfBoundsException("Index out of bounds: " + index);
     }
-    return dbls;
   }
 
   @Override
   public double asReal(int index) {
-    return get(index);
+    if (index == 0) {
+      return data.doubleValue();
+    } else {
+      throw new ArrayIndexOutOfBoundsException("Index out of bounds: " + index);
+    }
   }
 }
 
@@ -100,18 +131,8 @@ final class EmptyIntSXPImpl extends EmptyVectorSXPImpl<Integer> implements IntSX
   }
 
   @Override
-  public int[] asInts() {
-    return new int[0];
-  }
-
-  @Override
   public int asInt(int index) {
     throw new ArrayIndexOutOfBoundsException("Empty int vector");
-  }
-
-  @Override
-  public double[] asReals() {
-    return new double[0];
   }
 
   @Override

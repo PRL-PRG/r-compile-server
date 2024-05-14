@@ -7,7 +7,7 @@ import javax.annotation.concurrent.Immutable;
 /** Real vector SEXP. */
 @Immutable
 public sealed interface RealSXP extends NumericSXP<Double>
-    permits EmptyRealSXPImpl, RealSXPImpl, SimpleRealSXP {
+    permits EmptyRealSXPImpl, RealSXPImpl, ScalarRealSXP {
   @Override
   default SEXPType type() {
     return SEXPType.REAL;
@@ -53,27 +53,58 @@ record RealSXPImpl(ImmutableDoubleArray data, @Override Attributes attributes) i
   }
 
   @Override
-  public int[] asInts() {
-    var ints = new int[data.length()];
-    for (int i = 0; i < data.length(); i++) {
-      ints[i] = (int) data.get(i);
-    }
-    return ints;
-  }
-
-  @Override
   public int asInt(int index) {
     return (int) data.get(index);
   }
 
   @Override
-  public double[] asReals() {
-    return data().toArray();
+  public double asReal(int index) {
+    return data.get(index);
+  }
+}
+
+/** Simple scalar real = vector of size 1 with no ALTERP, ATTRIB, or OBJECT. */
+final class ScalarRealSXP extends ScalarSXPImpl<Double> implements RealSXP {
+  ScalarRealSXP(double data) {
+    super(data);
+  }
+
+  @SuppressWarnings("MissingJavadoc")
+  public double value() {
+    return data;
+  }
+
+  @Override
+  public RealSXP withAttributes(Attributes attributes) {
+    return SEXPs.real(data, attributes);
+  }
+
+  @Override
+  public int asInt(int index) {
+    if (index == 0) {
+      return data.intValue();
+    } else {
+      throw new ArrayIndexOutOfBoundsException("Index out of bounds: " + index);
+    }
   }
 
   @Override
   public double asReal(int index) {
-    return data.get(index);
+    if (index == 0) {
+      return data;
+    } else {
+      throw new ArrayIndexOutOfBoundsException("Index out of bounds: " + index);
+    }
+  }
+
+  @Override
+  public String toString() {
+    // FIXME: This is fairly arbitrary, but it works with log2 constant folding which otherwise
+    // differs
+    //  from GNU-R in the last digit.
+    //  Proper solution would be not to use simple text diff in tests, but actually compare the
+    // values.
+    return String.format("%.13f", data);
   }
 }
 
@@ -91,18 +122,8 @@ final class EmptyRealSXPImpl extends EmptyVectorSXPImpl<Double> implements RealS
   }
 
   @Override
-  public int[] asInts() {
-    return new int[0];
-  }
-
-  @Override
   public int asInt(int index) {
     throw new ArrayIndexOutOfBoundsException("Empty real vector");
-  }
-
-  @Override
-  public double[] asReals() {
-    return new double[0];
   }
 
   @Override

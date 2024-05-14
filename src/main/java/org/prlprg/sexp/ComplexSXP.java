@@ -8,7 +8,7 @@ import org.prlprg.primitive.Complex;
 /** Complex vector SEXP. */
 @Immutable
 public sealed interface ComplexSXP extends VectorSXP<Complex>
-    permits ComplexSXPImpl, EmptyComplexSXPImpl, SimpleComplexSXP {
+    permits ComplexSXPImpl, EmptyComplexSXPImpl, ScalarComplexSXP {
   @Override
   default SEXPType type() {
     return SEXPType.CPLX;
@@ -49,6 +49,22 @@ record ComplexSXPImpl(ImmutableList<Complex> data, @Override Attributes attribut
   @Override
   public ComplexSXP withAttributes(Attributes attributes) {
     return new ComplexSXPImpl(data, attributes);
+  }
+}
+
+final class ScalarComplexSXP extends ScalarSXPImpl<Complex> implements ComplexSXP {
+  ScalarComplexSXP(Complex data) {
+    super(data);
+  }
+
+  @SuppressWarnings("MissingJavadoc")
+  public Complex value() {
+    return data;
+  }
+
+  @Override
+  public ComplexSXP withAttributes(Attributes attributes) {
+    return SEXPs.complex(data, attributes);
   }
 }
 

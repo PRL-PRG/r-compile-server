@@ -1,22 +1,21 @@
 package org.prlprg.bc;
 
+import static org.prlprg.sexp.SEXPType.*;
+
 import com.google.common.collect.ImmutableList;
 import com.google.common.math.DoubleMath;
+import com.google.common.primitives.ImmutableDoubleArray;
 import com.google.common.primitives.ImmutableIntArray;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.*;
-import java.util.function.BiFunction;
-import java.util.function.Consumer;
-import java.util.function.Function;
-import java.util.function.Supplier;
+import java.util.function.*;
 import java.util.stream.IntStream;
 import javax.annotation.Nullable;
 import org.prlprg.RSession;
 import org.prlprg.bc.BcInstr.*;
+import org.prlprg.primitive.Complex;
 import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.*;
-
-import static org.prlprg.sexp.SEXPType.INT;
 
 // FIXME: use null instead of Optional (except for return types)
 // FIXME: update the SEXP API based on the experience with this code
@@ -190,7 +189,10 @@ public class Compiler {
   // @5c0d6769c910 01 SYMSXP g0c0 [MARK,REF(4),LCK,gp=0x4000] "T" (has value)
   private static final Set<String> ALLOWED_FOLDABLE_CONSTS = Set.of("pi", "T", "F");
 
-  private static final Set<String> ALLOWED_FOLDABLE_FUNS = Set.of("c", "*", "/", ":", "-", "^", "(", "log2");
+  private static final Set<String> ALLOWED_FOLDABLE_FUNS =
+      Set.of("c", "*", "/", ":", "-", "^", "(", "log2");
+
+  private static final Set<SEXPType> ALLOWED_FOLDABLE_MODES = Set.of(LGL, INT, REAL, CPLX, STR);
 
   // should match DOTCALL_MAX in eval.c
   private static final int DOTCALL_MAX = 16;
@@ -1530,9 +1532,7 @@ public class Compiler {
       // switch("b", a=1,b=,c=,e=2,b=3,b=4,c=,d=5,6)
       // a code that returns 2 (matching e label on b input)
       var aidxBuilder = ImmutableIntArray.builder();
-      IntStream.range(0, miss.size())
-              .filter(x -> !miss.get(x))
-              .forEach(aidxBuilder::add);
+      IntStream.range(0, miss.size()).filter(x -> !miss.get(x)).forEach(aidxBuilder::add);
       aidxBuilder.add(names.size());
       var aidx = aidxBuilder.build();
 
@@ -1611,7 +1611,10 @@ public class Compiler {
     // > make more sense but that isn't the way switch() works)
     if (miss.contains(true)) {
       cb.patchLabel(missLabel);
-      compile(SEXPs.lang(SEXPs.symbol("stop"), SEXPs.list(SEXPs.string("empty alternative in numeric switch"))));
+      compile(
+          SEXPs.lang(
+              SEXPs.symbol("stop"),
+              SEXPs.list(SEXPs.string("empty alternative in numeric switch"))));
     }
 
     // code for the default case
@@ -2098,7 +2101,7 @@ public class Compiler {
     var r =
         switch (e) {
           case NilSXP ignored -> e;
-          case VectorSXP<?> xs when xs.size()<= MAX_CONST_SIZE -> e;
+          case VectorSXP<?> xs when xs.size() <= MAX_CONST_SIZE -> e;
           default -> null;
         };
 
@@ -2134,17 +2137,18 @@ public class Compiler {
     }
 
     var args = argsBuilder.build();
-    Optional<SEXP> ct = switch (funSym.name()) {
-      case "c" -> constantFoldC(args);
-      case "*" -> constantFoldMul(args);
-      case "/" -> constantFoldDiv(args);
-      case ":" -> constantFoldColon(args);
-      case "-" -> constantFoldMinus(args);
-      case "^" -> constantFoldExp(args);
-      case "(" -> constantFoldParen(args);
-      case "log2" -> constantFoldLog2(args);
-      default -> Optional.empty();
-    };
+    Optional<SEXP> ct =
+        switch (funSym.name()) {
+          case "c" -> constantFoldC(args);
+          case "*" -> constantFoldMul(args);
+          case "/" -> constantFoldDiv(args);
+          case ":" -> constantFoldColon(args);
+          case "-" -> constantFoldMinus(args);
+          case "^" -> constantFoldExp(args);
+          case "(" -> constantFoldParen(args);
+          case "log2" -> constantFoldLog2(args);
+          default -> Optional.empty();
+        };
 
     return ct.flatMap(this::checkConst);
   }
@@ -2157,7 +2161,7 @@ public class Compiler {
       return Optional.empty();
     }
 
-    var res = Arrays.copyOf(n.asReals(), n.size());
+    var res = Arrays.copyOf(n.coerceToReals(), n.size());
     for (var i = 0; i < res.length; i++) {
       res[i] = DoubleMath.log2(res[i]);
     }
@@ -2195,15 +2199,14 @@ public class Compiler {
 
     return switch (args.getFirst()) {
       case IntSXP i -> {
-
-        var res = Arrays.copyOf(i.asInts(), i.size());
+        var res = Arrays.copyOf(i.coerceToInts(), i.size());
         for (var j = 0; j < res.length; j++) {
           res[j] = -res[j];
         }
         yield Optional.of(SEXPs.integer(res));
       }
       case RealSXP r -> {
-        var res = Arrays.copyOf(r.asReals(), r.size());
+        var res = Arrays.copyOf(r.coerceToReals(), r.size());
         for (var j = 0; j < res.length; j++) {
           res[j] = -res[j];
         }
@@ -2275,12 +2278,12 @@ public class Compiler {
 
   private Optional<SEXP> constantFoldDiv(ImmutableList<SEXP> args) {
     if (args.size() != 2) {
-        return Optional.empty();
+      return Optional.empty();
     }
 
     var opers = new double[2];
 
-    for (int i=0; i<2; i++) {
+    for (int i = 0; i < 2; i++) {
       if (!(args.get(i) instanceof NumericSXP<?> n)) {
         return Optional.empty();
       }
@@ -2291,7 +2294,7 @@ public class Compiler {
     }
 
     if (opers[1] == 0) {
-        return Optional.empty();
+      return Optional.empty();
     }
 
     return Optional.of(SEXPs.real(opers[0] / opers[1]));
@@ -2303,55 +2306,79 @@ public class Compiler {
     }
 
     var type = args.getFirst().type();
-    if (args.stream().anyMatch(x -> x.type() != type)) {
-      throw new IllegalArgumentException("All elements must be of the same type");
+    var capacity = 0;
+
+    // compute the target type, the SEXPTYPE is ordered in a way that we can just take the max
+    for (var arg : args) {
+      if (!ALLOWED_FOLDABLE_MODES.contains(arg.type())) {
+        return Optional.empty();
+      }
+
+      if (arg.type().i > type.i) {
+        type = arg.type();
+      }
+
+      capacity += ((VectorSXP<?>) arg).size();
     }
 
-    // FIXME: refactor and add support for other primitives
-    // TODO: check size
-    Optional<SEXP> vals = switch (type) {
-      case STR -> {
-        var xs = new ImmutableList.Builder<String>();
-        for (var arg : args) {
-          xs.addAll(((StrSXP) arg).iterator());
-        }
-        yield Optional.of(SEXPs.string(xs.build()));
-      }
-      case REAL -> {
-        var xs = new ImmutableList.Builder<Double>();
-        for (var arg : args) {
-          xs.addAll(((RealSXP) arg).iterator());
-        }
-        yield Optional.of(SEXPs.real(xs.build()));
-      }
-      case INT -> {
-        var xs = new ImmutableList.Builder<Integer>();
-        for (var arg : args) {
-          xs.addAll(((IntSXP) arg).iterator());
-        }
-        yield Optional.of(SEXPs.integer(xs.build()));
-      }
-      case LGL -> {
-        var xs = new ImmutableList.Builder<Logical>();
-        for (var arg : args) {
-          xs.addAll(((LglSXP) arg).iterator());
-        }
-        yield Optional.of(SEXPs.logical(xs.build()));
-      }
-      default -> Optional.empty();
-    };
+    // this is safe as we have proved that all args are VectorSXP
+    @SuppressWarnings("unchecked")
+    var vecArgs = (List<VectorSXP<?>>) args;
 
-    return vals.map(x -> {
-      var names = args.stream().map(SEXP::names).reduce(new ArrayList<>(), (acc, y) -> { if (y != null) {acc.addAll(y);} return acc;});
-      return x.withNames(names);
-    });
+    Optional<SEXP> vals =
+        switch (type) {
+          case STR -> {
+            var res = new ImmutableList.Builder<String>();
+            vecArgs.forEach(x -> res.add(x.coerceToStrings()));
+            yield Optional.of(SEXPs.string(res.build()));
+          }
+          case REAL -> {
+            var res = ImmutableDoubleArray.builder(capacity);
+            vecArgs.forEach(x -> Arrays.stream(x.coerceToReals()).forEach(res::add));
+            yield Optional.of(SEXPs.real(res.build()));
+          }
+          case INT -> {
+            var res = ImmutableIntArray.builder(capacity);
+            vecArgs.forEach(x -> Arrays.stream(x.coerceToInts()).forEach(res::add));
+            yield Optional.of(SEXPs.integer(res.build()));
+          }
+          case LGL -> {
+            var res = new ImmutableList.Builder<Logical>();
+            vecArgs.forEach(x -> res.add(x.coerceToLogicals()));
+            yield Optional.of(SEXPs.logical(res.build()));
+          }
+          case CPLX -> {
+            var res = new ImmutableList.Builder<Complex>();
+            vecArgs.forEach(x -> res.add(x.coerceToComplexes()));
+            yield Optional.of(SEXPs.complex(res.build()));
+          }
+          default -> Optional.empty();
+        };
+
+    return vals.map(
+        x -> {
+          var names =
+              args.stream()
+                  .map(SEXP::names)
+                  .reduce(
+                      new ArrayList<>(),
+                      (acc, y) -> {
+                        if (y != null) {
+                          acc.addAll(y);
+                        }
+                        return acc;
+                      });
+          return x.withNames(names);
+        });
   }
 
   private boolean isFoldableFun(RegSymSXP sym) {
     var name = sym.name();
 
     if (ALLOWED_FOLDABLE_FUNS.contains(name)) {
-      return getInlineInfo(name, false).map(x -> x.env.isBase() && x.value != null && x.value.isFunction()).orElse(false);
+      return getInlineInfo(name, false)
+          .map(x -> x.env.isBase() && x.value != null && x.value.isFunction())
+          .orElse(false);
     } else {
       return false;
     }
