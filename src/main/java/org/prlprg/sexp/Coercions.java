@@ -63,6 +63,10 @@ public final class Coercions {
     };
   }
 
+  public static SEXPType commonType(SEXPType ta, SEXPType tb) {
+    return ta.i > tb.i ? ta : tb;
+  }
+
   public static Complex complexFromInteger(int x) {
     return switch (x) {
       case Constants.NA_INT -> new Complex(Constants.NA_REAL, Constants.NA_REAL);
@@ -145,7 +149,7 @@ public final class Coercions {
   }
 
   public static Logical logicalFromComplex(Complex x) {
-    return (Double.isNaN(x.real()) || Double.isNaN(x.imaginary()))
+    return (Double.isNaN(x.real()) || Double.isNaN(x.imag()))
         ? Logical.NA
         : x.real() != 0 ? Logical.TRUE : Logical.FALSE;
   }

@@ -190,9 +190,9 @@ public class Compiler {
   private static final Set<String> ALLOWED_FOLDABLE_CONSTS = Set.of("pi", "T", "F");
 
   private static final Set<String> ALLOWED_FOLDABLE_FUNS =
-      Set.of("c", "*", "/", ":", "-", "^", "(", "log2");
+      Set.of("c", "+", "*", "/", ":", "-", "^", "(", "log2");
 
-  private static final Set<SEXPType> ALLOWED_FOLDABLE_MODES = Set.of(LGL, INT, REAL, CPLX, STR);
+  static final Set<SEXPType> ALLOWED_FOLDABLE_MODES = Set.of(LGL, INT, REAL, CPLX, STR);
 
   // should match DOTCALL_MAX in eval.c
   private static final int DOTCALL_MAX = 16;
@@ -2141,13 +2141,21 @@ public class Compiler {
     }
 
     var args = argsBuilder.build();
+
     Optional<SEXP> ct =
         switch (funSym.name()) {
           case "c" -> constantFoldC(args);
-          case "*" -> constantFoldMul(args);
-          case "/" -> constantFoldDiv(args);
+          case "+" -> ConstantFolding.add(args);
+          case "*" -> ConstantFolding.mul(args);
+          case "/" -> ConstantFolding.div(args);
+          case "-" -> {
+            if (args.size() == 1) {
+              yield constantFoldMinus(args);
+            } else {
+              yield ConstantFolding.sub(args);
+            }
+          }
           case ":" -> constantFoldColon(args);
-          case "-" -> constantFoldMinus(args);
           case "^" -> constantFoldExp(args);
           case "(" -> constantFoldParen(args);
           case "log2" -> constantFoldLog2(args);
