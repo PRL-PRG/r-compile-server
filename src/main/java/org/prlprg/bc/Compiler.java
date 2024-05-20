@@ -260,9 +260,13 @@ public class Compiler {
       return Optional.empty();
     }
 
+    return Optional.of(genCode());
+  }
+
+  private Bc genCode() {
     cb.addConst(expr);
     compile(expr, false, false);
-    return Optional.of(cb.build());
+    return cb.build();
   }
 
   private static Loc functionLoc(CloSXP fun) {
@@ -440,11 +444,16 @@ public class Compiler {
   }
 
   private void compileNormArg(SEXP arg, boolean nse) {
-    if (!nse) {
+    ConstPool.Idx<SEXP> idx;
+
+    if (nse) {
+      idx = cb.addConst(arg);
+    } else {
       var compiler = fork(arg, ctx.promiseContext(), cb.getCurrentLoc());
-      arg = compiler.compile().<SEXP>map(SEXPs::bcode).orElse(arg);
+      idx = cb.addConst(SEXPs.bcode(compiler.genCode()));
     }
-    cb.addInstr(new MakeProm(cb.addConst(arg)));
+
+    cb.addInstr(new MakeProm(idx));
   }
 
   @SuppressFBWarnings(
@@ -776,12 +785,12 @@ public class Compiler {
    */
   private boolean inlineFunction(LangSXP call) {
     // TODO: sourcerefs
-    if (mayCallBrowser(call)) {
-      return (false);
-    }
 
     var formals = (ListSXP) call.arg(0).value();
     var body = call.arg(1).value();
+    if (mayCallBrowser(body)) {
+      return false;
+    }
     var sref = call.args().size() > 2 ? call.arg(2).value() : SEXPs.NULL;
 
     var compiler = fork(body, ctx.functionContext(formals, body), cb.getCurrentLoc());
