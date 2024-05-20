@@ -1342,7 +1342,7 @@ public class Compiler {
         || call.args().hasTags()
         || call.args().isEmpty()
         || call.args().size() > 2) {
-      return inlineBuiltin(call, false);
+      return inlineSpecial(call);
     }
 
     var idx = cb.addConst(call);
