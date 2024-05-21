@@ -190,7 +190,7 @@ public class Compiler {
   private static final Set<String> ALLOWED_FOLDABLE_CONSTS = Set.of("pi", "T", "F");
 
   private static final Set<String> ALLOWED_FOLDABLE_FUNS =
-      Set.of("c", "+", "*", "/", ":", "-", "^", "(", "log2", "log", "sqrt");
+      Set.of("c", "+", "*", "/", ":", "-", "^", "(", "log2", "log", "sqrt", "rep");
 
   static final Set<SEXPType> ALLOWED_FOLDABLE_MODES = Set.of(LGL, INT, REAL, CPLX, STR);
 
@@ -2154,12 +2154,18 @@ public class Compiler {
     Optional<SEXP> ct =
         switch (funSym.name()) {
           case "c" -> constantFoldC(args);
-          case "+" -> ConstantFolding.add(args);
+          case "+" -> {
+          if (args.size() == 1) {
+            yield ConstantFolding.plus(args);
+          } else {
+            yield ConstantFolding.add(args);
+          }
+          }
           case "*" -> ConstantFolding.mul(args);
           case "/" -> ConstantFolding.div(args);
           case "-" -> {
             if (args.size() == 1) {
-              yield constantFoldMinus(args);
+              yield ConstantFolding.minus(args);
             } else {
               yield ConstantFolding.sub(args);
             }
@@ -2170,6 +2176,7 @@ public class Compiler {
           case "log" -> ConstantFolding.log(args);
           case "log2" -> ConstantFolding.log2(args);
           case "sqrt" -> ConstantFolding.sqrt(args);
+          case "rep" -> ConstantFolding.rep(args);
           default -> Optional.empty();
         };
 
@@ -2181,33 +2188,6 @@ public class Compiler {
       return Optional.empty();
     }
     return constantFold(args.getFirst());
-  }
-
-  private Optional<SEXP> constantFoldMinus(ImmutableList<SEXP> args) {
-    if (args.size() != 1) {
-      return Optional.empty();
-    }
-    if (!(args.getFirst() instanceof NumericSXP<?> n)) {
-      return Optional.empty();
-    }
-
-    return switch (args.getFirst()) {
-      case IntSXP i -> {
-        var res = Arrays.copyOf(i.coerceToInts(), i.size());
-        for (var j = 0; j < res.length; j++) {
-          res[j] = -res[j];
-        }
-        yield Optional.of(SEXPs.integer(res));
-      }
-      case RealSXP r -> {
-        var res = Arrays.copyOf(r.coerceToReals(), r.size());
-        for (var j = 0; j < res.length; j++) {
-          res[j] = -res[j];
-        }
-        yield Optional.of(SEXPs.real(res));
-      }
-      default -> Optional.empty();
-    };
   }
 
   private Optional<SEXP> constantFoldColon(ImmutableList<SEXP> args) {

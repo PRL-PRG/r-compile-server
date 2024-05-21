@@ -237,6 +237,17 @@
           <section>
             <rule>
               <match>
+                <AND>
+                  <METHOD>true</METHOD>
+                  <PRIVATE>true</PRIVATE>
+                  <STATIC>true</STATIC>
+                </AND>
+              </match>
+            </rule>
+          </section>
+          <section>
+            <rule>
+              <match>
                 <METHOD>true</METHOD>
               </match>
             </rule>

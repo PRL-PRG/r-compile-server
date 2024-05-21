@@ -48,4 +48,8 @@ public record Complex(double real, double imag) {
 
     return new Complex(rho * Math.cos(theta), rho * Math.sin(theta));
   }
+
+  public Complex minus() {
+    return new Complex(-real, -imag);
+  }
 }

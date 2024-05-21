@@ -1,45 +1,13 @@
 package org.prlprg.util;
 
 import java.util.function.BiFunction;
+import java.util.function.Function;
 import org.prlprg.primitive.Complex;
+import org.prlprg.sexp.SEXPType;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.sexp.VectorSXP;
 
 public interface Arithmetic<T> {
-  T add(T a, T b);
-
-  T sub(T a, T b);
-
-  T mul(T a, T b);
-
-  T div(T a, T b);
-
-  T pow(T a, T b);
-
-  T[] createResult(int size);
-
-  T[] fromSEXP(VectorSXP<?> vec);
-
-  VectorSXP<T> toSEXP(T[] ts);
-
-  default BiFunction<T, T, T> get(Operation op) {
-    return switch (op) {
-      case ADD -> this::add;
-      case SUB -> this::sub;
-      case MUL -> this::mul;
-      case DIV -> this::div;
-      case POW -> this::pow;
-    };
-  }
-
-  enum Operation {
-    ADD,
-    SUB,
-    MUL,
-    DIV,
-    POW,
-  }
-
   Arithmetic<Integer> INTEGER =
       new Arithmetic<>() {
         // FIXME: check for overflow
@@ -67,6 +35,16 @@ public interface Arithmetic<T> {
         @Override
         public Integer pow(Integer a, Integer b) {
           throw new UnsupportedOperationException("pow on integers");
+        }
+
+        @Override
+        public Integer plus(Integer a) {
+          return a;
+        }
+
+        @Override
+        public Integer minus(Integer a) {
+          return -a;
         }
 
         @Override
@@ -113,6 +91,16 @@ public interface Arithmetic<T> {
         }
 
         @Override
+        public Double plus(Double a) {
+          return a;
+        }
+
+        @Override
+        public Double minus(Double a) {
+          return -a;
+        }
+
+        @Override
         public Double[] createResult(int size) {
           return new Double[size];
         }
@@ -127,7 +115,6 @@ public interface Arithmetic<T> {
           return SEXPs.real(ts);
         }
       };
-
   Arithmetic<Complex> COMPLEX =
       new Arithmetic<>() {
         @Override
@@ -156,6 +143,16 @@ public interface Arithmetic<T> {
         }
 
         @Override
+        public Complex plus(Complex a) {
+          return a;
+        }
+
+        @Override
+        public Complex minus(Complex a) {
+          return a.minus();
+        }
+
+        @Override
         public Complex[] createResult(int size) {
           return new Complex[size];
         }
@@ -170,4 +167,62 @@ public interface Arithmetic<T> {
           return SEXPs.complex(ts);
         }
       };
+
+  static Arithmetic<?> forType(SEXPType type) {
+    return switch (type) {
+      case INT -> INTEGER;
+      case REAL -> DOUBLE;
+      case CPLX -> COMPLEX;
+      default -> throw new IllegalArgumentException("Unsupported type: " + type);
+    };
+  }
+
+  T add(T a, T b);
+
+  T sub(T a, T b);
+
+  T mul(T a, T b);
+
+  T div(T a, T b);
+
+  T pow(T a, T b);
+
+  T plus(T a);
+
+  T minus(T a);
+
+  T[] createResult(int size);
+
+  T[] fromSEXP(VectorSXP<?> vec);
+
+  VectorSXP<T> toSEXP(T[] ts);
+
+  default BiFunction<T, T, T> getBinaryFun(Operation op) {
+    return switch (op) {
+      case ADD -> this::add;
+      case SUB -> this::sub;
+      case MUL -> this::mul;
+      case DIV -> this::div;
+      case POW -> this::pow;
+      default -> throw new IllegalArgumentException("Unsupported binary operation: " + op);
+    };
+  }
+
+  default Function<T, T> getUnaryFun(Operation op) {
+    return switch (op) {
+      case PLUS -> this::plus;
+      case MINUS -> this::minus;
+      default -> throw new IllegalArgumentException("Unsupported unary operation: " + op);
+    };
+  }
+
+  enum Operation {
+    ADD,
+    SUB,
+    MUL,
+    DIV,
+    POW,
+    PLUS,
+    MINUS
+  }
 }

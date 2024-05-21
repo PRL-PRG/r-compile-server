@@ -420,4 +420,16 @@ public final class SEXPs {
   public static SEXP special(String name) {
     return new SpecialSXP(name);
   }
+
+  @SuppressWarnings("unchecked")
+  public static <T> VectorSXP<T> vector(SEXPType type, ImmutableList<T> build) {
+    return switch (type) {
+      case LGL -> (VectorSXP<T>) logical((List<Logical>) build);
+      case INT -> (VectorSXP<T>) integer((List<Integer>) build);
+      case REAL -> (VectorSXP<T>) real((List<Double>) build);
+      case STR -> (VectorSXP<T>) string((List<String>) build);
+      case CPLX -> (VectorSXP<T>) complex((List<Complex>) build);
+      default -> throw new IllegalArgumentException("Unsupported type: " + type);
+    };
+  }
 }

@@ -2,6 +2,7 @@ package org.prlprg.bc;
 
 import static org.prlprg.bc.Compiler.ALLOWED_FOLDABLE_MODES;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.math.DoubleMath;
 import java.util.Arrays;
 import java.util.List;
@@ -20,30 +21,87 @@ public class ConstantFolding {
     return math2(Arithmetic.Operation.DIV, args);
   }
 
-  private static Optional<SEXP> dmath1(List<SEXP> args, Function<Double, Double> f) {
-    if (args.size() != 1) {
-      return Optional.empty();
-    }
-    if (!(args.getFirst() instanceof NumericSXP<?> n)) {
-      return Optional.empty();
-    }
-
-    var res = Arrays.copyOf(n.coerceToReals(), n.size());
-    for (var i = 0; i < res.length; i++) {
-      res[i] = f.apply(res[i]);
-    }
-
-    return Optional.of(SEXPs.real(res));
+  public static Optional<SEXP> log(List<SEXP> args) {
+    return doubleMath1(args, Math::log);
   }
 
-  static <T> SEXP doMath2(
+  public static Optional<SEXP> log2(List<SEXP> args) {
+    return doubleMath1(args, DoubleMath::log2);
+  }
+
+  public static Optional<SEXP> minus(ImmutableList<SEXP> args) {
+    return math1(Arithmetic.Operation.MINUS, args);
+  }
+
+  public static Optional<SEXP> mul(List<SEXP> args) {
+    return math2(Arithmetic.Operation.MUL, args);
+  }
+
+  public static Optional<SEXP> plus(ImmutableList<SEXP> args) {
+    return math1(Arithmetic.Operation.PLUS, args);
+  }
+
+  public static Optional<SEXP> pow(List<SEXP> args) {
+    return math2(Arithmetic.Operation.POW, args);
+  }
+
+  public static Optional<SEXP> rep(List<SEXP> args) {
+    if (args.size() != 2) {
+      return Optional.empty();
+    }
+
+    if (!(args.getFirst() instanceof VectorSXP<?> x)) {
+      return Optional.empty();
+    }
+
+    if (!(args.getLast() instanceof NumericSXP<?> times)) {
+      return Optional.empty();
+    }
+
+    if (times.size() == 1) {
+      return Optional.of(doRep1(x, times.asInt(0)));
+    } else if (times.size() == x.size()) {
+      return Optional.of(doRep2(x, times));
+    } else {
+      return Optional.empty();
+    }
+  }
+
+  public static Optional<SEXP> sqrt(List<SEXP> args) {
+    return doubleMath1(args, Math::sqrt);
+  }
+
+  public static Optional<SEXP> sub(List<SEXP> args) {
+    return math2(Arithmetic.Operation.SUB, args);
+  }
+
+  private static <T> SEXP doMath1(Arithmetic.Operation op, VectorSXP<?> va, Arithmetic<T> arith) {
+    var ax = arith.fromSEXP(va);
+    return arith.toSEXP(doMath1(ax, arith::createResult, arith.getUnaryFun(op)));
+  }
+
+  private static <T, R> R[] doMath1(T[] ax, Function<Integer, R[]> createResult, Function<T, R> f) {
+    var l = ax.length;
+    if (l == 0) {
+      return createResult.apply(0);
+    }
+
+    var ans = createResult.apply(l);
+    for (int i = 0; i < l; i++) {
+      ans[i] = f.apply(ax[i]);
+    }
+
+    return ans;
+  }
+
+  private static <T> SEXP doMath2(
       Arithmetic.Operation op, VectorSXP<?> va, VectorSXP<?> vb, Arithmetic<T> arith) {
     var ax = arith.fromSEXP(va);
     var bx = arith.fromSEXP(vb);
-    return arith.toSEXP(doMath2(ax, bx, arith::createResult, arith.get(op)));
+    return arith.toSEXP(doMath2(ax, bx, arith::createResult, arith.getBinaryFun(op)));
   }
 
-  static <T, R> R[] doMath2(
+  private static <T, R> R[] doMath2(
       T[] ax, T[] bx, Function<Integer, R[]> createResult, BiFunction<T, T, R> f) {
     var la = ax.length;
     var lb = bx.length;
@@ -68,12 +126,57 @@ public class ConstantFolding {
     return ans;
   }
 
-  public static Optional<SEXP> log(List<SEXP> args) {
-    return dmath1(args, Math::log);
+  private static <T> SEXP doRep1(VectorSXP<T> x, int times) {
+    var res = new ImmutableList.Builder<T>();
+
+    for (int i = 0; i < times; i++) {
+      res.addAll(x);
+    }
+
+    return SEXPs.vector(x.type(), res.build());
   }
 
-  public static Optional<SEXP> log2(List<SEXP> args) {
-    return dmath1(args, DoubleMath::log2);
+  private static <T> SEXP doRep2(VectorSXP<T> xs, NumericSXP<?> times) {
+    var res = new ImmutableList.Builder<T>();
+
+    for (int j = 0; j < times.size(); j++) {
+      var n = times.asInt(j);
+      var x = xs.get(j);
+      for (int i = 0; i < n; i++) {
+        res.add(x);
+      }
+    }
+
+    return SEXPs.vector(xs.type(), res.build());
+  }
+
+  private static Optional<SEXP> doubleMath1(List<SEXP> args, Function<Double, Double> f) {
+    if (args.size() != 1) {
+      return Optional.empty();
+    }
+    if (!(args.getFirst() instanceof NumericSXP<?> n)) {
+      return Optional.empty();
+    }
+
+    var res = Arrays.copyOf(n.coerceToReals(), n.size());
+    for (var i = 0; i < res.length; i++) {
+      res[i] = f.apply(res[i]);
+    }
+
+    return Optional.of(SEXPs.real(res));
+  }
+
+  private static Optional<SEXP> math1(Arithmetic.Operation op, List<SEXP> args) {
+    if (args.size() != 1) {
+      return Optional.empty();
+    }
+
+    if (!(args.getFirst() instanceof VectorSXP<?> va)
+        || !ALLOWED_FOLDABLE_MODES.contains(va.type())) {
+      return Optional.empty();
+    }
+
+    return Optional.of(doMath1(op, va, Arithmetic.forType(va.type())));
   }
 
   private static Optional<SEXP> math2(Arithmetic.Operation op, List<SEXP> args) {
@@ -108,21 +211,5 @@ public class ConstantFolding {
         };
 
     return Optional.ofNullable(ans);
-  }
-
-  public static Optional<SEXP> mul(List<SEXP> args) {
-    return math2(Arithmetic.Operation.MUL, args);
-  }
-
-  public static Optional<SEXP> pow(List<SEXP> args) {
-    return math2(Arithmetic.Operation.POW, args);
-  }
-
-  public static Optional<SEXP> sqrt(List<SEXP> args) {
-    return dmath1(args, Math::sqrt);
-  }
-
-  public static Optional<SEXP> sub(List<SEXP> args) {
-    return math2(Arithmetic.Operation.SUB, args);
   }
 }
