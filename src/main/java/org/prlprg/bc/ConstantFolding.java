@@ -118,6 +118,10 @@ public class ConstantFolding {
     return math2(Arithmetic.Operation.POW, args);
   }
 
+  public static Optional<SEXP> sqrt(List<SEXP> args) {
+    return dmath1(args, Math::sqrt);
+  }
+
   public static Optional<SEXP> sub(List<SEXP> args) {
     return math2(Arithmetic.Operation.SUB, args);
   }

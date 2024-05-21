@@ -190,7 +190,7 @@ public class Compiler {
   private static final Set<String> ALLOWED_FOLDABLE_CONSTS = Set.of("pi", "T", "F");
 
   private static final Set<String> ALLOWED_FOLDABLE_FUNS =
-      Set.of("c", "+", "*", "/", ":", "-", "^", "(", "log2", "log");
+      Set.of("c", "+", "*", "/", ":", "-", "^", "(", "log2", "log", "sqrt");
 
   static final Set<SEXPType> ALLOWED_FOLDABLE_MODES = Set.of(LGL, INT, REAL, CPLX, STR);
 
@@ -2169,6 +2169,7 @@ public class Compiler {
           case "(" -> constantFoldParen(args);
           case "log" -> ConstantFolding.log(args);
           case "log2" -> ConstantFolding.log2(args);
+          case "sqrt" -> ConstantFolding.sqrt(args);
           default -> Optional.empty();
         };
 
