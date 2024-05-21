@@ -10,6 +10,8 @@ import java.util.Arrays;
 import java.util.Objects;
 
 public interface Tests {
+  double DOUBLE_CMP_DELTA = 0.000001d;
+
   /** Reads the resource at {@code path}. {@code path} is relative to {@code anchor}'s package. */
   static InputStream getResourceAsStream(Class<?> anchor, String path) {
     return Objects.requireNonNull(

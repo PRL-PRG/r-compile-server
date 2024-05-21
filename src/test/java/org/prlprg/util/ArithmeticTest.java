@@ -4,11 +4,15 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
 
+import java.util.List;
 import java.util.stream.Stream;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.prlprg.bc.ConstantFolding;
 import org.prlprg.primitive.Complex;
+import org.prlprg.sexp.SEXPs;
+import org.prlprg.sexp.VectorSXP;
 
 public class ArithmeticTest {
 
@@ -39,8 +43,8 @@ public class ArithmeticTest {
   @ParameterizedTest
   @MethodSource("complexAdd")
   public void testComplexBinary(Complex[] a, Complex[] b, Complex[] expected) {
-    var res = Arithmetic.binary(Arithmetic.Operation.ADD, a, b, Arithmetic.COMPLEX);
+    var res = ConstantFolding.add(List.of(SEXPs.complex(a), SEXPs.complex(b)));
     assertTrue(res.isPresent());
-    assertArrayEquals(res.get(), expected);
+    assertArrayEquals(((VectorSXP<?>) res.get()).coerceToComplexes(), expected);
   }
 }

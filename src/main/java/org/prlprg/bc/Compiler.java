@@ -190,7 +190,7 @@ public class Compiler {
   private static final Set<String> ALLOWED_FOLDABLE_CONSTS = Set.of("pi", "T", "F");
 
   private static final Set<String> ALLOWED_FOLDABLE_FUNS =
-      Set.of("c", "+", "*", "/", ":", "-", "^", "(", "log2");
+      Set.of("c", "+", "*", "/", ":", "-", "^", "(", "log2", "log");
 
   static final Set<SEXPType> ALLOWED_FOLDABLE_MODES = Set.of(LGL, INT, REAL, CPLX, STR);
 
@@ -2165,29 +2165,14 @@ public class Compiler {
             }
           }
           case ":" -> constantFoldColon(args);
-          case "^" -> constantFoldExp(args);
+          case "^" -> ConstantFolding.pow(args);
           case "(" -> constantFoldParen(args);
-          case "log2" -> constantFoldLog2(args);
+          case "log" -> ConstantFolding.log(args);
+          case "log2" -> ConstantFolding.log2(args);
           default -> Optional.empty();
         };
 
     return ct.flatMap(this::checkConst);
-  }
-
-  private Optional<SEXP> constantFoldLog2(ImmutableList<SEXP> args) {
-    if (args.size() != 1) {
-      return Optional.empty();
-    }
-    if (!(args.getFirst() instanceof NumericSXP<?> n)) {
-      return Optional.empty();
-    }
-
-    var res = Arrays.copyOf(n.coerceToReals(), n.size());
-    for (var i = 0; i < res.length; i++) {
-      res[i] = DoubleMath.log2(res[i]);
-    }
-
-    return Optional.of(SEXPs.real(res));
   }
 
   private Optional<SEXP> constantFoldParen(ImmutableList<SEXP> args) {
@@ -2195,19 +2180,6 @@ public class Compiler {
       return Optional.empty();
     }
     return constantFold(args.getFirst());
-  }
-
-  private Optional<SEXP> constantFoldExp(ImmutableList<SEXP> args) {
-    if (args.size() != 2) {
-      return Optional.empty();
-    }
-
-    // FIXME: check size
-    if (args.get(0) instanceof NumericSXP<?> base && args.get(1) instanceof NumericSXP<?> exp) {
-      return Optional.of(SEXPs.real(Math.pow(base.asReal(0), exp.asReal(0))));
-    } else {
-      return Optional.empty();
-    }
   }
 
   private Optional<SEXP> constantFoldMinus(ImmutableList<SEXP> args) {
@@ -2259,66 +2231,6 @@ public class Compiler {
     }
 
     return Optional.of(SEXPs.integer(ints.build()));
-  }
-
-  private Optional<SEXP> constantFoldMul(ImmutableList<SEXP> args) {
-    var maxType = INT;
-
-    for (var arg : args) {
-      if (!(arg instanceof NumericSXP<?> n)) {
-        return Optional.empty();
-      }
-      if (n.size() != 1) {
-        return Optional.empty();
-      }
-
-      if (arg.type().ordinal() > maxType.ordinal()) {
-        maxType = arg.type();
-      }
-    }
-
-    // FIXME: refactor
-    return switch (maxType) {
-      case INT -> {
-        var res = 1;
-        for (var arg : args) {
-          res *= ((NumericSXP<?>) arg).asInt(0);
-        }
-        yield Optional.of(SEXPs.integer(res));
-      }
-      case REAL -> {
-        var res = 1.0;
-        for (var arg : args) {
-          res *= ((NumericSXP<?>) arg).asReal(0);
-        }
-        yield Optional.of(SEXPs.real(res));
-      }
-      default -> Optional.empty();
-    };
-  }
-
-  private Optional<SEXP> constantFoldDiv(ImmutableList<SEXP> args) {
-    if (args.size() != 2) {
-      return Optional.empty();
-    }
-
-    var opers = new double[2];
-
-    for (int i = 0; i < 2; i++) {
-      if (!(args.get(i) instanceof NumericSXP<?> n)) {
-        return Optional.empty();
-      }
-      if (n.size() != 1) {
-        return Optional.empty();
-      }
-      opers[i] = n.asReal(0);
-    }
-
-    if (opers[1] == 0) {
-      return Optional.empty();
-    }
-
-    return Optional.of(SEXPs.real(opers[0] / opers[1]));
   }
 
   private Optional<SEXP> constantFoldC(List<? extends SEXP> args) {

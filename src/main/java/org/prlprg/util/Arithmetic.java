@@ -1,10 +1,11 @@
 package org.prlprg.util;
 
-import java.util.Optional;
+import java.util.function.BiFunction;
 import org.prlprg.primitive.Complex;
+import org.prlprg.sexp.SEXPs;
+import org.prlprg.sexp.VectorSXP;
 
 public interface Arithmetic<T> {
-
   T add(T a, T b);
 
   T sub(T a, T b);
@@ -13,46 +14,35 @@ public interface Arithmetic<T> {
 
   T div(T a, T b);
 
+  T pow(T a, T b);
+
   T[] createResult(int size);
 
-  static <T> Optional<T[]> binary(Operation operation, T[] a, T[] b, Arithmetic<T> arith) {
-    var la = a.length;
-    var lb = b.length;
+  T[] fromSEXP(VectorSXP<?> vec);
 
-    if (la == 0 || lb == 0) {
-      return Optional.of(arith.createResult(0));
-    }
+  VectorSXP<T> toSEXP(T[] ts);
 
-    var l = Math.max(la, lb);
-    var ans = arith.createResult(l);
-
-    for (int i = 0, ia = 0, ib = 0;
-        i < l;
-        ia = (++ia == la) ? 0 : ia, ib = (++ib == lb) ? 0 : ib, i++) {
-
-      var ca = a[ia];
-      var cb = b[ib];
-
-      switch (operation) {
-        case ADD -> ans[i] = arith.add(ca, cb);
-        case SUB -> ans[i] = arith.sub(ca, cb);
-        case MUL -> ans[i] = arith.mul(ca, cb);
-        case DIV -> ans[i] = arith.div(ca, cb);
-      }
-    }
-
-    return Optional.of(ans);
+  default BiFunction<T, T, T> get(Operation op) {
+    return switch (op) {
+      case ADD -> this::add;
+      case SUB -> this::sub;
+      case MUL -> this::mul;
+      case DIV -> this::div;
+      case POW -> this::pow;
+    };
   }
 
   enum Operation {
     ADD,
     SUB,
     MUL,
-    DIV
+    DIV,
+    POW,
   }
 
   Arithmetic<Integer> INTEGER =
       new Arithmetic<>() {
+        // FIXME: check for overflow
         @Override
         public Integer add(Integer a, Integer b) {
           return a + b;
@@ -63,6 +53,7 @@ public interface Arithmetic<T> {
           return a - b;
         }
 
+        // FIXME: check for overflow
         @Override
         public Integer mul(Integer a, Integer b) {
           return a * b;
@@ -74,8 +65,23 @@ public interface Arithmetic<T> {
         }
 
         @Override
+        public Integer pow(Integer a, Integer b) {
+          throw new UnsupportedOperationException("pow on integers");
+        }
+
+        @Override
         public Integer[] createResult(int size) {
           return new Integer[size];
+        }
+
+        @Override
+        public Integer[] fromSEXP(VectorSXP<?> vec) {
+          return vec.coerceToInts();
+        }
+
+        @Override
+        public VectorSXP<Integer> toSEXP(Integer[] ts) {
+          return SEXPs.integer(ts);
         }
       };
 
@@ -102,8 +108,23 @@ public interface Arithmetic<T> {
         }
 
         @Override
+        public Double pow(Double a, Double b) {
+          return Math.pow(a, b);
+        }
+
+        @Override
         public Double[] createResult(int size) {
           return new Double[size];
+        }
+
+        @Override
+        public Double[] fromSEXP(VectorSXP<?> vec) {
+          return vec.coerceToReals();
+        }
+
+        @Override
+        public VectorSXP<Double> toSEXP(Double[] ts) {
+          return SEXPs.real(ts);
         }
       };
 
@@ -130,8 +151,23 @@ public interface Arithmetic<T> {
         }
 
         @Override
+        public Complex pow(Complex a, Complex b) {
+          return a.pow(b);
+        }
+
+        @Override
         public Complex[] createResult(int size) {
           return new Complex[size];
+        }
+
+        @Override
+        public Complex[] fromSEXP(VectorSXP<?> vec) {
+          return vec.coerceToComplexes();
+        }
+
+        @Override
+        public VectorSXP<Complex> toSEXP(Complex[] ts) {
+          return SEXPs.complex(ts);
         }
       };
 }

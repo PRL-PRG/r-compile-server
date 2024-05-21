@@ -31,4 +31,21 @@ public record Complex(double real, double imag) {
     return new Complex(
         (real * other.real + imag * other.imag) / D, (imag * other.real - real * other.imag) / D);
   }
+
+  public Complex pow(Complex that) {
+    double r = Math.hypot(this.real, this.imag);
+    double i = Math.atan2(this.imag, this.real);
+    double theta = i * that.real;
+    double rho;
+
+    if (that.imag == 0) {
+      rho = Math.pow(r, that.real);
+    } else {
+      r = Math.log(r);
+      theta += r * that.imag;
+      rho = Math.exp(r * that.real - i * that.imag);
+    }
+
+    return new Complex(rho * Math.cos(theta), rho * Math.sin(theta));
+  }
 }
