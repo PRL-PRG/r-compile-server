@@ -67,6 +67,52 @@ public class ConstantFolding {
     }
   }
 
+  public static Optional<SEXP> seqInt(ImmutableList<SEXP> args) {
+    if (args.size() != 3) {
+      return Optional.empty();
+    }
+
+    if (!(args.get(0) instanceof NumericSXP<?> fromV) || fromV.size() != 1) {
+      return Optional.empty();
+    }
+
+    if (!(args.get(1) instanceof NumericSXP<?> toV) || toV.size() != 1) {
+      return Optional.empty();
+    }
+
+    if (!(args.get(2) instanceof NumericSXP<?> byV) || byV.size() != 1) {
+      return Optional.empty();
+    }
+
+    var type = Coercions.commonType(fromV.type(), toV.type(), byV.type());
+    return switch (type) {
+      case INT -> {
+        var from = fromV.asInt(0);
+        var to = toV.asInt(0);
+        var by = byV.asInt(0);
+        var ans = Arithmetic.INTEGER.createResult((to - from) / by + 1);
+        for (int i = 0, x = from; x <= to; i++, x += by) {
+          ans[i] = x;
+        }
+        yield Optional.of(SEXPs.integer(ans));
+      }
+      case REAL -> {
+        var from = fromV.asReal(0);
+        var to = toV.asReal(0);
+        var by = byV.asReal(0);
+        var size = (int) ((to - from) / by) + 1;
+        var ans = Arithmetic.DOUBLE.createResult(size);
+        var x = from;
+        for (int i = 0; i < size; i++) {
+          ans[i] = x;
+          x += by;
+        }
+        yield Optional.of(SEXPs.real(ans));
+      }
+      default -> Optional.empty();
+    };
+  }
+
   public static Optional<SEXP> sqrt(List<SEXP> args) {
     return doubleMath1(args, Math::sqrt);
   }

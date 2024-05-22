@@ -63,8 +63,17 @@ public final class Coercions {
     };
   }
 
-  public static SEXPType commonType(SEXPType ta, SEXPType tb) {
-    return ta.i > tb.i ? ta : tb;
+  public static SEXPType commonType(SEXPType... types) {
+    if (types.length == 0) {
+      throw new IllegalArgumentException("No types provided");
+    }
+
+    var max = types[0].i;
+    for (var i = 1; i < types.length; i++) {
+      max = Math.max(max, types[i].i);
+    }
+
+    return SEXPType.valueOf(max);
   }
 
   public static Complex complexFromInteger(int x) {

@@ -1,6 +1,8 @@
 package org.prlprg.sexp;
 
+import com.google.common.math.DoubleMath;
 import com.google.common.primitives.ImmutableDoubleArray;
+import java.util.Objects;
 import java.util.PrimitiveIterator;
 import javax.annotation.concurrent.Immutable;
 
@@ -8,6 +10,8 @@ import javax.annotation.concurrent.Immutable;
 @Immutable
 public sealed interface RealSXP extends NumericSXP<Double>
     permits EmptyRealSXPImpl, RealSXPImpl, ScalarRealSXP {
+  double DOUBLE_CMP_DELTA = 0.000001d;
+
   @Override
   default SEXPType type() {
     return SEXPType.REAL;
@@ -60,6 +64,29 @@ record RealSXPImpl(ImmutableDoubleArray data, @Override Attributes attributes) i
   @Override
   public double asReal(int index) {
     return data.get(index);
+  }
+
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) return true;
+    if (o == null || getClass() != o.getClass()) return false;
+    var that = (RealSXPImpl) o;
+    var data2 = that.data;
+    if (data.length() != data2.length()) {
+      return false;
+    }
+    for (int i = 0; i < data.length(); i++) {
+      if (!DoubleMath.fuzzyEquals(data.get(i), data2.get(i), DOUBLE_CMP_DELTA)) {
+        return false;
+      }
+    }
+    return Objects.equals(attributes, that.attributes);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(data, attributes);
   }
 }
 
