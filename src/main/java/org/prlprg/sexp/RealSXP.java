@@ -66,7 +66,6 @@ record RealSXPImpl(ImmutableDoubleArray data, @Override Attributes attributes) i
     return data.get(index);
   }
 
-
   @Override
   public boolean equals(Object o) {
     if (this == o) return true;
@@ -125,13 +124,16 @@ final class ScalarRealSXP extends ScalarSXPImpl<Double> implements RealSXP {
   }
 
   @Override
-  public String toString() {
-    // FIXME: This is fairly arbitrary, but it works with log2 constant folding which otherwise
-    // differs
-    //  from GNU-R in the last digit.
-    //  Proper solution would be not to use simple text diff in tests, but actually compare the
-    // values.
-    return String.format("%.13f", data);
+  public boolean equals(Object o) {
+    if (this == o) return true;
+    if (o == null || getClass() != o.getClass()) return false;
+    var that = (ScalarRealSXP) o;
+    return DoubleMath.fuzzyEquals(data, that.data, DOUBLE_CMP_DELTA);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(data);
   }
 }
 

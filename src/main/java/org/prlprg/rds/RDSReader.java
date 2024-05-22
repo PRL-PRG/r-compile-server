@@ -28,15 +28,15 @@ public class RDSReader implements Closeable {
     this.in = new RDSInputStream(in);
   }
 
-  public static SEXP readStream(RSession session, InputStream input) throws IOException {
-    try (var reader = new RDSReader(session, input)) {
-      return reader.read();
-    }
-  }
-
   public static SEXP readFile(RSession session, File file) throws IOException {
     try (var input = new FileInputStream(file)) {
       return readStream(session, IO.maybeDecompress(input));
+    }
+  }
+
+  public static SEXP readStream(RSession session, InputStream input) throws IOException {
+    try (var reader = new RDSReader(session, input)) {
+      return reader.read();
     }
   }
 
@@ -265,44 +265,52 @@ public class RDSReader implements Closeable {
     SEXP tagSexp = readItem();
     SEXP ans;
 
-    if (type.isSexp(SEXPType.LANG) || type == RDSItemType.Special.ATTRLANGSXP) {
-      if (tagSexp != SEXPs.NULL) {
-        throw new RDSException("Expected NULL tag");
-      }
+    if (!type.isSexp(SEXPType.LANG)
+        && !type.isSexp(SEXPType.LIST)
+        && type != RDSItemType.Special.ATTRLANGSXP
+        && type != RDSItemType.Special.ATTRLISTSXP) {
+      throw new RDSException("Unexpected bclang type: " + type);
+    }
 
-      var fun = readByteCodeLang(RDSItemType.valueOf(in.readInt()), reps);
+    String tag;
+
+    if (tagSexp instanceof RegSymSXP sym) {
+      tag = sym.name();
+    } else if (tagSexp instanceof NilSXP) {
+      tag = null;
+    } else {
+      throw new RDSException("Expected regular symbol or nil");
+    }
+
+    var head = readByteCodeLang(RDSItemType.valueOf(in.readInt()), reps);
+    var tail = readByteCodeLang(RDSItemType.valueOf(in.readInt()), reps);
+
+    ListSXP tailList;
+
+    // In R LISTSXP and LANGSXP are pretty much the same.
+    // The RDS relies on this fact quite a bit.
+    // The tail could thus be a LANGSXP (for example: methods::externalRefMethod)
+    if (tail instanceof ListSXP) {
+      tailList = (ListSXP) tail;
+    } else if (tail instanceof LangSXP lang) {
+      tailList = lang.args().prepend(new TaggedElem(null, lang.fun()));
+    } else {
+      throw new RDSException("Expected list or language, got: " + tail.type());
+    }
+
+    ans = tailList.prepend(new TaggedElem(tag, head)).withAttributes(attributes);
+
+    if (type.isSexp(SEXPType.LANG) || type == RDSItemType.Special.ATTRLANGSXP) {
+      ListSXP ansList = (ListSXP) ans;
+
+      var fun = ansList.get(0).value();
       if (!(fun instanceof SymOrLangSXP funSymOrLang)) {
         throw new RDSException("Expected symbol or language, got: " + fun.type());
       }
 
-      var args = readByteCodeLang(RDSItemType.valueOf(in.readInt()), reps);
-      if (!(args instanceof ListSXP argsList)) {
-        throw new RDSException("Expected list, got: " + args.type());
-      }
+      var args = ansList.subList(1);
 
-      ans = SEXPs.lang(funSymOrLang, argsList, attributes);
-    } else if (type.isSexp(SEXPType.LIST) || type == RDSItemType.Special.ATTRLISTSXP) {
-      String tag;
-
-      if (tagSexp instanceof RegSymSXP sym) {
-        tag = sym.name();
-      } else if (tagSexp instanceof NilSXP) {
-        tag = null;
-      } else {
-        throw new RDSException("Expected regular symbol or nil");
-      }
-
-      var head = readByteCodeLang(RDSItemType.valueOf(in.readInt()), reps);
-      var tail = readByteCodeLang(RDSItemType.valueOf(in.readInt()), reps);
-
-      if (!(tail instanceof ListSXP tailList)) {
-        throw new RDSException("Expected list, got: " + tail.type());
-      }
-
-      ans = tailList.prepend(new TaggedElem(tag, head)).withAttributes(attributes);
-
-    } else {
-      throw new RDSException("Unexpected bclang type: " + type);
+      ans = SEXPs.lang(funSymOrLang, args, attributes);
     }
 
     if (pos >= 0) {
