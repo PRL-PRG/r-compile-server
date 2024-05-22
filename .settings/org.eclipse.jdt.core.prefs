@@ -1,5 +1,5 @@
 eclipse.preferences.version=1
-org.eclipse.jdt.core.compiler.annotation.missingNonNullByDefaultAnnotation=disabled
+org.eclipse.jdt.core.compiler.annotation.missingNonNullByDefaultAnnotation=ignore
 org.eclipse.jdt.core.compiler.annotation.nonnull=org.eclipse.jdt.annotation.NonNull
 org.eclipse.jdt.core.compiler.annotation.nonnullbydefault=org.eclipse.jdt.annotation.NonNullByDefault
 org.eclipse.jdt.core.compiler.annotation.nullable=org.eclipse.jdt.annotation.Nullable
