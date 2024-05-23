@@ -8,14 +8,7 @@ import org.prlprg.primitive.Logical;
 
 /** SEXP vector (immutable list). */
 public sealed interface VectorSXP<T> extends ListOrVectorSXP<T>
-    permits ComplexSXP,
-        EmptyVectorSXPImpl,
-        ScalarSXPImpl,
-        ExprSXP,
-        LglSXP,
-        PrimVectorSXP,
-        StrSXP,
-        VecSXP {
+    permits EmptyVectorSXPImpl, ScalarSXPImpl, ExprSXP, PrimVectorSXP, VecSXP {
   @Override
   Attributes attributes();
 
@@ -26,10 +19,6 @@ public sealed interface VectorSXP<T> extends ListOrVectorSXP<T>
 
   @Override
   VectorSXP<T> withAttributes(Attributes attributes);
-
-  default boolean isScalar() {
-    return size() == 1;
-  }
 
   /**
    * Coerce the elements of this vector to strings.
@@ -56,6 +45,7 @@ public sealed interface VectorSXP<T> extends ListOrVectorSXP<T>
     return coerceTo(Complex.class);
   }
 
+  @SuppressWarnings("unchecked")
   default <R> R[] coerceTo(Class<R> clazz) {
     Object[] target;
     SEXPType targetType;

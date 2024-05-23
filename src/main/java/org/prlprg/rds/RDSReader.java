@@ -25,7 +25,6 @@ import org.prlprg.sexp.IntSXP;
 import org.prlprg.sexp.LangSXP;
 import org.prlprg.sexp.LglSXP;
 import org.prlprg.sexp.ListSXP;
-import org.prlprg.sexp.NamespaceEnvSXP;
 import org.prlprg.sexp.NilSXP;
 import org.prlprg.sexp.PromSXP;
 import org.prlprg.sexp.RealSXP;

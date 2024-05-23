@@ -51,6 +51,6 @@ class SymSxpParser {
       // Happens if `name` is a literal or "_"
       throw s.fail("symbol must be escaped but isn't: " + Strings.quote(name));
     }
-    return name.equals("...") ? SEXPs.ELLIPSIS : new RegSymSXP(name);
+    return name.equals("...") ? SEXPs.DOTS_SYMBOL : new RegSymSXP(name);
   }
 }

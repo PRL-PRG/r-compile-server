@@ -11,6 +11,7 @@ import com.google.common.primitives.ImmutableIntArray;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiFunction;
@@ -1663,7 +1664,7 @@ public class Compiler {
 
       for (var n : uniqueNames) {
         var start = names.indexOf(n);
-        var idx = aidx.stream().filter(x -> x >= start).min().getAsInt();
+        var idx = aidx.stream().filter(x -> x >= start).min().orElseThrow();
         nLabels.add(labels.get(idx));
       }
 
@@ -1735,7 +1736,7 @@ public class Compiler {
     // > empty alternative (fall through, as for character, might
     // > make more sense but that isn't the way switch() works)
     if (miss.contains(true)) {
-      cb.patchLabel(missLabel);
+      cb.patchLabel(Objects.requireNonNull(missLabel));
       compile(
           SEXPs.lang(
               SEXPs.symbol("stop"),
@@ -1763,12 +1764,12 @@ public class Compiler {
       cb.patchLabel(labels.get(i));
       compile(cases.get(i));
       if (!ctx.isTailCall()) {
-        cb.addInstr(new Goto(endLabel));
+        cb.addInstr(new Goto(Objects.requireNonNull(endLabel)));
       }
     }
 
     if (!ctx.isTailCall()) {
-      cb.patchLabel(endLabel);
+      cb.patchLabel(Objects.requireNonNull(endLabel));
     }
 
     return true;

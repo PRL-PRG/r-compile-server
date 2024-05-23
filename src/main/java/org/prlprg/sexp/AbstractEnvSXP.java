@@ -15,6 +15,11 @@ public abstract sealed class AbstractEnvSXP implements EnvSXP
     this.bindings = new HashMap<>();
   }
 
+  public AbstractEnvSXP(EnvSXP parent, Map<String, SEXP> bindings) {
+    this.parent = parent;
+    this.bindings = bindings;
+  }
+
   @Override
   public EnvSXP parent() {
     return parent;

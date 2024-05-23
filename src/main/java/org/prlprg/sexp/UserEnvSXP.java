@@ -1,5 +1,6 @@
 package org.prlprg.sexp;
 
+import java.util.Map;
 import javax.annotation.Nullable;
 
 public final class UserEnvSXP extends AbstractEnvSXP implements EnvSXP {
@@ -11,6 +12,10 @@ public final class UserEnvSXP extends AbstractEnvSXP implements EnvSXP {
 
   public UserEnvSXP(EnvSXP parent) {
     super(parent);
+  }
+
+  public UserEnvSXP(EnvSXP parent, Map<String, SEXP> bindings) {
+    super(parent, bindings);
   }
 
   public void setParent(EnvSXP parent) {

@@ -1,10 +1,10 @@
 package org.prlprg.sexp;
 
-import java.util.HashMap;
+import java.util.Map;
 
 public final class BaseEnvSXP extends AbstractEnvSXP implements EnvSXP {
 
-  public BaseEnvSXP(HashMap<String, SEXP> bindings) {
+  public BaseEnvSXP(Map<String, SEXP> bindings) {
     super(EmptyEnvSXP.INSTANCE);
     bindings.forEach(this::set);
   }

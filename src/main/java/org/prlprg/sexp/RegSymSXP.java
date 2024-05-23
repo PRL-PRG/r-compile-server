@@ -40,7 +40,7 @@ public final class RegSymSXP implements SymSXP, StrOrRegSymSXP {
 
   @SuppressWarnings("ConstantValue")
   RegSymSXP(String name) {
-    assert !name.equals("...") || SEXPs.ELLIPSIS == null
+    assert !name.equals("...") || SEXPs.DOTS_SYMBOL == null
         : "Constructed a \"...\" symbol, use SEXPs.ELLIPSIS instead (that's why this is package-private)";
     if (name.isEmpty()) {
       // GNU-R would throw "Error: attempt to use zero-length variable name"

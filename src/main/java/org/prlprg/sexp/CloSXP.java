@@ -1,6 +1,6 @@
 package org.prlprg.sexp;
 
-import java.util.Optional;
+import java.util.function.Predicate;
 import org.prlprg.util.Streams;
 
 /** Closure SEXP. */
@@ -39,8 +39,7 @@ public sealed interface CloSXP extends SEXP {
 record CloSXPImpl(ListSXP formals, SEXP body, EnvSXP env, @Override Attributes attributes)
     implements CloSXP {
   CloSXPImpl {
-    if (Streams.hasDuplicates(
-        formals.names().stream().filter(Optional::isPresent).map(Optional::get))) {
+    if (Streams.hasDuplicates(formals.names().stream().filter(Predicate.not(String::isEmpty)))) {
       throw new IllegalArgumentException("Formal arguments must have unique names");
     }
   }

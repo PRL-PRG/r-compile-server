@@ -117,13 +117,17 @@ public final class NilSXP implements ListSXP {
   }
 
   @Override
-  public ListSXP remove(String tag) {
-    throw new UnsupportedOperationException("NULL is empty");
+  public ListSXP remove(@Nullable String tag) {
+    if (tag != null && tag.isEmpty()) {
+      throw new IllegalArgumentException(
+          "The empty tag doesn't exist, pass `null` to remove untagged elements.");
+    }
+    return this;
   }
 
   @Override
   public Stream<TaggedElem> stream() {
-    throw new UnsupportedOperationException("NULL is empty");
+    return Stream.of();
   }
 
   @Override

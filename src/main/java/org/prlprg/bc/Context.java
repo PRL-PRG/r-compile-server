@@ -14,6 +14,7 @@ import org.prlprg.sexp.RegSymSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.sexp.StrOrRegSymSXP;
+import org.prlprg.sexp.SymOrLangSXP;
 import org.prlprg.sexp.UserEnvSXP;
 import org.prlprg.util.Pair;
 
@@ -71,11 +72,12 @@ public class Context {
     formals
         .names()
         .forEach(
-            x ->
-                env.set(
-                    x.orElseThrow(
-                        () -> new IllegalStateException("unexpected formal without name")),
-                    SEXPs.UNBOUND_VALUE));
+            x -> {
+              if (x.isEmpty()) {
+                throw new IllegalStateException("unexpected formal without name");
+              }
+              env.set(x, SEXPs.UNBOUND_VALUE);
+            });
     for (var v : formals.values()) {
       ctx.findLocals(v).forEach(x -> env.set(x, SEXPs.UNBOUND_VALUE));
     }
