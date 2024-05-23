@@ -3,7 +3,6 @@ package org.prlprg.bc;
 import static org.prlprg.sexp.SEXPType.*;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.math.DoubleMath;
 import com.google.common.primitives.ImmutableDoubleArray;
 import com.google.common.primitives.ImmutableIntArray;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -2155,11 +2154,11 @@ public class Compiler {
         switch (funSym.name()) {
           case "c" -> constantFoldC(args);
           case "+" -> {
-          if (args.size() == 1) {
-            yield ConstantFolding.plus(args);
-          } else {
-            yield ConstantFolding.add(args);
-          }
+            if (args.size() == 1) {
+              yield ConstantFolding.plus(args);
+            } else {
+              yield ConstantFolding.add(args);
+            }
           }
           case "*" -> ConstantFolding.mul(args);
           case "/" -> ConstantFolding.div(args);
