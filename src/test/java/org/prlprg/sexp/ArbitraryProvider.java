@@ -9,15 +9,15 @@ import static org.prlprg.primitive.ArbitraryProvider.basicReals;
 import static org.prlprg.primitive.ArbitraryProvider.complexes;
 import static org.prlprg.primitive.ArbitraryProvider.logicals;
 
-import java.util.Optional;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 import net.jqwik.api.Arbitraries;
 import net.jqwik.api.Arbitrary;
 import net.jqwik.api.Combinators;
 import net.jqwik.api.Tuple;
 import net.jqwik.api.arbitraries.StringArbitrary;
 import net.jqwik.api.providers.TypeUsage;
-import org.prlprg.util.Pair;
 import org.prlprg.util.Streams;
 
 public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvider {
@@ -71,19 +71,7 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
   private static Arbitrary<EnvSXP> envs(Arbitrary<SEXP> sexps) {
     return recursive(
         () -> staticEnvs(sexps),
-        e ->
-            Combinators.combine(
-                    e,
-                    taggedElems(sexps)
-                        .filter(TaggedElem::hasTag)
-                        .map(
-                            t -> {
-                              assert t.tag() != null;
-                              return Pair.of(t.tag(), t.value());
-                            })
-                        .list()
-                        .ofMaxSize(MAX_SIZE))
-                .as(UserEnvSXP::new),
+        e -> Combinators.combine(e, envBindings(sexps)).as(UserEnvSXP::new),
         0,
         MAX_DEPTH);
   }
@@ -98,15 +86,24 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
 
   private static Arbitrary<NamespaceEnvSXP> namespaceEnvs(Arbitrary<SEXP> sexps) {
     return recursive(
-        () -> namespaceEnvs1(baseEnvs(sexps)), ArbitraryProvider::namespaceEnvs1, 0, MAX_DEPTH);
+        () -> namespaceEnvs1(baseEnvs(sexps), sexps),
+        envs -> namespaceEnvs1(envs, sexps),
+        0,
+        MAX_DEPTH);
   }
 
-  private static Arbitrary<NamespaceEnvSXP> namespaceEnvs1(Arbitrary<? extends EnvSXP> envs) {
-    return Combinators.combine(envs, symbolStrings(), symbolStrings()).as(NamespaceEnvSXP::new);
+  private static Arbitrary<NamespaceEnvSXP> namespaceEnvs1(
+      Arbitrary<? extends EnvSXP> envs, Arbitrary<SEXP> sexps) {
+    return Combinators.combine(symbolStrings(), symbolStrings(), envs, envBindings(sexps))
+        .as(NamespaceEnvSXP::new);
   }
 
   private static Arbitrary<BaseEnvSXP> baseEnvs(Arbitrary<SEXP> sexps) {
-    return Arbitraries.maps(shortStrings(), sexps).map(BaseEnvSXP::new);
+    return envBindings(sexps).map(BaseEnvSXP::new);
+  }
+
+  private static Arbitrary<Map<String, SEXP>> envBindings(Arbitrary<SEXP> sexps) {
+    return Arbitraries.maps(shortStrings(), sexps).ofMaxSize(MAX_SIZE);
   }
 
   private static Arbitrary<ExprSXP> exprs() {
@@ -131,7 +128,7 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
                 .filter(
                     l ->
                         Streams.hasNoDuplicates(
-                            l.names().stream().filter(Optional::isPresent).map(Optional::get))),
+                            l.names().stream().filter(Predicate.not(String::isEmpty)))),
             sexps,
             envs(sexps))
         .as(SEXPs::closure);

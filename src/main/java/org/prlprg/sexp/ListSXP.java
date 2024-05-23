@@ -46,7 +46,12 @@ public sealed interface ListSXP extends ListOrVectorSXP<TaggedElem> permits NilS
     return names().stream().anyMatch(x -> !x.isEmpty());
   }
 
-  ListSXP remove(String tag);
+  /**
+   * Remove all elements with the given tag (R lists may have multiple with the same tag).
+   *
+   * <p>Given {@code null}, it will remove all untagged elements.
+   */
+  ListSXP remove(@Nullable String tag);
 
   Stream<TaggedElem> stream();
 
@@ -123,14 +128,16 @@ record ListSXPImpl(ImmutableList<TaggedElem> data, @Override Attributes attribut
   }
 
   @Override
-  public ListSXP remove(String tag) {
-    var builder = ImmutableList.<TaggedElem>builder();
-    for (var i : this) {
-      if (!tag.equals(i.tag())) {
-        builder.add(i);
-      }
+  public ListSXP remove(@Nullable String tag) {
+    if (tag != null && tag.isEmpty()) {
+      throw new IllegalArgumentException(
+          "The empty tag doesn't exist, pass `null` to remove untagged elements.");
     }
-    return new ListSXPImpl(builder.build(), Objects.requireNonNull(attributes()));
+    return new ListSXPImpl(
+        stream()
+            .filter(e -> !Objects.equals(tag, e.tag()))
+            .collect(ImmutableList.toImmutableList()),
+        attributes);
   }
 
   @Override

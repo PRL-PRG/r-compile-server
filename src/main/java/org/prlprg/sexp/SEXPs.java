@@ -42,8 +42,7 @@ public final class SEXPs {
 
   static {
     Set.of("TRUE", "FALSE", "NULL", "NA", "Inf", "NaN")
-        .forEach(
-            x -> SYMBOL_POOL.put(x, new RegSymSXP(x)));
+        .forEach(x -> SYMBOL_POOL.put(x, new RegSymSXP(x)));
   }
 
   public static final EmptyEnvSXP EMPTY_ENV = EmptyEnvSXP.INSTANCE;

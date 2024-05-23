@@ -2,7 +2,9 @@ package org.prlprg.bc;
 
 import com.google.common.primitives.ImmutableIntArray;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import javax.annotation.Nullable;
 import org.prlprg.primitive.Constants;

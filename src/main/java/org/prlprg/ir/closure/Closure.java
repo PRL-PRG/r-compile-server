@@ -134,7 +134,7 @@ public class Closure {
     }
 
     public boolean isDots() {
-      return name == SEXPs.ELLIPSIS;
+      return name == SEXPs.DOTS_SYMBOL;
     }
   }
 }
