@@ -1,6 +1,8 @@
 package org.prlprg.sexp;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.prlprg.sexp.Coercions.isNA;
 
 import org.junit.jupiter.api.Test;
 import org.prlprg.primitive.Constants;
@@ -38,7 +40,7 @@ public class CoercionsTest {
     assertEquals(1.0, c.imag());
 
     c = Coercions.complexFromString(Constants.NA_STRING);
-    assertEquals(Constants.NA_REAL, c.real());
-    assertEquals(Constants.NA_REAL, c.imag());
+    assertTrue(isNA(c.real()));
+    assertTrue(isNA(c.imag()));
   }
 }

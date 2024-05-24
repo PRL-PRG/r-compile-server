@@ -6,7 +6,6 @@ import com.google.common.escape.Escaper;
 import com.google.common.escape.Escapers;
 import java.util.Optional;
 import javax.annotation.concurrent.Immutable;
-import org.prlprg.primitive.Constants;
 
 /** String vector SEXP. */
 @Immutable
@@ -116,7 +115,7 @@ final class StrSXPs {
           .build();
 
   static String quoteString(String s) {
-    return Constants.isNaString(s) ? "NA" : "\"" + rEscaper.escape(s) + "\"";
+    return Coercions.isNA(s) ? "NA" : "\"" + rEscaper.escape(s) + "\"";
   }
 
   private StrSXPs() {}

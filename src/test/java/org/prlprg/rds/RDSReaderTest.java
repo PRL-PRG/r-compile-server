@@ -1,8 +1,8 @@
 package org.prlprg.rds;
 
 import static com.google.common.truth.Truth.assertThat;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.fail;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.prlprg.sexp.Coercions.isNA;
 
 import java.util.Objects;
 import org.junit.jupiter.api.Test;
@@ -21,7 +21,7 @@ public class RDSReaderTest extends AbstractGNURBasedTest {
       assertEquals(Constants.INT_MIN, ints.get(0));
       assertEquals(-1, ints.get(1));
       assertEquals(0, ints.get(2));
-      assertEquals(Constants.NA_INT, ints.get(3));
+      assertTrue(isNA(ints.get(3)));
       assertEquals(1, ints.get(4));
       assertEquals(Integer.MAX_VALUE, ints.get(5));
     } else {
@@ -37,7 +37,7 @@ public class RDSReaderTest extends AbstractGNURBasedTest {
       assertEquals(3, logs.size());
       assertEquals(Logical.TRUE, logs.get(0));
       assertEquals(Logical.FALSE, logs.get(1));
-      assertEquals(Logical.NA, logs.get(2));
+      assertTrue(isNA(logs.get(2)));
     } else {
       fail("Expected LglSXP");
     }
@@ -53,7 +53,7 @@ public class RDSReaderTest extends AbstractGNURBasedTest {
       // assertEquals(Double.MIN_VALUE, reals.get(0));
       assertEquals(-1.0, reals.get(1));
       assertEquals(.0, reals.get(2));
-      assertEquals(Constants.NA_REAL, reals.get(3));
+      assertTrue(isNA(reals.get(3)));
       assertEquals(1.0, reals.get(4));
       assertEquals(Double.MAX_VALUE, reals.get(5));
     } else {

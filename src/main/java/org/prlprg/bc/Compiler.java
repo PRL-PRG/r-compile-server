@@ -1052,7 +1052,6 @@ public class Compiler {
 
   private Optional<LangSXP> trySimpleInternalCall(LangSXP call, CloSXP def) {
     if (!dotsOrMissing(call.args()) && isSimpleInternal(def)) {
-      var forms = def.formals();
       var b = def.bodyAST();
 
       // FIXME: ugly
@@ -1839,6 +1838,7 @@ public class Compiler {
     return places;
   }
 
+  @SuppressFBWarnings("DLS_DEAD_LOCAL_STORE")
   private boolean checkAssign(LangSXP call, Loc loc) {
     if (call.args().size() != 2) {
       return false;

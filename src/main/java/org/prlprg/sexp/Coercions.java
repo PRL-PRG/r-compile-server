@@ -1,5 +1,6 @@
 package org.prlprg.sexp;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.regex.Pattern;
 import org.prlprg.primitive.Complex;
 import org.prlprg.primitive.Constants;
@@ -77,18 +78,13 @@ public final class Coercions {
   }
 
   public static Complex complexFromInteger(int x) {
-    return switch (x) {
-      case Constants.NA_INT -> new Complex(Constants.NA_REAL, Constants.NA_REAL);
-      default -> Complex.fromReal(x);
-    };
+    return isNA(x) ? Constants.NA_COMPLEX : Complex.fromReal(x);
   }
 
   public static Complex complexFromLogical(Logical x) {
-    return switch (x) {
-      case TRUE -> Complex.fromReal(1);
-      case FALSE -> Complex.fromReal(0);
-      case NA -> new Complex(Constants.NA_REAL, Constants.NA_REAL);
-    };
+    return isNA(x)
+        ? Constants.NA_COMPLEX
+        : x == Logical.TRUE ? Complex.fromReal(1) : Complex.fromReal(0);
   }
 
   public static Complex complexFromReal(double x) {
@@ -96,7 +92,7 @@ public final class Coercions {
   }
 
   public static Complex complexFromString(String x) {
-    if (x == Constants.NA_STRING || x.isBlank()) {
+    if (isNA(x) || x.isBlank()) {
       return Constants.NA_COMPLEX;
     }
 
@@ -138,7 +134,7 @@ public final class Coercions {
   }
 
   public static int integerFromComplex(Complex x) {
-    return x.equals(Constants.NA_COMPLEX) ? Constants.NA_INT : (int) x.real();
+    return isNA(x) ? Constants.NA_INT : (int) x.real();
   }
 
   public static int integerFromLogical(Logical x) {
@@ -154,7 +150,29 @@ public final class Coercions {
   }
 
   public static int integerFromString(String x) {
-    return x == Constants.NA_STRING ? Constants.NA_INT : Integer.parseInt(x);
+    return isNA(x) ? Constants.NA_INT : Integer.parseInt(x);
+  }
+
+  @SuppressFBWarnings("ES_COMPARING_PARAMETER_STRING_WITH_EQ")
+  public static boolean isNA(String x) {
+    //noinspection StringEquality
+    return x == Constants.NA_STRING;
+  }
+
+  public static boolean isNA(Logical x) {
+    return x == Logical.NA;
+  }
+
+  public static boolean isNA(int x) {
+    return x == Constants.NA_INT;
+  }
+
+  public static boolean isNA(double x) {
+    return Double.isNaN(x);
+  }
+
+  public static boolean isNA(Complex x) {
+    return isNA(x.real()) || isNA(x.imag());
   }
 
   public static Logical logicalFromComplex(Complex x) {
@@ -164,7 +182,7 @@ public final class Coercions {
   }
 
   public static Logical logicalFromInteger(int x) {
-    return x == Constants.NA_INT ? Logical.NA : x != 0 ? Logical.TRUE : Logical.FALSE;
+    return isNA(x) ? Logical.NA : x != 0 ? Logical.TRUE : Logical.FALSE;
   }
 
   public static Logical logicalFromReal(double x) {
@@ -172,9 +190,7 @@ public final class Coercions {
   }
 
   public static Logical logicalFromString(String x) {
-    // this is correct, we want to compare identity as there should be just one instance of NA
-    // string
-    if (x == Constants.NA_STRING) {
+    if (isNA(x)) {
       return Logical.NA;
     }
 
@@ -182,39 +198,31 @@ public final class Coercions {
   }
 
   public static double realFromComplex(Complex x) {
-    return x.equals(Constants.NA_COMPLEX) ? Constants.NA_INT : x.real();
+    return isNA(x) ? Constants.NA_INT : x.real();
   }
 
   public static double realFromInteger(int x) {
-    return x == Constants.NA_INT ? Constants.NA_REAL : (double) x;
+    return isNA(x) ? Constants.NA_REAL : (double) x;
   }
 
   public static double realFromLogical(Logical x) {
-    return switch (x) {
-      case TRUE -> 1.0;
-      case FALSE -> 0.0;
-      case NA -> Constants.NA_REAL;
-    };
+    return isNA(x) ? Constants.NA_REAL : x == Logical.TRUE ? 1.0 : 0.0;
   }
 
   public static double realFromString(String x) {
-    return x == Constants.NA_STRING ? Constants.NA_REAL : Double.parseDouble(x);
+    return isNA(x) ? Constants.NA_REAL : Double.parseDouble(x);
   }
 
   public static String stringFromComplex(Complex x) {
-    return x.equals(Constants.NA_COMPLEX) ? Constants.NA_STRING : x.toString();
+    return isNA(x) ? Constants.NA_STRING : x.toString();
   }
 
   public static String stringFromInteger(int x) {
-    return x == Constants.NA_INT ? Constants.NA_STRING : Integer.toString(x);
+    return isNA(x) ? Constants.NA_STRING : Integer.toString(x);
   }
 
   public static String stringFromLogical(Logical x) {
-    return switch (x) {
-      case TRUE -> "TRUE";
-      case FALSE -> "FALSE";
-      case NA -> Constants.NA_STRING;
-    };
+    return isNA(x) ? Constants.NA_STRING : x == Logical.TRUE ? "TRUE" : "FALSE";
   }
 
   public static String stringFromReal(double x) {
