@@ -1,0 +1,282 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ .derivedDefaultMethod[0x55de2946e980]                                        │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch miss: 1                              │
+│ Properties:                                                                  │
+├────── Final PIR Version
+.derivedDefaultMethod[0x55de2946e980]
+BB0
+  val?^           %0.0  = LdArg                    0
+  val?^ | miss    %0.1  = LdVar              eR    is.function, <env 0x55de28b56378>
+  lgl$#-          %0.2  = Identical                <blt is.function>, %0.1   <true>
+  void                    Branch                   %0.2 -> BB28 (if true) | BB29 (if false)
+BB28   <- [0]
+  env             e28.0 = MkEnv              l     fdef=%0.0, internal(miss)=nil, parent=<env 0x55de28b56378>, context 1
+  val?            %28.1 = Force!<lazy>       !v    %0.0, e28.0   <cls->
+  lgl$#-          %28.2 = IsType                   %28.1 isA val?-
+  void                    Branch                   %28.2 -> BB30 (if true) | BB31 (if false)
+BB29   <- [0]
+  env             e29.0 = (MkEnv)            l     fdef=%0.0, internal(miss)=nil, parent=<env 0x55de28b56378>, context 1
+  fs              %29.1 = FrameState         R     0x55de2f2cdd50+0: [], env=e29.0
+  void                    Deopt              !v    %29.1, DeadBranchReached@0x55de2ee04bf8[Test#0], %0.2
+BB30   <- [28]
+  val?-           %30.0 = CastType           d     dn %28.1   <cls->
+  lgl$#-          %30.1 = CallSafeBuiltin    wed   is.function(%30.0)    <lgl$->
+  void                    Branch                   %30.1 -> BB16 (if true) | BB7 (if false)
+BB31   <- [28]
+  fs              %31.0 = FrameState         R     0x55de2f2cdd50+69: [<blt is.function>, %28.1], env=e28.0
+  void                    Deopt              !v    %31.0, Typecheck@0x55de2ee04bf8[Type#1], %28.1   !
+BB16   <- [30]
+  val?^ | miss    %16.0 = LdVar              eR    is.primitive, e28.0
+  lgl$#-          %16.1 = Identical                %16.0, function(x) <(rir::DispatchTable*)0x55de2ac9a9|...>
+  void                    Branch                   %16.1 -> BB32 (if true) | BB33 (if false)
+BB7   <- [30]
+  void                    Nop                !     
+  lgl$#-          %7.1  = %30.1
+  goto BB8
+BB32   <- [16]
+  val?^ | miss    %32.0 = LdVar              eR    fdef, e28.0
+  val?            %32.1 = Force!<wrapped>    !v    %32.0, e28.0   <cls->
+  str$-           %32.2 = CallSafeBuiltin    wed   typeof(%32.1)    <str$->
+  int$-           %32.3 = Length                   %32.2
+  lgl$-           %32.4 = Eq                 d     %32.3, 1L, elided   <true>
+  lgl$#-          %32.5 = Identical                %32.4, true
+  void                    Branch                   %32.5 -> BB34 (if true) | BB35 (if false)
+BB33   <- [16]
+  fs              %33.0 = FrameState         R     0x55de2f2cdd50+91: [%30.1], env=e28.0
+  void                    Deopt              !v    %33.0, CallTarget@0x55de2ee04bf8[Call#1], %16.0   !
+BB8   <- [7, 23]
+  lgl$-           %8.0  = Phi                      %23.4:BB23, %7.1:BB7
+  lgl$-           %8.1  = %8.0
+  lgl$#-          %8.2  = CheckTrueFalse     e     %8.1
+  void                    Branch                   %8.2 -> BB11 (if true) | BB9 (if false)
+BB34   <- [32]
+  lgl$-           %34.0 = CallSafeBuiltin    wed   is.na(%32.2) 
+  lgl$#-          %34.1 = CheckTrueFalse     e     %34.0   <false>
+  void                    Branch                   %34.1 -> BB37 (if true) | BB36 (if false)
+BB35   <- [32]
+  prom-           %35.0 = MkArg                    %32.1, .derivedDefaultMethod[0x55de2946e980]_p1 (!refl), e28.0
+  val?~           %35.1 = CastType                 up %35.0
+  env             e35.2 = (MkEnv)            l     x=%35.1, parent=R_BaseNamespace, context 0
+  env             e35.3 = MaterializeEnv           , e35.2   <@?>
+  fs              %35.4 = FrameState         R     0x55de2f2cdd50+135: [%30.1], env=e28.0
+  fs              %35.5 = FrameState         R     0x55de2c9144e0+32: [], env=e35.3, next=%35.4
+  prom-           %35.6 = MkArg                    %32.1, .derivedDefaultMethod[0x55de2946e980]_p18 (!refl), e35.3
+  val?~           %35.7 = CastType                 up %35.6
+  env             e35.8 = (MkEnv)            l     x=%35.7, parent=R_BaseNamespace, context -1
+  fs              %35.9 = FrameState         R     0x55de2a4e4290+27: [%32.2], env=e35.8, next=%35.5
+  void                    Deopt              !v    %35.9, DeadBranchReached@0x55de2ccbb258[Test#1], %32.5   !
+BB11   <- [8]
+  val?^ | miss    %11.0 = LdVar              eR    internal, e28.0
+  val?            %11.1 = Force!<lazy>       !v    %11.0, e28.0   <nil->
+  lgl$-           %11.2 = Is                       %11.1, NULL
+  lgl$-           %11.3 = Not                d     %11.2, elided
+  lgl$#-          %11.4 = CheckTrueFalse     e     %11.3
+  void                    Branch                   %11.4 -> BB15 (if true) | BB14 (if false)
+BB9   <- [8]
+  val?^ | miss    %9.0  = LdVar              eR    fdef, e28.0
+  void                    Visible            v     
+  val?            %9.2  = Force!             !     %9.0, e28.0   <val?_>
+  val?            %9.3  = %9.2
+  goto BB10
+BB37   <- [34]
+  prom-           %37.0 = MkArg                    %32.1, .derivedDefaultMethod[0x55de2946e980]_p1 (!refl), e28.0
+  val?~           %37.1 = CastType                 up %37.0
+  fs              %37.2 = FrameState         R     0x55de2f2cdd50+135: [%30.1], env=e28.0
+  env             e37.3 = (MkEnv)            l     x=%37.1, parent=R_BaseNamespace, context 0
+  fs              %37.4 = FrameState         R     0x55de2c9144e0+240: [%32.2, %34.0], env=e37.3, next=%37.2
+  void                    Deopt              !v    %37.4, DeadBranchReached@0x55de2ccbb258[Test#7], %34.1   !
+BB36   <- [34]
+  lgl$-           %36.0 = Eq                 d     %32.2, special, elided
+  lgl$#-          %36.1 = CheckTrueFalse     e     %36.0
+  void                    Branch                   %36.1 -> BB26 (if true) | BB21 (if false)
+BB15   <- [11]
+  (cls|spec|blt)  %15.0 = LdFun              !v    new, e28.0
+  fs              %15.1 = FrameState         R     0x55de2f2cdd50+250: [%15.0], env=e28.0
+  void                    Deopt              !v    %15.1, DeadCall@0x55de2ee04bf8[Call#3], %15.0   !
+BB14   <- [11]
+  val?^ | miss    %14.0 = LdVar              eR    new, e28.0
+  lgl$#-          %14.1 = Identical                %14.0, function(Class, ...) <(rir::DispatchTable*)0x5|...>
+  void                    Branch                   %14.1 -> BB38 (if true) | BB39 (if false)
+BB10   <- [9, 38]
+  val?            %10.0 = Phi                      %9.3:BB9, %38.13:BB38
+  val?            %10.1 = %10.0
+  void                    Return             l     %10.1
+BB26   <- [36]
+  void                    Nop                !     
+  goto BB25
+BB21   <- [36]
+  lgl$-           %21.0 = Eq                 d     %32.2, builtin, elided
+  lgl$#-          %21.1 = CheckTrueFalse     e     %21.0
+  void                    Branch                   %21.1 -> BB24 (if true) | BB22 (if false)
+BB38   <- [14]
+  val?            %38.0 = StaticCall         !v    new[0x55de2a962f70]("derivedDefaultMethod") { 0 } e28.0   <cls>
+  void                    StVar              lW    value, %38.0, e28.0
+  (cls|spec|blt)  %38.2 = LdFun              !v    <-, <0x55de28543da8>, e28.0
+  prom-           %38.3 = MkArg                    unboundValue, .derivedDefaultMethod[0x55de2946e980]_p2, e28.0
+  prom-           %38.4 = MkArg                    unboundValue, .derivedDefaultMethod[0x55de2946e980]_p5, e28.0
+  val?            %38.5 = Call               !v    %38.2(%38.3, %38.4) e28.0
+  (cls|spec|blt)  %38.6 = LdFun              !v    <-, <0x55de28543da8>, e28.0
+  prom-           %38.7 = MkArg                    unboundValue, .derivedDefaultMethod[0x55de2946e980]_p6, e28.0
+  prom-           %38.8 = MkArg                    unboundValue, .derivedDefaultMethod[0x55de2946e980]_p9, e28.0
+  val?            %38.9 = Call               !v    %38.6(%38.7, %38.8) e28.0
+  val?^ | miss    %38.10 = LdVar              eR    value, e28.0
+  void                    Visible            v     
+  val?            %38.12 = Force!<value>      !     %38.10, e28.0   <cls>
+  val?            %38.13 = %38.12
+  goto BB10
+BB39   <- [14]
+  fs              %39.0 = FrameState         R     0x55de2f2cdd50+177: [%11.1], env=e28.0
+  void                    Deopt              !v    %39.0, CallTarget@0x55de2ee04bf8[Call#2], %14.0   !
+BB25   <- [26, 24]
+  void                    Nop                !     
+  lgl$#-          %25.1 = true
+  goto BB23
+BB24   <- [21]
+  void                    Nop                !     
+  goto BB25
+BB22   <- [21]
+  void                    Nop                !     
+  lgl$#-          %22.1 = false
+  goto BB23
+BB23   <- [22, 25]
+  lgl$#-          %23.0 = Phi                      %22.1:BB22, %25.1:BB25
+  lgl$#-          %23.1 = %23.0
+  lgl$#-          %23.2 = Not                d     %23.1, elided
+  lgl$-           %23.3 = LAnd                     %30.1, %23.2
+  lgl$-           %23.4 = %23.3
+  goto BB8
+Prom 1:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    fdef, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<wrapped>     !     %0.1, e0.0   <cls->
+  void                    Return             l     %0.3
+Prom 2:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     @, e0.0
+  prom-           %0.2  = MkArg                    unboundValue, .derivedDefaultMethod[0x55de2946e980]_p3, e0.0
+  prom-           %0.3  = MkArg                    unboundValue, .derivedDefaultMethod[0x55de2946e980]_p4, e0.0
+  val?            %0.4  = Call               !     %0.1(%0.2, %0.3) e0.0   <val?_>
+  void                    Return             l     %0.4
+Prom 3:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    value, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 4:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    .Data, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 5:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    fdef, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 6:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     @, e0.0
+  prom-           %0.2  = MkArg                    unboundValue, .derivedDefaultMethod[0x55de2946e980]_p7, e0.0
+  prom-           %0.3  = MkArg                    unboundValue, .derivedDefaultMethod[0x55de2946e980]_p8, e0.0
+  val?            %0.4  = Call               !     %0.1(%0.2, %0.3) e0.0   <val?_>
+  void                    Return             l     %0.4
+Prom 7:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    value, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 8:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    target, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 9:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     <-, e0.0
+  prom-           %0.2  = MkArg                    unboundValue, .derivedDefaultMethod[0x55de2946e980]_p10, e0.0
+  prom-           %0.3  = MkArg                    unboundValue, .derivedDefaultMethod[0x55de2946e980]_p13, e0.0
+  val?            %0.4  = Call               !     %0.1(%0.2, %0.3) e0.0   <val?_>
+  void                    Return             l     %0.4
+Prom 10:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     @, e0.0
+  prom-           %0.2  = MkArg                    unboundValue, .derivedDefaultMethod[0x55de2946e980]_p11, e0.0
+  prom-           %0.3  = MkArg                    unboundValue, .derivedDefaultMethod[0x55de2946e980]_p12, e0.0
+  val?            %0.4  = Call               !     %0.1(%0.2, %0.3) e0.0   <val?_>
+  void                    Return             l     %0.4
+Prom 11:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    value, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 12:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    defined, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 13:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     .newSignature, e0.0
+  prom-           %0.2  = MkArg                    unboundValue, .derivedDefaultMethod[0x55de2946e980]_p14, e0.0
+  prom-           %0.3  = MkArg                    unboundValue, .derivedDefaultMethod[0x55de2946e980]_p16, e0.0
+  val?            %0.4  = Call               !     %0.1(%0.2, %0.3) e0.0   <val?_>
+  void                    Return             l     %0.4
+Prom 14:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     list, e0.0
+  prom-           %0.2  = MkArg                    unboundValue, .derivedDefaultMethod[0x55de2946e980]_p15, e0.0
+  val?            %0.3  = Call               !     %0.1(%0.2) e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 15:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    .anyClassName, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 16:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     formalArgs, e0.0
+  prom-           %0.2  = MkArg                    unboundValue, .derivedDefaultMethod[0x55de2946e980]_p17, e0.0
+  val?            %0.3  = Call               !     %0.1(%0.2) e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 17:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    fdef, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 18:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    x, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <val?>
+  void                    Return             l     %0.3
+
+│ .derivedDefaultMethod[0x55de2946e980]                                        │
+└──────────────────────────────────────────────────────────────────────────────┘
