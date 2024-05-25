@@ -13,7 +13,6 @@ if [ -n "$no_partial_stages" ]; then
     echo "Reformatted a partially-staged file. Re-interactively-stage and commit again."
     exit 1
   }
-  git add -u
 elif [ -n "$everything_staged" ]; then
   # Format only staged changes. We must re-add them because the formats aren't committed.
   mvn spotless:apply "$format_only_staged"
