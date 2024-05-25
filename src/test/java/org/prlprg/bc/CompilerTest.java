@@ -9,7 +9,6 @@ import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -217,7 +216,6 @@ function(x) for (i in x) if (i) break() else 1
 """);
   }
 
-  @Disabled
   @Test
   public void inlineArithmetics() {
     assertBytecode("""
@@ -312,7 +310,6 @@ function(x) for (i in x) if (i) break() else 1
                 """);
   }
 
-  @Disabled
   @Test
   public void inlineDotCall() {
     assertBytecode(

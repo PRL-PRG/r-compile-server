@@ -143,7 +143,10 @@ public class CFGTests {
    * Enable this test to get "click to show difference" in IntelliJ, to inspect the PIR reprints
    * "by-eye". They will never be the same because PIR's print representation loses information.
    */
-  @Disabled
+  @Disabled(
+      "Enable this test to get \"click to show difference\" in IntelliJ, to inspect the PIR"
+          + " reprints \"by-eye\". This will never pass (nor should it) because PIR's print"
+          + " representation loses information.")
   @ParameterizedTest
   @DirectorySource(root = "pir-prints", depth = Integer.MAX_VALUE, glob = "*.log")
   public void testPirByEye(Path pirPath) {
