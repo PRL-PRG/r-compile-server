@@ -22,7 +22,8 @@ public class ServerTests {
 
   @Test
   @Disabled(
-      "Upgraded jeroMQ and this hangs, I'm going to wait in case it resolves itself in another upgrade since we're not using this yet")
+      "Upgraded jeroMQ and sometimes this hangs, I'm going to wait in case it resolves itself in"
+          + " anotehr upgrade since we're not using it yet.")
   public void testServerImmediatelyUnbind() throws SomeClientHandleException {
     int port = getUnusedPort();
 

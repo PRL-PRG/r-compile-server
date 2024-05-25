@@ -9,7 +9,6 @@ import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -226,7 +225,6 @@ public class CompilerTest extends AbstractGNURBasedTest implements Tests {
     """);
   }
 
-  @Disabled
   @Test
   public void inlineArithmetics() {
     assertBytecode("""
@@ -322,7 +320,6 @@ public class CompilerTest extends AbstractGNURBasedTest implements Tests {
     """);
   }
 
-  @Disabled
   @Test
   public void inlineDotCall() {
     assertBytecode(
