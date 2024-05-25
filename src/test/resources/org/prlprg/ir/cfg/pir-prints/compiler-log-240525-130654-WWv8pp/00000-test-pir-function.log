@@ -1,0 +1,200 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ test[0x559463169fb0]                                                         │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch                                      │
+│ Properties:  Eager                                                           │
+├────── Final PIR Version
+test[0x559463169fb0]
+BB0
+  val?^ | miss    %0.0  = LdVar              eR    stopifnot, R_GlobalEnv
+  lgl$#-          %0.1  = Identical                %0.0, function(..., exprs, exprObject, local=TRUE) <|...>
+  void                    Branch                   %0.1 -> BB22 (if true) | BB23 (if false)
+BB22   <- [0]
+  env             e22.0 = MkEnv              l     parent=R_GlobalEnv, context 1
+  prom-           %22.1 = MkArg                    unboundValue, test[0x559463169fb0]_p0, e22.0
+  val?            %22.2 = Call               !v    function(..., exprs, exprObject, local=TRUE) <|...>(%22.1) e22.0
+  val?^ | miss    %22.3 = LdVar              eR    stopifnot, e22.0
+  lgl$#-          %22.4 = Identical                %22.3, function(..., exprs, exprObject, local=TRUE) <|...>
+  void                    Branch                   %22.4 -> BB24 (if true) | BB25 (if false)
+BB23   <- [0]
+  env             e23.0 = (MkEnv)            l     parent=R_GlobalEnv, context 1
+  fs              %23.1 = FrameState         R     0x5594645c8c90+0: [], env=e23.0
+  void                    Deopt              !v    %23.1, CallTarget@0x559463cda7b8[Call#0], %0.0
+BB24   <- [22]
+  prom-           %24.0 = MkArg                    unboundValue, test[0x559463169fb0]_p1, e22.0
+  val?            %24.1 = Call               !v    function(..., exprs, exprObject, local=TRUE) <|...>(%24.0) e22.0
+  val?^ | miss    %24.2 = LdVar              eR    stopifnot, e22.0
+  lgl$#-          %24.3 = Identical                %24.2, function(..., exprs, exprObject, local=TRUE) <|...>
+  void                    Branch                   %24.3 -> BB26 (if true) | BB27 (if false)
+BB25   <- [22]
+  fs              %25.0 = FrameState         R     0x5594645c8c90+32: [%22.2], env=e22.0
+  void                    Deopt              !v    %25.0, CallTarget@0x559463cda7b8[Call#3], %22.3   !
+BB26   <- [24]
+  prom-           %26.0 = MkArg                    unboundValue, test[0x559463169fb0]_p2, e22.0
+  val?            %26.1 = Call               !v    function(..., exprs, exprObject, local=TRUE) <|...>(%26.0) e22.0
+  val?^ | miss    %26.2 = LdVar              eR    stopifnot, e22.0
+  lgl$#-          %26.3 = Identical                %26.2, function(..., exprs, exprObject, local=TRUE) <|...>
+  void                    Branch                   %26.3 -> BB28 (if true) | BB29 (if false)
+BB27   <- [24]
+  fs              %27.0 = FrameState         R     0x5594645c8c90+65: [%24.1], env=e22.0
+  void                    Deopt              !v    %27.0, CallTarget@0x559463cda7b8[Call#6], %24.2   !
+BB28   <- [26]
+  prom-           %28.0 = MkArg                    unboundValue, test[0x559463169fb0]_p3, e22.0
+  val?            %28.1 = Call               !v    function(..., exprs, exprObject, local=TRUE) <|...>(%28.0) e22.0
+  val?^ | miss    %28.2 = LdVar              eR    stopifnot, e22.0
+  lgl$#-          %28.3 = Identical                %28.2, function(..., exprs, exprObject, local=TRUE) <|...>
+  void                    Branch                   %28.3 -> BB30 (if true) | BB31 (if false)
+BB29   <- [26]
+  fs              %29.0 = FrameState         R     0x5594645c8c90+98: [%26.1], env=e22.0
+  void                    Deopt              !v    %29.0, CallTarget@0x559463cda7b8[Call#9], %26.2   !
+BB30   <- [28]
+  prom-           %30.0 = MkArg                    unboundValue, test[0x559463169fb0]_p4, e22.0
+  val?            %30.1 = Call               !v    function(..., exprs, exprObject, local=TRUE) <|...>(%30.0) e22.0
+  val?^ | miss    %30.2 = LdVar              eR    stopifnot, e22.0
+  lgl$#-          %30.3 = Identical                %30.2, function(..., exprs, exprObject, local=TRUE) <|...>
+  void                    Branch                   %30.3 -> BB32 (if true) | BB33 (if false)
+BB31   <- [28]
+  fs              %31.0 = FrameState         R     0x5594645c8c90+131: [%28.1], env=e22.0
+  void                    Deopt              !v    %31.0, CallTarget@0x559463cda7b8[Call#12], %28.2   !
+BB32   <- [30]
+  prom-           %32.0 = MkArg                    unboundValue, test[0x559463169fb0]_p5, e22.0
+  val?            %32.1 = Call               !v    function(..., exprs, exprObject, local=TRUE) <|...>(%32.0) e22.0
+  val?^ | miss    %32.2 = LdVar              eR    stopifnot, e22.0
+  lgl$#-          %32.3 = Identical                %32.2, function(..., exprs, exprObject, local=TRUE) <|...>
+  void                    Branch                   %32.3 -> BB34 (if true) | BB35 (if false)
+BB33   <- [30]
+  fs              %33.0 = FrameState         R     0x5594645c8c90+164: [%30.1], env=e22.0
+  void                    Deopt              !v    %33.0, CallTarget@0x559463cda7b8[Call#15], %30.2   !
+BB34   <- [32]
+  prom-           %34.0 = MkArg                    unboundValue, test[0x559463169fb0]_p6, e22.0
+  val?            %34.1 = Call               !v    function(..., exprs, exprObject, local=TRUE) <|...>(%34.0) e22.0
+  val?^ | miss    %34.2 = LdVar              eR    stopifnot, e22.0
+  lgl$#-          %34.3 = Identical                %34.2, function(..., exprs, exprObject, local=TRUE) <|...>
+  void                    Branch                   %34.3 -> BB36 (if true) | BB37 (if false)
+BB35   <- [32]
+  fs              %35.0 = FrameState         R     0x5594645c8c90+197: [%32.1], env=e22.0
+  void                    Deopt              !v    %35.0, CallTarget@0x559463cda7b8[Call#18], %32.2   !
+BB36   <- [34]
+  prom-           %36.0 = MkArg                    unboundValue, test[0x559463169fb0]_p7, e22.0
+  val?            %36.1 = Call               !v    function(..., exprs, exprObject, local=TRUE) <|...>(%36.0) e22.0
+  void                    Visible            v     
+  void                    StVar              lW    ok, 0, e22.0
+  val?^ | miss    %36.4 = LdVar              eR    tryCatch, e22.0
+  lgl$#-          %36.5 = Identical                %36.4, function(expr, ..., finally) <(rir::DispatchTa|...>
+  void                    Branch                   %36.5 -> BB38 (if true) | BB39 (if false)
+BB37   <- [34]
+  fs              %37.0 = FrameState         R     0x5594645c8c90+230: [%34.1], env=e22.0
+  void                    Deopt              !v    %37.0, CallTarget@0x559463cda7b8[Call#21], %34.2   !
+BB38   <- [36]
+  prom-           %38.0 = MkArg                    unboundValue, test[0x559463169fb0]_p8, e22.0
+  cls             %38.1 = MkCls                    test@Prom(9)0, e22.0
+  prom-           %38.2 = MkArg                    %38.1, test[0x559463169fb0]_p9 (!refl), e22.0
+  dots-           %38.3 = DotsList           l     error=%38.2
+  val?            %38.4 = StaticCall         !     tryCatch[0x5594645ff330](%38.0, %38.3) { 0 1n } e22.0
+  val?^ | miss    %38.5 = LdVar              eR    stopifnot, e22.0
+  lgl$#-          %38.6 = Identical                %38.5, function(..., exprs, exprObject, local=TRUE) <|...>
+  void                    Branch                   %38.6 -> BB40 (if true) | BB41 (if false)
+BB39   <- [36]
+  fs              %39.0 = FrameState         R     0x5594645c8c90+279: [], env=e22.0
+  void                    Deopt              !v    %39.0, CallTarget@0x559463cda7b8[Call#24], %36.4   !
+BB40   <- [38]
+  prom-           %40.0 = MkArg                    unboundValue, test[0x559463169fb0]_p10, e22.0
+  val?            %40.1 = Call               !     function(..., exprs, exprObject, local=TRUE) <|...>(%40.0) e22.0   <nil->
+  void                    Return             l     %40.1
+BB41   <- [38]
+  fs              %41.0 = FrameState         R     0x5594645c8c90+324: [%38.4], env=e22.0
+  void                    Deopt              !v    %41.0, CallTarget@0x559463cda7b8[Call#26], %38.5   !
+Prom 0:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     f, <0x5594645bf400>, e0.0
+  val?            %0.2  = Call               !     %0.1() e0.0   <real->
+  (cls|spec|blt)  %0.3  = LdFun              !     c, <0x559462726940>, e0.0
+  val?            %0.4  = Call               !     %0.3(1, 2, 3, true, true, true, 0) e0.0   <real->
+  val?            %0.5  = Eq                 !     %0.2, %0.4, e0.0   <lgl->
+  void                    Return             l     %0.5
+Prom 1:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     f, <0x5594645bf400>, e0.0
+  val?            %0.2  = Call               !     %0.1(2) e0.0   <real->
+  (cls|spec|blt)  %0.3  = LdFun              !     c, <0x559462726940>, e0.0
+  val?            %0.4  = Call               !     %0.3(2, 2, 3, false, true, true, 1) e0.0   <real->
+  val?            %0.5  = Eq                 !     %0.2, %0.4, e0.0   <lgl->
+  void                    Return             l     %0.5
+Prom 2:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     f, <0x5594645bf400>, e0.0
+  val?            %0.2  = Call               !     %0.1(missingArg, 3) e0.0   <real->
+  (cls|spec|blt)  %0.3  = LdFun              !     c, <0x559462726940>, e0.0
+  val?            %0.4  = Call               !     %0.3(1, 3, 3, true, false, true, 2) e0.0   <real->
+  val?            %0.5  = Eq                 !     %0.2, %0.4, e0.0   <lgl->
+  void                    Return             l     %0.5
+Prom 3:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     f, <0x5594645bf400>, e0.0
+  val?            %0.2  = Call               !     %0.1(missingArg, missingArg) e0.0   <real->
+  (cls|spec|blt)  %0.3  = LdFun              !     c, <0x559462726940>, e0.0
+  val?            %0.4  = Call               !     %0.3(1, 2, 3, true, true, true, 2) e0.0   <real->
+  val?            %0.5  = Eq                 !     %0.2, %0.4, e0.0   <lgl->
+  void                    Return             l     %0.5
+Prom 4:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     f, <0x5594645bf400>, e0.0
+  val?            %0.2  = NamedCall          !     %0.1(b=1) e0.0   <real->
+  (cls|spec|blt)  %0.3  = LdFun              !     c, <0x559462726940>, e0.0
+  val?            %0.4  = Call               !     %0.3(1, 1, 3, true, false, true, 1) e0.0   <real->
+  val?            %0.5  = Eq                 !     %0.2, %0.4, e0.0   <lgl->
+  void                    Return             l     %0.5
+Prom 5:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     g, <0x5594645bed38>, e0.0
+  val?            %0.2  = Call               !     %0.1() e0.0   <real->
+  (cls|spec|blt)  %0.3  = LdFun              !     c, <0x559462726940>, e0.0
+  val?            %0.4  = Call               !     %0.3(true, 0, 1) e0.0   <real->
+  val?            %0.5  = Eq                 !     %0.2, %0.4, e0.0   <lgl->
+  void                    Return             l     %0.5
+Prom 6:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     g, <0x5594645bed38>, e0.0
+  val?            %0.2  = Call               !     %0.1(2) e0.0   <real->
+  (cls|spec|blt)  %0.3  = LdFun              !     c, <0x559462726940>, e0.0
+  val?            %0.4  = Call               !     %0.3(false, 1, 2) e0.0   <real->
+  val?            %0.5  = Eq                 !     %0.2, %0.4, e0.0   <lgl->
+  void                    Return             l     %0.5
+Prom 7:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     h, <0x5594645be9f0>, e0.0
+  val?            %0.2  = Call               !     %0.1(2) e0.0   <real->
+  (cls|spec|blt)  %0.3  = LdFun              !     c, <0x559462726940>, e0.0
+  val?            %0.4  = Call               !     %0.3(false, 1, 2) e0.0   <real->
+  val?            %0.5  = Eq                 !     %0.2, %0.4, e0.0   <lgl->
+  void                    Return             l     %0.5
+Prom 8:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     h, <0x5594645be9f0>, e0.0
+  val?            %0.2  = Call               !     %0.1() e0.0   <val?_>
+  void                    Return             l     %0.2
+Prom 9:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  cls             %0.1  = MkCls                    test@Prom(9)0, e0.0
+  void                    Return             l     %0.1
+Prom 10:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    ok, e0.0
+  val?            %0.2  = Force<value>       !v    %0.1, e0.0   <real$->
+  void                    Visible            v     
+  val?            %0.4  = Eq                 !     %0.2, 1, e0.0   <lgl$->
+  void                    Return             l     %0.4
+
+│ test[0x559463169fb0]                                                         │
+└──────────────────────────────────────────────────────────────────────────────┘

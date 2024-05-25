@@ -1,0 +1,31 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ isSymmetric[0x55de363b5c00]                                                  │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch miss: 1                              │
+│ Properties:                                                                  │
+├────── Final PIR Version
+isSymmetric[0x55de363b5c00]
+BB0
+  val?^           %0.0  = LdArg                    0
+  val?^ | miss    %0.1  = LdVar              eR    standardGeneric, <env 0x55de30b362c8>
+  lgl$#-          %0.2  = Identical                <blt standardGeneric>, %0.1   <true>
+  void                    Branch                   %0.2 -> BB6 (if true) | BB7 (if false)
+BB6   <- [0]
+  void                    Visible            v     
+  env             e6.1  = MkEnv              l     object=%0.0, ...(miss)=missingArg, parent=<env 0x55de30b362c8>, context 1
+  val?            %6.2  = CallBuiltin        !     standardGeneric("isSymmetric") e6.1   <lgl$->
+  lgl$#-          %6.3  = IsType                   %6.2 isA lgl$-
+  void                    Branch                   %6.3 -> BB8 (if true) | BB9 (if false)
+BB7   <- [0]
+  env             e7.0  = (MkEnv)            l     object=%0.0, ...(miss)=missingArg, parent=<env 0x55de30b362c8>, context 1
+  fs              %7.1  = FrameState         R     0x55de353406f0+0: [], env=e7.0
+  void                    Deopt              !v    %7.1, DeadBranchReached@0x55de2ee91708[Test#0], %0.2   !
+BB8   <- [6]
+  lgl$-           %8.0  = CastType           d     dn %6.2
+  void                    Return             l     %8.0
+BB9   <- [6]
+  fs              %9.0  = FrameState         R     0x55de353406f0+83: [%6.2], env=e6.1
+  void                    Deopt              !v    %9.0, Typecheck@0x55de2ee91708[Type#0], %6.2   !
+
+│ isSymmetric[0x55de363b5c00]                                                  │
+└──────────────────────────────────────────────────────────────────────────────┘

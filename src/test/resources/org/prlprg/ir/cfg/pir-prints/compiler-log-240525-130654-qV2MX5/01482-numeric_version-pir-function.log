@@ -1,0 +1,54 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ numeric_version[0x55de2f51cd70]                                              │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;NonRefl0,!Obj0 miss: 1               │
+│ Properties:                                                                  │
+├────── Final PIR Version
+numeric_version[0x55de2f51cd70]
+BB0
+  val?^           %0.0  = LdArg                    0
+  void                    Visible            v     
+  env             e0.2  = MkEnv              l     x=%0.0, strict(miss)=true, parent=R_BaseNamespace, context 1
+  prom-           %0.3  = MkArg                    unboundValue, numeric_version[0x55de2f51cd70]_p1 (!refl), e0.2
+  prom-           %0.4  = MkArg                    unboundValue, numeric_version[0x55de2f51cd70]_p2 (!refl), e0.2
+  prom-           %0.5  = MkArg                    unboundValue, numeric_version[0x55de2f51cd70]_p3, e0.2
+  val?            %0.6  = StaticCall         !     .make_numeric_version[0x55de3453baa0](%0.3, %0.4, %0.5) e0.2   <vec$>
+  void                    Return             l     %0.6
+Prom 1:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    x, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <str$+>
+  void                    Return             l     %0.3
+Prom 2:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    strict, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 3:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     $, <0x55de2854ec10>, e0.0
+  prom-           %0.2  = MkArg                    unboundValue, numeric_version[0x55de2f51cd70]_p4, e0.0
+  prom-           %0.3  = MkArg                    unboundValue, numeric_version[0x55de2f51cd70]_p5, e0.0
+  val?            %0.4  = Call               !     %0.1(%0.2, %0.3) e0.0   <str$->
+  void                    Return             l     %0.4
+Prom 4:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     .standard_regexps, <0x55de289c2ef8>, e0.0
+  val?            %0.2  = Call               !     %0.1() e0.0   <vec+>
+  void                    Return             l     %0.2
+Prom 5:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    valid_numeric_version, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+
+│ numeric_version[0x55de2f51cd70]                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
