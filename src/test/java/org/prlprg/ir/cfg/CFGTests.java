@@ -22,8 +22,14 @@ import org.prlprg.util.Files;
 import org.prlprg.util.Pair;
 
 public class CFGTests {
+  private static final int NUM_PIR_PRINTS_IN_FAST_TESTS = 200;
+
   @ParameterizedTest
-  @DirectorySource(root = "pir-prints", depth = Integer.MAX_VALUE, glob = "*.log")
+  @DirectorySource(
+      root = "pir-prints",
+      depth = Integer.MAX_VALUE,
+      glob = "*.log",
+      fastLimit = NUM_PIR_PRINTS_IN_FAST_TESTS)
   public void testPirObserverCanRecreate(Path pirPath) {
     var original = Files.readString(pirPath);
 
@@ -57,7 +63,11 @@ public class CFGTests {
   }
 
   @ParameterizedTest
-  @DirectorySource(root = "pir-prints", depth = Integer.MAX_VALUE, glob = "*.log")
+  @DirectorySource(
+      root = "pir-prints",
+      depth = Integer.MAX_VALUE,
+      glob = "*.log",
+      fastLimit = NUM_PIR_PRINTS_IN_FAST_TESTS)
   public void testPirObserverCanUndo(Path pirPath) {
     var original = Files.readString(pirPath);
 
@@ -88,7 +98,11 @@ public class CFGTests {
   }
 
   @ParameterizedTest
-  @DirectorySource(root = "pir-prints", depth = Integer.MAX_VALUE, glob = "*.log")
+  @DirectorySource(
+      root = "pir-prints",
+      depth = Integer.MAX_VALUE,
+      glob = "*.log",
+      fastLimit = NUM_PIR_PRINTS_IN_FAST_TESTS)
   public void testPirVerifies(Path pirPath) {
     var original = Files.readString(pirPath);
     var cfgs = readPirCfgs(pirPath, original, CFG::new, _ -> true);
@@ -103,7 +117,11 @@ public class CFGTests {
   }
 
   @ParameterizedTest
-  @DirectorySource(root = "pir-prints", depth = Integer.MAX_VALUE, glob = "*.log")
+  @DirectorySource(
+      root = "pir-prints",
+      depth = Integer.MAX_VALUE,
+      glob = "*.log",
+      fastLimit = NUM_PIR_PRINTS_IN_FAST_TESTS)
   public void testPirIsParseableAndPrintableWithoutError(Path pirPath) {
     var original = Files.readString(pirPath);
     var cfgs =
@@ -148,7 +166,11 @@ public class CFGTests {
           + " reprints \"by-eye\". This will never pass (nor should it) because PIR's print"
           + " representation loses information.")
   @ParameterizedTest
-  @DirectorySource(root = "pir-prints", depth = Integer.MAX_VALUE, glob = "*.log")
+  @DirectorySource(
+      root = "pir-prints",
+      depth = Integer.MAX_VALUE,
+      glob = "*.log",
+      fastLimit = NUM_PIR_PRINTS_IN_FAST_TESTS)
   public void testPirByEye(Path pirPath) {
     var original = Files.readString(pirPath);
     var cfgs = readPirCfgs(pirPath, original, CFG::new, _ -> false);
@@ -203,15 +225,12 @@ public class CFGTests {
     try {
       CFGPirSerialize.manyFromPIR(pirReader, cfgFactory).forEach(cfgs::add);
     } catch (ParseException e) {
-      var msg =
-          "Failed to parse "
-              + pirPath
-              + "\n"
-              + region(source, e.position().line(), e.position().column());
-      if (silentlyFailOnParseException.test(e)) {
-        System.err.println(msg);
-        e.printStackTrace();
-      } else {
+      if (!silentlyFailOnParseException.test(e)) {
+        var msg =
+            "Failed to parse "
+                + pirPath
+                + "\n"
+                + region(source, e.position().line(), e.position().column());
         throw new AssertionError(msg, e);
       }
     } catch (Throwable e) {
