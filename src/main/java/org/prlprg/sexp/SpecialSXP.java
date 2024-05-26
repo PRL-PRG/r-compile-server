@@ -1,8 +1,6 @@
 package org.prlprg.sexp;
 
-public final class SpecialSXP implements SEXP {
-  public SpecialSXP(String name) {}
-
+public record SpecialSXP(String name) implements SEXP {
   @Override
   public SEXPType type() {
     return SEXPType.SPECIAL;

@@ -1,6 +1,7 @@
 package org.prlprg.bc;
 
 import static com.google.common.truth.Truth.assertThat;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.HashSet;
 import org.junit.jupiter.api.Test;
@@ -83,8 +84,6 @@ public class ContextTest extends AbstractGNURBasedTest {
                                         """);
 
     var ctx = Context.functionContext(fun);
-    System.out.println(ctx);
-
     var x = ctx.resolve("x");
     assertThat(x).hasValue(new Pair<>(fun.env(), SEXPs.MISSING_ARG));
 
@@ -138,9 +137,6 @@ public class ContextTest extends AbstractGNURBasedTest {
     var ctx = Context.functionContext(fun);
     // FIXME: ugly - can we have some matchers for this?
     var identical = ctx.resolve("identical").get();
-    assertThat(identical.first() instanceof NamespaceEnvSXP ns && ns.getName().equals("base"))
-        .isTrue();
-
-    System.out.println(ctx);
+    assertTrue(identical.first() instanceof NamespaceEnvSXP ns && ns.getName().equals("base"));
   }
 }

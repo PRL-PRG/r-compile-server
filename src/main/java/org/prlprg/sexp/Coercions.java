@@ -86,7 +86,7 @@ public final class Coercions {
     return args.stream().map(SEXP::type).reduce(args.getFirst().type(), Coercions::commonType);
   }
 
-    public static Complex complexFromInteger(int x) {
+  public static Complex complexFromInteger(int x) {
     return isNA(x) ? Constants.NA_COMPLEX : Complex.fromReal(x);
   }
 

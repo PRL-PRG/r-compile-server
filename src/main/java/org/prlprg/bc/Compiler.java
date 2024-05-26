@@ -17,9 +17,6 @@ import org.prlprg.sexp.*;
 // FIXME: update the SEXP API based on the experience with this code
 //   - especially the clumsy ListSXP
 
-// TODO: 11.4 Inlining simple .Internal functions
-// TODO: simple interpreter for the constantFoldCode
-@SuppressWarnings("PMD.UnnecessaryImport")
 public class Compiler {
   private static final Set<String> MAYBE_NSE_SYMBOLS = Set.of("bquote");
   private static final Set<String> LANGUAGE_FUNS =
@@ -123,55 +120,6 @@ public class Compiler {
           "rep.int",
           "rep_len");
 
-  private static final Set<String> SAFE_STATS_INTERNALS =
-      Set.of(
-          "dbinom",
-          "dcauchy",
-          "dgeom",
-          "dhyper",
-          "dlnorm",
-          "dlogis",
-          "dnorm",
-          "dpois",
-          "dunif",
-          "dweibull",
-          "fft",
-          "mvfft",
-          "pbinom",
-          "pcauchy",
-          "pgeom",
-          "phyper",
-          "plnorm",
-          "plogis",
-          "pnorm",
-          "ppois",
-          "punif",
-          "pweibull",
-          "qbinom",
-          "qcauchy",
-          "qgeom",
-          "qhyper",
-          "qlnorm",
-          "qlogis",
-          "qnorm",
-          "qpois",
-          "qunif",
-          "qweibull",
-          "rbinom",
-          "rcauchy",
-          "rgeom",
-          "rhyper",
-          "rlnorm",
-          "rlogis",
-          "rnorm",
-          "rpois",
-          "rsignrank",
-          "runif",
-          "rweibull",
-          "rwilcox",
-          "ptukey",
-          "qtukey");
-
   private static final Set<String> FORBIDDEN_INLINES = Set.of("standardGeneric");
 
   private static final int MAX_CONST_SIZE = 10;
@@ -239,6 +187,32 @@ public class Compiler {
 
   public Compiler(CloSXP fun, RSession rsession) {
     this(fun.bodyAST(), Context.functionContext(fun), rsession, functionLoc(fun));
+  }
+
+  // this is a very primitive implementation of the match.call
+  static LangSXP matchCall(CloSXP definition, LangSXP call) {
+    var matched = ImmutableList.<TaggedElem>builder();
+    var remaining = new ArrayList<SEXP>();
+    var formals = definition.formals();
+
+    if (formals.size() < call.args().size()) {
+      throw new IllegalArgumentException("Too many arguments and we do not support ... yet");
+    }
+
+    for (var actual : call.args()) {
+      if (actual.tag() != null) {
+        matched.add(actual);
+        formals = formals.remove(actual.tag());
+      } else {
+        remaining.add(actual.value());
+      }
+    }
+
+    for (int i = 0; i < remaining.size(); i++) {
+      matched.add(new TaggedElem(formals.get(i).tag(), remaining.get(i)));
+    }
+
+    return SEXPs.lang(call.fun(), SEXPs.list(matched.build()));
   }
 
   private Compiler fork(SEXP expr, Context ctx, Loc loc) {
@@ -1071,7 +1045,7 @@ public class Compiler {
       if (b instanceof LangSXP icall) {
         var cenv = new HashMap<String, SEXP>();
         def.formals().forEach((x) -> cenv.put(x.tag(), x.value()));
-        Primitives.matchCall(def, call).args().forEach((x) -> cenv.put(x.tag(), x.value()));
+        matchCall(def, call).args().forEach((x) -> cenv.put(x.tag(), x.value()));
 
         var args =
             icall.args().stream()
@@ -1144,6 +1118,8 @@ public class Compiler {
     return inlineSimpleLoop(call, body, this::compileRepeatBody);
   }
 
+  // all the inline calls have the same signature
+  @SuppressWarnings("PMD.UnusedFormalParameter")
   private boolean inlineSimpleLoop(LangSXP call, SEXP body, Consumer<SEXP> cmpBody) {
     if (canSkipLoopContext(body, true)) {
       cmpBody.accept(body);
@@ -1661,7 +1637,7 @@ public class Compiler {
   }
 
   private boolean inlineAssign(LangSXP call) {
-    if (!checkAssign(call, cb.getCurrentLoc())) {
+    if (!checkAssign(call)) {
       return inlineSpecial(call);
     }
 
@@ -1670,9 +1646,10 @@ public class Compiler {
     var value = call.arg(1).value();
     var symbolOpt = Context.getAssignVar(call);
 
-    if (superAssign && Context.getAssignVar(call).flatMap(ctx::resolve).isEmpty()) {
-      // TODO: notifyNoSuperAssignVar(symbol, cntxt, loc = cb$savecurloc())
-    }
+    // TODO: notifyNoAssignVar
+    //    if (superAssign && Context.getAssignVar(call).flatMap(ctx::resolve).isEmpty()) {
+    //      // TODO: notifyNoSuperAssignVar(symbol, cntxt, loc = cb$savecurloc())
+    //    }
 
     if (symbolOpt.isPresent() && lhs instanceof StrOrRegSymSXP) {
       compileSymbolAssign(symbolOpt.get(), value, superAssign);
@@ -1711,9 +1688,10 @@ public class Compiler {
     // > hand side value on the top, then the value of the left hand side variable, the binding
     // cell, and again
     // > the right hand side value on the stack.
-    if (!superAssign && ctx.resolve(name).isEmpty()) {
-      // TODO: notifyUndefVar(symbol, cntxt, loc = cb$savecurloc())
-    }
+    //    // TODO: notifyUndefVar
+    //    if (!superAssign && ctx.resolve(name).isEmpty()) {
+    //      // TODO: notifyUndefVar(symbol, cntxt, loc = cb$savecurloc())
+    //    }
 
     if (!ctx.isTopLevel()) {
       cb.addInstr(new IncLnkStk());
@@ -1835,8 +1813,7 @@ public class Compiler {
     return places;
   }
 
-  @SuppressFBWarnings("DLS_DEAD_LOCAL_STORE")
-  private boolean checkAssign(LangSXP call, Loc loc) {
+  private boolean checkAssign(LangSXP call) {
     if (call.args().size() != 2) {
       return false;
     }
@@ -2127,10 +2104,10 @@ public class Compiler {
   }
 
   /**
-   * Tried to constant fold a call.
-   * The supported functions are defined in {@link #ALLOWED_FOLDABLE_FUNS}.
-   * It is a subset of the functions that are supported by the constant folding in GNU-R.
-   * This implementation is done on the best-effort basis and more are added as needed.
+   * Tried to constant fold a call. The supported functions are defined in {@link
+   * #ALLOWED_FOLDABLE_FUNS}. It is a subset of the functions that are supported by the constant
+   * folding in GNU-R. This implementation is done on the best-effort basis and more are added as
+   * needed.
    *
    * @param call to be constant folded
    * @return the constant folded value or empty if it cannot be constant folded
@@ -2201,8 +2178,8 @@ public class Compiler {
 
     if (ALLOWED_FOLDABLE_FUNS.contains(name)) {
       return getInlineInfo(name, false)
-              .map(x -> x.env.isBase() && x.value != null && x.value.isFunction())
-              .orElse(false);
+          .map(x -> x.env.isBase() && x.value != null && x.value.isFunction())
+          .orElse(false);
     } else {
       return false;
     }

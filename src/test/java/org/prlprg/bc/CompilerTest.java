@@ -1,5 +1,6 @@
 package org.prlprg.bc;
 
+import static com.google.common.truth.Truth.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.prlprg.util.StructuralUtils.printStructurally;
 
@@ -20,61 +21,53 @@ public class CompilerTest extends AbstractGNURBasedTest implements Tests {
 
   @Test
   public void testEmptyBlock() {
-    assertBytecode(
-        """
+    assertBytecode("""
         function() {}
     """);
   }
 
   @Test
   public void testSingleExpressionBlock() {
-    assertBytecode(
-        """
+    assertBytecode("""
         function() { 1 }
     """);
   }
 
   @Test
   public void testMultipleExpressionBlock() {
-    assertBytecode(
-        """
+    assertBytecode("""
         function() { 1; 2 }
     """);
   }
 
   @Test
   public void testIf() {
-    assertBytecode(
-        """
+    assertBytecode("""
         function(x) if (x) 1
     """);
   }
 
   @Test
   public void testIfElse() {
-    assertBytecode(
-        """
+    assertBytecode("""
         function(x) if (x) 1 else 2
     """);
   }
 
   @Test
   public void testFunctionInlining() {
-    assertBytecode(
-        """
+    assertBytecode("""
         function(x) function(y) 1
     """);
   }
 
   @Test
   public void testFunctionLeftParenInlining() {
-    assertBytecode(
-        """
+    assertBytecode("""
         function(x) (x)
     """);
 
-    assertBytecode(
-        """
+    assertBytecode("""
         function(x) (...)
     """);
 
@@ -84,181 +77,150 @@ public class CompilerTest extends AbstractGNURBasedTest implements Tests {
   @Test
   public void builtinsInlining() {
     // expecting a guard
-    assertBytecode(
-        """
+    assertBytecode("""
       function() invisible(1)
-    """,
-        2);
+    """, 2);
 
     // no guard
-    assertBytecode(
-        """
+    assertBytecode("""
       function() invisible(1)
-    """,
-        3);
+    """, 3);
 
     // guard and regular function call
-    assertBytecode(
-        """
+    assertBytecode("""
       function(...) invisible(...)
-    """,
-        2);
+    """, 2);
   }
 
   @Test
   public void specialsInlining() {
-    assertBytecode(
-        """
+    assertBytecode("""
       function() rep(1, 10)
     """);
   }
 
   @Test
   public void inlineLocal() {
-    assertBytecode(
-        """
+    assertBytecode("""
 function(x) local(x)
 """);
   }
 
   @Test
   public void inlineReturn() {
-    assertBytecode(
-        """
+    assertBytecode("""
 function(x) return(x)
 """);
   }
 
   @Test
   public void inlineBuiltinsInternal() {
-    assertBytecode(
-        """
+    assertBytecode("""
 function(x) .Internal(inspect(x))
 """);
 
-    assertBytecode(
-        """
+    assertBytecode("""
 function(x) .Internal(inspect2(x))
 """);
   }
 
   @Test
   public void inlineLogicalAnd() {
-    assertBytecode(
-        """
+    assertBytecode("""
 function(x, y) x && y
 """);
 
-    assertBytecode(
-        """
+    assertBytecode("""
 function(x, y, z) x && y && z
 """);
 
-    assertBytecode(
-        """
+    assertBytecode("""
 function(x, y) x && y && (x && y)
 """);
   }
 
   @Test
   public void inlineLogicalOr() {
-    assertBytecode(
-        """
+    assertBytecode("""
 function(x, y) x || y
 """);
 
-    assertBytecode(
-        """
+    assertBytecode("""
 function(x, y, z) x || y || z
 """);
 
-    assertBytecode(
-        """
+    assertBytecode("""
 function(x, y) x || y || (x || y)
 """);
   }
 
   @Test
   public void inlineLogicalAndOr() {
-    assertBytecode(
-        """
+    assertBytecode("""
 function(x, y) x && y || y
 """);
 
-    assertBytecode(
-        """
+    assertBytecode("""
 function(x, y, z) x || y && z
 """);
   }
 
   @Test
   public void inlineRepeat() {
-    assertBytecode(
-        """
+    assertBytecode("""
           function(x) repeat(x)
         """);
 
-    assertBytecode(
-        """
+    assertBytecode("""
       function(x, y) repeat({ if (x) break() else y })
     """);
 
-    assertBytecode(
-        """
+    assertBytecode("""
           function(x, y) repeat({ if (x) next() else y })
         """);
 
-    assertBytecode(
-        """
+    assertBytecode("""
           function(x, y=break()) repeat({ if (x) y else 1 })
         """);
   }
 
   @Test
   public void inlineWhile() {
-    assertBytecode(
-        """
+    assertBytecode("""
           function(x) while(x) 1
         """);
 
-    assertBytecode(
-        """
+    assertBytecode("""
       function(x, y) while(x) { break() }
     """);
 
-    assertBytecode(
-        """
+    assertBytecode("""
       function(x, y) while(x) { if (y) break() else 1 }
     """);
   }
 
   @Test
   public void inlineFor() {
-    assertBytecode(
-        """
+    assertBytecode("""
 function(x) for (i in x) 1
 """);
 
-    assertBytecode(
-        """
+    assertBytecode("""
 function(x) for (i in x) if (i) break() else 1
 """);
   }
 
   @Test
   public void inlineArithmetics() {
-    assertBytecode(
-        """
+    assertBytecode("""
   function(x, y) x + y
   """);
 
-    assertBytecode(
-        """
+    assertBytecode("""
   function(x, y) x - y
   """);
 
-    assertBytecode(
-        """
+    assertBytecode("""
   function(x, y) {
     list(x + y - x + 10, -x + 1, +y)
   }
@@ -271,8 +233,7 @@ function(x) for (i in x) if (i) break() else 1
   }
   """);
 
-    assertBytecode(
-        """
+    assertBytecode("""
       function(x, y) {
         list(log(x), log(x, y))
       }
@@ -378,8 +339,7 @@ function(x) for (i in x) if (i) break() else 1
 
   @Test
   public void inlineSwitch() {
-    assertBytecode(
-        """
+    assertBytecode("""
 function(x) {
   if (switch(x, 1, 2, g(3))) {
     if (y) 4 else 5
@@ -390,15 +350,13 @@ function(x) {
 
   @Test
   public void inlineAssign1() {
-    assertBytecode(
-        """
+    assertBytecode("""
 function() {
   x <- 1
 }
 """);
 
-    assertBytecode(
-        """
+    assertBytecode("""
 function() {
   y <<- 2
 }
@@ -416,14 +374,12 @@ function() {
 
   @Test
   public void inlineAssign2() {
-    assertBytecode(
-        """
+    assertBytecode("""
 function() {
   f(x) <- 1
 }
 """);
-    assertBytecode(
-        """
+    assertBytecode("""
 function() {
   pkg::f(x) <- 1
 }
@@ -432,8 +388,7 @@ function() {
 
   @Test
   public void inlineAssign3() {
-    assertBytecode(
-        """
+    assertBytecode("""
 function() {
   f(g(h(x, k), j), i) <- v
 }
@@ -442,8 +397,7 @@ function() {
 
   @Test
   public void inlineDollarAssign() {
-    assertBytecode(
-        """
+    assertBytecode("""
 function() {
  x$y <- 1
  x$"z" <- 2
@@ -454,8 +408,7 @@ function() {
 
   @Test
   public void inlineSquareAssign1() {
-    assertBytecode(
-        """
+    assertBytecode("""
 function() {
  x[y == 1] <- 1
  x[[y == 1]] <- 1
@@ -465,8 +418,7 @@ function() {
 
   @Test
   public void inlineSquareAssign2() {
-    assertBytecode(
-        """
+    assertBytecode("""
 function() {
  x[y == 1, z == 2] <- 1
  x[[y == 1, z == 2]] <- 1
@@ -476,8 +428,7 @@ function() {
 
   @Test
   public void inlineSquareAssign3() {
-    assertBytecode(
-        """
+    assertBytecode("""
 function() {
  x[y == 1, ] <- 1
  x[[y == 1, ]] <- 1
@@ -487,8 +438,7 @@ function() {
 
   @Test
   public void inlineSquareAssign4() {
-    assertBytecode(
-        """
+    assertBytecode("""
 function() {
  x$y[-c(1,2)] <- 1
 }
@@ -497,8 +447,7 @@ function() {
 
   @Test
   public void inlineSquareSubset1() {
-    assertBytecode(
-        """
+    assertBytecode("""
 function() {
  x[y == 1]
  x[[y == 1]]
@@ -508,8 +457,7 @@ function() {
 
   @Test
   public void inlineSquareSubset2() {
-    assertBytecode(
-        """
+    assertBytecode("""
 function() {
  x[y == 1, z == 2]
  x[[y == 1, z == 2]]
@@ -519,8 +467,7 @@ function() {
 
   @Test
   public void inlineSquareSubset3() {
-    assertBytecode(
-        """
+    assertBytecode("""
 function() {
  x[y == 1,]
  x[[y == 1,]]
@@ -530,8 +477,7 @@ function() {
 
   @Test
   public void inlineSquareSubset4() {
-    assertBytecode(
-        """
+    assertBytecode("""
 function() {
  x[a=1,]
  x[[a=1,]]
@@ -553,8 +499,7 @@ function() {
 
   @Test
   public void inlineIdentical() {
-    assertBytecode(
-        """
+    assertBytecode("""
 function(x) {
   identical(unzip, "internal")
 }
@@ -581,9 +526,18 @@ function(x) {
   }
 
   @Test
+  public void testMatchCall() {
+    var def = (CloSXP) R.eval("f <- function(a=1,b,c=100,d) {}");
+    var call = (LangSXP) R.eval("quote(f(d=1,3,a=2))");
+
+    var matched = Compiler.matchCall(def, call);
+
+    assertThat(matched).isEqualTo(R.eval("quote(f(d=1,a=2,b=3))"));
+  }
+
+  @Test
   public void constantFoldMul1() {
-    var code =
-        """
+    var code = """
         function() {
           2 * 3 * 4
         }
@@ -593,8 +547,7 @@ function(x) {
 
   @Test
   public void constantFoldMul2() {
-    var code =
-        """
+    var code = """
             function(x) {
               2 * 3 * x
             }
@@ -611,8 +564,7 @@ function(x) {
 
   @Test
   public void constantFold3() {
-    var code =
-        """
+    var code = """
             function(x) c(i = 1, d = 1, s = 1)
             """;
     var sexp = compile(code, 3);
@@ -627,8 +579,7 @@ function(x) {
 
   @Test
   public void constantFold4() {
-    var code =
-        """
+    var code = """
             function(x) 1+2
             """;
     var sexp = compile(code, 3);
@@ -642,8 +593,7 @@ function(x) {
 
   @Test
   public void constantFold5() {
-    var code =
-        """
+    var code = """
             function(x) TRUE + c(10,11)
             """;
     var sexp = compile(code, 3);
@@ -655,20 +605,6 @@ function(x) {
     assertEquals(11, v.get(0));
     assertEquals(12, v.get(1));
   }
-
-  //  @Test
-  //  public void test1() {
-  //    assertBytecode(
-  //        """
-  // """,
-  //        2);
-  //  }
-
-  //  @ParameterizedTest
-  //  @MethodSource("baseFunctionsList")
-  //  public void baseFunctions(String name) {
-  //    assertBytecode(name);
-  //  }
 
   @ParameterizedTest
   @MethodSource("stdlibFunctionsList")
@@ -720,23 +656,16 @@ function(x) {
             + optimizationLevel
             + "))";
 
-    var time = System.currentTimeMillis();
-
     var gnurFun = (CloSXP) R.eval(code);
-    System.out.println("Eval time: " + (System.currentTimeMillis() - time) + "ms");
-
     var astFun =
         SEXPs.closure(gnurFun.formals(), gnurFun.bodyAST(), gnurFun.env(), gnurFun.attributes());
 
+    // if a function calls browser() it won't be compiled into bytecode
     if (gnurFun.body() instanceof BCodeSXP gnurBc) {
-      time = System.currentTimeMillis();
       var ourBody = compile(astFun, optimizationLevel);
-      System.out.println("Compilation time: " + (System.currentTimeMillis() - time) + "ms");
 
       if (ourBody instanceof BCodeSXP ourBc) {
-        time = System.currentTimeMillis();
         var eq = gnurBc.equals(ourBc);
-        System.out.println("Eq " + eq + " time: " + (System.currentTimeMillis() - time) + "ms");
 
         if (!eq) {
           // bytecode can be large, so we only want to do it when it is different
@@ -749,9 +678,7 @@ function(x) {
         assertEquals(printStructurally(gnurBc), ourBody.toString());
       }
     } else {
-      time = System.currentTimeMillis();
       var ourBody = compile(astFun, optimizationLevel);
-      System.out.println("Compilation time: " + (System.currentTimeMillis() - time) + "ms");
 
       if (ourBody instanceof BCodeSXP ourBc) {
         assertEquals(astFun.body().toString(), printStructurally(ourBc));
