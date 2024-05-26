@@ -5,15 +5,22 @@ import java.util.LinkedList;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import javax.annotation.Nullable;
 import org.prlprg.sexp.*;
 import org.prlprg.util.Pair;
+
+record Loop(BcLabel start, BcLabel end, boolean gotoOK) {
+  public Loop gotoNotOK() {
+    return new Loop(start, end, false);
+  }
+}
 
 public class Context {
   private final boolean topLevel;
   private final boolean tailCall;
   private final boolean returnJump;
   private final EnvSXP environment;
-  private final Loop loop;
+  private final @Nullable Loop loop;
 
   /**
    * @param topLevel {@code true} for top level expressions, {@code false} otherwise (e.g.,
@@ -23,9 +30,14 @@ public class Context {
    *     is contained in a loop.
    * @param returnJump {@code true} indicated that the call to return needs {@code RETURNJMP}.
    * @param environment the compilation environment.
-   * @param loop
+   * @param loop the loop context or {@code null} if the context does not contain a loop.
    */
-  Context(boolean topLevel, boolean tailCall, boolean returnJump, EnvSXP environment, Loop loop) {
+  Context(
+      boolean topLevel,
+      boolean tailCall,
+      boolean returnJump,
+      EnvSXP environment,
+      @Nullable Loop loop) {
     this.topLevel = topLevel;
     this.tailCall = tailCall;
     this.returnJump = returnJump;
@@ -34,7 +46,7 @@ public class Context {
   }
 
   public static Context topLevelContext(EnvSXP env) {
-    return new Context(true, true, false, env, new Loop.NotInLoop());
+    return new Context(true, true, false, env, null);
   }
 
   public static Context functionContext(CloSXP fun) {
@@ -69,11 +81,12 @@ public class Context {
     // The promise context also sets returnJump since a return call that is triggered by forcing a
     // promise
     // requires a longjmp to return from the appropriate function.
-    return new Context(false, true, true, environment, loop.gotoNotOK());
+    return new Context(false, true, true, environment, loop != null ? loop.gotoNotOK() : null);
   }
 
   public Context argContext() {
-    return new Context(false, false, returnJump, environment, loop.gotoNotOK());
+    return new Context(
+        false, false, returnJump, environment, loop != null ? loop.gotoNotOK() : null);
   }
 
   public Context loopContext(BcLabel start, BcLabel end) {
@@ -83,7 +96,7 @@ public class Context {
         nctx.tailCall,
         nctx.returnJump,
         nctx.environment,
-        new Loop.InLoop(start, end, true));
+        new Loop(start, end, true));
   }
 
   public boolean isBaseVersion(String name) {
@@ -109,7 +122,7 @@ public class Context {
       var elem = todo.removeFirst();
       if (elem instanceof LangSXP l && l.fun() instanceof RegSymSXP fun) {
         var args = l.args().values();
-        var local =
+        Optional<String> local =
             switch (fun.name()) {
               case "=", "<-" -> {
                 todo.addAll(args.subList(1, args.size()));
@@ -130,24 +143,24 @@ public class Context {
                 if (args.size() == 2 && args.getFirst() instanceof StrOrRegSymSXP v) {
                   yield v.reifyString();
                 } else {
-                  yield Optional.<String>empty();
+                  yield Optional.empty();
                 }
               }
-              case "function" -> {
-                // Variables defined within local functions created by function expressions do not
-                // shadow globals
-                // within the containing expression and therefore function expressions do not
-                // contribute any new
-                // local variables.
-                yield Optional.<String>empty();
-              }
+              case "function" ->
+                  // Variables defined within local functions created by function expressions do not
+                  // shadow globals
+                  // within the containing expression and therefore function expressions do not
+                  // contribute any new
+                  // local variables.
+                  Optional.empty();
+
               case "~", "expression", "quote" -> {
                 // they do not evaluate their arguments and so do not contribute new local
                 // variables.
                 if (shadowed.contains(fun.name()) || locals.contains(fun.name())) {
                   todo.addAll(args);
                 }
-                yield Optional.<String>empty();
+                yield Optional.empty();
               }
               case "local" -> {
                 // local calls without an environment argument create a new environment
@@ -160,11 +173,11 @@ public class Context {
                     || args.size() != 1) {
                   todo.addAll(args);
                 }
-                yield Optional.<String>empty();
+                yield Optional.empty();
               }
               default -> {
                 todo.addAll(args);
-                yield Optional.<String>empty();
+                yield Optional.empty();
               }
             };
         local.ifPresent(locals::add);
@@ -193,9 +206,7 @@ public class Context {
         case StrOrRegSymSXP s -> {
           return s.reifyString();
         }
-        default -> {
-          throw new CompilerException("Bad assignment: " + l);
-        }
+        default -> throw new CompilerException("Bad assignment: " + l);
       }
     }
   }
@@ -226,11 +237,13 @@ public class Context {
     return returnJump;
   }
 
+  @SuppressWarnings("BooleanMethodIsAlwaysInverted")
   public boolean isTopLevel() {
     return topLevel;
   }
 
-  public Loop loop() {
+  @Nullable
+  Loop loop() {
     return loop;
   }
 

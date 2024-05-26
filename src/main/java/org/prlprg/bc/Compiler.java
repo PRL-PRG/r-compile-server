@@ -1155,8 +1155,8 @@ public class Compiler {
   }
 
   private boolean inlineBreakNext(LangSXP call, boolean isBreak) {
-    // Java's pattern matching is so pathetic that it is simply not worth it
-    if (ctx.loop() instanceof Loop.InLoop loop) {
+    var loop = ctx.loop();
+    if (loop != null) {
       if (loop.gotoOK()) {
         cb.addInstr(new Goto(isBreak ? loop.end() : loop.start()));
         return true;
@@ -1165,7 +1165,7 @@ public class Compiler {
       }
     } else {
       // TODO: notifyWrongBreakNext("break", cntxt, loc = cb$savecurloc())
-      // or notifyWrongBreakNext("next", cntxt, loc = cb$savecurloc())
+      //  or notifyWrongBreakNext("next", cntxt, loc = cb$savecurloc())
       return inlineSpecial(call);
     }
   }
