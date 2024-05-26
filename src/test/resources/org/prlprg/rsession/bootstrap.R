@@ -27,17 +27,18 @@ saveRDS(basevars, "basevars.RDS", version = 2)
 cat("saving ", length(base_env), " baseenv symbols\n")
 saveRDS(base_env, "baseenv.RDS", version = 2)
 
-list_functions <- function(name) {
-    namespace <- getNamespace(name)
-    p <- function(x) {
-      f <- get(x, envir=namespace)
-      is.function(f) && identical(environment(f), namespace)
-    }
-    Filter(p, ls(namespace, all.names = TRUE))
-}
-
-pkgs <- c("base", "tools", "utils", "graphics", "methods", "stats")
-funs <- sapply(pkgs, \(x) paste0(x, ":::`", list_functions(x), "`"))
-funs <- do.call(c, funs)
-cat("saving", length(funs), "functions\n")
-saveRDS(funs, "functions.RDS", version = 2)
+# moved to CompilerTest.RDS
+# list_functions <- function(name) {
+#     namespace <- getNamespace(name)
+#     p <- function(x) {
+#       f <- get(x, envir=namespace)
+#       is.function(f) && identical(environment(f), namespace)
+#     }
+#     Filter(p, ls(namespace, all.names = TRUE))
+# }
+#
+# pkgs <- c("base", "tools", "utils", "graphics", "methods", "stats")
+# funs <- sapply(pkgs, \(x) paste0(x, ":::`", list_functions(x), "`"))
+# funs <- do.call(c, funs)
+# cat("saving", length(funs), "functions\n")
+# saveRDS(funs, "functions.RDS", version = 2)
