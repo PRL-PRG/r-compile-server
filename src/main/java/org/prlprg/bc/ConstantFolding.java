@@ -1,18 +1,33 @@
 package org.prlprg.bc;
 
-import static org.prlprg.bc.Compiler.ALLOWED_FOLDABLE_MODES;
-
 import com.google.common.collect.ImmutableList;
 import com.google.common.math.DoubleMath;
+import com.google.common.primitives.ImmutableDoubleArray;
+import com.google.common.primitives.ImmutableIntArray;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import org.prlprg.primitive.Complex;
+import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.*;
 import org.prlprg.util.Arithmetic;
 
-public class ConstantFolding {
+/**
+ * Implements constant folding for some of the R functions. All functions are should have the same
+ * signature: {@code Optional<SEXP> f(List<SEXP> args)}
+ *
+ * <p>They shall be called from Compiler and can assume that each argument is one of the {@link
+ * Compiler#ALLOWED_FOLDABLE_MODES}.
+ *
+ * <p>The main reason it is extracted from the Compiler is to make have all the folding code in one
+ * place without making Compiler too big.
+ */
+public final class ConstantFolding {
+  private ConstantFolding() {}
+
   public static Optional<SEXP> add(List<SEXP> args) {
     return math2(Arithmetic.Operation.ADD, args);
   }
@@ -225,8 +240,7 @@ public class ConstantFolding {
       return Optional.empty();
     }
 
-    if (!(args.getFirst() instanceof VectorSXP<?> va)
-        || !ALLOWED_FOLDABLE_MODES.contains(va.type())) {
+    if (!(args.getFirst() instanceof VectorSXP<?> va)) {
       return Optional.empty();
     }
 
@@ -243,15 +257,104 @@ public class ConstantFolding {
       return Optional.empty();
     }
 
-    if (!(args.get(0) instanceof VectorSXP<?> va) || !ALLOWED_FOLDABLE_MODES.contains(va.type())) {
+    if (!(args.get(0) instanceof VectorSXP<?> va)) {
       return Optional.empty();
     }
 
-    if (!(args.get(1) instanceof VectorSXP<?> vb) || !ALLOWED_FOLDABLE_MODES.contains(vb.type())) {
+    if (!(args.get(1) instanceof VectorSXP<?> vb)) {
       return Optional.empty();
     }
 
     SEXP ans = doMath2(op, va, vb, arith);
     return Optional.of(ans);
+  }
+
+  public static Optional<SEXP> c(List<? extends SEXP> args) {
+    if (args.isEmpty()) {
+      return Optional.of(SEXPs.NULL);
+    }
+
+    var type = args.getFirst().type();
+    var capacity = 0;
+
+    // compute the target type, the SEXPTYPE is ordered in a way that we can just take the max
+    for (var arg : args) {
+      type = Coercions.commonType(type, arg.type());
+      capacity += ((VectorSXP<?>) arg).size();
+    }
+
+    // this is safe as we have proved that all args are VectorSXP
+    @SuppressWarnings("unchecked")
+    var vecArgs = (List<VectorSXP<?>>) args;
+
+    Optional<SEXP> vals =
+        switch (type) {
+          case STR -> {
+            var res = new ImmutableList.Builder<String>();
+            vecArgs.forEach(x -> res.add(x.coerceToStrings()));
+            yield Optional.of(SEXPs.string(res.build()));
+          }
+          case REAL -> {
+            var res = ImmutableDoubleArray.builder(capacity);
+            vecArgs.forEach(x -> Arrays.stream(x.coerceToReals()).forEach(res::add));
+            yield Optional.of(SEXPs.real(res.build()));
+          }
+          case INT -> {
+            var res = ImmutableIntArray.builder(capacity);
+            vecArgs.forEach(x -> Arrays.stream(x.coerceToInts()).forEach(res::add));
+            yield Optional.of(SEXPs.integer(res.build()));
+          }
+          case LGL -> {
+            var res = new ImmutableList.Builder<Logical>();
+            vecArgs.forEach(x -> res.add(x.coerceToLogicals()));
+            yield Optional.of(SEXPs.logical(res.build()));
+          }
+          case CPLX -> {
+            var res = new ImmutableList.Builder<Complex>();
+            vecArgs.forEach(x -> res.add(x.coerceToComplexes()));
+            yield Optional.of(SEXPs.complex(res.build()));
+          }
+          default -> Optional.empty();
+        };
+
+    return vals.map(
+        x -> {
+          var names =
+              args.stream()
+                  .map(SEXP::names)
+                  .reduce(
+                      new ArrayList<>(),
+                      (acc, y) -> {
+                        if (y != null) {
+                          acc.addAll(y);
+                        }
+                        return acc;
+                      });
+          return x.withNames(names);
+        });
+  }
+
+  public static Optional<SEXP> colon(ImmutableList<SEXP> args) {
+    if (args.size() != 2) {
+      return Optional.empty();
+    }
+
+    if (!(args.get(0) instanceof NumericSXP<?> min) || min.size() != 1) {
+      return Optional.empty();
+    }
+
+    if (!(args.get(1) instanceof NumericSXP<?> max) || min.size() != 1) {
+      return Optional.empty();
+    }
+
+    var imin = min.asInt(0);
+    var imax = max.asInt(0);
+    var ints = ImmutableIntArray.builder(Math.abs(imax - imin));
+    var inc = imin < imax ? 1 : -1;
+    for (var i = imin; i != imax + inc; i += inc) {
+      ints.add(i);
+    }
+
+    return Optional.of(SEXPs.integer(ints.build()));
   }
 }

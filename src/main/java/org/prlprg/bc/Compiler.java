@@ -3,7 +3,6 @@ package org.prlprg.bc;
 import static org.prlprg.sexp.SEXPType.*;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.primitives.ImmutableDoubleArray;
 import com.google.common.primitives.ImmutableIntArray;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.*;
@@ -12,8 +11,6 @@ import java.util.stream.IntStream;
 import javax.annotation.Nullable;
 import org.prlprg.RSession;
 import org.prlprg.bc.BcInstr.*;
-import org.prlprg.primitive.Complex;
-import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.*;
 
 // FIXME: use null instead of Optional (except for return types)
@@ -74,8 +71,8 @@ public class Compiler {
           "return",
           "switch");
 
-  // one-parameter functions evaluated by the math1 function in arithmetic.c
-  // the order is important
+  // One-parameter functions evaluated by the math1 function in arithmetic.c
+  // NOTE that the order is important!
   private static final List<String> MATH1_FUNS =
       List.of(
           "floor",
@@ -2129,6 +2126,15 @@ public class Compiler {
     }
   }
 
+  /**
+   * Tried to constant fold a call.
+   * The supported functions are defined in {@link #ALLOWED_FOLDABLE_FUNS}.
+   * It is a subset of the functions that are supported by the constant folding in GNU-R.
+   * This implementation is done on the best-effort basis and more are added as needed.
+   *
+   * @param call to be constant folded
+   * @return the constant folded value or empty if it cannot be constant folded
+   */
   private Optional<SEXP> constantFoldCall(LangSXP call) {
     if (!(call.fun() instanceof RegSymSXP funSym && isFoldableFun(funSym))) {
       return Optional.empty();
@@ -2139,10 +2145,17 @@ public class Compiler {
       if (missing(arg.value())) {
         return Optional.empty();
       }
+
       var namedArg = arg.value().attributes() != null ? arg.namedValue() : arg.value();
       var val = constantFold(namedArg);
+
       if (val.isPresent()) {
-        argsBuilder.add(val.get());
+        var v = val.get();
+        if (!ALLOWED_FOLDABLE_MODES.contains(v.type())) {
+          return Optional.empty();
+        }
+
+        argsBuilder.add(v);
       } else {
         return Optional.empty();
       }
@@ -2152,7 +2165,8 @@ public class Compiler {
 
     Optional<SEXP> ct =
         switch (funSym.name()) {
-          case "c" -> constantFoldC(args);
+          case "(" -> constantFoldParen(args);
+          case "c" -> ConstantFolding.c(args);
           case "+" -> {
             if (args.size() == 1) {
               yield ConstantFolding.plus(args);
@@ -2169,9 +2183,8 @@ public class Compiler {
               yield ConstantFolding.sub(args);
             }
           }
-          case ":" -> constantFoldColon(args);
+          case ":" -> ConstantFolding.colon(args);
           case "^" -> ConstantFolding.pow(args);
-          case "(" -> constantFoldParen(args);
           case "log" -> ConstantFolding.log(args);
           case "log2" -> ConstantFolding.log2(args);
           case "sqrt" -> ConstantFolding.sqrt(args);
@@ -2183,119 +2196,23 @@ public class Compiler {
     return ct.flatMap(this::checkConst);
   }
 
-  private Optional<SEXP> constantFoldParen(ImmutableList<SEXP> args) {
-    if (args.size() != 1) {
-      return Optional.empty();
-    }
-    return constantFold(args.getFirst());
-  }
-
-  private Optional<SEXP> constantFoldColon(ImmutableList<SEXP> args) {
-    if (args.size() != 2) {
-      return Optional.empty();
-    }
-
-    if (!(args.get(0) instanceof NumericSXP<?> min) || min.size() != 1) {
-      return Optional.empty();
-    }
-
-    if (!(args.get(1) instanceof NumericSXP<?> max) || min.size() != 1) {
-      return Optional.empty();
-    }
-
-    var imin = min.asInt(0);
-    var imax = max.asInt(0);
-    var ints = ImmutableIntArray.builder(Math.abs(imax - imin));
-    var inc = imin < imax ? 1 : -1;
-    for (var i = imin; i != imax + inc; i += inc) {
-      ints.add(i);
-    }
-
-    return Optional.of(SEXPs.integer(ints.build()));
-  }
-
-  private Optional<SEXP> constantFoldC(List<? extends SEXP> args) {
-    if (args.isEmpty()) {
-      return Optional.of(SEXPs.NULL);
-    }
-
-    var type = args.getFirst().type();
-    var capacity = 0;
-
-    // compute the target type, the SEXPTYPE is ordered in a way that we can just take the max
-    for (var arg : args) {
-      if (!ALLOWED_FOLDABLE_MODES.contains(arg.type())) {
-        return Optional.empty();
-      }
-
-      if (arg.type().i > type.i) {
-        type = arg.type();
-      }
-
-      capacity += ((VectorSXP<?>) arg).size();
-    }
-
-    // this is safe as we have proved that all args are VectorSXP
-    @SuppressWarnings("unchecked")
-    var vecArgs = (List<VectorSXP<?>>) args;
-
-    Optional<SEXP> vals =
-        switch (type) {
-          case STR -> {
-            var res = new ImmutableList.Builder<String>();
-            vecArgs.forEach(x -> res.add(x.coerceToStrings()));
-            yield Optional.of(SEXPs.string(res.build()));
-          }
-          case REAL -> {
-            var res = ImmutableDoubleArray.builder(capacity);
-            vecArgs.forEach(x -> Arrays.stream(x.coerceToReals()).forEach(res::add));
-            yield Optional.of(SEXPs.real(res.build()));
-          }
-          case INT -> {
-            var res = ImmutableIntArray.builder(capacity);
-            vecArgs.forEach(x -> Arrays.stream(x.coerceToInts()).forEach(res::add));
-            yield Optional.of(SEXPs.integer(res.build()));
-          }
-          case LGL -> {
-            var res = new ImmutableList.Builder<Logical>();
-            vecArgs.forEach(x -> res.add(x.coerceToLogicals()));
-            yield Optional.of(SEXPs.logical(res.build()));
-          }
-          case CPLX -> {
-            var res = new ImmutableList.Builder<Complex>();
-            vecArgs.forEach(x -> res.add(x.coerceToComplexes()));
-            yield Optional.of(SEXPs.complex(res.build()));
-          }
-          default -> Optional.empty();
-        };
-
-    return vals.map(
-        x -> {
-          var names =
-              args.stream()
-                  .map(SEXP::names)
-                  .reduce(
-                      new ArrayList<>(),
-                      (acc, y) -> {
-                        if (y != null) {
-                          acc.addAll(y);
-                        }
-                        return acc;
-                      });
-          return x.withNames(names);
-        });
-  }
-
   private boolean isFoldableFun(RegSymSXP sym) {
     var name = sym.name();
 
     if (ALLOWED_FOLDABLE_FUNS.contains(name)) {
       return getInlineInfo(name, false)
-          .map(x -> x.env.isBase() && x.value != null && x.value.isFunction())
-          .orElse(false);
+              .map(x -> x.env.isBase() && x.value != null && x.value.isFunction())
+              .orElse(false);
     } else {
       return false;
     }
+  }
+
+  private Optional<SEXP> constantFoldParen(ImmutableList<SEXP> args) {
+    if (args.size() != 1) {
+      return Optional.empty();
+    }
+    return constantFold(args.getFirst());
   }
 
   private <R> R stop(String message) throws CompilerException {
