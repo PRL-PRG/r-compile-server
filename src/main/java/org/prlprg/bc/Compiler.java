@@ -241,7 +241,7 @@ public class Compiler {
   private static Loc functionLoc(CloSXP fun) {
     var body = fun.bodyAST();
 
-    IntSXP srcRef;
+    Optional<IntSXP> srcRef;
     if (!(body instanceof LangSXP b
         && b.fun() instanceof RegSymSXP sym
         && sym.name().equals("{"))) { // FIXME: ugly
@@ -252,7 +252,7 @@ public class Compiler {
       srcRef = extractSrcRef(body, 0);
     }
 
-    return new Loc(body, srcRef);
+    return new Loc(body, srcRef.orElse(null));
   }
 
   private void compile(SEXP expr) {
@@ -270,7 +270,7 @@ public class Compiler {
     Loc loc = null;
     if (setLoc) {
       loc = cb.getCurrentLoc();
-      cb.setCurrentLoc(new Loc(expr, extractSrcRef(expr, 0)));
+      cb.setCurrentLoc(new Loc(expr, extractSrcRef(expr, 0).orElse(null)));
     }
 
     constantFold(expr)
@@ -331,7 +331,7 @@ public class Compiler {
 
   private void compileCall(LangSXP call, boolean canInline) {
     var loc = cb.getCurrentLoc();
-    cb.setCurrentLoc(new Loc(call, extractSrcRef(call, 0)));
+    cb.setCurrentLoc(new Loc(call, extractSrcRef(call, 0).orElse(null)));
 
     var args = call.args();
     switch (call.fun()) {
@@ -679,7 +679,7 @@ public class Compiler {
               for (var i = 0; i < n - 1; i++) {
                 var arg = call.arg(i).value();
                 // i + 1 because the block srcref's first element is the opening brace
-                cb.setCurrentLoc(new Loc(arg, extractSrcRef(call, i + 1)));
+                cb.setCurrentLoc(new Loc(arg, extractSrcRef(call, i + 1).orElse(null)));
                 compile(arg, false, false);
                 cb.addInstr(new Pop());
               }
@@ -687,7 +687,7 @@ public class Compiler {
       }
 
       var last = call.arg(n - 1).value();
-      cb.setCurrentLoc(new Loc(last, extractSrcRef(call, n)));
+      cb.setCurrentLoc(new Loc(last, extractSrcRef(call, n).orElse(null)));
       compile(last, false, false);
       cb.setCurrentLoc(loc);
     }
@@ -2265,26 +2265,26 @@ public class Compiler {
     }
   }
 
-  private static @Nullable IntSXP extractSrcRef(SEXP expr, int idx) {
+  private static Optional<IntSXP> extractSrcRef(SEXP expr, int idx) {
     var attrs = expr.attributes();
     if (attrs == null) {
-      return null;
+      return Optional.empty();
     }
 
     var srcref = attrs.get("srcref");
     if (srcref == null) {
-      return null;
+      return Optional.empty();
     }
 
     if (srcref instanceof IntSXP i && i.size() >= 6) {
-      return i;
+      return Optional.of(i);
     } else if (srcref instanceof VecSXP v
         && v.size() >= idx
         && v.get(idx) instanceof IntSXP i
         && i.size() >= 6) {
-      return i;
+      return Optional.of(i);
     } else {
-      return null;
+      return Optional.empty();
     }
   }
 
