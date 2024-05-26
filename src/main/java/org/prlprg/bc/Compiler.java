@@ -13,7 +13,6 @@ import org.prlprg.RSession;
 import org.prlprg.bc.BcInstr.*;
 import org.prlprg.sexp.*;
 
-// FIXME: use null instead of Optional (except for return types)
 // FIXME: update the SEXP API based on the experience with this code
 //   - especially the clumsy ListSXP
 
@@ -461,67 +460,70 @@ public class Compiler {
         .orElse(false);
   }
 
-  private @Nullable Function<LangSXP, Boolean> getBaseInlineHandler(String name) {
+  private Optional<Function<LangSXP, Boolean>> getBaseInlineHandler(String name) {
     // feels better this way than to pay the price to allocate the whole, big
     // inlining table at class construction
-    return switch (name) {
-      case "{" -> this::inlineBlock;
-      case "if" -> this::inlineCondition;
-      case "function" -> this::inlineFunction;
-      case "(" -> this::inlineParentheses;
-      case "local" -> this::inlineLocal;
-      case "return" -> this::inlineReturn;
-      case ".Internal" -> this::inlineDotInternalCall;
-      case "&&" -> (c) -> inlineLogicalAndOr(c, true);
-      case "||" -> (c) -> inlineLogicalAndOr(c, false);
-      case "repeat" -> this::inlineRepeat;
-      case "break" -> (c) -> inlineBreakNext(c, true);
-      case "next" -> (c) -> inlineBreakNext(c, false);
-      case "while" -> this::inlineWhile;
-      case "for" -> this::inlineFor;
-      case "+" -> (c) -> inlineAddSub(c, true);
-      case "-" -> (c) -> inlineAddSub(c, false);
-      case "*" -> (c) -> inlinePrim2(c, Mul::new);
-      case "/" -> (c) -> inlinePrim2(c, Div::new);
-      case "^" -> (c) -> inlinePrim2(c, Expt::new);
-      case "exp" -> (c) -> inlinePrim1(c, Exp::new);
-      case "sqrt" -> (c) -> inlinePrim1(c, Sqrt::new);
-      case "log" -> this::inlineLog;
-      case "==" -> (c) -> inlinePrim2(c, Eq::new);
-      case "!=" -> (c) -> inlinePrim2(c, Ne::new);
-      case "<" -> (c) -> inlinePrim2(c, Lt::new);
-      case "<=" -> (c) -> inlinePrim2(c, Le::new);
-      case ">" -> (c) -> inlinePrim2(c, Gt::new);
-      case ">=" -> (c) -> inlinePrim2(c, Ge::new);
-      case "&" -> (c) -> inlinePrim2(c, And::new);
-      case "|" -> (c) -> inlinePrim2(c, Or::new);
-      case "!" -> (c) -> inlinePrim1(c, Not::new);
-      case "$" -> this::inlineDollar;
-      case "is.character" -> (c) -> inlineIsXyz(c, IsCharacter::new);
-      case "is.complex" -> (c) -> inlineIsXyz(c, IsComplex::new);
-      case "is.double" -> (c) -> inlineIsXyz(c, IsDouble::new);
-      case "is.integer" -> (c) -> inlineIsXyz(c, IsInteger::new);
-      case "is.logical" -> (c) -> inlineIsXyz(c, IsLogical::new);
-      case "is.name" -> (c) -> inlineIsXyz(c, IsSymbol::new);
-      case "is.null" -> (c) -> inlineIsXyz(c, IsNull::new);
-      case "is.object" -> (c) -> inlineIsXyz(c, IsObject::new);
-      case "is.symbol" -> (c) -> inlineIsXyz(c, IsSymbol::new);
-      case ".Call" -> this::inlineDotCall;
-      case ":" -> (c) -> inlinePrim2(c, Colon::new);
-      case "seq_along" -> (c) -> inlinePrim1(c, SeqAlong::new);
-      case "seq_len" -> (c) -> inlinePrim1(c, SeqLen::new);
-      case "::", ":::" -> this::inlineMultiColon;
-      case "with", "require" -> this::compileSuppressingUndefined;
-      case "switch" -> this::inlineSwitch;
-      case "<-", "=", "<<-" -> this::inlineAssign;
-      case "[" -> (call) -> inlineSubset(false, call);
-      case "[[" -> (call) -> inlineSubset(true, call);
-      case String s when MATH1_FUNS.contains(s) -> (c) -> inlineMath1(c, MATH1_FUNS.indexOf(s));
-      case String s when rsession.isBuiltin(s) -> (c) -> inlineBuiltin(c, false);
-      case String s when rsession.isSpecial(s) -> this::inlineSpecial;
-      case String s when SAFE_BASE_INTERNALS.contains(s) -> this::inlineSimpleInternal;
-      default -> null;
-    };
+    Function<LangSXP, Boolean> fun =
+        switch (name) {
+          case "{" -> this::inlineBlock;
+          case "if" -> this::inlineCondition;
+          case "function" -> this::inlineFunction;
+          case "(" -> this::inlineParentheses;
+          case "local" -> this::inlineLocal;
+          case "return" -> this::inlineReturn;
+          case ".Internal" -> this::inlineDotInternalCall;
+          case "&&" -> (c) -> inlineLogicalAndOr(c, true);
+          case "||" -> (c) -> inlineLogicalAndOr(c, false);
+          case "repeat" -> this::inlineRepeat;
+          case "break" -> (c) -> inlineBreakNext(c, true);
+          case "next" -> (c) -> inlineBreakNext(c, false);
+          case "while" -> this::inlineWhile;
+          case "for" -> this::inlineFor;
+          case "+" -> (c) -> inlineAddSub(c, true);
+          case "-" -> (c) -> inlineAddSub(c, false);
+          case "*" -> (c) -> inlinePrim2(c, Mul::new);
+          case "/" -> (c) -> inlinePrim2(c, Div::new);
+          case "^" -> (c) -> inlinePrim2(c, Expt::new);
+          case "exp" -> (c) -> inlinePrim1(c, Exp::new);
+          case "sqrt" -> (c) -> inlinePrim1(c, Sqrt::new);
+          case "log" -> this::inlineLog;
+          case "==" -> (c) -> inlinePrim2(c, Eq::new);
+          case "!=" -> (c) -> inlinePrim2(c, Ne::new);
+          case "<" -> (c) -> inlinePrim2(c, Lt::new);
+          case "<=" -> (c) -> inlinePrim2(c, Le::new);
+          case ">" -> (c) -> inlinePrim2(c, Gt::new);
+          case ">=" -> (c) -> inlinePrim2(c, Ge::new);
+          case "&" -> (c) -> inlinePrim2(c, And::new);
+          case "|" -> (c) -> inlinePrim2(c, Or::new);
+          case "!" -> (c) -> inlinePrim1(c, Not::new);
+          case "$" -> this::inlineDollar;
+          case "is.character" -> (c) -> inlineIsXyz(c, IsCharacter::new);
+          case "is.complex" -> (c) -> inlineIsXyz(c, IsComplex::new);
+          case "is.double" -> (c) -> inlineIsXyz(c, IsDouble::new);
+          case "is.integer" -> (c) -> inlineIsXyz(c, IsInteger::new);
+          case "is.logical" -> (c) -> inlineIsXyz(c, IsLogical::new);
+          case "is.name" -> (c) -> inlineIsXyz(c, IsSymbol::new);
+          case "is.null" -> (c) -> inlineIsXyz(c, IsNull::new);
+          case "is.object" -> (c) -> inlineIsXyz(c, IsObject::new);
+          case "is.symbol" -> (c) -> inlineIsXyz(c, IsSymbol::new);
+          case ".Call" -> this::inlineDotCall;
+          case ":" -> (c) -> inlinePrim2(c, Colon::new);
+          case "seq_along" -> (c) -> inlinePrim1(c, SeqAlong::new);
+          case "seq_len" -> (c) -> inlinePrim1(c, SeqLen::new);
+          case "::", ":::" -> this::inlineMultiColon;
+          case "with", "require" -> this::compileSuppressingUndefined;
+          case "switch" -> this::inlineSwitch;
+          case "<-", "=", "<<-" -> this::inlineAssign;
+          case "[" -> (call) -> inlineSubset(false, call);
+          case "[[" -> (call) -> inlineSubset(true, call);
+          case String s when MATH1_FUNS.contains(s) -> (c) -> inlineMath1(c, MATH1_FUNS.indexOf(s));
+          case String s when rsession.isBuiltin(s) -> (c) -> inlineBuiltin(c, false);
+          case String s when rsession.isSpecial(s) -> this::inlineSpecial;
+          case String s when SAFE_BASE_INTERNALS.contains(s) -> this::inlineSimpleInternal;
+          default -> null;
+        };
+
+    return Optional.ofNullable(fun);
   }
 
   private Optional<BiFunction<FlattenLHS, LangSXP, Boolean>> getSetterInlineHandler(
@@ -558,6 +560,15 @@ public class Compiler {
     return Optional.ofNullable(fun);
   }
 
+  /**
+   * Information inlining for an R symbol.
+   *
+   * @param name the symbol name
+   * @param env the environment where the symbol was found
+   * @param value the value of the symbol or null if no value was found
+   * @param guard whether the inlining should be guarded which depends on the environment, {@link
+   *     #optimizationLevel} and target.
+   */
   record InlineInfo(String name, EnvSXP env, @Nullable SEXP value, boolean guard) {}
 
   private Optional<InlineInfo> getInlineInfo(String name, boolean guardOK) {
@@ -565,81 +576,77 @@ public class Compiler {
       return Optional.empty();
     }
 
-    // FIXME: working with optionals in Java is not that great
-    // IMHO the following reads better than the using flatMap
-    var res = ctx.resolve(name).orElse(null);
-    if (res == null) {
-      return Optional.empty();
-    }
-
-    InlineInfo info = null;
-
     // FIXME: this considers everything else "global" which is not true, but cannot be
-    // fixed until we have a proper environment chain supported in the Rsession
-
-    if (res.first() instanceof NamespaceEnvSXP) {
-      info = new InlineInfo(name, res.first(), res.second(), false);
-    } else if (optimizationLevel >= 3 || (optimizationLevel == 2 && LANGUAGE_FUNS.contains(name))) {
-      info = new InlineInfo(name, res.first(), res.second(), false);
-    } else if (guardOK && res.first().isBase()) {
-      info = new InlineInfo(name, res.first(), res.second(), true);
-    }
-
-    return Optional.ofNullable(info);
+    //  fixed until we have a proper environment chain supported in the Rsession
+    return ctx.resolve(name)
+        .map(
+            res -> {
+              if (res.first() instanceof NamespaceEnvSXP) {
+                return new InlineInfo(name, res.first(), res.second(), false);
+              } else if (optimizationLevel >= 3
+                  || (optimizationLevel == 2 && LANGUAGE_FUNS.contains(name))) {
+                return new InlineInfo(name, res.first(), res.second(), false);
+              } else if (guardOK && res.first().isBase()) {
+                return new InlineInfo(name, res.first(), res.second(), true);
+              } else {
+                return null;
+              }
+            });
   }
 
   /**
    * Tries to inline a function from the base package.
    *
-   * @param call
-   * @param info
+   * @param call the call to inline
+   * @param info the inline information
    * @return true if the function was inlined, false otherwise
    */
   private boolean tryInlineBase(LangSXP call, InlineInfo info) {
     assert (info.env().isBase());
 
-    var inline = getBaseInlineHandler(info.name);
-    if (inline == null) {
-      return false;
-    }
+    return getBaseInlineHandler(info.name)
+        .map(
+            inline -> {
+              if (info.guard()) {
+                var end = cb.makeLabel();
 
-    if (info.guard()) {
-      var end = cb.makeLabel();
-
-      usingCtx(
-          ctx.nonTailContext(),
-          () -> {
-            // The BASEGUARD checks the validity of the inline code, i.e. if what
-            // was from base at compile time hasn't changed.
-            // if the inlined code is not valid the guard instruction will evaluate the call
-            // in
-            // the AST interpreter and jump over the inlined code.
-            cb.addInstr(new BaseGuard(cb.addConst(call), end));
-            if (!inline.apply(call)) {
-              // At this point the guard is useless and the following code
-              // should run.
-              // I guess the likelihood that something changed is slim,
-              // to care about removing it.
-              compileCall(call, false);
-            }
-          });
-      cb.patchLabel(end);
-      checkTailCall();
-      return true;
-    } else {
-      return inline.apply(call);
-    }
-  }
-
-  private boolean trySetterInline(RegSymSXP afunSym, FlattenLHS flhs, LangSXP acall) {
-    return getInlineInfo(afunSym.name(), false)
-        .flatMap(this::getSetterInlineHandler)
-        .map(handler -> handler.apply(flhs, acall))
+                usingCtx(
+                    ctx.nonTailContext(),
+                    () -> {
+                      // The BASEGUARD checks the validity of the inline code, i.e. if what
+                      // was from base at compile time hasn't changed.
+                      // if the inlined code is not valid the guard instruction will evaluate the
+                      // call
+                      // in
+                      // the AST interpreter and jump over the inlined code.
+                      cb.addInstr(new BaseGuard(cb.addConst(call), end));
+                      if (!inline.apply(call)) {
+                        // At this point the guard is useless and the following code
+                        // should run.
+                        // I guess the likelihood that something changed is slim,
+                        // to care about removing it.
+                        compileCall(call, false);
+                      }
+                    });
+                cb.patchLabel(end);
+                checkTailCall();
+                return true;
+              } else {
+                return inline.apply(call);
+              }
+            })
         .orElse(false);
   }
 
-  private boolean tryGetterInline(RegSymSXP afunSym, LangSXP call) {
-    return getInlineInfo(afunSym.name(), false)
+  private boolean trySetterInline(RegSymSXP funSym, FlattenLHS flhs, LangSXP call) {
+    return getInlineInfo(funSym.name(), false)
+        .flatMap(this::getSetterInlineHandler)
+        .map(handler -> handler.apply(flhs, call))
+        .orElse(false);
+  }
+
+  private boolean tryGetterInline(RegSymSXP funSym, LangSXP call) {
+    return getInlineInfo(funSym.name(), false)
         .flatMap(this::getGetterInlineHandler)
         .map(handler -> handler.apply(call))
         .orElse(false);
@@ -656,7 +663,7 @@ public class Compiler {
    * stack. The final expression is then compiled according to the context in which the braces
    * expression occurs. </quote>
    *
-   * @param call
+   * @param call the block call to inline
    */
   private boolean inlineBlock(LangSXP call) {
     var n = call.args().size();
@@ -688,6 +695,9 @@ public class Compiler {
     return true;
   }
 
+  // all inline functions have the same signature
+  // (it is then easier to reference the method in the getInlineHandler)
+  @SuppressWarnings("SameReturnValue")
   private boolean inlineCondition(LangSXP call) {
     var test = call.arg(0).value();
     var thenBranch = call.arg(1).value();
@@ -730,11 +740,7 @@ public class Compiler {
       var endLabel = cb.makeLabel();
       cb.addInstr(new Goto(endLabel));
       cb.patchLabel(elseLabel);
-      elseBranch.ifPresentOrElse(
-          this::compile,
-          () -> {
-            cb.addInstr(new LdNull());
-          });
+      elseBranch.ifPresentOrElse(this::compile, () -> cb.addInstr(new LdNull()));
       cb.patchLabel(endLabel);
     }
 
@@ -751,7 +757,7 @@ public class Compiler {
    * functions is compiled, not the default argument expressions. This should be changed in future
    * versions of the compiler. </quote>
    *
-   * @param call
+   * @param call the `function` call to inline
    */
   private boolean inlineFunction(LangSXP call) {
     // TODO: sourcerefs
@@ -814,7 +820,7 @@ public class Compiler {
    * </quote>
    * </p>
    *
-   * @param call
+   * @param call the `(` call to inline
    */
   private boolean inlineParentheses(LangSXP call) {
     if (anyDots(call.args())) {
@@ -1115,12 +1121,10 @@ public class Compiler {
 
   private boolean inlineRepeat(LangSXP call) {
     var body = call.arg(0).value();
-    return inlineSimpleLoop(call, body, this::compileRepeatBody);
+    return inlineSimpleLoop(body, this::compileRepeatBody);
   }
 
-  // all the inline calls have the same signature
-  @SuppressWarnings("PMD.UnusedFormalParameter")
-  private boolean inlineSimpleLoop(LangSXP call, SEXP body, Consumer<SEXP> cmpBody) {
+  private boolean inlineSimpleLoop(SEXP body, Consumer<SEXP> cmpBody) {
     if (canSkipLoopContext(body, true)) {
       cmpBody.accept(body);
     } else {
@@ -1174,7 +1178,7 @@ public class Compiler {
     var test = call.arg(0).value();
     var body = call.arg(1).value();
 
-    return inlineSimpleLoop(call, body, (b) -> compileWhileBody(call, test, b));
+    return inlineSimpleLoop(body, (b) -> compileWhileBody(call, test, b));
   }
 
   private void compileWhileBody(LangSXP call, SEXP test, SEXP body) {
@@ -1646,11 +1650,6 @@ public class Compiler {
     var value = call.arg(1).value();
     var symbolOpt = Context.getAssignVar(call);
 
-    // TODO: notifyNoAssignVar
-    //    if (superAssign && Context.getAssignVar(call).flatMap(ctx::resolve).isEmpty()) {
-    //      // TODO: notifyNoSuperAssignVar(symbol, cntxt, loc = cb$savecurloc())
-    //    }
-
     if (symbolOpt.isPresent() && lhs instanceof StrOrRegSymSXP) {
       compileSymbolAssign(symbolOpt.get(), value, superAssign);
       return true;
@@ -1688,10 +1687,6 @@ public class Compiler {
     // > hand side value on the top, then the value of the left hand side variable, the binding
     // cell, and again
     // > the right hand side value on the stack.
-    //    // TODO: notifyUndefVar
-    //    if (!superAssign && ctx.resolve(name).isEmpty()) {
-    //      // TODO: notifyUndefVar(symbol, cntxt, loc = cb$savecurloc())
-    //    }
 
     if (!ctx.isTopLevel()) {
       cb.addInstr(new IncLnkStk());
