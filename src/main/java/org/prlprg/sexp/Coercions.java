@@ -1,6 +1,7 @@
 package org.prlprg.sexp;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import java.util.List;
 import java.util.regex.Pattern;
 import org.prlprg.primitive.Complex;
 import org.prlprg.primitive.Constants;
@@ -77,7 +78,15 @@ public final class Coercions {
     return SEXPType.valueOf(max);
   }
 
-  public static Complex complexFromInteger(int x) {
+  public static SEXPType commonType(List<SEXP> args) {
+    if (args.isEmpty()) {
+      throw new IllegalArgumentException("No arguments provided");
+    }
+
+    return args.stream().map(SEXP::type).reduce(args.getFirst().type(), Coercions::commonType);
+  }
+
+    public static Complex complexFromInteger(int x) {
     return isNA(x) ? Constants.NA_COMPLEX : Complex.fromReal(x);
   }
 

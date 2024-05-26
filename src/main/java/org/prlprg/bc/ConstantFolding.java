@@ -42,7 +42,15 @@ public class ConstantFolding {
   }
 
   public static Optional<SEXP> pow(List<SEXP> args) {
-    return math2(Arithmetic.Operation.POW, args);
+    if (args.size() != 2) {
+      return Optional.empty();
+    }
+
+    if (Coercions.commonType(args) == SEXPType.INT) {
+      return math2x(Arithmetic.Operation.POW, args, Arithmetic.DOUBLE);
+    } else {
+      return math2(Arithmetic.Operation.POW, args);
+    }
   }
 
   public static Optional<SEXP> rep(List<SEXP> args) {
@@ -222,10 +230,15 @@ public class ConstantFolding {
       return Optional.empty();
     }
 
-    return Optional.of(doMath1(op, va, Arithmetic.forType(va.type())));
+    return Arithmetic.forType(va.type()).map(arith -> doMath1(op, va, arith));
   }
 
   private static Optional<SEXP> math2(Arithmetic.Operation op, List<SEXP> args) {
+    return Arithmetic.forType(args).flatMap(arith -> math2x(op, args, arith));
+  }
+
+  private static Optional<SEXP> math2x(
+      Arithmetic.Operation op, List<SEXP> args, Arithmetic<?> arith) {
     if (args.size() != 2) {
       return Optional.empty();
     }
@@ -238,24 +251,7 @@ public class ConstantFolding {
       return Optional.empty();
     }
 
-    SEXPType type = Coercions.commonType(va.type(), vb.type());
-    SEXP ans =
-        switch (type) {
-          case INT ->
-              switch (op) {
-                case POW -> {
-                  var a = va.coerceTo(Double.class);
-                  var b = vb.coerceTo(Double.class);
-                  var r = doMath2(a, b, Arithmetic.DOUBLE::createResult, Math::pow);
-                  yield SEXPs.real(r);
-                }
-                default -> doMath2(op, va, vb, Arithmetic.INTEGER);
-              };
-          case REAL -> doMath2(op, va, vb, Arithmetic.DOUBLE);
-          case CPLX -> doMath2(op, va, vb, Arithmetic.COMPLEX);
-          default -> null;
-        };
-
-    return Optional.ofNullable(ans);
+    SEXP ans = doMath2(op, va, vb, arith);
+    return Optional.of(ans);
   }
 }

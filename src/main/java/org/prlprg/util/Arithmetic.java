@@ -1,11 +1,11 @@
 package org.prlprg.util;
 
+import java.util.List;
+import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import org.prlprg.primitive.Complex;
-import org.prlprg.sexp.SEXPType;
-import org.prlprg.sexp.SEXPs;
-import org.prlprg.sexp.VectorSXP;
+import org.prlprg.sexp.*;
 
 public interface Arithmetic<T> {
   Arithmetic<Integer> INTEGER =
@@ -168,13 +168,19 @@ public interface Arithmetic<T> {
         }
       };
 
-  static Arithmetic<?> forType(SEXPType type) {
-    return switch (type) {
-      case INT -> INTEGER;
-      case REAL -> DOUBLE;
-      case CPLX -> COMPLEX;
-      default -> throw new IllegalArgumentException("Unsupported type: " + type);
-    };
+  static Optional<Arithmetic<?>> forType(SEXPType type) {
+    var arith =
+        switch (type) {
+          case INT -> INTEGER;
+          case REAL -> DOUBLE;
+          case CPLX -> COMPLEX;
+          default -> null;
+        };
+    return Optional.ofNullable(arith);
+  }
+
+  static Optional<Arithmetic<?>> forType(List<SEXP> args) {
+    return forType(Coercions.commonType(args));
   }
 
   T add(T a, T b);
