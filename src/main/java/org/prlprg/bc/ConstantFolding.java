@@ -62,7 +62,7 @@ public final class ConstantFolding {
     }
 
     if (Coercions.commonType(args) == SEXPType.INT) {
-      return math2x(Arithmetic.Operation.POW, args, Arithmetic.DOUBLE);
+      return math2(Arithmetic.Operation.POW, args, Arithmetic.DOUBLE);
     } else {
       return math2(Arithmetic.Operation.POW, args);
     }
@@ -163,13 +163,17 @@ public final class ConstantFolding {
     return ans;
   }
 
-  private static <T> SEXP doMath2(
-      Arithmetic.Operation op, VectorSXP<?> va, VectorSXP<?> vb, Arithmetic<T> arith) {
-    var ax = arith.fromSEXP(va);
-    var bx = arith.fromSEXP(vb);
-    return arith.toSEXP(doMath2(ax, bx, arith::createResult, arith.getBinaryFun(op)));
-  }
-
+  /**
+   * Implements the binary operation for two vectors using R semantics of recycling vectors.
+   *
+   * @param ax the left hand side operand
+   * @param bx the right hand side operand
+   * @param createResult the function to create the result vector of the corresponding type
+   * @param f the binary operation to apply
+   * @return {@code f} applied to elements of {@code ax} and {@code bx} based on R recycling rules.
+   * @param <T> the type of operands
+   * @param <R> the type of the result
+   */
   private static <T, R> R[] doMath2(
       T[] ax, T[] bx, Function<Integer, R[]> createResult, BiFunction<T, T, R> f) {
     var la = ax.length;
@@ -248,11 +252,11 @@ public final class ConstantFolding {
   }
 
   private static Optional<SEXP> math2(Arithmetic.Operation op, List<SEXP> args) {
-    return Arithmetic.forType(args).flatMap(arith -> math2x(op, args, arith));
+    return Arithmetic.forType(args).flatMap(arith -> math2(op, args, arith));
   }
 
-  private static Optional<SEXP> math2x(
-      Arithmetic.Operation op, List<SEXP> args, Arithmetic<?> arith) {
+  private static <T> Optional<SEXP> math2(
+      Arithmetic.Operation op, List<SEXP> args, Arithmetic<T> arith) {
     if (args.size() != 2) {
       return Optional.empty();
     }
@@ -265,7 +269,10 @@ public final class ConstantFolding {
       return Optional.empty();
     }
 
-    SEXP ans = doMath2(op, va, vb, arith);
+    var ax = arith.fromSEXP(va);
+    var bx = arith.fromSEXP(vb);
+    var ans = arith.toSEXP(doMath2(ax, bx, arith::createResult, arith.getBinaryFun(op)));
+
     return Optional.of(ans);
   }
 
@@ -325,9 +332,7 @@ public final class ConstantFolding {
                   .reduce(
                       new ArrayList<>(),
                       (acc, y) -> {
-                        if (y != null) {
-                          acc.addAll(y);
-                        }
+                        acc.addAll(y);
                         return acc;
                       });
           return x.withNames(names);

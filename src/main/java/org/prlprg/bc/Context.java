@@ -242,8 +242,7 @@ public class Context {
     return topLevel;
   }
 
-  @Nullable
-  Loop loop() {
+  @Nullable Loop loop() {
     return loop;
   }
 
