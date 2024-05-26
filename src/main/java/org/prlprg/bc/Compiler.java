@@ -242,14 +242,14 @@ public class Compiler {
     var body = fun.bodyAST();
 
     Optional<IntSXP> srcRef;
-    if (!(body instanceof LangSXP b
+    if (body instanceof LangSXP b
         && b.fun() instanceof RegSymSXP sym
-        && sym.name().equals("{"))) { // FIXME: ugly
+        && sym.name().equals("{")) { // FIXME: ugly
+      srcRef = extractSrcRef(body, 0);
+    } else {
       // try to get the srcRef from the function itself
       // normally, it would be attached to the `{`
       srcRef = fun.getSrcRef();
-    } else {
-      srcRef = extractSrcRef(body, 0);
     }
 
     return new Loc(body, srcRef.orElse(null));
