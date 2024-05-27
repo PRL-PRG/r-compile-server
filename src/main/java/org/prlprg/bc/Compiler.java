@@ -2420,7 +2420,8 @@ public class Compiler {
     var srcref = attrs.get("srcref");
     return switch (srcref) {
       case IntSXP i when i.size() >= 6 -> Optional.of(i);
-      case VecSXP v when v.size() >= idx && v.get(idx) instanceof IntSXP i && i.size() >= 6 -> Optional.of(i);
+      case VecSXP v when v.size() >= idx && v.get(idx) instanceof IntSXP i && i.size() >= 6 ->
+          Optional.of(i);
       case null, default -> Optional.empty();
     };
   }

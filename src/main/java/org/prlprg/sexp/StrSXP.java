@@ -6,6 +6,7 @@ import com.google.common.escape.Escaper;
 import com.google.common.escape.Escapers;
 import java.util.Optional;
 import javax.annotation.concurrent.Immutable;
+import org.prlprg.primitive.Constants;
 
 /** String vector SEXP. */
 @Immutable
