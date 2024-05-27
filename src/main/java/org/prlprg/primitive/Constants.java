@@ -39,5 +39,11 @@ public final class Constants {
   /** String representations of false values. (cf. StringFalse and falsenames in util.c) */
   public static final Set<String> FALSE_NAMES = Set.of("F", "False", "FALSE", "false");
 
+  /** Check if a string is the NA string. */
+  @SuppressWarnings("StringEquality")
+  public static boolean isNaString(String s) {
+    return s == NA_STRING;
+  }
+
   private Constants() {}
 }

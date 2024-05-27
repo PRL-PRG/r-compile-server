@@ -1,10 +1,14 @@
 package org.prlprg.bc;
 
+import static org.prlprg.sexp.SEXPType.BCODE;
 import static org.prlprg.sexp.SEXPType.CPLX;
 import static org.prlprg.sexp.SEXPType.INT;
+import static org.prlprg.sexp.SEXPType.LANG;
 import static org.prlprg.sexp.SEXPType.LGL;
+import static org.prlprg.sexp.SEXPType.PROM;
 import static org.prlprg.sexp.SEXPType.REAL;
 import static org.prlprg.sexp.SEXPType.STR;
+import static org.prlprg.sexp.SEXPType.SYM;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.primitives.ImmutableIntArray;
@@ -1747,7 +1751,7 @@ public class Compiler {
     cb.patchLabel(defaultLabel);
     cb.addInstr(new LdNull());
     if (!tailCallInvisibleReturn()) {
-      cb.addInstr(new Goto(endLabel));
+      cb.addInstr(new Goto(Objects.requireNonNull(endLabel)));
     }
 
     // code for the non-empty cases
@@ -2415,7 +2419,8 @@ public class Compiler {
     var srcref = attrs.get("srcref");
     return switch (srcref) {
       case IntSXP i when i.size() >= 6 -> Optional.of(i);
-      case VecSXP v when v.size() >= idx && v.get(idx) instanceof IntSXP i && i.size() >= 6 -> Optional.of(i);
+      case VecSXP v when v.size() >= idx && v.get(idx) instanceof IntSXP i && i.size() >= 6 ->
+          Optional.of(i);
       case null, default -> Optional.empty();
     };
   }
