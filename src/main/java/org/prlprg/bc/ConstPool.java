@@ -35,7 +35,7 @@ public final class ConstPool extends ForwardingList<SEXP> {
 
   @Override
   public String toString() {
-    StringBuilder sb = new StringBuilder("=== CONSTS " + debugId() + " ===");
+    StringBuilder sb = new StringBuilder("=== CONSTS ===");
     var idx = 0;
     for (var c : this) {
       var cStr = c.toString();
@@ -54,18 +54,13 @@ public final class ConstPool extends ForwardingList<SEXP> {
     if (this == o) return true;
     if (o == null || getClass() != o.getClass()) return false;
     if (!super.equals(o)) return false;
-    ConstPool other = (ConstPool) o;
-    return consts.equals(other.consts);
+    ConstPool sexps = (ConstPool) o;
+    return consts.equals(sexps.consts);
   }
 
   @Override
   public int hashCode() {
     return Objects.hash(super.hashCode(), consts);
-  }
-
-  // FIXME: use some global id
-  private String debugId() {
-    return "@" + hashCode();
   }
 
   /**

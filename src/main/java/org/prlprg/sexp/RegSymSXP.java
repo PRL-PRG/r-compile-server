@@ -3,7 +3,6 @@ package org.prlprg.sexp;
 import com.google.common.base.Objects;
 import java.util.Optional;
 
-// TODO: move to SymSXP.java?
 /** Symbol which isn't "unbound value" or "missing arg" */
 public final class RegSymSXP implements SymSXP, StrOrRegSymSXP {
   private final String name;

@@ -7,13 +7,7 @@ import org.prlprg.bc.Bc;
 @Immutable
 public sealed interface BCodeSXP extends SEXP {
 
-  /**
-   * The typed compiled code.
-   *
-   * <p>TODO will be refactored so BCodeSXP stores raw data and can generate this, the method will
-   * be named something like {@code getBc()} or {@code generateBc()} to make it clear that this is a
-   * more expensive operation than a virtual getter.
-   */
+  /** The typed compiled code. */
   Bc bc();
 
   @Override

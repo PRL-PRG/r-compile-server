@@ -49,7 +49,7 @@ record LangSXPImpl(SymOrLangSXP fun, ListSXP args, @Override Attributes attribut
         return args.get(0) + " " + funName + " " + args.get(1);
       }
     }
-    return fun().toString() + (args() instanceof NilSXP ? "()" : args().toString());
+    return fun() + (args() instanceof NilSXP ? "()" : args().toString());
   }
 
   @Override

@@ -308,7 +308,10 @@ public class RDSReader implements Closeable {
         throw new RDSException("Expected symbol or language, got: " + fun.type());
       }
 
-      var args = ansList.subList(1);
+      ListSXP args = SEXPs.NULL;
+      if (ansList.size() > 1) {
+        args = ansList.subList(1);
+      }
 
       ans = SEXPs.lang(funSymOrLang, args, attributes);
     }

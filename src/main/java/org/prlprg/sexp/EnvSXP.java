@@ -62,8 +62,13 @@ public sealed interface EnvSXP extends SEXP
    */
   int size();
 
+  /**
+   * Returns {@code true} if this is the base environment ({@code baseenv()}) or a base namespace
+   * ({@code .BaseNamespaceEnv}). namespace.
+   *
+   * @return
+   */
   default boolean isBase() {
-    // FIXME: add to some constants
     return this instanceof BaseEnvSXP
         || this instanceof NamespaceEnvSXP ns && ns.getName().equals("base");
   }

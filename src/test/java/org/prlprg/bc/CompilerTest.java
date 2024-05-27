@@ -2,7 +2,7 @@ package org.prlprg.bc;
 
 import static com.google.common.truth.Truth.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.prlprg.util.StructuralUtils.printStructurally;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import com.google.common.collect.Streams;
 import java.io.File;
@@ -18,6 +18,17 @@ import org.prlprg.util.*;
 import org.prlprg.util.AbstractGNURBasedTest;
 
 public class CompilerTest extends AbstractGNURBasedTest implements Tests {
+
+  @Test
+  public void test1() {
+    assertBytecode(
+        """
+        function ()
+        {
+            function(other = list()) 1
+        }
+""");
+  }
 
   @Test
   public void testEmptyBlock() {
@@ -70,8 +81,6 @@ public class CompilerTest extends AbstractGNURBasedTest implements Tests {
     assertBytecode("""
         function(x) (...)
     """);
-
-    // TODO: (x <- 1)
   }
 
   @Test
@@ -324,8 +333,6 @@ function(x) for (i in x) if (i) break() else 1
                     }
                 """);
   }
-
-  // TODO: with / require
 
   @Test
   public void multiColon() {
@@ -650,7 +657,7 @@ function(x) {
     String code =
         "parse(file = '"
             + temp.getAbsolutePath()
-            + "', keep.source = TRUE)" // TODO: set conditionally
+            + "', keep.source = TRUE)"
             + " |> eval()"
             + " |> compiler::cmpfun(options = list(optimize="
             + optimizationLevel
@@ -669,19 +676,18 @@ function(x) {
 
         if (!eq) {
           // bytecode can be large, so we only want to do it when it is different
-          var theirs = printStructurally(gnurBc);
-          var ours = printStructurally(ourBc);
-
-          assertEquals(theirs, ours, "`compile(read(ast)) == read(R.compile(ast))`");
+          assertEquals(
+              gnurBc.toString(), ourBc.toString(), "`compile(read(ast)) == read(R.compile(ast))`");
+          fail("Produced bytecode is different, but the toString() representation is the same.");
         }
       } else {
-        assertEquals(printStructurally(gnurBc), ourBody.toString());
+        assertEquals(gnurBc.toString(), ourBody.toString());
       }
     } else {
       var ourBody = compile(astFun, optimizationLevel);
 
       if (ourBody instanceof BCodeSXP ourBc) {
-        assertEquals(astFun.body().toString(), printStructurally(ourBc));
+        assertEquals(astFun.body().toString(), ourBc.toString());
       } else {
         assertEquals(astFun.body(), ourBody);
       }

@@ -13,9 +13,6 @@ import org.prlprg.RSession;
 import org.prlprg.bc.BcInstr.*;
 import org.prlprg.sexp.*;
 
-// FIXME: update the SEXP API based on the experience with this code
-//   - especially the clumsy ListSXP
-
 public class Compiler {
   private static final Set<String> MAYBE_NSE_SYMBOLS = Set.of("bquote");
   private static final Set<String> LANGUAGE_FUNS =
@@ -301,17 +298,15 @@ public class Compiler {
       // TODO: notifyWrongDotsUse
       cb.addInstr(new DotsErr());
     } else if (sym.isDdSym()) {
-      // TODO: if (!findLocVar("..."))
-      // notifyWrongDotsUse
+      // TODO: notifyWrongDotsUse
       var idx = cb.addConst(sym);
       cb.addInstr(missingOK ? new DdValMissOk(idx) : new DdVal(idx));
-      checkTailCall();
+      tailCallReturn();
     } else {
-      // TODO: if (!findVar(sym))
-      // notifyUndefVar
+      // TODO: notifyUndefVar
       var idx = cb.addConst(sym);
       cb.addInstr(missingOK ? new GetVarMissOk(idx) : new GetVar(idx));
-      checkTailCall();
+      tailCallReturn();
     }
   }
 
@@ -326,7 +321,7 @@ public class Compiler {
       default -> cb.addInstr(new LdConst(cb.addConst(val)));
     }
 
-    checkTailCall();
+    tailCallReturn();
   }
 
   private void compileCall(LangSXP call, boolean canInline) {
@@ -337,7 +332,7 @@ public class Compiler {
     switch (call.fun()) {
       case RegSymSXP fun -> {
         if (!(canInline && tryInlineCall(fun, call))) {
-          // TODO: check call
+          // TODO: notifyBadCall
           compileCallSymFun(fun, args, call);
         }
       }
@@ -366,7 +361,7 @@ public class Compiler {
     var nse = MAYBE_NSE_SYMBOLS.contains(fun.name());
     compileArgs(args, nse);
     cb.addInstr(new Call(cb.addConst(call)));
-    checkTailCall();
+    tailCallReturn();
   }
 
   private void compileCallExprFun(LangSXP fun, ListSXP args, LangSXP call) {
@@ -374,7 +369,7 @@ public class Compiler {
     cb.addInstr(new CheckFun());
     compileArgs(args, false);
     cb.addInstr(new Call(cb.addConst(call)));
-    checkTailCall();
+    tailCallReturn();
   }
 
   @SuppressFBWarnings(
@@ -391,8 +386,7 @@ public class Compiler {
           compileTag(tag);
         }
         case SymSXP x when x.isEllipsis() ->
-            // TODO: if (!findLocVar("..."))
-            // notifyWrongDotsUse
+            // TODO: notifyWrongDotsUse
             cb.addInstr(new DoDots());
         case SymSXP x -> {
           compileNormArg(x, nse);
@@ -443,9 +437,19 @@ public class Compiler {
     }
   }
 
-  private void checkTailCall() {
+  private void tailCallReturn() {
     if (ctx.isTailCall()) {
       cb.addInstr(new Return());
+    }
+  }
+
+  private boolean tailCallInvisibleReturn() {
+    if (ctx.isTailCall()) {
+      cb.addInstr(new Invisible());
+      cb.addInstr(new Return());
+      return true;
+    } else {
+      return false;
     }
   }
 
@@ -629,7 +633,7 @@ public class Compiler {
                       }
                     });
                 cb.patchLabel(end);
-                checkTailCall();
+                tailCallReturn();
                 return true;
               } else {
                 return inline.apply(call);
@@ -712,8 +716,7 @@ public class Compiler {
         compile(elseBranch.get());
       } else if (ctx.isTailCall()) {
         cb.addInstr(new LdNull());
-        cb.addInstr(new Invisible());
-        cb.addInstr(new Return());
+        tailCallInvisibleReturn();
       } else {
         cb.addInstr(new LdNull());
       }
@@ -733,8 +736,7 @@ public class Compiler {
           this::compile,
           () -> {
             cb.addInstr(new LdNull());
-            cb.addInstr(new Invisible());
-            cb.addInstr(new Return());
+            tailCallInvisibleReturn();
           });
     } else {
       var endLabel = cb.makeLabel();
@@ -760,8 +762,6 @@ public class Compiler {
    * @param call the `function` call to inline
    */
   private boolean inlineFunction(LangSXP call) {
-    // TODO: sourcerefs
-
     var formals = (ListSXP) call.arg(0).value();
     var body = call.arg(1).value();
     if (mayCallBrowser(body)) {
@@ -770,14 +770,15 @@ public class Compiler {
     var sref = call.args().size() > 2 ? call.arg(2).value() : SEXPs.NULL;
 
     var compiler = fork(body, ctx.functionContext(formals, body), cb.getCurrentLoc());
-    var cbodysxp = compiler.compile().<SEXP>map(SEXPs::bcode).orElse(body);
+    var cbody = compiler.compile().<SEXP>map(SEXPs::bcode).orElse(body);
 
-    // FIXME: ugly
-    var cnst = SEXPs.vec(formals, cbodysxp, sref);
+    // this is not CLOSXP, but vector of these elements as
+    // required by the bytecode op
+    var cfun = SEXPs.vec(formals, cbody, sref);
 
-    cb.addInstr(new MakeClosure(cb.addConst(cnst)));
+    cb.addInstr(new MakeClosure(cb.addConst(cfun)));
 
-    checkTailCall();
+    tailCallReturn();
 
     return true;
   }
@@ -826,7 +827,7 @@ public class Compiler {
     if (anyDots(call.args())) {
       return inlineBuiltin(call, false);
     } else if (call.args().size() != 1) {
-      // TODO: notifyWrongArgCount("(", cntxt, loc = cb$savecurloc())
+      // TODO: notifyWrongArgCount
       return inlineBuiltin(call, false);
     } else if (ctx.isTailCall()) {
       usingCtx(ctx.nonTailContext(), () -> compile(call.arg(0).value()));
@@ -861,7 +862,7 @@ public class Compiler {
 
     // call
     cb.addInstr(new CallBuiltin(cb.addConst(call)));
-    checkTailCall();
+    tailCallReturn();
 
     return true;
   }
@@ -902,7 +903,7 @@ public class Compiler {
 
   private boolean inlineSpecial(LangSXP call) {
     cb.addInstr(new CallSpecial(cb.addConst(call)));
-    checkTailCall();
+    tailCallReturn();
 
     return true;
   }
@@ -1114,7 +1115,7 @@ public class Compiler {
         });
 
     cb.patchLabel(label);
-    checkTailCall();
+    tailCallReturn();
 
     return true;
   }
@@ -1140,10 +1141,7 @@ public class Compiler {
     }
 
     cb.addInstr(new LdNull());
-    if (ctx.isTailCall()) {
-      cb.addInstr(new Invisible());
-      cb.addInstr(new Return());
-    }
+    tailCallInvisibleReturn();
 
     return true;
   }
@@ -1168,8 +1166,7 @@ public class Compiler {
         return inlineSpecial(call);
       }
     } else {
-      // TODO: notifyWrongBreakNext("break", cntxt, loc = cb$savecurloc())
-      //  or notifyWrongBreakNext("next", cntxt, loc = cb$savecurloc())
+      // TODO: notifyWrongBreakNext or notifyWrongBreakNext
       return inlineSpecial(call);
     }
   }
@@ -1231,10 +1228,7 @@ public class Compiler {
     }
 
     cb.addInstr(new EndFor());
-    if (ctx.isTailCall()) {
-      cb.addInstr(new Invisible());
-      cb.addInstr(new Return());
-    }
+    tailCallInvisibleReturn();
 
     return true;
   }
@@ -1272,13 +1266,13 @@ public class Compiler {
     }
 
     if (call.args().size() != 1) {
-      // TODO: notifyWrongArgCount(e[[1]], cntxt, loc = cb$savecurloc())
+      // TODO: notifyWrongArgCount
       return inlineBuiltin(call, false);
     }
 
     usingCtx(ctx.nonTailContext(), () -> compile(call.arg(0).value()));
     cb.addInstr(makeOp.apply(cb.addConst(call)));
-    checkTailCall();
+    tailCallReturn();
     return true;
   }
 
@@ -1288,7 +1282,7 @@ public class Compiler {
     }
 
     if (call.args().size() != 2) {
-      // TODO: notifyWrongArgCount(e[[1]], cntxt, loc = cb$savecurloc())
+      // TODO: notifyWrongArgCount
       return inlineBuiltin(call, false);
     }
 
@@ -1307,7 +1301,7 @@ public class Compiler {
         });
 
     cb.addInstr(makeOp.apply(cb.addConst(call)));
-    checkTailCall();
+    tailCallReturn();
 
     return true;
   }
@@ -1329,7 +1323,7 @@ public class Compiler {
       cb.addInstr(new LogBase(idx));
     }
 
-    checkTailCall();
+    tailCallReturn();
     return true;
   }
 
@@ -1338,14 +1332,14 @@ public class Compiler {
       return inlineBuiltin(call, false);
     }
     if (call.args().size() != 1) {
-      // TODO: notifyWrongArgCount(e[[1]], cntxt, loc = cb$savecurloc())
+      // TODO: notifyWrongArgCount
       return inlineBuiltin(call, false);
     }
 
     usingCtx(ctx.nonTailContext(), () -> compile(call.arg(0).value()));
     cb.addInstr(new Math1(cb.addConst(call), idx));
 
-    checkTailCall();
+    tailCallReturn();
     return true;
   }
 
@@ -1367,7 +1361,7 @@ public class Compiler {
       var callIdx = cb.addConst(call);
       var symIdx = cb.addConst(s);
       cb.addInstr(new Dollar(callIdx, symIdx));
-      checkTailCall();
+      tailCallReturn();
       return true;
     } else {
       return inlineSpecial(call);
@@ -1381,7 +1375,7 @@ public class Compiler {
 
     usingCtx(ctx.argContext(), () -> compile(c.arg(0).value()));
     cb.addInstr(makeOp.get());
-    checkTailCall();
+    tailCallReturn();
     return true;
   }
 
@@ -1397,7 +1391,7 @@ public class Compiler {
     usingCtx(ctx.argContext(), () -> call.args().values(1).forEach(this::compile));
     cb.addInstr(new DotCall(cb.addConst(call), call.args().size() - 1));
 
-    checkTailCall();
+    tailCallReturn();
     return true;
   }
 
@@ -1412,6 +1406,7 @@ public class Compiler {
             default -> null;
           };
 
+      // FIXME: ugly
       String s2 =
           switch (call.arg(1).value()) {
             case StrSXP s when s.size() == 1 -> s.get(0);
@@ -1447,9 +1442,7 @@ public class Compiler {
     var expr = call.arg(0).value();
     var cases = call.args().values(1);
 
-    // TODO:
-    // if (cases.isEmpty())
-    // notifyNoSwitchcases(cntxt, loc = cb$savecurloc())
+    // TODO: notifyNoSwitchcases
 
     var names = call.args().names(1);
     // allow for corner cases like switch(x, 1) which always
@@ -1480,8 +1473,7 @@ public class Compiler {
       haveCharDefault = false;
     } else {
       // more than one default (which confuses the fuck out of me)
-      // TODO:
-      // notifyMultipleSwitchDefaults(ndflt, cntxt, loc = cb$savecurloc())
+      // TODO: notifyMultipleSwitchDefaults
       return inlineSpecial(call);
     }
 
@@ -1608,10 +1600,7 @@ public class Compiler {
     // code for the default case
     cb.patchLabel(defaultLabel);
     cb.addInstr(new LdNull());
-    if (ctx.isTailCall()) {
-      cb.addInstr(new Invisible());
-      cb.addInstr(new Return());
-    } else {
+    if (!tailCallInvisibleReturn()) {
       cb.addInstr(new Goto(endLabel));
     }
 
@@ -1666,11 +1655,7 @@ public class Compiler {
     var ci = cb.addConst(SEXPs.symbol(name));
     cb.addInstr(superAssign ? new SetVar2(ci) : new SetVar(ci));
 
-    // TODO: make this a helper
-    if (ctx.isTailCall()) {
-      cb.addInstr(new Invisible());
-      cb.addInstr(new Return());
-    }
+    tailCallInvisibleReturn();
   }
 
   /*
@@ -1713,11 +1698,8 @@ public class Compiler {
     if (!ctx.isTopLevel()) {
       cb.addInstr(new DecLnkStk());
     }
-    // TODO: make this a helper
-    if (ctx.isTailCall()) {
-      cb.addInstr(new Invisible());
-      cb.addInstr(new Return());
-    }
+
+    tailCallInvisibleReturn();
   }
 
   private void compileSetterCall(FlattenLHS flhs, SEXP value) {
@@ -1830,7 +1812,7 @@ public class Compiler {
               && !(fun instanceof LangSXP && args.size() == 2)
               && args.get(0).value() instanceof RegSymSXP innerFun
               && (innerFun.name().equals("::") || innerFun.name().equals(":::"))) {
-            // TODO: notifyBadAssignFun(fun, cntxt, loc)
+            // TODO: notifyBadAssignFun
             yield false;
           }
           lhs = l.arg(0).value();
@@ -2004,7 +1986,7 @@ public class Compiler {
 
       // why is it a tail call? it should not be
 
-      checkTailCall();
+      tailCallReturn();
       return true;
     }
 
@@ -2033,7 +2015,7 @@ public class Compiler {
     }
 
     cb.patchLabel(endLabel);
-    checkTailCall();
+    tailCallReturn();
 
     return true;
   }
@@ -2054,7 +2036,7 @@ public class Compiler {
   }
 
   private boolean compileSuppressingUndefined(LangSXP call) {
-    // TODO: cntxt$suppressUndefined <- TRUE
+    // TODO: cntxt$suppressUndefined <- TRUE (related to notification)
     compileCallSymFun((RegSymSXP) call.fun(), call.args(), call);
     return true;
   }
