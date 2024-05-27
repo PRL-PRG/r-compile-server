@@ -350,7 +350,20 @@ public class RDSWriter implements Closeable {
     }
   }
 
+  // FIXME: replace HashSet by HashTable, and store as value the reference number
   private void writeBCLang(SEXP s, HashSet<SEXP> reps) throws IOException {
+    switch (s) {
+      case LangOrListSXP l -> {
+        if (!reps.contains((l))) {
+          out.writeInt(RDSItemType.Special.BCREPDEF.i());
+
+        } else {
+          // already seen to we put the index
+        }
+        // TODO
+      }
+      default -> throw new UnsupportedOperationException("not implemented yet");
+    }
     throw new UnsupportedOperationException("not implemented yet");
   }
 
