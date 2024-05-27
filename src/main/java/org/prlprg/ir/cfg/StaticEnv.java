@@ -8,7 +8,7 @@ import org.prlprg.ir.type.RTypes;
 import org.prlprg.sexp.SEXPType;
 
 /** Global static environment, e.g. {@code R_GlobalEnv}, {@code notClosed}. */
-public sealed interface StaticEnv extends RValue {
+public sealed interface StaticEnv extends RValue, GlobalNode {
   StaticEnv GLOBAL = new StaticEnvImpl("R_GlobalEnv");
   StaticEnv NOT_CLOSED = new StaticEnvImpl("notClosed");
   StaticEnv ELIDED = new StaticEnvImpl("elided");
@@ -52,11 +52,6 @@ final class StaticEnvImpl implements StaticEnv {
   }
 
   @Nullable @Override
-  public CFG cfg() {
-    return null;
-  }
-
-  @Nullable @Override
   public InstrOrPhi origin() {
     return null;
   }
@@ -68,6 +63,6 @@ final class StaticEnvImpl implements StaticEnv {
 
   @Override
   public String toString() {
-    return "{env:" + name + "}";
+    return name;
   }
 }

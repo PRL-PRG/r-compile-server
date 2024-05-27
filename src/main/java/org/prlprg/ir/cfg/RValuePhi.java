@@ -1,7 +1,7 @@
 package org.prlprg.ir.cfg;
 
 import java.util.SequencedCollection;
-import org.jetbrains.annotations.Nullable;
+import javax.annotation.Nullable;
 import org.prlprg.ir.type.RType;
 import org.prlprg.ir.type.RTypes;
 
@@ -16,8 +16,9 @@ public interface RValuePhi extends Phi<RValue>, RValue {
 }
 
 final class RValuePhiImpl extends PhiImpl<RValue> implements RValuePhi {
-  RValuePhiImpl(CFG cfg, @Nullable String name, SequencedCollection<? extends Input<?>> inputs) {
-    super(RValue.class, cfg, name, inputs);
+  RValuePhiImpl(
+      CFG cfg, @Nullable NodeId<?> presetId, SequencedCollection<? extends Input<?>> inputs) {
+    super(RValue.class, cfg, presetId, inputs);
   }
 
   @Override

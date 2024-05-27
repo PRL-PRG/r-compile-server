@@ -15,6 +15,7 @@ import java.util.function.Supplier;
 import org.jetbrains.annotations.Unmodifiable;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.prlprg.ir.cfg.CFGEdit.Semantic;
 import org.prlprg.parseprint.ParseException;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.util.DirectorySource;
@@ -53,10 +54,10 @@ public class CFGTests {
         assertEquals(inverse, inverse2, "Applying edit on copy doesn't produce the same inverse");
       }
 
-      var repr = cfg.toString();
-      var copyRepr = copy.toString();
-
-      assertEquals(repr, copyRepr, "Recreated CFG does not match original");
+      assertEquals(
+          printCFGForEquality(cfg),
+          printCFGForEquality(copy),
+          "Recreated CFG does not match original");
 
       System.err.println();
     }
@@ -91,7 +92,9 @@ public class CFGTests {
       }
 
       assertEquals(
-          new CFG().toString(), cfg.toString(), "Undoing all edits should result in an empty CFG");
+          printCFGForEquality(new CFG()),
+          printCFGForEquality(cfg),
+          "Undoing all edits should result in an empty CFG");
 
       System.err.println();
     }
@@ -182,17 +185,16 @@ public class CFGTests {
   }
 
   // region helpers
-  private Pair<List<CFG>, Map<CFG, List<Pair<CFGEdit.Intrinsic<?>, CFGEdit.Intrinsic<?>>>>>
-      readPirCfgsAndStoreEdits(Path pirPath, String source) {
+  private Pair<List<CFG>, Map<CFG, List<Pair<Semantic<?>, Semantic<?>>>>> readPirCfgsAndStoreEdits(
+      Path pirPath, String source) {
     var observersForEveryCfg = new HashMap<CFG, CFGObserver>();
-    var editsForEveryCfg =
-        new HashMap<CFG, List<Pair<CFGEdit.Intrinsic<?>, CFGEdit.Intrinsic<?>>>>();
+    var editsForEveryCfg = new HashMap<CFG, List<Pair<Semantic<?>, Semantic<?>>>>();
     var cfgs =
         readPirCfgs(
             pirPath,
             source,
             () -> {
-              var edits = new ArrayList<Pair<CFGEdit.Intrinsic<?>, CFGEdit.Intrinsic<?>>>();
+              var edits = new ArrayList<Pair<Semantic<?>, Semantic<?>>>();
               CFGObserver observer = (edit, inverse) -> edits.add(Pair.of(edit, inverse));
 
               var cfg = new CFG();
@@ -262,7 +264,7 @@ public class CFGTests {
 
   // endregion
 
-  // region print regions
+  // region print regions and other
   private static final int NUM_REGION_CONTEXT_LINES = 2;
 
   private String region(String source, long errorLineNum, long errorColNum) {
@@ -300,5 +302,10 @@ public class CFGTests {
     }
     return s.toString();
   }
-  // endregion print regions
+
+  private String printCFGForEquality(CFG cfg) {
+    var str = cfg.toString();
+    return str.substring(str.indexOf('\n') + 1);
+  }
+  // endregion print regions and other
 }

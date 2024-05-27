@@ -265,19 +265,19 @@ public class Scanner {
   }
 
   /**
-   * Read a valid Java identifier.
+   * Read a valid Java identifier (or reserved keyword, but no underscore).
    *
    * @throws ParseException if the next character isn't a letter or underscore (the beginning of an
    *     identifier) or the entire identifier is only an underscore.
    */
-  public String readJavaIdentifier() {
-    if (!nextCharSatisfies(c -> Character.isLetter(c) || c == '_')) {
-      throw fail("start of identifier (letter or '_')", Strings.quote(peekChar()));
+  public String readJavaIdentifierOrKeyword() {
+    if (!nextCharSatisfies(Character::isJavaIdentifierStart)) {
+      throw fail("start of Java identifier (letter, '_', or '$')", Strings.quote(peekChar()));
     }
 
-    var result = readWhile(c -> Character.isLetterOrDigit(c) || c == '_');
+    var result = readWhile(Character::isJavaIdentifierPart);
     if (result.equals("_")) {
-      throw fail("\"_\" isn't a valid identifier");
+      throw fail("\"_\" isn't a valid Java identifier");
     }
     return result;
   }

@@ -8,9 +8,11 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.prlprg.bc.Bc;
+import org.prlprg.primitive.BuiltinId;
 import org.prlprg.primitive.Complex;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
+import org.prlprg.primitive.Names;
 
 /** All global {@link SEXP}s and methods to create SEXPs are here so they're easy to find. */
 @SuppressWarnings("MissingJavadoc")
@@ -403,19 +405,27 @@ public final class SEXPs {
             ? ""
             : "\n  | "
                 + attributes.entrySet().stream()
-                    .map(e -> RegSymSXP.escape(e.getKey()) + " = " + e.getValue())
+                    .map(e -> Names.quoteIfNecessary(e.getKey()) + " = " + e.getValue())
                     .collect(Collectors.joining("\n  , ")))
         + ">";
   }
 
   private SEXPs() {}
 
+  public static SEXP builtin(BuiltinId id) {
+    return new BuiltinSXP(id);
+  }
+
   public static SEXP builtin(String name) {
-    return new BuiltinSXP(name);
+    return builtin(BuiltinId.named(name));
+  }
+
+  public static SEXP special(BuiltinId id) {
+    return new SpecialSXP(id);
   }
 
   public static SEXP special(String name) {
-    return new SpecialSXP(name);
+    return special(BuiltinId.named(name));
   }
 
   @SuppressWarnings("unchecked")

@@ -15,26 +15,52 @@ public non-sealed interface Stmt extends Instr {
   @Override
   NodeId<? extends Stmt> id();
 
-  record Args<I extends Stmt>(String name, StmtData<I> data) {
-    public IdArgs<I> id() {
-      return new IdArgs<>(name, MapToIdIn.of(data));
+  /**
+   * Constructor arguments that can be stored in a collection (since there are multiple;
+   * alternatively could use {@link org.prlprg.util.Pair} but this is clearer).
+   */
+  record Args(String name, StmtData<?> data) {
+    public Args(StmtData<?> data) {
+      this("", data);
     }
   }
 
-  record IdArgs<I extends Stmt>(String name, MapToIdIn<? extends StmtData<I>> data) {
-    public IdArgs(String name, StmtData<I> data) {
-      this(name, MapToIdIn.of(data));
-    }
-
-    public Args<I> decode(CFG cfg) {
-      return new Args<>(name, data.decode(cfg));
+  /** Serialized form where everything is replaced by IDs. */
+  record Serial(NodeId<? extends Stmt> id, MapToIdIn<? extends StmtData<?>> data) {
+    Serial(Stmt node) {
+      this(NodeId.of(node), MapToIdIn.of((StmtData<? extends Stmt>) node.data()));
     }
   }
 }
 
 abstract non-sealed class StmtImpl<D extends StmtData<?>> extends InstrImpl<D> implements Stmt {
-  StmtImpl(Class<D> dataClass, CFG cfg, String name, D data) {
-    super(dataClass, cfg, name, data);
+  /**
+   * Constructor arguments that can be stored in a collection (since there are multiple;
+   * alternatively could use {@link org.prlprg.util.Pair} but this is clearer).
+   *
+   * <p>Unlike {@link Stmt.Args}, this exposes that statements can be created with existing IDs.
+   * Such functionality is only used in {@link CFGEdit}s that are replayed to maintain determinism.
+   */
+  record Args(TokenToCreateNewInstr token, StmtData<?> data) {
+    Args(Stmt.Args args) {
+      this(new CreateInstrWithNewId(args.name()), args.data());
+    }
+
+    private Args(NodeId<? extends Stmt> id, StmtData<?> data) {
+      this(new CreateInstrWithExistingId(id), data);
+    }
+
+    Args(CFG cfg, Serial serial) {
+      this(serial.id(), serial.data().decode(cfg));
+    }
+
+    Args(Stmt node) {
+      this(NodeId.of(node), node.data());
+    }
+  }
+
+  StmtImpl(Class<D> dataClass, CFG cfg, TokenToCreateNewInstr token, D data) {
+    super(dataClass, cfg, token, data);
   }
 
   @Override
@@ -45,8 +71,8 @@ abstract non-sealed class StmtImpl<D extends StmtData<?>> extends InstrImpl<D> i
 
 /** {@link Stmt} (IR instruction) which doesn't produce anything. */
 final class VoidStmtImpl extends StmtImpl<StmtData.Void> {
-  VoidStmtImpl(CFG cfg, String name, StmtData.Void data) {
-    super(StmtData.Void.class, cfg, name, data);
+  VoidStmtImpl(CFG cfg, TokenToCreateNewInstr token, StmtData.Void data) {
+    super(StmtData.Void.class, cfg, token, data);
   }
 
   @Override
@@ -59,8 +85,8 @@ final class VoidStmtImpl extends StmtImpl<StmtData.Void> {
 abstract class SelfReturningStmtImpl<D extends StmtData<?>> extends StmtImpl<D> {
   private final ImmutableList<Node> returns = ImmutableList.of(this);
 
-  SelfReturningStmtImpl(Class<D> dataClass, CFG cfg, String name, D data) {
-    super(dataClass, cfg, name, data);
+  SelfReturningStmtImpl(Class<D> dataClass, CFG cfg, TokenToCreateNewInstr token, D data) {
+    super(dataClass, cfg, token, data);
   }
 
   @Override

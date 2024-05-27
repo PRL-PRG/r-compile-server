@@ -1,9 +1,9 @@
 package org.prlprg.sexp;
 
-import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.UnmodifiableIterator;
+import java.util.Objects;
 import javax.annotation.concurrent.Immutable;
 
 /** Generic vector SEXP = vector which contains SEXPs. */
@@ -90,12 +90,12 @@ abstract sealed class ScalarSXPImpl<T> implements VectorSXP<T>
   public boolean equals(Object o) {
     if (this == o) return true;
     if (!(o instanceof ScalarSXPImpl<?> that)) return false;
-    return Objects.equal(data, that.data);
+    return Objects.equals(data, that.data);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hashCode(data);
+    return Objects.hash(data);
   }
 }
 

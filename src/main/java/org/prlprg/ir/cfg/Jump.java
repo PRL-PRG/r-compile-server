@@ -28,27 +28,18 @@ public non-sealed interface Jump extends Instr {
   @Override
   NodeId<? extends Jump> id();
 
-  record Args<I extends Jump>(String name, JumpData<I> data) {
-    public IdArgs<I> id() {
-      return new IdArgs<>(name, MapToIdIn.of(data));
-    }
-  }
-
-  record IdArgs<I extends Jump>(String name, MapToIdIn<? extends JumpData<I>> data) {
-    public IdArgs(String name, JumpData<I> data) {
-      this(name, MapToIdIn.of(data));
-    }
-
-    public Args<I> decode(CFG cfg) {
-      return new Args<>(name, data.decode(cfg));
+  /** Serialized form where everything is replaced by IDs. */
+  record Serial(NodeId<? extends Jump> id, MapToIdIn<? extends JumpData<?>> data) {
+    Serial(Jump node) {
+      this(NodeId.of(node), MapToIdIn.of((JumpData<? extends Jump>) node.data()));
     }
   }
 }
 
 abstract non-sealed class JumpImpl<D extends JumpData<?>> extends InstrImpl<D> implements Jump {
   /**
-   * This is only {@code null} to keep {@link InstrData#make(CFG, String)} not require {@link BB}.
-   * It gets set immediately after creation.
+   * This is only {@code null} to keep {@link InstrData#make(CFG, TokenToCreateNewInstr)} not
+   * require {@link BB}. It gets set immediately after creation.
    */
   private @Nullable BB bb;
 
@@ -57,8 +48,8 @@ abstract non-sealed class JumpImpl<D extends JumpData<?>> extends InstrImpl<D> i
   @SuppressFBWarnings("NP_NONNULL_FIELD_NOT_INITIALIZED_IN_CONSTRUCTOR")
   private ImmutableList<BB> targets;
 
-  JumpImpl(Class<D> dataClass, CFG cfg, String name, D data) {
-    super(dataClass, cfg, name, data);
+  JumpImpl(Class<D> dataClass, CFG cfg, TokenToCreateNewInstr token, D data) {
+    super(dataClass, cfg, token, data);
   }
 
   /**
@@ -138,8 +129,8 @@ abstract non-sealed class JumpImpl<D extends JumpData<?>> extends InstrImpl<D> i
 
 /** {@link Jump} which doesn't return anything. */
 final class VoidJumpImpl extends JumpImpl<JumpData.Void> {
-  VoidJumpImpl(CFG cfg, String name, JumpData.Void data) {
-    super(JumpData.Void.class, cfg, name, data);
+  VoidJumpImpl(CFG cfg, TokenToCreateNewInstr token, JumpData.Void data) {
+    super(JumpData.Void.class, cfg, token, data);
   }
 
   @Override

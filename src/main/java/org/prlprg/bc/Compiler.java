@@ -1715,11 +1715,11 @@ public class Compiler {
         switchIdx,
         (instr) -> {
           var oldSwitch = (Switch) instr;
-          var numLabelsIdx = SEXPs.integer(labels.stream().map(BcLabel::getTarget).toList());
+          var numLabelsIdx = SEXPs.integer(labels.stream().map(BcLabel::target).toList());
           Switch newSwitch;
 
           if (haveNames) {
-            var chrLabelsIdx = SEXPs.integer(nLabels.stream().map(BcLabel::getTarget).toList());
+            var chrLabelsIdx = SEXPs.integer(nLabels.stream().map(BcLabel::target).toList());
             newSwitch =
                 new Switch(
                     oldSwitch.ast(),

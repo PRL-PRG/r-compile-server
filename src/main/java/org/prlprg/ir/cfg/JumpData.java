@@ -5,6 +5,7 @@ import java.util.Optional;
 import javax.annotation.Nullable;
 import org.checkerframework.checker.index.qual.SameLen;
 import org.prlprg.ir.type.REffect;
+import org.prlprg.sexp.LangSXP;
 
 /**
  * Each type of jump instruction as a pattern-matchable record.
@@ -19,8 +20,8 @@ public sealed interface JumpData<I extends Jump> extends InstrData<I> {
 
   sealed interface Void extends JumpData<Jump> {
     @Override
-    default Jump make(CFG cfg, String name) {
-      return new VoidJumpImpl(cfg, name, this);
+    default Jump make(CFG cfg, TokenToCreateNewInstr id) {
+      return new VoidJumpImpl(cfg, id, this);
     }
   }
 
@@ -28,7 +29,16 @@ public sealed interface JumpData<I extends Jump> extends InstrData<I> {
   record Goto(BB next) implements Void {}
 
   @EffectsAre({})
-  record Branch(RValue condition, BB ifTrue, BB ifFalse) implements Void {}
+  record Branch(Optional<LangSXP> ast1, RValue condition, BB ifTrue, BB ifFalse)
+      implements Void, InstrData.HasAst {
+    public Branch(@Nullable LangSXP ast1, RValue condition, BB ifTrue, BB ifFalse) {
+      this(Optional.ofNullable(ast1), condition, ifTrue, ifFalse);
+    }
+
+    public Branch(RValue condition, BB ifTrue, BB ifFalse) {
+      this(Optional.empty(), condition, ifTrue, ifFalse);
+    }
+  }
 
   @EffectsAreAribtrary
   record NonLocalReturn(RValue value, @IsEnv RValue env) implements Void {
@@ -62,8 +72,8 @@ public sealed interface JumpData<I extends Jump> extends InstrData<I> {
     }
 
     @Override
-    public org.prlprg.ir.cfg.Checkpoint make(CFG cfg, String name) {
-      return new CheckpointImpl(cfg, name, this);
+    public org.prlprg.ir.cfg.Checkpoint make(CFG cfg, TokenToCreateNewInstr id) {
+      return new CheckpointImpl(cfg, id, this);
     }
   }
 

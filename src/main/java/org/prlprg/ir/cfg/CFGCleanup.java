@@ -53,9 +53,10 @@ interface CFGCleanup extends CFGQuery, CFGAnalyses, CFGIntrinsicMutate, CFGCompo
             // Convert branch instructions where both branches are the same BB into single-branch
             // variants.
             if (bb.jump() != null
-                && bb.jump().data() instanceof JumpData.Branch(var _, var ifTrue, var ifFalse)) {
+                && bb.jump().data()
+                    instanceof JumpData.Branch(var _, var _, var ifTrue, var ifFalse)) {
               if (ifTrue == ifFalse) {
-                Instr.mutate(bb.jump(), null, new JumpData.Goto(ifTrue));
+                Instr.mutateArgs(bb.jump(), new JumpData.Goto(ifTrue));
               }
             }
 

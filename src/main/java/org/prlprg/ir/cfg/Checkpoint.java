@@ -21,8 +21,8 @@ public interface Checkpoint extends Jump {
 final class CheckpointImpl extends JumpImpl<JumpData.Checkpoint> implements Checkpoint {
   private final List<Assumption> assumptions = new ArrayList<>();
 
-  CheckpointImpl(CFG cfg, String name, JumpData.Checkpoint data) {
-    super(JumpData.Checkpoint.class, cfg, name, data);
+  CheckpointImpl(CFG cfg, TokenToCreateNewInstr token, JumpData.Checkpoint data) {
+    super(JumpData.Checkpoint.class, cfg, token, data);
 
     // This isn't handled by `verify` because at the time of the call, `assumptions` is still null.
     while (assumptions.size() < data.numAssumptions()) {

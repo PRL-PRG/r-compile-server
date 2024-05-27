@@ -32,8 +32,8 @@ import org.prlprg.sexp.SymOrLangSXP;
 public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
   sealed interface Void extends StmtData<Stmt> {
     @Override
-    default Stmt make(CFG cfg, String name) {
-      return new VoidStmtImpl(cfg, name, this);
+    default Stmt make(CFG cfg, TokenToCreateNewInstr token) {
+      return new VoidStmtImpl(cfg, token, this);
     }
   }
 
@@ -55,19 +55,17 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
     }
 
     @Override
-    default RValueStmt make(CFG cfg, String name) {
-      return new RValueStmtImpl(cfg, name, this);
+    default RValueStmt make(CFG cfg, TokenToCreateNewInstr token) {
+      return new RValueStmtImpl(cfg, token, this);
     }
   }
 
   /** A call instruction (e.g. {@link Call}, {@link NamedCall}, etc.). */
-  sealed interface Call_ extends RValue_ {
-    LangSXP ast();
-
+  sealed interface Call_ extends RValue_, InstrData.HasAst {
     @Nullable RValue fun();
 
     /** {@code null} except in named calls. */
-    default @Nullable ImmutableList<Optional<RegSymSXP>> names() {
+    default @Nullable ImmutableList<Optional<String>> names() {
       return null;
     }
 
@@ -82,8 +80,8 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
     RValue env();
 
     @Override
-    default org.prlprg.ir.cfg.Call make(CFG cfg, String name) {
-      return new CallImpl(cfg, name, this);
+    default org.prlprg.ir.cfg.Call make(CFG cfg, TokenToCreateNewInstr token) {
+      return new CallImpl(cfg, token, this);
     }
   }
 
@@ -129,22 +127,27 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
   record FrameState(
       BcLocation location,
       boolean inPromise,
-      ImmutableList<RValue> stack,
+      ImmutableList<Node> stack,
       @IsEnv RValue env,
       Optional<org.prlprg.ir.cfg.FrameState> inlined)
       implements StmtData<FrameStateStmt> {
     public FrameState(
         BcLocation location,
         boolean inPromise,
-        ImmutableList<RValue> stack,
+        ImmutableList<Node> stack,
         @IsEnv RValue env,
         @Nullable org.prlprg.ir.cfg.FrameState inlined) {
       this(location, inPromise, stack, env, Optional.ofNullable(inlined));
     }
 
+    public FrameState(
+        BcLocation location, boolean inPromise, ImmutableList<Node> stack, @IsEnv RValue env) {
+      this(location, inPromise, stack, env, Optional.empty());
+    }
+
     @Override
-    public FrameStateStmt make(CFG cfg, String name) {
-      return new FrameStateStmtImpl(cfg, name, this);
+    public FrameStateStmt make(CFG cfg, TokenToCreateNewInstr token) {
+      return new FrameStateStmtImpl(cfg, token, this);
     }
   }
 
@@ -226,8 +229,8 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
       this(code, Optional.ofNullable(eagerArg), env, performsReflection);
     }
 
-    public MkProm(SEXP code, @Nullable RValue eagerArg, @IsEnv RValue env) {
-      this(code, eagerArg, env, NoOrMaybe.MAYBE);
+    public MkProm(SEXP code, @IsEnv RValue env) {
+      this(code, Optional.empty(), env, NoOrMaybe.MAYBE);
     }
   }
 
@@ -244,10 +247,19 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
   record MkCls(
       Closure closure,
       ListSXP formals,
-      SymOrLangSXP srcRef,
+      Optional<SymOrLangSXP> srcRef,
       BcAddress originalBody,
       @IsEnv RValue parent)
-      implements RValue_ {}
+      implements RValue_ {
+    public MkCls(
+        Closure closure,
+        ListSXP formals,
+        @Nullable SymOrLangSXP srcRef,
+        BcAddress originalBody,
+        @IsEnv RValue parent) {
+      this(closure, formals, Optional.ofNullable(srcRef), originalBody, parent);
+    }
+  }
 
   record Force(RValue promise, Optional<org.prlprg.ir.cfg.FrameState> frameState, @IsEnv RValue env)
       implements RValue_ {
@@ -306,20 +318,33 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
 
   @TypeIs("BOOL")
   @EffectsAre({REffect.Warn, REffect.Error})
-  record ColonInputEffects(LangSXP ast, RValue lhs, RValue rhs) implements RValue_ {}
+  record ColonInputEffects(@Override Optional<LangSXP> ast1, RValue lhs, RValue rhs)
+      implements RValue_, InstrData.HasAst {
+    public ColonInputEffects(@Nullable LangSXP ast, RValue lhs, RValue rhs) {
+      this(Optional.ofNullable(ast), lhs, rhs);
+    }
+  }
 
   @TypeIs("NUMERIC_OR_LOGICAL_NO_NA")
   @EffectsAre(REffect.Error)
-  record ColonCastLhs(LangSXP ast, RValue lhs) implements RValue_ {}
+  record ColonCastLhs(@Override Optional<LangSXP> ast1, RValue lhs)
+      implements RValue_, InstrData.HasAst {
+    public ColonCastLhs(@Nullable LangSXP ast, RValue lhs) {
+      this(Optional.ofNullable(ast), lhs);
+    }
+  }
 
   @TypeIs("NUMERIC_OR_LOGICAL_NO_NA")
   @EffectsAre(REffect.Error)
-  record ColonCastRhs(LangSXP ast, @TypeIs("NUMERIC_OR_LOGICAL_NO_NA") RValue lhs, RValue rhs)
-      implements RValue_ {}
+  record ColonCastRhs(
+      @Override Optional<LangSXP> ast1, @TypeIs("NUMERIC_OR_LOGICAL_NO_NA") RValue lhs, RValue rhs)
+      implements RValue_, InstrData.HasAst {
+    public ColonCastRhs(@Nullable LangSXP ast, RValue lhs, RValue rhs) {
+      this(Optional.ofNullable(ast), lhs, rhs);
+    }
+  }
 
-  sealed interface Subassign extends RValue_ {
-    LangSXP ast();
-
+  sealed interface Subassign extends RValue_, InstrData.HasAst {
     RValue value();
 
     RValue vecOrMtx();
@@ -376,9 +401,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
     }
   }
 
-  sealed interface Extract extends RValue_ {
-    LangSXP ast();
-
+  sealed interface Extract extends RValue_, InstrData.HasAst {
     RValue vecOrMtx();
 
     ImmutableList<RValue> indices();
@@ -433,7 +456,12 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
     }
   }
 
-  record Subassign1_1D(LangSXP ast, RValue value, RValue vector, RValue index, @IsEnv RValue env)
+  record Subassign1_1D(
+      @Override Optional<LangSXP> ast1,
+      RValue value,
+      RValue vector,
+      RValue index,
+      @IsEnv RValue env)
       implements SubassignN_1D {}
 
   @EffectsAre(REffect.Error)
@@ -445,19 +473,34 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
     }
   }
 
-  record Subassign2_1D(LangSXP ast, RValue value, RValue vector, RValue index, @IsEnv RValue env)
+  record Subassign2_1D(
+      @Override Optional<LangSXP> ast1,
+      RValue value,
+      RValue vector,
+      RValue index,
+      @IsEnv RValue env)
       implements SubassignN_1D {}
 
   record Subassign1_2D(
-      LangSXP ast, RValue value, RValue matrix, RValue index1, RValue index2, @IsEnv RValue env)
+      @Override Optional<LangSXP> ast1,
+      RValue value,
+      RValue matrix,
+      RValue index1,
+      RValue index2,
+      @IsEnv RValue env)
       implements SubassignN_2D {}
 
   record Subassign2_2D(
-      LangSXP ast, RValue value, RValue matrix, RValue index1, RValue index2, @IsEnv RValue env)
+      @Override Optional<LangSXP> ast1,
+      RValue value,
+      RValue matrix,
+      RValue index1,
+      RValue index2,
+      @IsEnv RValue env)
       implements SubassignN_2D {}
 
   record Subassign1_3D(
-      LangSXP ast,
+      @Override Optional<LangSXP> ast1,
       RValue value,
       RValue matrix,
       RValue index1,
@@ -476,20 +519,37 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
     }
   }
 
-  record Extract1_1D(LangSXP ast, RValue vector, RValue index, @IsEnv RValue env)
+  record Extract1_1D(
+      @Override Optional<LangSXP> ast1, RValue vector, RValue index, @IsEnv RValue env)
       implements ExtractN_1D {}
 
-  record Extract2_1D(LangSXP ast, RValue vector, RValue index, @IsEnv RValue env)
+  record Extract2_1D(
+      @Override Optional<LangSXP> ast1, RValue vector, RValue index, @IsEnv RValue env)
       implements ExtractN_1D {}
 
-  record Extract1_2D(LangSXP ast, RValue matrix, RValue index1, RValue index2, @IsEnv RValue env)
+  record Extract1_2D(
+      @Override Optional<LangSXP> ast1,
+      RValue matrix,
+      RValue index1,
+      RValue index2,
+      @IsEnv RValue env)
       implements ExtractN_2D {}
 
-  record Extract2_2D(LangSXP ast, RValue matrix, RValue index1, RValue index2, @IsEnv RValue env)
+  record Extract2_2D(
+      @Override Optional<LangSXP> ast1,
+      RValue matrix,
+      RValue index1,
+      RValue index2,
+      @IsEnv RValue env)
       implements ExtractN_2D {}
 
   record Extract1_3D(
-      LangSXP ast, RValue matrix, RValue index1, RValue index2, RValue index3, @IsEnv RValue env)
+      @Override Optional<LangSXP> ast1,
+      RValue matrix,
+      RValue index1,
+      RValue index2,
+      RValue index3,
+      @IsEnv RValue env)
       implements Extract {
     @Override
     public RValue vecOrMtx() {
@@ -572,7 +632,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
   @TypeIs("INT")
   record Inc(RValue value) implements RValue_ {}
 
-  sealed interface UnOp extends RValue_ {
+  sealed interface UnOp extends RValue_, InstrData.HasAst {
     RValue arg();
   }
 
@@ -600,7 +660,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
     }
   }
 
-  sealed interface BinOp extends RValue_ {
+  sealed interface BinOp extends RValue_, InstrData.HasAst {
     RValue lhs();
 
     RValue rhs();
@@ -642,59 +702,141 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
     }
   }
 
-  record UMinus(LangSXP ast, @Override RValue arg, @IsEnv RValue env) implements ArithmeticUnOp {}
+  record UMinus(@Override Optional<LangSXP> ast1, @Override RValue arg, @IsEnv RValue env)
+      implements ArithmeticUnOp {}
 
-  record UPlus(LangSXP ast, @Override RValue lhs, @Override RValue rhs, @IsEnv RValue env)
+  record UPlus(@Override Optional<LangSXP> ast1, @Override RValue arg, @IsEnv RValue env)
+      implements ArithmeticUnOp {}
+
+  record Sqrt(@Override Optional<LangSXP> ast1, @Override RValue arg, @IsEnv RValue env)
+      implements ArithmeticUnOp {}
+
+  record Exp(@Override Optional<LangSXP> ast1, @Override RValue arg, @IsEnv RValue env)
+      implements ArithmeticUnOp {}
+
+  record Log(@Override Optional<LangSXP> ast1, @Override RValue arg, @IsEnv RValue env)
+      implements ArithmeticUnOp {}
+
+  record LogBase(@Override Optional<LangSXP> ast1, @Override RValue arg, @IsEnv RValue env)
+      implements ArithmeticUnOp {}
+
+  // ???: Should we put all unary math functions in math1 or make all math1 functions separate
+  // instructions?
+  record Math1(@Override Optional<LangSXP> ast1, int funId, @Override RValue arg, @IsEnv RValue env)
+      implements ArithmeticUnOp {}
+
+  record Add(
+      @Override Optional<LangSXP> ast1,
+      @Override RValue lhs,
+      @Override RValue rhs,
+      @IsEnv RValue env)
       implements ArithmeticBinOp {}
 
-  record Add(LangSXP ast, @Override RValue lhs, @Override RValue rhs, @IsEnv RValue env)
+  record Sub(
+      @Override Optional<LangSXP> ast1,
+      @Override RValue lhs,
+      @Override RValue rhs,
+      @IsEnv RValue env)
       implements ArithmeticBinOp {}
 
-  record Sub(LangSXP ast, @Override RValue lhs, @Override RValue rhs, @IsEnv RValue env)
+  record Mul(
+      @Override Optional<LangSXP> ast1,
+      @Override RValue lhs,
+      @Override RValue rhs,
+      @IsEnv RValue env)
       implements ArithmeticBinOp {}
 
-  record Mul(LangSXP ast, @Override RValue lhs, @Override RValue rhs, @IsEnv RValue env)
+  record Div(
+      @Override Optional<LangSXP> ast1,
+      @Override RValue lhs,
+      @Override RValue rhs,
+      @IsEnv RValue env)
       implements ArithmeticBinOp {}
 
-  record Div(LangSXP ast, @Override RValue lhs, @Override RValue rhs, @IsEnv RValue env)
+  record IDiv(
+      @Override Optional<LangSXP> ast1,
+      @Override RValue lhs,
+      @Override RValue rhs,
+      @IsEnv RValue env)
       implements ArithmeticBinOp {}
 
-  record IDiv(LangSXP ast, @Override RValue lhs, @Override RValue rhs, @IsEnv RValue env)
+  record Mod(
+      @Override Optional<LangSXP> ast1,
+      @Override RValue lhs,
+      @Override RValue rhs,
+      @IsEnv RValue env)
       implements ArithmeticBinOp {}
 
-  record Mod(LangSXP ast, @Override RValue lhs, @Override RValue rhs, @IsEnv RValue env)
+  record Pow(
+      @Override Optional<LangSXP> ast1,
+      @Override RValue lhs,
+      @Override RValue rhs,
+      @IsEnv RValue env)
       implements ArithmeticBinOp {}
 
-  record Pow(LangSXP ast, @Override RValue lhs, @Override RValue rhs, @IsEnv RValue env)
-      implements ArithmeticBinOp {}
-
-  record Eq(LangSXP ast, @Override RValue lhs, @Override RValue rhs, @IsEnv RValue env)
+  record Eq(
+      @Override Optional<LangSXP> ast1,
+      @Override RValue lhs,
+      @Override RValue rhs,
+      @IsEnv RValue env)
       implements ComparisonBinOp {}
 
-  record Neq(LangSXP ast, @Override RValue lhs, @Override RValue rhs, @IsEnv RValue env)
+  record Neq(
+      @Override Optional<LangSXP> ast1,
+      @Override RValue lhs,
+      @Override RValue rhs,
+      @IsEnv RValue env)
       implements ComparisonBinOp {}
 
-  record Lt(LangSXP ast, @Override RValue lhs, @Override RValue rhs, @IsEnv RValue env)
+  record Lt(
+      @Override Optional<LangSXP> ast1,
+      @Override RValue lhs,
+      @Override RValue rhs,
+      @IsEnv RValue env)
       implements ComparisonBinOp {}
 
-  record Lte(LangSXP ast, @Override RValue lhs, @Override RValue rhs, @IsEnv RValue env)
+  record Lte(
+      @Override Optional<LangSXP> ast1,
+      @Override RValue lhs,
+      @Override RValue rhs,
+      @IsEnv RValue env)
       implements ComparisonBinOp {}
 
-  record Gte(LangSXP ast, @Override RValue lhs, @Override RValue rhs, @IsEnv RValue env)
+  record Gte(
+      @Override Optional<LangSXP> ast1,
+      @Override RValue lhs,
+      @Override RValue rhs,
+      @IsEnv RValue env)
       implements ComparisonBinOp {}
 
-  record Gt(LangSXP ast, @Override RValue lhs, @Override RValue rhs, @IsEnv RValue env)
+  record Gt(
+      @Override Optional<LangSXP> ast1,
+      @Override RValue lhs,
+      @Override RValue rhs,
+      @IsEnv RValue env)
       implements ComparisonBinOp {}
 
-  record LAnd(LangSXP ast, @Override RValue lhs, @Override RValue rhs, @IsEnv RValue env)
+  record LAnd(
+      @Override Optional<LangSXP> ast1,
+      @Override RValue lhs,
+      @Override RValue rhs,
+      @IsEnv RValue env)
       implements BooleanBinOp {}
 
-  record LOr(LangSXP ast, @Override RValue lhs, @Override RValue rhs, @IsEnv RValue env)
+  record LOr(
+      @Override Optional<LangSXP> ast1,
+      @Override RValue lhs,
+      @Override RValue rhs,
+      @IsEnv RValue env)
       implements BooleanBinOp {}
 
-  record Not(LangSXP ast, @Override RValue arg, @IsEnv RValue env) implements BooleanUnOp {}
+  record Not(@Override Optional<LangSXP> ast1, @Override RValue arg, @IsEnv RValue env)
+      implements BooleanUnOp {}
 
-  record Colon(LangSXP ast, RValue lhs, RValue rhs, @IsEnv RValue env) implements RValue_ {
+  record DotsError(@IsEnv RValue env) implements RValue_ {}
+
+  record Colon(@Override Optional<LangSXP> ast1, RValue lhs, RValue rhs, @IsEnv RValue env)
+      implements RValue_, InstrData.HasAst {
     @Override
     public RType computeType() {
       // TODO
@@ -711,45 +853,45 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
   @TypeIs("ANY")
   @EffectsAreAribtrary()
   record Call(
-      @Override LangSXP ast,
+      @Override Optional<LangSXP> ast1,
       @TypeIs("ANY_FUN") @Override RValue fun,
       @Override ImmutableList<RValue> args,
       @Override @IsEnv RValue env,
       Optional<org.prlprg.ir.cfg.FrameState> fs)
       implements Call_ {
     public Call(
-        LangSXP ast,
+        @Nullable LangSXP ast,
         RValue fun,
         ImmutableList<RValue> args,
         @IsEnv RValue env,
         @Nullable org.prlprg.ir.cfg.FrameState fs) {
-      this(ast, fun, args, env, Optional.ofNullable(fs));
+      this(Optional.ofNullable(ast), fun, args, env, Optional.ofNullable(fs));
     }
   }
 
   @TypeIs("ANY")
   @EffectsAreAribtrary()
   record NamedCall(
-      @Override LangSXP ast,
+      @Override Optional<LangSXP> ast1,
       @TypeIs("ANY_FUN") @Override RValue fun,
-      @Override ImmutableList<Optional<RegSymSXP>> names,
+      @Override ImmutableList<Optional<String>> names,
       @SameLen("names") @Override ImmutableList<RValue> args,
       @Override @IsEnv RValue env,
       Optional<org.prlprg.ir.cfg.FrameState> fs)
       implements Call_ {
     public NamedCall(
-        LangSXP ast,
+        @Nullable LangSXP ast,
         RValue fun,
-        ImmutableList<Optional<RegSymSXP>> names,
+        ImmutableList<Optional<String>> names,
         ImmutableList<RValue> args,
         @IsEnv RValue env,
         @Nullable org.prlprg.ir.cfg.FrameState fs) {
-      this(ast, fun, names, args, env, Optional.ofNullable(fs));
+      this(Optional.ofNullable(ast), fun, names, args, env, Optional.ofNullable(fs));
     }
   }
 
   record StaticCall(
-      @Override LangSXP ast,
+      @Override Optional<LangSXP> ast1,
       @TypeIs("CLO") Optional<RValue> runtimeClosure,
       ClosureVersion closureVersion,
       ClosureVersion.OptimizationContext givenContext,
@@ -759,7 +901,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
       Optional<org.prlprg.ir.cfg.FrameState> fs)
       implements Call_ {
     public StaticCall(
-        LangSXP ast,
+        @Nullable LangSXP ast,
         @Nullable RValue runtimeClosure,
         ClosureVersion closureVersion,
         ClosureVersion.OptimizationContext givenContext,
@@ -768,7 +910,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
         @IsEnv RValue env,
         @Nullable org.prlprg.ir.cfg.FrameState fs) {
       this(
-          ast,
+          Optional.ofNullable(ast),
           Optional.ofNullable(runtimeClosure),
           closureVersion,
           givenContext,
@@ -798,11 +940,16 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
 
   @EffectsAreAribtrary()
   record CallBuiltin(
-      @Override LangSXP ast,
+      @Override Optional<LangSXP> ast1,
       BuiltinId builtin,
       @Override ImmutableList<RValue> args,
       @Override @IsEnv RValue env)
       implements Call_ {
+    public CallBuiltin(
+        @Nullable LangSXP ast, BuiltinId builtin, ImmutableList<RValue> args, @IsEnv RValue env) {
+      this(Optional.ofNullable(ast), builtin, args, env);
+    }
+
     @Override
     public @Nullable RValue fun() {
       return null;
@@ -816,12 +963,21 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
 
   @EffectsAre({REffect.Visibility, REffect.Warn, REffect.Error})
   record CallSafeBuiltin(
-      @Override LangSXP ast,
+      @Override Optional<LangSXP> ast1,
       BuiltinId builtin,
       @Override ImmutableList<RValue> args,
       @Override @IsEnv RValue env,
       ImmutableList<Assumption> assumption)
       implements Call_ {
+    public CallSafeBuiltin(
+        @Nullable LangSXP ast,
+        BuiltinId builtin,
+        ImmutableList<RValue> args,
+        @IsEnv RValue env,
+        ImmutableList<Assumption> assumption) {
+      this(Optional.ofNullable(ast), builtin, args, env, assumption);
+    }
+
     @Override
     public @Nullable RValue fun() {
       return null;
@@ -894,8 +1050,8 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
     }
 
     @Override
-    public RContext make(CFG cfg, String name) {
-      return new RContextImpl(cfg, name, this);
+    public RContext make(CFG cfg, TokenToCreateNewInstr token) {
+      return new RContextImpl(cfg, token, this);
     }
   }
 

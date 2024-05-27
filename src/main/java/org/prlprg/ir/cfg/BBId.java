@@ -1,32 +1,45 @@
 package org.prlprg.ir.cfg;
 
-import com.google.common.base.Objects;
+import java.util.Objects;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
-import org.prlprg.parseprint.PrintMethod;
-import org.prlprg.parseprint.Printer;
 import org.prlprg.parseprint.SkipWhitespace;
-import org.prlprg.util.InterfaceHiddenMembers;
 
 /**
- * CFG-unique {@link BB} identifier which can refer to a future basic block in {@link CFGEdit}s.
- * Every basic block has an id unique within its CFG.
+ * Identifies a {@linkplain BB basic block} within a {@linkplain CFG control-flow graph}, as well as
+ * within {@linkplain CFGEdit edits} that can be replayed across different graphs.
+ *
+ * <p>Every basic block has an ID unique within its CFG, but not other CFGs.
  */
-@InterfaceHiddenMembers(BBIdImpl.class)
 public interface BBId {
-  /** {@link Object#toString()} representation of this without the common BB prefix ("^"). */
+  /**
+   * Descriptive name to make the logic in the CFG clearer, or empty string if there is none.
+   *
+   * <p>e.g. "entry", "deopt", "for_loop_start".
+   *
+   * <p>This is not guaranteed to be unique within a CFG.
+   */
   String name();
+
+  @ParseMethod(SkipWhitespace.NONE)
+  private static BBId parseBBId(Parser p) {
+    return p.parse(BBIdImpl.class);
+  }
 }
 
-sealed class BBIdImpl implements BBId {
+final class BBIdImpl implements BBId {
+  private final int disambiguator;
   private final String name;
+  private final String toString;
 
   public BBIdImpl(CFG cfg, String name) {
-    this.name = cfg.nextBBId(name);
+    this(cfg.nextBBDisambiguator(), name);
   }
 
-  private BBIdImpl(String name) {
-    this.name = name;
+  private BBIdImpl(int disambiguator, String name) {
+    this.disambiguator = disambiguator;
+    this.name = NodeAndBBIds.quoteNameIfNecessary(name);
+    this.toString = "^" + disambiguator + name;
   }
 
   @Override
@@ -38,42 +51,25 @@ sealed class BBIdImpl implements BBId {
   public boolean equals(Object o) {
     if (this == o) return true;
     if (!(o instanceof BBIdImpl bbId)) return false;
-    return Objects.equal(name, bbId.name);
+    return disambiguator == bbId.disambiguator;
   }
 
   @Override
   public int hashCode() {
-    return Objects.hashCode(name);
+    return Objects.hash(disambiguator);
   }
 
   @Override
   public String toString() {
-    return "^" + name;
-  }
-
-  /**
-   * BB ID parsed from a string.
-   *
-   * <p>This means that, unlike other constructed ids constructed directly from strings, it may be
-   * equal to an existing ID in the CFG.
-   */
-  private static final class Parsed extends BBIdImpl {
-    public Parsed(String id) {
-      super(id);
-    }
+    return toString;
   }
 
   @ParseMethod(SkipWhitespace.NONE)
-  private BBId parseBBId(Parser p) {
+  private static BBId parse(Parser p) {
     var s = p.scanner();
-    s.assertAndSkip('^');
-    return new Parsed(InstrPhiAndBBIds.readIdNameLiterally(s));
-  }
 
-  @PrintMethod
-  private void printBBId(BBId id, Printer p) {
-    var w = p.writer();
-    w.write('^');
-    w.write(id.name());
+    var disambiguator = s.readUInt();
+    var name = NodeAndBBIds.readName(s);
+    return new BBIdImpl(disambiguator, name);
   }
 }

@@ -9,7 +9,7 @@ import java.util.LinkedHashMap;
 import java.util.SequencedCollection;
 import java.util.SequencedMap;
 import java.util.stream.Stream;
-import org.jetbrains.annotations.Nullable;
+import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
@@ -19,8 +19,8 @@ import org.prlprg.parseprint.Printer;
 /**
  * <a
  * href="https://mapping-high-level-constructs-to-llvm-ir.readthedocs.io/en/latest/control-structures/ssa-phi.html">SSA
- * φ-node</a>: a node referenced within a basic block that may originate from more than one of its
- * predecessors.
+ * phi (φ) node</a>: a node referenced within a basic block that may originate from more than one of
+ * its predecessors.
  *
  * <p>Each φ only handles nodes of a particular type, e.g. {@link RValue}s or {@link FrameState}s.
  * This interface is also extended for specific classes so that it can inherit them, e.g. {@link
@@ -181,21 +181,27 @@ public non-sealed interface Phi<N extends Node> extends InstrOrPhi {
   @Override
   NodeId<? extends Phi<N>> id();
 
-  record Args<N extends Node>(
-      Class<? extends N> nodeClass,
-      String name,
-      SequencedCollection<? extends Input<? extends N>> inputs) {
-    public IdArgs<N> id() {
-      return new IdArgs<>(nodeClass, name, inputs.stream().map(Input::id).toList());
+  /**
+   * Constructor arguments that can be stored in a collection (since there are multiple;
+   * alternatively could use {@link org.prlprg.util.Pair} but this is clearer).
+   */
+  record Args(Class<? extends Node> nodeClass, SequencedCollection<? extends Input<?>> inputs) {}
+
+  /** Serialized form where everything is replaced by IDs. */
+  record Serial(
+      NodeId<? extends Phi<?>> id,
+      Class<? extends Node> nodeClass,
+      SequencedCollection<? extends InputId<?>> inputIds) {
+    Serial(Phi<?> phi) {
+      this(phi.id(), phi.nodeClass(), phi.streamInputs().map(Input::id).toList());
     }
   }
 
-  record IdArgs<N extends Node>(
-      Class<? extends N> nodeClass,
-      String name,
-      SequencedCollection<? extends InputId<? extends N>> inputIds) {}
-
   record Input<N extends Node>(BB incomingBB, N node) {
+    static <N extends Node> Input<N> unset(BB incomingBB) {
+      return of(incomingBB, InvalidNode.UNSET_PHI_INPUT.uncheckedCast());
+    }
+
     public static <N extends Node> Input<N> of(BB incomingBB, N node) {
       return new Input<>(incomingBB, node);
     }
@@ -211,6 +217,10 @@ public non-sealed interface Phi<N extends Node> extends InstrOrPhi {
       return new InputId<>(incomingBBId, nodeId);
     }
 
+    public Input<N> decode(CFG cfg) {
+      return new Input<>(cfg.get(incomingBBId), cfg.get(nodeId));
+    }
+
     @Override
     public String toString() {
       return incomingBBId + ":" + nodeId;
@@ -219,9 +229,36 @@ public non-sealed interface Phi<N extends Node> extends InstrOrPhi {
 }
 
 abstract class PhiImpl<N extends Node> implements Phi<N> {
+  /**
+   * Constructor arguments that can be stored in a collection (since there are multiple;
+   * alternatively could use {@link org.prlprg.util.Pair} but this is clearer).
+   *
+   * <p>Unlike {@link Phi.Args}, this exposes that phis can be created with existing IDs. Such
+   * functionality is only used in {@link CFGEdit}s that are replayed to maintain determinism.
+   */
+  record Args(
+      @Nullable NodeId<? extends Phi<? extends Node>> id,
+      Class<? extends Node> nodeClass,
+      SequencedCollection<? extends Input<?>> inputs) {
+    Args(Phi.Args args) {
+      this(null, args.nodeClass(), args.inputs());
+    }
+
+    Args(CFG cfg, Serial serial) {
+      this(
+          serial.id(),
+          serial.nodeClass(),
+          serial.inputIds().stream().map(id -> id.decode(cfg)).toList());
+    }
+
+    Args(Phi<?> phi) {
+      this(phi.id(), phi.nodeClass(), phi.streamInputs().toList());
+    }
+  }
+
   private final Class<N> nodeClass;
   private final CFG cfg;
-  private final PhiId<?> id;
+  private final LocalNodeIdImpl<?> id;
   private final SequencedMap<BB, N> inputs;
 
   /**
@@ -236,17 +273,17 @@ abstract class PhiImpl<N extends Node> implements Phi<N> {
    */
   @SuppressWarnings("unchecked")
   static <N extends Node> Phi<N> forClass(
+      @Nullable NodeId<? extends Phi<? extends N>> presetId,
       Class<? extends N> nodeSubclass,
       CFG cfg,
-      @Nullable String name,
       SequencedCollection<? extends Input<?>> inputs) {
     Phi<?> phi;
     if (RValue.class.isAssignableFrom(nodeSubclass)) {
-      phi = new RValuePhiImpl(cfg, name, inputs);
+      phi = new RValuePhiImpl(cfg, presetId, inputs);
     } else if (DeoptReason.class.isAssignableFrom(nodeSubclass)) {
-      phi = new DeoptReasonPhiImpl(cfg, name, inputs);
+      phi = new DeoptReasonPhiImpl(cfg, presetId, inputs);
     } else if (FrameState.class.isAssignableFrom(nodeSubclass)) {
-      phi = new FrameStatePhiImpl(cfg, name, inputs);
+      phi = new FrameStatePhiImpl(cfg, presetId, inputs);
     } else {
       throw new UnsupportedOperationException(
           "No φ type implemented for the given class: " + nodeSubclass);
@@ -256,7 +293,10 @@ abstract class PhiImpl<N extends Node> implements Phi<N> {
 
   @SuppressWarnings("unchecked")
   protected PhiImpl(
-      Class<N> nodeClass, CFG cfg, @Nullable String name, Collection<? extends Input<?>> inputs) {
+      Class<N> nodeClass,
+      CFG cfg,
+      @Nullable NodeId<?> presetId,
+      Collection<? extends Input<?>> inputs) {
     this.inputs = new LinkedHashMap<>(inputs.size());
     for (var input : inputs) {
       assert !this.inputs.containsKey(input.incomingBB())
@@ -266,11 +306,18 @@ abstract class PhiImpl<N extends Node> implements Phi<N> {
     this.nodeClass = nodeClass;
     this.cfg = cfg;
 
-    if (name == null) {
-      name = this.inputs.isEmpty() ? "" : this.inputs.firstEntry().getValue().id().name();
+    if (presetId == null) {
+      id = new LocalNodeIdImpl<>(this, "");
+    } else {
+      if (!(presetId instanceof LocalNodeIdImpl<?> i)) {
+        throw new IllegalArgumentException(
+            "Node a a phi ID: "
+                + presetId
+                + "\nTo get this, you may have improperly casted a NodeId's generic argument.");
+      }
+      i.lateAssignClass(getClass());
+      id = i;
     }
-
-    id = new PhiId<>(this, cfg, name);
 
     for (var inputNode : inputNodes()) {
       if (!nodeClass.isInstance(inputNode)) {
@@ -304,11 +351,12 @@ abstract class PhiImpl<N extends Node> implements Phi<N> {
    * <p>This is "unsafe" because no {@linkplain CFGEdit edit} is recorded. It's called from {@link
    * BB} when it adds a predecessor.
    */
-  @SuppressWarnings("unchecked")
   void unsafeAddUnsetInput(BB incomingBB) {
     assert !inputs.containsKey(incomingBB)
         : "phi is in an inconsistent state, it has an input that it was told to add: " + incomingBB;
-    inputs.put(incomingBB, (N) InvalidNode.UNSET_PHI_INPUT);
+    inputs.put(incomingBB, InvalidNode.UNSET_PHI_INPUT.uncheckedCast());
+    // The phi's name changes when the input changes, but unset inputs don't have any affect on it
+    // so we don't have to call `updateName()`.
   }
 
   /**
@@ -322,6 +370,8 @@ abstract class PhiImpl<N extends Node> implements Phi<N> {
         : "phi is in an inconsistent state, it doesn't have an input that it was told to remove: "
             + incomingBB;
     inputs.remove(incomingBB);
+    // The phi's name changes when the input changes.
+    updateName();
   }
 
   /**
@@ -339,6 +389,7 @@ abstract class PhiImpl<N extends Node> implements Phi<N> {
   @Override
   public N setInput(BB incomingBB, N node) {
     var oldNode = inputs.get(incomingBB);
+
     if (oldNode == null) {
       throw new IllegalArgumentException(
           "Incoming BB not a predecessor: " + incomingBB + " (node=" + node + ")");
@@ -352,13 +403,22 @@ abstract class PhiImpl<N extends Node> implements Phi<N> {
               + ") is not an instance of the phi's node class "
               + nodeClass.getSimpleName());
     }
-    inputs.put(incomingBB, node);
     verifyInputIfEagerConfig(new Input<>(incomingBB, node));
+
+    inputs.put(incomingBB, node);
+    // The phi's name changes when the input changes.
+    updateName();
 
     cfg.record(
         new CFGEdit.SetPhiInput<>(this, incomingBB, node),
         new CFGEdit.SetPhiInput<>(this, incomingBB, oldNode));
     return oldNode;
+  }
+
+  private void updateName() {
+    // cfg().untrack(this);
+    // id = new PhiId<>(this);
+    // cfg().track(this);
   }
 
   @SuppressWarnings("unchecked")

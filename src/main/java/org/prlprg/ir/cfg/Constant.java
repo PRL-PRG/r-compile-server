@@ -4,6 +4,7 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import javax.annotation.Nullable;
 import org.prlprg.ir.type.RType;
 import org.prlprg.ir.type.RTypes;
+import org.prlprg.primitive.BuiltinId;
 import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.SEXP;
@@ -15,7 +16,7 @@ import org.prlprg.sexp.SEXPs;
  * <p>Global environments aren't constants. Use {@link StaticEnv Envs.SOMETHING} instead.
  */
 @SuppressFBWarnings("SING_SINGLETON_HAS_NONPRIVATE_CONSTRUCTOR")
-public record Constant(SEXP constant) implements RValue {
+public record Constant(SEXP constant) implements RValue, GlobalNode {
   private static final Constant TRUE = new Constant(SEXPs.TRUE);
   private static final Constant FALSE = new Constant(SEXPs.FALSE);
   private static final Constant NA_LOGICAL = new Constant(SEXPs.NA_LOGICAL);
@@ -61,14 +62,14 @@ public record Constant(SEXP constant) implements RValue {
     return new Constant(SEXPs.symbol(name));
   }
 
-  @Override
-  public RType type() {
-    return RTypes.exact(constant);
+  /** {@link Node} of a builtin. */
+  public static Constant builtin(BuiltinId name) {
+    return new Constant(SEXPs.builtin(name));
   }
 
   @Override
-  public @Nullable CFG cfg() {
-    return null;
+  public RType type() {
+    return RTypes.exact(constant);
   }
 
   @Override
@@ -83,6 +84,6 @@ public record Constant(SEXP constant) implements RValue {
 
   @Override
   public String toString() {
-    return "{const:" + constant + "}";
+    return constant.toString();
   }
 }

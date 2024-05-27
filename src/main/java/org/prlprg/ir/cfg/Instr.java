@@ -13,6 +13,9 @@ import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.checkerframework.checker.index.qual.SameLen;
 import org.jetbrains.annotations.UnmodifiableView;
+import org.prlprg.ir.cfg.CFGEdit.MutateInstrArgs;
+import org.prlprg.ir.cfg.CFGEdit.RenameInstr;
+import org.prlprg.ir.cfg.CFGEdit.ReplaceInArgs;
 import org.prlprg.ir.type.REffects;
 import org.prlprg.ir.type.RType;
 import org.prlprg.ir.type.RTypes;
@@ -38,28 +41,23 @@ import org.prlprg.util.UnreachableError;
  */
 public sealed interface Instr extends InstrOrPhi permits Jump, Stmt {
   /**
-   * Mutate the instruction: specifically, change its {@linkplain #data() data} to a new instance of
-   * a compatible type.
+   * Mutate the instruction by changing its {@linkplain #data() data} (and thus {@linkplain #args()
+   * arguments}).
    *
-   * <p>If the data isn't of a compatible type, you must use {@link BatchSubst} to entirely replace
-   * the instruction with a new one, both in its {@linkplain BB basic block} and in other
-   * instruction's data. Note that {@link BatchSubst}'s time complexity is O(<# instructions in
-   * CFG>), while this methods's is O(1), so this method is preferred when possible.
+   * <p>If the data isn't of a compatible type (has the same return types and count), you must use
+   * {@link BatchSubst} to instead "substitute" the instruction with an entirely new one ({@link
+   * BB#replace(int, String, StmtData)} <i>does not</i> have the same behavior, because it won't
+   * change the instruction in the arguments of any other instructions).
+   *
+   * <p>Note that {@link BatchSubst}'s time complexity is O(<# instructions in CFG>), while this
+   * methods's is O(1), so this method is preferred when possible. However, if you already need to
+   * run a {@link BatchSubst}, adding to it doesn't noticeably increase its running time.
    *
    * <p>This can't be an instance method because the type parameter of {@link InstrData} is
    * invariant and restricts type of {@code instr}. Since Java's generics aren't very good you may
    * still need to cast the {@code args}, fortunately the compatibility is also checked at runtime.
    */
-  static <I extends Instr> void mutate(I instr, @Nullable String newName, InstrData<I> newArgs) {
-    var oldId = Node.idOf(instr);
-    boolean nameChanged;
-    if (newName == null) {
-      newName = oldId.name();
-      nameChanged = false;
-    } else {
-      nameChanged = !newName.equals(oldId.name());
-    }
-
+  static <I extends Instr> void mutateArgs(I instr, InstrData<I> newArgs) {
     if (!((InstrImpl<?>) instr).canReplaceDataWith(newArgs)) {
       throw new IllegalArgumentException(
           "Incompatible data for replacement: " + instr + " -> " + newArgs);
@@ -72,17 +70,11 @@ public sealed interface Instr extends InstrOrPhi permits Jump, Stmt {
       }
       wasEmpty = j.targets().isEmpty();
     }
-    if (nameChanged) {
-      instr.cfg().untrack(instr);
-    }
 
     @SuppressWarnings("unchecked")
     var oldArgs = (InstrData<I>) instr.data();
-    ((InstrImpl<?>) instr).unsafeReplaceData(newName, newArgs);
+    ((InstrImpl<?>) instr).unsafeReplaceArgs(newArgs);
 
-    if (nameChanged) {
-      instr.cfg().track(instr);
-    }
     if (instr instanceof Jump j) {
       var bb = ((JumpImpl<?>) j).bb();
 
@@ -100,10 +92,11 @@ public sealed interface Instr extends InstrOrPhi permits Jump, Stmt {
 
     instr
         .cfg()
-        .record(
-            new CFGEdit.MutateInstr<>(oldId, instr.id().name(), newArgs),
-            new CFGEdit.MutateInstr<>(Node.idOf(instr), oldId.name(), oldArgs));
+        .record(new MutateInstrArgs<>(instr, newArgs), new MutateInstrArgs<>(instr, oldArgs));
   }
+
+  /** Change the instruction or phi's name (descriptive identifier). */
+  void rename(String newName);
 
   /** (A shallow copy of) the instruction's arguments, which are the other nodes it depends on. */
   @Override
@@ -142,7 +135,7 @@ public sealed interface Instr extends InstrOrPhi permits Jump, Stmt {
    * <p>The erased type in {@link InstrData} isn't guaranteed to be equal to this object's class,
    * it's merely guaranteed to be a superclass. Specifically, it's guaranteed to be the same class
    * as any {@link InstrData} which can be replaced in this instruction via {@link
-   * Instr#mutate(Instr, String, InstrData)} (without throwing a runtime exception).
+   * Instr#mutateArgs(Instr, InstrData)} (without throwing a runtime exception).
    */
   // Overridden via an class that doesn't implement `Instr` so it doesn't mess up `Instr`'s sealed
   // interface hierarchy. So IntelliJ can't detect that `EmptyMethod` doesn't apply.
@@ -160,11 +153,11 @@ public sealed interface Instr extends InstrOrPhi permits Jump, Stmt {
   NodeId<? extends Instr> id();
 }
 
-abstract sealed class InstrImpl<D extends InstrData<?>> implements NodeWithCfg
+abstract sealed class InstrImpl<D extends InstrData<?>> implements LocalNode
     permits JumpImpl, StmtImpl {
   private final Class<D> dataClass;
   private final CFG cfg;
-  private InstrId<?> id;
+  private LocalNodeIdImpl<? extends Instr> id;
   private D data;
 
   // These are both initialized in `verify`, which is called from the constructor, and doesn't
@@ -175,11 +168,19 @@ abstract sealed class InstrImpl<D extends InstrData<?>> implements NodeWithCfg
   @SuppressWarnings("NotNullFieldNotInitialized")
   private REffects effects;
 
-  InstrImpl(Class<D> dataClass, CFG cfg, String name, D data) {
+  InstrImpl(Class<D> dataClass, CFG cfg, TokenToCreateNewInstr token, D data) {
     this.dataClass = dataClass;
     this.cfg = cfg;
+    id =
+        switch (token) {
+          case CreateInstrWithExistingId(var id1) -> {
+            var id2 = (LocalNodeIdImpl<? extends Instr>) id1;
+            id2.lateAssignClass(getClass());
+            yield id2;
+          }
+          case CreateInstrWithNewId(var name) -> new LocalNodeIdImpl<>((Instr) this, name);
+        };
     this.data = data;
-    id = new InstrId<>((Instr) this, cfg, name);
     verify();
   }
 
@@ -338,8 +339,8 @@ abstract sealed class InstrImpl<D extends InstrData<?>> implements NodeWithCfg
     unsafeReplaceInData("node", old, replacement);
 
     cfg.record(
-        new CFGEdit.ReplaceInArgs((Instr) this, old, replacement),
-        new CFGEdit.ReplaceInArgs((Instr) this, replacement, old));
+        new ReplaceInArgs((Instr) this, old, replacement),
+        new ReplaceInArgs((Instr) this, replacement, old));
   }
 
   /**
@@ -419,29 +420,42 @@ abstract sealed class InstrImpl<D extends InstrData<?>> implements NodeWithCfg
   }
 
   // @Override
+  // @Override
+  public final void rename(String newName) {
+    var oldId = id();
+    if (newName.equals(oldId.name())) {
+      return;
+    }
+
+    cfg().untrack((Instr) this);
+    id = new LocalNodeIdImpl<>((Instr) this, newName);
+    cfg().track((Instr) this);
+
+    cfg().record(new RenameInstr(oldId, newName), new RenameInstr(id(), oldId.name()));
+  }
+
   public final D data() {
     return data;
   }
 
   /**
    * Whether the instruction's data can be replaced with the specified instance. Calling {@link
-   * Instr#mutate(Instr, String, InstrData)} will not throw iff this returns {@code true}.
+   * Instr#mutateArgs(Instr, InstrData)} will not throw iff this returns {@code true}.
    */
   public final boolean canReplaceDataWith(InstrData<?> newData) {
     return dataClass.isInstance(newData);
   }
 
   /**
-   * Replace the instruction's name and data <i>without</i> updating BB predecessors or recording an
+   * Replace the instruction's data <i>without</i> updating BB predecessors or recording an
    * {@linkplain CFGEdit edit}.
    *
-   * <p>Call {@link Instr#mutate(Instr, String, InstrData)} to update predecessors and record an
-   * edit.
+   * <p>Call {@link Instr#mutateArgs(Instr, InstrData)} to update predecessors and record an edit.
    *
    * @throws IllegalArgumentException If the new type of data isn't compatible with the instruction.
    */
   @SuppressWarnings("unchecked")
-  public final void unsafeReplaceData(String newName, InstrData<?> newData) {
+  public final void unsafeReplaceArgs(InstrData<?> newData) {
     if (!canReplaceDataWith(newData)) {
       throw new IllegalArgumentException(
           "Can't replace data in "
@@ -450,7 +464,6 @@ abstract sealed class InstrImpl<D extends InstrData<?>> implements NodeWithCfg
               + newData.getClass().getSimpleName());
     }
 
-    id = new InstrId<>((Instr) this, cfg, newName);
     data = (D) newData;
   }
 
@@ -478,6 +491,8 @@ abstract sealed class InstrImpl<D extends InstrData<?>> implements NodeWithCfg
         throw new InstrVerifyException(
             "Argument "
                 + component.getName()
+                + " in "
+                + cls.getSimpleName()
                 + " is `@Nullable`. InstrData arguments must be `Optional` (since they are often streamed it's easier this way).");
       }
     }

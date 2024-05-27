@@ -2,7 +2,7 @@ package org.prlprg.ir.type;
 
 import javax.annotation.Nullable;
 import org.prlprg.ir.type.lattice.NoOrMaybe;
-import org.prlprg.sexp.RegSymSXP;
+import org.prlprg.primitive.Names;
 
 public record ParameterRType(@Nullable String name, NoOrMaybe isRequired, RType type) {
   public ParameterRType {
@@ -44,7 +44,7 @@ public record ParameterRType(@Nullable String name, NoOrMaybe isRequired, RType 
 
   @Override
   public String toString() {
-    return (name == null ? "" : RegSymSXP.escape(name))
+    return (name == null ? "" : Names.quoteIfNecessary(name))
         + (isRequired == NoOrMaybe.NO ? "?" : "")
         + ":"
         + type;

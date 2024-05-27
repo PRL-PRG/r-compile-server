@@ -5,9 +5,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.SequencedCollection;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
-import org.prlprg.ir.cfg.Phi.Input;
-import org.prlprg.ir.cfg.Stmt.Args;
 
 interface BBIntrinsicMutate {
   // region mutate
@@ -69,36 +68,49 @@ interface BBIntrinsicMutate {
 
   // region add nodes
   /**
-   * Add a φ node, whose input nodes are of the given type, to this BB and return it.
+   * Add a {@linkplain Phi phi node}, whose input nodes are of the given class, to this BB and
+   * return it.
    *
-   * <p>The returned {@link Phi} implements the necessary superclass so that it's acceptable to
-   * replace a node of this class with it.
+   * <p>The actual input nodes are all "unset" {@link InvalidNode}s, one for each of the BB's
+   * predecessors.
    *
-   * @param name A name of the phi, an empty string, or {@code null} to inherit the first input name
-   *     (or empty string if there are no inputs). This is useful for debugging and error messages.
-   * @throws UnsupportedOperationException If there's no φ type implemented for the given class.
+   * @throws UnsupportedOperationException If there's no phi class implemented for the given class
+   *     (e.g. {@link RValuePhi} is for {@link RValue}s; there isn't an analogue for all node types,
+   *     those without one will cause this exception).
+   */
+  <N extends Node> Phi<N> addPhi(Class<? extends N> nodeClass);
+
+  /**
+   * {@link #addPhi(Class)} with a preset inputs.
+   *
    * @throws IllegalArgumentException If {@code inputs} doesn't contain an input for each of this
    *     block's predecessors, in the same order.
    */
   <N extends Node> Phi<N> addPhi(
-      Class<? extends N> nodeClass,
-      @Nullable String name,
-      SequencedCollection<? extends Input<? extends N>> inputs);
+      Class<? extends N> nodeClass, SequencedCollection<? extends Phi.Input<? extends N>> inputs);
 
   /**
-   * Add φ nodes, whose input nodes are of the given type, to this BB and returns them.
+   * Add {@linkplain Phi phi nodes}, whose input nodes are of the given class, to this BB and
+   * returns them.
    *
-   * @see #addPhi(Class, String, SequencedCollection)
-   * @throws IllegalArgumentException If any of phi's input (sequenced) set doesn't contain an input
-   *     for each of this block's predecessors, in the same order.
+   * @see #addPhi(Class)
    */
-  ImmutableList<? extends Phi<?>> addPhis(Collection<? extends Phi.Args<?>> phiArgs);
+  ImmutableList<? extends Phi<?>> addPhis(Collection<? extends Class<? extends Node>> nodeClasses);
+
+  /**
+   * {@link #addPhis(Collection)} with preset inputs
+   *
+   * @throws IllegalArgumentException If any of the args' inputs doesn't contain an input for each
+   *     of this block's predecessors, in the same order.
+   */
+  ImmutableList<? extends Phi<?>> addPhis1(Collection<Phi.Args> phiArgs);
 
   /**
    * Insert a statement in this BB at the given index.
    *
-   * @param name A name of the statement, or an empty string. This is useful for debugging and error
-   *     messages.
+   * @param name A name for the statement, useful for debugging and error messages, e.g. the
+   *     variable name if this is {@link org.prlprg.ir.cfg.StmtData.LdVar}. If there's no good name,
+   *     pass the empty string.
    * @param args The statement's arguments (data).
    * @return The inserted statement.
    * @throws IndexOutOfBoundsException If the index is out of range.
@@ -106,37 +118,88 @@ interface BBIntrinsicMutate {
   <I extends Stmt> I insertAt(int index, String name, StmtData<I> args);
 
   /**
+   * Insert a statement in this BB at the given index.
+   *
+   * @param args The statement's arguments (data).
+   * @return The inserted statement.
+   * @throws IndexOutOfBoundsException If the index is out of range.
+   */
+  default <I extends Stmt> I insertAt(int index, StmtData<I> args) {
+    return insertAt(index, "", args);
+  }
+
+  /**
    * Insert statements in this BB starting from the given index.
    *
-   * @param namesAndArgs The name and argument of each statement.
+   * @param namesAndArgs The name and data of each statement.
    * @return The inserted statements.
    * @throws IndexOutOfBoundsException If the index is out of range.
    * @see #insertAt(int, String, StmtData)
    */
-  ImmutableList<? extends Stmt> insertAllAt(int index, List<? extends Args<?>> namesAndArgs);
+  ImmutableList<? extends Stmt> insertAllAt(int index, List<Stmt.Args> namesAndArgs);
 
   /**
-   * Insert statements in this BB at the given indices. The statements are inserted so that later
-   * indices aren't offset by earlier ones, as if we inserted the statements with bigger indices
-   * before those with smaller ones.
+   * Insert statements in this BB starting from the given index.
    *
-   * @param indicesNamesAndArgs The index to insert, name, and argument of each statement.
+   * @param args The data of each statement.
+   * @return The inserted statements.
+   * @throws IndexOutOfBoundsException If the index is out of range.
+   * @see #insertAt(int, String, StmtData)
+   */
+  default ImmutableList<? extends Stmt> insertAllAt1(int index, List<StmtData<?>> args) {
+    return insertAllAt(index, args.stream().map(Stmt.Args::new).toList());
+  }
+
+  /**
+   * Insert statements in this BB at the given indices.
+   *
+   * <p>The statements are inserted so that later indices aren't offset by earlier ones, as if we
+   * inserted the statements with bigger indices before those with smaller ones.
+   *
+   * @param indicesNamesAndArgs The index to insert, name, and data of each statement.
    * @return The inserted statements.
    * @throws IndexOutOfBoundsException If any of the indices are out of range.
    * @see #insertAt(int, String, StmtData)
    */
-  ImmutableList<? extends Stmt> insertAllAt(Map<Integer, ? extends Args<?>> indicesNamesAndArgs);
+  ImmutableList<? extends Stmt> insertAllAt(Map<Integer, Stmt.Args> indicesNamesAndArgs);
+
+  /**
+   * Insert statements in this BB at the given indices.
+   *
+   * <p>The statements are inserted so that later indices aren't offset by earlier ones, as if we
+   * inserted the statements with bigger indices before those with smaller ones.
+   *
+   * @param indicesAndArgs The index to insert, name, and data of each statement.
+   * @return The inserted statements.
+   * @throws IndexOutOfBoundsException If any of the indices are out of range.
+   * @see #insertAt(int, String, StmtData)
+   */
+  default ImmutableList<? extends Stmt> insertAllAt1(Map<Integer, StmtData<?>> indicesAndArgs) {
+    return insertAllAt(
+        indicesAndArgs.entrySet().stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, e -> new Stmt.Args(e.getValue()))));
+  }
 
   /**
    * Add a jump to this BB.
    *
-   * @param name A small name for the jump, or an empty string. This is useful for debugging and
-   *     error messages.
+   * @param name Usually the empty string; see {@link #insertAt(int, String, StmtData)}.
    * @param args The jump's arguments (data).
    * @return The added jump.
-   * @throws IllegalArgumentException If it already has one.
+   * @throws IllegalArgumentException If the BB already has a jump.
    */
   <I extends Jump> I addJump(String name, JumpData<I> args);
+
+  /**
+   * Add a jump to this BB.
+   *
+   * @param args The jump's arguments (data).
+   * @return The added jump.
+   * @throws IllegalArgumentException If the BB already has a jump.
+   */
+  default <I extends Jump> I addJump(JumpData<I> args) {
+    return addJump("", args);
+  }
 
   // endregion
 
@@ -145,12 +208,12 @@ interface BBIntrinsicMutate {
    * Create a new statement with {@code newArgs} and replace the statement at {@code index} with it.
    *
    * <p><i>This won't replace occurrences of any return values of the old statement.</i> Use {@link
-   * Instr#mutate(Instr, String, InstrData)} to do that if both statements have the same # of return
+   * Instr#mutateArgs(Instr, InstrData)} to do that if both statements have the same # of return
    * values, otherwise you must replace them manually (if there are any).
    *
    * @param newName A small name for the new statement, an empty string, or {@code null} to take the
    *     old statement's name (empty string makes the new statement unnamed). This is useful for
-   *     debugging and error messages.
+   *     debugging and error messages. See {@link #insertAt(int, String, StmtData)}.
    * @param newArgs The new statement's arguments (data).
    * @return The new statement.
    * @throws IndexOutOfBoundsException If the index is out of range.
@@ -158,21 +221,52 @@ interface BBIntrinsicMutate {
   <I extends Stmt> I replace(int index, @Nullable String newName, StmtData<I> newArgs);
 
   /**
+   * Create a new statement with {@code newArgs} and replace the statement at {@code index} with it.
+   *
+   * <p><i>This won't replace occurrences of any return values of the old statement.</i> Use {@link
+   * Instr#mutateArgs(Instr, InstrData)} to do that if both statements have the same # of return
+   * values, otherwise you must replace them manually (if there are any).
+   *
+   * @param newArgs The new statement's arguments (data).
+   * @return The new statement.
+   * @throws IndexOutOfBoundsException If the index is out of range.
+   */
+  default <I extends Stmt> I replace(int index, StmtData<I> newArgs) {
+    return replace(index, "", newArgs);
+  }
+
+  /**
    * Create a new jump with {@code newArgs} and replace the BB's current jump with it.
    *
    * <p><i>This won't replace occurrences of any return values of the old jump.</i> Use {@link
-   * Instr#mutate(Instr, String, InstrData)} to do that if both jumps have the same # of return
-   * values, otherwise you must replace them manually (if there are any).
+   * Instr#mutateArgs(Instr, InstrData)} to do that if both jumps have the same # of return values,
+   * otherwise you must replace them manually (if there are any).
    *
    * @param newName A small name for the new jump, an empty string, or {@code null} to take the old
    *     jump's name (empty string makes the new jump unnamed). This is useful for debugging and
-   *     error messages.
+   *     error messages. See {@link #insertAt(int, String, StmtData)}.
    * @param newArgs The new jump's arguments (data).
    * @return The new jump.
    * @throws IllegalStateException If the BB doesn't have a jump. If this is the case, use {@link
    *     BB#addJump(String, JumpData)} instead.
    */
   <I extends Jump> I replaceJump(@Nullable String newName, JumpData<I> newArgs);
+
+  /**
+   * Create a new jump with {@code newArgs} and replace the BB's current jump with it.
+   *
+   * <p><i>This won't replace occurrences of any return values of the old jump.</i> Use {@link
+   * Instr#mutateArgs(Instr, InstrData)} to do that if both jumps have the same # of return values,
+   * otherwise you must replace them manually (if there are any).
+   *
+   * @param newArgs The new jump's arguments (data).
+   * @return The new jump.
+   * @throws IllegalStateException If the BB doesn't have a jump. If this is the case, use {@link
+   *     BB#addJump(String, JumpData)} instead.
+   */
+  default <I extends Jump> I replaceJump(JumpData<I> newArgs) {
+    return replaceJump("", newArgs);
+  }
 
   // endregion
 

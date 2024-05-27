@@ -19,8 +19,8 @@ public interface RContext extends Stmt {
 }
 
 final class RContextImpl extends SelfReturningStmtImpl<PushContext> implements RContext {
-  RContextImpl(CFG cfg, String name, PushContext data) {
-    super(PushContext.class, cfg, name, data);
+  RContextImpl(CFG cfg, TokenToCreateNewInstr token, PushContext data) {
+    super(PushContext.class, cfg, token, data);
   }
 
   @Override

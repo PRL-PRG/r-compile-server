@@ -1,43 +1,17 @@
 package org.prlprg.sexp;
 
-import com.google.common.base.Objects;
-import com.google.common.collect.ImmutableList;
+import java.util.Objects;
 import java.util.Optional;
+import org.prlprg.primitive.Names;
 
 /** Symbol which isn't "unbound value" or "missing arg" */
 public final class RegSymSXP implements SymSXP, StrOrRegSymSXP {
-  static final ImmutableList<String> LITERAL_NAMES =
-      ImmutableList.of("TRUE", "FALSE", "NULL", "NA", "Inf", "NaN");
-
   private final String name;
-  private final boolean isEscaped;
+  private final String toString;
 
-  /** Returns whether a symbol with the given name must be quoted in backticks. */
-  public static boolean isValidUnescaped(String name) {
-    return !LITERAL_NAMES.contains(name)
-        && !name.equals("_")
-        && !Character.isDigit(name.chars().findFirst().orElse(' '))
-        && name.chars().allMatch(c -> Character.isLetterOrDigit(c) || c == '.' || c == '_');
-  }
-
-  /** Returns whether the character is valid at the start of an escaped symbol. */
-  public static boolean isValidUnescapedStartChar(int c) {
-    return Character.isLetter(c) || c == '_' || c == '.';
-  }
-
-  /** Returns whether the character is valid in an escaped symbol, not at the start. */
-  public static boolean isValidUnescapedChar(int c) {
-    return isValidUnescapedStartChar(c) || Character.isDigit(c);
-  }
-
-  /**
-   * If the symbol with the given name must be quoted in backticks, returns it like that, otherwise
-   * as-is.
-   */
-  public static String escape(String name) {
-    return isValidUnescaped(name) ? name : "`" + name.replace("`", "\\`") + "`";
-  }
-
+  // `DOTS_SYMBOL` has to be constructed, and to do this we just call `new RegSymSxp("...")`. When
+  // we do this, `DOTS_SYMBOL` is `null` since it doesn't exist yet, since it's being constructed.
+  // Thus `@SuppressWarnings("ConstantValue")`.
   @SuppressWarnings("ConstantValue")
   RegSymSXP(String name) {
     assert !name.equals("...") || SEXPs.DOTS_SYMBOL == null
@@ -48,7 +22,7 @@ public final class RegSymSXP implements SymSXP, StrOrRegSymSXP {
     }
 
     this.name = name;
-    isEscaped = !isValidUnescaped(name);
+    toString = Names.quoteIfNecessary(name);
   }
 
   /** Returns the name of this symbol. */
@@ -67,18 +41,18 @@ public final class RegSymSXP implements SymSXP, StrOrRegSymSXP {
 
   @Override
   public String toString() {
-    return isEscaped ? "`" + name.replace("`", "\\`") + "`" : name;
+    return toString;
   }
 
   @Override
   public boolean equals(Object o) {
     if (this == o) return true;
     if (!(o instanceof RegSymSXP regSymSXP)) return false;
-    return Objects.equal(name, regSymSXP.name);
+    return Objects.equals(name, regSymSXP.name);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hashCode(name);
+    return Objects.hash(name);
   }
 }

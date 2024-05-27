@@ -4,7 +4,7 @@ package org.prlprg.ir.cfg;
  * Auxillary {@link Node} representing a boolean which must be true in a {@link Checkpoint} for it
  * to not branch into a deoptimization {@link BB}.
  */
-public sealed interface Assumption extends Node permits AssumptionImpl {
+public sealed interface Assumption extends LocalNode permits AssumptionImpl {
   Checkpoint checkpoint();
 
   @Override
@@ -24,6 +24,6 @@ record AssumptionImpl(@Override Checkpoint checkpoint, int index) implements Ass
 
   @Override
   public NodeId<? extends Assumption> id() {
-    return new AuxillaryNodeId<>(this, checkpoint.id(), Integer.toString(index));
+    return new LocalNodeIdImpl<>(this, checkpoint.id(), index);
   }
 }

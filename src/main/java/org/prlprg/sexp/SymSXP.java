@@ -3,12 +3,10 @@ package org.prlprg.sexp;
 import javax.annotation.concurrent.Immutable;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
-import org.prlprg.util.InterfaceHiddenMembers;
-import org.prlprg.util.Strings;
+import org.prlprg.primitive.Names;
 
 /** R Identifier. */
 @Immutable
-@InterfaceHiddenMembers(SymSxpParser.class)
 public sealed interface SymSXP extends SymOrLangSXP permits RegSymSXP, SpecialSymSXP {
   @Override
   default SEXPType type() {
@@ -34,23 +32,12 @@ public sealed interface SymSXP extends SymOrLangSXP permits RegSymSXP, SpecialSy
   default boolean isUnbound() {
     return this == SEXPs.UNBOUND_VALUE;
   }
-}
 
-class SymSxpParser {
   @ParseMethod
   private static SymSXP parse(Parser p) {
     var s = p.scanner();
+    var name = Names.read(s, true);
 
-    var isEscaped = s.nextCharIs('`');
-    if (!isEscaped && !s.nextCharSatisfies(RegSymSXP::isValidUnescapedStartChar)) {
-      throw s.fail("start of symbol (letter, '_', or '.', or '`')", Strings.quote(s.peekChar()));
-    }
-
-    var name = isEscaped ? s.readQuoted('`') : s.readWhile(RegSymSXP::isValidUnescapedChar);
-    if (!isEscaped && !RegSymSXP.isValidUnescaped(name)) {
-      // Happens if `name` is a literal or "_"
-      throw s.fail("symbol must be escaped but isn't: " + Strings.quote(name));
-    }
     return name.equals("...") ? SEXPs.DOTS_SYMBOL : new RegSymSXP(name);
   }
 }

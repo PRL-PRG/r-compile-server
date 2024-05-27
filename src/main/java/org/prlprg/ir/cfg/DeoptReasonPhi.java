@@ -1,7 +1,7 @@
 package org.prlprg.ir.cfg;
 
 import java.util.SequencedCollection;
-import org.jetbrains.annotations.Nullable;
+import javax.annotation.Nullable;
 
 /**
  * {@link Phi} (<a
@@ -15,8 +15,8 @@ public interface DeoptReasonPhi extends Phi<DeoptReason>, DeoptReason {
 
 final class DeoptReasonPhiImpl extends PhiImpl<DeoptReason> implements DeoptReasonPhi {
   DeoptReasonPhiImpl(
-      CFG cfg, @Nullable String name, SequencedCollection<? extends Input<?>> inputs) {
-    super(DeoptReason.class, cfg, name, inputs);
+      CFG cfg, @Nullable NodeId<?> presetId, SequencedCollection<? extends Input<?>> inputs) {
+    super(DeoptReason.class, cfg, presetId, inputs);
   }
 
   @Override

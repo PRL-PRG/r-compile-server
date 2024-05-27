@@ -5,6 +5,7 @@ import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
+import org.prlprg.primitive.Names;
 
 /** An R "list" element which consists of an optional string tag (name) and SEXP value. */
 public record TaggedElem(@Nullable String tag, SEXP value) {
@@ -37,7 +38,7 @@ public record TaggedElem(@Nullable String tag, SEXP value) {
   public String toString() {
     return tag == null
         ? value.toString()
-        : RegSymSXP.escape(tag) + "=" + (value == SEXPs.MISSING_ARG ? "" : value);
+        : Names.quoteIfNecessary(tag) + "=" + (value == SEXPs.MISSING_ARG ? "" : value);
   }
 
   /**
@@ -54,10 +55,7 @@ public record TaggedElem(@Nullable String tag, SEXP value) {
   private static TaggedElem parse(Parser p) {
     var s = p.scanner();
 
-    var tag =
-        s.nextCharIs('=')
-            ? null
-            : s.nextCharIs('`') ? s.readQuoted('`') : s.readWhile(RegSymSXP::isValidUnescapedChar);
+    var tag = s.nextCharIs('=') ? null : Names.read(s, true);
     var value = s.trySkip('=') ? p.parse(SEXP.class) : SEXPs.MISSING_ARG;
     return new TaggedElem(tag, value);
   }
@@ -67,7 +65,7 @@ public record TaggedElem(@Nullable String tag, SEXP value) {
     var w = p.writer();
 
     if (tag != null) {
-      w.write(RegSymSXP.escape(tag));
+      w.write(Names.quoteIfNecessary(tag));
     }
     if (value != SEXPs.MISSING_ARG) {
       w.write('=');

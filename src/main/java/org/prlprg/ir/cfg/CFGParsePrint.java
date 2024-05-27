@@ -7,21 +7,21 @@ import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
-import org.prlprg.util.InterfaceHiddenMembers;
 
 /** CFG's syntax is inspired by <a href="https://mlir.llvm.org/docs/LangRef/">MLIR</a>. */
-@InterfaceHiddenMembers(CFGParsePrintImpl.class)
-public interface CFGParsePrint {}
-
-class CFGParsePrintImpl {
-  @ParseMethod
+public interface CFGParsePrint {
   private static CFG parse(Parser p) {
     var s = p.scanner();
 
     var cfg = new CFG();
 
-    var cfgP = p.withContext(new CFGParseOrPrintContext(cfg));
+    s.assertAndSkip("CFG(nextBBDisambiguator=");
+    cfg.setNextBBDisambiguator(s.readUInt());
+    s.assertAndSkip(", nextInstrOrPhiDisambiguator=");
+    cfg.setNextInstrOrPhiDisambiguator(s.readUInt());
+    s.assertAndSkip("):\n");
 
+    var cfgP = p.withContext(new CFGParseOrPrintContext(cfg));
     while (!s.isAtEof()) {
       if (s.trySkip("//")) {
         // Comment
@@ -40,8 +40,14 @@ class CFGParsePrintImpl {
   @PrintMethod
   private static void print(CFG cfg, Printer p) {
     var w = p.writer();
-    var cfgP = p.withContext(new CFGParseOrPrintContext(cfg));
 
+    w.write("CFG(nextBBDisambiguator=");
+    p.print(cfg.nextBBDisambiguatorWithoutIncrementing());
+    w.write(", nextInstrOrPhiDisambiguator=");
+    p.print(cfg.nextInstrOrPhiDisambiguatorWithoutIncrementing());
+    w.write("):\n");
+
+    var cfgP = p.withContext(new CFGParseOrPrintContext(cfg));
     var iter = new CFGIterator.Bfs(cfg);
     iter.forEachRemaining(cfgP::print);
 
@@ -65,9 +71,8 @@ class CFGParseOrPrintContext {
   private BB parseBB(Parser p) {
     var s = p.scanner();
 
-    s.assertAndSkip('^');
-    var name = InstrPhiAndBBIds.readIdName(s);
-    var bb = cfg.addBB(name);
+    var id = p.parse(BBId.class);
+    var bb = cfg.addBBWithId(id);
 
     var bbP = p.withContext(new BBParseOrPrintContext(cfg, bb));
 
@@ -151,12 +156,13 @@ class BBParseOrPrintContext {
     }
     var s = p.scanner();
 
-    s.assertAndSkip('φ');
-    var name = InstrPhiAndBBIds.readIdName(s);
+    // Cast is OK because we parsed, so it has no assigned class.
+    @SuppressWarnings("unchecked")
+    var id = (NodeId<? extends Phi<? extends Node>>) p.parse(NodeId.class);
 
     var inputP = p.withContext(dataContext);
     var inputs = new ArrayList<Phi.Input<?>>();
-    s.assertAndSkip('(');
+    s.assertAndSkip(" = φ(");
     while (!s.trySkip(')')) {
       inputs.add(inputP.parse(Phi.Input.class));
       if (s.trySkip(')')) {
@@ -171,18 +177,17 @@ class BBParseOrPrintContext {
     }
     var clazz = inputs.getFirst().node().getClass();
 
-    return bb.addPhi(clazz, name, inputs);
+    return bb.addPhiWithId(id, clazz, inputs);
   }
 
   @PrintMethod
   private void printPhi(Phi<?> phi, Printer p) {
     var w = p.writer();
 
-    w.write("φ");
-    w.write(phi.id().name());
+    p.print(phi.id());
 
     var inputP = p.withContext(dataContext);
-    w.write('(');
+    w.write(" = φ(");
     boolean[] first = {true};
     phi.streamInputs()
         .forEach(
@@ -204,18 +209,21 @@ class BBParseOrPrintContext {
     }
     var s = p.scanner();
 
-    String name;
-    if (s.trySkip('%')) {
-      name = InstrPhiAndBBIds.readIdName(s);
+    TokenToCreateNewInstr token;
+    if (s.nextCharIs('%')) {
+      @SuppressWarnings("unchecked")
+      var id = (NodeId<? extends Instr>) p.parse(NodeId.class);
+      token = new CreateInstrWithExistingId(id);
       s.assertAndSkip('=');
     } else {
-      name = "";
+      // ID doesn't matter
+      token = new CreateInstrWithNewId("");
     }
 
     var data = p.withContext(dataContext).parse(InstrData.class);
     return switch (data) {
-      case StmtData<?> stmtData -> bb.append(name, stmtData);
-      case JumpData<?> jumpData -> bb.addJump(name, jumpData);
+      case StmtData<?> stmtData -> bb.insertAtWithToken(bb.stmts().size(), token, stmtData);
+      case JumpData<?> jumpData -> bb.addJumpWithToken(token, jumpData);
     };
   }
 

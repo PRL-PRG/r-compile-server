@@ -4,7 +4,7 @@ import javax.annotation.Nullable;
 
 /** A constant {@link org.prlprg.rshruntime.DeoptReason} node. */
 public record ConstantDeoptReason(org.prlprg.rshruntime.DeoptReason deoptReason)
-    implements DeoptReason {
+    implements DeoptReason, GlobalNode {
   @Override
   public @Nullable CFG cfg() {
     return null;
@@ -22,6 +22,6 @@ public record ConstantDeoptReason(org.prlprg.rshruntime.DeoptReason deoptReason)
 
   @Override
   public String toString() {
-    return "{dr:" + deoptReason + "}";
+    return deoptReason.toString();
   }
 }

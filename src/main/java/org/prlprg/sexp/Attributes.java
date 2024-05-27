@@ -1,10 +1,10 @@
 package org.prlprg.sexp;
 
-import com.google.common.base.Objects;
 import com.google.common.collect.ForwardingMap;
 import com.google.common.collect.ImmutableMap;
 import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import java.util.Map;
+import java.util.Objects;
 import javax.annotation.concurrent.Immutable;
 
 /** Attributes on an {@link SEXP}. */
@@ -46,12 +46,12 @@ public final class Attributes extends ForwardingMap<String, SEXP> {
   public boolean equals(Object o) {
     if (this == o) return true;
     if (!(o instanceof Attributes that)) return false;
-    return Objects.equal(attrs, that.attrs);
+    return Objects.equals(attrs, that.attrs);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hashCode(super.hashCode(), attrs);
+    return Objects.hash(super.hashCode(), attrs);
   }
 
   public Attributes excluding(String name) {

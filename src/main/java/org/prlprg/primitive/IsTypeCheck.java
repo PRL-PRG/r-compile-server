@@ -17,6 +17,10 @@ public enum IsTypeCheck {
   EXPR(SEXPType.EXPR.i),
   VEC(SEXPType.VEC.i),
   LIST(SEXPType.LIST.i),
+  // TODO: --- These aren't actually checked by `is`, but have bytecode instructions?
+  SYM(SEXPType.SYM.i),
+  NUM(203),
+  // ---
   NON_OBJECT(200),
   VECTOR(201),
   FACTOR(202);
@@ -41,6 +45,8 @@ public enum IsTypeCheck {
       case 20 -> EXPR;
       case 19 -> VEC;
       case 2 -> LIST;
+      case 9 -> SYM;
+      case 203 -> NUM;
       case 200 -> NON_OBJECT;
       case 201 -> VECTOR;
       case 202 -> FACTOR;

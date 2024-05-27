@@ -69,13 +69,6 @@ interface CFGQuery {
    */
   <N extends Node> N get(NodeId<N> nodeId);
 
-  /**
-   * Get the {@link Phi} input in the CFG with the given id.
-   *
-   * @throws NoSuchElementException If the input's basic block or node id is not in the CFG.
-   */
-  <N extends Node> Phi.Input<N> get(Phi.InputId<N> inputId);
-
   // endregion general properties
 
   // region iterate BBs

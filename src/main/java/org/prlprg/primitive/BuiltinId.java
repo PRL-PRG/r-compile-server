@@ -15,6 +15,11 @@ import org.prlprg.sexp.SEXPs;
  * @see org.prlprg.sexp.SEXPType#SPECIAL
  */
 public record BuiltinId(int index) {
+  // region global builtins
+  public static BuiltinId PRINT_VALUE = new BuiltinId(12345);
+
+  // endregion
+
   /** The id of the builtin function referenced by the given symbol in R. */
   public static BuiltinId referencedBy(RegSymSXP symbol) {
     return named(symbol.name());
@@ -34,6 +39,11 @@ public record BuiltinId(int index) {
   /** Returns the symbol in R which refers to the builtin function with this id. */
   public RegSymSXP symbol() {
     return SEXPs.symbol(name());
+  }
+
+  /** Whether the builtin is "special", i.e. evaluates its arguments before calling the C code. */
+  public boolean isSpecial() {
+    return index % 10 == 1;
   }
 
   @ParseMethod

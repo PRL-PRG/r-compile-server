@@ -2,10 +2,12 @@ package org.prlprg.ir.cfg;
 
 import com.google.common.collect.ImmutableMap;
 import java.util.Arrays;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.prlprg.ir.type.REffects;
+import org.prlprg.sexp.LangSXP;
 
 /**
  * Every type of instruction as an immutable, pattern-matchable record.
@@ -22,8 +24,13 @@ public sealed interface InstrData<I extends Instr> permits JumpData, StmtData {
           .map(c -> (Class<? extends InstrData<?>>) c)
           .collect(ImmutableMap.toImmutableMap(Class::getSimpleName, Function.identity()));
 
-  /** Create an instruction containing this data and a small descriptive name (or empty string). */
-  I make(CFG cfg, String name);
+  /**
+   * Create an instruction containing this data.
+   *
+   * <p>This can only be called in the package due to {@link TokenToCreateNewInstr} instances being
+   * package-private and never exposed by its API.
+   */
+  I make(CFG cfg, TokenToCreateNewInstr token);
 
   /**
    * Compute the effects for this instruction, or for trivial cases, <b>this will return {@code
@@ -43,4 +50,13 @@ public sealed interface InstrData<I extends Instr> permits JumpData, StmtData {
    * @throws InstrVerifyException If there are issues with the instruction data.
    */
   default void verify() throws InstrVerifyException {}
+
+  /** Am {@link InstrData} with an AST. */
+  interface HasAst {
+    Optional<LangSXP> ast1();
+
+    default @Nullable LangSXP ast() {
+      return ast1().orElse(null);
+    }
+  }
 }

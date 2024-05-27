@@ -15,17 +15,20 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.SequencedMap;
 import java.util.SequencedSet;
+import java.util.Set;
 import java.util.function.Predicate;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.ir.analysis.CFGAnalyses;
 import org.prlprg.ir.analysis.DefUseAnalysis;
 import org.prlprg.ir.analysis.DomTree;
+import org.prlprg.ir.cfg.CFGEdit.Semantic;
 import org.prlprg.ir.cfg.CFGIterator.DomTreeBfs;
 import org.prlprg.ir.cfg.CFGVerifyException.BrokenInvariant;
 import org.prlprg.ir.cfg.CFGVerifyException.MissingJump;
 import org.prlprg.ir.cfg.CFGVerifyException.PhisInSinglePredecessorBB;
 import org.prlprg.parseprint.Printer;
+import org.prlprg.util.WeakHashSet;
 
 /**
  * IR (intermediate representation) <a
@@ -42,15 +45,16 @@ public class CFG
         CFGVerify,
         CFGParsePrint,
         CFGPirSerialize {
-  private final List<CFGObserver> observers = new ArrayList<>();
+  private final Set<CFGObserver> setObservers = new WeakHashSet<>();
+  private final List<CFGObserver> stackObservers = new ArrayList<>();
   private final BB entry;
   // These are ordered to ensure deterministic traversal
   private final SequencedSet<BB> exits = new LinkedHashSet<>();
   private final SequencedMap<BBId, BB> bbs = new LinkedHashMap<>();
   // These don't need to be ordered, because we don't traverse them directly
   private final Map<NodeId<?>, Node> nodes = new HashMap<>();
-  private final InstrPhiOrBBIdMap nextBbIds = new InstrPhiOrBBIdMap();
-  private final InstrPhiOrBBIdMap nextInstrOrPhiIds = new InstrPhiOrBBIdMap();
+  private int nextBbDisambiguator = 1;
+  private int nextInstrOrPhiDisambiguator = 1;
   //
   private @Nullable DomTree cachedDomTree;
   private @Nullable DefUseAnalysis cachedDefUseAnalysis;
@@ -58,11 +62,7 @@ public class CFG
   /** Create a new CFG, with a single basic block and no instructions. */
   @SuppressFBWarnings("CT_CONSTRUCTOR_THROW")
   public CFG() {
-    // Prevent blocks and nodes from having these ids without a disambiguator
-    nextInstrOrPhiIds.next("n");
-    nextBbIds.next("bb");
-    //
-    entry = new BB(this, "");
+    entry = new BB(this, new BBIdImpl(this, "entry"));
     bbs.put(entry.id(), entry);
     markExit(entry);
   }
@@ -102,27 +102,20 @@ public class CFG
     return bbs.get(bbId);
   }
 
+  @SuppressWarnings("unchecked")
   @Override
   public <N extends Node> N get(NodeId<N> nodeId) {
-    if (nodeId instanceof GlobalNodeId<N> g) {
-      return g.node();
+    if (nodeId instanceof GlobalNodeId<?> g) {
+      return (N) g.node();
     }
 
     if (!nodes.containsKey(nodeId)) {
       throw new NoSuchElementException("node not global and not in CFG");
     }
-    @SuppressWarnings("unchecked")
     var node = (N) nodes.get(nodeId);
     assert nodeId.clazz() == null || nodeId.clazz().isInstance(node)
         : "node with id has wrong class: " + nodeId.clazz() + " -> " + node;
     return node;
-  }
-
-  @Override
-  public <N extends Node> Phi.Input<N> get(Phi.InputId<N> inputId) {
-    var bb = get(inputId.incomingBBId());
-    var node = get(inputId.nodeId());
-    return new Phi.Input<>(bb, node);
   }
 
   // endregion general properties
@@ -192,15 +185,20 @@ public class CFG
 
   @Override
   public BB addBB(String name) {
-    var bb = doAddBB(name);
-    record(new CFGEdit.InsertBB(bb.id().name()), new CFGEdit.RemoveBB(bb));
+    return addBBWithId(new BBIdImpl(this, name));
+  }
+
+  @Override
+  public BB addBBWithId(BBId id) {
+    var bb = doAddBBWithId(id);
+    record(new CFGEdit.InsertBB(bb), new CFGEdit.RemoveBB(bb));
     return bb;
   }
 
   @Override
   public void remove(BB bb) {
     doRemove(bb);
-    record(new CFGEdit.RemoveBB(bb), new CFGEdit.InsertBB(bb.id().name()));
+    record(new CFGEdit.RemoveBB(bb), new CFGEdit.InsertBB(bb));
   }
 
   @Override
@@ -215,24 +213,24 @@ public class CFG
   // region observers
   @Override
   public void addObserver(CFGObserver observer) {
-    observers.add(observer);
+    setObservers.add(observer);
   }
 
   @Override
   public void removeObserver(CFGObserver observer) {
-    if (!observers.remove(observer)) {
+    if (!setObservers.remove(observer)) {
       throw new IllegalArgumentException("Observer not in CFG");
     }
   }
 
   @Override
   public void withObserver(CFGObserver observer, Runnable action) {
-    var index = observers.size();
-    addObserver(observer);
+    var index = stackObservers.size();
+    stackObservers.add(observer);
     try {
       action.run();
     } finally {
-      observers.remove(index);
+      stackObservers.remove(index);
     }
   }
 
@@ -241,21 +239,30 @@ public class CFG
   // region additional recording operations
   @Override
   public void beginSection(String label) {
-    for (var observer : observers) {
+    for (var observer : setObservers) {
+      observer.beginSection(label);
+    }
+    for (var observer : stackObservers) {
       observer.beginSection(label);
     }
   }
 
   @Override
   public void endSection() {
-    for (var observer : observers) {
+    for (var observer : setObservers) {
+      observer.endSection();
+    }
+    for (var observer : stackObservers) {
       observer.endSection();
     }
   }
 
   @Override
   public void recordDivider(String label) {
-    for (var observer : observers) {
+    for (var observer : setObservers) {
+      observer.recordDivider(label);
+    }
+    for (var observer : stackObservers) {
       observer.recordDivider(label);
     }
   }
@@ -393,9 +400,12 @@ public class CFG
 
   // region for BB and node
   /** Record an edit to this CFG. */
-  void record(CFGEdit.Intrinsic<?> edit, CFGEdit.Intrinsic<?> inverse) {
+  void record(Semantic<?> edit, Semantic<?> inverse) {
     invalidateCaches();
-    for (var observer : observers) {
+    for (var observer : setObservers) {
+      observer.record(edit, inverse);
+    }
+    for (var observer : stackObservers) {
       observer.record(edit, inverse);
     }
   }
@@ -403,13 +413,17 @@ public class CFG
   /**
    * Insert and return a new basic block without recording it.
    *
-   * <p>This should only be called by {@link CFG} and {@link BB} in {@linkplain CFGEdit.Intrinsic
-   * intrinsic} edits.
+   * <p>This should only be called by {@link CFG} and {@link BB} in {@linkplain Semantic intrinsic}
+   * edits.
    */
   BB doAddBB(String name) {
-    var bb = new BB(this, name);
+    return doAddBBWithId(new BBIdImpl(this, name));
+  }
+
+  private BB doAddBBWithId(BBId id) {
+    var bb = new BB(this, id);
     assert !bbs.containsKey(bb.id());
-    bbs.put(bb.id(), bb);
+    bbs.put(id, bb);
     markExit(bb);
     return bb;
   }
@@ -427,8 +441,6 @@ public class CFG
       throw new IllegalArgumentException("BB already removed");
     }
     assert removed == bb;
-
-    nextBbIds.remove(bb.id().name());
 
     if (bb.successors().isEmpty()) {
       unmarkExit(bb);
@@ -500,8 +512,6 @@ public class CFG
         }
       }
     }
-
-    nextInstrOrPhiIds.remove(instrOrPhi.id().name());
   }
 
   /**
@@ -546,30 +556,50 @@ public class CFG
     assert removed == node;
   }
 
-  /**
-   * Escapes and disambiguates {@code name}, or replaces with a default id if empty.
-   *
-   * <p>This is called within {@link BBId} (importantly not {@link BB} itself), so don't call again
-   * or it will be redundant.
-   */
-  String nextBBId(String name) {
-    if (name.isEmpty()) {
-      name = "bb";
-    }
-    return nextBbIds.next(name);
+  /** Get the disambiguator and increment it. */
+  int nextBBDisambiguator() {
+    return nextBbDisambiguator++;
+  }
+
+  /** Get the disambiguator and increment it. */
+  int nextInstrOrPhiDisambiguator() {
+    return nextInstrOrPhiDisambiguator++;
   }
 
   /**
-   * Escapes and disambiguates {@code name}, or replaces with a default id if empty.
+   * Get the disambiguator without incrementing it.
    *
-   * <p>This is called within {@link PhiId} and {@link InstrId} (importantly not {@link Phi} or
-   * {@link Instr} themselves), so don't call again or it will be redundant.
+   * <p>Only to be used by the {@linkplain CFGParsePrint CFG printer}.
    */
-  String nextInstrOrPhiId(String name) {
-    if (name.isEmpty()) {
-      name = "n";
-    }
-    return nextInstrOrPhiIds.next(name);
+  int nextBBDisambiguatorWithoutIncrementing() {
+    return nextBbDisambiguator;
+  }
+
+  /**
+   * Get the disambiguator without incrementing it.
+   *
+   * <p>Only to be used by the {@linkplain CFGParsePrint CFG printer}.
+   */
+  int nextInstrOrPhiDisambiguatorWithoutIncrementing() {
+    return nextInstrOrPhiDisambiguator;
+  }
+
+  /**
+   * Set the disambiguator.
+   *
+   * <p>Only to be used by the {@linkplain CFGParsePrint CFG parser}.
+   */
+  void setNextBBDisambiguator(int disambiguator) {
+    nextBbDisambiguator = disambiguator;
+  }
+
+  /**
+   * Set the disambiguator.
+   *
+   * <p>Only to be used by the {@linkplain CFGParsePrint CFG parser}.
+   */
+  void setNextInstrOrPhiDisambiguator(int disambiguator) {
+    nextInstrOrPhiDisambiguator = disambiguator;
   }
   // endregion for BB and node
 }

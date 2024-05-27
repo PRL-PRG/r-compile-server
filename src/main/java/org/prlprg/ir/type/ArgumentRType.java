@@ -3,8 +3,8 @@ package org.prlprg.ir.type;
 import java.util.List;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
+import org.prlprg.primitive.Names;
 import org.prlprg.sexp.ListSXP;
-import org.prlprg.sexp.RegSymSXP;
 import org.prlprg.sexp.TaggedElem;
 
 public record ArgumentRType(@Nullable String name, RType type) {
@@ -39,6 +39,6 @@ public record ArgumentRType(@Nullable String name, RType type) {
 
   @Override
   public String toString() {
-    return (name == null ? "" : RegSymSXP.escape(name)) + ":" + type;
+    return (name == null ? "" : Names.quoteIfNecessary(name)) + ":" + type;
   }
 }

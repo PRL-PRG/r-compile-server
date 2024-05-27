@@ -1,6 +1,5 @@
 package org.prlprg.ir.type;
 
-import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
@@ -8,6 +7,7 @@ import com.google.common.collect.Streams;
 import com.google.common.primitives.ImmutableIntArray;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.Unmodifiable;
 import org.prlprg.ir.type.generic.GenericOverloadEffects;
@@ -325,7 +325,7 @@ public sealed interface OverloadRType {
     for (int i = 0; i < other.parameters().size(); i++) {
       var param = parameters().get(i);
       var otherParam = other.parameters().get(i);
-      if (!Objects.equal(param.name(), otherParam.name())
+      if (!Objects.equals(param.name(), otherParam.name())
           || !param.isSupersetOf(otherParam.isRequired(), otherParam.type())) {
         return YesOrMaybe.MAYBE;
       }
@@ -441,16 +441,16 @@ final class OverloadRTypeImpl implements OverloadRType {
   public boolean equals(Object o) {
     if (this == o) return true;
     if (!(o instanceof OverloadRTypeImpl that)) return false;
-    return Objects.equal(parameters, that.parameters)
-        && Objects.equal(fallbackEffects, that.fallbackEffects)
-        && Objects.equal(genericEffects, that.genericEffects)
-        && Objects.equal(fallbackReturnType, that.fallbackReturnType)
-        && Objects.equal(genericReturnType, that.genericReturnType);
+    return Objects.equals(parameters, that.parameters)
+        && Objects.equals(fallbackEffects, that.fallbackEffects)
+        && Objects.equals(genericEffects, that.genericEffects)
+        && Objects.equals(fallbackReturnType, that.fallbackReturnType)
+        && Objects.equals(genericReturnType, that.genericReturnType);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hashCode(
+    return Objects.hash(
         parameters, fallbackEffects, genericEffects, fallbackReturnType, genericReturnType);
   }
 

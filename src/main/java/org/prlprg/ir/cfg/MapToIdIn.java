@@ -120,9 +120,8 @@ record MapToIdInImpl<T extends InstrData<?>>(
   @Override
   @SuppressWarnings("UnstableApiUsage")
   public String toString() {
-    return "%"
-        + clazz.getSimpleName()
-        + "["
+    return clazz.getSimpleName()
+        + "'["
         + Streams.zip(
                 Arrays.stream(clazz.getRecordComponents()),
                 components.stream(),
@@ -137,7 +136,7 @@ record MapToIdInImpl<T extends InstrData<?>>(
 
     s.assertAndSkip('*');
 
-    var className = s.readJavaIdentifier();
+    var className = s.readJavaIdentifierOrKeyword();
     var clazz = ctx.getClass(className);
     if (clazz == null) {
       throw s.fail("Unknown record class: " + className);
@@ -175,8 +174,8 @@ record MapToIdInImpl<T extends InstrData<?>>(
     var w = p.writer();
     var componentDescriptors = clazz.getRecordComponents();
 
-    w.write('%');
     w.write(clazz.getSimpleName());
+    w.write("'");
     if (!components.isEmpty()) {
       w.write('(');
       for (var i = 0; i < components.size(); i++) {

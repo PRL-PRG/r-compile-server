@@ -51,7 +51,7 @@ class BuiltinParseMethods {
   private static <E extends Enum<E>> Enum<E> parseEnum(Parser p, Class<E> enumClass) {
     var s = p.scanner();
     var ctx = p.context();
-    var name = s.readJavaIdentifier();
+    var name = s.readJavaIdentifierOrKeyword();
 
     var stringCase =
         ctx != null && ctx.getClass().isAnnotationPresent(EnumSerialCaseIs.class)
@@ -77,7 +77,7 @@ class BuiltinParseMethods {
     }
     var s = p.scanner();
 
-    var className = s.readJavaIdentifier();
+    var className = s.readJavaIdentifierOrKeyword();
     var clazz = ctx.getClass(className);
     if (clazz == null) {
       throw s.fail("Unknown record class: " + className);

@@ -29,10 +29,14 @@ interface BBQuery extends Iterable<InstrOrPhi> {
   SequencedCollection<BB> predecessors();
 
   /** Whether this block has a single predecessor. */
-  boolean hasSinglePredecessor();
+  default boolean hasSinglePredecessor() {
+    return predecessors().size() == 1;
+  }
 
   /** If this block has exactly one predecessor, returns it, otherwise {@code null}. */
-  @Nullable BB onlyPredecessor();
+  default @Nullable BB onlyPredecessor() {
+    return hasSinglePredecessor() ? predecessors().getFirst() : null;
+  }
 
   /**
    * Returns (a view of) the BBs this one's jump points to.
@@ -41,6 +45,16 @@ interface BBQuery extends Iterable<InstrOrPhi> {
    */
   @UnmodifiableView
   SequencedCollection<BB> successors();
+
+  /** Whether this block has a single successor. */
+  default boolean hasSingleSuccessor() {
+    return successors().size() == 1;
+  }
+
+  /** If this block has exactly one successor, returns it, otherwise {@code null}. */
+  default @Nullable BB onlySuccessor() {
+    return hasSingleSuccessor() ? successors().getFirst() : null;
+  }
 
   // endregion
 

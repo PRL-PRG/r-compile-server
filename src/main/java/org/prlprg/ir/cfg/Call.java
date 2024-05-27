@@ -17,8 +17,8 @@ public interface Call extends RValueStmt {
 }
 
 final class CallImpl extends AbstractRValueStmtImpl<Call_> implements Call {
-  CallImpl(CFG cfg, String name, Call_ data) {
-    super(Call_.class, cfg, name, data);
+  CallImpl(CFG cfg, TokenToCreateNewInstr token, Call_ data) {
+    super(Call_.class, cfg, token, data);
   }
 
   @Override

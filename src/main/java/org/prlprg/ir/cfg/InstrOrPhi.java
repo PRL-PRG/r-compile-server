@@ -5,7 +5,7 @@ import java.util.SequencedCollection;
 import org.jetbrains.annotations.UnmodifiableView;
 
 /** Either {@link Instr} or {@link Phi}. An immediate child node of a basic block. */
-public sealed interface InstrOrPhi extends NodeWithCfg permits Instr, Phi {
+public sealed interface InstrOrPhi extends LocalNode permits Instr, Phi {
   /**
    * (A view of) the instruction or phi's arguments, which are the other nodes it depends on. If a
    * phi, these are its {@link Phi#inputs()} without the extra type information or associated basic
@@ -28,6 +28,8 @@ public sealed interface InstrOrPhi extends NodeWithCfg permits Instr, Phi {
   /**
    * Replace {@code old} with {@code replacement} in {@link #args()} and (if instruction) {@link
    * Instr#data()}.
+   *
+   * <p>This <i>will</i> record an {@linkplain CFGEdit edit}.
    *
    * @throws IllegalArgumentException If the old node wasn't in {@link #args()}.
    * @throws IllegalArgumentException If you try to replace with a node of incompatible type.

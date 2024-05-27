@@ -1,5 +1,7 @@
 package org.prlprg.ir.cfg;
 
+import org.prlprg.ir.cfg.CFGEdit.Semantic;
+
 /**
  * Observes all edits (mutations) that are performed on a {@link CFG}, including those performed on
  * its {@link BB}s and {@link Node}s.
@@ -10,7 +12,7 @@ package org.prlprg.ir.cfg;
 @FunctionalInterface
 public interface CFGObserver {
   /** Records that an edit (mutation) was just performed. */
-  void record(CFGEdit.Intrinsic<?> edit, CFGEdit.Intrinsic<?> inverse);
+  void record(Semantic<?> edit, Semantic<?> inverse);
 
   /**
    * Records that a user-defined section has begun.

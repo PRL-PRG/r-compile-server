@@ -8,11 +8,9 @@ import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.primitive.Names;
-import org.prlprg.util.InterfaceHiddenMembers;
 
 /** AST function call ("language object") SEXP. */
 @Immutable
-@InterfaceHiddenMembers(LangSXPImpl.class)
 public sealed interface LangSXP extends SymOrLangSXP {
   /** The function being called. */
   SymOrLangSXP fun();
@@ -46,6 +44,16 @@ public sealed interface LangSXP extends SymOrLangSXP {
 
   default boolean funName(String name) {
     return funName().map(name::equals).orElse(false);
+  }
+
+  @ParseMethod
+  private static LangSXP parse(Parser p) {
+    var sexp = p.parse(SymOrLangSXP.class);
+    if (!(sexp instanceof LangSXP l)) {
+      throw p.scanner().fail("expected LangSXP but this is a symbol: " + sexp);
+    }
+
+    return l;
   }
 }
 
@@ -81,16 +89,6 @@ record LangSXPImpl(SymOrLangSXP fun, ListSXP args, @Override Attributes attribut
       }
     }
     return fun + (args instanceof NilSXP ? "()" : args.toString());
-  }
-
-  @ParseMethod
-  private LangSXP parse(Parser p) {
-    var sexp = p.parse(SymOrLangSXP.class);
-    if (!(sexp instanceof LangSXP l)) {
-      throw p.scanner().fail("expected LangSXP but this is a symbol: " + sexp);
-    }
-
-    return l;
   }
 
   @PrintMethod

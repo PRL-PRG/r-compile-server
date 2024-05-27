@@ -1,6 +1,6 @@
 package org.prlprg.bc;
 
-import com.google.common.base.Objects;
+import java.util.Objects;
 
 /** A branch instruction destination. */
 public final class BcLabel {
@@ -11,7 +11,7 @@ public final class BcLabel {
     this.target = target;
   }
 
-  public int getTarget() {
+  public int target() {
     return target;
   }
 
@@ -28,7 +28,7 @@ public final class BcLabel {
 
   @Override
   public int hashCode() {
-    return Objects.hashCode(target);
+    return Objects.hash(target);
   }
 
   @Override

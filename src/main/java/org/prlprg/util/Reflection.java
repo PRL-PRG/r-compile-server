@@ -23,9 +23,8 @@ public class Reflection {
    * @throws IllegalArgumentException If {@code target} isn't a record.
    */
   public static Stream<Object> streamComponents(Record target) {
-    if (!target.getClass().isRecord()) {
-      throw new IllegalArgumentException("target is not a record");
-    }
+    assert target.getClass().isRecord()
+        : "target is an instance of `Record` but `getClass().isRecord()` is false?";
     return Arrays.stream(target.getClass().getRecordComponents()).map(c -> getComponent(target, c));
   }
 

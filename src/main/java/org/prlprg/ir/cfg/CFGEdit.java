@@ -7,12 +7,9 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
-import java.util.SequencedCollection;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import javax.annotation.Nullable;
-import org.prlprg.ir.cfg.Phi.Args;
 import org.prlprg.ir.cfg.Phi.Input;
 import org.prlprg.ir.cfg.Phi.InputId;
 import org.prlprg.util.Strings;
@@ -60,17 +57,17 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
   }
 
   // region edit classes
-  /** Not user-defined edit. */
-  sealed interface Intrinsic<Reverse extends Intrinsic<?>> extends CFGEdit<Reverse> {}
+  /** Not user-defined edit with semantic meaning. */
+  sealed interface Semantic<Reverse extends Semantic<?>> extends CFGEdit<Reverse> {}
 
-  /** Edit that can't be broken down into smaller edits. */
-  sealed interface Atomic<Reverse extends Atomic<?>> extends Intrinsic<Reverse> {}
+  /** "Edit" that only provides additional context, i.e. a section or divider. */
+  sealed interface Context<Reverse extends Context<?>> extends CFGEdit<Reverse> {}
 
   /**
    * Edit is local to a {@linkplain CFG control-flow graph}; edit is not local to a {@linkplain BB
    * basic block}, {@linkplain InstrOrPhi instruction, or phi}.
    */
-  sealed interface OnCFG<Reverse extends OnCFG<?>> extends Intrinsic<Reverse> {}
+  sealed interface OnCFG<Reverse extends OnCFG<?>> extends Semantic<Reverse> {}
 
   /**
    * Edit is local to a {@linkplain BB basic block}, but not {@linkplain InstrOrPhi instruction or
@@ -78,11 +75,15 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
    *
    * <p>Note: {@link ReplaceWithInstr} ({@link ReplaceStmt}, {@link ReplaceJump}) is <i>not</i>
    * considered local to an instruction or phi, because it removes the old instruction and inserts a
-   * new one. {@link MutateInstr} <i>is</i> considered local because it reuses the original
+   * new one. {@link MutateInstrArgs} <i>is</i> considered local because it reuses the original
    * instruction.
    */
-  sealed interface OnBB<Reverse extends OnBB<?>> extends Intrinsic<Reverse> {
+  sealed interface OnBB<Reverse extends OnBB<?>> extends Semantic<Reverse> {
     BBId bbId();
+
+    int numAffected();
+
+    int sizeDelta();
   }
 
   /**
@@ -91,82 +92,86 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
    * <p>Note that the instruction or phi may change in arguments to other instructions or phis
    * (excluded from the definition of "local" used within this, {@link OnCFG}, and {@link OnBB}).
    */
-  sealed interface OnInstrOrPhi<Reverse extends OnInstrOrPhi<?>> extends Intrinsic<Reverse> {
+  sealed interface OnInstrOrPhi<Reverse extends OnInstrOrPhi<?>> extends Semantic<Reverse> {
     NodeId<? extends InstrOrPhi> targetId();
   }
 
-  sealed interface Insert<Reverse extends Remove<?>> extends Intrinsic<Reverse> {}
+  sealed interface InsertInstrsOrPhis<Reverse extends RemoveInstrsOrPhis<?>> extends OnBB<Reverse> {
+    @Override
+    default int sizeDelta() {
+      return numAffected();
+    }
+  }
 
-  sealed interface Remove<Reverse extends Insert<?>> extends Intrinsic<Reverse> {}
+  sealed interface InsertPhis_<Reverse extends RemovePhis_<?>>
+      extends InsertInstrsOrPhis<Reverse> {}
 
-  /** Intrinsic operation which isn't an insertion or removal, e.g. replace or subst. */
-  sealed interface IntrinsicUpdate<Reverse extends IntrinsicUpdate<?>> extends Intrinsic<Reverse> {}
+  sealed interface InsertStmts_<Reverse extends RemoveStmts_<?>>
+      extends InsertInstrsOrPhis<Reverse> {}
 
-  sealed interface InsertInstrsOrPhis<Reverse extends RemoveInstrsOrPhis<?>>
-      extends Insert<Reverse>, OnBB<Reverse> {}
+  sealed interface RemoveInstrsOrPhis<Reverse extends InsertInstrsOrPhis<?>> extends OnBB<Reverse> {
+    @Override
+    default int sizeDelta() {
+      return -numAffected();
+    }
+  }
 
-  sealed interface InsertInstrOrPhi<Reverse extends RemoveInstrOrPhi<?>>
-      extends Atomic<Reverse>, InsertInstrsOrPhis<Reverse> {}
+  sealed interface RemovePhis_<Reverse extends InsertPhis_<?>>
+      extends RemoveInstrsOrPhis<Reverse> {}
 
-  sealed interface RemoveInstrsOrPhis<Reverse extends InsertInstrsOrPhis<?>>
-      extends Remove<Reverse>, OnBB<Reverse> {}
-
-  sealed interface RemoveInstrOrPhi<Reverse extends InsertInstrOrPhi<?>>
-      extends Atomic<Reverse>, RemoveInstrsOrPhis<Reverse> {}
+  sealed interface RemoveStmts_<Reverse extends InsertStmts_<?>>
+      extends RemoveInstrsOrPhis<Reverse> {}
 
   /** Replaces the instruction but not in arguments of other instructions. */
-  sealed interface ReplaceWithInstr<Reverse extends ReplaceWithInstr<?>>
-      extends Atomic<Reverse>, IntrinsicUpdate<Reverse>, OnBB<Reverse> {}
+  sealed interface ReplaceWithInstr<Reverse extends ReplaceWithInstr<?>> extends OnBB<Reverse> {
+    @Override
+    default int numAffected() {
+      return 1;
+    }
+
+    @Override
+    default int sizeDelta() {
+      return 0;
+    }
+  }
 
   /** Changes the instruction including in arguments of other instructions. */
   sealed interface MutateInstrOrPhi<Reverse extends MutateInstrOrPhi<?>>
-      extends Atomic<Reverse>, IntrinsicUpdate<Reverse>, OnInstrOrPhi<Reverse> {}
+      extends OnInstrOrPhi<Reverse> {}
 
   // endregion edit classes
 
   // region edits
   record InsertBB(
-      String name,
-      ImmutableList<? extends Phi.IdArgs<?>> phiArgs,
-      ImmutableList<? extends Stmt.IdArgs<?>> stmtNamesAndArgs,
-      @Nullable Jump.Args<?> jumpNameAndArgs)
-      implements Insert<RemoveBB>, OnCFG<RemoveBB> {
-    public InsertBB(
-        String name,
-        SequencedCollection<? extends Phi.Args<?>> phiArgs,
-        List<? extends Stmt.Args<?>> stmtNamesAndArgs,
-        @Nullable Jump.Args<?> jumpNameAndArgs) {
+      BBId id,
+      ImmutableList<Phi.Serial> phiArgs,
+      ImmutableList<Stmt.Serial> stmtIdsAndArgs,
+      @Nullable Jump.Serial jumpIdAndArgs)
+      implements OnCFG<RemoveBB> {
+    public InsertBB(BB bb) {
       this(
-          name,
-          phiArgs.stream().map(Phi.Args::id).collect(ImmutableList.toImmutableList()),
-          stmtNamesAndArgs.stream().map(Stmt.Args::id).collect(ImmutableList.toImmutableList()),
-          jumpNameAndArgs);
-    }
-
-    public InsertBB(String name) {
-      this(name, ImmutableList.<Phi.IdArgs<?>>of(), ImmutableList.of(), null);
+          bb.id(),
+          bb.phis().stream().map(Phi.Serial::new).collect(ImmutableList.toImmutableList()),
+          bb.stmts().stream().map(Stmt.Serial::new).collect(ImmutableList.toImmutableList()),
+          bb.jump() == null ? null : new Jump.Serial(bb.jump()));
     }
 
     @Override
     public RemoveBB apply(CFG cfg) {
-      var bb = cfg.addBB(name);
-      bb.addPhis(
-          phiArgs.stream()
-              .map(
-                  a ->
-                      new Phi.Args<>(
-                          a.nodeClass(), a.name(), a.inputIds().stream().map(cfg::get).toList()))
-              .toList());
-      bb.insertAllAt(0, stmtNamesAndArgs.stream().map(a -> a.decode(cfg)).toList());
-      if (jumpNameAndArgs != null) {
-        bb.addJump(jumpNameAndArgs.name(), jumpNameAndArgs.data());
+      var bb = cfg.addBBWithId(id);
+      bb.addPhisWithIds(phiArgs.stream().map(a -> new PhiImpl.Args(cfg, a)).toList());
+      bb.insertAllAtWithTokens(
+          0, stmtIdsAndArgs.stream().map(a -> new StmtImpl.Args(cfg, a)).toList());
+      if (jumpIdAndArgs != null) {
+        bb.addJumpWithToken(
+            new CreateInstrWithExistingId(jumpIdAndArgs.id()), jumpIdAndArgs.data().decode(cfg));
       }
 
-      return new RemoveBB(bb.id());
+      return new RemoveBB(bb);
     }
   }
 
-  record RemoveBB(@Override BBId bbId) implements Remove<InsertBB>, OnCFG<InsertBB> {
+  record RemoveBB(@Override BBId bbId) implements OnCFG<InsertBB> {
     public RemoveBB(BB bb) {
       this(bb.id());
     }
@@ -174,29 +179,11 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
     @Override
     public InsertBB apply(CFG cfg) {
       var bb = cfg.remove(bbId);
-
-      var name = bbId.name();
-      var phis =
-          bb.phis().stream()
-              .map(
-                  phi ->
-                      new Phi.IdArgs<>(
-                          phi.nodeClass(),
-                          phi.id().name(),
-                          phi.streamInputs().map(Input::id).toList()))
-              .collect(ImmutableList.toImmutableList());
-      var stmts =
-          bb.stmts().stream()
-              .map(stmt -> new Stmt.IdArgs<>(stmt.id().name(), stmt.data()))
-              .collect(ImmutableList.toImmutableList());
-      var jump =
-          bb.jump() == null ? null : new Jump.Args<>(bb.jump().id().name(), bb.jump().data());
-      return new InsertBB(name, phis, stmts, jump);
+      return new InsertBB(bb);
     }
   }
 
-  record SplitBB(@Override BBId bbId, int index)
-      implements IntrinsicUpdate<MergeBBs>, OnCFG<MergeBBs> {
+  record SplitBB(@Override BBId bbId, int index) implements OnCFG<MergeBBs> {
     public SplitBB(BB bb, int index) {
       this(bb.id(), index);
     }
@@ -209,217 +196,205 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
     }
   }
 
-  record MergeBBs(BBId prevBBId, BBId nextBBId)
-      implements IntrinsicUpdate<SplitBB>, OnCFG<SplitBB> {
-    public MergeBBs(BB prevBB, BB nextBB) {
-      this(prevBB.id(), nextBB.id());
+  record MergeBBs(BBId bbId, BBId nextBBId) implements OnCFG<SplitBB> {
+    public MergeBBs(BB bb, BB nextBB) {
+      this(bb.id(), nextBB.id());
     }
 
     @Override
     public SplitBB apply(CFG cfg) {
-      var prevBB = cfg.get(prevBBId);
-      var index = prevBB.stmts().size();
+      var bb = cfg.get(bbId);
+      var index = bb.stmts().size();
       var nextBB = cfg.get(nextBBId);
-      prevBB.mergeWithSuccessor(nextBB);
-      return new SplitBB(prevBB.id(), index);
+      bb.mergeWithSuccessor(nextBB);
+      return new SplitBB(bb.id(), index);
     }
   }
 
-  record InsertPhis(@Override BBId bbId, ImmutableList<? extends Phi.IdArgs<?>> phiArgs)
-      implements InsertInstrsOrPhis<RemovePhis> {
-    public InsertPhis(BB bb, SequencedCollection<? extends Args<?>> phiArgs) {
-      this(bb.id(), phiArgs.stream().map(Phi.Args::id).collect(ImmutableList.toImmutableList()));
+  record InsertPhis(@Override BBId bbId, ImmutableSet<Phi.Serial> phis)
+      implements InsertPhis_<RemovePhis> {
+    public InsertPhis(BB bb, Collection<? extends Phi<?>> phis) {
+      this(bb.id(), phis.stream().map(Phi.Serial::new).collect(ImmutableSet.toImmutableSet()));
     }
 
-    public static InsertPhis altNew(BB bb, Collection<? extends Phi<?>> phis) {
-      return new InsertPhis(
-          bb.id(),
-          phis.stream()
-              .map(
-                  phi ->
-                      new Phi.IdArgs<>(
-                          phi.nodeClass(),
-                          phi.id().name(),
-                          phi.streamInputs().map(Input::id).toList()))
-              .collect(ImmutableList.toImmutableList()));
+    @Override
+    public int numAffected() {
+      return phis.size();
     }
 
     @Override
     public RemovePhis apply(CFG cfg) {
       var phis =
           cfg.get(bbId)
-              .addPhis(
-                  phiArgs.stream()
-                      .map(
-                          a ->
-                              new Phi.Args<>(
-                                  a.nodeClass(),
-                                  a.name(),
-                                  a.inputIds().stream().map(cfg::get).toList()))
-                      .toList());
+              .addPhisWithIds(this.phis.stream().map(a -> new PhiImpl.Args(cfg, a)).toList());
       return new RemovePhis(
           bbId, phis.stream().map(Phi::id).collect(ImmutableSet.toImmutableSet()));
     }
 
     @Override
     public Iterable<? extends InsertPhi<?>> subEdits() {
-      return phiArgs.stream()
+      return phis.stream()
           .map(
-              a ->
-                  new InsertPhi<>(
-                      bbId, a.nodeClass(), a.name(), ImmutableList.copyOf(a.inputIds())))
+              a -> new InsertPhi<>(bbId, a.id(), a.nodeClass(), ImmutableList.copyOf(a.inputIds())))
           .toList();
     }
   }
 
   record InsertPhi<N extends Node>(
       @Override BBId bbId,
+      NodeId<? extends Phi<? extends N>> nodeId,
       Class<? extends N> nodeClass,
-      String name,
       ImmutableList<? extends InputId<? extends N>> inputs)
-      implements InsertInstrOrPhi<RemovePhi> {
-    public InsertPhi(
-        BB bb,
-        Class<? extends N> nodeClass,
-        String name,
-        SequencedCollection<? extends Input<? extends N>> inputs) {
+      implements InsertPhis_<RemovePhi> {
+    public InsertPhi(BB bb, Phi<? extends N> phi) {
       this(
           bb.id(),
-          nodeClass,
-          name,
-          inputs.stream().map(Input::id).collect(ImmutableList.toImmutableList()));
+          phi.id(),
+          phi.nodeClass(),
+          phi.streamInputs().map(Input::id).collect(ImmutableList.toImmutableList()));
     }
 
-    public InsertPhi(BB bb, Phi<? extends N> phi) {
-      this(bb, phi.nodeClass(), phi.id().name(), phi.streamInputs().toList());
+    @Override
+    public int numAffected() {
+      return 1;
     }
 
     @Override
     public RemovePhi apply(CFG cfg) {
-      var phi = cfg.get(bbId).addPhi(nodeClass, name, inputs.stream().map(cfg::get).toList());
+      var phi =
+          cfg.get(bbId)
+              .addPhiWithId(nodeId, nodeClass, inputs.stream().map(i -> i.decode(cfg)).toList());
       return new RemovePhi(bbId, phi.id());
     }
   }
 
-  record InsertStmts(
-      @Override BBId bbId, int index, ImmutableList<? extends Stmt.IdArgs<?>> namesAndArgs)
-      implements InsertInstrsOrPhis<RemoveStmts> {
-    public InsertStmts(BB bb, int index, List<? extends Stmt.Args<?>> namesAndArgs) {
+  record InsertStmts(@Override BBId bbId, int index, ImmutableList<Stmt.Serial> stmts)
+      implements InsertStmts_<RemoveStmts> {
+    public InsertStmts(BB bb, int index, List<? extends Stmt> stmts) {
       this(
           bb.id(),
           index,
-          namesAndArgs.stream().map(Stmt.Args::id).collect(ImmutableList.toImmutableList()));
+          stmts.stream().map(Stmt.Serial::new).collect(ImmutableList.toImmutableList()));
     }
 
-    public static InsertStmts altNew(BB bb, int index, List<? extends Stmt> stmts) {
-      return new InsertStmts(
-          bb,
-          index,
-          stmts.stream().map(stmt -> new Stmt.Args<>(stmt.id().name(), stmt.data())).toList());
+    @Override
+    public int numAffected() {
+      return stmts().size();
     }
 
     @Override
     public RemoveStmts apply(CFG cfg) {
       var stmts =
-          cfg.get(bbId).insertAllAt(index, namesAndArgs.stream().map(a -> a.decode(cfg)).toList());
+          cfg.get(bbId)
+              .insertAllAtWithTokens(
+                  index, this.stmts.stream().map(a -> new StmtImpl.Args(cfg, a)).toList());
       return new RemoveStmts(bbId, index, index + stmts.size());
     }
 
     @Override
     public Iterable<? extends InsertStmt<?>> subEdits() {
       return Streams.mapWithIndex(
-              namesAndArgs.stream(),
-              (args, i) -> new InsertStmt<>(bbId, index + (int) i, args.name(), args.data()))
+              stmts.stream(),
+              (args, i) -> new InsertStmt<>(bbId, index + (int) i, args.id(), args.data()))
           .toList();
     }
   }
 
-  record InsertStmts2(
-      @Override BBId bbId, Map<Integer, ? extends Stmt.IdArgs<?>> indicesNamesAndArgs)
-      implements InsertInstrsOrPhis<RemoveStmts2> {
-    public InsertStmts2(BB bb, Map<Integer, ? extends Stmt.Args<?>> indicesNamesAndArgs) {
+  record InsertStmts2(@Override BBId bbId, Map<Integer, Stmt.Serial> indicesAndStmts)
+      implements InsertStmts_<RemoveStmts2> {
+    public InsertStmts2(BB bb, Map<Integer, ? extends Stmt> indicesAndStmts) {
       this(
           bb.id(),
-          indicesNamesAndArgs.entrySet().stream()
-              .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().id())));
+          indicesAndStmts.entrySet().stream()
+              .collect(Collectors.toMap(Map.Entry::getKey, e -> new Stmt.Serial(e.getValue()))));
     }
 
-    public static InsertStmts2 altNew(BB bb, Map<Integer, ? extends Stmt> indicesAndStmts) {
-      return new InsertStmts2(
-          bb,
-          indicesAndStmts.entrySet().stream()
-              .collect(
-                  Collectors.toMap(
-                      Entry::getKey,
-                      e -> new Stmt.Args<>(e.getValue().id().name(), e.getValue().data()))));
+    @Override
+    public int numAffected() {
+      return indicesAndStmts.size();
     }
 
     @Override
     public RemoveStmts2 apply(CFG cfg) {
-      var stmts =
+      var indicesAndStmts =
           cfg.get(bbId)
-              .insertAllAt(
-                  indicesNamesAndArgs.entrySet().stream()
-                      .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().decode(cfg))));
+              .insertAllAtWithTokens(
+                  this.indicesAndStmts.entrySet().stream()
+                      .collect(
+                          Collectors.toMap(
+                              Map.Entry::getKey, e -> new StmtImpl.Args(cfg, e.getValue()))));
       return new RemoveStmts2(
-          bbId, stmts.stream().map(Stmt::id).collect(ImmutableSet.toImmutableSet()));
+          bbId, indicesAndStmts.stream().map(Stmt::id).collect(ImmutableSet.toImmutableSet()));
     }
 
     @Override
     public Iterable<? extends InsertStmt<?>> subEdits() {
-      return indicesNamesAndArgs.entrySet().stream()
+      return indicesAndStmts.entrySet().stream()
           .sorted(Comparator.comparingInt(s -> -s.getKey()))
           .map(
-              indexNameAndArgs ->
+              indexIdAndArgs ->
                   new InsertStmt<>(
                       bbId,
-                      indexNameAndArgs.getKey(),
-                      indexNameAndArgs.getValue().name(),
-                      indexNameAndArgs.getValue().data()))
+                      indexIdAndArgs.getKey(),
+                      indexIdAndArgs.getValue().id(),
+                      indexIdAndArgs.getValue().data()))
           .toList();
     }
   }
 
   record InsertStmt<I extends Stmt>(
-      @Override BBId bbId, int index, String name, MapToIdIn<? extends StmtData<? extends I>> args)
-      implements InsertInstrOrPhi<RemoveStmt> {
-    public InsertStmt(BB bb, int index, String name, StmtData<? extends I> args) {
-      this(bb.id(), index, name, MapToIdIn.of(args));
+      @Override BBId bbId,
+      int index,
+      NodeId<? extends I> id,
+      MapToIdIn<? extends StmtData<? extends I>> args)
+      implements InsertStmts_<RemoveStmt> {
+    public InsertStmt(BB bb, int index, NodeId<? extends I> nodeId, StmtData<? extends I> args) {
+      this(bb.id(), index, nodeId, MapToIdIn.of(args));
     }
 
-    @SuppressWarnings("unchecked")
-    public InsertStmt(BB bb, int index, I stmt) {
-      this(bb, index, stmt.id().name(), (StmtData<? extends I>) stmt.data());
+    public static InsertStmt<?> of(BB bb, int index, Stmt stmt) {
+      return new InsertStmt<>(bb, index, stmt.id(), stmt.data());
+    }
+
+    @Override
+    public int numAffected() {
+      return 1;
     }
 
     @Override
     public RemoveStmt apply(CFG cfg) {
-      cfg.get(bbId).insertAt(index, name, args.decode(cfg));
+      cfg.get(bbId).insertAtWithToken(index, new CreateInstrWithExistingId(id), args.decode(cfg));
       return new RemoveStmt(bbId, index);
     }
   }
 
   record InsertJump<I extends Jump>(
-      @Override BBId bbId, String name, MapToIdIn<? extends JumpData<? extends I>> args)
-      implements InsertInstrOrPhi<RemoveJump> {
-    public InsertJump(BB bb, String name, JumpData<? extends I> args) {
-      this(bb.id(), name, MapToIdIn.of(args));
+      @Override BBId bbId,
+      NodeId<? extends I> nodeId,
+      MapToIdIn<? extends JumpData<? extends I>> args)
+      implements InsertInstrsOrPhis<RemoveJump> {
+    public InsertJump(BB bb, NodeId<? extends I> nodeId, JumpData<? extends I> args) {
+      this(bb.id(), nodeId, MapToIdIn.of(args));
     }
 
-    @SuppressWarnings("unchecked")
-    public InsertJump(BB bb, I jump) {
-      this(bb, jump.id().name(), (JumpData<? extends I>) jump.data());
+    public static InsertJump<?> of(BB bb, Jump jump) {
+      return new InsertJump<>(bb, jump.id(), jump.data());
+    }
+
+    @Override
+    public int numAffected() {
+      return 1;
     }
 
     @Override
     public RemoveJump apply(CFG cfg) {
-      cfg.get(bbId).addJump(name, args.decode(cfg));
+      cfg.get(bbId).addJumpWithToken(new CreateInstrWithExistingId(nodeId), args.decode(cfg));
       return new RemoveJump(bbId);
     }
   }
 
   record RemovePhis(@Override BBId bbId, ImmutableSet<? extends NodeId<? extends Phi<?>>> nodeIds)
-      implements RemoveInstrsOrPhis<InsertPhis> {
+      implements RemovePhis_<InsertPhis> {
     public RemovePhis(BB bb, Collection<? extends Phi<?>> phis) {
       this(bb.id(), phis.stream().map(Phi::id).collect(ImmutableSet.toImmutableSet()));
     }
@@ -429,15 +404,12 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
       var phis = nodeIds.stream().map(cfg::get).toList();
       cfg.get(bbId).removeAllPhis(phis);
       return new InsertPhis(
-          bbId,
-          phis.stream()
-              .map(
-                  phi ->
-                      new Phi.IdArgs<>(
-                          phi.nodeClass(),
-                          phi.id().name(),
-                          phi.streamInputs().map(Input::id).toList()))
-              .collect(ImmutableList.toImmutableList()));
+          bbId, phis.stream().map(Phi.Serial::new).collect(ImmutableSet.toImmutableSet()));
+    }
+
+    @Override
+    public int numAffected() {
+      return nodeIds.size();
     }
 
     @Override
@@ -447,9 +419,14 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
   }
 
   record RemovePhi(@Override BBId bbId, NodeId<? extends Phi<?>> nodeId)
-      implements RemoveInstrOrPhi<InsertPhi<?>> {
+      implements RemovePhis_<InsertPhi<?>> {
     public RemovePhi(BB bb, Phi<?> phi) {
       this(bb.id(), phi.id());
+    }
+
+    @Override
+    public int numAffected() {
+      return 1;
     }
 
     @Override
@@ -458,22 +435,27 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
       cfg.get(bbId).remove(phi);
       return new InsertPhi<>(
           bbId,
+          phi.id(),
           phi.nodeClass(),
-          phi.id().name(),
           phi.streamInputs().map(Input::id).collect(ImmutableList.toImmutableList()));
     }
   }
 
   record RemoveStmts(@Override BBId bbId, int fromIndex, int toIndex)
-      implements RemoveInstrsOrPhis<InsertStmts> {
-    public RemoveStmts(BB bb, int fromIndex, int toIndex) {
-      this(bb.id(), fromIndex, toIndex);
-    }
-
+      implements RemoveStmts_<InsertStmts> {
     public RemoveStmts {
       if (fromIndex > toIndex) {
         throw new IllegalArgumentException("fromIndex > toIndex");
       }
+    }
+
+    public RemoveStmts(BB bb, int fromIndex, int toIndex) {
+      this(bb.id(), fromIndex, toIndex);
+    }
+
+    @Override
+    public int numAffected() {
+      return toIndex - fromIndex;
     }
 
     @Override
@@ -481,7 +463,7 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
       var bb = cfg.get(bbId);
       var stmtArgs =
           bb.stmts(fromIndex, toIndex).stream()
-              .map(s -> new Stmt.IdArgs<>(s.id().name(), s.data()))
+              .map(Stmt.Serial::new)
               .collect(ImmutableList.toImmutableList());
       bb.removeAllAt(fromIndex, toIndex);
       return new InsertStmts(bbId, fromIndex, stmtArgs);
@@ -496,47 +478,59 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
   }
 
   record RemoveStmts2(@Override BBId bbId, ImmutableSet<? extends NodeId<? extends Stmt>> stmts)
-      implements RemoveInstrsOrPhis<InsertStmts2> {
+      implements RemoveStmts_<InsertStmts2> {
     public RemoveStmts2(BB bb, Collection<? extends Stmt> stmts) {
       this(bb.id(), stmts.stream().map(Stmt::id).collect(ImmutableSet.toImmutableSet()));
+    }
+
+    @Override
+    public int numAffected() {
+      return stmts.size();
     }
 
     @Override
     public InsertStmts2 apply(CFG cfg) {
       var stmts = this.stmts.stream().map(cfg::get).toList();
       var bb = cfg.get(bbId);
-      var stmtArgs =
-          stmts.stream()
-              .collect(
-                  Collectors.toMap(bb::indexOf, s -> new Stmt.IdArgs<>(s.id().name(), s.data())));
+      var stmtArgs = stmts.stream().collect(Collectors.toMap(bb::indexOf, Stmt.Serial::new));
       bb.removeAllStmts(stmts);
       return new InsertStmts2(bbId, stmtArgs);
     }
   }
 
-  record RemoveStmt(@Override BBId bbId, int index) implements RemoveInstrOrPhi<InsertStmt<?>> {
+  record RemoveStmt(@Override BBId bbId, int index) implements RemoveStmts_<InsertStmt<?>> {
     public RemoveStmt(BB bb, int index) {
       this(bb.id(), index);
+    }
+
+    @Override
+    public int numAffected() {
+      return 1;
     }
 
     @Override
     public InsertStmt<?> apply(CFG cfg) {
       var bb = cfg.get(bbId);
       var stmt = bb.removeAt(index);
-      return new InsertStmt<>(bbId, index, stmt.id().name(), MapToIdIn.of(stmt.data()));
+      return new InsertStmt<>(bbId, index, stmt.id(), MapToIdIn.of(stmt.data()));
     }
   }
 
-  record RemoveJump(@Override BBId bbId) implements RemoveInstrOrPhi<InsertJump<?>> {
+  record RemoveJump(@Override BBId bbId) implements RemoveInstrsOrPhis<InsertJump<?>> {
     public RemoveJump(BB bb) {
       this(bb.id());
+    }
+
+    @Override
+    public int numAffected() {
+      return 1;
     }
 
     @Override
     public InsertJump<?> apply(CFG cfg) {
       var bb = cfg.get(bbId);
       var jump = bb.removeJump();
-      return new InsertJump<>(bbId, jump.id().name(), MapToIdIn.of(jump.data()));
+      return new InsertJump<>(bbId, jump.id(), MapToIdIn.of(jump.data()));
     }
   }
 
@@ -544,33 +538,43 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
       NodeId<? extends Phi<N>> targetId, BBId incomingBBId, NodeId<? extends N> inputNodeId)
       implements MutateInstrOrPhi<SetPhiInput<N>> {
     public SetPhiInput(Phi<N> phi, BB incomingBB, N inputNode) {
-      this(phi.id(), incomingBB.id(), Node.idOf(inputNode));
+      this(phi.id(), incomingBB.id(), NodeId.of(inputNode));
     }
 
     @Override
     public SetPhiInput<N> apply(CFG cfg) {
       var oldInputNode = cfg.get(targetId).setInput(cfg.get(incomingBBId), cfg.get(inputNodeId));
-      return new SetPhiInput<>(targetId, incomingBBId, Node.idOf(oldInputNode));
+      return new SetPhiInput<>(targetId, incomingBBId, NodeId.of(oldInputNode));
     }
   }
 
-  record MutateInstr<I extends Instr>(
-      NodeId<? extends I> targetId, String newName, MapToIdIn<? extends InstrData<I>> newArgs)
-      implements MutateInstrOrPhi<MutateInstr<I>> {
-    public MutateInstr(NodeId<? extends I> targetId, String newName, InstrData<I> newArgs) {
-      this(targetId, newName, MapToIdIn.of(newArgs));
+  record RenameInstr(NodeId<? extends Instr> targetId, String newName)
+      implements MutateInstrOrPhi<RenameInstr> {
+    @Override
+    public RenameInstr apply(CFG cfg) {
+      var target = cfg.get(targetId);
+      var oldName = targetId.name();
+      target.rename(newName);
+      return new RenameInstr(targetId, oldName);
+    }
+  }
+
+  record MutateInstrArgs<I extends Instr>(
+      NodeId<? extends I> targetId, MapToIdIn<? extends InstrData<I>> newArgs)
+      implements MutateInstrOrPhi<MutateInstrArgs<I>> {
+    public MutateInstrArgs(I target, InstrData<I> newArgs) {
+      this(NodeId.of(target), MapToIdIn.of(newArgs));
     }
 
     @Override
-    public MutateInstr<I> apply(CFG cfg) {
+    public MutateInstrArgs<I> apply(CFG cfg) {
       var target = cfg.get(targetId);
-      var oldName = targetId.name();
       // `subst` requires that `oldData` has the same erased type as `newData` (not asserted
       // directly, but should be enforced by `Instr#canReplaceDataWith`).
       @SuppressWarnings("unchecked")
       var oldArgs = MapToIdIn.of((InstrData<I>) target.data());
-      Instr.mutate(target, newName, newArgs.decode(cfg));
-      return new MutateInstr<>(targetId, oldName, oldArgs);
+      Instr.mutateArgs(target, newArgs.decode(cfg));
+      return new MutateInstrArgs<>(targetId, oldArgs);
     }
   }
 
@@ -656,7 +660,7 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
   }
 
   /** Doesn't do anything but is useful in logs. */
-  record Divider(String label) implements Atomic<Divider> {
+  record Divider(String label) implements Context<Divider> {
     @Override
     public Divider apply(CFG cfg) {
       cfg.recordDivider(label);
@@ -666,7 +670,7 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
 
   /** User-defined arbitrary group of edits. */
   record Section(String label, ImmutableList<? extends CFGEdit<?>> edits)
-      implements CFGEdit<Section> {
+      implements Context<Section> {
     @Override
     public Section apply(CFG cfg) {
       cfg.beginSection(label);

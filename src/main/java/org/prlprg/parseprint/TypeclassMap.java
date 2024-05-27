@@ -12,7 +12,6 @@ import java.util.Optional;
 import java.util.Set;
 import javax.annotation.Nullable;
 import org.prlprg.util.Classes;
-import org.prlprg.util.InterfaceHiddenMembers;
 import org.prlprg.util.InvalidAnnotationError;
 import org.prlprg.util.Pair;
 
@@ -197,10 +196,8 @@ class TypeclassMap<A extends Annotation, M extends TypeclassMethod> {
    *         <li>...a builtin registered static method with both the specific object and context.
    *       </ul>
    *   <li>If such a method isn't found in the object's class or context class, it will then look
-   *       for the method in each of the object's superclasss and interfaces. Simultaneously, when
-   *       looking in an interface it will check if the interface is annotated with {@link
-   *       InterfaceHiddenMembers}, and if so, look in that utility class too. <b>It will not try
-   *       superclasses of the context class.</b>
+   *       for the method in each of the object's superclasss and interfaces. <i>It will not try
+   *       superclasses of the context class.</i>
    *   <li>If no superclasses or interfaces have a method for the provided context class, or if the
    *       context class is {@link Void}, it will look for a method which takes <b>no context</b>,
    *       within the object class, context class, and builtins, then within superclasses and
@@ -387,11 +384,6 @@ class TypeclassMap<A extends Annotation, M extends TypeclassMethod> {
           public Class<?> next() {
             var next = worklist.removeFirst();
 
-            if (next.isInterface()
-                && next.isAnnotationPresent(InterfaceHiddenMembers.class)
-                && seen.add(next.getAnnotation(InterfaceHiddenMembers.class).value())) {
-              worklist.add(next.getAnnotation(InterfaceHiddenMembers.class).value());
-            }
             if (next.getSuperclass() != null && seen.add(next.getSuperclass())) {
               worklist.add(next.getSuperclass());
             }

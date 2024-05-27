@@ -4,17 +4,13 @@ import java.util.ArrayList;
 import javax.annotation.concurrent.Immutable;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
-import org.prlprg.util.InterfaceHiddenMembers;
 
 /**
  * Either {@link SymSXP} (AST identifier) or {@link LangSXP} (AST call). Note that AST nodes can
  * also be simple-scalars.
  */
 @Immutable
-@InterfaceHiddenMembers(SymOrLangSXPParser.class)
-public sealed interface SymOrLangSXP extends SEXP permits SymSXP, LangSXP {}
-
-class SymOrLangSXPParser {
+public sealed interface SymOrLangSXP extends SEXP permits SymSXP, LangSXP {
   @ParseMethod
   private static SymOrLangSXP parse(Parser p) {
     var s = p.scanner();

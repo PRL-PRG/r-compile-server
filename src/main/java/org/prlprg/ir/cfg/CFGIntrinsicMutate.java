@@ -11,6 +11,16 @@ interface CFGIntrinsicMutate {
   BB addBB(String name);
 
   /**
+   * Create insert, and return a new basic block with the given ID.
+   *
+   * <p>Usually you will call {@link #addBB()} or {@link #addBB(String)} instead. Mainly this is
+   * used by {@link CFGEdit} to re-add BBs with the same IDs as they had before removal.
+   *
+   * @throws IllegalArgumentException If a different basic block in the CFG has the same ID.
+   */
+  BB addBBWithId(BBId id);
+
+  /**
    * Remove a basic block from the CFG.
    *
    * <p>Existing basic blocks and instructions may still reference it, but these references must be
