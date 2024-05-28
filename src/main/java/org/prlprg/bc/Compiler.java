@@ -1007,6 +1007,9 @@ public class Compiler {
     var b = def.bodyAST();
 
     // FIXME: ugly
+    // b.match(call("{"))
+    //  .filter(x -> x.args.size() == 1)
+    //  .ifPresent(x -> b = x.arg(0).value);
     if (b instanceof LangSXP lb
         && lb.args().size() == 1
         && lb.fun() instanceof RegSymSXP sym
@@ -1014,11 +1017,21 @@ public class Compiler {
       b = lb.arg(0).value();
     }
 
+    // b.match(call(".Internal"))
+    //  .ifPresent(x -> b = x.arg(0).value);
+
     if (b instanceof LangSXP lb
         && lb.fun() instanceof RegSymSXP sym
         && sym.name().equals(".Internal")) {
       var icall = lb.arg(0).value();
       // FIXME: ugly
+
+      /*
+      return icall.match(rsession::builtinInternal)
+                  .match(hasSimpleArgs(def.formals().names())
+                  .orElse(false);
+      */
+
       if (icall instanceof LangSXP ilb && ilb.fun() instanceof RegSymSXP isym) {
         var internalBuiltin = rsession.isBuiltinInternal(isym.name());
         var simpleArgs = isSimpleArgs(ilb, def.formals().names());
@@ -1398,21 +1411,16 @@ public class Compiler {
   private boolean inlineMultiColon(LangSXP call) {
     if (!dotsOrMissing(call.args()) && call.args().size() == 2) {
 
-      // FIXME: ugly
-      String s1 =
-          switch (call.arg(0).value()) {
-            case StrSXP s when s.size() == 1 -> s.get(0);
-            case RegSymSXP s -> s.name();
-            default -> null;
-          };
+      Function<SEXP, String> extractName =
+          (x) ->
+              switch (x) {
+                case StrSXP s when s.size() == 1 -> s.get(0);
+                case RegSymSXP s -> s.name();
+                default -> null;
+              };
 
-      // FIXME: ugly
-      String s2 =
-          switch (call.arg(1).value()) {
-            case StrSXP s when s.size() == 1 -> s.get(0);
-            case RegSymSXP s -> s.name();
-            default -> null;
-          };
+      String s1 = extractName.apply(call.arg(0).value());
+      String s2 = extractName.apply(call.arg(1).value());
 
       if (s1 == null || s2 == null) {
         return false;
@@ -2281,11 +2289,9 @@ public class Compiler {
         } else {
           return call.args().values().stream().anyMatch(this::mayCallBrowser);
         }
-      } else {
-        return false;
       }
-    } else {
-      return false;
     }
+
+    return false;
   }
 }
