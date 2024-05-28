@@ -32,53 +32,61 @@ public class CompilerTest extends AbstractGNURBasedTest implements Tests {
 
   @Test
   public void testEmptyBlock() {
-    assertBytecode("""
+    assertBytecode(
+        """
         function() {}
     """);
   }
 
   @Test
   public void testSingleExpressionBlock() {
-    assertBytecode("""
+    assertBytecode(
+        """
         function() { 1 }
     """);
   }
 
   @Test
   public void testMultipleExpressionBlock() {
-    assertBytecode("""
+    assertBytecode(
+        """
         function() { 1; 2 }
     """);
   }
 
   @Test
   public void testIf() {
-    assertBytecode("""
+    assertBytecode(
+        """
         function(x) if (x) 1
     """);
   }
 
   @Test
   public void testIfElse() {
-    assertBytecode("""
+    assertBytecode(
+        """
         function(x) if (x) 1 else 2
     """);
   }
 
   @Test
   public void testFunctionInlining() {
-    assertBytecode("""
+    assertBytecode(
+        """
         function(x) function(y) 1
     """);
   }
 
   @Test
   public void testFunctionLeftParenInlining() {
-    assertBytecode("""
+    assertBytecode(
+        """
         function(x) (x)
     """);
 
-    assertBytecode("""
+    assertBytecode(
+        """
         function(x) (...)
     """);
   }
@@ -86,162 +94,195 @@ public class CompilerTest extends AbstractGNURBasedTest implements Tests {
   @Test
   public void builtinsInlining() {
     // expecting a guard
-    assertBytecode("""
+    assertBytecode(
+        """
       function() invisible(1)
-    """, 2);
+    """,
+        2);
 
     // no guard
-    assertBytecode("""
+    assertBytecode(
+        """
       function() invisible(1)
-    """, 3);
+    """,
+        3);
 
     // guard and regular function call
-    assertBytecode("""
+    assertBytecode(
+        """
       function(...) invisible(...)
-    """, 2);
+    """,
+        2);
   }
 
   @Test
   public void specialsInlining() {
-    assertBytecode("""
+    assertBytecode(
+        """
       function() rep(1, 10)
     """);
   }
 
   @Test
   public void inlineLocal() {
-    assertBytecode("""
+    assertBytecode(
+        """
       function(x) local(x)
     """);
   }
 
   @Test
   public void inlineReturn() {
-    assertBytecode("""
+    assertBytecode(
+        """
       function(x) return(x)
     """);
   }
 
   @Test
   public void inlineBuiltinsInternal() {
-    assertBytecode("""
+    assertBytecode(
+        """
       function(x) .Internal(inspect(x))
     """);
 
-    assertBytecode("""
+    assertBytecode(
+        """
       function(x) .Internal(inspect2(x))
     """);
   }
 
   @Test
   public void inlineLogicalAnd() {
-    assertBytecode("""
+    assertBytecode(
+        """
       function(x, y) x && y
     """);
 
-    assertBytecode("""
+    assertBytecode(
+        """
       function(x, y, z) x && y && z
     """);
 
-    assertBytecode("""
+    assertBytecode(
+        """
       function(x, y) x && y && (x && y)
     """);
   }
 
   @Test
   public void inlineLogicalOr() {
-    assertBytecode("""
+    assertBytecode(
+        """
       function(x, y) x || y
     """);
 
-    assertBytecode("""
+    assertBytecode(
+        """
       function(x, y, z) x || y || z
     """);
 
-    assertBytecode("""
+    assertBytecode(
+        """
       function(x, y) x || y || (x || y)
     """);
   }
 
   @Test
   public void inlineLogicalAndOr() {
-    assertBytecode("""
+    assertBytecode(
+        """
       function(x, y) x && y || y
     """);
 
-    assertBytecode("""
+    assertBytecode(
+        """
       function(x, y, z) x || y && z
     """);
   }
 
   @Test
   public void inlineRepeat() {
-    assertBytecode("""
+    assertBytecode(
+        """
       function(x) repeat(x)
     """);
 
-    assertBytecode("""
+    assertBytecode(
+        """
       function(x, y) repeat({ if (x) break() else y })
     """);
 
-    assertBytecode("""
+    assertBytecode(
+        """
       function(x, y) repeat({ if (x) next() else y })
     """);
 
-    assertBytecode("""
+    assertBytecode(
+        """
       function(x, y=break()) repeat({ if (x) y else 1 })
     """);
   }
 
   @Test
   public void inlineWhile() {
-    assertBytecode("""
+    assertBytecode(
+        """
       function(x) while(x) 1
     """);
 
-    assertBytecode("""
+    assertBytecode(
+        """
       function(x, y) while(x) { break() }
     """);
 
-    assertBytecode("""
+    assertBytecode(
+        """
       function(x, y) while(x) { if (y) break() else 1 }
     """);
   }
 
   @Test
   public void inlineFor() {
-    assertBytecode("""
+    assertBytecode(
+        """
       function(x) for (i in x) 1
     """);
 
-    assertBytecode("""
+    assertBytecode(
+        """
       function(x) for (i in x) if (i) break() else 1
     """);
   }
 
   @Test
   public void inlineArithmetics() {
-    assertBytecode("""
+    assertBytecode(
+        """
       function(x, y) x + y
     """);
 
-    assertBytecode("""
+    assertBytecode(
+        """
       function(x, y) x - y
     """);
 
-    assertBytecode("""
+    assertBytecode(
+        """
       function(x, y) {
         list(x + y - x + 10, -x + 1, +y)
       }
     """);
 
-    assertBytecode("""
+    assertBytecode(
+        """
       function(x, y) {
         list(x * y / x * 10, exp(x) ^ 2, sqrt(exp(x)))
       }
     """);
 
-    assertBytecode("""
+    assertBytecode(
+        """
       function(x, y) {
         list(log(x), log(x, y))
       }
@@ -250,7 +291,8 @@ public class CompilerTest extends AbstractGNURBasedTest implements Tests {
 
   @Test
   public void inlineMath1() {
-    assertBytecode("""
+    assertBytecode(
+        """
       function(x) {
         list(
           floor(x), ceiling(x), sign(x),
@@ -266,7 +308,8 @@ public class CompilerTest extends AbstractGNURBasedTest implements Tests {
 
   @Test
   public void inlineLogical() {
-    assertBytecode("""
+    assertBytecode(
+        """
       function(x, y) {
           list(
             x == y, x != y, x < y, x <= y, x > y, x >= y, x & y, x | y, !x
@@ -277,7 +320,8 @@ public class CompilerTest extends AbstractGNURBasedTest implements Tests {
 
   @Test
   public void inlineDollar() {
-    assertBytecode("""
+    assertBytecode(
+        """
       # xs <- list(a=1, b=list(c=2))
       function(xs) {
           xs$a
@@ -291,7 +335,8 @@ public class CompilerTest extends AbstractGNURBasedTest implements Tests {
 
   @Test
   public void inlineIsXYZ() {
-    assertBytecode("""
+    assertBytecode(
+        """
       function(x) {
         list(
           is.character(x),
@@ -310,7 +355,8 @@ public class CompilerTest extends AbstractGNURBasedTest implements Tests {
 
   @Test
   public void inlineDotCall() {
-    assertBytecode("""
+    assertBytecode(
+        """
       function(x) {
         .Call("bar")
         .Call("foo", x, 1, TRUE)
@@ -320,7 +366,8 @@ public class CompilerTest extends AbstractGNURBasedTest implements Tests {
 
   @Test
   public void inlineIntGeneratingSequences() {
-    assertBytecode("""
+    assertBytecode(
+        """
       function(x, xs) {
         list(x:100, seq_along(xs), seq_len(x))
       }
@@ -329,7 +376,8 @@ public class CompilerTest extends AbstractGNURBasedTest implements Tests {
 
   @Test
   public void multiColon() {
-    assertBytecode("""
+    assertBytecode(
+        """
       function() {
         list(compiler::cmpfun, compiler:::makeCenv)
       }
@@ -338,7 +386,8 @@ public class CompilerTest extends AbstractGNURBasedTest implements Tests {
 
   @Test
   public void inlineSwitch() {
-    assertBytecode("""
+    assertBytecode(
+        """
       function(x) {
         if (switch(x, 1, 2, g(3))) {
           if (y) 4 else 5
@@ -349,19 +398,22 @@ public class CompilerTest extends AbstractGNURBasedTest implements Tests {
 
   @Test
   public void inlineAssign1() {
-    assertBytecode("""
+    assertBytecode(
+        """
       function() {
         x <- 1
       }
     """);
 
-    assertBytecode("""
+    assertBytecode(
+        """
       function() {
         y <<- 2
       }
     """);
 
-    assertBytecode("""
+    assertBytecode(
+        """
       function() {
         a::b <- 1
         a:::b <- 3
@@ -372,13 +424,15 @@ public class CompilerTest extends AbstractGNURBasedTest implements Tests {
 
   @Test
   public void inlineAssign2() {
-    assertBytecode("""
+    assertBytecode(
+        """
       function() {
         f(x) <- 1
       }
     """);
 
-    assertBytecode("""
+    assertBytecode(
+        """
       function() {
         pkg::f(x) <- 1
       }
@@ -387,7 +441,8 @@ public class CompilerTest extends AbstractGNURBasedTest implements Tests {
 
   @Test
   public void inlineAssign3() {
-    assertBytecode("""
+    assertBytecode(
+        """
       function() {
         f(g(h(x, k), j), i) <- v
       }
@@ -396,7 +451,8 @@ public class CompilerTest extends AbstractGNURBasedTest implements Tests {
 
   @Test
   public void inlineDollarAssign() {
-    assertBytecode("""
+    assertBytecode(
+        """
       function() {
        x$y <- 1
        x$"z" <- 2
@@ -407,7 +463,8 @@ public class CompilerTest extends AbstractGNURBasedTest implements Tests {
 
   @Test
   public void inlineSquareAssign1() {
-    assertBytecode("""
+    assertBytecode(
+        """
       function() {
         x[y == 1] <- 1
         x[[y == 1]] <- 1
@@ -417,7 +474,8 @@ public class CompilerTest extends AbstractGNURBasedTest implements Tests {
 
   @Test
   public void inlineSquareAssign2() {
-    assertBytecode("""
+    assertBytecode(
+        """
       function() {
         x[y == 1, z == 2] <- 1
         x[[y == 1, z == 2]] <- 1
@@ -427,7 +485,8 @@ public class CompilerTest extends AbstractGNURBasedTest implements Tests {
 
   @Test
   public void inlineSquareAssign3() {
-    assertBytecode("""
+    assertBytecode(
+        """
       function() {
         x[y == 1, ] <- 1
         x[[y == 1, ]] <- 1
@@ -437,7 +496,8 @@ public class CompilerTest extends AbstractGNURBasedTest implements Tests {
 
   @Test
   public void inlineSquareAssign4() {
-    assertBytecode("""
+    assertBytecode(
+        """
       function() {
         x$y[-c(1,2)] <- 1
       }
@@ -446,7 +506,8 @@ public class CompilerTest extends AbstractGNURBasedTest implements Tests {
 
   @Test
   public void inlineSquareSubset1() {
-    assertBytecode("""
+    assertBytecode(
+        """
       function() {
         x[y == 1]
         x[[y == 1]]
@@ -456,7 +517,8 @@ public class CompilerTest extends AbstractGNURBasedTest implements Tests {
 
   @Test
   public void inlineSquareSubset2() {
-    assertBytecode("""
+    assertBytecode(
+        """
       function() {
         x[y == 1, z == 2]
         x[[y == 1, z == 2]]
@@ -466,7 +528,8 @@ public class CompilerTest extends AbstractGNURBasedTest implements Tests {
 
   @Test
   public void inlineSquareSubset3() {
-    assertBytecode("""
+    assertBytecode(
+        """
       function() {
         x[y == 1,]
         x[[y == 1,]]
@@ -476,7 +539,8 @@ public class CompilerTest extends AbstractGNURBasedTest implements Tests {
 
   @Test
   public void inlineSquareSubset4() {
-    assertBytecode("""
+    assertBytecode(
+        """
       function() {
         x[a=1,]
         x[[a=1,]]
@@ -486,7 +550,8 @@ public class CompilerTest extends AbstractGNURBasedTest implements Tests {
 
   @Test
   public void inlineSlotAssign() {
-    assertBytecode("""
+    assertBytecode(
+        """
       function() {
         setClass("A", slots = list(x = "numeric"))
         a <- new("A", x = 42)
@@ -497,7 +562,8 @@ public class CompilerTest extends AbstractGNURBasedTest implements Tests {
 
   @Test
   public void inlineIdentical() {
-    assertBytecode("""
+    assertBytecode(
+        """
       function(x) {
         identical(unzip, "internal")
       }
@@ -536,7 +602,8 @@ public class CompilerTest extends AbstractGNURBasedTest implements Tests {
 
   @Test
   public void constantFoldNamedC() {
-    var code = """
+    var code =
+        """
             function(x) c(i = 1, d = 1, s = 1)
             """;
     var sexp = compile(code, 3);
@@ -549,10 +616,10 @@ public class CompilerTest extends AbstractGNURBasedTest implements Tests {
     assertBytecode(code);
   }
 
-
   @Test
   public void constantFoldMul() {
-    assertBytecode("""
+    assertBytecode(
+        """
       function() {
         2 * 3 * 4
       }
@@ -561,7 +628,8 @@ public class CompilerTest extends AbstractGNURBasedTest implements Tests {
 
   @Test
   public void constantFoldMul2() {
-    var code = """
+    var code =
+        """
             function(x) {
               2 * 3 * x
             }
@@ -578,7 +646,8 @@ public class CompilerTest extends AbstractGNURBasedTest implements Tests {
 
   @Test
   public void constantFoldAdd() {
-    var code = """
+    var code =
+        """
             function(x) 1 + 2
             """;
     var sexp = compile(code, 3);
@@ -593,7 +662,8 @@ public class CompilerTest extends AbstractGNURBasedTest implements Tests {
 
   @Test
   public void constantFoldAdd2() {
-    var code = """
+    var code =
+        """
             function(x) TRUE + c(10, 11)
             """;
     var sexp = compile(code, 3);
