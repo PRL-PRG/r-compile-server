@@ -13,8 +13,29 @@ import org.prlprg.RSession;
 import org.prlprg.bc.BcInstr.*;
 import org.prlprg.sexp.*;
 
+/**
+ * The R bytecode compiler that aims to be byte-to-byte compatible with GNU-R's bytecode compiler.
+ * <p>
+ * The compiler follows the implementation of the GNU-R bytecode compiler as described in
+ * the R compiler package documentation [1].
+ * It uses the Method Object pattern, i.e., in the constructor it is set what shall be compiled
+ * and the {@link #compile()} method is called to perform the compilation.
+ * </p>
+ * <p>
+ * In the comments below the {@code >> } indicates comments takes directly form [1].
+ * </p>
+ * <p>
+ * [1] A Byte Code Compiler for R by Luke Tierney, University of Iowa, accessed on August 23, 2023 from https://homepage.cs.uiowa.edu/~luke/R/compiler/compiler.pdf
+ * </p>
+ */
 public class Compiler {
+
+  /** SEXP types that can participate in constan folding. */
+  private static final Set<SEXPType> ALLOWED_FOLDABLE_MODES = Set.of(LGL, INT, REAL, CPLX, STR);
+
   private static final Set<String> MAYBE_NSE_SYMBOLS = Set.of("bquote");
+
+  /** List of functions that gets special treatment when considering inlining (cf. {@link #getInlineInfo(String, boolean)}). */
   private static final Set<String> LANGUAGE_FUNS =
       Set.of(
           "^",
@@ -64,8 +85,12 @@ public class Compiler {
           "return",
           "switch");
 
-  // One-parameter functions evaluated by the math1 function in arithmetic.c
-  // NOTE that the order is important!
+  /**
+   * The list of one-parameter functions evaluated by the math1 function in arithmetic.c
+   *
+   * <p>NOTE that the order is important (and has to be the same as in R)! The MATH1_OP takes an
+   * index into an array of math functions.
+   */
   private static final List<String> MATH1_FUNS =
       List.of(
           "floor",
@@ -116,55 +141,110 @@ public class Compiler {
           "rep.int",
           "rep_len");
 
+  /** Black list of functions that should not be inlined. */
   private static final Set<String> FORBIDDEN_INLINES = Set.of("standardGeneric");
 
+  /** should match DOTCALL_MAX in eval.c */
+  private static final int DOTCALL_MAX = 16;
+
+  /** R limit for the max vector size to participate in constant folding */
   private static final int MAX_CONST_SIZE = 10;
 
-  // I also did not know:
-  // > x <- function() TRUE
-  // > .Internal(inspect(body(x)))
-  // @5c0d69684e48 10 LGLSXP g0c1 [REF(2)] (len=1, tl=0) 1
-  // > x <- function() T
-  // > .Internal(inspect(body(x)))
-  // @5c0d6769c910 01 SYMSXP g0c0 [MARK,REF(4),LCK,gp=0x4000] "T" (has value)
+  /**
+   * The set of constants that can be folded.
+   *
+   * <p>Note (I also did not know):
+   *
+   * <pre><code>
+   * > x <- function() TRUE
+   * > .Internal(inspect(body(x)))
+   * @5c0d69684e48 10 LGLSXP g0c1 [REF(2)] (len=1, tl=0) 1
+   * > x <- function() T
+   * > .Internal(inspect(body(x)))
+   * @5c0d6769c910 01 SYMSXP g0c0 [MARK,REF(4),LCK,gp=0x4000] "T" (has value)
+   * </code></pre>
+   */
   private static final Set<String> ALLOWED_FOLDABLE_CONSTS = Set.of("pi", "T", "F");
 
+  /** The set of functions that can be folded. */
   private static final Set<String> ALLOWED_FOLDABLE_FUNS =
       Set.of("c", "+", "*", "/", ":", "-", "^", "(", "log2", "log", "sqrt", "rep", "seq.int");
 
-  static final Set<SEXPType> ALLOWED_FOLDABLE_MODES = Set.of(LGL, INT, REAL, CPLX, STR);
+  /**
+   * The set of functions that if encounted in loop body allow us to stop the search whether loop
+   * context can be avoided (cf. {@link #canSkipLoopContext(SEXP, boolean)})
+   */
+  private static final Set<String> LOOP_STOP_FUNS = Set.of("function", "for", "while", "repeat");
 
-  // should match DOTCALL_MAX in eval.c
-  private static final int DOTCALL_MAX = 16;
+  /**
+   * The set of functions that has to be handled recursively in the search for loop context (cf.
+   * {@link #canSkipLoopContext(SEXP, boolean)})
+   */
+  private static final Set<String> LOOP_TOP_FUNS = Set.of("(", "{", "if");
 
+  /**
+   * The set of functions that indicates the need for loop context (cf. {@link
+   * #canSkipLoopContext(SEXP, boolean)})
+   */
+  private static final Set<String> LOOP_BREAK_FUNS = Set.of("break", "next");
+
+  /**
+   * The set of functions that indicates the need for loop context (cf. {@link
+   * #canSkipLoopContext(SEXP, boolean)})
+   */
+  private static final Set<String> EVAL_FUNS = Set.of("eval", "evalq", "source");
+
+  /** The target for the byte code of this compiler. */
   private final Bc.Builder cb = new Bc.Builder();
 
+  /** Corresponding R session used to lookup symbols. */
   private final RSession rsession;
 
   /** The initial expression to compile. */
   private final SEXP expr;
 
+  /** The current compilation context. */
   private Context ctx;
 
-  /*
-   * 0 - No inlining
-   * 1 - Functions in the base packages found through a namespace that are not
-   * shadowed by
-   * function arguments or visible local assignments may be inlined.
-   * 2 - In addition to the inlining permitted by Level 1, functions that are
-   * syntactically special
-   * or are considered core language functions and are found via the global
-   * environment at compile
-   * time may be inlined. Other functions in the base packages found via the
-   * global environment
-   * may be inlined with a guard that ensures at runtime that the inlined function
-   * has not been
-   * masked; if it has, then the call in handled by the AST interpreter.
-   * 3 - Any function in the base packages found via the global environment may be
-   * inlined.
+  /**
+   * The optimization level:
+   * <table>
+   *     <tr>
+   *         <td>Level</td><td>Description (from compiler.R)</td>
+   *     </tr>
+   *     <tr>
+   *         <td>0</td>
+   *         <td>No inlining</td>
+   *     </tr>
+   *     <tr>
+   *         <td>1</td>
+   *         <td>Functions in the base packages found through a namespace that are not
+   *             shadowed by function arguments or visible local assignments may be inlined</td>
+   *     </tr>
+   *     <tr>
+   *         <td>2</td>
+   *         <td>In addition to the inlining permitted by Level 1, functions that are
+   *             syntactically special or are considered core language functions and are found via the global
+   *             environment at compile time may be inlined. Other functions in the base packages found via the
+   *             global environment may be inlined with a guard that ensures at runtime that the inlined function
+   *             has not been masked; if it has, then the call in handled by the AST interpreter.</td>
+   *     </tr>
+   *     <tr>
+   *         <td>3</td>
+   *         <td>Any function in the base packages found via the global environment may be inlined.</td>
+   *     </tr>
+   * </table>
    */
   private int optimizationLevel = 2;
 
+  /**
+   * Creates a compiler for the given expression, context, session, and location.
+   *
+   * @param expr the expression to be compiled
+   * @param ctx the context used for the compilation
+   * @param rsession the session used for symbol resolution
+   * @param loc the source code location of the expression
+   */
   private Compiler(SEXP expr, Context ctx, RSession rsession, Loc loc) {
     this.expr = expr;
     this.ctx = ctx;
@@ -181,36 +261,23 @@ public class Compiler {
     cb.setCurrentLoc(loc);
   }
 
+  /**
+   * Creates a compiler for the given function.
+   *
+   * @param fun the function to be compiled
+   * @param rsession the session used for symbol resolution
+   */
   public Compiler(CloSXP fun, RSession rsession) {
     this(fun.bodyAST(), Context.functionContext(fun), rsession, functionLoc(fun));
   }
 
-  // this is a very primitive implementation of the match.call
-  static LangSXP matchCall(CloSXP definition, LangSXP call) {
-    var matched = ImmutableList.<TaggedElem>builder();
-    var remaining = new ArrayList<SEXP>();
-    var formals = definition.formals();
-
-    if (formals.size() < call.args().size()) {
-      throw new IllegalArgumentException("Too many arguments and we do not support ... yet");
-    }
-
-    for (var actual : call.args()) {
-      if (actual.tag() != null) {
-        matched.add(actual);
-        formals = formals.remove(actual.tag());
-      } else {
-        remaining.add(actual.value());
-      }
-    }
-
-    for (int i = 0; i < remaining.size(); i++) {
-      matched.add(new TaggedElem(formals.get(i).tag(), remaining.get(i)));
-    }
-
-    return SEXPs.lang(call.fun(), SEXPs.list(matched.build()));
-  }
-
+  /**
+   * Creates a clone of the current state of the compiler except for the expression and context.
+   *
+   * @param expr the new expression to compile
+   * @param ctx the new context for the compilation
+   * @param loc the source code location of the expression
+   */
   private Compiler fork(SEXP expr, Context ctx, Loc loc) {
     var compiler = new Compiler(expr, ctx, rsession, loc);
     compiler.setOptimizationLevel(optimizationLevel);
@@ -221,6 +288,11 @@ public class Compiler {
     this.optimizationLevel = level;
   }
 
+  /**
+   * Executes the compilation and returns the compiled code if the expression does not contain any calls to the browser function.
+   *
+   * @return the compiled code or empty if the expression contains a call to the browser function
+   */
   public Optional<Bc> compile() {
     if (mayCallBrowser(expr)) {
       return Optional.empty();
@@ -233,23 +305,6 @@ public class Compiler {
     cb.addConst(expr);
     compile(expr, false, false);
     return cb.build();
-  }
-
-  private static Loc functionLoc(CloSXP fun) {
-    var body = fun.bodyAST();
-
-    Optional<IntSXP> srcRef;
-    if (body instanceof LangSXP b
-        && b.fun() instanceof RegSymSXP sym
-        && sym.name().equals("{")) { // FIXME: ugly
-      srcRef = extractSrcRef(body, 0);
-    } else {
-      // try to get the srcRef from the function itself
-      // normally, it would be attached to the `{`
-      srcRef = fun.getSrcRef();
-    }
-
-    return new Loc(body, srcRef.orElse(null));
   }
 
   private void compile(SEXP expr) {
@@ -270,23 +325,22 @@ public class Compiler {
       cb.setCurrentLoc(new Loc(expr, extractSrcRef(expr, 0).orElse(null)));
     }
 
-    constantFold(expr)
-        .ifPresentOrElse(
-            this::compileConst,
-            () -> {
-              switch (expr) {
-                case LangSXP e -> compileCall(e, true);
-                case RegSymSXP e -> compileSym(e, missingOK);
-                case SpecialSymSXP e -> stop("unhandled special symbol: " + e);
-                case PromSXP ignored -> stop("cannot compile promise literals in code");
-                case BCodeSXP ignored -> stop("cannot compile byte code literals in code");
-                default -> compileConst(expr);
-              }
-            });
+    constantFold(expr).ifPresentOrElse(this::compileConst, () -> compileNonConst(expr, missingOK));
 
     if (loc != null) {
       cb.setCurrentLoc(loc);
     }
+  }
+
+  private void compileNonConst(SEXP expr, boolean missingOK) {
+      switch (expr) {
+        case LangSXP e -> compileCall(e, true);
+        case RegSymSXP e -> compileSym(e, missingOK);
+        case SpecialSymSXP e -> stop("unhandled special symbol: " + e);
+        case PromSXP ignored -> stop("cannot compile promise literals in code");
+        case BCodeSXP ignored -> stop("cannot compile byte code literals in code");
+        default -> compileConst(expr);
+      }
   }
 
   /**
@@ -563,17 +617,6 @@ public class Compiler {
 
     return Optional.ofNullable(fun);
   }
-
-  /**
-   * Information inlining for an R symbol.
-   *
-   * @param name the symbol name
-   * @param env the environment where the symbol was found
-   * @param value the value of the symbol or null if no value was found
-   * @param guard whether the inlining should be guarded which depends on the environment, {@link
-   *     #optimizationLevel} and target.
-   */
-  record InlineInfo(String name, EnvSXP env, @Nullable SEXP value, boolean guard) {}
 
   private Optional<InlineInfo> getInlineInfo(String name, boolean guardOK) {
     if (FORBIDDEN_INLINES.contains(name) || optimizationLevel < 1) {
@@ -1776,8 +1819,6 @@ public class Compiler {
     cb.setCurrentLoc(sloc);
   }
 
-  record FlattenLHS(LangSXP original, LangSXP temp) {}
-
   private List<FlattenLHS> flattenPlace(SEXP lhs, Loc loc) {
     var places = new ArrayList<FlattenLHS>();
 
@@ -1856,7 +1897,7 @@ public class Compiler {
 
   private boolean inlineSquareBracketSubSet(boolean doubleBracket, LangSXP call) {
     if (dotsOrMissing(call.args()) || call.args().hasTags() || call.args().size() < 2) {
-      // inline cmpGetterDispatch
+      // inline cmpGetterDispatch from the R compiler
 
       if (anyDots(call.args())) {
         return false;
@@ -2185,11 +2226,6 @@ public class Compiler {
     throw new CompilerException(message, loc);
   }
 
-  private static final Set<String> LOOP_STOP_FUNS = Set.of("function", "for", "while", "repeat");
-  private static final Set<String> LOOP_TOP_FUNS = Set.of("(", "{", "if");
-  private static final Set<String> LOOP_BREAK_FUNS = Set.of("break", "next");
-  private static final Set<String> EVAL_FUNS = Set.of("eval", "evalq", "source");
-
   private boolean canSkipLoopContextList(ListSXP list, boolean breakOK) {
     return list.values().stream().noneMatch(x -> !missing(x) && !canSkipLoopContext(x, breakOK));
   }
@@ -2255,29 +2291,6 @@ public class Compiler {
     }
   }
 
-  private static Optional<IntSXP> extractSrcRef(SEXP expr, int idx) {
-    var attrs = expr.attributes();
-    if (attrs == null) {
-      return Optional.empty();
-    }
-
-    var srcref = attrs.get("srcref");
-    if (srcref == null) {
-      return Optional.empty();
-    }
-
-    if (srcref instanceof IntSXP i && i.size() >= 6) {
-      return Optional.of(i);
-    } else if (srcref instanceof VecSXP v
-        && v.size() >= idx
-        && v.get(idx) instanceof IntSXP i
-        && i.size() >= 6) {
-      return Optional.of(i);
-    } else {
-      return Optional.empty();
-    }
-  }
-
   private boolean mayCallBrowser(SEXP body) {
     if (body instanceof LangSXP call) {
       if (call.fun() instanceof RegSymSXP s) {
@@ -2294,4 +2307,101 @@ public class Compiler {
 
     return false;
   }
+
+
+  // This is a very primitive implementation of the {@code match.call}
+  // it simply tries to match the named arguments to parameters
+  // followed by the rest of the arguments.
+  static LangSXP matchCall(CloSXP definition, LangSXP call) {
+    var matched = ImmutableList.<TaggedElem>builder();
+    var remaining = new ArrayList<SEXP>();
+    var formals = definition.formals();
+
+    if (formals.size() < call.args().size()) {
+      throw new IllegalArgumentException("Too many arguments and we do not support ... yet");
+    }
+
+    for (var actual : call.args()) {
+      if (actual.tag() != null) {
+        matched.add(actual);
+        formals = formals.remove(actual.tag());
+      } else {
+        remaining.add(actual.value());
+      }
+    }
+
+    for (int i = 0; i < remaining.size(); i++) {
+      matched.add(new TaggedElem(formals.get(i).tag(), remaining.get(i)));
+    }
+
+    return SEXPs.lang(call.fun(), SEXPs.list(matched.build()));
+  }
+
+  // extracts the source reference from the function
+  // using either the body, if the body is wrapped in a block
+  // or from function itself
+  private static Loc functionLoc(CloSXP fun) {
+    var body = fun.bodyAST();
+
+    Optional<IntSXP> srcRef;
+
+    // FIXME: ugly
+    if (body instanceof LangSXP b
+            && b.fun() instanceof RegSymSXP sym
+            && sym.name().equals("{")) {
+      srcRef = extractSrcRef(body, 0);
+    } else {
+      // try to get the srcRef from the function itself
+      // normally, it would be attached to the `{`
+      srcRef = fun.getSrcRef();
+    }
+
+    return new Loc(body, srcRef.orElse(null));
+  }
+
+  /**
+   * Extracts source reference from the given expression.
+   * It uses the {@code srcref} attribute of the expression.
+   * If the expression is a block, then the {@code srcref} will
+   * be a vector of srcrefs in which case it will use the given index.
+   *
+   * @param expr the expression to get the source reference from
+   * @param idx the index of the source reference in the vector in the case the expression is a block
+   * @return source code reference or empty if not found
+   */
+  private static Optional<IntSXP> extractSrcRef(SEXP expr, int idx) {
+    var attrs = expr.attributes();
+    if (attrs == null) {
+      return Optional.empty();
+    }
+
+    var srcref = attrs.get("srcref");
+    if (srcref == null) {
+      return Optional.empty();
+    }
+
+    if (srcref instanceof IntSXP i && i.size() >= 6) {
+      return Optional.of(i);
+    } else if (srcref instanceof VecSXP v
+            && v.size() >= idx
+            && v.get(idx) instanceof IntSXP i
+            && i.size() >= 6) {
+      return Optional.of(i);
+    } else {
+      return Optional.empty();
+    }
+  }
+
+  /**
+   * Information inlining for an R symbol.
+   *
+   * @param name the symbol name
+   * @param env the environment where the symbol was found
+   * @param value the value of the symbol or null if no value was found
+   * @param guard whether the inlining should be guarded which depends on the environment, {@link
+   *     #optimizationLevel} and target.
+   */
+  record InlineInfo(String name, EnvSXP env, @Nullable SEXP value, boolean guard) {}
+
+  record FlattenLHS(LangSXP original, LangSXP temp) {}
 }
