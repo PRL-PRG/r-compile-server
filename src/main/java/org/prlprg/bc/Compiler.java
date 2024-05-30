@@ -14,18 +14,16 @@ import org.prlprg.sexp.*;
 
 /**
  * The R bytecode compiler that aims to be byte-to-byte compatible with GNU-R's bytecode compiler.
- * <p>
- * The compiler follows the implementation of the GNU-R bytecode compiler as described in
- * the R compiler package documentation [1].
- * It uses the Method Object pattern, i.e., in the constructor it is set what shall be compiled
- * and the {@link #compile()} method is called to perform the compilation.
- * </p>
- * <p>
- * In the comments below the {@code >> } indicates comments takes directly form [1].
- * </p>
- * <p>
- * [1] A Byte Code Compiler for R by Luke Tierney, University of Iowa, accessed on August 23, 2023 from https://homepage.cs.uiowa.edu/~luke/R/compiler/compiler.pdf
- * </p>
+ *
+ * <p>The compiler follows the implementation of the GNU-R bytecode compiler as described in the R
+ * compiler package documentation [1]. It uses the Method Object pattern, i.e., in the constructor
+ * it is set what shall be compiled and the {@link #compile()} method is called to perform the
+ * compilation.
+ *
+ * <p>In the comments below the {@code >> } indicates comments takes directly form [1].
+ *
+ * <p>[1] A Byte Code Compiler for R by Luke Tierney, University of Iowa, accessed on August 23,
+ * 2023 from https://homepage.cs.uiowa.edu/~luke/R/compiler/compiler.pdf
  */
 public class Compiler {
 
@@ -34,7 +32,10 @@ public class Compiler {
 
   private static final Set<String> MAYBE_NSE_SYMBOLS = Set.of("bquote");
 
-  /** List of functions that gets special treatment when considering inlining (cf. {@link #getInlineInfo(String, boolean)}). */
+  /**
+   * List of functions that gets special treatment when considering inlining (cf. {@link
+   * #getInlineInfo(String, boolean)}).
+   */
   private static final Set<String> LANGUAGE_FUNS =
       Set.of(
           "^",
@@ -207,6 +208,7 @@ public class Compiler {
 
   /**
    * The optimization level:
+   *
    * <table>
    *     <tr>
    *         <td>Level</td><td>Description (from compiler.R)</td>
@@ -288,7 +290,8 @@ public class Compiler {
   }
 
   /**
-   * Executes the compilation and returns the compiled code if the expression does not contain any calls to the browser function.
+   * Executes the compilation and returns the compiled code if the expression does not contain any
+   * calls to the browser function.
    *
    * @return the compiled code or empty if the expression contains a call to the browser function
    */
@@ -343,14 +346,14 @@ public class Compiler {
   }
 
   private void compileNonConst(SEXP expr, boolean missingOK) {
-      switch (expr) {
-        case LangSXP e -> compileCall(e, true);
-        case RegSymSXP e -> compileSym(e, missingOK);
-        case SpecialSymSXP e -> stop("unhandled special symbol: " + e);
-        case PromSXP ignored -> stop("cannot compile promise literals in code");
-        case BCodeSXP ignored -> stop("cannot compile byte code literals in code");
-        default -> compileConst(expr);
-      }
+    switch (expr) {
+      case LangSXP e -> compileCall(e, true);
+      case RegSymSXP e -> compileSym(e, missingOK);
+      case SpecialSymSXP e -> stop("unhandled special symbol: " + e);
+      case PromSXP ignored -> stop("cannot compile promise literals in code");
+      case BCodeSXP ignored -> stop("cannot compile byte code literals in code");
+      default -> compileConst(expr);
+    }
   }
 
   /**
@@ -391,18 +394,17 @@ public class Compiler {
       case SpecialSymSXP fun ->
           throw new IllegalStateException("Trying to call special symbol: " + fun);
       case LangSXP fun ->
-        fun.funName()
-           .filter(LOOP_BREAK_FUNS::contains)
-           .ifPresentOrElse(
-                   ignored ->
+          fun.funName()
+              .filter(LOOP_BREAK_FUNS::contains)
+              .ifPresentOrElse(
+                  ignored ->
                       // >> ## **** this hack is needed for now because of the way the
                       // >> ## **** parser handles break() and next() calls
-                      // >> Consequently, the RDSReader returns a LangSXP(LangSXP(break/next, NULL), NULL) for
+                      // >> Consequently, the RDSReader returns a LangSXP(LangSXP(break/next, NULL),
+                      // NULL) for
                       // >> break() and next() calls
-                      compile(fun)
-                   ,
-                   () -> compileCallExprFun(call, fun, args)
-           );
+                      compile(fun),
+                  () -> compileCallExprFun(call, fun, args));
     }
 
     cb.setCurrentLoc(loc);
@@ -441,8 +443,8 @@ public class Compiler {
           compileTag(tag);
         }
         case SymSXP x when x.isEllipsis() ->
-          // TODO: notifyWrongDotsUse
-          cb.addInstr(new DoDots());
+            // TODO: notifyWrongDotsUse
+            cb.addInstr(new DoDots());
         case SymSXP x -> {
           compileNormArg(x, nse);
           compileTag(tag);
@@ -489,9 +491,7 @@ public class Compiler {
     }
   }
 
-  /**
-   * A helper to add a return when the context is in tail position.
-   */
+  /** A helper to add a return when the context is in tail position. */
   @SuppressWarnings("UnusedReturnValue")
   private boolean tailCallReturn() {
     if (ctx.isTailCall()) {
@@ -502,9 +502,7 @@ public class Compiler {
     }
   }
 
-  /**
-   * A helper to add an invisible return when the context is in tail position.
-   */
+  /** A helper to add an invisible return when the context is in tail position. */
   private boolean tailCallInvisibleReturn() {
     if (ctx.isTailCall()) {
       cb.addInstr(new Invisible());
@@ -516,12 +514,10 @@ public class Compiler {
   }
 
   /**
-   * The entry point for the inlining process.
-   * It will either inline the given call or return false.
+   * The entry point for the inlining process. It will either inline the given call or return false.
    *
    * @param fun the function to inline
    * @param call the entire call
-   *
    * @return true if the function was inlined, false otherwise
    */
   private boolean tryInlineCall(RegSymSXP fun, LangSXP call) {
@@ -636,11 +632,11 @@ public class Compiler {
   }
 
   /**
-   * Returns inline information for the given function name or empty if the function is not inlinable.
+   * Returns inline information for the given function name or empty if the function is not
+   * inlinable.
    *
-   * It tries to resolve the function name in the current context {@link #ctx}
-   * and then based on the given rules from R compiler figure out whether the
-   * function should be inlinable or not.
+   * <p>It tries to resolve the function name in the current context {@link #ctx} and then based on
+   * the given rules from R compiler figure out whether the function should be inlinable or not.
    *
    * @param name the name of the function to inline
    * @param guardOK whether to allow inlining with a guard
@@ -727,12 +723,14 @@ public class Compiler {
         .orElse(false);
   }
 
-
   //    >> The inlining handler for `{` needs to consider that a pair of braces { and } can
-  //    >> surround zero, one, or more expressions. A set of empty braces is equivalent to the constant
-  //    >> NULL. If there is more than one expression, then all the values of all expressions other than
+  //    >> surround zero, one, or more expressions. A set of empty braces is equivalent to the
+  // constant
+  //    >> NULL. If there is more than one expression, then all the values of all expressions other
+  // than
   //    >> the last are ignored. These expressions are compiled in a no-value context (currently
-  //    >> equivalent to a non-tail-call context), and then code is generated to pop their values off the
+  //    >> equivalent to a non-tail-call context), and then code is generated to pop their values
+  // off the
   //    >> stack. The final expression is then compiled according to the context in which the braces
   //    >> expression occurs.
   private boolean inlineBlock(LangSXP call) {
@@ -934,8 +932,7 @@ public class Compiler {
 
     var closure =
         SEXPs.lang(
-            SEXPs.lang(
-                SEXPs.symbol("function"), SEXPs.list(SEXPs.NULL, call.arg(0), SEXPs.NULL)),
+            SEXPs.lang(SEXPs.symbol("function"), SEXPs.list(SEXPs.NULL, call.arg(0), SEXPs.NULL)),
             SEXPs.list());
     compile(closure);
     return true;
@@ -980,10 +977,8 @@ public class Compiler {
     }
 
     for (var x : formals.values()) {
-      if (!missing(x)) {
-        if (x.typeOneOf(SYM, LANG, PROM, BCODE)) {
-          return false;
-        }
+      if (!missing(x) && x.typeOneOf(SYM, LANG, PROM, BCODE)) {
+        return false;
       }
     }
 
@@ -1019,37 +1014,41 @@ public class Compiler {
     }
 
     return b.asCall()
-     .filter(call -> call.funName(".Internal"))
-     .flatMap(call -> call.arg(0).asCall())
-            .filter(internalCall -> internalCall.funName().map(rsession::isBuiltinInternal).orElse(false))
-            .filter(internalCall -> hasSimpleArgs(internalCall, def.formals().names()));
+        .filter(call -> call.funName(".Internal"))
+        .flatMap(call -> call.arg(0).asCall())
+        .filter(
+            internalCall -> internalCall.funName().map(rsession::isBuiltinInternal).orElse(false))
+        .filter(internalCall -> hasSimpleArgs(internalCall, def.formals().names()));
   }
 
   private Optional<LangSXP> tryConvertToDotInternalCall(LangSXP call) {
-    return Optional
-            .of(call)
-            .filter(c -> !dotsOrMissing(c.args()))
-            .flatMap(LangSXP::funName)
-            .flatMap(ctx::findFunDef)
-            .flatMap(def ->
-                    extractSimpleInternal(def).map(internalCall -> {
-                      var cenv = new HashMap<String, SEXP>();
+    return Optional.of(call)
+        .filter(c -> !dotsOrMissing(c.args()))
+        .flatMap(LangSXP::funName)
+        .flatMap(ctx::findFunDef)
+        .flatMap(
+            def ->
+                extractSimpleInternal(def)
+                    .map(
+                        internalCall -> {
+                          var cenv = new HashMap<String, SEXP>();
 
-                      def.formals().forEach((x) -> cenv.put(x.tag(), x.value()));
-                      matchCall(def, call).args().forEach((x) -> cenv.put(x.tag(), x.value()));
+                          def.formals().forEach((x) -> cenv.put(x.tag(), x.value()));
+                          matchCall(def, call).args().forEach((x) -> cenv.put(x.tag(), x.value()));
 
-                      var args =
-                        internalCall
-                                .args()
-                                .stream()
-                                .map((x) -> (x.value() instanceof RegSymSXP sym) ? cenv.get(sym.name()) : x.value())
-                                .toList();
+                          var args =
+                              internalCall.args().stream()
+                                  .map(
+                                      (x) ->
+                                          (x.value() instanceof RegSymSXP sym)
+                                              ? cenv.get(sym.name())
+                                              : x.value())
+                                  .toList();
 
-                      return SEXPs.lang(
-                                      SEXPs.symbol(".Internal"),
-                                      SEXPs.list(SEXPs.lang(internalCall.fun(), SEXPs.list2(args))));
-                    })
-            );
+                          return SEXPs.lang(
+                              SEXPs.symbol(".Internal"),
+                              SEXPs.list(SEXPs.lang(internalCall.fun(), SEXPs.list2(args))));
+                        }));
   }
 
   private boolean inlineSimpleInternal(LangSXP call) {
@@ -1057,9 +1056,7 @@ public class Compiler {
       return false;
     }
 
-    return tryConvertToDotInternalCall(call)
-               .map(this::inlineDotInternalCall)
-               .orElse(false);
+    return tryConvertToDotInternalCall(call).map(this::inlineDotInternalCall).orElse(false);
   }
 
   // Because of the possibility of NA values, R cannot reduce && and || to a simple rewriting
@@ -1108,7 +1105,6 @@ public class Compiler {
 
     return true;
   }
-
 
   private boolean canSkipLoopContextList(ListSXP list, boolean breakOK) {
     return list.values().stream().noneMatch(x -> !missing(x) && !canSkipLoopContext(x, breakOK));
@@ -1316,10 +1312,7 @@ public class Compiler {
   private boolean inlineLog(LangSXP call) {
     ListSXP args = call.args();
 
-    if (dotsOrMissing(args)
-        || args.hasTags()
-        || args.isEmpty()
-        || args.size() > 2) {
+    if (dotsOrMissing(args) || args.hasTags() || args.isEmpty() || args.size() > 2) {
       return inlineSpecial(call);
     }
 
@@ -1392,10 +1385,7 @@ public class Compiler {
 
   private boolean inlineDotCall(LangSXP call) {
     ListSXP args = call.args();
-    if (dotsOrMissing(args)
-        || args.hasTags()
-        || args.isEmpty()
-        || args.size() > DOTCALL_MAX) {
+    if (dotsOrMissing(args) || args.hasTags() || args.isEmpty() || args.size() > DOTCALL_MAX) {
       return inlineBuiltin(call, false);
     }
 
@@ -2095,9 +2085,9 @@ public class Compiler {
    */
   private Optional<SEXP> constantFoldCall(LangSXP call) {
     return call.funName()
-            .filter(this::isFoldableFun)
-            .flatMap(name -> buildArgs(call).flatMap(args -> doConstantFoldCall(name, args)))
-            .flatMap(this::checkConst);
+        .filter(this::isFoldableFun)
+        .flatMap(name -> buildArgs(call).flatMap(args -> doConstantFoldCall(name, args)))
+        .flatMap(this::checkConst);
   }
 
   private Optional<List<SEXP>> buildArgs(LangSXP call) {
@@ -2128,42 +2118,41 @@ public class Compiler {
 
   private Optional<SEXP> doConstantFoldCall(String funName, List<SEXP> args) {
     return switch (funName) {
-              case "(" -> constantFoldParen(args);
-              case "c" -> ConstantFolding.c(args);
-              case "+" -> {
-                if (args.size() == 1) {
-                  yield ConstantFolding.plus(args);
-                } else {
-                  yield ConstantFolding.add(args);
-                }
-              }
-              case "*" -> ConstantFolding.mul(args);
-              case "/" -> ConstantFolding.div(args);
-              case "-" -> {
-                if (args.size() == 1) {
-                  yield ConstantFolding.minus(args);
-                } else {
-                  yield ConstantFolding.sub(args);
-                }
-              }
-              case ":" -> ConstantFolding.colon(args);
-              case "^" -> ConstantFolding.pow(args);
-              case "log" -> ConstantFolding.log(args);
-              case "log2" -> ConstantFolding.log2(args);
-              case "sqrt" -> ConstantFolding.sqrt(args);
-              case "rep" -> ConstantFolding.rep(args);
-              case "seq.int" -> ConstantFolding.seqInt(args);
-              default -> Optional.empty();
-            };
+      case "(" -> constantFoldParen(args);
+      case "c" -> ConstantFolding.c(args);
+      case "+" -> {
+        if (args.size() == 1) {
+          yield ConstantFolding.plus(args);
+        } else {
+          yield ConstantFolding.add(args);
+        }
+      }
+      case "*" -> ConstantFolding.mul(args);
+      case "/" -> ConstantFolding.div(args);
+      case "-" -> {
+        if (args.size() == 1) {
+          yield ConstantFolding.minus(args);
+        } else {
+          yield ConstantFolding.sub(args);
+        }
+      }
+      case ":" -> ConstantFolding.colon(args);
+      case "^" -> ConstantFolding.pow(args);
+      case "log" -> ConstantFolding.log(args);
+      case "log2" -> ConstantFolding.log2(args);
+      case "sqrt" -> ConstantFolding.sqrt(args);
+      case "rep" -> ConstantFolding.rep(args);
+      case "seq.int" -> ConstantFolding.seqInt(args);
+      default -> Optional.empty();
+    };
   }
 
   private boolean isFoldableFun(String name) {
-    return Optional
-            .of(name)
-            .filter(ALLOWED_FOLDABLE_FUNS::contains)
-            .flatMap(n -> getInlineInfo(n, false))
-            .map(x -> x.env.isBase() && x.value != null && x.value.isFunction())
-            .orElse(false);
+    return Optional.of(name)
+        .filter(ALLOWED_FOLDABLE_FUNS::contains)
+        .flatMap(n -> getInlineInfo(n, false))
+        .map(x -> x.env.isBase() && x.value != null && x.value.isFunction())
+        .orElse(false);
   }
 
   private Optional<SEXP> constantFoldParen(List<SEXP> args) {
@@ -2182,17 +2171,12 @@ public class Compiler {
   }
 
   private boolean anyDots(ListSXP l) {
-    return l
-            .values()
-            .stream()
-            .anyMatch(x -> !missing(x) && x instanceof SymSXP s && s.isEllipsis());
+    return l.values().stream()
+        .anyMatch(x -> !missing(x) && x instanceof SymSXP s && s.isEllipsis());
   }
 
   private boolean dotsOrMissing(ListSXP l) {
-    return l
-            .values()
-            .stream()
-            .anyMatch(x -> missing(x) || x instanceof SymSXP s && s.isEllipsis());
+    return l.values().stream().anyMatch(x -> missing(x) || x instanceof SymSXP s && s.isEllipsis());
   }
 
   private boolean missing(SEXP x) {
@@ -2205,22 +2189,19 @@ public class Compiler {
   }
 
   private boolean mayCallBrowser(SEXP body) {
-    if (body instanceof LangSXP call) {
-      if (call.fun() instanceof RegSymSXP s) {
-        var name = s.name();
-        if (name.equals("browser")) {
-          return true;
-        } else if (name.equals("function") && ctx.isBaseVersion(name)) {
-          return false;
-        } else {
-          return call.args().values().stream().anyMatch(this::mayCallBrowser);
-        }
+    if (body instanceof LangSXP call && call.fun() instanceof RegSymSXP s) {
+      var name = s.name();
+      if (name.equals("browser")) {
+        return true;
+      } else if (name.equals("function") && ctx.isBaseVersion(name)) {
+        return false;
+      } else {
+        return call.args().values().stream().anyMatch(this::mayCallBrowser);
       }
     }
 
     return false;
   }
-
 
   // This is a very primitive implementation of the {@code match.call}
   // it simply tries to match the named arguments to parameters
@@ -2270,13 +2251,13 @@ public class Compiler {
   }
 
   /**
-   * Extracts source reference from the given expression.
-   * It uses the {@code srcref} attribute of the expression.
-   * If the expression is a block, then the {@code srcref} will
-   * be a vector of srcrefs in which case it will use the given index.
+   * Extracts source reference from the given expression. It uses the {@code srcref} attribute of
+   * the expression. If the expression is a block, then the {@code srcref} will be a vector of
+   * srcrefs in which case it will use the given index.
    *
    * @param expr the expression to get the source reference from
-   * @param idx the index of the source reference in the vector in the case the expression is a block
+   * @param idx the index of the source reference in the vector in the case the expression is a
+   *     block
    * @return source code reference or empty if not found
    */
   private static Optional<IntSXP> extractSrcRef(SEXP expr, int idx) {
@@ -2293,9 +2274,9 @@ public class Compiler {
     if (srcref instanceof IntSXP i && i.size() >= 6) {
       return Optional.of(i);
     } else if (srcref instanceof VecSXP v
-            && v.size() >= idx
-            && v.get(idx) instanceof IntSXP i
-            && i.size() >= 6) {
+        && v.size() >= idx
+        && v.get(idx) instanceof IntSXP i
+        && i.size() >= 6) {
       return Optional.of(i);
     } else {
       return Optional.empty();
@@ -2314,8 +2295,8 @@ public class Compiler {
   record InlineInfo(String name, EnvSXP env, @Nullable SEXP value, boolean guard) {}
 
   /**
-   * Helper struct for inlining `[[` and the like.
-   * Essentially links the `*tmp*` with the corresponding code.
+   * Helper struct for inlining `[[` and the like. Essentially links the `*tmp*` with the
+   * corresponding code.
    */
   record FlattenLHS(LangSXP original, LangSXP temp) {}
 }
