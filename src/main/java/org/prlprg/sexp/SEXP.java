@@ -1,11 +1,7 @@
 package org.prlprg.sexp;
 
 import com.google.common.collect.Streams;
-
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 import javax.annotation.Nullable;
 
 /**
@@ -103,5 +99,9 @@ public sealed interface SEXP
 
   default boolean typeOneOf(SEXPType... types) {
     return Arrays.stream(types).anyMatch(t -> t == type());
+  }
+
+  default Optional<LangSXP> asCall() {
+    return this instanceof LangSXP call ? Optional.of(call) : Optional.empty();
   }
 }

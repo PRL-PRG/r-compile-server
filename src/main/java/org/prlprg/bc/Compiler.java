@@ -390,17 +390,19 @@ public class Compiler {
       }
       case SpecialSymSXP fun ->
           throw new IllegalStateException("Trying to call special symbol: " + fun);
-      case LangSXP fun -> {
-        if (fun.fun() instanceof RegSymSXP sym && LOOP_BREAK_FUNS.contains(sym.name())) {
-          // >> ## **** this hack is needed for now because of the way the
-          // >> ## **** parser handles break() and next() calls
-          // >> Consequently, the RDSReader returns a LangSXP(LangSXP(break/next, NULL), NULL) for
-          // >> break() and next() calls
-          compile(fun);
-        } else {
-          compileCallExprFun(call, fun, args);
-        }
-      }
+      case LangSXP fun ->
+        fun.funName()
+           .filter(LOOP_BREAK_FUNS::contains)
+           .ifPresentOrElse(
+                   ignored ->
+                      // >> ## **** this hack is needed for now because of the way the
+                      // >> ## **** parser handles break() and next() calls
+                      // >> Consequently, the RDSReader returns a LangSXP(LangSXP(break/next, NULL), NULL) for
+                      // >> break() and next() calls
+                      compile(fun)
+                   ,
+                   () -> compileCallExprFun(call, fun, args)
+           );
     }
 
     cb.setCurrentLoc(loc);
@@ -957,6 +959,7 @@ public class Compiler {
     if (!(call.arg(0) instanceof LangSXP subCall)) {
       return false;
     }
+
     if (!(subCall.fun() instanceof RegSymSXP sym)) {
       return false;
     }
@@ -987,7 +990,7 @@ public class Compiler {
     return true;
   }
 
-  private boolean isSimpleArgs(LangSXP call, List<String> formals) {
+  private boolean hasSimpleArgs(LangSXP call, List<String> formals) {
     for (var arg : call.args().values()) {
       if (missing(arg)) {
         return false;
@@ -1003,72 +1006,50 @@ public class Compiler {
     return true;
   }
 
-  private boolean isSimpleInternal(CloSXP def) {
+  private Optional<LangSXP> extractSimpleInternal(CloSXP def) {
     if (!isSimpleFormals(def)) {
-      return false;
+      return Optional.empty();
     }
+
     var b = def.bodyAST();
 
-    // FIXME: ugly
-    if (b instanceof LangSXP lb
-        && lb.args().size() == 1
-        && lb.fun() instanceof RegSymSXP sym
-        && sym.name().equals("{")) {
+    if (b instanceof LangSXP lb && lb.funName("{") && lb.args().size() == 1) {
+      // unwrap the { call if it has just one argument
       b = lb.arg(0);
     }
 
-    // FIXME: ugly
-    if (b instanceof LangSXP lb
-        && lb.fun() instanceof RegSymSXP sym
-        && sym.name().equals(".Internal")) {
-      var icall = lb.arg(0);
-
-      // FIXME: ugly
-      if (icall instanceof LangSXP ilb && ilb.fun() instanceof RegSymSXP isym) {
-        var internalBuiltin = rsession.isBuiltinInternal(isym.name());
-        var simpleArgs = isSimpleArgs(ilb, def.formals().names());
-        return internalBuiltin && simpleArgs;
-      }
-    }
-    return false;
+    return b.asCall()
+     .filter(call -> call.funName(".Internal"))
+     .flatMap(call -> call.arg(0).asCall())
+            .filter(internalCall -> internalCall.funName().map(rsession::isBuiltinInternal).orElse(false))
+            .filter(internalCall -> hasSimpleArgs(internalCall, def.formals().names()));
   }
 
-  private Optional<LangSXP> tryInlineSimpleInternal(LangSXP call, CloSXP def) {
-    if (!dotsOrMissing(call.args()) && isSimpleInternal(def)) {
-      var b = def.bodyAST();
+  private Optional<LangSXP> tryConvertToDotInternalCall(LangSXP call) {
+    return Optional
+            .of(call)
+            .filter(c -> !dotsOrMissing(c.args()))
+            .flatMap(LangSXP::funName)
+            .flatMap(ctx::findFunDef)
+            .flatMap(def ->
+                    extractSimpleInternal(def).map(internalCall -> {
+                      var cenv = new HashMap<String, SEXP>();
 
-      // FIXME: ugly
-      if (b instanceof LangSXP lb
-          && lb.args().size() == 1
-          && lb.fun() instanceof RegSymSXP sym
-          && sym.name().equals("{")) {
-        // unwrap block if there is one
-        b = lb.arg(0);
-      }
+                      def.formals().forEach((x) -> cenv.put(x.tag(), x.value()));
+                      matchCall(def, call).args().forEach((x) -> cenv.put(x.tag(), x.value()));
 
-      if (!(b instanceof LangSXP lb)) {
-        return Optional.empty();
-      } else {
-        // unwrap the call to .Internal
-        b = lb.arg(0);
-      }
+                      var args =
+                        internalCall
+                                .args()
+                                .stream()
+                                .map((x) -> (x.value() instanceof RegSymSXP sym) ? cenv.get(sym.name()) : x.value())
+                                .toList();
 
-      if (b instanceof LangSXP icall) {
-        var cenv = new HashMap<String, SEXP>();
-        def.formals().forEach((x) -> cenv.put(x.tag(), x.value()));
-        matchCall(def, call).args().forEach((x) -> cenv.put(x.tag(), x.value()));
-
-        var args =
-            icall.args().stream()
-                .map((x) -> (x.value() instanceof RegSymSXP sym) ? cenv.get(sym.name()) : x.value())
-                .toList();
-        var newCall =
-            SEXPs.lang(
-                SEXPs.symbol(".Internal"), SEXPs.list(SEXPs.lang(icall.fun(), SEXPs.list2(args))));
-        return Optional.of(newCall);
-      }
-    }
-    return Optional.empty();
+                      return SEXPs.lang(
+                                      SEXPs.symbol(".Internal"),
+                                      SEXPs.list(SEXPs.lang(internalCall.fun(), SEXPs.list2(args))));
+                    })
+            );
   }
 
   private boolean inlineSimpleInternal(LangSXP call) {
@@ -1076,9 +1057,7 @@ public class Compiler {
       return false;
     }
 
-    return call.funName()
-               .flatMap(ctx::findFunDef)
-               .flatMap(def -> tryInlineSimpleInternal(call, def))
+    return tryConvertToDotInternalCall(call)
                .map(this::inlineDotInternalCall)
                .orElse(false);
   }

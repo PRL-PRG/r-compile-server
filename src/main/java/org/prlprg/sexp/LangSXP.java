@@ -37,6 +37,10 @@ public sealed interface LangSXP extends SymOrLangSXP {
   default Optional<String> funName() {
     return fun() instanceof RegSymSXP funSym ? Optional.of(funSym.name()) : Optional.empty();
   }
+
+  default boolean funName(String name) {
+    return funName().map(name::equals).orElse(false);
+  }
 }
 
 record LangSXPImpl(SymOrLangSXP fun, ListSXP args, @Override Attributes attributes)
