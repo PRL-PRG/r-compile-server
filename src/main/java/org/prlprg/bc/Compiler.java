@@ -4,7 +4,6 @@ import static org.prlprg.sexp.SEXPType.*;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.primitives.ImmutableIntArray;
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.*;
 import java.util.function.*;
 import java.util.stream.IntStream;
@@ -332,6 +331,17 @@ public class Compiler {
     }
   }
 
+  private void compileConst(SEXP val) {
+    switch (val) {
+      case NilSXP ignored -> cb.addInstr(new LdNull());
+      case LglSXP x when x == SEXPs.TRUE -> cb.addInstr(new LdTrue());
+      case LglSXP x when x == SEXPs.FALSE -> cb.addInstr(new LdFalse());
+      default -> cb.addInstr(new LdConst(cb.addConst(val)));
+    }
+
+    tailCallReturn();
+  }
+
   private void compileNonConst(SEXP expr, boolean missingOK) {
       switch (expr) {
         case LangSXP e -> compileCall(e, true);
@@ -344,6 +354,8 @@ public class Compiler {
   }
 
   /**
+   * Compiles a symbol.
+   *
    * @param sym the symbol to compile
    * @param missingOK specifies whether to use DDLVAL_MISSOK or DDLVAL instruction
    */
@@ -364,20 +376,6 @@ public class Compiler {
     }
   }
 
-  @SuppressFBWarnings(
-      value = "DLS_DEAD_LOCAL_STORE",
-      justification = "False positive, probably because of ignored switch case")
-  private void compileConst(SEXP val) {
-    switch (val) {
-      case NilSXP ignored -> cb.addInstr(new LdNull());
-      case LglSXP x when x == SEXPs.TRUE -> cb.addInstr(new LdTrue());
-      case LglSXP x when x == SEXPs.FALSE -> cb.addInstr(new LdFalse());
-      default -> cb.addInstr(new LdConst(cb.addConst(val)));
-    }
-
-    tailCallReturn();
-  }
-
   private void compileCall(LangSXP call, boolean canInline) {
     var loc = cb.getCurrentLoc();
     cb.setCurrentLoc(new Loc(call, extractSrcRef(call, 0).orElse(null)));
@@ -387,22 +385,20 @@ public class Compiler {
       case RegSymSXP fun -> {
         if (!(canInline && tryInlineCall(fun, call))) {
           // TODO: notifyBadCall
-          compileCallSymFun(fun, args, call);
+          compileCallSymFun(call, fun, args);
         }
       }
       case SpecialSymSXP fun ->
           throw new IllegalStateException("Trying to call special symbol: " + fun);
       case LangSXP fun -> {
         if (fun.fun() instanceof RegSymSXP sym && LOOP_BREAK_FUNS.contains(sym.name())) {
-          // From the R source code:
-          // ## **** this hack is needed for now because of the way the
-          // ## **** parser handles break() and next() calls
-          // Consequently, the RDSReader returns a LangSXP(LangSXP(break/next, NULL),
-          // NULL) for
-          // break() and next() calls
+          // >> ## **** this hack is needed for now because of the way the
+          // >> ## **** parser handles break() and next() calls
+          // >> Consequently, the RDSReader returns a LangSXP(LangSXP(break/next, NULL), NULL) for
+          // >> break() and next() calls
           compile(fun);
         } else {
-          compileCallExprFun(fun, args, call);
+          compileCallExprFun(call, fun, args);
         }
       }
     }
@@ -410,7 +406,7 @@ public class Compiler {
     cb.setCurrentLoc(loc);
   }
 
-  private void compileCallSymFun(RegSymSXP fun, ListSXP args, LangSXP call) {
+  private void compileCallSymFun(LangSXP call, RegSymSXP fun, ListSXP args) {
     cb.addInstr(new GetFun(cb.addConst(fun)));
     var nse = MAYBE_NSE_SYMBOLS.contains(fun.name());
     compileArgs(args, nse);
@@ -418,7 +414,7 @@ public class Compiler {
     tailCallReturn();
   }
 
-  private void compileCallExprFun(LangSXP fun, ListSXP args, LangSXP call) {
+  private void compileCallExprFun(LangSXP call, LangSXP fun, ListSXP args) {
     usingCtx(ctx.nonTailContext(), () -> compile(fun));
     cb.addInstr(new CheckFun());
     compileArgs(args, false);
@@ -426,9 +422,12 @@ public class Compiler {
     tailCallReturn();
   }
 
-  @SuppressFBWarnings(
-      value = "DLS_DEAD_LOCAL_STORE",
-      justification = "False positive, probably because of ignored switch case")
+  /**
+   * Compiles the arguments of a function call.
+   *
+   * @param args the arguments to compile
+   * @param nse whether to compile the arguments in non-standard evaluation mode
+   */
   private void compileArgs(ListSXP args, boolean nse) {
     for (var arg : args) {
       var tag = arg.tag();
@@ -440,8 +439,8 @@ public class Compiler {
           compileTag(tag);
         }
         case SymSXP x when x.isEllipsis() ->
-            // TODO: notifyWrongDotsUse
-            cb.addInstr(new DoDots());
+          // TODO: notifyWrongDotsUse
+          cb.addInstr(new DoDots());
         case SymSXP x -> {
           compileNormArg(x, nse);
           compileTag(tag);
@@ -473,9 +472,6 @@ public class Compiler {
     cb.addInstr(new MakeProm(idx));
   }
 
-  @SuppressFBWarnings(
-      value = "DLS_DEAD_LOCAL_STORE",
-      justification = "False positive, probably because of ignored switch case")
   private void compileConstArg(SEXP arg) {
     switch (arg) {
       case NilSXP ignored -> cb.addInstr(new PushNullArg());
@@ -491,12 +487,22 @@ public class Compiler {
     }
   }
 
-  private void tailCallReturn() {
+  /**
+   * A helper to add a return when the context is in tail position.
+   */
+  @SuppressWarnings("UnusedReturnValue")
+  private boolean tailCallReturn() {
     if (ctx.isTailCall()) {
       cb.addInstr(new Return());
+      return true;
+    } else {
+      return false;
     }
   }
 
+  /**
+   * A helper to add an invisible return when the context is in tail position.
+   */
   private boolean tailCallInvisibleReturn() {
     if (ctx.isTailCall()) {
       cb.addInstr(new Invisible());
@@ -507,6 +513,15 @@ public class Compiler {
     }
   }
 
+  /**
+   * The entry point for the inlining process.
+   * It will either inline the given call or return false.
+   *
+   * @param fun the function to inline
+   * @param call the entire call
+   *
+   * @return true if the function was inlined, false otherwise
+   */
   private boolean tryInlineCall(RegSymSXP fun, LangSXP call) {
     if (optimizationLevel == 0) {
       return false;
@@ -618,6 +633,17 @@ public class Compiler {
     return Optional.ofNullable(fun);
   }
 
+  /**
+   * Returns inline information for the given function name or empty if the function is not inlinable.
+   *
+   * It tries to resolve the function name in the current context {@link #ctx}
+   * and then based on the given rules from R compiler figure out whether the
+   * function should be inlinable or not.
+   *
+   * @param name the name of the function to inline
+   * @param guardOK whether to allow inlining with a guard
+   * @return the inline information or empty if the function is not inlinable
+   */
   private Optional<InlineInfo> getInlineInfo(String name, boolean guardOK) {
     if (FORBIDDEN_INLINES.contains(name) || optimizationLevel < 1) {
       return Optional.empty();
@@ -629,11 +655,16 @@ public class Compiler {
         .map(
             res -> {
               if (res.first() instanceof NamespaceEnvSXP) {
+                // if is in a namespace we do not have to worry about
+                // shadowing
                 return new InlineInfo(name, res.first(), res.second(), false);
               } else if (optimizationLevel >= 3
                   || (optimizationLevel == 2 && LANGUAGE_FUNS.contains(name))) {
                 return new InlineInfo(name, res.first(), res.second(), false);
               } else if (guardOK && res.first().isBase()) {
+                // this is the case when the function comes from baseenv()
+                // therefore it could be shadowed by some other function
+                // and thus needs to be guarded
                 return new InlineInfo(name, res.first(), res.second(), true);
               } else {
                 return null;
@@ -660,18 +691,13 @@ public class Compiler {
                 usingCtx(
                     ctx.nonTailContext(),
                     () -> {
-                      // The BASEGUARD checks the validity of the inline code, i.e. if what
-                      // was from base at compile time hasn't changed.
-                      // if the inlined code is not valid the guard instruction will evaluate the
-                      // call
-                      // in
-                      // the AST interpreter and jump over the inlined code.
+                      // >> The BASEGUARD checks the validity of the inline code, i.e. if what
+                      // >> was from base at compile time hasn't changed. If the inlined code is
+                      // >> not valid the guard instruction will evaluate the call in the AST
+                      // >> interpreter and jump over the inlined code.
                       cb.addInstr(new BaseGuard(cb.addConst(call), end));
                       if (!inline.apply(call)) {
-                        // At this point the guard is useless and the following code
-                        // should run.
-                        // I guess the likelihood that something changed is slim,
-                        // to care about removing it.
+                        // if the inlining failed, we need to compile the call
                         compileCall(call, false);
                       }
                     });
@@ -699,19 +725,14 @@ public class Compiler {
         .orElse(false);
   }
 
-  /**
-   * From the R documentation:
-   *
-   * <p><quote> The inlining handler for `{` needs to consider that a pair of braces { and } can
-   * surround zero, one, or more expressions. A set of empty braces is equivalent to the constant
-   * NULL. If there is more than one expression, then all the values of all expressions other than
-   * the last are ignored. These expressions are compiled in a no-value context (currently
-   * equivalent to a non-tail-call context), and then code is generated to pop their values off the
-   * stack. The final expression is then compiled according to the context in which the braces
-   * expression occurs. </quote>
-   *
-   * @param call the block call to inline
-   */
+
+  //    >> The inlining handler for `{` needs to consider that a pair of braces { and } can
+  //    >> surround zero, one, or more expressions. A set of empty braces is equivalent to the constant
+  //    >> NULL. If there is more than one expression, then all the values of all expressions other than
+  //    >> the last are ignored. These expressions are compiled in a no-value context (currently
+  //    >> equivalent to a non-tail-call context), and then code is generated to pop their values off the
+  //    >> stack. The final expression is then compiled according to the context in which the braces
+  //    >> expression occurs.
   private boolean inlineBlock(LangSXP call) {
     var n = call.args().size();
     if (n == 0) {
@@ -724,7 +745,7 @@ public class Compiler {
             ctx.nonTailContext(),
             () -> {
               for (var i = 0; i < n - 1; i++) {
-                var arg = call.arg(i).value();
+                var arg = call.arg(i);
                 // i + 1 because the block srcref's first element is the opening brace
                 cb.setCurrentLoc(new Loc(arg, extractSrcRef(call, i + 1).orElse(null)));
                 compile(arg, false, false);
@@ -733,7 +754,7 @@ public class Compiler {
             });
       }
 
-      var last = call.arg(n - 1).value();
+      var last = call.arg(n - 1);
       cb.setCurrentLoc(new Loc(last, extractSrcRef(call, n).orElse(null)));
       compile(last, false, false);
       cb.setCurrentLoc(loc);
@@ -746,9 +767,9 @@ public class Compiler {
   // (it is then easier to reference the method in the getInlineHandler)
   @SuppressWarnings("SameReturnValue")
   private boolean inlineCondition(LangSXP call) {
-    var test = call.arg(0).value();
-    var thenBranch = call.arg(1).value();
-    var elseBranch = Optional.ofNullable(call.args().size() == 3 ? call.arg(2).value() : null);
+    var test = call.arg(0);
+    var thenBranch = call.arg(1);
+    var elseBranch = Optional.ofNullable(call.args().size() == 3 ? call.arg(2) : null);
 
     var ct = constantFold(test).orElse(null);
 
@@ -792,25 +813,13 @@ public class Compiler {
     return true;
   }
 
-  /**
-   * From the R documentation:
-   *
-   * <p><quote> Compiling of function expressions is somewhat similar to compiling promises for
-   * function arguments. The body of a function is compiled into a separate byte code object and
-   * stored in the constant pool together with the formals. Then code is emitted for creating a
-   * closure from the formals, compiled body, and the current environment. For now, only the body of
-   * functions is compiled, not the default argument expressions. This should be changed in future
-   * versions of the compiler. </quote>
-   *
-   * @param call the `function` call to inline
-   */
   private boolean inlineFunction(LangSXP call) {
-    var formals = (ListSXP) call.arg(0).value();
-    var body = call.arg(1).value();
+    var formals = (ListSXP) call.arg(0);
+    var body = call.arg(1);
     if (mayCallBrowser(body)) {
       return false;
     }
-    var sref = call.args().size() > 2 ? call.arg(2).value() : SEXPs.NULL;
+    var sref = call.args().size() > 2 ? call.arg(2) : SEXPs.NULL;
 
     var compiler = fork(body, ctx.functionContext(formals, body), cb.getCurrentLoc());
     var cbody = compiler.compile().<SEXP>map(SEXPs::bcode).orElse(body);
@@ -826,46 +835,6 @@ public class Compiler {
     return true;
   }
 
-  /**
-   * From the R documentation:
-   *
-   * <p>
-   * <quote>
-   * In R an expression of the form (expr) is interpreted as a call to the
-   * function ( with the argument
-   * expr. Parentheses are used to guide the parser, and for the most part (expr)
-   * is equivalent to expr.
-   * There are two exceptions:
-   * <ul>
-   * <li>Since ( is a function an expression of the form <code>(...)</code> is
-   * legal whereas
-   * just <code>...</code> may not be,
-   * depending on the context. A runtime error will occur unless the
-   * <code>...</code> argument expands to
-   * exactly one non-missing argument.</li>
-   * <li>In tail position a call to ( sets the visible flag to TRUE. So at top
-   * level for example the result
-   * of an assignment expression x <- 1 would not be printed, but the result of
-   * <code>(x <- 1<code/>
-   *         would be printed. It is not clear that this feature really needs to be preserved within
-   *         functions — it could be made a feature of the read-eval-print loop — but for now it is a
-   *         feature of the interpreter that the compiler should preserve.</li>
-   * </ul>
-   * <p>
-   * The inlining handler for <code>(</code> calls handles a <code>...</code>
-   * argument case or a case with
-   * fewer or more than one argument as a generic BUILTIN call. If the expression
-   * is in tail position
-   * then the argument is compiled in a non-tail-call context, a VISIBLE
-   * instruction is emitted to set
-   * the visible flag to TRUE, and a RETURN instruction is emitted. If the
-   * expression is in non-tail
-   * position, then code for the argument is generated in the current context.
-   * </quote>
-   * </p>
-   *
-   * @param call the `(` call to inline
-   */
   private boolean inlineParentheses(LangSXP call) {
     if (anyDots(call.args())) {
       return inlineBuiltin(call, false);
@@ -873,12 +842,12 @@ public class Compiler {
       // TODO: notifyWrongArgCount
       return inlineBuiltin(call, false);
     } else if (ctx.isTailCall()) {
-      usingCtx(ctx.nonTailContext(), () -> compile(call.arg(0).value()));
+      usingCtx(ctx.nonTailContext(), () -> compile(call.arg(0)));
       cb.addInstr(new Visible());
       cb.addInstr(new Return());
       return true;
     } else {
-      compile(call.arg(0).value());
+      compile(call.arg(0));
       return true;
     }
   }
@@ -952,18 +921,10 @@ public class Compiler {
   }
 
   private boolean inlineLocal(LangSXP call) {
-    // From the R documentation:
-    //
-    // > While local is currently implemented as a closure, because of its
-    // importance relative to
-    // local
-    // > variable determination it is a good idea to inline it as well. The current
-    // semantics are
-    // such that
-    // > the interpreter treats
-    // > local(expr)
-    // > essentially the same as
-    // > (function() expr)()
+    // >> the interpreter treats
+    // >> local(expr)
+    // >> essentially the same as
+    // >> (function() expr)()
 
     if (call.args().size() != 1) {
       return false;
@@ -972,18 +933,19 @@ public class Compiler {
     var closure =
         SEXPs.lang(
             SEXPs.lang(
-                SEXPs.symbol("function"), SEXPs.list(SEXPs.NULL, call.arg(0).value(), SEXPs.NULL)),
+                SEXPs.symbol("function"), SEXPs.list(SEXPs.NULL, call.arg(0), SEXPs.NULL)),
             SEXPs.list());
     compile(closure);
     return true;
   }
 
   private boolean inlineReturn(LangSXP call) {
-    if (dotsOrMissing(call.args()) || call.args().size() > 1) {
+    ListSXP args = call.args();
+    if (dotsOrMissing(args) || args.size() > 1) {
       return inlineSpecial(call);
     }
 
-    var v = call.args().isEmpty() ? SEXPs.NULL : call.arg(0).value();
+    var v = args.isEmpty() ? SEXPs.NULL : args.value(0);
 
     usingCtx(ctx.nonTailContext(), () -> compile(v));
     cb.addInstr(ctx.isReturnJump() ? new ReturnJmp() : new Return());
@@ -992,15 +954,13 @@ public class Compiler {
   }
 
   private boolean inlineDotInternalCall(LangSXP call) {
-    if (!(call.arg(0).value() instanceof LangSXP subCall)) {
+    if (!(call.arg(0) instanceof LangSXP subCall)) {
       return false;
     }
     if (!(subCall.fun() instanceof RegSymSXP sym)) {
       return false;
     }
 
-    // we cannot do the .Internal(is.builtin.internal(sym)) check
-    // so we will believe that the rsession is right
     if (rsession.isBuiltinInternal(sym.name())) {
       return inlineBuiltin(subCall, true);
     } else {
@@ -1011,19 +971,20 @@ public class Compiler {
   private boolean isSimpleFormals(CloSXP def) {
     var formals = def.formals();
     var names = formals.names();
+
     if (names.contains("...")) {
       return false;
     }
-    return formals.values().stream()
-        .allMatch(
-            x ->
-                !missing(x)
-                    || !(
-                    // FIXME: ugly
-                    x instanceof RegSymSXP
-                        || x instanceof LangSXP
-                        || x instanceof PromSXP
-                        || x instanceof BCodeSXP));
+
+    for (var x : formals.values()) {
+      if (!missing(x)) {
+        if (x.typeOneOf(SYM, LANG, PROM, BCODE)) {
+          return false;
+        }
+      }
+    }
+
+    return true;
   }
 
   private boolean isSimpleArgs(LangSXP call, List<String> formals) {
@@ -1034,8 +995,7 @@ public class Compiler {
         if (!formals.contains(sym.name())) {
           return false;
         }
-        // FIXME: ugly
-      } else if (arg instanceof LangSXP || arg instanceof PromSXP || arg instanceof BCodeSXP) {
+      } else if (arg.typeOneOf(LANG, PROM, BCODE)) {
         return false;
       }
     }
@@ -1050,31 +1010,20 @@ public class Compiler {
     var b = def.bodyAST();
 
     // FIXME: ugly
-    // b.match(call("{"))
-    //  .filter(x -> x.args.size() == 1)
-    //  .ifPresent(x -> b = x.arg(0).value);
     if (b instanceof LangSXP lb
         && lb.args().size() == 1
         && lb.fun() instanceof RegSymSXP sym
         && sym.name().equals("{")) {
-      b = lb.arg(0).value();
+      b = lb.arg(0);
     }
 
-    // b.match(call(".Internal"))
-    //  .ifPresent(x -> b = x.arg(0).value);
-
+    // FIXME: ugly
     if (b instanceof LangSXP lb
         && lb.fun() instanceof RegSymSXP sym
         && sym.name().equals(".Internal")) {
-      var icall = lb.arg(0).value();
+      var icall = lb.arg(0);
+
       // FIXME: ugly
-
-      /*
-      return icall.match(rsession::builtinInternal)
-                  .match(hasSimpleArgs(def.formals().names())
-                  .orElse(false);
-      */
-
       if (icall instanceof LangSXP ilb && ilb.fun() instanceof RegSymSXP isym) {
         var internalBuiltin = rsession.isBuiltinInternal(isym.name());
         var simpleArgs = isSimpleArgs(ilb, def.formals().names());
@@ -1084,7 +1033,7 @@ public class Compiler {
     return false;
   }
 
-  private Optional<LangSXP> trySimpleInternalCall(LangSXP call, CloSXP def) {
+  private Optional<LangSXP> tryInlineSimpleInternal(LangSXP call, CloSXP def) {
     if (!dotsOrMissing(call.args()) && isSimpleInternal(def)) {
       var b = def.bodyAST();
 
@@ -1094,17 +1043,16 @@ public class Compiler {
           && lb.fun() instanceof RegSymSXP sym
           && sym.name().equals("{")) {
         // unwrap block if there is one
-        b = lb.arg(0).value();
+        b = lb.arg(0);
       }
 
       if (!(b instanceof LangSXP lb)) {
         return Optional.empty();
       } else {
         // unwrap the call to .Internal
-        b = lb.arg(0).value();
+        b = lb.arg(0);
       }
 
-      // FIXME: ugly
       if (b instanceof LangSXP icall) {
         var cenv = new HashMap<String, SEXP>();
         def.formals().forEach((x) -> cenv.put(x.tag(), x.value()));
@@ -1128,35 +1076,15 @@ public class Compiler {
       return false;
     }
 
-    if (call.fun() instanceof RegSymSXP fun) {
-      return ctx.findFunDef(fun.name())
-          .flatMap(def -> trySimpleInternalCall(call, def))
-          .map(this::inlineDotInternalCall)
-          .orElse(false);
-    }
-
-    return false;
+    return call.funName()
+               .flatMap(ctx::findFunDef)
+               .flatMap(def -> tryInlineSimpleInternal(call, def))
+               .map(this::inlineDotInternalCall)
+               .orElse(false);
   }
 
-  /**
-   * From the R documentation:
-   *
-   * <p>> In many languages it is possible to convert the expression a && b to an equivalent if
-   * expression > of the form > if (a) { if (b) TRUE else FALSE } > Similarly, in these languages
-   * the expression a || b is equivalent to > if (a) TRUE else if (b) TRUE else FALSE > Compilation
-   * of these expressions is thus reduced to compiling if expressions. > Unfortunately, because of
-   * the possibility of NA values, these equivalencies do not hold in R. In > R, NA || TRUE should
-   * evaluate to TRUE and NA && FALSE to FALSE. This is handled by introducing > special
-   * instructions AND1ST and AND2ND for && expressions and OR1ST and OR2ND for ||. > The code
-   * generator for && expressions generates code to evaluate the first argument and then > emits an
-   * AND1ST instruction. The AND1ST instruction has one operand, the label for the instruction >
-   * following code for the second argument. If the value on the stack produced by the first
-   * argument > is FALSE then AND1ST jumps to the label and skips evaluation of the second argument;
-   * the value > of the expression is FALSE. The code for the second argument is generated next,
-   * followed by an > AND2ND instruction. This removes the values of the two arguments to && from
-   * the stack and pushes > the value of the expression onto the stack. A RETURN instruction is
-   * generated if the && expression > was in tail position.
-   */
+  // Because of the possibility of NA values, R cannot reduce && and || to a simple rewriting
+  // into if / else.
   private boolean inlineLogicalAndOr(LangSXP call, boolean isAnd) {
     var callIdx = cb.addConst(call);
     var label = cb.makeLabel();
@@ -1164,9 +1092,9 @@ public class Compiler {
     usingCtx(
         ctx.argContext(),
         () -> {
-          compile(call.arg(0).value());
+          compile(call.arg(0));
           cb.addInstr(isAnd ? new And1st(callIdx, label) : new Or1st(callIdx, label));
-          compile(call.arg(1).value());
+          compile(call.arg(1));
           cb.addInstr(isAnd ? new And2nd(callIdx) : new Or2nd(callIdx));
         });
 
@@ -1177,7 +1105,7 @@ public class Compiler {
   }
 
   private boolean inlineRepeat(LangSXP call) {
-    var body = call.arg(0).value();
+    var body = call.arg(0);
     return inlineSimpleLoop(body, this::compileRepeatBody);
   }
 
@@ -1199,6 +1127,54 @@ public class Compiler {
     cb.addInstr(new LdNull());
     tailCallInvisibleReturn();
 
+    return true;
+  }
+
+
+  private boolean canSkipLoopContextList(ListSXP list, boolean breakOK) {
+    return list.values().stream().noneMatch(x -> !missing(x) && !canSkipLoopContext(x, breakOK));
+  }
+
+  private boolean canSkipLoopContext(SEXP body, boolean breakOK) {
+    if (body instanceof LangSXP l) {
+      if (l.fun() instanceof RegSymSXP s) {
+        var name = s.name();
+        if (!breakOK && LOOP_BREAK_FUNS.contains(name)) {
+          // FIXME: why don't we need to check if it is a base version?
+          // GNUR does not do that, but:
+          // > `break` <- function() print("b")
+          // > i <- 0
+          // > repeat({ i <<- i + 1; if (i == 10) break; })
+          // I mean all of this is very much unsound, just why in this case do we care
+          // less?
+          return false;
+        } else if (LOOP_STOP_FUNS.contains(name) && ctx.isBaseVersion(name)) {
+          return true;
+        } else if (LOOP_TOP_FUNS.contains(name) && ctx.isBaseVersion(name)) {
+          // recursively check the rest of the body
+          // this branch keeps the breakOK!
+          return canSkipLoopContextList(l.args(), breakOK);
+        } else if (EVAL_FUNS.contains(name)) {
+          // FIXME: again no check if it is a base version
+
+          // From R documentation:
+          // > Loops that include a call to eval (or evalq, source) are compiled with
+          // > context to support a programming pattern present e.g. in package Rmpi: a
+          // server
+          // application is
+          // > implemented using an infinite loop, which evaluates de-serialized code
+          // received from
+          // the client; the
+          // > server shuts down when it receives a serialized version of break.
+          return false;
+        } else {
+          // recursively check the rest of the body
+          return canSkipLoopContextList(l.args(), false);
+        }
+      } else {
+        return canSkipLoopContextList(l.asList(), false);
+      }
+    }
     return true;
   }
 
@@ -1228,8 +1204,8 @@ public class Compiler {
   }
 
   private boolean inlineWhile(LangSXP call) {
-    var test = call.arg(0).value();
-    var body = call.arg(1).value();
+    var test = call.arg(0);
+    var body = call.arg(1);
 
     return inlineSimpleLoop(body, (b) -> compileWhileBody(call, test, b));
   }
@@ -1251,13 +1227,12 @@ public class Compiler {
   }
 
   private boolean inlineFor(LangSXP call) {
-    var loopVar = call.arg(0).value();
-    var seq = call.arg(1).value();
-    var body = call.arg(2).value();
+    var loopVar = call.arg(0);
+    var seq = call.arg(1);
+    var body = call.arg(2);
 
     if (!(loopVar instanceof RegSymSXP loopSym)) {
-      // From R source code:
-      // > ## not worth warning here since the parser should not allow this
+      // >> not worth warning here since the parser should not allow this
       return false;
     }
 
@@ -1326,7 +1301,7 @@ public class Compiler {
       return inlineBuiltin(call, false);
     }
 
-    usingCtx(ctx.nonTailContext(), () -> compile(call.arg(0).value()));
+    usingCtx(ctx.nonTailContext(), () -> compile(call.arg(0)));
     cb.addInstr(makeOp.apply(cb.addConst(call)));
     tailCallReturn();
     return true;
@@ -1345,15 +1320,12 @@ public class Compiler {
     usingCtx(
         ctx.nonTailContext(),
         () -> {
-          compile(call.arg(0).value());
+          compile(call.arg(0));
 
-          // From the R documentation:
-          // > the second argument has to
-          // > be compiled with an argument context since the stack already has the value
-          // of the
-          // first argument
-          // > on it and that would need to be popped before a jump.
-          usingCtx(ctx.argContext(), () -> compile(call.arg(1).value()));
+          // >> the second argument has to be compiled with an argument context
+          // >> since the stack already has the value of the first argument
+          // >> on it and that would need to be popped before a jump.
+          usingCtx(ctx.argContext(), () -> compile(call.arg(1)));
         });
 
     cb.addInstr(makeOp.apply(cb.addConst(call)));
@@ -1363,19 +1335,21 @@ public class Compiler {
   }
 
   private boolean inlineLog(LangSXP call) {
-    if (dotsOrMissing(call.args())
-        || call.args().hasTags()
-        || call.args().isEmpty()
-        || call.args().size() > 2) {
+    ListSXP args = call.args();
+
+    if (dotsOrMissing(args)
+        || args.hasTags()
+        || args.isEmpty()
+        || args.size() > 2) {
       return inlineSpecial(call);
     }
 
     var idx = cb.addConst(call);
-    usingCtx(ctx.nonTailContext(), () -> compile(call.arg(0).value()));
-    if (call.args().size() == 1) {
+    usingCtx(ctx.nonTailContext(), () -> compile(args.value(0)));
+    if (args.size() == 1) {
       cb.addInstr(new Log(idx));
     } else {
-      usingCtx(ctx.argContext(), () -> compile(call.arg(1).value()));
+      usingCtx(ctx.argContext(), () -> compile(args.value(1)));
       cb.addInstr(new LogBase(idx));
     }
 
@@ -1384,15 +1358,17 @@ public class Compiler {
   }
 
   private boolean inlineMath1(LangSXP call, int idx) {
-    if (dotsOrMissing(call.args())) {
+    ListSXP args = call.args();
+
+    if (dotsOrMissing(args)) {
       return inlineBuiltin(call, false);
     }
-    if (call.args().size() != 1) {
+    if (args.size() != 1) {
       // TODO: notifyWrongArgCount
       return inlineBuiltin(call, false);
     }
 
-    usingCtx(ctx.nonTailContext(), () -> compile(call.arg(0).value()));
+    usingCtx(ctx.nonTailContext(), () -> compile(args.value(0)));
     cb.addInstr(new Math1(cb.addConst(call), idx));
 
     tailCallReturn();
@@ -1405,15 +1381,15 @@ public class Compiler {
     }
 
     SEXP sym;
-    if (call.arg(1).value() instanceof StrSXP s && s.size() == 1 && !s.get(0).isEmpty()) {
+    if (call.arg(1) instanceof StrSXP s && s.size() == 1 && !s.get(0).isEmpty()) {
       // > list(a=1)$"a"
       sym = SEXPs.symbol(s.get(0));
     } else {
-      sym = call.arg(1).value();
+      sym = call.arg(1);
     }
 
     if (sym instanceof RegSymSXP s) {
-      usingCtx(ctx.argContext(), () -> compile(call.arg(0).value()));
+      usingCtx(ctx.argContext(), () -> compile(call.arg(0)));
       var callIdx = cb.addConst(call);
       var symIdx = cb.addConst(s);
       cb.addInstr(new Dollar(callIdx, symIdx));
@@ -1429,31 +1405,33 @@ public class Compiler {
       return inlineBuiltin(c, false);
     }
 
-    usingCtx(ctx.argContext(), () -> compile(c.arg(0).value()));
+    usingCtx(ctx.argContext(), () -> compile(c.arg(0)));
     cb.addInstr(makeOp.get());
     tailCallReturn();
     return true;
   }
 
   private boolean inlineDotCall(LangSXP call) {
-    if (dotsOrMissing(call.args())
-        || call.args().hasTags()
-        || call.args().isEmpty()
-        || call.args().size() > DOTCALL_MAX) {
+    ListSXP args = call.args();
+    if (dotsOrMissing(args)
+        || args.hasTags()
+        || args.isEmpty()
+        || args.size() > DOTCALL_MAX) {
       return inlineBuiltin(call, false);
     }
 
-    usingCtx(ctx.nonTailContext(), () -> compile(call.arg(0).value()));
-    usingCtx(ctx.argContext(), () -> call.args().values(1).forEach(this::compile));
-    cb.addInstr(new DotCall(cb.addConst(call), call.args().size() - 1));
+    usingCtx(ctx.nonTailContext(), () -> compile(args.value(0)));
+    usingCtx(ctx.argContext(), () -> args.values(1).forEach(this::compile));
+    cb.addInstr(new DotCall(cb.addConst(call), args.size() - 1));
 
     tailCallReturn();
     return true;
   }
 
   private boolean inlineMultiColon(LangSXP call) {
-    if (!dotsOrMissing(call.args()) && call.args().size() == 2) {
+    ListSXP args = call.args();
 
+    if (!dotsOrMissing(args) && args.size() == 2) {
       Function<SEXP, String> extractName =
           (x) ->
               switch (x) {
@@ -1462,15 +1440,15 @@ public class Compiler {
                 default -> null;
               };
 
-      String s1 = extractName.apply(call.arg(0).value());
-      String s2 = extractName.apply(call.arg(1).value());
+      String s1 = extractName.apply(args.value(0));
+      String s2 = extractName.apply(args.value(1));
 
       if (s1 == null || s2 == null) {
         return false;
       }
 
-      var args = SEXPs.list(SEXPs.string(s1), SEXPs.string(s2));
-      compileCallSymFun((RegSymSXP) call.fun(), args, call);
+      var newArgs = SEXPs.list(SEXPs.string(s1), SEXPs.string(s2));
+      compileCallSymFun(call, (RegSymSXP) call.fun(), newArgs);
       return true;
     }
 
@@ -1478,7 +1456,9 @@ public class Compiler {
   }
 
   private boolean inlineSwitch(LangSXP call) {
-    if (call.args().isEmpty() || anyDots(call.args())) {
+    ListSXP args = call.args();
+
+    if (args.isEmpty() || anyDots(args)) {
       return inlineSpecial(call);
     }
 
@@ -1490,12 +1470,12 @@ public class Compiler {
     // code bellow
 
     // 1. extract the switch expression components
-    var expr = call.arg(0).value();
-    var cases = call.args().values(1);
+    var expr = args.value(0);
+    var cases = args.values(1);
 
     // TODO: notifyNoSwitchcases
 
-    var names = call.args().names(1);
+    var names = args.names(1);
     // allow for corner cases like switch(x, 1) which always
     // returns 1 if x is a character scalar.
     if (cases.size() == 1 && names.getFirst() == null) {
@@ -1686,8 +1666,8 @@ public class Compiler {
     }
 
     var superAssign = call.fun().equals(SEXPs.SUPER_ASSIGN);
-    var lhs = call.arg(0).value();
-    var value = call.arg(1).value();
+    var lhs = call.arg(0);
+    var value = call.arg(1);
     var symbolOpt = Context.getAssignVar(call);
 
     if (symbolOpt.isPresent() && lhs instanceof StrOrRegSymSXP) {
@@ -1829,7 +1809,7 @@ public class Compiler {
 
       var temp = SEXPs.lang(orig.fun(), orig.args().set(0, null, SEXPs.ASSIGN_TMP));
       places.add(new FlattenLHS(orig, temp));
-      lhs = orig.arg(0).value();
+      lhs = orig.arg(0);
     }
 
     if (!(lhs instanceof RegSymSXP)) {
@@ -1844,7 +1824,7 @@ public class Compiler {
       return false;
     }
 
-    var lhs = call.arg(0).value();
+    var lhs = call.arg(0);
     return switch (lhs) {
       case RegSymSXP ignored -> true;
       case StrSXP s -> s.size() == 1;
@@ -1864,7 +1844,7 @@ public class Compiler {
             // TODO: notifyBadAssignFun
             yield false;
           }
-          lhs = l.arg(0).value();
+          lhs = l.arg(0);
         }
         yield lhs instanceof RegSymSXP;
       }
@@ -1877,7 +1857,7 @@ public class Compiler {
       return false;
     }
 
-    var what = call.arg(1).value();
+    var what = call.arg(1);
     if (what instanceof StrSXP str) {
       what = SEXPs.symbol(str.get(0));
     }
@@ -1948,7 +1928,7 @@ public class Compiler {
     if (anyDots(place.args()) || place.args().size() != 2) {
       return false;
     } else {
-      SEXP sym = place.arg(1).value();
+      SEXP sym = place.arg(1);
       if (sym instanceof StrSXP s) {
         sym = SEXPs.symbol(s.get(0));
       }
@@ -2020,7 +2000,7 @@ public class Compiler {
         return inlineSpecial(call);
       }
 
-      var oe = call.arg(0).value();
+      var oe = call.arg(0);
       if (missing(oe)) {
         return inlineSpecial(call);
       }
@@ -2033,13 +2013,11 @@ public class Compiler {
       cb.addInstr(doubleSquare ? new DfltSubset2() : new DfltSubset());
       cb.patchLabel(endLabel);
 
-      // why is it a tail call? it should not be
-
       tailCallReturn();
       return true;
     }
 
-    var oe = call.arg(0).value();
+    var oe = call.arg(0);
     if (missing(oe)) {
       stop("cannot compile this expression");
     }
@@ -2086,7 +2064,7 @@ public class Compiler {
 
   private boolean compileSuppressingUndefined(LangSXP call) {
     // TODO: cntxt$suppressUndefined <- TRUE (related to notification)
-    compileCallSymFun((RegSymSXP) call.fun(), call.args(), call);
+    compileCallSymFun(call, (RegSymSXP) call.fun(), call.args());
     return true;
   }
 
@@ -2097,7 +2075,6 @@ public class Compiler {
     this.ctx = old;
   }
 
-  @SuppressFBWarnings("DLS_DEAD_LOCAL_STORE")
   private Optional<SEXP> constantFold(SEXP expr) {
     return switch (expr) {
       case LangSXP l -> constantFoldCall(l);
@@ -2108,7 +2085,6 @@ public class Compiler {
     };
   }
 
-  @SuppressFBWarnings("DLS_DEAD_LOCAL_STORE")
   private Optional<SEXP> checkConst(SEXP e) {
     var r =
         switch (e) {
@@ -2130,7 +2106,7 @@ public class Compiler {
   }
 
   /**
-   * Tried to constant fold a call. The supported functions are defined in {@link
+   * Try to constant fold a call. The supported functions are defined in {@link
    * #ALLOWED_FOLDABLE_FUNS}. It is a subset of the functions that are supported by the constant
    * folding in GNU-R. This implementation is done on the best-effort basis and more are added as
    * needed.
@@ -2224,53 +2200,6 @@ public class Compiler {
 
   private <R> R stop(String message, Loc loc) throws CompilerException {
     throw new CompilerException(message, loc);
-  }
-
-  private boolean canSkipLoopContextList(ListSXP list, boolean breakOK) {
-    return list.values().stream().noneMatch(x -> !missing(x) && !canSkipLoopContext(x, breakOK));
-  }
-
-  private boolean canSkipLoopContext(SEXP body, boolean breakOK) {
-    if (body instanceof LangSXP l) {
-      if (l.fun() instanceof RegSymSXP s) {
-        var name = s.name();
-        if (!breakOK && LOOP_BREAK_FUNS.contains(name)) {
-          // FIXME: why don't we need to check if it is a base version?
-          // GNUR does not do that, but:
-          // > `break` <- function() print("b")
-          // > i <- 0
-          // > repeat({ i <<- i + 1; if (i == 10) break; })
-          // I mean all of this is very much unsound, just why in this case do we care
-          // less?
-          return false;
-        } else if (LOOP_STOP_FUNS.contains(name) && ctx.isBaseVersion(name)) {
-          return true;
-        } else if (LOOP_TOP_FUNS.contains(name) && ctx.isBaseVersion(name)) {
-          // recursively check the rest of the body
-          // this branch keeps the breakOK!
-          return canSkipLoopContextList(l.args(), breakOK);
-        } else if (EVAL_FUNS.contains(name)) {
-          // FIXME: again no check if it is a base version
-
-          // From R documentation:
-          // > Loops that include a call to eval (or evalq, source) are compiled with
-          // > context to support a programming pattern present e.g. in package Rmpi: a
-          // server
-          // application is
-          // > implemented using an infinite loop, which evaluates de-serialized code
-          // received from
-          // the client; the
-          // > server shuts down when it receives a serialized version of break.
-          return false;
-        } else {
-          // recursively check the rest of the body
-          return canSkipLoopContextList(l.args(), false);
-        }
-      } else {
-        return canSkipLoopContextList(l.asList(), false);
-      }
-    }
-    return true;
   }
 
   private boolean anyDots(ListSXP l) {
@@ -2403,5 +2332,9 @@ public class Compiler {
    */
   record InlineInfo(String name, EnvSXP env, @Nullable SEXP value, boolean guard) {}
 
+  /**
+   * Helper struct for inlining `[[` and the like.
+   * Essentially links the `*tmp*` with the corresponding code.
+   */
   record FlattenLHS(LangSXP original, LangSXP temp) {}
 }

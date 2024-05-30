@@ -1,6 +1,8 @@
 package org.prlprg.sexp;
 
 import com.google.common.collect.Streams;
+
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
@@ -97,5 +99,9 @@ public sealed interface SEXP
     } else {
       return Streams.stream((StrSXP) names).toList();
     }
+  }
+
+  default boolean typeOneOf(SEXPType... types) {
+    return Arrays.stream(types).anyMatch(t -> t == type());
   }
 }

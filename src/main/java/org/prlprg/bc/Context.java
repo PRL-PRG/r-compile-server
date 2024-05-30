@@ -189,24 +189,24 @@ public class Context {
     return locals;
   }
 
-  public static Optional<String> getAssignVar(LangSXP l) {
-    var v = l.arg(0).value();
+  public static Optional<String> getAssignVar(LangSXP call) {
+    var v = call.arg(0);
     if (v == SEXPs.MISSING_ARG) {
-      throw new CompilerException("Bad assignment: " + l);
+      throw new CompilerException("Bad assignment: " + call);
     } else if (v instanceof StrOrRegSymSXP s) {
       return s.reifyString();
     } else {
-      if (l.args().isEmpty()) {
-        throw new CompilerException("Bad assignment: " + l);
+      if (call.args().isEmpty()) {
+        throw new CompilerException("Bad assignment: " + call);
       }
-      switch (l.arg(0).value()) {
+      switch (call.arg(0)) {
         case LangSXP ll -> {
           return getAssignVar(ll);
         }
         case StrOrRegSymSXP s -> {
           return s.reifyString();
         }
-        default -> throw new CompilerException("Bad assignment: " + l);
+        default -> throw new CompilerException("Bad assignment: " + call);
       }
     }
   }
@@ -216,14 +216,14 @@ public class Context {
       return Optional.of(SEXPs.symbol(s.name() + "<-"));
     } else
     // >> check for and handle foo::bar(x) <- y assignments here
-    if (fun instanceof LangSXP l
-        && l.args().size() == 2
-        && l.fun() instanceof RegSymSXP funSym
+    if (fun instanceof LangSXP call
+        && call.args().size() == 2
+        && call.fun() instanceof RegSymSXP funSym
         && (funSym.name().equals("::") || funSym.name().equals(":::"))
-        && l.arg(0).value() instanceof RegSymSXP
-        && l.arg(1).value() instanceof RegSymSXP) {
-      var args = l.args().set(1, null, SEXPs.symbol(l.arg(1) + "<-"));
-      return Optional.of(SEXPs.lang(l.fun(), args));
+        && call.arg(0) instanceof RegSymSXP
+        && call.arg(1) instanceof RegSymSXP) {
+      var args = call.args().set(1, null, SEXPs.symbol(call.arg(1) + "<-"));
+      return Optional.of(SEXPs.lang(call.fun(), args));
     } else {
       return Optional.empty();
     }
@@ -242,7 +242,8 @@ public class Context {
     return topLevel;
   }
 
-  @Nullable Loop loop() {
+  @Nullable
+  Loop loop() {
     return loop;
   }
 
