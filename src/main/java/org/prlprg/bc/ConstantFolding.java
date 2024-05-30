@@ -44,7 +44,7 @@ public final class ConstantFolding {
     return doubleMath1(args, DoubleMath::log2);
   }
 
-  public static Optional<SEXP> minus(ImmutableList<SEXP> args) {
+  public static Optional<SEXP> minus(List<SEXP> args) {
     return math1(Arithmetic.Operation.MINUS, args);
   }
 
@@ -52,7 +52,7 @@ public final class ConstantFolding {
     return math2(Arithmetic.Operation.MUL, args);
   }
 
-  public static Optional<SEXP> plus(ImmutableList<SEXP> args) {
+  public static Optional<SEXP> plus(List<SEXP> args) {
     return math1(Arithmetic.Operation.PLUS, args);
   }
 
@@ -90,7 +90,7 @@ public final class ConstantFolding {
     }
   }
 
-  public static Optional<SEXP> seqInt(ImmutableList<SEXP> args) {
+  public static Optional<SEXP> seqInt(List<SEXP> args) {
     if (args.size() != 3) {
       return Optional.empty();
     }
@@ -339,7 +339,7 @@ public final class ConstantFolding {
         });
   }
 
-  public static Optional<SEXP> colon(ImmutableList<SEXP> args) {
+  public static Optional<SEXP> colon(List<SEXP> args) {
     if (args.size() != 2) {
       return Optional.empty();
     }

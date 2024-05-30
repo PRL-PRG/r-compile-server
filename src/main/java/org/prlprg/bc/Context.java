@@ -218,8 +218,7 @@ public class Context {
     // >> check for and handle foo::bar(x) <- y assignments here
     if (fun instanceof LangSXP call
         && call.args().size() == 2
-        && call.fun() instanceof RegSymSXP funSym
-        && (funSym.name().equals("::") || funSym.name().equals(":::"))
+        && (call.funName("::") || call.funName(":::"))
         && call.arg(0) instanceof RegSymSXP
         && call.arg(1) instanceof RegSymSXP) {
       var args = call.args().set(1, null, SEXPs.symbol(call.arg(1) + "<-"));

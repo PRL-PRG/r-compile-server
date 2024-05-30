@@ -1813,12 +1813,11 @@ public class Compiler {
           var args = l.args();
 
           // >> A valid left hand side call must have a function that is either a symbol or is of
-          // the form foo::bar
-          // >> or foo:::bar, and the first argument must be a symbol or another valid left hand
-          // side call.
+          // >> the form foo::bar or foo:::bar, and the first argument must be a symbol or
+          // >> another valid left hand side call.
           if (!(fun instanceof RegSymSXP)
               && !(fun instanceof LangSXP && args.size() == 2)
-              && args.get(0).value() instanceof RegSymSXP innerFun
+              && args.value(0) instanceof RegSymSXP innerFun
               && (innerFun.name().equals("::") || innerFun.name().equals(":::"))) {
             // TODO: notifyBadAssignFun
             yield false;
@@ -2031,7 +2030,7 @@ public class Compiler {
 
     if (!dotsOrMissing(place.args())
         && place.args().size() == 2
-        && place.args().get(1).value() instanceof RegSymSXP s) {
+        && place.arg(1) instanceof RegSymSXP s) {
       var newPlace = SEXPs.lang(place.fun(), place.args().set(1, null, SEXPs.string(s.name())));
       var vexpr = call.args().values().getLast();
       compileSetterCall(new FlattenLHS(flhs.original(), newPlace), vexpr);
@@ -2077,6 +2076,7 @@ public class Compiler {
 
   private Optional<SEXP> constantFoldSym(RegSymSXP sym) {
     var name = sym.name();
+
     if (ALLOWED_FOLDABLE_CONSTS.contains(name)) {
       return ctx.resolve(name).filter(x -> x.first().isBase()).flatMap(x -> checkConst(x.second()));
     } else {
@@ -2094,11 +2094,15 @@ public class Compiler {
    * @return the constant folded value or empty if it cannot be constant folded
    */
   private Optional<SEXP> constantFoldCall(LangSXP call) {
-    if (!(call.fun() instanceof RegSymSXP funSym && isFoldableFun(funSym))) {
-      return Optional.empty();
-    }
+    return call.funName()
+            .filter(this::isFoldableFun)
+            .flatMap(name -> buildArgs(call).flatMap(args -> doConstantFoldCall(name, args)))
+            .flatMap(this::checkConst);
+  }
 
+  private Optional<List<SEXP>> buildArgs(LangSXP call) {
     var argsBuilder = new ImmutableList.Builder<SEXP>();
+
     for (var arg : call.args()) {
       if (missing(arg.value())) {
         return Optional.empty();
@@ -2119,54 +2123,50 @@ public class Compiler {
       }
     }
 
-    var args = argsBuilder.build();
-
-    Optional<SEXP> ct =
-        switch (funSym.name()) {
-          case "(" -> constantFoldParen(args);
-          case "c" -> ConstantFolding.c(args);
-          case "+" -> {
-            if (args.size() == 1) {
-              yield ConstantFolding.plus(args);
-            } else {
-              yield ConstantFolding.add(args);
-            }
-          }
-          case "*" -> ConstantFolding.mul(args);
-          case "/" -> ConstantFolding.div(args);
-          case "-" -> {
-            if (args.size() == 1) {
-              yield ConstantFolding.minus(args);
-            } else {
-              yield ConstantFolding.sub(args);
-            }
-          }
-          case ":" -> ConstantFolding.colon(args);
-          case "^" -> ConstantFolding.pow(args);
-          case "log" -> ConstantFolding.log(args);
-          case "log2" -> ConstantFolding.log2(args);
-          case "sqrt" -> ConstantFolding.sqrt(args);
-          case "rep" -> ConstantFolding.rep(args);
-          case "seq.int" -> ConstantFolding.seqInt(args);
-          default -> Optional.empty();
-        };
-
-    return ct.flatMap(this::checkConst);
+    return Optional.of(argsBuilder.build());
   }
 
-  private boolean isFoldableFun(RegSymSXP sym) {
-    var name = sym.name();
-
-    if (ALLOWED_FOLDABLE_FUNS.contains(name)) {
-      return getInlineInfo(name, false)
-          .map(x -> x.env.isBase() && x.value != null && x.value.isFunction())
-          .orElse(false);
-    } else {
-      return false;
-    }
+  private Optional<SEXP> doConstantFoldCall(String funName, List<SEXP> args) {
+    return switch (funName) {
+              case "(" -> constantFoldParen(args);
+              case "c" -> ConstantFolding.c(args);
+              case "+" -> {
+                if (args.size() == 1) {
+                  yield ConstantFolding.plus(args);
+                } else {
+                  yield ConstantFolding.add(args);
+                }
+              }
+              case "*" -> ConstantFolding.mul(args);
+              case "/" -> ConstantFolding.div(args);
+              case "-" -> {
+                if (args.size() == 1) {
+                  yield ConstantFolding.minus(args);
+                } else {
+                  yield ConstantFolding.sub(args);
+                }
+              }
+              case ":" -> ConstantFolding.colon(args);
+              case "^" -> ConstantFolding.pow(args);
+              case "log" -> ConstantFolding.log(args);
+              case "log2" -> ConstantFolding.log2(args);
+              case "sqrt" -> ConstantFolding.sqrt(args);
+              case "rep" -> ConstantFolding.rep(args);
+              case "seq.int" -> ConstantFolding.seqInt(args);
+              default -> Optional.empty();
+            };
   }
 
-  private Optional<SEXP> constantFoldParen(ImmutableList<SEXP> args) {
+  private boolean isFoldableFun(String name) {
+    return Optional
+            .of(name)
+            .filter(ALLOWED_FOLDABLE_FUNS::contains)
+            .flatMap(n -> getInlineInfo(n, false))
+            .map(x -> x.env.isBase() && x.value != null && x.value.isFunction())
+            .orElse(false);
+  }
+
+  private Optional<SEXP> constantFoldParen(List<SEXP> args) {
     if (args.size() != 1) {
       return Optional.empty();
     }
@@ -2182,12 +2182,17 @@ public class Compiler {
   }
 
   private boolean anyDots(ListSXP l) {
-    return l.values().stream()
-        .anyMatch(x -> !missing(x) && x instanceof SymSXP s && s.isEllipsis());
+    return l
+            .values()
+            .stream()
+            .anyMatch(x -> !missing(x) && x instanceof SymSXP s && s.isEllipsis());
   }
 
   private boolean dotsOrMissing(ListSXP l) {
-    return l.values().stream().anyMatch(x -> missing(x) || x instanceof SymSXP s && s.isEllipsis());
+    return l
+            .values()
+            .stream()
+            .anyMatch(x -> missing(x) || x instanceof SymSXP s && s.isEllipsis());
   }
 
   private boolean missing(SEXP x) {
@@ -2253,10 +2258,7 @@ public class Compiler {
 
     Optional<IntSXP> srcRef;
 
-    // FIXME: ugly
-    if (body instanceof LangSXP b
-            && b.fun() instanceof RegSymSXP sym
-            && sym.name().equals("{")) {
+    if (body instanceof LangSXP b && b.funName("{")) {
       srcRef = extractSrcRef(body, 0);
     } else {
       // try to get the srcRef from the function itself
