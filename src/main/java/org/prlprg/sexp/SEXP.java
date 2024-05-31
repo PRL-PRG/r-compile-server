@@ -101,7 +101,11 @@ public sealed interface SEXP
     return Arrays.stream(types).anyMatch(t -> t == type());
   }
 
-  default Optional<LangSXP> asCall() {
-    return this instanceof LangSXP call ? Optional.of(call) : Optional.empty();
+  default Optional<LangSXP> asLang() {
+    return as(LangSXP.class);
+  }
+
+  default <T extends SEXP> Optional<T> as(Class<T> clazz) {
+    return clazz.isInstance(this) ? Optional.of(clazz.cast(this)) : Optional.empty();
   }
 }

@@ -1013,9 +1013,9 @@ public class Compiler {
       b = lb.arg(0);
     }
 
-    return b.asCall()
+    return b.asLang()
         .filter(call -> call.funName(".Internal"))
-        .flatMap(call -> call.arg(0).asCall())
+        .flatMap(call -> call.arg(0).asLang())
         .filter(
             internalCall -> internalCall.funName().map(rsession::isBuiltinInternal).orElse(false))
         .filter(internalCall -> hasSimpleArgs(internalCall, def.formals().names()));
