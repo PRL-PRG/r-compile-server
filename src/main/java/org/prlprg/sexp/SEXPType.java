@@ -6,7 +6,7 @@ package org.prlprg.sexp;
  * <p>SEXPTYPEs are fixed in GNU-R: we can represent SEXPs of custom types on the server, but they
  * have to be converted to something like external pointers if we have a client using the GNU-R
  * runtime (which is the only planned runtime). Furthermore, we don't refine existing SEXPTypes even
- * when we refine the SEXP class: e.g. {@link SimpleIntSXP} has the same SEXPType as any other int
+ * when we refine the SEXP class: e.g. {@link ScalarIntSXP} has the same SEXPType as any other int
  * vector since the SEXPType for all int vectors is {@code INT}. Therefore it's important to
  * distinguish {@link SEXP#type} from the SEXP's class.
  *

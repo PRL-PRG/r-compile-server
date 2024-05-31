@@ -151,7 +151,7 @@ public enum BcOp {
   @SuppressWarnings("DuplicateBranchesInSwitch")
   public int nArgs() {
     return switch (this) {
-      case BCMISMATCH -> throw new BcFromRawException("invalid opcode " + BCMISMATCH.value());
+      case BCMISMATCH -> throw new IllegalStateException("invalid opcode " + BCMISMATCH.value());
       case RETURN -> 0;
       case GOTO -> 1;
       case BRIFNOT -> 2;

@@ -30,6 +30,7 @@ sealed interface RDSItemType {
       case 241 -> Special.BASEENV_SXP;
       case 240 -> Special.ATTRLANGSXP;
       case 239 -> Special.ATTRLISTSXP;
+      case 238 -> Special.ALTREPSXP;
       default -> {
         try {
           yield new Sexp(SEXPType.valueOf(i));
@@ -66,7 +67,8 @@ sealed interface RDSItemType {
     EMPTYENV_SXP(242),
     BASEENV_SXP(241),
     ATTRLANGSXP(240),
-    ATTRLISTSXP(239);
+    ATTRLISTSXP(239),
+    ALTREPSXP(238);
 
     private final int i;
 

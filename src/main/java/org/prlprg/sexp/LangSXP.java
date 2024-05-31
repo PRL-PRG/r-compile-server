@@ -1,6 +1,7 @@
 package org.prlprg.sexp;
 
 import com.google.common.collect.ImmutableList;
+import java.util.Optional;
 import javax.annotation.concurrent.Immutable;
 import org.prlprg.primitive.Names;
 
@@ -19,14 +20,27 @@ public sealed interface LangSXP extends SymOrLangSXP {
   }
 
   @Override
+  default Class<? extends SEXP> getCanonicalType() {
+    return LangSXP.class;
+  }
+
+  @Override
   Attributes attributes();
 
   @Override
   LangSXP withAttributes(Attributes attributes);
 
-  TaggedElem arg(int i);
+  SEXP arg(int i);
 
-  ImmutableList<SEXP> asList();
+  ListSXP asList();
+
+  default Optional<String> funName() {
+    return fun() instanceof RegSymSXP funSym ? Optional.of(funSym.name()) : Optional.empty();
+  }
+
+  default boolean funName(String name) {
+    return funName().map(name::equals).orElse(false);
+  }
 }
 
 record LangSXPImpl(SymOrLangSXP fun, ListSXP args, @Override Attributes attributes)
@@ -44,7 +58,7 @@ record LangSXPImpl(SymOrLangSXP fun, ListSXP args, @Override Attributes attribut
         return args.get(0) + " " + funName + " " + args.get(1);
       }
     }
-    return fun().toString() + (args() instanceof NilSXP ? "()" : args().toString());
+    return fun() + (args() instanceof NilSXP ? "()" : args().toString());
   }
 
   @Override
@@ -53,12 +67,13 @@ record LangSXPImpl(SymOrLangSXP fun, ListSXP args, @Override Attributes attribut
   }
 
   @Override
-  public TaggedElem arg(int i) {
-    return args.get(i);
+  public SEXP arg(int i) {
+    return args.get(i).value();
   }
 
   @Override
-  public ImmutableList<SEXP> asList() {
-    return new ImmutableList.Builder<SEXP>().add(fun).addAll(args.values()).build();
+  public ListSXP asList() {
+    var l = new ImmutableList.Builder<SEXP>().add(fun).addAll(args.values()).build();
+    return SEXPs.list2(l);
   }
 }

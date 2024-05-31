@@ -18,6 +18,11 @@ public sealed interface ExprSXP extends VectorSXP<SEXP> {
 
   @Override
   ExprSXP withAttributes(Attributes attributes);
+
+  @Override
+  default Class<? extends SEXP> getCanonicalType() {
+    return ExprSXP.class;
+  }
 }
 
 record ExprSXPImpl(ImmutableList<SEXP> data, @Override Attributes attributes) implements ExprSXP {

@@ -2,6 +2,7 @@ package org.prlprg.bc;
 
 import com.google.common.primitives.ImmutableIntArray;
 import java.util.*;
+import java.util.function.Function;
 import javax.annotation.Nullable;
 import org.prlprg.primitive.Constants;
 import org.prlprg.sexp.IntSXP;
@@ -13,26 +14,12 @@ import org.prlprg.sexp.SEXPs;
  * constants.
  */
 public record Bc(BcCode code, ConstPool consts) {
+
   /**
    * The only version of R bytecodes we support, which is also the latest version. The bytecode's
    * version is denoted by the first integer in its code.
    */
   public static final int R_BC_VERSION = 12;
-
-  /**
-   * Create from the raw GNU-R representation, bytecodes not including the initial version number.
-   */
-  public static Bc fromRaw(ImmutableIntArray bytecodes, List<SEXP> consts)
-      throws BcFromRawException {
-    var poolAndMakeIdx = ConstPool.fromRaw(consts);
-    var pool = poolAndMakeIdx.first();
-    var makePoolIdx = poolAndMakeIdx.second();
-    try {
-      return new Bc(BcCode.fromRaw(bytecodes, makePoolIdx), pool);
-    } catch (BcFromRawException e) {
-      throw new BcFromRawException("malformed bytecode\nConstants: " + pool, e);
-    }
-  }
 
   @Override
   public String toString() {
@@ -56,6 +43,7 @@ public record Bc(BcCode code, ConstPool consts) {
     private @Nullable IntSXP currentSrcRef = null;
     private boolean trackSrcRefs = true;
     private boolean trackExpressions = true;
+    private final Map<Integer, Function<BcInstr, BcInstr>> patches = new LinkedHashMap<>();
 
     public void setTrackSrcRefs(boolean track) {
       this.trackSrcRefs = track;
@@ -66,27 +54,30 @@ public record Bc(BcCode code, ConstPool consts) {
     }
 
     /** Append a constant and return its index. */
-    public <S extends SEXP> ConstPool.TypedIdx<S> addConst(S c) {
+    public <S extends SEXP> ConstPool.Idx<S> addConst(S c) {
       return consts.add(c);
     }
 
     /** Append an instruction. */
-    public void addInstr(BcInstr instr) {
+    public int addInstr(BcInstr instr) {
+      var idx = code.size();
       code.add(instr);
 
       if (trackExpressions) {
         assert currentExpr != null;
         for (var i = 0; i <= instr.op().nArgs(); i++) {
-          expressions.add(addConst(currentExpr).idx);
+          expressions.add(addConst(currentExpr).idx());
         }
       }
 
       if (trackSrcRefs) {
         assert currentSrcRef != null;
         for (var i = 0; i <= instr.op().nArgs(); i++) {
-          srcRefs.add(addConst(currentSrcRef).idx);
+          srcRefs.add(addConst(currentSrcRef).idx());
         }
       }
+
+      return idx;
     }
 
     public BcLabel makeLabel() {
@@ -105,6 +96,10 @@ public record Bc(BcCode code, ConstPool consts) {
      * @return The bytecode.
      */
     public Bc build() {
+      // this is the cb$patchlabels()
+      patches.forEach(code::patch);
+
+      // this is the cb$commitlocs()
       if (trackExpressions) {
         var expressionsIndex = SEXPs.integer(expressions.build()).withClass("expressionsIndex");
         addConst(expressionsIndex);
@@ -130,6 +125,10 @@ public record Bc(BcCode code, ConstPool consts) {
 
     public Loc getCurrentLoc() {
       return new Loc(trackExpressions ? currentExpr : null, trackSrcRefs ? currentSrcRef : null);
+    }
+
+    public void addInstrPatch(int instrIdx, Function<BcInstr, BcInstr> patch) {
+      patches.put(instrIdx, patch);
     }
   }
 }

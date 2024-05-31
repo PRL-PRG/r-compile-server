@@ -10,9 +10,14 @@ public sealed interface SymSXP extends SymOrLangSXP permits RegSymSXP, SpecialSy
     return SEXPType.SYM;
   }
 
+  @Override
+  default Class<? extends SEXP> getCanonicalType() {
+    return SymSXP.class;
+  }
+
   /** Whether this is the ellipsis symbol. */
   default boolean isEllipsis() {
-    return this == SEXPs.ELLIPSIS;
+    return this == SEXPs.DOTS_SYMBOL;
   }
 
   /** Whether this is the missing symbol. */

@@ -1,7 +1,11 @@
 package org.prlprg.sexp;
 
+import com.google.common.collect.ImmutableList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
+import java.util.stream.Stream;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import org.prlprg.util.EmptyIterator;
 
@@ -18,6 +22,11 @@ public final class NilSXP implements ListSXP {
   @Override
   public SEXPType type() {
     return SEXPType.NIL;
+  }
+
+  @Override
+  public Class<? extends SEXP> getCanonicalType() {
+    return NilSXP.class;
   }
 
   @Override
@@ -69,6 +78,61 @@ public final class NilSXP implements ListSXP {
   @Override
   public List<String> names() {
     return Collections.emptyList();
+  }
+
+  @Override
+  public List<String> names(int fromIndex) {
+    if (fromIndex == 0) {
+      return Collections.emptyList();
+    } else {
+      throw new UnsupportedOperationException("NULL is empty");
+    }
+  }
+
+  @Override
+  public ListSXP set(int index, @Nullable String tag, SEXP value) {
+    throw new UnsupportedOperationException("NULL is empty");
+  }
+
+  @Override
+  public ListSXP appended(String tag, SEXP value) {
+    return new ListSXPImpl(
+        new ImmutableList.Builder<TaggedElem>().add(new TaggedElem(tag, value)).build(),
+        Attributes.NONE);
+  }
+
+  @Override
+  public ListSXP appended(ListSXP other) {
+    return other;
+  }
+
+  @Override
+  public ListSXP subList(int fromIndex) {
+    if (fromIndex == 0) {
+      return this;
+    } else {
+      throw new UnsupportedOperationException("NULL is empty");
+    }
+  }
+
+  @Override
+  public ListSXP remove(String tag) {
+    throw new UnsupportedOperationException("NULL is empty");
+  }
+
+  @Override
+  public Stream<TaggedElem> stream() {
+    throw new UnsupportedOperationException("NULL is empty");
+  }
+
+  @Override
+  public Optional<TaggedElem> get(String name) {
+    return Optional.empty();
+  }
+
+  @Override
+  public ListSXP prepend(TaggedElem elem) {
+    return SEXPs.list(List.of(elem));
   }
 
   @Override

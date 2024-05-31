@@ -22,4 +22,22 @@ public record TaggedElem(@Nullable String tag, SEXP value) {
         ? value.toString()
         : value == SEXPs.MISSING_ARG ? tag + "=" : tag + "=" + value;
   }
+
+  public SEXP namedValue() {
+    if (tag == null) {
+      return value;
+    } else {
+      return value.withNames(tag);
+    }
+  }
+
+  /**
+   * Returns the tag or an empty string if the tag is null. This is to follow what GNU-R does when
+   * printing names.
+   *
+   * @return the tag or an empty string if the tag is null
+   */
+  public String tagOrEmpty() {
+    return tag == null ? "" : tag;
+  }
 }

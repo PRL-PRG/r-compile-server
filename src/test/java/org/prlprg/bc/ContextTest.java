@@ -1,22 +1,18 @@
 package org.prlprg.bc;
 
 import static com.google.common.truth.Truth.assertThat;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.HashSet;
 import org.junit.jupiter.api.Test;
-import org.prlprg.RSession;
-import org.prlprg.rsession.TestRSession;
 import org.prlprg.sexp.CloSXP;
+import org.prlprg.sexp.NamespaceEnvSXP;
 import org.prlprg.sexp.PromSXP;
 import org.prlprg.sexp.SEXPs;
-import org.prlprg.util.GNUR;
+import org.prlprg.util.AbstractGNURBasedTest;
 import org.prlprg.util.Pair;
 
-public class ContextTest {
-
-  private final RSession rsession = new TestRSession();
-  private final GNUR R = new GNUR(rsession);
-
+public class ContextTest extends AbstractGNURBasedTest {
   @Test
   public void testFindLocals() {
     var fun =
@@ -32,7 +28,7 @@ public class ContextTest {
                                         """);
 
     var ctx = Context.functionContext(fun);
-    assertThat(ctx.findLocals(fun.body())).containsExactly("y", "z", "zz");
+    assertThat(ctx.findLocals(fun.bodyAST())).containsExactly("y", "z", "zz");
   }
 
   @Test
@@ -66,7 +62,7 @@ public class ContextTest {
     var ctx = Context.functionContext(fun);
     var locals = new HashSet<>();
     locals.addAll(ctx.findLocals(fun.formals()));
-    locals.addAll(ctx.findLocals(fun.body()));
+    locals.addAll(ctx.findLocals(fun.bodyAST()));
     assertThat(locals).containsExactly("local", "x");
   }
 
@@ -88,8 +84,6 @@ public class ContextTest {
                                         """);
 
     var ctx = Context.functionContext(fun);
-    System.out.println(ctx);
-
     var x = ctx.resolve("x");
     assertThat(x).hasValue(new Pair<>(fun.env(), SEXPs.MISSING_ARG));
 
@@ -134,12 +128,15 @@ public class ContextTest {
                                         """);
 
     var ctx = Context.functionContext(fun);
-    assertThat(ctx.findLocals(fun.body())).containsExactly("x");
+    assertThat(ctx.findLocals(fun.bodyAST())).containsExactly("x");
   }
 
   @Test
   public void testFrameTypes() {
-    var fun = (CloSXP) R.eval("tools:::Rcmd");
-    System.out.println(fun);
+    var fun = (CloSXP) R.eval("utils::unzip");
+    var ctx = Context.functionContext(fun);
+    // FIXME: ugly - can we have some matchers for this?
+    var identical = ctx.resolve("identical").get();
+    assertTrue(identical.first() instanceof NamespaceEnvSXP ns && ns.getName().equals("base"));
   }
 }

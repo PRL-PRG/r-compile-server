@@ -3,7 +3,11 @@ package org.prlprg.sexp;
 import com.google.common.collect.ImmutableList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import javax.annotation.Nullable;
 
 /**
  * R "list". Confusingly, this is actually like <a href="https://www.lua.org/pil/2.5.html">Lua's
@@ -14,23 +18,6 @@ import java.util.stream.Collectors;
  *     because it's more efficient.
  */
 public sealed interface ListSXP extends ListOrVectorSXP<TaggedElem> permits NilSXP, ListSXPImpl {
-  /**
-   * Flatten {@code src} while adding its elements to {@code target}. Ex:
-   *
-   * <pre>
-   *   b = []; flatten([1, [2, 3], 4], b) ==> b = [1, 2, 3, 4]
-   * </pre>
-   */
-  static void flatten(ListSXP src, ImmutableList.Builder<TaggedElem> target) {
-    for (var i : src) {
-      if (i.value() instanceof ListSXP lst) {
-        flatten(lst, target);
-      } else {
-        target.add(i);
-      }
-    }
-  }
-
   @Override
   ListSXP withAttributes(Attributes attributes);
 
@@ -39,6 +26,37 @@ public sealed interface ListSXP extends ListOrVectorSXP<TaggedElem> permits NilS
   List<SEXP> values(int fromIndex);
 
   List<String> names();
+
+  List<String> names(int fromIndex);
+
+  ListSXP set(int index, @Nullable String tag, SEXP value);
+
+  ListSXP appended(String tag, SEXP value);
+
+  ListSXP appended(ListSXP other);
+
+  ListSXP subList(int fromIndex);
+
+  default boolean hasTags() {
+    return names().stream().anyMatch(x -> !x.isEmpty());
+  }
+
+  ListSXP remove(String tag);
+
+  Stream<TaggedElem> stream();
+
+  Optional<TaggedElem> get(String name);
+
+  ListSXP prepend(TaggedElem elem);
+
+  @Override
+  default Class<? extends SEXP> getCanonicalType() {
+    return ListSXP.class;
+  }
+
+  default SEXP value(int i) {
+    return get(i).value();
+  }
 }
 
 record ListSXPImpl(ImmutableList<TaggedElem> data, @Override Attributes attributes)
@@ -60,12 +78,74 @@ record ListSXPImpl(ImmutableList<TaggedElem> data, @Override Attributes attribut
 
   @Override
   public List<SEXP> values(int fromIndex) {
-    return values().subList(1, size());
+    return values().subList(fromIndex, size());
   }
 
   @Override
   public List<String> names() {
-    return data.stream().map(TaggedElem::tag).toList();
+    return data.stream().map(TaggedElem::tagOrEmpty).toList();
+  }
+
+  @Override
+  public List<String> names(int fromIndex) {
+    return names().subList(fromIndex, size());
+  }
+
+  @Override
+  public ListSXP set(int index, @Nullable String tag, SEXP value) {
+    return new ListSXPImpl(
+        ImmutableList.<TaggedElem>builder()
+            .addAll(data.subList(0, index))
+            .add(new TaggedElem(tag, value))
+            .addAll(data.subList(index + 1, data.size()))
+            .build(),
+        attributes);
+  }
+
+  @Override
+  public ListSXP appended(@Nullable String tag, SEXP value) {
+    return new ListSXPImpl(
+        ImmutableList.<TaggedElem>builder().addAll(data).add(new TaggedElem(tag, value)).build(),
+        attributes);
+  }
+
+  @Override
+  public ListSXP appended(ListSXP other) {
+    return new ListSXPImpl(
+        ImmutableList.<TaggedElem>builder().addAll(data).addAll(other.iterator()).build(),
+        attributes);
+  }
+
+  @Override
+  public ListSXP subList(int fromIndex) {
+    return new ListSXPImpl(data.subList(fromIndex, data.size()), attributes);
+  }
+
+  @Override
+  public ListSXP remove(String tag) {
+    var builder = ImmutableList.<TaggedElem>builder();
+    for (var i : this) {
+      if (!tag.equals(i.tag())) {
+        builder.add(i);
+      }
+    }
+    return new ListSXPImpl(builder.build(), Objects.requireNonNull(attributes()));
+  }
+
+  @Override
+  public Stream<TaggedElem> stream() {
+    return data.stream();
+  }
+
+  @Override
+  public Optional<TaggedElem> get(String name) {
+    return Optional.empty();
+  }
+
+  @Override
+  public ListSXP prepend(TaggedElem elem) {
+    return new ListSXPImpl(
+        ImmutableList.<TaggedElem>builder().add(elem).addAll(data).build(), attributes);
   }
 
   @Override
