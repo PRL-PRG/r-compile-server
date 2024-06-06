@@ -1,5 +1,6 @@
 package org.prlprg.util;
 
+import static org.prlprg.TestConfig.VERBOSE;
 import static org.prlprg.util.TestsPrivate.SNAPSHOT_RESOURCES_ROOT;
 
 import java.io.IOException;
@@ -101,6 +102,26 @@ public interface Tests {
       throw new RuntimeException("Command was interrupted: " + commandStr, e);
     } catch (IOException e) {
       throw new RuntimeException("Command failed with IO exception: " + commandStr, e);
+    }
+  }
+
+  /**
+   * {@code System.out.println} if {@link org.prlprg.TestConfig#VERBOSE VERBOSE} is set, otherwise
+   * no-op.
+   */
+  default void printlnIfVerbose(Object message) {
+    if (VERBOSE) {
+      System.out.println(message);
+    }
+  }
+
+  /**
+   * {@code System.out.println} if {@link org.prlprg.TestConfig#VERBOSE VERBOSE} is set, otherwise
+   * no-op.
+   */
+  default void printlnIfVerbose() {
+    if (VERBOSE) {
+      System.out.println();
     }
   }
 }

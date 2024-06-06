@@ -1,6 +1,7 @@
 package org.prlprg.ir.cfg;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.prlprg.TestConfig.VERBOSE;
 
 import java.io.StringReader;
 import java.io.StringWriter;
@@ -21,8 +22,9 @@ import org.prlprg.parseprint.Printer;
 import org.prlprg.util.DirectorySource;
 import org.prlprg.util.Files;
 import org.prlprg.util.Pair;
+import org.prlprg.util.Tests;
 
-public class CFGTests {
+public class CFGTests implements Tests {
   private static final int NUM_PIR_PRINTS_IN_FAST_TESTS = 200;
 
   @ParameterizedTest
@@ -40,7 +42,7 @@ public class CFGTests {
     var editsForEveryCfg = cfgsAndEdits.second();
 
     for (var cfg : cfgs) {
-      System.err.println(cfg);
+      printlnIfVerbose(cfg);
 
       var edits = editsForEveryCfg.get(cfg);
 
@@ -48,7 +50,7 @@ public class CFGTests {
       for (var editAndInverse : edits) {
         var edit = editAndInverse.first();
         var inverse = editAndInverse.second();
-        System.err.println(edit);
+        printlnIfVerbose(edit);
         var inverse2 = edit.apply(copy);
 
         assertEquals(inverse, inverse2, "Applying edit on copy doesn't produce the same inverse");
@@ -59,7 +61,7 @@ public class CFGTests {
           printCFGForEquality(copy),
           "Recreated CFG does not match original");
 
-      System.err.println();
+      printlnIfVerbose();
     }
   }
 
@@ -78,14 +80,14 @@ public class CFGTests {
     var editsForEveryCfg = cfgsAndEdits.second();
 
     for (var cfg : cfgs) {
-      System.err.println(cfg);
+      printlnIfVerbose(cfg);
 
       var edits = editsForEveryCfg.get(cfg);
 
       for (var editAndInverse : edits.reversed()) {
         var edit = editAndInverse.first();
         var inverse = editAndInverse.second();
-        System.err.println(inverse + " <- " + edit);
+        printlnIfVerbose(inverse + " <- " + edit);
         var edit2 = inverse.apply(cfg);
 
         assertEquals(edit, edit2, "Applying inverse doesn't produce the original edit");
@@ -96,7 +98,7 @@ public class CFGTests {
           printCFGForEquality(cfg),
           "Undoing all edits should result in an empty CFG");
 
-      System.err.println();
+      printlnIfVerbose();
     }
   }
 
@@ -115,7 +117,7 @@ public class CFGTests {
       } catch (CFGVerifyException e) {
         throw new AssertionError("Failed to verify " + pirPath, e);
       }
-      System.err.println("OK");
+      printlnIfVerbose("OK");
     }
   }
 
@@ -150,14 +152,16 @@ public class CFGTests {
     var roundTrip = writePirCfgs(cfgs);
     var defaultStr = writeCfgs(cfgs);
 
-    System.out.println("Native serialized representation:");
-    System.out.println(entireRegion(defaultStr));
-    System.out.println();
-    System.out.println("Reprinted (round-trip) PIR representation:");
-    System.out.println(entireRegion(roundTrip));
-    System.out.println();
-    System.out.println("Original PIR representation:");
-    System.out.println(entireRegion(original));
+    if (VERBOSE) {
+      System.out.println("Native serialized representation:");
+      System.out.println(entireRegion(defaultStr));
+      System.out.println();
+      System.out.println("Reprinted (round-trip) PIR representation:");
+      System.out.println(entireRegion(roundTrip));
+      System.out.println();
+      System.out.println("Original PIR representation:");
+      System.out.println(entireRegion(original));
+    }
   }
 
   /**

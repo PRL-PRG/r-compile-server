@@ -454,6 +454,43 @@ final class OverloadRTypeImpl implements OverloadRType {
         parameters, fallbackEffects, genericEffects, fallbackReturnType, genericReturnType);
   }
 
+  /**
+   * If the types are equal, returns 0. Otherwise, returns a positive or negative integer, so that
+   * this function is commutative and associative.
+   */
+  int rawCompareTo(OverloadRTypeImpl other) {
+    // Compare hashCode, but in the rare case they are equal, we must do a deep comparison.
+    // Specifically, we do `toString` and compare generic effects because that finds any
+    // differences.
+    var hashCodeCmp = Integer.compare(hashCode(), other.hashCode());
+    if (hashCodeCmp != 0) {
+      return hashCodeCmp;
+    }
+    var toStringCmp = toString().compareTo(other.toString());
+    if (toStringCmp != 0) {
+      return toStringCmp;
+    }
+    if (genericEffects != null && other.genericEffects != null) {
+      var genericEffectsCmp =
+          Integer.compare(genericEffects.hashCode(), other.genericEffects.hashCode());
+      if (genericEffectsCmp != 0) {
+        return genericEffectsCmp;
+      }
+    } else if (genericEffects != null) {
+      return 1;
+    } else if (other.genericEffects != null) {
+      return -1;
+    }
+    if (genericReturnType != null && other.genericReturnType != null) {
+      return Integer.compare(genericReturnType.hashCode(), other.genericReturnType.hashCode());
+    } else if (genericReturnType != null) {
+      return 1;
+    } else if (other.genericReturnType != null) {
+      return -1;
+    }
+    return 0;
+  }
+
   @Override
   public String toString() {
     return "("

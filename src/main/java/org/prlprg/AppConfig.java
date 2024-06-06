@@ -8,6 +8,15 @@ import org.prlprg.util.Strings;
  * @see Config
  */
 public final class AppConfig extends Config {
+  /**
+   * Shell command to invoke R. Default is "R", pass something else to provide a custom R binary
+   * (e.g. different version than the default installed one).
+   *
+   * <p>Note that we pass extra arguments to the command. The working directory of the command is
+   * the working directory of this running program.
+   */
+  public static final String R_BIN = get("R_BIN", "R");
+
   /** Adds extra verification checks. */
   public static final CfgDebugLevel CFG_DEBUG_LEVEL = get("CFG_DEBUG_LEVEL", CfgDebugLevel.VERIFY);
 
@@ -68,6 +77,10 @@ abstract class Config {
               + ". Expected one of: "
               + Strings.join(", ", Enum::name, enumClass.getEnumConstants()));
     }
+  }
+
+  protected static String get(String name, String defaultValue) {
+    return System.getenv().getOrDefault(name, defaultValue);
   }
 
   protected static int get(String name, int defaultValue) {

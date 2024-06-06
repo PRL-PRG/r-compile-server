@@ -24,4 +24,16 @@ public class TestConfig extends Config {
    * <p>This is <b>unset</b> by default.
    */
   public static final boolean FAST_TESTS = get("FAST_TESTS", false);
+
+  /**
+   * Whether to enable additional logging.
+   *
+   * <p>Mostly this adds logging to test successes; if there is a test failure we usually want as
+   * much information logged as possible. But some failures may have verbose logging if they usually
+   * occur in large groups.
+   *
+   * <p>Logging can't always be verbose because it slows down test execution and makes GitHub action
+   * logs not load properly.
+   */
+  public static final boolean VERBOSE = get("VERBOSE", false);
 }

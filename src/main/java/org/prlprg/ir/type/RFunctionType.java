@@ -118,7 +118,8 @@ record RFunctionTypeImpl(
           if (o2SupersetsO1 && !o1SupersetsO2) {
             return -1;
           }
-          return Integer.compare(o1.hashCode(), o2.hashCode());
+
+          return ((OverloadRTypeImpl) o1).rawCompareTo((OverloadRTypeImpl) o2);
         });
     return ImmutableList.copyOf(list);
   }
