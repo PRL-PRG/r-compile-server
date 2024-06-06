@@ -1,8 +1,7 @@
 #include "jit.h"
-#include "R_ext/Error.h"
-#include "llvm/Support/InitLLVM.h"
-#include "llvm/Support/TargetSelect.h"
+#include <R_ext/Error.h>
 #include <llvm/ExecutionEngine/Orc/LLJIT.h>
+#include <llvm/Support/TargetSelect.h>
 #include <memory>
 
 JIT *JIT::create() {
@@ -43,12 +42,12 @@ void JIT::add_object_file(const char *filename) {
 }
 
 void *JIT::lookup(const char *name) {
-  // auto v = orc->lookup(name);
-  // if (auto err = v.takeError()) {
-  //   // Rf_error("Unable to load %s: %s\n", name,
-  //   // toString(std::move(err)).c_str());
-  //   return nullptr;
-  // }
-  //
-  // return (void *)v->toPtr<void *>();
+  orc->getMainJITDylib().dump(llvm::outs());
+  auto v = orc->lookupLinkerMangled("jit_f");
+  if (auto err = v.takeError()) {
+    Rf_error("Unable to load %s: %s\n", name, toString(std::move(err)).c_str());
+    return nullptr;
+  }
+
+  return (void *)v->toPtr<void *>();
 }
