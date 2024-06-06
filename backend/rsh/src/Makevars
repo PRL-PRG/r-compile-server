@@ -1,0 +1,6 @@
+LLVM_CONFIG := llvm-config
+
+PKG_CXXFLAGS != $(LLVM_CONFIG) --cxxflags
+PKG_LDFLAGS != $(LLVM_CONFIG) --ldflags
+PKG_LIBS != $(LLVM_CONFIG) --libs
+
