@@ -1,0 +1,6 @@
+src/*.so
+src/*.o
+.cache/
+*.tar.gz
+.RData
+.Rhistory
