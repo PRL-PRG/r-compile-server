@@ -1,4 +1,6 @@
 #include "jit.h"
+#include "llvm/ExecutionEngine/Orc/DebugObjectManagerPlugin.h"
+#include "llvm/ExecutionEngine/Orc/EPCDebugObjectRegistrar.h"
 #include <R_ext/Error.h>
 #include <llvm/ExecutionEngine/Orc/LLJIT.h>
 #include <llvm/Support/TargetSelect.h>
@@ -16,9 +18,29 @@ JIT *JIT::create() {
     return nullptr;
   }
 
-  auto orc = llvm::orc::LLJITBuilder()
-                 .setJITTargetMachineBuilder(std::move(*mb))
-                 .create();
+  auto orc =
+      llvm::orc::LLJITBuilder()
+          .setJITTargetMachineBuilder(std::move(*mb))
+          .setObjectLinkingLayerCreator([&](llvm::orc::ExecutionSession &ES,
+                                            const llvm::Triple &TT) {
+            auto layer = std::make_unique<llvm::orc::ObjectLinkingLayer>(ES);
+            auto registrar = llvm::orc::createJITLoaderGDBRegistrar(ES);
+            if (auto err = registrar.takeError()) {
+              Rf_error("Unable to create registrar: %s\n",
+                       toString(std::move(err)).c_str());
+            }
+
+            layer->addPlugin(
+                std::make_unique<llvm::orc::DebugObjectManagerPlugin>(
+                    ES, std::move(*registrar), false, true));
+
+            // layer->addPlugin(
+            //     std::make_unique<llvm::orc::DebugObjectManagerPlugin>(
+            //         ES, *registrar));
+
+            return layer;
+          })
+          .create();
 
   if (auto err = orc.takeError()) {
     Rf_error("Unable to create LLVJIT: %s\n", toString(std::move(err)).c_str());
