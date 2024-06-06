@@ -29,7 +29,7 @@ jobs:
       - name: Set up GNU-R
         uses: r-lib/actions/setup-r@v2
         with:
-          r-version: "4.4.0"
+          r-version: "4.3.2"
       - name: Build artifact
         run: mvn --batch-mode --update-snapshots package
       - run: mkdir staging && cp target/*.jar staging
@@ -56,7 +56,7 @@ jobs:
       - name: Set up GNU-R
         uses: r-lib/actions/setup-r@v2
         with:
-          r-version: "4.4.0"
+          r-version: "4.3.2"
       - name: Run tests (no static analyses)
         run: mvn --batch-mode --update-snapshots test
 
@@ -74,7 +74,7 @@ jobs:
       - name: Set up GNU-R
         uses: r-lib/actions/setup-r@v2
         with:
-          r-version: "4.4.0"
+          r-version: "4.3.2"
       - name: Run tests and static analyses
         run: mvn --batch-mode --update-snapshots verify
 
@@ -92,6 +92,6 @@ jobs:
       - name: Set up GNU-R
         uses: r-lib/actions/setup-r@v2
         with:
-          r-version: "4.4.0"
+          r-version: "4.3.2"
       - name: Run tests and static analyses
         run: mvn --batch-mode --update-snapshots verify
