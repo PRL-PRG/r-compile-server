@@ -34,10 +34,6 @@ JIT *JIT::create() {
                 std::make_unique<llvm::orc::DebugObjectManagerPlugin>(
                     ES, std::move(*registrar), false, true));
 
-            // layer->addPlugin(
-            //     std::make_unique<llvm::orc::DebugObjectManagerPlugin>(
-            //         ES, *registrar));
-
             return layer;
           })
           .create();
@@ -65,7 +61,7 @@ void JIT::add_object_file(const char *filename) {
 
 void *JIT::lookup(const char *name) {
   orc->getMainJITDylib().dump(llvm::outs());
-  auto v = orc->lookupLinkerMangled("jit_f");
+  auto v = orc->lookupLinkerMangled(name);
   if (auto err = v.takeError()) {
     Rf_error("Unable to load %s: %s\n", name, toString(std::move(err)).c_str());
     return nullptr;
