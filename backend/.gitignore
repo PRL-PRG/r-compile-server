@@ -1,5 +1,5 @@
 src/*.so
-src/*.o
+*.o
 .cache/
 *.tar.gz
 .RData
