@@ -1,16 +1,7 @@
-#include <stdio.h>
 typedef struct SEXPREC SEXPREC;
 typedef SEXPREC *SEXP;
 
-SEXP Rf_allocVector(int, int);
-void SET_SCALAR_IVAL(SEXP x, int v);
-
-SEXP Rf_ScalarInteger(int x) {
-  printf("Hi");
-  SEXP res = Rf_allocVector(13, 1);
-  SET_SCALAR_IVAL(res, x);
-  return res;
-}
+SEXP Rf_ScalarInteger(int x);
 
 // clang-format off
 //

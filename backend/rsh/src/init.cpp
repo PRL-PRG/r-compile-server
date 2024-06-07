@@ -9,12 +9,14 @@
 static JIT *jit = nullptr;
 SEXP load_fun(SEXP filename);
 SEXP call_fun(SEXP pointer);
+SEXP call_fun2(SEXP pointer, SEXP arg);
 
 extern "C" {
 
 static const R_CallMethodDef callMethods[] = {
     {"load_fun", (DL_FUNC)&load_fun, 1},
     {"call_fun", (DL_FUNC)&call_fun, 1},
+    {"call_fun2", (DL_FUNC)&call_fun2, 2},
     {NULL, NULL, 0}};
 
 void R_init_rsh(DllInfo *dll) {
@@ -35,4 +37,10 @@ SEXP call_fun(SEXP pointer) {
   void *ptr = R_ExternalPtrAddr(pointer);
   SEXP (*fun)() = (SEXP(*)())ptr;
   return fun();
+}
+
+SEXP call_fun2(SEXP pointer, SEXP arg) {
+  void *ptr = R_ExternalPtrAddr(pointer);
+  SEXP (*fun)(SEXP) = (SEXP(*)(SEXP))ptr;
+  return fun(arg);
 }
