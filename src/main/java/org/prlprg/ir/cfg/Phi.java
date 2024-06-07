@@ -436,12 +436,11 @@ abstract class PhiImpl<N extends Node> implements Phi<N> {
     for (var input : this.inputs.entrySet()) {
       if (input.getValue().equals(old)) {
         input.setValue((N) replacement);
+        cfg.record(
+            new CFGEdit.SetPhiInput<>(this, input.getKey(), (N) replacement),
+            new CFGEdit.SetPhiInput<>(this, input.getKey(), (N) old));
       }
     }
-
-    cfg.record(
-        new CFGEdit.ReplaceInArgs(this, old, replacement),
-        new CFGEdit.ReplaceInArgs(this, replacement, old));
   }
 
   private void verifyInputIfEagerConfig(Phi.Input<?> input) {

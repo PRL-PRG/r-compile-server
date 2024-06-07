@@ -1,0 +1,18 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ environment[0x56554a8dd640]                                                  │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;NonRefl0                             │
+│ Properties:  Eager, ForceOrd: 0                                              │
+├────── PIR Version After Optimizations
+environment[0x56554a8dd640]
+BB0
+  goto BB1
+BB1   <- [0]
+  val?^           %1.0  = LdArg                    0
+  env             e1.1  = MkEnv              l     fun=%1.0, parent=R_BaseNamespace, context 1
+  val?            %1.2  = Force!<lazy>       !vr   %1.0,    <(nil|cls)>
+  val?            %1.3  = CallBuiltin        !     environment(%1.2) e1.1
+  void                    Return             l     %1.3
+
+│ environment[0x56554a8dd640]                                                  │
+└──────────────────────────────────────────────────────────────────────────────┘

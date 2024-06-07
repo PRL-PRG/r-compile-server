@@ -1,0 +1,189 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ asMethod[0x55fa17314990]                                                     │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;NonRefl0 miss: 2                     │
+│ Properties:                                                                  │
+├────── Final PIR Version
+asMethod[0x55fa17314990]
+BB0
+  val?^           %0.0  = LdArg                    0
+  void                    Visible            v     
+  val?^ | miss    %0.2  = LdVar              eR    as_dense, <env 0x55fa0d1a9f20>
+  lgl$#-          %0.3  = Identical                %0.2, function(x, cld=if(isS4(x), getClassDef(class(|...
+  void                    Branch                   %0.3 -> BB6 (if true) | BB7 (if false)
+BB6   <- [0]
+  env             e6.0  = MkEnv              l     from=%0.0, to(miss)="denseMatrix", strict(miss)=true, parent=<env 0x55fa0d1a9f20>, context 1
+  prom-           %6.1  = MkArg                    unboundValue, asMethod[0x55fa17314990]_p2 (!refl), e6.0
+  ct              %6.2  = PushContext        lCL   %6.1, as_dense(from), function(x, cld=if(isS4(x), getClassDef(class(|..., e6.0
+  val?^           %6.3  = CastType                 up %6.1
+  env             e6.4  = MkEnv              l     x=%6.3, cld(miss)=missingArg, parent=<env 0x55fa0d1a9f20>, context 1
+  prom-           %6.5  = MkArg                    unboundValue, asMethod[0x55fa17314990]_p3, e6.4
+  val?^ | miss    %6.6  = CastType                 up %6.5
+  void                    StArg              lW    cld, %6.6, e6.4
+  val?^ | miss    %6.8  = LdVar              eR    as, <env 0x55fa0d1a9f20>
+  lgl$#-          %6.9  = Identical                %6.8, function(object, Class, strict=TRUE, ext=possi|...
+  void                    Branch                   %6.9 -> BB8 (if true) | BB9 (if false)
+BB7   <- [0]
+  env             e7.0  = (MkEnv)            l     from=%0.0, to(miss)="denseMatrix", strict(miss)=true, parent=<env 0x55fa0d1a9f20>, context 1
+  fs              %7.1  = FrameState         R     0x55fa174cc550+0: [], env=e7.0
+  void                    Deopt              !v    %7.1, CallTarget@0x55fa136b63f0[Call#0], %0.2
+BB8   <- [6]
+  prom-           %8.0  = MkArg                    unboundValue, asMethod[0x55fa17314990]_p7, e6.4
+  prom-           %8.1  = MkArg                    unboundValue, asMethod[0x55fa17314990]_p8, e6.4
+  val?            %8.2  = Call               !     function(object, Class, strict=TRUE, ext=possi|...(%8.0, %8.1) e6.4   <other>
+  val?            %8.3  = PopContext         C     %8.2, %6.2   <other>
+  void                    Return             l     %8.3
+BB9   <- [6]
+  fs              %9.0  = FrameState         R     0x55fa174cc550+32: [], env=e6.0
+  fs              %9.1  = FrameState         R     0x55fa156e1d70+0: [], env=e6.4, next=%9.0
+  void                    Deopt              !v    %9.1, CallTarget@0x55fa10eba938[Call#3], %6.8   !
+Prom 2:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    from, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <other>
+  void                    Return             l     %0.3
+Prom 3:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     isS4, <0x55fa0ad63a28>, e0.0
+  prom-           %0.2  = MkArg                    unboundValue, asMethod[0x55fa17314990]_p4, e0.0
+  val?            %0.3  = Call               !     %0.1(%0.2) e0.0   <lgl$->
+  lgl$#-          %0.4  = CheckTrueFalse     we    %0.3
+  void                    Branch                   %0.4 -> BB2 (if true) | BB4 (if false)
+BB2   <- [0]
+  (cls|spec|blt)  %2.0  = LdFun              !     getClassDef, <0x55fa0befdcd0>, e0.0
+  prom-           %2.1  = MkArg                    unboundValue, asMethod[0x55fa17314990]_p5, e0.0
+  val?            %2.2  = Call               !     %2.0(%2.1) e0.0   <other>
+  val?            %2.3  = %2.2
+  goto BB3
+BB4   <- [0]
+  void                    Invisible          v     
+  nil-            %4.1  = nil
+  goto BB3
+BB3   <- [4, 2]
+  val?            %3.0  = Phi                      %4.1:BB4, %2.3:BB2
+  val?            %3.1  = %3.0
+  void                    Return             l     %3.1
+Prom 4:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    x, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<wrapped>     !     %0.1, e0.0   <other>
+  void                    Return             l     %0.3
+Prom 5:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     class, <0x55fa0ad54748>, e0.0
+  prom-           %0.2  = MkArg                    unboundValue, asMethod[0x55fa17314990]_p6, e0.0
+  val?            %0.3  = Call               !     %0.1(%0.2) e0.0   <str$+>
+  void                    Return             l     %0.3
+Prom 6:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    x, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<wrapped>     !     %0.1, e0.0   <other>
+  void                    Return             l     %0.3
+Prom 7:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    x, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <other>
+  void                    Return             l     %0.3
+Prom 8:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     paste0, <0x55fa0ae9d3c8>, e0.0
+  prom-           %0.2  = MkArg                    unboundValue, asMethod[0x55fa17314990]_p9, e0.0
+  prom-           %0.3  = MkArg                    unboundValue, asMethod[0x55fa17314990]_p12, e0.0
+  val?            %0.4  = Call               !     %0.1(%0.2, %0.3, "Matrix") e0.0   <str$->
+  void                    Return             l     %0.4
+Prom 9:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     .M.kind, <0x55fa10e3df88>, e0.0
+  prom-           %0.2  = MkArg                    unboundValue, asMethod[0x55fa17314990]_p10, e0.0
+  prom-           %0.3  = MkArg                    unboundValue, asMethod[0x55fa17314990]_p11, e0.0
+  val?            %0.4  = Call               !     %0.1(%0.2, %0.3) e0.0   <str$->
+  void                    Return             l     %0.4
+Prom 10:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    x, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<wrapped>     !     %0.1, e0.0   <other>
+  void                    Return             l     %0.3
+Prom 11:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    cld, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <other>
+  void                    Return             l     %0.3
+Prom 12:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    .dense.prefixes, e0.0
+  val?            %0.2  = Force<wrapped>     !v    %0.1, e0.0   <str+>
+  lgl$#-          %0.3  = IsType                   %0.2 isA val+   <true>
+  void                    Branch                   %0.3 -> BB2 (if true) | BB4 (if false)
+BB2   <- [0]
+  (cls|spec|blt)  %2.0  = LdFun              !v    .M.shape, <0x55fa11099618>, e0.0
+  prom-           %2.1  = MkArg                    unboundValue, asMethod[0x55fa17314990]_p13, e0.0
+  prom-           %2.2  = MkArg                    unboundValue, asMethod[0x55fa17314990]_p14, e0.0
+  val?            %2.3  = Call               !v    %2.0(%2.1, %2.2) e0.0   <str$->
+  val?            %2.4  = %2.3
+  goto BB3
+BB4   <- [0]
+  prom-           %4.0  = MkArg                    unboundValue, asMethod[0x55fa17314990]_p15, e0.0
+  prom-           %4.1  = %4.0
+  goto BB3
+BB3   <- [4, 2]
+  val?            %3.0  = Phi                      %2.4:BB2, %4.1:BB4
+  val?            %3.1  = %3.0
+  val?            %3.2  = Extract1_1D        !v    %0.2, %3.1, e0.0   <str$+>
+  void                    Visible            v     
+  void                    Return             l     %3.2
+Prom 13:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    x, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<wrapped>     !     %0.1, e0.0   <other>
+  void                    Return             l     %0.3
+Prom 14:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    cld, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<wrapped>     !     %0.1, e0.0   <other>
+  void                    Return             l     %0.3
+Prom 15:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     .M.shape, e0.0
+  prom-           %0.2  = MkArg                    unboundValue, asMethod[0x55fa17314990]_p16, e0.0
+  prom-           %0.3  = MkArg                    unboundValue, asMethod[0x55fa17314990]_p17, e0.0
+  val?            %0.4  = Call               !     %0.1(%0.2, %0.3) e0.0   <val?_>
+  void                    Return             l     %0.4
+Prom 16:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    x, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 17:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    cld, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+
+│ asMethod[0x55fa17314990]                                                     │
+└──────────────────────────────────────────────────────────────────────────────┘

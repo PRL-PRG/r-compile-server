@@ -1,0 +1,232 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ asNamespace[0x55cca94ca690]                                                  │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch miss: 1                              │
+│ Properties:  Eager, ForceOrd: 0                                              │
+├────── PIR Version After Optimizations
+asNamespace[0x55cca94ca690]
+BB0
+  goto BB1
+BB1   <- [0]
+  val?^           %1.0  = LdArg                    0
+  env             e1.1  = MkEnv              l     ns=%1.0, base.OK(miss)=true, parent=R_BaseNamespace, context 1
+  val?            %1.2  = Force!<lazy>       !v    %1.0, e1.1   <(str|env)+>
+  lgl$#-          %1.3  = IsType                   %1.2 isA val?+
+  cp              %1.4  = Checkpoint                -> BB2 (default) | BB34 (if assume failed)
+BB2   <- [1]
+  void                    Assume             D     %1.3, %1.4 (Typecheck@0x55cca84e8a48[Type#1])
+  val?+           %2.1  = CastType           d     dn %1.2   <(str|env)+>
+  lgl$#-          %2.2  = CallSafeBuiltin    wed   is.character(%2.1)    <lgl$->
+  cp              %2.3  = Checkpoint                -> BB4 (default) | BB3 (if assume failed)
+BB34   <- [1]
+  fs              %34.0 = FrameState         R     0x55cca92dc7c0+69: [<blt is.character>, %1.2], env=e1.1
+  void                    Deopt              !v    %34.0   !
+BB4   <- [2]
+  void                    Branch                   %2.2 -> BB33 (if true) | BB5 (if false)
+BB3   <- [2]
+  fs              %3.0  = FrameState         R     0x55cca92dc7c0+91: [%2.2], env=e1.1
+  void                    Deopt              !v    %3.0   !
+BB33   <- [4]
+  goto BB6
+BB5   <- [4]
+  val?^ | miss    %5.0  = LdVar              eR    is.name, e1.1
+  lgl$#-          %5.1  = Identical                <blt is.symbol>, %5.0   <true>
+  void                    Assume             D     %5.1, %2.3 (DeadBranchReached@0x55cca84e8a48[Test#1])
+  val?^ | miss    %5.3  = LdVar              eR    ns, e1.1
+  val?            %5.4  = Force!<wrapped>    !v    %5.3, e1.1   <env->
+  lgl$#-          %5.5  = CallSafeBuiltin    wed   is.symbol(%5.4)    <lgl$->
+  lgl$-           %5.6  = LOr                      %2.2, %5.5
+  goto BB6
+BB6   <- [33, 5]
+  lgl$-           %6.0  = Phi                      %5.6:BB5, %2.2:BB33
+  cp              %6.1  = Checkpoint                -> BB8 (default) | BB7 (if assume failed)
+BB8   <- [6]
+  lgl$#-          %8.0  = CheckTrueFalse     e     %6.0
+  void                    Branch                   %8.0 -> BB28 (if true) | BB9 (if false)
+BB7   <- [6]
+  fs              %7.0  = FrameState         R     0x55cca92dc7c0+201: [%6.0], env=e1.1
+  void                    Deopt              !v    %7.0   !
+BB28   <- [8]
+  val?^ | miss    %28.0 = LdVar              eR    getNamespace, e1.1
+  lgl$#-          %28.1 = Identical                %28.0, function(name) <(rir::DispatchTable*)0x55cca93|...
+  void                    Assume             D     %28.1, %6.1 (CallTarget@0x55cca84e8a48[Call#2])
+  prom-           %28.3 = MkArg                    unboundValue, asNamespace[0x55cca94ca690]_p3, e1.1
+  ct              %28.4 = PushContext        lCL   %28.3, getNamespace(ns), function(name) <(rir::DispatchTable*)0x55cca93|..., e1.1
+  val?^           %28.5 = CastType                 up %28.3
+  env             e28.6 = MkEnv              l     name=%28.5, parent=R_BaseNamespace, context 1
+  val?            %28.7 = Force!<lazy>       !vL   %28.5, e28.6   <str$+>
+  lgl$#-          %28.8 = IsType                   %28.7 isA val?+
+  cp              %28.9 = Checkpoint                -> BB30 (default) | BB29 (if assume failed)
+BB9   <- [8]
+  goto BB10
+BB30   <- [28]
+  void                    Assume             D     %28.8, %28.9 (Typecheck@0x55cca84089e8[Type#0])
+  val?+           %30.1 = CastType           d     dn %28.7   <str$+>
+  val?            %30.2 = CallBuiltin        !v    getRegisteredNamespace(%30.1) e28.6   <env->
+  lgl$-           %30.3 = Is                       %30.2, NULL
+  void                    StVar              lW    ns, %30.2, e28.6
+  val             %30.5 = ChkMissing         e     %30.2
+  lgl$-           %30.6 = Not                d     %30.3, elided
+  lgl$#-          %30.7 = CheckTrueFalse     e     %30.6
+  void                    Branch                   %30.7 -> BB32 (if true) | BB31 (if false)
+BB29   <- [28]
+  fs              %29.0 = FrameState         R     0x55cca92dc7c0+244: [], env=e1.1
+  fs              %29.1 = FrameState         R     0x55cca93b1960+9: [%28.7], env=e28.6, next=%29.0
+  void                    Deopt              !v    %29.1   !
+BB10   <- [9, 32]
+  cp              %10.0 = Checkpoint                -> BB12 (default) | BB11 (if assume failed)
+BB32   <- [30]
+  val?            %32.0 = PopContext         C     %30.2, %28.4   <env->
+  void                    StVar              lW    ns, %32.0, e1.1
+  goto BB10
+BB31   <- [30]
+  fs              %31.0 = FrameState         R     0x55cca92dc7c0+244: [], env=e1.1
+  (cls|spec|blt)  %31.1 = LdFun              !v    loadNamespace, e28.6
+  fs              %31.2 = FrameState         R     0x55cca93b1960+67: [%31.1], env=e28.6, next=%31.0
+  void                    Deopt              !v    %31.2, DeadCall@0x55cca84089e8[Call#0], %31.1   !
+BB12   <- [10]
+  val?^ | miss    %12.0 = LdVar              eR    isNamespace, e1.1
+  lgl$#-          %12.1 = Identical                %12.0, function(ns) <(rir::DispatchTable*)0x55cca92dd|...
+  void                    Assume             D     %12.1, %10.0 (CallTarget@0x55cca84e8a48[Call#3])
+  prom-           %12.3 = MkArg                    unboundValue, asNamespace[0x55cca94ca690]_p1, e1.1
+  ct              %12.4 = PushContext        lCL   %12.3, isNamespace(ns), function(ns) <(rir::DispatchTable*)0x55cca92dd|..., e1.1
+  val?^           %12.5 = CastType                 up %12.3
+  env             e12.6 = MkEnv              l     ns=%12.5, parent=R_BaseNamespace, context 1
+  val?            %12.7 = Force!<lazy>       !vL   %12.5, e12.6   <env->
+  val?            %12.8 = CallBuiltin        !v    isNamespaceEnv(%12.7) e12.6
+  val?            %12.9 = PopContext         C     %12.8, %12.4   <lgl$->
+  lgl$#-          %12.10 = IsType                   %12.9 isA lgl$-
+  cp              %12.11 = Checkpoint                -> BB14 (default) | BB13 (if assume failed)
+BB11   <- [10]
+  fs              %11.0 = FrameState         R     0x55cca92dc7c0+258: [], env=e1.1
+  void                    Deopt              !v    %11.0   !
+BB14   <- [12]
+  void                    Assume             D     %12.10, %12.11 (Typecheck@0x55cca84e8a48[Type#9])
+  lgl$-           %14.1 = CastType           d     dn %12.9
+  lgl$-           %14.2 = Not                d     %14.1, elided
+  lgl$#-          %14.3 = CheckTrueFalse     e     %14.2
+  void                    Branch                   %14.3 -> BB27 (if true) | BB15 (if false)
+BB13   <- [12]
+  fs              %13.0 = FrameState         R     0x55cca92dc7c0+290: [%12.9], env=e1.1
+  void                    Deopt              !v    %13.0   !
+BB27   <- [14]
+  (cls|spec|blt)  %27.0 = LdFun              !v    stop, e1.1
+  fs              %27.1 = FrameState         R     0x55cca92dc7c0+435: [%27.0], env=e1.1
+  void                    Deopt              !v    %27.1, DeadCall@0x55cca84e8a48[Call#6], %27.0   !
+BB15   <- [14]
+  val?^ | miss    %15.0 = LdVar              eR    base.OK, e1.1
+  val?            %15.1 = Force!<lazy>       !v    %15.0, e1.1   <lgl$->
+  lgl$#-          %15.2 = IsType                   %15.1 isA lgl$-
+  cp              %15.3 = Checkpoint                -> BB17 (default) | BB16 (if assume failed)
+BB17   <- [15]
+  void                    Assume             D     %15.2, %15.3 (Typecheck@0x55cca84e8a48[Type#10])
+  lgl$-           %17.1 = CastType           d     dn %15.1
+  lgl$-           %17.2 = Not                d     %17.1, elided
+  lgl$-           %17.3 = AsLogical                %17.2
+  lgl$#-          %17.4 = Identical                %17.3, false
+  void                    Branch                   %17.4 -> BB26 (if true) | BB18 (if false)
+BB16   <- [15]
+  fs              %16.0 = FrameState         R     0x55cca92dc7c0+311: [%15.1], env=e1.1
+  void                    Deopt              !v    %16.0   !
+BB26   <- [17]
+  goto BB23
+BB18   <- [17]
+  val?^ | miss    %18.0 = LdVar              eR    isBaseNamespace, e1.1
+  lgl$#-          %18.1 = Identical                %18.0, function(ns) <(rir::DispatchTable*)0x55cca92dd|...
+  void                    Assume             D     %18.1, %15.3 (CallTarget@0x55cca84e8a48[Call#4])
+  prom-           %18.3 = MkArg                    unboundValue, asNamespace[0x55cca94ca690]_p2, e1.1
+  ct              %18.4 = PushContext        lCL   %18.3, isBaseNamespace(ns), function(ns) <(rir::DispatchTable*)0x55cca92dd|..., e1.1
+  val?^           %18.5 = CastType                 up %18.3
+  env             e18.6 = MkEnv              l     ns=%18.5, parent=R_BaseNamespace, context 1
+  prom-           %18.7 = MkArg                    unboundValue, asNamespace[0x55cca94ca690]_p4, e18.6
+  prom-           %18.8 = MkArg                    unboundValue, asNamespace[0x55cca94ca690]_p5, e18.6
+  ct              %18.9 = PushContext        lCL   %18.7, %18.8, identical(ns, .BaseNamespaceEnv), function(x, y, num.eq=TRUE, single.NA=TRUE, at|..., e18.6
+  val?^           %18.10 = CastType                 up %18.8
+  val?^           %18.11 = CastType                 up %18.7
+  env             e18.12 = MkEnv              l     x=%18.11, y=%18.10, num.eq(miss)=true, single.NA(miss)=true, attrib.as.set(miss)=true, ignore.bytecode(miss)=true, ignore.environment(miss)=false, ignore.srcref(miss)=true, parent=R_BaseNamespace, context 1
+  val?            %18.13 = Force!<lazy>       !vL   %18.11, e18.12   <val?>
+  val?            %18.14 = Force!<lazy>       !vL   %18.10, e18.12   <val?>
+  val?            %18.15 = CallBuiltin        !v    identical(%18.13, %18.14, true, true, true, true, false, true) e18.12
+  val?            %18.16 = PopContext         C     %18.15, %18.9   <lgl$->
+  lgl$#-          %18.17 = IsType                   %18.16 isA lgl$-
+  cp              %18.18 = Checkpoint                -> BB20 (default) | BB19 (if assume failed)
+BB23   <- [22, 26]
+  lgl$-           %23.0 = Phi                      %22.3:BB22, %17.3:BB26
+  lgl$#-          %23.1 = CheckTrueFalse     e     %23.0
+  void                    Branch                   %23.1 -> BB25 (if true) | BB24 (if false)
+BB20   <- [18]
+  void                    Assume             D     %18.17, %18.18 (Typecheck@0x55cca84b80a8[Type#2])
+  lgl$-           %20.1 = CastType           d     dn %18.16
+  val?            %20.2 = PopContext         C     %20.1, %18.4   <lgl$->
+  lgl$#-          %20.3 = IsType                   %20.2 isA lgl$-
+  cp              %20.4 = Checkpoint                -> BB22 (default) | BB21 (if assume failed)
+BB19   <- [18]
+  fs              %19.0 = FrameState         R     0x55cca92dc7c0+356: [%17.3], env=e1.1
+  fs              %19.1 = FrameState         R     0x55cca92baea0+37: [%18.16], env=e18.6, next=%19.0
+  void                    Deopt              !v    %19.1   !
+BB25   <- [23]
+  (cls|spec|blt)  %25.0 = LdFun              !v    stop, e1.1
+  fs              %25.1 = FrameState         R     0x55cca92dc7c0+393: [%25.0], env=e1.1
+  void                    Deopt              !v    %25.1, DeadCall@0x55cca84e8a48[Call#5], %25.0   !
+BB24   <- [23]
+  val?^ | miss    %24.0 = LdVar              eR    ns, e1.1
+  void                    Visible            v     
+  val?            %24.2 = Force!<wrapped>    !     %24.0, e1.1   <env->
+  void                    Return             l     %24.2
+BB22   <- [20]
+  void                    Assume             D     %20.3, %20.4 (Typecheck@0x55cca84e8a48[Type#12])
+  lgl$-           %22.1 = CastType           d     dn %20.2
+  lgl$-           %22.2 = AsLogical                %22.1
+  lgl$-           %22.3 = LAnd                     %17.3, %22.2
+  goto BB23
+BB21   <- [20]
+  fs              %21.0 = FrameState         R     0x55cca92dc7c0+356: [%17.3, %20.2], env=e1.1
+  void                    Deopt              !v    %21.0   !
+Prom 1:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    ns, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<wrapped>     !     %1.1, e1.0   <env->
+  void                    Return             l     %1.3
+Prom 2:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    ns, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<wrapped>     !     %1.1, e1.0   <env->
+  void                    Return             l     %1.3
+Prom 3:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    ns, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<wrapped>     !     %1.1, e1.0   <str$+>
+  void                    Return             l     %1.3
+Prom 4:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    ns, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<lazy>        !     %1.1, e1.0   <env->
+  void                    Return             l     %1.3
+Prom 5:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    .BaseNamespaceEnv, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<value>       !     %1.1, e1.0   <env->
+  void                    Return             l     %1.3
+
+│ asNamespace[0x55cca94ca690]                                                  │
+└──────────────────────────────────────────────────────────────────────────────┘

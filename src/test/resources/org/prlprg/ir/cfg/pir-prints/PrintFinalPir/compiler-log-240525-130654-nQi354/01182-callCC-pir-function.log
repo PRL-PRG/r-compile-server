@@ -1,0 +1,227 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ callCC[0x55804ef5dc80]                                                       │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;NonRefl0,!Obj0                       │
+│ Properties:                                                                  │
+├────── Final PIR Version
+callCC[0x55804ef5dc80]
+BB0
+  val?^           %0.0  = LdArg                    0
+  void                    Visible            v     
+  env             e0.2  = MkEnv              l     fun=%0.0, value=nil, parent=R_BaseNamespace, context 1
+  prom-           %0.3  = MkArg                    unboundValue, callCC[0x55804ef5dc80]_p0, e0.2
+  val?            %0.4  = StaticCall         !     delayedAssign[0x55804e10d010]("throw", %0.3) e0.2
+  cls             %0.5  = MkCls                    callCC@Prom(1)0, e0.2
+  val?^ | miss    %0.6  = LdVar              eR    fun, e0.2
+  (cls|spec|blt)  %0.7  = CastType                 dn %0.6
+  val+            %0.8  = CallSafeBuiltin          bodyCode(%0.7) 
+  lgl$#-          %0.9  = Identical                %0.8, <(rir::DispatchTable*)0x55804ed1b030>
+  void                    Branch                   %0.9 -> BB8 (if true) | BB9 (if false)
+BB8   <- [0]
+  val?            %8.0  = Force!             d     %0.6, 
+  prom-           %8.1  = MkArg                    %0.5, callCC[0x55804ef5dc80]_p1 (!refl), e0.2
+  (cls|spec|blt)  %8.2  = ChkFunction        e     %8.0
+  env             e8.3  = CallSafeBuiltin          environment(%8.2) 
+  ct              %8.4  = PushContext        lCL   %8.1, fun(function(<lst v=R_MissingArg>, {(<<-(value|..., %8.2, e0.2
+  cls~            %8.5  = CastType                 up %8.1
+  env             e8.6  = MkEnv              l     exit=%8.5, parent=e8.3, context 1
+  cls             %8.7  = MkCls                    , e8.6
+  void                    StVar              lW    doExit, %8.7, e8.6
+  val?^ | miss    %8.9  = LdVar              eR    makeConstantFolder, e8.3
+  lgl$#-          %8.10 = Identical                %8.9, function(..., leaf=foldLeaf, handler=function(|...
+  void                    Branch                   %8.10 -> BB10 (if true) | BB11 (if false)
+BB9   <- [0]
+  fs              %9.0  = FrameState         R     0x55804f2d16b0+52: [%0.4], env=e0.2
+  void                    Deopt              !v    %9.0, CallTarget@0x55804e3981f8[Call#1], %0.8   !
+BB10   <- [8]
+  prom-           %10.0 = MkArg                    unboundValue, callCC[0x55804ef5dc80]_p2, e8.6
+  prom-           %10.1 = MkArg                    unboundValue, callCC[0x55804ef5dc80]_p3 (!refl), e8.6
+  ct              %10.2 = PushContext        lCL   missingArg, missingArg, missingArg, missingArg, %10.1, %10.0, makeConstantFolder(isLocal=isLocal, exit=doExit), function(..., leaf=foldLeaf, handler=function(|..., e8.6
+  val?^           %10.3 = CastType                 up %10.0
+  val?^           %10.4 = CastType                 up %10.1
+  env             e10.5 = MkEnv              l     ...(miss)=missingArg, leaf(miss)=missingArg, handler(miss)=missingArg, call(miss)=missingArg, exit=%10.4, isLocal=%10.3, foldable(miss)=missingArg, isConstant(miss)=missingArg, signal(miss)=missingArg, parent=<env 0x55804e699488>, context 1
+  prom-           %10.6 = MkArg                    unboundValue, callCC[0x55804ef5dc80]_p6, e10.5
+  val?^ | miss    %10.7 = CastType                 up %10.6
+  void                    StArg              lW    leaf, %10.7, e10.5
+  cls             %10.9 = MkCls                    makeConstantFolder@Prom(1)0, e10.5
+  prom-           %10.10 = MkArg                    %10.9, callCC[0x55804ef5dc80]_p8 (!refl), e10.5
+  val?^ | miss    %10.11 = CastType                 up %10.10
+  void                    StArg              lW    handler, %10.11, e10.5
+  cls             %10.13 = MkCls                    makeConstantFolder@Prom(2)0, e10.5
+  prom-           %10.14 = MkArg                    %10.13, callCC[0x55804ef5dc80]_p7 (!refl), e10.5
+  val?^ | miss    %10.15 = CastType                 up %10.14
+  void                    StArg              lW    call, %10.15, e10.5
+  prom-           %10.17 = MkArg                    unboundValue, callCC[0x55804ef5dc80]_p10, e10.5
+  val?^ | miss    %10.18 = CastType                 up %10.17
+  void                    StArg              lW    foldable, %10.18, e10.5
+  prom-           %10.20 = MkArg                    unboundValue, callCC[0x55804ef5dc80]_p11, e10.5
+  val?^ | miss    %10.21 = CastType                 up %10.20
+  void                    StArg              lW    isConstant, %10.21, e10.5
+  cls             %10.23 = MkCls                    makeConstantFolder@Prom(7)0, e10.5
+  prom-           %10.24 = MkArg                    %10.23, callCC[0x55804ef5dc80]_p13 (!refl), e10.5
+  val?^ | miss    %10.25 = CastType                 up %10.24
+  void                    StArg              lW    signal, %10.25, e10.5
+  (cls|spec|blt)  %10.27 = LdFun              !     list, <0x55804bef55c0>, <env 0x55804e699488>
+  prom-           %10.28 = MkArg                    unboundValue, callCC[0x55804ef5dc80]_p14 (!refl), e10.5
+  prom-           %10.29 = MkArg                    unboundValue, callCC[0x55804ef5dc80]_p15 (!refl), e10.5
+  prom-           %10.30 = MkArg                    unboundValue, callCC[0x55804ef5dc80]_p16, e10.5
+  prom-           %10.31 = MkArg                    unboundValue, callCC[0x55804ef5dc80]_p17, e10.5
+  prom-           %10.32 = MkArg                    unboundValue, callCC[0x55804ef5dc80]_p18, e10.5
+  prom-           %10.33 = MkArg                    unboundValue, callCC[0x55804ef5dc80]_p19, e10.5
+  prom-           %10.34 = MkArg                    unboundValue, callCC[0x55804ef5dc80]_p20, e10.5
+  prom-           %10.35 = MkArg                    unboundValue, callCC[0x55804ef5dc80]_p21 (!refl), e10.5
+  val?            %10.36 = NamedCall          !     %10.27(handler=%10.28, call=%10.29, exit=%10.30, leaf=%10.31, isLocal=%10.32, foldable=%10.33, isConstant=%10.34, signal=%10.35) e10.5   <vec+>
+  val?            %10.37 = PopContext         C     %10.36, %10.2   <vec+>
+  void                    StVar              lW    w, %10.37, e8.6
+  val?^ | miss    %10.39 = LdVar              eR    walkCode, e8.6
+  lgl$#-          %10.40 = Identical                %10.39, function(e, w=makeCodeWalker()) <(rir::Dispatc|...
+  void                    Branch                   %10.40 -> BB12 (if true) | BB13 (if false)
+BB11   <- [8]
+  fs              %11.0 = FrameState         R     0x55804f2d16b0+85: [], env=e0.2
+  fs              %11.1 = FrameState         R     0x55804efe4190+25: [], env=e8.6, next=%11.0
+  void                    Deopt              !v    %11.1, CallTarget@0x55804e398988[Call#0], %8.9   !
+BB12   <- [10]
+  prom-           %12.0 = MkArg                    unboundValue, callCC[0x55804ef5dc80]_p4, e8.6
+  prom-           %12.1 = MkArg                    unboundValue, callCC[0x55804ef5dc80]_p5 (!refl), e8.6
+  val?            %12.2 = StaticCall         !     walkCode[0x55804cd0efd0](%12.0, %12.1) e8.6   <val?_>
+  val?            %12.3 = PopContext         C     %12.2, %8.4   <val?_>
+  void                    Return             l     %12.3
+BB13   <- [10]
+  fs              %13.0 = FrameState         R     0x55804f2d16b0+85: [], env=e0.2
+  fs              %13.1 = FrameState         R     0x55804efe4190+84: [], env=e8.6, next=%13.0
+  void                    Deopt              !v    %13.1, CallTarget@0x55804e398988[Call#1], %10.39   !
+Prom 0:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    value, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    NonLocalReturn     !     %0.3, e0.0
+Prom 1:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  cls             %0.1  = MkCls                    callCC@Prom(1)0, e0.0
+  void                    Return             l     %0.1
+Prom 2:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    isLocal, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<value>       !     %0.1, e0.0   <cls->
+  void                    Return             l     %0.3
+Prom 3:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    doExit, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<value>       !     %0.1, e0.0   <cls->
+  void                    Return             l     %0.3
+Prom 4:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    e, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <code->
+  void                    Return             l     %0.3
+Prom 5:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    w, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<value>       !     %0.1, e0.0   <vec+>
+  void                    Return             l     %0.3
+Prom 6:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    foldLeaf, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<wrapped>     !     %0.1, e0.0   <cls->
+  void                    Return             l     %0.3
+Prom 7:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  cls             %0.1  = MkCls                    makeConstantFolder@Prom(2)0, e0.0
+  void                    Return             l     %0.1
+Prom 8:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  cls             %0.1  = MkCls                    makeConstantFolder@Prom(1)0, e0.0
+  void                    Return             l     %0.1
+Prom 10:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    isFoldable, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 11:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    isConstantValue, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<wrapped>     !     %0.1, e0.0   <cls->
+  void                    Return             l     %0.3
+Prom 13:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  cls             %0.1  = MkCls                    makeConstantFolder@Prom(7)0, e0.0
+  void                    Return             l     %0.1
+Prom 14:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    handler, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <cls->
+  void                    Return             l     %0.3
+Prom 15:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    call, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <cls->
+  void                    Return             l     %0.3
+Prom 16:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    exit, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <cls->
+  void                    Return             l     %0.3
+Prom 17:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    leaf, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <cls->
+  void                    Return             l     %0.3
+Prom 18:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    isLocal, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <cls->
+  void                    Return             l     %0.3
+Prom 19:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    isFoldable, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<wrapped>     !     %0.1, e0.0   <cls->
+  void                    Return             l     %0.3
+Prom 20:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    isConstant, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <cls->
+  void                    Return             l     %0.3
+Prom 21:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    signal, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <cls->
+  void                    Return             l     %0.3
+
+│ callCC[0x55804ef5dc80]                                                       │
+└──────────────────────────────────────────────────────────────────────────────┘

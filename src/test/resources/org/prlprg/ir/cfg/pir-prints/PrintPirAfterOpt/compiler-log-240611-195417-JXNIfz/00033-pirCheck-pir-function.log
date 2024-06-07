@@ -1,0 +1,42 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ pirCheck[0x55cbf47e16d0]                                                     │
+│ Context: CorrOrd,!TMany                                                      │
+│ Properties:  Eager                                                           │
+├────── PIR Version After Optimizations
+pirCheck[0x55cbf47e16d0]
+BB0
+  goto BB1
+BB1   <- [0]
+  val?^ | miss    %1.0  = LdVar              eR    seed, R_GlobalEnv
+  val?            %1.1  = Force!<value>      !vr   %1.0,    <(int|real)$->
+  lgl$#-          %1.2  = IsType                   %1.1 isA val?-
+  cp              %1.3  = Checkpoint                -> BB2 (default) | BB5 (if assume failed)
+BB2   <- [1]
+  void                    Assume             D     %1.2, %1.3 (Typecheck@0x55cbf3d01b58[Type#0])
+  val?-           %2.1  = CastType           d     dn %1.1   <(int|real)$->
+  (real|complex)- %2.2  = Mul                wed   %2.1, 1309, elided   <real$->
+  lgl$#-          %2.3  = IsType                   %2.2 isA real$-
+  cp              %2.4  = Checkpoint                -> BB4 (default) | BB3 (if assume failed)
+BB5   <- [1]
+  env             e5.0  = (MkEnv)            l     a=unboundValue, parent=R_GlobalEnv, context 1
+  fs              %5.1  = FrameState         R     0x55cbf487d850+9: [%1.1], env=e5.0
+  void                    Deopt              !v    %5.1
+BB4   <- [2]
+  void                    Assume             D     %2.3, %2.4 (Typecheck@0x55cbf3d01b58[Type#1])
+  real$-          %4.1  = CastType           d     dn %2.2
+  real$-          %4.2  = Add                d     %4.1, 13849, elided   <real$->
+  val?^ | miss    %4.3  = LdVar              eRd   bitwAnd, R_GlobalEnv
+  lgl$#-          %4.4  = Identical                %4.3, function(a, b) <(rir::DispatchTable*)0x55cbf47|...
+  void                    Assume             D     %4.4, %2.4 (CallTarget@0x55cbf3d01b58[Call#0])
+  int$-           %4.6  = CallSafeBuiltin    wed   bitwiseAnd(%4.2, 65535)    <int$->
+  void                    StVar              lW    seed, %4.6, R_GlobalEnv
+  void                    Visible            v     
+  void                    Return             l     %4.6
+BB3   <- [2]
+  env             e3.0  = (MkEnv)            l     a=unboundValue, parent=R_GlobalEnv, context 1
+  fs              %3.1  = FrameState         R     0x55cbf487d850+21: [%2.2], env=e3.0
+  void                    Deopt              !v    %3.1
+
+│ pirCheck[0x55cbf47e16d0]                                                     │
+└──────────────────────────────────────────────────────────────────────────────┘

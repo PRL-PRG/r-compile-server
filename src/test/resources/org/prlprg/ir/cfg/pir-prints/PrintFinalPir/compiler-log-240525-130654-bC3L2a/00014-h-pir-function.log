@@ -1,0 +1,47 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ h[0x55c698fff4c0]                                                            │
+│ Context: CorrOrd,!TMany                                                      │
+│ Properties:                                                                  │
+├────── Final PIR Version
+h[0x55c698fff4c0]
+BB0
+  val?^ | miss    %0.0  = LdArg                    0
+  val?^ | miss    %0.1  = LdVar              eR    f, R_GlobalEnv
+  lgl$#-          %0.2  = Identical                %0.1, function(val) <(rir::DispatchTable*)0x55c69900|...
+  void                    Branch                   %0.2 -> BB6 (if true) | BB7 (if false)
+BB6   <- [0]
+  env             e6.0  = MkEnv              l     x=%0.0, parent=R_GlobalEnv, context 1
+  prom-           %6.1  = MkArg                    unboundValue, h[0x55c698fff4c0]_p0, e6.0
+  val?^           %6.2  = CastType                 up %6.1
+  env             e6.3  = MkEnv              l     val=%6.2, parent=R_GlobalEnv, context 0
+  cls             %6.4  = MkCls                    g, e6.3
+  void                    StVar              lW    g, %6.4, e6.3
+  val?^           %6.6  = ChkMissing         e     %0.0
+  void                    Visible            v     
+  env             e6.8  = (MkEnv)            l     parent=e6.3, context -1
+  val?            %6.9  = Force!<wrapped>    !L    %6.6, e6.8   <real$->
+  lgl$#-          %6.10 = IsEnvStub          R     , e6.8
+  void                    Branch                   %6.10 -> BB8 (if true) | BB9 (if false)
+BB7   <- [0]
+  env             e7.0  = (MkEnv)            l     x=%0.0, parent=R_GlobalEnv, context 1
+  fs              %7.1  = FrameState         R     0x55c6990a66c0+0: [], env=e7.0
+  void                    Deopt              !v    %7.1, CallTarget@0x55c6986284c8[Call#0], %0.1
+BB8   <- [6]
+  void                    Return             l     %6.9
+BB9   <- [6]
+  fs              %9.0  = FrameState         R     0x55c6990a66c0+32: [], env=e6.0
+  fs              %9.1  = FrameState         R     0x55c6990182f0+52: [], env=e6.3, next=%9.0
+  fs              %9.2  = FrameState         R     0x55c6990f21c0+5: [], env=e6.8, next=%9.1
+  fs              %9.3  = FrameState         R     0x55c698f8ddc0+5(pr): [%6.9], env=e6.0, next=%9.2
+  void                    Deopt              !v    %9.3, EnvStubMaterialized@0x55c6986291d8[Call#unknown], e6.8
+Prom 0:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    x, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<wrapped>     !     %0.1, e0.0   <real$->
+  void                    Return             l     %0.3
+
+│ h[0x55c698fff4c0]                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘

@@ -4,8 +4,7 @@ import java.util.Map;
 import java.util.Optional;
 import org.prlprg.util.Pair;
 
-public sealed interface EnvSXP extends SEXP
-    permits AbstractEnvSXP, BaseEnvSXP, EmptyEnvSXP, GlobalEnvSXP, NamespaceEnvSXP, UserEnvSXP {
+public sealed interface EnvSXP extends SEXP permits StaticEnvSXP, UserEnvSXP {
   /**
    * Environments are linked in a parent chain. Every environment, except the empty environment, has
    * a parent that will be returned by this function.

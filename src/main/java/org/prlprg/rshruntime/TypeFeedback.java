@@ -1,6 +1,6 @@
 package org.prlprg.rshruntime;
 
-import java.util.EnumSet;
+import com.google.common.collect.ImmutableSet;
 import org.prlprg.sexp.SEXPType;
 
 /** Type feedback recorded at runtime to be used in optimizations. */
@@ -19,7 +19,7 @@ public record TypeFeedback(
   }
 
   public sealed interface SeenTypes {
-    record Some(EnumSet<SEXPType> t) implements SeenTypes {}
+    record Some(ImmutableSet<SEXPType> t) implements SeenTypes {}
 
     record Many() implements SeenTypes {}
   }

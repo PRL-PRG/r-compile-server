@@ -4,8 +4,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
-public abstract sealed class AbstractEnvSXP implements EnvSXP
-    permits BaseEnvSXP, GlobalEnvSXP, NamespaceEnvSXP, UserEnvSXP {
+abstract sealed class AbstractEnvSXP permits BaseEnvSXP, GlobalEnvSXP, NamespaceEnvSXP, UserEnvSXP {
 
   protected EnvSXP parent;
   protected final Map<String, SEXP> bindings;
@@ -20,27 +19,27 @@ public abstract sealed class AbstractEnvSXP implements EnvSXP
     this.bindings = bindings;
   }
 
-  @Override
+  // @Override
   public EnvSXP parent() {
     return parent;
   }
 
-  @Override
+  // @Override
   public Optional<SEXP> get(String name) {
     return getLocal(name).or(() -> parent.get(name));
   }
 
-  @Override
+  // @Override
   public Optional<SEXP> getLocal(String name) {
     return Optional.ofNullable(bindings.get(name));
   }
 
-  @Override
+  // @Override
   public Iterable<? extends Map.Entry<? extends String, ? extends SEXP>> bindings() {
     return bindings.entrySet();
   }
 
-  @Override
+  // @Override
   public int size() {
     return bindings.size();
   }

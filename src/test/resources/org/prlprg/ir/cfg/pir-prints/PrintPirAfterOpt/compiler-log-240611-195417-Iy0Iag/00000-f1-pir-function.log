@@ -1,0 +1,24 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ f1[0x557b98d69d70]                                                           │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch                                      │
+│ Properties:  Eager                                                           │
+├────── PIR Version After Optimizations
+f1[0x557b98d69d70]
+BB0
+  goto BB1
+BB1   <- [0]
+  cp              %1.0  = Checkpoint                -> BB2 (default) | BB3 (if assume failed)
+BB2   <- [1]
+  val?^ | miss    %2.0  = LdVar              eR    add_noinline1, R_GlobalEnv
+  lgl$#-          %2.1  = Identical                %2.0, function(a, b) <(rir::DispatchTable*)0x557b985|...
+  void                    Assume             D     %2.1, %1.0 (CallTarget@0x557b997222d8[Call#0])
+  real$-          %2.3  = StaticCall         !r    add_noinline1[0x557b99a029e0](1, 2)    <real$->
+  void                    Return             l     %2.3
+BB3   <- [1]
+  env             e3.0  = (MkEnv)            l     parent=R_GlobalEnv, context 1
+  fs              %3.1  = FrameState         R     0x557b984170a0+0: [], env=e3.0
+  void                    Deopt              !v    %3.1   !
+
+│ f1[0x557b98d69d70]                                                           │
+└──────────────────────────────────────────────────────────────────────────────┘

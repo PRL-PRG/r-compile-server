@@ -1,0 +1,104 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ setPackageSlot[0x5614fd0b01b0]                                               │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch                                      │
+│ Properties:  ForceOrd: 1                                                     │
+├────── Final PIR Version
+setPackageSlot[0x5614fd0b01b0]
+BB0
+  val?^           %0.0  = LdArg                    1
+  val?^           %0.1  = LdArg                    0
+  env             e0.2  = (MkEnv)            l     x=%0.1, value=%0.0, parent=<env 0x5614f8eae378>, context 1
+  val?            %0.3  = Force!<lazy>       !vL   %0.0, e0.2   <str->
+  lgl$#-          %0.4  = IsType                   %0.3 isA val?-
+  void                    Branch                   %0.4 -> BB12 (if true) | BB13 (if false)
+BB12   <- [0]
+  val?-           %12.0 = CastType           d     dn %0.3   <str->
+  lgl$#-          %12.1 = IsEnvStub          R     , e0.2
+  void                    Branch                   %12.1 -> BB14 (if true) | BB15 (if false)
+BB13   <- [0]
+  void                    Nop                !     
+  val?            %13.1 = %0.3
+  dr              %13.2 = Typecheck@0x5614ff69aa48[Type#0]
+  goto BB11
+BB14   <- [12]
+  val?^ | miss    %14.0 = LdVar              eRd   packageSlot<-, <env 0x5614f8eae378>
+  lgl$#-          %14.1 = Identical                %14.0, function(object, value) <(rir::DispatchTable*)|...
+  void                    Branch                   %14.1 -> BB16 (if true) | BB17 (if false)
+BB15   <- [12]
+  void                    Nop                !     
+  env             e15.1 = e0.2
+  dr              %15.2 = EnvStubMaterialized@0x5614ff69aa48[Call#unknown]
+  goto BB11
+BB11   <- [13, 15, 17]
+  val?^ | miss    %11.0 = Phi                      %13.1:BB13, e15.1:BB15, %17.1:BB17
+  val?^ | miss    %11.1 = %11.0
+  dr              %11.2 = Phi                      %13.2:BB13, %15.2:BB15, %17.2:BB17
+  dr              %11.3 = %11.2
+  fs              %11.4 = FrameState         R     0x5614fe34a0e0+9: [%0.3], env=e0.2
+  void                    Deopt              !v    %11.4, %11.3, %11.1
+BB16   <- [14]
+  val?            %16.0 = Force!<lazy>       !vL   %0.1, e0.2   <str$->
+  lgl$#-          %16.1 = IsType                   %16.0 isA val?-
+  void                    Branch                   %16.1 -> BB18 (if true) | BB19 (if false)
+BB17   <- [14]
+  void                    Nop                !     
+  val?^ | miss    %17.1 = %14.0
+  dr              %17.2 = CallTarget@0x5614ff69aa48[Call#0]
+  goto BB11
+BB18   <- [16]
+  val?-           %18.0 = CastType           d     dn %16.0   <str$->
+  lgl$#-          %18.1 = IsEnvStub          R     , e0.2
+  void                    Branch                   %18.1 -> BB20 (if true) | BB21 (if false)
+BB19   <- [16]
+  void                    Nop                !     
+  val?            %19.1 = %16.0
+  dr              %19.2 = Typecheck@0x5614ff69aa48[Type#1]
+  goto BB3
+BB20   <- [18]
+  ct              %20.0 = PushContext        lCL   %18.0, %12.0, packageSlot<-(x, value=value), function(object, value) <(rir::DispatchTable*)|..., e0.2
+  env             e20.1 = MkEnv              l     object=%18.0, value=%12.0, parent=<env 0x5614f8eae378>, context 1
+  (cls|spec|blt)  %20.2 = LdFun              !v    attr<-, <0x5614f88aae08>, <env 0x5614f8eae378>
+  lgl$#-          %20.3 = IsEnvStub          R     , e0.2
+  void                    Branch                   %20.3 -> BB22 (if true) | BB23 (if false)
+BB21   <- [18]
+  void                    Nop                !     
+  env             e21.1 = e0.2
+  dr              %21.2 = EnvStubMaterialized@0x5614ff69aa48[Call#unknown]
+  goto BB3
+BB3   <- [19, 21]
+  val?^ | miss    %3.0  = Phi                      %19.1:BB19, e21.1:BB21
+  val?^ | miss    %3.1  = %3.0
+  dr              %3.2  = Phi                      %19.2:BB19, %21.2:BB21
+  dr              %3.3  = %3.2
+  (cls|spec|blt)  %3.4  = LdFun              !v    packageSlot<-, <0x5614fe95af98>, <env 0x5614f8eae378>
+  fs              %3.5  = FrameState         R     0x5614fe34a0e0+33: [%12.0, %3.4, %16.0], env=e0.2
+  void                    Deopt              !v    %3.5, %3.3, %3.1
+BB22   <- [20]
+  val?            %22.0 = NamedCall          !v    %20.2(%18.0, "package", value=%12.0) e20.1   <str>
+  lgl$#-          %22.1 = IsEnvStub          R     , e0.2
+  void                    Branch                   %22.1 -> BB24 (if true) | BB25 (if false)
+BB23   <- [20]
+  fs              %23.0 = FrameState         R     0x5614fe34a0e0+73: [], env=e0.2
+  fs              %23.1 = FrameState         R     0x5614fbde33b0+14: [%12.0], env=e20.1, next=%23.0
+  void                    Deopt              !v    %23.1, EnvStubMaterialized@0x5614ff69aa48[Call#unknown], e0.2
+BB24   <- [22]
+  void                    StVar              lW    object, %22.0, e20.1
+  val             %24.1 = ChkMissing         e     %22.0
+  val?            %24.2 = PopContext         C     %22.0, %20.0   <str$+>
+  lgl$#-          %24.3 = IsEnvStub          R     , e0.2
+  void                    Branch                   %24.3 -> BB26 (if true) | BB27 (if false)
+BB25   <- [22]
+  fs              %25.0 = FrameState         R     0x5614fe34a0e0+73: [], env=e0.2
+  fs              %25.1 = FrameState         R     0x5614fbde33b0+82: [%22.0], env=e20.1, next=%25.0
+  void                    Deopt              !v    %25.1, EnvStubMaterialized@0x5614ff69aa48[Call#unknown], e0.2   !
+BB26   <- [24]
+  val             %26.0 = ChkMissing         e     %24.2
+  void                    Visible            v     
+  void                    Return             l     %24.2
+BB27   <- [24]
+  fs              %27.0 = FrameState         R     0x5614fe34a0e0+73: [%24.2], env=e0.2
+  void                    Deopt              !v    %27.0, EnvStubMaterialized@0x5614ff69aa48[Call#unknown], e0.2
+
+│ setPackageSlot[0x5614fd0b01b0]                                               │
+└──────────────────────────────────────────────────────────────────────────────┘

@@ -1,0 +1,306 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ isGeneric[0x55bbe36d5850]                                                    │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch miss: 2                              │
+│ Properties:                                                                  │
+├────── Final PIR Version
+isGeneric[0x55bbe36d5850]
+BB0
+  val?^           %0.0  = LdArg                    1
+  val?^           %0.1  = LdArg                    0
+  env             e0.2  = MkEnv              l     f=%0.1, where=%0.0, fdef(miss)=nil, getName(miss)=false, parent=<env 0x55bbe2427378>, context 1
+  lgl$-           %0.3  = Missing            eR    where, e0.2
+  lgl$-           %0.4  = AsLogical                %0.3
+  lgl$-           %0.5  = AsLogical                %0.4
+  lgl$#-          %0.6  = CheckTrueFalse     e     %0.5
+  void                    Branch                   %0.6 -> BB39 (if true) | BB3 (if false)
+BB39   <- [0]
+  (cls|spec|blt)  %39.0 = LdFun              !v    .getGenericFromCache, <env 0x55bbe2427378>
+  fs              %39.1 = FrameState         R     0x55bbe6a880b0+50: [%39.0], env=e0.2
+  void                    Deopt              !v    %39.1, DeadCall@0x55bbe4b78950[Call#2], %39.0
+BB3   <- [0]
+  val?^ | miss    %3.0  = LdVar              eR    getFunction, <env 0x55bbe2427378>
+  lgl$#-          %3.1  = Identical                %3.0, function(name, generic=TRUE, mustFind=TRUE, wh|...
+  void                    Branch                   %3.1 -> BB41 (if true) | BB42 (if false)
+BB41   <- [3]
+  prom-           %41.0 = MkArg                    unboundValue, isGeneric[0x55bbe36d5850]_p6, e0.2
+  prom-           %41.1 = MkArg                    unboundValue, isGeneric[0x55bbe36d5850]_p7, e0.2
+  val?            %41.2 = StaticCall         !v    getFunction[0x55bbe8ed01b0](%41.0, missingArg, false, %41.1) { 0 3n 2n } e0.2   <cls->
+  void                    StVar              lW    fdef, %41.2, e0.2
+  val             %41.4 = ChkMissing         e     %41.2   <cls->
+  lgl$-           %41.5 = Is                       %41.4, NULL
+  lgl$#-          %41.6 = CheckTrueFalse     e     %41.5
+  void                    Branch                   %41.6 -> BB38 (if true) | BB6 (if false)
+BB42   <- [3]
+  env             e42.0 = (MkEnv)            l     f=%0.1, where=%0.0, fdef(miss)=nil, getName(miss)=false, parent=<env 0x55bbe2427378>, context 1
+  fs              %42.1 = FrameState         R     0x55bbe6a880b0+0: [], env=e42.0
+  void                    Deopt              !v    %42.1, CallTarget@0x55bbe4b78950[Call#4], %3.0
+BB38   <- [41]
+  void                    Visible            v     
+  lgl$#-          %38.1 = false
+  goto BB14
+BB6   <- [41]
+  val?^ | miss    %6.0  = LdVar              eR    isBaseFun, e0.2
+  lgl$#-          %6.1  = Identical                %6.0, function(fun) <(rir::DispatchTable*)0x55bbe57d|...
+  void                    Branch                   %6.1 -> BB43 (if true) | BB44 (if false)
+BB14   <- [13, 38, 26]
+  lgl$#-          %14.0 = Phi                      %13.1:BB13, %26.1:BB26, %38.1:BB38
+  lgl$#-          %14.1 = %14.0
+  void                    Return             l     %14.1
+BB43   <- [6]
+  prom-           %43.0 = MkArg                    unboundValue, isGeneric[0x55bbe36d5850]_p2 (!refl), e0.2
+  val?            %43.1 = StaticCall         !v    isBaseFun[0x55bbe676ee50](%43.0) e0.2   <lgl$->
+  lgl$#-          %43.2 = IsType                   %43.1 isA lgl$-
+  void                    Branch                   %43.2 -> BB45 (if true) | BB46 (if false)
+BB44   <- [6]
+  fs              %44.0 = FrameState         R     0x55bbe6a880b0+299: [], env=e0.2
+  void                    Deopt              !v    %44.0, CallTarget@0x55bbe4b78950[Call#5], %6.0   !
+BB45   <- [43]
+  lgl$-           %45.0 = CastType           d     dn %43.1
+  lgl$#-          %45.1 = CheckTrueFalse     e     %45.0
+  void                    Branch                   %45.1 -> BB15 (if true) | BB9 (if false)
+BB46   <- [43]
+  void                    Nop                !     
+  val?            %46.1 = %43.1
+  dr              %46.2 = Typecheck@0x55bbe4b78950[Type#17]
+  goto BB7
+BB15   <- [45]
+  val?^ | miss    %15.0 = LdVar              eR    is.character, e0.2
+  lgl$#-          %15.1 = Identical                <blt is.character>, %15.0   <true>
+  void                    Branch                   %15.1 -> BB47 (if true) | BB48 (if false)
+BB9   <- [45]
+  val?^ | miss    %9.0  = LdVar              eR    is, e0.2
+  lgl$#-          %9.1  = Identical                %9.0, function(object, class2) <(rir::DispatchTable*|...
+  void                    Branch                   %9.1 -> BB49 (if true) | BB50 (if false)
+BB7   <- [46, 48, 50]
+  val?^ | miss    %7.0  = Phi                      %46.1:BB46, %48.1:BB48, %50.1:BB50
+  val?^ | miss    %7.1  = %7.0
+  dr              %7.2  = Phi                      %46.2:BB46, %48.2:BB48, %50.2:BB50
+  dr              %7.3  = %7.2
+  fs              %7.4  = FrameState         R     0x55bbe6a880b0+368: [%43.1], env=e0.2
+  void                    Deopt              !v    %7.4, %7.3, %7.1   !
+BB47   <- [15]
+  val?^ | miss    %47.0 = LdVar              eR    f, e0.2
+  val?            %47.1 = Force!<wrapped>    !v    %47.0, e0.2   <str$->
+  lgl$#-          %47.2 = CallSafeBuiltin    wed   is.character(%47.1)    <lgl$->
+  void                    Branch                   %47.2 -> BB33 (if true) | BB18 (if false)
+BB48   <- [15]
+  void                    Nop                !     
+  lgl$#-          %48.1 = %15.1
+  dr              %48.2 = DeadBranchReached@0x55bbe4b78950[Test#0]
+  goto BB7
+BB49   <- [9]
+  prom-           %49.0 = MkArg                    unboundValue, isGeneric[0x55bbe36d5850]_p3, e0.2
+  val?            %49.1 = Call               !v    function(object, class2) <(rir::DispatchTable*|...(%49.0, "genericFunction") e0.2   <lgl$->
+  lgl$#-          %49.2 = IsType                   %49.1 isA lgl$-
+  void                    Branch                   %49.2 -> BB51 (if true) | BB52 (if false)
+BB50   <- [9]
+  void                    Nop                !     
+  val?^ | miss    %50.1 = %9.0
+  dr              %50.2 = CallTarget@0x55bbe4b78950[Call#16]
+  goto BB7
+BB33   <- [47]
+  val?^ | miss    %33.0 = LdVar              eR    %in%, e0.2
+  lgl$#-          %33.1 = Identical                %33.0, function(x, table) <(rir::DispatchTable*)0x55b|...
+  void                    Branch                   %33.1 -> BB53 (if true) | BB54 (if false)
+BB18   <- [47]
+  void                    Nop                !     
+  lgl$#-          %18.1 = %47.2
+  goto BB19
+BB51   <- [49]
+  lgl$-           %51.0 = CastType           d     dn %49.1
+  lgl$-           %51.1 = Not                d     %51.0, elided
+  lgl$#-          %51.2 = CheckTrueFalse     e     %51.1
+  void                    Branch                   %51.2 -> BB13 (if true) | BB12 (if false)
+BB52   <- [49]
+  fs              %52.0 = FrameState         R     0x55bbe6a880b0+972: [%49.1], env=e0.2
+  void                    Deopt              !v    %52.0, Typecheck@0x55bbe4b78950[Type#39], %49.1   !
+BB53   <- [33]
+  val?^ | miss    %53.0 = LdVar              eR    f, e0.2
+  val?            %53.1 = Force!<wrapped>    !v    %53.0, e0.2   <str$->
+  lgl$#-          %53.2 = IsType                   %53.1 isA val?+
+  void                    Branch                   %53.2 -> BB55 (if true) | BB56 (if false)
+BB54   <- [33]
+  fs              %54.0 = FrameState         R     0x55bbe6a880b0+475: [%47.2], env=e0.2
+  void                    Deopt              !v    %54.0, CallTarget@0x55bbe4b78950[Call#7], %33.0   !
+BB19   <- [18, 57]
+  lgl$-           %19.0 = Phi                      %57.4:BB57, %18.1:BB18
+  lgl$-           %19.1 = %19.0
+  lgl$#-          %19.2 = CheckTrueFalse     e     %19.1
+  void                    Branch                   %19.2 -> BB32 (if true) | BB20 (if false)
+BB13   <- [51]
+  void                    Visible            v     
+  lgl$#-          %13.1 = false
+  goto BB14
+BB12   <- [51]
+  (cls|spec|blt)  %12.0 = LdFun              !v    @, e0.2
+  fs              %12.1 = FrameState         R     0x55bbe6a880b0+1001: [%12.0], env=e0.2
+  void                    Deopt              !v    %12.1, DeadCall@0x55bbe4b78950[Call#17], %12.0   !
+BB55   <- [53]
+  val?+           %55.0 = CastType           d     dn %53.1   <(int|str)+>
+  val+            %55.1 = CallSafeBuiltin    wed   match(%55.0, "as.double", 0L, nil)    <int->
+  lgl$#-          %55.2 = IsType                   %55.1 isA int-
+  void                    Branch                   %55.2 -> BB57 (if true) | BB58 (if false)
+BB56   <- [53]
+  prom-           %56.0 = MkArg                    %53.1, isGeneric[0x55bbe36d5850]_p4 (!refl), e0.2
+  val?~           %56.1 = CastType                 up %56.0
+  env             e56.2 = (MkEnv)            l     x=%56.1, table="as.double", parent=R_BaseNamespace, context 0
+  env             e56.3 = MaterializeEnv           , e56.2   <@?>
+  prom-           %56.4 = MkArg                    %53.1, isGeneric[0x55bbe36d5850]_p8 (!refl), e56.3
+  val?~           %56.5 = CastType                 up %56.4
+  prom-           %56.6 = MkArg                    unboundValue, isGeneric[0x55bbe36d5850]_p9 (!refl), e56.3
+  val?^           %56.7 = CastType                 up %56.6
+  fs              %56.8 = FrameState         R     0x55bbe6a880b0+524: [%47.2], env=e0.2
+  fs              %56.9 = FrameState         R     0x55bbe244d320+54: [], env=e56.3, next=%56.8
+  env             e56.10 = (MkEnv)            l     x=%56.5, table=%56.7, nomatch=0L, incomparables(miss)=nil, parent=R_BaseNamespace, context -1
+  fs              %56.11 = FrameState         R     0x55bbe2634d40+9: [%53.1], env=e56.10, next=%56.9
+  void                    Deopt              !v    %56.11, Typecheck@0x55bbe2687cb0[Type#0], %53.1   !
+BB32   <- [19]
+  void                    StVar              lW    f, "as.numeric", e0.2
+  goto BB21
+BB20   <- [19]
+  void                    Nop                !     
+  goto BB21
+BB57   <- [55]
+  int-            %57.0 = CastType           d     dn %55.1
+  lgl-            %57.1 = Gt                 wed   %57.0, 0L, elided   <lgl->
+  lgl$-           %57.2 = AsLogical                %57.1
+  lgl$-           %57.3 = LAnd                     %47.2, %57.2
+  lgl$-           %57.4 = %57.3
+  goto BB19
+BB58   <- [55]
+  prom-           %58.0 = MkArg                    %55.0, isGeneric[0x55bbe36d5850]_p4 (!refl), e0.2
+  val?~           %58.1 = CastType                 up %58.0
+  env             e58.2 = (MkEnv)            l     x=%58.1, table="as.double", parent=R_BaseNamespace, context 0
+  env             e58.3 = MaterializeEnv           , e58.2   <@?>
+  prom-           %58.4 = MkArg                    "as.double", isGeneric[0x55bbe36d5850]_p9 (!refl), e58.3
+  val?~           %58.5 = CastType                 up %58.4
+  prom-           %58.6 = MkArg                    %55.0, isGeneric[0x55bbe36d5850]_p8 (!refl), e58.3
+  val?~           %58.7 = CastType                 up %58.6
+  fs              %58.8 = FrameState         R     0x55bbe6a880b0+524: [%47.2], env=e0.2
+  fs              %58.9 = FrameState         R     0x55bbe244d320+54: [], env=e58.3, next=%58.8
+  env             e58.10 = (MkEnv)            l     incomparables(miss)=nil, nomatch=0L, table=%58.5, x=%58.7, parent=R_BaseNamespace, context -1
+  fs              %58.11 = FrameState         R     0x55bbe2634d40+69: [%55.1], env=e58.10, next=%58.9
+  void                    Deopt              !v    %58.11, Typecheck@0x55bbe347f688[Type#2], %55.1   !
+BB21   <- [20, 32]
+  val?^ | miss    %21.0 = LdVar              eR    genericForBasic, e0.2
+  lgl$#-          %21.1 = Identical                %21.0, function(f, where=topenv(parent.frame()), must|...
+  void                    Branch                   %21.1 -> BB59 (if true) | BB60 (if false)
+BB59   <- [21]
+  prom-           %59.0 = MkArg                    unboundValue, isGeneric[0x55bbe36d5850]_p5, e0.2
+  val?            %59.1 = StaticCall         !v    genericForBasic[0x55bbe56bd1f0](%59.0, missingArg, false) { 0 2n } e0.2   <nil->
+  void                    StVar              lW    gen, %59.1, e0.2
+  lgl$#-          %59.3 = IsType                   %59.1 isA val?-
+  val?^ | miss    %59.4 = LdVar              eR    is.function, e0.2
+  lgl$#-          %59.5 = Identical                <blt is.function>, %59.4   <true>
+  void                    Branch                   %59.5 -> BB61 (if true) | BB62 (if false)
+BB60   <- [21]
+  fs              %60.0 = FrameState         R     0x55bbe6a880b0+557: [], env=e0.2
+  void                    Deopt              !v    %60.0, CallTarget@0x55bbe4b78950[Call#8], %21.0   !
+BB61   <- [59]
+  val             %61.0 = ChkMissing         e     %59.1
+  void                    Branch                   %59.3 -> BB63 (if true) | BB64 (if false)
+BB62   <- [59]
+  void                    Nop                !     
+  lgl$#-          %62.1 = %59.5
+  dr              %62.2 = DeadBranchReached@0x55bbe4b78950[Test#1]
+  goto BB24
+BB63   <- [61]
+  val?-           %63.0 = CastType           d     dn %59.1   <nil->
+  lgl$#-          %63.1 = CallSafeBuiltin    vwed  is.function(%63.0)    <lgl$->
+  void                    Branch                   %63.1 -> BB27 (if true) | BB26 (if false)
+BB64   <- [61]
+  void                    Nop                !     
+  val?            %64.1 = %59.1
+  dr              %64.2 = Typecheck@0x55bbe4b78950[Type#24]
+  goto BB24
+BB24   <- [62, 64]
+  val?^ | miss    %24.0 = Phi                      %62.1:BB62, %64.1:BB64
+  val?^ | miss    %24.1 = %24.0
+  dr              %24.2 = Phi                      %62.2:BB62, %64.2:BB64
+  dr              %24.3 = %24.2
+  fs              %24.4 = FrameState         R     0x55bbe6a880b0+616: [], env=e0.2
+  void                    Deopt              !v    %24.4, %24.3, %24.1   !
+BB27   <- [63]
+  val?^ | miss    %27.0 = LdVar              eR    length, e0.2
+  lgl$#-          %27.1 = Identical                <blt length>, %27.0   <@?>
+  void                    Branch                   %27.1 -> BB29 (if true) | BB28 (if false)
+BB26   <- [63]
+  void                    Nop                !     
+  lgl$#-          %26.1 = %63.1
+  goto BB14
+BB29   <- [27]
+  val?^ | miss    %29.0 = LdVar              eR    names, e0.2
+  lgl$#-          %29.1 = Identical                <blt names>, %29.0   <@?>
+  void                    Branch                   %29.1 -> BB31 (if true) | BB30 (if false)
+BB28   <- [27]
+  (cls|spec|blt)  %28.0 = LdFun              !v    length, e0.2
+  fs              %28.1 = FrameState         R     0x55bbe6a880b0+747: [%63.1, %28.0], env=e0.2
+  void                    Deopt              !v    %28.1, DeadCall@0x55bbe4b78950[Call#10], %28.0   !
+BB31   <- [29]
+  (cls|spec|blt)  %31.0 = LdFun              !v    .getMethodsTable, e0.2
+  fs              %31.1 = FrameState         R     0x55bbe6a880b0+844: [%63.1, <blt length>, <blt names>, %31.0], env=e0.2
+  void                    Deopt              !v    %31.1, DeadCall@0x55bbe4b78950[Call#15], %31.0   !
+BB30   <- [29]
+  (cls|spec|blt)  %30.0 = LdFun              !v    names, e0.2
+  fs              %30.1 = FrameState         R     0x55bbe6a880b0+807: [%63.1, <blt length>, %30.0], env=e0.2
+  void                    Deopt              !v    %30.1, DeadCall@0x55bbe4b78950[Call#13], %30.0   !
+Prom 2:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    fdef, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<value>       !     %0.1, e0.0   <cls->
+  void                    Return             l     %0.3
+Prom 3:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    fdef, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<value>       !     %0.1, e0.0   <cls->
+  void                    Return             l     %0.3
+Prom 4:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    f, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<wrapped>     !     %0.1, e0.0   <str$->
+  void                    Return             l     %0.3
+Prom 5:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    f, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<wrapped>     !     %0.1, e0.0   <str$->
+  void                    Return             l     %0.3
+Prom 6:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    f, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <str$->
+  void                    Return             l     %0.3
+Prom 7:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    where, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <env->
+  void                    Return             l     %0.3
+Prom 8:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    x, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <(int|str)+>
+  void                    Return             l     %0.3
+Prom 9:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    table, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <val?->
+  void                    Return             l     %0.3
+
+│ isGeneric[0x55bbe36d5850]                                                    │
+└──────────────────────────────────────────────────────────────────────────────┘

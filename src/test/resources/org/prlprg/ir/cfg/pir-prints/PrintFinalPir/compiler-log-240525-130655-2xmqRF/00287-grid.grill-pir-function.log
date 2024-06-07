@@ -1,0 +1,566 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ grid.grill[0x55eeedd76d00]                                                   │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch miss: 5                              │
+│ Properties:  Eager                                                           │
+├────── Final PIR Version
+grid.grill[0x55eeedd76d00]
+BB0
+  env             e0.0  = MkEnv              l     h(miss)=missingArg, v(miss)=missingArg, default.units(miss)=missingArg, gp(miss)=missingArg, vp(miss)=missingArg, parent=<env 0x55eeedfdc408>, context 1
+  prom-           %0.1  = MkArg                    unboundValue, grid.grill[0x55eeedd76d00]_p0, e0.0
+  val?^ | miss    %0.2  = CastType                 up %0.1
+  void                    StArg              lW    h, %0.2, e0.0
+  prom-           %0.4  = MkArg                    unboundValue, grid.grill[0x55eeedd76d00]_p2, e0.0
+  val?^ | miss    %0.5  = CastType                 up %0.4
+  void                    StArg              lW    v, %0.5, e0.0
+  void                    StArg              lW    default.units, "npc", e0.0
+  prom-           %0.8  = MkArg                    unboundValue, grid.grill[0x55eeedd76d00]_p5, e0.0
+  val?^ | miss    %0.9  = CastType                 up %0.8
+  void                    StArg              lW    gp, %0.9, e0.0
+  void                    StArg              lW    vp, nil, e0.0
+  val?^ | miss    %0.12 = LdVar              eR    is.unit, <env 0x55eeedfdc408>
+  lgl$#-          %0.13 = Identical                %0.12, function(x) <(rir::DispatchTable*)0x55eeeef91d|...
+  void                    Branch                   %0.13 -> BB46 (if true) | BB47 (if false)
+BB46   <- [0]
+  prom-           %46.0 = MkArg                    unboundValue, grid.grill[0x55eeedd76d00]_p7, e0.0
+  ct              %46.1 = PushContext        lCL   %46.0, is.unit(h), function(x) <(rir::DispatchTable*)0x55eeeef91d|..., e0.0
+  val?^           %46.2 = CastType                 up %46.0
+  val?^ | miss    %46.3 = LdVar              eR    inherits, <env 0x55eeedfdc408>
+  lgl$#-          %46.4 = Identical                %46.3, function(x, what, which=FALSE) <(rir::Dispatch|...
+  void                    Branch                   %46.4 -> BB48 (if true) | BB49 (if false)
+BB47   <- [0]
+  fs              %47.0 = FrameState         R     0x55eeee9aab20+0: [], env=e0.0
+  void                    Deopt              !v    %47.0, CallTarget@0x55eeee219d20[Call#5], %0.12
+BB48   <- [46]
+  env             e48.0 = MkEnv              l     x=%46.2, parent=<env 0x55eeedfdc408>, context 1
+  prom-           %48.1 = MkArg                    unboundValue, grid.grill[0x55eeedd76d00]_p19, e48.0
+  ct              %48.2 = PushContext        lCL   %48.1, "unit", inherits(x, "unit"), function(x, what, which=FALSE) <(rir::Dispatch|..., e48.0
+  val?^           %48.3 = CastType                 up %48.1
+  env             e48.4 = MkEnv              l     x=%48.3, what="unit", which(miss)=false, parent=R_BaseNamespace, context 1
+  val?            %48.5 = Force!<lazy>       !vr   %48.3,    <val?>
+  val?            %48.6 = CallBuiltin        !v    inherits(%48.5, "unit", false) e48.4
+  val?            %48.7 = PopContext         C     %48.6, %48.2   <lgl$->
+  lgl$#-          %48.8 = IsType                   %48.7 isA lgl$-
+  void                    Branch                   %48.8 -> BB50 (if true) | BB51 (if false)
+BB49   <- [46]
+  fs              %49.0 = FrameState         R     0x55eeee9aab20+32: [], env=e0.0
+  env             e49.1 = (MkEnv)            l     x=%46.2, parent=<env 0x55eeedfdc408>, context 1
+  fs              %49.2 = FrameState         R     0x55eeedab17c0+0: [], env=e49.1, next=%49.0
+  void                    Deopt              !v    %49.2, CallTarget@0x55eeeef0b9a8[Call#0], %46.3   !
+BB50   <- [48]
+  lgl$-           %50.0 = CastType           d     dn %48.7
+  val?            %50.1 = PopContext         C     %50.0, %46.1   <lgl$->
+  lgl$#-          %50.2 = IsType                   %50.1 isA lgl$-
+  void                    Branch                   %50.2 -> BB52 (if true) | BB53 (if false)
+BB51   <- [48]
+  fs              %51.0 = FrameState         R     0x55eeee9aab20+32: [], env=e0.0
+  fs              %51.1 = FrameState         R     0x55eeedab17c0+37: [%48.7], env=e48.0, next=%51.0
+  void                    Deopt              !v    %51.1, Typecheck@0x55eeeef0b9a8[Type#1], %48.7   !
+BB52   <- [50]
+  lgl$-           %52.0 = CastType           d     dn %50.1
+  lgl$-           %52.1 = Not                d     %52.0, elided
+  lgl$#-          %52.2 = CheckTrueFalse     e     %52.1
+  void                    Branch                   %52.2 -> BB44 (if true) | BB9 (if false)
+BB53   <- [50]
+  void                    Nop                !     
+  val?            %53.1 = %50.1
+  dr              %53.2 = Typecheck@0x55eeee219d20[Type#6]
+  goto BB7
+BB44   <- [52]
+  (cls|spec|blt)  %44.0 = LdFun              !v    unit, e0.0
+  fs              %44.1 = FrameState         R     0x55eeee9aab20+54: [%44.0], env=e0.0
+  void                    Deopt              !v    %44.1, DeadCall@0x55eeee219d20[Call#6], %44.0   !
+BB9   <- [52]
+  val?^ | miss    %9.0  = LdVar              eR    is.unit, e0.0
+  lgl$#-          %9.1  = Identical                %9.0, function(x) <(rir::DispatchTable*)0x55eeeef91d|...
+  void                    Branch                   %9.1 -> BB54 (if true) | BB55 (if false)
+BB7   <- [53, 55]
+  val?^ | miss    %7.0  = Phi                      %53.1:BB53, %55.1:BB55
+  val?^ | miss    %7.1  = %7.0
+  dr              %7.2  = Phi                      %53.2:BB53, %55.2:BB55
+  dr              %7.3  = %7.2
+  fs              %7.4  = FrameState         R     0x55eeee9aab20+32: [%50.1], env=e0.0
+  void                    Deopt              !v    %7.4, %7.3, %7.1   !
+BB54   <- [9]
+  prom-           %54.0 = MkArg                    unboundValue, grid.grill[0x55eeedd76d00]_p8, e0.0
+  ct              %54.1 = PushContext        lCL   %54.0, is.unit(v), function(x) <(rir::DispatchTable*)0x55eeeef91d|..., e0.0
+  val?^           %54.2 = CastType                 up %54.0
+  val?^ | miss    %54.3 = LdVar              eR    inherits, <env 0x55eeedfdc408>
+  lgl$#-          %54.4 = Identical                %54.3, function(x, what, which=FALSE) <(rir::Dispatch|...
+  void                    Branch                   %54.4 -> BB56 (if true) | BB57 (if false)
+BB55   <- [9]
+  void                    Nop                !     
+  val?^ | miss    %55.1 = %9.0
+  dr              %55.2 = CallTarget@0x55eeee219d20[Call#7]
+  goto BB7
+BB56   <- [54]
+  env             e56.0 = MkEnv              l     x=%54.2, parent=<env 0x55eeedfdc408>, context 1
+  prom-           %56.1 = MkArg                    unboundValue, grid.grill[0x55eeedd76d00]_p20, e56.0
+  ct              %56.2 = PushContext        lCL   %56.1, "unit", inherits(x, "unit"), function(x, what, which=FALSE) <(rir::Dispatch|..., e56.0
+  val?^           %56.3 = CastType                 up %56.1
+  env             e56.4 = MkEnv              l     x=%56.3, what="unit", which(miss)=false, parent=R_BaseNamespace, context 1
+  val?            %56.5 = Force!<lazy>       !vL   %56.3, e56.4   <val?>
+  val?            %56.6 = CallBuiltin        !v    inherits(%56.5, "unit", false) e56.4
+  val?            %56.7 = PopContext         C     %56.6, %56.2   <lgl$->
+  lgl$#-          %56.8 = IsType                   %56.7 isA lgl$-
+  void                    Branch                   %56.8 -> BB58 (if true) | BB59 (if false)
+BB57   <- [54]
+  fs              %57.0 = FrameState         R     0x55eeee9aab20+132: [], env=e0.0
+  env             e57.1 = (MkEnv)            l     x=%54.2, parent=<env 0x55eeedfdc408>, context 1
+  fs              %57.2 = FrameState         R     0x55eeedab17c0+0: [], env=e57.1, next=%57.0
+  void                    Deopt              !v    %57.2, CallTarget@0x55eeeef0b9a8[Call#0], %54.3   !
+BB58   <- [56]
+  lgl$-           %58.0 = CastType           d     dn %56.7
+  val?            %58.1 = PopContext         C     %58.0, %54.1   <lgl$->
+  lgl$#-          %58.2 = IsType                   %58.1 isA lgl$-
+  void                    Branch                   %58.2 -> BB60 (if true) | BB61 (if false)
+BB59   <- [56]
+  fs              %59.0 = FrameState         R     0x55eeee9aab20+132: [], env=e0.0
+  fs              %59.1 = FrameState         R     0x55eeedab17c0+37: [%56.7], env=e56.0, next=%59.0
+  void                    Deopt              !v    %59.1, Typecheck@0x55eeeef0b9a8[Type#1], %56.7   !
+BB60   <- [58]
+  lgl$-           %60.0 = CastType           d     dn %58.1
+  lgl$-           %60.1 = Not                d     %60.0, elided
+  lgl$#-          %60.2 = CheckTrueFalse     e     %60.1
+  void                    Branch                   %60.2 -> BB43 (if true) | BB16 (if false)
+BB61   <- [58]
+  fs              %61.0 = FrameState         R     0x55eeee9aab20+132: [%58.1], env=e0.0
+  void                    Deopt              !v    %61.0, Typecheck@0x55eeee219d20[Type#11], %58.1   !
+BB43   <- [60]
+  (cls|spec|blt)  %43.0 = LdFun              !v    unit, e0.0
+  fs              %43.1 = FrameState         R     0x55eeee9aab20+154: [%43.0], env=e0.0
+  void                    Deopt              !v    %43.1, DeadCall@0x55eeee219d20[Call#8], %43.0   !
+BB16   <- [60]
+  val?^ | miss    %16.0 = LdVar              eR    vp, e0.0
+  val?            %16.1 = Force!<lazy>       !v    %16.0, e0.0   <nil->
+  lgl$-           %16.2 = Is                       %16.1, NULL
+  lgl$-           %16.3 = Not                d     %16.2, elided
+  lgl$#-          %16.4 = CheckTrueFalse     e     %16.3
+  void                    Branch                   %16.4 -> BB42 (if true) | BB19 (if false)
+BB42   <- [16]
+  (cls|spec|blt)  %42.0 = LdFun              !v    pushViewport, e0.0
+  fs              %42.1 = FrameState         R     0x55eeee9aab20+236: [%42.0], env=e0.0
+  void                    Deopt              !v    %42.1, DeadCall@0x55eeee219d20[Call#9], %42.0   !
+BB19   <- [16]
+  val?^ | miss    %19.0 = LdVar              eR    grid.segments, e0.0
+  lgl$#-          %19.1 = Identical                %19.0, function(x0=unit(0, "npc"), y0=unit(0, "npc"),|...
+  void                    Branch                   %19.1 -> BB62 (if true) | BB63 (if false)
+BB62   <- [19]
+  prom-           %62.0 = MkArg                    unboundValue, grid.grill[0x55eeedd76d00]_p9, e0.0
+  prom-           %62.1 = MkArg                    unboundValue, grid.grill[0x55eeedd76d00]_p10, e0.0
+  prom-           %62.2 = MkArg                    unboundValue, grid.grill[0x55eeedd76d00]_p11, e0.0
+  prom-           %62.3 = MkArg                    unboundValue, grid.grill[0x55eeedd76d00]_p12, e0.0
+  prom-           %62.4 = MkArg                    unboundValue, grid.grill[0x55eeedd76d00]_p13, e0.0
+  ct              %62.5 = PushContext        lCL   %62.0, %62.1, %62.2, %62.3, missingArg, missingArg, missingArg, %62.4, grid.segments(v, unit(0, "npc"), v, unit(1, "n|..., function(x0=unit(0, "npc"), y0=unit(0, "npc"),|..., e0.0
+  val?^           %62.6 = CastType                 up %62.4
+  val?^           %62.7 = CastType                 up %62.3
+  val?^           %62.8 = CastType                 up %62.2
+  val?^           %62.9 = CastType                 up %62.1
+  val?^           %62.10 = CastType                 up %62.0
+  val?^ | miss    %62.11 = LdVar              eR    segmentsGrob, <env 0x55eeedfdc408>
+  lgl$#-          %62.12 = Identical                %62.11, function(x0=unit(0, "npc"), y0=unit(0, "npc"),|...
+  void                    Branch                   %62.12 -> BB64 (if true) | BB65 (if false)
+BB63   <- [19]
+  fs              %63.0 = FrameState         R     0x55eeee9aab20+209: [%16.1], env=e0.0
+  void                    Deopt              !v    %63.0, CallTarget@0x55eeee219d20[Call#10], %19.0   !
+BB64   <- [62]
+  env             e64.0 = MkEnv              l     x0=%62.10, y0=%62.9, x1=%62.8, y1=%62.7, default.units(miss)="npc", arrow(miss)=nil, name(miss)=nil, gp=%62.6, draw(miss)=true, vp(miss)=nil, parent=<env 0x55eeedfdc408>, context 1
+  prom-           %64.1 = MkArg                    unboundValue, grid.grill[0x55eeedd76d00]_p28, e64.0
+  prom-           %64.2 = MkArg                    unboundValue, grid.grill[0x55eeedd76d00]_p29, e64.0
+  prom-           %64.3 = MkArg                    unboundValue, grid.grill[0x55eeedd76d00]_p30, e64.0
+  prom-           %64.4 = MkArg                    unboundValue, grid.grill[0x55eeedd76d00]_p31, e64.0
+  prom-           %64.5 = MkArg                    unboundValue, grid.grill[0x55eeedd76d00]_p32 (!refl), e64.0
+  prom-           %64.6 = MkArg                    unboundValue, grid.grill[0x55eeedd76d00]_p33 (!refl), e64.0
+  prom-           %64.7 = MkArg                    unboundValue, grid.grill[0x55eeedd76d00]_p34 (!refl), e64.0
+  prom-           %64.8 = MkArg                    unboundValue, grid.grill[0x55eeedd76d00]_p35, e64.0
+  prom-           %64.9 = MkArg                    unboundValue, grid.grill[0x55eeedd76d00]_p36 (!refl), e64.0
+  val?            %64.10 = StaticCall         !v    segmentsGrob[0x55eeee12d4f0](%64.1, %64.2, %64.3, %64.4, %64.5, %64.6, %64.7, %64.8, %64.9) { 0n 1n 2n 3n 4n 5n 6n 7n 8n } e64.0   <vec>
+  void                    StVar              lW    sg, %64.10, e64.0
+  val?^ | miss    %64.12 = LdVar              eR    draw, e64.0
+  val?            %64.13 = Force!<lazy>       !v    %64.12, e64.0   <lgl$->
+  lgl$#-          %64.14 = CheckTrueFalse     we    %64.13
+  void                    Branch                   %64.14 -> BB41 (if true) | BB24 (if false)
+BB65   <- [62]
+  fs              %65.0 = FrameState         R     0x55eeee9aab20+336: [], env=e0.0
+  env             e65.1 = (MkEnv)            l     x0=%62.10, y0=%62.9, x1=%62.8, y1=%62.7, default.units(miss)="npc", arrow(miss)=nil, name(miss)=nil, gp=%62.6, draw(miss)=true, vp(miss)=nil, parent=<env 0x55eeedfdc408>, context 1
+  fs              %65.2 = FrameState         R     0x55eeed46a7b0+0: [], env=e65.1, next=%65.0
+  void                    Deopt              !v    %65.2, CallTarget@0x55eeed1583a0[Call#5], %62.11   !
+BB41   <- [64]
+  val?^ | miss    %41.0 = LdVar              eR    grid.draw, e64.0
+  lgl$#-          %41.1 = Identical                %41.0, function(x, recording=TRUE) <(rir::DispatchTab|...
+  void                    Branch                   %41.1 -> BB66 (if true) | BB67 (if false)
+BB24   <- [64]
+  void                    Nop                !     
+  goto BB25
+BB66   <- [41]
+  prom-           %66.0 = MkArg                    unboundValue, grid.grill[0x55eeedd76d00]_p37, e64.0
+  val?            %66.1 = StaticCall         !v    grid.draw[0x55eeebe2d110](%66.0) e64.0
+  goto BB25
+BB67   <- [41]
+  fs              %67.0 = FrameState         R     0x55eeee9aab20+336: [], env=e0.0
+  fs              %67.1 = FrameState         R     0x55eeed46a7b0+137: [%64.14], env=e64.0, next=%67.0
+  void                    Deopt              !v    %67.1, CallTarget@0x55eeed1583a0[Call#6], %41.0   !
+BB25   <- [24, 66]
+  val?^ | miss    %25.0 = LdVar              eR    invisible, e64.0
+  lgl$#-          %25.1 = Identical                <blt invisible>, %25.0   <true>
+  void                    Branch                   %25.1 -> BB68 (if true) | BB69 (if false)
+BB68   <- [25]
+  val?^ | miss    %68.0 = LdVar              eR    sg, e64.0
+  val?            %68.1 = Force!<value>      !v    %68.0, e64.0   <vec>
+  val?            %68.2 = PopContext         C     %68.1, %62.5
+  val?^ | miss    %68.3 = LdVar              eR    grid.segments, e0.0
+  lgl$#-          %68.4 = Identical                %68.3, function(x0=unit(0, "npc"), y0=unit(0, "npc"),|...
+  void                    Branch                   %68.4 -> BB70 (if true) | BB71 (if false)
+BB69   <- [25]
+  fs              %69.0 = FrameState         R     0x55eeee9aab20+336: [], env=e0.0
+  fs              %69.1 = FrameState         R     0x55eeed46a7b0+180: [], env=e64.0, next=%69.0
+  void                    Deopt              !v    %69.1, DeadBranchReached@0x55eeed1583a0[Test#0], %25.1   !
+BB70   <- [68]
+  prom-           %70.0 = MkArg                    unboundValue, grid.grill[0x55eeedd76d00]_p14, e0.0
+  prom-           %70.1 = MkArg                    unboundValue, grid.grill[0x55eeedd76d00]_p15, e0.0
+  prom-           %70.2 = MkArg                    unboundValue, grid.grill[0x55eeedd76d00]_p16, e0.0
+  prom-           %70.3 = MkArg                    unboundValue, grid.grill[0x55eeedd76d00]_p17, e0.0
+  prom-           %70.4 = MkArg                    unboundValue, grid.grill[0x55eeedd76d00]_p18, e0.0
+  ct              %70.5 = PushContext        lCL   %70.0, %70.1, %70.2, %70.3, missingArg, missingArg, missingArg, %70.4, grid.segments(unit(0, "npc"), h, unit(1, "npc"|..., function(x0=unit(0, "npc"), y0=unit(0, "npc"),|..., e0.0
+  val?^           %70.6 = CastType                 up %70.4
+  val?^           %70.7 = CastType                 up %70.3
+  val?^           %70.8 = CastType                 up %70.2
+  val?^           %70.9 = CastType                 up %70.1
+  val?^           %70.10 = CastType                 up %70.0
+  val?^ | miss    %70.11 = LdVar              eR    segmentsGrob, <env 0x55eeedfdc408>
+  lgl$#-          %70.12 = Identical                %70.11, function(x0=unit(0, "npc"), y0=unit(0, "npc"),|...
+  void                    Branch                   %70.12 -> BB72 (if true) | BB73 (if false)
+BB71   <- [68]
+  fs              %71.0 = FrameState         R     0x55eeee9aab20+336: [%68.2], env=e0.0
+  void                    Deopt              !v    %71.0, CallTarget@0x55eeee219d20[Call#13], %68.3   !
+BB72   <- [70]
+  env             e72.0 = MkEnv              l     x0=%70.10, y0=%70.9, x1=%70.8, y1=%70.7, default.units(miss)="npc", arrow(miss)=nil, name(miss)=nil, gp=%70.6, draw(miss)=true, vp(miss)=nil, parent=<env 0x55eeedfdc408>, context 1
+  prom-           %72.1 = MkArg                    unboundValue, grid.grill[0x55eeedd76d00]_p43, e72.0
+  prom-           %72.2 = MkArg                    unboundValue, grid.grill[0x55eeedd76d00]_p44, e72.0
+  prom-           %72.3 = MkArg                    unboundValue, grid.grill[0x55eeedd76d00]_p45, e72.0
+  prom-           %72.4 = MkArg                    unboundValue, grid.grill[0x55eeedd76d00]_p46, e72.0
+  prom-           %72.5 = MkArg                    unboundValue, grid.grill[0x55eeedd76d00]_p47 (!refl), e72.0
+  prom-           %72.6 = MkArg                    unboundValue, grid.grill[0x55eeedd76d00]_p48 (!refl), e72.0
+  prom-           %72.7 = MkArg                    unboundValue, grid.grill[0x55eeedd76d00]_p49 (!refl), e72.0
+  prom-           %72.8 = MkArg                    unboundValue, grid.grill[0x55eeedd76d00]_p50, e72.0
+  prom-           %72.9 = MkArg                    unboundValue, grid.grill[0x55eeedd76d00]_p51 (!refl), e72.0
+  val?            %72.10 = StaticCall         !v    segmentsGrob[0x55eeee12d4f0](%72.1, %72.2, %72.3, %72.4, %72.5, %72.6, %72.7, %72.8, %72.9) { 0n 1n 2n 3n 4n 5n 6n 7n 8n } e72.0   <vec>
+  void                    StVar              lW    sg, %72.10, e72.0
+  val?^ | miss    %72.12 = LdVar              eR    draw, e72.0
+  val?            %72.13 = Force!<lazy>       !v    %72.12, e72.0   <lgl$->
+  lgl$#-          %72.14 = CheckTrueFalse     we    %72.13
+  void                    Branch                   %72.14 -> BB40 (if true) | BB34 (if false)
+BB73   <- [70]
+  fs              %73.0 = FrameState         R     0x55eeee9aab20+409: [], env=e0.0
+  env             e73.1 = (MkEnv)            l     x0=%70.10, y0=%70.9, x1=%70.8, y1=%70.7, default.units(miss)="npc", arrow(miss)=nil, name(miss)=nil, gp=%70.6, draw(miss)=true, vp(miss)=nil, parent=<env 0x55eeedfdc408>, context 1
+  fs              %73.2 = FrameState         R     0x55eeed46a7b0+0: [], env=e73.1, next=%73.0
+  void                    Deopt              !v    %73.2, CallTarget@0x55eeed1583a0[Call#5], %70.11   !
+BB40   <- [72]
+  val?^ | miss    %40.0 = LdVar              eR    grid.draw, e72.0
+  lgl$#-          %40.1 = Identical                %40.0, function(x, recording=TRUE) <(rir::DispatchTab|...
+  void                    Branch                   %40.1 -> BB74 (if true) | BB75 (if false)
+BB34   <- [72]
+  void                    Nop                !     
+  goto BB35
+BB74   <- [40]
+  prom-           %74.0 = MkArg                    unboundValue, grid.grill[0x55eeedd76d00]_p52, e72.0
+  val?            %74.1 = StaticCall         !v    grid.draw[0x55eeebe2d110](%74.0) e72.0
+  goto BB35
+BB75   <- [40]
+  fs              %75.0 = FrameState         R     0x55eeee9aab20+409: [], env=e0.0
+  fs              %75.1 = FrameState         R     0x55eeed46a7b0+137: [%72.14], env=e72.0, next=%75.0
+  void                    Deopt              !v    %75.1, CallTarget@0x55eeed1583a0[Call#6], %40.0   !
+BB35   <- [34, 74]
+  val?^ | miss    %35.0 = LdVar              eR    invisible, e72.0
+  lgl$#-          %35.1 = Identical                <blt invisible>, %35.0   <true>
+  void                    Branch                   %35.1 -> BB76 (if true) | BB77 (if false)
+BB76   <- [35]
+  val?^ | miss    %76.0 = LdVar              eR    sg, e72.0
+  val?            %76.1 = Force!<value>      !v    %76.0, e72.0   <vec>
+  val?            %76.2 = PopContext         C     %76.1, %70.5
+  val?^ | miss    %76.3 = LdVar              eR    vp, e0.0
+  val?            %76.4 = Force!<wrapped>    !v    %76.3, e0.0   <nil->
+  lgl$-           %76.5 = Is                       %76.4, NULL
+  lgl$-           %76.6 = Not                d     %76.5, elided
+  lgl$#-          %76.7 = CheckTrueFalse     e     %76.6
+  void                    Branch                   %76.7 -> BB39 (if true) | BB38 (if false)
+BB77   <- [35]
+  fs              %77.0 = FrameState         R     0x55eeee9aab20+409: [], env=e0.0
+  fs              %77.1 = FrameState         R     0x55eeed46a7b0+180: [], env=e72.0, next=%77.0
+  void                    Deopt              !v    %77.1, DeadBranchReached@0x55eeed1583a0[Test#0], %35.1   !
+BB39   <- [76]
+  (cls|spec|blt)  %39.0 = LdFun              !v    popViewport, e0.0
+  fs              %39.1 = FrameState         R     0x55eeee9aab20+452: [%39.0], env=e0.0
+  void                    Deopt              !v    %39.1, DeadCall@0x55eeee219d20[Call#16], %39.0   !
+BB38   <- [76]
+  void                    Invisible          v     
+  void                    Return             l     nil
+Prom 0:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     unit, <0x55eeee42ab10>, e0.0
+  prom-           %0.2  = MkArg                    unboundValue, grid.grill[0x55eeedd76d00]_p1, e0.0
+  val?            %0.3  = Call               !     %0.1(%0.2, "npc") e0.0   <real>
+  void                    Return             l     %0.3
+Prom 1:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     seq, <0x55eeed31dc28>, e0.0
+  val?            %0.2  = Call               !     %0.1(0.25, 0.75, 0.25) e0.0   <real->
+  void                    Return             l     %0.2
+Prom 2:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     unit, <0x55eeee42ab10>, e0.0
+  prom-           %0.2  = MkArg                    unboundValue, grid.grill[0x55eeedd76d00]_p3, e0.0
+  val?            %0.3  = Call               !     %0.1(%0.2, "npc") e0.0   <real>
+  void                    Return             l     %0.3
+Prom 3:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     seq, <0x55eeed31dc28>, e0.0
+  val?            %0.2  = Call               !     %0.1(0.25, 0.75, 0.25) e0.0   <real->
+  void                    Return             l     %0.2
+Prom 5:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     gpar, <0x55eeee762e20>, e0.0
+  val?            %0.2  = NamedCall          !     %0.1(col="grey") e0.0   <vec$>
+  void                    Return             l     %0.2
+Prom 7:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    h, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <real>
+  void                    Return             l     %0.3
+Prom 8:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    v, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <real>
+  void                    Return             l     %0.3
+Prom 9:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    v, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<wrapped>     !     %0.1, e0.0   <real>
+  void                    Return             l     %0.3
+Prom 10:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     unit, <0x55eeee42ab10>, e0.0
+  val?            %0.2  = Call               !     %0.1(0, "npc") e0.0   <real$>
+  void                    Return             l     %0.2
+Prom 11:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    v, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<wrapped>     !     %0.1, e0.0   <real>
+  void                    Return             l     %0.3
+Prom 12:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     unit, <0x55eeee42ab10>, e0.0
+  val?            %0.2  = Call               !     %0.1(1, "npc") e0.0   <real$>
+  void                    Return             l     %0.2
+Prom 13:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    gp, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <vec$>
+  void                    Return             l     %0.3
+Prom 14:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     unit, <0x55eeee42ab10>, e0.0
+  val?            %0.2  = Call               !     %0.1(0, "npc") e0.0   <real$>
+  void                    Return             l     %0.2
+Prom 15:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    h, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<wrapped>     !     %0.1, e0.0   <real>
+  void                    Return             l     %0.3
+Prom 16:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     unit, <0x55eeee42ab10>, e0.0
+  val?            %0.2  = Call               !     %0.1(1, "npc") e0.0   <real$>
+  void                    Return             l     %0.2
+Prom 17:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    h, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<wrapped>     !     %0.1, e0.0   <real>
+  void                    Return             l     %0.3
+Prom 18:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    gp, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<wrapped>     !     %0.1, e0.0   <vec$>
+  void                    Return             l     %0.3
+Prom 19:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    x, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <(real|vec)$>
+  void                    Return             l     %0.3
+Prom 20:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    x, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <(real|vec)$>
+  void                    Return             l     %0.3
+Prom 28:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    x0, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <real>
+  void                    Return             l     %0.3
+Prom 29:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    y0, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <real>
+  void                    Return             l     %0.3
+Prom 30:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    x1, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <real>
+  void                    Return             l     %0.3
+Prom 31:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    y1, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <real>
+  void                    Return             l     %0.3
+Prom 32:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    default.units, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 33:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    arrow, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <nil->
+  void                    Return             l     %0.3
+Prom 34:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    name, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <nil->
+  void                    Return             l     %0.3
+Prom 35:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    gp, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <vec$>
+  void                    Return             l     %0.3
+Prom 36:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    vp, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <nil->
+  void                    Return             l     %0.3
+Prom 37:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    sg, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<value>       !     %0.1, e0.0   <vec>
+  void                    Return             l     %0.3
+Prom 43:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    x0, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <real>
+  void                    Return             l     %0.3
+Prom 44:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    y0, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <real>
+  void                    Return             l     %0.3
+Prom 45:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    x1, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <real>
+  void                    Return             l     %0.3
+Prom 46:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    y1, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <real>
+  void                    Return             l     %0.3
+Prom 47:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    default.units, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 48:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    arrow, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <nil->
+  void                    Return             l     %0.3
+Prom 49:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    name, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <nil->
+  void                    Return             l     %0.3
+Prom 50:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    gp, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <vec$>
+  void                    Return             l     %0.3
+Prom 51:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    vp, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <nil->
+  void                    Return             l     %0.3
+Prom 52:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    sg, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<value>       !     %0.1, e0.0   <vec>
+  void                    Return             l     %0.3
+
+│ grid.grill[0x55eeedd76d00]                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘

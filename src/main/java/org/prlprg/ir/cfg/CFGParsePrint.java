@@ -107,13 +107,13 @@ class CFGParseOrPrintContext {
 
     // Phis
     if (!bb.phis().isEmpty()) {
-      w.write('(');
+      w.write("(\n    ");
       var first = true;
       for (var phi : bb.phis()) {
         if (first) {
           first = false;
         } else {
-          w.write(", ");
+          w.write(",\n    ");
         }
         bbP.print(phi);
       }

@@ -1,0 +1,51 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ osr[0x55eeee858530]                                                          │
+│ Context: CorrOrd,!TMany                                                      │
+│ Properties:                                                                  │
+├────── Final PIR Version
+osr[0x55eeee858530]
+BB0
+  env             e0.0  = LdFunctionEnv            
+  vec#            %0.1  = LdArg                    0   <vec>
+  void                    StVar              lW    tg, %0.1, e0.0
+  val?^ | miss    %0.3  = LdVar              eR    draw, e0.0
+  val?            %0.4  = Force!<lazy>       !v    %0.3, e0.0   <lgl$->
+  lgl$#-          %0.5  = CheckTrueFalse     we    %0.4
+  void                    Branch                   %0.5 -> BB7 (if true) | BB3 (if false)
+BB7   <- [0]
+  val?^ | miss    %7.0  = LdVar              eR    grid.draw, e0.0
+  lgl$#-          %7.1  = Identical                %7.0, function(x, recording=TRUE) <(rir::DispatchTab|...
+  void                    Branch                   %7.1 -> BB11 (if true) | BB12 (if false)
+BB3   <- [0]
+  void                    Nop                !     
+  goto BB4
+BB11   <- [7]
+  prom-           %11.0 = MkArg                    unboundValue, osr[0x55eeee858530]_p0, e0.0
+  val?            %11.1 = StaticCall         !v    grid.draw[0x55eeee3df0e0](%11.0) e0.0
+  goto BB4
+BB12   <- [7]
+  fs              %12.0 = FrameState         R     0x55eeed9928e0+164: [%0.5], env=e0.0
+  void                    Deopt              !v    %12.0, CallTarget@0x55eeee936190[Call#4], %7.0   !
+BB4   <- [3, 11]
+  val?^ | miss    %4.0  = LdVar              eR    invisible, e0.0
+  lgl$#-          %4.1  = Identical                <blt invisible>, %4.0   <true>
+  void                    Branch                   %4.1 -> BB9 (if true) | BB10 (if false)
+BB9   <- [4]
+  val?^ | miss    %9.0  = LdVar              eR    tg, e0.0
+  val?            %9.1  = Force!<value>      !v    %9.0, e0.0   <vec>
+  void                    Invisible          v     
+  void                    Return             l     %9.1
+BB10   <- [4]
+  fs              %10.0 = FrameState         R     0x55eeed9928e0+207: [], env=e0.0
+  void                    Deopt              !v    %10.0, DeadBranchReached@0x55eeee936190[Test#0], %4.1   !
+Prom 0:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    tg, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<value>       !     %0.1, e0.0   <vec>
+  void                    Return             l     %0.3
+
+│ osr[0x55eeee858530]                                                          │
+└──────────────────────────────────────────────────────────────────────────────┘

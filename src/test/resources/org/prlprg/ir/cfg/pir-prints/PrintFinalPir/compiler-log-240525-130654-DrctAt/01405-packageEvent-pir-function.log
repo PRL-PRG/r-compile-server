@@ -1,0 +1,109 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ packageEvent[0x5638bbe17040]                                                 │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;Eager1,NonRefl0,NonRefl1,!Obj0,!Obj1 │
+│ Properties:                                                                  │
+├────── Final PIR Version
+packageEvent[0x5638bbe17040]
+BB0
+  val?~+          %0.0  = LdArg                    1
+  val?^           %0.1  = LdArg                    0
+  env             e0.2  = MkEnv              l     pkgname=%0.1, event=%0.0, parent=R_BaseNamespace, context 1
+  prom-           %0.3  = MkArg                    unboundValue, packageEvent[0x5638bbe17040]_p0 (!refl), e0.2
+  val?            %0.4  = StaticCall         !v    match.arg[0x5638bbe65f70](%0.3, <str [1] "onLoad" "attach" "detach" "onUnload">) e0.2   <str$->
+  void                    StVar              lW    event, %0.4, e0.2
+  val?^ | miss    %0.6  = LdVar              eR    strsplit, e0.2
+  lgl$#-          %0.7  = Identical                %0.6, function(x, split, fixed=FALSE, perl=FALSE, us|...
+  void                    Branch                   %0.7 -> BB10 (if true) | BB11 (if false)
+BB10   <- [0]
+  val?^ | miss    %10.0 = LdVar              eR    pkgname, e0.2
+  val?            %10.1 = Force!<lazy>       !v    %10.0, e0.2   <str$->
+  vec+            %10.2 = CallSafeBuiltin    wed   strsplit(%10.1, "_", true, false, false)    <vec$->
+  lgl$#-          %10.3 = IsType                   %10.2 isA val?-
+  void                    Branch                   %10.3 -> BB12 (if true) | BB13 (if false)
+BB11   <- [0]
+  fs              %11.0 = FrameState         R     0x5638bc33aef0+46: [], env=e0.2
+  void                    Deopt              !v    %11.0, CallTarget@0x5638bc210d28[Call#2], %0.6   !
+BB12   <- [10]
+  vec-            %12.0 = CastType           d     dn %10.2   <vec$->
+  val             %12.1 = Extract2_1D        wed   %12.0, 1L, elided   <str$->
+  lgl$#-          %12.2 = IsType                   %12.1 isA val+   <true>
+  lgl$#-          %12.3 = IsType                   %12.1 isA val?-
+  void                    Branch                   %12.2 -> BB14 (if true) | BB15 (if false)
+BB13   <- [10]
+  fs              %13.0 = FrameState         R     0x5638bc33aef0+100: [], env=e0.2
+  prom-           %13.1 = MkArg                    %10.1, packageEvent[0x5638bbe17040]_p1 (!refl), e0.2
+  val?~           %13.2 = CastType                 up %13.1
+  env             e13.3 = (MkEnv)            l     useBytes(miss)=false, perl(miss)=false, fixed=true, split="_", x=%13.2, parent=R_BaseNamespace, context 0
+  fs              %13.4 = FrameState         R     0x5638bb9a4010+165: [%10.2], env=e13.3, next=%13.0
+  void                    Deopt              !v    %13.4, Typecheck@0x5638bc210d28[Type#4], %10.2   !
+BB14   <- [12]
+  void                    Branch                   %12.3 -> BB16 (if true) | BB17 (if false)
+BB15   <- [12]
+  void                    Nop                !     
+  lgl$#-          %15.1 = %12.2
+  dr              %15.2 = DeadBranchReached@0x5638bc210d28[Test#1]
+  goto BB5
+BB16   <- [14]
+  val-            %16.0 = CastType           d     dn %12.1   <str$->
+  val?            %16.1 = Extract1_1D        wed   %16.0, 1L, elided   <str$->
+  void                    StVar              lW    pkgname, %16.1, e0.2
+  val?^ | miss    %16.3 = LdVar              eR    paste, e0.2
+  lgl$#-          %16.4 = Identical                %16.3, function(..., sep=" ", collapse=NULL, recycle0|...
+  void                    Branch                   %16.4 -> BB18 (if true) | BB19 (if false)
+BB17   <- [14]
+  void                    Nop                !     
+  val             %17.1 = %12.1
+  dr              %17.2 = Typecheck@0x5638bc210d28[Type#5]
+  goto BB5
+BB5   <- [15, 17]
+  val?^ | miss    %5.0  = Phi                      %15.1:BB15, %17.1:BB17
+  val?^ | miss    %5.1  = %5.0
+  dr              %5.2  = Phi                      %15.2:BB15, %17.2:BB17
+  dr              %5.3  = %5.2
+  fs              %5.4  = FrameState         R     0x5638bc33aef0+143: [%12.1], env=e0.2
+  void                    Deopt              !v    %5.4, %5.3, %5.1   !
+BB18   <- [16]
+  prom-           %18.0 = MkArg                    unboundValue, packageEvent[0x5638bbe17040]_p2 (!refl), e0.2
+  prom-           %18.1 = MkArg                    unboundValue, packageEvent[0x5638bbe17040]_p3, e0.2
+  dots-           %18.2 = DotsList           l     "UserHook", %18.0, %18.1
+  val?^ | miss    %18.3 = CastType                 up %18.1
+  env             e18.4 = MkEnv              l     ...=%18.2, sep="::", collapse(miss)=nil, recycle0(miss)=false, parent=R_BaseNamespace, context 0
+  val?            %18.5 = Force!             !vL   %18.3, e18.4
+  val+            %18.6 = CallSafeBuiltin    wed   list("UserHook", %16.1, %18.5)    <vec->
+  val+            %18.7 = CallSafeBuiltin    vwed  paste(%18.6, "::", nil, false)    <str$->
+  void                    Return             l     %18.7
+BB19   <- [16]
+  fs              %19.0 = FrameState         R     0x5638bc33aef0+202: [], env=e0.2
+  void                    Deopt              !v    %19.0, CallTarget@0x5638bc210d28[Call#3], %16.3   !
+Prom 0:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    event, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<value>       !     %0.1, e0.0   <str$->
+  void                    Return             l     %0.3
+Prom 1:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    pkgname, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <str$->
+  void                    Return             l     %0.3
+Prom 2:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    pkgname, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<value>       !     %0.1, e0.0   <str$->
+  void                    Return             l     %0.3
+Prom 3:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    event, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<value>       !     %0.1, e0.0   <str$->
+  void                    Return             l     %0.3
+
+│ packageEvent[0x5638bbe17040]                                                 │
+└──────────────────────────────────────────────────────────────────────────────┘

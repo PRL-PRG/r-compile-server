@@ -1,0 +1,120 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ runHook[0x55bbe3f313e0]                                                      │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;Eager0,NonRefl0,NonRefl1,NonRefl2,NonRefl3,!Obj0,!Obj1,!Obj2,!Obj3│
+│ Properties:  ForceOrd: 1 0                                                   │
+├────── Final PIR Version
+runHook[0x55bbe3f313e0]
+BB0
+  val?^           %0.0  = LdArg                    3
+  val?^           %0.1  = LdArg                    2
+  val?^           %0.2  = LdArg                    1
+  val?~+          %0.3  = LdArg                    0
+  env             e0.4  = MkEnv              l     hookname=%0.3, env=%0.2, libname=%0.1, pkgname=%0.0, parent=?, context 1
+  val+            %0.5  = Force!<lazy>       !vr   %0.2,    <env->
+  val+            %0.6  = Force!<value>            %0.3,    <str$->
+  lgl$#-          %0.7  = IsType                   %0.6 isA val?-
+  void                    Branch                   %0.7 -> BB17 (if true) | BB18 (if false)
+BB17   <- [0]
+  val-            %17.0 = CastType           d     dn %0.6   <str$->
+  val?            %17.1 = Extract2_1D        wed   %0.5, %17.0, elided   <(nil|cls)->
+  lgl$-           %17.2 = Is                       %17.1, NULL
+  void                    StVar              lW    fun, %17.1, e0.4
+  lgl$-           %17.4 = Not                d     %17.2, elided
+  lgl$#-          %17.5 = CheckTrueFalse     e     %17.4
+  void                    Branch                   %17.5 -> BB7 (if true) | BB5 (if false)
+BB18   <- [0]
+  fs              %18.0 = FrameState         R     0x55bbe44114c0+54: [%0.5, %0.6], env=e0.4
+  void                    Deopt              !v    %18.0, Typecheck@0x55bbe4330c30[Type#2], %0.6
+BB7   <- [17]
+  val?^ | miss    %7.0  = LdVar              eR    tryCatch, ?
+  lgl$#-          %7.1  = Identical                %7.0, function(expr, ..., finally) <(rir::DispatchTa|...
+  void                    Branch                   %7.1 -> BB19 (if true) | BB20 (if false)
+BB5   <- [17]
+  void                    Invisible          v     
+  goto BB6
+BB19   <- [7]
+  prom-           %19.0 = MkArg                    unboundValue, runHook[0x55bbe3f313e0]_p0, e0.4
+  prom-           %19.1 = MkArg                    unboundValue, runHook[0x55bbe3f313e0]_p3, e0.4
+  dots-           %19.2 = DotsList           l     error=%19.1
+  val?            %19.3 = StaticCall         !v    tryCatch[0x55bbe54822d0](%19.0, %19.2) { 0 1n } e0.4   <lgl$->
+  lgl$#-          %19.4 = IsType                   %19.3 isA lgl$-
+  void                    Branch                   %19.4 -> BB21 (if true) | BB22 (if false)
+BB20   <- [7]
+  fs              %20.0 = FrameState         R     0x55bbe44114c0+77: [%17.1], env=e0.4
+  void                    Deopt              !v    %20.0, CallTarget@0x55bbe4330c30[Call#0], %7.0
+BB6   <- [5, 14]
+  void                    Return             l     nil
+BB21   <- [19]
+  lgl$-           %21.0 = CastType           d     dn %19.3
+  void                    StVar              lW    res, %21.0, e0.4
+  val?^ | miss    %21.2 = LdVar              eR    inherits, e0.4
+  lgl$#-          %21.3 = Identical                %21.2, function(x, what, which=FALSE) <(rir::Dispatch|...
+  void                    Branch                   %21.3 -> BB23 (if true) | BB24 (if false)
+BB22   <- [19]
+  fs              %22.0 = FrameState         R     0x55bbe44114c0+145: [%19.3], env=e0.4
+  void                    Deopt              !v    %22.0, Typecheck@0x55bbe4330c30[Type#8], %19.3   !
+BB23   <- [21]
+  val+            %23.0 = CallSafeBuiltin    wed   inherits(%21.0, "error", false)    <lgl$->
+  lgl$#-          %23.1 = IsType                   %23.0 isA lgl$-
+  void                    Branch                   %23.1 -> BB25 (if true) | BB26 (if false)
+BB24   <- [21]
+  fs              %24.0 = FrameState         R     0x55bbe44114c0+159: [], env=e0.4
+  void                    Deopt              !v    %24.0, CallTarget@0x55bbe4330c30[Call#2], %21.2   !
+BB25   <- [23]
+  lgl$-           %25.0 = CastType           d     dn %23.0
+  lgl$#-          %25.1 = CheckTrueFalse     e     %25.0
+  void                    Branch                   %25.1 -> BB15 (if true) | BB14 (if false)
+BB26   <- [23]
+  prom-           %26.0 = MkArg                    unboundValue, runHook[0x55bbe3f313e0]_p4 (!refl), e0.4
+  val?^           %26.1 = CastType                 up %26.0
+  fs              %26.2 = FrameState         R     0x55bbe44114c0+196: [], env=e0.4
+  env             e26.3 = (MkEnv)            l     which(miss)=false, what="error", x=%26.1, parent=R_BaseNamespace, context 0
+  fs              %26.4 = FrameState         R     0x55bbe3cc5880+55: [%23.0], env=e26.3, next=%26.2
+  void                    Deopt              !v    %26.4, Typecheck@0x55bbe4330c30[Type#10], %23.0   !
+BB15   <- [25]
+  (cls|spec|blt)  %15.0 = LdFun              !v    stop, e0.4
+  fs              %15.1 = FrameState         R     0x55bbe44114c0+223: [%15.0], env=e0.4
+  void                    Deopt              !v    %15.1, DeadCall@0x55bbe4330c30[Call#3], %15.0   !
+BB14   <- [25]
+  void                    Invisible          v     
+  goto BB6
+Prom 0:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     fun, <0x55bbe413c9b8>, e0.0
+  prom-           %0.2  = MkArg                    unboundValue, runHook[0x55bbe3f313e0]_p1, e0.0
+  prom-           %0.3  = MkArg                    unboundValue, runHook[0x55bbe3f313e0]_p2, e0.0
+  val?            %0.4  = Call               !     %0.1(%0.2, %0.3) e0.0   <lgl$->
+  void                    Return             l     %0.4
+Prom 1:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    libname, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 2:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    pkgname, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 3:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    identity, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<wrapped>     !     %0.1, e0.0   <cls->
+  void                    Return             l     %0.3
+Prom 4:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    res, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<value>       !     %0.1, e0.0   <lgl$->
+  void                    Return             l     %0.3
+
+│ runHook[0x55bbe3f313e0]                                                      │
+└──────────────────────────────────────────────────────────────────────────────┘

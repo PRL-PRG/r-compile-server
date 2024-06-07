@@ -10,12 +10,13 @@ import org.prlprg.sexp.SEXPType;
 /** Global static environment, e.g. {@code R_GlobalEnv}, {@code notClosed}. */
 public sealed interface StaticEnv extends RValue, GlobalNode {
   StaticEnv GLOBAL = new StaticEnvImpl("R_GlobalEnv");
+  StaticEnv BASE = new StaticEnvImpl("R_BaseEnv");
   StaticEnv NOT_CLOSED = new StaticEnvImpl("notClosed");
   StaticEnv ELIDED = new StaticEnvImpl("elided");
 
   /** All global static environments, associated to their name. */
   ImmutableMap<String, StaticEnv> ALL =
-      Stream.of(StaticEnv.GLOBAL, StaticEnv.NOT_CLOSED, StaticEnv.ELIDED)
+      Stream.of(StaticEnv.GLOBAL, StaticEnv.BASE, StaticEnv.NOT_CLOSED, StaticEnv.ELIDED)
           .collect(ImmutableMap.toImmutableMap(StaticEnv::name, e -> e));
 
   /** Descriptive, uniquely identifying name of this environment. */

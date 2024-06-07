@@ -1,0 +1,336 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ grid.newpage[0x55eeeebedc30]                                                 │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch miss: 1                              │
+│ Properties:  Eager                                                           │
+├────── Final PIR Version
+grid.newpage[0x55eeeebedc30]
+BB0
+  val?^ | miss    %0.0  = LdVar              eR    getHook, <env 0x55eeedfdc408>
+  lgl$#-          %0.1  = Identical                %0.0, function(hookName) <(rir::DispatchTable*)0x55e|...
+  void                    Branch                   %0.1 -> BB39 (if true) | BB40 (if false)
+BB39   <- [0]
+  env             e39.0 = MkEnv              l     recording(miss)=true, parent=<env 0x55eeedfdc408>, context 1
+  ct              %39.1 = PushContext        lCL   "before.grid.newpage", getHook("before.grid.newpage"), function(hookName) <(rir::DispatchTable*)0x55e|..., e39.0
+  env             e39.2 = MkEnv              l     hookName="before.grid.newpage", parent=R_BaseNamespace, context 1
+  prom-           %39.3 = MkArg                    unboundValue, grid.newpage[0x55eeeebedc30]_p4 (!refl), e39.2
+  prom-           %39.4 = MkArg                    unboundValue, grid.newpage[0x55eeeebedc30]_p5, e39.2
+  prom-           %39.5 = MkArg                    unboundValue, grid.newpage[0x55eeeebedc30]_p6, e39.2
+  val?            %39.6 = StaticCall         !v    get0[0x55eeedc2b810](%39.3, %39.4, missingArg, false, %39.5) { 0 1n 3n 4n } e39.2   <vec->
+  val?            %39.7 = PopContext         C     %39.6, %39.1   <vec->
+  val?+           %39.8 = ToForSeq           e     %39.7
+  int$-           %39.9 = Length                   %39.8
+  int$-           %39.10 = Inc                      0L
+  lgl$-           %39.11 = Lt                 d     %39.9, %39.10, elided   <true>
+  lgl$#-          %39.12 = Identical                %39.11, true
+  void                    Branch                   %39.12 -> BB41 (if true) | BB42 (if false)
+BB40   <- [0]
+  env             e40.0 = (MkEnv)            l     recording(miss)=true, parent=<env 0x55eeedfdc408>, context 1
+  fs              %40.1 = FrameState         R     0x55eeefc384b0+0: [], env=e40.0
+  void                    Deopt              !v    %40.1, CallTarget@0x55eeef79d8f8[Call#0], %0.0
+BB41   <- [39]
+  val?^ | miss    %41.0 = LdVar              eR    .Call, e39.0
+  lgl$#-          %41.1 = Identical                <blt .Call>, %41.0   <true>
+  void                    Branch                   %41.1 -> BB43 (if true) | BB44 (if false)
+BB42   <- [39]
+  void                    Nop                !     
+  lgl$#-          %42.1 = %39.12
+  dr              %42.2 = DeadBranchReached@0x55eeef79d8f8[Test#0]
+  goto BB3
+BB43   <- [41]
+  val?^ | miss    %43.0 = LdVar              eR    C_newpagerecording, e39.0
+  val?            %43.1 = Force!<value>      !v    %43.0, e39.0   <vec>
+  val?            %43.2 = CallBuiltin        !v    .Call(%43.1) e39.0
+  val?^ | miss    %43.3 = LdVar              eR    .Call, e39.0
+  lgl$#-          %43.4 = Identical                <blt .Call>, %43.3   <true>
+  void                    Branch                   %43.4 -> BB45 (if true) | BB46 (if false)
+BB44   <- [41]
+  void                    Nop                !     
+  lgl$#-          %44.1 = %41.1
+  dr              %44.2 = DeadBranchReached@0x55eeef79d8f8[Test#3]
+  goto BB3
+BB3   <- [42, 44]
+  val?^ | miss    %3.0  = Phi                      %42.1:BB42, %44.1:BB44
+  val?^ | miss    %3.1  = %3.0
+  dr              %3.2  = Phi                      %42.2:BB42, %44.2:BB44
+  dr              %3.3  = %3.2
+  fs              %3.4  = FrameState         R     0x55eeefc384b0+32: [%39.7], env=e39.0
+  void                    Deopt              !v    %3.4, %3.3, %3.1   !
+BB45   <- [43]
+  val?^ | miss    %45.0 = LdVar              eR    C_newpage, e39.0
+  val?            %45.1 = Force!<value>      !v    %45.0, e39.0   <vec>
+  val?            %45.2 = CallBuiltin        !v    .Call(%45.1) e39.0
+  val?^ | miss    %45.3 = LdVar              eR    .Call, e39.0
+  lgl$#-          %45.4 = Identical                <blt .Call>, %45.3   <true>
+  void                    Branch                   %45.4 -> BB47 (if true) | BB48 (if false)
+BB46   <- [43]
+  fs              %46.0 = FrameState         R     0x55eeefc384b0+579: [%43.2], env=e39.0
+  void                    Deopt              !v    %46.0, DeadBranchReached@0x55eeef79d8f8[Test#4], %43.4   !
+BB47   <- [45]
+  val?^ | miss    %47.0 = LdVar              eR    C_initGPar, e39.0
+  val?            %47.1 = Force!<value>      !v    %47.0, e39.0   <vec>
+  val?            %47.2 = CallBuiltin        !v    .Call(%47.1) e39.0
+  val?^ | miss    %47.3 = LdVar              eR    .Call, e39.0
+  lgl$#-          %47.4 = Identical                <blt .Call>, %47.3   <true>
+  void                    Branch                   %47.4 -> BB49 (if true) | BB50 (if false)
+BB48   <- [45]
+  fs              %48.0 = FrameState         R     0x55eeefc384b0+671: [%45.2], env=e39.0
+  void                    Deopt              !v    %48.0, DeadBranchReached@0x55eeef79d8f8[Test#5], %45.4   !
+BB49   <- [47]
+  val?^ | miss    %49.0 = LdVar              eR    C_initViewportStack, e39.0
+  val?            %49.1 = Force!<value>      !v    %49.0, e39.0   <vec>
+  val?            %49.2 = CallBuiltin        !v    .Call(%49.1) e39.0
+  val?^ | miss    %49.3 = LdVar              eR    recording, e39.0
+  val?            %49.4 = Force!<lazy>       !v    %49.3, e39.0   <lgl$->
+  lgl$#-          %49.5 = CheckTrueFalse     we    %49.4
+  void                    Branch                   %49.5 -> BB17 (if true) | BB13 (if false)
+BB50   <- [47]
+  fs              %50.0 = FrameState         R     0x55eeefc384b0+763: [%47.2], env=e39.0
+  void                    Deopt              !v    %50.0, DeadBranchReached@0x55eeef79d8f8[Test#6], %47.4   !
+BB17   <- [49]
+  val?^ | miss    %17.0 = LdVar              eR    .Call, e39.0
+  lgl$#-          %17.1 = Identical                <blt .Call>, %17.0   <true>
+  void                    Branch                   %17.1 -> BB51 (if true) | BB52 (if false)
+BB13   <- [49]
+  void                    Nop                !     
+  goto BB14
+BB51   <- [17]
+  val?^ | miss    %51.0 = LdVar              eR    C_initDisplayList, e39.0
+  val?            %51.1 = Force!<value>      !v    %51.0, e39.0   <vec>
+  val?            %51.2 = CallBuiltin        !v    .Call(%51.1) e39.0
+  (cls|spec|blt)  %51.3 = LdFun              !v    :::, <0x55eeeba7de10>, e39.0
+  prom-           %51.4 = MkArg                    unboundValue, grid.newpage[0x55eeeebedc30]_p1, e39.0
+  prom-           %51.5 = MkArg                    unboundValue, grid.newpage[0x55eeeebedc30]_p2, e39.0
+  val?            %51.6 = Call               !v    %51.3(%51.4, %51.5) e39.0   <cls->
+  (cls|spec|blt)  %51.7 = ChkFunction        e     %51.6
+  lgl$#-          %51.8 = Identical                %51.7, function() <(rir::DispatchTable*)0x55eeebb9649|...
+  void                    Branch                   %51.8 -> BB55 (if true) | BB56 (if false)
+BB52   <- [17]
+  fs              %52.0 = FrameState         R     0x55eeefc384b0+871: [%49.5], env=e39.0
+  void                    Deopt              !v    %52.0, DeadBranchReached@0x55eeef79d8f8[Test#7], %17.1   !
+BB14   <- [13, 36]
+  val?^ | miss    %14.0 = LdVar              eR    invisible, e39.0
+  lgl$#-          %14.1 = Identical                <blt invisible>, %14.0   <true>
+  void                    Branch                   %14.1 -> BB53 (if true) | BB54 (if false)
+BB55   <- [51]
+  ct              %55.0 = PushContext        lCL   :::(grDevices, recordPalette)(), function() <(rir::DispatchTable*)0x55eeebb9649|..., e39.0
+  val?^ | miss    %55.1 = LdVar              eR    .Call.graphics, <env 0x55eeed3f7f48>
+  lgl$#-          %55.2 = Identical                <blt .Call.graphics>, %55.1   <true>
+  void                    Branch                   %55.2 -> BB57 (if true) | BB58 (if false)
+BB56   <- [51]
+  void                    Nop                !     
+  (cls|spec|blt)  %56.1 = %51.7
+  dr              %56.2 = CallTarget@0x55eeef79d8f8[Call#15]
+  goto BB18
+BB53   <- [14]
+  void                    Invisible          v     
+  void                    Return             l     nil
+BB54   <- [14]
+  fs              %54.0 = FrameState         R     0x55eeefc384b0+1527: [], env=e39.0
+  void                    Deopt              !v    %54.0, DeadBranchReached@0x55eeef79d8f8[Test#11], %14.1   !
+BB57   <- [55]
+  val?^ | miss    %57.0 = LdVar              eR    C_palette2, <env 0x55eeed3f7f48>
+  env             e57.1 = MkEnv              l     parent=<env 0x55eeed3f7f48>, context 1
+  val?            %57.2 = Force!<value>      !v    %57.0, e57.1   <vec>
+  val?^ | miss    %57.3 = LdVar              eR    .Call, e57.1
+  lgl$#-          %57.4 = Identical                <blt .Call>, %57.3   <true>
+  void                    Branch                   %57.4 -> BB59 (if true) | BB60 (if false)
+BB58   <- [55]
+  void                    DropContext        C     
+  lgl$#-          %58.1 = %55.2
+  dr              %58.2 = DeadBranchReached@0x55eeed438388[Test#0]
+  goto BB18
+BB18   <- [56, 58]
+  val?^ | miss    %18.0 = Phi                      %56.1:BB56, %58.1:BB58
+  val?^ | miss    %18.1 = %18.0
+  dr              %18.2 = Phi                      %56.2:BB56, %58.2:BB58
+  dr              %18.3 = %18.2
+  fs              %18.4 = FrameState         R     0x55eeefc384b0+1010: [%51.6], env=e39.0
+  void                    Deopt              !v    %18.4, %18.3, %18.1   !
+BB59   <- [57]
+  val?^ | miss    %59.0 = LdVar              eR    C_palette2, e57.1
+  val?            %59.1 = Force!<value>      !v    %59.0, e57.1   <vec>
+  val?            %59.2 = CallBuiltin        !v    .Call(%59.1, nil) e57.1   <int->
+  val?            %59.3 = CallBuiltin        !v    .Call.graphics(%57.2, %59.2) e57.1   <int->
+  val?            %59.4 = PopContext         C     %59.3, %55.0
+  val?^ | miss    %59.5 = LdVar              eR    getHook, e39.0
+  lgl$#-          %59.6 = Identical                %59.5, function(hookName) <(rir::DispatchTable*)0x55e|...
+  void                    Branch                   %59.6 -> BB61 (if true) | BB62 (if false)
+BB60   <- [57]
+  fs              %60.0 = FrameState         R     0x55eeefc384b0+1038: [], env=e39.0
+  fs              %60.1 = FrameState         R     0x55eef0a03ed0+74: [<blt .Call.graphics>, %57.2], env=e57.1, next=%60.0
+  void                    Deopt              !v    %60.1, DeadBranchReached@0x55eeed438388[Test#1], %57.4   !
+BB61   <- [59]
+  ct              %61.0 = PushContext        lCL   "grid.newpage", getHook("grid.newpage"), function(hookName) <(rir::DispatchTable*)0x55e|..., e39.0
+  env             e61.1 = MkEnv              l     hookName="grid.newpage", parent=R_BaseNamespace, context 1
+  prom-           %61.2 = MkArg                    unboundValue, grid.newpage[0x55eeeebedc30]_p7 (!refl), e61.1
+  prom-           %61.3 = MkArg                    unboundValue, grid.newpage[0x55eeeebedc30]_p8, e61.1
+  prom-           %61.4 = MkArg                    unboundValue, grid.newpage[0x55eeeebedc30]_p9, e61.1
+  val?            %61.5 = StaticCall         !v    get0[0x55eeedc2b810](%61.2, %61.3, missingArg, false, %61.4) { 0 1n 3n 4n } e61.1   <vec->
+  val?            %61.6 = PopContext         C     %61.5, %61.0   <vec$->
+  val?+           %61.7 = ToForSeq           e     %61.6
+  int$-           %61.8 = Length                   %61.7
+  lgl$-           %61.9 = Lt                 d     %61.8, %39.10, elided   <false>
+  lgl$#-          %61.10 = Identical                %61.9, true
+  void                    Branch                   %61.10 -> BB64 (if true) | BB63 (if false)
+BB62   <- [59]
+  fs              %62.0 = FrameState         R     0x55eeefc384b0+1038: [%59.4], env=e39.0
+  void                    Deopt              !v    %62.0, CallTarget@0x55eeef79d8f8[Call#16], %59.5   !
+BB64   <- [61]
+  fs              %64.0 = FrameState         R     0x55eeefc384b0+1071: [%61.6], env=e39.0
+  void                    Deopt              !v    %64.0, DeadBranchReached@0x55eeef79d8f8[Test#8], %61.10   !
+BB63   <- [61]
+  val?            %63.0 = Extract2_1D        wed   %61.7, %39.10, elided   <cls->
+  void                    StVar              lW    fun, %63.0, e39.0
+  val?^ | miss    %63.2 = LdVar              eR    is.character, e39.0
+  lgl$#-          %63.3 = Identical                <blt is.character>, %63.2   <true>
+  void                    Branch                   %63.3 -> BB65 (if true) | BB66 (if false)
+BB65   <- [63]
+  val             %65.0 = ChkMissing         e     %63.0
+  lgl$#-          %65.1 = CallSafeBuiltin    wed   is.character(%63.0) 
+  void                    Branch                   %65.1 -> BB37 (if true) | BB30 (if false)
+BB66   <- [63]
+  fs              %66.0 = FrameState         R     0x55eeefc384b0+1116: [%61.7, %61.8, %39.10], env=e39.0
+  void                    Deopt              !v    %66.0, DeadBranchReached@0x55eeef79d8f8[Test#9], %63.3   !
+BB37   <- [65]
+  (cls|spec|blt)  %37.0 = LdFun              !v    get, e39.0
+  fs              %37.1 = FrameState         R     0x55eeefc384b0+1228: [%61.7, %61.8, %39.10, %37.0], env=e39.0
+  void                    Deopt              !v    %37.1, DeadCall@0x55eeef79d8f8[Call#18], %37.0   !
+BB30   <- [65]
+  val?^ | miss    %30.0 = LdVar              eR    try, e39.0
+  lgl$#-          %30.1 = Identical                %30.0, function(expr, silent=FALSE, outFile=getOption|...
+  void                    Branch                   %30.1 -> BB67 (if true) | BB68 (if false)
+BB67   <- [30]
+  prom-           %67.0 = MkArg                    unboundValue, grid.newpage[0x55eeeebedc30]_p3, e39.0
+  ct              %67.1 = PushContext        lCL   %67.0, try(fun()), function(expr, silent=FALSE, outFile=getOption|..., e39.0
+  val?^           %67.2 = CastType                 up %67.0
+  env             e67.3 = MkEnv              l     expr=%67.2, silent(miss)=false, outFile(miss)=missingArg, parent=R_BaseNamespace, context 1
+  prom-           %67.4 = MkArg                    unboundValue, grid.newpage[0x55eeeebedc30]_p11, e67.3
+  val?^ | miss    %67.5 = CastType                 up %67.4
+  void                    StArg              lW    outFile, %67.5, e67.3
+  cls             %67.7 = MkCls                    try@Prom(4)0, e67.3
+  prom-           %67.8 = MkArg                    unboundValue, grid.newpage[0x55eeeebedc30]_p13, e67.3
+  prom-           %67.9 = MkArg                    %67.7, grid.newpage[0x55eeeebedc30]_p14 (!refl), e67.3
+  dots-           %67.10 = DotsList           l     error=%67.9
+  val?            %67.11 = StaticCall         !v    tryCatch[0x55eeeec99600](%67.8, %67.10) { 0 1n } e67.3   <vec>
+  val?            %67.12 = PopContext         C     %67.11, %67.1
+  int$-           %67.13 = Inc                      %39.10
+  lgl$-           %67.14 = Lt                 d     %61.8, %67.13, elided
+  lgl$#-          %67.15 = Identical                %67.14, true
+  void                    Branch                   %67.15 -> BB36 (if true) | BB31 (if false)
+BB68   <- [30]
+  fs              %68.0 = FrameState         R     0x55eeefc384b0+1207: [%61.7, %61.8, %39.10, %65.1], env=e39.0
+  void                    Deopt              !v    %68.0, CallTarget@0x55eeef79d8f8[Call#19], %30.0   !
+BB36   <- [67]
+  void                    Nop                !     
+  goto BB14
+BB31   <- [67]
+  val?            %31.0 = Extract2_1D        wed   %61.7, %67.13, elided   <val?_>
+  void                    StVar              lW    fun, %31.0, e39.0
+  val?^ | miss    %31.2 = LdVar              eR    is.character, e39.0
+  lgl$#-          %31.3 = Identical                <blt is.character>, %31.2   <@?>
+  void                    Branch                   %31.3 -> BB33 (if true) | BB32 (if false)
+BB33   <- [31]
+  val             %33.0 = ChkMissing         e     %31.0
+  lgl$#-          %33.1 = CallSafeBuiltin    wed   is.character(%31.0) 
+  void                    Branch                   %33.1 -> BB35 (if true) | BB34 (if false)
+BB32   <- [31]
+  (cls|spec|blt)  %32.0 = LdFun              !v    is.character, e39.0
+  fs              %32.1 = FrameState         R     0x55eeefc384b0+1359: [%61.7, %61.8, %67.13, %32.0], env=e39.0
+  void                    Deopt              !v    %32.1, DeadCall@0x55eeef79d8f8[Call#21], %32.0   !
+BB35   <- [33]
+  (cls|spec|blt)  %35.0 = LdFun              !v    get, e39.0
+  fs              %35.1 = FrameState         R     0x55eeefc384b0+1443: [%61.7, %61.8, %67.13, %35.0], env=e39.0
+  void                    Deopt              !v    %35.1, DeadCall@0x55eeef79d8f8[Call#22], %35.0   !
+BB34   <- [33]
+  (cls|spec|blt)  %34.0 = LdFun              !v    try, e39.0
+  fs              %34.1 = FrameState         R     0x55eeefc384b0+1489: [%61.7, %61.8, %67.13, %34.0], env=e39.0
+  void                    Deopt              !v    %34.1, DeadCall@0x55eeef79d8f8[Call#23], %34.0   !
+Prom 1:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    grDevices, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 2:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    recordPalette, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 3:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     fun, <0x55eeedaaae00>, e0.0
+  val?            %0.2  = Call               !     %0.1() e0.0   <vec>
+  void                    Return             l     %0.2
+Prom 4:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    hookName, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<value>       !     %0.1, e0.0   <str$->
+  void                    Return             l     %0.3
+Prom 5:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    .userHooksEnv, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<wrapped>     !     %0.1, e0.0   <env->
+  void                    Return             l     %0.3
+Prom 6:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     list, <0x55eeeba915c0>, e0.0
+  val?            %0.2  = Call               !     %0.1() e0.0   <vec->
+  void                    Return             l     %0.2
+Prom 7:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    hookName, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<value>       !     %0.1, e0.0   <str$->
+  void                    Return             l     %0.3
+Prom 8:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    .userHooksEnv, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<wrapped>     !     %0.1, e0.0   <env->
+  void                    Return             l     %0.3
+Prom 9:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     list, <0x55eeeba915c0>, e0.0
+  val?            %0.2  = Call               !     %0.1() e0.0   <vec->
+  void                    Return             l     %0.2
+Prom 11:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     getOption, e0.0
+  prom-           %0.2  = MkArg                    unboundValue, grid.newpage[0x55eeeebedc30]_p12, e0.0
+  val?            %0.3  = NamedCall          !     %0.1("try.outFile", default=%0.2) e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 12:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     stderr, e0.0
+  val?            %0.2  = Call               !     %0.1() e0.0   <val?_>
+  void                    Return             l     %0.2
+Prom 13:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    expr, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <vec>
+  void                    Return             l     %0.3
+Prom 14:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  cls             %0.1  = MkCls                    try@Prom(4)0, e0.0
+  void                    Return             l     %0.1
+
+│ grid.newpage[0x55eeeebedc30]                                                 │
+└──────────────────────────────────────────────────────────────────────────────┘

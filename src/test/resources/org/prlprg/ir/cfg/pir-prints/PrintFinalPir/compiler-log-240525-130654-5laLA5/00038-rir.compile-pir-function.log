@@ -1,0 +1,79 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ rir.compile[0x560913700fc0]                                                  │
+│ Context: CorrOrd,!TMany                                                      │
+│ Properties:  Eager                                                           │
+├────── Final PIR Version
+rir.compile[0x560913700fc0]
+BB0
+  env             e0.0  = MkEnv              l     parent=R_GlobalEnv, context 1
+  cls             %0.1  = MkCls                    rir.compile>seq@15, e0.0
+  void                    StVar              lW    seq, %0.1, e0.0
+  void                    StVar              lW    x, 1, e0.0
+  int-            %0.4  = Colon              d     1L, 10L, elided   <val?_>
+  int$-           %0.5  = Length                   %0.4
+  int$-           %0.6  = Inc                      0L
+  lgl$-           %0.7  = Lt                 d     %0.5, %0.6, elided   <@?>
+  lgl$#-          %0.8  = Identical                %0.7, true
+  void                    Branch                   %0.8 -> BB2 (if true) | BB6 (if false)
+BB2   <- [0]
+  void                    Nop                !     
+  goto BB3
+BB6   <- [0]
+  int$-           %6.0  = Extract2_1D        wed   %0.4, %0.6, elided   <val?_>
+  void                    StVar              lW    i, %6.0, e0.0
+  void                    StVar              lW    last, %6.0, e0.0
+  int$-           %6.3  = %0.6
+  goto BB7
+BB3   <- [8, 2]
+  val?^ | miss    %3.0  = LdVar              eR    last, e0.0
+  val?            %3.1  = Force!             !v    %3.0, e0.0   <val?_>
+  val?^ | miss    %3.2  = LdVar              eR    x, e0.0
+  void                    Visible            v     
+  val?            %3.4  = Force!             !     %3.2, e0.0   <val?_>
+  lgl$#-          %3.5  = IsType                   %3.4 isA val?+
+  lgl$#-          %3.6  = IsType                   %3.1 isA val?+
+  void                    Branch                   %3.6 -> BB10 (if true) | BB11 (if false)
+BB7   <- [6, 9]
+  int$-           %7.0  = Phi                      %6.3:BB6, %9.3:BB9
+  int$-           %7.1  = %7.0
+  int$-           %7.2  = Inc                      %7.1
+  lgl$-           %7.3  = Lt                 d     %0.5, %7.2, elided
+  lgl$#-          %7.4  = Identical                %7.3, true
+  void                    Branch                   %7.4 -> BB8 (if true) | BB9 (if false)
+BB10   <- [3]
+  val?+           %10.0 = CastType           d     dn %3.1   <val?_>
+  void                    Branch                   %3.5 -> BB12 (if true) | BB13 (if false)
+BB11   <- [3]
+  void                    Nop                !     
+  val?            %11.1 = %3.1
+  dr              %11.2 = Typecheck@0x5609121f4a28[Type#3]
+  goto BB4
+BB8   <- [7]
+  void                    Nop                !     
+  goto BB3
+BB9   <- [7]
+  int$-           %9.0  = Extract2_1D        wed   %0.4, %7.2, elided   <val?_>
+  void                    StVar              lW    i, %9.0, e0.0
+  void                    StVar              lW    last, %9.0, e0.0
+  int$-           %9.3  = %7.2
+  goto BB7
+BB12   <- [10]
+  val?+           %12.0 = CastType           d     dn %3.4   <val?_>
+  (int|real|complex)+ %12.1 = Add                vwed  %10.0, %12.0, elided   <val?_>
+  void                    Return             l     %12.1
+BB13   <- [10]
+  void                    Nop                !     
+  val?            %13.1 = %3.4
+  dr              %13.2 = Typecheck@0x5609121f4a28[Type#4]
+  goto BB4
+BB4   <- [11, 13]
+  val?^ | miss    %4.0  = Phi                      %11.1:BB11, %13.1:BB13
+  val?^ | miss    %4.1  = %4.0
+  dr              %4.2  = Phi                      %11.2:BB11, %13.2:BB13
+  dr              %4.3  = %4.2
+  fs              %4.4  = FrameState         R     0x560912edba70+220: [%3.1, %3.4], env=e0.0
+  void                    Deopt              !v    %4.4, %4.3, %4.1   !
+
+│ rir.compile[0x560913700fc0]                                                  │
+└──────────────────────────────────────────────────────────────────────────────┘

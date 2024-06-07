@@ -1,11 +1,14 @@
 package org.prlprg.ir.cfg;
 
+import com.google.common.collect.ImmutableList;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.Collection;
 import org.prlprg.util.Strings;
 
 /** Thrown by {@link CFG#verify()} when one of the CFG's invariants is broken. */
 public class CFGVerifyException extends IllegalStateException {
+  private final ImmutableList<BrokenInvariant> brokenInvariants;
+
   private static String message(CFG cfg, BrokenInvariant brokenInvariant) {
     return "broken invariant: " + brokenInvariant + "\n\nCFG:" + cfg;
   }
@@ -30,14 +33,20 @@ public class CFGVerifyException extends IllegalStateException {
 
   CFGVerifyException(CFG cfg, BrokenInvariant brokenInvariant) {
     super(message(cfg, brokenInvariant));
+    this.brokenInvariants = ImmutableList.of(brokenInvariant);
   }
 
   @SuppressFBWarnings("CT_CONSTRUCTOR_THROW")
   CFGVerifyException(CFG cfg, Collection<BrokenInvariant> brokenInvariants) {
     super(message(cfg, brokenInvariants));
+    this.brokenInvariants = ImmutableList.copyOf(brokenInvariants);
   }
 
-  sealed interface BrokenInvariant {}
+  public ImmutableList<BrokenInvariant> brokenInvariants() {
+    return brokenInvariants;
+  }
+
+  public sealed interface BrokenInvariant {}
 
   public record MissingJump(BBId bbId) implements BrokenInvariant {
     @Override
@@ -89,6 +98,14 @@ public class CFGVerifyException extends IllegalStateException {
     @Override
     public String toString() {
       return "Arg not guaranteed to be defined before use: " + argId + " in " + userId;
+    }
+  }
+
+  public record InstrVerify(BBId bbId, NodeId<? extends InstrOrPhi> instrId, InstrVerifyException e)
+      implements BrokenInvariant {
+    @Override
+    public String toString() {
+      return "Instruction verification failed: " + instrId + " in " + bbId + "\n" + e.getMessage();
     }
   }
 

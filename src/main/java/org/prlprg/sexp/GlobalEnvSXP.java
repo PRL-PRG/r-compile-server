@@ -1,6 +1,6 @@
 package org.prlprg.sexp;
 
-public final class GlobalEnvSXP extends AbstractEnvSXP implements EnvSXP {
+public final class GlobalEnvSXP extends AbstractEnvSXP implements StaticEnvSXP {
   public GlobalEnvSXP(EnvSXP parent) {
     super(parent);
   }

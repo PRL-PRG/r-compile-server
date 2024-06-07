@@ -350,7 +350,11 @@ public class CFG
       // Instruction-specific checks ({@link Instr#verify()}). Example: every {@link RValue}
       // instruction argument is of the correct (dynamic) type.
       for (var instr : bb.instrs()) {
-        instr.verify();
+        try {
+          instr.verify();
+        } catch (InstrVerifyException e) {
+          errors.add(new CFGVerifyException.InstrVerify(bb.id(), instr.id(), e));
+        }
       }
     }
 

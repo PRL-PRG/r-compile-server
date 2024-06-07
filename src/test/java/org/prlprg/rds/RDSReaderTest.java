@@ -127,7 +127,7 @@ public class RDSReaderTest extends AbstractGNURBasedTest {
   public void testClosure() throws Exception {
     var sexp = (CloSXP) R.eval("function(x, y=1) 'abc' + x + length(y)");
 
-    var formals = sexp.formals();
+    var formals = sexp.parameters();
     assertEquals(2, formals.size());
     assertEquals(new TaggedElem("x", SEXPs.MISSING_ARG), formals.get(0));
 
@@ -141,7 +141,7 @@ public class RDSReaderTest extends AbstractGNURBasedTest {
   public void testClosureWithBC() throws Exception {
     var sexp = (CloSXP) R.eval("compiler::cmpfun(function(x, y=1) 'abc' + x + length(y))");
 
-    var formals = sexp.formals();
+    var formals = sexp.parameters();
     assertEquals(2, formals.size());
     assertEquals(new TaggedElem("x", SEXPs.MISSING_ARG), formals.get(0));
 

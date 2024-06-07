@@ -1,0 +1,71 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ trySrcLines[0x5649852f3900]                                                  │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;NonRefl0                             │
+│ Properties:                                                                  │
+├────── Final PIR Version
+trySrcLines[0x5649852f3900]
+BB0
+  val?^           %0.0  = LdArg                    2
+  val?^           %0.1  = LdArg                    1
+  val?^           %0.2  = LdArg                    0
+  val?^ | miss    %0.3  = LdVar              eR    tryCatch, ?
+  lgl$#-          %0.4  = Identical                %0.3, function(expr, ..., finally) <(rir::DispatchTa|...
+  void                    Branch                   %0.4 -> BB4 (if true) | BB5 (if false)
+BB4   <- [0]
+  env             e4.0  = MkEnv              l     srcfile=%0.2, showfrom=%0.1, showto=%0.0, parent=?, context 1
+  prom-           %4.1  = MkArg                    unboundValue, trySrcLines[0x5649852f3900]_p0, e4.0
+  cls             %4.2  = MkCls                    trySrcLines@Prom(5)0, e4.0
+  prom-           %4.3  = MkArg                    %4.2, trySrcLines[0x5649852f3900]_p5 (!refl), e4.0
+  dots-           %4.4  = DotsList           l     error=%4.3
+  val?            %4.5  = StaticCall         !     tryCatch[0x564985a386b0](%4.1, %4.4) { 0 1n } e4.0   <str->
+  void                    Return             l     %4.5
+BB5   <- [0]
+  env             e5.0  = (MkEnv)            l     srcfile=%0.2, showfrom=%0.1, showto=%0.0, parent=?, context 1
+  fs              %5.1  = FrameState         R     0x564985369750+0: [], env=e5.0
+  void                    Deopt              !v    %5.1, CallTarget@0x56498652b0f0[Call#0], %0.3   !
+Prom 0:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     suppressWarnings, <0x5649848942f0>, e0.0
+  prom-           %0.2  = MkArg                    unboundValue, trySrcLines[0x5649852f3900]_p1, e0.0
+  val?            %0.3  = Call               !     %0.1(%0.2) e0.0   <str->
+  void                    Return             l     %0.3
+Prom 1:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     getSrcLines, <0x56498611d2d8>, e0.0
+  prom-           %0.2  = MkArg                    unboundValue, trySrcLines[0x5649852f3900]_p2, e0.0
+  prom-           %0.3  = MkArg                    unboundValue, trySrcLines[0x5649852f3900]_p3, e0.0
+  prom-           %0.4  = MkArg                    unboundValue, trySrcLines[0x5649852f3900]_p4, e0.0
+  val?            %0.5  = Call               !     %0.1(%0.2, %0.3, %0.4) e0.0   <str->
+  void                    Return             l     %0.5
+Prom 2:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    srcfile, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <env>
+  void                    Return             l     %0.3
+Prom 3:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    showfrom, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <real$->
+  void                    Return             l     %0.3
+Prom 4:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    showto, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <int$->
+  void                    Return             l     %0.3
+Prom 5:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  cls             %0.1  = MkCls                    trySrcLines@Prom(5)0, e0.0
+  void                    Return             l     %0.1
+
+│ trySrcLines[0x5649852f3900]                                                  │
+└──────────────────────────────────────────────────────────────────────────────┘

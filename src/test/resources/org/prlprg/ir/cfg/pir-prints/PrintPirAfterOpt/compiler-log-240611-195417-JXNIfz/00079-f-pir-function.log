@@ -1,0 +1,201 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ f[0x55cbf46ec360]                                                            │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;Eager0,NonRefl0,!Obj0,SimpleReal0    │
+│ Properties:  Eager, ForceOrd: 0                                              │
+├────── PIR Version After Optimizations
+f[0x55cbf46ec360]
+BB0
+  goto BB1
+BB1   <- [0]
+  real$~-         %1.0  = LdArg                    0
+  real$-          %1.1  = Force<value>             %1.0,    <real$->
+  val?^ | miss    %1.2  = LdVar              eR    bitwShiftL, R_GlobalEnv
+  val?^ | miss    %1.3  = LdVar              eR    bitwXor, R_GlobalEnv
+  env             e1.4  = (MkEnv)            l     size=%1.1, sum=0, byteAcc=0, bitNum=0, y=0, ci=unboundValue, x=unboundValue, zr=unboundValue, zrzr=unboundValue, zi=unboundValue, zizi=unboundValue, cr=unboundValue, z=unboundValue, notDone=unboundValue, escape=unboundValue, parent=R_GlobalEnv, context 1
+  goto BB2
+BB2   <- [1, 7]
+  real$#-         %2.0  = Phi                      0:BB1, %6.0:BB7
+  real$-          %2.1  = Phi                      0:BB1, %6.1:BB7
+  (int|real)$-    %2.2  = Phi                      0:BB1, %6.2:BB7
+  real$#-         %2.3  = Phi                      0:BB1, %7.0:BB7
+  cp              %2.4  = Checkpoint                -> BB3 (default) | BB33 (if assume failed)
+BB3   <- [2]
+  lgl$-           %3.0  = Lt                 d     %2.3, %1.1, elided   <lgl$->
+  lgl$#-          %3.1  = CheckTrueFalse     e     %3.0
+  void                    Branch                   %3.1 -> BB5 (if true) | BB4 (if false)
+BB33   <- [2]
+  fs              %33.0 = FrameState         R     0x55cbf479a230+83: [], env=e1.4
+  void                    Deopt              !v    %33.0
+BB5   <- [3]
+  real$#-         %5.0  = Mul                d     2, %2.3, elided   <real$->
+  real$-          %5.1  = Div                d     %5.0, %1.1, elided   <real$->
+  real$-          %5.2  = Sub                d     %5.1, 1, elided   <real$->
+  void                    StVar              lWd   ci, %5.2, e1.4
+  void                    StVar              lWd   x, 0, e1.4
+  goto BB6
+BB4   <- [3]
+  lgl$#-          %4.0  = IsType                   %2.2 isA int$-
+  void                    Assume             D     %4.0, %2.4 (Typecheck@0x55cbf3c29988[Type#95])
+  int$-           %4.2  = CastType           d     dn %2.2
+  void                    Visible            v     
+  void                    Return             l     %4.2
+BB6   <- [5, 22]
+  real$#-         %6.0  = Phi                      %2.0:BB5, %22.0:BB22
+  real$-          %6.1  = Phi                      %2.1:BB5, %22.1:BB22
+  (int|real)$-    %6.2  = Phi                      %2.2:BB5, %22.2:BB22
+  real$#-         %6.3  = Phi                      0:BB5, %22.3:BB22
+  lgl$-           %6.4  = Lt                 d     %6.3, %1.1, elided   <lgl$->
+  lgl$#-          %6.5  = CheckTrueFalse     e     %6.4
+  void                    Branch                   %6.5 -> BB8 (if true) | BB7 (if false)
+BB8   <- [6]
+  real$#-         %8.0  = Mul                d     2, %6.3, elided   <real$->
+  real$-          %8.1  = Div                d     %8.0, %1.1, elided   <real$->
+  real$-          %8.2  = Sub                d     %8.1, 1.5, elided   <real$->
+  void                    StVar              lWd   cr, %8.2, e1.4
+  void                    StVar              lWd   notDone, true, e1.4
+  void                    StVar              lWd   escape, 0, e1.4
+  real$-          %8.6  = Add                d     0, %8.2, elided   <real$->
+  void                    StVar              lWd   zr, %8.6, e1.4
+  real$-          %8.8  = Mul                d     2, %8.6, elided   <real$->
+  real$-          %8.9  = Mul                d     %8.8, 0, elided   <real$->
+  real$-          %8.10 = Add                d     %8.9, %5.2, elided   <real$->
+  void                    StVar              lWd   zi, %8.10, e1.4
+  real$-          %8.12 = Mul                d     %8.6, %8.6, elided   <real$->
+  void                    StVar              lWd   zrzr, %8.12, e1.4
+  real$-          %8.14 = Mul                d     %8.10, %8.10, elided   <real$->
+  void                    StVar              lWd   zizi, %8.14, e1.4
+  real$-          %8.16 = Add                d     %8.12, %8.14, elided   <real$->
+  lgl$-           %8.17 = Gt                 d     %8.16, 4, elided   <lgl$->
+  lgl$#-          %8.18 = CheckTrueFalse     e     %8.17
+  void                    Branch                   %8.18 -> BB32 (if true) | BB9 (if false)
+BB7   <- [6]
+  real$#-         %7.0  = Add                d     %2.3, 1, elided   <real$->
+  void                    StVar              lWd   y, %7.0, e1.4
+  goto BB2
+BB32   <- [8]
+  void                    StVar              lWd   notDone, false, e1.4
+  void                    StVar              lWd   escape, 1, e1.4
+  goto BB10
+BB9   <- [8]
+  goto BB10
+BB10   <- [9, 32]
+  real$#-         %10.0 = Phi                      1:BB32, 0:BB9
+  lgl$#-          %10.1 = Phi                      false:BB32, true:BB9
+  void                    StVar              lWd   z, 1, e1.4
+  goto BB11
+BB11   <- [10, 29]
+  real$#-         %11.0 = Phi                      %10.0:BB10, %29.0:BB29
+  real$-          %11.1 = Phi                      %8.10:BB10, %27.5:BB29
+  real$-          %11.2 = Phi                      %8.14:BB10, %27.9:BB29
+  real$-          %11.3 = Phi                      %8.12:BB10, %27.7:BB29
+  real$#-         %11.4 = Phi                      1:BB10, %29.2:BB29
+  lgl$#-          %11.5 = Phi                      %10.1:BB10, %29.1:BB29
+  void                    Branch                   %11.5 -> BB31 (if true) | BB12 (if false)
+BB31   <- [11]
+  lgl$#-          %31.0 = Lt                 d     %11.4, 50, elided   <lgl$->
+  lgl$-           %31.1 = LAnd                     %11.5, %31.0
+  goto BB13
+BB12   <- [11]
+  goto BB13
+BB13   <- [12, 31]
+  lgl$-           %13.0 = Phi                      %31.1:BB31, %11.5:BB12
+  cp              %13.1 = Checkpoint                -> BB15 (default) | BB14 (if assume failed)
+BB15   <- [13]
+  lgl$#-          %15.0 = CheckTrueFalse     e     %13.0
+  void                    Branch                   %15.0 -> BB27 (if true) | BB16 (if false)
+BB14   <- [13]
+  fs              %14.0 = FrameState         R     0x55cbf479a230+877: [%13.0], env=e1.4
+  void                    Deopt              !v    %14.0
+BB27   <- [15]
+  real$-          %27.0 = Sub                d     %11.3, %11.2, elided   <real$->
+  real$-          %27.1 = Add                d     %27.0, %8.2, elided   <real$->
+  void                    StVar              lWd   zr, %27.1, e1.4
+  real$-          %27.3 = Mul                d     2, %27.1, elided   <real$->
+  real$-          %27.4 = Mul                d     %27.3, %11.1, elided   <real$->
+  real$-          %27.5 = Add                d     %27.4, %5.2, elided   <real$->
+  void                    StVar              lWd   zi, %27.5, e1.4
+  real$-          %27.7 = Mul                d     %27.1, %27.1, elided   <real$->
+  void                    StVar              lWd   zrzr, %27.7, e1.4
+  real$-          %27.9 = Mul                d     %27.5, %27.5, elided   <real$->
+  void                    StVar              lWd   zizi, %27.9, e1.4
+  real$-          %27.11 = Add                d     %27.7, %27.9, elided   <real$->
+  lgl$-           %27.12 = Gt                 d     %27.11, 4, elided   <lgl$->
+  lgl$#-          %27.13 = CheckTrueFalse     e     %27.12
+  void                    Branch                   %27.13 -> BB30 (if true) | BB28 (if false)
+BB16   <- [15]
+  lgl$#-          %16.0 = Identical                %1.2, function(a, n) <(rir::DispatchTable*)0x55cbf46|...
+  void                    Assume             D     %16.0, %13.1 (CallTarget@0x55cbf3c29988[Call#0])
+  int$-           %16.2 = CallSafeBuiltin    wed   bitwiseShiftL(%6.1, 1)    <int$->
+  real$-          %16.3 = Add                d     %16.2, %11.0, elided   <real$->
+  void                    StVar              lWd   byteAcc, %16.3, e1.4
+  real$#-         %16.5 = Add                d     %6.0, 1, elided   <real$->
+  void                    StVar              lWd   bitNum, %16.5, e1.4
+  cp              %16.7 = Checkpoint                -> BB18 (default) | BB17 (if assume failed)
+BB30   <- [27]
+  void                    StVar              lWd   notDone, false, e1.4
+  void                    StVar              lWd   escape, 1, e1.4
+  goto BB29
+BB28   <- [27]
+  goto BB29
+BB18   <- [16]
+  lgl$#-          %18.0 = Eq                 d     %16.5, 8, elided   <lgl$->
+  void                    Branch                   %18.0 -> BB26 (if true) | BB19 (if false)
+BB17   <- [16]
+  fs              %17.0 = FrameState         R     0x55cbf479a230+1341: [], env=e1.4
+  void                    Deopt              !v    %17.0
+BB29   <- [28, 30]
+  real$#-         %29.0 = Phi                      1:BB30, %11.0:BB28
+  lgl$#-          %29.1 = Phi                      false:BB30, %11.5:BB28
+  real$#-         %29.2 = Add                d     %11.4, 1, elided   <real$->
+  void                    StVar              lWd   z, %29.2, e1.4
+  goto BB11
+BB26   <- [18]
+  lgl$#-          %26.0 = Identical                %1.3, function(a, b) <(rir::DispatchTable*)0x55cbf48|...
+  void                    Assume             D     %26.0, %16.7 (CallTarget@0x55cbf3c29988[Call#3])
+  int$-           %26.2 = CallSafeBuiltin    wed   bitwiseXor(%6.2, %16.3)    <int$->
+  void                    StVar              lWd   sum, %26.2, e1.4
+  void                    StVar              lWd   byteAcc, 0, e1.4
+  void                    StVar              lWd   bitNum, 0, e1.4
+  goto BB22
+BB19   <- [18]
+  real$-          %19.0 = Sub                d     %1.1, 1, elided   <real$->
+  lgl$-           %19.1 = Eq                 d     %6.3, %19.0, elided   <lgl$->
+  lgl$#-          %19.2 = CheckTrueFalse     e     %19.1
+  void                    Branch                   %19.2 -> BB23 (if true) | BB20 (if false)
+BB22   <- [26, 21]
+  real$#-         %22.0 = Phi                      0:BB26, %21.0:BB21
+  real$-          %22.1 = Phi                      0:BB26, %21.1:BB21
+  (int|real)$-    %22.2 = Phi                      %26.2:BB26, %21.2:BB21
+  real$#-         %22.3 = Add                d     %6.3, 1, elided   <real$->
+  void                    StVar              lWd   x, %22.3, e1.4
+  goto BB6
+BB23   <- [19]
+  real$#-         %23.0 = Sub                d     8, %16.5, elided   <real$->
+  int$-           %23.1 = CallSafeBuiltin    wed   bitwiseShiftL(%16.3, %23.0)    <int$->
+  void                    StVar              lWd   byteAcc, %23.1, e1.4
+  cp              %23.3 = Checkpoint                -> BB25 (default) | BB24 (if assume failed)
+BB20   <- [19]
+  goto BB21
+BB25   <- [23]
+  lgl$#-          %25.0 = Identical                %1.3, function(a, b) <(rir::DispatchTable*)0x55cbf48|...
+  void                    Assume             D     %25.0, %23.3 (CallTarget@0x55cbf3c29988[Call#2])
+  lgl$#-          %25.2 = IsType                   %6.2 isA int$-
+  void                    Assume             D     %25.2, %23.3 (Typecheck@0x55cbf3c29988[Type#85])
+  int$-           %25.4 = CastType           d     dn %6.2
+  int$-           %25.5 = CallSafeBuiltin    wed   bitwiseXor(%25.4, %23.1)    <int$->
+  void                    StVar              lWd   sum, %25.5, e1.4
+  void                    StVar              lWd   byteAcc, 0, e1.4
+  void                    StVar              lWd   bitNum, 0, e1.4
+  goto BB21
+BB24   <- [23]
+  fs              %24.0 = FrameState         R     0x55cbf479a230+1482: [], env=e1.4
+  void                    Deopt              !v    %24.0
+BB21   <- [20, 25]
+  real$#-         %21.0 = Phi                      0:BB25, %16.5:BB20
+  real$-          %21.1 = Phi                      0:BB25, %16.3:BB20
+  (int|real)$-    %21.2 = Phi                      %25.5:BB25, %6.2:BB20
+  goto BB22
+
+│ f[0x55cbf46ec360]                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘

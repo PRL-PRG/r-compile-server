@@ -1,0 +1,149 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ withCallingHandlers[0x5649855cd9c0]                                          │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;Eager1,NonRefl1,!Obj1                │
+│ Properties:                                                                  │
+├────── Final PIR Version
+withCallingHandlers[0x5649855cd9c0]
+BB0
+  dots+           %0.0  = LdArg                    1
+  val?^           %0.1  = LdArg                    0
+  *dots-          %0.2  = ExpandDots               %0.0
+  env             e0.3  = MkEnv              l     expr=%0.1, ...=%0.0, parent=R_BaseNamespace, context 1
+  val?            %0.4  = NamedCall          !v    <blt list>(.xpandDotsTrigger=%0.2) e0.3   <vec$+>
+  void                    StVar              lW    handlers, %0.4, e0.3
+  lgl$#-          %0.6  = IsType                   %0.4 isA val?+
+  val?^ | miss    %0.7  = LdVar              eR    names, e0.3
+  lgl$#-          %0.8  = Identical                <blt names>, %0.7   <true>
+  void                    Branch                   %0.8 -> BB14 (if true) | BB15 (if false)
+BB14   <- [0]
+  val             %14.0 = ChkMissing         e     %0.4
+  void                    Branch                   %0.6 -> BB16 (if true) | BB17 (if false)
+BB15   <- [0]
+  void                    Nop                !     
+  lgl$#-          %15.1 = %0.8
+  dr              %15.2 = DeadBranchReached@0x564985cf9038[Test#0]
+  goto BB13
+BB16   <- [14]
+  val?+           %16.0 = CastType           d     dn %0.4   <vec$+>
+  val+            %16.1 = CallSafeBuiltin    wed   names(%16.0)    <str$->
+  void                    StVar              lW    classes, %16.1, e0.3
+  val?^ | miss    %16.3 = LdVar              eR    parent.frame, e0.3
+  lgl$#-          %16.4 = Identical                %16.3, function(n=1) <(rir::DispatchTable*)0x56498549|...
+  void                    Branch                   %16.4 -> BB18 (if true) | BB19 (if false)
+BB17   <- [14]
+  void                    Nop                !     
+  val?            %17.1 = %0.4
+  dr              %17.2 = Typecheck@0x564985cf9038[Type#0]
+  goto BB13
+BB13   <- [15, 17]
+  val?^ | miss    %13.0 = Phi                      %15.1:BB15, %17.1:BB17
+  val?^ | miss    %13.1 = %13.0
+  dr              %13.2 = Phi                      %15.2:BB15, %17.2:BB17
+  dr              %13.3 = %13.2
+  fs              %13.4 = FrameState         R     0x564985545de0+50: [], env=e0.3
+  void                    Deopt              !v    %13.4, %13.3, %13.1   !
+BB18   <- [16]
+  val?            %18.0 = StaticCall         !v    parent.frame[0x564985cb7670]() e0.3   <env->
+  void                    StVar              lW    parentenv, %18.0, e0.3
+  val?^ | miss    %18.2 = LdVar              eR    length, e0.3
+  lgl$#-          %18.3 = Identical                <blt length>, %18.2   <true>
+  void                    Branch                   %18.3 -> BB20 (if true) | BB21 (if false)
+BB19   <- [16]
+  fs              %19.0 = FrameState         R     0x564985545de0+155: [], env=e0.3
+  void                    Deopt              !v    %19.0, CallTarget@0x564985cf9038[Call#2], %16.3   !
+BB20   <- [18]
+  val?^ | miss    %20.0 = LdVar              eR    classes, e0.3
+  lgl$#-          %20.1 = IsType                   %20.0 isA val?~- | miss
+  void                    Branch                   %20.1 -> BB22 (if true) | BB23 (if false)
+BB21   <- [18]
+  void                    Nop                !     
+  lgl$#-          %21.1 = %18.3
+  dr              %21.2 = DeadBranchReached@0x564985cf9038[Test#1]
+  goto BB5
+BB22   <- [20]
+  val?~- | miss   %22.0 = CastType           d     dn %20.0
+  val?-           %22.1 = Force!<value>            %22.0,    <str$->
+  (int|real)$-    %22.2 = CallSafeBuiltin    wed   length(%22.1)    <int$->
+  lgl$#-          %22.3 = IsType                   %22.2 isA int$-
+  void                    Branch                   %22.3 -> BB24 (if true) | BB25 (if false)
+BB23   <- [20]
+  void                    Nop                !     
+  val?^ | miss    %23.1 = %20.0
+  dr              %23.2 = Typecheck@0x564985cf9038[Type#6]
+  goto BB5
+BB5   <- [21, 23]
+  val?^ | miss    %5.0  = Phi                      %21.1:BB21, %23.1:BB23
+  val?^ | miss    %5.1  = %5.0
+  dr              %5.2  = Phi                      %21.2:BB21, %23.2:BB23
+  dr              %5.3  = %5.2
+  fs              %5.4  = FrameState         R     0x564985545de0+196: [], env=e0.3
+  void                    Deopt              !v    %5.4, %5.3, %5.1   !
+BB24   <- [22]
+  int$-           %24.0 = CastType           d     dn %22.2
+  val?^ | miss    %24.1 = LdVar              eR    handlers, e0.3
+  lgl$#-          %24.2 = IsType                   %24.1 isA val?~+ | miss
+  void                    Branch                   %24.2 -> BB26 (if true) | BB27 (if false)
+BB25   <- [22]
+  void                    Nop                !     
+  (int|real)$-    %25.1 = %22.2
+  dr              %25.2 = Typecheck@0x564985cf9038[Type#7]
+  goto BB7
+BB26   <- [24]
+  val?~+ | miss   %26.0 = CastType           d     dn %24.1
+  val?+           %26.1 = Force!<value>            %26.0,    <vec$+>
+  (int|real)$-    %26.2 = CallSafeBuiltin    wed   length(%26.1)    <int$->
+  lgl$#-          %26.3 = IsType                   %26.2 isA int$-
+  void                    Branch                   %26.3 -> BB28 (if true) | BB29 (if false)
+BB27   <- [24]
+  void                    Nop                !     
+  val?^ | miss    %27.1 = %24.1
+  dr              %27.2 = Typecheck@0x564985cf9038[Type#9]
+  goto BB7
+BB7   <- [25, 27]
+  val?^ | miss    %7.0  = Phi                      %25.1:BB25, %27.1:BB27
+  val?^ | miss    %7.1  = %7.0
+  dr              %7.2  = Phi                      %25.2:BB25, %27.2:BB27
+  dr              %7.3  = %7.2
+  fs              %7.4  = FrameState         R     0x564985545de0+287: [%22.2], env=e0.3
+  void                    Deopt              !v    %7.4, %7.3, %7.1   !
+BB28   <- [26]
+  int$-           %28.0 = CastType           d     dn %26.2
+  lgl$-           %28.1 = Neq                d     %24.0, %28.0, elided   <lgl$->
+  lgl$#-          %28.2 = CheckTrueFalse     e     %28.1
+  void                    Branch                   %28.2 -> BB12 (if true) | BB11 (if false)
+BB29   <- [26]
+  void                    Nop                !     
+  (int|real)$-    %29.1 = %26.2
+  dr              %29.2 = Typecheck@0x564985cf9038[Type#10]
+  goto BB9
+BB12   <- [28]
+  (cls|spec|blt)  %12.0 = LdFun              !v    stop, e0.3
+  fs              %12.1 = FrameState         R     0x564985545de0+410: [%12.0], env=e0.3
+  void                    Deopt              !v    %12.1, DeadCall@0x564985cf9038[Call#5], %12.0   !
+BB11   <- [28]
+  val             %11.0 = ChkMissing         e     %18.0
+  lgl$#-          %11.1 = IsType                   %11.0 isA val?~- | miss
+  void                    Branch                   %11.1 -> BB30 (if true) | BB31 (if false)
+BB9   <- [29, 31]
+  val?^ | miss    %9.0  = Phi                      %29.1:BB29, %31.1:BB31
+  val?^ | miss    %9.1  = %9.0
+  dr              %9.2  = Phi                      %29.2:BB29, %31.2:BB31
+  dr              %9.3  = %9.2
+  fs              %9.4  = FrameState         R     0x564985545de0+383: [%24.0, %26.2], env=e0.3
+  void                    Deopt              !v    %9.4, %9.3, %9.1   !
+BB30   <- [11]
+  val-            %30.0 = CastType           d     dn %11.0   <env->
+  val?            %30.1 = CallBuiltin        !v    .addCondHands(%22.1, %26.1, %30.0, nil, true) e0.3
+  val?^ | miss    %30.2 = LdVar              eR    expr, e0.3
+  void                    Visible            v     
+  val?            %30.4 = Force!<lazy>       !     %30.2, e0.3   <str->
+  void                    Return             l     %30.4
+BB31   <- [11]
+  void                    Nop                !     
+  val             %31.1 = %11.0
+  dr              %31.2 = Typecheck@0x564985cf9038[Type#14]
+  goto BB9
+
+│ withCallingHandlers[0x5649855cd9c0]                                          │
+└──────────────────────────────────────────────────────────────────────────────┘

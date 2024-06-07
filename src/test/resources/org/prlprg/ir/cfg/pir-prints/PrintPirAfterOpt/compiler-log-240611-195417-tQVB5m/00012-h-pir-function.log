@@ -1,0 +1,55 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ h[0x5587cf04d450]                                                            │
+│ Context: CorrOrd,!TMany                                                      │
+│ Properties:                                                                  │
+├────── PIR Version After Optimizations
+h[0x5587cf04d450]
+BB0
+  goto BB1
+BB1   <- [0]
+  val?^ | miss    %1.0  = LdArg                    0
+  cp              %1.1  = Checkpoint                -> BB2 (default) | BB5 (if assume failed)
+BB2   <- [1]
+  val?^ | miss    %2.0  = LdVar              eR    f, R_GlobalEnv
+  lgl$#-          %2.1  = Identical                %2.0, function(val) <(rir::DispatchTable*)0x5587cf4f|...
+  void                    Assume             D     %2.1, %1.1 (CallTarget@0x5587cec01418[Call#0])
+  env             e2.3  = MkEnv              l     x=%1.0, parent=R_GlobalEnv, context 1
+  prom-           %2.4  = MkArg                    unboundValue, h[0x5587cf04d450]_p0, e2.3
+  val?^           %2.5  = CastType                 up %2.4
+  env             e2.6  = MkEnv              l     val=%2.5, parent=R_GlobalEnv, context 0
+  cls             %2.7  = MkCls                    g, e2.6
+  void                    StVar              lW    g, %2.7, e2.6
+  val?^           %2.9  = ChkMissing         e     %1.0
+  void                    Visible            v     
+  env             e2.11 = (MkEnv)            l     parent=e2.6, context -1
+  val?            %2.12 = Force!<wrapped>    !L    %2.9, e2.11   <real$->
+  prom-           %2.13 = MkArg                    %2.12, h[0x5587cf04d450]_p0 (!refl), e2.3
+  val?~           %2.14 = CastType                 up %2.13
+  void                    StArg              lW    val, %2.14, e2.6
+  cp              %2.16 = Checkpoint                -> BB4 (default) | BB3 (if assume failed)
+BB5   <- [1]
+  env             e5.0  = (MkEnv)            l     x=%1.0, parent=R_GlobalEnv, context 1
+  fs              %5.1  = FrameState         R     0x5587cf61b530+0: [], env=e5.0
+  void                    Deopt              !v    %5.1
+BB4   <- [2]
+  lgl$#-          %4.0  = IsEnvStub          R     , e2.11
+  void                    Assume             D     %4.0, %2.16 (EnvStubMaterialized@0x5587cec01fc8[Call#unknown])
+  void                    Return             l     %2.12
+BB3   <- [2]
+  fs              %3.0  = FrameState         R     0x5587cf61b530+32: [], env=e2.3
+  fs              %3.1  = FrameState         R     0x5587cf6098d0+52: [], env=e2.6, next=%3.0
+  fs              %3.2  = FrameState         R     0x5587cf6505b0+5: [%2.12], env=e2.11, next=%3.1
+  void                    Deopt              !v    %3.2
+Prom 0:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    x, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<wrapped>     !     %1.1, e1.0   <real$->
+  void                    Return             l     %1.3
+
+│ h[0x5587cf04d450]                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘

@@ -1,0 +1,76 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ isClass[0x56198596d140]                                                      │
+│ Context: CorrOrd,!TMany,Argmatch;Eager1,NonRefl1                             │
+│ Properties:                                                                  │
+├────── Final PIR Version
+isClass[0x56198596d140]
+BB0
+  val?^ | miss    %0.0  = LdArg                    2
+  val?~ | miss    %0.1  = LdArg                    1
+  val?^ | miss    %0.2  = LdArg                    0
+  lgl$#-          %0.3  = Identical                %0.1, missingArg
+  lgl$#-          %0.4  = Identical                %0.0, missingArg
+  env             e0.5  = MkEnv              l     Class=%0.2, formal=%0.1, where=%0.0, parent=<env 0x561983284378>, context 1
+  void                    Branch                   %0.3 -> BB2 (if true) | BB9 (if false)
+BB2   <- [0]
+  void                    Visible            v     
+  void                    StArg              lW    formal, true, e0.5
+  goto BB3
+BB9   <- [0]
+  void                    Nop                !     
+  goto BB3
+BB3   <- [9, 2]
+  void                    Branch                   %0.4 -> BB8 (if true) | BB4 (if false)
+BB8   <- [3]
+  prom-           %8.0  = MkArg                    unboundValue, isClass[0x56198596d140]_p1, e0.5
+  val?^ | miss    %8.1  = CastType                 up %8.0
+  void                    StArg              lW    where, %8.1, e0.5
+  goto BB5
+BB4   <- [3]
+  void                    Nop                !     
+  goto BB5
+BB5   <- [8, 4]
+  val?^ | miss    %5.0  = LdVar              eR    getClassDef, <env 0x561983284378>
+  lgl$#-          %5.1  = Identical                %5.0, function(Class, where=topenv(parent.frame()), |...
+  void                    Branch                   %5.1 -> BB10 (if true) | BB11 (if false)
+BB10   <- [5]
+  prom-           %10.0 = MkArg                    unboundValue, isClass[0x56198596d140]_p3, e0.5
+  prom-           %10.1 = MkArg                    unboundValue, isClass[0x56198596d140]_p4, e0.5
+  val?            %10.2 = StaticCall         !     getClassDef[0x56198573fb90](%10.0, %10.1) e0.5   <other>
+  lgl$-           %10.3 = Is                       %10.2, NULL
+  lgl$-           %10.4 = Not                vd    %10.3, elided
+  void                    Return             l     %10.4
+BB11   <- [5]
+  fs              %11.0 = FrameState         R     0x561986d2de30+0: [], env=e0.5
+  void                    Deopt              !v    %11.0, CallTarget@0x5619854889e0[Call#2], %5.0
+Prom 1:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     topenv, e0.0
+  prom-           %0.2  = MkArg                    unboundValue, isClass[0x56198596d140]_p2, e0.0
+  val?            %0.3  = Call               !     %0.1(%0.2) e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 2:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     parent.frame, e0.0
+  val?            %0.2  = Call               !     %0.1() e0.0   <val?_>
+  void                    Return             l     %0.2
+Prom 3:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    Class, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <str$->
+  void                    Return             l     %0.3
+Prom 4:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    where, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+
+│ isClass[0x56198596d140]                                                      │
+└──────────────────────────────────────────────────────────────────────────────┘

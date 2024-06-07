@@ -1,0 +1,126 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ f[0x55c6e3928070]                                                            │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch                                      │
+│ Properties:                                                                  │
+├────── PIR Version After Optimizations
+f[0x55c6e3928070]
+BB0
+  goto BB1
+BB1   <- [0]
+  val?^           %1.0  = LdArg                    0
+  cp              %1.1  = Checkpoint                -> BB2 (default) | BB19 (if assume failed)
+BB2   <- [1]
+  val?^ | miss    %2.0  = LdVar              eR    length, R_GlobalEnv
+  lgl$#-          %2.1  = Identical                <blt length>, %2.0   <true>
+  void                    Assume             D     %2.1, %1.1 (DeadBranchReached@0x55c6e2b43c88[Test#0])
+  env             e2.3  = (MkEnv)            l     x=%1.0, x_len=unboundValue, borrow=unboundValue, x_start=unboundValue, x_end=unboundValue, result_index=unboundValue, result=unboundValue, x_index=unboundValue, d=unboundValue, parent=R_GlobalEnv, context 1
+  val?            %2.4  = Force!<lazy>       !vL   %1.0, e2.3   <real->
+  lgl$#-          %2.5  = IsType                   %2.4 isA real-
+  cp              %2.6  = Checkpoint                -> BB4 (default) | BB3 (if assume failed)
+BB19   <- [1]
+  env             e19.0 = (MkEnv)            l     x=%1.0, parent=R_GlobalEnv, context 1
+  fs              %19.1 = FrameState         R     0x55c6e386afa0+0: [], env=e19.0
+  void                    Deopt              !v    %19.1
+BB4   <- [2]
+  lgl$#-          %4.0  = IsEnvStub          R     , e2.3
+  void                    Assume             D     %4.0, %2.6 (EnvStubMaterialized@0x55c6e2b43c88[Call#unknown])
+  void                    Assume             D     %2.5, %2.6 (Typecheck@0x55c6e2b43c88[Type#1])
+  real-           %4.3  = CastType           d     dn %2.4
+  (int|real)$-    %4.4  = CallSafeBuiltin    wed   length(%4.3)    <int$->
+  lgl$#-          %4.5  = IsType                   %4.4 isA int$-
+  cp              %4.6  = Checkpoint                -> BB6 (default) | BB5 (if assume failed)
+BB3   <- [2]
+  fs              %3.0  = FrameState         R     0x55c6e386afa0+69: [<blt length>, %2.4], env=e2.3
+  void                    Deopt              !v    %3.0
+BB6   <- [4]
+  void                    Assume             D     %4.5, %4.6 (Typecheck@0x55c6e2b43c88[Type#2])
+  int$-           %6.1  = CastType           d     dn %4.4
+  void                    StVar              lWd   x_len, %6.1, e2.3
+  lgl$-           %6.3  = Eq                 d     %6.1, 1L, elided   <lgl$->
+  lgl$#-          %6.4  = CheckTrueFalse     e     %6.3
+  void                    Branch                   %6.4 -> BB18 (if true) | BB7 (if false)
+BB5   <- [4]
+  fs              %5.0  = FrameState         R     0x55c6e386afa0+91: [%4.4], env=e2.3
+  void                    Deopt              !v    %5.0
+BB18   <- [6]
+  void                    Visible            v     
+  real-           %18.1 = IDiv               vwed  %4.3, 2L, elided   <val?_>
+  goto BB16
+BB7   <- [6]
+  real$-          %7.0  = Extract2_1D        wed   %4.3, 1, elided   <real$->
+  lgl$-           %7.1  = Eq                 d     %7.0, 1, elided   <lgl$->
+  void                    StVar              lWd   borrow, %7.1, e2.3
+  int$-           %7.3  = Add                d     %7.1, 1L, elided   <int$->
+  void                    StVar              lWd   x_start, %7.3, e2.3
+  void                    StVar              lWd   x_end, %6.1, e2.3
+  void                    StVar              lWd   result_index, 1L, e2.3
+  lgl$#-          %7.7  = ColonInputEffects        %7.3, %6.1   <true>
+  cp              %7.8  = Checkpoint                -> BB9 (default) | BB8 (if assume failed)
+BB16   <- [15, 18]
+  real-           %16.0 = Phi                      %14.2:BB15, %18.1:BB18
+  void                    Return             l     %16.0
+BB9   <- [7]
+  val?^ | miss    %9.0  = LdVar              eRd   integer, R_GlobalEnv
+  lgl$#-          %9.1  = Identical                %9.0, function(length=0L) <(rir::DispatchTable*)0x55|...
+  void                    Assume             D     %9.1, %7.8 (CallTarget@0x55c6e2b43c88[Call#1])
+  int$-           %9.3  = Sub                d     %6.1, %7.3, elided   <int$->
+  int$-           %9.4  = Add                d     %9.3, 1L, elided   <int$->
+  int-            %9.5  = CallSafeBuiltin    wed   vector("integer", %9.4)    <int->
+  void                    StVar              lWd   result, %9.5, e2.3
+  cp              %9.7  = Checkpoint                -> BB11 (default) | BB10 (if assume failed)
+BB8   <- [7]
+  fs              %8.0  = FrameState         R     0x55c6e386afa0+322: [], env=e2.3
+  void                    Deopt              !v    %8.0
+BB11   <- [9]
+  void                    Assume             D     %7.7, %9.7 (DeadBranchReached@0x55c6e2b43c88[Test#2])
+  int$#-          %11.1 = ColonCastLhs       e     %7.3   <int$->
+  int$#-          %11.2 = ColonCastRhs       e     %11.1, %6.1   <int$->
+  lgl$#-          %11.3 = Lte                d     %11.1, %11.2, elided   <true>
+  void                    Assume             D     %11.3, %9.7 (DeadBranchReached@0x55c6e2b43c88[Test#4])
+  lgl$#-          %11.5 = Neq                d     %11.2, %11.1, elided   <true>
+  void                    Assume             D     %11.5, %9.7 (DeadBranchReached@0x55c6e2b43c88[Test#5])
+  void                    StVar              lWd   x_index, %11.1, e2.3
+  int$#-          %11.8 = Add                d     %11.1, 1L, elided
+  real$-          %11.9 = Extract2_1D        wed   %4.3, %11.1, elided   <real$->
+  cp              %11.10 = Checkpoint                -> BB13 (default) | BB12 (if assume failed)
+BB10   <- [9]
+  fs              %10.0 = FrameState         R     0x55c6e386afa0+368: [], env=e2.3
+  void                    Deopt              !v    %10.0
+BB13   <- [11]
+  val?^ | miss    %13.0 = LdVar              eRd   elem_max, R_GlobalEnv
+  lgl$#-          %13.1 = IsType                   %13.0 isA real$-
+  void                    Assume             D     %13.1, %11.10 (Typecheck@0x55c6e2b43c88[Type#45])
+  real$-          %13.3 = CastType           d     dn %13.0
+  real$-          %13.4 = Mul                d     %13.3, %7.1, elided   <real$->
+  real$-          %13.5 = Add                d     %11.9, %13.4, elided   <real$->
+  real$-          %13.6 = IDiv               d     %13.5, 2, elided   <real$->
+  real-           %13.7 = Subassign2_1D      wed   %13.6, %9.5, 1L, elided
+  real$-          %13.8 = Mod                d     %13.5, 2, elided   <real$->
+  goto BB14
+BB12   <- [11]
+  fs              %12.0 = FrameState         R     0x55c6e386afa0+587: [1L, %11.2, %11.8, %11.9], env=e2.3
+  void                    Deopt              !v    %12.0
+BB14   <- [13, 17]
+  int$-           %14.0 = Phi                      2L:BB13, %17.7:BB17
+  real$-          %14.1 = Phi                      %13.8:BB13, %17.6:BB17
+  real-           %14.2 = Phi                      %13.7:BB13, %17.5:BB17
+  int$#-          %14.3 = Phi                      %11.8:BB13, %17.0:BB17
+  lgl$#-          %14.4 = Neq                d     %11.2, %14.3, elided
+  void                    Branch                   %14.4 -> BB17 (if true) | BB15 (if false)
+BB17   <- [14]
+  int$#-          %17.0 = Add                d     %14.3, 1L, elided
+  real$-          %17.1 = Extract2_1D        wed   %4.3, %14.3, elided   <real$->
+  real$-          %17.2 = Mul                d     %13.3, %14.1, elided   <real$->
+  real$-          %17.3 = Add                d     %17.1, %17.2, elided   <real$->
+  real$-          %17.4 = IDiv               d     %17.3, 2, elided   <real$->
+  real-           %17.5 = Subassign2_1D      wed   %17.4, %14.2, %14.0, elided
+  real$-          %17.6 = Mod                d     %17.3, 2, elided   <real$->
+  int$-           %17.7 = Add                d     %14.0, 1L, elided   <int$->
+  goto BB14
+BB15   <- [14]
+  void                    Visible            v     
+  goto BB16
+
+│ f[0x55c6e3928070]                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘

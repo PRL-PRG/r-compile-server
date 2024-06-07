@@ -1,9 +1,13 @@
 package org.prlprg.ir.cfg;
 
+import com.google.common.collect.ImmutableList;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Predicate;
+import java.util.stream.Stream;
+import org.prlprg.util.Pair;
 
 /**
  * Branch ({@link Jump} IR instruction) which contains a set of assumptions. If all of those
@@ -16,6 +20,31 @@ public interface Checkpoint extends Jump {
 
   @Override
   JumpData.Checkpoint data();
+
+  default void addAssumption(RValue test, org.prlprg.rshruntime.DeoptReason failReason) {
+    Instr.mutateArgs(
+        this,
+        new JumpData.Checkpoint(
+            Stream.concat(data().tests().stream(), Stream.of(test))
+                .collect(ImmutableList.toImmutableList()),
+            Stream.concat(data().failReasons().stream(), Stream.of(failReason))
+                .collect(ImmutableList.toImmutableList()),
+            data().ifPass(),
+            data().ifFail()));
+  }
+
+  /** Remove assumptions whose tests don't pass {@code keepTest}. */
+  default void filterAssumptions(Predicate<RValue> keepTest) {
+    var testsAndFailReasons =
+        data().streamAssumptionData().filter(pair -> keepTest.test(pair.first())).toList();
+    Instr.mutateArgs(
+        this,
+        new JumpData.Checkpoint(
+            testsAndFailReasons.stream().map(Pair::first).collect(ImmutableList.toImmutableList()),
+            testsAndFailReasons.stream().map(Pair::second).collect(ImmutableList.toImmutableList()),
+            data().ifPass(),
+            data().ifFail()));
+  }
 }
 
 final class CheckpointImpl extends JumpImpl<JumpData.Checkpoint> implements Checkpoint {

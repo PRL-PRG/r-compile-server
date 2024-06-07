@@ -1,0 +1,45 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ doTryCatch[0x560399772d10]                                                   │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;NonRefl1,NonRefl2,!Obj1,!Obj2        │
+│ Properties:  ForceOrd: 1                                                     │
+├────── PIR Version After Optimizations
+doTryCatch[0x560399772d10]
+BB0
+  goto BB1
+BB1   <- [0]
+  val?^           %1.0  = LdArg                    3
+  val?^           %1.1  = LdArg                    2
+  val?^           %1.2  = LdArg                    1
+  val?^           %1.3  = LdArg                    0
+  env             e1.4  = MkEnv              l     expr=%1.3, name=%1.2, parentenv=%1.1, handler=%1.0, parent=?, context 1
+  val+            %1.5  = Force!<lazy>       !vr   %1.2,    <str$->
+  cp              %1.6  = Checkpoint                -> BB2 (default) | BB5 (if assume failed)
+BB2   <- [1]
+  val?^ | miss    %2.0  = LdVar              eR    list, ?
+  lgl$#-          %2.1  = Identical                <blt list>, %2.0   <true>
+  void                    Assume             D     %2.1, %1.6 (DeadBranchReached@0x5603978b3380[Test#0])
+  val?            %2.3  = Force!<lazy>       !v    %1.0, e1.4   <cls->
+  val+            %2.4  = CallSafeBuiltin    wed   list(%2.3)    <vec$->
+  val?^ | miss    %2.5  = LdVar              eR    parentenv, e1.4
+  val?            %2.6  = Force!<lazy>       !v    %2.5, e1.4   <env->
+  cp              %2.7  = Checkpoint                -> BB4 (default) | BB3 (if assume failed)
+BB5   <- [1]
+  fs              %5.0  = FrameState         R     0x560395ccdd50+9: [%1.5], env=e1.4
+  void                    Deopt              !v    %5.0   !
+BB4   <- [2]
+  val?^ | miss    %4.0  = LdVar              eR    environment, e1.4
+  lgl$#-          %4.1  = Identical                %4.0, function(fun=NULL) <(rir::DispatchTable*)0x560|...
+  void                    Assume             D     %4.1, %2.7 (CallTarget@0x5603978b3380[Call#1])
+  val?            %4.3  = StaticCall         !v    environment[0x56039e62aa00]() e1.4   <env->
+  val?            %4.4  = CallBuiltin        !v    .addCondHands(%1.5, %2.4, %2.6, %4.3, false) e1.4
+  val?^ | miss    %4.5  = LdVar              eR    expr, e1.4
+  void                    Visible            v     
+  val?            %4.7  = Force!             !     %4.5, e1.4   <val?_>
+  void                    Return             l     %4.7
+BB3   <- [2]
+  fs              %3.0  = FrameState         R     0x560395ccdd50+119: [%1.5, %2.4, %2.6], env=e1.4
+  void                    Deopt              !v    %3.0   !
+
+│ doTryCatch[0x560399772d10]                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘

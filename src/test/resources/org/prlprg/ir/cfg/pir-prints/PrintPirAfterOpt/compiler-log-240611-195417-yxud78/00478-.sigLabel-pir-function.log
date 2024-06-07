@@ -1,0 +1,27 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ .sigLabel[0x5558d80168b0]                                                    │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;NonRefl0                             │
+│ Properties:                                                                  │
+├────── PIR Version After Optimizations
+.sigLabel[0x5558d80168b0]
+BB0
+  goto BB1
+BB1   <- [0]
+  val?^           %1.0  = LdArg                    0
+  cp              %1.1  = Checkpoint                -> BB2 (default) | BB3 (if assume failed)
+BB2   <- [1]
+  val?^ | miss    %2.0  = LdVar              eR    paste, <env 0x5558d398c378>
+  lgl$#-          %2.1  = Identical                %2.0, function(..., sep=" ", collapse=NULL, recycle0|...
+  void                    Assume             D     %2.1, %1.1 (CallTarget@0x5558d6cc4328[Call#0])
+  val?            %2.3  = Force!<lazy>       !vr   %1.0,    <(str|vec)>
+  val+            %2.4  = CallSafeBuiltin    wed   list(%2.3)    <vec->
+  val+            %2.5  = CallSafeBuiltin    vwed  paste(%2.4, " ", "#", false)    <str$->
+  void                    Return             l     %2.5
+BB3   <- [1]
+  env             e3.0  = (MkEnv)            l     sig=%1.0, parent=<env 0x5558d398c378>, context 1
+  fs              %3.1  = FrameState         R     0x5558d6d8d580+0: [], env=e3.0
+  void                    Deopt              !v    %3.1
+
+│ .sigLabel[0x5558d80168b0]                                                    │
+└──────────────────────────────────────────────────────────────────────────────┘

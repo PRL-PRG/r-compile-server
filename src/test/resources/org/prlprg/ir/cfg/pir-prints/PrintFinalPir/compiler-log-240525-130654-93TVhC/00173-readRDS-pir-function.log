@@ -1,0 +1,86 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ readRDS[0x563fa800c520]                                                      │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch miss: 1                              │
+│ Properties:  Eager, ForceOrd: 0                                              │
+├────── Final PIR Version
+readRDS[0x563fa800c520]
+BB0
+  val?^           %0.0  = LdArg                    0
+  env             e0.1  = MkEnv              l     file=%0.0, refhook(miss)=nil, parent=R_BaseNamespace, context 1
+  val?            %0.2  = Force!<lazy>       !v    %0.0, e0.1   <str$->
+  lgl$#-          %0.3  = IsType                   %0.2 isA val?-
+  void                    Branch                   %0.3 -> BB8 (if true) | BB9 (if false)
+BB8   <- [0]
+  val?-           %8.0  = CastType           d     dn %0.2   <str$->
+  lgl$#-          %8.1  = CallSafeBuiltin    wed   is.character(%8.0)    <lgl$->
+  void                    Branch                   %8.1 -> BB6 (if true) | BB5 (if false)
+BB9   <- [0]
+  fs              %9.0  = FrameState         R     0x563fa7e600e0+69: [<blt is.character>, %0.2], env=e0.1
+  void                    Deopt              !v    %9.0, Typecheck@0x563fa6e0d808[Type#1], %0.2   !
+BB6   <- [8]
+  val?^ | miss    %6.0  = LdVar              eR    gzfile, e0.1
+  lgl$#-          %6.1  = Identical                %6.0, function(description, open="", encoding=getOpt|...
+  void                    Branch                   %6.1 -> BB10 (if true) | BB11 (if false)
+BB5   <- [8]
+  (cls|spec|blt)  %5.0  = LdFun              !v    inherits, e0.1
+  fs              %5.1  = FrameState         R     0x563fa7e600e0+107: [%5.0], env=e0.1
+  void                    Deopt              !v    %5.1, DeadCall@0x563fa6e0d808[Call#1], %5.0   !
+BB10   <- [6]
+  prom-           %10.0 = MkArg                    unboundValue, readRDS[0x563fa800c520]_p1, e0.1
+  ct              %10.1 = PushContext        lCL   %10.0, "rb", gzfile(file, "rb"), function(description, open="", encoding=getOpt|..., e0.1
+  val?^           %10.2 = CastType                 up %10.0
+  env             e10.3 = MkEnv              l     description=%10.2, open="rb", encoding(miss)=missingArg, compression(miss)=missingArg, parent=R_BaseNamespace, context 1
+  prom-           %10.4 = MkArg                    unboundValue, readRDS[0x563fa800c520]_p4, e10.3
+  val?^ | miss    %10.5 = CastType                 up %10.4
+  void                    StArg              lW    encoding, %10.5, e10.3
+  void                    StArg              lW    compression, 6, e10.3
+  val?            %10.8 = Force!<lazy>       !vL   %10.2, e10.3   <str$->
+  val?            %10.9 = Force!<lazy>       !v    %10.5, e10.3   <str$->
+  val?^ | miss    %10.10 = LdVar              eR    compression, e10.3
+  val?            %10.11 = Force!<lazy>       !v    %10.10, e10.3   <real$->
+  val?            %10.12 = CallBuiltin        !v    gzfile(%10.8, "rb", %10.9, %10.11) e10.3
+  val?            %10.13 = PopContext         C     %10.12, %10.1   <int$>
+  void                    StVar              lW    con, %10.13, e0.1
+  (cls|spec|blt)  %10.15 = LdFun              !v    on.exit, <0x563fa5aca270>, e0.1
+  prom-           %10.16 = MkArg                    unboundValue, readRDS[0x563fa800c520]_p2, e0.1
+  val?            %10.17 = Call               !v    %10.15(%10.16) e0.1
+  val?^ | miss    %10.18 = LdVar              eR    con, e0.1
+  val?            %10.19 = Force!<value>      !v    %10.18, e0.1   <int$>
+  val?^ | miss    %10.20 = LdVar              eR    refhook, e0.1
+  val?            %10.21 = Force!<lazy>       !v    %10.20, e0.1   <nil->
+  val?            %10.22 = CallBuiltin        !     unserializeFromConn(%10.19, %10.21) e0.1
+  void                    Return             l     %10.22
+BB11   <- [6]
+  fs              %11.0 = FrameState         R     0x563fa7e600e0+91: [%8.1], env=e0.1
+  void                    Deopt              !v    %11.0, CallTarget@0x563fa6e0d808[Call#5], %6.0   !
+Prom 1:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    file, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<wrapped>     !     %0.1, e0.0   <str$->
+  void                    Return             l     %0.3
+Prom 2:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     close, e0.0
+  prom-           %0.2  = MkArg                    unboundValue, readRDS[0x563fa800c520]_p3, e0.0
+  val?            %0.3  = Call               !     %0.1(%0.2) e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 3:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    con, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 4:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     getOption, <0x563fa5da8558>, e0.0
+  val?            %0.2  = Call               !     %0.1("encoding") e0.0   <str$->
+  void                    Return             l     %0.2
+
+│ readRDS[0x563fa800c520]                                                      │
+└──────────────────────────────────────────────────────────────────────────────┘

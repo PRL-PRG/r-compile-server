@@ -1,0 +1,116 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ getClass[0x55fa0fc0c410]                                                     │
+│ Context: CorrOrd,!TMany,Argmatch;Eager1,NonRefl0,NonRefl1                    │
+│ Properties:                                                                  │
+├────── Final PIR Version
+getClass[0x55fa0fc0c410]
+BB0
+  val?^ | miss    %0.0  = LdArg                    2
+  val?~ | miss    %0.1  = LdArg                    1
+  val?^ | miss    %0.2  = LdArg                    0
+  lgl$#-          %0.3  = Identical                %0.1, missingArg
+  lgl$#-          %0.4  = Identical                %0.0, missingArg
+  env             e0.5  = MkEnv              l     Class=%0.2, .Force=%0.1, where=%0.0, parent=<env 0x55fa0b35b378>, context 1
+  void                    Branch                   %0.3 -> BB2 (if true) | BB15 (if false)
+BB2   <- [0]
+  void                    StArg              lW    .Force, false, e0.5
+  goto BB3
+BB15   <- [0]
+  void                    Nop                !     
+  goto BB3
+BB3   <- [2, 15]
+  void                    Branch                   %0.4 -> BB14 (if true) | BB4 (if false)
+BB14   <- [3]
+  prom-           %14.0 = MkArg                    unboundValue, getClass[0x55fa0fc0c410]_p2, e0.5
+  val?^ | miss    %14.1 = CastType                 up %14.0
+  void                    StArg              lW    where, %14.1, e0.5
+  goto BB5
+BB4   <- [3]
+  void                    Nop                !     
+  goto BB5
+BB5   <- [4, 14]
+  val?^ | miss    %5.0  = LdVar              eR    getClassDef, <env 0x55fa0b35b378>
+  lgl$#-          %5.1  = Identical                %5.0, function(Class, where=topenv(parent.frame()), |...
+  void                    Branch                   %5.1 -> BB16 (if true) | BB17 (if false)
+BB16   <- [5]
+  prom-           %16.0 = MkArg                    unboundValue, getClass[0x55fa0fc0c410]_p0 (!refl), e0.5
+  prom-           %16.1 = MkArg                    unboundValue, getClass[0x55fa0fc0c410]_p1, e0.5
+  val?            %16.2 = StaticCall         !v    getClassDef[0x55fa10fcc010](%16.0, %16.1) e0.5   <other>
+  lgl$-           %16.3 = Is                       %16.2, NULL
+  void                    StVar              lW    value, %16.2, e0.5
+  val             %16.5 = ChkMissing         e     %16.2
+  lgl$#-          %16.6 = CheckTrueFalse     e     %16.3
+  void                    Branch                   %16.6 -> BB9 (if true) | BB8 (if false)
+BB17   <- [5]
+  fs              %17.0 = FrameState         R     0x55fa0d741fa0+0: [], env=e0.5
+  void                    Deopt              !v    %17.0, CallTarget@0x55fa0e8ac020[Call#3], %5.0
+BB9   <- [16]
+  val?^ | miss    %9.0  = LdVar              eR    .Force, e0.5
+  val?            %9.1  = Force!             !v    %9.0, e0.5   <val?_>
+  lgl$#-          %9.2  = IsType                   %9.1 isA val?+
+  void                    Branch                   %9.2 -> BB18 (if true) | BB19 (if false)
+BB8   <- [16]
+  void                    Visible            v     
+  void                    Return             l     %16.2
+BB18   <- [9]
+  val?+           %18.0 = CastType           d     dn %9.1   <val?_>
+  lgl             %18.1 = Not                wed   %18.0, elided
+  lgl$#-          %18.2 = CheckTrueFalse     we    %18.1
+  void                    Branch                   %18.2 -> BB13 (if true) | BB12 (if false)
+BB19   <- [9]
+  fs              %19.0 = FrameState         R     0x55fa0d741fa0+90: [%9.1], env=e0.5
+  void                    Deopt              !v    %19.0, Typecheck@0x55fa0e8ac020[Type#8], %9.1   !
+BB13   <- [18]
+  (cls|spec|blt)  %13.0 = LdFun              !v    stop, e0.5
+  fs              %13.1 = FrameState         R     0x55fa0d741fa0+189: [%13.0], env=e0.5
+  void                    Deopt              !v    %13.1, DeadCall@0x55fa0e8ac020[Call#5], %13.0   !
+BB12   <- [18]
+  (cls|spec|blt)  %12.0 = LdFun              !v    makeClassRepresentation, e0.5
+  fs              %12.1 = FrameState         R     0x55fa0d741fa0+107: [%12.0], env=e0.5
+  void                    Deopt              !v    %12.1, DeadCall@0x55fa0e8ac020[Call#4], %12.0   !
+Prom 0:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    Class, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <str$+>
+  void                    Return             l     %0.3
+Prom 1:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    where, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 2:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     .classEnv, e0.0
+  prom-           %0.2  = MkArg                    unboundValue, getClass[0x55fa0fc0c410]_p3, e0.0
+  prom-           %0.3  = MkArg                    unboundValue, getClass[0x55fa0fc0c410]_p4, e0.0
+  val?            %0.4  = Call               !     %0.1(%0.2, %0.3, false) e0.0   <val?_>
+  void                    Return             l     %0.4
+Prom 3:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    Class, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 4:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     topenv, e0.0
+  prom-           %0.2  = MkArg                    unboundValue, getClass[0x55fa0fc0c410]_p5, e0.0
+  val?            %0.3  = Call               !     %0.1(%0.2) e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 5:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     parent.frame, e0.0
+  val?            %0.2  = Call               !     %0.1() e0.0   <val?_>
+  void                    Return             l     %0.2
+
+│ getClass[0x55fa0fc0c410]                                                     │
+└──────────────────────────────────────────────────────────────────────────────┘

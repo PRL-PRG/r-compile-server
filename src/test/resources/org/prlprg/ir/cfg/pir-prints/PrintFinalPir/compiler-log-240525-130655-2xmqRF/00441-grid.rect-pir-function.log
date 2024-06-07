@@ -1,0 +1,279 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ grid.rect[0x55eeee593ab0]                                                    │
+│ Context: CorrOrd,!TMany,Argmatch;Eager0,Eager4,Eager5,NonRefl0,NonRefl4,NonRefl5,!Obj4 miss: 2│
+│ Properties:                                                                  │
+├────── Final PIR Version
+grid.rect[0x55eeee593ab0]
+BB0
+  val?^ | miss    %0.0  = LdArg                    9
+  val?^ | miss    %0.1  = LdArg                    8
+  val?^ | miss    %0.2  = LdArg                    7
+  val?^ | miss    %0.3  = LdArg                    6
+  val?~ | miss    %0.4  = LdArg                    5
+  val?~+          %0.5  = LdArg                    4
+  val?^ | miss    %0.6  = LdArg                    3
+  val?^ | miss    %0.7  = LdArg                    2
+  val?^ | miss    %0.8  = LdArg                    1
+  val?~ | miss    %0.9  = LdArg                    0
+  lgl$#-          %0.10 = Identical                %0.9, missingArg
+  lgl$#-          %0.11 = Identical                %0.8, missingArg
+  env             e0.12 = MkEnv              l     x=%0.9, y=%0.8, width=%0.7, height=%0.6, just=%0.5, hjust=%0.4, vjust=%0.3, default.units=%0.2, name=%0.1, gp=%0.0, draw(miss)=missingArg, vp(miss)=missingArg, parent=<env 0x55eeedfdc408>, context 1
+  void                    Branch                   %0.10 -> BB2 (if true) | BB37 (if false)
+BB2   <- [0]
+  prom-           %2.0  = MkArg                    unboundValue, grid.rect[0x55eeee593ab0]_p0, e0.12
+  val?^ | miss    %2.1  = CastType                 up %2.0
+  void                    StArg              lW    x, %2.1, e0.12
+  goto BB3
+BB37   <- [0]
+  void                    Nop                !     
+  goto BB3
+BB3   <- [2, 37]
+  void                    Branch                   %0.11 -> BB36 (if true) | BB4 (if false)
+BB36   <- [3]
+  prom-           %36.0 = MkArg                    unboundValue, grid.rect[0x55eeee593ab0]_p1, e0.12
+  val?^ | miss    %36.1 = CastType                 up %36.0
+  void                    StArg              lW    y, %36.1, e0.12
+  goto BB5
+BB4   <- [3]
+  void                    Nop                !     
+  goto BB5
+BB5   <- [36, 4]
+  lgl$#-          %5.0  = Identical                %0.7, missingArg
+  void                    Branch                   %5.0 -> BB35 (if true) | BB6 (if false)
+BB35   <- [5]
+  prom-           %35.0 = MkArg                    unboundValue, grid.rect[0x55eeee593ab0]_p2, e0.12
+  val?^ | miss    %35.1 = CastType                 up %35.0
+  void                    StArg              lW    width, %35.1, e0.12
+  goto BB7
+BB6   <- [5]
+  void                    Nop                !     
+  goto BB7
+BB7   <- [35, 6]
+  lgl$#-          %7.0  = Identical                %0.6, missingArg
+  void                    Branch                   %7.0 -> BB34 (if true) | BB8 (if false)
+BB34   <- [7]
+  prom-           %34.0 = MkArg                    unboundValue, grid.rect[0x55eeee593ab0]_p3, e0.12
+  val?^ | miss    %34.1 = CastType                 up %34.0
+  void                    StArg              lW    height, %34.1, e0.12
+  goto BB9
+BB8   <- [7]
+  void                    Nop                !     
+  goto BB9
+BB9   <- [34, 8]
+  lgl$#-          %9.0  = Identical                %0.4, missingArg
+  void                    Branch                   %9.0 -> BB33 (if true) | BB10 (if false)
+BB33   <- [9]
+  void                    StArg              lW    hjust, nil, e0.12
+  goto BB11
+BB10   <- [9]
+  void                    Nop                !     
+  goto BB11
+BB11   <- [10, 33]
+  lgl$#-          %11.0 = Identical                %0.3, missingArg
+  void                    Branch                   %11.0 -> BB32 (if true) | BB12 (if false)
+BB32   <- [11]
+  void                    StArg              lW    vjust, nil, e0.12
+  goto BB13
+BB12   <- [11]
+  void                    Nop                !     
+  goto BB13
+BB13   <- [12, 32]
+  lgl$#-          %13.0 = Identical                %0.2, missingArg
+  void                    Branch                   %13.0 -> BB31 (if true) | BB14 (if false)
+BB31   <- [13]
+  void                    StArg              lW    default.units, "npc", e0.12
+  goto BB15
+BB14   <- [13]
+  void                    Nop                !     
+  goto BB15
+BB15   <- [14, 31]
+  lgl$#-          %15.0 = Identical                %0.1, missingArg
+  void                    Branch                   %15.0 -> BB30 (if true) | BB16 (if false)
+BB30   <- [15]
+  void                    StArg              lW    name, nil, e0.12
+  goto BB17
+BB16   <- [15]
+  void                    Nop                !     
+  goto BB17
+BB17   <- [16, 30]
+  lgl$#-          %17.0 = Identical                %0.0, missingArg
+  void                    Branch                   %17.0 -> BB29 (if true) | BB18 (if false)
+BB29   <- [17]
+  prom-           %29.0 = MkArg                    unboundValue, grid.rect[0x55eeee593ab0]_p9, e0.12
+  val?^ | miss    %29.1 = CastType                 up %29.0
+  void                    StArg              lW    gp, %29.1, e0.12
+  goto BB19
+BB18   <- [17]
+  void                    Nop                !     
+  goto BB19
+BB19   <- [29, 18]
+  void                    StArg              lW    draw, true, e0.12
+  void                    StArg              lW    vp, nil, e0.12
+  val?^ | miss    %19.2 = LdVar              eR    rectGrob, <env 0x55eeedfdc408>
+  lgl$#-          %19.3 = Identical                %19.2, function(x=unit(0.5, "npc"), y=unit(0.5, "npc"|...
+  void                    Branch                   %19.3 -> BB38 (if true) | BB39 (if false)
+BB38   <- [19]
+  prom-           %38.0 = MkArg                    unboundValue, grid.rect[0x55eeee593ab0]_p12, e0.12
+  prom-           %38.1 = MkArg                    unboundValue, grid.rect[0x55eeee593ab0]_p13, e0.12
+  prom-           %38.2 = MkArg                    unboundValue, grid.rect[0x55eeee593ab0]_p14, e0.12
+  prom-           %38.3 = MkArg                    unboundValue, grid.rect[0x55eeee593ab0]_p15, e0.12
+  prom-           %38.4 = MkArg                    unboundValue, grid.rect[0x55eeee593ab0]_p16 (!refl), e0.12
+  prom-           %38.5 = MkArg                    unboundValue, grid.rect[0x55eeee593ab0]_p17 (!refl), e0.12
+  prom-           %38.6 = MkArg                    unboundValue, grid.rect[0x55eeee593ab0]_p18, e0.12
+  prom-           %38.7 = MkArg                    unboundValue, grid.rect[0x55eeee593ab0]_p19, e0.12
+  prom-           %38.8 = MkArg                    unboundValue, grid.rect[0x55eeee593ab0]_p20, e0.12
+  prom-           %38.9 = MkArg                    unboundValue, grid.rect[0x55eeee593ab0]_p21, e0.12
+  prom-           %38.10 = MkArg                    unboundValue, grid.rect[0x55eeee593ab0]_p22 (!refl), e0.12
+  val?            %38.11 = StaticCall         !v    rectGrob[0x55eeee415010](%38.0, %38.1, %38.2, %38.3, %38.4, %38.5, %38.6, %38.7, %38.8, %38.9, %38.10) { 0n 1n 2n 3n 4n 5n 6n 7n 8n 9n 10n } e0.12   <vec>
+  void                    StVar              lW    rg, %38.11, e0.12
+  val?^ | miss    %38.13 = LdVar              eR    draw, e0.12
+  val?            %38.14 = Force!<lazy>       !v    %38.13, e0.12   <lgl$->
+  lgl$#-          %38.15 = CheckTrueFalse     we    %38.14
+  void                    Branch                   %38.15 -> BB28 (if true) | BB24 (if false)
+BB39   <- [19]
+  fs              %39.0 = FrameState         R     0x55eef09bb030+0: [], env=e0.12
+  void                    Deopt              !v    %39.0, CallTarget@0x55eeeed03610[Call#5], %19.2
+BB28   <- [38]
+  val?^ | miss    %28.0 = LdVar              eR    grid.draw, e0.12
+  lgl$#-          %28.1 = Identical                %28.0, function(x, recording=TRUE) <(rir::DispatchTab|...
+  void                    Branch                   %28.1 -> BB40 (if true) | BB41 (if false)
+BB24   <- [38]
+  void                    Nop                !     
+  goto BB25
+BB40   <- [28]
+  prom-           %40.0 = MkArg                    unboundValue, grid.rect[0x55eeee593ab0]_p23, e0.12
+  val?            %40.1 = StaticCall         !v    grid.draw[0x55eeef075340](%40.0) e0.12
+  goto BB25
+BB41   <- [28]
+  fs              %41.0 = FrameState         R     0x55eef09bb030+155: [%38.15], env=e0.12
+  void                    Deopt              !v    %41.0, CallTarget@0x55eeeed03610[Call#6], %28.0   !
+BB25   <- [24, 40]
+  val?^ | miss    %25.0 = LdVar              eR    invisible, e0.12
+  lgl$#-          %25.1 = Identical                <blt invisible>, %25.0   <true>
+  void                    Branch                   %25.1 -> BB42 (if true) | BB43 (if false)
+BB42   <- [25]
+  val?^ | miss    %42.0 = LdVar              eR    rg, e0.12
+  val?            %42.1 = Force!<value>      !v    %42.0, e0.12   <vec>
+  void                    Invisible          v     
+  void                    Return             l     %42.1
+BB43   <- [25]
+  fs              %43.0 = FrameState         R     0x55eef09bb030+198: [], env=e0.12
+  void                    Deopt              !v    %43.0, DeadBranchReached@0x55eeeed03610[Test#0], %25.1   !
+Prom 0:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     unit, <0x55eeee42ab10>, e0.0
+  val?            %0.2  = Call               !     %0.1(0.5, "npc") e0.0   <real$>
+  void                    Return             l     %0.2
+Prom 1:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     unit, <0x55eeee42ab10>, e0.0
+  val?            %0.2  = Call               !     %0.1(0.5, "npc") e0.0   <real$>
+  void                    Return             l     %0.2
+Prom 2:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     unit, <0x55eeee42ab10>, e0.0
+  val?            %0.2  = Call               !     %0.1(1, "npc") e0.0   <real$>
+  void                    Return             l     %0.2
+Prom 3:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     unit, <0x55eeee42ab10>, e0.0
+  val?            %0.2  = Call               !     %0.1(1, "npc") e0.0   <real$>
+  void                    Return             l     %0.2
+Prom 9:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     gpar, <0x55eeee762e20>, e0.0
+  val?            %0.2  = Call               !     %0.1() e0.0   <vec>
+  void                    Return             l     %0.2
+Prom 12:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    x, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <real>
+  void                    Return             l     %0.3
+Prom 13:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    y, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <(real|vec)$>
+  void                    Return             l     %0.3
+Prom 14:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    width, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <real>
+  void                    Return             l     %0.3
+Prom 15:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    height, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <real>
+  void                    Return             l     %0.3
+Prom 16:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    just, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <str->
+  void                    Return             l     %0.3
+Prom 17:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    hjust, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <nil->
+  void                    Return             l     %0.3
+Prom 18:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    vjust, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <nil->
+  void                    Return             l     %0.3
+Prom 19:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    default.units, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <str$->
+  void                    Return             l     %0.3
+Prom 20:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    name, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <nil->
+  void                    Return             l     %0.3
+Prom 21:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    gp, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <vec>
+  void                    Return             l     %0.3
+Prom 22:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    vp, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <nil->
+  void                    Return             l     %0.3
+Prom 23:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    rg, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<value>       !     %0.1, e0.0   <vec>
+  void                    Return             l     %0.3
+
+│ grid.rect[0x55eeee593ab0]                                                    │
+└──────────────────────────────────────────────────────────────────────────────┘

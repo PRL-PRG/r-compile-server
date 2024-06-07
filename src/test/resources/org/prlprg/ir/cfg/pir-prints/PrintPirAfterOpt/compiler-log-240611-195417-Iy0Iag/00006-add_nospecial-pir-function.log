@@ -1,0 +1,43 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ add_nospecial[0x557b9a0d34c0]                                                │
+│ Context: CorrOrd,!TMany                                                      │
+│ Properties:  ForceOrd: 0                                                     │
+├────── PIR Version After Optimizations
+add_nospecial[0x557b9a0d34c0]
+BB0
+  goto BB1
+BB1   <- [0]
+  val?^ | miss    %1.0  = LdArg                    1
+  val?^ | miss    %1.1  = LdArg                    0
+  val?^           %1.2  = ChkMissing         e     %1.1
+  env             e1.3  = (MkEnv)            l     a=%1.1, b=%1.0, parent=R_GlobalEnv, context 1
+  val?            %1.4  = Force!<value>      !vL   %1.2, e1.3   <(int|real)$->
+  cp              %1.5  = Checkpoint                -> BB2 (default) | BB5 (if assume failed)
+BB2   <- [1]
+  lgl$#-          %2.0  = IsEnvStub          R     , e1.3
+  void                    Assume             D     %2.0, %1.5 (EnvStubMaterialized@0x557b997219e8[Call#unknown])
+  val?^           %2.2  = ChkMissing         e     %1.0
+  void                    Visible            v     
+  val?            %2.4  = Force!<lazy>       !L    %2.2, e1.3   <(int|real)$->
+  lgl$#-          %2.5  = IsType                   %2.4 isA val?-
+  cp              %2.6  = Checkpoint                -> BB4 (default) | BB3 (if assume failed)
+BB5   <- [1]
+  fs              %5.0  = FrameState         R     0x557b98750510+9: [%1.4], env=e1.3
+  void                    Deopt              !v    %5.0   !
+BB4   <- [2]
+  void                    Assume             D     %2.5, %2.6 (Typecheck@0x557b997219e8[Type#1])
+  val?-           %4.1  = CastType           d     dn %2.4   <(int|real)$->
+  lgl$#-          %4.2  = IsEnvStub          R     , e1.3
+  void                    Assume             D     %4.2, %2.6 (EnvStubMaterialized@0x557b997219e8[Call#unknown])
+  lgl$#-          %4.4  = IsType                   %1.4 isA val?-
+  void                    Assume             D     %4.4, %2.6 (Typecheck@0x557b997219e8[Type#0])
+  val?-           %4.6  = CastType           d     dn %1.4   <(int|real)$->
+  (int|real|complex)- %4.7  = Add                vwed  %4.6, %4.1, elided   <(int|real)$->
+  void                    Return             l     %4.7
+BB3   <- [2]
+  fs              %3.0  = FrameState         R     0x557b98750510+23: [%1.4, %2.4], env=e1.3
+  void                    Deopt              !v    %3.0   !
+
+│ add_nospecial[0x557b9a0d34c0]                                                │
+└──────────────────────────────────────────────────────────────────────────────┘

@@ -1,0 +1,97 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ getClassDef[0x560519cd55e0]                                                  │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch miss: 2                              │
+│ Properties:                                                                  │
+├────── PIR Version After Optimizations
+getClassDef[0x560519cd55e0]
+BB0
+  goto BB1
+BB1   <- [0]
+  val?^           %1.0  = LdArg                    1
+  val?^           %1.1  = LdArg                    0
+  env             e1.2  = MkEnv              l     Class=%1.1, where=%1.0, package(miss)=missingArg, inherits(miss)=missingArg, parent=<env 0x560517ca3378>, context 1
+  prom-           %1.3  = MkArg                    unboundValue, getClassDef[0x560519cd55e0]_p0, e1.2
+  val?^ | miss    %1.4  = CastType                 up %1.3
+  void                    StArg              lW    package, %1.4, e1.2
+  void                    StArg              lW    inherits, true, e1.2
+  cp              %1.7  = Checkpoint                -> BB2 (default) | BB9 (if assume failed)
+BB2   <- [1]
+  val?^ | miss    %2.0  = LdVar              eR    .getClassesFromCache, <env 0x560517ca3378>
+  lgl$#-          %2.1  = Identical                %2.0, function(name) <(rir::DispatchTable*)0x5605195|...
+  void                    Assume             D     %2.1, %1.7 (CallTarget@0x56051953a970[Call#3])
+  prom-           %2.3  = MkArg                    unboundValue, getClassDef[0x560519cd55e0]_p3, e1.2
+  ct              %2.4  = PushContext        lCL   %2.3, .getClassesFromCache(Class), function(name) <(rir::DispatchTable*)0x5605195|..., e1.2
+  val?^           %2.5  = CastType                 up %2.3
+  val?^ | miss    %2.6  = LdVar              eR    .Call, <env 0x560517ca3378>
+  lgl$#-          %2.7  = Identical                <blt .Call>, %2.6   <true>
+  cp              %2.8  = Checkpoint                -> BB4 (default) | BB3 (if assume failed)
+BB9   <- [1]
+  fs              %9.0  = FrameState         R     0x5605179b6920+0: [], env=e1.2
+  void                    Deopt              !v    %9.0
+BB4   <- [2]
+  void                    Assume             D     %2.7, %2.8 (DeadBranchReached@0x560518c84928[Test#0])
+  val?^ | miss    %4.1  = LdVar              eR    C_R_getClassFromCache, <env 0x560517ca3378>
+  env             e4.2  = MkEnv              l     name=%2.5, parent=<env 0x560517ca3378>, context 1
+  val?            %4.3  = Force!<value>      !v    %4.1, e4.2   <vec>
+  val?^ | miss    %4.4  = LdVar              eR    name, e4.2
+  val?            %4.5  = Force!<lazy>       !v    %4.4, e4.2   <(str|other)>
+  val?^ | miss    %4.6  = LdVar              eR    .classTable, e4.2
+  val?            %4.7  = Force!<wrapped>    !v    %4.6, e4.2   <env->
+  val?            %4.8  = CallBuiltin        !v    .Call(%4.3, %4.5, %4.7) e4.2   <other>
+  val?            %4.9  = PopContext         C     %4.8, %2.4   <other>
+  lgl$-           %4.10 = Is                       %4.9, list
+  void                    StVar              lW    value, %4.9, e1.2
+  val             %4.12 = ChkMissing         e     %4.9   <other>
+  lgl$#-          %4.13 = CheckTrueFalse     e     %4.10
+  lgl$-           %4.14 = Is                       %4.12, NULL
+  void                    Branch                   %4.13 -> BB8 (if true) | BB5 (if false)
+BB3   <- [2]
+  fs              %3.0  = FrameState         R     0x5605179b6920+72: [], env=e1.2
+  env             e3.1  = (MkEnv)            l     name=%2.5, parent=<env 0x560517ca3378>, context 1
+  fs              %3.2  = FrameState         R     0x560517972ec0+17: [<blt .Call>, %2.7], env=e3.1, next=%3.0
+  void                    Deopt              !v    %3.2   !
+BB8   <- [4]
+  (cls|spec|blt)  %8.0  = LdFun              !v    .resolveClassList, e1.2
+  fs              %8.1  = FrameState         R     0x5605179b6920+121: [%8.0], env=e1.2
+  void                    Deopt              !v    %8.1, DeadCall@0x56051953a970[Call#4], %8.0   !
+BB5   <- [4]
+  lgl$#-          %5.0  = CheckTrueFalse     e     %4.14
+  void                    Branch                   %5.0 -> BB7 (if true) | BB6 (if false)
+BB7   <- [5]
+  (cls|spec|blt)  %7.0  = LdFun              !v    classMetaName, e1.2
+  fs              %7.1  = FrameState         R     0x5605179b6920+207: [%7.0], env=e1.2
+  void                    Deopt              !v    %7.1, DeadCall@0x56051953a970[Call#5], %7.0   !
+BB6   <- [5]
+  void                    Visible            v     
+  void                    Return             l     %4.12
+Prom 0:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  (cls|spec|blt)  %1.1  = LdFun              !     packageSlot, e1.0
+  prom-           %1.2  = MkArg                    unboundValue, getClassDef[0x560519cd55e0]_p1, e1.0
+  val?            %1.3  = Call               !     %1.1(%1.2) e1.0   <val?_>
+  void                    Return             l     %1.3
+Prom 1:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    Class, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force              !     %1.1, e1.0   <val?_>
+  void                    Return             l     %1.3
+Prom 3:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    Class, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<lazy>        !     %1.1, e1.0   <(str|other)>
+  void                    Return             l     %1.3
+
+│ getClassDef[0x560519cd55e0]                                                  │
+└──────────────────────────────────────────────────────────────────────────────┘

@@ -1,0 +1,215 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ cacheMethod[0x556a222d5b30]                                                  │
+│ Context: CorrOrd,!TMany,Argmatch;Eager3,Eager5,NonRefl2,NonRefl3,NonRefl5,!Obj5│
+│ Properties:                                                                  │
+├────── Final PIR Version
+cacheMethod[0x556a222d5b30]
+BB0
+  val?~+          %0.0  = LdArg                    5
+  val?^ | miss    %0.1  = LdArg                    4
+  val?~ | miss    %0.2  = LdArg                    3
+  val?^ | miss    %0.3  = LdArg                    2
+  val?^ | miss    %0.4  = LdArg                    1
+  val?^ | miss    %0.5  = LdArg                    0
+  lgl$#-          %0.6  = Identical                %0.2, missingArg
+  env             e0.7  = MkEnv              l     f=%0.5, sig=%0.4, def=%0.3, args=%0.2, fdef=%0.1, inherited=%0.0, parent=<env 0x556a1ba11378>, context 1
+  void                    Branch                   %0.6 -> BB2 (if true) | BB13 (if false)
+BB2   <- [0]
+  prom-           %2.0  = MkArg                    unboundValue, cacheMethod[0x556a222d5b30]_p0, e0.7
+  val?^ | miss    %2.1  = CastType                 up %2.0
+  void                    StArg              lW    args, %2.1, e0.7
+  goto BB3
+BB13   <- [0]
+  void                    Nop                !     
+  goto BB3
+BB3   <- [2, 13]
+  val?^ | miss    %3.0  = LdVar              eR    environment, <env 0x556a1ba11378>
+  lgl$#-          %3.1  = Identical                %3.0, function(fun=NULL) <(rir::DispatchTable*)0x556|...
+  void                    Branch                   %3.1 -> BB14 (if true) | BB15 (if false)
+BB14   <- [3]
+  val?^           %14.0 = ChkMissing         e     %0.1
+  val?            %14.1 = Force!<lazy>       !v    %14.0, e0.7   <cls>
+  prom-           %14.2 = MkArg                    %14.1, cacheMethod[0x556a222d5b30]_p3 (!refl), 
+  val?            %14.3 = StaticCall         !v    environment[0x556a2174b210](%14.2) e0.7   <env->
+  void                    StVar              lW    ev, %14.3, e0.7
+  val?^ | miss    %14.5 = LdVar              eR    .cacheMethodInTable, e0.7
+  lgl$#-          %14.6 = Identical                %14.5, function(fdef, sig, def, table=get(".AllMTable|...
+  void                    Branch                   %14.6 -> BB16 (if true) | BB17 (if false)
+BB15   <- [3]
+  fs              %15.0 = FrameState         R     0x556a1d1bbea0+0: [], env=e0.7
+  void                    Deopt              !v    %15.0, CallTarget@0x556a1d75cba0[Call#1], %3.0
+BB16   <- [14]
+  prom-           %16.0 = MkArg                    unboundValue, cacheMethod[0x556a222d5b30]_p4, e0.7
+  prom-           %16.1 = MkArg                    unboundValue, cacheMethod[0x556a222d5b30]_p5, e0.7
+  prom-           %16.2 = MkArg                    unboundValue, cacheMethod[0x556a222d5b30]_p6, e0.7
+  prom-           %16.3 = MkArg                    unboundValue, cacheMethod[0x556a222d5b30]_p7, e0.7
+  val?            %16.4 = StaticCall         !v    .cacheMethodInTable[0x556a2259f5f0](%16.0, %16.1, %16.2, %16.3) e0.7
+  val?^ | miss    %16.5 = LdVar              eR    inherited, e0.7
+  void                    Visible            v     
+  val?            %16.7 = Force!<wrapped>    !     %16.5, e0.7   <lgl$->
+  lgl$#-          %16.8 = IsType                   %16.7 isA lgl$-
+  void                    Branch                   %16.8 -> BB18 (if true) | BB19 (if false)
+BB17   <- [14]
+  fs              %17.0 = FrameState         R     0x556a1d1bbea0+46: [], env=e0.7
+  void                    Deopt              !v    %17.0, CallTarget@0x556a1d75cba0[Call#2], %14.5   !
+BB18   <- [16]
+  lgl$-           %18.0 = CastType           d     dn %16.7
+  lgl$-           %18.1 = Not                vd    %18.0, elided
+  lgl$#-          %18.2 = CheckTrueFalse     e     %18.1
+  void                    Branch                   %18.2 -> BB12 (if true) | BB10 (if false)
+BB19   <- [16]
+  void                    Nop                !     
+  val?            %19.1 = %16.7
+  dr              %19.2 = Typecheck@0x556a1d75cba0[Type#11]
+  goto BB8
+BB12   <- [18]
+  val?^ | miss    %12.0 = LdVar              eR    .cacheMethodInTable, e0.7
+  lgl$#-          %12.1 = Identical                %12.0, function(fdef, sig, def, table=get(".AllMTable|...
+  void                    Branch                   %12.1 -> BB20 (if true) | BB21 (if false)
+BB10   <- [18]
+  void                    Invisible          v     
+  nil-            %10.1 = nil
+  goto BB11
+BB8   <- [19, 21]
+  val?^ | miss    %8.0  = Phi                      %19.1:BB19, %21.1:BB21
+  val?^ | miss    %8.1  = %8.0
+  dr              %8.2  = Phi                      %19.2:BB19, %21.2:BB21
+  dr              %8.3  = %8.2
+  fs              %8.4  = FrameState         R     0x556a1d1bbea0+103: [%16.7], env=e0.7
+  void                    Deopt              !v    %8.4, %8.3, %8.1   !
+BB20   <- [12]
+  prom-           %20.0 = MkArg                    unboundValue, cacheMethod[0x556a222d5b30]_p11, e0.7
+  prom-           %20.1 = MkArg                    unboundValue, cacheMethod[0x556a222d5b30]_p12, e0.7
+  prom-           %20.2 = MkArg                    unboundValue, cacheMethod[0x556a222d5b30]_p13, e0.7
+  prom-           %20.3 = MkArg                    unboundValue, cacheMethod[0x556a222d5b30]_p14, e0.7
+  val?            %20.4 = StaticCall         !     .cacheMethodInTable[0x556a2259f5f0](%20.0, %20.1, %20.2, %20.3) e0.7   <cls>
+  val?            %20.5 = %20.4
+  goto BB11
+BB21   <- [12]
+  void                    Nop                !     
+  val?^ | miss    %21.1 = %12.0
+  dr              %21.2 = CallTarget@0x556a1d75cba0[Call#4]
+  goto BB8
+BB11   <- [10, 20]
+  val?            %11.0 = Phi                      %10.1:BB10, %20.5:BB20
+  val?            %11.1 = %11.0
+  void                    Return             l     %11.1
+Prom 0:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     names, e0.0
+  prom-           %0.2  = MkArg                    unboundValue, cacheMethod[0x556a222d5b30]_p1, e0.0
+  val?            %0.3  = Call               !     %0.1(%0.2) e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 1:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    sig, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 3:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    fdef, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <cls>
+  void                    Return             l     %0.3
+Prom 4:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    fdef, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<wrapped>     !     %0.1, e0.0   <cls>
+  void                    Return             l     %0.3
+Prom 5:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    sig, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <str>
+  void                    Return             l     %0.3
+Prom 6:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    def, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <cls>
+  void                    Return             l     %0.3
+Prom 7:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     .getMethodsTable, <0x556a1d6be530>, e0.0
+  prom-           %0.2  = MkArg                    unboundValue, cacheMethod[0x556a222d5b30]_p8, e0.0
+  prom-           %0.3  = MkArg                    unboundValue, cacheMethod[0x556a222d5b30]_p9, e0.0
+  prom-           %0.4  = MkArg                    unboundValue, cacheMethod[0x556a222d5b30]_p10, e0.0
+  val?            %0.5  = NamedCall          !     %0.1(%0.2, %0.3, inherited=%0.4) e0.0   <env->
+  void                    Return             l     %0.5
+Prom 8:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    fdef, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 9:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    ev, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<value>       !     %0.1, e0.0   <env->
+  void                    Return             l     %0.3
+Prom 10:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    inherited, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <lgl$->
+  void                    Return             l     %0.3
+Prom 11:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    fdef, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<wrapped>     !     %0.1, e0.0   <cls>
+  void                    Return             l     %0.3
+Prom 12:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    sig, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<wrapped>     !     %0.1, e0.0   <str+>
+  void                    Return             l     %0.3
+Prom 13:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    def, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<wrapped>     !     %0.1, e0.0   <cls>
+  void                    Return             l     %0.3
+Prom 14:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     .getMethodsTable, <0x556a1d6be530>, e0.0
+  prom-           %0.2  = MkArg                    unboundValue, cacheMethod[0x556a222d5b30]_p15, e0.0
+  prom-           %0.3  = MkArg                    unboundValue, cacheMethod[0x556a222d5b30]_p16, e0.0
+  val?            %0.4  = NamedCall          !     %0.1(%0.2, %0.3, inherited=true) e0.0   <env->
+  void                    Return             l     %0.4
+Prom 15:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    fdef, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 16:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    ev, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<value>       !     %0.1, e0.0   <env->
+  void                    Return             l     %0.3
+
+│ cacheMethod[0x556a222d5b30]                                                  │
+└──────────────────────────────────────────────────────────────────────────────┘

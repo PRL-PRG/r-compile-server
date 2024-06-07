@@ -1,0 +1,25 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ formals[0x5638bbb9c050]                                                      │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;Eager0,NonRefl0                      │
+│ Properties:  !Reflection, ForceOrd: 0                                        │
+├────── Final PIR Version
+formals[0x5638bbb9c050]
+BB0
+  val?^           %0.0  = LdArg                    1
+  val?^           %0.1  = LdArg                    0
+  val?            %0.2  = Force!<lazy>             %0.1,    <cls>
+  lgl$#-          %0.3  = CallSafeBuiltin    wed   is.character(%0.2)    <lgl$->
+  void                    Branch                   %0.3 -> BB2 (if true) | BB3 (if false)
+BB2   <- [0]
+  env             e2.0  = (MkEnv)            l     fun=%0.1, envir=%0.0, parent=R_BaseNamespace, context 1
+  env             e2.1  = MaterializeEnv           , e2.0   <@?>
+  (cls|spec|blt)  %2.2  = LdFun              !v    get, e2.1
+  fs              %2.3  = FrameState         R     0x5638bbabefb0+112: [%2.2], env=e2.1
+  void                    Deopt              !v    %2.3, DeadCall@0x5638bc210bc8[Call#4], %2.2   !
+BB3   <- [0]
+  val+            %3.0  = CallSafeBuiltin    vwed  formals(%0.2) 
+  void                    Return             l     %3.0
+
+│ formals[0x5638bbb9c050]                                                      │
+└──────────────────────────────────────────────────────────────────────────────┘

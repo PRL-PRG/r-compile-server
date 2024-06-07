@@ -632,33 +632,6 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
     }
   }
 
-  record ReplaceInArgs(
-      NodeId<? extends InstrOrPhi> targetId, NodeId<?> oldId, NodeId<?> replacemenetId)
-      implements OnInstrOrPhi<ReplaceInArgs> {
-    public ReplaceInArgs(InstrOrPhi target, Node old, Node replacement) {
-      this(target.id(), old.id(), replacement.id());
-    }
-
-    @Override
-    public ReplaceInArgs apply(CFG cfg) {
-      cfg.get(targetId).replaceInArgs(cfg.get(oldId), cfg.get(replacemenetId));
-      return new ReplaceInArgs(targetId, replacemenetId, oldId);
-    }
-  }
-
-  record ReplaceInTargets(NodeId<? extends Jump> targetId, BBId oldId, BBId replacemenetId)
-      implements OnInstrOrPhi<ReplaceInTargets> {
-    public ReplaceInTargets(Jump target, BB old, BB replacement) {
-      this(target.id(), old.id(), replacement.id());
-    }
-
-    @Override
-    public ReplaceInTargets apply(CFG cfg) {
-      cfg.get(targetId).replaceInTargets(cfg.get(oldId), cfg.get(replacemenetId));
-      return new ReplaceInTargets(targetId, replacemenetId, oldId);
-    }
-  }
-
   /** Doesn't do anything but is useful in logs. */
   record Divider(String label) implements Context<Divider> {
     @Override

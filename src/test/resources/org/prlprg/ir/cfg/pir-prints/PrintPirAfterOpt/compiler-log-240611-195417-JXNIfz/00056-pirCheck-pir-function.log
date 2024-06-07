@@ -1,0 +1,15 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ pirCheck[0x55cbf46aca00]                                                     │
+│ Context: CorrOrd,!TMany                                                      │
+│ Properties:  Eager, !Reflection                                              │
+├────── PIR Version After Optimizations
+pirCheck[0x55cbf46aca00]
+BB0
+  goto BB1
+BB1   <- [0]
+  void                    Visible            v     
+  void                    Return             l     2
+
+│ pirCheck[0x55cbf46aca00]                                                     │
+└──────────────────────────────────────────────────────────────────────────────┘

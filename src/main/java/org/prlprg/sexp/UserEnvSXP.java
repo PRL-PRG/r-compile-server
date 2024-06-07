@@ -3,6 +3,7 @@ package org.prlprg.sexp;
 import java.util.Map;
 import javax.annotation.Nullable;
 
+/** An environment inside a closure or explicitly defined by the user. */
 public final class UserEnvSXP extends AbstractEnvSXP implements EnvSXP {
   private @Nullable Attributes attributes;
 

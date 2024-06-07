@@ -1,0 +1,170 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ .getImplicitGeneric[0x56096cdd72e0]                                          │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;NonRefl0,NonRefl1,NonRefl2,!Obj0,!Obj1,!Obj2│
+│ Properties:                                                                  │
+├────── Final PIR Version
+.getImplicitGeneric[0x56096cdd72e0]
+BB0
+  val?^           %0.0  = LdArg                    2
+  val?^           %0.1  = LdArg                    1
+  val?^           %0.2  = LdArg                    0
+  val?^ | miss    %0.3  = LdVar              eR    .getImplicitGenericFromCache, <env 0x56096a5ed378>
+  lgl$#-          %0.4  = Identical                %0.3, function(name, where, pkg="") <(rir::DispatchT|...
+  void                    Branch                   %0.4 -> BB17 (if true) | BB18 (if false)
+BB17   <- [0]
+  env             e17.0 = MkEnv              l     name=%0.2, where=%0.1, pkg=%0.0, parent=<env 0x56096a5ed378>, context 1
+  prom-           %17.1 = MkArg                    unboundValue, .getImplicitGeneric[0x56096cdd72e0]_p0 (!refl), e17.0
+  prom-           %17.2 = MkArg                    unboundValue, .getImplicitGeneric[0x56096cdd72e0]_p1 (!refl), e17.0
+  prom-           %17.3 = MkArg                    unboundValue, .getImplicitGeneric[0x56096cdd72e0]_p2 (!refl), e17.0
+  ct              %17.4 = PushContext        lCL   %17.1, %17.2, %17.3, .getImplicitGenericFromCache(name, where, pkg), function(name, where, pkg="") <(rir::DispatchT|..., e17.0
+  val?^           %17.5 = CastType                 up %17.3
+  val?^           %17.6 = CastType                 up %17.2
+  val?^           %17.7 = CastType                 up %17.1
+  val?^ | miss    %17.8 = LdVar              eR    .getGenericFromCacheTable, <env 0x56096a5ed378>
+  lgl$#-          %17.9 = Identical                %17.8, function(name, where, pkg="", table) <(rir::Di|...
+  void                    Branch                   %17.9 -> BB19 (if true) | BB20 (if false)
+BB18   <- [0]
+  env             e18.0 = (MkEnv)            l     name=%0.2, where=%0.1, pkg=%0.0, parent=<env 0x56096a5ed378>, context 1
+  fs              %18.1 = FrameState         R     0x56096c1fca20+0: [], env=e18.0
+  void                    Deopt              !v    %18.1, CallTarget@0x56096c16b290[Call#0], %0.3
+BB19   <- [17]
+  env             e19.0 = MkEnv              l     name=%17.7, where=%17.6, pkg=%17.5, parent=<env 0x56096a5ed378>, context 1
+  prom-           %19.1 = MkArg                    unboundValue, .getImplicitGeneric[0x56096cdd72e0]_p3, e19.0
+  prom-           %19.2 = MkArg                    unboundValue, .getImplicitGeneric[0x56096cdd72e0]_p4, e19.0
+  prom-           %19.3 = MkArg                    unboundValue, .getImplicitGeneric[0x56096cdd72e0]_p5, e19.0
+  prom-           %19.4 = MkArg                    unboundValue, .getImplicitGeneric[0x56096cdd72e0]_p6, e19.0
+  val?            %19.5 = StaticCall         !v    .getGenericFromCacheTable[0x56096d228800](%19.1, %19.2, %19.3, %19.4) e19.0   <nil->
+  val?            %19.6 = PopContext         C     %19.5, %17.4   <nil->
+  lgl$-           %19.7 = Is                       %19.6, NULL
+  lgl$-           %19.8 = AsLogical                %19.7
+  lgl$#-          %19.9 = Identical                %19.8, false
+  void                    StVar              lW    value, %19.6, e17.0
+  val             %19.11 = ChkMissing         e     %19.6
+  void                    Branch                   %19.9 -> BB15 (if true) | BB5 (if false)
+BB20   <- [17]
+  fs              %20.0 = FrameState         R     0x56096c1fca20+42: [], env=e17.0
+  env             e20.1 = (MkEnv)            l     name=%17.7, where=%17.6, pkg=%17.5, parent=<env 0x56096a5ed378>, context 1
+  fs              %20.2 = FrameState         R     0x56096c8afe20+0: [], env=e20.1, next=%20.0
+  void                    Deopt              !v    %20.2, CallTarget@0x56096c178b70[Call#0], %17.8   !
+BB15   <- [19]
+  void                    Nop                !     
+  lgl$-           %15.1 = %19.8
+  goto BB10
+BB5   <- [19]
+  val?^ | miss    %5.0  = LdVar              eR    where, e17.0
+  val?            %5.1  = Force!<lazy>       !v    %5.0, e17.0   <env->
+  lgl$#-          %5.2  = IsType                   %5.1 isA val+   <true>
+  void                    Branch                   %5.2 -> BB21 (if true) | BB22 (if false)
+BB10   <- [15, 27]
+  lgl$-           %10.0 = Phi                      %27.7:BB27, %15.1:BB15
+  lgl$-           %10.1 = %10.0
+  lgl$#-          %10.2 = CheckTrueFalse     e     %10.1
+  void                    Branch                   %10.2 -> BB14 (if true) | BB13 (if false)
+BB21   <- [5]
+  val?^ | miss    %21.0 = LdVar              eR    .ImplicitGenericsMetaName, e17.0
+  val?            %21.1 = Force!<wrapped>    !v    %21.0, e17.0   <str$->
+  lgl$#-          %21.2 = IsType                   %21.1 isA val?-
+  lgl$#-          %21.3 = IsType                   %5.1 isA val?-
+  void                    Branch                   %21.3 -> BB25 (if true) | BB26 (if false)
+BB22   <- [5]
+  fs              %22.0 = FrameState         R     0x56096c1fca20+91: [%19.8, %5.1], env=e17.0
+  void                    Deopt              !v    %22.0, DeadBranchReached@0x56096c16b290[Test#0], %5.2   !
+BB14   <- [10]
+  (cls|spec|blt)  %14.0 = LdFun              !v    .getGenericFromCacheTable, e17.0
+  fs              %14.1 = FrameState         R     0x56096c1fca20+197: [%14.0], env=e17.0
+  void                    Deopt              !v    %14.1, DeadCall@0x56096c16b290[Call#1], %14.0   !
+BB13   <- [10]
+  val?^ | miss    %13.0 = LdVar              eR    value, e17.0
+  lgl$#-          %13.1 = IsType                   %13.0 isA val?~- | miss
+  void                    Branch                   %13.1 -> BB23 (if true) | BB24 (if false)
+BB25   <- [21]
+  val?-           %25.0 = CastType           d     dn %5.1   <env->
+  void                    Branch                   %21.2 -> BB27 (if true) | BB28 (if false)
+BB26   <- [21]
+  void                    Nop                !     
+  val?            %26.1 = %5.1
+  dr              %26.2 = Typecheck@0x56096c16b290[Type#5]
+  goto BB8
+BB23   <- [13]
+  val?~- | miss   %23.0 = CastType           d     dn %13.0
+  void                    Visible            v     
+  val?-           %23.2 = Force!<value>            %23.0,    <nil->
+  void                    Return             l     %23.2
+BB24   <- [13]
+  fs              %24.0 = FrameState         R     0x56096c1fca20+167: [%10.1], env=e17.0
+  void                    Deopt              !v    %24.0, Typecheck@0x56096c16b290[Type#9], %13.0   !
+BB27   <- [25]
+  val?-           %27.0 = CastType           d     dn %21.1   <str$->
+  val?            %27.1 = Extract2_1D        wed   %25.0, %27.0, elided   <nil->
+  lgl$-           %27.2 = Is                       %27.1, NULL
+  void                    StVar              lW    tbl, %27.1, e17.0
+  lgl$-           %27.4 = Not                d     %27.2, elided
+  lgl$-           %27.5 = AsLogical                %27.4
+  lgl$-           %27.6 = LAnd                     %19.8, %27.5
+  lgl$-           %27.7 = %27.6
+  goto BB10
+BB28   <- [25]
+  void                    Nop                !     
+  val?            %28.1 = %21.1
+  dr              %28.2 = Typecheck@0x56096c16b290[Type#7]
+  goto BB8
+BB8   <- [26, 28]
+  val?^ | miss    %8.0  = Phi                      %26.1:BB26, %28.1:BB28
+  val?^ | miss    %8.1  = %8.0
+  dr              %8.2  = Phi                      %26.2:BB26, %28.2:BB28
+  dr              %8.3  = %8.2
+  fs              %8.4  = FrameState         R     0x56096c1fca20+136: [%19.8, %5.1, %21.1], env=e17.0
+  void                    Deopt              !v    %8.4, %8.3, %8.1   !
+Prom 0:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    name, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <str$->
+  void                    Return             l     %0.3
+Prom 1:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    where, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 2:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    pkg, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 3:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    name, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <str$->
+  void                    Return             l     %0.3
+Prom 4:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    where, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 5:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    pkg, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 6:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    .implicitTable, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<wrapped>     !     %0.1, e0.0   <env->
+  void                    Return             l     %0.3
+
+│ .getImplicitGeneric[0x56096cdd72e0]                                          │
+└──────────────────────────────────────────────────────────────────────────────┘

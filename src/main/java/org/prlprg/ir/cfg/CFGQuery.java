@@ -24,6 +24,15 @@ interface CFGQuery {
    */
   int numNodes();
 
+  /**
+   * Whether the CFG has only the entry and no nodes.
+   *
+   * <p>This is true for {@code new CFG()}, it's also true for CFGs that have observers.
+   */
+  default boolean isEmpty() {
+    return numBBs() == 1 && numNodes() == 0;
+  }
+
   /** The basic block that is the entry of this graph. */
   BB entry();
 

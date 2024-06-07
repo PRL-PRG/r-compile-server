@@ -1,0 +1,193 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ makeLocalsCollector[0x55804f1c8a10]                                          │
+│ Context: CorrOrd,!TMany,Argmatch;Eager0,Eager1,Eager2,Eager4,NonRefl0,NonRefl1,NonRefl2,NonRefl3,NonRefl4,NonRefl5│
+│ Properties:                                                                  │
+├────── Final PIR Version
+makeLocalsCollector[0x55804f1c8a10]
+BB0
+  val?^ | miss    %0.0  = LdArg                    5
+  val?~ | miss    %0.1  = LdArg                    4
+  val?^ | miss    %0.2  = LdArg                    3
+  val?~ | miss    %0.3  = LdArg                    2
+  val?~ | miss    %0.4  = LdArg                    1
+  (miss|dots)     %0.5  = LdArg                    0
+  lgl$#-          %0.6  = Identical                %0.4, missingArg
+  lgl$#-          %0.7  = Identical                %0.3, missingArg
+  env             e0.8  = MkEnv              l     ...=%0.5, leaf=%0.4, handler=%0.3, isLocal=%0.2, exit=%0.1, collect=%0.0, parent=<env 0x55804e699488>, context 1
+  void                    Branch                   %0.6 -> BB2 (if true) | BB18 (if false)
+BB2   <- [0]
+  cls             %2.0  = MkCls                    makeLocalsCollector@Prom(0)0, e0.8
+  prom-           %2.1  = MkArg                    %2.0, makeLocalsCollector[0x55804f1c8a10]_p0 (!refl), e0.8
+  val?^ | miss    %2.2  = CastType                 up %2.1
+  void                    StArg              lW    leaf, %2.2, e0.8
+  goto BB3
+BB18   <- [0]
+  void                    Nop                !     
+  goto BB3
+BB3   <- [2, 18]
+  void                    Branch                   %0.7 -> BB17 (if true) | BB4 (if false)
+BB17   <- [3]
+  prom-           %17.0 = MkArg                    unboundValue, makeLocalsCollector[0x55804f1c8a10]_p2, e0.8
+  val?^ | miss    %17.1 = CastType                 up %17.0
+  void                    StArg              lW    handler, %17.1, e0.8
+  goto BB5
+BB4   <- [3]
+  void                    Nop                !     
+  goto BB5
+BB5   <- [4, 17]
+  lgl$#-          %5.0  = Identical                %0.2, missingArg
+  void                    Branch                   %5.0 -> BB16 (if true) | BB6 (if false)
+BB16   <- [5]
+  cls             %16.0 = MkCls                    makeLocalsCollector@Prom(2)0, e0.8
+  prom-           %16.1 = MkArg                    %16.0, makeLocalsCollector[0x55804f1c8a10]_p1 (!refl), e0.8
+  val?^ | miss    %16.2 = CastType                 up %16.1
+  void                    StArg              lW    isLocal, %16.2, e0.8
+  goto BB7
+BB6   <- [5]
+  void                    Nop                !     
+  goto BB7
+BB7   <- [16, 6]
+  lgl$#-          %7.0  = Identical                %0.1, missingArg
+  void                    Branch                   %7.0 -> BB15 (if true) | BB8 (if false)
+BB15   <- [7]
+  cls             %15.0 = MkCls                    makeLocalsCollector@Prom(3)0, e0.8
+  prom-           %15.1 = MkArg                    %15.0, makeLocalsCollector[0x55804f1c8a10]_p3 (!refl), e0.8
+  val?^ | miss    %15.2 = CastType                 up %15.1
+  void                    StArg              lW    exit, %15.2, e0.8
+  goto BB9
+BB8   <- [7]
+  void                    Nop                !     
+  goto BB9
+BB9   <- [15, 8]
+  lgl$#-          %9.0  = Identical                %0.0, missingArg
+  void                    Branch                   %9.0 -> BB14 (if true) | BB10 (if false)
+BB14   <- [9]
+  cls             %14.0 = MkCls                    makeLocalsCollector@Prom(4)0, e0.8
+  prom-           %14.1 = MkArg                    %14.0, makeLocalsCollector[0x55804f1c8a10]_p4 (!refl), e0.8
+  val?^ | miss    %14.2 = CastType                 up %14.1
+  void                    StArg              lW    collect, %14.2, e0.8
+  goto BB11
+BB10   <- [9]
+  void                    Nop                !     
+  goto BB11
+BB11   <- [14, 10]
+  val?^ | miss    %11.0 = LdVar              eR    makeCodeWalker, <env 0x55804e699488>
+  lgl$#-          %11.1 = Identical                %11.0, function(..., handler=function(<lst v=R_Missin|...
+  void                    Branch                   %11.1 -> BB19 (if true) | BB20 (if false)
+BB19   <- [11]
+  prom-           %19.0 = MkArg                    unboundValue, makeLocalsCollector[0x55804f1c8a10]_p5 (!refl), e0.8
+  prom-           %19.1 = MkArg                    unboundValue, makeLocalsCollector[0x55804f1c8a10]_p6, e0.8
+  prom-           %19.2 = MkArg                    unboundValue, makeLocalsCollector[0x55804f1c8a10]_p7 (!refl), e0.8
+  prom-           %19.3 = MkArg                    unboundValue, makeLocalsCollector[0x55804f1c8a10]_p8 (!refl), e0.8
+  prom-           %19.4 = MkArg                    unboundValue, makeLocalsCollector[0x55804f1c8a10]_p9 (!refl), e0.8
+  dots-           %19.5 = DotsList           l     collect=%19.2, isLocal=%19.3, exit=%19.4
+  ct              %19.6 = PushContext        lCL   %19.5, %19.1, missingArg, %19.0, makeCodeWalker(leaf=leaf, handler=handler, col|..., function(..., handler=function(<lst v=R_Missin|..., e0.8
+  val?^           %19.7 = CastType                 up %19.0
+  val?^           %19.8 = CastType                 up %19.1
+  env             e19.9 = MkEnv              l     ...=%19.5, handler=%19.8, call(miss)=missingArg, leaf=%19.7, parent=<env 0x55804e699488>, context 1
+  cls             %19.10 = MkCls                    makeCodeWalker@Prom(1)0, e19.9
+  prom-           %19.11 = MkArg                    %19.10, makeLocalsCollector[0x55804f1c8a10]_p10 (!refl), e19.9
+  val?^ | miss    %19.12 = CastType                 up %19.11
+  void                    StArg              lW    call, %19.12, e19.9
+  (cls|spec|blt)  %19.14 = LdFun              !     list, <0x55804bef55c0>, <env 0x55804e699488>
+  prom-           %19.15 = MkArg                    unboundValue, makeLocalsCollector[0x55804f1c8a10]_p11, e19.9
+  prom-           %19.16 = MkArg                    unboundValue, makeLocalsCollector[0x55804f1c8a10]_p12 (!refl), e19.9
+  prom-           %19.17 = MkArg                    unboundValue, makeLocalsCollector[0x55804f1c8a10]_p13, e19.9
+  val?            %19.18 = NamedCall          !     %19.14(handler=%19.15, call=%19.16, leaf=%19.17, collect=%19.2, isLocal=%19.3, exit=%19.4) e19.9   <vec+>
+  val?            %19.19 = PopContext         C     %19.18, %19.6   <vec+>
+  void                    Return             l     %19.19
+BB20   <- [11]
+  fs              %20.0 = FrameState         R     0x55804ecfd130+0: [], env=e0.8
+  void                    Deopt              !v    %20.0, CallTarget@0x55804e8697b0[Call#0], %11.0
+Prom 0:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  cls             %0.1  = MkCls                    makeLocalsCollector@Prom(0)0, e0.0
+  void                    Return             l     %0.1
+Prom 1:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  cls             %0.1  = MkCls                    makeLocalsCollector@Prom(2)0, e0.0
+  void                    Return             l     %0.1
+Prom 2:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    getCollectLocalsHandler, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<wrapped>     !     %0.1, e0.0   <cls->
+  void                    Return             l     %0.3
+Prom 3:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  cls             %0.1  = MkCls                    makeLocalsCollector@Prom(3)0, e0.0
+  void                    Return             l     %0.1
+Prom 4:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  cls             %0.1  = MkCls                    makeLocalsCollector@Prom(4)0, e0.0
+  void                    Return             l     %0.1
+Prom 5:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    leaf, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <cls->
+  void                    Return             l     %0.3
+Prom 6:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    handler, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <cls->
+  void                    Return             l     %0.3
+Prom 7:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    collect, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <cls->
+  void                    Return             l     %0.3
+Prom 8:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    isLocal, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <cls->
+  void                    Return             l     %0.3
+Prom 9:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    exit, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <cls->
+  void                    Return             l     %0.3
+Prom 10:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  cls             %0.1  = MkCls                    makeCodeWalker@Prom(1)0, e0.0
+  void                    Return             l     %0.1
+Prom 11:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    handler, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <cls->
+  void                    Return             l     %0.3
+Prom 12:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    call, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <cls->
+  void                    Return             l     %0.3
+Prom 13:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    leaf, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <cls->
+  void                    Return             l     %0.3
+
+│ makeLocalsCollector[0x55804f1c8a10]                                          │
+└──────────────────────────────────────────────────────────────────────────────┘

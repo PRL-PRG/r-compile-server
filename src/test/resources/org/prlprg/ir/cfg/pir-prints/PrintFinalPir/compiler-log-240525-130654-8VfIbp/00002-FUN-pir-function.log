@@ -1,0 +1,123 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ FUN[0x555ea2334720]                                                          │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch                                      │
+│ Properties:                                                                  │
+├────── Final PIR Version
+FUN[0x555ea2334720]
+BB0
+  val?^           %0.0  = LdArg                    0
+  val?^ | miss    %0.1  = LdVar              eR    bounce, ?
+  lgl$#-          %0.2  = Identical                %0.1, function(ball) <(rir::DispatchTable*)0x555ea23|...
+  void                    Branch                   %0.2 -> BB13 (if true) | BB14 (if false)
+BB13   <- [0]
+  env             e13.0 = MkEnv              l     ball=%0.0, parent=?, context 1
+  val?            %13.1 = Force!<lazy>       !v    %0.0, e13.0   <real->
+  prom-           %13.2 = MkArg                    %13.1, FUN[0x555ea2334720]_p0 (!refl), 
+  val?            %13.3 = StaticCall         !v    bounce[0x555ea2353c50](%13.2) e13.0   <vec->
+  void                    StVar              lW    results, %13.3, e13.0
+  lgl$#-          %13.5 = IsType                   %13.3 isA val+   <true>
+  lgl$#-          %13.6 = IsType                   %13.3 isA val?-
+  val             %13.7 = ChkMissing         e     %13.3
+  void                    Branch                   %13.5 -> BB15 (if true) | BB16 (if false)
+BB14   <- [0]
+  env             e14.0 = (MkEnv)            l     ball=%0.0, parent=?, context 1
+  fs              %14.1 = FrameState         R     0x555ea0cccdb0+0: [], env=e14.0
+  void                    Deopt              !v    %14.1, CallTarget@0x555ea1a88188[Call#0], %0.1
+BB15   <- [13]
+  void                    Branch                   %13.6 -> BB17 (if true) | BB18 (if false)
+BB16   <- [13]
+  void                    Nop                !     
+  lgl$#-          %16.1 = %13.5
+  dr              %16.2 = DeadBranchReached@0x555ea1a88188[Test#0]
+  goto BB3
+BB17   <- [15]
+  val?-           %17.0 = CastType           d     dn %13.3   <vec->
+  val?            %17.1 = Extract2_1D        wed   %17.0, 2, elided   <lgl$->
+  lgl$#-          %17.2 = IsType                   %17.1 isA lgl$-
+  void                    Branch                   %17.2 -> BB19 (if true) | BB20 (if false)
+BB18   <- [15]
+  void                    Nop                !     
+  val?            %18.1 = %13.3
+  dr              %18.2 = Typecheck@0x555ea1a88188[Type#1]
+  goto BB3
+BB3   <- [16, 18]
+  val?^ | miss    %3.0  = Phi                      %16.1:BB16, %18.1:BB18
+  val?^ | miss    %3.1  = %3.0
+  dr              %3.2  = Phi                      %16.2:BB16, %18.2:BB18
+  dr              %3.3  = %3.2
+  fs              %3.4  = FrameState         R     0x555ea0cccdb0+46: [], env=e13.0
+  void                    Deopt              !v    %3.4, %3.3, %3.1   !
+BB19   <- [17]
+  lgl$-           %19.0 = CastType           d     dn %17.1
+  lgl$#-          %19.1 = CheckTrueFalse     e     %19.0
+  void                    Branch                   %19.1 -> BB11 (if true) | BB7 (if false)
+BB20   <- [17]
+  void                    Nop                !     
+  val?            %20.1 = %17.1
+  dr              %20.2 = Typecheck@0x555ea1a88188[Type#3]
+  goto BB5
+BB11   <- [19]
+  val?^ | miss    %11.0 = LdVar              eR    bounces, e13.0
+  lgl$#-          %11.1 = IsType                   %11.0 isA real$-
+  void                    Branch                   %11.1 -> BB21 (if true) | BB22 (if false)
+BB7   <- [19]
+  void                    Nop                !     
+  goto BB8
+BB5   <- [20, 22]
+  val?^ | miss    %5.0  = Phi                      %20.1:BB20, %22.1:BB22
+  val?^ | miss    %5.1  = %5.0
+  dr              %5.2  = Phi                      %20.2:BB20, %22.2:BB22
+  dr              %5.3  = %5.2
+  fs              %5.4  = FrameState         R     0x555ea0cccdb0+98: [%17.1], env=e13.0
+  void                    Deopt              !v    %5.4, %5.3, %5.1   !
+BB21   <- [11]
+  real$-          %21.0 = CastType           d     dn %11.0
+  real$-          %21.1 = Add                d     %21.0, 1, elided   <real$->
+  void                    StVarSuper         lRW   bounces, %21.1, e13.0
+  goto BB8
+BB22   <- [11]
+  void                    Nop                !     
+  val?^ | miss    %22.1 = %11.0
+  dr              %22.2 = Typecheck@0x555ea1a88188[Type#4]
+  goto BB5
+BB8   <- [7, 21]
+  val?^ | miss    %8.0  = LdVar              eR    results, e13.0
+  lgl$#-          %8.1  = IsType                   %8.0 isA val?~- | miss
+  void                    Branch                   %8.1 -> BB23 (if true) | BB24 (if false)
+BB23   <- [8]
+  val?~- | miss   %23.0 = CastType           d     dn %8.0
+  val?-           %23.1 = Force!<value>            %23.0,    <vec->
+  lgl$#-          %23.2 = IsType                   %23.1 isA val+   <true>
+  void                    Branch                   %23.2 -> BB25 (if true) | BB26 (if false)
+BB24   <- [8]
+  void                    Nop                !     
+  val?^ | miss    %24.1 = %8.0
+  dr              %24.2 = Typecheck@0x555ea1a88188[Type#6]
+  goto BB9
+BB25   <- [23]
+  val?            %25.0 = Extract2_1D        wed   %23.1, 1, elided   <real->
+  void                    Visible            v     
+  void                    Return             l     %25.0
+BB26   <- [23]
+  void                    Nop                !     
+  lgl$#-          %26.1 = %23.2
+  dr              %26.2 = DeadBranchReached@0x555ea1a88188[Test#1]
+  goto BB9
+BB9   <- [24, 26]
+  val?^ | miss    %9.0  = Phi                      %24.1:BB24, %26.1:BB26
+  val?^ | miss    %9.1  = %9.0
+  dr              %9.2  = Phi                      %24.2:BB24, %26.2:BB26
+  dr              %9.3  = %9.2
+  fs              %9.4  = FrameState         R     0x555ea0cccdb0+146: [], env=e13.0
+  void                    Deopt              !v    %9.4, %9.3, %9.1   !
+Prom 0:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    ball, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <real->
+  void                    Return             l     %0.3
+
+│ FUN[0x555ea2334720]                                                          │
+└──────────────────────────────────────────────────────────────────────────────┘

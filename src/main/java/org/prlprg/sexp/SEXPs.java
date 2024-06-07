@@ -347,6 +347,11 @@ public final class SEXPs {
     return list(ImmutableList.copyOf(data));
   }
 
+  // Could make this a `Collector`...
+  public static ListSXP list(Stream<TaggedElem> data) {
+    return list(data.collect(ImmutableList.toImmutableList()));
+  }
+
   // FIXME: ugly
   public static ListSXP list2(Collection<SEXP> data) {
     return list(data.stream().map(TaggedElem::new).toList());
@@ -371,14 +376,14 @@ public final class SEXPs {
     return new BCodeSXPImpl(bc);
   }
 
-  public static CloSXP closure(ListSXP formals, SEXP body, EnvSXP environment) {
-    return closure(formals, body, environment, Attributes.NONE);
+  public static CloSXP closure(ListSXP parameters, SEXP body, EnvSXP environment) {
+    return closure(parameters, body, environment, Attributes.NONE);
   }
 
   public static CloSXP closure(
-      ListSXP formals, SEXP body, EnvSXP environment, @Nullable Attributes attributes) {
+      ListSXP parameters, SEXP body, EnvSXP environment, @Nullable Attributes attributes) {
     return new CloSXPImpl(
-        formals, body, environment, attributes == null ? Attributes.NONE : attributes);
+        parameters, body, environment, attributes == null ? Attributes.NONE : attributes);
   }
 
   public static LangSXP lang(SymOrLangSXP fun, ListSXP args) {

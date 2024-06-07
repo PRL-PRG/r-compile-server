@@ -1,0 +1,57 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ .newOrMultipleMethod[0x560397f78320]                                         │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;NonRefl0,NonRefl1,NonRefl2,!Obj1,!Obj2│
+│ Properties:                                                                  │
+├────── PIR Version After Optimizations
+.newOrMultipleMethod[0x560397f78320]
+BB0
+  goto BB1
+BB1   <- [0]
+  val?^           %1.0  = LdArg                    2
+  val?^           %1.1  = LdArg                    1
+  val?^           %1.2  = LdArg                    0
+  cp              %1.3  = Checkpoint                -> BB2 (default) | BB9 (if assume failed)
+BB2   <- [1]
+  val?^ | miss    %2.0  = LdVar              eR    .duplicateClassesExist, <env 0x560396017378>
+  lgl$#-          %2.1  = Identical                %2.0, function(on) <(rir::DispatchTable*)0x560397d6c|...
+  void                    Assume             D     %2.1, %1.3 (CallTarget@0x5603989c5190[Call#0])
+  env             e2.3  = (MkEnv)            l     obj=%1.2, what=%1.1, table=%1.0, parent=<env 0x560396017378>, context 1
+  val?            %2.4  = StaticCall         !v    .duplicateClassesExist[0x560396568940]() e2.3   <lgl$->
+  lgl$#-          %2.5  = IsType                   %2.4 isA lgl$-
+  cp              %2.6  = Checkpoint                -> BB4 (default) | BB3 (if assume failed)
+BB9   <- [1]
+  env             e9.0  = (MkEnv)            l     obj=%1.2, what=%1.1, table=%1.0, parent=<env 0x560396017378>, context 1
+  fs              %9.1  = FrameState         R     0x5603995d4150+0: [], env=e9.0
+  void                    Deopt              !v    %9.1   !
+BB4   <- [2]
+  void                    Assume             D     %2.5, %2.6 (Typecheck@0x5603989c5190[Type#0])
+  lgl$-           %4.1  = CastType           d     dn %2.4
+  lgl$#-          %4.2  = IsEnvStub          R     , e2.3
+  void                    Assume             D     %4.2, %2.6 (EnvStubMaterialized@0x5603989c5190[Call#unknown])
+  lgl$-           %4.4  = Not                d     %4.1, elided
+  lgl$#-          %4.5  = CheckTrueFalse     e     %4.4
+  void                    Branch                   %4.5 -> BB6 (if true) | BB5 (if false)
+BB3   <- [2]
+  fs              %3.0  = FrameState         R     0x5603995d4150+27: [%2.4], env=e2.3
+  void                    Deopt              !v    %3.0   !
+BB6   <- [4]
+  val?^ | miss    %6.0  = LdVar              eRd   obj, e2.3
+  void                    Visible            v     
+  val?            %6.2  = Force!<lazy>       !     %6.0, e2.3   <cls>
+  cp              %6.3  = Checkpoint                -> BB8 (default) | BB7 (if assume failed)
+BB5   <- [4]
+  env             e5.0  = MaterializeEnv           , e2.3   <@?>
+  (cls|spec|blt)  %5.1  = LdFun              !v    get, e5.0
+  fs              %5.2  = FrameState         R     0x5603995d4150+64: [%5.1], env=e5.0
+  void                    Deopt              !v    %5.2, DeadCall@0x5603989c5190[Call#1], %5.1   !
+BB8   <- [6]
+  lgl$#-          %8.0  = IsEnvStub          R     , e2.3
+  void                    Assume             D     %8.0, %6.3 (EnvStubMaterialized@0x5603989c5190[Call#unknown])
+  void                    Return             l     %6.2
+BB7   <- [6]
+  fs              %7.0  = FrameState         R     0x5603995d4150+53: [%6.2], env=e2.3
+  void                    Deopt              !v    %7.0   !
+
+│ .newOrMultipleMethod[0x560397f78320]                                         │
+└──────────────────────────────────────────────────────────────────────────────┘

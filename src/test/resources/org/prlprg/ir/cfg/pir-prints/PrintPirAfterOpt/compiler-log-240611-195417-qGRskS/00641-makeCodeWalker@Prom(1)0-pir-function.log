@@ -1,0 +1,129 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ makeCodeWalker@Prom(1)0[0x561664379550]                                      │
+│ Context: CorrOrd,!TMany                                                      │
+│ Properties:                                                                  │
+├────── PIR Version After Optimizations
+makeCodeWalker@Prom(1)0[0x561664379550]
+BB0
+  goto BB1
+BB1   <- [0]
+  val?^ | miss    %1.0  = LdArg                    1
+  val?^ | miss    %1.1  = LdArg                    0
+  cp              %1.2  = Checkpoint                -> BB2 (default) | BB17 (if assume failed)
+BB2   <- [1]
+  val?^ | miss    %2.0  = LdVar              eR    as.list, ?
+  lgl$#-          %2.1  = Identical                %2.0, function(x, ...) <(rir::DispatchTable*)0x56166|...
+  void                    Assume             D     %2.1, %1.2 (CallTarget@0x561663804658[Call#0])
+  val?^           %2.3  = ChkMissing         e     %1.1
+  env             e2.4  = MkEnv              l     e=%1.1, w=%1.0, parent=?, context 1
+  val?            %2.5  = Force!<lazy>       !v    %2.3, e2.4   <code->
+  val?            %2.6  = StaticCall         !v    as.list[0x5616648615f0](%2.5) { 0 } e2.4   <vec+>
+  cp              %2.7  = Checkpoint                -> BB4 (default) | BB3 (if assume failed)
+BB17   <- [1]
+  env             e17.0 = (MkEnv)            l     e=%1.1, w=%1.0, parent=?, context 1
+  fs              %17.1 = FrameState         R     0x5616636fd930+0: [], env=e17.0
+  void                    Deopt              !v    %17.1
+BB4   <- [2]
+  val?+           %4.0  = ToForSeq           e     %2.6
+  int$-           %4.1  = Length                   %4.0
+  int$-           %4.2  = Inc                      0L
+  lgl$-           %4.3  = Lt                 d     %4.1, %4.2, elided   <false>
+  lgl$#-          %4.4  = Identical                %4.3, true
+  void                    AssumeNot          D     %4.4, %2.7 (DeadBranchReached@0x561663804658[Test#0])
+  val?            %4.6  = Extract2_1D        wed   %4.0, %4.2, elided
+  void                    StVar              lW    ee, %4.6, e2.4
+  cp              %4.8  = Checkpoint                -> BB6 (default) | BB5 (if assume failed)
+BB3   <- [2]
+  fs              %3.0  = FrameState         R     0x5616636fd930+32: [%2.6], env=e2.4
+  void                    Deopt              !v    %3.0   !
+BB6   <- [4]
+  lgl$-           %6.0  = Missing            eR    ee, e2.4
+  lgl$-           %6.1  = Not                d     %6.0, elided
+  lgl$#-          %6.2  = CheckTrueFalse     e     %6.1
+  void                    Branch                   %6.2 -> BB16 (if true) | BB7 (if false)
+BB5   <- [4]
+  fs              %5.0  = FrameState         R     0x5616636fd930+77: [%4.0, %4.1, %4.2], env=e2.4
+  void                    Deopt              !v    %5.0   !
+BB16   <- [6]
+  val?^ | miss    %16.0 = LdVar              eR    walkCode, e2.4
+  lgl$#-          %16.1 = Identical                %16.0, function(e, w=makeCodeWalker()) <(rir::Dispatc|...
+  void                    Assume             D     %16.1, %4.8 (CallTarget@0x561663804658[Call#1])
+  prom-           %16.3 = MkArg                    unboundValue, makeCodeWalker@Prom(1)0[0x561664379550]_p4 (!refl), e2.4
+  prom-           %16.4 = MkArg                    unboundValue, makeCodeWalker@Prom(1)0[0x561664379550]_p5, e2.4
+  val?            %16.5 = StaticCall         !v    walkCode[0x5616612c8050](%16.3, %16.4) e2.4
+  goto BB8
+BB7   <- [6]
+  goto BB8
+BB8   <- [7, 16, 13]
+  int$-           %8.0  = Phi                      %4.2:BB7, %8.1:BB13, %4.2:BB16
+  int$-           %8.1  = Inc                      %8.0
+  lgl$-           %8.2  = Lt                 d     %4.1, %8.1, elided
+  lgl$#-          %8.3  = Identical                %8.2, true
+  void                    Branch                   %8.3 -> BB15 (if true) | BB9 (if false)
+BB15   <- [8]
+  void                    Invisible          v     
+  void                    Return             l     nil
+BB9   <- [8]
+  val?            %9.0  = Extract2_1D        wed   %4.0, %8.1, elided
+  void                    StVar              lW    ee, %9.0, e2.4
+  cp              %9.2  = Checkpoint                -> BB11 (default) | BB10 (if assume failed)
+BB11   <- [9]
+  lgl$-           %11.0 = Missing            eR    ee, e2.4
+  lgl$-           %11.1 = Not                d     %11.0, elided
+  lgl$#-          %11.2 = CheckTrueFalse     e     %11.1
+  void                    Branch                   %11.2 -> BB14 (if true) | BB12 (if false)
+BB10   <- [9]
+  fs              %10.0 = FrameState         R     0x5616636fd930+162: [%4.0, %4.1, %8.1], env=e2.4
+  void                    Deopt              !v    %10.0   !
+BB14   <- [11]
+  val?^ | miss    %14.0 = LdVar              eR    walkCode, e2.4
+  lgl$#-          %14.1 = Identical                %14.0, function(e, w=makeCodeWalker()) <(rir::Dispatc|...
+  void                    Assume             D     %14.1, %9.2 (CallTarget@0x561663804658[Call#2])
+  prom-           %14.3 = MkArg                    unboundValue, makeCodeWalker@Prom(1)0[0x561664379550]_p2 (!refl), e2.4
+  prom-           %14.4 = MkArg                    unboundValue, makeCodeWalker@Prom(1)0[0x561664379550]_p3, e2.4
+  val?            %14.5 = StaticCall         !v    walkCode[0x5616612c8050](%14.3, %14.4) e2.4
+  goto BB13
+BB12   <- [11]
+  goto BB13
+BB13   <- [12, 14]
+  goto BB8
+Prom 2:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    ee, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<value>       !     %1.1, e1.0   <val?->
+  void                    Return             l     %1.3
+Prom 3:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    w, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<wrapped>     !     %1.1, e1.0   <vec+>
+  void                    Return             l     %1.3
+Prom 4:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    ee, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<value>       !     %1.1, e1.0   <(sym|code)->
+  void                    Return             l     %1.3
+Prom 5:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    w, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<lazy>        !     %1.1, e1.0   <vec+>
+  void                    Return             l     %1.3
+
+│ makeCodeWalker@Prom(1)0[0x561664379550]                                      │
+└──────────────────────────────────────────────────────────────────────────────┘

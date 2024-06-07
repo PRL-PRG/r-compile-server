@@ -17,6 +17,21 @@ import org.prlprg.sexp.SEXPs;
 public record BuiltinId(int index) {
   // region global builtins
   public static BuiltinId PRINT_VALUE = new BuiltinId(12345);
+  public static BuiltinId DOLLAR = new BuiltinId(23456);
+  public static BuiltinId DOLLAR_GETS = new BuiltinId(34567);
+  public static BuiltinId DOT_CALL = new BuiltinId(45678);
+  public static BuiltinId SEQ_ALONG = new BuiltinId(56789);
+  public static BuiltinId SEQ_LEN = new BuiltinId(67890);
+  public static BuiltinId EVAL = new BuiltinId(78901);
+  public static BuiltinId SUBSET = new BuiltinId(89012);
+  public static BuiltinId SUBASSIGN = new BuiltinId(90123);
+  public static BuiltinId C = new BuiltinId(11234);
+  public static BuiltinId SUBSET2 = new BuiltinId(22345);
+  public static BuiltinId SUBASSIGN2 = new BuiltinId(33456);
+  public static BuiltinId SUBSETN = new BuiltinId(44567);
+  public static BuiltinId SUBASSIGNN = new BuiltinId(55678);
+  public static BuiltinId SUBSET2N = new BuiltinId(66789);
+  public static BuiltinId SUBASSIGN2N = new BuiltinId(77890);
 
   // endregion
 

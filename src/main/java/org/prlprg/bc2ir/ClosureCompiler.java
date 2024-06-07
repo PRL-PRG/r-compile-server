@@ -1,6 +1,139 @@
 package org.prlprg.bc2ir;
 
+import static org.prlprg.bc2ir.CFGCompiler.compileCFG;
+import static org.prlprg.bc2ir.PropertiesComputer.computeClosureVersionProperties;
+import static org.prlprg.bc2ir.PropertiesComputer.computePromiseProperties;
+
+import org.prlprg.RSession;
+import org.prlprg.bc.Compiler;
+import org.prlprg.ir.cfg.CFG;
+import org.prlprg.ir.cfg.IsEnv;
+import org.prlprg.ir.cfg.RValue;
+import org.prlprg.ir.cfg.StaticEnv;
+import org.prlprg.ir.closure.Closure;
+import org.prlprg.ir.closure.ClosureVersion;
+import org.prlprg.ir.closure.Promise;
+import org.prlprg.sexp.BCodeSXP;
+import org.prlprg.sexp.CloSXP;
+import org.prlprg.sexp.SEXP;
+import org.prlprg.sexp.SEXPs;
+
 /**
- * Stores data to compile {@link org.prlprg.sexp.CloSXP} into {@link org.prlprg.ir.closure.Closure}
+ * Stores data to compile a {@linkplain CloSXP closure SEXP} into an {@linkplain org.prlprg.ir IR}
+ * {@linkplain Closure closure}.
  */
-public class ClosureCompiler {}
+public class ClosureCompiler {
+  /**
+   * {@link #compileBaselineClosure(CloSXP, RValue, String)} with an {@linkplain
+   * StaticEnv#NOT_CLOSED unclosed} environment (not an inner closure).
+   */
+  public static Closure compileBaselineClosure(CloSXP sexp, String name) {
+    return compileBaselineClosure(sexp, StaticEnv.NOT_CLOSED, name);
+  }
+
+  /**
+   * Compile a {@linkplain CloSXP closure SEXP} into an {@linkplain org.prlprg.ir IR} {@linkplain
+   * Closure closure} with only a baseline version.
+   *
+   * @param env The closure's environment. This is {@linkplain StaticEnv#NOT_CLOSED unclosed} unless
+   *     it's an inner closure (from {@link org.prlprg.ir.cfg.StmtData.MkCls MkCls}), in which case
+   *     it's the outer closure's environment.
+   * @param name A name for debugging. Typically the variable it was assigned to if known. "" is
+   *     acceptable.
+   * @throws IllegalArgumentException If the closure's body isn't bytecode (in this case, you must
+   *     use a {@link org.prlprg.bc.Compiler} to compile it before calling this).
+   * @throws IllegalArgumentException If {@code env} isn't statically known to be an environment.
+   * @throws org.prlprg.bc2ir.CFGCompilerUnsupportedBcException If the closure can't be compiled
+   *     because it does something complex which the compiler doesn't support yet.
+   */
+  public static Closure compileBaselineClosure(CloSXP sexp, @IsEnv RValue env, String name) {
+    return compileBaselineClosure(sexp, env, name, new Module());
+  }
+
+  /**
+   * {@link #compileBaselineClosure(CloSXP, RValue, String, Module)} with an {@linkplain
+   * StaticEnv#NOT_CLOSED unclosed} environment (not an inner closure).
+   */
+  public static Closure compileBaselineClosure(CloSXP sexp, String name, Module module) {
+    return compileBaselineClosure(sexp, StaticEnv.NOT_CLOSED, name, module);
+  }
+
+  /**
+   * Compile a {@linkplain CloSXP closure SEXP} into an {@linkplain org.prlprg.ir IR} {@linkplain
+   * Closure closure} with only a baseline version, in the given module.
+   *
+   * <p>If the closure's body is an AST, if the module is running an {@linkplain RSession R
+   * session}, this will attempt to compile into bytecode. If the module doesn't have a session or
+   * the AST can't be converted (it calls the browser function), this will throw {@link
+   * UnsupportedOperationException}.
+   *
+   * @param env The closure's environment. This is {@linkplain StaticEnv#NOT_CLOSED unclosed} unless
+   *     it's an inner closure (from {@link org.prlprg.ir.cfg.StmtData.MkCls MkCls}), in which case
+   *     it's the outer closure's environment.
+   * @param name A name for debugging. Typically the variable it was assigned to if known. "" is
+   *     acceptable.
+   * @throws IllegalArgumentException If the closure's body isn't bytecode (in this case, you must
+   *     use a {@link org.prlprg.bc.Compiler} to compile it before calling this).
+   * @throws IllegalArgumentException If {@code env} isn't statically known to be an environment.
+   * @throws org.prlprg.bc2ir.CFGCompilerUnsupportedBcException If the closure can't be compiled
+   *     because it does something complex which the compiler doesn't support yet.
+   */
+  public static Closure compileBaselineClosure(
+      CloSXP sexp, @IsEnv RValue env, String name, Module module) {
+    if (!(sexp.body() instanceof BCodeSXP)) {
+      var rSession = module.serverRSession();
+      if (rSession == null) {
+        throw new UnsupportedOperationException(
+            "Can't compile an AST closure without a GNU-R session");
+      }
+
+      var bc =
+          new Compiler(sexp, rSession)
+              .compile()
+              .orElseThrow(
+                  () ->
+                      new UnsupportedOperationException(
+                          "Can't compile a closure with a browser call"));
+
+      sexp = SEXPs.closure(sexp.parameters(), SEXPs.bcode(bc), sexp.env(), sexp.attributes());
+    }
+
+    var closure = new Closure(sexp, env, name);
+    compileVersion(closure.baselineVersion(), module);
+    return closure;
+  }
+
+  /**
+   * Compile the given version: fill its body, promises, and properties.
+   *
+   * @throws IllegalArgumentException If the given version has a non-empty body, promises, or
+   *     properties.
+   */
+  private static void compileVersion(ClosureVersion version, Module module) {
+    if (!version.body().isEmpty() || !version.properties().isEmpty()) {
+      throw new IllegalArgumentException("Version must be empty before compiling");
+    }
+
+    compileCFG(version.closure().bc(), version.body(), false, module);
+    version.setProperties(computeClosureVersionProperties(version.body()));
+  }
+
+  /**
+   * Compile the promise whose GNU-R AST or bytecode is the given SEXP, has the given environment,
+   * and do this in the given module.
+   *
+   * @throws UnsupportedOperationException If the promise code is an AST.
+   */
+  static Promise compilePromise(SEXP promiseCodeSexp, @IsEnv RValue env, Module module) {
+    if (!(promiseCodeSexp instanceof BCodeSXP promiseBcSexp)) {
+      throw new UnsupportedOperationException("Can't compile a promise whose body is an AST");
+    }
+    var promiseBc = promiseBcSexp.bc();
+
+    // compilePromise(Bc, @IsEnv RValue, Module)
+    var cfg = new CFG();
+    compileCFG(promiseBc, cfg, true, module);
+    var properties = computePromiseProperties(cfg);
+    return new Promise(promiseBc, cfg, env, properties);
+  }
+}

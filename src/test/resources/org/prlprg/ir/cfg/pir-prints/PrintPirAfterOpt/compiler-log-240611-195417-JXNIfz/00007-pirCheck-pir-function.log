@@ -1,0 +1,35 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ pirCheck[0x55cbf47e7850]                                                     │
+│ Context: CorrOrd,!TMany                                                      │
+│ Properties:  Eager                                                           │
+├────── PIR Version After Optimizations
+pirCheck[0x55cbf47e7850]
+BB0
+  goto BB1
+BB1   <- [0]
+  cp              %1.0  = Checkpoint                -> BB2 (default) | BB6 (if assume failed)
+BB2   <- [1]
+  val?^ | miss    %2.0  = LdVar              eR    vector, R_GlobalEnv
+  lgl$#-          %2.1  = Identical                %2.0, function(mode="logical", length=0L) <(rir::Dis|...
+  void                    Assume             D     %2.1, %1.0 (CallTarget@0x55cbf3d9f208[Call#0])
+  int-            %2.3  = CallSafeBuiltin    wed   vector("integer", 0) 
+  goto BB3
+BB6   <- [1]
+  env             e6.0  = (MkEnv)            l     j=0, parent=R_GlobalEnv, context 1
+  fs              %6.1  = FrameState         R     0x55cbf46eba80+15: [], env=e6.0
+  void                    Deopt              !v    %6.1
+BB3   <- [2, 5]
+  real$#-         %3.0  = Phi                      1:BB2, %5.1:BB5
+  lgl$#-          %3.1  = Lt                 d     %3.0, 2, elided   <lgl$->
+  void                    Branch                   %3.1 -> BB5 (if true) | BB4 (if false)
+BB5   <- [3]
+  int-            %5.0  = CallSafeBuiltin    wed   vector("integer", 0) 
+  real$#-         %5.1  = Add                d     %3.0, 1, elided   <real$->
+  goto BB3
+BB4   <- [3]
+  void                    Invisible          v     
+  void                    Return             l     nil
+
+│ pirCheck[0x55cbf47e7850]                                                     │
+└──────────────────────────────────────────────────────────────────────────────┘

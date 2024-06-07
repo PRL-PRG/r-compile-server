@@ -1,0 +1,138 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ .getMethodsTable[0x55fa15313ef0]                                             │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;Eager2,Eager3,NonRefl2,NonRefl3,!Obj2,!Obj3│
+│ Properties:                                                                  │
+├────── Final PIR Version
+.getMethodsTable[0x55fa15313ef0]
+BB0
+  val?~+          %0.0  = LdArg                    3
+  val?~+          %0.1  = LdArg                    2
+  val?^           %0.2  = LdArg                    1
+  val?^           %0.3  = LdArg                    0
+  val+            %0.4  = Force<lazy>              %0.0,    <lgl$->
+  lgl$#-          %0.5  = IsType                   %0.4 isA lgl$-
+  void                    Branch                   %0.5 -> BB18 (if true) | BB19 (if false)
+BB18   <- [0]
+  lgl$-           %18.0 = CastType           d     dn %0.4
+  lgl$#-          %18.1 = CheckTrueFalse     e     %18.0
+  env             e18.2 = MkEnv              l     fdef=%0.3, env=%0.2, check=%0.1, inherited=%0.0, parent=<env 0x55fa0b35b378>, context 1
+  void                    Branch                   %18.1 -> BB16 (if true) | BB3 (if false)
+BB19   <- [0]
+  env             e19.0 = (MkEnv)            l     fdef=%0.3, env=%0.2, check=%0.1, inherited=%0.0, parent=<env 0x55fa0b35b378>, context 1
+  fs              %19.1 = FrameState         R     0x55fa0d011c40+0: [], env=e19.0
+  void                    Deopt              !v    %19.1, Typecheck@0x55fa0e6c7680[Type#2], %0.4
+BB16   <- [18]
+  void                    Nop                !     
+  str$#-          %16.1 = ".AllMTable"
+  goto BB4
+BB3   <- [18]
+  void                    Nop                !     
+  str$#-          %3.1  = ".MTable"
+  goto BB4
+BB4   <- [3, 16]
+  str$#-          %4.0  = Phi                      %3.1:BB3, %16.1:BB16
+  str$#-          %4.1  = %4.0
+  void                    StVar              lW    name, %4.1, e18.2
+  void                    Visible            v     
+  val+            %4.4  = Force!<lazy>             %0.1,    <lgl$->
+  lgl$#-          %4.5  = IsType                   %4.4 isA lgl$-
+  void                    Branch                   %4.5 -> BB20 (if true) | BB21 (if false)
+BB20   <- [4]
+  lgl$-           %20.0 = CastType           d     dn %4.4
+  lgl$-           %20.1 = AsLogical                %20.0
+  lgl$#-          %20.2 = Identical                %20.1, false
+  void                    Branch                   %20.2 -> BB15 (if true) | BB7 (if false)
+BB21   <- [4]
+  void                    Nop                !     
+  val+            %21.1 = %4.4
+  dr              %21.2 = Typecheck@0x55fa0e6c7680[Type#3]
+  goto BB5
+BB15   <- [20]
+  void                    Nop                !     
+  lgl$-           %15.1 = %20.1
+  goto BB10
+BB7   <- [20]
+  val?^ | miss    %7.0  = LdVar              eR    exists, <env 0x55fa0b35b378>
+  lgl$#-          %7.1  = Identical                %7.0, function(x, where=-(1), envir=if(missing(frame|...
+  void                    Branch                   %7.1 -> BB22 (if true) | BB23 (if false)
+BB5   <- [21, 23]
+  val?^ | miss    %5.0  = Phi                      %21.1:BB21, %23.1:BB23
+  val?^ | miss    %5.1  = %5.0
+  dr              %5.2  = Phi                      %21.2:BB21, %23.2:BB23
+  dr              %5.3  = %5.2
+  fs              %5.4  = FrameState         R     0x55fa0d011c40+46: [], env=e18.2
+  void                    Deopt              !v    %5.4, %5.3, %5.1
+BB10   <- [15, 26]
+  lgl$-           %10.0 = Phi                      %26.4:BB26, %15.1:BB15
+  lgl$-           %10.1 = %10.0
+  lgl$#-          %10.2 = CheckTrueFalse     e     %10.1
+  void                    Branch                   %10.2 -> BB14 (if true) | BB13 (if false)
+BB22   <- [7]
+  prom-           %22.0 = MkArg                    unboundValue, .getMethodsTable[0x55fa15313ef0]_p0 (!refl), e18.2
+  prom-           %22.1 = MkArg                    unboundValue, .getMethodsTable[0x55fa15313ef0]_p1, e18.2
+  val?            %22.2 = StaticCall         !     exists[0x55fa12d32c10](%22.0, missingArg, %22.1, missingArg, missingArg, false) { 0 2n 5n } e18.2   <lgl$->
+  lgl$#-          %22.3 = IsType                   %22.2 isA lgl$-
+  void                    Branch                   %22.3 -> BB26 (if true) | BB27 (if false)
+BB23   <- [7]
+  void                    Nop                !     
+  val?^ | miss    %23.1 = %7.0
+  dr              %23.2 = CallTarget@0x55fa0e6c7680[Call#1]
+  goto BB5
+BB14   <- [10]
+  (cls|spec|blt)  %14.0 = LdFun              !v    .setupMethodsTables, e18.2
+  fs              %14.1 = FrameState         R     0x55fa0d011c40+145: [%14.0], env=e18.2
+  void                    Deopt              !v    %14.1, DeadCall@0x55fa0e6c7680[Call#2], %14.0   !
+BB13   <- [10]
+  val?^ | miss    %13.0 = LdVar              eR    get, e18.2
+  lgl$#-          %13.1 = Identical                %13.0, function(x, pos=-(1L), envir=as.environment(po|...
+  void                    Branch                   %13.1 -> BB24 (if true) | BB25 (if false)
+BB26   <- [22]
+  lgl$-           %26.0 = CastType           d     dn %22.2
+  lgl$-           %26.1 = Not                vd    %26.0, elided
+  lgl$-           %26.2 = AsLogical                %26.1
+  lgl$-           %26.3 = LAnd                     %20.1, %26.2
+  lgl$-           %26.4 = %26.3
+  goto BB10
+BB27   <- [22]
+  fs              %27.0 = FrameState         R     0x55fa0d011c40+121: [%20.1, %22.2], env=e18.2
+  void                    Deopt              !v    %27.0, Typecheck@0x55fa0e6c7680[Type#6], %22.2   !
+BB24   <- [13]
+  prom-           %24.0 = MkArg                    unboundValue, .getMethodsTable[0x55fa15313ef0]_p2, e18.2
+  prom-           %24.1 = MkArg                    unboundValue, .getMethodsTable[0x55fa15313ef0]_p3, e18.2
+  val?            %24.2 = StaticCall         !     get[0x55fa1776ad10](%24.0, missingArg, %24.1) { 0 2n } e18.2   <env->
+  void                    Return             l     %24.2
+BB25   <- [13]
+  fs              %25.0 = FrameState         R     0x55fa0d011c40+129: [%10.1], env=e18.2
+  void                    Deopt              !v    %25.0, CallTarget@0x55fa0e6c7680[Call#5], %13.0   !
+Prom 0:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    name, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<value>       !     %0.1, e0.0   <str$->
+  void                    Return             l     %0.3
+Prom 1:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    env, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <env->
+  void                    Return             l     %0.3
+Prom 2:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    name, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<value>       !     %0.1, e0.0   <str$->
+  void                    Return             l     %0.3
+Prom 3:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    env, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<wrapped>     !     %0.1, e0.0   <env->
+  void                    Return             l     %0.3
+
+│ .getMethodsTable[0x55fa15313ef0]                                             │
+└──────────────────────────────────────────────────────────────────────────────┘

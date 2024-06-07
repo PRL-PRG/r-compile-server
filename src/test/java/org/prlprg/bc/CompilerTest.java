@@ -2,11 +2,8 @@ package org.prlprg.bc;
 
 import static com.google.common.truth.Truth.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.fail;
 
 import com.google.common.collect.Streams;
-import java.io.File;
-import java.io.IOException;
 import java.util.List;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
@@ -17,11 +14,8 @@ import org.prlprg.sexp.BCodeSXP;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.LangSXP;
 import org.prlprg.sexp.RealSXP;
-import org.prlprg.sexp.SEXP;
-import org.prlprg.sexp.SEXPs;
 import org.prlprg.sexp.StrSXP;
 import org.prlprg.util.AbstractGNURBasedTest;
-import org.prlprg.util.Files;
 import org.prlprg.util.Tests;
 
 public class CompilerTest extends AbstractGNURBasedTest implements Tests {
@@ -613,7 +607,7 @@ public class CompilerTest extends AbstractGNURBasedTest implements Tests {
         """
             function(x) c(i = 1, d = 1, s = 1)
             """;
-    var sexp = compile(code, 3);
+    var sexp = compileBody(code, 3);
     var bc = ((BCodeSXP) sexp).bc();
     // FIXME: use some matchers
     var i = (BcInstr.LdConst) bc.code().getFirst();
@@ -641,13 +635,13 @@ public class CompilerTest extends AbstractGNURBasedTest implements Tests {
               2 * 3 * x
             }
             """;
-    var sexp = compile(code, 2);
+    var sexp = compileBody(code, 2);
     var bc = ((BCodeSXP) sexp).bc();
     // FIXME: use some matchers
     var i = (BcInstr.LdConst) bc.code().getFirst();
     var v = ((RealSXP) bc.consts().get(i.constant()));
     assertEquals(1, v.size());
-    assertEquals(6, v.get(0));
+    assertEquals(6.0, v.get(0));
     assertBytecode(code);
   }
 
@@ -657,14 +651,14 @@ public class CompilerTest extends AbstractGNURBasedTest implements Tests {
         """
             function(x) 1 + 2
             """;
-    var sexp = compile(code, 3);
+    var sexp = compileBody(code, 3);
     var bc = ((BCodeSXP) sexp).bc();
 
     // FIXME: use some matchers
     var i = (BcInstr.LdConst) bc.code().getFirst();
     var v = ((RealSXP) bc.consts().get(i.constant()));
     assertEquals(1, v.size());
-    assertEquals(3, v.get(0));
+    assertEquals(3.0, v.get(0));
   }
 
   @Test
@@ -673,14 +667,14 @@ public class CompilerTest extends AbstractGNURBasedTest implements Tests {
         """
             function(x) TRUE + c(10, 11)
             """;
-    var sexp = compile(code, 3);
+    var sexp = compileBody(code, 3);
     var bc = ((BCodeSXP) sexp).bc();
     // FIXME: use some matchers
     var i = (BcInstr.LdConst) bc.code().getFirst();
     var v = ((RealSXP) bc.consts().get(i.constant()));
     assertEquals(2, v.size());
-    assertEquals(11, v.get(0));
-    assertEquals(12, v.get(1));
+    assertEquals(11.0, v.get(0));
+    assertEquals(12.0, v.get(1));
   }
 
   @ParameterizedTest
@@ -713,64 +707,5 @@ public class CompilerTest extends AbstractGNURBasedTest implements Tests {
 
   private void assertBytecode(String code) {
     assertBytecode(code, 2);
-  }
-
-  private void assertBytecode(String funCode, int optimizationLevel) {
-    File temp;
-    try {
-      temp = File.createTempFile("R-snapshot", ".R");
-      Files.writeString(temp.toPath(), funCode);
-    } catch (IOException e) {
-      throw new RuntimeException(e);
-    }
-
-    String code =
-        "parse(file = '"
-            + temp.getAbsolutePath()
-            + "', keep.source = TRUE)"
-            + " |> eval()"
-            + " |> compiler::cmpfun(options = list(optimize="
-            + optimizationLevel
-            + "))";
-
-    var gnurFun = (CloSXP) R.eval(code);
-    var astFun =
-        SEXPs.closure(gnurFun.formals(), gnurFun.bodyAST(), gnurFun.env(), gnurFun.attributes());
-
-    // if a function calls browser() it won't be compiled into bytecode
-    if (gnurFun.body() instanceof BCodeSXP gnurBc) {
-      var ourBody = compile(astFun, optimizationLevel);
-
-      if (ourBody instanceof BCodeSXP ourBc) {
-        var eq = gnurBc.equals(ourBc);
-
-        if (!eq) {
-          // bytecode can be large, so we only want to do it when it is different
-          assertEquals(
-              gnurBc.toString(), ourBc.toString(), "`compile(read(ast)) == read(R.compile(ast))`");
-          fail("Produced bytecode is different, but the toString() representation is the same.");
-        }
-      } else {
-        assertEquals(gnurBc.toString(), ourBody.toString());
-      }
-    } else {
-      var ourBody = compile(astFun, optimizationLevel);
-
-      if (ourBody instanceof BCodeSXP ourBc) {
-        assertEquals(astFun.body().toString(), ourBc.toString());
-      } else {
-        assertEquals(astFun.body(), ourBody);
-      }
-    }
-  }
-
-  private SEXP compile(String fun, int optimizationLevel) {
-    return compile((CloSXP) R.eval(fun), optimizationLevel);
-  }
-
-  private SEXP compile(CloSXP fun, int optimizationLevel) {
-    var compiler = new Compiler(fun, rsession);
-    compiler.setOptimizationLevel(optimizationLevel);
-    return compiler.compile().<SEXP>map(SEXPs::bcode).orElse(fun.body());
   }
 }

@@ -43,7 +43,7 @@ public class ContextTest extends AbstractGNURBasedTest {
                                         """);
 
     var ctx = Context.functionContext(fun);
-    assertThat(ctx.findLocals(fun.formals())).containsExactly("x");
+    assertThat(ctx.findLocals(fun.parameters())).containsExactly("x");
   }
 
   @Test
@@ -61,7 +61,7 @@ public class ContextTest extends AbstractGNURBasedTest {
 
     var ctx = Context.functionContext(fun);
     var locals = new HashSet<>();
-    locals.addAll(ctx.findLocals(fun.formals()));
+    locals.addAll(ctx.findLocals(fun.parameters()));
     locals.addAll(ctx.findLocals(fun.bodyAST()));
     assertThat(locals).containsExactly("local", "x");
   }

@@ -1,0 +1,47 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ suppressVar[0x5616619c2000]                                                  │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch                                      │
+│ Properties:                                                                  │
+├────── PIR Version After Optimizations
+suppressVar[0x5616619c2000]
+BB0
+  goto BB1
+BB1   <- [0]
+  val?^           %1.0  = LdArg                    1
+  val?^           %1.1  = LdArg                    0
+  cp              %1.2  = Checkpoint                -> BB2 (default) | BB8 (if assume failed)
+BB2   <- [1]
+  val?^ | miss    %2.0  = LdVar              eR    is.logical, <env 0x56166328f230>
+  lgl$#-          %2.1  = Identical                <blt is.logical>, %2.0   <true>
+  void                    Assume             D     %2.1, %1.2 (DeadBranchReached@0x561663a175b8[Test#0])
+  env             e2.3  = (MkEnv)            l     n=%1.1, suppress=%1.0, parent=<env 0x56166328f230>, context 1
+  val?            %2.4  = Force!<lazy>       !vL   %1.0, e2.3   <lgl$->
+  lgl$#-          %2.5  = IsType                   %2.4 isA lgl$-
+  cp              %2.6  = Checkpoint                -> BB4 (default) | BB3 (if assume failed)
+BB8   <- [1]
+  env             e8.0  = (MkEnv)            l     n=%1.1, suppress=%1.0, parent=<env 0x56166328f230>, context 1
+  fs              %8.1  = FrameState         R     0x5616635151d0+0: [], env=e8.0
+  void                    Deopt              !v    %8.1   !
+BB4   <- [2]
+  void                    Assume             D     %2.5, %2.6 (Typecheck@0x561663a175b8[Type#1])
+  lgl$-           %4.1  = CastType           d     dn %2.4
+  lgl$#-          %4.2  = IsEnvStub          R     , e2.3
+  void                    Assume             D     %4.2, %2.6 (EnvStubMaterialized@0x561663a175b8[Call#unknown])
+  lgl$#-          %4.4  = CheckTrueFalse     e     %4.1
+  void                    Branch                   %4.4 -> BB7 (if true) | BB5 (if false)
+BB3   <- [2]
+  fs              %3.0  = FrameState         R     0x5616635151d0+69: [<blt is.logical>, %2.4], env=e2.3
+  void                    Deopt              !v    %3.0   !
+BB7   <- [4]
+  void                    Visible            v     
+  goto BB6
+BB5   <- [4]
+  void                    Visible            v     
+  goto BB6
+BB6   <- [5, 7]
+  lgl$#-          %6.0  = Phi                      false:BB5, true:BB7
+  void                    Return             l     %6.0
+
+│ suppressVar[0x5616619c2000]                                                  │
+└──────────────────────────────────────────────────────────────────────────────┘

@@ -1,0 +1,156 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ t1[0x55d9e9db5c10]                                                           │
+│ Context: CorrOrd,!TMany                                                      │
+│ Properties:  Eager, ForceOrd: 0                                              │
+├────── PIR Version After Optimizations
+t1[0x55d9e9db5c10]
+BB0
+  goto BB1
+BB1   <- [0]
+  val?^ | miss    %1.0  = LdArg                    0
+  val?^           %1.1  = ChkMissing         e     %1.0
+  env             e1.2  = MkEnv              l     x=%1.0, s="", parent=R_GlobalEnv, context 1
+  val?            %1.3  = Force!             !v    %1.1, e1.2   <val?_>
+  lgl$#-          %1.4  = ColonInputEffects  we    1, %1.3   <@?>
+  cp              %1.5  = Checkpoint                -> BB2 (default) | BB15 (if assume failed)
+BB2   <- [1]
+  void                    Branch                   %1.4 -> BB5 (if true) | BB3 (if false)
+BB15   <- [1]
+  fs              %15.0 = FrameState         R     0x55d9e9e2d2a0+38: [1, %1.3, %1.4], env=e1.2
+  void                    Deopt              !v    %15.0   !
+BB5   <- [2]
+  int$#-          %5.0  = ColonCastRhs       e     1L, %1.3   <val?_>
+  lgl$#-          %5.1  = Lte                d     1L, %5.0, elided   <@?>
+  void                    Branch                   %5.1 -> BB14 (if true) | BB6 (if false)
+BB3   <- [2]
+  lgl$#-          %3.0  = IsType                   %1.3 isA val?+
+  void                    Assume             D     %3.0, %1.5 (Typecheck@0x55d9e94b2918[Type#0])
+  val?+           %3.2  = CastType           d     dn %1.3   <val?_>
+  (int|real|complex)+ %3.3  = Colon              wed   1L, %3.2, elided
+  (cls|spec|blt)  %3.4  = LdFun              !v    for, e1.2
+  prom-           %3.5  = MkArg                    %3.3, t1[0x55d9e9db5c10]_p0 (!refl), e1.2
+  prom-           %3.6  = MkArg                    unboundValue, t1[0x55d9e9db5c10]_p1, e1.2
+  val?            %3.7  = Call               !v    %3.4(%3.5, %3.6) e1.2
+  goto BB4
+BB14   <- [5]
+  goto BB7
+BB6   <- [5]
+  goto BB7
+BB4   <- [3, 9]
+  val?^ | miss    %4.0  = LdVar              eR    s, e1.2
+  void                    Visible            v     
+  val?            %4.2  = Force!             !     %4.0, e1.2   <val?_>
+  void                    Return             l     %4.2
+BB7   <- [14, 6]
+  int$#-          %7.0  = Phi                      1L:BB14, -1L:BB6
+  lgl$#-          %7.1  = Neq                d     %5.0, 1L, elided   <@?>
+  void                    Branch                   %7.1 -> BB10 (if true) | BB8 (if false)
+BB10   <- [7]
+  void                    StVar              lW    i, 1L, e1.2
+  int$-           %10.1 = Add                d     1L, %7.0, elided
+  (cls|spec|blt)  %10.2 = LdFun              !v    cat, e1.2
+  prom-           %10.3 = MkArg                    unboundValue, t1[0x55d9e9db5c10]_p4, e1.2
+  prom-           %10.4 = MkArg                    unboundValue, t1[0x55d9e9db5c10]_p5, e1.2
+  val?            %10.5 = Call               !v    %10.2(%10.3, " ", %10.4) e1.2   <val?_>
+  void                    StVar              lW    s, %10.5, e1.2
+  goto BB11
+BB8   <- [7]
+  goto BB9
+BB11   <- [10, 12]
+  int$-           %11.0 = Phi                      %10.1:BB10, %12.1:BB12
+  lgl$-           %11.1 = Neq                d     %5.0, %11.0, elided
+  lgl$#-          %11.2 = Identical                %11.1, false
+  void                    Branch                   %11.2 -> BB13 (if true) | BB12 (if false)
+BB9   <- [13, 8]
+  goto BB4
+BB13   <- [11]
+  goto BB9
+BB12   <- [11]
+  void                    StVar              lW    i, %11.0, e1.2
+  int$-           %12.1 = Add                d     %11.0, %7.0, elided
+  (cls|spec|blt)  %12.2 = LdFun              !v    cat, e1.2
+  prom-           %12.3 = MkArg                    unboundValue, t1[0x55d9e9db5c10]_p6, e1.2
+  prom-           %12.4 = MkArg                    unboundValue, t1[0x55d9e9db5c10]_p7, e1.2
+  val?            %12.5 = Call               !v    %12.2(%12.3, " ", %12.4) e1.2   <val?_>
+  void                    StVar              lW    s, %12.5, e1.2
+  goto BB11
+Prom 0:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    x, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force              !     %1.1, e1.0   <val?_>
+  val?            %1.4  = Colon              !     1L, %1.3, e1.0   <val?_>
+  void                    Return             l     %1.4
+Prom 1:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  (cls|spec|blt)  %1.1  = LdFun              !v    cat, e1.0
+  prom-           %1.2  = MkArg                    unboundValue, t1[0x55d9e9db5c10]_p2, e1.0
+  prom-           %1.3  = MkArg                    unboundValue, t1[0x55d9e9db5c10]_p3, e1.0
+  val?            %1.4  = Call               !v    %1.1(%1.2, " ", %1.3) e1.0   <val?_>
+  void                    Invisible          v     
+  void                    StVar              lW    s, %1.4, e1.0
+  void                    Return             l     %1.4
+Prom 2:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    i, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force              !     %1.1, e1.0   <val?_>
+  void                    Return             l     %1.3
+Prom 3:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    s, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force              !     %1.1, e1.0   <val?_>
+  void                    Return             l     %1.3
+Prom 4:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    i, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force              !     %1.1, e1.0   <val?_>
+  void                    Return             l     %1.3
+Prom 5:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    s, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force              !     %1.1, e1.0   <val?_>
+  void                    Return             l     %1.3
+Prom 6:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    i, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force              !     %1.1, e1.0   <val?_>
+  void                    Return             l     %1.3
+Prom 7:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    s, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force              !     %1.1, e1.0   <val?_>
+  void                    Return             l     %1.3
+
+│ t1[0x55d9e9db5c10]                                                           │
+└──────────────────────────────────────────────────────────────────────────────┘

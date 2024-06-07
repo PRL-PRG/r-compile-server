@@ -1,0 +1,53 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ .duplicateClassesExist[0x5629e39ccde0]                                       │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch miss: 1                              │
+│ Properties:  Eager                                                           │
+├────── PIR Version After Optimizations
+.duplicateClassesExist[0x5629e39ccde0]
+BB0
+  goto BB1
+BB1   <- [0]
+  cp              %1.0  = Checkpoint                -> BB2 (default) | BB7 (if assume failed)
+BB2   <- [1]
+  val?^ | miss    %2.0  = LdVar              eR    get, <env 0x5629e1bab378>
+  lgl$#-          %2.1  = Identical                %2.0, function(x, pos=-(1L), envir=as.environment(po|...
+  void                    Assume             D     %2.1, %1.0 (CallTarget@0x5629e5767668[Call#0])
+  env             e2.3  = MkEnv              l     on(miss)=missingArg, parent=<env 0x5629e1bab378>, context 1
+  prom-           %2.4  = MkArg                    unboundValue, .duplicateClassesExist[0x5629e39ccde0]_p0, e2.3
+  val?            %2.5  = StaticCall         !v    get[0x5629ea60cd30]("#HAS_DUPLICATE_CLASS_NAMES", missingArg, %2.4) { 0 2n } e2.3   <lgl$->
+  lgl$#-          %2.6  = IsType                   %2.5 isA lgl$-
+  cp              %2.7  = Checkpoint                -> BB4 (default) | BB3 (if assume failed)
+BB7   <- [1]
+  env             e7.0  = (MkEnv)            l     on(miss)=missingArg, parent=<env 0x5629e1bab378>, context 1
+  fs              %7.1  = FrameState         R     0x5629e3af2db0+0: [], env=e7.0
+  void                    Deopt              !v    %7.1
+BB4   <- [2]
+  void                    Assume             D     %2.6, %2.7 (Typecheck@0x5629e5767668[Type#1])
+  lgl$-           %4.1  = CastType           d     dn %2.5
+  void                    StVar              lW    value, %4.1, e2.3
+  cp              %4.3  = Checkpoint                -> BB6 (default) | BB5 (if assume failed)
+BB3   <- [2]
+  fs              %3.0  = FrameState         R     0x5629e3af2db0+45: [%2.5], env=e2.3
+  void                    Deopt              !v    %3.0   !
+BB6   <- [4]
+  val?^ | miss    %6.0  = LdVar              eR    nargs, e2.3
+  lgl$#-          %6.1  = Identical                <blt nargs>, %6.0   <true>
+  void                    Assume             D     %6.1, %4.3 (DeadBranchReached@0x5629e5767668[Test#0])
+  void                    Visible            v     
+  void                    Return             l     %4.1
+BB5   <- [4]
+  fs              %5.0  = FrameState         R     0x5629e3af2db0+59: [], env=e2.3
+  void                    Deopt              !v    %5.0   !
+Prom 0:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    .classTable, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<wrapped>     !     %1.1, e1.0   <env->
+  void                    Return             l     %1.3
+
+│ .duplicateClassesExist[0x5629e39ccde0]                                       │
+└──────────────────────────────────────────────────────────────────────────────┘

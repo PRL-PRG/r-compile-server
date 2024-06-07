@@ -1,0 +1,465 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ .registerS3method[0x55ccab673fb0]                                            │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;NonRefl4,!Obj4                       │
+│ Properties:                                                                  │
+├────── PIR Version After Optimizations
+.registerS3method[0x55ccab673fb0]
+BB0
+  goto BB1
+BB1   <- [0]
+  val?^           %1.0  = LdArg                    4
+  val?^           %1.1  = LdArg                    3
+  val?^           %1.2  = LdArg                    2
+  val?^           %1.3  = LdArg                    1
+  val?^           %1.4  = LdArg                    0
+  cp              %1.5  = Checkpoint                -> BB2 (default) | BB50 (if assume failed)
+BB2   <- [1]
+  val?^ | miss    %2.0  = LdVar              eR    is.na, ?
+  lgl$#-          %2.1  = Identical                <blt is.na>, %2.0   <true>
+  void                    Assume             D     %2.1, %1.5 (DeadBranchReached@0x55cca92edcd0[Test#0])
+  val?^ | miss    %2.3  = LdVar              eR    .knownS3Generics, ?
+  env             e2.4  = MkEnv              l     genname=%1.4, class=%1.3, method=%1.2, nm=%1.1, envir=%1.0, parent=?, context 1
+  val?            %2.5  = Force!<wrapped>    !v    %2.3, e2.4   <str+>
+  lgl$#-          %2.6  = IsType                   %2.5 isA val+   <true>
+  cp              %2.7  = Checkpoint                -> BB4 (default) | BB3 (if assume failed)
+BB50   <- [1]
+  env             e50.0 = (MkEnv)            l     genname=%1.4, class=%1.3, method=%1.2, nm=%1.1, envir=%1.0, parent=?, context 1
+  fs              %50.1 = FrameState         R     0x55cca9359d00+0: [], env=e50.0
+  void                    Deopt              !v    %50.1
+BB4   <- [2]
+  void                    Assume             D     %2.6, %2.7 (DeadBranchReached@0x55cca92edcd0[Test#2])
+  val?^ | miss    %4.1  = LdVar              eR    genname, e2.4
+  val?            %4.2  = Force!<lazy>       !v    %4.1, e2.4   <str$+>
+  lgl$#-          %4.3  = IsType                   %4.2 isA val?+
+  cp              %4.4  = Checkpoint                -> BB6 (default) | BB5 (if assume failed)
+BB3   <- [2]
+  fs              %3.0  = FrameState         R     0x55cca9359d00+69: [<blt is.na>, %2.5], env=e2.4
+  void                    Deopt              !v    %3.0   !
+BB6   <- [4]
+  lgl$#-          %6.0  = IsType                   %2.5 isA val?+
+  void                    Assume             D     %6.0, %4.4 (Typecheck@0x55cca92edcd0[Type#4])
+  val?+           %6.2  = CastType           d     dn %2.5   <str+>
+  void                    Assume             D     %4.3, %4.4 (Typecheck@0x55cca92edcd0[Type#6])
+  val?+           %6.4  = CastType           d     dn %4.2   <str$+>
+  val?            %6.5  = Extract1_1D        wed   %6.2, %6.4, elided   <str$+>
+  void                    StVar              lW    w, %6.5, e2.4
+  lgl$#-          %6.7  = IsType                   %6.5 isA val?+
+  cp              %6.8  = Checkpoint                -> BB8 (default) | BB7 (if assume failed)
+BB5   <- [4]
+  fs              %5.0  = FrameState         R     0x55cca9359d00+114: [<blt is.na>, %2.5, %4.2], env=e2.4
+  void                    Deopt              !v    %5.0   !
+BB8   <- [6]
+  void                    Assume             D     %6.7, %6.8 (Typecheck@0x55cca92edcd0[Type#7])
+  val?+           %8.1  = CastType           d     dn %6.5   <str$+>
+  lgl+            %8.2  = CallSafeBuiltin    wed   is.na(%8.1)    <lgl$+>
+  lgl             %8.3  = Not                wed   %8.2, elided
+  lgl$#-          %8.4  = CheckTrueFalse     we    %8.3
+  cp              %8.5  = Checkpoint                -> BB10 (default) | BB9 (if assume failed)
+BB7   <- [6]
+  fs              %7.0  = FrameState         R     0x55cca9359d00+137: [<blt is.na>, %6.5], env=e2.4
+  void                    Deopt              !v    %7.0   !
+BB10   <- [8]
+  void                    Branch                   %8.4 -> BB49 (if true) | BB11 (if false)
+BB9   <- [8]
+  fs              %9.0  = FrameState         R     0x55cca9359d00+161: [%8.4], env=e2.4
+  void                    Deopt              !v    %9.0   !
+BB49   <- [10]
+  val?^ | miss    %49.0 = LdVar              eR    asNamespace, e2.4
+  lgl$#-          %49.1 = Identical                %49.0, function(ns, base.OK=TRUE) <(rir::DispatchTabl|...
+  void                    Assume             D     %49.1, %8.5 (CallTarget@0x55cca92edcd0[Call#11])
+  prom-           %49.3 = MkArg                    unboundValue, .registerS3method[0x55ccab673fb0]_p12 (!refl), e2.4
+  val?            %49.4 = StaticCall         !v    asNamespace[0x55cca94ca690](%49.3) e2.4   <env->
+  goto BB28
+BB11   <- [10]
+  val?^ | miss    %11.0 = LdVar              eR    get0, e2.4
+  lgl$#-          %11.1 = Identical                %11.0, function(x, envir=pos.to.env(-(1L)), mode="any|...
+  void                    Assume             D     %11.1, %8.5 (CallTarget@0x55cca92edcd0[Call#1])
+  prom-           %11.3 = MkArg                    unboundValue, .registerS3method[0x55ccab673fb0]_p0, e2.4
+  prom-           %11.4 = MkArg                    unboundValue, .registerS3method[0x55ccab673fb0]_p1, e2.4
+  ct              %11.5 = PushContext        lCL   %11.3, %11.4, get0(genname, envir=parent.env(envir)), function(x, envir=pos.to.env(-(1L)), mode="any|..., e2.4
+  val?^           %11.6 = CastType                 up %11.4
+  val?^           %11.7 = CastType                 up %11.3
+  env             e11.8 = MkEnv              l     x=%11.7, envir=%11.6, mode(miss)="any", inherits(miss)=true, ifnotfound(miss)=nil, parent=R_BaseNamespace, context 1
+  val?            %11.9 = Force!<lazy>       !vL   %11.7, e11.8   <str$+>
+  val?            %11.10 = Force!<lazy>       !vL   %11.6, e11.8   <env+>
+  val?            %11.11 = CallBuiltin        !v    get0(%11.9, %11.10, "any", true, nil) e11.8
+  val?            %11.12 = PopContext         C     %11.11, %11.5   <val?->
+  lgl$-           %11.13 = Is                       %11.12, NULL
+  void                    StVar              lW    genfun, %11.12, e2.4
+  cp              %11.15 = Checkpoint                -> BB13 (default) | BB12 (if assume failed)
+BB28   <- [49, 27]
+  val?            %28.0 = Phi                      %27.0:BB27, %49.4:BB49   <env->
+  void                    StVar              lW    defenv, %28.0, e2.4
+  lgl$#-          %28.2 = IsType                   %28.0 isA val+   <true>
+  lgl$#-          %28.3 = IsType                   %28.0 isA val?-
+  cp              %28.4 = Checkpoint                -> BB30 (default) | BB29 (if assume failed)
+BB13   <- [11]
+  lgl$#-          %13.0 = CheckTrueFalse     e     %11.13
+  void                    Branch                   %13.0 -> BB48 (if true) | BB14 (if false)
+BB12   <- [11]
+  fs              %12.0 = FrameState         R     0x55cca9359d00+227: [%11.12], env=e2.4
+  void                    Deopt              !v    %12.0   !
+BB30   <- [28]
+  val             %30.0 = ChkMissing         e     %28.0
+  void                    Assume             D     %28.2, %28.4 (DeadBranchReached@0x55cca92edcd0[Test#4])
+  void                    Assume             D     %28.3, %28.4 (Typecheck@0x55cca92edcd0[Type#33])
+  val?-           %30.3 = CastType           d     dn %28.0   <env->
+  val?            %30.4 = Extract2_1D        wed   %30.3, ".__S3MethodsTable__.", elided   <env->
+  lgl$-           %30.5 = Is                       %30.4, NULL
+  void                    StVar              lW    table, %30.4, e2.4
+  cp              %30.7 = Checkpoint                -> BB32 (default) | BB31 (if assume failed)
+BB29   <- [28]
+  fs              %29.0 = FrameState         R     0x55cca9359d00+688: [], env=e2.4
+  void                    Deopt              !v    %29.0   !
+BB48   <- [13]
+  (cls|spec|blt)  %48.0 = LdFun              !v    stop, e2.4
+  fs              %48.1 = FrameState         R     0x55cca9359d00+248: [%48.0], env=e2.4
+  void                    Deopt              !v    %48.1, DeadCall@0x55cca92edcd0[Call#3], %48.0   !
+BB14   <- [13]
+  val?^ | miss    %14.0 = LdVar              eR    .isMethodsDispatchOn, e2.4
+  lgl$#-          %14.1 = Identical                <blt .isMethodsDispatchOn>, %14.0   <true>
+  void                    Assume             D     %14.1, %11.15 (DeadBranchReached@0x55cca92edcd0[Test#3])
+  val?            %14.3 = CallBuiltin        !v    .isMethodsDispatchOn() e2.4   <lgl$->
+  lgl$#-          %14.4 = IsType                   %14.3 isA lgl$-
+  cp              %14.5 = Checkpoint                -> BB16 (default) | BB15 (if assume failed)
+BB32   <- [30]
+  lgl$#-          %32.0 = CheckTrueFalse     e     %30.5
+  void                    Branch                   %32.0 -> BB44 (if true) | BB33 (if false)
+BB31   <- [30]
+  fs              %31.0 = FrameState         R     0x55cca9359d00+757: [%30.4], env=e2.4
+  void                    Deopt              !v    %31.0   !
+BB16   <- [14]
+  void                    Assume             D     %14.4, %14.5 (Typecheck@0x55cca92edcd0[Type#16])
+  lgl$-           %16.1 = CastType           d     dn %14.3
+  lgl$-           %16.2 = AsLogical                %16.1
+  lgl$#-          %16.3 = Identical                %16.2, false
+  void                    Branch                   %16.3 -> BB47 (if true) | BB17 (if false)
+BB15   <- [14]
+  fs              %15.0 = FrameState         R     0x55cca9359d00+370: [%14.3], env=e2.4
+  void                    Deopt              !v    %15.0   !
+BB44   <- [32]
+  (cls|spec|blt)  %44.0 = LdFun              !v    new.env, e2.4
+  fs              %44.1 = FrameState         R     0x55cca9359d00+778: [%44.0], env=e2.4
+  void                    Deopt              !v    %44.1, DeadCall@0x55cca92edcd0[Call#12], %44.0   !
+BB33   <- [32]
+  val             %33.0 = ChkMissing         e     %30.4
+  lgl$#-          %33.1 = IsType                   %30.4 isA val+   <true>
+  void                    Assume             D     %33.1, %30.7 (DeadBranchReached@0x55cca92edcd0[Test#5])
+  val?^ | miss    %33.3 = LdVar              eR    nm, e2.4
+  val?            %33.4 = Force!<lazy>       !v    %33.3, e2.4   <str$+>
+  lgl$#-          %33.5 = IsType                   %33.4 isA val?+
+  cp              %33.6 = Checkpoint                -> BB35 (default) | BB34 (if assume failed)
+BB47   <- [16]
+  goto BB20
+BB17   <- [16]
+  (cls|spec|blt)  %17.0 = LdFun              !v    ::, <0x55cca70fee48>, e2.4
+  prom-           %17.1 = MkArg                    unboundValue, .registerS3method[0x55ccab673fb0]_p3, e2.4
+  prom-           %17.2 = MkArg                    unboundValue, .registerS3method[0x55ccab673fb0]_p4, e2.4
+  val?            %17.3 = Call               !v    %17.0(%17.1, %17.2) e2.4   <cls->
+  (cls|spec|blt)  %17.4 = ChkFunction        e     %17.3
+  prom-           %17.5 = MkArg                    unboundValue, .registerS3method[0x55ccab673fb0]_p5, e2.4
+  val?            %17.6 = Call               !v    %17.4(%17.5, "genericFunction") e2.4   <lgl$->
+  lgl$#-          %17.7 = IsType                   %17.6 isA lgl$-
+  cp              %17.8 = Checkpoint                -> BB19 (default) | BB18 (if assume failed)
+BB35   <- [33]
+  lgl$#-          %35.0 = IsType                   %30.4 isA val?-
+  void                    Assume             D     %35.0, %33.6 (Typecheck@0x55cca92edcd0[Type#34])
+  val?-           %35.2 = CastType           d     dn %30.4   <env->
+  void                    Assume             D     %33.5, %33.6 (Typecheck@0x55cca92edcd0[Type#41])
+  val?+           %35.4 = CastType           d     dn %33.4   <str$+>
+  val?            %35.5 = Extract2_1D        wed   %35.2, %35.4, elided   <nil->
+  lgl$-           %35.6 = Is                       %35.5, NULL
+  void                    StVar              lW    e, %35.5, e2.4
+  cp              %35.8 = Checkpoint                -> BB37 (default) | BB36 (if assume failed)
+BB34   <- [33]
+  fs              %34.0 = FrameState         R     0x55cca9359d00+930: [%30.4, %33.4], env=e2.4
+  void                    Deopt              !v    %34.0   !
+BB20   <- [19, 47]
+  lgl$-           %20.0 = Phi                      %19.3:BB19, %16.2:BB47
+  cp              %20.1 = Checkpoint                -> BB22 (default) | BB21 (if assume failed)
+BB19   <- [17]
+  void                    Assume             D     %17.7, %17.8 (Typecheck@0x55cca92edcd0[Type#21])
+  lgl$-           %19.1 = CastType           d     dn %17.6
+  lgl$-           %19.2 = AsLogical                %19.1
+  lgl$-           %19.3 = LAnd                     %16.2, %19.2
+  goto BB20
+BB18   <- [17]
+  fs              %18.0 = FrameState         R     0x55cca9359d00+457: [%16.2, %17.6], env=e2.4
+  void                    Deopt              !v    %18.0   !
+BB37   <- [35]
+  lgl$-           %37.0 = Not                d     %35.6, elided
+  lgl$-           %37.1 = AsLogical                %37.0
+  lgl$#-          %37.2 = Identical                %37.1, false
+  void                    Branch                   %37.2 -> BB39 (if true) | BB38 (if false)
+BB36   <- [35]
+  fs              %36.0 = FrameState         R     0x55cca9359d00+953: [%35.5], env=e2.4
+  void                    Deopt              !v    %36.0   !
+BB22   <- [20]
+  lgl$#-          %22.0 = CheckTrueFalse     e     %20.0
+  void                    Branch                   %22.0 -> BB46 (if true) | BB23 (if false)
+BB21   <- [20]
+  fs              %21.0 = FrameState         R     0x55cca9359d00+464: [%20.0], env=e2.4
+  void                    Deopt              !v    %21.0   !
+BB39   <- [37]
+  lgl$#-          %39.0 = CheckTrueFalse     e     %37.1
+  void                    Branch                   %39.0 -> BB43 (if true) | BB40 (if false)
+BB38   <- [37]
+  (cls|spec|blt)  %38.0 = LdFun              !v    identical, e2.4
+  fs              %38.1 = FrameState         R     0x55cca9359d00+971: [%37.1, %38.0], env=e2.4
+  void                    Deopt              !v    %38.1, DeadCall@0x55cca92edcd0[Call#14], %38.0   !
+BB46   <- [22]
+  (cls|spec|blt)  %46.0 = LdFun              !v    @, e2.4
+  fs              %46.1 = FrameState         R     0x55cca9359d00+480: [%46.0], env=e2.4
+  void                    Deopt              !v    %46.1, DeadCall@0x55cca92edcd0[Call#8], %46.0   !
+BB23   <- [22]
+  val?^ | miss    %23.0 = LdVar              eR    typeof, e2.4
+  lgl$#-          %23.1 = Identical                %23.0, function(x) <(rir::DispatchTable*)0x55cca91d0e|...
+  void                    Assume             D     %23.1, %20.1 (CallTarget@0x55cca92edcd0[Call#9])
+  val?^ | miss    %23.3 = LdVar              eR    genfun, e2.4
+  lgl$#-          %23.4 = IsType                   %23.3 isA val?~- | miss
+  void                    Assume             D     %23.4, %20.1 (Typecheck@0x55cca92edcd0[Type#25])
+  val?~- | miss   %23.6 = CastType           d     dn %23.3
+  val?-           %23.7 = Force!<value>            %23.6,    <val?->
+  str$-           %23.8 = CallSafeBuiltin    wed   typeof(%23.7)    <str$->
+  cp              %23.9 = Checkpoint                -> BB25 (default) | BB24 (if assume failed)
+BB43   <- [39]
+  (cls|spec|blt)  %43.0 = LdFun              !v    environmentName, e2.4
+  fs              %43.1 = FrameState         R     0x55cca9359d00+1027: [%43.0], env=e2.4
+  void                    Deopt              !v    %43.1, DeadCall@0x55cca92edcd0[Call#16], %43.0   !
+BB40   <- [39]
+  val?^ | miss    %40.0 = LdVar              eR    assignWrapped, e2.4
+  (cls|spec|blt)  %40.1 = CastType                 dn %40.0
+  val+            %40.2 = CallSafeBuiltin          bodyCode(%40.1) 
+  lgl$#-          %40.3 = Identical                %40.2, <(rir::DispatchTable*)0x55cca9355fe0>
+  void                    Assume             D     %40.3, %35.8 (CallTarget@0x55cca92edcd0[Call#21])
+  val?            %40.5 = Force!             d     %40.0, 
+  prom-           %40.6 = MkArg                    unboundValue, .registerS3method[0x55ccab673fb0]_p7, e2.4
+  prom-           %40.7 = MkArg                    unboundValue, .registerS3method[0x55ccab673fb0]_p8, e2.4
+  prom-           %40.8 = MkArg                    unboundValue, .registerS3method[0x55ccab673fb0]_p9, e2.4
+  prom-           %40.9 = MkArg                    unboundValue, .registerS3method[0x55ccab673fb0]_p10, e2.4
+  (cls|spec|blt)  %40.10 = ChkFunction        e     %40.5
+  env             e40.11 = CallSafeBuiltin          environment(%40.10) 
+  ct              %40.12 = PushContext        lCL   %40.6, %40.7, %40.8, %40.9, assignWrapped(nm, method, home=envir, envir=table), %40.10, e2.4
+  val?^           %40.13 = CastType                 up %40.9
+  val?^           %40.14 = CastType                 up %40.8
+  val?^           %40.15 = CastType                 up %40.7
+  val?^           %40.16 = CastType                 up %40.6
+  env             e40.17 = MkEnv              l     x=%40.16, method=%40.15, home=%40.14, envir=%40.13, parent=e40.11, context 1
+  val?            %40.18 = Force!<lazy>       !vL   %40.15, e40.17   <str$+>
+  void                    StVar              lW    method, %40.18, e40.17
+  void                    Visible            v     
+  val?            %40.21 = Force!<lazy>       !L    %40.14, e40.17   <env->
+  void                    StVar              lW    home, %40.21, e40.17
+  cp              %40.23 = Checkpoint                -> BB42 (default) | BB41 (if assume failed)
+BB25   <- [23]
+  lgl$-           %25.0 = Eq                 d     %23.8, "closure", elided   <lgl$->
+  lgl$#-          %25.1 = CheckTrueFalse     e     %25.0
+  void                    Branch                   %25.1 -> BB45 (if true) | BB26 (if false)
+BB24   <- [23]
+  fs              %24.0 = FrameState         R     0x55cca9359d00+558: [], env=e2.4
+  prom-           %24.1 = MkArg                    %23.7, .registerS3method[0x55ccab673fb0]_p6 (!refl), e2.4
+  val?~           %24.2 = CastType                 up %24.1
+  env             e24.3 = (MkEnv)            l     x=%24.2, parent=R_BaseNamespace, context 0
+  fs              %24.4 = FrameState         R     0x55cca91cf530+27: [%23.8], env=e24.3, next=%24.0
+  void                    Deopt              !v    %24.4   !
+BB42   <- [40]
+  val?^ | miss    %42.0 = LdVar              eR    delayedAssign, e40.11
+  lgl$#-          %42.1 = Identical                %42.0, function(x, value, eval.env=parent.frame(1), a|...
+  void                    Assume             D     %42.1, %40.23 (CallTarget@0x55cca92f8c60[Call#0])
+  prom-           %42.3 = MkArg                    unboundValue, .registerS3method[0x55ccab673fb0]_p16, e40.17
+  prom-           %42.4 = MkArg                    unboundValue, .registerS3method[0x55ccab673fb0]_p17, e40.17
+  prom-           %42.5 = MkArg                    unboundValue, .registerS3method[0x55ccab673fb0]_p20, e40.17
+  val?            %42.6 = StaticCall         !     delayedAssign[0x55cca7857a40](%42.3, %42.4, missingArg, %42.5) { 0 1 3n } e40.17   <nil->
+  val?            %42.7 = PopContext         C     %42.6, %40.12   <nil->
+  void                    Return             l     %42.7
+BB41   <- [40]
+  fs              %41.0 = FrameState         R     0x55cca9359d00+1178: [], env=e2.4
+  fs              %41.1 = FrameState         R     0x55cca9355c50+46: [], env=e40.17, next=%41.0
+  void                    Deopt              !v    %41.1   !
+BB45   <- [25]
+  val?^ | miss    %45.0 = LdVar              eR    environment, e2.4
+  lgl$#-          %45.1 = Identical                %45.0, function(fun=NULL) <(rir::DispatchTable*)0x55c|...
+  void                    Assume             D     %45.1, %23.9 (CallTarget@0x55cca92edcd0[Call#10])
+  prom-           %45.3 = MkArg                    unboundValue, .registerS3method[0x55ccab673fb0]_p11, e2.4
+  val?^ | miss    %45.4 = CastType                 up %45.3
+  val?            %45.5 = Force              !v    %45.4, 
+  prom-           %45.6 = MkArg                    %45.5, .registerS3method[0x55ccab673fb0]_p11 (!refl), 
+  val?            %45.7 = StaticCall         !v    environment[0x55ccaccf3120](%45.6) e2.4   <env->
+  goto BB27
+BB26   <- [25]
+  val?^ | miss    %26.0 = LdVar              eR    .BaseNamespaceEnv, e2.4
+  lgl$#-          %26.1 = IsType                   %26.0 isA val?~- | miss
+  void                    Assume             D     %26.1, %23.9 (Typecheck@0x55cca92edcd0[Type#28])
+  val?~- | miss   %26.3 = CastType           d     dn %26.0
+  val?-           %26.4 = Force!<value>            %26.3,    <env->
+  goto BB27
+BB27   <- [26, 45]
+  val?            %27.0 = Phi                      %26.4:BB26, %45.7:BB45
+  goto BB28
+Prom 0:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    genname, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<wrapped>     !     %1.1, e1.0   <str$+>
+  void                    Return             l     %1.3
+Prom 1:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  (cls|spec|blt)  %1.1  = LdFun              !     parent.env, <0x55cca8073fa0>, e1.0
+  prom-           %1.2  = MkArg                    unboundValue, .registerS3method[0x55ccab673fb0]_p2, e1.0
+  val?            %1.3  = Call               !     %1.1(%1.2) e1.0   <env+>
+  void                    Return             l     %1.3
+Prom 2:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    envir, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<lazy>        !     %1.1, e1.0   <env->
+  void                    Return             l     %1.3
+Prom 3:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    methods, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force              !     %1.1, e1.0   <val?_>
+  void                    Return             l     %1.3
+Prom 4:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    is, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force              !     %1.1, e1.0   <val?_>
+  void                    Return             l     %1.3
+Prom 5:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    genfun, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<value>       !     %1.1, e1.0   <val?->
+  void                    Return             l     %1.3
+Prom 6:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    genfun, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<value>       !     %1.1, e1.0   <val?->
+  void                    Return             l     %1.3
+Prom 7:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    nm, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<wrapped>     !     %1.1, e1.0   <str$+>
+  void                    Return             l     %1.3
+Prom 8:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    method, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<lazy>        !     %1.1, e1.0   <str$+>
+  void                    Return             l     %1.3
+Prom 9:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    envir, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<lazy>        !     %1.1, e1.0   <env->
+  void                    Return             l     %1.3
+Prom 10:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    table, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<value>       !     %1.1, e1.0   <env->
+  void                    Return             l     %1.3
+Prom 11:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    genfun, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<value>       !     %1.1, e1.0   <cls->
+  void                    Return             l     %1.3
+Prom 12:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    w, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<value>       !     %1.1, e1.0   <str$+>
+  void                    Return             l     %1.3
+Prom 16:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    x, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<lazy>        !     %1.1, e1.0   <str$+>
+  void                    Return             l     %1.3
+Prom 17:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  (cls|spec|blt)  %1.1  = LdFun              !     get, e1.0
+  prom-           %1.2  = MkArg                    unboundValue, .registerS3method[0x55ccab673fb0]_p18, e1.0
+  prom-           %1.3  = MkArg                    unboundValue, .registerS3method[0x55ccab673fb0]_p19, e1.0
+  val?            %1.4  = NamedCall          !     %1.1(%1.2, envir=%1.3) e1.0   <val?_>
+  void                    Return             l     %1.4
+Prom 18:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    method, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force              !     %1.1, e1.0   <val?_>
+  void                    Return             l     %1.3
+Prom 19:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    home, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force              !     %1.1, e1.0   <val?_>
+  void                    Return             l     %1.3
+Prom 20:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    envir, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<lazy>        !     %1.1, e1.0   <env->
+  void                    Return             l     %1.3
+
+│ .registerS3method[0x55ccab673fb0]                                            │
+└──────────────────────────────────────────────────────────────────────────────┘

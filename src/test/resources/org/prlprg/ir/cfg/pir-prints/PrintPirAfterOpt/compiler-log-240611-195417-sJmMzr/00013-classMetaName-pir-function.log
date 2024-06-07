@@ -1,0 +1,58 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ classMetaName[0x55fdab6190a0]                                                │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch                                      │
+│ Properties:                                                                  │
+├────── PIR Version After Optimizations
+classMetaName[0x55fdab6190a0]
+BB0
+  goto BB1
+BB1   <- [0]
+  val?^           %1.0  = LdArg                    0
+  cp              %1.1  = Checkpoint                -> BB2 (default) | BB5 (if assume failed)
+BB2   <- [1]
+  val?^ | miss    %2.0  = LdVar              eR    methodsPackageMetaName, <env 0x55fda942b378>
+  lgl$#-          %2.1  = Identical                %2.0, function(prefix, name, package="") <(rir::Disp|...
+  void                    Assume             D     %2.1, %1.1 (CallTarget@0x55fda9d84b28[Call#0])
+  env             e2.3  = MkEnv              l     name=%1.0, parent=<env 0x55fda942b378>, context 1
+  prom-           %2.4  = MkArg                    unboundValue, classMetaName[0x55fdab6190a0]_p0, e2.3
+  ct              %2.5  = PushContext        lCL   "C", %2.4, methodsPackageMetaName("C", name), function(prefix, name, package="") <(rir::Disp|..., e2.3
+  val?^           %2.6  = CastType                 up %2.4
+  cp              %2.7  = Checkpoint                -> BB4 (default) | BB3 (if assume failed)
+BB5   <- [1]
+  env             e5.0  = (MkEnv)            l     name=%1.0, parent=<env 0x55fda942b378>, context 1
+  fs              %5.1  = FrameState         R     0x55fdab27b740+0: [], env=e5.0
+  void                    Deopt              !v    %5.1
+BB4   <- [2]
+  val?^ | miss    %4.0  = LdVar              eR    .Call, <env 0x55fda942b378>
+  lgl$#-          %4.1  = Identical                <blt .Call>, %4.0   <true>
+  void                    Assume             D     %4.1, %2.7 (DeadBranchReached@0x55fdab055070[Test#0])
+  val?^ | miss    %4.3  = LdVar              eR    C_R_methodsPackageMetaName, <env 0x55fda942b378>
+  env             e4.4  = MkEnv              l     prefix="C", name=%2.6, package(miss)="", parent=<env 0x55fda942b378>, context 1
+  val?            %4.5  = Force!<value>      !v    %4.3, e4.4   <vec>
+  val?^ | miss    %4.6  = LdVar              eR    prefix, e4.4
+  val?            %4.7  = Force!<value>      !v    %4.6, e4.4   <str$->
+  val?^ | miss    %4.8  = LdVar              eR    name, e4.4
+  val?            %4.9  = Force!<lazy>       !v    %4.8, e4.4   <str$+>
+  val?^ | miss    %4.10 = LdVar              eR    package, e4.4
+  val?            %4.11 = Force!<lazy>       !v    %4.10, e4.4   <str$->
+  val?            %4.12 = CallBuiltin        !     .Call(%4.5, %4.7, %4.9, %4.11) e4.4   <str$->
+  val?            %4.13 = PopContext         C     %4.12, %2.5   <str$->
+  void                    Return             l     %4.13
+BB3   <- [2]
+  fs              %3.0  = FrameState         R     0x55fdab27b740+37: [], env=e2.3
+  env             e3.1  = (MkEnv)            l     prefix="C", name=%2.6, package(miss)="", parent=<env 0x55fda942b378>, context 1
+  fs              %3.2  = FrameState         R     0x55fdab0c32c0+0: [], env=e3.1, next=%3.0
+  void                    Deopt              !v    %3.2   !
+Prom 0:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    name, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<lazy>        !     %1.1, e1.0   <str$+>
+  void                    Return             l     %1.3
+
+│ classMetaName[0x55fdab6190a0]                                                │
+└──────────────────────────────────────────────────────────────────────────────┘

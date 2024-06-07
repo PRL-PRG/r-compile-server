@@ -8,6 +8,8 @@ import org.prlprg.parseprint.Printer;
 import org.prlprg.primitive.Names;
 
 /** An R "list" element which consists of an optional string tag (name) and SEXP value. */
+// TODO: Replace `String` with `RegSymSXP`, or replace all `@Nullable RegSymSXP` with `String` and
+//  permit the empty string.
 public record TaggedElem(@Nullable String tag, SEXP value) {
   /** Create a {@link TaggedElem} with an optional (if non-null) tag and value. */
   public TaggedElem {

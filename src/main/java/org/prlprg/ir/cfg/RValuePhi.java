@@ -1,5 +1,6 @@
 package org.prlprg.ir.cfg;
 
+import java.util.HashSet;
 import java.util.SequencedCollection;
 import javax.annotation.Nullable;
 import org.prlprg.ir.type.RType;
@@ -23,7 +24,16 @@ final class RValuePhiImpl extends PhiImpl<RValue> implements RValuePhi {
 
   @Override
   public RType type() {
-    return RTypes.union(inputNodes().stream().map(RValue::type));
+    return type(new HashSet<>());
+  }
+
+  private RType type(HashSet<RValuePhiImpl> encountered) {
+    if (!encountered.add(this)) {
+      return RTypes.NOTHING;
+    }
+    return RTypes.union(
+        inputNodes().stream()
+            .map(node -> node instanceof RValuePhiImpl r ? r.type(encountered) : node.type()));
   }
 
   @Override

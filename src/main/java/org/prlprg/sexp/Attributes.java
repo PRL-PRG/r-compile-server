@@ -12,8 +12,13 @@ import javax.annotation.concurrent.Immutable;
 public final class Attributes extends ForwardingMap<String, SEXP> {
   private final ImmutableMap<String, SEXP> attrs;
 
-  @SuppressWarnings("MissingJavadoc")
+  /** Empty attributes map. */
   public static final Attributes NONE = new Attributes();
+
+  /** Attributes map with only {@linkplain CloSXP#getSrcRef() "srcref"}. */
+  public static Attributes srcref(SEXP srcref) {
+    return new Attributes(ImmutableMap.of("srcref", srcref));
+  }
 
   private Attributes() {
     attrs = ImmutableMap.of();

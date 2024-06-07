@@ -1,0 +1,705 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ .asCoerceMethod[0x56554ddc8ee0]                                              │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;Eager3,NonRefl3,!Obj3                │
+│ Properties:  ForceOrd: 3                                                     │
+├────── PIR Version After Optimizations
+.asCoerceMethod[0x56554ddc8ee0]
+BB0
+  goto BB1
+BB1   <- [0]
+  val?^           %1.0  = LdArg                    4
+  val?~+          %1.1  = LdArg                    3
+  val?^           %1.2  = LdArg                    2
+  val?^           %1.3  = LdArg                    1
+  val?^           %1.4  = LdArg                    0
+  val+            %1.5  = Force<value>             %1.1,    <lgl$->
+  lgl$#-          %1.6  = CheckTrueFalse     we    %1.5
+  env             e1.7  = MkEnv              l     def=%1.4, thisClass=%1.3, ClassDef=%1.2, replace=%1.1, where=%1.0, parent=<env 0x56554a41b378>, context 1
+  void                    Branch                   %1.6 -> BB2 (if true) | BB24 (if false)
+BB2   <- [1]
+  goto BB3
+BB24   <- [1]
+  goto BB3
+BB3   <- [24, 2]
+  code#-          %3.0  = Phi                      function(<lst from=R_MissingArg to=TO strict=T|...:BB24, function(<lst from=R_MissingArg to=TO value=R_|...:BB2
+  void                    StVar              lW    fdef, %3.0, e1.7
+  (cls|spec|blt)  %3.2  = LdFun              !v    <-, <0x565549e08da8>, <env 0x56554a41b378>
+  prom-           %3.3  = MkArg                    unboundValue, .asCoerceMethod[0x56554ddc8ee0]_p0, e1.7
+  prom-           %3.4  = MkArg                    unboundValue, .asCoerceMethod[0x56554ddc8ee0]_p3, e1.7
+  val?            %3.5  = Call               !v    %3.2(%3.3, %3.4) e1.7
+  cp              %3.6  = Checkpoint                -> BB5 (default) | BB4 (if assume failed)
+BB5   <- [3]
+  val?^ | miss    %5.0  = LdVar              eR    eval, e1.7
+  lgl$#-          %5.1  = Identical                %5.0, function(expr, envir=parent.frame(), enclos=if|...
+  void                    Assume             D     %5.1, %3.6 (CallTarget@0x56554dca1b00[Call#3])
+  prom-           %5.3  = MkArg                    unboundValue, .asCoerceMethod[0x56554ddc8ee0]_p6, e1.7
+  val?            %5.4  = StaticCall         !v    eval[0x56554ddc8fa0](%5.3) e1.7   <cls->
+  void                    StVar              lW    fdef, %5.4, e1.7
+  cp              %5.6  = Checkpoint                -> BB7 (default) | BB6 (if assume failed)
+BB4   <- [3]
+  fs              %4.0  = FrameState         R     0x56554de18a00+81: [%3.5], env=e1.7
+  void                    Deopt              !v    %4.0   !
+BB7   <- [5]
+  val?^ | miss    %7.0  = LdVar              eR    body, e1.7
+  lgl$#-          %7.1  = Identical                %7.0, function(fun=sys.function(sys.parent())) <(rir|...
+  void                    Assume             D     %7.1, %5.6 (CallTarget@0x56554dca1b00[Call#4])
+  val?^ | miss    %7.3  = LdVar              eR    def, e1.7
+  val?            %7.4  = Force!<lazy>       !v    %7.3, e1.7   <cls->
+  lgl$#-          %7.5  = CallSafeBuiltin    wed   is.character(%7.4)    <lgl$->
+  void                    Branch                   %7.5 -> BB23 (if true) | BB8 (if false)
+BB6   <- [5]
+  fs              %6.0  = FrameState         R     0x56554de18a00+128: [], env=e1.7
+  void                    Deopt              !v    %6.0   !
+BB23   <- [7]
+  prom-           %23.0 = MkArg                    %7.4, .asCoerceMethod[0x56554ddc8ee0]_p7 (!refl), e1.7
+  val?~           %23.1 = CastType                 up %23.0
+  fs              %23.2 = FrameState         R     0x56554de18a00+160: [], env=e1.7
+  env             e23.3 = (MkEnv)            l     fun=%23.1, parent=R_BaseNamespace, context 0
+  env             e23.4 = MaterializeEnv           , e23.3   <@?>
+  (cls|spec|blt)  %23.5 = LdFun              !v    get, e23.4
+  fs              %23.6 = FrameState         R     0x56554c8b2ec0+112: [%23.5], env=e23.4, next=%23.2
+  void                    Deopt              !v    %23.6, DeadCall@0x56554d0c8a58[Call#3], %23.5   !
+BB8   <- [7]
+  val+            %8.0  = CallSafeBuiltin    wed   body(%7.4)    <code->
+  cp              %8.1  = Checkpoint                -> BB10 (default) | BB9 (if assume failed)
+BB10   <- [8]
+  val?^ | miss    %10.0 = LdVar              eR    body<-, e1.7
+  lgl$#-          %10.1 = Identical                %10.0, function(fun, envir=environment(fun), value) <|...
+  void                    Assume             D     %10.1, %8.1 (CallTarget@0x56554dca1b00[Call#5])
+  val?^ | miss    %10.3 = LdVar              eR    fdef, e1.7
+  lgl$#-          %10.4 = IsType                   %10.3 isA val?~- | miss
+  void                    Assume             D     %10.4, %8.1 (Typecheck@0x56554dca1b00[Type#12])
+  val?~- | miss   %10.6 = CastType           d     dn %10.3
+  val?-           %10.7 = Force!<value>            %10.6,    <cls->
+  prom-           %10.8 = MkArg                    unboundValue, .asCoerceMethod[0x56554ddc8ee0]_p8, e1.7
+  val?            %10.9 = StaticCall         !v    body<-[0x5655515a2630](%10.7, %10.8, %8.0) { 0 1 2n } e1.7
+  void                    StVar              lW    fdef, %10.9, e1.7
+  cp              %10.11 = Checkpoint                -> BB12 (default) | BB11 (if assume failed)
+BB9   <- [8]
+  prom-           %9.0  = MkArg                    %7.4, .asCoerceMethod[0x56554ddc8ee0]_p7 (!refl), e1.7
+  val?~           %9.1  = CastType                 up %9.0
+  fs              %9.2  = FrameState         R     0x56554de18a00+160: [], env=e1.7
+  env             e9.3  = (MkEnv)            l     fun=%9.1, parent=R_BaseNamespace, context 0
+  fs              %9.4  = FrameState         R     0x56554c8b2ec0+202: [%8.0], env=e9.3, next=%9.2
+  void                    Deopt              !v    %9.4   !
+BB12   <- [10]
+  val?^ | miss    %12.0 = LdVar              eR    attr, e1.7
+  lgl$#-          %12.1 = Identical                <blt attr>, %12.0   <true>
+  void                    Assume             D     %12.1, %10.11 (DeadBranchReached@0x56554dca1b00[Test#1])
+  val?^ | miss    %12.3 = LdVar              eR    def, e1.7
+  val?            %12.4 = Force!<wrapped>    !v    %12.3, e1.7   <cls->
+  val?            %12.5 = CallBuiltin        !v    attr(%12.4, "srcref") e1.7   <nil->
+  (cls|spec|blt)  %12.6 = LdFun              !v    attr<-, <0x565549e17e08>, e1.7
+  cp              %12.7 = Checkpoint                -> BB14 (default) | BB13 (if assume failed)
+BB11   <- [10]
+  fs              %11.0 = FrameState         R     0x56554de18a00+242: [], env=e1.7
+  void                    Deopt              !v    %11.0   !
+BB14   <- [12]
+  val?^ | miss    %14.0 = LdVar              eR    fdef, e1.7
+  lgl$#-          %14.1 = IsType                   %14.0 isA val?~- | miss
+  void                    Assume             D     %14.1, %12.7 (Typecheck@0x56554dca1b00[Type#18])
+  val?~- | miss   %14.3 = CastType           d     dn %14.0
+  val?-           %14.4 = Force!<value>            %14.3,    <cls->
+  val?            %14.5 = NamedCall          !v    %12.6(%14.4, "srcref", value=%12.5) e1.7
+  void                    StVar              lW    fdef, %14.5, e1.7
+  cp              %14.7 = Checkpoint                -> BB16 (default) | BB15 (if assume failed)
+BB13   <- [12]
+  fs              %13.0 = FrameState         R     0x56554de18a00+349: [%12.5], env=e1.7
+  void                    Deopt              !v    %13.0   !
+BB16   <- [14]
+  val?^ | miss    %16.0 = LdVar              eR    new, e1.7
+  lgl$#-          %16.1 = Identical                %16.0, function(Class, ...) <(rir::DispatchTable*)0x5|...
+  void                    Assume             D     %16.1, %14.7 (CallTarget@0x56554dca1b00[Call#9])
+  val?            %16.3 = StaticCall         !v    new[0x5655515a26f0]("signature") { 0 } e1.7   <str>
+  void                    StVar              lW    sig, %16.3, e1.7
+  (cls|spec|blt)  %16.5 = LdFun              !v    <-, <0x565549e08da8>, e1.7
+  prom-           %16.6 = MkArg                    unboundValue, .asCoerceMethod[0x56554ddc8ee0]_p12, e1.7
+  prom-           %16.7 = MkArg                    unboundValue, .asCoerceMethod[0x56554ddc8ee0]_p15, e1.7
+  val?            %16.8 = Call               !v    %16.5(%16.6, %16.7) e1.7
+  (cls|spec|blt)  %16.9 = LdFun              !v    <-, <0x565549e08da8>, e1.7
+  prom-           %16.10 = MkArg                    unboundValue, .asCoerceMethod[0x56554ddc8ee0]_p20, e1.7
+  prom-           %16.11 = MkArg                    unboundValue, .asCoerceMethod[0x56554ddc8ee0]_p23, e1.7
+  val?            %16.12 = Call               !v    %16.9(%16.10, %16.11) e1.7
+  cp              %16.13 = Checkpoint                -> BB18 (default) | BB17 (if assume failed)
+BB15   <- [14]
+  fs              %15.0 = FrameState         R     0x56554de18a00+426: [], env=e1.7
+  void                    Deopt              !v    %15.0   !
+BB18   <- [16]
+  val?^ | miss    %18.0 = LdVar              eR    packageSlot, e1.7
+  lgl$#-          %18.1 = Identical                %18.0, function(object) <(rir::DispatchTable*)0x56554|...
+  void                    Assume             D     %18.1, %16.13 (CallTarget@0x56554dca1b00[Call#17])
+  prom-           %18.3 = MkArg                    unboundValue, .asCoerceMethod[0x56554ddc8ee0]_p24, e1.7
+  ct              %18.4 = PushContext        lCL   %18.3, packageSlot(thisClass), function(object) <(rir::DispatchTable*)0x56554|..., e1.7
+  val?^           %18.5 = CastType                 up %18.3
+  val?^ | miss    %18.6 = LdVar              eR    attr, <env 0x56554a41b378>
+  lgl$#-          %18.7 = Identical                <blt attr>, %18.6   <true>
+  cp              %18.8 = Checkpoint                -> BB20 (default) | BB19 (if assume failed)
+BB17   <- [16]
+  fs              %17.0 = FrameState         R     0x56554de18a00+547: [%16.12], env=e1.7
+  void                    Deopt              !v    %17.0   !
+BB20   <- [18]
+  void                    Assume             D     %18.7, %18.8 (DeadBranchReached@0x56554cf3dce8[Test#0])
+  env             e20.1 = MkEnv              l     object=%18.5, parent=<env 0x56554a41b378>, context 1
+  val?            %20.2 = Force!<lazy>       !vL   %18.5, e20.1   <(str|other)>
+  val?            %20.3 = CallBuiltin        !v    attr(%20.2, "package") e20.1   <(nil|str)->
+  val?            %20.4 = PopContext         C     %20.3, %18.4   <str$->
+  void                    StVar              lW    thisPackage, %20.4, e1.7
+  (cls|spec|blt)  %20.6 = LdFun              !v    <-, <0x565549e08da8>, e1.7
+  prom-           %20.7 = MkArg                    unboundValue, .asCoerceMethod[0x56554ddc8ee0]_p25, e1.7
+  prom-           %20.8 = MkArg                    unboundValue, .asCoerceMethod[0x56554ddc8ee0]_p28, e1.7
+  val?            %20.9 = Call               !v    %20.6(%20.7, %20.8) e1.7
+  cp              %20.10 = Checkpoint                -> BB22 (default) | BB21 (if assume failed)
+BB19   <- [18]
+  fs              %19.0 = FrameState         R     0x56554de18a00+580: [], env=e1.7
+  env             e19.1 = (MkEnv)            l     object=%18.5, parent=<env 0x56554a41b378>, context 1
+  fs              %19.2 = FrameState         R     0x56554c21b3a0+17: [<blt attr>, %18.7], env=e19.1, next=%19.0
+  void                    Deopt              !v    %19.2   !
+BB22   <- [20]
+  val?^ | miss    %22.0 = LdVar              eR    new, e1.7
+  lgl$#-          %22.1 = Identical                %22.0, function(Class, ...) <(rir::DispatchTable*)0x5|...
+  void                    Assume             D     %22.1, %20.10 (CallTarget@0x56554dca1b00[Call#25])
+  val?            %22.3 = StaticCall         !v    new[0x5655515a26f0]("MethodDefinition") { 0 } e1.7   <cls>
+  void                    StVar              lW    value, %22.3, e1.7
+  (cls|spec|blt)  %22.5 = LdFun              !v    <-, <0x565549e08da8>, e1.7
+  prom-           %22.6 = MkArg                    unboundValue, .asCoerceMethod[0x56554ddc8ee0]_p38, e1.7
+  prom-           %22.7 = MkArg                    unboundValue, .asCoerceMethod[0x56554ddc8ee0]_p41, e1.7
+  val?            %22.8 = Call               !v    %22.5(%22.6, %22.7) e1.7
+  (cls|spec|blt)  %22.9 = LdFun              !v    <-, <0x565549e08da8>, e1.7
+  prom-           %22.10 = MkArg                    unboundValue, .asCoerceMethod[0x56554ddc8ee0]_p42, e1.7
+  prom-           %22.11 = MkArg                    unboundValue, .asCoerceMethod[0x56554ddc8ee0]_p45, e1.7
+  val?            %22.12 = Call               !v    %22.9(%22.10, %22.11) e1.7
+  (cls|spec|blt)  %22.13 = LdFun              !v    <-, <0x565549e08da8>, e1.7
+  prom-           %22.14 = MkArg                    unboundValue, .asCoerceMethod[0x56554ddc8ee0]_p46, e1.7
+  prom-           %22.15 = MkArg                    unboundValue, .asCoerceMethod[0x56554ddc8ee0]_p49, e1.7
+  val?            %22.16 = Call               !v    %22.13(%22.14, %22.15) e1.7
+  (cls|spec|blt)  %22.17 = LdFun              !v    <-, <0x565549e08da8>, e1.7
+  prom-           %22.18 = MkArg                    unboundValue, .asCoerceMethod[0x56554ddc8ee0]_p50, e1.7
+  prom-           %22.19 = MkArg                    unboundValue, .asCoerceMethod[0x56554ddc8ee0]_p53, e1.7
+  val?            %22.20 = Call               !v    %22.17(%22.18, %22.19) e1.7
+  val?^ | miss    %22.21 = LdVar              eR    value, e1.7
+  void                    Visible            v     
+  val?            %22.23 = Force!<value>      !     %22.21, e1.7   <cls>
+  void                    Return             l     %22.23
+BB21   <- [20]
+  fs              %21.0 = FrameState         R     0x56554de18a00+631: [%20.9], env=e1.7
+  void                    Deopt              !v    %21.0   !
+Prom 0:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  (cls|spec|blt)  %1.1  = LdFun              !     $, e1.0
+  prom-           %1.2  = MkArg                    unboundValue, .asCoerceMethod[0x56554ddc8ee0]_p1, e1.0
+  prom-           %1.3  = MkArg                    unboundValue, .asCoerceMethod[0x56554ddc8ee0]_p2, e1.0
+  val?            %1.4  = Call               !     %1.1(%1.2, %1.3) e1.0   <val?_>
+  void                    Return             l     %1.4
+Prom 1:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    fdef, e1.0
+  val?            %1.2  = Force              !v    %1.1, e1.0   <val?_>
+  val?            %1.3  = Extract2_1D        !v    %1.2, 2L, e1.0   <val?_>
+  void                    Visible            v     
+  void                    Return             l     %1.3
+Prom 2:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    to, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force              !     %1.1, e1.0   <val?_>
+  void                    Return             l     %1.3
+Prom 3:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  (cls|spec|blt)  %1.1  = LdFun              !     @, e1.0
+  prom-           %1.2  = MkArg                    unboundValue, .asCoerceMethod[0x56554ddc8ee0]_p4, e1.0
+  prom-           %1.3  = MkArg                    unboundValue, .asCoerceMethod[0x56554ddc8ee0]_p5, e1.0
+  val?            %1.4  = Call               !     %1.1(%1.2, %1.3) e1.0   <val?_>
+  void                    Return             l     %1.4
+Prom 4:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    ClassDef, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force              !     %1.1, e1.0   <val?_>
+  void                    Return             l     %1.3
+Prom 5:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    className, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force              !     %1.1, e1.0   <val?_>
+  void                    Return             l     %1.3
+Prom 6:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    fdef, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<value>       !     %1.1, e1.0   <code->
+  void                    Return             l     %1.3
+Prom 7:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    def, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<lazy>        !     %1.1, e1.0   <cls->
+  void                    Return             l     %1.3
+Prom 8:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  (cls|spec|blt)  %1.1  = LdFun              !     environment, <0x56554a1bab68>, e1.0
+  prom-           %1.2  = MkArg                    unboundValue, .asCoerceMethod[0x56554ddc8ee0]_p9, e1.0
+  val?            %1.3  = Call               !     %1.1(%1.2) e1.0   <env->
+  void                    Return             l     %1.3
+Prom 9:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    def, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<wrapped>     !     %1.1, e1.0   <cls->
+  void                    Return             l     %1.3
+Prom 12:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  (cls|spec|blt)  %1.1  = LdFun              !     @, e1.0
+  prom-           %1.2  = MkArg                    unboundValue, .asCoerceMethod[0x56554ddc8ee0]_p13, e1.0
+  prom-           %1.3  = MkArg                    unboundValue, .asCoerceMethod[0x56554ddc8ee0]_p14, e1.0
+  val?            %1.4  = Call               !     %1.1(%1.2, %1.3) e1.0   <val?_>
+  void                    Return             l     %1.4
+Prom 13:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    sig, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force              !     %1.1, e1.0   <val?_>
+  void                    Return             l     %1.3
+Prom 14:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    .Data, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force              !     %1.1, e1.0   <val?_>
+  void                    Return             l     %1.3
+Prom 15:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  (cls|spec|blt)  %1.1  = LdFun              !     c, e1.0
+  prom-           %1.2  = MkArg                    unboundValue, .asCoerceMethod[0x56554ddc8ee0]_p16, e1.0
+  prom-           %1.3  = MkArg                    unboundValue, .asCoerceMethod[0x56554ddc8ee0]_p17, e1.0
+  val?            %1.4  = Call               !     %1.1(%1.2, %1.3) e1.0   <val?_>
+  void                    Return             l     %1.4
+Prom 16:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    thisClass, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force              !     %1.1, e1.0   <val?_>
+  void                    Return             l     %1.3
+Prom 17:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  (cls|spec|blt)  %1.1  = LdFun              !     @, e1.0
+  prom-           %1.2  = MkArg                    unboundValue, .asCoerceMethod[0x56554ddc8ee0]_p18, e1.0
+  prom-           %1.3  = MkArg                    unboundValue, .asCoerceMethod[0x56554ddc8ee0]_p19, e1.0
+  val?            %1.4  = Call               !     %1.1(%1.2, %1.3) e1.0   <val?_>
+  void                    Return             l     %1.4
+Prom 18:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    ClassDef, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force              !     %1.1, e1.0   <val?_>
+  void                    Return             l     %1.3
+Prom 19:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    className, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force              !     %1.1, e1.0   <val?_>
+  void                    Return             l     %1.3
+Prom 20:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  (cls|spec|blt)  %1.1  = LdFun              !     @, e1.0
+  prom-           %1.2  = MkArg                    unboundValue, .asCoerceMethod[0x56554ddc8ee0]_p21, e1.0
+  prom-           %1.3  = MkArg                    unboundValue, .asCoerceMethod[0x56554ddc8ee0]_p22, e1.0
+  val?            %1.4  = Call               !     %1.1(%1.2, %1.3) e1.0   <val?_>
+  void                    Return             l     %1.4
+Prom 21:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    sig, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force              !     %1.1, e1.0   <val?_>
+  void                    Return             l     %1.3
+Prom 22:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    names, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force              !     %1.1, e1.0   <val?_>
+  void                    Return             l     %1.3
+Prom 23:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  (cls|spec|blt)  %1.1  = LdFun              !     c, e1.0
+  val?            %1.2  = Call               !     %1.1("from", "to") e1.0   <val?_>
+  void                    Return             l     %1.2
+Prom 24:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    thisClass, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<wrapped>     !     %1.1, e1.0   <str$+>
+  void                    Return             l     %1.3
+Prom 25:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  (cls|spec|blt)  %1.1  = LdFun              !     @, e1.0
+  prom-           %1.2  = MkArg                    unboundValue, .asCoerceMethod[0x56554ddc8ee0]_p26, e1.0
+  prom-           %1.3  = MkArg                    unboundValue, .asCoerceMethod[0x56554ddc8ee0]_p27, e1.0
+  val?            %1.4  = Call               !     %1.1(%1.2, %1.3) e1.0   <val?_>
+  void                    Return             l     %1.4
+Prom 26:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    sig, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force              !     %1.1, e1.0   <val?_>
+  void                    Return             l     %1.3
+Prom 27:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    package, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force              !     %1.1, e1.0   <val?_>
+  void                    Return             l     %1.3
+Prom 28:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    thisPackage, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force              !     %1.1, e1.0   <val?_>
+  lgl$-           %1.4  = Is                       %1.3, NULL
+  lgl$#-          %1.5  = CheckTrueFalse     e     %1.4
+  void                    Branch                   %1.5 -> BB2 (if true) | BB4 (if false)
+BB2   <- [1]
+  (cls|spec|blt)  %2.0  = LdFun              !     c, e1.0
+  prom-           %2.1  = MkArg                    unboundValue, .asCoerceMethod[0x56554ddc8ee0]_p33, e1.0
+  prom-           %2.2  = MkArg                    unboundValue, .asCoerceMethod[0x56554ddc8ee0]_p35, e1.0
+  val?            %2.3  = Call               !     %2.0(%2.1, %2.2) e1.0   <val?_>
+  goto BB3
+BB4   <- [1]
+  (cls|spec|blt)  %4.0  = LdFun              !     c, e1.0
+  prom-           %4.1  = MkArg                    unboundValue, .asCoerceMethod[0x56554ddc8ee0]_p29, e1.0
+  prom-           %4.2  = MkArg                    unboundValue, .asCoerceMethod[0x56554ddc8ee0]_p30, e1.0
+  val?            %4.3  = Call               !     %4.0(%4.1, %4.2) e1.0   <val?_>
+  goto BB3
+BB3   <- [2, 4]
+  val?            %3.0  = Phi                      %4.3:BB4, %2.3:BB2
+  void                    Return             l     %3.0
+Prom 29:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    thisPackage, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force              !     %1.1, e1.0   <val?_>
+  void                    Return             l     %1.3
+Prom 30:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  (cls|spec|blt)  %1.1  = LdFun              !     @, e1.0
+  prom-           %1.2  = MkArg                    unboundValue, .asCoerceMethod[0x56554ddc8ee0]_p31, e1.0
+  prom-           %1.3  = MkArg                    unboundValue, .asCoerceMethod[0x56554ddc8ee0]_p32, e1.0
+  val?            %1.4  = Call               !     %1.1(%1.2, %1.3) e1.0   <val?_>
+  void                    Return             l     %1.4
+Prom 31:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    ClassDef, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force              !     %1.1, e1.0   <val?_>
+  void                    Return             l     %1.3
+Prom 32:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    package, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force              !     %1.1, e1.0   <val?_>
+  void                    Return             l     %1.3
+Prom 33:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  (cls|spec|blt)  %1.1  = LdFun              !     getPackageName, e1.0
+  prom-           %1.2  = MkArg                    unboundValue, .asCoerceMethod[0x56554ddc8ee0]_p34, e1.0
+  val?            %1.3  = Call               !     %1.1(%1.2, false) e1.0   <val?_>
+  void                    Return             l     %1.3
+Prom 34:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    where, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force              !     %1.1, e1.0   <val?_>
+  void                    Return             l     %1.3
+Prom 35:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  (cls|spec|blt)  %1.1  = LdFun              !     @, e1.0
+  prom-           %1.2  = MkArg                    unboundValue, .asCoerceMethod[0x56554ddc8ee0]_p36, e1.0
+  prom-           %1.3  = MkArg                    unboundValue, .asCoerceMethod[0x56554ddc8ee0]_p37, e1.0
+  val?            %1.4  = Call               !     %1.1(%1.2, %1.3) e1.0   <val?_>
+  void                    Return             l     %1.4
+Prom 36:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    ClassDef, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force              !     %1.1, e1.0   <val?_>
+  void                    Return             l     %1.3
+Prom 37:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    package, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force              !     %1.1, e1.0   <val?_>
+  void                    Return             l     %1.3
+Prom 38:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  (cls|spec|blt)  %1.1  = LdFun              !     @, e1.0
+  prom-           %1.2  = MkArg                    unboundValue, .asCoerceMethod[0x56554ddc8ee0]_p39, e1.0
+  prom-           %1.3  = MkArg                    unboundValue, .asCoerceMethod[0x56554ddc8ee0]_p40, e1.0
+  val?            %1.4  = Call               !     %1.1(%1.2, %1.3) e1.0   <val?_>
+  void                    Return             l     %1.4
+Prom 39:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    value, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force              !     %1.1, e1.0   <val?_>
+  void                    Return             l     %1.3
+Prom 40:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    .Data, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force              !     %1.1, e1.0   <val?_>
+  void                    Return             l     %1.3
+Prom 41:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    fdef, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force              !     %1.1, e1.0   <val?_>
+  void                    Return             l     %1.3
+Prom 42:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  (cls|spec|blt)  %1.1  = LdFun              !     @, e1.0
+  prom-           %1.2  = MkArg                    unboundValue, .asCoerceMethod[0x56554ddc8ee0]_p43, e1.0
+  prom-           %1.3  = MkArg                    unboundValue, .asCoerceMethod[0x56554ddc8ee0]_p44, e1.0
+  val?            %1.4  = Call               !     %1.1(%1.2, %1.3) e1.0   <val?_>
+  void                    Return             l     %1.4
+Prom 43:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    value, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force              !     %1.1, e1.0   <val?_>
+  void                    Return             l     %1.3
+Prom 44:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    target, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force              !     %1.1, e1.0   <val?_>
+  void                    Return             l     %1.3
+Prom 45:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    sig, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force              !     %1.1, e1.0   <val?_>
+  void                    Return             l     %1.3
+Prom 46:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  (cls|spec|blt)  %1.1  = LdFun              !     @, e1.0
+  prom-           %1.2  = MkArg                    unboundValue, .asCoerceMethod[0x56554ddc8ee0]_p47, e1.0
+  prom-           %1.3  = MkArg                    unboundValue, .asCoerceMethod[0x56554ddc8ee0]_p48, e1.0
+  val?            %1.4  = Call               !     %1.1(%1.2, %1.3) e1.0   <val?_>
+  void                    Return             l     %1.4
+Prom 47:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    value, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force              !     %1.1, e1.0   <val?_>
+  void                    Return             l     %1.3
+Prom 48:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    defined, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force              !     %1.1, e1.0   <val?_>
+  void                    Return             l     %1.3
+Prom 49:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    sig, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force              !     %1.1, e1.0   <val?_>
+  void                    Return             l     %1.3
+Prom 50:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  (cls|spec|blt)  %1.1  = LdFun              !     @, e1.0
+  prom-           %1.2  = MkArg                    unboundValue, .asCoerceMethod[0x56554ddc8ee0]_p51, e1.0
+  prom-           %1.3  = MkArg                    unboundValue, .asCoerceMethod[0x56554ddc8ee0]_p52, e1.0
+  val?            %1.4  = Call               !     %1.1(%1.2, %1.3) e1.0   <val?_>
+  void                    Return             l     %1.4
+Prom 51:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    value, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force              !     %1.1, e1.0   <val?_>
+  void                    Return             l     %1.3
+Prom 52:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    generic, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force              !     %1.1, e1.0   <val?_>
+  void                    Return             l     %1.3
+Prom 53:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  (cls|spec|blt)  %1.1  = LdFun              !     structure, e1.0
+  prom-           %1.2  = MkArg                    unboundValue, .asCoerceMethod[0x56554ddc8ee0]_p54, e1.0
+  val?            %1.3  = NamedCall          !     %1.1(%1.2, package="methods") e1.0   <val?_>
+  void                    Return             l     %1.3
+Prom 54:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    replace, e1.0
+  val?            %1.2  = Force              !v    %1.1, e1.0   <val?_>
+  lgl$#-          %1.3  = CheckTrueFalse     we    %1.2
+  void                    Branch                   %1.3 -> BB2 (if true) | BB4 (if false)
+BB2   <- [1]
+  void                    Visible            v     
+  goto BB3
+BB4   <- [1]
+  void                    Visible            v     
+  goto BB3
+BB3   <- [4, 2]
+  str$#-          %3.0  = Phi                      "coerce":BB4, "coerce<-":BB2
+  void                    Return             l     %3.0
+
+│ .asCoerceMethod[0x56554ddc8ee0]                                              │
+└──────────────────────────────────────────────────────────────────────────────┘

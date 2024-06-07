@@ -1,0 +1,24 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ t[0x5556967f6060]                                                            │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch                                      │
+│ Properties:                                                                  │
+├────── PIR Version After Optimizations
+t[0x5556967f6060]
+BB0
+  goto BB1
+BB1   <- [0]
+  val?^           %1.0  = LdArg                    0
+  env             e1.1  = (MkEnv)            l     x=%1.0, parent=R_BaseNamespace, context 1
+  val?            %1.2  = Call               !L    <spec UseMethod>("t") e1.1   <val?_>
+  cp              %1.3  = Checkpoint                -> BB2 (default) | BB3 (if assume failed)
+BB2   <- [1]
+  lgl$#-          %2.0  = IsEnvStub          R     , e1.1
+  void                    Assume             D     %2.0, %1.3 (EnvStubMaterialized@0x5556957e2fe8[Call#unknown])
+  void                    Return             l     %1.2
+BB3   <- [1]
+  fs              %3.0  = FrameState         R     0x555694ab5c10+32: [%1.2], env=e1.1
+  void                    Deopt              !v    %3.0   !
+
+│ t[0x5556967f6060]                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘

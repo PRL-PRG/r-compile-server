@@ -1,0 +1,145 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ .getMethodsTable[0x55bbe4789480]                                             │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch miss: 3                              │
+│ Properties:                                                                  │
+├────── Final PIR Version
+.getMethodsTable[0x55bbe4789480]
+BB0
+  val?^           %0.0  = LdArg                    0
+  env             e0.1  = MkEnv              l     fdef=%0.0, env(miss)=missingArg, check(miss)=missingArg, inherited(miss)=missingArg, parent=<env 0x55bbe2427378>, context 1
+  prom-           %0.2  = MkArg                    unboundValue, .getMethodsTable[0x55bbe4789480]_p0, e0.1
+  val?^ | miss    %0.3  = CastType                 up %0.2
+  void                    StArg              lW    env, %0.3, e0.1
+  void                    StArg              lW    check, true, e0.1
+  void                    StArg              lW    inherited, false, e0.1
+  void                    StVar              lW    name, ".MTable", e0.1
+  void                    Visible            v     
+  val?^ | miss    %0.9  = LdVar              eR    exists, <env 0x55bbe2427378>
+  lgl$#-          %0.10 = Identical                %0.9, function(x, where=-(1), envir=if(missing(frame|...
+  void                    Branch                   %0.10 -> BB15 (if true) | BB16 (if false)
+BB15   <- [0]
+  prom-           %15.0 = MkArg                    unboundValue, .getMethodsTable[0x55bbe4789480]_p4 (!refl), e0.1
+  prom-           %15.1 = MkArg                    unboundValue, .getMethodsTable[0x55bbe4789480]_p5, e0.1
+  val?            %15.2 = StaticCall         !     exists[0x55bbe4f82c30](%15.0, missingArg, %15.1, missingArg, missingArg, false) { 0 2n 5n } e0.1   <lgl$->
+  lgl$#-          %15.3 = IsType                   %15.2 isA lgl$-
+  void                    Branch                   %15.3 -> BB17 (if true) | BB18 (if false)
+BB16   <- [0]
+  fs              %16.0 = FrameState         R     0x55bbe36bbb20+46: [], env=e0.1
+  void                    Deopt              !v    %16.0, CallTarget@0x55bbe41aedb0[Call#1], %0.9
+BB17   <- [15]
+  lgl$-           %17.0 = CastType           d     dn %15.2
+  lgl$-           %17.1 = Not                vd    %17.0, elided
+  lgl$-           %17.2 = AsLogical                %17.1
+  lgl$-           %17.3 = AsLogical                %17.2
+  lgl$#-          %17.4 = CheckTrueFalse     e     %17.3
+  void                    Branch                   %17.4 -> BB9 (if true) | BB5 (if false)
+BB18   <- [15]
+  fs              %18.0 = FrameState         R     0x55bbe36bbb20+121: [true, %15.2], env=e0.1
+  void                    Deopt              !v    %18.0, Typecheck@0x55bbe41aedb0[Type#6], %15.2   !
+BB9   <- [17]
+  (cls|spec|blt)  %9.0  = LdFun              !     .setupMethodsTables, e0.1
+  prom-           %9.1  = MkArg                    unboundValue, .getMethodsTable[0x55bbe4789480]_p8, e0.1
+  val?            %9.2  = NamedCall          !     %9.0(%9.1, initialize=true) e0.1
+  (cls|spec|blt)  %9.3  = LdFun              !     exists, e0.1
+  prom-           %9.4  = MkArg                    unboundValue, .getMethodsTable[0x55bbe4789480]_p9, e0.1
+  prom-           %9.5  = MkArg                    unboundValue, .getMethodsTable[0x55bbe4789480]_p10, e0.1
+  val?            %9.6  = NamedCall          !     %9.3(%9.4, envir=%9.5, inherits=false) e0.1   <val?_>
+  lgl$#-          %9.7  = IsType                   %9.6 isA val?+
+  void                    Branch                   %9.7 -> BB19 (if true) | BB20 (if false)
+BB5   <- [17]
+  void                    Nop                !     
+  goto BB6
+BB19   <- [9]
+  val?+           %19.0 = CastType           d     dn %9.6   <val?_>
+  lgl             %19.1 = Not                vwed  %19.0, elided
+  lgl$#-          %19.2 = CheckTrueFalse     we    %19.1
+  void                    Branch                   %19.2 -> BB13 (if true) | BB12 (if false)
+BB20   <- [9]
+  fs              %20.0 = FrameState         R     0x55bbe36bbb20+240: [%9.6], env=e0.1
+  void                    Deopt              !v    %20.0, Typecheck@0x55bbe41aedb0[Type#10], %9.6   !
+BB6   <- [5, 12, 13]
+  val?^ | miss    %6.0  = LdVar              eR    get, e0.1
+  lgl$#-          %6.1  = Identical                %6.0, function(x, pos=-(1L), envir=as.environment(po|...
+  void                    Branch                   %6.1 -> BB21 (if true) | BB22 (if false)
+BB13   <- [19]
+  (cls|spec|blt)  %13.0 = LdFun              !     stop, e0.1
+  val?            %13.1 = Call               !     %13.0("invalid methods table request") e0.1
+  goto BB6
+BB12   <- [19]
+  void                    Nop                !     
+  goto BB6
+BB21   <- [6]
+  prom-           %21.0 = MkArg                    unboundValue, .getMethodsTable[0x55bbe4789480]_p6, e0.1
+  prom-           %21.1 = MkArg                    unboundValue, .getMethodsTable[0x55bbe4789480]_p7, e0.1
+  val?            %21.2 = StaticCall         !     get[0x55bbe1fc2aa0](%21.0, missingArg, %21.1) { 0 2n } e0.1   <env->
+  void                    Return             l     %21.2
+BB22   <- [6]
+  fs              %22.0 = FrameState         R     0x55bbe36bbb20+290: [], env=e0.1
+  void                    Deopt              !v    %22.0, CallTarget@0x55bbe41aedb0[Call#5], %6.0   !
+Prom 0:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     environment, <0x55bbe21c6b68>, e0.0
+  prom-           %0.2  = MkArg                    unboundValue, .getMethodsTable[0x55bbe4789480]_p1, e0.0
+  val?            %0.3  = Call               !     %0.1(%0.2) e0.0   <env->
+  void                    Return             l     %0.3
+Prom 1:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    fdef, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <cls>
+  void                    Return             l     %0.3
+Prom 4:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    name, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<value>       !     %0.1, e0.0   <str$->
+  void                    Return             l     %0.3
+Prom 5:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    env, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <env->
+  void                    Return             l     %0.3
+Prom 6:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    name, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<value>       !     %0.1, e0.0   <str$->
+  void                    Return             l     %0.3
+Prom 7:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    env, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<wrapped>     !     %0.1, e0.0   <env->
+  void                    Return             l     %0.3
+Prom 8:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    fdef, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 9:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    name, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 10:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    env, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+
+│ .getMethodsTable[0x55bbe4789480]                                             │
+└──────────────────────────────────────────────────────────────────────────────┘

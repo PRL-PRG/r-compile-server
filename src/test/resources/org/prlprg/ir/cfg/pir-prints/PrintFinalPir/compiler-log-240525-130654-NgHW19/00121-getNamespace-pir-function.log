@@ -1,0 +1,49 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ getNamespace[0x56096c1e5dc0]                                                 │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;NonRefl0,!Obj0                       │
+│ Properties:  Eager, ForceOrd: 0                                              │
+├────── Final PIR Version
+getNamespace[0x56096c1e5dc0]
+BB0
+  val?^           %0.0  = LdArg                    0
+  env             e0.1  = MkEnv              l     name=%0.0, parent=R_BaseNamespace, context 1
+  val+            %0.2  = Force!<lazy>       !vr   %0.0,    <str$->
+  val?            %0.3  = CallBuiltin        !v    getRegisteredNamespace(%0.2) e0.1   <(nil|env)->
+  lgl$-           %0.4  = Is                       %0.3, NULL
+  void                    StVar              lW    ns, %0.3, e0.1
+  val             %0.6  = ChkMissing         e     %0.3
+  void                    Visible            v     
+  lgl$-           %0.8  = Not                vd    %0.4, elided
+  lgl$#-          %0.9  = CheckTrueFalse     e     %0.8
+  void                    Branch                   %0.9 -> BB5 (if true) | BB3 (if false)
+BB5   <- [0]
+  void                    Visible            v     
+  val?            %5.1  = %0.3
+  goto BB4
+BB3   <- [0]
+  val?^ | miss    %3.0  = LdVar              eR    loadNamespace, e0.1
+  lgl$#-          %3.1  = Identical                %3.0, function(package, lib.loc=NULL, keep.source=ge|...
+  void                    Branch                   %3.1 -> BB7 (if true) | BB8 (if false)
+BB4   <- [5, 7]
+  val?            %4.0  = Phi                      %7.2:BB7, %5.1:BB5
+  val?            %4.1  = %4.0
+  void                    Return             l     %4.1
+BB7   <- [3]
+  prom-           %7.0  = MkArg                    unboundValue, getNamespace[0x56096c1e5dc0]_p0, e0.1
+  val?            %7.1  = Call               !     function(package, lib.loc=NULL, keep.source=ge|...(%7.0) e0.1   <val?_>
+  val?            %7.2  = %7.1
+  goto BB4
+BB8   <- [3]
+  fs              %8.0  = FrameState         R     0x56096c11e480+36: [], env=e0.1
+  void                    Deopt              !v    %8.0, CallTarget@0x56096c910e08[Call#0], %3.0   !
+Prom 0:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    name, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<wrapped>     !     %0.1, e0.0   <str$->
+  void                    Return             l     %0.3
+
+│ getNamespace[0x56096c1e5dc0]                                                 │
+└──────────────────────────────────────────────────────────────────────────────┘

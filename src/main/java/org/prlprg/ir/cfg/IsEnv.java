@@ -12,7 +12,7 @@ import org.prlprg.ir.closure.Closure;
  *
  * <p>This is essentially {@link TypeIs TypeIs("ENV")}, but shorter because it's extremely common.
  * It's also applied to more Java elements (e.g. {@link Closure#env()}, although some of those
- * aren't checked.
+ * aren't checked, just for documentation purposes.
  */
 @Documented
 @Retention(RetentionPolicy.RUNTIME)

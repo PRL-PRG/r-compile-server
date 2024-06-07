@@ -1,0 +1,61 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ is.emptyenv[0x561663511290]                                                  │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch                                      │
+│ Properties:                                                                  │
+├────── PIR Version After Optimizations
+is.emptyenv[0x561663511290]
+BB0
+  goto BB1
+BB1   <- [0]
+  val?^           %1.0  = LdArg                    0
+  cp              %1.1  = Checkpoint                -> BB2 (default) | BB5 (if assume failed)
+BB2   <- [1]
+  val?^ | miss    %2.0  = LdVar              eR    identical, <env 0x56166328f230>
+  lgl$#-          %2.1  = Identical                %2.0, function(x, y, num.eq=TRUE, single.NA=TRUE, at|...
+  void                    Assume             D     %2.1, %1.1 (CallTarget@0x561661f50ee8[Call#0])
+  env             e2.3  = MkEnv              l     e=%1.0, parent=<env 0x56166328f230>, context 1
+  prom-           %2.4  = MkArg                    unboundValue, is.emptyenv[0x561663511290]_p0, e2.3
+  prom-           %2.5  = MkArg                    unboundValue, is.emptyenv[0x561663511290]_p1, e2.3
+  ct              %2.6  = PushContext        lCL   %2.4, %2.5, identical(e, .EmptyEnv), function(x, y, num.eq=TRUE, single.NA=TRUE, at|..., e2.3
+  val?^           %2.7  = CastType                 up %2.5
+  val?^           %2.8  = CastType                 up %2.4
+  env             e2.9  = MkEnv              l     x=%2.8, y=%2.7, num.eq(miss)=true, single.NA(miss)=true, attrib.as.set(miss)=true, ignore.bytecode(miss)=true, ignore.environment(miss)=false, ignore.srcref(miss)=true, parent=R_BaseNamespace, context 1
+  val?            %2.10 = Force!<lazy>       !vL   %2.8, e2.9   <val?+>
+  val?            %2.11 = Force!<lazy>       !vL   %2.7, e2.9   <val?+>
+  val?            %2.12 = CallBuiltin        !     identical(%2.10, %2.11, true, true, true, true, false, true) e2.9
+  val?            %2.13 = PopContext         C     %2.12, %2.6   <lgl$->
+  lgl$#-          %2.14 = IsType                   %2.13 isA lgl$-
+  cp              %2.15 = Checkpoint                -> BB4 (default) | BB3 (if assume failed)
+BB5   <- [1]
+  env             e5.0  = (MkEnv)            l     e=%1.0, parent=<env 0x56166328f230>, context 1
+  fs              %5.1  = FrameState         R     0x5616633b8c60+0: [], env=e5.0
+  void                    Deopt              !v    %5.1
+BB4   <- [2]
+  void                    Assume             D     %2.14, %2.15 (Typecheck@0x561661f50ee8[Type#2])
+  lgl$-           %4.1  = CastType           d     dn %2.13
+  void                    Return             l     %4.1
+BB3   <- [2]
+  fs              %3.0  = FrameState         R     0x5616633b8c60+37: [%2.13], env=e2.3
+  void                    Deopt              !v    %3.0   !
+Prom 0:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    e, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<lazy>        !     %1.1, e1.0   <env+>
+  void                    Return             l     %1.3
+Prom 1:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    .EmptyEnv, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<wrapped>     !     %1.1, e1.0   <env->
+  void                    Return             l     %1.3
+
+│ is.emptyenv[0x561663511290]                                                  │
+└──────────────────────────────────────────────────────────────────────────────┘

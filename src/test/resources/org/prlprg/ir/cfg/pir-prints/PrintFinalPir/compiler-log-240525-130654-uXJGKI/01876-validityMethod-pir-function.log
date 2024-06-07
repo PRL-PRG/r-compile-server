@@ -1,0 +1,137 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ validityMethod[0x5614fc8313d0]                                               │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch                                      │
+│ Properties:                                                                  │
+├────── Final PIR Version
+validityMethod[0x5614fc8313d0]
+BB0
+  val?^           %0.0  = LdArg                    0
+  val?^ | miss    %0.1  = LdVar              eR    isTRUE, <env 0x5614fad267d8>
+  lgl$#-          %0.2  = Identical                %0.1, function(x) <(rir::DispatchTable*)0x5614fa764a|...
+  void                    Branch                   %0.2 -> BB16 (if true) | BB17 (if false)
+BB16   <- [0]
+  val?^ | miss    %16.0 = LdVar              eR    .Call, <env 0x5614fad267d8>
+  lgl$#-          %16.1 = Identical                %16.0, <blt .Call>
+  void                    Branch                   %16.1 -> BB18 (if true) | BB19 (if false)
+BB17   <- [0]
+  void                    Nop                !     
+  val?^ | miss    %17.1 = %0.1
+  dr              %17.2 = CallTarget@0x561504f3df08[Call#0]
+  goto BB15
+BB18   <- [16]
+  val?^ | miss    %18.0 = LdVar              eR    Dim_validate, <env 0x5614fad267d8>
+  env             e18.1 = MkEnv              l     object=%0.0, parent=<env 0x5614fad267d8>, context 1
+  val?            %18.2 = Force!<value>      !v    %18.0, e18.1   <vec>
+  val?^ | miss    %18.3 = LdVar              eR    object, e18.1
+  val?            %18.4 = Force!<lazy>       !v    %18.3, e18.1   <other>
+  val?            %18.5 = CallBuiltin        !v    .Call(%18.2, %18.4, "Matrix") e18.1   <lgl$->
+  lgl$#-          %18.6 = IsType                   %18.5 isA lgl$-
+  void                    Branch                   %18.6 -> BB20 (if true) | BB21 (if false)
+BB19   <- [16]
+  void                    Nop                !     
+  val?^ | miss    %19.1 = %16.0
+  dr              %19.2 = CallTarget@0x561504f3df08[Call#1]
+  goto BB15
+BB15   <- [17, 19]
+  val?^ | miss    %15.0 = Phi                      %17.1:BB17, %19.1:BB19
+  val?^ | miss    %15.1 = %15.0
+  dr              %15.2 = Phi                      %17.2:BB17, %19.2:BB19
+  dr              %15.3 = %15.2
+  env             e15.4 = (MkEnv)            l     object=%0.0, parent=<env 0x5614fad267d8>, context 1
+  fs              %15.5 = FrameState         R     0x5614fe423f70+0: [], env=e15.4
+  void                    Deopt              !v    %15.5, %15.3, %15.1
+BB20   <- [18]
+  lgl$-           %20.0 = CastType           d     dn %18.5
+  void                    StVar              lW    r, %20.0, e18.1
+  lgl$-           %20.2 = CallSafeBuiltin    wed   is.na(%20.0)    <lgl$->
+  lgl$-           %20.3 = Not                d     %20.2, elided
+  lgl$-           %20.4 = AsLogical                %20.3
+  lgl$-           %20.5 = AsLogical                %20.4
+  lgl$-           %20.6 = AsLogical                %20.5
+  lgl$#-          %20.7 = Identical                %20.6, false
+  void                    Branch                   %20.7 -> BB14 (if true) | BB7 (if false)
+BB21   <- [18]
+  prom-           %21.0 = MkArg                    unboundValue, validityMethod[0x5614fc8313d0]_p0, e18.1
+  val?^           %21.1 = CastType                 up %21.0
+  fs              %21.2 = FrameState         R     0x5614fe423f70+32: [], env=e18.1
+  env             e21.3 = (MkEnv)            l     x=%21.1, parent=R_BaseNamespace, context 0
+  fs              %21.4 = FrameState         R     0x5614f8cf86d0+69: [<blt is.logical>], env=e21.3, next=%21.2
+  fs              %21.5 = FrameState         R     0x561504c34a10+42(pr): [%18.5], env=e18.1, next=%21.4
+  void                    Deopt              !v    %21.5, Typecheck@0x561504f3df08[Type#2], %18.5   !
+BB14   <- [20]
+  void                    Nop                !     
+  lgl$-           %14.1 = %20.6
+  goto BB8
+BB7   <- [20]
+  lgl$-           %7.0  = AsLogical                %20.0
+  lgl$-           %7.1  = LAnd                     %20.6, %7.0
+  lgl$-           %7.2  = %7.1
+  goto BB8
+BB8   <- [14, 7]
+  lgl$-           %8.0  = Phi                      %7.2:BB7, %14.1:BB14
+  lgl$-           %8.1  = %8.0
+  lgl$-           %8.2  = Not                d     %8.1, elided
+  lgl$#-          %8.3  = CheckTrueFalse     e     %8.2
+  void                    Branch                   %8.3 -> BB13 (if true) | BB9 (if false)
+BB13   <- [8]
+  void                    Visible            v     
+  lgl$-           %13.1 = %20.0
+  goto BB12
+BB9   <- [8]
+  val?^ | miss    %9.0  = LdVar              eR    .Call, e18.1
+  lgl$#-          %9.1  = Identical                <blt .Call>, %9.0   <true>
+  void                    Branch                   %9.1 -> BB22 (if true) | BB23 (if false)
+BB12   <- [13, 24]
+  val?            %12.0 = Phi                      %24.1:BB24, %13.1:BB13
+  val?            %12.1 = %12.0
+  void                    Return             l     %12.1
+BB22   <- [9]
+  val?^ | miss    %22.0 = LdVar              eR    dimNames_validate, e18.1
+  val?            %22.1 = Force!<value>      !v    %22.0, e18.1   <vec>
+  val?^ | miss    %22.2 = LdVar              eR    object, e18.1
+  val?            %22.3 = Force!<wrapped>    !v    %22.2, e18.1   <other>
+  val?            %22.4 = CallBuiltin        !     .Call(%22.1, %22.3) e18.1   <lgl$->
+  lgl$#-          %22.5 = IsType                   %22.4 isA lgl$-
+  void                    Branch                   %22.5 -> BB24 (if true) | BB25 (if false)
+BB23   <- [9]
+  prom-           %23.0 = MkArg                    %20.0, validityMethod[0x5614fc8313d0]_p0 (!refl), e18.1
+  val?~           %23.1 = CastType                 up %23.0
+  fs              %23.2 = FrameState         R     0x5614fe423f70+32: [], env=e18.1
+  env             e23.3 = (MkEnv)            l     x=%23.1, parent=R_BaseNamespace, context 0
+  fs              %23.4 = FrameState         R     0x5614f8cf86d0+311: [true, %20.2], env=e23.3, next=%23.2
+  void                    Deopt              !v    %23.4, DeadBranchReached@0x561504f3df08[Test#0], %9.1   !
+BB24   <- [22]
+  void                    Nop                !     
+  val?            %24.1 = %22.4
+  goto BB12
+BB25   <- [22]
+  fs              %25.0 = FrameState         R     0x5614fe423f70+154: [%22.4], env=e18.1
+  void                    Deopt              !v    %25.0, Typecheck@0x561504f3df08[Type#8], %22.4   !
+Prom 0:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !v    .Call, <0x5614f88bad38>, e0.0
+  prom-           %0.2  = MkArg                    unboundValue, validityMethod[0x5614fc8313d0]_p1, e0.0
+  prom-           %0.3  = MkArg                    unboundValue, validityMethod[0x5614fc8313d0]_p2, e0.0
+  val?            %0.4  = Call               !v    %0.1(%0.2, %0.3, "Matrix") e0.0   <lgl$->
+  void                    Invisible          v     
+  void                    StVar              lW    r, %0.4, e0.0
+  void                    Return             l     %0.4
+Prom 1:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    Dim_validate, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<value>       !     %0.1, e0.0   <vec>
+  void                    Return             l     %0.3
+Prom 2:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    object, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <other>
+  void                    Return             l     %0.3
+
+│ validityMethod[0x5614fc8313d0]                                               │
+└──────────────────────────────────────────────────────────────────────────────┘

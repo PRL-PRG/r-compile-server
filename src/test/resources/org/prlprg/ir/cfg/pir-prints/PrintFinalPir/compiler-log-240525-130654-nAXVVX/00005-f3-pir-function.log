@@ -1,0 +1,72 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ f3[0x563e73cb0890]                                                           │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;NonRefl0,!Obj0,SimpleInt0            │
+│ Properties:                                                                  │
+├────── Final PIR Version
+f3[0x563e73cb0890]
+BB0
+  val?^           %0.0  = LdArg                    0
+  val?^ | miss    %0.1  = LdVar              eR    add_nospecial, R_GlobalEnv
+  lgl$#-          %0.2  = Identical                %0.1, function(a, b) <(rir::DispatchTable*)0x563e72f|...
+  void                    Branch                   %0.2 -> BB12 (if true) | BB13 (if false)
+BB12   <- [0]
+  env             e12.0 = MkEnv              l     b=%0.0, parent=R_GlobalEnv, context 1
+  val?            %12.1 = StaticCall         !v    add_nospecial[0x563e73cad710](1, 2L) e12.0
+  val?^ | miss    %12.2 = LdVar              eR    add_nospecial, e12.0
+  lgl$#-          %12.3 = Identical                %12.2, function(a, b) <(rir::DispatchTable*)0x563e72f|...
+  void                    Branch                   %12.3 -> BB14 (if true) | BB15 (if false)
+BB13   <- [0]
+  env             e13.0 = (MkEnv)            l     b=%0.0, parent=R_GlobalEnv, context 1
+  fs              %13.1 = FrameState         R     0x563e73c9f6d0+0: [], env=e13.0
+  void                    Deopt              !v    %13.1, CallTarget@0x563e733cc698[Call#0], %0.1
+BB14   <- [12]
+  val?            %14.0 = StaticCall         !v    add_nospecial[0x563e73cad710](1, 2.2) e12.0
+  void                    Visible            v     
+  void                    StVar              lW    a, 2, e12.0
+  val?^ | miss    %14.3 = LdVar              eR    add_nospecial, e12.0
+  lgl$#-          %14.4 = Identical                %14.3, function(a, b) <(rir::DispatchTable*)0x563e72f|...
+  void                    Branch                   %14.4 -> BB16 (if true) | BB17 (if false)
+BB15   <- [12]
+  fs              %15.0 = FrameState         R     0x563e73c9f6d0+37: [%12.1], env=e12.0
+  void                    Deopt              !v    %15.0, CallTarget@0x563e733cc698[Call#1], %12.2   !
+BB16   <- [14]
+  prom-           %16.0 = MkArg                    unboundValue, f3[0x563e73cb0890]_p0 (!refl), e12.0
+  val?            %16.1 = StaticCall         !     add_nospecial[0x563e73cad710](1L, %16.0) e12.0
+  val?^ | miss    %16.2 = LdVar              eR    add_nospecial, e12.0
+  lgl$#-          %16.3 = Identical                %16.2, function(a, b) <(rir::DispatchTable*)0x563e72f|...
+  void                    Branch                   %16.3 -> BB18 (if true) | BB19 (if false)
+BB17   <- [14]
+  fs              %17.0 = FrameState         R     0x563e73c9f6d0+91: [], env=e12.0
+  void                    Deopt              !v    %17.0, CallTarget@0x563e733cc698[Call#2], %14.3   !
+BB18   <- [16]
+  prom-           %18.0 = MkArg                    unboundValue, f3[0x563e73cb0890]_p1, e12.0
+  val?            %18.1 = StaticCall         !     add_nospecial[0x563e73cad710](1L, %18.0) e12.0   <int$->
+  lgl$#-          %18.2 = IsType                   %18.1 isA int$-
+  void                    Branch                   %18.2 -> BB20 (if true) | BB21 (if false)
+BB19   <- [16]
+  fs              %19.0 = FrameState         R     0x563e73c9f6d0+128: [%16.1], env=e12.0
+  void                    Deopt              !v    %19.0, CallTarget@0x563e733cc698[Call#3], %16.2   !
+BB20   <- [18]
+  int$-           %20.0 = CastType           d     dn %18.1
+  void                    Return             l     %20.0
+BB21   <- [18]
+  fs              %21.0 = FrameState         R     0x563e73c9f6d0+166: [%18.1], env=e12.0
+  void                    Deopt              !v    %21.0, Typecheck@0x563e733cc698[Type#2], %18.1   !
+Prom 0:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    a, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<value>       !     %0.1, e0.0   <real$->
+  void                    Return             l     %0.3
+Prom 1:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    b, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <int$->
+  void                    Return             l     %0.3
+
+│ f3[0x563e73cb0890]                                                           │
+└──────────────────────────────────────────────────────────────────────────────┘

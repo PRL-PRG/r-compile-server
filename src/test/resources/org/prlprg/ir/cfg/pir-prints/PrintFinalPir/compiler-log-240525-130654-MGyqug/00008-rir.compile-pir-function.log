@@ -1,0 +1,81 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ rir.compile[0x55b543856400]                                                  │
+│ Context: CorrOrd,!TMany                                                      │
+│ Properties:                                                                  │
+├────── Final PIR Version
+rir.compile[0x55b543856400]
+BB0
+  val?^ | miss    %0.0  = LdArg                    2
+  val?^ | miss    %0.1  = LdArg                    1
+  val?^ | miss    %0.2  = LdArg                    0
+  val?^ | miss    %0.3  = LdVar              eR    nargs, R_GlobalEnv
+  lgl$#-          %0.4  = Identical                <blt nargs>, %0.3   <@?>
+  env             e0.5  = (MkEnv)            l     a=%0.2, b=%0.1, c=%0.0, parent=R_GlobalEnv, context 1
+  void                    Branch                   %0.4 -> BB2 (if true) | BB8 (if false)
+BB2   <- [0]
+  val?            %2.0  = CallBuiltin        !vL   nargs() e0.5
+  lgl$#-          %2.1  = IsEnvStub          R     , e0.5
+  void                    Branch                   %2.1 -> BB11 (if true) | BB12 (if false)
+BB8   <- [0]
+  val?            %8.0  = CallBuiltin        !vL   nargs() e0.5
+  lgl$#-          %8.1  = IsEnvStub          R     , e0.5
+  void                    Branch                   %8.1 -> BB15 (if true) | BB16 (if false)
+BB11   <- [2]
+  void                    Nop                !     
+  val?            %11.1 = %2.0
+  goto BB5
+BB12   <- [2]
+  fs              %12.0 = FrameState         R     0x55b5439acd40+72: [%2.0], env=e0.5
+  void                    Deopt              !v    %12.0, EnvStubMaterialized@0x55b5438fa6b0[Call#unknown], e0.5   !
+BB15   <- [8]
+  void                    Nop                !     
+  val?            %15.1 = %8.0
+  goto BB5
+BB16   <- [8]
+  fs              %16.0 = FrameState         R     0x55b5439acd40+50: [%8.0], env=e0.5
+  void                    Deopt              !v    %16.0, EnvStubMaterialized@0x55b5438fa6b0[Call#unknown], e0.5   !
+BB5   <- [11, 15]
+  val?            %5.0  = Phi                      %15.1:BB15, %11.1:BB11   <val?_>
+  val?            %5.1  = %5.0
+  val?^           %5.2  = ChkMissing         e     %0.2
+  void                    Visible            v     
+  val?            %5.4  = Force!             !L    %5.2, e0.5   <val?_>
+  lgl$#-          %5.5  = IsType                   %5.4 isA val?+
+  lgl$#-          %5.6  = IsType                   %5.1 isA val?+
+  lgl$#-          %5.7  = IsEnvStub          R     , e0.5
+  void                    Branch                   %5.7 -> BB13 (if true) | BB14 (if false)
+BB13   <- [5]
+  void                    Branch                   %5.6 -> BB17 (if true) | BB18 (if false)
+BB14   <- [5]
+  void                    Nop                !     
+  env             e14.1 = e0.5
+  dr              %14.2 = EnvStubMaterialized@0x55b5438fa6b0[Call#unknown]
+  goto BB6
+BB17   <- [13]
+  val?+           %17.0 = CastType           d     dn %5.1   <val?_>
+  void                    Branch                   %5.5 -> BB19 (if true) | BB20 (if false)
+BB18   <- [13]
+  void                    Nop                !     
+  val?            %18.1 = %5.1
+  dr              %18.2 = Typecheck@0x55b5438fa6b0[Type#0]
+  goto BB6
+BB6   <- [14, 18, 20]
+  val?            %6.0  = Phi                      e14.1:BB14, %18.1:BB18, %20.1:BB20
+  val?            %6.1  = %6.0
+  dr              %6.2  = Phi                      %14.2:BB14, %18.2:BB18, %20.2:BB20
+  dr              %6.3  = %6.2
+  fs              %6.4  = FrameState         R     0x55b5439acd40+86: [%5.1, %5.4], env=e0.5
+  void                    Deopt              !v    %6.4, %6.3, %6.1   !
+BB19   <- [17]
+  val?+           %19.0 = CastType           d     dn %5.4   <val?_>
+  (int|real|complex)+ %19.1 = Add                vwed  %17.0, %19.0, elided   <val?_>
+  void                    Return             l     %19.1
+BB20   <- [17]
+  void                    Nop                !     
+  val?            %20.1 = %5.4
+  dr              %20.2 = Typecheck@0x55b5438fa6b0[Type#1]
+  goto BB6
+
+│ rir.compile[0x55b543856400]                                                  │
+└──────────────────────────────────────────────────────────────────────────────┘

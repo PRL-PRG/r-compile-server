@@ -1,0 +1,159 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ isBaseFun[0x5614fe070940]                                                    │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;NonRefl0                             │
+│ Properties:                                                                  │
+├────── Final PIR Version
+isBaseFun[0x5614fe070940]
+BB0
+  val?^           %0.0  = LdArg                    0
+  val?^ | miss    %0.1  = LdVar              eR    is.primitive, <env 0x5614f8eae378>
+  lgl$#-          %0.2  = Identical                %0.1, function(x) <(rir::DispatchTable*)0x5614fb45f8|...
+  void                    Branch                   %0.2 -> BB19 (if true) | BB20 (if false)
+BB19   <- [0]
+  env             e19.0 = MkEnv              l     fun=%0.0, parent=<env 0x5614f8eae378>, context 1
+  val?            %19.1 = Force!<lazy>       !vrd  %0.0,    <cls>
+  str$-           %19.2 = CallSafeBuiltin    wed   typeof(%19.1)    <str$->
+  int$-           %19.3 = Length                   %19.2
+  lgl$-           %19.4 = Eq                 d     %19.3, 1L, elided   <true>
+  lgl$#-          %19.5 = Identical                %19.4, true
+  void                    Branch                   %19.5 -> BB21 (if true) | BB22 (if false)
+BB20   <- [0]
+  env             e20.0 = (MkEnv)            l     fun=%0.0, parent=<env 0x5614f8eae378>, context 1
+  fs              %20.1 = FrameState         R     0x5614fe1db380+0: [], env=e20.0
+  void                    Deopt              !v    %20.1, CallTarget@0x5614ff527758[Call#0], %0.1
+BB21   <- [19]
+  lgl$-           %21.0 = CallSafeBuiltin    wed   is.na(%19.2) 
+  lgl$#-          %21.1 = CheckTrueFalse     e     %21.0   <false>
+  void                    Branch                   %21.1 -> BB24 (if true) | BB23 (if false)
+BB22   <- [19]
+  prom-           %22.0 = MkArg                    %19.1, isBaseFun[0x5614fe070940]_p2 (!refl), e19.0
+  val?~           %22.1 = CastType                 up %22.0
+  env             e22.2 = (MkEnv)            l     x=%22.1, parent=R_BaseNamespace, context 0
+  env             e22.3 = MaterializeEnv           , e22.2   <@?>
+  fs              %22.4 = FrameState         R     0x5614fe1db380+32: [], env=e19.0
+  fs              %22.5 = FrameState         R     0x5614fb9a90f0+32: [], env=e22.3, next=%22.4
+  prom-           %22.6 = MkArg                    %19.1, isBaseFun[0x5614fe070940]_p3 (!refl), e22.3
+  val?~           %22.7 = CastType                 up %22.6
+  env             e22.8 = (MkEnv)            l     x=%22.7, parent=R_BaseNamespace, context -1
+  fs              %22.9 = FrameState         R     0x5614fa9a51b0+27: [%19.2], env=e22.8, next=%22.5
+  void                    Deopt              !v    %22.9, DeadBranchReached@0x5614fb5b9618[Test#1], %19.5
+BB24   <- [21]
+  void                    Nop                !     
+  lgl$#-          %24.1 = %21.1
+  dr              %24.2 = DeadBranchReached@0x5614fb5b9618[Test#7]
+  goto BB5
+BB23   <- [21]
+  lgl$-           %23.0 = Eq                 d     %19.2, special, elided
+  lgl$#-          %23.1 = CheckTrueFalse     e     %23.0
+  void                    Branch                   %23.1 -> BB17 (if true) | BB7 (if false)
+BB5   <- [24, 26]
+  val?^ | miss    %5.0  = Phi                      %24.1:BB24, %26.1:BB26
+  val?^ | miss    %5.1  = %5.0
+  dr              %5.2  = Phi                      %24.2:BB24, %26.2:BB26
+  dr              %5.3  = %5.2
+  prom-           %5.4  = MkArg                    %19.1, isBaseFun[0x5614fe070940]_p2 (!refl), e19.0
+  val?~           %5.5  = CastType                 up %5.4
+  fs              %5.6  = FrameState         R     0x5614fe1db380+32: [], env=e19.0
+  env             e5.7  = (MkEnv)            l     x=%5.5, parent=R_BaseNamespace, context 0
+  fs              %5.8  = FrameState         R     0x5614fb9a90f0+240: [%19.2, %21.0], env=e5.7, next=%5.6
+  void                    Deopt              !v    %5.8, %5.3, %5.1
+BB17   <- [23]
+  void                    Nop                !     
+  goto BB16
+BB7   <- [23]
+  lgl$-           %7.0  = Eq                 d     %19.2, builtin, elided
+  lgl$#-          %7.1  = CheckTrueFalse     e     %7.0
+  void                    Branch                   %7.1 -> BB15 (if true) | BB8 (if false)
+BB16   <- [17, 15]
+  void                    Visible            v     
+  lgl$#-          %16.1 = true
+  goto BB9
+BB15   <- [7]
+  void                    Nop                !     
+  goto BB16
+BB8   <- [7]
+  void                    Visible            v     
+  lgl$#-          %8.1  = false
+  goto BB9
+BB9   <- [16, 8]
+  lgl$#-          %9.0  = Phi                      %8.1:BB8, %16.1:BB16
+  lgl$#-          %9.1  = %9.0
+  void                    Branch                   %9.1 -> BB14 (if true) | BB10 (if false)
+BB14   <- [9]
+  void                    Nop                !     
+  lgl$#-          %14.1 = %9.1
+  goto BB13
+BB10   <- [9]
+  val?^ | miss    %10.0 = LdVar              eR    identical, <env 0x5614f8eae378>
+  lgl$#-          %10.1 = Identical                %10.0, function(x, y, num.eq=TRUE, single.NA=TRUE, at|...
+  void                    Branch                   %10.1 -> BB25 (if true) | BB26 (if false)
+BB13   <- [14, 27]
+  lgl$-           %13.0 = Phi                      %27.3:BB27, %14.1:BB14
+  lgl$-           %13.1 = %13.0
+  void                    Return             l     %13.1
+BB25   <- [10]
+  prom-           %25.0 = MkArg                    unboundValue, isBaseFun[0x5614fe070940]_p4, e19.0
+  prom-           %25.1 = MkArg                    unboundValue, isBaseFun[0x5614fe070940]_p6, e19.0
+  ct              %25.2 = PushContext        lCL   %25.0, %25.1, identical(environment(fun), .BaseNamespaceEnv), function(x, y, num.eq=TRUE, single.NA=TRUE, at|..., e19.0
+  val?^           %25.3 = CastType                 up %25.1
+  val?^           %25.4 = CastType                 up %25.0
+  env             e25.5 = MkEnv              l     x=%25.4, y=%25.3, num.eq(miss)=true, single.NA(miss)=true, attrib.as.set(miss)=true, ignore.bytecode(miss)=true, ignore.environment(miss)=false, ignore.srcref(miss)=true, parent=R_BaseNamespace, context 1
+  val?            %25.6 = Force!<lazy>       !vL   %25.4, e25.5   <val?>
+  val?            %25.7 = Force!<lazy>       !vL   %25.3, e25.5   <val?>
+  val?            %25.8 = CallBuiltin        !     identical(%25.6, %25.7, true, true, true, true, false, true) e25.5
+  val?            %25.9 = PopContext         C     %25.8, %25.2   <lgl$->
+  lgl$#-          %25.10 = IsType                   %25.9 isA lgl$-
+  void                    Branch                   %25.10 -> BB27 (if true) | BB28 (if false)
+BB26   <- [10]
+  void                    Nop                !     
+  val?^ | miss    %26.1 = %10.0
+  dr              %26.2 = CallTarget@0x5614ff527758[Call#1]
+  goto BB5
+BB27   <- [25]
+  lgl$-           %27.0 = CastType           d     dn %25.9
+  lgl$-           %27.1 = AsLogical                %27.0
+  lgl$-           %27.2 = LOr                      %9.1, %27.1
+  lgl$-           %27.3 = %27.2
+  goto BB13
+BB28   <- [25]
+  fs              %28.0 = FrameState         R     0x5614fe1db380+81: [%9.1, %25.9], env=e19.0
+  void                    Deopt              !v    %28.0, Typecheck@0x5614ff527758[Type#5], %25.9   !
+Prom 2:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    fun, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <cls>
+  void                    Return             l     %0.3
+Prom 3:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    x, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <val?>
+  void                    Return             l     %0.3
+Prom 4:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     environment, <0x5614f8c4db68>, e0.0
+  prom-           %0.2  = MkArg                    unboundValue, isBaseFun[0x5614fe070940]_p5, e0.0
+  val?            %0.3  = Call               !     %0.1(%0.2) e0.0   <env->
+  void                    Return             l     %0.3
+Prom 5:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    fun, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<wrapped>     !     %0.1, e0.0   <cls>
+  void                    Return             l     %0.3
+Prom 6:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    .BaseNamespaceEnv, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<value>       !     %0.1, e0.0   <env->
+  void                    Return             l     %0.3
+
+│ isBaseFun[0x5614fe070940]                                                    │
+└──────────────────────────────────────────────────────────────────────────────┘

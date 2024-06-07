@@ -5,7 +5,6 @@ import com.google.common.primitives.ImmutableIntArray;
 import java.io.Reader;
 import java.io.Writer;
 import java.util.ArrayList;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -16,11 +15,18 @@ import java.util.logging.Logger;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
+import org.prlprg.bc.Bc;
+import org.prlprg.bc.BcCode;
+import org.prlprg.bc.ConstPool;
 import org.prlprg.ir.cfg.PirType.NativeType;
 import org.prlprg.ir.cfg.PirType.RType_;
 import org.prlprg.ir.cfg.StmtData.Call_;
 import org.prlprg.ir.closure.Closure;
 import org.prlprg.ir.closure.ClosureVersion;
+import org.prlprg.ir.closure.ClosureVersion.CallContext;
+import org.prlprg.ir.closure.Promise;
+import org.prlprg.ir.closure.Promise.Properties;
+import org.prlprg.ir.closure.Promise.Properties.Property;
 import org.prlprg.ir.type.REffect;
 import org.prlprg.ir.type.REffects;
 import org.prlprg.ir.type.RType;
@@ -39,8 +45,9 @@ import org.prlprg.primitive.BuiltinId;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.IsTypeCheck;
 import org.prlprg.primitive.Logical;
-import org.prlprg.rshruntime.BcAddress;
-import org.prlprg.rshruntime.BcLocation;
+import org.prlprg.rshruntime.BcPosition;
+import org.prlprg.rshruntime.FeedbackOrigin;
+import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.LangSXP;
 import org.prlprg.sexp.RegSymSXP;
 import org.prlprg.sexp.SEXPType;
@@ -135,6 +142,8 @@ class PirCFGParseContext {
         cfg.remove(bb);
       }
     }
+
+    cfg.batchSubst(pirIdToNode::patchDefinedAfterUse);
 
     return cfg;
   }
@@ -441,13 +450,8 @@ class PirInstrOrPhiParseContext {
           case "MkCls" -> {
             var cls = p.parse(Closure.class);
             s.assertAndSkip(", ");
-            var env = p.parse(RValue.class);
-            yield new StmtData.MkCls(
-                cls,
-                SEXPs.NULL,
-                SEXPs.symbol(cls.name().isEmpty() ? " " : cls.name()),
-                new BcAddress(0),
-                env);
+            p.parse(RValue.class); // env
+            yield new StmtData.MkCls(cls);
           }
           case "MkArg" -> {
             var eagerArg = p.parse(RValue.class);
@@ -464,8 +468,7 @@ class PirInstrOrPhiParseContext {
                 s.nextCharSatisfies(Character::isWhitespace)
                     ? StaticEnv.ELIDED
                     : p.parse(RValue.class);
-            yield new StmtData.MkProm(
-                SEXPs.symbol("stubPromiseRef <" + prom + ">"), eagerArg, env, performsReflection);
+            yield new StmtData.MkProm(stubPromise());
           }
           case "MkEnv", "(MkEnv)" -> {
             var isStub = instrTypeName.equals("(MkEnv)");
@@ -499,7 +502,7 @@ class PirInstrOrPhiParseContext {
                 parent, names.build(), values.build(), missingness.build(), context, isStub);
           }
           case "FrameState" -> {
-            var location = p.parse(BcLocation.class);
+            var location = p.parse(BcPosition.class);
             var inPromise = s.trySkip("(pr)");
             s.assertAndSkip(": ");
             var stack =
@@ -547,7 +550,7 @@ class PirInstrOrPhiParseContext {
                 stubLangSxp(),
                 null,
                 stubClosureVersion(clsName),
-                stubOptimizationContext(),
+                CallContext.EMPTY,
                 callArgs,
                 stubArglistOrder(callArgs),
                 StaticEnv.NOT_CLOSED,
@@ -593,8 +596,20 @@ class PirInstrOrPhiParseContext {
             yield new JumpData.Branch(cond, trueBB, falseBB);
           }
           case "Assume", "AssumeNot" -> {
-            // REACH: Add assumptions (tests and fail reasons) to checkpoint
-            s.readUntilEndOfLine();
+            var invert = instrTypeName.equals("AssumeNot");
+            var assumption = p.parse(RValue.class);
+            if (invert) {
+              assumption =
+                  bb.append(
+                      "assumeInvert",
+                      new StmtData.Not(Optional.empty(), assumption, StaticEnv.ELIDED));
+            }
+            s.assertAndSkip(", ");
+            var checkpoint = p.parse(Checkpoint.class);
+            s.assertAndSkip(" (");
+            var deoptReason = p.parse(org.prlprg.rshruntime.DeoptReason.class);
+            s.assertAndSkip(")");
+            checkpoint.addAssumption(assumption, deoptReason);
             yield new StmtData.NoOp();
           }
           case "Checkpoint" -> {
@@ -606,6 +621,7 @@ class PirInstrOrPhiParseContext {
             var failBBIndex = s.readUInt();
             var failBB = bbs.get(failBBIndex);
             s.assertAndSkip(" (if assume failed)");
+
             yield new JumpData.Checkpoint(ImmutableList.of(), ImmutableList.of(), passBB, failBB);
           }
           case "Deopt" -> {
@@ -619,6 +635,10 @@ class PirInstrOrPhiParseContext {
             }
             var escapedEnv = s.trySkip("   !");
             yield new JumpData.Deopt(frameState, deoptReason, deoptTrigger, escapedEnv);
+          }
+          case "Return" -> {
+            var value = s.nextCharIs('\n') ? new Constant(SEXPs.NULL) : p.parse(RValue.class);
+            yield new JumpData.Return(value);
           }
           default -> {
             var clazz =
@@ -772,18 +792,24 @@ class PirInstrOrPhiParseContext {
     return SEXPs.lang(SEXPs.symbol("stub"), SEXPs.NULL);
   }
 
-  private ClosureVersion stubClosureVersion(String name) {
-    return stubClosure(name).declareVersion(true, stubOptimizationContext(), null);
-  }
-
   private Closure stubClosure(String name) {
-    return new Closure(
-        SEXPs.symbol("stubClosure"), name, new Closure.Parameters(SEXPs.NULL, ImmutableList.of()));
+    return new Closure(stubBCodeCloSXP(), name);
   }
 
-  private ClosureVersion.OptimizationContext stubOptimizationContext() {
-    return new ClosureVersion.OptimizationContext(
-        EnumSet.noneOf(ClosureVersion.Assumption.class), ImmutableList.of(), 0);
+  private ClosureVersion stubClosureVersion(String name) {
+    return stubClosure(name).baselineVersion();
+  }
+
+  private Promise stubPromise() {
+    return new Promise(stubBCode(), new CFG(), StaticEnv.NOT_CLOSED, Properties.EMPTY);
+  }
+
+  private CloSXP stubBCodeCloSXP() {
+    return SEXPs.closure(SEXPs.NULL, SEXPs.bcode(stubBCode()), SEXPs.EMPTY_ENV);
+  }
+
+  private Bc stubBCode() {
+    return new Bc(new BcCode.Builder().build(), new ConstPool.Builder().build());
   }
 
   private ImmutableIntArray stubArglistOrder(ImmutableList<RValue> callArgs) {
@@ -1001,6 +1027,32 @@ class PirInstrOrPhiParseContext {
     private Closure parseClosure(Parser p) {
       return stubClosure(p.scanner().readUntil(','));
     }
+
+    @ParseMethod
+    private BcPosition parseBcPosition(Parser p) {
+      var s = p.scanner();
+
+      // PIR stores the bytecode address in memory, but we don't
+      s.assertAndSkip("0x");
+      s.readWhile(Character::isLetterOrDigit);
+
+      return p.withContext(null).parse(BcPosition.class);
+    }
+
+    @ParseMethod
+    private FeedbackOrigin parseFeedbackOrigin(Parser p) {
+      var s = p.scanner();
+
+      // PIR stores the bytecode address in memory, but we don't
+      s.assertAndSkip("0x");
+      s.readWhile(Character::isLetterOrDigit);
+
+      s.assertAndSkip('[');
+      var result = p.withContext(null).parse(FeedbackOrigin.class);
+      s.assertAndSkip(']');
+
+      return result;
+    }
   }
 }
 
@@ -1064,8 +1116,6 @@ class PirCFGPrintContext {
     var bbCtx = new PirBBPrintContext(bbToIdx, nodeToPirId);
     var bbP = p.withContext(bbCtx);
 
-    // We could assign the IDs in the same loop we print BBs since we're doing BFS,
-    // but this works with well-formed but invalid CFGs whereas the latter raises an unclear error.
     for (var i = 0; i < self.numBBs(); i++) {
       var bb = bbs.get(i);
       var j = 0;
@@ -1239,20 +1289,21 @@ class PirInstrOrPhiPrintContext {
           p.print(f.env());
         }
       }
-      case StmtData.MkCls m -> {
-        p.print(m.closure().name());
+      case StmtData.MkCls(var closure) -> {
+        p.print(closure.name());
         w.write(", ");
-        p.print(m.parent());
+        p.print(closure.env());
       }
-      case StmtData.MkProm m -> {
-        p.print(m.eagerArg());
+      case StmtData.MkProm(var promise) -> {
+        var eagerValue = promise.eagerValue();
+        p.print(eagerValue == null ? new Constant(SEXPs.UNBOUND_VALUE) : eagerValue);
         w.write(", ");
-        p.print("0xSTUB_ADDRESS");
-        if (m.performsReflection() == NoOrMaybe.MAYBE) {
+        p.print("0xinvalid");
+        if (promise.properties().flags().contains(Property.NO_REFLECTION)) {
           w.write(" (!refl)");
         }
         w.write(", ");
-        p.print(m.env());
+        p.print(promise.env());
       }
       case StmtData.MkEnv m -> {
         for (var i = 0; i < m.names().size(); i++) {
@@ -1278,9 +1329,9 @@ class PirInstrOrPhiPrintContext {
         p.printAsList(f.stack(), true);
         w.write(", env=");
         p.print(f.env());
-        if (f.inlined().isPresent()) {
+        if (f.inlinedNext().isPresent()) {
           w.write(", next=");
-          p.print(f.inlined().get());
+          p.print(f.inlinedNext().get());
         }
       }
       case StmtData.PushContext c -> {
@@ -1532,15 +1583,34 @@ class PirInstrOrPhiPrintContext {
             });
       }
     }
+
+    @PrintMethod
+    private void parseBcPosition(BcPosition self, Printer p) {
+      var w = p.writer();
+
+      // PIR stores the bytecode address in memory, but we don't
+      w.write("0xinvalid");
+
+      p.withContext(null).print(self);
+    }
+
+    @PrintMethod
+    private void parseFeedbackOrigin(FeedbackOrigin self, Printer p) {
+      var w = p.writer();
+
+      // PIR stores the bytecode address in memory, but we don't
+      w.write("0xinvalid");
+
+      w.write('[');
+      p.withContext(null).print(self);
+      w.write(']');
+    }
   }
 }
 
 class PirIdToNodeMap {
-  private final HashMap<PirId, Node> localNamed;
-
-  PirIdToNodeMap() {
-    localNamed = new HashMap<>();
-  }
+  private final HashMap<PirId, Node> localNamed = new HashMap<>();
+  private final List<Pair<PirId, Node>> definedAfterUse = new ArrayList<>();
 
   void put(PirId pirId, Node node) {
     if (!pirId.isLocal()) {
@@ -1562,22 +1632,28 @@ class PirIdToNodeMap {
       return id.getGlobal();
     } catch (UnsupportedOperationException e) {
       if (e.getMessage().startsWith("PIR ID not global:")) {
-        // REACH: Handle the case where instructions are defined after they are used becuase of
-        // loops
-        // throw new IllegalArgumentException("PIR ID not seen before and not anonymous: " + id);
-        return new InvalidNode("defined_later");
+        var node = new InvalidNode("defined_after_use");
+        definedAfterUse.add(Pair.of(id, node));
+        return node;
       }
       throw e;
+    }
+  }
+
+  void patchDefinedAfterUse(BatchSubst subst) {
+    for (var idAndNode : definedAfterUse) {
+      var id = idAndNode.first();
+      var node = idAndNode.second();
+      if (!localNamed.containsKey(id)) {
+        throw new IllegalArgumentException("PIR ID used but not defined: " + id);
+      }
+      subst.stage(node, localNamed.get(id));
     }
   }
 }
 
 class NodeToPirIdMap {
-  private final HashMap<Node, PirId> local;
-
-  NodeToPirIdMap() {
-    local = new HashMap<>();
-  }
+  private final HashMap<Node, PirId> local = new HashMap<>();
 
   void put(Node node, PirId pirId) {
     if (!pirId.isLocal()) {
@@ -1595,6 +1671,10 @@ class NodeToPirIdMap {
 
     if (local.containsKey(node)) {
       return local.get(node);
+    }
+
+    if (node instanceof InstrOrPhi p) {
+      return PirId.of(p, 999, 999);
     }
 
     throw new IllegalArgumentException("Local node not seen before: " + node);
@@ -1783,7 +1863,9 @@ abstract sealed class PirId {
           yield new PirId.GlobalNamed(StaticEnv.ELIDED);
         } else if (s.trySkip("expression")) {
           yield new PirId.GlobalNamed(Constant.symbol("expression"));
-        } else if (s.nextCharsAre("evalseq") || s.nextCharsAre("elNamed")) {
+        } else if (s.nextCharsAre("evalseq")
+            || s.nextCharsAre("elNamed")
+            || s.nextCharsAre("eval_A")) {
           throw s.fail("non-trivial SEXP constant");
         }
 

@@ -1,0 +1,123 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ makeAssgnFcn[0x55805005ffe0]                                                 │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch                                      │
+│ Properties:                                                                  │
+├────── Final PIR Version
+makeAssgnFcn[0x55805005ffe0]
+BB0
+  val?^           %0.0  = LdArg                    0
+  val?^ | miss    %0.1  = LdVar              eR    typeof, <env 0x55804e699488>
+  lgl$#-          %0.2  = Identical                %0.1, function(x) <(rir::DispatchTable*)0x55804e1c3c|...
+  void                    Branch                   %0.2 -> BB12 (if true) | BB13 (if false)
+BB12   <- [0]
+  env             e12.0 = MkEnv              l     fun=%0.0, parent=<env 0x55804e699488>, context 1
+  val?            %12.1 = Force!<lazy>       !v    %0.0, e12.0   <sym->
+  lgl$#-          %12.2 = IsType                   %12.1 isA val?-
+  void                    Branch                   %12.2 -> BB14 (if true) | BB15 (if false)
+BB13   <- [0]
+  env             e13.0 = (MkEnv)            l     fun=%0.0, parent=<env 0x55804e699488>, context 1
+  fs              %13.1 = FrameState         R     0x55804f0b0750+0: [], env=e13.0
+  void                    Deopt              !v    %13.1, CallTarget@0x55804f05a688[Call#0], %0.1
+BB14   <- [12]
+  val?-           %14.0 = CastType           d     dn %12.1   <sym->
+  str$-           %14.1 = CallSafeBuiltin    wed   typeof(%14.0)    <str$->
+  lgl$-           %14.2 = Eq                 d     %14.1, "symbol", elided   <lgl$->
+  lgl$#-          %14.3 = CheckTrueFalse     e     %14.2
+  void                    Branch                   %14.3 -> BB8 (if true) | BB7 (if false)
+BB15   <- [12]
+  prom-           %15.0 = MkArg                    unboundValue, makeAssgnFcn[0x55805005ffe0]_p0, e12.0
+  val?^           %15.1 = CastType                 up %15.0
+  fs              %15.2 = FrameState         R     0x55804f0b0750+32: [], env=e12.0
+  env             e15.3 = (MkEnv)            l     x=%15.1, parent=R_BaseNamespace, context 0
+  fs              %15.4 = FrameState         R     0x55804e7773a0+9: [], env=e15.3, next=%15.2
+  fs              %15.5 = FrameState         R     0x55804e20c350+5(pr): [%12.1], env=e12.0, next=%15.4
+  void                    Deopt              !v    %15.5, Typecheck@0x55804f05a688[Type#0], %12.1   !
+BB8   <- [14]
+  val?^ | miss    %8.0  = LdVar              eR    as.name, e12.0
+  lgl$#-          %8.1  = Identical                %8.0, function(x) <(rir::DispatchTable*)0x55804e19a4|...
+  void                    Branch                   %8.1 -> BB16 (if true) | BB17 (if false)
+BB7   <- [14]
+  (cls|spec|blt)  %7.0  = LdFun              !v    getRversion, e12.0
+  fs              %7.1  = FrameState         R     0x55804f0b0750+60: [%7.0], env=e12.0
+  void                    Deopt              !v    %7.1, DeadCall@0x55804f05a688[Call#1], %7.0   !
+BB16   <- [8]
+  val?^ | miss    %16.0 = LdVar              eR    paste0, e12.0
+  lgl$#-          %16.1 = Identical                %16.0, function(..., collapse=NULL, recycle0=FALSE) <|...
+  void                    Branch                   %16.1 -> BB18 (if true) | BB19 (if false)
+BB17   <- [8]
+  void                    Nop                !     
+  val?^ | miss    %17.1 = %8.0
+  dr              %17.2 = CallTarget@0x55804f05a688[Call#15]
+  goto BB5
+BB18   <- [16]
+  prom-           %18.0 = MkArg                    unboundValue, makeAssgnFcn[0x55805005ffe0]_p2, e12.0
+  dots-           %18.1 = DotsList           l     %18.0, "<-"
+  ct              %18.2 = PushContext        lCL   %18.1, paste0(as.character(fun), "<-"), function(..., collapse=NULL, recycle0=FALSE) <|..., e12.0
+  val?^ | miss    %18.3 = CastType                 up %18.0
+  env             e18.4 = MkEnv              l     ...=%18.1, collapse(miss)=nil, recycle0(miss)=false, parent=R_BaseNamespace, context 1
+  val?            %18.5 = Force!             !vL   %18.3, e18.4
+  val+            %18.6 = CallSafeBuiltin    wed   list(%18.5, "<-")    <vec->
+  val?            %18.7 = CallBuiltin        !v    paste0(%18.6, nil, false) e18.4
+  val?            %18.8 = PopContext         C     %18.7, %18.2   <str$->
+  lgl$#-          %18.9 = IsType                   %18.8 isA val?-
+  void                    Branch                   %18.9 -> BB20 (if true) | BB21 (if false)
+BB19   <- [16]
+  void                    Nop                !     
+  val?^ | miss    %19.1 = %16.0
+  dr              %19.2 = CallTarget@0x55804f05a688[Call#16]
+  goto BB5
+BB5   <- [17, 19]
+  val?^ | miss    %5.0  = Phi                      %17.1:BB17, %19.1:BB19
+  val?^ | miss    %5.1  = %5.0
+  dr              %5.2  = Phi                      %17.2:BB17, %19.2:BB19
+  dr              %5.3  = %5.2
+  fs              %5.4  = FrameState         R     0x55804f0b0750+32: [], env=e12.0
+  prom-           %5.5  = MkArg                    %14.0, makeAssgnFcn[0x55805005ffe0]_p0 (!refl), e12.0
+  val?~           %5.6  = CastType                 up %5.5
+  env             e5.7  = (MkEnv)            l     x=%5.6, parent=R_BaseNamespace, context 0
+  fs              %5.8  = FrameState         R     0x55804e7773a0+27: [%14.1], env=e5.7, next=%5.4
+  void                    Deopt              !v    %5.8, %5.3, %5.1   !
+BB20   <- [18]
+  val?-           %20.0 = CastType           d     dn %18.8   <str$->
+  val             %20.1 = CallSafeBuiltin    vwed  as.vector(%20.0, "symbol")    <sym->
+  void                    Return             l     %20.1
+BB21   <- [18]
+  fs              %21.0 = FrameState         R     0x55804f0b0750+623: [], env=e12.0
+  prom-           %21.1 = MkArg                    unboundValue, makeAssgnFcn[0x55805005ffe0]_p1, e12.0
+  val?^           %21.2 = CastType                 up %21.1
+  env             e21.3 = (MkEnv)            l     x=%21.2, parent=R_BaseNamespace, context 0
+  fs              %21.4 = FrameState         R     0x55804e19a3a0+9: [], env=e21.3, next=%21.0
+  fs              %21.5 = FrameState         R     0x55804ec75f30+37(pr): [%18.8], env=e12.0, next=%21.4
+  void                    Deopt              !v    %21.5, Typecheck@0x55804d1769b8[Type#0], %18.8   !
+Prom 0:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    fun, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <sym->
+  void                    Return             l     %0.3
+Prom 1:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     paste0, <0x55804c02a3c8>, e0.0
+  prom-           %0.2  = MkArg                    unboundValue, makeAssgnFcn[0x55805005ffe0]_p2, e0.0
+  val?            %0.3  = Call               !     %0.1(%0.2, "<-") e0.0   <str$->
+  void                    Return             l     %0.3
+Prom 2:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     as.character, <0x55804beee040>, e0.0
+  prom-           %0.2  = MkArg                    unboundValue, makeAssgnFcn[0x55805005ffe0]_p3, e0.0
+  val?            %0.3  = Call               !     %0.1(%0.2) e0.0   <str$->
+  void                    Return             l     %0.3
+Prom 3:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    fun, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<wrapped>     !     %0.1, e0.0   <sym->
+  void                    Return             l     %0.3
+
+│ makeAssgnFcn[0x55805005ffe0]                                                 │
+└──────────────────────────────────────────────────────────────────────────────┘

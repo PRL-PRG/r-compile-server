@@ -1,0 +1,54 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ getGroupMembers@Prom(5)0[0x5629e559c400]                                     │
+│ Context: CorrOrd,!TMany                                                      │
+│ Properties:                                                                  │
+├────── PIR Version After Optimizations
+getGroupMembers@Prom(5)0[0x5629e559c400]
+BB0
+  goto BB1
+BB1   <- [0]
+  val?^ | miss    %1.0  = LdArg                    0
+  cp              %1.1  = Checkpoint                -> BB2 (default) | BB7 (if assume failed)
+BB2   <- [1]
+  val?^ | miss    %2.0  = LdVar              eR    is, ?
+  lgl$#-          %2.1  = Identical                %2.0, function(object, class2) <(rir::DispatchTable*|...
+  void                    Assume             D     %2.1, %1.1 (CallTarget@0x5629e4a6d5b8[Call#0])
+  env             e2.3  = MkEnv              l     x=%1.0, parent=?, context 1
+  prom-           %2.4  = MkArg                    unboundValue, getGroupMembers@Prom(5)0[0x5629e559c400]_p0, e2.3
+  val?            %2.5  = Call               !v    function(object, class2) <(rir::DispatchTable*|...(%2.4, "character") e2.3   <lgl$->
+  lgl$#-          %2.6  = IsType                   %2.5 isA lgl$-
+  cp              %2.7  = Checkpoint                -> BB4 (default) | BB3 (if assume failed)
+BB7   <- [1]
+  env             e7.0  = (MkEnv)            l     x=%1.0, parent=?, context 1
+  fs              %7.1  = FrameState         R     0x5629e4045150+0: [], env=e7.0
+  void                    Deopt              !v    %7.1   !
+BB4   <- [2]
+  void                    Assume             D     %2.6, %2.7 (Typecheck@0x5629e4a6d5b8[Type#1])
+  lgl$-           %4.1  = CastType           d     dn %2.5
+  lgl$#-          %4.2  = CheckTrueFalse     e     %4.1
+  void                    Branch                   %4.2 -> BB6 (if true) | BB5 (if false)
+BB3   <- [2]
+  fs              %3.0  = FrameState         R     0x5629e4045150+37: [%2.5], env=e2.3
+  void                    Deopt              !v    %3.0   !
+BB6   <- [4]
+  val?^ | miss    %6.0  = LdVar              eR    x, e2.3
+  void                    Visible            v     
+  val?            %6.2  = Force!<wrapped>    !     %6.0, e2.3   <str$->
+  void                    Return             l     %6.2
+BB5   <- [4]
+  (cls|spec|blt)  %5.0  = LdFun              !v    is, e2.3
+  fs              %5.1  = FrameState         R     0x5629e4045150+53: [%5.0], env=e2.3
+  void                    Deopt              !v    %5.1, DeadCall@0x5629e4a6d5b8[Call#1], %5.0   !
+Prom 0:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    x, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<lazy>        !     %1.1, e1.0   <str$->
+  void                    Return             l     %1.3
+
+│ getGroupMembers@Prom(5)0[0x5629e559c400]                                     │
+└──────────────────────────────────────────────────────────────────────────────┘

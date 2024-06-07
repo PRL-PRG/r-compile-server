@@ -1,0 +1,31 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ f[0x55c699456850]                                                            │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch                                      │
+│ Properties:  Eager                                                           │
+├────── Final PIR Version
+f[0x55c699456850]
+BB0
+  val?^ | miss    %0.0  = LdVar              eR    assign, R_GlobalEnv
+  lgl$#-          %0.1  = Identical                %0.0, function(x, value, pos=-(1), envir=as.environm|...
+  void                    Branch                   %0.1 -> BB6 (if true) | BB7 (if false)
+BB6   <- [0]
+  env             e6.0  = MkEnv              l     parent=R_GlobalEnv, context 1
+  val?            %6.1  = StaticCall         !v    assign[0x55c6993b3880]("qqq", 1) e6.0
+  val?^ | miss    %6.2  = LdVar              eR    qqq, e6.0
+  lgl$#-          %6.3  = IsType                   %6.2 isA real$-
+  void                    Branch                   %6.3 -> BB8 (if true) | BB9 (if false)
+BB7   <- [0]
+  env             e7.0  = MkEnv              l     parent=R_GlobalEnv, context 1
+  fs              %7.1  = FrameState         R     0x55c6991e3cd0+0: [], env=e7.0
+  void                    Deopt              !v    %7.1, CallTarget@0x55c69847e0a8[Call#0], %0.0   !
+BB8   <- [6]
+  real$-          %8.0  = CastType           d     dn %6.2
+  void                    Visible            v     
+  void                    Return             l     %8.0
+BB9   <- [6]
+  fs              %9.0  = FrameState         R     0x55c6991e3cd0+37: [%6.1], env=e6.0
+  void                    Deopt              !v    %9.0, Typecheck@0x55c69847e0a8[Type#0], %6.2   !
+
+│ f[0x55c699456850]                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘

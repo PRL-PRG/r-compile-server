@@ -2,7 +2,7 @@ package org.prlprg.sexp;
 
 import java.util.Map;
 
-public final class BaseEnvSXP extends AbstractEnvSXP implements EnvSXP {
+public final class BaseEnvSXP extends AbstractEnvSXP implements StaticEnvSXP {
 
   public BaseEnvSXP(Map<String, SEXP> bindings) {
     super(EmptyEnvSXP.INSTANCE);

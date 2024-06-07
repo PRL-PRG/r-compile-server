@@ -1,0 +1,827 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ osr[0x55f3fd240c90]                                                          │
+│ Context: CorrOrd,!TMany                                                      │
+│ Properties:                                                                  │
+├────── Final PIR Version
+osr[0x55f3fd240c90]
+BB0
+  env             e0.0  = LdFunctionEnv            
+  int$#-          %0.1  = LdArg                    0
+  int$#-          %0.2  = LdArg                    1
+  int$#-          %0.3  = LdArg                    2
+  int$#-          %0.4  = %0.3
+  int$#-          %0.5  = %0.2
+  int$#-          %0.6  = %0.1
+  goto BB2
+BB2   <- [103, 187, 0]
+  int$#-          %2.0  = Phi                      %0.4:BB0, %103.5:BB103, %187.5:BB187
+  int$#-          %2.1  = %2.0
+  int$#-          %2.2  = Phi                      %0.5:BB0, %103.6:BB103, %187.6:BB187
+  int$#-          %2.3  = %2.2
+  int$#-          %2.4  = Phi                      %0.6:BB0, %103.7:BB103, %187.7:BB187
+  int$#-          %2.5  = %2.4
+  lgl$#-          %2.6  = Neq                d     %2.3, %2.1, elided
+  void                    Branch                   %2.6 -> BB83 (if true) | BB4 (if false)
+BB83   <- [2]
+  void                    StVar              lW    j, %2.1, e0.0
+  int$#-          %83.1 = Add                d     %2.1, %2.5, elided
+  val?^ | miss    %83.2 = LdVar              eR    X !upd, e0.0
+  val?            %83.3 = Force!             !v    %83.2, e0.0
+  val?^ | miss    %83.4 = LdVar              eR    X, e0.0
+  lgl$#-          %83.5 = IsType                   %83.4 isA int-
+  void                    Branch                   %83.5 -> BB95 (if true) | BB96 (if false)
+BB4   <- [2]
+  val?^ | miss    %4.0  = LdVar              eR    seq, e0.0
+  lgl$#-          %4.1  = Identical                %4.0, function(...) <(rir::DispatchTable*)0x55f3fe9e|...
+  void                    Branch                   %4.1 -> BB89 (if true) | BB90 (if false)
+BB95   <- [83]
+  int-            %95.0 = CastType           d     dn %83.4
+  val?^ | miss    %95.1 = LdVar              eR    j, e0.0
+  lgl$#-          %95.2 = IsType                   %95.1 isA int$-
+  void                    Branch                   %95.2 -> BB97 (if true) | BB98 (if false)
+BB96   <- [83]
+  void                    Nop                !     
+  val?^ | miss    %96.1 = %83.4
+  dr              %96.2 = Typecheck@0x55f3fdcb4fb8[Type#91]
+  goto BB84
+BB89   <- [4]
+  prom-           %89.0 = MkArg                    unboundValue, osr[0x55f3fd240c90]_p1, e0.0
+  prom-           %89.1 = MkArg                    unboundValue, osr[0x55f3fd240c90]_p2 (!refl), 
+  val?^ | miss    %89.2 = LdVar              eR    KKK, e0.0
+  lgl$#-          %89.3 = IsType                   %89.2 isA int$-
+  void                    Branch                   %89.3 -> BB91 (if true) | BB92 (if false)
+BB90   <- [4]
+  void                    Nop                !     
+  val?^ | miss    %90.1 = %4.0
+  dr              %90.2 = CallTarget@0x55f3fdcb4fb8[Call#2]
+  goto BB88
+BB97   <- [95]
+  int$-           %97.0 = CastType           d     dn %95.1
+  int-            %97.1 = Extract1_1D        wed   %95.0, %97.0, elided   <int$->
+  lgl$#-          %97.2 = IsType                   %97.1 isA int$-
+  void                    Branch                   %97.2 -> BB103 (if true) | BB104 (if false)
+BB98   <- [95]
+  void                    Nop                !     
+  val?^ | miss    %98.1 = %95.1
+  dr              %98.2 = Typecheck@0x55f3fdcb4fb8[Type#93]
+  goto BB84
+BB84   <- [96, 98]
+  val?^ | miss    %84.0 = Phi                      %96.1:BB96, %98.1:BB98
+  val?^ | miss    %84.1 = %84.0
+  dr              %84.2 = Phi                      %96.2:BB96, %98.2:BB98
+  dr              %84.3 = %84.2
+  fs              %84.4 = FrameState         R     0x55f3fe9d10c0+1438: [%2.5, %2.3, %83.1, %83.3], env=e0.0
+  void                    Deopt              !v    %84.4, %84.3, %84.1   !
+BB91   <- [89]
+  int$-           %91.0 = CastType           d     dn %89.2
+  val?            %91.1 = StaticCall         !v    unknown--fromOverride[0x55f400012c40](%91.0, %89.0, %89.1) from function(from=1, to=1, by=((/(((-(to, from)), |... { 0 1 2 } e0.0   <int->
+  val?+           %91.2 = ToForSeq           e     %91.1
+  int$-           %91.3 = Length                   %91.2
+  int$-           %91.4 = Inc                      0L
+  lgl$-           %91.5 = Lt                 d     %91.3, %91.4, elided   <false>
+  lgl$#-          %91.6 = Identical                %91.5, true
+  void                    Branch                   %91.6 -> BB94 (if true) | BB93 (if false)
+BB92   <- [89]
+  void                    Nop                !     
+  val?^ | miss    %92.1 = %89.2
+  dr              %92.2 = Typecheck@0x55f3fdcb4fb8[Type#100]
+  goto BB88
+BB88   <- [90, 92]
+  val?^ | miss    %88.0 = Phi                      %90.1:BB90, %92.1:BB92
+  val?^ | miss    %88.1 = %88.0
+  dr              %88.2 = Phi                      %90.2:BB90, %92.2:BB92
+  dr              %88.3 = %88.2
+  fs              %88.4 = FrameState         R     0x55f3fe9d10c0+1405: [%2.5, %2.3, %2.1], env=e0.0
+  void                    Deopt              !v    %88.4, %88.3, %88.1   !
+BB103   <- [97]
+  int$-           %103.0 = CastType           d     dn %97.1
+  int$-           %103.1 = Add                d     %97.0, %97.0, elided   <int$->
+  int$-           %103.2 = Sub                d     %103.1, 1L, elided   <int$->
+  int-            %103.3 = Subassign1_1D      wed   %103.0, %95.0, %103.2, elided
+  void                    StVar              lW    X, %103.3, e0.0
+  int$#-          %103.5 = %83.1
+  int$#-          %103.6 = %2.3
+  int$#-          %103.7 = %2.5
+  goto BB2
+BB104   <- [97]
+  fs              %104.0 = FrameState         R     0x55f3fe9d10c0+1500: [%2.5, %2.3, %83.1, %97.1], env=e0.0
+  void                    Deopt              !v    %104.0, Typecheck@0x55f3fdcb4fb8[Type#94], %97.1   !
+BB94   <- [91]
+  fs              %94.0 = FrameState         R     0x55f3fe9d10c0+1628: [%91.1], env=e0.0
+  void                    Deopt              !v    %94.0, DeadBranchReached@0x55f3fdcb4fb8[Test#11], %91.6   !
+BB93   <- [91]
+  val?            %93.0 = Extract2_1D        wed   %91.2, %91.4, elided
+  void                    StVar              lW    j, %93.0, e0.0
+  val?^ | miss    %93.2 = LdVar              eR    X !upd, e0.0
+  val?            %93.3 = Force!             !v    %93.2, e0.0
+  val?^ | miss    %93.4 = LdVar              eR    X, e0.0
+  lgl$#-          %93.5 = IsType                   %93.4 isA int-
+  void                    Branch                   %93.5 -> BB99 (if true) | BB100 (if false)
+BB99   <- [93]
+  int-            %99.0 = CastType           d     dn %93.4
+  val?^ | miss    %99.1 = LdVar              eR    j, e0.0
+  lgl$#-          %99.2 = IsType                   %99.1 isA int$-
+  void                    Branch                   %99.2 -> BB101 (if true) | BB102 (if false)
+BB100   <- [93]
+  void                    Nop                !     
+  val?^ | miss    %100.1 = %93.4
+  dr              %100.2 = Typecheck@0x55f3fdcb4fb8[Type#104]
+  goto BB7
+BB101   <- [99]
+  int$-           %101.0 = CastType           d     dn %99.1
+  int-            %101.1 = Extract1_1D        wed   %99.0, %101.0, elided   <int$->
+  lgl$#-          %101.2 = IsType                   %101.1 isA int$-
+  void                    Branch                   %101.2 -> BB105 (if true) | BB106 (if false)
+BB102   <- [99]
+  void                    Nop                !     
+  val?^ | miss    %102.1 = %99.1
+  dr              %102.2 = Typecheck@0x55f3fdcb4fb8[Type#106]
+  goto BB7
+BB7   <- [100, 102]
+  val?^ | miss    %7.0  = Phi                      %100.1:BB100, %102.1:BB102
+  val?^ | miss    %7.1  = %7.0
+  dr              %7.2  = Phi                      %100.2:BB100, %102.2:BB102
+  dr              %7.3  = %7.2
+  fs              %7.4  = FrameState         R     0x55f3fe9d10c0+1682: [%91.2, %91.3, %91.4, %93.3], env=e0.0
+  void                    Deopt              !v    %7.4, %7.3, %7.1   !
+BB105   <- [101]
+  int$-           %105.0 = CastType           d     dn %101.1
+  int$-           %105.1 = Mod                d     %105.0, 2L, elided   <int$->
+  int$-           %105.2 = Sub                d     %105.0, %105.1, elided   <int$->
+  val?^ | miss    %105.3 = LdVar              eR    KKK, e0.0
+  lgl$#-          %105.4 = IsType                   %105.3 isA int$-
+  void                    Branch                   %105.4 -> BB107 (if true) | BB108 (if false)
+BB106   <- [101]
+  void                    Nop                !     
+  int-            %106.1 = %101.1
+  dr              %106.2 = Typecheck@0x55f3fdcb4fb8[Type#107]
+  goto BB9
+BB107   <- [105]
+  int$-           %107.0 = CastType           d     dn %105.3
+  int$-           %107.1 = Sub                d     %107.0, %101.0, elided   <int$->
+  int$-           %107.2 = Add                d     %107.1, 2L, elided   <int$->
+  int-            %107.3 = Subassign1_1D      wed   %105.2, %99.0, %107.2, elided
+  void                    StVar              lW    X, %107.3, e0.0
+  int-            %107.5 = %107.3
+  int$-           %107.6 = %91.4
+  goto BB11
+BB108   <- [105]
+  void                    Nop                !     
+  val?^ | miss    %108.1 = %105.3
+  dr              %108.2 = Typecheck@0x55f3fdcb4fb8[Type#115]
+  goto BB9
+BB9   <- [106, 108]
+  val?^ | miss    %9.0  = Phi                      %106.1:BB106, %108.1:BB108
+  val?^ | miss    %9.1  = %9.0
+  dr              %9.2  = Phi                      %106.2:BB106, %108.2:BB108
+  dr              %9.3  = %9.2
+  fs              %9.4  = FrameState         R     0x55f3fe9d10c0+1744: [%91.2, %91.3, %91.4, %101.1], env=e0.0
+  void                    Deopt              !v    %9.4, %9.3, %9.1   !
+BB11   <- [107, 117]
+  int-            %11.0 = Phi                      %107.5:BB107, %117.7:BB117
+  int-            %11.1 = %11.0
+  int$-           %11.2 = Phi                      %107.6:BB107, %117.8:BB117
+  int$-           %11.3 = %11.2
+  int$-           %11.4 = Inc                      %11.3
+  lgl$-           %11.5 = Lt                 d     %91.3, %11.4, elided
+  lgl$#-          %11.6 = Identical                %11.5, true
+  void                    Branch                   %11.6 -> BB21 (if true) | BB14 (if false)
+BB21   <- [11]
+  val?^ | miss    %21.0 = LdVar              eR    KK, e0.0
+  lgl$#-          %21.1 = IsType                   %21.0 isA int$-
+  void                    Branch                   %21.1 -> BB109 (if true) | BB110 (if false)
+BB14   <- [11]
+  val?            %14.0 = Extract2_1D        wed   %91.2, %11.4, elided   <int$->
+  lgl$#-          %14.1 = IsType                   %14.0 isA int$-
+  void                    Branch                   %14.1 -> BB113 (if true) | BB114 (if false)
+BB109   <- [21]
+  int$-           %109.0 = CastType           d     dn %21.0
+  int$-           %109.1 = Add                d     %109.0, 1L, elided   <int$->
+  lgl$#-          %109.2 = ColonInputEffects        %107.0, %109.1   <lgl$#->
+  void                    Branch                   %109.2 -> BB111 (if true) | BB112 (if false)
+BB110   <- [21]
+  void                    Nop                !     
+  val?^ | miss    %110.1 = %21.0
+  dr              %110.2 = Typecheck@0x55f3fdcb4fb8[Type#135]
+  goto BB12
+BB113   <- [14]
+  int$-           %113.0 = CastType           d     dn %14.0
+  void                    StVar              lW    j, %113.0, e0.0
+  int-            %113.2 = Extract1_1D        wed   %11.1, %113.0, elided   <int$->
+  lgl$#-          %113.3 = IsType                   %113.2 isA int$-
+  void                    Branch                   %113.3 -> BB115 (if true) | BB116 (if false)
+BB114   <- [14]
+  fs              %114.0 = FrameState         R     0x55f3fe9d10c0+1925: [%91.2, %91.3, %11.4, %14.0], env=e0.0
+  void                    Deopt              !v    %114.0, Typecheck@0x55f3fdcb4fb8[Type#121], %14.0   !
+BB111   <- [109]
+  int$#-          %111.0 = ColonCastLhs       e     %107.0   <int$->
+  int$#-          %111.1 = ColonCastRhs       e     %111.0, %109.1   <int$->
+  lgl$#-          %111.2 = Lte                d     %111.0, %111.1, elided   <false>
+  void                    Branch                   %111.2 -> BB120 (if true) | BB119 (if false)
+BB112   <- [109]
+  void                    Nop                !     
+  lgl$#-          %112.1 = %109.2
+  dr              %112.2 = DeadBranchReached@0x55f3fdcb4fb8[Test#16]
+  goto BB12
+BB12   <- [110, 112, 120, 122]
+  val?^ | miss    %12.0 = Phi                      %110.1:BB110, %112.1:BB112, %120.1:BB120, %122.1:BB122
+  val?^ | miss    %12.1 = %12.0
+  dr              %12.2 = Phi                      %110.2:BB110, %112.2:BB112, %120.2:BB120, %122.2:BB122
+  dr              %12.3 = %12.2
+  fs              %12.4 = FrameState         R     0x55f3fe9d10c0+1905: [%91.2, %91.3, %11.3], env=e0.0
+  void                    Deopt              !v    %12.4, %12.3, %12.1   !
+BB115   <- [113]
+  int$-           %115.0 = CastType           d     dn %113.2
+  int-            %115.1 = Extract1_1D        wed   %11.1, %113.0, elided   <int$->
+  lgl$#-          %115.2 = IsType                   %115.1 isA int$-
+  void                    Branch                   %115.2 -> BB117 (if true) | BB118 (if false)
+BB116   <- [113]
+  fs              %116.0 = FrameState         R     0x55f3fe9d10c0+2005: [%91.2, %91.3, %11.4, %113.2], env=e0.0
+  void                    Deopt              !v    %116.0, Typecheck@0x55f3fdcb4fb8[Type#122], %113.2   !
+BB120   <- [111]
+  void                    Nop                !     
+  lgl$#-          %120.1 = %111.2
+  dr              %120.2 = DeadBranchReached@0x55f3fdcb4fb8[Test#22]
+  goto BB12
+BB119   <- [111]
+  lgl$#-          %119.0 = Neq                d     %111.1, %111.0, elided   <true>
+  void                    Branch                   %119.0 -> BB121 (if true) | BB122 (if false)
+BB117   <- [115]
+  int$-           %117.0 = CastType           d     dn %115.1
+  int$-           %117.1 = Mod                d     %117.0, 2L, elided   <int$->
+  int$-           %117.2 = Sub                d     %115.0, %117.1, elided   <int$->
+  int$-           %117.3 = Sub                d     %107.0, %113.0, elided   <int$->
+  int$-           %117.4 = Add                d     %117.3, 2L, elided   <int$->
+  int-            %117.5 = Subassign1_1D      wed   %117.2, %11.1, %117.4, elided
+  void                    StVar              lW    X, %117.5, e0.0
+  int-            %117.7 = %117.5
+  int$-           %117.8 = %11.4
+  goto BB11
+BB118   <- [115]
+  fs              %118.0 = FrameState         R     0x55f3fe9d10c0+2071: [%91.2, %91.3, %11.4, %115.0, %115.1], env=e0.0
+  void                    Deopt              !v    %118.0, Typecheck@0x55f3fdcb4fb8[Type#126], %115.1   !
+BB121   <- [119]
+  void                    StVar              lW    j, %111.0, e0.0
+  int$#-          %121.1 = Add                d     %111.0, -1L, elided
+  int-            %121.2 = Extract1_1D        wed   %11.1, %111.0, elided   <int$->
+  lgl$#-          %121.3 = IsType                   %121.2 isA int$-
+  void                    Branch                   %121.3 -> BB123 (if true) | BB124 (if false)
+BB122   <- [119]
+  void                    Nop                !     
+  lgl$#-          %122.1 = %119.0
+  dr              %122.2 = DeadBranchReached@0x55f3fdcb4fb8[Test#23]
+  goto BB12
+BB123   <- [121]
+  int$-           %123.0 = CastType           d     dn %121.2
+  int$-           %123.1 = Mod                d     %123.0, 2L, elided   <int$->
+  lgl$-           %123.2 = Eq                 d     %123.1, 1L, elided   <lgl$->
+  lgl$#-          %123.3 = CheckTrueFalse     e     %123.2
+  void                    Branch                   %123.3 -> BB76 (if true) | BB24 (if false)
+BB124   <- [121]
+  void                    Nop                !     
+  int-            %124.1 = %121.2
+  dr              %124.2 = Typecheck@0x55f3fdcb4fb8[Type#190]
+  goto BB22
+BB76   <- [123]
+  val?^ | miss    %76.0 = LdVar              eR    KKL, e0.0
+  lgl$#-          %76.1 = IsType                   %76.0 isA int$-
+  void                    Branch                   %76.1 -> BB125 (if true) | BB126 (if false)
+BB24   <- [123]
+  void                    Nop                !     
+  int-            %24.1 = %11.1
+  int$#-          %24.2 = %121.1
+  goto BB25
+BB22   <- [124, 126]
+  val?^ | miss    %22.0 = Phi                      %124.1:BB124, %126.1:BB126
+  val?^ | miss    %22.1 = %22.0
+  dr              %22.2 = Phi                      %124.2:BB124, %126.2:BB126
+  dr              %22.3 = %22.2
+  fs              %22.4 = FrameState         R     0x55f3fe9d10c0+2408: [-1L, %111.1, %121.1, %121.2], env=e0.0
+  void                    Deopt              !v    %22.4, %22.3, %22.1   !
+BB125   <- [76]
+  int$-           %125.0 = CastType           d     dn %76.0
+  int$-           %125.1 = Sub                d     %111.0, %125.0, elided   <int$->
+  int-            %125.2 = Extract1_1D        wed   %11.1, %125.1, elided   <int$->
+  lgl$#-          %125.3 = IsType                   %125.2 isA int$-
+  void                    Branch                   %125.3 -> BB127 (if true) | BB128 (if false)
+BB126   <- [76]
+  void                    Nop                !     
+  val?^ | miss    %126.1 = %76.0
+  dr              %126.2 = Typecheck@0x55f3fdcb4fb8[Type#198]
+  goto BB22
+BB25   <- [24, 66, 145]
+  int-            %25.0 = Phi                      %145.5:BB145, %24.1:BB24, %66.2:BB66
+  int-            %25.1 = %25.0
+  int$#-          %25.2 = Phi                      %24.2:BB24, %66.3:BB66, %145.6:BB145
+  int$#-          %25.3 = %25.2
+  lgl$#-          %25.4 = Neq                d     %111.1, %25.3, elided
+  void                    Branch                   %25.4 -> BB62 (if true) | BB28 (if false)
+BB127   <- [125]
+  int$-           %127.0 = CastType           d     dn %125.2
+  int$-           %127.1 = Sub                d     %127.0, %123.0, elided   <int$->
+  val?^ | miss    %127.2 = LdVar              eR    MM, e0.0
+  lgl$#-          %127.3 = IsType                   %127.2 isA int$-
+  void                    Branch                   %127.3 -> BB131 (if true) | BB132 (if false)
+BB128   <- [125]
+  void                    Nop                !     
+  int-            %128.1 = %125.2
+  dr              %128.2 = Typecheck@0x55f3fdcb4fb8[Type#200]
+  goto BB77
+BB62   <- [25]
+  void                    StVar              lW    j, %25.3, e0.0
+  int$#-          %62.1 = Add                d     %25.3, -1L, elided
+  int-            %62.2 = Extract1_1D        wed   %25.1, %25.3, elided   <int$->
+  lgl$#-          %62.3 = IsType                   %62.2 isA int$-
+  void                    Branch                   %62.3 -> BB143 (if true) | BB144 (if false)
+BB28   <- [25]
+  val?^ | miss    %28.0 = LdVar              eR    ss, e0.0
+  lgl$#-          %28.1 = IsType                   %28.0 isA int$-
+  void                    Branch                   %28.1 -> BB129 (if true) | BB130 (if false)
+BB131   <- [127]
+  int$-           %131.0 = CastType           d     dn %127.2
+  int$-           %131.1 = Mod                d     %127.1, %131.0, elided   <int$->
+  int-            %131.2 = Subassign1_1D      wed   %131.1, %11.1, %125.1, elided   <int->
+  void                    StVar              lW    X, %131.2, e0.0
+  int$-           %131.4 = Sub                d     %111.0, %109.0, elided   <int$->
+  int-            %131.5 = Extract1_1D        wed   %131.2, %131.4, elided   <int$->
+  lgl$#-          %131.6 = IsType                   %131.5 isA int$-
+  void                    Branch                   %131.6 -> BB133 (if true) | BB134 (if false)
+BB132   <- [127]
+  void                    Nop                !     
+  val?^ | miss    %132.1 = %127.2
+  dr              %132.2 = Typecheck@0x55f3fdcb4fb8[Type#206]
+  goto BB77
+BB77   <- [128, 132]
+  val?^ | miss    %77.0 = Phi                      %128.1:BB128, %132.1:BB132
+  val?^ | miss    %77.1 = %77.0
+  dr              %77.2 = Phi                      %128.2:BB128, %132.2:BB132
+  dr              %77.3 = %77.2
+  fs              %77.4 = FrameState         R     0x55f3fe9d10c0+2540: [-1L, %111.1, %121.1, %125.2], env=e0.0
+  void                    Deopt              !v    %77.4, %77.3, %77.1   !
+BB143   <- [62]
+  int$-           %143.0 = CastType           d     dn %62.2
+  int$-           %143.1 = Mod                d     %143.0, 2L, elided   <int$->
+  lgl$-           %143.2 = Eq                 d     %143.1, 1L, elided   <lgl$->
+  lgl$#-          %143.3 = CheckTrueFalse     e     %143.2
+  void                    Branch                   %143.3 -> BB67 (if true) | BB65 (if false)
+BB144   <- [62]
+  void                    Nop                !     
+  int-            %144.1 = %62.2
+  dr              %144.2 = Typecheck@0x55f3fdcb4fb8[Type#234]
+  goto BB63
+BB129   <- [28]
+  int$-           %129.0 = CastType           d     dn %28.0
+  int$-           %129.1 = Mod                d     %129.0, 2L, elided   <int$->
+  lgl$-           %129.2 = Eq                 d     %129.1, 1L, elided   <lgl$->
+  lgl$#-          %129.3 = CheckTrueFalse     e     %129.2
+  void                    Branch                   %129.3 -> BB46 (if true) | BB29 (if false)
+BB130   <- [28]
+  void                    Nop                !     
+  val?^ | miss    %130.1 = %28.0
+  dr              %130.2 = Typecheck@0x55f3fdcb4fb8[Type#275]
+  goto BB26
+BB133   <- [131]
+  int$-           %133.0 = CastType           d     dn %131.5
+  int-            %133.1 = Extract1_1D        wed   %131.2, %111.0, elided   <int$->
+  lgl$#-          %133.2 = IsType                   %133.1 isA int$-
+  void                    Branch                   %133.2 -> BB145 (if true) | BB146 (if false)
+BB134   <- [131]
+  fs              %134.0 = FrameState         R     0x55f3fe9d10c0+2788: [-1L, %111.1, %121.1, %131.5], env=e0.0
+  void                    Deopt              !v    %134.0, Typecheck@0x55f3fdcb4fb8[Type#219], %131.5   !
+BB67   <- [143]
+  val?^ | miss    %67.0 = LdVar              eR    KKL, e0.0
+  lgl$#-          %67.1 = IsType                   %67.0 isA int$-
+  void                    Branch                   %67.1 -> BB149 (if true) | BB150 (if false)
+BB65   <- [143]
+  void                    Nop                !     
+  int-            %65.1 = %25.1
+  goto BB66
+BB63   <- [144, 150]
+  val?^ | miss    %63.0 = Phi                      %144.1:BB144, %150.1:BB150
+  val?^ | miss    %63.1 = %63.0
+  dr              %63.2 = Phi                      %144.2:BB144, %150.2:BB150
+  dr              %63.3 = %63.2
+  fs              %63.4 = FrameState         R     0x55f3fe9d10c0+3029: [-1L, %111.1, %62.1, %62.2], env=e0.0
+  void                    Deopt              !v    %63.4, %63.3, %63.1   !
+BB46   <- [129]
+  lgl$#-          %46.0 = ColonInputEffects        %109.0, 1L   <true>
+  void                    Branch                   %46.0 -> BB135 (if true) | BB136 (if false)
+BB29   <- [129]
+  void                    Nop                !     
+  goto BB30
+BB26   <- [130, 136, 138, 140]
+  val?^ | miss    %26.0 = Phi                      %130.1:BB130, %136.1:BB136, %138.1:BB138, %140.1:BB140
+  val?^ | miss    %26.1 = %26.0
+  dr              %26.2 = Phi                      %130.2:BB130, %136.2:BB136, %138.2:BB138, %140.2:BB140
+  dr              %26.3 = %26.2
+  fs              %26.4 = FrameState         R     0x55f3fe9d10c0+2945: [-1L, %111.1, %25.3], env=e0.0
+  void                    Deopt              !v    %26.4, %26.3, %26.1   !
+BB145   <- [133]
+  int$-           %145.0 = CastType           d     dn %133.1
+  int$-           %145.1 = Sub                d     %133.0, %145.0, elided   <int$->
+  int$-           %145.2 = Mod                d     %145.1, %131.0, elided   <int$->
+  int-            %145.3 = Subassign1_1D      wed   %145.2, %131.2, %131.4, elided
+  void                    StVar              lW    X, %145.3, e0.0
+  int-            %145.5 = %145.3
+  int$#-          %145.6 = %121.1
+  goto BB25
+BB146   <- [133]
+  fs              %146.0 = FrameState         R     0x55f3fe9d10c0+2854: [-1L, %111.1, %121.1, %133.0, %133.1], env=e0.0
+  void                    Deopt              !v    %146.0, Typecheck@0x55f3fdcb4fb8[Type#223], %133.1   !
+BB149   <- [67]
+  int$-           %149.0 = CastType           d     dn %67.0
+  int$-           %149.1 = Sub                d     %25.3, %149.0, elided   <int$->
+  int-            %149.2 = Extract1_1D        wed   %25.1, %149.1, elided   <int$->
+  lgl$#-          %149.3 = IsType                   %149.2 isA int$-
+  void                    Branch                   %149.3 -> BB157 (if true) | BB158 (if false)
+BB150   <- [67]
+  void                    Nop                !     
+  val?^ | miss    %150.1 = %67.0
+  dr              %150.2 = Typecheck@0x55f3fdcb4fb8[Type#242]
+  goto BB63
+BB66   <- [65, 191]
+  int-            %66.0 = Phi                      %191.6:BB191, %65.1:BB65
+  int-            %66.1 = %66.0
+  int-            %66.2 = %66.1
+  int$#-          %66.3 = %62.1
+  goto BB25
+BB135   <- [46]
+  int$#-          %135.0 = ColonCastLhs       e     %109.0   <int$->
+  int$#-          %135.1 = ColonCastRhs             %135.0, 1L   <int$->
+  lgl$#-          %135.2 = Lte                d     %135.0, %135.1, elided   <false>
+  void                    Branch                   %135.2 -> BB138 (if true) | BB137 (if false)
+BB136   <- [46]
+  void                    Nop                !     
+  lgl$#-          %136.1 = %46.0
+  dr              %136.2 = DeadBranchReached@0x55f3fdcb4fb8[Test#34]
+  goto BB26
+BB30   <- [29, 55, 193]
+  lgl$#-          %30.0 = CheckTrueFalse     e     %129.0
+  void                    Branch                   %30.0 -> BB45 (if true) | BB33 (if false)
+BB157   <- [149]
+  int$-           %157.0 = CastType           d     dn %149.2
+  int-            %157.1 = Extract1_1D        wed   %25.1, %25.3, elided   <int$->
+  lgl$#-          %157.2 = IsType                   %157.1 isA int$-
+  void                    Branch                   %157.2 -> BB167 (if true) | BB168 (if false)
+BB158   <- [149]
+  fs              %158.0 = FrameState         R     0x55f3fe9d10c0+3161: [-1L, %111.1, %62.1, %149.2], env=e0.0
+  void                    Deopt              !v    %158.0, Typecheck@0x55f3fdcb4fb8[Type#244], %149.2   !
+BB138   <- [135]
+  void                    Nop                !     
+  lgl$#-          %138.1 = %135.2
+  dr              %138.2 = DeadBranchReached@0x55f3fdcb4fb8[Test#36]
+  goto BB26
+BB137   <- [135]
+  lgl$#-          %137.0 = Neq                d     %135.1, %135.0, elided   <true>
+  void                    Branch                   %137.0 -> BB139 (if true) | BB140 (if false)
+BB45   <- [30]
+  int$-           %45.0 = IDiv               d     %129.0, 2L, elided   <int$->
+  void                    StVar              lW    ss, %45.0, e0.0
+  goto BB34
+BB33   <- [30]
+  val?^ | miss    %33.0 = LdVar              eR    T, e0.0
+  lgl$#-          %33.1 = IsType                   %33.0 isA int$-
+  void                    Branch                   %33.1 -> BB147 (if true) | BB148 (if false)
+BB167   <- [157]
+  int$-           %167.0 = CastType           d     dn %157.1
+  int$-           %167.1 = Sub                d     %157.0, %167.0, elided   <int$->
+  val?^ | miss    %167.2 = LdVar              eR    MM, e0.0
+  lgl$#-          %167.3 = IsType                   %167.2 isA int$-
+  void                    Branch                   %167.3 -> BB177 (if true) | BB178 (if false)
+BB168   <- [157]
+  void                    Nop                !     
+  int-            %168.1 = %157.1
+  dr              %168.2 = Typecheck@0x55f3fdcb4fb8[Type#248]
+  goto BB70
+BB139   <- [137]
+  void                    StVar              lW    j, %135.0, e0.0
+  int$#-          %139.1 = Add                d     %135.0, -1L, elided
+  int-            %139.2 = Extract1_1D        wed   %25.1, %135.0, elided   <int$->
+  lgl$#-          %139.3 = IsType                   %139.2 isA int$-
+  void                    Branch                   %139.3 -> BB141 (if true) | BB142 (if false)
+BB140   <- [137]
+  void                    Nop                !     
+  lgl$#-          %140.1 = %137.0
+  dr              %140.2 = DeadBranchReached@0x55f3fdcb4fb8[Test#37]
+  goto BB26
+BB34   <- [45, 147]
+  val?^ | miss    %34.0 = LdVar              eR    T, e0.0
+  lgl$#-          %34.1 = IsType                   %34.0 isA int$-
+  void                    Branch                   %34.1 -> BB151 (if true) | BB152 (if false)
+BB147   <- [33]
+  int$-           %147.0 = CastType           d     dn %33.0
+  int$-           %147.1 = Sub                d     %147.0, 1L, elided   <int$->
+  void                    StVar              lW    T, %147.1, e0.0
+  goto BB34
+BB148   <- [33]
+  fs              %148.0 = FrameState         R     0x55f3fe9d10c0+4540: [], env=e0.0
+  void                    Deopt              !v    %148.0, Typecheck@0x55f3fdcb4fb8[Type#338], %33.0   !
+BB177   <- [167]
+  int$-           %177.0 = CastType           d     dn %167.2
+  int$-           %177.1 = Mod                d     %167.1, %177.0, elided   <int$->
+  int$-           %177.2 = Sub                d     %25.3, %149.0, elided   <int$->
+  int-            %177.3 = Subassign1_1D      wed   %177.1, %25.1, %177.2, elided   <int->
+  void                    StVar              lW    X, %177.3, e0.0
+  int$-           %177.5 = Sub                d     %25.3, %109.0, elided   <int$->
+  int-            %177.6 = Extract1_1D        wed   %177.3, %177.5, elided   <int$->
+  lgl$#-          %177.7 = IsType                   %177.6 isA int$-
+  void                    Branch                   %177.7 -> BB181 (if true) | BB182 (if false)
+BB178   <- [167]
+  void                    Nop                !     
+  val?^ | miss    %178.1 = %167.2
+  dr              %178.2 = Typecheck@0x55f3fdcb4fb8[Type#250]
+  goto BB70
+BB70   <- [168, 178]
+  val?^ | miss    %70.0 = Phi                      %168.1:BB168, %178.1:BB178
+  val?^ | miss    %70.1 = %70.0
+  dr              %70.2 = Phi                      %168.2:BB168, %178.2:BB178
+  dr              %70.3 = %70.2
+  fs              %70.4 = FrameState         R     0x55f3fe9d10c0+3227: [-1L, %111.1, %62.1, %157.0, %157.1], env=e0.0
+  void                    Deopt              !v    %70.4, %70.3, %70.1   !
+BB141   <- [139]
+  int$-           %141.0 = CastType           d     dn %139.2
+  int$#-          %141.1 = Add                d     %135.0, 1L, elided   <int$->
+  int-            %141.2 = Subassign1_1D      wed   %141.0, %25.1, %141.1, elided
+  void                    StVar              lW    X, %141.2, e0.0
+  int-            %141.4 = %141.2
+  int$#-          %141.5 = %139.1
+  goto BB49
+BB142   <- [139]
+  fs              %142.0 = FrameState         R     0x55f3fe9d10c0+3847: [-1L, %135.1, %139.1, %139.2], env=e0.0
+  void                    Deopt              !v    %142.0, Typecheck@0x55f3fdcb4fb8[Type#293], %139.2   !
+BB151   <- [34]
+  int$-           %151.0 = CastType           d     dn %34.0
+  lgl$-           %151.1 = Gt                 d     %151.0, 0, elided   <lgl$->
+  lgl$#-          %151.2 = CheckTrueFalse     e     %151.1
+  void                    Branch                   %151.2 -> BB40 (if true) | BB37 (if false)
+BB152   <- [34]
+  void                    Nop                !     
+  val?^ | miss    %152.1 = %34.0
+  dr              %152.2 = Typecheck@0x55f3fdcb4fb8[Type#66]
+  goto BB35
+BB181   <- [177]
+  int$-           %181.0 = CastType           d     dn %177.6
+  int-            %181.1 = Extract1_1D        wed   %177.3, %25.3, elided   <int$->
+  lgl$#-          %181.2 = IsType                   %181.1 isA int$-
+  void                    Branch                   %181.2 -> BB191 (if true) | BB192 (if false)
+BB182   <- [177]
+  fs              %182.0 = FrameState         R     0x55f3fe9d10c0+3409: [-1L, %111.1, %62.1, %177.6], env=e0.0
+  void                    Deopt              !v    %182.0, Typecheck@0x55f3fdcb4fb8[Type#263], %177.6   !
+BB49   <- [141, 163]
+  int-            %49.0 = Phi                      %141.4:BB141, %163.4:BB163
+  int-            %49.1 = %49.0
+  int$#-          %49.2 = Phi                      %141.5:BB141, %163.5:BB163   <int$->
+  int$#-          %49.3 = %49.2
+  lgl$#-          %49.4 = Neq                d     %135.1, %49.3, elided
+  void                    Branch                   %49.4 -> BB59 (if true) | BB50 (if false)
+BB40   <- [151]
+  lgl$#-          %40.0 = ColonInputEffects        %109.0, 2L   <true>
+  void                    Branch                   %40.0 -> BB155 (if true) | BB156 (if false)
+BB37   <- [151]
+  val?^ | miss    %37.0 = LdVar              eR    c, e0.0
+  lgl$#-          %37.1 = Identical                <blt c>, %37.0   <true>
+  void                    Branch                   %37.1 -> BB153 (if true) | BB154 (if false)
+BB35   <- [152, 154, 156, 160, 162, 170, 174]
+  val?^ | miss    %35.0 = Phi                      %152.1:BB152, %154.1:BB154, %156.1:BB156, %160.1:BB160, %162.1:BB162, %170.1:BB170, %174.1:BB174
+  val?^ | miss    %35.1 = %35.0
+  dr              %35.2 = Phi                      %152.2:BB152, %154.2:BB154, %156.2:BB156, %160.2:BB160, %162.2:BB162, %170.2:BB170, %174.2:BB174
+  dr              %35.3 = %35.2
+  fs              %35.4 = FrameState         R     0x55f3fe9d10c0+4635: [], env=e0.0
+  void                    Deopt              !v    %35.4, %35.3, %35.1   !
+BB191   <- [181]
+  int$-           %191.0 = CastType           d     dn %181.1
+  int$-           %191.1 = Sub                d     %181.0, %191.0, elided   <int$->
+  int$-           %191.2 = Mod                d     %191.1, %177.0, elided   <int$->
+  int$-           %191.3 = Sub                d     %25.3, %109.0, elided   <int$->
+  int-            %191.4 = Subassign1_1D      wed   %191.2, %177.3, %191.3, elided
+  void                    StVar              lW    X, %191.4, e0.0
+  int-            %191.6 = %191.4
+  goto BB66
+BB192   <- [181]
+  fs              %192.0 = FrameState         R     0x55f3fe9d10c0+3475: [-1L, %111.1, %62.1, %181.0, %181.1], env=e0.0
+  void                    Deopt              !v    %192.0, Typecheck@0x55f3fdcb4fb8[Type#267], %181.1   !
+BB59   <- [49]
+  void                    StVar              lW    j, %49.3, e0.0
+  int$#-          %59.1 = Add                d     %49.3, -1L, elided
+  int-            %59.2 = Extract1_1D        wed   %49.1, %49.3, elided   <int$->
+  lgl$#-          %59.3 = IsType                   %59.2 isA int$-
+  void                    Branch                   %59.3 -> BB163 (if true) | BB164 (if false)
+BB50   <- [49]
+  int-            %50.0 = Extract1_1D        wed   %49.1, %109.1, elided   <int$->
+  lgl$#-          %50.1 = IsType                   %50.0 isA int$-
+  void                    Branch                   %50.1 -> BB165 (if true) | BB166 (if false)
+BB155   <- [40]
+  int$#-          %155.0 = ColonCastLhs       e     %109.0   <int$->
+  int$#-          %155.1 = ColonCastRhs             %155.0, 2L   <int$->
+  lgl$#-          %155.2 = Lte                d     %155.0, %155.1, elided   <false>
+  void                    Branch                   %155.2 -> BB162 (if true) | BB161 (if false)
+BB156   <- [40]
+  void                    Nop                !     
+  lgl$#-          %156.1 = %40.0
+  dr              %156.2 = DeadBranchReached@0x55f3fdcb4fb8[Test#5]
+  goto BB35
+BB153   <- [37]
+  val?^ | miss    %153.0 = LdVar              eR    X, e0.0
+  lgl$#-          %153.1 = IsType                   %153.0 isA int-
+  void                    Branch                   %153.1 -> BB159 (if true) | BB160 (if false)
+BB154   <- [37]
+  void                    Nop                !     
+  lgl$#-          %154.1 = %37.1
+  dr              %154.2 = DeadBranchReached@0x55f3fdcb4fb8[Test#44]
+  goto BB35
+BB163   <- [59]
+  int$-           %163.0 = CastType           d     dn %59.2
+  int$#-          %163.1 = Add                d     %49.3, 1L, elided   <int$->
+  int-            %163.2 = Subassign1_1D      wed   %163.0, %49.1, %163.1, elided
+  void                    StVar              lW    X, %163.2, e0.0
+  int-            %163.4 = %163.2
+  int$#-          %163.5 = %59.1
+  goto BB49
+BB164   <- [59]
+  fs              %164.0 = FrameState         R     0x55f3fe9d10c0+3998: [-1L, %135.1, %59.1, %59.2], env=e0.0
+  void                    Deopt              !v    %164.0, Typecheck@0x55f3fdcb4fb8[Type#300], %59.2   !
+BB165   <- [50]
+  int$-           %165.0 = CastType           d     dn %50.0
+  int-            %165.1 = Subassign1_1D      wed   %165.0, %49.1, 1L, elided   <int->
+  void                    StVar              lW    X, %165.1, e0.0
+  int-            %165.3 = Extract1_1D        wed   %165.1, %109.1, elided   <int$->
+  lgl$#-          %165.4 = IsType                   %165.3 isA int$-
+  void                    Branch                   %165.4 -> BB175 (if true) | BB176 (if false)
+BB166   <- [50]
+  fs              %166.0 = FrameState         R     0x55f3fe9d10c0+4147: [%50.0], env=e0.0
+  void                    Deopt              !v    %166.0, Typecheck@0x55f3fdcb4fb8[Type#309], %50.0   !
+BB162   <- [155]
+  void                    Nop                !     
+  lgl$#-          %162.1 = %155.2
+  dr              %162.2 = DeadBranchReached@0x55f3fdcb4fb8[Test#7]
+  goto BB35
+BB161   <- [155]
+  lgl$#-          %161.0 = Neq                d     %155.1, %155.0, elided   <true>
+  void                    Branch                   %161.0 -> BB173 (if true) | BB174 (if false)
+BB159   <- [153]
+  int-            %159.0 = CastType           d     dn %153.0
+  val?^ | miss    %159.1 = LdVar              eR    LL, e0.0
+  lgl$#-          %159.2 = IsType                   %159.1 isA int$-
+  void                    Branch                   %159.2 -> BB169 (if true) | BB170 (if false)
+BB160   <- [153]
+  void                    Nop                !     
+  val?^ | miss    %160.1 = %153.0
+  dr              %160.2 = Typecheck@0x55f3fdcb4fb8[Type#358]
+  goto BB35
+BB175   <- [165]
+  int$-           %175.0 = CastType           d     dn %165.3
+  int$-           %175.1 = Mod                d     %175.0, 2L, elided   <int$->
+  lgl$-           %175.2 = Eq                 d     %175.1, 1L, elided   <lgl$->
+  lgl$#-          %175.3 = CheckTrueFalse     e     %175.2
+  void                    Branch                   %175.3 -> BB56 (if true) | BB55 (if false)
+BB176   <- [165]
+  void                    Nop                !     
+  int-            %176.1 = %165.3
+  dr              %176.2 = Typecheck@0x55f3fdcb4fb8[Type#316]
+  goto BB53
+BB173   <- [161]
+  void                    StVar              lW    j, %155.0, e0.0
+  int$#-          %173.1 = Add                d     %155.0, -1L, elided
+  val?^ | miss    %173.2 = LdVar              eR    X !upd, e0.0
+  val?            %173.3 = Force!             !v    %173.2, e0.0
+  val?^ | miss    %173.4 = LdVar              eR    X, e0.0
+  lgl$#-          %173.5 = IsType                   %173.4 isA int-
+  void                    Branch                   %173.5 -> BB183 (if true) | BB184 (if false)
+BB174   <- [161]
+  void                    Nop                !     
+  lgl$#-          %174.1 = %161.0
+  dr              %174.2 = DeadBranchReached@0x55f3fdcb4fb8[Test#8]
+  goto BB35
+BB169   <- [159]
+  int$-           %169.0 = CastType           d     dn %159.1
+  int$-           %169.1 = Add                d     %169.0, 1L, elided   <int$->
+  int-            %169.2 = Colon              d     %169.1, %109.0, elided   <int->
+  int-            %169.3 = Extract1_1D        wed   %159.0, %169.2, elided   <int->
+  int-            %169.4 = Colon              d     1L, %169.0, elided   <int->
+  int-            %169.5 = Extract1_1D        wed   %159.0, %169.4, elided   <int->
+  int-            %169.6 = CallSafeBuiltin    wed   c(%169.3, %169.5)    <int->
+  void                    StVar              lW    rs, %169.6, e0.0
+  val?^ | miss    %169.8 = LdVar              eR    invisible, e0.0
+  lgl$#-          %169.9 = Identical                <blt invisible>, %169.8   <true>
+  void                    Branch                   %169.9 -> BB171 (if true) | BB172 (if false)
+BB170   <- [159]
+  void                    Nop                !     
+  val?^ | miss    %170.1 = %159.1
+  dr              %170.2 = Typecheck@0x55f3fdcb4fb8[Type#363]
+  goto BB35
+BB56   <- [175]
+  val?^ | miss    %56.0 = LdVar              eR    LL, e0.0
+  lgl$#-          %56.1 = IsType                   %56.0 isA int$-
+  void                    Branch                   %56.1 -> BB179 (if true) | BB180 (if false)
+BB55   <- [175]
+  void                    Nop                !     
+  goto BB30
+BB53   <- [176, 180]
+  val?^ | miss    %53.0 = Phi                      %176.1:BB176, %180.1:BB180
+  val?^ | miss    %53.1 = %53.0
+  dr              %53.2 = Phi                      %176.2:BB176, %180.2:BB180
+  dr              %53.3 = %53.2
+  fs              %53.4 = FrameState         R     0x55f3fe9d10c0+4255: [%165.3], env=e0.0
+  void                    Deopt              !v    %53.4, %53.3, %53.1   !
+BB183   <- [173]
+  int-            %183.0 = CastType           d     dn %173.4
+  val?^ | miss    %183.1 = LdVar              eR    j, e0.0
+  lgl$#-          %183.2 = IsType                   %183.1 isA int$-
+  void                    Branch                   %183.2 -> BB185 (if true) | BB186 (if false)
+BB184   <- [173]
+  void                    Nop                !     
+  val?^ | miss    %184.1 = %173.4
+  dr              %184.2 = Typecheck@0x55f3fdcb4fb8[Type#82]
+  goto BB41
+BB171   <- [169]
+  void                    Invisible          v     
+  void                    Return             l     %169.6
+BB172   <- [169]
+  fs              %172.0 = FrameState         R     0x55f3fe9d10c0+4913: [], env=e0.0
+  void                    Deopt              !v    %172.0, DeadBranchReached@0x55f3fdcb4fb8[Test#49], %169.9   !
+BB179   <- [56]
+  int$-           %179.0 = CastType           d     dn %56.0
+  int$-           %179.1 = Add                d     %179.0, 1L, elided   <int$->
+  int-            %179.2 = Extract1_1D        wed   %165.1, %179.1, elided   <int$->
+  lgl$#-          %179.3 = IsType                   %179.2 isA int$-
+  void                    Branch                   %179.3 -> BB189 (if true) | BB190 (if false)
+BB180   <- [56]
+  void                    Nop                !     
+  val?^ | miss    %180.1 = %56.0
+  dr              %180.2 = Typecheck@0x55f3fdcb4fb8[Type#322]
+  goto BB53
+BB185   <- [183]
+  int$-           %185.0 = CastType           d     dn %183.1
+  int-            %185.1 = Extract1_1D        wed   %183.0, %185.0, elided   <int$->
+  lgl$#-          %185.2 = IsType                   %185.1 isA int$-
+  void                    Branch                   %185.2 -> BB187 (if true) | BB188 (if false)
+BB186   <- [183]
+  void                    Nop                !     
+  val?^ | miss    %186.1 = %183.1
+  dr              %186.2 = Typecheck@0x55f3fdcb4fb8[Type#84]
+  goto BB41
+BB41   <- [184, 186]
+  val?^ | miss    %41.0 = Phi                      %184.1:BB184, %186.1:BB186
+  val?^ | miss    %41.1 = %41.0
+  dr              %41.2 = Phi                      %184.2:BB184, %186.2:BB186
+  dr              %41.3 = %41.2
+  fs              %41.4 = FrameState         R     0x55f3fe9d10c0+1267: [-1L, %155.1, %173.1, %173.3], env=e0.0
+  void                    Deopt              !v    %41.4, %41.3, %41.1   !
+BB189   <- [179]
+  int$-           %189.0 = CastType           d     dn %179.2
+  int$-           %189.1 = Sub                d     %189.0, %175.0, elided   <int$->
+  val?^ | miss    %189.2 = LdVar              eR    MM, e0.0
+  lgl$#-          %189.3 = IsType                   %189.2 isA int$-
+  void                    Branch                   %189.3 -> BB193 (if true) | BB194 (if false)
+BB190   <- [179]
+  void                    Nop                !     
+  int-            %190.1 = %179.2
+  dr              %190.2 = Typecheck@0x55f3fdcb4fb8[Type#324]
+  goto BB57
+BB187   <- [185]
+  int$-           %187.0 = CastType           d     dn %185.1
+  int$-           %187.1 = Add                d     %185.0, %185.0, elided   <int$->
+  int$-           %187.2 = Sub                d     %187.1, 1L, elided   <int$->
+  int-            %187.3 = Subassign1_1D      wed   %187.0, %183.0, %187.2, elided
+  void                    StVar              lW    X, %187.3, e0.0
+  int$#-          %187.5 = %173.1
+  int$#-          %187.6 = %155.1
+  int$#-          %187.7 = -1L
+  goto BB2
+BB188   <- [185]
+  fs              %188.0 = FrameState         R     0x55f3fe9d10c0+1329: [-1L, %155.1, %173.1, %185.1], env=e0.0
+  void                    Deopt              !v    %188.0, Typecheck@0x55f3fdcb4fb8[Type#85], %185.1   !
+BB193   <- [189]
+  int$-           %193.0 = CastType           d     dn %189.2
+  int$-           %193.1 = Mod                d     %189.1, %193.0, elided   <int$->
+  int-            %193.2 = Subassign1_1D      wed   %193.1, %165.1, %179.1, elided
+  void                    StVar              lW    X, %193.2, e0.0
+  goto BB30
+BB194   <- [189]
+  void                    Nop                !     
+  val?^ | miss    %194.1 = %189.2
+  dr              %194.2 = Typecheck@0x55f3fdcb4fb8[Type#332]
+  goto BB57
+BB57   <- [190, 194]
+  val?^ | miss    %57.0 = Phi                      %190.1:BB190, %194.1:BB194
+  val?^ | miss    %57.1 = %57.0
+  dr              %57.2 = Phi                      %190.2:BB190, %194.2:BB194
+  dr              %57.3 = %57.2
+  fs              %57.4 = FrameState         R     0x55f3fe9d10c0+4379: [%179.2], env=e0.0
+  void                    Deopt              !v    %57.4, %57.3, %57.1   !
+Prom 1:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    KKL, e0.0
+  val?            %0.2  = Force<value>       !v    %0.1, e0.0   <int$->
+  void                    Visible            v     
+  val?            %0.4  = Add                !     %0.2, 1L, e0.0   <int$->
+  void                    Return             l     %0.4
+Prom 2:
+BB0
+  void                    Visible            v     
+  void                    Return             l     -2L
+
+│ osr[0x55f3fd240c90]                                                          │
+└──────────────────────────────────────────────────────────────────────────────┘

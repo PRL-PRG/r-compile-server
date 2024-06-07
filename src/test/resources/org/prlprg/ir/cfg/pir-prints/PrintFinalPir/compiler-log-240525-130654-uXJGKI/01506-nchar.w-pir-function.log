@@ -1,0 +1,61 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ nchar.w[0x5614fffcf160]                                                      │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch                                      │
+│ Properties:                                                                  │
+├────── Final PIR Version
+nchar.w[0x5614fffcf160]
+BB0
+  val?^           %0.0  = LdArg                    0
+  val?^ | miss    %0.1  = LdVar              eR    nchar, ?
+  lgl$#-          %0.2  = Identical                %0.1, function(x, type="chars", allowNA=FALSE, keepN|...
+  void                    Branch                   %0.2 -> BB6 (if true) | BB7 (if false)
+BB6   <- [0]
+  env             e6.0  = (MkEnv)            l     x=%0.0, parent=?, context 1
+  val?            %6.1  = Force!<lazy>       !vL   %0.0, e6.0   <str->
+  lgl$#-          %6.2  = IsType                   %6.1 isA val?-
+  lgl$#-          %6.3  = IsEnvStub          R     , e6.0
+  void                    Branch                   %6.3 -> BB8 (if true) | BB9 (if false)
+BB7   <- [0]
+  env             e7.0  = (MkEnv)            l     x=%0.0, parent=?, context 1
+  fs              %7.1  = FrameState         R     0x5615004d3b30+0: [], env=e7.0
+  void                    Deopt              !v    %7.1, CallTarget@0x561504b121b8[Call#0], %0.1
+BB8   <- [6]
+  void                    Branch                   %6.2 -> BB10 (if true) | BB11 (if false)
+BB9   <- [6]
+  void                    Nop                !     
+  env             e9.1  = e6.0
+  dr              %9.2  = EnvStubMaterialized@0x561504b121b8[Call#unknown]
+  goto BB3
+BB10   <- [8]
+  val?-           %10.0 = CastType           d     dn %6.1   <str->
+  val+            %10.1 = CallSafeBuiltin    vwed  nchar(%10.0, "w", true, na-lgl)    <int->
+  void                    Return             l     %10.1
+BB11   <- [8]
+  void                    Nop                !     
+  val?            %11.1 = %6.1
+  dr              %11.2 = Typecheck@0x561504b121b8[Type#0]
+  goto BB3
+BB3   <- [9, 11]
+  val?^ | miss    %3.0  = Phi                      e9.1:BB9, %11.1:BB11
+  val?^ | miss    %3.1  = %3.0
+  dr              %3.2  = Phi                      %9.2:BB9, %11.2:BB11
+  dr              %3.3  = %3.2
+  env             e3.4  = MaterializeEnv           , e6.0   <@?>
+  prom-           %3.5  = MkArg                    unboundValue, nchar.w[0x5614fffcf160]_p0, e3.4
+  val?^           %3.6  = CastType                 up %3.5
+  fs              %3.7  = FrameState         R     0x5615004d3b30+54: [], env=e3.4
+  env             e3.8  = (MkEnv)            l     keepNA(miss)=na-lgl, allowNA=true, type="w", x=%3.6, parent=R_BaseNamespace, context 0
+  fs              %3.9  = FrameState         R     0x5614fa7c1750+9: [], env=e3.8, next=%3.7
+  fs              %3.10 = FrameState         R     0x5614fedde4a0+5(pr): [%6.1], env=e3.4, next=%3.9
+  void                    Deopt              !v    %3.10, %3.3, %3.1   !
+Prom 0:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    x, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <str->
+  void                    Return             l     %0.3
+
+│ nchar.w[0x5614fffcf160]                                                      │
+└──────────────────────────────────────────────────────────────────────────────┘

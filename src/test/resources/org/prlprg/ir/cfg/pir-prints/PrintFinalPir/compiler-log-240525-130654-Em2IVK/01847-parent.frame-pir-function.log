@@ -1,0 +1,16 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ parent.frame[0x556a27619f70]                                                 │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;Eager0,NonRefl0,!Obj0,SimpleReal0    │
+│ Properties:  Eager, ForceOrd: 0                                              │
+├────── Final PIR Version
+parent.frame[0x556a27619f70]
+BB0
+  (real|miss)$~-  %0.0  = LdArg                    0
+  real$-          %0.1  = Force<lazy>              %0.0,    <(int|real)$->
+  env             e0.2  = MkEnv              l     n=%0.0, parent=R_BaseNamespace, context 1
+  val?            %0.3  = CallBuiltin        !     parent.frame(%0.1) e0.2
+  void                    Return             l     %0.3
+
+│ parent.frame[0x556a27619f70]                                                 │
+└──────────────────────────────────────────────────────────────────────────────┘

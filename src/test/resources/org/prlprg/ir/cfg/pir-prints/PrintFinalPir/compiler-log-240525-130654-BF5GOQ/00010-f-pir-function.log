@@ -1,0 +1,63 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ f[0x55b664d8d3f0]                                                            │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch                                      │
+│ Properties:  Eager                                                           │
+├────── Final PIR Version
+f[0x55b664d8d3f0]
+BB0
+  val?^ | miss    %0.0  = LdVar              eR    makeActiveBinding, R_GlobalEnv
+  lgl$#-          %0.1  = Identical                %0.0, function(sym, fun, env) <(rir::DispatchTable*)|...
+  void                    Branch                   %0.1 -> BB6 (if true) | BB7 (if false)
+BB6   <- [0]
+  env             e6.0  = MkEnv              l     parent=R_GlobalEnv, context 1
+  prom-           %6.1  = MkArg                    unboundValue, f[0x55b664d8d3f0]_p0, e6.0
+  prom-           %6.2  = MkArg                    unboundValue, f[0x55b664d8d3f0]_p1, e6.0
+  ct              %6.3  = PushContext        lCL   "foo", %6.1, %6.2, makeActiveBinding("foo", identity, environment()), function(sym, fun, env) <(rir::DispatchTable*)|..., e6.0
+  val?^           %6.4  = CastType                 up %6.2
+  val?^           %6.5  = CastType                 up %6.1
+  val             %6.6  = CallSafeBuiltin    wed   as.vector("foo", "symbol")    <sym->
+  env             e6.7  = MkEnv              l     sym=%6.6, fun=%6.5, env=%6.4, parent=R_BaseNamespace, context 1
+  val?            %6.8  = Force!<lazy>       !vr   %6.5,    <cls->
+  val?            %6.9  = Force!<lazy>       !vL   %6.4, e6.7   <env->
+  val?            %6.10 = CallBuiltin        !v    makeActiveBinding(%6.6, %6.8, %6.9) e6.7
+  val?            %6.11 = PopContext         C     %6.10, %6.3
+  val?^ | miss    %6.12 = LdVar              eR    rm, e6.0
+  lgl$#-          %6.13 = Identical                %6.12, function(..., list=character(), pos=-(1), envi|...
+  void                    Branch                   %6.13 -> BB8 (if true) | BB9 (if false)
+BB7   <- [0]
+  env             e7.0  = (MkEnv)            l     parent=R_GlobalEnv, context 1
+  fs              %7.1  = FrameState         R     0x55b664adc960+0: [], env=e7.0
+  void                    Deopt              !v    %7.1, CallTarget@0x55b664260408[Call#0], %0.0
+BB8   <- [6]
+  prom-           %8.0  = MkArg                    unboundValue, f[0x55b664d8d3f0]_p2, e6.0
+  dots-           %8.1  = DotsList           l     %8.0
+  val?            %8.2  = StaticCall         !v    rm[0x55b664b77de0](%8.1) { 0 } e6.0
+  void                    Visible            v     
+  void                    Return             l     true
+BB9   <- [6]
+  fs              %9.0  = FrameState         R     0x55b664adc960+42: [%6.11], env=e6.0
+  void                    Deopt              !v    %9.0, CallTarget@0x55b664260408[Call#2], %6.12   !
+Prom 0:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    identity, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<wrapped>     !     %0.1, e0.0   <cls->
+  void                    Return             l     %0.3
+Prom 1:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     environment, <0x55b663005b68>, e0.0
+  val?            %0.2  = Call               !     %0.1() e0.0   <env->
+  void                    Return             l     %0.2
+Prom 2:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    foo, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+
+│ f[0x55b664d8d3f0]                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘

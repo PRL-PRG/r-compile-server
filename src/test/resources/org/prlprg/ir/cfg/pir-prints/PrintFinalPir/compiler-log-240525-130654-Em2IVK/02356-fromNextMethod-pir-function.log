@@ -1,0 +1,44 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ fromNextMethod[0x556a1eb014b0]                                               │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;NonRefl0,!Obj0                       │
+│ Properties:                                                                  │
+├────── Final PIR Version
+fromNextMethod[0x556a1eb014b0]
+BB0
+  val?^           %0.0  = LdArg                    0
+  val?^ | miss    %0.1  = LdVar              eR    identical, <env 0x556a1ba11378>
+  lgl$#-          %0.2  = Identical                %0.1, function(x, y, num.eq=TRUE, single.NA=TRUE, at|...
+  void                    Branch                   %0.2 -> BB6 (if true) | BB7 (if false)
+BB6   <- [0]
+  env             e6.0  = MkEnv              l     call=%0.0, parent=<env 0x556a1ba11378>, context 1
+  prom-           %6.1  = MkArg                    unboundValue, fromNextMethod[0x556a1eb014b0]_p0, e6.0
+  ct              %6.2  = PushContext        lCL   %6.1, .nextMethod, identical([[(call, 1L), quote(.nextMethod)), function(x, y, num.eq=TRUE, single.NA=TRUE, at|..., e6.0
+  val?^           %6.3  = CastType                 up %6.1
+  env             e6.4  = MkEnv              l     x=%6.3, y=.nextMethod, num.eq(miss)=true, single.NA(miss)=true, attrib.as.set(miss)=true, ignore.bytecode(miss)=true, ignore.environment(miss)=false, ignore.srcref(miss)=true, parent=R_BaseNamespace, context 1
+  val?            %6.5  = Force!<lazy>       !vr   %6.3,    <val?>
+  val?            %6.6  = CallBuiltin        !     identical(%6.5, .nextMethod, true, true, true, true, false, true) e6.4
+  val?            %6.7  = PopContext         C     %6.6, %6.2   <lgl$->
+  lgl$#-          %6.8  = IsType                   %6.7 isA lgl$-
+  void                    Branch                   %6.8 -> BB8 (if true) | BB9 (if false)
+BB7   <- [0]
+  env             e7.0  = (MkEnv)            l     call=%0.0, parent=<env 0x556a1ba11378>, context 1
+  fs              %7.1  = FrameState         R     0x556a20632490+0: [], env=e7.0
+  void                    Deopt              !v    %7.1, CallTarget@0x556a21763c48[Call#0], %0.1
+BB8   <- [6]
+  lgl$-           %8.0  = CastType           d     dn %6.7
+  void                    Return             l     %8.0
+BB9   <- [6]
+  fs              %9.0  = FrameState         R     0x556a20632490+37: [%6.7], env=e6.0
+  void                    Deopt              !v    %9.0, Typecheck@0x556a21763c48[Type#2], %6.7   !
+Prom 0:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    call, e0.0
+  val?            %0.2  = Force<lazy>        !v    %0.1, e0.0   <code->
+  val?            %0.3  = Extract2_1D        !v    %0.2, 1L, e0.0   <sym->
+  void                    Visible            v     
+  void                    Return             l     %0.3
+
+│ fromNextMethod[0x556a1eb014b0]                                               │
+└──────────────────────────────────────────────────────────────────────────────┘

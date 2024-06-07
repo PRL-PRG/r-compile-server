@@ -1,0 +1,2362 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ rir.compile[0x560912df8380]                                                  │
+│ Context: CorrOrd,!TMany                                                      │
+│ Properties:  Eager                                                           │
+├────── Final PIR Version
+rir.compile[0x560912df8380]
+BB0
+  env             e0.0  = MkEnv              l     parent=R_GlobalEnv, context 1
+  (cls|spec|blt)  %0.1  = LdFun              !v    matrix, R_GlobalEnv
+  prom-           %0.2  = MkArg                    unboundValue, rir.compile[0x560912df8380]_p0 (!refl), 
+  val?            %0.3  = NamedCall          !v    %0.1(%0.2, nrow=2, ncol=3, byrow=true) e0.0   <val?_>
+  void                    StVar              lW    x, %0.3, e0.0
+  (cls|spec|blt)  %0.5  = LdFun              !v    matrix, e0.0
+  prom-           %0.6  = MkArg                    unboundValue, rir.compile[0x560912df8380]_p1 (!refl), 
+  val?            %0.7  = NamedCall          !v    %0.5(%0.6, nrow=3, ncol=4, byrow=true) e0.0   <val?_>
+  void                    StVar              lW    y, %0.7, e0.0
+  (cls|spec|blt)  %0.9  = LdFun              !v    stopifnot, e0.0
+  prom-           %0.10 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p2, e0.0
+  val?            %0.11 = Call               !v    %0.9(%0.10) e0.0
+  (cls|spec|blt)  %0.12 = LdFun              !v    nrow, e0.0
+  prom-           %0.13 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p5, e0.0
+  val?            %0.14 = Call               !v    %0.12(%0.13) e0.0   <val?_>
+  void                    StVar              lW    rows, %0.14, e0.0
+  (cls|spec|blt)  %0.16 = LdFun              !v    ncol, e0.0
+  prom-           %0.17 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p6, e0.0
+  val?            %0.18 = Call               !v    %0.16(%0.17) e0.0   <val?_>
+  void                    StVar              lW    cols, %0.18, e0.0
+  (cls|spec|blt)  %0.20 = LdFun              !v    ncol, e0.0
+  prom-           %0.21 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p7, e0.0
+  val?            %0.22 = Call               !v    %0.20(%0.21) e0.0   <val?_>
+  void                    StVar              lW    inner, %0.22, e0.0
+  val?^ | miss    %0.24 = LdVar              eR    %*%, e0.0
+  lgl$#-          %0.25 = Identical                <blt %*%>, %0.24   <@?>
+  void                    Branch                   %0.25 -> BB2 (if true) | BB82 (if false)
+BB2   <- [0]
+  val?^ | miss    %2.0  = LdVar              eR    x, e0.0
+  val?            %2.1  = Force!             !v    %2.0, e0.0   <val?_>
+  val?^ | miss    %2.2  = LdVar              eR    y, e0.0
+  val?            %2.3  = Force!             !v    %2.2, e0.0   <val?_>
+  lgl$#-          %2.4  = IsType                   %2.3 isA val?+
+  lgl$#-          %2.5  = IsType                   %2.1 isA val?+
+  void                    Branch                   %2.5 -> BB83 (if true) | BB84 (if false)
+BB82   <- [0]
+  val?^ | miss    %82.0 = LdVar              eR    x, e0.0
+  val?            %82.1 = Force!             !v    %82.0, e0.0   <val?_>
+  val?^ | miss    %82.2 = LdVar              eR    y, e0.0
+  val?            %82.3 = Force!             !v    %82.2, e0.0   <val?_>
+  val?            %82.4 = CallBuiltin        !v    %*%(%82.1, %82.3) e0.0
+  val?            %82.5 = %82.4
+  goto BB5
+BB83   <- [2]
+  val?+           %83.0 = CastType           d     dn %2.1   <val?_>
+  void                    Branch                   %2.4 -> BB85 (if true) | BB86 (if false)
+BB84   <- [2]
+  void                    Nop                !     
+  val?            %84.1 = %2.1
+  dr              %84.2 = Typecheck@0x560912234148[Type#17]
+  goto BB3
+BB5   <- [82, 85]
+  val?            %5.0  = Phi                      %82.5:BB82, %85.2:BB85   <val?_>
+  val?            %5.1  = %5.0
+  void                    StVar              lW    res1, %5.1, e0.0
+  (cls|spec|blt)  %5.3  = LdFun              !v    matrix, e0.0
+  prom-           %5.4  = MkArg                    unboundValue, rir.compile[0x560912df8380]_p10, e0.0
+  prom-           %5.5  = MkArg                    unboundValue, rir.compile[0x560912df8380]_p11, e0.0
+  val?            %5.6  = NamedCall          !v    %5.3(0, nrow=%5.4, ncol=%5.5) e0.0   <val?_>
+  void                    StVar              lW    res2, %5.6, e0.0
+  val?^ | miss    %5.8  = LdVar              eR    cols, e0.0
+  val?            %5.9  = Force!             !v    %5.8, e0.0   <val?_>
+  lgl$#-          %5.10 = ColonInputEffects  we    1, %5.9   <@?>
+  void                    Branch                   %5.10 -> BB21 (if true) | BB8 (if false)
+BB85   <- [83]
+  val?+           %85.0 = CastType           d     dn %2.3   <val?_>
+  val+            %85.1 = CallSafeBuiltin    wed   %*%(%83.0, %85.0) 
+  val+            %85.2 = %85.1
+  goto BB5
+BB86   <- [83]
+  void                    Nop                !     
+  val?            %86.1 = %2.3
+  dr              %86.2 = Typecheck@0x560912234148[Type#18]
+  goto BB3
+BB3   <- [84, 86]
+  val?^ | miss    %3.0  = Phi                      %84.1:BB84, %86.1:BB86
+  val?^ | miss    %3.1  = %3.0
+  dr              %3.2  = Phi                      %84.2:BB84, %86.2:BB86
+  dr              %3.3  = %3.2
+  fs              %3.4  = FrameState         R     0x56091313b930+413: [<blt %*%>, %2.1, %2.3], env=e0.0
+  void                    Deopt              !v    %3.4, %3.3, %3.1   !
+BB21   <- [5]
+  int$#-          %21.0 = ColonCastRhs       e     1L, %5.9   <val?_>
+  lgl$#-          %21.1 = Lte                d     1L, %21.0, elided   <@?>
+  void                    Branch                   %21.1 -> BB81 (if true) | BB22 (if false)
+BB8   <- [5]
+  lgl$#-          %8.0  = IsType                   %5.9 isA val?+
+  void                    Branch                   %8.0 -> BB87 (if true) | BB88 (if false)
+BB81   <- [21]
+  void                    Nop                !     
+  int$#-          %81.1 = 1L
+  goto BB23
+BB22   <- [21]
+  void                    Nop                !     
+  int$#-          %22.1 = -1L
+  goto BB23
+BB87   <- [8]
+  val?+           %87.0 = CastType           d     dn %5.9   <val?_>
+  (int|real|complex)+ %87.1 = Colon              wed   1L, %87.0, elided
+  (cls|spec|blt)  %87.2 = LdFun              !v    for, e0.0
+  prom-           %87.3 = MkArg                    %87.1, rir.compile[0x560912df8380]_p12 (!refl), e0.0
+  prom-           %87.4 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p13, e0.0
+  val?            %87.5 = Call               !v    %87.2(%87.3, %87.4) e0.0
+  goto BB9
+BB88   <- [8]
+  fs              %88.0 = FrameState         R     0x56091313b930+540: [1, %5.9, %5.10], env=e0.0
+  void                    Deopt              !v    %88.0, Typecheck@0x560912234148[Type#23], %5.9   !
+BB23   <- [81, 22]
+  int$#-          %23.0 = Phi                      %81.1:BB81, %22.1:BB22
+  int$#-          %23.1 = %23.0
+  int$#-          %23.2 = 1L
+  goto BB24
+BB9   <- [25, 87]
+  void                    StVar              lW    last, 0, e0.0
+  real$#-         %9.1  = 0
+  int$#-          %9.2  = 1L
+  goto BB10
+BB24   <- [23, 30]
+  int$#-          %24.0 = Phi                      %23.2:BB23, %30.1:BB30
+  int$#-          %24.1 = %24.0
+  lgl$#-          %24.2 = Neq                d     %21.0, %24.1, elided
+  void                    Branch                   %24.2 -> BB26 (if true) | BB25 (if false)
+BB10   <- [20, 9]
+  real$-          %10.0 = Phi                      %9.1:BB9, %20.1:BB20   <val?_>
+  real$-          %10.1 = %10.0
+  int$#-          %10.2 = Phi                      %9.2:BB9, %20.2:BB20
+  int$#-          %10.3 = %10.2
+  lgl$#-          %10.4 = Neq                d     11L, %10.3, elided
+  void                    Branch                   %10.4 -> BB17 (if true) | BB11 (if false)
+BB26   <- [24]
+  void                    StVar              lW    c, %24.1, e0.0
+  int$#-          %26.1 = Add                d     %24.1, %23.1, elided
+  val?^ | miss    %26.2 = LdVar              eR    rows, e0.0
+  val?            %26.3 = Force!             !v    %26.2, e0.0   <val?_>
+  lgl$#-          %26.4 = ColonInputEffects  we    1, %26.3   <@?>
+  void                    Branch                   %26.4 -> BB31 (if true) | BB29 (if false)
+BB25   <- [24]
+  void                    Nop                !     
+  goto BB9
+BB17   <- [10]
+  void                    StVar              lW    i, %10.3, e0.0
+  int$#-          %17.1 = Add                d     %10.3, 1L, elided
+  real$#-         %17.2 = Mul                d     %10.3, 10, elided   <val?_>
+  void                    StVar              lW    x2, %17.2, e0.0
+  void                    StVar              lW    j, 1L, e0.0
+  void                    StVar              lW    y2, 3, e0.0
+  real$-          %17.6 = Add                d     %10.1, %17.2, elided   <val?_>
+  real$-          %17.7 = Add                d     %17.6, 3, elided   <val?_>
+  void                    StVar              lW    last, %17.7, e0.0
+  real$-          %17.9 = %17.7
+  int$#-          %17.10 = 2L
+  goto BB18
+BB11   <- [10]
+  void                    Visible            v     
+  lgl$-           %11.1 = Eq                 vd    %10.1, 6250, elided   <val?_>
+  lgl$-           %11.2 = AsLogical                %11.1
+  lgl$#-          %11.3 = Identical                %11.2, false
+  void                    Branch                   %11.3 -> BB16 (if true) | BB12 (if false)
+BB31   <- [26]
+  int$#-          %31.0 = ColonCastRhs       e     1L, %26.3   <val?_>
+  lgl$#-          %31.1 = Lte                d     1L, %31.0, elided   <@?>
+  void                    Branch                   %31.1 -> BB80 (if true) | BB32 (if false)
+BB29   <- [26]
+  lgl$#-          %29.0 = IsType                   %26.3 isA val?+
+  void                    Branch                   %29.0 -> BB89 (if true) | BB90 (if false)
+BB18   <- [19, 17]
+  real$-          %18.0 = Phi                      %17.9:BB17, %19.7:BB19   <val?_>
+  real$-          %18.1 = %18.0
+  int$-           %18.2 = Phi                      %17.10:BB17, %19.8:BB19
+  int$-           %18.3 = %18.2
+  lgl$-           %18.4 = Neq                d     11L, %18.3, elided
+  lgl$#-          %18.5 = Identical                %18.4, false
+  void                    Branch                   %18.5 -> BB20 (if true) | BB19 (if false)
+BB16   <- [11]
+  void                    Nop                !     
+  lgl$-           %16.1 = %11.2
+  goto BB15
+BB12   <- [11]
+  val?^ | miss    %12.0 = LdVar              eR    res1, e0.0
+  val?            %12.1 = Force!             !v    %12.0, e0.0   <val?_>
+  val?^ | miss    %12.2 = LdVar              eR    res2, e0.0
+  void                    Visible            v     
+  val?            %12.4 = Force!             !     %12.2, e0.0   <val?_>
+  lgl$#-          %12.5 = IsType                   %12.4 isA val?+
+  lgl$#-          %12.6 = IsType                   %12.1 isA val?+
+  void                    Branch                   %12.6 -> BB91 (if true) | BB92 (if false)
+BB80   <- [31]
+  void                    Nop                !     
+  int$#-          %80.1 = 1L
+  goto BB33
+BB32   <- [31]
+  void                    Nop                !     
+  int$#-          %32.1 = -1L
+  goto BB33
+BB89   <- [29]
+  val?+           %89.0 = CastType           d     dn %26.3   <val?_>
+  (int|real|complex)+ %89.1 = Colon              wed   1L, %89.0, elided
+  (cls|spec|blt)  %89.2 = LdFun              !v    for, e0.0
+  prom-           %89.3 = MkArg                    %89.1, rir.compile[0x560912df8380]_p56 (!refl), e0.0
+  prom-           %89.4 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p57, e0.0
+  val?            %89.5 = Call               !v    %89.2(%89.3, %89.4) e0.0
+  goto BB30
+BB90   <- [29]
+  fs              %90.0 = FrameState         R     0x56091313b930+686: [%23.1, %21.0, %26.1, 1, %26.3, %26.4], env=e0.0
+  void                    Deopt              !v    %90.0, Typecheck@0x560912234148[Type#183], %26.3   !
+BB20   <- [18]
+  void                    Nop                !     
+  real$-          %20.1 = %18.1
+  int$#-          %20.2 = %17.1
+  goto BB10
+BB19   <- [18]
+  void                    StVar              lW    j, %18.3, e0.0
+  int$-           %19.1 = Add                d     %18.3, 1L, elided
+  real$-          %19.2 = Add                d     %18.3, 2, elided   <val?_>
+  void                    StVar              lW    y2, %19.2, e0.0
+  real$-          %19.4 = Add                d     %18.1, %17.2, elided   <val?_>
+  real$-          %19.5 = Add                d     %19.4, %19.2, elided   <val?_>
+  void                    StVar              lW    last, %19.5, e0.0
+  real$-          %19.7 = %19.5
+  int$-           %19.8 = %19.1
+  goto BB18
+BB15   <- [16, 93]
+  lgl$-           %15.0 = Phi                      %93.4:BB93, %16.1:BB16
+  lgl$-           %15.1 = %15.0
+  void                    Return             l     %15.1
+BB91   <- [12]
+  val?+           %91.0 = CastType           d     dn %12.1   <val?_>
+  void                    Branch                   %12.5 -> BB93 (if true) | BB94 (if false)
+BB92   <- [12]
+  void                    Nop                !     
+  val?            %92.1 = %12.1
+  dr              %92.2 = Typecheck@0x560912234148[Type#359]
+  goto BB13
+BB33   <- [80, 32]
+  int$#-          %33.0 = Phi                      %80.1:BB80, %32.1:BB32
+  int$#-          %33.1 = %33.0
+  int$#-          %33.2 = 1L
+  goto BB34
+BB30   <- [35, 89]
+  void                    Nop                !     
+  int$#-          %30.1 = %26.1
+  goto BB24
+BB93   <- [91]
+  val?+           %93.0 = CastType           d     dn %12.4   <val?_>
+  lgl             %93.1 = Eq                 vwed  %91.0, %93.0, elided   <val?_>
+  lgl$-           %93.2 = AsLogical          e     %93.1
+  lgl$-           %93.3 = LAnd                     %11.2, %93.2
+  lgl$-           %93.4 = %93.3
+  goto BB15
+BB94   <- [91]
+  void                    Nop                !     
+  val?            %94.1 = %12.4
+  dr              %94.2 = Typecheck@0x560912234148[Type#360]
+  goto BB13
+BB13   <- [92, 94]
+  val?^ | miss    %13.0 = Phi                      %92.1:BB92, %94.1:BB94
+  val?^ | miss    %13.1 = %13.0
+  dr              %13.2 = Phi                      %92.2:BB92, %94.2:BB94
+  dr              %13.3 = %13.2
+  fs              %13.4 = FrameState         R     0x56091313b930+2203: [%11.2, %12.1, %12.4], env=e0.0
+  void                    Deopt              !v    %13.4, %13.3, %13.1   !
+BB34   <- [33, 40]
+  int$#-          %34.0 = Phi                      %33.2:BB33, %40.1:BB40
+  int$#-          %34.1 = %34.0
+  lgl$#-          %34.2 = Neq                d     %31.0, %34.1, elided
+  void                    Branch                   %34.2 -> BB36 (if true) | BB35 (if false)
+BB36   <- [34]
+  void                    StVar              lW    r, %34.1, e0.0
+  int$#-          %36.1 = Add                d     %34.1, %33.1, elided
+  val?^ | miss    %36.2 = LdVar              eR    inner, e0.0
+  val?            %36.3 = Force!             !v    %36.2, e0.0   <val?_>
+  lgl$#-          %36.4 = ColonInputEffects  we    1, %36.3   <@?>
+  void                    Branch                   %36.4 -> BB41 (if true) | BB39 (if false)
+BB35   <- [34]
+  void                    Nop                !     
+  goto BB30
+BB41   <- [36]
+  int$#-          %41.0 = ColonCastRhs       e     1L, %36.3   <val?_>
+  lgl$#-          %41.1 = Lte                d     1L, %41.0, elided   <@?>
+  void                    Branch                   %41.1 -> BB79 (if true) | BB42 (if false)
+BB39   <- [36]
+  lgl$#-          %39.0 = IsType                   %36.3 isA val?+
+  void                    Branch                   %39.0 -> BB95 (if true) | BB96 (if false)
+BB79   <- [41]
+  void                    Nop                !     
+  int$#-          %79.1 = 1L
+  goto BB43
+BB42   <- [41]
+  void                    Nop                !     
+  int$#-          %42.1 = -1L
+  goto BB43
+BB95   <- [39]
+  val?+           %95.0 = CastType           d     dn %36.3   <val?_>
+  (int|real|complex)+ %95.1 = Colon              wed   1L, %95.0, elided
+  (cls|spec|blt)  %95.2 = LdFun              !v    for, e0.0
+  prom-           %95.3 = MkArg                    %95.1, rir.compile[0x560912df8380]_p78 (!refl), e0.0
+  prom-           %95.4 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p79, e0.0
+  val?            %95.5 = Call               !v    %95.2(%95.3, %95.4) e0.0
+  goto BB40
+BB96   <- [39]
+  fs              %96.0 = FrameState         R     0x56091313b930+832: [%23.1, %21.0, %26.1, %33.1, %31.0, %36.1, 1, %36.3, %36.4], env=e0.0
+  void                    Deopt              !v    %96.0, Typecheck@0x560912234148[Type#263], %36.3   !
+BB43   <- [79, 42]
+  int$#-          %43.0 = Phi                      %79.1:BB79, %42.1:BB42
+  int$#-          %43.1 = %43.0
+  lgl$#-          %43.2 = Neq                d     %41.0, 1L, elided   <@?>
+  void                    Branch                   %43.2 -> BB46 (if true) | BB44 (if false)
+BB40   <- [45, 95]
+  void                    Nop                !     
+  int$#-          %40.1 = %36.1
+  goto BB34
+BB46   <- [43]
+  void                    StVar              lW    i, 1L, e0.0
+  int$-           %46.1 = Add                d     1L, %43.1, elided
+  val?^ | miss    %46.2 = LdVar              eR    res2 !upd, e0.0
+  val?            %46.3 = Force!             !v    %46.2, e0.0
+  val?^ | miss    %46.4 = LdVar              eR    res2, e0.0
+  val?            %46.5 = Force!             !v    %46.4, e0.0   <val?_>
+  lgl$#-          %46.6 = IsType                   %46.5 isA val+   <@?>
+  void                    Branch                   %46.6 -> BB78 (if true) | BB47 (if false)
+BB44   <- [43]
+  void                    Nop                !     
+  goto BB45
+BB78   <- [46]
+  val?^ | miss    %78.0 = LdVar              eR    r, e0.0
+  val?            %78.1 = Force!             !v    %78.0, e0.0   <val?_>
+  val?^ | miss    %78.2 = LdVar              eR    c, e0.0
+  val?            %78.3 = Force!             !v    %78.2, e0.0   <val?_>
+  val?            %78.4 = %78.3
+  val?            %78.5 = %78.1
+  goto BB48
+BB47   <- [46]
+  prom-           %47.0 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p96, e0.0
+  prom-           %47.1 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p97, e0.0
+  prom-           %47.2 = %47.1
+  prom-           %47.3 = %47.0
+  goto BB48
+BB45   <- [75, 44]
+  void                    Nop                !     
+  goto BB40
+BB48   <- [47, 78]
+  val?            %48.0 = Phi                      %78.4:BB78, %47.2:BB47
+  val?            %48.1 = %48.0
+  val?            %48.2 = Phi                      %78.5:BB78, %47.3:BB47
+  val?            %48.3 = %48.2
+  val?            %48.4 = Extract1_2D        !v    %46.5, %48.3, %48.1, e0.0   <val?_>
+  val?^ | miss    %48.5 = LdVar              eR    x, e0.0
+  val?            %48.6 = Force!             !v    %48.5, e0.0   <val?_>
+  lgl$#-          %48.7 = IsType                   %48.6 isA val+   <@?>
+  void                    Branch                   %48.7 -> BB77 (if true) | BB49 (if false)
+BB77   <- [48]
+  val?^ | miss    %77.0 = LdVar              eR    r, e0.0
+  val?            %77.1 = Force!             !v    %77.0, e0.0   <val?_>
+  val?^ | miss    %77.2 = LdVar              eR    i, e0.0
+  val?            %77.3 = Force!             !v    %77.2, e0.0   <val?_>
+  val?            %77.4 = %77.3
+  val?            %77.5 = %77.1
+  goto BB50
+BB49   <- [48]
+  prom-           %49.0 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p94, e0.0
+  prom-           %49.1 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p95, e0.0
+  prom-           %49.2 = %49.1
+  prom-           %49.3 = %49.0
+  goto BB50
+BB50   <- [49, 77]
+  val?            %50.0 = Phi                      %77.4:BB77, %49.2:BB49
+  val?            %50.1 = %50.0
+  val?            %50.2 = Phi                      %77.5:BB77, %49.3:BB49
+  val?            %50.3 = %50.2
+  val?            %50.4 = Extract1_2D        !v    %48.6, %50.3, %50.1, e0.0   <val?_>
+  val?^ | miss    %50.5 = LdVar              eR    y, e0.0
+  val?            %50.6 = Force!             !v    %50.5, e0.0   <val?_>
+  lgl$#-          %50.7 = IsType                   %50.6 isA val+   <@?>
+  void                    Branch                   %50.7 -> BB76 (if true) | BB51 (if false)
+BB76   <- [50]
+  val?^ | miss    %76.0 = LdVar              eR    i, e0.0
+  val?            %76.1 = Force!             !v    %76.0, e0.0   <val?_>
+  val?^ | miss    %76.2 = LdVar              eR    c, e0.0
+  val?            %76.3 = Force!             !v    %76.2, e0.0   <val?_>
+  val?            %76.4 = %76.3
+  val?            %76.5 = %76.1
+  goto BB52
+BB51   <- [50]
+  prom-           %51.0 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p92, e0.0
+  prom-           %51.1 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p93, e0.0
+  prom-           %51.2 = %51.1
+  prom-           %51.3 = %51.0
+  goto BB52
+BB52   <- [51, 76]
+  val?            %52.0 = Phi                      %76.4:BB76, %51.2:BB51
+  val?            %52.1 = %52.0
+  val?            %52.2 = Phi                      %76.5:BB76, %51.3:BB51
+  val?            %52.3 = %52.2
+  val?            %52.4 = Extract1_2D        !v    %50.6, %52.3, %52.1, e0.0   <val?_>
+  lgl$#-          %52.5 = IsType                   %52.4 isA val?+
+  lgl$#-          %52.6 = IsType                   %50.4 isA val?+
+  void                    Branch                   %52.6 -> BB97 (if true) | BB98 (if false)
+BB97   <- [52]
+  val?+           %97.0 = CastType           d     dn %50.4   <val?_>
+  void                    Branch                   %52.5 -> BB99 (if true) | BB100 (if false)
+BB98   <- [52]
+  void                    Nop                !     
+  val?            %98.1 = %50.4
+  dr              %98.2 = Typecheck@0x560912234148[Type#302]
+  goto BB53
+BB99   <- [97]
+  val?+           %99.0 = CastType           d     dn %52.4   <val?_>
+  (int|real|complex)+ %99.1 = Mul                wed   %97.0, %99.0, elided   <val?_>
+  lgl$#-          %99.2 = IsType                   %48.4 isA val?+
+  void                    Branch                   %99.2 -> BB101 (if true) | BB102 (if false)
+BB100   <- [97]
+  void                    Nop                !     
+  val?            %100.1 = %52.4
+  dr              %100.2 = Typecheck@0x560912234148[Type#308]
+  goto BB53
+BB53   <- [98, 100]
+  val?^ | miss    %53.0 = Phi                      %98.1:BB98, %100.1:BB100
+  val?^ | miss    %53.1 = %53.0
+  dr              %53.2 = Phi                      %98.2:BB98, %100.2:BB100
+  dr              %53.3 = %53.2
+  fs              %53.4 = FrameState         R     0x56091313b930+1220: [%23.1, %21.0, %26.1, %33.1, %31.0, %36.1, %43.1, %41.0, %46.1, %48.4, %50.4, %52.4], env=e0.0
+  void                    Deopt              !v    %53.4, %53.3, %53.1   !
+BB101   <- [99]
+  val?+           %101.0 = CastType           d     dn %48.4   <val?_>
+  (int|real|complex)+ %101.1 = Add                wed   %101.0, %99.1, elided   <val?_>
+  val?^ | miss    %101.2 = LdVar              eR    res2 !upd, e0.0
+  val?            %101.3 = Force!             !v    %101.2, e0.0   <val?_>
+  val?^ | miss    %101.4 = LdVar              eR    r, e0.0
+  val?            %101.5 = Force!             !v    %101.4, e0.0   <val?_>
+  val?^ | miss    %101.6 = LdVar              eR    c, e0.0
+  val?            %101.7 = Force!             !v    %101.6, e0.0   <val?_>
+  lgl$#-          %101.8 = IsType                   %101.7 isA val?+
+  lgl$#-          %101.9 = IsType                   %101.3 isA val?+
+  lgl$#-          %101.10 = IsType                   %101.5 isA val?+
+  void                    Branch                   %101.9 -> BB103 (if true) | BB104 (if false)
+BB102   <- [99]
+  fs              %102.0 = FrameState         R     0x56091313b930+1227: [%23.1, %21.0, %26.1, %33.1, %31.0, %36.1, %43.1, %41.0, %46.1, %48.4, %99.1], env=e0.0
+  void                    Deopt              !v    %102.0, Typecheck@0x560912234148[Type#296], %48.4   !
+BB103   <- [101]
+  val?+           %103.0 = CastType           d     dn %101.3   <val?_>
+  void                    Branch                   %101.10 -> BB105 (if true) | BB106 (if false)
+BB104   <- [101]
+  void                    Nop                !     
+  val?            %104.1 = %101.3
+  dr              %104.2 = Typecheck@0x560912234148[Type#311]
+  goto BB57
+BB105   <- [103]
+  val?+           %105.0 = CastType           d     dn %101.5   <val?_>
+  void                    Branch                   %101.8 -> BB107 (if true) | BB108 (if false)
+BB106   <- [103]
+  void                    Nop                !     
+  val?            %106.1 = %101.5
+  dr              %106.2 = Typecheck@0x560912234148[Type#312]
+  goto BB57
+BB57   <- [104, 106, 108]
+  val?^ | miss    %57.0 = Phi                      %104.1:BB104, %106.1:BB106, %108.1:BB108
+  val?^ | miss    %57.1 = %57.0
+  dr              %57.2 = Phi                      %104.2:BB104, %106.2:BB106, %108.2:BB108
+  dr              %57.3 = %57.2
+  fs              %57.4 = FrameState         R     0x56091313b930+1275: [%23.1, %21.0, %26.1, %33.1, %31.0, %36.1, %43.1, %41.0, %46.1, %101.1, %101.3, %101.5, %101.7], env=e0.0
+  void                    Deopt              !v    %57.4, %57.3, %57.1   !
+BB107   <- [105]
+  val?+           %107.0 = CastType           d     dn %101.7   <val?_>
+  val?+           %107.1 = Subassign1_2D      wed   %101.1, %103.0, %105.0, %107.0, elided
+  void                    StVar              lW    res2, %107.1, e0.0
+  val?+           %107.3 = %107.1
+  int$-           %107.4 = %46.1
+  goto BB59
+BB108   <- [105]
+  void                    Nop                !     
+  val?            %108.1 = %101.7
+  dr              %108.2 = Typecheck@0x560912234148[Type#313]
+  goto BB57
+BB59   <- [107, 123]
+  val?+           %59.0 = Phi                      %107.3:BB107, %123.3:BB123
+  val?+           %59.1 = %59.0
+  int$-           %59.2 = Phi                      %107.4:BB107, %123.4:BB123
+  int$-           %59.3 = %59.2
+  lgl$-           %59.4 = Neq                d     %41.0, %59.3, elided
+  lgl$#-          %59.5 = Identical                %59.4, false
+  void                    Branch                   %59.5 -> BB75 (if true) | BB60 (if false)
+BB75   <- [59]
+  void                    Nop                !     
+  goto BB45
+BB60   <- [59]
+  void                    StVar              lW    i, %59.3, e0.0
+  int$-           %60.1 = Add                d     %59.3, %43.1, elided
+  val+            %60.2 = ChkMissing         e     %59.1   <val?_>
+  val?^ | miss    %60.3 = LdVar              eR    r, e0.0
+  val?            %60.4 = Force!             !v    %60.3, e0.0   <val?_>
+  val?^ | miss    %60.5 = LdVar              eR    c, e0.0
+  val?            %60.6 = Force!             !v    %60.5, e0.0   <val?_>
+  lgl$#-          %60.7 = IsType                   %60.6 isA val?+
+  lgl$#-          %60.8 = IsType                   %60.4 isA val?+
+  void                    Branch                   %60.8 -> BB109 (if true) | BB110 (if false)
+BB109   <- [60]
+  val?+           %109.0 = CastType           d     dn %60.4   <val?_>
+  void                    Branch                   %60.7 -> BB111 (if true) | BB112 (if false)
+BB110   <- [60]
+  void                    Nop                !     
+  val?            %110.1 = %60.4
+  dr              %110.2 = Typecheck@0x560912234148[Type#317]
+  goto BB61
+BB111   <- [109]
+  val?+           %111.0 = CastType           d     dn %60.6   <val?_>
+  val?            %111.1 = Extract1_2D        wed   %60.2, %109.0, %111.0, elided   <val?_>
+  val?^ | miss    %111.2 = LdVar              eR    x, e0.0
+  val?            %111.3 = Force!             !v    %111.2, e0.0   <val?_>
+  lgl$#-          %111.4 = IsType                   %111.3 isA val+   <@?>
+  void                    Branch                   %111.4 -> BB74 (if true) | BB63 (if false)
+BB112   <- [109]
+  void                    Nop                !     
+  val?            %112.1 = %60.6
+  dr              %112.2 = Typecheck@0x560912234148[Type#318]
+  goto BB61
+BB61   <- [110, 112]
+  val?^ | miss    %61.0 = Phi                      %110.1:BB110, %112.1:BB112
+  val?^ | miss    %61.1 = %61.0
+  dr              %61.2 = Phi                      %110.2:BB110, %112.2:BB112
+  dr              %61.3 = %61.2
+  fs              %61.4 = FrameState         R     0x56091313b930+1398: [%23.1, %21.0, %26.1, %33.1, %31.0, %36.1, %43.1, %41.0, %60.1, %60.2, %60.4, %60.6], env=e0.0
+  void                    Deopt              !v    %61.4, %61.3, %61.1   !
+BB74   <- [111]
+  val?^ | miss    %74.0 = LdVar              eR    r, e0.0
+  val?            %74.1 = Force!             !v    %74.0, e0.0   <val?_>
+  val?^ | miss    %74.2 = LdVar              eR    i, e0.0
+  val?            %74.3 = Force!             !v    %74.2, e0.0   <val?_>
+  val?            %74.4 = %74.3
+  val?            %74.5 = %74.1
+  goto BB64
+BB63   <- [111]
+  prom-           %63.0 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p88, e0.0
+  prom-           %63.1 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p89, e0.0
+  prom-           %63.2 = %63.1
+  prom-           %63.3 = %63.0
+  goto BB64
+BB64   <- [63, 74]
+  val?            %64.0 = Phi                      %74.4:BB74, %63.2:BB63
+  val?            %64.1 = %64.0
+  val?            %64.2 = Phi                      %74.5:BB74, %63.3:BB63
+  val?            %64.3 = %64.2
+  val?            %64.4 = Extract1_2D        !v    %111.3, %64.3, %64.1, e0.0   <val?_>
+  val?^ | miss    %64.5 = LdVar              eR    y, e0.0
+  val?            %64.6 = Force!             !v    %64.5, e0.0   <val?_>
+  lgl$#-          %64.7 = IsType                   %64.6 isA val+   <@?>
+  void                    Branch                   %64.7 -> BB73 (if true) | BB65 (if false)
+BB73   <- [64]
+  val?^ | miss    %73.0 = LdVar              eR    i, e0.0
+  val?            %73.1 = Force!             !v    %73.0, e0.0   <val?_>
+  val?^ | miss    %73.2 = LdVar              eR    c, e0.0
+  val?            %73.3 = Force!             !v    %73.2, e0.0   <val?_>
+  val?            %73.4 = %73.3
+  val?            %73.5 = %73.1
+  goto BB66
+BB65   <- [64]
+  prom-           %65.0 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p86, e0.0
+  prom-           %65.1 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p87, e0.0
+  prom-           %65.2 = %65.1
+  prom-           %65.3 = %65.0
+  goto BB66
+BB66   <- [65, 73]
+  val?            %66.0 = Phi                      %73.4:BB73, %65.2:BB65
+  val?            %66.1 = %66.0
+  val?            %66.2 = Phi                      %73.5:BB73, %65.3:BB65
+  val?            %66.3 = %66.2
+  val?            %66.4 = Extract1_2D        !v    %64.6, %66.3, %66.1, e0.0   <val?_>
+  lgl$#-          %66.5 = IsType                   %66.4 isA val?+
+  lgl$#-          %66.6 = IsType                   %64.4 isA val?+
+  void                    Branch                   %66.6 -> BB113 (if true) | BB114 (if false)
+BB113   <- [66]
+  val?+           %113.0 = CastType           d     dn %64.4   <val?_>
+  void                    Branch                   %66.5 -> BB115 (if true) | BB116 (if false)
+BB114   <- [66]
+  void                    Nop                !     
+  val?            %114.1 = %64.4
+  dr              %114.2 = Typecheck@0x560912234148[Type#325]
+  goto BB67
+BB115   <- [113]
+  val?+           %115.0 = CastType           d     dn %66.4   <val?_>
+  (int|real|complex)+ %115.1 = Mul                wed   %113.0, %115.0, elided   <val?_>
+  lgl$#-          %115.2 = IsType                   %111.1 isA val?+
+  void                    Branch                   %115.2 -> BB117 (if true) | BB118 (if false)
+BB116   <- [113]
+  void                    Nop                !     
+  val?            %116.1 = %66.4
+  dr              %116.2 = Typecheck@0x560912234148[Type#331]
+  goto BB67
+BB67   <- [114, 116]
+  val?^ | miss    %67.0 = Phi                      %114.1:BB114, %116.1:BB116
+  val?^ | miss    %67.1 = %67.0
+  dr              %67.2 = Phi                      %114.2:BB114, %116.2:BB116
+  dr              %67.3 = %67.2
+  fs              %67.4 = FrameState         R     0x56091313b930+1574: [%23.1, %21.0, %26.1, %33.1, %31.0, %36.1, %43.1, %41.0, %60.1, %111.1, %64.4, %66.4], env=e0.0
+  void                    Deopt              !v    %67.4, %67.3, %67.1   !
+BB117   <- [115]
+  val?+           %117.0 = CastType           d     dn %111.1   <val?_>
+  (int|real|complex)+ %117.1 = Add                wed   %117.0, %115.1, elided   <val?_>
+  val?^ | miss    %117.2 = LdVar              eR    res2 !upd, e0.0
+  val?            %117.3 = Force!             !v    %117.2, e0.0   <val?_>
+  val?^ | miss    %117.4 = LdVar              eR    r, e0.0
+  val?            %117.5 = Force!             !v    %117.4, e0.0   <val?_>
+  val?^ | miss    %117.6 = LdVar              eR    c, e0.0
+  val?            %117.7 = Force!             !v    %117.6, e0.0   <val?_>
+  lgl$#-          %117.8 = IsType                   %117.7 isA val?+
+  lgl$#-          %117.9 = IsType                   %117.3 isA val?+
+  lgl$#-          %117.10 = IsType                   %117.5 isA val?+
+  void                    Branch                   %117.9 -> BB119 (if true) | BB120 (if false)
+BB118   <- [115]
+  fs              %118.0 = FrameState         R     0x56091313b930+1581: [%23.1, %21.0, %26.1, %33.1, %31.0, %36.1, %43.1, %41.0, %60.1, %111.1, %115.1], env=e0.0
+  void                    Deopt              !v    %118.0, Typecheck@0x560912234148[Type#319], %111.1   !
+BB119   <- [117]
+  val?+           %119.0 = CastType           d     dn %117.3   <val?_>
+  void                    Branch                   %117.10 -> BB121 (if true) | BB122 (if false)
+BB120   <- [117]
+  void                    Nop                !     
+  val?            %120.1 = %117.3
+  dr              %120.2 = Typecheck@0x560912234148[Type#334]
+  goto BB71
+BB121   <- [119]
+  val?+           %121.0 = CastType           d     dn %117.5   <val?_>
+  void                    Branch                   %117.8 -> BB123 (if true) | BB124 (if false)
+BB122   <- [119]
+  void                    Nop                !     
+  val?            %122.1 = %117.5
+  dr              %122.2 = Typecheck@0x560912234148[Type#335]
+  goto BB71
+BB71   <- [120, 122, 124]
+  val?^ | miss    %71.0 = Phi                      %120.1:BB120, %122.1:BB122, %124.1:BB124
+  val?^ | miss    %71.1 = %71.0
+  dr              %71.2 = Phi                      %120.2:BB120, %122.2:BB122, %124.2:BB124
+  dr              %71.3 = %71.2
+  fs              %71.4 = FrameState         R     0x56091313b930+1629: [%23.1, %21.0, %26.1, %33.1, %31.0, %36.1, %43.1, %41.0, %60.1, %117.1, %117.3, %117.5, %117.7], env=e0.0
+  void                    Deopt              !v    %71.4, %71.3, %71.1   !
+BB123   <- [121]
+  val?+           %123.0 = CastType           d     dn %117.7   <val?_>
+  val?+           %123.1 = Subassign1_2D      wed   %117.1, %119.0, %121.0, %123.0, elided
+  void                    StVar              lW    res2, %123.1, e0.0
+  val?+           %123.3 = %123.1
+  int$-           %123.4 = %60.1
+  goto BB59
+BB124   <- [121]
+  void                    Nop                !     
+  val?            %124.1 = %117.7
+  dr              %124.2 = Typecheck@0x560912234148[Type#336]
+  goto BB71
+Prom 0:
+BB0
+  int-            %0.0  = Colon              vd    1L, 6L, elided   <val?_>
+  void                    Return             l     %0.0
+Prom 1:
+BB0
+  int-            %0.0  = Colon              vd    1L, 12L, elided   <val?_>
+  void                    Return             l     %0.0
+Prom 2:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     ncol, e0.0
+  prom-           %0.2  = MkArg                    unboundValue, rir.compile[0x560912df8380]_p3, e0.0
+  val?            %0.3  = Call               !     %0.1(%0.2) e0.0   <val?_>
+  (cls|spec|blt)  %0.4  = LdFun              !     nrow, e0.0
+  prom-           %0.5  = MkArg                    unboundValue, rir.compile[0x560912df8380]_p4, e0.0
+  val?            %0.6  = Call               !     %0.4(%0.5) e0.0   <val?_>
+  val?            %0.7  = Eq                 !     %0.3, %0.6, e0.0   <val?_>
+  void                    Return             l     %0.7
+Prom 3:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    x, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 4:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    y, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 5:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    x, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 6:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    y, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 7:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    x, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 10:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    rows, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 11:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    cols, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 12:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    cols, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  val?            %0.4  = Colon              !     1L, %0.3, e0.0   <val?_>
+  void                    Return             l     %0.4
+Prom 13:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    rows, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  lgl$#-          %0.4  = ColonInputEffects  we    1, %0.3   <@?>
+  void                    Branch                   %0.4 -> BB2 (if true) | BB40 (if false)
+BB2   <- [0]
+  int$#-          %2.0  = ColonCastRhs       e     1L, %0.3   <val?_>
+  lgl$#-          %2.1  = Lte                d     1L, %2.0, elided   <@?>
+  void                    Branch                   %2.1 -> BB39 (if true) | BB3 (if false)
+BB40   <- [0]
+  val?            %40.0 = Colon              !     1L, %0.3, e0.0
+  (cls|spec|blt)  %40.1 = LdFun              !     for, e0.0
+  prom-           %40.2 = MkArg                    %40.0, rir.compile[0x560912df8380]_p14 (!refl), e0.0
+  prom-           %40.3 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p15, e0.0
+  val?            %40.4 = Call               !     %40.1(%40.2, %40.3) e0.0   <val?_>
+  val?            %40.5 = %40.4
+  goto BB7
+BB39   <- [2]
+  void                    Nop                !     
+  int$#-          %39.1 = 1L
+  goto BB4
+BB3   <- [2]
+  void                    Nop                !     
+  int$#-          %3.1  = -1L
+  goto BB4
+BB7   <- [6, 40]
+  val?            %7.0  = Phi                      %40.5:BB40, %6.1:BB6
+  val?            %7.1  = %7.0
+  void                    Return             l     %7.1
+BB4   <- [39, 3]
+  int$#-          %4.0  = Phi                      %39.1:BB39, %3.1:BB3
+  int$#-          %4.1  = %4.0
+  int$#-          %4.2  = 1L
+  goto BB5
+BB5   <- [4, 10]
+  int$#-          %5.0  = Phi                      %4.2:BB4, %10.1:BB10
+  int$#-          %5.1  = %5.0
+  lgl$#-          %5.2  = Neq                d     %2.0, %5.1, elided
+  void                    Branch                   %5.2 -> BB8 (if true) | BB6 (if false)
+BB8   <- [5]
+  void                    StVar              lW    r, %5.1, e0.0
+  int$#-          %8.1  = Add                d     %5.1, %4.1, elided
+  val?^ | miss    %8.2  = LdVar              eR    inner, e0.0
+  val?            %8.3  = Force              !v    %8.2, e0.0   <val?_>
+  lgl$#-          %8.4  = ColonInputEffects  we    1, %8.3   <@?>
+  void                    Branch                   %8.4 -> BB11 (if true) | BB9 (if false)
+BB6   <- [5]
+  void                    Invisible          v     
+  nil-            %6.1  = nil
+  goto BB7
+BB11   <- [8]
+  int$#-          %11.0 = ColonCastRhs       e     1L, %8.3   <val?_>
+  lgl$#-          %11.1 = Lte                d     1L, %11.0, elided   <@?>
+  void                    Branch                   %11.1 -> BB38 (if true) | BB12 (if false)
+BB9   <- [8]
+  val?            %9.0  = Colon              !v    1L, %8.3, e0.0
+  (cls|spec|blt)  %9.1  = LdFun              !v    for, e0.0
+  prom-           %9.2  = MkArg                    %9.0, rir.compile[0x560912df8380]_p36 (!refl), e0.0
+  prom-           %9.3  = MkArg                    unboundValue, rir.compile[0x560912df8380]_p37, e0.0
+  val?            %9.4  = Call               !v    %9.1(%9.2, %9.3) e0.0
+  goto BB10
+BB38   <- [11]
+  void                    Nop                !     
+  int$#-          %38.1 = 1L
+  goto BB13
+BB12   <- [11]
+  void                    Nop                !     
+  int$#-          %12.1 = -1L
+  goto BB13
+BB10   <- [9, 15]
+  void                    Nop                !     
+  int$#-          %10.1 = %8.1
+  goto BB5
+BB13   <- [38, 12]
+  int$#-          %13.0 = Phi                      %38.1:BB38, %12.1:BB12
+  int$#-          %13.1 = %13.0
+  lgl$#-          %13.2 = Neq                d     %11.0, 1L, elided   <@?>
+  void                    Branch                   %13.2 -> BB16 (if true) | BB14 (if false)
+BB16   <- [13]
+  void                    StVar              lW    i, 1L, e0.0
+  int$-           %16.1 = Add                d     1L, %13.1, elided
+  val?^ | miss    %16.2 = LdVar              eR    res2 !upd, e0.0
+  val?            %16.3 = Force              !v    %16.2, e0.0
+  val?^ | miss    %16.4 = LdVar              eR    res2, e0.0
+  val?            %16.5 = Force              !v    %16.4, e0.0   <val?_>
+  lgl$#-          %16.6 = IsType                   %16.5 isA val+   <@?>
+  void                    Branch                   %16.6 -> BB37 (if true) | BB17 (if false)
+BB14   <- [13]
+  void                    Nop                !     
+  goto BB15
+BB37   <- [16]
+  val?^ | miss    %37.0 = LdVar              eR    r, e0.0
+  val?            %37.1 = Force              !v    %37.0, e0.0   <val?_>
+  val?^ | miss    %37.2 = LdVar              eR    c, e0.0
+  val?            %37.3 = Force              !v    %37.2, e0.0   <val?_>
+  val?            %37.4 = %37.3
+  val?            %37.5 = %37.1
+  goto BB18
+BB17   <- [16]
+  prom-           %17.0 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p54, e0.0
+  prom-           %17.1 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p55, e0.0
+  prom-           %17.2 = %17.1
+  prom-           %17.3 = %17.0
+  goto BB18
+BB15   <- [34, 14]
+  void                    Nop                !     
+  goto BB10
+BB18   <- [17, 37]
+  val?            %18.0 = Phi                      %37.4:BB37, %17.2:BB17
+  val?            %18.1 = %18.0
+  val?            %18.2 = Phi                      %37.5:BB37, %17.3:BB17
+  val?            %18.3 = %18.2
+  val?            %18.4 = Extract1_2D        !v    %16.5, %18.3, %18.1, e0.0   <val?_>
+  val?^ | miss    %18.5 = LdVar              eR    x, e0.0
+  val?            %18.6 = Force              !v    %18.5, e0.0   <val?_>
+  lgl$#-          %18.7 = IsType                   %18.6 isA val+   <@?>
+  void                    Branch                   %18.7 -> BB36 (if true) | BB19 (if false)
+BB36   <- [18]
+  val?^ | miss    %36.0 = LdVar              eR    r, e0.0
+  val?            %36.1 = Force              !v    %36.0, e0.0   <val?_>
+  val?^ | miss    %36.2 = LdVar              eR    i, e0.0
+  val?            %36.3 = Force              !v    %36.2, e0.0   <val?_>
+  val?            %36.4 = %36.3
+  val?            %36.5 = %36.1
+  goto BB20
+BB19   <- [18]
+  prom-           %19.0 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p52, e0.0
+  prom-           %19.1 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p53, e0.0
+  prom-           %19.2 = %19.1
+  prom-           %19.3 = %19.0
+  goto BB20
+BB20   <- [19, 36]
+  val?            %20.0 = Phi                      %36.4:BB36, %19.2:BB19
+  val?            %20.1 = %20.0
+  val?            %20.2 = Phi                      %36.5:BB36, %19.3:BB19
+  val?            %20.3 = %20.2
+  val?            %20.4 = Extract1_2D        !v    %18.6, %20.3, %20.1, e0.0   <val?_>
+  val?^ | miss    %20.5 = LdVar              eR    y, e0.0
+  val?            %20.6 = Force              !v    %20.5, e0.0   <val?_>
+  lgl$#-          %20.7 = IsType                   %20.6 isA val+   <@?>
+  void                    Branch                   %20.7 -> BB35 (if true) | BB21 (if false)
+BB35   <- [20]
+  val?^ | miss    %35.0 = LdVar              eR    i, e0.0
+  val?            %35.1 = Force              !v    %35.0, e0.0   <val?_>
+  val?^ | miss    %35.2 = LdVar              eR    c, e0.0
+  val?            %35.3 = Force              !v    %35.2, e0.0   <val?_>
+  val?            %35.4 = %35.3
+  val?            %35.5 = %35.1
+  goto BB22
+BB21   <- [20]
+  prom-           %21.0 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p50, e0.0
+  prom-           %21.1 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p51, e0.0
+  prom-           %21.2 = %21.1
+  prom-           %21.3 = %21.0
+  goto BB22
+BB22   <- [21, 35]
+  val?            %22.0 = Phi                      %35.4:BB35, %21.2:BB21
+  val?            %22.1 = %22.0
+  val?            %22.2 = Phi                      %35.5:BB35, %21.3:BB21
+  val?            %22.3 = %22.2
+  val?            %22.4 = Extract1_2D        !v    %20.6, %22.3, %22.1, e0.0   <val?_>
+  val?            %22.5 = Mul                !v    %20.4, %22.4, e0.0   <val?_>
+  val?            %22.6 = Add                !v    %18.4, %22.5, e0.0   <val?_>
+  val?^ | miss    %22.7 = LdVar              eR    res2, e0.0
+  val?            %22.8 = Force              !v    %22.7, e0.0   <val?_>
+  val?^ | miss    %22.9 = LdVar              eR    r, e0.0
+  val?            %22.10 = Force              !v    %22.9, e0.0   <val?_>
+  val?^ | miss    %22.11 = LdVar              eR    c, e0.0
+  val?            %22.12 = Force              !v    %22.11, e0.0   <val?_>
+  val?            %22.13 = Subassign1_2D      !v    %22.6, %22.8, %22.10, %22.12, e0.0
+  void                    StVar              lW    res2, %22.13, e0.0
+  int$-           %22.15 = %16.1
+  goto BB23
+BB23   <- [22, 30]
+  int$-           %23.0 = Phi                      %22.15:BB22, %30.15:BB30
+  int$-           %23.1 = %23.0
+  lgl$-           %23.2 = Neq                d     %11.0, %23.1, elided
+  lgl$#-          %23.3 = Identical                %23.2, false
+  void                    Branch                   %23.3 -> BB34 (if true) | BB24 (if false)
+BB34   <- [23]
+  void                    Nop                !     
+  goto BB15
+BB24   <- [23]
+  void                    StVar              lW    i, %23.1, e0.0
+  int$-           %24.1 = Add                d     %23.1, %13.1, elided
+  val?^ | miss    %24.2 = LdVar              eR    res2 !upd, e0.0
+  val?            %24.3 = Force              !v    %24.2, e0.0
+  val?^ | miss    %24.4 = LdVar              eR    res2, e0.0
+  val?            %24.5 = Force              !v    %24.4, e0.0   <val?_>
+  lgl$#-          %24.6 = IsType                   %24.5 isA val+   <@?>
+  void                    Branch                   %24.6 -> BB33 (if true) | BB25 (if false)
+BB33   <- [24]
+  val?^ | miss    %33.0 = LdVar              eR    r, e0.0
+  val?            %33.1 = Force              !v    %33.0, e0.0   <val?_>
+  val?^ | miss    %33.2 = LdVar              eR    c, e0.0
+  val?            %33.3 = Force              !v    %33.2, e0.0   <val?_>
+  val?            %33.4 = %33.3
+  val?            %33.5 = %33.1
+  goto BB26
+BB25   <- [24]
+  prom-           %25.0 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p48, e0.0
+  prom-           %25.1 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p49, e0.0
+  prom-           %25.2 = %25.1
+  prom-           %25.3 = %25.0
+  goto BB26
+BB26   <- [25, 33]
+  val?            %26.0 = Phi                      %33.4:BB33, %25.2:BB25
+  val?            %26.1 = %26.0
+  val?            %26.2 = Phi                      %33.5:BB33, %25.3:BB25
+  val?            %26.3 = %26.2
+  val?            %26.4 = Extract1_2D        !v    %24.5, %26.3, %26.1, e0.0   <val?_>
+  val?^ | miss    %26.5 = LdVar              eR    x, e0.0
+  val?            %26.6 = Force              !v    %26.5, e0.0   <val?_>
+  lgl$#-          %26.7 = IsType                   %26.6 isA val+   <@?>
+  void                    Branch                   %26.7 -> BB32 (if true) | BB27 (if false)
+BB32   <- [26]
+  val?^ | miss    %32.0 = LdVar              eR    r, e0.0
+  val?            %32.1 = Force              !v    %32.0, e0.0   <val?_>
+  val?^ | miss    %32.2 = LdVar              eR    i, e0.0
+  val?            %32.3 = Force              !v    %32.2, e0.0   <val?_>
+  val?            %32.4 = %32.3
+  val?            %32.5 = %32.1
+  goto BB28
+BB27   <- [26]
+  prom-           %27.0 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p46, e0.0
+  prom-           %27.1 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p47, e0.0
+  prom-           %27.2 = %27.1
+  prom-           %27.3 = %27.0
+  goto BB28
+BB28   <- [27, 32]
+  val?            %28.0 = Phi                      %32.4:BB32, %27.2:BB27
+  val?            %28.1 = %28.0
+  val?            %28.2 = Phi                      %32.5:BB32, %27.3:BB27
+  val?            %28.3 = %28.2
+  val?            %28.4 = Extract1_2D        !v    %26.6, %28.3, %28.1, e0.0   <val?_>
+  val?^ | miss    %28.5 = LdVar              eR    y, e0.0
+  val?            %28.6 = Force              !v    %28.5, e0.0   <val?_>
+  lgl$#-          %28.7 = IsType                   %28.6 isA val+   <@?>
+  void                    Branch                   %28.7 -> BB31 (if true) | BB29 (if false)
+BB31   <- [28]
+  val?^ | miss    %31.0 = LdVar              eR    i, e0.0
+  val?            %31.1 = Force              !v    %31.0, e0.0   <val?_>
+  val?^ | miss    %31.2 = LdVar              eR    c, e0.0
+  val?            %31.3 = Force              !v    %31.2, e0.0   <val?_>
+  val?            %31.4 = %31.3
+  val?            %31.5 = %31.1
+  goto BB30
+BB29   <- [28]
+  prom-           %29.0 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p44, e0.0
+  prom-           %29.1 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p45, e0.0
+  prom-           %29.2 = %29.1
+  prom-           %29.3 = %29.0
+  goto BB30
+BB30   <- [29, 31]
+  val?            %30.0 = Phi                      %31.4:BB31, %29.2:BB29
+  val?            %30.1 = %30.0
+  val?            %30.2 = Phi                      %31.5:BB31, %29.3:BB29
+  val?            %30.3 = %30.2
+  val?            %30.4 = Extract1_2D        !v    %28.6, %30.3, %30.1, e0.0   <val?_>
+  val?            %30.5 = Mul                !v    %28.4, %30.4, e0.0   <val?_>
+  val?            %30.6 = Add                !v    %26.4, %30.5, e0.0   <val?_>
+  val?^ | miss    %30.7 = LdVar              eR    res2, e0.0
+  val?            %30.8 = Force              !v    %30.7, e0.0   <val?_>
+  val?^ | miss    %30.9 = LdVar              eR    r, e0.0
+  val?            %30.10 = Force              !v    %30.9, e0.0   <val?_>
+  val?^ | miss    %30.11 = LdVar              eR    c, e0.0
+  val?            %30.12 = Force              !v    %30.11, e0.0   <val?_>
+  val?            %30.13 = Subassign1_2D      !v    %30.6, %30.8, %30.10, %30.12, e0.0
+  void                    StVar              lW    res2, %30.13, e0.0
+  int$-           %30.15 = %24.1
+  goto BB23
+Prom 14:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    rows, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  val?            %0.4  = Colon              !     1L, %0.3, e0.0   <val?_>
+  void                    Return             l     %0.4
+Prom 15:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    inner, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  lgl$#-          %0.4  = ColonInputEffects  we    1, %0.3   <@?>
+  void                    Branch                   %0.4 -> BB2 (if true) | BB31 (if false)
+BB2   <- [0]
+  int$#-          %2.0  = ColonCastRhs       e     1L, %0.3   <val?_>
+  lgl$#-          %2.1  = Lte                d     1L, %2.0, elided   <@?>
+  void                    Branch                   %2.1 -> BB30 (if true) | BB3 (if false)
+BB31   <- [0]
+  val?            %31.0 = Colon              !     1L, %0.3, e0.0
+  (cls|spec|blt)  %31.1 = LdFun              !     for, e0.0
+  prom-           %31.2 = MkArg                    %31.0, rir.compile[0x560912df8380]_p16 (!refl), e0.0
+  prom-           %31.3 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p17, e0.0
+  val?            %31.4 = Call               !     %31.1(%31.2, %31.3) e0.0   <val?_>
+  val?            %31.5 = %31.4
+  goto BB7
+BB30   <- [2]
+  void                    Nop                !     
+  int$#-          %30.1 = 1L
+  goto BB4
+BB3   <- [2]
+  void                    Nop                !     
+  int$#-          %3.1  = -1L
+  goto BB4
+BB7   <- [31, 6]
+  val?            %7.0  = Phi                      %31.5:BB31, %6.1:BB6
+  val?            %7.1  = %7.0
+  void                    Return             l     %7.1
+BB4   <- [30, 3]
+  int$#-          %4.0  = Phi                      %30.1:BB30, %3.1:BB3
+  int$#-          %4.1  = %4.0
+  lgl$#-          %4.2  = Neq                d     %2.0, 1L, elided   <@?>
+  void                    Branch                   %4.2 -> BB8 (if true) | BB5 (if false)
+BB8   <- [4]
+  void                    StVar              lW    i, 1L, e0.0
+  int$-           %8.1  = Add                d     1L, %4.1, elided
+  val?^ | miss    %8.2  = LdVar              eR    res2 !upd, e0.0
+  val?            %8.3  = Force              !v    %8.2, e0.0
+  val?^ | miss    %8.4  = LdVar              eR    res2, e0.0
+  val?            %8.5  = Force              !v    %8.4, e0.0   <val?_>
+  lgl$#-          %8.6  = IsType                   %8.5 isA val+   <@?>
+  void                    Branch                   %8.6 -> BB29 (if true) | BB9 (if false)
+BB5   <- [4]
+  void                    Nop                !     
+  goto BB6
+BB29   <- [8]
+  val?^ | miss    %29.0 = LdVar              eR    r, e0.0
+  val?            %29.1 = Force              !v    %29.0, e0.0   <val?_>
+  val?^ | miss    %29.2 = LdVar              eR    c, e0.0
+  val?            %29.3 = Force              !v    %29.2, e0.0   <val?_>
+  val?            %29.4 = %29.3
+  val?            %29.5 = %29.1
+  goto BB10
+BB9   <- [8]
+  prom-           %9.0  = MkArg                    unboundValue, rir.compile[0x560912df8380]_p34, e0.0
+  prom-           %9.1  = MkArg                    unboundValue, rir.compile[0x560912df8380]_p35, e0.0
+  prom-           %9.2  = %9.1
+  prom-           %9.3  = %9.0
+  goto BB10
+BB6   <- [26, 5]
+  void                    Invisible          v     
+  nil-            %6.1  = nil
+  goto BB7
+BB10   <- [9, 29]
+  val?            %10.0 = Phi                      %29.4:BB29, %9.2:BB9
+  val?            %10.1 = %10.0
+  val?            %10.2 = Phi                      %29.5:BB29, %9.3:BB9
+  val?            %10.3 = %10.2
+  val?            %10.4 = Extract1_2D        !v    %8.5, %10.3, %10.1, e0.0   <val?_>
+  val?^ | miss    %10.5 = LdVar              eR    x, e0.0
+  val?            %10.6 = Force              !v    %10.5, e0.0   <val?_>
+  lgl$#-          %10.7 = IsType                   %10.6 isA val+   <@?>
+  void                    Branch                   %10.7 -> BB28 (if true) | BB11 (if false)
+BB28   <- [10]
+  val?^ | miss    %28.0 = LdVar              eR    r, e0.0
+  val?            %28.1 = Force              !v    %28.0, e0.0   <val?_>
+  val?^ | miss    %28.2 = LdVar              eR    i, e0.0
+  val?            %28.3 = Force              !v    %28.2, e0.0   <val?_>
+  val?            %28.4 = %28.3
+  val?            %28.5 = %28.1
+  goto BB12
+BB11   <- [10]
+  prom-           %11.0 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p32, e0.0
+  prom-           %11.1 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p33, e0.0
+  prom-           %11.2 = %11.1
+  prom-           %11.3 = %11.0
+  goto BB12
+BB12   <- [11, 28]
+  val?            %12.0 = Phi                      %28.4:BB28, %11.2:BB11
+  val?            %12.1 = %12.0
+  val?            %12.2 = Phi                      %28.5:BB28, %11.3:BB11
+  val?            %12.3 = %12.2
+  val?            %12.4 = Extract1_2D        !v    %10.6, %12.3, %12.1, e0.0   <val?_>
+  val?^ | miss    %12.5 = LdVar              eR    y, e0.0
+  val?            %12.6 = Force              !v    %12.5, e0.0   <val?_>
+  lgl$#-          %12.7 = IsType                   %12.6 isA val+   <@?>
+  void                    Branch                   %12.7 -> BB27 (if true) | BB13 (if false)
+BB27   <- [12]
+  val?^ | miss    %27.0 = LdVar              eR    i, e0.0
+  val?            %27.1 = Force              !v    %27.0, e0.0   <val?_>
+  val?^ | miss    %27.2 = LdVar              eR    c, e0.0
+  val?            %27.3 = Force              !v    %27.2, e0.0   <val?_>
+  val?            %27.4 = %27.3
+  val?            %27.5 = %27.1
+  goto BB14
+BB13   <- [12]
+  prom-           %13.0 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p30, e0.0
+  prom-           %13.1 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p31, e0.0
+  prom-           %13.2 = %13.1
+  prom-           %13.3 = %13.0
+  goto BB14
+BB14   <- [13, 27]
+  val?            %14.0 = Phi                      %27.4:BB27, %13.2:BB13
+  val?            %14.1 = %14.0
+  val?            %14.2 = Phi                      %27.5:BB27, %13.3:BB13
+  val?            %14.3 = %14.2
+  val?            %14.4 = Extract1_2D        !v    %12.6, %14.3, %14.1, e0.0   <val?_>
+  val?            %14.5 = Mul                !v    %12.4, %14.4, e0.0   <val?_>
+  val?            %14.6 = Add                !v    %10.4, %14.5, e0.0   <val?_>
+  val?^ | miss    %14.7 = LdVar              eR    res2, e0.0
+  val?            %14.8 = Force              !v    %14.7, e0.0   <val?_>
+  val?^ | miss    %14.9 = LdVar              eR    r, e0.0
+  val?            %14.10 = Force              !v    %14.9, e0.0   <val?_>
+  val?^ | miss    %14.11 = LdVar              eR    c, e0.0
+  val?            %14.12 = Force              !v    %14.11, e0.0   <val?_>
+  val?            %14.13 = Subassign1_2D      !v    %14.6, %14.8, %14.10, %14.12, e0.0
+  void                    StVar              lW    res2, %14.13, e0.0
+  int$-           %14.15 = %8.1
+  goto BB15
+BB15   <- [14, 22]
+  int$-           %15.0 = Phi                      %14.15:BB14, %22.15:BB22
+  int$-           %15.1 = %15.0
+  lgl$-           %15.2 = Neq                d     %2.0, %15.1, elided
+  lgl$#-          %15.3 = Identical                %15.2, false
+  void                    Branch                   %15.3 -> BB26 (if true) | BB16 (if false)
+BB26   <- [15]
+  void                    Nop                !     
+  goto BB6
+BB16   <- [15]
+  void                    StVar              lW    i, %15.1, e0.0
+  int$-           %16.1 = Add                d     %15.1, %4.1, elided
+  val?^ | miss    %16.2 = LdVar              eR    res2 !upd, e0.0
+  val?            %16.3 = Force              !v    %16.2, e0.0
+  val?^ | miss    %16.4 = LdVar              eR    res2, e0.0
+  val?            %16.5 = Force              !v    %16.4, e0.0   <val?_>
+  lgl$#-          %16.6 = IsType                   %16.5 isA val+   <@?>
+  void                    Branch                   %16.6 -> BB25 (if true) | BB17 (if false)
+BB25   <- [16]
+  val?^ | miss    %25.0 = LdVar              eR    r, e0.0
+  val?            %25.1 = Force              !v    %25.0, e0.0   <val?_>
+  val?^ | miss    %25.2 = LdVar              eR    c, e0.0
+  val?            %25.3 = Force              !v    %25.2, e0.0   <val?_>
+  val?            %25.4 = %25.3
+  val?            %25.5 = %25.1
+  goto BB18
+BB17   <- [16]
+  prom-           %17.0 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p28, e0.0
+  prom-           %17.1 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p29, e0.0
+  prom-           %17.2 = %17.1
+  prom-           %17.3 = %17.0
+  goto BB18
+BB18   <- [17, 25]
+  val?            %18.0 = Phi                      %25.4:BB25, %17.2:BB17
+  val?            %18.1 = %18.0
+  val?            %18.2 = Phi                      %25.5:BB25, %17.3:BB17
+  val?            %18.3 = %18.2
+  val?            %18.4 = Extract1_2D        !v    %16.5, %18.3, %18.1, e0.0   <val?_>
+  val?^ | miss    %18.5 = LdVar              eR    x, e0.0
+  val?            %18.6 = Force              !v    %18.5, e0.0   <val?_>
+  lgl$#-          %18.7 = IsType                   %18.6 isA val+   <@?>
+  void                    Branch                   %18.7 -> BB24 (if true) | BB19 (if false)
+BB24   <- [18]
+  val?^ | miss    %24.0 = LdVar              eR    r, e0.0
+  val?            %24.1 = Force              !v    %24.0, e0.0   <val?_>
+  val?^ | miss    %24.2 = LdVar              eR    i, e0.0
+  val?            %24.3 = Force              !v    %24.2, e0.0   <val?_>
+  val?            %24.4 = %24.3
+  val?            %24.5 = %24.1
+  goto BB20
+BB19   <- [18]
+  prom-           %19.0 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p26, e0.0
+  prom-           %19.1 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p27, e0.0
+  prom-           %19.2 = %19.1
+  prom-           %19.3 = %19.0
+  goto BB20
+BB20   <- [19, 24]
+  val?            %20.0 = Phi                      %24.4:BB24, %19.2:BB19
+  val?            %20.1 = %20.0
+  val?            %20.2 = Phi                      %24.5:BB24, %19.3:BB19
+  val?            %20.3 = %20.2
+  val?            %20.4 = Extract1_2D        !v    %18.6, %20.3, %20.1, e0.0   <val?_>
+  val?^ | miss    %20.5 = LdVar              eR    y, e0.0
+  val?            %20.6 = Force              !v    %20.5, e0.0   <val?_>
+  lgl$#-          %20.7 = IsType                   %20.6 isA val+   <@?>
+  void                    Branch                   %20.7 -> BB23 (if true) | BB21 (if false)
+BB23   <- [20]
+  val?^ | miss    %23.0 = LdVar              eR    i, e0.0
+  val?            %23.1 = Force              !v    %23.0, e0.0   <val?_>
+  val?^ | miss    %23.2 = LdVar              eR    c, e0.0
+  val?            %23.3 = Force              !v    %23.2, e0.0   <val?_>
+  val?            %23.4 = %23.3
+  val?            %23.5 = %23.1
+  goto BB22
+BB21   <- [20]
+  prom-           %21.0 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p24, e0.0
+  prom-           %21.1 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p25, e0.0
+  prom-           %21.2 = %21.1
+  prom-           %21.3 = %21.0
+  goto BB22
+BB22   <- [21, 23]
+  val?            %22.0 = Phi                      %23.4:BB23, %21.2:BB21
+  val?            %22.1 = %22.0
+  val?            %22.2 = Phi                      %23.5:BB23, %21.3:BB21
+  val?            %22.3 = %22.2
+  val?            %22.4 = Extract1_2D        !v    %20.6, %22.3, %22.1, e0.0   <val?_>
+  val?            %22.5 = Mul                !v    %20.4, %22.4, e0.0   <val?_>
+  val?            %22.6 = Add                !v    %18.4, %22.5, e0.0   <val?_>
+  val?^ | miss    %22.7 = LdVar              eR    res2, e0.0
+  val?            %22.8 = Force              !v    %22.7, e0.0   <val?_>
+  val?^ | miss    %22.9 = LdVar              eR    r, e0.0
+  val?            %22.10 = Force              !v    %22.9, e0.0   <val?_>
+  val?^ | miss    %22.11 = LdVar              eR    c, e0.0
+  val?            %22.12 = Force              !v    %22.11, e0.0   <val?_>
+  val?            %22.13 = Subassign1_2D      !v    %22.6, %22.8, %22.10, %22.12, e0.0
+  void                    StVar              lW    res2, %22.13, e0.0
+  int$-           %22.15 = %16.1
+  goto BB15
+Prom 16:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    inner, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  val?            %0.4  = Colon              !     1L, %0.3, e0.0   <val?_>
+  void                    Return             l     %0.4
+Prom 17:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    res2 !upd, e0.0
+  val?            %0.2  = Force              !v    %0.1, e0.0
+  val?^ | miss    %0.3  = LdVar              eR    res2, e0.0
+  val?            %0.4  = Force              !v    %0.3, e0.0   <val?_>
+  lgl$#-          %0.5  = IsType                   %0.4 isA val+   <@?>
+  void                    Branch                   %0.5 -> BB2 (if true) | BB10 (if false)
+BB2   <- [0]
+  val?^ | miss    %2.0  = LdVar              eR    r, e0.0
+  val?            %2.1  = Force              !v    %2.0, e0.0   <val?_>
+  val?^ | miss    %2.2  = LdVar              eR    c, e0.0
+  val?            %2.3  = Force              !v    %2.2, e0.0   <val?_>
+  val?            %2.4  = %2.3
+  val?            %2.5  = %2.1
+  goto BB3
+BB10   <- [0]
+  prom-           %10.0 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p22, e0.0
+  prom-           %10.1 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p23, e0.0
+  prom-           %10.2 = %10.1
+  prom-           %10.3 = %10.0
+  goto BB3
+BB3   <- [10, 2]
+  val?            %3.0  = Phi                      %2.4:BB2, %10.2:BB10
+  val?            %3.1  = %3.0
+  val?            %3.2  = Phi                      %2.5:BB2, %10.3:BB10
+  val?            %3.3  = %3.2
+  val?            %3.4  = Extract1_2D        !v    %0.4, %3.3, %3.1, e0.0   <val?_>
+  val?^ | miss    %3.5  = LdVar              eR    x, e0.0
+  val?            %3.6  = Force              !v    %3.5, e0.0   <val?_>
+  lgl$#-          %3.7  = IsType                   %3.6 isA val+   <@?>
+  void                    Branch                   %3.7 -> BB9 (if true) | BB4 (if false)
+BB9   <- [3]
+  val?^ | miss    %9.0  = LdVar              eR    r, e0.0
+  val?            %9.1  = Force              !v    %9.0, e0.0   <val?_>
+  val?^ | miss    %9.2  = LdVar              eR    i, e0.0
+  val?            %9.3  = Force              !v    %9.2, e0.0   <val?_>
+  val?            %9.4  = %9.3
+  val?            %9.5  = %9.1
+  goto BB5
+BB4   <- [3]
+  prom-           %4.0  = MkArg                    unboundValue, rir.compile[0x560912df8380]_p20, e0.0
+  prom-           %4.1  = MkArg                    unboundValue, rir.compile[0x560912df8380]_p21, e0.0
+  prom-           %4.2  = %4.1
+  prom-           %4.3  = %4.0
+  goto BB5
+BB5   <- [4, 9]
+  val?            %5.0  = Phi                      %9.4:BB9, %4.2:BB4
+  val?            %5.1  = %5.0
+  val?            %5.2  = Phi                      %9.5:BB9, %4.3:BB4
+  val?            %5.3  = %5.2
+  val?            %5.4  = Extract1_2D        !v    %3.6, %5.3, %5.1, e0.0   <val?_>
+  val?^ | miss    %5.5  = LdVar              eR    y, e0.0
+  val?            %5.6  = Force              !v    %5.5, e0.0   <val?_>
+  lgl$#-          %5.7  = IsType                   %5.6 isA val+   <@?>
+  void                    Branch                   %5.7 -> BB8 (if true) | BB6 (if false)
+BB8   <- [5]
+  val?^ | miss    %8.0  = LdVar              eR    i, e0.0
+  val?            %8.1  = Force              !v    %8.0, e0.0   <val?_>
+  val?^ | miss    %8.2  = LdVar              eR    c, e0.0
+  val?            %8.3  = Force              !v    %8.2, e0.0   <val?_>
+  val?            %8.4  = %8.3
+  val?            %8.5  = %8.1
+  goto BB7
+BB6   <- [5]
+  prom-           %6.0  = MkArg                    unboundValue, rir.compile[0x560912df8380]_p18, e0.0
+  prom-           %6.1  = MkArg                    unboundValue, rir.compile[0x560912df8380]_p19, e0.0
+  prom-           %6.2  = %6.1
+  prom-           %6.3  = %6.0
+  goto BB7
+BB7   <- [6, 8]
+  val?            %7.0  = Phi                      %8.4:BB8, %6.2:BB6
+  val?            %7.1  = %7.0
+  val?            %7.2  = Phi                      %8.5:BB8, %6.3:BB6
+  val?            %7.3  = %7.2
+  val?            %7.4  = Extract1_2D        !v    %5.6, %7.3, %7.1, e0.0   <val?_>
+  val?            %7.5  = Mul                !v    %5.4, %7.4, e0.0   <val?_>
+  val?            %7.6  = Add                !v    %3.4, %7.5, e0.0   <val?_>
+  val?^ | miss    %7.7  = LdVar              eR    res2, e0.0
+  val?            %7.8  = Force              !v    %7.7, e0.0   <val?_>
+  val?^ | miss    %7.9  = LdVar              eR    r, e0.0
+  val?            %7.10 = Force              !v    %7.9, e0.0   <val?_>
+  val?^ | miss    %7.11 = LdVar              eR    c, e0.0
+  val?            %7.12 = Force              !v    %7.11, e0.0   <val?_>
+  val?            %7.13 = Subassign1_2D      !v    %7.6, %7.8, %7.10, %7.12, e0.0
+  void                    StVar              lW    res2, %7.13, e0.0
+  void                    Invisible          v     
+  void                    Return             l     %7.6
+Prom 18:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    i, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 19:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    c, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 20:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    r, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 21:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    i, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 22:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    r, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 23:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    c, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 24:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    i, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 25:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    c, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 26:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    r, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 27:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    i, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 28:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    r, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 29:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    c, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 30:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    i, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 31:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    c, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 32:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    r, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 33:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    i, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 34:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    r, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 35:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    c, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 36:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    inner, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  val?            %0.4  = Colon              !     1L, %0.3, e0.0   <val?_>
+  void                    Return             l     %0.4
+Prom 37:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    res2 !upd, e0.0
+  val?            %0.2  = Force              !v    %0.1, e0.0
+  val?^ | miss    %0.3  = LdVar              eR    res2, e0.0
+  val?            %0.4  = Force              !v    %0.3, e0.0   <val?_>
+  lgl$#-          %0.5  = IsType                   %0.4 isA val+   <@?>
+  void                    Branch                   %0.5 -> BB2 (if true) | BB10 (if false)
+BB2   <- [0]
+  val?^ | miss    %2.0  = LdVar              eR    r, e0.0
+  val?            %2.1  = Force              !v    %2.0, e0.0   <val?_>
+  val?^ | miss    %2.2  = LdVar              eR    c, e0.0
+  val?            %2.3  = Force              !v    %2.2, e0.0   <val?_>
+  val?            %2.4  = %2.3
+  val?            %2.5  = %2.1
+  goto BB3
+BB10   <- [0]
+  prom-           %10.0 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p42, e0.0
+  prom-           %10.1 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p43, e0.0
+  prom-           %10.2 = %10.1
+  prom-           %10.3 = %10.0
+  goto BB3
+BB3   <- [10, 2]
+  val?            %3.0  = Phi                      %2.4:BB2, %10.2:BB10
+  val?            %3.1  = %3.0
+  val?            %3.2  = Phi                      %2.5:BB2, %10.3:BB10
+  val?            %3.3  = %3.2
+  val?            %3.4  = Extract1_2D        !v    %0.4, %3.3, %3.1, e0.0   <val?_>
+  val?^ | miss    %3.5  = LdVar              eR    x, e0.0
+  val?            %3.6  = Force              !v    %3.5, e0.0   <val?_>
+  lgl$#-          %3.7  = IsType                   %3.6 isA val+   <@?>
+  void                    Branch                   %3.7 -> BB9 (if true) | BB4 (if false)
+BB9   <- [3]
+  val?^ | miss    %9.0  = LdVar              eR    r, e0.0
+  val?            %9.1  = Force              !v    %9.0, e0.0   <val?_>
+  val?^ | miss    %9.2  = LdVar              eR    i, e0.0
+  val?            %9.3  = Force              !v    %9.2, e0.0   <val?_>
+  val?            %9.4  = %9.3
+  val?            %9.5  = %9.1
+  goto BB5
+BB4   <- [3]
+  prom-           %4.0  = MkArg                    unboundValue, rir.compile[0x560912df8380]_p40, e0.0
+  prom-           %4.1  = MkArg                    unboundValue, rir.compile[0x560912df8380]_p41, e0.0
+  prom-           %4.2  = %4.1
+  prom-           %4.3  = %4.0
+  goto BB5
+BB5   <- [4, 9]
+  val?            %5.0  = Phi                      %9.4:BB9, %4.2:BB4
+  val?            %5.1  = %5.0
+  val?            %5.2  = Phi                      %9.5:BB9, %4.3:BB4
+  val?            %5.3  = %5.2
+  val?            %5.4  = Extract1_2D        !v    %3.6, %5.3, %5.1, e0.0   <val?_>
+  val?^ | miss    %5.5  = LdVar              eR    y, e0.0
+  val?            %5.6  = Force              !v    %5.5, e0.0   <val?_>
+  lgl$#-          %5.7  = IsType                   %5.6 isA val+   <@?>
+  void                    Branch                   %5.7 -> BB8 (if true) | BB6 (if false)
+BB8   <- [5]
+  val?^ | miss    %8.0  = LdVar              eR    i, e0.0
+  val?            %8.1  = Force              !v    %8.0, e0.0   <val?_>
+  val?^ | miss    %8.2  = LdVar              eR    c, e0.0
+  val?            %8.3  = Force              !v    %8.2, e0.0   <val?_>
+  val?            %8.4  = %8.3
+  val?            %8.5  = %8.1
+  goto BB7
+BB6   <- [5]
+  prom-           %6.0  = MkArg                    unboundValue, rir.compile[0x560912df8380]_p38, e0.0
+  prom-           %6.1  = MkArg                    unboundValue, rir.compile[0x560912df8380]_p39, e0.0
+  prom-           %6.2  = %6.1
+  prom-           %6.3  = %6.0
+  goto BB7
+BB7   <- [6, 8]
+  val?            %7.0  = Phi                      %8.4:BB8, %6.2:BB6
+  val?            %7.1  = %7.0
+  val?            %7.2  = Phi                      %8.5:BB8, %6.3:BB6
+  val?            %7.3  = %7.2
+  val?            %7.4  = Extract1_2D        !v    %5.6, %7.3, %7.1, e0.0   <val?_>
+  val?            %7.5  = Mul                !v    %5.4, %7.4, e0.0   <val?_>
+  val?            %7.6  = Add                !v    %3.4, %7.5, e0.0   <val?_>
+  val?^ | miss    %7.7  = LdVar              eR    res2, e0.0
+  val?            %7.8  = Force              !v    %7.7, e0.0   <val?_>
+  val?^ | miss    %7.9  = LdVar              eR    r, e0.0
+  val?            %7.10 = Force              !v    %7.9, e0.0   <val?_>
+  val?^ | miss    %7.11 = LdVar              eR    c, e0.0
+  val?            %7.12 = Force              !v    %7.11, e0.0   <val?_>
+  val?            %7.13 = Subassign1_2D      !v    %7.6, %7.8, %7.10, %7.12, e0.0
+  void                    StVar              lW    res2, %7.13, e0.0
+  void                    Invisible          v     
+  void                    Return             l     %7.6
+Prom 38:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    i, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 39:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    c, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 40:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    r, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 41:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    i, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 42:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    r, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 43:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    c, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 44:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    i, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 45:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    c, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 46:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    r, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 47:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    i, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 48:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    r, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 49:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    c, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 50:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    i, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 51:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    c, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 52:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    r, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 53:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    i, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 54:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    r, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 55:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    c, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 56:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    rows, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  val?            %0.4  = Colon              !     1L, %0.3, e0.0   <val?_>
+  void                    Return             l     %0.4
+Prom 57:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    inner, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  lgl$#-          %0.4  = ColonInputEffects  we    1, %0.3   <@?>
+  void                    Branch                   %0.4 -> BB2 (if true) | BB31 (if false)
+BB2   <- [0]
+  int$#-          %2.0  = ColonCastRhs       e     1L, %0.3   <val?_>
+  lgl$#-          %2.1  = Lte                d     1L, %2.0, elided   <@?>
+  void                    Branch                   %2.1 -> BB30 (if true) | BB3 (if false)
+BB31   <- [0]
+  val?            %31.0 = Colon              !     1L, %0.3, e0.0
+  (cls|spec|blt)  %31.1 = LdFun              !     for, e0.0
+  prom-           %31.2 = MkArg                    %31.0, rir.compile[0x560912df8380]_p58 (!refl), e0.0
+  prom-           %31.3 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p59, e0.0
+  val?            %31.4 = Call               !     %31.1(%31.2, %31.3) e0.0   <val?_>
+  val?            %31.5 = %31.4
+  goto BB7
+BB30   <- [2]
+  void                    Nop                !     
+  int$#-          %30.1 = 1L
+  goto BB4
+BB3   <- [2]
+  void                    Nop                !     
+  int$#-          %3.1  = -1L
+  goto BB4
+BB7   <- [31, 6]
+  val?            %7.0  = Phi                      %31.5:BB31, %6.1:BB6
+  val?            %7.1  = %7.0
+  void                    Return             l     %7.1
+BB4   <- [30, 3]
+  int$#-          %4.0  = Phi                      %30.1:BB30, %3.1:BB3
+  int$#-          %4.1  = %4.0
+  lgl$#-          %4.2  = Neq                d     %2.0, 1L, elided   <@?>
+  void                    Branch                   %4.2 -> BB8 (if true) | BB5 (if false)
+BB8   <- [4]
+  void                    StVar              lW    i, 1L, e0.0
+  int$-           %8.1  = Add                d     1L, %4.1, elided
+  val?^ | miss    %8.2  = LdVar              eR    res2 !upd, e0.0
+  val?            %8.3  = Force              !v    %8.2, e0.0
+  val?^ | miss    %8.4  = LdVar              eR    res2, e0.0
+  val?            %8.5  = Force              !v    %8.4, e0.0   <val?_>
+  lgl$#-          %8.6  = IsType                   %8.5 isA val+   <@?>
+  void                    Branch                   %8.6 -> BB29 (if true) | BB9 (if false)
+BB5   <- [4]
+  void                    Nop                !     
+  goto BB6
+BB29   <- [8]
+  val?^ | miss    %29.0 = LdVar              eR    r, e0.0
+  val?            %29.1 = Force              !v    %29.0, e0.0   <val?_>
+  val?^ | miss    %29.2 = LdVar              eR    c, e0.0
+  val?            %29.3 = Force              !v    %29.2, e0.0   <val?_>
+  val?            %29.4 = %29.3
+  val?            %29.5 = %29.1
+  goto BB10
+BB9   <- [8]
+  prom-           %9.0  = MkArg                    unboundValue, rir.compile[0x560912df8380]_p76, e0.0
+  prom-           %9.1  = MkArg                    unboundValue, rir.compile[0x560912df8380]_p77, e0.0
+  prom-           %9.2  = %9.1
+  prom-           %9.3  = %9.0
+  goto BB10
+BB6   <- [26, 5]
+  void                    Invisible          v     
+  nil-            %6.1  = nil
+  goto BB7
+BB10   <- [9, 29]
+  val?            %10.0 = Phi                      %29.4:BB29, %9.2:BB9
+  val?            %10.1 = %10.0
+  val?            %10.2 = Phi                      %29.5:BB29, %9.3:BB9
+  val?            %10.3 = %10.2
+  val?            %10.4 = Extract1_2D        !v    %8.5, %10.3, %10.1, e0.0   <val?_>
+  val?^ | miss    %10.5 = LdVar              eR    x, e0.0
+  val?            %10.6 = Force              !v    %10.5, e0.0   <val?_>
+  lgl$#-          %10.7 = IsType                   %10.6 isA val+   <@?>
+  void                    Branch                   %10.7 -> BB28 (if true) | BB11 (if false)
+BB28   <- [10]
+  val?^ | miss    %28.0 = LdVar              eR    r, e0.0
+  val?            %28.1 = Force              !v    %28.0, e0.0   <val?_>
+  val?^ | miss    %28.2 = LdVar              eR    i, e0.0
+  val?            %28.3 = Force              !v    %28.2, e0.0   <val?_>
+  val?            %28.4 = %28.3
+  val?            %28.5 = %28.1
+  goto BB12
+BB11   <- [10]
+  prom-           %11.0 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p74, e0.0
+  prom-           %11.1 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p75, e0.0
+  prom-           %11.2 = %11.1
+  prom-           %11.3 = %11.0
+  goto BB12
+BB12   <- [11, 28]
+  val?            %12.0 = Phi                      %28.4:BB28, %11.2:BB11
+  val?            %12.1 = %12.0
+  val?            %12.2 = Phi                      %28.5:BB28, %11.3:BB11
+  val?            %12.3 = %12.2
+  val?            %12.4 = Extract1_2D        !v    %10.6, %12.3, %12.1, e0.0   <val?_>
+  val?^ | miss    %12.5 = LdVar              eR    y, e0.0
+  val?            %12.6 = Force              !v    %12.5, e0.0   <val?_>
+  lgl$#-          %12.7 = IsType                   %12.6 isA val+   <@?>
+  void                    Branch                   %12.7 -> BB27 (if true) | BB13 (if false)
+BB27   <- [12]
+  val?^ | miss    %27.0 = LdVar              eR    i, e0.0
+  val?            %27.1 = Force              !v    %27.0, e0.0   <val?_>
+  val?^ | miss    %27.2 = LdVar              eR    c, e0.0
+  val?            %27.3 = Force              !v    %27.2, e0.0   <val?_>
+  val?            %27.4 = %27.3
+  val?            %27.5 = %27.1
+  goto BB14
+BB13   <- [12]
+  prom-           %13.0 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p72, e0.0
+  prom-           %13.1 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p73, e0.0
+  prom-           %13.2 = %13.1
+  prom-           %13.3 = %13.0
+  goto BB14
+BB14   <- [13, 27]
+  val?            %14.0 = Phi                      %27.4:BB27, %13.2:BB13
+  val?            %14.1 = %14.0
+  val?            %14.2 = Phi                      %27.5:BB27, %13.3:BB13
+  val?            %14.3 = %14.2
+  val?            %14.4 = Extract1_2D        !v    %12.6, %14.3, %14.1, e0.0   <val?_>
+  val?            %14.5 = Mul                !v    %12.4, %14.4, e0.0   <val?_>
+  val?            %14.6 = Add                !v    %10.4, %14.5, e0.0   <val?_>
+  val?^ | miss    %14.7 = LdVar              eR    res2, e0.0
+  val?            %14.8 = Force              !v    %14.7, e0.0   <val?_>
+  val?^ | miss    %14.9 = LdVar              eR    r, e0.0
+  val?            %14.10 = Force              !v    %14.9, e0.0   <val?_>
+  val?^ | miss    %14.11 = LdVar              eR    c, e0.0
+  val?            %14.12 = Force              !v    %14.11, e0.0   <val?_>
+  val?            %14.13 = Subassign1_2D      !v    %14.6, %14.8, %14.10, %14.12, e0.0
+  void                    StVar              lW    res2, %14.13, e0.0
+  int$-           %14.15 = %8.1
+  goto BB15
+BB15   <- [14, 22]
+  int$-           %15.0 = Phi                      %14.15:BB14, %22.15:BB22
+  int$-           %15.1 = %15.0
+  lgl$-           %15.2 = Neq                d     %2.0, %15.1, elided
+  lgl$#-          %15.3 = Identical                %15.2, false
+  void                    Branch                   %15.3 -> BB26 (if true) | BB16 (if false)
+BB26   <- [15]
+  void                    Nop                !     
+  goto BB6
+BB16   <- [15]
+  void                    StVar              lW    i, %15.1, e0.0
+  int$-           %16.1 = Add                d     %15.1, %4.1, elided
+  val?^ | miss    %16.2 = LdVar              eR    res2 !upd, e0.0
+  val?            %16.3 = Force              !v    %16.2, e0.0
+  val?^ | miss    %16.4 = LdVar              eR    res2, e0.0
+  val?            %16.5 = Force              !v    %16.4, e0.0   <val?_>
+  lgl$#-          %16.6 = IsType                   %16.5 isA val+   <@?>
+  void                    Branch                   %16.6 -> BB25 (if true) | BB17 (if false)
+BB25   <- [16]
+  val?^ | miss    %25.0 = LdVar              eR    r, e0.0
+  val?            %25.1 = Force              !v    %25.0, e0.0   <val?_>
+  val?^ | miss    %25.2 = LdVar              eR    c, e0.0
+  val?            %25.3 = Force              !v    %25.2, e0.0   <val?_>
+  val?            %25.4 = %25.3
+  val?            %25.5 = %25.1
+  goto BB18
+BB17   <- [16]
+  prom-           %17.0 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p70, e0.0
+  prom-           %17.1 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p71, e0.0
+  prom-           %17.2 = %17.1
+  prom-           %17.3 = %17.0
+  goto BB18
+BB18   <- [17, 25]
+  val?            %18.0 = Phi                      %25.4:BB25, %17.2:BB17
+  val?            %18.1 = %18.0
+  val?            %18.2 = Phi                      %25.5:BB25, %17.3:BB17
+  val?            %18.3 = %18.2
+  val?            %18.4 = Extract1_2D        !v    %16.5, %18.3, %18.1, e0.0   <val?_>
+  val?^ | miss    %18.5 = LdVar              eR    x, e0.0
+  val?            %18.6 = Force              !v    %18.5, e0.0   <val?_>
+  lgl$#-          %18.7 = IsType                   %18.6 isA val+   <@?>
+  void                    Branch                   %18.7 -> BB24 (if true) | BB19 (if false)
+BB24   <- [18]
+  val?^ | miss    %24.0 = LdVar              eR    r, e0.0
+  val?            %24.1 = Force              !v    %24.0, e0.0   <val?_>
+  val?^ | miss    %24.2 = LdVar              eR    i, e0.0
+  val?            %24.3 = Force              !v    %24.2, e0.0   <val?_>
+  val?            %24.4 = %24.3
+  val?            %24.5 = %24.1
+  goto BB20
+BB19   <- [18]
+  prom-           %19.0 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p68, e0.0
+  prom-           %19.1 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p69, e0.0
+  prom-           %19.2 = %19.1
+  prom-           %19.3 = %19.0
+  goto BB20
+BB20   <- [19, 24]
+  val?            %20.0 = Phi                      %24.4:BB24, %19.2:BB19
+  val?            %20.1 = %20.0
+  val?            %20.2 = Phi                      %24.5:BB24, %19.3:BB19
+  val?            %20.3 = %20.2
+  val?            %20.4 = Extract1_2D        !v    %18.6, %20.3, %20.1, e0.0   <val?_>
+  val?^ | miss    %20.5 = LdVar              eR    y, e0.0
+  val?            %20.6 = Force              !v    %20.5, e0.0   <val?_>
+  lgl$#-          %20.7 = IsType                   %20.6 isA val+   <@?>
+  void                    Branch                   %20.7 -> BB23 (if true) | BB21 (if false)
+BB23   <- [20]
+  val?^ | miss    %23.0 = LdVar              eR    i, e0.0
+  val?            %23.1 = Force              !v    %23.0, e0.0   <val?_>
+  val?^ | miss    %23.2 = LdVar              eR    c, e0.0
+  val?            %23.3 = Force              !v    %23.2, e0.0   <val?_>
+  val?            %23.4 = %23.3
+  val?            %23.5 = %23.1
+  goto BB22
+BB21   <- [20]
+  prom-           %21.0 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p66, e0.0
+  prom-           %21.1 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p67, e0.0
+  prom-           %21.2 = %21.1
+  prom-           %21.3 = %21.0
+  goto BB22
+BB22   <- [21, 23]
+  val?            %22.0 = Phi                      %23.4:BB23, %21.2:BB21
+  val?            %22.1 = %22.0
+  val?            %22.2 = Phi                      %23.5:BB23, %21.3:BB21
+  val?            %22.3 = %22.2
+  val?            %22.4 = Extract1_2D        !v    %20.6, %22.3, %22.1, e0.0   <val?_>
+  val?            %22.5 = Mul                !v    %20.4, %22.4, e0.0   <val?_>
+  val?            %22.6 = Add                !v    %18.4, %22.5, e0.0   <val?_>
+  val?^ | miss    %22.7 = LdVar              eR    res2, e0.0
+  val?            %22.8 = Force              !v    %22.7, e0.0   <val?_>
+  val?^ | miss    %22.9 = LdVar              eR    r, e0.0
+  val?            %22.10 = Force              !v    %22.9, e0.0   <val?_>
+  val?^ | miss    %22.11 = LdVar              eR    c, e0.0
+  val?            %22.12 = Force              !v    %22.11, e0.0   <val?_>
+  val?            %22.13 = Subassign1_2D      !v    %22.6, %22.8, %22.10, %22.12, e0.0
+  void                    StVar              lW    res2, %22.13, e0.0
+  int$-           %22.15 = %16.1
+  goto BB15
+Prom 58:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    inner, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  val?            %0.4  = Colon              !     1L, %0.3, e0.0   <val?_>
+  void                    Return             l     %0.4
+Prom 59:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    res2 !upd, e0.0
+  val?            %0.2  = Force              !v    %0.1, e0.0
+  val?^ | miss    %0.3  = LdVar              eR    res2, e0.0
+  val?            %0.4  = Force              !v    %0.3, e0.0   <val?_>
+  lgl$#-          %0.5  = IsType                   %0.4 isA val+   <@?>
+  void                    Branch                   %0.5 -> BB2 (if true) | BB10 (if false)
+BB2   <- [0]
+  val?^ | miss    %2.0  = LdVar              eR    r, e0.0
+  val?            %2.1  = Force              !v    %2.0, e0.0   <val?_>
+  val?^ | miss    %2.2  = LdVar              eR    c, e0.0
+  val?            %2.3  = Force              !v    %2.2, e0.0   <val?_>
+  val?            %2.4  = %2.3
+  val?            %2.5  = %2.1
+  goto BB3
+BB10   <- [0]
+  prom-           %10.0 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p64, e0.0
+  prom-           %10.1 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p65, e0.0
+  prom-           %10.2 = %10.1
+  prom-           %10.3 = %10.0
+  goto BB3
+BB3   <- [10, 2]
+  val?            %3.0  = Phi                      %2.4:BB2, %10.2:BB10
+  val?            %3.1  = %3.0
+  val?            %3.2  = Phi                      %2.5:BB2, %10.3:BB10
+  val?            %3.3  = %3.2
+  val?            %3.4  = Extract1_2D        !v    %0.4, %3.3, %3.1, e0.0   <val?_>
+  val?^ | miss    %3.5  = LdVar              eR    x, e0.0
+  val?            %3.6  = Force              !v    %3.5, e0.0   <val?_>
+  lgl$#-          %3.7  = IsType                   %3.6 isA val+   <@?>
+  void                    Branch                   %3.7 -> BB9 (if true) | BB4 (if false)
+BB9   <- [3]
+  val?^ | miss    %9.0  = LdVar              eR    r, e0.0
+  val?            %9.1  = Force              !v    %9.0, e0.0   <val?_>
+  val?^ | miss    %9.2  = LdVar              eR    i, e0.0
+  val?            %9.3  = Force              !v    %9.2, e0.0   <val?_>
+  val?            %9.4  = %9.3
+  val?            %9.5  = %9.1
+  goto BB5
+BB4   <- [3]
+  prom-           %4.0  = MkArg                    unboundValue, rir.compile[0x560912df8380]_p62, e0.0
+  prom-           %4.1  = MkArg                    unboundValue, rir.compile[0x560912df8380]_p63, e0.0
+  prom-           %4.2  = %4.1
+  prom-           %4.3  = %4.0
+  goto BB5
+BB5   <- [4, 9]
+  val?            %5.0  = Phi                      %9.4:BB9, %4.2:BB4
+  val?            %5.1  = %5.0
+  val?            %5.2  = Phi                      %9.5:BB9, %4.3:BB4
+  val?            %5.3  = %5.2
+  val?            %5.4  = Extract1_2D        !v    %3.6, %5.3, %5.1, e0.0   <val?_>
+  val?^ | miss    %5.5  = LdVar              eR    y, e0.0
+  val?            %5.6  = Force              !v    %5.5, e0.0   <val?_>
+  lgl$#-          %5.7  = IsType                   %5.6 isA val+   <@?>
+  void                    Branch                   %5.7 -> BB8 (if true) | BB6 (if false)
+BB8   <- [5]
+  val?^ | miss    %8.0  = LdVar              eR    i, e0.0
+  val?            %8.1  = Force              !v    %8.0, e0.0   <val?_>
+  val?^ | miss    %8.2  = LdVar              eR    c, e0.0
+  val?            %8.3  = Force              !v    %8.2, e0.0   <val?_>
+  val?            %8.4  = %8.3
+  val?            %8.5  = %8.1
+  goto BB7
+BB6   <- [5]
+  prom-           %6.0  = MkArg                    unboundValue, rir.compile[0x560912df8380]_p60, e0.0
+  prom-           %6.1  = MkArg                    unboundValue, rir.compile[0x560912df8380]_p61, e0.0
+  prom-           %6.2  = %6.1
+  prom-           %6.3  = %6.0
+  goto BB7
+BB7   <- [6, 8]
+  val?            %7.0  = Phi                      %8.4:BB8, %6.2:BB6
+  val?            %7.1  = %7.0
+  val?            %7.2  = Phi                      %8.5:BB8, %6.3:BB6
+  val?            %7.3  = %7.2
+  val?            %7.4  = Extract1_2D        !v    %5.6, %7.3, %7.1, e0.0   <val?_>
+  val?            %7.5  = Mul                !v    %5.4, %7.4, e0.0   <val?_>
+  val?            %7.6  = Add                !v    %3.4, %7.5, e0.0   <val?_>
+  val?^ | miss    %7.7  = LdVar              eR    res2, e0.0
+  val?            %7.8  = Force              !v    %7.7, e0.0   <val?_>
+  val?^ | miss    %7.9  = LdVar              eR    r, e0.0
+  val?            %7.10 = Force              !v    %7.9, e0.0   <val?_>
+  val?^ | miss    %7.11 = LdVar              eR    c, e0.0
+  val?            %7.12 = Force              !v    %7.11, e0.0   <val?_>
+  val?            %7.13 = Subassign1_2D      !v    %7.6, %7.8, %7.10, %7.12, e0.0
+  void                    StVar              lW    res2, %7.13, e0.0
+  void                    Invisible          v     
+  void                    Return             l     %7.6
+Prom 60:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    i, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 61:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    c, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 62:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    r, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 63:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    i, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 64:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    r, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 65:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    c, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 66:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    i, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 67:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    c, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 68:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    r, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 69:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    i, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 70:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    r, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 71:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    c, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 72:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    i, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 73:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    c, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 74:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    r, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 75:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    i, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 76:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    r, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 77:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    c, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 78:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    inner, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  val?            %0.4  = Colon              !     1L, %0.3, e0.0   <val?_>
+  void                    Return             l     %0.4
+Prom 79:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    res2 !upd, e0.0
+  val?            %0.2  = Force              !v    %0.1, e0.0
+  val?^ | miss    %0.3  = LdVar              eR    res2, e0.0
+  val?            %0.4  = Force              !v    %0.3, e0.0   <val?_>
+  lgl$#-          %0.5  = IsType                   %0.4 isA val+   <@?>
+  void                    Branch                   %0.5 -> BB2 (if true) | BB10 (if false)
+BB2   <- [0]
+  val?^ | miss    %2.0  = LdVar              eR    r, e0.0
+  val?            %2.1  = Force              !v    %2.0, e0.0   <val?_>
+  val?^ | miss    %2.2  = LdVar              eR    c, e0.0
+  val?            %2.3  = Force              !v    %2.2, e0.0   <val?_>
+  val?            %2.4  = %2.3
+  val?            %2.5  = %2.1
+  goto BB3
+BB10   <- [0]
+  prom-           %10.0 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p84, e0.0
+  prom-           %10.1 = MkArg                    unboundValue, rir.compile[0x560912df8380]_p85, e0.0
+  prom-           %10.2 = %10.1
+  prom-           %10.3 = %10.0
+  goto BB3
+BB3   <- [10, 2]
+  val?            %3.0  = Phi                      %2.4:BB2, %10.2:BB10
+  val?            %3.1  = %3.0
+  val?            %3.2  = Phi                      %2.5:BB2, %10.3:BB10
+  val?            %3.3  = %3.2
+  val?            %3.4  = Extract1_2D        !v    %0.4, %3.3, %3.1, e0.0   <val?_>
+  val?^ | miss    %3.5  = LdVar              eR    x, e0.0
+  val?            %3.6  = Force              !v    %3.5, e0.0   <val?_>
+  lgl$#-          %3.7  = IsType                   %3.6 isA val+   <@?>
+  void                    Branch                   %3.7 -> BB9 (if true) | BB4 (if false)
+BB9   <- [3]
+  val?^ | miss    %9.0  = LdVar              eR    r, e0.0
+  val?            %9.1  = Force              !v    %9.0, e0.0   <val?_>
+  val?^ | miss    %9.2  = LdVar              eR    i, e0.0
+  val?            %9.3  = Force              !v    %9.2, e0.0   <val?_>
+  val?            %9.4  = %9.3
+  val?            %9.5  = %9.1
+  goto BB5
+BB4   <- [3]
+  prom-           %4.0  = MkArg                    unboundValue, rir.compile[0x560912df8380]_p82, e0.0
+  prom-           %4.1  = MkArg                    unboundValue, rir.compile[0x560912df8380]_p83, e0.0
+  prom-           %4.2  = %4.1
+  prom-           %4.3  = %4.0
+  goto BB5
+BB5   <- [4, 9]
+  val?            %5.0  = Phi                      %9.4:BB9, %4.2:BB4
+  val?            %5.1  = %5.0
+  val?            %5.2  = Phi                      %9.5:BB9, %4.3:BB4
+  val?            %5.3  = %5.2
+  val?            %5.4  = Extract1_2D        !v    %3.6, %5.3, %5.1, e0.0   <val?_>
+  val?^ | miss    %5.5  = LdVar              eR    y, e0.0
+  val?            %5.6  = Force              !v    %5.5, e0.0   <val?_>
+  lgl$#-          %5.7  = IsType                   %5.6 isA val+   <@?>
+  void                    Branch                   %5.7 -> BB8 (if true) | BB6 (if false)
+BB8   <- [5]
+  val?^ | miss    %8.0  = LdVar              eR    i, e0.0
+  val?            %8.1  = Force              !v    %8.0, e0.0   <val?_>
+  val?^ | miss    %8.2  = LdVar              eR    c, e0.0
+  val?            %8.3  = Force              !v    %8.2, e0.0   <val?_>
+  val?            %8.4  = %8.3
+  val?            %8.5  = %8.1
+  goto BB7
+BB6   <- [5]
+  prom-           %6.0  = MkArg                    unboundValue, rir.compile[0x560912df8380]_p80, e0.0
+  prom-           %6.1  = MkArg                    unboundValue, rir.compile[0x560912df8380]_p81, e0.0
+  prom-           %6.2  = %6.1
+  prom-           %6.3  = %6.0
+  goto BB7
+BB7   <- [6, 8]
+  val?            %7.0  = Phi                      %8.4:BB8, %6.2:BB6
+  val?            %7.1  = %7.0
+  val?            %7.2  = Phi                      %8.5:BB8, %6.3:BB6
+  val?            %7.3  = %7.2
+  val?            %7.4  = Extract1_2D        !v    %5.6, %7.3, %7.1, e0.0   <val?_>
+  val?            %7.5  = Mul                !v    %5.4, %7.4, e0.0   <val?_>
+  val?            %7.6  = Add                !v    %3.4, %7.5, e0.0   <val?_>
+  val?^ | miss    %7.7  = LdVar              eR    res2, e0.0
+  val?            %7.8  = Force              !v    %7.7, e0.0   <val?_>
+  val?^ | miss    %7.9  = LdVar              eR    r, e0.0
+  val?            %7.10 = Force              !v    %7.9, e0.0   <val?_>
+  val?^ | miss    %7.11 = LdVar              eR    c, e0.0
+  val?            %7.12 = Force              !v    %7.11, e0.0   <val?_>
+  val?            %7.13 = Subassign1_2D      !v    %7.6, %7.8, %7.10, %7.12, e0.0
+  void                    StVar              lW    res2, %7.13, e0.0
+  void                    Invisible          v     
+  void                    Return             l     %7.6
+Prom 80:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    i, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 81:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    c, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 82:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    r, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 83:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    i, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 84:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    r, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 85:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    c, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 86:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    i, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 87:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    c, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 88:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    r, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 89:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    i, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 92:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    i, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 93:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    c, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 94:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    r, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 95:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    i, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 96:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    r, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 97:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    c, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+
+│ rir.compile[0x560912df8380]                                                  │
+└──────────────────────────────────────────────────────────────────────────────┘

@@ -1,11 +1,14 @@
 package org.prlprg.ir.cfg;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Streams;
 import java.util.Optional;
+import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.checkerframework.checker.index.qual.SameLen;
 import org.prlprg.ir.type.REffect;
 import org.prlprg.sexp.LangSXP;
+import org.prlprg.util.Pair;
 
 /**
  * Each type of jump instruction as a pattern-matchable record.
@@ -63,12 +66,17 @@ public sealed interface JumpData<I extends Jump> extends InstrData<I> {
   @EffectsAre({})
   record Checkpoint(
       @TypeIs("BOOL") ImmutableList<RValue> tests,
-      @SameLen("tests") ImmutableList<DeoptReason> failReasons,
+      @SameLen("tests") ImmutableList<org.prlprg.rshruntime.DeoptReason> failReasons,
       BB ifPass,
       BB ifFail)
       implements JumpData<org.prlprg.ir.cfg.Checkpoint> {
     public int numAssumptions() {
       return tests.size();
+    }
+
+    @SuppressWarnings("UnstableApiUsage")
+    public Stream<Pair<RValue, org.prlprg.rshruntime.DeoptReason>> streamAssumptionData() {
+      return Streams.zip(tests.stream(), failReasons.stream(), Pair::new);
     }
 
     @Override

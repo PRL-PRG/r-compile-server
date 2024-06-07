@@ -1,0 +1,84 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ f4[0x563e73c5b2a0]                                                           │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;NonRefl0,!Obj0,SimpleInt0            │
+│ Properties:                                                                  │
+├────── Final PIR Version
+f4[0x563e73c5b2a0]
+BB0
+  val?^           %0.0  = LdArg                    0
+  val?^ | miss    %0.1  = LdVar              eR    add_noinline2, R_GlobalEnv
+  lgl$#-          %0.2  = Identical                %0.1, function(a, b) <(rir::DispatchTable*)0x563e72f|...
+  void                    Branch                   %0.2 -> BB8 (if true) | BB9 (if false)
+BB8   <- [0]
+  real$-          %8.0  = StaticCall         !vr   add_noinline2[0x563e73ca62a0](1, 2L) 
+  real$-          %8.1  = StaticCall         !vr   add_noinline2[0x563e73c75900](1, 2.2) 
+  env             e8.2  = (MkEnv)            l     b=%0.0, a=2, parent=R_GlobalEnv, context 1
+  real$-          %8.3  = StaticCall         !vrL  add_noinline2[0x563e73ca7c20](1L, 2) e8.2
+  lgl$#-          %8.4  = IsEnvStub          R     , e8.2
+  void                    Branch                   %8.4 -> BB10 (if true) | BB11 (if false)
+BB9   <- [0]
+  env             e9.0  = (MkEnv)            l     b=%0.0, parent=R_GlobalEnv, context 1
+  fs              %9.1  = FrameState         R     0x563e73e742b0+0: [], env=e9.0
+  void                    Deopt              !v    %9.1, CallTarget@0x563e73f77a28[Call#0], %0.1
+BB10   <- [8]
+  val?^ | miss    %10.0 = LdVar              eR    add_noinline2, R_GlobalEnv
+  lgl$#-          %10.1 = Identical                %10.0, function(a, b) <(rir::DispatchTable*)0x563e72f|...
+  void                    Branch                   %10.1 -> BB12 (if true) | BB13 (if false)
+BB11   <- [8]
+  void                    Nop                !     
+  env             e11.1 = e8.2
+  dr              %11.2 = EnvStubMaterialized@0x563e73f77a28[Call#unknown]
+  goto BB3
+BB12   <- [10]
+  void                    Visible            v     
+  val?            %12.1 = Force!<lazy>       !rL   %0.0,    <int$->
+  prom-           %12.2 = MkArg                    %12.1, f4[0x563e73c5b2a0]_p1 (!refl), 
+  val?            %12.3 = StaticCall         !     add_noinline2[0x563e73cabf10](1, %12.2) e8.2   <real$->
+  lgl$#-          %12.4 = IsType                   %12.3 isA real$-
+  lgl$#-          %12.5 = IsEnvStub          R     , e8.2
+  void                    Branch                   %12.5 -> BB14 (if true) | BB15 (if false)
+BB13   <- [10]
+  void                    Nop                !     
+  val?^ | miss    %13.1 = %10.0
+  dr              %13.2 = CallTarget@0x563e73f77a28[Call#3]
+  goto BB3
+BB3   <- [11, 13]
+  val?^ | miss    %3.0  = Phi                      e11.1:BB11, %13.1:BB13
+  val?^ | miss    %3.1  = %3.0
+  dr              %3.2  = Phi                      %11.2:BB11, %13.2:BB13
+  dr              %3.3  = %3.2
+  fs              %3.4  = FrameState         R     0x563e73e742b0+128: [%8.3], env=e8.2
+  void                    Deopt              !v    %3.4, %3.3, %3.1   !
+BB14   <- [12]
+  void                    Branch                   %12.4 -> BB16 (if true) | BB17 (if false)
+BB15   <- [12]
+  void                    Nop                !     
+  env             e15.1 = e8.2
+  dr              %15.2 = EnvStubMaterialized@0x563e73f77a28[Call#unknown]
+  goto BB5
+BB16   <- [14]
+  real$-          %16.0 = CastType           d     dn %12.3
+  void                    Return             l     %16.0
+BB17   <- [14]
+  void                    Nop                !     
+  val?            %17.1 = %12.3
+  dr              %17.2 = Typecheck@0x563e73f77a28[Type#2]
+  goto BB5
+BB5   <- [15, 17]
+  val?^ | miss    %5.0  = Phi                      e15.1:BB15, %17.1:BB17
+  val?^ | miss    %5.1  = %5.0
+  dr              %5.2  = Phi                      %15.2:BB15, %17.2:BB17
+  dr              %5.3  = %5.2
+  fs              %5.4  = FrameState         R     0x563e73e742b0+166: [%12.3], env=e8.2
+  void                    Deopt              !v    %5.4, %5.3, %5.1   !
+Prom 1:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    b, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <int$->
+  void                    Return             l     %0.3
+
+│ f4[0x563e73c5b2a0]                                                           │
+└──────────────────────────────────────────────────────────────────────────────┘

@@ -63,7 +63,7 @@ public class OverloadRTypes {
   /** Returns the overload type inferred from this closure. */
   public static OverloadRType exact(CloSXP value) {
     return of(
-        value.formals().stream()
+        value.parameters().stream()
             .map(
                 e ->
                     new ParameterRType(

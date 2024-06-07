@@ -1,0 +1,446 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ osr[0x55fe21598ab0]                                                          │
+│ Context: CorrOrd,!TMany                                                      │
+│ Properties:  Eager                                                           │
+├────── Final PIR Version
+osr[0x55fe21598ab0]
+BB0
+  env             e0.0  = LdFunctionEnv            
+  goto BB2
+BB2   <- [31, 71, 0]
+  val?^ | miss    %2.0  = LdVar              eR    notDone, e0.0
+  lgl$#-          %2.1  = IsType                   %2.0 isA lgl$-
+  void                    Branch                   %2.1 -> BB49 (if true) | BB50 (if false)
+BB49   <- [2]
+  lgl$-           %49.0 = CastType           d     dn %2.0
+  lgl$-           %49.1 = AsLogical                %49.0
+  lgl$#-          %49.2 = Identical                %49.1, false
+  void                    Branch                   %49.2 -> BB47 (if true) | BB4 (if false)
+BB50   <- [2]
+  void                    Nop                !     
+  val?^ | miss    %50.1 = %2.0
+  dr              %50.2 = Typecheck@0x55fe20a80728[Type#42]
+  goto BB48
+BB47   <- [49]
+  void                    Nop                !     
+  lgl$-           %47.1 = %49.1
+  goto BB5
+BB4   <- [49]
+  val?^ | miss    %4.0  = LdVar              eR    z, e0.0
+  lgl$#-          %4.1  = IsType                   %4.0 isA real$-
+  void                    Branch                   %4.1 -> BB51 (if true) | BB52 (if false)
+BB48   <- [50, 52, 54, 56, 58, 60, 62]
+  val?^ | miss    %48.0 = Phi                      %50.1:BB50, %52.1:BB52, %54.1:BB54, %56.1:BB56, %58.1:BB58, %60.1:BB60, %62.1:BB62
+  val?^ | miss    %48.1 = %48.0
+  dr              %48.2 = Phi                      %50.2:BB50, %52.2:BB52, %54.2:BB54, %56.2:BB56, %58.2:BB58, %60.2:BB60, %62.2:BB62
+  dr              %48.3 = %48.2
+  fs              %48.4 = FrameState         R     0x55fe1f91c5b0+834: [], env=e0.0
+  void                    Deopt              !v    %48.4, %48.3, %48.1   !
+BB5   <- [47, 51]
+  lgl$-           %5.0  = Phi                      %51.4:BB51, %47.1:BB47
+  lgl$-           %5.1  = %5.0
+  lgl$#-          %5.2  = CheckTrueFalse     e     %5.1
+  void                    Branch                   %5.2 -> BB39 (if true) | BB6 (if false)
+BB51   <- [4]
+  real$-          %51.0 = CastType           d     dn %4.0
+  lgl$-           %51.1 = Lt                 d     %51.0, 50, elided   <lgl$->
+  lgl$-           %51.2 = AsLogical                %51.1
+  lgl$-           %51.3 = LAnd                     %49.1, %51.2
+  lgl$-           %51.4 = %51.3
+  goto BB5
+BB52   <- [4]
+  void                    Nop                !     
+  val?^ | miss    %52.1 = %4.0
+  dr              %52.2 = Typecheck@0x55fe20a80728[Type#43]
+  goto BB48
+BB39   <- [5]
+  val?^ | miss    %39.0 = LdVar              eR    zrzr, e0.0
+  lgl$#-          %39.1 = IsType                   %39.0 isA real$-
+  void                    Branch                   %39.1 -> BB53 (if true) | BB54 (if false)
+BB6   <- [5]
+  val?^ | miss    %6.0  = LdVar              eR    bitwShiftL, e0.0
+  lgl$#-          %6.1  = Identical                %6.0, function(a, n) <(rir::DispatchTable*)0x55fe203|...
+  void                    Branch                   %6.1 -> BB55 (if true) | BB56 (if false)
+BB53   <- [39]
+  real$-          %53.0 = CastType           d     dn %39.0
+  val?^ | miss    %53.1 = LdVar              eR    zizi, e0.0
+  lgl$#-          %53.2 = IsType                   %53.1 isA real$-
+  void                    Branch                   %53.2 -> BB57 (if true) | BB58 (if false)
+BB54   <- [39]
+  void                    Nop                !     
+  val?^ | miss    %54.1 = %39.0
+  dr              %54.2 = Typecheck@0x55fe20a80728[Type#45]
+  goto BB48
+BB55   <- [6]
+  val?^ | miss    %55.0 = LdVar              eR    byteAcc, e0.0
+  lgl$#-          %55.1 = IsType                   %55.0 isA real$-
+  void                    Branch                   %55.1 -> BB59 (if true) | BB60 (if false)
+BB56   <- [6]
+  void                    Nop                !     
+  val?^ | miss    %56.1 = %6.0
+  dr              %56.2 = CallTarget@0x55fe20a80728[Call#0]
+  goto BB48
+BB57   <- [53]
+  real$-          %57.0 = CastType           d     dn %53.1
+  real$-          %57.1 = Sub                d     %53.0, %57.0, elided   <real$->
+  val?^ | miss    %57.2 = LdVar              eR    cr, e0.0
+  lgl$#-          %57.3 = IsType                   %57.2 isA real$-
+  void                    Branch                   %57.3 -> BB61 (if true) | BB62 (if false)
+BB58   <- [53]
+  void                    Nop                !     
+  val?^ | miss    %58.1 = %53.1
+  dr              %58.2 = Typecheck@0x55fe20a80728[Type#46]
+  goto BB48
+BB59   <- [55]
+  real$-          %59.0 = CastType           d     dn %55.0
+  int$-           %59.1 = CallSafeBuiltin    wed   bitwiseShiftL(%59.0, 1)    <int$->
+  val?^ | miss    %59.2 = LdVar              eR    escape, e0.0
+  lgl$#-          %59.3 = IsType                   %59.2 isA real$-
+  void                    Branch                   %59.3 -> BB63 (if true) | BB64 (if false)
+BB60   <- [55]
+  void                    Nop                !     
+  val?^ | miss    %60.1 = %55.0
+  dr              %60.2 = Typecheck@0x55fe20a80728[Type#68]
+  goto BB48
+BB61   <- [57]
+  real$-          %61.0 = CastType           d     dn %57.2
+  real$-          %61.1 = Add                d     %57.1, %61.0, elided   <real$->
+  void                    StVar              lW    zr, %61.1, e0.0
+  real$-          %61.3 = Mul                d     2, %61.1, elided   <real$->
+  val?^ | miss    %61.4 = LdVar              eR    zi, e0.0
+  lgl$#-          %61.5 = IsType                   %61.4 isA real$-
+  void                    Branch                   %61.5 -> BB65 (if true) | BB66 (if false)
+BB62   <- [57]
+  void                    Nop                !     
+  val?^ | miss    %62.1 = %57.2
+  dr              %62.2 = Typecheck@0x55fe20a80728[Type#48]
+  goto BB48
+BB63   <- [59]
+  real$-          %63.0 = CastType           d     dn %59.2
+  real$-          %63.1 = Add                d     %59.1, %63.0, elided   <real$->
+  void                    StVar              lW    byteAcc, %63.1, e0.0
+  val?^ | miss    %63.3 = LdVar              eR    bitNum, e0.0
+  lgl$#-          %63.4 = IsType                   %63.3 isA real$-
+  void                    Branch                   %63.4 -> BB69 (if true) | BB70 (if false)
+BB64   <- [59]
+  prom-           %64.0 = MkArg                    %59.0, osr[0x55fe21598ab0]_p0 (!refl), e0.0
+  val?~           %64.1 = CastType                 up %64.0
+  fs              %64.2 = FrameState         R     0x55fe1f91c5b0+1279: [], env=e0.0
+  env             e64.3 = (MkEnv)            l     n=1, a=%64.1, parent=R_BaseNamespace, context 0
+  fs              %64.4 = FrameState         R     0x55fe20c89880+41: [%59.1], env=e64.3, next=%64.2
+  void                    Deopt              !v    %64.4, Typecheck@0x55fe20a80728[Type#70], %59.2   !
+BB65   <- [61]
+  real$-          %65.0 = CastType           d     dn %61.4
+  real$-          %65.1 = Mul                d     %61.3, %65.0, elided   <real$->
+  val?^ | miss    %65.2 = LdVar              eR    ci, e0.0
+  lgl$#-          %65.3 = IsType                   %65.2 isA real$-
+  void                    Branch                   %65.3 -> BB67 (if true) | BB68 (if false)
+BB66   <- [61]
+  void                    Nop                !     
+  val?^ | miss    %66.1 = %61.4
+  dr              %66.2 = Typecheck@0x55fe20a80728[Type#52]
+  goto BB40
+BB69   <- [63]
+  real$-          %69.0 = CastType           d     dn %63.3
+  real$-          %69.1 = Add                d     %69.0, 1, elided   <real$->
+  void                    StVar              lW    bitNum, %69.1, e0.0
+  lgl$-           %69.3 = Eq                 d     %69.1, 8, elided   <lgl$->
+  lgl$#-          %69.4 = CheckTrueFalse     e     %69.3
+  void                    Branch                   %69.4 -> BB36 (if true) | BB13 (if false)
+BB70   <- [63]
+  fs              %70.0 = FrameState         R     0x55fe1f91c5b0+1313: [], env=e0.0
+  void                    Deopt              !v    %70.0, Typecheck@0x55fe20a80728[Type#72], %63.3   !
+BB67   <- [65]
+  real$-          %67.0 = CastType           d     dn %65.2
+  real$-          %67.1 = Add                d     %65.1, %67.0, elided   <real$->
+  void                    StVar              lW    zi, %67.1, e0.0
+  real$-          %67.3 = Mul                d     %61.1, %61.1, elided   <real$->
+  void                    StVar              lW    zrzr, %67.3, e0.0
+  real$-          %67.5 = Mul                d     %67.1, %67.1, elided   <real$->
+  void                    StVar              lW    zizi, %67.5, e0.0
+  real$-          %67.7 = Add                d     %67.3, %67.5, elided   <real$->
+  lgl$-           %67.8 = Gt                 d     %67.7, 4, elided   <lgl$->
+  lgl$#-          %67.9 = CheckTrueFalse     e     %67.8
+  void                    Branch                   %67.9 -> BB46 (if true) | BB42 (if false)
+BB68   <- [65]
+  void                    Nop                !     
+  val?^ | miss    %68.1 = %65.2
+  dr              %68.2 = Typecheck@0x55fe20a80728[Type#54]
+  goto BB40
+BB40   <- [66, 68]
+  val?^ | miss    %40.0 = Phi                      %66.1:BB66, %68.1:BB68
+  val?^ | miss    %40.1 = %40.0
+  dr              %40.2 = Phi                      %66.2:BB66, %68.2:BB68
+  dr              %40.3 = %40.2
+  fs              %40.4 = FrameState         R     0x55fe1f91c5b0+953: [], env=e0.0
+  void                    Deopt              !v    %40.4, %40.3, %40.1   !
+BB36   <- [69]
+  val?^ | miss    %36.0 = LdVar              eR    bitwXor, e0.0
+  lgl$#-          %36.1 = Identical                %36.0, function(a, b) <(rir::DispatchTable*)0x55fe1f9|...
+  void                    Branch                   %36.1 -> BB77 (if true) | BB78 (if false)
+BB13   <- [69]
+  val?^ | miss    %13.0 = LdVar              eR    x, e0.0
+  lgl$#-          %13.1 = IsType                   %13.0 isA real$-
+  void                    Branch                   %13.1 -> BB73 (if true) | BB74 (if false)
+BB46   <- [67]
+  void                    StVar              lW    notDone, false, e0.0
+  void                    StVar              lW    escape, 1, e0.0
+  goto BB43
+BB42   <- [67]
+  void                    Nop                !     
+  goto BB43
+BB77   <- [36]
+  val?^ | miss    %77.0 = LdVar              eR    sum, e0.0
+  lgl$#-          %77.1 = IsType                   %77.0 isA val?~- | miss
+  void                    Branch                   %77.1 -> BB83 (if true) | BB84 (if false)
+BB78   <- [36]
+  void                    Nop                !     
+  val?^ | miss    %78.1 = %36.0
+  dr              %78.2 = CallTarget@0x55fe20a80728[Call#3]
+  goto BB11
+BB73   <- [13]
+  real$-          %73.0 = CastType           d     dn %13.0
+  val?^ | miss    %73.1 = LdVar              eR    size, e0.0
+  lgl$#-          %73.2 = IsType                   %73.1 isA real$-
+  void                    Branch                   %73.2 -> BB75 (if true) | BB76 (if false)
+BB74   <- [13]
+  void                    Nop                !     
+  val?^ | miss    %74.1 = %13.0
+  dr              %74.2 = Typecheck@0x55fe20a80728[Type#76]
+  goto BB11
+BB43   <- [42, 46]
+  val?^ | miss    %43.0 = LdVar              eR    z, e0.0
+  lgl$#-          %43.1 = IsType                   %43.0 isA real$-
+  void                    Branch                   %43.1 -> BB71 (if true) | BB72 (if false)
+BB83   <- [77]
+  val?~- | miss   %83.0 = CastType           d     dn %77.0
+  val?-           %83.1 = Force!<value>            %83.0,    <(int|real)$->
+  int-            %83.2 = CallSafeBuiltin    wed   bitwiseXor(%83.1, %63.1)    <int$->
+  lgl$#-          %83.3 = IsType                   %83.2 isA int$-
+  void                    Branch                   %83.3 -> BB87 (if true) | BB88 (if false)
+BB84   <- [77]
+  void                    Nop                !     
+  val?^ | miss    %84.1 = %77.0
+  dr              %84.2 = Typecheck@0x55fe20a80728[Type#87]
+  goto BB11
+BB11   <- [74, 76, 78, 84]
+  val?^ | miss    %11.0 = Phi                      %74.1:BB74, %76.1:BB76, %78.1:BB78, %84.1:BB84
+  val?^ | miss    %11.1 = %11.0
+  dr              %11.2 = Phi                      %74.2:BB74, %76.2:BB76, %78.2:BB78, %84.2:BB84
+  dr              %11.3 = %11.2
+  fs              %11.4 = FrameState         R     0x55fe1f91c5b0+1348: [], env=e0.0
+  void                    Deopt              !v    %11.4, %11.3, %11.1   !
+BB75   <- [73]
+  real$-          %75.0 = CastType           d     dn %73.1
+  real$-          %75.1 = Sub                d     %75.0, 1, elided   <real$->
+  lgl$-           %75.2 = Eq                 d     %73.0, %75.1, elided   <lgl$->
+  lgl$#-          %75.3 = CheckTrueFalse     e     %75.2
+  void                    Branch                   %75.3 -> BB33 (if true) | BB14 (if false)
+BB76   <- [73]
+  void                    Nop                !     
+  val?^ | miss    %76.1 = %73.1
+  dr              %76.2 = Typecheck@0x55fe20a80728[Type#77]
+  goto BB11
+BB71   <- [43]
+  real$-          %71.0 = CastType           d     dn %43.0
+  real$-          %71.1 = Add                d     %71.0, 1, elided   <real$->
+  void                    StVar              lW    z, %71.1, e0.0
+  goto BB2
+BB72   <- [43]
+  fs              %72.0 = FrameState         R     0x55fe1f91c5b0+1202: [], env=e0.0
+  void                    Deopt              !v    %72.0, Typecheck@0x55fe20a80728[Type#66], %43.0   !
+BB87   <- [83]
+  int$-           %87.0 = CastType           d     dn %83.2
+  void                    StVar              lW    sum, %87.0, e0.0
+  void                    StVar              lW    byteAcc, 0, e0.0
+  void                    StVar              lW    bitNum, 0, e0.0
+  goto BB16
+BB88   <- [83]
+  fs              %88.0 = FrameState         R     0x55fe1f91c5b0+1612: [], env=e0.0
+  prom-           %88.1 = MkArg                    %63.1, osr[0x55fe21598ab0]_p6 (!refl), e0.0
+  val?~           %88.2 = CastType                 up %88.1
+  prom-           %88.3 = MkArg                    %83.1, osr[0x55fe21598ab0]_p5 (!refl), e0.0
+  val?~           %88.4 = CastType                 up %88.3
+  env             e88.5 = (MkEnv)            l     b=%88.2, a=%88.4, parent=R_BaseNamespace, context 0
+  fs              %88.6 = FrameState         R     0x55fe1f91d820+41: [%83.2], env=e88.5, next=%88.0
+  void                    Deopt              !v    %88.6, Typecheck@0x55fe20a80728[Type#89], %83.2   !
+BB33   <- [75]
+  real$-          %33.0 = Sub                d     8, %69.1, elided   <real$->
+  int$-           %33.1 = CallSafeBuiltin    wed   bitwiseShiftL(%63.1, %33.0)    <int$->
+  void                    StVar              lW    byteAcc, %33.1, e0.0
+  val?^ | miss    %33.3 = LdVar              eR    bitwXor, e0.0
+  lgl$#-          %33.4 = Identical                %33.3, function(a, b) <(rir::DispatchTable*)0x55fe1f9|...
+  void                    Branch                   %33.4 -> BB81 (if true) | BB82 (if false)
+BB14   <- [75]
+  void                    Nop                !     
+  goto BB15
+BB16   <- [15, 87]
+  val?^ | miss    %16.0 = LdVar              eR    x, e0.0
+  lgl$#-          %16.1 = IsType                   %16.0 isA real$-
+  void                    Branch                   %16.1 -> BB79 (if true) | BB80 (if false)
+BB81   <- [33]
+  val?^ | miss    %81.0 = LdVar              eR    sum, e0.0
+  lgl$#-          %81.1 = IsType                   %81.0 isA int$-
+  void                    Branch                   %81.1 -> BB85 (if true) | BB86 (if false)
+BB82   <- [33]
+  void                    Nop                !     
+  val?^ | miss    %82.1 = %33.3
+  dr              %82.2 = CallTarget@0x55fe20a80728[Call#2]
+  goto BB34
+BB15   <- [14, 85]
+  void                    Nop                !     
+  goto BB16
+BB79   <- [16]
+  real$-          %79.0 = CastType           d     dn %16.0
+  real$-          %79.1 = Add                d     %79.0, 1, elided   <real$->
+  void                    StVar              lW    x, %79.1, e0.0
+  real$-          %79.3 = %79.1
+  goto BB19
+BB80   <- [16]
+  fs              %80.0 = FrameState         R     0x55fe1f91c5b0+1656: [], env=e0.0
+  void                    Deopt              !v    %80.0, Typecheck@0x55fe20a80728[Type#90], %16.0   !
+BB85   <- [81]
+  int$-           %85.0 = CastType           d     dn %81.0
+  int$-           %85.1 = CallSafeBuiltin    wed   bitwiseXor(%85.0, %33.1)    <int$->
+  void                    StVar              lW    sum, %85.1, e0.0
+  void                    StVar              lW    byteAcc, 0, e0.0
+  void                    StVar              lW    bitNum, 0, e0.0
+  goto BB15
+BB86   <- [81]
+  void                    Nop                !     
+  val?^ | miss    %86.1 = %81.0
+  dr              %86.2 = Typecheck@0x55fe20a80728[Type#84]
+  goto BB34
+BB34   <- [82, 86]
+  val?^ | miss    %34.0 = Phi                      %82.1:BB82, %86.1:BB86
+  val?^ | miss    %34.1 = %34.0
+  dr              %34.2 = Phi                      %82.2:BB82, %86.2:BB86
+  dr              %34.3 = %34.2
+  fs              %34.4 = FrameState         R     0x55fe1f91c5b0+1489: [], env=e0.0
+  void                    Deopt              !v    %34.4, %34.3, %34.1   !
+BB19   <- [26, 79]
+  real$-          %19.0 = Phi                      %79.3:BB79, %26.5:BB26
+  real$-          %19.1 = %19.0
+  val?^ | miss    %19.2 = LdVar              eR    size, e0.0
+  lgl$#-          %19.3 = IsType                   %19.2 isA real$-
+  void                    Branch                   %19.3 -> BB89 (if true) | BB90 (if false)
+BB89   <- [19]
+  real$-          %89.0 = CastType           d     dn %19.2
+  lgl$-           %89.1 = Lt                 d     %19.1, %89.0, elided   <lgl$->
+  lgl$#-          %89.2 = CheckTrueFalse     e     %89.1
+  void                    Branch                   %89.2 -> BB27 (if true) | BB22 (if false)
+BB90   <- [19]
+  void                    Nop                !     
+  val?^ | miss    %90.1 = %19.2
+  dr              %90.2 = Typecheck@0x55fe20a80728[Type#9]
+  goto BB20
+BB27   <- [89]
+  void                    StVar              lW    zrzr, 0, e0.0
+  void                    StVar              lW    zi, 0, e0.0
+  void                    StVar              lW    zizi, 0, e0.0
+  real$-          %27.3 = Mul                d     2, %19.1, elided   <real$->
+  real$-          %27.4 = Div                d     %27.3, %89.0, elided   <real$->
+  real$-          %27.5 = Sub                d     %27.4, 1.5, elided   <real$->
+  void                    StVar              lW    cr, %27.5, e0.0
+  void                    StVar              lW    z, 0, e0.0
+  void                    StVar              lW    notDone, true, e0.0
+  void                    StVar              lW    escape, 0, e0.0
+  real$-          %27.10 = Add                d     0, %27.5, elided   <real$->
+  void                    StVar              lW    zr, %27.10, e0.0
+  real$-          %27.12 = Mul                d     2, %27.10, elided   <real$->
+  real$-          %27.13 = Mul                d     %27.12, 0, elided   <real$->
+  val?^ | miss    %27.14 = LdVar              eR    ci, e0.0
+  lgl$#-          %27.15 = IsType                   %27.14 isA real$-
+  void                    Branch                   %27.15 -> BB93 (if true) | BB94 (if false)
+BB22   <- [89]
+  val?^ | miss    %22.0 = LdVar              eR    y, e0.0
+  lgl$#-          %22.1 = IsType                   %22.0 isA real$-
+  void                    Branch                   %22.1 -> BB91 (if true) | BB92 (if false)
+BB20   <- [90, 92]
+  val?^ | miss    %20.0 = Phi                      %90.1:BB90, %92.1:BB92
+  val?^ | miss    %20.1 = %20.0
+  dr              %20.2 = Phi                      %90.2:BB90, %92.2:BB92
+  dr              %20.3 = %20.2
+  fs              %20.4 = FrameState         R     0x55fe1f91c5b0+213: [], env=e0.0
+  void                    Deopt              !v    %20.4, %20.3, %20.1   !
+BB93   <- [27]
+  real$-          %93.0 = CastType           d     dn %27.14
+  real$-          %93.1 = Add                d     %27.13, %93.0, elided   <real$->
+  void                    StVar              lW    zi, %93.1, e0.0
+  real$-          %93.3 = Mul                d     %27.10, %27.10, elided   <real$->
+  void                    StVar              lW    zrzr, %93.3, e0.0
+  real$-          %93.5 = Mul                d     %93.1, %93.1, elided   <real$->
+  void                    StVar              lW    zizi, %93.5, e0.0
+  real$-          %93.7 = Add                d     %93.3, %93.5, elided   <real$->
+  lgl$-           %93.8 = Gt                 d     %93.7, 4, elided   <lgl$->
+  lgl$#-          %93.9 = CheckTrueFalse     e     %93.8
+  void                    Branch                   %93.9 -> BB32 (if true) | BB30 (if false)
+BB94   <- [27]
+  fs              %94.0 = FrameState         R     0x55fe1f91c5b0+550: [], env=e0.0
+  void                    Deopt              !v    %94.0, Typecheck@0x55fe20a80728[Type#28], %27.14   !
+BB91   <- [22]
+  real$-          %91.0 = CastType           d     dn %22.0
+  real$-          %91.1 = Add                d     %91.0, 1, elided   <real$->
+  void                    StVar              lW    y, %91.1, e0.0
+  lgl$-           %91.3 = Lt                 d     %91.1, %89.0, elided   <lgl$->
+  lgl$#-          %91.4 = CheckTrueFalse     e     %91.3
+  void                    Branch                   %91.4 -> BB26 (if true) | BB25 (if false)
+BB92   <- [22]
+  void                    Nop                !     
+  val?^ | miss    %92.1 = %22.0
+  dr              %92.2 = Typecheck@0x55fe20a80728[Type#92]
+  goto BB20
+BB32   <- [93]
+  void                    StVar              lW    notDone, false, e0.0
+  void                    StVar              lW    escape, 1, e0.0
+  goto BB31
+BB30   <- [93]
+  void                    Nop                !     
+  goto BB31
+BB26   <- [91]
+  real$-          %26.0 = Mul                d     2, %91.1, elided   <real$->
+  real$-          %26.1 = Div                d     %26.0, %89.0, elided   <real$->
+  real$-          %26.2 = Sub                d     %26.1, 1, elided   <real$->
+  void                    StVar              lW    ci, %26.2, e0.0
+  void                    StVar              lW    x, 0, e0.0
+  real$#-         %26.5 = 0
+  goto BB19
+BB25   <- [91]
+  val?^ | miss    %25.0 = LdVar              eR    sum, e0.0
+  lgl$#-          %25.1 = IsType                   %25.0 isA int$-
+  void                    Branch                   %25.1 -> BB95 (if true) | BB96 (if false)
+BB31   <- [30, 32]
+  void                    StVar              lW    z, 1, e0.0
+  goto BB2
+BB95   <- [25]
+  int$-           %95.0 = CastType           d     dn %25.0
+  void                    Visible            v     
+  void                    Return             l     %95.0
+BB96   <- [25]
+  fs              %96.0 = FrameState         R     0x55fe1f91c5b0+1731: [], env=e0.0
+  void                    Deopt              !v    %96.0, Typecheck@0x55fe20a80728[Type#94], %25.0   !
+Prom 0:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    byteAcc, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<value>       !     %0.1, e0.0   <real$->
+  void                    Return             l     %0.3
+Prom 5:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    sum, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<value>       !     %0.1, e0.0   <(int|real)$->
+  void                    Return             l     %0.3
+Prom 6:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    byteAcc, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<value>       !     %0.1, e0.0   <real$->
+  void                    Return             l     %0.3
+
+│ osr[0x55fe21598ab0]                                                          │
+└──────────────────────────────────────────────────────────────────────────────┘

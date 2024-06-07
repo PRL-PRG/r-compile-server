@@ -1,5 +1,6 @@
 package org.prlprg.util;
 
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import static org.prlprg.TestConfig.VERBOSE;
 import static org.prlprg.util.TestsPrivate.SNAPSHOT_RESOURCES_ROOT;
 
@@ -89,7 +90,7 @@ public interface Tests {
   }
 
   /** Run a command. */
-  default void cmd(Object... command) {
+  static void cmd(Object... command) {
     var commandStrs = Arrays.stream(command).map(Object::toString).toList();
     var commandStr = String.join(" ", commandStrs);
     try {
@@ -105,11 +106,16 @@ public interface Tests {
     }
   }
 
+  /** Abort the test (different than reporting failure) if the values aren't equal. */
+  static void assumeEquals(Object expected, Object actual) {
+    assumeTrue(expected.equals(actual), () -> "Expected " + expected + ", got " + actual);
+  }
+
   /**
    * {@code System.out.println} if {@link org.prlprg.TestConfig#VERBOSE VERBOSE} is set, otherwise
    * no-op.
    */
-  default void printlnIfVerbose(Object message) {
+  static void printlnIfVerbose(Object message) {
     if (VERBOSE) {
       System.out.println(message);
     }
@@ -119,7 +125,7 @@ public interface Tests {
    * {@code System.out.println} if {@link org.prlprg.TestConfig#VERBOSE VERBOSE} is set, otherwise
    * no-op.
    */
-  default void printlnIfVerbose() {
+  static void printlnIfVerbose() {
     if (VERBOSE) {
       System.out.println();
     }

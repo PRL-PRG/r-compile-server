@@ -1,0 +1,16 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ rir.compile[0x56392e0aed70]                                                  │
+│ Context: CorrOrd,!TMany                                                      │
+│ Properties:  !Reflection                                                     │
+├────── PIR Version After Optimizations
+rir.compile[0x56392e0aed70]
+BB0
+  goto BB1
+BB1   <- [0]
+  goto BB2
+BB2   <- [2, 1]
+  goto BB2
+
+│ rir.compile[0x56392e0aed70]                                                  │
+└──────────────────────────────────────────────────────────────────────────────┘

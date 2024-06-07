@@ -1,0 +1,65 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ FUN[0x55d0007f6ba0]                                                          │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch                                      │
+│ Properties:                                                                  │
+├────── Final PIR Version
+FUN[0x55d0007f6ba0]
+BB0
+  val?^           %0.0  = LdArg                    0
+  val?^ | miss    %0.1  = LdVar              eR    gregexpr, ?
+  lgl$#-          %0.2  = Identical                %0.1, function(pattern, text, ignore.case=FALSE, per|...
+  void                    Branch                   %0.2 -> BB6 (if true) | BB7 (if false)
+BB6   <- [0]
+  env             e6.0  = MkEnv              l     s=%0.0, parent=?, context 1
+  prom-           %6.1  = MkArg                    unboundValue, FUN[0x55d0007f6ba0]_p0, e6.0
+  prom-           %6.2  = MkArg                    unboundValue, FUN[0x55d0007f6ba0]_p1, e6.0
+  val?            %6.3  = StaticCall         !v    gregexpr[0x55d0011c8640](%6.1, %6.2, missingArg, missingArg, true) { 0 1 4n } e6.0   <vec$->
+  lgl$#-          %6.4  = IsType                   %6.3 isA val+   <true>
+  lgl$#-          %6.5  = IsType                   %6.3 isA val?-
+  void                    Branch                   %6.4 -> BB8 (if true) | BB9 (if false)
+BB7   <- [0]
+  env             e7.0  = (MkEnv)            l     s=%0.0, parent=?, context 1
+  fs              %7.1  = FrameState         R     0x55d0002bae90+0: [], env=e7.0
+  void                    Deopt              !v    %7.1, CallTarget@0x55cfff526038[Call#0], %0.1   !
+BB8   <- [6]
+  void                    Branch                   %6.5 -> BB10 (if true) | BB11 (if false)
+BB9   <- [6]
+  void                    Nop                !     
+  lgl$#-          %9.1  = %6.4
+  dr              %9.2  = DeadBranchReached@0x55cfff526038[Test#0]
+  goto BB3
+BB10   <- [8]
+  val?-           %10.0 = CastType           d     dn %6.3   <vec$->
+  val?            %10.1 = Extract2_1D        wed   %10.0, 1L, elided   <int$+>
+  void                    Visible            v     
+  void                    Return             l     %10.1
+BB11   <- [8]
+  void                    Nop                !     
+  val?            %11.1 = %6.3
+  dr              %11.2 = Typecheck@0x55cfff526038[Type#2]
+  goto BB3
+BB3   <- [9, 11]
+  val?^ | miss    %3.0  = Phi                      %9.1:BB9, %11.1:BB11
+  val?^ | miss    %3.1  = %3.0
+  dr              %3.2  = Phi                      %9.2:BB9, %11.2:BB11
+  dr              %3.3  = %3.2
+  fs              %3.4  = FrameState         R     0x55d0002bae90+54: [%6.3], env=e6.0
+  void                    Deopt              !v    %3.4, %3.3, %3.1   !
+Prom 0:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    s, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <str$->
+  void                    Return             l     %0.3
+Prom 1:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    text, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <str$->
+  void                    Return             l     %0.3
+
+│ FUN[0x55d0007f6ba0]                                                          │
+└──────────────────────────────────────────────────────────────────────────────┘

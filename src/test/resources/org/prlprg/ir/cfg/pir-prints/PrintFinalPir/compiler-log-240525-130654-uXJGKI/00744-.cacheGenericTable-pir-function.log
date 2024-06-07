@@ -1,0 +1,526 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ .cacheGenericTable[0x5614fb24b9c0]                                           │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch                                      │
+│ Properties:  ForceOrd: 1                                                     │
+├────── Final PIR Version
+.cacheGenericTable[0x5614fb24b9c0]
+BB0
+  val?^           %0.0  = LdArg                    2
+  val?^           %0.1  = LdArg                    1
+  val?^           %0.2  = LdArg                    0
+  env             e0.3  = MkEnv              l     name=%0.2, def=%0.1, table=%0.0, parent=<env 0x5614f8eae378>, context 1
+  val?            %0.4  = Force!<lazy>       !v    %0.1, e0.3   <cls>
+  void                    StVar              lW    fdef, %0.4, e0.3
+  val?^ | miss    %0.6  = LdVar              eR    table, e0.3
+  val?            %0.7  = Force!<lazy>       !v    %0.6, e0.3   <env->
+  lgl$#-          %0.8  = IsType                   %0.7 isA val+   <true>
+  void                    Branch                   %0.8 -> BB44 (if true) | BB45 (if false)
+BB44   <- [0]
+  val?^ | miss    %44.0 = LdVar              eR    name, e0.3
+  val?            %44.1 = Force!<lazy>       !v    %44.0, e0.3   <str$->
+  lgl$#-          %44.2 = IsType                   %44.1 isA val?-
+  lgl$#-          %44.3 = IsType                   %0.7 isA val?-
+  void                    Branch                   %44.3 -> BB46 (if true) | BB47 (if false)
+BB45   <- [0]
+  fs              %45.0 = FrameState         R     0x5614f8cfcfe0+32: [%0.7], env=e0.3
+  void                    Deopt              !v    %45.0, DeadBranchReached@0x5614fb48fdf0[Test#0], %0.8   !
+BB46   <- [44]
+  val?-           %46.0 = CastType           d     dn %0.7   <env->
+  void                    Branch                   %44.2 -> BB48 (if true) | BB49 (if false)
+BB47   <- [44]
+  void                    Nop                !     
+  val?            %47.1 = %0.7
+  dr              %47.2 = Typecheck@0x5614fb48fdf0[Type#1]
+  goto BB3
+BB48   <- [46]
+  val?-           %48.0 = CastType           d     dn %44.1   <str$->
+  val?            %48.1 = Extract2_1D        wed   %46.0, %48.0, elided   <cls>
+  lgl$-           %48.2 = Is                       %48.1, NULL
+  void                    StVar              lW    prev, %48.1, e0.3
+  lgl$-           %48.4 = Not                d     %48.2, elided
+  lgl$#-          %48.5 = CheckTrueFalse     e     %48.4
+  void                    Branch                   %48.5 -> BB10 (if true) | BB5 (if false)
+BB49   <- [46]
+  void                    Nop                !     
+  val?            %49.1 = %44.1
+  dr              %49.2 = Typecheck@0x5614fb48fdf0[Type#3]
+  goto BB3
+BB3   <- [47, 49]
+  val?^ | miss    %3.0  = Phi                      %47.1:BB47, %49.1:BB49
+  val?^ | miss    %3.1  = %3.0
+  dr              %3.2  = Phi                      %47.2:BB47, %49.2:BB49
+  dr              %3.3  = %3.2
+  fs              %3.4  = FrameState         R     0x5614f8cfcfe0+77: [%0.7, %44.1], env=e0.3
+  void                    Deopt              !v    %3.4, %3.3, %3.1   !
+BB10   <- [48]
+  (cls|spec|blt)  %10.0 = LdFun              !v    @, <0x5614f88a6bd8>, e0.3
+  prom-           %10.1 = MkArg                    unboundValue, .cacheGenericTable[0x5614fb24b9c0]_p1, e0.3
+  prom-           %10.2 = MkArg                    unboundValue, .cacheGenericTable[0x5614fb24b9c0]_p2, e0.3
+  val?            %10.3 = Call               !v    %10.0(%10.1, %10.2) e0.3   <str$->
+  void                    StVar              lW    newpkg, %10.3, e0.3
+  val?^ | miss    %10.5 = LdVar              eR    is.function, e0.3
+  lgl$#-          %10.6 = Identical                <blt is.function>, %10.5   <true>
+  void                    Branch                   %10.6 -> BB50 (if true) | BB51 (if false)
+BB5   <- [48]
+  void                    Nop                !     
+  goto BB6
+BB50   <- [10]
+  val?^ | miss    %50.0 = LdVar              eR    prev, e0.3
+  val?            %50.1 = Force!<value>      !v    %50.0, e0.3   <cls>
+  val?            %50.2 = CallBuiltin        !v    is.function(%50.1) e0.3   <lgl$->
+  lgl$#-          %50.3 = IsType                   %50.2 isA lgl$-
+  void                    Branch                   %50.3 -> BB52 (if true) | BB53 (if false)
+BB51   <- [10]
+  fs              %51.0 = FrameState         R     0x5614f8cfcfe0+168: [], env=e0.3
+  void                    Deopt              !v    %51.0, DeadBranchReached@0x5614fb48fdf0[Test#1], %10.6   !
+BB6   <- [5, 25]
+  val?^ | miss    %6.0  = LdVar              eR    .getMethodsTable, e0.3
+  lgl$#-          %6.1  = Identical                %6.0, function(fdef, env=environment(fdef), check=TR|...
+  void                    Branch                   %6.1 -> BB54 (if true) | BB55 (if false)
+BB52   <- [50]
+  lgl$-           %52.0 = CastType           d     dn %50.2
+  lgl$#-          %52.1 = CheckTrueFalse     e     %52.0
+  void                    Branch                   %52.1 -> BB31 (if true) | BB15 (if false)
+BB53   <- [50]
+  void                    Nop                !     
+  val?            %53.1 = %50.2
+  dr              %53.2 = Typecheck@0x5614fb48fdf0[Type#10]
+  goto BB13
+BB54   <- [6]
+  prom-           %54.0 = MkArg                    unboundValue, .cacheGenericTable[0x5614fb24b9c0]_p0, e0.3
+  val?            %54.1 = StaticCall         !v    .getMethodsTable[0x5614fb24ba80](%54.0) e0.3
+  val?^ | miss    %54.2 = LdVar              eR    def, e0.3
+  val?            %54.3 = Force!<wrapped>    !v    %54.2, e0.3   <cls>
+  val?^ | miss    %54.4 = LdVar              eR    table, e0.3
+  val?            %54.5 = Force!<wrapped>    !v    %54.4, e0.3   <env->
+  val?^ | miss    %54.6 = LdVar              eR    name, e0.3
+  val?            %54.7 = Force!<wrapped>    !v    %54.6, e0.3   <str$->
+  val?            %54.8 = Subassign2_1D      !v    %54.3, %54.5, %54.7, e0.3
+  void                    StVar              lW    table, %54.8, e0.3
+  val?^ | miss    %54.10 = LdVar              eR    fdef, e0.3
+  void                    Visible            v     
+  val?            %54.12 = Force!<value>      !     %54.10, e0.3   <cls>
+  val?            %54.13 = %54.12
+  goto BB9
+BB55   <- [6]
+  fs              %55.0 = FrameState         R     0x5614f8cfcfe0+1054: [], env=e0.3
+  void                    Deopt              !v    %55.0, CallTarget@0x5614fb48fdf0[Call#11], %6.0   !
+BB31   <- [52]
+  val?^ | miss    %31.0 = LdVar              eR    identical, e0.3
+  lgl$#-          %31.1 = Identical                %31.0, function(x, y, num.eq=TRUE, single.NA=TRUE, at|...
+  void                    Branch                   %31.1 -> BB56 (if true) | BB57 (if false)
+BB15   <- [52]
+  void                    Nop                !     
+  goto BB16
+BB13   <- [53, 57]
+  val?^ | miss    %13.0 = Phi                      %53.1:BB53, %57.1:BB57
+  val?^ | miss    %13.1 = %13.0
+  dr              %13.2 = Phi                      %53.2:BB53, %57.2:BB57
+  dr              %13.3 = %13.2
+  fs              %13.4 = FrameState         R     0x5614f8cfcfe0+259: [%50.2], env=e0.3
+  void                    Deopt              !v    %13.4, %13.3, %13.1   !
+BB9   <- [26, 42, 54, 64]
+  val?            %9.0  = Phi                      %54.13:BB54, %26.3:BB26, %64.6:BB64, %42.3:BB42
+  val?            %9.1  = %9.0
+  void                    Return             l     %9.1
+BB56   <- [31]
+  prom-           %56.0 = MkArg                    unboundValue, .cacheGenericTable[0x5614fb24b9c0]_p10, e0.3
+  prom-           %56.1 = MkArg                    unboundValue, .cacheGenericTable[0x5614fb24b9c0]_p11, e0.3
+  ct              %56.2 = PushContext        lCL   %56.0, %56.1, identical(prev, def), function(x, y, num.eq=TRUE, single.NA=TRUE, at|..., e0.3
+  val?^           %56.3 = CastType                 up %56.1
+  val?^           %56.4 = CastType                 up %56.0
+  env             e56.5 = MkEnv              l     x=%56.4, y=%56.3, num.eq(miss)=true, single.NA(miss)=true, attrib.as.set(miss)=true, ignore.bytecode(miss)=true, ignore.environment(miss)=false, ignore.srcref(miss)=true, parent=R_BaseNamespace, context 1
+  val?            %56.6 = Force!<lazy>       !vL   %56.4, e56.5   <val?>
+  val?            %56.7 = Force!<lazy>       !vL   %56.3, e56.5   <val?>
+  val?            %56.8 = CallBuiltin        !v    identical(%56.6, %56.7, true, true, true, true, false, true) e56.5
+  val?            %56.9 = PopContext         C     %56.8, %56.2   <lgl$->
+  lgl$#-          %56.10 = IsType                   %56.9 isA lgl$-
+  void                    Branch                   %56.10 -> BB58 (if true) | BB59 (if false)
+BB57   <- [31]
+  void                    Nop                !     
+  val?^ | miss    %57.1 = %31.0
+  dr              %57.2 = CallTarget@0x5614fb48fdf0[Call#2]
+  goto BB13
+BB16   <- [15, 37]
+  (cls|spec|blt)  %16.0 = LdFun              !v    match, e0.3
+  prom-           %16.1 = MkArg                    unboundValue, .cacheGenericTable[0x5614fb24b9c0]_p3, e0.3
+  prom-           %16.2 = MkArg                    unboundValue, .cacheGenericTable[0x5614fb24b9c0]_p4, e0.3
+  val?            %16.3 = Call               !v    %16.0(%16.1, %16.2) e0.3   <val?_>
+  void                    StVar              lW    i, %16.3, e0.3
+  val?^ | miss    %16.5 = LdVar              eR    is.na, e0.3
+  lgl$#-          %16.6 = Identical                <blt is.na>, %16.5   <@?>
+  void                    Branch                   %16.6 -> BB30 (if true) | BB19 (if false)
+BB58   <- [56]
+  lgl$-           %58.0 = CastType           d     dn %56.9
+  lgl$#-          %58.1 = CheckTrueFalse     e     %58.0
+  void                    Branch                   %58.1 -> BB42 (if true) | BB34 (if false)
+BB59   <- [56]
+  fs              %59.0 = FrameState         R     0x5614f8cfcfe0+312: [%56.9], env=e0.3
+  void                    Deopt              !v    %59.0, Typecheck@0x5614fb48fdf0[Type#13], %56.9   !
+BB30   <- [16]
+  val             %30.0 = ChkMissing         e     %16.3
+  lgl$#-          %30.1 = IsType                   %16.3 isA val?+
+  void                    Branch                   %30.1 -> BB70 (if true) | BB71 (if false)
+BB19   <- [16]
+  val             %19.0 = ChkMissing         e     %16.3
+  lgl$#-          %19.1 = IsType                   %16.3 isA val?+
+  void                    Branch                   %19.1 -> BB66 (if true) | BB67 (if false)
+BB42   <- [58]
+  val?^ | miss    %42.0 = LdVar              eR    fdef, e0.3
+  void                    Visible            v     
+  val?            %42.2 = Force!<value>      !     %42.0, e0.3   <cls>
+  val?            %42.3 = %42.2
+  goto BB9
+BB34   <- [58]
+  (cls|spec|blt)  %34.0 = LdFun              !v    @, e0.3
+  prom-           %34.1 = MkArg                    unboundValue, .cacheGenericTable[0x5614fb24b9c0]_p12, e0.3
+  prom-           %34.2 = MkArg                    unboundValue, .cacheGenericTable[0x5614fb24b9c0]_p13, e0.3
+  val?            %34.3 = Call               !v    %34.0(%34.1, %34.2) e0.3   <val?_>
+  void                    StVar              lW    pkg, %34.3, e0.3
+  (cls|spec|blt)  %34.5 = LdFun              !v    identical, e0.3
+  prom-           %34.6 = MkArg                    unboundValue, .cacheGenericTable[0x5614fb24b9c0]_p14, e0.3
+  prom-           %34.7 = MkArg                    unboundValue, .cacheGenericTable[0x5614fb24b9c0]_p15, e0.3
+  val?            %34.8 = Call               !v    %34.5(%34.6, %34.7) e0.3   <val?_>
+  lgl$#-          %34.9 = CheckTrueFalse     we    %34.8
+  void                    Branch                   %34.9 -> BB39 (if true) | BB35 (if false)
+BB70   <- [30]
+  val?+           %70.0 = CastType           d     dn %16.3   <val?_>
+  lgl+            %70.1 = CallSafeBuiltin    wed   is.na(%70.0) 
+  lgl+            %70.2 = %70.1
+  goto BB20
+BB71   <- [30]
+  void                    Nop                !     
+  val?            %71.1 = %16.3
+  dr              %71.2 = Typecheck@0x5614fb48fdf0[Type#33]
+  goto BB17
+BB66   <- [19]
+  val?+           %66.0 = CastType           d     dn %16.3   <val?_>
+  lgl+            %66.1 = CallSafeBuiltin    wed   is.na(%66.0) 
+  lgl+            %66.2 = %66.1
+  goto BB20
+BB67   <- [19]
+  void                    Nop                !     
+  val?            %67.1 = %16.3
+  dr              %67.2 = Typecheck@0x5614fb48fdf0[Type#33]
+  goto BB17
+BB39   <- [34]
+  val?^ | miss    %39.0 = LdVar              eR    def, e0.3
+  val?            %39.1 = Force!             !v    %39.0, e0.3   <val?_>
+  val?^ | miss    %39.2 = LdVar              eR    table, e0.3
+  val?            %39.3 = Force!             !v    %39.2, e0.3   <val?_>
+  val?^ | miss    %39.4 = LdVar              eR    name, e0.3
+  val?            %39.5 = Force!             !v    %39.4, e0.3   <val?_>
+  lgl$#-          %39.6 = IsType                   %39.5 isA val?+
+  lgl$#-          %39.7 = IsType                   %39.1 isA val?+
+  lgl$#-          %39.8 = IsType                   %39.3 isA val?+
+  void                    Branch                   %39.7 -> BB60 (if true) | BB61 (if false)
+BB35   <- [34]
+  val?^ | miss    %35.0 = LdVar              eR    list, e0.3
+  lgl$#-          %35.1 = Identical                <blt list>, %35.0   <@?>
+  void                    Branch                   %35.1 -> BB38 (if true) | BB36 (if false)
+BB20   <- [66, 70]
+  lgl+            %20.0 = Phi                      %66.2:BB66, %70.2:BB70   <val?_>
+  lgl+            %20.1 = %20.0
+  lgl$#-          %20.2 = CheckTrueFalse     we    %20.1
+  void                    Branch                   %20.2 -> BB27 (if true) | BB21 (if false)
+BB17   <- [67, 71]
+  val?^ | miss    %17.0 = Phi                      %67.1:BB67, %71.1:BB71
+  val?^ | miss    %17.1 = %17.0
+  dr              %17.2 = Phi                      %67.2:BB67, %71.2:BB71
+  dr              %17.3 = %17.2
+  fs              %17.4 = FrameState         R     0x5614f8cfcfe0+752: [], env=e0.3
+  void                    Deopt              !v    %17.4, %17.3, %17.1   !
+BB60   <- [39]
+  val?+           %60.0 = CastType           d     dn %39.1   <val?_>
+  void                    Branch                   %39.8 -> BB62 (if true) | BB63 (if false)
+BB61   <- [39]
+  void                    Nop                !     
+  val?            %61.1 = %39.1
+  dr              %61.2 = Typecheck@0x5614fb48fdf0[Type#21]
+  goto BB40
+BB38   <- [35]
+  val?^ | miss    %38.0 = LdVar              eR    prev, e0.3
+  val?            %38.1 = Force!             !v    %38.0, e0.3   <val?_>
+  val+            %38.2 = CallSafeBuiltin    wed   list(%38.1) 
+  val+            %38.3 = %38.2
+  goto BB37
+BB36   <- [35]
+  val?^ | miss    %36.0 = LdVar              eR    prev, e0.3
+  val?            %36.1 = Force!             !v    %36.0, e0.3   <val?_>
+  val+            %36.2 = CallSafeBuiltin    wed   list(%36.1) 
+  val+            %36.3 = %36.2
+  goto BB37
+BB27   <- [20]
+  val?^ | miss    %27.0 = LdVar              eR    def, e0.3
+  val?            %27.1 = Force!             !v    %27.0, e0.3   <val?_>
+  val?^ | miss    %27.2 = LdVar              eR    prev !upd, e0.3
+  val?            %27.3 = Force!             !v    %27.2, e0.3   <val?_>
+  val?^ | miss    %27.4 = LdVar              eR    newpkg, e0.3
+  val?            %27.5 = Force!             !v    %27.4, e0.3   <val?_>
+  lgl$#-          %27.6 = IsType                   %27.5 isA val?+
+  lgl$#-          %27.7 = IsType                   %27.1 isA val?+
+  lgl$#-          %27.8 = IsType                   %27.3 isA val?+
+  void                    Branch                   %27.7 -> BB68 (if true) | BB69 (if false)
+BB21   <- [20]
+  (cls|spec|blt)  %21.0 = LdFun              !v    identical, e0.3
+  prom-           %21.1 = MkArg                    unboundValue, .cacheGenericTable[0x5614fb24b9c0]_p7, e0.3
+  prom-           %21.2 = MkArg                    unboundValue, .cacheGenericTable[0x5614fb24b9c0]_p8, e0.3
+  val?            %21.3 = Call               !v    %21.0(%21.1, %21.2) e0.3   <val?_>
+  lgl$#-          %21.4 = CheckTrueFalse     we    %21.3
+  void                    Branch                   %21.4 -> BB26 (if true) | BB22 (if false)
+BB62   <- [60]
+  val?+           %62.0 = CastType           d     dn %39.3   <val?_>
+  void                    Branch                   %39.6 -> BB64 (if true) | BB65 (if false)
+BB63   <- [60]
+  void                    Nop                !     
+  val?            %63.1 = %39.3
+  dr              %63.2 = Typecheck@0x5614fb48fdf0[Type#22]
+  goto BB40
+BB40   <- [61, 63, 65]
+  val?^ | miss    %40.0 = Phi                      %61.1:BB61, %63.1:BB63, %65.1:BB65
+  val?^ | miss    %40.1 = %40.0
+  dr              %40.2 = Phi                      %61.2:BB61, %63.2:BB63, %65.2:BB65
+  dr              %40.3 = %40.2
+  fs              %40.4 = FrameState         R     0x5614f8cfcfe0+484: [%39.1, %39.3, %39.5], env=e0.3
+  void                    Deopt              !v    %40.4, %40.3, %40.1   !
+BB37   <- [38, 36]
+  val+            %37.0 = Phi                      %36.3:BB36, %38.3:BB38   <val?_>
+  val+            %37.1 = %37.0
+  void                    StVar              lW    prev, %37.1, e0.3
+  val?^ | miss    %37.3 = LdVar              eR    pkg, e0.3
+  val?            %37.4 = Force!             !v    %37.3, e0.3   <val?_>
+  (cls|spec|blt)  %37.5 = LdFun              !v    names<-, e0.3
+  val?^ | miss    %37.6 = LdVar              eR    prev, e0.3
+  val?            %37.7 = Force!             !v    %37.6, e0.3   <val?_>
+  val?            %37.8 = NamedCall          !v    %37.5(%37.7, value=%37.4) e0.3
+  void                    StVar              lW    prev, %37.8, e0.3
+  goto BB16
+BB68   <- [27]
+  val?+           %68.0 = CastType           d     dn %27.1   <val?_>
+  void                    Branch                   %27.8 -> BB72 (if true) | BB73 (if false)
+BB69   <- [27]
+  void                    Nop                !     
+  val?            %69.1 = %27.1
+  dr              %69.2 = Typecheck@0x5614fb48fdf0[Type#47]
+  goto BB28
+BB26   <- [21]
+  val?^ | miss    %26.0 = LdVar              eR    fdef, e0.3
+  void                    Visible            v     
+  val?            %26.2 = Force!             !     %26.0, e0.3   <val?_>
+  val?            %26.3 = %26.2
+  goto BB9
+BB22   <- [21]
+  val?^ | miss    %22.0 = LdVar              eR    def, e0.3
+  val?            %22.1 = Force!             !v    %22.0, e0.3   <val?_>
+  val?^ | miss    %22.2 = LdVar              eR    prev !upd, e0.3
+  val?            %22.3 = Force!             !v    %22.2, e0.3   <val?_>
+  val?^ | miss    %22.4 = LdVar              eR    i, e0.3
+  val?            %22.5 = Force!             !v    %22.4, e0.3   <val?_>
+  lgl$#-          %22.6 = IsType                   %22.5 isA val?+
+  lgl$#-          %22.7 = IsType                   %22.1 isA val?+
+  lgl$#-          %22.8 = IsType                   %22.3 isA val?+
+  void                    Branch                   %22.7 -> BB74 (if true) | BB75 (if false)
+BB64   <- [62]
+  val?+           %64.0 = CastType           d     dn %39.5   <val?_>
+  val?+           %64.1 = Subassign2_1D      wed   %60.0, %62.0, %64.0, elided
+  void                    StVar              lW    table, %64.1, e0.3
+  val?^ | miss    %64.3 = LdVar              eR    fdef, e0.3
+  void                    Visible            v     
+  val?            %64.5 = Force!             !     %64.3, e0.3   <val?_>
+  val?            %64.6 = %64.5
+  goto BB9
+BB65   <- [62]
+  void                    Nop                !     
+  val?            %65.1 = %39.5
+  dr              %65.2 = Typecheck@0x5614fb48fdf0[Type#23]
+  goto BB40
+BB72   <- [68]
+  val?+           %72.0 = CastType           d     dn %27.3   <val?_>
+  void                    Branch                   %27.6 -> BB76 (if true) | BB77 (if false)
+BB73   <- [68]
+  void                    Nop                !     
+  val?            %73.1 = %27.3
+  dr              %73.2 = Typecheck@0x5614fb48fdf0[Type#48]
+  goto BB28
+BB28   <- [69, 73, 77]
+  val?^ | miss    %28.0 = Phi                      %69.1:BB69, %73.1:BB73, %77.1:BB77
+  val?^ | miss    %28.1 = %28.0
+  dr              %28.2 = Phi                      %69.2:BB69, %73.2:BB73, %77.2:BB77
+  dr              %28.3 = %28.2
+  fs              %28.4 = FrameState         R     0x5614f8cfcfe0+1016: [%27.1, %27.3, %27.5], env=e0.3
+  void                    Deopt              !v    %28.4, %28.3, %28.1   !
+BB74   <- [22]
+  val?+           %74.0 = CastType           d     dn %22.1   <val?_>
+  void                    Branch                   %22.8 -> BB78 (if true) | BB79 (if false)
+BB75   <- [22]
+  void                    Nop                !     
+  val?            %75.1 = %22.1
+  dr              %75.2 = Typecheck@0x5614fb48fdf0[Type#43]
+  goto BB23
+BB76   <- [72]
+  val?+           %76.0 = CastType           d     dn %27.5   <val?_>
+  val?+           %76.1 = Subassign2_1D      wed   %68.0, %72.0, %76.0, elided
+  void                    StVar              lW    prev, %76.1, e0.3
+  val?+           %76.3 = %76.1
+  goto BB25
+BB77   <- [72]
+  void                    Nop                !     
+  val?            %77.1 = %27.5
+  dr              %77.2 = Typecheck@0x5614fb48fdf0[Type#49]
+  goto BB28
+BB78   <- [74]
+  val?+           %78.0 = CastType           d     dn %22.3   <val?_>
+  void                    Branch                   %22.6 -> BB80 (if true) | BB81 (if false)
+BB79   <- [74]
+  void                    Nop                !     
+  val?            %79.1 = %22.3
+  dr              %79.2 = Typecheck@0x5614fb48fdf0[Type#44]
+  goto BB23
+BB23   <- [75, 79, 81]
+  val?^ | miss    %23.0 = Phi                      %75.1:BB75, %79.1:BB79, %81.1:BB81
+  val?^ | miss    %23.1 = %23.0
+  dr              %23.2 = Phi                      %75.2:BB75, %79.2:BB79, %81.2:BB81
+  dr              %23.3 = %23.2
+  fs              %23.4 = FrameState         R     0x5614f8cfcfe0+939: [%22.1, %22.3, %22.5], env=e0.3
+  void                    Deopt              !v    %23.4, %23.3, %23.1   !
+BB25   <- [76, 80]
+  val?+           %25.0 = Phi                      %76.3:BB76, %80.3:BB80
+  val?+           %25.1 = %25.0
+  val+            %25.2 = ChkMissing         e     %25.1   <val?_>
+  void                    StVar              lW    def, %25.2, e0.3
+  goto BB6
+BB80   <- [78]
+  val?+           %80.0 = CastType           d     dn %22.5   <val?_>
+  val?+           %80.1 = Subassign2_1D      wed   %74.0, %78.0, %80.0, elided
+  void                    StVar              lW    prev, %80.1, e0.3
+  val?+           %80.3 = %80.1
+  goto BB25
+BB81   <- [78]
+  void                    Nop                !     
+  val?            %81.1 = %22.5
+  dr              %81.2 = Typecheck@0x5614fb48fdf0[Type#45]
+  goto BB23
+Prom 0:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    fdef, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<value>       !     %0.1, e0.0   <cls>
+  void                    Return             l     %0.3
+Prom 1:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    def, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 2:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    package, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 3:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    newpkg, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 4:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     names, e0.0
+  prom-           %0.2  = MkArg                    unboundValue, .cacheGenericTable[0x5614fb24b9c0]_p5, e0.0
+  val?            %0.3  = Call               !     %0.1(%0.2) e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 5:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    prev, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 7:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    def, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 8:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    prev, e0.0
+  val?            %0.2  = Force              !v    %0.1, e0.0   <val?_>
+  lgl$#-          %0.3  = IsType                   %0.2 isA val+   <@?>
+  void                    Branch                   %0.3 -> BB2 (if true) | BB4 (if false)
+BB2   <- [0]
+  val?^ | miss    %2.0  = LdVar              eR    i, e0.0
+  val?            %2.1  = Force              !v    %2.0, e0.0   <val?_>
+  val?            %2.2  = %2.1
+  goto BB3
+BB4   <- [0]
+  prom-           %4.0  = MkArg                    unboundValue, .cacheGenericTable[0x5614fb24b9c0]_p9, e0.0
+  prom-           %4.1  = %4.0
+  goto BB3
+BB3   <- [4, 2]
+  val?            %3.0  = Phi                      %2.2:BB2, %4.1:BB4
+  val?            %3.1  = %3.0
+  val?            %3.2  = Extract2_1D        !v    %0.2, %3.1, e0.0   <val?_>
+  void                    Visible            v     
+  void                    Return             l     %3.2
+Prom 9:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    i, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 10:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    prev, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<value>       !     %0.1, e0.0   <cls>
+  void                    Return             l     %0.3
+Prom 11:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    def, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<wrapped>     !     %0.1, e0.0   <cls>
+  void                    Return             l     %0.3
+Prom 12:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    prev, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 13:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    package, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 14:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    pkg, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 15:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    newpkg, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+
+│ .cacheGenericTable[0x5614fb24b9c0]                                           │
+└──────────────────────────────────────────────────────────────────────────────┘

@@ -1,0 +1,181 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ [0x55804e11dfa0]                                                             │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch                                      │
+│ Properties:  ForceOrd: 0                                                     │
+├────── Final PIR Version
+[0x55804e11dfa0]
+BB0
+  val?^           %0.0  = LdArg                    1
+  val?^           %0.1  = LdArg                    0
+  env             e0.2  = (MkEnv)            l     v=%0.1, w=%0.0, parent=<env 0x55804e699488>, context 1
+  val?            %0.3  = Force!<lazy>       !vL   %0.1, e0.2   <str$->
+  lgl$-           %0.4  = Is                       %0.3, logical
+  lgl$-           %0.5  = Is                       %0.3, integer
+  lgl$-           %0.6  = Is                       %0.3, double
+  lgl$-           %0.7  = Is                       %0.3, complex
+  lgl$-           %0.8  = Is                       %0.3, character   <true>
+  lgl$-           %0.9  = Is                       %0.3, raw
+  lgl$-           %0.10 = Is                       %0.3, list
+  lgl$-           %0.11 = Is                       %0.3, expression
+  lgl$-           %0.12 = LOr                      %0.11, %0.10
+  lgl$-           %0.13 = LOr                      %0.12, %0.9
+  lgl$-           %0.14 = LOr                      %0.13, %0.8
+  lgl$-           %0.15 = LOr                      %0.14, %0.7
+  lgl$-           %0.16 = LOr                      %0.15, %0.6
+  lgl$-           %0.17 = LOr                      %0.16, %0.5
+  lgl$-           %0.18 = LOr                      %0.17, %0.4   <true>
+  lgl$#-          %0.19 = Identical                %0.18, true
+  int$-           %0.20 = Length                   %0.3
+  lgl$-           %0.21 = Is                       %0.3, Factor   <false>
+  lgl$#-          %0.22 = Identical                %0.21, false
+  lgl$#-          %0.23 = Identical                %0.8, true
+  lgl$#-          %0.24 = IsType                   %0.3 isA val?-
+  void                    Branch                   %0.24 -> BB30 (if true) | BB31 (if false)
+BB30   <- [0]
+  val?-           %30.0 = CastType           d     dn %0.3   <str$->
+  lgl$#-          %30.1 = IsEnvStub          R     , e0.2
+  void                    Branch                   %30.1 -> BB32 (if true) | BB33 (if false)
+BB31   <- [0]
+  void                    Nop                !     
+  val?            %31.1 = %0.3
+  dr              %31.2 = Typecheck@0x55804c6afa48[Type#0]
+  goto BB29
+BB32   <- [30]
+  void                    Branch                   %0.19 -> BB34 (if true) | BB35 (if false)
+BB33   <- [30]
+  void                    Nop                !     
+  env             e33.1 = e0.2
+  dr              %33.2 = EnvStubMaterialized@0x55804c6afa48[Call#unknown]
+  goto BB29
+BB29   <- [31, 33, 35, 37, 39, 41]
+  val?^ | miss    %29.0 = Phi                      %31.1:BB31, e33.1:BB33, %35.1:BB35, %37.1:BB37, %39.1:BB39, %41.1:BB41
+  val?^ | miss    %29.1 = %29.0
+  dr              %29.2 = Phi                      %31.2:BB31, %33.2:BB33, %35.2:BB35, %37.2:BB37, %39.2:BB39, %41.2:BB41
+  dr              %29.3 = %29.2
+  fs              %29.4 = FrameState         R     0x55804e9a4520+9: [%0.3], env=e0.2
+  void                    Deopt              !v    %29.4, %29.3, %29.1   !
+BB34   <- [32]
+  lgl$-           %34.0 = Eq                 d     %0.20, 1L, elided   <true>
+  lgl$#-          %34.1 = Identical                %34.0, true
+  void                    Branch                   %34.1 -> BB36 (if true) | BB37 (if false)
+BB35   <- [32]
+  void                    Nop                !     
+  lgl$#-          %35.1 = %0.19
+  dr              %35.2 = DeadBranchReached@0x55804c6afa48[Test#0]
+  goto BB29
+BB36   <- [34]
+  void                    Branch                   %0.22 -> BB38 (if true) | BB39 (if false)
+BB37   <- [34]
+  void                    Nop                !     
+  lgl$#-          %37.1 = %34.1
+  dr              %37.2 = DeadBranchReached@0x55804c6afa48[Test#1]
+  goto BB29
+BB38   <- [36]
+  void                    Branch                   %0.23 -> BB40 (if true) | BB41 (if false)
+BB39   <- [36]
+  void                    Nop                !     
+  lgl$#-          %39.1 = %0.22
+  dr              %39.2 = DeadBranchReached@0x55804c6afa48[Test#2]
+  goto BB29
+BB40   <- [38]
+  lgl-            %40.0 = CallSafeBuiltin    vwed  is.na(%30.0) 
+  lgl$#-          %40.1 = CheckTrueFalse     we    %40.0   <false>
+  void                    Branch                   %40.1 -> BB43 (if true) | BB42 (if false)
+BB41   <- [38]
+  void                    Nop                !     
+  lgl$#-          %41.1 = %0.23
+  dr              %41.2 = DeadBranchReached@0x55804c6afa48[Test#3]
+  goto BB29
+BB43   <- [40]
+  fs              %43.0 = FrameState         R     0x55804e9a4520+380: [%30.0, %40.1], env=e0.2
+  void                    Deopt              !v    %43.0, DeadBranchReached@0x55804c6afa48[Test#16], %40.1   !
+BB42   <- [40]
+  lgl-            %42.0 = Eq                 vwed  %30.0, =, elided
+  lgl$#-          %42.1 = CheckTrueFalse     we    %42.0   <false>
+  void                    Branch                   %42.1 -> BB45 (if true) | BB44 (if false)
+BB45   <- [42]
+  fs              %45.0 = FrameState         R     0x55804e9a4520+404: [%30.0, %42.1], env=e0.2
+  void                    Deopt              !v    %45.0, DeadBranchReached@0x55804c6afa48[Test#17], %42.1   !
+BB44   <- [42]
+  lgl-            %44.0 = Eq                 vwed  %30.0, <-, elided
+  lgl$#-          %44.1 = CheckTrueFalse     we    %44.0   <false>
+  void                    Branch                   %44.1 -> BB47 (if true) | BB46 (if false)
+BB47   <- [44]
+  fs              %47.0 = FrameState         R     0x55804e9a4520+422: [%30.0, %44.1], env=e0.2
+  void                    Deopt              !v    %47.0, DeadBranchReached@0x55804c6afa48[Test#18], %44.1   !
+BB46   <- [44]
+  lgl-            %46.0 = Eq                 vwed  %30.0, for, elided
+  lgl$#-          %46.1 = CheckTrueFalse     we    %46.0   <false>
+  void                    Branch                   %46.1 -> BB49 (if true) | BB48 (if false)
+BB49   <- [46]
+  fs              %49.0 = FrameState         R     0x55804e9a4520+440: [%30.0, %46.1], env=e0.2
+  void                    Deopt              !v    %49.0, DeadBranchReached@0x55804c6afa48[Test#19], %46.1   !
+BB48   <- [46]
+  lgl-            %48.0 = Eq                 vwed  %30.0, function, elided
+  lgl$#-          %48.1 = CheckTrueFalse     we    %48.0   <false>
+  void                    Branch                   %48.1 -> BB51 (if true) | BB50 (if false)
+BB51   <- [48]
+  fs              %51.0 = FrameState         R     0x55804e9a4520+458: [%30.0, %48.1], env=e0.2
+  void                    Deopt              !v    %51.0, DeadBranchReached@0x55804c6afa48[Test#20], %48.1   !
+BB50   <- [48]
+  lgl-            %50.0 = Eq                 vwed  %30.0, ~, elided
+  lgl$#-          %50.1 = CheckTrueFalse     we    %50.0   <false>
+  void                    Branch                   %50.1 -> BB53 (if true) | BB52 (if false)
+BB53   <- [50]
+  fs              %53.0 = FrameState         R     0x55804e9a4520+476: [%30.0, %50.1], env=e0.2
+  void                    Deopt              !v    %53.0, DeadBranchReached@0x55804c6afa48[Test#21], %50.1   !
+BB52   <- [50]
+  lgl-            %52.0 = Eq                 vwed  %30.0, local, elided
+  lgl$#-          %52.1 = CheckTrueFalse     we    %52.0   <false>
+  void                    Branch                   %52.1 -> BB55 (if true) | BB54 (if false)
+BB55   <- [52]
+  fs              %55.0 = FrameState         R     0x55804e9a4520+494: [%30.0, %52.1], env=e0.2
+  void                    Deopt              !v    %55.0, DeadBranchReached@0x55804c6afa48[Test#22], %52.1   !
+BB54   <- [52]
+  lgl-            %54.0 = Eq                 vwed  %30.0, bquote, elided
+  lgl$#-          %54.1 = CheckTrueFalse     we    %54.0   <false>
+  void                    Branch                   %54.1 -> BB57 (if true) | BB56 (if false)
+BB57   <- [54]
+  fs              %57.0 = FrameState         R     0x55804e9a4520+512: [%30.0, %54.1], env=e0.2
+  void                    Deopt              !v    %57.0, DeadBranchReached@0x55804c6afa48[Test#23], %54.1   !
+BB56   <- [54]
+  lgl-            %56.0 = Eq                 vwed  %30.0, expression, elided
+  lgl$#-          %56.1 = CheckTrueFalse     we    %56.0   <false>
+  void                    Branch                   %56.1 -> BB59 (if true) | BB58 (if false)
+BB59   <- [56]
+  fs              %59.0 = FrameState         R     0x55804e9a4520+530: [%30.0, %56.1], env=e0.2
+  void                    Deopt              !v    %59.0, DeadBranchReached@0x55804c6afa48[Test#24], %56.1   !
+BB58   <- [56]
+  lgl-            %58.0 = Eq                 vwed  %30.0, Quote, elided
+  lgl$#-          %58.1 = CheckTrueFalse     we    %58.0   <false>
+  void                    Branch                   %58.1 -> BB61 (if true) | BB60 (if false)
+BB61   <- [58]
+  fs              %61.0 = FrameState         R     0x55804e9a4520+548: [%30.0, %58.1], env=e0.2
+  void                    Deopt              !v    %61.0, DeadBranchReached@0x55804c6afa48[Test#25], %58.1   !
+BB60   <- [58]
+  lgl-            %60.0 = Eq                 vwed  %30.0, quote, elided
+  lgl$#-          %60.1 = CheckTrueFalse     we    %60.0   <false>
+  void                    Branch                   %60.1 -> BB63 (if true) | BB62 (if false)
+BB63   <- [60]
+  fs              %63.0 = FrameState         R     0x55804e9a4520+566: [%30.0, %60.1], env=e0.2
+  void                    Deopt              !v    %63.0, DeadBranchReached@0x55804c6afa48[Test#26], %60.1   !
+BB62   <- [60]
+  lgl-            %62.0 = Eq                 vwed  %30.0, delayedAssign, elided
+  lgl$#-          %62.1 = CheckTrueFalse     we    %62.0   <false>
+  void                    Branch                   %62.1 -> BB65 (if true) | BB64 (if false)
+BB65   <- [62]
+  fs              %65.0 = FrameState         R     0x55804e9a4520+584: [%30.0, %62.1], env=e0.2
+  void                    Deopt              !v    %65.0, DeadBranchReached@0x55804c6afa48[Test#27], %62.1   !
+BB64   <- [62]
+  lgl-            %64.0 = Eq                 vwed  %30.0, assign, elided
+  lgl$#-          %64.1 = CheckTrueFalse     we    %64.0   <false>
+  void                    Branch                   %64.1 -> BB67 (if true) | BB66 (if false)
+BB67   <- [64]
+  fs              %67.0 = FrameState         R     0x55804e9a4520+602: [%30.0, %64.1], env=e0.2
+  void                    Deopt              !v    %67.0, DeadBranchReached@0x55804c6afa48[Test#28], %64.1   !
+BB66   <- [64]
+  void                    Return             l     nil
+
+│ [0x55804e11dfa0]                                                             │
+└──────────────────────────────────────────────────────────────────────────────┘

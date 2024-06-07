@@ -1,0 +1,80 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ rir.compile[0x5609131d4460]                                                  │
+│ Context: CorrOrd,!TMany                                                      │
+│ Properties:  Eager                                                           │
+├────── Final PIR Version
+rir.compile[0x5609131d4460]
+BB0
+  env             e0.0  = MkEnv              l     parent=R_GlobalEnv, context 1
+  cls             %0.1  = MkCls                    rir.compile>cond@15, e0.0
+  void                    StVar              lW    cond, %0.1, e0.0
+  void                    StVar              lW    x, 1, e0.0
+  void                    StVar              lW    i, 1, e0.0
+  real$#-         %0.5  = 1
+  goto BB2
+BB2   <- [17, 0]
+  (real|complex)+ %2.0  = Phi                      %0.5:BB0, %17.3:BB17   <val?_>
+  (real|complex)+ %2.1  = %2.0
+  (cls|spec|blt)  %2.2  = LdFun              !v    cond, e0.0
+  val?            %2.3  = Call               !v    %2.2() e0.0   <val?_>
+  lgl$#-          %2.4  = IsType                   %2.3 isA val?+
+  void                    Branch                   %2.4 -> BB11 (if true) | BB12 (if false)
+BB11   <- [2]
+  val?+           %11.0 = CastType           d     dn %2.3   <val?_>
+  lgl             %11.1 = Lt                 wed   %2.1, %11.0, elided   <val?_>
+  lgl$#-          %11.2 = CheckTrueFalse     we    %11.1
+  void                    Branch                   %11.2 -> BB7 (if true) | BB4 (if false)
+BB12   <- [2]
+  fs              %12.0 = FrameState         R     0x560913206a80+194: [%2.1, %2.3], env=e0.0
+  void                    Deopt              !v    %12.0, Typecheck@0x5609121308e8[Type#6], %2.3   !
+BB7   <- [11]
+  val?^ | miss    %7.0  = LdVar              eR    i, e0.0
+  val?            %7.1  = Force!             !v    %7.0, e0.0   <val?_>
+  lgl$#-          %7.2  = IsType                   %7.1 isA val?+
+  void                    Branch                   %7.2 -> BB17 (if true) | BB18 (if false)
+BB4   <- [11]
+  val?^ | miss    %4.0  = LdVar              eR    i, e0.0
+  val?            %4.1  = Force!             !v    %4.0, e0.0   <val?_>
+  val?^ | miss    %4.2  = LdVar              eR    x, e0.0
+  void                    Visible            v     
+  val?            %4.4  = Force!             !     %4.2, e0.0   <val?_>
+  lgl$#-          %4.5  = IsType                   %4.4 isA val?+
+  lgl$#-          %4.6  = IsType                   %4.1 isA val?+
+  void                    Branch                   %4.6 -> BB13 (if true) | BB14 (if false)
+BB17   <- [7]
+  val?+           %17.0 = CastType           d     dn %7.1   <val?_>
+  (real|complex)+ %17.1 = Add                wed   %17.0, 1, elided   <val?_>
+  void                    StVar              lW    i, %17.1, e0.0
+  (real|complex)+ %17.3 = %17.1
+  goto BB2
+BB18   <- [7]
+  fs              %18.0 = FrameState         R     0x560913206a80+220: [%7.1], env=e0.0
+  void                    Deopt              !v    %18.0, Typecheck@0x5609121308e8[Type#8], %7.1   !
+BB13   <- [4]
+  val?+           %13.0 = CastType           d     dn %4.1   <val?_>
+  void                    Branch                   %4.5 -> BB15 (if true) | BB16 (if false)
+BB14   <- [4]
+  void                    Nop                !     
+  val?            %14.1 = %4.1
+  dr              %14.2 = Typecheck@0x5609121308e8[Type#10]
+  goto BB5
+BB15   <- [13]
+  val?+           %15.0 = CastType           d     dn %4.4   <val?_>
+  (int|real|complex)+ %15.1 = Add                vwed  %13.0, %15.0, elided   <val?_>
+  void                    Return             l     %15.1
+BB16   <- [13]
+  void                    Nop                !     
+  val?            %16.1 = %4.4
+  dr              %16.2 = Typecheck@0x5609121308e8[Type#11]
+  goto BB5
+BB5   <- [14, 16]
+  val?^ | miss    %5.0  = Phi                      %14.1:BB14, %16.1:BB16
+  val?^ | miss    %5.1  = %5.0
+  dr              %5.2  = Phi                      %14.2:BB14, %16.2:BB16
+  dr              %5.3  = %5.2
+  fs              %5.4  = FrameState         R     0x560913206a80+274: [%4.1, %4.4], env=e0.0
+  void                    Deopt              !v    %5.4, %5.3, %5.1   !
+
+│ rir.compile[0x5609131d4460]                                                  │
+└──────────────────────────────────────────────────────────────────────────────┘

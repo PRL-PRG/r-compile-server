@@ -1,0 +1,144 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ make.names[0x56150040b2e0]                                                   │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;Eager1,NonRefl0,NonRefl1,!Obj0,!Obj1 miss: 1│
+│ Properties:  ForceOrd: 0                                                     │
+├────── Final PIR Version
+make.names[0x56150040b2e0]
+BB0
+  val?~+          %0.0  = LdArg                    1
+  val?^           %0.1  = LdArg                    0
+  env             e0.2  = MkEnv              l     names=%0.1, unique=%0.0, allow_(miss)=true, parent=R_BaseNamespace, context 1
+  val+            %0.3  = Force!<lazy>       !vr   %0.1,    <str->
+  val+            %0.4  = CallSafeBuiltin    wed   as.character(%0.3)    <str->
+  void                    StVar              lW    names, %0.4, e0.2
+  val?            %0.6  = CallBuiltin        !v    make.names(%0.4, true) e0.2
+  void                    StVar              lW    names2, %0.6, e0.2
+  val?^ | miss    %0.8  = LdVar              eR    unique, e0.2
+  val?            %0.9  = Force!<value>      !v    %0.8, e0.2   <lgl$->
+  lgl$#-          %0.10 = CheckTrueFalse     we    %0.9
+  void                    Branch                   %0.10 -> BB7 (if true) | BB3 (if false)
+BB7   <- [0]
+  val?^ | miss    %7.0  = LdVar              eR    order, e0.2
+  lgl$#-          %7.1  = Identical                %7.0, function(..., na.last=TRUE, decreasing=FALSE, |...
+  void                    Branch                   %7.1 -> BB15 (if true) | BB16 (if false)
+BB3   <- [0]
+  void                    Nop                !     
+  goto BB4
+BB15   <- [7]
+  prom-           %15.0 = MkArg                    unboundValue, make.names[0x56150040b2e0]_p1, e0.2
+  val?            %15.1 = Call               !v    function(..., na.last=TRUE, decreasing=FALSE, |...(%15.0) e0.2   <int->
+  void                    StVar              lW    o, %15.1, e0.2
+  val?^ | miss    %15.3 = LdVar              eR    names2 !upd, e0.2
+  val?            %15.4 = Force!             !v    %15.3, e0.2
+  val?^ | miss    %15.5 = LdVar              eR    make.unique, e0.2
+  lgl$#-          %15.6 = Identical                %15.5, function(names, sep=".") <(rir::DispatchTable*|...
+  void                    Branch                   %15.6 -> BB17 (if true) | BB18 (if false)
+BB16   <- [7]
+  fs              %16.0 = FrameState         R     0x5615053098f0+170: [%0.10], env=e0.2
+  void                    Deopt              !v    %16.0, CallTarget@0x5615052a48e0[Call#1], %7.0   !
+BB4   <- [3, 23]
+  val?^ | miss    %4.0  = LdVar              eR    names2, e0.2
+  lgl$#-          %4.1  = IsType                   %4.0 isA val?~- | miss
+  void                    Branch                   %4.1 -> BB13 (if true) | BB14 (if false)
+BB17   <- [15]
+  prom-           %17.0 = MkArg                    unboundValue, make.names[0x56150040b2e0]_p2, e0.2
+  ct              %17.1 = PushContext        lCL   %17.0, make.unique([(names2, o)), function(names, sep=".") <(rir::DispatchTable*|..., e0.2
+  val?^           %17.2 = CastType                 up %17.0
+  env             e17.3 = MkEnv              l     names=%17.2, sep(miss)=".", parent=R_BaseNamespace, context 1
+  val?            %17.4 = Force!<lazy>       !vL   %17.2, e17.3   <str->
+  val?            %17.5 = CallBuiltin        !v    make.unique(%17.4, ".") e17.3
+  val?            %17.6 = PopContext         C     %17.5, %17.1   <str->
+  lgl$#-          %17.7 = IsType                   %17.6 isA val?-
+  val?^ | miss    %17.8 = LdVar              eR    names2 !upd, e0.2
+  lgl$#-          %17.9 = IsType                   %17.8 isA val?~- | miss
+  void                    Branch                   %17.9 -> BB19 (if true) | BB20 (if false)
+BB18   <- [15]
+  fs              %18.0 = FrameState         R     0x5615053098f0+235: [%15.4], env=e0.2
+  void                    Deopt              !v    %18.0, CallTarget@0x5615052a48e0[Call#2], %15.5   !
+BB13   <- [4]
+  val?~- | miss   %13.0 = CastType           d     dn %4.0
+  void                    Visible            v     
+  val?-           %13.2 = Force!<value>            %13.0,    <str->
+  void                    Return             l     %13.2
+BB14   <- [4]
+  fs              %14.0 = FrameState         R     0x5615053098f0+312: [], env=e0.2
+  void                    Deopt              !v    %14.0, Typecheck@0x5615052a48e0[Type#17], %4.0   !
+BB19   <- [17]
+  val?~- | miss   %19.0 = CastType           d     dn %17.8
+  val?-           %19.1 = Force!<value>            %19.0,    <str->
+  val?^ | miss    %19.2 = LdVar              eR    o, e0.2
+  lgl$#-          %19.3 = IsType                   %19.2 isA int-
+  void                    Branch                   %19.3 -> BB21 (if true) | BB22 (if false)
+BB20   <- [17]
+  void                    Nop                !     
+  val?^ | miss    %20.1 = %17.8
+  dr              %20.2 = Typecheck@0x5615052a48e0[Type#15]
+  goto BB10
+BB21   <- [19]
+  int-            %21.0 = CastType           d     dn %19.2
+  void                    Branch                   %17.7 -> BB23 (if true) | BB24 (if false)
+BB22   <- [19]
+  void                    Nop                !     
+  val?^ | miss    %22.1 = %19.2
+  dr              %22.2 = Typecheck@0x5615052a48e0[Type#16]
+  goto BB10
+BB10   <- [20, 22, 24]
+  val?^ | miss    %10.0 = Phi                      %20.1:BB20, %22.1:BB22, %24.1:BB24
+  val?^ | miss    %10.1 = %10.0
+  dr              %10.2 = Phi                      %20.2:BB20, %22.2:BB22, %24.2:BB24
+  dr              %10.3 = %10.2
+  fs              %10.4 = FrameState         R     0x5615053098f0+269: [%17.6], env=e0.2
+  void                    Deopt              !v    %10.4, %10.3, %10.1   !
+BB23   <- [21]
+  val?-           %23.0 = CastType           d     dn %17.6   <str->
+  val?-           %23.1 = Subassign1_1D      wed   %23.0, %19.1, %21.0, elided
+  void                    StVar              lW    names2, %23.1, e0.2
+  goto BB4
+BB24   <- [21]
+  void                    Nop                !     
+  val?            %24.1 = %17.6
+  dr              %24.2 = Typecheck@0x5615052a48e0[Type#14]
+  goto BB10
+Prom 1:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    names, e0.0
+  val?            %0.2  = Force<value>       !v    %0.1, e0.0   <str->
+  val?^ | miss    %0.3  = LdVar              eR    names2, e0.0
+  void                    Visible            v     
+  val?            %0.5  = Force<value>       !     %0.3, e0.0   <str->
+  val?            %0.6  = Neq                !     %0.2, %0.5, e0.0   <lgl->
+  void                    Return             l     %0.6
+Prom 2:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    names2, e0.0
+  val?            %0.2  = Force<value>       !v    %0.1, e0.0   <str->
+  lgl$#-          %0.3  = IsType                   %0.2 isA val+   <true>
+  void                    Branch                   %0.3 -> BB2 (if true) | BB4 (if false)
+BB2   <- [0]
+  val?^ | miss    %2.0  = LdVar              eR    o, e0.0
+  val?            %2.1  = Force<value>       !v    %2.0, e0.0   <int->
+  val?            %2.2  = %2.1
+  goto BB3
+BB4   <- [0]
+  prom-           %4.0  = MkArg                    unboundValue, make.names[0x56150040b2e0]_p3, e0.0
+  prom-           %4.1  = %4.0
+  goto BB3
+BB3   <- [4, 2]
+  val?            %3.0  = Phi                      %2.2:BB2, %4.1:BB4
+  val?            %3.1  = %3.0
+  val?            %3.2  = Extract1_1D        !v    %0.2, %3.1, e0.0   <str->
+  void                    Visible            v     
+  void                    Return             l     %3.2
+Prom 3:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    o, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+
+│ make.names[0x56150040b2e0]                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘

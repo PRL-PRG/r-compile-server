@@ -1,0 +1,69 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ nextRandom[0x55cfa9071d70]                                                   │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch                                      │
+│ Properties:  Eager                                                           │
+├────── PIR Version After Optimizations
+nextRandom[0x55cfa9071d70]
+BB0
+  goto BB1
+BB1   <- [0]
+  cp              %1.0  = Checkpoint                -> BB2 (default) | BB7 (if assume failed)
+BB2   <- [1]
+  val?^ | miss    %2.0  = LdVar              eR    bitwAnd, ?
+  lgl$#-          %2.1  = Identical                %2.0, function(a, b) <(rir::DispatchTable*)0x55cfa87|...
+  void                    Assume             D     %2.1, %1.0 (CallTarget@0x55cfa9a4c188[Call#0])
+  val?^ | miss    %2.3  = LdVar              eR    seed, ?
+  lgl$#-          %2.4  = IsType                   %2.3 isA val?~- | miss
+  void                    Assume             D     %2.4, %1.0 (Typecheck@0x55cfa9a4c188[Type#0])
+  val?~- | miss   %2.6  = CastType           d     dn %2.3
+  val?-           %2.7  = Force!<value>            %2.6,    <(int|real)$->
+  (real|complex)- %2.8  = Mul                wed   %2.7, 1309, elided   <real$->
+  lgl$#-          %2.9  = IsType                   %2.8 isA real$-
+  cp              %2.10 = Checkpoint                -> BB4 (default) | BB3 (if assume failed)
+BB7   <- [1]
+  env             e7.0  = (MkEnv)            l     parent=?, context 1
+  fs              %7.1  = FrameState         R     0x55cfa8a47de0+0: [], env=e7.0
+  void                    Deopt              !v    %7.1
+BB4   <- [2]
+  void                    Assume             D     %2.9, %2.10 (Typecheck@0x55cfa9a4c188[Type#1])
+  real$-          %4.1  = CastType           d     dn %2.8
+  real$-          %4.2  = Add                d     %4.1, 13849, elided   <real$->
+  int$-           %4.3  = CallSafeBuiltin    wed   bitwiseAnd(%4.2, 65535)    <int$->
+  env             e4.4  = (MkEnv)            l     parent=?, context 1
+  void                    StVarSuper         lRW   seed, %4.3, e4.4
+  cp              %4.6  = Checkpoint                -> BB6 (default) | BB5 (if assume failed)
+BB3   <- [2]
+  env             e3.0  = (MkEnv)            l     parent=?, context 1
+  env             e3.1  = MaterializeEnv           , e3.0   <@?>
+  prom-           %3.2  = MkArg                    unboundValue, nextRandom[0x55cfa9071d70]_p0, e3.1
+  val?^           %3.3  = CastType                 up %3.2
+  fs              %3.4  = FrameState         R     0x55cfa8a47de0+37: [], env=e3.1
+  env             e3.5  = (MkEnv)            l     b=65535, a=%3.3, parent=R_BaseNamespace, context 0
+  fs              %3.6  = FrameState         R     0x55cfa871e980+9: [], env=e3.5, next=%3.4
+  fs              %3.7  = FrameState         R     0x55cfa9c10b40+17(pr): [%2.8], env=e3.1, next=%3.6
+  void                    Deopt              !v    %3.7   !
+BB6   <- [4]
+  val?^ | miss    %6.0  = LdVar              eRd   seed, ?
+  lgl$#-          %6.1  = IsType                   %6.0 isA int$-
+  void                    Assume             D     %6.1, %4.6 (Typecheck@0x55cfa9a4c188[Type#4])
+  int$-           %6.3  = CastType           d     dn %6.0
+  void                    Visible            v     
+  void                    Return             l     %6.3
+BB5   <- [4]
+  fs              %5.0  = FrameState         R     0x55cfa8a47de0+47: [], env=e4.4
+  void                    Deopt              !v    %5.0   !
+Prom 0:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    seed, e1.0
+  val?            %1.2  = Force<value>       !v    %1.1, e1.0   <(int|real)$->
+  val?            %1.3  = Mul                !v    %1.2, 1309, e1.0   <real$->
+  void                    Visible            v     
+  val?            %1.5  = Add                !     %1.3, 13849, e1.0   <real$->
+  void                    Return             l     %1.5
+
+│ nextRandom[0x55cfa9071d70]                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘

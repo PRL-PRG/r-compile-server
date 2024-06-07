@@ -1,0 +1,88 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ slot<-[0x56039d596190]                                                       │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;Eager2,NonRefl0,NonRefl1,NonRefl2,NonRefl3,!Obj1,!Obj2,!Obj3│
+│ Properties:  ForceOrd: 2                                                     │
+├────── PIR Version After Optimizations
+slot<-[0x56039d596190]
+BB0
+  goto BB1
+BB1   <- [0]
+  val?^           %1.0  = LdArg                    3
+  val?~+          %1.1  = LdArg                    2
+  val?^           %1.2  = LdArg                    1
+  val?^           %1.3  = LdArg                    0
+  val+            %1.4  = Force<lazy>              %1.1,    <lgl$->
+  lgl$#-          %1.5  = IsType                   %1.4 isA lgl$-
+  cp              %1.6  = Checkpoint                -> BB2 (default) | BB8 (if assume failed)
+BB2   <- [1]
+  void                    Assume             D     %1.5, %1.6 (Typecheck@0x56039c0e0df0[Type#0])
+  lgl$-           %2.1  = CastType           d     dn %1.4
+  lgl$#-          %2.2  = CheckTrueFalse     e     %2.1
+  env             e2.3  = MkEnv              l     object=%1.3, name=%1.2, check=%1.1, value=%1.0, parent=<env 0x560396017378>, context 1
+  void                    Branch                   %2.2 -> BB7 (if true) | BB3 (if false)
+BB8   <- [1]
+  env             e8.0  = (MkEnv)            l     object=%1.3, name=%1.2, check=%1.1, value=%1.0, parent=<env 0x560396017378>, context 1
+  fs              %8.1  = FrameState         R     0x560399b42670+9: [%1.4], env=e8.0
+  void                    Deopt              !v    %8.1
+BB7   <- [2]
+  val?^ | miss    %7.0  = LdVar              eR    checkSlotAssignment, <env 0x560396017378>
+  lgl$#-          %7.1  = Identical                %7.0, function(obj, name, value) <(rir::DispatchTabl|...
+  void                    Assume             D     %7.1, %1.6 (CallTarget@0x56039c0e0df0[Call#0])
+  prom-           %7.3  = MkArg                    unboundValue, slot<-[0x56039d596190]_p0 (!refl), e2.3
+  prom-           %7.4  = MkArg                    unboundValue, slot<-[0x56039d596190]_p1 (!refl), e2.3
+  prom-           %7.5  = MkArg                    unboundValue, slot<-[0x56039d596190]_p2 (!refl), e2.3
+  val?            %7.6  = StaticCall         !v    checkSlotAssignment[0x56039800af40](%7.3, %7.4, %7.5) e2.3   <val?+>
+  void                    StVar              lW    value, %7.6, e2.3
+  goto BB4
+BB3   <- [2]
+  goto BB4
+BB4   <- [3, 7]
+  cp              %4.0  = Checkpoint                -> BB6 (default) | BB5 (if assume failed)
+BB6   <- [4]
+  val?^ | miss    %6.0  = LdVar              eR    .Call, e2.3
+  lgl$#-          %6.1  = Identical                <blt .Call>, %6.0   <true>
+  void                    Assume             D     %6.1, %4.0 (DeadBranchReached@0x56039c0e0df0[Test#0])
+  val?^ | miss    %6.3  = LdVar              eR    C_R_set_slot, e2.3
+  val?            %6.4  = Force!<value>      !v    %6.3, e2.3   <vec>
+  val?^ | miss    %6.5  = LdVar              eR    object, e2.3
+  val?            %6.6  = Force!<lazy>       !v    %6.5, e2.3   <other>
+  val?^ | miss    %6.7  = LdVar              eR    name, e2.3
+  val?            %6.8  = Force!<lazy>       !v    %6.7, e2.3   <str$->
+  val?^ | miss    %6.9  = LdVar              eR    value, e2.3
+  val?            %6.10 = Force!<lazy>       !v    %6.9, e2.3   <val?+>
+  val?            %6.11 = CallBuiltin        !     .Call(%6.4, %6.6, %6.8, %6.10) e2.3   <other>
+  void                    Return             l     %6.11
+BB5   <- [4]
+  fs              %5.0  = FrameState         R     0x560399b42670+81: [], env=e2.3
+  void                    Deopt              !v    %5.0   !
+Prom 0:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    object, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<lazy>        !     %1.1, e1.0   <other>
+  void                    Return             l     %1.3
+Prom 1:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    name, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<lazy>        !     %1.1, e1.0   <str$->
+  void                    Return             l     %1.3
+Prom 2:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    value, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<lazy>        !     %1.1, e1.0   <val?+>
+  void                    Return             l     %1.3
+
+│ slot<-[0x56039d596190]                                                       │
+└──────────────────────────────────────────────────────────────────────────────┘

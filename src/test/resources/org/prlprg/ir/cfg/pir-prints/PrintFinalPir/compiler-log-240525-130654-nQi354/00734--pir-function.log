@@ -1,0 +1,23 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ [0x55804e0f7c40]                                                             │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;NonRefl0,NonRefl1,!Obj0,!Obj1        │
+│ Properties:                                                                  │
+├────── Final PIR Version
+[0x55804e0f7c40]
+BB0
+  val?^           %0.0  = LdArg                    1
+  val?^           %0.1  = LdArg                    0
+  val?^ | miss    %0.2  = LdVar              eR    character, ?
+  lgl$#-          %0.3  = Identical                %0.2, function(length=0L) <(rir::DispatchTable*)0x55|...
+  void                    Branch                   %0.3 -> BB4 (if true) | BB5 (if false)
+BB4   <- [0]
+  str-            %4.0  = CallSafeBuiltin    vwed  vector("character", 0)    <str->
+  void                    Return             l     %4.0
+BB5   <- [0]
+  env             e5.0  = (MkEnv)            l     w=%0.0, e=%0.1, parent=?, context 1
+  fs              %5.1  = FrameState         R     0x55804e1eacd0+0: [], env=e5.0
+  void                    Deopt              !v    %5.1, CallTarget@0x55804ead1dd8[Call#0], %0.2   !
+
+│ [0x55804e0f7c40]                                                             │
+└──────────────────────────────────────────────────────────────────────────────┘

@@ -1,0 +1,263 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ rownames<-[0x5614fd0b01b0]                                                   │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;Eager0,Eager1,NonRefl0,NonRefl1      │
+│ Properties:                                                                  │
+├────── Final PIR Version
+rownames<-[0x5614fd0b01b0]
+BB0
+  val?~           %0.0  = LdArg                    1
+  val?~           %0.1  = LdArg                    0
+  env             e0.2  = MkEnv              l     x=%0.1, value=%0.0, parent=R_BaseNamespace, context 1
+  prom-           %0.3  = MkArg                    unboundValue, rownames<-[0x5614fd0b01b0]_p0 (!refl), e0.2
+  ct              %0.4  = PushContext        lCL   %0.3, is.data.frame(x), function(x) <(rir::DispatchTable*)0x5614f93266|..., e0.2
+  val?^           %0.5  = CastType                 up %0.3
+  env             e0.6  = MkEnv              l     x=%0.5, parent=R_BaseNamespace, context 1
+  prom-           %0.7  = MkArg                    unboundValue, rownames<-[0x5614fd0b01b0]_p2, e0.6
+  ct              %0.8  = PushContext        lCL   %0.7, "data.frame", inherits(x, "data.frame"), function(x, what, which=FALSE) <(rir::Dispatch|..., e0.6
+  val?^           %0.9  = CastType                 up %0.7
+  env             e0.10 = MkEnv              l     x=%0.9, what="data.frame", which(miss)=false, parent=R_BaseNamespace, context 1
+  val?            %0.11 = Force!<lazy>       !vr   %0.9,    <val?>
+  val?            %0.12 = CallBuiltin        !v    inherits(%0.11, "data.frame", false) e0.10
+  val?            %0.13 = PopContext         C     %0.12, %0.8   <lgl$->
+  lgl$#-          %0.14 = IsType                   %0.13 isA lgl$-
+  void                    Branch                   %0.14 -> BB36 (if true) | BB37 (if false)
+BB36   <- [0]
+  lgl$-           %36.0 = CastType           d     dn %0.13
+  val?            %36.1 = PopContext         C     %36.0, %0.4   <lgl$->
+  lgl$#-          %36.2 = IsType                   %36.1 isA lgl$-
+  void                    Branch                   %36.2 -> BB38 (if true) | BB39 (if false)
+BB37   <- [0]
+  fs              %37.0 = FrameState         R     0x5614fe5964f0+32: [], env=e0.2
+  fs              %37.1 = FrameState         R     0x5614fa18c410+37: [%0.13], env=e0.6, next=%37.0
+  void                    Deopt              !v    %37.1, Typecheck@0x561504e0fc58[Type#1], %0.13   !
+BB38   <- [36]
+  lgl$-           %38.0 = CastType           d     dn %36.1
+  lgl$#-          %38.1 = CheckTrueFalse     e     %38.0
+  void                    Branch                   %38.1 -> BB34 (if true) | BB5 (if false)
+BB39   <- [36]
+  void                    Nop                !     
+  val?            %39.1 = %36.1
+  dr              %39.2 = Typecheck@0x5614ff98ca38[Type#1]
+  goto BB3
+BB34   <- [38]
+  val?^ | miss    %34.0 = LdVar              eR    value, e0.2
+  val?            %34.1 = Force!             !v    %34.0, e0.2   <val?_>
+  (cls|spec|blt)  %34.2 = LdFun              !v    row.names<-, e0.2
+  fs              %34.3 = FrameState         R     0x5614fe5964f0+970: [%34.1, %34.2], env=e0.2
+  void                    Deopt              !v    %34.3, DeadCall@0x5614ff98ca38[Call#11], %34.2   !
+BB5   <- [38]
+  val?^ | miss    %5.0  = LdVar              eR    dimnames, e0.2
+  lgl$#-          %5.1  = Identical                <blt dimnames>, %5.0   <true>
+  void                    Branch                   %5.1 -> BB40 (if true) | BB41 (if false)
+BB3   <- [39, 41]
+  val?^ | miss    %3.0  = Phi                      %39.1:BB39, %41.1:BB41
+  val?^ | miss    %3.1  = %3.0
+  dr              %3.2  = Phi                      %39.2:BB39, %41.2:BB41
+  dr              %3.3  = %3.2
+  fs              %3.4  = FrameState         R     0x5614fe5964f0+32: [%36.1], env=e0.2
+  void                    Deopt              !v    %3.4, %3.3, %3.1   !
+BB40   <- [5]
+  val?^ | miss    %40.0 = LdVar              eR    x, e0.2
+  val?            %40.1 = Force!<value>      !v    %40.0, e0.2   <other>
+  val?            %40.2 = CallBuiltin        !v    dimnames(%40.1) e0.2   <vec->
+  lgl$-           %40.3 = Is                       %40.2, NULL
+  void                    StVar              lW    dn, %40.2, e0.2
+  val             %40.5 = ChkMissing         e     %40.2
+  lgl$#-          %40.6 = CheckTrueFalse     e     %40.3
+  void                    Branch                   %40.6 -> BB23 (if true) | BB8 (if false)
+BB41   <- [5]
+  void                    Nop                !     
+  lgl$#-          %41.1 = %5.1
+  dr              %41.2 = DeadBranchReached@0x5614ff98ca38[Test#0]
+  goto BB3
+BB23   <- [40]
+  val?^ | miss    %23.0 = LdVar              eR    value, e0.2
+  val?            %23.1 = Force!             !v    %23.0, e0.2   <val?_>
+  lgl$-           %23.2 = Is                       %23.1, NULL
+  lgl$#-          %23.3 = CheckTrueFalse     e     %23.2
+  void                    Branch                   %23.3 -> BB33 (if true) | BB24 (if false)
+BB8   <- [40]
+  val?^ | miss    %8.0  = LdVar              eR    length, e0.2
+  lgl$#-          %8.1  = Identical                <blt length>, %8.0   <true>
+  void                    Branch                   %8.1 -> BB42 (if true) | BB43 (if false)
+BB33   <- [23]
+  val?^ | miss    %33.0 = LdVar              eR    x, e0.2
+  void                    Visible            v     
+  val?            %33.2 = Force!             !     %33.0, e0.2   <val?_>
+  val?            %33.3 = %33.2
+  goto BB16
+BB24   <- [23]
+  val?^ | miss    %24.0 = LdVar              eR    length, e0.2
+  lgl$#-          %24.1 = Identical                <blt length>, %24.0   <@?>
+  void                    Branch                   %24.1 -> BB26 (if true) | BB25 (if false)
+BB42   <- [8]
+  lgl$#-          %42.0 = IsType                   %40.2 isA val?-
+  void                    Branch                   %42.0 -> BB44 (if true) | BB45 (if false)
+BB43   <- [8]
+  void                    Nop                !     
+  lgl$#-          %43.1 = %8.1
+  dr              %43.2 = DeadBranchReached@0x5614ff98ca38[Test#3]
+  goto BB6
+BB16   <- [33, 15]
+  val?            %16.0 = Phi                      %15.10:BB15, %33.3:BB33
+  val?            %16.1 = %16.0
+  void                    Return             l     %16.1
+BB26   <- [24]
+  val?^ | miss    %26.0 = LdVar              eR    dim, e0.2
+  lgl$#-          %26.1 = Identical                <blt dim>, %26.0   <@?>
+  void                    Branch                   %26.1 -> BB28 (if true) | BB27 (if false)
+BB25   <- [24]
+  (cls|spec|blt)  %25.0 = LdFun              !v    length, e0.2
+  fs              %25.1 = FrameState         R     0x5614fe5964f0+251: [%25.0], env=e0.2
+  void                    Deopt              !v    %25.1, DeadCall@0x5614ff98ca38[Call#2], %25.0   !
+BB44   <- [42]
+  val?-           %44.0 = CastType           d     dn %40.2   <vec->
+  (int|real)$-    %44.1 = CallSafeBuiltin    wed   length(%44.0)    <int$->
+  lgl$#-          %44.2 = IsType                   %44.1 isA int$-
+  void                    Branch                   %44.2 -> BB46 (if true) | BB47 (if false)
+BB45   <- [42]
+  void                    Nop                !     
+  val?            %45.1 = %40.2
+  dr              %45.2 = Typecheck@0x5614ff98ca38[Type#4]
+  goto BB6
+BB6   <- [43, 45]
+  val?^ | miss    %6.0  = Phi                      %43.1:BB43, %45.1:BB45
+  val?^ | miss    %6.1  = %6.0
+  dr              %6.2  = Phi                      %43.2:BB43, %45.2:BB45
+  dr              %6.3  = %6.2
+  fs              %6.4  = FrameState         R     0x5614fe5964f0+148: [], env=e0.2
+  void                    Deopt              !v    %6.4, %6.3, %6.1   !
+BB28   <- [26]
+  val?^ | miss    %28.0 = LdVar              eR    x, e0.2
+  val?            %28.1 = Force!             !v    %28.0, e0.2   <val?_>
+  lgl$#-          %28.2 = IsType                   %28.1 isA val?+
+  void                    Branch                   %28.2 -> BB48 (if true) | BB49 (if false)
+BB27   <- [26]
+  (cls|spec|blt)  %27.0 = LdFun              !v    dim, e0.2
+  fs              %27.1 = FrameState         R     0x5614fe5964f0+311: [<blt length>, %27.0], env=e0.2
+  void                    Deopt              !v    %27.1, DeadCall@0x5614ff98ca38[Call#4], %27.0   !
+BB46   <- [44]
+  int$-           %46.0 = CastType           d     dn %44.1
+  lgl$-           %46.1 = Lt                 d     %46.0, 1L, elided   <lgl$->
+  lgl$#-          %46.2 = CheckTrueFalse     e     %46.1
+  void                    Branch                   %46.2 -> BB22 (if true) | BB11 (if false)
+BB47   <- [44]
+  fs              %47.0 = FrameState         R     0x5614fe5964f0+611: [%44.1], env=e0.2
+  void                    Deopt              !v    %47.0, Typecheck@0x5614ff98ca38[Type#19], %44.1   !
+BB48   <- [28]
+  val?+           %48.0 = CastType           d     dn %28.1   <val?_>
+  val+            %48.1 = CallSafeBuiltin    wed   dim(%48.0)    <val?_>
+  real$-          %48.2 = CallSafeBuiltin    wed   length(%48.1)    <val?_>
+  void                    StVar              lW    nd, %48.2, e0.2
+  lgl$-           %48.4 = Lt                 d     %48.2, 1L, elided   <val?_>
+  lgl$#-          %48.5 = CheckTrueFalse     e     %48.4
+  void                    Branch                   %48.5 -> BB32 (if true) | BB31 (if false)
+BB49   <- [28]
+  fs              %49.0 = FrameState         R     0x5614fe5964f0+352: [<blt length>, <blt dim>, %28.1], env=e0.2
+  void                    Deopt              !v    %49.0, Typecheck@0x5614ff98ca38[Type#11], %28.1   !
+BB22   <- [46]
+  (cls|spec|blt)  %22.0 = LdFun              !v    stop, e0.2
+  fs              %22.1 = FrameState         R     0x5614fe5964f0+644: [%22.0], env=e0.2
+  void                    Deopt              !v    %22.1, DeadCall@0x5614ff98ca38[Call#8], %22.0   !
+BB11   <- [46]
+  val?^ | miss    %11.0 = LdVar              eR    value, e0.2
+  val?            %11.1 = Force!<wrapped>    !v    %11.0, e0.2   <str->
+  lgl$-           %11.2 = Is                       %11.1, NULL
+  lgl$#-          %11.3 = CheckTrueFalse     e     %11.2
+  void                    Branch                   %11.3 -> BB17 (if true) | BB12 (if false)
+BB32   <- [48]
+  (cls|spec|blt)  %32.0 = LdFun              !v    stop, e0.2
+  fs              %32.1 = FrameState         R     0x5614fe5964f0+441: [%32.0], env=e0.2
+  void                    Deopt              !v    %32.1, DeadCall@0x5614ff98ca38[Call#5], %32.0   !
+BB31   <- [48]
+  (cls|spec|blt)  %31.0 = LdFun              !v    vector, e0.2
+  fs              %31.1 = FrameState         R     0x5614fe5964f0+474: [%31.0], env=e0.2
+  void                    Deopt              !v    %31.1, DeadCall@0x5614ff98ca38[Call#6], %31.0   !
+BB17   <- [11]
+  val?^ | miss    %17.0 = LdVar              eR    list, e0.2
+  lgl$#-          %17.1 = Identical                <blt list>, %17.0   <@?>
+  void                    Branch                   %17.1 -> BB19 (if true) | BB18 (if false)
+BB12   <- [11]
+  val?^ | miss    %12.0 = LdVar              eR    value, e0.2
+  val?            %12.1 = Force!<wrapped>    !v    %12.0, e0.2   <str->
+  lgl$#-          %12.2 = IsType                   %12.1 isA val?-
+  val?^ | miss    %12.3 = LdVar              eR    dn !upd, e0.2
+  lgl$#-          %12.4 = IsType                   %12.3 isA val?~- | miss
+  void                    Branch                   %12.4 -> BB50 (if true) | BB51 (if false)
+BB19   <- [17]
+  val+            %19.0 = CallSafeBuiltin    wed   list(nil)    <val?_>
+  val?^ | miss    %19.1 = LdVar              eR    dn !upd, e0.2
+  val?            %19.2 = Force!             !v    %19.1, e0.2   <val?_>
+  lgl$#-          %19.3 = IsType                   %19.2 isA val?+
+  void                    Branch                   %19.3 -> BB52 (if true) | BB53 (if false)
+BB18   <- [17]
+  (cls|spec|blt)  %18.0 = LdFun              !v    list, e0.2
+  fs              %18.1 = FrameState         R     0x5614fe5964f0+774: [%18.0], env=e0.2
+  void                    Deopt              !v    %18.1, DeadCall@0x5614ff98ca38[Call#9], %18.0   !
+BB50   <- [12]
+  val?~- | miss   %50.0 = CastType           d     dn %12.3
+  val?-           %50.1 = Force!<value>            %50.0,    <vec->
+  void                    Branch                   %12.2 -> BB54 (if true) | BB55 (if false)
+BB51   <- [12]
+  void                    Nop                !     
+  val?^ | miss    %51.1 = %12.3
+  dr              %51.2 = Typecheck@0x5614ff98ca38[Type#23]
+  goto BB13
+BB52   <- [19]
+  val?+           %52.0 = CastType           d     dn %19.2   <val?_>
+  val?+           %52.1 = Subassign1_1D      wed   %19.0, %52.0, 1L, elided
+  void                    StVar              lW    dn, %52.1, e0.2
+  val?+           %52.3 = %52.1
+  goto BB15
+BB53   <- [19]
+  fs              %53.0 = FrameState         R     0x5614fe5964f0+843: [%19.0, %19.2], env=e0.2
+  void                    Deopt              !v    %53.0, Typecheck@0x5614ff98ca38[Type#25], %19.2   !
+BB54   <- [50]
+  val?-           %54.0 = CastType           d     dn %12.1   <str->
+  val?-           %54.1 = Subassign2_1D      wed   %54.0, %50.1, 1L, elided
+  void                    StVar              lW    dn, %54.1, e0.2
+  val?-           %54.3 = %54.1
+  goto BB15
+BB55   <- [50]
+  void                    Nop                !     
+  val?            %55.1 = %12.1
+  dr              %55.2 = Typecheck@0x5614ff98ca38[Type#22]
+  goto BB13
+BB13   <- [51, 55]
+  val?^ | miss    %13.0 = Phi                      %51.1:BB51, %55.1:BB55
+  val?^ | miss    %13.1 = %13.0
+  dr              %13.2 = Phi                      %51.2:BB51, %55.2:BB55
+  dr              %13.3 = %13.2
+  fs              %13.4 = FrameState         R     0x5614fe5964f0+706: [%12.1], env=e0.2
+  void                    Deopt              !v    %13.4, %13.3, %13.1   !
+BB15   <- [52, 54]
+  val?+           %15.0 = Phi                      %52.3:BB52, %54.3:BB54
+  val?+           %15.1 = %15.0
+  val+            %15.2 = ChkMissing         e     %15.1   <vec->
+  (cls|spec|blt)  %15.3 = LdFun              !v    dimnames<-, <0x5614f88a7358>, e0.2
+  val?^ | miss    %15.4 = LdVar              eR    x, e0.2
+  val?            %15.5 = Force!<value>      !v    %15.4, e0.2   <other>
+  val?            %15.6 = NamedCall          !v    %15.3(%15.5, value=%15.2) e0.2   <other>
+  void                    StVar              lW    x, %15.6, e0.2
+  val             %15.8 = ChkMissing         e     %15.6
+  void                    Visible            v     
+  val?            %15.10 = %15.6
+  goto BB16
+Prom 0:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    x, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<value>       !     %0.1, e0.0   <other>
+  void                    Return             l     %0.3
+Prom 2:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    x, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <val?>
+  void                    Return             l     %0.3
+
+│ rownames<-[0x5614fd0b01b0]                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘

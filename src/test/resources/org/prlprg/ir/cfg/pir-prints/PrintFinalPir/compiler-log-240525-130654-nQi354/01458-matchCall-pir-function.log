@@ -1,0 +1,46 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ matchCall[0x55804eda9be0]                                                    │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch miss: 1                              │
+│ Properties:                                                                  │
+├────── Final PIR Version
+matchCall[0x55804eda9be0]
+BB0
+  val?^           %0.0  = LdArg                    1
+  val?^           %0.1  = LdArg                    0
+  env             e0.2  = MkEnv              l     def=%0.1, call=%0.0, ...(miss)=missingArg, parent=<env 0x55804e699488>, context 1
+  cls             %0.3  = MkCls                    fun, e0.2
+  void                    StVar              lW    fun, %0.3, e0.2
+  ct              %0.5  = PushContext        lCL   fun(), %0.3, e0.2
+  val?^ | miss    %0.6  = LdVar              eR    match.call, <env 0x55804e699488>
+  lgl$#-          %0.7  = Identical                %0.6, function(definition=sys.function(sys.parent())|...
+  void                    Branch                   %0.7 -> BB4 (if true) | BB5 (if false)
+BB4   <- [0]
+  env             e4.0  = MkEnv              l     ...(miss)=missingArg, parent=e0.2, context 1
+  prom-           %4.1  = MkArg                    unboundValue, matchCall[0x55804eda9be0]_p0, e4.0
+  prom-           %4.2  = MkArg                    unboundValue, matchCall[0x55804eda9be0]_p1, e4.0
+  val?            %4.3  = StaticCall         !     match.call[0x55804f043f90](%4.1, %4.2, false) e4.0   <code->
+  val?            %4.4  = PopContext         C     %4.3, %0.5   <code->
+  void                    Return             l     %4.4
+BB5   <- [0]
+  fs              %5.0  = FrameState         R     0x55804e631d90+52: [], env=e0.2
+  env             e5.1  = (MkEnv)            l     ...(miss)=missingArg, parent=e0.2, context 1
+  fs              %5.2  = FrameState         R     0x55804e3415c0+0: [], env=e5.1, next=%5.0
+  void                    Deopt              !v    %5.2, CallTarget@0x55804f22af68[Call#0], %0.6   !
+Prom 0:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    def, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <cls->
+  void                    Return             l     %0.3
+Prom 1:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    call, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <code->
+  void                    Return             l     %0.3
+
+│ matchCall[0x55804eda9be0]                                                    │
+└──────────────────────────────────────────────────────────────────────────────┘

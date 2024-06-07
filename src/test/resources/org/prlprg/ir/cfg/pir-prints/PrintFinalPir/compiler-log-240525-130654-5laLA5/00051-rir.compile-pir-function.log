@@ -1,0 +1,158 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ rir.compile[0x560912d3efe0]                                                  │
+│ Context: CorrOrd,!TMany                                                      │
+│ Properties:  Eager                                                           │
+├────── Final PIR Version
+rir.compile[0x560912d3efe0]
+BB0
+  int-            %0.0  = Colon              d     1L, 10L, elided   <val?_>
+  int-            %0.1  = Colon              d     1L, 10L, elided   <val?_>
+  int$-           %0.2  = Extract1_1D        wed   %0.0, 1, elided   <val?_>
+  int$-           %0.3  = Extract1_1D        wed   %0.0, 10, elided   <val?_>
+  int$-           %0.4  = Add                d     %0.2, %0.3, elided   <val?_>
+  int-            %0.5  = Subassign1_1D      wed   %0.4, %0.1, 1, elided
+  env             e0.6  = MkEnv              l     i=1, x=%0.0, y=%0.5, p=1, parent=R_GlobalEnv, context 1
+  goto BB2
+BB2   <- [29, 0]
+  val?^ | miss    %2.0  = LdVar              eR    i, e0.6
+  val?            %2.1  = Force!             !v    %2.0, e0.6   <val?_>
+  lgl$#-          %2.2  = IsType                   %2.1 isA val?+
+  void                    Branch                   %2.2 -> BB19 (if true) | BB20 (if false)
+BB19   <- [2]
+  val?+           %19.0 = CastType           d     dn %2.1   <val?_>
+  lgl             %19.1 = Lt                 wed   %19.0, 10, elided   <val?_>
+  lgl$#-          %19.2 = CheckTrueFalse     we    %19.1
+  void                    Branch                   %19.2 -> BB5 (if true) | BB4 (if false)
+BB20   <- [2]
+  fs              %20.0 = FrameState         R     0x56091314e6a0+364: [%2.1], env=e0.6
+  void                    Deopt              !v    %20.0, Typecheck@0x5609121941a8[Type#18], %2.1   !
+BB5   <- [19]
+  val?^ | miss    %5.0  = LdVar              eR    i, e0.6
+  val?            %5.1  = Force!             !v    %5.0, e0.6   <val?_>
+  lgl$#-          %5.2  = IsType                   %5.1 isA val?+
+  void                    Branch                   %5.2 -> BB21 (if true) | BB22 (if false)
+BB4   <- [19]
+  val?^ | miss    %4.0  = LdVar              eR    y, e0.6
+  void                    Visible            v     
+  val?            %4.2  = Force!             !     %4.0, e0.6   <val?_>
+  void                    Return             l     %4.2
+BB21   <- [5]
+  val?+           %21.0 = CastType           d     dn %5.1   <val?_>
+  (real|complex)+ %21.1 = Add                wed   %21.0, 1, elided   <val?_>
+  void                    StVar              lW    i, %21.1, e0.6
+  val?^ | miss    %21.3 = LdVar              eR    x, e0.6
+  val?            %21.4 = Force!             !v    %21.3, e0.6   <val?_>
+  lgl$#-          %21.5 = IsType                   %21.4 isA val+   <@?>
+  void                    Branch                   %21.5 -> BB17 (if true) | BB8 (if false)
+BB22   <- [5]
+  fs              %22.0 = FrameState         R     0x56091314e6a0+396: [%5.1], env=e0.6
+  void                    Deopt              !v    %22.0, Typecheck@0x5609121941a8[Type#20], %5.1   !
+BB17   <- [21]
+  val?^ | miss    %17.0 = LdVar              eR    i, e0.6
+  val?            %17.1 = Force!             !v    %17.0, e0.6   <val?_>
+  val?            %17.2 = %17.1
+  goto BB9
+BB8   <- [21]
+  prom-           %8.0  = MkArg                    unboundValue, rir.compile[0x560912d3efe0]_p1, e0.6
+  prom-           %8.1  = %8.0
+  goto BB9
+BB9   <- [8, 17]
+  val?            %9.0  = Phi                      %17.2:BB17, %8.1:BB8
+  val?            %9.1  = %9.0
+  val?            %9.2  = Extract1_1D        !v    %21.4, %9.1, e0.6   <val?_>
+  val?^ | miss    %9.3  = LdVar              eR    x, e0.6
+  val?            %9.4  = Force!             !v    %9.3, e0.6   <val?_>
+  lgl$#-          %9.5  = IsType                   %9.4 isA val+   <@?>
+  void                    Branch                   %9.5 -> BB16 (if true) | BB10 (if false)
+BB16   <- [9]
+  val?^ | miss    %16.0 = LdVar              eR    p, e0.6
+  val?            %16.1 = Force!             !v    %16.0, e0.6   <val?_>
+  val?            %16.2 = %16.1
+  goto BB11
+BB10   <- [9]
+  prom-           %10.0 = MkArg                    unboundValue, rir.compile[0x560912d3efe0]_p0, e0.6
+  prom-           %10.1 = %10.0
+  goto BB11
+BB11   <- [10, 16]
+  val?            %11.0 = Phi                      %16.2:BB16, %10.1:BB10
+  val?            %11.1 = %11.0
+  val?            %11.2 = Extract1_1D        !v    %9.4, %11.1, e0.6   <val?_>
+  lgl$#-          %11.3 = IsType                   %11.2 isA val?+
+  lgl$#-          %11.4 = IsType                   %9.2 isA val?+
+  void                    Branch                   %11.4 -> BB23 (if true) | BB24 (if false)
+BB23   <- [11]
+  val?+           %23.0 = CastType           d     dn %9.2   <val?_>
+  void                    Branch                   %11.3 -> BB25 (if true) | BB26 (if false)
+BB24   <- [11]
+  void                    Nop                !     
+  val?            %24.1 = %9.2
+  dr              %24.2 = Typecheck@0x5609121941a8[Type#25]
+  goto BB12
+BB25   <- [23]
+  val?+           %25.0 = CastType           d     dn %11.2   <val?_>
+  (int|real|complex)+ %25.1 = Add                wed   %23.0, %25.0, elided   <val?_>
+  val?^ | miss    %25.2 = LdVar              eR    y, e0.6
+  val?            %25.3 = Force!             !v    %25.2, e0.6   <val?_>
+  val?^ | miss    %25.4 = LdVar              eR    i, e0.6
+  val?            %25.5 = Force!             !v    %25.4, e0.6   <val?_>
+  lgl$#-          %25.6 = IsType                   %25.5 isA val?+
+  lgl$#-          %25.7 = IsType                   %25.3 isA val?+
+  void                    Branch                   %25.7 -> BB27 (if true) | BB28 (if false)
+BB26   <- [23]
+  void                    Nop                !     
+  val?            %26.1 = %11.2
+  dr              %26.2 = Typecheck@0x5609121941a8[Type#29]
+  goto BB12
+BB12   <- [24, 26]
+  val?^ | miss    %12.0 = Phi                      %24.1:BB24, %26.1:BB26
+  val?^ | miss    %12.1 = %12.0
+  dr              %12.2 = Phi                      %24.2:BB24, %26.2:BB26
+  dr              %12.3 = %12.2
+  fs              %12.4 = FrameState         R     0x56091314e6a0+548: [%9.2, %11.2], env=e0.6
+  void                    Deopt              !v    %12.4, %12.3, %12.1   !
+BB27   <- [25]
+  val?+           %27.0 = CastType           d     dn %25.3   <val?_>
+  void                    Branch                   %25.6 -> BB29 (if true) | BB30 (if false)
+BB28   <- [25]
+  void                    Nop                !     
+  val?            %28.1 = %25.3
+  dr              %28.2 = Typecheck@0x5609121941a8[Type#31]
+  goto BB14
+BB29   <- [27]
+  val?+           %29.0 = CastType           d     dn %25.5   <val?_>
+  val?+           %29.1 = Subassign1_1D      wed   %25.1, %27.0, %29.0, elided
+  void                    StVar              lW    y, %29.1, e0.6
+  val?^ | miss    %29.3 = LdVar              eR    i, e0.6
+  val?            %29.4 = Force!             !v    %29.3, e0.6   <val?_>
+  void                    StVar              lW    p, %29.4, e0.6
+  goto BB2
+BB30   <- [27]
+  void                    Nop                !     
+  val?            %30.1 = %25.5
+  dr              %30.2 = Typecheck@0x5609121941a8[Type#32]
+  goto BB14
+BB14   <- [28, 30]
+  val?^ | miss    %14.0 = Phi                      %28.1:BB28, %30.1:BB30
+  val?^ | miss    %14.1 = %14.0
+  dr              %14.2 = Phi                      %28.2:BB28, %30.2:BB30
+  dr              %14.3 = %14.2
+  fs              %14.4 = FrameState         R     0x56091314e6a0+583: [%25.1, %25.3, %25.5], env=e0.6
+  void                    Deopt              !v    %14.4, %14.3, %14.1   !
+Prom 0:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    p, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 1:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    i, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+
+│ rir.compile[0x560912d3efe0]                                                  │
+└──────────────────────────────────────────────────────────────────────────────┘

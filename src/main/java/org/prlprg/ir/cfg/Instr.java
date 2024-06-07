@@ -15,7 +15,6 @@ import org.checkerframework.checker.index.qual.SameLen;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.ir.cfg.CFGEdit.MutateInstrArgs;
 import org.prlprg.ir.cfg.CFGEdit.RenameInstr;
-import org.prlprg.ir.cfg.CFGEdit.ReplaceInArgs;
 import org.prlprg.ir.type.REffects;
 import org.prlprg.ir.type.RType;
 import org.prlprg.ir.type.RTypes;
@@ -335,12 +334,14 @@ abstract sealed class InstrImpl<D extends InstrData<?>> implements LocalNode
     verify();
   }
 
+  @SuppressWarnings("unchecked")
   public final void replaceInArgs(Node old, Node replacement) {
+    var oldData = data;
     unsafeReplaceInData("node", old, replacement);
 
     cfg.record(
-        new ReplaceInArgs((Instr) this, old, replacement),
-        new ReplaceInArgs((Instr) this, replacement, old));
+        new CFGEdit.MutateInstrArgs<>((Instr) this, (InstrData<Instr>) data),
+        new CFGEdit.MutateInstrArgs<>((Instr) this, (InstrData<Instr>) oldData));
   }
 
   /**

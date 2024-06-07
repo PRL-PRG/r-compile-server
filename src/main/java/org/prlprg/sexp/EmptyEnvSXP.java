@@ -5,7 +5,7 @@ import java.util.Optional;
 import java.util.Set;
 import org.prlprg.util.Pair;
 
-public final class EmptyEnvSXP implements EnvSXP {
+public final class EmptyEnvSXP implements StaticEnvSXP {
   static final EmptyEnvSXP INSTANCE = new EmptyEnvSXP();
 
   private EmptyEnvSXP() {}

@@ -173,7 +173,8 @@ import org.prlprg.sexp.VectorSXP;
  * <p>In the comments below the {@code >> } indicates comments takes directly form [1].
  *
  * <p>[1] A Byte Code Compiler for R by Luke Tierney, University of Iowa, accessed on August 23,
- * 2023 from https://homepage.cs.uiowa.edu/~luke/R/compiler/compiler.pdf
+ * 2023 from <a href="https://homepage.cs.uiowa.edu/~luke/R/compiler/compiler.pdf">
+ * https://homepage.cs.uiowa.edu/~luke/R/compiler/compiler.pdf</a>
  */
 public class Compiler {
 
@@ -308,10 +309,10 @@ public class Compiler {
    * <pre><code>
    * > x <- function() TRUE
    * > .Internal(inspect(body(x)))
-   * @5c0d69684e48 10 LGLSXP g0c1 [REF(2)] (len=1, tl=0) 1
+   * &#064;5c0d69684e48  10 LGLSXP g0c1 [REF(2)] (len=1, tl=0) 1
    * > x <- function() T
    * > .Internal(inspect(body(x)))
-   * @5c0d6769c910 01 SYMSXP g0c0 [MARK,REF(4),LCK,gp=0x4000] "T" (has value)
+   * &#064;5c0d6769c910  01 SYMSXP g0c0 [MARK,REF(4),LCK,gp=0x4000] "T" (has value)
    * </code></pre>
    */
   private static final Set<String> ALLOWED_FOLDABLE_CONSTS = Set.of("pi", "T", "F");
@@ -1119,7 +1120,7 @@ public class Compiler {
   }
 
   private boolean isSimpleFormals(CloSXP def) {
-    var formals = def.formals();
+    var formals = def.parameters();
     var names = formals.names();
 
     if (names.contains("...")) {
@@ -1168,7 +1169,7 @@ public class Compiler {
         .flatMap(call -> call.arg(0).asLang())
         .filter(
             internalCall -> internalCall.funName().map(rsession::isBuiltinInternal).orElse(false))
-        .filter(internalCall -> hasSimpleArgs(internalCall, def.formals().names()));
+        .filter(internalCall -> hasSimpleArgs(internalCall, def.parameters().names()));
   }
 
   private Optional<LangSXP> tryConvertToDotInternalCall(LangSXP call) {
@@ -1183,7 +1184,7 @@ public class Compiler {
                         internalCall -> {
                           var cenv = new HashMap<String, SEXP>();
 
-                          def.formals().forEach((x) -> cenv.put(x.tag(), x.value()));
+                          def.parameters().forEach((x) -> cenv.put(x.tag(), x.value()));
                           matchCall(def, call).args().forEach((x) -> cenv.put(x.tag(), x.value()));
 
                           var args =
@@ -2359,7 +2360,7 @@ public class Compiler {
   static LangSXP matchCall(CloSXP definition, LangSXP call) {
     var matched = ImmutableList.<TaggedElem>builder();
     var remaining = new ArrayList<SEXP>();
-    var formals = definition.formals();
+    var formals = definition.parameters();
 
     if (formals.size() < call.args().size()) {
       throw new IllegalArgumentException("Too many arguments and we do not support ... yet");

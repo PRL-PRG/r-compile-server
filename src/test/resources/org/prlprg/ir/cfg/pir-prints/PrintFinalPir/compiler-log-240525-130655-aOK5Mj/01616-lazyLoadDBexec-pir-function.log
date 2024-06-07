@@ -1,0 +1,392 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ lazyLoadDBexec[0x55bbe6c018f0]                                               │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;NonRefl0,NonRefl1                    │
+│ Properties:  ForceOrd: 0                                                     │
+├────── Final PIR Version
+lazyLoadDBexec[0x55bbe6c018f0]
+BB0
+  val?^           %0.0  = LdArg                    2
+  val?^           %0.1  = LdArg                    1
+  val?^           %0.2  = LdArg                    0
+  env             e0.3  = MkEnv              l     filebase=%0.2, fun=%0.1, filter=%0.0, parent=R_BaseNamespace, context 1
+  cls             %0.4  = MkCls                    glue, e0.3
+  cls             %0.5  = MkCls                    readRDS, e0.3
+  cls             %0.6  = MkCls                    parent.env<-, e0.3
+  cls             %0.7  = MkCls                    existsInFrame, e0.3
+  cls             %0.8  = MkCls                    list2env, e0.3
+  cls             %0.9  = MkCls                    lazyLoadDBexec>environment@125, e0.3
+  cls             %0.10 = MkCls                    mkenv, e0.3
+  cls             %0.11 = MkCls                    lazyLoadDBexec>envhook@661, e0.3
+  void                    StVar              lW    glue, %0.4, e0.3
+  void                    StVar              lW    readRDS, %0.5, e0.3
+  void                    StVar              lW    parent.env<-, %0.6, e0.3
+  void                    StVar              lW    existsInFrame, %0.7, e0.3
+  void                    StVar              lW    list2env, %0.8, e0.3
+  void                    StVar              lW    environment, %0.9, e0.3
+  void                    StVar              lW    mkenv, %0.10, e0.3
+  val?            %0.19 = Force!<lazy>       !vr   %0.2,    <str$->
+  val+            %0.20 = CallSafeBuiltin    wed   list(%0.19, "rdx")    <vec->
+  val+            %0.21 = CallSafeBuiltin    wed   paste(%0.20, ".", nil, false)    <str$->
+  void                    StVar              lW    mapfile, %0.21, e0.3
+  val+            %0.23 = CallSafeBuiltin    wed   list(%0.19, "rdb")    <vec->
+  val+            %0.24 = CallSafeBuiltin    wed   paste(%0.23, ".", nil, false)    <str$->
+  void                    StVar              lW    datafile, %0.24, e0.3
+  ct              %0.26 = PushContext        lCL   mkenv(), %0.10, e0.3
+  env             e0.27 = (MkEnv)            l     parent=e0.3, context 1
+  val?            %0.28 = CallBuiltin        !vL   baseenv() e0.27   <env->
+  lgl$#-          %0.29 = IsType                   %0.28 isA val?-
+  lgl$#-          %0.30 = IsEnvStub          R     , e0.27
+  void                    Branch                   %0.30 -> BB23 (if true) | BB24 (if false)
+BB23   <- [0]
+  void                    Branch                   %0.29 -> BB25 (if true) | BB26 (if false)
+BB24   <- [0]
+  void                    Nop                !     
+  env             e24.1 = e0.27
+  dr              %24.2 = EnvStubMaterialized@0x55bbe4297158[Call#unknown]
+  goto BB22
+BB25   <- [23]
+  val?-           %25.0 = CastType           d     dn %0.28   <env->
+  val+            %25.1 = CallSafeBuiltin    wed   new.env(true, %25.0, 29L) 
+  val?            %25.2 = PopContext         C     %25.1, %0.26   <env->
+  void                    StVar              lW    env, %25.2, e0.3
+  val?^ | miss    %25.4 = LdVar              eR    readRDS, e0.3
+  lgl$#-          %25.5 = Identical                %25.4, %0.5
+  void                    Branch                   %25.5 -> BB27 (if true) | BB28 (if false)
+BB26   <- [23]
+  void                    Nop                !     
+  val?            %26.1 = %0.28
+  dr              %26.2 = Typecheck@0x55bbe4297158[Type#0]
+  goto BB22
+BB22   <- [24, 26]
+  val?^ | miss    %22.0 = Phi                      e24.1:BB24, %26.1:BB26
+  val?^ | miss    %22.1 = %22.0
+  dr              %22.2 = Phi                      %24.2:BB24, %26.2:BB26
+  dr              %22.3 = %22.2
+  fs              %22.4 = FrameState         R     0x55bbe44e1290+338: [], env=e0.3
+  fs              %22.5 = FrameState         R     0x55bbe40e40e0+78: [true, %0.28], env=e0.27, next=%22.4
+  void                    Deopt              !v    %22.5, %22.3, %22.1   !
+BB27   <- [25]
+  prom-           %27.0 = MkArg                    unboundValue, lazyLoadDBexec[0x55bbe6c018f0]_p2, e0.3
+  val?            %27.1 = StaticCall         !v    readRDS[0x55bbe8f69a90](%27.0) from %0.5 e0.3   <vec+>
+  void                    StVar              lW    map, %27.1, e0.3
+  val?^ | miss    %27.3 = LdVar              eR    names, e0.3
+  lgl$#-          %27.4 = Identical                <blt names>, %27.3   <true>
+  void                    Branch                   %27.4 -> BB29 (if true) | BB30 (if false)
+BB28   <- [25]
+  fs              %28.0 = FrameState         R     0x55bbe44e1290+352: [], env=e0.3
+  void                    Deopt              !v    %28.0, CallTarget@0x55bbe40b8be0[Call#3], %25.4   !
+BB29   <- [27]
+  (cls|spec|blt)  %29.0 = LdFun              !v    $, <0x55bbe1e1fc10>, e0.3
+  prom-           %29.1 = MkArg                    unboundValue, lazyLoadDBexec[0x55bbe6c018f0]_p3, e0.3
+  prom-           %29.2 = MkArg                    unboundValue, lazyLoadDBexec[0x55bbe6c018f0]_p4, e0.3
+  val?            %29.3 = Call               !v    %29.0(%29.1, %29.2) e0.3   <vec+>
+  lgl$#-          %29.4 = IsType                   %29.3 isA val?+
+  void                    Branch                   %29.4 -> BB31 (if true) | BB32 (if false)
+BB30   <- [27]
+  fs              %30.0 = FrameState         R     0x55bbe44e1290+398: [], env=e0.3
+  void                    Deopt              !v    %30.0, DeadBranchReached@0x55bbe40b8be0[Test#0], %27.4   !
+BB31   <- [29]
+  val?+           %31.0 = CastType           d     dn %29.3   <vec+>
+  val+            %31.1 = CallSafeBuiltin    wed   names(%31.0)    <str->
+  void                    StVar              lW    vars, %31.1, e0.3
+  (cls|spec|blt)  %31.3 = LdFun              !v    $, <0x55bbe1e1fc10>, e0.3
+  prom-           %31.4 = MkArg                    unboundValue, lazyLoadDBexec[0x55bbe6c018f0]_p5, e0.3
+  prom-           %31.5 = MkArg                    unboundValue, lazyLoadDBexec[0x55bbe6c018f0]_p6, e0.3
+  val?            %31.6 = Call               !v    %31.3(%31.4, %31.5) e0.3   <(lgl|real)$->
+  void                    StVar              lW    compressed, %31.6, e0.3
+  val?^ | miss    %31.8 = LdVar              eR    list2env, e0.3
+  lgl$#-          %31.9 = Identical                %31.8, %0.8
+  void                    Branch                   %31.9 -> BB33 (if true) | BB34 (if false)
+BB32   <- [29]
+  fs              %32.0 = FrameState         R     0x55bbe44e1290+495: [<blt names>, %29.3], env=e0.3
+  void                    Deopt              !v    %32.0, Typecheck@0x55bbe40b8be0[Type#12], %29.3   !
+BB33   <- [31]
+  prom-           %33.0 = MkArg                    unboundValue, lazyLoadDBexec[0x55bbe6c018f0]_p7, e0.3
+  prom-           %33.1 = MkArg                    unboundValue, lazyLoadDBexec[0x55bbe6c018f0]_p10, e0.3
+  ct              %33.2 = PushContext        lCL   %33.0, %33.1, list2env($(map, references), env), %0.8, e0.3
+  val?^           %33.3 = CastType                 up %33.1
+  val?^           %33.4 = CastType                 up %33.0
+  env             e33.5 = MkEnv              l     x=%33.4, envir=%33.3, parent=e0.3, context 1
+  val?            %33.6 = Force!<lazy>       !vL   %33.4, e33.5   <vec+>
+  val?            %33.7 = Force!<lazy>       !vL   %33.3, e33.5   <env->
+  val?            %33.8 = CallBuiltin        !v    list2env(%33.6, %33.7) e33.5
+  val?            %33.9 = PopContext         C     %33.8, %33.2
+  val?^ | miss    %33.10 = LdVar              eR    mkenv, e0.3
+  lgl$#-          %33.11 = Identical                %33.10, %0.10
+  void                    Branch                   %33.11 -> BB35 (if true) | BB36 (if false)
+BB34   <- [31]
+  fs              %34.0 = FrameState         R     0x55bbe44e1290+582: [], env=e0.3
+  void                    Deopt              !v    %34.0, CallTarget@0x55bbe40b8be0[Call#8], %31.8   !
+BB35   <- [33]
+  ct              %35.0 = PushContext        lCL   mkenv(), %0.10, e0.3
+  val?^ | miss    %35.1 = LdVar              eR    baseenv, e0.3
+  lgl$#-          %35.2 = Identical                <blt baseenv>, %35.1   <true>
+  void                    Branch                   %35.2 -> BB37 (if true) | BB38 (if false)
+BB36   <- [33]
+  void                    Nop                !     
+  val?^ | miss    %36.1 = %33.10
+  dr              %36.2 = CallTarget@0x55bbe40b8be0[Call#10]
+  goto BB11
+BB37   <- [35]
+  env             e37.0 = (MkEnv)            l     parent=e0.3, context 1
+  val?            %37.1 = CallBuiltin        !vL   baseenv() e37.0   <env->
+  lgl$#-          %37.2 = IsType                   %37.1 isA val?-
+  lgl$#-          %37.3 = IsEnvStub          R     , e37.0
+  void                    Branch                   %37.3 -> BB39 (if true) | BB40 (if false)
+BB38   <- [35]
+  void                    DropContext        C     
+  lgl$#-          %38.1 = %35.2
+  dr              %38.2 = DeadBranchReached@0x55bbe4297158[Test#0]
+  goto BB11
+BB11   <- [36, 38]
+  val?^ | miss    %11.0 = Phi                      %36.1:BB36, %38.1:BB38
+  val?^ | miss    %11.1 = %11.0
+  dr              %11.2 = Phi                      %36.2:BB36, %38.2:BB38
+  dr              %11.3 = %11.2
+  fs              %11.4 = FrameState         R     0x55bbe44e1290+619: [%33.9], env=e0.3
+  void                    Deopt              !v    %11.4, %11.3, %11.1   !
+BB39   <- [37]
+  void                    Branch                   %37.2 -> BB41 (if true) | BB42 (if false)
+BB40   <- [37]
+  void                    Nop                !     
+  env             e40.1 = e37.0
+  dr              %40.2 = EnvStubMaterialized@0x55bbe4297158[Call#unknown]
+  goto BB13
+BB41   <- [39]
+  val?-           %41.0 = CastType           d     dn %37.1   <env->
+  val+            %41.1 = CallSafeBuiltin    wed   new.env(true, %41.0, 29L) 
+  val?            %41.2 = PopContext         C     %41.1, %35.0   <env->
+  void                    StVar              lW    envenv, %41.2, e0.3
+  void                    StVar              lW    envhook, %0.11, e0.3
+  lgl$-           %41.5 = Missing            eR    filter, e0.3
+  lgl$-           %41.6 = Not                d     %41.5, elided
+  lgl$#-          %41.7 = CheckTrueFalse     e     %41.6
+  void                    Branch                   %41.7 -> BB17 (if true) | BB15 (if false)
+BB42   <- [39]
+  void                    Nop                !     
+  val?            %42.1 = %37.1
+  dr              %42.2 = Typecheck@0x55bbe4297158[Type#0]
+  goto BB13
+BB13   <- [40, 42]
+  val?^ | miss    %13.0 = Phi                      e40.1:BB40, %42.1:BB42
+  val?^ | miss    %13.1 = %13.0
+  dr              %13.2 = Phi                      %40.2:BB40, %42.2:BB42
+  dr              %13.3 = %13.2
+  fs              %13.4 = FrameState         R     0x55bbe44e1290+647: [], env=e0.3
+  fs              %13.5 = FrameState         R     0x55bbe40e40e0+78: [true, %37.1], env=e37.0, next=%13.4
+  void                    Deopt              !v    %13.5, %13.3, %13.1   !
+BB17   <- [41]
+  (cls|spec|blt)  %17.0 = LdFun              !v    filter, e0.3
+  prom-           %17.1 = MkArg                    unboundValue, lazyLoadDBexec[0x55bbe6c018f0]_p11, e0.3
+  val?            %17.2 = Call               !v    %17.0(%17.1) e0.3   <lgl->
+  void                    StVar              lW    use, %17.2, e0.3
+  val?^ | miss    %17.4 = LdVar              eR    vars, e0.3
+  lgl$#-          %17.5 = IsType                   %17.4 isA val?~- | miss
+  void                    Branch                   %17.5 -> BB43 (if true) | BB44 (if false)
+BB15   <- [41]
+  (cls|spec|blt)  %15.0 = LdFun              !v    $, <0x55bbe1e1fc10>, e0.3
+  prom-           %15.1 = MkArg                    unboundValue, lazyLoadDBexec[0x55bbe6c018f0]_p12, e0.3
+  prom-           %15.2 = MkArg                    unboundValue, lazyLoadDBexec[0x55bbe6c018f0]_p13, e0.3
+  val?            %15.3 = Call               !v    %15.0(%15.1, %15.2) e0.3   <vec+>
+  void                    StVar              lW    vals, %15.3, e0.3
+  goto BB16
+BB43   <- [17]
+  val?~- | miss   %43.0 = CastType           d     dn %17.4
+  val?-           %43.1 = Force!<value>            %43.0,    <str->
+  lgl$#-          %43.2 = IsType                   %43.1 isA val+   <true>
+  void                    Branch                   %43.2 -> BB45 (if true) | BB46 (if false)
+BB44   <- [17]
+  void                    Nop                !     
+  val?^ | miss    %44.1 = %17.4
+  dr              %44.2 = Typecheck@0x55bbe40b8be0[Type#27]
+  goto BB18
+BB16   <- [15, 53]
+  (cls|spec|blt)  %16.0 = LdFun              !v    fun, e0.3
+  prom-           %16.1 = MkArg                    unboundValue, lazyLoadDBexec[0x55bbe6c018f0]_p16, e0.3
+  val?            %16.2 = Call               !v    %16.0(%16.1) e0.3   <nil->
+  void                    StVar              lW    res, %16.2, e0.3
+  void                    StVar              lW    map, nil, e0.3
+  void                    StVar              lW    vars, nil, e0.3
+  void                    StVar              lW    vals, nil, e0.3
+  void                    StVar              lW    rvars, nil, e0.3
+  void                    StVar              lW    mapfile, nil, e0.3
+  void                    StVar              lW    readRDS, nil, e0.3
+  val             %16.10 = ChkMissing         e     %16.2
+  void                    Visible            v     
+  void                    Return             l     %16.2
+BB45   <- [43]
+  val             %45.0 = ChkMissing         e     %17.2
+  lgl$#-          %45.1 = IsType                   %45.0 isA lgl-
+  void                    Branch                   %45.1 -> BB47 (if true) | BB48 (if false)
+BB46   <- [43]
+  void                    Nop                !     
+  lgl$#-          %46.1 = %43.2
+  dr              %46.2 = DeadBranchReached@0x55bbe40b8be0[Test#1]
+  goto BB18
+BB18   <- [44, 46, 48]
+  val?^ | miss    %18.0 = Phi                      %44.1:BB44, %46.1:BB46, %48.1:BB48
+  val?^ | miss    %18.1 = %18.0
+  dr              %18.2 = Phi                      %44.2:BB44, %46.2:BB46, %48.2:BB48
+  dr              %18.3 = %18.2
+  fs              %18.4 = FrameState         R     0x55bbe44e1290+801: [], env=e0.3
+  void                    Deopt              !v    %18.4, %18.3, %18.1   !
+BB47   <- [45]
+  lgl-            %47.0 = CastType           d     dn %45.0
+  val?            %47.1 = Extract1_1D        wed   %43.1, %47.0, elided   <str->
+  void                    StVar              lW    vars, %47.1, e0.3
+  (cls|spec|blt)  %47.3 = LdFun              !v    $, <0x55bbe1e1fc10>, e0.3
+  prom-           %47.4 = MkArg                    unboundValue, lazyLoadDBexec[0x55bbe6c018f0]_p14, e0.3
+  prom-           %47.5 = MkArg                    unboundValue, lazyLoadDBexec[0x55bbe6c018f0]_p15, e0.3
+  val?            %47.6 = Call               !v    %47.3(%47.4, %47.5) e0.3   <vec+>
+  lgl$#-          %47.7 = IsType                   %47.6 isA val+   <true>
+  lgl$#-          %47.8 = IsType                   %47.6 isA val?+
+  void                    Branch                   %47.7 -> BB49 (if true) | BB50 (if false)
+BB48   <- [45]
+  void                    Nop                !     
+  val             %48.1 = %45.0
+  dr              %48.2 = Typecheck@0x55bbe40b8be0[Type#29]
+  goto BB18
+BB49   <- [47]
+  val?^ | miss    %49.0 = LdVar              eR    use, e0.3
+  lgl$#-          %49.1 = IsType                   %49.0 isA lgl-
+  void                    Branch                   %49.1 -> BB51 (if true) | BB52 (if false)
+BB50   <- [47]
+  void                    Nop                !     
+  lgl$#-          %50.1 = %47.7
+  dr              %50.2 = DeadBranchReached@0x55bbe40b8be0[Test#2]
+  goto BB20
+BB51   <- [49]
+  lgl-            %51.0 = CastType           d     dn %49.0
+  void                    Branch                   %47.8 -> BB53 (if true) | BB54 (if false)
+BB52   <- [49]
+  void                    Nop                !     
+  val?^ | miss    %52.1 = %49.0
+  dr              %52.2 = Typecheck@0x55bbe40b8be0[Type#35]
+  goto BB20
+BB20   <- [50, 52, 54]
+  val?^ | miss    %20.0 = Phi                      %50.1:BB50, %52.1:BB52, %54.1:BB54
+  val?^ | miss    %20.1 = %20.0
+  dr              %20.2 = Phi                      %50.2:BB50, %52.2:BB52, %54.2:BB54
+  dr              %20.3 = %20.2
+  fs              %20.4 = FrameState         R     0x55bbe44e1290+913: [%47.6], env=e0.3
+  void                    Deopt              !v    %20.4, %20.3, %20.1   !
+BB53   <- [51]
+  val?+           %53.0 = CastType           d     dn %47.6   <vec+>
+  val?            %53.1 = Extract1_1D        wed   %53.0, %51.0, elided   <vec+>
+  void                    StVar              lW    vals, %53.1, e0.3
+  void                    StVar              lW    use, nil, e0.3
+  goto BB16
+BB54   <- [51]
+  void                    Nop                !     
+  val?            %54.1 = %47.6
+  dr              %54.2 = Typecheck@0x55bbe40b8be0[Type#33]
+  goto BB20
+Prom 2:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    mapfile, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<value>       !     %0.1, e0.0   <str$->
+  void                    Return             l     %0.3
+Prom 3:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    map, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<value>       !     %0.1, e0.0   <vec+>
+  void                    Return             l     %0.3
+Prom 4:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    variables, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 5:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    map, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<value>       !     %0.1, e0.0   <vec+>
+  void                    Return             l     %0.3
+Prom 6:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    compressed, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 7:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     $, <0x55bbe1e1fc10>, e0.0
+  prom-           %0.2  = MkArg                    unboundValue, lazyLoadDBexec[0x55bbe6c018f0]_p8, e0.0
+  prom-           %0.3  = MkArg                    unboundValue, lazyLoadDBexec[0x55bbe6c018f0]_p9, e0.0
+  val?            %0.4  = Call               !     %0.1(%0.2, %0.3) e0.0   <vec+>
+  void                    Return             l     %0.4
+Prom 8:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    map, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<value>       !     %0.1, e0.0   <vec+>
+  void                    Return             l     %0.3
+Prom 9:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    references, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 10:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    env, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<value>       !     %0.1, e0.0   <env->
+  void                    Return             l     %0.3
+Prom 11:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    vars, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<value>       !     %0.1, e0.0   <str->
+  void                    Return             l     %0.3
+Prom 12:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    map, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<value>       !     %0.1, e0.0   <vec+>
+  void                    Return             l     %0.3
+Prom 13:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    variables, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 14:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    map, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<value>       !     %0.1, e0.0   <vec+>
+  void                    Return             l     %0.3
+Prom 15:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    variables, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 16:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     environment, <0x55bbe4ca3708>, e0.0
+  val?            %0.2  = Call               !     %0.1() e0.0   <env->
+  void                    Return             l     %0.2
+
+│ lazyLoadDBexec[0x55bbe6c018f0]                                               │
+└──────────────────────────────────────────────────────────────────────────────┘

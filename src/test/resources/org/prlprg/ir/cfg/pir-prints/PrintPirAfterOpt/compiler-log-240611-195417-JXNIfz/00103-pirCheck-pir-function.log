@@ -1,0 +1,16 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ pirCheck[0x55cbf4a7a810]                                                     │
+│ Context: CorrOrd,!TMany                                                      │
+│ Properties:  Eager, !Reflection                                              │
+├────── PIR Version After Optimizations
+pirCheck[0x55cbf4a7a810]
+BB0
+  goto BB1
+BB1   <- [0]
+  void                    Visible            v     
+  lgl$#-          %1.1  = CheckTrueFalse     e     na-lgl
+  void                    Unreachable              
+
+│ pirCheck[0x55cbf4a7a810]                                                     │
+└──────────────────────────────────────────────────────────────────────────────┘

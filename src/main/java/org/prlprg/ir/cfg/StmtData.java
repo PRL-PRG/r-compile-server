@@ -7,22 +7,20 @@ import javax.annotation.Nullable;
 import org.checkerframework.checker.index.qual.SameLen;
 import org.prlprg.ir.closure.Closure;
 import org.prlprg.ir.closure.ClosureVersion;
+import org.prlprg.ir.closure.ClosureVersion.CallContext;
+import org.prlprg.ir.closure.Promise;
 import org.prlprg.ir.type.REffect;
 import org.prlprg.ir.type.REffects;
 import org.prlprg.ir.type.RType;
 import org.prlprg.ir.type.RTypes;
-import org.prlprg.ir.type.lattice.NoOrMaybe;
 import org.prlprg.ir.type.lattice.Troolean;
 import org.prlprg.ir.type.lattice.YesOrMaybe;
 import org.prlprg.primitive.BuiltinId;
 import org.prlprg.primitive.IsTypeCheck;
-import org.prlprg.rshruntime.BcAddress;
-import org.prlprg.rshruntime.BcLocation;
+import org.prlprg.rshruntime.BcPosition;
 import org.prlprg.sexp.LangSXP;
-import org.prlprg.sexp.ListSXP;
 import org.prlprg.sexp.RegSymSXP;
 import org.prlprg.sexp.SEXP;
-import org.prlprg.sexp.SymOrLangSXP;
 
 /**
  * Each type of statement (non-jump) instruction as a pattern-matchable record.
@@ -125,23 +123,23 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
 
   @EffectsAre(REffect.ReadsEnvArg)
   record FrameState(
-      BcLocation location,
+      BcPosition location,
       boolean inPromise,
       ImmutableList<Node> stack,
       @IsEnv RValue env,
-      Optional<org.prlprg.ir.cfg.FrameState> inlined)
+      Optional<org.prlprg.ir.cfg.FrameState> inlinedNext)
       implements StmtData<FrameStateStmt> {
     public FrameState(
-        BcLocation location,
+        BcPosition location,
         boolean inPromise,
         ImmutableList<Node> stack,
         @IsEnv RValue env,
-        @Nullable org.prlprg.ir.cfg.FrameState inlined) {
-      this(location, inPromise, stack, env, Optional.ofNullable(inlined));
+        @Nullable org.prlprg.ir.cfg.FrameState inlinedNext) {
+      this(location, inPromise, stack, env, Optional.ofNullable(inlinedNext));
     }
 
     public FrameState(
-        BcLocation location, boolean inPromise, ImmutableList<Node> stack, @IsEnv RValue env) {
+        BcPosition location, boolean inPromise, ImmutableList<Node> stack, @IsEnv RValue env) {
       this(location, inPromise, stack, env, Optional.empty());
     }
 
@@ -221,18 +219,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
 
   @TypeIs("PROM")
   @EffectsAre({})
-  record MkProm(
-      SEXP code, Optional<RValue> eagerArg, @IsEnv RValue env, NoOrMaybe performsReflection)
-      implements RValue_ {
-    public MkProm(
-        SEXP code, @Nullable RValue eagerArg, @IsEnv RValue env, NoOrMaybe performsReflection) {
-      this(code, Optional.ofNullable(eagerArg), env, performsReflection);
-    }
-
-    public MkProm(SEXP code, @IsEnv RValue env) {
-      this(code, Optional.empty(), env, NoOrMaybe.MAYBE);
-    }
-  }
+  record MkProm(Promise promise) implements RValue_ {}
 
   @EffectsAre(REffect.LeaksNonEnvArg)
   record StrictifyProm(@TypeIs("PROM") RValue promise, RValue value) implements RValue_ {
@@ -244,22 +231,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
 
   @EffectsAre({})
   @TypeIs("CLO")
-  record MkCls(
-      Closure closure,
-      ListSXP formals,
-      Optional<SymOrLangSXP> srcRef,
-      BcAddress originalBody,
-      @IsEnv RValue parent)
-      implements RValue_ {
-    public MkCls(
-        Closure closure,
-        ListSXP formals,
-        @Nullable SymOrLangSXP srcRef,
-        BcAddress originalBody,
-        @IsEnv RValue parent) {
-      this(closure, formals, Optional.ofNullable(srcRef), originalBody, parent);
-    }
-  }
+  record MkCls(Closure closure) implements RValue_ {}
 
   record Force(RValue promise, Optional<org.prlprg.ir.cfg.FrameState> frameState, @IsEnv RValue env)
       implements RValue_ {
@@ -288,13 +260,9 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
       if (isStrict() == YesOrMaybe.YES) {
         return REffects.PURE;
       }
-      var effects = REffects.ARBITRARY;
-      if (promise instanceof Stmt s
-          && s.data() instanceof MkProm p
-          && p.performsReflection() == NoOrMaybe.NO) {
-        effects = effects.without(REffect.Reflection);
-      }
-      return effects;
+      return promise instanceof Stmt s && s.data() instanceof MkProm(var p)
+          ? p.properties().effects()
+          : REffects.ARBITRARY;
     }
   }
 
@@ -833,7 +801,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
   record Not(@Override Optional<LangSXP> ast1, @Override RValue arg, @IsEnv RValue env)
       implements BooleanUnOp {}
 
-  record DotsError(@IsEnv RValue env) implements RValue_ {}
+  record Error(String message, @IsEnv RValue env) implements RValue_ {}
 
   record Colon(@Override Optional<LangSXP> ast1, RValue lhs, RValue rhs, @IsEnv RValue env)
       implements RValue_, InstrData.HasAst {
@@ -894,7 +862,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
       @Override Optional<LangSXP> ast1,
       @TypeIs("CLO") Optional<RValue> runtimeClosure,
       ClosureVersion closureVersion,
-      ClosureVersion.OptimizationContext givenContext,
+      CallContext givenContext,
       @Override ImmutableList<RValue> args,
       @Override @SameLen("args") ImmutableIntArray arglistOrder,
       @Override @IsEnv RValue env,
@@ -904,7 +872,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
         @Nullable LangSXP ast,
         @Nullable RValue runtimeClosure,
         ClosureVersion closureVersion,
-        ClosureVersion.OptimizationContext givenContext,
+        CallContext givenContext,
         ImmutableList<RValue> args,
         ImmutableIntArray arglistOrder,
         @IsEnv RValue env,
@@ -927,14 +895,14 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
 
     @Override
     public RType computeType() {
-      // TODO: Compute from closureVersion applied in givenContext (and maybe callerEnv) to args
-      return RTypes.ANY;
+      // TODO: Draft impl
+      return closureVersion.properties().returnType(args);
     }
 
     @Override
     public REffects computeEffects() {
-      // TODO: Compute from closureVersion applied in givenContext (and maybe callerEnv) to args
-      return REffects.ARBITRARY;
+      // TODO: Draft impl
+      return closureVersion.properties().effects(args);
     }
   }
 

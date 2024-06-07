@@ -1,0 +1,312 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ makeConstantFolder@Prom(1)0[0x561664a54720]                                  │
+│ Context: CorrOrd,!TMany                                                      │
+│ Properties:                                                                  │
+├────── PIR Version After Optimizations
+makeConstantFolder@Prom(1)0[0x561664a54720]
+BB0
+  goto BB1
+BB1   <- [0]
+  val?^ | miss    %1.0  = LdArg                    1
+  val?^ | miss    %1.1  = LdArg                    0
+  env             e1.2  = MkEnv              l     v=%1.1, w=%1.0, parent=?, context 1
+  (cls|spec|blt)  %1.3  = LdFun              !v    $, <0x561660cbcc10>, ?
+  prom-           %1.4  = MkArg                    unboundValue, makeConstantFolder@Prom(1)0[0x561664a54720]_p0, e1.2
+  prom-           %1.5  = MkArg                    unboundValue, makeConstantFolder@Prom(1)0[0x561664a54720]_p1, e1.2
+  val?            %1.6  = Call               !v    %1.3(%1.4, %1.5) e1.2   <cls->
+  cp              %1.7  = Checkpoint                -> BB2 (default) | BB35 (if assume failed)
+BB2   <- [1]
+  (cls|spec|blt)  %2.0  = ChkFunction        e     %1.6
+  prom-           %2.1  = MkArg                    unboundValue, makeConstantFolder@Prom(1)0[0x561664a54720]_p2, e1.2
+  prom-           %2.2  = MkArg                    unboundValue, makeConstantFolder@Prom(1)0[0x561664a54720]_p3, e1.2
+  lgl$#-          %2.3  = Identical                %2.0, function(v, w) <(rir::DispatchTable*)0x5616636|...
+  val?^           %2.4  = CastType                 up %2.2
+  val?^           %2.5  = CastType                 up %2.1
+  void                    Assume             D     %2.3, %1.7 (CallTarget@0x5616638a6698[Call#1])
+  ct              %2.7  = PushContext        lCL   %2.1, %2.2, $(w, foldable)(v, w), function(v, w) <(rir::DispatchTable*)0x5616636|..., e1.2
+  cp              %2.8  = Checkpoint                -> BB4 (default) | BB3 (if assume failed)
+BB35   <- [1]
+  fs              %35.0 = FrameState         R     0x561663512430+37: [%1.6], env=e1.2
+  void                    Deopt              !v    %35.0   !
+BB4   <- [2]
+  val?^ | miss    %4.0  = LdVar              eR    typeof, <env 0x56166328f230>
+  lgl$#-          %4.1  = Identical                %4.0, function(x) <(rir::DispatchTable*)0x5616632751|...
+  void                    Assume             D     %4.1, %2.8 (CallTarget@0x56166374a508[Call#0])
+  env             e4.3  = MkEnv              l     v=%2.5, w=%2.4, parent=<env 0x56166328f230>, context 1
+  val?            %4.4  = Force!<lazy>       !vL   %2.5, e4.3   <str$->
+  prom-           %4.5  = MkArg                    %4.4, makeConstantFolder@Prom(1)0[0x561664a54720]_p4 (!refl), 
+  val?            %4.6  = StaticCall         !v    typeof[0x56166482f700](%4.5) e4.3   <str$->
+  lgl$#-          %4.7  = IsType                   %4.6 isA val?-
+  cp              %4.8  = Checkpoint                -> BB6 (default) | BB5 (if assume failed)
+BB3   <- [2]
+  fs              %3.0  = FrameState         R     0x561663512430+75: [], env=e1.2
+  env             e3.1  = (MkEnv)            l     v=%2.5, w=%2.4, parent=<env 0x56166328f230>, context 1
+  fs              %3.2  = FrameState         R     0x56166350a6c0+0: [], env=e3.1, next=%3.0
+  void                    Deopt              !v    %3.2   !
+BB6   <- [4]
+  void                    Assume             D     %4.7, %4.8 (Typecheck@0x56166374a508[Type#1])
+  val?-           %6.1  = CastType           d     dn %4.6   <str$->
+  lgl-            %6.2  = Eq                 wed   %6.1, "symbol", elided   <lgl$->
+  lgl$#-          %6.3  = IsType                   %6.2 isA lgl$-
+  cp              %6.4  = Checkpoint                -> BB8 (default) | BB7 (if assume failed)
+BB5   <- [4]
+  fs              %5.0  = FrameState         R     0x561663512430+75: [], env=e1.2
+  fs              %5.1  = FrameState         R     0x56166350a6c0+32: [%4.6], env=e4.3, next=%5.0
+  void                    Deopt              !v    %5.1   !
+BB8   <- [6]
+  void                    Assume             D     %6.3, %6.4 (Typecheck@0x56166374a508[Type#2])
+  lgl$-           %8.1  = CastType           d     dn %6.2
+  lgl$-           %8.2  = AsLogical                %8.1
+  lgl$#-          %8.3  = Identical                %8.2, true
+  void                    Branch                   %8.3 -> BB34 (if true) | BB9 (if false)
+BB7   <- [6]
+  fs              %7.0  = FrameState         R     0x561663512430+75: [], env=e1.2
+  fs              %7.1  = FrameState         R     0x56166350a6c0+44: [%6.2], env=e4.3, next=%7.0
+  void                    Deopt              !v    %7.1   !
+BB34   <- [8]
+  goto BB14
+BB9   <- [8]
+  val?^ | miss    %9.0  = LdVar              eR    typeof, e4.3
+  lgl$#-          %9.1  = Identical                %9.0, function(x) <(rir::DispatchTable*)0x5616632751|...
+  void                    Assume             D     %9.1, %6.4 (CallTarget@0x56166374a508[Call#1])
+  val?^ | miss    %9.3  = LdVar              eR    v, e4.3
+  val?            %9.4  = Force!<wrapped>    !v    %9.3, e4.3   <str$->
+  prom-           %9.5  = MkArg                    %9.4, makeConstantFolder@Prom(1)0[0x561664a54720]_p5 (!refl), 
+  val?            %9.6  = StaticCall         !v    typeof[0x56166482f700](%9.5) e4.3   <str$->
+  lgl$#-          %9.7  = IsType                   %9.6 isA val?-
+  cp              %9.8  = Checkpoint                -> BB11 (default) | BB10 (if assume failed)
+BB14   <- [34, 13]
+  lgl$-           %14.0 = Phi                      %13.3:BB13, %8.2:BB34
+  lgl$-           %14.1 = AsLogical                %14.0
+  lgl$#-          %14.2 = Identical                %14.1, false
+  cp              %14.3 = Checkpoint                -> BB16 (default) | BB15 (if assume failed)
+BB11   <- [9]
+  void                    Assume             D     %9.7, %9.8 (Typecheck@0x56166374a508[Type#4])
+  val?-           %11.1 = CastType           d     dn %9.6   <str$->
+  lgl-            %11.2 = Eq                 wed   %11.1, "character", elided   <lgl$->
+  lgl$#-          %11.3 = IsType                   %11.2 isA lgl$-
+  cp              %11.4 = Checkpoint                -> BB13 (default) | BB12 (if assume failed)
+BB10   <- [9]
+  fs              %10.0 = FrameState         R     0x561663512430+75: [], env=e1.2
+  fs              %10.1 = FrameState         R     0x56166350a6c0+88: [%8.2, %9.6], env=e4.3, next=%10.0
+  void                    Deopt              !v    %10.1   !
+BB16   <- [14]
+  void                    Branch                   %14.2 -> BB33 (if true) | BB17 (if false)
+BB15   <- [14]
+  fs              %15.0 = FrameState         R     0x561663512430+75: [], env=e1.2
+  fs              %15.1 = FrameState         R     0x56166350a6c0+107: [%14.0], env=e4.3, next=%15.0
+  void                    Deopt              !v    %15.1   !
+BB13   <- [11]
+  void                    Assume             D     %11.3, %11.4 (Typecheck@0x56166374a508[Type#5])
+  lgl$-           %13.1 = CastType           d     dn %11.2
+  lgl$-           %13.2 = AsLogical                %13.1
+  lgl$-           %13.3 = LOr                      %8.2, %13.2
+  goto BB14
+BB12   <- [11]
+  fs              %12.0 = FrameState         R     0x561663512430+75: [], env=e1.2
+  fs              %12.1 = FrameState         R     0x56166350a6c0+100: [%8.2, %11.2], env=e4.3, next=%12.0
+  void                    Deopt              !v    %12.1   !
+BB33   <- [16]
+  goto BB20
+BB17   <- [16]
+  val?^ | miss    %17.0 = LdVar              eR    %in%, e4.3
+  lgl$#-          %17.1 = Identical                %17.0, function(x, table) <(rir::DispatchTable*)0x561|...
+  void                    Assume             D     %17.1, %14.3 (CallTarget@0x56166374a508[Call#2])
+  prom-           %17.3 = MkArg                    unboundValue, makeConstantFolder@Prom(1)0[0x561664a54720]_p6, e4.3
+  prom-           %17.4 = MkArg                    unboundValue, makeConstantFolder@Prom(1)0[0x561664a54720]_p8, e4.3
+  val?            %17.5 = StaticCall         !v    %in%[0x5616646d8560](%17.3, %17.4) e4.3   <lgl$->
+  lgl$#-          %17.6 = IsType                   %17.5 isA lgl$-
+  cp              %17.7 = Checkpoint                -> BB19 (default) | BB18 (if assume failed)
+BB20   <- [33, 19]
+  lgl$-           %20.0 = Phi                      %19.3:BB19, %14.1:BB33
+  lgl$-           %20.1 = AsLogical                %20.0
+  lgl$#-          %20.2 = Identical                %20.1, false
+  void                    Branch                   %20.2 -> BB32 (if true) | BB21 (if false)
+BB19   <- [17]
+  void                    Assume             D     %17.6, %17.7 (Typecheck@0x56166374a508[Type#9])
+  lgl$-           %19.1 = CastType           d     dn %17.5
+  lgl$-           %19.2 = AsLogical                %19.1
+  lgl$-           %19.3 = LAnd                     %14.1, %19.2
+  goto BB20
+BB18   <- [17]
+  fs              %18.0 = FrameState         R     0x561663512430+75: [], env=e1.2
+  fs              %18.1 = FrameState         R     0x56166350a6c0+152: [%14.1, %17.5], env=e4.3, next=%18.0
+  void                    Deopt              !v    %18.1   !
+BB32   <- [20]
+  goto BB26
+BB21   <- [20]
+  (cls|spec|blt)  %21.0 = LdFun              !v    $, <0x561660cbcc10>, e4.3
+  prom-           %21.1 = MkArg                    unboundValue, makeConstantFolder@Prom(1)0[0x561664a54720]_p9, e4.3
+  prom-           %21.2 = MkArg                    unboundValue, makeConstantFolder@Prom(1)0[0x561664a54720]_p10, e4.3
+  val?            %21.3 = Call               !v    %21.0(%21.1, %21.2) e4.3   <cls->
+  cp              %21.4 = Checkpoint                -> BB23 (default) | BB22 (if assume failed)
+BB26   <- [32, 25]
+  lgl$-           %26.0 = Phi                      %25.4:BB25, %20.1:BB32
+  val?            %26.1 = PopContext         C     %26.0, %2.7   <lgl$->
+  lgl$#-          %26.2 = IsType                   %26.1 isA lgl$-
+  cp              %26.3 = Checkpoint                -> BB28 (default) | BB27 (if assume failed)
+BB23   <- [21]
+  (cls|spec|blt)  %23.0 = ChkFunction        e     %21.3
+  prom-           %23.1 = MkArg                    unboundValue, makeConstantFolder@Prom(1)0[0x561664a54720]_p11, e4.3
+  prom-           %23.2 = MkArg                    unboundValue, makeConstantFolder@Prom(1)0[0x561664a54720]_p12, e4.3
+  val+            %23.3 = CallSafeBuiltin          bodyCode(%23.0) 
+  lgl$#-          %23.4 = Identical                %23.3, <(rir::DispatchTable*)0x5616634bf500>
+  void                    Assume             D     %23.4, %21.4 (CallTarget@0x56166374a508[Call#5])
+  val?            %23.6 = StaticCall         !v    [0x56166433e7a0](%23.1, %23.2) from %23.0 e4.3   <lgl$->
+  lgl$#-          %23.7 = IsType                   %23.6 isA lgl$-
+  cp              %23.8 = Checkpoint                -> BB25 (default) | BB24 (if assume failed)
+BB22   <- [21]
+  fs              %22.0 = FrameState         R     0x561663512430+75: [], env=e1.2
+  fs              %22.1 = FrameState         R     0x56166350a6c0+203: [%20.1, %21.3], env=e4.3, next=%22.0
+  void                    Deopt              !v    %22.1   !
+BB28   <- [26]
+  void                    Assume             D     %26.2, %26.3 (Typecheck@0x5616638a6698[Type#5])
+  lgl$-           %28.1 = CastType           d     dn %26.1
+  lgl$#-          %28.2 = CheckTrueFalse     e     %28.1
+  void                    Branch                   %28.2 -> BB31 (if true) | BB29 (if false)
+BB27   <- [26]
+  fs              %27.0 = FrameState         R     0x561663512430+75: [%26.1], env=e1.2
+  void                    Deopt              !v    %27.0   !
+BB25   <- [23]
+  void                    Assume             D     %23.7, %23.8 (Typecheck@0x56166374a508[Type#15])
+  lgl$-           %25.1 = CastType           d     dn %23.6
+  lgl$-           %25.2 = Not                d     %25.1, elided
+  lgl$-           %25.3 = AsLogical                %25.2
+  lgl$-           %25.4 = LAnd                     %20.1, %25.3
+  goto BB26
+BB24   <- [23]
+  fs              %24.0 = FrameState         R     0x561663512430+75: [], env=e1.2
+  fs              %24.1 = FrameState         R     0x56166350a6c0+241: [%20.1, %23.6], env=e4.3, next=%24.0
+  void                    Deopt              !v    %24.1   !
+BB31   <- [28]
+  val?^ | miss    %31.0 = LdVar              eR    foldCall, e1.2
+  void                    Visible            v     
+  val?            %31.2 = Force!             !     %31.0, e1.2   <val?_>
+  goto BB30
+BB29   <- [28]
+  void                    Invisible          v     
+  goto BB30
+BB30   <- [29, 31]
+  val?            %30.0 = Phi                      nil:BB29, %31.2:BB31
+  void                    Return             l     %30.0
+Prom 0:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    w, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<lazy>        !     %1.1, e1.0   <vec+>
+  void                    Return             l     %1.3
+Prom 1:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    foldable, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force              !     %1.1, e1.0   <val?_>
+  void                    Return             l     %1.3
+Prom 2:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    v, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<lazy>        !     %1.1, e1.0   <str$->
+  void                    Return             l     %1.3
+Prom 3:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    w, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<wrapped>     !     %1.1, e1.0   <vec+>
+  void                    Return             l     %1.3
+Prom 4:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    v, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<lazy>        !     %1.1, e1.0   <str$->
+  void                    Return             l     %1.3
+Prom 5:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    v, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<wrapped>     !     %1.1, e1.0   <str$->
+  void                    Return             l     %1.3
+Prom 6:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  (cls|spec|blt)  %1.1  = LdFun              !     as.character, <0x561660cca040>, e1.0
+  prom-           %1.2  = MkArg                    unboundValue, makeConstantFolder@Prom(1)0[0x561664a54720]_p7, e1.0
+  val?            %1.3  = Call               !     %1.1(%1.2) e1.0   <str$->
+  void                    Return             l     %1.3
+Prom 7:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    v, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<wrapped>     !     %1.1, e1.0   <str$->
+  void                    Return             l     %1.3
+Prom 8:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    foldFuns, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<wrapped>     !     %1.1, e1.0   <str->
+  void                    Return             l     %1.3
+Prom 9:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    w, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<lazy>        !     %1.1, e1.0   <vec+>
+  void                    Return             l     %1.3
+Prom 10:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    isLocal, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force              !     %1.1, e1.0   <val?_>
+  void                    Return             l     %1.3
+Prom 11:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    v, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<wrapped>     !     %1.1, e1.0   <str$->
+  void                    Return             l     %1.3
+Prom 12:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    w, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force              !     %1.1, e1.0   <val?_>
+  void                    Return             l     %1.3
+
+│ makeConstantFolder@Prom(1)0[0x561664a54720]                                  │
+└──────────────────────────────────────────────────────────────────────────────┘

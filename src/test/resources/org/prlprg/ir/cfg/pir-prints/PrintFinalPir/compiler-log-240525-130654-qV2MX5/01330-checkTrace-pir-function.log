@@ -1,0 +1,48 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ checkTrace[0x55de2a79a670]                                                   │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;NonRefl0 miss: 2                     │
+│ Properties:                                                                  │
+├────── Final PIR Version
+checkTrace[0x55de2a79a670]
+BB0
+  val?^           %0.0  = LdArg                    0
+  val?^ | miss    %0.1  = LdVar              eR    is, ?
+  lgl$#-          %0.2  = Identical                %0.1, function(object, class2) <(rir::DispatchTable*|...
+  void                    Branch                   %0.2 -> BB8 (if true) | BB9 (if false)
+BB8   <- [0]
+  env             e8.0  = MkEnv              l     fun=%0.0, what(miss)=missingArg, f(miss)=missingArg, parent=?, context 1
+  prom-           %8.1  = MkArg                    unboundValue, checkTrace[0x55de2a79a670]_p0 (!refl), e8.0
+  val?            %8.2  = Call               !v    function(object, class2) <(rir::DispatchTable*|...(%8.1, "traceable") e8.0   <lgl$->
+  lgl$#-          %8.3  = IsType                   %8.2 isA lgl$-
+  void                    Branch                   %8.3 -> BB10 (if true) | BB11 (if false)
+BB9   <- [0]
+  env             e9.0  = (MkEnv)            l     fun=%0.0, what(miss)=missingArg, f(miss)=missingArg, parent=?, context 1
+  fs              %9.1  = FrameState         R     0x55de2d670d60+0: [], env=e9.0
+  void                    Deopt              !v    %9.1, CallTarget@0x55de2bf6b320[Call#0], %0.1   !
+BB10   <- [8]
+  lgl$-           %10.0 = CastType           d     dn %8.2
+  lgl$#-          %10.1 = CheckTrueFalse     e     %10.0
+  void                    Branch                   %10.1 -> BB6 (if true) | BB5 (if false)
+BB11   <- [8]
+  fs              %11.0 = FrameState         R     0x55de2d670d60+37: [%8.2], env=e8.0
+  void                    Deopt              !v    %11.0, Typecheck@0x55de2bf6b320[Type#1], %8.2   !
+BB6   <- [10]
+  (cls|spec|blt)  %6.0  = LdFun              !v    warning, e8.0
+  fs              %6.1  = FrameState         R     0x55de2d670d60+72: [%6.0], env=e8.0
+  void                    Deopt              !v    %6.1, DeadCall@0x55de2bf6b320[Call#1], %6.0   !
+BB5   <- [10]
+  val?^ | miss    %5.0  = LdVar              eR    fun, e8.0
+  void                    Visible            v     
+  val?            %5.2  = Force!<wrapped>    !     %5.0, e8.0   <cls>
+  void                    Return             l     %5.2
+Prom 0:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    fun, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <cls>
+  void                    Return             l     %0.3
+
+│ checkTrace[0x55de2a79a670]                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘

@@ -2,7 +2,7 @@ package org.prlprg.sexp;
 
 import java.util.Map;
 
-public final class NamespaceEnvSXP extends AbstractEnvSXP implements EnvSXP {
+public final class NamespaceEnvSXP extends AbstractEnvSXP implements StaticEnvSXP {
   private final String name;
   private final String version;
 

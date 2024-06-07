@@ -105,14 +105,16 @@ abstract non-sealed class JumpImpl<D extends JumpData<?>> extends InstrImpl<D> i
     unsafeReplaceInData("BB", old, replacement);
   }
 
+  @SuppressWarnings("unchecked")
   @Override
   public void replaceInTargets(BB old, BB replacement) {
+    var oldData = data();
     unsafeReplaceInTargets(old, replacement);
 
     cfg()
         .record(
-            new CFGEdit.ReplaceInTargets(this, old, replacement),
-            new CFGEdit.ReplaceInTargets(this, replacement, old));
+            new CFGEdit.MutateInstrArgs<>(this, (JumpData<Jump>) data()),
+            new CFGEdit.MutateInstrArgs<>(this, (JumpData<Jump>) oldData));
   }
 
   @Override

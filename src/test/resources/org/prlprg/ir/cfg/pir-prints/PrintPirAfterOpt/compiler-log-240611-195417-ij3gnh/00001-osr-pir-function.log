@@ -1,0 +1,442 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ osr[0x55d281ccd640]                                                          │
+│ Context: CorrOrd,!TMany                                                      │
+│ Properties:                                                                  │
+├────── PIR Version After Optimizations
+osr[0x55d281ccd640]
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  int$#-          %1.1  = LdArg                    0
+  int$#-          %1.2  = LdArg                    1
+  int$#-          %1.3  = LdArg                    2
+  goto BB2
+BB2   <- [1, 25]
+  int$#-          %2.0  = Phi                      %1.3:BB1, %9.0:BB25
+  cp              %2.1  = Checkpoint                -> BB3 (default) | BB49 (if assume failed)
+BB3   <- [2]
+  lgl$#-          %3.0  = Neq                d     %1.2, %2.0, elided
+  void                    Branch                   %3.0 -> BB7 (if true) | BB4 (if false)
+BB49   <- [2]
+  fs              %49.0 = FrameState         R     0x55d280b29350+178: [%1.1, %1.2, %2.0], env=e1.0
+  void                    Deopt              !v    %49.0   !
+BB7   <- [3]
+  void                    StVar              lW    i, %2.0, e1.0
+  cp              %7.1  = Checkpoint                -> BB9 (default) | BB8 (if assume failed)
+BB4   <- [3]
+  val?^ | miss    %4.0  = LdVar              eR    %*%, e1.0
+  lgl$#-          %4.1  = Identical                <blt %*%>, %4.0   <true>
+  void                    Assume             D     %4.1, %2.1 (DeadBranchReached@0x55d28115cbf8[Test#8])
+  val?^ | miss    %4.3  = LdVar              eR    u, e1.0
+  val?            %4.4  = Force!<lazy>       !v    %4.3, e1.0   <real_>
+  lgl$#-          %4.5  = IsType                   %4.4 isA real_
+  cp              %4.6  = Checkpoint                -> BB6 (default) | BB5 (if assume failed)
+BB9   <- [7]
+  int$#-          %9.0  = Add                d     %2.0, %1.1, elided
+  val?^ | miss    %9.1  = LdVar              eR    n, e1.0
+  lgl$#-          %9.2  = IsType                   %9.1 isA int$-
+  void                    Assume             D     %9.2, %7.1 (Typecheck@0x55d28115cbf8[Type#32])
+  int$-           %9.4  = CastType           d     dn %9.1
+  lgl$#-          %9.5  = ColonInputEffects        1, %9.4   <true>
+  void                    Assume             D     %9.5, %7.1 (DeadBranchReached@0x55d28115cbf8[Test#5])
+  int$#-          %9.7  = ColonCastRhs       e     1L, %9.4   <int$->
+  lgl$#-          %9.8  = Lte                d     1L, %9.7, elided   <true>
+  void                    Assume             D     %9.8, %7.1 (DeadBranchReached@0x55d28115cbf8[Test#6])
+  lgl$#-          %9.10 = Neq                d     %9.7, 1L, elided   <true>
+  void                    Assume             D     %9.10, %7.1 (DeadBranchReached@0x55d28115cbf8[Test#7])
+  void                    StVar              lW    j, 1L, e1.0
+  cp              %9.13 = Checkpoint                -> BB11 (default) | BB10 (if assume failed)
+BB8   <- [7]
+  fs              %8.0  = FrameState         R     0x55d280b29350+195: [%1.1, %1.2, %2.0], env=e1.0
+  void                    Deopt              !v    %8.0   !
+BB6   <- [4]
+  val?^ | miss    %6.0  = LdVar              eR    eval_A_mat, e1.0
+  lgl$#-          %6.1  = IsType                   %6.0 isA real_
+  void                    Assume             D     %6.1, %4.6 (Typecheck@0x55d28115cbf8[Type#58])
+  real_           %6.3  = CastType           d     dn %6.0
+  void                    Assume             D     %4.5, %4.6 (Typecheck@0x55d28115cbf8[Type#57])
+  real_           %6.5  = CastType           d     dn %4.4
+  val+            %6.6  = CallSafeBuiltin    vwed  %*%(%6.5, %6.3)    <real_>
+  void                    Return             l     %6.6
+BB5   <- [4]
+  fs              %5.0  = FrameState         R     0x55d280b29350+659: [<blt %*%>, %4.4], env=e1.0
+  void                    Deopt              !v    %5.0   !
+BB11   <- [9]
+  val?^ | miss    %11.0 = LdVar              eR    eval_A, e1.0
+  (cls|spec|blt)  %11.1 = CastType                 dn %11.0
+  val+            %11.2 = CallSafeBuiltin          bodyCode(%11.1) 
+  lgl$#-          %11.3 = Identical                %11.2, <(rir::DispatchTable*)0x55d27fe6c460>
+  void                    Assume             D     %11.3, %9.13 (CallTarget@0x55d28115cbf8[Call#5])
+  val?            %11.5 = Force!             d     %11.0, 
+  prom-           %11.6 = MkArg                    unboundValue, osr[0x55d281ccd640]_p0 (!refl), e1.0
+  prom-           %11.7 = MkArg                    unboundValue, osr[0x55d281ccd640]_p1 (!refl), e1.0
+  (cls|spec|blt)  %11.8 = ChkFunction        e     %11.5
+  env             e11.9 = CallSafeBuiltin          environment(%11.8) 
+  ct              %11.10 = PushContext        lCL   %11.6, %11.7, eval_A(i, j), %11.8, e1.0
+  val?^           %11.11 = CastType                 up %11.7
+  val?^           %11.12 = CastType                 up %11.6
+  val?^ | miss    %11.13 = LdVar              eR    eval_A_cache, e11.9
+  env             e11.14 = MkEnv              l     i=%11.12, j=%11.11, parent=e11.9, context 1
+  val?            %11.15 = Force!<value>      !v    %11.13, e11.14   <real_>
+  lgl$#-          %11.16 = IsType                   %11.15 isA val+   <lgl$#->
+  cp              %11.17 = Checkpoint                -> BB13 (default) | BB12 (if assume failed)
+BB10   <- [9]
+  fs              %10.0 = FrameState         R     0x55d280b29350+346: [%1.1, %1.2, %9.0, 1L, %9.7, 1L], env=e1.0
+  void                    Deopt              !v    %10.0   !
+BB13   <- [11]
+  void                    Assume             D     %11.16, %11.17 (DeadBranchReached@0x55d28115c7d8[Test#0])
+  val?^ | miss    %13.1 = LdVar              eR    i, e11.14
+  val?            %13.2 = Force!<lazy>       !v    %13.1, e11.14   <int$->
+  val?^ | miss    %13.3 = LdVar              eR    j, e11.14
+  val?            %13.4 = Force!<lazy>       !v    %13.3, e11.14   <int$->
+  lgl$#-          %13.5 = IsType                   %13.4 isA int$-
+  lgl$#-          %13.6 = IsType                   %13.2 isA int$-
+  cp              %13.7 = Checkpoint                -> BB15 (default) | BB14 (if assume failed)
+BB12   <- [11]
+  fs              %12.0 = FrameState         R     0x55d280b29350+390: [%1.1, %1.2, %9.0, 1L, %9.7, 2L], env=e1.0
+  fs              %12.1 = FrameState         R     0x55d28018bd50+9: [%11.15], env=e11.14, next=%12.0
+  void                    Deopt              !v    %12.1   !
+BB15   <- [13]
+  lgl$#-          %15.0 = IsType                   %11.15 isA real_
+  void                    Assume             D     %15.0, %13.7 (Typecheck@0x55d28115c7d8[Type#0])
+  real_           %15.2 = CastType           d     dn %11.15
+  void                    Assume             D     %13.6, %13.7 (Typecheck@0x55d28115c7d8[Type#3])
+  int$-           %15.4 = CastType           d     dn %13.2
+  void                    Assume             D     %13.5, %13.7 (Typecheck@0x55d28115c7d8[Type#4])
+  int$-           %15.6 = CastType           d     dn %13.4
+  real$-          %15.7 = Extract2_2D        wed   %15.2, %15.4, %15.6, elided   <real$->
+  lgl$-           %15.8 = Neq                d     %15.7, 0, elided   <lgl$->
+  lgl$#-          %15.9 = CheckTrueFalse     e     %15.8
+  void                    Branch                   %15.9 -> BB45 (if true) | BB16 (if false)
+BB14   <- [13]
+  fs              %14.0 = FrameState         R     0x55d280b29350+390: [%1.1, %1.2, %9.0, 1L, %9.7, 2L], env=e1.0
+  fs              %14.1 = FrameState         R     0x55d28018bd50+73: [%11.15, %13.2, %13.4], env=e11.14, next=%14.0
+  void                    Deopt              !v    %14.1   !
+BB45   <- [15]
+  val?^ | miss    %45.0 = LdVar              eR    eval_A_cache, e11.14
+  val?            %45.1 = Force!             !v    %45.0, e11.14   <val?_>
+  lgl$#-          %45.2 = IsType                   %45.1 isA val+   <lgl$#-@?>
+  void                    Branch                   %45.2 -> BB48 (if true) | BB46 (if false)
+BB16   <- [15]
+  val?^ | miss    %16.0 = LdVar              eR    i, e11.14
+  val?            %16.1 = Force!<wrapped>    !v    %16.0, e11.14   <int$->
+  val?^ | miss    %16.2 = LdVar              eR    j, e11.14
+  val?            %16.3 = Force!<wrapped>    !v    %16.2, e11.14   <int$->
+  lgl$#-          %16.4 = IsType                   %16.3 isA int$-
+  lgl$#-          %16.5 = IsType                   %16.1 isA int$-
+  cp              %16.6 = Checkpoint                -> BB18 (default) | BB17 (if assume failed)
+BB48   <- [45]
+  val?^ | miss    %48.0 = LdVar              eR    i, e11.14
+  val?            %48.1 = Force!             !v    %48.0, e11.14   <val?_>
+  val?^ | miss    %48.2 = LdVar              eR    j, e11.14
+  val?            %48.3 = Force!             !v    %48.2, e11.14   <val?_>
+  goto BB47
+BB46   <- [45]
+  prom-           %46.0 = MkArg                    unboundValue, osr[0x55d281ccd640]_p4, e11.14
+  prom-           %46.1 = MkArg                    unboundValue, osr[0x55d281ccd640]_p5, e11.14
+  goto BB47
+BB18   <- [16]
+  void                    Assume             D     %16.5, %16.6 (Typecheck@0x55d28115c7d8[Type#7])
+  int$-           %18.1 = CastType           d     dn %16.1
+  void                    Assume             D     %16.4, %16.6 (Typecheck@0x55d28115c7d8[Type#8])
+  int$-           %18.3 = CastType           d     dn %16.3
+  int$-           %18.4 = Add                d     %18.1, %18.3, elided   <int$->
+  real$-          %18.5 = Sub                d     %18.4, 2, elided   <real$->
+  val?^ | miss    %18.6 = LdVar              eR    i, e11.14
+  lgl$#-          %18.7 = IsType                   %18.6 isA int$~-
+  void                    Assume             D     %18.7, %16.6 (Typecheck@0x55d28115c7d8[Type#11])
+  int$~-          %18.9 = CastType           d     dn %18.6
+  int$-           %18.10 = Force!<wrapped>          %18.9,    <int$->
+  val?^ | miss    %18.11 = LdVar              eR    j, e11.14
+  lgl$#-          %18.12 = IsType                   %18.11 isA int$~-
+  void                    Assume             D     %18.12, %16.6 (Typecheck@0x55d28115c7d8[Type#12])
+  int$~-          %18.14 = CastType           d     dn %18.11
+  int$-           %18.15 = Force!<wrapped>          %18.14,    <int$->
+  int$-           %18.16 = Add                d     %18.10, %18.15, elided   <int$->
+  real$-          %18.17 = Sub                d     %18.16, 1, elided   <real$->
+  real$-          %18.18 = Mul                d     %18.5, %18.17, elided   <real$->
+  real$-          %18.19 = Div                d     %18.18, 2, elided   <real$->
+  real$-          %18.20 = Add                d     %18.19, %18.10, elided   <real$->
+  real$-          %18.21 = Div                d     1, %18.20, elided   <real$->
+  val?^ | miss    %18.22 = LdVar              eR    eval_A_cache, e11.9   <real_>
+  val?            %18.23 = Force!             !v    %18.22, e11.14
+  lgl$#-          %18.24 = IsType                   %18.23 isA real_
+  cp              %18.25 = Checkpoint                -> BB20 (default) | BB19 (if assume failed)
+BB17   <- [16]
+  fs              %17.0 = FrameState         R     0x55d280b29350+390: [%1.1, %1.2, %9.0, 1L, %9.7, 2L], env=e1.0
+  fs              %17.1 = FrameState         R     0x55d28018bd50+132: [1, %16.1, %16.3], env=e11.14, next=%17.0
+  void                    Deopt              !v    %17.1   !
+BB47   <- [46, 48]
+  val?            %47.0 = Phi                      %48.3:BB48, %46.1:BB46
+  val?            %47.1 = Phi                      %48.1:BB48, %46.0:BB46
+  val?            %47.2 = Extract2_2D        !v    %45.1, %47.1, %47.0, e11.14   <val?_>
+  goto BB21
+BB20   <- [18]
+  void                    Assume             D     %18.24, %18.25 (Typecheck@0x55d28115c7d8[Type#20])
+  real_           %20.1 = CastType           d     dn %18.23
+  real_           %20.2 = Subassign2_2D      wed   %18.21, %20.1, %18.10, %18.15, elided
+  void                    StVarSuper         lRW   eval_A_cache, %20.2, e11.14
+  goto BB21
+BB19   <- [18]
+  fs              %19.0 = FrameState         R     0x55d280b29350+390: [%1.1, %1.2, %9.0, 1L, %9.7, 2L], env=e1.0
+  fs              %19.1 = FrameState         R     0x55d28018bd50+288: [%18.21, %18.21, %18.23, %18.10, %18.15], env=e11.14, next=%19.0
+  void                    Deopt              !v    %19.1   !
+BB21   <- [20, 47]
+  val?            %21.0 = Phi                      %18.21:BB20, %47.2:BB47
+  val?            %21.1 = PopContext         C     %21.0, %11.10   <real$->
+  lgl$#-          %21.2 = IsType                   %21.1 isA real$-
+  cp              %21.3 = Checkpoint                -> BB23 (default) | BB22 (if assume failed)
+BB23   <- [21]
+  void                    Assume             D     %21.2, %21.3 (Typecheck@0x55d28115cbf8[Type#45])
+  real$-          %23.1 = CastType           d     dn %21.1
+  val?^ | miss    %23.2 = LdVar              eR    eval_A_mat !upd, e1.0
+  lgl$#-          %23.3 = IsType                   %23.2 isA real_
+  void                    Assume             D     %23.3, %21.3 (Typecheck@0x55d28115cbf8[Type#46])
+  real_           %23.5 = CastType           d     dn %23.2
+  val?^ | miss    %23.6 = LdVar              eR    i, e1.0
+  lgl$#-          %23.7 = IsType                   %23.6 isA int$-
+  void                    Assume             D     %23.7, %21.3 (Typecheck@0x55d28115cbf8[Type#47])
+  int$-           %23.9 = CastType           d     dn %23.6
+  val?^ | miss    %23.10 = LdVar              eR    j, e1.0
+  lgl$#-          %23.11 = IsType                   %23.10 isA int$-
+  void                    Assume             D     %23.11, %21.3 (Typecheck@0x55d28115cbf8[Type#48])
+  int$-           %23.13 = CastType           d     dn %23.10
+  real_           %23.14 = Subassign2_2D      wed   %23.1, %23.5, %23.9, %23.13, elided
+  void                    StVar              lW    eval_A_mat, %23.14, e1.0
+  goto BB24
+BB22   <- [21]
+  fs              %22.0 = FrameState         R     0x55d280b29350+390: [%1.1, %1.2, %9.0, 1L, %9.7, 2L, %21.1], env=e1.0
+  void                    Deopt              !v    %22.0   !
+BB24   <- [23, 40]
+  int$#-          %24.0 = Phi                      2L:BB23, %28.0:BB40
+  lgl$#-          %24.1 = Neq                d     %9.7, %24.0, elided
+  void                    Branch                   %24.1 -> BB26 (if true) | BB25 (if false)
+BB26   <- [24]
+  void                    StVar              lW    j, %24.0, e1.0
+  cp              %26.1 = Checkpoint                -> BB28 (default) | BB27 (if assume failed)
+BB25   <- [24]
+  goto BB2
+BB28   <- [26]
+  int$#-          %28.0 = Add                d     %24.0, 1L, elided
+  val?^ | miss    %28.1 = LdVar              eR    eval_A, e1.0
+  (cls|spec|blt)  %28.2 = CastType                 dn %28.1
+  val+            %28.3 = CallSafeBuiltin          bodyCode(%28.2) 
+  lgl$#-          %28.4 = Identical                %28.3, <(rir::DispatchTable*)0x55d27fe6c460>
+  void                    Assume             D     %28.4, %26.1 (CallTarget@0x55d28115cbf8[Call#6])
+  val?            %28.6 = Force!             d     %28.1, 
+  prom-           %28.7 = MkArg                    unboundValue, osr[0x55d281ccd640]_p2, e1.0
+  prom-           %28.8 = MkArg                    unboundValue, osr[0x55d281ccd640]_p3 (!refl), e1.0
+  (cls|spec|blt)  %28.9 = ChkFunction        e     %28.6
+  env             e28.10 = CallSafeBuiltin          environment(%28.9) 
+  ct              %28.11 = PushContext        lCL   %28.7, %28.8, eval_A(i, j), %28.9, e1.0
+  val?^           %28.12 = CastType                 up %28.8
+  val?^           %28.13 = CastType                 up %28.7
+  val?^ | miss    %28.14 = LdVar              eR    eval_A_cache, e28.10
+  env             e28.15 = MkEnv              l     i=%28.13, j=%28.12, parent=e28.10, context 1
+  val?            %28.16 = Force!<value>      !v    %28.14, e28.15   <real_>
+  lgl$#-          %28.17 = IsType                   %28.16 isA val+   <lgl$#->
+  cp              %28.18 = Checkpoint                -> BB30 (default) | BB29 (if assume failed)
+BB27   <- [26]
+  fs              %27.0 = FrameState         R     0x55d280b29350+464: [%1.1, %1.2, %9.0, 1L, %9.7, %24.0], env=e1.0
+  void                    Deopt              !v    %27.0   !
+BB30   <- [28]
+  void                    Assume             D     %28.17, %28.18 (DeadBranchReached@0x55d28115c7d8[Test#0])
+  val?^ | miss    %30.1 = LdVar              eR    i, e28.15
+  val?            %30.2 = Force!<lazy>       !v    %30.1, e28.15   <int$->
+  val?^ | miss    %30.3 = LdVar              eR    j, e28.15
+  val?            %30.4 = Force!<lazy>       !v    %30.3, e28.15   <int$->
+  lgl$#-          %30.5 = IsType                   %30.4 isA int$-
+  lgl$#-          %30.6 = IsType                   %30.2 isA int$-
+  cp              %30.7 = Checkpoint                -> BB32 (default) | BB31 (if assume failed)
+BB29   <- [28]
+  fs              %29.0 = FrameState         R     0x55d280b29350+508: [%1.1, %1.2, %9.0, 1L, %9.7, %28.0], env=e1.0
+  fs              %29.1 = FrameState         R     0x55d28018bd50+9: [%28.16], env=e28.15, next=%29.0
+  void                    Deopt              !v    %29.1   !
+BB32   <- [30]
+  lgl$#-          %32.0 = IsType                   %28.16 isA real_
+  void                    Assume             D     %32.0, %30.7 (Typecheck@0x55d28115c7d8[Type#0])
+  real_           %32.2 = CastType           d     dn %28.16
+  void                    Assume             D     %30.6, %30.7 (Typecheck@0x55d28115c7d8[Type#3])
+  int$-           %32.4 = CastType           d     dn %30.2
+  void                    Assume             D     %30.5, %30.7 (Typecheck@0x55d28115c7d8[Type#4])
+  int$-           %32.6 = CastType           d     dn %30.4
+  real$-          %32.7 = Extract2_2D        wed   %32.2, %32.4, %32.6, elided   <real$->
+  lgl$-           %32.8 = Neq                d     %32.7, 0, elided   <lgl$->
+  lgl$#-          %32.9 = CheckTrueFalse     e     %32.8
+  void                    Branch                   %32.9 -> BB41 (if true) | BB33 (if false)
+BB31   <- [30]
+  fs              %31.0 = FrameState         R     0x55d280b29350+508: [%1.1, %1.2, %9.0, 1L, %9.7, %28.0], env=e1.0
+  fs              %31.1 = FrameState         R     0x55d28018bd50+73: [%28.16, %30.2, %30.4], env=e28.15, next=%31.0
+  void                    Deopt              !v    %31.1   !
+BB41   <- [32]
+  val?^ | miss    %41.0 = LdVar              eR    eval_A_cache, e28.15
+  val?            %41.1 = Force!             !v    %41.0, e28.15   <val?_>
+  lgl$#-          %41.2 = IsType                   %41.1 isA val+   <lgl$#-@?>
+  void                    Branch                   %41.2 -> BB44 (if true) | BB42 (if false)
+BB33   <- [32]
+  val?^ | miss    %33.0 = LdVar              eR    i, e28.15
+  val?            %33.1 = Force!<wrapped>    !v    %33.0, e28.15   <int$->
+  val?^ | miss    %33.2 = LdVar              eR    j, e28.15
+  val?            %33.3 = Force!<wrapped>    !v    %33.2, e28.15   <int$->
+  lgl$#-          %33.4 = IsType                   %33.3 isA int$-
+  lgl$#-          %33.5 = IsType                   %33.1 isA int$-
+  cp              %33.6 = Checkpoint                -> BB35 (default) | BB34 (if assume failed)
+BB44   <- [41]
+  val?^ | miss    %44.0 = LdVar              eR    i, e28.15
+  val?            %44.1 = Force!             !v    %44.0, e28.15   <val?_>
+  val?^ | miss    %44.2 = LdVar              eR    j, e28.15
+  val?            %44.3 = Force!             !v    %44.2, e28.15   <val?_>
+  goto BB43
+BB42   <- [41]
+  prom-           %42.0 = MkArg                    unboundValue, osr[0x55d281ccd640]_p6, e28.15
+  prom-           %42.1 = MkArg                    unboundValue, osr[0x55d281ccd640]_p7, e28.15
+  goto BB43
+BB35   <- [33]
+  void                    Assume             D     %33.5, %33.6 (Typecheck@0x55d28115c7d8[Type#7])
+  int$-           %35.1 = CastType           d     dn %33.1
+  void                    Assume             D     %33.4, %33.6 (Typecheck@0x55d28115c7d8[Type#8])
+  int$-           %35.3 = CastType           d     dn %33.3
+  int$-           %35.4 = Add                d     %35.1, %35.3, elided   <int$->
+  real$-          %35.5 = Sub                d     %35.4, 2, elided   <real$->
+  val?^ | miss    %35.6 = LdVar              eR    i, e28.15
+  lgl$#-          %35.7 = IsType                   %35.6 isA int$~-
+  void                    Assume             D     %35.7, %33.6 (Typecheck@0x55d28115c7d8[Type#11])
+  int$~-          %35.9 = CastType           d     dn %35.6
+  int$-           %35.10 = Force!<wrapped>          %35.9,    <int$->
+  val?^ | miss    %35.11 = LdVar              eR    j, e28.15
+  lgl$#-          %35.12 = IsType                   %35.11 isA int$~-
+  void                    Assume             D     %35.12, %33.6 (Typecheck@0x55d28115c7d8[Type#12])
+  int$~-          %35.14 = CastType           d     dn %35.11
+  int$-           %35.15 = Force!<wrapped>          %35.14,    <int$->
+  int$-           %35.16 = Add                d     %35.10, %35.15, elided   <int$->
+  real$-          %35.17 = Sub                d     %35.16, 1, elided   <real$->
+  real$-          %35.18 = Mul                d     %35.5, %35.17, elided   <real$->
+  real$-          %35.19 = Div                d     %35.18, 2, elided   <real$->
+  real$-          %35.20 = Add                d     %35.19, %35.10, elided   <real$->
+  real$-          %35.21 = Div                d     1, %35.20, elided   <real$->
+  val?^ | miss    %35.22 = LdVar              eR    eval_A_cache, e28.10   <real_>
+  val?            %35.23 = Force!             !v    %35.22, e28.15
+  lgl$#-          %35.24 = IsType                   %35.23 isA real_
+  cp              %35.25 = Checkpoint                -> BB37 (default) | BB36 (if assume failed)
+BB34   <- [33]
+  fs              %34.0 = FrameState         R     0x55d280b29350+508: [%1.1, %1.2, %9.0, 1L, %9.7, %28.0], env=e1.0
+  fs              %34.1 = FrameState         R     0x55d28018bd50+132: [1, %33.1, %33.3], env=e28.15, next=%34.0
+  void                    Deopt              !v    %34.1   !
+BB43   <- [42, 44]
+  val?            %43.0 = Phi                      %44.3:BB44, %42.1:BB42
+  val?            %43.1 = Phi                      %44.1:BB44, %42.0:BB42
+  val?            %43.2 = Extract2_2D        !v    %41.1, %43.1, %43.0, e28.15   <val?_>
+  goto BB38
+BB37   <- [35]
+  void                    Assume             D     %35.24, %35.25 (Typecheck@0x55d28115c7d8[Type#20])
+  real_           %37.1 = CastType           d     dn %35.23
+  real_           %37.2 = Subassign2_2D      wed   %35.21, %37.1, %35.10, %35.15, elided
+  void                    StVarSuper         lRW   eval_A_cache, %37.2, e28.15
+  goto BB38
+BB36   <- [35]
+  fs              %36.0 = FrameState         R     0x55d280b29350+508: [%1.1, %1.2, %9.0, 1L, %9.7, %28.0], env=e1.0
+  fs              %36.1 = FrameState         R     0x55d28018bd50+288: [%35.21, %35.21, %35.23, %35.10, %35.15], env=e28.15, next=%36.0
+  void                    Deopt              !v    %36.1   !
+BB38   <- [37, 43]
+  val?            %38.0 = Phi                      %35.21:BB37, %43.2:BB43
+  val?            %38.1 = PopContext         C     %38.0, %28.11   <real$->
+  lgl$#-          %38.2 = IsType                   %38.1 isA real$-
+  cp              %38.3 = Checkpoint                -> BB40 (default) | BB39 (if assume failed)
+BB40   <- [38]
+  void                    Assume             D     %38.2, %38.3 (Typecheck@0x55d28115cbf8[Type#51])
+  real$-          %40.1 = CastType           d     dn %38.1
+  val?^ | miss    %40.2 = LdVar              eR    eval_A_mat !upd, e1.0
+  lgl$#-          %40.3 = IsType                   %40.2 isA real_
+  void                    Assume             D     %40.3, %38.3 (Typecheck@0x55d28115cbf8[Type#52])
+  real_           %40.5 = CastType           d     dn %40.2
+  val?^ | miss    %40.6 = LdVar              eR    i, e1.0
+  lgl$#-          %40.7 = IsType                   %40.6 isA int$-
+  void                    Assume             D     %40.7, %38.3 (Typecheck@0x55d28115cbf8[Type#53])
+  int$-           %40.9 = CastType           d     dn %40.6
+  val?^ | miss    %40.10 = LdVar              eR    j, e1.0
+  lgl$#-          %40.11 = IsType                   %40.10 isA int$-
+  void                    Assume             D     %40.11, %38.3 (Typecheck@0x55d28115cbf8[Type#54])
+  int$-           %40.13 = CastType           d     dn %40.10
+  real_           %40.14 = Subassign2_2D      wed   %40.1, %40.5, %40.9, %40.13, elided
+  void                    StVar              lW    eval_A_mat, %40.14, e1.0
+  goto BB24
+BB39   <- [38]
+  fs              %39.0 = FrameState         R     0x55d280b29350+508: [%1.1, %1.2, %9.0, 1L, %9.7, %28.0, %38.1], env=e1.0
+  void                    Deopt              !v    %39.0   !
+Prom 0:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    i, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<value>       !     %1.1, e1.0   <int$->
+  void                    Return             l     %1.3
+Prom 1:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    j, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<value>       !     %1.1, e1.0   <int$->
+  void                    Return             l     %1.3
+Prom 2:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    i, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<value>       !     %1.1, e1.0   <int$->
+  void                    Return             l     %1.3
+Prom 3:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    j, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<value>       !     %1.1, e1.0   <int$->
+  void                    Return             l     %1.3
+Prom 4:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    i, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force              !     %1.1, e1.0   <val?_>
+  void                    Return             l     %1.3
+Prom 5:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    j, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force              !     %1.1, e1.0   <val?_>
+  void                    Return             l     %1.3
+Prom 6:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    i, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force              !     %1.1, e1.0   <val?_>
+  void                    Return             l     %1.3
+Prom 7:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    j, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force              !     %1.1, e1.0   <val?_>
+  void                    Return             l     %1.3
+
+│ osr[0x55d281ccd640]                                                          │
+└──────────────────────────────────────────────────────────────────────────────┘
