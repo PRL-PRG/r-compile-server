@@ -8,7 +8,7 @@ SEXP Rf_ScalarInteger(int x);
 // R code:
 // f <- function() 42
 //
-// GNUR byecode:
+// GNUR bytecode:
 // List of 3
 // $ : symbol .Code
 // $ :List of 4
@@ -107,6 +107,7 @@ SEXP Rf_ScalarInteger(int x);
 //
 // clang-format on
 
+// function() 42
 SEXP jit_f() {
   SEXP _1 = Rf_ScalarInteger(42);
   return _1;
