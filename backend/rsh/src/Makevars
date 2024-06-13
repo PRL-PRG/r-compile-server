@@ -1,4 +1,4 @@
-LLVM_CONFIG := llvm-config
+LLVM_CONFIG := llvm-config-17
 
 PKG_CXXFLAGS != $(LLVM_CONFIG) --cxxflags
 PKG_LDFLAGS != $(LLVM_CONFIG) --ldflags

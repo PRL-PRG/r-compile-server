@@ -51,5 +51,7 @@ SEXP call_fun2(SEXP pointer, SEXP arg) {
 
 SEXP call_fun3(SEXP call, SEXP op, SEXP args, SEXP env) {
   Rprintf("call_fun3\n");
-  return R_NilValue;
+  void *ptr = R_ExternalPtrAddr(CADR(args));
+  SEXP (*fun)(SEXP) = (SEXP(*)(SEXP))ptr;
+  return fun(env);
 }
