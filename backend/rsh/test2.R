@@ -1,5 +1,7 @@
-devtools::load_all()
+# devtools::install()
 
-f <- function(a, x=xyz(), b) .External2(rsh:::C_call_fun3)
+dyn.load("../../../resources/R-4.3.2/library/rsh/libs/rsh.so", local = FALSE)
 
-f(b=doesNotExit())
+f <- rsh::rsh_load("/tmp/jit.o")
+
+f(5)
