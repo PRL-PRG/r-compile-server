@@ -29,9 +29,13 @@ public class AbstractGNURBasedTest {
     R = GNUR.spawn(rsession);
   }
 
+  // It's not constant if `startR` fails.
+  @SuppressWarnings("ConstantValue")
   @AfterAll
   public void stopR() {
-    R.close();
+    if (R != null) {
+      R.close();
+    }
   }
 
   /**

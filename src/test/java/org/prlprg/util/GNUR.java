@@ -132,8 +132,10 @@ public class GNUR implements AutoCloseable {
       var proc =
           new ProcessBuilder(R_BIN, "--slave", "--vanilla").redirectErrorStream(true).start();
       return new GNUR(session, proc);
-    } catch (Exception e) {
-      throw new RuntimeException("Unable to start R (" + R_BIN + ")", e);
+    } catch (IOException | SecurityException | UnsupportedOperationException e) {
+      throw new RuntimeException("Unable to start R (R_BIN = " + R_BIN + ")", e);
+    } catch (InterruptedException e) {
+      throw new RuntimeException("Interrupted while running R (R_BIN = " + R_BIN + ")", e);
     }
   }
 }
