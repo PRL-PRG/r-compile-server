@@ -6,6 +6,7 @@ import com.google.common.escape.Escaper;
 import com.google.common.escape.Escapers;
 import java.util.Optional;
 import javax.annotation.concurrent.Immutable;
+import org.prlprg.parseprint.Printer;
 import org.prlprg.primitive.Constants;
 
 /** String vector SEXP. */
@@ -54,11 +55,6 @@ record StrSXPImpl(ImmutableList<String> data, @Override Attributes attributes) i
   }
 
   @Override
-  public String toString() {
-    return VectorSXPs.toString(this, data.stream().map(StrSXPs::quoteString));
-  }
-
-  @Override
   public StrSXP withAttributes(Attributes attributes) {
     return SEXPs.string(data, attributes);
   }
@@ -66,6 +62,11 @@ record StrSXPImpl(ImmutableList<String> data, @Override Attributes attributes) i
   @Override
   public Optional<String> reifyString() {
     return size() == 1 ? Optional.of(get(0)) : Optional.empty();
+  }
+
+  @Override
+  public String toString() {
+    return Printer.toString(this);
   }
 }
 

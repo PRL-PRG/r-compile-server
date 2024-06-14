@@ -206,7 +206,7 @@ public final class ConstantFolding {
       res.addAll(x);
     }
 
-    return SEXPs.vector(x.type(), res.build());
+    return SEXPs.primVector(x.type(), res.build());
   }
 
   private static <T> SEXP doRep2(VectorSXP<T> xs, NumericSXP<?> times) {
@@ -220,7 +220,7 @@ public final class ConstantFolding {
       }
     }
 
-    return SEXPs.vector(xs.type(), res.build());
+    return SEXPs.primVector(xs.type(), res.build());
   }
 
   private static Optional<SEXP> doubleMath1(List<SEXP> args, Function<Double, Double> f) {

@@ -3,7 +3,7 @@ package org.prlprg.ir.cfg;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
-import org.jetbrains.annotations.Nullable;
+import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.ir.analysis.DomTree;
 

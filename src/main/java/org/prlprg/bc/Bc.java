@@ -7,6 +7,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import javax.annotation.Nullable;
+import org.prlprg.parseprint.ParseMethod;
+import org.prlprg.parseprint.Parser;
+import org.prlprg.parseprint.PrintMethod;
+import org.prlprg.parseprint.Printer;
+import org.prlprg.parseprint.SkipWhitespace;
 import org.prlprg.primitive.Constants;
 import org.prlprg.sexp.IntSXP;
 import org.prlprg.sexp.SEXP;
@@ -23,11 +28,6 @@ public record Bc(BcCode code, ConstPool consts) {
    * version is denoted by the first integer in its code.
    */
   public static final int R_BC_VERSION = 12;
-
-  @Override
-  public String toString() {
-    return code + "\n" + consts;
-  }
 
   public static class Builder {
     private final BcCode.Builder code = new BcCode.Builder();
@@ -134,4 +134,29 @@ public record Bc(BcCode code, ConstPool consts) {
       patches.put(instrIdx, patch);
     }
   }
+
+  // region serialization and deserialization
+  @ParseMethod(SkipWhitespace.ALL_EXCEPT_NEWLINES)
+  private static Bc parse(Parser p) {
+    var s = p.scanner();
+
+    var code = p.parse(BcCode.class);
+    s.assertAndSkip('\n');
+    var consts = p.parse(ConstPool.class);
+
+    return new Bc(code, consts);
+  }
+
+  @PrintMethod
+  private void print(Printer p) {
+    p.print(code);
+    p.writer().write('\n');
+    p.print(consts);
+  }
+
+  @Override
+  public String toString() {
+    return Printer.toString(this);
+  }
+  // endregion serialization and deserialization
 }

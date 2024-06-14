@@ -168,7 +168,6 @@ import org.prlprg.sexp.ListSXP;
 import org.prlprg.sexp.RegSymSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
-import org.prlprg.sexp.SymOrLangSXP;
 import org.prlprg.util.MapListView;
 import org.prlprg.util.Reflection;
 import org.prlprg.util.UnreachableError;
@@ -338,7 +337,7 @@ public class CFGCompiler {
     // Add instructions to BBs, including jumps which connect them.
     // Also, move to the BB at each label.
     for (bcPos = 0; bcPos < code.size(); bcPos++) {
-      if (bbByLabel.containsKey(bcPos)) {
+      if (bcPos != 0 && bbByLabel.containsKey(bcPos)) {
         moveTo(bbByLabel.get(bcPos));
       }
       addBcInstrIrInstrs(code.get(bcPos));
@@ -603,7 +602,7 @@ public class CFGCompiler {
         var fb = get(arg);
         var forms = (ListSXP) fb.get(0);
         var body = fb.get(1);
-        var ast = fb.size() > 2 ? (SymOrLangSXP) fb.get(2) : null;
+        var ast = fb.size() > 2 ? fb.get(2) : null;
         var cloSxp =
             SEXPs.closure(
                 forms, body, SEXPs.EMPTY_ENV, ast == null ? null : Attributes.srcref(ast));

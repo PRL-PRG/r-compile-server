@@ -2,6 +2,8 @@ package org.prlprg.ir.cfg;
 
 import java.util.ArrayList;
 import javax.annotation.Nullable;
+import org.prlprg.ir.closure.Closure;
+import org.prlprg.ir.closure.Promise;
 import org.prlprg.parseprint.ClassProvidingContext;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
@@ -10,6 +12,7 @@ import org.prlprg.parseprint.Printer;
 
 /** CFG's syntax is inspired by <a href="https://mlir.llvm.org/docs/LangRef/">MLIR</a>. */
 public interface CFGParsePrint {
+  @ParseMethod
   private static CFG parse(Parser p) {
     var s = p.scanner();
 
@@ -21,7 +24,7 @@ public interface CFGParsePrint {
     cfg.setNextInstrOrPhiDisambiguator(s.readUInt());
     s.assertAndSkip("):\n");
 
-    var cfgP = p.withContext(new CFGParseOrPrintContext(cfg));
+    var cfgP = p.withContext(new CFGParseOrPrintContext(p.context(), cfg));
     while (!s.isAtEof()) {
       if (s.trySkip("//")) {
         // Comment
@@ -47,7 +50,7 @@ public interface CFGParsePrint {
     p.print(cfg.nextInstrOrPhiDisambiguatorWithoutIncrementing());
     w.write("):\n");
 
-    var cfgP = p.withContext(new CFGParseOrPrintContext(cfg));
+    var cfgP = p.withContext(new CFGParseOrPrintContext(p.context(), cfg));
     var iter = new CFGIterator.Bfs(cfg);
     iter.forEachRemaining(cfgP::print);
 
@@ -61,9 +64,11 @@ public interface CFGParsePrint {
 }
 
 class CFGParseOrPrintContext {
+  private final @Nullable Object outerContext;
   private final CFG cfg;
 
-  CFGParseOrPrintContext(CFG cfg) {
+  CFGParseOrPrintContext(@Nullable Object outerContext, CFG cfg) {
+    this.outerContext = outerContext;
     this.cfg = cfg;
   }
 
@@ -74,7 +79,7 @@ class CFGParseOrPrintContext {
     var id = p.parse(BBId.class);
     var bb = cfg.addBBWithId(id);
 
-    var bbP = p.withContext(new BBParseOrPrintContext(cfg, bb));
+    var bbP = p.withContext(new BBParseOrPrintContext(outerContext, cfg, bb));
 
     // Phis
     if (s.trySkip('(')) {
@@ -101,7 +106,7 @@ class CFGParseOrPrintContext {
   @PrintMethod
   private void printBB(BB bb, Printer p) {
     var w = p.writer();
-    var bbP = p.withContext(new BBParseOrPrintContext(cfg, bb));
+    var bbP = p.withContext(new BBParseOrPrintContext(outerContext, cfg, bb));
 
     p.print(bb.id());
 
@@ -140,11 +145,13 @@ class CFGParseOrPrintContext {
 }
 
 class BBParseOrPrintContext {
+  private final @Nullable Object outerContext;
   private final CFG cfg;
   private final @Nullable BB bb;
   private final DataContext dataContext = new DataContext();
 
-  public BBParseOrPrintContext(CFG cfg, @Nullable BB bb) {
+  public BBParseOrPrintContext(@Nullable Object outerContext, CFG cfg, @Nullable BB bb) {
+    this.outerContext = outerContext;
     this.cfg = cfg;
     this.bb = bb;
   }
@@ -236,7 +243,7 @@ class BBParseOrPrintContext {
       w.write(" = ");
     }
 
-    p.withContext(dataContext).print(instr.data());
+    w.runIndented(() -> p.withContext(dataContext).print(instr.data()));
   }
 
   private class DataContext implements ClassProvidingContext {
@@ -277,6 +284,26 @@ class BBParseOrPrintContext {
     @PrintMethod
     private void printNode(Node node, Printer p) {
       p.print(node.id());
+    }
+
+    @ParseMethod
+    private Closure parseInnerClosure(Parser p) {
+      return p.withContext(outerContext).parse(Closure.class);
+    }
+
+    @PrintMethod
+    private void printInnerClosure(Closure closure, Printer p) {
+      p.withContext(outerContext).print(closure);
+    }
+
+    @ParseMethod
+    private Promise parsePromise(Parser p) {
+      return p.withContext(outerContext).parse(Promise.class);
+    }
+
+    @PrintMethod
+    private void printPromise(Promise promise, Printer p) {
+      p.withContext(outerContext).print(promise);
     }
 
     @Override

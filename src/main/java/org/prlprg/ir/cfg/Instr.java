@@ -674,6 +674,6 @@ abstract sealed class InstrImpl<D extends InstrData<?>> implements LocalNode
 
   @PrintMethod
   private void print(Printer p) {
-    p.withContext(new BBParseOrPrintContext(cfg(), null)).print(this);
+    p.withContext(new BBParseOrPrintContext(null, cfg(), null)).print(this);
   }
 }

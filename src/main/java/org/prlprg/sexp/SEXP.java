@@ -1,8 +1,18 @@
 package org.prlprg.sexp;
 
 import com.google.common.collect.Streams;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import javax.annotation.Nullable;
+import org.prlprg.parseprint.ParseMethod;
+import org.prlprg.parseprint.Parser;
+import org.prlprg.parseprint.PrintMethod;
+import org.prlprg.parseprint.Printer;
+import org.prlprg.primitive.Complex;
+import org.prlprg.primitive.Logical;
 
 /**
  * R runtime object: every value, expression, AST node, etc. in R's runtime is an SEXP.
@@ -19,8 +29,7 @@ public sealed interface SEXP
         EnvSXP,
         BCodeSXP,
         PromSXP,
-        BuiltinSXP,
-        SpecialSXP {
+        BuiltinOrSpecialSXP {
   /**
    * SEXPTYPE. It's important to distinguish these from the SEXP's class, because there's a class
    * for every type but not vice versa due to subclasses (e.g. simple-scalar ints have the same
@@ -39,7 +48,7 @@ public sealed interface SEXP
 
   /**
    * @return {@code null} if the SEXP type doesn't support attributes ({@link #withAttributes}
-   *     throws an exception) and {@link Attributes.NONE} if it does but there are none.
+   *     throws an exception) and {@link Attributes#NONE} if it does but there are none.
    */
   default @Nullable Attributes attributes() {
     return null;
@@ -75,7 +84,7 @@ public sealed interface SEXP
    * @return {@code true} if this SEXP is a function (closure, builtin, or special).
    */
   default boolean isFunction() {
-    return this instanceof CloSXP || this instanceof BuiltinSXP || this instanceof SpecialSXP;
+    return this instanceof CloSXP || this instanceof BuiltinOrSpecialSXP;
   }
 
   default SEXP withNames(String name) {
@@ -107,6 +116,26 @@ public sealed interface SEXP
     return Arrays.stream(types).anyMatch(t -> t == type());
   }
 
+  default Optional<Logical> asScalarLogical() {
+    return as(ScalarLglSXP.class).map(ScalarLglSXP::value);
+  }
+
+  default Optional<Integer> asScalarInteger() {
+    return as(ScalarIntSXP.class).map(ScalarIntSXP::value);
+  }
+
+  default Optional<Double> asScalarReal() {
+    return as(ScalarRealSXP.class).map(ScalarRealSXP::value);
+  }
+
+  default Optional<Complex> asScalarComplex() {
+    return as(ScalarComplexSXP.class).map(ScalarComplexSXP::value);
+  }
+
+  default Optional<String> asScalarString() {
+    return as(ScalarStrSXP.class).map(ScalarStrSXP::value);
+  }
+
   default Optional<LangSXP> asLang() {
     return as(LangSXP.class);
   }
@@ -114,4 +143,16 @@ public sealed interface SEXP
   default <T extends SEXP> Optional<T> as(Class<T> clazz) {
     return clazz.isInstance(this) ? Optional.of(clazz.cast(this)) : Optional.empty();
   }
+
+  // region serialization and deserialization
+  @ParseMethod
+  private static SEXP parse(Parser p) {
+    return p.withContext(new SEXPParseContext()).parse(SEXP.class);
+  }
+
+  @PrintMethod
+  private void print(Printer p) {
+    p.withContext(new SEXPPrintContext()).print(this);
+  }
+  // endregion serialization and deserialization
 }

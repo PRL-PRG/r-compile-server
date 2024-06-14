@@ -1,11 +1,11 @@
 package org.prlprg.sexp;
 
 import java.util.Map;
-import javax.annotation.Nullable;
+import javax.annotation.Nonnull;
 
 /** An environment inside a closure or explicitly defined by the user. */
 public final class UserEnvSXP extends AbstractEnvSXP implements EnvSXP {
-  private @Nullable Attributes attributes;
+  private Attributes attributes = Attributes.NONE;
 
   public UserEnvSXP() {
     this(EmptyEnvSXP.INSTANCE);
@@ -16,7 +16,8 @@ public final class UserEnvSXP extends AbstractEnvSXP implements EnvSXP {
   }
 
   public UserEnvSXP(EnvSXP parent, Map<String, SEXP> bindings) {
-    super(parent, bindings);
+    this(parent);
+    this.bindings.putAll(bindings);
   }
 
   public void setParent(EnvSXP parent) {
@@ -24,8 +25,8 @@ public final class UserEnvSXP extends AbstractEnvSXP implements EnvSXP {
   }
 
   @Override
-  public String toString() {
-    return "<environment: " + "@" + Integer.toString(hashCode(), 16) + ">";
+  public EnvType envType() {
+    return EnvType.USER;
   }
 
   @Override
@@ -34,7 +35,8 @@ public final class UserEnvSXP extends AbstractEnvSXP implements EnvSXP {
     return this;
   }
 
-  @Nullable public Attributes getAttributes() {
+  @Override
+  public @Nonnull Attributes attributes() {
     return attributes;
   }
 }

@@ -1159,13 +1159,13 @@ public class Compiler {
 
     var b = def.bodyAST();
 
-    if (b instanceof LangSXP lb && lb.funName("{") && lb.args().size() == 1) {
+    if (b instanceof LangSXP lb && lb.funNameIs("{") && lb.args().size() == 1) {
       // unwrap the { call if it has just one argument
       b = lb.arg(0);
     }
 
     return b.asLang()
-        .filter(call -> call.funName(".Internal"))
+        .filter(call -> call.funNameIs(".Internal"))
         .flatMap(call -> call.arg(0).asLang())
         .filter(
             internalCall -> internalCall.funName().map(rsession::isBuiltinInternal).orElse(false))
@@ -1198,7 +1198,7 @@ public class Compiler {
 
                           return SEXPs.lang(
                               SEXPs.symbol(".Internal"),
-                              SEXPs.list(SEXPs.lang(internalCall.fun(), SEXPs.list2(args))));
+                              SEXPs.list(SEXPs.lang(internalCall.fun(), SEXPs.list1(args))));
                         }));
   }
 
@@ -2390,7 +2390,7 @@ public class Compiler {
 
     Optional<IntSXP> srcRef;
 
-    if (body instanceof LangSXP b && b.funName("{")) {
+    if (body instanceof LangSXP b && b.funNameIs("{")) {
       srcRef = extractSrcRef(body, 0);
     } else {
       // try to get the srcRef from the function itself

@@ -5,6 +5,7 @@ import com.google.common.primitives.ImmutableDoubleArray;
 import java.util.Objects;
 import java.util.PrimitiveIterator;
 import javax.annotation.concurrent.Immutable;
+import org.prlprg.parseprint.Printer;
 
 /** Real vector SEXP. */
 @Immutable
@@ -54,11 +55,6 @@ record RealSXPImpl(ImmutableDoubleArray data, @Override Attributes attributes) i
   }
 
   @Override
-  public String toString() {
-    return VectorSXPs.toString(this, data().stream());
-  }
-
-  @Override
   public RealSXP withAttributes(Attributes attributes) {
     return SEXPs.real(data, attributes);
   }
@@ -93,6 +89,11 @@ record RealSXPImpl(ImmutableDoubleArray data, @Override Attributes attributes) i
   @Override
   public int hashCode() {
     return Objects.hash(data, attributes);
+  }
+
+  @Override
+  public String toString() {
+    return Printer.toString(this);
   }
 }
 

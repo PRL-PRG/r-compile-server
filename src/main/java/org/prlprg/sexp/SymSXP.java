@@ -1,9 +1,6 @@
 package org.prlprg.sexp;
 
 import javax.annotation.concurrent.Immutable;
-import org.prlprg.parseprint.ParseMethod;
-import org.prlprg.parseprint.Parser;
-import org.prlprg.primitive.Names;
 
 /** R Identifier. */
 @Immutable
@@ -31,13 +28,5 @@ public sealed interface SymSXP extends SymOrLangSXP permits RegSymSXP, SpecialSy
   /** Whether this is the unbound value symbol. */
   default boolean isUnbound() {
     return this == SEXPs.UNBOUND_VALUE;
-  }
-
-  @ParseMethod
-  private static SymSXP parse(Parser p) {
-    var s = p.scanner();
-    var name = Names.read(s, true);
-
-    return name.equals("...") ? SEXPs.DOTS_SYMBOL : new RegSymSXP(name);
   }
 }

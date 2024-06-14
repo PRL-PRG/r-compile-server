@@ -4,7 +4,9 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.UnmodifiableIterator;
 import java.util.Objects;
+import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
+import org.prlprg.parseprint.Printer;
 
 /** Generic vector SEXP = vector which contains SEXPs. */
 public sealed interface VecSXP extends VectorSXP<SEXP> {
@@ -17,9 +19,6 @@ public sealed interface VecSXP extends VectorSXP<SEXP> {
   default Class<? extends SEXP> getCanonicalType() {
     return VecSXP.class;
   }
-
-  @Override
-  Attributes attributes();
 
   @Override
   VecSXP withAttributes(Attributes attributes);
@@ -42,13 +41,13 @@ record VecSXPImpl(ImmutableList<SEXP> data, @Override Attributes attributes) imp
   }
 
   @Override
-  public String toString() {
-    return VectorSXPs.toString(this, data.stream());
+  public VecSXP withAttributes(Attributes attributes) {
+    return SEXPs.vec(data, attributes);
   }
 
   @Override
-  public VecSXP withAttributes(Attributes attributes) {
-    return SEXPs.vec(data, attributes);
+  public String toString() {
+    return Printer.toString(this);
   }
 }
 
@@ -77,12 +76,7 @@ abstract sealed class ScalarSXPImpl<T> implements VectorSXP<T>
     return 1;
   }
 
-  @Override
-  public String toString() {
-    return data.toString();
-  }
-
-  public Attributes attributes() {
+  public @Nonnull Attributes attributes() {
     return Attributes.NONE;
   }
 
@@ -96,6 +90,11 @@ abstract sealed class ScalarSXPImpl<T> implements VectorSXP<T>
   @Override
   public int hashCode() {
     return Objects.hash(data);
+  }
+
+  @Override
+  public String toString() {
+    return Printer.toString(this);
   }
 }
 
@@ -125,12 +124,12 @@ abstract sealed class EmptyVectorSXPImpl<T> implements VectorSXP<T>
   }
 
   @Override
-  public String toString() {
-    return "<EMPTY_" + type() + ">";
+  public @Nonnull Attributes attributes() {
+    return Attributes.NONE;
   }
 
   @Override
-  public Attributes attributes() {
-    return Attributes.NONE;
+  public String toString() {
+    return Printer.toString(this);
   }
 }

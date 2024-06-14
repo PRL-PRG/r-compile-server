@@ -2,12 +2,11 @@ package org.prlprg.sexp;
 
 import com.google.common.collect.ImmutableList;
 import java.util.Optional;
+import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
-import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
-import org.prlprg.primitive.Names;
 
 /** AST function call ("language object") SEXP. */
 @Immutable
@@ -29,6 +28,7 @@ public sealed interface LangSXP extends SymOrLangSXP {
   }
 
   @Override
+  @Nonnull
   Attributes attributes();
 
   @Override
@@ -42,7 +42,7 @@ public sealed interface LangSXP extends SymOrLangSXP {
     return fun() instanceof RegSymSXP funSym ? Optional.of(funSym.name()) : Optional.empty();
   }
 
-  default boolean funName(String name) {
+  default boolean funNameIs(String name) {
     return funName().map(name::equals).orElse(false);
   }
 
@@ -60,11 +60,6 @@ public sealed interface LangSXP extends SymOrLangSXP {
 record LangSXPImpl(SymOrLangSXP fun, ListSXP args, @Override Attributes attributes)
     implements LangSXP {
   @Override
-  public String toString() {
-    return attributes().isEmpty() ? deparse() : SEXPs.toString(this, deparse(), attributes());
-  }
-
-  @Override
   public LangSXP withAttributes(Attributes attributes) {
     return SEXPs.lang(fun, args, attributes);
   }
@@ -77,29 +72,11 @@ record LangSXPImpl(SymOrLangSXP fun, ListSXP args, @Override Attributes attribut
   @Override
   public ListSXP asList() {
     var l = new ImmutableList.Builder<SEXP>().add(fun).addAll(args.values()).build();
-    return SEXPs.list2(l);
+    return SEXPs.list1(l);
   }
 
-  // TODO: Special print `{`, `if`, `while`, `for`, ...
-  private String deparse() {
-    if (fun instanceof RegSymSXP funSym) {
-      var funName = funSym.name();
-      if (Names.BINOPS.contains(funName) && args.size() == 2) {
-        return args.get(0) + " " + funName + " " + args.get(1);
-      }
-    }
-    return fun + (args instanceof NilSXP ? "()" : args.toString());
-  }
-
-  @PrintMethod
-  private void print(Printer p) {
-    var w = p.writer();
-
-    p.print(fun);
-    if (args instanceof NilSXP) {
-      w.write("()");
-    } else {
-      p.print(args);
-    }
+  @Override
+  public String toString() {
+    return Printer.toString(this);
   }
 }

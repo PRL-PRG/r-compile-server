@@ -93,7 +93,7 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
   }
 
   private static Arbitrary<NamespaceEnvSXP> namespaceEnvs1(
-      Arbitrary<? extends EnvSXP> envs, Arbitrary<SEXP> sexps) {
+      Arbitrary<? extends StaticEnvSXP> envs, Arbitrary<SEXP> sexps) {
     return Combinators.combine(symbolStrings(), symbolStrings(), envs, envBindings(sexps))
         .as(NamespaceEnvSXP::new);
   }

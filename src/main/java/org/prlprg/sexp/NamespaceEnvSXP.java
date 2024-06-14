@@ -2,28 +2,32 @@ package org.prlprg.sexp;
 
 import java.util.Map;
 
-public final class NamespaceEnvSXP extends AbstractEnvSXP implements StaticEnvSXP {
+public final class NamespaceEnvSXP extends AbstractStaticEnvSXP implements StaticEnvSXP {
   private final String name;
   private final String version;
 
-  public NamespaceEnvSXP(String name, String version, EnvSXP parent, Map<String, SEXP> bindings) {
+  public NamespaceEnvSXP(String name, String version, StaticEnvSXP parent) {
     super(parent);
-    bindings.forEach(this::set);
     this.name = name;
     this.version = version;
   }
 
-  public String getVersion() {
+  public NamespaceEnvSXP(
+      String name, String version, StaticEnvSXP parent, Map<String, SEXP> bindings) {
+    this(name, version, parent);
+    this.bindings.putAll(bindings);
+  }
+
+  public String version() {
     return version;
   }
 
-  public String getName() {
+  public String name() {
     return name;
   }
 
   @Override
-  public String toString() {
-    // TODO: add some link to the R session?
-    return "<namespace:" + name + ">";
+  public EnvType envType() {
+    return EnvType.NAMESPACE;
   }
 }

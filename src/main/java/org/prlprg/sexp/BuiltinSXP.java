@@ -1,8 +1,9 @@
 package org.prlprg.sexp;
 
+import org.prlprg.parseprint.Printer;
 import org.prlprg.primitive.BuiltinId;
 
-public record BuiltinSXP(BuiltinId id) implements SEXP {
+public record BuiltinSXP(@Override BuiltinId id) implements BuiltinOrSpecialSXP {
   public BuiltinSXP {
     if (id.isSpecial()) {
       throw new IllegalArgumentException("Not a non-special builtin: " + id);
@@ -17,5 +18,10 @@ public record BuiltinSXP(BuiltinId id) implements SEXP {
   @Override
   public Class<? extends SEXP> getCanonicalType() {
     return BuiltinSXP.class;
+  }
+
+  @Override
+  public String toString() {
+    return Printer.toString(this);
   }
 }

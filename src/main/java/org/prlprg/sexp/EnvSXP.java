@@ -1,7 +1,10 @@
 package org.prlprg.sexp;
 
-import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Stream;
+import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.util.Pair;
 
 public sealed interface EnvSXP extends SEXP permits StaticEnvSXP, UserEnvSXP {
@@ -52,7 +55,16 @@ public sealed interface EnvSXP extends SEXP permits StaticEnvSXP, UserEnvSXP {
     return getLocal(name).map(v -> Pair.of(this, v)).or(() -> parent().find(name));
   }
 
-  Iterable<? extends Map.Entry<? extends String, ? extends SEXP>> bindings();
+  @UnmodifiableView
+  Set<Entry<String, SEXP>> bindings();
+
+  default Stream<TaggedElem> streamBindingsAsTaggedElems() {
+    return bindings().stream().map(e -> new TaggedElem(e.getKey(), e.getValue()));
+  }
+
+  default Iterable<TaggedElem> bindingsAsTaggedElems() {
+    return streamBindingsAsTaggedElems()::iterator;
+  }
 
   /**
    * Get the number of symbols in the environment.
@@ -61,15 +73,16 @@ public sealed interface EnvSXP extends SEXP permits StaticEnvSXP, UserEnvSXP {
    */
   int size();
 
+  /** Whether this is a user, global, namespace, base, or empty environment. */
+  EnvType envType();
+
   /**
    * Returns {@code true} if this is the base environment ({@code baseenv()}) or a base namespace
    * ({@code .BaseNamespaceEnv}). namespace.
-   *
-   * @return
    */
   default boolean isBase() {
     return this instanceof BaseEnvSXP
-        || this instanceof NamespaceEnvSXP ns && ns.getName().equals("base");
+        || this instanceof NamespaceEnvSXP ns && ns.name().equals("base");
   }
 
   @Override

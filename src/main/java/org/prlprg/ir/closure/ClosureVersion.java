@@ -17,6 +17,10 @@ import org.prlprg.ir.type.lattice.Lattice;
 import org.prlprg.ir.type.lattice.NoOrMaybe;
 import org.prlprg.ir.type.lattice.Troolean;
 import org.prlprg.ir.type.lattice.YesOrMaybe;
+import org.prlprg.parseprint.ParseMethod;
+import org.prlprg.parseprint.Parser;
+import org.prlprg.parseprint.PrintMethod;
+import org.prlprg.parseprint.Printer;
 import org.prlprg.util.UnreachableError;
 
 /**
@@ -29,7 +33,7 @@ import org.prlprg.util.UnreachableError;
  * evaluated. See {@link Closure}'s documentation for more details.
  */
 public class ClosureVersion {
-  private final Closure closure;
+  private @Nullable Closure closure;
   private final boolean isBaseline;
   private final CallContext callContext;
   private Properties properties;
@@ -56,7 +60,19 @@ public class ClosureVersion {
 
   /** The closure which contains this version. */
   public Closure closure() {
+    assert closure != null
+        : "closure should've been assigned at constructor or, if deserialized, in `lateAssignClosure`";
     return closure;
+  }
+
+  /**
+   * Set a deserialized version's closure.
+   *
+   * <p>Shouldn't be called anywhere except {@code Closure#parse(Parser)}.
+   */
+  void lateAssignClosure(Closure closure) {
+    assert this.closure == null : "closure already assigned";
+    this.closure = closure;
   }
 
   /**
@@ -548,4 +564,41 @@ public class ClosureVersion {
       }
     }
   }
+
+  // region serialization and deserialization
+  @ParseMethod
+  private static ClosureVersion parse(Parser p) {
+    return new ClosureVersion(p);
+  }
+
+  /** Deserialize constructor (so we can set the final fields). */
+  private ClosureVersion(Parser p) {
+    var s = p.scanner();
+
+    isBaseline = !s.nextCharsAre("CallContext");
+    callContext = isBaseline ? CallContext.EMPTY : p.parse(CallContext.class);
+    properties = s.trySkip(" has") ? p.parse(Properties.class) : Properties.EMPTY;
+    s.assertAndSkip('{');
+    body = p.parse(CFG.class);
+    s.assertAndSkip('}');
+  }
+
+  @PrintMethod
+  private void print(Printer p) {
+    var w = p.writer();
+
+    if (!properties.isEmpty()) {
+      w.write(" has ");
+      w.runIndented(() -> p.print(properties));
+    }
+    w.write(" {");
+    p.print(body);
+    w.write('}');
+  }
+
+  @Override
+  public String toString() {
+    return Printer.toString(this);
+  }
+  // endregion serialization and deserialization
 }

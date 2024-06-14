@@ -30,11 +30,6 @@ public final class NilSXP implements ListSXP {
     return NilSXP.class;
   }
 
-  @Override
-  public String toString() {
-    return "NULL";
-  }
-
   /** In R, nil is equivalent to an empty list, so this is always {@code true}. */
   @Override
   public boolean isEmpty() {
@@ -143,5 +138,10 @@ public final class NilSXP implements ListSXP {
   @Override
   public ListSXP withAttributes(Attributes attributes) {
     throw new UnsupportedOperationException("Cannot set attributes on NULL");
+  }
+
+  @Override
+  public String toString() {
+    return "NULL";
   }
 }

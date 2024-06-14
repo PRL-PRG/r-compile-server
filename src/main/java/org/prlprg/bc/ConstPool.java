@@ -11,6 +11,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 import javax.annotation.concurrent.Immutable;
+import org.prlprg.parseprint.ParseMethod;
+import org.prlprg.parseprint.Parser;
+import org.prlprg.parseprint.PrintMethod;
+import org.prlprg.parseprint.Printer;
+import org.prlprg.parseprint.SkipWhitespace;
 import org.prlprg.sexp.IntSXP;
 import org.prlprg.sexp.LangSXP;
 import org.prlprg.sexp.ListSXP;
@@ -44,22 +49,6 @@ public final class ConstPool extends ForwardingList<SEXP> {
   public <S extends SEXP> S get(Idx<S> idx) {
     var res = consts.get(idx.idx());
     return idx.type().cast(res);
-  }
-
-  @Override
-  public String toString() {
-    StringBuilder sb = new StringBuilder("=== CONSTS ===");
-    var idx = 0;
-    for (var c : this) {
-      var cStr = c.toString();
-      sb.append(String.format("%n%3d: ", idx++));
-      if (cStr.contains(System.lineSeparator())) {
-        sb.append(System.lineSeparator()).append(c).append(System.lineSeparator());
-      } else {
-        sb.append(c);
-      }
-    }
-    return sb.toString();
   }
 
   @Override
@@ -212,4 +201,43 @@ public final class ConstPool extends ForwardingList<SEXP> {
       values.set(idx.idx(), fun.apply((S) values.get(idx.idx())));
     }
   }
+
+  // region serialization and deserialization
+  @ParseMethod(SkipWhitespace.ALL_EXCEPT_NEWLINES)
+  private static ConstPool parse(Parser p) {
+    var s = p.scanner();
+
+    var consts = new ArrayList<SEXP>();
+    s.assertAndSkip("=== CONSTS ===");
+    for (var idx = 0; s.nextCharSatisfies(Character::isDigit); idx++) {
+      var actualIdx = s.readUInt();
+      if (actualIdx != idx) {
+        throw s.fail("index " + idx, "index " + actualIdx);
+      }
+      s.assertAndSkip(":");
+
+      consts.add(p.parse(SEXP.class));
+    }
+
+    return new ConstPool(consts);
+  }
+
+  @PrintMethod
+  private void print(Printer p) {
+    var w = p.writer();
+
+    w.write("=== CONSTS ===");
+    var n = Math.floor(Math.log10(size())) + 1;
+    var idx = 0;
+    for (var c : this) {
+      w.formatter().format("%n%" + n + "d: ", idx++);
+      p.print(c);
+    }
+  }
+
+  @Override
+  public String toString() {
+    return Printer.toString(this);
+  }
+  // endregion serialization and deserialization
 }

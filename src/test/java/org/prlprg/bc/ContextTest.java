@@ -137,6 +137,6 @@ public class ContextTest extends AbstractGNURBasedTest {
     var ctx = Context.functionContext(fun);
     // FIXME: ugly - can we have some matchers for this?
     var identical = ctx.resolve("identical").get();
-    assertTrue(identical.first() instanceof NamespaceEnvSXP ns && ns.getName().equals("base"));
+    assertTrue(identical.first() instanceof NamespaceEnvSXP ns && ns.name().equals("base"));
   }
 }

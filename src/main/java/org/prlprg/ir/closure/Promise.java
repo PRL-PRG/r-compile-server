@@ -3,16 +3,24 @@ package org.prlprg.ir.closure;
 import com.google.common.collect.ImmutableSet;
 import javax.annotation.Nullable;
 import org.prlprg.bc.Bc;
+import org.prlprg.bc.BcCode;
+import org.prlprg.bc.ConstPool;
 import org.prlprg.ir.cfg.CFG;
 import org.prlprg.ir.cfg.IsEnv;
 import org.prlprg.ir.cfg.RValue;
+import org.prlprg.ir.cfg.StaticEnv;
 import org.prlprg.ir.type.REffect;
 import org.prlprg.ir.type.REffects;
 import org.prlprg.ir.type.lattice.Lattice;
 import org.prlprg.ir.type.lattice.NoOrMaybe;
 import org.prlprg.ir.type.lattice.Troolean;
+import org.prlprg.parseprint.ParseMethod;
+import org.prlprg.parseprint.Parser;
+import org.prlprg.parseprint.PrintMethod;
+import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.BCodeSXP;
 import org.prlprg.sexp.SEXP;
+import org.prlprg.util.Pair;
 
 /**
  * IR for a promise used by an IR {@linkplain ClosureVersion closure version}.
@@ -23,11 +31,14 @@ import org.prlprg.sexp.SEXP;
  * which are guarantees that the promise invoker can assume for its own optimizations.
  */
 public class Promise {
-  private final Bc bc;
-  private final CFG cfg;
+  // The non-final fields are only non-final so that they can be set in `LateConstruct`.
+  // Otherwise they are effectively final.
+  private Bc bc;
+  private CFG cfg;
+  // Except `eagerValue` is set even after `LateConstruct`.
   private @Nullable RValue eagerValue;
-  private final @IsEnv RValue env;
-  private final Properties properties;
+  private @IsEnv RValue env;
+  private Properties properties;
 
   /**
    * Create a promise with the given code (both GNU-R and IR), environment, and properties.
@@ -154,4 +165,115 @@ public class Promise {
       NO_REFLECTION
     }
   }
+
+  // region serialization and deserialization
+  /**
+   * Return a promise, and then replace its data with that of another promise later.
+   *
+   * <p>This is necessary for deserialization, since we deserialize {@link
+   * org.prlprg.ir.cfg.StmtData.MkProm StmtData.MkProm} before we deserialize the promise it
+   * contains; we give {@link org.prlprg.ir.cfg.StmtData.MkProm MkProm} the returned promise, which
+   * is initially filled with misc data, but is late-assigned before the entire closure is returned
+   * to code outside the package.
+   */
+  static Pair<Promise, Promise.LateConstruct> lateConstruct() {
+    var promise =
+        new Promise(
+            new Bc(new BcCode.Builder().build(), new ConstPool.Builder().build()),
+            new CFG(),
+            StaticEnv.NOT_CLOSED,
+            Properties.EMPTY);
+    return Pair.of(promise, promise.new LateConstruct());
+  }
+
+  class LateConstruct {
+    private boolean wasSet = false;
+
+    private LateConstruct() {}
+
+    void set(Promise data) {
+      assert !wasSet;
+      wasSet = true;
+
+      bc = data.bc;
+      cfg = data.cfg;
+      eagerValue = data.eagerValue;
+      env = data.env;
+      properties = data.properties;
+    }
+  }
+
+  @ParseMethod
+  private static Promise parse(Parser p, ClosureParseContext.Inner ctx) {
+    var s = p.scanner();
+
+    parseId(p, ctx);
+    s.assertAndSkip(" in");
+    var env = p.parse(RValue.class);
+    var eagerValue = s.trySkip(" with") ? p.parse(RValue.class) : null;
+    var properties = s.trySkip(" has") ? p.parse(Properties.class) : Properties.EMPTY;
+    s.assertAndSkip(" {");
+
+    var bc = p.parse(Bc.class);
+
+    s.assertAndSkip("=== IR ===");
+    var cfg = p.parse(CFG.class);
+
+    s.assertAndSkip('}');
+    var promise = new Promise(bc, cfg, env, properties);
+    promise.eagerValue = eagerValue;
+    return promise;
+  }
+
+  @PrintMethod
+  private void print(Printer p) {
+    print(p, ClosurePrintContext.Inner.dummyForPromise());
+  }
+
+  @PrintMethod
+  private void print(Printer p, ClosurePrintContext.Inner ctx) {
+    var w = p.writer();
+
+    printId(p, ctx);
+    w.write(" in ");
+    p.print(env);
+    if (eagerValue != null) {
+      w.write(" with ");
+      w.runIndented(() -> p.print(eagerValue));
+    }
+    if (!properties.isEmpty()) {
+      w.write(" has ");
+      w.runIndented(() -> p.print(properties));
+    }
+    w.write(" {\n");
+
+    p.print(bc);
+    w.write("\n=== IR ===\n");
+
+    p.print(cfg);
+    w.write("}");
+  }
+
+  @Override
+  public String toString() {
+    return Printer.toString(this);
+  }
+
+  static void parseId(Parser p, ClosureParseContext.Inner ctx) {
+    var s = p.scanner();
+
+    s.assertAndSkip('@');
+    int index = s.readUInt();
+    if (index != ctx.lastYieldedPromiseId()) {
+      throw s.fail("Expected inner closure index " + ctx.lastYieldedPromiseId() + ", got " + index);
+    }
+  }
+
+  static void printId(Printer p, ClosurePrintContext.Inner ctx) {
+    var w = p.writer();
+
+    w.write('@');
+    p.print(ctx.lastYieldedPromiseId());
+  }
+  // endregion serialization and deserialization
 }

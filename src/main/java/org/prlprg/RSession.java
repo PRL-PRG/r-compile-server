@@ -20,6 +20,6 @@ public interface RSession {
   NamespaceEnvSXP getNamespace(String name, String version);
 
   default String version() {
-    return baseNamespace().getVersion();
+    return baseNamespace().version();
   }
 }

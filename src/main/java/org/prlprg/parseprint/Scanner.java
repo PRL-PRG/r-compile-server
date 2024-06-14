@@ -10,7 +10,7 @@ import java.io.InputStreamReader;
 import java.io.PushbackReader;
 import java.io.Reader;
 import java.io.StringReader;
-import java.util.function.Predicate;
+import java.util.function.IntPredicate;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
 import org.prlprg.util.IOThrowingSupplier;
@@ -385,7 +385,7 @@ public class Scanner {
    *
    * <p>If EOF is reached, this <i>doesn't</i> throw {@link ParseException}.
    *
-   * @see #readUntil(Predicate)
+   * @see #readUntil(IntPredicate)
    */
   public String readUntilWhitespace() {
     return readUntil(c -> Character.isWhitespace(c) || c == -1);
@@ -395,7 +395,7 @@ public class Scanner {
    * Read characters up to <b>and including</b> the end of the current line or EOF.
    *
    * @see #readUntil(String)
-   * @see #readUntil(Predicate)
+   * @see #readUntil(IntPredicate)
    */
   public String readPastEndOfLine() {
     var result = readUntilEndOfLine();
@@ -409,7 +409,7 @@ public class Scanner {
    * Read characters up to, <b>but not including</b>, the end of the current line or EOF.
    *
    * @see #readUntil(String)
-   * @see #readUntil(Predicate)
+   * @see #readUntil(IntPredicate)
    */
   public String readUntilEndOfLine() {
     return readUntil('\n', true);
@@ -464,7 +464,7 @@ public class Scanner {
    *
    * @throws ParseException on EOF.
    * @see #readUntil(int, boolean)
-   * @see #readUntil(Predicate)
+   * @see #readUntil(IntPredicate)
    */
   public String readUntil(int c) {
     return readUntil(c, false);
@@ -474,7 +474,7 @@ public class Scanner {
    * Read characters until, but not including, {@code c}.
    *
    * @throws ParseException on EOF iff {@code acceptEof} is false.
-   * @see #readUntil(Predicate)
+   * @see #readUntil(IntPredicate)
    */
   public String readUntil(int c, boolean acceptEof) {
     return readUntil(next -> next == c || (acceptEof && next == -1));
@@ -484,9 +484,9 @@ public class Scanner {
    * Read characters until, but not including, the first character which <i>fails</i> the predicate.
    *
    * @throws ParseException on EOF <i>iff</i> {@code charPredicate(-1)} is true.
-   * @see #readUntil(Predicate)
+   * @see #readUntil(IntPredicate)
    */
-  public String readWhile(Predicate<Integer> charPredicate) {
+  public String readWhile(IntPredicate charPredicate) {
     return readUntil(c -> !charPredicate.test(c));
   }
 
@@ -494,9 +494,9 @@ public class Scanner {
    * Peek characters until, but not including, the first character which <i>fails</i> the predicate.
    *
    * @throws ParseException on EOF <i>iff</i> {@code charPredicate(-1)} is true.
-   * @see #peekWhile(Predicate)
+   * @see #peekWhile(IntPredicate)
    */
-  public String peekWhile(Predicate<Integer> charPredicate) {
+  public String peekWhile(IntPredicate charPredicate) {
     return peekUntil(c -> !charPredicate.test(c));
   }
 
@@ -505,9 +505,9 @@ public class Scanner {
    * predicate.
    *
    * @throws ParseException on EOF <i>iff</i> {@code charPredicate(-1)} is false.
-   * @see #readWhile(Predicate)
+   * @see #readWhile(IntPredicate)
    */
-  public String readUntil(Predicate<Integer> charPredicate) {
+  public String readUntil(IntPredicate charPredicate) {
     var result = doReadUntil(charPredicate, true);
     advancePosition(result);
     return result;
@@ -518,10 +518,10 @@ public class Scanner {
    * predicate.
    *
    * @throws ParseException on EOF <i>iff</i> {@code charPredicate(-1)} is false.
-   * @see #readUntil(Predicate)
-   * @see #peekWhile(Predicate)
+   * @see #readUntil(IntPredicate)
+   * @see #peekWhile(IntPredicate)
    */
-  public String peekUntil(Predicate<Integer> charPredicate) {
+  public String peekUntil(IntPredicate charPredicate) {
     var result = doReadUntil(charPredicate, false);
     doUnread(result);
     return result;
@@ -588,6 +588,22 @@ public class Scanner {
     advancePosition(actual);
   }
 
+  /**
+   * Assert the next character satisfies {@code predicate} and skip, otherwise throw {@link
+   * ParseException}.
+   *
+   * @param predicateDesc Description of what the predicate matches to display in the error, e.g.
+   *     "whitespace" if it's {@link Character#isWhitespace(int)}.
+   */
+  public void assertAndSkip(String predicateDesc, IntPredicate predicate) {
+    var actual = doReadChar();
+    if (!predicate.test(actual)) {
+      doUnread(actual);
+      throw fail(predicateDesc + "...", actual == -1 ? "eof" : Strings.quote(actual) + "...");
+    }
+    advancePosition(actual);
+  }
+
   /** Peek and return whether the next characters are {@code s}. */
   public boolean nextCharsAre(String s) {
     if (s.length() == 1) {
@@ -605,7 +621,7 @@ public class Scanner {
   }
 
   /** Peek and return whether the next character satisfies the given predicate. */
-  public boolean nextCharSatisfies(Predicate<Integer> charPredicate) {
+  public boolean nextCharSatisfies(IntPredicate charPredicate) {
     return charPredicate.test(peekChar());
   }
 
@@ -700,7 +716,7 @@ public class Scanner {
    *
    * <p><i>Doesn't</i> throw {@link ParseException} on EOF.
    *
-   * @see #readWhile(Predicate)
+   * @see #readWhile(IntPredicate)
    */
   public void skipWhitespace(boolean includeNewlines) {
     // Can't use `doRead` because `doRead` uses this method.
@@ -732,7 +748,7 @@ public class Scanner {
    *
    * @throws ParseException on EOF <i>iff</i> {@code charPredicate(-1)} is false.
    */
-  private String doReadUntil(Predicate<Integer> charPredicate, boolean commit) {
+  private String doReadUntil(IntPredicate charPredicate, boolean commit) {
     if (isAtEof) {
       handleEof(charPredicate.test(-1));
       return "";

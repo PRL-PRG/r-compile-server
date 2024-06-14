@@ -1,8 +1,10 @@
 package org.prlprg.sexp;
 
-import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
+import org.jetbrains.annotations.UnmodifiableView;
+import org.prlprg.parseprint.Printer;
 import org.prlprg.util.Pair;
 
 public final class EmptyEnvSXP implements StaticEnvSXP {
@@ -12,7 +14,7 @@ public final class EmptyEnvSXP implements StaticEnvSXP {
 
   /** Empty environment has no parent. It is an error to call this method. */
   @Override
-  public EnvSXP parent() {
+  public EmptyEnvSXP parent() {
     throw new UnsupportedOperationException("the empty environment has no parent");
   }
 
@@ -37,7 +39,7 @@ public final class EmptyEnvSXP implements StaticEnvSXP {
   }
 
   @Override
-  public Iterable<? extends Map.Entry<? extends String, ? extends SEXP>> bindings() {
+  public @UnmodifiableView Set<Entry<String, SEXP>> bindings() {
     return Set.of();
   }
 
@@ -47,7 +49,12 @@ public final class EmptyEnvSXP implements StaticEnvSXP {
   }
 
   @Override
+  public EnvType envType() {
+    return EnvType.EMPTY;
+  }
+
+  @Override
   public String toString() {
-    return "<environment: R_EmptyEnv>";
+    return Printer.toString(this);
   }
 }

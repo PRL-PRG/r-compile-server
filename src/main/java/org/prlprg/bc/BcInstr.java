@@ -1,6 +1,8 @@
 package org.prlprg.bc;
 
+import com.google.common.collect.ImmutableMap;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import java.util.Arrays;
 import javax.annotation.Nullable;
 import org.prlprg.sexp.IntSXP;
 import org.prlprg.sexp.LangSXP;
@@ -19,6 +21,13 @@ import org.prlprg.sexp.VecSXP;
 @SuppressWarnings("MissingJavadoc")
 @SuppressFBWarnings({"EI_EXPOSE_REP2", "EI_EXPOSE_REP"})
 public sealed interface BcInstr {
+  /** Every instruction class mapped to its {@linkplain Class#getSimpleName() simple name}. */
+  @SuppressWarnings("unchecked")
+  ImmutableMap<String, Class<? extends BcInstr>> CLASSES =
+      Arrays.stream(BcInstr.class.getPermittedSubclasses())
+          .collect(
+              ImmutableMap.toImmutableMap(Class::getSimpleName, c -> (Class<? extends BcInstr>) c));
+
   /** The instruction's operation. */
   BcOp op();
 

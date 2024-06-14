@@ -5,10 +5,10 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.Unmodifiable;
+import org.prlprg.parseprint.Printer;
 import org.prlprg.util.MapListView;
 
 /**
@@ -171,12 +171,12 @@ record ListSXPImpl(ImmutableList<TaggedElem> data, @Override Attributes attribut
   }
 
   @Override
-  public String toString() {
-    return "(" + data.stream().map(TaggedElem::toString).collect(Collectors.joining(", ")) + ")";
+  public ListSXPImpl withAttributes(Attributes attributes) {
+    return new ListSXPImpl(data, attributes);
   }
 
   @Override
-  public ListSXPImpl withAttributes(Attributes attributes) {
-    return new ListSXPImpl(data, attributes);
+  public String toString() {
+    return Printer.toString(this);
   }
 }

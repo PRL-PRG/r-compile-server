@@ -3,6 +3,7 @@ package org.prlprg.sexp;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.UnmodifiableIterator;
 import javax.annotation.concurrent.Immutable;
+import org.prlprg.parseprint.Printer;
 import org.prlprg.primitive.Logical;
 
 /** Logical vector SEXP. */
@@ -51,13 +52,13 @@ record LglSXPImpl(ImmutableList<Logical> data, @Override Attributes attributes) 
   }
 
   @Override
-  public String toString() {
-    return VectorSXPs.toString(this, data.stream());
+  public LglSXP withAttributes(Attributes attributes) {
+    return SEXPs.logical(data, attributes);
   }
 
   @Override
-  public LglSXP withAttributes(Attributes attributes) {
-    return SEXPs.logical(data, attributes);
+  public String toString() {
+    return Printer.toString(this);
   }
 }
 

@@ -1,5 +1,8 @@
 package org.prlprg.sexp;
 
+import org.prlprg.parseprint.EnumSerialCaseIs;
+import org.prlprg.util.StringCase;
+
 /**
  * SEXP type returned by R {@code typeof}.
  *
@@ -14,7 +17,8 @@ package org.prlprg.sexp;
  * types, no GC types, and no corrupted types. If you want to represent an arbitrary (aka possibly
  * malformed) GNU-R SEXPTYPE just use {@code int}.
  */
-public enum SEXPType {
+@EnumSerialCaseIs(StringCase.SNAKE)
+public enum SEXPType implements SEXPOrEnvType {
   /** nil = NULL */
   NIL(0),
   /** symbols */

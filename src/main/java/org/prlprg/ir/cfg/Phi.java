@@ -479,6 +479,6 @@ abstract class PhiImpl<N extends Node> implements Phi<N> {
 
   @PrintMethod
   private void print(Printer p) {
-    p.withContext(new BBParseOrPrintContext(cfg(), null)).print(this);
+    p.withContext(new BBParseOrPrintContext(null, cfg(), null)).print(this);
   }
 }

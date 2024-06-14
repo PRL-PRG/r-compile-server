@@ -797,11 +797,11 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
 
   @ParseMethod
   private BB parse(Parser p) {
-    return p.withContext(new CFGParseOrPrintContext(cfg())).parse(BB.class);
+    return p.withContext(new CFGParseOrPrintContext(null, cfg())).parse(BB.class);
   }
 
   @PrintMethod
   private void print(Printer p) {
-    p.withContext(new CFGParseOrPrintContext(cfg())).print(this);
+    p.withContext(new CFGParseOrPrintContext(null, cfg())).print(this);
   }
 }

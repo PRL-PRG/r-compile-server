@@ -2,16 +2,23 @@ package org.prlprg.sexp;
 
 import java.util.Map;
 
-public final class BaseEnvSXP extends AbstractEnvSXP implements StaticEnvSXP {
+public final class BaseEnvSXP extends AbstractStaticEnvSXP implements StaticEnvSXP {
+  public BaseEnvSXP() {
+    super(EmptyEnvSXP.INSTANCE);
+  }
 
   public BaseEnvSXP(Map<String, SEXP> bindings) {
-    super(EmptyEnvSXP.INSTANCE);
-    bindings.forEach(this::set);
+    this();
+    this.bindings.putAll(bindings);
   }
 
   @Override
-  public String toString() {
-    // TODO: add some link to the R session?
-    return "<environment: base>";
+  public EmptyEnvSXP parent() {
+    return (EmptyEnvSXP) super.parent();
+  }
+
+  @Override
+  public EnvType envType() {
+    return EnvType.BASE;
   }
 }

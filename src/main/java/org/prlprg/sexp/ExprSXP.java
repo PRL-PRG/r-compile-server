@@ -3,6 +3,7 @@ package org.prlprg.sexp;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.UnmodifiableIterator;
 import javax.annotation.concurrent.Immutable;
+import org.prlprg.parseprint.Printer;
 
 /**
  * R expression vector.
@@ -42,12 +43,12 @@ record ExprSXPImpl(ImmutableList<SEXP> data, @Override Attributes attributes) im
   }
 
   @Override
-  public String toString() {
-    return VectorSXPs.toString(this, data().stream());
+  public ExprSXP withAttributes(Attributes attributes) {
+    return SEXPs.expr(data, attributes);
   }
 
   @Override
-  public ExprSXP withAttributes(Attributes attributes) {
-    return SEXPs.expr(data, attributes);
+  public String toString() {
+    return Printer.toString(this);
   }
 }

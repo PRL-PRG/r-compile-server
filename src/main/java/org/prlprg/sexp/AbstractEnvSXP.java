@@ -2,21 +2,19 @@ package org.prlprg.sexp;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Optional;
+import java.util.Set;
+import org.jetbrains.annotations.UnmodifiableView;
+import org.prlprg.parseprint.Printer;
 
-abstract sealed class AbstractEnvSXP permits BaseEnvSXP, GlobalEnvSXP, NamespaceEnvSXP, UserEnvSXP {
-
+abstract class AbstractEnvSXP {
   protected EnvSXP parent;
   protected final Map<String, SEXP> bindings;
 
   public AbstractEnvSXP(EnvSXP parent) {
     this.parent = parent;
     this.bindings = new HashMap<>();
-  }
-
-  public AbstractEnvSXP(EnvSXP parent, Map<String, SEXP> bindings) {
-    this.parent = parent;
-    this.bindings = bindings;
   }
 
   // @Override
@@ -35,7 +33,7 @@ abstract sealed class AbstractEnvSXP permits BaseEnvSXP, GlobalEnvSXP, Namespace
   }
 
   // @Override
-  public Iterable<? extends Map.Entry<? extends String, ? extends SEXP>> bindings() {
+  public @UnmodifiableView Set<Entry<String, SEXP>> bindings() {
     return bindings.entrySet();
   }
 
@@ -46,5 +44,10 @@ abstract sealed class AbstractEnvSXP permits BaseEnvSXP, GlobalEnvSXP, Namespace
 
   public void set(String name, SEXP value) {
     bindings.put(name, value);
+  }
+
+  @Override
+  public String toString() {
+    return Printer.toString(this);
   }
 }

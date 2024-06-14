@@ -1,6 +1,7 @@
 package org.prlprg.sexp;
 
 import javax.annotation.Nullable;
+import org.prlprg.parseprint.Printer;
 
 public record PromSXP(SEXP expr, SEXP val, EnvSXP env) implements SEXP {
   public PromSXP {
@@ -40,5 +41,10 @@ public record PromSXP(SEXP expr, SEXP val, EnvSXP env) implements SEXP {
   @Override
   public Class<? extends SEXP> getCanonicalType() {
     return PromSXP.class;
+  }
+
+  @Override
+  public String toString() {
+    return Printer.toString(this);
   }
 }

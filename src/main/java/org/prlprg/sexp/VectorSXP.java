@@ -1,8 +1,6 @@
 package org.prlprg.sexp;
 
-import static org.prlprg.AppConfig.VECTOR_TRUNCATE_SIZE;
-
-import java.util.stream.BaseStream;
+import javax.annotation.Nonnull;
 import org.prlprg.primitive.Complex;
 import org.prlprg.primitive.Logical;
 
@@ -10,6 +8,7 @@ import org.prlprg.primitive.Logical;
 public sealed interface VectorSXP<T> extends ListOrVectorSXP<T>
     permits EmptyVectorSXPImpl, ScalarSXPImpl, ExprSXP, PrimVectorSXP, VecSXP {
   @Override
+  @Nonnull
   Attributes attributes();
 
   /** Does the collection have exactly one element? */
@@ -74,24 +73,4 @@ public sealed interface VectorSXP<T> extends ListOrVectorSXP<T>
 
     return (R[]) target;
   }
-}
-
-final class VectorSXPs {
-  static String toString(SEXP sexp, BaseStream<?, ?> data) {
-    var dataString = new StringBuilder();
-    var dataIter = data.iterator();
-    while (dataIter.hasNext()) {
-      dataString.append(dataIter.next());
-      if (dataIter.hasNext()) {
-        dataString.append(",");
-        if (VECTOR_TRUNCATE_SIZE > 0 && dataString.length() >= VECTOR_TRUNCATE_SIZE) {
-          dataString.append("...");
-          break;
-        }
-      }
-    }
-    return SEXPs.toString(sexp, dataString);
-  }
-
-  private VectorSXPs() {}
 }

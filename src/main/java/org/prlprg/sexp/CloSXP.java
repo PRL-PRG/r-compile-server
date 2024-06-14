@@ -2,6 +2,8 @@ package org.prlprg.sexp;
 
 import java.util.Optional;
 import java.util.function.Predicate;
+import javax.annotation.Nonnull;
+import org.prlprg.parseprint.Printer;
 import org.prlprg.util.Streams;
 
 /** Closure SEXP. */
@@ -24,6 +26,7 @@ public sealed interface CloSXP extends SEXP {
   }
 
   @Override
+  @Nonnull
   Attributes attributes();
 
   @Override
@@ -56,11 +59,6 @@ record CloSXPImpl(ListSXP parameters, SEXP body, EnvSXP env, @Override Attribute
   }
 
   @Override
-  public String toString() {
-    return SEXPs.toString(this, env(), parameters(), "\n  ⇒ ", body());
-  }
-
-  @Override
   public SEXP bodyAST() {
     if (body instanceof BCodeSXP bc) {
       return bc.bc().consts().getFirst();
@@ -77,5 +75,10 @@ record CloSXPImpl(ListSXP parameters, SEXP body, EnvSXP env, @Override Attribute
   @Override
   public Optional<IntSXP> getSrcRef() {
     return Optional.ofNullable((IntSXP) attributes.get("srcref"));
+  }
+
+  @Override
+  public String toString() {
+    return Printer.toString(this);
   }
 }
