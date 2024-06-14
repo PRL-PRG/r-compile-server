@@ -136,7 +136,7 @@ public class ContextTest extends AbstractGNURBasedTest {
     var fun = (CloSXP) R.eval("utils::unzip");
     var ctx = Context.functionContext(fun);
     // FIXME: ugly - can we have some matchers for this?
-    var identical = ctx.resolve("identical").get();
+    var identical = ctx.resolve("identical").orElseThrow();
     assertTrue(identical.first() instanceof NamespaceEnvSXP ns && ns.name().equals("base"));
   }
 }

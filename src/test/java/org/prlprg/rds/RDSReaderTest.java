@@ -25,7 +25,7 @@ import org.prlprg.util.AbstractGNURBasedTest;
 
 public class RDSReaderTest extends AbstractGNURBasedTest {
   @Test
-  public void testInts() throws Exception {
+  public void testInts() {
     var sexp = R.eval("c(-.Machine$integer.max, -1L, 0L, NA, 1L, .Machine$integer.max)");
 
     if (sexp instanceof IntSXP ints) {
@@ -42,7 +42,7 @@ public class RDSReaderTest extends AbstractGNURBasedTest {
   }
 
   @Test
-  public void testLgls() throws Exception {
+  public void testLgls() {
     var sexp = R.eval("c(TRUE, FALSE, NA)");
 
     if (sexp instanceof LglSXP logs) {
@@ -56,7 +56,7 @@ public class RDSReaderTest extends AbstractGNURBasedTest {
   }
 
   @Test
-  public void testReals() throws Exception {
+  public void testReals() {
     var sexp = R.eval("c(-.Machine$double.xmax, -1, 0, NA, 1, .Machine$double.xmax)");
 
     if (sexp instanceof RealSXP reals) {
@@ -74,7 +74,7 @@ public class RDSReaderTest extends AbstractGNURBasedTest {
   }
 
   @Test
-  public void testList() throws Exception {
+  public void testList() {
     var sexp = R.eval("pairlist(a = 1L, 2, c = TRUE)");
 
     if (sexp instanceof ListSXP list) {
@@ -88,7 +88,7 @@ public class RDSReaderTest extends AbstractGNURBasedTest {
   }
 
   @Test
-  public void testListWithMissingValues() throws Exception {
+  public void testListWithMissingValues() {
     var sexp = R.eval("as.pairlist(alist(a=,b=))");
 
     if (sexp instanceof ListSXP list) {
@@ -101,7 +101,7 @@ public class RDSReaderTest extends AbstractGNURBasedTest {
   }
 
   @Test
-  public void testNamedList() throws Exception {
+  public void testNamedList() {
     var sexp = R.eval("list(a=1L, 2)");
 
     if (sexp instanceof VecSXP list) {
@@ -124,7 +124,7 @@ public class RDSReaderTest extends AbstractGNURBasedTest {
   }
 
   @Test
-  public void testClosure() throws Exception {
+  public void testClosure() {
     var sexp = (CloSXP) R.eval("function(x, y=1) 'abc' + x + length(y)");
 
     var formals = sexp.parameters();
@@ -138,7 +138,7 @@ public class RDSReaderTest extends AbstractGNURBasedTest {
   }
 
   @Test
-  public void testClosureWithBC() throws Exception {
+  public void testClosureWithBC() {
     var sexp = (CloSXP) R.eval("compiler::cmpfun(function(x, y=1) 'abc' + x + length(y))");
 
     var formals = sexp.parameters();
@@ -151,20 +151,20 @@ public class RDSReaderTest extends AbstractGNURBasedTest {
   }
 
   @Test
-  public void testExpression() throws Exception {
+  public void testExpression() {
     var sexp = R.eval("parse(text='function() {}', keep.source = TRUE)");
     assertThat(sexp).isInstanceOf(ExprSXP.class);
   }
 
   @Test
-  public void testNullInParams() throws Exception {
+  public void testNullInParams() {
     var sexp = R.eval("quote(match('AsIs', cl, 0L, NULL))");
     // FIXME: assert on the number of parameters
     assertThat(sexp).isInstanceOf(LangSXP.class);
   }
 
   @Test
-  public void testNullInParamsInBC() throws Exception {
+  public void testNullInParamsInBC() {
     var sexp = (BCodeSXP) R.eval("compiler::compile(quote(match('AsIs', cl, 0L, NULL)))");
     var ast = (LangSXP) sexp.bc().consts().getFirst();
     // here we want to make sure that the trailing NULL did not get lost
@@ -172,25 +172,25 @@ public class RDSReaderTest extends AbstractGNURBasedTest {
   }
 
   @Test
-  public void testFormatAsIs() throws Exception {
+  public void testFormatAsIs() {
     var sexp = R.eval("format.AsIs");
     assertThat(sexp).isInstanceOf(CloSXP.class);
   }
 
   @Test
-  public void testComplex() throws Exception {
+  public void testComplex() {
     var sexp = R.eval("c(-1+1i, 0+0i, 1+1i)");
     assertThat(sexp).isInstanceOf(ComplexSXP.class);
   }
 
   @Test
-  public void testRoundPOSIXt() throws Exception {
+  public void testRoundPOSIXt() {
     var sexp = R.eval("round.POSIXt");
     assertThat(sexp).isInstanceOf(CloSXP.class);
   }
 
   @Test
-  public void testLocalFuncationBC() throws Exception {
+  public void testLocalFuncationBC() {
     var sexp = R.eval("compiler::cmpfun(function(x) local(x))");
     assertThat(sexp).isInstanceOf(CloSXP.class);
   }

@@ -134,14 +134,9 @@ final class ScalarRealSXP extends ScalarSXPImpl<Double> implements RealSXP {
   @Override
   public boolean equals(Object o) {
     if (this == o) return true;
-    if (o == null || getClass() != o.getClass()) return false;
+    if (getClass() != o.getClass()) return false;
     var that = (ScalarRealSXP) o;
     return DoubleMath.fuzzyEquals(data, that.data, DOUBLE_CMP_DELTA);
-  }
-
-  @Override
-  public int hashCode() {
-    return Objects.hash(data);
   }
 }
 
