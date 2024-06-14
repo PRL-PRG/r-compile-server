@@ -5,7 +5,10 @@ f <- function(x) {
   y + x
 }
 
-rsh::rsh_compile(f)
+rsh::rsh_jit()
 print(f)
 
 f(5)
+f(5)
+f(5)
+print(f)

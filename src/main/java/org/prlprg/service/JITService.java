@@ -5,6 +5,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.List;
+import java.util.logging.Logger;
 import org.prlprg.RSession;
 import org.prlprg.bc.Compiler;
 import org.prlprg.bcc.CCompiler;
@@ -13,6 +14,7 @@ import org.prlprg.sexp.CloSXP;
 public class JITService {
   private final RSession rsession;
 
+  private static final Logger logger = Logger.getLogger(JITService.class.getName());
   private static final String INCLUDE_PATH = "backend/include";
 
   private static final List<String> COMPILER_FLAGS =
@@ -51,47 +53,56 @@ public class JITService {
   }
 
   public byte[] execute(String name, CloSXP closure) throws IOException, InterruptedException {
+    logger.fine("Compiling closure: " + name + "\n" + closure + "\n");
+
     var bcCompiler = new Compiler(closure, rsession);
     var bc = bcCompiler.compile().get();
     var bccCompiler = new CCompiler(name, bc);
     var cfile = bccCompiler.compile();
+    // var input = new File("/tmp/jit.c");
     var input = File.createTempFile("cfile", ".c");
     var f = Files.newWriter(input, Charset.defaultCharset());
     cfile.writeTo(f);
-    var output = new File("/tmp/jit.o"); // File.createTempFile("ofile", ".o");
+    // var output = new File("/tmp/jit.o");
+    var output = File.createTempFile("ofile", ".o");
 
-    new NativeCompilerBuilder(input, output)
-        .flag("-DNDEBUG")
-        .flag("-I.")
-        .flag("-I/usr/local/include")
-        .flag("-fpic")
-        .flag("-march=x86-64")
-        .flag("-mtune=generic")
-        .flag("-pipe")
-        .flag("-fno-plt")
-        .flag("-fexceptions")
-        .flag("-Wformat")
-        .flag("-Werror=format-security")
-        .flag("-fstack-clash-protection")
-        .flag("-fcf-protection")
-        .flag("-flto=auto")
-        .flag("-ffat-lto-objects")
-        .flag("-Wall")
-        .flag("-pedantic")
-        // .flag("-O3")
-        .flag("-g")
-        .flag("-Ibackend/include")
-        .compile();
+    var builder =
+        new NativeCompilerBuilder(input, output)
+            .flag("-DNDEBUG")
+            .flag("-I.")
+            .flag("-I/usr/local/include")
+            .flag("-fpic")
+            .flag("-march=x86-64")
+            .flag("-mtune=generic")
+            .flag("-pipe")
+            .flag("-fno-plt")
+            .flag("-fexceptions")
+            .flag("-Wformat")
+            .flag("-Werror=format-security")
+            .flag("-fstack-clash-protection")
+            .flag("-fcf-protection")
+            .flag("-flto=auto")
+            .flag("-ffat-lto-objects")
+            .flag("-Wall")
+            .flag("-pedantic")
+            // .flag("-O3")
+            .flag("-g")
+            .flag("-Ibackend/include");
+    var time = System.currentTimeMillis();
+    builder.compile();
+    time = System.currentTimeMillis() - time;
 
     var res = Files.asByteSource(output).read();
 
-    if (!input.delete()) {
-      throw new IOException("Unable to delete file" + input);
-    }
+    //    if (!input.delete()) {
+    //      throw new IOException("Unable to delete file" + input);
+    //    }
 
     //    if (!output.delete()) {
     //      throw new IOException("Unable to delete file" + input);
     //    }
+
+    logger.fine("Finished compilation in %d ms (size: %d)\n".formatted(time, res.length));
 
     return res;
   }

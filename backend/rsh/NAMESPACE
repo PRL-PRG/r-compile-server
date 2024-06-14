@@ -2,5 +2,6 @@
 
 export(rsh_load)
 export(rsh_compile)
+export(rsh_jit)
 importFrom(compiler,cmpfun)
 useDynLib(rsh, .registration = TRUE, .fixes = "C_")

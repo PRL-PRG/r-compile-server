@@ -6,20 +6,14 @@ NULL
 
 ## bootstrap the compiler
 
-# .compiled_fun <- function() {
-#   .Call(driver, p)
-# }
-# .compiled_fun <- compiler::cmpfun(.compiled_fun, options = list(optimize = 3))
-#
-# .compiler_ns <- getNamespace("compiler")
-#
-#
-# # unlockBinding("cmpfun", .compiler_ns)
-# cmpfun <- function(f, options = NULL) {
-#   print("Compiling...")
-#   body(f) <- body(.compiled_fun)
-#   f
-# }
+.gnur_cmpfun <- compiler::cmpfun
+
+#' @export
+rsh_jit <- function(f) {
+  compiler_ns <- getNamespace("compiler")
+  unlockBinding("cmpfun", compiler_ns)
+  compiler_ns$cmpfun <- jit_cmpfun
+}
 
 #' @export
 rsh_load <- function(obj_file) {
@@ -39,3 +33,9 @@ rsh_compile <- function(f) {
   .Call(C_compile_fun, name, f, sf)
 }
 
+#' @export
+jit_cmpfun <- function(f, options) {
+  g <- f
+  rsh_compile(g)
+  .gnu_cmpfun(g, options=list(optimize=3))
+}

@@ -13,6 +13,7 @@ import org.prlprg.sexp.RegSymSXP;
 import org.prlprg.sexp.SEXP;
 
 record Constant(int id, SEXP value) {}
+record Value(String expr, boolean protect) {}
 
 // point the stack to one before the top
 class Stack {

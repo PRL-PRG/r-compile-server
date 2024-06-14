@@ -6,7 +6,7 @@ compile_result compile(std::string const &name,
   zmq::context_t context(1);
   zmq::socket_t socket(context, zmq::socket_type::req);
 
-  std::cout << "Connecting to hello world server..." << std::endl;
+  std::cout << "Connecting to compile server..." << std::endl;
   socket.connect("tcp://localhost:5555");
 
   zmq::message_t request(2 + name.size() + rds_closure.size());

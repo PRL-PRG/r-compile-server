@@ -3,6 +3,8 @@ package org.prlprg.server;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.prlprg.RSession;
 import org.prlprg.rds.RDSReader;
@@ -14,6 +16,14 @@ import org.zeromq.ZContext;
 import org.zeromq.ZMQ;
 
 public class Main {
+
+  static {
+    var logger = Logger.getLogger("org.prlprg");
+    logger.setLevel(Level.ALL);
+    var consoleHandler = new ConsoleHandler();
+    consoleHandler.setLevel(Level.ALL);
+    logger.addHandler(consoleHandler);
+  }
 
   private static final Logger logger = Logger.getLogger(Main.class.getName());
   private final RSession rsession;
