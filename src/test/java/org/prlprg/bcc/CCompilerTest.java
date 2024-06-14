@@ -10,8 +10,7 @@ public class CCompilerTest extends AbstractGNURBasedTest implements Tests {
 
   @Test
   public void testEmptyList() {
-    test(
-        """
+    test("""
                 function (x) { y <- x + 42; y + 42 }
             """);
   }
@@ -20,7 +19,7 @@ public class CCompilerTest extends AbstractGNURBasedTest implements Tests {
     var gnurFun = (CloSXP) R.eval(code);
     var compiler = new org.prlprg.bc.Compiler(gnurFun, rsession);
     var bc = compiler.compile().get();
-    var cc = new CCompiler(bc);
+    var cc = new CCompiler("f", bc);
     var file = cc.compile();
     file.writeTo(new OutputStreamWriter(System.out));
     System.out.flush();

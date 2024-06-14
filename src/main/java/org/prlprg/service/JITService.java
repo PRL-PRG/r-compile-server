@@ -50,10 +50,10 @@ public class JITService {
         .compile();
   }
 
-  public byte[] execute(CloSXP closure) throws IOException, InterruptedException {
+  public byte[] execute(String name, CloSXP closure) throws IOException, InterruptedException {
     var bcCompiler = new Compiler(closure, rsession);
     var bc = bcCompiler.compile().get();
-    var bccCompiler = new CCompiler(bc);
+    var bccCompiler = new CCompiler(name, bc);
     var cfile = bccCompiler.compile();
     var input = File.createTempFile("cfile", ".c");
     var f = Files.newWriter(input, Charset.defaultCharset());

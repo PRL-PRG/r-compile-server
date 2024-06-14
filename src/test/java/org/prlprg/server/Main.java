@@ -37,8 +37,11 @@ public class Main {
           // compile request
           try {
             var bis = new ByteArrayInputStream(request, 1, request.length);
+            var nameSize = bis.read();
+            var nameBytes = bis.readNBytes(nameSize);
+            var name = new String(nameBytes, ZMQ.CHARSET);
             var closure = deserialize(bis);
-            var nativeCode = jit.execute(closure);
+            var nativeCode = jit.execute(name, closure);
             var response = new byte[nativeCode.length + 1];
             response[0] = 0; // indicate success
             System.arraycopy(nativeCode, 0, response, 1, nativeCode.length);
