@@ -8,76 +8,12 @@ import org.prlprg.sexp.RealSXP;
 import org.prlprg.sexp.RegSymSXP;
 import org.prlprg.sexp.SEXP;
 
-import java.io.PrintWriter;
-import java.io.Writer;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 record Constant(int id, SEXP value) {
-}
-
-class CSection {
-    private final List<String> body = new ArrayList<>();
-
-    public void line(String f, Object ... args) {
-        body.add(f.formatted(args));
-    }
-
-    public void writeTo(Writer w) {
-        var pw = new PrintWriter(w);
-        body.forEach(pw::println);
-    }
-
-    public void comment(String comment) {
-        body.add("// " + comment);
-    }
-
-    public void nl() {
-        body.add("");
-    }
-}
-
-class CFunction {
-    private final String name;
-    private final List<CSection> sections = new ArrayList<>();
-
-    CFunction(String name) {
-        this.name = name;
-    }
-
-    public CSection add() {
-        var s = new CSection();
-        sections.add(s);
-        return s;
-    }
-
-    public void writeTo(Writer w) {
-        var pw = new PrintWriter(w);
-        pw.format("SEXP %s(SEXP %s) {", name, CCompiler.NAME_ENV);
-        pw.println();
-        for (int i=0; i<sections.size(); i++) {
-            sections.get(i).writeTo(w);
-            if (i < sections.size()-1) {
-                pw.println();
-            }
-        }
-        pw.println("}");
-        pw.flush();
-    }
-
-    public CSection insertAbove(CSection sec) {
-        var i = sections.indexOf(sec);
-        if (i == -1) {
-            throw new IllegalArgumentException("Section "+sec+" does not exist in fun "+this);
-        }
-        var s = new CSection();
-        sections.add(i, s);
-        return s;
-    }
 }
 
 // point the stack to one before the top
@@ -92,6 +28,7 @@ class Stack {
     }
 
 
+    @SuppressWarnings("UnusedReturnValue")
     public int dec() {
         return --curr;
     }
@@ -102,12 +39,6 @@ class Stack {
 
     public int max() {
         return max;
-    }
-
-    public int getAndInc() {
-        var x = curr;
-        inc();
-        return x;
     }
 }
 
@@ -120,7 +51,7 @@ public class CCompiler {
 
   private final CFile file;
   private CFunction fun;
-  private CSection body;
+  private CCode body;
 
   public CCompiler(Bc bc) {
     this.bc = bc;
@@ -139,39 +70,7 @@ public class CCompiler {
 
     private void preamble() {
         file.setPreamble("""
-            // from C stdlib
-            #define NULL ((void*)0)
-            
-            // from R        
-            typedef struct SEXPREC SEXPREC;
-            typedef SEXPREC *SEXP;
-
-            SEXP Rf_install(const char*);            
-            SEXP Rf_protect(SEXP);
-            void Rf_unprotect(int);
-            #define PROTECT(s)	Rf_protect(s)
-            #define UNPROTECT(n)	Rf_unprotect(n)
-            SEXP Rf_ScalarInteger(int x);
-            SEXP Rf_ScalarReal(int x);
-            SEXP Rf_findVar(SEXP, SEXP);
-            void Rf_defineVar(SEXP, SEXP, SEXP);            
-            
-            // from Rsh
-            typedef enum {
-                ADD
-            } BINARY_OP;
-            
-            SEXP Rhs_fast_binary(BINARY_OP, SEXP, SEXP);
-            inline SEXP Rsh_getvar(SEXP, SEXP) {
-            	if (type == PROMSXP) {						
-            	      SEXP pv = PRVALUE(value);				
-            	    if (pv != R_UnboundValue) {				
-            		value = pv;						
-            		type = TYPEOF(value);					
-            	    }								
-            	}								
-            
-            }
+        #include <Rsh.h>
         """);
     }
 
@@ -192,7 +91,6 @@ public class CCompiler {
     }
 
     private void compile(BcInstr instr) {
-      // TODO: comment
         body.comment("begin: " + instr);
         switch (instr) {
             case BcInstr.SetVar(var idx) -> compileSetVar(idx);
@@ -209,7 +107,7 @@ public class CCompiler {
     }
 
     private void compileSetVar(ConstPool.Idx<RegSymSXP> idx) {
-        body.line("Rf_defineVar(%s, _%d, %s)".formatted(constant(idx), stack.curr(), NAME_ENV));
+        body.line("Rf_defineVar(%s, _%d, %s);".formatted(constant(idx), stack.curr(), NAME_ENV));
     }
 
     private void compileReturn() {
@@ -231,11 +129,11 @@ public class CCompiler {
     }
 
     private void compileGetVar(ConstPool.Idx<RegSymSXP> idx) {
-        push(findVar(constant(idx)));
+        push(getVar(constant(idx)));
     }
 
-    private String findVar(String expr) {
-        return "Rf_findVar(%s, %s)".formatted(expr, NAME_ENV);
+    private String getVar(String expr) {
+        return "Rsh_get_var(%s, %s)".formatted(expr, NAME_ENV);
     }
 
     private void compilerLdConst(ConstPool.Idx<SEXP> idx) {

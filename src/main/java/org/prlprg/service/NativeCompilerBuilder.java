@@ -2,16 +2,19 @@ package org.prlprg.service;
 
 import java.io.*;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
-import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class NativeCompilerBuilder {
 
+  private static final String DEFAULT_COMPILER = "gcc";
+
   private final File input;
   private final File output;
   private final List<String> flags = new ArrayList<>();
-  private String compiler = "gcc";
+  private String compiler = DEFAULT_COMPILER;
+  private File workingDirectory;
 
   public NativeCompilerBuilder(File input, File output) {
     this.input = input;
@@ -25,11 +28,11 @@ public class NativeCompilerBuilder {
 
   public void compile() throws IOException, InterruptedException {
     var logger = Logger.getLogger(NativeCompilerBuilder.class.getName());
-    logger.setLevel(Level.FINE);
 
     var builder = new ProcessBuilder();
     builder.redirectErrorStream(true);
-    builder.command(compiler, "-o", output.getAbsolutePath(), "-c", input.getAbsolutePath());
+    builder.directory(workingDirectory);
+    builder.command(compiler, "-o", output.getPath(), "-c", input.getPath());
     builder.command().addAll(flags);
 
     logger.fine("Running command: " + String.join(" ", builder.command()));
@@ -51,5 +54,19 @@ public class NativeCompilerBuilder {
     if (exitCode != 0) {
       throw new RuntimeException("Compilation failed with exit code " + exitCode + ":\n" + output);
     }
+
+    if (!output.isEmpty()) {
+      logger.warning("Compilation warnings:\n" + output);
+    }
+  }
+
+  public NativeCompilerBuilder flags(Collection<String> flags) {
+    this.flags.addAll(flags);
+    return this;
+  }
+
+  public NativeCompilerBuilder workingDirectory(File directory) {
+    this.workingDirectory = directory;
+    return this;
   }
 }

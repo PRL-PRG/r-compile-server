@@ -2,6 +2,7 @@
 #' @useDynLib rsh, .registration = TRUE, .fixes = "C_"
 #' @importFrom compiler cmpfun
 ## usethis namespace: end
+NULL
 
 ## bootstrap the compiler
 
@@ -28,5 +29,11 @@ rsh_load <- function(obj_file) {
   }
 }
 
-NULL
+#' @export
+rsh_compile <- function(f) {
+  sf <- serialize(f, NULL, version = 2)
+  print(sf)
+  print(length(sf))
+  .Call(C_compile_fun, f, sf)
+}
 
