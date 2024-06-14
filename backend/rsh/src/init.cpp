@@ -78,6 +78,7 @@ SEXP compile_fun(SEXP name, SEXP closure, SEXP raw) {
                                    Rf_install("C_call_fun3")));
     SEXP call = PROTECT(Rf_lang3(Rf_install(".External2"), nested, ptr_sxp));
     SET_BODY(closure, call);
+    Rprintf("Compiled fun %s (%p)\n", name_str.c_str(), ptr);
     UNPROTECT(3);
   }
 
