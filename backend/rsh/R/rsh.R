@@ -32,8 +32,10 @@ rsh_load <- function(obj_file) {
 #' @export
 rsh_compile <- function(f) {
   sf <- serialize(f, NULL, version = 2)
-  print(sf)
-  print(length(sf))
-  .Call(C_compile_fun, f, sf)
+  # print(sf)
+  # print(length(sf))
+  name <- paste0("f_", digest::digest(sf, algo = "sha1", serialize = FALSE))
+  print(name)
+  .Call(C_compile_fun, name, f, sf)
 }
 

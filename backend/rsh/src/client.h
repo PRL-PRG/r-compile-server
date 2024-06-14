@@ -9,4 +9,5 @@
 
 using compile_result = std::variant<std::vector<uint8_t>, std::string>;
 
-compile_result compile(std::vector<uint8_t> rds_closure);
+compile_result compile(std::string const &name,
+                       std::vector<uint8_t> const &rds_closure);
