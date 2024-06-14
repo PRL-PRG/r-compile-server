@@ -36,6 +36,11 @@ class BuiltinParseMethods {
   }
 
   @ParseMethod(SkipWhitespace.NONE)
+  private static Byte parseByte(Parser p) {
+    return Byte.valueOf(p.scanner().readFixedLength(2), 16);
+  }
+
+  @ParseMethod(SkipWhitespace.NONE)
   private static Boolean parseBoolean(Parser p) {
     var s = p.scanner();
     if (s.trySkip("true")) {

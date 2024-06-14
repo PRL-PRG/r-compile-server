@@ -6,6 +6,11 @@ import org.prlprg.util.StringCase;
 
 class BuiltinPrintMethods {
   @PrintMethod
+  private static void printByte(Byte b, Printer p) {
+    p.writer().write(String.format("0x%02x", b));
+  }
+
+  @PrintMethod
   private static void printString(String s, Printer p) {
     var w = p.writer();
     w.write('"');

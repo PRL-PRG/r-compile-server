@@ -53,8 +53,7 @@ record VecSXPImpl(ImmutableList<SEXP> data, @Override Attributes attributes) imp
 
 /** Class for representing a scalar SEXP of a primitive type with no attributes. */
 @Immutable
-abstract sealed class ScalarSXPImpl<T> implements VectorSXP<T>
-    permits ScalarComplexSXP, ScalarIntSXP, ScalarLglSXP, ScalarRealSXP, ScalarStrSXP {
+abstract class ScalarSXPImpl<T> {
   final T data;
 
   protected ScalarSXPImpl(T data) {
@@ -80,19 +79,19 @@ abstract sealed class ScalarSXPImpl<T> implements VectorSXP<T>
     return Attributes.NONE;
   }
 
-  @Override
+  // @Override
   public boolean equals(Object o) {
     if (this == o) return true;
     if (!(o instanceof ScalarSXPImpl<?> that)) return false;
     return Objects.equals(data, that.data);
   }
 
-  @Override
+  // @Override
   public int hashCode() {
     return Objects.hash(data);
   }
 
-  @Override
+  // @Override
   public String toString() {
     return Printer.toString(this);
   }
@@ -100,35 +99,30 @@ abstract sealed class ScalarSXPImpl<T> implements VectorSXP<T>
 
 /** Class for representing a scalar SEXP of a primitive type with no attributes. */
 @Immutable
-abstract sealed class EmptyVectorSXPImpl<T> implements VectorSXP<T>
-    permits EmptyComplexSXPImpl,
-        EmptyIntSXPImpl,
-        EmptyLglSXPImpl,
-        EmptyRealSXPImpl,
-        EmptyStrSXPImpl {
+abstract class EmptyVectorSXPImpl<T> {
   protected EmptyVectorSXPImpl() {}
 
-  @Override
+  // @Override
   public UnmodifiableIterator<T> iterator() {
     return Iterators.forArray();
   }
 
-  @Override
+  // @Override
   public T get(int i) {
     throw new IndexOutOfBoundsException();
   }
 
-  @Override
+  // @Override
   public int size() {
     return 0;
   }
 
-  @Override
+  // @Override
   public @Nonnull Attributes attributes() {
     return Attributes.NONE;
   }
 
-  @Override
+  // @Override
   public String toString() {
     return Printer.toString(this);
   }

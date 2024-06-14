@@ -6,7 +6,7 @@ import org.prlprg.primitive.Logical;
 
 /** SEXP vector (immutable list). */
 public sealed interface VectorSXP<T> extends ListOrVectorSXP<T>
-    permits EmptyVectorSXPImpl, ScalarSXPImpl, ExprSXP, PrimVectorSXP, VecSXP {
+    permits PrimVectorSXP, VecSXP, ExprSXP {
   @Override
   @Nonnull
   Attributes attributes();

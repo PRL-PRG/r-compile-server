@@ -128,6 +128,10 @@ public sealed interface SEXP
     return as(ScalarRealSXP.class).map(ScalarRealSXP::value);
   }
 
+  default Optional<Byte> asScalarRaw() {
+    return as(ScalarRawSXP.class).map(ScalarRawSXP::value);
+  }
+
   default Optional<Complex> asScalarComplex() {
     return as(ScalarComplexSXP.class).map(ScalarComplexSXP::value);
   }

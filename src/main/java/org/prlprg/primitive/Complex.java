@@ -1,14 +1,14 @@
 package org.prlprg.primitive;
 
+import org.prlprg.parseprint.ParseMethod;
+import org.prlprg.parseprint.Parser;
+import org.prlprg.parseprint.PrintMethod;
+import org.prlprg.parseprint.Printer;
+
 /** Complex number */
 public record Complex(double real, double imag) {
   public static Complex fromReal(double x) {
     return new Complex(x, 0);
-  }
-
-  @Override
-  public String toString() {
-    return real + (imag >= 0 ? "+" : "") + imag + "i";
   }
 
   public Complex add(Complex other) {
@@ -55,4 +55,41 @@ public record Complex(double real, double imag) {
   public boolean isNaOrNaN() {
     return Double.isNaN(real) || Double.isNaN(imag);
   }
+
+  // region serialization and deserialization
+  @ParseMethod
+  private static Complex parse(Parser p) {
+    var s = p.scanner();
+
+    var real = s.readDouble();
+    double imag;
+    if (s.trySkip('+') || s.nextCharIs('-')) {
+      imag = s.readDouble();
+      s.assertAndSkip('i');
+    } else {
+      imag = 0;
+    }
+
+    return new Complex(real, imag);
+  }
+
+  @PrintMethod
+  private void print(Printer p) {
+    var w = p.writer();
+
+    p.print(real);
+    if (imag != 0) {
+      if (imag > 0) {
+        w.write('+');
+      }
+      p.print(imag);
+      w.write('i');
+    }
+  }
+
+  @Override
+  public String toString() {
+    return Printer.toString(this);
+  }
+  // endregion serialization and deserialization
 }

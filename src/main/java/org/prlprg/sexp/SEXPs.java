@@ -34,11 +34,12 @@ public final class SEXPs {
   public static final RealSXP NA_REAL = new ScalarRealSXP(Constants.NA_REAL);
   public static final StrSXP NA_STRING = new ScalarStrSXP(Constants.NA_STRING);
   public static final ComplexSXP NA_COMPLEX = new ScalarComplexSXP(Constants.NA_COMPLEX);
-  public static final LglSXP EMPTY_LOGICAL = EmptyLglSXPImpl.INSTANCE;
   public static final IntSXP EMPTY_INTEGER = EmptyIntSXPImpl.INSTANCE;
   public static final RealSXP EMPTY_REAL = EmptyRealSXPImpl.INSTANCE;
-  public static final StrSXP EMPTY_STRING = EmptyStrSXPImpl.INSTANCE;
+  public static final LglSXP EMPTY_LOGICAL = EmptyLglSXPImpl.INSTANCE;
+  public static final RawSXP EMPTY_RAW = EmptyRawSXPImpl.INSTANCE;
   public static final ComplexSXP EMPTY_COMPLEX = EmptyComplexSXPImpl.INSTANCE;
+  public static final StrSXP EMPTY_STRING = EmptyStrSXPImpl.INSTANCE;
   public static final SpecialSymSXP UNBOUND_VALUE = new SpecialSymSXP("UNBOUND_VALUE");
 
   public static final SpecialSymSXP MISSING_ARG = new SpecialSymSXP("MISSING_ARG");
@@ -60,14 +61,6 @@ public final class SEXPs {
   // endregion constants
 
   // region constructors
-  public static LglSXP logical(Logical data) {
-    return switch (data) {
-      case TRUE -> TRUE;
-      case FALSE -> FALSE;
-      case NA -> NA_LOGICAL;
-    };
-  }
-
   public static IntSXP integer(int data) {
     return new ScalarIntSXP(data);
   }
@@ -76,12 +69,24 @@ public final class SEXPs {
     return new ScalarRealSXP(data);
   }
 
-  public static StrSXP string(String data) {
-    return new ScalarStrSXP(data);
+  public static LglSXP logical(Logical data) {
+    return switch (data) {
+      case TRUE -> TRUE;
+      case FALSE -> FALSE;
+      case NA -> NA_LOGICAL;
+    };
+  }
+
+  public static RawSXP raw(byte data) {
+    return new ScalarRawSXP(data);
   }
 
   public static ComplexSXP complex(Complex data) {
     return new ScalarComplexSXP(data);
+  }
+
+  public static StrSXP string(String data) {
+    return new ScalarStrSXP(data);
   }
 
   public static IntSXP integer(int first, int... rest) {
@@ -92,12 +97,23 @@ public final class SEXPs {
     return real(ImmutableDoubleArray.of(first, rest));
   }
 
-  public static StrSXP string(String first, String... rest) {
-    return string(
-        ImmutableList.<String>builderWithExpectedSize(rest.length + 1)
+  public static LglSXP logical(Logical first, Logical... rest) {
+    return logical(
+        ImmutableList.<Logical>builderWithExpectedSize(rest.length + 1)
             .add(first)
             .add(rest)
             .build());
+  }
+
+  public static RawSXP raw(byte first, byte... rest) {
+    var result = ImmutableList.<Byte>builderWithExpectedSize(rest.length + 1);
+    result.add(first);
+    // I don't think there's a better way,
+    // `byte[]` doesn't have the same overloads as other primitive arrays.
+    for (var b : rest) {
+      result.add(b);
+    }
+    return raw(result.build());
   }
 
   public static ComplexSXP complex(Complex first, Complex... rest) {
@@ -108,8 +124,12 @@ public final class SEXPs {
             .build());
   }
 
-  public static LglSXP logical(Logical[] data) {
-    return logical(ImmutableList.copyOf(data));
+  public static StrSXP string(String first, String... rest) {
+    return string(
+        ImmutableList.<String>builderWithExpectedSize(rest.length + 1)
+            .add(first)
+            .add(rest)
+            .build());
   }
 
   public static IntSXP integer(int[] data) {
@@ -128,12 +148,30 @@ public final class SEXPs {
     return real(ImmutableDoubleArray.copyOf(Arrays.asList(data)));
   }
 
-  public static StrSXP string(String[] data) {
-    return string(ImmutableList.copyOf(data));
+  public static LglSXP logical(Logical[] data) {
+    return logical(ImmutableList.copyOf(data));
+  }
+
+  public static RawSXP raw(byte[] data) {
+    var result = ImmutableList.<Byte>builderWithExpectedSize(data.length);
+    // I don't think there's a better way,
+    // `byte[]` doesn't have the same overloads as other primitive arrays.
+    for (var b : data) {
+      result.add(b);
+    }
+    return raw(result.build());
+  }
+
+  public static RawSXP raw(Byte[] data) {
+    return raw(ImmutableList.copyOf(data));
   }
 
   public static ComplexSXP complex(Complex[] data) {
     return complex(ImmutableList.copyOf(data));
+  }
+
+  public static StrSXP string(String[] data) {
+    return string(ImmutableList.copyOf(data));
   }
 
   public static VecSXP vec(SEXP... data) {
@@ -148,10 +186,6 @@ public final class SEXPs {
     return new ScalarComplexSXP(new Complex(real, imaginary));
   }
 
-  public static LglSXP logical(Logical data, Attributes attributes) {
-    return logical(ImmutableList.of(data), attributes);
-  }
-
   public static IntSXP integer(int data, Attributes attributes) {
     return integer(ImmutableIntArray.of(data), attributes);
   }
@@ -160,16 +194,20 @@ public final class SEXPs {
     return real(ImmutableDoubleArray.of(data), attributes);
   }
 
-  public static StrSXP string(String data, Attributes attributes) {
-    return string(ImmutableList.of(data), attributes);
+  public static LglSXP logical(Logical data, Attributes attributes) {
+    return logical(ImmutableList.of(data), attributes);
+  }
+
+  public static RawSXP raw(byte data, Attributes attributes) {
+    return raw(ImmutableList.of(data), attributes);
   }
 
   public static ComplexSXP complex(Complex data, Attributes attributes) {
     return complex(ImmutableList.of(data), attributes);
   }
 
-  public static LglSXP logical(ImmutableList<Logical> data) {
-    return logical(data, Attributes.NONE);
+  public static StrSXP string(String data, Attributes attributes) {
+    return string(ImmutableList.of(data), attributes);
   }
 
   public static IntSXP integer(ImmutableIntArray data) {
@@ -180,12 +218,20 @@ public final class SEXPs {
     return real(data, Attributes.NONE);
   }
 
-  public static StrSXP string(ImmutableList<String> data) {
-    return string(data, Attributes.NONE);
+  public static LglSXP logical(ImmutableList<Logical> data) {
+    return logical(data, Attributes.NONE);
+  }
+
+  public static RawSXP raw(ImmutableList<Byte> data) {
+    return raw(data, Attributes.NONE);
   }
 
   public static ComplexSXP complex(ImmutableList<Complex> data) {
     return complex(data, Attributes.NONE);
+  }
+
+  public static StrSXP string(ImmutableList<String> data) {
+    return string(data, Attributes.NONE);
   }
 
   public static VecSXP vec(ImmutableList<SEXP> data) {
@@ -196,10 +242,6 @@ public final class SEXPs {
     return expr(data, Attributes.NONE);
   }
 
-  public static LglSXP logical(Collection<Logical> data) {
-    return logical(ImmutableList.copyOf(data), Attributes.NONE);
-  }
-
   public static IntSXP integer(Collection<Integer> data) {
     return integer(ImmutableIntArray.copyOf(data), Attributes.NONE);
   }
@@ -208,12 +250,20 @@ public final class SEXPs {
     return real(ImmutableDoubleArray.copyOf(data), Attributes.NONE);
   }
 
-  public static StrSXP string(Collection<String> data) {
-    return string(ImmutableList.copyOf(data), Attributes.NONE);
+  public static LglSXP logical(Collection<Logical> data) {
+    return logical(ImmutableList.copyOf(data), Attributes.NONE);
+  }
+
+  public static RawSXP raw(Collection<Byte> data) {
+    return raw(ImmutableList.copyOf(data), Attributes.NONE);
   }
 
   public static ComplexSXP complex(Collection<Complex> data) {
     return complex(ImmutableList.copyOf(data), Attributes.NONE);
+  }
+
+  public static StrSXP string(Collection<String> data) {
+    return string(ImmutableList.copyOf(data), Attributes.NONE);
   }
 
   public static VecSXP vec(Collection<SEXP> data) {
@@ -224,10 +274,6 @@ public final class SEXPs {
     return expr(ImmutableList.copyOf(data), Attributes.NONE);
   }
 
-  public static LglSXP logical(Logical[] data, Attributes attributes) {
-    return logical(ImmutableList.copyOf(data), attributes);
-  }
-
   public static IntSXP integer(int[] data, Attributes attributes) {
     return integer(ImmutableIntArray.copyOf(data), attributes);
   }
@@ -236,12 +282,26 @@ public final class SEXPs {
     return real(ImmutableDoubleArray.copyOf(data), attributes);
   }
 
-  public static StrSXP string(String[] data, Attributes attributes) {
-    return string(ImmutableList.copyOf(data), attributes);
+  public static LglSXP logical(Logical[] data, Attributes attributes) {
+    return logical(ImmutableList.copyOf(data), attributes);
+  }
+
+  public static RawSXP raw(byte[] data, Attributes attributes) {
+    var result = ImmutableList.<Byte>builderWithExpectedSize(data.length);
+    // I don't think there's a better way,
+    // `byte[]` doesn't have the same overloads as other primitive arrays.
+    for (var b : data) {
+      result.add(b);
+    }
+    return raw(result.build(), attributes);
   }
 
   public static ComplexSXP complex(Complex[] data, Attributes attributes) {
     return complex(ImmutableList.copyOf(data), attributes);
+  }
+
+  public static StrSXP string(String[] data, Attributes attributes) {
+    return string(ImmutableList.copyOf(data), attributes);
   }
 
   public static VecSXP vec(SEXP[] data, Attributes attributes) {
@@ -250,17 +310,6 @@ public final class SEXPs {
 
   public static ExprSXP expr(SEXP[] data, Attributes attributes) {
     return expr(ImmutableList.copyOf(data), attributes);
-  }
-
-  public static LglSXP logical(ImmutableList<Logical> data, Attributes attributes) {
-    if (attributes.isEmpty()) {
-      return switch (data.size()) {
-        case 0 -> EMPTY_LOGICAL;
-        case 1 -> logical(data.getFirst());
-        default -> new LglSXPImpl(data, attributes);
-      };
-    }
-    return new LglSXPImpl(data, attributes);
   }
 
   public static IntSXP integer(ImmutableIntArray data, Attributes attributes) {
@@ -285,15 +334,26 @@ public final class SEXPs {
     return new RealSXPImpl(data, attributes);
   }
 
-  public static StrSXP string(ImmutableList<String> data, Attributes attributes) {
+  public static LglSXP logical(ImmutableList<Logical> data, Attributes attributes) {
     if (attributes.isEmpty()) {
       return switch (data.size()) {
-        case 0 -> EMPTY_STRING;
-        case 1 -> string(data.getFirst());
-        default -> new StrSXPImpl(data, attributes);
+        case 0 -> EMPTY_LOGICAL;
+        case 1 -> logical(data.getFirst());
+        default -> new LglSXPImpl(data, attributes);
       };
     }
-    return new StrSXPImpl(data, attributes);
+    return new LglSXPImpl(data, attributes);
+  }
+
+  public static RawSXP raw(ImmutableList<Byte> data, Attributes attributes) {
+    if (attributes.isEmpty()) {
+      return switch (data.size()) {
+        case 0 -> EMPTY_RAW;
+        case 1 -> raw(data.getFirst());
+        default -> new RawSXPImpl(data, attributes);
+      };
+    }
+    return new RawSXPImpl(data, attributes);
   }
 
   public static ComplexSXP complex(ImmutableList<Complex> data, Attributes attributes) {
@@ -307,16 +367,23 @@ public final class SEXPs {
     return new ComplexSXPImpl(data, attributes);
   }
 
+  public static StrSXP string(ImmutableList<String> data, Attributes attributes) {
+    if (attributes.isEmpty()) {
+      return switch (data.size()) {
+        case 0 -> EMPTY_STRING;
+        case 1 -> string(data.getFirst());
+        default -> new StrSXPImpl(data, attributes);
+      };
+    }
+    return new StrSXPImpl(data, attributes);
+  }
+
   public static VecSXP vec(ImmutableList<SEXP> data, Attributes attributes) {
     return new VecSXPImpl(data, attributes);
   }
 
   public static ExprSXP expr(ImmutableList<SEXP> data, Attributes attributes) {
     return new ExprSXPImpl(data, attributes);
-  }
-
-  public static LglSXP logical(Collection<Logical> data, Attributes attributes) {
-    return logical(ImmutableList.copyOf(data), attributes);
   }
 
   public static IntSXP integer(Collection<Integer> data, Attributes attributes) {
@@ -327,12 +394,20 @@ public final class SEXPs {
     return real(ImmutableDoubleArray.copyOf(data), attributes);
   }
 
-  public static StrSXP string(Collection<String> data, Attributes attributes) {
-    return string(ImmutableList.copyOf(data), attributes);
+  public static LglSXP logical(Collection<Logical> data, Attributes attributes) {
+    return logical(ImmutableList.copyOf(data), attributes);
+  }
+
+  public static RawSXP raw(Collection<Byte> data, Attributes attributes) {
+    return raw(ImmutableList.copyOf(data), attributes);
   }
 
   public static ComplexSXP complex(Collection<Complex> data, Attributes attributes) {
     return complex(ImmutableList.copyOf(data), attributes);
+  }
+
+  public static StrSXP string(Collection<String> data, Attributes attributes) {
+    return string(ImmutableList.copyOf(data), attributes);
   }
 
   public static VecSXP vec(Collection<SEXP> data, Attributes attributes) {

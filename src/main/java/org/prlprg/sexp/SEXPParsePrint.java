@@ -117,6 +117,7 @@ class SEXPParseContext {
             case SEXPType.LGL,
                 SEXPType.INT,
                 SEXPType.REAL,
+                SEXPType.RAW,
                 SEXPType.CPLX,
                 SEXPType.STR,
                 SEXPType.VEC,
@@ -130,6 +131,7 @@ class SEXPParseContext {
                         case LGL -> untypedElem.asScalarLogical();
                         case INT -> untypedElem.asScalarInteger();
                         case REAL -> untypedElem.asScalarReal();
+                        case RAW -> untypedElem.asScalarRaw();
                         case CPLX -> untypedElem.asScalarComplex();
                         case STR -> untypedElem.asScalarString();
                         case VEC, EXPR -> Optional.of(untypedElem);
@@ -149,6 +151,9 @@ class SEXPParseContext {
                             .collect(ImmutableList.toImmutableList()));
                 case INT -> SEXPs.integer(elems.stream().mapToInt(e -> (int) e).toArray());
                 case REAL -> SEXPs.real(elems.stream().mapToDouble(e -> (double) e).toArray());
+                case RAW ->
+                    SEXPs.raw(
+                        elems.stream().map(e -> (byte) e).collect(ImmutableList.toImmutableList()));
                 case CPLX ->
                     SEXPs.complex(
                         elems.stream()
@@ -168,8 +173,6 @@ class SEXPParseContext {
                 default -> throw new UnreachableError();
               };
             }
-            case SEXPType.RAW ->
-                throw new UnsupportedOperationException("TODO: Add raw vector SEXP class");
             case SEXPType.CLO -> {
               var parameters = p.parse(ListSXP.class);
               s.assertAndSkip(" env=");
