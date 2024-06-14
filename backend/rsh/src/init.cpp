@@ -1,9 +1,9 @@
-#define R_NO_REMAP
 #include <R.h>
 #include <Rinternals.h>
 
 #include <R_ext/Rdynload.h>
 
+#include "client.h"
 #include "jit.h"
 
 static JIT *jit = nullptr;
@@ -11,6 +11,7 @@ SEXP load_fun(SEXP filename);
 SEXP call_fun(SEXP pointer);
 SEXP call_fun2(SEXP pointer, SEXP arg);
 SEXP call_fun3(SEXP, SEXP, SEXP, SEXP);
+SEXP compile_fun(SEXP closure, SEXP raw);
 
 extern "C" {
 
@@ -18,6 +19,7 @@ static const R_CallMethodDef callMethods[] = {
     {"load_fun", (DL_FUNC)&load_fun, 1},
     {"call_fun", (DL_FUNC)&call_fun, 1},
     {"call_fun2", (DL_FUNC)&call_fun2, 2},
+    {"compile_fun", (DL_FUNC)&compile_fun, 2},
     {NULL, NULL, 0}};
 
 static const R_ExternalMethodDef externalMethods[] = {
@@ -54,4 +56,33 @@ SEXP call_fun3(SEXP call, SEXP op, SEXP args, SEXP env) {
   void *ptr = R_ExternalPtrAddr(CADR(args));
   SEXP (*fun)(SEXP) = (SEXP(*)(SEXP))ptr;
   return fun(env);
+}
+
+SEXP compile_fun(SEXP closure, SEXP raw) {
+  PROTECT(closure);
+
+  uint8_t *raw_data = RAW(raw);
+  R_xlen_t raw_length = XLENGTH(raw);
+  std::vector<uint8_t> data(raw_data, raw_data + raw_length);
+
+  auto result = compile(data);
+  if (std::holds_alternative<std::string>(result)) {
+    Rf_error("%s", std::get<std::string>(result).c_str());
+  } else {
+    std::vector<uint8_t> payload = std::get<std::vector<uint8_t>>(result);
+    jit->add_object(std::move(payload));
+    void *ptr = jit->lookup("jit_f");
+    SEXP ptr_sxp = PROTECT(R_MakeExternalPtr(ptr, R_NilValue, R_NilValue));
+
+    SEXP nested = PROTECT(Rf_lang3(Rf_install(":::"), Rf_install("rsh"),
+                                   Rf_install("C_call_fun3")));
+    SEXP call = PROTECT(Rf_lang3(Rf_install(".External2"), nested, ptr_sxp));
+    UNPROTECT(1); // ptr_sxp
+    UNPROTECT(1); // nested
+    SET_BODY(closure, call);
+    UNPROTECT(1); // call
+  }
+
+  UNPROTECT(1); // closure
+  return closure;
 }

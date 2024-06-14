@@ -1,6 +1,8 @@
 LLVM_CONFIG := llvm-config-17
 
-PKG_CXXFLAGS != $(LLVM_CONFIG) --cxxflags
+PKG_CPPFLAGS != $(LLVM_CONFIG) --cxxflags
 PKG_LDFLAGS != $(LLVM_CONFIG) --ldflags
 PKG_LIBS != $(LLVM_CONFIG) --libs
 
+PKG_CPPFLAGS := $(PKG_CPPFLAGS) -fexceptions -I../inst -DR_NO_REMAP
+PKG_LIBS := $(PKG_LIBS) -lzmq
