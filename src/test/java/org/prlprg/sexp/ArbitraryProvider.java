@@ -4,6 +4,7 @@ import static net.jqwik.api.Arbitraries.just;
 import static net.jqwik.api.Arbitraries.oneOf;
 import static net.jqwik.api.Arbitraries.recursive;
 import static net.jqwik.api.Arbitraries.strings;
+import static org.prlprg.primitive.ArbitraryProvider.basicBytes;
 import static org.prlprg.primitive.ArbitraryProvider.basicInts;
 import static org.prlprg.primitive.ArbitraryProvider.basicReals;
 import static org.prlprg.primitive.ArbitraryProvider.complexes;
@@ -173,12 +174,14 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
             SEXPs.EMPTY_STRING,
             SEXPs.EMPTY_INTEGER,
             SEXPs.EMPTY_REAL,
+            SEXPs.EMPTY_RAW,
             SEXPs.MISSING_ARG),
         basicInts().list().ofMaxSize(MAX_SIZE).map(SEXPs::integer),
         basicReals().list().ofMaxSize(MAX_SIZE).map(SEXPs::real),
-        shortStrings().list().ofMaxSize(MAX_SIZE).map(SEXPs::string),
         logicals().list().ofMaxSize(MAX_SIZE).map(SEXPs::logical),
-        complexes().list().ofMaxSize(MAX_SIZE).map(SEXPs::complex));
+        basicBytes().list().ofMaxSize(MAX_SIZE).map(SEXPs::raw),
+        complexes().list().ofMaxSize(MAX_SIZE).map(SEXPs::complex),
+        shortStrings().list().ofMaxSize(MAX_SIZE).map(SEXPs::string));
   }
 
   public static Arbitrary<SEXP> basicAstSexps() {
@@ -186,9 +189,10 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
         just(SEXPs.NULL),
         basicInts().map(SEXPs::integer),
         basicReals().map(SEXPs::real),
-        shortStrings().map(SEXPs::string),
         logicals().map(SEXPs::logical),
+        basicBytes().map(SEXPs::raw),
         complexes().map(SEXPs::complex),
+        shortStrings().map(SEXPs::string),
         symbols());
   }
 

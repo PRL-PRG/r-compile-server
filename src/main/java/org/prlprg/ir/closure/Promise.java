@@ -14,9 +14,7 @@ import org.prlprg.ir.type.REffects;
 import org.prlprg.ir.type.lattice.Lattice;
 import org.prlprg.ir.type.lattice.NoOrMaybe;
 import org.prlprg.ir.type.lattice.Troolean;
-import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
-import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.BCodeSXP;
 import org.prlprg.sexp.SEXP;
@@ -30,7 +28,7 @@ import org.prlprg.util.Pair;
  * {@link RValue} which is the environment that code is evaluated in, and {@link Promise.Properties}
  * which are guarantees that the promise invoker can assume for its own optimizations.
  */
-public class Promise {
+public final class Promise extends CodeObject {
   // The non-final fields are only non-final so that they can be set in `LateConstruct`.
   // Otherwise they are effectively final.
   private Bc bc;
@@ -51,9 +49,12 @@ public class Promise {
    * <p>The eager value is initially {@code null}. It can be assigned later via {@link
    * #assignEagerValue}.
    *
+   * @param name A descriptive name for the promise for debugging. Pass the empty string if there
+   *     isn't a good one.
    * @throws IllegalArgumentException If {@code env} isn't statically known to be an environment/
    */
-  public Promise(Bc bc, CFG cfg, @IsEnv RValue env, Properties properties) {
+  public Promise(String name, Bc bc, CFG cfg, @IsEnv RValue env, Properties properties) {
+    super(name);
     if (env.isEnv() != Troolean.YES) {
       throw new IllegalArgumentException("`env` must be statically known to be an environment.");
     }
@@ -62,6 +63,16 @@ public class Promise {
     this.cfg = cfg;
     this.env = env;
     this.properties = properties;
+  }
+
+  /**
+   * A descriptive name for the promise for debugging.
+   *
+   * <p>It may be the empty string.
+   */
+  @Override
+  public String name() {
+    return super.name();
   }
 
   /** The promise code as GNU-R bytecode. */
@@ -176,9 +187,10 @@ public class Promise {
    * is initially filled with misc data, but is late-assigned before the entire closure is returned
    * to code outside the package.
    */
-  static Pair<Promise, Promise.LateConstruct> lateConstruct() {
+  static Pair<Promise, Promise.LateConstruct> lateConstruct(String name) {
     var promise =
         new Promise(
+            name,
             new Bc(new BcCode.Builder().build(), new ConstPool.Builder().build()),
             new CFG(),
             StaticEnv.NOT_CLOSED,
@@ -186,15 +198,13 @@ public class Promise {
     return Pair.of(promise, promise.new LateConstruct());
   }
 
-  class LateConstruct {
-    private boolean wasSet = false;
+  public final class LateConstruct extends CodeObject.LateConstruct<Promise> {
+    private LateConstruct() {
+      super();
+    }
 
-    private LateConstruct() {}
-
-    void set(Promise data) {
-      assert !wasSet;
-      wasSet = true;
-
+    @Override
+    public void doSet(Promise data) {
       bc = data.bc;
       cfg = data.cfg;
       eagerValue = data.eagerValue;
@@ -203,39 +213,47 @@ public class Promise {
     }
   }
 
-  @ParseMethod
-  private static Promise parse(Parser p, ClosureParseContext.Inner ctx) {
+  /**
+   * Deserializing constructor (so we can set the final fields).
+   *
+   * <p>Called with reflection in {@link CodeObject}{@code #parse}.
+   */
+  @SuppressWarnings("unused")
+  private Promise(Parser p1, ClosureParseContext ctx) {
+    super("prom", p1, ctx);
+    var idIndex = ctx.lastYieldedIdIndex();
+
+    var p = p1.withContext(ctx.ref(new NodeIdQualifier(name, idIndex)));
     var s = p.scanner();
 
-    parseId(p, ctx);
-    s.assertAndSkip(" in");
-    var env = p.parse(RValue.class);
-    var eagerValue = s.trySkip(" with") ? p.parse(RValue.class) : null;
-    var properties = s.trySkip(" has") ? p.parse(Properties.class) : Properties.EMPTY;
-    s.assertAndSkip(" {");
+    s.assertAndSkip("env");
+    env = p.parse(RValue.class);
+    eagerValue = s.trySkip("with") ? p.parse(RValue.class) : null;
+    properties = s.trySkip("has") ? p.parse(Properties.class) : Properties.EMPTY;
+    s.assertAndSkip("{");
 
-    var bc = p.parse(Bc.class);
-
+    bc = p.parse(Bc.class);
     s.assertAndSkip("=== IR ===");
-    var cfg = p.parse(CFG.class);
+    cfg = p.parse(CFG.class);
 
     s.assertAndSkip('}');
-    var promise = new Promise(bc, cfg, env, properties);
-    promise.eagerValue = eagerValue;
-    return promise;
+
+    if (ctx instanceof ClosureParseContext.Outermost o) {
+      o.parseRemaining(p);
+    }
   }
 
-  @PrintMethod
-  private void print(Printer p) {
-    print(p, ClosurePrintContext.Inner.dummyForPromise());
-  }
+  // The class doesn't escape its visibility, because this is a protected method of a sealed class.
+  @Override
+  protected void print(
+      Printer p1, @SuppressWarnings("ClassEscapesDefinedScope") ClosurePrintContext ctx) {
+    printHeader("prom", p1, ctx);
+    var idIndex = ctx.lastYieldedIdIndex();
 
-  @PrintMethod
-  private void print(Printer p, ClosurePrintContext.Inner ctx) {
+    var p = p1.withContext(ctx.ref(new NodeIdQualifier(name, idIndex)));
     var w = p.writer();
 
-    printId(p, ctx);
-    w.write(" in ");
+    w.write(" env ");
     p.print(env);
     if (eagerValue != null) {
       w.write(" with ");
@@ -245,35 +263,26 @@ public class Promise {
       w.write(" has ");
       w.runIndented(() -> p.print(properties));
     }
-    w.write(" {\n");
+    w.write(" {");
 
-    p.print(bc);
-    w.write("\n=== IR ===\n");
+    w.runIndented(
+        () -> {
+          w.write('\n');
+          p.print(bc);
+          w.write("\n=== IR ===\n");
+          p.print(cfg);
+        });
 
-    p.print(cfg);
-    w.write("}");
+    w.write("\n}");
+
+    if (ctx instanceof ClosurePrintContext.Outermost o) {
+      o.printRemaining(p);
+    }
   }
 
   @Override
   public String toString() {
     return Printer.toString(this);
-  }
-
-  static void parseId(Parser p, ClosureParseContext.Inner ctx) {
-    var s = p.scanner();
-
-    s.assertAndSkip('@');
-    int index = s.readUInt();
-    if (index != ctx.lastYieldedPromiseId()) {
-      throw s.fail("Expected inner closure index " + ctx.lastYieldedPromiseId() + ", got " + index);
-    }
-  }
-
-  static void printId(Printer p, ClosurePrintContext.Inner ctx) {
-    var w = p.writer();
-
-    w.write('@');
-    p.print(ctx.lastYieldedPromiseId());
   }
   // endregion serialization and deserialization
 }

@@ -934,7 +934,7 @@ public sealed interface BcInstr {
     }
   }
 
-  record BaseGuard(ConstPool.Idx<LangSXP> expr, @LabelName("baseGuardFail") BcLabel ifFail)
+  record BaseGuard(ConstPool.Idx<LangSXP> expr, @LabelName("baseGuardAfter") BcLabel ifFail)
       implements BcInstr {
     @Override
     public BcOp op() {

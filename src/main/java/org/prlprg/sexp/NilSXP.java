@@ -140,6 +140,7 @@ public final class NilSXP implements ListSXP {
     throw new UnsupportedOperationException("Cannot set attributes on NULL");
   }
 
+  // This can't call `Printer.toString`, because it calls this.
   @Override
   public String toString() {
     return "NULL";

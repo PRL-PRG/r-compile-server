@@ -15,6 +15,10 @@ import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
+import org.prlprg.sexp.parseprint.HasSEXPParseContext;
+import org.prlprg.sexp.parseprint.HasSEXPPrintContext;
+import org.prlprg.sexp.parseprint.SEXPParseContext;
+import org.prlprg.sexp.parseprint.SEXPPrintContext;
 
 /**
  * <a
@@ -392,12 +396,20 @@ abstract class PhiImpl<N extends Node> implements Phi<N> {
 
     if (oldNode == null) {
       throw new IllegalArgumentException(
-          "Incoming BB not a predecessor: " + incomingBB + " (node=" + node + ")");
+          "incoming BB not a predecessor of "
+              + id
+              + "'s BB: "
+              + incomingBB.id()
+              + " (node = "
+              + node.id()
+              + ")");
     }
     if (!nodeClass.isInstance(node)) {
       throw new IllegalArgumentException(
-          "Tried to add an input of incompatible type: "
-              + node
+          "Tried to add an input of incompatible type to "
+              + id
+              + ": "
+              + node.id()
               + " ("
               + node.getClass().getSimpleName()
               + ") is not an instance of the phi's node class "
@@ -479,6 +491,15 @@ abstract class PhiImpl<N extends Node> implements Phi<N> {
 
   @PrintMethod
   private void print(Printer p) {
-    p.withContext(new BBParseOrPrintContext(null, cfg(), null)).print(this);
+    p.withContext(
+            new BBParseOrPrintContext(
+                null,
+                p.context() instanceof HasSEXPParseContext h
+                    ? h.sexpParseContext()
+                    : new SEXPParseContext(),
+                p instanceof HasSEXPPrintContext h ? h.sexpPrintContext() : new SEXPPrintContext(),
+                cfg(),
+                null))
+        .print(this);
   }
 }

@@ -1,8 +1,11 @@
 package org.prlprg.ir.cfg;
 
+import com.google.common.collect.ImmutableSet;
 import java.util.Objects;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
+import org.prlprg.parseprint.PrintMethod;
+import org.prlprg.parseprint.Printer;
 import org.prlprg.parseprint.SkipWhitespace;
 import org.prlprg.rshruntime.DeoptReason;
 import org.prlprg.sexp.SEXP;
@@ -10,6 +13,8 @@ import org.prlprg.util.Classes;
 
 /** Unique identifier for a {@linkplain GlobalNode global node}. */
 public interface GlobalNodeId<N extends GlobalNode> extends NodeId<N> {
+  ImmutableSet<String> GLOBAL_NODE_TYPES = ImmutableSet.of("", "dr", "invalid", "env");
+
   /**
    * Gets or creates the node with this ID.
    *
@@ -31,9 +36,16 @@ final class GlobalNodeIdImpl<N extends GlobalNode> extends NodeIdImpl<N>
     implements GlobalNodeId<N> {
   private final N node;
 
+  /**
+   * Returns the prefix that identifies the type of global node the ID encodes when it's parsed.
+   *
+   * <p>The ID syntax is "type\\node", where "type" is this return value and "node" is {@code
+   * node.}{@link Object#toString() toString()} or {@link Printer#print(Object) Printer.print}{@code
+   * (node)} when printed (need to use {@link Printer#print(Object)} to retain context).
+   */
   private static String nodeTypeName(GlobalNode node) {
     return switch (node) {
-      case Constant _ -> "const";
+      case Constant _ -> "";
       case ConstantDeoptReason _ -> "dr";
       case InvalidNode _ -> "invalid";
       case StaticEnv _ -> "env";
@@ -45,20 +57,31 @@ final class GlobalNodeIdImpl<N extends GlobalNode> extends NodeIdImpl<N>
    * Create a node id using the class of the given node and given descriptive name.
    *
    * <p>The node is not actually stored in the id, only its class is stored for internal assertions.
-   * The id is the node's string representation, which must be of the form "{type:name}" where
-   * "name" can contain any character except '}', and the name is the "name" part of that string.
+   * The id is the node's string representation, which must be of the form "type\\node", where
+   * "type" is one of the values in {@link GlobalNodeId#GLOBAL_NODE_TYPES} and returned by {@link
+   * GlobalNodeIdImpl#nodeTypeName(GlobalNode)}.
    *
    * @throws IllegalArgumentException If the node's string representation doesn't match the required
    *     format.
    */
   public GlobalNodeIdImpl(N node) {
-    super(Classes.classOf(node), node.toString(), nodeTypeName(node) + "." + node);
+    super(Classes.classOf(node));
     this.node = node;
   }
 
   @Override
   public N node() {
     return node;
+  }
+
+  @Override
+  public String name() {
+    return Printer.use(this::printName);
+  }
+
+  @Override
+  public String toString() {
+    return Printer.toString(this);
   }
 
   @Override
@@ -73,19 +96,16 @@ final class GlobalNodeIdImpl<N extends GlobalNode> extends NodeIdImpl<N>
     return Objects.hashCode(node);
   }
 
+  // region serialization and deserialization
   @ParseMethod(SkipWhitespace.NONE)
   private static GlobalNodeId<?> parse(Parser p) {
     var s = p.scanner();
 
-    var type = s.readUntil('.');
-    s.assertAndSkip('.');
+    var type = s.readUntil('\\');
+    s.assertAndSkip('\\');
     var node =
         switch (type) {
-            // ???: This may cause issues (makes parsing much harder since IDs have
-            // context-sensitive
-            // syntax, and large SEXPs may be repeated)
-          case "const" -> new Constant(p.parse(SEXP.class));
-            // This makes IDs have context-sensitive syntax, but won't be large.
+          case "" -> new Constant(p.parse(SEXP.class));
           case "dr" -> new ConstantDeoptReason(p.parse(DeoptReason.class));
           case "invalid" -> InvalidNode.parsed(s.readUInt(), s.readJavaIdentifierOrKeyword());
           case "env" -> {
@@ -100,4 +120,28 @@ final class GlobalNodeIdImpl<N extends GlobalNode> extends NodeIdImpl<N>
         };
     return node.id();
   }
+
+  @PrintMethod
+  private void print(Printer p) {
+    var w = p.writer();
+
+    w.write(nodeTypeName(node));
+    w.write('\\');
+    printName(p);
+  }
+
+  private void printName(Printer p) {
+    var w = p.writer();
+
+    switch (node) {
+      case Constant(var constant) -> p.print(constant);
+      case ConstantDeoptReason(var dr) -> p.print(dr);
+      case InvalidNode i -> w.write(i.toString());
+      case StaticEnv s -> w.write(s.toString());
+      default ->
+          throw new AssertionError(
+              "Unhandled global node type with handled `nodeTypeName`: " + nodeTypeName(node));
+    }
+  }
+  // endregion serialization and deserialization
 }

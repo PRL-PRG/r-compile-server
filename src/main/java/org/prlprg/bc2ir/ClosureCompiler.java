@@ -24,38 +24,38 @@ import org.prlprg.sexp.SEXPs;
  */
 public class ClosureCompiler {
   /**
-   * {@link #compileBaselineClosure(CloSXP, RValue, String)} with an {@linkplain
+   * {@link #compileBaselineClosure(String, CloSXP, RValue)} with an {@linkplain
    * StaticEnv#NOT_CLOSED unclosed} environment (not an inner closure).
    */
-  public static Closure compileBaselineClosure(CloSXP sexp, String name) {
-    return compileBaselineClosure(sexp, StaticEnv.NOT_CLOSED, name);
+  public static Closure compileBaselineClosure(String name, CloSXP sexp) {
+    return compileBaselineClosure(name, sexp, StaticEnv.NOT_CLOSED);
   }
 
   /**
    * Compile a {@linkplain CloSXP closure SEXP} into an {@linkplain org.prlprg.ir IR} {@linkplain
    * Closure closure} with only a baseline version.
    *
+   * @param name A name for debugging. Typically the variable it was assigned to if known. "" is
+   *     acceptable.
    * @param env The closure's environment. This is {@linkplain StaticEnv#NOT_CLOSED unclosed} unless
    *     it's an inner closure (from {@link org.prlprg.ir.cfg.StmtData.MkCls MkCls}), in which case
    *     it's the outer closure's environment.
-   * @param name A name for debugging. Typically the variable it was assigned to if known. "" is
-   *     acceptable.
    * @throws IllegalArgumentException If the closure's body isn't bytecode (in this case, you must
    *     use a {@link org.prlprg.bc.Compiler} to compile it before calling this).
    * @throws IllegalArgumentException If {@code env} isn't statically known to be an environment.
-   * @throws org.prlprg.bc2ir.CFGCompilerUnsupportedBcException If the closure can't be compiled
-   *     because it does something complex which the compiler doesn't support yet.
+   * @throws CFGCompilerUnsupportedBcException If the closure can't be compiled because it does
+   *     something complex which the compiler doesn't support yet.
    */
-  public static Closure compileBaselineClosure(CloSXP sexp, @IsEnv RValue env, String name) {
-    return compileBaselineClosure(sexp, env, name, new Module());
+  public static Closure compileBaselineClosure(String name, CloSXP sexp, @IsEnv RValue env) {
+    return compileBaselineClosure(name, sexp, env, new Module());
   }
 
   /**
-   * {@link #compileBaselineClosure(CloSXP, RValue, String, Module)} with an {@linkplain
+   * {@link #compileBaselineClosure(String, CloSXP, RValue, Module)} with an {@linkplain
    * StaticEnv#NOT_CLOSED unclosed} environment (not an inner closure).
    */
-  public static Closure compileBaselineClosure(CloSXP sexp, String name, Module module) {
-    return compileBaselineClosure(sexp, StaticEnv.NOT_CLOSED, name, module);
+  public static Closure compileBaselineClosure(String name, CloSXP sexp, Module module) {
+    return compileBaselineClosure(name, sexp, StaticEnv.NOT_CLOSED, module);
   }
 
   /**
@@ -67,19 +67,19 @@ public class ClosureCompiler {
    * the AST can't be converted (it calls the browser function), this will throw {@link
    * UnsupportedOperationException}.
    *
+   * @param name A name for debugging. Typically the variable it was assigned to if known. "" is
+   *     acceptable.
    * @param env The closure's environment. This is {@linkplain StaticEnv#NOT_CLOSED unclosed} unless
    *     it's an inner closure (from {@link org.prlprg.ir.cfg.StmtData.MkCls MkCls}), in which case
    *     it's the outer closure's environment.
-   * @param name A name for debugging. Typically the variable it was assigned to if known. "" is
-   *     acceptable.
    * @throws IllegalArgumentException If the closure's body isn't bytecode (in this case, you must
    *     use a {@link org.prlprg.bc.Compiler} to compile it before calling this).
    * @throws IllegalArgumentException If {@code env} isn't statically known to be an environment.
-   * @throws org.prlprg.bc2ir.CFGCompilerUnsupportedBcException If the closure can't be compiled
-   *     because it does something complex which the compiler doesn't support yet.
+   * @throws CFGCompilerUnsupportedBcException If the closure can't be compiled because it does
+   *     something complex which the compiler doesn't support yet.
    */
   public static Closure compileBaselineClosure(
-      CloSXP sexp, @IsEnv RValue env, String name, Module module) {
+      String name, CloSXP sexp, @IsEnv RValue env, Module module) {
     if (!(sexp.body() instanceof BCodeSXP)) {
       var rSession = module.serverRSession();
       if (rSession == null) {
@@ -98,7 +98,7 @@ public class ClosureCompiler {
       sexp = SEXPs.closure(sexp.parameters(), SEXPs.bcode(bc), sexp.env(), sexp.attributes());
     }
 
-    var closure = new Closure(sexp, env, name);
+    var closure = new Closure(name, sexp, env);
     compileVersion(closure.baselineVersion(), module);
     return closure;
   }
@@ -122,9 +122,12 @@ public class ClosureCompiler {
    * Compile the promise whose GNU-R AST or bytecode is the given SEXP, has the given environment,
    * and do this in the given module.
    *
+   * @param name A name for debugging. Typically the variable it was assigned to if known. "" is
+   *     acceptable.
    * @throws UnsupportedOperationException If the promise code is an AST.
    */
-  static Promise compilePromise(SEXP promiseCodeSexp, @IsEnv RValue env, Module module) {
+  static Promise compilePromise(
+      String name, SEXP promiseCodeSexp, @IsEnv RValue env, Module module) {
     if (!(promiseCodeSexp instanceof BCodeSXP promiseBcSexp)) {
       throw new UnsupportedOperationException("Can't compile a promise whose body is an AST");
     }
@@ -134,6 +137,6 @@ public class ClosureCompiler {
     var cfg = new CFG();
     compileCFG(promiseBc, cfg, true, module);
     var properties = computePromiseProperties(cfg);
-    return new Promise(promiseBc, cfg, env, properties);
+    return new Promise(name, promiseBc, cfg, env, properties);
   }
 }

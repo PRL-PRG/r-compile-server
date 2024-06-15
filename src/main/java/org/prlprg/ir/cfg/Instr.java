@@ -23,6 +23,10 @@ import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.SEXPType;
+import org.prlprg.sexp.parseprint.HasSEXPParseContext;
+import org.prlprg.sexp.parseprint.HasSEXPPrintContext;
+import org.prlprg.sexp.parseprint.SEXPParseContext;
+import org.prlprg.sexp.parseprint.SEXPPrintContext;
 import org.prlprg.util.Classes;
 import org.prlprg.util.Reflection;
 import org.prlprg.util.UnreachableError;
@@ -59,7 +63,7 @@ public sealed interface Instr extends InstrOrPhi permits Jump, Stmt {
   static <I extends Instr> void mutateArgs(I instr, InstrData<I> newArgs) {
     if (!((InstrImpl<?>) instr).canReplaceDataWith(newArgs)) {
       throw new IllegalArgumentException(
-          "Incompatible data for replacement: " + instr + " -> " + newArgs);
+          "incompatible data for replacement: " + instr + " -> " + newArgs);
     }
 
     var wasEmpty = false;
@@ -191,7 +195,7 @@ abstract sealed class InstrImpl<D extends InstrData<?>> implements LocalNode
   private void computeArgs() {
     // Reflectively get all Node record components
     if (!(data instanceof Record r)) {
-      throw new AssertionError("InstrData must be a record");
+      throw new AssertionError("`InstrData` must be a record");
     }
     var components = data.getClass().getRecordComponents();
 
@@ -239,7 +243,7 @@ abstract sealed class InstrImpl<D extends InstrData<?>> implements LocalNode
     // and throw an exception if `old` isn't present or `replacement` is the wrong type.
     // Also, build an array of new arguments, where `old` is replaced with `replacement`.
     if (!(data instanceof Record r)) {
-      throw new AssertionError("InstrData must be a record");
+      throw new AssertionError("`InstrData` must be a record");
     }
     var cls = Classes.classOf(data);
     var components = cls.getRecordComponents();
@@ -256,7 +260,7 @@ abstract sealed class InstrImpl<D extends InstrData<?>> implements LocalNode
 
         if (!cmp.getType().isInstance(replacement)) {
           throw new IllegalArgumentException(
-              "Replacement "
+              "replacement "
                   + argTypeStr
                   + " is of wrong type: required "
                   + cmp.getType().getSimpleName()
@@ -273,7 +277,7 @@ abstract sealed class InstrImpl<D extends InstrData<?>> implements LocalNode
 
           if (!elemClass.isInstance(replacement)) {
             throw new IllegalArgumentException(
-                "Replacement "
+                "replacement "
                     + argTypeStr
                     + " (in optional) is of wrong type: required "
                     + cmp.getType().getSimpleName()
@@ -293,7 +297,7 @@ abstract sealed class InstrImpl<D extends InstrData<?>> implements LocalNode
 
             if (!elemClass.isInstance(replacement)) {
               throw new IllegalArgumentException(
-                  "Replacement "
+                  "replacement "
                       + argTypeStr
                       + " (in collection) is of wrong type: required "
                       + cmp.getType().getSimpleName()
@@ -309,7 +313,7 @@ abstract sealed class InstrImpl<D extends InstrData<?>> implements LocalNode
 
               if (!elemClass.isInstance(replacement)) {
                 throw new IllegalArgumentException(
-                    "Replacement "
+                    "replacement "
                         + argTypeStr
                         + " (in optional in collection) is of wrong type: required "
                         + cmp.getType().getSimpleName()
@@ -350,7 +354,7 @@ abstract sealed class InstrImpl<D extends InstrData<?>> implements LocalNode
    */
   private static Class<?> optionalOrCollectionComponentElementClass(RecordComponent cmp) {
     assert cmp.getType() == Optional.class || cmp.getType() == ImmutableList.class
-        : "InstrData has Collection component which isn't an ImmutableList";
+        : "`InstrData` has `Collection` component which isn't an `ImmutableList`";
     if (cmp.getGenericType() instanceof ParameterizedType p
         && p.getActualTypeArguments().length == 1) {
       if (p.getActualTypeArguments()[0] instanceof ParameterizedType innerP
@@ -363,7 +367,7 @@ abstract sealed class InstrImpl<D extends InstrData<?>> implements LocalNode
       }
     }
     throw new AssertionError(
-        "InstrData has Collection component which isn't a straightforward generic type, don't know how to handle: "
+        "`InstrData` has `Collection` component which isn't a straightforward generic type, don't know how to handle: "
             + cmp.getGenericType());
   }
 
@@ -376,7 +380,7 @@ abstract sealed class InstrImpl<D extends InstrData<?>> implements LocalNode
     var clazz = data().getClass();
     effects =
         mergeComputed(
-            "Effects",
+            "effects",
             data().computeEffects(),
             computeEffectsFromAnnotation(
                 clazz.getAnnotation(EffectsAre.class),
@@ -403,14 +407,20 @@ abstract sealed class InstrImpl<D extends InstrData<?>> implements LocalNode
     throw new UnreachableError();
   }
 
-  protected static <T> T mergeComputed(
-      String desc, @Nullable T fromOverride, @Nullable T fromAnnotation) {
+  protected <T> T mergeComputed(String desc, @Nullable T fromOverride, @Nullable T fromAnnotation) {
     if (fromOverride == null && fromAnnotation == null) {
-      throw new AssertionError(desc + " must be computed either by annotation or by override");
+      throw new AssertionError(
+          desc
+              + " must be computed either by annotation or by override.\nIn `"
+              + data.getClass().getSimpleName()
+              + "`");
     }
     if (fromOverride != null && fromAnnotation != null) {
       throw new AssertionError(
-          desc + " must be computed either by annotation or by override, not both");
+          desc
+              + " must be computed either by annotation or by override, not both.\nIn `"
+              + data.getClass().getSimpleName()
+              + "`");
     }
     return fromOverride != null ? fromOverride : fromAnnotation;
   }
@@ -674,6 +684,15 @@ abstract sealed class InstrImpl<D extends InstrData<?>> implements LocalNode
 
   @PrintMethod
   private void print(Printer p) {
-    p.withContext(new BBParseOrPrintContext(null, cfg(), null)).print(this);
+    p.withContext(
+            new BBParseOrPrintContext(
+                null,
+                p.context() instanceof HasSEXPParseContext h
+                    ? h.sexpParseContext()
+                    : new SEXPParseContext(),
+                p instanceof HasSEXPPrintContext h ? h.sexpPrintContext() : new SEXPPrintContext(),
+                cfg(),
+                null))
+        .print(this);
   }
 }

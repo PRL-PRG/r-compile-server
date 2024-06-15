@@ -79,6 +79,6 @@ public class Module {
    *     contains any calls to the browser function.
    */
   public Closure getOrCompile(CloSXP sexp, String name) {
-    return compiledClosures.computeIfAbsent(sexp, _ -> compileBaselineClosure(sexp, name, this));
+    return compiledClosures.computeIfAbsent(sexp, _ -> compileBaselineClosure(name, sexp, this));
   }
 }

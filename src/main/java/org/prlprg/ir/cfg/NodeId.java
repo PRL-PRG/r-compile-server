@@ -5,6 +5,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
+import org.prlprg.parseprint.Scanner;
 import org.prlprg.parseprint.SkipWhitespace;
 import org.prlprg.util.Classes;
 
@@ -46,6 +47,18 @@ public interface NodeId<N extends Node> {
   }
 
   /**
+   * Returns {@code true} if the next string begins a {@link NodeId}.
+   *
+   * <p>This is particularly important to disambiguate {@linkplain org.prlprg.primitive.Names names}
+   * and node IDs, since they may both start with alphanumeric characters.
+   */
+  static boolean isNodeIdStart(Scanner s) {
+    return s.nextCharIs('%')
+        || GlobalNodeId.GLOBAL_NODE_TYPES.stream()
+            .anyMatch(nodeType -> s.nextCharsAre(nodeType + "\\"));
+  }
+
+  /**
    * Exact class of the node that the ID belongs to.
    *
    * <p>This ensures that IDs are assigned to nodes of the correct type, since Java's generics can't
@@ -80,28 +93,14 @@ public interface NodeId<N extends Node> {
 abstract sealed class NodeIdImpl<N extends Node> implements NodeId<N>
     permits LocalNodeIdImpl, GlobalNodeIdImpl {
   protected @Nullable Class<? extends N> clazz;
-  private final String name;
-  private final String toString;
 
-  protected NodeIdImpl(@Nullable Class<? extends N> clazz, String name, String toString) {
+  protected NodeIdImpl(@Nullable Class<? extends N> clazz) {
     this.clazz = clazz;
-    this.name = name;
-    this.toString = toString;
   }
 
   @Override
   public @Nullable Class<? extends N> clazz() {
     return clazz;
-  }
-
-  @Override
-  public String name() {
-    return name;
-  }
-
-  @Override
-  public String toString() {
-    return toString;
   }
 
   @ParseMethod(SkipWhitespace.NONE)
@@ -122,6 +121,8 @@ abstract sealed class NodeIdImpl<N extends Node> implements NodeId<N>
 
 final class LocalNodeIdImpl<N extends LocalNode> extends NodeIdImpl<N> {
   private final int disambiguator;
+  private final String name;
+  private final String toString;
 
   /** Create an instruction or phi id (of the given class, CFG, and name). */
   LocalNodeIdImpl(N node, String name) {
@@ -130,25 +131,29 @@ final class LocalNodeIdImpl<N extends LocalNode> extends NodeIdImpl<N> {
 
   /** Create an auxiliary node ID (of the given class, base ID, and auxiliary number). */
   LocalNodeIdImpl(N node, NodeId<?> base, int auxiliary) {
-    super(Classes.classOf(node), base.name(), base + "#" + auxiliary);
+    super(Classes.classOf(node));
     if (!(base instanceof LocalNodeIdImpl<?> b)) {
       throw new AssertionError(
           "auxiliary node ID can only be created for an instruction or phi ID, not a global node ID");
     }
     assert b.disambiguator == -1
         : "auxiliary node ID can only be created for an instruction or phi ID, not another auxiliary node ID";
+
+    name = base.name();
+    toString = base + "#" + auxiliary;
     this.disambiguator = b.disambiguator;
   }
 
   private LocalNodeIdImpl(
       @Nullable Class<? extends N> clazz, int disambiguator, String name, int auxiliary) {
-    super(
-        clazz,
-        name,
+    super(clazz);
+
+    this.name = name;
+    toString =
         "%"
             + disambiguator
             + NodeAndBBIds.quoteNameIfNecessary(name)
-            + (auxiliary == -1 ? "" : "#" + auxiliary));
+            + (auxiliary == -1 ? "" : "#" + auxiliary);
     this.disambiguator = disambiguator;
   }
 
@@ -163,6 +168,16 @@ final class LocalNodeIdImpl<N extends LocalNode> extends NodeIdImpl<N> {
     assert this.clazz == null || this.clazz == clazz
         : "node ID is for a different class: expected " + this.clazz + ", got " + clazz;
     this.clazz = (Class<? extends N>) clazz;
+  }
+
+  @Override
+  public String name() {
+    return name;
+  }
+
+  @Override
+  public String toString() {
+    return toString;
   }
 
   @Override

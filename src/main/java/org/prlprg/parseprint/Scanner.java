@@ -532,6 +532,11 @@ public class Scanner {
    * false}.
    */
   public boolean trySkip(String s) {
+    if (matchAlwaysFailsBecauseOfWhitespace(s)) {
+      throw new IllegalArgumentException(
+          "`trySkip` will always return `false` because the string starts with whitespace, and the current whitespace policy (see `#skipsWhitespace()` documentation) is to implicitly skip whitespace before matching.\nMaybe you should call `trySkipWhitespace` first, and then this method without the leading whitespace (although semantics will be slightly different because `trySkipWhitespace` matches any whitespace).");
+    }
+
     if (s.length() == 1) {
       return trySkip(s.codePointAt(0));
     }
@@ -550,6 +555,11 @@ public class Scanner {
    * false}.
    */
   public boolean trySkip(int c) {
+    if (matchAlwaysFailsBecauseOfWhitespace(c)) {
+      throw new IllegalArgumentException(
+          "`trySkip` will always return `false` because the character is whitespace, and the current whitespace policy (see `#skipsWhitespace()` documentation) is to implicitly skip whitespace before matching.\nMaybe you should call `trySkipWhitespace` instead (although semantics will be slightly different because `trySkipWhitespace` matches any whitespace).");
+    }
+
     var actual = doReadChar();
     if (actual != c) {
       doUnread(actual);
@@ -559,8 +569,27 @@ public class Scanner {
     return true;
   }
 
+  /**
+   * Iff is at least one whitespace character, return {@code true} and skip all of the whitespace.
+   *
+   * @param includeNewlines if {@code false}, this method won't consider newlines: it will return
+   *     {@code false} if the first character is a newline, and won't skip newlines.
+   */
+  public boolean trySkipWhitespace(boolean includeNewlines) {
+    if (!nextCharIsWhitespace(includeNewlines)) {
+      return false;
+    }
+    skipWhitespace(includeNewlines);
+    return true;
+  }
+
   /** Assert the next characters are {@code s}, otherwise throw {@link ParseException}. */
   public void assertAndSkip(String s) {
+    if (matchAlwaysFailsBecauseOfWhitespace(s)) {
+      throw new IllegalArgumentException(
+          "`assertAndSkip` will always throw because the string starts with whitespace, and the current whitespace policy (see `#skipsWhitespace()` documentation) is to implicitly skip whitespace before matching.\nMaybe you should call `assertAndSkipWhitespace` first, and then this method without the leading whitespace (although semantics will be slightly different because `assertAndSkipWhitespace` matches any whitespace).");
+    }
+
     if (s.length() == 1) {
       assertAndSkip(s.codePointAt(0));
       return;
@@ -580,6 +609,11 @@ public class Scanner {
 
   /** Assert the next character is {@code c} and skip, otherwise throw {@link ParseException}. */
   public void assertAndSkip(int c) {
+    if (matchAlwaysFailsBecauseOfWhitespace(c)) {
+      throw new IllegalArgumentException(
+          "`assertAndSkip` will always throw because the character is whitespace, and the current whitespace policy (see `#skipsWhitespace()` documentation) is to implicitly skip whitespace before matching.\nMaybe you should call `assertAndSkipWhitespace` instead (although semantics will be slightly different because `assertAndSkipWhitespace` matches any whitespace).");
+    }
+
     var actual = doReadChar();
     if (actual != c) {
       doUnread(actual);
@@ -604,8 +638,27 @@ public class Scanner {
     advancePosition(actual);
   }
 
+  /**
+   * Assert that there is at least one whitespace character, and skip all of the whitespace.
+   *
+   * @param includeNewlines if {@code false}, this method won't consider newlines: it will fail if
+   *     the first character is a newline, and won't skip newlines.
+   */
+  public void assertAndSkipWhitespace(boolean includeNewlines) {
+    if (!nextCharIsWhitespace(includeNewlines)) {
+      var expected = includeNewlines ? "whitespace..." : "whitespace but not '\n'...";
+      throw fail(expected, Strings.quote(peekChar()) + "...");
+    }
+    skipWhitespace(includeNewlines);
+  }
+
   /** Peek and return whether the next characters are {@code s}. */
   public boolean nextCharsAre(String s) {
+    if (matchAlwaysFailsBecauseOfWhitespace(s)) {
+      throw new IllegalArgumentException(
+          "`nextCharsAre` will always return `false` because the string starts with whitespace, and the current whitespace policy (see `#skipsWhitespace()` documentation) is to implicitly skip whitespace before matching.\nMaybe you should call `nextCharsAreWhitespaceAndThen` instead (although semantics will be slightly different because `nextCharsAreWhitespaceAndThen` matches any leading whitespace).");
+    }
+
     if (s.length() == 1) {
       return nextCharIs(s.codePointAt(0));
     }
@@ -617,7 +670,61 @@ public class Scanner {
 
   /** Peek and return whether the next character is {@code c}. */
   public boolean nextCharIs(int c) {
+    if (matchAlwaysFailsBecauseOfWhitespace(c)) {
+      throw new IllegalArgumentException(
+          "`nextCharIs` will always return `false` because the character is whitespace, and the current whitespace policy (see `#skipsWhitespace()` documentation) is to implicitly skip whitespace before matching.\nMaybe you should call `nextCharIsWhitespace` instead (although semantics will be slightly different because `nextCharIsWhitespace` matches any whitespace).");
+    }
+
     return c == peekChar();
+  }
+
+  /**
+   * Return {@code true} iff there is at least one whitespace character, and then after the
+   * whitespace, the given string.
+   *
+   * <p>Note that if the first whitespace is matched, this implicitly skips whitespace, so a
+   * subsequent call will return {@code false} and others whitespace-sensitive methods will also be
+   * affected.
+   *
+   * @param includeNewlines if {@code false}, this method won't consider newlines: it will return
+   *     {@code false} if the first character is a newline, and won't skip newlines.
+   */
+  public boolean nextCharsAreWhitespaceAndThem(boolean includeNewlines, String s) {
+    return nextCharIsWhitespace(includeNewlines) && nextCharsAre(s);
+  }
+
+  /**
+   * Return {@code true} iff there is at least one whitespace character, and then after the
+   * whitespace, the given character.
+   *
+   * <p>Note that if the first whitespace is matched, this implicitly skips whitespace, so a
+   * subsequent call will return {@code false} and others whitespace-sensitive methods will also be
+   * affected.
+   *
+   * @param includeNewlines if {@code false}, this method won't consider newlines: it will return
+   *     {@code false} if the first character is a newline, and won't skip newlines.
+   */
+  public boolean nextCharsAreWhitespaceAndThem(boolean includeNewlines, int c) {
+    return nextCharIsWhitespace(includeNewlines) && nextCharIs(c);
+  }
+
+  /**
+   * Return {@code true} iff the next character is whitespace, not implicitly skipping any
+   * whitespace regardless of the {@linkplain #skipsWhitespace() whitespace policy}.
+   *
+   * <p>The other methods {@link #nextCharsAre(String)}, {@link #nextCharIs(int)}, and {@link
+   * #nextCharSatisfies(IntPredicate)}, as well as methods like {@link #assertAndSkip(String)} and
+   * {@link #readFixedLength(int)}, will implicitly skip whitespace before matching if {@link
+   * #skipsWhitespace()} is set to anything other than {@link SkipWhitespace#NONE}. The only methods
+   * that will treat whitespace differently are those that explicitly say so in their documentation.
+   *
+   * @param includeNewlines if {@code false}, this method will return {@code false} if the next
+   *     character is a newline.
+   */
+  public boolean nextCharIsWhitespace(boolean includeNewlines) {
+    return runWithWhitespacePolicy(
+        SkipWhitespace.NONE,
+        () -> nextCharSatisfies(Character::isWhitespace) && (includeNewlines || !nextCharIs('\n')));
   }
 
   /** Peek and return whether the next character satisfies the given predicate. */
@@ -742,6 +849,34 @@ public class Scanner {
   // endregion read
 
   // region read helpers
+
+  /**
+   * If {@code true}, the string will never be matched, because it starts with whitespace and the
+   * current {@linkplain #skipsWhitespace() whitespace policy} is to implicitly skip whitespace
+   * before matching.
+   */
+  private boolean matchAlwaysFailsBecauseOfWhitespace(String s) {
+    return switch (skipsWhitespace) {
+      case NONE -> false;
+      case ALL_EXCEPT_NEWLINES ->
+          !s.isEmpty() && Character.isWhitespace(s.codePointAt(0)) && s.codePointAt(0) != '\n';
+      case ALL -> !s.isEmpty() && Character.isWhitespace(s.codePointAt(0));
+    };
+  }
+
+  /**
+   * If {@code true}, the character will never be matched, because it's whitespace and the current
+   * {@linkplain #skipsWhitespace() whitespace policy} is to implicitly skip whitespace before
+   * matching.
+   */
+  private boolean matchAlwaysFailsBecauseOfWhitespace(int c) {
+    return switch (skipsWhitespace) {
+      case NONE -> false;
+      case ALL_EXCEPT_NEWLINES -> Character.isWhitespace(c) && c != '\n';
+      case ALL -> Character.isWhitespace(c);
+    };
+  }
+
   /**
    * Read characters until the first character which <i>satisfies</i> the predicate, without
    * advancing {@link #position()}.

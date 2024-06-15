@@ -13,6 +13,7 @@ import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.ir.analysis.DomTree;
+import org.prlprg.util.Collections2;
 
 /**
  * Iterate every {@link BB} in a {@link CFG} in some order.
@@ -23,16 +24,57 @@ import org.prlprg.ir.analysis.DomTree;
 @SuppressFBWarnings({"EI_EXPOSE_REP", "EI_EXPOSE_REP2"})
 public abstract sealed class CFGIterator implements Iterator<BB> {
   protected final CFG cfg;
-  protected final HashSet<BBId> remainingBBIds;
-  protected final ArrayDeque<BB> worklist = new ArrayDeque<>();
+  private final HashSet<BBId> remainingBBIds;
+  private final ArrayDeque<BB> worklist = new ArrayDeque<>();
   protected @Nullable BB current;
 
-  /** Create a new iterator, starting with the entry basic block. */
-  protected CFGIterator(CFG cfg) {
+  // region constructors
+  /** Create a new iterator, starting with the given block. */
+  protected CFGIterator(CFG cfg, BB start) {
+    this(cfg);
+    if (start.cfg() != cfg) {
+      throw new IllegalArgumentException("The start block to iterate is not in the CFG");
+    }
+    addLast(start);
+  }
+
+  /** Create a new iterator, starting with the given blocks. */
+  protected CFGIterator(CFG cfg, Collection<BB> starts) {
+    this(cfg);
+    if (starts.stream().anyMatch(s -> s.cfg() != cfg)) {
+      throw new IllegalArgumentException("A start block to iterate is not in the CFG");
+    }
+    if (Collections2.hasDuplicates(starts)) {
+      throw new IllegalArgumentException("Duplicate start blocks to iterate");
+    }
+    addAllLast(starts);
+  }
+
+  /** Create a new iterator, starting with the given blocks. */
+  protected CFGIterator(CFG cfg, Stream<BB> starts) {
+    this(cfg);
+    addAllLast(starts);
+    if (worklist.stream().anyMatch(s -> s.cfg() != cfg)) {
+      throw new IllegalArgumentException("A start block to iterate is not in the CFG");
+    }
+    if (Collections2.hasDuplicates(worklist)) {
+      throw new IllegalArgumentException("Duplicate start blocks to iterate");
+    }
+  }
+
+  /**
+   * Create a new iterator.
+   *
+   * <p>Initially no blocks are in the worklist, so they must be added or it will iterate nothing.
+   */
+  private CFGIterator(CFG cfg) {
     this.cfg = cfg;
     remainingBBIds = new HashSet<>(cfg.bbIds());
   }
 
+  // endregion constructors
+
+  // region additional public methods
   /**
    * Returns the next element (see {@link #next()}), except applies the predicate and if it returns
    * {@code false}, will skip the nodes the next would add to the worklist (note that another node
@@ -50,24 +92,6 @@ public abstract sealed class CFGIterator implements Iterator<BB> {
     }
   }
 
-  @Override
-  public boolean hasNext() {
-    return !worklist.isEmpty();
-  }
-
-  @Override
-  public BB next() {
-    return next(bb -> true);
-  }
-
-  @Override
-  public void remove() {
-    if (current == null) {
-      throw new IllegalStateException();
-    }
-    cfg.remove(current);
-  }
-
   /**
    * (A view of) blocks that haven't been iterated.
    *
@@ -79,39 +103,79 @@ public abstract sealed class CFGIterator implements Iterator<BB> {
     return Collections.unmodifiableSet(remainingBBIds);
   }
 
+  // endregion additional public methods
+
+  // region `Iterator` methods
+  @Override
+  public boolean hasNext() {
+    return !worklist.isEmpty();
+  }
+
+  @Override
+  public BB next() {
+    return next(_ -> true);
+  }
+
+  @Override
+  public void remove() {
+    if (current == null) {
+      throw new IllegalStateException();
+    }
+    cfg.remove(current);
+  }
+
+  // endregion `Iterator` methods
+
+  // region protected and private methods to access `worklist` and `remainingBbIds`
+  protected void addLast(BB bb) {
+    worklist.addLast(bb);
+    remainingBBIds.remove(bb.id());
+  }
+
+  private void addAllLast(Collection<BB> bbs) {
+    worklist.addAll(bbs);
+    bbs.forEach(bb -> remainingBBIds.remove(bb.id()));
+  }
+
+  private void addAllLast(Stream<BB> bbs) {
+    bbs.forEach(this::addLast);
+  }
+
+  protected BB removeFirst() {
+    return worklist.removeFirst();
+  }
+
+  protected BB removeLast() {
+    return worklist.removeLast();
+  }
+
+  /** Whether the given block hasn't been added to the worklist (or iterated). */
+  protected boolean isRemaining(BB bb) {
+    return remainingBBIds.contains(bb.id());
+  }
+
+  // endregion protected and private methods to access `worklist` and `remainingBbIds`
+
   /** Forward breadth-first iterator. */
   public static final class Bfs extends CFGIterator {
     /** Iterate nodes starting at the entry. */
     public Bfs(CFG cfg) {
-      super(cfg);
-      worklist.add(cfg.entry());
+      super(cfg, cfg.entry());
     }
 
     /** Iterate nodes starting at the given block. */
     public Bfs(CFG cfg, BB start) {
-      super(cfg);
-      if (start.cfg() != cfg) {
-        throw new IllegalArgumentException("The start block to iterate is not in the CFG");
-      }
-      worklist.add(start);
+      super(cfg, start);
     }
 
     /** Iterate nodes starting at the given blocks. */
     public Bfs(CFG cfg, Collection<BB> starts) {
-      super(cfg);
-      if (starts.stream().anyMatch(s -> s.cfg() != cfg)) {
-        throw new IllegalArgumentException("A start block to iterate is not in the CFG");
-      }
-      worklist.addAll(starts);
+      super(cfg, starts);
     }
 
     /** Iterate nodes starting at the given blocks. */
     public Bfs(CFG cfg, Stream<BB> starts) {
-      super(cfg);
-      starts.forEach(worklist::add);
-      if (worklist.stream().anyMatch(s -> s.cfg() != cfg)) {
-        throw new IllegalArgumentException("A start block to iterate is not in the CFG");
-      }
+      super(cfg, starts);
     }
 
     /**
@@ -124,12 +188,11 @@ public abstract sealed class CFGIterator implements Iterator<BB> {
       if (!hasNext()) {
         throw new NoSuchElementException();
       }
-      current = worklist.removeFirst();
-      remainingBBIds.remove(current.id());
+      current = removeFirst();
       if (predicate.test(current)) {
         for (var succ : current.successors()) {
-          if (remainingBBIds.contains(succ.id())) {
-            worklist.addLast(succ);
+          if (isRemaining(succ)) {
+            addLast(succ);
           }
         }
       }
@@ -141,35 +204,22 @@ public abstract sealed class CFGIterator implements Iterator<BB> {
   public static final class Dfs extends CFGIterator {
     /** Iterate nodes starting at the entry. */
     public Dfs(CFG cfg) {
-      super(cfg);
-      worklist.add(cfg.entry());
+      super(cfg, cfg.entry());
     }
 
     /** Iterate nodes starting at the given block. */
     public Dfs(CFG cfg, BB start) {
-      super(cfg);
-      if (start.cfg() != cfg) {
-        throw new IllegalArgumentException("The start block to iterate is not in the CFG");
-      }
-      worklist.add(start);
+      super(cfg, start);
     }
 
     /** Iterate nodes starting at the given blocks. */
     public Dfs(CFG cfg, Collection<BB> starts) {
-      super(cfg);
-      if (starts.stream().anyMatch(s -> s.cfg() != cfg)) {
-        throw new IllegalArgumentException("A start block to iterate is not in the CFG");
-      }
-      worklist.addAll(starts);
+      super(cfg, starts);
     }
 
     /** Iterate nodes starting at the given blocks. */
     public Dfs(CFG cfg, Stream<BB> starts) {
-      super(cfg);
-      starts.forEach(worklist::add);
-      if (worklist.stream().anyMatch(s -> s.cfg() != cfg)) {
-        throw new IllegalArgumentException("A start block to iterate is not in the CFG");
-      }
+      super(cfg, starts);
     }
 
     /**
@@ -182,12 +232,11 @@ public abstract sealed class CFGIterator implements Iterator<BB> {
       if (!hasNext()) {
         throw new NoSuchElementException();
       }
-      current = worklist.removeLast();
+      current = removeLast();
       if (predicate.test(current)) {
-        remainingBBIds.remove(current.id());
         for (var succ : current.successors()) {
-          if (remainingBBIds.contains(succ.id())) {
-            worklist.addLast(succ);
+          if (isRemaining(succ)) {
+            addLast(succ);
           }
         }
       }
@@ -199,35 +248,22 @@ public abstract sealed class CFGIterator implements Iterator<BB> {
   public static final class ReverseBfs extends CFGIterator {
     /** Iterate nodes starting at the exits. */
     public ReverseBfs(CFG cfg) {
-      super(cfg);
-      worklist.addAll(cfg.exits());
+      super(cfg, cfg.exits());
     }
 
     /** Iterate nodes starting at the given block. */
     public ReverseBfs(CFG cfg, BB start) {
-      super(cfg);
-      if (start.cfg() != cfg) {
-        throw new IllegalArgumentException("The start block to iterate is not in the CFG");
-      }
-      worklist.add(start);
+      super(cfg, start);
     }
 
     /** Iterate nodes starting at the given blocks. */
     public ReverseBfs(CFG cfg, Collection<BB> starts) {
-      super(cfg);
-      if (starts.stream().anyMatch(s -> s.cfg() != cfg)) {
-        throw new IllegalArgumentException("A start block to iterate is not in the CFG");
-      }
-      worklist.addAll(starts);
+      super(cfg, starts);
     }
 
     /** Iterate nodes starting at the given blocks. */
     public ReverseBfs(CFG cfg, Stream<BB> starts) {
-      super(cfg);
-      starts.forEach(worklist::add);
-      if (worklist.stream().anyMatch(s -> s.cfg() != cfg)) {
-        throw new IllegalArgumentException("A start block to iterate is not in the CFG");
-      }
+      super(cfg, starts);
     }
 
     /**
@@ -240,12 +276,11 @@ public abstract sealed class CFGIterator implements Iterator<BB> {
       if (!hasNext()) {
         throw new NoSuchElementException();
       }
-      current = worklist.removeFirst();
-      remainingBBIds.remove(current.id());
+      current = removeFirst();
       if (predicate.test(current)) {
         for (var succ : current.predecessors()) {
-          if (remainingBBIds.contains(succ.id())) {
-            worklist.addLast(succ);
+          if (isRemaining(succ)) {
+            addLast(succ);
           }
         }
       }
@@ -257,35 +292,22 @@ public abstract sealed class CFGIterator implements Iterator<BB> {
   public static final class ReverseDfs extends CFGIterator {
     /** Iterate nodes starting at the exits. */
     public ReverseDfs(CFG cfg) {
-      super(cfg);
-      worklist.addAll(cfg.exits());
+      super(cfg, cfg.exits());
     }
 
     /** Iterate nodes starting at the given block. */
     public ReverseDfs(CFG cfg, BB start) {
-      super(cfg);
-      if (start.cfg() != cfg) {
-        throw new IllegalArgumentException("The start block to iterate is not in the CFG");
-      }
-      worklist.add(start);
+      super(cfg, start);
     }
 
     /** Iterate nodes starting at the given blocks. */
     public ReverseDfs(CFG cfg, Collection<BB> starts) {
-      super(cfg);
-      if (starts.stream().anyMatch(s -> s.cfg() != cfg)) {
-        throw new IllegalArgumentException("A start block to iterate is not in the CFG");
-      }
-      worklist.addAll(starts);
+      super(cfg, starts);
     }
 
     /** Iterate nodes starting at the given blocks. */
     public ReverseDfs(CFG cfg, Stream<BB> starts) {
-      super(cfg);
-      starts.forEach(worklist::add);
-      if (worklist.stream().anyMatch(s -> s.cfg() != cfg)) {
-        throw new IllegalArgumentException("A start block to iterate is not in the CFG");
-      }
+      super(cfg, starts);
     }
 
     /**
@@ -298,12 +320,11 @@ public abstract sealed class CFGIterator implements Iterator<BB> {
       if (!hasNext()) {
         throw new NoSuchElementException();
       }
-      current = worklist.removeLast();
+      current = removeLast();
       if (predicate.test(current)) {
-        remainingBBIds.remove(current.id());
         for (var succ : current.predecessors()) {
-          if (remainingBBIds.contains(succ.id())) {
-            worklist.addLast(succ);
+          if (isRemaining(succ)) {
+            addLast(succ);
           }
         }
       }
@@ -317,37 +338,26 @@ public abstract sealed class CFGIterator implements Iterator<BB> {
 
     /** Iterate nodes starting at the root of the dominator tree. */
     public DomTreeBfs(DomTree tree) {
-      this(tree, tree.root());
+      super(tree.cfg(), tree.root());
+      this.tree = tree;
     }
 
     /** Iterate nodes starting at the given block. */
     public DomTreeBfs(DomTree tree, BB root) {
-      super(tree.cfg());
+      super(tree.cfg(), root);
       this.tree = tree;
-      if (root.cfg() != cfg) {
-        throw new IllegalArgumentException("The root must belong to the CFG");
-      }
-      worklist.add(root);
     }
 
     /** Iterate nodes starting at the given blocks. */
     public DomTreeBfs(DomTree tree, Collection<BB> roots) {
-      super(tree.cfg());
+      super(tree.cfg(), roots);
       this.tree = tree;
-      if (roots.stream().anyMatch(s -> s.cfg() != cfg)) {
-        throw new IllegalArgumentException("All roots must belong to the CFG");
-      }
-      worklist.addAll(roots);
     }
 
     /** Iterate nodes starting at the given blocks. */
     public DomTreeBfs(DomTree tree, Stream<BB> roots) {
-      super(tree.cfg());
+      super(tree.cfg(), roots);
       this.tree = tree;
-      roots.forEach(worklist::add);
-      if (worklist.stream().anyMatch(s -> s.cfg() != cfg)) {
-        throw new IllegalArgumentException("All roots must belong to the CFG");
-      }
     }
 
     @Override
@@ -355,12 +365,11 @@ public abstract sealed class CFGIterator implements Iterator<BB> {
       if (!hasNext()) {
         throw new NoSuchElementException();
       }
-      current = worklist.removeFirst();
-      remainingBBIds.remove(current.id());
+      current = removeFirst();
       if (predicate.test(current)) {
         for (var succ : tree.idominees(current)) {
-          if (remainingBBIds.contains(succ.id())) {
-            worklist.addLast(succ);
+          if (isRemaining(succ)) {
+            addLast(succ);
           }
         }
       }

@@ -177,6 +177,8 @@ import org.prlprg.sexp.VectorSXP;
  * https://homepage.cs.uiowa.edu/~luke/R/compiler/compiler.pdf</a>
  */
 public class Compiler {
+  /** The default optimization level in GNU-R's {@code compiler::cmpfun} and here. */
+  public static final int DEFAULT_OPTIMIZATION_LEVEL = 2;
 
   /** SEXP types that can participate in constan folding. */
   private static final Set<SEXPType> ALLOWED_FOLDABLE_MODES = Set.of(LGL, INT, REAL, CPLX, STR);
@@ -387,7 +389,7 @@ public class Compiler {
    *     </tr>
    * </table>
    */
-  private int optimizationLevel = 2;
+  private int optimizationLevel = DEFAULT_OPTIMIZATION_LEVEL;
 
   /**
    * Creates a compiler for the given expression, context, session, and location.

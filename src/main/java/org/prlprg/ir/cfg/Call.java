@@ -13,12 +13,15 @@ public interface Call extends RValueStmt {
   NodeId<? extends Call> id();
 
   @Override
-  Call_ data();
+  Call_<?> data();
 }
 
-final class CallImpl extends AbstractRValueStmtImpl<Call_> implements Call {
-  CallImpl(CFG cfg, TokenToCreateNewInstr token, Call_ data) {
-    super(Call_.class, cfg, token, data);
+final class CallImpl extends AbstractRValueStmtImpl<Call_<?>> implements Call {
+  // Idk how Java generics work, is there a potential issue from casting `Class<Call_>` to
+  // `Class<Call_<?>>`?
+  @SuppressWarnings("unchecked")
+  CallImpl(CFG cfg, TokenToCreateNewInstr token, Call_<?> data) {
+    super((Class<Call_<?>>) (Object) Call_.class, cfg, token, data);
   }
 
   @Override

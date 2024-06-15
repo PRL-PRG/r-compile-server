@@ -227,7 +227,7 @@ public final class ConstPool extends ForwardingList<SEXP> {
     var w = p.writer();
 
     w.write("=== CONSTS ===");
-    var n = Math.floor(Math.log10(size())) + 1;
+    var n = (int) Math.log10(size()) + 1;
     var idx = 0;
     for (var c : this) {
       w.formatter().format("%n%" + n + "d: ", idx++);

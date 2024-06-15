@@ -120,7 +120,7 @@ public final class BcCode extends ForwardingList<BcInstr> {
     var w = p.writer();
 
     w.write("=== CODE ===");
-    var n = Math.floor(Math.log10(size())) + 1;
+    var n = (int) Math.log10(size()) + 1;
     var idx = 0;
     for (BcInstr instr : code) {
       w.formatter().format("%n%" + n + "d: ", idx++);

@@ -1,5 +1,6 @@
 package org.prlprg.bc2ir;
 
+import org.prlprg.bc.Bc;
 import org.prlprg.ir.cfg.builder.CFGCursor;
 
 /**
@@ -7,7 +8,7 @@ import org.prlprg.ir.cfg.builder.CFGCursor;
  * instruction, e.g. {@link org.prlprg.bc.BcInstr.StartLoopCntxt}.
  */
 public class CFGCompilerUnsupportedBcException extends CFGCompilerException {
-  CFGCompilerUnsupportedBcException(String message, int bcPos, CFGCursor irPos) {
-    super(message, bcPos, irPos);
+  CFGCompilerUnsupportedBcException(String message, Bc bc, int bcPos, CFGCursor irPos) {
+    super(message, bc, bcPos, irPos);
   }
 }

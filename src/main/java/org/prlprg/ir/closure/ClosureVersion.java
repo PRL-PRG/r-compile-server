@@ -133,6 +133,29 @@ public class ClosureVersion {
   }
 
   /**
+   * Returns the index of itself in the parent closure.
+   *
+   * <p>The index is such that {@link #closure() closure}{@code .}{@link Closure#getVersion(int)
+   * getVersion}{@code (index) == original}: index 0 is reserved for the baseline version, and the
+   * remaining indices are for optimized versions in order from "most specific" to "least specific".
+   *
+   * @throws IllegalStateException If the closure version was removed from or otherwise not in its
+   *     closure.
+   */
+  public int index() {
+    try {
+      return closure().indexOfVersion(this);
+    } catch (IllegalArgumentException e) {
+      throw new IllegalStateException(
+          "Closure version was removed from or otherwise not in its closure:\n"
+              + this
+              + "\n=== not in ===\n"
+              + closure,
+          e);
+    }
+  }
+
+  /**
    * Properties <b>for</b> a closure version that are <b>required</b> by the caller the version to
    * be dispatched and not another one (<b>preconditions</b>).
    *
@@ -571,13 +594,13 @@ public class ClosureVersion {
     return new ClosureVersion(p);
   }
 
-  /** Deserialize constructor (so we can set the final fields). */
+  /** Deserializing constructor (so we can set the final fields). */
   private ClosureVersion(Parser p) {
     var s = p.scanner();
 
     isBaseline = !s.nextCharsAre("CallContext");
     callContext = isBaseline ? CallContext.EMPTY : p.parse(CallContext.class);
-    properties = s.trySkip(" has") ? p.parse(Properties.class) : Properties.EMPTY;
+    properties = s.trySkip("has") ? p.parse(Properties.class) : Properties.EMPTY;
     s.assertAndSkip('{');
     body = p.parse(CFG.class);
     s.assertAndSkip('}');
@@ -587,13 +610,22 @@ public class ClosureVersion {
   private void print(Printer p) {
     var w = p.writer();
 
+    if (!isBaseline) {
+      p.print(callContext);
+      w.write(' ');
+    }
     if (!properties.isEmpty()) {
       w.write(" has ");
       w.runIndented(() -> p.print(properties));
+      w.write(' ');
     }
-    w.write(" {");
-    p.print(body);
-    w.write('}');
+    w.write("{");
+    w.runIndented(
+        () -> {
+          w.write('\n');
+          p.print(body);
+        });
+    w.write("\n}");
   }
 
   @Override

@@ -51,6 +51,7 @@ public final class RegSymSXP implements SymSXP, StrOrRegSymSXP {
     return Objects.hash(name);
   }
 
+  // This can't call `Printer.toString`, because it calls this.
   @Override
   public String toString() {
     return toString;

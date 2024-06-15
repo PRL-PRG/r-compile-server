@@ -9,7 +9,7 @@ import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.Unmodifiable;
 import org.prlprg.parseprint.Printer;
-import org.prlprg.util.MapListView;
+import org.prlprg.util.Lists;
 
 /**
  * R "list". Confusingly, this is actually like <a href="https://www.lua.org/pil/2.5.html">Lua's
@@ -83,7 +83,7 @@ record ListSXPImpl(ImmutableList<TaggedElem> data, @Override Attributes attribut
 
   @Override
   public @Unmodifiable List<SEXP> values() {
-    return new MapListView<>(data, TaggedElem::value);
+    return Lists.lazyMapView(data, TaggedElem::value);
   }
 
   @Override

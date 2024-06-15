@@ -1,6 +1,6 @@
 package org.prlprg.ir.closure;
 
-import java.util.Map;
+import java.util.NavigableMap;
 import java.util.TreeMap;
 import org.prlprg.bc.Bc;
 import org.prlprg.ir.cfg.IsEnv;
@@ -8,12 +8,8 @@ import org.prlprg.ir.cfg.RValue;
 import org.prlprg.ir.cfg.StaticEnv;
 import org.prlprg.ir.closure.ClosureVersion.CallContext;
 import org.prlprg.ir.type.lattice.Troolean;
-import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
-import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
-import org.prlprg.parseprint.SkipWhitespace;
-import org.prlprg.primitive.Names;
 import org.prlprg.sexp.Attributes;
 import org.prlprg.sexp.BCodeSXP;
 import org.prlprg.sexp.CloSXP;
@@ -51,21 +47,20 @@ import org.prlprg.util.Pair;
  *       from being compiled again (since deopt-ing is expensive).
  * </ul>
  */
-public class Closure {
+public final class Closure extends CodeObject {
   // The non-final fields are only non-final so that they can be set in `LateConstruct`.
   // Otherwise they are effectively final.
   private CloSXP origin;
   private @IsEnv RValue env;
-  private final String name;
   private ClosureVersion baselineVersion;
-  private final Map<CallContext, ClosureVersion> optimizedVersions;
+  private final NavigableMap<CallContext, ClosureVersion> optimizedVersions;
 
   /**
    * {@link Closure(CloSXP, RValue, String)} with an {@linkplain StaticEnv#NOT_CLOSED unclosed}
    * environment (not an inner closure).
    */
-  public Closure(CloSXP origin, String name) {
-    this(origin, StaticEnv.NOT_CLOSED, name);
+  public Closure(String name, CloSXP origin) {
+    this(name, origin, StaticEnv.NOT_CLOSED);
   }
 
   /**
@@ -73,6 +68,8 @@ public class Closure {
    *
    * <p>This function should probably only be called by {@link org.prlprg.bc2ir.ClosureCompiler}.
    *
+   * @param name A name for debugging. Typically the variable it was assigned to if known. "" is
+   *     acceptable if there's no better name (anonymous closure).
    * @param origin The GNU-R closure. The IR closure keeps this closure's parameters, environment
    *     (although static environment may differ, see {@link #env()}), and behavior.
    * @param env The closure's environment. This is {@linkplain StaticEnv#NOT_CLOSED unclosed} unless
@@ -80,13 +77,13 @@ public class Closure {
    *     it's the outer closure's environment.
    *     <p>{@code origin}'s environment is replaced with {@link SEXPs#EMPTY_ENV} if not already, in
    *     order to normalize the data since it shouldn't be used.
-   * @param name A name for debugging. Typically the variable it was assigned to if known. "" is
-   *     acceptable if there's no better name (anonymous closure).
    * @throws IllegalArgumentException If the closure's body isn't bytecode.
    * @throws IllegalArgumentException If {@code env} isn't statically known to be an environment
    *     ({@link RValue#isEnv()}).
    */
-  public Closure(CloSXP origin, @IsEnv RValue env, String name) {
+  public Closure(String name, CloSXP origin, @IsEnv RValue env) {
+    super(name);
+
     if (!(origin.body() instanceof BCodeSXP)) {
       throw new IllegalArgumentException(
           "`origin` body must be bytecode (required by the compiler so how did you get `baselineVersion`?).");
@@ -103,14 +100,13 @@ public class Closure {
 
     this.origin = origin;
     this.env = env;
-    this.name = name;
     this.baselineVersion = new ClosureVersion(this, true, CallContext.EMPTY);
     optimizedVersions = new TreeMap<>();
   }
 
   /** Name of the closure for debugging, typically the name of the variable it's assigned to. */
   public String name() {
-    return name;
+    return super.name();
   }
 
   /**
@@ -152,6 +148,15 @@ public class Closure {
    */
   public @IsEnv RValue env() {
     return env;
+  }
+
+  /**
+   * Returns the number of versions this closure has.
+   *
+   * <p>Specifically, 1 for the baseline version, plus the number of optimized versions.
+   */
+  public int numVersions() {
+    return 1 + optimizedVersions.size();
   }
 
   /** Get the baseline closure version (the version with record instructions). */
@@ -210,6 +215,51 @@ public class Closure {
     return baselineVersion;
   }
 
+  /**
+   * Get the closure version at the given index.
+   *
+   * <p>Index 0 is the baseline version. Index 1 is the optimized version with the "most specific"
+   * call context (note that the call context may not be a {@linkplain
+   * CallContext#isSubsetOf(CallContext)} subset} of all others). Index 2 is the optimized version
+   * with the "second most specific" call context, and so on.
+   *
+   * @throws IndexOutOfBoundsException If the index is less than 0 or greater than or equal to the
+   *     number of versions this contains.
+   */
+  public ClosureVersion getVersion(int index) {
+    if (index < 0) {
+      throw new IndexOutOfBoundsException("Index out of bounds: " + index + " < 0");
+    } else if (index >= numVersions()) {
+      throw new IndexOutOfBoundsException("Index out of bounds: " + index + " >= " + numVersions());
+    }
+
+    return index == 0
+        ? baselineVersion
+        : optimizedVersions.values().stream().skip(index - 1).findFirst().orElseThrow();
+  }
+
+  /**
+   * Return the index of the closure version in this closure.
+   *
+   * <p>This is package-private because it's exposed through {@link ClosureVersion#index()}.
+   *
+   * @throws IllegalArgumentException If the closure version isn't in this closure.
+   */
+  int indexOfVersion(ClosureVersion version) {
+    if (version == baselineVersion) {
+      return 0;
+    }
+
+    var i = 1;
+    for (var optimizedVersion : optimizedVersions.values()) {
+      if (version == optimizedVersion) {
+        return i;
+      }
+    }
+
+    throw new IllegalArgumentException("Closure version not in this closure.");
+  }
+
   // region serialization and deserialization
   /**
    * Return a closure, and then replace its data with that of another closure later.
@@ -223,29 +273,19 @@ public class Closure {
   static Pair<Closure, LateConstruct> lateConstruct(String name) {
     var closure =
         new Closure(
+            name,
             SEXPs.closure(
-                SEXPs.NULL, SEXPs.string("closure is being deserialized"), SEXPs.EMPTY_ENV),
-            name);
+                SEXPs.NULL, SEXPs.string("closure is being deserialized"), SEXPs.EMPTY_ENV));
     return Pair.of(closure, closure.new LateConstruct());
   }
 
-  class LateConstruct {
-    private boolean wasSet = false;
+  final class LateConstruct extends CodeObject.LateConstruct<Closure> {
+    private LateConstruct() {
+      super();
+    }
 
-    private LateConstruct() {}
-
-    void set(Closure data) {
-      assert !wasSet;
-      wasSet = true;
-
-      if (!name.equals(data.name)) {
-        throw new LateConstructException(
-            "Closure name in reference is different from its name in definition: reference is "
-                + name
-                + ", definition is "
-                + data.name);
-      }
-
+    @Override
+    public void doSet(Closure data) {
       origin = data.origin;
       env = data.env;
       baselineVersion = data.baselineVersion;
@@ -253,43 +293,42 @@ public class Closure {
     }
   }
 
-  private static class LateConstructException extends IllegalArgumentException {
-    public LateConstructException(String s) {
-      super(s);
-    }
-  }
+  /**
+   * Deserializing constructor (so we can set the final fields).
+   *
+   * <p>Called with reflection in {@link CodeObject}{@code #parse}.
+   */
+  @SuppressWarnings("unused")
+  private Closure(Parser p1, ClosureParseContext ctx) {
+    super("func", p1, ctx);
+    var idIndex = ctx.lastYieldedIdIndex();
 
-  @ParseMethod
-  private static Closure parse(Parser p) {
-    return p.withContext(new ClosureParseContext.Outermost()).parse(Closure.class);
-  }
-
-  @ParseMethod
-  private static Closure parse(Parser p, ClosureParseContext ctx) {
-    return new Closure(p, ctx);
-  }
-
-  /** Deserialize constructor (so we can set the final fields). */
-  private Closure(Parser p, ClosureParseContext ctx) {
-    p = p.withContext(ctx.inner());
+    var p = p1.withContext(ctx.inner());
     var s = p.scanner();
 
-    s.assertAndSkip("func");
-    name = parseName(p, ctx);
     var parameters = p.parse(ListSXP.class);
-    env = s.trySkip(" in") ? p.parse(RValue.class) : StaticEnv.NOT_CLOSED;
-    var attributes = s.trySkip(" with") ? p.parse(Attributes.class) : Attributes.NONE;
+    env = s.trySkip("env") ? p.parse(RValue.class) : StaticEnv.NOT_CLOSED;
+    var attributes = s.trySkip("with") ? p.parse(Attributes.class) : Attributes.NONE;
     s.assertAndSkip("=>");
     var body = p.parse(SEXP.class);
     origin = SEXPs.closure(parameters, body, SEXPs.EMPTY_ENV, attributes);
     s.assertAndSkip('{');
+    s.assertAndSkip("baseline");
 
-    baselineVersion = p.parse(ClosureVersion.class);
+    baselineVersion =
+        p.withContext(ctx.ref(new NodeIdQualifier(name, idIndex))).parse(ClosureVersion.class);
 
     optimizedVersions = new TreeMap<>();
-    while (s.nextCharsAre("CallContext")) {
+    for (var i = 1; s.trySkip("opt"); i++) {
+      var i1 = s.readUInt();
+      if (i != i1) {
+        throw s.fail("Optimized version index isn't in order: expected " + i + " got " + i1);
+      }
+      s.assertAndSkip(':');
+
       // Optimized versions parse their call context.
-      var version = p.parse(ClosureVersion.class);
+      var version =
+          p.withContext(ctx.ref(new NodeIdQualifier(name, idIndex, i))).parse(ClosureVersion.class);
       var context = version.callContext();
       if (optimizedVersions.containsKey(context)) {
         throw s.fail("Duplicate optimized version for context: " + context);
@@ -298,102 +337,58 @@ public class Closure {
     }
 
     if (ctx instanceof ClosureParseContext.Outermost o) {
-      while (o.needsNextInnerClosure() || o.needsNextPromise()) {
-        if (o.needsNextPromise()) {
-          o.setNextPromise(p.parse(Promise.class));
-        } else {
-          try {
-            o.setNextInnerClosure(p.parse(Closure.class));
-          } catch (LateConstructException e) {
-            throw s.fail(e.getMessage());
-          }
-        }
-      }
+      o.parseRemaining(p);
     }
 
     s.assertAndSkip('}');
   }
 
-  @PrintMethod
-  private void print(Printer p) {
-    print(p, new ClosurePrintContext.Outermost());
-  }
+  // The class doesn't escape its visibility, because this is a protected method of a sealed class.
+  @Override
+  protected void print(
+      Printer p1, @SuppressWarnings("ClassEscapesDefinedScope") ClosurePrintContext ctx) {
+    printHeader("func", p1, ctx);
+    var idIndex = ctx.lastYieldedIdIndex();
 
-  @PrintMethod
-  private void print(Printer p1, ClosurePrintContext ctx) {
     var p = p1.withContext(ctx.inner());
     var w = p.writer();
 
-    w.write("func ");
-    printName(name, p, ctx);
-    p.print(parameters());
+    if (parameters().isEmpty()) {
+      w.write("()");
+    } else {
+      p.print(parameters());
+    }
     if (env != StaticEnv.NOT_CLOSED) {
-      w.write(" in ");
+      w.write(" env ");
       w.runIndented(() -> p.print(env));
     }
     if (!origin.attributes().isEmpty()) {
       w.write(" with ");
       w.runIndented(() -> p.print(origin.attributes()));
     }
-    w.write(" {");
+    w.write(" {\nbaseline ");
 
-    p.print(baselineVersion);
+    p.withContext(ctx.ref(new NodeIdQualifier(name, idIndex))).print(baselineVersion);
 
+    var i = 1;
     for (var optVersion : optimizedVersions.values()) {
+      w.formatter().format("\nopt %d: ", i);
       w.write('\n');
       // Optimized versions print their call context.
-      p.print(optVersion);
+      p.withContext(ctx.ref(new NodeIdQualifier(name, idIndex, i))).print(optVersion);
+      i++;
     }
 
     if (ctx instanceof ClosurePrintContext.Outermost o) {
-      while (o.hasNextDeferredInnerClosure() || o.hasNextDeferredPromise()) {
-        if (o.hasNextDeferredPromise()) {
-          p.print(o.nextDeferredPromise());
-        } else {
-          p.print(o.nextDeferredInnerClosure());
-        }
-      }
+      o.printRemaining(p);
     }
 
-    w.write('}');
+    w.write("\n");
   }
 
   @Override
   public String toString() {
     return Printer.toString(this);
-  }
-
-  static String parseName(Parser p, ClosureParseContext ctx) {
-    var s = p.scanner();
-
-    return s.runWithWhitespacePolicy(
-        SkipWhitespace.NONE,
-        () -> {
-          s.assertAndSkip('@');
-          if (ctx instanceof ClosureParseContext.Inner i) {
-            int index = s.readUInt();
-            if (index != i.lastYieldedInnerClosureId()) {
-              throw s.fail(
-                  "Expected inner closure index "
-                      + i.lastYieldedInnerClosureId()
-                      + ", got "
-                      + index);
-            }
-            s.assertAndSkip(':');
-          }
-          return Names.read(s, true);
-        });
-  }
-
-  static void printName(String name, Printer p, ClosurePrintContext ctx) {
-    var w = p.writer();
-
-    w.write('@');
-    if (ctx instanceof ClosurePrintContext.Inner i) {
-      p.print(i.lastYieldedInnerClosureId());
-      w.write(':');
-    }
-    w.write(Names.quoteIfNecessary(name));
   }
   // endregion serialization and deserialization
 }

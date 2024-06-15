@@ -13,6 +13,8 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.prlprg.bc.BcInstr;
+import org.prlprg.bc.Compiler;
+import org.prlprg.primitive.Names;
 import org.prlprg.sexp.BCodeSXP;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.RealSXP;
@@ -675,8 +677,12 @@ public class ClosureCompilerTests extends AbstractGNURBasedTest {
 
   @ParameterizedTest
   @MethodSource("stdlibFunctionsList")
-  public void stdlibFunctions(String name) {
-    testAllIr(name);
+  public void stdlibFunctions(String reference) {
+    var components = reference.split(":::");
+    assert components.length == 2;
+    var name = components[0] + "." + Names.unquoteIfNecessary(components[1]);
+
+    testAllIr(name, reference, 2);
   }
 
   private Stream<Arguments> stdlibFunctionsList() {
@@ -701,9 +707,36 @@ public class ClosureCompilerTests extends AbstractGNURBasedTest {
     return Streams.stream(base.iterator()).map(Arguments::of);
   }
 
-  /** {@link #testAllIr(String, int)} with the default optimization level (2). */
+  /**
+   * {@link #testAllIr(String, int)} with the closure's name set to the caller's name and the
+   * bytecode compiled with the default optimization level (2).
+   */
   private void testAllIr(String code) {
-    testAllIr(code, 2);
+    testAllIr(code, Compiler.DEFAULT_OPTIMIZATION_LEVEL);
+  }
+
+  /**
+   * {@link #testAllIr(String, int)} with the bytecode compiled with the default optimization level
+   * (2).
+   */
+  private void testAllIr(String funName, String code) {
+    testAllIr(funName, code, Compiler.DEFAULT_OPTIMIZATION_LEVEL);
+  }
+
+  /* {@link #testAllIr(String, int)} with the closure's name set to the caller's name. */
+  private void testAllIr(String funCode, int optimizationLevel) {
+    // https://stackoverflow.com/a/68674306
+    var callerName =
+        StackWalker.getInstance()
+            .walk(
+                stream ->
+                    stream
+                        .filter(m -> !m.getMethodName().equals("testAllIr"))
+                        .findFirst()
+                        .orElseThrow())
+            .getMethodName();
+
+    testAllIr(callerName, funCode, optimizationLevel);
   }
 
   /**
@@ -713,9 +746,9 @@ public class ClosureCompilerTests extends AbstractGNURBasedTest {
    * IR to run (in order to load pre-generated code, first we have to finalize the IR serialized
    * representation).
    */
-  private void testAllIr(String funCode, int optimizationLevel) {
+  private void testAllIr(String funName, String funCode, int optimizationLevel) {
     var fun = compileSuccessfully(funCode, optimizationLevel);
-    var ir = ClosureCompiler.compileBaselineClosure(fun, "test");
+    var ir = ClosureCompiler.compileBaselineClosure(funName, fun);
 
     printlnIfVerbose(ir);
   }

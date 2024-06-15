@@ -1,5 +1,6 @@
 package org.prlprg.bc2ir;
 
+import javax.annotation.Nullable;
 import org.prlprg.bc.Bc;
 import org.prlprg.ir.cfg.BB;
 import org.prlprg.ir.cfg.CFG;
@@ -13,11 +14,18 @@ import org.prlprg.ir.cfg.builder.CFGCursor;
  * unsupported instruction (in which case this is a {@link CFGCompilerUnsupportedBcException}).
  */
 public class CFGCompilerException extends RuntimeException {
+  private final Bc bc;
   private final int bcPos;
   private final CFGCursor irPos;
 
-  CFGCompilerException(String message, int bcPos, CFGCursor irPos) {
-    super(message);
+  CFGCompilerException(String message, Bc bc, int bcPos, CFGCursor irPos) {
+    this(message, bc, bcPos, irPos, null);
+  }
+
+  CFGCompilerException(
+      String message, Bc bc, int bcPos, CFGCursor irPos, @Nullable Throwable cause) {
+    super(message, cause);
+    this.bc = bc;
     this.bcPos = bcPos;
     this.irPos = irPos;
   }
@@ -46,6 +54,8 @@ public class CFGCompilerException extends RuntimeException {
         + " statement "
         + irPos.stmtIdx()
         + " in:\n\n"
-        + irPos.cfg();
+        + irPos.cfg()
+        + "\n\n"
+        + bc.code();
   }
 }

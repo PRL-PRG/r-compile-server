@@ -38,8 +38,8 @@ abstract class AbstractRValueStmtImpl<D extends StmtData.RValue_> extends SelfRe
   public void verify() {
     super.verify();
     type =
-        InstrImpl.mergeComputed(
-            "Type",
+        mergeComputed(
+            "type",
             data().computeType(),
             computeTypeFromAnnotations(
                 data().getClass().getAnnotation(TypeIs.class),
@@ -54,7 +54,7 @@ abstract class AbstractRValueStmtImpl<D extends StmtData.RValue_> extends SelfRe
   private static @Nullable RType computeTypeFromAnnotations(
       @Nullable TypeIs typeIsAnnotation, @Nullable IsEnv isEnvAnnotation) {
     if (typeIsAnnotation != null && isEnvAnnotation != null) {
-      throw new AssertionError("Cannot have both @TypeIs and @IsEnv annotations");
+      throw new AssertionError("cannot have both @TypeIs and @IsEnv annotations");
     }
     if (typeIsAnnotation == null && isEnvAnnotation == null) {
       return null;

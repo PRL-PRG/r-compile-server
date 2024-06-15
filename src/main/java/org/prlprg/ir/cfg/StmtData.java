@@ -59,11 +59,16 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
   }
 
   /** A call instruction (e.g. {@link Call}, {@link NamedCall}, etc.). */
-  sealed interface Call_ extends RValue_, InstrData.HasAst {
-    @Nullable RValue fun();
+  sealed interface Call_<Fun> extends RValue_, InstrData.HasAst {
+    Fun fun();
 
-    /** {@code null} except in named calls. */
-    default @Nullable ImmutableList<Optional<String>> names() {
+    /**
+     * {@code null} except in named calls.
+     *
+     * <p>Static calls may have named arguments, but these are "implicit" because they are stored in
+     * the {@link ClosureVersion}.
+     */
+    default @Nullable ImmutableList<Optional<String>> explicitNames() {
       return null;
     }
 
@@ -204,16 +209,16 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
   }
 
   @EffectsAre({REffect.LeaksNonEnvArg, REffect.ReadsEnvArg, REffect.WritesEnvArg})
-  record StVarSuper(RegSymSXP name, RValue r, @IsEnv RValue env) implements Void {}
+  record StVarSuper(RegSymSXP name, RValue value, @IsEnv RValue env) implements Void {}
 
   @TypeIs("ANY")
   @EffectsAre({REffect.Error, REffect.ReadsEnvArg})
   record LdVarSuper(RegSymSXP name, @IsEnv RValue env) implements RValue_ {}
 
   @EffectsAre({REffect.LeaksNonEnvArg, REffect.WritesEnvArg})
-  record StVar(RegSymSXP name, RValue r, @IsEnv RValue env, boolean isArg) implements Void {
-    public StVar(RegSymSXP name, RValue r, @IsEnv RValue env) {
-      this(name, r, env, false);
+  record StVar(RegSymSXP name, RValue value, @IsEnv RValue env, boolean isArg) implements Void {
+    public StVar(RegSymSXP name, RValue value, @IsEnv RValue env) {
+      this(name, value, env, false);
     }
   }
 
@@ -801,7 +806,8 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
   record Not(@Override Optional<LangSXP> ast1, @Override RValue arg, @IsEnv RValue env)
       implements BooleanUnOp {}
 
-  record Error(String message, @IsEnv RValue env) implements RValue_ {}
+  @EffectsAre(REffect.Error)
+  record Error(String message, @IsEnv RValue env) implements Void {}
 
   record Colon(@Override Optional<LangSXP> ast1, RValue lhs, RValue rhs, @IsEnv RValue env)
       implements RValue_, InstrData.HasAst {
@@ -826,7 +832,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
       @Override ImmutableList<RValue> args,
       @Override @IsEnv RValue env,
       Optional<org.prlprg.ir.cfg.FrameState> fs)
-      implements Call_ {
+      implements Call_<RValue> {
     public Call(
         @Nullable LangSXP ast,
         RValue fun,
@@ -842,11 +848,11 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
   record NamedCall(
       @Override Optional<LangSXP> ast1,
       @TypeIs("ANY_FUN") @Override RValue fun,
-      @Override ImmutableList<Optional<String>> names,
+      @Override ImmutableList<Optional<String>> explicitNames,
       @SameLen("names") @Override ImmutableList<RValue> args,
       @Override @IsEnv RValue env,
       Optional<org.prlprg.ir.cfg.FrameState> fs)
-      implements Call_ {
+      implements Call_<RValue> {
     public NamedCall(
         @Nullable LangSXP ast,
         RValue fun,
@@ -861,17 +867,17 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
   record StaticCall(
       @Override Optional<LangSXP> ast1,
       @TypeIs("CLO") Optional<RValue> runtimeClosure,
-      ClosureVersion closureVersion,
+      @Override ClosureVersion fun,
       CallContext givenContext,
       @Override ImmutableList<RValue> args,
       @Override @SameLen("args") ImmutableIntArray arglistOrder,
       @Override @IsEnv RValue env,
       Optional<org.prlprg.ir.cfg.FrameState> fs)
-      implements Call_ {
+      implements Call_<ClosureVersion> {
     public StaticCall(
         @Nullable LangSXP ast,
         @Nullable RValue runtimeClosure,
-        ClosureVersion closureVersion,
+        ClosureVersion fun,
         CallContext givenContext,
         ImmutableList<RValue> args,
         ImmutableIntArray arglistOrder,
@@ -880,7 +886,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
       this(
           Optional.ofNullable(ast),
           Optional.ofNullable(runtimeClosure),
-          closureVersion,
+          fun,
           givenContext,
           args,
           arglistOrder,
@@ -889,71 +895,56 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
     }
 
     @Override
-    public @Nullable RValue fun() {
-      return runtimeClosure.orElse(null);
-    }
-
-    @Override
     public RType computeType() {
       // TODO: Draft impl
-      return closureVersion.properties().returnType(args);
+      return fun.properties().returnType(args);
     }
 
     @Override
     public REffects computeEffects() {
       // TODO: Draft impl
-      return closureVersion.properties().effects(args);
+      return fun.properties().effects(args);
     }
   }
 
   @EffectsAreAribtrary()
   record CallBuiltin(
       @Override Optional<LangSXP> ast1,
-      BuiltinId builtin,
+      @Override BuiltinId fun,
       @Override ImmutableList<RValue> args,
       @Override @IsEnv RValue env)
-      implements Call_ {
+      implements Call_<BuiltinId> {
     public CallBuiltin(
-        @Nullable LangSXP ast, BuiltinId builtin, ImmutableList<RValue> args, @IsEnv RValue env) {
-      this(Optional.ofNullable(ast), builtin, args, env);
-    }
-
-    @Override
-    public @Nullable RValue fun() {
-      return null;
+        @Nullable LangSXP ast, BuiltinId fun, ImmutableList<RValue> args, @IsEnv RValue env) {
+      this(Optional.ofNullable(ast), fun, args, env);
     }
 
     @Override
     public RType computeType() {
-      return RTypes.builtin(builtin);
+      return RTypes.builtin(fun);
     }
   }
 
   @EffectsAre({REffect.Visibility, REffect.Warn, REffect.Error})
   record CallSafeBuiltin(
       @Override Optional<LangSXP> ast1,
-      BuiltinId builtin,
+      @Override BuiltinId fun,
       @Override ImmutableList<RValue> args,
       @Override @IsEnv RValue env,
       ImmutableList<Assumption> assumption)
-      implements Call_ {
+      implements Call_<BuiltinId> {
     public CallSafeBuiltin(
         @Nullable LangSXP ast,
-        BuiltinId builtin,
+        BuiltinId fun,
         ImmutableList<RValue> args,
         @IsEnv RValue env,
         ImmutableList<Assumption> assumption) {
-      this(Optional.ofNullable(ast), builtin, args, env, assumption);
-    }
-
-    @Override
-    public @Nullable RValue fun() {
-      return null;
+      this(Optional.ofNullable(ast), fun, args, env, assumption);
     }
 
     @Override
     public RType computeType() {
-      return RTypes.builtin(builtin);
+      return RTypes.builtin(fun);
     }
   }
 

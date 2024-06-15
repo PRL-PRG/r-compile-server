@@ -29,6 +29,10 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
         Arbitraries.of(0.0, -2.347698, 2147483648.0, Double.NEGATIVE_INFINITY, Double.NaN));
   }
 
+  public static Arbitrary<Byte> basicBytes() {
+    return Arbitraries.of((byte) 45, (byte) -12, (byte) 0, Byte.MIN_VALUE, Byte.MAX_VALUE);
+  }
+
   @Override
   public boolean canProvideFor(TypeUsage typeUsage) {
     return typeUsage.isOfType(Logical.class) || typeUsage.isOfType(Complex.class);

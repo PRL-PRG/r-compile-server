@@ -61,7 +61,11 @@ public record Complex(double real, double imag) {
   private static Complex parse(Parser p) {
     var s = p.scanner();
 
-    var real = s.readDouble();
+    var dbl = s.readDouble();
+    if (s.trySkip('i')) {
+      return new Complex(0, dbl);
+    }
+
     double imag;
     if (s.trySkip('+') || s.nextCharIs('-')) {
       imag = s.readDouble();
@@ -70,16 +74,19 @@ public record Complex(double real, double imag) {
       imag = 0;
     }
 
-    return new Complex(real, imag);
+    return new Complex(dbl, imag);
   }
 
   @PrintMethod
   private void print(Printer p) {
     var w = p.writer();
 
-    p.print(real);
+    if (real != 0 || imag == 0) {
+      p.print(real);
+    }
+
     if (imag != 0) {
-      if (imag > 0) {
+      if (real != 0 && imag > 0) {
         w.write('+');
       }
       p.print(imag);

@@ -6,6 +6,14 @@ import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import java.util.Map;
 import java.util.Objects;
 import javax.annotation.concurrent.Immutable;
+import org.prlprg.parseprint.ParseMethod;
+import org.prlprg.parseprint.Parser;
+import org.prlprg.parseprint.PrintMethod;
+import org.prlprg.parseprint.Printer;
+import org.prlprg.sexp.parseprint.HasSEXPParseContext;
+import org.prlprg.sexp.parseprint.HasSEXPPrintContext;
+import org.prlprg.sexp.parseprint.SEXPParseContext;
+import org.prlprg.sexp.parseprint.SEXPPrintContext;
 
 /** Attributes on an {@link SEXP}. */
 @Immutable
@@ -82,9 +90,39 @@ public final class Attributes extends ForwardingMap<String, SEXP> {
       return this;
     }
 
-    /** Finish building the {@link Attributes} instance. */
+    /**
+     * Finish building the {@link Attributes} instance.
+     *
+     * @throws IllegalArgumentException if an attribute with the same name added multiple times.
+     */
     public Attributes build() {
-      return new Attributes(attrs.build());
+      return new Attributes(attrs.buildOrThrow());
     }
   }
+
+  // region serialization and deserialization
+  @ParseMethod
+  private static Attributes parse(Parser p) {
+    return p.withContext(
+            p.context() instanceof HasSEXPParseContext h
+                ? h.sexpParseContext()
+                : new SEXPParseContext())
+        .parse(Attributes.class);
+  }
+
+  @PrintMethod
+  private void print(Printer p) {
+    p.withContext(
+            p.context() instanceof HasSEXPPrintContext h
+                ? h.sexpPrintContext()
+                : new SEXPPrintContext())
+        .print(this);
+  }
+
+  @Override
+  public String toString() {
+    return "{ " + Printer.toString(this) + " }";
+  }
+
+  // endregion serialization and deserialization
 }

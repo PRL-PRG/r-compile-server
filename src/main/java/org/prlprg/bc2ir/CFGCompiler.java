@@ -158,7 +158,6 @@ import org.prlprg.ir.cfg.RValue;
 import org.prlprg.ir.cfg.StaticEnv;
 import org.prlprg.ir.cfg.StmtData;
 import org.prlprg.ir.cfg.builder.CFGCursor;
-import org.prlprg.ir.cfg.builder.JumpInsertion;
 import org.prlprg.primitive.BuiltinId;
 import org.prlprg.primitive.IsTypeCheck;
 import org.prlprg.rshruntime.BcPosition;
@@ -168,7 +167,7 @@ import org.prlprg.sexp.ListSXP;
 import org.prlprg.sexp.RegSymSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
-import org.prlprg.util.MapListView;
+import org.prlprg.util.Lists;
 import org.prlprg.util.Reflection;
 import org.prlprg.util.UnreachableError;
 
@@ -203,6 +202,22 @@ public class CFGCompiler {
 
   // region compiler data types
   // - ADTs to organize the compiler data.
+  /**
+   * Stores information about a loop being compiled which is shared between multiple instructions.
+   */
+  private record Loop(LoopType type, @Nullable BB forBody, BB next, BB end) {}
+
+  /** Whether a loop is a GNU-R "while" or "for" loop. */
+  private enum LoopType {
+    WHILE_OR_REPEAT,
+    FOR
+  }
+
+  /**
+   * A pending complex assignment (between {@link StartAssign} and {@link EndAssign}, or {@link
+   * StartAssign2} and {@link EndAssign2}).
+   */
+  private record ComplexAssign(boolean isSuper, RegSymSXP name, RValue lhs, RValue rhs) {}
 
   /**
    * A call currently being built.
@@ -233,17 +248,6 @@ public class CFGCompiler {
         this(value, null);
       }
     }
-  }
-
-  /**
-   * Stores information about a loop being compiled which is shared between multiple instructions.
-   */
-  private record Loop(LoopType type, @Nullable BB forBody, BB next, BB end) {}
-
-  /** Whether a loop is a GNU-R "while" or "for" loop. */
-  private enum LoopType {
-    WHILE_OR_REPEAT,
-    FOR
   }
 
   /**
@@ -289,6 +293,7 @@ public class CFGCompiler {
   private final CFGCursor cursor;
   private final List<Node> stack = new ArrayList<>();
   private final List<Loop> loopStack = new ArrayList<>();
+  private final List<ComplexAssign> complexAssignStack = new ArrayList<>();
   private final List<Call> callStack = new ArrayList<>();
   private final List<Dispatch> dispatchStack = new ArrayList<>();
 
@@ -320,27 +325,38 @@ public class CFGCompiler {
 
   /** Actually compile {@code bc} into {@code cfg}. */
   void doCompile() {
-    var code = bc.code();
+    try {
+      var code = bc.code();
 
-    // Put BBs at jump destinations.
-    // We will add more BBs when compiling some instructions, but IR in those BBs will be specific
-    // to the instruction, whereas labels in instructions may jump to within the IR of previously-
-    // compiled instructions. To insert a BB later that jumps to previously-compiled IR: it's
-    // possible, but adds complexity, because we have to remember which bytecode positions
-    // correspond to which IR positions at these positions, and move already-compiled IR into the
-    // new BB. It's easier to insert these BBs first, then we don't have to move IR and we only need
-    // to track the current bytecode and IR position.
-    for (var i = 0; i < code.size(); i++) {
-      addBcLabelBBs(code.get(i));
-    }
-
-    // Add instructions to BBs, including jumps which connect them.
-    // Also, move to the BB at each label.
-    for (bcPos = 0; bcPos < code.size(); bcPos++) {
-      if (bcPos != 0 && bbByLabel.containsKey(bcPos)) {
-        moveTo(bbByLabel.get(bcPos));
+      // Put BBs at jump destinations.
+      // We will add more BBs when compiling some instructions, but IR in those BBs will be specific
+      // to the instruction, whereas labels in instructions may jump to within the IR of previously-
+      // compiled instructions. To insert a BB later that jumps to previously-compiled IR: it's
+      // possible, but adds complexity, because we have to remember which bytecode positions
+      // correspond to which IR positions at these positions, and move already-compiled IR into the
+      // new BB. It's easier to insert these BBs first, then we don't have to move IR and we only
+      // need
+      // to track the current bytecode and IR position.
+      for (var i = 0; i < code.size(); i++) {
+        addBcLabelBBs(code.get(i));
       }
-      addBcInstrIrInstrs(code.get(bcPos));
+
+      // Add instructions to BBs, including jumps which connect them.
+      // Also, move to the BB at each label.
+      for (bcPos = 0; bcPos < code.size(); bcPos++) {
+        if (bcPos != 0 && bbByLabel.containsKey(bcPos)) {
+          var nextBb = bbByLabel.get(bcPos);
+          if (cursor.bb().jump() == null) {
+            cursor.insert(new JumpData.Goto(nextBb));
+          }
+          moveTo(nextBb);
+        }
+        addBcInstrIrInstrs(code.get(bcPos));
+      }
+    } catch (Throwable e) {
+      throw e instanceof CFGCompilerException e1
+          ? e1
+          : new CFGCompilerException("uncaught exception: " + e, bc, bcPos, cursor, e);
     }
   }
 
@@ -406,20 +422,30 @@ public class CFGCompiler {
     return bbByLabel.get(pos);
   }
 
+  /**
+   * Gets the basic block immediately after the current instruction.
+   *
+   * @throws AssertionError if there is no such block.
+   */
+  private BB bbAfterCurrent() {
+    assert bbByLabel.containsKey(bcPos + 1) : "no BB immediately after the instruction at " + bcPos;
+    return bbByLabel.get(bcPos + 1);
+  }
+
   // endregion map BBs to labels (+ get)
 
   // region main compile functions: compile individual things
   private void addBcInstrIrInstrs(BcInstr instr) {
     switch (instr) {
-      case Return() -> insert(_ -> new JumpData.Return(pop(RValue.class)));
+      case Return() -> cursor.insert(new JumpData.Return(pop(RValue.class)));
       case Goto(var label) -> {
         var bb = bbAt(label);
-        insert(_ -> new JumpData.Goto(bb));
+        cursor.insert(new JumpData.Goto(bb));
         addPhiInputsForStack(bb);
       }
       case BrIfNot(var ast, var label) -> {
         var bb = bbAt(label);
-        insert(next -> new JumpData.Branch(get(ast), pop(RValue.class), next, bb));
+        cursor.insert(new JumpData.Branch(get(ast), pop(RValue.class), bbAfterCurrent(), bb));
         addPhiInputsForStack(bb);
       }
       case Pop() -> pop(Node.class);
@@ -451,7 +477,7 @@ public class CFGCompiler {
         if (!isForLoop) {
           // This takes advantage of the invariant that the loop body is right after
           // `StartLoopCntxt`, so a label should exist here.
-          var bodyBb = bbAt(new BcLabel(bcPos + 1));
+          var bodyBb = bbAfterCurrent();
           var endBb = bbAt(end);
 
           pushWhileOrRepeatLoop(bodyBb, endBb);
@@ -470,7 +496,7 @@ public class CFGCompiler {
         // the step branch and `EndFor` in the end branch, although it may break the invariants
         // other ways and simply not be noticed.
         var initBb = cursor.bb();
-        var forBodyBb = bbAt(new BcLabel(bcPos + 1));
+        var forBodyBb = bbAfterCurrent();
         var stepBb = bbAt(step);
         var endBb = cfg.addBB();
 
@@ -481,11 +507,13 @@ public class CFGCompiler {
         cursor.insert(new JumpData.Goto(forBodyBb));
 
         // For loop step
-        // Call `moveTo` to add phi values for virtual stack nodes (even though `stepBb` doesn't use
-        // any of them, `forBodyBb`, `endBb`, and successors may use variables which could originate
-        // from `initBb` and BBs between `forBodyBb` and `stepBB`, so it needs phis for those
-        // variables).
-        moveTo(stepBb);
+        // Add phi values for virtual stack nodes (even though `stepBb` doesn't use any of them,
+        // `forBodyBb`, `endBb`, and successors may use variables which could originate from
+        // `initBb` and BBs between `forBodyBb` and `stepBB`, so it needs phis for those variables).
+        addPhiInputsForStack(stepBb);
+        stack.clear();
+        stack.addAll(stepBb.phis());
+        cursor.moveToStart(stepBb);
         // We must also add a phi for the index, which is never put onto the virtual stack.
         var index = stepBb.addPhi(RValue.class);
         index.setInput(initBb, init);
@@ -509,20 +537,30 @@ public class CFGCompiler {
         pushForLoop(forBodyBb, stepBb, endBb);
       }
       case DoLoopNext() -> {
+        // Out Java compiler doesn't actually generate these instructions,
+        // so this code may be wrong...
         if (isPromise && !inLocalLoop()) {
           throw failUnsupported("`next` or `break` in promise (complex loop context)");
         }
         var stepBb = topLoop().next;
-        insert(_ -> new JumpData.Goto(stepBb));
+        cursor.insert(new JumpData.Goto(stepBb));
         addPhiInputsForStack(stepBb);
+        // This part is unreachable, so right now we assume there are no instructions until the next
+        // label. Maybe this is wrong though (if it is we'll get an error), in which case we should
+        // just skip the instructions until the next label. Unless `next` can sometimes not GOTO...
       }
       case DoLoopBreak() -> {
+        // Out Java compiler doesn't actually generate these instructions,
+        // so this code may be wrong...
         if (isPromise && !inLocalLoop()) {
           throw failUnsupported("`next` or `break` in promise (complex loop context)");
         }
         var endBb = topLoop().end;
-        insert(_ -> new JumpData.Goto(endBb));
+        cursor.insert(new JumpData.Goto(endBb));
         addPhiInputsForStack(endBb);
+        // This part is unreachable, so right now we assume there are no instructions until the next
+        // label. Maybe this is wrong though (if it is we'll get an error), in which case we should
+        // just skip the instructions until the next label. Unless `break` can sometimes not GOTO...
       }
       case StepFor(var body) -> {
         var loop = topLoop();
@@ -565,7 +603,7 @@ public class CFGCompiler {
         pushInsert(new StmtData.Force(pop(RValue.class), compileFrameState(), env));
       }
       case DdVal(var _) -> throw failUnsupported("`..n` variables");
-      case SetVar(var name) -> insert(new StmtData.StVar(get(name), pop(RValue.class), env));
+      case SetVar(var name) -> insert(new StmtData.StVar(get(name), top(RValue.class), env));
       case GetFun(var name) -> pushCallFunInsert(new StmtData.LdFun(get(name), env));
       case GetGlobFun(var name) ->
           pushCallFunInsert(new StmtData.LdFun(get(name), StaticEnv.GLOBAL));
@@ -577,7 +615,8 @@ public class CFGCompiler {
       case CheckFun() -> pushCallFunInsert(new StmtData.ChkFun(top(RValue.class)));
       case MakeProm(var code) -> {
         // REACH: Could cache compiled promise CFGs (env will always be different) in the module...
-        var promise = compilePromise(get(code), env, module);
+        // TODO: infer name
+        var promise = compilePromise("", get(code), env, module);
         pushCallArgInsert(new StmtData.MkProm(promise));
       }
       case DoMissing() -> pushMissingCallArg();
@@ -613,7 +652,7 @@ public class CFGCompiler {
         // Also, we intentionally only compile the baseline version because the inner closure will
         // be optimized along with the outer closure.
         // TODO: infer name
-        var closure = compileBaselineClosure(cloSxp, env, "", module);
+        var closure = compileBaselineClosure("", cloSxp, env, module);
 
         pushInsert(new StmtData.MkCls(closure));
       }
@@ -666,8 +705,16 @@ public class CFGCompiler {
               new StmtData.LOr(Optional.of(get(ast)), pop(RValue.class), pop(RValue.class), env));
       case Not(var ast) ->
           pushInsert(new StmtData.Not(Optional.of(get(ast)), pop(RValue.class), env));
-      case DotsErr() -> pushInsert(new StmtData.Error("'...' used in an incorrect context", env));
-      case StartAssign(var _), EndAssign(var _) -> throw failUnsupported("complex assignment");
+      case DotsErr() -> insert(new StmtData.Error("'...' used in an incorrect context", env));
+      case StartAssign(var name) -> {
+        var lhs = cursor.insert(new StmtData.LdVar(get(name), env));
+        var rhs = top(RValue.class);
+        pushComplexAssign(false, get(name), lhs, rhs);
+      }
+      case EndAssign(var name) -> {
+        var assign = popComplexAssign(false, get(name));
+        insert(new StmtData.StVar(get(name), assign.rhs, env));
+      }
       case StartSubset(var ast, var after) ->
           compileStartDispatch(Dispatch.Type.SUBSET, ast, after);
       case DfltSubset() ->
@@ -861,26 +908,28 @@ public class CFGCompiler {
       case And1st(var ast, var shortCircuit) -> {
         var shortCircuitBb = bbAt(shortCircuit);
         pushInsert(new StmtData.AsLogical(pop(RValue.class)));
-        insert(next -> new JumpData.Branch(get(ast), top(RValue.class), next, shortCircuitBb));
+        cursor.insert(
+            new JumpData.Branch(get(ast), top(RValue.class), bbAfterCurrent(), shortCircuitBb));
         addPhiInputsForStack(shortCircuitBb);
       }
       case And2nd(var ast) -> {
         pushInsert(new StmtData.AsLogical(pop(RValue.class)));
         pushInsert(
             new StmtData.LAnd(Optional.of(get(ast)), pop(RValue.class), pop(RValue.class), env));
-        insert(JumpData.Goto::new);
+        cursor.insert(new JumpData.Goto(bbAfterCurrent()));
       }
       case Or1st(var ast, var shortCircuit) -> {
         var shortCircuitBb = bbAt(shortCircuit);
         pushInsert(new StmtData.AsLogical(pop(RValue.class)));
-        insert(next -> new JumpData.Branch(get(ast), top(RValue.class), shortCircuitBb, next));
+        cursor.insert(
+            new JumpData.Branch(get(ast), top(RValue.class), shortCircuitBb, bbAfterCurrent()));
         addPhiInputsForStack(shortCircuitBb);
       }
       case Or2nd(var ast) -> {
         pushInsert(new StmtData.AsLogical(pop(RValue.class)));
         pushInsert(
             new StmtData.LOr(Optional.of(get(ast)), pop(RValue.class), pop(RValue.class), env));
-        insert(JumpData.Goto::new);
+        cursor.insert(new JumpData.Goto(bbAfterCurrent()));
       }
       case GetVarMissOk(var name) -> {
         // TODO: Allow missing
@@ -889,9 +938,35 @@ public class CFGCompiler {
       }
       case DdValMissOk(var _) -> throw failUnsupported("`..n` variables");
       case Visible() -> insert(new StmtData.Visible());
-      case SetVar2(var name) -> insert(new StmtData.StVarSuper(get(name), pop(RValue.class), env));
-      case StartAssign2(var _), EndAssign2(var _), SetterCall(var _, var _), GetterCall(var _) ->
-          throw failUnsupported("complex assignment");
+      case SetVar2(var name) -> insert(new StmtData.StVarSuper(get(name), top(RValue.class), env));
+      case StartAssign2(var name) -> {
+        // GNU-R has "cells" and stores the assign on the main stack.
+        // But we don't have cells, and since we're compiling, we can store the assignment on its
+        // own stack.
+        var lhs = cursor.insert(new StmtData.LdVarSuper(get(name), env));
+        var rhs = top(RValue.class);
+        pushComplexAssign(true, get(name), lhs, rhs);
+      }
+      case EndAssign2(var name) -> {
+        var assign = popComplexAssign(true, get(name));
+        insert(new StmtData.StVarSuper(get(name), assign.rhs, env));
+      }
+      case SetterCall(var ast, var _) -> {
+        var assign = topComplexAssign();
+        // GNU-R has to wrap these call args in evaluated promises depending on the call type,
+        // but presumably this is something we abstract. This is also what `valueExpr` is for,
+        // which is why it's unused.
+        prependCallArg(assign.lhs);
+        pushCallArg(assign.rhs);
+        compileCall(ast);
+      }
+      case GetterCall(var ast) -> {
+        var assign = topComplexAssign();
+        // GNU-R has to wrap this call arg in an evaluated promise depending on the call type,
+        // but presumably this is something we abstract.
+        prependCallArg(assign.lhs);
+        compileCall(ast);
+      }
       case SpecialSwap() -> {
         var value = pop(Node.class);
         var value2 = pop(Node.class);
@@ -905,7 +980,7 @@ public class CFGCompiler {
         push(value2);
       }
         // ???
-      case ReturnJmp() -> insert(_ -> new JumpData.NonLocalReturn(pop(RValue.class), env));
+      case ReturnJmp() -> cursor.insert(new JumpData.NonLocalReturn(pop(RValue.class), env));
       case Switch(var _, var _, var _, var _) -> throw failUnsupported("switch");
       case StartSubsetN(var ast, var after) ->
           compileStartDispatch(Dispatch.Type.SUBSETN, ast, after);
@@ -1036,8 +1111,8 @@ public class CFGCompiler {
         var base = cursor.insert(new StmtData.LdFun(fun, StaticEnv.BASE));
         var guard = cursor.insert(new StmtData.Eq(Optional.of(get(expr)), sym, base, env));
 
-        var safeBb = cfg.addBB();
-        var fallbackBb = cfg.addBB();
+        var safeBb = cfg.addBB("baseGuardSafe");
+        var fallbackBb = cfg.addBB("baseGuardFail");
         var afterBb = bbAt(after);
         cursor.insert(new JumpData.Branch(guard, safeBb, fallbackBb));
 
@@ -1129,13 +1204,13 @@ public class CFGCompiler {
         || call.args.size() > maxNumArgs) {
       compileCall(dispatch.ast);
     } else {
-      var argValues = new MapListView<>(call.args, Call.Arg::value);
+      var argValues = Lists.map(call.args, Call.Arg::value);
       pushInsert(dispatchInstrData.apply(dispatch.ast, argValues));
     }
 
-    insert(JumpData.Goto::new);
-    if (cursor.bb() != dispatch.after || cursor.stmtIdx() != 0) {
-      throw fail("expected to be at start of after BB " + dispatch.after.id());
+    cursor.insert(new JumpData.Goto(bbAfterCurrent()));
+    if (bbAfterCurrent() != dispatch.after) {
+      throw fail("expected to be immediately before after BB " + dispatch.after.id());
     }
   }
 
@@ -1160,9 +1235,8 @@ public class CFGCompiler {
                       ? new StmtData.NamedCall(ast, fun, names, args, env, compileFrameState())
                       : new StmtData.Call(ast, fun, args, env, compileFrameState());
               case Call.Fun.Builtin(var fun) ->
-                  isNamed
-                      ? new StmtData.Error("Name in builtin call", env)
-                      : new StmtData.CallBuiltin(ast, fun, args, env);
+                  // Even if `isNamed` is true, R just ignores the names.
+                  new StmtData.CallBuiltin(ast, fun, args, env);
             });
     push(callInstr);
   }
@@ -1177,26 +1251,46 @@ public class CFGCompiler {
 
   // region `moveTo` and phis
   /**
-   * Move the cursor to the basic block <i>and</i> replace all stack arguments with phis.
+   * Move the cursor to the basic block <i>and</i> replace all stack arguments with its phis.
    *
    * <p>Replacing the stack with phis is part of converting a stack-based bytecode to SSA-based IR.
    * Since actual interpretation we may encounter this block from different predecessors, it needs
-   * phi nodes in order to preserve the SSA invariant "each variable is assigned exactly once". One
-   * of the phi inputs will be for the predecessor that is the block we are currently at, so we set
-   * the inputs that originate from this block to each of the stack values. Other phi inputs are set
-   * when we reference this from other predecessors via {@link #bbAt(BcLabel)}. Note that in {@code
-   * moveTo}, we also replace the stack with those phi nodes since we are now in the block, whereas
-   * {@link #bbAt(BcLabel)} leaves the stack unchanged since it's still in the oly block.
+   * phi nodes in order to preserve the SSA invariant "each variable is assigned exactly once".
+   * Although the block may have only one predecessor, in which case phi nodes are unnecessary, we
+   * start by assigning phi nodes to every block, and then the single-input phis in a cleanup phase
+   * later.
+   *
+   * <p>If the current block is a predecessor to the given block, the given block's stack will have
+   * a phi for each stack node in the current block, and one of the inputs will be said node (see
+   * {@link #addPhiInputsForStack(BB)}). We call {@link #addPhiInputsForStack(BB)} here for
+   * convenience, although it makes this method have 2 functions (add phis if the next block is a
+   * successor, and move to it). Otherwise, we don't know what its stack will look like from the
+   * current block, but we can rely on the invariant that it already had phis added from a different
+   * block, so we use the phis that were already added (if it didn't have phis added from a
+   * different block, we throw {@link AssertionError}).
    */
   private void moveTo(BB bb) {
-    cursor.moveToStart(bb);
+    // First ensure the block has phis, and add inputs from this block if necessary.
+    if (bb.predecessors().contains(cursor.bb())) {
+      // Make sure this block has phis representing the arguments currently on the stack, then
+      // replace
+      // the stack with those phis (this is how to convert a stack-based bytecode to an SSA-form
+      // IR).
+      addPhiInputsForStack(bb);
+    } else {
+      // This won't work unless we've already added phis from another BB
+      assert bbsWithPhis.contains(bb)
+          : "tried to move to BB "
+              + bb.id()
+              + " which isn't a successor and didn't have phis added yet, so we don't know what its stack looks like";
+    }
 
-    // Make sure this block has phis representing the arguments currently on the stack, then replace
-    // the stack with those phis (this is how to convert a stack-based bytecode to an SSA-form IR).
-    addPhiInputsForStack(bb);
     // Then replace the stack with those phis.
     stack.clear();
     stack.addAll(bb.phis());
+
+    // Finally, actually move the cursor to the BB.
+    cursor.moveToStart(bb);
   }
 
   /**
@@ -1220,6 +1314,11 @@ public class CFGCompiler {
   private void addPhiInputsForStack(BB bb, BB incoming) {
     // Ensure the BB has phis for each stack value.
     if (bbsWithPhis.add(bb)) {
+      // Add phis for all of the nodes on the stack.
+      for (var node : stack) {
+        bb.addPhi(node.getClass());
+      }
+    } else {
       // Already added phis,
       // but sanity-check that they're still same type and amount as the nodes on the stack.
       var phis = bb.phis().iterator();
@@ -1227,17 +1326,17 @@ public class CFGCompiler {
         if (!phis.hasNext()) {
           throw fail(
               "BB stack mismatch: "
-                  + bb
+                  + bb.id()
                   + " has too few phis; expected "
                   + stack.size()
                   + " but got "
                   + i);
         }
         var phi = phis.next();
-        if (phi.getClass() != stack.get(i).getClass()) {
+        if (!phi.nodeClass().isInstance(stack.get(i))) {
           throw fail(
               "BB stack mismatch: "
-                  + bb
+                  + bb.id()
                   + " has a phi of type "
                   + phi.getClass()
                   + " at index "
@@ -1254,16 +1353,11 @@ public class CFGCompiler {
         }
         throw fail(
             "BB stack mismatch: "
-                + bb
+                + bb.id()
                 + " has too many phis; expected "
                 + stack.size()
                 + " but got "
                 + i);
-      }
-    } else {
-      // Add phis for all of the nodes on the stack.
-      for (var node : stack) {
-        bb.addPhi(node.getClass());
       }
     }
 
@@ -1309,29 +1403,6 @@ public class CFGCompiler {
    */
   private void pushCallArgInsert(StmtData.RValue_ data) {
     pushCallArg(cursor.insert(data));
-  }
-
-  /**
-   * Insert a jump with a function that gets called with the "immediate successor", and move to the
-   * immediate successor.
-   *
-   * <p>The "immediate successor" basic block is the block that will contain the IR from the next
-   * compiled bytecode instructions (unless we move to another block while compiling this
-   * instruction), AKA the basic block that corresponds to simply not jumping in bytecode (e.g. the
-   * "true" branch of {@link BcInstr.BrIfNot}).
-   *
-   * <p>Specifically, if a label exists that points to immediately after the currently-compiled
-   * bytecode instruction, then we've already inserted a basic block corresponding to that label,
-   * and that existing block is the "immediate successor". If not, we would create a new block and
-   * designate that the "immediate successor".
-   */
-  private void insert(JumpInsertion<?> jump) {
-    var bb = bbByLabel.get(bcPos + 1);
-    if (bb == null) {
-      bb = cfg.addBB();
-    }
-    cursor.insert(jump.compute(bb));
-    moveTo(bb);
   }
 
   // endregion statement and jump insertions
@@ -1427,6 +1498,62 @@ public class CFGCompiler {
     return loopStack.removeLast();
   }
 
+  /**
+   * Add data that will be referenced by later complex assign instructions (via {@link
+   * #topComplexAssign()} and {@link #popComplexAssign(boolean, RegSymSXP)}).
+   *
+   * <p>GNU-R stores the complex assign values on the main stack, but we store them on their own
+   * stack for understandability at the cost of negligible performance (same with calls). GNU-R also
+   * stores a "cell" for the lhs value, which has a flag to determine if its in an assignment, for
+   * ref-counting purposes. TODO how we handle ref-counting because it will probably be much
+   * different, but we will probably abstract it so that we don't have to do anything here even in
+   * the future.
+   */
+  private void pushComplexAssign(boolean isSuper, RegSymSXP name, RValue lhs, RValue rhs) {
+    complexAssignStack.add(new ComplexAssign(isSuper, name, lhs, rhs));
+  }
+
+  /**
+   * Get the current complex assign )the one that was pushed by the last call to {@link
+   * #pushComplexAssign(boolean, RegSymSXP, RValue, RValue)}).
+   */
+  private ComplexAssign topComplexAssign() {
+    require(!complexAssignStack.isEmpty(), () -> "complex assign stack underflow");
+    return complexAssignStack.getLast();
+  }
+
+  /**
+   * Get the current complex assign (the one that was pushed by the last call to {@link
+   * #pushComplexAssign(boolean, RegSymSXP, RValue, RValue)}), assert that the given {@code isSuper}
+   * and {@code name} match its own, and remove it from the stack.
+   */
+  private ComplexAssign popComplexAssign(boolean isSuper, RegSymSXP name) {
+    require(!complexAssignStack.isEmpty(), () -> "complex assign stack underflow");
+    var assign = complexAssignStack.removeLast();
+
+    if (!name.equals(assign.name)) {
+      throw fail(
+          "complex assign stack mismatch: expected "
+              + (isSuper ? "super" : "regular")
+              + " assign for "
+              + name
+              + " but got "
+              + (assign.isSuper ? "super" : "regular")
+              + " assign for "
+              + assign.name);
+    }
+    if (isSuper != assign.isSuper) {
+      throw fail(
+          "complex assign stack mismatch: expected "
+              + (isSuper ? "super" : "regular")
+              + " assign, but stack has "
+              + (assign.isSuper ? "super" : "regular")
+              + " assign");
+    }
+
+    return assign;
+  }
+
   /** Begin a new call of the given function (abstract value). */
   private void pushCall(RValue fun) {
     callStack.add(new Call(new Call.Fun.Value(fun)));
@@ -1451,6 +1578,17 @@ public class CFGCompiler {
   private Call popCall() {
     require(!callStack.isEmpty(), () -> "call stack underflow");
     return callStack.removeLast();
+  }
+
+  /**
+   * Prepend a value to the current call stack ({@link #topCall()}).
+   *
+   * <p>This is required for {@link GetterCall} and {@link SetterCall}, since the {@code lhs} of the
+   * complex assignment is prepended in the GNU-R. See also {@link #pushCallArg(RValue)}, which
+   * appends the argument.
+   */
+  private void prependCallArg(RValue value) {
+    topCall().args.addFirst(new Call.Arg(value));
   }
 
   /**
@@ -1520,11 +1658,11 @@ public class CFGCompiler {
   }
 
   private CFGCompilerUnsupportedBcException failUnsupported(String message) {
-    return new CFGCompilerUnsupportedBcException(message, bcPos, cursor);
+    return new CFGCompilerUnsupportedBcException(message, bc, bcPos, cursor);
   }
 
   private CFGCompilerException fail(String message) {
-    return new CFGCompilerException(message, bcPos, cursor);
+    return new CFGCompilerException(message, bc, bcPos, cursor);
   }
   // endregion misc
 }

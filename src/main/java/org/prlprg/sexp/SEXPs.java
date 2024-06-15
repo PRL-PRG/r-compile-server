@@ -538,12 +538,13 @@ public final class SEXPs {
   public static <T> PrimVectorSXP<T> primVector(SEXPType type, ImmutableList<T> build) {
     if (!build.isEmpty()
         && build.getFirst().getClass()
-            == switch (type) {
-              case LGL -> Logical.class;
+            != switch (type) {
               case INT -> Integer.class;
               case REAL -> Double.class;
-              case STR -> String.class;
+              case LGL -> Logical.class;
+              case RAW -> Byte.class;
               case CPLX -> Complex.class;
+              case STR -> String.class;
               default -> throw new IllegalArgumentException("Unsupported type: " + type);
             }) {
       throw new IllegalArgumentException(
@@ -551,11 +552,12 @@ public final class SEXPs {
     }
 
     return switch (type) {
-      case LGL -> (PrimVectorSXP<T>) logical((List<Logical>) build);
       case INT -> (PrimVectorSXP<T>) integer((List<Integer>) build);
       case REAL -> (PrimVectorSXP<T>) real((List<Double>) build);
-      case STR -> (PrimVectorSXP<T>) string((List<String>) build);
+      case LGL -> (PrimVectorSXP<T>) logical((List<Logical>) build);
+      case RAW -> (PrimVectorSXP<T>) raw((List<Byte>) build);
       case CPLX -> (PrimVectorSXP<T>) complex((List<Complex>) build);
+      case STR -> (PrimVectorSXP<T>) string((List<String>) build);
       default -> throw new IllegalArgumentException("Unsupported type: " + type);
     };
   }
@@ -619,7 +621,7 @@ public final class SEXPs {
                 })
             .collect(ImmutableList.toImmutableList());
 
-    var attributes = s.trySkip(" |") ? p.parse(Attributes.class) : Attributes.NONE;
+    var attributes = s.trySkip("|") ? p.parse(Attributes.class) : Attributes.NONE;
     s.assertAndSkip('>');
 
     return new GenericParse(type, data, attributes);

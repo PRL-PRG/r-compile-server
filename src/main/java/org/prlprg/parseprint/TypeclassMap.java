@@ -366,6 +366,8 @@ class TypeclassMap<A extends Annotation, M extends TypeclassMethod> {
         new Iterator<>() {
           final Deque<Class<?>> worklist = new ArrayDeque<>();
           final Set<Class<?>> seen = new HashSet<>();
+          // Make sure that `Record.class` is iterated last.
+          final boolean isRecord = clazz.isRecord();
 
           {
             worklist.add(clazz);
@@ -377,18 +379,27 @@ class TypeclassMap<A extends Annotation, M extends TypeclassMethod> {
 
           @Override
           public boolean hasNext() {
-            return !worklist.isEmpty();
+            return !worklist.isEmpty() || (isRecord && !seen.contains(Record.class));
           }
 
           @Override
           public Class<?> next() {
+            if (worklist.isEmpty()) {
+              if (isRecord && seen.add(Record.class)) {
+                return Record.class;
+              }
+              throw new IllegalStateException("No more elements");
+            }
+
             var next = worklist.removeFirst();
 
-            if (next.getSuperclass() != null && seen.add(next.getSuperclass())) {
+            if (next.getSuperclass() != null
+                && next.getSuperclass() != Record.class
+                && seen.add(next.getSuperclass())) {
               worklist.add(next.getSuperclass());
             }
             for (var iface : next.getInterfaces()) {
-              if (seen.add(iface)) {
+              if (iface != Record.class && seen.add(iface)) {
                 worklist.add(iface);
               }
             }

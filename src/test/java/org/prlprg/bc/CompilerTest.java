@@ -706,6 +706,6 @@ public class CompilerTest extends AbstractGNURBasedTest implements Tests {
   }
 
   private void assertBytecode(String code) {
-    assertBytecode(code, 2);
+    assertBytecode(code, Compiler.DEFAULT_OPTIMIZATION_LEVEL);
   }
 }

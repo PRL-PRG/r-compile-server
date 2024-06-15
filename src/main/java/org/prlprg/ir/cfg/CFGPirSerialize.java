@@ -454,20 +454,14 @@ class PirInstrOrPhiParseContext {
             yield new StmtData.MkCls(cls);
           }
           case "MkArg" -> {
-            var eagerArg = p.parse(RValue.class);
+            p.parse(RValue.class);
             s.assertAndSkip(", ");
-            var prom = s.readUntil(',');
-            var performsReflection = NoOrMaybe.NO;
-            if (prom.endsWith(" (!refl)")) {
-              performsReflection = NoOrMaybe.MAYBE;
-              prom = prom.substring(0, prom.length() - " (!refl)".length());
-            }
+            s.readUntil(',');
             s.assertAndSkip(", ");
             // If the next character is whitespace, the env is null (I assume same as elided).
-            var env =
-                s.nextCharSatisfies(Character::isWhitespace)
-                    ? StaticEnv.ELIDED
-                    : p.parse(RValue.class);
+            if (!s.nextCharSatisfies(Character::isWhitespace)) {
+              p.parse(RValue.class);
+            }
             yield new StmtData.MkProm(stubPromise());
           }
           case "MkEnv", "(MkEnv)" -> {
@@ -793,7 +787,7 @@ class PirInstrOrPhiParseContext {
   }
 
   private Closure stubClosure(String name) {
-    return new Closure(stubBCodeCloSXP(), name);
+    return new Closure(name, stubBCodeCloSXP());
   }
 
   private ClosureVersion stubClosureVersion(String name) {
@@ -801,7 +795,7 @@ class PirInstrOrPhiParseContext {
   }
 
   private Promise stubPromise() {
-    return new Promise(stubBCode(), new CFG(), StaticEnv.NOT_CLOSED, Properties.EMPTY);
+    return new Promise("stub", stubBCode(), new CFG(), StaticEnv.NOT_CLOSED, Properties.EMPTY);
   }
 
   private CloSXP stubBCodeCloSXP() {
@@ -1260,7 +1254,7 @@ class PirInstrOrPhiPrintContext {
       case StmtData.StVar s -> {
         p.print(s.name());
         w.write(", ");
-        p.print(s.r());
+        p.print(s.value());
         w.write(", ");
         p.print(s.env());
       }
@@ -1368,7 +1362,7 @@ class PirInstrOrPhiPrintContext {
         }
       }
       case StmtData.StaticCall c -> {
-        p.print(c.closureVersion().closure().name());
+        p.print(c.fun().closure().name());
         // REACH: tryOptimizationDispatch hint
         printCallArgs(c, p);
         if (c.fs().isPresent()) {
@@ -1377,11 +1371,11 @@ class PirInstrOrPhiPrintContext {
         }
       }
       case StmtData.CallBuiltin c -> {
-        p.print(c.builtin());
+        p.print(c.fun());
         printCallArgs(c, p);
       }
       case StmtData.CallSafeBuiltin c -> {
-        p.print(c.builtin());
+        p.print(c.fun());
         printCallArgs(c, p);
       }
       case StmtData.IsEnvStub i -> {
@@ -1466,9 +1460,9 @@ class PirInstrOrPhiPrintContext {
   }
 
   /** The given printer must have {@link ArgContext}. */
-  private void printCallArgs(Call_ c, Printer p) {
+  private void printCallArgs(Call_<?> c, Printer p) {
     var w = p.writer();
-    var names = c.names();
+    var names = c.explicitNames();
 
     w.write("(");
     for (var i = 0; i < c.args().size(); i++) {

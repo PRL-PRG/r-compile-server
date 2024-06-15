@@ -235,6 +235,7 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
     public Iterable<? extends InsertPhi<?>> subEdits() {
       return phis.stream()
           .map(
+              // Sometimes this line fails to compile. Clean/recompile and it should magically pass.
               a -> new InsertPhi<>(bbId, a.id(), a.nodeClass(), ImmutableList.copyOf(a.inputIds())))
           .toList();
     }

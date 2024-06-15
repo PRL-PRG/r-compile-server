@@ -1,43 +1,68 @@
-package org.prlprg.sexp;
+package org.prlprg.sexp.parseprint;
 
 import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import org.prlprg.bc.Bc;
+import org.prlprg.ir.cfg.CFG;
+import org.prlprg.ir.closure.Closure;
+import org.prlprg.parseprint.ParseException;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
-import org.prlprg.parseprint.PrettyPrintWriter;
-import org.prlprg.parseprint.PrintMethod;
-import org.prlprg.parseprint.Printer;
 import org.prlprg.parseprint.SkipWhitespace;
 import org.prlprg.primitive.BuiltinId;
 import org.prlprg.primitive.Complex;
 import org.prlprg.primitive.Logical;
 import org.prlprg.primitive.Names;
+import org.prlprg.sexp.Attributes;
+import org.prlprg.sexp.BaseEnvSXP;
+import org.prlprg.sexp.EnvSXP;
+import org.prlprg.sexp.EnvType;
+import org.prlprg.sexp.GlobalEnvSXP;
+import org.prlprg.sexp.NamespaceEnvSXP;
+import org.prlprg.sexp.PromSXP;
+import org.prlprg.sexp.SEXP;
+import org.prlprg.sexp.SEXPOrEnvType;
+import org.prlprg.sexp.SEXPType;
+import org.prlprg.sexp.SEXPs;
+import org.prlprg.sexp.StaticEnvSXP;
+import org.prlprg.sexp.SymOrLangSXP;
+import org.prlprg.sexp.SymSXP;
+import org.prlprg.sexp.TaggedElem;
+import org.prlprg.sexp.UserEnvSXP;
 import org.prlprg.util.UnreachableError;
 
 /**
  * Maps potentially-recursive {@link SEXP}s to integers so they can be deserialized.
  *
- * <p>The class body also implements all of the logic for parsing SEXPs.
+ * <p>If you parse multiple {@link SEXP}s with the same context, the references will be shared
+ * across the parses. This is useful e.g. when parsing {@link CFG} or {@link Closure}, since they
+ * may contain many references to the same large {@link StaticEnvSXP}.
+ *
+ * @implNote All of the logic for parsing SEXPs and {@link Attributes} (but not {@link TaggedElem}s)
+ *     is implemented in this class.
  */
-class SEXPParseContext {
-  private final Map<Integer, SEXP> refMap = new HashMap<>();
+public class SEXPParseContext implements HasSEXPParseContext {
+  private final Map<Integer, SEXP> refs = new HashMap<>();
+
+  /** {@code true} if the character indicates the end of an {@link SEXP} or {@link TaggedElem}. */
+  public static boolean delimitsSEXP(Integer c) {
+    return c == -1 || c == ',' || c == ';' || c == ')' || c == ']' || c == '}' || c == '>';
+  }
+
+  @Override
+  public SEXPParseContext sexpParseContext() {
+    return this;
+  }
 
   @ParseMethod
   private SEXP parseSEXP(Parser p) {
     var s = p.scanner();
 
-    if (s.trySkip('#')) {
-      var refIndex = s.readUInt();
-      var ref = refMap.get(refIndex);
-      if (ref == null) {
-        throw s.fail("Ref index used before it was defined (if at all): " + refIndex);
-      }
-      return ref;
+    if (s.trySkip("<...")) {
+      throw failParsingTruncated(p);
     } else if (s.nextCharSatisfies(Names::isValidStartChar)) {
       // SymOrLangSXP
       SymOrLangSXP result = p.parse(SymSXP.class);
@@ -76,8 +101,8 @@ class SEXPParseContext {
     } else if (s.trySkip('(')) {
       // ListSXP
       return SEXPs.list(parseList(p));
-    } else if (s.nextCharSatisfies(Character::isJavaIdentifierStart)) {
-      var name = s.readJavaIdentifierOrKeyword();
+    } else if (s.nextCharSatisfies(Names::isValidStartChar)) {
+      var name = Names.read(s, false);
       return switch (name) {
         case "NULL" -> SEXPs.NULL;
         case "TRUE" -> SEXPs.TRUE;
@@ -87,30 +112,50 @@ class SEXPParseContext {
         case "NA_REAL" -> SEXPs.NA_REAL;
         case "NA_CPLX" -> SEXPs.NA_COMPLEX;
         case "NA_STR" -> SEXPs.NA_STRING;
-        default -> {
-          if (name.startsWith("NA")) {
+        case "NA" ->
             throw s.fail("NA type (uppercase): NA_LGL, NA_INT, NA_REAL, NA_CPLX, NA_STR", name);
-          } else {
-            throw s.fail("Identifier isn't a known SEXP: " + name);
-          }
-        }
+        default -> SEXPs.symbol(Names.unquoteIfNecessary(name));
       };
-    } else if (s.nextCharSatisfies(Character::isDigit)) {
+    } else if (s.trySkip("<missing>")) {
+      return SEXPs.MISSING_ARG;
+    } else if (s.trySkip("<unbound>")) {
+      return SEXPs.UNBOUND_VALUE;
+    } else if (s.nextCharSatisfies(Character::isDigit)
+        || s.nextCharIs('+')
+        || s.nextCharIs('-')
+        || s.nextCharsAre("NaN")) {
       var decimal = s.readDecimalString();
-      try {
-        return decimal.contains(".")
-            ? SEXPs.real(Double.parseDouble(decimal))
-            : SEXPs.integer(Integer.parseInt(decimal));
-      } catch (NumberFormatException e) {
-        throw s.fail(
-            "integer is too large to parse (or if its a real, I didn't know this was possible): "
-                + decimal);
+      if (s.trySkip('L')) {
+        try {
+          return SEXPs.integer(Integer.parseInt(decimal));
+        } catch (NumberFormatException e) {
+          throw s.fail("integer is too large to parse: " + decimal);
+        }
+      } else {
+        var dbl = Double.parseDouble(decimal);
+        if (s.trySkip('+') || s.nextCharIs('-')) {
+          var imag = s.readDouble();
+          s.assertAndSkip('i');
+          return SEXPs.complex(dbl, imag);
+        }
+        if (s.trySkip('i')) {
+          return SEXPs.complex(0, dbl);
+        } else {
+          return SEXPs.real(dbl);
+        }
       }
     } else if (s.nextCharIs('"')) {
-      return SEXPs.string(s.readQuoted('"'));
+      var str = s.readQuoted('"');
+      if (s.nextCharsAre("...")) {
+        throw failParsingTruncated(p);
+      }
+      return SEXPs.string(str);
     } else if (s.trySkip('<')) {
       var type = s.runWithWhitespacePolicy(SkipWhitespace.NONE, () -> p.parse(SEXPOrEnvType.class));
 
+      // If a ref is found, this is set to the index, we will yield the ref's SEXP in `base` early,
+      // we won't parse attributes, and we will sanity check that the ref SEXP's type is `type`.
+      var foundRefIndex = -1;
       var base =
           switch (type) {
             case SEXPType.LIST -> SEXPs.list(parseList(p));
@@ -123,7 +168,11 @@ class SEXPParseContext {
                 SEXPType.VEC,
                 SEXPType.EXPR -> {
               var elems = new ArrayList<>();
-              if (!s.trySkip("empty")) {
+              if (!s.trySkip('>') && !s.trySkip('|')) {
+                if (s.nextCharsAre("...")) {
+                  throw failParsingTruncated(p);
+                }
+
                 do {
                   var untypedElem = p.parse(SEXP.class);
                   var optTypedElem =
@@ -141,6 +190,10 @@ class SEXPParseContext {
                     throw s.fail("scalar of type " + type, untypedElem.toString());
                   }
                   elems.add(optTypedElem.get());
+
+                  if (s.nextCharsAre("...")) {
+                    throw failParsingTruncated(p);
+                  }
                 } while (s.trySkip(','));
               }
               yield switch ((SEXPType) type) {
@@ -174,18 +227,22 @@ class SEXPParseContext {
               };
             }
             case SEXPType.CLO -> {
-              var parameters = p.parse(ListSXP.class);
-              s.assertAndSkip(" env=");
+              var parameters =
+                  SEXPs.list(
+                      parseList(
+                          p.withContext(new TaggedElem.BindingsParsePrintContext(p.context()))));
+              s.assertAndSkip("env=");
               var env = p.parse(EnvSXP.class);
-              var attributes = s.trySkip(" |") ? p.parse(Attributes.class) : Attributes.NONE;
+              var attributes = s.trySkip("|") ? p.parse(Attributes.class) : Attributes.NONE;
               s.assertAndSkip("⇒");
               var body = p.parse(SEXP.class);
               yield SEXPs.closure(parameters, body, env, attributes);
             }
             case EnvType.USER, EnvType.GLOBAL, EnvType.NAMESPACE, EnvType.BASE, EnvType.EMPTY -> {
               var refIndex = s.trySkip('#') ? s.readUInt() : -1;
-              if (refMap.containsKey(refIndex)) {
-                throw s.fail("Duplicate ref index: " + refIndex);
+              if (refs.containsKey(refIndex)) {
+                foundRefIndex = refIndex;
+                yield refs.get(refIndex);
               }
 
               String name;
@@ -197,6 +254,10 @@ class SEXPParseContext {
               } else {
                 name = null;
                 version = null;
+              }
+
+              if (s.nextCharsAre("...")) {
+                throw failParsingTruncated(p);
               }
 
               var parent = s.trySkip("parent=") ? p.parse(EnvSXP.class) : null;
@@ -263,11 +324,12 @@ class SEXPParseContext {
                   };
 
               if (refIndex != -1) {
-                refMap.put(refIndex, env);
+                refs.put(refIndex, env);
               }
 
               if (hasBindings) {
-                var bindings = parseList(p);
+                var bindings =
+                    parseList(p.withContext(new TaggedElem.BindingsParsePrintContext(p.context())));
                 for (var i = 0; i < bindings.size(); i++) {
                   var binding = bindings.get(i);
                   if (binding.tag() == null) {
@@ -296,6 +358,16 @@ class SEXPParseContext {
             case SEXPType.ENV ->
                 throw s.fail("ENV SEXP must have a specific type (one of the `EnvType` instances)");
             case SEXPType.BCODE -> {
+              var refIndex = s.trySkip('#') ? s.readUInt() : -1;
+              if (refs.containsKey(refIndex)) {
+                foundRefIndex = refIndex;
+                yield refs.get(refIndex);
+              }
+
+              if (s.nextCharsAre("...")) {
+                throw failParsingTruncated(p);
+              }
+
               var bc = p.parse(Bc.class);
               yield SEXPs.bcode(bc);
             }
@@ -322,15 +394,21 @@ class SEXPParseContext {
                         + s.readJavaIdentifierOrKeyword());
           };
 
-      if (type != SEXPType.CLO && s.trySkip("|")) {
-        try {
-          base = base.withAttributes(p.parse(Attributes.class));
-        } catch (UnsupportedOperationException e) {
-          throw s.fail("SEXP of type " + type + " can't have attributes", e);
+      if (foundRefIndex != -1) {
+        if ((base instanceof EnvSXP e ? e.envType() : base.type()) != type) {
+          throw s.fail("Ref " + base + " at index " + foundRefIndex + " has wrong type: " + type);
         }
-      } else if (type == SEXPType.LIST) {
-        throw s.fail(
-            "List SEXP in this syntax must have attributes, otherwise remove the surrounding `<list` and `>`");
+      } else {
+        if (type != SEXPType.CLO && s.trySkip("|")) {
+          try {
+            base = base.withAttributes(p.parse(Attributes.class));
+          } catch (UnsupportedOperationException e) {
+            throw s.fail("SEXP of type " + type + " can't have attributes", e);
+          }
+        } else if (type == SEXPType.LIST) {
+          throw s.fail(
+              "List SEXP in this syntax must have attributes, otherwise remove the surrounding `<list` and `>`");
+        }
       }
 
       s.trySkip('>');
@@ -340,13 +418,26 @@ class SEXPParseContext {
     }
   }
 
+  @ParseMethod
+  private SymSXP parseSymSXP(Parser p) {
+    return SEXPs.symbol(Names.read(p.scanner(), true));
+  }
+
   private ImmutableList<TaggedElem> parseList(Parser p) {
     var s = p.scanner();
 
     var elems = ImmutableList.<TaggedElem>builder();
     if (!s.trySkip(')')) {
+      if (s.nextCharsAre("...")) {
+        throw failParsingTruncated(p);
+      }
+
       do {
         elems.add(p.parse(TaggedElem.class));
+
+        if (s.nextCharsAre("...")) {
+          throw failParsingTruncated(p);
+        }
       } while (s.trySkip(','));
       s.assertAndSkip(')');
     }
@@ -355,193 +446,32 @@ class SEXPParseContext {
   }
 
   @ParseMethod
-  private SymSXP parseSymSXP(Parser p) {
+  private Attributes parseAttributes(Parser p) {
     var s = p.scanner();
-    var name = Names.read(s, true);
 
-    return name.equals("...") ? SEXPs.DOTS_SYMBOL : new RegSymSXP(name);
-  }
-}
-
-/**
- * Maps potentially-recursive {@link SEXP}s to integers to they can be serialized.
- *
- * <p>The class body also implements all of the logic for printing SEXPs.
- */
-class SEXPPrintContext {
-  private final Map<SEXP, Integer> refs = new HashMap<>();
-
-  // `NilSXP` and `SymSXP` print themselves via `toString()` because they are constants
-
-  @PrintMethod
-  private void print(LangSXP sexp, Printer p) {
-    var w = p.writer();
-
-    if (sexp.funNameIs("{")) {
-      if (sexp.args().isEmpty()) {
-        w.write("{}");
-      } else {
-        w.write('{');
-        w.runIndented(
-            () -> {
-              w.write('\n');
-              var first = true;
-              for (var arg : sexp.args()) {
-                if (!first) {
-                  w.write(";\n");
-                }
-                p.print(arg);
-                first = false;
-              }
-            });
-        w.write("\n}");
+    var attrs = new Attributes.Builder();
+    if (!s.nextCharSatisfies(SEXPParseContext::delimitsSEXP)) {
+      if (s.nextCharsAre("...")) {
+        throw failParsingTruncated(p);
       }
-    } else {
-      p.print(sexp.fun());
-      p.print(sexp.args());
+
+      do {
+        var key = Names.read(s, true);
+        s.assertAndSkip('=');
+        var value = p.parse(SEXP.class);
+        attrs.put(key, value);
+
+        if (s.nextCharsAre("...")) {
+          throw failParsingTruncated(p);
+        }
+      } while (s.trySkip(','));
     }
+    return attrs.build();
   }
 
-  @PrintMethod
-  private void print(ListSXP sexp, Printer p) {
-    if (sexp.hasAttributes()) {
-      printGeneralStart(sexp.type(), p);
-      printList(sexp, p);
-      printAttributes(sexp, p);
-      printGeneralEnd(p);
-    } else {
-      printList(sexp, p);
-    }
-  }
-
-  @PrintMethod
-  private void print(VectorSXP<?> sexp, Printer p) {
-    printGeneralStart(sexp.type(), p);
-    printElems(sexp, p);
-    printAttributes(sexp, p);
-    printGeneralEnd(p);
-  }
-
-  @PrintMethod
-  private void print(CloSXP sexp, Printer p) {
-    var w = p.writer();
-
-    printGeneralStart(sexp.type(), p);
-    p.print(sexp.parameters());
-    w.write(" env=");
-    w.runIndented(() -> p.print(sexp.env()));
-    printAttributes(sexp, p);
-    w.write(" ⇒ ");
-    w.runIndented(() -> p.print(sexp.body()));
-    printGeneralEnd(p);
-  }
-
-  @PrintMethod
-  private void print(EnvSXP sexp, Printer p) {
-    var w = p.writer();
-
-    if (refs.containsKey(sexp)) {
-      w.write('#');
-      p.print(refs.get(sexp));
-      return;
-    }
-
-    w.write('<');
-    p.print(sexp.envType());
-    if (!(sexp instanceof EmptyEnvSXP)) {
-      w.write('#');
-      p.print(refs.size());
-      refs.put(sexp, refs.size());
-    }
-    w.write(' ');
-    if (sexp instanceof NamespaceEnvSXP ns) {
-      w.write(Names.quoteIfNecessary(ns.name()));
-      w.write(':');
-      w.write(ns.version());
-    }
-    if (!(sexp instanceof EmptyEnvSXP)) {
-      w.write(" parent=");
-      w.runIndented(() -> p.print(sexp.parent()));
-    }
-    printList(sexp.bindingsAsTaggedElems(), p);
-    printAttributes(sexp, p);
-    printGeneralEnd(p);
-  }
-
-  @PrintMethod
-  private void print(BCodeSXP sexp, Printer p) {
-    printGeneralStart(sexp.type(), p);
-    p.print(sexp.bc());
-    printGeneralEnd(p);
-  }
-
-  @PrintMethod
-  private void print(PromSXP sexp, Printer p) {
-    var w = p.writer();
-
-    printGeneralStart(sexp.type(), p);
-    w.write("env=");
-    w.runIndented(() -> p.print(sexp.env()));
-    if (sexp.isEvaluated()) {
-      w.write(" val=");
-      w.runIndented(() -> p.print(sexp.val()));
-    }
-    w.write(" ⇒ ");
-    w.runIndented(() -> p.print(sexp.expr()));
-    printGeneralEnd(p);
-  }
-
-  @PrintMethod
-  private void print(BuiltinOrSpecialSXP sexp, Printer p) {
-    printGeneralStart(sexp.type(), p);
-    p.print(sexp.id());
-    printGeneralEnd(p);
-  }
-
-  private void printGeneralStart(SEXPType type, Printer p) {
-    var w = p.writer();
-
-    w.write('<');
-    p.print(type);
-    w.write(' ');
-  }
-
-  private void printAttributes(SEXP sexp, Printer p) {
-    var w = p.writer();
-
-    if (sexp.hasAttributes()) {
-      w.write(" | ");
-      w.runIndented(
-          PrettyPrintWriter.DEFAULT_INDENT * 2,
-          () -> p.print(Objects.requireNonNull(sexp.attributes())));
-    }
-  }
-
-  private void printGeneralEnd(Printer p) {
-    p.writer().write('>');
-  }
-
-  private void printList(Iterable<TaggedElem> list, Printer p) {
-    var w = p.writer();
-
-    w.write("(");
-    printElems(list, p);
-    w.write(")");
-  }
-
-  private void printElems(Iterable<?> list, Printer p) {
-    var w = p.writer();
-
-    w.runIndented(
-        () -> {
-          var first = true;
-          for (var elem : list) {
-            if (!first) {
-              w.write(", ");
-            }
-            p.print(elem);
-            first = false;
-          }
-        });
+  private ParseException failParsingTruncated(Parser p) {
+    return p.scanner()
+        .fail(
+            "Encountered SEXP that was truncated when printed. Only SEXPs printed with `SEXPPrintOptions#FULL` can be re-parsed.");
   }
 }

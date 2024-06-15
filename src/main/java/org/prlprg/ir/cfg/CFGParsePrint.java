@@ -1,14 +1,35 @@
 package org.prlprg.ir.cfg;
 
+import com.google.common.collect.ImmutableList;
+import java.lang.reflect.RecordComponent;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import javax.annotation.Nullable;
+import org.prlprg.ir.cfg.StmtData.Call_;
+import org.prlprg.ir.cfg.StmtData.StVar;
 import org.prlprg.ir.closure.Closure;
+import org.prlprg.ir.closure.ClosureVersion;
 import org.prlprg.ir.closure.Promise;
 import org.prlprg.parseprint.ClassProvidingContext;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
+import org.prlprg.parseprint.SkipWhitespace;
+import org.prlprg.primitive.Names;
+import org.prlprg.sexp.RegSymSXP;
+import org.prlprg.sexp.SEXP;
+import org.prlprg.sexp.SEXPs;
+import org.prlprg.sexp.SymOrLangSXP;
+import org.prlprg.sexp.TaggedElem;
+import org.prlprg.sexp.parseprint.HasSEXPParseContext;
+import org.prlprg.sexp.parseprint.HasSEXPPrintContext;
+import org.prlprg.sexp.parseprint.SEXPParseContext;
+import org.prlprg.sexp.parseprint.SEXPPrintContext;
+import org.prlprg.util.Reflection;
 
 /** CFG's syntax is inspired by <a href="https://mlir.llvm.org/docs/LangRef/">MLIR</a>. */
 public interface CFGParsePrint {
@@ -48,28 +69,52 @@ public interface CFGParsePrint {
     p.print(cfg.nextBBDisambiguatorWithoutIncrementing());
     w.write(", nextInstrOrPhiDisambiguator=");
     p.print(cfg.nextInstrOrPhiDisambiguatorWithoutIncrementing());
-    w.write("):\n");
+    w.write("):");
 
     var cfgP = p.withContext(new CFGParseOrPrintContext(p.context(), cfg));
     var iter = new CFGIterator.Bfs(cfg);
-    iter.forEachRemaining(cfgP::print);
+    iter.forEachRemaining(
+        bb -> {
+          w.write('\n');
+          cfgP.print(bb);
+        });
 
     if (!iter.remainingBBIds().isEmpty()) {
-      w.write("// !!! Free BBs:\n");
+      w.write("\n// !!! Free BBs:");
       for (var bbId : iter.remainingBBIds()) {
+        w.write('\n');
         cfgP.print(cfg.get(bbId));
       }
     }
   }
 }
 
-class CFGParseOrPrintContext {
+class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext {
   private final @Nullable Object outerContext;
+  private final SEXPParseContext sexpParseContext;
+  private final SEXPPrintContext sexpPrintContext;
   private final CFG cfg;
 
   CFGParseOrPrintContext(@Nullable Object outerContext, CFG cfg) {
     this.outerContext = outerContext;
+    this.sexpParseContext =
+        outerContext instanceof HasSEXPParseContext h
+            ? h.sexpParseContext()
+            : new SEXPParseContext();
+    this.sexpPrintContext =
+        outerContext instanceof HasSEXPPrintContext h
+            ? h.sexpPrintContext()
+            : new SEXPPrintContext();
     this.cfg = cfg;
+  }
+
+  @Override
+  public SEXPParseContext sexpParseContext() {
+    return sexpParseContext;
+  }
+
+  public SEXPPrintContext sexpPrintContext() {
+    return sexpPrintContext;
   }
 
   @ParseMethod
@@ -79,7 +124,7 @@ class CFGParseOrPrintContext {
     var id = p.parse(BBId.class);
     var bb = cfg.addBBWithId(id);
 
-    var bbP = p.withContext(new BBParseOrPrintContext(outerContext, cfg, bb));
+    var bbP = p.withContext(bbContext(bb));
 
     // Phis
     if (s.trySkip('(')) {
@@ -106,54 +151,81 @@ class CFGParseOrPrintContext {
   @PrintMethod
   private void printBB(BB bb, Printer p) {
     var w = p.writer();
-    var bbP = p.withContext(new BBParseOrPrintContext(outerContext, cfg, bb));
+    var bbP = p.withContext(bbContext(bb));
 
     p.print(bb.id());
 
-    // Phis
-    if (!bb.phis().isEmpty()) {
-      w.write("(\n    ");
-      var first = true;
-      for (var phi : bb.phis()) {
-        if (first) {
-          first = false;
-        } else {
-          w.write(",\n    ");
-        }
-        bbP.print(phi);
-      }
-      w.write(')');
-    }
+    w.runIndented(
+        () -> {
+          // Phis
+          if (!bb.phis().isEmpty()) {
+            w.runIndented(
+                () -> {
+                  w.write("(\n");
+                  var first = true;
+                  for (var phi : bb.phis()) {
+                    if (first) {
+                      first = false;
+                    } else {
+                      w.write(",\n");
+                    }
+                    bbP.print(phi);
+                  }
+                  w.write(')');
+                });
+          }
 
-    // Instructions (statements and jump)
-    w.write(":\n");
-    // Statements
-    for (var stmt : bb.stmts()) {
-      w.write("  ");
-      bbP.print(stmt);
-      w.write(";\n");
-    }
-    // Jump
-    w.write("  ");
-    if (bb.jump() != null) {
-      bbP.print(bb.jump());
-    } else {
-      w.write("null");
-    }
-    w.write(";\n");
+          // Instructions (statements and jump)
+          w.write(":\n");
+          // Statements
+          for (var stmt : bb.stmts()) {
+            bbP.print(stmt);
+            w.write(";\n");
+          }
+          // Jump
+          if (bb.jump() != null) {
+            bbP.print(bb.jump());
+          } else {
+            w.write("null");
+          }
+        });
+    w.write(";");
+  }
+
+  private BBParseOrPrintContext bbContext(BB bb) {
+    return new BBParseOrPrintContext(outerContext, sexpParseContext, sexpPrintContext, cfg, bb);
   }
 }
 
-class BBParseOrPrintContext {
+class BBParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext {
   private final @Nullable Object outerContext;
+  private final SEXPParseContext sexpParseContext;
+  private final SEXPPrintContext sexpPrintContext;
   private final CFG cfg;
   private final @Nullable BB bb;
   private final DataContext dataContext = new DataContext();
 
-  public BBParseOrPrintContext(@Nullable Object outerContext, CFG cfg, @Nullable BB bb) {
+  public BBParseOrPrintContext(
+      @Nullable Object outerContext,
+      SEXPParseContext sexpParseContext,
+      SEXPPrintContext sexpPrintContext,
+      CFG cfg,
+      @Nullable BB bb) {
     this.outerContext = outerContext;
+    this.sexpParseContext = sexpParseContext;
+    this.sexpPrintContext = sexpPrintContext;
     this.cfg = cfg;
     this.bb = bb;
+  }
+
+  @Override
+  public SEXPParseContext sexpParseContext() {
+    return sexpParseContext;
+  }
+
+  @Override
+  public SEXPPrintContext sexpPrintContext() {
+    return sexpPrintContext;
   }
 
   @ParseMethod
@@ -169,7 +241,7 @@ class BBParseOrPrintContext {
 
     var inputP = p.withContext(dataContext);
     var inputs = new ArrayList<Phi.Input<?>>();
-    s.assertAndSkip(" = φ(");
+    s.assertAndSkip("= φ(");
     while (!s.trySkip(')')) {
       inputs.add(inputP.parse(Phi.Input.class));
       if (s.trySkip(')')) {
@@ -246,7 +318,23 @@ class BBParseOrPrintContext {
     w.runIndented(() -> p.withContext(dataContext).print(instr.data()));
   }
 
-  private class DataContext implements ClassProvidingContext {
+  private class DataContext
+      implements HasSEXPParseContext, HasSEXPPrintContext, ClassProvidingContext {
+    @Override
+    public SEXPParseContext sexpParseContext() {
+      return sexpParseContext;
+    }
+
+    @Override
+    public SEXPPrintContext sexpPrintContext() {
+      return sexpPrintContext;
+    }
+
+    @Override
+    public @Nullable Class<?> getClass(String className) {
+      return InstrData.CLASSES.get(className);
+    }
+
     @ParseMethod
     private Phi.Input<?> parsePhiInput(Parser p) {
       var s = p.scanner();
@@ -297,6 +385,24 @@ class BBParseOrPrintContext {
     }
 
     @ParseMethod
+    private ClosureVersion parseInnerClosureVersion(Parser p) {
+      var s = p.scanner();
+
+      var closure = p.parse(Closure.class);
+      s.assertAndSkip('#');
+      var versionIndex = s.readUInt();
+
+      return closure.getVersion(versionIndex);
+    }
+
+    @PrintMethod
+    private void printInnerClosureVersion(ClosureVersion version, Printer p) {
+      p.print(version.closure());
+      p.writer().write('#');
+      p.print(version.index());
+    }
+
+    @ParseMethod
     private Promise parsePromise(Parser p) {
       return p.withContext(outerContext).parse(Promise.class);
     }
@@ -306,9 +412,234 @@ class BBParseOrPrintContext {
       p.withContext(outerContext).print(promise);
     }
 
-    @Override
-    public @Nullable Class<?> getClass(String className) {
-      return InstrData.CLASSES.get(className);
+    // region custom `StmtData` and `JumpData`
+
+    // TODO: Implement `ParseMethod` and `PrintMethod` better and fix `ParseMethod`, or revert all
+    //  in this region
+    // @ParseMethod
+    // private InstrData<?> parseInstrData(Parser p) {
+    //   var s = p.scanner();
+    // }
+
+    @ParseMethod
+    private Call_<?> parseCallData(Parser p, Class<? extends Call_<?>> clazz) {
+      var components = clazz.getRecordComponents();
+      RecordComponent ast1Component = null;
+      RecordComponent funComponent = null;
+      RecordComponent explicitNamesComponent = null;
+      RecordComponent argsComponent = null;
+      for (var component : components) {
+        switch (component.getName()) {
+          case "ast1" -> ast1Component = component;
+          case "fun" -> funComponent = component;
+          case "explicitNames" -> explicitNamesComponent = component;
+          case "args" -> argsComponent = component;
+        }
+      }
+      assert ast1Component != null : "Call_ has no `ast1` component";
+      assert funComponent != null : "Call_ has no `fun` component";
+      assert argsComponent != null : "Call_ has no `args` component";
+
+      var s = p.scanner();
+
+      s.assertAndSkip(clazz.getSimpleName());
+      s.assertAndSkip('(');
+
+      var fun = p.parse(RValue.class);
+      SymOrLangSXP astFun = null;
+      if (s.trySkip('[')) {
+        astFun = p.parse(SymOrLangSXP.class);
+        s.assertAndSkip(']');
+      }
+
+      s.assertAndSkip('(');
+      var explicitNames =
+          explicitNamesComponent == null ? null : ImmutableList.<Optional<String>>builder();
+      var args = ImmutableList.<RValue>builder();
+      var astArgs = astFun == null ? null : ImmutableList.<TaggedElem>builder();
+      if (!s.trySkip(')')) {
+        do {
+          var hasExplicitName =
+              s.nextCharSatisfies(Names::isValidStartChar) && !NodeId.isNodeIdStart(s);
+          String astName = null;
+          if (hasExplicitName) {
+            if (explicitNames == null) {
+              throw s.fail(
+                  "`"
+                      + clazz.getSimpleName()
+                      + "` doesn't have explicit names, but we encountered one");
+            }
+
+            astName = Names.read(s, true);
+            explicitNames.add(Optional.of(astName));
+          } else if (explicitNames != null) {
+            explicitNames.add(Optional.empty());
+          }
+
+          // If this is `false` then `astName` is the explicit name, hence it's assigned above.
+          // But if `true` it gets re-assigned.
+          var hasExplicitAstName = s.trySkip('[');
+          if (hasExplicitAstName) {
+            if (astArgs == null) {
+              throw new UnsupportedOperationException(
+                  "`"
+                      + clazz.getSimpleName()
+                      + "` doesn't have an AST, but we encountered an AST name");
+            }
+
+            astName = s.nextCharIs(']') ? null : Names.read(s, true);
+            s.assertAndSkip(']');
+          }
+
+          if (hasExplicitName || astName != null) {
+            s.assertAndSkip('=');
+          }
+
+          args.add(p.parse(RValue.class));
+
+          SEXP astDefaultValue;
+          if (s.trySkip('[')) {
+            astDefaultValue = p.parse(SEXP.class);
+            s.assertAndSkip(']');
+          } else {
+            astDefaultValue = SEXPs.MISSING_ARG;
+          }
+
+          if (astArgs != null) {
+            astArgs.add(new TaggedElem(astName, astDefaultValue));
+          }
+        } while (s.trySkip(','));
+        s.assertAndSkip(')');
+      }
+
+      var ast = astFun == null ? null : SEXPs.lang(astFun, astArgs.build());
+
+      var ctorArgs =
+          Arrays.stream(components)
+              .map(
+                  component ->
+                      switch (component.getName()) {
+                        case "ast1" -> Optional.ofNullable(ast);
+                        case "fun" -> fun;
+                        case "explicitNames" -> Objects.requireNonNull(explicitNames).build();
+                        case "args" -> args.build();
+                        default -> {
+                          s.assertAndSkip(component.getName());
+                          s.assertAndSkip('=');
+                          yield p.parse(component.getGenericType(), SkipWhitespace.ALL);
+                        }
+                      })
+              .toArray();
+      return Reflection.construct(clazz, ctorArgs);
     }
+
+    @PrintMethod
+    private void printCallData(Call_<?> call, Printer p) {
+      var clazz = call.getClass();
+      var ast = call.ast();
+      var fun = call.fun();
+      var explicitNames = call.explicitNames();
+      var args = call.args();
+      var w = p.writer();
+
+      w.write(clazz.getSimpleName());
+      w.write('(');
+
+      p.print(fun);
+      if (ast != null) {
+        w.write('[');
+        p.print(ast.fun());
+        w.write(']');
+      }
+
+      w.write('(');
+      for (var i = 0; i < args.size(); i++) {
+        if (i > 0) {
+          w.write(", ");
+        }
+        if (explicitNames != null && explicitNames.get(i).isPresent()) {
+          var explicitName = explicitNames.get(i).get();
+          w.write(Names.quoteIfNecessary(explicitName));
+          if (ast != null) {
+            var argName = i < ast.args().size() ? ast.argName(i) : null;
+            if (argName == null) {
+              w.write("[]");
+            } else if (!explicitName.equals(argName.name())) {
+              w.write('[');
+              p.print(argName);
+              w.write(']');
+            }
+          }
+          w.write('=');
+        } else if (ast != null && i < ast.args().size() && ast.argName(i) != null) {
+          w.write('[');
+          p.print(Objects.requireNonNull(ast.argName(i)));
+          w.write("]=");
+        }
+        p.print(args.get(i));
+        if (ast != null && i < ast.args().size() && ast.arg(i) != SEXPs.MISSING_ARG) {
+          w.write('[');
+          p.print(ast.arg(i));
+          w.write(']');
+        }
+      }
+      w.write(')');
+
+      if (!(call instanceof Record r)) {
+        throw new AssertionError("All `StmtData` must be records");
+      }
+      for (var component : clazz.getRecordComponents()) {
+        if (List.of("ast1", "fun", "explicitNames", "args").contains(component.getName())) {
+          // Already handled above.
+          continue;
+        }
+
+        w.write(", ");
+        w.write(component.getName());
+        w.write('=');
+        p.print(Reflection.getComponent(r, component));
+      }
+
+      w.write(')');
+    }
+
+    @ParseMethod
+    private StVar parseStVar(Parser p) {
+      var s = p.scanner();
+
+      boolean isArg;
+      if (s.trySkip("StArg")) {
+        isArg = true;
+      } else if (s.trySkip("StVar")) {
+        isArg = false;
+      } else {
+        throw s.fail("`StArg` or `StVar`", s.readJavaIdentifierOrKeyword());
+      }
+
+      s.assertAndSkip('(');
+      var name = p.parse(RegSymSXP.class);
+      s.assertAndSkip("<-");
+      var value = p.parse(RValue.class);
+      s.assertAndSkip(", env=");
+      var env = p.parse(RValue.class);
+      s.assertAndSkip(')');
+
+      return new StVar(name, value, env, isArg);
+    }
+
+    @PrintMethod
+    private void printStVar(StVar stVar, Printer p) {
+      var w = p.writer();
+
+      w.write(stVar.isArg() ? "StArg" : "StVar");
+      w.write('(');
+      p.print(stVar.name());
+      w.write(" <- ");
+      p.print(stVar.value());
+      w.write(", env=");
+      p.print(stVar.env());
+      w.write(')');
+    }
+    // endregion custom `StmtData` and `JumpData`
   }
 }

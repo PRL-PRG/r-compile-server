@@ -3,6 +3,7 @@ package org.prlprg.sexp;
 import com.google.common.collect.ImmutableList;
 import java.util.Optional;
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
@@ -34,6 +35,8 @@ public sealed interface LangSXP extends SymOrLangSXP {
   @Override
   LangSXP withAttributes(Attributes attributes);
 
+  @Nullable RegSymSXP argName(int i);
+
   SEXP arg(int i);
 
   ListSXP asList();
@@ -62,6 +65,11 @@ record LangSXPImpl(SymOrLangSXP fun, ListSXP args, @Override Attributes attribut
   @Override
   public LangSXP withAttributes(Attributes attributes) {
     return SEXPs.lang(fun, args, attributes);
+  }
+
+  @Override
+  public @Nullable RegSymSXP argName(int i) {
+    return args.get(i).tagAsSymbol();
   }
 
   @Override

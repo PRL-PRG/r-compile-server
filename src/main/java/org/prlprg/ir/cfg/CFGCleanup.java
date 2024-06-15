@@ -74,7 +74,7 @@ interface CFGCleanup extends CFGQuery, CFGAnalyses, CFGIntrinsicMutate, CFGCompo
           }
 
           // Remove basic blocks that are unreachable from the entry block [2].
-          removeAll(iter.remainingBBIds);
+          removeAll(iter.remainingBBIds());
         });
   }
 }

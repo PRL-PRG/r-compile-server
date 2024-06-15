@@ -6,11 +6,11 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.function.Function;
-import org.jetbrains.annotations.Unmodifiable;
+import org.jetbrains.annotations.UnmodifiableView;
 
 /** Readonly view created by applying a function to each of another list's elements. */
-@Unmodifiable
-public final class MapListView<I, O> implements List<O> {
+@UnmodifiableView
+final class MapListView<I, O> implements List<O> {
   private final List<I> backing;
   private final Function<I, O> f;
 

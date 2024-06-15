@@ -13,6 +13,10 @@ import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.primitive.Complex;
 import org.prlprg.primitive.Logical;
+import org.prlprg.sexp.parseprint.HasSEXPParseContext;
+import org.prlprg.sexp.parseprint.HasSEXPPrintContext;
+import org.prlprg.sexp.parseprint.SEXPParseContext;
+import org.prlprg.sexp.parseprint.SEXPPrintContext;
 
 /**
  * R runtime object: every value, expression, AST node, etc. in R's runtime is an SEXP.
@@ -151,12 +155,23 @@ public sealed interface SEXP
   // region serialization and deserialization
   @ParseMethod
   private static SEXP parse(Parser p) {
-    return p.withContext(new SEXPParseContext()).parse(SEXP.class);
+    return p.withContext(
+            p.context() instanceof HasSEXPParseContext h
+                ? h.sexpParseContext()
+                : new SEXPParseContext())
+        .parse(SEXP.class);
   }
 
   @PrintMethod
   private void print(Printer p) {
-    p.withContext(new SEXPPrintContext()).print(this);
+    p.withContext(
+            p.context() instanceof HasSEXPPrintContext h
+                ? h.sexpPrintContext()
+                : new SEXPPrintContext())
+        .print(this);
   }
+
+  // `toString` is overridden in every subclass to call `Printer.toString(this)`.
+
   // endregion serialization and deserialization
 }
