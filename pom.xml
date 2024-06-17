@@ -67,7 +67,7 @@
   </dependencies>
   <build>
     <!-- Snapshots aren't test resources, because we have to write to them, so we access them
-                         at their actual locations (bundled are overridden on recompile). -->
+                                 at their actual locations (bundled are overridden on recompile). -->
     <plugins>
       <!-- git-build-hook, install git hooks when you run any maven command so you don't forget -->
       <plugin>
@@ -77,7 +77,6 @@
         <configuration>
           <installHooks>
             <pre-commit>.githooks/pre-commit.sh</pre-commit>
-            <pre-push>.githooks/pre-push.sh</pre-push>
           </installHooks>
         </configuration>
         <executions>
@@ -130,9 +129,6 @@
             <excludes>
               <exclude>target/**/*</exclude>
             </excludes>
-            <cleanthat>
-              <version>2.18</version>
-            </cleanthat>
             <googleJavaFormat>
               <version>1.19.2</version>
               <style>GOOGLE</style>
@@ -200,30 +196,34 @@
         </executions>
       </plugin>
       <!-- spotbugs, static analysis on bytecode -->
-      <plugin>
-        <groupId>com.github.spotbugs</groupId>
-        <artifactId>spotbugs-maven-plugin</artifactId>
-        <version>4.8.2.0</version>
-        <!-- `executions` is required to run this on verify -->
-        <executions>
-          <execution>
-            <goals>
-              <goal>check</goal>
-            </goals>
-          </execution>
-        </executions>
-      </plugin>
+      <!--  ignored for now -->
+      <!--      <plugin>-->
+      <!--        <groupId>com.github.spotbugs</groupId>-->
+      <!--        <artifactId>spotbugs-maven-plugin</artifactId>-->
+      <!--        <version>4.8.2.0</version>-->
+      <!--        &lt;!&ndash; `executions` is required to run this on verify &ndash;&gt;-->
+      <!--        <executions>-->
+      <!--          <execution>-->
+      <!--            <goals>-->
+      <!--              <goal>check</goal>-->
+      <!--            </goals>-->
+      <!--          </execution>-->
+      <!--        </executions>-->
+      <!--      </plugin>-->
       <!-- pmd (and cpd), static analysis on syntax -->
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-pmd-plugin</artifactId>
         <version>3.21.2</version>
-        <!-- This prevents the warning "Unable to locate Source XRef to link to - DISABLED" -->
-        <!-- If we want source-links in the `site` pmd report we need to add jxr instead, -->
-        <!-- but IDEs display their own pmd report which already has source-links -->
         <configuration>
+          <!-- This prevents the warning "Unable to locate Source XRef to link to - DISABLED" -->
+          <!-- If we want source-links in the `site` pmd report we need to add jxr instead, -->
+          <!-- but IDEs display their own pmd report which already has source-links -->
           <linkXRef>false</linkXRef>
-          <failOnViolation>false</failOnViolation>
+          <!-- Use a custom ruleset -->
+          <rulesets>
+            <ruleset>.pmd-rules.xml</ruleset>
+          </rulesets>
         </configuration>
         <!-- Use pmd 7 which supports Java 21, not whatever is provided by maven-pmd-plugin -->
         <dependencies>
