@@ -1,6 +1,7 @@
 package org.prlprg.sexp;
 
-import java.util.Objects;
+import com.google.common.collect.Streams;
+import java.util.*;
 import javax.annotation.Nullable;
 
 /**
@@ -18,7 +19,9 @@ public sealed interface SEXP
         CloSXP,
         EnvSXP,
         BCodeSXP,
-        PromSXP {
+        PromSXP,
+        BuiltinSXP,
+        SpecialSXP {
   /**
    * SEXPTYPE. It's important to distinguish these from the SEXP's class, because there's a class
    * for every type but not vice versa due to subclasses (e.g. simple-scalar ints have the same
@@ -27,8 +30,17 @@ public sealed interface SEXP
   SEXPType type();
 
   /**
+   * The canonical class of this SEXP in the Java land. For example, there are specialized classes
+   * for simple scalars, but they all have the same SEXPType. Every SEXP that override the {@link
+   * #type()} method should also override this method.
+   *
+   * @return the Java class of this SEXP
+   */
+  Class<? extends SEXP> getCanonicalType();
+
+  /**
    * @return {@code null} if the SEXP doesn't support attributes ({@link #withAttributes} throws an
-   *     exception) and {@code Attributes.NONE} if it does but there are none.
+   *     exception) and {@link Attributes.NONE} if it does but there are none.
    */
   default @Nullable Attributes attributes() {
     return null;
@@ -49,6 +61,53 @@ public sealed interface SEXP
   default SEXP withClass(String name) {
     var attrs = Objects.requireNonNull(attributes()).including("class", SEXPs.string(name));
     return withAttributes(attrs);
+  }
+
+  /**
+   * The implementation of the is.function() which eventually calls the isFunction() from
+   * Rinlinedfuns.h
+   *
+   * @return {@code true} if this SEXP is a function (closure, builtin, or special).
+   */
+  default boolean isFunction() {
+    return this instanceof CloSXP || this instanceof BuiltinSXP || this instanceof SpecialSXP;
+  }
+
+  default SEXP withNames(String name) {
+    return withNames(SEXPs.string(name));
+  }
+
+  default SEXP withNames(Collection<String> names) {
+    return withNames(SEXPs.string(names));
+  }
+
+  default SEXP withNames(StrSXP names) {
+    if (names.isEmpty()) {
+      return withAttributes(Objects.requireNonNull(attributes()).excluding("names"));
+    } else {
+      return withAttributes(Objects.requireNonNull(attributes()).including("names", names));
+    }
+  }
+
+  default List<String> names() {
+    var names = Objects.requireNonNull(attributes()).get("names");
+    if (names == null) {
+      return List.of();
+    } else {
+      return Streams.stream((StrSXP) names).toList();
+    }
+  }
+
+  default boolean typeOneOf(SEXPType... types) {
+    return Arrays.stream(types).anyMatch(t -> t == type());
+  }
+
+  default Optional<LangSXP> asLang() {
+    return as(LangSXP.class);
+  }
+
+  default <T extends SEXP> Optional<T> as(Class<T> clazz) {
+    return clazz.isInstance(this) ? Optional.of(clazz.cast(this)) : Optional.empty();
   }
 
   default boolean isObject() {

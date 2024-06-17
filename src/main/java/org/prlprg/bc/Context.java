@@ -5,15 +5,22 @@ import java.util.LinkedList;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import javax.annotation.Nullable;
 import org.prlprg.sexp.*;
 import org.prlprg.util.Pair;
+
+record Loop(BcLabel start, BcLabel end, boolean gotoOK) {
+  public Loop gotoNotOK() {
+    return new Loop(start, end, false);
+  }
+}
 
 public class Context {
   private final boolean topLevel;
   private final boolean tailCall;
   private final boolean returnJump;
   private final EnvSXP environment;
-  private final Loop loop;
+  private final @Nullable Loop loop;
 
   /**
    * @param topLevel {@code true} for top level expressions, {@code false} otherwise (e.g.,
@@ -23,9 +30,14 @@ public class Context {
    *     is contained in a loop.
    * @param returnJump {@code true} indicated that the call to return needs {@code RETURNJMP}.
    * @param environment the compilation environment.
-   * @param loop
+   * @param loop the loop context or {@code null} if the context does not contain a loop.
    */
-  Context(boolean topLevel, boolean tailCall, boolean returnJump, EnvSXP environment, Loop loop) {
+  Context(
+      boolean topLevel,
+      boolean tailCall,
+      boolean returnJump,
+      EnvSXP environment,
+      @Nullable Loop loop) {
     this.topLevel = topLevel;
     this.tailCall = tailCall;
     this.returnJump = returnJump;
@@ -33,16 +45,20 @@ public class Context {
     this.loop = loop;
   }
 
+  public static Context topLevelContext(EnvSXP env) {
+    return new Context(true, true, false, env, null);
+  }
+
   public static Context functionContext(CloSXP fun) {
     var env = new UserEnvSXP(fun.env());
-    var ctx = new Context(false, true, false, env, new Loop.NotInLoop());
+    var ctx = topLevelContext(env);
 
-    return ctx.functionContext(fun.formals(), fun.body());
+    return ctx.functionContext(fun.formals(), fun.bodyAST());
   }
 
   public Context functionContext(ListSXP formals, SEXP body) {
     var env = new UserEnvSXP(environment);
-    var ctx = new Context(false, true, false, env, loop);
+    var ctx = new Context(true, true, false, env, loop);
 
     formals.names().forEach(x -> env.set(x, SEXPs.UNBOUND_VALUE));
     for (var v : formals.values()) {
@@ -65,11 +81,12 @@ public class Context {
     // The promise context also sets returnJump since a return call that is triggered by forcing a
     // promise
     // requires a longjmp to return from the appropriate function.
-    return new Context(false, true, true, environment, loop.gotoNotOK());
+    return new Context(false, true, true, environment, loop != null ? loop.gotoNotOK() : null);
   }
 
   public Context argContext() {
-    return new Context(false, false, returnJump, environment, loop.gotoNotOK());
+    return new Context(
+        false, false, returnJump, environment, loop != null ? loop.gotoNotOK() : null);
   }
 
   public Context loopContext(BcLabel start, BcLabel end) {
@@ -79,11 +96,11 @@ public class Context {
         nctx.tailCall,
         nctx.returnJump,
         nctx.environment,
-        new Loop.InLoop(start, end, true));
+        new Loop(start, end, true));
   }
 
   public boolean isBaseVersion(String name) {
-    return environment.find(name).map(b -> b.first() instanceof BaseEnvSXP).orElse(false);
+    return environment.find(name).map(b -> b.first().isBase()).orElse(false);
   }
 
   public Optional<Pair<EnvSXP, SEXP>> resolve(String name) {
@@ -105,11 +122,11 @@ public class Context {
       var elem = todo.removeFirst();
       if (elem instanceof LangSXP l && l.fun() instanceof RegSymSXP fun) {
         var args = l.args().values();
-        var local =
+        Optional<String> local =
             switch (fun.name()) {
               case "=", "<-" -> {
                 todo.addAll(args.subList(1, args.size()));
-                yield getAssignedVar(l);
+                yield getAssignVar(l);
               }
               case "for" -> {
                 todo.addAll(args.subList(1, args.size()));
@@ -126,24 +143,24 @@ public class Context {
                 if (args.size() == 2 && args.getFirst() instanceof StrOrRegSymSXP v) {
                   yield v.reifyString();
                 } else {
-                  yield Optional.<String>empty();
+                  yield Optional.empty();
                 }
               }
-              case "function" -> {
-                // Variables defined within local functions created by function expressions do not
-                // shadow globals
-                // within the containing expression and therefore function expressions do not
-                // contribute any new
-                // local variables.
-                yield Optional.<String>empty();
-              }
+              case "function" ->
+                  // Variables defined within local functions created by function expressions do not
+                  // shadow globals
+                  // within the containing expression and therefore function expressions do not
+                  // contribute any new
+                  // local variables.
+                  Optional.empty();
+
               case "~", "expression", "quote" -> {
                 // they do not evaluate their arguments and so do not contribute new local
                 // variables.
                 if (shadowed.contains(fun.name()) || locals.contains(fun.name())) {
                   todo.addAll(args);
                 }
-                yield Optional.<String>empty();
+                yield Optional.empty();
               }
               case "local" -> {
                 // local calls without an environment argument create a new environment
@@ -156,11 +173,11 @@ public class Context {
                     || args.size() != 1) {
                   todo.addAll(args);
                 }
-                yield Optional.<String>empty();
+                yield Optional.empty();
               }
               default -> {
                 todo.addAll(args);
-                yield Optional.<String>empty();
+                yield Optional.empty();
               }
             };
         local.ifPresent(locals::add);
@@ -172,27 +189,42 @@ public class Context {
     return locals;
   }
 
-  private static Optional<String> getAssignedVar(LangSXP l) {
-    var v = l.arg(0).value();
+  public static Optional<String> getAssignVar(LangSXP call) {
+    var v = call.arg(0);
     if (v == SEXPs.MISSING_ARG) {
-      throw new CompilerException("Bad assignment: " + l);
+      throw new CompilerException("Bad assignment: " + call);
     } else if (v instanceof StrOrRegSymSXP s) {
       return s.reifyString();
     } else {
-      if (l.args().isEmpty()) {
-        throw new CompilerException("Bad assignment: " + l);
+      if (call.args().isEmpty()) {
+        throw new CompilerException("Bad assignment: " + call);
       }
-      switch (l.arg(0).value()) {
+      switch (call.arg(0)) {
         case LangSXP ll -> {
-          return getAssignedVar(ll);
+          return getAssignVar(ll);
         }
         case StrOrRegSymSXP s -> {
           return s.reifyString();
         }
-        default -> {
-          throw new CompilerException("Bad assignment: " + l);
-        }
+        default -> throw new CompilerException("Bad assignment: " + call);
       }
+    }
+  }
+
+  public static Optional<SymOrLangSXP> getAssignFun(SEXP fun) {
+    if (fun instanceof RegSymSXP s) {
+      return Optional.of(SEXPs.symbol(s.name() + "<-"));
+    } else
+    // >> check for and handle foo::bar(x) <- y assignments here
+    if (fun instanceof LangSXP call
+        && call.args().size() == 2
+        && (call.funName("::") || call.funName(":::"))
+        && call.arg(0) instanceof RegSymSXP
+        && call.arg(1) instanceof RegSymSXP) {
+      var args = call.args().set(1, null, SEXPs.symbol(call.arg(1) + "<-"));
+      return Optional.of(SEXPs.lang(call.fun(), args));
+    } else {
+      return Optional.empty();
     }
   }
 
@@ -204,7 +236,20 @@ public class Context {
     return returnJump;
   }
 
-  public Loop loop() {
+  @SuppressWarnings("BooleanMethodIsAlwaysInverted")
+  public boolean isTopLevel() {
+    return topLevel;
+  }
+
+  @Nullable Loop loop() {
     return loop;
+  }
+
+  public Optional<CloSXP> findFunDef(String name) {
+    return environment
+        .find(name)
+        .map(Pair::second)
+        .filter(CloSXP.class::isInstance)
+        .map(CloSXP.class::cast);
   }
 }

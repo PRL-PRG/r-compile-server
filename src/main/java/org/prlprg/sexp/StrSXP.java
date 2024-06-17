@@ -6,15 +6,19 @@ import com.google.common.escape.Escaper;
 import com.google.common.escape.Escapers;
 import java.util.Optional;
 import javax.annotation.concurrent.Immutable;
-import org.prlprg.primitive.Constants;
 
 /** String vector SEXP. */
 @Immutable
 public sealed interface StrSXP extends VectorSXP<String>, StrOrRegSymSXP
-    permits EmptyStrSXPImpl, SimpleStrSXP, StrSXPImpl {
+    permits EmptyStrSXPImpl, ScalarStrSXP, StrSXPImpl {
   @Override
   default SEXPType type() {
     return SEXPType.STR;
+  }
+
+  @Override
+  default Class<? extends SEXP> getCanonicalType() {
+    return StrSXP.class;
   }
 
   @Override
@@ -57,6 +61,32 @@ record StrSXPImpl(ImmutableList<String> data, @Override Attributes attributes) i
   }
 }
 
+final class ScalarStrSXP extends ScalarSXPImpl<String> implements StrSXP {
+  ScalarStrSXP(String data) {
+    super(data);
+  }
+
+  @SuppressWarnings("MissingJavadoc")
+  public String value() {
+    return data;
+  }
+
+  @Override
+  public String toString() {
+    return StrSXPs.quoteString(data);
+  }
+
+  @Override
+  public StrSXP withAttributes(Attributes attributes) {
+    return SEXPs.string(data, attributes);
+  }
+
+  @Override
+  public Optional<String> reifyString() {
+    return Optional.of(data);
+  }
+}
+
 /** Empty string vector with no ALTREP, ATTRIB, or OBJECT. */
 final class EmptyStrSXPImpl extends EmptyVectorSXPImpl<String> implements StrSXP {
   static final EmptyStrSXPImpl INSTANCE = new EmptyStrSXPImpl();
@@ -85,7 +115,7 @@ final class StrSXPs {
           .build();
 
   static String quoteString(String s) {
-    return Constants.isNaString(s) ? "NA" : "\"" + rEscaper.escape(s) + "\"";
+    return Coercions.isNA(s) ? "NA" : "\"" + rEscaper.escape(s) + "\"";
   }
 
   private StrSXPs() {}

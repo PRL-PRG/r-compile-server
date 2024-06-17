@@ -1,25 +1,17 @@
 package org.prlprg.rds;
 
 import static com.google.common.truth.Truth.assertThat;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.fail;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.prlprg.sexp.Coercions.isNA;
 
 import java.util.Objects;
 import org.junit.jupiter.api.Test;
-import org.prlprg.RSession;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
-import org.prlprg.rsession.TestRSession;
 import org.prlprg.sexp.*;
-import org.prlprg.util.GNUR;
-import org.prlprg.util.Tests;
+import org.prlprg.util.AbstractGNURBasedTest;
 
-public class RDSReaderTest implements Tests {
-  private final RSession rsession = new TestRSession();
-  private final GNUR R = new GNUR(rsession);
-
-  // TODO: rewrite using GNUR
-
+public class RDSReaderTest extends AbstractGNURBasedTest {
   @Test
   public void testInts() throws Exception {
     var sexp = R.eval("c(-.Machine$integer.max, -1L, 0L, NA, 1L, .Machine$integer.max)");
@@ -29,7 +21,7 @@ public class RDSReaderTest implements Tests {
       assertEquals(Constants.INT_MIN, ints.get(0));
       assertEquals(-1, ints.get(1));
       assertEquals(0, ints.get(2));
-      assertEquals(Constants.NA_INT, ints.get(3));
+      assertTrue(isNA(ints.get(3)));
       assertEquals(1, ints.get(4));
       assertEquals(Integer.MAX_VALUE, ints.get(5));
     } else {
@@ -45,7 +37,7 @@ public class RDSReaderTest implements Tests {
       assertEquals(3, logs.size());
       assertEquals(Logical.TRUE, logs.get(0));
       assertEquals(Logical.FALSE, logs.get(1));
-      assertEquals(Logical.NA, logs.get(2));
+      assertTrue(isNA(logs.get(2)));
     } else {
       fail("Expected LglSXP");
     }
@@ -61,7 +53,7 @@ public class RDSReaderTest implements Tests {
       // assertEquals(Double.MIN_VALUE, reals.get(0));
       assertEquals(-1.0, reals.get(1));
       assertEquals(.0, reals.get(2));
-      assertEquals(Constants.NA_REAL, reals.get(3));
+      assertTrue(isNA(reals.get(3)));
       assertEquals(1.0, reals.get(4));
       assertEquals(Double.MAX_VALUE, reals.get(5));
     } else {
@@ -128,7 +120,7 @@ public class RDSReaderTest implements Tests {
     assertEquals(new TaggedElem("x", SEXPs.MISSING_ARG), formals.get(0));
 
     // TODO: this should really be a snapshot test
-    var body = sexp.body();
+    var body = sexp.bodyAST();
     assertThat(body).isInstanceOf(LangSXP.class);
     assertThat(body.toString()).isEqualTo("\"abc\" + x + length(y)");
   }
@@ -150,5 +142,44 @@ public class RDSReaderTest implements Tests {
   public void testExpression() throws Exception {
     var sexp = R.eval("parse(text='function() {}', keep.source = TRUE)");
     assertThat(sexp).isInstanceOf(ExprSXP.class);
+  }
+
+  @Test
+  public void testNullInParams() throws Exception {
+    var sexp = R.eval("quote(match('AsIs', cl, 0L, NULL))");
+    // FIXME: assert on the number of parameters
+    assertThat(sexp).isInstanceOf(LangSXP.class);
+  }
+
+  @Test
+  public void testNullInParamsInBC() throws Exception {
+    var sexp = (BCodeSXP) R.eval("compiler::compile(quote(match('AsIs', cl, 0L, NULL)))");
+    var ast = (LangSXP) sexp.bc().consts().getFirst();
+    // here we want to make sure that the trailing NULL did not get lost
+    assertThat(ast.args()).hasSize(4);
+  }
+
+  @Test
+  public void testFormatAsIs() throws Exception {
+    var sexp = R.eval("format.AsIs");
+    assertThat(sexp).isInstanceOf(CloSXP.class);
+  }
+
+  @Test
+  public void testComplex() throws Exception {
+    var sexp = R.eval("c(-1+1i, 0+0i, 1+1i)");
+    assertThat(sexp).isInstanceOf(ComplexSXP.class);
+  }
+
+  @Test
+  public void testRoundPOSIXt() throws Exception {
+    var sexp = R.eval("round.POSIXt");
+    assertThat(sexp).isInstanceOf(CloSXP.class);
+  }
+
+  @Test
+  public void testLocalFuncationBC() throws Exception {
+    var sexp = R.eval("compiler::cmpfun(function(x) local(x))");
+    assertThat(sexp).isInstanceOf(CloSXP.class);
   }
 }

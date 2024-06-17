@@ -3,8 +3,7 @@ package org.prlprg.sexp;
 import com.google.common.collect.ImmutableList;
 import com.google.common.primitives.ImmutableDoubleArray;
 import com.google.common.primitives.ImmutableIntArray;
-import java.util.Arrays;
-import java.util.Collection;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
@@ -18,12 +17,13 @@ import org.prlprg.primitive.Logical;
 public final class SEXPs {
   // region constants
   public static final NilSXP NULL = NilSXP.INSTANCE;
-  public static final SimpleLglSXP TRUE = SimpleLglSXP.TRUE;
-  public static final SimpleLglSXP FALSE = SimpleLglSXP.FALSE;
-  public static final SimpleLglSXP NA_LOGICAL = SimpleLglSXP.NA;
-  public static final SimpleIntSXP NA_INTEGER = new SimpleIntSXP(Constants.NA_INT);
-  public static final RealSXP NA_REAL = new SimpleRealSXP(Constants.NA_REAL);
-  public static final StrSXP NA_STRING = new SimpleStrSXP(Constants.NA_STRING);
+  public static final LglSXP TRUE = ScalarLglSXP.TRUE;
+  public static final LglSXP FALSE = ScalarLglSXP.FALSE;
+  public static final LglSXP NA_LOGICAL = ScalarLglSXP.NA;
+  public static final IntSXP NA_INTEGER = new ScalarIntSXP(Constants.NA_INT);
+  public static final RealSXP NA_REAL = new ScalarRealSXP(Constants.NA_REAL);
+  public static final StrSXP NA_STRING = new ScalarStrSXP(Constants.NA_STRING);
+  public static final ComplexSXP NA_COMPLEX = new ScalarComplexSXP(Constants.NA_COMPLEX);
   public static final LglSXP EMPTY_LOGICAL = EmptyLglSXPImpl.INSTANCE;
   public static final IntSXP EMPTY_INTEGER = EmptyIntSXPImpl.INSTANCE;
   public static final RealSXP EMPTY_REAL = EmptyRealSXPImpl.INSTANCE;
@@ -33,7 +33,20 @@ public final class SEXPs {
 
   public static final SpecialSymSXP MISSING_ARG = new SpecialSymSXP("MISSING_ARG");
 
-  public static final RegSymSXP ELLIPSIS = new RegSymSXP("...");
+  private static final Map<String, RegSymSXP> SYMBOL_POOL = new HashMap<>();
+
+  public static final RegSymSXP DOTS_SYMBOL = symbol("...");
+  public static final RegSymSXP SUPER_ASSIGN = symbol("<<-");
+  public static final RegSymSXP ASSIGN_TMP = symbol("*tmp*");
+  public static final RegSymSXP ASSIGN_VTMP = symbol("*vtmp*");
+
+  static {
+    Set.of("TRUE", "FALSE", "NULL", "NA", "Inf", "NaN")
+        .forEach(
+            x -> {
+              SYMBOL_POOL.put(x, new RegSymSXP(x));
+            });
+  }
 
   public static final EmptyEnvSXP EMPTY_ENV = EmptyEnvSXP.INSTANCE;
 
@@ -48,20 +61,20 @@ public final class SEXPs {
     };
   }
 
-  public static SimpleIntSXP integer(int data) {
-    return new SimpleIntSXP(data);
+  public static IntSXP integer(int data) {
+    return new ScalarIntSXP(data);
   }
 
-  public static SimpleRealSXP real(double data) {
-    return new SimpleRealSXP(data);
+  public static RealSXP real(double data) {
+    return new ScalarRealSXP(data);
   }
 
-  public static SimpleStrSXP string(String data) {
-    return new SimpleStrSXP(data);
+  public static StrSXP string(String data) {
+    return new ScalarStrSXP(data);
   }
 
-  public static SimpleComplexSXP complex(Complex data) {
-    return new SimpleComplexSXP(data);
+  public static ComplexSXP complex(Complex data) {
+    return new ScalarComplexSXP(data);
   }
 
   public static IntSXP integer(int first, int... rest) {
@@ -104,8 +117,16 @@ public final class SEXPs {
     return integer(ImmutableIntArray.copyOf(data));
   }
 
+  public static IntSXP integer(Integer[] data) {
+    return integer(ImmutableIntArray.copyOf(Arrays.asList(data)));
+  }
+
   public static RealSXP real(double[] data) {
     return real(ImmutableDoubleArray.copyOf(data));
+  }
+
+  public static RealSXP real(Double[] data) {
+    return real(ImmutableDoubleArray.copyOf(Arrays.asList(data)));
   }
 
   public static StrSXP string(String[] data) {
@@ -124,8 +145,8 @@ public final class SEXPs {
     return expr(ImmutableList.copyOf(data));
   }
 
-  public static SimpleComplexSXP complex(double real, double imaginary) {
-    return new SimpleComplexSXP(new Complex(real, imaginary));
+  public static ComplexSXP complex(double real, double imaginary) {
+    return new ScalarComplexSXP(new Complex(real, imaginary));
   }
 
   public static LglSXP logical(Logical data, Attributes attributes) {
@@ -324,7 +345,7 @@ public final class SEXPs {
   }
 
   public static ListSXP list(SEXP... data) {
-    return list(Arrays.stream(data).map(TaggedElem::new).collect(Collectors.toList()));
+    return list(Arrays.stream(data).map(TaggedElem::new).toList());
   }
 
   public static ListSXP list(ImmutableList<TaggedElem> data) {
@@ -333,6 +354,11 @@ public final class SEXPs {
 
   public static ListSXP list(Collection<TaggedElem> data) {
     return list(ImmutableList.copyOf(data));
+  }
+
+  // FIXME: ugly
+  public static ListSXP list2(Collection<SEXP> data) {
+    return list(data.stream().map(TaggedElem::new).toList());
   }
 
   public static ListSXP list(TaggedElem[] data, Attributes attributes) {
@@ -373,10 +399,7 @@ public final class SEXPs {
   }
 
   public static RegSymSXP symbol(String name) {
-    if (name.equals("...")) {
-      return ELLIPSIS;
-    }
-    return new RegSymSXP(name);
+    return SYMBOL_POOL.computeIfAbsent(name, RegSymSXP::new);
   }
 
   // endregion
@@ -397,4 +420,24 @@ public final class SEXPs {
   }
 
   private SEXPs() {}
+
+  public static SEXP builtin(String name) {
+    return new BuiltinSXP(name);
+  }
+
+  public static SEXP special(String name) {
+    return new SpecialSXP(name);
+  }
+
+  @SuppressWarnings("unchecked")
+  public static <T> VectorSXP<T> vector(SEXPType type, ImmutableList<T> build) {
+    return switch (type) {
+      case LGL -> (VectorSXP<T>) logical((List<Logical>) build);
+      case INT -> (VectorSXP<T>) integer((List<Integer>) build);
+      case REAL -> (VectorSXP<T>) real((List<Double>) build);
+      case STR -> (VectorSXP<T>) string((List<String>) build);
+      case CPLX -> (VectorSXP<T>) complex((List<Complex>) build);
+      default -> throw new IllegalArgumentException("Unsupported type: " + type);
+    };
+  }
 }

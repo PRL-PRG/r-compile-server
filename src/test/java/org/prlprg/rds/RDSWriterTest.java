@@ -7,18 +7,12 @@ import static org.junit.jupiter.api.Assertions.fail;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import org.junit.jupiter.api.Test;
-import org.prlprg.RSession;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
-import org.prlprg.rsession.TestRSession;
 import org.prlprg.sexp.*;
-import org.prlprg.util.GNUR;
-import org.prlprg.util.Tests;
+import org.prlprg.util.AbstractGNURBasedTest;
 
-public class RDSWriterTest implements Tests {
-  private final RSession rsession = new TestRSession();
-
-  private final GNUR R = new GNUR(rsession);
+public class RDSWriterTest extends AbstractGNURBasedTest {
 
   @Test
   public void testInts() throws Exception {

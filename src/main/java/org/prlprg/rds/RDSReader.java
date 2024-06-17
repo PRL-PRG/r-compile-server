@@ -5,21 +5,18 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.*;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 import javax.annotation.Nullable;
 import org.prlprg.RSession;
 import org.prlprg.bc.Bc;
-import org.prlprg.bc.BcFromRawException;
+import org.prlprg.primitive.Complex;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.*;
 import org.prlprg.util.IO;
 
 public class RDSReader implements Closeable {
-  private final RSession session;
+  private final RSession rsession;
   private final RDSInputStream in;
   private final List<SEXP> refTable = new ArrayList<>(128);
 
@@ -27,19 +24,19 @@ public class RDSReader implements Closeable {
   private Charset nativeEncoding = Charset.defaultCharset();
 
   private RDSReader(RSession session, InputStream in) {
-    this.session = session;
+    this.rsession = session;
     this.in = new RDSInputStream(in);
-  }
-
-  public static SEXP readStream(RSession session, InputStream input) throws IOException {
-    try (var reader = new RDSReader(session, input)) {
-      return reader.read();
-    }
   }
 
   public static SEXP readFile(RSession session, File file) throws IOException {
     try (var input = new FileInputStream(file)) {
       return readStream(session, IO.maybeDecompress(input));
+    }
+  }
+
+  public static SEXP readStream(RSession session, InputStream input) throws IOException {
+    try (var reader = new RDSReader(session, input)) {
+      return reader.read();
     }
   }
 
@@ -53,28 +50,21 @@ public class RDSReader implements Closeable {
 
     // versions
     var formatVersion = in.readInt();
+    if (formatVersion != 2) {
+      // we do not support RDS version 3 because it uses ALTREP
+      throw new RDSException("Unsupported RDS version: " + formatVersion);
+    }
+
     // writer version
     in.readInt();
     // minimal reader version
     in.readInt();
-
-    // native encoding for version == 3
-    switch (formatVersion) {
-      case 2:
-        break;
-      case 3:
-        var natEncSize = in.readInt();
-        nativeEncoding = Charset.forName(in.readString(natEncSize, StandardCharsets.US_ASCII));
-        break;
-      default:
-        throw new RDSException("Unsupported version: " + formatVersion);
-    }
   }
 
   public SEXP read() throws IOException {
     readHeader();
     var sexp = readItem();
-    if (!in.isAtEnd()) {
+    if (in.readRaw() != -1) {
       throw new RDSException("Expected end of file");
     }
     return sexp;
@@ -100,14 +90,18 @@ public class RDSReader implements Closeable {
             case BCODE -> readByteCode();
             case EXPR -> readExpr(flags);
             case PROM -> readPromise(flags);
+            case BUILTIN -> readBuiltin(false);
+            case SPECIAL -> readBuiltin(true);
+            case CPLX -> readComplex(flags);
             default -> throw new RDSException("Unsupported SEXP type: " + s.sexp());
           };
       case RDSItemType.Special s ->
           switch (s) {
             case NILVALUE_SXP -> SEXPs.NULL;
             case MISSINGARG_SXP -> SEXPs.MISSING_ARG;
-            case GLOBALENV_SXP -> session.globalEnv();
-            case BASEENV_SXP -> session.baseEnv();
+            case GLOBALENV_SXP -> rsession.globalEnv();
+            case BASEENV_SXP -> rsession.baseEnv();
+            case BASENAMESPACE_SXP -> rsession.baseNamespace();
             case EMPTYENV_SXP -> SEXPs.EMPTY_ENV;
             case REFSXP -> readRef(flags);
             case NAMESPACESXP -> readNamespace();
@@ -115,23 +109,43 @@ public class RDSReader implements Closeable {
                 throw new RDSException("Unexpected bytecode reference here (not in bytecode)");
             case ATTRLANGSXP, ATTRLISTSXP -> throw new RDSException("Unexpected attr here");
             case UNBOUNDVALUE_SXP -> SEXPs.UNBOUND_VALUE;
-            case GENERICREFSXP, BASENAMESPACE_SXP, PACKAGESXP, PERSISTSXP, CLASSREFSXP ->
+            case GENERICREFSXP, PACKAGESXP, PERSISTSXP, CLASSREFSXP, ALTREPSXP ->
                 throw new RDSException("Unsupported RDS special type: " + s);
           };
     };
   }
 
+  private SEXP readComplex(Flags flags) throws IOException {
+    var length = in.readInt();
+    var cplx = ImmutableList.<Complex>builder();
+    for (int i = 0; i < length; i++) {
+      var real = in.readDouble();
+      var im = in.readDouble();
+      cplx.add(new Complex(real, im));
+    }
+    var attributes = readAttributes(flags);
+    return SEXPs.complex(cplx.build(), attributes);
+  }
+
+  private SEXP readBuiltin(boolean special) throws IOException {
+    var length = in.readInt();
+    var name = in.readString(length, nativeEncoding);
+    return special ? SEXPs.special(name) : SEXPs.builtin(name);
+  }
+
   private SEXP readPromise(Flags flags) throws IOException {
     readAttributes(flags);
-
-    if (!(readItem() instanceof EnvSXP env)) {
-      throw new RDSException("Expected promise ENV to be environment");
-    }
+    var tag = flags.hasTag() ? readItem() : SEXPs.NULL;
     var val = readItem();
     var expr = readItem();
 
-    // TODO: attributes?
-    return new PromSXP(expr, val, env);
+    if (tag instanceof NilSXP) {
+      return new PromSXP(expr, val, SEXPs.EMPTY_ENV);
+    } else if (tag instanceof EnvSXP env) {
+      return new PromSXP(expr, val, env);
+    } else {
+      throw new RDSException("Expected promise ENV to be environment");
+    }
   }
 
   private SEXP readNamespace() throws IOException {
@@ -140,9 +154,7 @@ public class RDSReader implements Closeable {
       throw new RDSException("Expected 2-element list, got: " + namespaceInfo);
     }
 
-    // FIXME: this should be loaded from RSession
-    var namespace =
-        new NamespaceEnvSXP(SEXPs.EMPTY_ENV, namespaceInfo.get(0), namespaceInfo.get(1));
+    var namespace = rsession.getNamespace(namespaceInfo.get(0), namespaceInfo.get(1));
     refTable.add(namespace);
 
     return namespace;
@@ -194,11 +206,8 @@ public class RDSReader implements Closeable {
     }
 
     var consts = readByteCodeConsts(reps);
-    try {
-      return SEXPs.bcode(Bc.fromRaw(code.data(), consts));
-    } catch (BcFromRawException e) {
-      throw new RDSException("Error reading bytecode", e);
-    }
+    var factory = new GNURByteCodeDecoderFactory(code.data(), consts);
+    return SEXPs.bcode(factory.create());
   }
 
   private List<SEXP> readByteCodeConsts(SEXP[] reps) throws IOException {
@@ -253,52 +262,58 @@ public class RDSReader implements Closeable {
             ? readAttributes()
             : Attributes.NONE;
 
-    SEXP tagSexp;
+    SEXP tagSexp = readItem();
     SEXP ans;
 
-    if (type.isSexp(SEXPType.LANG) || type == RDSItemType.Special.ATTRLANGSXP) {
-      tagSexp = readItem();
-      if (tagSexp != SEXPs.NULL) {
-        throw new RDSException("Expected NULL tag");
-      }
+    if (!type.isSexp(SEXPType.LANG)
+        && !type.isSexp(SEXPType.LIST)
+        && type != RDSItemType.Special.ATTRLANGSXP
+        && type != RDSItemType.Special.ATTRLISTSXP) {
+      throw new RDSException("Unexpected bclang type: " + type);
+    }
 
-      var fun = readByteCodeLang(RDSItemType.valueOf(in.readInt()), reps);
+    String tag;
+
+    if (tagSexp instanceof RegSymSXP sym) {
+      tag = sym.name();
+    } else if (tagSexp instanceof NilSXP) {
+      tag = null;
+    } else {
+      throw new RDSException("Expected regular symbol or nil");
+    }
+
+    var head = readByteCodeLang(RDSItemType.valueOf(in.readInt()), reps);
+    var tail = readByteCodeLang(RDSItemType.valueOf(in.readInt()), reps);
+
+    ListSXP tailList;
+
+    // In R LISTSXP and LANGSXP are pretty much the same.
+    // The RDS relies on this fact quite a bit.
+    // The tail could thus be a LANGSXP (for example: methods::externalRefMethod)
+    if (tail instanceof ListSXP) {
+      tailList = (ListSXP) tail;
+    } else if (tail instanceof LangSXP lang) {
+      tailList = lang.args().prepend(new TaggedElem(null, lang.fun()));
+    } else {
+      throw new RDSException("Expected list or language, got: " + tail.type());
+    }
+
+    ans = tailList.prepend(new TaggedElem(tag, head)).withAttributes(attributes);
+
+    if (type.isSexp(SEXPType.LANG) || type == RDSItemType.Special.ATTRLANGSXP) {
+      ListSXP ansList = (ListSXP) ans;
+
+      var fun = ansList.get(0).value();
       if (!(fun instanceof SymOrLangSXP funSymOrLang)) {
         throw new RDSException("Expected symbol or language, got: " + fun.type());
       }
 
-      var args = readByteCodeLang(RDSItemType.valueOf(in.readInt()), reps);
-      if (!(args instanceof ListSXP argsList)) {
-        throw new RDSException("Expected list, got: " + args.type());
+      ListSXP args = SEXPs.NULL;
+      if (ansList.size() > 1) {
+        args = ansList.subList(1);
       }
 
-      ans = SEXPs.lang(funSymOrLang, argsList, attributes);
-    } else if (type.isSexp(SEXPType.LIST) || type == RDSItemType.Special.ATTRLISTSXP) {
-      tagSexp = readItem();
-      String tag;
-
-      if (tagSexp instanceof RegSymSXP sym) {
-        tag = sym.name();
-      } else if (tagSexp instanceof NilSXP) {
-        tag = null;
-      } else {
-        throw new RDSException("Expected regular symbol or nil");
-      }
-
-      var head = readByteCodeLang(RDSItemType.valueOf(in.readInt()), reps);
-      var tail = readByteCodeLang(RDSItemType.valueOf(in.readInt()), reps);
-
-      var data = new ImmutableList.Builder<TaggedElem>();
-      data.add(new TaggedElem(tag, head));
-
-      if (!(tail instanceof ListSXP tailList)) {
-        throw new RDSException("Expected list, got: " + tail.type());
-      }
-      ListSXP.flatten(tailList, data);
-
-      ans = SEXPs.list(data.build(), attributes);
-    } else {
-      throw new RDSException("Unexpected bclang type: " + type);
+      ans = SEXPs.lang(funSymOrLang, args, attributes);
     }
 
     if (pos >= 0) {
@@ -368,7 +383,7 @@ public class RDSReader implements Closeable {
     // enclosing environment - parent
     switch (readItem()) {
       case EnvSXP parent -> item.setParent(parent);
-      case NilSXP ignored -> item.setParent(session.baseEnv());
+      case NilSXP ignored -> item.setParent(rsession.baseEnv());
       default -> throw new RDSException("Expected environment (ENCLOS)");
     }
 
@@ -402,9 +417,7 @@ public class RDSReader implements Closeable {
       default -> throw new RDSException("Expected list (HASHTAB)");
     }
 
-    item.setAttributes(readAttributes());
-
-    return item;
+    return item.withAttributes(readAttributes());
   }
 
   private VecSXP readVec(Flags flags) throws IOException {

@@ -18,8 +18,14 @@ class RDSInputStream implements Closeable {
     in.close();
   }
 
-  public boolean isAtEnd() throws IOException {
-    return in.available() == 0;
+  /**
+   * Reads the next byte of data from the input stream.
+   *
+   * @return the next byte of data, or -1 if the end of the stream is reached.
+   * @throws IOException if an I/O error occurs.
+   */
+  public int readRaw() throws IOException {
+    return in.read();
   }
 
   public byte readByte() throws IOException {

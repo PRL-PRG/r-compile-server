@@ -1,7 +1,6 @@
 package org.prlprg.rds;
 
 import java.io.*;
-import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.stream.StreamSupport;
 import javax.annotation.Nullable;
@@ -44,7 +43,8 @@ public class RDSWriter implements Closeable {
     out.writeByte((byte) '\n');
 
     // Always write version 3 of the encoding
-    out.writeInt(3);
+    // TODO: version 3 cannot be read because RDSReader does not support ALTREP
+    out.writeInt(2);
 
     // Version of R for the writer
     out.writeInt(RVersion.LATEST_AWARE.encode());
@@ -53,9 +53,10 @@ public class RDSWriter implements Closeable {
     out.writeInt((new RVersion(3, 5, 0, null)).encode());
 
     // Charset. Always UTF-8.
-    var nativeEncoding = StandardCharsets.UTF_8.name();
-    out.writeInt(nativeEncoding.length());
-    out.writeString(nativeEncoding);
+    // The charset is not written in version
+    //    var nativeEncoding = StandardCharsets.UTF_8.name();
+    //    out.writeInt(nativeEncoding.length());
+    //    out.writeString(nativeEncoding);
   }
 
   public void write(SEXP sexp) throws IOException {

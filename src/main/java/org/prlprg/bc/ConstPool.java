@@ -1,132 +1,41 @@
 package org.prlprg.bc;
 
-import com.google.common.base.Objects;
 import com.google.common.collect.ForwardingList;
 import com.google.common.collect.ImmutableList;
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import javax.annotation.Nullable;
+import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.*;
+import java.util.function.Function;
 import javax.annotation.concurrent.Immutable;
 import org.prlprg.sexp.*;
-import org.prlprg.util.Either;
-import org.prlprg.util.Pair;
 
-/**
- * A pool (array) of constants. Underneath this is an immutable list, but the elements are only
- * accessible with typed integers.
- */
-@SuppressFBWarnings(
-    value = "JCIP_FIELD_ISNT_FINAL_IN_IMMUTABLE_CLASS",
-    justification =
-        "The class isn't technically immutable but is after we use the thread-unsafe builder, "
-            + "so practically we treat it as immutable")
+/** A pool (array) of constants. */
 @Immutable
 public final class ConstPool extends ForwardingList<SEXP> {
-  @Nullable private ImmutableList<SEXP> consts;
+  private final ImmutableList<SEXP> consts;
 
-  private ConstPool() {}
+  private ConstPool(List<SEXP> consts) {
+    this.consts = ImmutableList.copyOf(consts);
+  }
 
   @Override
   protected List<SEXP> delegate() {
-    if (consts == null) {
-      throw new IllegalStateException("ConstPool is not yet built");
-    }
     return consts;
   }
 
   /**
    * Get the element at the given pool index
    *
-   * @throws WrongPoolException if the index is for a different pool
    * @throws IndexOutOfBoundsException if the index is out of bounds
+   * @throws ClassCastException if the element is not of the expected type
    */
-  public SEXP get(Idx idx) {
-    if (consts == null) {
-      throw new IllegalStateException("ConstPool is not yet built");
-    }
-    return consts.get(idx.unwrapIdx(this));
-  }
-
-  /**
-   * Get the element at the given pool index
-   *
-   * @throws WrongPoolException if the index is for a different pool
-   * @throws IndexOutOfBoundsException if the index is out of bounds
-   */
-  public <S extends SEXP> S get(TypedIdx<S> idx) {
-    if (consts == null) {
-      throw new IllegalStateException("ConstPool is not yet built");
-    }
-    assert idx.checkType();
-    @SuppressWarnings("unchecked")
-    var res = (S) consts.get(idx.unwrapIdx(this));
-    return res;
-  }
-
-  /** If the SEXP is a constant, returns its index. Otherwise returns null. */
-  public @Nullable <S extends SEXP> TypedIdx<S> indexOf(S c) {
-    if (consts == null) {
-      throw new IllegalStateException("ConstPool is not yet built");
-    }
-    var i = consts.indexOf(c);
-    if (i == -1) {
-      return null;
-    }
-    // This is only valid because TypedIdx is covariant, and only accepted because Java erases
-    // generics.
-    // The conversion from Class<? extends S> to Class<S> changes the generic.
-    @SuppressWarnings("unchecked")
-    var idx = new TypedIdx<>(this, i, (Class<S>) c.getClass());
-    assert idx.checkType();
-    return idx;
-  }
-
-  /** Iterate all indices */
-  public Iterable<Idx> indices() {
-    return () ->
-        new Iterator<>() {
-          int i = 0;
-
-          @Override
-          public boolean hasNext() {
-            if (consts == null) {
-              throw new IllegalStateException("ConstPool is not yet built");
-            }
-            return i < consts.size();
-          }
-
-          @Override
-          public Idx next() {
-            if (!hasNext()) {
-              throw new IndexOutOfBoundsException();
-            }
-            return new Idx(ConstPool.this, i++);
-          }
-        };
-  }
-
-  /**
-   * Create from a constant list (raw GNU-R representation).
-   *
-   * @return The pool and a function to create pool indices from raw integers, since that isn't
-   *     ordinarily exposed.
-   */
-  static Pair<ConstPool, MakeIdx> fromRaw(List<SEXP> consts) throws BcFromRawException {
-    var builder = new Builder();
-    for (var c : consts) {
-      builder.add(c);
-    }
-
-    var pool = builder.build();
-    return new Pair<>(pool, new MakeIdx(pool));
+  public <S extends SEXP> S get(Idx<S> idx) {
+    var res = consts.get(idx.idx());
+    return idx.type().cast(res);
   }
 
   @Override
   public String toString() {
-    StringBuilder sb = new StringBuilder("=== CONSTS " + debugId() + " ===");
+    StringBuilder sb = new StringBuilder("=== CONSTS ===");
     var idx = 0;
     for (var c : this) {
       var cStr = c.toString();
@@ -140,13 +49,18 @@ public final class ConstPool extends ForwardingList<SEXP> {
     return sb.toString();
   }
 
-  private String debugId() {
-    // FIXME: this is bad!
-    if (consts != null) {
-      return "@" + hashCode();
-    } else {
-      return "@";
-    }
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) return true;
+    if (o == null || getClass() != o.getClass()) return false;
+    if (!super.equals(o)) return false;
+    ConstPool sexps = (ConstPool) o;
+    return consts.equals(sexps.consts);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(super.hashCode(), consts);
   }
 
   /**
@@ -154,129 +68,107 @@ public final class ConstPool extends ForwardingList<SEXP> {
    *
    * <p>It also contains a reference to the owner pool which is checked at runtime for extra safety.
    */
-  public static sealed class Idx permits TypedIdx {
-    protected final ConstPool pool;
-    protected final int idx;
-
-    private Idx(ConstPool pool, int idx) {
-      this.pool = pool;
-      this.idx = idx;
-    }
-
-    /**
-     * Return the underlying index if the given pool is the one this was originally created with.
-     *
-     * @throws WrongPoolException if the given pool is not the one this was originally created with
-     */
-    protected int unwrapIdx(ConstPool parent) {
-      if (parent != pool) {
-        throw new WrongPoolException();
-      }
-      return idx;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-      if (this == o) return true;
-      if (!(o instanceof Idx idx1)) return false;
-      return idx == idx1.idx && Objects.equal(pool, idx1.pool);
-    }
-
-    @Override
-    public int hashCode() {
-      return Objects.hashCode(pool, idx);
-    }
-
+  public record Idx<S extends SEXP>(int idx, Class<S> type) {
     @Override
     public String toString() {
-      return String.format("%s.%d", pool.debugId(), idx);
+      // TODO: add sexp type?
+      return String.format("%d", idx);
+    }
+
+    public static <S extends SEXP> Idx<S> create(int i, S value) {
+      @SuppressWarnings("unchecked")
+      var idx = new Idx<>(i, (Class<S>) value.getCanonicalType());
+      return idx;
     }
   }
 
   /**
-   * A {@link Idx} (typed index into a bytecode pool) which further checks that the {@link SEXP} is
-   * of a specific type.
+   * A builder class for creating constant pools.
+   *
+   * <p>Not synchronized, so don't use from multiple threads.
    */
-  @SuppressFBWarnings(
-      value = "EQ_DOESNT_OVERRIDE_EQUALS",
-      justification =
-          "Idx and TypedIdx only compare `pool` and `index`, we want different types to be equal")
-  public static final class TypedIdx<S extends SEXP> extends Idx {
-    private final Class<S> sexpInterface;
+  public static class Builder {
+    private final Map<SEXP, Integer> index;
+    private final List<SEXP> values;
 
-    private TypedIdx(ConstPool pool, int idx, Class<S> sexpInterface) {
-      super(pool, idx);
-      if (!SEXP.class.isAssignableFrom(sexpInterface)) {
-        throw new IllegalArgumentException("sexpInterface must be inherit SEXP: " + sexpInterface);
+    public Builder() {
+      this(Collections.emptyList());
+    }
+
+    public Builder(List<SEXP> consts) {
+      index = new HashMap<>(consts.size());
+      values = new ArrayList<>(consts.size());
+
+      for (var e : consts) {
+        add(e);
       }
-      this.sexpInterface = sexpInterface;
     }
 
-    private boolean checkType() {
-      // The cast to Idx is required because the TypedIdx version does an `assert`.
-      return sexpInterface.isInstance(pool.get((Idx) this));
-    }
-  }
+    public <S extends SEXP> Idx<S> add(S c) {
+      var i =
+          index.computeIfAbsent(
+              c,
+              (ignored) -> {
+                var x = index.size();
+                values.add(c);
+                return x;
+              });
 
-  static final class MakeIdx {
-    private final ConstPool pool;
-
-    private MakeIdx(ConstPool pool) {
-      this.pool = pool;
-    }
-
-    TypedIdx<LangSXP> lang(int i) {
-      return of(i, LangSXP.class);
+      return Idx.create(i, c);
     }
 
-    TypedIdx<RegSymSXP> sym(int i) {
-      return of(i, RegSymSXP.class);
+    /**
+     * Finish building the pool.
+     *
+     * @return The pool.
+     */
+    public ConstPool build() {
+      return new ConstPool(ImmutableList.copyOf(values));
     }
 
-    @Nullable TypedIdx<RegSymSXP> symOrNil(int i) {
-      return tryOf(i, RegSymSXP.class);
+    public Idx<SEXP> index(int i) {
+      return Idx.create(i, values.get(i));
     }
 
-    @Nullable TypedIdx<LangSXP> langOrNegative(int i) {
-      return i >= 0 ? tryOf(i, LangSXP.class) : null;
-    }
-
-    @Nullable TypedIdx<IntSXP> intOrOther(int i) {
-      return tryOf(i, IntSXP.class);
-    }
-
-    @Nullable TypedIdx<StrOrRegSymSXP> strOrSymOrNil(int i) {
-      var asStrOrSymbol = tryOf(i, StrOrRegSymSXP.class);
-      if (asStrOrSymbol != null) {
-        return asStrOrSymbol;
-      }
-      var asNil = tryOf(i, NilSXP.class);
-      if (asNil != null) {
-        return null;
+    private <S extends SEXP> Idx<S> index(int i, Class<S> type) {
+      var value = values.get(i);
+      if (type.isInstance(value)) {
+        return Idx.create(i, type.cast(value));
       } else {
-        throw new IllegalArgumentException(
-            "Expected StrSXP, SymSXP or NilSXP, got " + pool.get(new Idx(pool, i)));
+        throw new IllegalArgumentException("Expected " + type + ", but got " + value.getClass());
       }
     }
 
-    @Nullable Either<TypedIdx<StrSXP>, TypedIdx<NilSXP>> strOrNilOrOther(int i) {
-      var asSymbol = tryOf(i, StrSXP.class);
-      if (asSymbol != null) {
-        return Either.left(asSymbol);
-      }
-      var asNil = tryOf(i, NilSXP.class);
-      if (asNil != null) {
-        return Either.right(asNil);
-      } else {
-        return null;
-      }
+    public Idx<LangSXP> indexLang(int i) {
+      return index(i, LangSXP.class);
     }
 
-    TypedIdx<VecSXP> formalsBodyAndMaybeSrcRef(int i) {
-      var idx = of(i, VecSXP.class);
+    public Idx<RegSymSXP> indexSym(int i) {
+      return index(i, RegSymSXP.class);
+    }
 
-      // Check vector shape
-      var vec = pool.get(idx);
+    // FIXME: do we need this?
+    public @Nullable Idx<LangSXP> indexLangOrNilIfNegative(int i) {
+      return i >= 0 ? orNil(i, LangSXP.class) : null;
+    }
+
+    public @Nullable Idx<StrOrRegSymSXP> indexStrOrSymOrNil(int i) {
+      return orNil(i, StrOrRegSymSXP.class);
+    }
+
+    public @Nullable Idx<StrSXP> indexStrOrNil(int i) {
+      return orNil(i, StrSXP.class);
+    }
+
+    public @Nullable Idx<IntSXP> indexIntOrNil(int i) {
+      return orNil(i, IntSXP.class);
+    }
+
+    public Idx<VecSXP> indexClosure(int i) {
+      var idx = index(i, VecSXP.class);
+
+      // check vector shape
+      var vec = (VecSXP) values.get(i);
       if (vec.size() != 2 && vec.size() != 3) {
         throw new IllegalArgumentException(
             "Malformed formals/body/srcref vector, expected length 2 or 3, got " + vec);
@@ -290,77 +182,21 @@ public final class ConstPool extends ForwardingList<SEXP> {
       return idx;
     }
 
-    Idx any(int i) {
-      return new Idx(pool, i);
-    }
-
-    private <S extends SEXP> TypedIdx<S> of(int i, Class<S> sexpInterface) {
-      var idx = new TypedIdx<>(pool, i, sexpInterface);
-      if (!idx.checkType()) {
-        // The cast to Idx is required because the TypedIdx version does an `assert`.
-        throw new IllegalArgumentException(
-            "Expected " + sexpInterface.getSimpleName() + ", got " + pool.get((Idx) idx));
-      }
-      return idx;
-    }
-
-    private @Nullable <S extends SEXP> TypedIdx<S> tryOf(int i, Class<S> sexpInterface) {
-      var idx = new TypedIdx<>(pool, i, sexpInterface);
-      if (!idx.checkType()) {
+    public @Nullable <S extends SEXP> Idx<S> orNil(int i, Class<S> clazz) {
+      var value = values.get(i);
+      if (clazz.isInstance(value)) {
+        return Idx.create(i, clazz.cast(value));
+      } else if (value instanceof NilSXP) {
         return null;
+      } else {
+        throw new IllegalArgumentException(
+            "Expected " + clazz + " or NilSXP, but got " + value.getClass());
       }
-      return idx;
-    }
-  }
-
-  /** Caused by trying to subscript one bytecode pool with an index from another. */
-  public static class WrongPoolException extends RuntimeException {
-    private WrongPoolException() {
-      super("Wrong pool");
-    }
-  }
-
-  /**
-   * A builder class for creating constant pools.
-   *
-   * <p>Not synchronized, so don't use from multiple threads.
-   */
-  public static class Builder {
-    private final ConstPool pool = new ConstPool();
-    private final LinkedHashMap<SEXP, Idx> consts = new LinkedHashMap<>();
-
-    /** Create a new builder. */
-    public Builder() {}
-
-    /** Append a constant and return the index. */
-    public <S extends SEXP> TypedIdx<S> add(S c) {
-      // This only works because TypedIdx is covariant the and generic gets erased.
-      // We actually cast TypedIdx<something more specific than S> into TypedIdx<S>.
-      @SuppressWarnings("unchecked")
-      var idx =
-          (TypedIdx<S>)
-              consts.computeIfAbsent(
-                  c, (ignored) -> new TypedIdx<>(pool, consts.size(), (Class<S>) c.getClass()));
-      return idx;
     }
 
-    /** Append instructions. */
-    public <S extends SEXP> ImmutableList<TypedIdx<S>> addAll(Collection<? extends S> c) {
-      var builder = ImmutableList.<TypedIdx<S>>builder();
-      for (var e : c) {
-        builder.add(add(e));
-      }
-      return builder.build();
-    }
-
-    /**
-     * Finish building the pool.
-     *
-     * @return The pool.
-     */
-    public ConstPool build() {
-      pool.consts = ImmutableList.copyOf(consts.sequencedKeySet());
-      return pool;
+    @SuppressWarnings("unchecked")
+    public <S extends SEXP> void reset(Idx<S> idx, Function<S, S> fun) {
+      values.set(idx.idx(), fun.apply((S) values.get(idx.idx())));
     }
   }
 }

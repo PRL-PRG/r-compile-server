@@ -1,39 +1,16 @@
 package org.prlprg.sexp;
 
-import java.util.Optional;
+import java.util.Map;
 
-public final class NamespaceEnvSXP implements EnvSXP {
-  private final EnvSXP parent;
+public final class NamespaceEnvSXP extends AbstractEnvSXP implements EnvSXP {
   private final String name;
   private final String version;
 
-  public NamespaceEnvSXP(EnvSXP parent, String name, String version) {
-    this.parent = parent;
+  public NamespaceEnvSXP(String name, String version, EnvSXP parent, Map<String, SEXP> bindings) {
+    super(parent);
+    bindings.forEach(this::set);
     this.name = name;
     this.version = version;
-  }
-
-  @Override
-  public EnvSXP parent() {
-    return parent;
-  }
-
-  @Override
-  public Optional<SEXP> get(String name) {
-    // TODO: implement
-    return Optional.empty();
-  }
-
-  @Override
-  public Optional<SEXP> getLocal(String name) {
-    // TODO: implement
-    return Optional.empty();
-  }
-
-  @Override
-  public int size() {
-    // FIXME: implement
-    return 0;
   }
 
   public String getVersion() {

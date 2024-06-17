@@ -27,4 +27,9 @@ public final class PromSXP implements SEXP {
   public SEXPType type() {
     return SEXPType.PROM;
   }
+
+  @Override
+  public Class<? extends SEXP> getCanonicalType() {
+    return PromSXP.class;
+  }
 }
