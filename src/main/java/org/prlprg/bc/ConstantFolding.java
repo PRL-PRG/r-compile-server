@@ -20,7 +20,7 @@ import org.prlprg.util.Arithmetic;
  * signature: {@code Optional<SEXP> f(List<SEXP> args)}
  *
  * <p>They shall be called from Compiler and can assume that each argument is one of the {@link
- * Compiler#ALLOWED_FOLDABLE_MODES}.
+ * BCCompiler#ALLOWED_FOLDABLE_MODES}.
  *
  * <p>The main reason it is extracted from the Compiler is to make have all the folding code in one
  * place without making Compiler too big.

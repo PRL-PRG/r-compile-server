@@ -25,7 +25,7 @@ import org.prlprg.sexp.*;
  * <p>[1] A Byte Code Compiler for R by Luke Tierney, University of Iowa, accessed on August 23,
  * 2023 from https://homepage.cs.uiowa.edu/~luke/R/compiler/compiler.pdf
  */
-public class Compiler {
+public class BCCompiler {
 
   /** SEXP types that can participate in constan folding. */
   private static final Set<SEXPType> ALLOWED_FOLDABLE_MODES = Set.of(LGL, INT, REAL, CPLX, STR);
@@ -246,7 +246,7 @@ public class Compiler {
    * @param rsession the session used for symbol resolution
    * @param loc the source code location of the expression
    */
-  private Compiler(SEXP expr, Context ctx, RSession rsession, Loc loc) {
+  private BCCompiler(SEXP expr, Context ctx, RSession rsession, Loc loc) {
     this.expr = expr;
     this.ctx = ctx;
     this.rsession = rsession;
@@ -268,7 +268,7 @@ public class Compiler {
    * @param fun the function to be compiled
    * @param rsession the session used for symbol resolution
    */
-  public Compiler(CloSXP fun, RSession rsession) {
+  public BCCompiler(CloSXP fun, RSession rsession) {
     this(fun.bodyAST(), Context.functionContext(fun), rsession, functionLoc(fun));
   }
 
@@ -279,8 +279,8 @@ public class Compiler {
    * @param ctx the new context for the compilation
    * @param loc the source code location of the expression
    */
-  private Compiler fork(SEXP expr, Context ctx, Loc loc) {
-    var compiler = new Compiler(expr, ctx, rsession, loc);
+  private BCCompiler fork(SEXP expr, Context ctx, Loc loc) {
+    var compiler = new BCCompiler(expr, ctx, rsession, loc);
     compiler.setOptimizationLevel(optimizationLevel);
     return compiler;
   }

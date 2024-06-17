@@ -4,15 +4,24 @@
 ## usethis namespace: end
 NULL
 
-## bootstrap the compiler
-
+# save the original compiler::cmpfun
 .gnur_cmpfun <- compiler::cmpfun
 
 #' @export
-rsh_jit <- function(f) {
+rsh_jit_activate <- function(f) {
+    rsh_override_cmpfun(rsh_jit_cmpfun)
+}
+
+#' @export
+rsh_jit_deactivate <- function(f) {
+    rsh_override_cmpfun(.gnur_cmpfun)
+}
+
+rsh_override_cmpfun <- function(f) {
   compiler_ns <- getNamespace("compiler")
   unlockBinding("cmpfun", compiler_ns)
-  compiler_ns$cmpfun <- jit_cmpfun
+  compiler_ns$cmpfun <- f
+  lockBinding("cmpfun", compiler_ns)
 }
 
 #' @export
@@ -25,17 +34,20 @@ rsh_load <- function(obj_file) {
 
 #' @export
 rsh_compile <- function(f) {
+  # TODO: move into C++ code
   sf <- serialize(f, NULL, version = 2)
-  # print(sf)
-  # print(length(sf))
   name <- paste0("f_", digest::digest(sf, algo = "sha1", serialize = FALSE))
-  print(name)
+  # TODO: this one should return new function
+  #  once we return a new function, we can simplify the API - just rsh_cmpfun would be enough
   .Call(C_compile_fun, name, f, sf)
 }
 
 #' @export
-jit_cmpfun <- function(f, options) {
+rsh_jit_cmpfun <- function(f, options) {
+  # make a copy - the compiler::cmpfun takes a function and returns a new one with BCSXP body (if possible)
   g <- f
+  # compile the copy
   rsh_compile(g)
+  # compile the new body into the bytecode so that the R embedded jit still works
   .gnu_cmpfun(g, options=list(optimize=3))
 }

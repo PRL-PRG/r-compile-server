@@ -1,4 +1,4 @@
-package org.prlprg.bcc;
+package org.prlprg.bc2c;
 
 import java.io.PrintWriter;
 import java.io.Writer;
@@ -21,7 +21,7 @@ public class CFunction {
 
   public void writeTo(Writer w) {
     var pw = new PrintWriter(w);
-    pw.format("SEXP %s(SEXP %s) {", name, CCompiler.NAME_ENV);
+    pw.format("SEXP %s(SEXP %s) {", name, BC2CCompiler.NAME_ENV);
     pw.println();
     for (int i = 0; i < sections.size(); i++) {
       sections.get(i).writeTo(w);

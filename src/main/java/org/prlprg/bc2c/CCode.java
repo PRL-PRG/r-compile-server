@@ -1,4 +1,4 @@
-package org.prlprg.bcc;
+package org.prlprg.bc2c;
 
 import java.io.PrintWriter;
 import java.io.Writer;

@@ -1,4 +1,4 @@
-package org.prlprg.bcc;
+package org.prlprg.bc2c;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -40,9 +40,10 @@ class Stack {
   }
 }
 
-public class CCompiler {
+public class BC2CCompiler {
   static final String NAME_ENV = "ENV";
-  static final String NAME_CP = "CP";
+  private static final String NAME_CP = "CP";
+
   private final String name;
   private final Bc bc;
   private final Map<Integer, Constant> constants = new HashMap<>();
@@ -52,7 +53,7 @@ public class CCompiler {
   private CFunction fun;
   private CCode body;
 
-  public CCompiler(String name, Bc bc) {
+  public BC2CCompiler(String name, Bc bc) {
     this.name = name;
     this.bc = bc;
     this.file = new CFile();

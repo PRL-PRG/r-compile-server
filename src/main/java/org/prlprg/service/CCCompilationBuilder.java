@@ -6,8 +6,10 @@ import java.util.Collection;
 import java.util.List;
 import java.util.logging.Logger;
 
-public class NativeCompilerBuilder {
+// TODO: consider in-memory filesystem
+public class CCCompilationBuilder {
 
+  // TODO: configurable from environment variable
   private static final String DEFAULT_COMPILER = "gcc";
 
   private final File input;
@@ -16,18 +18,19 @@ public class NativeCompilerBuilder {
   private String compiler = DEFAULT_COMPILER;
   private File workingDirectory;
 
-  public NativeCompilerBuilder(File input, File output) {
+  public CCCompilationBuilder(File input, File output) {
     this.input = input;
     this.output = output;
   }
 
-  public NativeCompilerBuilder flag(String flag) {
+  public CCCompilationBuilder flag(String flag) {
     flags.add(flag);
     return this;
   }
 
+  // TODO: return something with warnings, ...
   public void compile() throws IOException, InterruptedException {
-    var logger = Logger.getLogger(NativeCompilerBuilder.class.getName());
+    var logger = Logger.getLogger(CCCompilationBuilder.class.getName());
 
     var builder = new ProcessBuilder();
     builder.redirectErrorStream(true);
@@ -60,12 +63,12 @@ public class NativeCompilerBuilder {
     }
   }
 
-  public NativeCompilerBuilder flags(Collection<String> flags) {
+  public CCCompilationBuilder flags(Collection<String> flags) {
     this.flags.addAll(flags);
     return this;
   }
 
-  public NativeCompilerBuilder workingDirectory(File directory) {
+  public CCCompilationBuilder workingDirectory(File directory) {
     this.workingDirectory = directory;
     return this;
   }
