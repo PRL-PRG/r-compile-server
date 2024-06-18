@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import org.junit.jupiter.api.Test;
+import org.prlprg.primitive.Complex;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.*;
@@ -45,6 +46,42 @@ public class RDSWriterTest extends AbstractGNURBasedTest {
         typeof(input) == "integer" && identical(input, c(5L, 4L, 3L, 2L, 1L))
             """,
             ints);
+
+    if (output instanceof LglSXP read_lgls) {
+      assertEquals(1, read_lgls.size());
+      assertEquals(Logical.TRUE, read_lgls.get(0));
+    } else {
+      fail("Expected LglSXP");
+    }
+  }
+
+  @Test
+  public void testComplex() throws Exception {
+    var complexes = SEXPs.complex(new Complex(0, 0), new Complex(1, 2), new Complex(-2, -1));
+    var output = new ByteArrayOutputStream();
+
+    RDSWriter.writeStream(rsession, output, complexes);
+
+    var input = new ByteArrayInputStream(output.toByteArray());
+    var sexp = RDSReader.readStream(rsession, input);
+
+    if (sexp instanceof ComplexSXP read_complexes) {
+      assertEquals(3, read_complexes.size());
+      assertEquals(new Complex(0, 0), read_complexes.get(0));
+      assertEquals(new Complex(1, 2), read_complexes.get(1));
+      assertEquals(new Complex(-2, -1), read_complexes.get(2));
+    }
+  }
+
+  @Test
+  public void testComplex_withR() throws Exception {
+    var complexes = SEXPs.complex(new Complex(0, 0), new Complex(1, 2), new Complex(-2, -1));
+    var output =
+        R.eval(
+            """
+        typeof(input) == "complex" && identical(input, c(0+0i, 1+2i, -2-1i))
+            """,
+            complexes);
 
     if (output instanceof LglSXP read_lgls) {
       assertEquals(1, read_lgls.size());

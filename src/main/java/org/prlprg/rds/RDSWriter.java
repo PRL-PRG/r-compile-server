@@ -2,6 +2,7 @@ package org.prlprg.rds;
 
 import java.io.*;
 import java.util.*;
+import java.util.stream.DoubleStream;
 import java.util.stream.StreamSupport;
 import javax.annotation.Nullable;
 import org.prlprg.RSession;
@@ -53,7 +54,7 @@ public class RDSWriter implements Closeable {
     out.writeInt((new RVersion(3, 5, 0, null)).encode());
 
     // Charset. Always UTF-8.
-    // The charset is not written in version
+    // The charset is not written in RDS version 2
     //    var nativeEncoding = StandardCharsets.UTF_8.name();
     //    out.writeInt(nativeEncoding.length());
     //    out.writeString(nativeEncoding);
@@ -67,8 +68,6 @@ public class RDSWriter implements Closeable {
   // See
   // https://github.com/wch/r-source/blob/65892cc124ac20a44950e6e432f9860b1d6e9bf4/src/main/serialize.c#L1021
   public void writeItem(SEXP s) throws IOException {
-    // ALTREP: TODO
-
     // Persisted through the ref table? TODO
 
     // Save Special hooks: direct return and exit the function after a special hook
@@ -315,9 +314,15 @@ public class RDSWriter implements Closeable {
         var vec = StreamSupport.stream(realSXP.spliterator(), false).mapToDouble(d -> d).toArray();
         out.writeDoubles(vec);
       }
-
-      case ComplexSXP _complexSXP -> {
-        throw new UnsupportedOperationException("not implemented yet");
+      case ComplexSXP complexSXP -> {
+        // For each complex number in the vector, add two doubles representing the real and
+        // imaginary components via a
+        // flat map
+        var doubles =
+            StreamSupport.stream(complexSXP.spliterator(), false)
+                .flatMapToDouble(c -> DoubleStream.builder().add(c.real()).add(c.imag()).build())
+                .toArray();
+        out.writeDoubles(doubles);
       }
 
       default -> throw new RuntimeException("Unreachable: implemented in another branch.");
