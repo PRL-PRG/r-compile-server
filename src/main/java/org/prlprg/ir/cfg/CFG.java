@@ -8,13 +8,9 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
-import java.util.SequencedMap;
-import java.util.SequencedSet;
 import java.util.Set;
 import java.util.function.Predicate;
 import javax.annotation.Nullable;
@@ -48,14 +44,11 @@ public class CFG
   private final Set<CFGObserver> setObservers = new WeakHashSet<>();
   private final List<CFGObserver> stackObservers = new ArrayList<>();
   private final BB entry;
-  // These are ordered to ensure deterministic traversal
-  private final SequencedSet<BB> exits = new LinkedHashSet<>();
-  private final SequencedMap<BBId, BB> bbs = new LinkedHashMap<>();
-  // These don't need to be ordered, because we don't traverse them directly
+  private final Set<BB> exits = new HashSet<>();
+  private final Map<BBId, BB> bbs = new HashMap<>();
   private final Map<NodeId<?>, Node> nodes = new HashMap<>();
   private int nextBbDisambiguator = 1;
   private int nextInstrOrPhiDisambiguator = 1;
-  //
   private @Nullable DomTree cachedDomTree;
   private @Nullable DefUseAnalysis cachedDefUseAnalysis;
 
@@ -92,6 +85,20 @@ public class CFG
   @UnmodifiableView
   public Collection<BBId> bbIds() {
     return Collections.unmodifiableCollection(bbs.keySet());
+  }
+
+  @Override
+  public boolean contains(BBId bbId) {
+    return bbs.containsKey(bbId);
+  }
+
+  @Override
+  public boolean contains(NodeId<?> nodeId) {
+    if (nodeId instanceof GlobalNodeId<?>) {
+      throw new IllegalArgumentException(
+          "`CFG#contains` can't be called with a `GlobalNodeId`: we don't track whether it's in the CFG, and usually want to special case it anyways");
+    }
+    return nodes.containsKey(nodeId);
   }
 
   @Override
@@ -320,7 +327,7 @@ public class CFG
       // Every phi input node is global or originates from a block that the incoming BB dominates
       // (non-strict, so includes the incoming block itself).
       for (var phi : bb.phis()) {
-        for (var input : phi.iterInputs()) {
+        for (var input : phi.inputs()) {
           var broken = verifyPhiInput(phi, input);
           if (broken != null) {
             errors.add(broken);
@@ -336,7 +343,7 @@ public class CFG
           // `prevNodesInBBs` will contain iff the argument originates from earlier in the current
           // block OR the argument originates from anywhere in a strictly dominating block.
           if (arg.origin() != null
-              && Streams.stream(domTree.dominators(bb, false))
+              && Streams.stream(domTree.iterDominators(bb, false))
                   .noneMatch(d -> prevNodesInBBs.get(d).contains(arg.origin()))) {
             errors.add(
                 new CFGVerifyException.ArgNotDefinedBeforeUse(bb.id(), instr.id(), arg.id()));
@@ -384,7 +391,7 @@ public class CFG
 
     var originBB = defUses.originBB(node);
     Predicate<BB> isValidIncomingBB =
-        bb -> Iterators.contains(domTree.dominators(bb, false), originBB);
+        bb -> Iterators.contains(domTree.iterDominators(bb, false), originBB);
     return isValidIncomingBB.test(incomingBB)
         ? null
         : new CFGVerifyException.IncorrectIncomingBBInPhi(
@@ -570,31 +577,10 @@ public class CFG
     return nextInstrOrPhiDisambiguator++;
   }
 
-  /**
-   * Get the disambiguator without incrementing it.
-   *
-   * <p>Only to be used by the {@linkplain CFGParsePrint CFG printer}.
-   */
-  int nextBBDisambiguatorWithoutIncrementing() {
-    return nextBbDisambiguator;
-  }
-
-  /**
-   * Get the disambiguator without incrementing it.
-   *
-   * <p>Only to be used by the {@linkplain CFGParsePrint CFG printer}.
-   */
-  int nextInstrOrPhiDisambiguatorWithoutIncrementing() {
-    return nextInstrOrPhiDisambiguator;
-  }
-
-  /**
-   * Set the disambiguator.
-   *
-   * <p>Only to be used by the {@linkplain CFGParsePrint CFG parser}.
-   */
-  void setNextBBDisambiguator(int disambiguator) {
-    nextBbDisambiguator = disambiguator;
+  /** Ensure that the next disambiguator is higher than the id's. */
+  void updateNextInstrOrPhiDisambiguator(NodeId<? extends InstrOrPhi> id) {
+    nextInstrOrPhiDisambiguator =
+        Math.max(nextInstrOrPhiDisambiguator, ((LocalNodeIdImpl<?>) id).disambiguator() + 1);
   }
 
   /**

@@ -248,12 +248,16 @@ public class SEXPPrintContext implements HasSEXPPrintContext {
         () -> {
           var w = p.writer();
 
-          printGeneralStart(sexp.type(), p);
+          w.write('<');
+          p.print(sexp.type());
+
           if (printAndCheckRef(sexp, p)) {
             printGeneralEnd(p);
             return;
           }
+
           if (options.printBcContents()) {
+            w.write(' ');
             p.print(sexp.bc());
           } else {
             w.write(" ...");

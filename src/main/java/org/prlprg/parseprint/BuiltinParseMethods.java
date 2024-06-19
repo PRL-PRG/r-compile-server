@@ -75,7 +75,7 @@ public final class BuiltinParseMethods {
   }
 
   @ParseMethod
-  private Record parseRecord(Parser p) {
+  private static Record parseRecord(Parser p) {
     if (!(p.context() instanceof ClassProvidingContext ctx)) {
       throw new IllegalStateException(
           "Can't parse record the builtin way without a context inheriting ClassProvidingContext");

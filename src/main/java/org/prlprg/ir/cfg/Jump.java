@@ -11,7 +11,8 @@ public non-sealed interface Jump extends Instr {
   /**
    * (A shallow copy of) {@link BB}s that this jump can go to.
    *
-   * <p>These are ordered to ensure deterministic traversal.
+   * <p>These are in the same order as they are defined in {@link #data()} (the {@link JumpData}
+   * record).
    */
   ImmutableList<BB> targets();
 

@@ -26,8 +26,8 @@ public class Lists {
   }
 
   /**
-   * Returns an unmodifiable list which lazily maps the elements in the original list using the
-   * given function. As the original list is updated, so is the returned list.
+   * Returns a readonly list which lazily maps the elements in the original list using the given
+   * function. As the original list is updated, so is the returned list.
    *
    * <p>The function should be fast and pure, since the elements are computed every time they're
    * accessed.

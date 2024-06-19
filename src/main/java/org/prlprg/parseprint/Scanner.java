@@ -296,43 +296,47 @@ public class Scanner {
     var sb = new StringBuilder();
 
     assertAndSkip(quote);
-    while (true) {
-      var c = readChar();
-      if (c == quote) {
-        return sb.toString();
-      } else if (c == '\\') {
-        switch (readChar()) {
-          case 'n' -> sb.append('\n');
-          case 'r' -> sb.append('\r');
-          case 't' -> sb.append('\t');
-          case '"' -> sb.append('"');
-          case '\\' -> sb.append('\\');
-          case '\'' -> sb.append('\'');
-          case '`' -> sb.append('`');
-          case 'x' -> {
-            var hex = readFixedLength(2);
-            try {
-              sb.append(Integer.parseInt(hex, 16));
-            } catch (NumberFormatException e) {
-              throw fail("invalid hex escape sequence");
+    return runWithWhitespacePolicy(
+        SkipWhitespace.NONE,
+        () -> {
+          while (true) {
+            var c = readChar();
+            if (c == quote) {
+              return sb.toString();
+            } else if (c == '\\') {
+              switch (readChar()) {
+                case 'n' -> sb.append('\n');
+                case 'r' -> sb.append('\r');
+                case 't' -> sb.append('\t');
+                case '"' -> sb.append('"');
+                case '\\' -> sb.append('\\');
+                case '\'' -> sb.append('\'');
+                case '`' -> sb.append('`');
+                case 'x' -> {
+                  var hex = readFixedLength(2);
+                  try {
+                    sb.append(Integer.parseInt(hex, 16));
+                  } catch (NumberFormatException e) {
+                    throw fail("invalid hex escape sequence");
+                  }
+                }
+                case 'u' -> {
+                  var hex = readFixedLength(4);
+                  try {
+                    sb.append(Integer.parseInt(hex, 16));
+                  } catch (NumberFormatException e) {
+                    throw fail("invalid 4-byte unicode escape sequence");
+                  }
+                }
+                default -> throw fail("unhandled escape sequence");
+              }
+            } else if (c == -1) {
+              throw fail("unclosed string (needs " + Strings.quote(quote) + ")");
+            } else {
+              sb.appendCodePoint(c);
             }
           }
-          case 'u' -> {
-            var hex = readFixedLength(4);
-            try {
-              sb.append(Integer.parseInt(hex, 16));
-            } catch (NumberFormatException e) {
-              throw fail("invalid 4-byte unicode escape sequence");
-            }
-          }
-          default -> throw fail("unhandled escape sequence");
-        }
-      } else if (c == -1) {
-        throw fail("unclosed string (needs " + Strings.quote(quote) + ")");
-      } else {
-        sb.appendCodePoint(c);
-      }
-    }
+        });
   }
 
   /**
@@ -348,36 +352,40 @@ public class Scanner {
     var sb = new StringBuilder().appendCodePoint(quote);
 
     assertAndSkip(quote);
-    while (true) {
-      var c = readChar();
-      sb.appendCodePoint(c);
-      if (c == quote) {
-        return sb.toString();
-      } else if (c == '\\') {
-        switch (readChar()) {
-          case 'n', 'r', 't', '"', '\\', '\'', '`' -> {}
-          case 'x' -> {
-            var hex = readFixedLength(2);
-            sb.append(hex);
-            try {
-              Integer.parseInt(hex, 16);
-            } catch (NumberFormatException e) {
-              throw fail("Invalid hex escape sequence");
+    return runWithWhitespacePolicy(
+        SkipWhitespace.NONE,
+        () -> {
+          while (true) {
+            var c = readChar();
+            sb.appendCodePoint(c);
+            if (c == quote) {
+              return sb.toString();
+            } else if (c == '\\') {
+              switch (readChar()) {
+                case 'n', 'r', 't', '"', '\\', '\'', '`' -> {}
+                case 'x' -> {
+                  var hex = readFixedLength(2);
+                  sb.append(hex);
+                  try {
+                    Integer.parseInt(hex, 16);
+                  } catch (NumberFormatException e) {
+                    throw fail("Invalid hex escape sequence");
+                  }
+                }
+                case 'u' -> {
+                  var hex = readFixedLength(4);
+                  sb.append(hex);
+                  try {
+                    Integer.parseInt(hex, 16);
+                  } catch (NumberFormatException e) {
+                    throw fail("Invalid 4-byte unicode escape sequence");
+                  }
+                }
+                default -> throw fail("Unhandled escape sequence");
+              }
             }
           }
-          case 'u' -> {
-            var hex = readFixedLength(4);
-            sb.append(hex);
-            try {
-              Integer.parseInt(hex, 16);
-            } catch (NumberFormatException e) {
-              throw fail("Invalid 4-byte unicode escape sequence");
-            }
-          }
-          default -> throw fail("Unhandled escape sequence");
-        }
-      }
-    }
+        });
   }
 
   /**
@@ -1039,7 +1047,46 @@ public class Scanner {
     setPosition(position().advanced(c));
   }
 
+  // TODO: Remove `tempBuffer` and the logic around `setPosition` after we resolve any encountered
+  //  issues with the offset being wrong, and tested enough that there probably aren't any more.
+  char[] tempBuffer = new char[64];
+  int tempBufferSize = 0;
+
   private void setPosition(Position p) {
+    var delta = (int) (p.offset() - offset);
+    if (delta < tempBufferSize - 1) {
+      var prevTempBuffer = new char[64];
+      var prevTempBufferSize = tempBufferSize;
+      System.arraycopy(tempBuffer, 0, prevTempBuffer, 0, tempBufferSize);
+      try {
+        tempBufferSize = input.read(tempBuffer);
+        input.unread(tempBuffer, 0, tempBufferSize);
+      } catch (IOException e) {
+        // skip
+      }
+      var realDelta = 0;
+      var areEqual = false;
+      while (!areEqual && realDelta < tempBufferSize) {
+        areEqual = true;
+        for (var i = realDelta; i < prevTempBufferSize; i++) {
+          if (tempBuffer[i - realDelta] != prevTempBuffer[i]) {
+            areEqual = false;
+            break;
+          }
+        }
+        realDelta++;
+      }
+
+      assert areEqual
+          : "no equality: "
+              + Strings.quote(String.valueOf(tempBuffer, 0, tempBufferSize))
+              + " vs "
+              + Strings.quote(String.valueOf(prevTempBuffer, 0, prevTempBufferSize));
+      if (delta != realDelta) {
+        throw fail("delta mismatch: " + delta + " != " + realDelta);
+      }
+    }
+
     offset = p.offset();
     line = p.line();
     column = p.column();

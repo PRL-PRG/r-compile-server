@@ -20,13 +20,9 @@ interface BBQuery extends Iterable<InstrOrPhi> {
   // endregion
 
   // region predecessors and successors (access)
-  /**
-   * Returns (a view of) the BBs whose jumps point to this.
-   *
-   * <p>These are ordered to ensure deterministic traversal.
-   */
+  /** Returns (a view of) the BBs whose jumps point to this. */
   @UnmodifiableView
-  SequencedCollection<BB> predecessors();
+  Collection<BB> predecessors();
 
   /** Whether this block has a single predecessor. */
   default boolean hasSinglePredecessor() {
@@ -35,13 +31,14 @@ interface BBQuery extends Iterable<InstrOrPhi> {
 
   /** If this block has exactly one predecessor, returns it, otherwise {@code null}. */
   default @Nullable BB onlyPredecessor() {
-    return hasSinglePredecessor() ? predecessors().getFirst() : null;
+    return hasSinglePredecessor() ? predecessors().iterator().next() : null;
   }
 
   /**
    * Returns (a view of) the BBs this one's jump points to.
    *
-   * <p>These are ordered to ensure deterministic traversal.
+   * <p>These are in the same order as the jump's {@linkplain Jump#targets() targets}, which is the
+   * same order as they are in its {@linkplain Jump#data() data} ({@link JumpData} record).
    */
   @UnmodifiableView
   SequencedCollection<BB> successors();
@@ -96,7 +93,7 @@ interface BBQuery extends Iterable<InstrOrPhi> {
   /**
    * Returns (a view of) the phis in this BB.
    *
-   * <p>These are ordered to ensure deterministic traversal.
+   * <p>These are in the same order as they are inserted.
    */
   @UnmodifiableView
   Collection<Phi<?>> phis();

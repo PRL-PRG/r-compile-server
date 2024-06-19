@@ -15,7 +15,6 @@ import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
-import org.prlprg.parseprint.SkipWhitespace;
 import org.prlprg.sexp.IntSXP;
 import org.prlprg.sexp.LangSXP;
 import org.prlprg.sexp.ListSXP;
@@ -25,6 +24,7 @@ import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.StrOrRegSymSXP;
 import org.prlprg.sexp.StrSXP;
 import org.prlprg.sexp.VecSXP;
+import org.prlprg.util.Classes;
 
 /** A pool (array) of constants. */
 @Immutable
@@ -71,17 +71,48 @@ public final class ConstPool extends ForwardingList<SEXP> {
    * <p>It also contains a reference to the owner pool which is checked at runtime for extra safety.
    */
   public record Idx<S extends SEXP>(int idx, Class<S> type) {
-    @Override
-    public String toString() {
-      // TODO: add sexp type?
-      return String.format("%d", idx);
-    }
-
     public static <S extends SEXP> Idx<S> create(int i, S value) {
       @SuppressWarnings("unchecked")
       var idx = new Idx<>(i, (Class<S>) value.getCanonicalType());
       return idx;
     }
+
+    // region serialization and deserialization
+    @ParseMethod
+    private static Idx<?> parse(Parser p) {
+      var s = p.scanner();
+
+      s.assertAndSkip('#');
+      var idx = s.readUInt();
+      Class<? extends SEXP> type = SEXP.class;
+      if (s.trySkip(':')) {
+        var typeName = s.readJavaIdentifierOrKeyword();
+        try {
+          type = Classes.sealedSubclassWithSimpleName(SEXP.class, typeName);
+        } catch (IllegalArgumentException e) {
+          throw s.fail("SEXP subclass", typeName);
+        }
+      }
+      return new Idx<>(idx, type);
+    }
+
+    @PrintMethod
+    private void print(Printer p) {
+      var w = p.writer();
+
+      w.write('#');
+      p.print(idx);
+      if (type != SEXP.class) {
+        w.write(':');
+        w.write(type.getSimpleName());
+      }
+    }
+
+    @Override
+    public String toString() {
+      return Printer.toString(this);
+    }
+    // endregion serialization and deserialization
   }
 
   /**
@@ -203,7 +234,7 @@ public final class ConstPool extends ForwardingList<SEXP> {
   }
 
   // region serialization and deserialization
-  @ParseMethod(SkipWhitespace.ALL_EXCEPT_NEWLINES)
+  @ParseMethod
   private static ConstPool parse(Parser p) {
     var s = p.scanner();
 

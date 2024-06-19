@@ -58,12 +58,23 @@ public class Parser {
   // region constructors
   /**
    * Creates a {@link Parser} to only parse an object of the given class from the entire given
-   * input.
+   * input, with no context.
    *
    * @throws ParseException if the object failed to parse.
    * @throws ParseException if the input wasn't entirely parsed, excluding trailing whitespace.
    */
-  public static <T> T parseEntireString(String s, Class<T> clazz, @Nullable Object context) {
+  public static <T> T fromString(String s, Class<T> clazz) {
+    return fromString(s, clazz, null);
+  }
+
+  /**
+   * Creates a {@link Parser} to only parse an object of the given class from the entire given
+   * input, with the given context.
+   *
+   * @throws ParseException if the object failed to parse.
+   * @throws ParseException if the input wasn't entirely parsed, excluding trailing whitespace.
+   */
+  public static <T> T fromString(String s, Class<T> clazz, @Nullable Object context) {
     var p = new Parser(s).withContext(context);
     var obj = p.parse(clazz);
     p.scanner.skipWhitespace(true);
@@ -178,18 +189,28 @@ public class Parser {
           assert t.getActualTypeArguments().length == 1;
           var asList = parseList(t.getActualTypeArguments()[0], skipWhitespaceIfList);
           yield constructor.apply(asList);
+        } else if (t.getRawType() instanceof Class<?> clazz) {
+          yield parse(clazz);
         } else {
           throw new UnsupportedOperationException(
-              "unhandled parameterized type " + t + ", must add to Parser#parse(Type)");
+              "can't parse parameterized type whose base type is of class "
+                  + t.getRawType().getClass()
+                  + ": "
+                  + type);
         }
       }
       case GenericArrayType a -> {
         var elemType = a.getGenericComponentType();
-        if (!(elemType instanceof Class<?> elemClass)) {
-          throw new UnsupportedOperationException(
-              "cannot parse generic array of non-class type " + elemType);
-        }
-        var asList = parseList(elemClass, skipWhitespaceIfList);
+        var elemClass =
+            switch (elemType) {
+              case Class<?> c -> c;
+              case ParameterizedType p when p.getRawType() instanceof Class<?> c -> c;
+              default ->
+                  throw new UnsupportedOperationException(
+                      "can't parse generic array of non-class, non-parameterized-class type "
+                          + elemType);
+            };
+        var asList = parseList(elemType, skipWhitespaceIfList);
         var array = Array.newInstance(elemClass, asList.size());
         for (int i = 0; i < asList.size(); i++) {
           Array.set(array, i, asList.get(i));
@@ -199,7 +220,7 @@ public class Parser {
       case Class<?> c -> parse(c);
       default ->
           throw new UnsupportedOperationException(
-              "cannot parse type of class " + type.getClass().getSimpleName() + ": " + type);
+              "can't parse type of class " + type.getClass().getSimpleName() + ": " + type);
     };
   }
 
@@ -345,16 +366,16 @@ public class Parser {
         throw new InvalidAnnotationError(
             method, "parse method must take a `Parser` as its first argument.");
       }
-      if (Modifier.isStatic(method.getModifiers())) {
+      if (Modifier.isStatic(method.getModifiers()) || method instanceof Constructor<?>) {
         if (method.getParameterCount() > 3) {
           throw new InvalidAnnotationError(
               method,
-              "static parse method must take at most three arguments: a `Parser`, a context object, and a class.");
+              "static parse method (or constructor) must take at most three arguments: a `Parser`, a context object, and a class.");
         }
         if (method.getParameterCount() == 3 && method.getParameterTypes()[2] != Class.class) {
           throw new InvalidAnnotationError(
               method,
-              "static parse method with three arguments, must take a `Class` as its third argument.");
+              "static parse method (or constructor) with three arguments, must take a `Class` as its third argument.");
         }
       } else {
         if (method.getParameterCount() > 2) {

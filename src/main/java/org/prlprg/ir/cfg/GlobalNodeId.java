@@ -7,6 +7,7 @@ import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.parseprint.SkipWhitespace;
+import org.prlprg.primitive.Names;
 import org.prlprg.rshruntime.DeoptReason;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.util.Classes;
@@ -29,6 +30,11 @@ public interface GlobalNodeId<N extends GlobalNode> extends NodeId<N> {
   @Override
   default boolean isLocal() {
     return false;
+  }
+
+  @ParseMethod
+  private static GlobalNodeId<?> parse(Parser p) {
+    return p.parse(GlobalNodeIdImpl.class);
   }
 }
 
@@ -98,7 +104,7 @@ final class GlobalNodeIdImpl<N extends GlobalNode> extends NodeIdImpl<N>
 
   // region serialization and deserialization
   @ParseMethod(SkipWhitespace.NONE)
-  private static GlobalNodeId<?> parse(Parser p) {
+  private static GlobalNodeIdImpl<?> parse(Parser p) {
     var s = p.scanner();
 
     var type = s.readUntil('\\');
@@ -107,7 +113,7 @@ final class GlobalNodeIdImpl<N extends GlobalNode> extends NodeIdImpl<N>
         switch (type) {
           case "" -> new Constant(p.parse(SEXP.class));
           case "dr" -> new ConstantDeoptReason(p.parse(DeoptReason.class));
-          case "invalid" -> InvalidNode.parsed(s.readUInt(), s.readJavaIdentifierOrKeyword());
+          case "invalid" -> InvalidNode.parsed(s.readUInt(), Names.read(s, true));
           case "env" -> {
             var name = s.readJavaIdentifierOrKeyword();
             var env = StaticEnv.ALL.get(name);
@@ -118,7 +124,7 @@ final class GlobalNodeIdImpl<N extends GlobalNode> extends NodeIdImpl<N>
           }
           default -> throw s.fail("Unhandled global node type: " + type);
         };
-    return node.id();
+    return (GlobalNodeIdImpl<?>) node.id();
   }
 
   @PrintMethod

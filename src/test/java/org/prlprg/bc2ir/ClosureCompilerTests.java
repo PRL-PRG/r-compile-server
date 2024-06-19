@@ -1,6 +1,8 @@
 package org.prlprg.bc2ir;
 
 import static org.junit.Assume.assumeNoException;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assumptions.abort;
 import static org.prlprg.util.Tests.assumeEquals;
 import static org.prlprg.util.Tests.printlnIfVerbose;
@@ -14,12 +16,18 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.prlprg.bc.BcInstr;
 import org.prlprg.bc.Compiler;
+import org.prlprg.ir.closure.Closure;
+import org.prlprg.parseprint.ParseException;
+import org.prlprg.parseprint.Parser;
+import org.prlprg.parseprint.Printer;
 import org.prlprg.primitive.Names;
 import org.prlprg.sexp.BCodeSXP;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.RealSXP;
 import org.prlprg.sexp.StrSXP;
+import org.prlprg.sexp.parseprint.SEXPPrintOptions;
 import org.prlprg.util.AbstractGNURBasedTest;
+import org.prlprg.util.Strings2;
 import org.prlprg.util.UnreachableError;
 
 /**
@@ -749,6 +757,35 @@ public class ClosureCompilerTests extends AbstractGNURBasedTest {
   private void testAllIr(String funName, String funCode, int optimizationLevel) {
     var fun = compileSuccessfully(funCode, optimizationLevel);
     var ir = ClosureCompiler.compileBaselineClosure(funName, fun);
+
+    var irString =
+        assertDoesNotThrow(() -> Printer.toString(ir, SEXPPrintOptions.FULL), "Failed to print IR");
+
+    Closure ir1;
+    try {
+      ir1 = Parser.fromString(irString, Closure.class);
+    } catch (ParseException e) {
+      var msg =
+          "Failed to re-parse printed IR:\n"
+              + Strings2.region(irString, e.position().line(), e.position().column());
+      throw new AssertionError(msg, e);
+    } catch (Throwable e) {
+      var msg =
+          "Uncaught exception while re-parsing printed IR:\n" + Strings2.entireRegion(irString);
+      throw new AssertionError(msg, e);
+    }
+    String ir1String;
+    try {
+      ir1String = Printer.toString(ir1, SEXPPrintOptions.FULL);
+    } catch (Throwable e) {
+      var msg = "Exception while re-printing re-parsed IR:\n" + Strings2.entireRegion(irString);
+      throw new AssertionError(msg, e);
+    }
+
+    assertEquals(
+        ir1String,
+        irString,
+        "IR re-printed doesn't match originally printed (round-trip failure).");
 
     printlnIfVerbose(ir);
   }

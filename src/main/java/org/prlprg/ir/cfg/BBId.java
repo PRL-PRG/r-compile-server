@@ -22,8 +22,13 @@ public interface BBId {
   String name();
 
   @ParseMethod(SkipWhitespace.NONE)
-  private static BBId parseBBId(Parser p) {
-    return p.parse(BBIdImpl.class);
+  private static BBId parse(Parser p) {
+    var s = p.scanner();
+
+    s.assertAndSkip('^');
+    var disambiguator = s.readUInt();
+    var name = NodeAndBBIds.readName(s);
+    return new BBIdImpl(disambiguator, name);
   }
 }
 
@@ -62,14 +67,5 @@ final class BBIdImpl implements BBId {
   @Override
   public String toString() {
     return toString;
-  }
-
-  @ParseMethod(SkipWhitespace.NONE)
-  private static BBId parse(Parser p) {
-    var s = p.scanner();
-
-    var disambiguator = s.readUInt();
-    var name = NodeAndBBIds.readName(s);
-    return new BBIdImpl(disambiguator, name);
   }
 }

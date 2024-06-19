@@ -15,7 +15,7 @@ import java.util.function.Function;
 import org.prlprg.ir.cfg.BB;
 import org.prlprg.ir.cfg.CFG;
 import org.prlprg.ir.cfg.CFGIterator.DomTreeBfs;
-import org.prlprg.util.SmallSet;
+import org.prlprg.util.SmallListSet;
 import org.prlprg.util.YCombinator;
 
 /**
@@ -177,10 +177,9 @@ public class DomTree {
     // of the Dominator Theorem, clause 2.
     var samedom = new LinkedHashMap<BB, BB>(size);
 
-    // Indexed by BB id. `bucket[s->id]` is the set of nodes that `s`
-    // semidominates. Used to defer the dominator calculation until after
-    // linking.
-    var bucket = new LinkedHashMap<BB, SmallSet<BB>>(size);
+    // Indexed by BB id. `bucket[s->id]` is the set of nodes that `s` semidominates.
+    // It's used to defer the dominator calculation until after linking.
+    var bucket = new LinkedHashMap<BB, SmallListSet<BB>>(size);
 
     // Indexed by BB id. Spanning forest for the CFG. `ancestor[n->id]` is an
     // ancestor (not necessarily parent) of `n`, i.e., any node above `n` in
@@ -306,14 +305,14 @@ public class DomTree {
       // put `n` into the bucket of all nodes that `s` semidominates, so we
       // can process it after linking.
       semi.put(n, s);
-      bucket.computeIfAbsent(s, k -> new SmallSet<>()).add(n);
+      bucket.computeIfAbsent(s, _ -> new SmallListSet<>()).add(n);
       link.accept(p, n);
 
       // Step 3. Now that the path from `p` to `v` has been linked into the
       // spanning forest, calculate the dominator of `v`, based on the first
       // clause of the Dominator Theorem, or else defer calculation until
       // y`'s dominator is known.
-      for (var v : bucket.computeIfAbsent(p, k -> new SmallSet<>())) {
+      for (var v : bucket.computeIfAbsent(p, _ -> new SmallListSet<>())) {
         // Find `y`, the ancestor of `v` whose semidominator has the lowest
         // dfnum. Note that the spanning forest only contains nodes with a
         // higher dfnum than `n`.
@@ -348,7 +347,7 @@ public class DomTree {
 
     // Build the reverse map for fast access.
     for (var entry : idoms.entrySet()) {
-      idominees.computeIfAbsent(entry.getValue(), k -> new SmallSet<>()).add(entry.getKey());
+      idominees.computeIfAbsent(entry.getValue(), _ -> new SmallListSet<>()).add(entry.getKey());
     }
   }
 
@@ -403,7 +402,7 @@ public class DomTree {
    * Iterates the dominators of the given block, starting with itself if {@code strict} is false,
    * otherwise the {@linkplain #idominator(BB) immediate dominator}.
    */
-  public Iterator<BB> dominators(BB bb, boolean strict) {
+  public Iterator<BB> iterDominators(BB bb, boolean strict) {
     return new Iterator<>() {
       private @Nullable BB next = strict ? idoms.get(bb) : bb;
 
@@ -430,19 +429,19 @@ public class DomTree {
   }
 
   /** Iterate the dominator tree starting from the given block, breadth-first. */
-  public Iterator<BB> dominees(BB start) {
+  public Iterator<BB> iterDominees(BB start) {
     return new DomTreeBfs(this, start);
   }
 
   /** The set of BBs dominated by the input set. */
-  public SmallSet<BB> dominees(Set<BB> input) {
+  public Set<BB> dominees(Set<BB> input) {
     // Given a set of BBs, compute the set of BBs dominated by the input set.
     // Inductive definition:
     // - a BB is dominated by the input set if it is contained in the input set.
     // - a BB is dominated by the input set if all its inputs are dominated by
     //   the input set.
-    var result = new SmallSet<BB>();
-    var seen = new SmallSet<BB>();
+    var result = new SmallListSet<BB>();
+    var seen = new SmallListSet<BB>();
     var todo = new ArrayDeque<BB>();
     todo.push(cfg.entry());
 
@@ -488,8 +487,8 @@ public class DomTree {
    * The set of blocks which {@code bb} dominates an immediate predecessor of but does not directly
    * strictly dominate. Informally, where {@code bb}'s dominance "ends".
    */
-  public SmallSet<BB> frontier(BB bb) {
-    var result = new SmallSet<BB>();
+  public Set<BB> frontier(BB bb) {
+    var result = new SmallListSet<BB>();
     var dominees = new DomTreeBfs(this, bb);
     while (dominees.hasNext()) {
       var cur = dominees.next(d -> strictlyDominates(bb, d));

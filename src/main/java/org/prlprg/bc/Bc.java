@@ -11,7 +11,6 @@ import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
-import org.prlprg.parseprint.SkipWhitespace;
 import org.prlprg.primitive.Constants;
 import org.prlprg.sexp.IntSXP;
 import org.prlprg.sexp.SEXP;
@@ -136,14 +135,10 @@ public record Bc(BcCode code, ConstPool consts) {
   }
 
   // region serialization and deserialization
-  @ParseMethod(SkipWhitespace.ALL_EXCEPT_NEWLINES)
+  @ParseMethod
   private static Bc parse(Parser p) {
-    var s = p.scanner();
-
     var code = p.parse(BcCode.class);
-    s.assertAndSkip('\n');
     var consts = p.parse(ConstPool.class);
-
     return new Bc(code, consts);
   }
 

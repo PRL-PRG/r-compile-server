@@ -64,23 +64,20 @@ public class SEXPParseContext implements HasSEXPParseContext {
     if (s.trySkip("<...")) {
       throw failParsingTruncated(p);
     } else if (s.nextCharSatisfies(Names::isValidStartChar)) {
-      // SymOrLangSXP
-      SymOrLangSXP result = p.parse(SymSXP.class);
-      while (s.trySkip('(')) {
-        var args = new ArrayList<TaggedElem>();
-        if (!s.trySkip(')')) {
-          while (true) {
-            var arg = p.parse(TaggedElem.class);
-            args.add(arg);
-            if (s.trySkip(')')) {
-              break;
-            }
-            s.assertAndSkip(',');
-          }
-        }
-        result = SEXPs.lang(result, SEXPs.list(args));
-      }
-      return result;
+      var name = Names.read(s, true);
+      return switch (name) {
+        case "NULL" -> SEXPs.NULL;
+        case "TRUE" -> SEXPs.TRUE;
+        case "FALSE" -> SEXPs.FALSE;
+        case "NA_LGL" -> SEXPs.NA_LOGICAL;
+        case "NA_INT" -> SEXPs.NA_INTEGER;
+        case "NA_REAL" -> SEXPs.NA_REAL;
+        case "NA_CPLX" -> SEXPs.NA_COMPLEX;
+        case "NA_STR" -> SEXPs.NA_STRING;
+        case "NA" ->
+            throw s.fail("NA type (uppercase): NA_LGL, NA_INT, NA_REAL, NA_CPLX, NA_STR", name);
+        default -> parseSymOrNotBlockLangSXP(name, p);
+      };
     } else if (s.trySkip('{')) {
       // Block SymOrLangSXP
       var elems = ImmutableList.<TaggedElem>builder();
@@ -98,24 +95,9 @@ public class SEXPParseContext implements HasSEXPParseContext {
         s.assertAndSkip('}');
       }
       return SEXPs.blockLang(elems.build());
-    } else if (s.trySkip('(')) {
+    } else if (s.nextCharIs('(')) {
       // ListSXP
       return SEXPs.list(parseList(p));
-    } else if (s.nextCharSatisfies(Names::isValidStartChar)) {
-      var name = Names.read(s, false);
-      return switch (name) {
-        case "NULL" -> SEXPs.NULL;
-        case "TRUE" -> SEXPs.TRUE;
-        case "FALSE" -> SEXPs.FALSE;
-        case "NA_LGL" -> SEXPs.NA_LOGICAL;
-        case "NA_INT" -> SEXPs.NA_INTEGER;
-        case "NA_REAL" -> SEXPs.NA_REAL;
-        case "NA_CPLX" -> SEXPs.NA_COMPLEX;
-        case "NA_STR" -> SEXPs.NA_STRING;
-        case "NA" ->
-            throw s.fail("NA type (uppercase): NA_LGL, NA_INT, NA_REAL, NA_CPLX, NA_STR", name);
-        default -> SEXPs.symbol(Names.unquoteIfNecessary(name));
-      };
     } else if (s.trySkip("<missing>")) {
       return SEXPs.MISSING_ARG;
     } else if (s.trySkip("<unbound>")) {
@@ -340,17 +322,6 @@ public class SEXPParseContext implements HasSEXPParseContext {
                   }
                   env.set(binding.tag(), binding.value());
                 }
-                s.assertAndSkip('(');
-                var first = true;
-                while (!s.trySkip(')')) {
-                  if (!first) {
-                    s.assertAndSkip(',');
-                  }
-                  var key = Names.read(s, true);
-                  s.assertAndSkip('=');
-                  var value = p.parse(SEXP.class);
-                  env.set(key, value);
-                }
               }
 
               yield env;
@@ -419,14 +390,41 @@ public class SEXPParseContext implements HasSEXPParseContext {
   }
 
   @ParseMethod
+  private SymOrLangSXP parseSymOrLangSXP(Parser p) {
+    return parseSymOrNotBlockLangSXP(Names.read(p.scanner(), true), p);
+  }
+
+  @ParseMethod
   private SymSXP parseSymSXP(Parser p) {
     return SEXPs.symbol(Names.read(p.scanner(), true));
+  }
+
+  private SymOrLangSXP parseSymOrNotBlockLangSXP(String name, Parser p) {
+    var s = p.scanner();
+
+    SymOrLangSXP result = SEXPs.symbol(name);
+    while (s.trySkip('(')) {
+      var args = new ArrayList<TaggedElem>();
+      if (!s.trySkip(')')) {
+        while (true) {
+          var arg = p.parse(TaggedElem.class);
+          args.add(arg);
+          if (s.trySkip(')')) {
+            break;
+          }
+          s.assertAndSkip(',');
+        }
+      }
+      result = SEXPs.lang(result, SEXPs.list(args));
+    }
+    return result;
   }
 
   private ImmutableList<TaggedElem> parseList(Parser p) {
     var s = p.scanner();
 
     var elems = ImmutableList.<TaggedElem>builder();
+    s.assertAndSkip('(');
     if (!s.trySkip(')')) {
       if (s.nextCharsAre("...")) {
         throw failParsingTruncated(p);

@@ -7,6 +7,7 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
@@ -24,6 +25,7 @@ import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
+import org.prlprg.util.SmallBinarySet;
 import org.prlprg.util.Strings;
 import org.prlprg.util.UnreachableError;
 
@@ -36,8 +38,9 @@ import org.prlprg.util.UnreachableError;
 public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, BBInline {
   private final CFG parent;
   private final BBId id;
-  private final List<BB> predecessors = new ArrayList<>(4);
-  // These are ordered to ensure deterministic traversal
+  private final SequencedSet<BB> predecessors =
+      new SmallBinarySet<>(4, Comparator.comparing(bb -> bb.id.toString()));
+  // Preserve insertion order for sometimes clearer debug representation
   private final SequencedSet<Phi<?>> phis = new LinkedHashSet<>();
   private final List<Stmt> stmts = new ArrayList<>();
   private @Nullable Jump jump = null;
@@ -325,7 +328,8 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     for (var succ : successors()) {
       assert succ.predecessors.contains(this)
           : "BB has successor whose predecessors set doesn't contain it";
-      succ.predecessors.set(succ.predecessors.indexOf(this), newBB);
+      succ.predecessors.remove(this);
+      succ.predecessors.add(newBB);
       for (var phi : succ.phis) {
         ((PhiImpl<?>) phi).unsafeReplaceIncomingBB(this, newBB);
       }
@@ -368,7 +372,8 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     for (var succ2 : succ.successors()) {
       assert succ2.predecessors.contains(succ)
           : "BB has successor whose predecessors set doesn't contain it";
-      succ2.predecessors.set(succ2.predecessors.indexOf(succ), this);
+      succ2.predecessors.remove(succ);
+      succ2.predecessors.add(this);
       for (var phi : succ2.phis) {
         ((PhiImpl<?>) phi).unsafeReplaceIncomingBB(succ, this);
       }
@@ -406,14 +411,26 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
 
   @Override
   public <N extends Node> Phi<N> addPhi(
-      Class<? extends N> nodeClass, SequencedCollection<? extends Phi.Input<? extends N>> inputs) {
+      Class<? extends N> nodeClass, Collection<? extends Phi.Input<? extends N>> inputs) {
     return addPhiWithId(null, nodeClass, inputs);
+  }
+
+  <N extends Node> Phi<N> addPhiWithId(
+      @Nullable NodeId<? extends Phi<? extends N>> id, Class<? extends N> nodeClass) {
+    var phi =
+        PhiImpl.forClass(
+            id, nodeClass, cfg(), predecessors.stream().map(Phi.Input::unset).toList());
+    phis.add(phi);
+    cfg().track(phi);
+
+    cfg().record(new CFGEdit.InsertPhi<>(this, phi), new CFGEdit.RemovePhi(this, phi));
+    return phi;
   }
 
   <N extends Node> Phi<N> addPhiWithId(
       @Nullable NodeId<? extends Phi<? extends N>> id,
       Class<? extends N> nodeClass,
-      SequencedCollection<? extends Phi.Input<? extends N>> inputs) {
+      Collection<? extends Phi.Input<? extends N>> inputs) {
     var phi = PhiImpl.forClass(id, nodeClass, cfg(), inputs);
     verifyPhiInputBBs(phi);
     phis.add(phi);

@@ -3,21 +3,22 @@ package org.prlprg.ir.analysis;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.SequencedSet;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.ir.cfg.BB;
 import org.prlprg.ir.cfg.CFG;
 import org.prlprg.ir.cfg.Instr;
 import org.prlprg.ir.cfg.InstrOrPhi;
 import org.prlprg.ir.cfg.Node;
-import org.prlprg.util.SmallSet;
 
 public class DefUseAnalysis {
   private final CFG cfg;
   private final HashMap<Node, DuChain> duChains = new HashMap<>();
 
-  private record DuChain(BB originBB, SmallSet<InstrOrPhi> uses) {
+  private record DuChain(BB originBB, SequencedSet<InstrOrPhi> uses) {
     DuChain(BB originBb) {
-      this(originBb, new SmallSet<>());
+      this(originBb, new LinkedHashSet<>());
     }
   }
 

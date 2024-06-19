@@ -235,8 +235,9 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
     public Iterable<? extends InsertPhi<?>> subEdits() {
       return phis.stream()
           .map(
-              // Sometimes this line fails to compile. Clean/recompile and it should magically pass.
-              a -> new InsertPhi<>(bbId, a.id(), a.nodeClass(), ImmutableList.copyOf(a.inputIds())))
+              // Sometimes this line fails to compile. IntelliJ reports no issue.
+              // Rebuild and it usually magically compiles. If not, clean/rebuild, then it should.
+              a -> new InsertPhi<>(bbId, a.id(), a.nodeClass(), ImmutableSet.copyOf(a.inputIds())))
           .toList();
     }
   }
@@ -245,14 +246,14 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
       @Override BBId bbId,
       NodeId<? extends Phi<? extends N>> nodeId,
       Class<? extends N> nodeClass,
-      ImmutableList<? extends InputId<? extends N>> inputs)
+      ImmutableSet<? extends InputId<? extends N>> inputs)
       implements InsertPhis_<RemovePhi> {
     public InsertPhi(BB bb, Phi<? extends N> phi) {
       this(
           bb.id(),
           phi.id(),
           phi.nodeClass(),
-          phi.streamInputs().map(Input::id).collect(ImmutableList.toImmutableList()));
+          phi.inputs().stream().map(Input::id).collect(ImmutableSet.toImmutableSet()));
     }
 
     @Override
@@ -438,7 +439,7 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
           bbId,
           phi.id(),
           phi.nodeClass(),
-          phi.streamInputs().map(Input::id).collect(ImmutableList.toImmutableList()));
+          phi.inputs().stream().map(Input::id).collect(ImmutableSet.toImmutableSet()));
     }
   }
 

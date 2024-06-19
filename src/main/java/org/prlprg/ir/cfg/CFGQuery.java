@@ -44,8 +44,6 @@ interface CFGQuery {
    * produce errors in {@link CFG#verify()}.)
    *
    * <p>Mutating the CFG will update the set.
-   *
-   * <p>These are ordered to ensure deterministic traversal.
    */
   @UnmodifiableView
   Collection<BB> exits();
@@ -61,6 +59,17 @@ interface CFGQuery {
    */
   @UnmodifiableView
   Collection<BBId> bbIds();
+
+  /** Whether the CFG contains a basic block with the given id. */
+  boolean contains(BBId bbId);
+
+  /**
+   * Whether the CFG contains a node with the given id.
+   *
+   * @throws IllegalArgumentException if given {@link GlobalNodeId} (we don't track whether it's in
+   *     the CFG, and usually want to special case it anyways).
+   */
+  boolean contains(NodeId<?> nodeId);
 
   /**
    * Get the basic block in the CFG with the given id.

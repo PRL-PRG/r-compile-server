@@ -5,7 +5,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import javax.annotation.Nullable;
 import org.prlprg.ir.type.RType;
 import org.prlprg.ir.type.RTypes;
-import org.prlprg.util.Strings;
+import org.prlprg.primitive.Names;
 
 /** Node representing missing, invalid, or placeholder data. */
 public class InvalidNode implements DeoptReason, RValue, FrameState, GlobalNode {
@@ -17,8 +17,8 @@ public class InvalidNode implements DeoptReason, RValue, FrameState, GlobalNode 
   }
 
   private final int disambiguator;
-  private final String desc;
   private final GlobalNodeId<InvalidNode> id;
+  private final String toString;
 
   public InvalidNode(String desc) {
     this(NEXT_DISAMBIGUATOR.getAndIncrement(), desc);
@@ -46,12 +46,12 @@ public class InvalidNode implements DeoptReason, RValue, FrameState, GlobalNode 
   }
 
   private InvalidNode(int disambiguator, String desc) {
-    if (!Strings.isValidJavaIdentifierOrKeyword(desc)) {
-      throw new IllegalArgumentException("Description be a valid java identifier");
+    if (desc.isEmpty()) {
+      throw new IllegalArgumentException("Description must not be empty");
     }
     this.disambiguator = disambiguator;
-    this.desc = desc;
     this.id = new GlobalNodeIdImpl<>(this);
+    toString = disambiguator + Names.quoteIfNecessary(desc);
   }
 
   @Override
@@ -83,6 +83,6 @@ public class InvalidNode implements DeoptReason, RValue, FrameState, GlobalNode 
 
   @Override
   public String toString() {
-    return disambiguator + desc;
+    return toString;
   }
 }

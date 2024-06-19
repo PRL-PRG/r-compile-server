@@ -309,6 +309,7 @@ public final class Closure extends CodeObject {
     s.assertAndSkip("=>");
     var body = p.parse(SEXP.class);
     origin = SEXPs.closure(parameters, body, SEXPs.EMPTY_ENV, attributes);
+
     s.assertAndSkip('{');
     s.assertAndSkip("baseline");
 
@@ -363,6 +364,9 @@ public final class Closure extends CodeObject {
       w.write(" with ");
       w.runIndented(() -> p.print(origin.attributes()));
     }
+    w.write(" => ");
+    p.print(origin.body());
+
     w.write(" {\nbaseline ");
 
     p.withContext(ctx.ref(new NodeIdQualifier(name, idIndex))).print(baselineVersion);
@@ -380,7 +384,7 @@ public final class Closure extends CodeObject {
       o.printRemaining(p);
     }
 
-    w.write("\n");
+    w.write("\n}");
   }
 
   @Override

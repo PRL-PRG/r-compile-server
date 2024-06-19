@@ -8,7 +8,10 @@ import java.util.ListIterator;
 import java.util.function.Function;
 import org.jetbrains.annotations.UnmodifiableView;
 
-/** Readonly view created by applying a function to each of another list's elements. */
+/**
+ * Readonly view created by applying a function to each of another {@linkplain List list}'s
+ * elements.
+ */
 @UnmodifiableView
 final class MapListView<I, O> implements List<O> {
   private final List<I> backing;
@@ -29,13 +32,9 @@ final class MapListView<I, O> implements List<O> {
     return backing.isEmpty();
   }
 
-  @SuppressWarnings("unchecked")
   @Override
   public boolean contains(Object o) {
-    // Not ideal: in case you call `contains` with an incorrect type you'll get a
-    // `ClassCastException` that can't be selectively caught. However, you shouldn't be calling
-    // `contains` with a supertype anyways.
-    return backing.contains(f.apply((I) o));
+    return backing.stream().map(f).anyMatch(o::equals);
   }
 
   @Override
@@ -77,7 +76,7 @@ final class MapListView<I, O> implements List<O> {
 
   @Override
   public boolean containsAll(Collection<?> c) {
-    return backing.stream().map(f).allMatch(c::contains);
+    return c.stream().allMatch(this::contains);
   }
 
   @Override

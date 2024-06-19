@@ -2,6 +2,9 @@ package org.prlprg.parseprint;
 
 import com.google.common.collect.Streams;
 import java.lang.annotation.Annotation;
+import java.lang.reflect.Executable;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.HashMap;
@@ -294,6 +297,10 @@ class TypeclassMap<A extends Annotation, M extends TypeclassMethod> {
         continue;
       }
 
+      if (!Modifier.isStatic(method.getModifiers())) {
+        throw new InvalidAnnotationError(method, "builtin method must be static");
+      }
+
       var typeclassMethod = loader.load(method.getAnnotation(annotationClass), method);
       var objectClass = typeclassMethod.objectClass();
       var contextClass = typeclassMethod.contextClass();
@@ -332,51 +339,63 @@ class TypeclassMap<A extends Annotation, M extends TypeclassMethod> {
   private void registerObjectClass(Class<?> clazz) {
     var classMethods = methods.computeIfAbsent(clazz, _ -> new HashMap<>());
     for (var method : clazz.getDeclaredMethods()) {
-      if (!method.isAnnotationPresent(annotationClass)) {
-        continue;
-      }
-
-      var typeclassMethod = loader.load(method.getAnnotation(annotationClass), method);
-      var actualObjectClass = typeclassMethod.objectClass();
-      var contextClass = typeclassMethod.contextClass();
-
-      // Have to check the superclass chain (vs `isAssignableFrom`) because we allow the classes in
-      // @InterfaceHiddenMembers annotations to register the method.
-      if (Streams.stream(methodSuperclassChain(actualObjectClass, true)).noneMatch(clazz::equals)) {
-        throw new InvalidAnnotationError(
-            method,
-            "method in object class "
-                + clazz
-                + " is for "
-                + actualObjectClass
-                + "; it's only allowed to be for itself or a subclass");
-      }
-
-      registerMethod(classMethods, actualObjectClass, contextClass, typeclassMethod);
+      tryRegisterObjectClassMethod(clazz, classMethods, method);
     }
+    for (var constructor : clazz.getDeclaredConstructors()) {
+      tryRegisterObjectClassMethod(clazz, classMethods, constructor);
+    }
+  }
+
+  private void tryRegisterObjectClassMethod(
+      Class<?> clazz, Map<Class<?>, M> classMethods, Executable method) {
+    if (!method.isAnnotationPresent(annotationClass)) {
+      return;
+    }
+
+    var typeclassMethod = loader.load(method.getAnnotation(annotationClass), method);
+    var actualObjectClass = typeclassMethod.objectClass();
+    var contextClass = typeclassMethod.contextClass();
+
+    // Have to check the superclass chain (vs `isAssignableFrom`) because we allow the classes in
+    // @InterfaceHiddenMembers annotations to register the method.
+    if (Streams.stream(methodSuperclassChain(actualObjectClass, true)).noneMatch(clazz::equals)) {
+      throw new InvalidAnnotationError(
+          method,
+          "method in object class "
+              + clazz
+              + " is for "
+              + actualObjectClass
+              + "; it's only allowed to be for itself or a subclass");
+    }
+
+    registerMethod(classMethods, actualObjectClass, contextClass, typeclassMethod);
   }
 
   private void registerContextClass(Class<?> contextClass) {
     for (var method : contextClass.getDeclaredMethods()) {
-      if (!method.isAnnotationPresent(annotationClass)) {
-        continue;
-      }
-
-      var typeclassMethod = loader.load(method.getAnnotation(annotationClass), method);
-      var objectClass = typeclassMethod.objectClass();
-      var actualContextClass = typeclassMethod.contextClass();
-
-      if (actualContextClass != contextClass) {
-        throw new InvalidAnnotationError(
-            method,
-            "method in context class "
-                + contextClass
-                + " is for a different context class "
-                + actualContextClass);
-      }
-
-      registerMethod(objectClass, contextClass, typeclassMethod);
+      tryRegisterContextClassMethod(contextClass, method);
     }
+  }
+
+  private void tryRegisterContextClassMethod(Class<?> contextClass, Method method) {
+    if (!method.isAnnotationPresent(annotationClass)) {
+      return;
+    }
+
+    var typeclassMethod = loader.load(method.getAnnotation(annotationClass), method);
+    var objectClass = typeclassMethod.objectClass();
+    var actualContextClass = typeclassMethod.contextClass();
+
+    if (actualContextClass != contextClass) {
+      throw new InvalidAnnotationError(
+          method,
+          "method in context class "
+              + contextClass
+              + " is for a different context class "
+              + actualContextClass);
+    }
+
+    registerMethod(objectClass, contextClass, typeclassMethod);
   }
 
   private void registerMethod(Class<?> objectClass, Class<?> contextClass, M method) {

@@ -56,8 +56,7 @@ interface BBInline extends BBCompoundMutate {
                   var newPhi =
                       newBB.addPhi(
                           oldPhi.nodeClass(),
-                          oldPhi
-                              .streamInputs()
+                          oldPhi.inputs().stream()
                               .map(
                                   i -> {
                                     var newIncomingBB =

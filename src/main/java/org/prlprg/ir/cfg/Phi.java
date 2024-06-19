@@ -3,22 +3,19 @@ package org.prlprg.ir.cfg;
 import static org.prlprg.AppConfig.EAGERLY_VERIFY_PHI_INPUTS;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Iterables;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.LinkedHashMap;
+import java.util.Comparator;
 import java.util.SequencedCollection;
-import java.util.SequencedMap;
-import java.util.stream.Stream;
+import java.util.SequencedSet;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
-import org.prlprg.sexp.parseprint.HasSEXPParseContext;
-import org.prlprg.sexp.parseprint.HasSEXPPrintContext;
-import org.prlprg.sexp.parseprint.SEXPParseContext;
-import org.prlprg.sexp.parseprint.SEXPPrintContext;
+import org.prlprg.util.SequencedCollections;
+import org.prlprg.util.SmallBinarySet;
 
 /**
  * <a
@@ -84,26 +81,16 @@ public non-sealed interface Phi<N extends Node> extends InstrOrPhi {
 
   /** (A view of) the inputs to this φ-node. */
   @UnmodifiableView
-  SequencedMap<BB, N> inputs();
-
-  /** A stream of the inputs to this φ-node, represented as {@link Phi.Input}s. */
-  default Stream<Input<N>> streamInputs() {
-    return inputs().entrySet().stream().map(e -> new Input<>(e.getKey(), e.getValue()));
-  }
-
-  /** An iterable of the inputs to this φ-node, represented as {@link Phi.Input}s. */
-  default Iterable<Input<N>> iterInputs() {
-    return streamInputs()::iterator;
-  }
+  SequencedSet<Input<N>> inputs();
 
   /** (A view of) the input {@link BB}s. */
   default @UnmodifiableView SequencedCollection<BB> incomingBBs() {
-    return inputs().sequencedKeySet();
+    return SequencedCollections.lazyMapView(inputs(), Input::incomingBB);
   }
 
   /** (A view of) the input {@link Node}s. */
   default @UnmodifiableView SequencedCollection<N> inputNodes() {
-    return inputs().sequencedValues();
+    return SequencedCollections.lazyMapView(inputs(), Input::node);
   }
 
   /** The number of inputs to this φ-node. */
@@ -111,15 +98,18 @@ public non-sealed interface Phi<N extends Node> extends InstrOrPhi {
     return inputs().size();
   }
 
-  /** Whether this φ-node contains the given input. */
+  /** Whether this phi-node contains an input with the given node. */
   @SuppressWarnings("SuspiciousMethodCalls")
   default boolean containsInput(Node inputNode) {
-    return inputs().containsValue(inputNode);
+    return inputNodes().contains(inputNode);
   }
 
-  /** Whether this φ-node contains the given input. */
-  default boolean containsInput(BB incomingBB) {
-    return inputs().containsKey(incomingBB);
+  /**
+   * Whether this phi-node contains an input with the given incoming BB, i.e. whether it's one of
+   * the parent block's predecessors.
+   */
+  default boolean hasIncomingBB(BB incomingBB) {
+    return incomingBBs().contains(incomingBB);
   }
 
   /**
@@ -129,12 +119,12 @@ public non-sealed interface Phi<N extends Node> extends InstrOrPhi {
    * @throws IllegalArgumentException if the given block isn't in the phi, i.e. isn't a predecessor.
    */
   default N input(BB incomingBB) {
-    var result = inputs().get(incomingBB);
-    if (result == null) {
+    var result = inputs().stream().filter(input -> input.incomingBB == incomingBB).findFirst();
+    if (result.isEmpty()) {
       throw new IllegalArgumentException(
           "basic block not in phi (not a predecessor): " + incomingBB.id());
     }
-    return result;
+    return result.get().node;
   }
 
   /**
@@ -189,15 +179,15 @@ public non-sealed interface Phi<N extends Node> extends InstrOrPhi {
    * Constructor arguments that can be stored in a collection (since there are multiple;
    * alternatively could use {@link org.prlprg.util.Pair} but this is clearer).
    */
-  record Args(Class<? extends Node> nodeClass, SequencedCollection<? extends Input<?>> inputs) {}
+  record Args(Class<? extends Node> nodeClass, Collection<? extends Input<?>> inputs) {}
 
   /** Serialized form where everything is replaced by IDs. */
   record Serial(
       NodeId<? extends Phi<?>> id,
       Class<? extends Node> nodeClass,
-      SequencedCollection<? extends InputId<?>> inputIds) {
+      Collection<? extends InputId<?>> inputIds) {
     Serial(Phi<?> phi) {
-      this(phi.id(), phi.nodeClass(), phi.streamInputs().map(Input::id).toList());
+      this(phi.id(), phi.nodeClass(), phi.inputs().stream().map(Input::id).toList());
     }
   }
 
@@ -243,7 +233,7 @@ abstract class PhiImpl<N extends Node> implements Phi<N> {
   record Args(
       @Nullable NodeId<? extends Phi<? extends Node>> id,
       Class<? extends Node> nodeClass,
-      SequencedCollection<? extends Input<?>> inputs) {
+      Collection<? extends Input<?>> inputs) {
     Args(Phi.Args args) {
       this(null, args.nodeClass(), args.inputs());
     }
@@ -256,31 +246,31 @@ abstract class PhiImpl<N extends Node> implements Phi<N> {
     }
 
     Args(Phi<?> phi) {
-      this(phi.id(), phi.nodeClass(), phi.streamInputs().toList());
+      this(phi.id(), phi.nodeClass(), ImmutableList.copyOf(phi.inputs()));
     }
   }
 
   private final Class<N> nodeClass;
   private final CFG cfg;
   private final LocalNodeIdImpl<?> id;
-  private final SequencedMap<BB, N> inputs;
+  private final SmallBinarySet<Input<N>> inputs;
 
   /**
-   * Create a new φ-node for nodes of the given class.
+   * Create a new phi-node for nodes of the given class.
    *
    * <p>The phi's node class will be either the given class <i>or</i> a superclass, and the phi
    * itself inherits its node class. The phi's node class will be specific enough so that it's
-   * acceptable to replace a node of the given class with this φ, anywhere.
+   * acceptable to replace a node of the given class with this phi, anywhere.
    *
    * @throws IllegalArgumentException If inputs is empty.
-   * @throws UnsupportedOperationException If there's no φ type implemented for the given class.
+   * @throws UnsupportedOperationException If there's no phi type implemented for the given class.
    */
   @SuppressWarnings("unchecked")
   static <N extends Node> Phi<N> forClass(
       @Nullable NodeId<? extends Phi<? extends N>> presetId,
       Class<? extends N> nodeSubclass,
       CFG cfg,
-      SequencedCollection<? extends Input<?>> inputs) {
+      Collection<? extends Input<?>> inputs) {
     Phi<?> phi;
     if (RValue.class.isAssignableFrom(nodeSubclass)) {
       phi = new RValuePhiImpl(cfg, presetId, inputs);
@@ -290,7 +280,7 @@ abstract class PhiImpl<N extends Node> implements Phi<N> {
       phi = new FrameStatePhiImpl(cfg, presetId, inputs);
     } else {
       throw new UnsupportedOperationException(
-          "No φ type implemented for the given class: " + nodeSubclass);
+          "No phi type implemented for the given class: " + nodeSubclass);
     }
     return (Phi<N>) phi;
   }
@@ -301,11 +291,13 @@ abstract class PhiImpl<N extends Node> implements Phi<N> {
       CFG cfg,
       @Nullable NodeId<?> presetId,
       Collection<? extends Input<?>> inputs) {
-    this.inputs = new LinkedHashMap<>(inputs.size());
+    this.inputs =
+        new SmallBinarySet<>(
+            inputs.size(), Comparator.comparing(i -> i.incomingBB().id().toString()));
     for (var input : inputs) {
-      assert !this.inputs.containsKey(input.incomingBB())
+      assert !this.hasIncomingBB(input.incomingBB())
           : "duplicate incoming BB on Phi init: " + input.incomingBB();
-      this.inputs.put(input.incomingBB(), (N) input.node());
+      this.inputs.add((Input<N>) input);
     }
     this.nodeClass = nodeClass;
     this.cfg = cfg;
@@ -334,7 +326,9 @@ abstract class PhiImpl<N extends Node> implements Phi<N> {
                 + nodeClass);
       }
     }
-    streamInputs().forEach(this::verifyInputIfEagerConfig);
+    for (var input : inputs) {
+      verifyInputIfEagerConfig(input);
+    }
     assert nodeClass.isAssignableFrom(InvalidNode.class)
         : "InvalidNode should be an instance of any phi class";
   }
@@ -345,8 +339,8 @@ abstract class PhiImpl<N extends Node> implements Phi<N> {
   }
 
   @Override
-  public SequencedMap<BB, N> inputs() {
-    return Collections.unmodifiableSequencedMap(inputs);
+  public SequencedSet<Input<N>> inputs() {
+    return inputs;
   }
 
   /**
@@ -356,9 +350,9 @@ abstract class PhiImpl<N extends Node> implements Phi<N> {
    * BB} when it adds a predecessor.
    */
   void unsafeAddUnsetInput(BB incomingBB) {
-    assert !inputs.containsKey(incomingBB)
+    assert !hasIncomingBB(incomingBB)
         : "phi is in an inconsistent state, it has an input that it was told to add: " + incomingBB;
-    inputs.put(incomingBB, InvalidNode.UNSET_PHI_INPUT.uncheckedCast());
+    inputs.add(Input.of(incomingBB, InvalidNode.UNSET_PHI_INPUT.uncheckedCast()));
     // The phi's name changes when the input changes, but unset inputs don't have any affect on it
     // so we don't have to call `updateName()`.
   }
@@ -370,12 +364,10 @@ abstract class PhiImpl<N extends Node> implements Phi<N> {
    * BB} when it removes a predecessor.
    */
   void unsafeRemoveInput(BB incomingBB) {
-    assert inputs.containsKey(incomingBB)
+    assert hasIncomingBB(incomingBB)
         : "phi is in an inconsistent state, it doesn't have an input that it was told to remove: "
             + incomingBB;
-    inputs.remove(incomingBB);
-    // The phi's name changes when the input changes.
-    updateName();
+    inputs.removeIf(input -> input.incomingBB().equals(incomingBB));
   }
 
   /**
@@ -385,16 +377,17 @@ abstract class PhiImpl<N extends Node> implements Phi<N> {
    * internally by {@link BB}.
    */
   void unsafeReplaceIncomingBB(BB oldBB, BB replacementBB) {
-    var node = this.inputs.remove(oldBB);
-    assert node != null : "The old incoming BB isn't in the phi's inputs: " + oldBB;
-    this.inputs.put(replacementBB, node);
+    var index = Iterables.indexOf(inputs, input -> input.incomingBB().equals(oldBB));
+    assert index != -1 : "The old incoming BB isn't in the phi's inputs: " + oldBB;
+    var node = this.inputs.get(index).node();
+    this.inputs.removeAt(index);
+    this.inputs.add(Input.of(replacementBB, node));
   }
 
   @Override
   public N setInput(BB incomingBB, N node) {
-    var oldNode = inputs.get(incomingBB);
-
-    if (oldNode == null) {
+    var index = Iterables.indexOf(inputs, input -> input.incomingBB().equals(incomingBB));
+    if (index == -1) {
       throw new IllegalArgumentException(
           "incoming BB not a predecessor of "
               + id
@@ -417,20 +410,13 @@ abstract class PhiImpl<N extends Node> implements Phi<N> {
     }
     verifyInputIfEagerConfig(new Input<>(incomingBB, node));
 
-    inputs.put(incomingBB, node);
-    // The phi's name changes when the input changes.
-    updateName();
+    var oldNode = inputs.get(index).node();
+    inputs.equalReplace(index, Input.of(incomingBB, node));
 
     cfg.record(
         new CFGEdit.SetPhiInput<>(this, incomingBB, node),
         new CFGEdit.SetPhiInput<>(this, incomingBB, oldNode));
     return oldNode;
-  }
-
-  private void updateName() {
-    // cfg().untrack(this);
-    // id = new PhiId<>(this);
-    // cfg().track(this);
   }
 
   @SuppressWarnings("unchecked")
@@ -445,12 +431,13 @@ abstract class PhiImpl<N extends Node> implements Phi<N> {
               + ") is not an instance of the phi's node class "
               + nodeClass.getSimpleName());
     }
-    for (var input : this.inputs.entrySet()) {
-      if (input.getValue().equals(old)) {
-        input.setValue((N) replacement);
+    for (var i = 0; i < inputs.size(); i++) {
+      var input = inputs.get(i);
+      if (input.node().equals(old)) {
+        inputs.equalReplace(i, Input.of(input.incomingBB(), (N) replacement));
         cfg.record(
-            new CFGEdit.SetPhiInput<>(this, input.getKey(), (N) replacement),
-            new CFGEdit.SetPhiInput<>(this, input.getKey(), (N) old));
+            new CFGEdit.SetPhiInput<>(this, input.incomingBB(), (N) replacement),
+            new CFGEdit.SetPhiInput<>(this, input.incomingBB(), (N) old));
       }
     }
   }
@@ -491,15 +478,6 @@ abstract class PhiImpl<N extends Node> implements Phi<N> {
 
   @PrintMethod
   private void print(Printer p) {
-    p.withContext(
-            new BBParseOrPrintContext(
-                null,
-                p.context() instanceof HasSEXPParseContext h
-                    ? h.sexpParseContext()
-                    : new SEXPParseContext(),
-                p instanceof HasSEXPPrintContext h ? h.sexpPrintContext() : new SEXPPrintContext(),
-                cfg(),
-                null))
-        .print(this);
+    p.withContext(new CFGParseOrPrintContext(p.context(), cfg()).new BBContext(null)).print(this);
   }
 }

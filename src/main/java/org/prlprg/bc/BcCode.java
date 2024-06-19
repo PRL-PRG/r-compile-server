@@ -15,7 +15,6 @@ import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
-import org.prlprg.parseprint.SkipWhitespace;
 
 /**
  * An array of bytecode instructions, which make up the code of a closure or promise. A complete
@@ -93,11 +92,16 @@ public final class BcCode extends ForwardingList<BcInstr> {
     public @Nullable Class<?> getClass(String className) {
       return BcInstr.CLASSES.get(className);
     }
+
+    @ParseMethod
+    private BcInstr parseBcInstr(Parser p) {
+      return (BcInstr) p.parse(Record.class);
+    }
   }
 
-  @ParseMethod(SkipWhitespace.ALL_EXCEPT_NEWLINES)
-  private static BcCode parse(Parser p) {
-    p = p.withContext(InstrContext.INSTANCE);
+  @ParseMethod
+  private static BcCode parse(Parser p1) {
+    var p = p1.withContext(InstrContext.INSTANCE);
     var s = p.scanner();
 
     var code = new ArrayList<BcInstr>();

@@ -23,10 +23,6 @@ import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.SEXPType;
-import org.prlprg.sexp.parseprint.HasSEXPParseContext;
-import org.prlprg.sexp.parseprint.HasSEXPPrintContext;
-import org.prlprg.sexp.parseprint.SEXPParseContext;
-import org.prlprg.sexp.parseprint.SEXPPrintContext;
 import org.prlprg.util.Classes;
 import org.prlprg.util.Reflection;
 import org.prlprg.util.UnreachableError;
@@ -684,15 +680,6 @@ abstract sealed class InstrImpl<D extends InstrData<?>> implements LocalNode
 
   @PrintMethod
   private void print(Printer p) {
-    p.withContext(
-            new BBParseOrPrintContext(
-                null,
-                p.context() instanceof HasSEXPParseContext h
-                    ? h.sexpParseContext()
-                    : new SEXPParseContext(),
-                p instanceof HasSEXPPrintContext h ? h.sexpPrintContext() : new SEXPPrintContext(),
-                cfg(),
-                null))
-        .print(this);
+    p.withContext(new CFGParseOrPrintContext(p.context(), cfg()).new BBContext(null)).print(this);
   }
 }

@@ -163,6 +163,7 @@ record MapToIdInImpl<T extends InstrData<?>>(
 
     w.write(clazz.getSimpleName());
     w.write('\'');
-    BuiltinPrintMethods.printRecordComponents(List.of(clazz.getRecordComponents()), components, p);
+    BuiltinPrintMethods.printRecordComponents(
+        Arrays.asList(clazz.getRecordComponents()), components, p);
   }
 }

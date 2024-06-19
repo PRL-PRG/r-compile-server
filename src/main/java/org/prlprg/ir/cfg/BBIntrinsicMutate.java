@@ -4,7 +4,6 @@ import com.google.common.collect.ImmutableList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.SequencedCollection;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
@@ -84,10 +83,10 @@ interface BBIntrinsicMutate {
    * {@link #addPhi(Class)} with a preset inputs.
    *
    * @throws IllegalArgumentException If {@code inputs} doesn't contain an input for each of this
-   *     block's predecessors, in the same order.
+   *     block's predecessors.
    */
   <N extends Node> Phi<N> addPhi(
-      Class<? extends N> nodeClass, SequencedCollection<? extends Phi.Input<? extends N>> inputs);
+      Class<? extends N> nodeClass, Collection<? extends Phi.Input<? extends N>> inputs);
 
   /**
    * Add {@linkplain Phi phi nodes}, whose input nodes are of the given class, to this BB and
@@ -101,7 +100,7 @@ interface BBIntrinsicMutate {
    * {@link #addPhis(Collection)} with preset inputs
    *
    * @throws IllegalArgumentException If any of the args' inputs doesn't contain an input for each
-   *     of this block's predecessors, in the same order.
+   *     of this block's predecessors.
    */
   ImmutableList<? extends Phi<?>> addPhis1(Collection<Phi.Args> phiArgs);
 

@@ -3,7 +3,10 @@ package org.prlprg.util;
 import java.util.Iterator;
 import java.util.function.Function;
 
-/** Read-write view created by applying a function to each of another iterable's elements. */
+/**
+ * Read-write view created by applying a function to each of another {@linkplain Iterable
+ * iterable}'s elements.
+ */
 final class MapIterableView<I, O> implements Iterable<O> {
   private final Iterable<I> backing;
   private final Function<I, O> f;

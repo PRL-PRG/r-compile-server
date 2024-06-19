@@ -757,14 +757,12 @@ class PirInstrOrPhiParseContext {
     RValue value;
     try {
       name =
-          nameString == null
-              ? null
-              : Parser.parseEntireString(nameString, RegSymSXP.class, p.context());
+          nameString == null ? null : Parser.fromString(nameString, RegSymSXP.class, p.context());
     } catch (ParseException e) {
       throw s.fail("failed to parse name in name/value pair: " + nameString, e);
     }
     try {
-      value = Parser.parseEntireString(valueString, RValue.class, p.context());
+      value = Parser.fromString(valueString, RValue.class, p.context());
     } catch (ParseException e) {
       throw s.fail("failed to parse value in name/value pair: " + valueString, e);
     }
@@ -1238,14 +1236,12 @@ class PirInstrOrPhiPrintContext {
   void printArgs(InstrOrPhi self, Printer p) {
     var w = p.writer();
     if (self instanceof Phi<?> phi) {
-      phi.streamInputs()
-          .forEach(
-              input -> {
-                p.print(nodeToPirId.get(input.node()));
-                w.write(":BB");
-                p.print(bbToIdx.get(input.incomingBB()));
-                w.write(", ");
-              });
+      for (var input : phi.inputs()) {
+        p.print(nodeToPirId.get(input.node()));
+        w.write(":BB");
+        p.print(bbToIdx.get(input.incomingBB()));
+        w.write(", ");
+      }
       return;
     }
     var data = ((Instr) self).data();

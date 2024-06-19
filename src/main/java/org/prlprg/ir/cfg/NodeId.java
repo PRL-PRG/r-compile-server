@@ -88,6 +88,21 @@ public interface NodeId<N extends Node> {
    * return a unique string representation.
    */
   String name();
+
+  @ParseMethod(SkipWhitespace.NONE)
+  private static NodeId<?> parse(Parser p) {
+    var s = p.scanner();
+
+    var peek = s.peekChar();
+    if (Character.isLetter(peek) || peek == '\\') {
+      return p.parse(GlobalNodeId.class);
+    } else if (peek == '%') {
+      return p.parse(LocalNodeIdImpl.class);
+    } else {
+      throw s.fail(
+          "Expected global node ID (starting with letter or '\\') or local node ID (starting with '%')");
+    }
+  }
 }
 
 abstract sealed class NodeIdImpl<N extends Node> implements NodeId<N>
@@ -101,21 +116,6 @@ abstract sealed class NodeIdImpl<N extends Node> implements NodeId<N>
   @Override
   public @Nullable Class<? extends N> clazz() {
     return clazz;
-  }
-
-  @ParseMethod(SkipWhitespace.NONE)
-  private static NodeId<?> parse(Parser p) {
-    var s = p.scanner();
-
-    var peek = s.peekChar();
-    if (Character.isLetter(peek)) {
-      return p.parse(GlobalNodeId.class);
-    } else if (peek == '%') {
-      return p.parse(LocalNodeIdImpl.class);
-    } else {
-      throw s.fail(
-          "Expected global node ID (starting with letter) or local node ID (starting with '%')");
-    }
   }
 }
 

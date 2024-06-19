@@ -1,6 +1,10 @@
 package org.prlprg.bc;
 
 import java.util.Objects;
+import org.prlprg.parseprint.ParseMethod;
+import org.prlprg.parseprint.Parser;
+import org.prlprg.parseprint.PrintMethod;
+import org.prlprg.parseprint.Printer;
 
 /** A branch instruction destination. */
 public final class BcLabel {
@@ -31,8 +35,26 @@ public final class BcLabel {
     return Objects.hash(target);
   }
 
+  // region serialization and deserialization
+  @ParseMethod
+  private static BcLabel parseBcLabel(Parser p) {
+    var s = p.scanner();
+
+    s.assertAndSkip('+');
+    return new BcLabel(s.readUInt());
+  }
+
+  @PrintMethod
+  private void print(Printer p) {
+    var w = p.writer();
+
+    w.write('+');
+    p.print(target);
+  }
+
   @Override
   public String toString() {
-    return "BcLabel(" + target + ')';
+    return Printer.toString(this);
   }
+  // endregion serialization and deserialization
 }
