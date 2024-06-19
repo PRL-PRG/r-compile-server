@@ -1,6 +1,8 @@
 package org.prlprg.ir.cfg;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
@@ -15,10 +17,12 @@ import java.util.function.Consumer;
  */
 public class BatchSubst {
   private final Map<Node, Node> substs;
+  private final Map<Node, List<Node>> reverseSubsts;
 
   /** Create a new set of substitutions. */
   public BatchSubst() {
     substs = new HashMap<>();
+    reverseSubsts = new HashMap<>();
   }
 
   /**
@@ -29,22 +33,56 @@ public class BatchSubst {
    */
   public BatchSubst(int initialCapacity) {
     substs = new HashMap<>(initialCapacity);
+    reverseSubsts = new HashMap<>(initialCapacity);
   }
 
   /**
-   * Add a substitution to be performed.
+   * Add a substitution to be performed when this is {@linkplain #commit(CFG) committed}.
+   *
+   * <p>Note that {@code from} won't be removed, only its occurrences will be substituted. You must
+   * also call {@link BB#remove(InstrOrPhi) bb.remove(from)} to remove {@code from}.
    *
    * @throws IllegalArgumentException if {@code from} was already staged to be substituted with a
    *     different {@code to}.
    */
   public void stage(Node from, Node to) {
-    if (substs.get(from) == to) {
+    if (from == to || substs.get(from) == to) {
       return;
     } else if (substs.containsKey(from)) {
       throw new IllegalArgumentException(
           "node already substituted: " + from + " old-> " + substs.get(from) + ", new-> " + to);
     }
+
+    // Apply transitive substitutions. If we have:
+    // - `from` -> `to`
+    // - `to` -> `to2`
+    // it becomes
+    // - `from` -> `to2`
+    // - `to` -> `to2`
+    if (substs.containsKey(to)) {
+      to = substs.get(to);
+    }
+
+    // Add substitution.
     substs.put(from, to);
+
+    // Track reverse substitutions for transitive substitutions (below).
+    var toReverseSubsts = reverseSubsts.computeIfAbsent(to, _ -> new ArrayList<>());
+    toReverseSubsts.add(from);
+
+    // Apply transitive substitutions. If we have:
+    // - `from` -> `mid`
+    // - `mid` -> `to`
+    // it becomes
+    // - `from` -> `to`
+    // - `mid` -> `to`
+    var fromReverseSubsts = reverseSubsts.remove(from);
+    if (fromReverseSubsts != null) {
+      for (var transitiveFrom : fromReverseSubsts) {
+        substs.put(transitiveFrom, to);
+      }
+      toReverseSubsts.addAll(fromReverseSubsts);
+    }
   }
 
   /** Run the given substitutions on the given instructions and phis. */

@@ -402,12 +402,16 @@ public class Scanner {
   /**
    * Read characters up to <b>and including</b> the end of the current line or EOF.
    *
+   * <p>This temporarily modifies the whitespace policy to not skip newlines if it is currently set
+   * to. Otherwise we'd start reading the next line if it the current line only contains trailing
+   * whitespace.
+   *
    * @see #readUntil(String)
    * @see #readUntil(IntPredicate)
    */
   public String readPastEndOfLine() {
     var result = readUntilEndOfLine();
-    if (trySkip('\n')) {
+    if (runWithWhitespacePolicy(skipsWhitespace.notSkippingNewlines(), () -> trySkip('\n'))) {
       result += '\n';
     }
     return result;
@@ -416,11 +420,15 @@ public class Scanner {
   /**
    * Read characters up to, <b>but not including</b>, the end of the current line or EOF.
    *
+   * <p>This temporarily modifies the whitespace policy to not skip newlines if it is currently set
+   * to. Otherwise we'd read past the current line if it only contains trailing whitespace.
+   *
    * @see #readUntil(String)
    * @see #readUntil(IntPredicate)
    */
   public String readUntilEndOfLine() {
-    return readUntil('\n', true);
+    return runWithWhitespacePolicy(
+        skipsWhitespace.notSkippingNewlines(), () -> readUntil('\n', true));
   }
 
   /**
@@ -1107,7 +1115,7 @@ public class Scanner {
 
   /** Return a {@link ParseException} at the current position. */
   public ParseException fail(String message, @Nullable Throwable cause) {
-    throw new ParseException(position(), message, cause);
+    return new ParseException(position(), message, cause);
   }
   // endregion throw
 }

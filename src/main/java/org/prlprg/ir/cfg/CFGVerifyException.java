@@ -10,7 +10,7 @@ public class CFGVerifyException extends IllegalStateException {
   private final ImmutableList<BrokenInvariant> brokenInvariants;
 
   private static String message(CFG cfg, BrokenInvariant brokenInvariant) {
-    return "broken invariant: " + brokenInvariant + "\n\nCFG:" + cfg;
+    return "broken invariant: " + brokenInvariant + "\n\n" + cfg;
   }
 
   private static String message(CFG cfg, Collection<BrokenInvariant> brokenInvariants) {
@@ -26,7 +26,7 @@ public class CFGVerifyException extends IllegalStateException {
       sb.append("\n- ").append(invariant);
     }
 
-    sb.append("\n\nCFG:").append(cfg);
+    sb.append("\n\n").append(cfg);
 
     return sb.toString();
   }
@@ -65,7 +65,8 @@ public class CFGVerifyException extends IllegalStateException {
   public record IncorrectIncomingBBInPhi(
       BBId bbId,
       NodeId<? extends Phi<?>> phiId,
-      BBId originBBId,
+      NodeId<?> inputId,
+      BBId inputOriginId,
       BBId incomingBBId,
       Collection<BBId> expectedIncomingBBIds)
       implements BrokenInvariant {
@@ -75,8 +76,10 @@ public class CFGVerifyException extends IllegalStateException {
           + phiId
           + " in "
           + bbId
-          + "\nOrigin BB: "
-          + originBBId
+          + "\nInput: "
+          + inputId
+          + " in "
+          + inputOriginId
           + "\nIncoming BB:"
           + incomingBBId
           + (expectedIncomingBBIds.isEmpty()

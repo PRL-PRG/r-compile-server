@@ -1,7 +1,6 @@
 package org.prlprg.ir.cfg;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Streams;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.RecordComponent;
 import java.util.Arrays;
@@ -14,7 +13,8 @@ import javax.annotation.Nullable;
 import org.checkerframework.checker.index.qual.SameLen;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.ir.cfg.CFGEdit.MutateInstrArgs;
-import org.prlprg.ir.cfg.CFGEdit.RenameInstr;
+import org.prlprg.ir.cfg.CFGEdit.RenameInstrOrPhi;
+import org.prlprg.ir.closure.CodeObject;
 import org.prlprg.ir.type.REffects;
 import org.prlprg.ir.type.RType;
 import org.prlprg.ir.type.RTypes;
@@ -94,9 +94,6 @@ public sealed interface Instr extends InstrOrPhi permits Jump, Stmt {
         .record(new MutateInstrArgs<>(instr, newArgs), new MutateInstrArgs<>(instr, oldArgs));
   }
 
-  /** Change the instruction or phi's name (descriptive identifier). */
-  void rename(String newName);
-
   /** (A shallow copy of) the instruction's arguments, which are the other nodes it depends on. */
   @Override
   ImmutableList<Node> args();
@@ -175,12 +172,13 @@ abstract sealed class InstrImpl<D extends InstrData<?>> implements LocalNode
           case CreateInstrWithExistingId(var id1) -> {
             var id2 = (LocalNodeIdImpl<? extends Instr>) id1;
             id2.lateAssignClass(getClass());
+            cfg.updateNextInstrOrPhiDisambiguator(id2);
             yield id2;
           }
           case CreateInstrWithNewId(var name) -> new LocalNodeIdImpl<>((Instr) this, name);
         };
     this.data = data;
-    verify();
+    verify(true);
   }
 
   // @Override
@@ -195,24 +193,26 @@ abstract sealed class InstrImpl<D extends InstrData<?>> implements LocalNode
     }
     var components = data.getClass().getRecordComponents();
 
-    var singleArgs =
-        Arrays.stream(components)
-            .filter(cmp -> Node.class.isAssignableFrom(cmp.getType()))
-            .map(cmp -> (Node) Reflection.getComponent(r, cmp));
-    var argLists =
+    args =
         Arrays.stream(components)
             .filter(
                 cmp -> {
-                  if (cmp.getType() != Optional.class
-                      && !Collection.class.isAssignableFrom(cmp.getType())) {
-                    return false;
+                  if (Node.class.isAssignableFrom(cmp.getType())
+                      || CodeObject.class.isAssignableFrom(cmp.getType())) {
+                    return true;
                   }
-                  return Node.class.isAssignableFrom(
-                      optionalOrCollectionComponentElementClass(cmp));
+                  if (cmp.getType() == Optional.class
+                      || Collection.class.isAssignableFrom(cmp.getType())) {
+                    return Node.class.isAssignableFrom(
+                        optionalOrCollectionComponentElementClass(cmp));
+                  }
+                  return false;
                 })
             .flatMap(
                 cmp ->
                     switch (Reflection.getComponent(r, cmp)) {
+                      case Node n -> Stream.of(n);
+                      case CodeObject c -> c.outerCfgNodes().stream();
                       case Optional<?> o -> o.map(Node.class::cast).stream();
                       case Collection<?> c ->
                           c.stream()
@@ -222,8 +222,8 @@ abstract sealed class InstrImpl<D extends InstrData<?>> implements LocalNode
                                           ? e1.map(Node.class::cast).stream()
                                           : Stream.of((Node) e));
                       default -> throw new UnreachableError();
-                    });
-    args = Streams.concat(singleArgs, argLists).collect(ImmutableList.toImmutableList());
+                    })
+            .collect(ImmutableList.toImmutableList());
   }
 
   /**
@@ -265,6 +265,12 @@ abstract sealed class InstrImpl<D extends InstrData<?>> implements LocalNode
         }
 
         value = replacement;
+      } else if (value instanceof CodeObject c && old instanceof Node oldNode) {
+        if (!(replacement instanceof Node replacementNode)) {
+          throw new AssertionError(
+              "replacing a Node with a non-Node (`unsafeReplaceInData` should be called with two nodes or two jumps)");
+        }
+        c.unsafeReplaceOuterCfgNode(oldNode, replacementNode);
       } else if (value instanceof Optional<?> o) {
         var elemClass = optionalOrCollectionComponentElementClass(cmp);
         if (o.isPresent() && o.get().equals(old)) {
@@ -427,18 +433,14 @@ abstract sealed class InstrImpl<D extends InstrData<?>> implements LocalNode
   }
 
   // @Override
-  // @Override
   public final void rename(String newName) {
     var oldId = id();
-    if (newName.equals(oldId.name())) {
-      return;
-    }
 
     cfg().untrack((Instr) this);
     id = new LocalNodeIdImpl<>((Instr) this, newName);
     cfg().track((Instr) this);
 
-    cfg().record(new RenameInstr(oldId, newName), new RenameInstr(id(), oldId.name()));
+    cfg().record(new RenameInstrOrPhi(oldId, newName), new RenameInstrOrPhi(id(), oldId.name()));
   }
 
   public final D data() {
@@ -475,14 +477,18 @@ abstract sealed class InstrImpl<D extends InstrData<?>> implements LocalNode
   }
 
   // @Override
-  public void verify() throws InstrVerifyException {
+  public final void verify() throws InstrVerifyException {
+    verify(false);
+  }
+
+  protected void verify(boolean isInsert) throws InstrVerifyException {
     verifyNoNullableArgs();
     verifySameLenInData();
     computeArgs();
     computeEffects();
     // TODO: also have annotations for if the RValue is a specific subclass?
     verifyRValueArgsAreOfCorrectTypes();
-    data.verify();
+    data.verify(isInsert);
   }
 
   private void verifyNoNullableArgs() throws InstrVerifyException {
@@ -582,6 +588,7 @@ abstract sealed class InstrImpl<D extends InstrData<?>> implements LocalNode
               : RTypes.simple(SEXPType.ENV);
 
       var isRValue = RValue.class.isAssignableFrom(component.getType());
+      var isCodeObject = CodeObject.class.isAssignableFrom(component.getType());
       var isOptionalRValue =
           component.getType() == Optional.class
               && RValue.class.isAssignableFrom(
@@ -606,6 +613,14 @@ abstract sealed class InstrImpl<D extends InstrData<?>> implements LocalNode
                   + expectedType
                   + " but it's a "
                   + rValue.type());
+        }
+      } else if (isCodeObject) {
+        var codeObject = (CodeObject) arg;
+        try {
+          codeObject.verifyOuterCfgRValuesAreOfCorrectTypes();
+        } catch (IllegalStateException e) {
+          throw new InstrVerifyException(
+              "Argument" + i + " contains value of wrong type: " + e.getMessage());
         }
       } else if (isOptionalRValue) {
         var rValue = (RValue) ((Optional<?>) arg).orElse(null);

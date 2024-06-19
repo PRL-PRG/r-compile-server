@@ -25,14 +25,14 @@ import org.prlprg.util.Pair;
  * Context for {@linkplain org.prlprg.parseprint.Parser parsing} {@link Closure} so that inner
  * closures and promises are parsed after.
  */
-abstract sealed class ClosureParseContext {
+abstract sealed class ClosureParseContext implements HasSEXPParseContext {
   abstract int lastYieldedIdIndex();
 
   abstract Inner inner();
 
   abstract Ref ref(NodeIdQualifier qualifier);
 
-  static final class Outermost extends ClosureParseContext implements HasSEXPParseContext {
+  static final class Outermost extends ClosureParseContext {
     private final SEXPParseContext sexpParseContext;
     private final Deque<CodeObject.LateConstruct<?>> innerCodeConsumers = new ArrayDeque<>();
     private final Map<NodeIdQualifier, CFG> cfgQualifiers = new HashMap<>();
@@ -123,9 +123,29 @@ abstract sealed class ClosureParseContext {
         }
       };
     }
+
+    @ParseMethod
+    private Node parseNode(Parser p) {
+      var s = p.scanner();
+
+      if (!s.nextCharIs('@')) {
+        throw s.fail(
+            "Directly parsing a CFG that contains a reference to a node in other CFG isn't supported. Note that parsing a code object containing a CFG that contains a reference to a node inside another code object is supported, just the CFG can't be parsed directly.");
+      }
+
+      var qualifier = p.parse(NodeIdQualifier.class);
+      var id = (NodeId<?>) p.parse(NodeId.class);
+
+      if (!cfgQualifiers.containsKey(qualifier)) {
+        throw s.fail(
+            "Node encountered with a qualifier to a CFG that wasn't parsed yet: " + qualifier + id);
+      }
+
+      return cfgQualifiers.get(qualifier).get(id);
+    }
   }
 
-  static final class Inner extends ClosureParseContext implements HasSEXPParseContext {
+  static final class Inner extends ClosureParseContext {
     private final Outermost outermost;
 
     private Inner(Outermost outermost) {
@@ -154,6 +174,11 @@ abstract sealed class ClosureParseContext {
     public SEXPParseContext sexpParseContext() {
       return outermost.sexpParseContext;
     }
+
+    @ParseMethod
+    private Node parseNode(Parser p) {
+      return outermost.parseNode(p);
+    }
   }
 
   // Doesn't implement `ClosureParseContext`
@@ -176,26 +201,6 @@ abstract sealed class ClosureParseContext {
       var cfg = p.withContext(outermost.inCfg).parse(CFG.class);
       outermost.cfgQualifiers.put(qualifier, cfg);
       return cfg;
-    }
-
-    @ParseMethod
-    private Node parseNode(Parser p) {
-      var s = p.scanner();
-
-      if (!s.nextCharIs('@')) {
-        throw s.fail(
-            "Directly parsing a CFG that contains a reference to a node in other CFG isn't supported. Note that parsing a code object containing a CFG that contains a reference to a node inside another code object is supported, just the CFG can't be parsed directly.");
-      }
-
-      var qualifier = p.parse(NodeIdQualifier.class);
-      var id = (NodeId<?>) p.parse(NodeId.class);
-
-      if (!outermost.cfgQualifiers.containsKey(qualifier)) {
-        throw s.fail(
-            "Node encountered with a qualifier to a CFG that wasn't parsed yet: " + qualifier + id);
-      }
-
-      return outermost.cfgQualifiers.get(qualifier).get(id);
     }
   }
 
@@ -233,14 +238,14 @@ abstract sealed class ClosureParseContext {
  * Context for {@linkplain org.prlprg.parseprint.Printer printing} {@link Closure} so that inner
  * closures and promises are printed after.
  */
-abstract sealed class ClosurePrintContext {
+abstract sealed class ClosurePrintContext implements HasSEXPPrintContext {
   abstract int lastYieldedIdIndex();
 
   abstract Inner inner();
 
   abstract Ref ref(NodeIdQualifier qualifier);
 
-  static final class Outermost extends ClosurePrintContext implements HasSEXPPrintContext {
+  static final class Outermost extends ClosurePrintContext {
     private final SEXPPrintContext sexpPrintContext;
     private final Deque<CodeObject> innerCodes = new ArrayDeque<>();
     private final Map<CFG, NodeIdQualifier> cfgQualifiers = new HashMap<>();
@@ -306,9 +311,17 @@ abstract sealed class ClosurePrintContext {
         }
       };
     }
+
+    @PrintMethod
+    private void printNode(Node node, Printer p) {
+      if (node.cfg() != null && cfgQualifiers.containsKey(node.cfg())) {
+        p.print(cfgQualifiers.get(node.cfg()));
+      }
+      p.print(node.id());
+    }
   }
 
-  static final class Inner extends ClosurePrintContext implements HasSEXPPrintContext {
+  static final class Inner extends ClosurePrintContext {
     private final Outermost outermost;
 
     private Inner(Outermost outermost) {
@@ -337,6 +350,11 @@ abstract sealed class ClosurePrintContext {
     public SEXPPrintContext sexpPrintContext() {
       return outermost.sexpPrintContext;
     }
+
+    @PrintMethod
+    private void printNode(Node node, Printer p) {
+      outermost.printNode(node, p);
+    }
   }
 
   // Doesn't implement `ClosurePrintContext`
@@ -359,14 +377,6 @@ abstract sealed class ClosurePrintContext {
       assert !outermost.cfgQualifiers.containsKey(cfg);
       outermost.cfgQualifiers.put(cfg, qualifier);
       p.withContext(outermost.inCfg).print(cfg);
-    }
-
-    @PrintMethod
-    private void printNode(Node node, Printer p) {
-      if (node.cfg() != null && outermost.cfgQualifiers.containsKey(node.cfg())) {
-        p.print(outermost.cfgQualifiers.get(node.cfg()));
-      }
-      p.print(node.id());
     }
   }
 

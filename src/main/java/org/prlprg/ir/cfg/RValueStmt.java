@@ -35,8 +35,8 @@ abstract class AbstractRValueStmtImpl<D extends StmtData.RValue_> extends SelfRe
   }
 
   @Override
-  public void verify() {
-    super.verify();
+  protected void verify(boolean isInsert) {
+    super.verify(isInsert);
     type =
         mergeComputed(
             "type",

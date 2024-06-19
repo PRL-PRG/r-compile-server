@@ -43,7 +43,6 @@ public interface CFGParsePrint {
     }
 
     ctx.commitPatches();
-    ;
 
     return cfg;
   }
@@ -52,14 +51,10 @@ public interface CFGParsePrint {
   private static void print(CFG cfg, Printer p) {
     var w = p.writer();
 
-    w.write("CFG(nextBBDisambiguator=");
-    p.print(cfg.nextBBDisambiguatorWithoutIncrementing());
-    w.write(", nextInstrOrPhiDisambiguator=");
-    p.print(cfg.nextInstrOrPhiDisambiguatorWithoutIncrementing());
-    w.write("):");
-
     var cfgP = p.withContext(new CFGParseOrPrintContext(p.context(), cfg));
     var iter = new CFGIterator.Bfs(cfg);
+    // Always has at least one BB: the entry.
+    cfgP.print(iter.next());
     iter.forEachRemaining(
         bb -> {
           w.write('\n');
@@ -139,11 +134,11 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
 
     // Instructions (statements and jump)
     s.assertAndSkip(':');
-    Instr instr;
+    @Nullable Instr instr;
     do {
-      instr = bbP.parse(Instr.class);
+      instr = bbP.parseOptional(Instr.class).orElse(null);
       s.assertAndSkip(';');
-    } while (!(instr instanceof Jump) && !s.trySkip("null;"));
+    } while (!(instr instanceof Jump) && instr != null);
 
     return bb;
   }
@@ -197,8 +192,6 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
    * incoming blocks before they became predecessors.
    */
   void commitPatches() {
-    patchSubst.commit(cfg);
-
     for (var phiAndDelayedInputs : delayedPhiInputs.entrySet()) {
       var phi = phiAndDelayedInputs.getKey();
       var delayedInputs = phiAndDelayedInputs.getValue();
@@ -206,6 +199,9 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
         phi.setInput(input);
       }
     }
+
+    // This has to be after the `for` loop.
+    patchSubst.commit(cfg);
   }
 
   class BBContext implements HasSEXPParseContext, HasSEXPPrintContext {
@@ -236,6 +232,7 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
       // Cast is OK because we parsed, so it has no assigned class.
       @SuppressWarnings("unchecked")
       var id = (NodeId<? extends Phi<? extends Node>>) p.parse(NodeId.class);
+      ensureIdNotTakenByAnonymous(id, p);
 
       var inputP = p.withContext(dataContext);
       var inputs = new ArrayList<Phi.Input<Node>>();
@@ -313,6 +310,14 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
       }
 
       var data = p.withContext(dataContext).parse(InstrData.class);
+
+      // This must go after `parse(InstrData.class)`, because the latter may re-assign some `Void`
+      // instruction IDs. If it went before, one of those re-assigned IDs may have been assigned to
+      // `id`, so it would no longer be free.
+      if (token instanceof CreateInstrWithExistingId(var id)) {
+        ensureIdNotTakenByAnonymous(id, p);
+      }
+
       var instr =
           switch (data) {
             case StmtData<?> stmtData -> bb.insertAtWithToken(bb.stmts().size(), token, stmtData);
@@ -333,6 +338,23 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
       }
 
       w.runIndented(() -> p.withContext(dataContext).print(instr.data()));
+    }
+
+    /**
+     * Edge-case: if `id` doesn't have a name, we could've given it to a `Void` instruction via
+     * `CreateInstrWithNewId`. To solve this, we rename the `Void` to update its disambiguator.
+     */
+    private void ensureIdNotTakenByAnonymous(NodeId<? extends InstrOrPhi> id, Parser p) {
+      var s = p.scanner();
+
+      if (cfg.contains(id)) {
+        var old = cfg.get(id);
+        if (!old.returns().isEmpty()) {
+          throw s.fail("Defined the same ID twice: " + id);
+        }
+        assert id.name().isEmpty() : "expected ID of `Void` instruction we created to have no name";
+        old.updateDisambiguator();
+      }
     }
 
     private void patchIfPending(Node node) {
@@ -394,8 +416,19 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
       }
 
       @ParseMethod
-      private Node parseNode(Parser p) {
+      private Node parseNode(Parser p, Class<? extends Node> nodeClass) {
         var id = (NodeId<?>) p.parse(NodeId.class);
+
+        // The ID may exist, but in a `Void` instruction that got assigned an "arbitrary" unused ID.
+        // If this is the case, we want to rename that instruction and pretend the ID never existed.
+        if (!(id instanceof GlobalNodeId<?>) && cfg.contains(id)) {
+          var node = cfg.get(id);
+          if (node instanceof Instr i && i.returns().isEmpty()) {
+            i.updateDisambiguator();
+            // `cfg.contains(id)` is now `false`.
+          }
+        }
+
         if (id instanceof GlobalNodeId<?> || cfg.contains(id)) {
           return cfg.get(id);
         } else if (pendingPatchNodes.containsKey(id)) {

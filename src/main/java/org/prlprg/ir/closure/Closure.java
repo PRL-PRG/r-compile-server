@@ -1,9 +1,13 @@
 package org.prlprg.ir.closure;
 
+import java.util.List;
 import java.util.NavigableMap;
 import java.util.TreeMap;
+import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.bc.Bc;
+import org.prlprg.ir.cfg.CFG;
 import org.prlprg.ir.cfg.IsEnv;
+import org.prlprg.ir.cfg.Node;
 import org.prlprg.ir.cfg.RValue;
 import org.prlprg.ir.cfg.StaticEnv;
 import org.prlprg.ir.closure.ClosureVersion.CallContext;
@@ -261,6 +265,42 @@ public final class Closure extends CodeObject {
     throw new IllegalArgumentException("Closure version not in this closure.");
   }
 
+  @Override
+  public @UnmodifiableView List<Node> outerCfgNodes() {
+    return List.of(env);
+  }
+
+  @Override
+  public void unsafeReplaceOuterCfgNode(Node oldNode, Node newNode) {
+    if (env.equals(oldNode)) {
+      if (!(newNode instanceof RValue newEnv)) {
+        throw new IllegalArgumentException("Closure replacement `env` node must be an RValue.");
+      }
+      if (newEnv.isEnv() != Troolean.YES) {
+        throw new IllegalArgumentException(
+            "Closure replacement `env` node must be statically known to be an environment.");
+      }
+      env = newEnv;
+    }
+  }
+
+  @Override
+  public void verifyOuterCfgRValuesAreOfCorrectTypes() {
+    if (env.isEnv() != Troolean.YES) {
+      throw new IllegalStateException(
+          "Closure `env` must be statically known to be an environment.");
+    }
+  }
+
+  /** Verify all {@link CFG}s within this closure (in versions, inner closures, and promises). */
+  @Override
+  public void verify() {
+    baselineVersion.verify();
+    for (var version : optimizedVersions.values()) {
+      version.verify();
+    }
+  }
+
   // region serialization and deserialization
   /**
    * Return a closure, and then replace its data with that of another closure later.
@@ -273,10 +313,7 @@ public final class Closure extends CodeObject {
    */
   static Pair<Closure, LateConstruct> lateConstruct(String name) {
     var closure =
-        new Closure(
-            name,
-            SEXPs.closure(
-                SEXPs.NULL, SEXPs.string("closure is being deserialized"), SEXPs.EMPTY_ENV));
+        new Closure(name, SEXPs.closure(SEXPs.NULL, SEXPs.bcode(Bc.empty()), SEXPs.EMPTY_ENV));
     return Pair.of(closure, closure.new LateConstruct());
   }
 
@@ -303,7 +340,7 @@ public final class Closure extends CodeObject {
     var p = p1.withContext(ctx.inner());
     var s = p.scanner();
 
-    var parameters = p.parse(ListSXP.class);
+    var parameters = p.withContext(ctx.sexpParseContext().forBindings()).parse(ListSXP.class);
     env = s.trySkip("env") ? p.parse(RValue.class) : StaticEnv.NOT_CLOSED;
     var attributes = s.trySkip("with") ? p.parse(Attributes.class) : Attributes.NONE;
     s.assertAndSkip("=>");
@@ -351,11 +388,7 @@ public final class Closure extends CodeObject {
     var p = p1.withContext(ctx.inner());
     var w = p.writer();
 
-    if (parameters().isEmpty()) {
-      w.write("()");
-    } else {
-      p.print(parameters());
-    }
+    p.withContext(ctx.sexpPrintContext().forBindings()).print(parameters());
     if (env != StaticEnv.NOT_CLOSED) {
       w.write(" env ");
       w.runIndented(() -> p.print(env));

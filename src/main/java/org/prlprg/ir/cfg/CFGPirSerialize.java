@@ -16,8 +16,6 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.prlprg.bc.Bc;
-import org.prlprg.bc.BcCode;
-import org.prlprg.bc.ConstPool;
 import org.prlprg.ir.cfg.PirType.NativeType;
 import org.prlprg.ir.cfg.PirType.RType_;
 import org.prlprg.ir.cfg.StmtData.Call_;
@@ -785,7 +783,10 @@ class PirInstrOrPhiParseContext {
   }
 
   private Closure stubClosure(String name) {
-    return new Closure(name, stubBCodeCloSXP());
+    var cls = new Closure(name, stubBCodeCloSXP());
+    // The CFG has to be valid, or verification will fail.
+    cls.baselineVersion().body().entry().addJump(new JumpData.Return(new Constant(SEXPs.NULL)));
+    return cls;
   }
 
   private ClosureVersion stubClosureVersion(String name) {
@@ -793,15 +794,15 @@ class PirInstrOrPhiParseContext {
   }
 
   private Promise stubPromise() {
-    return new Promise("stub", stubBCode(), new CFG(), StaticEnv.NOT_CLOSED, Properties.EMPTY);
+    var promise =
+        new Promise("stub", Bc.empty(), new CFG(), StaticEnv.NOT_CLOSED, Properties.EMPTY);
+    // The CFG has to be valid, or verification will fail.
+    promise.body().entry().addJump(new JumpData.Return(new Constant(SEXPs.NULL)));
+    return promise;
   }
 
   private CloSXP stubBCodeCloSXP() {
-    return SEXPs.closure(SEXPs.NULL, SEXPs.bcode(stubBCode()), SEXPs.EMPTY_ENV);
-  }
-
-  private Bc stubBCode() {
-    return new Bc(new BcCode.Builder().build(), new ConstPool.Builder().build());
+    return SEXPs.closure(SEXPs.NULL, SEXPs.bcode(Bc.empty()), SEXPs.EMPTY_ENV);
   }
 
   private ImmutableIntArray stubArglistOrder(ImmutableList<RValue> callArgs) {

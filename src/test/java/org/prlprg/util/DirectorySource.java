@@ -8,6 +8,8 @@ import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.junit.jupiter.api.extension.ExtensionContext;
@@ -60,7 +62,7 @@ class DirectoryArgumentsProvider implements ArgumentsProvider, AnnotationConsume
   private boolean includeDirs;
   private boolean relativize;
   private int depth;
-  private String root = "";
+  private Path root = Paths.get("");
   private ImmutableSet<String> exclude = ImmutableSet.of();
   int fastLimit;
 
@@ -70,7 +72,7 @@ class DirectoryArgumentsProvider implements ArgumentsProvider, AnnotationConsume
     glob = directorySource.glob();
     includeDirs = directorySource.includeDirs();
     relativize = directorySource.relativize();
-    root = directorySource.root();
+    root = Paths.get(directorySource.root());
     depth = directorySource.depth();
     exclude = ImmutableSet.copyOf(directorySource.exclude());
     fastLimit = directorySource.fastLimit();

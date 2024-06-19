@@ -16,6 +16,7 @@ import org.prlprg.sexp.SEXPs;
  */
 public record BuiltinId(int index) {
   // region global builtins
+  public static BuiltinId ENVIRONMENT = new BuiltinId(1);
   public static BuiltinId PRINT_VALUE = new BuiltinId(12345);
   public static BuiltinId DOLLAR = new BuiltinId(23456);
   public static BuiltinId DOLLAR_GETS = new BuiltinId(34567);
@@ -61,6 +62,7 @@ public record BuiltinId(int index) {
     return index % 10 == 1;
   }
 
+  // region serialization and deserialization
   @ParseMethod
   private static BuiltinId parse(Parser p) {
     return BuiltinId.referencedBy(p.parse(RegSymSXP.class));
@@ -70,4 +72,10 @@ public record BuiltinId(int index) {
   private void print(Printer p) {
     p.print(symbol());
   }
+
+  @Override
+  public String toString() {
+    return Printer.toString(this);
+  }
+  // endregion serialization and deserialization
 }

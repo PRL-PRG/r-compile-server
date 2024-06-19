@@ -1,6 +1,13 @@
 package org.prlprg.ir.closure;
 
+import java.util.List;
+import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.ir.cfg.CFG;
+import org.prlprg.ir.cfg.CFGEdit;
+import org.prlprg.ir.cfg.Node;
+import org.prlprg.ir.cfg.RValue;
+import org.prlprg.ir.cfg.StmtData;
+import org.prlprg.ir.type.BaseRType;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
@@ -32,6 +39,50 @@ public abstract sealed class CodeObject permits Closure, Promise {
   public String name() {
     return name;
   }
+
+  /**
+   * Returns a list of all {@linkplain Node nodes} that this code object contains belonging to the
+   * {@linkplain CFG} it's stored in.
+   *
+   * <p>Specifically, the code object would be stored in a CFG via {@link StmtData.MkCls MkCls} or
+   * {@link StmtData.MkProm}), if it's an inner code object. If it's an outermost code object (e.g.
+   * outermost closure), this will be empty.
+   *
+   * @see #unsafeReplaceOuterCfgNode(Node, Node)
+   * @see #verifyOuterCfgRValuesAreOfCorrectTypes()
+   */
+  public abstract @UnmodifiableView List<Node> outerCfgNodes();
+
+  /**
+   * Replaces an {@linkplain #outerCfgNodes() outer CFG node} with another one.
+   *
+   * <p>This shouldn't be called directly except internally in {@link org.prlprg.ir.cfg}. It's
+   * "unsafe" because it doesn't record a {@link CFGEdit} for the replacement, but we want one to be
+   * recorded (currently we aren't recording edits for mutating the code object's versions or body,
+   * but we still are for outer CFG nodes. We may decide to change this in the future, in which case
+   * this method will no longer be "unsafe").
+   *
+   * @throws IllegalArgumentException If the replacement node type is incompatible with the old node
+   *     type (e.g. if {@code oldNode} is an {@link RValue} and {@code newNode} is not).
+   * @see #outerCfgNodes()
+   * @see #verifyOuterCfgRValuesAreOfCorrectTypes()
+   */
+  public abstract void unsafeReplaceOuterCfgNode(Node oldNode, Node newNode);
+
+  /**
+   * Verify that all {@linkplain #outerCfgNodes() outer CFG nodes} that are {@link RValue}s
+   * (abstract R values) have the correct dynamic type.
+   *
+   * <p>For example, verify that an environment value is still {@link BaseRType#ENV}.
+   *
+   * @throws IllegalStateException If a node has an incorrect dynamic type.
+   * @see #outerCfgNodes()
+   * @see #unsafeReplaceOuterCfgNode(Node, Node)
+   */
+  public abstract void verifyOuterCfgRValuesAreOfCorrectTypes();
+
+  /** Verify all {@link CFG}s within this code object. */
+  public abstract void verify();
 
   /**
    * An object that lets you move the data from another {@link CodeObject} of the same type into

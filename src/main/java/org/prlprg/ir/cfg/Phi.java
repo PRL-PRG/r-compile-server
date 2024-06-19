@@ -10,6 +10,7 @@ import java.util.SequencedCollection;
 import java.util.SequencedSet;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
+import org.prlprg.ir.cfg.CFGEdit.RenameInstrOrPhi;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
@@ -128,7 +129,9 @@ public non-sealed interface Phi<N extends Node> extends InstrOrPhi {
   }
 
   /**
-   * Change the input from the given basic block to the given node. Returns the old node.
+   * Change the input from the given basic block to the given node.
+   *
+   * <p>Returns the old node.
    *
    * @throws IllegalArgumentException If the incoming BB isn't in the input set.
    * @throws IllegalArgumentException If the node is of an incompatible type (the type is also
@@ -138,6 +141,8 @@ public non-sealed interface Phi<N extends Node> extends InstrOrPhi {
 
   /**
    * {@link #setInput(BB, N)} using the input and node of the provided {@link Input} data-structure.
+   *
+   * <p>Returns the old input's node.
    *
    * @throws IllegalArgumentException If the incoming BB isn't in the input set.
    * @throws IllegalArgumentException If the node is of an incompatible type (the type is also
@@ -204,6 +209,11 @@ public non-sealed interface Phi<N extends Node> extends InstrOrPhi {
     public InputId<N> id() {
       return InputId.of(incomingBB.id(), (NodeId<? extends N>) node.id());
     }
+
+    @Override
+    public String toString() {
+      return incomingBB.id() + ":" + node.id();
+    }
   }
 
   record InputId<N extends Node>(BBId incomingBBId, NodeId<? extends N> nodeId) {
@@ -252,7 +262,7 @@ abstract class PhiImpl<N extends Node> implements Phi<N> {
 
   private final Class<N> nodeClass;
   private final CFG cfg;
-  private final LocalNodeIdImpl<?> id;
+  private LocalNodeIdImpl<?> id;
   private final SmallBinarySet<Input<N>> inputs;
 
   /**
@@ -312,6 +322,7 @@ abstract class PhiImpl<N extends Node> implements Phi<N> {
                 + "\nTo get this, you may have improperly casted a NodeId's generic argument.");
       }
       i.lateAssignClass(getClass());
+      cfg.updateNextInstrOrPhiDisambiguator((NodeId<? extends InstrOrPhi>) i);
       id = i;
     }
 
@@ -364,10 +375,11 @@ abstract class PhiImpl<N extends Node> implements Phi<N> {
    * BB} when it removes a predecessor.
    */
   void unsafeRemoveInput(BB incomingBB) {
-    assert hasIncomingBB(incomingBB)
+    var index = Iterables.indexOf(inputs, input -> input.incomingBB().equals(incomingBB));
+    assert index != -1
         : "phi is in an inconsistent state, it doesn't have an input that it was told to remove: "
             + incomingBB;
-    inputs.removeIf(input -> input.incomingBB().equals(incomingBB));
+    inputs.removeAt(index);
   }
 
   /**
@@ -380,6 +392,7 @@ abstract class PhiImpl<N extends Node> implements Phi<N> {
     var index = Iterables.indexOf(inputs, input -> input.incomingBB().equals(oldBB));
     assert index != -1 : "The old incoming BB isn't in the phi's inputs: " + oldBB;
     var node = this.inputs.get(index).node();
+    // Can't use `equalReplace` because the index to insert may be different than the one to remove.
     this.inputs.removeAt(index);
     this.inputs.add(Input.of(replacementBB, node));
   }
@@ -444,11 +457,22 @@ abstract class PhiImpl<N extends Node> implements Phi<N> {
 
   private void verifyInputIfEagerConfig(Phi.Input<?> input) {
     if (EAGERLY_VERIFY_PHI_INPUTS) {
-      var issue = cfg().verifyPhiInput(this, input);
+      var issue = cfg().verifyPhiInput(this, input, true);
       if (issue != null) {
         throw new CFGVerifyException(cfg(), issue);
       }
     }
+  }
+
+  @Override
+  public final void rename(String newName) {
+    var oldId = id();
+
+    cfg().untrack(this);
+    id = new LocalNodeIdImpl<>(this, newName);
+    cfg().track(this);
+
+    cfg().record(new RenameInstrOrPhi(oldId, newName), new RenameInstrOrPhi(id(), oldId.name()));
   }
 
   @Override

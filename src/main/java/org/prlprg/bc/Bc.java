@@ -2,6 +2,7 @@ package org.prlprg.bc;
 
 import com.google.common.primitives.ImmutableIntArray;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,9 +29,18 @@ public record Bc(BcCode code, ConstPool consts) {
    */
   public static final int R_BC_VERSION = 12;
 
+  /**
+   * Create a bytecode which has no code or constants.
+   *
+   * <p>This is necessary when we need to store a non-null value or stub.
+   */
+  public static Bc empty() {
+    return new Builder().build();
+  }
+
   public static class Builder {
-    private final BcCode.Builder code = new BcCode.Builder();
-    private final ConstPool.Builder consts = new ConstPool.Builder();
+    private final BcCode.Builder code;
+    private final ConstPool.Builder consts;
     private final List<BcLabel> labels = new ArrayList<>();
     private final ImmutableIntArray.Builder expressions =
         ImmutableIntArray.builder()
@@ -46,6 +56,15 @@ public record Bc(BcCode code, ConstPool consts) {
     private boolean trackSrcRefs = true;
     private boolean trackExpressions = true;
     private final Map<Integer, Function<BcInstr, BcInstr>> patches = new LinkedHashMap<>();
+
+    public Builder() {
+      this(Collections.emptyList());
+    }
+
+    public Builder(List<SEXP> consts) {
+      code = new BcCode.Builder();
+      this.consts = new ConstPool.Builder(consts);
+    }
 
     public void setTrackSrcRefs(boolean track) {
       this.trackSrcRefs = track;

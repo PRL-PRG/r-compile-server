@@ -1,7 +1,6 @@
 package org.prlprg.ir.cfg;
 
 import com.google.common.collect.ImmutableList;
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -59,21 +58,18 @@ final class CheckpointImpl extends JumpImpl<JumpData.Checkpoint> implements Chec
     }
   }
 
-  @SuppressWarnings("ConstantValue")
-  @SuppressFBWarnings("RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE")
   @Override
-  public void verify() throws InstrVerifyException {
-    super.verify();
+  protected void verify(boolean isInsert) throws InstrVerifyException {
+    super.verify(isInsert);
 
-    if (assumptions == null) {
-      // `verify` called during initialization
-      return;
-    }
-    if (assumptions.size() > data().numAssumptions()) {
-      assumptions.subList(data().numAssumptions(), assumptions.size()).clear();
-    }
-    while (assumptions.size() < data().numAssumptions()) {
-      assumptions.add(new AssumptionImpl(this, assumptions.size()));
+    // `assumptions` is `null` on insert.
+    if (!isInsert) {
+      if (assumptions.size() > data().numAssumptions()) {
+        assumptions.subList(data().numAssumptions(), assumptions.size()).clear();
+      }
+      while (assumptions.size() < data().numAssumptions()) {
+        assumptions.add(new AssumptionImpl(this, assumptions.size()));
+      }
     }
   }
 

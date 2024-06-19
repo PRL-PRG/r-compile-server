@@ -37,14 +37,15 @@ final class BBIdImpl implements BBId {
   private final String name;
   private final String toString;
 
-  public BBIdImpl(CFG cfg, String name) {
-    this(cfg.nextBBDisambiguator(), name);
-  }
-
-  private BBIdImpl(int disambiguator, String name) {
+  BBIdImpl(int disambiguator, String name) {
     this.disambiguator = disambiguator;
     this.name = NodeAndBBIds.quoteNameIfNecessary(name);
     this.toString = "^" + disambiguator + name;
+  }
+
+  /** Should only be used by {@link CFG}. */
+  int disambiguator() {
+    return disambiguator;
   }
 
   @Override

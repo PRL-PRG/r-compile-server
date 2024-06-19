@@ -18,11 +18,14 @@ import org.prlprg.primitive.Logical;
 import org.prlprg.primitive.Names;
 import org.prlprg.sexp.Attributes;
 import org.prlprg.sexp.BaseEnvSXP;
+import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.EnvType;
 import org.prlprg.sexp.GlobalEnvSXP;
+import org.prlprg.sexp.ListSXP;
 import org.prlprg.sexp.NamespaceEnvSXP;
 import org.prlprg.sexp.PromSXP;
+import org.prlprg.sexp.RegSymSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPOrEnvType;
 import org.prlprg.sexp.SEXPType;
@@ -41,15 +44,34 @@ import org.prlprg.util.UnreachableError;
  * across the parses. This is useful e.g. when parsing {@link CFG} or {@link Closure}, since they
  * may contain many references to the same large {@link StaticEnvSXP}.
  *
- * @implNote All of the logic for parsing SEXPs and {@link Attributes} (but not {@link TaggedElem}s)
- *     is implemented in this class.
+ * @implNote All of the logic for parsing {@link SEXP}s, {@link Attributes}, and {@link TaggedElem}s
+ *     (all data-types in {@link org.prlprg.sexp}) is implemented in this class.
  */
 public class SEXPParseContext implements HasSEXPParseContext {
-  private final Map<Integer, SEXP> refs = new HashMap<>();
-
   /** {@code true} if the character indicates the end of an {@link SEXP} or {@link TaggedElem}. */
   public static boolean delimitsSEXP(Integer c) {
     return c == -1 || c == ',' || c == ';' || c == ')' || c == ']' || c == '}' || c == '>';
+  }
+
+  private final ForBindings forBindings = new ForBindings();
+  private final Map<Integer, SEXP> refs = new HashMap<>();
+
+  /**
+   * Context to parse {@link ListSXP}s and {@link TaggedElem}s as they are parsed in {@linkplain
+   * CloSXP#parameters() closure parameters} and {@linkplain EnvSXP#bindingsAsTaggedElems()
+   * environment bindings}.
+   *
+   * <p>Specifically, in any other context, the {@link TaggedElem}s without names parse like {@code
+   * value}, those with missing values parse like {@code name=}, and empty lists parse {@code NULL}.
+   * In this context, {@link TaggedElem}s without names parse like {@code =value}, those with
+   * missing values parse like {@code name}, and empty lists parse {@code ()}. In both contexts,
+   * {@link TaggedElem}s with names and non-missing values parse like {@code name=value}, those
+   * without names and missing values parse and parse the empty string (to do this, the {@link
+   * TaggedElem} must be followed by a delimiter like ",", ")", or end-of-input), and non-empty
+   * lists parse like {@code (taggedElem1, taggedElem2, ...)}.
+   */
+  public ForBindings forBindings() {
+    return forBindings;
   }
 
   @Override
@@ -209,10 +231,7 @@ public class SEXPParseContext implements HasSEXPParseContext {
               };
             }
             case SEXPType.CLO -> {
-              var parameters =
-                  SEXPs.list(
-                      parseList(
-                          p.withContext(new TaggedElem.BindingsParsePrintContext(p.context()))));
+              var parameters = SEXPs.list(parseList(p.withContext(forBindings)));
               s.assertAndSkip("env=");
               var env = p.parse(EnvSXP.class);
               var attributes = s.trySkip("|") ? p.parse(Attributes.class) : Attributes.NONE;
@@ -221,7 +240,7 @@ public class SEXPParseContext implements HasSEXPParseContext {
               yield SEXPs.closure(parameters, body, env, attributes);
             }
             case EnvType.USER, EnvType.GLOBAL, EnvType.NAMESPACE, EnvType.BASE, EnvType.EMPTY -> {
-              var refIndex = s.trySkip('#') ? s.readUInt() : -1;
+              var refIndex = parseRefIndex(p);
               if (refs.containsKey(refIndex)) {
                 foundRefIndex = refIndex;
                 yield refs.get(refIndex);
@@ -310,8 +329,7 @@ public class SEXPParseContext implements HasSEXPParseContext {
               }
 
               if (hasBindings) {
-                var bindings =
-                    parseList(p.withContext(new TaggedElem.BindingsParsePrintContext(p.context())));
+                var bindings = parseList(p.withContext(forBindings));
                 for (var i = 0; i < bindings.size(); i++) {
                   var binding = bindings.get(i);
                   if (binding.tag() == null) {
@@ -329,7 +347,7 @@ public class SEXPParseContext implements HasSEXPParseContext {
             case SEXPType.ENV ->
                 throw s.fail("ENV SEXP must have a specific type (one of the `EnvType` instances)");
             case SEXPType.BCODE -> {
-              var refIndex = s.trySkip('#') ? s.readUInt() : -1;
+              var refIndex = parseRefIndex(p);
               if (refs.containsKey(refIndex)) {
                 foundRefIndex = refIndex;
                 yield refs.get(refIndex);
@@ -340,7 +358,13 @@ public class SEXPParseContext implements HasSEXPParseContext {
               }
 
               var bc = p.parse(Bc.class);
-              yield SEXPs.bcode(bc);
+              var bcSexp = SEXPs.bcode(bc);
+
+              if (refIndex != -1) {
+                refs.put(refIndex, bcSexp);
+              }
+
+              yield bcSexp;
             }
             case SEXPType.PROM -> {
               s.assertAndSkip("env=");
@@ -420,16 +444,34 @@ public class SEXPParseContext implements HasSEXPParseContext {
     return result;
   }
 
+  /**
+   * Parse the ref index, then assert that:
+   *
+   * <ul>
+   *   <li>It doesn't re-define an existing ref.
+   *   <li>It doesn't reference a non-existent ref.
+   * </ul>
+   */
+  private int parseRefIndex(Parser p) {
+    var s = p.scanner();
+
+    var refIndex = s.trySkip('#') ? s.readUInt() : -1;
+
+    if (refs.containsKey(refIndex) && !s.nextCharIs('>')) {
+      throw s.fail("Encountered definition for SEXP that was already defined");
+    } else if (!refs.containsKey(refIndex) && refIndex != -1 && s.nextCharIs('>')) {
+      throw s.fail("Encountered reference for SEXP that wasn't previously defined");
+    }
+
+    return refIndex;
+  }
+
   private ImmutableList<TaggedElem> parseList(Parser p) {
     var s = p.scanner();
 
     var elems = ImmutableList.<TaggedElem>builder();
     s.assertAndSkip('(');
     if (!s.trySkip(')')) {
-      if (s.nextCharsAre("...")) {
-        throw failParsingTruncated(p);
-      }
-
       do {
         elems.add(p.parse(TaggedElem.class));
 
@@ -465,6 +507,62 @@ public class SEXPParseContext implements HasSEXPParseContext {
       } while (s.trySkip(','));
     }
     return attrs.build();
+  }
+
+  @ParseMethod
+  private TaggedElem parseTaggedElem(Parser p) {
+    var s = p.scanner();
+
+    if (s.nextCharSatisfies(SEXPParseContext::delimitsSEXP)) {
+      return new TaggedElem(null, SEXPs.MISSING_ARG);
+    }
+
+    var tagOrValue = p.parse(SEXP.class);
+    if (!s.trySkip('=')) {
+      return new TaggedElem(null, tagOrValue);
+    }
+
+    if (!(tagOrValue instanceof RegSymSXP tag)) {
+      throw s.fail("Expected tag name before '='");
+    }
+    var value =
+        s.nextCharSatisfies(SEXPParseContext::delimitsSEXP)
+            ? SEXPs.MISSING_ARG
+            : p.parse(SEXP.class);
+    return new TaggedElem(tag.name(), value);
+  }
+
+  /**
+   * @see #forBindings()
+   */
+  public class ForBindings {
+    @ParseMethod
+    private ListSXP parseList(Parser p) {
+      return SEXPs.list(SEXPParseContext.this.parseList(p));
+    }
+
+    @ParseMethod
+    private TaggedElem parseTaggedElem(Parser p) {
+      var s = p.scanner();
+
+      if (s.nextCharSatisfies(SEXPParseContext::delimitsSEXP)) {
+        return new TaggedElem(null, SEXPs.MISSING_ARG);
+      }
+
+      var tag = s.nextCharIs('=') ? null : Names.read(s, true);
+      var value =
+          s.trySkip('=')
+              ? p.withContext(SEXPParseContext.this).parse(SEXP.class)
+              : SEXPs.MISSING_ARG;
+      return new TaggedElem(tag, value);
+    }
+
+    @ParseMethod
+    private Object parse(Parser p, Class<?> clazz) {
+      throw new UnsupportedOperationException(
+          "SEXPParseContext#Bindings can only parse lists and tagged elements: given "
+              + clazz.getName());
+    }
   }
 
   private ParseException failParsingTruncated(Parser p) {

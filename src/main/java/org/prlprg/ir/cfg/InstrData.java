@@ -47,9 +47,13 @@ public sealed interface InstrData<I extends Instr> permits JumpData, StmtData {
    * inexpressible in Java's type system, in a way that annotating the arguments with {@link TypeIs}
    * and {@link IsEnv} won't do on its own.
    *
+   * <p>The base implementation is empty, so overriders should skip {@code super.verify()}.
+   *
+   * @param isInsert If true, the verification is called when the instruction is inserted. Otherwise
+   *     it's called in {@link CFG#verify()}.
    * @throws InstrVerifyException If there are issues with the instruction data.
    */
-  default void verify() throws InstrVerifyException {}
+  default void verify(boolean isInsert) throws InstrVerifyException {}
 
   /** Am {@link InstrData} with an AST. */
   interface HasAst {

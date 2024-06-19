@@ -94,9 +94,14 @@ interface BBQuery extends Iterable<InstrOrPhi> {
    * Returns (a view of) the phis in this BB.
    *
    * <p>These are in the same order as they are inserted.
+   *
+   * @see #iterPhis()
    */
   @UnmodifiableView
   Collection<Phi<?>> phis();
+
+  /** Iterate the phis in this BB, with an iterator that can remove them. */
+  Iterator<Phi<?>> iterPhis();
 
   /** Returns (a view of) the statements in this BB. */
   @UnmodifiableView

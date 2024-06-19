@@ -47,7 +47,8 @@ public class CFG
   private final Set<BB> exits = new HashSet<>();
   private final Map<BBId, BB> bbs = new HashMap<>();
   private final Map<NodeId<?>, Node> nodes = new HashMap<>();
-  private int nextBbDisambiguator = 1;
+  // Disambiguator 1 is used for the entry.
+  private int nextBbDisambiguator = 2;
   private int nextInstrOrPhiDisambiguator = 1;
   private @Nullable DomTree cachedDomTree;
   private @Nullable DefUseAnalysis cachedDefUseAnalysis;
@@ -55,7 +56,7 @@ public class CFG
   /** Create a new CFG, with a single basic block and no instructions. */
   @SuppressFBWarnings("CT_CONSTRUCTOR_THROW")
   public CFG() {
-    entry = new BB(this, new BBIdImpl(this, "entry"));
+    entry = new BB(this, new BBIdImpl(1, "entry"));
     bbs.put(entry.id(), entry);
     markExit(entry);
   }
@@ -192,7 +193,7 @@ public class CFG
 
   @Override
   public BB addBB(String name) {
-    return addBBWithId(new BBIdImpl(this, name));
+    return addBBWithId(new BBIdImpl(nextBbDisambiguator, name));
   }
 
   @Override
@@ -328,7 +329,7 @@ public class CFG
       // (non-strict, so includes the incoming block itself).
       for (var phi : bb.phis()) {
         for (var input : phi.inputs()) {
-          var broken = verifyPhiInput(phi, input);
+          var broken = verifyPhiInput(phi, input, false);
           if (broken != null) {
             errors.add(broken);
           }
@@ -375,9 +376,15 @@ public class CFG
     }
   }
 
-  @Nullable BrokenInvariant verifyPhiInput(Phi<?> phi, Phi.Input<?> input) {
+  @Nullable BrokenInvariant verifyPhiInput(Phi<?> phi, Phi.Input<?> input, boolean isEager) {
     // Every phi input node is global or originates from a block that the incoming BB dominates
     // (non-strict, so includes the incoming block itself).
+    //
+    // If `isEager` is true, we skip checking the invariant if any of the origin BB's transitive
+    // successors contain a `null` jump. This is because the jump will eventually be set (perhaps to
+    // something that makes origin dominate the incoming BB) and we don't want to force setting it
+    // early just to ensure this invariant. If the `null` jump is never set so that origin dominates
+    // the incoming BB, we'll report this phi in later in `CFG#verify`.
     var incomingBB = input.incomingBB();
     var node = input.node();
 
@@ -389,14 +396,22 @@ public class CFG
     var domTree = domTree();
     var defUses = defUses();
 
+    var phiBb = defUses.originBB(phi);
     var originBB = defUses.originBB(node);
+
+    if (isEager && Iterators.any(new CFGIterator.Dfs(originBB), bb -> bb.jump() == null)) {
+      // Node's origin BB dominates a jump, so we don't know all of of its eventual dominees.
+      return null;
+    }
+
     Predicate<BB> isValidIncomingBB =
         bb -> Iterators.contains(domTree.iterDominators(bb, false), originBB);
     return isValidIncomingBB.test(incomingBB)
         ? null
         : new CFGVerifyException.IncorrectIncomingBBInPhi(
-            incomingBB.id(),
+            phiBb.id(),
             phi.id(),
+            node.id(),
             originBB.id(),
             incomingBB.id(),
             phi.incomingBBs().stream().filter(isValidIncomingBB).map(BB::id).toList());
@@ -428,7 +443,7 @@ public class CFG
    * edits.
    */
   BB doAddBB(String name) {
-    return doAddBBWithId(new BBIdImpl(this, name));
+    return doAddBBWithId(new BBIdImpl(nextBbDisambiguator, name));
   }
 
   private BB doAddBBWithId(BBId id) {
@@ -436,6 +451,7 @@ public class CFG
     assert !bbs.containsKey(bb.id());
     bbs.put(id, bb);
     markExit(bb);
+    updateNextBBDisambiguator(id);
     return bb;
   }
 
@@ -568,11 +584,6 @@ public class CFG
   }
 
   /** Get the disambiguator and increment it. */
-  int nextBBDisambiguator() {
-    return nextBbDisambiguator++;
-  }
-
-  /** Get the disambiguator and increment it. */
   int nextInstrOrPhiDisambiguator() {
     return nextInstrOrPhiDisambiguator++;
   }
@@ -583,13 +594,9 @@ public class CFG
         Math.max(nextInstrOrPhiDisambiguator, ((LocalNodeIdImpl<?>) id).disambiguator() + 1);
   }
 
-  /**
-   * Set the disambiguator.
-   *
-   * <p>Only to be used by the {@linkplain CFGParsePrint CFG parser}.
-   */
-  void setNextInstrOrPhiDisambiguator(int disambiguator) {
-    nextInstrOrPhiDisambiguator = disambiguator;
+  /** Ensure that the next disambiguator is higher than the id's. */
+  private void updateNextBBDisambiguator(BBId bbId) {
+    nextBbDisambiguator = Math.max(nextBbDisambiguator, ((BBIdImpl) bbId).disambiguator() + 1);
   }
   // endregion for BB and node
 }

@@ -8,8 +8,8 @@ import static org.prlprg.util.Tests.printlnIfVerbose;
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.Formatter;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,8 +27,10 @@ import org.prlprg.parseprint.Printer;
 import org.prlprg.util.DirectorySource;
 import org.prlprg.util.Files;
 import org.prlprg.util.Pair;
+import org.prlprg.util.Strings2;
+import org.prlprg.util.Tests;
 
-public class CFGPirTests {
+public class CFGPirTests implements Tests {
   private static final int NUM_PIR_PRINTS_IN_FAST_TESTS = 200;
 
   private @Nullable String acceptablyFailed;
@@ -63,10 +65,7 @@ public class CFGPirTests {
         assertEquals(inverse, inverse2, "Applying edit on copy doesn't produce the same inverse");
       }
 
-      assertEquals(
-          printCFGForEquality(cfg),
-          printCFGForEquality(copy),
-          "Recreated CFG does not match original");
+      assertEquals(cfg.toString(), copy.toString(), "Recreated CFG does not match original");
 
       printlnIfVerbose();
     }
@@ -101,9 +100,7 @@ public class CFGPirTests {
       }
 
       assertEquals(
-          printCFGForEquality(new CFG()),
-          printCFGForEquality(cfg),
-          "Undoing all edits should result in an empty CFG");
+          new CFG().toString(), cfg.toString(), "Undoing all edits should result in an empty CFG");
 
       printlnIfVerbose("========================================");
     }
@@ -140,10 +137,15 @@ public class CFGPirTests {
   @ParameterizedTest
   @DirectorySource(
       root = "pir-prints",
+      relativize = true,
       depth = Integer.MAX_VALUE,
       glob = "*.log",
       fastLimit = NUM_PIR_PRINTS_IN_FAST_TESTS)
-  public void testPirIsParseableAndPrintableWithoutError(Path pirPath) {
+  public void testPirIsParseableAndPrintableWithoutError(Path relativePirPath) {
+    var lessRelativePirPath = Paths.get("pir-prints");
+    var pirSourcePath = getSourceResourcePath(lessRelativePirPath.resolve(relativePirPath));
+    var pirPath = getResourcePath(lessRelativePirPath.resolve(relativePirPath));
+
     var original = Files.readString(pirPath);
     var cfgs =
         readPirCfgs(
@@ -167,7 +169,11 @@ public class CFGPirTests {
                       || (e.getCause() != null
                           && e.getCause().getMessage().contains("symbol name cannot be empty"));
               if (EXPECT_AND_DELETE_SOME_PIR_TESTS && acceptAndDelete) {
-                Files.delete(pirPath);
+                if (pirSourcePath == null) {
+                  throw new UnsupportedOperationException(
+                      "EXPECT_AND_DELETE_SOME_PIR_TESTS can only be set with access to the source resources (artifact is running in the project's `target` folder)");
+                }
+                Files.delete(pirSourcePath);
                 return true;
               } else {
                 return false;
@@ -178,13 +184,13 @@ public class CFGPirTests {
 
     if (VERBOSE) {
       System.out.println("Native serialized representation:");
-      System.out.println(entireRegion(defaultStr));
+      System.out.println(Strings2.entireRegion(defaultStr));
       System.out.println();
       System.out.println("Reprinted (round-trip) PIR representation:");
-      System.out.println(entireRegion(roundTrip));
+      System.out.println(Strings2.entireRegion(roundTrip));
       System.out.println();
       System.out.println("Original PIR representation:");
-      System.out.println(entireRegion(original));
+      System.out.println(Strings2.entireRegion(original));
     }
   }
 
@@ -279,12 +285,15 @@ public class CFGPirTests {
             "Failed to parse "
                 + pirPath
                 + "\n"
-                + region(source, e.position().line(), e.position().column());
+                + Strings2.region(source, e.position().line(), e.position().column());
         throw new AssertionError(msg, e);
       }
     } catch (Throwable e) {
       System.err.println(
-          "Uncaught error or exception while parsing " + pirPath + "\n" + entireRegion(source));
+          "Uncaught error or exception while parsing "
+              + pirPath
+              + "\n"
+              + Strings2.entireRegion(source));
       throw e;
     }
 
@@ -308,51 +317,5 @@ public class CFGPirTests {
           }
         });
   }
-
   // endregion CFG helpers
-
-  // region print regions and other
-  private static final int NUM_REGION_CONTEXT_LINES = 2;
-
-  private String region(String source, long errorLineNum, long errorColNum) {
-    if (errorLineNum < 0 || errorColNum < 0) {
-      throw new IllegalArgumentException("errorLineNum and errorColNum must be positive");
-    }
-
-    long firstLineNum = errorLineNum - NUM_REGION_CONTEXT_LINES;
-    long lastLineNum = errorLineNum + NUM_REGION_CONTEXT_LINES;
-
-    var s = new StringBuilder();
-    var f = new Formatter(s);
-    var lines = source.lines().iterator();
-    for (long lineNum = 1; lines.hasNext(); lineNum++) {
-      var line = lines.next();
-      if (lineNum == firstLineNum - 1 || lineNum == lastLineNum + 1) {
-        s.append("      ...\n");
-      } else if (lineNum >= firstLineNum && lineNum <= lastLineNum) {
-        f.format("%4d: %s\n", lineNum, line);
-        if (lineNum == errorLineNum) {
-          s.append(" ".repeat((int) errorColNum + 5)).append("^\n");
-        }
-      }
-    }
-    return s.toString();
-  }
-
-  private String entireRegion(String source) {
-    var s = new StringBuilder();
-    var f = new Formatter(s);
-    var lines = source.lines().iterator();
-    for (long lineNum = 1; lines.hasNext(); lineNum++) {
-      var line = lines.next();
-      f.format("%4d: %s\n", lineNum, line);
-    }
-    return s.toString();
-  }
-
-  private String printCFGForEquality(CFG cfg) {
-    var str = cfg.toString();
-    return str.substring(str.indexOf('\n') + 1);
-  }
-  // endregion print regions and other
 }

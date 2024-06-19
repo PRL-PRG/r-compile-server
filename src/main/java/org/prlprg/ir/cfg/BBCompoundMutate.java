@@ -166,9 +166,9 @@ public interface BBCompoundMutate extends BBIntrinsicMutate, BBQuery {
         .section(
             "BB#filter",
             () -> {
-              var removedPhis = phis().stream().filter(predicate).toList();
-              var removedStmts = stmts().stream().filter(predicate).toList();
-              var removedJump = jump() != null && predicate.test(jump()) ? jump() : null;
+              var removedPhis = phis().stream().filter(Predicate.not(predicate)).toList();
+              var removedStmts = stmts().stream().filter(Predicate.not(predicate)).toList();
+              var removedJump = jump() != null && !predicate.test(jump()) ? jump() : null;
               removeAllPhis(removedPhis);
               removeAllStmts(removedStmts);
               if (removedJump != null) {

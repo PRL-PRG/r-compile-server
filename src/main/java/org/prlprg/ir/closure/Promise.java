@@ -1,12 +1,13 @@
 package org.prlprg.ir.closure;
 
 import com.google.common.collect.ImmutableSet;
+import java.util.List;
 import javax.annotation.Nullable;
+import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.bc.Bc;
-import org.prlprg.bc.BcCode;
-import org.prlprg.bc.ConstPool;
 import org.prlprg.ir.cfg.CFG;
 import org.prlprg.ir.cfg.IsEnv;
+import org.prlprg.ir.cfg.Node;
 import org.prlprg.ir.cfg.RValue;
 import org.prlprg.ir.cfg.StaticEnv;
 import org.prlprg.ir.type.REffect;
@@ -33,7 +34,7 @@ public final class Promise extends CodeObject {
   // The non-final fields are only non-final so that they can be set in `LateConstruct`.
   // Otherwise they are effectively final.
   private Bc bc;
-  private CFG cfg;
+  private CFG body;
   // Except `eagerValue` is set even after `LateConstruct`.
   private @Nullable RValue eagerValue;
   private @IsEnv RValue env;
@@ -54,14 +55,14 @@ public final class Promise extends CodeObject {
    *     isn't a good one.
    * @throws IllegalArgumentException If {@code env} isn't statically known to be an environment/
    */
-  public Promise(String name, Bc bc, CFG cfg, @IsEnv RValue env, Properties properties) {
+  public Promise(String name, Bc bc, CFG body, @IsEnv RValue env, Properties properties) {
     super(name);
     if (env.isEnv() != Troolean.YES) {
       throw new IllegalArgumentException("`env` must be statically known to be an environment.");
     }
 
     this.bc = bc;
-    this.cfg = cfg;
+    this.body = body;
     this.env = env;
     this.properties = properties;
   }
@@ -87,8 +88,8 @@ public final class Promise extends CodeObject {
   }
 
   /** The promise code as {@linkplain org.prlprg.ir IR}. */
-  public CFG cfg() {
-    return cfg;
+  public CFG body() {
+    return body;
   }
 
   /** The eager value of the promise, if known. */
@@ -116,6 +117,51 @@ public final class Promise extends CodeObject {
   /** Properties of a promise that are assumed by the invoker to allow certain optimizations. */
   public Properties properties() {
     return properties;
+  }
+
+  @Override
+  public @UnmodifiableView List<Node> outerCfgNodes() {
+    return eagerValue != null ? List.of(eagerValue, env) : List.of(env);
+  }
+
+  @Override
+  public void unsafeReplaceOuterCfgNode(Node oldNode, Node newNode) {
+    if (eagerValue != null && eagerValue.equals(oldNode)) {
+      if (!(newNode instanceof RValue newEagerValue)) {
+        throw new IllegalArgumentException(
+            "Promise replacement `eagerValue` node must be an RValue.");
+      }
+      eagerValue = newEagerValue;
+    }
+
+    if (env.equals(oldNode)) {
+      if (!(newNode instanceof RValue newEnv)) {
+        throw new IllegalArgumentException("Promise replacement `env` node must be an RValue.");
+      }
+      if (newEnv.isEnv() != Troolean.YES) {
+        throw new IllegalArgumentException(
+            "Promise replacement `env` node must be statically known to be an environment.");
+      }
+      env = newEnv;
+    }
+  }
+
+  @Override
+  public void verifyOuterCfgRValuesAreOfCorrectTypes() {
+    if (env.isEnv() != Troolean.YES) {
+      throw new IllegalStateException(
+          "Promise `env` must be statically known to be an environment.");
+    }
+  }
+
+  /**
+   * Verify all {@link CFG}s within this promise (its body, and those in inner closures and
+   * promises).
+   */
+  @Override
+  public void verify() {
+    // `MkCls` and `MkProm` verify their inner closure and promise.
+    body.verify();
   }
 
   /**
@@ -189,13 +235,7 @@ public final class Promise extends CodeObject {
    * to code outside the package.
    */
   static Pair<Promise, Promise.LateConstruct> lateConstruct(String name) {
-    var promise =
-        new Promise(
-            name,
-            new Bc(new BcCode.Builder().build(), new ConstPool.Builder().build()),
-            new CFG(),
-            StaticEnv.NOT_CLOSED,
-            Properties.EMPTY);
+    var promise = new Promise(name, Bc.empty(), new CFG(), StaticEnv.NOT_CLOSED, Properties.EMPTY);
     return Pair.of(promise, promise.new LateConstruct());
   }
 
@@ -207,7 +247,7 @@ public final class Promise extends CodeObject {
     @Override
     public void doSet(Promise data) {
       bc = data.bc;
-      cfg = data.cfg;
+      body = data.body;
       eagerValue = data.eagerValue;
       env = data.env;
       properties = data.properties;
@@ -216,11 +256,10 @@ public final class Promise extends CodeObject {
 
   /** Deserializing constructor (so we can set the final fields). */
   @ParseMethod
-  private Promise(Parser p1, ClosureParseContext ctx) {
-    super("prom", p1, ctx);
+  private Promise(Parser p, ClosureParseContext ctx) {
+    super("prom", p, ctx);
     var idIndex = ctx.lastYieldedIdIndex();
 
-    var p = p1.withContext(ctx.ref(new NodeIdQualifier(name, idIndex)));
     var s = p.scanner();
 
     s.assertAndSkip("env");
@@ -231,7 +270,7 @@ public final class Promise extends CodeObject {
 
     bc = p.parse(Bc.class);
     s.assertAndSkip("=== IR ===");
-    cfg = p.parse(CFG.class);
+    body = p.withContext(ctx.ref(new NodeIdQualifier(name, idIndex))).parse(CFG.class);
 
     s.assertAndSkip('}');
 
@@ -243,11 +282,10 @@ public final class Promise extends CodeObject {
   // The class doesn't escape its visibility, because this is a protected method of a sealed class.
   @Override
   protected void print(
-      Printer p1, @SuppressWarnings("ClassEscapesDefinedScope") ClosurePrintContext ctx) {
-    printHeader("prom", p1, ctx);
+      Printer p, @SuppressWarnings("ClassEscapesDefinedScope") ClosurePrintContext ctx) {
+    printHeader("prom", p, ctx);
     var idIndex = ctx.lastYieldedIdIndex();
 
-    var p = p1.withContext(ctx.ref(new NodeIdQualifier(name, idIndex)));
     var w = p.writer();
 
     w.write(" env ");
@@ -267,7 +305,7 @@ public final class Promise extends CodeObject {
           w.write('\n');
           p.print(bc);
           w.write("\n=== IR ===\n");
-          p.print(cfg);
+          p.withContext(ctx.ref(new NodeIdQualifier(name, idIndex))).print(body);
         });
 
     w.write("\n}");

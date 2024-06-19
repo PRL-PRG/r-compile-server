@@ -30,11 +30,8 @@ public abstract sealed class CFGIterator implements Iterator<BB> {
 
   // region constructors
   /** Create a new iterator, starting with the given block. */
-  protected CFGIterator(CFG cfg, BB start) {
-    this(cfg);
-    if (start.cfg() != cfg) {
-      throw new IllegalArgumentException("The start block to iterate is not in the CFG");
-    }
+  protected CFGIterator(BB start) {
+    this(start.cfg());
     addLast(start);
   }
 
@@ -160,12 +157,12 @@ public abstract sealed class CFGIterator implements Iterator<BB> {
   public static final class Bfs extends CFGIterator {
     /** Iterate nodes starting at the entry. */
     public Bfs(CFG cfg) {
-      super(cfg, cfg.entry());
+      super(cfg.entry());
     }
 
     /** Iterate nodes starting at the given block. */
-    public Bfs(CFG cfg, BB start) {
-      super(cfg, start);
+    public Bfs(BB start) {
+      super(start);
     }
 
     /** Iterate nodes starting at the given blocks. */
@@ -204,12 +201,12 @@ public abstract sealed class CFGIterator implements Iterator<BB> {
   public static final class Dfs extends CFGIterator {
     /** Iterate nodes starting at the entry. */
     public Dfs(CFG cfg) {
-      super(cfg, cfg.entry());
+      super(cfg.entry());
     }
 
     /** Iterate nodes starting at the given block. */
-    public Dfs(CFG cfg, BB start) {
-      super(cfg, start);
+    public Dfs(BB start) {
+      super(start);
     }
 
     /** Iterate nodes starting at the given blocks. */
@@ -252,8 +249,8 @@ public abstract sealed class CFGIterator implements Iterator<BB> {
     }
 
     /** Iterate nodes starting at the given block. */
-    public ReverseBfs(CFG cfg, BB start) {
-      super(cfg, start);
+    public ReverseBfs(BB start) {
+      super(start);
     }
 
     /** Iterate nodes starting at the given blocks. */
@@ -296,8 +293,8 @@ public abstract sealed class CFGIterator implements Iterator<BB> {
     }
 
     /** Iterate nodes starting at the given block. */
-    public ReverseDfs(CFG cfg, BB start) {
-      super(cfg, start);
+    public ReverseDfs(BB start) {
+      super(start);
     }
 
     /** Iterate nodes starting at the given blocks. */
@@ -338,13 +335,17 @@ public abstract sealed class CFGIterator implements Iterator<BB> {
 
     /** Iterate nodes starting at the root of the dominator tree. */
     public DomTreeBfs(DomTree tree) {
-      super(tree.cfg(), tree.root());
+      super(tree.root());
       this.tree = tree;
     }
 
     /** Iterate nodes starting at the given block. */
     public DomTreeBfs(DomTree tree, BB root) {
-      super(tree.cfg(), root);
+      super(root);
+      if (tree.cfg() != root.cfg()) {
+        throw new IllegalArgumentException(
+            "The given dominator tree is for a different CFG than the given root block");
+      }
       this.tree = tree;
     }
 

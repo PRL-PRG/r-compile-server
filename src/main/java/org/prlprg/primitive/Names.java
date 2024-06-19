@@ -88,9 +88,9 @@ public final class Names {
       return result;
     }
 
-    if (!scanner.nextCharSatisfies(c -> Character.isLetter(c) || c == '_')) {
+    if (!scanner.nextCharSatisfies(c -> Character.isLetter(c) || c == '_' || c == '.')) {
       throw scanner.fail(
-          "start of an R symbol string (letter or '_')", Strings.quote(scanner.peekChar()));
+          "start of an R symbol string (letter, '_', or '.')", Strings.quote(scanner.peekChar()));
     }
 
     var result = scanner.readWhile(c -> Character.isLetterOrDigit(c) || c == '_' || c == '.');

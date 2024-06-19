@@ -417,16 +417,23 @@ class TypeclassMap<A extends Annotation, M extends TypeclassMethod> {
 
   /**
    * Iterate the superclasses of {@code clazz} (including {@code clazz} itself iff {@code
-   * includeSelf} is set), including inherited interfaces. Guarantees that immediately- inherited
-   * classes and interfaces are yielded before transitively inherited ones, and if {@code clazz} is
-   * a record, {@link Record} is yielded last.
+   * includeSelf} is set), including inherited interfaces. Guarantees that:
+   *
+   * <ul>
+   *   <li>Directly inherited classes and interfaces are yielded before transitively inherited ones.
+   *   <li>If {@code clazz} is a record, {@link Record} is yielded second-last.
+   *   <li>{@link Object} is yielded last.
+   * </ul>
+   *
+   * ;
    */
   private Iterable<Class<?>> methodSuperclassChain(Class<?> clazz, boolean includeSelf) {
     return () ->
         new Iterator<>() {
           final Deque<Class<?>> worklist = new ArrayDeque<>();
           final Set<Class<?>> seen = new HashSet<>();
-          // Make sure that `Record.class` is iterated last.
+          // Make sure that `Record.class` is iterated second-last, and `Object.class` is iterated
+          // last.
           final boolean isRecord = clazz.isRecord();
 
           {
@@ -439,7 +446,9 @@ class TypeclassMap<A extends Annotation, M extends TypeclassMethod> {
 
           @Override
           public boolean hasNext() {
-            return !worklist.isEmpty() || (isRecord && !seen.contains(Record.class));
+            return !worklist.isEmpty()
+                || (isRecord && !seen.contains(Record.class))
+                || !seen.contains(Object.class);
           }
 
           @Override
@@ -447,6 +456,8 @@ class TypeclassMap<A extends Annotation, M extends TypeclassMethod> {
             if (worklist.isEmpty()) {
               if (isRecord && seen.add(Record.class)) {
                 return Record.class;
+              } else if (seen.add(Object.class)) {
+                return Object.class;
               }
               throw new IllegalStateException("No more elements");
             }
@@ -455,11 +466,12 @@ class TypeclassMap<A extends Annotation, M extends TypeclassMethod> {
 
             if (next.getSuperclass() != null
                 && next.getSuperclass() != Record.class
+                && next.getSuperclass() != Object.class
                 && seen.add(next.getSuperclass())) {
               worklist.add(next.getSuperclass());
             }
             for (var iface : next.getInterfaces()) {
-              if (iface != Record.class && seen.add(iface)) {
+              if (seen.add(iface)) {
                 worklist.add(iface);
               }
             }

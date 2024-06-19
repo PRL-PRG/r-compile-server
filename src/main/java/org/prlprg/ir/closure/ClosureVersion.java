@@ -588,6 +588,15 @@ public class ClosureVersion {
     }
   }
 
+  /**
+   * Verify all {@link CFG}s within this version (its body, and those in inner closures and
+   * promises).
+   */
+  public void verify() {
+    // `MkCls` and `MkProm` verify their inner closure and promise.
+    body.verify();
+  }
+
   // region serialization and deserialization
   @ParseMethod
   private static ClosureVersion parse(Parser p) {

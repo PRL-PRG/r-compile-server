@@ -22,11 +22,11 @@ import org.prlprg.sexp.NilSXP;
 import org.prlprg.sexp.PromSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPType;
+import org.prlprg.sexp.SEXPs;
 import org.prlprg.sexp.StaticEnvSXP;
 import org.prlprg.sexp.StrSXP;
 import org.prlprg.sexp.SymSXP;
 import org.prlprg.sexp.TaggedElem;
-import org.prlprg.sexp.TaggedElem.BindingsParsePrintContext;
 import org.prlprg.sexp.VectorSXP;
 
 /**
@@ -36,10 +36,12 @@ import org.prlprg.sexp.VectorSXP;
  * across the prints. This is useful e.g. when printing {@link CFG} or {@link Closure}, since they
  * may contain many references to the same large {@link StaticEnvSXP}.
  *
- * @implNote All of the logic for printing SEXPs and {@link Attributes} (but not {@link
- *     TaggedElem}s) is implemented in this class.
+ * @implNote All of the logic for printing {@link SEXP}s, {@link Attributes}, and {@link
+ *     TaggedElem}s (all data-types in {@link org.prlprg.sexp}) is implemented in this class.
  */
 public class SEXPPrintContext implements HasSEXPPrintContext {
+  private final ForBindings forBindings = new ForBindings();
+  private final ForVectorElem forVectorElem = new ForVectorElem();
   private final Map<SEXP, Integer> refs = new HashMap<>();
   private final SEXPPrintOptions options;
   private int currentDepth = 0;
@@ -60,6 +62,24 @@ public class SEXPPrintContext implements HasSEXPPrintContext {
    */
   public SEXPPrintContext() {
     this(SEXPPrintOptions.DEFAULT);
+  }
+
+  /**
+   * Context to print {@link ListSXP}s and {@link TaggedElem}s as they are printed in {@linkplain
+   * CloSXP#parameters() closure parameters} and {@linkplain EnvSXP#bindingsAsTaggedElems()
+   * environment bindings}.
+   *
+   * <p>Specifically, in any other context, the {@link TaggedElem}s without names print like {@code
+   * value}, those with missing values print like {@code name=}, and empty lists print {@code NULL}.
+   * In this context, {@link TaggedElem}s without names print like {@code =value}, those with
+   * missing values print like {@code name}, and empty lists print {@code ()}. In both contexts,
+   * {@link TaggedElem}s with names and non-missing values print like {@code name=value}, those
+   * without names and missing values parse and print the empty string (for parsing, the {@link
+   * TaggedElem} must be followed by a delimiter like ",", ")", or end-of-input), and non- empty
+   * lists print like {@code (taggedElem1, taggedElem2, ...)}.
+   */
+  public ForBindings forBindings() {
+    return forBindings;
   }
 
   @Override
@@ -128,7 +148,11 @@ public class SEXPPrintContext implements HasSEXPPrintContext {
             }
           } else {
             p.print(sexp.fun());
-            p.print(sexp.args());
+            if (sexp.args().isEmpty()) {
+              w.write("()");
+            } else {
+              p.print(sexp.args());
+            }
           }
         });
   }
@@ -171,10 +195,10 @@ public class SEXPPrintContext implements HasSEXPPrintContext {
         p,
         () -> {
           if (sexp.isScalar() && canPrintScalarInline(sexp.type())) {
-            p.withContext(VectorElem.INSTANCE).print(sexp.get(0));
+            p.withContext(forVectorElem).print(sexp.get(0));
           } else {
             printGeneralStart(sexp.type(), p);
-            printElems(sexp, p.withContext(VectorElem.INSTANCE));
+            printElems(sexp, p.withContext(forVectorElem));
             printAttributes(sexp, p);
             printGeneralEnd(p);
           }
@@ -189,7 +213,7 @@ public class SEXPPrintContext implements HasSEXPPrintContext {
           var w = p.writer();
 
           printGeneralStart(sexp.type(), p);
-          printList(sexp.parameters(), p.withContext(new BindingsParsePrintContext(p.context())));
+          printList(sexp.parameters(), p.withContext(forBindings));
           w.write(" env=");
           w.runIndented(() -> p.print(sexp.env()));
           printAttributes(sexp, p);
@@ -227,9 +251,7 @@ public class SEXPPrintContext implements HasSEXPPrintContext {
               w.write(" parent=");
               w.runIndented(() -> p.print(sexp.parent()));
               w.write(' ');
-              printList(
-                  sexp.bindingsAsTaggedElems(),
-                  p.withContext(new BindingsParsePrintContext(p.context())));
+              printList(sexp.bindingsAsTaggedElems(), p.withContext(forBindings));
             } else {
               w.write(" ...");
             }
@@ -323,8 +345,56 @@ public class SEXPPrintContext implements HasSEXPPrintContext {
     }
   }
 
-  private static class VectorElem {
-    private static final VectorElem INSTANCE = new VectorElem();
+  @PrintMethod
+  private void printTaggedElem(TaggedElem taggedElem, Printer p) {
+    var w = p.writer();
+
+    if (taggedElem.tag() != null) {
+      w.write(Names.quoteIfNecessary(taggedElem.tag()));
+      w.write('=');
+    }
+    if (taggedElem.value() != SEXPs.MISSING_ARG) {
+      p.print(taggedElem.value());
+    }
+  }
+
+  /**
+   * @see #forBindings()
+   */
+  public class ForBindings {
+    private ForBindings() {}
+
+    @PrintMethod
+    private void print(ListSXP sexp, Printer p) {
+      printList(sexp, p);
+    }
+
+    @PrintMethod
+    private void print(TaggedElem elem, Printer p) {
+      var w = p.writer();
+
+      if (elem.tag() != null) {
+        w.write(Names.quoteIfNecessary(elem.tag()));
+      }
+      if (elem.value() != SEXPs.MISSING_ARG) {
+        w.write('=');
+        p.withContext(SEXPPrintContext.this).print(elem.value());
+      }
+    }
+
+    @PrintMethod
+    private void print(Object o, Printer p) {
+      throw new UnsupportedOperationException(
+          "SEXPPrintContext#Bindings can only print lists and tagged elements: given "
+              + o.getClass().getName());
+    }
+  }
+
+  private class ForVectorElem implements HasSEXPPrintContext {
+    @Override
+    public SEXPPrintContext sexpPrintContext() {
+      return SEXPPrintContext.this;
+    }
 
     @PrintMethod
     private void print(Integer integer, Printer p) {

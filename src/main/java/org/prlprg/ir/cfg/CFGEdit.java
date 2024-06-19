@@ -550,14 +550,14 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
     }
   }
 
-  record RenameInstr(NodeId<? extends Instr> targetId, String newName)
-      implements MutateInstrOrPhi<RenameInstr> {
+  record RenameInstrOrPhi(NodeId<? extends InstrOrPhi> targetId, String newName)
+      implements MutateInstrOrPhi<RenameInstrOrPhi> {
     @Override
-    public RenameInstr apply(CFG cfg) {
+    public RenameInstrOrPhi apply(CFG cfg) {
       var target = cfg.get(targetId);
       var oldName = targetId.name();
       target.rename(newName);
-      return new RenameInstr(targetId, oldName);
+      return new RenameInstrOrPhi(targetId, oldName);
     }
   }
 

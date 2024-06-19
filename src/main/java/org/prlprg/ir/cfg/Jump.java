@@ -119,8 +119,8 @@ abstract non-sealed class JumpImpl<D extends JumpData<?>> extends InstrImpl<D> i
   }
 
   @Override
-  public void verify() throws InstrVerifyException {
-    super.verify();
+  protected void verify(boolean isInsert) throws InstrVerifyException {
+    super.verify(isInsert);
     computeTargets();
   }
 

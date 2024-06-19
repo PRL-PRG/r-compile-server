@@ -170,6 +170,11 @@ final class LocalNodeIdImpl<N extends LocalNode> extends NodeIdImpl<N> {
     this.clazz = (Class<? extends N>) clazz;
   }
 
+  /** Should only be used by {@link CFG}. */
+  int disambiguator() {
+    return disambiguator;
+  }
+
   @Override
   public String name() {
     return name;

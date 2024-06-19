@@ -224,7 +224,15 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
 
   @TypeIs("PROM")
   @EffectsAre({})
-  record MkProm(Promise promise) implements RValue_ {}
+  record MkProm(Promise promise) implements RValue_ {
+    @Override
+    public void verify(boolean isInsert) throws InstrVerifyException {
+      // If `isInsert` is `true`, `promise` will be empty, because it gets late-assigned.
+      if (!isInsert) {
+        promise.verify();
+      }
+    }
+  }
 
   @EffectsAre(REffect.LeaksNonEnvArg)
   record StrictifyProm(@TypeIs("PROM") RValue promise, RValue value) implements RValue_ {
@@ -236,7 +244,15 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
 
   @EffectsAre({})
   @TypeIs("CLO")
-  record MkCls(Closure closure) implements RValue_ {}
+  record MkCls(Closure closure) implements RValue_ {
+    @Override
+    public void verify(boolean isInsert) throws InstrVerifyException {
+      // If `isInsert` is `true`, `closure` will be empty, because it gets late-assigned.
+      if (!isInsert) {
+        closure.verify();
+      }
+    }
+  }
 
   record Force(RValue promise, Optional<org.prlprg.ir.cfg.FrameState> frameState, @IsEnv RValue env)
       implements RValue_ {
@@ -431,9 +447,9 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
 
   record Subassign1_1D(
       @Override Optional<LangSXP> ast1,
-      RValue value,
       RValue vector,
       RValue index,
+      RValue value,
       @IsEnv RValue env)
       implements SubassignN_1D {}
 
@@ -448,37 +464,37 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
 
   record Subassign2_1D(
       @Override Optional<LangSXP> ast1,
-      RValue value,
       RValue vector,
       RValue index,
+      RValue value,
       @IsEnv RValue env)
       implements SubassignN_1D {}
 
   record Subassign1_2D(
       @Override Optional<LangSXP> ast1,
-      RValue value,
       RValue matrix,
       RValue index1,
       RValue index2,
+      RValue value,
       @IsEnv RValue env)
       implements SubassignN_2D {}
 
   record Subassign2_2D(
       @Override Optional<LangSXP> ast1,
-      RValue value,
       RValue matrix,
       RValue index1,
       RValue index2,
+      RValue value,
       @IsEnv RValue env)
       implements SubassignN_2D {}
 
   record Subassign1_3D(
       @Override Optional<LangSXP> ast1,
-      RValue value,
       RValue matrix,
       RValue index1,
       RValue index2,
       RValue index3,
+      RValue value,
       @IsEnv RValue env)
       implements Subassign {
     @Override
@@ -690,8 +706,12 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
   record Log(@Override Optional<LangSXP> ast1, @Override RValue arg, @IsEnv RValue env)
       implements ArithmeticUnOp {}
 
-  record LogBase(@Override Optional<LangSXP> ast1, @Override RValue arg, @IsEnv RValue env)
-      implements ArithmeticUnOp {}
+  record LogBase(
+      @Override Optional<LangSXP> ast1,
+      @Override RValue lhs,
+      @Override RValue rhs,
+      @IsEnv RValue env)
+      implements ArithmeticBinOp {}
 
   // ???: Should we put all unary math functions in math1 or make all math1 functions separate
   // instructions?

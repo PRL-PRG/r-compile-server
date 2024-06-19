@@ -26,6 +26,22 @@ public sealed interface InstrOrPhi extends LocalNode permits Instr, Phi {
   boolean isPure();
 
   /**
+   * Change the instruction or phi's name (descriptive identifier).
+   *
+   * <p>Even if called with the same name, it will change the ID's disambiguator.
+   */
+  void rename(String newName);
+
+  /**
+   * Change the instruction or phi's disambiguator.
+   *
+   * <p>This just calls {@link #rename(String)} with the current name.
+   */
+  default void updateDisambiguator() {
+    rename(id().name());
+  }
+
+  /**
    * Replace {@code old} with {@code replacement} in {@link #args()} and (if instruction) {@link
    * Instr#data()}.
    *

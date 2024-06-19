@@ -187,7 +187,7 @@ public class SmallBinarySet<T> implements SequencedSet<T> {
 
       @Override
       public void remove() {
-        removeAt(index);
+        removeAt(index - 1);
       }
     };
   }

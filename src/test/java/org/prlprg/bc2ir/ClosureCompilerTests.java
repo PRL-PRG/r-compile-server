@@ -755,9 +755,11 @@ public class ClosureCompilerTests extends AbstractGNURBasedTest {
    * representation).
    */
   private void testAllIr(String funName, String funCode, int optimizationLevel) {
+    // Test compile
     var fun = compileSuccessfully(funCode, optimizationLevel);
     var ir = ClosureCompiler.compileBaselineClosure(funName, fun);
 
+    // Test round-trip print/parse/print
     var irString =
         assertDoesNotThrow(() -> Printer.toString(ir, SEXPPrintOptions.FULL), "Failed to print IR");
 
@@ -783,10 +785,15 @@ public class ClosureCompilerTests extends AbstractGNURBasedTest {
     }
 
     assertEquals(
-        ir1String,
         irString,
+        ir1String,
         "IR re-printed doesn't match originally printed (round-trip failure).");
 
+    // Test verify
+    ir.verify();
+
+    // Debug print if verbose
+    printlnIfVerbose(((BCodeSXP) fun.body()).bc());
     printlnIfVerbose(ir);
   }
 

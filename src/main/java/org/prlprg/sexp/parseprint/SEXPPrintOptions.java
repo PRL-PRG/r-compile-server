@@ -53,17 +53,17 @@ public record SEXPPrintOptions(
           true, true, Long.MAX_VALUE, Long.MAX_VALUE, Long.MAX_VALUE, Long.MAX_VALUE);
 
   public SEXPPrintOptions {
-    if (maxElements < 0) {
-      throw new IllegalArgumentException("`maxElements` must be non-negative");
+    if (maxElements < 1) {
+      throw new IllegalArgumentException("`maxElements` must be positive (can't be 0)");
     }
     if (maxAttributes < 0) {
       throw new IllegalArgumentException("`maxAttributes` must be non-negative");
     }
-    if (maxStringLength < 0) {
-      throw new IllegalArgumentException("`maxStringLength` must be non-negative");
+    if (maxStringLength < 1) {
+      throw new IllegalArgumentException("`maxStringLength` must be positive (can't be 0)");
     }
-    if (maxDepth < 0) {
-      throw new IllegalArgumentException("`maxDepth` must be non-negative");
+    if (maxDepth < 1) {
+      throw new IllegalArgumentException("`maxDepth` must be positive (can't be 0)");
     }
   }
 

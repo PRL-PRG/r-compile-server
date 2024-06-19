@@ -151,6 +151,7 @@ import org.prlprg.ir.cfg.BB;
 import org.prlprg.ir.cfg.CFG;
 import org.prlprg.ir.cfg.Constant;
 import org.prlprg.ir.cfg.FrameState;
+import org.prlprg.ir.cfg.IsEnv;
 import org.prlprg.ir.cfg.JumpData;
 import org.prlprg.ir.cfg.Node;
 import org.prlprg.ir.cfg.Phi;
@@ -169,6 +170,7 @@ import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.util.Lists;
 import org.prlprg.util.Reflection;
+import org.prlprg.util.Strings;
 import org.prlprg.util.UnreachableError;
 
 /**
@@ -217,7 +219,7 @@ public class CFGCompiler {
    * A pending complex assignment (between {@link StartAssign} and {@link EndAssign}, or {@link
    * StartAssign2} and {@link EndAssign2}).
    */
-  private record ComplexAssign(boolean isSuper, RegSymSXP name, RValue lhs, RValue rhs) {}
+  private record ComplexAssign(boolean isSuper, RegSymSXP name, RValue originalRhs) {}
 
   /**
    * A call currently being built.
@@ -248,6 +250,11 @@ public class CFGCompiler {
         this(value, null);
       }
     }
+
+    @Override
+    public String toString() {
+      return "Call{" + "fun=" + fun + ", args=" + args + '}';
+    }
   }
 
   /**
@@ -258,22 +265,24 @@ public class CFGCompiler {
 
     /** The dispatch function (e.g. "[", "[<-", "c"). */
     private enum Type {
-      SUBSET(BuiltinId.SUBSET, false),
-      SUBASSIGN(BuiltinId.SUBASSIGN, true),
-      C(BuiltinId.C, false),
-      SUBSET2(BuiltinId.SUBSET2, false),
-      SUBASSIGN2(BuiltinId.SUBASSIGN2, true),
-      SUBSETN(BuiltinId.SUBSETN, false),
-      SUBASSIGNN(BuiltinId.SUBASSIGNN, true),
-      SUBSET2N(BuiltinId.SUBSET2N, false),
-      SUBASSIGN2N(BuiltinId.SUBASSIGN2N, true);
+      C(BuiltinId.C, false, false),
+      SUBSET(BuiltinId.SUBSET, false, false),
+      SUBASSIGN(BuiltinId.SUBASSIGN, true, false),
+      SUBSET2(BuiltinId.SUBSET2, false, false),
+      SUBASSIGN2(BuiltinId.SUBASSIGN2, true, false),
+      SUBSETN(BuiltinId.SUBSETN, false, true),
+      SUBASSIGNN(BuiltinId.SUBASSIGNN, true, true),
+      SUBSET2N(BuiltinId.SUBSET2N, false, true),
+      SUBASSIGN2N(BuiltinId.SUBASSIGN2N, true, true);
 
       private final BuiltinId builtin;
       private final boolean hasRhs;
+      private final boolean isNForm;
 
-      Type(BuiltinId builtin, boolean hasRhs) {
+      Type(BuiltinId builtin, boolean hasRhs, boolean isNForm) {
         this.builtin = builtin;
         this.hasRhs = hasRhs;
+        this.isNForm = isNForm;
       }
     }
   }
@@ -290,6 +299,7 @@ public class CFGCompiler {
   private final Map<Integer, BB> bbByLabel = new HashMap<>();
   private final Set<BB> bbsWithPhis = new HashSet<>();
   private int bcPos = 0;
+  private boolean isInUnreachableBytecode = false;
   private final CFGCursor cursor;
   private final List<Node> stack = new ArrayList<>();
   private final List<Loop> loopStack = new ArrayList<>();
@@ -342,22 +352,34 @@ public class CFGCompiler {
       }
 
       // Add instructions to BBs, including jumps which connect them.
-      // Also, move to the BB at each label.
+      // Also, move to the BB at each label, and skip unreachable bytecode.
       for (bcPos = 0; bcPos < code.size(); bcPos++) {
         if (bcPos != 0 && bbByLabel.containsKey(bcPos)) {
           var nextBb = bbByLabel.get(bcPos);
           if (cursor.bb().jump() == null) {
             cursor.insert(new JumpData.Goto(nextBb));
           }
-          moveTo(nextBb);
+          if (nextBb.predecessors().isEmpty() && !bbsWithPhis.contains(nextBb)) {
+            // Happens after a compiled `repeat`, maybe it's not correct in other cases.
+            isInUnreachableBytecode = true;
+            cfg.remove(nextBb);
+          } else {
+            isInUnreachableBytecode = false;
+            moveTo(nextBb);
+          }
         }
-        addBcInstrIrInstrs(code.get(bcPos));
+        if (!isInUnreachableBytecode) {
+          addBcInstrIrInstrs(code.get(bcPos));
+        }
       }
     } catch (Throwable e) {
       throw e instanceof CFGCompilerException e1
           ? e1
           : new CFGCompilerException("uncaught exception: " + e, bc, bcPos, cursor, e);
     }
+
+    // We do optimizations later, but cleanup now so we can verify the CFG.
+    cfg.cleanup();
   }
 
   // endregion main compile functions: compile everything
@@ -423,13 +445,23 @@ public class CFGCompiler {
   }
 
   /**
-   * Gets the basic block immediately after the current instruction.
+   * Whether there is a label pointing immediately after the current bytecode instruction.
    *
-   * @throws AssertionError if there is no such block.
+   * <p>Specifically, returns whether there is a BB in {@code bbByLabel} mapped to the position
+   * immediately after.
+   */
+  private boolean hasBbAfterCurrent() {
+    return bbByLabel.containsKey(bcPos + 1);
+  }
+
+  /**
+   * Gets the basic block immediately after the current bytecode instruction.
+   *
+   * <p>Specifically, returns the BB in {@code bbByLabel} mapped to the position immediately after,
+   * creating it if this mapping doesn't exist.
    */
   private BB bbAfterCurrent() {
-    assert bbByLabel.containsKey(bcPos + 1) : "no BB immediately after the instruction at " + bcPos;
-    return bbByLabel.get(bcPos + 1);
+    return bbByLabel.computeIfAbsent(bcPos + 1, _ -> cfg.addBB());
   }
 
   // endregion map BBs to labels (+ get)
@@ -437,11 +469,19 @@ public class CFGCompiler {
   // region main compile functions: compile individual things
   private void addBcInstrIrInstrs(BcInstr instr) {
     switch (instr) {
-      case Return() -> cursor.insert(new JumpData.Return(pop(RValue.class)));
+      case Return() -> {
+        var retVal = pop(RValue.class);
+        assertStacksAreEmpty();
+        cursor.insert(new JumpData.Return(retVal));
+      }
       case Goto(var label) -> {
         var bb = bbAt(label);
         cursor.insert(new JumpData.Goto(bb));
         addPhiInputsForStack(bb);
+
+        if (!hasBbAfterCurrent()) {
+          setInUnreachableBytecode();
+        }
       }
       case BrIfNot(var ast, var label) -> {
         var bb = bbAt(label);
@@ -498,7 +538,7 @@ public class CFGCompiler {
         var initBb = cursor.bb();
         var forBodyBb = bbAfterCurrent();
         var stepBb = bbAt(step);
-        var endBb = cfg.addBB();
+        var endBb = cfg.addBB("endFor");
 
         // For loop init
         var seq = cursor.insert(new StmtData.ToForSeq(pop(RValue.class)));
@@ -545,9 +585,8 @@ public class CFGCompiler {
         var stepBb = topLoop().next;
         cursor.insert(new JumpData.Goto(stepBb));
         addPhiInputsForStack(stepBb);
-        // This part is unreachable, so right now we assume there are no instructions until the next
-        // label. Maybe this is wrong though (if it is we'll get an error), in which case we should
-        // just skip the instructions until the next label. Unless `next` can sometimes not GOTO...
+
+        setInUnreachableBytecode();
       }
       case DoLoopBreak() -> {
         // Out Java compiler doesn't actually generate these instructions,
@@ -558,9 +597,8 @@ public class CFGCompiler {
         var endBb = topLoop().end;
         cursor.insert(new JumpData.Goto(endBb));
         addPhiInputsForStack(endBb);
-        // This part is unreachable, so right now we assume there are no instructions until the next
-        // label. Maybe this is wrong though (if it is we'll get an error), in which case we should
-        // just skip the instructions until the next label. Unless `break` can sometimes not GOTO...
+
+        setInUnreachableBytecode();
       }
       case StepFor(var body) -> {
         var loop = topLoop();
@@ -612,7 +650,7 @@ public class CFGCompiler {
       case GetSymFun(var name) -> pushCall(BuiltinId.referencedBy(get(name)));
       case GetBuiltin(var name) -> pushCall(BuiltinId.referencedBy(get(name)));
       case GetIntlBuiltin(var name) -> pushCall(BuiltinId.referencedBy(get(name)));
-      case CheckFun() -> pushCallFunInsert(new StmtData.ChkFun(top(RValue.class)));
+      case CheckFun() -> pushCallFunInsert(new StmtData.ChkFun(pop(RValue.class)));
       case MakeProm(var code) -> {
         // REACH: Could cache compiled promise CFGs (env will always be different) in the module...
         // TODO: infer name
@@ -628,7 +666,7 @@ public class CFGCompiler {
                   .orElseThrow(() -> fail("SetTag: tag must be a regular symbol or string")));
         }
       }
-      case DoDots() -> pushCallArgInsert(new StmtData.LdDots(pop(RValue.class)));
+      case DoDots() -> pushCallArgInsert(new StmtData.LdDots(env));
       case PushArg() -> pushCallArg(pop(RValue.class));
       case PushConstArg(var constant) -> pushCallArg(new Constant(get(constant)));
       case PushNullArg() -> pushCallArg(new Constant(SEXPs.NULL));
@@ -636,7 +674,15 @@ public class CFGCompiler {
       case PushFalseArg() -> pushCallArg(new Constant(SEXPs.FALSE));
       case BcInstr.Call(var ast) -> compileCall(ast);
       case CallBuiltin(var ast) -> compileCall(ast);
-      case CallSpecial(var ast) -> compileCall(ast);
+      case CallSpecial(var astId) -> {
+        var ast = get(astId);
+        if (!(ast.fun() instanceof RegSymSXP builtinSymbol)) {
+          throw fail("CallSpecial: expected a symbol (builtin id) function");
+        }
+        var builtin = BuiltinId.referencedBy(builtinSymbol);
+        // TODO: This has to be an "AST builtin" call (same as `compileGeneralDispatchCommon`).
+        pushInsert(new StmtData.CallBuiltin(ast, builtin, ImmutableList.of(), env));
+      }
       case MakeClosure(var arg) -> {
         var fb = get(arg);
         var forms = (ListSXP) fb.get(0);
@@ -656,55 +702,24 @@ public class CFGCompiler {
 
         pushInsert(new StmtData.MkCls(closure));
       }
-      case UMinus(var ast) ->
-          pushInsert(new StmtData.UMinus(Optional.of(get(ast)), pop(RValue.class), env));
-      case UPlus(var ast) ->
-          pushInsert(new StmtData.UPlus(Optional.of(get(ast)), pop(RValue.class), env));
-      case Sqrt(var ast) ->
-          pushInsert(new StmtData.Sqrt(Optional.of(get(ast)), pop(RValue.class), env));
-      case Add(var ast) ->
-          pushInsert(
-              new StmtData.Add(Optional.of(get(ast)), pop(RValue.class), pop(RValue.class), env));
-      case Sub(var ast) ->
-          pushInsert(
-              new StmtData.Sub(Optional.of(get(ast)), pop(RValue.class), pop(RValue.class), env));
-      case Mul(var ast) ->
-          pushInsert(
-              new StmtData.Mul(Optional.of(get(ast)), pop(RValue.class), pop(RValue.class), env));
-      case Div(var ast) ->
-          pushInsert(
-              new StmtData.Div(Optional.of(get(ast)), pop(RValue.class), pop(RValue.class), env));
-      case Expt(var ast) ->
-          pushInsert(
-              new StmtData.Pow(Optional.of(get(ast)), pop(RValue.class), pop(RValue.class), env));
-      case Exp(var ast) ->
-          pushInsert(new StmtData.Exp(Optional.of(get(ast)), pop(RValue.class), env));
-      case Eq(var ast) ->
-          pushInsert(
-              new StmtData.Eq(Optional.of(get(ast)), pop(RValue.class), pop(RValue.class), env));
-      case Ne(var ast) ->
-          pushInsert(
-              new StmtData.Neq(Optional.of(get(ast)), pop(RValue.class), pop(RValue.class), env));
-      case Lt(var ast) ->
-          pushInsert(
-              new StmtData.Lt(Optional.of(get(ast)), pop(RValue.class), pop(RValue.class), env));
-      case Le(var ast) ->
-          pushInsert(
-              new StmtData.Lte(Optional.of(get(ast)), pop(RValue.class), pop(RValue.class), env));
-      case Ge(var ast) ->
-          pushInsert(
-              new StmtData.Gte(Optional.of(get(ast)), pop(RValue.class), pop(RValue.class), env));
-      case Gt(var ast) ->
-          pushInsert(
-              new StmtData.Gt(Optional.of(get(ast)), pop(RValue.class), pop(RValue.class), env));
-      case And(var ast) ->
-          pushInsert(
-              new StmtData.LAnd(Optional.of(get(ast)), pop(RValue.class), pop(RValue.class), env));
-      case Or(var ast) ->
-          pushInsert(
-              new StmtData.LOr(Optional.of(get(ast)), pop(RValue.class), pop(RValue.class), env));
-      case Not(var ast) ->
-          pushInsert(new StmtData.Not(Optional.of(get(ast)), pop(RValue.class), env));
+      case UMinus(var ast) -> pushInsert(mkUnop(ast, StmtData.UMinus::new));
+      case UPlus(var ast) -> pushInsert(mkUnop(ast, StmtData.UPlus::new));
+      case Sqrt(var ast) -> pushInsert(mkUnop(ast, StmtData.Sqrt::new));
+      case Add(var ast) -> pushInsert(mkBinop(ast, StmtData.Add::new));
+      case Sub(var ast) -> pushInsert(mkBinop(ast, StmtData.Sub::new));
+      case Mul(var ast) -> pushInsert(mkBinop(ast, StmtData.Mul::new));
+      case Div(var ast) -> pushInsert(mkBinop(ast, StmtData.Div::new));
+      case Expt(var ast) -> pushInsert(mkBinop(ast, StmtData.Pow::new));
+      case Exp(var ast) -> pushInsert(mkUnop(ast, StmtData.Exp::new));
+      case Eq(var ast) -> pushInsert(mkBinop(ast, StmtData.Eq::new));
+      case Ne(var ast) -> pushInsert(mkBinop(ast, StmtData.Neq::new));
+      case Lt(var ast) -> pushInsert(mkBinop(ast, StmtData.Lt::new));
+      case Le(var ast) -> pushInsert(mkBinop(ast, StmtData.Lte::new));
+      case Ge(var ast) -> pushInsert(mkBinop(ast, StmtData.Gte::new));
+      case Gt(var ast) -> pushInsert(mkBinop(ast, StmtData.Gt::new));
+      case And(var ast) -> pushInsert(mkBinop(ast, StmtData.LAnd::new));
+      case Or(var ast) -> pushInsert(mkBinop(ast, StmtData.LOr::new));
+      case Not(var ast) -> pushInsert(mkUnop(ast, StmtData.Not::new));
       case DotsErr() -> insert(new StmtData.Error("'...' used in an incorrect context", env));
       case StartAssign(var name) -> {
         var lhs = cursor.insert(new StmtData.LdVar(get(name), env));
@@ -712,8 +727,8 @@ public class CFGCompiler {
         pushComplexAssign(false, get(name), lhs, rhs);
       }
       case EndAssign(var name) -> {
-        var assign = popComplexAssign(false, get(name));
-        insert(new StmtData.StVar(get(name), assign.rhs, env));
+        var lhs = popComplexAssign(false, get(name));
+        insert(new StmtData.StVar(get(name), lhs, env));
       }
       case StartSubset(var ast, var after) ->
           compileStartDispatch(Dispatch.Type.SUBSET, ast, after);
@@ -822,11 +837,17 @@ public class CFGCompiler {
                         throw new UnreachableError("index should've been range-checked above");
                   });
       case Dollar(var ast, var member) -> {
-        var after = cfg.addBB();
+        var after = cfg.addBB("afterDollar");
 
-        var target = pop(RValue.class);
-        compileGeneralDispatchCommon(BuiltinId.DOLLAR, get(ast), target, null, after);
+        var target = top(RValue.class);
+        compileGeneralDispatchCommon(BuiltinId.DOLLAR, false, get(ast), target, null, after);
 
+        var call = popCall();
+        if (!call.fun.equals(new Call.Fun.Builtin(BuiltinId.DOLLAR))) {
+          throw fail("Dollar: expected a call to $");
+        }
+
+        pop(RValue.class);
         pushInsert(
             new StmtData.CallBuiltin(
                 Optional.of(get(ast)),
@@ -834,18 +855,22 @@ public class CFGCompiler {
                 ImmutableList.of(target, new Constant(get(member))),
                 env));
         cursor.insert(new JumpData.Goto(after));
-        addPhiInputsForStack(after);
 
-        // Has one predecessor (no phis) so we can call `cursor.moveToStart` instead of `moveTo`.
-        cursor.moveToStart(after);
+        moveTo(after);
       }
       case DollarGets(var ast, var member) -> {
-        var after = cfg.addBB();
+        var after = cfg.addBB("afterDollarGets");
 
         var rhs = pop(RValue.class);
         var target = top(RValue.class);
-        compileGeneralDispatchCommon(BuiltinId.DOLLAR_GETS, get(ast), target, rhs, after);
+        compileGeneralDispatchCommon(BuiltinId.DOLLAR_GETS, false, get(ast), target, rhs, after);
 
+        var call = popCall();
+        if (!call.fun.equals(new Call.Fun.Builtin(BuiltinId.DOLLAR_GETS))) {
+          throw fail("Dollar: expected a call to $");
+        }
+
+        pop(RValue.class);
         pushInsert(
             new StmtData.CallBuiltin(
                 Optional.of(get(ast)),
@@ -853,10 +878,8 @@ public class CFGCompiler {
                 ImmutableList.of(target, new Constant(get(member)), rhs),
                 env));
         cursor.insert(new JumpData.Goto(after));
-        addPhiInputsForStack(after);
 
-        // Has one predecessor (no phis) so we can call `cursor.moveToStart` instead of `moveTo`.
-        cursor.moveToStart(after);
+        moveTo(after);
       }
       case IsNull() ->
           pushInsert(
@@ -870,32 +893,28 @@ public class CFGCompiler {
       case IsObject() -> pushInsert(new StmtData.GnuRIs(IsTypeCheck.NON_OBJECT, pop(RValue.class)));
       case IsNumeric() -> pushInsert(new StmtData.GnuRIs(IsTypeCheck.NUM, pop(RValue.class)));
       case VecSubset(var _) ->
-          compileDefaultDispatch(
-              Dispatch.Type.SUBSET2N,
-              2,
+          compileDefaultDispatchN(
+              Dispatch.Type.SUBSETN,
               2,
               (ast, args) ->
                   new StmtData.Extract2_1D(Optional.of(ast), args.getFirst(), args.get(1), env));
       case MatSubset(var _) ->
-          compileDefaultDispatch(
-              Dispatch.Type.SUBSET2N,
-              3,
+          compileDefaultDispatchN(
+              Dispatch.Type.SUBSETN,
               3,
               (ast, args) ->
                   new StmtData.Extract2_2D(
                       Optional.of(ast), args.getFirst(), args.get(1), args.get(2), env));
       case VecSubassign(var _) ->
-          compileDefaultDispatch(
-              Dispatch.Type.SUBASSIGN2N,
-              3,
+          compileDefaultDispatchN(
+              Dispatch.Type.SUBASSIGNN,
               3,
               (ast, args) ->
                   new StmtData.Subassign2_1D(
                       Optional.of(ast), args.getFirst(), args.get(1), args.get(2), env));
       case MatSubassign(var _) ->
-          compileDefaultDispatch(
-              Dispatch.Type.SUBASSIGN2N,
-              4,
+          compileDefaultDispatchN(
+              Dispatch.Type.SUBASSIGNN,
               4,
               (ast, args) ->
                   new StmtData.Subassign2_2D(
@@ -914,8 +933,7 @@ public class CFGCompiler {
       }
       case And2nd(var ast) -> {
         pushInsert(new StmtData.AsLogical(pop(RValue.class)));
-        pushInsert(
-            new StmtData.LAnd(Optional.of(get(ast)), pop(RValue.class), pop(RValue.class), env));
+        pushInsert(mkBinop(ast, StmtData.LAnd::new));
         cursor.insert(new JumpData.Goto(bbAfterCurrent()));
       }
       case Or1st(var ast, var shortCircuit) -> {
@@ -927,8 +945,7 @@ public class CFGCompiler {
       }
       case Or2nd(var ast) -> {
         pushInsert(new StmtData.AsLogical(pop(RValue.class)));
-        pushInsert(
-            new StmtData.LOr(Optional.of(get(ast)), pop(RValue.class), pop(RValue.class), env));
+        pushInsert(mkBinop(ast, StmtData.LOr::new));
         cursor.insert(new JumpData.Goto(bbAfterCurrent()));
       }
       case GetVarMissOk(var name) -> {
@@ -948,23 +965,23 @@ public class CFGCompiler {
         pushComplexAssign(true, get(name), lhs, rhs);
       }
       case EndAssign2(var name) -> {
-        var assign = popComplexAssign(true, get(name));
-        insert(new StmtData.StVarSuper(get(name), assign.rhs, env));
+        var lhs = popComplexAssign(true, get(name));
+        insert(new StmtData.StVarSuper(get(name), lhs, env));
       }
       case SetterCall(var ast, var _) -> {
-        var assign = topComplexAssign();
         // GNU-R has to wrap these call args in evaluated promises depending on the call type,
         // but presumably this is something we abstract. This is also what `valueExpr` is for,
         // which is why it's unused.
-        prependCallArg(assign.lhs);
-        pushCallArg(assign.rhs);
+        var rhs = pop(RValue.class);
+        var lhs = pop(RValue.class);
+        prependCallArg(lhs);
+        pushCallArg(rhs);
         compileCall(ast);
       }
       case GetterCall(var ast) -> {
-        var assign = topComplexAssign();
         // GNU-R has to wrap this call arg in an evaluated promise depending on the call type,
         // but presumably this is something we abstract.
-        prependCallArg(assign.lhs);
+        prependCallArg(top(RValue.class));
         compileCall(ast);
       }
       case SpecialSwap() -> {
@@ -980,39 +997,39 @@ public class CFGCompiler {
         push(value2);
       }
         // ???
-      case ReturnJmp() -> cursor.insert(new JumpData.NonLocalReturn(pop(RValue.class), env));
+      case ReturnJmp() -> {
+        var retVal = pop(RValue.class);
+        assertStacksAreEmpty();
+        cursor.insert(new JumpData.NonLocalReturn(retVal, env));
+      }
       case Switch(var _, var _, var _, var _) -> throw failUnsupported("switch");
       case StartSubsetN(var ast, var after) ->
           compileStartDispatch(Dispatch.Type.SUBSETN, ast, after);
       case StartSubassignN(var ast, var after) ->
           compileStartDispatch(Dispatch.Type.SUBASSIGNN, ast, after);
       case VecSubset2(var _) ->
-          compileDefaultDispatch(
+          compileDefaultDispatchN(
               Dispatch.Type.SUBSET2N,
-              2,
               2,
               (ast, args) ->
                   new StmtData.Extract2_1D(Optional.of(ast), args.getFirst(), args.get(1), env));
       case MatSubset2(var _) ->
-          compileDefaultDispatch(
+          compileDefaultDispatchN(
               Dispatch.Type.SUBSET2N,
-              3,
               3,
               (ast, args) ->
                   new StmtData.Extract2_2D(
                       Optional.of(ast), args.getFirst(), args.get(1), args.get(2), env));
       case VecSubassign2(var _) ->
-          compileDefaultDispatch(
+          compileDefaultDispatchN(
               Dispatch.Type.SUBASSIGN2N,
-              3,
               3,
               (ast, args) ->
                   new StmtData.Subassign2_1D(
                       Optional.of(ast), args.getFirst(), args.get(1), args.get(2), env));
       case MatSubassign2(var _) ->
-          compileDefaultDispatch(
+          compileDefaultDispatchN(
               Dispatch.Type.SUBASSIGN2N,
-              4,
               4,
               (ast, args) ->
                   new StmtData.Subassign2_2D(
@@ -1026,54 +1043,36 @@ public class CFGCompiler {
           compileStartDispatch(Dispatch.Type.SUBSET2N, ast, after);
       case StartSubassign2N(var ast, var after) ->
           compileStartDispatch(Dispatch.Type.SUBASSIGN2N, ast, after);
-      case SubsetN(var _, var _) ->
-          compileDefaultDispatch(
+      case SubsetN(var _, var n) ->
+          compileDefaultDispatchN(
               Dispatch.Type.SUBSETN,
-              4,
-              4,
-              (ast, arg) ->
-                  new StmtData.Extract1_3D(
-                      Optional.of(ast), arg.getFirst(), arg.get(1), arg.get(2), arg.get(3), env));
+              n + 1,
+              (_, _) -> {
+                throw failUnsupported("n-ary subset or subassign");
+              });
       case Subset2N(var _, var n) ->
-          compileDefaultDispatch(
+          compileDefaultDispatchN(
               Dispatch.Type.SUBSET2N,
-              0,
-              0,
+              n + 1,
               (_, _) -> {
-                throw new UnreachableError(
-                    "There isn't a specialized PIR instruction for Subset2N with "
-                        + n
-                        + " arguments");
+                throw failUnsupported("n-ary subset or subassign");
               });
-      case SubassignN(var _, var _) ->
-          compileDefaultDispatch(
+      case SubassignN(var _, var n) ->
+          compileDefaultDispatchN(
               Dispatch.Type.SUBASSIGNN,
-              5,
-              5,
-              (ast, arg) ->
-                  new StmtData.Subassign1_3D(
-                      Optional.of(ast),
-                      arg.getFirst(),
-                      arg.get(1),
-                      arg.get(2),
-                      arg.get(3),
-                      arg.get(4),
-                      env));
-      case Subassign2N(var _, var n) ->
-          compileDefaultDispatch(
-              Dispatch.Type.SUBASSIGN2N,
-              0,
-              0,
+              n + 2,
               (_, _) -> {
-                throw new UnreachableError(
-                    "There isn't a specialized PIR instruction for Subassign2N with "
-                        + n
-                        + " arguments");
+                throw failUnsupported("n-ary subset or subassign");
               });
-      case Log(var ast) ->
-          pushInsert(new StmtData.Log(Optional.of(get(ast)), pop(RValue.class), env));
-      case LogBase(var ast) ->
-          pushInsert(new StmtData.LogBase(Optional.of(get(ast)), pop(RValue.class), env));
+      case Subassign2N(var _, var n) ->
+          compileDefaultDispatchN(
+              Dispatch.Type.SUBASSIGN2N,
+              n + 2,
+              (_, _) -> {
+                throw failUnsupported("n-ary subset or subassign");
+              });
+      case Log(var ast) -> pushInsert(mkUnop(ast, StmtData.Log::new));
+      case LogBase(var ast) -> pushInsert(mkBinop(ast, StmtData.LogBase::new));
       case Math1(var ast, var funId) ->
           pushInsert(new StmtData.Math1(Optional.of(get(ast)), funId, pop(RValue.class), env));
       case DotCall(var ast, var numArgs) -> {
@@ -1087,9 +1086,7 @@ public class CFGCompiler {
 
         pushInsert(new StmtData.CallBuiltin(get(ast), BuiltinId.DOT_CALL, args, env));
       }
-      case Colon(var ast) ->
-          pushInsert(
-              new StmtData.Colon(Optional.of(get(ast)), pop(RValue.class), pop(RValue.class), env));
+      case Colon(var ast) -> pushInsert(mkBinop(ast, StmtData.Colon::new));
       case SeqAlong(var ast) ->
           pushInsert(
               new StmtData.CallBuiltin(
@@ -1123,13 +1120,33 @@ public class CFGCompiler {
                 get(expr), BuiltinId.EVAL, ImmutableList.of(new Constant(get(expr))), env));
         cursor.insert(new JumpData.Goto(afterBb));
         addPhiInputsForStack(afterBb);
-        pop(RValue.class);
+        pop(RValue.class); // the `CallBuiltin` pushed above.
 
         // Has one predecessor (no phis) so we can call `cursor.moveToStart` instead of `moveTo`.
         cursor.moveToStart(safeBb);
       }
       case IncLnk(), DecLnk(), DeclnkN(var _), IncLnkStk(), DecLnkStk() -> {}
     }
+  }
+
+  @FunctionalInterface
+  private interface MkUnopFn {
+    StmtData.RValue_ make(Optional<LangSXP> ast, RValue value, @IsEnv RValue env);
+  }
+
+  @FunctionalInterface
+  private interface MkBinopFn {
+    StmtData.RValue_ make(Optional<LangSXP> ast, RValue lhs, RValue rhs, @IsEnv RValue env);
+  }
+
+  private StmtData.RValue_ mkUnop(ConstPool.Idx<LangSXP> ast, MkUnopFn unop) {
+    return unop.make(Optional.of(get(ast)), pop(RValue.class), env);
+  }
+
+  private StmtData.RValue_ mkBinop(ConstPool.Idx<LangSXP> ast, MkBinopFn binop) {
+    var rhs = pop(RValue.class);
+    var lhs = pop(RValue.class);
+    return binop.make(Optional.of(get(ast)), lhs, rhs, env);
   }
 
   /**
@@ -1152,41 +1169,53 @@ public class CFGCompiler {
   }
 
   private void compileStartDispatch(Dispatch.Type type, LangSXP ast, BB after) {
-    RValue target;
-    RValue rhs;
-    if (type.hasRhs) {
-      rhs = pop(RValue.class);
-      target = top(RValue.class);
-    } else {
-      rhs = null;
-      target = pop(RValue.class);
+    var rhs = type.hasRhs ? pop(RValue.class) : null;
+    var target = top(RValue.class);
+    compileGeneralDispatchCommon(type.builtin, type.isNForm, ast, target, rhs, after);
+    if (rhs != null) {
+      push(rhs);
     }
-    compileGeneralDispatchCommon(type.builtin, ast, target, rhs, after);
 
-    pushCallArg(target);
+    if (!type.isNForm) {
+      pushCallArg(target);
+      if (!ast.args().isEmpty() && ast.argName(0) != null) {
+        setNameOfLastCallArg(Objects.requireNonNull(ast.argName(0)).name());
+      }
+    }
+
     pushDispatch(type, ast, after);
   }
 
   private void compileGeneralDispatchCommon(
-      BuiltinId fun, LangSXP ast, RValue target, @Nullable RValue rhs, BB after) {
+      BuiltinId fun, boolean isNForm, LangSXP ast, RValue target, @Nullable RValue rhs, BB after) {
     var isNotObject = cursor.insert(new StmtData.GnuRIs(IsTypeCheck.NON_OBJECT, target));
-    var nonObjectBb = cfg.addBB();
-    var objectBb = cfg.addBB();
+    var nonObjectBb = cfg.addBB("dispatchNonObject");
+    var objectBb = cfg.addBB("dispatchObject");
     cursor.insert(new JumpData.Branch(isNotObject, nonObjectBb, objectBb));
 
     // Has one predecessor (no phis) so we can call `cursor.moveToStart` instead of `moveTo`.
     cursor.moveToStart(objectBb);
+    var target1 = pop(RValue.class);
+    assert target == target1
+        : "`compileGeneralDispatchCommon` only called with top-of-stack as `target`";
+    // TODO: This is wrong, it does some `tryDispatch` instruction where the AST is required.
+    //  Also, the non-object case should do something like `CallBuiltin`, but the first argument is
+    //  guaranteed to be non-object; `CallBuiltin` doesn't currently guarantee that, because we
+    //  compile GNU-R `CallBuiltin` directly into it, we'd have to refactor.
     pushInsert(
         new StmtData.CallBuiltin(
             ast, fun, rhs == null ? ImmutableList.of(target) : ImmutableList.of(target, rhs), env));
     cursor.insert(new JumpData.Goto(after));
     addPhiInputsForStack(after);
-    pop(RValue.class);
+    pop(RValue.class); // the `CallBuiltin` pushed above.
 
     // Has one predecessor (no phis) so we can call `cursor.moveToStart` instead of `moveTo`.
     cursor.moveToStart(nonObjectBb);
+    push(target);
 
-    pushCall(fun);
+    if (!isNForm) {
+      pushCall(fun);
+    }
   }
 
   private void compileDefaultDispatch(
@@ -1194,15 +1223,23 @@ public class CFGCompiler {
       int minNumArgs,
       int maxNumArgs,
       BiFunction<LangSXP, List<RValue>, StmtData.RValue_> dispatchInstrData) {
+    assert !type.isNForm : "use compileDefaultDispatchN for `...N` bytecodes";
+
+    if (type.hasRhs) {
+      pushCallArg(pop(RValue.class));
+    }
+
     var dispatch = popDispatch(type);
     var call = popCall();
+
+    pop(RValue.class);
 
     if (call.args.stream()
             .anyMatch(
                 arg -> arg.name() != null || arg.value.equals(new Constant(SEXPs.DOTS_SYMBOL)))
         || call.args.size() < minNumArgs
         || call.args.size() > maxNumArgs) {
-      compileCall(dispatch.ast);
+      compileCall(call, dispatch.ast);
     } else {
       var argValues = Lists.map(call.args, Call.Arg::value);
       pushInsert(dispatchInstrData.apply(dispatch.ast, argValues));
@@ -1210,17 +1247,46 @@ public class CFGCompiler {
 
     cursor.insert(new JumpData.Goto(bbAfterCurrent()));
     if (bbAfterCurrent() != dispatch.after) {
-      throw fail("expected to be immediately before after BB " + dispatch.after.id());
+      throw fail("expected to be immediately before `after` BB " + dispatch.after.id());
+    }
+  }
+
+  private void compileDefaultDispatchN(
+      Dispatch.Type type,
+      int numArgs,
+      BiFunction<LangSXP, List<RValue>, StmtData.RValue_> dispatchInstrData) {
+    assert type.isNForm : "use compileDefaultDispatch for non-`...N` bytecodes";
+
+    var dispatch = popDispatch(type);
+    var uncastedArgs = stack.subList(stack.size() - numArgs, stack.size());
+    for (var arg : uncastedArgs) {
+      if (!(arg instanceof RValue)) {
+        throw fail(
+            "expected RValue on stack for `compileDefaultDispatchN("
+                + type
+                + ", "
+                + numArgs
+                + ", ...)`");
+      }
+    }
+    @SuppressWarnings("unchecked")
+    var args = (List<RValue>) (List<?>) uncastedArgs;
+
+    var result = dispatchInstrData.apply(dispatch.ast, args);
+    args.clear();
+    pushInsert(result);
+
+    cursor.insert(new JumpData.Goto(bbAfterCurrent()));
+    if (bbAfterCurrent() != dispatch.after) {
+      throw fail("expected to be immediately before `after` BB " + dispatch.after.id());
     }
   }
 
   private void compileCall(ConstPool.Idx<LangSXP> ast) {
-    compileCall(get(ast));
+    compileCall(popCall(), get(ast));
   }
 
-  private void compileCall(LangSXP ast) {
-    var call = popCall();
-
+  private void compileCall(Call call, LangSXP ast) {
     var names =
         call.args.stream()
             .map(arg -> Optional.ofNullable(arg.name))
@@ -1330,7 +1396,10 @@ public class CFGCompiler {
                   + " has too few phis; expected "
                   + stack.size()
                   + " but got "
-                  + i);
+                  + i
+                  + "\nIncoming stack: ["
+                  + Strings.join(", ", Node::id, stack)
+                  + "]");
         }
         var phi = phis.next();
         if (!phi.nodeClass().isInstance(stack.get(i))) {
@@ -1342,7 +1411,10 @@ public class CFGCompiler {
                   + " at index "
                   + i
                   + " but expected "
-                  + stack.get(i).getClass());
+                  + stack.get(i).getClass()
+                  + "\nIncoming stack: ["
+                  + Strings.join(", ", Node::id, stack)
+                  + "]");
         }
       }
       if (phis.hasNext()) {
@@ -1357,7 +1429,10 @@ public class CFGCompiler {
                 + " has too many phis; expected "
                 + stack.size()
                 + " but got "
-                + i);
+                + i
+                + "\nIncoming stack: ["
+                + Strings.join(", ", Node::id, stack)
+                + "]");
       }
     }
 
@@ -1408,10 +1483,48 @@ public class CFGCompiler {
   // endregion statement and jump insertions
 
   // region inter-instruction data
+
+  /**
+   * Mark the following bytecode until the next label as unreachable.
+   *
+   * <p>This means we skip generating IR, since it may underflow the stack (and because we'd
+   * optimize out that IR later anyways).
+   */
+  private void setInUnreachableBytecode() {
+    assert !isInUnreachableBytecode : "already set in unreachable bytecode";
+    isInUnreachableBytecode = true;
+  }
+
   // - Since we're converting from stack-based, temporal bytecode to SSA form, we use the virtual
   //   stacks to keep track of data from previous instructions that affects future instructions
   //   (specifically, that data is what's "pushed", when the future instructions use the data it's
   //   read, and when the data no longer affects further future instructions it's popped).
+  /** Assert that all stacks are empty, for when the function has ended. */
+  private void assertStacksAreEmpty() {
+    require(
+        stack.isEmpty(),
+        () ->
+            "stack isn't empty at end of function: [" + Strings.join(", ", Node::id, stack) + "]");
+    require(
+        loopStack.isEmpty(),
+        () -> "loop stack isn't empty at end of function: [" + Strings.join(", ", loopStack) + "]");
+    require(
+        complexAssignStack.isEmpty(),
+        () ->
+            "complex assign stack isn't empty at end of function: ["
+                + Strings.join(", ", complexAssignStack)
+                + "]");
+    require(
+        callStack.isEmpty(),
+        () -> "call stack isn't empty at end of function: [" + Strings.join(", ", callStack) + "]");
+    require(
+        dispatchStack.isEmpty(),
+        () ->
+            "dispatch stack isn't empty at end of function: ["
+                + Strings.join(", ", dispatchStack)
+                + "]");
+  }
+
   /**
    * Push a node onto the "virtual stack" so that the next call to {@link #pop(Class)} or {@link
    * #top(Class)} will return it.
@@ -1499,27 +1612,20 @@ public class CFGCompiler {
   }
 
   /**
-   * Add data that will be referenced by later complex assign instructions (via {@link
-   * #topComplexAssign()} and {@link #popComplexAssign(boolean, RegSymSXP)}).
+   * Add data for {@code StartAssign(2)?} that will be referenced by {@code EndAssign(2)?} (via
+   * {@link #popComplexAssign(boolean, RegSymSXP)}).
    *
-   * <p>GNU-R stores the complex assign values on the main stack, but we store them on their own
-   * stack for understandability at the cost of negligible performance (same with calls). GNU-R also
-   * stores a "cell" for the lhs value, which has a flag to determine if its in an assignment, for
-   * ref-counting purposes. TODO how we handle ref-counting because it will probably be much
+   * <p>GNU-R stores the complex assign values on the main stack, but we also store them on their
+   * own stack for understandability at the cost of negligible performance (same with calls). GNU-R
+   * also stores a "cell" for the lhs value, which has a flag to determine if its in an assignment,
+   * for ref-counting purposes. TODO how we handle ref-counting because it will probably be much
    * different, but we will probably abstract it so that we don't have to do anything here even in
    * the future.
    */
   private void pushComplexAssign(boolean isSuper, RegSymSXP name, RValue lhs, RValue rhs) {
-    complexAssignStack.add(new ComplexAssign(isSuper, name, lhs, rhs));
-  }
-
-  /**
-   * Get the current complex assign )the one that was pushed by the last call to {@link
-   * #pushComplexAssign(boolean, RegSymSXP, RValue, RValue)}).
-   */
-  private ComplexAssign topComplexAssign() {
-    require(!complexAssignStack.isEmpty(), () -> "complex assign stack underflow");
-    return complexAssignStack.getLast();
+    complexAssignStack.add(new ComplexAssign(isSuper, name, rhs));
+    push(lhs);
+    push(rhs);
   }
 
   /**
@@ -1527,7 +1633,7 @@ public class CFGCompiler {
    * #pushComplexAssign(boolean, RegSymSXP, RValue, RValue)}), assert that the given {@code isSuper}
    * and {@code name} match its own, and remove it from the stack.
    */
-  private ComplexAssign popComplexAssign(boolean isSuper, RegSymSXP name) {
+  private RValue popComplexAssign(boolean isSuper, RegSymSXP name) {
     require(!complexAssignStack.isEmpty(), () -> "complex assign stack underflow");
     var assign = complexAssignStack.removeLast();
 
@@ -1551,7 +1657,7 @@ public class CFGCompiler {
               + " assign");
     }
 
-    return assign;
+    return pop(RValue.class);
   }
 
   /** Begin a new call of the given function (abstract value). */

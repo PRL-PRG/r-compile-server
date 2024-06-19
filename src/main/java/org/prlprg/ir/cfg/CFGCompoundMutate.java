@@ -2,6 +2,7 @@ package org.prlprg.ir.cfg;
 
 import java.util.Collection;
 import java.util.function.Consumer;
+import org.prlprg.ir.cfg.Phi.Input;
 
 public interface CFGCompoundMutate extends CFGQuery, CFGIntrinsicMutate {
   // region mutate BBs
@@ -27,9 +28,11 @@ public interface CFGCompoundMutate extends CFGQuery, CFGIntrinsicMutate {
    * Substitute many nodes at once: run the given action and then perform the prepared
    * substitutions.
    *
-   * <p>Use {@link BB#subst(Instr, String, InstrData)} when applicable. This has O(<# arguments in
-   * all instructions>) time complexity per call. However, {@code BB#subst} has restrictions, while
-   * this method can substitute any node with an arbitrary other node.
+   * <p>Use {@link InstrOrPhi#rename(String)}, {@link Phi#setInput(Input)}, or {@link
+   * Instr#mutateArgs(Instr, InstrData)} when applicable. Those have O(<# arguments in all
+   * instructions and phis>) time complexity per call. However, they are less flexible than this
+   * method, which can substitute a node with one of a different shape (# of return values) or one
+   * that already exists.
    *
    * <p>Some of the substitutions may change the number of inputs in phi nodes.
    */

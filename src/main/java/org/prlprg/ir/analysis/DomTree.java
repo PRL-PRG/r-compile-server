@@ -167,7 +167,7 @@ public class DomTree {
 
     // Indexed by BB id. `parent[n->id]` is the node that is the parent of `n`
     // in the DFS tree.
-    var parent = new LinkedHashMap<BB, BB>(size);
+    var parent = new LinkedHashMap<BB, Optional<BB>>(size);
 
     // Indexed by BB id. `semi[n->id]` is the semidominator of `n`.
     var semi = new LinkedHashMap<BB, BB>(size);
@@ -247,10 +247,10 @@ public class DomTree {
     while (!nodes.isEmpty()) {
       assert nodes.size() == parents.size();
       var n = nodes.pop();
-      var p = parents.pop().orElse(null);
+      var p = parents.pop();
 
       // We haven't visited or numbered `n` yet.
-      if (dfnum.getOrDefault(n, 0) == 0) {
+      if (!dfnum.containsKey(n)) {
         dfnum.put(n, N);
         vertex.put(N, n);
         parent.put(n, p);
@@ -267,7 +267,11 @@ public class DomTree {
     // order.
     for (var i = N - 1; i >= 1; --i) {
       var n = vertex.get(i);
-      var p = parent.get(n);
+      var p =
+          parent
+              .get(n)
+              .orElseThrow(
+                  () -> new AssertionError("the root node is the only one without have a parent"));
 
       // Parent of `n` is a candidate semidominator (since it's a proper
       // ancestor).

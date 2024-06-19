@@ -40,9 +40,9 @@ public final class SEXPs {
   public static final RawSXP EMPTY_RAW = EmptyRawSXPImpl.INSTANCE;
   public static final ComplexSXP EMPTY_COMPLEX = EmptyComplexSXPImpl.INSTANCE;
   public static final StrSXP EMPTY_STRING = EmptyStrSXPImpl.INSTANCE;
-  public static final SpecialSymSXP UNBOUND_VALUE = new SpecialSymSXP("UNBOUND_VALUE");
+  public static final SpecialSymSXP UNBOUND_VALUE = new SpecialSymSXP("unbound");
 
-  public static final SpecialSymSXP MISSING_ARG = new SpecialSymSXP("MISSING_ARG");
+  public static final SpecialSymSXP MISSING_ARG = new SpecialSymSXP("missing");
 
   private static final Map<String, RegSymSXP> SYMBOL_POOL = new HashMap<>();
 

@@ -140,13 +140,13 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
       @Override
       public void remove() {
         if (next == null) {
-          throw new IllegalStateException("next() not called");
+          throw new IllegalStateException("`next()` not called");
         }
         switch (i) {
           case 0 -> phis.remove();
           case 1 -> stmts.remove();
           case 2 -> setJump(null);
-          default -> throw new IllegalStateException("remove() called beyond end of iteration");
+          default -> throw new IllegalStateException("`remove()` called beyond end of iteration");
         }
         cfg().untrack(next);
         switch (i) {
@@ -168,6 +168,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
                       new CFGEdit.RemoveJump(BB.this), CFGEdit.InsertJump.of(BB.this, (Jump) next));
           default -> throw new UnreachableError();
         }
+        next = null;
       }
     };
   }
@@ -214,12 +215,13 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
           @Override
           public void remove() {
             if (next == null) {
-              throw new IllegalStateException("next() not called");
+              throw new IllegalStateException("`next()` not called");
             }
             switch (i) {
               case 0 -> stmts.remove();
               case 1 -> setJump(null);
-              default -> throw new IllegalStateException("remove() called beyond end of iteration");
+              default ->
+                  throw new IllegalStateException("`remove()` called beyond end of iteration");
             }
             cfg().untrack(next);
             switch (i) {
@@ -237,6 +239,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
                           CFGEdit.InsertJump.of(BB.this, (Jump) next));
               default -> throw new UnreachableError();
             }
+            next = null;
           }
         };
   }
@@ -253,6 +256,36 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
   @Override
   public @UnmodifiableView Collection<Phi<?>> phis() {
     return Collections.unmodifiableCollection(phis);
+  }
+
+  @Override
+  public Iterator<Phi<?>> iterPhis() {
+    return new Iterator<>() {
+      private final Iterator<Phi<?>> phis = BB.this.phis.iterator();
+      private @Nullable Phi<?> next;
+
+      @Override
+      public boolean hasNext() {
+        return phis.hasNext();
+      }
+
+      @Override
+      public Phi<?> next() {
+        next = phis.next();
+        return next;
+      }
+
+      @Override
+      public void remove() {
+        if (next == null) {
+          throw new IllegalStateException("`next()` not called");
+        }
+        phis.remove();
+        cfg().untrack(next);
+        cfg().record(new CFGEdit.RemovePhi(BB.this, next), new CFGEdit.InsertPhi<>(BB.this, next));
+        next = null;
+      }
+    };
   }
 
   @Override
@@ -679,7 +712,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     if (this.phis.size() != oldSize - phis.size()) {
       throw new IllegalArgumentException("Not all in " + id() + ": " + phis);
     }
-    cfg().untrackAll(this.phis);
+    cfg().untrackAll(phis);
 
     cfg().record(new CFGEdit.RemovePhis(this, phis), new CFGEdit.InsertPhis(this, phis));
   }
