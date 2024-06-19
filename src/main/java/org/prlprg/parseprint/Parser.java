@@ -8,6 +8,8 @@ import java.io.FileNotFoundException;
 import java.io.InputStream;
 import java.io.Reader;
 import java.lang.reflect.Array;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Executable;
 import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -129,8 +131,10 @@ public class Parser {
    * The context associated with the parser.
    *
    * <p>This isn't typed, because the dispatched {@code parse} methods will have the correct context
-   * type. Those methods should use that context instead. This is for parsers which take no context,
-   * but may want to special-case when a context with a certain type or annotation is provided.
+   * type. Those methods should use that context instead. This is for parsers which can take no
+   * context, but may want to use the context when it's provided (e.g. use a specific context to
+   * parse children, but then revert to the original context to parse grandchildren; or special-case
+   * on the specific context in part of the method).
    */
   public @Nullable Object context() {
     return context;
@@ -325,56 +329,62 @@ public class Parser {
     return list.build();
   }
 
-  // endregion
+  // endregion parse non-terminals
 
   private record ParseMethod_(
       @Override Class<?> objectClass,
       @Override Class<?> contextClass,
-      Method method,
+      Executable method,
       SkipWhitespace skipsWhitespace,
       boolean isContextInstanceMethod,
       boolean takesClass)
       implements TypeclassMethod {
-    static ParseMethod_ load(ParseMethod annotation, Method method) {
+    static ParseMethod_ load(ParseMethod annotation, Executable method) {
       // Check method's invariants
       if (method.getParameterCount() == 0 || method.getParameterTypes()[0] != Parser.class) {
         throw new InvalidAnnotationError(
-            method, "parse method must take a Parser as its first argument.");
+            method, "parse method must take a `Parser` as its first argument.");
       }
       if (Modifier.isStatic(method.getModifiers())) {
         if (method.getParameterCount() > 3) {
           throw new InvalidAnnotationError(
               method,
-              "static parse method must take at most three arguments: a Parser, a context object, and a class.");
+              "static parse method must take at most three arguments: a `Parser`, a context object, and a class.");
         }
         if (method.getParameterCount() == 3 && method.getParameterTypes()[2] != Class.class) {
           throw new InvalidAnnotationError(
               method,
-              "static parse method with three arguments, must take a Class as its third argument.");
+              "static parse method with three arguments, must take a `Class` as its third argument.");
         }
       } else {
         if (method.getParameterCount() > 2) {
           throw new InvalidAnnotationError(
               method,
-              "non-static parse method must take at most two arguments: a Parser and a class (the context is the instance).");
+              "non-static parse method must take at most two arguments: a `Parser` and a class (the context is the instance).");
         }
         if (method.getParameterCount() == 2 && method.getParameterTypes()[1] != Class.class) {
           throw new InvalidAnnotationError(
               method,
-              "non-static parse method with two arguments, must take a Class as its second argument (the context is the instance).");
+              "non-static parse method with two arguments, must take a `Class` as its second argument (the context is the instance).");
         }
       }
       if (method.getExceptionTypes().length > 0) {
         throw new InvalidAnnotationError(method, "parse method must not throw checked exceptions.");
       }
-      if (!Modifier.isPrivate(method.getModifiers())) {
-        throw new InvalidAnnotationError(method, "parse method must be private.");
+      if (!Modifier.isPrivate(method.getModifiers())
+          && !Modifier.isProtected(method.getModifiers())) {
+        throw new InvalidAnnotationError(method, "parse method must be protected or private.");
       }
 
       // Get method metadata
-      var objectClass = method.getReturnType();
+      var objectClass =
+          switch (method) {
+            case Method javaMethod -> javaMethod.getReturnType();
+            case Constructor<?> _ -> method.getDeclaringClass();
+          };
       var skipsWhitespace = annotation.value();
-      var isContextInstanceMethod = !Modifier.isStatic(method.getModifiers());
+      var isContextInstanceMethod =
+          !(method instanceof Constructor<?>) && !Modifier.isStatic(method.getModifiers());
       var takesClass =
           method.getParameterCount() == 3
               || (method.getParameterCount() == 2 && method.getParameterTypes()[1] == Class.class);
@@ -405,17 +415,33 @@ public class Parser {
             Object object;
             try {
               if (isContextInstanceMethod && takesClass) {
-                object = method.invoke(p.context, p, clazz);
+                object = ((Method) method).invoke(p.context, p, clazz);
               } else if (isContextInstanceMethod) {
-                object = method.invoke(p.context, p);
+                object = ((Method) method).invoke(p.context, p);
               } else if (takesContext() && takesClass) {
-                object = method.invoke(null, p, p.context, clazz);
+                object =
+                    switch (method) {
+                      case Method m -> m.invoke(null, p, p.context, clazz);
+                      case Constructor<?> c -> c.newInstance(p, p.context, clazz);
+                    };
               } else if (takesContext()) {
-                object = method.invoke(null, p, p.context);
+                object =
+                    switch (method) {
+                      case Method m -> m.invoke(null, p, p.context);
+                      case Constructor<?> c -> c.newInstance(p, p.context);
+                    };
               } else if (takesClass) {
-                object = method.invoke(null, p, clazz);
+                object =
+                    switch (method) {
+                      case Method m -> m.invoke(null, p, clazz);
+                      case Constructor<?> c -> c.newInstance(p, clazz);
+                    };
               } else {
-                object = method.invoke(null, p);
+                object =
+                    switch (method) {
+                      case Method m -> m.invoke(null, p);
+                      case Constructor<?> c -> c.newInstance(p);
+                    };
               }
 
               Objects.requireNonNull(object, () -> "parse method for " + clazz + " returned null");

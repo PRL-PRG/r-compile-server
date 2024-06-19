@@ -47,7 +47,7 @@ import org.prlprg.util.Pair;
  *   }
  * </pre>
  *
- * <li>To create a method which takes specific context, but has a fallback that takes no context.
+ * <li>To create a method which takes a specific context, but has a fallback that takes no context.
  *
  *     <pre>
  *   // Also not valid Java code, this is what the typeclass system enables.
@@ -61,6 +61,23 @@ import org.prlprg.util.Pair;
  *   default extension Object implements ToString&lt;?&gt; {
  *       String toString(Object ctx) { return toString(); }
  *   }
+ * </pre>
+ *
+ * <li>To create a method whose resolution order <i>at runtime</i> is to select an implementation
+ *     with a more specific context over one with a less specific context, or if two implementations
+ *     have the same context, select the one with a more specific object (double dispatch).
+ *
+ *     <pre>
+ *   interface FooContext extends BarContext { ... }
+ *
+ *   class Baz extends Qux implements ToString&lt;BarContext&gt; { ... }
+ *
+ *   class Qux implements ToString&lt;FooContext&gt; { ... }
+ *
+ *   // `Baz#toString(FooContext)` resolves to the implementation in `Qux`.
+ *   // `Baz#toString(BarContext)` resolves to the implementation in `Baz`.
+ *   // Importantly `Baz`, `FooContext`, and `BarContext` above are the types *at runtime*,
+ *   // the static types at the call-site may be less specific.
  * </pre>
  *
  *     <h1>Usage</h1>
@@ -89,23 +106,23 @@ import org.prlprg.util.Pair;
  *     <pre>
  *   class Foo {
  *     &#64;FromStringMethod
- *     static Foo fromString(String s) { ... }
+ *     private static Foo fromString(String s) { ... }
  *
  *     &#64;ToStringMethod
- *     String toString(FooContext c) { ... }
+ *     private String toString(FooContext c) { ... }
  *   }
  *
  *   class BarContext {
  *     &#64;ToStringMethod
- *     static String toString(Foo self, BarContext c) { ... }
+ *     private static String toString(Foo self, BarContext c) { ... }
  *   }
  *
  *   class BuiltinExtensions {
  *     &#64;FromStringMethod
- *     static Integer fromString(String s) { ... }
+ *     private static Integer fromString(String s) { ... }
  *
  *     &#64;ToStringMethod
- *     static String toString(Integer self) { ... }
+ *     private static String toString(Integer self) { ... }
  *   }
  *
  *   // Somewhere else
@@ -185,26 +202,41 @@ class TypeclassMap<A extends Annotation, M extends TypeclassMethod> {
   /**
    * Lookup a method for a specific object and context class. The process is as follows:
    *
-   * <ul>
-   *   <li>First, it simultaneously looks for (i.e. returns an error if there are multiple
+   * <ol>
+   *   <li>First, it simultaneously looks for (i.e. returns an error if more than one method
    *       matches)...
    *       <ul>
-   *         <li>...a method within the object's class which takes (second argument) a context of
-   *             the exact class as given.
-   *         <li>...a static method within the context class which, depending on whether the method
-   *             is static, takes (first argument) or returns the object's class.
-   *         <li>...a builtin registered static method with both the specific object and context.
+   *         <li>...a method within the exact object class that takes (second argument) the exact
+   *             context class.
+   *         <li>...a method within the exact context class that takes (first argument) or returns
+   *             the exact object class.
+   *         <li>...a builtin registered static method which that takes (first argument) or returns
+   *             the exact object class, and takes (second or third argument) the context class.
    *       </ul>
-   *   <li>If such a method isn't found in the object's class or context class, it will then look
-   *       for the method in each of the object's superclasss and interfaces. <i>It will not try
-   *       superclasses of the context class.</i>
-   *   <li>If no superclasses or interfaces have a method for the provided context class, or if the
-   *       context class is {@link Void}, it will look for a method which takes <b>no context</b>,
-   *       within the object class, context class, and builtins, then within superclasses and
-   *       interfaces.
+   *   <li>If such a method isn't found for the exact object class and context class, it will then
+   *       look for such a method (repeat step 1) for each of the <i>object</i> class's superclasses
+   *       (including interfaces), in order, still using the exact context class.
+   *   <li>If no such method is found for any superclass with the exact context class, it will look
+   *       for a method (repeat steps 1 and 2) for each of the <i>context</i> class's superclasses
+   *       (including interfaces), in order.
+   *   <li>Finally, if no such method is found for any permutation of object and context class that
+   *       are superclasses of the given object and context class, it will look for a method (repeat
+   *       steps 1 and 2) that <i>doesn't take any context class</i>. Specifically, it will
+   *       simultaneously look for:
+   *       <ul>
+   *         <li>...a method within the exact object class that takes no context (second) argument.
+   *         <li>...a builtin registered static method that takes (first argument) or returns the
+   *             exact object class, and takes no context argument.
+   *       </ul>
+   *       and then repeat for each superclass of the object class, in order.
    *   <li>If no suitable methods are found, it will return {@code null}.
-   * </ul>
+   * </ol>
    *
+   * <p>The method is memoized for object and context class, since there may be many permutations of
+   * object and context superclasses.
+   *
+   * @param clazz the object class.
+   * @param contextClass the context class.
    * @throws InvalidAnnotationError if there are ambiguities when resolving methods. The {@link
    *     TypeclassMethodLoader} may also throw this.
    */
@@ -220,12 +252,14 @@ class TypeclassMap<A extends Annotation, M extends TypeclassMethod> {
     lazilyRegisterObjectClassAndSupers(clazz);
     lazilyRegisterContextClass(contextClass);
 
-    // Try to find a method for the context.
+    // Try to find a method for the context, first exact, then each superclass.
     if (contextClass != Void.class) {
-      var result = lookupSpecificContext(clazz, contextClass);
-      if (result != null) {
-        memoizedLookups.put(args, Optional.of(result));
-        return result;
+      for (var contextSuperclass : methodSuperclassChain(contextClass, true)) {
+        var result = lookupSpecificContext(clazz, contextSuperclass);
+        if (result != null) {
+          memoizedLookups.put(args, Optional.of(result));
+          return result;
+        }
       }
     }
 
@@ -236,8 +270,9 @@ class TypeclassMap<A extends Annotation, M extends TypeclassMethod> {
   }
 
   /**
-   * Same as {@link #lookup(Class, Class)}, but doesn't fallback to a method with no context, and
-   * doesn't lazily register the classes.
+   * Same as {@link #lookup(Class, Class)}, but only looks for a method for the exact context class
+   * (or no context class if {@code contextClass} is {@link Void}), and also doesn't lazily register
+   * what it finds.
    */
   private @Nullable M lookupSpecificContext(Class<?> clazz, Class<?> contextClass) {
     for (var superclass : methodSuperclassChain(clazz, true)) {
@@ -361,6 +396,12 @@ class TypeclassMap<A extends Annotation, M extends TypeclassMethod> {
 
   // endregion register
 
+  /**
+   * Iterate the superclasses of {@code clazz} (including {@code clazz} itself iff {@code
+   * includeSelf} is set), including inherited interfaces. Guarantees that immediately- inherited
+   * classes and interfaces are yielded before transitively inherited ones, and if {@code clazz} is
+   * a record, {@link Record} is yielded last.
+   */
   private Iterable<Class<?>> methodSuperclassChain(Class<?> clazz, boolean includeSelf) {
     return () ->
         new Iterator<>() {

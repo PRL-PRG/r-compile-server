@@ -8,7 +8,7 @@ import org.prlprg.util.Strings;
  * Provides {@link ParseMethod}s for types outside of {@link org.prlprg}. Types inside, we put the
  * {@link ParseMethod} in the type directly.
  */
-class BuiltinParseMethods {
+public final class BuiltinParseMethods {
   @ParseMethod(SkipWhitespace.NONE)
   private static String parseString(Parser p) {
     return p.scanner().readQuoted('"');
@@ -83,13 +83,28 @@ class BuiltinParseMethods {
     var s = p.scanner();
 
     var className = s.readJavaIdentifierOrKeyword();
-    var clazz = ctx.getClass(className);
+    @SuppressWarnings("unchecked")
+    var clazz = (Class<? extends Record>) ctx.getClass(className);
     if (clazz == null) {
       throw s.fail("Unknown record class: " + className);
     }
     if (!clazz.isRecord()) {
       throw s.fail("Class isn't a record: " + className);
     }
+
+    var arguments = parseRecordComponents(clazz, p);
+
+    return Reflection.construct(clazz, arguments);
+  }
+
+  /**
+   * Parse and return the components of a record like the built-in parser does.
+   *
+   * <p>Specifically, parse the components with their names, surrounded by parenthesis and delimited
+   * by commas, except if the record class has zero components, don't parse anything.
+   */
+  public static Object[] parseRecordComponents(Class<? extends Record> clazz, Parser p) {
+    var s = p.scanner();
 
     var components = clazz.getRecordComponents();
     var arguments = new Object[components.length];
@@ -106,7 +121,7 @@ class BuiltinParseMethods {
       s.assertAndSkip(')');
     }
 
-    return (Record) Reflection.construct(clazz, arguments);
+    return arguments;
   }
 
   private BuiltinParseMethods() {}

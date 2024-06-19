@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.Writer;
+import java.lang.reflect.Executable;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -109,9 +110,10 @@ public class Printer {
    * The context associated with the printer.
    *
    * <p>This isn't typed, because the dispatched {@code print} methods will have the correct context
-   * type. Those methods should use that context instead. This is for printers which take no
-   * context, but may want to special-case when a context with a certain type or annotation is
-   * provided.
+   * type. Those methods should use that context instead. This is for printers which can take no
+   * context, but may want to use the context when it's provided (e.g. use a specific context to
+   * parse children, but then revert to the original context to parse grandchildren; or special-case
+   * on the specific context in part of the method).
    */
   public @Nullable Object context() {
     return context;
@@ -170,10 +172,14 @@ public class Printer {
       boolean isStatic,
       boolean isContextInstanceMethod)
       implements TypeclassMethod {
-    static PrintMethod_ load(PrintMethod annotation, Method method) {
-      var isStatic = Modifier.isStatic(method.getModifiers());
+    static PrintMethod_ load(PrintMethod annotation, Executable method1) {
+      var isStatic = Modifier.isStatic(method1.getModifiers());
 
       // Check invariants
+      if (!(method1 instanceof Method method)) {
+        throw new InvalidAnnotationError(
+            method1, "print method must be a `Method`, not a constructor.");
+      }
       if (isStatic) {
         if (method.getParameterCount() != 2 && method.getParameterCount() != 3) {
           throw new InvalidAnnotationError(
@@ -202,8 +208,9 @@ public class Printer {
       if (method.getExceptionTypes().length != 0) {
         throw new InvalidAnnotationError(method, "print method must not throw checked exceptions.");
       }
-      if (!Modifier.isPrivate(method.getModifiers())) {
-        throw new InvalidAnnotationError(method, "print method must be private.");
+      if (!Modifier.isPrivate(method.getModifiers())
+          && !Modifier.isProtected(method.getModifiers())) {
+        throw new InvalidAnnotationError(method, "print method must be protected or private.");
       }
 
       // Get remaining method metadata

@@ -8,6 +8,7 @@ import org.prlprg.ir.cfg.RValue;
 import org.prlprg.ir.cfg.StaticEnv;
 import org.prlprg.ir.closure.ClosureVersion.CallContext;
 import org.prlprg.ir.type.lattice.Troolean;
+import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.Attributes;
@@ -293,12 +294,8 @@ public final class Closure extends CodeObject {
     }
   }
 
-  /**
-   * Deserializing constructor (so we can set the final fields).
-   *
-   * <p>Called with reflection in {@link CodeObject}{@code #parse}.
-   */
-  @SuppressWarnings("unused")
+  /** Deserializing constructor (so we can set the final fields). */
+  @ParseMethod
   private Closure(Parser p1, ClosureParseContext ctx) {
     super("func", p1, ctx);
     var idIndex = ctx.lastYieldedIdIndex();

@@ -1,7 +1,7 @@
 package org.prlprg.parseprint;
 
 import java.lang.annotation.Annotation;
-import java.lang.reflect.Method;
+import java.lang.reflect.Executable;
 import org.prlprg.util.InvalidAnnotationError;
 
 /**
@@ -14,5 +14,5 @@ import org.prlprg.util.InvalidAnnotationError;
 @FunctionalInterface
 interface TypeclassMethodLoader<A extends Annotation, M extends TypeclassMethod> {
 
-  M load(A annotation, Method method);
+  M load(A annotation, Executable method);
 }

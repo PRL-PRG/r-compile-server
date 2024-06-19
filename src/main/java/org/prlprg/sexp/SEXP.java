@@ -154,21 +154,23 @@ public sealed interface SEXP
 
   // region serialization and deserialization
   @ParseMethod
+  private static SEXP parse(Parser p, HasSEXPParseContext h) {
+    return p.withContext(h.sexpParseContext()).parse(SEXP.class);
+  }
+
+  @PrintMethod
+  private void print(Printer p, HasSEXPPrintContext h) {
+    p.withContext(h.sexpPrintContext()).print(this);
+  }
+
+  @ParseMethod
   private static SEXP parse(Parser p) {
-    return p.withContext(
-            p.context() instanceof HasSEXPParseContext h
-                ? h.sexpParseContext()
-                : new SEXPParseContext())
-        .parse(SEXP.class);
+    return p.withContext(new SEXPParseContext()).parse(SEXP.class);
   }
 
   @PrintMethod
   private void print(Printer p) {
-    p.withContext(
-            p.context() instanceof HasSEXPPrintContext h
-                ? h.sexpPrintContext()
-                : new SEXPPrintContext())
-        .print(this);
+    p.withContext(new SEXPPrintContext()).print(this);
   }
 
   // `toString` is overridden in every subclass to call `Printer.toString(this)`.

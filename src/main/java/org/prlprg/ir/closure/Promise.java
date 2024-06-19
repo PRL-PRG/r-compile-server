@@ -14,6 +14,7 @@ import org.prlprg.ir.type.REffects;
 import org.prlprg.ir.type.lattice.Lattice;
 import org.prlprg.ir.type.lattice.NoOrMaybe;
 import org.prlprg.ir.type.lattice.Troolean;
+import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.BCodeSXP;
@@ -213,12 +214,8 @@ public final class Promise extends CodeObject {
     }
   }
 
-  /**
-   * Deserializing constructor (so we can set the final fields).
-   *
-   * <p>Called with reflection in {@link CodeObject}{@code #parse}.
-   */
-  @SuppressWarnings("unused")
+  /** Deserializing constructor (so we can set the final fields). */
+  @ParseMethod
   private Promise(Parser p1, ClosureParseContext ctx) {
     super("prom", p1, ctx);
     var idIndex = ctx.lastYieldedIdIndex();

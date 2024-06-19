@@ -7,7 +7,6 @@ import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.parseprint.SkipWhitespace;
 import org.prlprg.primitive.Names;
-import org.prlprg.util.Reflection;
 
 /**
  * An IR object that contains its own IR code ({@link CFG}) and can be stored in other objects.
@@ -90,34 +89,13 @@ public abstract sealed class CodeObject permits Closure, Promise {
     return p.withContext(new ClosureParseContext.Outermost(p.context())).parse(clazz);
   }
 
-  @ParseMethod
-  private static CodeObject parse(
-      Parser p, ClosureParseContext.Outermost ctx, Class<? extends CodeObject> clazz) {
-    return Reflection.construct(clazz, p, ctx);
-  }
-
-  @ParseMethod
-  private static CodeObject parse(
-      Parser p, ClosureParseContext.Inner ctx, Class<? extends CodeObject> clazz) {
-    return Reflection.construct(clazz, p, ctx);
-  }
-
   @PrintMethod
   private void print(Printer p) {
     print(p, new ClosurePrintContext.Outermost(p.context()));
   }
 
-  @PrintMethod
-  private void print(Printer p, ClosurePrintContext.Outermost ctx) {
-    print(p, (ClosurePrintContext) ctx);
-  }
-
-  @PrintMethod
-  private void print(Printer p, ClosurePrintContext.Inner ctx) {
-    print(p, (ClosurePrintContext) ctx);
-  }
-
   // The class doesn't escape its visibility, because this is a protected method of a sealed class.
+  @PrintMethod
   protected abstract void print(
       Printer p, @SuppressWarnings("ClassEscapesDefinedScope") ClosurePrintContext ctx);
 

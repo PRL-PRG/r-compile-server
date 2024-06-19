@@ -1,10 +1,13 @@
 package org.prlprg.parseprint;
 
+import java.lang.reflect.RecordComponent;
+import java.util.List;
 import java.util.Optional;
+import org.prlprg.util.Classes;
 import org.prlprg.util.Reflection;
 import org.prlprg.util.StringCase;
 
-class BuiltinPrintMethods {
+public final class BuiltinPrintMethods {
   @PrintMethod
   private static void printByte(Byte b, Printer p) {
     p.writer().write(String.format("0x%02x", b));
@@ -55,9 +58,21 @@ class BuiltinPrintMethods {
   @PrintMethod
   private static void printRecord(Record data, Printer p) {
     var w = p.writer();
+    var clazz = Classes.classOf(data);
 
-    var clazz = data.getClass();
     w.write(clazz.getSimpleName());
+    printRecordComponents(data, p);
+  }
+
+  /**
+   * Print the components of a record like the built-in printer does.
+   *
+   * <p>Specifically, print the components with their names, surrounded by parenthesis and delimited
+   * by commas, except if the record has zero components, don't print anything.
+   */
+  public static void printRecordComponents(Record data, Printer p) {
+    var w = p.writer();
+    var clazz = Classes.classOf(data);
 
     var components = clazz.getRecordComponents();
     if (components.length > 0) {
@@ -72,6 +87,42 @@ class BuiltinPrintMethods {
         w.write(component.getName());
         w.write('=');
         p.print(Reflection.getComponent(data, component));
+      }
+      w.write(')');
+    }
+  }
+
+  /**
+   * Print the given components like {@link #printRecordComponents(Record, Printer)} and the
+   * built-in printer does.
+   *
+   * <p>{@code componentDescriptors} and {@code components} must have the same size, and the
+   * descriptor at each index corresponds to the component at the same index. The descriptors are
+   * only used for their name.
+   */
+  public static void printRecordComponents(
+      List<RecordComponent> componentDescriptors, List<Object> components, Printer p) {
+    var w = p.writer();
+
+    if (componentDescriptors.size() != components.size()) {
+      throw new IllegalArgumentException(
+          "`componentDescriptors` and `components` must have the same size");
+    }
+
+    if (!componentDescriptors.isEmpty()) {
+      w.write('(');
+      var first = true;
+      for (int i = 0; i < componentDescriptors.size(); i++) {
+        var componentDescriptor = componentDescriptors.get(i);
+        var component = components.get(i);
+        if (first) {
+          first = false;
+        } else {
+          w.write(", ");
+        }
+        w.write(componentDescriptor.getName());
+        w.write('=');
+        p.print(component);
       }
       w.write(')');
     }

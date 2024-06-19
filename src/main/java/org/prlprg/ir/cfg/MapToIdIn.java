@@ -8,12 +8,13 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.prlprg.parseprint.BuiltinParseMethods;
+import org.prlprg.parseprint.BuiltinPrintMethods;
 import org.prlprg.parseprint.ClassProvidingContext;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
-import org.prlprg.parseprint.SkipWhitespace;
 import org.prlprg.util.Classes;
 import org.prlprg.util.Reflection;
 import org.prlprg.util.Strings;
@@ -134,59 +135,34 @@ record MapToIdInImpl<T extends InstrData<?>>(
   private static MapToIdIn<?> parse(Parser p, ClassProvidingContext ctx) {
     var s = p.scanner();
 
-    s.assertAndSkip('*');
-
     var className = s.readJavaIdentifierOrKeyword();
-    var clazz = ctx.getClass(className);
-    if (clazz == null) {
+    @SuppressWarnings("unchecked")
+    var clazz = (Class<? extends InstrData<?>>) ctx.getClass(className);
+    @SuppressWarnings("unchecked")
+    var class1 = (Class<? extends Record>) clazz;
+    if (class1 == null) {
       throw s.fail("Unknown record class: " + className);
     }
-    if (!clazz.isRecord()) {
+    if (!class1.isRecord()) {
       throw s.fail("Class isn't a record: " + className);
     }
-    if (!InstrData.class.isAssignableFrom(clazz)) {
+    if (!InstrData.class.isAssignableFrom(class1)) {
       throw s.fail("Class isn't an InstrData: " + className);
     }
-    @SuppressWarnings("unchecked")
-    var class1 = (Class<? extends InstrData<?>>) clazz;
 
-    // ???: Abstract duplicate code from BuiltinParseMethods and BuiltinPrintMethods?
-    var componentsDescriptors = clazz.getRecordComponents();
-    var arguments = new Object[componentsDescriptors.length];
-    if (arguments.length > 0) {
-      s.assertAndSkip('(');
-      for (var i = 0; i < componentsDescriptors.length; i++) {
-        if (i > 0) {
-          s.assertAndSkip(',');
-        }
-        s.assertAndSkip(componentsDescriptors[i].getName());
-        s.assertAndSkip('=');
-        arguments[i] = p.parse(componentsDescriptors[i].getGenericType(), SkipWhitespace.ALL);
-      }
-      s.assertAndSkip(')');
-    }
+    s.assertAndSkip('\'');
 
-    return new MapToIdInImpl<>(class1, ImmutableList.copyOf(arguments));
+    var arguments = BuiltinParseMethods.parseRecordComponents(class1, p);
+
+    return new MapToIdInImpl<>(clazz, ImmutableList.copyOf(arguments));
   }
 
   @PrintMethod
   private void print(Printer p) {
     var w = p.writer();
-    var componentDescriptors = clazz.getRecordComponents();
 
     w.write(clazz.getSimpleName());
-    w.write("'");
-    if (!components.isEmpty()) {
-      w.write('(');
-      for (var i = 0; i < components.size(); i++) {
-        if (i > 0) {
-          w.write(", ");
-        }
-        w.write(componentDescriptors[i].getName());
-        w.write('=');
-        p.print(components.get(i));
-      }
-      w.write(')');
-    }
+    w.write('\'');
+    BuiltinPrintMethods.printRecordComponents(List.of(clazz.getRecordComponents()), components, p);
   }
 }

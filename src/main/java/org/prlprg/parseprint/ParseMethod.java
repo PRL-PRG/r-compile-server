@@ -11,6 +11,8 @@ import java.lang.annotation.Target;
  * Annotation to put on a static method that takes a {@link Parser}, and optionally additionally a
  * context object, and returns an object that is parsed using them.
  *
+ * <p>It can also be put on a constructor for said object with the same parameters.
+ *
  * <p>To find the {@code ParseMethod} for that class, {@link Parser} looks within the object class
  * itself and superclasses as well as context class (but <i>not</i> context superclasses). You
  * cannot put it anywhere else (orphan rule). The method's arguments must be (in order) {@link
@@ -23,7 +25,7 @@ import java.lang.annotation.Target;
  */
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
-@Target(ElementType.METHOD)
+@Target({ElementType.METHOD, ElementType.CONSTRUCTOR})
 @SuppressFBWarnings("UPM_UNCALLED_PRIVATE_METHOD")
 public @interface ParseMethod {
   /**

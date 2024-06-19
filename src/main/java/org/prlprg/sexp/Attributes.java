@@ -102,21 +102,23 @@ public final class Attributes extends ForwardingMap<String, SEXP> {
 
   // region serialization and deserialization
   @ParseMethod
+  private static Attributes parse(Parser p, HasSEXPParseContext h) {
+    return p.withContext(h.sexpParseContext()).parse(Attributes.class);
+  }
+
+  @ParseMethod
   private static Attributes parse(Parser p) {
-    return p.withContext(
-            p.context() instanceof HasSEXPParseContext h
-                ? h.sexpParseContext()
-                : new SEXPParseContext())
-        .parse(Attributes.class);
+    return p.withContext(new SEXPParseContext()).parse(Attributes.class);
+  }
+
+  @PrintMethod
+  private void print(Printer p, HasSEXPPrintContext h) {
+    p.withContext(h.sexpPrintContext()).print(this);
   }
 
   @PrintMethod
   private void print(Printer p) {
-    p.withContext(
-            p.context() instanceof HasSEXPPrintContext h
-                ? h.sexpPrintContext()
-                : new SEXPPrintContext())
-        .print(this);
+    p.withContext(new SEXPPrintContext()).print(this);
   }
 
   @Override
