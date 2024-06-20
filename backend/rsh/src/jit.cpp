@@ -60,9 +60,8 @@ void JIT::add_object_file(const char *filename) {
   }
 }
 
-void JIT::add_object(std::vector<uint8_t> vec) {
-  auto buffer = llvm::MemoryBuffer::getMemBufferCopy(
-      llvm::StringRef(reinterpret_cast<const char *>(vec.data()), vec.size()));
+void JIT::add_object(std::string const &vec) {
+  auto buffer = llvm::MemoryBuffer::getMemBufferCopy(llvm::StringRef(vec));
   auto err = orc->addObjectFile(std::move(buffer));
   if (err) {
     Rf_error("Problem with object file %s\n", toString(std::move(err)).c_str());

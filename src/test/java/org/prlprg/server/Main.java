@@ -1,5 +1,6 @@
 package org.prlprg.server;
 
+import com.google.protobuf.ByteString;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -14,6 +15,9 @@ import org.prlprg.sexp.CloSXP;
 import org.zeromq.SocketType;
 import org.zeromq.ZContext;
 import org.zeromq.ZMQ;
+import rsh.server.protocol.CompileRequest;
+import rsh.server.protocol.CompileResponse;
+import rsh.server.protocol.Request;
 
 public class Main {
 
@@ -41,34 +45,38 @@ public class Main {
       logger.info("Listening on " + socket.getLastEndpoint());
 
       while (!Thread.currentThread().isInterrupted()) {
-        byte[] request = socket.recv(0); // block
-        logger.info("Got a request: " + request.length);
-        if (request[0] == 1) {
-          // compile request
-          try {
-            var bis = new ByteArrayInputStream(request, 1, request.length);
-            var nameSize = bis.read();
-            var nameBytes = bis.readNBytes(nameSize);
-            var name = new String(nameBytes, ZMQ.CHARSET);
-            var closure = deserialize(bis);
-            var nativeCode = jit.execute(name, closure);
-            var response = new byte[nativeCode.length + 1];
-            response[0] = 0; // indicate success
-            System.arraycopy(nativeCode, 0, response, 1, nativeCode.length);
-            socket.send(response, 0);
-          } catch (Exception e) {
-            logger.severe("Unable to process request: " + e.getMessage());
+        Request request = Request.parseFrom(socket.recv(0));
+        logger.info("Got a request: " + request);
 
-            var payload = e.getMessage().getBytes(ZMQ.CHARSET);
-            socket.send(payload, 0);
+        switch (request.getDataCase()) {
+          case COMPILE -> {
+            var response = compile(request.getCompile());
+            socket.send(response.toByteArray());
           }
-        } else {
-          logger.severe("Unknown request type: " + request[0]);
+          default -> {
+            logger.severe("Unknown request type: " + request);
+          }
         }
       }
     } catch (Exception e) {
       e.printStackTrace(System.err);
       System.exit(1);
+    }
+  }
+
+  private CompileResponse compile(CompileRequest compile) {
+    try {
+      var name = compile.getName();
+      var closure = deserialize(new ByteArrayInputStream(compile.getClosure().toByteArray()));
+      var nativeCode = jit.execute(name, closure);
+      var result =
+          CompileResponse.Result.newBuilder().setNativeCode(ByteString.copyFrom(nativeCode));
+      var response = CompileResponse.newBuilder().setResult(result);
+      return response.build();
+    } catch (Exception e) {
+      logger.severe("Unable to process request: " + e.getMessage());
+      var response = CompileResponse.newBuilder().setFailure(e.getMessage());
+      return response.build();
     }
   }
 

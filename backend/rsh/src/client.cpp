@@ -1,43 +1,39 @@
 #include "client.h"
+#include "protocol.pb.h"
 #include <iostream>
 
-compile_result compile(std::string const &name,
-                       std::vector<uint8_t> const &rds_closure) {
+namespace rsh {
+
+using namespace server::protocol;
+
+CompileResponse compile(std::string const &name,
+                        std::vector<uint8_t> const &rds_closure) {
   zmq::context_t context(1);
   zmq::socket_t socket(context, zmq::socket_type::req);
 
   std::cout << "Connecting to compile server..." << std::endl;
   socket.connect("tcp://localhost:5555");
 
-  zmq::message_t request(2 + name.size() + rds_closure.size());
-  request.data<uint8_t>()[0] = 1; // compilation request
-  request.data<uint8_t>()[1] = name.size();
-  std::copy(name.begin(), name.end(), request.data<uint8_t>() + 2);
-  std::copy(rds_closure.begin(), rds_closure.end(),
-            request.data<uint8_t>() + 2 + name.size());
-  socket.send(request, zmq::send_flags::none);
+  Request request;
+  request.mutable_compile()->set_name(name);
+  request.mutable_compile()->set_closure(rds_closure.data(),
+                                         rds_closure.size());
 
-  //  Get the reply.
+  zmq::message_t msg(request.ByteSizeLong());
+  request.SerializeToArray(msg.data<uint8_t>(), msg.size());
+  socket.send(msg, zmq::send_flags::none);
+
   zmq::message_t reply;
   auto res = socket.recv(reply, zmq::recv_flags::none);
   if (!res.has_value()) {
-    return std::string("Error receiving reply");
+    CompileResponse response;
+    response.set_failure("Error receiving reply");
+    return response;
   }
 
-  uint8_t *data = reply.data<uint8_t>();
+  CompileResponse response;
+  response.ParseFromArray(reply.data<uint8_t>(), reply.size());
 
-  if (*data != 0) {
-    return reply.to_string();
-  }
-  data++;
-
-  std::vector<uint8_t> payload;
-  for (size_t i = 1; i < reply.size(); i++, data++) {
-    payload.push_back(*data);
-  }
-  // payload.reserve(reply.size() - 1);
-  payload.resize(reply.size() - 1);
-  memcpy(payload.data(), (void *)(reply.data<uint8_t>() + 1), reply.size() - 1);
-
-  return payload;
+  return response;
 }
+} // namespace rsh

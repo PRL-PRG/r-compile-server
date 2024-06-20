@@ -12,6 +12,6 @@ public:
 
   static JIT *create();
   void add_object_file(const char *filename);
-  void add_object(std::vector<uint8_t> vec);
+  void add_object(std::string const &vec);
   void *lookup(const char *name);
 };
