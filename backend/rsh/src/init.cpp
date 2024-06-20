@@ -65,12 +65,11 @@ SEXP compile_fun(SEXP name, SEXP closure, SEXP raw) {
 
   std::string name_str(CHAR(STRING_ELT(name, 0)));
 
-  auto result = compile(name_str, data);
-  if (std::holds_alternative<std::string>(result)) {
-    Rf_error("%s", std::get<std::string>(result).c_str());
-  } else {
-    std::vector<uint8_t> payload = std::get<std::vector<uint8_t>>(result);
-    jit->add_object(std::move(payload));
+  auto response = rsh::compile(name_str, data);
+  if (response.has_result()) {
+    auto native_code = response.result().native_code();
+    jit->add_object(native_code);
+
     void *ptr = jit->lookup(name_str.c_str());
     SEXP ptr_sxp = PROTECT(R_MakeExternalPtr(ptr, R_NilValue, R_NilValue));
 
@@ -80,6 +79,8 @@ SEXP compile_fun(SEXP name, SEXP closure, SEXP raw) {
     SET_BODY(closure, call);
     Rprintf("Compiled fun %s (%p)\n", name_str.c_str(), ptr);
     UNPROTECT(3);
+  } else {
+    Rf_error("%s", response.failure().c_str());
   }
 
   return closure;

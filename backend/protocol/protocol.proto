@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+
+package rsh.server.protocol;
+
+message CompileRequest {
+  string name = 2;
+  // SEXP serialized CLOSXP object
+  bytes closure = 3;
+}
+
+message Request {
+  oneof data {CompileRequest compile = 2;}
+}
+
+message CompileResponse {
+  message Result {
+    // content of the object file as spilled by the compiler
+    bytes native_code = 3;
+    // the constant pool from the bytecode compiler as VECSXP
+    bytes constant_pool = 4;
+  }
+  oneof data {
+    string failure = 2;
+    Result result = 3;
+  }
+}
