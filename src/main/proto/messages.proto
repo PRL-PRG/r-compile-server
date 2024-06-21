@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+option java_package = "org.prlprg.server";
+
+message Function {
+  optional string package = 1;
+  string name = 2;
+}
+
+enum TypeFeedback {
+  SCALAR = 0;
+  VECTOR = 1;// Add more of the type feedback
+}
+
+message CompileRequest {
+  bytes hash = 1;
+  optional Function function = 2;
+  optional bytes body = 3;
+  repeated TypeFeedback type_feedback = 4;
+  // should we rather use a map parameter -> type feedback?
+  // Indeed if the types keep the same but parameters are swapped
+  // in the parameter list, we should recompile the function
+}
+
+message CompileResponse {
+  bytes hash = 1;
+  optional bytes native_code = 2;
+  optional bytes constant_pool = 3;
+}
