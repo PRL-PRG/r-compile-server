@@ -56,7 +56,8 @@ public class JITService {
         .compile();
   }
 
-  public byte[] execute(String name, CloSXP closure) throws IOException, InterruptedException {
+  public CompiledFunction execute(String name, CloSXP closure)
+      throws IOException, InterruptedException {
     logger.fine("Compiling closure: " + name + "\n" + closure + "\n");
 
     var bcCompiler = new BCCompiler(closure, rsession);
@@ -87,6 +88,6 @@ public class JITService {
 
     logger.fine("Finished compilation in %d ms (size: %d)\n".formatted(time, res.length));
 
-    return res;
+    return new CompiledFunction(res, bc2cCompiler.constants());
   }
 }

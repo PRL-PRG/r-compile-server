@@ -6,11 +6,15 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class CFunction {
+  private final String prefix;
   private final String name;
+  private final String suffix;
   private final List<CCode> sections = new ArrayList<>();
 
-  CFunction(String name) {
+  CFunction(String prefix, String name, String suffix) {
+    this.prefix = prefix;
     this.name = name;
+    this.suffix = suffix;
   }
 
   public CCode add() {

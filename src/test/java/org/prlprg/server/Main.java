@@ -4,6 +4,7 @@ import com.google.protobuf.ByteString;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.List;
 import java.util.logging.ConsoleHandler;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -12,6 +13,8 @@ import org.prlprg.rds.RDSReader;
 import org.prlprg.rsession.TestRSession;
 import org.prlprg.service.JITService;
 import org.prlprg.sexp.CloSXP;
+import org.prlprg.sexp.SEXP;
+import org.prlprg.sexp.SEXPs;
 import org.zeromq.SocketType;
 import org.zeromq.ZContext;
 import org.zeromq.ZMQ;
@@ -68,10 +71,14 @@ public class Main {
     try {
       var name = compile.getName();
       var closure = deserialize(new ByteArrayInputStream(compile.getClosure().toByteArray()));
-      var nativeCode = jit.execute(name, closure);
+      var compiledClosure = jit.execute(name, closure);
+      var constPoolData = serializeConstantPool(compiledClosure.constantPool());
       var result =
-          CompileResponse.Result.newBuilder().setNativeCode(ByteString.copyFrom(nativeCode));
+          CompileResponse.Result.newBuilder()
+              .setNativeCode(ByteString.copyFrom(compiledClosure.code()))
+              .setConstantPool(ByteString.copyFrom(constPoolData));
       var response = CompileResponse.newBuilder().setResult(result);
+
       return response.build();
     } catch (Exception e) {
       logger.severe("Unable to process request: " + e.getMessage());
@@ -80,8 +87,17 @@ public class Main {
     }
   }
 
+  private byte[] serializeConstantPool(List<SEXP> constants) throws IOException {
+    return serialize(SEXPs.list2(constants));
+  }
+
   private CloSXP deserialize(InputStream input) throws IOException {
     return (CloSXP) RDSReader.readStream(rsession, input);
+  }
+
+  private byte[] serialize(SEXP data) throws IOException {
+    // FIXME: implement
+    return new byte[] {};
   }
 
   public static void main(String[] args) {

@@ -1,6 +1,8 @@
 package org.prlprg.bc2c;
 
+import java.text.MessageFormat;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -13,7 +15,6 @@ import org.prlprg.sexp.RegSymSXP;
 import org.prlprg.sexp.SEXP;
 
 record Constant(int id, SEXP value) {}
-record Value(String expr, boolean protect) {}
 
 // point the stack to one before the top
 class Stack {
@@ -43,6 +44,7 @@ class Stack {
 public class BC2CCompiler {
   static final String NAME_ENV = "ENV";
   private static final String NAME_CP = "CP";
+  private static final String CONST_GET = "CONST";
 
   private final String name;
   private final Bc bc;
@@ -57,22 +59,28 @@ public class BC2CCompiler {
     this.name = name;
     this.bc = bc;
     this.file = new CFile();
-    this.fun = file.createFun(name);
+    this.fun = file.createFun("SEXP", name, "SEXP %s, SEXP %s".formatted(NAME_ENV, NAME_CP));
     this.body = fun.add();
   }
 
   public CFile compile() {
     bc.code().forEach(this::compile);
-    compileConstantPool();
     compileRegisters();
     preamble();
     return file;
   }
 
+  public List<SEXP> constants() {
+    return List.copyOf(constants.values().stream().map(Constant::value).toList());
+  }
+
   private void preamble() {
-    file.setPreamble("""
+    file.setPreamble(MessageFormat.format("""
         #include <Rsh.h>
-        """);
+        
+        // constant pool accessor
+        #define {0}(i)        ((SEXP *) STDVEC_DATAPTR(_CP))[i]
+        """, CONST_GET));
   }
 
   private void compileRegisters() {
@@ -82,15 +90,6 @@ public class BC2CCompiler {
             .mapToObj("_%d = NULL"::formatted)
             .collect(Collectors.joining(", ", "SEXP ", ";"));
     sec.line(line);
-  }
-
-  private void compileConstantPool() {
-    var sec = fun.insertAbove(body);
-    var cp =
-        IntStream.range(0, constants.size())
-            .mapToObj(ignored -> "NULL")
-            .collect(Collectors.joining(", ", "SEXP %s[] = {".formatted(NAME_CP), "};"));
-    sec.line(cp);
   }
 
   private void compile(BcInstr instr) {
@@ -156,24 +155,6 @@ public class BC2CCompiler {
               return new Constant(next, bc.consts().get(idx));
             });
 
-    var cp = "%s[%d]".formatted(NAME_CP, c.id());
-    var init = sexp(bc.consts().get(idx));
-    return "%s == NULL ? %s : %s".formatted(cp, init, cp);
-  }
-
-  private String sexp(SEXP v) {
-    var protect = true;
-    var expr =
-        switch (v) {
-          case RealSXP r when r.size() == 1 -> "Rf_ScalarReal(%f)".formatted(r.get(0));
-          case IntSXP i when i.size() == 1 -> "Rf_ScalarInteger(%d)".formatted(i.get(0));
-          case RegSymSXP r -> {
-            protect = false;
-            yield "Rf_install(\"%s\")".formatted(r.name());
-          }
-          default -> throw new UnsupportedOperationException("Unsupported SEXP: " + v);
-        };
-
-    return protect ? "PROTECT(%s)".formatted(expr) : expr;
+    return "%s(%d)".formatted(CONST_GET, c.id());
   }
 }

@@ -9,8 +9,8 @@ public class CFile {
   private String preamble;
   private final List<CFunction> funs = new ArrayList<>();
 
-  public CFunction createFun(String name) {
-    var fun = new CFunction(name);
+  public CFunction createFun(String prefix, String name, String suffix) {
+    var fun = new CFunction(prefix, name, suffix);
     funs.add(fun);
     return fun;
   }

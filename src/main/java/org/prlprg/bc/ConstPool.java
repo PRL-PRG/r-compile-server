@@ -13,7 +13,7 @@ import org.prlprg.sexp.*;
 public final class ConstPool extends ForwardingList<SEXP> {
   private final ImmutableList<SEXP> consts;
 
-  private ConstPool(List<SEXP> consts) {
+  public ConstPool(List<SEXP> consts) {
     this.consts = ImmutableList.copyOf(consts);
   }
 
