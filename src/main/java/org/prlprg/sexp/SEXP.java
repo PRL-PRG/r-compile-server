@@ -15,6 +15,7 @@ public sealed interface SEXP
     permits StrOrRegSymSXP,
         SymOrLangSXP,
         ListOrVectorSXP,
+        LangOrListSXP,
         CloSXP,
         EnvSXP,
         BCodeSXP,
@@ -107,5 +108,9 @@ public sealed interface SEXP
 
   default <T extends SEXP> Optional<T> as(Class<T> clazz) {
     return clazz.isInstance(this) ? Optional.of(clazz.cast(this)) : Optional.empty();
+  }
+
+  default boolean isObject() {
+    return attributes() != null && Objects.requireNonNull(attributes()).containsKey("class");
   }
 }

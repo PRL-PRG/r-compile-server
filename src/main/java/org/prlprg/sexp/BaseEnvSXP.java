@@ -10,6 +10,11 @@ public final class BaseEnvSXP extends AbstractEnvSXP implements EnvSXP {
   }
 
   @Override
+  public int size() {
+    return bindings.size();
+  }
+
+  @Override
   public String toString() {
     // TODO: add some link to the R session?
     return "<environment: base>";

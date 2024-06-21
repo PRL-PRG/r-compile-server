@@ -7,6 +7,7 @@ import java.util.UUID;
 import javax.annotation.concurrent.NotThreadSafe;
 import org.prlprg.RSession;
 import org.prlprg.rds.RDSReader;
+import org.prlprg.rds.RDSWriter;
 import org.prlprg.sexp.SEXP;
 
 @NotThreadSafe
@@ -61,6 +62,25 @@ public class GNUR implements AutoCloseable {
       assert (targetFile.delete());
 
       return sxp;
+    } catch (Exception e) {
+      throw new RuntimeException("Unable to eval R source", e);
+    }
+  }
+
+  /**
+   * Evaluate R source with input SEXP. The SEXP is passed from Java to the R world using RDS.
+   *
+   * @param source
+   * @param input
+   * @return
+   */
+  public SEXP eval(String source, SEXP input) {
+    try {
+      var inputFile = File.createTempFile("RCS-input", ".rds");
+      RDSWriter.writeFile(rsession, inputFile, input);
+      String full_source = "input <- readRDS('" + inputFile.getAbsolutePath() + "')\n" + source;
+
+      return eval(full_source);
     } catch (Exception e) {
       throw new RuntimeException("Unable to eval R source", e);
     }

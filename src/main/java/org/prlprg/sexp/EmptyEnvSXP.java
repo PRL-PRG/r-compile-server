@@ -32,6 +32,11 @@ public final class EmptyEnvSXP implements EnvSXP {
   }
 
   @Override
+  public int size() {
+    return 0;
+  }
+
+  @Override
   public Optional<Pair<EnvSXP, SEXP>> find(String name) {
     return Optional.empty();
   }
@@ -39,11 +44,6 @@ public final class EmptyEnvSXP implements EnvSXP {
   @Override
   public Iterable<? extends Map.Entry<? extends String, ? extends SEXP>> bindings() {
     return Set.of();
-  }
-
-  @Override
-  public int size() {
-    return 0;
   }
 
   @Override

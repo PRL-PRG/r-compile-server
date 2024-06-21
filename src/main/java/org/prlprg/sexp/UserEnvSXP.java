@@ -1,8 +1,11 @@
 package org.prlprg.sexp;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Iterators;
+import java.util.Iterator;
 import javax.annotation.Nullable;
 
-public final class UserEnvSXP extends AbstractEnvSXP implements EnvSXP {
+public final class UserEnvSXP extends AbstractEnvSXP implements EnvSXP, Iterable<TaggedElem> {
   private @Nullable Attributes attributes;
 
   public UserEnvSXP() {
@@ -13,8 +16,19 @@ public final class UserEnvSXP extends AbstractEnvSXP implements EnvSXP {
     super(parent);
   }
 
-  public void setParent(EnvSXP parent) {
-    this.parent = parent;
+  public Iterator<TaggedElem> iterator() {
+    // We need to transform the entries to TaggedElem to avoid exposing the internal map.
+    // This is not very efficient though.
+    return Iterators.transform(
+        bindings.entrySet().iterator(), e -> new TaggedElem(e.getKey(), e.getValue()));
+  }
+
+  public ListSXP frame() {
+    return new ListSXPImpl(
+        bindings.entrySet().stream()
+            .map(e -> new TaggedElem(e.getKey(), e.getValue()))
+            .collect(ImmutableList.toImmutableList()),
+        Attributes.NONE);
   }
 
   @Override
@@ -28,7 +42,16 @@ public final class UserEnvSXP extends AbstractEnvSXP implements EnvSXP {
     return this;
   }
 
-  @Nullable public Attributes getAttributes() {
+  @Override
+  public Attributes attributes() {
     return attributes;
+  }
+
+  public void setParent(EnvSXP parent) {
+    this.parent = parent;
+  }
+
+  public void setAttributes(Attributes attributes) {
+    this.attributes = attributes;
   }
 }

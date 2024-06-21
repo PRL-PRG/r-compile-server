@@ -2,6 +2,7 @@ package org.prlprg.bc;
 
 import com.google.common.collect.ForwardingList;
 import com.google.common.collect.ImmutableList;
+import com.google.common.primitives.ImmutableIntArray;
 import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -49,6 +50,18 @@ public final class BcCode extends ForwardingList<BcInstr> {
   @Override
   public int hashCode() {
     return Objects.hash(super.hashCode(), code);
+  }
+
+  public ImmutableIntArray toRaw() {
+    var builder = ImmutableIntArray.builder();
+    builder.add(Bc.R_BC_VERSION);
+    for (var instr : code) {
+      builder.add(instr.op().value());
+      for (var i = 0; i < instr.op().nArgs(); i++) {
+        builder.add(instr.op().nArgs());
+      }
+    }
+    return builder.build();
   }
 
   /**
