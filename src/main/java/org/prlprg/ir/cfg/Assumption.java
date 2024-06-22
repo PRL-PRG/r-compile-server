@@ -24,6 +24,6 @@ record AssumptionImpl(@Override Checkpoint checkpoint, int index) implements Ass
 
   @Override
   public NodeId<? extends Assumption> id() {
-    return new LocalNodeIdImpl<>(this, checkpoint.id(), index);
+    return new AuxiliaryNodeIdImpl<>(InstrOrPhiIdImpl.cast(checkpoint.id()), index);
   }
 }

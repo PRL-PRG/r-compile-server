@@ -1,5 +1,7 @@
 package org.prlprg.ir.cfg;
 
+import static org.prlprg.AppConfig.EAGERLY_VERIFY_PHI_INPUTS;
+
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
@@ -333,7 +335,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     if (index < 0 || index > stmts.size()) {
       throw new IndexOutOfBoundsException("Index out of range: " + index);
     }
-    var newBB = cfg().doAddBB(id.name());
+    var newBB = cfg().doAddBB(BBIdImpl.cast(id).name());
 
     for (var pred : predecessors) {
       assert pred.jump != null && pred.jump.targets().contains(this)
@@ -356,7 +358,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     if (index < 0 || index > stmts.size()) {
       throw new IndexOutOfBoundsException("Index out of range: " + index);
     }
-    var newBB = cfg().doAddBB(id.name());
+    var newBB = cfg().doAddBB(BBIdImpl.cast(id).name());
 
     for (var succ : successors()) {
       assert succ.predecessors.contains(this)
@@ -364,7 +366,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
       succ.predecessors.remove(this);
       succ.predecessors.add(newBB);
       for (var phi : succ.phis) {
-        ((PhiImpl<?>) phi).unsafeReplaceIncomingBB(this, newBB);
+        PhiImpl.cast(phi).unsafeReplaceIncomingBB(this, newBB);
       }
     }
 
@@ -408,7 +410,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
       succ2.predecessors.remove(succ);
       succ2.predecessors.add(this);
       for (var phi : succ2.phis) {
-        ((PhiImpl<?>) phi).unsafeReplaceIncomingBB(succ, this);
+        PhiImpl.cast(phi).unsafeReplaceIncomingBB(succ, this);
       }
     }
 
@@ -432,27 +434,20 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
   // region add nodes
   @Override
   public <N extends Node> Phi<N> addPhi(Class<? extends N> nodeClass) {
-    var phi =
-        PhiImpl.<N>forClass(
-            null, nodeClass, cfg(), predecessors.stream().map(Phi.Input::unset).toList());
-    phis.add(phi);
-    cfg().track(phi);
-
-    cfg().record(new CFGEdit.InsertPhi<>(this, phi), new CFGEdit.RemovePhi(this, phi));
-    return phi;
+    return addPhiWithId(cfg().<Phi<? extends N>>uniqueInstrOrPhiId(), nodeClass);
   }
 
   @Override
   public <N extends Node> Phi<N> addPhi(
       Class<? extends N> nodeClass, Collection<? extends Phi.Input<? extends N>> inputs) {
-    return addPhiWithId(null, nodeClass, inputs);
+    return addPhiWithId(cfg().<Phi<? extends N>>uniqueInstrOrPhiId(), nodeClass, inputs);
   }
 
   <N extends Node> Phi<N> addPhiWithId(
-      @Nullable NodeId<? extends Phi<? extends N>> id, Class<? extends N> nodeClass) {
+      NodeId<? extends Phi<? extends N>> id, Class<? extends N> nodeClass) {
     var phi =
         PhiImpl.forClass(
-            id, nodeClass, cfg(), predecessors.stream().map(Phi.Input::unset).toList());
+            nodeClass, cfg(), id, predecessors.stream().map(Phi.Input::unset).toList());
     phis.add(phi);
     cfg().track(phi);
 
@@ -461,15 +456,22 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
   }
 
   <N extends Node> Phi<N> addPhiWithId(
-      @Nullable NodeId<? extends Phi<? extends N>> id,
+      NodeId<? extends Phi<? extends N>> id,
       Class<? extends N> nodeClass,
       Collection<? extends Phi.Input<? extends N>> inputs) {
-    var phi = PhiImpl.forClass(id, nodeClass, cfg(), inputs);
+    var phi = PhiImpl.forClass(nodeClass, cfg(), id, inputs);
     verifyPhiInputBBs(phi);
     phis.add(phi);
     cfg().track(phi);
 
     cfg().record(new CFGEdit.InsertPhi<>(this, phi), new CFGEdit.RemovePhi(this, phi));
+
+    // Has to be after insertion, and we want to try and not leave the state inconsistent on
+    // exception (this specific check is allowed to fail in a consistent state).
+    if (EAGERLY_VERIFY_PHI_INPUTS) {
+      PhiImpl.cast(phi).eagerlyVerifyInputs();
+    }
+
     return phi;
   }
 
@@ -479,7 +481,9 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     var inputs = predecessors.stream().map(Phi.Input::unset).toList();
     var phis =
         nodeClasses.stream()
-            .map(nodeClass -> PhiImpl.<Node>forClass(null, nodeClass, cfg(), inputs))
+            .map(
+                nodeClass ->
+                    PhiImpl.forClass(nodeClass, cfg(), cfg().<Phi<?>>uniqueInstrOrPhiId(), inputs))
             .collect(ImmutableList.toImmutableList());
     this.phis.addAll(phis);
     cfg().trackAll(phis);
@@ -490,13 +494,18 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
 
   @Override
   public ImmutableList<? extends Phi<?>> addPhis1(Collection<Phi.Args> phiArgs) {
-    return addPhisWithIds(phiArgs.stream().map(PhiImpl.Args::new).toList());
+    return addPhisWithIds(
+        phiArgs.stream()
+            .map(a -> new PhiImpl.Args(cfg().<Phi<?>>uniqueInstrOrPhiId(), a))
+            .toList());
   }
 
   ImmutableList<? extends Phi<?>> addPhisWithIds(Collection<? extends PhiImpl.Args> phiArgs) {
     var phis =
         phiArgs.stream()
-            .map(a -> PhiImpl.forClass(a.id(), a.nodeClass(), cfg(), a.inputs()))
+            // If the compiler gives you an error here, and IntelliJ says it's fine, you must
+            // either rebuild, or `mvn clean` and rebuild, and it will magically go away.
+            .map(a -> PhiImpl.forClass(a.nodeClass(), cfg(), a.id(), a.inputs()))
             .collect(ImmutableList.toImmutableList());
     for (var phi : phis) {
       verifyPhiInputBBs(phi);
@@ -505,6 +514,15 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     cfg().trackAll(phis);
 
     cfg().record(new CFGEdit.InsertPhis(this, phis), new CFGEdit.RemovePhis(this, phis));
+
+    // Has to be after insertion, and we want to try and not leave the state inconsistent on
+    // exception (this specific check is allowed to fail in a consistent state).
+    if (EAGERLY_VERIFY_PHI_INPUTS) {
+      for (var phi : phis) {
+        PhiImpl.cast(phi).eagerlyVerifyInputs();
+      }
+    }
+
     return phis;
   }
 
@@ -524,15 +542,14 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
 
   @Override
   public <I extends Stmt> I insertAt(int index, String name, StmtData<I> args) {
-    return insertAtWithToken(index, new CreateInstrWithNewId(name), args);
+    return insertAtWithId(index, cfg().<I>uniqueInstrOrPhiId(name), args);
   }
 
-  <I extends Stmt> I insertAtWithToken(
-      int index, TokenToCreateNewInstr token, StmtData<? extends I> args) {
+  <I extends Stmt> I insertAtWithId(int index, NodeId<? extends I> id, StmtData<? extends I> args) {
     if (index < 0 || index > stmts.size()) {
       throw new IndexOutOfBoundsException("Index out of range: " + index);
     }
-    var stmt = args.make(cfg(), token);
+    var stmt = args.make(cfg(), id);
     stmts.add(index, stmt);
     cfg().track(stmt);
 
@@ -542,17 +559,20 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
 
   @Override
   public ImmutableList<? extends Stmt> insertAllAt(int index, List<Stmt.Args> namesAndArgs) {
-    return insertAllAtWithTokens(index, namesAndArgs.stream().map(StmtImpl.Args::new).toList());
+    return insertAllAtWithIds(
+        index,
+        namesAndArgs.stream()
+            .map(a -> new StmtImpl.Args(cfg().<Stmt>uniqueInstrOrPhiId(a.name()), a.data()))
+            .toList());
   }
 
-  ImmutableList<? extends Stmt> insertAllAtWithTokens(
-      int index, List<StmtImpl.Args> tokensAndArgs) {
+  ImmutableList<? extends Stmt> insertAllAtWithIds(int index, List<StmtImpl.Args> idsAndArgs) {
     if (index < 0 || index > stmts.size()) {
       throw new IndexOutOfBoundsException("Index out of range: " + index);
     }
     var stmts =
-        tokensAndArgs.stream()
-            .map(idAndArgs -> idAndArgs.data().make(cfg(), idAndArgs.token()))
+        idsAndArgs.stream()
+            .map(idAndArgs -> idAndArgs.data().make(cfg(), idAndArgs.id()))
             .collect(ImmutableList.toImmutableList());
     this.stmts.addAll(index, stmts);
     cfg().trackAll(stmts);
@@ -566,14 +586,19 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
 
   @Override
   public ImmutableList<? extends Stmt> insertAllAt(Map<Integer, Stmt.Args> indicesNamesAndArgs) {
-    return insertAllAtWithTokens(
+    return insertAllAtWithIds(
         indicesNamesAndArgs.entrySet().stream()
-            .collect(Collectors.toMap(Map.Entry::getKey, e -> new StmtImpl.Args(e.getValue()))));
+            .collect(
+                Collectors.toMap(
+                    Map.Entry::getKey,
+                    e ->
+                        new StmtImpl.Args(
+                            cfg().<Stmt>uniqueInstrOrPhiId(e.getValue().name()),
+                            e.getValue().data()))));
   }
 
-  ImmutableList<? extends Stmt> insertAllAtWithTokens(
-      Map<Integer, StmtImpl.Args> indicesTokensAndArgs) {
-    for (var index : indicesTokensAndArgs.keySet()) {
+  ImmutableList<? extends Stmt> insertAllAtWithIds(Map<Integer, StmtImpl.Args> indicesIdsAndArgs) {
+    for (var index : indicesIdsAndArgs.keySet()) {
       if (index < 0 || index > stmts.size()) {
         throw new IndexOutOfBoundsException("Index out of range: " + index);
       }
@@ -583,14 +608,14 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     // O(origStmts.size * indicesNamesAndArgs.size) time if we inserted one by one.
     // Also remember that later indices must not be offset by earlier ones.
     var origStmts = new ArrayList<>(stmts);
-    var newStmtsBuilder = ImmutableList.<Stmt>builderWithExpectedSize(indicesTokensAndArgs.size());
+    var newStmtsBuilder = ImmutableList.<Stmt>builderWithExpectedSize(indicesIdsAndArgs.size());
     var indicesStmts =
-        ImmutableMap.<Integer, Stmt>builderWithExpectedSize(indicesTokensAndArgs.size());
+        ImmutableMap.<Integer, Stmt>builderWithExpectedSize(indicesIdsAndArgs.size());
     stmts.clear();
     for (var i = 0; i < origStmts.size(); i++) {
-      if (indicesTokensAndArgs.containsKey(i)) {
-        var tokenAndArgs = indicesTokensAndArgs.get(i);
-        var stmt = tokenAndArgs.data().make(cfg(), tokenAndArgs.token());
+      if (indicesIdsAndArgs.containsKey(i)) {
+        var idAndArgs = indicesIdsAndArgs.get(i);
+        var stmt = idAndArgs.data().make(cfg(), idAndArgs.id());
         stmts.add(stmt);
         newStmtsBuilder.add(stmt);
         indicesStmts.put(i, stmt);
@@ -611,14 +636,14 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
 
   @Override
   public <I extends Jump> I addJump(String name, JumpData<I> args) {
-    return addJumpWithToken(new CreateInstrWithNewId(name), args);
+    return addJumpWithId(cfg().<I>uniqueInstrOrPhiId(name), args);
   }
 
-  <I extends Jump> I addJumpWithToken(TokenToCreateNewInstr token, JumpData<? extends I> args) {
+  <I extends Jump> I addJumpWithId(NodeId<? extends I> id, JumpData<? extends I> args) {
     if (this.jump != null) {
-      throw new IllegalStateException(id() + " already has a jump, call replaceJump instead:\n");
+      throw new IllegalStateException(id() + " already has a jump, call replaceJump instead");
     }
-    var jump = args.make(cfg(), token);
+    var jump = args.make(cfg(), id);
     setJump(jump);
     cfg().track(jump);
 
@@ -636,19 +661,19 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     }
     var oldStmt = stmts.get(index);
     if (newName == null) {
-      newName = oldStmt.id().name();
+      newName = InstrOrPhiIdImpl.cast(oldStmt.id()).name();
     }
-    return replaceWithToken(index, new CreateInstrWithNewId(newName), newArgs);
+    return replaceWithId(index, cfg().<I>uniqueInstrOrPhiId(newName), newArgs);
   }
 
-  <I extends Stmt> I replaceWithToken(
-      int index, TokenToCreateNewInstr newIdToken, StmtData<? extends I> newArgs) {
+  <I extends Stmt> I replaceWithId(
+      int index, NodeId<? extends I> newId, StmtData<? extends I> newArgs) {
     if (index < 0 || index >= stmts.size()) {
       throw new IndexOutOfBoundsException("Index out of range: " + index);
     }
 
     var oldStmt = stmts.get(index);
-    var newStmt = newArgs.make(cfg(), newIdToken);
+    var newStmt = newArgs.make(cfg(), newId);
     stmts.set(index, newStmt);
 
     cfg().untrack(oldStmt);
@@ -668,19 +693,19 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     }
     var oldJump = jump;
     if (newName == null) {
-      newName = oldJump.id().name();
+      newName = InstrOrPhiIdImpl.cast(oldJump.id()).name();
     }
-    return replaceJumpWithToken(new CreateInstrWithNewId(newName), newArgs);
+    return replaceJumpWithId(cfg().<I>uniqueInstrOrPhiId(newName), newArgs);
   }
 
-  public <I extends Jump> I replaceJumpWithToken(
-      TokenToCreateNewInstr newIdToken, JumpData<? extends I> newArgs) {
+  public <I extends Jump> I replaceJumpWithId(
+      NodeId<? extends I> newId, JumpData<? extends I> newArgs) {
     if (jump == null) {
       throw new IllegalStateException(id() + " doesn't have a jump");
     }
 
     var oldJump = jump;
-    var newJump = newArgs.make(cfg(), newIdToken);
+    var newJump = newArgs.make(cfg(), newId);
     setJump(newJump);
 
     cfg().untrack(oldJump);
@@ -791,7 +816,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
   void unsafeAddPredecessor(BB predecessor) {
     predecessors.add(predecessor);
     for (var phi : phis) {
-      ((PhiImpl<?>) phi).unsafeAddUnsetInput(predecessor);
+      PhiImpl.cast(phi).unsafeAddUnsetInput(predecessor);
     }
   }
 
@@ -806,7 +831,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
   void unsafeRemovePredecessor(BB predecessor) {
     predecessors.remove(predecessor);
     for (var phi : phis) {
-      ((PhiImpl<?>) phi).unsafeRemoveInput(predecessor);
+      PhiImpl.cast(phi).unsafeRemoveInput(predecessor);
     }
   }
 

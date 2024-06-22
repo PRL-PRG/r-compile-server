@@ -2,7 +2,6 @@ package org.prlprg.ir.cfg;
 
 import java.util.Collection;
 import java.util.HashSet;
-import javax.annotation.Nullable;
 import org.prlprg.ir.type.RType;
 import org.prlprg.ir.type.RTypes;
 
@@ -17,8 +16,8 @@ public interface RValuePhi extends Phi<RValue>, RValue {
 }
 
 final class RValuePhiImpl extends PhiImpl<RValue> implements RValuePhi {
-  RValuePhiImpl(CFG cfg, @Nullable NodeId<?> presetId, Collection<? extends Input<?>> inputs) {
-    super(RValue.class, cfg, presetId, inputs);
+  RValuePhiImpl(CFG cfg, NodeId<? extends Phi<?>> id, Collection<? extends Input<?>> inputs) {
+    super(RValue.class, cfg, id, inputs);
   }
 
   @Override

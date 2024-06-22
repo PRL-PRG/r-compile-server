@@ -30,8 +30,8 @@ abstract class AbstractRValueStmtImpl<D extends StmtData.RValue_> extends SelfRe
 
   private @Nullable EnvAux envAux;
 
-  AbstractRValueStmtImpl(Class<D> clazz, CFG cfg, TokenToCreateNewInstr token, D data) {
-    super(clazz, cfg, token, data);
+  AbstractRValueStmtImpl(Class<D> clazz, CFG cfg, NodeId<? extends Instr> id, D data) {
+    super(clazz, cfg, id, data);
   }
 
   @Override
@@ -81,7 +81,7 @@ abstract class AbstractRValueStmtImpl<D extends StmtData.RValue_> extends SelfRe
 }
 
 final class RValueStmtImpl extends AbstractRValueStmtImpl<StmtData.RValue_> {
-  RValueStmtImpl(CFG cfg, TokenToCreateNewInstr token, StmtData.RValue_ data) {
-    super(StmtData.RValue_.class, cfg, token, data);
+  RValueStmtImpl(CFG cfg, NodeId<? extends Instr> id, StmtData.RValue_ data) {
+    super(StmtData.RValue_.class, cfg, id, data);
   }
 }

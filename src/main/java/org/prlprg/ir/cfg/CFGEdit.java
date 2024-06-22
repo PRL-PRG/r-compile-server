@@ -79,10 +79,22 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
    * instruction.
    */
   sealed interface OnBB<Reverse extends OnBB<?>> extends Semantic<Reverse> {
+    /** Id of the {@linkplain BB} that the edit will affect. */
     BBId bbId();
 
+    /**
+     * Number of nodes affected by the edit.
+     *
+     * <p>If the edit only mutates nodes, {@link #sizeDelta()} will be 0 but this will be positive.
+     */
     int numAffected();
 
+    /**
+     * Number of nodes inserted (if positive) or removed (if negative) by the edit.
+     *
+     * <p>If the edit only mutates nodes, this will be 0 but {@link #numAffected()} will be
+     * positive.
+     */
     int sizeDelta();
   }
 
@@ -93,6 +105,7 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
    * (excluded from the definition of "local" used within this, {@link OnCFG}, and {@link OnBB}).
    */
   sealed interface OnInstrOrPhi<Reverse extends OnInstrOrPhi<?>> extends Semantic<Reverse> {
+    /** Id of the {@linkplain Node node} that the edit will affect. */
     NodeId<? extends InstrOrPhi> targetId();
   }
 
@@ -160,11 +173,10 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
     public RemoveBB apply(CFG cfg) {
       var bb = cfg.addBBWithId(id);
       bb.addPhisWithIds(phiArgs.stream().map(a -> new PhiImpl.Args(cfg, a)).toList());
-      bb.insertAllAtWithTokens(
+      bb.insertAllAtWithIds(
           0, stmtIdsAndArgs.stream().map(a -> new StmtImpl.Args(cfg, a)).toList());
       if (jumpIdAndArgs != null) {
-        bb.addJumpWithToken(
-            new CreateInstrWithExistingId(jumpIdAndArgs.id()), jumpIdAndArgs.data().decode(cfg));
+        bb.addJumpWithId(jumpIdAndArgs.id(), jumpIdAndArgs.data().decode(cfg));
       }
 
       return new RemoveBB(bb);
@@ -288,7 +300,7 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
     public RemoveStmts apply(CFG cfg) {
       var stmts =
           cfg.get(bbId)
-              .insertAllAtWithTokens(
+              .insertAllAtWithIds(
                   index, this.stmts.stream().map(a -> new StmtImpl.Args(cfg, a)).toList());
       return new RemoveStmts(bbId, index, index + stmts.size());
     }
@@ -320,7 +332,7 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
     public RemoveStmts2 apply(CFG cfg) {
       var indicesAndStmts =
           cfg.get(bbId)
-              .insertAllAtWithTokens(
+              .insertAllAtWithIds(
                   this.indicesAndStmts.entrySet().stream()
                       .collect(
                           Collectors.toMap(
@@ -365,7 +377,7 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
 
     @Override
     public RemoveStmt apply(CFG cfg) {
-      cfg.get(bbId).insertAtWithToken(index, new CreateInstrWithExistingId(id), args.decode(cfg));
+      cfg.get(bbId).insertAtWithId(index, id, args.decode(cfg));
       return new RemoveStmt(bbId, index);
     }
   }
@@ -390,7 +402,7 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
 
     @Override
     public RemoveJump apply(CFG cfg) {
-      cfg.get(bbId).addJumpWithToken(new CreateInstrWithExistingId(nodeId), args.decode(cfg));
+      cfg.get(bbId).addJumpWithId(nodeId, args.decode(cfg));
       return new RemoveJump(bbId);
     }
   }
@@ -550,14 +562,26 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
     }
   }
 
-  record RenameInstrOrPhi(NodeId<? extends InstrOrPhi> targetId, String newName)
-      implements MutateInstrOrPhi<RenameInstrOrPhi> {
+  record MutateInstrOrPhiId(NodeId<? extends InstrOrPhi> oldId, NodeId<? extends InstrOrPhi> newId)
+      implements MutateInstrOrPhi<MutateInstrOrPhiId> {
+    public MutateInstrOrPhiId {
+      if (oldId.clazz() != newId.clazz()) {
+        throw new IllegalArgumentException(
+            "`MutateInstrOrPhiId` must preserve the node ID's class: the node's class doesn't change, so the ID class shouldn't either");
+      }
+    }
+
+    /** Alias for {@code oldId} for this to implement {@link MutateInstrOrPhi#targetId()}. */
     @Override
-    public RenameInstrOrPhi apply(CFG cfg) {
-      var target = cfg.get(targetId);
-      var oldName = targetId.name();
-      target.rename(newName);
-      return new RenameInstrOrPhi(targetId, oldName);
+    public NodeId<? extends InstrOrPhi> targetId() {
+      return oldId;
+    }
+
+    @Override
+    public MutateInstrOrPhiId apply(CFG cfg) {
+      var old = cfg.get(oldId);
+      InstrOrPhiImpl.cast(old).setId(newId);
+      return new MutateInstrOrPhiId(newId, oldId);
     }
   }
 
@@ -589,14 +613,14 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
 
     @SuppressWarnings("unchecked")
     public ReplaceStmt(BB bb, int index, I stmt) {
-      this(bb, index, stmt.id().name(), (StmtData<? extends I>) stmt.data());
+      this(bb, index, InstrOrPhiIdImpl.cast(stmt.id()).name(), (StmtData<? extends I>) stmt.data());
     }
 
     @Override
     public ReplaceStmt<?> apply(CFG cfg) {
       var bb = cfg.get(bbId);
       var old = bb.stmt(index);
-      var oldName = old.id().name();
+      var oldName = InstrOrPhiIdImpl.cast(old.id()).name();
       // `replaceNoSubst` *does not* require that `oldData` has the same erased type as `newData`;
       // you can replace an instruction with one of a different type. This is why the reverse action
       // has an erased `I`.
@@ -617,14 +641,14 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
 
     @SuppressWarnings("unchecked")
     public ReplaceJump(BB bb, I jump) {
-      this(bb, jump.id().name(), (JumpData<? extends I>) jump.data());
+      this(bb, InstrOrPhiIdImpl.cast(jump.id()).name(), (JumpData<? extends I>) jump.data());
     }
 
     @Override
     public ReplaceJump<?> apply(CFG cfg) {
       var bb = cfg.get(bbId);
       var old = bb.jump();
-      var oldName = old == null ? null : old.id().name();
+      var oldName = old == null ? null : InstrOrPhiIdImpl.cast(old.id()).name();
       var oldArgs = old == null ? null : MapToIdIn.of(old.data());
       bb.replaceJump(newName, newArgs.decode(cfg)); // Throws if `old == null`
       assert oldName != null; // implies `oldArgs == null`

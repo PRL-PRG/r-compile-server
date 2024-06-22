@@ -13,15 +13,10 @@ import javax.annotation.Nullable;
 import org.checkerframework.checker.index.qual.SameLen;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.ir.cfg.CFGEdit.MutateInstrArgs;
-import org.prlprg.ir.cfg.CFGEdit.RenameInstrOrPhi;
 import org.prlprg.ir.closure.CodeObject;
 import org.prlprg.ir.type.REffects;
 import org.prlprg.ir.type.RType;
 import org.prlprg.ir.type.RTypes;
-import org.prlprg.parseprint.ParseMethod;
-import org.prlprg.parseprint.Parser;
-import org.prlprg.parseprint.PrintMethod;
-import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.SEXPType;
 import org.prlprg.util.Classes;
 import org.prlprg.util.Reflection;
@@ -57,7 +52,7 @@ public sealed interface Instr extends InstrOrPhi permits Jump, Stmt {
    * still need to cast the {@code args}, fortunately the compatibility is also checked at runtime.
    */
   static <I extends Instr> void mutateArgs(I instr, InstrData<I> newArgs) {
-    if (!((InstrImpl<?>) instr).canReplaceDataWith(newArgs)) {
+    if (!InstrImpl.cast(instr).canReplaceDataWith(newArgs)) {
       throw new IllegalArgumentException(
           "incompatible data for replacement: " + instr + " -> " + newArgs);
     }
@@ -72,7 +67,7 @@ public sealed interface Instr extends InstrOrPhi permits Jump, Stmt {
 
     @SuppressWarnings("unchecked")
     var oldArgs = (InstrData<I>) instr.data();
-    ((InstrImpl<?>) instr).unsafeReplaceArgs(newArgs);
+    InstrImpl.cast(instr).unsafeReplaceArgs(newArgs);
 
     if (instr instanceof Jump j) {
       var bb = ((JumpImpl<?>) j).bb();
@@ -149,11 +144,9 @@ public sealed interface Instr extends InstrOrPhi permits Jump, Stmt {
   NodeId<? extends Instr> id();
 }
 
-abstract sealed class InstrImpl<D extends InstrData<?>> implements LocalNode
+abstract sealed class InstrImpl<D extends InstrData<?>> extends InstrOrPhiImpl implements LocalNode
     permits JumpImpl, StmtImpl {
   private final Class<D> dataClass;
-  private final CFG cfg;
-  private LocalNodeIdImpl<? extends Instr> id;
   private D data;
 
   // These are both initialized in `verify`, which is called from the constructor, and doesn't
@@ -164,26 +157,76 @@ abstract sealed class InstrImpl<D extends InstrData<?>> implements LocalNode
   @SuppressWarnings("NotNullFieldNotInitialized")
   private REffects effects;
 
-  InstrImpl(Class<D> dataClass, CFG cfg, TokenToCreateNewInstr token, D data) {
+  /**
+   * Return the given instruction casted.
+   *
+   * <p>Any {@link Instr} is guaranteed to be an {@link InstrImpl}, so this method is provided to
+   * reduce the number of casts in the code text.
+   */
+  static InstrImpl<?> cast(Instr instr) {
+    return (InstrImpl<?>) instr;
+  }
+
+  InstrImpl(Class<D> dataClass, CFG cfg, NodeId<? extends Instr> id, D data) {
+    super(cfg, id);
     this.dataClass = dataClass;
-    this.cfg = cfg;
-    id =
-        switch (token) {
-          case CreateInstrWithExistingId(var id1) -> {
-            var id2 = (LocalNodeIdImpl<? extends Instr>) id1;
-            id2.lateAssignClass(getClass());
-            cfg.updateNextInstrOrPhiDisambiguator(id2);
-            yield id2;
-          }
-          case CreateInstrWithNewId(var name) -> new LocalNodeIdImpl<>((Instr) this, name);
-        };
     this.data = data;
     verify(true);
   }
 
+  // region data
+  // @Override
+  public final D data() {
+    return data;
+  }
+
+  /**
+   * Whether the instruction's data can be replaced with the specified instance. Calling {@link
+   * Instr#mutateArgs(Instr, InstrData)} will not throw iff this returns {@code true}.
+   */
+  public final boolean canReplaceDataWith(InstrData<?> newData) {
+    return dataClass.isInstance(newData);
+  }
+
+  /**
+   * Replace the instruction's data <i>without</i> updating BB predecessors or recording an
+   * {@linkplain CFGEdit edit}.
+   *
+   * <p>Call {@link Instr#mutateArgs(Instr, InstrData)} to update predecessors and record an edit.
+   *
+   * @throws IllegalArgumentException If the new type of data isn't compatible with the instruction.
+   */
+  @SuppressWarnings("unchecked")
+  public final void unsafeReplaceArgs(InstrData<?> newData) {
+    if (!canReplaceDataWith(newData)) {
+      throw new IllegalArgumentException(
+          "Can't replace data in "
+              + getClass().getSimpleName()
+              + " with incompatible type "
+              + newData.getClass().getSimpleName());
+    }
+
+    data = (D) newData;
+  }
+
+  // endregion data
+
+  // region args
   // @Override
   public final ImmutableList<Node> args() {
     return args;
+  }
+
+  // @Override
+  @SuppressWarnings("unchecked")
+  public final void replaceInArgs(Node old, Node replacement) {
+    var oldData = data;
+    unsafeReplaceInData("node", old, replacement);
+
+    cfg()
+        .record(
+            new CFGEdit.MutateInstrArgs<>((Instr) this, (InstrData<Instr>) data),
+            new CFGEdit.MutateInstrArgs<>((Instr) this, (InstrData<Instr>) oldData));
   }
 
   private void computeArgs() {
@@ -340,39 +383,9 @@ abstract sealed class InstrImpl<D extends InstrData<?>> implements LocalNode
     verify();
   }
 
-  @SuppressWarnings("unchecked")
-  public final void replaceInArgs(Node old, Node replacement) {
-    var oldData = data;
-    unsafeReplaceInData("node", old, replacement);
+  // endregion args
 
-    cfg.record(
-        new CFGEdit.MutateInstrArgs<>((Instr) this, (InstrData<Instr>) data),
-        new CFGEdit.MutateInstrArgs<>((Instr) this, (InstrData<Instr>) oldData));
-  }
-
-  /**
-   * If this is an {@code Optional<T>}, {@code ImmutableList<T>}, or {@code
-   * ImmutableList<Optional<T>>}, returns {@code T}.
-   */
-  private static Class<?> optionalOrCollectionComponentElementClass(RecordComponent cmp) {
-    assert cmp.getType() == Optional.class || cmp.getType() == ImmutableList.class
-        : "`InstrData` has `Collection` component which isn't an `ImmutableList`";
-    if (cmp.getGenericType() instanceof ParameterizedType p
-        && p.getActualTypeArguments().length == 1) {
-      if (p.getActualTypeArguments()[0] instanceof ParameterizedType innerP
-          && innerP.getRawType() == Optional.class
-          && innerP.getActualTypeArguments().length == 1
-          && innerP.getActualTypeArguments()[0] instanceof Class<?> elemClass) {
-        return elemClass;
-      } else if (p.getActualTypeArguments()[0] instanceof Class<?> elemClass) {
-        return elemClass;
-      }
-    }
-    throw new AssertionError(
-        "`InstrData` has `Collection` component which isn't a straightforward generic type, don't know how to handle: "
-            + cmp.getGenericType());
-  }
-
+  // region effects
   // @Override
   public final REffects effects() {
     return effects;
@@ -427,55 +440,9 @@ abstract sealed class InstrImpl<D extends InstrData<?>> implements LocalNode
     return fromOverride != null ? fromOverride : fromAnnotation;
   }
 
-  @Override
-  public final CFG cfg() {
-    return cfg;
-  }
+  // endregion effects
 
-  // @Override
-  public final void rename(String newName) {
-    var oldId = id();
-
-    cfg().untrack((Instr) this);
-    id = new LocalNodeIdImpl<>((Instr) this, newName);
-    cfg().track((Instr) this);
-
-    cfg().record(new RenameInstrOrPhi(oldId, newName), new RenameInstrOrPhi(id(), oldId.name()));
-  }
-
-  public final D data() {
-    return data;
-  }
-
-  /**
-   * Whether the instruction's data can be replaced with the specified instance. Calling {@link
-   * Instr#mutateArgs(Instr, InstrData)} will not throw iff this returns {@code true}.
-   */
-  public final boolean canReplaceDataWith(InstrData<?> newData) {
-    return dataClass.isInstance(newData);
-  }
-
-  /**
-   * Replace the instruction's data <i>without</i> updating BB predecessors or recording an
-   * {@linkplain CFGEdit edit}.
-   *
-   * <p>Call {@link Instr#mutateArgs(Instr, InstrData)} to update predecessors and record an edit.
-   *
-   * @throws IllegalArgumentException If the new type of data isn't compatible with the instruction.
-   */
-  @SuppressWarnings("unchecked")
-  public final void unsafeReplaceArgs(InstrData<?> newData) {
-    if (!canReplaceDataWith(newData)) {
-      throw new IllegalArgumentException(
-          "Can't replace data in "
-              + getClass().getSimpleName()
-              + " with incompatible type "
-              + newData.getClass().getSimpleName());
-    }
-
-    data = (D) newData;
-  }
-
+  // region verify
   // @Override
   public final void verify() throws InstrVerifyException {
     verify(false);
@@ -673,28 +640,35 @@ abstract sealed class InstrImpl<D extends InstrData<?>> implements LocalNode
     }
   }
 
+  // endregion verify
+
   @Override
   public NodeId<? extends Instr> id() {
     return uncheckedCastId();
   }
 
-  @SuppressWarnings("unchecked")
-  protected <T extends Instr> NodeId<T> uncheckedCastId() {
-    return (NodeId<T>) id;
+  // region misc reflection helpers
+  /**
+   * If this is an {@code Optional<T>}, {@code ImmutableList<T>}, or {@code
+   * ImmutableList<Optional<T>>}, returns {@code T}.
+   */
+  private static Class<?> optionalOrCollectionComponentElementClass(RecordComponent cmp) {
+    assert cmp.getType() == Optional.class || cmp.getType() == ImmutableList.class
+        : "`InstrData` has `Collection` component which isn't an `ImmutableList`";
+    if (cmp.getGenericType() instanceof ParameterizedType p
+        && p.getActualTypeArguments().length == 1) {
+      if (p.getActualTypeArguments()[0] instanceof ParameterizedType innerP
+          && innerP.getRawType() == Optional.class
+          && innerP.getActualTypeArguments().length == 1
+          && innerP.getActualTypeArguments()[0] instanceof Class<?> elemClass) {
+        return elemClass;
+      } else if (p.getActualTypeArguments()[0] instanceof Class<?> elemClass) {
+        return elemClass;
+      }
+    }
+    throw new AssertionError(
+        "`InstrData` has `Collection` component which isn't a straightforward generic type, don't know how to handle: "
+            + cmp.getGenericType());
   }
-
-  @Override
-  public String toString() {
-    return Printer.toString(this);
-  }
-
-  @ParseMethod
-  private Instr parse(Parser p) {
-    throw new UnsupportedOperationException("can't parse a Phi outside of a BB");
-  }
-
-  @PrintMethod
-  private void print(Printer p) {
-    p.withContext(new CFGParseOrPrintContext(p.context(), cfg()).new BBContext(null)).print(this);
-  }
+  // endregion misc reflection helpers
 }

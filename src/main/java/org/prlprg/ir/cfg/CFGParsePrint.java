@@ -229,7 +229,8 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
       }
       var s = p.scanner();
 
-      // Cast is OK because we parsed, so it has no assigned class.
+      // A newly-created instruction or phi ID's type parameter is allowed to be anything until it
+      // gets passed to the `InstrOrPhiImpl` constructor, so the unchecked cast is safe.
       @SuppressWarnings("unchecked")
       var id = (NodeId<? extends Phi<? extends Node>>) p.parse(NodeId.class);
       ensureIdNotTakenByAnonymous(id, p);
@@ -298,15 +299,14 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
       }
       var s = p.scanner();
 
-      TokenToCreateNewInstr token;
+      // A newly-created instruction or phi ID's type parameter is allowed to be anything until it
+      // gets passed to the `InstrOrPhiImpl` constructor, so the following unchecked casts are safe.
+      NodeId<? extends Instr> id = null;
       if (s.nextCharIs('%')) {
         @SuppressWarnings("unchecked")
-        var id = (NodeId<? extends Instr>) p.parse(NodeId.class);
-        token = new CreateInstrWithExistingId(id);
+        var id1 = (NodeId<? extends Instr>) p.parse(NodeId.class);
+        id = id1;
         s.assertAndSkip('=');
-      } else {
-        // ID doesn't matter
-        token = new CreateInstrWithNewId("");
       }
 
       var data = p.withContext(dataContext).parse(InstrData.class);
@@ -314,14 +314,25 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
       // This must go after `parse(InstrData.class)`, because the latter may re-assign some `Void`
       // instruction IDs. If it went before, one of those re-assigned IDs may have been assigned to
       // `id`, so it would no longer be free.
-      if (token instanceof CreateInstrWithExistingId(var id)) {
+      if (id == null) {
+        // ID doesn't matter
+        id = cfg.<Instr>uniqueInstrOrPhiId();
+      } else {
         ensureIdNotTakenByAnonymous(id, p);
       }
 
       var instr =
           switch (data) {
-            case StmtData<?> stmtData -> bb.insertAtWithToken(bb.stmts().size(), token, stmtData);
-            case JumpData<?> jumpData -> bb.addJumpWithToken(token, jumpData);
+            case StmtData<?> stmtData -> {
+              @SuppressWarnings("unchecked")
+              var id1 = (NodeId<? extends Stmt>) id;
+              yield bb.insertAtWithId(bb.stmts().size(), id1, stmtData);
+            }
+            case JumpData<?> jumpData -> {
+              @SuppressWarnings("unchecked")
+              var id1 = (NodeId<? extends Jump>) id;
+              yield bb.addJumpWithId(id1, jumpData);
+            }
           };
 
       patchIfPending(instr);
@@ -352,8 +363,9 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
         if (!old.returns().isEmpty()) {
           throw s.fail("Defined the same ID twice: " + id);
         }
-        assert id.name().isEmpty() : "expected ID of `Void` instruction we created to have no name";
-        old.updateDisambiguator();
+        assert InstrOrPhiIdImpl.cast(id).name().isEmpty()
+            : "expected ID of `Void` instruction we created to have no name";
+        InstrOrPhiImpl.cast(old).setId(cfg.uniqueInstrOrPhiId());
       }
     }
 
@@ -424,7 +436,9 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
         if (!(id instanceof GlobalNodeId<?>) && cfg.contains(id)) {
           var node = cfg.get(id);
           if (node instanceof Instr i && i.returns().isEmpty()) {
-            i.updateDisambiguator();
+            assert InstrOrPhiIdImpl.cast(i.id()).name().isEmpty()
+                : "expected ID of `Void` instruction we created to have no name";
+            InstrOrPhiImpl.cast(i).setId(cfg.uniqueInstrOrPhiId());
             // `cfg.contains(id)` is now `false`.
           }
         }

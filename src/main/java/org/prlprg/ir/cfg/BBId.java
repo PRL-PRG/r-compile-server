@@ -11,22 +11,13 @@ import org.prlprg.parseprint.SkipWhitespace;
  *
  * <p>Every basic block has an ID unique within its CFG, but not other CFGs.
  */
-public interface BBId {
-  /**
-   * Descriptive name to make the logic in the CFG clearer, or empty string if there is none.
-   *
-   * <p>e.g. "entry", "deopt", "for_loop_start".
-   *
-   * <p>This is not guaranteed to be unique within a CFG.
-   */
-  String name();
-
+public sealed interface BBId {
   @ParseMethod(SkipWhitespace.NONE)
   private static BBId parse(Parser p) {
     var s = p.scanner();
 
     s.assertAndSkip('^');
-    var disambiguator = s.readUInt();
+    var disambiguator = s.nextCharSatisfies(Character::isDigit) ? s.readUInt() : 0;
     var name = NodeAndBBIds.readName(s);
     return new BBIdImpl(disambiguator, name);
   }
@@ -37,32 +28,43 @@ final class BBIdImpl implements BBId {
   private final String name;
   private final String toString;
 
-  BBIdImpl(int disambiguator, String name) {
-    this.disambiguator = disambiguator;
-    this.name = NodeAndBBIds.quoteNameIfNecessary(name);
-    this.toString = "^" + disambiguator + name;
+  /**
+   * Returns the given ID casted.
+   *
+   * <p>This is safe because {@link BB} is sealed and {@link BBIdImpl} is the only permitted
+   * subclass.
+   */
+  static BBIdImpl cast(BBId id) {
+    return switch (id) {
+      case BBIdImpl bbId -> bbId;
+    };
   }
 
-  /** Should only be used by {@link CFG}. */
+  BBIdImpl(int disambiguator, String name) {
+    this.disambiguator = disambiguator;
+    this.name = name;
+    this.toString =
+        "^" + (disambiguator == 0 ? "" : disambiguator) + NodeAndBBIds.quoteNameIfNecessary(name);
+  }
+
   int disambiguator() {
     return disambiguator;
   }
 
-  @Override
-  public String name() {
+  String name() {
     return name;
   }
 
   @Override
   public boolean equals(Object o) {
     if (this == o) return true;
-    if (!(o instanceof BBIdImpl bbId)) return false;
-    return disambiguator == bbId.disambiguator;
+    if (!(o instanceof BBIdImpl that)) return false;
+    return disambiguator == that.disambiguator && name.equals(that.name);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(disambiguator);
+    return Objects.hash(disambiguator == 0 ? name : disambiguator);
   }
 
   @Override

@@ -30,8 +30,8 @@ import org.prlprg.sexp.SEXP;
 public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
   sealed interface Void extends StmtData<Stmt> {
     @Override
-    default Stmt make(CFG cfg, TokenToCreateNewInstr token) {
-      return new VoidStmtImpl(cfg, token, this);
+    default Stmt make(CFG cfg, NodeId<? extends Instr> id) {
+      return new VoidStmtImpl(cfg, id, this);
     }
   }
 
@@ -53,8 +53,8 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
     }
 
     @Override
-    default RValueStmt make(CFG cfg, TokenToCreateNewInstr token) {
-      return new RValueStmtImpl(cfg, token, this);
+    default RValueStmt make(CFG cfg, NodeId<? extends Instr> id) {
+      return new RValueStmtImpl(cfg, id, this);
     }
   }
 
@@ -83,8 +83,8 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
     RValue env();
 
     @Override
-    default org.prlprg.ir.cfg.Call make(CFG cfg, TokenToCreateNewInstr token) {
-      return new CallImpl(cfg, token, this);
+    default org.prlprg.ir.cfg.Call make(CFG cfg, NodeId<? extends Instr> id) {
+      return new CallImpl(cfg, id, this);
     }
   }
 
@@ -149,8 +149,8 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
     }
 
     @Override
-    public FrameStateStmt make(CFG cfg, TokenToCreateNewInstr token) {
-      return new FrameStateStmtImpl(cfg, token, this);
+    public FrameStateStmt make(CFG cfg, NodeId<? extends Instr> id) {
+      return new FrameStateStmtImpl(cfg, id, this);
     }
   }
 
@@ -1029,8 +1029,8 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
     }
 
     @Override
-    public RContext make(CFG cfg, TokenToCreateNewInstr token) {
-      return new RContextImpl(cfg, token, this);
+    public RContext make(CFG cfg, NodeId<? extends Instr> id) {
+      return new RContextImpl(cfg, id, this);
     }
   }
 

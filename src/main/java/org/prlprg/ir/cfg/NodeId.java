@@ -7,7 +7,6 @@ import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.Scanner;
 import org.prlprg.parseprint.SkipWhitespace;
-import org.prlprg.util.Classes;
 
 /**
  * Identifies a {@linkplain Node node} of class {@code N} within a {@linkplain CFG control-flow
@@ -70,24 +69,12 @@ public interface NodeId<N extends Node> {
    */
   @Nullable Class<? extends N> clazz();
 
-  /** Whether the ID is for a local or global node. */
-  boolean isLocal();
-
   /**
-   * Descriptive name to make the logic in the CFG clearer, or empty string if there is none.
+   * Whether the ID is for a local or {@linkplain GlobalNode global node}.
    *
-   * <p>Specifically:
-   *
-   * <ul>
-   *   <li>For a local node: this is the variable name if the node refers to the value in that
-   *       variable at any point in time, otherwise it's the empty string.
-   *   <li>For a global node: it depends.
-   * </ul>
-   *
-   * <p>Different IDs in the same CFG may have the same name; use {@link Object#toString()} to
-   * return a unique string representation.
+   * <p>This is {@code false} iff {@code this instanceof }{@link GlobalNodeId}.
    */
-  String name();
+  boolean isLocal();
 
   @ParseMethod(SkipWhitespace.NONE)
   private static NodeId<?> parse(Parser p) {
@@ -119,42 +106,29 @@ abstract sealed class NodeIdImpl<N extends Node> implements NodeId<N>
   }
 }
 
-final class LocalNodeIdImpl<N extends LocalNode> extends NodeIdImpl<N> {
-  private final int disambiguator;
-  private final String name;
+abstract sealed class LocalNodeIdImpl<N extends LocalNode> extends NodeIdImpl<N>
+    permits InstrOrPhiIdImpl, AuxiliaryNodeIdImpl {
   private final String toString;
 
-  /** Create an instruction or phi id (of the given class, CFG, and name). */
-  LocalNodeIdImpl(N node, String name) {
-    this(Classes.classOf(node), node.cfg().nextInstrOrPhiDisambiguator(), name, -1);
+  LocalNodeIdImpl(String toString) {
+    super(null);
+    this.toString = toString;
   }
 
-  /** Create an auxiliary node ID (of the given class, base ID, and auxiliary number). */
-  LocalNodeIdImpl(N node, NodeId<?> base, int auxiliary) {
-    super(Classes.classOf(node));
-    if (!(base instanceof LocalNodeIdImpl<?> b)) {
-      throw new AssertionError(
-          "auxiliary node ID can only be created for an instruction or phi ID, not a global node ID");
+  /**
+   * Return the given {@link NodeId} casted to a {@link LocalNodeIdImpl}.
+   *
+   * <p>Any {@linkplain LocalNode local node} ID is guaranteed to be a {@link LocalNodeIdImpl}, so
+   * we have this dedicated method to reduce the amount of casts.
+   */
+  @SuppressWarnings("unchecked")
+  static <I extends InstrOrPhi> LocalNodeIdImpl<I> cast(NodeId<I> id) {
+    if (!(id instanceof LocalNodeIdImpl<?> instrOrPhiId)) {
+      throw new ClassCastException(
+          "ID which is allegedly an instruction or phi ID (but maybe not due to generic erasure) isn't a `LocalNodeIdImpl`: "
+              + id);
     }
-    assert b.disambiguator == -1
-        : "auxiliary node ID can only be created for an instruction or phi ID, not another auxiliary node ID";
-
-    name = base.name();
-    toString = base + "#" + auxiliary;
-    this.disambiguator = b.disambiguator;
-  }
-
-  private LocalNodeIdImpl(
-      @Nullable Class<? extends N> clazz, int disambiguator, String name, int auxiliary) {
-    super(clazz);
-
-    this.name = name;
-    toString =
-        "%"
-            + disambiguator
-            + NodeAndBBIds.quoteNameIfNecessary(name)
-            + (auxiliary == -1 ? "" : "#" + auxiliary);
-    this.disambiguator = disambiguator;
+    return (LocalNodeIdImpl<I>) instrOrPhiId;
   }
 
   /**
@@ -170,16 +144,6 @@ final class LocalNodeIdImpl<N extends LocalNode> extends NodeIdImpl<N> {
     this.clazz = (Class<? extends N>) clazz;
   }
 
-  /** Should only be used by {@link CFG}. */
-  int disambiguator() {
-    return disambiguator;
-  }
-
-  @Override
-  public String name() {
-    return name;
-  }
-
   @Override
   public String toString() {
     return toString;
@@ -190,26 +154,92 @@ final class LocalNodeIdImpl<N extends LocalNode> extends NodeIdImpl<N> {
     return true;
   }
 
-  @Override
-  public boolean equals(Object o) {
-    if (this == o) return true;
-    if (!(o instanceof LocalNodeIdImpl<?> nodeId)) return false;
-    return disambiguator == nodeId.disambiguator;
-  }
-
-  @Override
-  public int hashCode() {
-    return Objects.hash(disambiguator);
-  }
-
   @ParseMethod(SkipWhitespace.NONE)
   private static LocalNodeIdImpl<?> parse(Parser p) {
     var s = p.scanner();
 
     s.assertAndSkip('%');
-    var disambiguator = s.readUInt();
+    var disambiguator = s.nextCharSatisfies(Character::isDigit) ? s.readUInt() : 0;
     var name = NodeAndBBIds.readName(s);
-    var auxiliary = s.trySkip('#') ? s.readUInt() : -1;
-    return new LocalNodeIdImpl<>(null, disambiguator, name, auxiliary);
+    var base = new InstrOrPhiIdImpl<>(disambiguator, name);
+    if (s.nextCharIs('#')) {
+      var auxiliary = s.readUInt();
+      return new AuxiliaryNodeIdImpl<>(base, auxiliary);
+    } else {
+      return base;
+    }
+  }
+}
+
+final class InstrOrPhiIdImpl<N extends InstrOrPhi> extends LocalNodeIdImpl<N> {
+  /**
+   * Return the given {@link NodeId} casted to a {@link InstrOrPhiIdImpl}.
+   *
+   * <p>Any {@linkplain InstrOrPhi instruction or phi} ID is guaranteed to be a {@link
+   * InstrOrPhiIdImpl}, so we have this dedicated method to reduce the amount of casts.
+   */
+  @SuppressWarnings("unchecked")
+  static <I extends InstrOrPhi> InstrOrPhiIdImpl<I> cast(NodeId<I> id) {
+    if (!(id instanceof InstrOrPhiIdImpl<?> instrOrPhiId)) {
+      throw new ClassCastException(
+          "ID which is allegedly an instruction or phi ID (but maybe not due to generic erasure) isn't a `InstrOrPhiIdImpl`: "
+              + id);
+    }
+    return (InstrOrPhiIdImpl<I>) instrOrPhiId;
+  }
+
+  private final int disambiguator;
+  private final String name;
+
+  InstrOrPhiIdImpl(int disambiguator, String name) {
+    super(
+        "%" + (disambiguator == 0 ? "" : disambiguator) + NodeAndBBIds.quoteNameIfNecessary(name));
+
+    this.disambiguator = disambiguator;
+    this.name = name;
+  }
+
+  int disambiguator() {
+    return disambiguator;
+  }
+
+  String name() {
+    return name;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) return true;
+    if (!(o instanceof InstrOrPhiIdImpl<?> that)) return false;
+    return disambiguator == that.disambiguator && name.equals(that.name);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(disambiguator == 0 ? name : disambiguator);
+  }
+}
+
+final class AuxiliaryNodeIdImpl<N extends LocalNode> extends LocalNodeIdImpl<N> {
+  private final InstrOrPhiIdImpl<?> owner;
+  private final int index;
+
+  AuxiliaryNodeIdImpl(InstrOrPhiIdImpl<?> owner, int index) {
+    super(owner + "#" + index);
+
+    this.owner = owner;
+    this.index = index;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) return true;
+    if (!(o instanceof AuxiliaryNodeIdImpl<?> that)) return false;
+    return owner.equals(that.owner) && index == that.index;
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(owner, index);
   }
 }

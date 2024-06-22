@@ -8,13 +8,7 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.SequencedCollection;
 import java.util.SequencedSet;
-import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
-import org.prlprg.ir.cfg.CFGEdit.RenameInstrOrPhi;
-import org.prlprg.parseprint.ParseMethod;
-import org.prlprg.parseprint.Parser;
-import org.prlprg.parseprint.PrintMethod;
-import org.prlprg.parseprint.Printer;
 import org.prlprg.util.SequencedCollections;
 import org.prlprg.util.SmallBinarySet;
 
@@ -232,7 +226,11 @@ public non-sealed interface Phi<N extends Node> extends InstrOrPhi {
   }
 }
 
-abstract class PhiImpl<N extends Node> implements Phi<N> {
+abstract non-sealed class PhiImpl<N extends Node> extends InstrOrPhiImpl implements Phi<N> {
+  private final Class<N> nodeClass;
+  private final SmallBinarySet<Input<N>> inputs;
+
+  // region construct
   /**
    * Constructor arguments that can be stored in a collection (since there are multiple;
    * alternatively could use {@link org.prlprg.util.Pair} but this is clearer).
@@ -241,11 +239,11 @@ abstract class PhiImpl<N extends Node> implements Phi<N> {
    * functionality is only used in {@link CFGEdit}s that are replayed to maintain determinism.
    */
   record Args(
-      @Nullable NodeId<? extends Phi<? extends Node>> id,
+      NodeId<? extends Phi<?>> id,
       Class<? extends Node> nodeClass,
       Collection<? extends Input<?>> inputs) {
-    Args(Phi.Args args) {
-      this(null, args.nodeClass(), args.inputs());
+    Args(NodeId<? extends Phi<?>> id, Phi.Args args) {
+      this(id, args.nodeClass(), args.inputs());
     }
 
     Args(CFG cfg, Serial serial) {
@@ -260,11 +258,6 @@ abstract class PhiImpl<N extends Node> implements Phi<N> {
     }
   }
 
-  private final Class<N> nodeClass;
-  private final CFG cfg;
-  private LocalNodeIdImpl<?> id;
-  private final SmallBinarySet<Input<N>> inputs;
-
   /**
    * Create a new phi-node for nodes of the given class.
    *
@@ -277,17 +270,17 @@ abstract class PhiImpl<N extends Node> implements Phi<N> {
    */
   @SuppressWarnings("unchecked")
   static <N extends Node> Phi<N> forClass(
-      @Nullable NodeId<? extends Phi<? extends N>> presetId,
       Class<? extends N> nodeSubclass,
       CFG cfg,
+      NodeId<? extends Phi<? extends N>> id,
       Collection<? extends Input<?>> inputs) {
     Phi<?> phi;
     if (RValue.class.isAssignableFrom(nodeSubclass)) {
-      phi = new RValuePhiImpl(cfg, presetId, inputs);
+      phi = new RValuePhiImpl(cfg, id, inputs);
     } else if (DeoptReason.class.isAssignableFrom(nodeSubclass)) {
-      phi = new DeoptReasonPhiImpl(cfg, presetId, inputs);
+      phi = new DeoptReasonPhiImpl(cfg, id, inputs);
     } else if (FrameState.class.isAssignableFrom(nodeSubclass)) {
-      phi = new FrameStatePhiImpl(cfg, presetId, inputs);
+      phi = new FrameStatePhiImpl(cfg, id, inputs);
     } else {
       throw new UnsupportedOperationException(
           "No phi type implemented for the given class: " + nodeSubclass);
@@ -295,12 +288,23 @@ abstract class PhiImpl<N extends Node> implements Phi<N> {
     return (Phi<N>) phi;
   }
 
+  /**
+   * Return the given phi casted.
+   *
+   * <p>Any {@link Phi} is guaranteed to be an {@link PhiImpl}, so this method is provided to reduce
+   * the number of casts in the code text.
+   */
+  static <N extends Node> PhiImpl<N> cast(Phi<N> phi) {
+    return (PhiImpl<N>) phi;
+  }
+
   @SuppressWarnings("unchecked")
   protected PhiImpl(
       Class<N> nodeClass,
       CFG cfg,
-      @Nullable NodeId<?> presetId,
+      NodeId<? extends Phi<?>> id,
       Collection<? extends Input<?>> inputs) {
+    super(cfg, id);
     this.inputs =
         new SmallBinarySet<>(
             inputs.size(), Comparator.comparing(i -> i.incomingBB().id().toString()));
@@ -310,21 +314,6 @@ abstract class PhiImpl<N extends Node> implements Phi<N> {
       this.inputs.add((Input<N>) input);
     }
     this.nodeClass = nodeClass;
-    this.cfg = cfg;
-
-    if (presetId == null) {
-      id = new LocalNodeIdImpl<>(this, "");
-    } else {
-      if (!(presetId instanceof LocalNodeIdImpl<?> i)) {
-        throw new IllegalArgumentException(
-            "Node a a phi ID: "
-                + presetId
-                + "\nTo get this, you may have improperly casted a NodeId's generic argument.");
-      }
-      i.lateAssignClass(getClass());
-      cfg.updateNextInstrOrPhiDisambiguator((NodeId<? extends InstrOrPhi>) i);
-      id = i;
-    }
 
     for (var inputNode : inputNodes()) {
       if (!nodeClass.isInstance(inputNode)) {
@@ -337,18 +326,18 @@ abstract class PhiImpl<N extends Node> implements Phi<N> {
                 + nodeClass);
       }
     }
-    for (var input : inputs) {
-      verifyInputIfEagerConfig(input);
-    }
     assert nodeClass.isAssignableFrom(InvalidNode.class)
         : "InvalidNode should be an instance of any phi class";
   }
+
+  // endregion construct
 
   @Override
   public Class<N> nodeClass() {
     return nodeClass;
   }
 
+  // region inputs
   @Override
   public SequencedSet<Input<N>> inputs() {
     return inputs;
@@ -403,7 +392,7 @@ abstract class PhiImpl<N extends Node> implements Phi<N> {
     if (index == -1) {
       throw new IllegalArgumentException(
           "incoming BB not a predecessor of "
-              + id
+              + id()
               + "'s BB: "
               + incomingBB.id()
               + " (node = "
@@ -413,7 +402,7 @@ abstract class PhiImpl<N extends Node> implements Phi<N> {
     if (!nodeClass.isInstance(node)) {
       throw new IllegalArgumentException(
           "Tried to add an input of incompatible type to "
-              + id
+              + id()
               + ": "
               + node.id()
               + " ("
@@ -421,16 +410,34 @@ abstract class PhiImpl<N extends Node> implements Phi<N> {
               + ") is not an instance of the phi's node class "
               + nodeClass.getSimpleName());
     }
-    verifyInputIfEagerConfig(new Input<>(incomingBB, node));
+    if (EAGERLY_VERIFY_PHI_INPUTS) {
+      eagerlyVerifyInput(new Input<>(incomingBB, node));
+    }
 
     var oldNode = inputs.get(index).node();
     inputs.equalReplace(index, Input.of(incomingBB, node));
 
-    cfg.record(
-        new CFGEdit.SetPhiInput<>(this, incomingBB, node),
-        new CFGEdit.SetPhiInput<>(this, incomingBB, oldNode));
+    cfg()
+        .record(
+            new CFGEdit.SetPhiInput<>(this, incomingBB, node),
+            new CFGEdit.SetPhiInput<>(this, incomingBB, oldNode));
     return oldNode;
   }
+
+  void eagerlyVerifyInputs() {
+    for (var input : inputs) {
+      eagerlyVerifyInput(input);
+    }
+  }
+
+  private void eagerlyVerifyInput(Phi.Input<?> input) {
+    var issue = cfg().verifyPhiInput(this, input, true);
+    if (issue != null) {
+      throw new CFGVerifyException(cfg(), issue);
+    }
+  }
+
+  // endregion inputs
 
   @SuppressWarnings("unchecked")
   @Override
@@ -448,60 +455,16 @@ abstract class PhiImpl<N extends Node> implements Phi<N> {
       var input = inputs.get(i);
       if (input.node().equals(old)) {
         inputs.equalReplace(i, Input.of(input.incomingBB(), (N) replacement));
-        cfg.record(
-            new CFGEdit.SetPhiInput<>(this, input.incomingBB(), (N) replacement),
-            new CFGEdit.SetPhiInput<>(this, input.incomingBB(), (N) old));
+        cfg()
+            .record(
+                new CFGEdit.SetPhiInput<>(this, input.incomingBB(), (N) replacement),
+                new CFGEdit.SetPhiInput<>(this, input.incomingBB(), (N) old));
       }
     }
-  }
-
-  private void verifyInputIfEagerConfig(Phi.Input<?> input) {
-    if (EAGERLY_VERIFY_PHI_INPUTS) {
-      var issue = cfg().verifyPhiInput(this, input, true);
-      if (issue != null) {
-        throw new CFGVerifyException(cfg(), issue);
-      }
-    }
-  }
-
-  @Override
-  public final void rename(String newName) {
-    var oldId = id();
-
-    cfg().untrack(this);
-    id = new LocalNodeIdImpl<>(this, newName);
-    cfg().track(this);
-
-    cfg().record(new RenameInstrOrPhi(oldId, newName), new RenameInstrOrPhi(id(), oldId.name()));
-  }
-
-  @Override
-  public CFG cfg() {
-    return cfg;
   }
 
   @Override
   public NodeId<? extends Phi<N>> id() {
     return uncheckedCastId();
-  }
-
-  @SuppressWarnings("unchecked")
-  protected <T extends Phi<N>> NodeId<T> uncheckedCastId() {
-    return (NodeId<T>) id;
-  }
-
-  @Override
-  public String toString() {
-    return Printer.toString(this);
-  }
-
-  @ParseMethod
-  private Phi<?> parse(Parser p) {
-    throw new UnsupportedOperationException("can't parse a Phi outside of a BB");
-  }
-
-  @PrintMethod
-  private void print(Printer p) {
-    p.withContext(new CFGParseOrPrintContext(p.context(), cfg()).new BBContext(null)).print(this);
   }
 }

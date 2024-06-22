@@ -81,11 +81,6 @@ final class GlobalNodeIdImpl<N extends GlobalNode> extends NodeIdImpl<N>
   }
 
   @Override
-  public String name() {
-    return Printer.use(this::printName);
-  }
-
-  @Override
   public String toString() {
     return Printer.toString(this);
   }
@@ -133,12 +128,6 @@ final class GlobalNodeIdImpl<N extends GlobalNode> extends NodeIdImpl<N>
 
     w.write(nodeTypeName(node));
     w.write('\\');
-    printName(p);
-  }
-
-  private void printName(Printer p) {
-    var w = p.writer();
-
     switch (node) {
       case Constant(var constant) -> p.print(constant);
       case ConstantDeoptReason(var dr) -> p.print(dr);

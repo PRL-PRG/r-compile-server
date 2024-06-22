@@ -15,8 +15,8 @@ public interface FrameStateStmt extends Stmt, org.prlprg.ir.cfg.FrameState {
 }
 
 final class FrameStateStmtImpl extends SelfReturningStmtImpl<FrameState> implements FrameStateStmt {
-  FrameStateStmtImpl(CFG cfg, TokenToCreateNewInstr token, FrameState data) {
-    super(FrameState.class, cfg, token, data);
+  FrameStateStmtImpl(CFG cfg, NodeId<? extends Instr> id, FrameState data) {
+    super(FrameState.class, cfg, id, data);
   }
 
   @Override

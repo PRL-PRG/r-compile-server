@@ -1,7 +1,6 @@
 package org.prlprg.ir.cfg;
 
 import java.util.Collection;
-import javax.annotation.Nullable;
 
 /**
  * {@link Phi} (<a
@@ -14,8 +13,8 @@ public interface FrameStatePhi extends Phi<FrameState>, FrameState {
 }
 
 final class FrameStatePhiImpl extends PhiImpl<FrameState> implements FrameStatePhi {
-  FrameStatePhiImpl(CFG cfg, @Nullable NodeId<?> presetId, Collection<? extends Input<?>> inputs) {
-    super(FrameState.class, cfg, presetId, inputs);
+  FrameStatePhiImpl(CFG cfg, NodeId<? extends Phi<?>> id, Collection<? extends Input<?>> inputs) {
+    super(FrameState.class, cfg, id, inputs);
   }
 
   @Override

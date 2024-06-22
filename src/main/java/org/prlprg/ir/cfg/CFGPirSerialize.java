@@ -16,6 +16,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.prlprg.bc.Bc;
+import org.prlprg.ir.cfg.JumpData.Checkpoint_;
 import org.prlprg.ir.cfg.PirType.NativeType;
 import org.prlprg.ir.cfg.PirType.RType_;
 import org.prlprg.ir.cfg.StmtData.Call_;
@@ -614,7 +615,7 @@ class PirInstrOrPhiParseContext {
             var failBB = bbs.get(failBBIndex);
             s.assertAndSkip(" (if assume failed)");
 
-            yield new JumpData.Checkpoint(ImmutableList.of(), ImmutableList.of(), passBB, failBB);
+            yield new Checkpoint_(ImmutableList.of(), ImmutableList.of(), passBB, failBB);
           }
           case "Deopt" -> {
             var frameState = p.parse(FrameState.class);
@@ -1406,7 +1407,7 @@ class PirInstrOrPhiPrintContext {
         p.print(bbToIdx.get(b.ifFalse()));
         w.write(" (if false)");
       }
-      case JumpData.Checkpoint c -> {
+      case JumpData.Checkpoint_ c -> {
         // REACH: Print assumptions (tests and fail reasons) separately
         w.write("-> BB");
         p.print(bbToIdx.get(c.ifPass()));
@@ -1697,7 +1698,7 @@ abstract sealed class PirId {
     private final Node node;
 
     GlobalNamed(Node node) {
-      this(node, node.id().name());
+      this(node, node.id() instanceof InstrOrPhiIdImpl<?> id ? id.name() : node.id().toString());
     }
 
     GlobalNamed(Node node, String id) {

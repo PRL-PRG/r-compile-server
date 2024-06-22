@@ -33,7 +33,9 @@ interface BBInline extends BBCompoundMutate {
               // Add BBs.
               var oldToNewBBs =
                   cfgToInline.bbIds().stream()
-                      .collect(Collectors.toMap(Function.identity(), id -> cfg().addBB(id.name())));
+                      .collect(
+                          Collectors.toMap(
+                              Function.identity(), id -> cfg().addBB(BBIdImpl.cast(id).name())));
 
               // Add instructions, replace BB arguments, and prepare to replace node arguments.
               var newInstrOrPhis = new ArrayList<InstrOrPhi>(cfgToInline.numNodes());
@@ -69,13 +71,17 @@ interface BBInline extends BBCompoundMutate {
                 }
                 for (var oldStmt : oldBB.stmts()) {
                   var newStmt =
-                      newBB.insertAt(newBB.stmts().size(), oldStmt.id().name(), oldStmt.data());
+                      newBB.insertAt(
+                          newBB.stmts().size(),
+                          InstrOrPhiIdImpl.cast(oldStmt.id()).name(),
+                          oldStmt.data());
                   prePatchInstrOrPhi.accept(oldStmt, newStmt);
                 }
                 if (oldBB.jump() != null) {
                   var newJump =
                       newBB.addJump(
-                          oldBB.jump().id().name(), oldBB.jump().data().replaceReturnWith(lastBB));
+                          InstrOrPhiIdImpl.cast(oldBB.jump().id()).name(),
+                          oldBB.jump().data().replaceReturnWith(lastBB));
                   for (var oldTarget : newJump.targets()) {
                     var newTarget = Objects.requireNonNull(oldToNewBBs.get(oldTarget.id()));
                     newJump.replaceInTargets(oldTarget, newTarget);

@@ -41,15 +41,7 @@ abstract non-sealed class StmtImpl<D extends StmtData<?>> extends InstrImpl<D> i
    * <p>Unlike {@link Stmt.Args}, this exposes that statements can be created with existing IDs.
    * Such functionality is only used in {@link CFGEdit}s that are replayed to maintain determinism.
    */
-  record Args(TokenToCreateNewInstr token, StmtData<?> data) {
-    Args(Stmt.Args args) {
-      this(new CreateInstrWithNewId(args.name()), args.data());
-    }
-
-    private Args(NodeId<? extends Stmt> id, StmtData<?> data) {
-      this(new CreateInstrWithExistingId(id), data);
-    }
-
+  record Args(NodeId<? extends Stmt> id, StmtData<?> data) {
     Args(CFG cfg, Serial serial) {
       this(serial.id(), serial.data().decode(cfg));
     }
@@ -59,8 +51,8 @@ abstract non-sealed class StmtImpl<D extends StmtData<?>> extends InstrImpl<D> i
     }
   }
 
-  StmtImpl(Class<D> dataClass, CFG cfg, TokenToCreateNewInstr token, D data) {
-    super(dataClass, cfg, token, data);
+  StmtImpl(Class<D> dataClass, CFG cfg, NodeId<? extends Instr> id, D data) {
+    super(dataClass, cfg, id, data);
   }
 
   @Override
@@ -71,8 +63,8 @@ abstract non-sealed class StmtImpl<D extends StmtData<?>> extends InstrImpl<D> i
 
 /** {@link Stmt} (IR instruction) which doesn't produce anything. */
 final class VoidStmtImpl extends StmtImpl<StmtData.Void> {
-  VoidStmtImpl(CFG cfg, TokenToCreateNewInstr token, StmtData.Void data) {
-    super(StmtData.Void.class, cfg, token, data);
+  VoidStmtImpl(CFG cfg, NodeId<? extends Instr> id, StmtData.Void data) {
+    super(StmtData.Void.class, cfg, id, data);
   }
 
   @Override
@@ -85,8 +77,8 @@ final class VoidStmtImpl extends StmtImpl<StmtData.Void> {
 abstract class SelfReturningStmtImpl<D extends StmtData<?>> extends StmtImpl<D> {
   private final ImmutableList<Node> returns = ImmutableList.of(this);
 
-  SelfReturningStmtImpl(Class<D> dataClass, CFG cfg, TokenToCreateNewInstr token, D data) {
-    super(dataClass, cfg, token, data);
+  SelfReturningStmtImpl(Class<D> dataClass, CFG cfg, NodeId<? extends Instr> id, D data) {
+    super(dataClass, cfg, id, data);
   }
 
   @Override

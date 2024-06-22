@@ -39,8 +39,8 @@ public non-sealed interface Jump extends Instr {
 
 abstract non-sealed class JumpImpl<D extends JumpData<?>> extends InstrImpl<D> implements Jump {
   /**
-   * This is only {@code null} to keep {@link InstrData#make(CFG, TokenToCreateNewInstr)} not
-   * require {@link BB}. It gets set immediately after creation.
+   * This is only {@code null} to keep {@link InstrData#make(CFG, NodeId)} not require {@link BB}.
+   * It gets set immediately after creation.
    */
   private @Nullable BB bb;
 
@@ -49,8 +49,8 @@ abstract non-sealed class JumpImpl<D extends JumpData<?>> extends InstrImpl<D> i
   @SuppressFBWarnings("NP_NONNULL_FIELD_NOT_INITIALIZED_IN_CONSTRUCTOR")
   private ImmutableList<BB> targets;
 
-  JumpImpl(Class<D> dataClass, CFG cfg, TokenToCreateNewInstr token, D data) {
-    super(dataClass, cfg, token, data);
+  JumpImpl(Class<D> dataClass, CFG cfg, NodeId<? extends Instr> id, D data) {
+    super(dataClass, cfg, id, data);
   }
 
   /**
@@ -132,8 +132,8 @@ abstract non-sealed class JumpImpl<D extends JumpData<?>> extends InstrImpl<D> i
 
 /** {@link Jump} which doesn't return anything. */
 final class VoidJumpImpl extends JumpImpl<JumpData.Void> {
-  VoidJumpImpl(CFG cfg, TokenToCreateNewInstr token, JumpData.Void data) {
-    super(JumpData.Void.class, cfg, token, data);
+  VoidJumpImpl(CFG cfg, NodeId<? extends Instr> id, JumpData.Void data) {
+    super(JumpData.Void.class, cfg, id, data);
   }
 
   @Override

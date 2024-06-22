@@ -23,7 +23,7 @@ public sealed interface JumpData<I extends Jump> extends InstrData<I> {
 
   sealed interface Void extends JumpData<Jump> {
     @Override
-    default Jump make(CFG cfg, TokenToCreateNewInstr id) {
+    default Jump make(CFG cfg, NodeId<? extends Instr> id) {
       return new VoidJumpImpl(cfg, id, this);
     }
   }
@@ -64,12 +64,12 @@ public sealed interface JumpData<I extends Jump> extends InstrData<I> {
   record Unreachable() implements Void {}
 
   @EffectsAre({})
-  record Checkpoint(
+  record Checkpoint_(
       @TypeIs("BOOL") ImmutableList<RValue> tests,
       @SameLen("tests") ImmutableList<org.prlprg.rshruntime.DeoptReason> failReasons,
       BB ifPass,
       BB ifFail)
-      implements JumpData<org.prlprg.ir.cfg.Checkpoint> {
+      implements JumpData<Checkpoint> {
     public int numAssumptions() {
       return tests.size();
     }
@@ -80,7 +80,7 @@ public sealed interface JumpData<I extends Jump> extends InstrData<I> {
     }
 
     @Override
-    public org.prlprg.ir.cfg.Checkpoint make(CFG cfg, TokenToCreateNewInstr id) {
+    public org.prlprg.ir.cfg.Checkpoint make(CFG cfg, NodeId<? extends Instr> id) {
       return new CheckpointImpl(cfg, id, this);
     }
   }

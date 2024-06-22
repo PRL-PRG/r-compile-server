@@ -47,16 +47,17 @@ public class CFG
   private final Set<BB> exits = new HashSet<>();
   private final Map<BBId, BB> bbs = new HashMap<>();
   private final Map<NodeId<?>, Node> nodes = new HashMap<>();
-  // Disambiguator 1 is used for the entry.
-  private int nextBbDisambiguator = 2;
-  private int nextInstrOrPhiDisambiguator = 1;
+  private final NodeOrBBIdDisambiguatorMap nextBbDisambiguator = new NodeOrBBIdDisambiguatorMap();
+  private final NodeOrBBIdDisambiguatorMap nextInstrOrPhiDisambiguator =
+      new NodeOrBBIdDisambiguatorMap();
   private @Nullable DomTree cachedDomTree;
   private @Nullable DefUseAnalysis cachedDefUseAnalysis;
 
   /** Create a new CFG, with a single basic block and no instructions. */
   @SuppressFBWarnings("CT_CONSTRUCTOR_THROW")
   public CFG() {
-    entry = new BB(this, new BBIdImpl(1, "entry"));
+    entry = new BB(this, new BBIdImpl(0, "entry"));
+    nextBbDisambiguator.add("entry", 0);
     bbs.put(entry.id(), entry);
     markExit(entry);
   }
@@ -193,7 +194,7 @@ public class CFG
 
   @Override
   public BB addBB(String name) {
-    return addBBWithId(new BBIdImpl(nextBbDisambiguator, name));
+    return addBBWithId(uniqueBBId(name));
   }
 
   @Override
@@ -436,6 +437,8 @@ public class CFG
     }
   }
 
+  // region tracking and untracking
+  // region BBs
   /**
    * Insert and return a new basic block without recording it.
    *
@@ -443,15 +446,18 @@ public class CFG
    * edits.
    */
   BB doAddBB(String name) {
-    return doAddBBWithId(new BBIdImpl(nextBbDisambiguator, name));
+    return doAddBBWithId(uniqueBBId(name));
   }
 
   private BB doAddBBWithId(BBId id) {
     var bb = new BB(this, id);
     assert !bbs.containsKey(bb.id());
+
     bbs.put(id, bb);
+
     markExit(bb);
-    updateNextBBDisambiguator(id);
+    var id1 = BBIdImpl.cast(id);
+    nextBbDisambiguator.add(id1.name(), id1.disambiguator());
     return bb;
   }
 
@@ -472,6 +478,8 @@ public class CFG
     if (bb.successors().isEmpty()) {
       unmarkExit(bb);
     }
+    var id = BBIdImpl.cast(bb.id());
+    nextBbDisambiguator.remove(id.name(), id.disambiguator());
   }
 
   /**
@@ -494,6 +502,9 @@ public class CFG
     exits.remove(bb);
   }
 
+  // endregion BBs
+
+  // region nodes
   /**
    * Mark an instruction or phi <i>and its auxillary values</i> as belonging to this CFG.
    *
@@ -502,6 +513,10 @@ public class CFG
    */
   void track(InstrOrPhi instrOrPhi) {
     track((Node) instrOrPhi);
+
+    var id = InstrOrPhiIdImpl.cast(instrOrPhi.id());
+    nextInstrOrPhiDisambiguator.add(id.name(), id.disambiguator());
+
     if (instrOrPhi instanceof Instr instr) {
       for (var aux : instr.returns()) {
         if (aux != instrOrPhi) {
@@ -532,6 +547,10 @@ public class CFG
    */
   void untrack(InstrOrPhi instrOrPhi) {
     untrack((Node) instrOrPhi);
+
+    var id = InstrOrPhiIdImpl.cast(instrOrPhi.id());
+    nextInstrOrPhiDisambiguator.remove(id.name(), id.disambiguator());
+
     if (instrOrPhi instanceof Instr instr) {
       for (var aux : instr.returns()) {
         if (aux != instrOrPhi) {
@@ -583,20 +602,33 @@ public class CFG
     assert removed == node;
   }
 
-  /** Get the disambiguator and increment it. */
-  int nextInstrOrPhiDisambiguator() {
-    return nextInstrOrPhiDisambiguator++;
+  // endregion nodes
+  // endregion tracking and untracking
+
+  // endregion unique ids
+  private BBId uniqueBBId(String name) {
+    return new BBIdImpl(nextBbDisambiguator.get(name), name);
   }
 
-  /** Ensure that the next disambiguator is higher than the id's. */
-  void updateNextInstrOrPhiDisambiguator(NodeId<? extends InstrOrPhi> id) {
-    nextInstrOrPhiDisambiguator =
-        Math.max(nextInstrOrPhiDisambiguator, ((LocalNodeIdImpl<?>) id).disambiguator() + 1);
+  /**
+   * Return a unique id for an {@linkplain InstrOrPhi instruction or phi} with no name.
+   *
+   * <p>The returned ID can be assigned to any type of instruction or phi, because its type checked
+   * at runtime is assigned in the {@link InstrOrPhiImpl} constructor.
+   */
+  <I extends InstrOrPhi> NodeId<? extends I> uniqueInstrOrPhiId() {
+    return this.<I>uniqueInstrOrPhiId("");
   }
 
-  /** Ensure that the next disambiguator is higher than the id's. */
-  private void updateNextBBDisambiguator(BBId bbId) {
-    nextBbDisambiguator = Math.max(nextBbDisambiguator, ((BBIdImpl) bbId).disambiguator() + 1);
+  /**
+   * Return a unique id for an {@linkplain InstrOrPhi instruction or phi} with the given name.
+   *
+   * <p>The returned ID can be assigned to any type of instruction or phi, because its type checked
+   * at runtime is assigned in the {@link InstrOrPhiImpl} constructor.
+   */
+  <I extends InstrOrPhi> NodeId<? extends I> uniqueInstrOrPhiId(String name) {
+    return new InstrOrPhiIdImpl<>(nextInstrOrPhiDisambiguator.get(name), name);
   }
+  // region unique ids
   // endregion for BB and node
 }

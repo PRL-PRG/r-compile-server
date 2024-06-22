@@ -1,7 +1,6 @@
 package org.prlprg.ir.cfg;
 
 import java.util.Collection;
-import javax.annotation.Nullable;
 
 /**
  * {@link Phi} (<a
@@ -14,8 +13,8 @@ public interface DeoptReasonPhi extends Phi<DeoptReason>, DeoptReason {
 }
 
 final class DeoptReasonPhiImpl extends PhiImpl<DeoptReason> implements DeoptReasonPhi {
-  DeoptReasonPhiImpl(CFG cfg, @Nullable NodeId<?> presetId, Collection<? extends Input<?>> inputs) {
-    super(DeoptReason.class, cfg, presetId, inputs);
+  DeoptReasonPhiImpl(CFG cfg, NodeId<? extends Phi<?>> id, Collection<? extends Input<?>> inputs) {
+    super(DeoptReason.class, cfg, id, inputs);
   }
 
   @Override

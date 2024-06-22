@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
+import org.prlprg.ir.cfg.JumpData.Checkpoint_;
 import org.prlprg.util.Pair;
 
 /**
@@ -18,12 +19,12 @@ public interface Checkpoint extends Jump {
   NodeId<? extends Checkpoint> id();
 
   @Override
-  JumpData.Checkpoint data();
+  Checkpoint_ data();
 
   default void addAssumption(RValue test, org.prlprg.rshruntime.DeoptReason failReason) {
     Instr.mutateArgs(
         this,
-        new JumpData.Checkpoint(
+        new Checkpoint_(
             Stream.concat(data().tests().stream(), Stream.of(test))
                 .collect(ImmutableList.toImmutableList()),
             Stream.concat(data().failReasons().stream(), Stream.of(failReason))
@@ -38,7 +39,7 @@ public interface Checkpoint extends Jump {
         data().streamAssumptionData().filter(pair -> keepTest.test(pair.first())).toList();
     Instr.mutateArgs(
         this,
-        new JumpData.Checkpoint(
+        new Checkpoint_(
             testsAndFailReasons.stream().map(Pair::first).collect(ImmutableList.toImmutableList()),
             testsAndFailReasons.stream().map(Pair::second).collect(ImmutableList.toImmutableList()),
             data().ifPass(),
@@ -46,11 +47,11 @@ public interface Checkpoint extends Jump {
   }
 }
 
-final class CheckpointImpl extends JumpImpl<JumpData.Checkpoint> implements Checkpoint {
+final class CheckpointImpl extends JumpImpl<Checkpoint_> implements Checkpoint {
   private final List<Assumption> assumptions = new ArrayList<>();
 
-  CheckpointImpl(CFG cfg, TokenToCreateNewInstr token, JumpData.Checkpoint data) {
-    super(JumpData.Checkpoint.class, cfg, token, data);
+  CheckpointImpl(CFG cfg, NodeId<? extends Instr> id, Checkpoint_ data) {
+    super(Checkpoint_.class, cfg, id, data);
 
     // This isn't handled by `verify` because at the time of the call, `assumptions` is still null.
     while (assumptions.size() < data.numAssumptions()) {

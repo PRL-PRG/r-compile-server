@@ -20,8 +20,8 @@ final class CallImpl extends AbstractRValueStmtImpl<Call_<?>> implements Call {
   // Idk how Java generics work, is there a potential issue from casting `Class<Call_>` to
   // `Class<Call_<?>>`?
   @SuppressWarnings("unchecked")
-  CallImpl(CFG cfg, TokenToCreateNewInstr token, Call_<?> data) {
-    super((Class<Call_<?>>) (Object) Call_.class, cfg, token, data);
+  CallImpl(CFG cfg, NodeId<? extends Instr> id, Call_<?> data) {
+    super((Class<Call_<?>>) (Object) Call_.class, cfg, id, data);
   }
 
   @Override

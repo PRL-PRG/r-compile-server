@@ -27,10 +27,10 @@ public sealed interface InstrData<I extends Instr> permits JumpData, StmtData {
   /**
    * Create an instruction containing this data.
    *
-   * <p>This can only be called in the package due to {@link TokenToCreateNewInstr} instances being
-   * package-private and never exposed by its API.
+   * <p>This should only be called in the package, since the returned value will not be tracked in
+   * the {@link CFG}, attempting to insert it will raise errors.
    */
-  I make(CFG cfg, TokenToCreateNewInstr token);
+  I make(CFG cfg, NodeId<? extends Instr> id);
 
   /**
    * Compute the effects for this instruction, or for trivial cases, <b>this will return {@code
