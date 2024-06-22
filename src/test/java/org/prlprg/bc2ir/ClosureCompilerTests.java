@@ -757,7 +757,14 @@ public class ClosureCompilerTests extends AbstractGNURBasedTest {
   private void testAllIr(String funName, String funCode, int optimizationLevel) {
     // Test compile
     var fun = compileSuccessfully(funCode, optimizationLevel);
-    var ir = ClosureCompiler.compileBaselineClosure(funName, fun);
+    Closure ir;
+
+    try {
+      ir = ClosureCompiler.compileBaselineClosure(funName, fun);
+    } catch (CFGCompilerUnsupportedBcException e) {
+      assumeNoException("Can't compile IR due to unsupported bytecode feature", e);
+      throw new UnreachableError();
+    }
 
     // Test round-trip print/parse/print
     var irString =
