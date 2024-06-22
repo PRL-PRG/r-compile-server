@@ -473,15 +473,13 @@ public class CFGCompiler {
         var retVal = pop(RValue.class);
         assertStacksAreEmpty();
         cursor.insert(new JumpData.Return(retVal));
+        setInUnreachableBytecode();
       }
       case Goto(var label) -> {
         var bb = bbAt(label);
         cursor.insert(new JumpData.Goto(bb));
         addPhiInputsForStack(bb);
-
-        if (!hasBbAfterCurrent()) {
-          setInUnreachableBytecode();
-        }
+        setInUnreachableBytecode();
       }
       case BrIfNot(var ast, var label) -> {
         var bb = bbAt(label);
@@ -1001,6 +999,7 @@ public class CFGCompiler {
         var retVal = pop(RValue.class);
         assertStacksAreEmpty();
         cursor.insert(new JumpData.NonLocalReturn(retVal, env));
+        setInUnreachableBytecode();
       }
       case Switch(var _, var _, var _, var _) -> throw failUnsupported("switch");
       case StartSubsetN(var ast, var after) ->
