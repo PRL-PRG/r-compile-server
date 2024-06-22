@@ -4,6 +4,7 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.ArrayDeque;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.ConcurrentModificationException;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
@@ -22,7 +23,7 @@ import org.prlprg.util.Collections2;
  * iterated, and removed blocks that haven't yet been iterated will be skipped.
  */
 @SuppressFBWarnings({"EI_EXPOSE_REP", "EI_EXPOSE_REP2"})
-public abstract sealed class CFGIterator implements Iterator<BB> {
+public abstract class CFGIterator implements Iterator<BB> {
   protected final CFG cfg;
   private final HashSet<BBId> remainingBBIds;
   private final ArrayDeque<BB> worklist = new ArrayDeque<>();
@@ -76,6 +77,11 @@ public abstract sealed class CFGIterator implements Iterator<BB> {
    * Returns the next element (see {@link #next()}), except applies the predicate and if it returns
    * {@code false}, will skip the nodes the next would add to the worklist (note that another node
    * may add them to the worklist later, so any node in particular may only be delayed).
+   *
+   * <p>Note that the predicate may not be called when this method is called. For {@linkplain
+   * Forward forward iterators}, the predicate for <i>this</i> returned block is called when the
+   * <i>next</i> block is returned by this method or {@link #next()}, or when {@link #hasNext()} or
+   * {@link #remove()} are called, whichever comes first.
    */
   public abstract BB next(Predicate<BB> predicate);
 
@@ -105,7 +111,19 @@ public abstract sealed class CFGIterator implements Iterator<BB> {
   // region `Iterator` methods
   @Override
   public boolean hasNext() {
-    return !worklist.isEmpty();
+    while (true) {
+      if (worklist.isEmpty()) {
+        return false;
+      }
+      // Remove BBs that were added to the worklist, but then we removed them from the CFG.
+      // ???: Will this cause performance issues? Especially when we iterate not removing BBs.
+      var next = getNext();
+      if (next.cfg().contains(next.id())) {
+        return true;
+      } else {
+        worklist.removeFirst();
+      }
+    }
   }
 
   @Override
@@ -119,11 +137,21 @@ public abstract sealed class CFGIterator implements Iterator<BB> {
       throw new IllegalStateException();
     }
     cfg.remove(current);
+    current = null;
   }
 
   // endregion `Iterator` methods
 
   // region protected and private methods to access `worklist` and `remainingBbIds`
+  /** e.g. {@link BB#successors()}, but not always (e.g. in {@link DomTreeBfs}). */
+  protected abstract Iterable<BB> getNext(BB bb);
+
+  /** {@link #removeFirst()} if breadth-first, {@link #removeLast()} if depth-first. */
+  protected abstract BB removeNext();
+
+  /** {@link #getFirst()} if breadth-first, {@link #getLast()} if depth-first. */
+  protected abstract BB getNext();
+
   protected void addLast(BB bb) {
     worklist.addLast(bb);
     remainingBBIds.remove(bb.id());
@@ -136,6 +164,14 @@ public abstract sealed class CFGIterator implements Iterator<BB> {
 
   private void addAllLast(Stream<BB> bbs) {
     bbs.forEach(this::addLast);
+  }
+
+  protected BB getFirst() {
+    return worklist.getFirst();
+  }
+
+  protected BB getLast() {
+    return worklist.getLast();
   }
 
   protected BB removeFirst() {
@@ -153,8 +189,153 @@ public abstract sealed class CFGIterator implements Iterator<BB> {
 
   // endregion protected and private methods to access `worklist` and `remainingBbIds`
 
-  /** Forward breadth-first iterator. */
-  public static final class Bfs extends CFGIterator {
+  /**
+   * Forward iterator (iterates successors, though not necessarily all of them).
+   *
+   * <p>If you merge the currently-iterated block with its successor ({@link
+   * BB#mergeWithSuccessor(BB)}), it will iterate the merged block's successor(s) (but not the
+   * merged block again). If you remove the current block using {@link #remove()}, it will still
+   * iterate its successors, but removing via {@link CFG#remove(BB)} will throw {@link
+   * java.util.ConcurrentModificationException}.
+   */
+  public abstract static class Forward extends CFGIterator {
+    private @Nullable Predicate<BB> nextPredicate;
+
+    /** Iterate nodes starting at the entry. */
+    protected Forward(CFG cfg) {
+      super(cfg.entry());
+    }
+
+    /** Iterate nodes starting at the given block. */
+    protected Forward(BB start) {
+      super(start);
+    }
+
+    /** Iterate nodes starting at the given blocks. */
+    protected Forward(CFG cfg, Collection<BB> starts) {
+      super(cfg, starts);
+    }
+
+    /** Iterate nodes starting at the given blocks. */
+    protected Forward(CFG cfg, Stream<BB> starts) {
+      super(cfg, starts);
+    }
+
+    @Override
+    public BB next(Predicate<BB> predicate) {
+      if (!hasNext()) {
+        throw new NoSuchElementException();
+      }
+      // `addNext` was called in `hasNext`.
+      // It's *before* `current = removeFirst()` in case `current` gets merged with its successor
+      // (then we will queue the merged block's successors, whereas if after we'd queue nothing).
+      current = removeNext();
+      nextPredicate = predicate;
+      return current;
+    }
+
+    @Override
+    public boolean hasNext() {
+      addNext();
+      return super.hasNext();
+    }
+
+    @Override
+    public void remove() {
+      addNext();
+      super.remove();
+    }
+
+    private void addNext() {
+      if (current != null && nextPredicate != null && nextPredicate.test(current)) {
+        if (!current.cfg().contains(current.id())) {
+          throw new ConcurrentModificationException(
+              "`next` or `hasNext` called on forward CFG iterator whose current item was removed, and not through `Iterator.remove`. This isn't allowed.");
+        }
+        for (var succ : getNext(current)) {
+          if (isRemaining(succ)) {
+            addLast(succ);
+          }
+        }
+      }
+      // Ensure `addNext` isn't called again if we called `hasNext`.
+      nextPredicate = null;
+    }
+  }
+
+  /**
+   * Reverse iterator (iterates predecessors, though not necessarily all of them).
+   *
+   * <p>If you merge the current block's only predecessor with it ({@link
+   * BB#mergeWithSuccessor(BB)}), it will iterate the merged predecessor.
+   */
+  public abstract static class Reverse extends CFGIterator {
+    /** Iterate nodes starting at the exits. */
+    protected Reverse(CFG cfg) {
+      super(cfg, cfg.exits());
+    }
+
+    /** Iterate nodes starting at the given block. */
+    protected Reverse(BB start) {
+      super(start);
+    }
+
+    /** Iterate nodes starting at the given blocks. */
+    protected Reverse(CFG cfg, Collection<BB> starts) {
+      super(cfg, starts);
+    }
+
+    /** Iterate nodes starting at the given blocks. */
+    protected Reverse(CFG cfg, Stream<BB> starts) {
+      super(cfg, starts);
+    }
+
+    /**
+     * Returns the next element (see {@link #next()}), except applies the predicate and if it
+     * returns {@code false}, will skip the next's predecessors (note that if another node has the
+     * same node as a predecessor and returns true, it will be iterated later).
+     */
+    @Override
+    public BB next(Predicate<BB> predicate) {
+      if (!hasNext()) {
+        throw new NoSuchElementException();
+      }
+      current = removeFirst();
+      // This is *after* `current = removeFirst()` in case `current` gets merged with its
+      // predecessor
+      // (then we will queue the merged predecessor, whereas if after we'd queue nothing).
+      addNext(predicate);
+      return current;
+    }
+
+    private void addNext(Predicate<BB> predicate) {
+      assert current != null;
+      if (predicate.test(current)) {
+        for (var succ : getNext(current)) {
+          if (isRemaining(succ)) {
+            addLast(succ);
+          }
+        }
+      }
+    }
+
+    /** e.g. {@link BB#predecessors()}, but not always (e.g. in {@code PostDomTreeBfs}). */
+    protected abstract Iterable<BB> getNext(BB bb);
+
+    /** {@link #removeFirst()} if breadth-first, {@link #removeLast()} if depth-first. */
+    protected abstract BB removeNext();
+  }
+
+  /**
+   * Forward breadth-first iterator.
+   *
+   * <p>If you merge the currently-iterated block with its successor ({@link
+   * BB#mergeWithSuccessor(BB)}), it will iterate the merged block's successor(s) (but not the
+   * merged block again). If you remove the current block using {@link #remove()}, it will still
+   * iterate its successors, but removing via {@link CFG#remove(BB)} will throw {@link
+   * java.util.ConcurrentModificationException}.
+   */
+  public static final class Bfs extends Forward {
     /** Iterate nodes starting at the entry. */
     public Bfs(CFG cfg) {
       super(cfg.entry());
@@ -175,30 +356,32 @@ public abstract sealed class CFGIterator implements Iterator<BB> {
       super(cfg, starts);
     }
 
-    /**
-     * Returns the next element (see {@link #next()}), except applies the predicate and if it
-     * returns {@code false}, will skip the next's successors (note that if another node has the
-     * same node as a successor and returns true, it will be iterated later).
-     */
     @Override
-    public BB next(Predicate<BB> predicate) {
-      if (!hasNext()) {
-        throw new NoSuchElementException();
-      }
-      current = removeFirst();
-      if (predicate.test(current)) {
-        for (var succ : current.successors()) {
-          if (isRemaining(succ)) {
-            addLast(succ);
-          }
-        }
-      }
-      return current;
+    protected Iterable<BB> getNext(BB bb) {
+      return bb.successors();
+    }
+
+    @Override
+    protected BB getNext() {
+      return getFirst();
+    }
+
+    @Override
+    protected BB removeNext() {
+      return removeFirst();
     }
   }
 
-  /** Forward depth-first iterator. */
-  public static final class Dfs extends CFGIterator {
+  /**
+   * Forward depth-first iterator.
+   *
+   * <p>If you merge the currently-iterated block with its successor ({@link
+   * BB#mergeWithSuccessor(BB)}), it will iterate the merged block's successor(s) (but not the
+   * merged block again). If you remove the current block using {@link #remove()}, it will still
+   * iterate its successors, but removing via {@link CFG#remove(BB)} will throw {@link
+   * java.util.ConcurrentModificationException}.
+   */
+  public static final class Dfs extends Forward {
     /** Iterate nodes starting at the entry. */
     public Dfs(CFG cfg) {
       super(cfg.entry());
@@ -219,30 +402,29 @@ public abstract sealed class CFGIterator implements Iterator<BB> {
       super(cfg, starts);
     }
 
-    /**
-     * Returns the next element (see {@link #next()}), except applies the predicate and if it
-     * returns {@code false}, will skip the next's successors (note that if another node has the
-     * same node as a successor and returns true, it will be iterated later).
-     */
     @Override
-    public BB next(Predicate<BB> predicate) {
-      if (!hasNext()) {
-        throw new NoSuchElementException();
-      }
-      current = removeLast();
-      if (predicate.test(current)) {
-        for (var succ : current.successors()) {
-          if (isRemaining(succ)) {
-            addLast(succ);
-          }
-        }
-      }
-      return current;
+    protected Iterable<BB> getNext(BB bb) {
+      return bb.successors();
+    }
+
+    @Override
+    protected BB getNext() {
+      return getLast();
+    }
+
+    @Override
+    protected BB removeNext() {
+      return removeLast();
     }
   }
 
-  /** Reverse breadth-first iterator. */
-  public static final class ReverseBfs extends CFGIterator {
+  /**
+   * Reverse breadth-first iterator.
+   *
+   * <p>If you merge the current block's only predecessor with it ({@link
+   * BB#mergeWithSuccessor(BB)}), it will iterate the merged predecessor.
+   */
+  public static final class ReverseBfs extends Reverse {
     /** Iterate nodes starting at the exits. */
     public ReverseBfs(CFG cfg) {
       super(cfg, cfg.exits());
@@ -263,30 +445,29 @@ public abstract sealed class CFGIterator implements Iterator<BB> {
       super(cfg, starts);
     }
 
-    /**
-     * Returns the next element (see {@link #next()}), except applies the predicate and if it
-     * returns {@code false}, will skip the next's predecessors (note that if another node has the
-     * same node as a predecessor and returns true, it will be iterated later).
-     */
     @Override
-    public BB next(Predicate<BB> predicate) {
-      if (!hasNext()) {
-        throw new NoSuchElementException();
-      }
-      current = removeFirst();
-      if (predicate.test(current)) {
-        for (var succ : current.predecessors()) {
-          if (isRemaining(succ)) {
-            addLast(succ);
-          }
-        }
-      }
-      return current;
+    protected Iterable<BB> getNext(BB bb) {
+      return bb.predecessors();
+    }
+
+    @Override
+    protected BB getNext() {
+      return getFirst();
+    }
+
+    @Override
+    protected BB removeNext() {
+      return removeFirst();
     }
   }
 
-  /** Reverse depth-first iterator. */
-  public static final class ReverseDfs extends CFGIterator {
+  /**
+   * Reverse depth-first iterator.
+   *
+   * <p>If you merge the current block's only predecessor with it ({@link
+   * BB#mergeWithSuccessor(BB)}), it will iterate the merged predecessor.
+   */
+  public static final class ReverseDfs extends Reverse {
     /** Iterate nodes starting at the exits. */
     public ReverseDfs(CFG cfg) {
       super(cfg, cfg.exits());
@@ -307,30 +488,32 @@ public abstract sealed class CFGIterator implements Iterator<BB> {
       super(cfg, starts);
     }
 
-    /**
-     * Returns the next element (see {@link #next()}), except applies the predicate and if it
-     * returns {@code false}, will skip the next's successors (note that if another node has the
-     * same node as a successor and returns true, it will be iterated later).
-     */
     @Override
-    public BB next(Predicate<BB> predicate) {
-      if (!hasNext()) {
-        throw new NoSuchElementException();
-      }
-      current = removeLast();
-      if (predicate.test(current)) {
-        for (var succ : current.predecessors()) {
-          if (isRemaining(succ)) {
-            addLast(succ);
-          }
-        }
-      }
-      return current;
+    protected Iterable<BB> getNext(BB bb) {
+      return bb.predecessors();
+    }
+
+    @Override
+    protected BB getNext() {
+      return getLast();
+    }
+
+    @Override
+    protected BB removeNext() {
+      return removeLast();
     }
   }
 
-  /** Dominator tree (breadth-first) iterator. */
-  public static final class DomTreeBfs extends CFGIterator {
+  /**
+   * Dominator tree (breadth-first) iterator.
+   *
+   * <p>If you merge the currently-iterated block with its successor ({@link
+   * BB#mergeWithSuccessor(BB)}), it will iterate the merged block's successor(s) (but not the
+   * merged block again). If you remove the current block using {@link #remove()}, it will still
+   * iterate its successors, but removing via {@link CFG#remove(BB)} will throw {@link
+   * java.util.ConcurrentModificationException}.
+   */
+  public static final class DomTreeBfs extends Forward {
     private final DomTree tree;
 
     /** Iterate nodes starting at the root of the dominator tree. */
@@ -362,19 +545,18 @@ public abstract sealed class CFGIterator implements Iterator<BB> {
     }
 
     @Override
-    public BB next(Predicate<BB> predicate) {
-      if (!hasNext()) {
-        throw new NoSuchElementException();
-      }
-      current = removeFirst();
-      if (predicate.test(current)) {
-        for (var succ : tree.idominees(current)) {
-          if (isRemaining(succ)) {
-            addLast(succ);
-          }
-        }
-      }
-      return current;
+    protected Iterable<BB> getNext(BB bb) {
+      return tree.idominees(bb);
+    }
+
+    @Override
+    protected BB getNext() {
+      return getLast();
+    }
+
+    @Override
+    protected BB removeNext() {
+      return removeLast();
     }
   }
 }

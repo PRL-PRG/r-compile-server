@@ -70,7 +70,7 @@ public final class Classes {
    * <p>Returns {@code null}
    *
    * @throws IllegalArgumentException If the given class is not sealed or final.
-   * @throws IllegalArgumentException If no such descendant is found.
+   *     <p><b>OR</b> if no such descendant is found.
    */
   public static <T> Class<? extends T> sealedSubclassWithSimpleName(
       Class<? extends T> sealedClass, String simpleName) {

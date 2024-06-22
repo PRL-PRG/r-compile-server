@@ -60,7 +60,7 @@ public sealed interface Instr extends InstrOrPhi permits Jump, Stmt {
     var wasEmpty = false;
     if (instr instanceof Jump j) {
       for (var succ : j.targets()) {
-        succ.unsafeRemovePredecessor(((JumpImpl<?>) j).bb());
+        succ.unsafeRemovePredecessor(JumpImpl.cast(j).bb());
       }
       wasEmpty = j.targets().isEmpty();
     }
@@ -70,7 +70,7 @@ public sealed interface Instr extends InstrOrPhi permits Jump, Stmt {
     InstrImpl.cast(instr).unsafeReplaceArgs(newArgs);
 
     if (instr instanceof Jump j) {
-      var bb = ((JumpImpl<?>) j).bb();
+      var bb = JumpImpl.cast(j).bb();
 
       for (var succ : j.targets()) {
         succ.unsafeAddPredecessor(bb);

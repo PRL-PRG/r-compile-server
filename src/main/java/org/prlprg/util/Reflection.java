@@ -52,7 +52,7 @@ public class Reflection {
    * arguments are instances of, and it can't find var-args methods.
    *
    * @throws IllegalArgumentException If no methods in {@code target} have {@code methodName}.
-   * @throws IllegalArgumentException If multiple methods in {@code target} have {@code methodName}.
+   *     <p><b>OR</b> if multiple methods in {@code target} have {@code methodName}.
    */
   @SuppressWarnings("unchecked")
   public static <T> T construct(Class<T> target, Object... arguments) {
@@ -113,7 +113,7 @@ public class Reflection {
    * of, and it can't find var-args methods.
    *
    * @throws IllegalArgumentException If no methods in {@code target} have {@code methodName}.
-   * @throws IllegalArgumentException If multiple methods in {@code target} have {@code methodName}.
+   *     <p><b>OR</b> if multiple methods in {@code target} have {@code methodName}.
    */
   public static Object callByName(
       Object target, Class<?> methodClass, String methodName, Object... arguments) {

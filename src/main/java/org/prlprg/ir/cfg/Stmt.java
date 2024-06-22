@@ -51,6 +51,16 @@ abstract non-sealed class StmtImpl<D extends StmtData<?>> extends InstrImpl<D> i
     }
   }
 
+  /**
+   * Return the given statement casted.
+   *
+   * <p>Any {@link Stmt} is guaranteed to be an {@link StmtImpl}, so this method is provided to
+   * reduce the number of casts in the code text.
+   */
+  static StmtImpl<?> cast(Stmt stmt) {
+    return (StmtImpl<?>) stmt;
+  }
+
   StmtImpl(Class<D> dataClass, CFG cfg, NodeId<? extends Instr> id, D data) {
     super(dataClass, cfg, id, data);
   }

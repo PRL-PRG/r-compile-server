@@ -76,7 +76,7 @@ public non-sealed interface Phi<N extends Node> extends InstrOrPhi {
 
   /** (A view of) the inputs to this φ-node. */
   @UnmodifiableView
-  SequencedSet<Input<N>> inputs();
+  SequencedSet<Input<? extends N>> inputs();
 
   /** (A view of) the input {@link BB}s. */
   default @UnmodifiableView SequencedCollection<BB> incomingBBs() {
@@ -128,8 +128,8 @@ public non-sealed interface Phi<N extends Node> extends InstrOrPhi {
    * <p>Returns the old node.
    *
    * @throws IllegalArgumentException If the incoming BB isn't in the input set.
-   * @throws IllegalArgumentException If the node is of an incompatible type (the type is also
-   *     restricted by the generic argument, but the phi may be upcasted due to erasure).
+   *     <p><b>OR</b> if the node is of an incompatible type (the type is also restricted by the
+   *     generic argument, but the phi may be upcasted due to erasure).
    */
   N setInput(BB incomingBB, N node);
 
@@ -139,10 +139,10 @@ public non-sealed interface Phi<N extends Node> extends InstrOrPhi {
    * <p>Returns the old input's node.
    *
    * @throws IllegalArgumentException If the incoming BB isn't in the input set.
-   * @throws IllegalArgumentException If the node is of an incompatible type (the type is also
-   *     restricted by the generic argument, but the phi may be upcasted due to erasure).
+   *     <p><b>OR</b> if the node is of an incompatible type (the type is also restricted by the
+   *     generic argument, but the phi may be upcasted due to erasure).
    */
-  default N setInput(Input<N> newInput) {
+  default N setInput(Input<? extends N> newInput) {
     return setInput(newInput.incomingBB(), newInput.node());
   }
 
@@ -228,7 +228,7 @@ public non-sealed interface Phi<N extends Node> extends InstrOrPhi {
 
 abstract non-sealed class PhiImpl<N extends Node> extends InstrOrPhiImpl implements Phi<N> {
   private final Class<N> nodeClass;
-  private final SmallBinarySet<Input<N>> inputs;
+  private final SmallBinarySet<Input<? extends N>> inputs;
 
   // region construct
   /**
@@ -311,7 +311,7 @@ abstract non-sealed class PhiImpl<N extends Node> extends InstrOrPhiImpl impleme
     for (var input : inputs) {
       assert !this.hasIncomingBB(input.incomingBB())
           : "duplicate incoming BB on Phi init: " + input.incomingBB();
-      this.inputs.add((Input<N>) input);
+      this.inputs.add((Input<? extends N>) input);
     }
     this.nodeClass = nodeClass;
 
@@ -339,7 +339,7 @@ abstract non-sealed class PhiImpl<N extends Node> extends InstrOrPhiImpl impleme
 
   // region inputs
   @Override
-  public SequencedSet<Input<N>> inputs() {
+  public SequencedSet<Input<? extends N>> inputs() {
     return inputs;
   }
 
@@ -350,9 +350,20 @@ abstract non-sealed class PhiImpl<N extends Node> extends InstrOrPhiImpl impleme
    * BB} when it adds a predecessor.
    */
   void unsafeAddUnsetInput(BB incomingBB) {
-    assert !hasIncomingBB(incomingBB)
-        : "phi is in an inconsistent state, it has an input that it was told to add: " + incomingBB;
-    inputs.add(Input.of(incomingBB, InvalidNode.UNSET_PHI_INPUT.uncheckedCast()));
+    unsafeAddInput(Input.of(incomingBB, InvalidNode.UNSET_PHI_INPUT.uncheckedCast()));
+  }
+
+  /**
+   * Add an input to the phi.
+   *
+   * <p>This is "unsafe" because no {@linkplain CFGEdit edit} is recorded. It's called from {@link
+   * BB} when it adds a predecessor.
+   */
+  void unsafeAddInput(Input<? extends N> input) {
+    assert !hasIncomingBB(input.incomingBB())
+        : "phi is in an inconsistent state, it has an input that it was told to add: "
+            + input.incomingBB();
+    inputs.add(input);
     // The phi's name changes when the input changes, but unset inputs don't have any affect on it
     // so we don't have to call `updateName()`.
   }

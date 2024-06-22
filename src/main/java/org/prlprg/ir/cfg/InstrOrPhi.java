@@ -35,7 +35,7 @@ public sealed interface InstrOrPhi extends LocalNode permits Instr, Phi {
    * <p>This <i>will</i> record an {@linkplain CFGEdit edit}.
    *
    * @throws IllegalArgumentException If the old node wasn't in {@link #args()}.
-   * @throws IllegalArgumentException If you try to replace with a node of incompatible type.
+   *     <p><b>OR</b> if you try to replace with a node of incompatible type.
    */
   void replaceInArgs(Node old, Node replacement);
 

@@ -56,7 +56,7 @@ abstract sealed class InstrOrPhiImpl implements LocalNode permits PhiImpl, Instr
    * undo/replay or {@link CFGCleanup} re-numbering), otherwise call {@link #rename(String)}.
    *
    * @throws IllegalArgumentException If the ID class isn't delayed or the instruction or phi class.
-   * @throws IllegalArgumentException If the ID is taken by another instruction or phi in the CFG.
+   *     <p><b>OR</b> if the ID is taken by another instruction or phi in the CFG.
    */
   final void setId(NodeId<? extends InstrOrPhi> newId) {
     var oldId = id();

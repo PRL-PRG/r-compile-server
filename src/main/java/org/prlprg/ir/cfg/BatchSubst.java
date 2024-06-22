@@ -87,6 +87,9 @@ public class BatchSubst {
 
   /** Run the given substitutions on the given instructions and phis. */
   public void commit(Iterable<InstrOrPhi> instrsAndPhis) {
+    if (isEmpty()) {
+      return;
+    }
     for (var instrOrPhi : instrsAndPhis) {
       for (var arg : instrOrPhi.args()) {
         var replacement = substs.get(arg);
@@ -99,13 +102,28 @@ public class BatchSubst {
 
   /** Run the given substitutions on all instructions and phis in the {@link CFG}. */
   public void commit(CFG cfg) {
+    if (isEmpty()) {
+      return;
+    }
     commit1(cfg.iter());
   }
 
   /** Run the given substitutions on all instructions and phis in the given {@link BB}s. */
   public void commit1(Iterable<BB> bbs) {
+    if (isEmpty()) {
+      return;
+    }
     for (var bb : bbs) {
       commit(bb);
     }
+  }
+
+  /**
+   * Returns {@code true} iff no substitutions have been staged.
+   *
+   * <p>If true, we make commit a no-op.
+   */
+  private boolean isEmpty() {
+    return substs.isEmpty();
   }
 }

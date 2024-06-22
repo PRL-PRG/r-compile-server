@@ -10,7 +10,13 @@ import org.prlprg.primitive.Names;
 /** Node representing missing, invalid, or placeholder data. */
 public class InvalidNode implements DeoptReason, RValue, FrameState, GlobalNode {
   private static final AtomicInteger NEXT_DISAMBIGUATOR = new AtomicInteger(0);
-  static final InvalidNode UNSET_PHI_INPUT = new InvalidNode("unsetPhiInput");
+
+  /**
+   * The node assigned to {@linkplain Phi phi} inputs that are automatically added when the phi's
+   * {@linkplain BB basic block} gets a new predecessor, and when the phi is added to a block
+   * without preset input nodes.
+   */
+  public static final InvalidNode UNSET_PHI_INPUT = new InvalidNode("unsetPhiInput");
 
   public static InvalidNode todoGlobal() {
     return new InvalidNode("todoGlobal");

@@ -83,8 +83,8 @@ public final class Closure extends CodeObject {
    *     <p>{@code origin}'s environment is replaced with {@link SEXPs#EMPTY_ENV} if not already, in
    *     order to normalize the data since it shouldn't be used.
    * @throws IllegalArgumentException If the closure's body isn't bytecode.
-   * @throws IllegalArgumentException If {@code env} isn't statically known to be an environment
-   *     ({@link RValue#isEnv()}).
+   *     <p><b>OR</b> if {@code env} isn't statically known to be an environment ({@link
+   *     RValue#isEnv()}).
    */
   public Closure(String name, CloSXP origin, @IsEnv RValue env) {
     super(name);

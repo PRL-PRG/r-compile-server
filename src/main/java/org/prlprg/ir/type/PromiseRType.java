@@ -38,8 +38,7 @@ public enum PromiseRType implements Lattice<PromiseRType> {
    *
    * @throws IllegalArgumentException If {@code lazy} is {@code YES} but {@code promise} isn't also
    *     {@code YES}.
-   * @throws IllegalArgumentException If {@code lazy} is {@code MAYBE} but {@code promise} is {@code
-   *     NO}.
+   *     <p><b>OR</b> if {@code lazy} is {@code MAYBE} but {@code promise} is {@code NO}.
    */
   public static PromiseRType of(Troolean isPromise, boolean isLazy) {
     return of(isPromise, Troolean.of(isLazy));
@@ -50,8 +49,7 @@ public enum PromiseRType implements Lattice<PromiseRType> {
    *
    * @throws IllegalArgumentException If {@code lazy} is {@code YES} but {@code promise} isn't also
    *     {@code YES}.
-   * @throws IllegalArgumentException If {@code lazy} is {@code MAYBE} but {@code promise} is {@code
-   *     NO}.
+   *     <p><b>OR</b> if {@code lazy} is {@code MAYBE} but {@code promise} is {@code NO}.
    */
   @SuppressWarnings("DuplicatedCode")
   public static PromiseRType of(Troolean isPromise, Troolean isLazy) {

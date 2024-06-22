@@ -92,7 +92,7 @@ public class PrettyPrintWriter {
    * the size of whatever you intend to print next.
    *
    * @throws IllegalArgumentException if {@code c} is a newline.
-   * @throws IllegalArgumentException if the column is already passed.
+   *     <p><b>OR</b> if the column is already passed.
    */
   public void writeUntilColumn(char c, int col) {
     writeUntilColumn(c, col, false);
@@ -105,8 +105,7 @@ public class PrettyPrintWriter {
    * the size of whatever you intend to print next.
    *
    * @throws IllegalArgumentException if {@code c} is a newline.
-   * @throws IllegalArgumentException if the column is already passed and {@code okToBeAfter} is
-   *     false.
+   *     <p><b>OR</b> if the column is already passed and {@code okToBeAfter} is false.
    */
   public void writeUntilColumn(char c, int col, boolean okToBeAfter) {
     if (c == '\n') {

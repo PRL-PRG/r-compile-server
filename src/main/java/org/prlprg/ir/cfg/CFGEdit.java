@@ -195,31 +195,41 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
     }
   }
 
-  record SplitBB(@Override BBId bbId, int index) implements OnCFG<MergeBBs> {
-    public SplitBB(BB bb, int index) {
-      this(bb.id(), index);
+  record SplitBB(@Override BBId bbId, BBId newBBId, boolean isNewBBPredecessor, int index)
+      implements OnCFG<MergeBBs> {
+    public SplitBB(BB bb, BB newBB, boolean isNewBBPredecessor, int index) {
+      this(bb.id(), newBB.id(), isNewBBPredecessor, index);
     }
 
     @Override
     public MergeBBs apply(CFG cfg) {
       var bb = cfg.get(bbId);
-      var nextBB = bb.splitNewSuccessor(index);
-      return new MergeBBs(bb.id(), nextBB.id());
+      if (isNewBBPredecessor) {
+        bb.splitNewPredecessorWithId(newBBId, index);
+      } else {
+        bb.splitNewSuccessorWithId(newBBId, index);
+      }
+      return new MergeBBs(bbId, newBBId, isNewBBPredecessor);
     }
   }
 
-  record MergeBBs(BBId bbId, BBId nextBBId) implements OnCFG<SplitBB> {
-    public MergeBBs(BB bb, BB nextBB) {
-      this(bb.id(), nextBB.id());
+  record MergeBBs(@Override BBId bbId, BBId newBBId, boolean isNewBBPredecessor)
+      implements OnCFG<SplitBB> {
+    public MergeBBs(BB bb, BB newBB, boolean isNewBBPredecessor) {
+      this(bb.id(), newBB.id(), isNewBBPredecessor);
     }
 
     @Override
     public SplitBB apply(CFG cfg) {
       var bb = cfg.get(bbId);
       var index = bb.stmts().size();
-      var nextBB = cfg.get(nextBBId);
-      bb.mergeWithSuccessor(nextBB);
-      return new SplitBB(bb.id(), index);
+      var newBB = cfg.get(newBBId);
+      if (isNewBBPredecessor) {
+        newBB.mergeWithSuccessor(bb);
+      } else {
+        bb.mergeWithSuccessor(newBB);
+      }
+      return new SplitBB(bbId, newBBId, isNewBBPredecessor, index);
     }
   }
 
@@ -243,13 +253,16 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
           bbId, phis.stream().map(Phi::id).collect(ImmutableSet.toImmutableSet()));
     }
 
+    // The type argument and cast *are* redundant, but the Java compiler has an annoying bug where
+    // it occasionally fails to type-check and must be fully rebuilt without them.
+    @SuppressWarnings("Convert2Diamond")
     @Override
     public Iterable<? extends InsertPhi<?>> subEdits() {
       return phis.stream()
           .map(
-              // Sometimes this line fails to compile. IntelliJ reports no issue.
-              // Rebuild and it usually magically compiles. If not, clean/rebuild, then it should.
-              a -> new InsertPhi<>(bbId, a.id(), a.nodeClass(), ImmutableSet.copyOf(a.inputIds())))
+              a ->
+                  new InsertPhi<Node>(
+                      bbId, a.id(), a.nodeClass(), ImmutableSet.copyOf(a.inputIds())))
           .toList();
     }
   }

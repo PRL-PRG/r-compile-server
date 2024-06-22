@@ -49,6 +49,16 @@ abstract non-sealed class JumpImpl<D extends JumpData<?>> extends InstrImpl<D> i
   @SuppressFBWarnings("NP_NONNULL_FIELD_NOT_INITIALIZED_IN_CONSTRUCTOR")
   private ImmutableList<BB> targets;
 
+  /**
+   * Return the given jump casted.
+   *
+   * <p>Any {@link Jump} is guaranteed to be an {@link JumpImpl}, so this method is provided to
+   * reduce the number of casts in the code text.
+   */
+  static JumpImpl<?> cast(Jump jump) {
+    return (JumpImpl<?>) jump;
+  }
+
   JumpImpl(Class<D> dataClass, CFG cfg, NodeId<? extends Instr> id, D data) {
     super(dataClass, cfg, id, data);
   }

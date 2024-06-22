@@ -11,7 +11,13 @@ interface BBIntrinsicMutate {
   // region mutate
   // region split and merge
   /**
-   * Split the basic block at the given index and make the new block a predecessor. Specifically:
+   * {@link #splitNewPredecessor(String, int)} giving the predecessor the same name as this block.
+   */
+  BB splitNewPredecessor(int index);
+
+  /**
+   * Split the basic block at the given index and make the new block a predecessor with the given
+   * name. Specifically:
    *
    * <ul>
    *   <li>The new block will have all phis and statements before the index and a jump to this
@@ -23,10 +29,14 @@ interface BBIntrinsicMutate {
    * @return The new block (new predecessor).
    * @throws IndexOutOfBoundsException If the index is out of range.
    */
-  BB splitNewPredecessor(int index);
+  BB splitNewPredecessor(String predecessorName, int index);
+
+  /** {@link #splitNewSuccessor(String, int)} giving the successor the same name as this block. */
+  BB splitNewSuccessor(int index);
 
   /**
-   * Split the basic block at the given index and make the new block a successor. Specifically:
+   * Split the basic block at the given index and make the new block a successor with the given
+   * name. Specifically:
    *
    * <ul>
    *   <li>The new block will have all statements after the index and jump.
@@ -39,21 +49,33 @@ interface BBIntrinsicMutate {
    * @return The new block (new successor).
    * @throws IndexOutOfBoundsException If the index is out of range.
    */
-  BB splitNewSuccessor(int index);
+  BB splitNewSuccessor(String successorName, int index);
 
   /**
    * Asserts that:
    *
    * <ul>
    *   <li>this block's jump is a GOTO that points to the given block.
-   *   <li>The given block has exactly one predecessor
-   *   <li>The given block has no phis (by now, those should all be replaced with their single input
-   *       in arguments and removed).
+   *   <li>The given block is not the entry (the entry can't be removed. Also, the entry has a
+   *       "virtual" predecessor which is the call or force, so even if it could, it may not satisfy
+   *       the next condition).
+   *   <li>The given block has exactly one predecessor, <i>or</i> this block has no statements.
+   *   <li>If this block has statements, the given block has no phis (this implies the given block
+   *       has exactly one predecessor, so those phis should all be replaced with their single
+   *       input, but this method won't replace them because it should be part of a {@linkplain
+   *       BatchSubst batch substitution}).
+   *   <li>If the given block shares a predecessor with this block, any phis must have the same
+   *       input from the predecessor and this block (otherwise the empty GOTO is still relevant
+   *       because it determines the phi input).
    * </ul>
    *
    * <p>Then merges with the given block. Specifically:
    *
    * <ul>
+   *   <li>If this block has no statements, it will have all phis from the given block, where the
+   *       input from this block is replaced by inputs from each of this block's predecessors
+   *       (specifically, if the input from this block is a phi, it's replaced by the phi inputs,
+   *       otherwise it's the same input repeated for each of the predecessors).
    *   <li>This block will have all statements and jump from the given block.
    *   <li>The given block will be removed from the CFG.
    *   <li>In successors of other BBs, the given block will be replaced with this block.

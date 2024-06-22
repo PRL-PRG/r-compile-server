@@ -332,33 +332,56 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
   // region split and merge
   @Override
   public BB splitNewPredecessor(int index) {
+    return splitNewPredecessor(BBIdImpl.cast(id).name(), index);
+  }
+
+  @Override
+  public BB splitNewPredecessor(String name, int index) {
+    return splitNewPredecessorWithId(cfg().uniqueBBId(name), index);
+  }
+
+  BB splitNewPredecessorWithId(BBId predecessorId, int index) {
     if (index < 0 || index > stmts.size()) {
       throw new IndexOutOfBoundsException("Index out of range: " + index);
     }
-    var newBB = cfg().doAddBB(BBIdImpl.cast(id).name());
+    var newBB = cfg().doAddBB(predecessorId);
 
     for (var pred : predecessors) {
       assert pred.jump != null && pred.jump.targets().contains(this)
           : "BB has predecessor whose jump doesn't point to it";
-      ((JumpImpl<?>) pred.jump).unsafeReplaceInTargets(this, newBB);
+      JumpImpl.cast(pred.jump).unsafeReplaceInTargets(this, newBB);
     }
 
+    // Don't call `insert` or `addJump`, since this is intrinsic.
     newBB.phis.addAll(phis);
     newBB.stmts.addAll(stmts.subList(0, index));
-    newBB.addJump("", new JumpData.Goto(this));
+    var newJump = new JumpData.Goto(this).make(cfg(), cfg().<Instr>uniqueInstrOrPhiId());
+    newBB.setJump(newJump);
+    cfg().track(newJump);
     phis.clear();
     stmts.subList(0, index).clear();
 
-    cfg().record(new CFGEdit.SplitBB(this, index), new CFGEdit.MergeBBs(newBB, this));
+    cfg()
+        .record(
+            new CFGEdit.SplitBB(newBB, this, true, index), new CFGEdit.MergeBBs(newBB, this, true));
     return newBB;
   }
 
   @Override
   public BB splitNewSuccessor(int index) {
+    return splitNewSuccessor(BBIdImpl.cast(id).name(), index);
+  }
+
+  @Override
+  public BB splitNewSuccessor(String name, int index) {
+    return splitNewSuccessorWithId(cfg().uniqueBBId(name), index);
+  }
+
+  BB splitNewSuccessorWithId(BBId successorId, int index) {
     if (index < 0 || index > stmts.size()) {
       throw new IndexOutOfBoundsException("Index out of range: " + index);
     }
-    var newBB = cfg().doAddBB(BBIdImpl.cast(id).name());
+    var newBB = cfg().doAddBB(successorId);
 
     for (var succ : successors()) {
       assert succ.predecessors.contains(this)
@@ -370,16 +393,22 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
       }
     }
 
+    // Don't call `insert` or `addJump`, since this is intrinsic.
     newBB.stmts.addAll(stmts.subList(index, stmts.size()));
     newBB.jump = jump;
     if (newBB.jump != null) {
-      ((JumpImpl<?>) newBB.jump).unsafeSetBB(newBB);
+      JumpImpl.cast(newBB.jump).unsafeSetBB(newBB);
     }
     stmts.subList(index, stmts.size()).clear();
     jump = null;
-    addJump("", new JumpData.Goto(newBB));
+    var newJump = new JumpData.Goto(newBB).make(cfg(), cfg().<Instr>uniqueInstrOrPhiId());
+    setJump(newJump);
+    cfg().track(newJump);
 
-    cfg().record(new CFGEdit.SplitBB(this, index), new CFGEdit.MergeBBs(this, newBB));
+    cfg()
+        .record(
+            new CFGEdit.SplitBB(this, newBB, false, index),
+            new CFGEdit.MergeBBs(this, newBB, false));
     return newBB;
   }
 
@@ -390,18 +419,34 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
         || gotoJump.next() != succ) {
       throw new IllegalArgumentException("This block's jump isn't a GOTO to the successor");
     }
-    if (succ.predecessors.size() != 1) {
-      throw new IllegalArgumentException("The successor doesn't have exactly one predecessor");
+    if (succ == cfg().entry() && !stmts.isEmpty()) {
+      throw new IllegalArgumentException("The successor is the entry block (can't be removed)");
     }
-    if (!succ.phis.isEmpty()) {
+    if (succ.predecessors.size() != 1 && !stmts.isEmpty()) {
       throw new IllegalArgumentException(
-          "The successor still has phis.\nSince it has only one predecessor, those can be replaced with the single input in arguments and removed, but this function expects that to have already happened");
+          "The successor has other predecessors besides this block, and this block has statements");
+    }
+    if (!succ.phis.isEmpty() && !stmts.isEmpty()) {
+      throw new IllegalArgumentException(
+          "The successor still has phis, and this block has statements.\nSince the successor has only one predecessor, those can be substituted with the single input in arguments and removed, but this function expects that to have already happened (since said substitution is slow, it should be done in a `BatchSubst`).");
+    }
+    if (succ.phis.stream()
+        .anyMatch(
+            phi ->
+                predecessors.stream()
+                    .anyMatch(
+                        myPred ->
+                            phi.hasIncomingBB(myPred)
+                                && !phi.input(myPred).equals(phi.input(this))))) {
+      throw new IllegalArgumentException(
+          "The successor has a phi with an input from this block's predecessor which is different from the input from this block");
     }
 
+    // No-op if `predecessors.size() == 1`, because we'll remove the only `pred.jump` in that case.
     for (var pred : succ.predecessors) {
       assert pred.jump != null && pred.jump.targets().contains(succ)
           : "Successor has predecessor whose jump doesn't point to it";
-      ((JumpImpl<?>) pred.jump).unsafeReplaceInTargets(succ, this);
+      JumpImpl.cast(pred.jump).unsafeReplaceInTargets(succ, this);
     }
 
     for (var succ2 : succ.successors()) {
@@ -414,19 +459,58 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
       }
     }
 
+    for (var phi : succ.phis) {
+      var myInput = phi.input(this);
+      var newInputsStream =
+          myInput instanceof Phi<?> myPhi && phis.contains(myPhi)
+              ? myPhi.inputs().stream()
+              : predecessors.stream().map(pred -> Phi.Input.of(pred, myInput));
+      // The input is the correct type, but it's existential so we need to erase `phi`'s generic.
+      @SuppressWarnings("unchecked")
+      var phi1 = (PhiImpl<Node>) PhiImpl.cast(phi);
+      phi1.unsafeRemoveInput(this);
+      newInputsStream
+          .filter(i -> !phi1.hasIncomingBB(i.incomingBB()))
+          .forEach(phi1::unsafeAddInput);
+    }
+
+    if (succ.predecessors.size() > 1) {
+      // Remove this node's phis because they don't have inputs for the new predecessors. We merged
+      // them if they were in the successor's phis, and if not, they are definitely unused because
+      // this BB (before the merge) dominates nothing.
+      cfg().untrackAll(phis);
+      phis.clear();
+    }
+
     var resplitIndex = stmts.size();
 
+    // Don't call `setJump` or `insert`, since this is intrinsic.
+    succ.predecessors.remove(this);
+    predecessors.addAll(succ.predecessors);
+    phis.addAll(succ.phis);
     stmts.addAll(succ.stmts);
+    // Inline `setJump` except we already handled predecessors and successors.
+    cfg().untrack(jump);
     jump = succ.jump;
     if (jump != null) {
-      ((JumpImpl<?>) jump).unsafeSetBB(this);
+      JumpImpl.cast(jump).unsafeSetBB(this);
     }
+    if (jump == null || jump.targets().isEmpty()) {
+      cfg().markExit(this);
+    }
+    succ.predecessors.clear();
+    succ.phis.clear();
     succ.stmts.clear();
+    // First call `doRemove` so that, if the jump had successors, the CFG won't try to remove the BB
+    // from the exits (since it's not one, but if the jump is set to null, it has no successors so
+    // the CFG thinks it is).
+    cfg().doRemove(succ);
     succ.jump = null;
 
-    cfg().doRemove(succ);
-
-    cfg().record(new CFGEdit.MergeBBs(this, succ), new CFGEdit.SplitBB(this, resplitIndex));
+    cfg()
+        .record(
+            new CFGEdit.MergeBBs(this, succ, false),
+            new CFGEdit.SplitBB(this, succ, false, resplitIndex));
   }
 
   // endregion split and merge
@@ -501,11 +585,18 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
   }
 
   ImmutableList<? extends Phi<?>> addPhisWithIds(Collection<? extends PhiImpl.Args> phiArgs) {
+    // The type argument and cast *are* redundant, but the Java compiler has an annoying bug where
+    // it occasionally fails to type-check and must be fully rebuilt without them.
+    @SuppressWarnings({"RedundantTypeArguments", "RedundantCast"})
     var phis =
         phiArgs.stream()
-            // If the compiler gives you an error here, and IntelliJ says it's fine, you must
-            // either rebuild, or `mvn clean` and rebuild, and it will magically go away.
-            .map(a -> PhiImpl.forClass(a.nodeClass(), cfg(), a.id(), a.inputs()))
+            .map(
+                a ->
+                    PhiImpl.<Node>forClass(
+                        a.nodeClass(),
+                        cfg(),
+                        (NodeId<? extends Phi<? extends Node>>) a.id(),
+                        a.inputs()))
             .collect(ImmutableList.toImmutableList());
     for (var phi : phis) {
       verifyPhiInputBBs(phi);
@@ -840,21 +931,25 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     if (jump == this.jump) {
       return;
     }
+
+    var wasExit = this.jump == null || this.jump.targets().isEmpty();
+
     if (this.jump != null) {
       for (var succ : this.jump.targets()) {
         succ.unsafeRemovePredecessor(this);
       }
-      ((JumpImpl<?>) this.jump).unsafeSetBB(null);
+      JumpImpl.cast(this.jump).unsafeSetBB(null);
     }
+
     this.jump = jump;
+
     if (jump != null) {
       for (var succ : jump.targets()) {
         succ.unsafeAddPredecessor(this);
       }
-      ((JumpImpl<?>) jump).unsafeSetBB(this);
+      JumpImpl.cast(jump).unsafeSetBB(this);
     }
 
-    var wasExit = this.jump == null || this.jump.targets().isEmpty();
     var isExit = jump == null || jump.targets().isEmpty();
     if (!wasExit && isExit) {
       cfg().markExit(this);

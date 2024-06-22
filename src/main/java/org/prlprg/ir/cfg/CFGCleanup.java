@@ -1,7 +1,7 @@
 package org.prlprg.ir.cfg;
 
-import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.prlprg.ir.analysis.CFGAnalyses;
 
 interface CFGCleanup extends CFGQuery, CFGAnalyses, CFGIntrinsicMutate, CFGCompoundMutate {
@@ -24,64 +24,109 @@ interface CFGCleanup extends CFGQuery, CFGAnalyses, CFGIntrinsicMutate, CFGCompo
    * optimizations you will call this method and then optionally {@link CFG#verify()}.
    */
   default void cleanup() {
-    var defUses = defUses();
+    section(
+        "CFG#cleanup",
+        () -> {
+          var defUses = defUses();
 
-    var iter = new CFGIterator.Dfs((CFG) this);
-    while (iter.hasNext()) {
-      var bb = iter.next();
-      if (bb.predecessors().isEmpty() && bb != entry()) {
-        // Remove basic blocks that are unreachable from the entry block (remove basic blocks
-        // with zero predecessors recursively under DFS) [1].
-        remove(bb);
-      }
+          var iter = new CFGIterator.Dfs((CFG) this);
+          while (iter.hasNext()) {
+            var bb = iter.next();
 
-      // Remove phi nodes and "pure" statements with no users (including temporary `NoOp`
-      // statements).
-      bb.removeWhere(
-          i ->
-              i.isPure()
-                  && !(i instanceof Jump)
-                  && i.returns().stream().allMatch(defUses::isUnused));
+            // Remove phi nodes and "pure" statements with no users (including temporary `NoOp`
+            // statements).
+            bb.removeWhere(
+                i ->
+                    i.isPure()
+                        && !(i instanceof Jump)
+                        && i.returns().stream().allMatch(defUses::isUnused));
+          }
 
-      // Convert branch instructions where both branches are the same BB into single-branch
-      // variants.
-      if (bb.jump() != null
-          && bb.jump().data() instanceof JumpData.Branch(var _, var _, var ifTrue, var ifFalse)) {
-        if (ifTrue == ifFalse) {
-          Instr.mutateArgs(bb.jump(), new JumpData.Goto(ifTrue));
-        }
-      }
+          // Remove basic blocks that are unreachable from the entry block.
+          removeAll(iter.remainingBBIds());
 
-      var onlyPred = bb.onlyPredecessor();
-      if (bb != entry()
-          && onlyPred != null
-          && Objects.requireNonNull(onlyPred.jump()).data() instanceof JumpData.Goto(var nextBB)) {
-        // Merge the basic blocks with only one successor which has only one predecessor (and
-        // vice versa) with each other.
-        //
-        // Do this at the end because we already iterated onlyPred's phis and instructions.
-        assert nextBB == bb;
-        onlyPred.mergeWithSuccessor(bb);
-      }
-    }
+          // ???: Is there a non-iterative way to do these?
+          AtomicBoolean mayImproveOnRepeat = new AtomicBoolean(false);
+          do {
+            mayImproveOnRepeat.set(false);
 
-    // Remove basic blocks that are unreachable from the entry block [2].
-    removeAll(iter.remainingBBIds());
-
-    // Substitute phi nodes that have a single input, or all the same input, with that input.
-    batchSubst(
-        substs -> {
-          for (var bb : iter()) {
-            var phis = bb.iterPhis();
-            while (phis.hasNext()) {
-              var phi = phis.next();
-              var inputs = Set.copyOf(phi.inputNodes());
-              if (inputs.size() == 1) {
-                substs.stage(phi, inputs.iterator().next());
-                phis.remove();
+            // Convert branch instructions where both branches are the same BB into single-branch
+            // variants.
+            for (var bb : iter()) {
+              if (bb.jump() != null
+                  && bb.jump().data()
+                      instanceof JumpData.Branch(var _, var _, var ifTrue, var ifFalse)) {
+                if (ifTrue == ifFalse) {
+                  Instr.mutateArgs(bb.jump(), new JumpData.Goto(ifTrue));
+                  // Don't need to set `mayImproveOnRepeat` for the first optimization.
+                }
               }
             }
-          }
+
+            // Substitute phi nodes that have a single input, or all the same input, with that
+            // input.
+            batchSubst(
+                substs -> {
+                  for (var bb : iter()) {
+                    var phis = bb.iterPhis();
+                    while (phis.hasNext()) {
+                      var phi = phis.next();
+                      var inputs = Set.copyOf(phi.inputNodes());
+                      if (inputs.size() == 1) {
+                        substs.stage(phi, inputs.iterator().next());
+                        phis.remove();
+                        mayImproveOnRepeat.set(true);
+                      }
+                    }
+                  }
+                });
+
+            // Merge basic blocks with only one successor that has only one predecessor (and vice
+            // versa),
+            // and blocks with only one successor and no instructions or phis.
+            var iter1 = new CFGIterator.Dfs((CFG) this);
+            while (iter1.hasNext()) {
+              var bb = iter1.next();
+              while (bb.jump() != null
+                  && bb.jump().data() instanceof JumpData.Goto(var nextBb)
+                  && ((nextBb != entry() && nextBb.hasSinglePredecessor())
+                      || (bb.stmts().isEmpty()
+                          && nextBb.phis().stream()
+                              .noneMatch(
+                                  nextPhi ->
+                                      bb.predecessors().stream()
+                                          .anyMatch(
+                                              pred ->
+                                                  nextPhi.hasIncomingBB(pred)
+                                                      && !nextPhi
+                                                          .input(pred)
+                                                          .equals(nextPhi.input(bb))))))) {
+                if (nextBb == entry()) {
+                  // We can't do `mergeWithSuccessor` because we can't remove the entry.
+                  // Instead we inline a tiny `mergeWithPredecessor` manually and remove `bb`.
+                  // (We have to inline the `mergeWithPredecessor` because we have to call
+                  // `iter1.remove()`
+                  // instead of `remove(bb)`.)
+                  // stmts.isEmpty()
+                  section(
+                      "CFG#cleanup#mergeWithPredecessor",
+                      () -> {
+                        bb.removeJump();
+                        for (var pred : bb.predecessors()) {
+                          var jump = pred.jump();
+                          assert jump != null && jump.targets().contains(bb)
+                              : "BB has predecessor whose jump doesn't point to it";
+                          JumpImpl.cast(jump).replaceInTargets(bb, nextBb);
+                        }
+                        iter1.remove();
+                      });
+                } else {
+                  bb.mergeWithSuccessor(nextBb);
+                }
+                mayImproveOnRepeat.set(true);
+              }
+            }
+          } while (mayImproveOnRepeat.get());
         });
   }
 }

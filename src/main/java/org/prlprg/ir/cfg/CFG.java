@@ -199,7 +199,7 @@ public class CFG
 
   @Override
   public BB addBBWithId(BBId id) {
-    var bb = doAddBBWithId(id);
+    var bb = doAddBB(id);
     record(new CFGEdit.InsertBB(bb), new CFGEdit.RemoveBB(bb));
     return bb;
   }
@@ -445,11 +445,7 @@ public class CFG
    * <p>This should only be called by {@link CFG} and {@link BB} in {@linkplain Semantic intrinsic}
    * edits.
    */
-  BB doAddBB(String name) {
-    return doAddBBWithId(uniqueBBId(name));
-  }
-
-  private BB doAddBBWithId(BBId id) {
+  BB doAddBB(BBId id) {
     var bb = new BB(this, id);
     assert !bbs.containsKey(bb.id());
 
@@ -464,10 +460,15 @@ public class CFG
   /**
    * Remove a basic block without recording it.
    *
-   * @throws IllegalArgumentException If the basic block was never in the CFG.
-   * @throws IllegalArgumentException If the basic block was already removed.
+   * @throws IllegalArgumentException If the basic block is the {@linkplain CFG#entry() entry}.
+   *     <p><b>OR</b> if the basic block was never in the CFG.
+   *     <p><b>OR</b> if the basic block was already removed.
    */
   void doRemove(BB bb) {
+    if (bb == entry) {
+      throw new IllegalArgumentException("Can't remove entry BB");
+    }
+
     var removed = bbs.remove(bb.id());
 
     if (removed == null) {
@@ -606,7 +607,8 @@ public class CFG
   // endregion tracking and untracking
 
   // endregion unique ids
-  private BBId uniqueBBId(String name) {
+  /** Return a unique id for an {@linkplain BB basic block} with the given name. */
+  BBId uniqueBBId(String name) {
     return new BBIdImpl(nextBbDisambiguator.get(name), name);
   }
 

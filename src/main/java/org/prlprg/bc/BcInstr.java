@@ -74,8 +74,7 @@ public sealed interface BcInstr {
     }
   }
 
-  record StartLoopCntxt(boolean isForLoop, @LabelName("loopBreak") BcLabel break_)
-      implements BcInstr {
+  record StartLoopCntxt(boolean isForLoop, @LabelName("loopEnd") BcLabel end) implements BcInstr {
     @Override
     public BcOp op() {
       return BcOp.STARTLOOPCNTXT;

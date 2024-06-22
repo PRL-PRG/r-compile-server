@@ -5,6 +5,7 @@ import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
+import org.prlprg.parseprint.SkipWhitespace;
 
 /** A branch instruction destination. */
 public final class BcLabel {
@@ -36,11 +37,11 @@ public final class BcLabel {
   }
 
   // region serialization and deserialization
-  @ParseMethod
+  @ParseMethod(SkipWhitespace.NONE)
   private static BcLabel parseBcLabel(Parser p) {
     var s = p.scanner();
 
-    s.assertAndSkip('+');
+    s.assertAndSkip('@');
     return new BcLabel(s.readUInt());
   }
 
@@ -48,7 +49,7 @@ public final class BcLabel {
   private void print(Printer p) {
     var w = p.writer();
 
-    w.write('+');
+    w.write('@');
     p.print(target);
   }
 

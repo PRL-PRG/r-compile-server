@@ -26,8 +26,9 @@ interface CFGIntrinsicMutate {
    * <p>Existing basic blocks and instructions may still reference it, but these references must be
    * removed before {@link CFG#verify()} is called.
    *
-   * @throws IllegalArgumentException If the basic block was never in the CFG.
-   * @throws IllegalArgumentException If the basic block was already removed.
+   * @throws IllegalArgumentException If the basic block is the {@linkplain CFG#entry() entry}.
+   *     <p><b>OR</b> if the basic block was never in the CFG.
+   *     <p><b>OR</b> if the basic block was already removed.
    */
   void remove(BB bb);
 
@@ -38,8 +39,9 @@ interface CFGIntrinsicMutate {
    * removed before {@link CFG#verify()} is called.
    *
    * @return The removed basic block.
-   * @throws IllegalArgumentException If the basic block was never in the CFG.
-   * @throws IllegalArgumentException If the basic block was already removed.
+   * @throws IllegalArgumentException If the basic block is the {@linkplain CFG#entry() entry}.
+   *     <p><b>OR</b> if the basic block was never in the CFG.
+   *     <p><b>OR</b> if the basic block was already removed.
    */
   BB remove(BBId bbId);
 

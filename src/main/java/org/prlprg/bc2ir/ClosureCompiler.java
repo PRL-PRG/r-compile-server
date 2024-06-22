@@ -42,7 +42,7 @@ public class ClosureCompiler {
    *     it's the outer closure's environment.
    * @throws IllegalArgumentException If the closure's body isn't bytecode (in this case, you must
    *     use a {@link org.prlprg.bc.Compiler} to compile it before calling this).
-   * @throws IllegalArgumentException If {@code env} isn't statically known to be an environment.
+   *     <p><b>OR</b> if {@code env} isn't statically known to be an environment.
    * @throws CFGCompilerUnsupportedBcException If the closure can't be compiled because it does
    *     something complex which the compiler doesn't support yet.
    */
@@ -74,7 +74,7 @@ public class ClosureCompiler {
    *     it's the outer closure's environment.
    * @throws IllegalArgumentException If the closure's body isn't bytecode (in this case, you must
    *     use a {@link org.prlprg.bc.Compiler} to compile it before calling this).
-   * @throws IllegalArgumentException If {@code env} isn't statically known to be an environment.
+   *     <p><b>OR</b> if {@code env} isn't statically known to be an environment.
    * @throws CFGCompilerUnsupportedBcException If the closure can't be compiled because it does
    *     something complex which the compiler doesn't support yet.
    */

@@ -329,8 +329,13 @@ public class CFGCompiler {
     this.isPromise = isPromise;
 
     cursor = new CFGCursor(cfg);
-    bbByLabel.put(0, cfg.entry());
+
+    // Insert `LdFunctionEnv`, which goes before all bytecode instructions.
     env = cursor.insert(new StmtData.LdFunctionEnv());
+    var entry_ = cfg.addBB("entry_");
+    cursor.insert(new JumpData.Goto(entry_));
+    cursor.moveToStart(entry_);
+    bbByLabel.put(0, entry_);
   }
 
   /** Actually compile {@code bc} into {@code cfg}. */
@@ -354,21 +359,29 @@ public class CFGCompiler {
       // Add instructions to BBs, including jumps which connect them.
       // Also, move to the BB at each label, and skip unreachable bytecode.
       for (bcPos = 0; bcPos < code.size(); bcPos++) {
-        if (bcPos != 0 && bbByLabel.containsKey(bcPos)) {
+        if (bbByLabel.containsKey(bcPos) && bbByLabel.get(bcPos) != cursor.bb()) {
+          // Move to the BB at this label.
           var nextBb = bbByLabel.get(bcPos);
           if (cursor.bb().jump() == null) {
+            // We need to insert a jump because in the bytecode it just falls through, but there's
+            // no such thing as fallthrough in IR.
             cursor.insert(new JumpData.Goto(nextBb));
           }
           if (nextBb.predecessors().isEmpty() && !bbsWithPhis.contains(nextBb)) {
-            // Happens after a compiled `repeat`, maybe it's not correct in other cases.
+            // This happens after a compiled `repeat`, so the following bytecode is unreachable and
+            // we can even remove `nextBb` (since it's entirely unreachable). Maybe it's not correct
+            // in other cases.
             isInUnreachableBytecode = true;
             cfg.remove(nextBb);
           } else {
+            // If we were skipping over unreachable bytecode, stop doing that.
             isInUnreachableBytecode = false;
+            // Then move the cursor to the next BB, and change the stack for it.
             moveTo(nextBb);
           }
         }
         if (!isInUnreachableBytecode) {
+          // Add instruction, it's not unreachable.
           addBcInstrIrInstrs(code.get(bcPos));
         }
       }
@@ -511,18 +524,23 @@ public class CFGCompiler {
 
         // We already handle `for` loops in `StartFor` (due to the very specific bytecode pattern of
         // for loops), but need to handle `while` and `repeat` since they don't have specific
-        // bytecode.
-        if (!isForLoop) {
-          // This takes advantage of the invariant that the loop body is right after
-          // `StartLoopCntxt`, so a label should exist here.
-          var bodyBb = bbAfterCurrent();
-          var endBb = bbAt(end);
-
-          pushWhileOrRepeatLoop(bodyBb, endBb);
+        // bytecode instructions.
+        if (isForLoop) {
+          // Specifically, we step over this instruction if we encounter `StartFor`, so it's never
+          // compiled directly unless the bytecode is malformed.
+          throw fail("StartLoopCntxt: expected to be preceded by StartFor");
         }
+
+        // This takes advantage of the invariant that the loop body is right after
+        // `StartLoopCntxt`, so a label should exist here.
+        var bodyBb = bbAfterCurrent();
+        var endBb = bbAt(end);
+
+        pushWhileOrRepeatLoop(bodyBb, endBb);
       }
       case EndLoopCntxt(var isForLoop) -> {
         // We already handle `for` loops in `EndFor` (similar to `StartLoopCntxt`).
+        // We don't auto-skip over them though because we don't need to.
         if (!isForLoop) {
           compileEndLoop(LoopType.WHILE_OR_REPEAT);
         }
@@ -533,50 +551,71 @@ public class CFGCompiler {
         // weak sanity check that the bytecode upholds these invariants by including `StepFor` in
         // the step branch and `EndFor` in the end branch, although it may break the invariants
         // other ways and simply not be noticed.
+        var loopCntxt = bc.code().get(bcPos + 1) instanceof StartLoopCntxt l ? l : null;
+
         var initBb = cursor.bb();
-        var forBodyBb = bbAfterCurrent();
-        var stepBb = bbAt(step);
-        var endBb = cfg.addBB("endFor");
+        BB forBodyBb;
+        BB stepBb;
+        BB endBb;
+        if (loopCntxt == null) {
+          forBodyBb = bbAfterCurrent();
+          stepBb = bbAt(step);
+          endBb = cfg.addBB("endFor");
+        } else {
+          var stepGoto = bc.code().get(bcPos + 2) instanceof Goto g ? g : null;
+          if (stepGoto == null) {
+            throw fail(
+                "StartFor followed by StartLoopCntxt, expected the StartLoopCntxt to be followed by Goto");
+          }
+          if (!bbByLabel.containsKey(bcPos + 3)) {
+            throw fail(
+                "StartFor followed by StartLoopCntxt followed by Goto, expected a label to be immediately after the Goto");
+          }
+          forBodyBb = bbByLabel.get(bcPos + 3);
+          stepBb = bbAt(stepGoto.label());
+          endBb = bbAt(loopCntxt.end());
+        }
 
         // For loop init
         var seq = cursor.insert(new StmtData.ToForSeq(pop(RValue.class)));
-        var length = cursor.insert(new StmtData.Length(top(RValue.class)));
+        var length = cursor.insert(new StmtData.Length(seq));
         var init = Constant.integer(0);
-        cursor.insert(new JumpData.Goto(forBodyBb));
+        cursor.insert(new JumpData.Goto(stepBb));
 
         // For loop step
-        // Add phi values for virtual stack nodes (even though `stepBb` doesn't use any of them,
-        // `forBodyBb`, `endBb`, and successors may use variables which could originate from
-        // `initBb` and BBs between `forBodyBb` and `stepBB`, so it needs phis for those variables).
-        addPhiInputsForStack(stepBb);
-        stack.clear();
-        stack.addAll(stepBb.phis());
-        cursor.moveToStart(stepBb);
-        // We must also add a phi for the index, which is never put onto the virtual stack.
+        moveTo(stepBb);
         var index = stepBb.addPhi(RValue.class);
         index.setInput(initBb, init);
+        // Increment the index
         var index1 = cursor.insert(new StmtData.Inc(index.cast()));
-        index.setInput(forBodyBb, index1);
+        push(index1);
+        // Compare the index to the length
         var cond = cursor.insert(new StmtData.Lt(Optional.of(get(ast)), length, index1, env));
+        // Jump to `end` if it's greater (remember, GNU-R indexing is one-based)
         cursor.insert(new JumpData.Branch(get(ast), cond, endBb, forBodyBb));
 
-        // For loop index (in forBody BB before the forBody expression)
-        // `forBodyBb` doesn't need phis because it has exactly one predecessor (`stepBb`) so we can
-        // use `cursor.moveToStart` instead of `moveTo`.
-        cursor.moveToStart(forBodyBb);
-        var elem = cursor.insert(new StmtData.Extract2_1D(Optional.of(get(ast)), seq, index1, env));
+        // For loop body
+        moveTo(forBodyBb);
+        // Extract element at index
+        var elem =
+            cursor.insert(new StmtData.Extract2_1D(Optional.of(get(ast)), seq, index.cast(), env));
+        // Store in the element variable
         cursor.insert(new StmtData.StVar(get(elemName), elem, env));
-
-        // Next we'll compile the forBody.
-        // When we encounter `StepFor`, we know that the forBody is over, so we add the phi inputs
-        // from `forBodyBb` to `stepBb` and then move to `endBb` (`stepBB` only contains
-        // instructions that were inserted in "For loop step" above; we compiled `stepBb` here
-        // exploiting the for loop invariants, so when we encounter `StepFor` we skip over it).
+        // Now we compile the rest of the body...
+        // When we encounter `StepFor`, we know that the body is over. Note that we may no longer be
+        // in `forBodyBb`: that is just the first BB in the for body, there may be more.
         pushForLoop(forBodyBb, stepBb, endBb);
+
+        if (loopCntxt != null) {
+          // We already handled the next 2 instructions.
+          // The `StartLoopCntxt` could be made into a no-op, but the `Goto` would break this setup
+          // because we've already added the goto to `stepBb` and moved to `forBodyBb`.
+          bcPos += 2;
+        }
       }
       case DoLoopNext() -> {
-        // Out Java compiler doesn't actually generate these instructions,
-        // so this code may be wrong...
+        // The bytecode compilers don't actually generate these instructions, are they deprecated?
+        // Regardless, we can still support them.
         if (isPromise && !inLocalLoop()) {
           throw failUnsupported("`next` or `break` in promise (complex loop context)");
         }
@@ -587,8 +626,8 @@ public class CFGCompiler {
         setInUnreachableBytecode();
       }
       case DoLoopBreak() -> {
-        // Out Java compiler doesn't actually generate these instructions,
-        // so this code may be wrong...
+        // The bytecode compilers don't actually generate these instructions, are they deprecated?
+        // Regardless, we can still support them.
         if (isPromise && !inLocalLoop()) {
           throw failUnsupported("`next` or `break` in promise (complex loop context)");
         }
@@ -599,11 +638,17 @@ public class CFGCompiler {
         setInUnreachableBytecode();
       }
       case StepFor(var body) -> {
+        // This is the instruction immediately after the end of the for loop body (excluding `next`
+        // and `break`).
+
+        // First do a sanity check
         var loop = topLoop();
         if (loop.type != LoopType.FOR) {
           throw fail("StepFor: expected a for loop");
         }
         var forBodyBb = bbAt(body);
+        var stepBb = loop.next;
+        var endBb = loop.end;
         if (forBodyBb != loop.forBody) {
           throw fail(
               "StepFor: expected forBody BB "
@@ -611,15 +656,13 @@ public class CFGCompiler {
                   + " but got "
                   + forBodyBb.id());
         }
-        if (cursor.bb() != loop.next || cursor.stmtIdx() != 0) {
-          throw fail("StepFor: expected to be at start of step BB " + loop.next.id());
+        if (cursor.bb() != stepBb || cursor.stmtIdx() != 0) {
+          throw fail("StepFor: expected to be at start of step BB " + stepBb.id());
         }
-        // `stepBb`'s instructions (including jump to `forBodyBb`) were added when compiling
-        // `startFor`. Also, `forBodyBb` doesn't need phis because `stepBB` is its only predecessor.
 
-        // We must explicitly move to `endBb` because, as mentioned above, there's no label
-        // corresponding to it (the compiler automatically moves to BBs with corresponding labels).
-        moveTo(topLoop().end);
+        // We must explicitly move to `endBb` because there may not be a label corresponding to it,
+        // and we don't want to compile anything else in `stepBb`.
+        moveTo(endBb);
       }
       case EndFor() -> compileEndLoop(LoopType.FOR);
       case SetLoopVal() -> {
