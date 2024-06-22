@@ -8,6 +8,8 @@ import org.prlprg.ir.closure.Closure;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.primitive.Complex;
+import org.prlprg.primitive.Constants;
+import org.prlprg.primitive.Logical;
 import org.prlprg.primitive.Names;
 import org.prlprg.sexp.Attributes;
 import org.prlprg.sexp.BCodeSXP;
@@ -179,10 +181,10 @@ public class SEXPPrintContext implements HasSEXPPrintContext {
         p,
         () -> {
           if (sexp.isScalar()) {
-            printStringElem(sexp.get(0), options.maxStringLength(), p);
+            printStringElem(sexp.get(0), options.maxStringLength(), p.withContext(forVectorElem));
           } else {
             printGeneralStart(sexp.type(), p);
-            printStringElems(sexp, p);
+            printStringElems(sexp, p.withContext(forVectorElem));
             printAttributes(sexp, p);
             printGeneralEnd(p);
           }
@@ -397,20 +399,62 @@ public class SEXPPrintContext implements HasSEXPPrintContext {
     }
 
     @PrintMethod
+    private void print(Logical logical, Printer p) {
+      var w = p.writer();
+
+      if (logical == Logical.NA) {
+        w.write("NA_LGL");
+      } else {
+        p.withContext(null).print(logical);
+      }
+    }
+
+    @PrintMethod
     private void print(Integer integer, Printer p) {
       var w = p.writer();
 
-      p.withContext(null).print(integer);
-      w.write('L');
+      if (integer == Constants.NA_INT) {
+        w.write("NA_INT");
+      } else {
+        p.withContext(null).print(integer);
+        w.write('L');
+      }
+    }
+
+    @PrintMethod
+    private void print(Double real, Printer p) {
+      var w = p.writer();
+
+      // Technically only one NaN is NA, but Java only has one NaN. See `Constants#NA_REAL`'s docs.
+      if (Double.isNaN(real)) {
+        w.write("NA_REAL");
+      } else {
+        p.withContext(null).print(real);
+      }
     }
 
     @PrintMethod
     private void print(Complex cplx, Printer p) {
       var w = p.writer();
 
-      p.withContext(null).print(cplx);
-      if (cplx.imag() == 0) {
-        w.write("+0i");
+      if (cplx == Constants.NA_COMPLEX) {
+        w.write("NA_CPLX");
+      } else {
+        p.withContext(null).print(cplx);
+        if (cplx.imag() == 0) {
+          w.write("+0i");
+        }
+      }
+    }
+
+    @PrintMethod
+    private void print(String string, Printer p) {
+      var w = p.writer();
+
+      if (Constants.isNaString(string)) {
+        w.write("NA_STR");
+      } else {
+        p.withContext(null).print(string);
       }
     }
   }
