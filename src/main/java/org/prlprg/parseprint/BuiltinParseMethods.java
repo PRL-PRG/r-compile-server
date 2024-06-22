@@ -1,5 +1,6 @@
 package org.prlprg.parseprint;
 
+import java.util.Optional;
 import org.prlprg.util.Reflection;
 import org.prlprg.util.StringCase;
 import org.prlprg.util.Strings;
@@ -116,7 +117,12 @@ public final class BuiltinParseMethods {
         }
         s.assertAndSkip(components[i].getName());
         s.assertAndSkip('=');
-        arguments[i] = p.parse(components[i].getGenericType(), SkipWhitespace.ALL);
+        // This assumes that the component isn't `@Nullable Optional<...>`, and otherwise properly
+        // handles both `@Nullable T` and `Optional<T>`.
+        arguments[i] =
+            components[i].getType() == Optional.class
+                ? p.parse(components[i].getGenericType(), SkipWhitespace.ALL)
+                : p.parseOptional(components[i].getGenericType(), SkipWhitespace.ALL).orElse(null);
       }
       s.assertAndSkip(')');
     }

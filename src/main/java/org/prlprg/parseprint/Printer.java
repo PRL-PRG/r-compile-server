@@ -128,8 +128,15 @@ public class Printer {
    * <p>If a {@link PrintMethod} is resolved for the class or a superclass according to {@link
    * TypeclassMap#lookup(Class, Class)}, it will be used. Otherwise {@link Object#toString()} will
    * be used.
+   *
+   * <p>{@code null} is printed as the string "null".
    */
-  public void print(Object object) {
+  public void print(@Nullable Object object) {
+    if (object == null) {
+      writer.write("null");
+      return;
+    }
+
     var m =
         PRINT_METHODS.lookup(object.getClass(), context == null ? Void.class : context.getClass());
     if (m != null) {
