@@ -92,7 +92,7 @@ public class RDSWriter implements Closeable {
           case VectorSXP<?> vec -> writeVectorSXP(vec);
 
             // Bytecode
-          case BCodeSXP bc -> writeBCode(bc);
+          case BCodeSXP bc -> writeBC(bc);
 
           default -> throw new UnsupportedOperationException("Unsupported sexp type: " + s.type());
         }
@@ -144,8 +144,8 @@ public class RDSWriter implements Closeable {
   // Returns the general purpose flags associated with the provided SEXP.
   // FIXME: we should actually get the flags... not just null and false
   // However, there's no way to do this right now, since we have no representation of locked
-  // environments (as far as
-  // I know)
+  // environments (as far as I know) and no SEXPs that need a charset (verify this for
+  // SymSXP, etc.)
   private GPFlags gpFlags(SEXP sexp) {
     return new GPFlags(null, false);
   }
@@ -167,10 +167,13 @@ public class RDSWriter implements Closeable {
     writeFlags(flags);
   }
 
+  // FIXME: sort of duplicate method, get rid of this (keep hasAttr)
+  private boolean hasAttrs(@Nullable Attributes attrs) {
+    return attrs != null && !Objects.requireNonNull(attrs).isEmpty();
+  }
+
   private void writeAttributes(@Nullable Attributes attrs) throws IOException {
-    if (attrs == null || attrs.isEmpty()) {
-      return;
-    }
+    if (!hasAttrs(attrs)) return;
     // convert to ListSXP
     var l = attrs.entrySet().stream().map(e -> new TaggedElem(e.getKey(), e.getValue())).toList();
     // Write it
@@ -183,7 +186,7 @@ public class RDSWriter implements Closeable {
     var flags =
         new Flags(
             RDSItemType.valueOf(SEXPType.CHAR.i),
-            // FIXME: will this cause issues if defaultCharset is not supported by RDS?
+            // FIXME: this should include the logic from platform.c (see rds-reader)
             new GPFlags(Charset.defaultCharset(), false),
             false,
             false,
@@ -199,7 +202,6 @@ public class RDSWriter implements Closeable {
 
   private void writeEnv(EnvSXP env) throws IOException {
     refTable.add(env);
-    // FIXME:
     var flags = flags(env, 0).getLevels().isLocked();
     switch (env) {
       case NamespaceEnvSXP namespace -> {
@@ -222,7 +224,7 @@ public class RDSWriter implements Closeable {
         // Attributes
         // R always write something here, as it does not write a hastag bit in the flags
         // (it actually has no flags; it just writes the type ENV)
-        if ((env.attributes() != null) && !Objects.requireNonNull(env.attributes()).isEmpty()) {
+        if (hasAttrs(env.attributes())) {
           writeAttributes(env.attributes());
         } else {
           writeItem(SEXPs.NULL);
@@ -235,6 +237,7 @@ public class RDSWriter implements Closeable {
     }
   }
 
+  // TODO: test
   private void writeSpecialSXP(SpecialSXP special) throws IOException {
     writeFlags(special, 0);
     var name = special.name();
@@ -242,21 +245,12 @@ public class RDSWriter implements Closeable {
     out.writeString(special.name());
   }
 
+  // TODO: test
   private void writeBuiltinSXP(BuiltinSXP builtin) throws IOException {
     writeFlags(builtin, 0);
     var name = builtin.name();
     out.writeInt(name.length());
     out.writeString(builtin.name());
-  }
-
-  // Writes a builtin SEXP (BuiltinSXP or SpecialSXP)
-  // TODO: needs to be finished
-  private void writeSpecialOrBuiltin(String name, boolean hasattr, Flags flags) throws IOException {
-    // TODO: need to do something for hasattr?
-    throw new RuntimeException("cannot write object of type" + flags.getType() + ": " + name);
-    //    out.writeFlags(flags);
-    //    out.writeInt(name.length());
-    //    out.writeString(name);
   }
 
   private void writeListSXP(ListSXP lsxp) throws IOException {
@@ -273,7 +267,7 @@ public class RDSWriter implements Closeable {
               0);
       writeFlags(itemFlags);
       if (el.tag() != null) {
-        writeSymbol(el.tag());
+        writeRegSymbol(el.tag());
       }
       writeItem(el.value());
 
@@ -371,50 +365,123 @@ public class RDSWriter implements Closeable {
     }
   }
 
-  private void scanForCircles(SEXP sexp, HashSet<SEXP> noBCodes) {
+  private void scanForCircles(SEXP sexp, HashMap<SEXP, Integer> reps, HashSet<SEXP> seen) {
     switch (sexp) {
-      case LangOrListSXP l -> {
-        if (!noBCodes.contains(l)) {
-          noBCodes.add(l);
-          for (var e :
-              switch (l) {
-                case LangSXP lang -> lang.args();
-                case ListSXP list -> list;
-              }) {
-            scanForCircles(e.value(), noBCodes);
+      case LangOrListSXP lol -> {
+        if (seen.contains(lol)) {
+          // Add to reps if the cell has already been seen
+          // We put -1 for the time being so that we can update reps in the correct order later
+          reps.put(lol, -1);
+          return;
+        }
+        ;
+        // Otherwise, add to seen and scan recursively
+        seen.add(lol);
+
+        switch (lol) {
+          case LangSXP lang -> {
+            // For LangSXP, we want to scan both the function and the arg values
+            // TODO: I think this is right, test it though
+            scanForCircles(lang.fun(), reps, seen);
+            lang.args().values().forEach((el) -> scanForCircles(el, reps, seen));
+          }
+          case ListSXP list -> {
+            if (seen.contains(list)) {
+              // We put -1 for the time being so that we can update reps in the correct order later
+              reps.put(list, -1);
+              return;
+            }
+            ;
+            seen.add(list);
+
+            // For ListSXP, we scan the values
+            list.values().forEach((el) -> scanForCircles(el, reps, seen));
           }
         }
       }
       case BCodeSXP bc -> {
-        for (var e : bc.bc().consts()) {
-          scanForCircles(e, noBCodes);
-        }
+        // For bytecode, we scan the constant pool
+        bc.bc().consts().forEach((el) -> scanForCircles(el, reps, seen));
       }
+        // FIXME: we probably don't want to throw an exception here
       default -> throw new RuntimeException("Unexpected sexp type: " + sexp.type());
     }
   }
 
-  // FIXME: replace HashSet by HashTable, and store as value the reference number
-  private void writeBCLang(SEXP s, HashSet<SEXP> reps) throws IOException {
-    switch (s) {
-      case LangOrListSXP l -> {
-        if (!reps.contains((l))) {
+  // HACK: nextRepIndex is an array because we need to pass it by reference, but it only has one
+  // element
+  private void writeBCLang(SEXP s, HashMap<SEXP, Integer> reps, int[] nextRepIndex)
+      throws IOException {
+    if (s instanceof LangOrListSXP lol) {
+      var assignedRepIndex = reps.get(lol);
+      if (assignedRepIndex != null) {
+        if (assignedRepIndex == -1) {
+          // If the rep is present in the map but is -1, this is our first time seeing it, so we
+          // emit a BCREPDEF and update the counter
+          int newIndex = nextRepIndex[0]++;
+          reps.put(lol, newIndex);
           out.writeInt(RDSItemType.Special.BCREPDEF.i());
-
+          out.writeInt(newIndex);
         } else {
-          // already seen to we put the index
+          // If the rep is present with an index other than -1, we have already seen it, so we
+          // emit a BCREPREF with the reference index.
+          out.writeInt(RDSItemType.Special.BCREPREF.i());
+          out.writeInt(assignedRepIndex);
+          // We also return, since the child nodes have already been written, and we don't want
+          // to write them again
+          return;
         }
-        // TODO
       }
-      default -> throw new UnsupportedOperationException("not implemented yet");
+
+      var type = RDSItemType.valueOf(lol.type().i);
+
+      // if the item has attributes, we use the special types ATTRLANGSXP and ATTRLISTSXP instead
+      // of LangSXP and ListSXP. This is done to preserve information on expressions in the
+      // constant pool of byte code objects.
+      var attrs = lol.attributes();
+      if (hasAttrs(attrs)) {
+        type =
+            switch (lol) {
+              case LangSXP _lang -> RDSItemType.Special.ATTRLANGSXP;
+              case ListSXP _list -> RDSItemType.Special.ATTRLISTSXP;
+            };
+      }
+      out.writeInt(type.i());
+      writeAttributes(attrs);
+
+      switch (lol) {
+          // For a LangSXP, recursively write the function and args
+        case LangSXP lang -> {
+          writeBCLang(lang.fun(), reps, nextRepIndex);
+          for (var arg : lang.args()) {
+            writeBCLang(arg.value(), reps, nextRepIndex);
+          }
+        }
+          // For a ListSXP, recursively write the elements
+        case ListSXP list -> {
+          for (var el : list) {
+            writeBCLang(el.value(), reps, nextRepIndex);
+          }
+        }
+      }
+    } else { // Print a zero as padding and write the item normally
+      out.writeInt(0);
+      writeItem(s);
     }
     throw new UnsupportedOperationException("not implemented yet");
   }
 
-  private void writeBC1(BCodeSXP s, HashSet<SEXP> reps) throws IOException {
+  private void writeBC1(BCodeSXP s, HashMap<SEXP, Integer> reps, int[] nextRepIndex)
+      throws IOException {
+    // Decode the bytecode (we will get a vector of integers)
+    // write the vector of integers
     var code_bytes = s.bc().code().toRaw();
     writeItem(SEXPs.integer(code_bytes));
 
+    // write the number of consts in the bytecode
+    // iterate the consts: if it s bytecode, write the type and recurse
+    // if it is langsxp or listsxp,  write them , using the BCREDPEF, ATTRALANGSXP and ATTRLISTSXP
+    // else write the type and the value
     var consts = s.bc().consts();
     out.writeInt(consts.size());
 
@@ -423,10 +490,10 @@ public class RDSWriter implements Closeable {
       switch (c) {
         case BCodeSXP bc -> {
           out.writeInt(c.type().i);
-          writeBC1(bc, reps);
+          writeBC1(bc, reps, nextRepIndex);
         }
         case LangOrListSXP l -> {
-          writeBCLang(l, reps);
+          writeBCLang(l, reps, nextRepIndex);
         }
         default -> {
           out.writeInt(c.type().i);
@@ -436,29 +503,23 @@ public class RDSWriter implements Closeable {
     }
   }
 
-  private void writeBCode(BCodeSXP s) throws IOException {
+  private void writeBC(BCodeSXP s) throws IOException {
     writeFlags(s, 0);
 
     // Scan for circles
     // prepend the result it with a scalar integer starting with 1
-    var noBCodes = new HashSet<SEXP>();
-    scanForCircles(s, noBCodes);
-    out.writeInt(noBCodes.size() + 1);
+    var reps = new HashMap<SEXP, Integer>();
+    var seen = new HashSet<SEXP>();
+    scanForCircles(s, reps, seen);
+    out.writeInt(reps.size() + 1);
 
-    // Decode the bytecode (we will get a vector of integers)
-    // write the vector of integers
-
-    // write the number of consts in the bytecode
-    // iterate the consts: if it s bytecode, write the type and recurse
-    // if it is langsxp or listsxp,  write them , using the BCREDPEF, ATTRALANGSXP and ATTRLISTSXP
-    // else write the type and the value
-
-    throw new UnsupportedOperationException("not implemented yet");
+    var nextRepIndex = new int[] {0};
+    writeBC1(s, reps, nextRepIndex);
   }
 
   private void writeSymbol(SymSXP s) throws IOException {
     switch (s) {
-      case RegSymSXP regSymSXP -> writeSymbol(regSymSXP);
+      case RegSymSXP regSymSXP -> writeRegSymbol(regSymSXP);
       case SpecialSymSXP specialSymSXP when specialSymSXP.isEllipsis() -> {
         out.writeByte((byte) SEXPType.SYM.i);
         writeChars("..."); // Really?
@@ -468,12 +529,12 @@ public class RDSWriter implements Closeable {
     }
   }
 
-  private void writeSymbol(RegSymSXP s) throws IOException {
+  private void writeRegSymbol(RegSymSXP s) throws IOException {
     refTable.add(s);
-    writeSymbol(s.name());
+    writeRegSymbol(s.name());
   }
 
-  private void writeSymbol(String s) throws IOException {
+  private void writeRegSymbol(String s) throws IOException {
     out.writeInt(SEXPType.SYM.i);
     writeChars(s);
   }

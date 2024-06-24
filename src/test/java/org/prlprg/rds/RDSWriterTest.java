@@ -45,7 +45,7 @@ public class RDSWriterTest extends AbstractGNURBasedTest {
         R.eval(
             """
         typeof(input) == "integer" && identical(input, c(5L, 4L, 3L, 2L, 1L))
-            """,
+        """,
             ints);
 
     if (output instanceof LglSXP read_lgls) {
@@ -80,7 +80,7 @@ public class RDSWriterTest extends AbstractGNURBasedTest {
     var output =
         R.eval(
             """
-        typeof(input) == "complex" && identical(input, c(0+0i, 1+2i, -2-1i))
+            typeof(input) == "complex" && identical(input, c(0+0i, 1+2i, -2-1i))
             """,
             complexes);
 
