@@ -287,16 +287,12 @@ abstract sealed class InstrImpl<D extends InstrData<?>> extends InstrOrPhiImpl i
     var cls = Classes.classOf(data);
     var components = cls.getRecordComponents();
 
-    var found = false;
     var newValues = new Object[components.length];
     for (var i = 0; i < components.length; i++) {
       var cmp = components[i];
       var value = Reflection.getComponent(r, cmp);
 
       if (value.equals(old)) {
-        assert !found : argTypeStr + " to replace found multiple times";
-        found = true;
-
         if (!cmp.getType().isInstance(replacement)) {
           throw new IllegalArgumentException(
               "replacement "
@@ -317,9 +313,6 @@ abstract sealed class InstrImpl<D extends InstrData<?>> extends InstrOrPhiImpl i
       } else if (value instanceof Optional<?> o) {
         var elemClass = optionalOrCollectionComponentElementClass(cmp);
         if (o.isPresent() && o.get().equals(old)) {
-          assert !found : argTypeStr + " to replace found multiple times";
-          found = true;
-
           if (!elemClass.isInstance(replacement)) {
             throw new IllegalArgumentException(
                 "replacement "
@@ -337,9 +330,6 @@ abstract sealed class InstrImpl<D extends InstrData<?>> extends InstrOrPhiImpl i
         var builder = ImmutableList.builderWithExpectedSize(c.size());
         for (var item : c) {
           if (item.equals(old)) {
-            assert !found : argTypeStr + " to replace found multiple times";
-            found = true;
-
             if (!elemClass.isInstance(replacement)) {
               throw new IllegalArgumentException(
                   "replacement "
@@ -353,9 +343,6 @@ abstract sealed class InstrImpl<D extends InstrData<?>> extends InstrOrPhiImpl i
             builder.add(replacement);
           } else if (item instanceof Optional<?> o) {
             if (o.isPresent() && o.get().equals(old)) {
-              assert !found : argTypeStr + " to replace found multiple times";
-              found = true;
-
               if (!elemClass.isInstance(replacement)) {
                 throw new IllegalArgumentException(
                     "replacement "
