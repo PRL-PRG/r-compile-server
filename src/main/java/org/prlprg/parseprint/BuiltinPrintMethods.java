@@ -109,11 +109,7 @@ public final class BuiltinPrintMethods {
 
   @PrintMethod
   private static void printOptional(Optional<?> data, Printer p) {
-    if (data.isPresent()) {
-      p.print(data.get());
-    } else {
-      p.writer().write("null");
-    }
+    p.print(data.orElse(null));
   }
 
   @PrintMethod

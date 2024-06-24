@@ -102,7 +102,7 @@ final class GlobalNodeIdImpl<N extends GlobalNode> extends NodeIdImpl<N>
   private static GlobalNodeIdImpl<?> parse(Parser p) {
     var s = p.scanner();
 
-    var type = s.readUntil('\\');
+    var type = s.nextCharIs('\\') ? "" : s.readJavaIdentifierOrKeyword();
     s.assertAndSkip('\\');
     var node =
         switch (type) {

@@ -1,6 +1,8 @@
 package org.prlprg.parseprint;
 
+import java.util.Arrays;
 import java.util.Optional;
+import javax.annotation.Nullable;
 import org.prlprg.util.Reflection;
 import org.prlprg.util.StringCase;
 import org.prlprg.util.Strings;
@@ -117,12 +119,19 @@ public final class BuiltinParseMethods {
         }
         s.assertAndSkip(components[i].getName());
         s.assertAndSkip('=');
-        // This assumes that the component isn't `@Nullable Optional<...>`, and otherwise properly
-        // handles both `@Nullable T` and `Optional<T>`.
+        var isOptional = components[i].getType() == Optional.class;
+        var isNullable = components[i].isAnnotationPresent(Nullable.class);
+        assert isNullable
+                || Arrays.stream(components[i].getAnnotations())
+                    .noneMatch(a -> a.getClass().getSimpleName().equals("Nullable"))
+            : "record has `@Nullable` annotation that isn't `javax.annotations.Nullable`";
+        if (isOptional && isNullable) {
+          throw new UnsupportedOperationException("Can't parse `@Nullable Optional<...>`");
+        }
         arguments[i] =
-            components[i].getType() == Optional.class
-                ? p.parse(components[i].getGenericType(), SkipWhitespace.ALL)
-                : p.parseOptional(components[i].getGenericType(), SkipWhitespace.ALL).orElse(null);
+            isNullable
+                ? p.parseOptional(components[i].getGenericType(), SkipWhitespace.ALL).orElse(null)
+                : p.parse(components[i].getGenericType(), SkipWhitespace.ALL);
       }
       s.assertAndSkip(')');
     }
