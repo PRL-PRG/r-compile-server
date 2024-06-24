@@ -17,6 +17,15 @@ public sealed interface EnvSXP extends SEXP permits StaticEnvSXP, UserEnvSXP {
   EnvSXP parent();
 
   /**
+   * Change the environment's parent post-initialization.
+   *
+   * @throws UnsupportedOperationException If the given parent is of a type that can't be a parent
+   *     of this environment. For example, the base environment's parent is always the empty
+   *     environment, so this will fail if given any other environment (and otherwise is a no-op).
+   */
+  void setParent(EnvSXP parent);
+
+  /**
    * Get the value of a symbol in the environment, following the parent chain.
    *
    * @param name the name of the symbol

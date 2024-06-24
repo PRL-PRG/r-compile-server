@@ -23,6 +23,11 @@ abstract class AbstractEnvSXP {
   }
 
   // @Override
+  public void setParent(EnvSXP parent) {
+    this.parent = parent;
+  }
+
+  // @Override
   public Optional<SEXP> get(String name) {
     return getLocal(name).or(() -> parent.get(name));
   }

@@ -15,7 +15,21 @@ public final class EmptyEnvSXP implements StaticEnvSXP {
   /** Empty environment has no parent. It is an error to call this method. */
   @Override
   public EmptyEnvSXP parent() {
+    // Technically the empty environment's parent is itself. If we actually need to call this for
+    // some reason we should change the implementation so that it returns itself.
     throw new UnsupportedOperationException("the empty environment has no parent");
+  }
+
+  @Override
+  public void setParent(EnvSXP parent) {
+    // Technically the empty environment's parent is itself. If we actually need to call this for
+    // some reason we should change the implementation so that it allows setting to itself.
+    throw new UnsupportedOperationException("the empty environment has no parent");
+  }
+
+  @Override
+  public void setParent(StaticEnvSXP parent) {
+    setParent((EnvSXP) parent);
   }
 
   @Override

@@ -261,8 +261,8 @@ public class SEXPParseContext implements HasSEXPParseContext {
                 throw failParsingTruncated(p);
               }
 
-              var parent = s.trySkip("parent=") ? p.parse(EnvSXP.class) : null;
-              var hasBindings = s.nextCharIs('(');
+              boolean hasParent;
+              boolean hasBindings;
 
               var env =
                   switch ((EnvType) type) {
@@ -270,57 +270,37 @@ public class SEXPParseContext implements HasSEXPParseContext {
                       if (refIndex != -1) {
                         throw s.fail("Empty environment can't have ref index");
                       }
-                      if (parent != null) {
-                        throw s.fail("Empty environment can't have parent");
-                      }
-                      if (hasBindings) {
-                        throw s.fail("Empty environment can't have bindings");
-                      }
+                      hasParent = false;
+                      hasBindings = false;
                       yield SEXPs.EMPTY_ENV;
                     }
                     case BASE -> {
-                      if (parent != null) {
-                        throw s.fail("Base environment can't have parent");
-                      }
-                      if (!hasBindings) {
-                        throw s.fail("Base environment must have bindings");
-                      }
+                      hasParent = false;
+                      hasBindings = true;
                       yield new BaseEnvSXP();
                     }
                     case NAMESPACE -> {
-                      if (parent == null) {
-                        throw s.fail("Namespace environment must have parent");
-                      }
-                      if (!hasBindings) {
-                        throw s.fail("Namespace environment must have bindings");
-                      }
+                      hasParent = true;
+                      hasBindings = true;
                       try {
-                        yield new NamespaceEnvSXP(name, version, (StaticEnvSXP) parent);
+                        yield new NamespaceEnvSXP(name, version, SEXPs.EMPTY_ENV);
                       } catch (ClassCastException e) {
                         throw s.fail("Static environment must have static parent", e);
                       }
                     }
                     case GLOBAL -> {
-                      if (parent == null) {
-                        throw s.fail("Global environment must have parent");
-                      }
-                      if (!hasBindings) {
-                        throw s.fail("Global environment must have bindings");
-                      }
+                      hasParent = true;
+                      hasBindings = true;
                       try {
-                        yield new GlobalEnvSXP((StaticEnvSXP) parent);
+                        yield new GlobalEnvSXP(SEXPs.EMPTY_ENV);
                       } catch (ClassCastException e) {
                         throw s.fail("Static environment must have static parent", e);
                       }
                     }
                     case USER -> {
-                      if (parent == null) {
-                        throw s.fail("User environment must have parent");
-                      }
-                      if (!hasBindings) {
-                        throw s.fail("User environment must have bindings");
-                      }
-                      yield new UserEnvSXP(parent);
+                      hasParent = true;
+                      hasBindings = true;
+                      yield new UserEnvSXP(SEXPs.EMPTY_ENV);
                     }
                   };
 
@@ -328,7 +308,26 @@ public class SEXPParseContext implements HasSEXPParseContext {
                 refs.put(refIndex, env);
               }
 
-              if (hasBindings) {
+              if (s.trySkip("parent=")) {
+                if (!hasParent) {
+                  throw s.fail("Environment of type " + type + " doesn't have an explicit parent");
+                }
+
+                try {
+                  env.setParent(p.parse(EnvSXP.class));
+                } catch (UnsupportedOperationException e) {
+                  throw s.fail(
+                      "Environment of type " + type + " can't have a parent of this type", e);
+                }
+              } else if (hasParent) {
+                throw s.fail("Environment of type " + type + " must have an explicit parent");
+              }
+
+              if (s.nextCharIs('(')) {
+                if (!hasBindings) {
+                  throw s.fail("Environment of type " + type + " doesn't have explicit bindings");
+                }
+
                 var bindings = parseList(p.withContext(forBindings));
                 for (var i = 0; i < bindings.size(); i++) {
                   var binding = bindings.get(i);
@@ -340,6 +339,8 @@ public class SEXPParseContext implements HasSEXPParseContext {
                   }
                   env.set(binding.tag(), binding.value());
                 }
+              } else if (hasBindings) {
+                throw s.fail("Environment of type " + type + " must have explicit bindings");
               }
 
               yield env;
@@ -458,9 +459,9 @@ public class SEXPParseContext implements HasSEXPParseContext {
     var refIndex = s.trySkip('#') ? s.readUInt() : -1;
 
     if (refs.containsKey(refIndex) && !s.nextCharIs('>')) {
-      throw s.fail("Encountered definition for SEXP that was already defined");
+      throw s.fail("Encountered definition for SEXP that was already defined: " + refIndex);
     } else if (!refs.containsKey(refIndex) && refIndex != -1 && s.nextCharIs('>')) {
-      throw s.fail("Encountered reference for SEXP that wasn't previously defined");
+      throw s.fail("Encountered reference for SEXP that wasn't previously defined: " + refIndex);
     }
 
     return refIndex;

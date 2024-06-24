@@ -20,6 +20,7 @@ public final class UserEnvSXP extends AbstractEnvSXP implements EnvSXP {
     this.bindings.putAll(bindings);
   }
 
+  @Override
   public void setParent(EnvSXP parent) {
     this.parent = parent;
   }
