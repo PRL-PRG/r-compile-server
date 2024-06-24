@@ -1,5 +1,4 @@
 #include "serialize.h"
-#include <cassert>
 #include <cstring>
 
 struct ReadBuffer {
@@ -14,13 +13,13 @@ int get_byte(R_inpstream_t stream);
 void get_buf(R_inpstream_t stream, void *buffer, int length);
 
 SEXP deserialize(u8 const *data, usize size) {
-  R_inpstream_t in;
+  R_inpstream_st in;
   ReadBuffer b{data, size};
 
-  R_InitInPStream(in, reinterpret_cast<R_pstream_data_t>(&b),
-                  R_pstream_binary_format, get_byte, get_buf, NULL, R_NilValue);
+  R_InitInPStream(&in, reinterpret_cast<R_pstream_data_t>(&b),
+                  R_pstream_any_format, get_byte, get_buf, NULL, R_NilValue);
 
-  SEXP res = R_Unserialize(in);
+  SEXP res = R_Unserialize(&in);
 
   return res;
 }

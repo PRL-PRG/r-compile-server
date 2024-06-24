@@ -21,7 +21,5 @@ public class JITServiceTest extends AbstractGNURBasedTest implements Tests {
     var closure = SEXPs.closure(formals, body, rsession.globalEnv());
 
     var result = jitService.execute("jit_f", closure);
-
-    System.out.println(result.length);
   }
 }

@@ -6,15 +6,15 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class CFunction {
-  private final String prefix;
+  private final String returnType;
   private final String name;
-  private final String suffix;
+  private final String parameters;
   private final List<CCode> sections = new ArrayList<>();
 
-  CFunction(String prefix, String name, String suffix) {
-    this.prefix = prefix;
+  CFunction(String returnType, String name, String parameters) {
+    this.returnType = returnType;
     this.name = name;
-    this.suffix = suffix;
+    this.parameters = parameters;
   }
 
   public CCode add() {
@@ -25,7 +25,7 @@ public class CFunction {
 
   public void writeTo(Writer w) {
     var pw = new PrintWriter(w);
-    pw.format("SEXP %s(SEXP %s) {", name, BC2CCompiler.NAME_ENV);
+    pw.format("%s %s(%s) {", returnType, name, parameters);
     pw.println();
     for (int i = 0; i < sections.size(); i++) {
       sections.get(i).writeTo(w);

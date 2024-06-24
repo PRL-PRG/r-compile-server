@@ -40,6 +40,8 @@ public final class SEXPs {
   public static final RegSymSXP ASSIGN_TMP = symbol("*tmp*");
   public static final RegSymSXP ASSIGN_VTMP = symbol("*vtmp*");
 
+  public static final RegSymSXP DOT_EXTERNAL2 = symbol(".External2");
+
   static {
     Set.of("TRUE", "FALSE", "NULL", "NA", "Inf", "NaN")
         .forEach(

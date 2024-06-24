@@ -2,15 +2,19 @@ package org.prlprg.server;
 
 import com.google.protobuf.ByteString;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.List;
 import java.util.logging.ConsoleHandler;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.prlprg.RSession;
 import org.prlprg.rds.RDSReader;
+import org.prlprg.rds.RDSWriter;
 import org.prlprg.rsession.TestRSession;
+import org.prlprg.server.protocol.CompileRequest;
+import org.prlprg.server.protocol.CompileResponse;
+import org.prlprg.server.protocol.Request;
 import org.prlprg.service.JITService;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.SEXP;
@@ -18,9 +22,6 @@ import org.prlprg.sexp.SEXPs;
 import org.zeromq.SocketType;
 import org.zeromq.ZContext;
 import org.zeromq.ZMQ;
-import rsh.server.protocol.CompileRequest;
-import rsh.server.protocol.CompileResponse;
-import rsh.server.protocol.Request;
 
 public class Main {
 
@@ -51,7 +52,7 @@ public class Main {
         Request request = Request.parseFrom(socket.recv(0));
         logger.info("Got a request: " + request);
 
-        switch (request.getDataCase()) {
+        switch (request.getPayloadCase()) {
           case COMPILE -> {
             var response = compile(request.getCompile());
             socket.send(response.toByteArray());
@@ -72,11 +73,13 @@ public class Main {
       var name = compile.getName();
       var closure = deserialize(new ByteArrayInputStream(compile.getClosure().toByteArray()));
       var compiledClosure = jit.execute(name, closure);
-      var constPoolData = serializeConstantPool(compiledClosure.constantPool());
+
       var result =
           CompileResponse.Result.newBuilder()
               .setNativeCode(ByteString.copyFrom(compiledClosure.code()))
-              .setConstantPool(ByteString.copyFrom(constPoolData));
+              .setConstants(
+                  ByteString.copyFrom(serialize(SEXPs.vec(compiledClosure.constantPool()))));
+
       var response = CompileResponse.newBuilder().setResult(result);
 
       return response.build();
@@ -87,17 +90,14 @@ public class Main {
     }
   }
 
-  private byte[] serializeConstantPool(List<SEXP> constants) throws IOException {
-    return serialize(SEXPs.list2(constants));
-  }
-
   private CloSXP deserialize(InputStream input) throws IOException {
     return (CloSXP) RDSReader.readStream(rsession, input);
   }
 
   private byte[] serialize(SEXP data) throws IOException {
-    // FIXME: implement
-    return new byte[] {};
+    var output = new ByteArrayOutputStream();
+    RDSWriter.writeStream(rsession, output, data);
+    return output.toByteArray();
   }
 
   public static void main(String[] args) {

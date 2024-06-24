@@ -63,6 +63,10 @@ public final class ConstPool extends ForwardingList<SEXP> {
     return Objects.hash(super.hashCode(), consts);
   }
 
+  public List<SEXP> toList() {
+    return new ArrayList<>(consts);
+  }
+
   /**
    * A typed index into a bytecode pool.
    *

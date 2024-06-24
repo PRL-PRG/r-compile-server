@@ -8,4 +8,7 @@ f <- function(x) {
 rsh::rsh_compile(f)
 print(f)
 
+str(compiler::disassemble(f))
+
+browser()
 f(5)

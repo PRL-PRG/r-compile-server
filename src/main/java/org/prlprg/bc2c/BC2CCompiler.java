@@ -9,8 +9,6 @@ import java.util.stream.IntStream;
 import org.prlprg.bc.Bc;
 import org.prlprg.bc.BcInstr;
 import org.prlprg.bc.ConstPool;
-import org.prlprg.sexp.IntSXP;
-import org.prlprg.sexp.RealSXP;
 import org.prlprg.sexp.RegSymSXP;
 import org.prlprg.sexp.SEXP;
 
@@ -39,10 +37,16 @@ class Stack {
   public int max() {
     return max;
   }
+
+  @SuppressWarnings("UnusedReturnValue")
+  public int dec(int n) {
+    curr -= n;
+    return curr;
+  }
 }
 
 public class BC2CCompiler {
-  static final String NAME_ENV = "ENV";
+  private static final String NAME_ENV = "ENV";
   private static final String NAME_CP = "CP";
   private static final String CONST_GET = "CONST";
 
@@ -75,12 +79,15 @@ public class BC2CCompiler {
   }
 
   private void preamble() {
-    file.setPreamble(MessageFormat.format("""
+    file.setPreamble(
+        MessageFormat.format(
+            """
         #include <Rsh.h>
-        
+
         // constant pool accessor
-        #define {0}(i)        ((SEXP *) STDVEC_DATAPTR(_CP))[i]
-        """, CONST_GET));
+        #define {0}(i)        ((SEXP *) STDVEC_DATAPTR({1}))[i]
+        """,
+            CONST_GET, NAME_CP));
   }
 
   private void compileRegisters() {
@@ -124,10 +131,11 @@ public class BC2CCompiler {
   }
 
   private void pop(int n) {
-    for (int i = 0; i < n; i++) {
-      body.line("UNPROTECT(1); // _%d".formatted(stack.curr()));
-      stack.dec();
-    }
+    var comment =
+        IntStream.range(0, n).mapToObj("_%d"::formatted).collect(Collectors.joining(", "));
+
+    body.line("UNPROTECT(%d); // %s ".formatted(n, comment));
+    stack.dec(n);
   }
 
   private void compileGetVar(ConstPool.Idx<RegSymSXP> idx) {
