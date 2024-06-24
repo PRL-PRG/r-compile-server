@@ -15,6 +15,15 @@ public sealed interface ListOrVectorSXP<T> extends SEXP, Iterable<T> permits Lis
   /** The number of elements in this collection. */
   int size();
 
+  /**
+   * Get the element at the last index.
+   *
+   * @throws IndexOutOfBoundsException if empty.
+   */
+  default T last() {
+    return get(size() - 1);
+  }
+
   /** Is the collection empty? */
   default boolean isEmpty() {
     return size() == 0;

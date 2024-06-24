@@ -243,8 +243,9 @@ public class CFGCursor {
    */
   public <I extends Jump> I insert(String name, JumpInsertion<? extends I> insertion) {
     var newSuccessor = bb.splitNewSuccessor(stmtIdx);
+    var result = bb.replaceJump(name, insertion.compute(newSuccessor));
     moveToStart(newSuccessor);
-    return bb.replaceJump(name, insertion.compute(newSuccessor));
+    return result;
   }
 
   /**

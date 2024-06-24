@@ -17,13 +17,14 @@ public enum IsTypeCheck {
   EXPR(SEXPType.EXPR.i),
   VEC(SEXPType.VEC.i),
   LIST(SEXPType.LIST.i),
-  // TODO: --- These aren't actually checked by `is`, but have bytecode instructions?
-  SYM(SEXPType.SYM.i),
-  NUM(203),
   // ---
   NON_OBJECT(200),
   VECTOR(201),
-  FACTOR(202);
+  FACTOR(202),
+  // --- created for us
+  SYM(SEXPType.SYM.i),
+  NUM(203),
+  SCALAR(204);
 
   /** The integer which represents this type in GNU-R */
   public final int i;
@@ -46,10 +47,11 @@ public enum IsTypeCheck {
       case 19 -> VEC;
       case 2 -> LIST;
       case 9 -> SYM;
-      case 203 -> NUM;
       case 200 -> NON_OBJECT;
       case 201 -> VECTOR;
       case 202 -> FACTOR;
+      case 203 -> NUM;
+      case 204 -> SCALAR;
       default -> throw new IllegalArgumentException("Unknown runtime type check: " + i);
     };
   }

@@ -159,6 +159,7 @@ import org.prlprg.ir.cfg.RValue;
 import org.prlprg.ir.cfg.StaticEnv;
 import org.prlprg.ir.cfg.StmtData;
 import org.prlprg.ir.cfg.StmtData.FrameState_;
+import org.prlprg.ir.cfg.StmtData.GnuRIs;
 import org.prlprg.ir.cfg.StmtData.NamelessCall;
 import org.prlprg.ir.cfg.builder.CFGCursor;
 import org.prlprg.primitive.BuiltinId;
@@ -418,6 +419,25 @@ public class CFGCompiler {
   private void addBcLabelBBs(BcInstr instr) {
     if (!(instr instanceof Record r)) {
       throw new AssertionError("bytecode instructions should all be java records");
+    }
+
+    if (instr instanceof Switch(var _, var _, var chrLabelsIdx, var numLabelsIdx)) {
+      // `switch` is special, because the labels are encoded in the constant pool.
+      var chrLabels = chrLabelsIdx == null ? null : get(chrLabelsIdx);
+      var numLabels = numLabelsIdx == null ? null : get(numLabelsIdx);
+      if (chrLabels != null) {
+        for (var i = 0; i < chrLabels.size(); i++) {
+          var labelPos = chrLabels.get(i);
+          ensureBbAt(new BcLabel(labelPos), "switchChr" + i);
+        }
+      }
+      if (numLabels != null) {
+        for (var i = 0; i < numLabels.size(); i++) {
+          var labelPos = numLabels.get(i);
+          ensureBbAt(new BcLabel(labelPos), "switchNum" + i);
+        }
+      }
+      return;
     }
 
     for (var component : instr.getClass().getRecordComponents()) {
@@ -1047,7 +1067,112 @@ public class CFGCompiler {
         cursor.insert(new JumpData.NonLocalReturn(retVal, env));
         setInUnreachableBytecode();
       }
-      case Switch(var _, var _, var _, var _) -> throw failUnsupported("switch");
+      case Switch(var ast, var namesIdx, var chrLabelsIdx, var numLabelsIdx) -> {
+        var names = namesIdx == null ? null : get(namesIdx);
+        var chrLabels = chrLabelsIdx == null ? null : get(chrLabelsIdx);
+        var numLabels = numLabelsIdx == null ? null : get(numLabelsIdx);
+
+        var value = pop(RValue.class);
+
+        var isVector = cursor.insert(new GnuRIs(IsTypeCheck.SCALAR, value));
+        var isVectorBb = cfg.addBB();
+        var isNotVectorBb = cfg.addBB("failNotVector");
+        cursor.insert(new JumpData.Branch(isVector, isVectorBb, isNotVectorBb));
+
+        // Has one predecessor (no phis) so we can call `cursor.moveToStart` instead of `moveTo`.
+        cursor.moveToStart(isNotVectorBb);
+        cursor.insert(new StmtData.Error("EXPR must be a length 1 vector", env));
+        cursor.insert(new JumpData.Unreachable());
+
+        // Has one predecessor (no phis) so we can call `cursor.moveToStart` instead of `moveTo`.
+        cursor.moveToStart(isVectorBb);
+        var isFactor = cursor.insert(new GnuRIs(IsTypeCheck.FACTOR, value));
+        var isFactorBb = cfg.addBB();
+        var isNotFactorBb = cfg.addBB("warnNotFactor");
+        cursor.insert(new JumpData.Branch(isFactor, isFactorBb, isNotFactorBb));
+
+        // Has one predecessor (no phis) so we can call `cursor.moveToStart` instead of `moveTo`.
+        cursor.moveToStart(isNotFactorBb);
+        cursor.insert(
+            new StmtData.Warning(
+                "EXPR is a \"factor\", treated as integer.\n Consider using 'switch(as.character( * ), ...)' instead."));
+        cursor.insert(new JumpData.Goto(isFactorBb));
+
+        // Has two predecessors, but the second defines no values (means no phis), so we can call
+        // `cursor.moveToStart` instead of `moveTo`.
+        cursor.moveToStart(isFactorBb);
+        var isString = cursor.insert(new GnuRIs(IsTypeCheck.STR, value));
+        var stringBb = cfg.addBB("switchString");
+        var asIntegerBb = cfg.addBB("switchAsInteger");
+        cursor.insert(new JumpData.Branch(isString, stringBb, asIntegerBb));
+
+        // Has one predecessor (no phis) so we can call `cursor.moveToStart` instead of `moveTo`.
+        cursor.moveToStart(stringBb);
+        if (names == null) {
+          if (numLabels == null) {
+            cursor.insert(new StmtData.Error("bad numeric 'switch' offsets", env));
+            cursor.insert(new JumpData.Unreachable());
+          } else if (numLabels.isScalar()) {
+            cursor.insert(new StmtData.Warning("'switch' with no alternatives"));
+            cursor.insert(new JumpData.Goto(bbAt(new BcLabel(numLabels.get(0)))));
+          } else {
+            cursor.insert(
+                new StmtData.Error(
+                    "numeric EXPR required for 'switch' without named alternatives", env));
+            cursor.insert(new JumpData.Unreachable());
+          }
+        } else {
+          if (chrLabels == null) {
+            cursor.insert(new StmtData.Error("bad character 'switch' offsets", env));
+            cursor.insert(new JumpData.Unreachable());
+          } else if (names.size() != chrLabels.size()) {
+            cursor.insert(new StmtData.Error("bad 'switch' names", env));
+            cursor.insert(new JumpData.Unreachable());
+          } else {
+            for (var i = 0; i < chrLabels.size() - 1; i++) {
+              var name = names.get(i);
+              var ifMatch = bbAt(new BcLabel(chrLabels.get(i)));
+              var cond =
+                  cursor.insert(
+                      new StmtData.Eq(Optional.of(get(ast)), value, Constant.string(name), env));
+              addPhiInputsForStack(ifMatch);
+              cursor.insert(next -> new JumpData.Branch(cond, ifMatch, next));
+            }
+            // `switch` just goes to the last label regardless of whether it matches.
+            var lastBb = bbAt(new BcLabel(chrLabels.last()));
+            addPhiInputsForStack(lastBb);
+            cursor.insert(new JumpData.Goto(lastBb));
+          }
+        }
+
+        // Has one predecessor (no phis) so we can call `cursor.moveToStart` instead of `moveTo`.
+        cursor.moveToStart(asIntegerBb);
+        if (numLabels == null) {
+          cursor.insert(new StmtData.Error("bad numeric 'switch' offsets", env));
+          cursor.insert(new JumpData.Unreachable());
+        } else if (numLabels.isScalar()) {
+          cursor.insert(new StmtData.Warning("'switch' with no alternatives"));
+          cursor.insert(new JumpData.Goto(bbAt(new BcLabel(numLabels.get(0)))));
+        } else {
+          var asInteger = cursor.insert(new StmtData.AsSwitchIdx(value));
+          for (var i = 0; i < numLabels.size() - 1; i++) {
+            var ifMatch = bbAt(new BcLabel(numLabels.get(i)));
+            var cond =
+                cursor.insert(
+                    new StmtData.Eq(Optional.of(get(ast)), asInteger, Constant.integer(i), env));
+            addPhiInputsForStack(ifMatch);
+            cursor.insert(next -> new JumpData.Branch(cond, ifMatch, next));
+          }
+          // `switch` just goes to the last label regardless of whether it matches.
+          var lastBb = bbAt(new BcLabel(numLabels.last()));
+          addPhiInputsForStack(lastBb);
+          cursor.insert(new JumpData.Goto(lastBb));
+        }
+
+        // The `switch` executes a GOTO on all branches, so the following code is unreachable unless
+        // there's a label immediately after (which is probably guaranteed).
+        setInUnreachableBytecode();
+      }
       case StartSubsetN(var ast, var after) ->
           compileStartDispatch(Dispatch.Type.SUBSETN, ast, after);
       case StartSubassignN(var ast, var after) ->

@@ -56,6 +56,6 @@ public class CFGCompilerException extends RuntimeException {
         + " in:\n\n"
         + irPos.cfg()
         + "\n\n"
-        + bc.code();
+        + bc;
   }
 }

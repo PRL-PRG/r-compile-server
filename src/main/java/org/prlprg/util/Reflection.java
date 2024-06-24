@@ -2,6 +2,7 @@ package org.prlprg.util;
 
 import com.google.common.collect.Streams;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Executable;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.RecordComponent;
 import java.util.Arrays;
@@ -54,41 +55,13 @@ public class Reflection {
    * @throws IllegalArgumentException If no methods in {@code target} have {@code methodName}.
    *     <p><b>OR</b> if multiple methods in {@code target} have {@code methodName}.
    */
-  @SuppressWarnings("unchecked")
   public static <T> T construct(Class<T> target, Object... arguments) {
     try {
-      @SuppressWarnings("UnstableApiUsage")
-      var constructors =
-          Arrays.stream(target.getConstructors())
-              .filter(
-                  m ->
-                      !m.isVarArgs()
-                          && m.getParameterCount() == arguments.length
-                          && Streams.zip(
-                                  Arrays.stream(m.getParameterTypes())
-                                      .map(c -> c.isPrimitive() ? Classes.boxed(c) : c),
-                                  Arrays.stream(arguments),
-                                  Class::isInstance)
-                              .allMatch(b -> b))
-              .toList();
+      @SuppressWarnings("unchecked")
       var constructor =
-          switch (constructors.size()) {
-            case 0 ->
-                throw new IllegalArgumentException(
-                    "no constructors in "
-                        + target
-                        + " support arguments of types ["
-                        + Strings.join(", ", o -> o.getClass().getName(), arguments)
-                        + "]");
-            case 1 -> (Constructor<T>) constructors.getFirst();
-            default ->
-                throw new IllegalArgumentException(
-                    "multiple constructors in "
-                        + target
-                        + " support arguments of types ["
-                        + Strings.join(", ", o -> o.getClass().getName(), arguments)
-                        + "]");
-          };
+          (Constructor<T>)
+              getMethodThatCanBeCalledWithArguments(
+                  "constructors", Arrays.stream(target.getConstructors()), target, arguments);
 
       constructor.setAccessible(true);
       return constructor.newInstance(arguments);
@@ -118,43 +91,13 @@ public class Reflection {
   public static Object callByName(
       Object target, Class<?> methodClass, String methodName, Object... arguments) {
     try {
-      @SuppressWarnings("UnstableApiUsage")
-      var methods =
-          Arrays.stream(methodClass.getDeclaredMethods())
-              .filter(
-                  m ->
-                      m.getName().equals(methodName)
-                          && !m.isVarArgs()
-                          && m.getParameterCount() == arguments.length
-                          && Streams.zip(
-                                  Arrays.stream(m.getParameterTypes())
-                                      .map(c -> c.isPrimitive() ? Classes.boxed(c) : c),
-                                  Arrays.stream(arguments),
-                                  Class::isInstance)
-                              .allMatch(b -> b))
-              .toList();
       var method =
-          switch (methods.size()) {
-            case 0 ->
-                throw new IllegalArgumentException(
-                    "no methods in "
-                        + target
-                        + " named "
-                        + methodName
-                        + " supporting arguments of types ["
-                        + Strings.join(", ", o -> o.getClass().getName(), arguments)
-                        + "]");
-            case 1 -> methods.getFirst();
-            default ->
-                throw new IllegalArgumentException(
-                    "multiple methods in "
-                        + target
-                        + " named "
-                        + methodName
-                        + " supporting arguments of types ["
-                        + Strings.join(", ", o -> o.getClass().getName(), arguments)
-                        + "]");
-          };
+          getMethodThatCanBeCalledWithArguments(
+              "methods named " + methodName,
+              Arrays.stream(methodClass.getDeclaredMethods())
+                  .filter(m -> m.getName().equals(methodName)),
+              target.getClass(),
+              arguments);
 
       method.setAccessible(true);
       return method.invoke(target, arguments);
@@ -168,6 +111,58 @@ public class Reflection {
     } catch (ReflectiveOperationException e) {
       throw new RuntimeException("failed to reflectively call method", e);
     }
+  }
+
+  /**
+   * Filters the given stream to only return methods that can be called with the given arguments.
+   * Then if there is one method, returns it, otherwise throws a descriptive error that none or
+   * multiple suitable methods were found.
+   */
+  private static <M extends Executable> M getMethodThatCanBeCalledWithArguments(
+      String methodDesc, Stream<M> methodsStream, Class<?> clazz, Object... arguments) {
+    var filteredMethods = methodsStream.filter(m -> canBeCalledWith(m, arguments)).toList();
+    return switch (filteredMethods.size()) {
+      case 0 ->
+          throw new IllegalArgumentException(
+              "no "
+                  + methodDesc
+                  + " in "
+                  + clazz
+                  + " support arguments of types ["
+                  + Strings.join(", ", o -> o == null ? "null" : o.getClass().getName(), arguments)
+                  + "]");
+      case 1 -> filteredMethods.getFirst();
+      default ->
+          throw new IllegalArgumentException(
+              "multiple "
+                  + methodDesc
+                  + " in "
+                  + clazz
+                  + " support arguments of types ["
+                  + Strings.join(", ", o -> o == null ? "null" : o.getClass().getName(), arguments)
+                  + "]");
+    };
+  }
+
+  /**
+   * Whether the given method can be called with the given arguments.
+   *
+   * <p>i.e. whether the given method's parameters' types are supertypes of the given arguments'
+   * types, and the number of parameters are the same as the given number of arguments.
+   *
+   * <p>Currently, variable-argument methods are not supported: given a var-args method, this will
+   * simply return {@code false}.
+   */
+  @SuppressWarnings("UnstableApiUsage")
+  private static boolean canBeCalledWith(Executable m, Object... arguments) {
+    return !m.isVarArgs()
+        && m.getParameterCount() == arguments.length
+        && Streams.zip(
+                Arrays.stream(m.getParameterTypes())
+                    .map(c -> c.isPrimitive() ? Classes.boxed(c) : c),
+                Arrays.stream(arguments),
+                (clazz, arg) -> arg == null || clazz.isInstance(arg))
+            .allMatch(b -> b);
   }
 
   private Reflection() {}

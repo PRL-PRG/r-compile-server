@@ -298,7 +298,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
   }
 
   @TypeIs("INT")
-  @EffectsAre({})
+  @EffectsAre({REffect.Warn, REffect.Error})
   record AsSwitchIdx(RValue value) implements RValue_ {}
 
   @TypeIs("BOOL")
@@ -825,6 +825,9 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
 
   record Not(@Override Optional<LangSXP> ast1, @Override RValue arg, @IsEnv RValue env)
       implements BooleanUnOp {}
+
+  @EffectsAre(REffect.Warn)
+  record Warning(String message) implements Void {}
 
   @EffectsAre(REffect.Error)
   record Error(String message, @IsEnv RValue env) implements Void {}
