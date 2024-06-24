@@ -454,7 +454,7 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
         } else if (pendingPatchNodes.containsKey(id)) {
           return pendingPatchNodes.get(id);
         } else {
-          var placeholder = new InvalidNode(id.toString());
+          var placeholder = InvalidNode.create(id.toString());
           pendingPatchNodes.put(id, placeholder);
           return placeholder;
         }

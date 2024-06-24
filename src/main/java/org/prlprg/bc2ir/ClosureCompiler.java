@@ -65,7 +65,7 @@ public class ClosureCompiler {
    * <p>If the closure's body is an AST, if the module is running an {@linkplain RSession R
    * session}, this will attempt to compile into bytecode. If the module doesn't have a session or
    * the AST can't be converted (it calls the browser function), this will throw {@link
-   * UnsupportedOperationException}.
+   * ClosureCompilerUnsupportedException}.
    *
    * @param name A name for debugging. Typically the variable it was assigned to if known. "" is
    *     acceptable.
@@ -75,25 +75,26 @@ public class ClosureCompiler {
    * @throws IllegalArgumentException If the closure's body isn't bytecode (in this case, you must
    *     use a {@link org.prlprg.bc.Compiler} to compile it before calling this).
    *     <p><b>OR</b> if {@code env} isn't statically known to be an environment.
-   * @throws CFGCompilerUnsupportedBcException If the closure can't be compiled because it does
-   *     something complex which the compiler doesn't support yet.
+   * @throws ClosureCompilerUnsupportedException See above, <b>OR</b> if the closure's bytecode does
+   *     something complex that the compiler doesn't support yet.
    */
   public static Closure compileBaselineClosure(
       String name, CloSXP sexp, @IsEnv RValue env, Module module) {
     if (!(sexp.body() instanceof BCodeSXP)) {
       var rSession = module.serverRSession();
       if (rSession == null) {
-        throw new UnsupportedOperationException(
-            "Can't compile an AST closure without a GNU-R session");
+        throw new ClosureCompilerUnsupportedException(
+            "Can't compile an AST closure without a GNU-R session", sexp);
       }
 
+      var sexp1 = sexp;
       var bc =
           new Compiler(sexp, rSession)
               .compile()
               .orElseThrow(
                   () ->
-                      new UnsupportedOperationException(
-                          "Can't compile a closure with a browser call"));
+                      new ClosureCompilerUnsupportedException(
+                          "Can't compile a closure with a browser call", sexp1));
 
       sexp = SEXPs.closure(sexp.parameters(), SEXPs.bcode(bc), sexp.env(), sexp.attributes());
     }
@@ -108,13 +109,20 @@ public class ClosureCompiler {
    *
    * @throws IllegalArgumentException If the given version has a non-empty body, promises, or
    *     properties.
+   * @throws ClosureCompilerUnsupportedException If the closure's bytecode does something complex
+   *     that the compiler doesn't support yet.
    */
   private static void compileVersion(ClosureVersion version, Module module) {
     if (!version.body().isEmpty() || !version.properties().isEmpty()) {
       throw new IllegalArgumentException("Version must be empty before compiling");
     }
 
-    compileCFG(version.closure().bc(), version.body(), false, module);
+    try {
+      compileCFG(version.closure().bc(), version.body(), false, module);
+    } catch (CFGCompilerUnsupportedBcException e) {
+      throw new ClosureCompilerUnsupportedException(
+          "Bytecode does something unsupported", version.closure().origin().body(), e);
+    }
     version.setProperties(computeClosureVersionProperties(version.body()));
   }
 
@@ -124,12 +132,13 @@ public class ClosureCompiler {
    *
    * @param name A name for debugging. Typically the variable it was assigned to if known. "" is
    *     acceptable.
-   * @throws UnsupportedOperationException If the promise code is an AST.
+   * @throws ClosureCompilerUnsupportedException If the promise code is an AST.
    */
   static Promise compilePromise(
       String name, SEXP promiseCodeSexp, @IsEnv RValue env, Module module) {
     if (!(promiseCodeSexp instanceof BCodeSXP promiseBcSexp)) {
-      throw new UnsupportedOperationException("Can't compile a promise whose body is an AST");
+      throw new ClosureCompilerUnsupportedException(
+          "Can't compile a promise whose body is an AST", promiseCodeSexp);
     }
     var promiseBc = promiseBcSexp.bc();
 

@@ -25,7 +25,6 @@ import org.prlprg.sexp.GlobalEnvSXP;
 import org.prlprg.sexp.ListSXP;
 import org.prlprg.sexp.NamespaceEnvSXP;
 import org.prlprg.sexp.PromSXP;
-import org.prlprg.sexp.RegSymSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPOrEnvType;
 import org.prlprg.sexp.SEXPType;
@@ -523,14 +522,17 @@ public class SEXPParseContext implements HasSEXPParseContext {
       return new TaggedElem(null, tagOrValue);
     }
 
-    if (!(tagOrValue instanceof RegSymSXP tag)) {
-      throw s.fail("Expected tag name before '='");
+    // `tag` may be `NULL`, `NA_INT`, etc., but it should be a symbol.
+    var tagQuoted = tagOrValue.toString();
+    if (!Names.isValid(tagQuoted)) {
+      throw s.fail("valid R symbol (before '=')", tagQuoted);
     }
+    var tag = Names.unquoteIfNecessary(tagQuoted);
     var value =
         s.nextCharSatisfies(SEXPParseContext::delimitsSEXP)
             ? SEXPs.MISSING_ARG
             : p.parse(SEXP.class);
-    return new TaggedElem(tag.name(), value);
+    return new TaggedElem(tag, value);
   }
 
   /**

@@ -42,6 +42,18 @@ public final class Names {
   }
 
   /**
+   * Whether the string {@linkplain #isValidUnquoted(String) is valid unquoted}, or is in quotes and
+   * not empty.
+   */
+  public static boolean isValid(String s) {
+    return isValidUnquoted(s)
+        || (s.startsWith("`")
+            && s.endsWith("`")
+            && s.length() > 2
+            && !s.substring(1, s.length() - 1).replaceAll("\\`", "").contains("`"));
+  }
+
+  /**
    * Whether the string can be a valid R symbol string not quoted (not between "`"s).
    *
    * <p>Returns true for R literals such as "TRUE" and "NULL".

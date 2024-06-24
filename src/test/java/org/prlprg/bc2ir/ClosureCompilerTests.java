@@ -771,7 +771,7 @@ public class ClosureCompilerTests extends AbstractGNURBasedTest {
 
     try {
       ir = ClosureCompiler.compileBaselineClosure(funName, fun);
-    } catch (CFGCompilerUnsupportedBcException e) {
+    } catch (ClosureCompilerUnsupportedException e) {
       assumeNoException("Can't compile IR due to unsupported bytecode feature", e);
       throw new UnreachableError();
     }

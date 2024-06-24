@@ -3,7 +3,9 @@ package org.prlprg.ir.cfg;
 import com.google.common.collect.ImmutableList;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.Arrays;
+import java.util.HashSet;
 import javax.annotation.Nullable;
+import org.prlprg.ir.cfg.JumpData.Branch;
 import org.prlprg.util.Reflection;
 
 /** IR instruction which is the final instruction and outgoing edge of a basic block. */
@@ -12,7 +14,7 @@ public non-sealed interface Jump extends Instr {
    * (A shallow copy of) {@link BB}s that this jump can go to.
    *
    * <p>These are in the same order as they are defined in {@link #data()} (the {@link JumpData}
-   * record).
+   * record). Duplicates (e.g. in redundant {@link Branch}es) are removed.
    */
   ImmutableList<BB> targets();
 
@@ -97,10 +99,12 @@ abstract non-sealed class JumpImpl<D extends JumpData<?>> extends InstrImpl<D> i
       throw new IllegalArgumentException("data is not a record");
     }
 
+    var seenTargets = new HashSet<>(data().getClass().getRecordComponents().length);
     targets =
         Arrays.stream(data().getClass().getRecordComponents())
             .filter(cmp -> cmp.getType() == BB.class)
             .map(cmp -> (BB) Reflection.getComponent(r, cmp))
+            .filter(seenTargets::add)
             .collect(ImmutableList.toImmutableList());
   }
 

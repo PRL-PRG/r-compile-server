@@ -157,11 +157,14 @@ import org.prlprg.ir.cfg.Node;
 import org.prlprg.ir.cfg.Phi;
 import org.prlprg.ir.cfg.RValue;
 import org.prlprg.ir.cfg.StaticEnv;
+import org.prlprg.ir.cfg.Stmt;
 import org.prlprg.ir.cfg.StmtData;
 import org.prlprg.ir.cfg.StmtData.FrameState_;
 import org.prlprg.ir.cfg.StmtData.GnuRIs;
 import org.prlprg.ir.cfg.StmtData.NamelessCall;
 import org.prlprg.ir.cfg.builder.CFGCursor;
+import org.prlprg.ir.closure.Closure;
+import org.prlprg.ir.closure.Promise;
 import org.prlprg.primitive.BuiltinId;
 import org.prlprg.primitive.IsTypeCheck;
 import org.prlprg.rshruntime.BcPosition;
@@ -718,7 +721,12 @@ public class CFGCompiler {
       case MakeProm(var code) -> {
         // REACH: Could cache compiled promise CFGs (env will always be different) in the module...
         // TODO: infer name
-        var promise = compilePromise("", get(code), env, module);
+        Promise promise;
+        try {
+          promise = compilePromise("", get(code), env, module);
+        } catch (ClosureCompilerUnsupportedException e) {
+          throw failUnsupported("Promise with unsupported body", e);
+        }
         pushCallArgInsert(new StmtData.MkProm(promise));
       }
       case DoMissing() -> pushMissingCallArg();
@@ -762,7 +770,12 @@ public class CFGCompiler {
         // Also, we intentionally only compile the baseline version because the inner closure will
         // be optimized along with the outer closure.
         // TODO: infer name
-        var closure = compileBaselineClosure("", cloSxp, env, module);
+        Closure closure;
+        try {
+          closure = compileBaselineClosure("", cloSxp, env, module);
+        } catch (ClosureCompilerUnsupportedException e) {
+          throw failUnsupported("Closure with unsupported body", e);
+        }
 
         pushInsert(new StmtData.MkCls(closure));
       }
@@ -1135,13 +1148,14 @@ public class CFGCompiler {
               var cond =
                   cursor.insert(
                       new StmtData.Eq(Optional.of(get(ast)), value, Constant.string(name), env));
-              addPhiInputsForStack(ifMatch);
+              var prev = cursor.bb();
               cursor.insert(next -> new JumpData.Branch(cond, ifMatch, next));
+              addPhiInputsForStack(ifMatch, prev);
             }
             // `switch` just goes to the last label regardless of whether it matches.
             var lastBb = bbAt(new BcLabel(chrLabels.last()));
-            addPhiInputsForStack(lastBb);
             cursor.insert(new JumpData.Goto(lastBb));
+            addPhiInputsForStack(lastBb);
           }
         }
 
@@ -1160,13 +1174,14 @@ public class CFGCompiler {
             var cond =
                 cursor.insert(
                     new StmtData.Eq(Optional.of(get(ast)), asInteger, Constant.integer(i), env));
-            addPhiInputsForStack(ifMatch);
+            var prev = cursor.bb();
             cursor.insert(next -> new JumpData.Branch(cond, ifMatch, next));
+            addPhiInputsForStack(ifMatch, prev);
           }
           // `switch` just goes to the last label regardless of whether it matches.
           var lastBb = bbAt(new BcLabel(numLabels.last()));
-          addPhiInputsForStack(lastBb);
           cursor.insert(new JumpData.Goto(lastBb));
+          addPhiInputsForStack(lastBb);
         }
 
         // The `switch` executes a GOTO on all branches, so the following code is unreachable unless
@@ -1483,6 +1498,27 @@ public class CFGCompiler {
                   new StmtData.CallBuiltin(ast, fun, args, env);
             });
     push(callInstr);
+
+    // Special-case due to weird and possibly buggy bytecode compiler behavior:
+    // when the bytecode compiler compiles a `switch` with a missing label, it inserts a branch that
+    // ends with `stop("empty alternative in numeric switch")`. This call pushes an extra value
+    // (call return) onto the stack. When interpreted, the call to `stop` (usually!) exits the
+    // function, so the stack no longer matters. But when we compile to IR, we still expect the
+    // stack to be balanced, and this call return is unaccounted for. Therefore, we have to special-
+    // case, and we do so by checking a) the exact function and b) we're about to go to another
+    // label without any phis. If both these conditions are met, we're guaranteed to be in this
+    // special-case (unless there's another compiler bug causing stack imbalances, and even then,
+    // very unlikely), so we pop the result of the call to re-balance the stack.
+    if (callInstr.data() instanceof StmtData.NamelessCall n
+        && n.fun() instanceof Stmt f
+        && f.data() instanceof StmtData.LdFun(var name, var _)
+        && name.name().equals("stop")
+        && n.args().size() == 1
+        && n.args().getFirst().equals(Constant.string("empty alternative in numeric switch"))
+        && hasBbAfterCurrent()
+        && bbAfterCurrent().phis().size() == stack.size() - 1) {
+      pop(RValue.class);
+    }
   }
 
   private FrameState compileFrameState() {
@@ -1956,7 +1992,12 @@ public class CFGCompiler {
   }
 
   private CFGCompilerUnsupportedBcException failUnsupported(String message) {
-    return new CFGCompilerUnsupportedBcException(message, bc, bcPos, cursor);
+    return failUnsupported(message, null);
+  }
+
+  private CFGCompilerUnsupportedBcException failUnsupported(
+      String message, @Nullable ClosureCompilerUnsupportedException cause) {
+    return new CFGCompilerUnsupportedBcException(message, bc, bcPos, cursor, cause);
   }
 
   private CFGCompilerException fail(String message) {

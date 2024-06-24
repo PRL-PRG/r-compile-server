@@ -911,6 +911,9 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
    * <p>Called by {@link Instr#mutateArgs(Instr, InstrData)} so it can't be private.
    */
   void unsafeAddPredecessor(BB predecessor) {
+    if (predecessors.contains(predecessor)) {
+      throw new AssertionError(predecessor.id() + " is already a predecessor of " + id());
+    }
     predecessors.add(predecessor);
     for (var phi : phis) {
       PhiImpl.cast(phi).unsafeAddUnsetInput(predecessor);
@@ -926,6 +929,9 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
    * <p>Called by {@link Instr#mutateArgs(Instr, InstrData)} so it can't be private.
    */
   void unsafeRemovePredecessor(BB predecessor) {
+    if (!predecessors.contains(predecessor)) {
+      throw new AssertionError(predecessor.id() + " isn't a predecessor of " + id());
+    }
     predecessors.remove(predecessor);
     for (var phi : phis) {
       PhiImpl.cast(phi).unsafeRemoveInput(predecessor);

@@ -326,7 +326,7 @@ class PirInstrOrPhiParseContext {
       return "constant_missing";
     } else if (s.trySkip("function(")) {
       s.readUntilEndOfLine();
-      pirIdToNode.put(pirId, new InvalidNode("bytecode_stub"));
+      pirIdToNode.put(pirId, InvalidNode.create("bytecode_stub"));
       return "constant_bytecode";
     }
 
@@ -1626,7 +1626,7 @@ class PirIdToNodeMap {
       return id.getGlobal();
     } catch (UnsupportedOperationException e) {
       if (e.getMessage().startsWith("PIR ID not global:")) {
-        var node = new InvalidNode("defined_after_use");
+        var node = InvalidNode.create("defined_after_use");
         definedAfterUse.add(Pair.of(id, node));
         return node;
       }
@@ -1899,7 +1899,7 @@ abstract sealed class PirId {
       case '(', '{' -> {
         // REACH: these builtins
         var c = s.readChar();
-        yield new PirId.GlobalNamed(new InvalidNode("TODO_builtin"), Character.toString(c));
+        yield new PirId.GlobalNamed(InvalidNode.create("TODO_builtin"), Character.toString(c));
       }
       case '!', '$', '@', '[' -> throw s.fail("non-trivial SEXP constant");
       case -1 -> throw s.fail("PIR ID", "EOF");

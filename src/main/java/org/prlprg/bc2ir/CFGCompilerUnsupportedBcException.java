@@ -1,5 +1,6 @@
 package org.prlprg.bc2ir;
 
+import javax.annotation.Nullable;
 import org.prlprg.bc.Bc;
 import org.prlprg.ir.cfg.builder.CFGCursor;
 
@@ -8,7 +9,8 @@ import org.prlprg.ir.cfg.builder.CFGCursor;
  * instruction, e.g. {@link org.prlprg.bc.BcInstr.StartLoopCntxt}.
  */
 public class CFGCompilerUnsupportedBcException extends CFGCompilerException {
-  CFGCompilerUnsupportedBcException(String message, Bc bc, int bcPos, CFGCursor irPos) {
-    super(message, bc, bcPos, irPos);
+  CFGCompilerUnsupportedBcException(
+      String message, Bc bc, int bcPos, CFGCursor irPos, @Nullable Throwable cause) {
+    super(message, bc, bcPos, irPos, cause);
   }
 }

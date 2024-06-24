@@ -109,7 +109,7 @@ final class GlobalNodeIdImpl<N extends GlobalNode> extends NodeIdImpl<N>
           case "" -> new Constant(p.parse(SEXP.class));
           case "dr" -> new ConstantDeoptReason(p.parse(DeoptReason.class));
           case "i" ->
-              new InvalidNode(
+              InvalidNode.getOrCreate(
                   s.nextCharSatisfies(Character::isDigit) ? s.readUInt() : 0, Names.read(s, true));
           case "e" -> {
             var name = s.readJavaIdentifierOrKeyword();
