@@ -3,7 +3,6 @@ package org.prlprg.sexp;
 import com.google.common.collect.ImmutableList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
@@ -123,11 +122,6 @@ public final class NilSXP implements ListSXP {
   @Override
   public Stream<TaggedElem> stream() {
     throw new UnsupportedOperationException("NULL is empty");
-  }
-
-  @Override
-  public Optional<TaggedElem> get(String name) {
-    return Optional.empty();
   }
 
   @Override
