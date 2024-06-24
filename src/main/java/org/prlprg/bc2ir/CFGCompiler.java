@@ -486,7 +486,7 @@ public class CFGCompiler {
     switch (instr) {
       case Return() -> {
         var retVal = pop(RValue.class);
-        assertStacksAreEmpty();
+        assertStacksForReturn();
         cursor.insert(new JumpData.Return(retVal));
         setInUnreachableBytecode();
       }
@@ -587,9 +587,11 @@ public class CFGCompiler {
         // For loop step
         moveTo(stepBb);
         var index = stepBb.addPhi(RValue.class);
+        index.rename("index");
         index.setInput(initBb, init);
         // Increment the index
         var index1 = cursor.insert(new StmtData.Inc(index.cast()));
+        index1.rename("index");
         push(index1);
         // Compare the index to the length
         var cond = cursor.insert(new StmtData.Lt(Optional.of(get(ast)), length, index1, env));
@@ -599,8 +601,7 @@ public class CFGCompiler {
         // For loop body
         moveTo(forBodyBb);
         // Extract element at index
-        var elem =
-            cursor.insert(new StmtData.Extract2_1D(Optional.of(get(ast)), seq, index.cast(), env));
+        var elem = cursor.insert(new StmtData.Extract2_1D(Optional.of(get(ast)), seq, index1, env));
         // Store in the element variable
         cursor.insert(new StmtData.StVar(get(elemName), elem, env));
         // Now we compile the rest of the body...
@@ -1042,7 +1043,7 @@ public class CFGCompiler {
         // ???
       case ReturnJmp() -> {
         var retVal = pop(RValue.class);
-        assertStacksAreEmpty();
+        assertStacksForReturn();
         cursor.insert(new JumpData.NonLocalReturn(retVal, env));
         setInUnreachableBytecode();
       }
@@ -1203,7 +1204,15 @@ public class CFGCompiler {
     if (loop.type != type) {
       throw fail("expected a " + type + " loop");
     }
-    if (cursor.bb() != loop.end || cursor.stmtIdx() != 0) {
+    if ((cursor.bb() != loop.end
+            // If there is a `break` instruction in a for loop, there will be a label at `EndFor`,
+            // so `loop.end` will only consist of a `Goto` to the "real" end BB. This is allowed,
+            // and this long inverted AND-chain checks if it's the case.
+            && !(loop.end.stmts().isEmpty()
+                && loop.end.jump() != null
+                && loop.end.jump().data() instanceof JumpData.Goto(var loopEndGoto)
+                && loopEndGoto == cursor.bb()))
+        || cursor.stmtIdx() != 0) {
       throw fail("compileEndLoop: expected to be at start of end BB " + loop.end.id());
     }
   }
@@ -1542,6 +1551,21 @@ public class CFGCompiler {
   //   stacks to keep track of data from previous instructions that affects future instructions
   //   (specifically, that data is what's "pushed", when the future instructions use the data it's
   //   read, and when the data no longer affects further future instructions it's popped).
+  /**
+   * Assert that all stacks are empty, unless in a loop.
+   *
+   * <p>If we return in a loop, the loop stack won't be empty. Additionally, if we return in a for
+   * loop, the node stack will contain the loop index.
+   *
+   * <p>Otherwise, the bytecode compiler pops everything before returning, so the stack should be
+   * empty. And especially so when we implicitly return at the end of a function.
+   */
+  private void assertStacksForReturn() {
+    if (loopStack.isEmpty()) {
+      assertStacksAreEmpty();
+    }
+  }
+
   /** Assert that all stacks are empty, for when the function has ended. */
   private void assertStacksAreEmpty() {
     require(

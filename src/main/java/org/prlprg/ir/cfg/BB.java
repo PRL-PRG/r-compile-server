@@ -80,6 +80,12 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
   // endregion predecessors and successors (access)
 
   // region count, iterate, and access nodes
+
+  @Override
+  public boolean isEmpty() {
+    return phis.isEmpty() && stmts.isEmpty() && jump == null;
+  }
+
   @Override
   public int numChildren() {
     return phis.size() + numInstrs();

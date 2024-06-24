@@ -56,6 +56,9 @@ interface BBQuery extends Iterable<InstrOrPhi> {
   // endregion
 
   // region count, iterate, and access nodes
+  /** Whether the block has no phis, statements, or jump. */
+  boolean isEmpty();
+
   /**
    * {@code #phis + #instrs == #phis + #stmts + (jump ? 1 : 0)}
    *

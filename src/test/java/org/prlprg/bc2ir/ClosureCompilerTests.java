@@ -36,6 +36,16 @@ import org.prlprg.util.UnreachableError;
  * redundant and will need to test new things).
  */
 public class ClosureCompilerTests extends AbstractGNURBasedTest {
+  // New tests for IR compiler
+  @Test
+  public void inlineForReturn() {
+    testAllIr(
+        """
+      function(x) for (i in x) if (i) return() else 1
+    """);
+  }
+
+  // Same as BC compiler, TODO: abstract
   @Test
   public void emptyList() {
     testAllIr(
