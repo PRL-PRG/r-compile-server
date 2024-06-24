@@ -2,10 +2,9 @@
 #include "llvm/ExecutionEngine/Orc/DebugObjectManagerPlugin.h"
 #include "llvm/ExecutionEngine/Orc/EPCDebugObjectRegistrar.h"
 #include <R_ext/Error.h>
+#include <llvm-17/llvm/ExecutionEngine/Orc/Core.h>
 #include <llvm/ExecutionEngine/Orc/LLJIT.h>
 #include <llvm/Support/TargetSelect.h>
-#include <memory>
-#include <vector>
 
 JIT *JIT::create() {
   llvm::InitializeNativeTarget();
@@ -77,4 +76,14 @@ void *JIT::lookup(const char *name) {
   }
 
   return (void *)v->toPtr<void *>();
+}
+
+void JIT::remove(const char *name) {
+  llvm::orc::SymbolNameSet names;
+  names.insert(orc->getExecutionSession().intern(name));
+  auto err = orc->getMainJITDylib().remove(names);
+  if (err) {
+    Rf_error("Problem removing %s: %s\n", name,
+             toString(std::move(err)).c_str());
+  }
 }

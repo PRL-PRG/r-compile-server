@@ -47,7 +47,7 @@ struct TableStruct_protocol_2eproto {
     PROTOBUF_SECTION_VARIABLE(protodesc_cold);
   static const ::PROTOBUF_NAMESPACE_ID::internal::AuxillaryParseTableField aux[]
     PROTOBUF_SECTION_VARIABLE(protodesc_cold);
-  static const ::PROTOBUF_NAMESPACE_ID::internal::ParseTable schema[4]
+  static const ::PROTOBUF_NAMESPACE_ID::internal::ParseTable schema[5]
     PROTOBUF_SECTION_VARIABLE(protodesc_cold);
   static const ::PROTOBUF_NAMESPACE_ID::internal::FieldMetadata field_metadata[];
   static const ::PROTOBUF_NAMESPACE_ID::internal::SerializationTable serialization_table[];
@@ -66,6 +66,9 @@ extern CompileResponseDefaultTypeInternal _CompileResponse_default_instance_;
 class CompileResponse_Result;
 class CompileResponse_ResultDefaultTypeInternal;
 extern CompileResponse_ResultDefaultTypeInternal _CompileResponse_Result_default_instance_;
+class HandshakeRequest;
+class HandshakeRequestDefaultTypeInternal;
+extern HandshakeRequestDefaultTypeInternal _HandshakeRequest_default_instance_;
 class Request;
 class RequestDefaultTypeInternal;
 extern RequestDefaultTypeInternal _Request_default_instance_;
@@ -76,6 +79,7 @@ PROTOBUF_NAMESPACE_OPEN
 template<> ::rsh::server::protocol::CompileRequest* Arena::CreateMaybeMessage<::rsh::server::protocol::CompileRequest>(Arena*);
 template<> ::rsh::server::protocol::CompileResponse* Arena::CreateMaybeMessage<::rsh::server::protocol::CompileResponse>(Arena*);
 template<> ::rsh::server::protocol::CompileResponse_Result* Arena::CreateMaybeMessage<::rsh::server::protocol::CompileResponse_Result>(Arena*);
+template<> ::rsh::server::protocol::HandshakeRequest* Arena::CreateMaybeMessage<::rsh::server::protocol::HandshakeRequest>(Arena*);
 template<> ::rsh::server::protocol::Request* Arena::CreateMaybeMessage<::rsh::server::protocol::Request>(Arena*);
 PROTOBUF_NAMESPACE_CLOSE
 namespace rsh {
@@ -83,6 +87,423 @@ namespace server {
 namespace protocol {
 
 // ===================================================================
+
+class Request PROTOBUF_FINAL :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:rsh.server.protocol.Request) */ {
+ public:
+  inline Request() : Request(nullptr) {};
+  virtual ~Request();
+
+  Request(const Request& from);
+  Request(Request&& from) noexcept
+    : Request() {
+    *this = ::std::move(from);
+  }
+
+  inline Request& operator=(const Request& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline Request& operator=(Request&& from) noexcept {
+    if (GetArena() == from.GetArena()) {
+      if (this != &from) InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return GetMetadataStatic().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return GetMetadataStatic().reflection;
+  }
+  static const Request& default_instance();
+
+  enum PayloadCase {
+    kHandshake = 1,
+    kCompile = 2,
+    PAYLOAD_NOT_SET = 0,
+  };
+
+  static void InitAsDefaultInstance();  // FOR INTERNAL USE ONLY
+  static inline const Request* internal_default_instance() {
+    return reinterpret_cast<const Request*>(
+               &_Request_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    0;
+
+  friend void swap(Request& a, Request& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(Request* other) {
+    if (other == this) return;
+    if (GetArena() == other->GetArena()) {
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(Request* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  inline Request* New() const final {
+    return CreateMaybeMessage<Request>(nullptr);
+  }
+
+  Request* New(::PROTOBUF_NAMESPACE_ID::Arena* arena) const final {
+    return CreateMaybeMessage<Request>(arena);
+  }
+  void CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void CopyFrom(const Request& from);
+  void MergeFrom(const Request& from);
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  ::PROTOBUF_NAMESPACE_ID::uint8* _InternalSerialize(
+      ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _cached_size_.Get(); }
+
+  private:
+  inline void SharedCtor();
+  inline void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(Request* other);
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "rsh.server.protocol.Request";
+  }
+  protected:
+  explicit Request(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  private:
+  static void ArenaDtor(void* object);
+  inline void RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  public:
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+  private:
+  static ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadataStatic() {
+    ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(&::descriptor_table_protocol_2eproto);
+    return ::descriptor_table_protocol_2eproto.file_level_metadata[kIndexInFileMessages];
+  }
+
+  public:
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kHandshakeFieldNumber = 1,
+    kCompileFieldNumber = 2,
+  };
+  // .rsh.server.protocol.HandshakeRequest handshake = 1;
+  bool has_handshake() const;
+  private:
+  bool _internal_has_handshake() const;
+  public:
+  void clear_handshake();
+  const ::rsh::server::protocol::HandshakeRequest& handshake() const;
+  ::rsh::server::protocol::HandshakeRequest* release_handshake();
+  ::rsh::server::protocol::HandshakeRequest* mutable_handshake();
+  void set_allocated_handshake(::rsh::server::protocol::HandshakeRequest* handshake);
+  private:
+  const ::rsh::server::protocol::HandshakeRequest& _internal_handshake() const;
+  ::rsh::server::protocol::HandshakeRequest* _internal_mutable_handshake();
+  public:
+  void unsafe_arena_set_allocated_handshake(
+      ::rsh::server::protocol::HandshakeRequest* handshake);
+  ::rsh::server::protocol::HandshakeRequest* unsafe_arena_release_handshake();
+
+  // .rsh.server.protocol.CompileRequest compile = 2;
+  bool has_compile() const;
+  private:
+  bool _internal_has_compile() const;
+  public:
+  void clear_compile();
+  const ::rsh::server::protocol::CompileRequest& compile() const;
+  ::rsh::server::protocol::CompileRequest* release_compile();
+  ::rsh::server::protocol::CompileRequest* mutable_compile();
+  void set_allocated_compile(::rsh::server::protocol::CompileRequest* compile);
+  private:
+  const ::rsh::server::protocol::CompileRequest& _internal_compile() const;
+  ::rsh::server::protocol::CompileRequest* _internal_mutable_compile();
+  public:
+  void unsafe_arena_set_allocated_compile(
+      ::rsh::server::protocol::CompileRequest* compile);
+  ::rsh::server::protocol::CompileRequest* unsafe_arena_release_compile();
+
+  void clear_payload();
+  PayloadCase payload_case() const;
+  // @@protoc_insertion_point(class_scope:rsh.server.protocol.Request)
+ private:
+  class _Internal;
+  void set_has_handshake();
+  void set_has_compile();
+
+  inline bool has_payload() const;
+  inline void clear_has_payload();
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  union PayloadUnion {
+    PayloadUnion() {}
+    ::rsh::server::protocol::HandshakeRequest* handshake_;
+    ::rsh::server::protocol::CompileRequest* compile_;
+  } payload_;
+  mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+  ::PROTOBUF_NAMESPACE_ID::uint32 _oneof_case_[1];
+
+  friend struct ::TableStruct_protocol_2eproto;
+};
+// -------------------------------------------------------------------
+
+class HandshakeRequest PROTOBUF_FINAL :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:rsh.server.protocol.HandshakeRequest) */ {
+ public:
+  inline HandshakeRequest() : HandshakeRequest(nullptr) {};
+  virtual ~HandshakeRequest();
+
+  HandshakeRequest(const HandshakeRequest& from);
+  HandshakeRequest(HandshakeRequest&& from) noexcept
+    : HandshakeRequest() {
+    *this = ::std::move(from);
+  }
+
+  inline HandshakeRequest& operator=(const HandshakeRequest& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline HandshakeRequest& operator=(HandshakeRequest&& from) noexcept {
+    if (GetArena() == from.GetArena()) {
+      if (this != &from) InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return GetMetadataStatic().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return GetMetadataStatic().reflection;
+  }
+  static const HandshakeRequest& default_instance();
+
+  static void InitAsDefaultInstance();  // FOR INTERNAL USE ONLY
+  static inline const HandshakeRequest* internal_default_instance() {
+    return reinterpret_cast<const HandshakeRequest*>(
+               &_HandshakeRequest_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    1;
+
+  friend void swap(HandshakeRequest& a, HandshakeRequest& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(HandshakeRequest* other) {
+    if (other == this) return;
+    if (GetArena() == other->GetArena()) {
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(HandshakeRequest* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  inline HandshakeRequest* New() const final {
+    return CreateMaybeMessage<HandshakeRequest>(nullptr);
+  }
+
+  HandshakeRequest* New(::PROTOBUF_NAMESPACE_ID::Arena* arena) const final {
+    return CreateMaybeMessage<HandshakeRequest>(arena);
+  }
+  void CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void CopyFrom(const HandshakeRequest& from);
+  void MergeFrom(const HandshakeRequest& from);
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  ::PROTOBUF_NAMESPACE_ID::uint8* _InternalSerialize(
+      ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _cached_size_.Get(); }
+
+  private:
+  inline void SharedCtor();
+  inline void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(HandshakeRequest* other);
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "rsh.server.protocol.HandshakeRequest";
+  }
+  protected:
+  explicit HandshakeRequest(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  private:
+  static void ArenaDtor(void* object);
+  inline void RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  public:
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+  private:
+  static ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadataStatic() {
+    ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(&::descriptor_table_protocol_2eproto);
+    return ::descriptor_table_protocol_2eproto.file_level_metadata[kIndexInFileMessages];
+  }
+
+  public:
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kPackagesFieldNumber = 4,
+    kRshVersionFieldNumber = 1,
+    kRVersionFieldNumber = 2,
+    kPlatformFieldNumber = 3,
+  };
+  // repeated string packages = 4;
+  int packages_size() const;
+  private:
+  int _internal_packages_size() const;
+  public:
+  void clear_packages();
+  const std::string& packages(int index) const;
+  std::string* mutable_packages(int index);
+  void set_packages(int index, const std::string& value);
+  void set_packages(int index, std::string&& value);
+  void set_packages(int index, const char* value);
+  void set_packages(int index, const char* value, size_t size);
+  std::string* add_packages();
+  void add_packages(const std::string& value);
+  void add_packages(std::string&& value);
+  void add_packages(const char* value);
+  void add_packages(const char* value, size_t size);
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>& packages() const;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>* mutable_packages();
+  private:
+  const std::string& _internal_packages(int index) const;
+  std::string* _internal_add_packages();
+  public:
+
+  // string Rsh_version = 1;
+  void clear_rsh_version();
+  const std::string& rsh_version() const;
+  void set_rsh_version(const std::string& value);
+  void set_rsh_version(std::string&& value);
+  void set_rsh_version(const char* value);
+  void set_rsh_version(const char* value, size_t size);
+  std::string* mutable_rsh_version();
+  std::string* release_rsh_version();
+  void set_allocated_rsh_version(std::string* rsh_version);
+  GOOGLE_PROTOBUF_RUNTIME_DEPRECATED("The unsafe_arena_ accessors for"
+  "    string fields are deprecated and will be removed in a"
+  "    future release.")
+  std::string* unsafe_arena_release_rsh_version();
+  GOOGLE_PROTOBUF_RUNTIME_DEPRECATED("The unsafe_arena_ accessors for"
+  "    string fields are deprecated and will be removed in a"
+  "    future release.")
+  void unsafe_arena_set_allocated_rsh_version(
+      std::string* rsh_version);
+  private:
+  const std::string& _internal_rsh_version() const;
+  void _internal_set_rsh_version(const std::string& value);
+  std::string* _internal_mutable_rsh_version();
+  public:
+
+  // string R_version = 2;
+  void clear_r_version();
+  const std::string& r_version() const;
+  void set_r_version(const std::string& value);
+  void set_r_version(std::string&& value);
+  void set_r_version(const char* value);
+  void set_r_version(const char* value, size_t size);
+  std::string* mutable_r_version();
+  std::string* release_r_version();
+  void set_allocated_r_version(std::string* r_version);
+  GOOGLE_PROTOBUF_RUNTIME_DEPRECATED("The unsafe_arena_ accessors for"
+  "    string fields are deprecated and will be removed in a"
+  "    future release.")
+  std::string* unsafe_arena_release_r_version();
+  GOOGLE_PROTOBUF_RUNTIME_DEPRECATED("The unsafe_arena_ accessors for"
+  "    string fields are deprecated and will be removed in a"
+  "    future release.")
+  void unsafe_arena_set_allocated_r_version(
+      std::string* r_version);
+  private:
+  const std::string& _internal_r_version() const;
+  void _internal_set_r_version(const std::string& value);
+  std::string* _internal_mutable_r_version();
+  public:
+
+  // string platform = 3;
+  void clear_platform();
+  const std::string& platform() const;
+  void set_platform(const std::string& value);
+  void set_platform(std::string&& value);
+  void set_platform(const char* value);
+  void set_platform(const char* value, size_t size);
+  std::string* mutable_platform();
+  std::string* release_platform();
+  void set_allocated_platform(std::string* platform);
+  GOOGLE_PROTOBUF_RUNTIME_DEPRECATED("The unsafe_arena_ accessors for"
+  "    string fields are deprecated and will be removed in a"
+  "    future release.")
+  std::string* unsafe_arena_release_platform();
+  GOOGLE_PROTOBUF_RUNTIME_DEPRECATED("The unsafe_arena_ accessors for"
+  "    string fields are deprecated and will be removed in a"
+  "    future release.")
+  void unsafe_arena_set_allocated_platform(
+      std::string* platform);
+  private:
+  const std::string& _internal_platform() const;
+  void _internal_set_platform(const std::string& value);
+  std::string* _internal_mutable_platform();
+  public:
+
+  // @@protoc_insertion_point(class_scope:rsh.server.protocol.HandshakeRequest)
+ private:
+  class _Internal;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string> packages_;
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr rsh_version_;
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr r_version_;
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr platform_;
+  mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+  friend struct ::TableStruct_protocol_2eproto;
+};
+// -------------------------------------------------------------------
 
 class CompileRequest PROTOBUF_FINAL :
     public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:rsh.server.protocol.CompileRequest) */ {
@@ -126,7 +547,7 @@ class CompileRequest PROTOBUF_FINAL :
                &_CompileRequest_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    0;
+    2;
 
   friend void swap(CompileRequest& a, CompileRequest& b) {
     a.Swap(&b);
@@ -264,168 +685,6 @@ class CompileRequest PROTOBUF_FINAL :
 };
 // -------------------------------------------------------------------
 
-class Request PROTOBUF_FINAL :
-    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:rsh.server.protocol.Request) */ {
- public:
-  inline Request() : Request(nullptr) {};
-  virtual ~Request();
-
-  Request(const Request& from);
-  Request(Request&& from) noexcept
-    : Request() {
-    *this = ::std::move(from);
-  }
-
-  inline Request& operator=(const Request& from) {
-    CopyFrom(from);
-    return *this;
-  }
-  inline Request& operator=(Request&& from) noexcept {
-    if (GetArena() == from.GetArena()) {
-      if (this != &from) InternalSwap(&from);
-    } else {
-      CopyFrom(from);
-    }
-    return *this;
-  }
-
-  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
-    return GetDescriptor();
-  }
-  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
-    return GetMetadataStatic().descriptor;
-  }
-  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
-    return GetMetadataStatic().reflection;
-  }
-  static const Request& default_instance();
-
-  enum DataCase {
-    kCompile = 2,
-    DATA_NOT_SET = 0,
-  };
-
-  static void InitAsDefaultInstance();  // FOR INTERNAL USE ONLY
-  static inline const Request* internal_default_instance() {
-    return reinterpret_cast<const Request*>(
-               &_Request_default_instance_);
-  }
-  static constexpr int kIndexInFileMessages =
-    1;
-
-  friend void swap(Request& a, Request& b) {
-    a.Swap(&b);
-  }
-  inline void Swap(Request* other) {
-    if (other == this) return;
-    if (GetArena() == other->GetArena()) {
-      InternalSwap(other);
-    } else {
-      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
-    }
-  }
-  void UnsafeArenaSwap(Request* other) {
-    if (other == this) return;
-    GOOGLE_DCHECK(GetArena() == other->GetArena());
-    InternalSwap(other);
-  }
-
-  // implements Message ----------------------------------------------
-
-  inline Request* New() const final {
-    return CreateMaybeMessage<Request>(nullptr);
-  }
-
-  Request* New(::PROTOBUF_NAMESPACE_ID::Arena* arena) const final {
-    return CreateMaybeMessage<Request>(arena);
-  }
-  void CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
-  void MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
-  void CopyFrom(const Request& from);
-  void MergeFrom(const Request& from);
-  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
-  bool IsInitialized() const final;
-
-  size_t ByteSizeLong() const final;
-  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
-  ::PROTOBUF_NAMESPACE_ID::uint8* _InternalSerialize(
-      ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
-  int GetCachedSize() const final { return _cached_size_.Get(); }
-
-  private:
-  inline void SharedCtor();
-  inline void SharedDtor();
-  void SetCachedSize(int size) const final;
-  void InternalSwap(Request* other);
-  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
-  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
-    return "rsh.server.protocol.Request";
-  }
-  protected:
-  explicit Request(::PROTOBUF_NAMESPACE_ID::Arena* arena);
-  private:
-  static void ArenaDtor(void* object);
-  inline void RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena* arena);
-  public:
-
-  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
-  private:
-  static ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadataStatic() {
-    ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(&::descriptor_table_protocol_2eproto);
-    return ::descriptor_table_protocol_2eproto.file_level_metadata[kIndexInFileMessages];
-  }
-
-  public:
-
-  // nested types ----------------------------------------------------
-
-  // accessors -------------------------------------------------------
-
-  enum : int {
-    kCompileFieldNumber = 2,
-  };
-  // .rsh.server.protocol.CompileRequest compile = 2;
-  bool has_compile() const;
-  private:
-  bool _internal_has_compile() const;
-  public:
-  void clear_compile();
-  const ::rsh::server::protocol::CompileRequest& compile() const;
-  ::rsh::server::protocol::CompileRequest* release_compile();
-  ::rsh::server::protocol::CompileRequest* mutable_compile();
-  void set_allocated_compile(::rsh::server::protocol::CompileRequest* compile);
-  private:
-  const ::rsh::server::protocol::CompileRequest& _internal_compile() const;
-  ::rsh::server::protocol::CompileRequest* _internal_mutable_compile();
-  public:
-  void unsafe_arena_set_allocated_compile(
-      ::rsh::server::protocol::CompileRequest* compile);
-  ::rsh::server::protocol::CompileRequest* unsafe_arena_release_compile();
-
-  void clear_data();
-  DataCase data_case() const;
-  // @@protoc_insertion_point(class_scope:rsh.server.protocol.Request)
- private:
-  class _Internal;
-  void set_has_compile();
-
-  inline bool has_data() const;
-  inline void clear_has_data();
-
-  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
-  typedef void InternalArenaConstructable_;
-  typedef void DestructorSkippable_;
-  union DataUnion {
-    DataUnion() {}
-    ::rsh::server::protocol::CompileRequest* compile_;
-  } data_;
-  mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
-  ::PROTOBUF_NAMESPACE_ID::uint32 _oneof_case_[1];
-
-  friend struct ::TableStruct_protocol_2eproto;
-};
-// -------------------------------------------------------------------
-
 class CompileResponse_Result PROTOBUF_FINAL :
     public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:rsh.server.protocol.CompileResponse.Result) */ {
  public:
@@ -468,7 +727,7 @@ class CompileResponse_Result PROTOBUF_FINAL :
                &_CompileResponse_Result_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    2;
+    3;
 
   friend void swap(CompileResponse_Result& a, CompileResponse_Result& b) {
     a.Swap(&b);
@@ -540,7 +799,7 @@ class CompileResponse_Result PROTOBUF_FINAL :
 
   enum : int {
     kNativeCodeFieldNumber = 3,
-    kConstantPoolFieldNumber = 4,
+    kConstantsFieldNumber = 4,
   };
   // bytes native_code = 3;
   void clear_native_code();
@@ -567,29 +826,29 @@ class CompileResponse_Result PROTOBUF_FINAL :
   std::string* _internal_mutable_native_code();
   public:
 
-  // bytes constant_pool = 4;
-  void clear_constant_pool();
-  const std::string& constant_pool() const;
-  void set_constant_pool(const std::string& value);
-  void set_constant_pool(std::string&& value);
-  void set_constant_pool(const char* value);
-  void set_constant_pool(const void* value, size_t size);
-  std::string* mutable_constant_pool();
-  std::string* release_constant_pool();
-  void set_allocated_constant_pool(std::string* constant_pool);
+  // bytes constants = 4;
+  void clear_constants();
+  const std::string& constants() const;
+  void set_constants(const std::string& value);
+  void set_constants(std::string&& value);
+  void set_constants(const char* value);
+  void set_constants(const void* value, size_t size);
+  std::string* mutable_constants();
+  std::string* release_constants();
+  void set_allocated_constants(std::string* constants);
   GOOGLE_PROTOBUF_RUNTIME_DEPRECATED("The unsafe_arena_ accessors for"
   "    string fields are deprecated and will be removed in a"
   "    future release.")
-  std::string* unsafe_arena_release_constant_pool();
+  std::string* unsafe_arena_release_constants();
   GOOGLE_PROTOBUF_RUNTIME_DEPRECATED("The unsafe_arena_ accessors for"
   "    string fields are deprecated and will be removed in a"
   "    future release.")
-  void unsafe_arena_set_allocated_constant_pool(
-      std::string* constant_pool);
+  void unsafe_arena_set_allocated_constants(
+      std::string* constants);
   private:
-  const std::string& _internal_constant_pool() const;
-  void _internal_set_constant_pool(const std::string& value);
-  std::string* _internal_mutable_constant_pool();
+  const std::string& _internal_constants() const;
+  void _internal_set_constants(const std::string& value);
+  std::string* _internal_mutable_constants();
   public:
 
   // @@protoc_insertion_point(class_scope:rsh.server.protocol.CompileResponse.Result)
@@ -600,7 +859,7 @@ class CompileResponse_Result PROTOBUF_FINAL :
   typedef void InternalArenaConstructable_;
   typedef void DestructorSkippable_;
   ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr native_code_;
-  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr constant_pool_;
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr constants_;
   mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   friend struct ::TableStruct_protocol_2eproto;
 };
@@ -654,7 +913,7 @@ class CompileResponse PROTOBUF_FINAL :
                &_CompileResponse_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    3;
+    4;
 
   friend void swap(CompileResponse& a, CompileResponse& b) {
     a.Swap(&b);
@@ -809,6 +1068,486 @@ class CompileResponse PROTOBUF_FINAL :
   #pragma GCC diagnostic push
   #pragma GCC diagnostic ignored "-Wstrict-aliasing"
 #endif  // __GNUC__
+// Request
+
+// .rsh.server.protocol.HandshakeRequest handshake = 1;
+inline bool Request::_internal_has_handshake() const {
+  return payload_case() == kHandshake;
+}
+inline bool Request::has_handshake() const {
+  return _internal_has_handshake();
+}
+inline void Request::set_has_handshake() {
+  _oneof_case_[0] = kHandshake;
+}
+inline void Request::clear_handshake() {
+  if (_internal_has_handshake()) {
+    if (GetArena() == nullptr) {
+      delete payload_.handshake_;
+    }
+    clear_has_payload();
+  }
+}
+inline ::rsh::server::protocol::HandshakeRequest* Request::release_handshake() {
+  // @@protoc_insertion_point(field_release:rsh.server.protocol.Request.handshake)
+  if (_internal_has_handshake()) {
+    clear_has_payload();
+      ::rsh::server::protocol::HandshakeRequest* temp = payload_.handshake_;
+    if (GetArena() != nullptr) {
+      temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
+    }
+    payload_.handshake_ = nullptr;
+    return temp;
+  } else {
+    return nullptr;
+  }
+}
+inline const ::rsh::server::protocol::HandshakeRequest& Request::_internal_handshake() const {
+  return _internal_has_handshake()
+      ? *payload_.handshake_
+      : *reinterpret_cast< ::rsh::server::protocol::HandshakeRequest*>(&::rsh::server::protocol::_HandshakeRequest_default_instance_);
+}
+inline const ::rsh::server::protocol::HandshakeRequest& Request::handshake() const {
+  // @@protoc_insertion_point(field_get:rsh.server.protocol.Request.handshake)
+  return _internal_handshake();
+}
+inline ::rsh::server::protocol::HandshakeRequest* Request::unsafe_arena_release_handshake() {
+  // @@protoc_insertion_point(field_unsafe_arena_release:rsh.server.protocol.Request.handshake)
+  if (_internal_has_handshake()) {
+    clear_has_payload();
+    ::rsh::server::protocol::HandshakeRequest* temp = payload_.handshake_;
+    payload_.handshake_ = nullptr;
+    return temp;
+  } else {
+    return nullptr;
+  }
+}
+inline void Request::unsafe_arena_set_allocated_handshake(::rsh::server::protocol::HandshakeRequest* handshake) {
+  clear_payload();
+  if (handshake) {
+    set_has_handshake();
+    payload_.handshake_ = handshake;
+  }
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:rsh.server.protocol.Request.handshake)
+}
+inline ::rsh::server::protocol::HandshakeRequest* Request::_internal_mutable_handshake() {
+  if (!_internal_has_handshake()) {
+    clear_payload();
+    set_has_handshake();
+    payload_.handshake_ = CreateMaybeMessage< ::rsh::server::protocol::HandshakeRequest >(GetArena());
+  }
+  return payload_.handshake_;
+}
+inline ::rsh::server::protocol::HandshakeRequest* Request::mutable_handshake() {
+  // @@protoc_insertion_point(field_mutable:rsh.server.protocol.Request.handshake)
+  return _internal_mutable_handshake();
+}
+
+// .rsh.server.protocol.CompileRequest compile = 2;
+inline bool Request::_internal_has_compile() const {
+  return payload_case() == kCompile;
+}
+inline bool Request::has_compile() const {
+  return _internal_has_compile();
+}
+inline void Request::set_has_compile() {
+  _oneof_case_[0] = kCompile;
+}
+inline void Request::clear_compile() {
+  if (_internal_has_compile()) {
+    if (GetArena() == nullptr) {
+      delete payload_.compile_;
+    }
+    clear_has_payload();
+  }
+}
+inline ::rsh::server::protocol::CompileRequest* Request::release_compile() {
+  // @@protoc_insertion_point(field_release:rsh.server.protocol.Request.compile)
+  if (_internal_has_compile()) {
+    clear_has_payload();
+      ::rsh::server::protocol::CompileRequest* temp = payload_.compile_;
+    if (GetArena() != nullptr) {
+      temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
+    }
+    payload_.compile_ = nullptr;
+    return temp;
+  } else {
+    return nullptr;
+  }
+}
+inline const ::rsh::server::protocol::CompileRequest& Request::_internal_compile() const {
+  return _internal_has_compile()
+      ? *payload_.compile_
+      : *reinterpret_cast< ::rsh::server::protocol::CompileRequest*>(&::rsh::server::protocol::_CompileRequest_default_instance_);
+}
+inline const ::rsh::server::protocol::CompileRequest& Request::compile() const {
+  // @@protoc_insertion_point(field_get:rsh.server.protocol.Request.compile)
+  return _internal_compile();
+}
+inline ::rsh::server::protocol::CompileRequest* Request::unsafe_arena_release_compile() {
+  // @@protoc_insertion_point(field_unsafe_arena_release:rsh.server.protocol.Request.compile)
+  if (_internal_has_compile()) {
+    clear_has_payload();
+    ::rsh::server::protocol::CompileRequest* temp = payload_.compile_;
+    payload_.compile_ = nullptr;
+    return temp;
+  } else {
+    return nullptr;
+  }
+}
+inline void Request::unsafe_arena_set_allocated_compile(::rsh::server::protocol::CompileRequest* compile) {
+  clear_payload();
+  if (compile) {
+    set_has_compile();
+    payload_.compile_ = compile;
+  }
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:rsh.server.protocol.Request.compile)
+}
+inline ::rsh::server::protocol::CompileRequest* Request::_internal_mutable_compile() {
+  if (!_internal_has_compile()) {
+    clear_payload();
+    set_has_compile();
+    payload_.compile_ = CreateMaybeMessage< ::rsh::server::protocol::CompileRequest >(GetArena());
+  }
+  return payload_.compile_;
+}
+inline ::rsh::server::protocol::CompileRequest* Request::mutable_compile() {
+  // @@protoc_insertion_point(field_mutable:rsh.server.protocol.Request.compile)
+  return _internal_mutable_compile();
+}
+
+inline bool Request::has_payload() const {
+  return payload_case() != PAYLOAD_NOT_SET;
+}
+inline void Request::clear_has_payload() {
+  _oneof_case_[0] = PAYLOAD_NOT_SET;
+}
+inline Request::PayloadCase Request::payload_case() const {
+  return Request::PayloadCase(_oneof_case_[0]);
+}
+// -------------------------------------------------------------------
+
+// HandshakeRequest
+
+// string Rsh_version = 1;
+inline void HandshakeRequest::clear_rsh_version() {
+  rsh_version_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline const std::string& HandshakeRequest::rsh_version() const {
+  // @@protoc_insertion_point(field_get:rsh.server.protocol.HandshakeRequest.Rsh_version)
+  return _internal_rsh_version();
+}
+inline void HandshakeRequest::set_rsh_version(const std::string& value) {
+  _internal_set_rsh_version(value);
+  // @@protoc_insertion_point(field_set:rsh.server.protocol.HandshakeRequest.Rsh_version)
+}
+inline std::string* HandshakeRequest::mutable_rsh_version() {
+  // @@protoc_insertion_point(field_mutable:rsh.server.protocol.HandshakeRequest.Rsh_version)
+  return _internal_mutable_rsh_version();
+}
+inline const std::string& HandshakeRequest::_internal_rsh_version() const {
+  return rsh_version_.Get();
+}
+inline void HandshakeRequest::_internal_set_rsh_version(const std::string& value) {
+  
+  rsh_version_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
+}
+inline void HandshakeRequest::set_rsh_version(std::string&& value) {
+  
+  rsh_version_.Set(
+    &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::move(value), GetArena());
+  // @@protoc_insertion_point(field_set_rvalue:rsh.server.protocol.HandshakeRequest.Rsh_version)
+}
+inline void HandshakeRequest::set_rsh_version(const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  
+  rsh_version_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
+              GetArena());
+  // @@protoc_insertion_point(field_set_char:rsh.server.protocol.HandshakeRequest.Rsh_version)
+}
+inline void HandshakeRequest::set_rsh_version(const char* value,
+    size_t size) {
+  
+  rsh_version_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
+      reinterpret_cast<const char*>(value), size), GetArena());
+  // @@protoc_insertion_point(field_set_pointer:rsh.server.protocol.HandshakeRequest.Rsh_version)
+}
+inline std::string* HandshakeRequest::_internal_mutable_rsh_version() {
+  
+  return rsh_version_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline std::string* HandshakeRequest::release_rsh_version() {
+  // @@protoc_insertion_point(field_release:rsh.server.protocol.HandshakeRequest.Rsh_version)
+  return rsh_version_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline void HandshakeRequest::set_allocated_rsh_version(std::string* rsh_version) {
+  if (rsh_version != nullptr) {
+    
+  } else {
+    
+  }
+  rsh_version_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), rsh_version,
+      GetArena());
+  // @@protoc_insertion_point(field_set_allocated:rsh.server.protocol.HandshakeRequest.Rsh_version)
+}
+inline std::string* HandshakeRequest::unsafe_arena_release_rsh_version() {
+  // @@protoc_insertion_point(field_unsafe_arena_release:rsh.server.protocol.HandshakeRequest.Rsh_version)
+  GOOGLE_DCHECK(GetArena() != nullptr);
+  
+  return rsh_version_.UnsafeArenaRelease(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(),
+      GetArena());
+}
+inline void HandshakeRequest::unsafe_arena_set_allocated_rsh_version(
+    std::string* rsh_version) {
+  GOOGLE_DCHECK(GetArena() != nullptr);
+  if (rsh_version != nullptr) {
+    
+  } else {
+    
+  }
+  rsh_version_.UnsafeArenaSetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(),
+      rsh_version, GetArena());
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:rsh.server.protocol.HandshakeRequest.Rsh_version)
+}
+
+// string R_version = 2;
+inline void HandshakeRequest::clear_r_version() {
+  r_version_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline const std::string& HandshakeRequest::r_version() const {
+  // @@protoc_insertion_point(field_get:rsh.server.protocol.HandshakeRequest.R_version)
+  return _internal_r_version();
+}
+inline void HandshakeRequest::set_r_version(const std::string& value) {
+  _internal_set_r_version(value);
+  // @@protoc_insertion_point(field_set:rsh.server.protocol.HandshakeRequest.R_version)
+}
+inline std::string* HandshakeRequest::mutable_r_version() {
+  // @@protoc_insertion_point(field_mutable:rsh.server.protocol.HandshakeRequest.R_version)
+  return _internal_mutable_r_version();
+}
+inline const std::string& HandshakeRequest::_internal_r_version() const {
+  return r_version_.Get();
+}
+inline void HandshakeRequest::_internal_set_r_version(const std::string& value) {
+  
+  r_version_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
+}
+inline void HandshakeRequest::set_r_version(std::string&& value) {
+  
+  r_version_.Set(
+    &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::move(value), GetArena());
+  // @@protoc_insertion_point(field_set_rvalue:rsh.server.protocol.HandshakeRequest.R_version)
+}
+inline void HandshakeRequest::set_r_version(const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  
+  r_version_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
+              GetArena());
+  // @@protoc_insertion_point(field_set_char:rsh.server.protocol.HandshakeRequest.R_version)
+}
+inline void HandshakeRequest::set_r_version(const char* value,
+    size_t size) {
+  
+  r_version_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
+      reinterpret_cast<const char*>(value), size), GetArena());
+  // @@protoc_insertion_point(field_set_pointer:rsh.server.protocol.HandshakeRequest.R_version)
+}
+inline std::string* HandshakeRequest::_internal_mutable_r_version() {
+  
+  return r_version_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline std::string* HandshakeRequest::release_r_version() {
+  // @@protoc_insertion_point(field_release:rsh.server.protocol.HandshakeRequest.R_version)
+  return r_version_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline void HandshakeRequest::set_allocated_r_version(std::string* r_version) {
+  if (r_version != nullptr) {
+    
+  } else {
+    
+  }
+  r_version_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), r_version,
+      GetArena());
+  // @@protoc_insertion_point(field_set_allocated:rsh.server.protocol.HandshakeRequest.R_version)
+}
+inline std::string* HandshakeRequest::unsafe_arena_release_r_version() {
+  // @@protoc_insertion_point(field_unsafe_arena_release:rsh.server.protocol.HandshakeRequest.R_version)
+  GOOGLE_DCHECK(GetArena() != nullptr);
+  
+  return r_version_.UnsafeArenaRelease(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(),
+      GetArena());
+}
+inline void HandshakeRequest::unsafe_arena_set_allocated_r_version(
+    std::string* r_version) {
+  GOOGLE_DCHECK(GetArena() != nullptr);
+  if (r_version != nullptr) {
+    
+  } else {
+    
+  }
+  r_version_.UnsafeArenaSetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(),
+      r_version, GetArena());
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:rsh.server.protocol.HandshakeRequest.R_version)
+}
+
+// string platform = 3;
+inline void HandshakeRequest::clear_platform() {
+  platform_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline const std::string& HandshakeRequest::platform() const {
+  // @@protoc_insertion_point(field_get:rsh.server.protocol.HandshakeRequest.platform)
+  return _internal_platform();
+}
+inline void HandshakeRequest::set_platform(const std::string& value) {
+  _internal_set_platform(value);
+  // @@protoc_insertion_point(field_set:rsh.server.protocol.HandshakeRequest.platform)
+}
+inline std::string* HandshakeRequest::mutable_platform() {
+  // @@protoc_insertion_point(field_mutable:rsh.server.protocol.HandshakeRequest.platform)
+  return _internal_mutable_platform();
+}
+inline const std::string& HandshakeRequest::_internal_platform() const {
+  return platform_.Get();
+}
+inline void HandshakeRequest::_internal_set_platform(const std::string& value) {
+  
+  platform_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
+}
+inline void HandshakeRequest::set_platform(std::string&& value) {
+  
+  platform_.Set(
+    &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::move(value), GetArena());
+  // @@protoc_insertion_point(field_set_rvalue:rsh.server.protocol.HandshakeRequest.platform)
+}
+inline void HandshakeRequest::set_platform(const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  
+  platform_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
+              GetArena());
+  // @@protoc_insertion_point(field_set_char:rsh.server.protocol.HandshakeRequest.platform)
+}
+inline void HandshakeRequest::set_platform(const char* value,
+    size_t size) {
+  
+  platform_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
+      reinterpret_cast<const char*>(value), size), GetArena());
+  // @@protoc_insertion_point(field_set_pointer:rsh.server.protocol.HandshakeRequest.platform)
+}
+inline std::string* HandshakeRequest::_internal_mutable_platform() {
+  
+  return platform_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline std::string* HandshakeRequest::release_platform() {
+  // @@protoc_insertion_point(field_release:rsh.server.protocol.HandshakeRequest.platform)
+  return platform_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline void HandshakeRequest::set_allocated_platform(std::string* platform) {
+  if (platform != nullptr) {
+    
+  } else {
+    
+  }
+  platform_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), platform,
+      GetArena());
+  // @@protoc_insertion_point(field_set_allocated:rsh.server.protocol.HandshakeRequest.platform)
+}
+inline std::string* HandshakeRequest::unsafe_arena_release_platform() {
+  // @@protoc_insertion_point(field_unsafe_arena_release:rsh.server.protocol.HandshakeRequest.platform)
+  GOOGLE_DCHECK(GetArena() != nullptr);
+  
+  return platform_.UnsafeArenaRelease(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(),
+      GetArena());
+}
+inline void HandshakeRequest::unsafe_arena_set_allocated_platform(
+    std::string* platform) {
+  GOOGLE_DCHECK(GetArena() != nullptr);
+  if (platform != nullptr) {
+    
+  } else {
+    
+  }
+  platform_.UnsafeArenaSetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(),
+      platform, GetArena());
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:rsh.server.protocol.HandshakeRequest.platform)
+}
+
+// repeated string packages = 4;
+inline int HandshakeRequest::_internal_packages_size() const {
+  return packages_.size();
+}
+inline int HandshakeRequest::packages_size() const {
+  return _internal_packages_size();
+}
+inline void HandshakeRequest::clear_packages() {
+  packages_.Clear();
+}
+inline std::string* HandshakeRequest::add_packages() {
+  // @@protoc_insertion_point(field_add_mutable:rsh.server.protocol.HandshakeRequest.packages)
+  return _internal_add_packages();
+}
+inline const std::string& HandshakeRequest::_internal_packages(int index) const {
+  return packages_.Get(index);
+}
+inline const std::string& HandshakeRequest::packages(int index) const {
+  // @@protoc_insertion_point(field_get:rsh.server.protocol.HandshakeRequest.packages)
+  return _internal_packages(index);
+}
+inline std::string* HandshakeRequest::mutable_packages(int index) {
+  // @@protoc_insertion_point(field_mutable:rsh.server.protocol.HandshakeRequest.packages)
+  return packages_.Mutable(index);
+}
+inline void HandshakeRequest::set_packages(int index, const std::string& value) {
+  // @@protoc_insertion_point(field_set:rsh.server.protocol.HandshakeRequest.packages)
+  packages_.Mutable(index)->assign(value);
+}
+inline void HandshakeRequest::set_packages(int index, std::string&& value) {
+  // @@protoc_insertion_point(field_set:rsh.server.protocol.HandshakeRequest.packages)
+  packages_.Mutable(index)->assign(std::move(value));
+}
+inline void HandshakeRequest::set_packages(int index, const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  packages_.Mutable(index)->assign(value);
+  // @@protoc_insertion_point(field_set_char:rsh.server.protocol.HandshakeRequest.packages)
+}
+inline void HandshakeRequest::set_packages(int index, const char* value, size_t size) {
+  packages_.Mutable(index)->assign(
+    reinterpret_cast<const char*>(value), size);
+  // @@protoc_insertion_point(field_set_pointer:rsh.server.protocol.HandshakeRequest.packages)
+}
+inline std::string* HandshakeRequest::_internal_add_packages() {
+  return packages_.Add();
+}
+inline void HandshakeRequest::add_packages(const std::string& value) {
+  packages_.Add()->assign(value);
+  // @@protoc_insertion_point(field_add:rsh.server.protocol.HandshakeRequest.packages)
+}
+inline void HandshakeRequest::add_packages(std::string&& value) {
+  packages_.Add(std::move(value));
+  // @@protoc_insertion_point(field_add:rsh.server.protocol.HandshakeRequest.packages)
+}
+inline void HandshakeRequest::add_packages(const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  packages_.Add()->assign(value);
+  // @@protoc_insertion_point(field_add_char:rsh.server.protocol.HandshakeRequest.packages)
+}
+inline void HandshakeRequest::add_packages(const char* value, size_t size) {
+  packages_.Add()->assign(reinterpret_cast<const char*>(value), size);
+  // @@protoc_insertion_point(field_add_pointer:rsh.server.protocol.HandshakeRequest.packages)
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>&
+HandshakeRequest::packages() const {
+  // @@protoc_insertion_point(field_list:rsh.server.protocol.HandshakeRequest.packages)
+  return packages_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>*
+HandshakeRequest::mutable_packages() {
+  // @@protoc_insertion_point(field_mutable_list:rsh.server.protocol.HandshakeRequest.packages)
+  return &packages_;
+}
+
+// -------------------------------------------------------------------
+
 // CompileRequest
 
 // string name = 2;
@@ -975,92 +1714,6 @@ inline void CompileRequest::unsafe_arena_set_allocated_closure(
 
 // -------------------------------------------------------------------
 
-// Request
-
-// .rsh.server.protocol.CompileRequest compile = 2;
-inline bool Request::_internal_has_compile() const {
-  return data_case() == kCompile;
-}
-inline bool Request::has_compile() const {
-  return _internal_has_compile();
-}
-inline void Request::set_has_compile() {
-  _oneof_case_[0] = kCompile;
-}
-inline void Request::clear_compile() {
-  if (_internal_has_compile()) {
-    if (GetArena() == nullptr) {
-      delete data_.compile_;
-    }
-    clear_has_data();
-  }
-}
-inline ::rsh::server::protocol::CompileRequest* Request::release_compile() {
-  // @@protoc_insertion_point(field_release:rsh.server.protocol.Request.compile)
-  if (_internal_has_compile()) {
-    clear_has_data();
-      ::rsh::server::protocol::CompileRequest* temp = data_.compile_;
-    if (GetArena() != nullptr) {
-      temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
-    }
-    data_.compile_ = nullptr;
-    return temp;
-  } else {
-    return nullptr;
-  }
-}
-inline const ::rsh::server::protocol::CompileRequest& Request::_internal_compile() const {
-  return _internal_has_compile()
-      ? *data_.compile_
-      : *reinterpret_cast< ::rsh::server::protocol::CompileRequest*>(&::rsh::server::protocol::_CompileRequest_default_instance_);
-}
-inline const ::rsh::server::protocol::CompileRequest& Request::compile() const {
-  // @@protoc_insertion_point(field_get:rsh.server.protocol.Request.compile)
-  return _internal_compile();
-}
-inline ::rsh::server::protocol::CompileRequest* Request::unsafe_arena_release_compile() {
-  // @@protoc_insertion_point(field_unsafe_arena_release:rsh.server.protocol.Request.compile)
-  if (_internal_has_compile()) {
-    clear_has_data();
-    ::rsh::server::protocol::CompileRequest* temp = data_.compile_;
-    data_.compile_ = nullptr;
-    return temp;
-  } else {
-    return nullptr;
-  }
-}
-inline void Request::unsafe_arena_set_allocated_compile(::rsh::server::protocol::CompileRequest* compile) {
-  clear_data();
-  if (compile) {
-    set_has_compile();
-    data_.compile_ = compile;
-  }
-  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:rsh.server.protocol.Request.compile)
-}
-inline ::rsh::server::protocol::CompileRequest* Request::_internal_mutable_compile() {
-  if (!_internal_has_compile()) {
-    clear_data();
-    set_has_compile();
-    data_.compile_ = CreateMaybeMessage< ::rsh::server::protocol::CompileRequest >(GetArena());
-  }
-  return data_.compile_;
-}
-inline ::rsh::server::protocol::CompileRequest* Request::mutable_compile() {
-  // @@protoc_insertion_point(field_mutable:rsh.server.protocol.Request.compile)
-  return _internal_mutable_compile();
-}
-
-inline bool Request::has_data() const {
-  return data_case() != DATA_NOT_SET;
-}
-inline void Request::clear_has_data() {
-  _oneof_case_[0] = DATA_NOT_SET;
-}
-inline Request::DataCase Request::data_case() const {
-  return Request::DataCase(_oneof_case_[0]);
-}
-// -------------------------------------------------------------------
-
 // CompileResponse_Result
 
 // bytes native_code = 3;
@@ -1144,85 +1797,85 @@ inline void CompileResponse_Result::unsafe_arena_set_allocated_native_code(
   // @@protoc_insertion_point(field_unsafe_arena_set_allocated:rsh.server.protocol.CompileResponse.Result.native_code)
 }
 
-// bytes constant_pool = 4;
-inline void CompileResponse_Result::clear_constant_pool() {
-  constant_pool_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+// bytes constants = 4;
+inline void CompileResponse_Result::clear_constants() {
+  constants_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
 }
-inline const std::string& CompileResponse_Result::constant_pool() const {
-  // @@protoc_insertion_point(field_get:rsh.server.protocol.CompileResponse.Result.constant_pool)
-  return _internal_constant_pool();
+inline const std::string& CompileResponse_Result::constants() const {
+  // @@protoc_insertion_point(field_get:rsh.server.protocol.CompileResponse.Result.constants)
+  return _internal_constants();
 }
-inline void CompileResponse_Result::set_constant_pool(const std::string& value) {
-  _internal_set_constant_pool(value);
-  // @@protoc_insertion_point(field_set:rsh.server.protocol.CompileResponse.Result.constant_pool)
+inline void CompileResponse_Result::set_constants(const std::string& value) {
+  _internal_set_constants(value);
+  // @@protoc_insertion_point(field_set:rsh.server.protocol.CompileResponse.Result.constants)
 }
-inline std::string* CompileResponse_Result::mutable_constant_pool() {
-  // @@protoc_insertion_point(field_mutable:rsh.server.protocol.CompileResponse.Result.constant_pool)
-  return _internal_mutable_constant_pool();
+inline std::string* CompileResponse_Result::mutable_constants() {
+  // @@protoc_insertion_point(field_mutable:rsh.server.protocol.CompileResponse.Result.constants)
+  return _internal_mutable_constants();
 }
-inline const std::string& CompileResponse_Result::_internal_constant_pool() const {
-  return constant_pool_.Get();
+inline const std::string& CompileResponse_Result::_internal_constants() const {
+  return constants_.Get();
 }
-inline void CompileResponse_Result::_internal_set_constant_pool(const std::string& value) {
+inline void CompileResponse_Result::_internal_set_constants(const std::string& value) {
   
-  constant_pool_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
+  constants_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
 }
-inline void CompileResponse_Result::set_constant_pool(std::string&& value) {
+inline void CompileResponse_Result::set_constants(std::string&& value) {
   
-  constant_pool_.Set(
+  constants_.Set(
     &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::move(value), GetArena());
-  // @@protoc_insertion_point(field_set_rvalue:rsh.server.protocol.CompileResponse.Result.constant_pool)
+  // @@protoc_insertion_point(field_set_rvalue:rsh.server.protocol.CompileResponse.Result.constants)
 }
-inline void CompileResponse_Result::set_constant_pool(const char* value) {
+inline void CompileResponse_Result::set_constants(const char* value) {
   GOOGLE_DCHECK(value != nullptr);
   
-  constant_pool_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
+  constants_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
               GetArena());
-  // @@protoc_insertion_point(field_set_char:rsh.server.protocol.CompileResponse.Result.constant_pool)
+  // @@protoc_insertion_point(field_set_char:rsh.server.protocol.CompileResponse.Result.constants)
 }
-inline void CompileResponse_Result::set_constant_pool(const void* value,
+inline void CompileResponse_Result::set_constants(const void* value,
     size_t size) {
   
-  constant_pool_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
+  constants_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
       reinterpret_cast<const char*>(value), size), GetArena());
-  // @@protoc_insertion_point(field_set_pointer:rsh.server.protocol.CompileResponse.Result.constant_pool)
+  // @@protoc_insertion_point(field_set_pointer:rsh.server.protocol.CompileResponse.Result.constants)
 }
-inline std::string* CompileResponse_Result::_internal_mutable_constant_pool() {
+inline std::string* CompileResponse_Result::_internal_mutable_constants() {
   
-  return constant_pool_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+  return constants_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
 }
-inline std::string* CompileResponse_Result::release_constant_pool() {
-  // @@protoc_insertion_point(field_release:rsh.server.protocol.CompileResponse.Result.constant_pool)
-  return constant_pool_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+inline std::string* CompileResponse_Result::release_constants() {
+  // @@protoc_insertion_point(field_release:rsh.server.protocol.CompileResponse.Result.constants)
+  return constants_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
 }
-inline void CompileResponse_Result::set_allocated_constant_pool(std::string* constant_pool) {
-  if (constant_pool != nullptr) {
+inline void CompileResponse_Result::set_allocated_constants(std::string* constants) {
+  if (constants != nullptr) {
     
   } else {
     
   }
-  constant_pool_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), constant_pool,
+  constants_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), constants,
       GetArena());
-  // @@protoc_insertion_point(field_set_allocated:rsh.server.protocol.CompileResponse.Result.constant_pool)
+  // @@protoc_insertion_point(field_set_allocated:rsh.server.protocol.CompileResponse.Result.constants)
 }
-inline std::string* CompileResponse_Result::unsafe_arena_release_constant_pool() {
-  // @@protoc_insertion_point(field_unsafe_arena_release:rsh.server.protocol.CompileResponse.Result.constant_pool)
+inline std::string* CompileResponse_Result::unsafe_arena_release_constants() {
+  // @@protoc_insertion_point(field_unsafe_arena_release:rsh.server.protocol.CompileResponse.Result.constants)
   GOOGLE_DCHECK(GetArena() != nullptr);
   
-  return constant_pool_.UnsafeArenaRelease(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(),
+  return constants_.UnsafeArenaRelease(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(),
       GetArena());
 }
-inline void CompileResponse_Result::unsafe_arena_set_allocated_constant_pool(
-    std::string* constant_pool) {
+inline void CompileResponse_Result::unsafe_arena_set_allocated_constants(
+    std::string* constants) {
   GOOGLE_DCHECK(GetArena() != nullptr);
-  if (constant_pool != nullptr) {
+  if (constants != nullptr) {
     
   } else {
     
   }
-  constant_pool_.UnsafeArenaSetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(),
-      constant_pool, GetArena());
-  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:rsh.server.protocol.CompileResponse.Result.constant_pool)
+  constants_.UnsafeArenaSetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(),
+      constants, GetArena());
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:rsh.server.protocol.CompileResponse.Result.constants)
 }
 
 // -------------------------------------------------------------------
@@ -1439,6 +2092,8 @@ inline CompileResponse::DataCase CompileResponse::data_case() const {
 #ifdef __GNUC__
   #pragma GCC diagnostic pop
 #endif  // __GNUC__
+// -------------------------------------------------------------------
+
 // -------------------------------------------------------------------
 
 // -------------------------------------------------------------------
