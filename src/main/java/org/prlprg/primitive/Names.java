@@ -2,6 +2,7 @@ package org.prlprg.primitive;
 
 import com.google.common.collect.ImmutableList;
 import org.prlprg.parseprint.ParseException;
+import org.prlprg.parseprint.PrettyPrintWriter;
 import org.prlprg.parseprint.Scanner;
 import org.prlprg.util.Strings;
 
@@ -26,7 +27,7 @@ public final class Names {
     if (s.isEmpty()) {
       throw new IllegalArgumentException("empty string is reserved for special symbols");
     }
-    return isValidUnquoted(s) ? s : "`" + s.replace("`", "\\`") + "`";
+    return isValidUnquoted(s) ? s : PrettyPrintWriter.use(w -> w.writeQuoted('`', s));
   }
 
   /**
@@ -35,10 +36,9 @@ public final class Names {
    * <p>If the string isn't a valid symbol, this will have unspecified behavior.
    */
   public static String unquoteIfNecessary(String s) {
-    if (s.charAt(0) == '`' && s.charAt(s.length() - 1) == '`') {
-      return s.substring(1, s.length() - 1).replace("\\`", "`");
-    }
-    return s;
+    return s.charAt(0) == '`' && s.charAt(s.length() - 1) == '`'
+        ? new Scanner(s).readQuoted('`')
+        : s;
   }
 
   /**
@@ -73,7 +73,8 @@ public final class Names {
    *
    * <p>If {@code unquote} is false and the symbol is quoted (between "`"s), returns it still
    * quoted. Otherwise, returns it unquoted; however, the unquoted value may no longer be a valid
-   * symbol string and must be quoted again (via {@link #quoteIfNecessary(String)}) to make it such.
+   * symbol string and must be quoted again (via {@link #quoteIfNecessary(String)} or {@link
+   * #write(PrettyPrintWriter, String)}) to make it such.
    *
    * @throws ParseException if the next character isn't a letter, underscore, or "`" (the beginning
    *     of a symbol), the entire symbol is only an underscore, or the symbol is "``".
@@ -98,6 +99,20 @@ public final class Names {
       throw scanner.fail("\"_\" isn't a valid R symbol string (reserved for pipe operator)");
     }
     return result;
+  }
+
+  /**
+   * Writes a valid R symbol string.
+   *
+   * <p>This is semantically equivalent to {@code w.write(}{@link Names#quoteIfNecessary(String)
+   * Names.quoteIfNecessary}{@code (s))}, but faster.
+   */
+  public static void write(PrettyPrintWriter w, String s) {
+    if (isValidUnquoted(s)) {
+      w.write(s);
+    } else {
+      w.writeQuoted('`', s);
+    }
   }
 
   private Names() {}

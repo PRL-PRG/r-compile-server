@@ -15,28 +15,7 @@ public final class BuiltinPrintMethods {
 
   @PrintMethod
   private static void printString(String s, Printer p) {
-    var w = p.writer();
-    w.write('"');
-    s.codePoints()
-        .forEachOrdered(
-            c -> {
-              switch (c) {
-                case '\n' -> w.write("\\n");
-                case '\r' -> w.write("\\r");
-                case '\t' -> w.write("\\t");
-                case '"' -> w.write("\\\"");
-                case '\\' -> w.write("\\\\");
-                default -> {
-                  if (c < 32 || c >= 127) {
-                    w.write("\\u");
-                    w.write(String.format("%04x", c));
-                  } else {
-                    w.write((char) c);
-                  }
-                }
-              }
-            });
-    w.write('"');
+    p.writer().writeQuoted('"', s);
   }
 
   @PrintMethod

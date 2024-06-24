@@ -394,7 +394,7 @@ abstract sealed class ClosurePrintContext implements HasSEXPPrintContext {
       w.write('@');
       p.print(outermost.deferInnerCode(elem));
       if (!elem.name().isEmpty()) {
-        p.print(Names.quoteIfNecessary(elem.name()));
+        Names.write(w, elem.name());
       }
     }
   }

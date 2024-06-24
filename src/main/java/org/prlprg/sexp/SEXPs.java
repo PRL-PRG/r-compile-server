@@ -644,7 +644,7 @@ public final class SEXPs {
           PrettyPrintWriter.DEFAULT_INDENT * 2,
           () -> {
             for (var e : attributes.entrySet()) {
-              w.write(Names.quoteIfNecessary(e.getKey()));
+              Names.write(w, e.getKey());
               w.write(" = ");
               p.print(e.getValue());
             }

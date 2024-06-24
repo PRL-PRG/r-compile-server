@@ -41,7 +41,7 @@ record NodeIdQualifier(String name, int idIndex, int versionIndex) {
       p.print(q.idIndex);
     }
     if (!q.name.isEmpty()) {
-      w.write(Names.quoteIfNecessary(q.name));
+      Names.write(w, q.name);
     }
     if (q.versionIndex != 0) {
       w.write('#');

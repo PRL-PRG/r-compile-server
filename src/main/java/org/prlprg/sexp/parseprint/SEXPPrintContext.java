@@ -244,7 +244,7 @@ public class SEXPPrintContext implements HasSEXPPrintContext {
           }
           if (sexp instanceof NamespaceEnvSXP ns) {
             w.write(' ');
-            w.write(Names.quoteIfNecessary(ns.name()));
+            Names.write(w, ns.name());
             w.write(':');
             w.write(ns.version());
           }
@@ -341,7 +341,7 @@ public class SEXPPrintContext implements HasSEXPPrintContext {
       if (i != 0) {
         w.write("\n, ");
       }
-      w.write(Names.quoteIfNecessary(attribute.getKey()));
+      Names.write(w, attribute.getKey());
       w.write('=');
       p.print(attribute.getValue());
       i++;
@@ -353,7 +353,7 @@ public class SEXPPrintContext implements HasSEXPPrintContext {
     var w = p.writer();
 
     if (taggedElem.tag() != null) {
-      w.write(Names.quoteIfNecessary(taggedElem.tag()));
+      Names.write(w, taggedElem.tag());
       w.write('=');
     }
     if (taggedElem.value() != SEXPs.MISSING_ARG) {
@@ -377,7 +377,7 @@ public class SEXPPrintContext implements HasSEXPPrintContext {
       var w = p.writer();
 
       if (elem.tag() != null) {
-        w.write(Names.quoteIfNecessary(elem.tag()));
+        Names.write(w, elem.tag());
       }
       if (elem.value() != SEXPs.MISSING_ARG) {
         w.write('=');

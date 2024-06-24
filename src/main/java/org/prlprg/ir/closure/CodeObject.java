@@ -223,7 +223,7 @@ public abstract sealed class CodeObject permits Closure, Promise {
       p.print(index);
     }
     if (!name.isEmpty()) {
-      w.write(Names.quoteIfNecessary(name));
+      Names.write(w, name);
     }
   }
   // endregion helpers

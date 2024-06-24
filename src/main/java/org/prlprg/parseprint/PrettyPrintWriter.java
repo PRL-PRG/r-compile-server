@@ -153,6 +153,24 @@ public class PrettyPrintWriter {
     }
   }
 
+  /**
+   * Write a unicode character directly, possibly not indenting if it's a newline.
+   *
+   * <p>To print an integer literally, call {@code p.print(theInteger)} (where {@code p} is the
+   * printer).
+   */
+  public void writeCodePoint(int c, boolean keepIndent) {
+    try {
+      output.write(c);
+      advancePosition(c);
+      if (keepIndent && c == '\n') {
+        printIndent();
+      }
+    } catch (IOException e) {
+      throw new RuntimeException("failed to write to printer", e);
+    }
+  }
+
   /** Write text directly, possibly not indenting newlines. */
   public void write(String text, boolean keepIndent) {
     try {
@@ -197,23 +215,39 @@ public class PrettyPrintWriter {
     }
   }
 
-  /** Move {@link #position()} after the given characters. */
-  private void advancePosition(String s) {
-    setPosition(position().advanced(s));
-  }
+  // endregion print terminals
 
-  /** Move {@link #position()} after the given character. */
-  private void advancePosition(int c) {
-    setPosition(position().advanced(c));
+  // region helpers
+  /** Write the given content quoted with the given quote character, escaping where necessary. */
+  public void writeQuoted(char quote, String content) {
+    if (quote != '"' && quote != '\'' && quote != '`') {
+      throw new IllegalArgumentException("quote must be '\"', '\\'', or '`'");
+    }
+    write(quote);
+    content
+        .codePoints()
+        .forEachOrdered(
+            c -> {
+              switch (c) {
+                case '\n' -> write("\\n");
+                case '\r' -> write("\\r");
+                case '\t' -> write("\\t");
+                case '\\' -> write("\\\\");
+                default -> {
+                  if (c == quote) {
+                    write('\\');
+                    write(quote);
+                  } else if (c < 32 || c >= 127) {
+                    write("\\u");
+                    write(String.format("%04x", c));
+                  } else {
+                    write((char) c);
+                  }
+                }
+              }
+            });
+    write(quote);
   }
-
-  private void setPosition(Position p) {
-    offset = p.offset();
-    line = p.line();
-    column = p.column();
-  }
-
-  // endregion
 
   /** Gets a formatter that writes to this {@code printf}-style, respecting indents. */
   public Formatter formatter() {
@@ -238,4 +272,24 @@ public class PrettyPrintWriter {
           }
         });
   }
+
+  // endregion helpers
+
+  // region advance position
+  /** Move {@link #position()} after the given characters. */
+  private void advancePosition(String s) {
+    setPosition(position().advanced(s));
+  }
+
+  /** Move {@link #position()} after the given character. */
+  private void advancePosition(int c) {
+    setPosition(position().advanced(c));
+  }
+
+  private void setPosition(Position p) {
+    offset = p.offset();
+    line = p.line();
+    column = p.column();
+  }
+  // endregion advance position
 }
