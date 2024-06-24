@@ -13,6 +13,7 @@ import org.prlprg.primitive.Logical;
 import org.prlprg.primitive.Names;
 import org.prlprg.sexp.Attributes;
 import org.prlprg.sexp.BCodeSXP;
+import org.prlprg.sexp.BaseEnvSXP;
 import org.prlprg.sexp.BuiltinOrSpecialSXP;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.EmptyEnvSXP;
@@ -251,8 +252,10 @@ public class SEXPPrintContext implements HasSEXPPrintContext {
 
           if (!(sexp instanceof EmptyEnvSXP)) {
             if (options.printStaticEnvironmentDetails()) {
-              w.write(" parent=");
-              w.runIndented(() -> p.print(sexp.parent()));
+              if (!(sexp instanceof BaseEnvSXP)) {
+                w.write(" parent=");
+                w.runIndented(() -> p.print(sexp.parent()));
+              }
               w.write(' ');
               printList(sexp.bindingsAsTaggedElems(), p.withContext(forBindings));
             } else {
