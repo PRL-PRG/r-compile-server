@@ -289,7 +289,7 @@ public class Scanner {
    * @throws ParseException if the next character isn't the beginning quote, or if there's no end
    *     quote before EOF.
    */
-  public String readQuoted(int quote) {
+  public String readQuoted(char quote) {
     if (quote != '"' && quote != '\'' && quote != '`') {
       throw new IllegalArgumentException("quote must be '\"', '\\'', or '`'");
     }
@@ -315,7 +315,7 @@ public class Scanner {
                 case 'x' -> {
                   var hex = readFixedLength(2);
                   try {
-                    sb.append(Integer.parseInt(hex, 16));
+                    sb.appendCodePoint(Integer.parseInt(hex, 16));
                   } catch (NumberFormatException e) {
                     throw fail("invalid hex escape sequence");
                   }
@@ -323,7 +323,7 @@ public class Scanner {
                 case 'u' -> {
                   var hex = readFixedLength(4);
                   try {
-                    sb.append(Integer.parseInt(hex, 16));
+                    sb.appendCodePoint(Integer.parseInt(hex, 16));
                   } catch (NumberFormatException e) {
                     throw fail("invalid 4-byte unicode escape sequence");
                   }
@@ -345,7 +345,7 @@ public class Scanner {
    * @throws ParseException if the next character isn't the beginning quote, or if there's no end
    *     quote before EOF.
    */
-  public String readQuotedLiterally(int quote) {
+  public String readQuotedLiterally(char quote) {
     if (quote != '"' && quote != '\'' && quote != '`') {
       throw new IllegalArgumentException("quote must be '\"', '\\'', or '`'");
     }
@@ -365,21 +365,23 @@ public class Scanner {
                 case 'n', 'r', 't', '"', '\\', '\'', '`' -> {}
                 case 'x' -> {
                   var hex = readFixedLength(2);
-                  sb.append(hex);
                   try {
                     Integer.parseInt(hex, 16);
                   } catch (NumberFormatException e) {
                     throw fail("Invalid hex escape sequence");
                   }
+                  // Instead of re-escaping the unicode we un-escaped, we re-print the literal hex.
+                  sb.append(hex);
                 }
                 case 'u' -> {
                   var hex = readFixedLength(4);
-                  sb.append(hex);
                   try {
                     Integer.parseInt(hex, 16);
                   } catch (NumberFormatException e) {
                     throw fail("Invalid 4-byte unicode escape sequence");
                   }
+                  // Instead of re-escaping the unicode we un-escaped, we re-print the literal hex.
+                  sb.append(hex);
                 }
                 default -> throw fail("Unhandled escape sequence");
               }
