@@ -707,7 +707,7 @@ public class Scanner {
    * @param includeNewlines if {@code false}, this method won't consider newlines: it will return
    *     {@code false} if the first character is a newline, and won't skip newlines.
    */
-  public boolean nextCharsAreWhitespaceAndThem(boolean includeNewlines, String s) {
+  public boolean nextCharsAreWhitespaceAndThen(boolean includeNewlines, String s) {
     return nextCharIsWhitespace(includeNewlines) && nextCharsAre(s);
   }
 
@@ -722,7 +722,7 @@ public class Scanner {
    * @param includeNewlines if {@code false}, this method won't consider newlines: it will return
    *     {@code false} if the first character is a newline, and won't skip newlines.
    */
-  public boolean nextCharsAreWhitespaceAndThem(boolean includeNewlines, int c) {
+  public boolean nextCharsAreWhitespaceAndThen(boolean includeNewlines, int c) {
     return nextCharIsWhitespace(includeNewlines) && nextCharIs(c);
   }
 
