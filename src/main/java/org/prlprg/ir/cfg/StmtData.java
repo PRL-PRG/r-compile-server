@@ -58,7 +58,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
     }
   }
 
-  /** A call instruction (e.g. {@link Call}, {@link NamedCall}, etc.). */
+  /** A call instruction (e.g. {@link NamelessCall}, {@link NamedCall}, etc.). */
   sealed interface Call_<Fun> extends RValue_, InstrData.HasAst {
     Fun fun();
 
@@ -83,7 +83,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
     RValue env();
 
     @Override
-    default org.prlprg.ir.cfg.Call make(CFG cfg, NodeId<? extends Instr> id) {
+    default Call make(CFG cfg, NodeId<? extends Instr> id) {
       return new CallImpl(cfg, id, this);
     }
   }
@@ -127,23 +127,23 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
   // Order of the following is the same as in PIR `instruction.h`
 
   @EffectsAre(REffect.ReadsEnvArg)
-  record FrameState(
+  record FrameState_(
       BcPosition location,
       boolean inPromise,
       ImmutableList<Node> stack,
       @IsEnv RValue env,
-      Optional<org.prlprg.ir.cfg.FrameState> inlinedNext)
+      Optional<FrameState> inlinedNext)
       implements StmtData<FrameStateStmt> {
-    public FrameState(
+    public FrameState_(
         BcPosition location,
         boolean inPromise,
         ImmutableList<Node> stack,
         @IsEnv RValue env,
-        @Nullable org.prlprg.ir.cfg.FrameState inlinedNext) {
+        @Nullable FrameState inlinedNext) {
       this(location, inPromise, stack, env, Optional.ofNullable(inlinedNext));
     }
 
-    public FrameState(
+    public FrameState_(
         BcPosition location, boolean inPromise, ImmutableList<Node> stack, @IsEnv RValue env) {
       this(location, inPromise, stack, env, Optional.empty());
     }
@@ -234,6 +234,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
     }
   }
 
+  /** Force promise, but don't unwrap it. */
   @EffectsAre(REffect.LeaksNonEnvArg)
   record StrictifyProm(@TypeIs("PROM") RValue promise, RValue value) implements RValue_ {
     @Override
@@ -254,10 +255,9 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
     }
   }
 
-  record Force(RValue promise, Optional<org.prlprg.ir.cfg.FrameState> frameState, @IsEnv RValue env)
+  record Force(RValue promise, Optional<FrameState> frameState, @IsEnv RValue env)
       implements RValue_ {
-    public Force(
-        RValue promise, @Nullable org.prlprg.ir.cfg.FrameState frameState, @IsEnv RValue env) {
+    public Force(RValue promise, @Nullable FrameState frameState, @IsEnv RValue env) {
       this(promise, Optional.ofNullable(frameState), env);
     }
 
@@ -846,19 +846,19 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
 
   @TypeIs("ANY")
   @EffectsAreAribtrary()
-  record Call(
+  record NamelessCall(
       @Override Optional<LangSXP> ast1,
       @TypeIs("ANY_FUN") @Override RValue fun,
       @Override ImmutableList<RValue> args,
       @Override @IsEnv RValue env,
-      Optional<org.prlprg.ir.cfg.FrameState> fs)
+      Optional<FrameState> fs)
       implements Call_<RValue> {
-    public Call(
+    public NamelessCall(
         @Nullable LangSXP ast,
         RValue fun,
         ImmutableList<RValue> args,
         @IsEnv RValue env,
-        @Nullable org.prlprg.ir.cfg.FrameState fs) {
+        @Nullable FrameState fs) {
       this(Optional.ofNullable(ast), fun, args, env, Optional.ofNullable(fs));
     }
   }
@@ -871,7 +871,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
       @Override ImmutableList<Optional<String>> explicitNames,
       @SameLen("names") @Override ImmutableList<RValue> args,
       @Override @IsEnv RValue env,
-      Optional<org.prlprg.ir.cfg.FrameState> fs)
+      Optional<FrameState> fs)
       implements Call_<RValue> {
     public NamedCall(
         @Nullable LangSXP ast,
@@ -879,7 +879,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
         ImmutableList<Optional<String>> names,
         ImmutableList<RValue> args,
         @IsEnv RValue env,
-        @Nullable org.prlprg.ir.cfg.FrameState fs) {
+        @Nullable FrameState fs) {
       this(Optional.ofNullable(ast), fun, names, args, env, Optional.ofNullable(fs));
     }
   }
@@ -892,7 +892,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
       @Override ImmutableList<RValue> args,
       @Override @SameLen("args") ImmutableIntArray arglistOrder,
       @Override @IsEnv RValue env,
-      Optional<org.prlprg.ir.cfg.FrameState> fs)
+      Optional<FrameState> fs)
       implements Call_<ClosureVersion> {
     public StaticCall(
         @Nullable LangSXP ast,
@@ -902,7 +902,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
         ImmutableList<RValue> args,
         ImmutableIntArray arglistOrder,
         @IsEnv RValue env,
-        @Nullable org.prlprg.ir.cfg.FrameState fs) {
+        @Nullable FrameState fs) {
       this(
           Optional.ofNullable(ast),
           Optional.ofNullable(runtimeClosure),
@@ -1023,8 +1023,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
       this(ast, op, args, Optional.ofNullable(arglistOrder), sysParent);
     }
 
-    public PushContext(
-        RValue ast, RValue op, org.prlprg.ir.cfg.Call call, @IsEnv RValue sysParent) {
+    public PushContext(RValue ast, RValue op, Call call, @IsEnv RValue sysParent) {
       this(ast, op, call.data().args(), call.data().arglistOrder(), sysParent);
     }
 

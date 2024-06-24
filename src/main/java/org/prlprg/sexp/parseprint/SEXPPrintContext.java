@@ -180,7 +180,7 @@ public class SEXPPrintContext implements HasSEXPPrintContext {
     handleDepth(
         p,
         () -> {
-          if (sexp.isScalar()) {
+          if (sexp.isSimpleScalar()) {
             printStringElem(sexp.get(0), options.maxStringLength(), p.withContext(forVectorElem));
           } else {
             printGeneralStart(sexp.type(), p);
@@ -196,7 +196,8 @@ public class SEXPPrintContext implements HasSEXPPrintContext {
     handleDepth(
         p,
         () -> {
-          if (sexp.isScalar() && canPrintScalarInline(sexp.type())) {
+          // RAWSXP are simple scalars, but can't be printed inline because they conflict with ints.
+          if (sexp.isSimpleScalar() && sexp.type() != SEXPType.RAW) {
             p.withContext(forVectorElem).print(sexp.get(0));
           } else {
             printGeneralStart(sexp.type(), p);
@@ -587,15 +588,5 @@ public class SEXPPrintContext implements HasSEXPPrintContext {
     } else {
       p.writer().write("<...>");
     }
-  }
-
-  private boolean canPrintScalarInline(SEXPType type) {
-    assert type != SEXPType.STR
-        : "`VectorElem` should never be given strings, because they are handled with their own print function";
-    // `ScalarRawSXP` must print like `<raw ##>`, the `VectorSXP<?>` implementation.
-    return type == SEXPType.INT
-        || type == SEXPType.REAL
-        || type == SEXPType.LGL
-        || type == SEXPType.CPLX;
   }
 }

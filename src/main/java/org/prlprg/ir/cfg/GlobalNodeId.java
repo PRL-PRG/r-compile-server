@@ -14,7 +14,7 @@ import org.prlprg.util.Classes;
 
 /** Unique identifier for a {@linkplain GlobalNode global node}. */
 public interface GlobalNodeId<N extends GlobalNode> extends NodeId<N> {
-  ImmutableSet<String> GLOBAL_NODE_TYPES = ImmutableSet.of("", "dr", "invalid", "env");
+  ImmutableSet<String> GLOBAL_NODE_TYPES = ImmutableSet.of("", "dr", "i", "e");
 
   /**
    * Gets or creates the node with this ID.
@@ -41,23 +41,6 @@ public interface GlobalNodeId<N extends GlobalNode> extends NodeId<N> {
 final class GlobalNodeIdImpl<N extends GlobalNode> extends NodeIdImpl<N>
     implements GlobalNodeId<N> {
   private final N node;
-
-  /**
-   * Returns the prefix that identifies the type of global node the ID encodes when it's parsed.
-   *
-   * <p>The ID syntax is "type\\node", where "type" is this return value and "node" is {@code
-   * node.}{@link Object#toString() toString()} or {@link Printer#print(Object) Printer.print}{@code
-   * (node)} when printed (need to use {@link Printer#print(Object)} to retain context).
-   */
-  private static String nodeTypeName(GlobalNode node) {
-    return switch (node) {
-      case Constant _ -> "";
-      case ConstantDeoptReason _ -> "dr";
-      case InvalidNode _ -> "invalid";
-      case StaticEnv _ -> "env";
-      default -> throw new AssertionError("Unhandled global node type: " + node);
-    };
-  }
 
   /**
    * Create a node id using the class of the given node and given descriptive name.
@@ -98,6 +81,23 @@ final class GlobalNodeIdImpl<N extends GlobalNode> extends NodeIdImpl<N>
   }
 
   // region serialization and deserialization
+  /**
+   * Returns the prefix that identifies the type of global node the ID encodes when it's parsed.
+   *
+   * <p>The ID syntax is "type\\node", where "type" is this return value and "node" is {@code
+   * node.}{@link Object#toString() toString()} or {@link Printer#print(Object) Printer.print}{@code
+   * (node)} when printed (need to use {@link Printer#print(Object)} to retain context).
+   */
+  private static String nodeTypeName(GlobalNode node) {
+    return switch (node) {
+      case Constant _ -> "";
+      case ConstantDeoptReason _ -> "dr";
+      case InvalidNode _ -> "i";
+      case StaticEnv _ -> "e";
+      default -> throw new AssertionError("Unhandled global node type: " + node);
+    };
+  }
+
   @ParseMethod(SkipWhitespace.NONE)
   private static GlobalNodeIdImpl<?> parse(Parser p) {
     var s = p.scanner();
@@ -108,8 +108,10 @@ final class GlobalNodeIdImpl<N extends GlobalNode> extends NodeIdImpl<N>
         switch (type) {
           case "" -> new Constant(p.parse(SEXP.class));
           case "dr" -> new ConstantDeoptReason(p.parse(DeoptReason.class));
-          case "invalid" -> InvalidNode.parsed(s.readUInt(), Names.read(s, true));
-          case "env" -> {
+          case "i" ->
+              new InvalidNode(
+                  s.nextCharSatisfies(Character::isDigit) ? s.readUInt() : 0, Names.read(s, true));
+          case "e" -> {
             var name = s.readJavaIdentifierOrKeyword();
             var env = StaticEnv.ALL.get(name);
             if (env == null) {

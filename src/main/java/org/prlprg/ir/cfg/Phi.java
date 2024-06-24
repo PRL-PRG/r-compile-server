@@ -456,11 +456,14 @@ abstract non-sealed class PhiImpl<N extends Node> extends InstrOrPhiImpl impleme
     if (!nodeClass.isInstance(replacement)) {
       throw new IllegalArgumentException(
           "Tried to replace with a node of incompatible type: "
-              + replacement
-              + " ("
               + replacement.getClass().getSimpleName()
+              + " ("
+              + replacement
               + ") is not an instance of the phi's node class "
-              + nodeClass.getSimpleName());
+              + nodeClass.getSimpleName()
+              + " (the phi is "
+              + id()
+              + ")");
     }
     for (var i = 0; i < inputs.size(); i++) {
       var input = inputs.get(i);

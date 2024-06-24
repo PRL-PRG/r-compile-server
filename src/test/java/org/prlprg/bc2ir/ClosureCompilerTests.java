@@ -800,7 +800,6 @@ public class ClosureCompilerTests extends AbstractGNURBasedTest {
     ir.verify();
 
     // Debug print if verbose
-    printlnIfVerbose(((BCodeSXP) fun.body()).bc());
     printlnIfVerbose(ir);
   }
 

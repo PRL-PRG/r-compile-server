@@ -158,6 +158,8 @@ import org.prlprg.ir.cfg.Phi;
 import org.prlprg.ir.cfg.RValue;
 import org.prlprg.ir.cfg.StaticEnv;
 import org.prlprg.ir.cfg.StmtData;
+import org.prlprg.ir.cfg.StmtData.FrameState_;
+import org.prlprg.ir.cfg.StmtData.NamelessCall;
 import org.prlprg.ir.cfg.builder.CFGCursor;
 import org.prlprg.primitive.BuiltinId;
 import org.prlprg.primitive.IsTypeCheck;
@@ -1202,7 +1204,7 @@ public class CFGCompiler {
       throw fail("expected a " + type + " loop");
     }
     if (cursor.bb() != loop.end || cursor.stmtIdx() != 0) {
-      throw fail("endLoop: expected to be at start of end BB " + loop.end.id());
+      throw fail("compileEndLoop: expected to be at start of end BB " + loop.end.id());
     }
   }
 
@@ -1341,7 +1343,7 @@ public class CFGCompiler {
               case Call.Fun.Value(var fun) ->
                   isNamed
                       ? new StmtData.NamedCall(ast, fun, names, args, env, compileFrameState())
-                      : new StmtData.Call(ast, fun, args, env, compileFrameState());
+                      : new NamelessCall(ast, fun, args, env, compileFrameState());
               case Call.Fun.Builtin(var fun) ->
                   // Even if `isNamed` is true, R just ignores the names.
                   new StmtData.CallBuiltin(ast, fun, args, env);
@@ -1351,8 +1353,7 @@ public class CFGCompiler {
 
   private FrameState compileFrameState() {
     return cursor.insert(
-        new StmtData.FrameState(
-            new BcPosition(bcPos), isPromise, ImmutableList.copyOf(stack), env));
+        new FrameState_(new BcPosition(bcPos), isPromise, ImmutableList.copyOf(stack), env));
   }
 
   // endregion main compile functions: compile individual things

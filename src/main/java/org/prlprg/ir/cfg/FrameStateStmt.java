@@ -1,6 +1,6 @@
 package org.prlprg.ir.cfg;
 
-import org.prlprg.ir.cfg.StmtData.FrameState;
+import org.prlprg.ir.cfg.StmtData.FrameState_;
 
 /**
  * {@link Stmt} (IR instruction) which produces a {@linkplain org.prlprg.ir.cfg.FrameState
@@ -11,12 +11,13 @@ public interface FrameStateStmt extends Stmt, org.prlprg.ir.cfg.FrameState {
   NodeId<? extends FrameStateStmt> id();
 
   @Override
-  FrameState data();
+  FrameState_ data();
 }
 
-final class FrameStateStmtImpl extends SelfReturningStmtImpl<FrameState> implements FrameStateStmt {
-  FrameStateStmtImpl(CFG cfg, NodeId<? extends Instr> id, FrameState data) {
-    super(FrameState.class, cfg, id, data);
+final class FrameStateStmtImpl extends SelfReturningStmtImpl<FrameState_>
+    implements FrameStateStmt {
+  FrameStateStmtImpl(CFG cfg, NodeId<? extends Instr> id, FrameState_ data) {
+    super(FrameState_.class, cfg, id, data);
   }
 
   @Override

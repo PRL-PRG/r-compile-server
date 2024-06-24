@@ -477,7 +477,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     if (succ.predecessors.size() > 1) {
       // Remove this node's phis because they don't have inputs for the new predecessors. We merged
       // them if they were in the successor's phis, and if not, they are definitely unused because
-      // this BB (before the merge) dominates nothing.
+      // this BB (before the merge) only dominates itself.
       cfg().untrackAll(phis);
       phis.clear();
     }

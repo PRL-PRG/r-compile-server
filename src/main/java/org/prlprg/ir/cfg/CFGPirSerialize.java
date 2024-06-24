@@ -20,6 +20,8 @@ import org.prlprg.ir.cfg.JumpData.Checkpoint_;
 import org.prlprg.ir.cfg.PirType.NativeType;
 import org.prlprg.ir.cfg.PirType.RType_;
 import org.prlprg.ir.cfg.StmtData.Call_;
+import org.prlprg.ir.cfg.StmtData.FrameState_;
+import org.prlprg.ir.cfg.StmtData.NamelessCall;
 import org.prlprg.ir.closure.Closure;
 import org.prlprg.ir.closure.ClosureVersion;
 import org.prlprg.ir.closure.ClosureVersion.CallContext;
@@ -505,7 +507,7 @@ class PirInstrOrPhiParseContext {
             s.assertAndSkip(", env=");
             var env = p.parse(RValue.class);
             var inlined = s.trySkip(", next=") ? p.parse(FrameState.class) : null;
-            yield new StmtData.FrameState(location, inPromise, stack, env, inlined);
+            yield new FrameState_(location, inPromise, stack, env, inlined);
           }
           case "DotsList" -> {
             var names = ImmutableList.<Optional<RegSymSXP>>builder();
@@ -521,7 +523,7 @@ class PirInstrOrPhiParseContext {
             var fun = p.parse(RValue.class);
             var callArgs = parseCallArgs(p);
             var fs = s.trySkip(", ") ? p.parse(FrameState.class) : null;
-            yield new StmtData.Call(stubLangSxp(), fun, callArgs, StaticEnv.NOT_CLOSED, fs);
+            yield new NamelessCall(stubLangSxp(), fun, callArgs, StaticEnv.NOT_CLOSED, fs);
           }
           case "NamedCall" -> {
             var fun = p.parse(RValue.class);
@@ -1312,7 +1314,7 @@ class PirInstrOrPhiPrintContext {
         w.write(", context");
         p.print(m.context());
       }
-      case StmtData.FrameState f -> {
+      case StmtData.FrameState_ f -> {
         p.print(f.location());
         if (f.inPromise()) {
           w.write("(pr)");
@@ -1343,7 +1345,7 @@ class PirInstrOrPhiPrintContext {
         w.write(", ");
         p.print(c.sysParent());
       }
-      case StmtData.Call c -> {
+      case StmtData.NamelessCall c -> {
         p.print(c.fun());
         printCallArgs(c, p);
         if (c.fs().isPresent()) {

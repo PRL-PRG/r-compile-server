@@ -7,14 +7,51 @@ import java.util.TreeSet;
 
 /**
  * Map that stores names and disambiguators for {@link NodeId}s ({@link InstrOrPhiIdImpl}s) and
- * {@link BBId}s ({@link BBIdImpl}s), so that a low disambiguator can be returned that actually
- * disambiguates said name.
+ * {@link BBId}s ({@link BBIdImpl}s), so that a low disambiguator can be returned that is unique to
+ * the map (actually disambiguates said name).
  *
- * <p>Specifically, it stores every disambiguator for each name, and generating a unique
- * disambiguator for a name returns one that is the successor to the largest stored one.
+ * <p>Specifically, it stores every "freed" disambiguator and the next un-assigned disambiguator for
+ * each name, so generating a low unique disambiguator is removing the lowest element from the free-
+ * list or assigning and incrementing the next un-assigned one.
  */
 class NodeOrBBIdDisambiguatorMap {
-  private final Map<String, NavigableSet<Integer>> disambiguators = new HashMap<>();
+  private final Map<String, FreeList> disambiguators = new HashMap<>();
+
+  private static class FreeList {
+    private final NavigableSet<Integer> free = new TreeSet<>();
+    private int next = 0;
+
+    boolean add(int disambiguator) {
+      while (disambiguator > next) {
+        free.add(next);
+        next++;
+      }
+      if (disambiguator == next) {
+        next++;
+        return true;
+      } else {
+        return free.remove(disambiguator);
+      }
+    }
+
+    boolean remove(int disambiguator) {
+      var last = next - 1;
+      if (disambiguator > last) {
+        return false;
+      } else if (disambiguator == last) {
+        do {
+          next--;
+        } while (free.remove(next - 1));
+        return true;
+      } else {
+        return free.add(disambiguator);
+      }
+    }
+
+    int first() {
+      return free.isEmpty() ? next : free.first();
+    }
+  }
 
   NodeOrBBIdDisambiguatorMap() {
     // Ensure that the an empty string always has a (positive) disambiguator.
@@ -28,7 +65,7 @@ class NodeOrBBIdDisambiguatorMap {
    * value</i>. The disambiguator is only stored when {@link #add(String, int)} is called.
    */
   int get(String name) {
-    return disambiguators.containsKey(name) ? disambiguators.get(name).last() + 1 : 0;
+    return disambiguators.containsKey(name) ? disambiguators.get(name).first() : 0;
   }
 
   /**
@@ -40,7 +77,7 @@ class NodeOrBBIdDisambiguatorMap {
    * @throws IllegalArgumentException If the given disambiguator is already used for the given name.
    */
   void add(String name, int disambiguator) {
-    if (!disambiguators.computeIfAbsent(name, _ -> new TreeSet<>()).add(disambiguator)) {
+    if (!disambiguators.computeIfAbsent(name, _ -> new FreeList()).add(disambiguator)) {
       throw new IllegalArgumentException(
           "Disambiguator " + disambiguator + " is already used for name " + name);
     }
@@ -56,7 +93,7 @@ class NodeOrBBIdDisambiguatorMap {
    * @throws IllegalArgumentException If the given disambiguator is not used for the given name.
    */
   void remove(String name, int disambiguator) {
-    if (!disambiguators.computeIfAbsent(name, _ -> new TreeSet<>()).remove(disambiguator)) {
+    if (!disambiguators.computeIfAbsent(name, _ -> new FreeList()).remove(disambiguator)) {
       throw new IllegalArgumentException(
           "Disambiguator " + disambiguator + " is not used for name " + name);
     }

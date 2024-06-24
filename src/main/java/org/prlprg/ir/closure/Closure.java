@@ -343,12 +343,15 @@ public final class Closure extends CodeObject {
     var parameters = p.withContext(ctx.sexpParseContext().forBindings()).parse(ListSXP.class);
     env = s.trySkip("env") ? p.parse(RValue.class) : StaticEnv.NOT_CLOSED;
     var attributes = s.trySkip("with") ? p.parse(Attributes.class) : Attributes.NONE;
-    s.assertAndSkip("=>");
-    var body = p.parse(SEXP.class);
-    origin = SEXPs.closure(parameters, body, SEXPs.EMPTY_ENV, attributes);
 
     s.assertAndSkip('{');
+
+    var bc = p.parse(Bc.class);
+    origin = SEXPs.closure(parameters, SEXPs.bcode(bc), SEXPs.EMPTY_ENV, attributes);
+
+    s.assertAndSkip("=== IR ===");
     s.assertAndSkip("baseline");
+    s.assertAndSkip(':');
 
     baselineVersion =
         p.withContext(ctx.ref(new NodeIdQualifier(name, idIndex))).parse(ClosureVersion.class);
@@ -397,11 +400,13 @@ public final class Closure extends CodeObject {
       w.write(" with ");
       w.runIndented(() -> p.print(origin.attributes()));
     }
-    w.write(" => ");
-    p.print(origin.body());
 
-    w.write(" {\nbaseline ");
+    w.write(" {\n");
 
+    p.print(bc());
+    w.write("\n=== IR ===\n");
+
+    w.write("baseline: ");
     p.withContext(ctx.ref(new NodeIdQualifier(name, idIndex))).print(baselineVersion);
 
     var i = 1;

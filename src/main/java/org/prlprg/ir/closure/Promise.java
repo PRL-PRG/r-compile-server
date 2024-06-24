@@ -266,6 +266,7 @@ public final class Promise extends CodeObject {
     env = p.parse(RValue.class);
     eagerValue = s.trySkip("with") ? p.parse(RValue.class) : null;
     properties = s.trySkip("has") ? p.parse(Properties.class) : Properties.EMPTY;
+
     s.assertAndSkip("{");
 
     bc = p.parse(Bc.class);
@@ -298,6 +299,7 @@ public final class Promise extends CodeObject {
       w.write(" has ");
       w.runIndented(() -> p.print(properties));
     }
+
     w.write(" {");
 
     w.runIndented(

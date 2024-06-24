@@ -187,21 +187,31 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
     w.write(";");
   }
 
+  private void patchIfPending(Node node) {
+    if (pendingPatchNodes.containsKey(node.id())) {
+      patchSubst.stage(pendingPatchNodes.remove(node.id()), node);
+    }
+  }
+
   /**
    * Patch nodes that were referenced before they were defined, and phis that referenced incoming
    * incoming blocks before they became predecessors.
    */
   void commitPatches() {
-    for (var phiAndDelayedInputs : delayedPhiInputs.entrySet()) {
-      var phi = phiAndDelayedInputs.getKey();
-      var delayedInputs = phiAndDelayedInputs.getValue();
-      for (var input : delayedInputs) {
-        phi.setInput(input);
-      }
-    }
+    cfg.section(
+        "fixup",
+        () -> {
+          for (var phiAndDelayedInputs : delayedPhiInputs.entrySet()) {
+            var phi = phiAndDelayedInputs.getKey();
+            var delayedInputs = phiAndDelayedInputs.getValue();
+            for (var input : delayedInputs) {
+              phi.setInput(input);
+            }
+          }
 
-    // This has to be after the `for` loop.
-    patchSubst.commit(cfg);
+          // This has to be after the `for` loop.
+          patchSubst.commit(cfg);
+        });
   }
 
   class BBContext implements HasSEXPParseContext, HasSEXPPrintContext {
@@ -233,7 +243,6 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
       // gets passed to the `InstrOrPhiImpl` constructor, so the unchecked cast is safe.
       @SuppressWarnings("unchecked")
       var id = (NodeId<? extends Phi<? extends Node>>) p.parse(NodeId.class);
-      ensureIdNotTakenByAnonymous(id, p);
 
       var inputP = p.withContext(dataContext);
       var inputs = new ArrayList<Phi.Input<Node>>();
@@ -254,6 +263,7 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
       }
       var clazz = inputs.getFirst().node().getClass();
 
+      ensureIdNotTakenByAnonymous(id, p);
       var phi = bb.addPhiWithId(id, clazz);
 
       var delayedInputs = new ArrayList<Input<Node>>(inputs.size());
@@ -311,9 +321,6 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
 
       var data = p.withContext(dataContext).parse(InstrData.class);
 
-      // This must go after `parse(InstrData.class)`, because the latter may re-assign some `Void`
-      // instruction IDs. If it went before, one of those re-assigned IDs may have been assigned to
-      // `id`, so it would no longer be free.
       if (id == null) {
         // ID doesn't matter
         id = cfg.<Instr>uniqueInstrOrPhiId();
@@ -335,7 +342,9 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
             }
           };
 
-      patchIfPending(instr);
+      for (var node : instr.returns()) {
+        patchIfPending(node);
+      }
       return instr;
     }
 
@@ -354,6 +363,9 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
     /**
      * Edge-case: if `id` doesn't have a name, we could've given it to a `Void` instruction via
      * `CreateInstrWithNewId`. To solve this, we rename the `Void` to update its disambiguator.
+     *
+     * <p>Must be called immediately before adding the node with this ID. Otherwise, if another
+     * argument is parsed, that could re-assign an anonymous node to the ID again.
      */
     private void ensureIdNotTakenByAnonymous(NodeId<? extends InstrOrPhi> id, Parser p) {
       var s = p.scanner();
@@ -366,12 +378,6 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
         assert InstrOrPhiIdImpl.cast(id).name().isEmpty()
             : "expected ID of `Void` instruction we created to have no name";
         InstrOrPhiImpl.cast(old).setId(cfg.uniqueInstrOrPhiId());
-      }
-    }
-
-    private void patchIfPending(Node node) {
-      if (pendingPatchNodes.containsKey(node.id())) {
-        patchSubst.stage(pendingPatchNodes.remove(node.id()), node);
       }
     }
 
@@ -439,7 +445,7 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
             assert InstrOrPhiIdImpl.cast(i.id()).name().isEmpty()
                 : "expected ID of `Void` instruction we created to have no name";
             InstrOrPhiImpl.cast(i).setId(cfg.uniqueInstrOrPhiId());
-            // `cfg.contains(id)` is now `false`.
+            assert !cfg.contains(id);
           }
         }
 

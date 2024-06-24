@@ -16,6 +16,16 @@ public sealed interface VectorSXP<T> extends ListOrVectorSXP<T>
     return size() == 1;
   }
 
+  /**
+   * Does the collection have exactly one element <i>and</i> no attributes <i>and</i> is primitive
+   * (doesn't contain other {@link SEXP}s)?
+   *
+   * <p>i.e. can it be represented as an unboxed value?
+   */
+  default boolean isSimpleScalar() {
+    return isScalar() && attributes().isEmpty() && this instanceof PrimVectorSXP;
+  }
+
   @Override
   VectorSXP<T> withAttributes(Attributes attributes);
 

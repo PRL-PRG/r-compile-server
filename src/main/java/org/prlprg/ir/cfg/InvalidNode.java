@@ -1,7 +1,7 @@
 package org.prlprg.ir.cfg;
 
+import java.lang.ref.Cleaner;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicInteger;
 import javax.annotation.Nullable;
 import org.prlprg.ir.type.RType;
 import org.prlprg.ir.type.RTypes;
@@ -9,7 +9,14 @@ import org.prlprg.primitive.Names;
 
 /** Node representing missing, invalid, or placeholder data. */
 public class InvalidNode implements DeoptReason, RValue, FrameState, GlobalNode {
-  private static final AtomicInteger NEXT_DISAMBIGUATOR = new AtomicInteger(0);
+  private static final NodeOrBBIdDisambiguatorMap DISAMBIGUATORS = new NodeOrBBIdDisambiguatorMap();
+  private static final Cleaner CLEANER = Cleaner.create();
+
+  private static int disambiguatorFor(String desc) {
+    synchronized (DISAMBIGUATORS) {
+      return DISAMBIGUATORS.get(desc);
+    }
+  }
 
   /**
    * The node assigned to {@linkplain Phi phi} inputs that are automatically added when the phi's
@@ -23,11 +30,12 @@ public class InvalidNode implements DeoptReason, RValue, FrameState, GlobalNode 
   }
 
   private final int disambiguator;
+  private final String name;
   private final GlobalNodeId<InvalidNode> id;
   private final String toString;
 
-  public InvalidNode(String desc) {
-    this(NEXT_DISAMBIGUATOR.getAndIncrement(), desc);
+  private String toString(int disambiguator, String name) {
+    return (disambiguator == 0 ? "" : disambiguator) + Names.quoteIfNecessary(name);
   }
 
   /**
@@ -43,21 +51,35 @@ public class InvalidNode implements DeoptReason, RValue, FrameState, GlobalNode 
     return (N) this;
   }
 
-  /** Only to be used by {@link org.prlprg.ir.cfg.GlobalNodeId}. */
-  static InvalidNode parsed(int disambiguator, String desc) {
-    var result = new InvalidNode(disambiguator, desc);
-    // Want to ensure disambiguator is still unique.
-    NEXT_DISAMBIGUATOR.getAndUpdate(i -> Math.max(i, result.disambiguator + 1));
-    return result;
+  public InvalidNode(String name) {
+    this(disambiguatorFor(name), name);
   }
 
-  private InvalidNode(int disambiguator, String desc) {
-    if (desc.isEmpty()) {
-      throw new IllegalArgumentException("Description must not be empty");
+  InvalidNode(int disambiguator, String name) {
+    if (name.isEmpty()) {
+      throw new IllegalArgumentException("Name must not be empty");
     }
+
+    synchronized (DISAMBIGUATORS) {
+      try {
+        DISAMBIGUATORS.add(name, disambiguator);
+      } catch (IllegalArgumentException e) {
+        throw new IllegalArgumentException(
+            "Duplicate ID assigned to `InvalidNode`: " + toString(disambiguator, name), e);
+      }
+    }
+    CLEANER.register(
+        this,
+        () -> {
+          synchronized (DISAMBIGUATORS) {
+            DISAMBIGUATORS.remove(name, disambiguator);
+          }
+        });
+
     this.disambiguator = disambiguator;
-    this.id = new GlobalNodeIdImpl<>(this);
-    toString = disambiguator + Names.quoteIfNecessary(desc);
+    this.name = name;
+    id = new GlobalNodeIdImpl<>(this);
+    toString = toString(disambiguator, name);
   }
 
   @Override
@@ -79,12 +101,12 @@ public class InvalidNode implements DeoptReason, RValue, FrameState, GlobalNode 
   public boolean equals(Object o) {
     if (this == o) return true;
     if (!(o instanceof InvalidNode that)) return false;
-    return disambiguator == that.disambiguator;
+    return toString.equals(that.toString);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(disambiguator);
+    return Objects.hash(toString);
   }
 
   @Override
