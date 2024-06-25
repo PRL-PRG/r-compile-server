@@ -1,5 +1,6 @@
 package org.prlprg.ir.cfg;
 
+import com.google.common.collect.Streams;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.prlprg.ir.analysis.CFGAnalyses;
@@ -23,6 +24,7 @@ interface CFGCleanup extends CFGQuery, CFGAnalyses, CFGIntrinsicMutate, CFGCompo
    * <p>{@link CFG#verify()} will fail on CFGs that aren't cleaned up. Generally, after a set of
    * optimizations you will call this method and then optionally {@link CFG#verify()}.
    */
+  @SuppressWarnings("UnstableApiUsage")
   default void cleanup() {
     section(
         "CFG#cleanup",
@@ -57,7 +59,18 @@ interface CFGCleanup extends CFGQuery, CFGAnalyses, CFGIntrinsicMutate, CFGCompo
                   && bb.jump().data()
                       instanceof JumpData.Branch(var _, var _, var ifTrue, var ifFalse)) {
                 if (ifTrue == ifFalse) {
+                  var phiInputs = ifTrue.phis().stream().map(phi -> phi.input(bb)).toList();
                   Instr.mutateArgs(bb.jump(), new JumpData.Goto(ifTrue));
+                  Streams.forEachPair(
+                      ifTrue.phis().stream(),
+                      phiInputs.stream(),
+                      (phi, input) -> {
+                        // This is safe because the input is the same type as the phi,
+                        // but Java can't enforce because it's an existential.
+                        @SuppressWarnings("unchecked")
+                        var phi1 = (Phi<Node>) phi;
+                        phi1.setInput(bb, input);
+                      });
                   // Don't need to set `mayImproveOnRepeat` for the first optimization.
                 }
               }
