@@ -80,11 +80,19 @@ public class CFGVerifyException extends IllegalStateException {
           + inputId
           + " in "
           + inputOriginId
-          + "\nIncoming BB:"
+          + "\nIncoming BB: "
           + incomingBBId
           + (expectedIncomingBBIds.isEmpty()
               ? "\nThe phi has no dominating incoming BB, so the node would never be chosen"
               : "\nValid possible incoming BBs: " + Strings.join(", ", expectedIncomingBBIds));
+    }
+  }
+
+  public record UnsetPhiInput(BBId bbId, NodeId<? extends Phi<?>> phiId, BBId incomingBBId)
+      implements BrokenInvariant {
+    @Override
+    public String toString() {
+      return "Unset phi input in " + phiId + " in " + bbId + "\nIncoming BB: " + incomingBBId;
     }
   }
 

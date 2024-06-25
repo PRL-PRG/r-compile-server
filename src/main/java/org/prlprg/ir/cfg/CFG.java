@@ -334,6 +334,10 @@ public class CFG
           if (broken != null) {
             errors.add(broken);
           }
+          if (input.node() == InvalidNode.UNSET_PHI_INPUT) {
+            errors.add(
+                new CFGVerifyException.UnsetPhiInput(bb.id(), phi.id(), input.incomingBB().id()));
+          }
         }
       }
 
