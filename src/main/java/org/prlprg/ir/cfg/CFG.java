@@ -350,7 +350,7 @@ public class CFG
           // block OR the argument originates from anywhere in a strictly dominating block.
           if (arg.origin() != null
               && Streams.stream(domTree.iterDominators(bb, false))
-                  .noneMatch(d -> prevNodesInBBs.get(d).contains(arg.origin()))) {
+                  .noneMatch(d -> prevNodesInBBs.get(d).contains(arg))) {
             errors.add(
                 new CFGVerifyException.ArgNotDefinedBeforeUse(bb.id(), instr.id(), arg.id()));
           }
