@@ -14,6 +14,7 @@ import org.jetbrains.annotations.UnmodifiableView;
  */
 @UnmodifiableView
 final class MapListView<I, O> implements List<O> {
+  // don't care about other `Map...View` duplicated code because it's all boilerplate - CPD-OFF
   private final List<I> backing;
   private final Function<I, O> f;
 
@@ -195,4 +196,5 @@ final class MapListView<I, O> implements List<O> {
   public List<O> subList(int fromIndex, int toIndex) {
     return new MapListView<>(backing.subList(fromIndex, toIndex), f);
   }
+  // don't care about other `Map...View` duplicated code because it's all boilerplate - CPD-ON
 }

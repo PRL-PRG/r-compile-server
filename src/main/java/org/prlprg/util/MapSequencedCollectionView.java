@@ -14,6 +14,7 @@ import org.jetbrains.annotations.UnmodifiableView;
  */
 @UnmodifiableView
 final class MapSequencedCollectionView<I, O> implements SequencedCollection<O> {
+  // don't care about other `Map...View` duplicated code because it's all boilerplate - CPD-OFF
   private final SequencedCollection<I> backing;
   private final Function<I, O> f;
 
@@ -187,4 +188,5 @@ final class MapSequencedCollectionView<I, O> implements SequencedCollection<O> {
       }
     };
   }
+  // don't care about other `Map...View` duplicated code because it's all boilerplate - CPD-ON
 }
