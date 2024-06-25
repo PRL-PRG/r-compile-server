@@ -25,15 +25,17 @@ message CompileRequest {
   bytes closure = 3;
 }
 
+message CompiledFunction {
+  string name = 2;
+  // content of the object file as spilled by the compiler
+  bytes native_code = 3;
+  // the constants used by the native code as VECSXP
+  bytes constants = 4;
+}
+
 message CompileResponse {
-  message Result {
-    // content of the object file as spilled by the compiler
-    bytes native_code = 3;
-    // the constants used by the native code as VECSXP
-    bytes constants = 4;
-  }
   oneof data {
     string failure = 2;
-    Result result = 3;
+    CompiledFunction result = 3;
   }
 }

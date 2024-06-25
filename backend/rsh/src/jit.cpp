@@ -7,6 +7,10 @@
 #include <llvm/ExecutionEngine/Orc/LLJIT.h>
 #include <llvm/Support/TargetSelect.h>
 
+namespace rsh {
+
+JIT *GJIT = JIT::create();
+
 JIT *JIT::create() {
   llvm::InitializeNativeTarget();
   llvm::InitializeNativeTargetAsmPrinter();
@@ -62,6 +66,9 @@ void JIT::add_object_file(const char *filename) {
 
 void JIT::add_object(std::string const &vec) {
   auto obj_data = llvm::MemoryBuffer::getMemBuffer(vec);
+  // here we need to reattach the code to the object file
+  // if the response came with code
+  // using the DWARFContext
   // llvm::object::createBinary(llvm::MemoryBufferRef(*buffer));
   auto err = orc->addObjectFile(std::move(obj_data));
   if (err) {
@@ -92,3 +99,4 @@ void JIT::remove(const char *name) {
   }
   // orc->getMainJITDylib().dump(llvm::outs());
 }
+} // namespace rsh

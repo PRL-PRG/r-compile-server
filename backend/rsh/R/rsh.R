@@ -33,8 +33,11 @@ rsh_jit_disable <- function() {
 #'
 #' @param f closure to be compiled
 #' @export
-rsh_compile <- function(f) {
-  invisible(.Call(C_compile_fun, f, as.character(substitute(f))))
+rsh_compile <- function(f, name) {
+  if (missing(name)) {
+    name <- as.character(substitute(f))
+  }
+  invisible(.Call(C_compile_fun, f, name))
 }
 
 #' Compile given closure
@@ -50,7 +53,7 @@ rsh_cmpfun <- function(f, options) {
   # a new one with BCSXP body (if possible)
   g <- f
   # compile the copy
-  rsh_compile(g)
+  rsh_compile(g, as.character(substitute(f)))
   g
 }
 

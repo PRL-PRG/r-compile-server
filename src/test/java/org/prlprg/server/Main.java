@@ -14,6 +14,7 @@ import org.prlprg.rds.RDSWriter;
 import org.prlprg.rsession.TestRSession;
 import org.prlprg.server.protocol.CompileRequest;
 import org.prlprg.server.protocol.CompileResponse;
+import org.prlprg.server.protocol.CompiledFunction;
 import org.prlprg.server.protocol.Request;
 import org.prlprg.service.JITService;
 import org.prlprg.sexp.CloSXP;
@@ -75,7 +76,8 @@ public class Main {
       var compiledClosure = jit.execute(name, closure);
 
       var result =
-          CompileResponse.Result.newBuilder()
+          CompiledFunction.newBuilder()
+              .setName(name)
               .setNativeCode(ByteString.copyFrom(compiledClosure.code()))
               .setConstants(
                   ByteString.copyFrom(serialize(SEXPs.vec(compiledClosure.constantPool()))));

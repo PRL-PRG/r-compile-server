@@ -55,17 +55,15 @@ public final class CompileResponse extends com.google.protobuf.GeneratedMessageV
             }
           case 26:
             {
-              org.prlprg.server.protocol.CompileResponse.Result.Builder subBuilder = null;
+              org.prlprg.server.protocol.CompiledFunction.Builder subBuilder = null;
               if (dataCase_ == 3) {
-                subBuilder =
-                    ((org.prlprg.server.protocol.CompileResponse.Result) data_).toBuilder();
+                subBuilder = ((org.prlprg.server.protocol.CompiledFunction) data_).toBuilder();
               }
               data_ =
                   input.readMessage(
-                      org.prlprg.server.protocol.CompileResponse.Result.parser(),
-                      extensionRegistry);
+                      org.prlprg.server.protocol.CompiledFunction.parser(), extensionRegistry);
               if (subBuilder != null) {
-                subBuilder.mergeFrom((org.prlprg.server.protocol.CompileResponse.Result) data_);
+                subBuilder.mergeFrom((org.prlprg.server.protocol.CompiledFunction) data_);
                 data_ = subBuilder.buildPartial();
               }
               dataCase_ = 3;
@@ -103,663 +101,6 @@ public final class CompileResponse extends com.google.protobuf.GeneratedMessageV
         .ensureFieldAccessorsInitialized(
             org.prlprg.server.protocol.CompileResponse.class,
             org.prlprg.server.protocol.CompileResponse.Builder.class);
-  }
-
-  public interface ResultOrBuilder
-      extends
-      // @@protoc_insertion_point(interface_extends:rsh.server.protocol.CompileResponse.Result)
-      com.google.protobuf.MessageOrBuilder {
-
-    /**
-     *
-     *
-     * <pre>
-     * content of the object file as spilled by the compiler
-     * </pre>
-     *
-     * <code>bytes native_code = 3;</code>
-     *
-     * @return The nativeCode.
-     */
-    com.google.protobuf.ByteString getNativeCode();
-
-    /**
-     *
-     *
-     * <pre>
-     * the constants used by the native code as VECSXP
-     * </pre>
-     *
-     * <code>bytes constants = 4;</code>
-     *
-     * @return The constants.
-     */
-    com.google.protobuf.ByteString getConstants();
-  }
-
-  /** Protobuf type {@code rsh.server.protocol.CompileResponse.Result} */
-  public static final class Result extends com.google.protobuf.GeneratedMessageV3
-      implements
-      // @@protoc_insertion_point(message_implements:rsh.server.protocol.CompileResponse.Result)
-      ResultOrBuilder {
-    private static final long serialVersionUID = 0L;
-
-    // Use Result.newBuilder() to construct.
-    private Result(com.google.protobuf.GeneratedMessageV3.Builder<?> builder) {
-      super(builder);
-    }
-
-    private Result() {
-      nativeCode_ = com.google.protobuf.ByteString.EMPTY;
-      constants_ = com.google.protobuf.ByteString.EMPTY;
-    }
-
-    @java.lang.Override
-    @SuppressWarnings({"unused"})
-    protected java.lang.Object newInstance(UnusedPrivateParameter unused) {
-      return new Result();
-    }
-
-    @java.lang.Override
-    public final com.google.protobuf.UnknownFieldSet getUnknownFields() {
-      return this.unknownFields;
-    }
-
-    private Result(
-        com.google.protobuf.CodedInputStream input,
-        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
-        throws com.google.protobuf.InvalidProtocolBufferException {
-      this();
-      if (extensionRegistry == null) {
-        throw new java.lang.NullPointerException();
-      }
-      com.google.protobuf.UnknownFieldSet.Builder unknownFields =
-          com.google.protobuf.UnknownFieldSet.newBuilder();
-      try {
-        boolean done = false;
-        while (!done) {
-          int tag = input.readTag();
-          switch (tag) {
-            case 0:
-              done = true;
-              break;
-            case 26:
-              {
-                nativeCode_ = input.readBytes();
-                break;
-              }
-            case 34:
-              {
-                constants_ = input.readBytes();
-                break;
-              }
-            default:
-              {
-                if (!parseUnknownField(input, unknownFields, extensionRegistry, tag)) {
-                  done = true;
-                }
-                break;
-              }
-          }
-        }
-      } catch (com.google.protobuf.InvalidProtocolBufferException e) {
-        throw e.setUnfinishedMessage(this);
-      } catch (java.io.IOException e) {
-        throw new com.google.protobuf.InvalidProtocolBufferException(e).setUnfinishedMessage(this);
-      } finally {
-        this.unknownFields = unknownFields.build();
-        makeExtensionsImmutable();
-      }
-    }
-
-    public static final com.google.protobuf.Descriptors.Descriptor getDescriptor() {
-      return org.prlprg.server.protocol.Protocol
-          .internal_static_rsh_server_protocol_CompileResponse_Result_descriptor;
-    }
-
-    @java.lang.Override
-    protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
-        internalGetFieldAccessorTable() {
-      return org.prlprg.server.protocol.Protocol
-          .internal_static_rsh_server_protocol_CompileResponse_Result_fieldAccessorTable
-          .ensureFieldAccessorsInitialized(
-              org.prlprg.server.protocol.CompileResponse.Result.class,
-              org.prlprg.server.protocol.CompileResponse.Result.Builder.class);
-    }
-
-    public static final int NATIVE_CODE_FIELD_NUMBER = 3;
-    private com.google.protobuf.ByteString nativeCode_;
-
-    /**
-     *
-     *
-     * <pre>
-     * content of the object file as spilled by the compiler
-     * </pre>
-     *
-     * <code>bytes native_code = 3;</code>
-     *
-     * @return The nativeCode.
-     */
-    @java.lang.Override
-    public com.google.protobuf.ByteString getNativeCode() {
-      return nativeCode_;
-    }
-
-    public static final int CONSTANTS_FIELD_NUMBER = 4;
-    private com.google.protobuf.ByteString constants_;
-
-    /**
-     *
-     *
-     * <pre>
-     * the constants used by the native code as VECSXP
-     * </pre>
-     *
-     * <code>bytes constants = 4;</code>
-     *
-     * @return The constants.
-     */
-    @java.lang.Override
-    public com.google.protobuf.ByteString getConstants() {
-      return constants_;
-    }
-
-    private byte memoizedIsInitialized = -1;
-
-    @java.lang.Override
-    public final boolean isInitialized() {
-      byte isInitialized = memoizedIsInitialized;
-      if (isInitialized == 1) return true;
-      if (isInitialized == 0) return false;
-
-      memoizedIsInitialized = 1;
-      return true;
-    }
-
-    @java.lang.Override
-    public void writeTo(com.google.protobuf.CodedOutputStream output) throws java.io.IOException {
-      if (!nativeCode_.isEmpty()) {
-        output.writeBytes(3, nativeCode_);
-      }
-      if (!constants_.isEmpty()) {
-        output.writeBytes(4, constants_);
-      }
-      unknownFields.writeTo(output);
-    }
-
-    @java.lang.Override
-    public int getSerializedSize() {
-      int size = memoizedSize;
-      if (size != -1) return size;
-
-      size = 0;
-      if (!nativeCode_.isEmpty()) {
-        size += com.google.protobuf.CodedOutputStream.computeBytesSize(3, nativeCode_);
-      }
-      if (!constants_.isEmpty()) {
-        size += com.google.protobuf.CodedOutputStream.computeBytesSize(4, constants_);
-      }
-      size += unknownFields.getSerializedSize();
-      memoizedSize = size;
-      return size;
-    }
-
-    @java.lang.Override
-    public boolean equals(final java.lang.Object obj) {
-      if (obj == this) {
-        return true;
-      }
-      if (!(obj instanceof org.prlprg.server.protocol.CompileResponse.Result)) {
-        return super.equals(obj);
-      }
-      org.prlprg.server.protocol.CompileResponse.Result other =
-          (org.prlprg.server.protocol.CompileResponse.Result) obj;
-
-      if (!getNativeCode().equals(other.getNativeCode())) return false;
-      if (!getConstants().equals(other.getConstants())) return false;
-      if (!unknownFields.equals(other.unknownFields)) return false;
-      return true;
-    }
-
-    @java.lang.Override
-    public int hashCode() {
-      if (memoizedHashCode != 0) {
-        return memoizedHashCode;
-      }
-      int hash = 41;
-      hash = (19 * hash) + getDescriptor().hashCode();
-      hash = (37 * hash) + NATIVE_CODE_FIELD_NUMBER;
-      hash = (53 * hash) + getNativeCode().hashCode();
-      hash = (37 * hash) + CONSTANTS_FIELD_NUMBER;
-      hash = (53 * hash) + getConstants().hashCode();
-      hash = (29 * hash) + unknownFields.hashCode();
-      memoizedHashCode = hash;
-      return hash;
-    }
-
-    public static org.prlprg.server.protocol.CompileResponse.Result parseFrom(
-        java.nio.ByteBuffer data) throws com.google.protobuf.InvalidProtocolBufferException {
-      return PARSER.parseFrom(data);
-    }
-
-    public static org.prlprg.server.protocol.CompileResponse.Result parseFrom(
-        java.nio.ByteBuffer data, com.google.protobuf.ExtensionRegistryLite extensionRegistry)
-        throws com.google.protobuf.InvalidProtocolBufferException {
-      return PARSER.parseFrom(data, extensionRegistry);
-    }
-
-    public static org.prlprg.server.protocol.CompileResponse.Result parseFrom(
-        com.google.protobuf.ByteString data)
-        throws com.google.protobuf.InvalidProtocolBufferException {
-      return PARSER.parseFrom(data);
-    }
-
-    public static org.prlprg.server.protocol.CompileResponse.Result parseFrom(
-        com.google.protobuf.ByteString data,
-        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
-        throws com.google.protobuf.InvalidProtocolBufferException {
-      return PARSER.parseFrom(data, extensionRegistry);
-    }
-
-    public static org.prlprg.server.protocol.CompileResponse.Result parseFrom(byte[] data)
-        throws com.google.protobuf.InvalidProtocolBufferException {
-      return PARSER.parseFrom(data);
-    }
-
-    public static org.prlprg.server.protocol.CompileResponse.Result parseFrom(
-        byte[] data, com.google.protobuf.ExtensionRegistryLite extensionRegistry)
-        throws com.google.protobuf.InvalidProtocolBufferException {
-      return PARSER.parseFrom(data, extensionRegistry);
-    }
-
-    public static org.prlprg.server.protocol.CompileResponse.Result parseFrom(
-        java.io.InputStream input) throws java.io.IOException {
-      return com.google.protobuf.GeneratedMessageV3.parseWithIOException(PARSER, input);
-    }
-
-    public static org.prlprg.server.protocol.CompileResponse.Result parseFrom(
-        java.io.InputStream input, com.google.protobuf.ExtensionRegistryLite extensionRegistry)
-        throws java.io.IOException {
-      return com.google.protobuf.GeneratedMessageV3.parseWithIOException(
-          PARSER, input, extensionRegistry);
-    }
-
-    public static org.prlprg.server.protocol.CompileResponse.Result parseDelimitedFrom(
-        java.io.InputStream input) throws java.io.IOException {
-      return com.google.protobuf.GeneratedMessageV3.parseDelimitedWithIOException(PARSER, input);
-    }
-
-    public static org.prlprg.server.protocol.CompileResponse.Result parseDelimitedFrom(
-        java.io.InputStream input, com.google.protobuf.ExtensionRegistryLite extensionRegistry)
-        throws java.io.IOException {
-      return com.google.protobuf.GeneratedMessageV3.parseDelimitedWithIOException(
-          PARSER, input, extensionRegistry);
-    }
-
-    public static org.prlprg.server.protocol.CompileResponse.Result parseFrom(
-        com.google.protobuf.CodedInputStream input) throws java.io.IOException {
-      return com.google.protobuf.GeneratedMessageV3.parseWithIOException(PARSER, input);
-    }
-
-    public static org.prlprg.server.protocol.CompileResponse.Result parseFrom(
-        com.google.protobuf.CodedInputStream input,
-        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
-        throws java.io.IOException {
-      return com.google.protobuf.GeneratedMessageV3.parseWithIOException(
-          PARSER, input, extensionRegistry);
-    }
-
-    @java.lang.Override
-    public Builder newBuilderForType() {
-      return newBuilder();
-    }
-
-    public static Builder newBuilder() {
-      return DEFAULT_INSTANCE.toBuilder();
-    }
-
-    public static Builder newBuilder(org.prlprg.server.protocol.CompileResponse.Result prototype) {
-      return DEFAULT_INSTANCE.toBuilder().mergeFrom(prototype);
-    }
-
-    @java.lang.Override
-    public Builder toBuilder() {
-      return this == DEFAULT_INSTANCE ? new Builder() : new Builder().mergeFrom(this);
-    }
-
-    @java.lang.Override
-    protected Builder newBuilderForType(
-        com.google.protobuf.GeneratedMessageV3.BuilderParent parent) {
-      Builder builder = new Builder(parent);
-      return builder;
-    }
-
-    /** Protobuf type {@code rsh.server.protocol.CompileResponse.Result} */
-    public static final class Builder
-        extends com.google.protobuf.GeneratedMessageV3.Builder<Builder>
-        implements
-        // @@protoc_insertion_point(builder_implements:rsh.server.protocol.CompileResponse.Result)
-        org.prlprg.server.protocol.CompileResponse.ResultOrBuilder {
-      public static final com.google.protobuf.Descriptors.Descriptor getDescriptor() {
-        return org.prlprg.server.protocol.Protocol
-            .internal_static_rsh_server_protocol_CompileResponse_Result_descriptor;
-      }
-
-      @java.lang.Override
-      protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
-          internalGetFieldAccessorTable() {
-        return org.prlprg.server.protocol.Protocol
-            .internal_static_rsh_server_protocol_CompileResponse_Result_fieldAccessorTable
-            .ensureFieldAccessorsInitialized(
-                org.prlprg.server.protocol.CompileResponse.Result.class,
-                org.prlprg.server.protocol.CompileResponse.Result.Builder.class);
-      }
-
-      // Construct using org.prlprg.server.protocol.CompileResponse.Result.newBuilder()
-      private Builder() {
-        maybeForceBuilderInitialization();
-      }
-
-      private Builder(com.google.protobuf.GeneratedMessageV3.BuilderParent parent) {
-        super(parent);
-        maybeForceBuilderInitialization();
-      }
-
-      private void maybeForceBuilderInitialization() {
-        if (com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders) {}
-      }
-
-      @java.lang.Override
-      public Builder clear() {
-        super.clear();
-        nativeCode_ = com.google.protobuf.ByteString.EMPTY;
-
-        constants_ = com.google.protobuf.ByteString.EMPTY;
-
-        return this;
-      }
-
-      @java.lang.Override
-      public com.google.protobuf.Descriptors.Descriptor getDescriptorForType() {
-        return org.prlprg.server.protocol.Protocol
-            .internal_static_rsh_server_protocol_CompileResponse_Result_descriptor;
-      }
-
-      @java.lang.Override
-      public org.prlprg.server.protocol.CompileResponse.Result getDefaultInstanceForType() {
-        return org.prlprg.server.protocol.CompileResponse.Result.getDefaultInstance();
-      }
-
-      @java.lang.Override
-      public org.prlprg.server.protocol.CompileResponse.Result build() {
-        org.prlprg.server.protocol.CompileResponse.Result result = buildPartial();
-        if (!result.isInitialized()) {
-          throw newUninitializedMessageException(result);
-        }
-        return result;
-      }
-
-      @java.lang.Override
-      public org.prlprg.server.protocol.CompileResponse.Result buildPartial() {
-        org.prlprg.server.protocol.CompileResponse.Result result =
-            new org.prlprg.server.protocol.CompileResponse.Result(this);
-        result.nativeCode_ = nativeCode_;
-        result.constants_ = constants_;
-        onBuilt();
-        return result;
-      }
-
-      @java.lang.Override
-      public Builder clone() {
-        return super.clone();
-      }
-
-      @java.lang.Override
-      public Builder setField(
-          com.google.protobuf.Descriptors.FieldDescriptor field, java.lang.Object value) {
-        return super.setField(field, value);
-      }
-
-      @java.lang.Override
-      public Builder clearField(com.google.protobuf.Descriptors.FieldDescriptor field) {
-        return super.clearField(field);
-      }
-
-      @java.lang.Override
-      public Builder clearOneof(com.google.protobuf.Descriptors.OneofDescriptor oneof) {
-        return super.clearOneof(oneof);
-      }
-
-      @java.lang.Override
-      public Builder setRepeatedField(
-          com.google.protobuf.Descriptors.FieldDescriptor field,
-          int index,
-          java.lang.Object value) {
-        return super.setRepeatedField(field, index, value);
-      }
-
-      @java.lang.Override
-      public Builder addRepeatedField(
-          com.google.protobuf.Descriptors.FieldDescriptor field, java.lang.Object value) {
-        return super.addRepeatedField(field, value);
-      }
-
-      @java.lang.Override
-      public Builder mergeFrom(com.google.protobuf.Message other) {
-        if (other instanceof org.prlprg.server.protocol.CompileResponse.Result) {
-          return mergeFrom((org.prlprg.server.protocol.CompileResponse.Result) other);
-        } else {
-          super.mergeFrom(other);
-          return this;
-        }
-      }
-
-      public Builder mergeFrom(org.prlprg.server.protocol.CompileResponse.Result other) {
-        if (other == org.prlprg.server.protocol.CompileResponse.Result.getDefaultInstance())
-          return this;
-        if (other.getNativeCode() != com.google.protobuf.ByteString.EMPTY) {
-          setNativeCode(other.getNativeCode());
-        }
-        if (other.getConstants() != com.google.protobuf.ByteString.EMPTY) {
-          setConstants(other.getConstants());
-        }
-        this.mergeUnknownFields(other.unknownFields);
-        onChanged();
-        return this;
-      }
-
-      @java.lang.Override
-      public final boolean isInitialized() {
-        return true;
-      }
-
-      @java.lang.Override
-      public Builder mergeFrom(
-          com.google.protobuf.CodedInputStream input,
-          com.google.protobuf.ExtensionRegistryLite extensionRegistry)
-          throws java.io.IOException {
-        org.prlprg.server.protocol.CompileResponse.Result parsedMessage = null;
-        try {
-          parsedMessage = PARSER.parsePartialFrom(input, extensionRegistry);
-        } catch (com.google.protobuf.InvalidProtocolBufferException e) {
-          parsedMessage =
-              (org.prlprg.server.protocol.CompileResponse.Result) e.getUnfinishedMessage();
-          throw e.unwrapIOException();
-        } finally {
-          if (parsedMessage != null) {
-            mergeFrom(parsedMessage);
-          }
-        }
-        return this;
-      }
-
-      private com.google.protobuf.ByteString nativeCode_ = com.google.protobuf.ByteString.EMPTY;
-
-      /**
-       *
-       *
-       * <pre>
-       * content of the object file as spilled by the compiler
-       * </pre>
-       *
-       * <code>bytes native_code = 3;</code>
-       *
-       * @return The nativeCode.
-       */
-      @java.lang.Override
-      public com.google.protobuf.ByteString getNativeCode() {
-        return nativeCode_;
-      }
-
-      /**
-       *
-       *
-       * <pre>
-       * content of the object file as spilled by the compiler
-       * </pre>
-       *
-       * <code>bytes native_code = 3;</code>
-       *
-       * @param value The nativeCode to set.
-       * @return This builder for chaining.
-       */
-      public Builder setNativeCode(com.google.protobuf.ByteString value) {
-        if (value == null) {
-          throw new NullPointerException();
-        }
-
-        nativeCode_ = value;
-        onChanged();
-        return this;
-      }
-
-      /**
-       *
-       *
-       * <pre>
-       * content of the object file as spilled by the compiler
-       * </pre>
-       *
-       * <code>bytes native_code = 3;</code>
-       *
-       * @return This builder for chaining.
-       */
-      public Builder clearNativeCode() {
-
-        nativeCode_ = getDefaultInstance().getNativeCode();
-        onChanged();
-        return this;
-      }
-
-      private com.google.protobuf.ByteString constants_ = com.google.protobuf.ByteString.EMPTY;
-
-      /**
-       *
-       *
-       * <pre>
-       * the constants used by the native code as VECSXP
-       * </pre>
-       *
-       * <code>bytes constants = 4;</code>
-       *
-       * @return The constants.
-       */
-      @java.lang.Override
-      public com.google.protobuf.ByteString getConstants() {
-        return constants_;
-      }
-
-      /**
-       *
-       *
-       * <pre>
-       * the constants used by the native code as VECSXP
-       * </pre>
-       *
-       * <code>bytes constants = 4;</code>
-       *
-       * @param value The constants to set.
-       * @return This builder for chaining.
-       */
-      public Builder setConstants(com.google.protobuf.ByteString value) {
-        if (value == null) {
-          throw new NullPointerException();
-        }
-
-        constants_ = value;
-        onChanged();
-        return this;
-      }
-
-      /**
-       *
-       *
-       * <pre>
-       * the constants used by the native code as VECSXP
-       * </pre>
-       *
-       * <code>bytes constants = 4;</code>
-       *
-       * @return This builder for chaining.
-       */
-      public Builder clearConstants() {
-
-        constants_ = getDefaultInstance().getConstants();
-        onChanged();
-        return this;
-      }
-
-      @java.lang.Override
-      public final Builder setUnknownFields(
-          final com.google.protobuf.UnknownFieldSet unknownFields) {
-        return super.setUnknownFields(unknownFields);
-      }
-
-      @java.lang.Override
-      public final Builder mergeUnknownFields(
-          final com.google.protobuf.UnknownFieldSet unknownFields) {
-        return super.mergeUnknownFields(unknownFields);
-      }
-
-      // @@protoc_insertion_point(builder_scope:rsh.server.protocol.CompileResponse.Result)
-    }
-
-    // @@protoc_insertion_point(class_scope:rsh.server.protocol.CompileResponse.Result)
-    private static final org.prlprg.server.protocol.CompileResponse.Result DEFAULT_INSTANCE;
-
-    static {
-      DEFAULT_INSTANCE = new org.prlprg.server.protocol.CompileResponse.Result();
-    }
-
-    public static org.prlprg.server.protocol.CompileResponse.Result getDefaultInstance() {
-      return DEFAULT_INSTANCE;
-    }
-
-    private static final com.google.protobuf.Parser<Result> PARSER =
-        new com.google.protobuf.AbstractParser<Result>() {
-          @java.lang.Override
-          public Result parsePartialFrom(
-              com.google.protobuf.CodedInputStream input,
-              com.google.protobuf.ExtensionRegistryLite extensionRegistry)
-              throws com.google.protobuf.InvalidProtocolBufferException {
-            return new Result(input, extensionRegistry);
-          }
-        };
-
-    public static com.google.protobuf.Parser<Result> parser() {
-      return PARSER;
-    }
-
-    @java.lang.Override
-    public com.google.protobuf.Parser<Result> getParserForType() {
-      return PARSER;
-    }
-
-    @java.lang.Override
-    public org.prlprg.server.protocol.CompileResponse.Result getDefaultInstanceForType() {
-      return DEFAULT_INSTANCE;
-    }
   }
 
   private int dataCase_ = 0;
@@ -859,7 +200,7 @@ public final class CompileResponse extends com.google.protobuf.GeneratedMessageV
   public static final int RESULT_FIELD_NUMBER = 3;
 
   /**
-   * <code>.rsh.server.protocol.CompileResponse.Result result = 3;</code>
+   * <code>.rsh.server.protocol.CompiledFunction result = 3;</code>
    *
    * @return Whether the result field is set.
    */
@@ -869,25 +210,25 @@ public final class CompileResponse extends com.google.protobuf.GeneratedMessageV
   }
 
   /**
-   * <code>.rsh.server.protocol.CompileResponse.Result result = 3;</code>
+   * <code>.rsh.server.protocol.CompiledFunction result = 3;</code>
    *
    * @return The result.
    */
   @java.lang.Override
-  public org.prlprg.server.protocol.CompileResponse.Result getResult() {
+  public org.prlprg.server.protocol.CompiledFunction getResult() {
     if (dataCase_ == 3) {
-      return (org.prlprg.server.protocol.CompileResponse.Result) data_;
+      return (org.prlprg.server.protocol.CompiledFunction) data_;
     }
-    return org.prlprg.server.protocol.CompileResponse.Result.getDefaultInstance();
+    return org.prlprg.server.protocol.CompiledFunction.getDefaultInstance();
   }
 
-  /** <code>.rsh.server.protocol.CompileResponse.Result result = 3;</code> */
+  /** <code>.rsh.server.protocol.CompiledFunction result = 3;</code> */
   @java.lang.Override
-  public org.prlprg.server.protocol.CompileResponse.ResultOrBuilder getResultOrBuilder() {
+  public org.prlprg.server.protocol.CompiledFunctionOrBuilder getResultOrBuilder() {
     if (dataCase_ == 3) {
-      return (org.prlprg.server.protocol.CompileResponse.Result) data_;
+      return (org.prlprg.server.protocol.CompiledFunction) data_;
     }
-    return org.prlprg.server.protocol.CompileResponse.Result.getDefaultInstance();
+    return org.prlprg.server.protocol.CompiledFunction.getDefaultInstance();
   }
 
   private byte memoizedIsInitialized = -1;
@@ -908,7 +249,7 @@ public final class CompileResponse extends com.google.protobuf.GeneratedMessageV
       com.google.protobuf.GeneratedMessageV3.writeString(output, 2, data_);
     }
     if (dataCase_ == 3) {
-      output.writeMessage(3, (org.prlprg.server.protocol.CompileResponse.Result) data_);
+      output.writeMessage(3, (org.prlprg.server.protocol.CompiledFunction) data_);
     }
     unknownFields.writeTo(output);
   }
@@ -925,7 +266,7 @@ public final class CompileResponse extends com.google.protobuf.GeneratedMessageV
     if (dataCase_ == 3) {
       size +=
           com.google.protobuf.CodedOutputStream.computeMessageSize(
-              3, (org.prlprg.server.protocol.CompileResponse.Result) data_);
+              3, (org.prlprg.server.protocol.CompiledFunction) data_);
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -1359,13 +700,13 @@ public final class CompileResponse extends com.google.protobuf.GeneratedMessageV
     }
 
     private com.google.protobuf.SingleFieldBuilderV3<
-            org.prlprg.server.protocol.CompileResponse.Result,
-            org.prlprg.server.protocol.CompileResponse.Result.Builder,
-            org.prlprg.server.protocol.CompileResponse.ResultOrBuilder>
+            org.prlprg.server.protocol.CompiledFunction,
+            org.prlprg.server.protocol.CompiledFunction.Builder,
+            org.prlprg.server.protocol.CompiledFunctionOrBuilder>
         resultBuilder_;
 
     /**
-     * <code>.rsh.server.protocol.CompileResponse.Result result = 3;</code>
+     * <code>.rsh.server.protocol.CompiledFunction result = 3;</code>
      *
      * @return Whether the result field is set.
      */
@@ -1375,27 +716,27 @@ public final class CompileResponse extends com.google.protobuf.GeneratedMessageV
     }
 
     /**
-     * <code>.rsh.server.protocol.CompileResponse.Result result = 3;</code>
+     * <code>.rsh.server.protocol.CompiledFunction result = 3;</code>
      *
      * @return The result.
      */
     @java.lang.Override
-    public org.prlprg.server.protocol.CompileResponse.Result getResult() {
+    public org.prlprg.server.protocol.CompiledFunction getResult() {
       if (resultBuilder_ == null) {
         if (dataCase_ == 3) {
-          return (org.prlprg.server.protocol.CompileResponse.Result) data_;
+          return (org.prlprg.server.protocol.CompiledFunction) data_;
         }
-        return org.prlprg.server.protocol.CompileResponse.Result.getDefaultInstance();
+        return org.prlprg.server.protocol.CompiledFunction.getDefaultInstance();
       } else {
         if (dataCase_ == 3) {
           return resultBuilder_.getMessage();
         }
-        return org.prlprg.server.protocol.CompileResponse.Result.getDefaultInstance();
+        return org.prlprg.server.protocol.CompiledFunction.getDefaultInstance();
       }
     }
 
-    /** <code>.rsh.server.protocol.CompileResponse.Result result = 3;</code> */
-    public Builder setResult(org.prlprg.server.protocol.CompileResponse.Result value) {
+    /** <code>.rsh.server.protocol.CompiledFunction result = 3;</code> */
+    public Builder setResult(org.prlprg.server.protocol.CompiledFunction value) {
       if (resultBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
@@ -1409,9 +750,8 @@ public final class CompileResponse extends com.google.protobuf.GeneratedMessageV
       return this;
     }
 
-    /** <code>.rsh.server.protocol.CompileResponse.Result result = 3;</code> */
-    public Builder setResult(
-        org.prlprg.server.protocol.CompileResponse.Result.Builder builderForValue) {
+    /** <code>.rsh.server.protocol.CompiledFunction result = 3;</code> */
+    public Builder setResult(org.prlprg.server.protocol.CompiledFunction.Builder builderForValue) {
       if (resultBuilder_ == null) {
         data_ = builderForValue.build();
         onChanged();
@@ -1422,14 +762,14 @@ public final class CompileResponse extends com.google.protobuf.GeneratedMessageV
       return this;
     }
 
-    /** <code>.rsh.server.protocol.CompileResponse.Result result = 3;</code> */
-    public Builder mergeResult(org.prlprg.server.protocol.CompileResponse.Result value) {
+    /** <code>.rsh.server.protocol.CompiledFunction result = 3;</code> */
+    public Builder mergeResult(org.prlprg.server.protocol.CompiledFunction value) {
       if (resultBuilder_ == null) {
         if (dataCase_ == 3
-            && data_ != org.prlprg.server.protocol.CompileResponse.Result.getDefaultInstance()) {
+            && data_ != org.prlprg.server.protocol.CompiledFunction.getDefaultInstance()) {
           data_ =
-              org.prlprg.server.protocol.CompileResponse.Result.newBuilder(
-                      (org.prlprg.server.protocol.CompileResponse.Result) data_)
+              org.prlprg.server.protocol.CompiledFunction.newBuilder(
+                      (org.prlprg.server.protocol.CompiledFunction) data_)
                   .mergeFrom(value)
                   .buildPartial();
         } else {
@@ -1446,7 +786,7 @@ public final class CompileResponse extends com.google.protobuf.GeneratedMessageV
       return this;
     }
 
-    /** <code>.rsh.server.protocol.CompileResponse.Result result = 3;</code> */
+    /** <code>.rsh.server.protocol.CompiledFunction result = 3;</code> */
     public Builder clearResult() {
       if (resultBuilder_ == null) {
         if (dataCase_ == 3) {
@@ -1464,40 +804,40 @@ public final class CompileResponse extends com.google.protobuf.GeneratedMessageV
       return this;
     }
 
-    /** <code>.rsh.server.protocol.CompileResponse.Result result = 3;</code> */
-    public org.prlprg.server.protocol.CompileResponse.Result.Builder getResultBuilder() {
+    /** <code>.rsh.server.protocol.CompiledFunction result = 3;</code> */
+    public org.prlprg.server.protocol.CompiledFunction.Builder getResultBuilder() {
       return getResultFieldBuilder().getBuilder();
     }
 
-    /** <code>.rsh.server.protocol.CompileResponse.Result result = 3;</code> */
+    /** <code>.rsh.server.protocol.CompiledFunction result = 3;</code> */
     @java.lang.Override
-    public org.prlprg.server.protocol.CompileResponse.ResultOrBuilder getResultOrBuilder() {
+    public org.prlprg.server.protocol.CompiledFunctionOrBuilder getResultOrBuilder() {
       if ((dataCase_ == 3) && (resultBuilder_ != null)) {
         return resultBuilder_.getMessageOrBuilder();
       } else {
         if (dataCase_ == 3) {
-          return (org.prlprg.server.protocol.CompileResponse.Result) data_;
+          return (org.prlprg.server.protocol.CompiledFunction) data_;
         }
-        return org.prlprg.server.protocol.CompileResponse.Result.getDefaultInstance();
+        return org.prlprg.server.protocol.CompiledFunction.getDefaultInstance();
       }
     }
 
-    /** <code>.rsh.server.protocol.CompileResponse.Result result = 3;</code> */
+    /** <code>.rsh.server.protocol.CompiledFunction result = 3;</code> */
     private com.google.protobuf.SingleFieldBuilderV3<
-            org.prlprg.server.protocol.CompileResponse.Result,
-            org.prlprg.server.protocol.CompileResponse.Result.Builder,
-            org.prlprg.server.protocol.CompileResponse.ResultOrBuilder>
+            org.prlprg.server.protocol.CompiledFunction,
+            org.prlprg.server.protocol.CompiledFunction.Builder,
+            org.prlprg.server.protocol.CompiledFunctionOrBuilder>
         getResultFieldBuilder() {
       if (resultBuilder_ == null) {
         if (!(dataCase_ == 3)) {
-          data_ = org.prlprg.server.protocol.CompileResponse.Result.getDefaultInstance();
+          data_ = org.prlprg.server.protocol.CompiledFunction.getDefaultInstance();
         }
         resultBuilder_ =
             new com.google.protobuf.SingleFieldBuilderV3<
-                org.prlprg.server.protocol.CompileResponse.Result,
-                org.prlprg.server.protocol.CompileResponse.Result.Builder,
-                org.prlprg.server.protocol.CompileResponse.ResultOrBuilder>(
-                (org.prlprg.server.protocol.CompileResponse.Result) data_,
+                org.prlprg.server.protocol.CompiledFunction,
+                org.prlprg.server.protocol.CompiledFunction.Builder,
+                org.prlprg.server.protocol.CompiledFunctionOrBuilder>(
+                (org.prlprg.server.protocol.CompiledFunction) data_,
                 getParentForChildren(),
                 isClean());
         data_ = null;

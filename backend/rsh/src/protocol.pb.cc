@@ -15,7 +15,7 @@
 // @@protoc_insertion_point(includes)
 #include <google/protobuf/port_def.inc>
 extern PROTOBUF_INTERNAL_EXPORT_protocol_2eproto ::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_CompileRequest_protocol_2eproto;
-extern PROTOBUF_INTERNAL_EXPORT_protocol_2eproto ::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_CompileResponse_Result_protocol_2eproto;
+extern PROTOBUF_INTERNAL_EXPORT_protocol_2eproto ::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_CompiledFunction_protocol_2eproto;
 extern PROTOBUF_INTERNAL_EXPORT_protocol_2eproto ::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_HandshakeRequest_protocol_2eproto;
 namespace rsh {
 namespace server {
@@ -34,15 +34,15 @@ class CompileRequestDefaultTypeInternal {
  public:
   ::PROTOBUF_NAMESPACE_ID::internal::ExplicitlyConstructed<CompileRequest> _instance;
 } _CompileRequest_default_instance_;
-class CompileResponse_ResultDefaultTypeInternal {
+class CompiledFunctionDefaultTypeInternal {
  public:
-  ::PROTOBUF_NAMESPACE_ID::internal::ExplicitlyConstructed<CompileResponse_Result> _instance;
-} _CompileResponse_Result_default_instance_;
+  ::PROTOBUF_NAMESPACE_ID::internal::ExplicitlyConstructed<CompiledFunction> _instance;
+} _CompiledFunction_default_instance_;
 class CompileResponseDefaultTypeInternal {
  public:
   ::PROTOBUF_NAMESPACE_ID::internal::ExplicitlyConstructed<CompileResponse> _instance;
   ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr failure_;
-  const ::rsh::server::protocol::CompileResponse_Result* result_;
+  const ::rsh::server::protocol::CompiledFunction* result_;
 } _CompileResponse_default_instance_;
 }  // namespace protocol
 }  // namespace server
@@ -74,21 +74,21 @@ static void InitDefaultsscc_info_CompileResponse_protocol_2eproto() {
 
 ::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<1> scc_info_CompileResponse_protocol_2eproto =
     {{ATOMIC_VAR_INIT(::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase::kUninitialized), 1, 0, InitDefaultsscc_info_CompileResponse_protocol_2eproto}, {
-      &scc_info_CompileResponse_Result_protocol_2eproto.base,}};
+      &scc_info_CompiledFunction_protocol_2eproto.base,}};
 
-static void InitDefaultsscc_info_CompileResponse_Result_protocol_2eproto() {
+static void InitDefaultsscc_info_CompiledFunction_protocol_2eproto() {
   GOOGLE_PROTOBUF_VERIFY_VERSION;
 
   {
-    void* ptr = &::rsh::server::protocol::_CompileResponse_Result_default_instance_;
-    new (ptr) ::rsh::server::protocol::CompileResponse_Result();
+    void* ptr = &::rsh::server::protocol::_CompiledFunction_default_instance_;
+    new (ptr) ::rsh::server::protocol::CompiledFunction();
     ::PROTOBUF_NAMESPACE_ID::internal::OnShutdownDestroyMessage(ptr);
   }
-  ::rsh::server::protocol::CompileResponse_Result::InitAsDefaultInstance();
+  ::rsh::server::protocol::CompiledFunction::InitAsDefaultInstance();
 }
 
-::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_CompileResponse_Result_protocol_2eproto =
-    {{ATOMIC_VAR_INIT(::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase::kUninitialized), 0, 0, InitDefaultsscc_info_CompileResponse_Result_protocol_2eproto}, {}};
+::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_CompiledFunction_protocol_2eproto =
+    {{ATOMIC_VAR_INIT(::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase::kUninitialized), 0, 0, InitDefaultsscc_info_CompiledFunction_protocol_2eproto}, {}};
 
 static void InitDefaultsscc_info_HandshakeRequest_protocol_2eproto() {
   GOOGLE_PROTOBUF_VERIFY_VERSION;
@@ -150,12 +150,13 @@ const ::PROTOBUF_NAMESPACE_ID::uint32 TableStruct_protocol_2eproto::offsets[] PR
   PROTOBUF_FIELD_OFFSET(::rsh::server::protocol::CompileRequest, name_),
   PROTOBUF_FIELD_OFFSET(::rsh::server::protocol::CompileRequest, closure_),
   ~0u,  // no _has_bits_
-  PROTOBUF_FIELD_OFFSET(::rsh::server::protocol::CompileResponse_Result, _internal_metadata_),
+  PROTOBUF_FIELD_OFFSET(::rsh::server::protocol::CompiledFunction, _internal_metadata_),
   ~0u,  // no _extensions_
   ~0u,  // no _oneof_case_
   ~0u,  // no _weak_field_map_
-  PROTOBUF_FIELD_OFFSET(::rsh::server::protocol::CompileResponse_Result, native_code_),
-  PROTOBUF_FIELD_OFFSET(::rsh::server::protocol::CompileResponse_Result, constants_),
+  PROTOBUF_FIELD_OFFSET(::rsh::server::protocol::CompiledFunction, name_),
+  PROTOBUF_FIELD_OFFSET(::rsh::server::protocol::CompiledFunction, native_code_),
+  PROTOBUF_FIELD_OFFSET(::rsh::server::protocol::CompiledFunction, constants_),
   ~0u,  // no _has_bits_
   PROTOBUF_FIELD_OFFSET(::rsh::server::protocol::CompileResponse, _internal_metadata_),
   ~0u,  // no _extensions_
@@ -169,15 +170,15 @@ static const ::PROTOBUF_NAMESPACE_ID::internal::MigrationSchema schemas[] PROTOB
   { 0, -1, sizeof(::rsh::server::protocol::Request)},
   { 8, -1, sizeof(::rsh::server::protocol::HandshakeRequest)},
   { 17, -1, sizeof(::rsh::server::protocol::CompileRequest)},
-  { 24, -1, sizeof(::rsh::server::protocol::CompileResponse_Result)},
-  { 31, -1, sizeof(::rsh::server::protocol::CompileResponse)},
+  { 24, -1, sizeof(::rsh::server::protocol::CompiledFunction)},
+  { 32, -1, sizeof(::rsh::server::protocol::CompileResponse)},
 };
 
 static ::PROTOBUF_NAMESPACE_ID::Message const * const file_default_instances[] = {
   reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::rsh::server::protocol::_Request_default_instance_),
   reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::rsh::server::protocol::_HandshakeRequest_default_instance_),
   reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::rsh::server::protocol::_CompileRequest_default_instance_),
-  reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::rsh::server::protocol::_CompileResponse_Result_default_instance_),
+  reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::rsh::server::protocol::_CompiledFunction_default_instance_),
   reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::rsh::server::protocol::_CompileResponse_default_instance_),
 };
 
@@ -190,25 +191,25 @@ const char descriptor_table_protodef_protocol_2eproto[] PROTOBUF_SECTION_VARIABL
   "Rsh_version\030\001 \001(\t\022\021\n\tR_version\030\002 \001(\t\022\020\n\010"
   "platform\030\003 \001(\t\022\020\n\010packages\030\004 \003(\t\"/\n\016Comp"
   "ileRequest\022\014\n\004name\030\002 \001(\t\022\017\n\007closure\030\003 \001("
-  "\014\"\235\001\n\017CompileResponse\022\021\n\007failure\030\002 \001(\tH\000"
-  "\022=\n\006result\030\003 \001(\0132+.rsh.server.protocol.C"
-  "ompileResponse.ResultH\000\0320\n\006Result\022\023\n\013nat"
-  "ive_code\030\003 \001(\014\022\021\n\tconstants\030\004 \001(\014B\006\n\004dat"
-  "aB\036\n\032org.prlprg.server.protocolP\001b\006proto"
-  "3"
+  "\014\"H\n\020CompiledFunction\022\014\n\004name\030\002 \001(\t\022\023\n\013n"
+  "ative_code\030\003 \001(\014\022\021\n\tconstants\030\004 \001(\014\"e\n\017C"
+  "ompileResponse\022\021\n\007failure\030\002 \001(\tH\000\0227\n\006res"
+  "ult\030\003 \001(\0132%.rsh.server.protocol.Compiled"
+  "FunctionH\000B\006\n\004dataB\036\n\032org.prlprg.server."
+  "protocolP\001b\006proto3"
   ;
 static const ::PROTOBUF_NAMESPACE_ID::internal::DescriptorTable*const descriptor_table_protocol_2eproto_deps[1] = {
 };
 static ::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase*const descriptor_table_protocol_2eproto_sccs[5] = {
   &scc_info_CompileRequest_protocol_2eproto.base,
   &scc_info_CompileResponse_protocol_2eproto.base,
-  &scc_info_CompileResponse_Result_protocol_2eproto.base,
+  &scc_info_CompiledFunction_protocol_2eproto.base,
   &scc_info_HandshakeRequest_protocol_2eproto.base,
   &scc_info_Request_protocol_2eproto.base,
 };
 static ::PROTOBUF_NAMESPACE_ID::internal::once_flag descriptor_table_protocol_2eproto_once;
 const ::PROTOBUF_NAMESPACE_ID::internal::DescriptorTable descriptor_table_protocol_2eproto = {
-  false, false, descriptor_table_protodef_protocol_2eproto, "protocol.proto", 521,
+  false, false, descriptor_table_protodef_protocol_2eproto, "protocol.proto", 538,
   &descriptor_table_protocol_2eproto_once, descriptor_table_protocol_2eproto_sccs, descriptor_table_protocol_2eproto_deps, 5, 0,
   schemas, file_default_instances, TableStruct_protocol_2eproto::offsets,
   file_level_metadata_protocol_2eproto, 5, file_level_enum_descriptors_protocol_2eproto, file_level_service_descriptors_protocol_2eproto,
@@ -1107,21 +1108,26 @@ void CompileRequest::InternalSwap(CompileRequest* other) {
 
 // ===================================================================
 
-void CompileResponse_Result::InitAsDefaultInstance() {
+void CompiledFunction::InitAsDefaultInstance() {
 }
-class CompileResponse_Result::_Internal {
+class CompiledFunction::_Internal {
  public:
 };
 
-CompileResponse_Result::CompileResponse_Result(::PROTOBUF_NAMESPACE_ID::Arena* arena)
+CompiledFunction::CompiledFunction(::PROTOBUF_NAMESPACE_ID::Arena* arena)
   : ::PROTOBUF_NAMESPACE_ID::Message(arena) {
   SharedCtor();
   RegisterArenaDtor(arena);
-  // @@protoc_insertion_point(arena_constructor:rsh.server.protocol.CompileResponse.Result)
+  // @@protoc_insertion_point(arena_constructor:rsh.server.protocol.CompiledFunction)
 }
-CompileResponse_Result::CompileResponse_Result(const CompileResponse_Result& from)
+CompiledFunction::CompiledFunction(const CompiledFunction& from)
   : ::PROTOBUF_NAMESPACE_ID::Message() {
   _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+  name_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
+  if (!from._internal_name().empty()) {
+    name_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), from._internal_name(),
+      GetArena());
+  }
   native_code_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
   if (!from._internal_native_code().empty()) {
     native_code_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), from._internal_native_code(),
@@ -1132,54 +1138,57 @@ CompileResponse_Result::CompileResponse_Result(const CompileResponse_Result& fro
     constants_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), from._internal_constants(),
       GetArena());
   }
-  // @@protoc_insertion_point(copy_constructor:rsh.server.protocol.CompileResponse.Result)
+  // @@protoc_insertion_point(copy_constructor:rsh.server.protocol.CompiledFunction)
 }
 
-void CompileResponse_Result::SharedCtor() {
-  ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&scc_info_CompileResponse_Result_protocol_2eproto.base);
+void CompiledFunction::SharedCtor() {
+  ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&scc_info_CompiledFunction_protocol_2eproto.base);
+  name_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
   native_code_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
   constants_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
 }
 
-CompileResponse_Result::~CompileResponse_Result() {
-  // @@protoc_insertion_point(destructor:rsh.server.protocol.CompileResponse.Result)
+CompiledFunction::~CompiledFunction() {
+  // @@protoc_insertion_point(destructor:rsh.server.protocol.CompiledFunction)
   SharedDtor();
   _internal_metadata_.Delete<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
 }
 
-void CompileResponse_Result::SharedDtor() {
+void CompiledFunction::SharedDtor() {
   GOOGLE_DCHECK(GetArena() == nullptr);
+  name_.DestroyNoArena(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
   native_code_.DestroyNoArena(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
   constants_.DestroyNoArena(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
 }
 
-void CompileResponse_Result::ArenaDtor(void* object) {
-  CompileResponse_Result* _this = reinterpret_cast< CompileResponse_Result* >(object);
+void CompiledFunction::ArenaDtor(void* object) {
+  CompiledFunction* _this = reinterpret_cast< CompiledFunction* >(object);
   (void)_this;
 }
-void CompileResponse_Result::RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena*) {
+void CompiledFunction::RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena*) {
 }
-void CompileResponse_Result::SetCachedSize(int size) const {
+void CompiledFunction::SetCachedSize(int size) const {
   _cached_size_.Set(size);
 }
-const CompileResponse_Result& CompileResponse_Result::default_instance() {
-  ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&::scc_info_CompileResponse_Result_protocol_2eproto.base);
+const CompiledFunction& CompiledFunction::default_instance() {
+  ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&::scc_info_CompiledFunction_protocol_2eproto.base);
   return *internal_default_instance();
 }
 
 
-void CompileResponse_Result::Clear() {
-// @@protoc_insertion_point(message_clear_start:rsh.server.protocol.CompileResponse.Result)
+void CompiledFunction::Clear() {
+// @@protoc_insertion_point(message_clear_start:rsh.server.protocol.CompiledFunction)
   ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
+  name_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
   native_code_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
   constants_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
   _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
 }
 
-const char* CompileResponse_Result::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) {
+const char* CompiledFunction::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) {
 #define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
   ::PROTOBUF_NAMESPACE_ID::Arena* arena = GetArena(); (void)arena;
   while (!ctx->Done(&ptr)) {
@@ -1187,6 +1196,15 @@ const char* CompileResponse_Result::_InternalParse(const char* ptr, ::PROTOBUF_N
     ptr = ::PROTOBUF_NAMESPACE_ID::internal::ReadTag(ptr, &tag);
     CHK_(ptr);
     switch (tag >> 3) {
+      // string name = 2;
+      case 2:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 18)) {
+          auto str = _internal_mutable_name();
+          ptr = ::PROTOBUF_NAMESPACE_ID::internal::InlineGreedyStringParser(str, ptr, ctx);
+          CHK_(::PROTOBUF_NAMESPACE_ID::internal::VerifyUTF8(str, "rsh.server.protocol.CompiledFunction.name"));
+          CHK_(ptr);
+        } else goto handle_unusual;
+        continue;
       // bytes native_code = 3;
       case 3:
         if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 26)) {
@@ -1225,11 +1243,21 @@ failure:
 #undef CHK_
 }
 
-::PROTOBUF_NAMESPACE_ID::uint8* CompileResponse_Result::_InternalSerialize(
+::PROTOBUF_NAMESPACE_ID::uint8* CompiledFunction::_InternalSerialize(
     ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
-  // @@protoc_insertion_point(serialize_to_array_start:rsh.server.protocol.CompileResponse.Result)
+  // @@protoc_insertion_point(serialize_to_array_start:rsh.server.protocol.CompiledFunction)
   ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
   (void) cached_has_bits;
+
+  // string name = 2;
+  if (this->name().size() > 0) {
+    ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::VerifyUtf8String(
+      this->_internal_name().data(), static_cast<int>(this->_internal_name().length()),
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SERIALIZE,
+      "rsh.server.protocol.CompiledFunction.name");
+    target = stream->WriteStringMaybeAliased(
+        2, this->_internal_name(), target);
+  }
 
   // bytes native_code = 3;
   if (this->native_code().size() > 0) {
@@ -1247,17 +1275,24 @@ failure:
     target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormat::InternalSerializeUnknownFieldsToArray(
         _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
   }
-  // @@protoc_insertion_point(serialize_to_array_end:rsh.server.protocol.CompileResponse.Result)
+  // @@protoc_insertion_point(serialize_to_array_end:rsh.server.protocol.CompiledFunction)
   return target;
 }
 
-size_t CompileResponse_Result::ByteSizeLong() const {
-// @@protoc_insertion_point(message_byte_size_start:rsh.server.protocol.CompileResponse.Result)
+size_t CompiledFunction::ByteSizeLong() const {
+// @@protoc_insertion_point(message_byte_size_start:rsh.server.protocol.CompiledFunction)
   size_t total_size = 0;
 
   ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
+
+  // string name = 2;
+  if (this->name().size() > 0) {
+    total_size += 1 +
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::StringSize(
+        this->_internal_name());
+  }
 
   // bytes native_code = 3;
   if (this->native_code().size() > 0) {
@@ -1282,28 +1317,31 @@ size_t CompileResponse_Result::ByteSizeLong() const {
   return total_size;
 }
 
-void CompileResponse_Result::MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
-// @@protoc_insertion_point(generalized_merge_from_start:rsh.server.protocol.CompileResponse.Result)
+void CompiledFunction::MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+// @@protoc_insertion_point(generalized_merge_from_start:rsh.server.protocol.CompiledFunction)
   GOOGLE_DCHECK_NE(&from, this);
-  const CompileResponse_Result* source =
-      ::PROTOBUF_NAMESPACE_ID::DynamicCastToGenerated<CompileResponse_Result>(
+  const CompiledFunction* source =
+      ::PROTOBUF_NAMESPACE_ID::DynamicCastToGenerated<CompiledFunction>(
           &from);
   if (source == nullptr) {
-  // @@protoc_insertion_point(generalized_merge_from_cast_fail:rsh.server.protocol.CompileResponse.Result)
+  // @@protoc_insertion_point(generalized_merge_from_cast_fail:rsh.server.protocol.CompiledFunction)
     ::PROTOBUF_NAMESPACE_ID::internal::ReflectionOps::Merge(from, this);
   } else {
-  // @@protoc_insertion_point(generalized_merge_from_cast_success:rsh.server.protocol.CompileResponse.Result)
+  // @@protoc_insertion_point(generalized_merge_from_cast_success:rsh.server.protocol.CompiledFunction)
     MergeFrom(*source);
   }
 }
 
-void CompileResponse_Result::MergeFrom(const CompileResponse_Result& from) {
-// @@protoc_insertion_point(class_specific_merge_from_start:rsh.server.protocol.CompileResponse.Result)
+void CompiledFunction::MergeFrom(const CompiledFunction& from) {
+// @@protoc_insertion_point(class_specific_merge_from_start:rsh.server.protocol.CompiledFunction)
   GOOGLE_DCHECK_NE(&from, this);
   _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
   ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
   (void) cached_has_bits;
 
+  if (from.name().size() > 0) {
+    _internal_set_name(from._internal_name());
+  }
   if (from.native_code().size() > 0) {
     _internal_set_native_code(from._internal_native_code());
   }
@@ -1312,32 +1350,33 @@ void CompileResponse_Result::MergeFrom(const CompileResponse_Result& from) {
   }
 }
 
-void CompileResponse_Result::CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
-// @@protoc_insertion_point(generalized_copy_from_start:rsh.server.protocol.CompileResponse.Result)
+void CompiledFunction::CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+// @@protoc_insertion_point(generalized_copy_from_start:rsh.server.protocol.CompiledFunction)
   if (&from == this) return;
   Clear();
   MergeFrom(from);
 }
 
-void CompileResponse_Result::CopyFrom(const CompileResponse_Result& from) {
-// @@protoc_insertion_point(class_specific_copy_from_start:rsh.server.protocol.CompileResponse.Result)
+void CompiledFunction::CopyFrom(const CompiledFunction& from) {
+// @@protoc_insertion_point(class_specific_copy_from_start:rsh.server.protocol.CompiledFunction)
   if (&from == this) return;
   Clear();
   MergeFrom(from);
 }
 
-bool CompileResponse_Result::IsInitialized() const {
+bool CompiledFunction::IsInitialized() const {
   return true;
 }
 
-void CompileResponse_Result::InternalSwap(CompileResponse_Result* other) {
+void CompiledFunction::InternalSwap(CompiledFunction* other) {
   using std::swap;
   _internal_metadata_.Swap<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(&other->_internal_metadata_);
+  name_.Swap(&other->name_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
   native_code_.Swap(&other->native_code_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
   constants_.Swap(&other->constants_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
 }
 
-::PROTOBUF_NAMESPACE_ID::Metadata CompileResponse_Result::GetMetadata() const {
+::PROTOBUF_NAMESPACE_ID::Metadata CompiledFunction::GetMetadata() const {
   return GetMetadataStatic();
 }
 
@@ -1347,19 +1386,19 @@ void CompileResponse_Result::InternalSwap(CompileResponse_Result* other) {
 void CompileResponse::InitAsDefaultInstance() {
   ::rsh::server::protocol::_CompileResponse_default_instance_.failure_.UnsafeSetDefault(
       &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
-  ::rsh::server::protocol::_CompileResponse_default_instance_.result_ = const_cast< ::rsh::server::protocol::CompileResponse_Result*>(
-      ::rsh::server::protocol::CompileResponse_Result::internal_default_instance());
+  ::rsh::server::protocol::_CompileResponse_default_instance_.result_ = const_cast< ::rsh::server::protocol::CompiledFunction*>(
+      ::rsh::server::protocol::CompiledFunction::internal_default_instance());
 }
 class CompileResponse::_Internal {
  public:
-  static const ::rsh::server::protocol::CompileResponse_Result& result(const CompileResponse* msg);
+  static const ::rsh::server::protocol::CompiledFunction& result(const CompileResponse* msg);
 };
 
-const ::rsh::server::protocol::CompileResponse_Result&
+const ::rsh::server::protocol::CompiledFunction&
 CompileResponse::_Internal::result(const CompileResponse* msg) {
   return *msg->data_.result_;
 }
-void CompileResponse::set_allocated_result(::rsh::server::protocol::CompileResponse_Result* result) {
+void CompileResponse::set_allocated_result(::rsh::server::protocol::CompiledFunction* result) {
   ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArena();
   clear_data();
   if (result) {
@@ -1390,7 +1429,7 @@ CompileResponse::CompileResponse(const CompileResponse& from)
       break;
     }
     case kResult: {
-      _internal_mutable_result()->::rsh::server::protocol::CompileResponse_Result::MergeFrom(from._internal_result());
+      _internal_mutable_result()->::rsh::server::protocol::CompiledFunction::MergeFrom(from._internal_result());
       break;
     }
     case DATA_NOT_SET: {
@@ -1481,7 +1520,7 @@ const char* CompileResponse::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPAC
           CHK_(ptr);
         } else goto handle_unusual;
         continue;
-      // .rsh.server.protocol.CompileResponse.Result result = 3;
+      // .rsh.server.protocol.CompiledFunction result = 3;
       case 3:
         if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 26)) {
           ptr = ctx->ParseMessage(_internal_mutable_result(), ptr);
@@ -1526,7 +1565,7 @@ failure:
         2, this->_internal_failure(), target);
   }
 
-  // .rsh.server.protocol.CompileResponse.Result result = 3;
+  // .rsh.server.protocol.CompiledFunction result = 3;
   if (_internal_has_result()) {
     target = stream->EnsureSpace(target);
     target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
@@ -1558,7 +1597,7 @@ size_t CompileResponse::ByteSizeLong() const {
           this->_internal_failure());
       break;
     }
-    // .rsh.server.protocol.CompileResponse.Result result = 3;
+    // .rsh.server.protocol.CompiledFunction result = 3;
     case kResult: {
       total_size += 1 +
         ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(
@@ -1606,7 +1645,7 @@ void CompileResponse::MergeFrom(const CompileResponse& from) {
       break;
     }
     case kResult: {
-      _internal_mutable_result()->::rsh::server::protocol::CompileResponse_Result::MergeFrom(from._internal_result());
+      _internal_mutable_result()->::rsh::server::protocol::CompiledFunction::MergeFrom(from._internal_result());
       break;
     }
     case DATA_NOT_SET: {
@@ -1659,8 +1698,8 @@ template<> PROTOBUF_NOINLINE ::rsh::server::protocol::HandshakeRequest* Arena::C
 template<> PROTOBUF_NOINLINE ::rsh::server::protocol::CompileRequest* Arena::CreateMaybeMessage< ::rsh::server::protocol::CompileRequest >(Arena* arena) {
   return Arena::CreateMessageInternal< ::rsh::server::protocol::CompileRequest >(arena);
 }
-template<> PROTOBUF_NOINLINE ::rsh::server::protocol::CompileResponse_Result* Arena::CreateMaybeMessage< ::rsh::server::protocol::CompileResponse_Result >(Arena* arena) {
-  return Arena::CreateMessageInternal< ::rsh::server::protocol::CompileResponse_Result >(arena);
+template<> PROTOBUF_NOINLINE ::rsh::server::protocol::CompiledFunction* Arena::CreateMaybeMessage< ::rsh::server::protocol::CompiledFunction >(Arena* arena) {
+  return Arena::CreateMessageInternal< ::rsh::server::protocol::CompiledFunction >(arena);
 }
 template<> PROTOBUF_NOINLINE ::rsh::server::protocol::CompileResponse* Arena::CreateMaybeMessage< ::rsh::server::protocol::CompileResponse >(Arena* arena) {
   return Arena::CreateMessageInternal< ::rsh::server::protocol::CompileResponse >(arena);

@@ -25,13 +25,13 @@ public final class Protocol {
   static final com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_rsh_server_protocol_CompileRequest_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
+      internal_static_rsh_server_protocol_CompiledFunction_descriptor;
+  static final com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
+      internal_static_rsh_server_protocol_CompiledFunction_fieldAccessorTable;
+  static final com.google.protobuf.Descriptors.Descriptor
       internal_static_rsh_server_protocol_CompileResponse_descriptor;
   static final com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_rsh_server_protocol_CompileResponse_fieldAccessorTable;
-  static final com.google.protobuf.Descriptors.Descriptor
-      internal_static_rsh_server_protocol_CompileResponse_Result_descriptor;
-  static final com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
-      internal_static_rsh_server_protocol_CompileResponse_Result_fieldAccessorTable;
 
   public static com.google.protobuf.Descriptors.FileDescriptor getDescriptor() {
     return descriptor;
@@ -49,12 +49,12 @@ public final class Protocol {
           + "Rsh_version\030\001 \001(\t\022\021\n\tR_version\030\002 \001(\t\022\020\n\010"
           + "platform\030\003 \001(\t\022\020\n\010packages\030\004 \003(\t\"/\n\016Comp"
           + "ileRequest\022\014\n\004name\030\002 \001(\t\022\017\n\007closure\030\003 \001("
-          + "\014\"\235\001\n\017CompileResponse\022\021\n\007failure\030\002 \001(\tH\000"
-          + "\022=\n\006result\030\003 \001(\0132+.rsh.server.protocol.C"
-          + "ompileResponse.ResultH\000\0320\n\006Result\022\023\n\013nat"
-          + "ive_code\030\003 \001(\014\022\021\n\tconstants\030\004 \001(\014B\006\n\004dat"
-          + "aB\036\n\032org.prlprg.server.protocolP\001b\006proto"
-          + "3"
+          + "\014\"H\n\020CompiledFunction\022\014\n\004name\030\002 \001(\t\022\023\n\013n"
+          + "ative_code\030\003 \001(\014\022\021\n\tconstants\030\004 \001(\014\"e\n\017C"
+          + "ompileResponse\022\021\n\007failure\030\002 \001(\tH\000\0227\n\006res"
+          + "ult\030\003 \001(\0132%.rsh.server.protocol.Compiled"
+          + "FunctionH\000B\006\n\004dataB\036\n\032org.prlprg.server."
+          + "protocolP\001b\006proto3"
     };
     descriptor =
         com.google.protobuf.Descriptors.FileDescriptor.internalBuildGeneratedFileFrom(
@@ -83,21 +83,21 @@ public final class Protocol {
             new java.lang.String[] {
               "Name", "Closure",
             });
-    internal_static_rsh_server_protocol_CompileResponse_descriptor =
+    internal_static_rsh_server_protocol_CompiledFunction_descriptor =
         getDescriptor().getMessageTypes().get(3);
+    internal_static_rsh_server_protocol_CompiledFunction_fieldAccessorTable =
+        new com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
+            internal_static_rsh_server_protocol_CompiledFunction_descriptor,
+            new java.lang.String[] {
+              "Name", "NativeCode", "Constants",
+            });
+    internal_static_rsh_server_protocol_CompileResponse_descriptor =
+        getDescriptor().getMessageTypes().get(4);
     internal_static_rsh_server_protocol_CompileResponse_fieldAccessorTable =
         new com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
             internal_static_rsh_server_protocol_CompileResponse_descriptor,
             new java.lang.String[] {
               "Failure", "Result", "Data",
-            });
-    internal_static_rsh_server_protocol_CompileResponse_Result_descriptor =
-        internal_static_rsh_server_protocol_CompileResponse_descriptor.getNestedTypes().get(0);
-    internal_static_rsh_server_protocol_CompileResponse_Result_fieldAccessorTable =
-        new com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
-            internal_static_rsh_server_protocol_CompileResponse_Result_descriptor,
-            new java.lang.String[] {
-              "NativeCode", "Constants",
             });
   }
 

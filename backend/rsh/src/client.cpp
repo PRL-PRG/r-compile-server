@@ -6,8 +6,8 @@ namespace rsh {
 
 using namespace server::protocol;
 
-CompileResponse compile(std::string const &name,
-                        std::vector<uint8_t> const &rds_closure) {
+CompileResponse remote_compile(std::string const &name,
+                               std::vector<uint8_t> const &rds_closure) {
   zmq::context_t context(1);
   zmq::socket_t socket(context, zmq::socket_type::req);
 

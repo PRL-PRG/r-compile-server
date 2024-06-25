@@ -23,21 +23,21 @@ public interface CompileResponseOrBuilder
   com.google.protobuf.ByteString getFailureBytes();
 
   /**
-   * <code>.rsh.server.protocol.CompileResponse.Result result = 3;</code>
+   * <code>.rsh.server.protocol.CompiledFunction result = 3;</code>
    *
    * @return Whether the result field is set.
    */
   boolean hasResult();
 
   /**
-   * <code>.rsh.server.protocol.CompileResponse.Result result = 3;</code>
+   * <code>.rsh.server.protocol.CompiledFunction result = 3;</code>
    *
    * @return The result.
    */
-  org.prlprg.server.protocol.CompileResponse.Result getResult();
+  org.prlprg.server.protocol.CompiledFunction getResult();
 
-  /** <code>.rsh.server.protocol.CompileResponse.Result result = 3;</code> */
-  org.prlprg.server.protocol.CompileResponse.ResultOrBuilder getResultOrBuilder();
+  /** <code>.rsh.server.protocol.CompiledFunction result = 3;</code> */
+  org.prlprg.server.protocol.CompiledFunctionOrBuilder getResultOrBuilder();
 
   public org.prlprg.server.protocol.CompileResponse.DataCase getDataCase();
 }
