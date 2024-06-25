@@ -6,6 +6,7 @@ import static org.prlprg.sexp.Coercions.isNA;
 
 import java.util.Objects;
 import org.junit.jupiter.api.Test;
+import org.prlprg.AbstractGNURBasedTest;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.BCodeSXP;
@@ -21,7 +22,6 @@ import org.prlprg.sexp.SEXPs;
 import org.prlprg.sexp.StrSXP;
 import org.prlprg.sexp.TaggedElem;
 import org.prlprg.sexp.VecSXP;
-import org.prlprg.util.AbstractGNURBasedTest;
 
 public class RDSReaderTest extends AbstractGNURBasedTest {
   @Test

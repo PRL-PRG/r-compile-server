@@ -1,42 +1,19 @@
-package org.prlprg.util;
+package org.prlprg.bc;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import java.io.File;
 import java.io.IOException;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.TestInstance;
-import org.prlprg.RSession;
-import org.prlprg.bc.Compiler;
-import org.prlprg.rsession.TestRSession;
+import org.prlprg.RClosureTests;
 import org.prlprg.sexp.BCodeSXP;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
+import org.prlprg.util.Files;
 
-@TestInstance(TestInstance.Lifecycle.PER_CLASS)
-public class AbstractGNURBasedTest {
-  protected static RSession rsession = new TestRSession();
-
-  // Gets initialized in `@BeforeAll`.
-  @SuppressWarnings("NotNullFieldNotInitialized")
-  protected GNUR R;
-
-  @BeforeAll
-  public void startR() {
-    R = GNUR.spawn(rsession);
-  }
-
-  // It's not constant if `startR` fails.
-  @SuppressWarnings("ConstantValue")
-  @AfterAll
-  public void stopR() {
-    if (R != null) {
-      R.close();
-    }
-  }
+/** {@link RClosureTests} but has methods to assert that our bytecode compiler works. */
+public abstract class RClosureTestsUsingBytecodeCompiler extends RClosureTests {
 
   /**
    * Parse the function, compile with both GNU-R and out bytecode compiler, assert that the

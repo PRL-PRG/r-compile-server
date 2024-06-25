@@ -5,11 +5,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.HashSet;
 import org.junit.jupiter.api.Test;
+import org.prlprg.AbstractGNURBasedTest;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.NamespaceEnvSXP;
 import org.prlprg.sexp.PromSXP;
 import org.prlprg.sexp.SEXPs;
-import org.prlprg.util.AbstractGNURBasedTest;
 import org.prlprg.util.Pair;
 
 public class ContextTest extends AbstractGNURBasedTest {
