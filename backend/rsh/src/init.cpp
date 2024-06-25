@@ -43,6 +43,8 @@ extern "C" {
 SEXP R_bcEncode(SEXP);
 SEXP R_bcDecode(SEXP);
 
+void jit_fun_destructor(SEXP);
+
 static const R_CallMethodDef callMethods[] = {
     {"initialize", (DL_FUNC)&initialize, 1},
     {"compile_fun", (DL_FUNC)&compile_fun, 3},
@@ -112,7 +114,11 @@ SEXP compile_fun(SEXP name, SEXP closure, SEXP raw) {
   // The C constant pool has the following slots:
   auto c_cp = PROTECT(Rf_allocVector(VECSXP, 2));
   // 0: the pointer to the compiled function
-  SET_VECTOR_ELT(c_cp, 0, R_MakeExternalPtr(fun_ptr, R_NilValue, R_NilValue));
+  //
+  // TODO: a tag?
+  auto fun_ptr_sxp = R_MakeExternalPtr(fun_ptr, R_NilValue, name);
+  R_RegisterCFinalizerEx(fun_ptr_sxp, &jit_fun_destructor, FALSE);
+  SET_VECTOR_ELT(c_cp, 0, fun_ptr_sxp);
 
   // 1: the contants used by the compiled function
   auto constants =
@@ -125,9 +131,9 @@ SEXP compile_fun(SEXP name, SEXP closure, SEXP raw) {
   memcpy(INTEGER(bc), CALL_FUN_BC, sizeof(CALL_FUN_BC));
   bc = R_bcEncode(bc);
 
-  auto expressionsIndex = PROTECT(Rf_allocVector(INTSXP, bc_size));
-  INTEGER(expressionsIndex)[0] = NA_INTEGER;
-  memset(INTEGER(expressionsIndex) + 1, 0, (bc_size - 1) * sizeof(i32));
+  auto expr_index = PROTECT(Rf_allocVector(INTSXP, bc_size));
+  INTEGER(expr_index)[0] = NA_INTEGER;
+  memset(INTEGER(expr_index) + 1, 0, (bc_size - 1) * sizeof(i32));
 
   auto cp = PROTECT(Rf_allocVector(VECSXP, 6));
   int i = 0;
@@ -136,7 +142,7 @@ SEXP compile_fun(SEXP name, SEXP closure, SEXP raw) {
   SET_VECTOR_ELT(cp, i++, CALL_FUN);
   SET_VECTOR_ELT(cp, i++, closure);
   SET_VECTOR_ELT(cp, i++, c_cp);
-  SET_VECTOR_ELT(cp, i++, expressionsIndex);
+  SET_VECTOR_ELT(cp, i++, expr_index);
 
   // TODO: add the name of the last element
 
@@ -150,4 +156,14 @@ SEXP compile_fun(SEXP name, SEXP closure, SEXP raw) {
   UNPROTECT(5);
 
   return closure;
+}
+
+void jit_fun_destructor(SEXP fun_ptr) {
+  SEXP name = R_ExternalPtrProtected(fun_ptr);
+  if (TYPEOF(name) != STRSXP || XLENGTH(name) != 1) {
+    Rf_error("Expected a name of jitted function");
+  }
+  auto name_str = CHAR(STRING_ELT(name, 0));
+  Rprintf("Destroying fun %s %p\n", name_str, fun_ptr);
+  jit->remove(name_str);
 }

@@ -12,3 +12,5 @@ str(compiler::disassemble(f))
 
 browser()
 f(5)
+rm(f)
+gc()
