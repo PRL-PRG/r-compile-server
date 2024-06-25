@@ -5,10 +5,11 @@ f <- function(x) {
   y + x
 }
 
-rsh::rsh_jit()
+rsh::rsh_jit_enable()
 print(f)
 
 f(5)
 f(5)
 f(5)
+
 print(f)

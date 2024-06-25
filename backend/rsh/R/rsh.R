@@ -9,17 +9,49 @@ NULL
 
 # initialize globals
 .onLoad <- function(libname, pkgname) {
+  # TODO: it would be great to make this go away and initialize this in C
   .Call(C_initialize, C_call_fun)
 }
 
+#' Activate the Rsh JIT
+#'
 #' @export
-rsh_jit_activate <- function(f) {
-    rsh_override_cmpfun(rsh_jit_cmpfun)
+rsh_jit_enable <- function() {
+    rsh_override_cmpfun(rsh_cmpfun)
 }
 
+#' Deactivate the Rsh JIT
+#'
 #' @export
-rsh_jit_deactivate <- function(f) {
+rsh_jit_disable <- function() {
     rsh_override_cmpfun(.gnur_cmpfun)
+}
+
+#' Compile given closure
+#'
+#' It compiles the given closure and changes it inplace.
+#'
+#' @param f closure to be compiled
+#' @export
+rsh_compile <- function(f) {
+  invisible(.Call(C_compile_fun, f, as.character(substitute(f))))
+}
+
+#' Compile given closure
+#'
+#' It makes a copy the given closure and compiles it.
+#'
+#' @param f closure to be compiled
+#' @param options list of options
+#' @return compiled closure
+#' @export
+rsh_cmpfun <- function(f, options) {
+  # make a copy - the compiler::cmpfun takes a function and returns
+  # a new one with BCSXP body (if possible)
+  g <- f
+  # compile the copy
+  rsh_compile(g)
+  g
 }
 
 rsh_override_cmpfun <- function(f) {
@@ -29,25 +61,3 @@ rsh_override_cmpfun <- function(f) {
   lockBinding("cmpfun", compiler_ns)
 }
 
-#' @export
-rsh_load <- function(obj_file) {
-  p <- .Call(C_load_fun, obj_file)
-  function(x) {
-    .External2(C_call_fun3, p)
-  }
-}
-
-#' @export
-rsh_compile <- function(f) {
-  .Call(C_compile_fun, f, as.character(substitute(f)))
-}
-
-#' @export
-rsh_jit_cmpfun <- function(f, options) {
-  # make a copy - the compiler::cmpfun takes a function and returns a new one with BCSXP body (if possible)
-  g <- f
-  # compile the copy
-  rsh_compile(g)
-  # compile the new body into the bytecode so that the R embedded jit still works
-  .gnu_cmpfun(g, options=list(optimize=3))
-}
