@@ -10,6 +10,5 @@ using usize = std::size_t;
 namespace rsh {
 
 using Bytes = std::vector<u8>;
-using Code = std::vector<u8>;
 
 }; // namespace rsh

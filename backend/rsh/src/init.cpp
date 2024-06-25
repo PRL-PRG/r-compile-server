@@ -21,7 +21,7 @@ static SEXP RSH_JIT_FUN_PTR = Rf_install("RSH_JIT_FUN_PTR");
 
 SEXP initialize(SEXP);
 SEXP call_fun(SEXP, SEXP, SEXP, SEXP);
-SEXP compile_fun(SEXP, SEXP, SEXP);
+SEXP compile_fun(SEXP, SEXP);
 SEXP create_call(void *);
 
 #define PUSHCONSTARG_OP 34
@@ -50,7 +50,7 @@ void jit_fun_destructor(SEXP);
 
 static const R_CallMethodDef callMethods[] = {
     {"initialize", (DL_FUNC)&initialize, 1},
-    {"compile_fun", (DL_FUNC)&compile_fun, 3},
+    {"compile_fun", (DL_FUNC)&compile_fun, 2},
     {NULL, NULL, 0}};
 
 static const R_ExternalMethodDef externalMethods[] = {
@@ -59,12 +59,16 @@ static const R_ExternalMethodDef externalMethods[] = {
 void R_init_rsh(DllInfo *dll) {
   R_registerRoutines(dll, NULL, callMethods, NULL, externalMethods);
   R_useDynamicSymbols(dll, FALSE);
+  R_forceSymbols(dll, TRUE);
 
   jit = JIT::create();
 }
 }
 
 SEXP initialize(SEXP call_fun) {
+  // TODO: it would be great if this one can go away,
+  // intializing it in the init method.
+  // I just don't know how.
   CALL_FUN = call_fun;
 
   return R_NilValue;
@@ -93,16 +97,15 @@ SEXP call_fun(SEXP call, SEXP op, SEXP args, SEXP env) {
   return res;
 }
 
-SEXP compile_fun(SEXP name, SEXP closure, SEXP raw) {
-  // FIXME: assert that it has been initialized
+SEXP compile_fun(SEXP closure, SEXP name) {
+  if (!RSH_JIT_FUN_PTR) {
+    Rf_error("The package was not initialized");
+  }
 
-  uint8_t *raw_data = RAW(raw);
-  R_xlen_t raw_length = XLENGTH(raw);
-  std::vector<uint8_t> data(raw_data, raw_data + raw_length);
-
+  auto closure_bytes = rsh::serialize(closure);
   std::string name_str(CHAR(STRING_ELT(name, 0)));
 
-  auto response = rsh::compile(name_str, data);
+  auto response = rsh::compile(name_str, closure_bytes);
 
   if (!response.has_result()) {
     Rf_error("Compilation failed: %s", response.failure().c_str());
@@ -124,7 +127,7 @@ SEXP compile_fun(SEXP name, SEXP closure, SEXP raw) {
 
   // 1: the contants used by the compiled function
   auto constants =
-      deserialize((u8 *)constants_raw.data(), constants_raw.size());
+      rsh::deserialize((u8 *)constants_raw.data(), constants_raw.size());
   SET_VECTOR_ELT(c_cp, 1, constants);
 
   auto bc_size = sizeof(CALL_FUN_BC) / sizeof(i32);
