@@ -12,9 +12,12 @@
 
 static JIT *jit = nullptr;
 
-// TODO: there must be way to get this from DESCRIPTION
-static SEXP PKG_NAME = Rf_install("rsh");
+// This should point to the R ExterbalRoutine/NativeSymbolInfo structure
+// that represents the exported C function registered in r_init_rsh
 static SEXP CALL_FUN = nullptr;
+
+// A tag to attach to the external pointer
+static SEXP RSH_JIT_FUN_PTR = Rf_install("RSH_JIT_FUN_PTR");
 
 SEXP initialize(SEXP);
 SEXP call_fun(SEXP, SEXP, SEXP, SEXP);
@@ -113,18 +116,16 @@ SEXP compile_fun(SEXP name, SEXP closure, SEXP raw) {
 
   // The C constant pool has the following slots:
   auto c_cp = PROTECT(Rf_allocVector(VECSXP, 2));
+
   // 0: the pointer to the compiled function
-  //
-  // TODO: a tag?
-  auto fun_ptr_sxp = R_MakeExternalPtr(fun_ptr, R_NilValue, name);
+  auto fun_ptr_sxp = R_MakeExternalPtr(fun_ptr, RSH_JIT_FUN_PTR, name);
   R_RegisterCFinalizerEx(fun_ptr_sxp, &jit_fun_destructor, FALSE);
   SET_VECTOR_ELT(c_cp, 0, fun_ptr_sxp);
 
   // 1: the contants used by the compiled function
   auto constants =
-      PROTECT(deserialize((u8 *)constants_raw.data(), constants_raw.size()));
+      deserialize((u8 *)constants_raw.data(), constants_raw.size());
   SET_VECTOR_ELT(c_cp, 1, constants);
-  UNPROTECT(1);
 
   auto bc_size = sizeof(CALL_FUN_BC) / sizeof(i32);
   auto bc = PROTECT(Rf_allocVector(INTSXP, bc_size));
@@ -144,7 +145,13 @@ SEXP compile_fun(SEXP name, SEXP closure, SEXP raw) {
   SET_VECTOR_ELT(cp, i++, c_cp);
   SET_VECTOR_ELT(cp, i++, expr_index);
 
-  // TODO: add the name of the last element
+  // properly name the expression index (the last element of the constant pool)
+  auto cp_names = Rf_allocVector(STRSXP, 6);
+  Rf_setAttrib(cp, R_NamesSymbol, cp_names);
+  for (i = 0; i < 5; i++) {
+    SET_STRING_ELT(cp_names, i, R_BlankString);
+  }
+  SET_STRING_ELT(cp_names, 5, Rf_mkChar("expressionIndex"));
 
   auto body = PROTECT(Rf_cons(bc, cp));
   SET_TYPEOF(body, BCODESXP);

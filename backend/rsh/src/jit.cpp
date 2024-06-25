@@ -68,7 +68,7 @@ void JIT::add_object(std::string const &vec) {
 }
 
 void *JIT::lookup(const char *name) {
-  orc->getMainJITDylib().dump(llvm::outs());
+  // orc->getMainJITDylib().dump(llvm::outs());
   auto v = orc->lookupLinkerMangled(name);
   if (auto err = v.takeError()) {
     Rf_error("Unable to load %s: %s\n", name, toString(std::move(err)).c_str());
@@ -79,6 +79,8 @@ void *JIT::lookup(const char *name) {
 }
 
 void JIT::remove(const char *name) {
+  // FIXME: this is conceptually wrong.
+  // we should use ResourceTracker to remove the function and its dependencies
   llvm::orc::SymbolNameSet names;
   names.insert(orc->getExecutionSession().intern(name));
   auto err = orc->getMainJITDylib().remove(names);
@@ -86,5 +88,5 @@ void JIT::remove(const char *name) {
     Rf_error("Problem removing %s: %s\n", name,
              toString(std::move(err)).c_str());
   }
-  orc->getMainJITDylib().dump(llvm::outs());
+  // orc->getMainJITDylib().dump(llvm::outs());
 }
