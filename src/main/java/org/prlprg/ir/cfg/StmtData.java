@@ -160,7 +160,11 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
 
   @TypeIs("ANY")
   @EffectsAre({REffect.Error, REffect.ReadsEnvArg})
-  record LdVar(RegSymSXP name, @IsEnv RValue env) implements RValue_ {}
+  record LdVar(RegSymSXP name, boolean missOk, @IsEnv RValue env) implements RValue_ {}
+
+  @TypeIs("ANY")
+  @EffectsAre({REffect.Error, REffect.ReadsEnvArg})
+  record LdDdVal(int ddNum, boolean missOk, @IsEnv RValue env) implements RValue_ {}
 
   // TODO: It says in PIR that this should eventually be replaced with a non-dispatching extract
   //  call (probably an old comment so idk if it's still relevant)
@@ -965,9 +969,33 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
       this(Optional.ofNullable(ast), fun, args, env, assumption);
     }
 
+    public CallSafeBuiltin(
+        @Nullable LangSXP ast, BuiltinId fun, ImmutableList<RValue> args, @IsEnv RValue env) {
+      this(Optional.ofNullable(ast), fun, args, env, ImmutableList.of());
+    }
+
     @Override
     public RType computeType() {
       return RTypes.builtin(fun);
+    }
+  }
+
+  @EffectsAreAribtrary()
+  record TryDispatchBuiltin_(
+      @Override LangSXP ast,
+      @Override BuiltinId fun,
+      RValue target,
+      Optional<RValue> rhs,
+      @Override @IsEnv RValue env)
+      implements StmtData<TryDispatchBuiltin> {
+    public TryDispatchBuiltin_(
+        LangSXP ast, BuiltinId fun, RValue target, @Nullable RValue rhs, @IsEnv RValue env) {
+      this(ast, fun, target, Optional.ofNullable(rhs), env);
+    }
+
+    @Override
+    public TryDispatchBuiltin make(CFG cfg, NodeId<? extends Instr> id) {
+      return new TryDispatchBuiltinImpl(cfg, id, this);
     }
   }
 

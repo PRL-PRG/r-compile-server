@@ -162,7 +162,7 @@ abstract sealed class LocalNodeIdImpl<N extends LocalNode> extends NodeIdImpl<N>
     var disambiguator = s.nextCharSatisfies(Character::isDigit) ? s.readUInt() : 0;
     var name = NodeAndBBIds.readName(s);
     var base = new InstrOrPhiIdImpl<>(disambiguator, name);
-    if (s.nextCharIs('#')) {
+    if (s.trySkip('#')) {
       var auxiliary = s.readUInt();
       return new AuxiliaryNodeIdImpl<>(base, auxiliary);
     } else {
@@ -224,10 +224,10 @@ final class AuxiliaryNodeIdImpl<N extends LocalNode> extends LocalNodeIdImpl<N> 
   private final InstrOrPhiIdImpl<?> owner;
   private final int index;
 
-  AuxiliaryNodeIdImpl(InstrOrPhiIdImpl<?> owner, int index) {
+  AuxiliaryNodeIdImpl(NodeId<? extends InstrOrPhi> owner, int index) {
     super(owner + "#" + index);
 
-    this.owner = owner;
+    this.owner = InstrOrPhiIdImpl.cast(owner);
     this.index = index;
   }
 

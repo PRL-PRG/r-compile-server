@@ -161,6 +161,7 @@ import org.prlprg.ir.cfg.Stmt;
 import org.prlprg.ir.cfg.StmtData;
 import org.prlprg.ir.cfg.StmtData.FrameState_;
 import org.prlprg.ir.cfg.StmtData.GnuRIs;
+import org.prlprg.ir.cfg.StmtData.LdFun;
 import org.prlprg.ir.cfg.StmtData.NamelessCall;
 import org.prlprg.ir.cfg.builder.CFGCursor;
 import org.prlprg.ir.closure.Closure;
@@ -704,10 +705,14 @@ public class CFGCompiler {
       case LdTrue() -> push(new Constant(SEXPs.TRUE));
       case LdFalse() -> push(new Constant(SEXPs.FALSE));
       case GetVar(var name) -> {
-        pushInsert(new StmtData.LdVar(get(name), env));
+        pushInsert(new StmtData.LdVar(get(name), false, env));
         pushInsert(new StmtData.Force(pop(RValue.class), compileFrameState(), env));
       }
-      case DdVal(var _) -> throw failUnsupported("`..n` variables");
+      case DdVal(var name) -> {
+        var ddIndex = get(name).ddNum();
+        pushInsert(new StmtData.LdDdVal(ddIndex, false, env));
+        pushInsert(new StmtData.Force(pop(RValue.class), compileFrameState(), env));
+      }
       case SetVar(var name) -> insert(new StmtData.StVar(get(name), top(RValue.class), env));
       case GetFun(var name) -> pushCallFunInsert(new StmtData.LdFun(get(name), env));
       case GetGlobFun(var name) ->
@@ -752,8 +757,14 @@ public class CFGCompiler {
           throw fail("CallSpecial: expected a symbol (builtin id) function");
         }
         var builtin = BuiltinId.referencedBy(builtinSymbol);
-        // TODO: This has to be an "AST builtin" call (same as `compileGeneralDispatchCommon`).
-        pushInsert(new StmtData.CallBuiltin(ast, builtin, ImmutableList.of(), env));
+        // Note that some of these are constant symbols and language objects, they should be treated
+        // like `eval`. We also assume builtins never use names.
+        // GNU-R just passes `CDR(call)` to the builtin.
+        var args =
+            ast.args().stream()
+                .map(arg -> (RValue) new Constant(arg.value()))
+                .collect(ImmutableList.toImmutableList());
+        pushInsert(new StmtData.CallBuiltin(ast, builtin, args, env));
       }
       case MakeClosure(var arg) -> {
         var fb = get(arg);
@@ -799,7 +810,7 @@ public class CFGCompiler {
       case Not(var ast) -> pushInsert(mkUnop(ast, StmtData.Not::new));
       case DotsErr() -> insert(new StmtData.Error("'...' used in an incorrect context", env));
       case StartAssign(var name) -> {
-        var lhs = cursor.insert(new StmtData.LdVar(get(name), env));
+        var lhs = cursor.insert(new StmtData.LdVar(get(name), false, env));
         var rhs = top(RValue.class);
         pushComplexAssign(false, get(name), lhs, rhs);
       }
@@ -1026,11 +1037,14 @@ public class CFGCompiler {
         cursor.insert(new JumpData.Goto(bbAfterCurrent()));
       }
       case GetVarMissOk(var name) -> {
-        // TODO: Allow missing
-        pushInsert(new StmtData.LdVar(get(name), env));
+        pushInsert(new StmtData.LdVar(get(name), true, env));
         pushInsert(new StmtData.Force(pop(RValue.class), compileFrameState(), env));
       }
-      case DdValMissOk(var _) -> throw failUnsupported("`..n` variables");
+      case DdValMissOk(var name) -> {
+        var ddIndex = get(name).ddNum();
+        pushInsert(new StmtData.LdDdVal(ddIndex, true, env));
+        pushInsert(new StmtData.Force(pop(RValue.class), compileFrameState(), env));
+      }
       case Visible() -> insert(new StmtData.Visible());
       case SetVar2(var name) -> insert(new StmtData.StVarSuper(get(name), top(RValue.class), env));
       case StartAssign2(var name) -> {
@@ -1073,7 +1087,6 @@ public class CFGCompiler {
         push(value);
         push(value2);
       }
-        // ???
       case ReturnJmp() -> {
         var retVal = pop(RValue.class);
         assertStacksForReturn();
@@ -1228,34 +1241,10 @@ public class CFGCompiler {
           compileStartDispatch(Dispatch.Type.SUBSET2N, ast, after);
       case StartSubassign2N(var ast, var after) ->
           compileStartDispatch(Dispatch.Type.SUBASSIGN2N, ast, after);
-      case SubsetN(var _, var n) ->
-          compileDefaultDispatchN(
-              Dispatch.Type.SUBSETN,
-              n + 1,
-              (_, _) -> {
-                throw failUnsupported("n-ary subset or subassign");
-              });
-      case Subset2N(var _, var n) ->
-          compileDefaultDispatchN(
-              Dispatch.Type.SUBSET2N,
-              n + 1,
-              (_, _) -> {
-                throw failUnsupported("n-ary subset or subassign");
-              });
-      case SubassignN(var _, var n) ->
-          compileDefaultDispatchN(
-              Dispatch.Type.SUBASSIGNN,
-              n + 2,
-              (_, _) -> {
-                throw failUnsupported("n-ary subset or subassign");
-              });
-      case Subassign2N(var _, var n) ->
-          compileDefaultDispatchN(
-              Dispatch.Type.SUBASSIGN2N,
-              n + 2,
-              (_, _) -> {
-                throw failUnsupported("n-ary subset or subassign");
-              });
+      case SubsetN(var _, var n) -> compileDefaultDispatchN(Dispatch.Type.SUBSETN, n + 1);
+      case Subset2N(var _, var n) -> compileDefaultDispatchN(Dispatch.Type.SUBSET2N, n + 1);
+      case SubassignN(var _, var n) -> compileDefaultDispatchN(Dispatch.Type.SUBASSIGNN, n + 2);
+      case Subassign2N(var _, var n) -> compileDefaultDispatchN(Dispatch.Type.SUBASSIGN2N, n + 2);
       case Log(var ast) -> pushInsert(mkUnop(ast, StmtData.Log::new));
       case LogBase(var ast) -> pushInsert(mkBinop(ast, StmtData.LogBase::new));
       case Math1(var ast, var funId) ->
@@ -1286,12 +1275,13 @@ public class CFGCompiler {
                   BuiltinId.SEQ_LEN,
                   ImmutableList.of(pop(RValue.class)),
                   env));
-      case BaseGuard(var expr, var after) -> {
+      case BaseGuard(var exprIdx, var after) -> {
         // PIR apparently just ignores the guards (`rir2pir.cpp:341`), but we can handle here.
-        var fun = (RegSymSXP) get(expr).fun();
+        var expr = get(exprIdx);
+        var fun = (RegSymSXP) expr.fun();
         var sym = cursor.insert(new StmtData.LdFun(fun, env));
         var base = cursor.insert(new StmtData.LdFun(fun, StaticEnv.BASE));
-        var guard = cursor.insert(new StmtData.Eq(Optional.of(get(expr)), sym, base, env));
+        var guard = cursor.insert(new StmtData.Eq(Optional.of(expr), sym, base, env));
 
         var safeBb = cfg.addBB("baseGuardSafe");
         var fallbackBb = cfg.addBB("baseGuardFail");
@@ -1300,9 +1290,23 @@ public class CFGCompiler {
 
         // Has one predecessor (no phis) so we can call `cursor.moveToStart` instead of `moveTo`.
         cursor.moveToStart(fallbackBb);
+        // Compile a call.
+        // Also, pass `Constant`s containing symbols and language objects to arguments,
+        // expecting them to be `eval`ed, like in `CallSpecial`.
+        var argNames =
+            expr.args().names().stream()
+                .map(Optional::ofNullable)
+                .collect(ImmutableList.toImmutableList());
+        var args =
+            expr.args().values().stream()
+                .map(v -> (RValue) new Constant(v))
+                .collect(ImmutableList.toImmutableList());
+        var funValue = cursor.insert(new LdFun(fun, env));
+        var fs = compileFrameState();
         pushInsert(
-            new StmtData.CallBuiltin(
-                get(expr), BuiltinId.EVAL, ImmutableList.of(new Constant(get(expr))), env));
+            argNames.stream().anyMatch(Optional::isPresent)
+                ? new StmtData.NamedCall(expr, funValue, argNames, args, env, fs)
+                : new StmtData.NamelessCall(expr, funValue, args, env, fs));
         cursor.insert(new JumpData.Goto(afterBb));
         addPhiInputsForStack(afterBb);
         pop(RValue.class); // the `CallBuiltin` pushed above.
@@ -1391,13 +1395,9 @@ public class CFGCompiler {
     var target1 = pop(RValue.class);
     assert target == target1
         : "`compileGeneralDispatchCommon` only called with top-of-stack as `target`";
-    // TODO: This is wrong, it does some `tryDispatch` instruction where the AST is required.
-    //  Also, the non-object case should do something like `CallBuiltin`, but the first argument is
-    //  guaranteed to be non-object; `CallBuiltin` doesn't currently guarantee that, because we
-    //  compile GNU-R `CallBuiltin` directly into it, we'd have to refactor.
-    pushInsert(
-        new StmtData.CallBuiltin(
-            ast, fun, rhs == null ? ImmutableList.of(target) : ImmutableList.of(target, rhs), env));
+    var dispatch = cursor.insert(new StmtData.TryDispatchBuiltin_(ast, fun, target, rhs, env));
+    cursor.insert(next -> new JumpData.Branch(dispatch.dispatched(), next, nonObjectBb));
+    push(dispatch.value());
     cursor.insert(new JumpData.Goto(after));
     addPhiInputsForStack(after);
     pop(RValue.class); // the `CallBuiltin` pushed above.
@@ -1427,14 +1427,18 @@ public class CFGCompiler {
 
     pop(RValue.class);
 
+    var argValues = Lists.map(call.args, Call.Arg::value);
     if (call.args.stream()
             .anyMatch(
                 arg -> arg.name() != null || arg.value.equals(new Constant(SEXPs.DOTS_SYMBOL)))
         || call.args.size() < minNumArgs
         || call.args.size() > maxNumArgs) {
-      compileCall(call, dispatch.ast);
+      // Slowcase, for when we don't have a specialized instruction.
+      pushInsert(
+          new StmtData.CallSafeBuiltin(
+              dispatch.ast, type.builtin, ImmutableList.copyOf(argValues), env));
     } else {
-      var argValues = Lists.map(call.args, Call.Arg::value);
+      // Instead of compiling a call, insert our specialized instruction with the call arguments.
       pushInsert(dispatchInstrData.apply(dispatch.ast, argValues));
     }
 
@@ -1444,10 +1448,14 @@ public class CFGCompiler {
     }
   }
 
+  private void compileDefaultDispatchN(Dispatch.Type type, int numArgs) {
+    compileDefaultDispatchN(type, numArgs, null);
+  }
+
   private void compileDefaultDispatchN(
       Dispatch.Type type,
       int numArgs,
-      BiFunction<LangSXP, List<RValue>, StmtData.RValue_> dispatchInstrData) {
+      @Nullable BiFunction<LangSXP, List<RValue>, StmtData.RValue_> dispatchInstrData) {
     assert type.isNForm : "use compileDefaultDispatch for non-`...N` bytecodes";
 
     var dispatch = popDispatch(type);
@@ -1465,7 +1473,14 @@ public class CFGCompiler {
     @SuppressWarnings("unchecked")
     var args = (List<RValue>) (List<?>) uncastedArgs;
 
-    var result = dispatchInstrData.apply(dispatch.ast, args);
+    // Unlike `compileDefaultDispatch`, there's no call, instead we take the args from the stack.
+    // Like `compileDefaultDispatch`, there's either a specialized instruction or a fallback call,
+    // although in this the number of arguments is known.
+    var result =
+        dispatchInstrData == null
+            ? new StmtData.CallSafeBuiltin(
+                dispatch.ast, type.builtin, ImmutableList.copyOf(args), env)
+            : dispatchInstrData.apply(dispatch.ast, args);
     args.clear();
     pushInsert(result);
 
@@ -1499,16 +1514,20 @@ public class CFGCompiler {
             });
     push(callInstr);
 
-    // Special-case due to weird and possibly buggy bytecode compiler behavior:
+    // Special-case due to weird and possibly buggy (GNU-R) bytecode compiler behavior:
     // when the bytecode compiler compiles a `switch` with a missing label, it inserts a branch that
     // ends with `stop("empty alternative in numeric switch")`. This call pushes an extra value
-    // (call return) onto the stack. When interpreted, the call to `stop` (usually!) exits the
+    // (call return) onto the stack. When interpreted, the call to `stop` usually\* exits the
     // function, so the stack no longer matters. But when we compile to IR, we still expect the
     // stack to be balanced, and this call return is unaccounted for. Therefore, we have to special-
     // case, and we do so by checking a) the exact function and b) we're about to go to another
     // label without any phis. If both these conditions are met, we're guaranteed to be in this
     // special-case (unless there's another compiler bug causing stack imbalances, and even then,
     // very unlikely), so we pop the result of the call to re-balance the stack.
+    //
+    // \* If `stop` is overridden in the function, the bytecode compiler will use the overridden
+    // call, which is different than the AST interpreter which errors regardless. This and the fact
+    // that the stack now has an extra value until the function returns, are why it may be a bug.
     if (callInstr.data() instanceof StmtData.NamelessCall n
         && n.fun() instanceof Stmt f
         && f.data() instanceof StmtData.LdFun(var name, var _)
