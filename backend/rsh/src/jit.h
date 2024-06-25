@@ -6,6 +6,7 @@
 #undef PI
 #include <llvm/ExecutionEngine/Orc/LLJIT.h>
 
+namespace rsh {
 class JIT {
   std::unique_ptr<llvm::orc::LLJIT> orc;
   llvm::orc::ResourceTrackerSP resource_tracker;
@@ -22,3 +23,7 @@ public:
   void *lookup(const char *name);
   void remove(const char *name);
 };
+
+extern JIT *GJIT;
+
+} // namespace rsh

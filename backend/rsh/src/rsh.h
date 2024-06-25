@@ -1,5 +1,8 @@
 #pragma once
 
+#include "jit.h"
+#include <R.h>
+#include <Rinternals.h>
 #include <cstdint>
 #include <vector>
 
@@ -7,8 +10,30 @@ using u8 = uint8_t;
 using i32 = int32_t;
 using usize = std::size_t;
 
+// R bytecode opcodes
+#define PUSHCONSTARG_OP 34
+#define BASEGUARD_OP 123
+#define GETBUILTIN_OP 26
+#define CALLBUILTIN_OP 39
+#define RETURN_OP 1
+
+// Missing API from R
+extern "C" {
+#define BCODE_CODE(x) CAR(x)
+SEXP R_bcEncode(SEXP);
+SEXP R_bcDecode(SEXP);
+}
+
 namespace rsh {
 
 using Bytes = std::vector<u8>;
 
+// This should point to the R ExterbalRoutine/NativeSymbolInfo structure
+// that represents the exported C function registered in r_init_rsh
+extern SEXP CALL_FUN;
+
+// A tag to attach to the external pointer
+extern SEXP RSH_JIT_FUN_PTR;
+
+extern JIT *JIT;
 }; // namespace rsh

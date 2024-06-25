@@ -17,6 +17,10 @@ static void get_buf(R_inpstream_t stream, void *buffer, int length);
 static void put_byte(R_outpstream_t stream, int c);
 static void put_buf(R_outpstream_t stream, void *buf, int length);
 
+SEXP deserialize(std::string data) {
+  return deserialize(reinterpret_cast<u8 const *>(data.data()), data.size());
+}
+
 SEXP deserialize(u8 const *data, usize size) {
   R_inpstream_st in;
   ReadBuffer b{data, size};
