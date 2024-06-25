@@ -3,6 +3,7 @@
 #include "llvm/ExecutionEngine/Orc/EPCDebugObjectRegistrar.h"
 #include <R_ext/Error.h>
 #include <llvm-17/llvm/ExecutionEngine/Orc/Core.h>
+#include <llvm-17/llvm/Object/Binary.h>
 #include <llvm/ExecutionEngine/Orc/LLJIT.h>
 #include <llvm/Support/TargetSelect.h>
 
@@ -60,8 +61,9 @@ void JIT::add_object_file(const char *filename) {
 }
 
 void JIT::add_object(std::string const &vec) {
-  auto buffer = llvm::MemoryBuffer::getMemBufferCopy(llvm::StringRef(vec));
-  auto err = orc->addObjectFile(std::move(buffer));
+  auto obj_data = llvm::MemoryBuffer::getMemBuffer(vec);
+  // llvm::object::createBinary(llvm::MemoryBufferRef(*buffer));
+  auto err = orc->addObjectFile(std::move(obj_data));
   if (err) {
     Rf_error("Problem with object file %s\n", toString(std::move(err)).c_str());
   }
