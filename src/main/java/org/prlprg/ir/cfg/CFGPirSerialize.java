@@ -395,6 +395,13 @@ class PirInstrOrPhiParseContext {
             var type = ((PirType.RType_) pirType).type();
             yield new StmtData.LdArg(index, type);
           }
+          case "LdVar" -> {
+            var name = p.parse(RegSymSXP.class);
+            s.trySkip(" !upd");
+            s.assertAndSkip(", ");
+            var env = p.parse(RValue.class);
+            yield new StmtData.LdVar(name, false, env);
+          }
           case "StVar", "StArg" -> {
             var varName = p.parse(RegSymSXP.class);
             s.assertAndSkip(", ");
@@ -1250,7 +1257,12 @@ class PirInstrOrPhiPrintContext {
     }
     var data = ((Instr) self).data();
     switch (data) {
-      case StmtData.LdArg s -> p.print(s.index());
+      case StmtData.LdArg l -> p.print(l.index());
+      case StmtData.LdVar l -> {
+        p.print(l.name());
+        w.write(", ");
+        p.print(l.env());
+      }
       case StmtData.StVar s -> {
         p.print(s.name());
         w.write(", ");
