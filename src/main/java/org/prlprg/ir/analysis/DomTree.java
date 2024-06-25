@@ -473,13 +473,11 @@ public class DomTree {
             result.add(suc);
           }
           todo.push(suc);
-        } else if (!curState) {
-          if (result.remove(suc)) {
-            // Our parent is _not_ dominated, but we're in the result
-            // set. We were wrong, so remove ourself from the result;
-            // then add ourself to the worklist.
-            todo.push(suc);
-          }
+        } else if (!curState && result.remove(suc)) {
+          // Our parent is _not_ dominated, but we're in the result
+          // set. We were wrong, so remove ourself from the result;
+          // then add ourself to the worklist.
+          todo.push(suc);
         }
       }
     }

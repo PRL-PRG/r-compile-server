@@ -57,22 +57,21 @@ interface CFGCleanup extends CFGQuery, CFGAnalyses, CFGIntrinsicMutate, CFGCompo
             for (var bb : iter()) {
               if (bb.jump() != null
                   && bb.jump().data()
-                      instanceof JumpData.Branch(var _, var _, var ifTrue, var ifFalse)) {
-                if (ifTrue == ifFalse) {
-                  var phiInputs = ifTrue.phis().stream().map(phi -> phi.input(bb)).toList();
-                  Instr.mutateArgs(bb.jump(), new JumpData.Goto(ifTrue));
-                  Streams.forEachPair(
-                      ifTrue.phis().stream(),
-                      phiInputs.stream(),
-                      (phi, input) -> {
-                        // This is safe because the input is the same type as the phi,
-                        // but Java can't enforce because it's an existential.
-                        @SuppressWarnings("unchecked")
-                        var phi1 = (Phi<Node>) phi;
-                        phi1.setInput(bb, input);
-                      });
-                  // Don't need to set `mayImproveOnRepeat` for the first optimization.
-                }
+                      instanceof JumpData.Branch(var _, var _, var ifTrue, var ifFalse)
+                  && ifTrue == ifFalse) {
+                var phiInputs = ifTrue.phis().stream().map(phi -> phi.input(bb)).toList();
+                Instr.mutateArgs(bb.jump(), new JumpData.Goto(ifTrue));
+                Streams.forEachPair(
+                    ifTrue.phis().stream(),
+                    phiInputs.stream(),
+                    (phi, input) -> {
+                      // This is safe because the input is the same type as the phi,
+                      // but Java can't enforce because it's an existential.
+                      @SuppressWarnings("unchecked")
+                      var phi1 = (Phi<Node>) phi;
+                      phi1.setInput(bb, input);
+                    });
+                // Don't need to set `mayImproveOnRepeat` for the first optimization.
               }
             }
 

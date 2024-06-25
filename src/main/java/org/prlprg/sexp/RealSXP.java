@@ -137,6 +137,11 @@ final class ScalarRealSXP extends ScalarSXPImpl<Double> implements RealSXP {
     if (!(o instanceof ScalarRealSXP that)) return false;
     return DoubleMath.fuzzyEquals(data, that.data, DOUBLE_CMP_DELTA);
   }
+
+  @Override
+  public int hashCode() {
+    return Double.hashCode(data);
+  }
 }
 
 /** Empty real vector with no ALTREP, ATTRIB, or OBJECT. */

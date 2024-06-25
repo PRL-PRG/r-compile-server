@@ -67,16 +67,6 @@ public final class Promise extends CodeObject {
     this.properties = properties;
   }
 
-  /**
-   * A descriptive name for the promise for debugging.
-   *
-   * <p>It may be the empty string.
-   */
-  @Override
-  public String name() {
-    return super.name();
-  }
-
   /** The promise code as GNU-R bytecode. */
   public Bc origin() {
     return bc;
@@ -180,7 +170,7 @@ public final class Promise extends CodeObject {
 
     /** Whether the properties don't guarantee anything, i.e. equal {@link Properties#EMPTY}. */
     public boolean isEmpty() {
-      return equals(Properties.EMPTY);
+      return equals(EMPTY);
     }
 
     /** Whether the promise performs reflection (no or maybe). */

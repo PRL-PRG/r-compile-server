@@ -139,14 +139,14 @@ public enum PromiseRType implements Lattice<PromiseRType> {
 
   @Override
   public PromiseRType union(PromiseRType other) {
-    return PromiseRType.of(isPromise().union(other.isPromise()), isLazy().union(other.isLazy()));
+    return of(isPromise().union(other.isPromise()), isLazy().union(other.isLazy()));
   }
 
   @Override
   public @Nullable PromiseRType intersection(PromiseRType other) {
     var isPromise = Troolean.intersection(isPromise(), other.isPromise());
     var isLazy = Troolean.intersection(isLazy(), other.isLazy());
-    return isPromise == null || isLazy == null ? null : PromiseRType.tryOf(isPromise, isLazy);
+    return isPromise == null || isLazy == null ? null : tryOf(isPromise, isLazy);
   }
 
   @Override

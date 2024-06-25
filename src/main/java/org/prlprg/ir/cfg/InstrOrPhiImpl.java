@@ -73,7 +73,7 @@ abstract sealed class InstrOrPhiImpl implements LocalNode permits PhiImpl, Instr
 
   // region serialization and deserialization
   @ParseMethod
-  private Phi<?> parse(Parser p) {
+  private Phi<?> parse(Parser ignored) {
     throw new UnsupportedOperationException("can't parse an instruction or phi outside of a BB");
   }
 

@@ -255,14 +255,18 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
 
     // The type argument and cast *are* redundant, but the Java compiler has an annoying bug where
     // it occasionally fails to type-check and must be fully rebuilt without them.
-    @SuppressWarnings("Convert2Diamond")
+    @SuppressWarnings({"Convert2Diamond", "RedundantCast"})
     @Override
     public Iterable<? extends InsertPhi<?>> subEdits() {
       return phis.stream()
           .map(
               a ->
                   new InsertPhi<Node>(
-                      bbId, a.id(), a.nodeClass(), ImmutableSet.copyOf(a.inputIds())))
+                      bbId,
+                      (NodeId<? extends Phi<? extends Node>>) a.id(),
+                      (Class<? extends Node>) a.nodeClass(),
+                      ImmutableSet.copyOf(
+                          (Collection<? extends InputId<? extends Node>>) a.inputIds())))
           .toList();
     }
   }
@@ -676,7 +680,7 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
     @Override
     public Divider apply(CFG cfg) {
       cfg.recordDivider(label);
-      return new Divider(CFGEdit.undoLabel(label));
+      return new Divider(undoLabel(label));
     }
   }
 
@@ -689,7 +693,7 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
       var undoEdits =
           edits.stream().map(e -> e.apply(cfg)).collect(ImmutableList.toImmutableList()).reverse();
       cfg.endSection();
-      return new Section(CFGEdit.undoLabel(label), undoEdits);
+      return new Section(undoLabel(label), undoEdits);
     }
   }
 

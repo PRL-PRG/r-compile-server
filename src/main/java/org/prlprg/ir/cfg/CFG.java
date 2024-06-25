@@ -318,10 +318,8 @@ public class CFG
           assert arg.cfg() == null || arg.cfg() == this;
           assert !nodes.containsKey(arg.id()) || nodes.get(arg.id()) == arg;
 
-          if (arg.cfg() != null) {
-            if (!nodes.containsKey(arg.id())) {
-              errors.add(new CFGVerifyException.UntrackedArg(bb.id(), instrOrPhi.id(), arg.id()));
-            }
+          if (arg.cfg() != null && !nodes.containsKey(arg.id())) {
+            errors.add(new CFGVerifyException.UntrackedArg(bb.id(), instrOrPhi.id(), arg.id()));
           }
         }
       }

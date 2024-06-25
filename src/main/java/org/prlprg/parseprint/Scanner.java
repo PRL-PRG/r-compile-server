@@ -1057,46 +1057,7 @@ public class Scanner {
     setPosition(position().advanced(c));
   }
 
-  // TODO: Remove `tempBuffer` and the logic around `setPosition` after we resolve any encountered
-  //  issues with the offset being wrong, and tested enough that there probably aren't any more.
-  char[] tempBuffer = new char[64];
-  int tempBufferSize = 0;
-
   private void setPosition(Position p) {
-    var delta = (int) (p.offset() - offset);
-    if (delta < tempBufferSize - 1) {
-      var prevTempBuffer = new char[64];
-      var prevTempBufferSize = tempBufferSize;
-      System.arraycopy(tempBuffer, 0, prevTempBuffer, 0, tempBufferSize);
-      try {
-        tempBufferSize = input.read(tempBuffer);
-        input.unread(tempBuffer, 0, tempBufferSize);
-      } catch (IOException e) {
-        // skip
-      }
-      var realDelta = 0;
-      var areEqual = false;
-      while (!areEqual && realDelta < tempBufferSize) {
-        areEqual = true;
-        for (var i = realDelta; i < prevTempBufferSize; i++) {
-          if (tempBuffer[i - realDelta] != prevTempBuffer[i]) {
-            areEqual = false;
-            break;
-          }
-        }
-        realDelta++;
-      }
-
-      assert areEqual
-          : "no equality: "
-              + Strings.quote(String.valueOf(tempBuffer, 0, tempBufferSize))
-              + " vs "
-              + Strings.quote(String.valueOf(prevTempBuffer, 0, prevTempBufferSize));
-      if (delta != realDelta) {
-        throw fail("delta mismatch: " + delta + " != " + realDelta);
-      }
-    }
-
     offset = p.offset();
     line = p.line();
     column = p.column();

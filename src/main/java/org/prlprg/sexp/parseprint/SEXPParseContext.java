@@ -561,7 +561,7 @@ public class SEXPParseContext implements HasSEXPParseContext {
     }
 
     @ParseMethod
-    private Object parse(Parser p, Class<?> clazz) {
+    private Object parse(Parser ignored, Class<?> clazz) {
       throw new UnsupportedOperationException(
           "SEXPParseContext#Bindings can only parse lists and tagged elements: given "
               + clazz.getName());

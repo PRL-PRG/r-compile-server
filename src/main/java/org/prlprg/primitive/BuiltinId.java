@@ -65,7 +65,7 @@ public record BuiltinId(int index) {
   // region serialization and deserialization
   @ParseMethod
   private static BuiltinId parse(Parser p) {
-    return BuiltinId.referencedBy(p.parse(RegSymSXP.class));
+    return referencedBy(p.parse(RegSymSXP.class));
   }
 
   @PrintMethod

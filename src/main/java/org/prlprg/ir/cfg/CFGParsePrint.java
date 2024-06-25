@@ -434,7 +434,7 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
       }
 
       @ParseMethod
-      private Node parseNode(Parser p, Class<? extends Node> nodeClass) {
+      private Node parseNode(Parser p) {
         var id = (NodeId<?>) p.parse(NodeId.class);
 
         // The ID may exist, but in a `Void` instruction that got assigned an "arbitrary" unused ID.

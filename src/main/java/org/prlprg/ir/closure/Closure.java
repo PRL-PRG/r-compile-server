@@ -109,11 +109,6 @@ public final class Closure extends CodeObject {
     optimizedVersions = new TreeMap<>();
   }
 
-  /** Name of the closure for debugging, typically the name of the variable it's assigned to. */
-  public String name() {
-    return super.name();
-  }
-
   /**
    * The GNU-R closure this was created from.
    *

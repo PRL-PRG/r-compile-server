@@ -16,7 +16,7 @@ public sealed interface StaticEnv extends RValue, GlobalNode {
 
   /** All global static environments, associated to their name. */
   ImmutableMap<String, StaticEnv> ALL =
-      Stream.of(StaticEnv.GLOBAL, StaticEnv.BASE, StaticEnv.NOT_CLOSED, StaticEnv.ELIDED)
+      Stream.of(GLOBAL, BASE, NOT_CLOSED, ELIDED)
           .collect(ImmutableMap.toImmutableMap(StaticEnv::name, e -> e));
 
   /** Descriptive, uniquely identifying name of this environment. */

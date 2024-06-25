@@ -121,17 +121,17 @@ public enum Troolean implements Lattice<Troolean> {
 
   /** Anything is a subset of MAYBE, otherwise (if YES or NO) they must be equal. */
   public boolean isSubsetOf(YesOrMaybe other) {
-    return isSubset(this, Troolean.of(other));
+    return isSubset(this, of(other));
   }
 
   /** Anything is a subset of MAYBE, otherwise (if YES or NO) they must be equal. */
   public boolean isSubsetOf(NoOrMaybe other) {
-    return isSubset(this, Troolean.of(other));
+    return isSubset(this, of(other));
   }
 
   /** Anything is a subset of MAYBE, otherwise (if YES/true or NO/false) they must be equal. */
   public boolean isSubsetOf(boolean other) {
-    return isSubset(this, Troolean.of(other));
+    return isSubset(this, of(other));
   }
 
   /** MAYBE is a superset of anything, otherwise (if YES or NO) they must be equal. */
@@ -142,17 +142,17 @@ public enum Troolean implements Lattice<Troolean> {
 
   /** MAYBE is a superset of anything, otherwise (if YES or NO) they must be equal. */
   public boolean isSupersetOf(YesOrMaybe other) {
-    return isSuperset(this, Troolean.of(other));
+    return isSuperset(this, of(other));
   }
 
   /** MAYBE is a superset of anything, otherwise (if YES or NO) they must be equal. */
   public boolean isSupersetOf(NoOrMaybe other) {
-    return isSuperset(this, Troolean.of(other));
+    return isSuperset(this, of(other));
   }
 
   /** MAYBE is a superset of anything, otherwise (if YES/true or NO/false) they must be equal. */
   public boolean isSupersetOf(boolean other) {
-    return isSuperset(this, Troolean.of(other));
+    return isSuperset(this, of(other));
   }
 
   /** If args are YES and NO, or either is MAYBE, returns MAYBE. */

@@ -29,10 +29,10 @@ public class InvalidNode implements DeoptReason, RValue, FrameState, GlobalNode 
    * {@linkplain BB basic block} gets a new predecessor, and when the phi is added to a block
    * without preset input nodes.
    */
-  public static final InvalidNode UNSET_PHI_INPUT = InvalidNode.create("unsetPhiInput");
+  public static final InvalidNode UNSET_PHI_INPUT = create("unsetPhiInput");
 
   public static InvalidNode todoGlobal() {
-    return InvalidNode.create("todoGlobal");
+    return create("todoGlobal");
   }
 
   private final GlobalNodeId<InvalidNode> id;

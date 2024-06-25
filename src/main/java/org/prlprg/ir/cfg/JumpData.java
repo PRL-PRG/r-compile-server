@@ -80,7 +80,7 @@ public sealed interface JumpData<I extends Jump> extends InstrData<I> {
     }
 
     @Override
-    public org.prlprg.ir.cfg.Checkpoint make(CFG cfg, NodeId<? extends Instr> id) {
+    public Checkpoint make(CFG cfg, NodeId<? extends Instr> id) {
       return new CheckpointImpl(cfg, id, this);
     }
   }

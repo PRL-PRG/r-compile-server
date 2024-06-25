@@ -3,10 +3,10 @@ package org.prlprg.ir.cfg;
 import org.prlprg.ir.cfg.StmtData.FrameState_;
 
 /**
- * {@link Stmt} (IR instruction) which produces a {@linkplain org.prlprg.ir.cfg.FrameState
- * frame-state} (snapshot of the current stack top).
+ * {@link Stmt} (IR instruction) which produces a {@linkplain FrameState frame-state} (snapshot of
+ * the current stack top).
  */
-public interface FrameStateStmt extends Stmt, org.prlprg.ir.cfg.FrameState {
+public interface FrameStateStmt extends Stmt, FrameState {
   @Override
   NodeId<? extends FrameStateStmt> id();
 

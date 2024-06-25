@@ -278,7 +278,7 @@ public class RTypes {
   public static RType builtin(BuiltinId id) {
     // TODO: Specialize
     if (id.name().equals("environment")) {
-      return RTypes.simple(SEXPType.ENV);
+      return simple(SEXPType.ENV);
     }
     return ANY_SYM_FUN;
   }

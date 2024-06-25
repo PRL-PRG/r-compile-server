@@ -136,8 +136,8 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
           i++;
         }
         if (i == 2) {
+          i++;
           if (jump != null) {
-            i++;
             next = jump;
             return next;
           }
@@ -174,6 +174,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
               cfg()
                   .record(
                       new CFGEdit.RemoveJump(BB.this), CFGEdit.InsertJump.of(BB.this, (Jump) next));
+          case 3 -> throw new NoSuchElementException();
           default -> throw new UnreachableError();
         }
         next = null;
@@ -211,8 +212,8 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
               i++;
             }
             if (i == 1) {
+              i++;
               if (jump != null) {
-                i++;
                 next = jump;
                 return next;
               }
@@ -245,6 +246,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
                       .record(
                           new CFGEdit.RemoveJump(BB.this),
                           CFGEdit.InsertJump.of(BB.this, (Jump) next));
+              case 2 -> throw new NoSuchElementException();
               default -> throw new UnreachableError();
             }
             next = null;

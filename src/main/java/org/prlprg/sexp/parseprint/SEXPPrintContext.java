@@ -237,11 +237,9 @@ public class SEXPPrintContext implements HasSEXPPrintContext {
           w.write('<');
           p.print(sexp.envType());
 
-          if (!(sexp instanceof EmptyEnvSXP)) {
-            if (printAndCheckRef(sexp, p)) {
-              printGeneralEnd(p);
-              return;
-            }
+          if (!(sexp instanceof EmptyEnvSXP) && printAndCheckRef(sexp, p)) {
+            printGeneralEnd(p);
+            return;
           }
           if (sexp instanceof NamespaceEnvSXP ns) {
             w.write(' ');
@@ -326,7 +324,7 @@ public class SEXPPrintContext implements HasSEXPPrintContext {
   }
 
   @PrintMethod
-  private void print(SEXP sexp, Printer p) {
+  private void print(SEXP sexp, Printer ignored) {
     throw new AssertionError("unhandled SEXP class: " + sexp.getClass().getSimpleName());
   }
 
@@ -389,7 +387,7 @@ public class SEXPPrintContext implements HasSEXPPrintContext {
     }
 
     @PrintMethod
-    private void print(Object o, Printer p) {
+    private void print(Object o, Printer ignored) {
       throw new UnsupportedOperationException(
           "SEXPPrintContext#Bindings can only print lists and tagged elements: given "
               + o.getClass().getName());

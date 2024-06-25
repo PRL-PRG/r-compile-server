@@ -899,24 +899,26 @@ class PirInstrOrPhiParseContext {
         assert type.promise() != null && type.missing() != null;
         type = RTypes.primVec(type.primVec().notScalar(), type.promise(), type.missing());
       }
+
       if (s.trySkip('#') && type.primVec() != null) {
         assert type.promise() != null && type.missing() != null;
         type = RTypes.primVec(type.primVec().notNAOrNaN(), type.promise(), type.missing());
       }
+
       if (s.trySkip('^')) {
         type = type.notStrict();
       } else if (s.trySkip('~')) {
         type = type.promiseWrapped();
       }
-      if (s.trySkip('-')) {
-        // REACH: Remove attributes
-      } else if (s.trySkip('_')) {
-        // REACH: Add all attributes except notFastVecElt
-      } else if (s.trySkip('+')) {
-        // REACH: Add all attributes except object
-      } else {
-        // REACH: Add unknown attributes
-      }
+
+      // REACH: Remove attributes (`if`)
+      s.trySkip('-');
+      // REACH: Add all attributes except notFastVecElt (`else if`)
+      s.trySkip('_');
+      // REACH: Add all attributes except object (`else if`)
+      s.trySkip('+');
+      // REACH: Add unknown attributes (`else`)
+
       if (s.trySkip(" | miss")) {
         type = type.maybeMissing();
       }
@@ -1729,14 +1731,17 @@ abstract sealed class PirId {
   private static final class GlobalLogical extends PirId {
     private final Logical value;
 
+    /** How logicals are printed in PIR output. */
+    private static String pirLogicalPrint(Logical value) {
+      return switch (value) {
+        case TRUE -> "true";
+        case FALSE -> "false";
+        case NA -> "na-lgl";
+      };
+    }
+
     GlobalLogical(Logical value) {
-      super(
-          switch (value) {
-            case TRUE -> "true";
-            case FALSE -> "false";
-            case NA -> "na-lgl";
-          },
-          "_" + value);
+      super(pirLogicalPrint(value), "_" + value);
       this.value = value;
     }
 
