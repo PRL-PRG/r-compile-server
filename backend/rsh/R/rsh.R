@@ -7,19 +7,9 @@ NULL
 # save the original compiler::cmpfun
 .gnur_cmpfun <- compiler::cmpfun
 
-
 # initialize globals
 .onLoad <- function(libname, pkgname) {
-  body_bc_tmpl <-
-    compiler::compile(
-      quote(
-        .External2(".PATCH_ADDR", ".PATCH_CLOSURE")
-      )
-    )
-
-  str(compiler:::disassemble(body_bc_tmpl))
-
-  .Call(C_initialize, body_bc_tmpl, C_call_fun)
+  .Call(C_initialize, C_call_fun)
 }
 
 #' @export

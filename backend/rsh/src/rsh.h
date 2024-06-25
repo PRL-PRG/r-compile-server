@@ -4,6 +4,7 @@
 #include <vector>
 
 using u8 = uint8_t;
+using i32 = int32_t;
 using usize = std::size_t;
 
 namespace rsh {
