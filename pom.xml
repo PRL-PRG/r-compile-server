@@ -14,7 +14,7 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <maven.compiler.source>22</maven.compiler.source>
     <maven.compiler.target>${maven.compiler.source}</maven.compiler.target>
-    <pmdVersion>7.0.0</pmdVersion>
+    <pmdVersion>7.2.0</pmdVersion>
   </properties>
 
   <dependencyManagement>
@@ -218,7 +218,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-pmd-plugin</artifactId>
-        <version>3.21.2</version>
+        <version>3.23.0</version>
         <configuration>
           <!-- This prevents the warning "Unable to locate Source XRef to link to - DISABLED" -->
           <!-- If we want source-links in the `site` pmd report we need to add jxr instead, -->
