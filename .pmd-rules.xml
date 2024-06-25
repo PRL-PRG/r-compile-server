@@ -40,12 +40,15 @@ under the License.
     <rule ref="category/java/bestpractices.xml/UnusedFormalParameter" />
     <rule ref="category/java/bestpractices.xml/UnusedLocalVariable" />
     <rule ref="category/java/bestpractices.xml/UnusedPrivateField" />
-    <rule ref="category/java/bestpractices.xml/UnusedPrivateMethod" />
+    <rule ref="category/java/bestpractices.xml/UnusedPrivateMethod">
+        <properties>
+            <property name="ignoredAnnotations" value="org.prlprg.parseprint.ParseMethod,org.prlprg.parseprint.PrintMethod" />
+        </properties>
+    </rule>
 
     <rule ref="category/java/codestyle.xml/EmptyControlStatement" />
     <rule ref="category/java/codestyle.xml/ExtendsObject" />
     <rule ref="category/java/codestyle.xml/ForLoopShouldBeWhileLoop" />
-    <rule ref="category/java/codestyle.xml/TooManyStaticImports" />
     <rule ref="category/java/codestyle.xml/UnnecessaryFullyQualifiedName" />
     <rule ref="category/java/codestyle.xml/UnnecessaryModifier" />
     <rule ref="category/java/codestyle.xml/UnnecessaryReturn" />
