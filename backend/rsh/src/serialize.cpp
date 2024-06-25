@@ -1,5 +1,8 @@
 #include "serialize.h"
+#include "Rinternals.h"
 #include <cstring>
+
+namespace rsh {
 
 struct ReadBuffer {
   ReadBuffer(u8 const *data, usize size)
@@ -9,8 +12,10 @@ struct ReadBuffer {
   u8 const *curr;
 };
 
-int get_byte(R_inpstream_t stream);
-void get_buf(R_inpstream_t stream, void *buffer, int length);
+static int get_byte(R_inpstream_t stream);
+static void get_buf(R_inpstream_t stream, void *buffer, int length);
+static void put_byte(R_outpstream_t stream, int c);
+static void put_buf(R_outpstream_t stream, void *buf, int length);
 
 SEXP deserialize(u8 const *data, usize size) {
   R_inpstream_st in;
@@ -24,7 +29,20 @@ SEXP deserialize(u8 const *data, usize size) {
   return res;
 }
 
-int get_byte(R_inpstream_t stream) {
+Bytes serialize(SEXP obj) {
+  R_outpstream_st out;
+  Bytes b;
+
+  R_InitOutPStream(&out, reinterpret_cast<R_pstream_data_t>(&b),
+                   R_pstream_xdr_format, 2, put_byte, put_buf, NULL,
+                   R_NilValue);
+
+  R_Serialize(obj, &out);
+
+  return b;
+}
+
+static int get_byte(R_inpstream_t stream) {
   ReadBuffer *b = static_cast<ReadBuffer *>(stream->data);
 
   if (b->curr > b->end) {
@@ -34,7 +52,7 @@ int get_byte(R_inpstream_t stream) {
   return static_cast<int>(*(b->curr++));
 }
 
-void get_buf(R_inpstream_t stream, void *buffer, int length) {
+static void get_buf(R_inpstream_t stream, void *buffer, int length) {
   ReadBuffer *b = static_cast<ReadBuffer *>(stream->data);
   if (b->curr + length > b->end) {
     Rf_error("Read past end of buffer");
@@ -42,3 +60,15 @@ void get_buf(R_inpstream_t stream, void *buffer, int length) {
   memcpy(buffer, b->curr, length);
   b->curr += length;
 }
+
+static void put_byte(R_outpstream_t stream, int c) {
+  Bytes *b = static_cast<Bytes *>(stream->data);
+  b->push_back(static_cast<u8>(c));
+}
+
+static void put_buf(R_outpstream_t stream, void *buf, int length) {
+  Bytes *b = static_cast<Bytes *>(stream->data);
+  b->insert(b->end(), static_cast<u8 *>(buf), static_cast<u8 *>(buf) + length);
+}
+
+} // namespace rsh

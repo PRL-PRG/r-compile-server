@@ -39,12 +39,7 @@ rsh_load <- function(obj_file) {
 
 #' @export
 rsh_compile <- function(f) {
-  # TODO: move into C++ code
-  sf <- serialize(f, NULL, version = 2)
-  name <- paste0("f_", digest::digest(sf, algo = "sha1", serialize = FALSE))
-  # TODO: this one should return new function
-  #  once we return a new function, we can simplify the API - just rsh_cmpfun would be enough
-  .Call(C_compile_fun, name, f, sf)
+  .Call(C_compile_fun, f, as.character(substitute(f)))
 }
 
 #' @export
