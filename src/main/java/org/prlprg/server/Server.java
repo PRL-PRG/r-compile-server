@@ -1,6 +1,7 @@
 package org.prlprg.server;
 
 import java.io.Closeable;
+import java.io.IOException;
 
 /**
  * An instance of the compile server which communicates with clients.
@@ -9,4 +10,7 @@ import java.io.Closeable;
  *
  * @implNote This uses gRPC.
  */
-public final class Server implements Closeable {}
+public final class Server implements Closeable {
+  @Override
+  public void close() throws IOException {}
+}
