@@ -3,9 +3,14 @@ package org.prlprg.ir.cfg;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
+import java.util.Optional;
+import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.ir.analysis.DomTree;
+import org.prlprg.ir.cfg.StmtData.MkCls;
+import org.prlprg.ir.cfg.StmtData.MkProm;
+import org.prlprg.ir.closure.CodeObject;
 
 interface CFGQuery {
   // region general properties
@@ -91,11 +96,24 @@ interface CFGQuery {
 
   // region iterate BBs
   /**
+   * Stream every basic block.
+   *
+   * <p>Adding or removing BBs in the CFG during iteration (including {@linkplain
+   * BB#splitNewSuccessor(int) splitting}/{@linkplain BB#mergeWithSuccessor(BB) merging}) causes
+   * undefined behavior.
+   *
+   * @see #iter()
+   */
+  Stream<BB> stream();
+
+  /**
    * Iterate through every basic block in a deterministic but unspecified way.
    *
    * <p>Adding or removing BBs in the CFG during iteration (including {@linkplain
    * BB#splitNewSuccessor(int) splitting}/{@linkplain BB#mergeWithSuccessor(BB) merging}) causes
    * undefined behavior.
+   *
+   * @see #stream()
    */
   Iterable<BB> iter();
 
@@ -159,6 +177,19 @@ interface CFGQuery {
 
   // region iterate nodes
   /**
+   * Stream every instruction and phi (within every {@linkplain BB basic block}.
+   *
+   * <p>BBs are streamed with {@link CFG#stream()}. Instructions and phis are streamed with {@link
+   * BB#stream()}.
+   *
+   * <p>Be aware that this iterable may be very large. Also, mutating the {@link CFG} will affect
+   * the iterator.
+   */
+  default Stream<InstrOrPhi> streamInstrsAndPhis() {
+    return stream().flatMap(BB::stream);
+  }
+
+  /**
    * Iterate through every instruction and phi (within every {@linkplain BB basic block}.
    *
    * <p>BBs are iterated with {@link CFG#iter()} (in a deterministic but unspecified way).
@@ -166,8 +197,10 @@ interface CFGQuery {
    *
    * <p>Be aware that this iterable may be very large. Also, mutating the {@link CFG} will affect
    * the iterator.
+   *
+   * <p>The iterator supports removing the current element.
    */
-  default Iterable<InstrOrPhi> instrsAndPhis() {
+  default Iterable<InstrOrPhi> iterInstrsAndPhis() {
     return () ->
         new Iterator<>() {
           private final Iterator<BB> bbIter = iter().iterator();
@@ -193,7 +226,28 @@ interface CFGQuery {
             }
             return instrIter.next();
           }
+
+          @Override
+          public void remove() {
+            if (instrIter == null) {
+              throw new IllegalStateException("No more instructions or phis in the CFG.");
+            }
+            instrIter.remove();
+          }
         };
+  }
+
+  /**
+   * Iterate through inner {@link CodeObject}s: inner data-structures containing more CFGs.
+   *
+   * <p>Specifically, visits the closure in every {@link MkCls} and promise in every {@link MkProm}.
+   *
+   * <p>The order is deterministic but otherwise unspecified.
+   */
+  default Stream<CodeObject> streamInnerCodeObjects() {
+    return stream()
+        .flatMap(bb -> bb.stmts().stream())
+        .flatMap(stmt -> Optional.ofNullable(stmt.codeObject()).stream());
   }
   // endregion iterate nodes
 }

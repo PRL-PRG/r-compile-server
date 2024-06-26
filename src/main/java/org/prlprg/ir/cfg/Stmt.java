@@ -1,6 +1,13 @@
 package org.prlprg.ir.cfg;
 
 import com.google.common.collect.ImmutableList;
+import java.util.Arrays;
+import javax.annotation.Nullable;
+import org.prlprg.ir.cfg.StmtData.MkCls;
+import org.prlprg.ir.cfg.StmtData.MkProm;
+import org.prlprg.ir.closure.CodeObject;
+import org.prlprg.util.Reflection;
+import org.prlprg.util.Streams;
 
 /**
  * IR instruction which isn't the final instruction of a basic block and doesn't affect control
@@ -9,6 +16,13 @@ import com.google.common.collect.ImmutableList;
  * @see Instr
  */
 public non-sealed interface Stmt extends Instr {
+  /**
+   * If the statement contains a code object (closure or promise), returns it.
+   *
+   * <p>Specifically, {@link MkCls} and {@link MkProm} contain code objects.
+   */
+  @Nullable CodeObject codeObject();
+
   @Override
   StmtData<?> data();
 
@@ -51,6 +65,8 @@ abstract non-sealed class StmtImpl<D extends StmtData<?>> extends InstrImpl<D> i
     }
   }
 
+  private @Nullable CodeObject codeObject;
+
   /**
    * Return the given statement casted.
    *
@@ -66,8 +82,38 @@ abstract non-sealed class StmtImpl<D extends StmtData<?>> extends InstrImpl<D> i
   }
 
   @Override
+  public @Nullable CodeObject codeObject() {
+    return codeObject;
+  }
+
+  @Override
   public NodeId<? extends Stmt> id() {
     return uncheckedCastId();
+  }
+
+  @Override
+  protected void verify(boolean isInsert) throws InstrVerifyException {
+    super.verify(isInsert);
+    computeCodeObject();
+  }
+
+  private void computeCodeObject() {
+    // Reflectively get all Node record components
+    if (!(data() instanceof Record r)) {
+      throw new AssertionError("`InstrData` must be a record");
+    }
+    var components = data().getClass().getRecordComponents();
+
+    codeObject =
+        Arrays.stream(components)
+            .filter(c -> CodeObject.class.isAssignableFrom(c.getType()))
+            .map(c -> (CodeObject) Reflection.getComponent(r, c))
+            .collect(
+                Streams.intoOneOrThrow(
+                    () ->
+                        new UnsupportedOperationException(
+                            "Didn't expect instruction with multiple code objects")))
+            .orElse(null);
   }
 }
 

@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.ir.analysis.CFGAnalyses;
@@ -22,6 +23,7 @@ import org.prlprg.ir.cfg.CFGEdit.Semantic;
 import org.prlprg.ir.cfg.CFGIterator.DomTreeBfs;
 import org.prlprg.ir.cfg.CFGVerifyException.BrokenInvariant;
 import org.prlprg.ir.cfg.CFGVerifyException.MissingJump;
+import org.prlprg.ir.cfg.CFGVerifyException.PhisInEntryBB;
 import org.prlprg.ir.cfg.CFGVerifyException.PhisInSinglePredecessorBB;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.util.WeakHashSet;
@@ -130,6 +132,11 @@ public class CFG
   // endregion general properties
 
   // region iterate
+  @Override
+  public Stream<BB> stream() {
+    return bbs.values().stream();
+  }
+
   @Override
   public Iterable<BB> iter() {
     return bbs.values();
@@ -304,8 +311,10 @@ public class CFG
         errors.add(new MissingJump(bb.id()));
       }
 
-      // Only basic blocks with two or more predecessors have phi nodes.
-      if (bb.predecessors().size() < 2 && !bb.phis().isEmpty()) {
+      // The entry block doesn't have any phi nodes, nor do any blocks with < 2 predecessors.
+      if (bb == entry && !bb.phis().isEmpty()) {
+        errors.add(new PhisInEntryBB());
+      } else if (bb.predecessors().size() < 2 && !bb.phis().isEmpty()) {
         errors.add(new PhisInSinglePredecessorBB(bb.id()));
       }
 

@@ -5,6 +5,7 @@ import static org.prlprg.AppConfig.EAGERLY_VERIFY_PHI_INPUTS;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Streams;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -21,6 +22,7 @@ import java.util.SequencedCollection;
 import java.util.SequencedSet;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.parseprint.ParseMethod;
@@ -94,6 +96,11 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
   @Override
   public int numInstrs() {
     return stmts.size() + (jump == null ? 0 : 1);
+  }
+
+  @Override
+  public Stream<InstrOrPhi> stream() {
+    return Streams.concat(phis.stream(), stmts.stream(), Stream.ofNullable(jump));
   }
 
   @Override

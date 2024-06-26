@@ -8,7 +8,7 @@ interface CFGVerify extends CFGQuery {
    * <ul>
    *   <li>Every basic block has a non-null jump (could be a {@link JumpData.Return} or {@link
    *       JumpData.Unreachable}).
-   *   <li>Only basic blocks with two or more predecessors have phi nodes.
+   *   <li>The entry block doesn't have any phi nodes, nor do any blocks with < 2 predecessors.
    *   <li>Instructions and phis don't have arguments that were removed from the CFG (or were never
    *       in the CFG).
    *   <li>Every phi input node is global or originates from a block that the incoming BB dominates

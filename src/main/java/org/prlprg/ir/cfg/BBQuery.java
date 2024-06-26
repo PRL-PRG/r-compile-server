@@ -5,6 +5,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.SequencedCollection;
+import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
 
@@ -71,12 +72,21 @@ interface BBQuery extends Iterable<InstrOrPhi> {
   int numInstrs();
 
   /**
+   * Stream the basic block's children: phis, statements, and jump.
+   *
+   * @see #iterator()
+   */
+  Stream<InstrOrPhi> stream();
+
+  /**
    * The basic block's children: phis, statements, and jump.
    *
    * <p>The iterator supports removing the current element.
    *
    * <p>Be aware that mutating the block will affect this iterator the same way it would be affected
    * while iterating {@link #stmts()}, or will affect the jump before it's reached.
+   *
+   * @see #stream()
    */
   Iterator<InstrOrPhi> iterator();
 

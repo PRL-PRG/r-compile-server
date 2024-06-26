@@ -113,8 +113,16 @@ public class ClosureVersion {
    * Set the properties of the closure version.
    *
    * <p>The properties must be guaranteed by the version's body, this isn't checked.
+   *
+   * @throws IllegalArgumentException If the closure version is assigned less specific properties
+   *     than it already has (doesn't make sense for it to become less optimized).
    */
   public void setProperties(Properties properties) {
+    if (!properties.isSubsetOf(this.properties)) {
+      throw new IllegalArgumentException(
+          "New properties must be a subset of the old properties (doesn't make sense for it to become less optimized).");
+    }
+
     this.properties = properties;
   }
 

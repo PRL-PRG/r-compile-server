@@ -94,8 +94,7 @@ interface CFGCleanup extends CFGQuery, CFGAnalyses, CFGIntrinsicMutate, CFGCompo
                 });
 
             // Merge basic blocks with only one successor that has only one predecessor (and vice
-            // versa),
-            // and blocks with only one successor and no instructions or phis.
+            // versa), and blocks with only one successor, no instructions, and no unique phi input.
             var iter1 = new CFGIterator.Dfs((CFG) this);
             while (iter1.hasNext()) {
               var bb = iter1.next();

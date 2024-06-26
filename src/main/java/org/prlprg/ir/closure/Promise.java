@@ -35,9 +35,8 @@ public final class Promise extends CodeObject {
   // Otherwise they are effectively final.
   private Bc bc;
   private CFG body;
-  // Except `eagerValue` is set even after `LateConstruct`.
-  private @Nullable RValue eagerValue;
   private @IsEnv RValue env;
+  // Except `properties` is set even after `LateConstruct`.
   private Properties properties;
 
   /**
@@ -47,9 +46,6 @@ public final class Promise extends CodeObject {
    *
    * <p>IR code is assumed to correspond to the GNU-R bytecode, and eager value and properties are
    * assumed to be correct.
-   *
-   * <p>The eager value is initially {@code null}. It can be assigned later via {@link
-   * #assignEagerValue}.
    *
    * @param name A descriptive name for the promise for debugging. Pass the empty string if there
    *     isn't a good one.
@@ -82,23 +78,6 @@ public final class Promise extends CodeObject {
     return body;
   }
 
-  /** The eager value of the promise, if known. */
-  public @Nullable RValue eagerValue() {
-    return eagerValue;
-  }
-
-  /**
-   * Assign an eager value to the promise.
-   *
-   * @throws IllegalStateException If the promise already has an eager value.
-   */
-  public void assignEagerValue(RValue value) {
-    if (eagerValue != null) {
-      throw new IllegalStateException("Eager value already assigned.");
-    }
-    eagerValue = value;
-  }
-
   /** The environment that the promise gets evaluated in. */
   public @IsEnv RValue env() {
     return env;
@@ -109,19 +88,47 @@ public final class Promise extends CodeObject {
     return properties;
   }
 
+  /**
+   * The eager value of the promise, if known.
+   *
+   * <p>This is in {@link #properties()} because it's one of the things inferred from the promise
+   * body (similar to whether it performs reflection).
+   */
+  public @Nullable RValue eagerValue() {
+    return properties.eagerValue();
+  }
+
+  /**
+   * Set the properties of the promise.
+   *
+   * <p>The properties must be guaranteed by the promise's body, this isn't checked.
+   *
+   * @throws IllegalArgumentException If the promise is assigned less specific properties than it
+   *     already has (doesn't make sense for it to become less optimized). <b>OR</b> if the promise
+   *     previously had an eager value, and now it has a different one (also doesn't make sense).
+   */
+  public void setProperties(Properties properties) {
+    if (!properties.isSubsetOf(this.properties)) {
+      throw new IllegalArgumentException(
+          "New properties must be a subset of the old properties (doesn't make sense for it to become less optimized).");
+    }
+
+    this.properties = properties;
+  }
+
   @Override
   public @UnmodifiableView List<Node> outerCfgNodes() {
-    return eagerValue != null ? List.of(eagerValue, env) : List.of(env);
+    return properties.eagerValue != null ? List.of(properties.eagerValue, env) : List.of(env);
   }
 
   @Override
   public void unsafeReplaceOuterCfgNode(Node oldNode, Node newNode) {
-    if (eagerValue != null && eagerValue.equals(oldNode)) {
+    if (properties.eagerValue != null && properties.eagerValue.equals(oldNode)) {
       if (!(newNode instanceof RValue newEagerValue)) {
         throw new IllegalArgumentException(
             "Promise replacement `eagerValue` node must be an RValue.");
       }
-      eagerValue = newEagerValue;
+      properties = properties.withEagerValue(newEagerValue);
     }
 
     if (env.equals(oldNode)) {
@@ -164,9 +171,15 @@ public final class Promise extends CodeObject {
    *
    * <p>Also, currently the only property is that a promise doesn't perform reflection.
    */
-  public record Properties(ImmutableSet<Property> flags) implements Lattice<Properties> {
+  public record Properties(ImmutableSet<Property> flags, @Nullable RValue eagerValue)
+      implements Lattice<Properties> {
     /** Properties that don't guarantee anything. */
-    public static final Properties EMPTY = new Properties(ImmutableSet.of());
+    public static final Properties EMPTY = new Properties(ImmutableSet.of(), null);
+
+    /** Returns the same properties but with a different eager value. */
+    public Properties withEagerValue(RValue eagerValue) {
+      return new Properties(flags, eagerValue);
+    }
 
     /** Whether the properties don't guarantee anything, i.e. equal {@link Properties#EMPTY}. */
     public boolean isEmpty() {
@@ -187,24 +200,50 @@ public final class Promise extends CodeObject {
       return effects;
     }
 
-    /** Whether these properties guarantee everything that the other properties do. */
+    /**
+     * Whether these properties guarantee everything that the other properties do.
+     *
+     * @throws IllegalArgumentException If both properties have different non-null eager values.
+     */
     @Override
     public boolean isSubsetOf(Properties other) {
-      return flags.containsAll(other.flags);
+      if (eagerValue != null && other.eagerValue != null && !eagerValue.equals(other.eagerValue)) {
+        throw new IllegalArgumentException("Properties have different non-null eager values.");
+      }
+
+      return flags.containsAll(other.flags) && (eagerValue != null || other.eagerValue == null);
     }
 
-    /** Returns properties that only guarantee what both these and the other properties do. */
+    /**
+     * Returns properties that only guarantee what both these and the other properties do.
+     *
+     * @throws IllegalArgumentException If both properties have different non-null eager values.
+     */
     @Override
     public Properties union(Properties other) {
+      if (eagerValue != null && other.eagerValue != null && !eagerValue.equals(other.eagerValue)) {
+        throw new IllegalArgumentException("Properties have different non-null eager values.");
+      }
+
       return new Properties(
-          flags.stream().filter(other.flags::contains).collect(ImmutableSet.toImmutableSet()));
+          flags.stream().filter(other.flags::contains).collect(ImmutableSet.toImmutableSet()),
+          eagerValue == null ? null : other.eagerValue);
     }
 
-    /** Returns properties that guarantee everything that these and the other properties do. */
+    /**
+     * Returns properties that guarantee everything that these and the other properties do.
+     *
+     * @throws IllegalArgumentException If both properties have different non-null eager values.
+     */
     @Override
     public Properties intersection(Properties other) {
+      if (eagerValue != null && other.eagerValue != null && !eagerValue.equals(other.eagerValue)) {
+        throw new IllegalArgumentException("Properties have different non-null eager values.");
+      }
+
       return new Properties(
-          ImmutableSet.<Property>builder().addAll(flags).addAll(other.flags).build());
+          ImmutableSet.<Property>builder().addAll(flags).addAll(other.flags).build(),
+          eagerValue != null ? eagerValue : other.eagerValue);
     }
 
     /** Flag in {@link Properties} (flag of a promise which allows optimizations in the invoker). */
@@ -238,7 +277,6 @@ public final class Promise extends CodeObject {
     public void doSet(Promise data) {
       bc = data.bc;
       body = data.body;
-      eagerValue = data.eagerValue;
       env = data.env;
       properties = data.properties;
     }
@@ -254,7 +292,6 @@ public final class Promise extends CodeObject {
 
     s.assertAndSkip("env");
     env = p.parse(RValue.class);
-    eagerValue = s.trySkip("with") ? p.parse(RValue.class) : null;
     properties = s.trySkip("has") ? p.parse(Properties.class) : Properties.EMPTY;
 
     s.assertAndSkip("{");
@@ -281,10 +318,6 @@ public final class Promise extends CodeObject {
 
     w.write(" env ");
     p.print(env);
-    if (eagerValue != null) {
-      w.write(" with ");
-      w.runIndented(() -> p.print(eagerValue));
-    }
     if (!properties.isEmpty()) {
       w.write(" has ");
       w.runIndented(() -> p.print(properties));

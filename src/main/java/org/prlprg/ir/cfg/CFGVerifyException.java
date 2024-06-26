@@ -55,6 +55,13 @@ public class CFGVerifyException extends IllegalStateException {
     }
   }
 
+  public record PhisInEntryBB() implements BrokenInvariant {
+    @Override
+    public String toString() {
+      return "Phi nodes in entry BB";
+    }
+  }
+
   public record PhisInSinglePredecessorBB(BBId bbId) implements BrokenInvariant {
     @Override
     public String toString() {

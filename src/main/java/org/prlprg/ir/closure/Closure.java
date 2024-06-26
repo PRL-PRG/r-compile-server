@@ -1,8 +1,11 @@
 package org.prlprg.ir.closure;
 
+import java.util.Iterator;
 import java.util.List;
 import java.util.NavigableMap;
 import java.util.TreeMap;
+import java.util.stream.Stream;
+import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.bc.Bc;
 import org.prlprg.ir.cfg.CFG;
@@ -258,6 +261,65 @@ public final class Closure extends CodeObject {
     }
 
     throw new IllegalArgumentException("Closure version not in this closure.");
+  }
+
+  /**
+   * Stream the baseline and optimized versions.
+   *
+   * @see #iterVersions()
+   */
+  public Stream<ClosureVersion> streamVersions() {
+    return Stream.concat(Stream.of(baselineVersion), optimizedVersions.values().stream());
+  }
+
+  /**
+   * Iterate all versions in order of their index (baseline, "best" call context, ...).
+   *
+   * <p>Optimized versions can be removed. Attempting to remove the baseline version throws {@link
+   * UnsupportedOperationException}.
+   *
+   * @see #streamVersions()
+   */
+  public Iterable<ClosureVersion> iterVersions() {
+    return () ->
+        new Iterator<>() {
+          private boolean returnedBaseline = false;
+          private final Iterator<ClosureVersion> optimizedVersionsIter =
+              optimizedVersions.values().iterator();
+          private @Nullable CallContext lastReturnedCallContext = null;
+          private boolean removed = false;
+
+          @Override
+          public boolean hasNext() {
+            return !returnedBaseline || optimizedVersionsIter.hasNext();
+          }
+
+          @Override
+          public ClosureVersion next() {
+            if (!returnedBaseline) {
+              returnedBaseline = true;
+              return baselineVersion;
+            }
+
+            var next = optimizedVersionsIter.next();
+            lastReturnedCallContext = next.callContext();
+            return next;
+          }
+
+          @Override
+          public void remove() {
+            if (!returnedBaseline) {
+              throw new IllegalStateException("Didn't return a version");
+            } else if (lastReturnedCallContext == null) {
+              throw new UnsupportedOperationException("Can't remove the baseline version");
+            } else if (removed) {
+              throw new IllegalStateException("Already removed the last returned version");
+            }
+
+            optimizedVersions.remove(lastReturnedCallContext);
+            removed = true;
+          }
+        };
   }
 
   @Override
