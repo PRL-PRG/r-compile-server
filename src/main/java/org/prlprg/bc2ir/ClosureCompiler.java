@@ -1,8 +1,8 @@
 package org.prlprg.bc2ir;
 
 import static org.prlprg.bc2ir.CFGCompiler.compileCFG;
-import static org.prlprg.optimizations.PropertiesComputer.computeClosureVersionProperties;
-import static org.prlprg.optimizations.PropertiesComputer.computePromiseProperties;
+import static org.prlprg.ir.analysis.PropertiesComputer.computeClosureVersionProperties;
+import static org.prlprg.ir.analysis.PropertiesComputer.computePromiseProperties;
 
 import org.prlprg.RSession;
 import org.prlprg.bc.Compiler;

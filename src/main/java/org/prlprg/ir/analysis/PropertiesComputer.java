@@ -1,4 +1,4 @@
-package org.prlprg.optimizations;
+package org.prlprg.ir.analysis;
 
 import org.prlprg.ir.cfg.CFG;
 import org.prlprg.ir.closure.ClosureVersion;
