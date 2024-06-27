@@ -13,23 +13,23 @@ import org.junit.jupiter.api.TestInfo;
 import org.prlprg.bc.BCCompiler;
 import org.prlprg.rds.RDSWriter;
 import org.prlprg.service.RshCompiler;
-import org.prlprg.sexp.CloSXP;
-import org.prlprg.sexp.SEXP;
-import org.prlprg.sexp.SEXPs;
-import org.prlprg.sexp.VecSXP;
+import org.prlprg.sexp.*;
 import org.prlprg.util.AbstractGNURBasedTest;
 import org.prlprg.util.Tests;
 
 public class BC2CCompilerTest extends AbstractGNURBasedTest implements Tests {
 
-  //  @Test
-  //  public void test3() throws Exception {
-  //    compileAndCall(
-  //        """
-  //        function (x) { y <- x + 42; y + 42 }
-  //        """,
-  //        "1");
-  //  }
+  @Test
+  public void test3() throws Exception {
+    compileAndCall(
+        """
+          function (x) { y <- x + 42; y + 42 }
+          """,
+        "list(x=1)",
+        (RealSXP v) -> {
+          assertEquals(85.0, v.asReal(0));
+        });
+  }
 
   @Test
   public void testList(TestInfo info) throws Exception {

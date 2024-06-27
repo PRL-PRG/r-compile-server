@@ -11,11 +11,6 @@ extern Rboolean R_Visible;
     return R_NilValue;                                                         \
   }
 
-typedef enum { ADD } BINARY_OP;
-
-// this is just a try to link to functions defined in the rsh package
-SEXP Rsh_fast_binary(BINARY_OP, SEXP, SEXP);
-
 static inline SEXP Rsh_get_var(SEXP sym, SEXP env) {
   SEXP v = Rf_findVar(sym, env);
 
@@ -65,5 +60,21 @@ static inline SEXP Rsh_call_builtin(SEXP call, SEXP fun, SEXP args, SEXP env) {
         SET_TAG(v, Rf_CreateTag(__tag__));                                        \
     }                                                                          \
   } while (0)
+
+typedef enum {
+                ADD
+            } BINARY_OP;
+
+static inline SEXP Rsh_fast_binary(BINARY_OP op, SEXP x, SEXP y) {
+
+    if (TYPEOF(x) == REALSXP && TYPEOF(y) == REALSXP) {
+        return Rf_ScalarReal(REAL(x)[0] + REAL(y)[0]);
+    }
+
+// FIXME: pull in the arith
+    Rf_error("Unsupported type");
+    return R_NilValue;
+}
+
 
 #endif // RSH_H

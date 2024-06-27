@@ -63,18 +63,6 @@ class ByteCodeStack {
     return "%s = %s;".formatted(NAME.formatted(i), expr);
   }
 
-  // TODO: move into compiler
-  public List<String> popPush(int n, String expr, boolean protect) {
-    var lines = new ArrayList<String>(3);
-    lines.add(set(currIdx(-n + 1), expr, false));
-    lines.add("%s;".formatted(pop(n)));
-    push(expr, false);
-    if (protect) {
-      lines.add("%s;".formatted(protect(currIdx(0), curr(0))));
-    }
-    return lines;
-  }
-
   private String protect(int i, String expr) {
     protects.set(i, protects.get(i) + 1);
     return PROTECT_EXPR.formatted(expr);
@@ -182,7 +170,7 @@ public class BC2CCompiler {
 
     var callBuiltIn = "Rsh_call_builtin(%s, %s, %s, %s)".formatted(call, fun, args, NAME_ENV);
     // we are going to pop 4 elements from the stack - all the until the beginning of the call frame
-    body.lines(stack.popPush(4, callBuiltIn, true));
+    popPush(4, callBuiltIn, true);
   }
 
   private void compileGetBuiltin(ConstPool.Idx<RegSymSXP> idx) {
@@ -203,8 +191,7 @@ public class BC2CCompiler {
   }
 
   private void compileAdd() {
-    push("Rsh_fast_binary(ADD, %s, %s)".formatted(stack.curr(-1), stack.curr(0)));
-    pop(2);
+    popPush(2, "Rsh_fast_binary(ADD, %s, %s)".formatted(stack.curr(-1), stack.curr(0)), true);
   }
 
   private void compileGetVar(ConstPool.Idx<RegSymSXP> idx) {
@@ -236,6 +223,12 @@ public class BC2CCompiler {
 
   private void push(Value value) {
     push(value.expr(), value.protect());
+  }
+
+  public void popPush(int n, String expr, boolean protect) {
+    set(stack.currIdx(-n + 1), expr, false);
+    pop(n);
+    push(stack.curr(1), protect);
   }
 
   private void set(int i, String expr, boolean protect) {
