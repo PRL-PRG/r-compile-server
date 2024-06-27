@@ -2,6 +2,7 @@ package org.prlprg.bc;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
+import static org.prlprg.TestConfig.FAST_TESTS;
 
 import java.io.File;
 import java.io.IOException;
@@ -85,5 +86,10 @@ public abstract class RClosureTestsUsingBytecodeCompiler extends RClosureTests {
     var compiler = new Compiler(fun, rsession);
     compiler.setOptimizationLevel(optimizationLevel);
     return compiler.compile().<SEXP>map(SEXPs::bcode).orElse(fun.body());
+  }
+
+  @Override
+  protected double stdlibTestsRatio() {
+    return FAST_TESTS ? 0.5 : 1;
   }
 }

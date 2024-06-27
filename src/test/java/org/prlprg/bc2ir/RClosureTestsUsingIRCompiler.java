@@ -2,6 +2,7 @@ package org.prlprg.bc2ir;
 
 import static org.junit.Assume.assumeNoException;
 import static org.junit.jupiter.api.Assumptions.abort;
+import static org.prlprg.TestConfig.FAST_TESTS;
 
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -104,5 +105,10 @@ public abstract class RClosureTestsUsingIRCompiler extends RClosureTestsUsingByt
           "Failed to get compiled GNU-R bytecode, so we can't test the IR: Java compiler returned NULL, so it probably contains the browser function.");
     }
     return fun;
+  }
+
+  @Override
+  protected double stdlibTestsRatio() {
+    return FAST_TESTS ? 0.1 : 1;
   }
 }

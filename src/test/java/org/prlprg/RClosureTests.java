@@ -8,6 +8,7 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.prlprg.bc.Compiler;
 import org.prlprg.sexp.StrSXP;
+import org.prlprg.util.Predicates;
 
 /**
  * Shared base class for tests that run on various R closures.
@@ -623,7 +624,20 @@ public abstract class RClosureTests extends AbstractGNURBasedTest {
               do.call(c, funs)
               """);
 
-    return Streams.stream(base.iterator()).map(Arguments::of);
+    return Streams.stream(base.iterator())
+        .filter(Predicates.random(stdlibTestsRatio()))
+        .map(Arguments::of);
+  }
+
+  /**
+   * The ratio of closures in the standard library that are tested (via {@link #testClosure(String,
+   * int)}).
+   *
+   * <p>By default this is 1. In particular, it's usually overridden to specify a lower value when
+   * {@link TestConfig#FAST_TESTS} is set.
+   */
+  protected double stdlibTestsRatio() {
+    return 1;
   }
 
   protected void testClosure(String closure) {
