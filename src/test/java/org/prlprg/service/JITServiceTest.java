@@ -13,7 +13,6 @@ public class JITServiceTest extends AbstractGNURBasedTest implements Tests {
   @Test
   public void testJITService() throws IOException, InterruptedException {
     JITService jitService = new JITService(rsession);
-    jitService.initialize();
 
     var body = SEXPs.lang(SEXPs.symbol("+"), SEXPs.list(SEXPs.symbol("x"), SEXPs.real(42)));
     var formals =

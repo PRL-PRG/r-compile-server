@@ -44,13 +44,11 @@ static inline SEXP Rsh_call_builtin(SEXP call, SEXP fun, SEXP args, SEXP env) {
   return value;
 }
 
-#define RSH_LIST_APPEND(head, tail, value)                                     \
-  do {                                                                         \
-    SEXP __elem__ = Rf_cons(value, R_NilValue);                                \
-    if (head == R_NilValue) {                                                  \
-      head = __elem__;                                                         \
-    } else {                                                                   \
-      SETCDR(tail, __elem__);                                                  \
-    }                                                                          \
-    tail = __elem__;                                                           \
-  } while (0)
+static inline void Rsh_list_append(SEXP head, SEXP tail, SEXP value) {
+  SEXP elem = Rf_cons(value, R_NilValue);
+  if (head == R_NilValue) {
+    head = elem;
+  } else {
+    SETCDR(tail, elem);
+  }
+}

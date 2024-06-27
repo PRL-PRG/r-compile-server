@@ -2,58 +2,76 @@ package org.prlprg.bc2c;
 
 import com.google.common.io.Files;
 import java.io.File;
-import java.io.IOException;
-import java.lang.reflect.Method;
+import java.io.OutputStreamWriter;
 import java.nio.charset.Charset;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
 import org.prlprg.bc.BCCompiler;
-import org.prlprg.rds.RDSWriter;
+import org.prlprg.service.RshCompiler;
 import org.prlprg.sexp.CloSXP;
-import org.prlprg.sexp.SEXP;
-import org.prlprg.sexp.SEXPs;
 import org.prlprg.util.AbstractGNURBasedTest;
 import org.prlprg.util.Tests;
 
 public class BC2CCompilerTest extends AbstractGNURBasedTest implements Tests {
 
   @Test
-  public void testEmptyList(TestInfo info) throws IOException {
-    testCall(info, """
+  public void test3(TestInfo info) throws Exception {
+    testCall(
+        info,
+        """
                 function (x) { y <- x + 42; y + 42 }
-            """, "42");
+            """,
+        "42");
   }
 
-  public SEXP testCall(TestInfo testInfo, String code, String args) throws IOException {
-    var funName = "f_" + testInfo.getTestMethod().map(Method::getName).get();
-    var gnurFun = (CloSXP) R.eval(code);
+  @Test
+  public void testList(TestInfo info) throws Exception {
+    testCall(
+        info,
+        """
+                function (x) { list(1,2,3) }
+            """,
+        "42");
+  }
 
-    var ast2bc = new BCCompiler(gnurFun, rsession);
+  public void testCall(TestInfo testInfo, String code, String args) throws Exception {
+    var tempDir =
+        java.nio.file.Files.createTempDirectory(
+                "test-" + testInfo.getTestMethod().get().getName() + "-")
+            .toFile();
+    System.out.println(tempDir);
+
+    var funName = "f";
+
+    var closure = (CloSXP) R.eval(code);
+    var ast2bc = new BCCompiler(closure, rsession);
+    ast2bc.setOptimizationLevel(3);
     var bc = ast2bc.compile().get();
 
     var bc2c = new BC2CCompiler(funName, bc);
     var c = bc2c.compile();
 
-    var cFile = File.createTempFile("test-cfile", ".cpp");
+    var cFile = new File(tempDir, "code.c");
     try (var cOut = Files.asCharSink(cFile, Charset.defaultCharset()).openBufferedStream()) {
       c.writeTo(cOut);
     }
+    c.writeTo(new OutputStreamWriter(System.out));
 
-    var cpFile = File.createTempFile("test-cpfile", ".RDS");
-    try (var cpOut = Files.asByteSink(cpFile).openBufferedStream()) {
-      RDSWriter.writeStream(rsession, cpOut, SEXPs.list2(bc2c.constants()));
-    }
+    var oFile = new File(tempDir, "code.o");
+    var soFile = new File(tempDir, "code.so");
+    RshCompiler.getInstance().compileShared(cFile, soFile);
 
     var res =
         R.eval(
             """
-      local({
-        cpp11::cpp_source('%s')
-        %s(new.env(), readRDS('%s'))
-      })
-"""
-                .formatted(cFile.getAbsolutePath(), funName, cpFile.getAbsolutePath()));
+        dyn.load('%s')
+        cp <- list(1,2,3)
+        env <- new.env()
+        .Call("f", env, cp, "code")
+        """
+                .formatted(soFile.getAbsolutePath()));
 
-    return res;
+    System.out.println(res);
+    // GNUR.cmd("SHLIB", "-o", soFile.getPath(), oFile.getPath());
   }
 }

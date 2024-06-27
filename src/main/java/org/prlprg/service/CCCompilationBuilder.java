@@ -35,7 +35,7 @@ public class CCCompilationBuilder {
     var builder = new ProcessBuilder();
     builder.redirectErrorStream(true);
     builder.directory(workingDirectory);
-    builder.command(compiler, "-o", output.getPath(), "-c", input.getPath());
+    builder.command(compiler, "-o", output.getPath(), input.getPath());
     builder.command().addAll(flags);
 
     logger.fine("Running command: " + String.join(" ", builder.command()));
@@ -55,7 +55,13 @@ public class CCCompilationBuilder {
     int exitCode = process.waitFor();
 
     if (exitCode != 0) {
-      throw new RuntimeException("Compilation failed with exit code " + exitCode + ":\n" + output);
+      throw new RuntimeException(
+          "Compilation failed with exit code "
+              + exitCode
+              + ":\n"
+              + String.join(" ", builder.command())
+              + "\n"
+              + output);
     }
 
     if (!output.isEmpty()) {
