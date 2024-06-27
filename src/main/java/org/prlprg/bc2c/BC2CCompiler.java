@@ -85,7 +85,7 @@ public class BC2CCompiler {
 
   private final String name;
   private final Bc bc;
-  private final Map<Integer, Constant> constants = new HashMap<>();
+  private final Map<Integer, Constant> constants = new LinkedHashMap<>();
   private final ByteCodeStack stack = new ByteCodeStack();
 
   private final CFile file;

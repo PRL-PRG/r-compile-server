@@ -132,6 +132,13 @@ public class Files {
     }
   }
 
+  public static void clearDirectory(Path path) throws IOException {
+    deleteIfExists(path);
+    if (!path.toFile().mkdirs()) {
+      throw new IOException("Unable to create directory: " + path);
+    }
+  }
+
   public static boolean exists(Path path) {
     return java.nio.file.Files.exists(path);
   }

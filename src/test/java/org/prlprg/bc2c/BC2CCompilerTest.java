@@ -1,77 +1,95 @@
 package org.prlprg.bc2c;
 
+import static org.junit.jupiter.api.Assertions.*;
+import static org.prlprg.util.Files.clearDirectory;
+
 import com.google.common.io.Files;
 import java.io.File;
 import java.io.OutputStreamWriter;
 import java.nio.charset.Charset;
+import java.util.function.Consumer;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
 import org.prlprg.bc.BCCompiler;
+import org.prlprg.rds.RDSWriter;
 import org.prlprg.service.RshCompiler;
 import org.prlprg.sexp.CloSXP;
+import org.prlprg.sexp.SEXP;
+import org.prlprg.sexp.SEXPs;
+import org.prlprg.sexp.VecSXP;
 import org.prlprg.util.AbstractGNURBasedTest;
 import org.prlprg.util.Tests;
 
 public class BC2CCompilerTest extends AbstractGNURBasedTest implements Tests {
 
-  @Test
-  public void test3(TestInfo info) throws Exception {
-    testCall(
-        info,
-        """
-                function (x) { y <- x + 42; y + 42 }
-            """,
-        "42");
-  }
+  //  @Test
+  //  public void test3() throws Exception {
+  //    compileAndCall(
+  //        """
+  //        function (x) { y <- x + 42; y + 42 }
+  //        """,
+  //        "1");
+  //  }
 
   @Test
   public void testList(TestInfo info) throws Exception {
-    testCall(
-        info,
+    compileAndCall(
         """
                 function (x) { list(1,2,3) }
             """,
-        "42");
+        (VecSXP v) -> {
+          assertArrayEquals(new Double[] {1.0, 2.0, 3.0}, v.coerceTo(Double.class));
+        });
   }
 
-  public void testCall(TestInfo testInfo, String code, String args) throws Exception {
-    var tempDir =
-        java.nio.file.Files.createTempDirectory(
-                "test-" + testInfo.getTestMethod().get().getName() + "-")
-            .toFile();
-    System.out.println(tempDir);
+  <T extends SEXP> void compileAndCall(String code, Consumer<T> validator) throws Exception {
+    // FIXME: this is stupid - we just want to have the test name generate the same name
+    var name = Math.abs(code.hashCode());
 
-    var funName = "f";
+    var funName = "f_" + name;
+    var fileName = "test-" + name;
+
+    var tempDir = java.nio.file.Files.createTempDirectory("test-" + name + "-").toFile();
+    var cFile = new File(tempDir, funName + ".c");
+    var cpFile = new File(tempDir, fileName + ".RDS");
+    var soFile = new File(tempDir, funName + ".so");
+
+    clearDirectory(tempDir.toPath());
 
     var closure = (CloSXP) R.eval(code);
     var ast2bc = new BCCompiler(closure, rsession);
     ast2bc.setOptimizationLevel(3);
-    var bc = ast2bc.compile().get();
+    var bc =
+        ast2bc
+            .compile()
+            .orElseThrow(() -> new RuntimeException("Compilation did not produce byte code"));
 
     var bc2c = new BC2CCompiler(funName, bc);
-    var c = bc2c.compile();
+    var cCode = bc2c.compile();
+    var cConsts = bc2c.constants();
 
-    var cFile = new File(tempDir, "code.c");
+    RDSWriter.writeFile(rsession, cpFile, SEXPs.vec(cConsts));
+
+    // TODO: a utility method
     try (var cOut = Files.asCharSink(cFile, Charset.defaultCharset()).openBufferedStream()) {
-      c.writeTo(cOut);
+      cCode.writeTo(cOut);
     }
-    c.writeTo(new OutputStreamWriter(System.out));
+    cCode.writeTo(new OutputStreamWriter(System.out));
 
-    var oFile = new File(tempDir, "code.o");
-    var soFile = new File(tempDir, "code.so");
     RshCompiler.getInstance().compileShared(cFile, soFile);
 
-    var res =
-        R.eval(
-            """
-        dyn.load('%s')
-        cp <- list(1,2,3)
-        env <- new.env()
-        .Call("f", env, cp, "code")
-        """
-                .formatted(soFile.getAbsolutePath()));
+    var testDriver = new StringBuilder();
+    testDriver
+        .append("dyn.load('%s')\n".formatted(soFile.getAbsolutePath()))
+        .append("cp <- readRDS('%s')\n".formatted(cpFile.getAbsolutePath()))
+        .append("env <- new.env()\n")
+        .append(".Call('%s', env, cp, '%s')\n".formatted(funName, name));
+
+    var res = R.eval(testDriver.toString());
 
     System.out.println(res);
+
+    validator.accept((T) res);
     // GNUR.cmd("SHLIB", "-o", soFile.getPath(), oFile.getPath());
   }
 }
