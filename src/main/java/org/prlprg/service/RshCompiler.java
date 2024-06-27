@@ -15,6 +15,7 @@ public class RshCompiler {
   private static final List<String> COMPILER_FLAGS =
       List.of(
           "-DNDEBUG",
+          "-DR_NO_REMAP",
           "-I.",
           //          "-I/usr/local/include",
           "-I" + INCLUDE_PATH,

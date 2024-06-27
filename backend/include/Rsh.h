@@ -1,4 +1,6 @@
-#include "Rinternals.h"
+#ifndef RSH_H
+#define RSH_H
+
 #include "Rsh_internals.h"
 
 extern Rboolean R_Visible;
@@ -54,3 +56,14 @@ static inline SEXP Rsh_call_builtin(SEXP call, SEXP fun, SEXP args, SEXP env) {
     }                                                                          \
     tail = __elem__;                                                           \
   } while (0)
+
+#define RSH_SET_TAG(v, t)                                                      \
+  do {                                                                         \
+    SEXP __tag__ = (t);                                                        \
+    if (__tag__ != R_NilValue) {                                               \
+      if (v != R_NilValue)                                                     \
+        SET_TAG(v, Rf_CreateTag(__tag__));                                        \
+    }                                                                          \
+  } while (0)
+
+#endif // RSH_H

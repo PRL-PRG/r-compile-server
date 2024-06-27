@@ -28,10 +28,6 @@ class ByteCodeStack {
     return set(curr, expr, protect);
   }
 
-  public String pop() {
-    return pop(1);
-  }
-
   public String pop(int n) {
     var unprotect = 0;
     for (int i = 0; i < n; i++) {
@@ -41,16 +37,8 @@ class ByteCodeStack {
     return UNPROTECT_EXPR.formatted(unprotect);
   }
 
-  public String curr() {
-    return curr(0);
-  }
-
   public String curr(int n) {
     return NAME.formatted(currIdx(n));
-  }
-
-  public int currIdx() {
-    return currIdx(0);
   }
 
   public int currIdx(int n) {
@@ -69,11 +57,27 @@ class ByteCodeStack {
     assert(i >= 0 && i <= max);
 
     if (protect) {
-      protects.set(i, protects.get(i) + 1);
-      expr = PROTECT_EXPR.formatted(expr);
+      expr = protect(i, expr);
     }
 
     return "%s = %s;".formatted(NAME.formatted(i), expr);
+  }
+
+  // TODO: move into compiler
+  public List<String> popPush(int n, String expr, boolean protect) {
+    var lines = new ArrayList<String>(3);
+    lines.add(set(currIdx(-n + 1), expr, false));
+    lines.add("%s;".formatted(pop(n)));
+    push(expr, false);
+    if (protect) {
+      lines.add("%s;".formatted(protect(currIdx(0), curr(0))));
+    }
+    return lines;
+  }
+
+  private String protect(int i, String expr) {
+    protects.set(i, protects.get(i) + 1);
+    return PROTECT_EXPR.formatted(expr);
   }
 }
 
@@ -123,15 +127,6 @@ public class BC2CCompiler {
             CONST_GET, NAME_CP));
   }
 
-  private void compileRegisters() {
-    var sec = fun.insertAbove(body);
-    var line =
-        IntStream.rangeClosed(0, stack.max())
-            .mapToObj("_%d = NULL"::formatted)
-            .collect(Collectors.joining(", ", "SEXP ", ";"));
-    sec.line(line);
-  }
-
   private void compile(BcInstr instr) {
     body.comment("begin: " + instr);
     switch (instr) {
@@ -144,23 +139,50 @@ public class BC2CCompiler {
       case BcInstr.GetBuiltin(var idx) -> compileGetBuiltin(idx);
       case BcInstr.PushConstArg(var idx) -> compilePushConstArg(idx);
       case BcInstr.CallBuiltin(var idx) -> compileCallBuiltin(idx);
+      case BcInstr.PushArg() -> compilePushArg();
+      case BcInstr.SetTag(var idx) -> compilerSetTag(idx);
 
       default ->
-        throw new UnsupportedOperationException(instr + ": not supported");
+          throw new UnsupportedOperationException(instr + ": not supported");
 
     }
     body.comment("end: " + instr);
     body.nl();
   }
 
+  private void compilerSetTag(ConstPool.Idx<StrOrRegSymSXP> idx) {
+    body.line("""
+    if (TYPEOF(%s) != SPECIALSXP) {
+      RSH_SET_TAG(%s, %s);
+    }""".formatted(stack.curr(-2), stack.curr(0), constant(idx)));
+  }
+
+  private void compilePushArg() {
+    body.line("RSH_LIST_APPEND(%s, %s, %s);".formatted(stack.curr(-2), stack.curr(-1), stack.curr(0)));
+    pop(1);
+  }
+
+  private void compileRegisters() {
+    var sec = fun.insertAbove(body);
+    var line =
+        IntStream.rangeClosed(0, stack.max())
+            .mapToObj("_%d = NULL"::formatted)
+            .collect(Collectors.joining(", ", "SEXP ", ";"));
+    sec.line(line);
+  }
+  
   private void compilePushConstArg(ConstPool.Idx<SEXP> idx) {
-    body.line("RSH_LIST_APPEND(%s, %s, %s);".formatted(stack.curr(-1), stack.curr(), constant(idx)));
+    body.line("RSH_LIST_APPEND(%s, %s, %s);".formatted(stack.curr(-1), stack.curr(0), constant(idx)));
   }
 
   private void compileCallBuiltin(ConstPool.Idx<LangSXP> idx) {
-    push(constant(idx));
-    pop(4);
-    push("Rsh_call_builtin(%s, %s, %s, %s)".formatted(stack.curr(4), stack.curr(1), stack.curr(2), NAME_ENV));
+    var call = push(constant(idx), false);
+    var fun = stack.curr(-3);
+    var args = stack.curr(-2);
+
+    var callBuiltIn = "Rsh_call_builtin(%s, %s, %s, %s)".formatted(call, fun, args, NAME_ENV);
+    // we are going to pop 4 elements from the stack - all the until the beginning of the call frame
+    body.lines(stack.popPush(4, callBuiltIn, true));
   }
 
   private void compileGetBuiltin(ConstPool.Idx<RegSymSXP> idx) {
@@ -171,18 +193,18 @@ public class BC2CCompiler {
   }
 
   private void compileSetVar(ConstPool.Idx<RegSymSXP> idx) {
-    body.line("Rf_defineVar(%s, %s, %s);".formatted(constant(idx), stack.curr(), NAME_ENV));
+    body.line("Rf_defineVar(%s, %s, %s);".formatted(constant(idx), stack.curr(0), NAME_ENV));
   }
 
   private void compileReturn() {
     pop(1);
-    assert stack.currIdx() == -1 : "Stack not empty (%d)".formatted(stack.currIdx());
+    assert stack.currIdx(0) == -1 : "Stack not empty (%d)".formatted(stack.currIdx(0));
     body.line("return %s;", stack.curr(1));
   }
 
   private void compileAdd() {
+    push("Rsh_fast_binary(ADD, %s, %s)".formatted(stack.curr(-1), stack.curr(0)));
     pop(2);
-    push("Rsh_fast_binary(ADD, %s, %s)".formatted(stack.curr(2), stack.curr(1)));
   }
 
   private void compileGetVar(ConstPool.Idx<RegSymSXP> idx) {
@@ -200,18 +222,16 @@ public class BC2CCompiler {
   // API
 
   private void pop(int n) {
-    var comment =
-        IntStream.rangeClosed(stack.currIdx(-n + 1), stack.currIdx()).mapToObj("_%d"::formatted).collect(Collectors.joining(", "));
-
-    body.line("%s; // %s ".formatted(stack.pop(n), comment));
+    body.line("%s;".formatted(stack.pop(n)));
   }
 
-  private void push(String expr, boolean protect) {
+  private String push(String expr, boolean protect) {
     body.line(stack.push(expr, protect));
+    return stack.curr(0);
   }
 
-  private void push(String expr) {
-    push(expr, true);
+  private String push(String expr) {
+    return push(expr, true);
   }
 
   private void push(Value value) {

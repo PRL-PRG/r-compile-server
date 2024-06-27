@@ -61,6 +61,15 @@ public final class Coercions {
             case CPLX -> x;
             default -> throw new IllegalArgumentException("Unsupported target type: " + targetType);
           };
+      case ScalarRealSXP x ->
+          switch (targetType) {
+            case LGL -> logicalFromReal(x.value());
+            case STR -> stringFromReal(x.value());
+            case INT -> integerFromReal(x.value());
+            case REAL -> x.value();
+            case CPLX -> complexFromReal(x.value());
+            default -> throw new IllegalArgumentException("Unsupported target type: " + targetType);
+          };
       default -> throw new IllegalArgumentException("Unsupported type: " + t.getClass());
     };
   }

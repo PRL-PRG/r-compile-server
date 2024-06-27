@@ -95,6 +95,9 @@ typedef struct SEXPREC {
 
 typedef struct SEXPREC *SEXP;
 
+
+SEXP Rf_CreateTag(SEXP);
+
 typedef SEXP (*CCODE)(SEXP, SEXP, SEXP, SEXP);
 /* Information for Deparsing Expressions */
 typedef enum {
@@ -171,21 +174,21 @@ static inline SEXP Rif_mkPRIMSXP(int offset, int eval) {
       FunTabSize++;
 
     /* allocate and protect the cache */
-    PrimCache = allocVector(VECSXP, FunTabSize);
+    PrimCache = Rf_allocVector(VECSXP, FunTabSize);
     R_PreserveObject(PrimCache);
   }
 
   if (offset < 0 || offset >= FunTabSize)
-    error("offset is out of R_FunTab range");
+    Rf_error("offset is out of R_FunTab range");
 
   result = VECTOR_ELT(PrimCache, offset);
 
   if (result == R_NilValue) {
-    result = allocSExp(type);
+    result = Rf_allocSExp(type);
     SET_PRIMOFFSET(result, offset);
     SET_VECTOR_ELT(PrimCache, offset, result);
   } else if (TYPEOF(result) != type)
-    error("requested primitive type is not consistent with cached value");
+    Rf_error("requested primitive type is not consistent with cached value");
 
   return result;
 }

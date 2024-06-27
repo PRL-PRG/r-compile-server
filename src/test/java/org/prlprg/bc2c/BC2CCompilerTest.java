@@ -35,14 +35,17 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest implements Tests {
   public void testList(TestInfo info) throws Exception {
     compileAndCall(
         """
-                function (x) { list(1,2,3) }
+                function (x) { list(1,2,3,x=x) }
             """,
+        "list(x=4)",
         (VecSXP v) -> {
-          assertArrayEquals(new Double[] {1.0, 2.0, 3.0}, v.coerceTo(Double.class));
+          assertArrayEquals(new Double[] {1.0, 2.0, 3.0, 4.0}, v.coerceTo(Double.class));
+          assertEquals("x", v.names().get(3));
         });
   }
 
-  <T extends SEXP> void compileAndCall(String code, Consumer<T> validator) throws Exception {
+  <T extends SEXP> void compileAndCall(String code, String env, Consumer<T> validator)
+      throws Exception {
     // FIXME: this is stupid - we just want to have the test name generate the same name
     var name = Math.abs(code.hashCode());
 
@@ -53,6 +56,7 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest implements Tests {
     var cFile = new File(tempDir, funName + ".c");
     var cpFile = new File(tempDir, fileName + ".RDS");
     var soFile = new File(tempDir, funName + ".so");
+    var rFile = new File(tempDir, "driver.R");
 
     clearDirectory(tempDir.toPath());
 
@@ -78,18 +82,28 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest implements Tests {
 
     RshCompiler.getInstance().compileShared(cFile, soFile);
 
-    var testDriver = new StringBuilder();
-    testDriver
-        .append("dyn.load('%s')\n".formatted(soFile.getAbsolutePath()))
-        .append("cp <- readRDS('%s')\n".formatted(cpFile.getAbsolutePath()))
-        .append("env <- new.env()\n")
-        .append(".Call('%s', env, cp, '%s')\n".formatted(funName, name));
+    String testDriver =
+        "dyn.load('%s')\n".formatted(soFile.getAbsolutePath())
+            + "cp <- readRDS('%s')\n".formatted(cpFile.getAbsolutePath())
+            + "env <- as.environment(%s)\n".formatted(env)
+            + "res <- .Call('%s', env, cp, '%s')\n".formatted(funName, name)
+            + "dyn.unload('%s')\n".formatted(soFile.getAbsolutePath())
+            + "res\n";
 
-    var res = R.eval(testDriver.toString());
+    try (var out = Files.asCharSink(rFile, Charset.defaultCharset()).openBufferedStream()) {
+      out.write(testDriver);
+    }
 
-    System.out.println(res);
+    try {
+      var res = R.eval("source('%s', local=F)$value".formatted(rFile.getAbsolutePath()));
 
-    validator.accept((T) res);
-    // GNUR.cmd("SHLIB", "-o", soFile.getPath(), oFile.getPath());
+      System.out.println(res);
+
+      validator.accept((T) res);
+      // GNUR.cmd("SHLIB", "-o", soFile.getPath(), oFile.getPath());
+    } catch (Exception e) {
+      System.err.println(tempDir.getAbsolutePath());
+      throw e;
+    }
   }
 }

@@ -24,4 +24,8 @@ public class CCode {
   public void nl() {
     body.add("");
   }
+
+  public void lines(List<String> lines) {
+    lines.forEach(this::line);
+  }
 }
