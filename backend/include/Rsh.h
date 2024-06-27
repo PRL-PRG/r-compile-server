@@ -1,4 +1,7 @@
 #include "Rinternals.h"
+#include "Rsh_internals.h"
+
+extern Rboolean R_Visible;
 
 #define Rsh_error(msg, ...)                                                    \
   {                                                                            \
@@ -8,6 +11,7 @@
 
 typedef enum { ADD } BINARY_OP;
 
+// this is just a try to link to functions defined in the rsh package
 SEXP Rsh_fast_binary(BINARY_OP, SEXP, SEXP);
 
 static inline SEXP Rsh_get_var(SEXP sym, SEXP env) {
@@ -25,3 +29,28 @@ static inline SEXP Rsh_get_var(SEXP sym, SEXP env) {
 
   return v;
 }
+
+static inline SEXP Rsh_get_builtin(const char *name) {
+  return Rif_Primitive(name);
+}
+
+static inline SEXP Rsh_call_builtin(SEXP call, SEXP fun, SEXP args, SEXP env) {
+  int flag = PRIMPRINT(fun);
+  R_Visible = (Rboolean)(flag != 1);
+  SEXP value = PRIMFUN(fun)(call, fun, args, env);
+  if (flag < 2) {
+    R_Visible = (Rboolean)(flag != 1);
+  }
+  return value;
+}
+
+#define RSH_LIST_APPEND(head, tail, value)                                     \
+  do {                                                                         \
+    SEXP __elem__ = Rf_cons(value, R_NilValue);                                \
+    if (head == R_NilValue) {                                                  \
+      head = __elem__;                                                         \
+    } else {                                                                   \
+      SETCDR(tail, __elem__);                                                  \
+    }                                                                          \
+    tail = __elem__;                                                           \
+  } while (0)
