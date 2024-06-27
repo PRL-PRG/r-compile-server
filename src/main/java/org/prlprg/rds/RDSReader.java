@@ -1,10 +1,11 @@
 package org.prlprg.rds;
 
+import static java.util.Objects.requireNonNull;
+
 import com.google.common.collect.ImmutableList;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.*;
 import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 import java.util.*;
 import javax.annotation.Nullable;
 import org.prlprg.RSession;
@@ -392,7 +393,7 @@ public class RDSReader implements Closeable {
       case NilSXP ignored -> {}
       case ListSXP frame -> {
         for (var elem : frame) {
-          item.set(Objects.requireNonNull(elem.tag()), elem.value());
+          item.set(requireNonNull(elem.tag()), elem.value());
         }
       }
       default -> throw new RDSException("Expected list (FRAME)");
@@ -407,7 +408,7 @@ public class RDSReader implements Closeable {
             case NilSXP ignored -> {}
             case ListSXP list -> {
               for (var e : list) {
-                item.set(Objects.requireNonNull(e.tag()), e.value());
+                item.set(requireNonNull(e.tag()), e.value());
               }
             }
             default -> throw new RDSException("Expected list for the hashtab entries");
@@ -477,6 +478,7 @@ public class RDSReader implements Closeable {
       flags = readFlags();
     }
 
+    // TODO: add the attributes here?
     return SEXPs.list(data.build());
   }
 
@@ -543,11 +545,8 @@ public class RDSReader implements Closeable {
 
   private String readString(Flags flags) throws IOException {
     var len = in.readInt();
-    var charset = StandardCharsets.US_ASCII;
-
-    if (flags.isUTF8()) {
-      charset = StandardCharsets.UTF_8;
-    }
+    // charset should never be null for strings
+    var charset = requireNonNull(flags.getLevels().encoding());
 
     return in.readString(len, charset);
   }

@@ -4,7 +4,6 @@ import com.google.common.collect.ImmutableList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
@@ -62,8 +61,6 @@ public sealed interface ListSXP extends ListOrVectorSXP<TaggedElem>, LangOrListS
   ListSXP remove(String tag);
 
   Stream<TaggedElem> stream();
-
-  Optional<TaggedElem> get(String name);
 
   ListSXP prepend(TaggedElem elem);
 
@@ -153,11 +150,6 @@ record ListSXPImpl(ImmutableList<TaggedElem> data, @Override Attributes attribut
   @Override
   public Stream<TaggedElem> stream() {
     return data.stream();
-  }
-
-  @Override
-  public Optional<TaggedElem> get(String name) {
-    return Optional.empty();
   }
 
   @Override

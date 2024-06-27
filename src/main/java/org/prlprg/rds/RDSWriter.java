@@ -1,6 +1,7 @@
 package org.prlprg.rds;
 
 import java.io.*;
+import java.nio.charset.Charset;
 import java.util.*;
 import java.util.stream.DoubleStream;
 import java.util.stream.StreamSupport;
@@ -14,10 +15,6 @@ public class RDSWriter implements Closeable {
   private final RSession session;
   private final RDSOutputStream out;
   private final List<SEXP> refTable = new ArrayList<>(128);
-
-  public static final int IS_OBJECT_BIT_MASK = 1 << 8;
-  public static final int HAS_ATTR_BIT_MASK = 1 << 9;
-  public static final int HAS_TAG_BIT_MASK = 1 << 10;
 
   private RDSWriter(RSession session, OutputStream out) {
     this.session = session;
@@ -37,7 +34,7 @@ public class RDSWriter implements Closeable {
     }
   }
 
-  public void writeheader(SEXP sexp) throws IOException {
+  public void writeHeader() throws IOException {
     // Could also be "B" (binary) and "A" (ASCII) but we only support XDR.
     // XDR just means big endian and DataInputStream/DataOutputStream from Java use BigEndian
     out.writeByte((byte) 'X');
@@ -52,213 +49,131 @@ public class RDSWriter implements Closeable {
 
     // Minimal version of R required to read back
     out.writeInt((new RVersion(3, 5, 0, null)).encode());
-
-    // Charset. Always UTF-8.
-    // The charset is not written in RDS version 2
-    //    var nativeEncoding = StandardCharsets.UTF_8.name();
-    //    out.writeInt(nativeEncoding.length());
-    //    out.writeString(nativeEncoding);
   }
 
   public void write(SEXP sexp) throws IOException {
-    writeheader(sexp);
+    writeHeader();
     writeItem(sexp);
   }
 
   // See
   // https://github.com/wch/r-source/blob/65892cc124ac20a44950e6e432f9860b1d6e9bf4/src/main/serialize.c#L1021
   public void writeItem(SEXP s) throws IOException {
+    var type = rdsType(s);
+
     // Persisted through the ref table? TODO
 
-    // Save Special hooks: direct return and exit the function after a special hook
-    switch (s) {
-      case NilSXP _nil -> {
-        out.writeInt(RDSItemType.Special.NILVALUE_SXP.i());
-        return;
+    switch (type) {
+      case RDSItemType.Special special -> {
+        // Save Special hooks: direct return and exit the function after a special hook
+        out.writeInt(special.i());
       }
-      case EmptyEnvSXP _empty -> {
-        out.writeInt(RDSItemType.Special.EMPTYENV_SXP.i());
-        return;
-      }
+      case RDSItemType.Sexp sexp -> {
+        // Already in the ref table? TODO
 
-      case BaseEnvSXP _base -> {
-        out.writeInt(RDSItemType.Special.BASEENV_SXP.i());
-        return;
-      }
+        switch (s) {
+          case RegSymSXP sym -> writeSymbol(sym);
+          case EnvSXP env -> writeEnv(env);
 
-      case GlobalEnvSXP _global -> {
-        out.writeInt(RDSItemType.Special.GLOBALENV_SXP.i());
-        return;
-      }
+            // Dotted-pair (pairlist) objects
+          case ListSXP list -> writeListSXP(list);
+          case LangSXP lang -> writeLangSXP(lang);
+          case PromSXP prom -> writePromSXP(prom);
+          case CloSXP clo -> writeCloSXP(clo);
 
-      case SpecialSymSXP sexp when sexp == SEXPs.UNBOUND_VALUE -> {
-        out.writeInt(RDSItemType.Special.UNBOUNDVALUE_SXP.i());
-        return;
-      }
+            // TODO: external pointer
+            // TODO: weak reference
 
-      case SpecialSymSXP sexp when sexp == SEXPs.MISSING_ARG -> {
-        out.writeInt(RDSItemType.Special.MISSINGARG_SXP.i());
-        return;
+            // Other functions--special and builtin
+          case SpecialSXP special -> writeSpecialSXP(special);
+          case BuiltinSXP builtin -> writeBuiltinSXP(builtin);
+
+            // Vectors
+          case VectorSXP<?> vec -> writeVectorSXP(vec);
+
+            // Bytecode
+          case BCodeSXP bc -> writeBC(bc);
+
+          default -> throw new UnsupportedOperationException("Unsupported sexp type: " + s.type());
+        }
       }
+    }
+  }
+
+  // utility functions
+  // ------------------------------------------------------------------------------------------------
+
+  // Determines if the hastag bit should be set based on the SEXP
+  private boolean hasTag(SEXP s) {
+    return switch (s) {
+        // TODO: ListSXP needs flags, are these handled by the loop?
+      case CloSXP _clo -> true; // CloSXP should always be marked as having a tag I think
+      case LangSXP _lang -> false; // FIXME: maybe wrong
+      case PromSXP _prom -> false; // FIXME: maybe wrong
+      default -> false; // by default (if it's not a dotted-pair type object), there is no tag
+    };
+  }
+
+  // Determines if the hasAttr bit should be set based on the SEXP
+  private boolean hasAttr(SEXP s) {
+    return s.type()
+            != SEXPType
+                .CHAR // this should never be true because we represent CHARSXPs with strings,
+        // right?
+        && s.attributes() != null
+        && !Objects.requireNonNull(s.attributes()).isEmpty();
+  }
+
+  // Determines the RDS item type associated with the provided SEXP
+  private RDSItemType rdsType(SEXP s) {
+    return switch (s) {
+      case NilSXP _nil -> RDSItemType.Special.NILVALUE_SXP;
+      case EmptyEnvSXP _empty -> RDSItemType.Special.EMPTYENV_SXP;
+      case BaseEnvSXP _base -> RDSItemType.Special.BASEENV_SXP;
+      case GlobalEnvSXP _global -> RDSItemType.Special.GLOBALENV_SXP;
+      case SpecialSymSXP sexp when sexp == SEXPs.UNBOUND_VALUE ->
+          RDSItemType.Special.UNBOUNDVALUE_SXP;
+      case SpecialSymSXP sexp when sexp == SEXPs.MISSING_ARG -> RDSItemType.Special.MISSINGARG_SXP;
 
         // BaseNamespace not supported
 
-      default -> {
-        // continue
-      }
-    }
-
-    // Already in the ref table? TODO
-
-    // Symbols
-    if (s instanceof RegSymSXP sym) {
-      writeSymbol(sym);
-    } else if (s.type() == SEXPType.ENV) {
-      refTable.add(s);
-      if (s instanceof NamespaceEnvSXP) {
-        out.writeInt(RDSItemType.Special.NAMESPACESXP.i());
-        // TODO: build STRSXP with name and version
-        throw new UnsupportedOperationException("not implemented yet");
-      } else if (s instanceof UserEnvSXP env) { // Any other env
-        out.writeInt(SEXPType.ENV.i);
-        out.writeInt(0); // FIXME: should be 1 if locked, 0 if not locked
-        // Enclosure
-        writeItem(env.parent());
-        // Frame
-        writeItem(env.frame());
-        // Hashtab (NULL or VECSXP)
-        writeItem(SEXPs.NULL); // simple version here.
-        // Otherwise, we would have to actually do the hashing as it is done in R
-
-        // Attributes
-        // R always write something here, as it does not write a hastag bit in the flags
-        // (it actually has no flags; it just writes the type ENV)
-        if ((env.attributes() != null) && !Objects.requireNonNull(env.attributes()).isEmpty()) {
-          writeAttributes(env.attributes());
-        } else {
-          writeItem(SEXPs.NULL);
-        }
-      } else {
-        throw new UnsupportedOperationException("Unsupported env type: " + s.type());
-      }
-    } else {
-      boolean hastag =
-          switch (s.type()) {
-            case LIST, LANG, PROM -> false; // we assume no tag (will be corrected later for List)
-            case CLO -> true;
-            default -> false;
-          };
-      // Flags
-      boolean hasattr =
-          s.type() != SEXPType.CHAR
-              && s.attributes() != null
-              && !Objects.requireNonNull(s.attributes()).isEmpty();
-      // levels in the sxpinfo gp field
-
-      var rds_type = new RDSItemType.Sexp(s.type());
-      var flags = new Flags(rds_type, 0, false, s.isObject(), hasattr, hastag, 0);
-
-      switch (s) {
-        case ListSXP l -> writeDottedPairObjects(l, hasattr, flags);
-        case LangSXP l -> writeDottedPairObjects(l, hasattr, flags);
-        case PromSXP p -> writeDottedPairObjects(p, hasattr, flags);
-        case CloSXP c -> writeDottedPairObjects(c, hasattr, flags);
-          // ComplexSXP
-          // External pointer
-          // weakreference
-          // special
-          // builtin
-        case StrSXP str -> writeStrSxp(str, hasattr, flags.encode());
-        case VectorSXP vec -> writeVector(vec, hasattr, flags.encode());
-        case BCodeSXP bcode -> writeBCode(bcode, flags.encode());
-
-        default -> throw new UnsupportedOperationException("Unsupported SEXP type: " + s.type());
-      }
-    }
+      default -> new RDSItemType.Sexp(s.type());
+    };
   }
 
-  // Handles LISTSXP (pairlist, LANGSXP, PROMSXP and DOTSXP
-  private void writeDottedPairObjects(SEXP s, boolean hasattr, Flags flags) throws IOException {
-    if (s instanceof ListSXP l && !l.isEmpty() && l.get(0).tag() != null) {
-      var new_flags =
-          new Flags(flags.getType(), 0, flags.isUTF8(), flags.isObject(), false, true, 0);
-      out.writeInt(new_flags.encode());
-    } else {
-      out.writeInt(flags.encode());
-    }
-    // We should write the flag here first
-    // first, attributes
-    if (hasattr) {
-      writeAttributes(Objects.requireNonNull(s.attributes()));
-    }
-
-    switch (s) {
-      case LangSXP l -> {
-        // write the fun
-        writeItem(l.fun());
-        // write the args
-        writeItem(l.args());
-      }
-      case ListSXP l -> {
-        int i = 0;
-        for (var e : l) {
-          if (i > 0) {
-            var new_flags =
-                new Flags(
-                    flags.getType(),
-                    0,
-                    flags.isUTF8(),
-                    flags.isObject(),
-                    false,
-                    e.tag() != null,
-                    0);
-            out.writeInt(new_flags.encode());
-          }
-
-          if (e.tag() != null) {
-            writeSymbol(e.tag());
-          }
-          writeItem(e.value());
-          i++;
-        }
-        writeItem(SEXPs.NULL);
-      }
-      case PromSXP p -> {
-        // a promise has the value, expression and environment, in this order
-        writeItem(p.getVal());
-        writeItem(p.getExpr());
-        writeItem(p.getEnv());
-      }
-      case CloSXP c -> {
-        // a closure has the environment, formals, and then body
-        writeItem(c.env());
-        writeItem(c.formals());
-        writeItem(c.body());
-      }
-      default -> throw new RuntimeException("Unreachable");
-    }
+  // Returns the general purpose flags associated with the provided SEXP.
+  // FIXME: we should actually get the flags... not just null and false
+  // However, there's no way to do this right now, since we have no representation of locked
+  // environments (as far as I know) and no SEXPs that need a charset (verify this for
+  // SymSXP, etc.)
+  private GPFlags gpFlags(SEXP sexp) {
+    return new GPFlags(null, false);
   }
 
-  private int packFlags(int type, int levs, boolean isobj, boolean hasattr, boolean hastag) {
-    int val = type;
-    val |= levs << 12;
-    if (isobj) {
-      val |= IS_OBJECT_BIT_MASK;
-    }
-    if (hasattr) {
-      val |= HAS_ATTR_BIT_MASK;
-    }
-    if (hastag) {
-      val |= HAS_TAG_BIT_MASK;
-    }
+  // Returns the flags associated with the provided SEXP
+  private Flags flags(SEXP s, int refIndex) {
+    return new Flags(
+        rdsType(s), new GPFlags(null, false), s.isObject(), hasAttr(s), hasTag(s), refIndex);
+  }
 
-    return val;
+  // Writes the provided flags to the stream
+  private void writeFlags(Flags flags) throws IOException {
+    out.writeInt(flags.encode());
+  }
+
+  // Writes the flags associated with the provided SEXP
+  private void writeFlags(SEXP s, int refIndex) throws IOException {
+    var flags = flags(s, refIndex);
+    writeFlags(flags);
+  }
+
+  // FIXME: sort of duplicate method, get rid of this (keep hasAttr)
+  private boolean hasAttrs(@Nullable Attributes attrs) {
+    return attrs != null && !Objects.requireNonNull(attrs).isEmpty();
   }
 
   private void writeAttributes(@Nullable Attributes attrs) throws IOException {
-    if (attrs == null || attrs.isEmpty()) {
-      return;
-    }
+    if (!hasAttrs(attrs)) return;
     // convert to ListSXP
     var l = attrs.entrySet().stream().map(e -> new TaggedElem(e.getKey(), e.getValue())).toList();
     // Write it
@@ -268,115 +183,305 @@ public class RDSWriter implements Closeable {
   private void writeChars(String s) throws IOException {
     // Never NA because we assume so
     // We only consider scalar Na strings
-    int flags = packFlags(SEXPType.CHAR.i, 0, false, false, false);
-    out.writeInt(flags);
+    var flags =
+        new Flags(
+            RDSItemType.valueOf(SEXPType.CHAR.i),
+            // FIXME: this should include the logic from platform.c (see rds-reader)
+            new GPFlags(Charset.defaultCharset(), false),
+            false,
+            false,
+            false,
+            0);
+    writeFlags(flags);
     out.writeInt(s.length());
     out.writeString(s);
   }
 
-  private void writeStrSxp(StrSXP s, boolean hasattr, int flags) throws IOException {
-    out.writeInt(flags);
-    out.writeInt(s.size());
-    for (var str : s) {
-      writeChars(str);
-    }
+  // SEXP writing
+  // -----------------------------------------------------------------------------------------------------
 
-    if (hasattr) {
-      writeAttributes(Objects.requireNonNull(s.attributes()));
+  private void writeEnv(EnvSXP env) throws IOException {
+    refTable.add(env);
+    var flags = flags(env, 0).getLevels().isLocked();
+    switch (env) {
+      case NamespaceEnvSXP namespace -> {
+        out.writeInt(RDSItemType.Special.NAMESPACESXP.i());
+        var namespaceInfo = SEXPs.string(namespace.getName(), namespace.getVersion());
+        write(namespaceInfo);
+        // TODO: needs tests
+      }
+      case UserEnvSXP userEnv -> {
+        out.writeInt(SEXPType.ENV.i);
+        out.writeInt(0); // FIXME: should be 1 if locked, 0 if not locked (bit 14 of gp)
+        // Enclosure
+        writeItem(userEnv.parent());
+        // Frame
+        writeItem(userEnv.frame());
+        // Hashtab (NULL or VECSXP)
+        writeItem(SEXPs.NULL); // simple version here.
+        // Otherwise, we would have to actually do the hashing as it is done in R
+
+        // Attributes
+        // R always write something here, as it does not write a hastag bit in the flags
+        // (it actually has no flags; it just writes the type ENV)
+        if (hasAttrs(env.attributes())) {
+          writeAttributes(env.attributes());
+        } else {
+          writeItem(SEXPs.NULL);
+        }
+      }
+      default -> {
+        // An exception will be thrown for BaseEnvSXP, EmptyEnvSXP, and GlobalEnvSXP
+        throw new UnsupportedOperationException("Unsupported env type: " + env.type());
+      }
     }
   }
 
-  private <T> void writeVector(VectorSXP<T> s, boolean hasattr, int flags) throws IOException {
-    out.writeInt(flags);
+  // TODO: test
+  private void writeSpecialSXP(SpecialSXP special) throws IOException {
+    writeFlags(special, 0);
+    var name = special.name();
+    out.writeInt(name.length());
+    out.writeString(special.name());
+  }
+
+  // TODO: test
+  private void writeBuiltinSXP(BuiltinSXP builtin) throws IOException {
+    writeFlags(builtin, 0);
+    var name = builtin.name();
+    out.writeInt(name.length());
+    out.writeString(builtin.name());
+  }
+
+  private void writeListSXP(ListSXP lsxp) throws IOException {
+    Flags flags = flags(lsxp, 0);
+    boolean hasAttr = flags.hasAttributes();
+    for (var el : lsxp) {
+      var itemFlags =
+          new Flags(
+              RDSItemType.valueOf(lsxp.type().i),
+              flags.getLevels(),
+              flags.isObject(),
+              hasAttr,
+              el.tag() != null,
+              0);
+      writeFlags(itemFlags);
+      if (el.tag() != null) {
+        writeRegSymbol(el.tag());
+      }
+      writeItem(el.value());
+
+      // we only want to write attributes for the first item, the rest will not have attributes
+      hasAttr = false;
+    }
+    writeItem(SEXPs.NULL);
+  }
+
+  private void writeLangSXP(LangSXP lang) throws IOException {
+    if (hasAttr(lang)) {
+      writeAttributes(Objects.requireNonNull(lang.attributes()));
+    }
+    writeFlags(flags(lang, 0));
+    writeItem(lang.fun());
+    writeItem(lang.args());
+  }
+
+  private void writePromSXP(PromSXP prom) throws IOException {
+    if (hasAttr(prom)) {
+      writeAttributes(Objects.requireNonNull(prom.attributes()));
+    }
+    writeFlags(flags(prom, 0));
+    // a promise has the value, expression and environment, in this order
+    writeItem(prom.getVal());
+    writeItem(prom.getExpr());
+    writeItem(prom.getEnv());
+  }
+
+  private void writeCloSXP(CloSXP clo) throws IOException {
+    if (hasAttr(clo)) {
+      writeAttributes(Objects.requireNonNull(clo.attributes()));
+    }
+    writeFlags(flags(clo, 0));
+    // a closure has the environment, formals, and then body
+    writeItem(clo.env());
+    writeItem(clo.formals());
+    writeItem(clo.body());
+  }
+
+  private <T> void writeVectorSXP(VectorSXP<T> s) throws IOException {
+    writeFlags(s, 0);
     out.writeInt(s.size());
 
     switch (s) {
       case VecSXP vec -> {
+        // Write all the elements of the vec as individual items
         for (var val : vec) {
           writeItem(val);
         }
       }
-      case ExprSXP expr -> {
-        for (var val : expr) {
+      case ExprSXP exprs -> {
+        // Write all the exprs to the stream as individual items
+        for (var val : exprs) {
           writeItem(val);
         }
       }
-      case IntSXP intVec -> {
-        var vec = StreamSupport.stream(intVec.spliterator(), false).mapToInt(i -> i).toArray();
+      case IntSXP ints -> {
+        // Write all the ints to the stream
+        var vec = StreamSupport.stream(ints.spliterator(), false).mapToInt(i -> i).toArray();
         out.writeInts(vec);
       }
-      case LglSXP lglSXP -> {
+      case LglSXP lgls -> {
+        // Write all the logicals to the stream as ints
         var vec =
-            StreamSupport.stream(lglSXP.spliterator(), false).mapToInt(Logical::toInt).toArray();
+            StreamSupport.stream(lgls.spliterator(), false).mapToInt(Logical::toInt).toArray();
         out.writeInts(vec);
       }
-      case RealSXP realSXP -> {
-        var vec = StreamSupport.stream(realSXP.spliterator(), false).mapToDouble(d -> d).toArray();
+      case RealSXP reals -> {
+        // Write all the reals to the stream as doubles
+        var vec = StreamSupport.stream(reals.spliterator(), false).mapToDouble(d -> d).toArray();
         out.writeDoubles(vec);
       }
-      case ComplexSXP complexSXP -> {
+      case ComplexSXP cplxs -> {
         // For each complex number in the vector, add two doubles representing the real and
-        // imaginary components via a
-        // flat map
+        // imaginary components via a flat map
         var doubles =
-            StreamSupport.stream(complexSXP.spliterator(), false)
+            StreamSupport.stream(cplxs.spliterator(), false)
                 .flatMapToDouble(c -> DoubleStream.builder().add(c.real()).add(c.imag()).build())
                 .toArray();
         out.writeDoubles(doubles);
+      }
+      case StrSXP strs -> {
+        // For each string in the vector, we write its chars because
+        for (String str : strs) {
+          writeChars(str);
+        }
       }
 
       default -> throw new RuntimeException("Unreachable: implemented in another branch.");
     }
 
-    if (hasattr) {
+    if (hasAttr(s)) {
       writeAttributes(Objects.requireNonNull(s.attributes()));
     }
   }
 
-  private void scanForCircles(SEXP sexp, HashSet<SEXP> nobcodes) {
+  private void scanForCircles(SEXP sexp, HashMap<SEXP, Integer> reps, HashSet<SEXP> seen) {
     switch (sexp) {
-      case LangOrListSXP l -> {
-        if (!nobcodes.contains(l)) {
-          nobcodes.add(l);
-          for (var e :
-              switch (l) {
-                case LangSXP lang -> lang.args();
-                case ListSXP list -> list;
-              }) {
-            scanForCircles(e.value(), nobcodes);
+      case LangOrListSXP lol -> {
+        if (seen.contains(lol)) {
+          // Add to reps if the cell has already been seen
+          // We put -1 for the time being so that we can update reps in the correct order later
+          reps.put(lol, -1);
+          return;
+        }
+        ;
+        // Otherwise, add to seen and scan recursively
+        seen.add(lol);
+
+        switch (lol) {
+          case LangSXP lang -> {
+            // For LangSXP, we want to scan both the function and the arg values
+            // TODO: I think this is right, test it though
+            scanForCircles(lang.fun(), reps, seen);
+            lang.args().values().forEach((el) -> scanForCircles(el, reps, seen));
+          }
+          case ListSXP list -> {
+            if (seen.contains(list)) {
+              // We put -1 for the time being so that we can update reps in the correct order later
+              reps.put(list, -1);
+              return;
+            }
+            ;
+            seen.add(list);
+
+            // For ListSXP, we scan the values
+            list.values().forEach((el) -> scanForCircles(el, reps, seen));
           }
         }
       }
       case BCodeSXP bc -> {
-        for (var e : bc.bc().consts()) {
-          scanForCircles(e, nobcodes);
-        }
+        // For bytecode, we scan the constant pool
+        bc.bc().consts().forEach((el) -> scanForCircles(el, reps, seen));
       }
+        // FIXME: we probably don't want to throw an exception here
       default -> throw new RuntimeException("Unexpected sexp type: " + sexp.type());
     }
   }
 
-  // FIXME: replace HashSet by HashTable, and store as value the reference number
-  private void writeBCLang(SEXP s, HashSet<SEXP> reps) throws IOException {
-    switch (s) {
-      case LangOrListSXP l -> {
-        if (!reps.contains((l))) {
+  // HACK: nextRepIndex is an array because we need to pass it by reference, but it only has one
+  // element
+  private void writeBCLang(SEXP s, HashMap<SEXP, Integer> reps, int[] nextRepIndex)
+      throws IOException {
+    if (s instanceof LangOrListSXP lol) {
+      var assignedRepIndex = reps.get(lol);
+      if (assignedRepIndex != null) {
+        if (assignedRepIndex == -1) {
+          // If the rep is present in the map but is -1, this is our first time seeing it, so we
+          // emit a BCREPDEF and update the counter
+          int newIndex = nextRepIndex[0]++;
+          reps.put(lol, newIndex);
           out.writeInt(RDSItemType.Special.BCREPDEF.i());
-
+          out.writeInt(newIndex);
         } else {
-          // already seen to we put the index
+          // If the rep is present with an index other than -1, we have already seen it, so we
+          // emit a BCREPREF with the reference index.
+          out.writeInt(RDSItemType.Special.BCREPREF.i());
+          out.writeInt(assignedRepIndex);
+          // We also return, since the child nodes have already been written, and we don't want
+          // to write them again
+          return;
         }
-        // TODO
       }
-      default -> throw new UnsupportedOperationException("not implemented yet");
+
+      var type = RDSItemType.valueOf(lol.type().i);
+
+      // if the item has attributes, we use the special types ATTRLANGSXP and ATTRLISTSXP instead
+      // of LangSXP and ListSXP. This is done to preserve information on expressions in the
+      // constant pool of byte code objects.
+      var attrs = lol.attributes();
+      if (hasAttrs(attrs)) {
+        type =
+            switch (lol) {
+              case LangSXP _lang -> RDSItemType.Special.ATTRLANGSXP;
+              case ListSXP _list -> RDSItemType.Special.ATTRLISTSXP;
+            };
+      }
+      out.writeInt(type.i());
+      writeAttributes(attrs);
+
+      switch (lol) {
+          // For a LangSXP, recursively write the function and args
+        case LangSXP lang -> {
+          writeBCLang(lang.fun(), reps, nextRepIndex);
+          for (var arg : lang.args()) {
+            writeBCLang(arg.value(), reps, nextRepIndex);
+          }
+        }
+          // For a ListSXP, recursively write the elements
+        case ListSXP list -> {
+          for (var el : list) {
+            writeBCLang(el.value(), reps, nextRepIndex);
+          }
+        }
+      }
+    } else { // Print a zero as padding and write the item normally
+      out.writeInt(0);
+      writeItem(s);
     }
     throw new UnsupportedOperationException("not implemented yet");
   }
 
-  private void writeBC1(BCodeSXP s, HashSet<SEXP> reps) throws IOException {
+  private void writeBC1(BCodeSXP s, HashMap<SEXP, Integer> reps, int[] nextRepIndex)
+      throws IOException {
+    // Decode the bytecode (we will get a vector of integers)
+    // write the vector of integers
     var code_bytes = s.bc().code().toRaw();
     writeItem(SEXPs.integer(code_bytes));
 
+    // write the number of consts in the bytecode
+    // iterate the consts: if it s bytecode, write the type and recurse
+    // if it is langsxp or listsxp,  write them , using the BCREDPEF, ATTRALANGSXP and ATTRLISTSXP
+    // else write the type and the value
     var consts = s.bc().consts();
     out.writeInt(consts.size());
 
@@ -385,10 +490,10 @@ public class RDSWriter implements Closeable {
       switch (c) {
         case BCodeSXP bc -> {
           out.writeInt(c.type().i);
-          writeBC1(bc, reps);
+          writeBC1(bc, reps, nextRepIndex);
         }
         case LangOrListSXP l -> {
-          writeBCLang(l, reps);
+          writeBCLang(l, reps, nextRepIndex);
         }
         default -> {
           out.writeInt(c.type().i);
@@ -398,29 +503,23 @@ public class RDSWriter implements Closeable {
     }
   }
 
-  private void writeBCode(BCodeSXP s, int flags) throws IOException {
-    out.writeInt(flags);
+  private void writeBC(BCodeSXP s) throws IOException {
+    writeFlags(s, 0);
 
     // Scan for circles
     // prepend the result it with a scalar integer starting with 1
-    var nobcodes = new HashSet<SEXP>();
-    scanForCircles(s, nobcodes);
-    out.writeInt(nobcodes.size() + 1);
+    var reps = new HashMap<SEXP, Integer>();
+    var seen = new HashSet<SEXP>();
+    scanForCircles(s, reps, seen);
+    out.writeInt(reps.size() + 1);
 
-    // Decode the bytecode (we will get a vector of integers)
-    // write the vector of integers
-
-    // write the number of consts in the bytecode
-    // iterate the consts: if it s bytecode, write the type and recurse
-    // if it is langsxp or listsxp,  write them , using the BCREDPEF, ATTRALANGSXP and ATTRLISTSXP
-    // else write the type and the value
-
-    throw new UnsupportedOperationException("not implemented yet");
+    var nextRepIndex = new int[] {0};
+    writeBC1(s, reps, nextRepIndex);
   }
 
   private void writeSymbol(SymSXP s) throws IOException {
     switch (s) {
-      case RegSymSXP regSymSXP -> writeSymbol(regSymSXP);
+      case RegSymSXP regSymSXP -> writeRegSymbol(regSymSXP);
       case SpecialSymSXP specialSymSXP when specialSymSXP.isEllipsis() -> {
         out.writeByte((byte) SEXPType.SYM.i);
         writeChars("..."); // Really?
@@ -430,12 +529,12 @@ public class RDSWriter implements Closeable {
     }
   }
 
-  private void writeSymbol(RegSymSXP s) throws IOException {
+  private void writeRegSymbol(RegSymSXP s) throws IOException {
     refTable.add(s);
-    writeSymbol(s.name());
+    writeRegSymbol(s.name());
   }
 
-  private void writeSymbol(String s) throws IOException {
+  private void writeRegSymbol(String s) throws IOException {
     out.writeInt(SEXPType.SYM.i);
     writeChars(s);
   }

@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.prlprg.primitive.Complex;
 import org.prlprg.primitive.Constants;
@@ -44,7 +45,7 @@ public class RDSWriterTest extends AbstractGNURBasedTest {
         R.eval(
             """
         typeof(input) == "integer" && identical(input, c(5L, 4L, 3L, 2L, 1L))
-            """,
+        """,
             ints);
 
     if (output instanceof LglSXP read_lgls) {
@@ -79,7 +80,7 @@ public class RDSWriterTest extends AbstractGNURBasedTest {
     var output =
         R.eval(
             """
-        typeof(input) == "complex" && identical(input, c(0+0i, 1+2i, -2-1i))
+            typeof(input) == "complex" && identical(input, c(0+0i, 1+2i, -2-1i))
             """,
             complexes);
 
@@ -88,6 +89,35 @@ public class RDSWriterTest extends AbstractGNURBasedTest {
       assertEquals(Logical.TRUE, read_lgls.get(0));
     } else {
       fail("Expected LglSXP");
+    }
+  }
+
+  @Test
+  public void testLang() throws Exception {
+    var lang =
+        SEXPs.lang(
+            SEXPs.symbol("func"),
+            SEXPs.list(
+                List.of(
+                    new TaggedElem("arg", SEXPs.integer(1)), new TaggedElem(SEXPs.integer(2)))));
+    var output = new ByteArrayOutputStream();
+
+    RDSWriter.writeStream(rsession, output, lang);
+
+    var input = new ByteArrayInputStream(output.toByteArray());
+    var sexp = RDSReader.readStream(rsession, input);
+    System.out.println(sexp);
+
+    if (sexp instanceof LangSXP read_lang) {
+      var name = read_lang.funName();
+      var arg1 = read_lang.args().get(0);
+      var arg2 = read_lang.args().get(1);
+
+      assert name.isPresent();
+
+      assertEquals(name.get(), "func");
+      assertEquals(arg1, new TaggedElem("arg", SEXPs.integer(1)));
+      assertEquals(arg2, new TaggedElem(SEXPs.integer(2)));
     }
   }
 
