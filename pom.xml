@@ -278,6 +278,22 @@
         </configuration>
         <!-- automatically runs on `test` (and `verify` because `verify` invokes `test`) -->
       </plugin>
+      <!-- maven-javadoc-plugin, ensures there aren't javadoc issues -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-javadoc-plugin</artifactId>
+        <version>3.7.0</version>
+        <!-- `executions` is required to run this on verify -->
+        <executions>
+          <execution>
+            <goals>
+              <goal>javadoc</goal>
+              <goal>test-javadoc</goal>
+            </goals>
+            <phase>verify</phase>
+          </execution>
+        </executions>
+      </plugin>
     </plugins>
   </build>
 </project>
