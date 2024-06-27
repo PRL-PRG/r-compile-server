@@ -43,9 +43,9 @@ public sealed interface Instr extends InstrOrPhi permits Jump, Stmt {
    * BB#replace(int, String, StmtData)} <i>does not</i> have the same behavior, because it won't
    * change the instruction in the arguments of any other instructions).
    *
-   * <p>Note that {@link BatchSubst}'s time complexity is O(<# instructions in CFG>), while this
-   * methods's is O(1), so this method is preferred when possible. However, if you already need to
-   * run a {@link BatchSubst}, adding to it doesn't noticeably increase its running time.
+   * <p>Note that {@link BatchSubst}'s time complexity is O(&lt;# instructions in CFG&gt;), while
+   * this methods's is O(1), so this method is preferred when possible. However, if you already need
+   * to run a {@link BatchSubst}, adding to it doesn't noticeably increase its running time.
    *
    * <p>This can't be an instance method because the type parameter of {@link InstrData} is
    * invariant and restricts type of {@code instr}. Since Java's generics aren't very good you may

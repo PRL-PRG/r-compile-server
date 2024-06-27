@@ -8,7 +8,7 @@ import org.prlprg.parseprint.Printer;
 /**
  * R expression vector.
  *
- * @apiNote Immutable because we assume it can't contain environments or any other mutable SEXPs.
+ * <p>Immutable because we assume it can't contain environments or any other mutable SEXPs.
  */
 @Immutable
 public sealed interface ExprSXP extends VectorSXP<SEXP> {

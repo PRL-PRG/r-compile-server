@@ -12,10 +12,10 @@ import org.zeromq.ZContext;
  *
  * <p>All methods to send and receive data are here so they're easy to find.
  *
- * @implNote The current plan is for the server's interface to be exclusive to the main thread,
- *     which includes adding sockets and closing. The server spawns separate threads for each client
- *     to wait and handle their requests, and the clients threads may spawn child threads for
- *     specific multi-part requests (although first the clients need to be multi- threaded).
+ * <p><b>Implementation note:</b> the current plan is for the server's interface to be exclusive to
+ * the main thread, which includes adding sockets and closing. The server spawns separate threads
+ * for each client to wait and handle their requests, and the clients threads may spawn child
+ * threads for specific multi-part requests (although first the clients need to be multi- threaded).
  */
 public final class Server implements Closeable {
   // TODO: Make this an environment variable, but we should have some centralized configuration

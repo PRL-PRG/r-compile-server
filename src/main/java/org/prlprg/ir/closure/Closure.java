@@ -29,10 +29,10 @@ import org.prlprg.util.Pair;
 /**
  * An IR closure: a GNU-R closure ({@link CloSXP}) converted into our {@link org.prlprg.ir
  * intermediate representation}, which can be converted back. We also attach a name for debugging,
- * typically the name of the variable the GNU-R closure is assigned to (e.g. "f <- function(...)
+ * typically the name of the variable the GNU-R closure is assigned to (e.g. "f &lt;- function(...)
  * ...").
  *
- * <h2>Evaluation
+ * <h2>Evaluation</h2>
  *
  * <p>The IR closure maintains the same behavior as the GNU-R closure it was created from (and the
  * same parameters and non-static part of the environment) when converted back into GNU-R. But the
@@ -64,7 +64,7 @@ public final class Closure extends CodeObject {
   private final NavigableMap<CallContext, ClosureVersion> optimizedVersions;
 
   /**
-   * {@link Closure(CloSXP, RValue, String)} with an {@linkplain StaticEnv#NOT_CLOSED unclosed}
+   * {@link Closure(String, CloSXP, RValue)} with an {@linkplain StaticEnv#NOT_CLOSED unclosed}
    * environment (not an inner closure).
    */
   public Closure(String name, CloSXP origin) {

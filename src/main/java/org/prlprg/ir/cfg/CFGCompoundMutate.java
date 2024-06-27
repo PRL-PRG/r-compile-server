@@ -29,8 +29,8 @@ public interface CFGCompoundMutate extends CFGQuery, CFGIntrinsicMutate {
    * substitutions.
    *
    * <p>Use {@link InstrOrPhi#rename(String)}, {@link Phi#setInput(Input)}, or {@link
-   * Instr#mutateArgs(Instr, InstrData)} when applicable. Those have O(<# arguments in all
-   * instructions and phis>) time complexity per call. However, they are less flexible than this
+   * Instr#mutateArgs(Instr, InstrData)} when applicable. Those have O(&lt;# arguments in all
+   * instructions and phis&gt;) time complexity per call. However, they are less flexible than this
    * method, which can substitute a node with one of a different shape (# of return values) or one
    * that already exists.
    *

@@ -30,7 +30,7 @@ public class SmallBinarySet<T> implements SequencedSet<T> {
    *
    * @param comparator Determines how the elements are ordered in the set. Also used for equality:
    *     <i>if you attempt to {@linkplain #add(Object) add} an element that the comparator states is
-   *     equal to an existing one, it won't be added.
+   *     equal to an existing one, it won't be added.</i>
    */
   public SmallBinarySet(Comparator<T> comparator) {
     this(4, comparator);
@@ -41,7 +41,7 @@ public class SmallBinarySet<T> implements SequencedSet<T> {
    *
    * @param comparator Determines how the elements are ordered in the set. Also used for equality:
    *     <i>if the comparator states an inserted element equals an existing one, it will replace the
-   *     old one.
+   *     old one.</i>
    */
   public SmallBinarySet(int capacity, Comparator<T> comparator) {
     this.comparator = comparator;

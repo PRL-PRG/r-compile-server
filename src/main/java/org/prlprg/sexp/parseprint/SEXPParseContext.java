@@ -43,8 +43,8 @@ import org.prlprg.util.UnreachableError;
  * across the parses. This is useful e.g. when parsing {@link CFG} or {@link Closure}, since they
  * may contain many references to the same large {@link StaticEnvSXP}.
  *
- * @implNote All of the logic for parsing {@link SEXP}s, {@link Attributes}, and {@link TaggedElem}s
- *     (all data-types in {@link org.prlprg.sexp}) is implemented in this class.
+ * <p><b>Implementation note:</b> all of the logic for parsing {@link SEXP}s, {@link Attributes},
+ * and {@link TaggedElem}s (all data-types in {@link org.prlprg.sexp}) is implemented in this class.
  */
 public class SEXPParseContext implements HasSEXPParseContext {
   /** {@code true} if the character indicates the end of an {@link SEXP} or {@link TaggedElem}. */

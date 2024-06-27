@@ -16,8 +16,8 @@ import org.prlprg.util.Lists;
  * table</a> because each element can have an optional name (still ordered and have indices).
  * Otherwise, it's the same as a generic vector in that its elements are {@link SEXP}s.
  *
- * @implNote In GNU-R this is represented as a linked list, but we internally use an array-list
- *     because it's more efficient.
+ * <p><b>Implementation note:</b> in GNU-R this is represented as a linked list, but we internally
+ * use an array-list because it's more efficient.
  */
 public sealed interface ListSXP extends ListOrVectorSXP<TaggedElem> permits NilSXP, ListSXPImpl {
   @Override
