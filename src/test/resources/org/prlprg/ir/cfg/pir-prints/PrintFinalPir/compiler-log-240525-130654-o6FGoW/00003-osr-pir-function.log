@@ -1,0 +1,30 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ osr[0x55fae8dc31a0]                                                          │
+│ Context: CorrOrd,!TMany                                                      │
+│ Properties:                                                                  │
+├────── Final PIR Version
+osr[0x55fae8dc31a0]
+BB0
+  env             e0.0  = LdFunctionEnv            
+  int$#           %0.1  = LdArg                    0   <int$>
+  void                    StVar              lW    file, %0.1, e0.0
+  (cls|spec|blt)  %0.3  = LdFun              !v    list, <0x55fae6f275c0>, e0.0
+  (miss|dots)     %0.4  = LdDots             R     , e0.0
+  *dots-          %0.5  = ExpandDots               %0.4
+  val?            %0.6  = NamedCall          !v    %0.3(.xpandDotsTrigger=%0.5) e0.0   <vec->
+  val?^ | miss    %0.7  = LdVar              eR    file, e0.0
+  val?            %0.8  = Force!<value>      !v    %0.7, e0.0   <int$>
+  val?^ | miss    %0.9  = LdVar              eR    sep, e0.0
+  val?            %0.10 = Force!<lazy>       !v    %0.9, e0.0   <str$->
+  val?^ | miss    %0.11 = LdVar              eR    fill, e0.0
+  val?            %0.12 = Force!<lazy>       !v    %0.11, e0.0   <lgl$->
+  val?^ | miss    %0.13 = LdVar              eR    labels, e0.0
+  val?            %0.14 = Force!<lazy>       !v    %0.13, e0.0   <nil->
+  val?^ | miss    %0.15 = LdVar              eR    append, e0.0
+  val?            %0.16 = Force!<lazy>       !v    %0.15, e0.0   <lgl$->
+  val+            %0.17 = CallSafeBuiltin    vwed  cat(%0.6, %0.8, %0.10, %0.12, %0.14, %0.16) 
+  void                    Return             l     %0.17
+
+│ osr[0x55fae8dc31a0]                                                          │
+└──────────────────────────────────────────────────────────────────────────────┘

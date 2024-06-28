@@ -3,10 +3,12 @@ package org.prlprg.sexp;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterators;
 import java.util.Iterator;
-import javax.annotation.Nullable;
+import java.util.Map;
+import javax.annotation.Nonnull;
 
+/** An environment inside a closure or explicitly defined by the user. */
 public final class UserEnvSXP extends AbstractEnvSXP implements EnvSXP, Iterable<TaggedElem> {
-  private @Nullable Attributes attributes;
+  private Attributes attributes = Attributes.NONE;
 
   public UserEnvSXP() {
     this(EmptyEnvSXP.INSTANCE);
@@ -14,6 +16,16 @@ public final class UserEnvSXP extends AbstractEnvSXP implements EnvSXP, Iterable
 
   public UserEnvSXP(EnvSXP parent) {
     super(parent);
+  }
+
+  public UserEnvSXP(EnvSXP parent, Map<String, SEXP> bindings) {
+    this(parent);
+    this.bindings.putAll(bindings);
+  }
+
+  @Override
+  public void setParent(EnvSXP parent) {
+    this.parent = parent;
   }
 
   public Iterator<TaggedElem> iterator() {
@@ -32,8 +44,8 @@ public final class UserEnvSXP extends AbstractEnvSXP implements EnvSXP, Iterable
   }
 
   @Override
-  public String toString() {
-    return "<environment: " + hashCode() + ">";
+  public EnvType envType() {
+    return EnvType.USER;
   }
 
   @Override
@@ -43,12 +55,8 @@ public final class UserEnvSXP extends AbstractEnvSXP implements EnvSXP, Iterable
   }
 
   @Override
-  public Attributes attributes() {
+  public @Nonnull Attributes attributes() {
     return attributes;
-  }
-
-  public void setParent(EnvSXP parent) {
-    this.parent = parent;
   }
 
   public void setAttributes(Attributes attributes) {

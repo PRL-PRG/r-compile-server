@@ -1,0 +1,41 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ formals[0x55bbe65b8ce0]                                                      │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch miss: 1                              │
+│ Properties:  Eager, ForceOrd: 0                                              │
+├────── Final PIR Version
+formals[0x55bbe65b8ce0]
+BB0
+  val?^           %0.0  = LdArg                    0
+  env             e0.1  = MkEnv              l     fun=%0.0, envir(miss)=missingArg, parent=R_BaseNamespace, context 1
+  prom-           %0.2  = MkArg                    unboundValue, formals[0x55bbe65b8ce0]_p0, e0.1
+  val?^ | miss    %0.3  = CastType                 up %0.2
+  void                    StArg              lW    envir, %0.3, e0.1
+  val?            %0.5  = Force!<lazy>       !v    %0.0, e0.1   <cls->
+  lgl$#-          %0.6  = IsType                   %0.5 isA val?-
+  void                    Branch                   %0.6 -> BB6 (if true) | BB7 (if false)
+BB6   <- [0]
+  val?-           %6.0  = CastType           d     dn %0.5   <cls->
+  lgl$#-          %6.1  = CallSafeBuiltin    wed   is.character(%6.0)    <lgl$->
+  void                    Branch                   %6.1 -> BB4 (if true) | BB3 (if false)
+BB7   <- [0]
+  fs              %7.0  = FrameState         R     0x55bbe3fc4bb0+69: [<blt is.character>, %0.5], env=e0.1
+  void                    Deopt              !v    %7.0, Typecheck@0x55bbe2eeae38[Type#4], %0.5   !
+BB4   <- [6]
+  (cls|spec|blt)  %4.0  = LdFun              !v    get, e0.1
+  fs              %4.1  = FrameState         R     0x55bbe3fc4bb0+112: [%4.0], env=e0.1
+  void                    Deopt              !v    %4.1, DeadCall@0x55bbe2eeae38[Call#4], %4.0   !
+BB3   <- [6]
+  val?^ | miss    %3.0  = LdVar              eR    fun, e0.1
+  val?            %3.1  = Force!<wrapped>    !v    %3.0, e0.1   <cls->
+  val+            %3.2  = CallSafeBuiltin    vwed  formals(%3.1) 
+  void                    Return             l     %3.2
+Prom 0:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     parent.frame, e0.0
+  val?            %0.2  = Call               !     %0.1() e0.0   <val?_>
+  void                    Return             l     %0.2
+
+│ formals[0x55bbe65b8ce0]                                                      │
+└──────────────────────────────────────────────────────────────────────────────┘

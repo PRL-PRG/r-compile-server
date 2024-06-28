@@ -3,15 +3,26 @@ package org.prlprg.sexp;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.UnmodifiableIterator;
 import javax.annotation.concurrent.Immutable;
+import org.prlprg.parseprint.Printer;
 import org.prlprg.primitive.Complex;
 
 /** Complex vector SEXP. */
 @Immutable
-public sealed interface ComplexSXP extends VectorSXP<Complex>
+public sealed interface ComplexSXP extends PrimVectorSXP<Complex>
     permits ComplexSXPImpl, EmptyComplexSXPImpl, ScalarComplexSXP {
   @Override
   default SEXPType type() {
     return SEXPType.CPLX;
+  }
+
+  @Override
+  default boolean hasNaOrNaN() {
+    for (var complex : this) {
+      if (complex.isNaOrNaN()) {
+        return true;
+      }
+    }
+    return false;
   }
 
   @Override
@@ -42,13 +53,13 @@ record ComplexSXPImpl(ImmutableList<Complex> data, @Override Attributes attribut
   }
 
   @Override
-  public String toString() {
-    return VectorSXPs.toString(this, data().stream());
+  public ComplexSXP withAttributes(Attributes attributes) {
+    return new ComplexSXPImpl(data, attributes);
   }
 
   @Override
-  public ComplexSXP withAttributes(Attributes attributes) {
-    return new ComplexSXPImpl(data, attributes);
+  public String toString() {
+    return Printer.toString(this);
   }
 }
 

@@ -1,0 +1,34 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ topenv[0x556a1de2a3b0]                                                       │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch miss: 1                              │
+│ Properties:  Eager, ForceOrd: 0                                              │
+├────── Final PIR Version
+topenv[0x556a1de2a3b0]
+BB0
+  val?^           %0.0  = LdArg                    0
+  env             e0.1  = MkEnv              l     envir=%0.0, matchThisEnv(miss)=missingArg, parent=R_BaseNamespace, context 1
+  prom-           %0.2  = MkArg                    unboundValue, topenv[0x556a1de2a3b0]_p0, e0.1
+  val?^ | miss    %0.3  = CastType                 up %0.2
+  void                    StArg              lW    matchThisEnv, %0.3, e0.1
+  val?            %0.5  = Force!<lazy>       !v    %0.0, e0.1   <env->
+  lgl$#-          %0.6  = IsType                   %0.5 isA val?-
+  void                    Branch                   %0.6 -> BB4 (if true) | BB5 (if false)
+BB4   <- [0]
+  val?-           %4.0  = CastType           d     dn %0.5   <env->
+  val?^ | miss    %4.1  = LdVar              eR    matchThisEnv, e0.1
+  val?            %4.2  = Force!<lazy>       !v    %4.1, e0.1   <nil->
+  val?            %4.3  = CallBuiltin        !     topenv(%4.0, %4.2) e0.1
+  void                    Return             l     %4.3
+BB5   <- [0]
+  fs              %5.0  = FrameState         R     0x556a1d9d8110+9: [%0.5], env=e0.1
+  void                    Deopt              !v    %5.0, Typecheck@0x556a1df67ba8[Type#2], %0.5   !
+Prom 0:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     getOption, <0x556a1b6e7558>, e0.0
+  val?            %0.2  = Call               !     %0.1("topLevelEnvironment") e0.0   <nil->
+  void                    Return             l     %0.2
+
+│ topenv[0x556a1de2a3b0]                                                       │
+└──────────────────────────────────────────────────────────────────────────────┘

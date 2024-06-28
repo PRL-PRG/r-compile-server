@@ -1,9 +1,11 @@
 package org.prlprg.util;
 
 import static java.lang.String.format;
+import static org.prlprg.AppConfig.R_BIN;
 
 import java.io.*;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import javax.annotation.concurrent.NotThreadSafe;
 import org.prlprg.RSession;
 import org.prlprg.rds.RDSReader;
@@ -12,8 +14,6 @@ import org.prlprg.sexp.SEXP;
 
 @NotThreadSafe
 public class GNUR implements AutoCloseable {
-  public static final String R_BIN = "R";
-
   private final RSession rsession;
   private final Process rprocess;
   private final PrintStream rin;
@@ -126,11 +126,36 @@ public class GNUR implements AutoCloseable {
 
   public static GNUR spawn(RSession session) {
     try {
+      var versionProc = new ProcessBuilder(R_BIN, "--version").start();
+      if (!versionProc.waitFor(10, TimeUnit.SECONDS)) {
+        throw new RuntimeException("R (`" + R_BIN + " --version`) timed out");
+      }
+      String version;
+      try (var versionReader = versionProc.inputReader()) {
+        var versionStr = versionReader.readLine();
+        if (versionStr == null || !versionStr.startsWith("R version ")) {
+          throw new RuntimeException("R (`" + R_BIN + " --version`) returned unexpected output");
+        }
+        version = versionStr.substring("R version ".length()).split(" ", 2)[0];
+      }
+      if (!version.equals(session.version())) {
+        throw new RuntimeException(
+            "R version can't be used for compiler tests: expected version "
+                + session.version()
+                + " but found "
+                + version
+                + " (R_BIN = "
+                + R_BIN
+                + ")");
+      }
+
       var proc =
           new ProcessBuilder(R_BIN, "--slave", "--vanilla").redirectErrorStream(true).start();
       return new GNUR(session, proc);
-    } catch (Exception e) {
-      throw new RuntimeException("Unable to start R", e);
+    } catch (IOException | SecurityException | UnsupportedOperationException e) {
+      throw new RuntimeException("Unable to start R (R_BIN = " + R_BIN + ")", e);
+    } catch (InterruptedException e) {
+      throw new RuntimeException("Interrupted while running R (R_BIN = " + R_BIN + ")", e);
     }
   }
 }

@@ -9,12 +9,12 @@ import java.io.ByteArrayOutputStream;
 import java.util.HashMap;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.prlprg.AbstractGNURBasedTest;
 import org.prlprg.bc.Compiler;
 import org.prlprg.primitive.Complex;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.*;
-import org.prlprg.util.AbstractGNURBasedTest;
 
 public class RDSWriterTest extends AbstractGNURBasedTest {
 
@@ -351,9 +351,12 @@ public class RDSWriterTest extends AbstractGNURBasedTest {
                     SEXPs.symbol("y"))),
             new BaseEnvSXP(new HashMap<>()));
 
-    var output = R.eval("""
+    var output =
+        R.eval(
+            """
         input(x=c(1, 2))
-        """, clo);
+        """,
+            clo);
 
     assertEquals(output, SEXPs.real(6, 7));
   }
@@ -409,11 +412,14 @@ public class RDSWriterTest extends AbstractGNURBasedTest {
                     SEXPs.symbol("y"))),
             new BaseEnvSXP(new HashMap<>()));
     var bc = new Compiler(clo, rsession).compile().orElseThrow();
-    var compiled_clo = SEXPs.closure(clo.formals(), SEXPs.bcode(bc), clo.env());
+    var compiled_clo = SEXPs.closure(clo.parameters(), SEXPs.bcode(bc), clo.env());
 
-    var output = R.eval("""
+    var output =
+        R.eval(
+            """
         input(x=c(1, 2))
-        """, compiled_clo);
+        """,
+            compiled_clo);
 
     assertEquals(output, SEXPs.real(6, 7));
   }

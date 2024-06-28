@@ -1,0 +1,34 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ pirCheck[0x55cbf478bc90]                                                     │
+│ Context: CorrOrd,!TMany                                                      │
+│ Properties:                                                                  │
+├────── PIR Version After Optimizations
+pirCheck[0x55cbf478bc90]
+BB0
+  goto BB1
+BB1   <- [0]
+  val?^ | miss    %1.0  = LdArg                    0
+  lgl$#-          %1.1  = Identical                %1.0, missingArg
+  env             e1.2  = (MkEnv)            l     x=%1.0, parent=R_GlobalEnv, context 1
+  void                    Branch                   %1.1 -> BB2 (if true) | BB6 (if false)
+BB2   <- [1]
+  void                    Visible            v     
+  void                    StArg              lWd   x, 4, e1.2
+  goto BB3
+BB6   <- [1]
+  goto BB3
+BB3   <- [6, 2]
+  (cls|spec|blt)  %3.0  = LdFun              !     print, R_GlobalEnv
+  val?            %3.1  = Call               !L    %3.0("PIR does support default args") e1.2   <val?_>
+  cp              %3.2  = Checkpoint                -> BB5 (default) | BB4 (if assume failed)
+BB5   <- [3]
+  lgl$#-          %5.0  = IsEnvStub          R     , e1.2
+  void                    Assume             D     %5.0, %3.2 (EnvStubMaterialized@0x55cbf3d7f1d8[Call#unknown])
+  void                    Return             l     %3.1
+BB4   <- [3]
+  fs              %4.0  = FrameState         R     0x55cbf47a0ad0+32: [%3.1], env=e1.2
+  void                    Deopt              !v    %4.0
+
+│ pirCheck[0x55cbf478bc90]                                                     │
+└──────────────────────────────────────────────────────────────────────────────┘

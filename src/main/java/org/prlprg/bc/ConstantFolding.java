@@ -19,7 +19,7 @@ import org.prlprg.util.Arithmetic;
  * Implements constant folding for some of the R functions. All functions are should have the same
  * signature: {@code Optional<SEXP> f(List<SEXP> args)}
  *
- * <p>They shall be called from Compiler and can assume that each argument is one of the {@link
+ * <p>They shall be called from Compiler and can assume that each argument is one of the {@code
  * Compiler#ALLOWED_FOLDABLE_MODES}.
  *
  * <p>The main reason it is extracted from the Compiler is to make have all the folding code in one
@@ -206,7 +206,7 @@ public final class ConstantFolding {
       res.addAll(x);
     }
 
-    return SEXPs.vector(x.type(), res.build());
+    return SEXPs.primVector(x.type(), res.build());
   }
 
   private static <T> SEXP doRep2(VectorSXP<T> xs, NumericSXP<?> times) {
@@ -220,7 +220,7 @@ public final class ConstantFolding {
       }
     }
 
-    return SEXPs.vector(xs.type(), res.build());
+    return SEXPs.primVector(xs.type(), res.build());
   }
 
   private static Optional<SEXP> doubleMath1(List<SEXP> args, Function<Double, Double> f) {

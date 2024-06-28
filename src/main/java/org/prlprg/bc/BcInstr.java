@@ -1,8 +1,18 @@
 package org.prlprg.bc;
 
+import com.google.common.collect.ImmutableMap;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import java.util.Arrays;
 import javax.annotation.Nullable;
-import org.prlprg.sexp.*;
+import org.prlprg.sexp.IntSXP;
+import org.prlprg.sexp.LangSXP;
+import org.prlprg.sexp.ListSXP;
+import org.prlprg.sexp.RegSymSXP;
+import org.prlprg.sexp.SEXP;
+import org.prlprg.sexp.SEXPs;
+import org.prlprg.sexp.StrOrRegSymSXP;
+import org.prlprg.sexp.StrSXP;
+import org.prlprg.sexp.VecSXP;
 
 /**
  * A single bytecode instruction, consists of an operation and arguments. The operation is
@@ -11,6 +21,13 @@ import org.prlprg.sexp.*;
 @SuppressWarnings("MissingJavadoc")
 @SuppressFBWarnings({"EI_EXPOSE_REP2", "EI_EXPOSE_REP"})
 public sealed interface BcInstr {
+  /** Every instruction class mapped to its {@linkplain Class#getSimpleName() simple name}. */
+  @SuppressWarnings("unchecked")
+  ImmutableMap<String, Class<? extends BcInstr>> CLASSES =
+      Arrays.stream(BcInstr.class.getPermittedSubclasses())
+          .collect(
+              ImmutableMap.toImmutableMap(Class::getSimpleName, c -> (Class<? extends BcInstr>) c));
+
   /** The instruction's operation. */
   BcOp op();
 
@@ -21,14 +38,15 @@ public sealed interface BcInstr {
     }
   }
 
-  record Goto(BcLabel label) implements BcInstr {
+  record Goto(@LabelName("") BcLabel label) implements BcInstr {
     @Override
     public BcOp op() {
       return BcOp.GOTO;
     }
   }
 
-  record BrIfNot(ConstPool.Idx<LangSXP> ast, BcLabel label) implements BcInstr {
+  record BrIfNot(ConstPool.Idx<LangSXP> ast, @LabelName("ifFalse") BcLabel label)
+      implements BcInstr {
     @Override
     public BcOp op() {
       return BcOp.BRIFNOT;
@@ -56,7 +74,7 @@ public sealed interface BcInstr {
     }
   }
 
-  record StartLoopCntxt(boolean isForLoop, BcLabel break_) implements BcInstr {
+  record StartLoopCntxt(boolean isForLoop, @LabelName("loopEnd") BcLabel end) implements BcInstr {
     @Override
     public BcOp op() {
       return BcOp.STARTLOOPCNTXT;
@@ -84,7 +102,10 @@ public sealed interface BcInstr {
     }
   }
 
-  record StartFor(ConstPool.Idx<LangSXP> ast, ConstPool.Idx<RegSymSXP> elemName, BcLabel end)
+  record StartFor(
+      ConstPool.Idx<LangSXP> ast,
+      ConstPool.Idx<RegSymSXP> elemName,
+      @LabelName("forStep") BcLabel step)
       implements BcInstr {
     @Override
     public BcOp op() {
@@ -92,7 +113,7 @@ public sealed interface BcInstr {
     }
   }
 
-  record StepFor(BcLabel end) implements BcInstr {
+  record StepFor(@LabelName("forBody") BcLabel body) implements BcInstr {
     @Override
     public BcOp op() {
       return BcOp.STEPFOR;
@@ -463,7 +484,8 @@ public sealed interface BcInstr {
     }
   }
 
-  record StartSubset(ConstPool.Idx<LangSXP> ast, BcLabel after) implements BcInstr {
+  record StartSubset(ConstPool.Idx<LangSXP> ast, @LabelName("afterSubset") BcLabel after)
+      implements BcInstr {
     @Override
     public BcOp op() {
       return BcOp.STARTSUBSET;
@@ -477,7 +499,8 @@ public sealed interface BcInstr {
     }
   }
 
-  record StartSubassign(ConstPool.Idx<LangSXP> ast, BcLabel after) implements BcInstr {
+  record StartSubassign(ConstPool.Idx<LangSXP> ast, @LabelName("afterSubassign") BcLabel after)
+      implements BcInstr {
     @Override
     public BcOp op() {
       return BcOp.STARTSUBASSIGN;
@@ -491,7 +514,7 @@ public sealed interface BcInstr {
     }
   }
 
-  record StartC(ConstPool.Idx<LangSXP> ast, BcLabel after) implements BcInstr {
+  record StartC(ConstPool.Idx<LangSXP> ast, @LabelName("afterC") BcLabel after) implements BcInstr {
     @Override
     public BcOp op() {
       return BcOp.STARTC;
@@ -505,7 +528,8 @@ public sealed interface BcInstr {
     }
   }
 
-  record StartSubset2(ConstPool.Idx<LangSXP> ast, BcLabel after) implements BcInstr {
+  record StartSubset2(ConstPool.Idx<LangSXP> ast, @LabelName("afterSubset2") BcLabel after)
+      implements BcInstr {
     @Override
     public BcOp op() {
       return BcOp.STARTSUBSET2;
@@ -519,7 +543,8 @@ public sealed interface BcInstr {
     }
   }
 
-  record StartSubassign2(ConstPool.Idx<LangSXP> ast, BcLabel after) implements BcInstr {
+  record StartSubassign2(ConstPool.Idx<LangSXP> ast, @LabelName("afterSubassign2") BcLabel after)
+      implements BcInstr {
     @Override
     public BcOp op() {
       return BcOp.STARTSUBASSIGN2;
@@ -643,7 +668,8 @@ public sealed interface BcInstr {
     }
   }
 
-  record And1st(ConstPool.Idx<LangSXP> ast, BcLabel shortCircuit) implements BcInstr {
+  record And1st(ConstPool.Idx<LangSXP> ast, @LabelName("afterAnd") BcLabel shortCircuit)
+      implements BcInstr {
     @Override
     public BcOp op() {
       return BcOp.AND1ST;
@@ -657,7 +683,8 @@ public sealed interface BcInstr {
     }
   }
 
-  record Or1st(ConstPool.Idx<LangSXP> ast, BcLabel shortCircuit) implements BcInstr {
+  record Or1st(ConstPool.Idx<LangSXP> ast, @LabelName("afterOr") BcLabel shortCircuit)
+      implements BcInstr {
     @Override
     public BcOp op() {
       return BcOp.OR1ST;
@@ -769,14 +796,16 @@ public sealed interface BcInstr {
     }
   }
 
-  record StartSubsetN(ConstPool.Idx<LangSXP> ast, BcLabel after) implements BcInstr {
+  record StartSubsetN(ConstPool.Idx<LangSXP> ast, @LabelName("afterSubsetN") BcLabel after)
+      implements BcInstr {
     @Override
     public BcOp op() {
       return BcOp.STARTSUBSET_N;
     }
   }
 
-  record StartSubassignN(ConstPool.Idx<LangSXP> ast, BcLabel after) implements BcInstr {
+  record StartSubassignN(ConstPool.Idx<LangSXP> ast, @LabelName("afterSubassignN") BcLabel after)
+      implements BcInstr {
     @Override
     public BcOp op() {
       return BcOp.STARTSUBASSIGN_N;
@@ -811,14 +840,16 @@ public sealed interface BcInstr {
     }
   }
 
-  record StartSubset2N(ConstPool.Idx<LangSXP> ast, BcLabel after) implements BcInstr {
+  record StartSubset2N(ConstPool.Idx<LangSXP> ast, @LabelName("afterSubset2N") BcLabel after)
+      implements BcInstr {
     @Override
     public BcOp op() {
       return BcOp.STARTSUBSET2_N;
     }
   }
 
-  record StartSubassign2N(ConstPool.Idx<LangSXP> ast, BcLabel after) implements BcInstr {
+  record StartSubassign2N(ConstPool.Idx<LangSXP> ast, @LabelName("afterSubassign2N") BcLabel after)
+      implements BcInstr {
     @Override
     public BcOp op() {
       return BcOp.STARTSUBASSIGN2_N;
@@ -902,7 +933,8 @@ public sealed interface BcInstr {
     }
   }
 
-  record BaseGuard(ConstPool.Idx<LangSXP> expr, BcLabel after) implements BcInstr {
+  record BaseGuard(ConstPool.Idx<LangSXP> expr, @LabelName("baseGuardAfter") BcLabel ifFail)
+      implements BcInstr {
     @Override
     public BcOp op() {
       return BcOp.BASEGUARD;

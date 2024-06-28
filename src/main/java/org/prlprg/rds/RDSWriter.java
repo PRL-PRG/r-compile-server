@@ -91,8 +91,7 @@ public class RDSWriter implements Closeable {
             // TODO: weak reference
 
             // Other functions--special and builtin
-          case SpecialSXP special -> writeSpecialSXP(special);
-          case BuiltinSXP builtin -> writeBuiltinSXP(builtin);
+          case BuiltinOrSpecialSXP bos -> writeBuiltinOrSpecialSXP(bos);
 
             // Vectors
           case VectorSXP<?> vec -> writeVectorSXP(vec);
@@ -210,7 +209,7 @@ public class RDSWriter implements Closeable {
     switch (env) {
       case NamespaceEnvSXP namespace -> {
         out.writeInt(RDSItemType.Special.NAMESPACESXP.i());
-        var namespaceInfo = SEXPs.string(namespace.getName(), namespace.getVersion());
+        var namespaceInfo = SEXPs.string(namespace.name(), namespace.version());
         write(namespaceInfo);
         // TODO: needs tests
       }
@@ -241,20 +240,11 @@ public class RDSWriter implements Closeable {
     }
   }
 
-  // TODO: test
-  private void writeSpecialSXP(SpecialSXP special) throws IOException {
-    writeFlags(special, 0);
-    var name = special.name();
+  private void writeBuiltinOrSpecialSXP(BuiltinOrSpecialSXP bos) throws IOException {
+    writeFlags(bos, 0);
+    var name = bos.id().name();
     out.writeInt(name.length());
-    out.writeString(special.name());
-  }
-
-  // TODO: test
-  private void writeBuiltinSXP(BuiltinSXP builtin) throws IOException {
-    writeFlags(builtin, 0);
-    var name = builtin.name();
-    out.writeInt(name.length());
-    out.writeString(builtin.name());
+    out.writeString(name);
   }
 
   private void writeListSXP(ListSXP lsxp) throws IOException {
@@ -296,9 +286,9 @@ public class RDSWriter implements Closeable {
     }
     writeFlags(flags(prom, 0));
     // a promise has the value, expression and environment, in this order
-    writeItem(prom.getVal());
-    writeItem(prom.getExpr());
-    writeItem(prom.getEnv());
+    writeItem(prom.val());
+    writeItem(prom.expr());
+    writeItem(prom.env());
   }
 
   private void writeCloSXP(CloSXP clo) throws IOException {
@@ -308,7 +298,7 @@ public class RDSWriter implements Closeable {
     writeFlags(flags(clo, 0));
     // a closure has the environment, formals, and then body
     writeItem(clo.env());
-    writeItem(clo.formals());
+    writeItem(clo.parameters());
     writeItem(clo.body());
   }
 

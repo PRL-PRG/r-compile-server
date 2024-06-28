@@ -1,0 +1,54 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ mget[0x56554e683600]                                                         │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;NonRefl1,!Obj1 miss: 3               │
+│ Properties:  ForceOrd: 0                                                     │
+├────── PIR Version After Optimizations
+mget[0x56554e683600]
+BB0
+  goto BB1
+BB1   <- [0]
+  val?^           %1.0  = LdArg                    1
+  val?^           %1.1  = LdArg                    0
+  env             e1.2  = MkEnv              l     x=%1.1, envir=%1.0, mode(miss)="any", ifnotfound(miss)=missingArg, inherits(miss)=false, parent=R_BaseNamespace, context 1
+  cls             %1.3  = MkCls                    mget@133, e1.2
+  val?            %1.4  = Force!<lazy>       !v    %1.1, e1.2   <str+>
+  lgl$#-          %1.5  = IsType                   %1.4 isA val?+
+  cp              %1.6  = Checkpoint                -> BB2 (default) | BB8 (if assume failed)
+BB2   <- [1]
+  void                    Assume             D     %1.5, %1.6 (Typecheck@0x56554be49b30[Type#1])
+  val?+           %2.1  = CastType           d     dn %1.4   <str+>
+  val?^ | miss    %2.2  = LdVar              eR    envir, e1.2
+  val?            %2.3  = Force!<lazy>       !v    %2.2, e1.2   <env->
+  val?^ | miss    %2.4  = LdVar              eR    mode, e1.2
+  val?            %2.5  = Force!<lazy>       !v    %2.4, e1.2   <str$->
+  cp              %2.6  = Checkpoint                -> BB4 (default) | BB3 (if assume failed)
+BB8   <- [1]
+  fs              %8.0  = FrameState         R     0x56554be921a0+9: [%1.4], env=e1.2
+  void                    Deopt              !v    %8.0   !
+BB4   <- [2]
+  lgl$-           %4.0  = Missing            eR    ifnotfound, e1.2
+  lgl$#-          %4.1  = CheckTrueFalse     e     %4.0
+  void                    Branch                   %4.1 -> BB7 (if true) | BB5 (if false)
+BB3   <- [2]
+  fs              %3.0  = FrameState         R     0x56554be921a0+37: [%2.1, %2.3, %2.5], env=e1.2
+  void                    Deopt              !v    %3.0   !
+BB7   <- [4]
+  val?^ | miss    %7.0  = LdVar              eR    list, e1.2
+  lgl$#-          %7.1  = Identical                <blt list>, %7.0   <true>
+  void                    Assume             D     %7.1, %2.6 (DeadBranchReached@0x56554be49b30[Test#0])
+  val+            %7.3  = CallSafeBuiltin    wed   list(%1.3)    <vec$->
+  goto BB6
+BB5   <- [4]
+  val?^ | miss    %5.0  = LdVar              eR    ifnotfound, e1.2
+  val?            %5.1  = Force!             !v    %5.0, e1.2   <val?_>
+  goto BB6
+BB6   <- [5, 7]
+  val?            %6.0  = Phi                      %5.1:BB5, %7.3:BB7
+  val?^ | miss    %6.1  = LdVar              eR    inherits, e1.2
+  val?            %6.2  = Force!<lazy>       !v    %6.1, e1.2   <lgl$->
+  val?            %6.3  = CallBuiltin        !     mget(%2.1, %2.3, %2.5, %6.0, %6.2) e1.2
+  void                    Return             l     %6.3
+
+│ mget[0x56554e683600]                                                         │
+└──────────────────────────────────────────────────────────────────────────────┘

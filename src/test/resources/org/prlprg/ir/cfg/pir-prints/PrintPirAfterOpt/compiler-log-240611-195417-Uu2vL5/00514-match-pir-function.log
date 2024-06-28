@@ -1,0 +1,42 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ match[0x5604dfba39e0]                                                        │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;Eager2,NonRefl2,!Obj2,SimpleInt2 miss: 1│
+│ Properties:  ForceOrd: 0                                                     │
+├────── PIR Version After Optimizations
+match[0x5604dfba39e0]
+BB0
+  goto BB1
+BB1   <- [0]
+  int$~-          %1.0  = LdArg                    2
+  val?^           %1.1  = LdArg                    1
+  val?^           %1.2  = LdArg                    0
+  env             e1.3  = (MkEnv)            l     x=%1.2, table=%1.1, nomatch=%1.0, incomparables(miss)=nil, parent=R_BaseNamespace, context 1
+  val?            %1.4  = Force!<lazy>       !vL   %1.2, e1.3   <(int|str)+>
+  lgl$#-          %1.5  = IsType                   %1.4 isA val?+
+  int$-           %1.6  = Force!<lazy>             %1.0,    <int$->
+  cp              %1.7  = Checkpoint                -> BB2 (default) | BB5 (if assume failed)
+BB2   <- [1]
+  void                    Assume             D     %1.5, %1.7 (Typecheck@0x5604db967b30[Type#0])
+  val?+           %2.1  = CastType           d     dn %1.4   <(int|str)+>
+  lgl$#-          %2.2  = IsEnvStub          R     , e1.3
+  void                    Assume             D     %2.2, %1.7 (EnvStubMaterialized@0x5604db967b30[Call#unknown])
+  val?            %2.4  = Force!<lazy>       !vL   %1.1, e1.3   <val?->
+  lgl$#-          %2.5  = IsType                   %2.4 isA val?-
+  cp              %2.6  = Checkpoint                -> BB4 (default) | BB3 (if assume failed)
+BB5   <- [1]
+  fs              %5.0  = FrameState         R     0x5604dc18fd70+9: [%1.4], env=e1.3
+  void                    Deopt              !v    %5.0   !
+BB4   <- [2]
+  void                    Assume             D     %2.5, %2.6 (Typecheck@0x5604db967b30[Type#1])
+  val?-           %4.1  = CastType           d     dn %2.4
+  lgl$#-          %4.2  = IsEnvStub          R     , e1.3
+  void                    Assume             D     %4.2, %2.6 (EnvStubMaterialized@0x5604db967b30[Call#unknown])
+  val+            %4.4  = CallSafeBuiltin    vwed  match(%2.1, %4.1, %1.6, nil) 
+  void                    Return             l     %4.4
+BB3   <- [2]
+  fs              %3.0  = FrameState         R     0x5604dc18fd70+23: [%2.1, %2.4], env=e1.3
+  void                    Deopt              !v    %3.0   !
+
+│ match[0x5604dfba39e0]                                                        │
+└──────────────────────────────────────────────────────────────────────────────┘

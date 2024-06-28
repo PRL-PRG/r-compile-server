@@ -41,15 +41,14 @@ public class GNURByteCodeEncoderFactory {
     return switch (instr) {
       case BcInstr.Goto i -> new int[] {mapping.extract(i.label())};
       case BcInstr.BrIfNot i -> new int[] {i.ast().idx(), mapping.extract(i.label())};
-      case BcInstr.StartLoopCntxt i ->
-          new int[] {i.isForLoop() ? 1 : 0, mapping.extract(i.break_())};
+      case BcInstr.StartLoopCntxt i -> new int[] {i.isForLoop() ? 1 : 0, mapping.extract(i.end())};
       case BcInstr.EndLoopCntxt i ->
           new int[] {
             i.isForLoop() ? 1 : 0,
           };
       case BcInstr.StartFor i ->
-          new int[] {i.ast().idx(), i.elemName().idx(), mapping.extract(i.end())};
-      case BcInstr.StepFor i -> new int[] {mapping.extract(i.end())};
+          new int[] {i.ast().idx(), i.elemName().idx(), mapping.extract(i.step())};
+      case BcInstr.StepFor i -> new int[] {mapping.extract(i.body())};
       case BcInstr.LdConst i -> new int[] {i.constant().idx()};
       case BcInstr.GetVar i -> new int[] {i.name().idx()};
       case BcInstr.DdVal i -> new int[] {i.name().idx()};
@@ -139,7 +138,7 @@ public class GNURByteCodeEncoderFactory {
       case BcInstr.Colon i -> new int[] {i.ast().idx()};
       case BcInstr.SeqAlong i -> new int[] {i.ast().idx()};
       case BcInstr.SeqLen i -> new int[] {i.ast().idx()};
-      case BcInstr.BaseGuard i -> new int[] {i.expr().idx(), mapping.extract(i.after())};
+      case BcInstr.BaseGuard i -> new int[] {i.expr().idx(), mapping.extract(i.ifFail())};
       case BcInstr.DeclnkN i -> new int[] {i.n()};
 
         // Otherwise, there are no arguments we need to serialize

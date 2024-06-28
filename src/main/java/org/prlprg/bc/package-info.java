@@ -1,4 +1,7 @@
-/** GNU-R typed bytecode representation. */
+/**
+ * GNU-R {@linkplain org.prlprg.bc.Bc typed bytecode representation} and {@linkplain
+ * org.prlprg.bc.Compiler AST-to-BB compiler}.
+ */
 @ParametersAreNonnullByDefault
 @FieldsAreNonNullByDefault
 @ReturnTypesAreNonNullByDefault

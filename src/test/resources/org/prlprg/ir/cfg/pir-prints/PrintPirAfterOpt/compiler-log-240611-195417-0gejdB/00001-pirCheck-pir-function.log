@@ -1,0 +1,32 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ pirCheck[0x55700c9f71d0]                                                     │
+│ Context: CorrOrd,!TMany                                                      │
+│ Properties:  Eager, ForceOrd: 0                                              │
+├────── PIR Version After Optimizations
+pirCheck[0x55700c9f71d0]
+BB0
+  goto BB1
+BB1   <- [0]
+  val?^ | miss    %1.0  = LdArg                    0
+  env             e1.1  = MkEnv              l     b=%1.0, parent=R_GlobalEnv, context 1
+  cls             %1.2  = MkCls                    f, e1.1
+  void                    StVar              lW    f, %1.2, e1.1
+  val?^           %1.4  = ChkMissing         e     %1.0
+  void                    Visible            v     
+  val?            %1.6  = Force!<lazy>       !     %1.4, e1.1   <real$->
+  prom-           %1.7  = MkArg                    %1.6, pirCheck[0x55700c9f71d0]_p0 (!refl), 
+  val?            %1.8  = StaticCall         !     f[0x55700ca116a0](%1.7) from %1.2 e1.1   <str$->
+  void                    Return             l     %1.8
+Prom 0:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    b, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<lazy>        !     %1.1, e1.0   <real$->
+  void                    Return             l     %1.3
+
+│ pirCheck[0x55700c9f71d0]                                                     │
+└──────────────────────────────────────────────────────────────────────────────┘

@@ -27,7 +27,7 @@ public class LabelMapping {
 
   /** Extract an int referencing the target from a {@link BcLabel} referencing the source */
   public int extract(BcLabel sourceLabel) {
-    return getTarget(sourceLabel.getTarget());
+    return getTarget(sourceLabel.target());
   }
 
   int getTarget(int sourceLabel) {

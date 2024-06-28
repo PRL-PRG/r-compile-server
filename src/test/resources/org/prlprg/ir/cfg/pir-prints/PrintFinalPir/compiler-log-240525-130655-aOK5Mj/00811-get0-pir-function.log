@@ -1,0 +1,22 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ get0[0x55bbe7498160]                                                         │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;Eager2,Eager3,NonRefl0,NonRefl1,NonRefl2,NonRefl3,!Obj0,!Obj1,!Obj2,!Obj3 miss: 1│
+│ Properties:  Eager, ForceOrd: 0 1 2 3                                        │
+├────── Final PIR Version
+get0[0x55bbe7498160]
+BB0
+  val?~+          %0.0  = LdArg                    3
+  val?~+          %0.1  = LdArg                    2
+  val?^           %0.2  = LdArg                    1
+  val?^           %0.3  = LdArg                    0
+  env             e0.4  = MkEnv              l     x=%0.3, envir=%0.2, mode=%0.1, inherits=%0.0, ifnotfound(miss)=nil, parent=R_BaseNamespace, context 1
+  val+            %0.5  = Force!<lazy>       !vr   %0.3,    <str$+>
+  val+            %0.6  = Force!<lazy>       !vr   %0.2,    <env+>
+  val+            %0.7  = Force!<lazy>             %0.1,    <str$->
+  val+            %0.8  = Force!<lazy>             %0.0,    <lgl$->
+  val?            %0.9  = CallBuiltin        !     get0(%0.5, %0.6, %0.7, %0.8, nil) e0.4
+  void                    Return             l     %0.9
+
+│ get0[0x55bbe7498160]                                                         │
+└──────────────────────────────────────────────────────────────────────────────┘

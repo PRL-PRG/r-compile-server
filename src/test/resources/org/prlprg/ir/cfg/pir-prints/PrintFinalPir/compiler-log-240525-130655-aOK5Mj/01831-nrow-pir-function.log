@@ -1,0 +1,17 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ nrow[0x55bbe61758e0]                                                         │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;NonRefl0,!Obj0                       │
+│ Properties:  Eager, !Reflection, ForceOrd: 0                                 │
+├────── Final PIR Version
+nrow[0x55bbe61758e0]
+BB0
+  val?^           %0.0  = LdArg                    0
+  val+            %0.1  = Force!<lazy>       !vr   %0.0,    <val?>
+  val+            %0.2  = CallSafeBuiltin    wed   dim(%0.1)    <(nil|int)->
+  val?            %0.3  = Extract1_1D        wed   %0.2, 1L, elided   <(nil|int)->
+  void                    Visible            v     
+  void                    Return             l     %0.3
+
+│ nrow[0x55bbe61758e0]                                                         │
+└──────────────────────────────────────────────────────────────────────────────┘
