@@ -18,4 +18,12 @@ public class ScannerTests {
     assertEquals("\n", scanner2.readPastEndOfLine());
     assertEquals("3", scanner2.readPastEndOfLine());
   }
+
+  @Test
+  public void testReadQuoted() {
+    var scanner = new Scanner("\"\\\"Hello\\\", \\\"world!\\\"\"");
+    assertEquals("\"Hello\", \"world!\"", scanner.readQuoted('"'));
+    scanner = new Scanner("\"\\\"Hello\\\", \\\"world!\\\"\"");
+    assertEquals("\"\\\"Hello\\\", \\\"world!\\\"\"", scanner.readQuotedLiterally('"'));
+  }
 }

@@ -309,9 +309,9 @@ public class Scanner {
                 case 'r' -> sb.append('\r');
                 case 't' -> sb.append('\t');
                 case '"' -> sb.append('"');
-                case '\\' -> sb.append('\\');
                 case '\'' -> sb.append('\'');
                 case '`' -> sb.append('`');
+                case '\\' -> sb.append('\\');
                 case 'x' -> {
                   var hex = readFixedLength(2);
                   try {
@@ -362,7 +362,13 @@ public class Scanner {
               return sb.toString();
             } else if (c == '\\') {
               switch (readChar()) {
-                case 'n', 'r', 't', '"', '\\', '\'', '`' -> {}
+                case 'n' -> sb.append('n');
+                case 'r' -> sb.append('r');
+                case 't' -> sb.append('t');
+                case '"' -> sb.append('"');
+                case '\'' -> sb.append('\'');
+                case '`' -> sb.append('`');
+                case '\\' -> sb.append('\\');
                 case 'x' -> {
                   var hex = readFixedLength(2);
                   try {

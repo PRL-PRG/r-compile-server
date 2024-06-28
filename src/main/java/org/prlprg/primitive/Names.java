@@ -1,6 +1,7 @@
 package org.prlprg.primitive;
 
 import com.google.common.collect.ImmutableList;
+import java.util.regex.Pattern;
 import org.prlprg.parseprint.ParseException;
 import org.prlprg.parseprint.PrettyPrintWriter;
 import org.prlprg.parseprint.Scanner;
@@ -27,7 +28,7 @@ public final class Names {
     if (s.isEmpty()) {
       throw new IllegalArgumentException("empty string is reserved for special symbols");
     }
-    return isValidUnquoted(s) ? s : PrettyPrintWriter.use(w -> w.writeQuoted('`', s));
+    return isValid(s) ? s : PrettyPrintWriter.use(w -> w.writeQuoted('`', s));
   }
 
   /**
@@ -41,6 +42,8 @@ public final class Names {
         : s;
   }
 
+  private static final Pattern UNESCAPED_NOT_END_BACKTICK = Pattern.compile("(?<!\\\\)`(?!$)");
+
   /**
    * Whether the string {@linkplain #isValidUnquoted(String) is valid unquoted}, or is in quotes and
    * not empty.
@@ -50,7 +53,7 @@ public final class Names {
         || (s.startsWith("`")
             && s.endsWith("`")
             && s.length() > 2
-            && !s.substring(1, s.length() - 1).replaceAll("\\`", "").contains("`"));
+            && !UNESCAPED_NOT_END_BACKTICK.matcher(s).find(1));
   }
 
   /**
