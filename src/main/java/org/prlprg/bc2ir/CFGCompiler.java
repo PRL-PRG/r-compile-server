@@ -161,7 +161,6 @@ import org.prlprg.ir.cfg.Stmt;
 import org.prlprg.ir.cfg.StmtData;
 import org.prlprg.ir.cfg.StmtData.FrameState_;
 import org.prlprg.ir.cfg.StmtData.GnuRIs;
-import org.prlprg.ir.cfg.StmtData.LdFun;
 import org.prlprg.ir.cfg.StmtData.NamelessCall;
 import org.prlprg.ir.cfg.builder.CFGCursor;
 import org.prlprg.ir.closure.Closure;
@@ -1301,12 +1300,11 @@ public class CFGCompiler {
             expr.args().values().stream()
                 .map(v -> (RValue) new Constant(v))
                 .collect(ImmutableList.toImmutableList());
-        var funValue = cursor.insert(new LdFun(fun, env));
         var fs = compileFrameState();
         pushInsert(
             argNames.stream().anyMatch(Optional::isPresent)
-                ? new StmtData.NamedCall(expr, funValue, argNames, args, env, fs)
-                : new StmtData.NamelessCall(expr, funValue, args, env, fs));
+                ? new StmtData.NamedCall(expr, sym, argNames, args, env, fs)
+                : new StmtData.NamelessCall(expr, sym, args, env, fs));
         cursor.insert(new JumpData.Goto(afterBb));
         addPhiInputsForStack(afterBb);
         pop(RValue.class); // the `CallBuiltin` pushed above.
