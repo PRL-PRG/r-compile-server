@@ -65,6 +65,7 @@ public class LatticeTests {
     RGenericValueType.ENABLE_WEIRD_CASE_LOGS = false;
   }
 
+  /** FIXME(jakob): This fails occasionally, closure types need to be fixed. */
   @Property(generation = GenerationMode.RANDOMIZED, tries = 100)
   void isCoherent_Lattice(
       @ForAll("latticePairsAndClasses") Tuple3<Object, Object, Object> lattices) {
@@ -88,6 +89,7 @@ public class LatticeTests {
     isCoherent(lhs, rhs, REffects.ARBITRARY, REffects.PURE);
   }
 
+  /** FIXME(jakob): This fails occasionally, closure types need to be fixed. */
   @Property(generation = GenerationMode.RANDOMIZED, tries = 100)
   void isCoherent_RType(@ForAll RType lhs, @ForAll RType rhs) {
     isCoherent(lhs, rhs, RTypes.ANY, RTypes.NOTHING);
