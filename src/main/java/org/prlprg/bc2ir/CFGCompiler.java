@@ -162,6 +162,7 @@ import org.prlprg.ir.cfg.StmtData;
 import org.prlprg.ir.cfg.StmtData.FrameState_;
 import org.prlprg.ir.cfg.StmtData.GnuRIs;
 import org.prlprg.ir.cfg.StmtData.NamelessCall;
+import org.prlprg.ir.cfg.StmtData.RValue_;
 import org.prlprg.ir.cfg.builder.CFGCursor;
 import org.prlprg.ir.closure.Closure;
 import org.prlprg.ir.closure.Promise;
@@ -337,7 +338,7 @@ public class CFGCompiler {
     cursor = new CFGCursor(cfg);
 
     // Insert `LdFunctionEnv`, which goes before all bytecode instructions.
-    env = cursor.insert(new StmtData.LdFunctionEnv());
+    env = cursor.insert("enclos", new StmtData.LdFunctionEnv());
     var entry_ = cfg.addBB("entry_");
     cursor.insert(new JumpData.Goto(entry_));
     cursor.moveToStart(entry_);
@@ -704,18 +705,18 @@ public class CFGCompiler {
       case LdTrue() -> push(new Constant(SEXPs.TRUE));
       case LdFalse() -> push(new Constant(SEXPs.FALSE));
       case GetVar(var name) -> {
-        pushInsert(new StmtData.LdVar(get(name), false, env));
+        pushInsert(name, new StmtData.LdVar(get(name), false, env));
         pushInsert(new StmtData.Force(pop(RValue.class), compileFrameState(), env));
       }
       case DdVal(var name) -> {
         var ddIndex = get(name).ddNum();
-        pushInsert(new StmtData.LdDdVal(ddIndex, false, env));
+        pushInsert(name, new StmtData.LdDdVal(ddIndex, false, env));
         pushInsert(new StmtData.Force(pop(RValue.class), compileFrameState(), env));
       }
       case SetVar(var name) -> insert(new StmtData.StVar(get(name), top(RValue.class), env));
-      case GetFun(var name) -> pushCallFunInsert(new StmtData.LdFun(get(name), env));
+      case GetFun(var name) -> pushCallFunInsert(name, new StmtData.LdFun(get(name), env));
       case GetGlobFun(var name) ->
-          pushCallFunInsert(new StmtData.LdFun(get(name), StaticEnv.GLOBAL));
+          pushCallFunInsert(name, new StmtData.LdFun(get(name), StaticEnv.GLOBAL));
         // ???: GNU-R calls `SYMVALUE` and `INTERNAL` to implement these, but we don't store that in
         //  our `RegSymSxp` data-structure. So the next three implementations may be incorrect.
       case GetSymFun(var name) -> pushCall(BuiltinId.referencedBy(get(name)));
@@ -742,7 +743,7 @@ public class CFGCompiler {
                   .orElseThrow(() -> fail("SetTag: tag must be a regular symbol or string")));
         }
       }
-      case DoDots() -> pushCallArgInsert(new StmtData.LdDots(env));
+      case DoDots() -> pushCallArgInsert("...", new StmtData.LdDots(env));
       case PushArg() -> pushCallArg(pop(RValue.class));
       case PushConstArg(var constant) -> pushCallArg(new Constant(get(constant)));
       case PushNullArg() -> pushCallArg(new Constant(SEXPs.NULL));
@@ -809,7 +810,7 @@ public class CFGCompiler {
       case Not(var ast) -> pushInsert(mkUnop(ast, StmtData.Not::new));
       case DotsErr() -> insert(new StmtData.Error("'...' used in an incorrect context", env));
       case StartAssign(var name) -> {
-        var lhs = cursor.insert(new StmtData.LdVar(get(name), false, env));
+        var lhs = cursor.insert(get(name).name(), new StmtData.LdVar(get(name), false, env));
         var rhs = top(RValue.class);
         pushComplexAssign(false, get(name), lhs, rhs);
       }
@@ -1036,12 +1037,12 @@ public class CFGCompiler {
         cursor.insert(new JumpData.Goto(bbAfterCurrent()));
       }
       case GetVarMissOk(var name) -> {
-        pushInsert(new StmtData.LdVar(get(name), true, env));
+        pushInsert(name, new StmtData.LdVar(get(name), true, env));
         pushInsert(new StmtData.Force(pop(RValue.class), compileFrameState(), env));
       }
       case DdValMissOk(var name) -> {
         var ddIndex = get(name).ddNum();
-        pushInsert(new StmtData.LdDdVal(ddIndex, true, env));
+        pushInsert(name, new StmtData.LdDdVal(ddIndex, true, env));
         pushInsert(new StmtData.Force(pop(RValue.class), compileFrameState(), env));
       }
       case Visible() -> insert(new StmtData.Visible());
@@ -1050,7 +1051,7 @@ public class CFGCompiler {
         // GNU-R has "cells" and stores the assign on the main stack.
         // But we don't have cells, and since we're compiling, we can store the assignment on its
         // own stack.
-        var lhs = cursor.insert(new StmtData.LdVarSuper(get(name), env));
+        var lhs = cursor.insert(get(name).name(), new StmtData.LdVarSuper(get(name), env));
         var rhs = top(RValue.class);
         pushComplexAssign(true, get(name), lhs, rhs);
       }
@@ -1278,8 +1279,8 @@ public class CFGCompiler {
         // PIR apparently just ignores the guards (`rir2pir.cpp:341`), but we can handle here.
         var expr = get(exprIdx);
         var fun = (RegSymSXP) expr.fun();
-        var sym = cursor.insert(new StmtData.LdFun(fun, env));
-        var base = cursor.insert(new StmtData.LdFun(fun, StaticEnv.BASE));
+        var sym = cursor.insert(fun.name(), new StmtData.LdFun(fun, env));
+        var base = cursor.insert("base." + fun.name(), new StmtData.LdFun(fun, StaticEnv.BASE));
         var guard = cursor.insert(new StmtData.Eq(Optional.of(expr), sym, base, env));
 
         var safeBb = cfg.addBB("baseGuardSafe");
@@ -1693,6 +1694,11 @@ public class CFGCompiler {
     push(cursor.insert(data));
   }
 
+  /** {@link #pushInsert(RValue_)} but gives the instruction the name of the symbol. */
+  private void pushInsert(ConstPool.Idx<RegSymSXP> name, StmtData.RValue_ data) {
+    push(cursor.insert(get(name).name(), data));
+  }
+
   /**
    * Insert a statement that produces a value, and begin a call with it as the function via {@link
    * #pushCall(RValue)}.
@@ -1701,12 +1707,22 @@ public class CFGCompiler {
     pushCall(cursor.insert(data));
   }
 
+  /** {@link #pushCallFunInsert(RValue_)} but gives the instruction the name of the symbol. */
+  private void pushCallFunInsert(ConstPool.Idx<RegSymSXP> name, StmtData.RValue_ data) {
+    pushCall(cursor.insert(get(name).name(), data));
+  }
+
   /**
    * Insert a statement that produces a value, and add it to the current call arguments via {@link
    * #pushCallArg(RValue)}.
    */
   private void pushCallArgInsert(StmtData.RValue_ data) {
     pushCallArg(cursor.insert(data));
+  }
+
+  /** {@link #pushCallArgInsert(RValue_)} but gives the instruction a name. */
+  private void pushCallArgInsert(String name, StmtData.RValue_ data) {
+    pushCallArg(cursor.insert(name, data));
   }
 
   // endregion statement and jump insertions
