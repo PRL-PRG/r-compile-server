@@ -1,6 +1,10 @@
 package org.prlprg.primitive;
 
+import org.prlprg.parseprint.EnumSerialCaseIs;
+import org.prlprg.util.StringCase;
+
 /** R "logical": a boolean which also permits NA (trinary). */
+@EnumSerialCaseIs(StringCase.SCREAMING_SNAKE)
 public enum Logical {
   @SuppressWarnings("MissingJavadoc")
   FALSE(0),

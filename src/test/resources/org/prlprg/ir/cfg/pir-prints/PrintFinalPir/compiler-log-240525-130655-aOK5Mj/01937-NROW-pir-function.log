@@ -1,0 +1,103 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ NROW[0x55bbe857f3f0]                                                         │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;NonRefl0                             │
+│ Properties:  Eager, ForceOrd: 0                                              │
+├────── Final PIR Version
+NROW[0x55bbe857f3f0]
+BB0
+  val?^           %0.0  = LdArg                    0
+  env             e0.1  = (MkEnv)            l     x=%0.0, d=unboundValue, parent=R_BaseNamespace, context 1
+  val?            %0.2  = Force!<lazy>       !vr   %0.0,    <val?>
+  val?            %0.3  = CallBuiltin        !vL   dim(%0.2) e0.1   <(nil|int)->
+  lgl$#-          %0.4  = IsEnvStub          R     , e0.1
+  void                    Branch                   %0.4 -> BB13 (if true) | BB14 (if false)
+BB13   <- [0]
+  void                    StVar              lWd   d, %0.3, e0.1
+  lgl$#-          %13.1 = IsType                   %0.3 isA val?-
+  void                    Branch                   %13.1 -> BB15 (if true) | BB16 (if false)
+BB14   <- [0]
+  fs              %14.0 = FrameState         R     0x55bbe3f8c270+151: [<blt length>, %0.3], env=e0.1
+  void                    Deopt              !v    %14.0, EnvStubMaterialized@0x55bbe30df9b8[Call#unknown], e0.1
+BB15   <- [13]
+  val?-           %15.0 = CastType           d     dn %0.3   <(nil|int)->
+  (int|real)$-    %15.1 = CallSafeBuiltin    wed   length(%15.0)    <int$->
+  lgl$#-          %15.2 = IsType                   %15.1 isA int$-
+  void                    Branch                   %15.2 -> BB17 (if true) | BB18 (if false)
+BB16   <- [13]
+  fs              %16.0 = FrameState         R     0x55bbe3f8c270+167: [<blt length>, %0.3], env=e0.1
+  void                    Deopt              !v    %16.0, Typecheck@0x55bbe30df9b8[Type#4], %0.3
+BB17   <- [15]
+  int$-           %17.0 = CastType           d     dn %15.1
+  lgl$#-          %17.1 = CheckTrueFalse     e     %17.0
+  void                    Branch                   %17.1 -> BB11 (if true) | BB7 (if false)
+BB18   <- [15]
+  void                    Nop                !     
+  (int|real)$-    %18.1 = %15.1
+  dr              %18.2 = Typecheck@0x55bbe30df9b8[Type#5]
+  goto BB5
+BB11   <- [17]
+  val-            %11.0 = ChkMissing         e     %15.0
+  lgl$#-          %11.1 = IsType                   %15.0 isA val+   <true>
+  void                    Branch                   %11.1 -> BB19 (if true) | BB20 (if false)
+BB7   <- [17]
+  val?            %7.0  = CallBuiltin        !L    length(%0.2) e0.1   <int$->
+  lgl$#-          %7.1  = IsType                   %7.0 isA int$-
+  void                    Branch                   %7.1 -> BB23 (if true) | BB24 (if false)
+BB5   <- [18, 20, 22]
+  val?^ | miss    %5.0  = Phi                      %18.1:BB18, %20.1:BB20, %22.1:BB22
+  val?^ | miss    %5.1  = %5.0
+  dr              %5.2  = Phi                      %18.2:BB18, %20.2:BB20, %22.2:BB22
+  dr              %5.3  = %5.2
+  fs              %5.4  = FrameState         R     0x55bbe3f8c270+184: [%15.1], env=e0.1
+  void                    Deopt              !v    %5.4, %5.3, %5.1
+BB19   <- [11]
+  lgl$#-          %19.0 = IsType                   %15.0 isA int-
+  void                    Branch                   %19.0 -> BB21 (if true) | BB22 (if false)
+BB20   <- [11]
+  void                    Nop                !     
+  lgl$#-          %20.1 = %11.1
+  dr              %20.2 = DeadBranchReached@0x55bbe30df9b8[Test#3]
+  goto BB5
+BB23   <- [7]
+  lgl$#-          %23.0 = IsEnvStub          R     , e0.1
+  void                    Branch                   %23.0 -> BB25 (if true) | BB26 (if false)
+BB24   <- [7]
+  void                    Nop                !     
+  val?            %24.1 = %7.0
+  dr              %24.2 = Typecheck@0x55bbe30df9b8[Type#8]
+  goto BB8
+BB21   <- [19]
+  int-            %21.0 = CastType           d     dn %15.0
+  int$-           %21.1 = Extract1_1D        wed   %21.0, 1L, elided   <int$->
+  void                    Visible            v     
+  int$-           %21.3 = %21.1
+  goto BB10
+BB22   <- [19]
+  void                    Nop                !     
+  val?-           %22.1 = %15.0
+  dr              %22.2 = Typecheck@0x55bbe30df9b8[Type#9]
+  goto BB5
+BB25   <- [23]
+  void                    Nop                !     
+  val?            %25.1 = %7.0
+  goto BB10
+BB26   <- [23]
+  void                    Nop                !     
+  env             e26.1 = e0.1
+  dr              %26.2 = EnvStubMaterialized@0x55bbe30df9b8[Call#unknown]
+  goto BB8
+BB8   <- [24, 26]
+  val?^ | miss    %8.0  = Phi                      %24.1:BB24, e26.1:BB26
+  val?^ | miss    %8.1  = %8.0
+  dr              %8.2  = Phi                      %24.2:BB24, %26.2:BB26
+  dr              %8.3  = %8.2
+  fs              %8.4  = FrameState         R     0x55bbe3f8c270+286: [%7.0], env=e0.1
+  void                    Deopt              !v    %8.4, %8.3, %8.1
+BB10   <- [21, 25]
+  val?            %10.0 = Phi                      %25.1:BB25, %21.3:BB21
+  val?            %10.1 = %10.0
+  void                    Return             l     %10.1
+
+│ NROW[0x55bbe857f3f0]                                                         │
+└──────────────────────────────────────────────────────────────────────────────┘

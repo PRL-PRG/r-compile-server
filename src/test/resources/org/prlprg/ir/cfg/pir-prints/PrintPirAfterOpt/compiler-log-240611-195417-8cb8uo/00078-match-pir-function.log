@@ -1,0 +1,21 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ match[0x55b0cc4f52d0]                                                        │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;Eager2,NonRefl0,NonRefl1,NonRefl2,!Obj0,!Obj1,!Obj2,SimpleInt2 miss: 1│
+│ Properties:  Eager, !Reflection, ForceOrd: 0 1 2                             │
+├────── PIR Version After Optimizations
+match[0x55b0cc4f52d0]
+BB0
+  goto BB1
+BB1   <- [0]
+  int$~-          %1.0  = LdArg                    2
+  val?^           %1.1  = LdArg                    1
+  val?^           %1.2  = LdArg                    0
+  val+            %1.3  = Force!<lazy>       !vr   %1.2,    <val?+>
+  val+            %1.4  = Force!<lazy>       !vr   %1.1,    <val?+>
+  int$-           %1.5  = Force!<lazy>             %1.0,    <int$->
+  val+            %1.6  = CallSafeBuiltin    vwed  match(%1.3, %1.4, %1.5, nil) 
+  void                    Return             l     %1.6
+
+│ match[0x55b0cc4f52d0]                                                        │
+└──────────────────────────────────────────────────────────────────────────────┘

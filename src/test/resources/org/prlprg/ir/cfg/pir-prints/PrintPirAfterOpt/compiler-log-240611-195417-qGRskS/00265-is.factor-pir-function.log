@@ -1,0 +1,40 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ is.factor[0x561664418f00]                                                    │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;NonRefl0,!Obj0,SimpleInt0            │
+│ Properties:                                                                  │
+├────── PIR Version After Optimizations
+is.factor[0x561664418f00]
+BB0
+  goto BB1
+BB1   <- [0]
+  val?^           %1.0  = LdArg                    0
+  env             e1.1  = MkEnv              l     x=%1.0, parent=R_BaseNamespace, context 1
+  prom-           %1.2  = MkArg                    unboundValue, is.factor[0x561664418f00]_p0 (!refl), e1.1
+  ct              %1.3  = PushContext        lCL   %1.2, "factor", inherits(x, "factor"), function(x, what, which=FALSE) <(rir::Dispatch|..., e1.1
+  val?^           %1.4  = CastType                 up %1.2
+  env             e1.5  = MkEnv              l     x=%1.4, what="factor", which(miss)=false, parent=R_BaseNamespace, context 1
+  val?            %1.6  = Force!<lazy>       !vr   %1.4,    <val?>
+  val?            %1.7  = CallBuiltin        !     inherits(%1.6, "factor", false) e1.5
+  val?            %1.8  = PopContext         C     %1.7, %1.3   <lgl$->
+  lgl$#-          %1.9  = IsType                   %1.8 isA lgl$-
+  cp              %1.10 = Checkpoint                -> BB2 (default) | BB3 (if assume failed)
+BB2   <- [1]
+  void                    Assume             D     %1.9, %1.10 (Typecheck@0x561662214f68[Type#1])
+  lgl$-           %2.1  = CastType           d     dn %1.8
+  void                    Return             l     %2.1
+BB3   <- [1]
+  fs              %3.0  = FrameState         R     0x56166307ed30+37: [%1.8], env=e1.1
+  void                    Deopt              !v    %3.0   !
+Prom 0:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    x, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<lazy>        !     %1.1, e1.0   <val?+>
+  void                    Return             l     %1.3
+
+│ is.factor[0x561664418f00]                                                    │
+└──────────────────────────────────────────────────────────────────────────────┘

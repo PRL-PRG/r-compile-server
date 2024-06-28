@@ -3,10 +3,28 @@ package org.prlprg.bc;
 import com.google.common.collect.ForwardingList;
 import com.google.common.collect.ImmutableList;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import javax.annotation.concurrent.Immutable;
-import org.prlprg.sexp.*;
+import org.prlprg.parseprint.ParseMethod;
+import org.prlprg.parseprint.Parser;
+import org.prlprg.parseprint.PrintMethod;
+import org.prlprg.parseprint.Printer;
+import org.prlprg.sexp.IntSXP;
+import org.prlprg.sexp.LangSXP;
+import org.prlprg.sexp.ListSXP;
+import org.prlprg.sexp.NilSXP;
+import org.prlprg.sexp.RegSymSXP;
+import org.prlprg.sexp.SEXP;
+import org.prlprg.sexp.StrOrRegSymSXP;
+import org.prlprg.sexp.StrSXP;
+import org.prlprg.sexp.VecSXP;
+import org.prlprg.util.Classes;
 
 /** A pool (array) of constants. */
 @Immutable
@@ -34,22 +52,6 @@ public final class ConstPool extends ForwardingList<SEXP> {
   }
 
   @Override
-  public String toString() {
-    StringBuilder sb = new StringBuilder("=== CONSTS ===");
-    var idx = 0;
-    for (var c : this) {
-      var cStr = c.toString();
-      sb.append(String.format("%n%3d: ", idx++));
-      if (cStr.contains(System.lineSeparator())) {
-        sb.append(System.lineSeparator()).append(c).append(System.lineSeparator());
-      } else {
-        sb.append(c);
-      }
-    }
-    return sb.toString();
-  }
-
-  @Override
   public boolean equals(Object o) {
     if (this == o) return true;
     if (o == null || getClass() != o.getClass()) return false;
@@ -69,17 +71,48 @@ public final class ConstPool extends ForwardingList<SEXP> {
    * <p>It also contains a reference to the owner pool which is checked at runtime for extra safety.
    */
   public record Idx<S extends SEXP>(int idx, Class<S> type) {
-    @Override
-    public String toString() {
-      // TODO: add sexp type?
-      return String.format("%d", idx);
-    }
-
     public static <S extends SEXP> Idx<S> create(int i, S value) {
       @SuppressWarnings("unchecked")
       var idx = new Idx<>(i, (Class<S>) value.getCanonicalType());
       return idx;
     }
+
+    // region serialization and deserialization
+    @ParseMethod
+    private static Idx<?> parse(Parser p) {
+      var s = p.scanner();
+
+      s.assertAndSkip('#');
+      var idx = s.readUInt();
+      Class<? extends SEXP> type = SEXP.class;
+      if (s.trySkip(':')) {
+        var typeName = s.readJavaIdentifierOrKeyword();
+        try {
+          type = Classes.sealedSubclassWithSimpleName(SEXP.class, typeName);
+        } catch (IllegalArgumentException e) {
+          throw s.fail("SEXP subclass", typeName);
+        }
+      }
+      return new Idx<>(idx, type);
+    }
+
+    @PrintMethod
+    private void print(Printer p) {
+      var w = p.writer();
+
+      w.write('#');
+      p.print(idx);
+      if (type != SEXP.class) {
+        w.write(':');
+        w.write(type.getSimpleName());
+      }
+    }
+
+    @Override
+    public String toString() {
+      return Printer.toString(this);
+    }
+    // endregion serialization and deserialization
   }
 
   /**
@@ -199,4 +232,43 @@ public final class ConstPool extends ForwardingList<SEXP> {
       values.set(idx.idx(), fun.apply((S) values.get(idx.idx())));
     }
   }
+
+  // region serialization and deserialization
+  @ParseMethod
+  private static ConstPool parse(Parser p) {
+    var s = p.scanner();
+
+    var consts = new ArrayList<SEXP>();
+    s.assertAndSkip("=== CONSTS ===");
+    for (var idx = 0; s.nextCharSatisfies(Character::isDigit); idx++) {
+      var actualIdx = s.readUInt();
+      if (actualIdx != idx) {
+        throw s.fail("index " + idx, "index " + actualIdx);
+      }
+      s.assertAndSkip(":");
+
+      consts.add(p.parse(SEXP.class));
+    }
+
+    return new ConstPool(consts);
+  }
+
+  @PrintMethod
+  private void print(Printer p) {
+    var w = p.writer();
+
+    w.write("=== CONSTS ===");
+    var n = (int) Math.log10(size()) + 1;
+    var idx = 0;
+    for (var c : this) {
+      w.formatter().format("%n%" + n + "d: ", idx++);
+      p.print(c);
+    }
+  }
+
+  @Override
+  public String toString() {
+    return Printer.toString(this);
+  }
+  // endregion serialization and deserialization
 }

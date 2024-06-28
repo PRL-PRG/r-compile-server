@@ -5,26 +5,31 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
+import org.jetbrains.annotations.Unmodifiable;
+import org.prlprg.parseprint.Printer;
+import org.prlprg.util.Lists;
 
 /**
  * R "list". Confusingly, this is actually like <a href="https://www.lua.org/pil/2.5.html">Lua's
  * table</a> because each element can have an optional name (still ordered and have indices).
  * Otherwise, it's the same as a generic vector in that its elements are {@link SEXP}s.
  *
- * @implNote In GNU-R this is represented as a linked list, but we internally use an array-list
- *     because it's more efficient.
+ * <p><b>Implementation note:</b> in GNU-R this is represented as a linked list, but we internally
+ * use an array-list because it's more efficient.
  */
 public sealed interface ListSXP extends ListOrVectorSXP<TaggedElem> permits NilSXP, ListSXPImpl {
   @Override
   ListSXP withAttributes(Attributes attributes);
 
+  @Unmodifiable
   List<SEXP> values();
 
+  @Unmodifiable
   List<SEXP> values(int fromIndex);
 
+  @Unmodifiable
   List<String> names();
 
   List<String> names(int fromIndex);
@@ -41,7 +46,12 @@ public sealed interface ListSXP extends ListOrVectorSXP<TaggedElem> permits NilS
     return names().stream().anyMatch(x -> !x.isEmpty());
   }
 
-  ListSXP remove(String tag);
+  /**
+   * Remove all elements with the given tag (R lists may have multiple with the same tag).
+   *
+   * <p>Given {@code null}, it will remove all untagged elements.
+   */
+  ListSXP remove(@Nullable String tag);
 
   Stream<TaggedElem> stream();
 
@@ -72,12 +82,12 @@ record ListSXPImpl(ImmutableList<TaggedElem> data, @Override Attributes attribut
   }
 
   @Override
-  public List<SEXP> values() {
-    return data.stream().map(TaggedElem::value).toList();
+  public @Unmodifiable List<SEXP> values() {
+    return Lists.lazyMapView(data, TaggedElem::value);
   }
 
   @Override
-  public List<SEXP> values(int fromIndex) {
+  public @Unmodifiable List<SEXP> values(int fromIndex) {
     return values().subList(fromIndex, size());
   }
 
@@ -122,14 +132,16 @@ record ListSXPImpl(ImmutableList<TaggedElem> data, @Override Attributes attribut
   }
 
   @Override
-  public ListSXP remove(String tag) {
-    var builder = ImmutableList.<TaggedElem>builder();
-    for (var i : this) {
-      if (!tag.equals(i.tag())) {
-        builder.add(i);
-      }
+  public ListSXP remove(@Nullable String tag) {
+    if (tag != null && tag.isEmpty()) {
+      throw new IllegalArgumentException(
+          "The empty tag doesn't exist, pass `null` to remove untagged elements.");
     }
-    return new ListSXPImpl(builder.build(), Objects.requireNonNull(attributes()));
+    return new ListSXPImpl(
+        stream()
+            .filter(e -> !Objects.equals(tag, e.tag()))
+            .collect(ImmutableList.toImmutableList()),
+        attributes);
   }
 
   @Override
@@ -159,12 +171,12 @@ record ListSXPImpl(ImmutableList<TaggedElem> data, @Override Attributes attribut
   }
 
   @Override
-  public String toString() {
-    return "(" + data.stream().map(TaggedElem::toString).collect(Collectors.joining(", ")) + ")";
+  public ListSXPImpl withAttributes(Attributes attributes) {
+    return new ListSXPImpl(data, attributes);
   }
 
   @Override
-  public ListSXPImpl withAttributes(Attributes attributes) {
-    return new ListSXPImpl(data, attributes);
+  public String toString() {
+    return Printer.toString(this);
   }
 }

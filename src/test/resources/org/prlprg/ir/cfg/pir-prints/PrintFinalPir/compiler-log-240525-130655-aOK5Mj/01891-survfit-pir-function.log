@@ -1,0 +1,23 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ survfit[0x55bbe82a8780]                                                      │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;Eager1,NonRefl1,!Obj1                │
+│ Properties:                                                                  │
+├────── Final PIR Version
+survfit[0x55bbe82a8780]
+BB0
+  dots+           %0.0  = LdArg                    1
+  val?^           %0.1  = LdArg                    0
+  env             e0.2  = (MkEnv)            l     formula=%0.1, ...=%0.0, parent=<env 0x55bbe479cb88>, context 1
+  (cls|spec|blt)  %0.3  = LdFun              !     UseMethod, <0x55bbe1e39520>, <env 0x55bbe479cb88>
+  val?            %0.4  = Call               !L    %0.3("survfit") e0.2   <val?_>
+  lgl$#-          %0.5  = IsEnvStub          R     , e0.2
+  void                    Branch                   %0.5 -> BB4 (if true) | BB5 (if false)
+BB4   <- [0]
+  void                    Return             l     %0.4
+BB5   <- [0]
+  fs              %5.0  = FrameState         R     0x55bbee525a80+32: [%0.4], env=e0.2
+  void                    Deopt              !v    %5.0, EnvStubMaterialized@0x55bbe8e4cc98[Call#unknown], e0.2   !
+
+│ survfit[0x55bbe82a8780]                                                      │
+└──────────────────────────────────────────────────────────────────────────────┘

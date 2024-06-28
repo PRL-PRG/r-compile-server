@@ -1,0 +1,15 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ nchar[0x5614fbe03240]                                                        │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;NonRefl0,!Obj0 miss: 3               │
+│ Properties:  Eager, !Reflection, ForceOrd: 0                                 │
+├────── Final PIR Version
+nchar[0x5614fbe03240]
+BB0
+  val?^           %0.0  = LdArg                    0
+  val+            %0.1  = Force!<lazy>       !vr   %0.0,    <str->
+  val+            %0.2  = CallSafeBuiltin    vwed  nchar(%0.1, "chars", false, na-lgl) 
+  void                    Return             l     %0.2
+
+│ nchar[0x5614fbe03240]                                                        │
+└──────────────────────────────────────────────────────────────────────────────┘

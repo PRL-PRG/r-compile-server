@@ -1,0 +1,48 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ %in%[0x556a27699ca0]                                                         │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;Eager0,Eager1,NonRefl1,!Obj0,!Obj1   │
+│ Properties:  Eager, ForceOrd: 0 1                                            │
+├────── Final PIR Version
+%in%[0x556a27699ca0]
+BB0
+  val?~+          %0.0  = LdArg                    1
+  val?~+          %0.1  = LdArg                    0
+  val+            %0.2  = Force!<lazy>             %0.1,    <(int|str)+>
+  val+            %0.3  = Force<lazy>              %0.0,    <val?->
+  val+            %0.4  = CallSafeBuiltin    wed   match(%0.2, %0.3, 0L, nil)    <int->
+  lgl$#-          %0.5  = IsType                   %0.4 isA int-
+  void                    Visible            v     
+  void                    Branch                   %0.5 -> BB4 (if true) | BB5 (if false)
+BB4   <- [0]
+  int-            %4.0  = CastType           d     dn %0.4
+  lgl-            %4.1  = Gt                 vwed  %4.0, 0L, elided   <lgl->
+  void                    Return             l     %4.1
+BB5   <- [0]
+  env             e5.0  = (MkEnv)            l     x=%0.1, table=%0.0, parent=R_BaseNamespace, context 1
+  env             e5.1  = MaterializeEnv           , e5.0   <@?>
+  prom-           %5.2  = MkArg                    %0.2, %in%[0x556a27699ca0]_p2 (!refl), e5.1
+  val?~           %5.3  = CastType                 up %5.2
+  fs              %5.4  = FrameState         R     0x556a1ba37320+54: [], env=e5.1
+  prom-           %5.5  = MkArg                    unboundValue, %in%[0x556a27699ca0]_p1 (!refl), e5.1
+  val?^           %5.6  = CastType                 up %5.5
+  env             e5.7  = (MkEnv)            l     incomparables(miss)=nil, nomatch=0L, table=%5.6, x=%5.3, parent=R_BaseNamespace, context 0
+  fs              %5.8  = FrameState         R     0x556a1bc1ed40+69: [%0.4], env=e5.7, next=%5.4
+  void                    Deopt              !v    %5.8, Typecheck@0x556a1ca69688[Type#2], %0.4
+Prom 1:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    table, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <val?->
+  void                    Return             l     %0.3
+Prom 2:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    x, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <(int|str)+>
+  void                    Return             l     %0.3
+
+│ %in%[0x556a27699ca0]                                                         │
+└──────────────────────────────────────────────────────────────────────────────┘

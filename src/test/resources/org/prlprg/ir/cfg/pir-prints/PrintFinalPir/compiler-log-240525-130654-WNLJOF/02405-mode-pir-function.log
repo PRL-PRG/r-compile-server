@@ -1,0 +1,131 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ mode[0x55fa106c8980]                                                         │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;NonRefl0,!Obj0                       │
+│ Properties:  Eager, ForceOrd: 0                                              │
+├────── Final PIR Version
+mode[0x55fa106c8980]
+BB0
+  val?^           %0.0  = LdArg                    0
+  val+            %0.1  = Force!<lazy>       !vr   %0.0,    <val?+>
+  lgl$#-          %0.2  = CallSafeBuiltin    wed   is.expression(%0.1)    <lgl$->
+  void                    Branch                   %0.2 -> BB20 (if true) | BB3 (if false)
+BB20   <- [0]
+  void                    Visible            v     
+  str$#-          %20.1 = "expression"
+  goto BB14
+BB3   <- [0]
+  lgl$#-          %3.0  = IsType                   %0.0 isA val?~+
+  void                    Branch                   %3.0 -> BB22 (if true) | BB23 (if false)
+BB14   <- [20, 13]
+  str$-           %14.0 = Phi                      %13.2:BB13, %20.1:BB20
+  str$-           %14.1 = %14.0
+  void                    Return             l     %14.1
+BB22   <- [3]
+  lgl$#-          %22.0 = CallSafeBuiltin    wed   is.call(%0.1)    <lgl$->
+  void                    Branch                   %22.0 -> BB19 (if true) | BB4 (if false)
+BB23   <- [3]
+  env             e23.0 = (MkEnv)            l     tx=unboundValue, x=%0.0, parent=R_BaseNamespace, context 1
+  fs              %23.1 = FrameState         R     0x55fa16ca4b80+91: [%0.2], env=e23.0
+  void                    Deopt              !v    %23.1, Typecheck@0x55fa11c29748[Type#4], %0.0
+BB19   <- [22]
+  (cls|spec|blt)  %19.0 = LdFun              !v    deparse, R_BaseNamespace
+  env             e19.1 = (MkEnv)            l     tx=unboundValue, x=%0.0, parent=R_BaseNamespace, context 1
+  fs              %19.2 = FrameState         R     0x55fa16ca4b80+226: [%19.0], env=e19.1
+  void                    Deopt              !v    %19.2, DeadCall@0x55fa11c29748[Call#2], %19.0
+BB4   <- [22]
+  lgl$#-          %4.0  = CallSafeBuiltin    wed   is.symbol(%0.1)    <lgl$->
+  void                    Branch                   %4.0 -> BB18 (if true) | BB5 (if false)
+BB18   <- [4]
+  void                    Visible            v     
+  str$#-          %18.1 = "name"
+  goto BB13
+BB5   <- [4]
+  str$-           %5.0  = CallSafeBuiltin    wed   typeof(%0.1)    <str$->
+  int$-           %5.1  = Length                   %5.0
+  lgl$-           %5.2  = Eq                 d     %5.1, 1L, elided   <true>
+  lgl$#-          %5.3  = Identical                %5.2, true
+  void                    Branch                   %5.3 -> BB24 (if true) | BB25 (if false)
+BB13   <- [18, 12]
+  str$-           %13.0 = Phi                      %12.2:BB12, %18.1:BB18
+  str$-           %13.1 = %13.0
+  str$-           %13.2 = %13.1
+  goto BB14
+BB24   <- [5]
+  lgl$-           %24.0 = CallSafeBuiltin    wed   is.na(%5.0) 
+  lgl$#-          %24.1 = CheckTrueFalse     e     %24.0   <false>
+  void                    Branch                   %24.1 -> BB27 (if true) | BB26 (if false)
+BB25   <- [5]
+  env             e25.0 = (MkEnv)            l     tx=%5.0, x=%0.0, parent=R_BaseNamespace, context 1
+  fs              %25.1 = FrameState         R     0x55fa16ca4b80+708: [%5.0], env=e25.0
+  void                    Deopt              !v    %25.1, DeadBranchReached@0x55fa11c29748[Test#14], %5.3
+BB27   <- [24]
+  void                    Nop                !     
+  lgl$#-          %27.1 = %24.1
+  dr              %27.2 = DeadBranchReached@0x55fa11c29748[Test#23]
+  goto BB8
+BB26   <- [24]
+  lgl$-           %26.0 = Eq                 d     %5.0, double, elided
+  lgl$#-          %26.1 = CheckTrueFalse     e     %26.0
+  void                    Branch                   %26.1 -> BB17 (if true) | BB10 (if false)
+BB8   <- [27, 29, 31, 33]
+  val?^ | miss    %8.0  = Phi                      %27.1:BB27, %29.1:BB29, %31.1:BB31, %33.1:BB33
+  val?^ | miss    %8.1  = %8.0
+  dr              %8.2  = Phi                      %27.2:BB27, %29.2:BB29, %31.2:BB31, %33.2:BB33
+  dr              %8.3  = %8.2
+  env             e8.4  = (MkEnv)            l     tx=%5.0, x=%0.0, parent=R_BaseNamespace, context 1
+  fs              %8.5  = FrameState         R     0x55fa16ca4b80+965: [%5.0, %24.0], env=e8.4
+  void                    Deopt              !v    %8.5, %8.3, %8.1
+BB17   <- [26]
+  void                    Nop                !     
+  goto BB16
+BB10   <- [26]
+  lgl$-           %10.0 = Eq                 d     %5.0, integer, elided
+  lgl$#-          %10.1 = CheckTrueFalse     e     %10.0
+  void                    Branch                   %10.1 -> BB15 (if true) | BB11 (if false)
+BB16   <- [15, 17]
+  void                    Visible            v     
+  str$#-          %16.1 = "numeric"
+  goto BB12
+BB15   <- [10]
+  void                    Nop                !     
+  goto BB16
+BB11   <- [10]
+  lgl$-           %11.0 = Eq                 d     %5.0, closure, elided
+  lgl$#-          %11.1 = CheckTrueFalse     e     %11.0   <false>
+  void                    Branch                   %11.1 -> BB29 (if true) | BB28 (if false)
+BB12   <- [16, 32]
+  str$-           %12.0 = Phi                      %32.1:BB32, %16.1:BB16
+  str$-           %12.1 = %12.0
+  str$-           %12.2 = %12.1
+  goto BB13
+BB29   <- [11]
+  void                    Nop                !     
+  lgl$#-          %29.1 = %11.1
+  dr              %29.2 = DeadBranchReached@0x55fa11c29748[Test#26]
+  goto BB8
+BB28   <- [11]
+  lgl$-           %28.0 = Eq                 d     %5.0, builtin, elided
+  lgl$#-          %28.1 = CheckTrueFalse     e     %28.0   <false>
+  void                    Branch                   %28.1 -> BB31 (if true) | BB30 (if false)
+BB31   <- [28]
+  void                    Nop                !     
+  lgl$#-          %31.1 = %28.1
+  dr              %31.2 = DeadBranchReached@0x55fa11c29748[Test#27]
+  goto BB8
+BB30   <- [28]
+  lgl$-           %30.0 = Eq                 d     %5.0, special, elided
+  lgl$#-          %30.1 = CheckTrueFalse     e     %30.0   <false>
+  void                    Branch                   %30.1 -> BB33 (if true) | BB32 (if false)
+BB33   <- [30]
+  void                    Nop                !     
+  lgl$#-          %33.1 = %30.1
+  dr              %33.2 = DeadBranchReached@0x55fa11c29748[Test#28]
+  goto BB8
+BB32   <- [30]
+  void                    Visible            v     
+  str$-           %32.1 = %5.0
+  goto BB12
+
+│ mode[0x55fa106c8980]                                                         │
+└──────────────────────────────────────────────────────────────────────────────┘

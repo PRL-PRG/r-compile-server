@@ -6,7 +6,16 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
-import org.prlprg.sexp.*;
+import org.prlprg.sexp.CloSXP;
+import org.prlprg.sexp.EnvSXP;
+import org.prlprg.sexp.LangSXP;
+import org.prlprg.sexp.ListSXP;
+import org.prlprg.sexp.RegSymSXP;
+import org.prlprg.sexp.SEXP;
+import org.prlprg.sexp.SEXPs;
+import org.prlprg.sexp.StrOrRegSymSXP;
+import org.prlprg.sexp.SymOrLangSXP;
+import org.prlprg.sexp.UserEnvSXP;
 import org.prlprg.util.Pair;
 
 record Loop(BcLabel start, BcLabel end, boolean gotoOK) {
@@ -53,7 +62,7 @@ public class Context {
     var env = new UserEnvSXP(fun.env());
     var ctx = topLevelContext(env);
 
-    return ctx.functionContext(fun.formals(), fun.bodyAST());
+    return ctx.functionContext(fun.parameters(), fun.bodyAST());
   }
 
   public Context functionContext(ListSXP formals, SEXP body) {
@@ -153,7 +162,6 @@ public class Context {
                   // contribute any new
                   // local variables.
                   Optional.empty();
-
               case "~", "expression", "quote" -> {
                 // they do not evaluate their arguments and so do not contribute new local
                 // variables.
@@ -199,15 +207,11 @@ public class Context {
       if (call.args().isEmpty()) {
         throw new CompilerException("Bad assignment: " + call);
       }
-      switch (call.arg(0)) {
-        case LangSXP ll -> {
-          return getAssignVar(ll);
-        }
-        case StrOrRegSymSXP s -> {
-          return s.reifyString();
-        }
+      return switch (call.arg(0)) {
+        case LangSXP ll -> getAssignVar(ll);
+        case StrOrRegSymSXP s -> s.reifyString();
         default -> throw new CompilerException("Bad assignment: " + call);
-      }
+      };
     }
   }
 
@@ -218,7 +222,7 @@ public class Context {
     // >> check for and handle foo::bar(x) <- y assignments here
     if (fun instanceof LangSXP call
         && call.args().size() == 2
-        && (call.funName("::") || call.funName(":::"))
+        && (call.funNameIs("::") || call.funNameIs(":::"))
         && call.arg(0) instanceof RegSymSXP
         && call.arg(1) instanceof RegSymSXP) {
       var args = call.args().set(1, null, SEXPs.symbol(call.arg(1) + "<-"));

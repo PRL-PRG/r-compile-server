@@ -5,6 +5,7 @@ import com.google.common.primitives.ImmutableDoubleArray;
 import java.util.Objects;
 import java.util.PrimitiveIterator;
 import javax.annotation.concurrent.Immutable;
+import org.prlprg.parseprint.Printer;
 
 /** Real vector SEXP. */
 @Immutable
@@ -18,7 +19,14 @@ public sealed interface RealSXP extends NumericSXP<Double>
   }
 
   @Override
-  Attributes attributes();
+  default boolean hasNaOrNaN() {
+    for (var real : this) {
+      if (Double.isNaN(real)) {
+        return true;
+      }
+    }
+    return false;
+  }
 
   @Override
   RealSXP withAttributes(Attributes attributes);
@@ -44,11 +52,6 @@ record RealSXPImpl(ImmutableDoubleArray data, @Override Attributes attributes) i
   @Override
   public int size() {
     return data.length();
-  }
-
-  @Override
-  public String toString() {
-    return VectorSXPs.toString(this, data().stream());
   }
 
   @Override
@@ -86,6 +89,11 @@ record RealSXPImpl(ImmutableDoubleArray data, @Override Attributes attributes) i
   @Override
   public int hashCode() {
     return Objects.hash(data, attributes);
+  }
+
+  @Override
+  public String toString() {
+    return Printer.toString(this);
   }
 }
 
@@ -126,14 +134,13 @@ final class ScalarRealSXP extends ScalarSXPImpl<Double> implements RealSXP {
   @Override
   public boolean equals(Object o) {
     if (this == o) return true;
-    if (o == null || getClass() != o.getClass()) return false;
-    var that = (ScalarRealSXP) o;
+    if (!(o instanceof ScalarRealSXP that)) return false;
     return DoubleMath.fuzzyEquals(data, that.data, DOUBLE_CMP_DELTA);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(data);
+    return Double.hashCode(data);
   }
 }
 

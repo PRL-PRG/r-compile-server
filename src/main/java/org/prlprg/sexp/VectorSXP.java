@@ -1,28 +1,33 @@
 package org.prlprg.sexp;
 
-import java.util.stream.BaseStream;
+import javax.annotation.Nonnull;
 import org.prlprg.primitive.Complex;
 import org.prlprg.primitive.Logical;
 
 /** SEXP vector (immutable list). */
 public sealed interface VectorSXP<T> extends ListOrVectorSXP<T>
-    permits ComplexSXP,
-        EmptyVectorSXPImpl,
-        ScalarSXPImpl,
-        ExprSXP,
-        LglSXP,
-        NumericSXP,
-        StrSXP,
-        VecSXP {
+    permits PrimVectorSXP, VecSXP, ExprSXP {
   @Override
+  @Nonnull
   Attributes attributes();
 
-  @Override
-  VectorSXP<T> withAttributes(Attributes attributes);
-
+  /** Does the collection have exactly one element? */
   default boolean isScalar() {
     return size() == 1;
   }
+
+  /**
+   * Does the collection have exactly one element <i>and</i> no attributes <i>and</i> is primitive
+   * (doesn't contain other {@link SEXP}s)?
+   *
+   * <p>i.e. can it be represented as an unboxed value?
+   */
+  default boolean isSimpleScalar() {
+    return isScalar() && attributes().isEmpty() && this instanceof PrimVectorSXP;
+  }
+
+  @Override
+  VectorSXP<T> withAttributes(Attributes attributes);
 
   /**
    * Coerce the elements of this vector to strings.
@@ -49,6 +54,7 @@ public sealed interface VectorSXP<T> extends ListOrVectorSXP<T>
     return coerceTo(Complex.class);
   }
 
+  @SuppressWarnings("unchecked")
   default <R> R[] coerceTo(Class<R> clazz) {
     Object[] target;
     SEXPType targetType;
@@ -77,26 +83,4 @@ public sealed interface VectorSXP<T> extends ListOrVectorSXP<T>
 
     return (R[]) target;
   }
-}
-
-final class VectorSXPs {
-  static final int VECTOR_TRUNCATE_SIZE = 100;
-
-  static String toString(SEXP sexp, BaseStream<?, ?> data) {
-    var dataString = new StringBuilder();
-    var dataIter = data.iterator();
-    while (dataIter.hasNext()) {
-      dataString.append(dataIter.next());
-      if (dataIter.hasNext()) {
-        dataString.append(",");
-        //        if (dataString.length() >= VECTOR_TRUNCATE_SIZE) {
-        //          dataString.append("...");
-        //          break;
-        //        }
-      }
-    }
-    return SEXPs.toString(sexp, dataString);
-  }
-
-  private VectorSXPs() {}
 }

@@ -1,0 +1,116 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ valid.numjust[0x55eeee7a94d0]                                                │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch                                      │
+│ Properties:                                                                  │
+├────── Final PIR Version
+valid.numjust[0x55eeee7a94d0]
+BB0
+  val?^           %0.0  = LdArg                    0
+  val?^ | miss    %0.1  = LdVar              eR    length, <env 0x55eeedfdc408>
+  lgl$#-          %0.2  = Identical                <blt length>, %0.1   <true>
+  void                    Branch                   %0.2 -> BB18 (if true) | BB19 (if false)
+BB18   <- [0]
+  env             e18.0 = (MkEnv)            l     just=%0.0, parent=<env 0x55eeedfdc408>, context 1
+  val?            %18.1 = Force!<lazy>       !vL   %0.0, e18.0   <real->
+  lgl$#-          %18.2 = IsType                   %18.1 isA real-
+  void                    Branch                   %18.2 -> BB20 (if true) | BB21 (if false)
+BB19   <- [0]
+  env             e19.0 = (MkEnv)            l     just=%0.0, parent=<env 0x55eeedfdc408>, context 1
+  fs              %19.1 = FrameState         R     0x55eef0936b90+0: [], env=e19.0
+  void                    Deopt              !v    %19.1, DeadBranchReached@0x55eeee9df0b8[Test#0], %0.2   !
+BB20   <- [18]
+  real-           %20.0 = CastType           d     dn %18.1
+  lgl$#-          %20.1 = IsEnvStub          R     , e18.0
+  void                    Branch                   %20.1 -> BB22 (if true) | BB23 (if false)
+BB21   <- [18]
+  void                    Nop                !     
+  val?            %21.1 = %18.1
+  dr              %21.2 = Typecheck@0x55eeee9df0b8[Type#1]
+  goto BB3
+BB22   <- [20]
+  (int|real)$-    %22.0 = CallSafeBuiltin    wed   length(%20.0)    <int$->
+  lgl$#-          %22.1 = IsType                   %22.0 isA int$-
+  void                    Branch                   %22.1 -> BB24 (if true) | BB25 (if false)
+BB23   <- [20]
+  void                    Nop                !     
+  env             e23.1 = e18.0
+  dr              %23.2 = EnvStubMaterialized@0x55eeee9df0b8[Call#unknown]
+  goto BB3
+BB3   <- [21, 23]
+  val?^ | miss    %3.0  = Phi                      %21.1:BB21, e23.1:BB23
+  dr              %3.2  = Phi                      %21.2:BB21, %23.2:BB23
+  dr              %3.3  = %3.2
+  fs              %3.4  = FrameState         R     0x55eef0936b90+69: [<blt length>, %18.1], env=e18.0
+  void                    Deopt              !v    %3.4, %3.3, %3.0   !
+BB24   <- [22]
+  int$-           %24.0 = CastType           d     dn %22.0
+  lgl$-           %24.1 = Eq                 d     %24.0, 0, elided   <lgl$->
+  lgl$#-          %24.2 = CheckTrueFalse     e     %24.1
+  void                    Branch                   %24.2 -> BB14 (if true) | BB7 (if false)
+BB25   <- [22]
+  void                    Nop                !     
+  (int|real)$-    %25.1 = %22.0
+  dr              %25.2 = Typecheck@0x55eeee9df0b8[Type#2]
+  goto BB5
+BB14   <- [24]
+  val?^ | miss    %14.0 = LdVar              eRd   c, <env 0x55eeedfdc408>
+  lgl$#-          %14.1 = Identical                <blt c>, %14.0   <@?>
+  void                    Branch                   %14.1 -> BB16 (if true) | BB15 (if false)
+BB7   <- [24]
+  val?^ | miss    %7.0  = LdVar              eRd   length, <env 0x55eeedfdc408>
+  lgl$#-          %7.1  = Identical                <blt length>, %7.0   <true>
+  void                    Branch                   %7.1 -> BB26 (if true) | BB27 (if false)
+BB5   <- [25, 27]
+  val?^ | miss    %5.0  = Phi                      %25.1:BB25, %27.1:BB27
+  dr              %5.2  = Phi                      %25.2:BB25, %27.2:BB27
+  dr              %5.3  = %5.2
+  fs              %5.4  = FrameState         R     0x55eef0936b90+91: [%22.0], env=e18.0
+  void                    Deopt              !v    %5.4, %5.3, %5.0   !
+BB16   <- [14]
+  real-           %16.0 = CallSafeBuiltin    vwed  c(0.5, 0.5)    <val?_>
+  real-           %16.1 = %16.0
+  goto BB10
+BB15   <- [14]
+  env             e15.0 = MaterializeEnv           , e18.0   <@?>
+  (cls|spec|blt)  %15.1 = LdFun              !v    c, e15.0
+  fs              %15.2 = FrameState         R     0x55eef0936b90+387: [%15.1], env=e15.0
+  void                    Deopt              !v    %15.2, DeadCall@0x55eeee9df0b8[Call#3], %15.1   !
+BB26   <- [7]
+  lgl$-           %26.0 = Lt                 d     %24.0, 2, elided   <lgl$->
+  lgl$#-          %26.1 = CheckTrueFalse     e     %26.0
+  void                    Branch                   %26.1 -> BB11 (if true) | BB8 (if false)
+BB27   <- [7]
+  void                    Nop                !     
+  lgl$#-          %27.1 = %7.1
+  dr              %27.2 = DeadBranchReached@0x55eeee9df0b8[Test#1]
+  goto BB5
+BB10   <- [16, 9]
+  real-           %10.0 = Phi                      %9.2:BB9, %16.1:BB16
+  real-           %10.1 = %10.0
+  void                    Return             l     %10.1
+BB11   <- [26]
+  val?^ | miss    %11.0 = LdVar              eRd   c, <env 0x55eeedfdc408>
+  lgl$#-          %11.1 = Identical                <blt c>, %11.0   <@?>
+  void                    Branch                   %11.1 -> BB13 (if true) | BB12 (if false)
+BB8   <- [26]
+  void                    Visible            v     
+  real-           %8.1  = %20.0
+  goto BB9
+BB13   <- [11]
+  real-           %13.0 = CallSafeBuiltin    vwed  c(%20.0, 0.5)    <val?_>
+  real-           %13.1 = %13.0
+  goto BB9
+BB12   <- [11]
+  env             e12.0 = MaterializeEnv           , e18.0   <@?>
+  (cls|spec|blt)  %12.1 = LdFun              !v    c, e12.0
+  fs              %12.2 = FrameState         R     0x55eef0936b90+275: [%12.1], env=e12.0
+  void                    Deopt              !v    %12.2, DeadCall@0x55eeee9df0b8[Call#2], %12.1   !
+BB9   <- [8, 13]
+  real-           %9.0  = Phi                      %8.1:BB8, %13.1:BB13
+  real-           %9.1  = %9.0
+  real-           %9.2  = %9.1
+  goto BB10
+
+│ valid.numjust[0x55eeee7a94d0]                                                │
+└──────────────────────────────────────────────────────────────────────────────┘

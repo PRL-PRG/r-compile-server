@@ -1,0 +1,29 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ osr[0x559b8596b740]                                                          │
+│ Context: CorrOrd,!TMany                                                      │
+│ Properties:  !Reflection                                                     │
+├────── Final PIR Version
+osr[0x559b8596b740]
+BB0
+  int$#-          %0.0  = LdArg                    0
+  int$#-          %0.1  = LdArg                    1
+  int$#-          %0.2  = LdArg                    2
+  int$#-          %0.3  = %0.2
+  goto BB2
+BB2   <- [4, 0]
+  int$-           %2.0  = Phi                      %0.3:BB0, %4.1:BB4
+  int$-           %2.1  = %2.0
+  lgl$-           %2.2  = Neq                d     %0.1, %2.1, elided
+  lgl$#-          %2.3  = Identical                %2.2, false
+  void                    Branch                   %2.3 -> BB3 (if true) | BB4 (if false)
+BB3   <- [2]
+  void                    Invisible          v     
+  void                    Return             l     nil
+BB4   <- [2]
+  int$-           %4.0  = Add                d     %2.1, %0.0, elided
+  int$-           %4.1  = %4.0
+  goto BB2
+
+│ osr[0x559b8596b740]                                                          │
+└──────────────────────────────────────────────────────────────────────────────┘

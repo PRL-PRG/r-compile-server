@@ -1,0 +1,25 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ str[0x55b0cb68d8c0]                                                          │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch miss: 1                              │
+│ Properties:                                                                  │
+├────── PIR Version After Optimizations
+str[0x55b0cb68d8c0]
+BB0
+  goto BB1
+BB1   <- [0]
+  val?^           %1.0  = LdArg                    0
+  env             e1.1  = (MkEnv)            l     object=%1.0, ...(miss)=missingArg, parent=<env 0x55b0c9db38c8>, context 1
+  (cls|spec|blt)  %1.2  = LdFun              !     UseMethod, <0x55b0c8cb8520>, <env 0x55b0c9db38c8>
+  val?            %1.3  = Call               !L    %1.2("str") e1.1   <val?_>
+  cp              %1.4  = Checkpoint                -> BB2 (default) | BB3 (if assume failed)
+BB2   <- [1]
+  lgl$#-          %2.0  = IsEnvStub          R     , e1.1
+  void                    Assume             D     %2.0, %1.4 (EnvStubMaterialized@0x55b0cbd55b48[Call#unknown])
+  void                    Return             l     %1.3
+BB3   <- [1]
+  fs              %3.0  = FrameState         R     0x55b0cc624d40+32: [%1.3], env=e1.1
+  void                    Deopt              !v    %3.0   !
+
+│ str[0x55b0cb68d8c0]                                                          │
+└──────────────────────────────────────────────────────────────────────────────┘

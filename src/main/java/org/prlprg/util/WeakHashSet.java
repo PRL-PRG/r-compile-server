@@ -6,11 +6,11 @@ import java.util.Set;
 import java.util.WeakHashMap;
 
 /**
- * Set version of {@link java.util.WeakHashMap}: all the keys are weakly refereced and when they get
- * garbage collected, the corresponding value is removed from the set.
+ * Set version of {@link java.util.WeakHashMap}: all the elements are weakly referenced and when
+ * they get garbage collected, are removed from the set.
  */
 public class WeakHashSet<T> implements Set<T> {
-  private final WeakHashMap<T, Nothing> map = new WeakHashMap<>();
+  private final WeakHashMap<T, Unit> map = new WeakHashMap<>();
 
   @Override
   public int size() {
@@ -45,7 +45,7 @@ public class WeakHashSet<T> implements Set<T> {
 
   @Override
   public boolean add(T t) {
-    return map.put(t, null) == null;
+    return map.put(t, Unit.SINGLETON) == null;
   }
 
   @Override

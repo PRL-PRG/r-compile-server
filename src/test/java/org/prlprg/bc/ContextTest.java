@@ -5,11 +5,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.HashSet;
 import org.junit.jupiter.api.Test;
+import org.prlprg.AbstractGNURBasedTest;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.NamespaceEnvSXP;
 import org.prlprg.sexp.PromSXP;
 import org.prlprg.sexp.SEXPs;
-import org.prlprg.util.AbstractGNURBasedTest;
 import org.prlprg.util.Pair;
 
 public class ContextTest extends AbstractGNURBasedTest {
@@ -43,7 +43,7 @@ public class ContextTest extends AbstractGNURBasedTest {
                                         """);
 
     var ctx = Context.functionContext(fun);
-    assertThat(ctx.findLocals(fun.formals())).containsExactly("x");
+    assertThat(ctx.findLocals(fun.parameters())).containsExactly("x");
   }
 
   @Test
@@ -61,7 +61,7 @@ public class ContextTest extends AbstractGNURBasedTest {
 
     var ctx = Context.functionContext(fun);
     var locals = new HashSet<>();
-    locals.addAll(ctx.findLocals(fun.formals()));
+    locals.addAll(ctx.findLocals(fun.parameters()));
     locals.addAll(ctx.findLocals(fun.bodyAST()));
     assertThat(locals).containsExactly("local", "x");
   }
@@ -85,7 +85,7 @@ public class ContextTest extends AbstractGNURBasedTest {
 
     var ctx = Context.functionContext(fun);
     var x = ctx.resolve("x");
-    assertThat(x).hasValue(new Pair<>(fun.env(), SEXPs.MISSING_ARG));
+    assertThat(x).hasValue(Pair.of(fun.env(), SEXPs.MISSING_ARG));
 
     var y = ctx.resolve("y").get();
     assertThat(y.first()).isEqualTo(fun.env());
@@ -136,7 +136,7 @@ public class ContextTest extends AbstractGNURBasedTest {
     var fun = (CloSXP) R.eval("utils::unzip");
     var ctx = Context.functionContext(fun);
     // FIXME: ugly - can we have some matchers for this?
-    var identical = ctx.resolve("identical").get();
-    assertTrue(identical.first() instanceof NamespaceEnvSXP ns && ns.getName().equals("base"));
+    var identical = ctx.resolve("identical").orElseThrow();
+    assertTrue(identical.first() instanceof NamespaceEnvSXP ns && ns.name().equals("base"));
   }
 }

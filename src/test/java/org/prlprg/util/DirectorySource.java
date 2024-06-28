@@ -1,7 +1,15 @@
 package org.prlprg.util;
 
+import static org.prlprg.TestConfig.FAST_TESTS;
+
 import com.google.common.collect.ImmutableSet;
-import java.lang.annotation.*;
+import java.lang.annotation.Documented;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.junit.jupiter.api.extension.ExtensionContext;
@@ -39,6 +47,13 @@ public @interface DirectorySource {
 
   /** Paths to exclude. */
   String[] exclude() default {};
+
+  /**
+   * When {@link org.prlprg.TestConfig#FAST_TESTS FAST_TESTS} is set, choose the first subset of
+   * files which meet the above criteria to test instead of testing them all. Defaults to running
+   * all tests regardless.
+   */
+  int fastLimit() default Integer.MAX_VALUE;
 }
 
 class DirectoryArgumentsProvider implements ArgumentsProvider, AnnotationConsumer<DirectorySource> {
@@ -47,8 +62,9 @@ class DirectoryArgumentsProvider implements ArgumentsProvider, AnnotationConsume
   private boolean includeDirs;
   private boolean relativize;
   private int depth;
-  private String root = "";
+  private Path root = Paths.get("");
   private ImmutableSet<String> exclude = ImmutableSet.of();
+  int fastLimit;
 
   @Override
   public void accept(DirectorySource directorySource) {
@@ -56,17 +72,23 @@ class DirectoryArgumentsProvider implements ArgumentsProvider, AnnotationConsume
     glob = directorySource.glob();
     includeDirs = directorySource.includeDirs();
     relativize = directorySource.relativize();
-    root = directorySource.root();
+    root = Paths.get(directorySource.root());
     depth = directorySource.depth();
     exclude = ImmutableSet.copyOf(directorySource.exclude());
+    fastLimit = directorySource.fastLimit();
   }
 
   @Override
   public Stream<? extends Arguments> provideArguments(ExtensionContext context) {
     assert accepted;
     var path = Tests.getResourcePath(context.getRequiredTestClass(), root);
-    return Files.listDir(path, glob, depth, includeDirs, relativize).stream()
-        .filter(p -> !exclude.contains(p.toString()))
-        .map(Arguments::of);
+    var cases =
+        Files.listDir(path, glob, depth, includeDirs, relativize).stream()
+            .filter(p -> !exclude.contains(p.toString()))
+            .map(Arguments::of);
+    if (FAST_TESTS && fastLimit < Integer.MAX_VALUE) {
+      cases = cases.limit(fastLimit);
+    }
+    return cases;
   }
 }

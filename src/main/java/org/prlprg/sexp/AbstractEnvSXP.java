@@ -2,11 +2,13 @@ package org.prlprg.sexp;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Optional;
+import java.util.Set;
+import org.jetbrains.annotations.UnmodifiableView;
+import org.prlprg.parseprint.Printer;
 
-public abstract sealed class AbstractEnvSXP implements EnvSXP
-    permits BaseEnvSXP, GlobalEnvSXP, NamespaceEnvSXP, UserEnvSXP {
-
+abstract class AbstractEnvSXP {
   protected EnvSXP parent;
   protected final Map<String, SEXP> bindings;
 
@@ -15,32 +17,42 @@ public abstract sealed class AbstractEnvSXP implements EnvSXP
     this.bindings = new HashMap<>();
   }
 
-  @Override
+  // @Override
   public EnvSXP parent() {
     return parent;
   }
 
-  @Override
+  // @Override
+  public void setParent(EnvSXP parent) {
+    this.parent = parent;
+  }
+
+  // @Override
   public Optional<SEXP> get(String name) {
     return getLocal(name).or(() -> parent.get(name));
   }
 
-  @Override
+  // @Override
   public Optional<SEXP> getLocal(String name) {
     return Optional.ofNullable(bindings.get(name));
   }
 
-  @Override
-  public Iterable<? extends Map.Entry<? extends String, ? extends SEXP>> bindings() {
+  // @Override
+  public @UnmodifiableView Set<Entry<String, SEXP>> bindings() {
     return bindings.entrySet();
   }
 
-  @Override
+  // @Override
   public int size() {
     return bindings.size();
   }
 
   public void set(String name, SEXP value) {
     bindings.put(name, value);
+  }
+
+  @Override
+  public String toString() {
+    return Printer.toString(this);
   }
 }

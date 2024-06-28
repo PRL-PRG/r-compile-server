@@ -1,0 +1,45 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ pirCheck[0x55cbf4b1f110]                                                     │
+│ Context: CorrOrd,!TMany                                                      │
+│ Properties:  ForceOrd: 1                                                     │
+├────── PIR Version After Optimizations
+pirCheck[0x55cbf4b1f110]
+BB0
+  goto BB1
+BB1   <- [0]
+  val?^ | miss    %1.0  = LdArg                    1
+  val?^ | miss    %1.1  = LdArg                    0
+  val?^           %1.2  = ChkMissing         e     %1.0
+  env             e1.3  = (MkEnv)            l     a=%1.1, b=%1.0, parent=R_GlobalEnv, context 1
+  val?            %1.4  = Force!<value>      !vL   %1.2, e1.3   <real$->
+  lgl$#-          %1.5  = IsType                   %1.4 isA real$-
+  cp              %1.6  = Checkpoint                -> BB2 (default) | BB6 (if assume failed)
+BB2   <- [1]
+  lgl$#-          %2.0  = IsEnvStub          R     , e1.3
+  void                    Assume             D     %2.0, %1.6 (EnvStubMaterialized@0x55cbf39c38d8[Call#unknown])
+  void                    Assume             D     %1.5, %1.6 (Typecheck@0x55cbf39c38d8[Type#0])
+  real$-          %2.3  = CastType           d     dn %1.4
+  lgl$-           %2.4  = Gt                 d     %2.3, 0, elided   <lgl$->
+  lgl$#-          %2.5  = CheckTrueFalse     e     %2.4
+  void                    Branch                   %2.5 -> BB5 (if true) | BB3 (if false)
+BB6   <- [1]
+  fs              %6.0  = FrameState         R     0x55cbf4b0c010+9: [%1.4], env=e1.3
+  void                    Deopt              !v    %6.0   !
+BB5   <- [2]
+  val?^           %5.0  = ChkMissing         e     %1.1
+  lgl$#-          %5.1  = IsType                   %5.0 isA real$-
+  void                    Assume             D     %5.1, %1.6 (Typecheck@0x55cbf39c38d8[Type#2])
+  real$-          %5.3  = CastType           d     dn %5.0
+  real$-          %5.4  = Extract1_1D        wed   %5.3, %2.3, elided   <real$->
+  void                    Visible            v     
+  goto BB4
+BB3   <- [2]
+  void                    Invisible          v     
+  goto BB4
+BB4   <- [3, 5]
+  (nil|real)-     %4.0  = Phi                      nil:BB3, %5.4:BB5
+  void                    Return             l     %4.0
+
+│ pirCheck[0x55cbf4b1f110]                                                     │
+└──────────────────────────────────────────────────────────────────────────────┘
