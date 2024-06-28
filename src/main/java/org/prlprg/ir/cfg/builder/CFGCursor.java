@@ -55,7 +55,7 @@ public class CFGCursor {
 
   // endregion construct
 
-  // region move
+  // region move (cursor)
   /**
    * Moves to the given block and statement index.
    *
@@ -131,7 +131,7 @@ public class CFGCursor {
     this.stmtIdx = 0;
   }
 
-  // endregion move
+  // endregion move (cursor)
   // endregion configure
 
   // region build
@@ -331,6 +331,66 @@ public class CFGCursor {
   }
 
   // endregion replace
+
+  // region move (instructions)
+  /**
+   * Move the instruction at the current insertion point to the given index, possibly in a different
+   * block.
+   *
+   * <p>This doesn't move the cursor <i>unless</i> you move the statement before the index in this
+   * block, then it will increment by 1.
+   *
+   * @throws IllegalArgumentException If at the end of the current block. <b>OR</b> if any
+   *     preconditions in {@link BB#moveInstr(int, BB, int)} are violated.
+   * @throws IndexOutOfBoundsException If {@code newIndex} is out of bounds for the new block.
+   */
+  public void moveInstr(BB newBB, int newIndex) {
+    if (stmtIdx == bb.numInstrs()) {
+      throw new IllegalStateException(
+          "No instruction to move, because we're at the end of the current block.");
+    }
+    if (newIndex < 0 || newIndex > newBB.stmts().size()) {
+      throw new IndexOutOfBoundsException("Index " + newIndex + " out of bounds for " + newBB.id());
+    }
+
+    bb.moveInstr(stmtIdx, newBB, newIndex);
+
+    if (newBB == bb && newIndex < stmtIdx) {
+      stmtIdx++;
+    }
+  }
+
+  /**
+   * Move {@code n} instructions at the current insertion point to the given index, possibly in a
+   * different block.
+   *
+   * <p>This doesn't move the cursor <i>unless</i> you move the statement before the index in this
+   * block, then it will increment by {@code n}.
+   *
+   * @throws IllegalArgumentException If {@code count} goes past the end of the current block.
+   *     <b>OR</b> if any preconditions in {@link BB#moveInstrs(int, int, BB, int)} are violated.
+   * @throws IndexOutOfBoundsException If {@code newIndex} is out of bounds for the new block.
+   */
+  public void moveInstrs(int count, BB newBB, int newIndex) {
+    if (stmtIdx + count > bb.numInstrs()) {
+      throw new IllegalStateException(
+          "Don't have "
+              + count
+              + " instructions to move, because the cursor plus that count goes past the end of the current block.");
+    }
+    if (newIndex < 0 || newIndex > newBB.stmts().size()) {
+      throw new IndexOutOfBoundsException("Index " + newIndex + " out of bounds for " + newBB.id());
+    }
+
+    bb.moveInstrs(count, stmtIdx, newBB, newIndex);
+
+    if (newBB == bb && newIndex < stmtIdx) {
+      stmtIdx += count;
+    }
+  }
+
+  // endregion move (instructions)
+
   // endregion build
 
   // region access

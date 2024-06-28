@@ -54,7 +54,7 @@ class LoopInvariantCodeMotion implements OptimizationPass {
                           var sameLoad = outerLoopEquivalent(instr, domTree, preheader);
                           System.err.println("LICM actually did something");
                           if (sameLoad == null) {
-                            bb.move(i--, preheader, preheader.stmts().size());
+                            bb.moveStmt(i--, preheader, preheader.stmts().size());
                           } else {
                             subst.stage(instr, sameLoad);
                             bb.removeAt(i--);

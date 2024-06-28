@@ -64,28 +64,54 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
   sealed interface Context<Reverse extends Context<?>> extends CFGEdit<Reverse> {}
 
   /**
-   * Edit is local to a {@linkplain CFG control-flow graph}; edit is not local to a {@linkplain BB
-   * basic block}, {@linkplain InstrOrPhi instruction, or phi}.
+   * Edit is local to a {@linkplain CFG control-flow graph} and affects the outer graph structure;
+   * edit is not local to a {@linkplain BB basic block}, two blocks, {@linkplain InstrOrPhi
+   * instruction, or phi}.
    *
    * <p>{@link SplitBB} and {@link MergeBBs} inherit this.
    *
-   * <p>{@link MutateInstrArgs} and {@link MoveStmt} don't inherit this, even though the instruction
-   * may affect multiple basic blocks (for {@link MutateInstrArgs}, by affecting uses). They inherit
-   * {@link OnInstrOrPhi}. TODO: Revisit making {@link MoveStmt} inherit something else.
+   * <p>{@link MoveStmts}, {@link MoveStmt}, and {@link MoveJump} don't inherit this. Instead they
+   * inherit {@link Move}, because although they affect multiple blocks, they don't affect the graph
+   * structure.
+   *
+   * <p>{@link MutateInstrArgs} also doesn't inherit this, even though the instruction may be used
+   * in multiple basic blocks. Instead it inherits {@link OnInstrOrPhi}.
    */
   sealed interface OnCFG<Reverse extends OnCFG<?>> extends Semantic<Reverse> {}
+
+  /**
+   * Edit moves instructions between two {@linkplain BB basic blocks}.
+   *
+   * <p>{@link SplitBB} and {@link MergeBBs} don't inherit this, because although they affect two
+   * basic blocks, they affect the outer structure of the {@linkplain CFG control-flow graph}, while
+   * this doesn't.
+   */
+  sealed interface Move<Reverse extends Move<?>> extends Semantic<Reverse> {
+    /** Id of the {@linkplain BB} that instructions are being moved out of. */
+    BBId oldBBId();
+
+    /** Id of the {@linkplain BB} that instructions are being moved into. */
+    BBId newBBId();
+
+    /**
+     * Number of instructions moved by the edit.
+     *
+     * <p>That is, the number removed from {@link #oldBBId()} and added to {@link #newBBId()}.
+     */
+    int numMoved();
+  }
 
   /**
    * Edit is local to a {@linkplain BB basic block}, but not {@linkplain InstrOrPhi instruction or
    * phi}.
    *
-   * <p>{@link ReplaceWithInstr} ({@link ReplaceStmt}, {@link ReplaceJump}) are <i>not</i>
-   * considered local to an instruction or phi, because they remove the old instruction and inserts
-   * a new one. {@link MutateInstrArgs} and {@link MoveStmt} <i>are</i> considered local because
-   * they reuse the original instruction. TODO: Revisit making {@link MoveStmt} inherit something
-   * else.
+   * <p>{@link ReplaceWithInstr} ({@link ReplaceStmt}, {@link ReplaceJump}) inherit this, as they
+   * aren't considered local to an instruction or phi, because they remove the old instruction and
+   * insert a new one. {@link MutateInstrArgs} doesn't inherit this, as it is considered local,
+   * because it reuses the original instruction.
    *
-   * <p>{@link SplitBB} and {@link MergeBBs} also don't inherit this, they inherit {@link OnCFG}.
+   * <p>{@link MoveStmts}, {@link MoveStmt}, and {@link MoveJump} inherit {@link Move} because they
+   * are local to two basic blocks.
    */
   sealed interface OnBB<Reverse extends OnBB<?>> extends Semantic<Reverse> {
     /** Id of the {@linkplain BB} that the edit will affect. */
@@ -110,8 +136,17 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
   /**
    * Edit is local to an {@linkplain InstrOrPhi instruction or phi}.
    *
-   * <p>Note that the instruction or phi may change in arguments to other instructions or phis
-   * (excluded from the definition of "local" used within this, {@link OnCFG}, and {@link OnBB}).
+   * <p>{@link MutateInstrArgs} inherits this, although the instruction or phi changes in arguments
+   * to other instructions or phis; this change is excluded from the definition of "local" used
+   * within this and other immediate subclasses of {@link Semantic}.
+   *
+   * <p>{@link ReplaceWithInstr} ({@link ReplaceStmt}, {@link ReplaceJump}) inherit this, as they
+   * aren't considered local to an instruction or phi, because they remove the old instruction and
+   * insert a new one.
+   *
+   * <p>{@link MoveStmts}, {@link MoveStmt}, and {@link MoveJump} also don't inherit this and aren't
+   * considered local, because the instructions move to a different block and therefore affect both
+   * blocks' children.
    */
   sealed interface OnInstrOrPhi<Reverse extends OnInstrOrPhi<?>> extends Semantic<Reverse> {
     /** Id of the {@linkplain Node node} that the edit will affect. */
@@ -244,6 +279,12 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
 
   record InsertPhis(@Override BBId bbId, ImmutableSet<Phi.Serial> phis)
       implements InsertPhis_<RemovePhis> {
+    public InsertPhis {
+      if (phis.isEmpty()) {
+        throw new IllegalArgumentException("no-op (phis.isEmpty())");
+      }
+    }
+
     public InsertPhis(BB bb, Collection<? extends Phi<?>> phis) {
       this(bb.id(), phis.stream().map(Phi.Serial::new).collect(ImmutableSet.toImmutableSet()));
     }
@@ -310,6 +351,12 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
 
   record InsertStmts(@Override BBId bbId, int index, ImmutableList<Stmt.Serial> stmts)
       implements InsertStmts_<RemoveStmts> {
+    public InsertStmts {
+      if (stmts.isEmpty()) {
+        throw new IllegalArgumentException("no-op (stmts.isEmpty())");
+      }
+    }
+
     public InsertStmts(BB bb, int index, List<? extends Stmt> stmts) {
       this(
           bb.id(),
@@ -342,6 +389,12 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
 
   record InsertStmts2(@Override BBId bbId, Map<Integer, Stmt.Serial> indicesAndStmts)
       implements InsertStmts_<RemoveStmts2> {
+    public InsertStmts2 {
+      if (indicesAndStmts.isEmpty()) {
+        throw new IllegalArgumentException("no-op (indicesAndStmts.isEmpty())");
+      }
+    }
+
     public InsertStmts2(BB bb, Map<Integer, ? extends Stmt> indicesAndStmts) {
       this(
           bb.id(),
@@ -435,6 +488,12 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
 
   record RemovePhis(@Override BBId bbId, ImmutableSet<? extends NodeId<? extends Phi<?>>> nodeIds)
       implements RemovePhis_<InsertPhis> {
+    public RemovePhis {
+      if (nodeIds.isEmpty()) {
+        throw new IllegalArgumentException("no-op (nodeIds.isEmpty())");
+      }
+    }
+
     public RemovePhis(BB bb, Collection<? extends Phi<?>> phis) {
       this(bb.id(), phis.stream().map(Phi::id).collect(ImmutableSet.toImmutableSet()));
     }
@@ -442,7 +501,7 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
     @Override
     public InsertPhis apply(CFG cfg) {
       var phis = nodeIds.stream().map(cfg::get).toList();
-      cfg.get(bbId).removeAllPhis(phis);
+      cfg.get(bbId).removePhis(phis);
       return new InsertPhis(
           bbId, phis.stream().map(Phi.Serial::new).collect(ImmutableSet.toImmutableSet()));
     }
@@ -486,6 +545,8 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
     public RemoveStmts {
       if (fromIndex > toIndex) {
         throw new IllegalArgumentException("fromIndex > toIndex");
+      } else if (fromIndex == toIndex) {
+        throw new IllegalArgumentException("no-op (fromIndex == toIndex)");
       }
     }
 
@@ -519,6 +580,12 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
 
   record RemoveStmts2(@Override BBId bbId, ImmutableSet<? extends NodeId<? extends Stmt>> stmts)
       implements RemoveStmts_<InsertStmts2> {
+    public RemoveStmts2 {
+      if (stmts.isEmpty()) {
+        throw new IllegalArgumentException("no-op (stmts.isEmpty())");
+      }
+    }
+
     public RemoveStmts2(BB bb, Collection<? extends Stmt> stmts) {
       this(bb.id(), stmts.stream().map(Stmt::id).collect(ImmutableSet.toImmutableSet()));
     }
@@ -575,7 +642,10 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
   }
 
   record ReplaceStmt<I extends Stmt>(
-      BBId bbId, int index, String newName, MapToIdIn<? extends StmtData<? extends I>> newArgs)
+      @Override BBId bbId,
+      int index,
+      String newName,
+      MapToIdIn<? extends StmtData<? extends I>> newArgs)
       implements ReplaceWithInstr<ReplaceStmt<?>> {
     public ReplaceStmt(BB bb, int index, String newName, StmtData<? extends I> newArgs) {
       this(bb.id(), index, newName, MapToIdIn.of(newArgs));
@@ -603,7 +673,7 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
   }
 
   record ReplaceJump<I extends Jump>(
-      BBId bbId, String newName, MapToIdIn<? extends JumpData<? extends I>> newArgs)
+      @Override BBId bbId, String newName, MapToIdIn<? extends JumpData<? extends I>> newArgs)
       implements ReplaceWithInstr<ReplaceJump<?>> {
     public ReplaceJump(BB bb, String newName, JumpData<? extends I> newArgs) {
       this(bb.id(), newName, MapToIdIn.of(newArgs));
@@ -628,16 +698,77 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
     }
   }
 
-  record MoveStmt(BBId fromBBId, int fromIndex, BBId toBBId, int toIndex)
-      implements OnCFG<MoveStmt> {
-    public MoveStmt(BB fromBB, int fromIndex, BB toBB, int toIndex) {
-      this(fromBB.id(), fromIndex, toBB.id(), toIndex);
+  record MoveStmts(
+      @Override BBId oldBBId,
+      int oldFromIndex,
+      int oldToIndex,
+      @Override BBId newBBId,
+      int newFromIndex)
+      implements Move<MoveStmts> {
+    public MoveStmts {
+      if (oldFromIndex > oldToIndex) {
+        throw new IllegalArgumentException("oldFromIndex > oldToIndex");
+      } else if (oldFromIndex == oldToIndex) {
+        throw new IllegalArgumentException("no-op (oldFromIndex == oldToIndex)");
+      }
+    }
+
+    public MoveStmts(BB oldBB, int oldFromIndex, int oldToIndex, BB newBB, int newFromIndex) {
+      this(oldBB.id(), oldFromIndex, oldToIndex, newBB.id(), newFromIndex);
+    }
+
+    @Override
+    public MoveStmts apply(CFG cfg) {
+      cfg.get(oldBBId).moveStmts(oldFromIndex, oldToIndex, cfg.get(newBBId), newFromIndex);
+      return new MoveStmts(
+          newBBId, newFromIndex, newFromIndex + (oldToIndex - oldFromIndex), oldBBId, oldFromIndex);
+    }
+
+    @Override
+    public Iterable<? extends CFGEdit<?>> subEdits() {
+      return IntStream.range(oldFromIndex, oldToIndex)
+          .mapToObj(i -> new MoveStmt(oldBBId, i, newBBId, newFromIndex + (i - oldFromIndex)))
+          .toList();
+    }
+
+    @Override
+    public int numMoved() {
+      return oldToIndex - oldFromIndex;
+    }
+  }
+
+  record MoveStmt(@Override BBId oldBBId, int oldIndex, @Override BBId newBBId, int newIndex)
+      implements Move<MoveStmt> {
+    public MoveStmt(BB oldBB, int oldIndex, BB newBB, int newIndex) {
+      this(oldBB.id(), oldIndex, newBB.id(), newIndex);
     }
 
     @Override
     public MoveStmt apply(CFG cfg) {
-      cfg.get(fromBBId).move(fromIndex, cfg.get(toBBId), toIndex);
-      return new MoveStmt(toBBId, toIndex, fromBBId, fromIndex);
+      cfg.get(oldBBId).moveStmt(oldIndex, cfg.get(newBBId), newIndex);
+      return new MoveStmt(newBBId, newIndex, oldBBId, oldIndex);
+    }
+
+    @Override
+    public int numMoved() {
+      return 1;
+    }
+  }
+
+  record MoveJump(@Override BBId oldBBId, @Override BBId newBBId) implements Move<MoveJump> {
+    public MoveJump(BB oldBB, BB newBB) {
+      this(oldBB.id(), newBB.id());
+    }
+
+    @Override
+    public MoveJump apply(CFG cfg) {
+      cfg.get(oldBBId).moveJump(cfg.get(newBBId));
+      return new MoveJump(newBBId, oldBBId);
+    }
+
+    @Override
+    public int numMoved() {
+      return 1;
     }
   }
 

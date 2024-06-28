@@ -300,7 +300,27 @@ interface BBIntrinsicMutate {
    *     <b>OR</b> if the new index is out of bounds for insertion in the new block's list of
    *     statements (less than 0 or greater than the number of statements).
    */
-  void move(int oldIndex, BB newBb, int newIndex);
+  void moveStmt(int oldIndex, BB newBb, int newIndex);
+
+  /**
+   * Move a sequence of statements (exclusive range) to a new index and possibly basic block.
+   *
+   * @throws IllegalArgumentException If the new BB isn't in the same {@link CFG} as this one.
+   *     <b>OR</b> if {@code oldFromIndex} is greater than {@code oldToIndex}.
+   * @throws IndexOutOfBoundsException If the old index range is out of bounds for access in this
+   *     block's list of statements (start less than 0 or end greater than the number of
+   *     statements). <b>OR</b> if the new index is out of bounds for insertion in the new block's
+   *     list of statements (less than 0 or greater than the number of statements).
+   */
+  void moveStmts(int oldFromIndex, int oldToIndex, BB newBb, int newFromIndex);
+
+  /**
+   * Move a jump to a new basic block.
+   *
+   * @throws IllegalArgumentException If the new BB isn't in the same {@link CFG} as this one.
+   *     <b>OR</b> if this BB doesn't have a jump. <b>OR</b> if the new BB already has a jump.
+   */
+  void moveJump(BB newBb);
 
   // endregion move nodes
 
@@ -324,7 +344,7 @@ interface BBIntrinsicMutate {
    * @throws IllegalArgumentException if not all phis are in this BB.
    * @see #remove(Phi)
    */
-  void removeAllPhis(Collection<? extends Phi<?>> phis);
+  void removePhis(Collection<? extends Phi<?>> phis);
 
   /**
    * Remove the statement at the given index.
@@ -338,7 +358,7 @@ interface BBIntrinsicMutate {
   Stmt removeAt(int index);
 
   /**
-   * Remove the statements from {@code fromIndex} to {@code toIndex}.
+   * Remove the statements from {@code fromIndex} to {@code toIndex} (exclusive).
    *
    * <p>Other instructions may still reference them, but these references must go away before {@link
    * CFG#verify()}.

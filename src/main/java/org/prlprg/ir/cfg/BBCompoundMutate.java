@@ -127,7 +127,7 @@ public interface BBCompoundMutate extends BBIntrinsicMutate, BBQuery {
 
               if (phis != null) {
                 var oldNumPhis = phis().size();
-                removeAllPhis(phis);
+                removePhis(phis);
                 if (phis().size() != oldNumPhis - phis.size()) {
                   throw new IllegalArgumentException(
                       "Not all removed phis were in " + id() + ":\n- " + Strings.join("\n-", phis));
@@ -169,7 +169,7 @@ public interface BBCompoundMutate extends BBIntrinsicMutate, BBQuery {
               var removedPhis = phis().stream().filter(Predicate.not(predicate)).toList();
               var removedStmts = stmts().stream().filter(Predicate.not(predicate)).toList();
               var removedJump = jump() != null && !predicate.test(jump()) ? jump() : null;
-              removeAllPhis(removedPhis);
+              removePhis(removedPhis);
               removeAllStmts(removedStmts);
               if (removedJump != null) {
                 remove(removedJump);
@@ -187,5 +187,118 @@ public interface BBCompoundMutate extends BBIntrinsicMutate, BBQuery {
   default void removeWhere(Predicate<InstrOrPhi> predicate) {
     filter(Predicate.not(predicate));
   }
-  // endregion
+
+  // endregion remove
+
+  // region move
+  /**
+   * Move an instruction to a new index and possibly basic block.
+   *
+   * <p>If the instruction is a statement, this is equivalent to {@link #moveStmt(int, BB, int)}. If
+   * it's a jump, this asserts that {@code newIndex} is at the end of {@code newBB}, then is
+   * equivalent to {@link #moveJump(BB)}.
+   *
+   * @throws IllegalArgumentException If the new BB isn't in the same {@link CFG} as this one.
+   * @throws IndexOutOfBoundsException If the old index is out of bounds for access in this block's
+   *     list of <i>instructions</i> (less than 0 or greater than or equal to the number of
+   *     instructions). <b>OR</b> if the new index is out of bounds for insertion in the new block's
+   *     list of <i>statements</i> (less than 0 or greater than the number of statements).
+   */
+  default void moveInstr(int oldIndex, BB newBb, int newIndex) {
+    if (newBb.cfg() != cfg()) {
+      throw new IllegalArgumentException("Can't move between different CFGs");
+    }
+    if (oldIndex < 0 || oldIndex >= numInstrs()) {
+      throw new IndexOutOfBoundsException(
+          "Old index out of range in " + id() + " (instructions): " + oldIndex);
+    }
+    if (newIndex < 0 || newIndex > newBb.stmts().size()) {
+      throw new IndexOutOfBoundsException(
+          "New index out of range in " + newBb.id() + " (statements): " + newIndex);
+    }
+    if (oldIndex == stmts().size() && newIndex != newBb.stmts().size()) {
+      throw new IllegalArgumentException(
+          "Can't move jump to the middle of "
+              + newBb.id()
+              + " (index = "
+              + newIndex
+              + ", # statements = "
+              + newBb.stmts().size()
+              + ")");
+    }
+
+    if (oldIndex == stmts().size()) {
+
+      assert jump() != null;
+      moveJump(newBb);
+    } else {
+      moveStmt(oldIndex, newBb, newIndex);
+    }
+  }
+
+  /**
+   * Move a sequence of instructions (exclusive range) to a new index and possibly basic block.
+   *
+   * <p>If the instructions are all statements, this is equivalent to {@link #moveStmts(int, int,
+   * BB, int)}. If they include a jump, this asserts that {@code newFromIndex} is at the end of
+   * {@code newBB}, then is equivalent to first calling {@link #moveStmts(int, int, BB, int)} if
+   * there are any preceding statements, then {@link #moveJump(BB)}.
+   *
+   * @throws IllegalArgumentException If the new BB isn't in the same {@link CFG} as this one.
+   *     <b>OR</b> if {@code oldFromIndex} is greater than {@code oldToIndex}.
+   * @throws IndexOutOfBoundsException If the old index range is out of bounds for access in this
+   *     block's list of <i>instructions</i> (start less than 0 or end greater than the number of
+   *     instructions). <b>OR</b> if the new index is out of bounds for insertion in the new block's
+   *     list of <i>statements</i> (less than 0 or greater than the number of statements).
+   */
+  default void moveInstrs(int oldFromIndex, int oldToIndex, BB newBb, int newFromIndex) {
+    if (newBb.cfg() != cfg()) {
+      throw new IllegalArgumentException("Can't move between different CFGs");
+    }
+    if (oldFromIndex > oldToIndex) {
+      throw new IllegalArgumentException(
+          "oldFromIndex > oldToIndex: " + oldFromIndex + " > " + oldToIndex);
+    }
+    if (oldFromIndex < 0 || oldToIndex > numInstrs()) {
+      throw new IndexOutOfBoundsException(
+          "Old sublist out of range in "
+              + id()
+              + " (instructions): "
+              + oldFromIndex
+              + " to "
+              + oldToIndex);
+    }
+    if (newFromIndex < 0 || newFromIndex > newBb.stmts().size()) {
+      throw new IndexOutOfBoundsException(
+          "New index out of range in " + newBb.id() + " (statements): " + newFromIndex);
+    }
+    if (oldToIndex > stmts().size() && newFromIndex != newBb.stmts().size()) {
+      throw new IllegalArgumentException(
+          "Can't move jump to the middle of "
+              + newBb.id()
+              + " (index = "
+              + newFromIndex
+              + ", # statements = "
+              + newBb.stmts().size()
+              + ")");
+    }
+
+    if (oldFromIndex == oldToIndex) {
+      return;
+    }
+
+    if (oldToIndex == numInstrs()) {
+      assert jump() != null;
+      cfg()
+          .section(
+              "BB#moveInstrs",
+              () -> {
+                moveStmts(oldFromIndex, oldToIndex - 1, newBb, newFromIndex);
+                moveJump(newBb);
+              });
+    } else {
+      moveStmts(oldFromIndex, oldToIndex, newBb, newFromIndex);
+    }
+  }
+  // endregion move
 }

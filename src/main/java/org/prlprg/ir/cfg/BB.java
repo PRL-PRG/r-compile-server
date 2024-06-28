@@ -157,6 +157,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
         if (next == null) {
           throw new IllegalStateException("`next()` not called");
         }
+
         switch (i) {
           case 0 -> phis.remove();
           case 1 -> stmts.remove();
@@ -238,6 +239,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
             if (next == null) {
               throw new IllegalStateException("`next()` not called");
             }
+
             switch (i) {
               case 0 -> stmts.remove();
               case 1 -> setJump(null);
@@ -302,6 +304,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
         if (next == null) {
           throw new IllegalStateException("`next()` not called");
         }
+
         phis.remove();
         cfg().untrack(next);
         cfg().record(new CFGEdit.RemovePhi(BB.this, next), new CFGEdit.InsertPhi<>(BB.this, next));
@@ -328,6 +331,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     if (fromIndex < 0 || toIndex > stmts.size()) {
       throw new IndexOutOfBoundsException("Sublist out of range: " + fromIndex + " to " + toIndex);
     }
+
     return Collections.unmodifiableList(stmts.subList(fromIndex, toIndex));
   }
 
@@ -368,6 +372,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
       throw new UnsupportedOperationException(
           "Can't split a predecessor on the entry block, you must call `splitNewSuccessor` instead.");
     }
+
     var newBB = cfg().doAddBB(predecessorId);
 
     for (var pred : predecessors) {
@@ -405,6 +410,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     if (index < 0 || index > stmts.size()) {
       throw new IndexOutOfBoundsException("Index out of range: " + index);
     }
+
     var newBB = cfg().doAddBB(successorId);
 
     for (var succ : successors()) {
@@ -586,6 +592,10 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
   @Override
   public ImmutableList<? extends Phi<?>> addPhis(
       Collection<? extends Class<? extends Node>> nodeClasses) {
+    if (nodeClasses.isEmpty()) {
+      return ImmutableList.of();
+    }
+
     var inputs = predecessors.stream().map(Phi.Input::unset).toList();
     var phis =
         nodeClasses.stream()
@@ -609,6 +619,10 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
   }
 
   ImmutableList<? extends Phi<?>> addPhisWithIds(Collection<? extends PhiImpl.Args> phiArgs) {
+    if (phiArgs.isEmpty()) {
+      return ImmutableList.of();
+    }
+
     // The type argument and cast *are* redundant, but the Java compiler has an annoying bug where
     // it occasionally fails to type-check and must be fully rebuilt without them.
     @SuppressWarnings({"RedundantTypeArguments", "RedundantCast"})
@@ -664,6 +678,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     if (index < 0 || index > stmts.size()) {
       throw new IndexOutOfBoundsException("Index out of range: " + index);
     }
+
     var stmt = args.make(cfg(), id);
     stmts.add(index, stmt);
     cfg().track(stmt);
@@ -685,6 +700,11 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     if (index < 0 || index > stmts.size()) {
       throw new IndexOutOfBoundsException("Index out of range: " + index);
     }
+
+    if (idsAndArgs.isEmpty()) {
+      return ImmutableList.of();
+    }
+
     var stmts =
         idsAndArgs.stream()
             .map(idAndArgs -> idAndArgs.data().make(cfg(), idAndArgs.id()))
@@ -717,6 +737,10 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
       if (index < 0 || index > stmts.size()) {
         throw new IndexOutOfBoundsException("Index out of range: " + index);
       }
+    }
+
+    if (indicesIdsAndArgs.isEmpty()) {
+      return ImmutableList.of();
     }
 
     // Add statements in O(origStmts.size + indicesNamesAndArgs.size) time vs.
@@ -758,6 +782,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     if (this.jump != null) {
       throw new IllegalStateException(id() + " already has a jump, call replaceJump instead");
     }
+
     var jump = args.make(cfg(), id);
     setJump(jump);
     cfg().track(jump);
@@ -774,6 +799,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     if (index < 0 || index >= stmts.size()) {
       throw new IndexOutOfBoundsException("Index out of range: " + index);
     }
+
     var oldStmt = stmts.get(index);
     if (newName == null) {
       newName = InstrOrPhiIdImpl.cast(oldStmt.id()).name();
@@ -806,6 +832,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     if (jump == null) {
       throw new IllegalStateException(id() + " doesn't have a jump");
     }
+
     var oldJump = jump;
     if (newName == null) {
       newName = InstrOrPhiIdImpl.cast(oldJump.id()).name();
@@ -836,16 +863,18 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
   // region move nodes
 
   @Override
-  public void move(int oldIndex, BB newBb, int newIndex) {
+  public void moveStmt(int oldIndex, BB newBb, int newIndex) {
     if (newBb.cfg() != cfg()) {
       throw new IllegalArgumentException("Can't move between different CFGs");
     }
     if (oldIndex < 0 || oldIndex >= stmts.size()) {
-      throw new IndexOutOfBoundsException("Old index out of range: " + oldIndex);
+      throw new IndexOutOfBoundsException("Old index out of range in " + id() + ": " + oldIndex);
     }
     if (newIndex < 0 || newIndex > newBb.stmts.size()) {
-      throw new IndexOutOfBoundsException("New index out of range: " + newIndex);
+      throw new IndexOutOfBoundsException(
+          "New index out of range in " + newBb.id() + ": " + newIndex);
     }
+
     var stmt = stmts.remove(oldIndex);
     newBb.stmts.add(newIndex, stmt);
 
@@ -853,6 +882,62 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
         .record(
             new CFGEdit.MoveStmt(this, oldIndex, newBb, newIndex),
             new CFGEdit.MoveStmt(newBb, newIndex, this, oldIndex));
+  }
+
+  @Override
+  public void moveStmts(int oldFromIndex, int oldToIndex, BB newBb, int newFromIndex) {
+    if (newBb.cfg() != cfg()) {
+      throw new IllegalArgumentException("Can't move between different CFGs");
+    }
+    if (oldFromIndex > oldToIndex) {
+      throw new IllegalArgumentException(
+          "oldFromIndex > oldToIndex: " + oldFromIndex + " > " + oldToIndex);
+    }
+    if (oldFromIndex < 0 || oldToIndex > stmts.size()) {
+      throw new IndexOutOfBoundsException(
+          "Old sublist out of range in " + id() + ": " + oldFromIndex + " to " + oldToIndex);
+    }
+    if (newFromIndex < 0 || newFromIndex > newBb.stmts.size()) {
+      throw new IndexOutOfBoundsException(
+          "New index out of range in " + newBb.id() + ": " + newFromIndex);
+    }
+
+    if (oldFromIndex == oldToIndex) {
+      return;
+    }
+
+    var stmts = this.stmts.subList(oldFromIndex, oldToIndex);
+    newBb.stmts.addAll(newFromIndex, stmts);
+    stmts.clear();
+
+    cfg()
+        .record(
+            new CFGEdit.MoveStmts(this, oldFromIndex, oldToIndex, newBb, newFromIndex),
+            new CFGEdit.MoveStmts(
+                newBb,
+                newFromIndex,
+                newFromIndex + (oldToIndex - oldFromIndex),
+                this,
+                oldFromIndex));
+  }
+
+  @Override
+  public void moveJump(BB newBb) {
+    if (newBb.cfg() != cfg()) {
+      throw new IllegalArgumentException("Can't move between different CFGs");
+    }
+    if (jump == null) {
+      throw new IllegalStateException(id() + " doesn't have a jump");
+    }
+    if (newBb.jump != null) {
+      throw new IllegalStateException(newBb.id() + " already has a jump");
+    }
+
+    var oldJump = jump;
+    setJump(null);
+    newBb.setJump(oldJump);
+
+    cfg().record(new CFGEdit.MoveJump(this, newBb), new CFGEdit.MoveJump(newBb, this));
   }
 
   // endregion move nodes
@@ -863,13 +948,18 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     if (!phis.remove(phi)) {
       throw new IllegalArgumentException("Not in " + id() + ": " + phi);
     }
+
     cfg().untrack(phi);
 
     cfg().record(new CFGEdit.RemovePhi(this, phi), new CFGEdit.InsertPhi<>(this, phi));
   }
 
   @Override
-  public void removeAllPhis(Collection<? extends Phi<?>> phis) {
+  public void removePhis(Collection<? extends Phi<?>> phis) {
+    if (phis.isEmpty()) {
+      return;
+    }
+
     phis = new HashSet<>(phis);
     var oldSize = this.phis.size();
     this.phis.removeAll(phis);
@@ -886,6 +976,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     if (index < 0 || index >= stmts.size()) {
       throw new IndexOutOfBoundsException("Index out of range: " + index);
     }
+
     var stmt = stmts.remove(index);
     cfg().untrack(stmt);
 
@@ -901,6 +992,11 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     if (fromIndex < 0 || toIndex >= stmts.size()) {
       throw new IndexOutOfBoundsException("Sublist out of range: " + fromIndex + " to " + toIndex);
     }
+
+    if (fromIndex == toIndex) {
+      return;
+    }
+
     var stmts = this.stmts.subList(fromIndex, toIndex);
     cfg().untrackAll(stmts);
     var reInsert = new CFGEdit.InsertStmts(this, fromIndex, stmts);
@@ -911,6 +1007,10 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
 
   @Override
   public void removeAllStmts(Collection<? extends Stmt> stmts) {
+    if (stmts.isEmpty()) {
+      return;
+    }
+
     var stmtsAtIndices =
         stmts.stream().collect(Collectors.toMap(this.stmts::indexOf, Function.identity()));
 
@@ -932,6 +1032,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     if (jump == null) {
       throw new IllegalStateException(id() + " doesn't have a jump");
     }
+
     var jump = this.jump;
     setJump(null);
     cfg().untrack(jump);
@@ -956,6 +1057,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     if (predecessors.contains(predecessor)) {
       throw new AssertionError(predecessor.id() + " is already a predecessor of " + id());
     }
+
     predecessors.add(predecessor);
     for (var phi : phis) {
       PhiImpl.cast(phi).unsafeAddUnsetInput(predecessor);
@@ -974,6 +1076,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     if (!predecessors.contains(predecessor)) {
       throw new AssertionError(predecessor.id() + " isn't a predecessor of " + id());
     }
+
     predecessors.remove(predecessor);
     for (var phi : phis) {
       PhiImpl.cast(phi).unsafeRemoveInput(predecessor);
