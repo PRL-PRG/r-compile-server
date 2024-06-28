@@ -13,3 +13,4 @@ f(5)
 f(5)
 
 print(f)
+.Internal(inspect(f))

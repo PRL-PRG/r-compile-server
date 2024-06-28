@@ -149,6 +149,8 @@ const ::PROTOBUF_NAMESPACE_ID::uint32 TableStruct_protocol_2eproto::offsets[] PR
   ~0u,  // no _weak_field_map_
   PROTOBUF_FIELD_OFFSET(::rsh::server::protocol::CompileRequest, name_),
   PROTOBUF_FIELD_OFFSET(::rsh::server::protocol::CompileRequest, closure_),
+  PROTOBUF_FIELD_OFFSET(::rsh::server::protocol::CompileRequest, bc_optimization_),
+  PROTOBUF_FIELD_OFFSET(::rsh::server::protocol::CompileRequest, cc_optimization_),
   ~0u,  // no _has_bits_
   PROTOBUF_FIELD_OFFSET(::rsh::server::protocol::CompiledFunction, _internal_metadata_),
   ~0u,  // no _extensions_
@@ -170,8 +172,8 @@ static const ::PROTOBUF_NAMESPACE_ID::internal::MigrationSchema schemas[] PROTOB
   { 0, -1, sizeof(::rsh::server::protocol::Request)},
   { 8, -1, sizeof(::rsh::server::protocol::HandshakeRequest)},
   { 17, -1, sizeof(::rsh::server::protocol::CompileRequest)},
-  { 24, -1, sizeof(::rsh::server::protocol::CompiledFunction)},
-  { 32, -1, sizeof(::rsh::server::protocol::CompileResponse)},
+  { 26, -1, sizeof(::rsh::server::protocol::CompiledFunction)},
+  { 34, -1, sizeof(::rsh::server::protocol::CompileResponse)},
 };
 
 static ::PROTOBUF_NAMESPACE_ID::Message const * const file_default_instances[] = {
@@ -189,14 +191,15 @@ const char descriptor_table_protodef_protocol_2eproto[] PROTOBUF_SECTION_VARIABL
   "\030\002 \001(\0132#.rsh.server.protocol.CompileRequ"
   "estH\000B\t\n\007payload\"^\n\020HandshakeRequest\022\023\n\013"
   "Rsh_version\030\001 \001(\t\022\021\n\tR_version\030\002 \001(\t\022\020\n\010"
-  "platform\030\003 \001(\t\022\020\n\010packages\030\004 \003(\t\"/\n\016Comp"
+  "platform\030\003 \001(\t\022\020\n\010packages\030\004 \003(\t\"a\n\016Comp"
   "ileRequest\022\014\n\004name\030\002 \001(\t\022\017\n\007closure\030\003 \001("
-  "\014\"H\n\020CompiledFunction\022\014\n\004name\030\002 \001(\t\022\023\n\013n"
-  "ative_code\030\003 \001(\014\022\021\n\tconstants\030\004 \001(\014\"e\n\017C"
-  "ompileResponse\022\021\n\007failure\030\002 \001(\tH\000\0227\n\006res"
-  "ult\030\003 \001(\0132%.rsh.server.protocol.Compiled"
-  "FunctionH\000B\006\n\004dataB\036\n\032org.prlprg.server."
-  "protocolP\001b\006proto3"
+  "\014\022\027\n\017bc_optimization\030\004 \001(\r\022\027\n\017cc_optimiz"
+  "ation\030\005 \001(\r\"H\n\020CompiledFunction\022\014\n\004name\030"
+  "\002 \001(\t\022\023\n\013native_code\030\003 \001(\014\022\021\n\tconstants\030"
+  "\004 \001(\014\"e\n\017CompileResponse\022\021\n\007failure\030\002 \001("
+  "\tH\000\0227\n\006result\030\003 \001(\0132%.rsh.server.protoco"
+  "l.CompiledFunctionH\000B\006\n\004dataB\036\n\032org.prlp"
+  "rg.server.protocolP\001b\006proto3"
   ;
 static const ::PROTOBUF_NAMESPACE_ID::internal::DescriptorTable*const descriptor_table_protocol_2eproto_deps[1] = {
 };
@@ -209,7 +212,7 @@ static ::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase*const descriptor_table_pro
 };
 static ::PROTOBUF_NAMESPACE_ID::internal::once_flag descriptor_table_protocol_2eproto_once;
 const ::PROTOBUF_NAMESPACE_ID::internal::DescriptorTable descriptor_table_protocol_2eproto = {
-  false, false, descriptor_table_protodef_protocol_2eproto, "protocol.proto", 538,
+  false, false, descriptor_table_protodef_protocol_2eproto, "protocol.proto", 588,
   &descriptor_table_protocol_2eproto_once, descriptor_table_protocol_2eproto_sccs, descriptor_table_protocol_2eproto_deps, 5, 0,
   schemas, file_default_instances, TableStruct_protocol_2eproto::offsets,
   file_level_metadata_protocol_2eproto, 5, file_level_enum_descriptors_protocol_2eproto, file_level_service_descriptors_protocol_2eproto,
@@ -891,6 +894,9 @@ CompileRequest::CompileRequest(const CompileRequest& from)
     closure_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), from._internal_closure(),
       GetArena());
   }
+  ::memcpy(&bc_optimization_, &from.bc_optimization_,
+    static_cast<size_t>(reinterpret_cast<char*>(&cc_optimization_) -
+    reinterpret_cast<char*>(&bc_optimization_)) + sizeof(cc_optimization_));
   // @@protoc_insertion_point(copy_constructor:rsh.server.protocol.CompileRequest)
 }
 
@@ -898,6 +904,9 @@ void CompileRequest::SharedCtor() {
   ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&scc_info_CompileRequest_protocol_2eproto.base);
   name_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
   closure_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
+  ::memset(&bc_optimization_, 0, static_cast<size_t>(
+      reinterpret_cast<char*>(&cc_optimization_) -
+      reinterpret_cast<char*>(&bc_optimization_)) + sizeof(cc_optimization_));
 }
 
 CompileRequest::~CompileRequest() {
@@ -935,6 +944,9 @@ void CompileRequest::Clear() {
 
   name_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
   closure_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+  ::memset(&bc_optimization_, 0, static_cast<size_t>(
+      reinterpret_cast<char*>(&cc_optimization_) -
+      reinterpret_cast<char*>(&bc_optimization_)) + sizeof(cc_optimization_));
   _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
 }
 
@@ -960,6 +972,20 @@ const char* CompileRequest::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE
         if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 26)) {
           auto str = _internal_mutable_closure();
           ptr = ::PROTOBUF_NAMESPACE_ID::internal::InlineGreedyStringParser(str, ptr, ctx);
+          CHK_(ptr);
+        } else goto handle_unusual;
+        continue;
+      // uint32 bc_optimization = 4;
+      case 4:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 32)) {
+          bc_optimization_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint32(&ptr);
+          CHK_(ptr);
+        } else goto handle_unusual;
+        continue;
+      // uint32 cc_optimization = 5;
+      case 5:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 40)) {
+          cc_optimization_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint32(&ptr);
           CHK_(ptr);
         } else goto handle_unusual;
         continue;
@@ -1007,6 +1033,18 @@ failure:
         3, this->_internal_closure(), target);
   }
 
+  // uint32 bc_optimization = 4;
+  if (this->bc_optimization() != 0) {
+    target = stream->EnsureSpace(target);
+    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::WriteUInt32ToArray(4, this->_internal_bc_optimization(), target);
+  }
+
+  // uint32 cc_optimization = 5;
+  if (this->cc_optimization() != 0) {
+    target = stream->EnsureSpace(target);
+    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::WriteUInt32ToArray(5, this->_internal_cc_optimization(), target);
+  }
+
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
     target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormat::InternalSerializeUnknownFieldsToArray(
         _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
@@ -1035,6 +1073,20 @@ size_t CompileRequest::ByteSizeLong() const {
     total_size += 1 +
       ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::BytesSize(
         this->_internal_closure());
+  }
+
+  // uint32 bc_optimization = 4;
+  if (this->bc_optimization() != 0) {
+    total_size += 1 +
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::UInt32Size(
+        this->_internal_bc_optimization());
+  }
+
+  // uint32 cc_optimization = 5;
+  if (this->cc_optimization() != 0) {
+    total_size += 1 +
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::UInt32Size(
+        this->_internal_cc_optimization());
   }
 
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
@@ -1074,6 +1126,12 @@ void CompileRequest::MergeFrom(const CompileRequest& from) {
   if (from.closure().size() > 0) {
     _internal_set_closure(from._internal_closure());
   }
+  if (from.bc_optimization() != 0) {
+    _internal_set_bc_optimization(from._internal_bc_optimization());
+  }
+  if (from.cc_optimization() != 0) {
+    _internal_set_cc_optimization(from._internal_cc_optimization());
+  }
 }
 
 void CompileRequest::CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
@@ -1099,6 +1157,12 @@ void CompileRequest::InternalSwap(CompileRequest* other) {
   _internal_metadata_.Swap<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(&other->_internal_metadata_);
   name_.Swap(&other->name_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
   closure_.Swap(&other->closure_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+  ::PROTOBUF_NAMESPACE_ID::internal::memswap<
+      PROTOBUF_FIELD_OFFSET(CompileRequest, cc_optimization_)
+      + sizeof(CompileRequest::cc_optimization_)
+      - PROTOBUF_FIELD_OFFSET(CompileRequest, bc_optimization_)>(
+          reinterpret_cast<char*>(&bc_optimization_),
+          reinterpret_cast<char*>(&other->bc_optimization_));
 }
 
 ::PROTOBUF_NAMESPACE_ID::Metadata CompileRequest::GetMetadata() const {

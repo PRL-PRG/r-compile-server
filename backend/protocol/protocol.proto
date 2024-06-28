@@ -23,6 +23,8 @@ message CompileRequest {
   string name = 2;
   // the closure to be compiled as CLOSXP
   bytes closure = 3;
+  uint32 bc_optimization = 4;
+  uint32 cc_optimization = 5;
 }
 
 message CompiledFunction {

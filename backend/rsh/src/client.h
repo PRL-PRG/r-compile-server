@@ -14,6 +14,7 @@ using namespace server::protocol;
 
 // TODO: compiler a CLOSXP
 CompileResponse remote_compile(std::string const &name,
-                               std::vector<uint8_t> const &rds_closure);
+                               std::vector<uint8_t> const &rds_closure,
+                               u32 opt_level);
 
 } // namespace rsh

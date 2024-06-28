@@ -5,7 +5,7 @@
 extern "C" {
 static const R_CallMethodDef callMethods[] = {
     {"initialize", (DL_FUNC)&rsh::initialize, 1},
-    {"compile_fun", (DL_FUNC)&rsh::compile_fun, 2},
+    {"compile_fun", (DL_FUNC)&rsh::compile_fun, 3},
     {NULL, NULL, 0}};
 
 static const R_ExternalMethodDef externalMethods[] = {

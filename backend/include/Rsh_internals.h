@@ -6,6 +6,8 @@
 
 // this file contains some internal functions that are not exported
 
+#define INLINE inline __attribute__((always_inline))
+
 #define SET_PRIMOFFSET(x, v) (((x)->u.primsxp.offset) = (v))
 #define PRIMPRINT(x) (((R_FunTab[(x)->u.primsxp.offset].eval) / 100) % 10)
 #define PRIMFUN(x) (R_FunTab[(x)->u.primsxp.offset].cfun)
@@ -95,7 +97,6 @@ typedef struct SEXPREC {
 
 typedef struct SEXPREC *SEXP;
 
-
 SEXP Rf_CreateTag(SEXP);
 
 typedef SEXP (*CCODE)(SEXP, SEXP, SEXP, SEXP);
@@ -162,7 +163,7 @@ typedef struct {
 
 extern FUNTAB R_FunTab[];
 
-static inline SEXP Rif_mkPRIMSXP(int offset, int eval) {
+static INLINE SEXP Rif_mkPRIMSXP(int offset, int eval) {
   SEXP result;
   SEXPTYPE type = eval ? BUILTINSXP : SPECIALSXP;
   static SEXP PrimCache = NULL;
@@ -193,7 +194,7 @@ static inline SEXP Rif_mkPRIMSXP(int offset, int eval) {
   return result;
 }
 
-static inline SEXP Rif_Primitive(const char *primname) {
+static INLINE SEXP Rif_Primitive(const char *primname) {
   for (int i = 0; R_FunTab[i].name; i++)
     if (strcmp(primname, R_FunTab[i].name) == 0) { /* all names are ASCII */
       if ((R_FunTab[i].eval % 100) / 10)
@@ -202,6 +203,51 @@ static inline SEXP Rif_Primitive(const char *primname) {
         return Rif_mkPRIMSXP(i, R_FunTab[i].eval % 10);
     }
   return R_NilValue;
+}
+
+#define SCALAR_LVAL(s) (LOGICAL(s)[0])
+#define SCALAR_IVAL(s) (INTEGER(s)[0])
+
+static INLINE Rboolean Rif_asLogicalNoNA(SEXP s, SEXP call) {
+  // TODO: i18n
+  Rboolean cond = NA_LOGICAL;
+
+  /* handle most common special case directly */
+  if (IS_SCALAR(s, LGLSXP)) {
+    cond = SCALAR_LVAL(s);
+    if (cond != NA_LOGICAL)
+      return cond;
+  } else if (IS_SCALAR(s, INTSXP)) {
+    int val = SCALAR_IVAL(s);
+    if (val != NA_INTEGER)
+      return val != 0;
+  }
+
+  int len = Rf_length(s);
+  if (len > 1)
+    Rf_errorcall(call, "the condition has length > 1");
+  if (len > 0) {
+    /* inline common cases for efficiency */
+    switch (TYPEOF(s)) {
+    case LGLSXP:
+      cond = LOGICAL(s)[0];
+      break;
+    case INTSXP:
+      cond = INTEGER(s)[0]; /* relies on NA_INTEGER == NA_LOGICAL */
+      break;
+    default:
+      cond = Rf_asLogical(s);
+    }
+  }
+
+  if (cond == NA_LOGICAL) {
+    char *msg =
+        len ? (Rf_isLogical(s) ? "missing value where TRUE/FALSE needed"
+                               : "argument is not interpretable as logical")
+            : "argument is of length zero";
+    Rf_errorcall(call, msg);
+  }
+  return cond;
 }
 
 #endif

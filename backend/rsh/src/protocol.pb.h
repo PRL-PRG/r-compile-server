@@ -620,6 +620,8 @@ class CompileRequest PROTOBUF_FINAL :
   enum : int {
     kNameFieldNumber = 2,
     kClosureFieldNumber = 3,
+    kBcOptimizationFieldNumber = 4,
+    kCcOptimizationFieldNumber = 5,
   };
   // string name = 2;
   void clear_name();
@@ -671,6 +673,24 @@ class CompileRequest PROTOBUF_FINAL :
   std::string* _internal_mutable_closure();
   public:
 
+  // uint32 bc_optimization = 4;
+  void clear_bc_optimization();
+  ::PROTOBUF_NAMESPACE_ID::uint32 bc_optimization() const;
+  void set_bc_optimization(::PROTOBUF_NAMESPACE_ID::uint32 value);
+  private:
+  ::PROTOBUF_NAMESPACE_ID::uint32 _internal_bc_optimization() const;
+  void _internal_set_bc_optimization(::PROTOBUF_NAMESPACE_ID::uint32 value);
+  public:
+
+  // uint32 cc_optimization = 5;
+  void clear_cc_optimization();
+  ::PROTOBUF_NAMESPACE_ID::uint32 cc_optimization() const;
+  void set_cc_optimization(::PROTOBUF_NAMESPACE_ID::uint32 value);
+  private:
+  ::PROTOBUF_NAMESPACE_ID::uint32 _internal_cc_optimization() const;
+  void _internal_set_cc_optimization(::PROTOBUF_NAMESPACE_ID::uint32 value);
+  public:
+
   // @@protoc_insertion_point(class_scope:rsh.server.protocol.CompileRequest)
  private:
   class _Internal;
@@ -680,6 +700,8 @@ class CompileRequest PROTOBUF_FINAL :
   typedef void DestructorSkippable_;
   ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr name_;
   ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr closure_;
+  ::PROTOBUF_NAMESPACE_ID::uint32 bc_optimization_;
+  ::PROTOBUF_NAMESPACE_ID::uint32 cc_optimization_;
   mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   friend struct ::TableStruct_protocol_2eproto;
 };
@@ -1735,6 +1757,46 @@ inline void CompileRequest::unsafe_arena_set_allocated_closure(
   closure_.UnsafeArenaSetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(),
       closure, GetArena());
   // @@protoc_insertion_point(field_unsafe_arena_set_allocated:rsh.server.protocol.CompileRequest.closure)
+}
+
+// uint32 bc_optimization = 4;
+inline void CompileRequest::clear_bc_optimization() {
+  bc_optimization_ = 0u;
+}
+inline ::PROTOBUF_NAMESPACE_ID::uint32 CompileRequest::_internal_bc_optimization() const {
+  return bc_optimization_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::uint32 CompileRequest::bc_optimization() const {
+  // @@protoc_insertion_point(field_get:rsh.server.protocol.CompileRequest.bc_optimization)
+  return _internal_bc_optimization();
+}
+inline void CompileRequest::_internal_set_bc_optimization(::PROTOBUF_NAMESPACE_ID::uint32 value) {
+  
+  bc_optimization_ = value;
+}
+inline void CompileRequest::set_bc_optimization(::PROTOBUF_NAMESPACE_ID::uint32 value) {
+  _internal_set_bc_optimization(value);
+  // @@protoc_insertion_point(field_set:rsh.server.protocol.CompileRequest.bc_optimization)
+}
+
+// uint32 cc_optimization = 5;
+inline void CompileRequest::clear_cc_optimization() {
+  cc_optimization_ = 0u;
+}
+inline ::PROTOBUF_NAMESPACE_ID::uint32 CompileRequest::_internal_cc_optimization() const {
+  return cc_optimization_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::uint32 CompileRequest::cc_optimization() const {
+  // @@protoc_insertion_point(field_get:rsh.server.protocol.CompileRequest.cc_optimization)
+  return _internal_cc_optimization();
+}
+inline void CompileRequest::_internal_set_cc_optimization(::PROTOBUF_NAMESPACE_ID::uint32 value) {
+  
+  cc_optimization_ = value;
+}
+inline void CompileRequest::set_cc_optimization(::PROTOBUF_NAMESPACE_ID::uint32 value) {
+  _internal_set_cc_optimization(value);
+  // @@protoc_insertion_point(field_set:rsh.server.protocol.CompileRequest.cc_optimization)
 }
 
 // -------------------------------------------------------------------
