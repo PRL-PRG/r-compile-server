@@ -118,6 +118,7 @@ public class RDSReaderTest extends AbstractGNURBasedTest {
     var formals = sexp.formals();
     assertEquals(2, formals.size());
     assertEquals(new TaggedElem("x", SEXPs.MISSING_ARG), formals.get(0));
+    assertEquals(new TaggedElem("y", SEXPs.real(1.0)), formals.get(1));
 
     // TODO: this should really be a snapshot test
     var body = sexp.bodyAST();

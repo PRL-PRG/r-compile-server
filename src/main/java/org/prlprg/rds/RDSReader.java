@@ -17,6 +17,7 @@ import org.prlprg.sexp.*;
 import org.prlprg.util.IO;
 
 public class RDSReader implements Closeable {
+
   private final RSession rsession;
   private final RDSInputStream in;
   private final List<SEXP> refTable = new ArrayList<>(128);
@@ -26,7 +27,11 @@ public class RDSReader implements Closeable {
 
   private RDSReader(RSession session, InputStream in) {
     this.rsession = session;
-    this.in = new RDSInputStream(in);
+    // Print debug information of data read from the stream?
+    this.in =
+        Boolean.parseBoolean(System.getenv("VERBOSE"))
+            ? new RDSInputStreamVerbose(in)
+            : new RDSInputStream(in);
   }
 
   public static SEXP readFile(RSession session, File file) throws IOException {
@@ -215,8 +220,8 @@ public class RDSReader implements Closeable {
     var length = in.readInt();
     var consts = new ArrayList<SEXP>(length);
     for (int i = 0; i < length; i++) {
-      var type = RDSItemType.valueOf(in.readInt());
-      switch (type) {
+      var type = in.readInt();
+      switch (RDSItemType.valueOf(type)) {
         case RDSItemType.Sexp s -> {
           switch (s.sexp()) {
             case BCODE -> consts.add(readByteCode1(reps));
@@ -236,20 +241,38 @@ public class RDSReader implements Closeable {
     return consts;
   }
 
-  private SEXP readByteCodeLang(RDSItemType type, SEXP[] reps) throws IOException {
-    return switch (type) {
-      case RDSItemType.Sexp s ->
-          switch (s.sexp()) {
-            case LANG, LIST -> readByteCodeLang1(type, reps);
-            default -> readItem();
-          };
-      case RDSItemType.Special s ->
-          switch (s) {
-            case BCREPREF -> reps[in.readInt()];
-            case BCREPDEF, ATTRLISTSXP, ATTRLANGSXP -> readByteCodeLang1(type, reps);
-            default -> readItem();
-          };
-    };
+  // `type` will not necessarily correspond with a valid RDSItemType. If the next value in the
+  // stream is not a LangSXP, ListSXP, or bytecode reference / definition, then the stream will
+  // include a padding int so the next SEXP can be read in full. This is why the function accepts
+  // an integer instead of an RDSItemType.
+  private SEXP readByteCodeLang(int type, SEXP[] reps) throws IOException {
+    if (type == 0) {
+      return readItem();
+    }
+    var rdsType = RDSItemType.valueOf(type);
+    switch (rdsType) {
+      case RDSItemType.Sexp s -> {
+        if (!(s.sexp() == SEXPType.LANG || s.sexp() == SEXPType.LIST)) {
+          throw new UnsupportedOperationException(
+              "RDS reader error when reading SEXP: expected "
+                  + "a padding bit, lang or list SXP, got: "
+                  + rdsType);
+        }
+        return readByteCodeLang1(rdsType, reps);
+      }
+      case RDSItemType.Special s -> {
+        return switch (s) {
+          case BCREPREF -> reps[in.readInt()];
+          case BCREPDEF, ATTRLISTSXP, ATTRLANGSXP -> readByteCodeLang1(rdsType, reps);
+          default ->
+              throw new UnsupportedOperationException(
+                  "RDS reader error when reading "
+                      + "special: expected a padding bit, BCREPDEF, BCREPREF, ATTRLISTSXP, or "
+                      + "ATTRLANGSXP, got: "
+                      + rdsType);
+        };
+      }
+    }
   }
 
   private SEXP readByteCodeLang1(RDSItemType type, SEXP[] reps) throws IOException {
@@ -283,8 +306,8 @@ public class RDSReader implements Closeable {
       throw new RDSException("Expected regular symbol or nil");
     }
 
-    var head = readByteCodeLang(RDSItemType.valueOf(in.readInt()), reps);
-    var tail = readByteCodeLang(RDSItemType.valueOf(in.readInt()), reps);
+    var head = readByteCodeLang(in.readInt(), reps);
+    var tail = readByteCodeLang(in.readInt(), reps);
 
     ListSXP tailList;
 
