@@ -1,5 +1,7 @@
 # `RType` design and debug representation
 
+**TODO:** This is not ideal and maybe we should change it once we actually use types. It seems that the types we need to represent in instructions aren't represented well in this implementation.
+
 `RType` represents the type of SEXPs in the IR. An `RType` consists of an `RValueType`, `RPromiseType`, and `missing: Troolean`. `RValueType` is the type of the value ignoring whether or not it's in a (potentially-lazy) promise or missing, `RPromiseType` determines whether said value may be or is inside a promise and promise details (laziness, known exact promise), and `missing: Troolean` determines whether the value may be or is missing.
 
 Nothing (`⊥`, subtype of everything else) consists of a null `RValueType`, `RPromiseType`, and `missing: Troolean`; in every other `RType`, `RPromiseType` and `missing: Troolean` are both non-null, and the type of the missing value is the only other type where `RValueType` is null Any (`⊤`, supertype of everything else) consists of an "any" `RGenericValueType` that encompasses "any" value that is a supertype of every other `RValueType`, a "maybe lazy, maybe promise-wrapped" `RPromiseType` that is also a supertype of every other `RPromiseType`, and `missing = MAYBE`.

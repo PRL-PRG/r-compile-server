@@ -31,9 +31,9 @@ Various ways to improve efficiency:
 
 General collection data structures:
 
-- The `CFG` class contains a `SequencedMap` of basic block ids to the blocks it contains, a `Map` of node ids to nodes the blocks contain, and a `SequencedSet` of basic block exits.
-- The `BB` class contains an `ArrayList` of predecessors, a `SequencedSet` of phis, and an `ArrayList` of statements. Successors are stored with a `@Nullable Jump`.
-- The `Phi` subclasses contain an `ArrayList` of inputs.
+- The `CFG` class contains a `Map` of basic block ids to the blocks it contains, a `Map` of node ids to nodes the blocks contain, and a `Set` of basic block exits.
+- The `BB` class contains an auto-sorted `SequencedSet` of predecessors, a `SequencedSet` of phis, and an `ArrayList` of statements. Successors are stored inside of the jump, which is `@Nullable Jump`.
+- The `Phi` class (and subclasses) contain an auto-sorted `SequencedSet` of inputs.
 - Instruction data is stored in Java records. Node arguments and jump targets are memoized every time the instruction's data changes.
 
 `BB` and `Node` store a pointer to their `CFG`, but nodes don't store a pointer to their `BB`, except jumps.
