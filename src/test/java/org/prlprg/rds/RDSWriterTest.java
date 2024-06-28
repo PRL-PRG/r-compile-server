@@ -6,8 +6,10 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.util.HashMap;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.prlprg.bc.Compiler;
 import org.prlprg.primitive.Complex;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
@@ -106,7 +108,6 @@ public class RDSWriterTest extends AbstractGNURBasedTest {
 
     var input = new ByteArrayInputStream(output.toByteArray());
     var sexp = RDSReader.readStream(rsession, input);
-    System.out.println(sexp);
 
     if (sexp instanceof LangSXP read_lang) {
       var name = read_lang.funName();
@@ -328,5 +329,92 @@ public class RDSWriterTest extends AbstractGNURBasedTest {
     } else {
       fail("Expected LglSXP");
     }
+  }
+
+  @Test
+  public void testClosureEval() throws Exception {
+    // function(x, y=1) length(x) + x + y
+    // test by loading the closure into R and evaluating
+    var clo =
+        SEXPs.closure(
+            SEXPs.list(
+                List.of(
+                    new TaggedElem("x", SEXPs.MISSING_ARG), new TaggedElem("y", SEXPs.real(3)))),
+            SEXPs.lang(
+                SEXPs.symbol("+"),
+                SEXPs.list(
+                    SEXPs.lang(
+                        SEXPs.symbol("+"),
+                        SEXPs.list(
+                            SEXPs.lang(SEXPs.symbol("length"), SEXPs.list(SEXPs.symbol("x"))),
+                            SEXPs.symbol("x"))),
+                    SEXPs.symbol("y"))),
+            new BaseEnvSXP(new HashMap<>()));
+
+    var output = R.eval("""
+        input(x=c(1, 2))
+        """, clo);
+
+    assertEquals(output, SEXPs.real(6, 7));
+  }
+
+  @Test
+  public void testClosureWithBC() throws Exception {
+    // Same closure as `testClosure`, just compiled to bytecode
+    // Test by serializing and deserializing
+    var clo =
+        SEXPs.closure(
+            SEXPs.list(
+                List.of(
+                    new TaggedElem("x", SEXPs.MISSING_ARG), new TaggedElem("y", SEXPs.real(3)))),
+            SEXPs.lang(
+                SEXPs.symbol("+"),
+                SEXPs.list(
+                    SEXPs.lang(
+                        SEXPs.symbol("+"),
+                        SEXPs.list(
+                            SEXPs.lang(SEXPs.symbol("length"), SEXPs.list(SEXPs.symbol("x"))),
+                            SEXPs.symbol("x"))),
+                    SEXPs.symbol("y"))),
+            new BaseEnvSXP(new HashMap<>()));
+    var bc = new Compiler(clo, rsession).compile().orElseThrow();
+
+    var output = new ByteArrayOutputStream();
+
+    RDSWriter.writeStream(rsession, output, SEXPs.bcode(bc));
+
+    var input = new ByteArrayInputStream(output.toByteArray());
+    var sexp = RDSReader.readStream(rsession, input);
+
+    assertEquals(sexp, SEXPs.bcode(bc));
+  }
+
+  @Test
+  public void testClosureWithBCEval() throws Exception {
+    // Same closure as `testClosure`, just compiled to bytecode
+    // Test by loading into R and evaluating
+    var clo =
+        SEXPs.closure(
+            SEXPs.list(
+                List.of(
+                    new TaggedElem("x", SEXPs.MISSING_ARG), new TaggedElem("y", SEXPs.real(3)))),
+            SEXPs.lang(
+                SEXPs.symbol("+"),
+                SEXPs.list(
+                    SEXPs.lang(
+                        SEXPs.symbol("+"),
+                        SEXPs.list(
+                            SEXPs.lang(SEXPs.symbol("length"), SEXPs.list(SEXPs.symbol("x"))),
+                            SEXPs.symbol("x"))),
+                    SEXPs.symbol("y"))),
+            new BaseEnvSXP(new HashMap<>()));
+    var bc = new Compiler(clo, rsession).compile().orElseThrow();
+    var compiled_clo = SEXPs.closure(clo.formals(), SEXPs.bcode(bc), clo.env());
+
+    var output = R.eval("""
+        input(x=c(1, 2))
+        """, compiled_clo);
+
+    assertEquals(output, SEXPs.real(6, 7));
   }
 }

@@ -11,19 +11,25 @@ import org.prlprg.RVersion;
 import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.*;
 
+// TODO: properly add and retrieve from ref table
+
 public class RDSWriter implements Closeable {
-  private final RSession session;
+  // Print debug information of data read from the stream?
+  private final boolean DEBUG = true;
+
   private final RDSOutputStream out;
   private final List<SEXP> refTable = new ArrayList<>(128);
 
-  private RDSWriter(RSession session, OutputStream out) {
-    this.session = session;
-    this.out = new RDSOutputStream(out);
+  protected RDSWriter(OutputStream out) {
+    this.out =
+        Boolean.parseBoolean(System.getenv("VERBOSE"))
+            ? new RDSOutputStreamVerbose(out)
+            : new RDSOutputStream(out);
   }
 
   public static void writeStream(RSession session, OutputStream output, SEXP sexp)
       throws IOException {
-    try (var writer = new RDSWriter(session, output)) {
+    try (var writer = new RDSWriter(output)) {
       writer.write(sexp);
     }
   }
@@ -92,7 +98,7 @@ public class RDSWriter implements Closeable {
           case VectorSXP<?> vec -> writeVectorSXP(vec);
 
             // Bytecode
-          case BCodeSXP bc -> writeBC(bc);
+          case BCodeSXP bc -> writeByteCode(bc);
 
           default -> throw new UnsupportedOperationException("Unsupported sexp type: " + s.type());
         }
@@ -100,8 +106,7 @@ public class RDSWriter implements Closeable {
     }
   }
 
-  // utility functions
-  // ------------------------------------------------------------------------------------------------
+  // utility functions ----------------------------------------------------------------------------
 
   // Determines if the hastag bit should be set based on the SEXP
   private boolean hasTag(SEXP s) {
@@ -197,8 +202,7 @@ public class RDSWriter implements Closeable {
     out.writeString(s);
   }
 
-  // SEXP writing
-  // -----------------------------------------------------------------------------------------------------
+  // SEXP writing ---------------------------------------------------------------------------------
 
   private void writeEnv(EnvSXP env) throws IOException {
     refTable.add(env);
@@ -374,26 +378,16 @@ public class RDSWriter implements Closeable {
           reps.put(lol, -1);
           return;
         }
-        ;
         // Otherwise, add to seen and scan recursively
         seen.add(lol);
 
         switch (lol) {
           case LangSXP lang -> {
             // For LangSXP, we want to scan both the function and the arg values
-            // TODO: I think this is right, test it though
             scanForCircles(lang.fun(), reps, seen);
             lang.args().values().forEach((el) -> scanForCircles(el, reps, seen));
           }
           case ListSXP list -> {
-            if (seen.contains(list)) {
-              // We put -1 for the time being so that we can update reps in the correct order later
-              reps.put(list, -1);
-              return;
-            }
-            ;
-            seen.add(list);
-
             // For ListSXP, we scan the values
             list.values().forEach((el) -> scanForCircles(el, reps, seen));
           }
@@ -403,16 +397,17 @@ public class RDSWriter implements Closeable {
         // For bytecode, we scan the constant pool
         bc.bc().consts().forEach((el) -> scanForCircles(el, reps, seen));
       }
-        // FIXME: we probably don't want to throw an exception here
-      default -> throw new RuntimeException("Unexpected sexp type: " + sexp.type());
+      default -> {
+        // do nothing
+      }
     }
   }
 
   // HACK: nextRepIndex is an array because we need to pass it by reference, but it only has one
   // element
-  private void writeBCLang(SEXP s, HashMap<SEXP, Integer> reps, int[] nextRepIndex)
+  private void writeByteCodeLang(SEXP s, HashMap<SEXP, Integer> reps, int[] nextRepIndex)
       throws IOException {
-    if (s instanceof LangOrListSXP lol) {
+    if (s instanceof LangOrListSXP lol && lol.type() != SEXPType.NIL) {
       var assignedRepIndex = reps.get(lol);
       if (assignedRepIndex != null) {
         if (assignedRepIndex == -1) {
@@ -452,32 +447,46 @@ public class RDSWriter implements Closeable {
       switch (lol) {
           // For a LangSXP, recursively write the function and args
         case LangSXP lang -> {
-          writeBCLang(lang.fun(), reps, nextRepIndex);
-          for (var arg : lang.args()) {
-            writeBCLang(arg.value(), reps, nextRepIndex);
-          }
+          // The tag of a LangSXP is always null (I think)
+          writeItem(SEXPs.NULL);
+          // write head
+          writeByteCodeLang(lang.fun(), reps, nextRepIndex);
+          // write tail
+          writeByteCodeLang(lang.args(), reps, nextRepIndex);
         }
           // For a ListSXP, recursively write the elements
         case ListSXP list -> {
-          for (var el : list) {
-            writeBCLang(el.value(), reps, nextRepIndex);
-          }
+          // there will always be a first element because we take a different path when the list
+          // is empty
+          var first = list.stream().findFirst().orElseThrow();
+          SEXP tag = first.tag() == null ? SEXPs.NULL : SEXPs.symbol(first.tag());
+
+          // write tag
+          writeItem(tag);
+          // write head
+          writeByteCodeLang(list.value(0), reps, nextRepIndex);
+          // write tail
+          writeByteCodeLang(list.subList(1), reps, nextRepIndex);
         }
       }
     } else { // Print a zero as padding and write the item normally
       out.writeInt(0);
       writeItem(s);
     }
-    throw new UnsupportedOperationException("not implemented yet");
   }
 
-  private void writeBC1(BCodeSXP s, HashMap<SEXP, Integer> reps, int[] nextRepIndex)
+  private void writeByteCode1(BCodeSXP s, HashMap<SEXP, Integer> reps, int[] nextRepIndex)
       throws IOException {
     // Decode the bytecode (we will get a vector of integers)
     // write the vector of integers
-    var code_bytes = s.bc().code().toRaw();
+    var encoder = new GNURByteCodeEncoderFactory(s.bc().code());
+    var code_bytes = encoder.buildRaw();
     writeItem(SEXPs.integer(code_bytes));
+    writeByteCodeConsts(s, reps, nextRepIndex);
+  }
 
+  private void writeByteCodeConsts(BCodeSXP s, HashMap<SEXP, Integer> reps, int[] nextRepIndex)
+      throws IOException {
     // write the number of consts in the bytecode
     // iterate the consts: if it s bytecode, write the type and recurse
     // if it is langsxp or listsxp,  write them , using the BCREDPEF, ATTRALANGSXP and ATTRLISTSXP
@@ -490,10 +499,11 @@ public class RDSWriter implements Closeable {
       switch (c) {
         case BCodeSXP bc -> {
           out.writeInt(c.type().i);
-          writeBC1(bc, reps, nextRepIndex);
+          writeByteCode1(bc, reps, nextRepIndex);
         }
         case LangOrListSXP l -> {
-          writeBCLang(l, reps, nextRepIndex);
+          // writeBCLang writes the type i
+          writeByteCodeLang(l, reps, nextRepIndex);
         }
         default -> {
           out.writeInt(c.type().i);
@@ -503,18 +513,19 @@ public class RDSWriter implements Closeable {
     }
   }
 
-  private void writeBC(BCodeSXP s) throws IOException {
+  private void writeByteCode(BCodeSXP s) throws IOException {
     writeFlags(s, 0);
 
     // Scan for circles
     // prepend the result it with a scalar integer starting with 1
+    // FIXME: why is the same(?) bytecode being scanned multiple times? Is this supposed to happen?
     var reps = new HashMap<SEXP, Integer>();
     var seen = new HashSet<SEXP>();
     scanForCircles(s, reps, seen);
     out.writeInt(reps.size() + 1);
 
     var nextRepIndex = new int[] {0};
-    writeBC1(s, reps, nextRepIndex);
+    writeByteCode1(s, reps, nextRepIndex);
   }
 
   private void writeSymbol(SymSXP s) throws IOException {
