@@ -454,9 +454,9 @@ public class CFG
   // region for BB and node
   /** Record an edit to this CFG. */
   void record(Semantic<?> edit, Semantic<?> inverse) {
-    if (edit instanceof CFGEdit.OnCFG) {
+    if (edit.affectsCfgGraph()) {
       invalidateCachesForBbChange();
-    } else if (edit instanceof CFGEdit.OnBB) {
+    } else {
       invalidateCachesForInstrChange();
     }
     for (var observer : setObservers) {

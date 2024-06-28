@@ -76,6 +76,9 @@ public sealed interface MapToIdIn<T extends InstrData<?>> {
    */
   T decode(CFG cfg);
 
+  /** The class of the encoded record. */
+  Class<? extends T> mappedClass();
+
   /**
    * Converts {@link BB} to {@link BBId} and {@link Node} to {@link NodeId}, and converts elements
    * in lists, optionals, and lists of optionals.
@@ -98,7 +101,8 @@ public sealed interface MapToIdIn<T extends InstrData<?>> {
 }
 
 record MapToIdInImpl<T extends InstrData<?>>(
-    Class<? extends T> clazz, @Override ImmutableList<Object> components) implements MapToIdIn<T> {
+    @Override Class<? extends T> mappedClass, @Override ImmutableList<Object> components)
+    implements MapToIdIn<T> {
   private static Object fromId(Object o, CFG cfg) {
     return switch (o) {
       case BBId id -> cfg.get(id);
@@ -115,16 +119,17 @@ record MapToIdInImpl<T extends InstrData<?>>(
 
   @Override
   public T decode(CFG cfg) {
-    return Reflection.construct(clazz, components.stream().map(o -> fromId(o, cfg)).toArray());
+    return Reflection.construct(
+        mappedClass, components.stream().map(o -> fromId(o, cfg)).toArray());
   }
 
   @Override
   @SuppressWarnings("UnstableApiUsage")
   public String toString() {
-    return clazz.getSimpleName()
+    return mappedClass.getSimpleName()
         + "'["
         + Streams.zip(
-                Arrays.stream(clazz.getRecordComponents()),
+                Arrays.stream(mappedClass.getRecordComponents()),
                 components.stream(),
                 (c, a) -> c.getName() + "=" + a)
             .collect(Strings.joining(", "))
@@ -137,9 +142,9 @@ record MapToIdInImpl<T extends InstrData<?>>(
 
     var className = s.readJavaIdentifierOrKeyword();
     @SuppressWarnings("unchecked")
-    var clazz = (Class<? extends InstrData<?>>) ctx.getClass(className);
+    var mappedClass = (Class<? extends InstrData<?>>) ctx.getClass(className);
     @SuppressWarnings("unchecked")
-    var class1 = (Class<? extends Record>) clazz;
+    var class1 = (Class<? extends Record>) mappedClass;
     if (class1 == null) {
       throw s.fail("Unknown record class: " + className);
     }
@@ -154,16 +159,16 @@ record MapToIdInImpl<T extends InstrData<?>>(
 
     var arguments = BuiltinParseMethods.parseRecordComponents(class1, p);
 
-    return new MapToIdInImpl<>(clazz, ImmutableList.copyOf(arguments));
+    return new MapToIdInImpl<>(mappedClass, ImmutableList.copyOf(arguments));
   }
 
   @PrintMethod
   private void print(Printer p) {
     var w = p.writer();
 
-    w.write(clazz.getSimpleName());
+    w.write(mappedClass.getSimpleName());
     w.write('\'');
     BuiltinPrintMethods.printRecordComponents(
-        Arrays.asList(clazz.getRecordComponents()), components, p);
+        Arrays.asList(mappedClass.getRecordComponents()), components, p);
   }
 }

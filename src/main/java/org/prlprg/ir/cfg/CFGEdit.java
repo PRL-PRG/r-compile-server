@@ -42,7 +42,7 @@ import org.prlprg.util.Strings;
  */
 public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
   /**
-   * Apply this edit to the CFG.
+   * Apply this edit to the {@linkplain CFG}.
    *
    * @throws IllegalArgumentException If you try to re-apply the edit and the CFG is in a state that
    *     makes it invalid. This is guaranteed not to happen if you apply to a CFG in the same state
@@ -50,6 +50,15 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
    * @return An edit that would undo this edit.
    */
   Reverse apply(CFG cfg);
+
+  /**
+   * Whether the edit may affect the outer graph structure of the {@linkplain CFG}.
+   *
+   * <p>i.e. {@code true} if it adds or removes {@linkplain BB basic blocks} or affects {@linkplain
+   * Jump jumps}, {@code false} if the edit only adds, removes, and mutates {@linkplain Stmt
+   * statements} and/or {@linkplain Phi phis}.
+   */
+  boolean affectsCfgGraph();
 
   /** Returns the smaller edits which compose this, or {@code null} if this is an atomic edit. */
   default @Nullable Iterable<? extends CFGEdit<?>> subEdits() {
@@ -61,31 +70,34 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
   sealed interface Semantic<Reverse extends Semantic<?>> extends CFGEdit<Reverse> {}
 
   /** "Edit" that only provides additional context, i.e. a section or divider. */
-  sealed interface Context<Reverse extends Context<?>> extends CFGEdit<Reverse> {}
+  sealed interface Context<Reverse extends Context<?>> extends CFGEdit<Reverse> {
+    @Override
+    default boolean affectsCfgGraph() {
+      return false;
+    }
+  }
 
   /**
-   * Edit is local to a {@linkplain CFG control-flow graph} and affects the outer graph structure;
-   * edit is not local to a {@linkplain BB basic block}, two blocks, {@linkplain InstrOrPhi
-   * instruction, or phi}.
+   * Edit is local to a {@linkplain CFG control-flow graph}; edit is not local to a {@linkplain BB
+   * basic block}, two blocks, {@linkplain InstrOrPhi instruction, or phi}.
    *
    * <p>{@link SplitBB} and {@link MergeBBs} inherit this.
    *
    * <p>{@link MoveStmts}, {@link MoveStmt}, and {@link MoveJump} don't inherit this. Instead they
-   * inherit {@link Move}, because although they affect multiple blocks, they don't affect the graph
-   * structure.
+   * inherit {@link Move}, because although they affect multiple blocks, they affect those blocks
+   * internally.
    *
    * <p>{@link MutateInstrArgs} also doesn't inherit this, even though the instruction may be used
    * in multiple basic blocks. Instead it inherits {@link OnInstrOrPhi}.
    */
-  sealed interface OnCFG<Reverse extends OnCFG<?>> extends Semantic<Reverse> {}
+  sealed interface OnCFG<Reverse extends OnCFG<?>> extends Semantic<Reverse> {
+    @Override
+    default boolean affectsCfgGraph() {
+      return true;
+    }
+  }
 
-  /**
-   * Edit moves instructions between two {@linkplain BB basic blocks}.
-   *
-   * <p>{@link SplitBB} and {@link MergeBBs} don't inherit this, because although they affect two
-   * basic blocks, they affect the outer structure of the {@linkplain CFG control-flow graph}, while
-   * this doesn't.
-   */
+  /** Edit moves instructions between two {@linkplain BB basic blocks}. */
   sealed interface Move<Reverse extends Move<?>> extends Semantic<Reverse> {
     /** Id of the {@linkplain BB} that instructions are being moved out of. */
     BBId oldBBId();
@@ -290,11 +302,6 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
     }
 
     @Override
-    public int numAffected() {
-      return phis.size();
-    }
-
-    @Override
     public RemovePhis apply(CFG cfg) {
       var phis =
           cfg.get(bbId)
@@ -319,6 +326,16 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
                           (Collection<? extends InputId<? extends Node>>) a.inputIds())))
           .toList();
     }
+
+    @Override
+    public int numAffected() {
+      return phis.size();
+    }
+
+    @Override
+    public boolean affectsCfgGraph() {
+      return false;
+    }
   }
 
   record InsertPhi<N extends Node>(
@@ -336,16 +353,21 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
     }
 
     @Override
-    public int numAffected() {
-      return 1;
-    }
-
-    @Override
     public RemovePhi apply(CFG cfg) {
       var phi =
           cfg.get(bbId)
               .addPhiWithId(nodeId, nodeClass, inputs.stream().map(i -> i.decode(cfg)).toList());
       return new RemovePhi(bbId, phi.id());
+    }
+
+    @Override
+    public int numAffected() {
+      return 1;
+    }
+
+    @Override
+    public boolean affectsCfgGraph() {
+      return false;
     }
   }
 
@@ -365,11 +387,6 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
     }
 
     @Override
-    public int numAffected() {
-      return stmts().size();
-    }
-
-    @Override
     public RemoveStmts apply(CFG cfg) {
       var stmts =
           cfg.get(bbId)
@@ -384,6 +401,16 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
               stmts.stream(),
               (args, i) -> new InsertStmt<>(bbId, index + (int) i, args.id(), args.data()))
           .toList();
+    }
+
+    @Override
+    public int numAffected() {
+      return stmts().size();
+    }
+
+    @Override
+    public boolean affectsCfgGraph() {
+      return false;
     }
   }
 
@@ -400,11 +427,6 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
           bb.id(),
           indicesAndStmts.entrySet().stream()
               .collect(Collectors.toMap(Map.Entry::getKey, e -> new Stmt.Serial(e.getValue()))));
-    }
-
-    @Override
-    public int numAffected() {
-      return indicesAndStmts.size();
     }
 
     @Override
@@ -433,6 +455,16 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
                       indexIdAndArgs.getValue().data()))
           .toList();
     }
+
+    @Override
+    public int numAffected() {
+      return indicesAndStmts.size();
+    }
+
+    @Override
+    public boolean affectsCfgGraph() {
+      return false;
+    }
   }
 
   record InsertStmt<I extends Stmt>(
@@ -450,14 +482,19 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
     }
 
     @Override
+    public RemoveStmt apply(CFG cfg) {
+      cfg.get(bbId).insertAtWithId(index, id, args.decode(cfg));
+      return new RemoveStmt(bbId, index);
+    }
+
+    @Override
     public int numAffected() {
       return 1;
     }
 
     @Override
-    public RemoveStmt apply(CFG cfg) {
-      cfg.get(bbId).insertAtWithId(index, id, args.decode(cfg));
-      return new RemoveStmt(bbId, index);
+    public boolean affectsCfgGraph() {
+      return false;
     }
   }
 
@@ -475,14 +512,19 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
     }
 
     @Override
+    public RemoveJump apply(CFG cfg) {
+      cfg.get(bbId).addJumpWithId(nodeId, args.decode(cfg));
+      return new RemoveJump(bbId);
+    }
+
+    @Override
     public int numAffected() {
       return 1;
     }
 
     @Override
-    public RemoveJump apply(CFG cfg) {
-      cfg.get(bbId).addJumpWithId(nodeId, args.decode(cfg));
-      return new RemoveJump(bbId);
+    public boolean affectsCfgGraph() {
+      return true;
     }
   }
 
@@ -507,13 +549,18 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
     }
 
     @Override
+    public Iterable<? extends CFGEdit<?>> subEdits() {
+      return nodeIds.stream().map(id -> new RemovePhi(bbId, id)).toList();
+    }
+
+    @Override
     public int numAffected() {
       return nodeIds.size();
     }
 
     @Override
-    public Iterable<? extends CFGEdit<?>> subEdits() {
-      return nodeIds.stream().map(id -> new RemovePhi(bbId, id)).toList();
+    public boolean affectsCfgGraph() {
+      return false;
     }
   }
 
@@ -521,11 +568,6 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
       implements RemovePhis_<InsertPhi<?>> {
     public RemovePhi(BB bb, Phi<?> phi) {
       this(bb.id(), phi.id());
-    }
-
-    @Override
-    public int numAffected() {
-      return 1;
     }
 
     @Override
@@ -537,6 +579,16 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
           phi.id(),
           phi.nodeClass(),
           phi.inputs().stream().map(Input::id).collect(ImmutableSet.toImmutableSet()));
+    }
+
+    @Override
+    public int numAffected() {
+      return 1;
+    }
+
+    @Override
+    public boolean affectsCfgGraph() {
+      return false;
     }
   }
 
@@ -552,11 +604,6 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
 
     public RemoveStmts(BB bb, int fromIndex, int toIndex) {
       this(bb.id(), fromIndex, toIndex);
-    }
-
-    @Override
-    public int numAffected() {
-      return toIndex - fromIndex;
     }
 
     @Override
@@ -576,6 +623,16 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
           .mapToObj(_ -> new RemoveStmt(bbId, fromIndex))
           .toList();
     }
+
+    @Override
+    public int numAffected() {
+      return toIndex - fromIndex;
+    }
+
+    @Override
+    public boolean affectsCfgGraph() {
+      return false;
+    }
   }
 
   record RemoveStmts2(@Override BBId bbId, ImmutableSet<? extends NodeId<? extends Stmt>> stmts)
@@ -591,17 +648,22 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
     }
 
     @Override
-    public int numAffected() {
-      return stmts.size();
-    }
-
-    @Override
     public InsertStmts2 apply(CFG cfg) {
       var stmts = this.stmts.stream().map(cfg::get).toList();
       var bb = cfg.get(bbId);
       var stmtArgs = stmts.stream().collect(Collectors.toMap(bb::indexOf, Stmt.Serial::new));
       bb.removeAllStmts(stmts);
       return new InsertStmts2(bbId, stmtArgs);
+    }
+
+    @Override
+    public int numAffected() {
+      return stmts.size();
+    }
+
+    @Override
+    public boolean affectsCfgGraph() {
+      return false;
     }
   }
 
@@ -611,15 +673,20 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
     }
 
     @Override
+    public InsertStmt<?> apply(CFG cfg) {
+      var bb = cfg.get(bbId);
+      var stmt = bb.removeAt(index);
+      return new InsertStmt<>(bbId, index, stmt.id(), MapToIdIn.of(stmt.data()));
+    }
+
+    @Override
     public int numAffected() {
       return 1;
     }
 
     @Override
-    public InsertStmt<?> apply(CFG cfg) {
-      var bb = cfg.get(bbId);
-      var stmt = bb.removeAt(index);
-      return new InsertStmt<>(bbId, index, stmt.id(), MapToIdIn.of(stmt.data()));
+    public boolean affectsCfgGraph() {
+      return false;
     }
   }
 
@@ -629,15 +696,20 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
     }
 
     @Override
+    public InsertJump<?> apply(CFG cfg) {
+      var bb = cfg.get(bbId);
+      var jump = bb.removeJump();
+      return new InsertJump<>(bbId, jump.id(), MapToIdIn.of(jump.data()));
+    }
+
+    @Override
     public int numAffected() {
       return 1;
     }
 
     @Override
-    public InsertJump<?> apply(CFG cfg) {
-      var bb = cfg.get(bbId);
-      var jump = bb.removeJump();
-      return new InsertJump<>(bbId, jump.id(), MapToIdIn.of(jump.data()));
+    public boolean affectsCfgGraph() {
+      return true;
     }
   }
 
@@ -670,6 +742,11 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
       var oldArgsCasted = (MapToIdIn<? extends StmtData<Stmt>>) oldArgs;
       return new ReplaceStmt<>(bbId, index, oldName, oldArgsCasted);
     }
+
+    @Override
+    public boolean affectsCfgGraph() {
+      return false;
+    }
   }
 
   record ReplaceJump<I extends Jump>(
@@ -695,6 +772,11 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
       @SuppressWarnings("unchecked") // Required, otherwise "cannot infer type arguments" error
       var oldArgsCasted = (MapToIdIn<? extends JumpData<Jump>>) oldArgs;
       return new ReplaceJump<>(bbId, oldName, oldArgsCasted);
+    }
+
+    @Override
+    public boolean affectsCfgGraph() {
+      return true;
     }
   }
 
@@ -735,6 +817,11 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
     public int numMoved() {
       return oldToIndex - oldFromIndex;
     }
+
+    @Override
+    public boolean affectsCfgGraph() {
+      return false;
+    }
   }
 
   record MoveStmt(@Override BBId oldBBId, int oldIndex, @Override BBId newBBId, int newIndex)
@@ -753,6 +840,11 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
     public int numMoved() {
       return 1;
     }
+
+    @Override
+    public boolean affectsCfgGraph() {
+      return false;
+    }
   }
 
   record MoveJump(@Override BBId oldBBId, @Override BBId newBBId) implements Move<MoveJump> {
@@ -770,6 +862,11 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
     public int numMoved() {
       return 1;
     }
+
+    @Override
+    public boolean affectsCfgGraph() {
+      return true;
+    }
   }
 
   record SetPhiInput<N extends Node>(
@@ -783,6 +880,11 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
     public SetPhiInput<N> apply(CFG cfg) {
       var oldInputNode = cfg.get(targetId).setInput(cfg.get(incomingBBId), cfg.get(inputNodeId));
       return new SetPhiInput<>(targetId, incomingBBId, NodeId.of(oldInputNode));
+    }
+
+    @Override
+    public boolean affectsCfgGraph() {
+      return false;
     }
   }
 
@@ -807,6 +909,11 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
       InstrOrPhiImpl.cast(old).setId(newId);
       return new MutateInstrOrPhiId(newId, oldId);
     }
+
+    @Override
+    public boolean affectsCfgGraph() {
+      return false;
+    }
   }
 
   record MutateInstrArgs<I extends Instr>(
@@ -825,6 +932,11 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
       var oldArgs = MapToIdIn.of((InstrData<I>) target.data());
       Instr.mutateArgs(target, newArgs.decode(cfg));
       return new MutateInstrArgs<>(targetId, oldArgs);
+    }
+
+    @Override
+    public boolean affectsCfgGraph() {
+      return JumpData.class.isAssignableFrom(newArgs.mappedClass());
     }
   }
 
