@@ -32,6 +32,26 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest implements Tests {
   }
 
   @Test
+  public void testSumIn0Loop() throws Exception {
+    compileAndCall(
+        """
+          function (n) {
+            s <- 0
+            i <- 0
+            while (i < n) {
+              s <- s + i
+              i <- i + 1
+            }
+            s
+          }
+          """,
+        "list(n=100)",
+        (RealSXP v) -> {
+          assertEquals(4950.0, v.asReal(0));
+        });
+  }
+
+  @Test
   public void testList(TestInfo info) throws Exception {
     compileAndCall(
         """
@@ -62,6 +82,8 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest implements Tests {
 
     var closure = (CloSXP) R.eval(code);
     var ast2bc = new BCCompiler(closure, rsession);
+
+    // FIXME: just for now as we do not support guards
     ast2bc.setOptimizationLevel(3);
     var bc =
         ast2bc
@@ -72,36 +94,36 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest implements Tests {
     var cCode = bc2c.compile();
     var cConsts = bc2c.constants();
 
-    RDSWriter.writeFile(rsession, cpFile, SEXPs.vec(cConsts));
-
-    // TODO: a utility method
-    try (var cOut = Files.asCharSink(cFile, Charset.defaultCharset()).openBufferedStream()) {
-      cCode.writeTo(cOut);
-    }
-    cCode.writeTo(new OutputStreamWriter(System.out));
-
-    RshCompiler.getInstance().compileShared(cFile, soFile);
-
-    String testDriver =
-        "dyn.load('%s')\n".formatted(soFile.getAbsolutePath())
-            + "cp <- readRDS('%s')\n".formatted(cpFile.getAbsolutePath())
-            + "env <- as.environment(%s)\n".formatted(env)
-            + "res <- .Call('%s', env, cp, '%s')\n".formatted(funName, name)
-            + "dyn.unload('%s')\n".formatted(soFile.getAbsolutePath())
-            + "res\n";
-
-    try (var out = Files.asCharSink(rFile, Charset.defaultCharset()).openBufferedStream()) {
-      out.write(testDriver);
-    }
-
     try {
+      RDSWriter.writeFile(rsession, cpFile, SEXPs.vec(cConsts));
+
+      // TODO: a utility method
+      try (var cOut = Files.asCharSink(cFile, Charset.defaultCharset()).openBufferedStream()) {
+        cCode.writeTo(cOut);
+      }
+      cCode.writeTo(new OutputStreamWriter(System.out));
+
+      RshCompiler.getInstance().compileShared(cFile, soFile);
+
+      String testDriver =
+          "dyn.load('%s')\n".formatted(soFile.getAbsolutePath())
+              + "cp <- readRDS('%s')\n".formatted(cpFile.getAbsolutePath())
+              + "env <- as.environment(%s)\n".formatted(env)
+              + "res <- .Call('%s', env, cp, '%s')\n".formatted(funName, name)
+              + "dyn.unload('%s')\n".formatted(soFile.getAbsolutePath())
+              + "res\n";
+
+      try (var out = Files.asCharSink(rFile, Charset.defaultCharset()).openBufferedStream()) {
+        out.write(testDriver);
+      }
+
       var res = R.eval("source('%s', local=F)$value".formatted(rFile.getAbsolutePath()));
 
       System.out.println(res);
 
       validator.accept((T) res);
       // GNUR.cmd("SHLIB", "-o", soFile.getPath(), oFile.getPath());
-    } catch (Exception e) {
+    } catch (AssertionError | Exception e) {
       System.err.println(tempDir.getAbsolutePath());
       throw e;
     }

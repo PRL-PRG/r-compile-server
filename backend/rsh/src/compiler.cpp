@@ -34,9 +34,10 @@ SEXP CALL_FUN = nullptr;
 
 SEXP RSH_JIT_FUN_PTR = Rf_install("RSH_JIT_FUN_PTR");
 
-static CompileResponse compile_closure(std::string const &name, SEXP closure) {
+static CompileResponse compile_closure(std::string const &name, SEXP closure,
+                                       u32 opt_level = 3) {
   auto closure_bytes = rsh::serialize(closure);
-  return rsh::remote_compile(name, closure_bytes);
+  return rsh::remote_compile(name, closure_bytes, opt_level);
 }
 
 static void *insert_into_jit(CompiledFunction const &compiled_fun) {
@@ -107,7 +108,7 @@ static SEXP create_wrapper_body(SEXP closure, SEXP c_cp) {
   return body;
 }
 
-SEXP compile_fun(SEXP closure, SEXP name) {
+SEXP compile_fun(SEXP closure, SEXP name, SEXP opt_level_sxp) {
   if (!RSH_JIT_FUN_PTR) {
     Rf_error("The package was not initialized");
   }
@@ -116,11 +117,17 @@ SEXP compile_fun(SEXP closure, SEXP name) {
     Rf_error("Expected a single string as a name");
   }
 
+  if (TYPEOF(opt_level_sxp) != INTSXP || XLENGTH(opt_level_sxp) != 1) {
+    Rf_error("Expected a single integer as an optimization level");
+  }
+
+  u32 opt_level = INTEGER(opt_level_sxp)[0];
+
   const char *closure_name = CHAR(STRING_ELT(name, 0));
   char name_str[strlen(closure_name) + 1 + 16];
   sprintf(name_str, "%s_%p", closure_name, closure);
 
-  auto response = compile_closure(name_str, closure);
+  auto response = compile_closure(name_str, closure, opt_level);
   if (!response.has_result()) {
     Rf_error("Compilation failed: %s", response.failure().c_str());
     return closure;

@@ -3,47 +3,38 @@
 
 package org.prlprg.server.protocol;
 
-public interface CompiledFunctionOrBuilder
-    extends
+public interface CompiledFunctionOrBuilder extends
     // @@protoc_insertion_point(interface_extends:rsh.server.protocol.CompiledFunction)
     com.google.protobuf.MessageOrBuilder {
 
   /**
    * <code>string name = 2;</code>
-   *
    * @return The name.
    */
   java.lang.String getName();
-
   /**
    * <code>string name = 2;</code>
-   *
    * @return The bytes for name.
    */
-  com.google.protobuf.ByteString getNameBytes();
+  com.google.protobuf.ByteString
+      getNameBytes();
 
   /**
-   *
-   *
    * <pre>
    * content of the object file as spilled by the compiler
    * </pre>
    *
    * <code>bytes native_code = 3;</code>
-   *
    * @return The nativeCode.
    */
   com.google.protobuf.ByteString getNativeCode();
 
   /**
-   *
-   *
    * <pre>
    * the constants used by the native code as VECSXP
    * </pre>
    *
    * <code>bytes constants = 4;</code>
-   *
    * @return The constants.
    */
   com.google.protobuf.ByteString getConstants();

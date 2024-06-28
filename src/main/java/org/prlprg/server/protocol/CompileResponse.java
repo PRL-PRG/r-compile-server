@@ -3,31 +3,33 @@
 
 package org.prlprg.server.protocol;
 
-/** Protobuf type {@code rsh.server.protocol.CompileResponse} */
-public final class CompileResponse extends com.google.protobuf.GeneratedMessageV3
-    implements
+/**
+ * Protobuf type {@code rsh.server.protocol.CompileResponse}
+ */
+public final class CompileResponse extends
+    com.google.protobuf.GeneratedMessageV3 implements
     // @@protoc_insertion_point(message_implements:rsh.server.protocol.CompileResponse)
     CompileResponseOrBuilder {
-  private static final long serialVersionUID = 0L;
-
+private static final long serialVersionUID = 0L;
   // Use CompileResponse.newBuilder() to construct.
   private CompileResponse(com.google.protobuf.GeneratedMessageV3.Builder<?> builder) {
     super(builder);
   }
-
-  private CompileResponse() {}
+  private CompileResponse() {
+  }
 
   @java.lang.Override
   @SuppressWarnings({"unused"})
-  protected java.lang.Object newInstance(UnusedPrivateParameter unused) {
+  protected java.lang.Object newInstance(
+      UnusedPrivateParameter unused) {
     return new CompileResponse();
   }
 
   @java.lang.Override
-  public final com.google.protobuf.UnknownFieldSet getUnknownFields() {
+  public final com.google.protobuf.UnknownFieldSet
+  getUnknownFields() {
     return this.unknownFields;
   }
-
   private CompileResponse(
       com.google.protobuf.CodedInputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
@@ -46,79 +48,70 @@ public final class CompileResponse extends com.google.protobuf.GeneratedMessageV
           case 0:
             done = true;
             break;
-          case 18:
-            {
-              java.lang.String s = input.readStringRequireUtf8();
-              dataCase_ = 2;
-              data_ = s;
-              break;
+          case 18: {
+            java.lang.String s = input.readStringRequireUtf8();
+            dataCase_ = 2;
+            data_ = s;
+            break;
+          }
+          case 26: {
+            org.prlprg.server.protocol.CompiledFunction.Builder subBuilder = null;
+            if (dataCase_ == 3) {
+              subBuilder = ((org.prlprg.server.protocol.CompiledFunction) data_).toBuilder();
             }
-          case 26:
-            {
-              org.prlprg.server.protocol.CompiledFunction.Builder subBuilder = null;
-              if (dataCase_ == 3) {
-                subBuilder = ((org.prlprg.server.protocol.CompiledFunction) data_).toBuilder();
-              }
-              data_ =
-                  input.readMessage(
-                      org.prlprg.server.protocol.CompiledFunction.parser(), extensionRegistry);
-              if (subBuilder != null) {
-                subBuilder.mergeFrom((org.prlprg.server.protocol.CompiledFunction) data_);
-                data_ = subBuilder.buildPartial();
-              }
-              dataCase_ = 3;
-              break;
+            data_ =
+                input.readMessage(org.prlprg.server.protocol.CompiledFunction.parser(), extensionRegistry);
+            if (subBuilder != null) {
+              subBuilder.mergeFrom((org.prlprg.server.protocol.CompiledFunction) data_);
+              data_ = subBuilder.buildPartial();
             }
-          default:
-            {
-              if (!parseUnknownField(input, unknownFields, extensionRegistry, tag)) {
-                done = true;
-              }
-              break;
+            dataCase_ = 3;
+            break;
+          }
+          default: {
+            if (!parseUnknownField(
+                input, unknownFields, extensionRegistry, tag)) {
+              done = true;
             }
+            break;
+          }
         }
       }
     } catch (com.google.protobuf.InvalidProtocolBufferException e) {
       throw e.setUnfinishedMessage(this);
     } catch (java.io.IOException e) {
-      throw new com.google.protobuf.InvalidProtocolBufferException(e).setUnfinishedMessage(this);
+      throw new com.google.protobuf.InvalidProtocolBufferException(
+          e).setUnfinishedMessage(this);
     } finally {
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
     }
   }
-
-  public static final com.google.protobuf.Descriptors.Descriptor getDescriptor() {
-    return org.prlprg.server.protocol.Protocol
-        .internal_static_rsh_server_protocol_CompileResponse_descriptor;
+  public static final com.google.protobuf.Descriptors.Descriptor
+      getDescriptor() {
+    return org.prlprg.server.protocol.Protocol.internal_static_rsh_server_protocol_CompileResponse_descriptor;
   }
 
   @java.lang.Override
   protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internalGetFieldAccessorTable() {
-    return org.prlprg.server.protocol.Protocol
-        .internal_static_rsh_server_protocol_CompileResponse_fieldAccessorTable
+    return org.prlprg.server.protocol.Protocol.internal_static_rsh_server_protocol_CompileResponse_fieldAccessorTable
         .ensureFieldAccessorsInitialized(
-            org.prlprg.server.protocol.CompileResponse.class,
-            org.prlprg.server.protocol.CompileResponse.Builder.class);
+            org.prlprg.server.protocol.CompileResponse.class, org.prlprg.server.protocol.CompileResponse.Builder.class);
   }
 
   private int dataCase_ = 0;
   private java.lang.Object data_;
-
   public enum DataCase
-      implements
-          com.google.protobuf.Internal.EnumLite,
+      implements com.google.protobuf.Internal.EnumLite,
           com.google.protobuf.AbstractMessage.InternalOneOfEnum {
     FAILURE(2),
     RESULT(3),
     DATA_NOT_SET(0);
     private final int value;
-
     private DataCase(int value) {
       this.value = value;
     }
-
     /**
      * @param value The number of the enum to look for.
      * @return The enum associated with the given number.
@@ -131,31 +124,26 @@ public final class CompileResponse extends com.google.protobuf.GeneratedMessageV
 
     public static DataCase forNumber(int value) {
       switch (value) {
-        case 2:
-          return FAILURE;
-        case 3:
-          return RESULT;
-        case 0:
-          return DATA_NOT_SET;
-        default:
-          return null;
+        case 2: return FAILURE;
+        case 3: return RESULT;
+        case 0: return DATA_NOT_SET;
+        default: return null;
       }
     }
-
     public int getNumber() {
       return this.value;
     }
   };
 
-  public DataCase getDataCase() {
-    return DataCase.forNumber(dataCase_);
+  public DataCase
+  getDataCase() {
+    return DataCase.forNumber(
+        dataCase_);
   }
 
   public static final int FAILURE_FIELD_NUMBER = 2;
-
   /**
    * <code>string failure = 2;</code>
-   *
    * @return The failure.
    */
   public java.lang.String getFailure() {
@@ -166,7 +154,8 @@ public final class CompileResponse extends com.google.protobuf.GeneratedMessageV
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = (com.google.protobuf.ByteString) ref;
+      com.google.protobuf.ByteString bs = 
+          (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       if (dataCase_ == 2) {
         data_ = s;
@@ -174,20 +163,20 @@ public final class CompileResponse extends com.google.protobuf.GeneratedMessageV
       return s;
     }
   }
-
   /**
    * <code>string failure = 2;</code>
-   *
    * @return The bytes for failure.
    */
-  public com.google.protobuf.ByteString getFailureBytes() {
+  public com.google.protobuf.ByteString
+      getFailureBytes() {
     java.lang.Object ref = "";
     if (dataCase_ == 2) {
       ref = data_;
     }
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b =
-          com.google.protobuf.ByteString.copyFromUtf8((java.lang.String) ref);
+      com.google.protobuf.ByteString b = 
+          com.google.protobuf.ByteString.copyFromUtf8(
+              (java.lang.String) ref);
       if (dataCase_ == 2) {
         data_ = b;
       }
@@ -198,41 +187,37 @@ public final class CompileResponse extends com.google.protobuf.GeneratedMessageV
   }
 
   public static final int RESULT_FIELD_NUMBER = 3;
-
   /**
    * <code>.rsh.server.protocol.CompiledFunction result = 3;</code>
-   *
    * @return Whether the result field is set.
    */
   @java.lang.Override
   public boolean hasResult() {
     return dataCase_ == 3;
   }
-
   /**
    * <code>.rsh.server.protocol.CompiledFunction result = 3;</code>
-   *
    * @return The result.
    */
   @java.lang.Override
   public org.prlprg.server.protocol.CompiledFunction getResult() {
     if (dataCase_ == 3) {
-      return (org.prlprg.server.protocol.CompiledFunction) data_;
+       return (org.prlprg.server.protocol.CompiledFunction) data_;
     }
     return org.prlprg.server.protocol.CompiledFunction.getDefaultInstance();
   }
-
-  /** <code>.rsh.server.protocol.CompiledFunction result = 3;</code> */
+  /**
+   * <code>.rsh.server.protocol.CompiledFunction result = 3;</code>
+   */
   @java.lang.Override
   public org.prlprg.server.protocol.CompiledFunctionOrBuilder getResultOrBuilder() {
     if (dataCase_ == 3) {
-      return (org.prlprg.server.protocol.CompiledFunction) data_;
+       return (org.prlprg.server.protocol.CompiledFunction) data_;
     }
     return org.prlprg.server.protocol.CompiledFunction.getDefaultInstance();
   }
 
   private byte memoizedIsInitialized = -1;
-
   @java.lang.Override
   public final boolean isInitialized() {
     byte isInitialized = memoizedIsInitialized;
@@ -244,7 +229,8 @@ public final class CompileResponse extends com.google.protobuf.GeneratedMessageV
   }
 
   @java.lang.Override
-  public void writeTo(com.google.protobuf.CodedOutputStream output) throws java.io.IOException {
+  public void writeTo(com.google.protobuf.CodedOutputStream output)
+                      throws java.io.IOException {
     if (dataCase_ == 2) {
       com.google.protobuf.GeneratedMessageV3.writeString(output, 2, data_);
     }
@@ -264,9 +250,8 @@ public final class CompileResponse extends com.google.protobuf.GeneratedMessageV
       size += com.google.protobuf.GeneratedMessageV3.computeStringSize(2, data_);
     }
     if (dataCase_ == 3) {
-      size +=
-          com.google.protobuf.CodedOutputStream.computeMessageSize(
-              3, (org.prlprg.server.protocol.CompiledFunction) data_);
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(3, (org.prlprg.server.protocol.CompiledFunction) data_);
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -276,21 +261,22 @@ public final class CompileResponse extends com.google.protobuf.GeneratedMessageV
   @java.lang.Override
   public boolean equals(final java.lang.Object obj) {
     if (obj == this) {
-      return true;
+     return true;
     }
     if (!(obj instanceof org.prlprg.server.protocol.CompileResponse)) {
       return super.equals(obj);
     }
-    org.prlprg.server.protocol.CompileResponse other =
-        (org.prlprg.server.protocol.CompileResponse) obj;
+    org.prlprg.server.protocol.CompileResponse other = (org.prlprg.server.protocol.CompileResponse) obj;
 
     if (!getDataCase().equals(other.getDataCase())) return false;
     switch (dataCase_) {
       case 2:
-        if (!getFailure().equals(other.getFailure())) return false;
+        if (!getFailure()
+            .equals(other.getFailure())) return false;
         break;
       case 3:
-        if (!getResult().equals(other.getResult())) return false;
+        if (!getResult()
+            .equals(other.getResult())) return false;
         break;
       case 0:
       default:
@@ -323,120 +309,114 @@ public final class CompileResponse extends com.google.protobuf.GeneratedMessageV
     return hash;
   }
 
-  public static org.prlprg.server.protocol.CompileResponse parseFrom(java.nio.ByteBuffer data)
+  public static org.prlprg.server.protocol.CompileResponse parseFrom(
+      java.nio.ByteBuffer data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-
   public static org.prlprg.server.protocol.CompileResponse parseFrom(
-      java.nio.ByteBuffer data, com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+      java.nio.ByteBuffer data,
+      com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-
   public static org.prlprg.server.protocol.CompileResponse parseFrom(
       com.google.protobuf.ByteString data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-
   public static org.prlprg.server.protocol.CompileResponse parseFrom(
       com.google.protobuf.ByteString data,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-
   public static org.prlprg.server.protocol.CompileResponse parseFrom(byte[] data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-
   public static org.prlprg.server.protocol.CompileResponse parseFrom(
-      byte[] data, com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+      byte[] data,
+      com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-
   public static org.prlprg.server.protocol.CompileResponse parseFrom(java.io.InputStream input)
       throws java.io.IOException {
-    return com.google.protobuf.GeneratedMessageV3.parseWithIOException(PARSER, input);
+    return com.google.protobuf.GeneratedMessageV3
+        .parseWithIOException(PARSER, input);
   }
-
   public static org.prlprg.server.protocol.CompileResponse parseFrom(
-      java.io.InputStream input, com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+      java.io.InputStream input,
+      com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
-    return com.google.protobuf.GeneratedMessageV3.parseWithIOException(
-        PARSER, input, extensionRegistry);
+    return com.google.protobuf.GeneratedMessageV3
+        .parseWithIOException(PARSER, input, extensionRegistry);
   }
-
-  public static org.prlprg.server.protocol.CompileResponse parseDelimitedFrom(
-      java.io.InputStream input) throws java.io.IOException {
-    return com.google.protobuf.GeneratedMessageV3.parseDelimitedWithIOException(PARSER, input);
-  }
-
-  public static org.prlprg.server.protocol.CompileResponse parseDelimitedFrom(
-      java.io.InputStream input, com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+  public static org.prlprg.server.protocol.CompileResponse parseDelimitedFrom(java.io.InputStream input)
       throws java.io.IOException {
-    return com.google.protobuf.GeneratedMessageV3.parseDelimitedWithIOException(
-        PARSER, input, extensionRegistry);
+    return com.google.protobuf.GeneratedMessageV3
+        .parseDelimitedWithIOException(PARSER, input);
   }
-
+  public static org.prlprg.server.protocol.CompileResponse parseDelimitedFrom(
+      java.io.InputStream input,
+      com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+      throws java.io.IOException {
+    return com.google.protobuf.GeneratedMessageV3
+        .parseDelimitedWithIOException(PARSER, input, extensionRegistry);
+  }
   public static org.prlprg.server.protocol.CompileResponse parseFrom(
-      com.google.protobuf.CodedInputStream input) throws java.io.IOException {
-    return com.google.protobuf.GeneratedMessageV3.parseWithIOException(PARSER, input);
+      com.google.protobuf.CodedInputStream input)
+      throws java.io.IOException {
+    return com.google.protobuf.GeneratedMessageV3
+        .parseWithIOException(PARSER, input);
   }
-
   public static org.prlprg.server.protocol.CompileResponse parseFrom(
       com.google.protobuf.CodedInputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
-    return com.google.protobuf.GeneratedMessageV3.parseWithIOException(
-        PARSER, input, extensionRegistry);
+    return com.google.protobuf.GeneratedMessageV3
+        .parseWithIOException(PARSER, input, extensionRegistry);
   }
 
   @java.lang.Override
-  public Builder newBuilderForType() {
-    return newBuilder();
-  }
-
+  public Builder newBuilderForType() { return newBuilder(); }
   public static Builder newBuilder() {
     return DEFAULT_INSTANCE.toBuilder();
   }
-
   public static Builder newBuilder(org.prlprg.server.protocol.CompileResponse prototype) {
     return DEFAULT_INSTANCE.toBuilder().mergeFrom(prototype);
   }
-
   @java.lang.Override
   public Builder toBuilder() {
-    return this == DEFAULT_INSTANCE ? new Builder() : new Builder().mergeFrom(this);
+    return this == DEFAULT_INSTANCE
+        ? new Builder() : new Builder().mergeFrom(this);
   }
 
   @java.lang.Override
-  protected Builder newBuilderForType(com.google.protobuf.GeneratedMessageV3.BuilderParent parent) {
+  protected Builder newBuilderForType(
+      com.google.protobuf.GeneratedMessageV3.BuilderParent parent) {
     Builder builder = new Builder(parent);
     return builder;
   }
-
-  /** Protobuf type {@code rsh.server.protocol.CompileResponse} */
-  public static final class Builder extends com.google.protobuf.GeneratedMessageV3.Builder<Builder>
-      implements
+  /**
+   * Protobuf type {@code rsh.server.protocol.CompileResponse}
+   */
+  public static final class Builder extends
+      com.google.protobuf.GeneratedMessageV3.Builder<Builder> implements
       // @@protoc_insertion_point(builder_implements:rsh.server.protocol.CompileResponse)
       org.prlprg.server.protocol.CompileResponseOrBuilder {
-    public static final com.google.protobuf.Descriptors.Descriptor getDescriptor() {
-      return org.prlprg.server.protocol.Protocol
-          .internal_static_rsh_server_protocol_CompileResponse_descriptor;
+    public static final com.google.protobuf.Descriptors.Descriptor
+        getDescriptor() {
+      return org.prlprg.server.protocol.Protocol.internal_static_rsh_server_protocol_CompileResponse_descriptor;
     }
 
     @java.lang.Override
     protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
         internalGetFieldAccessorTable() {
-      return org.prlprg.server.protocol.Protocol
-          .internal_static_rsh_server_protocol_CompileResponse_fieldAccessorTable
+      return org.prlprg.server.protocol.Protocol.internal_static_rsh_server_protocol_CompileResponse_fieldAccessorTable
           .ensureFieldAccessorsInitialized(
-              org.prlprg.server.protocol.CompileResponse.class,
-              org.prlprg.server.protocol.CompileResponse.Builder.class);
+              org.prlprg.server.protocol.CompileResponse.class, org.prlprg.server.protocol.CompileResponse.Builder.class);
     }
 
     // Construct using org.prlprg.server.protocol.CompileResponse.newBuilder()
@@ -444,15 +424,16 @@ public final class CompileResponse extends com.google.protobuf.GeneratedMessageV
       maybeForceBuilderInitialization();
     }
 
-    private Builder(com.google.protobuf.GeneratedMessageV3.BuilderParent parent) {
+    private Builder(
+        com.google.protobuf.GeneratedMessageV3.BuilderParent parent) {
       super(parent);
       maybeForceBuilderInitialization();
     }
-
     private void maybeForceBuilderInitialization() {
-      if (com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders) {}
+      if (com.google.protobuf.GeneratedMessageV3
+              .alwaysUseFieldBuilders) {
+      }
     }
-
     @java.lang.Override
     public Builder clear() {
       super.clear();
@@ -462,9 +443,9 @@ public final class CompileResponse extends com.google.protobuf.GeneratedMessageV
     }
 
     @java.lang.Override
-    public com.google.protobuf.Descriptors.Descriptor getDescriptorForType() {
-      return org.prlprg.server.protocol.Protocol
-          .internal_static_rsh_server_protocol_CompileResponse_descriptor;
+    public com.google.protobuf.Descriptors.Descriptor
+        getDescriptorForType() {
+      return org.prlprg.server.protocol.Protocol.internal_static_rsh_server_protocol_CompileResponse_descriptor;
     }
 
     @java.lang.Override
@@ -483,8 +464,7 @@ public final class CompileResponse extends com.google.protobuf.GeneratedMessageV
 
     @java.lang.Override
     public org.prlprg.server.protocol.CompileResponse buildPartial() {
-      org.prlprg.server.protocol.CompileResponse result =
-          new org.prlprg.server.protocol.CompileResponse(this);
+      org.prlprg.server.protocol.CompileResponse result = new org.prlprg.server.protocol.CompileResponse(this);
       if (dataCase_ == 2) {
         result.data_ = data_;
       }
@@ -504,39 +484,38 @@ public final class CompileResponse extends com.google.protobuf.GeneratedMessageV
     public Builder clone() {
       return super.clone();
     }
-
     @java.lang.Override
     public Builder setField(
-        com.google.protobuf.Descriptors.FieldDescriptor field, java.lang.Object value) {
+        com.google.protobuf.Descriptors.FieldDescriptor field,
+        java.lang.Object value) {
       return super.setField(field, value);
     }
-
     @java.lang.Override
-    public Builder clearField(com.google.protobuf.Descriptors.FieldDescriptor field) {
+    public Builder clearField(
+        com.google.protobuf.Descriptors.FieldDescriptor field) {
       return super.clearField(field);
     }
-
     @java.lang.Override
-    public Builder clearOneof(com.google.protobuf.Descriptors.OneofDescriptor oneof) {
+    public Builder clearOneof(
+        com.google.protobuf.Descriptors.OneofDescriptor oneof) {
       return super.clearOneof(oneof);
     }
-
     @java.lang.Override
     public Builder setRepeatedField(
-        com.google.protobuf.Descriptors.FieldDescriptor field, int index, java.lang.Object value) {
+        com.google.protobuf.Descriptors.FieldDescriptor field,
+        int index, java.lang.Object value) {
       return super.setRepeatedField(field, index, value);
     }
-
     @java.lang.Override
     public Builder addRepeatedField(
-        com.google.protobuf.Descriptors.FieldDescriptor field, java.lang.Object value) {
+        com.google.protobuf.Descriptors.FieldDescriptor field,
+        java.lang.Object value) {
       return super.addRepeatedField(field, value);
     }
-
     @java.lang.Override
     public Builder mergeFrom(com.google.protobuf.Message other) {
       if (other instanceof org.prlprg.server.protocol.CompileResponse) {
-        return mergeFrom((org.prlprg.server.protocol.CompileResponse) other);
+        return mergeFrom((org.prlprg.server.protocol.CompileResponse)other);
       } else {
         super.mergeFrom(other);
         return this;
@@ -546,22 +525,19 @@ public final class CompileResponse extends com.google.protobuf.GeneratedMessageV
     public Builder mergeFrom(org.prlprg.server.protocol.CompileResponse other) {
       if (other == org.prlprg.server.protocol.CompileResponse.getDefaultInstance()) return this;
       switch (other.getDataCase()) {
-        case FAILURE:
-          {
-            dataCase_ = 2;
-            data_ = other.data_;
-            onChanged();
-            break;
-          }
-        case RESULT:
-          {
-            mergeResult(other.getResult());
-            break;
-          }
-        case DATA_NOT_SET:
-          {
-            break;
-          }
+        case FAILURE: {
+          dataCase_ = 2;
+          data_ = other.data_;
+          onChanged();
+          break;
+        }
+        case RESULT: {
+          mergeResult(other.getResult());
+          break;
+        }
+        case DATA_NOT_SET: {
+          break;
+        }
       }
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
@@ -591,12 +567,12 @@ public final class CompileResponse extends com.google.protobuf.GeneratedMessageV
       }
       return this;
     }
-
     private int dataCase_ = 0;
     private java.lang.Object data_;
-
-    public DataCase getDataCase() {
-      return DataCase.forNumber(dataCase_);
+    public DataCase
+        getDataCase() {
+      return DataCase.forNumber(
+          dataCase_);
     }
 
     public Builder clearData() {
@@ -606,9 +582,9 @@ public final class CompileResponse extends com.google.protobuf.GeneratedMessageV
       return this;
     }
 
+
     /**
      * <code>string failure = 2;</code>
-     *
      * @return The failure.
      */
     @java.lang.Override
@@ -618,7 +594,8 @@ public final class CompileResponse extends com.google.protobuf.GeneratedMessageV
         ref = data_;
       }
       if (!(ref instanceof java.lang.String)) {
-        com.google.protobuf.ByteString bs = (com.google.protobuf.ByteString) ref;
+        com.google.protobuf.ByteString bs =
+            (com.google.protobuf.ByteString) ref;
         java.lang.String s = bs.toStringUtf8();
         if (dataCase_ == 2) {
           data_ = s;
@@ -628,21 +605,21 @@ public final class CompileResponse extends com.google.protobuf.GeneratedMessageV
         return (java.lang.String) ref;
       }
     }
-
     /**
      * <code>string failure = 2;</code>
-     *
      * @return The bytes for failure.
      */
     @java.lang.Override
-    public com.google.protobuf.ByteString getFailureBytes() {
+    public com.google.protobuf.ByteString
+        getFailureBytes() {
       java.lang.Object ref = "";
       if (dataCase_ == 2) {
         ref = data_;
       }
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b =
-            com.google.protobuf.ByteString.copyFromUtf8((java.lang.String) ref);
+        com.google.protobuf.ByteString b = 
+            com.google.protobuf.ByteString.copyFromUtf8(
+                (java.lang.String) ref);
         if (dataCase_ == 2) {
           data_ = b;
         }
@@ -651,26 +628,23 @@ public final class CompileResponse extends com.google.protobuf.GeneratedMessageV
         return (com.google.protobuf.ByteString) ref;
       }
     }
-
     /**
      * <code>string failure = 2;</code>
-     *
      * @param value The failure to set.
      * @return This builder for chaining.
      */
-    public Builder setFailure(java.lang.String value) {
+    public Builder setFailure(
+        java.lang.String value) {
       if (value == null) {
-        throw new NullPointerException();
-      }
-      dataCase_ = 2;
+    throw new NullPointerException();
+  }
+  dataCase_ = 2;
       data_ = value;
       onChanged();
       return this;
     }
-
     /**
      * <code>string failure = 2;</code>
-     *
      * @return This builder for chaining.
      */
     public Builder clearFailure() {
@@ -681,18 +655,17 @@ public final class CompileResponse extends com.google.protobuf.GeneratedMessageV
       }
       return this;
     }
-
     /**
      * <code>string failure = 2;</code>
-     *
      * @param value The bytes for failure to set.
      * @return This builder for chaining.
      */
-    public Builder setFailureBytes(com.google.protobuf.ByteString value) {
+    public Builder setFailureBytes(
+        com.google.protobuf.ByteString value) {
       if (value == null) {
-        throw new NullPointerException();
-      }
-      checkByteStringIsUtf8(value);
+    throw new NullPointerException();
+  }
+  checkByteStringIsUtf8(value);
       dataCase_ = 2;
       data_ = value;
       onChanged();
@@ -700,24 +673,17 @@ public final class CompileResponse extends com.google.protobuf.GeneratedMessageV
     }
 
     private com.google.protobuf.SingleFieldBuilderV3<
-            org.prlprg.server.protocol.CompiledFunction,
-            org.prlprg.server.protocol.CompiledFunction.Builder,
-            org.prlprg.server.protocol.CompiledFunctionOrBuilder>
-        resultBuilder_;
-
+        org.prlprg.server.protocol.CompiledFunction, org.prlprg.server.protocol.CompiledFunction.Builder, org.prlprg.server.protocol.CompiledFunctionOrBuilder> resultBuilder_;
     /**
      * <code>.rsh.server.protocol.CompiledFunction result = 3;</code>
-     *
      * @return Whether the result field is set.
      */
     @java.lang.Override
     public boolean hasResult() {
       return dataCase_ == 3;
     }
-
     /**
      * <code>.rsh.server.protocol.CompiledFunction result = 3;</code>
-     *
      * @return The result.
      */
     @java.lang.Override
@@ -734,8 +700,9 @@ public final class CompileResponse extends com.google.protobuf.GeneratedMessageV
         return org.prlprg.server.protocol.CompiledFunction.getDefaultInstance();
       }
     }
-
-    /** <code>.rsh.server.protocol.CompiledFunction result = 3;</code> */
+    /**
+     * <code>.rsh.server.protocol.CompiledFunction result = 3;</code>
+     */
     public Builder setResult(org.prlprg.server.protocol.CompiledFunction value) {
       if (resultBuilder_ == null) {
         if (value == null) {
@@ -749,9 +716,11 @@ public final class CompileResponse extends com.google.protobuf.GeneratedMessageV
       dataCase_ = 3;
       return this;
     }
-
-    /** <code>.rsh.server.protocol.CompiledFunction result = 3;</code> */
-    public Builder setResult(org.prlprg.server.protocol.CompiledFunction.Builder builderForValue) {
+    /**
+     * <code>.rsh.server.protocol.CompiledFunction result = 3;</code>
+     */
+    public Builder setResult(
+        org.prlprg.server.protocol.CompiledFunction.Builder builderForValue) {
       if (resultBuilder_ == null) {
         data_ = builderForValue.build();
         onChanged();
@@ -761,17 +730,15 @@ public final class CompileResponse extends com.google.protobuf.GeneratedMessageV
       dataCase_ = 3;
       return this;
     }
-
-    /** <code>.rsh.server.protocol.CompiledFunction result = 3;</code> */
+    /**
+     * <code>.rsh.server.protocol.CompiledFunction result = 3;</code>
+     */
     public Builder mergeResult(org.prlprg.server.protocol.CompiledFunction value) {
       if (resultBuilder_ == null) {
-        if (dataCase_ == 3
-            && data_ != org.prlprg.server.protocol.CompiledFunction.getDefaultInstance()) {
-          data_ =
-              org.prlprg.server.protocol.CompiledFunction.newBuilder(
-                      (org.prlprg.server.protocol.CompiledFunction) data_)
-                  .mergeFrom(value)
-                  .buildPartial();
+        if (dataCase_ == 3 &&
+            data_ != org.prlprg.server.protocol.CompiledFunction.getDefaultInstance()) {
+          data_ = org.prlprg.server.protocol.CompiledFunction.newBuilder((org.prlprg.server.protocol.CompiledFunction) data_)
+              .mergeFrom(value).buildPartial();
         } else {
           data_ = value;
         }
@@ -785,8 +752,9 @@ public final class CompileResponse extends com.google.protobuf.GeneratedMessageV
       dataCase_ = 3;
       return this;
     }
-
-    /** <code>.rsh.server.protocol.CompiledFunction result = 3;</code> */
+    /**
+     * <code>.rsh.server.protocol.CompiledFunction result = 3;</code>
+     */
     public Builder clearResult() {
       if (resultBuilder_ == null) {
         if (dataCase_ == 3) {
@@ -803,13 +771,15 @@ public final class CompileResponse extends com.google.protobuf.GeneratedMessageV
       }
       return this;
     }
-
-    /** <code>.rsh.server.protocol.CompiledFunction result = 3;</code> */
+    /**
+     * <code>.rsh.server.protocol.CompiledFunction result = 3;</code>
+     */
     public org.prlprg.server.protocol.CompiledFunction.Builder getResultBuilder() {
       return getResultFieldBuilder().getBuilder();
     }
-
-    /** <code>.rsh.server.protocol.CompiledFunction result = 3;</code> */
+    /**
+     * <code>.rsh.server.protocol.CompiledFunction result = 3;</code>
+     */
     @java.lang.Override
     public org.prlprg.server.protocol.CompiledFunctionOrBuilder getResultOrBuilder() {
       if ((dataCase_ == 3) && (resultBuilder_ != null)) {
@@ -821,35 +791,30 @@ public final class CompileResponse extends com.google.protobuf.GeneratedMessageV
         return org.prlprg.server.protocol.CompiledFunction.getDefaultInstance();
       }
     }
-
-    /** <code>.rsh.server.protocol.CompiledFunction result = 3;</code> */
+    /**
+     * <code>.rsh.server.protocol.CompiledFunction result = 3;</code>
+     */
     private com.google.protobuf.SingleFieldBuilderV3<
-            org.prlprg.server.protocol.CompiledFunction,
-            org.prlprg.server.protocol.CompiledFunction.Builder,
-            org.prlprg.server.protocol.CompiledFunctionOrBuilder>
+        org.prlprg.server.protocol.CompiledFunction, org.prlprg.server.protocol.CompiledFunction.Builder, org.prlprg.server.protocol.CompiledFunctionOrBuilder> 
         getResultFieldBuilder() {
       if (resultBuilder_ == null) {
         if (!(dataCase_ == 3)) {
           data_ = org.prlprg.server.protocol.CompiledFunction.getDefaultInstance();
         }
-        resultBuilder_ =
-            new com.google.protobuf.SingleFieldBuilderV3<
-                org.prlprg.server.protocol.CompiledFunction,
-                org.prlprg.server.protocol.CompiledFunction.Builder,
-                org.prlprg.server.protocol.CompiledFunctionOrBuilder>(
+        resultBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            org.prlprg.server.protocol.CompiledFunction, org.prlprg.server.protocol.CompiledFunction.Builder, org.prlprg.server.protocol.CompiledFunctionOrBuilder>(
                 (org.prlprg.server.protocol.CompiledFunction) data_,
                 getParentForChildren(),
                 isClean());
         data_ = null;
       }
       dataCase_ = 3;
-      onChanged();
-      ;
+      onChanged();;
       return resultBuilder_;
     }
-
     @java.lang.Override
-    public final Builder setUnknownFields(final com.google.protobuf.UnknownFieldSet unknownFields) {
+    public final Builder setUnknownFields(
+        final com.google.protobuf.UnknownFieldSet unknownFields) {
       return super.setUnknownFields(unknownFields);
     }
 
@@ -859,12 +824,12 @@ public final class CompileResponse extends com.google.protobuf.GeneratedMessageV
       return super.mergeUnknownFields(unknownFields);
     }
 
+
     // @@protoc_insertion_point(builder_scope:rsh.server.protocol.CompileResponse)
   }
 
   // @@protoc_insertion_point(class_scope:rsh.server.protocol.CompileResponse)
   private static final org.prlprg.server.protocol.CompileResponse DEFAULT_INSTANCE;
-
   static {
     DEFAULT_INSTANCE = new org.prlprg.server.protocol.CompileResponse();
   }
@@ -873,16 +838,16 @@ public final class CompileResponse extends com.google.protobuf.GeneratedMessageV
     return DEFAULT_INSTANCE;
   }
 
-  private static final com.google.protobuf.Parser<CompileResponse> PARSER =
-      new com.google.protobuf.AbstractParser<CompileResponse>() {
-        @java.lang.Override
-        public CompileResponse parsePartialFrom(
-            com.google.protobuf.CodedInputStream input,
-            com.google.protobuf.ExtensionRegistryLite extensionRegistry)
-            throws com.google.protobuf.InvalidProtocolBufferException {
-          return new CompileResponse(input, extensionRegistry);
-        }
-      };
+  private static final com.google.protobuf.Parser<CompileResponse>
+      PARSER = new com.google.protobuf.AbstractParser<CompileResponse>() {
+    @java.lang.Override
+    public CompileResponse parsePartialFrom(
+        com.google.protobuf.CodedInputStream input,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws com.google.protobuf.InvalidProtocolBufferException {
+      return new CompileResponse(input, extensionRegistry);
+    }
+  };
 
   public static com.google.protobuf.Parser<CompileResponse> parser() {
     return PARSER;
@@ -897,4 +862,6 @@ public final class CompileResponse extends com.google.protobuf.GeneratedMessageV
   public org.prlprg.server.protocol.CompileResponse getDefaultInstanceForType() {
     return DEFAULT_INSTANCE;
   }
+
 }
+

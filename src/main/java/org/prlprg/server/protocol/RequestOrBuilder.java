@@ -3,43 +3,38 @@
 
 package org.prlprg.server.protocol;
 
-public interface RequestOrBuilder
-    extends
+public interface RequestOrBuilder extends
     // @@protoc_insertion_point(interface_extends:rsh.server.protocol.Request)
     com.google.protobuf.MessageOrBuilder {
 
   /**
    * <code>.rsh.server.protocol.HandshakeRequest handshake = 1;</code>
-   *
    * @return Whether the handshake field is set.
    */
   boolean hasHandshake();
-
   /**
    * <code>.rsh.server.protocol.HandshakeRequest handshake = 1;</code>
-   *
    * @return The handshake.
    */
   org.prlprg.server.protocol.HandshakeRequest getHandshake();
-
-  /** <code>.rsh.server.protocol.HandshakeRequest handshake = 1;</code> */
+  /**
+   * <code>.rsh.server.protocol.HandshakeRequest handshake = 1;</code>
+   */
   org.prlprg.server.protocol.HandshakeRequestOrBuilder getHandshakeOrBuilder();
 
   /**
    * <code>.rsh.server.protocol.CompileRequest compile = 2;</code>
-   *
    * @return Whether the compile field is set.
    */
   boolean hasCompile();
-
   /**
    * <code>.rsh.server.protocol.CompileRequest compile = 2;</code>
-   *
    * @return The compile.
    */
   org.prlprg.server.protocol.CompileRequest getCompile();
-
-  /** <code>.rsh.server.protocol.CompileRequest compile = 2;</code> */
+  /**
+   * <code>.rsh.server.protocol.CompileRequest compile = 2;</code>
+   */
   org.prlprg.server.protocol.CompileRequestOrBuilder getCompileOrBuilder();
 
   public org.prlprg.server.protocol.Request.PayloadCase getPayloadCase();

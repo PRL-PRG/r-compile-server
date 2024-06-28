@@ -100,6 +100,8 @@ public class GNUR implements AutoCloseable {
           throw new RuntimeException("R exited unexpectedly");
         }
 
+        // FIXME: add some verbose flag
+
         if (line.equals(requestId)) {
           return;
         }

@@ -3,18 +3,18 @@
 
 package org.prlprg.server.protocol;
 
-/** Protobuf type {@code rsh.server.protocol.HandshakeRequest} */
-public final class HandshakeRequest extends com.google.protobuf.GeneratedMessageV3
-    implements
+/**
+ * Protobuf type {@code rsh.server.protocol.HandshakeRequest}
+ */
+public final class HandshakeRequest extends
+    com.google.protobuf.GeneratedMessageV3 implements
     // @@protoc_insertion_point(message_implements:rsh.server.protocol.HandshakeRequest)
     HandshakeRequestOrBuilder {
-  private static final long serialVersionUID = 0L;
-
+private static final long serialVersionUID = 0L;
   // Use HandshakeRequest.newBuilder() to construct.
   private HandshakeRequest(com.google.protobuf.GeneratedMessageV3.Builder<?> builder) {
     super(builder);
   }
-
   private HandshakeRequest() {
     rshVersion_ = "";
     rVersion_ = "";
@@ -24,15 +24,16 @@ public final class HandshakeRequest extends com.google.protobuf.GeneratedMessage
 
   @java.lang.Override
   @SuppressWarnings({"unused"})
-  protected java.lang.Object newInstance(UnusedPrivateParameter unused) {
+  protected java.lang.Object newInstance(
+      UnusedPrivateParameter unused) {
     return new HandshakeRequest();
   }
 
   @java.lang.Override
-  public final com.google.protobuf.UnknownFieldSet getUnknownFields() {
+  public final com.google.protobuf.UnknownFieldSet
+  getUnknownFields() {
     return this.unknownFields;
   }
-
   private HandshakeRequest(
       com.google.protobuf.CodedInputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
@@ -52,50 +53,47 @@ public final class HandshakeRequest extends com.google.protobuf.GeneratedMessage
           case 0:
             done = true;
             break;
-          case 10:
-            {
-              java.lang.String s = input.readStringRequireUtf8();
+          case 10: {
+            java.lang.String s = input.readStringRequireUtf8();
 
-              rshVersion_ = s;
-              break;
-            }
-          case 18:
-            {
-              java.lang.String s = input.readStringRequireUtf8();
+            rshVersion_ = s;
+            break;
+          }
+          case 18: {
+            java.lang.String s = input.readStringRequireUtf8();
 
-              rVersion_ = s;
-              break;
-            }
-          case 26:
-            {
-              java.lang.String s = input.readStringRequireUtf8();
+            rVersion_ = s;
+            break;
+          }
+          case 26: {
+            java.lang.String s = input.readStringRequireUtf8();
 
-              platform_ = s;
-              break;
+            platform_ = s;
+            break;
+          }
+          case 34: {
+            java.lang.String s = input.readStringRequireUtf8();
+            if (!((mutable_bitField0_ & 0x00000001) != 0)) {
+              packages_ = new com.google.protobuf.LazyStringArrayList();
+              mutable_bitField0_ |= 0x00000001;
             }
-          case 34:
-            {
-              java.lang.String s = input.readStringRequireUtf8();
-              if (!((mutable_bitField0_ & 0x00000001) != 0)) {
-                packages_ = new com.google.protobuf.LazyStringArrayList();
-                mutable_bitField0_ |= 0x00000001;
-              }
-              packages_.add(s);
-              break;
+            packages_.add(s);
+            break;
+          }
+          default: {
+            if (!parseUnknownField(
+                input, unknownFields, extensionRegistry, tag)) {
+              done = true;
             }
-          default:
-            {
-              if (!parseUnknownField(input, unknownFields, extensionRegistry, tag)) {
-                done = true;
-              }
-              break;
-            }
+            break;
+          }
         }
       }
     } catch (com.google.protobuf.InvalidProtocolBufferException e) {
       throw e.setUnfinishedMessage(this);
     } catch (java.io.IOException e) {
-      throw new com.google.protobuf.InvalidProtocolBufferException(e).setUnfinishedMessage(this);
+      throw new com.google.protobuf.InvalidProtocolBufferException(
+          e).setUnfinishedMessage(this);
     } finally {
       if (((mutable_bitField0_ & 0x00000001) != 0)) {
         packages_ = packages_.getUnmodifiableView();
@@ -104,28 +102,23 @@ public final class HandshakeRequest extends com.google.protobuf.GeneratedMessage
       makeExtensionsImmutable();
     }
   }
-
-  public static final com.google.protobuf.Descriptors.Descriptor getDescriptor() {
-    return org.prlprg.server.protocol.Protocol
-        .internal_static_rsh_server_protocol_HandshakeRequest_descriptor;
+  public static final com.google.protobuf.Descriptors.Descriptor
+      getDescriptor() {
+    return org.prlprg.server.protocol.Protocol.internal_static_rsh_server_protocol_HandshakeRequest_descriptor;
   }
 
   @java.lang.Override
   protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internalGetFieldAccessorTable() {
-    return org.prlprg.server.protocol.Protocol
-        .internal_static_rsh_server_protocol_HandshakeRequest_fieldAccessorTable
+    return org.prlprg.server.protocol.Protocol.internal_static_rsh_server_protocol_HandshakeRequest_fieldAccessorTable
         .ensureFieldAccessorsInitialized(
-            org.prlprg.server.protocol.HandshakeRequest.class,
-            org.prlprg.server.protocol.HandshakeRequest.Builder.class);
+            org.prlprg.server.protocol.HandshakeRequest.class, org.prlprg.server.protocol.HandshakeRequest.Builder.class);
   }
 
   public static final int RSH_VERSION_FIELD_NUMBER = 1;
   private volatile java.lang.Object rshVersion_;
-
   /**
    * <code>string Rsh_version = 1;</code>
-   *
    * @return The rshVersion.
    */
   @java.lang.Override
@@ -134,24 +127,25 @@ public final class HandshakeRequest extends com.google.protobuf.GeneratedMessage
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = (com.google.protobuf.ByteString) ref;
+      com.google.protobuf.ByteString bs = 
+          (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       rshVersion_ = s;
       return s;
     }
   }
-
   /**
    * <code>string Rsh_version = 1;</code>
-   *
    * @return The bytes for rshVersion.
    */
   @java.lang.Override
-  public com.google.protobuf.ByteString getRshVersionBytes() {
+  public com.google.protobuf.ByteString
+      getRshVersionBytes() {
     java.lang.Object ref = rshVersion_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b =
-          com.google.protobuf.ByteString.copyFromUtf8((java.lang.String) ref);
+      com.google.protobuf.ByteString b = 
+          com.google.protobuf.ByteString.copyFromUtf8(
+              (java.lang.String) ref);
       rshVersion_ = b;
       return b;
     } else {
@@ -161,10 +155,8 @@ public final class HandshakeRequest extends com.google.protobuf.GeneratedMessage
 
   public static final int R_VERSION_FIELD_NUMBER = 2;
   private volatile java.lang.Object rVersion_;
-
   /**
    * <code>string R_version = 2;</code>
-   *
    * @return The rVersion.
    */
   @java.lang.Override
@@ -173,24 +165,25 @@ public final class HandshakeRequest extends com.google.protobuf.GeneratedMessage
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = (com.google.protobuf.ByteString) ref;
+      com.google.protobuf.ByteString bs = 
+          (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       rVersion_ = s;
       return s;
     }
   }
-
   /**
    * <code>string R_version = 2;</code>
-   *
    * @return The bytes for rVersion.
    */
   @java.lang.Override
-  public com.google.protobuf.ByteString getRVersionBytes() {
+  public com.google.protobuf.ByteString
+      getRVersionBytes() {
     java.lang.Object ref = rVersion_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b =
-          com.google.protobuf.ByteString.copyFromUtf8((java.lang.String) ref);
+      com.google.protobuf.ByteString b = 
+          com.google.protobuf.ByteString.copyFromUtf8(
+              (java.lang.String) ref);
       rVersion_ = b;
       return b;
     } else {
@@ -200,10 +193,8 @@ public final class HandshakeRequest extends com.google.protobuf.GeneratedMessage
 
   public static final int PLATFORM_FIELD_NUMBER = 3;
   private volatile java.lang.Object platform_;
-
   /**
    * <code>string platform = 3;</code>
-   *
    * @return The platform.
    */
   @java.lang.Override
@@ -212,24 +203,25 @@ public final class HandshakeRequest extends com.google.protobuf.GeneratedMessage
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = (com.google.protobuf.ByteString) ref;
+      com.google.protobuf.ByteString bs = 
+          (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       platform_ = s;
       return s;
     }
   }
-
   /**
    * <code>string platform = 3;</code>
-   *
    * @return The bytes for platform.
    */
   @java.lang.Override
-  public com.google.protobuf.ByteString getPlatformBytes() {
+  public com.google.protobuf.ByteString
+      getPlatformBytes() {
     java.lang.Object ref = platform_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b =
-          com.google.protobuf.ByteString.copyFromUtf8((java.lang.String) ref);
+      com.google.protobuf.ByteString b = 
+          com.google.protobuf.ByteString.copyFromUtf8(
+              (java.lang.String) ref);
       platform_ = b;
       return b;
     } else {
@@ -239,47 +231,40 @@ public final class HandshakeRequest extends com.google.protobuf.GeneratedMessage
 
   public static final int PACKAGES_FIELD_NUMBER = 4;
   private com.google.protobuf.LazyStringList packages_;
-
   /**
    * <code>repeated string packages = 4;</code>
-   *
    * @return A list containing the packages.
    */
-  public com.google.protobuf.ProtocolStringList getPackagesList() {
+  public com.google.protobuf.ProtocolStringList
+      getPackagesList() {
     return packages_;
   }
-
   /**
    * <code>repeated string packages = 4;</code>
-   *
    * @return The count of packages.
    */
   public int getPackagesCount() {
     return packages_.size();
   }
-
   /**
    * <code>repeated string packages = 4;</code>
-   *
    * @param index The index of the element to return.
    * @return The packages at the given index.
    */
   public java.lang.String getPackages(int index) {
     return packages_.get(index);
   }
-
   /**
    * <code>repeated string packages = 4;</code>
-   *
    * @param index The index of the value to return.
    * @return The bytes of the packages at the given index.
    */
-  public com.google.protobuf.ByteString getPackagesBytes(int index) {
+  public com.google.protobuf.ByteString
+      getPackagesBytes(int index) {
     return packages_.getByteString(index);
   }
 
   private byte memoizedIsInitialized = -1;
-
   @java.lang.Override
   public final boolean isInitialized() {
     byte isInitialized = memoizedIsInitialized;
@@ -291,7 +276,8 @@ public final class HandshakeRequest extends com.google.protobuf.GeneratedMessage
   }
 
   @java.lang.Override
-  public void writeTo(com.google.protobuf.CodedOutputStream output) throws java.io.IOException {
+  public void writeTo(com.google.protobuf.CodedOutputStream output)
+                      throws java.io.IOException {
     if (!getRshVersionBytes().isEmpty()) {
       com.google.protobuf.GeneratedMessageV3.writeString(output, 1, rshVersion_);
     }
@@ -338,18 +324,21 @@ public final class HandshakeRequest extends com.google.protobuf.GeneratedMessage
   @java.lang.Override
   public boolean equals(final java.lang.Object obj) {
     if (obj == this) {
-      return true;
+     return true;
     }
     if (!(obj instanceof org.prlprg.server.protocol.HandshakeRequest)) {
       return super.equals(obj);
     }
-    org.prlprg.server.protocol.HandshakeRequest other =
-        (org.prlprg.server.protocol.HandshakeRequest) obj;
+    org.prlprg.server.protocol.HandshakeRequest other = (org.prlprg.server.protocol.HandshakeRequest) obj;
 
-    if (!getRshVersion().equals(other.getRshVersion())) return false;
-    if (!getRVersion().equals(other.getRVersion())) return false;
-    if (!getPlatform().equals(other.getPlatform())) return false;
-    if (!getPackagesList().equals(other.getPackagesList())) return false;
+    if (!getRshVersion()
+        .equals(other.getRshVersion())) return false;
+    if (!getRVersion()
+        .equals(other.getRVersion())) return false;
+    if (!getPlatform()
+        .equals(other.getPlatform())) return false;
+    if (!getPackagesList()
+        .equals(other.getPackagesList())) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
@@ -376,120 +365,114 @@ public final class HandshakeRequest extends com.google.protobuf.GeneratedMessage
     return hash;
   }
 
-  public static org.prlprg.server.protocol.HandshakeRequest parseFrom(java.nio.ByteBuffer data)
+  public static org.prlprg.server.protocol.HandshakeRequest parseFrom(
+      java.nio.ByteBuffer data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-
   public static org.prlprg.server.protocol.HandshakeRequest parseFrom(
-      java.nio.ByteBuffer data, com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+      java.nio.ByteBuffer data,
+      com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-
   public static org.prlprg.server.protocol.HandshakeRequest parseFrom(
       com.google.protobuf.ByteString data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-
   public static org.prlprg.server.protocol.HandshakeRequest parseFrom(
       com.google.protobuf.ByteString data,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-
   public static org.prlprg.server.protocol.HandshakeRequest parseFrom(byte[] data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-
   public static org.prlprg.server.protocol.HandshakeRequest parseFrom(
-      byte[] data, com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+      byte[] data,
+      com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-
   public static org.prlprg.server.protocol.HandshakeRequest parseFrom(java.io.InputStream input)
       throws java.io.IOException {
-    return com.google.protobuf.GeneratedMessageV3.parseWithIOException(PARSER, input);
+    return com.google.protobuf.GeneratedMessageV3
+        .parseWithIOException(PARSER, input);
   }
-
   public static org.prlprg.server.protocol.HandshakeRequest parseFrom(
-      java.io.InputStream input, com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+      java.io.InputStream input,
+      com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
-    return com.google.protobuf.GeneratedMessageV3.parseWithIOException(
-        PARSER, input, extensionRegistry);
+    return com.google.protobuf.GeneratedMessageV3
+        .parseWithIOException(PARSER, input, extensionRegistry);
   }
-
-  public static org.prlprg.server.protocol.HandshakeRequest parseDelimitedFrom(
-      java.io.InputStream input) throws java.io.IOException {
-    return com.google.protobuf.GeneratedMessageV3.parseDelimitedWithIOException(PARSER, input);
-  }
-
-  public static org.prlprg.server.protocol.HandshakeRequest parseDelimitedFrom(
-      java.io.InputStream input, com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+  public static org.prlprg.server.protocol.HandshakeRequest parseDelimitedFrom(java.io.InputStream input)
       throws java.io.IOException {
-    return com.google.protobuf.GeneratedMessageV3.parseDelimitedWithIOException(
-        PARSER, input, extensionRegistry);
+    return com.google.protobuf.GeneratedMessageV3
+        .parseDelimitedWithIOException(PARSER, input);
   }
-
+  public static org.prlprg.server.protocol.HandshakeRequest parseDelimitedFrom(
+      java.io.InputStream input,
+      com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+      throws java.io.IOException {
+    return com.google.protobuf.GeneratedMessageV3
+        .parseDelimitedWithIOException(PARSER, input, extensionRegistry);
+  }
   public static org.prlprg.server.protocol.HandshakeRequest parseFrom(
-      com.google.protobuf.CodedInputStream input) throws java.io.IOException {
-    return com.google.protobuf.GeneratedMessageV3.parseWithIOException(PARSER, input);
+      com.google.protobuf.CodedInputStream input)
+      throws java.io.IOException {
+    return com.google.protobuf.GeneratedMessageV3
+        .parseWithIOException(PARSER, input);
   }
-
   public static org.prlprg.server.protocol.HandshakeRequest parseFrom(
       com.google.protobuf.CodedInputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
-    return com.google.protobuf.GeneratedMessageV3.parseWithIOException(
-        PARSER, input, extensionRegistry);
+    return com.google.protobuf.GeneratedMessageV3
+        .parseWithIOException(PARSER, input, extensionRegistry);
   }
 
   @java.lang.Override
-  public Builder newBuilderForType() {
-    return newBuilder();
-  }
-
+  public Builder newBuilderForType() { return newBuilder(); }
   public static Builder newBuilder() {
     return DEFAULT_INSTANCE.toBuilder();
   }
-
   public static Builder newBuilder(org.prlprg.server.protocol.HandshakeRequest prototype) {
     return DEFAULT_INSTANCE.toBuilder().mergeFrom(prototype);
   }
-
   @java.lang.Override
   public Builder toBuilder() {
-    return this == DEFAULT_INSTANCE ? new Builder() : new Builder().mergeFrom(this);
+    return this == DEFAULT_INSTANCE
+        ? new Builder() : new Builder().mergeFrom(this);
   }
 
   @java.lang.Override
-  protected Builder newBuilderForType(com.google.protobuf.GeneratedMessageV3.BuilderParent parent) {
+  protected Builder newBuilderForType(
+      com.google.protobuf.GeneratedMessageV3.BuilderParent parent) {
     Builder builder = new Builder(parent);
     return builder;
   }
-
-  /** Protobuf type {@code rsh.server.protocol.HandshakeRequest} */
-  public static final class Builder extends com.google.protobuf.GeneratedMessageV3.Builder<Builder>
-      implements
+  /**
+   * Protobuf type {@code rsh.server.protocol.HandshakeRequest}
+   */
+  public static final class Builder extends
+      com.google.protobuf.GeneratedMessageV3.Builder<Builder> implements
       // @@protoc_insertion_point(builder_implements:rsh.server.protocol.HandshakeRequest)
       org.prlprg.server.protocol.HandshakeRequestOrBuilder {
-    public static final com.google.protobuf.Descriptors.Descriptor getDescriptor() {
-      return org.prlprg.server.protocol.Protocol
-          .internal_static_rsh_server_protocol_HandshakeRequest_descriptor;
+    public static final com.google.protobuf.Descriptors.Descriptor
+        getDescriptor() {
+      return org.prlprg.server.protocol.Protocol.internal_static_rsh_server_protocol_HandshakeRequest_descriptor;
     }
 
     @java.lang.Override
     protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
         internalGetFieldAccessorTable() {
-      return org.prlprg.server.protocol.Protocol
-          .internal_static_rsh_server_protocol_HandshakeRequest_fieldAccessorTable
+      return org.prlprg.server.protocol.Protocol.internal_static_rsh_server_protocol_HandshakeRequest_fieldAccessorTable
           .ensureFieldAccessorsInitialized(
-              org.prlprg.server.protocol.HandshakeRequest.class,
-              org.prlprg.server.protocol.HandshakeRequest.Builder.class);
+              org.prlprg.server.protocol.HandshakeRequest.class, org.prlprg.server.protocol.HandshakeRequest.Builder.class);
     }
 
     // Construct using org.prlprg.server.protocol.HandshakeRequest.newBuilder()
@@ -497,15 +480,16 @@ public final class HandshakeRequest extends com.google.protobuf.GeneratedMessage
       maybeForceBuilderInitialization();
     }
 
-    private Builder(com.google.protobuf.GeneratedMessageV3.BuilderParent parent) {
+    private Builder(
+        com.google.protobuf.GeneratedMessageV3.BuilderParent parent) {
       super(parent);
       maybeForceBuilderInitialization();
     }
-
     private void maybeForceBuilderInitialization() {
-      if (com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders) {}
+      if (com.google.protobuf.GeneratedMessageV3
+              .alwaysUseFieldBuilders) {
+      }
     }
-
     @java.lang.Override
     public Builder clear() {
       super.clear();
@@ -521,9 +505,9 @@ public final class HandshakeRequest extends com.google.protobuf.GeneratedMessage
     }
 
     @java.lang.Override
-    public com.google.protobuf.Descriptors.Descriptor getDescriptorForType() {
-      return org.prlprg.server.protocol.Protocol
-          .internal_static_rsh_server_protocol_HandshakeRequest_descriptor;
+    public com.google.protobuf.Descriptors.Descriptor
+        getDescriptorForType() {
+      return org.prlprg.server.protocol.Protocol.internal_static_rsh_server_protocol_HandshakeRequest_descriptor;
     }
 
     @java.lang.Override
@@ -542,8 +526,7 @@ public final class HandshakeRequest extends com.google.protobuf.GeneratedMessage
 
     @java.lang.Override
     public org.prlprg.server.protocol.HandshakeRequest buildPartial() {
-      org.prlprg.server.protocol.HandshakeRequest result =
-          new org.prlprg.server.protocol.HandshakeRequest(this);
+      org.prlprg.server.protocol.HandshakeRequest result = new org.prlprg.server.protocol.HandshakeRequest(this);
       int from_bitField0_ = bitField0_;
       result.rshVersion_ = rshVersion_;
       result.rVersion_ = rVersion_;
@@ -561,39 +544,38 @@ public final class HandshakeRequest extends com.google.protobuf.GeneratedMessage
     public Builder clone() {
       return super.clone();
     }
-
     @java.lang.Override
     public Builder setField(
-        com.google.protobuf.Descriptors.FieldDescriptor field, java.lang.Object value) {
+        com.google.protobuf.Descriptors.FieldDescriptor field,
+        java.lang.Object value) {
       return super.setField(field, value);
     }
-
     @java.lang.Override
-    public Builder clearField(com.google.protobuf.Descriptors.FieldDescriptor field) {
+    public Builder clearField(
+        com.google.protobuf.Descriptors.FieldDescriptor field) {
       return super.clearField(field);
     }
-
     @java.lang.Override
-    public Builder clearOneof(com.google.protobuf.Descriptors.OneofDescriptor oneof) {
+    public Builder clearOneof(
+        com.google.protobuf.Descriptors.OneofDescriptor oneof) {
       return super.clearOneof(oneof);
     }
-
     @java.lang.Override
     public Builder setRepeatedField(
-        com.google.protobuf.Descriptors.FieldDescriptor field, int index, java.lang.Object value) {
+        com.google.protobuf.Descriptors.FieldDescriptor field,
+        int index, java.lang.Object value) {
       return super.setRepeatedField(field, index, value);
     }
-
     @java.lang.Override
     public Builder addRepeatedField(
-        com.google.protobuf.Descriptors.FieldDescriptor field, java.lang.Object value) {
+        com.google.protobuf.Descriptors.FieldDescriptor field,
+        java.lang.Object value) {
       return super.addRepeatedField(field, value);
     }
-
     @java.lang.Override
     public Builder mergeFrom(com.google.protobuf.Message other) {
       if (other instanceof org.prlprg.server.protocol.HandshakeRequest) {
-        return mergeFrom((org.prlprg.server.protocol.HandshakeRequest) other);
+        return mergeFrom((org.prlprg.server.protocol.HandshakeRequest)other);
       } else {
         super.mergeFrom(other);
         return this;
@@ -652,20 +634,18 @@ public final class HandshakeRequest extends com.google.protobuf.GeneratedMessage
       }
       return this;
     }
-
     private int bitField0_;
 
     private java.lang.Object rshVersion_ = "";
-
     /**
      * <code>string Rsh_version = 1;</code>
-     *
      * @return The rshVersion.
      */
     public java.lang.String getRshVersion() {
       java.lang.Object ref = rshVersion_;
       if (!(ref instanceof java.lang.String)) {
-        com.google.protobuf.ByteString bs = (com.google.protobuf.ByteString) ref;
+        com.google.protobuf.ByteString bs =
+            (com.google.protobuf.ByteString) ref;
         java.lang.String s = bs.toStringUtf8();
         rshVersion_ = s;
         return s;
@@ -673,80 +653,75 @@ public final class HandshakeRequest extends com.google.protobuf.GeneratedMessage
         return (java.lang.String) ref;
       }
     }
-
     /**
      * <code>string Rsh_version = 1;</code>
-     *
      * @return The bytes for rshVersion.
      */
-    public com.google.protobuf.ByteString getRshVersionBytes() {
+    public com.google.protobuf.ByteString
+        getRshVersionBytes() {
       java.lang.Object ref = rshVersion_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b =
-            com.google.protobuf.ByteString.copyFromUtf8((java.lang.String) ref);
+        com.google.protobuf.ByteString b = 
+            com.google.protobuf.ByteString.copyFromUtf8(
+                (java.lang.String) ref);
         rshVersion_ = b;
         return b;
       } else {
         return (com.google.protobuf.ByteString) ref;
       }
     }
-
     /**
      * <code>string Rsh_version = 1;</code>
-     *
      * @param value The rshVersion to set.
      * @return This builder for chaining.
      */
-    public Builder setRshVersion(java.lang.String value) {
+    public Builder setRshVersion(
+        java.lang.String value) {
       if (value == null) {
-        throw new NullPointerException();
-      }
-
+    throw new NullPointerException();
+  }
+  
       rshVersion_ = value;
       onChanged();
       return this;
     }
-
     /**
      * <code>string Rsh_version = 1;</code>
-     *
      * @return This builder for chaining.
      */
     public Builder clearRshVersion() {
-
+      
       rshVersion_ = getDefaultInstance().getRshVersion();
       onChanged();
       return this;
     }
-
     /**
      * <code>string Rsh_version = 1;</code>
-     *
      * @param value The bytes for rshVersion to set.
      * @return This builder for chaining.
      */
-    public Builder setRshVersionBytes(com.google.protobuf.ByteString value) {
+    public Builder setRshVersionBytes(
+        com.google.protobuf.ByteString value) {
       if (value == null) {
-        throw new NullPointerException();
-      }
-      checkByteStringIsUtf8(value);
-
+    throw new NullPointerException();
+  }
+  checkByteStringIsUtf8(value);
+      
       rshVersion_ = value;
       onChanged();
       return this;
     }
 
     private java.lang.Object rVersion_ = "";
-
     /**
      * <code>string R_version = 2;</code>
-     *
      * @return The rVersion.
      */
     public java.lang.String getRVersion() {
       java.lang.Object ref = rVersion_;
       if (!(ref instanceof java.lang.String)) {
-        com.google.protobuf.ByteString bs = (com.google.protobuf.ByteString) ref;
+        com.google.protobuf.ByteString bs =
+            (com.google.protobuf.ByteString) ref;
         java.lang.String s = bs.toStringUtf8();
         rVersion_ = s;
         return s;
@@ -754,80 +729,75 @@ public final class HandshakeRequest extends com.google.protobuf.GeneratedMessage
         return (java.lang.String) ref;
       }
     }
-
     /**
      * <code>string R_version = 2;</code>
-     *
      * @return The bytes for rVersion.
      */
-    public com.google.protobuf.ByteString getRVersionBytes() {
+    public com.google.protobuf.ByteString
+        getRVersionBytes() {
       java.lang.Object ref = rVersion_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b =
-            com.google.protobuf.ByteString.copyFromUtf8((java.lang.String) ref);
+        com.google.protobuf.ByteString b = 
+            com.google.protobuf.ByteString.copyFromUtf8(
+                (java.lang.String) ref);
         rVersion_ = b;
         return b;
       } else {
         return (com.google.protobuf.ByteString) ref;
       }
     }
-
     /**
      * <code>string R_version = 2;</code>
-     *
      * @param value The rVersion to set.
      * @return This builder for chaining.
      */
-    public Builder setRVersion(java.lang.String value) {
+    public Builder setRVersion(
+        java.lang.String value) {
       if (value == null) {
-        throw new NullPointerException();
-      }
-
+    throw new NullPointerException();
+  }
+  
       rVersion_ = value;
       onChanged();
       return this;
     }
-
     /**
      * <code>string R_version = 2;</code>
-     *
      * @return This builder for chaining.
      */
     public Builder clearRVersion() {
-
+      
       rVersion_ = getDefaultInstance().getRVersion();
       onChanged();
       return this;
     }
-
     /**
      * <code>string R_version = 2;</code>
-     *
      * @param value The bytes for rVersion to set.
      * @return This builder for chaining.
      */
-    public Builder setRVersionBytes(com.google.protobuf.ByteString value) {
+    public Builder setRVersionBytes(
+        com.google.protobuf.ByteString value) {
       if (value == null) {
-        throw new NullPointerException();
-      }
-      checkByteStringIsUtf8(value);
-
+    throw new NullPointerException();
+  }
+  checkByteStringIsUtf8(value);
+      
       rVersion_ = value;
       onChanged();
       return this;
     }
 
     private java.lang.Object platform_ = "";
-
     /**
      * <code>string platform = 3;</code>
-     *
      * @return The platform.
      */
     public java.lang.String getPlatform() {
       java.lang.Object ref = platform_;
       if (!(ref instanceof java.lang.String)) {
-        com.google.protobuf.ByteString bs = (com.google.protobuf.ByteString) ref;
+        com.google.protobuf.ByteString bs =
+            (com.google.protobuf.ByteString) ref;
         java.lang.String s = bs.toStringUtf8();
         platform_ = s;
         return s;
@@ -835,166 +805,150 @@ public final class HandshakeRequest extends com.google.protobuf.GeneratedMessage
         return (java.lang.String) ref;
       }
     }
-
     /**
      * <code>string platform = 3;</code>
-     *
      * @return The bytes for platform.
      */
-    public com.google.protobuf.ByteString getPlatformBytes() {
+    public com.google.protobuf.ByteString
+        getPlatformBytes() {
       java.lang.Object ref = platform_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b =
-            com.google.protobuf.ByteString.copyFromUtf8((java.lang.String) ref);
+        com.google.protobuf.ByteString b = 
+            com.google.protobuf.ByteString.copyFromUtf8(
+                (java.lang.String) ref);
         platform_ = b;
         return b;
       } else {
         return (com.google.protobuf.ByteString) ref;
       }
     }
-
     /**
      * <code>string platform = 3;</code>
-     *
      * @param value The platform to set.
      * @return This builder for chaining.
      */
-    public Builder setPlatform(java.lang.String value) {
+    public Builder setPlatform(
+        java.lang.String value) {
       if (value == null) {
-        throw new NullPointerException();
-      }
-
+    throw new NullPointerException();
+  }
+  
       platform_ = value;
       onChanged();
       return this;
     }
-
     /**
      * <code>string platform = 3;</code>
-     *
      * @return This builder for chaining.
      */
     public Builder clearPlatform() {
-
+      
       platform_ = getDefaultInstance().getPlatform();
       onChanged();
       return this;
     }
-
     /**
      * <code>string platform = 3;</code>
-     *
      * @param value The bytes for platform to set.
      * @return This builder for chaining.
      */
-    public Builder setPlatformBytes(com.google.protobuf.ByteString value) {
+    public Builder setPlatformBytes(
+        com.google.protobuf.ByteString value) {
       if (value == null) {
-        throw new NullPointerException();
-      }
-      checkByteStringIsUtf8(value);
-
+    throw new NullPointerException();
+  }
+  checkByteStringIsUtf8(value);
+      
       platform_ = value;
       onChanged();
       return this;
     }
 
-    private com.google.protobuf.LazyStringList packages_ =
-        com.google.protobuf.LazyStringArrayList.EMPTY;
-
+    private com.google.protobuf.LazyStringList packages_ = com.google.protobuf.LazyStringArrayList.EMPTY;
     private void ensurePackagesIsMutable() {
       if (!((bitField0_ & 0x00000001) != 0)) {
         packages_ = new com.google.protobuf.LazyStringArrayList(packages_);
         bitField0_ |= 0x00000001;
-      }
+       }
     }
-
     /**
      * <code>repeated string packages = 4;</code>
-     *
      * @return A list containing the packages.
      */
-    public com.google.protobuf.ProtocolStringList getPackagesList() {
+    public com.google.protobuf.ProtocolStringList
+        getPackagesList() {
       return packages_.getUnmodifiableView();
     }
-
     /**
      * <code>repeated string packages = 4;</code>
-     *
      * @return The count of packages.
      */
     public int getPackagesCount() {
       return packages_.size();
     }
-
     /**
      * <code>repeated string packages = 4;</code>
-     *
      * @param index The index of the element to return.
      * @return The packages at the given index.
      */
     public java.lang.String getPackages(int index) {
       return packages_.get(index);
     }
-
     /**
      * <code>repeated string packages = 4;</code>
-     *
      * @param index The index of the value to return.
      * @return The bytes of the packages at the given index.
      */
-    public com.google.protobuf.ByteString getPackagesBytes(int index) {
+    public com.google.protobuf.ByteString
+        getPackagesBytes(int index) {
       return packages_.getByteString(index);
     }
-
     /**
      * <code>repeated string packages = 4;</code>
-     *
      * @param index The index to set the value at.
      * @param value The packages to set.
      * @return This builder for chaining.
      */
-    public Builder setPackages(int index, java.lang.String value) {
+    public Builder setPackages(
+        int index, java.lang.String value) {
       if (value == null) {
-        throw new NullPointerException();
-      }
-      ensurePackagesIsMutable();
+    throw new NullPointerException();
+  }
+  ensurePackagesIsMutable();
       packages_.set(index, value);
       onChanged();
       return this;
     }
-
     /**
      * <code>repeated string packages = 4;</code>
-     *
      * @param value The packages to add.
      * @return This builder for chaining.
      */
-    public Builder addPackages(java.lang.String value) {
+    public Builder addPackages(
+        java.lang.String value) {
       if (value == null) {
-        throw new NullPointerException();
-      }
-      ensurePackagesIsMutable();
+    throw new NullPointerException();
+  }
+  ensurePackagesIsMutable();
       packages_.add(value);
       onChanged();
       return this;
     }
-
     /**
      * <code>repeated string packages = 4;</code>
-     *
      * @param values The packages to add.
      * @return This builder for chaining.
      */
-    public Builder addAllPackages(java.lang.Iterable<java.lang.String> values) {
+    public Builder addAllPackages(
+        java.lang.Iterable<java.lang.String> values) {
       ensurePackagesIsMutable();
-      com.google.protobuf.AbstractMessageLite.Builder.addAll(values, packages_);
+      com.google.protobuf.AbstractMessageLite.Builder.addAll(
+          values, packages_);
       onChanged();
       return this;
     }
-
     /**
      * <code>repeated string packages = 4;</code>
-     *
      * @return This builder for chaining.
      */
     public Builder clearPackages() {
@@ -1003,26 +957,25 @@ public final class HandshakeRequest extends com.google.protobuf.GeneratedMessage
       onChanged();
       return this;
     }
-
     /**
      * <code>repeated string packages = 4;</code>
-     *
      * @param value The bytes of the packages to add.
      * @return This builder for chaining.
      */
-    public Builder addPackagesBytes(com.google.protobuf.ByteString value) {
+    public Builder addPackagesBytes(
+        com.google.protobuf.ByteString value) {
       if (value == null) {
-        throw new NullPointerException();
-      }
-      checkByteStringIsUtf8(value);
+    throw new NullPointerException();
+  }
+  checkByteStringIsUtf8(value);
       ensurePackagesIsMutable();
       packages_.add(value);
       onChanged();
       return this;
     }
-
     @java.lang.Override
-    public final Builder setUnknownFields(final com.google.protobuf.UnknownFieldSet unknownFields) {
+    public final Builder setUnknownFields(
+        final com.google.protobuf.UnknownFieldSet unknownFields) {
       return super.setUnknownFields(unknownFields);
     }
 
@@ -1032,12 +985,12 @@ public final class HandshakeRequest extends com.google.protobuf.GeneratedMessage
       return super.mergeUnknownFields(unknownFields);
     }
 
+
     // @@protoc_insertion_point(builder_scope:rsh.server.protocol.HandshakeRequest)
   }
 
   // @@protoc_insertion_point(class_scope:rsh.server.protocol.HandshakeRequest)
   private static final org.prlprg.server.protocol.HandshakeRequest DEFAULT_INSTANCE;
-
   static {
     DEFAULT_INSTANCE = new org.prlprg.server.protocol.HandshakeRequest();
   }
@@ -1046,16 +999,16 @@ public final class HandshakeRequest extends com.google.protobuf.GeneratedMessage
     return DEFAULT_INSTANCE;
   }
 
-  private static final com.google.protobuf.Parser<HandshakeRequest> PARSER =
-      new com.google.protobuf.AbstractParser<HandshakeRequest>() {
-        @java.lang.Override
-        public HandshakeRequest parsePartialFrom(
-            com.google.protobuf.CodedInputStream input,
-            com.google.protobuf.ExtensionRegistryLite extensionRegistry)
-            throws com.google.protobuf.InvalidProtocolBufferException {
-          return new HandshakeRequest(input, extensionRegistry);
-        }
-      };
+  private static final com.google.protobuf.Parser<HandshakeRequest>
+      PARSER = new com.google.protobuf.AbstractParser<HandshakeRequest>() {
+    @java.lang.Override
+    public HandshakeRequest parsePartialFrom(
+        com.google.protobuf.CodedInputStream input,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws com.google.protobuf.InvalidProtocolBufferException {
+      return new HandshakeRequest(input, extensionRegistry);
+    }
+  };
 
   public static com.google.protobuf.Parser<HandshakeRequest> parser() {
     return PARSER;
@@ -1070,4 +1023,6 @@ public final class HandshakeRequest extends com.google.protobuf.GeneratedMessage
   public org.prlprg.server.protocol.HandshakeRequest getDefaultInstanceForType() {
     return DEFAULT_INSTANCE;
   }
+
 }
+

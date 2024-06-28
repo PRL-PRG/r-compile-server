@@ -73,7 +73,7 @@ public class Main {
     try {
       var name = compile.getName();
       var closure = deserialize(new ByteArrayInputStream(compile.getClosure().toByteArray()));
-      var compiledClosure = jit.execute(name, closure);
+      var compiledClosure = jit.execute(name, closure, compile.getCcOptimization());
 
       var result =
           CompiledFunction.newBuilder()

@@ -19,7 +19,7 @@ public class JITService {
     this.rsession = rsession;
   }
 
-  public CompiledFunction execute(String name, CloSXP closure)
+  public CompiledFunction execute(String name, CloSXP closure, int ccOptimization)
       throws IOException, InterruptedException {
     logger.fine("Compiling closure: " + name + "\n" + closure + "\n");
 
@@ -34,7 +34,7 @@ public class JITService {
     // var output = new File("/tmp/jit.o");
     var output = File.createTempFile("ofile", ".o");
 
-    RshCompiler.getInstance().compile(input, output);
+    RshCompiler.getInstance().compile(input, output, ccOptimization);
 
     var res = Files.asByteSource(output).read();
 

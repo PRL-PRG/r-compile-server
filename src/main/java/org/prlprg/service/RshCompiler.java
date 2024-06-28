@@ -17,7 +17,6 @@ public class RshCompiler {
           "-DNDEBUG",
           "-DR_NO_REMAP",
           "-I.",
-          //          "-I/usr/local/include",
           "-I" + INCLUDE_PATH,
           "-fpic",
           "-march=x86-64",
@@ -60,10 +59,15 @@ public class RshCompiler {
         .compile();
   }
 
-  public void compile(File input, File output) throws IOException, InterruptedException {
+  public void compile(File input, File output, int ccOptimization)
+      throws IOException, InterruptedException {
     logger.fine("Compiling input: " + input + ", output: " + output);
 
-    var builder = new CCCompilationBuilder(input, output).flags(COMPILER_FLAGS).flag("-c");
+    var builder =
+        new CCCompilationBuilder(input, output)
+            .flags(COMPILER_FLAGS)
+            .flag("-c")
+            .flag("-O" + ccOptimization);
     var time = System.currentTimeMillis();
     builder.compile();
     time = System.currentTimeMillis() - time;

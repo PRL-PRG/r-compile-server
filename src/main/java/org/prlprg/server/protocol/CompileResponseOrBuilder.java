@@ -3,40 +3,35 @@
 
 package org.prlprg.server.protocol;
 
-public interface CompileResponseOrBuilder
-    extends
+public interface CompileResponseOrBuilder extends
     // @@protoc_insertion_point(interface_extends:rsh.server.protocol.CompileResponse)
     com.google.protobuf.MessageOrBuilder {
 
   /**
    * <code>string failure = 2;</code>
-   *
    * @return The failure.
    */
   java.lang.String getFailure();
-
   /**
    * <code>string failure = 2;</code>
-   *
    * @return The bytes for failure.
    */
-  com.google.protobuf.ByteString getFailureBytes();
+  com.google.protobuf.ByteString
+      getFailureBytes();
 
   /**
    * <code>.rsh.server.protocol.CompiledFunction result = 3;</code>
-   *
    * @return Whether the result field is set.
    */
   boolean hasResult();
-
   /**
    * <code>.rsh.server.protocol.CompiledFunction result = 3;</code>
-   *
    * @return The result.
    */
   org.prlprg.server.protocol.CompiledFunction getResult();
-
-  /** <code>.rsh.server.protocol.CompiledFunction result = 3;</code> */
+  /**
+   * <code>.rsh.server.protocol.CompiledFunction result = 3;</code>
+   */
   org.prlprg.server.protocol.CompiledFunctionOrBuilder getResultOrBuilder();
 
   public org.prlprg.server.protocol.CompileResponse.DataCase getDataCase();

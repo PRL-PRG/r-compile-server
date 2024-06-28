@@ -1,6 +1,9 @@
 package org.prlprg.bc;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Set;
 import javax.annotation.Nullable;
 import org.prlprg.sexp.*;
 
@@ -14,6 +17,10 @@ public sealed interface BcInstr {
   /** The instruction's operation. */
   BcOp op();
 
+  default Collection<BcLabel> labels() {
+    return Collections.emptySet();
+  }
+
   record Return() implements BcInstr {
     @Override
     public BcOp op() {
@@ -26,12 +33,22 @@ public sealed interface BcInstr {
     public BcOp op() {
       return BcOp.GOTO;
     }
+
+    @Override
+    public Collection<BcLabel> labels() {
+      return Set.of(label);
+    }
   }
 
   record BrIfNot(ConstPool.Idx<LangSXP> ast, BcLabel label) implements BcInstr {
     @Override
     public BcOp op() {
       return BcOp.BRIFNOT;
+    }
+
+    @Override
+    public Collection<BcLabel> labels() {
+      return Set.of(label);
     }
   }
 

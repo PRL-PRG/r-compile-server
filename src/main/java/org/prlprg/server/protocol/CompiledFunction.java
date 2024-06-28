@@ -3,18 +3,18 @@
 
 package org.prlprg.server.protocol;
 
-/** Protobuf type {@code rsh.server.protocol.CompiledFunction} */
-public final class CompiledFunction extends com.google.protobuf.GeneratedMessageV3
-    implements
+/**
+ * Protobuf type {@code rsh.server.protocol.CompiledFunction}
+ */
+public final class CompiledFunction extends
+    com.google.protobuf.GeneratedMessageV3 implements
     // @@protoc_insertion_point(message_implements:rsh.server.protocol.CompiledFunction)
     CompiledFunctionOrBuilder {
-  private static final long serialVersionUID = 0L;
-
+private static final long serialVersionUID = 0L;
   // Use CompiledFunction.newBuilder() to construct.
   private CompiledFunction(com.google.protobuf.GeneratedMessageV3.Builder<?> builder) {
     super(builder);
   }
-
   private CompiledFunction() {
     name_ = "";
     nativeCode_ = com.google.protobuf.ByteString.EMPTY;
@@ -23,15 +23,16 @@ public final class CompiledFunction extends com.google.protobuf.GeneratedMessage
 
   @java.lang.Override
   @SuppressWarnings({"unused"})
-  protected java.lang.Object newInstance(UnusedPrivateParameter unused) {
+  protected java.lang.Object newInstance(
+      UnusedPrivateParameter unused) {
     return new CompiledFunction();
   }
 
   @java.lang.Override
-  public final com.google.protobuf.UnknownFieldSet getUnknownFields() {
+  public final com.google.protobuf.UnknownFieldSet
+  getUnknownFields() {
     return this.unknownFields;
   }
-
   private CompiledFunction(
       com.google.protobuf.CodedInputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
@@ -50,63 +51,58 @@ public final class CompiledFunction extends com.google.protobuf.GeneratedMessage
           case 0:
             done = true;
             break;
-          case 18:
-            {
-              java.lang.String s = input.readStringRequireUtf8();
+          case 18: {
+            java.lang.String s = input.readStringRequireUtf8();
 
-              name_ = s;
-              break;
+            name_ = s;
+            break;
+          }
+          case 26: {
+
+            nativeCode_ = input.readBytes();
+            break;
+          }
+          case 34: {
+
+            constants_ = input.readBytes();
+            break;
+          }
+          default: {
+            if (!parseUnknownField(
+                input, unknownFields, extensionRegistry, tag)) {
+              done = true;
             }
-          case 26:
-            {
-              nativeCode_ = input.readBytes();
-              break;
-            }
-          case 34:
-            {
-              constants_ = input.readBytes();
-              break;
-            }
-          default:
-            {
-              if (!parseUnknownField(input, unknownFields, extensionRegistry, tag)) {
-                done = true;
-              }
-              break;
-            }
+            break;
+          }
         }
       }
     } catch (com.google.protobuf.InvalidProtocolBufferException e) {
       throw e.setUnfinishedMessage(this);
     } catch (java.io.IOException e) {
-      throw new com.google.protobuf.InvalidProtocolBufferException(e).setUnfinishedMessage(this);
+      throw new com.google.protobuf.InvalidProtocolBufferException(
+          e).setUnfinishedMessage(this);
     } finally {
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
     }
   }
-
-  public static final com.google.protobuf.Descriptors.Descriptor getDescriptor() {
-    return org.prlprg.server.protocol.Protocol
-        .internal_static_rsh_server_protocol_CompiledFunction_descriptor;
+  public static final com.google.protobuf.Descriptors.Descriptor
+      getDescriptor() {
+    return org.prlprg.server.protocol.Protocol.internal_static_rsh_server_protocol_CompiledFunction_descriptor;
   }
 
   @java.lang.Override
   protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internalGetFieldAccessorTable() {
-    return org.prlprg.server.protocol.Protocol
-        .internal_static_rsh_server_protocol_CompiledFunction_fieldAccessorTable
+    return org.prlprg.server.protocol.Protocol.internal_static_rsh_server_protocol_CompiledFunction_fieldAccessorTable
         .ensureFieldAccessorsInitialized(
-            org.prlprg.server.protocol.CompiledFunction.class,
-            org.prlprg.server.protocol.CompiledFunction.Builder.class);
+            org.prlprg.server.protocol.CompiledFunction.class, org.prlprg.server.protocol.CompiledFunction.Builder.class);
   }
 
   public static final int NAME_FIELD_NUMBER = 2;
   private volatile java.lang.Object name_;
-
   /**
    * <code>string name = 2;</code>
-   *
    * @return The name.
    */
   @java.lang.Override
@@ -115,24 +111,25 @@ public final class CompiledFunction extends com.google.protobuf.GeneratedMessage
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = (com.google.protobuf.ByteString) ref;
+      com.google.protobuf.ByteString bs = 
+          (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       name_ = s;
       return s;
     }
   }
-
   /**
    * <code>string name = 2;</code>
-   *
    * @return The bytes for name.
    */
   @java.lang.Override
-  public com.google.protobuf.ByteString getNameBytes() {
+  public com.google.protobuf.ByteString
+      getNameBytes() {
     java.lang.Object ref = name_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b =
-          com.google.protobuf.ByteString.copyFromUtf8((java.lang.String) ref);
+      com.google.protobuf.ByteString b = 
+          com.google.protobuf.ByteString.copyFromUtf8(
+              (java.lang.String) ref);
       name_ = b;
       return b;
     } else {
@@ -142,16 +139,12 @@ public final class CompiledFunction extends com.google.protobuf.GeneratedMessage
 
   public static final int NATIVE_CODE_FIELD_NUMBER = 3;
   private com.google.protobuf.ByteString nativeCode_;
-
   /**
-   *
-   *
    * <pre>
    * content of the object file as spilled by the compiler
    * </pre>
    *
    * <code>bytes native_code = 3;</code>
-   *
    * @return The nativeCode.
    */
   @java.lang.Override
@@ -161,16 +154,12 @@ public final class CompiledFunction extends com.google.protobuf.GeneratedMessage
 
   public static final int CONSTANTS_FIELD_NUMBER = 4;
   private com.google.protobuf.ByteString constants_;
-
   /**
-   *
-   *
    * <pre>
    * the constants used by the native code as VECSXP
    * </pre>
    *
    * <code>bytes constants = 4;</code>
-   *
    * @return The constants.
    */
   @java.lang.Override
@@ -179,7 +168,6 @@ public final class CompiledFunction extends com.google.protobuf.GeneratedMessage
   }
 
   private byte memoizedIsInitialized = -1;
-
   @java.lang.Override
   public final boolean isInitialized() {
     byte isInitialized = memoizedIsInitialized;
@@ -191,7 +179,8 @@ public final class CompiledFunction extends com.google.protobuf.GeneratedMessage
   }
 
   @java.lang.Override
-  public void writeTo(com.google.protobuf.CodedOutputStream output) throws java.io.IOException {
+  public void writeTo(com.google.protobuf.CodedOutputStream output)
+                      throws java.io.IOException {
     if (!getNameBytes().isEmpty()) {
       com.google.protobuf.GeneratedMessageV3.writeString(output, 2, name_);
     }
@@ -214,10 +203,12 @@ public final class CompiledFunction extends com.google.protobuf.GeneratedMessage
       size += com.google.protobuf.GeneratedMessageV3.computeStringSize(2, name_);
     }
     if (!nativeCode_.isEmpty()) {
-      size += com.google.protobuf.CodedOutputStream.computeBytesSize(3, nativeCode_);
+      size += com.google.protobuf.CodedOutputStream
+        .computeBytesSize(3, nativeCode_);
     }
     if (!constants_.isEmpty()) {
-      size += com.google.protobuf.CodedOutputStream.computeBytesSize(4, constants_);
+      size += com.google.protobuf.CodedOutputStream
+        .computeBytesSize(4, constants_);
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -227,17 +218,19 @@ public final class CompiledFunction extends com.google.protobuf.GeneratedMessage
   @java.lang.Override
   public boolean equals(final java.lang.Object obj) {
     if (obj == this) {
-      return true;
+     return true;
     }
     if (!(obj instanceof org.prlprg.server.protocol.CompiledFunction)) {
       return super.equals(obj);
     }
-    org.prlprg.server.protocol.CompiledFunction other =
-        (org.prlprg.server.protocol.CompiledFunction) obj;
+    org.prlprg.server.protocol.CompiledFunction other = (org.prlprg.server.protocol.CompiledFunction) obj;
 
-    if (!getName().equals(other.getName())) return false;
-    if (!getNativeCode().equals(other.getNativeCode())) return false;
-    if (!getConstants().equals(other.getConstants())) return false;
+    if (!getName()
+        .equals(other.getName())) return false;
+    if (!getNativeCode()
+        .equals(other.getNativeCode())) return false;
+    if (!getConstants()
+        .equals(other.getConstants())) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
@@ -260,120 +253,114 @@ public final class CompiledFunction extends com.google.protobuf.GeneratedMessage
     return hash;
   }
 
-  public static org.prlprg.server.protocol.CompiledFunction parseFrom(java.nio.ByteBuffer data)
+  public static org.prlprg.server.protocol.CompiledFunction parseFrom(
+      java.nio.ByteBuffer data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-
   public static org.prlprg.server.protocol.CompiledFunction parseFrom(
-      java.nio.ByteBuffer data, com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+      java.nio.ByteBuffer data,
+      com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-
   public static org.prlprg.server.protocol.CompiledFunction parseFrom(
       com.google.protobuf.ByteString data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-
   public static org.prlprg.server.protocol.CompiledFunction parseFrom(
       com.google.protobuf.ByteString data,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-
   public static org.prlprg.server.protocol.CompiledFunction parseFrom(byte[] data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-
   public static org.prlprg.server.protocol.CompiledFunction parseFrom(
-      byte[] data, com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+      byte[] data,
+      com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-
   public static org.prlprg.server.protocol.CompiledFunction parseFrom(java.io.InputStream input)
       throws java.io.IOException {
-    return com.google.protobuf.GeneratedMessageV3.parseWithIOException(PARSER, input);
+    return com.google.protobuf.GeneratedMessageV3
+        .parseWithIOException(PARSER, input);
   }
-
   public static org.prlprg.server.protocol.CompiledFunction parseFrom(
-      java.io.InputStream input, com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+      java.io.InputStream input,
+      com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
-    return com.google.protobuf.GeneratedMessageV3.parseWithIOException(
-        PARSER, input, extensionRegistry);
+    return com.google.protobuf.GeneratedMessageV3
+        .parseWithIOException(PARSER, input, extensionRegistry);
   }
-
-  public static org.prlprg.server.protocol.CompiledFunction parseDelimitedFrom(
-      java.io.InputStream input) throws java.io.IOException {
-    return com.google.protobuf.GeneratedMessageV3.parseDelimitedWithIOException(PARSER, input);
-  }
-
-  public static org.prlprg.server.protocol.CompiledFunction parseDelimitedFrom(
-      java.io.InputStream input, com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+  public static org.prlprg.server.protocol.CompiledFunction parseDelimitedFrom(java.io.InputStream input)
       throws java.io.IOException {
-    return com.google.protobuf.GeneratedMessageV3.parseDelimitedWithIOException(
-        PARSER, input, extensionRegistry);
+    return com.google.protobuf.GeneratedMessageV3
+        .parseDelimitedWithIOException(PARSER, input);
   }
-
+  public static org.prlprg.server.protocol.CompiledFunction parseDelimitedFrom(
+      java.io.InputStream input,
+      com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+      throws java.io.IOException {
+    return com.google.protobuf.GeneratedMessageV3
+        .parseDelimitedWithIOException(PARSER, input, extensionRegistry);
+  }
   public static org.prlprg.server.protocol.CompiledFunction parseFrom(
-      com.google.protobuf.CodedInputStream input) throws java.io.IOException {
-    return com.google.protobuf.GeneratedMessageV3.parseWithIOException(PARSER, input);
+      com.google.protobuf.CodedInputStream input)
+      throws java.io.IOException {
+    return com.google.protobuf.GeneratedMessageV3
+        .parseWithIOException(PARSER, input);
   }
-
   public static org.prlprg.server.protocol.CompiledFunction parseFrom(
       com.google.protobuf.CodedInputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
-    return com.google.protobuf.GeneratedMessageV3.parseWithIOException(
-        PARSER, input, extensionRegistry);
+    return com.google.protobuf.GeneratedMessageV3
+        .parseWithIOException(PARSER, input, extensionRegistry);
   }
 
   @java.lang.Override
-  public Builder newBuilderForType() {
-    return newBuilder();
-  }
-
+  public Builder newBuilderForType() { return newBuilder(); }
   public static Builder newBuilder() {
     return DEFAULT_INSTANCE.toBuilder();
   }
-
   public static Builder newBuilder(org.prlprg.server.protocol.CompiledFunction prototype) {
     return DEFAULT_INSTANCE.toBuilder().mergeFrom(prototype);
   }
-
   @java.lang.Override
   public Builder toBuilder() {
-    return this == DEFAULT_INSTANCE ? new Builder() : new Builder().mergeFrom(this);
+    return this == DEFAULT_INSTANCE
+        ? new Builder() : new Builder().mergeFrom(this);
   }
 
   @java.lang.Override
-  protected Builder newBuilderForType(com.google.protobuf.GeneratedMessageV3.BuilderParent parent) {
+  protected Builder newBuilderForType(
+      com.google.protobuf.GeneratedMessageV3.BuilderParent parent) {
     Builder builder = new Builder(parent);
     return builder;
   }
-
-  /** Protobuf type {@code rsh.server.protocol.CompiledFunction} */
-  public static final class Builder extends com.google.protobuf.GeneratedMessageV3.Builder<Builder>
-      implements
+  /**
+   * Protobuf type {@code rsh.server.protocol.CompiledFunction}
+   */
+  public static final class Builder extends
+      com.google.protobuf.GeneratedMessageV3.Builder<Builder> implements
       // @@protoc_insertion_point(builder_implements:rsh.server.protocol.CompiledFunction)
       org.prlprg.server.protocol.CompiledFunctionOrBuilder {
-    public static final com.google.protobuf.Descriptors.Descriptor getDescriptor() {
-      return org.prlprg.server.protocol.Protocol
-          .internal_static_rsh_server_protocol_CompiledFunction_descriptor;
+    public static final com.google.protobuf.Descriptors.Descriptor
+        getDescriptor() {
+      return org.prlprg.server.protocol.Protocol.internal_static_rsh_server_protocol_CompiledFunction_descriptor;
     }
 
     @java.lang.Override
     protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
         internalGetFieldAccessorTable() {
-      return org.prlprg.server.protocol.Protocol
-          .internal_static_rsh_server_protocol_CompiledFunction_fieldAccessorTable
+      return org.prlprg.server.protocol.Protocol.internal_static_rsh_server_protocol_CompiledFunction_fieldAccessorTable
           .ensureFieldAccessorsInitialized(
-              org.prlprg.server.protocol.CompiledFunction.class,
-              org.prlprg.server.protocol.CompiledFunction.Builder.class);
+              org.prlprg.server.protocol.CompiledFunction.class, org.prlprg.server.protocol.CompiledFunction.Builder.class);
     }
 
     // Construct using org.prlprg.server.protocol.CompiledFunction.newBuilder()
@@ -381,15 +368,16 @@ public final class CompiledFunction extends com.google.protobuf.GeneratedMessage
       maybeForceBuilderInitialization();
     }
 
-    private Builder(com.google.protobuf.GeneratedMessageV3.BuilderParent parent) {
+    private Builder(
+        com.google.protobuf.GeneratedMessageV3.BuilderParent parent) {
       super(parent);
       maybeForceBuilderInitialization();
     }
-
     private void maybeForceBuilderInitialization() {
-      if (com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders) {}
+      if (com.google.protobuf.GeneratedMessageV3
+              .alwaysUseFieldBuilders) {
+      }
     }
-
     @java.lang.Override
     public Builder clear() {
       super.clear();
@@ -403,9 +391,9 @@ public final class CompiledFunction extends com.google.protobuf.GeneratedMessage
     }
 
     @java.lang.Override
-    public com.google.protobuf.Descriptors.Descriptor getDescriptorForType() {
-      return org.prlprg.server.protocol.Protocol
-          .internal_static_rsh_server_protocol_CompiledFunction_descriptor;
+    public com.google.protobuf.Descriptors.Descriptor
+        getDescriptorForType() {
+      return org.prlprg.server.protocol.Protocol.internal_static_rsh_server_protocol_CompiledFunction_descriptor;
     }
 
     @java.lang.Override
@@ -424,8 +412,7 @@ public final class CompiledFunction extends com.google.protobuf.GeneratedMessage
 
     @java.lang.Override
     public org.prlprg.server.protocol.CompiledFunction buildPartial() {
-      org.prlprg.server.protocol.CompiledFunction result =
-          new org.prlprg.server.protocol.CompiledFunction(this);
+      org.prlprg.server.protocol.CompiledFunction result = new org.prlprg.server.protocol.CompiledFunction(this);
       result.name_ = name_;
       result.nativeCode_ = nativeCode_;
       result.constants_ = constants_;
@@ -437,39 +424,38 @@ public final class CompiledFunction extends com.google.protobuf.GeneratedMessage
     public Builder clone() {
       return super.clone();
     }
-
     @java.lang.Override
     public Builder setField(
-        com.google.protobuf.Descriptors.FieldDescriptor field, java.lang.Object value) {
+        com.google.protobuf.Descriptors.FieldDescriptor field,
+        java.lang.Object value) {
       return super.setField(field, value);
     }
-
     @java.lang.Override
-    public Builder clearField(com.google.protobuf.Descriptors.FieldDescriptor field) {
+    public Builder clearField(
+        com.google.protobuf.Descriptors.FieldDescriptor field) {
       return super.clearField(field);
     }
-
     @java.lang.Override
-    public Builder clearOneof(com.google.protobuf.Descriptors.OneofDescriptor oneof) {
+    public Builder clearOneof(
+        com.google.protobuf.Descriptors.OneofDescriptor oneof) {
       return super.clearOneof(oneof);
     }
-
     @java.lang.Override
     public Builder setRepeatedField(
-        com.google.protobuf.Descriptors.FieldDescriptor field, int index, java.lang.Object value) {
+        com.google.protobuf.Descriptors.FieldDescriptor field,
+        int index, java.lang.Object value) {
       return super.setRepeatedField(field, index, value);
     }
-
     @java.lang.Override
     public Builder addRepeatedField(
-        com.google.protobuf.Descriptors.FieldDescriptor field, java.lang.Object value) {
+        com.google.protobuf.Descriptors.FieldDescriptor field,
+        java.lang.Object value) {
       return super.addRepeatedField(field, value);
     }
-
     @java.lang.Override
     public Builder mergeFrom(com.google.protobuf.Message other) {
       if (other instanceof org.prlprg.server.protocol.CompiledFunction) {
-        return mergeFrom((org.prlprg.server.protocol.CompiledFunction) other);
+        return mergeFrom((org.prlprg.server.protocol.CompiledFunction)other);
       } else {
         super.mergeFrom(other);
         return this;
@@ -518,16 +504,15 @@ public final class CompiledFunction extends com.google.protobuf.GeneratedMessage
     }
 
     private java.lang.Object name_ = "";
-
     /**
      * <code>string name = 2;</code>
-     *
      * @return The name.
      */
     public java.lang.String getName() {
       java.lang.Object ref = name_;
       if (!(ref instanceof java.lang.String)) {
-        com.google.protobuf.ByteString bs = (com.google.protobuf.ByteString) ref;
+        com.google.protobuf.ByteString bs =
+            (com.google.protobuf.ByteString) ref;
         java.lang.String s = bs.toStringUtf8();
         name_ = s;
         return s;
@@ -535,187 +520,159 @@ public final class CompiledFunction extends com.google.protobuf.GeneratedMessage
         return (java.lang.String) ref;
       }
     }
-
     /**
      * <code>string name = 2;</code>
-     *
      * @return The bytes for name.
      */
-    public com.google.protobuf.ByteString getNameBytes() {
+    public com.google.protobuf.ByteString
+        getNameBytes() {
       java.lang.Object ref = name_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b =
-            com.google.protobuf.ByteString.copyFromUtf8((java.lang.String) ref);
+        com.google.protobuf.ByteString b = 
+            com.google.protobuf.ByteString.copyFromUtf8(
+                (java.lang.String) ref);
         name_ = b;
         return b;
       } else {
         return (com.google.protobuf.ByteString) ref;
       }
     }
-
     /**
      * <code>string name = 2;</code>
-     *
      * @param value The name to set.
      * @return This builder for chaining.
      */
-    public Builder setName(java.lang.String value) {
+    public Builder setName(
+        java.lang.String value) {
       if (value == null) {
-        throw new NullPointerException();
-      }
-
+    throw new NullPointerException();
+  }
+  
       name_ = value;
       onChanged();
       return this;
     }
-
     /**
      * <code>string name = 2;</code>
-     *
      * @return This builder for chaining.
      */
     public Builder clearName() {
-
+      
       name_ = getDefaultInstance().getName();
       onChanged();
       return this;
     }
-
     /**
      * <code>string name = 2;</code>
-     *
      * @param value The bytes for name to set.
      * @return This builder for chaining.
      */
-    public Builder setNameBytes(com.google.protobuf.ByteString value) {
+    public Builder setNameBytes(
+        com.google.protobuf.ByteString value) {
       if (value == null) {
-        throw new NullPointerException();
-      }
-      checkByteStringIsUtf8(value);
-
+    throw new NullPointerException();
+  }
+  checkByteStringIsUtf8(value);
+      
       name_ = value;
       onChanged();
       return this;
     }
 
     private com.google.protobuf.ByteString nativeCode_ = com.google.protobuf.ByteString.EMPTY;
-
     /**
-     *
-     *
      * <pre>
      * content of the object file as spilled by the compiler
      * </pre>
      *
      * <code>bytes native_code = 3;</code>
-     *
      * @return The nativeCode.
      */
     @java.lang.Override
     public com.google.protobuf.ByteString getNativeCode() {
       return nativeCode_;
     }
-
     /**
-     *
-     *
      * <pre>
      * content of the object file as spilled by the compiler
      * </pre>
      *
      * <code>bytes native_code = 3;</code>
-     *
      * @param value The nativeCode to set.
      * @return This builder for chaining.
      */
     public Builder setNativeCode(com.google.protobuf.ByteString value) {
       if (value == null) {
-        throw new NullPointerException();
-      }
-
+    throw new NullPointerException();
+  }
+  
       nativeCode_ = value;
       onChanged();
       return this;
     }
-
     /**
-     *
-     *
      * <pre>
      * content of the object file as spilled by the compiler
      * </pre>
      *
      * <code>bytes native_code = 3;</code>
-     *
      * @return This builder for chaining.
      */
     public Builder clearNativeCode() {
-
+      
       nativeCode_ = getDefaultInstance().getNativeCode();
       onChanged();
       return this;
     }
 
     private com.google.protobuf.ByteString constants_ = com.google.protobuf.ByteString.EMPTY;
-
     /**
-     *
-     *
      * <pre>
      * the constants used by the native code as VECSXP
      * </pre>
      *
      * <code>bytes constants = 4;</code>
-     *
      * @return The constants.
      */
     @java.lang.Override
     public com.google.protobuf.ByteString getConstants() {
       return constants_;
     }
-
     /**
-     *
-     *
      * <pre>
      * the constants used by the native code as VECSXP
      * </pre>
      *
      * <code>bytes constants = 4;</code>
-     *
      * @param value The constants to set.
      * @return This builder for chaining.
      */
     public Builder setConstants(com.google.protobuf.ByteString value) {
       if (value == null) {
-        throw new NullPointerException();
-      }
-
+    throw new NullPointerException();
+  }
+  
       constants_ = value;
       onChanged();
       return this;
     }
-
     /**
-     *
-     *
      * <pre>
      * the constants used by the native code as VECSXP
      * </pre>
      *
      * <code>bytes constants = 4;</code>
-     *
      * @return This builder for chaining.
      */
     public Builder clearConstants() {
-
+      
       constants_ = getDefaultInstance().getConstants();
       onChanged();
       return this;
     }
-
     @java.lang.Override
-    public final Builder setUnknownFields(final com.google.protobuf.UnknownFieldSet unknownFields) {
+    public final Builder setUnknownFields(
+        final com.google.protobuf.UnknownFieldSet unknownFields) {
       return super.setUnknownFields(unknownFields);
     }
 
@@ -725,12 +682,12 @@ public final class CompiledFunction extends com.google.protobuf.GeneratedMessage
       return super.mergeUnknownFields(unknownFields);
     }
 
+
     // @@protoc_insertion_point(builder_scope:rsh.server.protocol.CompiledFunction)
   }
 
   // @@protoc_insertion_point(class_scope:rsh.server.protocol.CompiledFunction)
   private static final org.prlprg.server.protocol.CompiledFunction DEFAULT_INSTANCE;
-
   static {
     DEFAULT_INSTANCE = new org.prlprg.server.protocol.CompiledFunction();
   }
@@ -739,16 +696,16 @@ public final class CompiledFunction extends com.google.protobuf.GeneratedMessage
     return DEFAULT_INSTANCE;
   }
 
-  private static final com.google.protobuf.Parser<CompiledFunction> PARSER =
-      new com.google.protobuf.AbstractParser<CompiledFunction>() {
-        @java.lang.Override
-        public CompiledFunction parsePartialFrom(
-            com.google.protobuf.CodedInputStream input,
-            com.google.protobuf.ExtensionRegistryLite extensionRegistry)
-            throws com.google.protobuf.InvalidProtocolBufferException {
-          return new CompiledFunction(input, extensionRegistry);
-        }
-      };
+  private static final com.google.protobuf.Parser<CompiledFunction>
+      PARSER = new com.google.protobuf.AbstractParser<CompiledFunction>() {
+    @java.lang.Override
+    public CompiledFunction parsePartialFrom(
+        com.google.protobuf.CodedInputStream input,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws com.google.protobuf.InvalidProtocolBufferException {
+      return new CompiledFunction(input, extensionRegistry);
+    }
+  };
 
   public static com.google.protobuf.Parser<CompiledFunction> parser() {
     return PARSER;
@@ -763,4 +720,6 @@ public final class CompiledFunction extends com.google.protobuf.GeneratedMessage
   public org.prlprg.server.protocol.CompiledFunction getDefaultInstanceForType() {
     return DEFAULT_INSTANCE;
   }
+
 }
+

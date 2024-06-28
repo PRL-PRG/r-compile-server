@@ -33,11 +33,11 @@ rsh_jit_disable <- function() {
 #'
 #' @param f closure to be compiled
 #' @export
-rsh_compile <- function(f, name) {
+rsh_compile <- function(f, name, opt_level = 0L) {
   if (missing(name)) {
     name <- as.character(substitute(f))
   }
-  invisible(.Call(C_compile_fun, f, name))
+  invisible(.Call(C_compile_fun, f, name, opt_level))
 }
 
 #' Compile given closure
@@ -48,12 +48,12 @@ rsh_compile <- function(f, name) {
 #' @param options list of options
 #' @return compiled closure
 #' @export
-rsh_cmpfun <- function(f, options) {
+rsh_cmpfun <- function(f, options=list(optimize=0L)) {
   # make a copy - the compiler::cmpfun takes a function and returns
   # a new one with BCSXP body (if possible)
   g <- f
   # compile the copy
-  rsh_compile(g, as.character(substitute(f)))
+  rsh_compile(g, as.character(substitute(f)), options$optimize)
   g
 }
 

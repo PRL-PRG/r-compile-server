@@ -6,6 +6,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.prlprg.bc.Bc;
 import org.prlprg.bc.BcInstr;
+import org.prlprg.bc.BcLabel;
 import org.prlprg.bc.ConstPool;
 import org.prlprg.sexp.*;
 
@@ -54,7 +55,7 @@ class ByteCodeStack {
   }
 
   public String set(int i, String expr, boolean protect) {
-    assert(i >= 0 && i <= max);
+    assert i >= 0 && i <= max : "Invalid index: %d (max: %d)".formatted(i, max);
 
     if (protect) {
       expr = protect(i, expr);
@@ -73,12 +74,13 @@ public class BC2CCompiler {
   private static final String NAME_ENV = "ENV";
   private static final String NAME_CP = "CP";
   private static final String CONST_GET = "CONST";
-  private static final Value NIL = new Value("R_NilValue", false);
+  private static final Value VAL_NULL = new Value("R_NilValue", false);
 
   private final String name;
   private final Bc bc;
   private final Map<Integer, Constant> constants = new LinkedHashMap<>();
   private final ByteCodeStack stack = new ByteCodeStack();
+  private final Set<Integer> labels = new HashSet<>();
 
   private final CFile file;
   private CFunction fun;
@@ -93,10 +95,19 @@ public class BC2CCompiler {
   }
 
   public CFile compile() {
-    bc.code().forEach(this::compile);
+    fillLabels();
+    var code = bc.code();
+    for (int i = 0; i<code.size(); i++) {
+      compile(code.get(i), i);
+    }
+
     compileRegisters();
     preamble();
     return file;
+  }
+
+  private void fillLabels() {
+    bc.code().forEach(x -> x.labels().forEach(l -> labels.add(l.getTarget())));
   }
 
   public List<SEXP> constants() {
@@ -115,8 +126,12 @@ public class BC2CCompiler {
             CONST_GET, NAME_CP));
   }
 
-  private void compile(BcInstr instr) {
+  private void compile(BcInstr instr, int instrIdx) {
     body.comment("begin: " + instr);
+    if (labels.contains(instrIdx)) {
+      body.line("%s:".formatted(label(instrIdx)));
+    }
+
     switch (instr) {
       case BcInstr.SetVar(var idx) -> compileSetVar(idx);
       case BcInstr.LdConst(var idx) -> compilerLdConst(idx);
@@ -129,6 +144,11 @@ public class BC2CCompiler {
       case BcInstr.CallBuiltin(var idx) -> compileCallBuiltin(idx);
       case BcInstr.PushArg() -> compilePushArg();
       case BcInstr.SetTag(var idx) -> compilerSetTag(idx);
+      case BcInstr.Lt(var ignored) -> compileLt();
+      case BcInstr.BrIfNot(var call, var label) -> compileBrIfNot(call, label);
+      case BcInstr.Goto(var label) -> compileGoto(label);
+      case BcInstr.Invisible() -> compileInvisible();
+      case BcInstr.LdNull() -> compileLdNull();
 
       default ->
           throw new UnsupportedOperationException(instr + ": not supported");
@@ -136,6 +156,30 @@ public class BC2CCompiler {
     }
     body.comment("end: " + instr);
     body.nl();
+  }
+
+  private void compileLdNull() {
+    visible(true);
+    push(VAL_NULL);
+  }
+
+  private void compileInvisible() {
+    visible(false);
+  }
+
+  private void compileGoto(BcLabel label) {
+    body.line("goto %s;".formatted(label(label.getTarget())));
+  }
+
+  private void compileBrIfNot(ConstPool.Idx<LangSXP> call, BcLabel label) {
+    var curr = stack.curr(0);
+    var unprotect = stack.pop(1);
+    body.line("if (!Rsh_is_true(%s, %s)) { %s; goto %s; }".formatted(curr, constant(call), unprotect, label(label.getTarget())));
+    body.line(unprotect+";");
+  }
+
+  private void compileLt() {
+    popPush(2, "Rsh_fast_binary(LT, %s, %s)".formatted(stack.curr(-1), stack.curr(0)), true);
   }
 
   private void compilerSetTag(ConstPool.Idx<StrOrRegSymSXP> idx) {
@@ -176,18 +220,18 @@ public class BC2CCompiler {
   private void compileGetBuiltin(ConstPool.Idx<RegSymSXP> idx) {
     var name = bc.consts().get(idx).name();
     push("Rsh_get_builtin(\"%s\")".formatted(name));
-    push(NIL);
-    push(NIL);
+    push(VAL_NULL);
+    push(VAL_NULL);
   }
 
   private void compileSetVar(ConstPool.Idx<RegSymSXP> idx) {
-    body.line("Rf_defineVar(%s, %s, %s);".formatted(constant(idx), stack.curr(0), NAME_ENV));
+    body.line("Rsh_set_var(%s, %s, %s);".formatted(constant(idx), stack.curr(0), NAME_ENV));
   }
 
   private void compileReturn() {
     pop(1);
     assert stack.currIdx(0) == -1 : "Stack not empty (%d)".formatted(stack.currIdx(0));
-    body.line("return %s;", stack.curr(1));
+    body.line("return %s;".formatted(stack.curr(1)));
   }
 
   private void compileAdd() {
@@ -245,5 +289,14 @@ public class BC2CCompiler {
             });
 
     return "%s(%d)".formatted(CONST_GET, c.id());
+  }
+
+  private String label(int instrIndex) {
+    labels.add(instrIndex);
+    return "L%d".formatted(instrIndex);
+  }
+
+  private void visible(boolean visible) {
+    body.line("R_Visible = %s;".formatted(visible ? "TRUE" : "FALSE"));
   }
 }
