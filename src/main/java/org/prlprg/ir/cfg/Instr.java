@@ -14,12 +14,15 @@ import org.checkerframework.checker.index.qual.SameLen;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.ir.cfg.CFGEdit.MutateInstrArgs;
 import org.prlprg.ir.closure.CodeObject;
+import org.prlprg.ir.type.REffect;
 import org.prlprg.ir.type.REffects;
 import org.prlprg.ir.type.RType;
 import org.prlprg.ir.type.RTypes;
+import org.prlprg.ir.type.lattice.Troolean;
 import org.prlprg.sexp.SEXPType;
 import org.prlprg.util.Classes;
 import org.prlprg.util.Reflection;
+import org.prlprg.util.Streams;
 import org.prlprg.util.UnreachableError;
 
 /**
@@ -94,6 +97,14 @@ public sealed interface Instr extends InstrOrPhi permits Jump, Stmt {
   ImmutableList<Node> args();
 
   /**
+   * Returns the instruction's environment argument, or {@code null} if it cannot have one.
+   *
+   * <p>Instructions with elided environments, this will be non-null and {@link StaticEnv#ELIDED}.
+   */
+  @Nullable @IsEnv
+  RValue env();
+
+  /**
    * (A view of) the instruction's return values, which other nodes may depend on. If the
    * instruction produces a single value (may or may not be {@link RValue}), this will be itself. An
    * instruction may return multiple values, in which case this contains multiple nodes. "Void"
@@ -149,10 +160,12 @@ abstract sealed class InstrImpl<D extends InstrData<?>> extends InstrOrPhiImpl i
   private final Class<D> dataClass;
   private D data;
 
-  // These are both initialized in `verify`, which is called from the constructor, and doesn't
+  // These are all initialized in `verify`, which is called from the constructor, and doesn't
   // reference either before initializing them.
   @SuppressWarnings("NotNullFieldNotInitialized")
   private ImmutableList<Node> args;
+
+  private @Nullable @IsEnv RValue env;
 
   @SuppressWarnings("NotNullFieldNotInitialized")
   private REffects effects;
@@ -218,6 +231,11 @@ abstract sealed class InstrImpl<D extends InstrData<?>> extends InstrOrPhiImpl i
   }
 
   // @Override
+  public final @Nullable @IsEnv RValue env() {
+    return env;
+  }
+
+  // @Override
   @SuppressWarnings("unchecked")
   public final void replaceInArgs(Node old, Node replacement) {
     var oldData = data;
@@ -267,6 +285,33 @@ abstract sealed class InstrImpl<D extends InstrData<?>> extends InstrOrPhiImpl i
                       default -> throw new UnreachableError();
                     })
             .collect(ImmutableList.toImmutableList());
+  }
+
+  private void computeEnv() {
+    if (!(data instanceof Record r)) {
+      throw new AssertionError("`InstrData` must be a record");
+    }
+    var components = data.getClass().getRecordComponents();
+
+    env =
+        Arrays.stream(components)
+            .filter(cmp -> cmp.isAnnotationPresent(IsEnv.class))
+            .collect(
+                Streams.intoOneOrThrow(
+                    () ->
+                        new AssertionError(
+                            "`InstrData` can't have multiple fields with `@IsEnv` annotations")))
+            .map(
+                component -> {
+                  if (!(Reflection.getComponent(r, component) instanceof RValue env1)) {
+                    throw new AssertionError("`@IsEnv` annotation must be on an `RValue` field");
+                  }
+                  return env1;
+                })
+            .orElse(null);
+    if (env != null && env.isEnv() != Troolean.YES) {
+      throw new InstrVerifyException("value assigned to `@IsEnv` must be a guaranteed environment");
+    }
   }
 
   /**
@@ -381,12 +426,29 @@ abstract sealed class InstrImpl<D extends InstrData<?>> extends InstrOrPhiImpl i
   private void computeEffects() {
     var clazz = data().getClass();
     effects =
-        mergeComputed(
-            "effects",
-            data().computeEffects(),
-            computeEffectsFromAnnotation(
-                clazz.getAnnotation(EffectsAre.class),
-                clazz.getAnnotation(EffectsAreAribtrary.class)));
+        implicitlyFilterEffects(
+            mergeComputed(
+                "effects",
+                data().computeEffects(),
+                computeEffectsFromAnnotation(
+                    clazz.getAnnotation(EffectsAre.class),
+                    clazz.getAnnotation(EffectsAreAribtrary.class))));
+  }
+
+  /**
+   * Removes effects that, based on the instruction's data, clearly aren't in the instruction.
+   *
+   * <p>e.g. removes environment effects if the instruction's environment is elided.
+   */
+  private REffects implicitlyFilterEffects(REffects effects) {
+    if (env == StaticEnv.ELIDED) {
+      // ???: Can it do reflection without an environment?
+      effects =
+          effects.without(
+              REffect.ReadsEnvArg, REffect.WritesEnvArg, REffect.LeaksEnvArg, REffect.Reflection);
+    }
+
+    return effects;
   }
 
   // This method is boilerplate-y and defensive coding on purpose
@@ -439,6 +501,7 @@ abstract sealed class InstrImpl<D extends InstrData<?>> extends InstrOrPhiImpl i
     verifyNoNullableArgs();
     verifySameLenInData();
     computeArgs();
+    computeEnv();
     computeEffects();
     // TODO: also have annotations for if the RValue is a specific subclass?
     verifyRValueArgsAreOfCorrectTypes();

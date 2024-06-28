@@ -1,8 +1,10 @@
 package org.prlprg.optimizations;
 
+import static org.prlprg.AppConfig.OPTIMIZATION_LOG_LEVEL;
 import static org.prlprg.ir.analysis.PropertiesComputer.computeClosureVersionProperties;
 
 import java.util.logging.Logger;
+import org.prlprg.AppConfig.OptimizationLogLevel;
 import org.prlprg.ir.cfg.CFG;
 import org.prlprg.ir.closure.Closure;
 import org.prlprg.ir.closure.ClosureVersion;
@@ -24,16 +26,17 @@ public class Optimizer {
   /** Run the given optimization phases on a {@link ClosureVersion} with the given context. */
   static void optimize(
       ClosureVersion version, OptimizationContext context, OptimizationPhase... phases) {
-    logger.info(
+    log(
+        OptimizationLogLevel.CLOSURE,
         "Optimizing closure version " + version.closure().name() + "#" + version.index() + "...");
     for (var phase : phases) {
-      logger.info("- Phase " + phase.name() + "...");
+      log(OptimizationLogLevel.PHASE, "- Phase " + phase.name() + "...");
       for (var pass : phase.passes()) {
-        logger.info("  - Pass " + pass.name() + "...");
+        log(OptimizationLogLevel.PASS, "  - Pass " + pass.name() + "...");
         optimize(version, true, context, pass);
       }
     }
-    logger.info("  - Compute outermost properties...");
+    log(OptimizationLogLevel.PHASE, "  - Compute outermost properties...");
     // `PropertiesComputer` computes properties of inner code, and only inner code.
     version.setProperties(computeClosureVersionProperties(version.body()));
   }
@@ -75,19 +78,21 @@ public class Optimizer {
    * optimizations are all applied to one specific version).
    */
   static void optimizeInner(Closure closure, OptimizationContext context, OptimizationPass pass) {
-    logger.info("    - On inner closure " + closure.name() + "...");
+    log(OptimizationLogLevel.ALL, "    - On inner closure " + closure.name() + "...");
     closure
         .streamVersions()
         .forEach(
             version -> {
-              logger.info("      - On inner closure version " + version.index() + "...");
+              log(
+                  OptimizationLogLevel.ALL,
+                  "      - On inner closure version " + version.index() + "...");
               optimize(version, false, context, pass);
             });
   }
 
   /** Run the given optimization pass on an inner {@link Promise}. */
   static void optimizeInner(Promise promise, OptimizationContext context, OptimizationPass pass) {
-    logger.info("    - On promise " + promise.name() + "...");
+    log(OptimizationLogLevel.ALL, "    - On promise " + promise.name() + "...");
     pass.doApply(promise, context);
     if (pass.recurseInInnerCode()) {
       optimizeInnersIn(promise.body(), context, pass);
@@ -104,5 +109,12 @@ public class Optimizer {
     assert pass.recurseInInnerCode();
     body.streamInnerCodeObjects().forEach(innerCode -> optimizeInner(innerCode, context, pass));
   }
+
   // endregion optimization logic
+
+  private static void log(OptimizationLogLevel level, String message) {
+    if (OPTIMIZATION_LOG_LEVEL.compareTo(level) >= 0) {
+      logger.info(message);
+    }
+  }
 }

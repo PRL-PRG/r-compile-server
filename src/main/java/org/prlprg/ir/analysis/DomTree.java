@@ -1,6 +1,5 @@
 package org.prlprg.ir.analysis;
 
-import edu.umd.cs.findbugs.annotations.Nullable;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.ArrayDeque;
 import java.util.Iterator;
@@ -12,6 +11,7 @@ import java.util.SequencedSet;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+import javax.annotation.Nullable;
 import org.prlprg.ir.cfg.BB;
 import org.prlprg.ir.cfg.CFG;
 import org.prlprg.ir.cfg.CFGIterator.DomTreeBfs;
@@ -398,7 +398,7 @@ public class DomTree {
    * (guaranteed to run before), but doesn't strictly dominate any other strict dominator of {@code
    * bb}.
    */
-  public BB idominator(BB bb) {
+  public @Nullable BB idominator(BB bb) {
     return idoms.get(bb);
   }
 

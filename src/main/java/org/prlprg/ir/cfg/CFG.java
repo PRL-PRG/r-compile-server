@@ -17,8 +17,9 @@ import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.ir.analysis.CFGAnalyses;
-import org.prlprg.ir.analysis.DefUseAnalysis;
+import org.prlprg.ir.analysis.DefUses;
 import org.prlprg.ir.analysis.DomTree;
+import org.prlprg.ir.analysis.Loops;
 import org.prlprg.ir.cfg.CFGEdit.Semantic;
 import org.prlprg.ir.cfg.CFGIterator.DomTreeBfs;
 import org.prlprg.ir.cfg.CFGVerifyException.BrokenInvariant;
@@ -53,7 +54,8 @@ public class CFG
   private final NodeOrBBIdDisambiguatorMap nextInstrOrPhiDisambiguator =
       new NodeOrBBIdDisambiguatorMap();
   private @Nullable DomTree cachedDomTree;
-  private @Nullable DefUseAnalysis cachedDefUseAnalysis;
+  private @Nullable DefUses cachedDefUses;
+  private @Nullable Loops cachedLoops;
 
   /** Create a new CFG, with a single basic block and no instructions. */
   @SuppressFBWarnings("CT_CONSTRUCTOR_THROW")
@@ -184,11 +186,19 @@ public class CFG
   }
 
   @Override
-  public DefUseAnalysis defUses() {
-    if (cachedDefUseAnalysis == null) {
-      cachedDefUseAnalysis = CFGCleanup.super.defUses();
+  public DefUses defUses() {
+    if (cachedDefUses == null) {
+      cachedDefUses = CFGCleanup.super.defUses();
     }
-    return cachedDefUseAnalysis;
+    return cachedDefUses;
+  }
+
+  @Override
+  public Loops loops() {
+    if (cachedLoops == null) {
+      cachedLoops = CFGCleanup.super.loops();
+    }
+    return cachedLoops;
   }
 
   // endregion analyses
@@ -283,9 +293,14 @@ public class CFG
     }
   }
 
-  private void invalidateCaches() {
+  private void invalidateCachesForInstrChange() {
+    cachedDefUses = null;
+  }
+
+  private void invalidateCachesForBbChange() {
+    invalidateCachesForInstrChange();
     cachedDomTree = null;
-    cachedDefUseAnalysis = null;
+    cachedLoops = null;
   }
 
   // endregion additional recording operations
@@ -439,7 +454,11 @@ public class CFG
   // region for BB and node
   /** Record an edit to this CFG. */
   void record(Semantic<?> edit, Semantic<?> inverse) {
-    invalidateCaches();
+    if (edit instanceof CFGEdit.OnCFG) {
+      invalidateCachesForBbChange();
+    } else if (edit instanceof CFGEdit.OnBB) {
+      invalidateCachesForInstrChange();
+    }
     for (var observer : setObservers) {
       observer.record(edit, inverse);
     }

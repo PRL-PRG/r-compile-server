@@ -26,7 +26,12 @@ public interface CFGAnalyses {
    * CFG won't update the already-returned analysis (meaning it may have inaccuracies), and will
    * recompute the analysis if the method is called again.
    */
-  default DefUseAnalysis defUses() {
-    return new DefUseAnalysis((CFG) this);
+  default DefUses defUses() {
+    return new DefUses((CFG) this);
+  }
+
+  /** Find loops in the control-flow graph. */
+  default Loops loops() {
+    return new Loops((CFG) this);
   }
 }

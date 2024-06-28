@@ -24,9 +24,13 @@ public class SmallBinarySet<T> implements SequencedSet<T> {
   private Object[] array;
   private int size = 0;
 
+  /** Create a new set using the natural order and a default capacity of 4. */
+  public static <T extends Comparable<T>> SmallBinarySet<T> naturalOrder() {
+    return new SmallBinarySet<T>(Comparator.naturalOrder());
+  }
+
   /**
-   * Create a new SmallSet with a default capacity of 4. If the capacity is exceeded, it will
-   * reallocate.
+   * Create a new set with a default capacity of 4. If the capacity is exceeded, it will reallocate.
    *
    * @param comparator Determines how the elements are ordered in the set. Also used for equality:
    *     <i>if you attempt to {@linkplain #add(Object) add} an element that the comparator states is
@@ -37,7 +41,7 @@ public class SmallBinarySet<T> implements SequencedSet<T> {
   }
 
   /**
-   * Create a new SmallSet with the given capacity. If the capacity is exceeded, it will reallocate.
+   * Create a new set with the given capacity. If the capacity is exceeded, it will reallocate.
    *
    * @param comparator Determines how the elements are ordered in the set. Also used for equality:
    *     <i>if the comparator states an inserted element equals an existing one, it will replace the

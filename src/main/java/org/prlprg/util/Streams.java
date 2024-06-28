@@ -52,7 +52,7 @@ public class Streams {
    * throws {@link IllegalArgumentException} if the stream has multiple elements.
    */
   public static <T> Collector<T, MutableOptional<T>, Optional<T>> intoOneOrThrow(
-      Supplier<RuntimeException> exception) {
+      Supplier<Error> exception) {
     return Collector.of(
         MutableOptional::empty,
         (acc, elem) -> {

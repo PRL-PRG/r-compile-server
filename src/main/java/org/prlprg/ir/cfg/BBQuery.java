@@ -91,12 +91,24 @@ interface BBQuery extends Iterable<InstrOrPhi> {
   Iterator<InstrOrPhi> iterator();
 
   /**
+   * Stream basic block's instructions: statements and jump.
+   *
+   * <p>Be aware that mutating the block will affect this iterator the same way it would be affected
+   * while iterating {@link #stmts()}, or will affect the jump before it's reached.
+   *
+   * @see #instrs()
+   */
+  Stream<Instr> streamInstrs();
+
+  /**
    * The basic block's instructions: statements and jump.
    *
    * <p>The iterator supports removing the current element.
    *
    * <p>Be aware that mutating the block will affect this iterator the same way it would be affected
    * while iterating {@link #stmts()}, or will affect the jump before it's reached.
+   *
+   * @see #streamInstrs()
    */
   Iterable<Instr> instrs();
 
@@ -148,6 +160,12 @@ interface BBQuery extends Iterable<InstrOrPhi> {
 
   /** Returns this BB's jump, or {@code null} if unset. */
   @Nullable Jump jump();
+
+  /** Returns the {@linkplain #jump() jump's} {@linkplain Jump#data() data} if non-null. */
+  default @Nullable JumpData<?> jumpData() {
+    var jump = jump();
+    return jump == null ? null : jump.data();
+  }
   // endregion
   // endregion
 }

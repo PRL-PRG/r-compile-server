@@ -1353,8 +1353,7 @@ public class CFGCompiler {
             // so `loop.end` will only consist of a `Goto` to the "real" end BB. This is allowed,
             // and this long inverted AND-chain checks if it's the case.
             && !(loop.end.stmts().isEmpty()
-                && loop.end.jump() != null
-                && loop.end.jump().data() instanceof JumpData.Goto(var loopEndGoto)
+                && loop.end.jumpData() instanceof JumpData.Goto(var loopEndGoto)
                 && loopEndGoto == cursor.bb()))
         || cursor.stmtIdx() != 0) {
       throw fail("compileEndLoop: expected to be at start of end BB " + loop.end.id());

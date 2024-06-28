@@ -12,7 +12,13 @@ import org.prlprg.ir.cfg.Instr;
 import org.prlprg.ir.cfg.InstrOrPhi;
 import org.prlprg.ir.cfg.Node;
 
-public class DefUseAnalysis {
+/**
+ * Analysis to connect a value's definition and references.
+ *
+ * <p><a href="https://en.wikipedia.org/wiki/Use-define_chain">Wikipedia on use-define chains</a>.
+ * This is simple because the graph is already in SSA form.
+ */
+public class DefUses {
   private final CFG cfg;
   private final HashMap<Node, DuChain> duChains = new HashMap<>();
 
@@ -27,7 +33,7 @@ public class DefUseAnalysis {
    *
    * @see CFG#defUses()
    */
-  DefUseAnalysis(CFG cfg) {
+  DefUses(CFG cfg) {
     this.cfg = cfg;
 
     // Populate du-chains

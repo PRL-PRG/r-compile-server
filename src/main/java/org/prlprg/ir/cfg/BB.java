@@ -190,6 +190,11 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
   }
 
   @Override
+  public Stream<Instr> streamInstrs() {
+    return Streams.concat(stmts.stream(), Stream.ofNullable(jump));
+  }
+
+  @Override
   public Iterable<Instr> instrs() {
     return () ->
         new Iterator<>() {
@@ -358,6 +363,10 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
   BB splitNewPredecessorWithId(BBId predecessorId, int index) {
     if (index < 0 || index > stmts.size()) {
       throw new IndexOutOfBoundsException("Index out of range: " + index);
+    }
+    if (this == cfg().entry()) {
+      throw new UnsupportedOperationException(
+          "Can't split a predecessor on the entry block, you must call `splitNewSuccessor` instead.");
     }
     var newBB = cfg().doAddBB(predecessorId);
 
@@ -823,6 +832,30 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
   }
 
   // endregion replace nodes
+
+  // region move nodes
+
+  @Override
+  public void move(int oldIndex, BB newBb, int newIndex) {
+    if (newBb.cfg() != cfg()) {
+      throw new IllegalArgumentException("Can't move between different CFGs");
+    }
+    if (oldIndex < 0 || oldIndex >= stmts.size()) {
+      throw new IndexOutOfBoundsException("Old index out of range: " + oldIndex);
+    }
+    if (newIndex < 0 || newIndex > newBb.stmts.size()) {
+      throw new IndexOutOfBoundsException("New index out of range: " + newIndex);
+    }
+    var stmt = stmts.remove(oldIndex);
+    newBb.stmts.add(newIndex, stmt);
+
+    cfg()
+        .record(
+            new CFGEdit.MoveStmt(this, oldIndex, newBb, newIndex),
+            new CFGEdit.MoveStmt(newBb, newIndex, this, oldIndex));
+  }
+
+  // endregion move nodes
 
   // region remove nodes
   @Override

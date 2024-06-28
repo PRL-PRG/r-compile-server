@@ -62,6 +62,16 @@ public record BuiltinId(int index) {
     return index % 10 == 1;
   }
 
+  /**
+   * Whether this builtin is "non-object" as defined in PIR's {@code SafeBuiltinsList}.
+   *
+   * <p>i.e. whether it doesn't dispatch if none of the arguments are objects?
+   */
+  public boolean isNonObject() {
+    // TODO
+    return false;
+  }
+
   // region serialization and deserialization
   @ParseMethod
   private static BuiltinId parse(Parser p) {

@@ -1,5 +1,6 @@
 package org.prlprg;
 
+import org.prlprg.ir.closure.CodeObject;
 import org.prlprg.util.Strings;
 
 /**
@@ -9,26 +10,44 @@ import org.prlprg.util.Strings;
  */
 public final class AppConfig extends Config {
   /**
-   * Shell command to invoke R. Default is "R", pass something else to provide a custom R binary
-   * (e.g. different version than the default installed one).
+   * Shell command to invoke R. <b>Default</b> is "R", pass something else to provide a custom R
+   * binary (e.g. different version than the default installed one).
    *
    * <p>Note that we pass extra arguments to the command. The working directory of the command is
    * the working directory of this running program.
    */
   public static final String R_BIN = get("R_BIN", "R");
 
-  /** Adds extra verification checks. */
+  /**
+   * Adds extra verification checks.
+   *
+   * <p><b>Default:</b>: {@link CfgDebugLevel#VERIFY}.
+   */
   public static final CfgDebugLevel CFG_DEBUG_LEVEL = get("CFG_DEBUG_LEVEL", CfgDebugLevel.VERIFY);
 
   /**
    * Whether to verify phi inputs' incoming basic block when they are added.
    *
    * <p>They are always verified during {@linkplain org.prlprg.ir.cfg.CFG#verify()} verification
+   *
+   * <p><b>Default:</b>: true
    */
   public static final boolean EAGERLY_VERIFY_PHI_INPUTS = get("EAGERLY_VERIFY_PHI_INPUTS", true);
 
-  /** Maximum number of characters vectors will print in `toString` before being truncated. */
+  /**
+   * Maximum number of characters vectors will print in `toString` before being truncated.
+   *
+   * <p><b>Default:</b>: 1000
+   */
   public static final int VECTOR_TRUNCATE_SIZE = get("VECTOR_TRUNCATE_SIZE", 1000);
+
+  /**
+   * Whether to log optimization phases/passes, and if so, how granular.
+   *
+   * <p><b>Default:</b>: {@link OptimizationLogLevel#NONE}.
+   */
+  public static final OptimizationLogLevel OPTIMIZATION_LOG_LEVEL =
+      get("OPTIMIZATION_LOG_LEVEL", OptimizationLogLevel.NONE);
 
   public enum CfgDebugLevel {
     /** No extra checks. */
@@ -41,6 +60,19 @@ public final class AppConfig extends Config {
     public boolean trackStack() {
       return this == VERIFY_AND_TRACK;
     }
+  }
+
+  public enum OptimizationLogLevel implements Comparable<OptimizationLogLevel> {
+    /** Don't log anything wrt. optimizations (excluding compiler bugs). */
+    NONE,
+    /** Log when a closure gets optimized. */
+    CLOSURE,
+    /** Log every optimization phase. */
+    PHASE,
+    /** Log every optimization pass. */
+    PASS,
+    /** Log every optimization pass <i>and</i> every inner {@link CodeObject} it's applied to. */
+    ALL,
   }
 }
 

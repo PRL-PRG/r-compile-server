@@ -66,6 +66,12 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
   /**
    * Edit is local to a {@linkplain CFG control-flow graph}; edit is not local to a {@linkplain BB
    * basic block}, {@linkplain InstrOrPhi instruction, or phi}.
+   *
+   * <p>{@link SplitBB} and {@link MergeBBs} inherit this.
+   *
+   * <p>{@link MutateInstrArgs} and {@link MoveStmt} don't inherit this, even though the instruction
+   * may affect multiple basic blocks (for {@link MutateInstrArgs}, by affecting uses). They inherit
+   * {@link OnInstrOrPhi}. TODO: Revisit making {@link MoveStmt} inherit something else.
    */
   sealed interface OnCFG<Reverse extends OnCFG<?>> extends Semantic<Reverse> {}
 
@@ -73,10 +79,13 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
    * Edit is local to a {@linkplain BB basic block}, but not {@linkplain InstrOrPhi instruction or
    * phi}.
    *
-   * <p>Note: {@link ReplaceWithInstr} ({@link ReplaceStmt}, {@link ReplaceJump}) is <i>not</i>
-   * considered local to an instruction or phi, because it removes the old instruction and inserts a
-   * new one. {@link MutateInstrArgs} <i>is</i> considered local because it reuses the original
-   * instruction.
+   * <p>{@link ReplaceWithInstr} ({@link ReplaceStmt}, {@link ReplaceJump}) are <i>not</i>
+   * considered local to an instruction or phi, because they remove the old instruction and inserts
+   * a new one. {@link MutateInstrArgs} and {@link MoveStmt} <i>are</i> considered local because
+   * they reuse the original instruction. TODO: Revisit making {@link MoveStmt} inherit something
+   * else.
+   *
+   * <p>{@link SplitBB} and {@link MergeBBs} also don't inherit this, they inherit {@link OnCFG}.
    */
   sealed interface OnBB<Reverse extends OnBB<?>> extends Semantic<Reverse> {
     /** Id of the {@linkplain BB} that the edit will affect. */
@@ -565,6 +574,73 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
     }
   }
 
+  record ReplaceStmt<I extends Stmt>(
+      BBId bbId, int index, String newName, MapToIdIn<? extends StmtData<? extends I>> newArgs)
+      implements ReplaceWithInstr<ReplaceStmt<?>> {
+    public ReplaceStmt(BB bb, int index, String newName, StmtData<? extends I> newArgs) {
+      this(bb.id(), index, newName, MapToIdIn.of(newArgs));
+    }
+
+    @SuppressWarnings("unchecked")
+    public ReplaceStmt(BB bb, int index, I stmt) {
+      this(bb, index, InstrOrPhiIdImpl.cast(stmt.id()).name(), (StmtData<? extends I>) stmt.data());
+    }
+
+    @Override
+    public ReplaceStmt<?> apply(CFG cfg) {
+      var bb = cfg.get(bbId);
+      var old = bb.stmt(index);
+      var oldName = InstrOrPhiIdImpl.cast(old.id()).name();
+      // `replaceNoSubst` *does not* require that `oldData` has the same erased type as `newData`;
+      // you can replace an instruction with one of a different type. This is why the reverse action
+      // has an erased `I`.
+      var oldArgs = MapToIdIn.of(old.data());
+      bb.replace(index, newName, newArgs.decode(cfg));
+      @SuppressWarnings("unchecked") // Required, otherwise "cannot infer type arguments" error
+      var oldArgsCasted = (MapToIdIn<? extends StmtData<Stmt>>) oldArgs;
+      return new ReplaceStmt<>(bbId, index, oldName, oldArgsCasted);
+    }
+  }
+
+  record ReplaceJump<I extends Jump>(
+      BBId bbId, String newName, MapToIdIn<? extends JumpData<? extends I>> newArgs)
+      implements ReplaceWithInstr<ReplaceJump<?>> {
+    public ReplaceJump(BB bb, String newName, JumpData<? extends I> newArgs) {
+      this(bb.id(), newName, MapToIdIn.of(newArgs));
+    }
+
+    @SuppressWarnings("unchecked")
+    public ReplaceJump(BB bb, I jump) {
+      this(bb, InstrOrPhiIdImpl.cast(jump.id()).name(), (JumpData<? extends I>) jump.data());
+    }
+
+    @Override
+    public ReplaceJump<?> apply(CFG cfg) {
+      var bb = cfg.get(bbId);
+      var old = bb.jump();
+      var oldName = old == null ? null : InstrOrPhiIdImpl.cast(old.id()).name();
+      var oldArgs = old == null ? null : MapToIdIn.of(old.data());
+      bb.replaceJump(newName, newArgs.decode(cfg)); // Throws if `old == null`
+      assert oldName != null; // implies `oldArgs == null`
+      @SuppressWarnings("unchecked") // Required, otherwise "cannot infer type arguments" error
+      var oldArgsCasted = (MapToIdIn<? extends JumpData<Jump>>) oldArgs;
+      return new ReplaceJump<>(bbId, oldName, oldArgsCasted);
+    }
+  }
+
+  record MoveStmt(BBId fromBBId, int fromIndex, BBId toBBId, int toIndex)
+      implements OnCFG<MoveStmt> {
+    public MoveStmt(BB fromBB, int fromIndex, BB toBB, int toIndex) {
+      this(fromBB.id(), fromIndex, toBB.id(), toIndex);
+    }
+
+    @Override
+    public MoveStmt apply(CFG cfg) {
+      cfg.get(fromBBId).move(fromIndex, cfg.get(toBBId), toIndex);
+      return new MoveStmt(toBBId, toIndex, fromBBId, fromIndex);
+    }
+  }
+
   record SetPhiInput<N extends Node>(
       NodeId<? extends Phi<N>> targetId, BBId incomingBBId, NodeId<? extends N> inputNodeId)
       implements MutateInstrOrPhi<SetPhiInput<N>> {
@@ -618,60 +694,6 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
       var oldArgs = MapToIdIn.of((InstrData<I>) target.data());
       Instr.mutateArgs(target, newArgs.decode(cfg));
       return new MutateInstrArgs<>(targetId, oldArgs);
-    }
-  }
-
-  record ReplaceStmt<I extends Stmt>(
-      BBId bbId, int index, String newName, MapToIdIn<? extends StmtData<? extends I>> newArgs)
-      implements ReplaceWithInstr<ReplaceStmt<?>> {
-    public ReplaceStmt(BB bb, int index, String newName, StmtData<? extends I> newArgs) {
-      this(bb.id(), index, newName, MapToIdIn.of(newArgs));
-    }
-
-    @SuppressWarnings("unchecked")
-    public ReplaceStmt(BB bb, int index, I stmt) {
-      this(bb, index, InstrOrPhiIdImpl.cast(stmt.id()).name(), (StmtData<? extends I>) stmt.data());
-    }
-
-    @Override
-    public ReplaceStmt<?> apply(CFG cfg) {
-      var bb = cfg.get(bbId);
-      var old = bb.stmt(index);
-      var oldName = InstrOrPhiIdImpl.cast(old.id()).name();
-      // `replaceNoSubst` *does not* require that `oldData` has the same erased type as `newData`;
-      // you can replace an instruction with one of a different type. This is why the reverse action
-      // has an erased `I`.
-      var oldArgs = MapToIdIn.of(old.data());
-      bb.replace(index, newName, newArgs.decode(cfg));
-      @SuppressWarnings("unchecked") // Required, otherwise "cannot infer type arguments" error
-      var oldArgsCasted = (MapToIdIn<? extends StmtData<Stmt>>) oldArgs;
-      return new ReplaceStmt<>(bbId, index, oldName, oldArgsCasted);
-    }
-  }
-
-  record ReplaceJump<I extends Jump>(
-      BBId bbId, String newName, MapToIdIn<? extends JumpData<? extends I>> newArgs)
-      implements ReplaceWithInstr<ReplaceJump<?>> {
-    public ReplaceJump(BB bb, String newName, JumpData<? extends I> newArgs) {
-      this(bb.id(), newName, MapToIdIn.of(newArgs));
-    }
-
-    @SuppressWarnings("unchecked")
-    public ReplaceJump(BB bb, I jump) {
-      this(bb, InstrOrPhiIdImpl.cast(jump.id()).name(), (JumpData<? extends I>) jump.data());
-    }
-
-    @Override
-    public ReplaceJump<?> apply(CFG cfg) {
-      var bb = cfg.get(bbId);
-      var old = bb.jump();
-      var oldName = old == null ? null : InstrOrPhiIdImpl.cast(old.id()).name();
-      var oldArgs = old == null ? null : MapToIdIn.of(old.data());
-      bb.replaceJump(newName, newArgs.decode(cfg)); // Throws if `old == null`
-      assert oldName != null; // implies `oldArgs == null`
-      @SuppressWarnings("unchecked") // Required, otherwise "cannot infer type arguments" error
-      var oldArgsCasted = (MapToIdIn<? extends JumpData<Jump>>) oldArgs;
-      return new ReplaceJump<>(bbId, oldName, oldArgsCasted);
     }
   }
 

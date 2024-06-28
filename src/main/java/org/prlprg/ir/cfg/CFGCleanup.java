@@ -1,6 +1,7 @@
 package org.prlprg.ir.cfg;
 
 import com.google.common.collect.Streams;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.prlprg.ir.analysis.CFGAnalyses;
@@ -55,12 +56,10 @@ interface CFGCleanup extends CFGQuery, CFGAnalyses, CFGIntrinsicMutate, CFGCompo
             // Convert branch instructions where both branches are the same BB into single-branch
             // variants.
             for (var bb : iter()) {
-              if (bb.jump() != null
-                  && bb.jump().data()
-                      instanceof JumpData.Branch(var _, var _, var ifTrue, var ifFalse)
+              if (bb.jumpData() instanceof JumpData.Branch(var _, var _, var ifTrue, var ifFalse)
                   && ifTrue == ifFalse) {
                 var phiInputs = ifTrue.phis().stream().map(phi -> phi.input(bb)).toList();
-                Instr.mutateArgs(bb.jump(), new JumpData.Goto(ifTrue));
+                Instr.mutateArgs(Objects.requireNonNull(bb.jump()), new JumpData.Goto(ifTrue));
                 Streams.forEachPair(
                     ifTrue.phis().stream(),
                     phiInputs.stream(),
@@ -98,8 +97,7 @@ interface CFGCleanup extends CFGQuery, CFGAnalyses, CFGIntrinsicMutate, CFGCompo
             var iter1 = new CFGIterator.Dfs((CFG) this);
             while (iter1.hasNext()) {
               var bb = iter1.next();
-              while (bb.jump() != null
-                  && bb.jump().data() instanceof JumpData.Goto(var nextBb)
+              while (bb.jumpData() instanceof JumpData.Goto(var nextBb)
                   && ((nextBb != entry() && nextBb.hasSinglePredecessor())
                       || (bb.stmts().isEmpty()
                           && nextBb.phis().stream()

@@ -154,14 +154,17 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
     }
   }
 
+  /** Effects are arbitrary because it implicitly forces. */
   @TypeIs("ANY_FUN")
   @EffectsAreAribtrary()
   record LdFun(RegSymSXP name, @IsEnv RValue env) implements RValue_ {}
 
+  /** Doesn't implicitly force, unlike {@link org.prlprg.bc.BcInstr.GetVar BcInstr.GetVar}. */
   @TypeIs("ANY")
   @EffectsAre({REffect.Error, REffect.ReadsEnvArg})
   record LdVar(RegSymSXP name, boolean missOk, @IsEnv RValue env) implements RValue_ {}
 
+  /** Doesn't implicitly force, unlike {@link org.prlprg.bc.BcInstr.DdVal BcInstr.DdVal}. */
   @TypeIs("ANY")
   @EffectsAre({REffect.Error, REffect.ReadsEnvArg})
   record LdDdVal(int ddNum, boolean missOk, @IsEnv RValue env) implements RValue_ {}

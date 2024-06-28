@@ -111,8 +111,7 @@ abstract non-sealed class StmtImpl<D extends StmtData<?>> extends InstrImpl<D> i
             .collect(
                 Streams.intoOneOrThrow(
                     () ->
-                        new UnsupportedOperationException(
-                            "Didn't expect instruction with multiple code objects")))
+                        new AssertionError("Didn't expect instruction with multiple code objects")))
             .orElse(null);
   }
 }

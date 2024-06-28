@@ -8,7 +8,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 interface BBIntrinsicMutate {
-  // region mutate
   // region split and merge
   /**
    * {@link #splitNewPredecessor(String, int)} giving the predecessor the same name as this block.
@@ -85,7 +84,7 @@ interface BBIntrinsicMutate {
    */
   void mergeWithSuccessor(BB succ);
 
-  // endregion
+  // endregion split and merge
 
   // region add nodes
   /**
@@ -222,7 +221,7 @@ interface BBIntrinsicMutate {
     return addJump("", args);
   }
 
-  // endregion
+  // endregion add nodes
 
   // region update nodes (replace and subst)
   /**
@@ -289,7 +288,21 @@ interface BBIntrinsicMutate {
     return replaceJump("", newArgs);
   }
 
-  // endregion
+  // endregion update nodes (replace and subst)
+
+  // region move nodes
+  /**
+   * Move a statement to a new index and possibly basic block.
+   *
+   * @throws IllegalArgumentException If the new BB isn't in the same {@link CFG} as this one.
+   * @throws IndexOutOfBoundsException If the old index is out of bounds for access in this block's
+   *     list of statements (less than 0 or greater than or equal to the number of statements).
+   *     <b>OR</b> if the new index is out of bounds for insertion in the new block's list of
+   *     statements (less than 0 or greater than the number of statements).
+   */
+  void move(int oldIndex, BB newBb, int newIndex);
+
+  // endregion move nodes
 
   // region remove nodes
   /**
@@ -357,6 +370,5 @@ interface BBIntrinsicMutate {
    * @throws IllegalStateException If the BB doesn't have a jump.
    */
   Jump removeJump();
-  // endregion
-  // endregion
+  // endregion remove nodes
 }
