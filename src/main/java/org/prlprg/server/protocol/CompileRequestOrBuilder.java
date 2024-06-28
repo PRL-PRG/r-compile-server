@@ -3,40 +3,48 @@
 
 package org.prlprg.server.protocol;
 
-public interface CompileRequestOrBuilder extends
+public interface CompileRequestOrBuilder
+    extends
     // @@protoc_insertion_point(interface_extends:rsh.server.protocol.CompileRequest)
     com.google.protobuf.MessageOrBuilder {
 
   /**
    * <code>string name = 2;</code>
+   *
    * @return The name.
    */
   java.lang.String getName();
-  /**
-   * <code>string name = 2;</code>
-   * @return The bytes for name.
-   */
-  com.google.protobuf.ByteString
-      getNameBytes();
 
   /**
+   * <code>string name = 2;</code>
+   *
+   * @return The bytes for name.
+   */
+  com.google.protobuf.ByteString getNameBytes();
+
+  /**
+   *
+   *
    * <pre>
    * the closure to be compiled as CLOSXP
    * </pre>
    *
    * <code>bytes closure = 3;</code>
+   *
    * @return The closure.
    */
   com.google.protobuf.ByteString getClosure();
 
   /**
    * <code>uint32 bc_optimization = 4;</code>
+   *
    * @return The bcOptimization.
    */
   int getBcOptimization();
 
   /**
    * <code>uint32 cc_optimization = 5;</code>
+   *
    * @return The ccOptimization.
    */
   int getCcOptimization();

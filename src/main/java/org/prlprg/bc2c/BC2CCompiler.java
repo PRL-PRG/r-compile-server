@@ -11,6 +11,7 @@ import org.prlprg.bc.ConstPool;
 import org.prlprg.sexp.*;
 
 record Constant(int id, SEXP value) {}
+
 record Value(String expr, boolean protect) {}
 
 class ByteCodeStack {
@@ -23,7 +24,7 @@ class ByteCodeStack {
 
   public String push(String expr, boolean protect) {
     protects.push(0);
-    int curr = protects.size() -  1;
+    int curr = protects.size() - 1;
     max = Math.max(max, curr);
 
     return set(curr, expr, protect);
@@ -45,7 +46,8 @@ class ByteCodeStack {
   public int currIdx(int n) {
     int curr = protects.size() - 1;
 
-    assert curr + n >= -1 && curr + n <= max : "Invalid offset: %d (curr: %d, max: %d)".formatted(n, curr, max);
+    assert curr + n >= -1 && curr + n <= max
+        : "Invalid offset: %d (curr: %d, max: %d)".formatted(n, curr, max);
 
     return curr + n;
   }
@@ -97,7 +99,7 @@ public class BC2CCompiler {
   public CFile compile() {
     fillLabels();
     var code = bc.code();
-    for (int i = 0; i<code.size(); i++) {
+    for (int i = 0; i < code.size(); i++) {
       compile(code.get(i), i);
     }
 
@@ -150,9 +152,7 @@ public class BC2CCompiler {
       case BcInstr.Invisible() -> compileInvisible();
       case BcInstr.LdNull() -> compileLdNull();
 
-      default ->
-          throw new UnsupportedOperationException(instr + ": not supported");
-
+      default -> throw new UnsupportedOperationException(instr + ": not supported");
     }
     body.comment("end: " + instr);
     body.nl();
@@ -174,8 +174,10 @@ public class BC2CCompiler {
   private void compileBrIfNot(ConstPool.Idx<LangSXP> call, BcLabel label) {
     var curr = stack.curr(0);
     var unprotect = stack.pop(1);
-    body.line("if (!Rsh_is_true(%s, %s)) { %s; goto %s; }".formatted(curr, constant(call), unprotect, label(label.getTarget())));
-    body.line(unprotect+";");
+    body.line(
+        "if (!Rsh_is_true(%s, %s)) { %s; goto %s; }"
+            .formatted(curr, constant(call), unprotect, label(label.getTarget())));
+    body.line(unprotect + ";");
   }
 
   private void compileLt() {
@@ -183,14 +185,17 @@ public class BC2CCompiler {
   }
 
   private void compilerSetTag(ConstPool.Idx<StrOrRegSymSXP> idx) {
-    body.line("""
+    body.line(
+        """
     if (TYPEOF(%s) != SPECIALSXP) {
       RSH_SET_TAG(%s, %s);
-    }""".formatted(stack.curr(-2), stack.curr(0), constant(idx)));
+    }"""
+            .formatted(stack.curr(-2), stack.curr(0), constant(idx)));
   }
 
   private void compilePushArg() {
-    body.line("RSH_LIST_APPEND(%s, %s, %s);".formatted(stack.curr(-2), stack.curr(-1), stack.curr(0)));
+    body.line(
+        "RSH_LIST_APPEND(%s, %s, %s);".formatted(stack.curr(-2), stack.curr(-1), stack.curr(0)));
     pop(1);
   }
 
@@ -202,9 +207,10 @@ public class BC2CCompiler {
             .collect(Collectors.joining(", ", "SEXP ", ";"));
     sec.line(line);
   }
-  
+
   private void compilePushConstArg(ConstPool.Idx<SEXP> idx) {
-    body.line("RSH_LIST_APPEND(%s, %s, %s);".formatted(stack.curr(-1), stack.curr(0), constant(idx)));
+    body.line(
+        "RSH_LIST_APPEND(%s, %s, %s);".formatted(stack.curr(-1), stack.curr(0), constant(idx)));
   }
 
   private void compileCallBuiltin(ConstPool.Idx<LangSXP> idx) {

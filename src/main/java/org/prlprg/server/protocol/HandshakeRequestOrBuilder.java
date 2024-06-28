@@ -3,68 +3,80 @@
 
 package org.prlprg.server.protocol;
 
-public interface HandshakeRequestOrBuilder extends
+public interface HandshakeRequestOrBuilder
+    extends
     // @@protoc_insertion_point(interface_extends:rsh.server.protocol.HandshakeRequest)
     com.google.protobuf.MessageOrBuilder {
 
   /**
    * <code>string Rsh_version = 1;</code>
+   *
    * @return The rshVersion.
    */
   java.lang.String getRshVersion();
+
   /**
    * <code>string Rsh_version = 1;</code>
+   *
    * @return The bytes for rshVersion.
    */
-  com.google.protobuf.ByteString
-      getRshVersionBytes();
+  com.google.protobuf.ByteString getRshVersionBytes();
 
   /**
    * <code>string R_version = 2;</code>
+   *
    * @return The rVersion.
    */
   java.lang.String getRVersion();
+
   /**
    * <code>string R_version = 2;</code>
+   *
    * @return The bytes for rVersion.
    */
-  com.google.protobuf.ByteString
-      getRVersionBytes();
+  com.google.protobuf.ByteString getRVersionBytes();
 
   /**
    * <code>string platform = 3;</code>
+   *
    * @return The platform.
    */
   java.lang.String getPlatform();
+
   /**
    * <code>string platform = 3;</code>
+   *
    * @return The bytes for platform.
    */
-  com.google.protobuf.ByteString
-      getPlatformBytes();
+  com.google.protobuf.ByteString getPlatformBytes();
 
   /**
    * <code>repeated string packages = 4;</code>
+   *
    * @return A list containing the packages.
    */
-  java.util.List<java.lang.String>
-      getPackagesList();
+  java.util.List<java.lang.String> getPackagesList();
+
   /**
    * <code>repeated string packages = 4;</code>
+   *
    * @return The count of packages.
    */
   int getPackagesCount();
+
   /**
    * <code>repeated string packages = 4;</code>
+   *
    * @param index The index of the element to return.
    * @return The packages at the given index.
    */
   java.lang.String getPackages(int index);
+
   /**
    * <code>repeated string packages = 4;</code>
+   *
    * @param index The index of the value to return.
    * @return The bytes of the packages at the given index.
    */
-  com.google.protobuf.ByteString
-      getPackagesBytes(int index);
+  com.google.protobuf.ByteString getPackagesBytes(int index);
 }

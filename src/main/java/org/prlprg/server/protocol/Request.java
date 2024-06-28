@@ -3,33 +3,31 @@
 
 package org.prlprg.server.protocol;
 
-/**
- * Protobuf type {@code rsh.server.protocol.Request}
- */
-public final class Request extends
-    com.google.protobuf.GeneratedMessageV3 implements
+/** Protobuf type {@code rsh.server.protocol.Request} */
+public final class Request extends com.google.protobuf.GeneratedMessageV3
+    implements
     // @@protoc_insertion_point(message_implements:rsh.server.protocol.Request)
     RequestOrBuilder {
-private static final long serialVersionUID = 0L;
+  private static final long serialVersionUID = 0L;
+
   // Use Request.newBuilder() to construct.
   private Request(com.google.protobuf.GeneratedMessageV3.Builder<?> builder) {
     super(builder);
   }
-  private Request() {
-  }
+
+  private Request() {}
 
   @java.lang.Override
   @SuppressWarnings({"unused"})
-  protected java.lang.Object newInstance(
-      UnusedPrivateParameter unused) {
+  protected java.lang.Object newInstance(UnusedPrivateParameter unused) {
     return new Request();
   }
 
   @java.lang.Override
-  public final com.google.protobuf.UnknownFieldSet
-  getUnknownFields() {
+  public final com.google.protobuf.UnknownFieldSet getUnknownFields() {
     return this.unknownFields;
   }
+
   private Request(
       com.google.protobuf.CodedInputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
@@ -48,78 +46,88 @@ private static final long serialVersionUID = 0L;
           case 0:
             done = true;
             break;
-          case 10: {
-            org.prlprg.server.protocol.HandshakeRequest.Builder subBuilder = null;
-            if (payloadCase_ == 1) {
-              subBuilder = ((org.prlprg.server.protocol.HandshakeRequest) payload_).toBuilder();
+          case 10:
+            {
+              org.prlprg.server.protocol.HandshakeRequest.Builder subBuilder = null;
+              if (payloadCase_ == 1) {
+                subBuilder = ((org.prlprg.server.protocol.HandshakeRequest) payload_).toBuilder();
+              }
+              payload_ =
+                  input.readMessage(
+                      org.prlprg.server.protocol.HandshakeRequest.parser(), extensionRegistry);
+              if (subBuilder != null) {
+                subBuilder.mergeFrom((org.prlprg.server.protocol.HandshakeRequest) payload_);
+                payload_ = subBuilder.buildPartial();
+              }
+              payloadCase_ = 1;
+              break;
             }
-            payload_ =
-                input.readMessage(org.prlprg.server.protocol.HandshakeRequest.parser(), extensionRegistry);
-            if (subBuilder != null) {
-              subBuilder.mergeFrom((org.prlprg.server.protocol.HandshakeRequest) payload_);
-              payload_ = subBuilder.buildPartial();
+          case 18:
+            {
+              org.prlprg.server.protocol.CompileRequest.Builder subBuilder = null;
+              if (payloadCase_ == 2) {
+                subBuilder = ((org.prlprg.server.protocol.CompileRequest) payload_).toBuilder();
+              }
+              payload_ =
+                  input.readMessage(
+                      org.prlprg.server.protocol.CompileRequest.parser(), extensionRegistry);
+              if (subBuilder != null) {
+                subBuilder.mergeFrom((org.prlprg.server.protocol.CompileRequest) payload_);
+                payload_ = subBuilder.buildPartial();
+              }
+              payloadCase_ = 2;
+              break;
             }
-            payloadCase_ = 1;
-            break;
-          }
-          case 18: {
-            org.prlprg.server.protocol.CompileRequest.Builder subBuilder = null;
-            if (payloadCase_ == 2) {
-              subBuilder = ((org.prlprg.server.protocol.CompileRequest) payload_).toBuilder();
+          default:
+            {
+              if (!parseUnknownField(input, unknownFields, extensionRegistry, tag)) {
+                done = true;
+              }
+              break;
             }
-            payload_ =
-                input.readMessage(org.prlprg.server.protocol.CompileRequest.parser(), extensionRegistry);
-            if (subBuilder != null) {
-              subBuilder.mergeFrom((org.prlprg.server.protocol.CompileRequest) payload_);
-              payload_ = subBuilder.buildPartial();
-            }
-            payloadCase_ = 2;
-            break;
-          }
-          default: {
-            if (!parseUnknownField(
-                input, unknownFields, extensionRegistry, tag)) {
-              done = true;
-            }
-            break;
-          }
         }
       }
     } catch (com.google.protobuf.InvalidProtocolBufferException e) {
       throw e.setUnfinishedMessage(this);
     } catch (java.io.IOException e) {
-      throw new com.google.protobuf.InvalidProtocolBufferException(
-          e).setUnfinishedMessage(this);
+      throw new com.google.protobuf.InvalidProtocolBufferException(e).setUnfinishedMessage(this);
     } finally {
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
     }
   }
-  public static final com.google.protobuf.Descriptors.Descriptor
-      getDescriptor() {
-    return org.prlprg.server.protocol.Protocol.internal_static_rsh_server_protocol_Request_descriptor;
+
+  public static final com.google.protobuf.Descriptors.Descriptor getDescriptor() {
+    return org.prlprg.server.protocol.Protocol
+        .internal_static_rsh_server_protocol_Request_descriptor;
   }
 
   @java.lang.Override
   protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internalGetFieldAccessorTable() {
-    return org.prlprg.server.protocol.Protocol.internal_static_rsh_server_protocol_Request_fieldAccessorTable
+    return org.prlprg.server.protocol.Protocol
+        .internal_static_rsh_server_protocol_Request_fieldAccessorTable
         .ensureFieldAccessorsInitialized(
-            org.prlprg.server.protocol.Request.class, org.prlprg.server.protocol.Request.Builder.class);
+            org.prlprg.server.protocol.Request.class,
+            org.prlprg.server.protocol.Request.Builder.class);
   }
 
   private int payloadCase_ = 0;
   private java.lang.Object payload_;
+
   public enum PayloadCase
-      implements com.google.protobuf.Internal.EnumLite,
+      implements
+          com.google.protobuf.Internal.EnumLite,
           com.google.protobuf.AbstractMessage.InternalOneOfEnum {
     HANDSHAKE(1),
     COMPILE(2),
     PAYLOAD_NOT_SET(0);
     private final int value;
+
     private PayloadCase(int value) {
       this.value = value;
     }
+
     /**
      * @param value The number of the enum to look for.
      * @return The enum associated with the given number.
@@ -132,86 +140,96 @@ private static final long serialVersionUID = 0L;
 
     public static PayloadCase forNumber(int value) {
       switch (value) {
-        case 1: return HANDSHAKE;
-        case 2: return COMPILE;
-        case 0: return PAYLOAD_NOT_SET;
-        default: return null;
+        case 1:
+          return HANDSHAKE;
+        case 2:
+          return COMPILE;
+        case 0:
+          return PAYLOAD_NOT_SET;
+        default:
+          return null;
       }
     }
+
     public int getNumber() {
       return this.value;
     }
   };
 
-  public PayloadCase
-  getPayloadCase() {
-    return PayloadCase.forNumber(
-        payloadCase_);
+  public PayloadCase getPayloadCase() {
+    return PayloadCase.forNumber(payloadCase_);
   }
 
   public static final int HANDSHAKE_FIELD_NUMBER = 1;
+
   /**
    * <code>.rsh.server.protocol.HandshakeRequest handshake = 1;</code>
+   *
    * @return Whether the handshake field is set.
    */
   @java.lang.Override
   public boolean hasHandshake() {
     return payloadCase_ == 1;
   }
+
   /**
    * <code>.rsh.server.protocol.HandshakeRequest handshake = 1;</code>
+   *
    * @return The handshake.
    */
   @java.lang.Override
   public org.prlprg.server.protocol.HandshakeRequest getHandshake() {
     if (payloadCase_ == 1) {
-       return (org.prlprg.server.protocol.HandshakeRequest) payload_;
+      return (org.prlprg.server.protocol.HandshakeRequest) payload_;
     }
     return org.prlprg.server.protocol.HandshakeRequest.getDefaultInstance();
   }
-  /**
-   * <code>.rsh.server.protocol.HandshakeRequest handshake = 1;</code>
-   */
+
+  /** <code>.rsh.server.protocol.HandshakeRequest handshake = 1;</code> */
   @java.lang.Override
   public org.prlprg.server.protocol.HandshakeRequestOrBuilder getHandshakeOrBuilder() {
     if (payloadCase_ == 1) {
-       return (org.prlprg.server.protocol.HandshakeRequest) payload_;
+      return (org.prlprg.server.protocol.HandshakeRequest) payload_;
     }
     return org.prlprg.server.protocol.HandshakeRequest.getDefaultInstance();
   }
 
   public static final int COMPILE_FIELD_NUMBER = 2;
+
   /**
    * <code>.rsh.server.protocol.CompileRequest compile = 2;</code>
+   *
    * @return Whether the compile field is set.
    */
   @java.lang.Override
   public boolean hasCompile() {
     return payloadCase_ == 2;
   }
+
   /**
    * <code>.rsh.server.protocol.CompileRequest compile = 2;</code>
+   *
    * @return The compile.
    */
   @java.lang.Override
   public org.prlprg.server.protocol.CompileRequest getCompile() {
     if (payloadCase_ == 2) {
-       return (org.prlprg.server.protocol.CompileRequest) payload_;
+      return (org.prlprg.server.protocol.CompileRequest) payload_;
     }
     return org.prlprg.server.protocol.CompileRequest.getDefaultInstance();
   }
-  /**
-   * <code>.rsh.server.protocol.CompileRequest compile = 2;</code>
-   */
+
+  /** <code>.rsh.server.protocol.CompileRequest compile = 2;</code> */
   @java.lang.Override
   public org.prlprg.server.protocol.CompileRequestOrBuilder getCompileOrBuilder() {
     if (payloadCase_ == 2) {
-       return (org.prlprg.server.protocol.CompileRequest) payload_;
+      return (org.prlprg.server.protocol.CompileRequest) payload_;
     }
     return org.prlprg.server.protocol.CompileRequest.getDefaultInstance();
   }
 
   private byte memoizedIsInitialized = -1;
+
   @java.lang.Override
   public final boolean isInitialized() {
     byte isInitialized = memoizedIsInitialized;
@@ -223,8 +241,7 @@ private static final long serialVersionUID = 0L;
   }
 
   @java.lang.Override
-  public void writeTo(com.google.protobuf.CodedOutputStream output)
-                      throws java.io.IOException {
+  public void writeTo(com.google.protobuf.CodedOutputStream output) throws java.io.IOException {
     if (payloadCase_ == 1) {
       output.writeMessage(1, (org.prlprg.server.protocol.HandshakeRequest) payload_);
     }
@@ -241,12 +258,14 @@ private static final long serialVersionUID = 0L;
 
     size = 0;
     if (payloadCase_ == 1) {
-      size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(1, (org.prlprg.server.protocol.HandshakeRequest) payload_);
+      size +=
+          com.google.protobuf.CodedOutputStream.computeMessageSize(
+              1, (org.prlprg.server.protocol.HandshakeRequest) payload_);
     }
     if (payloadCase_ == 2) {
-      size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(2, (org.prlprg.server.protocol.CompileRequest) payload_);
+      size +=
+          com.google.protobuf.CodedOutputStream.computeMessageSize(
+              2, (org.prlprg.server.protocol.CompileRequest) payload_);
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -256,7 +275,7 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public boolean equals(final java.lang.Object obj) {
     if (obj == this) {
-     return true;
+      return true;
     }
     if (!(obj instanceof org.prlprg.server.protocol.Request)) {
       return super.equals(obj);
@@ -266,12 +285,10 @@ private static final long serialVersionUID = 0L;
     if (!getPayloadCase().equals(other.getPayloadCase())) return false;
     switch (payloadCase_) {
       case 1:
-        if (!getHandshake()
-            .equals(other.getHandshake())) return false;
+        if (!getHandshake().equals(other.getHandshake())) return false;
         break;
       case 2:
-        if (!getCompile()
-            .equals(other.getCompile())) return false;
+        if (!getCompile().equals(other.getCompile())) return false;
         break;
       case 0:
       default:
@@ -304,114 +321,119 @@ private static final long serialVersionUID = 0L;
     return hash;
   }
 
-  public static org.prlprg.server.protocol.Request parseFrom(
-      java.nio.ByteBuffer data)
+  public static org.prlprg.server.protocol.Request parseFrom(java.nio.ByteBuffer data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
+
   public static org.prlprg.server.protocol.Request parseFrom(
-      java.nio.ByteBuffer data,
-      com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+      java.nio.ByteBuffer data, com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-  public static org.prlprg.server.protocol.Request parseFrom(
-      com.google.protobuf.ByteString data)
+
+  public static org.prlprg.server.protocol.Request parseFrom(com.google.protobuf.ByteString data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
+
   public static org.prlprg.server.protocol.Request parseFrom(
       com.google.protobuf.ByteString data,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
+
   public static org.prlprg.server.protocol.Request parseFrom(byte[] data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
+
   public static org.prlprg.server.protocol.Request parseFrom(
-      byte[] data,
-      com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+      byte[] data, com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
+
   public static org.prlprg.server.protocol.Request parseFrom(java.io.InputStream input)
       throws java.io.IOException {
-    return com.google.protobuf.GeneratedMessageV3
-        .parseWithIOException(PARSER, input);
+    return com.google.protobuf.GeneratedMessageV3.parseWithIOException(PARSER, input);
   }
+
   public static org.prlprg.server.protocol.Request parseFrom(
-      java.io.InputStream input,
-      com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+      java.io.InputStream input, com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
-    return com.google.protobuf.GeneratedMessageV3
-        .parseWithIOException(PARSER, input, extensionRegistry);
+    return com.google.protobuf.GeneratedMessageV3.parseWithIOException(
+        PARSER, input, extensionRegistry);
   }
+
   public static org.prlprg.server.protocol.Request parseDelimitedFrom(java.io.InputStream input)
       throws java.io.IOException {
-    return com.google.protobuf.GeneratedMessageV3
-        .parseDelimitedWithIOException(PARSER, input);
+    return com.google.protobuf.GeneratedMessageV3.parseDelimitedWithIOException(PARSER, input);
   }
+
   public static org.prlprg.server.protocol.Request parseDelimitedFrom(
-      java.io.InputStream input,
-      com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+      java.io.InputStream input, com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
-    return com.google.protobuf.GeneratedMessageV3
-        .parseDelimitedWithIOException(PARSER, input, extensionRegistry);
+    return com.google.protobuf.GeneratedMessageV3.parseDelimitedWithIOException(
+        PARSER, input, extensionRegistry);
   }
+
   public static org.prlprg.server.protocol.Request parseFrom(
-      com.google.protobuf.CodedInputStream input)
-      throws java.io.IOException {
-    return com.google.protobuf.GeneratedMessageV3
-        .parseWithIOException(PARSER, input);
+      com.google.protobuf.CodedInputStream input) throws java.io.IOException {
+    return com.google.protobuf.GeneratedMessageV3.parseWithIOException(PARSER, input);
   }
+
   public static org.prlprg.server.protocol.Request parseFrom(
       com.google.protobuf.CodedInputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
-    return com.google.protobuf.GeneratedMessageV3
-        .parseWithIOException(PARSER, input, extensionRegistry);
+    return com.google.protobuf.GeneratedMessageV3.parseWithIOException(
+        PARSER, input, extensionRegistry);
   }
 
   @java.lang.Override
-  public Builder newBuilderForType() { return newBuilder(); }
+  public Builder newBuilderForType() {
+    return newBuilder();
+  }
+
   public static Builder newBuilder() {
     return DEFAULT_INSTANCE.toBuilder();
   }
+
   public static Builder newBuilder(org.prlprg.server.protocol.Request prototype) {
     return DEFAULT_INSTANCE.toBuilder().mergeFrom(prototype);
   }
+
   @java.lang.Override
   public Builder toBuilder() {
-    return this == DEFAULT_INSTANCE
-        ? new Builder() : new Builder().mergeFrom(this);
+    return this == DEFAULT_INSTANCE ? new Builder() : new Builder().mergeFrom(this);
   }
 
   @java.lang.Override
-  protected Builder newBuilderForType(
-      com.google.protobuf.GeneratedMessageV3.BuilderParent parent) {
+  protected Builder newBuilderForType(com.google.protobuf.GeneratedMessageV3.BuilderParent parent) {
     Builder builder = new Builder(parent);
     return builder;
   }
-  /**
-   * Protobuf type {@code rsh.server.protocol.Request}
-   */
-  public static final class Builder extends
-      com.google.protobuf.GeneratedMessageV3.Builder<Builder> implements
+
+  /** Protobuf type {@code rsh.server.protocol.Request} */
+  public static final class Builder extends com.google.protobuf.GeneratedMessageV3.Builder<Builder>
+      implements
       // @@protoc_insertion_point(builder_implements:rsh.server.protocol.Request)
       org.prlprg.server.protocol.RequestOrBuilder {
-    public static final com.google.protobuf.Descriptors.Descriptor
-        getDescriptor() {
-      return org.prlprg.server.protocol.Protocol.internal_static_rsh_server_protocol_Request_descriptor;
+    public static final com.google.protobuf.Descriptors.Descriptor getDescriptor() {
+      return org.prlprg.server.protocol.Protocol
+          .internal_static_rsh_server_protocol_Request_descriptor;
     }
 
     @java.lang.Override
     protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
         internalGetFieldAccessorTable() {
-      return org.prlprg.server.protocol.Protocol.internal_static_rsh_server_protocol_Request_fieldAccessorTable
+      return org.prlprg.server.protocol.Protocol
+          .internal_static_rsh_server_protocol_Request_fieldAccessorTable
           .ensureFieldAccessorsInitialized(
-              org.prlprg.server.protocol.Request.class, org.prlprg.server.protocol.Request.Builder.class);
+              org.prlprg.server.protocol.Request.class,
+              org.prlprg.server.protocol.Request.Builder.class);
     }
 
     // Construct using org.prlprg.server.protocol.Request.newBuilder()
@@ -419,16 +441,15 @@ private static final long serialVersionUID = 0L;
       maybeForceBuilderInitialization();
     }
 
-    private Builder(
-        com.google.protobuf.GeneratedMessageV3.BuilderParent parent) {
+    private Builder(com.google.protobuf.GeneratedMessageV3.BuilderParent parent) {
       super(parent);
       maybeForceBuilderInitialization();
     }
+
     private void maybeForceBuilderInitialization() {
-      if (com.google.protobuf.GeneratedMessageV3
-              .alwaysUseFieldBuilders) {
-      }
+      if (com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders) {}
     }
+
     @java.lang.Override
     public Builder clear() {
       super.clear();
@@ -438,9 +459,9 @@ private static final long serialVersionUID = 0L;
     }
 
     @java.lang.Override
-    public com.google.protobuf.Descriptors.Descriptor
-        getDescriptorForType() {
-      return org.prlprg.server.protocol.Protocol.internal_static_rsh_server_protocol_Request_descriptor;
+    public com.google.protobuf.Descriptors.Descriptor getDescriptorForType() {
+      return org.prlprg.server.protocol.Protocol
+          .internal_static_rsh_server_protocol_Request_descriptor;
     }
 
     @java.lang.Override
@@ -483,38 +504,39 @@ private static final long serialVersionUID = 0L;
     public Builder clone() {
       return super.clone();
     }
+
     @java.lang.Override
     public Builder setField(
-        com.google.protobuf.Descriptors.FieldDescriptor field,
-        java.lang.Object value) {
+        com.google.protobuf.Descriptors.FieldDescriptor field, java.lang.Object value) {
       return super.setField(field, value);
     }
+
     @java.lang.Override
-    public Builder clearField(
-        com.google.protobuf.Descriptors.FieldDescriptor field) {
+    public Builder clearField(com.google.protobuf.Descriptors.FieldDescriptor field) {
       return super.clearField(field);
     }
+
     @java.lang.Override
-    public Builder clearOneof(
-        com.google.protobuf.Descriptors.OneofDescriptor oneof) {
+    public Builder clearOneof(com.google.protobuf.Descriptors.OneofDescriptor oneof) {
       return super.clearOneof(oneof);
     }
+
     @java.lang.Override
     public Builder setRepeatedField(
-        com.google.protobuf.Descriptors.FieldDescriptor field,
-        int index, java.lang.Object value) {
+        com.google.protobuf.Descriptors.FieldDescriptor field, int index, java.lang.Object value) {
       return super.setRepeatedField(field, index, value);
     }
+
     @java.lang.Override
     public Builder addRepeatedField(
-        com.google.protobuf.Descriptors.FieldDescriptor field,
-        java.lang.Object value) {
+        com.google.protobuf.Descriptors.FieldDescriptor field, java.lang.Object value) {
       return super.addRepeatedField(field, value);
     }
+
     @java.lang.Override
     public Builder mergeFrom(com.google.protobuf.Message other) {
       if (other instanceof org.prlprg.server.protocol.Request) {
-        return mergeFrom((org.prlprg.server.protocol.Request)other);
+        return mergeFrom((org.prlprg.server.protocol.Request) other);
       } else {
         super.mergeFrom(other);
         return this;
@@ -524,17 +546,20 @@ private static final long serialVersionUID = 0L;
     public Builder mergeFrom(org.prlprg.server.protocol.Request other) {
       if (other == org.prlprg.server.protocol.Request.getDefaultInstance()) return this;
       switch (other.getPayloadCase()) {
-        case HANDSHAKE: {
-          mergeHandshake(other.getHandshake());
-          break;
-        }
-        case COMPILE: {
-          mergeCompile(other.getCompile());
-          break;
-        }
-        case PAYLOAD_NOT_SET: {
-          break;
-        }
+        case HANDSHAKE:
+          {
+            mergeHandshake(other.getHandshake());
+            break;
+          }
+        case COMPILE:
+          {
+            mergeCompile(other.getCompile());
+            break;
+          }
+        case PAYLOAD_NOT_SET:
+          {
+            break;
+          }
       }
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
@@ -564,12 +589,12 @@ private static final long serialVersionUID = 0L;
       }
       return this;
     }
+
     private int payloadCase_ = 0;
     private java.lang.Object payload_;
-    public PayloadCase
-        getPayloadCase() {
-      return PayloadCase.forNumber(
-          payloadCase_);
+
+    public PayloadCase getPayloadCase() {
+      return PayloadCase.forNumber(payloadCase_);
     }
 
     public Builder clearPayload() {
@@ -579,19 +604,25 @@ private static final long serialVersionUID = 0L;
       return this;
     }
 
-
     private com.google.protobuf.SingleFieldBuilderV3<
-        org.prlprg.server.protocol.HandshakeRequest, org.prlprg.server.protocol.HandshakeRequest.Builder, org.prlprg.server.protocol.HandshakeRequestOrBuilder> handshakeBuilder_;
+            org.prlprg.server.protocol.HandshakeRequest,
+            org.prlprg.server.protocol.HandshakeRequest.Builder,
+            org.prlprg.server.protocol.HandshakeRequestOrBuilder>
+        handshakeBuilder_;
+
     /**
      * <code>.rsh.server.protocol.HandshakeRequest handshake = 1;</code>
+     *
      * @return Whether the handshake field is set.
      */
     @java.lang.Override
     public boolean hasHandshake() {
       return payloadCase_ == 1;
     }
+
     /**
      * <code>.rsh.server.protocol.HandshakeRequest handshake = 1;</code>
+     *
      * @return The handshake.
      */
     @java.lang.Override
@@ -608,9 +639,8 @@ private static final long serialVersionUID = 0L;
         return org.prlprg.server.protocol.HandshakeRequest.getDefaultInstance();
       }
     }
-    /**
-     * <code>.rsh.server.protocol.HandshakeRequest handshake = 1;</code>
-     */
+
+    /** <code>.rsh.server.protocol.HandshakeRequest handshake = 1;</code> */
     public Builder setHandshake(org.prlprg.server.protocol.HandshakeRequest value) {
       if (handshakeBuilder_ == null) {
         if (value == null) {
@@ -624,9 +654,8 @@ private static final long serialVersionUID = 0L;
       payloadCase_ = 1;
       return this;
     }
-    /**
-     * <code>.rsh.server.protocol.HandshakeRequest handshake = 1;</code>
-     */
+
+    /** <code>.rsh.server.protocol.HandshakeRequest handshake = 1;</code> */
     public Builder setHandshake(
         org.prlprg.server.protocol.HandshakeRequest.Builder builderForValue) {
       if (handshakeBuilder_ == null) {
@@ -638,15 +667,17 @@ private static final long serialVersionUID = 0L;
       payloadCase_ = 1;
       return this;
     }
-    /**
-     * <code>.rsh.server.protocol.HandshakeRequest handshake = 1;</code>
-     */
+
+    /** <code>.rsh.server.protocol.HandshakeRequest handshake = 1;</code> */
     public Builder mergeHandshake(org.prlprg.server.protocol.HandshakeRequest value) {
       if (handshakeBuilder_ == null) {
-        if (payloadCase_ == 1 &&
-            payload_ != org.prlprg.server.protocol.HandshakeRequest.getDefaultInstance()) {
-          payload_ = org.prlprg.server.protocol.HandshakeRequest.newBuilder((org.prlprg.server.protocol.HandshakeRequest) payload_)
-              .mergeFrom(value).buildPartial();
+        if (payloadCase_ == 1
+            && payload_ != org.prlprg.server.protocol.HandshakeRequest.getDefaultInstance()) {
+          payload_ =
+              org.prlprg.server.protocol.HandshakeRequest.newBuilder(
+                      (org.prlprg.server.protocol.HandshakeRequest) payload_)
+                  .mergeFrom(value)
+                  .buildPartial();
         } else {
           payload_ = value;
         }
@@ -660,9 +691,8 @@ private static final long serialVersionUID = 0L;
       payloadCase_ = 1;
       return this;
     }
-    /**
-     * <code>.rsh.server.protocol.HandshakeRequest handshake = 1;</code>
-     */
+
+    /** <code>.rsh.server.protocol.HandshakeRequest handshake = 1;</code> */
     public Builder clearHandshake() {
       if (handshakeBuilder_ == null) {
         if (payloadCase_ == 1) {
@@ -679,15 +709,13 @@ private static final long serialVersionUID = 0L;
       }
       return this;
     }
-    /**
-     * <code>.rsh.server.protocol.HandshakeRequest handshake = 1;</code>
-     */
+
+    /** <code>.rsh.server.protocol.HandshakeRequest handshake = 1;</code> */
     public org.prlprg.server.protocol.HandshakeRequest.Builder getHandshakeBuilder() {
       return getHandshakeFieldBuilder().getBuilder();
     }
-    /**
-     * <code>.rsh.server.protocol.HandshakeRequest handshake = 1;</code>
-     */
+
+    /** <code>.rsh.server.protocol.HandshakeRequest handshake = 1;</code> */
     @java.lang.Override
     public org.prlprg.server.protocol.HandshakeRequestOrBuilder getHandshakeOrBuilder() {
       if ((payloadCase_ == 1) && (handshakeBuilder_ != null)) {
@@ -699,40 +727,52 @@ private static final long serialVersionUID = 0L;
         return org.prlprg.server.protocol.HandshakeRequest.getDefaultInstance();
       }
     }
-    /**
-     * <code>.rsh.server.protocol.HandshakeRequest handshake = 1;</code>
-     */
+
+    /** <code>.rsh.server.protocol.HandshakeRequest handshake = 1;</code> */
     private com.google.protobuf.SingleFieldBuilderV3<
-        org.prlprg.server.protocol.HandshakeRequest, org.prlprg.server.protocol.HandshakeRequest.Builder, org.prlprg.server.protocol.HandshakeRequestOrBuilder> 
+            org.prlprg.server.protocol.HandshakeRequest,
+            org.prlprg.server.protocol.HandshakeRequest.Builder,
+            org.prlprg.server.protocol.HandshakeRequestOrBuilder>
         getHandshakeFieldBuilder() {
       if (handshakeBuilder_ == null) {
         if (!(payloadCase_ == 1)) {
           payload_ = org.prlprg.server.protocol.HandshakeRequest.getDefaultInstance();
         }
-        handshakeBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
-            org.prlprg.server.protocol.HandshakeRequest, org.prlprg.server.protocol.HandshakeRequest.Builder, org.prlprg.server.protocol.HandshakeRequestOrBuilder>(
+        handshakeBuilder_ =
+            new com.google.protobuf.SingleFieldBuilderV3<
+                org.prlprg.server.protocol.HandshakeRequest,
+                org.prlprg.server.protocol.HandshakeRequest.Builder,
+                org.prlprg.server.protocol.HandshakeRequestOrBuilder>(
                 (org.prlprg.server.protocol.HandshakeRequest) payload_,
                 getParentForChildren(),
                 isClean());
         payload_ = null;
       }
       payloadCase_ = 1;
-      onChanged();;
+      onChanged();
+      ;
       return handshakeBuilder_;
     }
 
     private com.google.protobuf.SingleFieldBuilderV3<
-        org.prlprg.server.protocol.CompileRequest, org.prlprg.server.protocol.CompileRequest.Builder, org.prlprg.server.protocol.CompileRequestOrBuilder> compileBuilder_;
+            org.prlprg.server.protocol.CompileRequest,
+            org.prlprg.server.protocol.CompileRequest.Builder,
+            org.prlprg.server.protocol.CompileRequestOrBuilder>
+        compileBuilder_;
+
     /**
      * <code>.rsh.server.protocol.CompileRequest compile = 2;</code>
+     *
      * @return Whether the compile field is set.
      */
     @java.lang.Override
     public boolean hasCompile() {
       return payloadCase_ == 2;
     }
+
     /**
      * <code>.rsh.server.protocol.CompileRequest compile = 2;</code>
+     *
      * @return The compile.
      */
     @java.lang.Override
@@ -749,9 +789,8 @@ private static final long serialVersionUID = 0L;
         return org.prlprg.server.protocol.CompileRequest.getDefaultInstance();
       }
     }
-    /**
-     * <code>.rsh.server.protocol.CompileRequest compile = 2;</code>
-     */
+
+    /** <code>.rsh.server.protocol.CompileRequest compile = 2;</code> */
     public Builder setCompile(org.prlprg.server.protocol.CompileRequest value) {
       if (compileBuilder_ == null) {
         if (value == null) {
@@ -765,11 +804,9 @@ private static final long serialVersionUID = 0L;
       payloadCase_ = 2;
       return this;
     }
-    /**
-     * <code>.rsh.server.protocol.CompileRequest compile = 2;</code>
-     */
-    public Builder setCompile(
-        org.prlprg.server.protocol.CompileRequest.Builder builderForValue) {
+
+    /** <code>.rsh.server.protocol.CompileRequest compile = 2;</code> */
+    public Builder setCompile(org.prlprg.server.protocol.CompileRequest.Builder builderForValue) {
       if (compileBuilder_ == null) {
         payload_ = builderForValue.build();
         onChanged();
@@ -779,15 +816,17 @@ private static final long serialVersionUID = 0L;
       payloadCase_ = 2;
       return this;
     }
-    /**
-     * <code>.rsh.server.protocol.CompileRequest compile = 2;</code>
-     */
+
+    /** <code>.rsh.server.protocol.CompileRequest compile = 2;</code> */
     public Builder mergeCompile(org.prlprg.server.protocol.CompileRequest value) {
       if (compileBuilder_ == null) {
-        if (payloadCase_ == 2 &&
-            payload_ != org.prlprg.server.protocol.CompileRequest.getDefaultInstance()) {
-          payload_ = org.prlprg.server.protocol.CompileRequest.newBuilder((org.prlprg.server.protocol.CompileRequest) payload_)
-              .mergeFrom(value).buildPartial();
+        if (payloadCase_ == 2
+            && payload_ != org.prlprg.server.protocol.CompileRequest.getDefaultInstance()) {
+          payload_ =
+              org.prlprg.server.protocol.CompileRequest.newBuilder(
+                      (org.prlprg.server.protocol.CompileRequest) payload_)
+                  .mergeFrom(value)
+                  .buildPartial();
         } else {
           payload_ = value;
         }
@@ -801,9 +840,8 @@ private static final long serialVersionUID = 0L;
       payloadCase_ = 2;
       return this;
     }
-    /**
-     * <code>.rsh.server.protocol.CompileRequest compile = 2;</code>
-     */
+
+    /** <code>.rsh.server.protocol.CompileRequest compile = 2;</code> */
     public Builder clearCompile() {
       if (compileBuilder_ == null) {
         if (payloadCase_ == 2) {
@@ -820,15 +858,13 @@ private static final long serialVersionUID = 0L;
       }
       return this;
     }
-    /**
-     * <code>.rsh.server.protocol.CompileRequest compile = 2;</code>
-     */
+
+    /** <code>.rsh.server.protocol.CompileRequest compile = 2;</code> */
     public org.prlprg.server.protocol.CompileRequest.Builder getCompileBuilder() {
       return getCompileFieldBuilder().getBuilder();
     }
-    /**
-     * <code>.rsh.server.protocol.CompileRequest compile = 2;</code>
-     */
+
+    /** <code>.rsh.server.protocol.CompileRequest compile = 2;</code> */
     @java.lang.Override
     public org.prlprg.server.protocol.CompileRequestOrBuilder getCompileOrBuilder() {
       if ((payloadCase_ == 2) && (compileBuilder_ != null)) {
@@ -840,30 +876,35 @@ private static final long serialVersionUID = 0L;
         return org.prlprg.server.protocol.CompileRequest.getDefaultInstance();
       }
     }
-    /**
-     * <code>.rsh.server.protocol.CompileRequest compile = 2;</code>
-     */
+
+    /** <code>.rsh.server.protocol.CompileRequest compile = 2;</code> */
     private com.google.protobuf.SingleFieldBuilderV3<
-        org.prlprg.server.protocol.CompileRequest, org.prlprg.server.protocol.CompileRequest.Builder, org.prlprg.server.protocol.CompileRequestOrBuilder> 
+            org.prlprg.server.protocol.CompileRequest,
+            org.prlprg.server.protocol.CompileRequest.Builder,
+            org.prlprg.server.protocol.CompileRequestOrBuilder>
         getCompileFieldBuilder() {
       if (compileBuilder_ == null) {
         if (!(payloadCase_ == 2)) {
           payload_ = org.prlprg.server.protocol.CompileRequest.getDefaultInstance();
         }
-        compileBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
-            org.prlprg.server.protocol.CompileRequest, org.prlprg.server.protocol.CompileRequest.Builder, org.prlprg.server.protocol.CompileRequestOrBuilder>(
+        compileBuilder_ =
+            new com.google.protobuf.SingleFieldBuilderV3<
+                org.prlprg.server.protocol.CompileRequest,
+                org.prlprg.server.protocol.CompileRequest.Builder,
+                org.prlprg.server.protocol.CompileRequestOrBuilder>(
                 (org.prlprg.server.protocol.CompileRequest) payload_,
                 getParentForChildren(),
                 isClean());
         payload_ = null;
       }
       payloadCase_ = 2;
-      onChanged();;
+      onChanged();
+      ;
       return compileBuilder_;
     }
+
     @java.lang.Override
-    public final Builder setUnknownFields(
-        final com.google.protobuf.UnknownFieldSet unknownFields) {
+    public final Builder setUnknownFields(final com.google.protobuf.UnknownFieldSet unknownFields) {
       return super.setUnknownFields(unknownFields);
     }
 
@@ -873,12 +914,12 @@ private static final long serialVersionUID = 0L;
       return super.mergeUnknownFields(unknownFields);
     }
 
-
     // @@protoc_insertion_point(builder_scope:rsh.server.protocol.Request)
   }
 
   // @@protoc_insertion_point(class_scope:rsh.server.protocol.Request)
   private static final org.prlprg.server.protocol.Request DEFAULT_INSTANCE;
+
   static {
     DEFAULT_INSTANCE = new org.prlprg.server.protocol.Request();
   }
@@ -887,16 +928,16 @@ private static final long serialVersionUID = 0L;
     return DEFAULT_INSTANCE;
   }
 
-  private static final com.google.protobuf.Parser<Request>
-      PARSER = new com.google.protobuf.AbstractParser<Request>() {
-    @java.lang.Override
-    public Request parsePartialFrom(
-        com.google.protobuf.CodedInputStream input,
-        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
-        throws com.google.protobuf.InvalidProtocolBufferException {
-      return new Request(input, extensionRegistry);
-    }
-  };
+  private static final com.google.protobuf.Parser<Request> PARSER =
+      new com.google.protobuf.AbstractParser<Request>() {
+        @java.lang.Override
+        public Request parsePartialFrom(
+            com.google.protobuf.CodedInputStream input,
+            com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+            throws com.google.protobuf.InvalidProtocolBufferException {
+          return new Request(input, extensionRegistry);
+        }
+      };
 
   public static com.google.protobuf.Parser<Request> parser() {
     return PARSER;
@@ -911,6 +952,4 @@ private static final long serialVersionUID = 0L;
   public org.prlprg.server.protocol.Request getDefaultInstanceForType() {
     return DEFAULT_INSTANCE;
   }
-
 }
-
