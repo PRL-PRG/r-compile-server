@@ -31,7 +31,7 @@ public class LabelMapping {
   }
 
   int getTarget(int sourceLabel) {
-    var target = posMap.get(sourceLabel - 1);
+    var target = posMap.get(sourceLabel);
     if (target == -1) {
       if (sourceLabel == 0) {
         throw new IllegalArgumentException(
@@ -105,18 +105,21 @@ public class LabelMapping {
         throw new IllegalArgumentException("offsets must be nonnegative");
       }
 
-      targetPc += targetOffset;
-      // Offsets before sourceOffset map to the middle of the previous instruction
-      for (int i = 0; i < sourceOffset - 1; i++) {
-        map.add(-1);
-      }
       // Add target position
       if (sourceOffset > 0) {
         map.add(targetPc);
       }
+
+      // "allocate" positions for the arguments afterward
+      for (int i = 0; i < sourceOffset - 1; i++) {
+        map.add(-1);
+      }
+      targetPc += targetOffset;
     }
 
     LabelMapping build() {
+      // Add the final offset
+      map.add(targetPc);
       return new LabelMapping(map.build());
     }
   }
