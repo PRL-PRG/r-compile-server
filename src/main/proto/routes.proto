@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+option java_package = "org.prlprg.server";
+
+import "messages.proto";
+
+service CompileService {
+  rpc Compile(CompileRequest) returns (CompileResponse) {}
+  rpc Init(InitRequest) returns (InitResponse) {}
+}
