@@ -587,7 +587,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
 
   @EffectsAre({})
   @IsEnv
-  record LdFunctionEnv() implements RValue_ {
+  record LdEnclosEnv() implements RValue_ {
     @Override
     public EnvAux computeEnvAux() {
       return new EnvAux(null);
@@ -628,6 +628,10 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
   @TypeIs("INT")
   record Inc(RValue value) implements RValue_ {}
 
+  /**
+   * Unlike PIR, unary operations are guarnateed not to dispatch, because we compile the dispatch
+   * case separately.
+   */
   sealed interface UnOp extends RValue_, InstrData.HasAst {
     RValue arg();
   }
@@ -656,6 +660,10 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
     }
   }
 
+  /**
+   * Unlike PIR, binary operations are guarnateed not to dispatch, because we compile the dispatch
+   * case separately.
+   */
   sealed interface BinOp extends RValue_, InstrData.HasAst {
     RValue lhs();
 
@@ -698,148 +706,72 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
     }
   }
 
-  record UMinus(@Override Optional<LangSXP> ast1, @Override RValue arg, @IsEnv RValue env)
-      implements ArithmeticUnOp {}
+  record UMinus(@Override Optional<LangSXP> ast1, @Override RValue arg) implements ArithmeticUnOp {}
 
-  record UPlus(@Override Optional<LangSXP> ast1, @Override RValue arg, @IsEnv RValue env)
-      implements ArithmeticUnOp {}
+  record UPlus(@Override Optional<LangSXP> ast1, @Override RValue arg) implements ArithmeticUnOp {}
 
-  record Sqrt(@Override Optional<LangSXP> ast1, @Override RValue arg, @IsEnv RValue env)
-      implements ArithmeticUnOp {}
+  record Sqrt(@Override Optional<LangSXP> ast1, @Override RValue arg) implements ArithmeticUnOp {}
 
-  record Exp(@Override Optional<LangSXP> ast1, @Override RValue arg, @IsEnv RValue env)
-      implements ArithmeticUnOp {}
+  record Exp(@Override Optional<LangSXP> ast1, @Override RValue arg) implements ArithmeticUnOp {}
 
-  record Log(@Override Optional<LangSXP> ast1, @Override RValue arg, @IsEnv RValue env)
-      implements ArithmeticUnOp {}
+  record Log(@Override Optional<LangSXP> ast1, @Override RValue arg) implements ArithmeticUnOp {}
 
-  record LogBase(
-      @Override Optional<LangSXP> ast1,
-      @Override RValue lhs,
-      @Override RValue rhs,
-      @IsEnv RValue env)
+  record LogBase(@Override Optional<LangSXP> ast1, @Override RValue lhs, @Override RValue rhs)
       implements ArithmeticBinOp {}
 
   // ???: Should we put all unary math functions in math1 or make all math1 functions separate
   // instructions?
-  record Math1(@Override Optional<LangSXP> ast1, int funId, @Override RValue arg, @IsEnv RValue env)
+  record Math1(@Override Optional<LangSXP> ast1, int funId, @Override RValue arg)
       implements ArithmeticUnOp {}
 
-  record Add(
-      @Override Optional<LangSXP> ast1,
-      @Override RValue lhs,
-      @Override RValue rhs,
-      @IsEnv RValue env)
+  record Add(@Override Optional<LangSXP> ast1, @Override RValue lhs, @Override RValue rhs)
       implements ArithmeticBinOp {}
 
-  record Sub(
-      @Override Optional<LangSXP> ast1,
-      @Override RValue lhs,
-      @Override RValue rhs,
-      @IsEnv RValue env)
+  record Sub(@Override Optional<LangSXP> ast1, @Override RValue lhs, @Override RValue rhs)
       implements ArithmeticBinOp {}
 
-  record Mul(
-      @Override Optional<LangSXP> ast1,
-      @Override RValue lhs,
-      @Override RValue rhs,
-      @IsEnv RValue env)
+  record Mul(@Override Optional<LangSXP> ast1, @Override RValue lhs, @Override RValue rhs)
       implements ArithmeticBinOp {}
 
-  record Div(
-      @Override Optional<LangSXP> ast1,
-      @Override RValue lhs,
-      @Override RValue rhs,
-      @IsEnv RValue env)
+  record Div(@Override Optional<LangSXP> ast1, @Override RValue lhs, @Override RValue rhs)
       implements ArithmeticBinOp {}
 
-  record IDiv(
-      @Override Optional<LangSXP> ast1,
-      @Override RValue lhs,
-      @Override RValue rhs,
-      @IsEnv RValue env)
+  record IDiv(@Override Optional<LangSXP> ast1, @Override RValue lhs, @Override RValue rhs)
       implements ArithmeticBinOp {}
 
-  record Mod(
-      @Override Optional<LangSXP> ast1,
-      @Override RValue lhs,
-      @Override RValue rhs,
-      @IsEnv RValue env)
+  record Mod(@Override Optional<LangSXP> ast1, @Override RValue lhs, @Override RValue rhs)
       implements ArithmeticBinOp {}
 
-  record Pow(
-      @Override Optional<LangSXP> ast1,
-      @Override RValue lhs,
-      @Override RValue rhs,
-      @IsEnv RValue env)
+  record Pow(@Override Optional<LangSXP> ast1, @Override RValue lhs, @Override RValue rhs)
       implements ArithmeticBinOp {}
 
-  record Eq(
-      @Override Optional<LangSXP> ast1,
-      @Override RValue lhs,
-      @Override RValue rhs,
-      @IsEnv RValue env)
+  record Eq(@Override Optional<LangSXP> ast1, @Override RValue lhs, @Override RValue rhs)
       implements ComparisonBinOp {}
 
-  record Neq(
-      @Override Optional<LangSXP> ast1,
-      @Override RValue lhs,
-      @Override RValue rhs,
-      @IsEnv RValue env)
+  record Neq(@Override Optional<LangSXP> ast1, @Override RValue lhs, @Override RValue rhs)
       implements ComparisonBinOp {}
 
-  record Lt(
-      @Override Optional<LangSXP> ast1,
-      @Override RValue lhs,
-      @Override RValue rhs,
-      @IsEnv RValue env)
+  record Lt(@Override Optional<LangSXP> ast1, @Override RValue lhs, @Override RValue rhs)
       implements ComparisonBinOp {}
 
-  record Lte(
-      @Override Optional<LangSXP> ast1,
-      @Override RValue lhs,
-      @Override RValue rhs,
-      @IsEnv RValue env)
+  record Lte(@Override Optional<LangSXP> ast1, @Override RValue lhs, @Override RValue rhs)
       implements ComparisonBinOp {}
 
-  record Gte(
-      @Override Optional<LangSXP> ast1,
-      @Override RValue lhs,
-      @Override RValue rhs,
-      @IsEnv RValue env)
+  record Gte(@Override Optional<LangSXP> ast1, @Override RValue lhs, @Override RValue rhs)
       implements ComparisonBinOp {}
 
-  record Gt(
-      @Override Optional<LangSXP> ast1,
-      @Override RValue lhs,
-      @Override RValue rhs,
-      @IsEnv RValue env)
+  record Gt(@Override Optional<LangSXP> ast1, @Override RValue lhs, @Override RValue rhs)
       implements ComparisonBinOp {}
 
-  record LAnd(
-      @Override Optional<LangSXP> ast1,
-      @Override RValue lhs,
-      @Override RValue rhs,
-      @IsEnv RValue env)
+  record LAnd(@Override Optional<LangSXP> ast1, @Override RValue lhs, @Override RValue rhs)
       implements BooleanBinOp {}
 
-  record LOr(
-      @Override Optional<LangSXP> ast1,
-      @Override RValue lhs,
-      @Override RValue rhs,
-      @IsEnv RValue env)
+  record LOr(@Override Optional<LangSXP> ast1, @Override RValue lhs, @Override RValue rhs)
       implements BooleanBinOp {}
 
-  record Not(@Override Optional<LangSXP> ast1, @Override RValue arg, @IsEnv RValue env)
-      implements BooleanUnOp {}
+  record Not(@Override Optional<LangSXP> ast1, @Override RValue arg) implements BooleanUnOp {}
 
-  @EffectsAre(REffect.Warn)
-  record Warning(String message) implements Void {}
-
-  @EffectsAre(REffect.Error)
-  record Error(String message, @IsEnv RValue env) implements Void {}
-
-  record Colon(@Override Optional<LangSXP> ast1, RValue lhs, RValue rhs, @IsEnv RValue env)
+  record Colon(@Override Optional<LangSXP> ast1, RValue lhs, RValue rhs)
       implements RValue_, InstrData.HasAst {
     @Override
     public RType computeType() {
@@ -853,6 +785,12 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
       return REffects.ARBITRARY;
     }
   }
+
+  @EffectsAre(REffect.Warn)
+  record Warning(String message) implements Void {}
+
+  @EffectsAre(REffect.Error)
+  record Error(String message) implements Void {}
 
   @TypeIs("ANY")
   @EffectsAreAribtrary()
@@ -960,21 +898,23 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
       @Override Optional<LangSXP> ast1,
       @Override BuiltinId fun,
       @Override ImmutableList<RValue> args,
-      @Override @IsEnv RValue env,
       ImmutableList<Assumption> assumption)
       implements Call_<BuiltinId> {
     public CallSafeBuiltin(
         @Nullable LangSXP ast,
         BuiltinId fun,
         ImmutableList<RValue> args,
-        @IsEnv RValue env,
         ImmutableList<Assumption> assumption) {
-      this(Optional.ofNullable(ast), fun, args, env, assumption);
+      this(Optional.ofNullable(ast), fun, args, assumption);
     }
 
-    public CallSafeBuiltin(
-        @Nullable LangSXP ast, BuiltinId fun, ImmutableList<RValue> args, @IsEnv RValue env) {
-      this(Optional.ofNullable(ast), fun, args, env, ImmutableList.of());
+    public CallSafeBuiltin(@Nullable LangSXP ast, BuiltinId fun, ImmutableList<RValue> args) {
+      this(Optional.ofNullable(ast), fun, args, ImmutableList.of());
+    }
+
+    @Override
+    public RValue env() {
+      return StaticEnv.ELIDED;
     }
 
     @Override
@@ -1002,6 +942,15 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
     }
   }
 
+  /**
+   * @param parent
+   * @param names
+   * @param values
+   * @param missingness
+   * @param context
+   * @param isStub Whether this is a special lightweight environment (from PIR).
+   * @param neverStub Set on a stubbed environment if we deoptimize because it materialized.
+   */
   @EffectsAre(REffect.LeaksNonEnvArg)
   @IsEnv
   record MkEnv(
@@ -1010,14 +959,29 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
       @SameLen("names") ImmutableList<RValue> values,
       @SameLen("names") ImmutableList<Boolean> missingness,
       int context,
-      boolean isStub)
+      boolean isStub,
+      boolean neverStub)
       implements RValue_ {
     public MkEnv(
         @IsEnv RValue parent,
         ImmutableList<RegSymSXP> names,
-        ImmutableList<RValue> values,
-        ImmutableList<Boolean> missingness) {
+        @SameLen("names") ImmutableList<RValue> values,
+        @SameLen("names") ImmutableList<Boolean> missingness,
+        int context,
+        boolean isStub) {
+      this(parent, names, values, missingness, context, isStub, false);
+    }
+
+    public MkEnv(
+        @IsEnv RValue parent,
+        ImmutableList<RegSymSXP> names,
+        @SameLen("names") ImmutableList<RValue> values,
+        @SameLen("names") ImmutableList<Boolean> missingness) {
       this(parent, names, values, missingness, 1, false);
+    }
+
+    public MkEnv(@IsEnv RValue parent) {
+      this(parent, ImmutableList.of(), ImmutableList.of(), ImmutableList.of());
     }
 
     @Override
@@ -1036,7 +1000,12 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
     }
   }
 
-  @EffectsAre(REffect.ReadsEnvArg)
+  /**
+   * Doesn't have {@link REffect#ReadsEnvArg} because it doesn't read the "environment" part of the
+   * environment, only checks that it's not a stub. The effect's absence is relied on by {@code
+   * org.prlprg.optimizations.ElideEnvs}.
+   */
+  @EffectsAre({})
   @TypeIs("BOOL")
   record IsEnvStub(@IsEnv RValue env) implements RValue_ {}
 

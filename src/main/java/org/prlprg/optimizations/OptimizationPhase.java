@@ -17,12 +17,13 @@ class OptimizationPhase {
   /**
    * Default optimization passes.
    *
-   * <p>Currently this is all of them, and there are no passes for speculation or R-specific
-   * semantics (e.g. environment elision).
+   * <p>Currently this is all of them, and there are no passes for speculation.
    */
   static final OptimizationPhase DEFAULT =
       new OptimizationPhase(
           "Default",
+          new ElideEnvs(),
+          new DeadCodeElimination(),
           new LoopInvariantCodeMotion(),
           new CopyPropagation(),
           new CommonSubexpressionElimination(),
@@ -31,6 +32,8 @@ class OptimizationPhase {
           new ComputeProperties(),
           // Part of cleanup: DeadCodeElimination,
           // `Constant` is a node itself, not an instruction: ConstantPropagation,
+          new ElideEnvs(),
+          new DeadCodeElimination(),
           new LoopInvariantCodeMotion(),
           new CopyPropagation(),
           new CommonSubexpressionElimination(),

@@ -21,6 +21,7 @@ import org.prlprg.ir.cfg.PirType.NativeType;
 import org.prlprg.ir.cfg.PirType.RType_;
 import org.prlprg.ir.cfg.StmtData.Call_;
 import org.prlprg.ir.cfg.StmtData.FrameState_;
+import org.prlprg.ir.cfg.StmtData.LdEnclosEnv;
 import org.prlprg.ir.cfg.StmtData.NamelessCall;
 import org.prlprg.ir.closure.Closure;
 import org.prlprg.ir.closure.ClosureVersion;
@@ -567,7 +568,7 @@ class PirInstrOrPhiParseContext {
             var builtin = p.parse(BuiltinId.class);
             var callArgs = parseCallArgs(p);
             yield new StmtData.CallSafeBuiltin(
-                stubLangSxp(), builtin, callArgs, StaticEnv.NOT_CLOSED, ImmutableList.of());
+                stubLangSxp(), builtin, callArgs, ImmutableList.of());
           }
           case "PushContext" -> {
             var allArgs = new ArrayList<RValue>();
@@ -602,9 +603,7 @@ class PirInstrOrPhiParseContext {
             var assumption = p.parse(RValue.class);
             if (invert) {
               assumption =
-                  bb.append(
-                      "assumeInvert",
-                      new StmtData.Not(Optional.empty(), assumption, StaticEnv.ELIDED));
+                  bb.append("assumeInvert", new StmtData.Not(Optional.empty(), assumption));
             }
             s.assertAndSkip(", ");
             var checkpoint = p.parse(Checkpoint.class);
@@ -651,6 +650,7 @@ class PirInstrOrPhiParseContext {
                   case "Plus" -> StmtData.UPlus.class;
                   case "Minus" -> StmtData.UMinus.class;
                   case "ChkFunction" -> StmtData.ChkFun.class;
+                  case "LdFunctionEnv" -> LdEnclosEnv.class;
                   default -> InstrData.CLASSES.get(instrTypeName);
                 };
             if (clazz == null) {
@@ -837,7 +837,6 @@ class PirInstrOrPhiParseContext {
       return new PirType.RType_(p.parse(RType.class));
     }
 
-    @SuppressWarnings("StatementWithEmptyBody")
     @ParseMethod(SkipWhitespace.NONE)
     private RType parseRType(Parser p) {
       var s = p.scanner();
@@ -1240,6 +1239,7 @@ class PirInstrOrPhiPrintContext {
           case StmtData.UPlus _ -> "Plus";
           case StmtData.UMinus _ -> "Minus";
           case StmtData.ChkFun _ -> "ChkFunction";
+          case StmtData.LdEnclosEnv _ -> "LdFunctionEnv";
           default -> data.getClass().getSimpleName();
         };
     // No feedback, so we only write the base name

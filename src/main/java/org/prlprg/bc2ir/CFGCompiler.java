@@ -151,7 +151,6 @@ import org.prlprg.ir.cfg.BB;
 import org.prlprg.ir.cfg.CFG;
 import org.prlprg.ir.cfg.Constant;
 import org.prlprg.ir.cfg.FrameState;
-import org.prlprg.ir.cfg.IsEnv;
 import org.prlprg.ir.cfg.JumpData;
 import org.prlprg.ir.cfg.Node;
 import org.prlprg.ir.cfg.Phi;
@@ -161,6 +160,8 @@ import org.prlprg.ir.cfg.Stmt;
 import org.prlprg.ir.cfg.StmtData;
 import org.prlprg.ir.cfg.StmtData.FrameState_;
 import org.prlprg.ir.cfg.StmtData.GnuRIs;
+import org.prlprg.ir.cfg.StmtData.LdEnclosEnv;
+import org.prlprg.ir.cfg.StmtData.MkEnv;
 import org.prlprg.ir.cfg.StmtData.NamelessCall;
 import org.prlprg.ir.cfg.StmtData.RValue_;
 import org.prlprg.ir.cfg.builder.CFGCursor;
@@ -337,8 +338,21 @@ public class CFGCompiler {
 
     cursor = new CFGCursor(cfg);
 
-    // Insert `LdFunctionEnv`, which goes before all bytecode instructions.
-    env = cursor.insert("enclos", new StmtData.LdFunctionEnv());
+    // Insert `LdEnclosEnv`, which goes before all bytecode instructions.
+    var enclos = cursor.insert("enclos", new LdEnclosEnv());
+    if (isPromise) {
+      // If this is a promise, it re-uses ENCLOS (assignments in a promise assign the variable after
+      // the promise is evaluated)
+      env = enclos;
+    } else {
+      // If this is a closure, it has its own environment (assignments in a closure don't rebind
+      // outside the closure, unless they are super-assignments).
+      env = cursor.insert("inclos", new MkEnv(enclos));
+    }
+
+    // Insert the "real" entry block, where the instructions from the closure's bytecode start.
+    // The previous block had implicit instructions added by default to every closure (though they
+    // may be elided later).
     var entry_ = cfg.addBB("entry_");
     cursor.insert(new JumpData.Goto(entry_));
     cursor.moveToStart(entry_);
@@ -618,7 +632,7 @@ public class CFGCompiler {
         index1.rename("index");
         push(index1);
         // Compare the index to the length
-        var cond = cursor.insert(new StmtData.Lt(Optional.of(get(ast)), length, index1, env));
+        var cond = cursor.insert(new StmtData.Lt(Optional.of(get(ast)), length, index1));
         // Jump to `end` if it's greater (remember, GNU-R indexing is one-based)
         cursor.insert(new JumpData.Branch(get(ast), cond, endBb, forBodyBb));
 
@@ -808,7 +822,7 @@ public class CFGCompiler {
       case And(var ast) -> pushInsert(mkBinop(ast, StmtData.LAnd::new));
       case Or(var ast) -> pushInsert(mkBinop(ast, StmtData.LOr::new));
       case Not(var ast) -> pushInsert(mkUnop(ast, StmtData.Not::new));
-      case DotsErr() -> insert(new StmtData.Error("'...' used in an incorrect context", env));
+      case DotsErr() -> insert(new StmtData.Error("'...' used in an incorrect context"));
       case StartAssign(var name) -> {
         var lhs = cursor.insert(get(name).name(), new StmtData.LdVar(get(name), false, env));
         var rhs = top(RValue.class);
@@ -971,7 +985,7 @@ public class CFGCompiler {
       }
       case IsNull() ->
           pushInsert(
-              new StmtData.Eq(Optional.empty(), pop(RValue.class), new Constant(SEXPs.NULL), env));
+              new StmtData.Eq(Optional.empty(), pop(RValue.class), new Constant(SEXPs.NULL)));
       case IsLogical() -> pushInsert(new StmtData.GnuRIs(IsTypeCheck.LGL, pop(RValue.class)));
       case IsInteger() -> pushInsert(new StmtData.GnuRIs(IsTypeCheck.INT, pop(RValue.class)));
       case IsDouble() -> pushInsert(new StmtData.GnuRIs(IsTypeCheck.REAL, pop(RValue.class)));
@@ -1107,7 +1121,7 @@ public class CFGCompiler {
 
         // Has one predecessor (no phis) so we can call `cursor.moveToStart` instead of `moveTo`.
         cursor.moveToStart(isNotVectorBb);
-        cursor.insert(new StmtData.Error("EXPR must be a length 1 vector", env));
+        cursor.insert(new StmtData.Error("EXPR must be a length 1 vector"));
         cursor.insert(new JumpData.Unreachable());
 
         // Has one predecessor (no phis) so we can call `cursor.moveToStart` instead of `moveTo`.
@@ -1136,7 +1150,7 @@ public class CFGCompiler {
         cursor.moveToStart(stringBb);
         if (names == null) {
           if (numLabels == null) {
-            cursor.insert(new StmtData.Error("bad numeric 'switch' offsets", env));
+            cursor.insert(new StmtData.Error("bad numeric 'switch' offsets"));
             cursor.insert(new JumpData.Unreachable());
           } else if (numLabels.isScalar()) {
             cursor.insert(new StmtData.Warning("'switch' with no alternatives"));
@@ -1144,15 +1158,15 @@ public class CFGCompiler {
           } else {
             cursor.insert(
                 new StmtData.Error(
-                    "numeric EXPR required for 'switch' without named alternatives", env));
+                    "numeric EXPR required for 'switch' without named alternatives"));
             cursor.insert(new JumpData.Unreachable());
           }
         } else {
           if (chrLabels == null) {
-            cursor.insert(new StmtData.Error("bad character 'switch' offsets", env));
+            cursor.insert(new StmtData.Error("bad character 'switch' offsets"));
             cursor.insert(new JumpData.Unreachable());
           } else if (names.size() != chrLabels.size()) {
-            cursor.insert(new StmtData.Error("bad 'switch' names", env));
+            cursor.insert(new StmtData.Error("bad 'switch' names"));
             cursor.insert(new JumpData.Unreachable());
           } else {
             for (var i = 0; i < chrLabels.size() - 1; i++) {
@@ -1160,7 +1174,7 @@ public class CFGCompiler {
               var ifMatch = bbAt(new BcLabel(chrLabels.get(i)));
               var cond =
                   cursor.insert(
-                      new StmtData.Eq(Optional.of(get(ast)), value, Constant.string(name), env));
+                      new StmtData.Eq(Optional.of(get(ast)), value, Constant.string(name)));
               var prev = cursor.bb();
               cursor.insert(next -> new JumpData.Branch(cond, ifMatch, next));
               addPhiInputsForStack(ifMatch, prev);
@@ -1175,7 +1189,7 @@ public class CFGCompiler {
         // Has one predecessor (no phis) so we can call `cursor.moveToStart` instead of `moveTo`.
         cursor.moveToStart(asIntegerBb);
         if (numLabels == null) {
-          cursor.insert(new StmtData.Error("bad numeric 'switch' offsets", env));
+          cursor.insert(new StmtData.Error("bad numeric 'switch' offsets"));
           cursor.insert(new JumpData.Unreachable());
         } else if (numLabels.isScalar()) {
           cursor.insert(new StmtData.Warning("'switch' with no alternatives"));
@@ -1186,7 +1200,7 @@ public class CFGCompiler {
             var ifMatch = bbAt(new BcLabel(numLabels.get(i)));
             var cond =
                 cursor.insert(
-                    new StmtData.Eq(Optional.of(get(ast)), asInteger, Constant.integer(i), env));
+                    new StmtData.Eq(Optional.of(get(ast)), asInteger, Constant.integer(i)));
             var prev = cursor.bb();
             cursor.insert(next -> new JumpData.Branch(cond, ifMatch, next));
             addPhiInputsForStack(ifMatch, prev);
@@ -1248,7 +1262,7 @@ public class CFGCompiler {
       case Log(var ast) -> pushInsert(mkUnop(ast, StmtData.Log::new));
       case LogBase(var ast) -> pushInsert(mkBinop(ast, StmtData.LogBase::new));
       case Math1(var ast, var funId) ->
-          pushInsert(new StmtData.Math1(Optional.of(get(ast)), funId, pop(RValue.class), env));
+          pushInsert(new StmtData.Math1(Optional.of(get(ast)), funId, pop(RValue.class)));
       case DotCall(var ast, var numArgs) -> {
         if (stack.size() < numArgs + 1) {
           throw fail("stack underflow");
@@ -1281,7 +1295,7 @@ public class CFGCompiler {
         var fun = (RegSymSXP) expr.fun();
         var sym = cursor.insert(fun.name(), new StmtData.LdFun(fun, env));
         var base = cursor.insert("base." + fun.name(), new StmtData.LdFun(fun, StaticEnv.BASE));
-        var guard = cursor.insert(new StmtData.Eq(Optional.of(expr), sym, base, env));
+        var guard = cursor.insert(new StmtData.Eq(Optional.of(expr), sym, base));
 
         var safeBb = cfg.addBB("baseGuardSafe");
         var fallbackBb = cfg.addBB("baseGuardFail");
@@ -1319,22 +1333,22 @@ public class CFGCompiler {
 
   @FunctionalInterface
   private interface MkUnopFn {
-    StmtData.RValue_ make(Optional<LangSXP> ast, RValue value, @IsEnv RValue env);
+    StmtData.RValue_ make(Optional<LangSXP> ast, RValue value);
   }
 
   @FunctionalInterface
   private interface MkBinopFn {
-    StmtData.RValue_ make(Optional<LangSXP> ast, RValue lhs, RValue rhs, @IsEnv RValue env);
+    StmtData.RValue_ make(Optional<LangSXP> ast, RValue lhs, RValue rhs);
   }
 
   private StmtData.RValue_ mkUnop(ConstPool.Idx<LangSXP> ast, MkUnopFn unop) {
-    return unop.make(Optional.of(get(ast)), pop(RValue.class), env);
+    return unop.make(Optional.of(get(ast)), pop(RValue.class));
   }
 
   private StmtData.RValue_ mkBinop(ConstPool.Idx<LangSXP> ast, MkBinopFn binop) {
     var rhs = pop(RValue.class);
     var lhs = pop(RValue.class);
-    return binop.make(Optional.of(get(ast)), lhs, rhs, env);
+    return binop.make(Optional.of(get(ast)), lhs, rhs);
   }
 
   /**
@@ -1434,7 +1448,7 @@ public class CFGCompiler {
       // Slowcase, for when we don't have a specialized instruction.
       pushInsert(
           new StmtData.CallSafeBuiltin(
-              dispatch.ast, type.builtin, ImmutableList.copyOf(argValues), env));
+              dispatch.ast, type.builtin, ImmutableList.copyOf(argValues)));
     } else {
       // Instead of compiling a call, insert our specialized instruction with the call arguments.
       pushInsert(dispatchInstrData.apply(dispatch.ast, argValues));
@@ -1476,8 +1490,7 @@ public class CFGCompiler {
     // although in this the number of arguments is known.
     var result =
         dispatchInstrData == null
-            ? new StmtData.CallSafeBuiltin(
-                dispatch.ast, type.builtin, ImmutableList.copyOf(args), env)
+            ? new StmtData.CallSafeBuiltin(dispatch.ast, type.builtin, ImmutableList.copyOf(args))
             : dispatchInstrData.apply(dispatch.ast, args);
     args.clear();
     pushInsert(result);
