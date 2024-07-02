@@ -105,6 +105,25 @@ public sealed interface Instr extends InstrOrPhi permits Jump, Stmt {
   RValue env();
 
   /**
+   * Whether the instruction can have an environment, but it may be elided.
+   *
+   * <p>i.e. whether {@link #env()} is non-null, but clearer meaning.
+   */
+  default boolean canHaveEnv() {
+    return env() != null;
+  }
+
+  /**
+   * Whether the instruction has an environment which isn't elided.
+   *
+   * <p>i.e. whether {@link #env()} is non-null ({@link #canHaveEnv()}) and not {@link
+   * StaticEnv#ELIDED}.
+   */
+  default boolean hasEnv() {
+    return env() != null && env() != StaticEnv.ELIDED;
+  }
+
+  /**
    * (A view of) the instruction's return values, which other nodes may depend on. If the
    * instruction produces a single value (may or may not be {@link RValue}), this will be itself. An
    * instruction may return multiple values, in which case this contains multiple nodes. "Void"
@@ -443,6 +462,7 @@ abstract sealed class InstrImpl<D extends InstrData<?>> extends InstrOrPhiImpl i
   private REffects implicitlyFilterEffects(REffects effects) {
     if (env == StaticEnv.ELIDED) {
       // ???: Can it do reflection without an environment?
+      // We rely on these being filtered in `ElideEnvs`.
       effects =
           effects.without(
               REffect.ReadsEnvArg, REffect.WritesEnvArg, REffect.LeaksEnvArg, REffect.Reflection);
