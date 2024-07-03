@@ -35,20 +35,26 @@ final class Flags {
     }
   }
 
+  // Pack the flags of a regular item
   public Flags(
-      RDSItemType type,
-      GPFlags levels,
-      boolean isObject,
-      boolean hasAttributes,
-      boolean hasTag,
-      int refIndex) {
+      RDSItemType type, GPFlags levels, boolean isObject, boolean hasAttributes, boolean hasTag) {
+    if (type.i() == RDSItemType.Special.REFSXP.i())
+      throw new IllegalArgumentException(
+          "Cannot write REFSXP with this constructor: ref index " + "needed");
     this.flags =
         type.i()
             | (levels.encode() << 12)
             | (isObject ? OBJECT_MASK : 0)
             | (hasAttributes ? ATTR_MASK : 0)
-            | (hasTag ? TAG_MASK : 0)
-            | (refIndex << 8);
+            | (hasTag ? TAG_MASK : 0);
+  }
+
+  // Pack the flags of a reference
+  public Flags(RDSItemType type, int refIndex) {
+    if (type.i() != RDSItemType.Special.REFSXP.i())
+      throw new IllegalArgumentException(
+          "Cannot write REFSXP with this constructor: ref index " + "needed");
+    this.flags = type.i() | (refIndex << 8);
   }
 
   public RDSItemType getType() {

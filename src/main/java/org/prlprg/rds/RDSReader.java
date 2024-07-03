@@ -373,9 +373,12 @@ public class RDSReader implements Closeable {
 
   private SEXP readRef(Flags flags) throws IOException {
     var index = flags.unpackRefIndex();
+    // if index is 0, it was too large to be packed with the flags and was therefore written
+    // afterward
     if (index == 0) {
       index = in.readInt();
     }
+    // since index is 1-based
     return refTable.get(index - 1);
   }
 

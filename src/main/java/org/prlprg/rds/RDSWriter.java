@@ -14,11 +14,10 @@ import org.prlprg.sexp.*;
 // TODO: properly add and retrieve from ref table
 
 public class RDSWriter implements Closeable {
-  // Print debug information of data read from the stream?
-  private final boolean DEBUG = true;
-
   private final RDSOutputStream out;
-  private final List<SEXP> refTable = new ArrayList<>(128);
+  // refIndex is 1-based, so the first ref will have index 1
+  private int refIndex = 1;
+  private final HashMap<SEXP, Integer> refTable = new HashMap<>(128);
 
   protected RDSWriter(OutputStream out) {
     this.out =
@@ -75,8 +74,15 @@ public class RDSWriter implements Closeable {
         out.writeInt(special.i());
       }
       case RDSItemType.Sexp sexp -> {
-        // Already in the ref table? TODO
+        // If refIndex is greater than 0, the object has already been written so we can
+        // write a reference (since the index is 1-based)
+        int sexpRefIndex = refTable.getOrDefault(s, 0);
+        if (sexpRefIndex > 0) {
+          writeRef(sexpRefIndex);
+          return;
+        }
 
+        // Otherwise, write the sexp as normal
         switch (s) {
           case RegSymSXP sym -> writeSymbol(sym);
           case EnvSXP env -> writeEnv(env);
@@ -106,6 +112,11 @@ public class RDSWriter implements Closeable {
   }
 
   // utility functions ----------------------------------------------------------------------------
+
+  // Adds s to the ref table
+  private void refAdd(SEXP s) {
+    refTable.put(s, refIndex++);
+  }
 
   // Determines if the hastag bit should be set based on the SEXP
   private boolean hasTag(SEXP s) {
@@ -155,9 +166,8 @@ public class RDSWriter implements Closeable {
   }
 
   // Returns the flags associated with the provided SEXP
-  private Flags flags(SEXP s, int refIndex) {
-    return new Flags(
-        rdsType(s), new GPFlags(null, false), s.isObject(), hasAttr(s), hasTag(s), refIndex);
+  private Flags flags(SEXP s) {
+    return new Flags(rdsType(s), gpFlags(s), s.isObject(), hasAttr(s), hasTag(s));
   }
 
   // Writes the provided flags to the stream
@@ -166,8 +176,8 @@ public class RDSWriter implements Closeable {
   }
 
   // Writes the flags associated with the provided SEXP
-  private void writeFlags(SEXP s, int refIndex) throws IOException {
-    var flags = flags(s, refIndex);
+  private void writeFlags(SEXP s) throws IOException {
+    var flags = flags(s);
     writeFlags(flags);
   }
 
@@ -194,8 +204,7 @@ public class RDSWriter implements Closeable {
             new GPFlags(Charset.defaultCharset(), false),
             false,
             false,
-            false,
-            0);
+            false);
     writeFlags(flags);
     out.writeInt(s.length());
     out.writeString(s);
@@ -204,8 +213,7 @@ public class RDSWriter implements Closeable {
   // SEXP writing ---------------------------------------------------------------------------------
 
   private void writeEnv(EnvSXP env) throws IOException {
-    refTable.add(env);
-    var flags = flags(env, 0).getLevels().isLocked();
+    refAdd(env);
     switch (env) {
       case NamespaceEnvSXP namespace -> {
         out.writeInt(RDSItemType.Special.NAMESPACESXP.i());
@@ -215,7 +223,8 @@ public class RDSWriter implements Closeable {
       }
       case UserEnvSXP userEnv -> {
         out.writeInt(SEXPType.ENV.i);
-        out.writeInt(0); // FIXME: should be 1 if locked, 0 if not locked (bit 14 of gp)
+        // Write 1 if the environment is locked, or 0 if it is not
+        out.writeInt(gpFlags(userEnv).isLocked() ? 1 : 0);
         // Enclosure
         writeItem(userEnv.parent());
         // Frame
@@ -240,15 +249,28 @@ public class RDSWriter implements Closeable {
     }
   }
 
+  final int MAX_PACKED_INDEX = Integer.MAX_VALUE >> 8;
+
+  private void writeRef(int refIdx) throws IOException {
+    if (refIdx > MAX_PACKED_INDEX) {
+      // If the reference index can't be packed in the flags, write it afterward
+      writeFlags(new Flags(RDSItemType.Special.REFSXP, 0));
+      out.writeInt(refIdx);
+    } else {
+      // Otherwise, pack the reference index in the flags
+      writeFlags(new Flags(RDSItemType.Special.REFSXP, refIdx));
+    }
+  }
+
   private void writeBuiltinOrSpecialSXP(BuiltinOrSpecialSXP bos) throws IOException {
-    writeFlags(bos, 0);
+    writeFlags(bos);
     var name = bos.id().name();
     out.writeInt(name.length());
     out.writeString(name);
   }
 
   private void writeListSXP(ListSXP lsxp) throws IOException {
-    Flags flags = flags(lsxp, 0);
+    Flags flags = flags(lsxp);
     boolean hasAttr = flags.hasAttributes();
     for (var el : lsxp) {
       var itemFlags =
@@ -257,11 +279,12 @@ public class RDSWriter implements Closeable {
               flags.getLevels(),
               flags.isObject(),
               hasAttr,
-              el.tag() != null,
-              0);
+              el.tag() != null);
       writeFlags(itemFlags);
       if (el.tag() != null) {
-        writeRegSymbol(el.tag());
+        // Convert the tag to a symbol, since we need to add it to the ref table
+        RegSymSXP asSym = SEXPs.symbol(el.tag());
+        writeRegSymbol(asSym);
       }
       writeItem(el.value());
 
@@ -275,7 +298,7 @@ public class RDSWriter implements Closeable {
     if (hasAttr(lang)) {
       writeAttributes(Objects.requireNonNull(lang.attributes()));
     }
-    writeFlags(flags(lang, 0));
+    writeFlags(flags(lang));
     writeItem(lang.fun());
     writeItem(lang.args());
   }
@@ -284,7 +307,7 @@ public class RDSWriter implements Closeable {
     if (hasAttr(prom)) {
       writeAttributes(Objects.requireNonNull(prom.attributes()));
     }
-    writeFlags(flags(prom, 0));
+    writeFlags(flags(prom));
     // a promise has the value, expression and environment, in this order
     writeItem(prom.val());
     writeItem(prom.expr());
@@ -295,7 +318,7 @@ public class RDSWriter implements Closeable {
     if (hasAttr(clo)) {
       writeAttributes(Objects.requireNonNull(clo.attributes()));
     }
-    writeFlags(flags(clo, 0));
+    writeFlags(flags(clo));
     // a closure has the environment, formals, and then body
     writeItem(clo.env());
     writeItem(clo.parameters());
@@ -303,7 +326,7 @@ public class RDSWriter implements Closeable {
   }
 
   private <T> void writeVectorSXP(VectorSXP<T> s) throws IOException {
-    writeFlags(s, 0);
+    writeFlags(s);
     out.writeInt(s.size());
 
     switch (s) {
@@ -504,7 +527,7 @@ public class RDSWriter implements Closeable {
   }
 
   private void writeByteCode(BCodeSXP s) throws IOException {
-    writeFlags(s, 0);
+    writeFlags(s);
 
     // Scan for circles
     // prepend the result it with a scalar integer starting with 1
@@ -531,13 +554,11 @@ public class RDSWriter implements Closeable {
   }
 
   private void writeRegSymbol(RegSymSXP s) throws IOException {
-    refTable.add(s);
-    writeRegSymbol(s.name());
-  }
-
-  private void writeRegSymbol(String s) throws IOException {
+    // Add to the ref table
+    refAdd(s);
+    // Write the symbol
     out.writeInt(SEXPType.SYM.i);
-    writeChars(s);
+    writeChars(s.name());
   }
 
   @Override
