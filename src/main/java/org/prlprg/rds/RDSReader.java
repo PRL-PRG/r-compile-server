@@ -528,8 +528,7 @@ public class RDSReader implements Closeable {
       flags = readFlags();
     }
 
-    // TODO: add the attributes here?
-    return SEXPs.list(data.build());
+    return SEXPs.list(data.build(), attributes);
   }
 
   private CloSXP readClosure(Flags flags) throws IOException {
