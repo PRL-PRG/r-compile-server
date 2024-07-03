@@ -9,9 +9,9 @@ import org.prlprg.bc.BcOp;
 /**
  * Create labels from GNU-R labels to our labels, or vice versa
  *
- * @implNote This contains a map of positions in GNU-R bytecode to positions in our bytecode. We
- *     need this because every index in our bytecode maps to an instruction, while indexes in
- *     GNU-R's bytecode also map to the bytecode version and instruction metadata.
+ * <p><b>Implementation note:</b> This contains a map of positions in GNU-R bytecode to positions in
+ * our bytecode. We need this because every index in our bytecode maps to an instruction, while
+ * indexes in GNU-R's bytecode also map to the bytecode version and instruction metadata.
  */
 public class LabelMapping {
   private final ImmutableIntArray posMap;
