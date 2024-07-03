@@ -5,13 +5,10 @@ import java.nio.charset.Charset;
 import java.util.*;
 import java.util.stream.DoubleStream;
 import java.util.stream.StreamSupport;
-import javax.annotation.Nullable;
 import org.prlprg.RSession;
 import org.prlprg.RVersion;
 import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.*;
-
-// TODO: properly add and retrieve from ref table
 
 public class RDSWriter implements Closeable {
   private final RDSOutputStream out;
@@ -45,8 +42,8 @@ public class RDSWriter implements Closeable {
     out.writeByte((byte) 'X');
     out.writeByte((byte) '\n');
 
-    // Always write version 3 of the encoding
-    // TODO: version 3 cannot be read because RDSReader does not support ALTREP
+    // Write version 2 of the encoding, since we want the writer to align with the reader and
+    // the reader does not support ALTREP
     out.writeInt(2);
 
     // Version of R for the writer
@@ -120,8 +117,8 @@ public class RDSWriter implements Closeable {
 
   // Determines if the hastag bit should be set based on the SEXP
   private boolean hasTag(SEXP s) {
+    // ListSXP flags are handled elsewhere since they're written per-element
     return switch (s) {
-        // TODO: ListSXP needs flags, are these handled by the loop?
       case CloSXP _clo -> true; // CloSXP should always be marked as having a tag I think
       case LangSXP _lang -> false; // FIXME: maybe wrong
       case PromSXP _prom -> false; // FIXME: maybe wrong
@@ -131,12 +128,7 @@ public class RDSWriter implements Closeable {
 
   // Determines if the hasAttr bit should be set based on the SEXP
   private boolean hasAttr(SEXP s) {
-    return s.type()
-            != SEXPType
-                .CHAR // this should never be true because we represent CHARSXPs with strings,
-        // right?
-        && s.attributes() != null
-        && !Objects.requireNonNull(s.attributes()).isEmpty();
+    return s.attributes() != null && !Objects.requireNonNull(s.attributes()).isEmpty();
   }
 
   // Determines the RDS item type associated with the provided SEXP
@@ -157,11 +149,10 @@ public class RDSWriter implements Closeable {
   }
 
   // Returns the general purpose flags associated with the provided SEXP.
-  // FIXME: we should actually get the flags... not just null and false
-  // However, there's no way to do this right now, since we have no representation of locked
-  // environments (as far as I know) and no SEXPs that need a charset (verify this for
-  // SymSXP, etc.)
+  // FIXME: we should actually get the proper "locked" flag, but we currently don't have a
+  // representation of this in our environments
   private GPFlags gpFlags(SEXP sexp) {
+    // Since we do not have a SEXP representation of a string, we supply null for the charset
     return new GPFlags(null, false);
   }
 
@@ -181,13 +172,9 @@ public class RDSWriter implements Closeable {
     writeFlags(flags);
   }
 
-  // FIXME: sort of duplicate method, get rid of this (keep hasAttr)
-  private boolean hasAttrs(@Nullable Attributes attrs) {
-    return attrs != null && !Objects.requireNonNull(attrs).isEmpty();
-  }
-
-  private void writeAttributes(@Nullable Attributes attrs) throws IOException {
-    if (!hasAttrs(attrs)) return;
+  private void writeAttributes(Attributes attrs) throws IOException {
+    if (attrs.isEmpty())
+      throw new IllegalArgumentException("Cannot write an empty set of attributes");
     // convert to ListSXP
     var l = attrs.entrySet().stream().map(e -> new TaggedElem(e.getKey(), e.getValue())).toList();
     // Write it
@@ -236,7 +223,7 @@ public class RDSWriter implements Closeable {
         // Attributes
         // R always write something here, as it does not write a hastag bit in the flags
         // (it actually has no flags; it just writes the type ENV)
-        if (hasAttrs(env.attributes())) {
+        if (hasAttr(env)) {
           writeAttributes(env.attributes());
         } else {
           writeItem(SEXPs.NULL);
@@ -446,8 +433,7 @@ public class RDSWriter implements Closeable {
       // if the item has attributes, we use the special types ATTRLANGSXP and ATTRLISTSXP instead
       // of LangSXP and ListSXP. This is done to preserve information on expressions in the
       // constant pool of byte code objects.
-      var attrs = lol.attributes();
-      if (hasAttrs(attrs)) {
+      if (hasAttr(lol)) {
         type =
             switch (lol) {
               case LangSXP _lang -> RDSItemType.Special.ATTRLANGSXP;
@@ -455,7 +441,10 @@ public class RDSWriter implements Closeable {
             };
       }
       out.writeInt(type.i());
-      writeAttributes(attrs);
+
+      if (hasAttr(lol)) {
+        writeAttributes(Objects.requireNonNull(lol.attributes()));
+      }
 
       switch (lol) {
           // For a LangSXP, recursively write the function and args
