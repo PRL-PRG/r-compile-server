@@ -151,7 +151,7 @@ public class RDSWriter implements Closeable {
   // Returns the general purpose flags associated with the provided SEXP.
   // FIXME: we should actually get the proper "locked" flag, but we currently don't have a
   // representation of this in our environments
-  private GPFlags gpFlags(SEXP sexp) {
+  private GPFlags gpFlags(SEXP ignored) {
     // Since we do not have a SEXP representation of a string, we supply null for the charset
     return new GPFlags(null, false);
   }
