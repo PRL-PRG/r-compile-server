@@ -20,23 +20,6 @@ import org.prlprg.util.Lists;
  */
 public sealed interface ListSXP extends ListOrVectorSXP<TaggedElem>, LangOrListSXP
     permits NilSXP, ListSXPImpl {
-  /**
-   * Flatten {@code src} while adding its elements to {@code target}. Ex:
-   *
-   * <pre>
-   *   b = []; flatten([1, [2, 3], 4], b) ==> b = [1, 2, 3, 4]
-   * </pre>
-   */
-  static void flatten(ListSXP src, ImmutableList.Builder<TaggedElem> target) {
-    for (var i : src) {
-      if (i.value() instanceof ListSXP lst) {
-        flatten(lst, target);
-      } else {
-        target.add(i);
-      }
-    }
-  }
-
   @Override
   ListSXP withAttributes(Attributes attributes);
 

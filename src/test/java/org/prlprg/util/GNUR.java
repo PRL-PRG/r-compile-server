@@ -77,7 +77,7 @@ public class GNUR implements AutoCloseable {
   public SEXP eval(String source, SEXP input) {
     try {
       var inputFile = File.createTempFile("RCS-input", ".rds");
-      RDSWriter.writeFile(rsession, inputFile, input);
+      RDSWriter.writeFile(inputFile, input);
       String full_source = "input <- readRDS('" + inputFile.getAbsolutePath() + "')\n" + source;
 
       return eval(full_source);

@@ -65,6 +65,11 @@ public sealed interface SEXP
     return attributes != null && !attributes.isEmpty();
   }
 
+  /** Whether the SEXP is an object i.e. has the "class" attribute. */
+  default boolean isObject() {
+    return attributes() != null && Objects.requireNonNull(attributes()).containsKey("class");
+  }
+
   /**
    * Returns an SEXP which would be equal except it has the given attributes instead of its old
    * ones. <b>If the SEXP is a {@link UserEnvSXP}, it will mutate in-place and return itself. If the
@@ -177,8 +182,4 @@ public sealed interface SEXP
   // `toString` is overridden in every subclass to call `Printer.toString(this)`.
 
   // endregion serialization and deserialization
-
-  default boolean isObject() {
-    return attributes() != null && Objects.requireNonNull(attributes()).containsKey("class");
-  }
 }

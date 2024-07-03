@@ -3,6 +3,7 @@ package org.prlprg.rds;
 import static com.google.common.truth.Truth.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.prlprg.sexp.Coercions.isNA;
+import static org.prlprg.util.Tests.printlnIfVerbose;
 
 import java.util.Objects;
 import org.junit.jupiter.api.Test;
@@ -126,7 +127,7 @@ public class RDSReaderTest extends AbstractGNURBasedTest {
   @Test
   public void testClosure() {
     var sexp = (CloSXP) R.eval("function(x, y=1) 'abc' + x + length(y)");
-    System.out.println(sexp);
+    printlnIfVerbose(sexp);
 
     var formals = sexp.parameters();
     assertEquals(2, formals.size());
@@ -149,7 +150,7 @@ public class RDSReaderTest extends AbstractGNURBasedTest {
 
     // TODO: this should really be a snapshot test
     var body = sexp.body();
-    System.out.println(body);
+    printlnIfVerbose(body);
     assertThat(body).isInstanceOf(BCodeSXP.class);
   }
 

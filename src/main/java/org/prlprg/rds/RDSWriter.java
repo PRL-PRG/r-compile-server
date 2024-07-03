@@ -5,7 +5,6 @@ import java.nio.charset.Charset;
 import java.util.*;
 import java.util.stream.DoubleStream;
 import java.util.stream.StreamSupport;
-import org.prlprg.RSession;
 import org.prlprg.RVersion;
 import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.*;
@@ -23,16 +22,15 @@ public class RDSWriter implements Closeable {
             : new RDSOutputStream(out);
   }
 
-  public static void writeStream(RSession session, OutputStream output, SEXP sexp)
-      throws IOException {
+  public static void writeStream(OutputStream output, SEXP sexp) throws IOException {
     try (var writer = new RDSWriter(output)) {
       writer.write(sexp);
     }
   }
 
-  public static void writeFile(RSession session, File file, SEXP sexp) throws IOException {
+  public static void writeFile(File file, SEXP sexp) throws IOException {
     try (var output = new FileOutputStream(file)) {
-      writeStream(session, output, sexp);
+      writeStream(output, sexp);
     }
   }
 
@@ -58,8 +56,11 @@ public class RDSWriter implements Closeable {
     writeItem(sexp);
   }
 
-  // See
-  // https://github.com/wch/r-source/blob/65892cc124ac20a44950e6e432f9860b1d6e9bf4/src/main/serialize.c#L1021
+  /**
+   * See <a
+   * href="https://github.com/wch/r-source/blob/65892cc124ac20a44950e6e432f9860b1d6e9bf4/src/main/serialize.c#L1021">GNU-R
+   * serialize.c</a>.
+   */
   public void writeItem(SEXP s) throws IOException {
     var type = rdsType(s);
 
@@ -110,12 +111,12 @@ public class RDSWriter implements Closeable {
 
   // utility functions ----------------------------------------------------------------------------
 
-  // Adds s to the ref table
+  /** Adds {@code s} to the ref table. */
   private void refAdd(SEXP s) {
     refTable.put(s, refIndex++);
   }
 
-  // Determines if the hastag bit should be set based on the SEXP
+  /** Determines if the hastag bit should be set based on the SEXP. */
   private boolean hasTag(SEXP s) {
     // ListSXP flags are handled elsewhere since they're written per-element
     return switch (s) {
@@ -126,12 +127,12 @@ public class RDSWriter implements Closeable {
     };
   }
 
-  // Determines if the hasAttr bit should be set based on the SEXP
+  /** Determines if the hasAttr bit should be set based on the SEXP. */
   private boolean hasAttr(SEXP s) {
     return s.attributes() != null && !Objects.requireNonNull(s.attributes()).isEmpty();
   }
 
-  // Determines the RDS item type associated with the provided SEXP
+  /** Determines the RDS item type associated with the provided SEXP. */
   private RDSItemType rdsType(SEXP s) {
     return switch (s) {
       case NilSXP _nil -> RDSItemType.Special.NILVALUE_SXP;
@@ -148,25 +149,28 @@ public class RDSWriter implements Closeable {
     };
   }
 
-  // Returns the general purpose flags associated with the provided SEXP.
-  // FIXME: we should actually get the proper "locked" flag, but we currently don't have a
-  // representation of this in our environments
+  /**
+   * Returns the general purpose flags associated with the provided SEXP.
+   *
+   * <p>FIXME: we should actually get the proper "locked" flag, but we currently don't have a
+   * representation of this in our environments.
+   */
   private GPFlags gpFlags(SEXP ignored) {
     // Since we do not have a SEXP representation of a string, we supply null for the charset
     return new GPFlags(null, false);
   }
 
-  // Returns the flags associated with the provided SEXP
+  /** Returns the flags associated with the provided SEXP. */
   private Flags flags(SEXP s) {
     return new Flags(rdsType(s), gpFlags(s), s.isObject(), hasAttr(s), hasTag(s));
   }
 
-  // Writes the provided flags to the stream
+  /** Writes the provided flags to the stream. */
   private void writeFlags(Flags flags) throws IOException {
     out.writeInt(flags.encode());
   }
 
-  // Writes the flags associated with the provided SEXP
+  /** Writes the flags associated with the provided SEXP. */
   private void writeFlags(SEXP s) throws IOException {
     var flags = flags(s);
     writeFlags(flags);
