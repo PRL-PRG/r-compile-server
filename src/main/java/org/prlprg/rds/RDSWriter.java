@@ -148,17 +148,11 @@ public class RDSWriter implements Closeable {
     };
   }
 
-  // Returns the general purpose flags associated with the provided SEXP.
-  // FIXME: we should actually get the proper "locked" flag, but we currently don't have a
-  // representation of this in our environments
-  private GPFlags gpFlags(SEXP sexp) {
-    // Since we do not have a SEXP representation of a string, we supply null for the charset
-    return new GPFlags(null, false);
-  }
-
   // Returns the flags associated with the provided SEXP
   private Flags flags(SEXP s) {
-    return new Flags(rdsType(s), gpFlags(s), s.isObject(), hasAttr(s), hasTag(s));
+    // FIXME: we should actually get the proper "locked" flag, but we currently don't have a
+    // representation of this in our environments
+    return new Flags(rdsType(s), new GPFlags(), s.isObject(), hasAttr(s), hasTag(s));
   }
 
   // Writes the provided flags to the stream
@@ -211,7 +205,8 @@ public class RDSWriter implements Closeable {
       case UserEnvSXP userEnv -> {
         out.writeInt(SEXPType.ENV.i);
         // Write 1 if the environment is locked, or 0 if it is not
-        out.writeInt(gpFlags(userEnv).isLocked() ? 1 : 0);
+        // FIXME: implement locked environments, as is this will always be false
+        out.writeInt(new GPFlags().isLocked() ? 1 : 0);
         // Enclosure
         writeItem(userEnv.parent());
         // Frame

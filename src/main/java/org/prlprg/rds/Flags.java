@@ -148,6 +148,10 @@ final class GPFlags {
     this.flags = levels;
   }
 
+  GPFlags() {
+    this.flags = 0;
+  }
+
   public int encode() {
     return flags;
   }
