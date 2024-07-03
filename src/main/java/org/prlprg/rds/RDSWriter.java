@@ -69,8 +69,11 @@ public class RDSWriter implements Closeable {
     writeItem(sexp);
   }
 
-  // See
-  // https://github.com/wch/r-source/blob/65892cc124ac20a44950e6e432f9860b1d6e9bf4/src/main/serialize.c#L1021
+  /**
+   * See <a
+   * href="https://github.com/wch/r-source/blob/65892cc124ac20a44950e6e432f9860b1d6e9bf4/src/main/serialize.c#L1021">GNU-R
+   * serialize.c</a>.
+   */
   public void writeItem(SEXP s) throws IOException {
     // Write the flags for this SEXP. This will vary depending on whether the SEXP is a special
     // RDS type or not
