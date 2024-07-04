@@ -1,4 +1,4 @@
-package org.prlprg.ir.cfg.abstractNode;
+package org.prlprg.ir.analysis.abstractNode;
 
 import org.prlprg.ir.cfg.IsEnv;
 import org.prlprg.ir.cfg.RValue;

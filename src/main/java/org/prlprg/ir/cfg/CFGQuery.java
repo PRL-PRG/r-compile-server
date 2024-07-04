@@ -251,13 +251,14 @@ interface CFGQuery {
         .flatMap(bb -> bb.stmts().stream())
         .flatMap(stmt -> Optional.ofNullable(stmt.codeObject()).stream());
   }
+
   // endregion iterate nodes
 
   // region misc
   /** Does the CFG have a {@link Deopt} instruction? */
   default boolean canDeopt() {
-    return exits().stream().anyMatch(
-        bb -> Objects.requireNonNull(bb.jump()).data() instanceof Deopt);
+    return exits().stream()
+        .anyMatch(bb -> Objects.requireNonNull(bb.jump()).data() instanceof Deopt);
   }
   // endregion misc
 }

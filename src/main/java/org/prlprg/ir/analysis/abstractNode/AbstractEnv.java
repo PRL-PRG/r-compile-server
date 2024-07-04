@@ -1,9 +1,10 @@
-package org.prlprg.ir.cfg.abstractNode;
+package org.prlprg.ir.analysis.abstractNode;
+
+import static org.prlprg.ir.analysis.abstractNode.AbstractEnvImpl.UNINITIALIZED_PARENT;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.Nullable;
 import org.prlprg.ir.cfg.Instr;
 import org.prlprg.ir.cfg.InvalidNode;
@@ -23,19 +24,26 @@ import org.prlprg.util.Pair;
  * we can't statically analyze.
  *
  * <p>Typically an analysis will need to mark an environment leaked, when we call a (statically)
- * unknown function. The reason is that the callee can always inspect our environment through
- * {@code sys.parent()}.
+ * unknown function. The reason is that the callee can always inspect our environment through {@code
+ * sys.parent()}.
  *
  * <p>For inter-procedural analysis we can additionally keep track of closures.
  */
 public sealed interface AbstractEnv extends AbstractNode<AbstractEnv> {
-  AbstractEnv EMPTY = new AbstractEnvImpl(ImmutableMap.of(), ImmutableSet.of(), AbstractEnvImpl.UNINITIALIZED_PARENT, false, false);
-  AbstractEnv TAINTED = new AbstractEnvImpl(ImmutableMap.of(), ImmutableSet.of(), AbstractEnvImpl.UNINITIALIZED_PARENT, false, true);
+  AbstractEnv EMPTY =
+      new AbstractEnvImpl(ImmutableMap.of(), ImmutableSet.of(), UNINITIALIZED_PARENT, false, false);
+  AbstractEnv TAINTED =
+      new AbstractEnvImpl(ImmutableMap.of(), ImmutableSet.of(), UNINITIALIZED_PARENT, false, true);
 
   ImmutableMap<RegSymSXP, AbstractRValue> entries();
+
   ImmutableSet<RValue> reachableEnvs();
-  @IsEnv RValue parentEnv();
+
+  @IsEnv
+  RValue parentEnv();
+
   boolean isLeaked();
+
   boolean isTainted();
 
   default boolean isPresent(RegSymSXP name) {
@@ -46,16 +54,19 @@ public sealed interface AbstractEnv extends AbstractNode<AbstractEnv> {
     return Objects.requireNonNull(entries().getOrDefault(name, AbstractRValue.TAINTED));
   }
 
-  default AbstractEnv withEntry(RegSymSXP name, RValue value, @Nullable Instr origin, int recursionLevel) {
-    return isTainted() ? this : new AbstractEnvImpl(
-        ImmutableMap.<RegSymSXP, AbstractRValue>builder()
-            .putAll(entries())
-            .put(name, AbstractRValue.of(value, origin, recursionLevel))
-            .buildKeepingLast(),
-        reachableEnvs(),
-        parentEnv(),
-        isLeaked(),
-        isTainted());
+  default AbstractEnv withEntry(
+      RegSymSXP name, RValue value, @Nullable Instr origin, int recursionLevel) {
+    return isTainted()
+        ? this
+        : new AbstractEnvImpl(
+            ImmutableMap.<RegSymSXP, AbstractRValue>builder()
+                .putAll(entries())
+                .put(name, AbstractRValue.of(value, origin, recursionLevel))
+                .buildKeepingLast(),
+            reachableEnvs(),
+            parentEnv(),
+            isLeaked(),
+            isTainted());
   }
 
   default AbstractEnv withParentEnv(@IsEnv RValue parentEnv) {
@@ -76,13 +87,19 @@ record AbstractEnvImpl(
     @Override ImmutableSet<RValue> reachableEnvs,
     RValue actualParentEnv,
     @Override boolean isLeaked,
-    @Override boolean isTainted) implements AbstractEnv {
+    @Override boolean isTainted)
+    implements AbstractEnv {
   static final RValue UNKNOWN_PARENT = InvalidNode.create("unknownParent");
   static final RValue UNINITIALIZED_PARENT = InvalidNode.create("uninitializedParent");
 
   AbstractEnvImpl {
-    if (isTainted && (!entries.isEmpty() || !reachableEnvs.isEmpty() || actualParentEnv != UNINITIALIZED_PARENT || isLeaked)) {
-      throw new IllegalArgumentException("A tainted environment must be equal to `AbstractEnv#TAINTED`");
+    if (isTainted
+        && (!entries.isEmpty()
+            || !reachableEnvs.isEmpty()
+            || actualParentEnv != UNINITIALIZED_PARENT
+            || isLeaked)) {
+      throw new IllegalArgumentException(
+          "A tainted environment must be equal to `AbstractEnv#TAINTED`");
     }
   }
 
@@ -92,22 +109,35 @@ record AbstractEnvImpl(
   }
 
   AbstractEnvImpl withReachableEnv(@IsEnv RValue env) {
-    return new AbstractEnvImpl(entries, ImmutableSet.<RValue>builderWithExpectedSize(reachableEnvs.size() + 1).addAll(reachableEnvs).add(env).build(), actualParentEnv, isLeaked, isTainted);
+    return new AbstractEnvImpl(
+        entries,
+        ImmutableSet.<RValue>builderWithExpectedSize(reachableEnvs.size() + 1)
+            .addAll(reachableEnvs)
+            .add(env)
+            .build(),
+        actualParentEnv,
+        isLeaked,
+        isTainted);
   }
 
   @Override
   public Pair<AbstractResult, AbstractEnv> merge(AbstractEnv other) {
-    var o = switch (other) {
-      case AbstractEnvImpl e -> e;
-    };
+    var o =
+        switch (other) {
+          case AbstractEnvImpl e -> e;
+        };
 
     if (isTainted || o.isTainted) {
       return Pair.of(AbstractResult.TAINTED, TAINTED);
     }
 
     var res = AbstractResult.NONE;
-    var newEntries = ImmutableMap.<RegSymSXP, AbstractRValue>builderWithExpectedSize(entries.size() + o.entries.size());
-    var newReachableEnvs = ImmutableSet.<RValue>builderWithExpectedSize(reachableEnvs.size() + o.reachableEnvs.size()).addAll(reachableEnvs);
+    var newEntries =
+        ImmutableMap.<RegSymSXP, AbstractRValue>builderWithExpectedSize(
+            entries.size() + o.entries.size());
+    var newReachableEnvs =
+        ImmutableSet.<RValue>builderWithExpectedSize(reachableEnvs.size() + o.reachableEnvs.size())
+            .addAll(reachableEnvs);
     var newActualParentEnv = actualParentEnv;
 
     if (!isLeaked && o.isLeaked) {
@@ -151,12 +181,21 @@ record AbstractEnvImpl(
     if (actualParentEnv == UNINITIALIZED_PARENT && o.actualParentEnv != UNINITIALIZED_PARENT) {
       newActualParentEnv = o.actualParentEnv;
       res = res.updated();
-    } else if (actualParentEnv != UNINITIALIZED_PARENT && actualParentEnv != UNKNOWN_PARENT && o.actualParentEnv != actualParentEnv) {
+    } else if (actualParentEnv != UNINITIALIZED_PARENT
+        && actualParentEnv != UNKNOWN_PARENT
+        && o.actualParentEnv != actualParentEnv) {
       newActualParentEnv = UNKNOWN_PARENT;
       res = res.withLostPrecision();
     }
 
-    return Pair.of(res, new AbstractEnvImpl(newEntries.build(), newReachableEnvs.build(), newActualParentEnv, isLeaked || o.isLeaked, false));
+    return Pair.of(
+        res,
+        new AbstractEnvImpl(
+            newEntries.build(),
+            newReachableEnvs.build(),
+            newActualParentEnv,
+            isLeaked || o.isLeaked,
+            false));
   }
 
   @PrintMethod
@@ -164,37 +203,38 @@ record AbstractEnvImpl(
     var w = p.writer();
 
     if (isTainted) {
-      w.write("AbstractEnv(tainted)");
+      w.write("AEnv(tainted)");
     } else {
-      w.write("AbstractEnv(");
+      w.write("AEnv(");
 
-      var written = new AtomicBoolean(false);
-      w.runIndented(() -> {
-        if (isLeaked) {
-          w.write("\nleaked");
-          written.set(true);
-        }
+      w.runIndented(
+          () -> {
+            var written = false;
+            if (isLeaked) {
+              w.write("\nleaked");
+              written = true;
+            }
 
-        for (var reachable : reachableEnvs) {
-          if (!written.get()) {
-            w.write(',');
-            written.set(true);
-          }
-          w.write("\nreachable: ");
-          p.print(reachable);
-        }
+            for (var reachable : reachableEnvs) {
+              if (!written) {
+                w.write(',');
+                written = true;
+              }
+              w.write("\nreachable: ");
+              p.print(reachable);
+            }
 
-        for (var entry : entries.entrySet()) {
-          if (!written.get()) {
-            w.write(',');
-            written.set(true);
-          }
-          w.write('\n');
-          w.write(entry.getKey().toString());
-          w.write(" -> ");
-          p.print(entry.getValue());
-        }
-      });
+            for (var entry : entries.entrySet()) {
+              if (!written) {
+                w.write(',');
+                written = true;
+              }
+              w.write('\n');
+              w.write(entry.getKey().toString());
+              w.write(" -> ");
+              p.print(entry.getValue());
+            }
+          });
 
       w.write(')');
     }

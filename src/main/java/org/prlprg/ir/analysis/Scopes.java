@@ -2,7 +2,10 @@ package org.prlprg.ir.analysis;
 
 import com.google.common.collect.ImmutableList;
 import java.util.HashMap;
+import java.util.Map;
 import javax.annotation.concurrent.Immutable;
+import org.prlprg.ir.analysis.abstractNode.AbstractLoad;
+import org.prlprg.ir.analysis.abstractNode.AbstractRValue;
 import org.prlprg.ir.cfg.CFG;
 import org.prlprg.ir.cfg.Instr;
 import org.prlprg.ir.cfg.RValue;
@@ -37,7 +40,8 @@ public class Scopes {
   private final int depth;
 
   // Results
-  private final Map<Instr, Load> results = new HashMap<>();
+  private final Map<Instr, AbstractLoad> results = new HashMap<>();
+  private final Map<Instr, AbstractRValue> returnValues = new HashMap<>();
 
   /** Computes scopes in the given CFG. */
   public Scopes(CFG cfg, boolean isInPromise) {

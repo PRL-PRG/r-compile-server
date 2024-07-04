@@ -1,4 +1,4 @@
-package org.prlprg.ir.cfg.abstractNode;
+package org.prlprg.ir.analysis.abstractNode;
 
 import com.google.common.collect.ImmutableSet;
 import javax.annotation.Nullable;
@@ -14,7 +14,8 @@ import org.prlprg.sexp.SEXPs;
 import org.prlprg.util.Pair;
 import org.prlprg.util.SmallListSet;
 
-/** The possible {@linkplain RValue R SEXPs} at a particular {@linkplain Instr instruction} in any
+/**
+ * The possible {@linkplain RValue R SEXPs} at a particular {@linkplain Instr instruction} in any
  * interpretation trace.
  */
 public sealed interface AbstractRValue extends AbstractNode<AbstractRValue> {
@@ -40,13 +41,13 @@ public sealed interface AbstractRValue extends AbstractNode<AbstractRValue> {
 
   static AbstractRValue of(RValue value, @Nullable Instr origin, int recursionLevel) {
     return new AbstractRValueImpl(
-        ImmutableSet.of(new ValueOrigin(value, origin, recursionLevel)),
-        value.type(),
-        false);
+        ImmutableSet.of(new ValueOrigin(value, origin, recursionLevel)), value.type(), false);
   }
 
   ImmutableSet<ValueOrigin> origins();
+
   RType type();
+
   boolean isUnknown();
 
   default boolean hasSingleOrigin() {
@@ -71,9 +72,8 @@ public sealed interface AbstractRValue extends AbstractNode<AbstractRValue> {
 }
 
 record AbstractRValueImpl(
-    @Override ImmutableSet<ValueOrigin> origins,
-    @Override RType type,
-    @Override boolean isUnknown) implements AbstractRValue {
+    @Override ImmutableSet<ValueOrigin> origins, @Override RType type, @Override boolean isUnknown)
+    implements AbstractRValue {
   AbstractRValueImpl {
     if (isUnknown && (!origins.isEmpty() || !type.isNothing())) {
       throw new IllegalArgumentException("An unknown value has no origins and nothing type");
@@ -84,9 +84,10 @@ record AbstractRValueImpl(
 
   @Override
   public Pair<AbstractResult, AbstractRValue> merge(AbstractRValue other) {
-    var o = switch (other) {
-      case AbstractRValueImpl r -> r;
-    };
+    var o =
+        switch (other) {
+          case AbstractRValueImpl r -> r;
+        };
 
     if (isUnknown) {
       return Pair.of(AbstractResult.NONE, this);
@@ -112,7 +113,8 @@ record AbstractRValueImpl(
     var newType = RTypes.union(type, o.type);
     changed = changed || !type.equals(newType);
 
-    return Pair.of(changed ? AbstractResult.UPDATED : AbstractResult.NONE,
+    return Pair.of(
+        changed ? AbstractResult.UPDATED : AbstractResult.NONE,
         new AbstractRValueImpl(ImmutableSet.copyOf(newValues), newType, false));
   }
 
