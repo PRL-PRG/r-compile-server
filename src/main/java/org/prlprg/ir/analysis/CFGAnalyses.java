@@ -3,6 +3,7 @@ package org.prlprg.ir.analysis;
 import org.prlprg.ir.cfg.CFG;
 import org.prlprg.ir.cfg.StmtData.LdVar;
 import org.prlprg.ir.cfg.StmtData.StVar;
+import org.prlprg.util.NotImplementedError;
 
 public interface CFGAnalyses {
   // These both get overridden in `CFG`, but providing a default implementation here lets us use
@@ -43,6 +44,7 @@ public interface CFGAnalyses {
    */
   default Scopes scopes() {
     // TODO: this may belong in `ClosureVersion`
-    return new Scopes((CFG) this);
+    // return new Scopes((CFG) this);
+    throw new NotImplementedError();
   }
 }
