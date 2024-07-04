@@ -3,11 +3,13 @@ package org.prlprg.ir.cfg;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.ir.analysis.DomTree;
+import org.prlprg.ir.cfg.JumpData.Deopt;
 import org.prlprg.ir.cfg.StmtData.MkCls;
 import org.prlprg.ir.cfg.StmtData.MkProm;
 import org.prlprg.ir.closure.CodeObject;
@@ -250,4 +252,12 @@ interface CFGQuery {
         .flatMap(stmt -> Optional.ofNullable(stmt.codeObject()).stream());
   }
   // endregion iterate nodes
+
+  // region misc
+  /** Does the CFG have a {@link Deopt} instruction? */
+  default boolean canDeopt() {
+    return exits().stream().anyMatch(
+        bb -> Objects.requireNonNull(bb.jump()).data() instanceof Deopt);
+  }
+  // endregion misc
 }
