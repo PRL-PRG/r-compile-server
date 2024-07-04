@@ -1,6 +1,5 @@
 package org.prlprg.ir.analysis;
 
-import com.google.common.collect.ImmutableList;
 import java.util.HashMap;
 import java.util.Map;
 import javax.annotation.concurrent.Immutable;
@@ -9,7 +8,6 @@ import org.prlprg.ir.analysis.abstractNode.AbstractRValue;
 import org.prlprg.ir.cfg.CFG;
 import org.prlprg.ir.cfg.Instr;
 import org.prlprg.ir.cfg.RValue;
-import org.prlprg.ir.cfg.RValueStmt;
 import org.prlprg.ir.cfg.StaticEnv;
 import org.prlprg.ir.cfg.StmtData.LdVar;
 import org.prlprg.ir.cfg.StmtData.StVar;
@@ -36,8 +34,8 @@ public class Scopes {
     public static final Config DEFAULT = new Config(2, 120, 14, 800, 10);
   }
 
-  private final ImmutableList<RValueStmt> args;
-  private final int depth;
+  // private final ImmutableList<RValueStmt> args;
+  // private final int depth;
 
   // Results
   private final Map<Instr, AbstractLoad> results = new HashMap<>();
