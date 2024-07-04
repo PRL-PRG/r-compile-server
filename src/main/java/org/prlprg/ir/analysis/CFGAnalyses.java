@@ -1,6 +1,8 @@
 package org.prlprg.ir.analysis;
 
 import org.prlprg.ir.cfg.CFG;
+import org.prlprg.ir.cfg.StmtData.LdVar;
+import org.prlprg.ir.cfg.StmtData.StVar;
 
 public interface CFGAnalyses {
   // These both get overridden in `CFG`, but providing a default implementation here lets us use
@@ -33,5 +35,13 @@ public interface CFGAnalyses {
   /** Find loops in the control-flow graph. */
   default Loops loops() {
     return new Loops((CFG) this);
+  }
+
+  /**
+   * Analyse scoping of loads (e.g. {@link LdVar}) and stores ({@link StVar}). <b>Warning:</b>
+   * expensive.
+   */
+  default Scopes scopes() {
+    return new Scopes((CFG) this);
   }
 }

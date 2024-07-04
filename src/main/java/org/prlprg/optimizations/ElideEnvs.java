@@ -22,9 +22,14 @@ import org.prlprg.ir.type.lattice.YesOrMaybe;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.util.UnreachableError;
 
-/**
- * (R-specific optimization) replace environments in instructions that don't need them with {@link
- * StaticEnv#ELIDED}.
+/** Removes and stubs environment instructions which are not needed (from PIR).
+ *
+ * <p>Specifically looks at all uses of a {@link MkEnv}. If none of them leak the environment or
+ * read its contents, then it's removed.
+ *
+ * <p>Additionally, if all of the uses of the {@link MkEnv} work with stubs (none force it to be
+ * materialized), and the environment wasn't previously materialized, then it's replaced with a
+ * lightweight "stub".
  */
 class ElideEnvs implements OptimizationPass {
   @Override
@@ -51,6 +56,7 @@ class ElideEnvs implements OptimizationPass {
         }
 
         // Remove environment arguments in the current instruction
+        // TODO: Put this somewhere else
         if (instr.data() instanceof Force(var promise, var _, var _)
             && promise.type().isLazy() == Troolean.NO) {
           Instr.mutateArgs(
@@ -58,8 +64,6 @@ class ElideEnvs implements OptimizationPass {
         }
       }
     }
-
-    var newStubs = new HashSet<RValue>();
 
     // Remove dead envs
     for (var bb : cfg.iter()) {
@@ -75,6 +79,7 @@ class ElideEnvs implements OptimizationPass {
 
     // Convert new stubs into stubs.
     // This involves adding explicit unbound values to all variables that will be set in the stub.
+    // TODO: improve the code below, it's very verbose.
     for (var env : envsToStub) {
       if (!(((RValueStmt) env).data()
           instanceof
@@ -96,7 +101,7 @@ class ElideEnvs implements OptimizationPass {
 
     for (var bb : cfg.iter()) {
       for (var instr : bb.instrs()) {
-        if (instr.data() instanceof StVar(var name, var value, var env, var isArg)
+        if (instr.data() instanceof StVar(var name, var _, var env, var _)
             && envsToStub.contains(env)) {
           if (!(((RValueStmt) env).data()
               instanceof
@@ -130,8 +135,6 @@ class ElideEnvs implements OptimizationPass {
         }
       }
     }
-
-    // TODO: Remove instructions that don't do anything without environments.
   }
 
   private YesOrMaybe forcesMaterialize(Instr instr) {

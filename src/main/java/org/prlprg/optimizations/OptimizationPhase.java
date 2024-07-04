@@ -14,6 +14,12 @@ class OptimizationPhase {
   private final ImmutableList<OptimizationPass> passes;
 
   // region the phases
+  //
+  // Important to note:
+  // - There's no `DeadCodeElimination` because it's handled in `Cleanup` (and there are
+  //   optimizations like `ElideEnvs` that remove specific non-trivial dead code).
+  // - There's no `ConstantPropagation` because `Constant` is a node itself, not an instruction.
+
   /**
    * Default optimization passes.
    *
@@ -22,18 +28,16 @@ class OptimizationPhase {
   static final OptimizationPhase DEFAULT =
       new OptimizationPhase(
           "Default",
+          new ScopeResolution(),
           new ElideEnvs(),
-          new DeadCodeElimination(),
           new LoopInvariantCodeMotion(),
           new CopyPropagation(),
           new CommonSubexpressionElimination(),
           new Cleanup(),
           new Verify(),
           new ComputeProperties(),
-          // Part of cleanup: DeadCodeElimination,
-          // `Constant` is a node itself, not an instruction: ConstantPropagation,
+          new ScopeResolution(),
           new ElideEnvs(),
-          new DeadCodeElimination(),
           new LoopInvariantCodeMotion(),
           new CopyPropagation(),
           new CommonSubexpressionElimination(),
