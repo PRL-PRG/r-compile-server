@@ -19,9 +19,9 @@ import net.jqwik.api.Tuple.Tuple3;
 import net.jqwik.api.lifecycle.BeforeContainer;
 import org.opentest4j.AssertionFailedError;
 import org.prlprg.ir.type.lattice.Lattice;
+import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.ir.type.lattice.MaybeNat;
 import org.prlprg.ir.type.lattice.NoOrMaybe;
-import org.prlprg.ir.type.lattice.Troolean;
 import org.prlprg.ir.type.lattice.YesOrMaybe;
 import org.prlprg.util.Reflection;
 
@@ -30,14 +30,14 @@ public class LatticeTests {
       ImmutableList.of(
               Tuple.of(YesOrMaybe.class, YesOrMaybe.MAYBE),
               Tuple.of(NoOrMaybe.class, NoOrMaybe.MAYBE),
-              Tuple.of(Troolean.class, Troolean.MAYBE),
+              Tuple.of(Maybe.class, Maybe.MAYBE),
               Tuple.of(MaybeNat.class, MaybeNat.UNKNOWN),
               Tuple.of(AttributesType.class, AttributesTypes.UNKNOWN),
               Tuple.of(BaseRType.NotPromise.class, BaseRType.NotPromise.ANY_VALUE),
               Tuple.of(BaseRType.class, BaseRType.ANY),
               Tuple.of(VectorElementRType.class, VectorElementRType.ANY),
               Tuple.of(PrimVecElementRType.class, PrimVecElementRType.ANY),
-              Tuple.of(RPromiseType.class, RPromiseType.MAYBE_LAZY_PROMISE),
+              Tuple.of(RPromiseType.class, RPromiseType.MAYBE_LAZY_MAYBE_PROMISE),
               Tuple.of(
                   RFunctionType.class,
                   new RFunctionTypeImpl(
@@ -46,7 +46,7 @@ public class LatticeTests {
                       AttributesTypes.UNKNOWN,
                       MaybeNat.UNKNOWN,
                       ImmutableList.of(),
-                      Troolean.MAYBE)),
+                      Maybe.MAYBE)),
               Tuple.of(
                   RPrimVecType.class,
                   new RPrimVecTypeImpl(

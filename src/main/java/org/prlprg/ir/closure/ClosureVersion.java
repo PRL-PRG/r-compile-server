@@ -14,8 +14,8 @@ import org.prlprg.ir.type.REffects;
 import org.prlprg.ir.type.RType;
 import org.prlprg.ir.type.RTypes;
 import org.prlprg.ir.type.lattice.Lattice;
+import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.ir.type.lattice.NoOrMaybe;
-import org.prlprg.ir.type.lattice.Troolean;
 import org.prlprg.ir.type.lattice.YesOrMaybe;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
@@ -413,7 +413,7 @@ public class ClosureVersion {
     public Properties {
       if (flags.contains(Property.IS_EAGER)) {
         for (var argument : argumentForce.argIsForced) {
-          if (argument != Troolean.YES) {
+          if (argument != Maybe.YES) {
             throw new IllegalArgumentException(
                 "If `flags` states that all arguments are evaluated, `argumentForce` must state that they are all forced");
           }
@@ -447,8 +447,7 @@ public class ClosureVersion {
       if (flags.contains(Property.NO_REFLECTION)) {
         var anyIsReflectivePromise = false;
         for (var i = 0; i < args.size(); i++) {
-          if (args.get(i).type().isLazy() != Troolean.NO
-              && argumentForce.argIsForced(i) != Troolean.NO) {
+          if (args.get(i).type().isLazy() != Maybe.NO && argumentForce.argIsForced(i) != Maybe.NO) {
             anyIsReflectivePromise = true;
             break;
           }
@@ -513,18 +512,18 @@ public class ClosureVersion {
      * also guaranteed to be forced before others.
      *
      * @param argIsForced Arguments that are guaranteed forced or not forced.
-     *     <p>Any additional arguments are {@link Troolean#MAYBE} if in the closure's parameters.
+     *     <p>Any additional arguments are {@link Maybe#MAYBE} if in the closure's parameters.
      * @param orderedForcedArgs All arguments before this index are both guaranteed forced and
      *     guaranteed to be forced in the same order they are as parameters.
      */
-    public record ArgumentForce(ImmutableList<Troolean> argIsForced, int orderedForcedArgs)
+    public record ArgumentForce(ImmutableList<Maybe> argIsForced, int orderedForcedArgs)
         implements Lattice<ArgumentForce> {
       /** No arguments are guaranteed to be forced. */
       public static final ArgumentForce AMBIGUOUS = new ArgumentForce(ImmutableList.of(), 0);
 
       /** Whether the argument at the given index is never, maybe, or always forced. */
-      public Troolean argIsForced(int index) {
-        return index < argIsForced.size() ? argIsForced.get(index) : Troolean.MAYBE;
+      public Maybe argIsForced(int index) {
+        return index < argIsForced.size() ? argIsForced.get(index) : Maybe.MAYBE;
       }
 
       /** Whether this contains all guarantees the given data-structure does. */
@@ -532,7 +531,7 @@ public class ClosureVersion {
       @Override
       public boolean isSubsetOf(ArgumentForce other) {
         return argIsForced.size() >= other.argIsForced.size()
-            && Streams.zip(argIsForced.stream(), other.argIsForced.stream(), Troolean::isSubsetOf)
+            && Streams.zip(argIsForced.stream(), other.argIsForced.stream(), Maybe::isSubsetOf)
                 .allMatch(b -> b)
             && orderedForcedArgs >= other.orderedForcedArgs;
       }
@@ -544,7 +543,7 @@ public class ClosureVersion {
         var unionArgIsForced =
             Streams.zip(argIsForced.stream(), other.argIsForced.stream(), (a, b) -> a.union(b))
                 .collect(Collectors.toList());
-        while (!unionArgIsForced.isEmpty() && unionArgIsForced.getLast() == Troolean.MAYBE) {
+        while (!unionArgIsForced.isEmpty() && unionArgIsForced.getLast() == Maybe.MAYBE) {
           unionArgIsForced.removeLast();
         }
         var unionOrderedForcedArgs = Math.min(orderedForcedArgs, other.orderedForcedArgs);
@@ -580,12 +579,12 @@ public class ClosureVersion {
       }
 
       public ArgumentForce {
-        if (!argIsForced.isEmpty() && argIsForced.getLast() == Troolean.MAYBE) {
+        if (!argIsForced.isEmpty() && argIsForced.getLast() == Maybe.MAYBE) {
           throw new IllegalArgumentException(
               "Normalize this by removing trailing ambiguously-forced arguments");
         }
         for (int i = 0; i < orderedForcedArgs; i++) {
-          if (argIsForced.size() < i || argIsForced.get(i) != Troolean.YES) {
+          if (argIsForced.size() < i || argIsForced.get(i) != Maybe.YES) {
             throw new IllegalArgumentException(
                 "Argument "
                     + i

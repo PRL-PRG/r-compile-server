@@ -17,7 +17,7 @@ import org.prlprg.ir.cfg.StmtData.LdEnclosEnv;
 import org.prlprg.ir.cfg.StmtData.MkEnv;
 import org.prlprg.ir.cfg.StmtData.StVar;
 import org.prlprg.ir.type.REffect;
-import org.prlprg.ir.type.lattice.Troolean;
+import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.ir.type.lattice.YesOrMaybe;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.util.UnreachableError;
@@ -59,7 +59,7 @@ class ElideEnvs implements OptimizationPass {
         // Remove environment arguments in the current instruction
         // TODO: Put this somewhere else
         if (instr.data() instanceof Force(var promise, var _, var _)
-            && promise.type().isLazy() == Troolean.NO) {
+            && promise.type().isLazy() == Maybe.NO) {
           Instr.mutateArgs(
               (RValueStmt) instr, new Force(promise, Optional.empty(), StaticEnv.ELIDED));
         }

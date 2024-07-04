@@ -8,6 +8,20 @@ import org.prlprg.ir.type.RType;
  * and its parts.
  */
 public interface Lattice<T extends Lattice<T>> {
+
+  /**
+   * Whether an instance of {@code lhs} is also an instance of {@code rhs}.
+   *
+   * <ul>
+   *   <li>If {@code lhs} is a subtype of {@code rhs}, returns {@link Maybe#YES YES}.
+   *   <li>If {@code lhs} is a struct supertype of {@code rhs}, returns {@link Maybe#MAYBE MAYBE}.
+   *   <li>Otherwise, returns {@link Maybe#NO NO}.
+   * </ul>
+   */
+  static <T extends Lattice<T>> Maybe relation(@Nullable T lhs, @Nullable T rhs) {
+    return lhs == null ? Maybe.YES : rhs == null ? Maybe.NO : lhs.relation(rhs);
+  }
+
   /** Is this a subtype of the given type? Treats {@code null} as "bottom". */
   static <T extends Lattice<T>> boolean isSubset(@Nullable T lhs, @Nullable T rhs) {
     return lhs == null || (rhs != null && lhs.isSubsetOf(rhs));
@@ -32,6 +46,20 @@ public interface Lattice<T extends Lattice<T>> {
    */
   static <T extends Lattice<T>> @Nullable T intersection(@Nullable T lhs, @Nullable T rhs) {
     return lhs == null || rhs == null ? null : lhs.intersection(rhs);
+  }
+
+  /**
+   * Whether an instance of {@code self} is also an instance of {@code other}.
+   *
+   * <ul>
+   *   <li>If {@code self} is a subtype of {@code other}, returns {@link Maybe#YES YES}.
+   *   <li>If {@code self} is a struct supertype of {@code other}, returns {@link Maybe#MAYBE
+   *       MAYBE}.
+   *   <li>Otherwise, returns {@link Maybe#NO NO}.
+   * </ul>
+   */
+  default Maybe relation(T other) {
+    return isSubsetOf(other) ? Maybe.YES : isSupersetOf(other) ? Maybe.MAYBE : Maybe.NO;
   }
 
   /** Is this a subtype of the given type? */

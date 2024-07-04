@@ -7,7 +7,6 @@ import static net.jqwik.api.Arbitraries.oneOf;
 import static net.jqwik.api.Arbitraries.recursive;
 import static net.jqwik.api.Arbitraries.subsetOf;
 import static org.prlprg.sexp.ArbitraryProvider.attributes;
-import static org.prlprg.sexp.ArbitraryProvider.promises;
 import static org.prlprg.sexp.ArbitraryProvider.sexps;
 import static org.prlprg.sexp.ArbitraryProvider.symbolStrings;
 
@@ -17,9 +16,9 @@ import net.jqwik.api.Arbitraries;
 import net.jqwik.api.Arbitrary;
 import net.jqwik.api.Combinators;
 import net.jqwik.api.providers.TypeUsage;
+import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.ir.type.lattice.MaybeNat;
 import org.prlprg.ir.type.lattice.NoOrMaybe;
-import org.prlprg.ir.type.lattice.Troolean;
 import org.prlprg.ir.type.lattice.YesOrMaybe;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.PrimVectorSXP;
@@ -62,19 +61,6 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
         sexps().map(RTypes::exact));
   }
 
-  static Arbitrary<RPromiseType> rPromiseTypes() {
-    return oneOf(
-        Arbitraries.of(
-            RPromiseType.VALUE,
-            RPromiseType.MAYBE_STRICT_PROMISE,
-            RPromiseType.MAYBE_LAZY_PROMISE,
-            RPromiseType.STRICT_PROMISE,
-            RPromiseType.PROMISE_MAYBE_LAZY,
-            RPromiseType.LAZY_PROMISE),
-        defaultFor(Troolean.class).map(RPromiseType.Promise::new),
-        promises().map(RPromiseType.Promise::new));
-  }
-
   public static Arbitrary<RFunctionType> rFunctionTypes() {
     return rFunctionTypes(rTypes());
   }
@@ -89,7 +75,7 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
                 .list()
                 .ofMaxSize(MAX_SIZE)
                 .map(RFunctionTypeImpl::normalizeOverloadsWrtSubsuming),
-            defaultFor(Troolean.class))
+            defaultFor(Maybe.class))
         .filter(
             (exactValue, baseType, attributes, referenceCount, overloads, hasDots) ->
                 hasDots.isSupersetOf(overloads.stream().anyMatch(OverloadRType::hasDots)))

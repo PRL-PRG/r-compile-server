@@ -3,7 +3,7 @@ package org.prlprg.ir.type;
 import java.util.Objects;
 import javax.annotation.Nullable;
 import org.prlprg.ir.type.lattice.Lattice;
-import org.prlprg.ir.type.lattice.Troolean;
+import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.ir.type.lattice.YesOrMaybe;
 import org.prlprg.sexp.PromSXP;
 import org.prlprg.sexp.SEXP;
@@ -68,30 +68,30 @@ public sealed interface BaseRType extends Lattice<BaseRType> {
   }
 
   /** Is this a primitive vector type? */
-  default Troolean isPrimitiveVector() {
+  default Maybe isPrimitiveVector() {
     return switch (this) {
-      case Any() -> Troolean.MAYBE;
-      case AnyValue() -> Troolean.MAYBE;
+      case Any() -> Maybe.MAYBE;
+      case AnyValue() -> Maybe.MAYBE;
       case Vector(var elementType) -> elementType.isPrimitive();
-      default -> Troolean.NO;
+      default -> Maybe.NO;
     };
   }
 
   /** Is this a function type? (closure, builtin, or special) */
-  default Troolean isFunction() {
+  default Maybe isFunction() {
     return switch (this) {
-      case Any(), AnyValue() -> Troolean.MAYBE;
-      case AnyFun(), Closure(), Special(), Builtin() -> Troolean.YES;
-      default -> Troolean.NO;
+      case Any(), AnyValue() -> Maybe.MAYBE;
+      case AnyFun(), Closure(), Special(), Builtin() -> Maybe.YES;
+      default -> Maybe.NO;
     };
   }
 
   /** Is this a promise type? */
-  default Troolean isPromise() {
+  default Maybe isPromise() {
     return switch (this) {
-      case Any() -> Troolean.MAYBE;
-      case Promise(var _, var _) -> Troolean.YES;
-      default -> Troolean.NO;
+      case Any() -> Maybe.MAYBE;
+      case Promise(var _, var _) -> Maybe.YES;
+      default -> Maybe.NO;
     };
   }
 
@@ -107,7 +107,7 @@ public sealed interface BaseRType extends Lattice<BaseRType> {
   @Override
   default boolean isSubsetOf(BaseRType other) {
     return other instanceof Any
-        || (other instanceof AnyValue && isPromise() == Troolean.NO)
+        || (other instanceof AnyValue && isPromise() == Maybe.NO)
         || switch (this) {
           case Any(), AnyValue() -> false;
           case AnyFun() -> other instanceof AnyFun;
@@ -139,12 +139,12 @@ public sealed interface BaseRType extends Lattice<BaseRType> {
     // Fallback value. Other cases where one value is maybe a promise (including where either value
     // is `ANY`) are handled explicitly, either by the first `?`/`:` conditional or `case Promise`
     var any = other instanceof Promise ? ANY : ANY_VALUE;
-    return (other instanceof Any || (other instanceof AnyValue && isPromise() == Troolean.NO))
+    return (other instanceof Any || (other instanceof AnyValue && isPromise() == Maybe.NO))
         ? other
         : switch (this) {
           case Any() -> this;
           case AnyValue() -> any;
-          case AnyFun() -> other.isFunction() == Troolean.YES ? this : any;
+          case AnyFun() -> other.isFunction() == Maybe.YES ? this : any;
           case Vector(var elementType) ->
               other instanceof Vector(var otherElementType)
                   ? new Vector(elementType.union(otherElementType))
@@ -177,11 +177,11 @@ public sealed interface BaseRType extends Lattice<BaseRType> {
     return other instanceof Any
         ? this
         : other instanceof AnyValue
-            ? (this instanceof Any ? other : isPromise() == Troolean.NO ? this : null)
+            ? (this instanceof Any ? other : isPromise() == Maybe.NO ? this : null)
             : switch (this) {
               case Any() -> other;
-              case AnyValue() -> other.isPromise() == Troolean.NO ? other : null;
-              case AnyFun() -> other.isFunction() == Troolean.YES ? other : null;
+              case AnyValue() -> other.isPromise() == Maybe.NO ? other : null;
+              case AnyFun() -> other.isFunction() == Maybe.YES ? other : null;
               case Vector(var elementType) -> {
                 if (!(other instanceof Vector(var otherElementType))) {
                   yield null;

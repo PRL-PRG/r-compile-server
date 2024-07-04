@@ -1,366 +1,346 @@
 package org.prlprg.ir.type;
 
+import com.google.common.collect.ImmutableMap;
+import java.util.Arrays;
 import java.util.Objects;
-import javax.annotation.Nonnull;
+import java.util.function.Function;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import org.prlprg.ir.cfg.RValue;
-import org.prlprg.ir.type.BaseRType.Promise;
 import org.prlprg.ir.type.lattice.BoundedLattice;
-import org.prlprg.ir.type.lattice.Lattice;
-import org.prlprg.ir.type.lattice.MaybeNat;
-import org.prlprg.ir.type.lattice.NoOrMaybe;
-import org.prlprg.ir.type.lattice.Troolean;
-import org.prlprg.ir.type.lattice.YesOrMaybe;
+import org.prlprg.ir.type.lattice.Maybe;
+import org.prlprg.parseprint.PrintMethod;
+import org.prlprg.parseprint.Printer;
+import org.prlprg.sexp.Attributes;
+import org.prlprg.sexp.CloSXP;
+import org.prlprg.sexp.PromSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPType;
 import org.prlprg.sexp.SEXPs;
+import org.prlprg.util.Reflection;
 
 /**
  * {@link RValue} type; a runtime value's ({@link SEXP})'s type, with information relevant to
  * perform optimizations (e.g. compile unboxed representations if scalar). Not to be confused with
  * {@link SEXPType}.
  *
- * <p>It consists of an {@link RValueType} which is the type of of the inner value (e.g. function),
- * an {@link RPromiseType} which determines whether or not the inner value is wrapped in a promise
- * and whether or not said promise is lazy, and a {@link Troolean} which determines whether the
- * value is maybe missing (irregardless if it's in a promise, because a promise containing the
- * missing value is semantically equivalent to the missing value itself). The added layer of {@link
- * RType} over {@link RValueType} prevents trying to access value type properties of a maybe-promise
- * or maybe-missing type. "Nothing" is a special case which has {@code null} {@link RValueType} and
- * {@link RPromiseType}. "Any" has a generic {@link RValueType} and "maybe lazy, maybe promise
- * wrapped" {@link RPromiseType}.
+ * <p>It consists of:
  *
- * <p>See {@link RTypes} for all globals and constructors.
+ * <ul>
+ *   <li>{@link RValueType} {@link #value()}: the type of the "value". e.g. int-vector, closure,
+ *       environment). {@link RValueType}'s class hierarchy is the same shape as {@link SEXP}'s: for
+ *       every subclass of {@link SEXP} there is a corresponding subclass of {@link RValueType} (and
+ *       vice versa).
+ *   <li>{@link RAttributesType} {@link #attributes()}: the type of the "attributes". Some types of
+ *       {@linkplain SEXP}s can have {@linkplain Attributes attributes}, such as "names", "class",
+ *       and "dims". This is a type whose instances are those {@link Attributes} objects.
+ *   <li>{@link RPromiseType} {@link #promise()}: the type of the "promise wrapping"; that is,
+ *       whether the "value" described above maybe or definitely is wrapped in a promise, and
+ *       whether said promise maybe or definitely is lazy. e.g. the type of a closure value consists
+ *       of {@link RClosureType} and {@link RPromiseType#VALUE}, the type of a closure wrapped in a
+ *       strict promise consists of {@link RClosureType} and {@link RPromiseType#STRICT_PROMISE},
+ *       and the type of a closure that may or may not be a promise that may or may not be lazy
+ *       consists of {@link RPromiseType#MAYBE_LAZY_MAYBE_PROMISE}.
+ *       <ul>
+ *         <li>To be clear, a runtime {@link SEXP} instance of a "promise" closure type is a {@link
+ *             PromSXP}, not a {@link CloSXP}, and its attributes are empty (promises don't have
+ *             attributes) even if the {@link RAttributesType} specifies non-empty attributes. The
+ *             {@link RValueType} and {@link RAttributesType} don't describe the instance directly,
+ *             they describe the part of the instance that may be wrapped within a promise.
+ *       </ul>
+ *   <li>{@link Maybe} {@link #isMissing()}: whether or not the type is {@linkplain
+ *       SEXPs#MISSING_ARG the "missing" value}. Elaborating on the above example, the type of a
+ *       closure value that is guaranteed not missing consists of {@link RClosureType}, {@link
+ *       RPromiseType#VALUE}, and {@link Maybe#NO}, the type of a closure value that may or may not
+ *       be missing consists of {@link RClosureType}, {@link RPromiseType#VALUE}, and {@link
+ *       Maybe#MAYBE}, and the type of the missing value's type consists of {@link
+ *       RValueType#NOTHING}, {@link RPromiseType#VALUE}, and {@link Maybe#YES}.
+ *       <ul>
+ *         <li>Again, to be clear, a runtime {@link SEXP} instance of a "maybe-missing" type that
+ *             has a non-symbol {@link RValueType}, non-empty {@link RAttributesType}, and
+ *             definitely-promise {@link RPromiseType}, may be {@link SEXPs#MISSING_ARG}, which is a
+ *             symbol with no attributes and not a promise. The {@link RValueType}, {@link
+ *             RAttributesType}, and {@link RPromiseType} describe the instance assuming that it's
+ *             not missing.
+ *       </ul>
+ * </ul>
  */
 @Immutable
-public final class RType implements BoundedLattice<RType> {
-  /**
-   * The type of the value possibly within a promise and assuming it's not missing. {@code null} if
-   * this is the missing value or nothing type.
+public sealed interface RType extends RTypeHelpers, BoundedLattice<RType> {
+  // region constructor
+  /** Create an {@link RType} with the given {@link #value()}, {@link #attributes()}, {@link
+   * {@link #promise()}, and {@link #isMissing()} (missingness).
    */
-  private final @Nullable RValueType inner;
-
-  /**
-   * Whether this is maybe or definitely a promise, and if so, laziness and potentially exact
-   * promise value {@code null} if this is the nothing type.
-   */
-  private final @Nullable RPromiseType promise;
-
-  /**
-   * Whether the value itself may be or is missing. {@code null} if this is the nothing type.
-   *
-   * <p>Note that the value may be a promise. The missing value inside a promise is semantically
-   * identical to the regular missing value, because `chk_missing` forces it.
-   */
-  private final @Nullable Troolean missing;
-
-  // region `RType` specific methods
-  /**
-   * Whether this is maybe or definitely a promise, and if so, laziness and potentially exact
-   * promise value. {@code null} if this is the nothing type.
-   */
-  public @Nullable PromiseRType promise() {
-    return promise == null ? null : promise.promiseType();
-  }
-
-  /**
-   * Whether the value itself may be or is missing. {@code null} if this is the nothing type.
-   *
-   * <p>Note that the value may be a promise. The missing value inside a promise is semantically
-   * identical to the regular missing value, because `chk_missing` forces it.
-   */
-  public @Nullable Troolean missing() {
-    return missing;
-  }
-
-  /**
-   * If this type is maybe or definitely a lazy promise, returns the non-lazy equivalent. Otherwise
-   * returns itself (including if this is the nothing type).
-   */
-  public RType strict() {
-    return promise == null || promise.isLazy() == Troolean.NO
-        ? this
-        : new RType(inner, promise.strict(), missing);
-  }
-
-  /**
-   * If this type is definitely non-lazy, returns the maybe-lazy equivalent. Otherwise returns
-   * itself (including if this is the nothing type).
-   *
-   * <p>In particular, if this is a value, returns a maybe-promise.
-   */
-  public RType notStrict() {
-    return promise == null || promise.isLazy() != Troolean.NO
-        ? this
-        : new RType(inner, promise.notStrict(), missing);
-  }
-
-  /**
-   * If this type is maybe or definitely a promise, returns the inner value type. Otherwise returns
-   * itself (including if this is the nothing type).
-   */
-  public RType forced() {
-    return promise == null || promise.isPromise() == Troolean.NO
-        ? this
-        : new RType(inner, RPromiseType.VALUE, missing);
-  }
-
-  /**
-   * If this type is a value, returns a maybe-strict-promise. Otherwise returns itself (including if
-   * this is the nothing type).
-   */
-  public RType promiseWrapped() {
-    return promise == null || promise.isPromise() != Troolean.NO
-        ? this
-        : new RType(inner, RPromiseType.STRICT_PROMISE, missing);
-  }
-
-  /**
-   * Returns the same value type but with different promise wrapping. Returns itself if itself is
-   * the nothing type.
-   */
-  RType promiseWrapped(RPromiseType promise) {
-    return this.promise == null || this.promise.equals(promise)
-        ? this
-        : new RType(inner, promise, missing);
-  }
-
-  /**
-   * If the type is maybe missing, returns the non-missing equivalent. If definitely missing, return
-   * the nothing type.
-   */
-  public RType notMissing() {
-    return missing == null || missing == Troolean.NO
-        ? this
-        : missing == Troolean.YES ? RTypes.NOTHING : new RType(inner, promise, Troolean.NO);
-  }
-
-  /** Returns the maybe-missing equivalent of this type. */
-  public RType maybeMissing() {
-    return missing == null || missing == Troolean.MAYBE
-        ? this
-        : new RType(inner, promise, Troolean.MAYBE);
-  }
-
-  /**
-   * Whether this is the nothing type, which means an instance will never exist, and any code which
-   * would produce an instance actually either crashes, hangs, or otherwise diverts control flow.
-   */
-  public boolean isNothing() {
-    return missing == null;
-  }
-
-  /** Whether this is the any type, which means it's completely unconstrained. */
-  public boolean isAny() {
-    return equals(RTypes.ANY);
-  }
-
-  // region helpers
-  /** Is the type a lazy promise? Returns {@code null} if it's the nothing type. */
-  public @Nullable Troolean isLazy() {
-    return promise == null ? null : promise.isLazy();
-  }
-
-  /**
-   * Is this type a function (closure, builtin, or special)? Returns {@code null} if it's the
-   * nothing type.
-   *
-   * <p>If it's a lazy promise that is or may be a function, this will still return {@link
-   * Troolean#YES} or {@link Troolean#MAYBE}.
-   */
-  public @Nullable Troolean isFunction() {
-    if (base() == null) {
-      return null;
-    } else if (base().isSubsetOf(BaseRType.ANY_FUN)) {
-      return Troolean.YES;
-    } else if (!BaseRType.ANY_FUN.isSubsetOf(base())) {
-      return Troolean.NO;
-    } else {
-      return Troolean.MAYBE;
+  static RType of(
+      RValueType value, RAttributesType attributes, RPromiseType promise, Maybe isMissing) {
+    if (isMissing == Maybe.YES) {
+      return MISSING;
+    } else if (value == RValueType.NOTHING || attributes == RAttributesType.NOTHING) {
+      return NOTHING;
     }
+
+    var result = new RTypeImpl(value, attributes, promise, isMissing);
+    var interned = RTypeImpl.INTERNED.get(result);
+    return interned == null ? result : interned;
   }
 
-  /** Returns whether instances are R objects, or {@code null} if this is the nothing type. */
-  public @Nullable Troolean isObject() {
-    return attributes() == null ? null : attributes().isObject();
-  }
+  // endregion constructor
 
-  // endregion
-  // endregion
-
-  // This contains all the accessors in RValueType, and accessors to return the specific RValueType
-  // instances. All are implemented very straightforward: the common RValueType accessors check for:
-  // - Nothing
-  // - Definitely missing or promise (may further branch on which one)
-  // - Maybe missing or promise (may further branch on which one or both)
-  // - Inner value
-  //
-  // The instance projections return `value` iff it's an instance of the projected type, `promise`
-  // is definitely not a promise, and `missing` is `NO`, otherwise `null`.
-
-  // region common `RSexpType` accessors
-  /** If this is a constant, the exact value. */
-  public @Nullable SEXP exactValue() {
-    if (promise == null || missing == null) { // Nothing
-      return null;
-    } else if (inner == null || promise.isPromise() == Troolean.YES) { // Definitely...
-      return inner == null ? SEXPs.MISSING_ARG : promise.exactValue();
-    } else if (missing == Troolean.MAYBE || promise.isPromise() == Troolean.MAYBE) { // Maybe...
-      return null;
-    } else { // Inner value
-      return inner.exactValue();
-    }
-  }
-
+  // region field accessors
   /**
-   * The base type of the value (e.g. is it a symbol? Builtin?).
+   * The type of the "value" part of the instance, possibly within a promise and assuming it's not
+   * missing.
    *
-   * <p>Returns {@code null} if this is the nothing type.
+   * <p>e.g. int-vector, closure, environment.
    */
-  public @Nullable BaseRType base() {
-    if (promise == null || missing == null) { // Nothing
-      return null;
-    } else if (inner == null || promise.isPromise() == Troolean.YES) { // Definitely...
-      return inner == null
-          ? BaseRType.SYMBOL
-          : new Promise(
-              YesOrMaybe.of(promise.isLazy()),
-              missing == Troolean.MAYBE ? inner.base().union(BaseRType.SYMBOL) : inner.base());
-    } else if (missing == Troolean.MAYBE || promise.isPromise() == Troolean.MAYBE) { // Maybe...
-      // ANY is the only type that can represent both promise or not-promise
-      return promise.isPromise() == Troolean.MAYBE
-          ? BaseRType.ANY
-          : inner.base().union(BaseRType.SYMBOL);
-    } else { // Inner value
-      return inner.base();
-    }
-  }
+  RValueType value();
 
   /**
-   * Whether the object has attributes and what we know about them; in particular, if it may or does
-   * have certain attributes (e.g. {@code names}, {@code class}, {@code dim}, ...), and if they are
-   * exact values.
+   * The type of the "value" part of the instance (described by {@link #value()})'s {@linkplain
+   * Attributes attributes}.
    *
-   * <p>Returns {@code null} if this is the nothing type.
+   * <p>e.g. no attributes, "class" attribute if it's an {@linkplain #isObject() object}, "dims"
+   * attribute if it's a matrix.
    */
-  public @Nullable AttributesType attributes() {
-    if (promise == null || missing == null) { // Nothing
-      return null;
-    } else if (inner == null || promise.isPromise() == Troolean.YES) { // Definitely...
-      return AttributesTypes.NONE;
-    } else if (missing == Troolean.MAYBE || promise.isPromise() == Troolean.MAYBE) { // Maybe...
-      return inner.attributes().union(AttributesTypes.NONE);
-    } else { // Inner value
-      return inner.attributes();
-    }
-  }
+  RAttributesType attributes();
 
   /**
-   * If there's 0, 1, n, or unknown references to this value.
+   * Whether the "value" (described by {@link #value()} and {@link #attributes()}) is maybe or
+   * definitely a promise, and if so, whether it's maybe or definitely lazy.
    *
-   * <p>Returns {@code null} if this is the nothing type.
+   * <p>This is {@code null} iff {@code self} is {@link RType#NOTHING}.
    */
-  public @Nullable MaybeNat referenceCount() {
-    if (promise == null || missing == null) { // Nothing
-      return null;
-    } else if (inner == null || promise.isPromise() == Troolean.YES) { // Definitely...
-      return MaybeNat.UNKNOWN;
-    } else if (missing == Troolean.MAYBE || promise.isPromise() == Troolean.MAYBE) { // Maybe...
-      return MaybeNat.UNKNOWN;
-    } else { // Inner value
-      return inner.referenceCount();
-    }
+  @Nullable RPromiseType promise();
+
+  /** Whether the "value", possibly wrapped in a promise (described by {@link #value()}, {@link
+   * {@link #attributes()}, and {@link #promise()}, is maybe or definitely missing.
+   *
+   * <p>If maybe missing, the instance is either what {@link #value()}/{@link #attributes()}/
+   * {@link #promise()} describe <i>or</i> {@link SEXPs#MISSING_ARG}. If definitely missing, then
+   * {@link #value()}, {@link #attributes()}, and {@link #promise()} may be completely ignored, the
+   * only possible instance is {@link SEXPs#MISSING_ARG}.
+   *
+   * <p>This is {@code null} iff {@code self} is {@link RType#NOTHING}.
+   */
+  @Nullable Maybe isMissing();
+
+  // endregion field accessors
+
+  // region field "with"ers
+  /** Returns the same type except {@link #value()}} is {@code newValue}. */
+  // IntelliJ doesn't know that `this != NOTHING ==> promise() != null && isMissing() != null`, so
+  // it reports nullable values (`promise()` and `isMissing()`) in non-null positions (`of` args).
+  @SuppressWarnings("DataFlowIssue")
+  default RType withValue(RValueType newValue) {
+    return value() == newValue || this == NOTHING || this == MISSING
+        ? this
+        : of(newValue, attributes(), promise(), isMissing());
   }
 
-  // endregion
-
-  // region specific `RValueType` projections
-  /**
-   * If this is guaranteed to be a function (not promise wrapped or missing), returns
-   * function-specific data, otherwise {@code null}.
-   */
-  public @Nullable RFunctionType function() {
-    return projection(RFunctionType.class);
+  /** Returns the same type except {@link #attributes()}} is {@code newAttributes}. */
+  // IntelliJ doesn't know that `this != NOTHING ==> promise() != null && isMissing() != null`, so
+  // it reports nullable values (`promise()` and `isMissing()`) in non-null positions (`of` args).
+  @SuppressWarnings("DataFlowIssue")
+  default RType withAttributes(RAttributesType newAttributes) {
+    return attributes() == newAttributes || this == NOTHING || this == MISSING
+        ? this
+        : of(value(), newAttributes, promise(), isMissing());
   }
 
-  /**
-   * If this is guaranteed to be a primitive (not promise wrapped or missing) vector, returns
-   * primitive-vector-specific data, otherwise {@code null}.
-   */
-  public @Nullable RPrimVecType primVec() {
-    return projection(RPrimVecType.class);
+  /** Returns the same type except {@link #promise()}} is {@code newPromise}. */
+  // IntelliJ doesn't know that `this != NOTHING ==> promise() != null && isMissing() != null`, so
+  // it reports nullable values (`promise()` and `isMissing()`) in non-null positions (`of` args).
+  @SuppressWarnings("DataFlowIssue")
+  default RType withPromise(RPromiseType newPromise) {
+    return promise() == newPromise || this == NOTHING || this == MISSING
+        ? this
+        : of(value(), attributes(), newPromise, isMissing());
   }
 
-  /**
-   * If {@code value} is an instance of the class, {@code promise} is definitely a value, and {@code
-   * missing} is NO, returns {@code value}, otherwise returns {@code null}.
-   */
-  private <T extends RValueType> @Nullable T projection(Class<T> clazz) {
-    return promise != null
-            && promise.isPromise() == Troolean.NO
-            && missing == Troolean.NO
-            && clazz.isInstance(inner)
-        ? clazz.cast(inner)
-        : null;
+  /** Returns the same type except {@link #isMissing()}} is {@code newIsMissing}. */
+  // IntelliJ doesn't know that `this != NOTHING ==> promise() != null && isMissing() != null`, so
+  // it reports nullable values (`promise()` and `isMissing()`) in non-null positions (`of` args).
+  @SuppressWarnings("DataFlowIssue")
+  default RType withMissingness(Maybe newIsMissing) {
+    // Some special-cases:
+    // - `isMissing == YES` and `newIsMissing == NO`: we just removed the only instance, so now
+    //   there are no instances, therefore `NOTHING`. (Note: technically unsound)
+    // - `isMissing == YES` and `newIsMissing == MAYBE`: union of `NOTHING` and `this` is `this`.
+    return isMissing() == newIsMissing
+            || this == NOTHING
+            || (isMissing() == Maybe.YES && newIsMissing == Maybe.MAYBE)
+        ? this
+        : isMissing() == Maybe.YES ? NOTHING : of(value(), attributes(), promise(), newIsMissing);
   }
 
-  // endregion
-
-  // The lattice operations are even more boilerplate-y
+  // endregion field "with"ers
 
   // region lattice operations
   @Override
-  public boolean isSubsetOf(RType other) {
-    return Lattice.isSubset(inner, other.inner)
-        && Lattice.isSubset(promise, other.promise)
-        && Lattice.isSubset(missing, other.missing);
+  default boolean isSubsetOf(RType other) {
+    if (this == NOTHING || other == ANY) {
+      return true;
+    } else if (other == NOTHING || this == ANY) {
+      return false;
+    } else if (this == MISSING) {
+      return other.isMissing() != Maybe.NO;
+    } else if (other == MISSING) {
+      return false;
+    }
+    assert promise() != null
+        && isMissing() != null
+        && other.promise() != null
+        && other.isMissing() != null;
+
+    return value().isSubsetOf(other.value())
+        && attributes().isSubsetOf(other.attributes())
+        && promise().isSubsetOf(other.promise())
+        && isMissing().isSubsetOf(other.isMissing());
   }
 
   @Override
-  public boolean isSupersetOf(RType other) {
-    return Lattice.isSuperset(inner, other.inner)
-        && Lattice.isSuperset(promise, other.promise)
-        && Lattice.isSuperset(missing, other.missing);
+  default boolean isSupersetOf(RType other) {
+    if (this == ANY || other == NOTHING) {
+      return true;
+    } else if (other == ANY || this == NOTHING) {
+      return false;
+    } else if (other == MISSING) {
+      return isMissing() != Maybe.NO;
+    } else if (this == MISSING) {
+      return false;
+    }
+    assert promise() != null
+        && isMissing() != null
+        && other.promise() != null
+        && other.isMissing() != null;
+
+    return value().isSupersetOf(other.value())
+        && attributes().isSupersetOf(other.attributes())
+        && promise().isSupersetOf(other.promise())
+        && isMissing().isSupersetOf(other.isMissing());
   }
 
   @Override
-  public @Nonnull RType intersection(RType other) {
-    var value = Lattice.intersection(this.inner, other.inner);
-    var promise = Lattice.intersection(this.promise, other.promise);
-    var missing = Lattice.intersection(this.missing, other.missing);
-    return (value == null && missing != Troolean.YES) || promise == null || missing == null
-        ? RTypes.NOTHING
-        : new RType(value, promise, missing);
+  default RType intersection(RType other) {
+    if (this == ANY) {
+      return other;
+    } else if (other == ANY) {
+      return this;
+    } else if (this == NOTHING || other == NOTHING) {
+      return NOTHING;
+    } else if (this == MISSING) {
+      return other.isMissing() == Maybe.NO ? NOTHING : MISSING;
+    } else if (other == MISSING) {
+      return isMissing() == Maybe.NO ? NOTHING : MISSING;
+    }
+    assert promise() != null
+        && isMissing() != null
+        && other.promise() != null
+        && other.isMissing() != null;
+
+    var value = value().intersection(other.value());
+    if (value == RValueType.NOTHING) {
+      return NOTHING;
+    }
+    var attributes = attributes().intersection(other.attributes());
+    if (attributes == RAttributesType.NOTHING) {
+      return NOTHING;
+    }
+    var promise = promise().intersection(other.promise());
+    if (promise == null) {
+      return NOTHING;
+    }
+    var isMissing = isMissing().intersection(other.isMissing());
+    if (isMissing == null) {
+      return NOTHING;
+    }
+    return of(value, attributes, promise, isMissing);
   }
 
   @Override
-  public RType union(RType other) {
-    var value = Lattice.union(this.inner, other.inner);
-    var promise = Lattice.union(this.promise, other.promise);
-    var missing = Lattice.union(this.missing, other.missing);
-    return promise == null || missing == null ? RTypes.NOTHING : new RType(value, promise, missing);
+  default RType union(RType other) {
+    if (this == NOTHING) {
+      return other;
+    } else if (other == NOTHING) {
+      return this;
+    } else if (this == ANY || other == ANY) {
+      return ANY;
+    } else if (this == MISSING && other == MISSING) {
+      return MISSING;
+    }
+    assert promise() != null
+        && isMissing() != null
+        && other.promise() != null
+        && other.isMissing() != null;
+
+    var value = value().union(other.value());
+    var attributes = attributes().union(other.attributes());
+    var promise = promise().union(other.promise());
+    var isMissing = isMissing().union(other.isMissing());
+    return of(value, attributes, promise, isMissing);
   }
 
-  // endregion
+  // endregion lattice operations
+}
 
-  // region `equals`, `hashCode`, `toString`
-  @Override
-  public boolean equals(Object o) {
-    if (this == o) return true;
-    if (!(o instanceof RType rType)) return false;
-    return Objects.equals(inner, rType.inner)
-        && Objects.equals(promise, rType.promise)
-        && Objects.equals(missing, rType.missing);
+record RTypeImpl(
+    @Override RValueType value,
+    @Override RAttributesType attributes,
+    @Override @Nullable RPromiseType promise,
+    @Override @Nullable Maybe isMissing)
+    implements RType {
+  static final ImmutableMap<RType, RType> INTERNED =
+      Arrays.stream(RType.class.getFields())
+          .filter(field -> field.getType() == RType.class)
+          .map(field -> (RType) Reflection.getField(null, field))
+          .collect(ImmutableMap.toImmutableMap(Function.identity(), Function.identity()));
+
+  RTypeImpl {
+    assert (promise != null && isMissing != null)
+            || (promise == null
+                && isMissing == null
+                && value == RValueType.NOTHING
+                && attributes == RAttributesType.NOTHING)
+        : "If `promise` and `isMissing` are `null`, this must be the nothing type";
+    assert promise == null
+            || isMissing != Maybe.YES
+            || (value == RValueType.NOTHING && attributes == RAttributesType.NOTHING)
+        : "If `isMissing` is `YES`, this must be the missing type";
+
+    assert promise == null
+            || isMissing == Maybe.YES
+            || (value != RValueType.NOTHING && attributes != RAttributesType.NOTHING)
+        : "If `promise` and `isMissing` are not `null` and `isMissing` isn't `YES`, `value` and `attributes` must not be `NOTHING`";
   }
 
-  @Override
-  public int hashCode() {
-    return Objects.hash(inner, promise, missing);
-  }
+  // region serialization and deserialization
+  @PrintMethod
+  private void print(Printer p) {
+    var w = p.writer();
 
-  @Override
-  public String toString() {
+    if (this == NOTHING) {
+      w.write("⊥");
+    } else if (this == ANY) {
+      w.write("⊤");
+    } else if (this == MISSING) {
+      w.write("missing");
+    } else {
+      if (isMissing == Maybe.MAYBE) {
+        w.write("miss|");
+      }
+      switch (promise) {
+      }
+      w.write(value);
+      if (isMissing == Maybe.YES) {
+        w.write("miss");
+      } else if (isMissing == Maybe.MAYBE) {
+        w.write("miss|");
+        w.write(attributes);
+      } else {
+        w.write(attributes);
+      }
+    }
+
     return promise == null || missing == null
         ? "⊥"
         : isAny()
@@ -374,34 +354,9 @@ public final class RType implements BoundedLattice<RType> {
                 };
   }
 
-  // endregion
-
-  /** Constructs the nothing type. Use {@link RTypes .NOTHING} instead. */
-  RType() {
-    this(null, null, (Troolean) null);
+  @Override
+  public String toString() {
+    return Printer.toString(this);
   }
-
-  /** Constructs a type that isn't nothing. */
-  RType(RValueType inner, RPromiseType promise, NoOrMaybe missing) {
-    this(inner, promise, Troolean.of(missing));
-  }
-
-  /** Constructs a type that is nothing iff the arguments are all {@code null}. */
-  RType(@Nullable RValueType inner, @Nullable RPromiseType promise, @Nullable Troolean missing) {
-    if ((promise == null) != (missing == null)) {
-      throw new IllegalArgumentException(
-          "If and only if `promise` is null, `missing` must be null (this is the nothing type)");
-    }
-    if (inner != null && promise == null) {
-      throw new IllegalArgumentException(
-          "If both `promise` and `missing` are null, `inner` must also be null (this is the nothing type)");
-    }
-    if ((inner == null) != (missing == null || missing == Troolean.YES)) {
-      throw new IllegalArgumentException(
-          "If and only if `inner` is null, `missing` must be null (this is the nothing type) or YES (this is the missing type)");
-    }
-    this.inner = inner;
-    this.promise = promise;
-    this.missing = missing;
-  }
+  // endregion serialization and deserialization
 }

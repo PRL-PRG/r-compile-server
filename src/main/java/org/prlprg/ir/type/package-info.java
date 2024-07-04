@@ -1,4 +1,9 @@
-/** Runtime value ({@link org.prlprg.sexp.SEXP}) types used for static analysis. */
+/**
+ * The {@linkplain org.prlprg.ir IR} type system.
+ *
+ * <p>This package contains {@link org.prlprg.ir.type.RType RType}, the type of an abstract R value
+ * ({@link org.prlprg.ir.cfg.RValue RValue}), and the associated classes that implement it.
+ */
 @ParametersAreNonnullByDefault
 @FieldsAreNonNullByDefault
 @ReturnTypesAreNonNullByDefault

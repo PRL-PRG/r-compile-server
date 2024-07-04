@@ -3,7 +3,7 @@ package org.prlprg.ir.cfg;
 import javax.annotation.Nullable;
 import org.prlprg.ir.type.RType;
 import org.prlprg.ir.type.RTypes;
-import org.prlprg.ir.type.lattice.Troolean;
+import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPType;
 
@@ -24,13 +24,13 @@ public interface RValue extends Node {
   NodeId<? extends RValue> id();
 
   /** Is this guaranteed to be an environment? */
-  default Troolean isEnv() {
+  default Maybe isEnv() {
     if (type().isSubsetOf(RTypes.simple(SEXPType.ENV))) {
-      return Troolean.YES;
+      return Maybe.YES;
     } else if (RTypes.simple(SEXPType.ENV).isSubsetOf(type())) {
-      return Troolean.MAYBE;
+      return Maybe.MAYBE;
     } else {
-      return Troolean.NO;
+      return Maybe.NO;
     }
   }
 

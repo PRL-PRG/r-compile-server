@@ -2,7 +2,7 @@ package org.prlprg.ir.type;
 
 import javax.annotation.Nullable;
 import org.prlprg.ir.type.lattice.Lattice;
-import org.prlprg.ir.type.lattice.Troolean;
+import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.sexp.SEXPType;
 
 /** The "main" type of a primitive vector's elements. */
@@ -60,20 +60,20 @@ public enum PrimVecElementRType implements Lattice<PrimVecElementRType> {
   }
 
   /** Is this an integer, complex, or double? */
-  public Troolean isNumeric() {
+  public Maybe isNumeric() {
     return switch (this) {
-      case INT, COMPLEX, DOUBLE -> Troolean.YES;
-      case ANY, NUMERIC_OR_LOGICAL -> Troolean.MAYBE;
-      case STRING, LOGICAL, RAW -> Troolean.NO;
+      case INT, COMPLEX, DOUBLE -> Maybe.YES;
+      case ANY, NUMERIC_OR_LOGICAL -> Maybe.MAYBE;
+      case STRING, LOGICAL, RAW -> Maybe.NO;
     };
   }
 
   /** Is this an integer, complex, double, or logical? */
-  public Troolean isNumericOrLogical() {
+  public Maybe isNumericOrLogical() {
     return switch (this) {
-      case NUMERIC_OR_LOGICAL, INT, COMPLEX, DOUBLE, LOGICAL -> Troolean.YES;
-      case ANY -> Troolean.MAYBE;
-      case STRING, RAW -> Troolean.NO;
+      case NUMERIC_OR_LOGICAL, INT, COMPLEX, DOUBLE, LOGICAL -> Maybe.YES;
+      case ANY -> Maybe.MAYBE;
+      case STRING, RAW -> Maybe.NO;
     };
   }
 

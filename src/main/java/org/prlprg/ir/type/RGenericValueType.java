@@ -2,8 +2,8 @@ package org.prlprg.ir.type;
 
 import java.util.logging.Logger;
 import javax.annotation.Nullable;
+import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.ir.type.lattice.MaybeNat;
-import org.prlprg.ir.type.lattice.Troolean;
 import org.prlprg.sexp.ListSXP;
 import org.prlprg.sexp.SEXP;
 
@@ -54,7 +54,7 @@ record RGenericValueType(
     }
     // Some sanity checks, since we have parallel representations
     assert !(base instanceof BaseRType.Closure) : "should be RClosureTypeImpl";
-    assert !(base instanceof BaseRType.Vector(var elem) && elem.isPrimitive() == Troolean.YES)
+    assert !(base instanceof BaseRType.Vector(var elem) && elem.isPrimitive() == Maybe.YES)
         : "should be RPrimVecTypeImpl";
     return new RGenericValueType(
         value, base, AttributesTypes.exact(value.attributes()), MaybeNat.UNKNOWN);

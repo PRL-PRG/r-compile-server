@@ -11,7 +11,7 @@ import org.prlprg.ir.cfg.RValue;
 import org.prlprg.ir.cfg.StaticEnv;
 import org.prlprg.ir.cfg.Stmt;
 import org.prlprg.ir.cfg.StmtData.LdEnclosEnv;
-import org.prlprg.ir.type.lattice.Troolean;
+import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.RegSymSXP;
@@ -150,23 +150,23 @@ record AbstractEnvHierarchyImpl(
         name,
         false,
         res -> {
-          if (res.type().isFunction() == Troolean.YES) {
+          if (res.type().isFunction() == Maybe.YES) {
             // If it is a function, we know it will be looked up.
-            return Troolean.YES;
-          } else if (res.type().isFunction() == Troolean.MAYBE
-              || res.isUnboundValue() == Troolean.MAYBE) {
+            return Maybe.YES;
+          } else if (res.type().isFunction() == Maybe.MAYBE
+              || res.isUnboundValue() == Maybe.MAYBE) {
             // If it might be a function, we can neither be sure, nor exclude this binding
             // (and if it might be unbound, it might be a function although its type won't say).
-            return Troolean.MAYBE;
+            return Maybe.MAYBE;
           } else {
             // If it's not a function, we know it will be skipped.
-            return Troolean.NO;
+            return Maybe.NO;
           }
         });
   }
 
   private AbstractLoad lookupGeneric(
-      RValue env, RegSymSXP name, boolean skipInnermost, Function<AbstractRValue, Troolean> test) {
+      RValue env, RegSymSXP name, boolean skipInnermost, Function<AbstractRValue, Maybe> test) {
     // First, de-alias.
     while (aliases.containsKey(env)) {
       env = Objects.requireNonNull(aliases.get(env));
@@ -194,10 +194,10 @@ record AbstractEnvHierarchyImpl(
           var lookupCandidate = aEnv.get(name);
           var isCandidateLookedUp = test.apply(lookupCandidate);
 
-          if (isCandidateLookedUp == Troolean.YES) {
+          if (isCandidateLookedUp == Maybe.YES) {
             // This is the result of the lookup, and env it was found.
             return new AbstractLoadImpl(env, lookupCandidate);
-          } else if (isCandidateLookedUp == Troolean.MAYBE) {
+          } else if (isCandidateLookedUp == Maybe.MAYBE) {
             // This *may* be the result of the lookup, and env it was found
             // Unfortunately, that means we don't know the real env or result,
             // and don't have enough precision to represent anything except "unknown".

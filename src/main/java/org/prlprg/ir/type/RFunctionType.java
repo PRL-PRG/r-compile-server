@@ -7,8 +7,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
+import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.ir.type.lattice.MaybeNat;
-import org.prlprg.ir.type.lattice.Troolean;
 import org.prlprg.ir.type.lattice.YesOrMaybe;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.SEXP;
@@ -27,31 +27,31 @@ public sealed interface RFunctionType extends RValueType {
   @Nullable FunctionRType functionType();
 
   /** Whether this is a closure. */
-  default Troolean isClosure() {
+  default Maybe isClosure() {
     return functionType() == FunctionRType.CLOSURE
-        ? Troolean.YES
-        : functionType() != null ? Troolean.NO : Troolean.MAYBE;
+        ? Maybe.YES
+        : functionType() != null ? Maybe.NO : Maybe.MAYBE;
   }
 
   /** Whether this is a non-special builtin. */
-  default Troolean isNonSpecialBuiltin() {
+  default Maybe isNonSpecialBuiltin() {
     return functionType() == FunctionRType.BUILTIN
-        ? Troolean.YES
-        : functionType() != null ? Troolean.NO : Troolean.MAYBE;
+        ? Maybe.YES
+        : functionType() != null ? Maybe.NO : Maybe.MAYBE;
   }
 
   /** Whether this is a special builtin. */
-  default Troolean isSpecialBuiltin() {
+  default Maybe isSpecialBuiltin() {
     return functionType() == FunctionRType.SPECIAL
-        ? Troolean.YES
-        : functionType() != null ? Troolean.NO : Troolean.MAYBE;
+        ? Maybe.YES
+        : functionType() != null ? Maybe.NO : Maybe.MAYBE;
   }
 
   /** Known overloads, ordered so that ones with subsuming parameters are before. */
   ImmutableList<OverloadRType> knownOverloads();
 
   /** Does the function have dots? */
-  Troolean hasDots();
+  Maybe hasDots();
 
   /**
    * Returns the most specific known overload for the given argument types, or {@code null} if there
@@ -68,7 +68,7 @@ record RFunctionTypeImpl(
     @Override AttributesType attributes,
     @Override MaybeNat referenceCount,
     @Override ImmutableList<OverloadRType> knownOverloads,
-    @Override Troolean hasDots)
+    @Override Maybe hasDots)
     implements RFunctionType {
   /**
    * Removes overloads that are subsumed by others from the stream, and sorts them so that overloads
@@ -126,10 +126,10 @@ record RFunctionTypeImpl(
 
   RFunctionTypeImpl {
     RGenericValueType.commonSanityChecks(this);
-    if (hasDots != Troolean.YES && knownOverloads.stream().anyMatch(OverloadRType::hasDots)) {
+    if (hasDots != Maybe.YES && knownOverloads.stream().anyMatch(OverloadRType::hasDots)) {
       throw new IllegalArgumentException("hasDots must be YES if any overload has dots");
     }
-    if (hasDots == Troolean.YES && knownOverloads.stream().noneMatch(OverloadRType::hasDots)) {
+    if (hasDots == Maybe.YES && knownOverloads.stream().noneMatch(OverloadRType::hasDots)) {
       throw new IllegalArgumentException("hasDots must be MAYBE or NO if no overload have dots");
     }
     assert knownOverloads.equals(normalizeOverloadsWrtSubsuming(knownOverloads))
@@ -148,7 +148,7 @@ record RFunctionTypeImpl(
         AttributesTypes.exact(value.attributes()),
         MaybeNat.UNKNOWN,
         ImmutableList.of(overload),
-        Troolean.of(overload.hasDots()));
+        Maybe.of(overload.hasDots()));
   }
 
   // TODO: `RFunctionType.ofBuiltin(int bltOrSpecNum)` (hard-code immutable list of builtin and
@@ -244,7 +244,7 @@ record RFunctionTypeImpl(
       return sb.toString();
     }
 
-    if (hasDots == Troolean.MAYBE) {
+    if (hasDots == Maybe.MAYBE) {
       sb.append(".?");
     }
     switch (knownOverloads.size()) {

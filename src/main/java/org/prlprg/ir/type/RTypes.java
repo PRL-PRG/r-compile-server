@@ -7,9 +7,9 @@ import java.util.Objects;
 import java.util.stream.Stream;
 import org.prlprg.ir.cfg.CFG;
 import org.prlprg.ir.type.BaseRType.NotPromise;
+import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.ir.type.lattice.MaybeNat;
 import org.prlprg.ir.type.lattice.NoOrMaybe;
-import org.prlprg.ir.type.lattice.Troolean;
 import org.prlprg.primitive.BuiltinId;
 import org.prlprg.rshruntime.TypeFeedback;
 import org.prlprg.sexp.CloSXP;
@@ -23,159 +23,13 @@ import org.prlprg.sexp.SEXPs;
  * All global {@link RType}s and methods to create {@link RType}s are here so they're easy to find.
  */
 public class RTypes {
-  /** The type of an expression which hangs, errors, or otherwise diverts control flow. */
-  public static final RType NOTHING = new RType();
-
-  /**
-   * The type of a value we know absolutely nothing about (this is common, e.g. arbitrary {@code
-   * LdVar}).
-   */
-  public static final RType ANY =
-      new RType(
-          new RGenericValueType(
-              null, BaseRType.ANY_VALUE, AttributesTypes.UNKNOWN, MaybeNat.UNKNOWN),
-          RPromiseType.MAYBE_LAZY_PROMISE,
-          Troolean.MAYBE);
-
-  /** The type of a value we know absolutely nothing about, except that it's not a promise. */
-  public static final RType ANY_VALUE =
-      new RType(
-          new RGenericValueType(
-              null, BaseRType.ANY_VALUE, AttributesTypes.UNKNOWN, MaybeNat.UNKNOWN),
-          RPromiseType.VALUE,
-          Troolean.MAYBE);
-
-  /** The type of a value we know absolutely nothing about, except that it <i>is</i> a promise. */
-  public static final RType ANY_PROM =
-      new RType(
-          new RGenericValueType(
-              null, BaseRType.ANY_VALUE, AttributesTypes.UNKNOWN, MaybeNat.UNKNOWN),
-          RPromiseType.PROMISE_MAYBE_LAZY,
-          Troolean.MAYBE);
-
-  /**
-   * The type of a value we know absolutely nothing about, except that it's not a promise or
-   * missing.
-   */
-  public static final RType ANY_VALUE_NOT_MISSING =
-      new RType(
-          new RGenericValueType(
-              null, BaseRType.ANY_VALUE, AttributesTypes.UNKNOWN, MaybeNat.UNKNOWN),
-          RPromiseType.VALUE,
-          Troolean.NO);
-
-  /**
-   * The type of a function we know absolutely nothing about besides it being a function (could be a
-   * special or builtin).
-   */
-  public static final RType ANY_FUN =
-      new RType(
-          new RFunctionTypeImpl(
-              null,
-              null,
-              AttributesTypes.UNKNOWN,
-              MaybeNat.UNKNOWN,
-              ImmutableList.of(),
-              Troolean.MAYBE),
-          RPromiseType.VALUE,
-          Troolean.NO);
-
-  /**
-   * The type of a function we know absolutely nothing about besides it being a special or builtin
-   * function.
-   */
-  public static final RType ANY_SYM_FUN = ANY_FUN;
-
-  /**
-   * The type of a value we know absolutely nothing about besides it not having attributes, object,
-   * promise-wrapped, or missing (e.g. AST node).
-   */
-  public static final RType ANY_SIMPLE =
-      new RType(
-          new RGenericValueType(null, BaseRType.ANY_VALUE, AttributesTypes.NONE, MaybeNat.UNKNOWN),
-          RPromiseType.VALUE,
-          Troolean.NO);
-
-  /**
-   * The type of a value we know absolutely nothing about besides it not having attributes, object,
-   * promise-wrapped, or missing, and being a primitive vector.
-   */
-  public static final RType ANY_SIMPLE_PRIM_VEC =
-      new RType(
-          new RPrimVecTypeImpl(
-              null,
-              AttributesTypes.NONE,
-              MaybeNat.UNKNOWN,
-              PrimVecElementRType.ANY,
-              MaybeNat.UNKNOWN,
-              NoOrMaybe.MAYBE),
-          RPromiseType.VALUE,
-          Troolean.NO);
-
-  /** The {@link RType} of the missing value. */
-  public static final RType OF_MISSING = new RType(null, RPromiseType.VALUE, Troolean.YES);
-
-  public static final RType DOTS_ARG =
-      new RType(
-          new RGenericValueType(null, BaseRType.DOTS, AttributesTypes.NONE, MaybeNat.UNKNOWN),
-          RPromiseType.VALUE,
-          // Yes, this can be missing
-          Troolean.MAYBE);
-
-  /** TODO: Define {@code SEXPs.EXPANDED_DOTS} and make this {@link RTypes#exact(SEXP)}? */
-  public static final RType EXPANDED_DOTS =
-      new RType(
-          new RGenericValueType(null, BaseRType.SYMBOL, AttributesTypes.NONE, MaybeNat.UNKNOWN),
-          RPromiseType.VALUE,
-          Troolean.NO);
-
-  /** The {@link RType} of a simple scalar logical that can't be NA. */
-  public static final RType BOOL =
-      new RType(
-          new RPrimVecTypeImpl(
-              null,
-              AttributesTypes.NONE,
-              MaybeNat.UNKNOWN,
-              PrimVecElementRType.LOGICAL,
-              MaybeNat.of(1),
-              NoOrMaybe.NO),
-          RPromiseType.VALUE,
-          Troolean.NO);
-
-  /** A simple scalar integer, real, or logical that permits NA. */
-  public static final RType NUMERIC_OR_LOGICAL =
-      new RType(
-          new RPrimVecTypeImpl(
-              null,
-              AttributesTypes.NONE,
-              MaybeNat.UNKNOWN,
-              PrimVecElementRType.NUMERIC_OR_LOGICAL,
-              MaybeNat.of(1),
-              NoOrMaybe.MAYBE),
-          RPromiseType.VALUE,
-          Troolean.NO);
-
-  /** A simple scalar integer, real, or logical that doesn't permit NA. */
-  public static final RType NUMERIC_OR_LOGICAL_NO_NA =
-      new RType(
-          new RPrimVecTypeImpl(
-              null,
-              AttributesTypes.NONE,
-              MaybeNat.UNKNOWN,
-              PrimVecElementRType.NUMERIC_OR_LOGICAL,
-              MaybeNat.of(1),
-              NoOrMaybe.NO),
-          RPromiseType.VALUE,
-          Troolean.NO);
-
   /** Create a function type with the given data, promise type, and missingness. */
-  public static RType function(
-      RFunctionType valueType, PromiseRType promiseType, Troolean missing) {
+  public static RType function(RFunctionType valueType, RPromiseType promiseType, Maybe missing) {
     return new RType(valueType, RPromiseType.of(promiseType), missing);
   }
 
   /** Create a primitive vector type with the given data, promise type, and missingness. */
-  public static RType primVec(RPrimVecType valueType, PromiseRType promiseType, Troolean missing) {
+  public static RType primVec(RPrimVecType valueType, RPromiseType promiseType, Maybe missing) {
     return new RType(valueType, RPromiseType.of(promiseType), missing);
   }
 
@@ -194,7 +48,7 @@ public class RTypes {
           default -> RGenericValueType.exact(value);
         },
         RPromiseType.VALUE,
-        Troolean.NO);
+        Maybe.NO);
   }
 
   /** The type of a value which passes the assumptions generated by the feedback. */
@@ -256,7 +110,7 @@ public class RTypes {
                 AttributesTypes.NONE,
                 MaybeNat.UNKNOWN,
                 ImmutableList.of(),
-                Troolean.MAYBE)
+                Maybe.MAYBE)
             : PrimVecElementRType.of(type) != null
                 ? new RPrimVecTypeImpl(
                     null,
@@ -267,7 +121,7 @@ public class RTypes {
                     NoOrMaybe.NO)
                 : new RGenericValueType(
                     null, (NotPromise) BaseRType.of(type), AttributesTypes.NONE, MaybeNat.UNKNOWN);
-    return new RType(valueType, RPromiseType.VALUE, Troolean.NO);
+    return new RType(valueType, RPromiseType.VALUE, Maybe.NO);
   }
 
   public static RType toForSeq(RType ignored) {

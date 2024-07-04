@@ -3,7 +3,7 @@ package org.prlprg.ir.type;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import org.prlprg.ir.type.lattice.Lattice;
-import org.prlprg.ir.type.lattice.Troolean;
+import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.sexp.Attributes;
 
 /**
@@ -15,7 +15,7 @@ public interface AttributesType extends Lattice<AttributesType> {
   /** If we know the exact attributes, otherwise {@code null}. */
   @Nullable Attributes exact();
 
-  Troolean isObject();
+  Maybe isObject();
 
   default boolean isEmpty() {
     return exact() != null && exact().isEmpty();
@@ -30,8 +30,8 @@ record TODOAttributesType() implements AttributesType {
   }
 
   @Override
-  public Troolean isObject() {
-    return Troolean.MAYBE;
+  public Maybe isObject() {
+    return Maybe.MAYBE;
   }
 
   @Override

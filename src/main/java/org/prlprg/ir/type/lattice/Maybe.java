@@ -14,29 +14,31 @@ import javax.annotation.Nullable;
  *      \    /
  *      MAYBE
  * </pre>
+ *
+ * Not to be confused with {@link java.util.Optional}, which encodes either "some" value or "none".
  */
-public enum Troolean implements Lattice<Troolean> {
+public enum Maybe implements Lattice<Maybe> {
   YES,
   NO,
   MAYBE;
 
   /** Yes or no. */
-  public static Troolean of(boolean value) {
+  public static Maybe of(boolean value) {
     return value ? YES : NO;
   }
 
   /** Yes or maybe. */
-  public static Troolean of(YesOrMaybe value) {
+  public static Maybe of(YesOrMaybe value) {
     return value == YesOrMaybe.YES ? YES : MAYBE;
   }
 
   /** No or maybe. */
-  public static Troolean of(NoOrMaybe value) {
+  public static Maybe of(NoOrMaybe value) {
     return value == NoOrMaybe.NO ? NO : MAYBE;
   }
 
   /** {@code null} is a subset of anything, and anything is a subset of MAYBE. */
-  public static boolean isSubset(@Nullable Troolean lhs, @Nullable Troolean rhs) {
+  public static boolean isSubset(@Nullable Maybe lhs, @Nullable Maybe rhs) {
     if (lhs == null) {
       return true;
     }
@@ -50,7 +52,7 @@ public enum Troolean implements Lattice<Troolean> {
   }
 
   /** MAYBE is a superset of anything, and anything is a superset of {@code null}. */
-  public static boolean isSuperset(@Nullable Troolean lhs, @Nullable Troolean rhs) {
+  public static boolean isSuperset(@Nullable Maybe lhs, @Nullable Maybe rhs) {
     if (lhs == MAYBE) {
       return true;
     }
@@ -67,7 +69,7 @@ public enum Troolean implements Lattice<Troolean> {
    * If either is {@code null}, returns the other. If args are YES and NO, or either is MAYBE,
    * returns MAYBE.
    */
-  public static @Nullable Troolean union(@Nullable Troolean lhs, @Nullable Troolean rhs) {
+  public static @Nullable Maybe union(@Nullable Maybe lhs, @Nullable Maybe rhs) {
     if (lhs == null) {
       return rhs;
     }
@@ -84,7 +86,7 @@ public enum Troolean implements Lattice<Troolean> {
    * If either is MAYBE, returns the other. If args are YES and NO, or either is {@code null},
    * returns {@code null}.
    */
-  public static @Nullable Troolean intersection(@Nullable Troolean lhs, @Nullable Troolean rhs) {
+  public static @Nullable Maybe intersection(@Nullable Maybe lhs, @Nullable Maybe rhs) {
     if (lhs == MAYBE) {
       return rhs;
     }
@@ -101,7 +103,7 @@ public enum Troolean implements Lattice<Troolean> {
    * If {@code lhs} is {@code null}, returns {@code rhs}. If args are YES and true returns YES, if
    * NO and false returns NO, otherwise MAYBE.
    */
-  public static @Nullable Troolean union(@Nullable Troolean lhs, boolean rhs) {
+  public static @Nullable Maybe union(@Nullable Maybe lhs, boolean rhs) {
     return union(lhs, of(rhs));
   }
 
@@ -109,21 +111,21 @@ public enum Troolean implements Lattice<Troolean> {
    * If {@code lhs} is MAYBE, returns {@code rhs}. If args are YES and true returns YES, if NO and
    * false returns NO, otherwise {@code null}.
    */
-  public static @Nullable Troolean intersection(@Nullable Troolean lhs, boolean rhs) {
+  public static @Nullable Maybe intersection(@Nullable Maybe lhs, boolean rhs) {
     return intersection(lhs, of(rhs));
   }
 
   /**
-   * Returns {@link Troolean#YES} if {@link Troolean#NO} and vice versa, {@link Troolean#MAYBE} if
-   * {@link Troolean#MAYBE}.
+   * Returns {@link Maybe#YES} if {@link Maybe#NO} and vice versa, {@link Maybe#MAYBE} if {@link
+   * Maybe#MAYBE}.
    */
-  public Troolean negate() {
+  public Maybe negate() {
     return this == MAYBE ? MAYBE : this == YES ? NO : YES;
   }
 
   /** Anything is a subset of MAYBE, otherwise (if YES or NO) they must be equal. */
   @Override
-  public boolean isSubsetOf(Troolean other) {
+  public boolean isSubsetOf(Maybe other) {
     return isSubset(this, other);
   }
 
@@ -144,7 +146,7 @@ public enum Troolean implements Lattice<Troolean> {
 
   /** MAYBE is a superset of anything, otherwise (if YES or NO) they must be equal. */
   @Override
-  public boolean isSupersetOf(Troolean other) {
+  public boolean isSupersetOf(Maybe other) {
     return isSuperset(this, other);
   }
 
@@ -165,7 +167,7 @@ public enum Troolean implements Lattice<Troolean> {
 
   /** If args are YES and NO, or either is MAYBE, returns MAYBE. */
   @Override
-  public Troolean union(Troolean other) {
+  public Maybe union(Maybe other) {
     var result = union(this, other);
     assert result != null;
     return result;
@@ -173,7 +175,7 @@ public enum Troolean implements Lattice<Troolean> {
 
   /** If args are YES and NO, returns {@code null}. If either arg is MAYBE, returns the other. */
   @Nullable @Override
-  public Troolean intersection(Troolean other) {
+  public Maybe intersection(Maybe other) {
     return intersection(this, other);
   }
 }

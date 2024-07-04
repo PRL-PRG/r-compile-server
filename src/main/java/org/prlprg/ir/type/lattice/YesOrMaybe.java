@@ -11,8 +11,8 @@ public enum YesOrMaybe implements BoundedLattice<YesOrMaybe> {
   }
 
   /** Converts no into maybe. */
-  public static YesOrMaybe of(Troolean value) {
-    return value == Troolean.YES ? YES : MAYBE;
+  public static YesOrMaybe of(Maybe value) {
+    return value == Maybe.YES ? YES : MAYBE;
   }
 
   /** Returns true unless this is maybe and other is yes. */
