@@ -13,8 +13,8 @@ import org.prlprg.ir.cfg.StaticEnv;
 import org.prlprg.ir.type.REffect;
 import org.prlprg.ir.type.REffects;
 import org.prlprg.ir.type.lattice.Lattice;
+import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.ir.type.lattice.NoOrMaybe;
-import org.prlprg.ir.type.lattice.Troolean;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.Printer;
@@ -53,7 +53,7 @@ public final class Promise extends CodeObject {
    */
   public Promise(String name, Bc bc, CFG body, @IsEnv RValue env, Properties properties) {
     super(name);
-    if (env.isEnv() != Troolean.YES) {
+    if (env.isEnv() != Maybe.YES) {
       throw new IllegalArgumentException("`env` must be statically known to be an environment.");
     }
 
@@ -135,7 +135,7 @@ public final class Promise extends CodeObject {
       if (!(newNode instanceof RValue newEnv)) {
         throw new IllegalArgumentException("Promise replacement `env` node must be an RValue.");
       }
-      if (newEnv.isEnv() != Troolean.YES) {
+      if (newEnv.isEnv() != Maybe.YES) {
         throw new IllegalArgumentException(
             "Promise replacement `env` node must be statically known to be an environment.");
       }
@@ -145,7 +145,7 @@ public final class Promise extends CodeObject {
 
   @Override
   public void verifyOuterCfgRValuesAreOfCorrectTypes() {
-    if (env.isEnv() != Troolean.YES) {
+    if (env.isEnv() != Maybe.YES) {
       throw new IllegalStateException(
           "Promise `env` must be statically known to be an environment.");
     }

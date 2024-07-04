@@ -33,8 +33,8 @@ import org.prlprg.ir.type.REffect;
 import org.prlprg.ir.type.REffects;
 import org.prlprg.ir.type.RType;
 import org.prlprg.ir.type.RTypes;
+import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.ir.type.lattice.NoOrMaybe;
-import org.prlprg.ir.type.lattice.Troolean;
 import org.prlprg.ir.type.lattice.YesOrMaybe;
 import org.prlprg.parseprint.EnumSerialCaseIs;
 import org.prlprg.parseprint.ParseException;
@@ -905,7 +905,7 @@ class PirInstrOrPhiParseContext {
       }
 
       if (s.trySkip('^')) {
-        type = type.notStrict();
+        type = type.maybeLazy();
       } else if (s.trySkip('~')) {
         type = type.promiseWrapped();
       }
@@ -1521,47 +1521,46 @@ class PirInstrOrPhiPrintContext {
       assert strict.attributes() != null;
 
       // Base type
-      if (self.missing() == Troolean.YES) {
+      if (self.missing() == Maybe.YES) {
         w.write("miss");
       } else if (Objects.equals(self.exactValue(), SEXPs.UNBOUND_VALUE)) {
         w.write("_");
       } else if (strict.base() != null && strict.base().sexpType() != null) {
         w.write(Objects.requireNonNull(strict.base().sexpType()).toString().toLowerCase());
-        if (self.missing() != Troolean.NO) {
+        if (self.missing() != Maybe.NO) {
           w.write(" | miss");
         }
-      } else if (strict.primVec() != null
-          && strict.primVec().isNumericOrLogical() == Troolean.YES) {
+      } else if (strict.primVec() != null && strict.primVec().isNumericOrLogical() == Maybe.YES) {
         w.write("num");
-        if (self.missing() != Troolean.NO) {
+        if (self.missing() != Maybe.NO) {
           w.write(" | miss");
         }
       } else {
         w.write("val");
-        if (self.missing() != Troolean.NO) {
+        if (self.missing() != Maybe.NO) {
           w.write('?');
         }
       }
 
       // Attributes
       if (strict.primVec() != null) {
-        if (strict.primVec().isScalar() == Troolean.YES) {
+        if (strict.primVec().isScalar() == Maybe.YES) {
           w.write('$');
         }
         if (strict.primVec().hasNAOrNaN() == NoOrMaybe.NO) {
           w.write('#');
         }
       }
-      if (self.promise().isLazy() != Troolean.NO) {
+      if (self.promise().isLazy() != Maybe.NO) {
         w.write('^');
-      } else if (self.promise().isPromise() != Troolean.NO) {
+      } else if (self.promise().isPromise() != Maybe.NO) {
         w.write("~");
       }
       if (strict.attributes().isEmpty()) {
         w.write('-');
-      } else if (strict.primVec() != null && strict.primVec().fastAccess() == Troolean.YES) {
+      } else if (strict.primVec() != null && strict.primVec().fastAccess() == Maybe.YES) {
         w.write('_');
-      } else if (strict.attributes().isObject() == Troolean.NO) {
+      } else if (strict.attributes().isObject() == Maybe.NO) {
         w.write('+');
       }
     }
@@ -1704,7 +1703,7 @@ abstract sealed class PirId {
     return (instrOrPhi instanceof Instr i && i.data() instanceof StmtData.Void)
         ? new PirId.Anonymous()
         : new PirId.Local(
-            (instrOrPhi instanceof RValue r && r.isEnv() == Troolean.YES ? "e" : "%")
+            (instrOrPhi instanceof RValue r && r.isEnv() == Maybe.YES ? "e" : "%")
                 + bbIndex
                 + "."
                 + instrIndex);

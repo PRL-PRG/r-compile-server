@@ -7,7 +7,7 @@ import org.prlprg.ir.cfg.Instr;
 import org.prlprg.ir.cfg.RValue;
 import org.prlprg.ir.type.RType;
 import org.prlprg.ir.type.RTypes;
-import org.prlprg.ir.type.lattice.Troolean;
+import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.SEXPs;
@@ -58,16 +58,16 @@ public sealed interface AbstractRValue extends AbstractNode<AbstractRValue> {
     return hasSingleOrigin() ? origins().iterator().next() : null;
   }
 
-  default Troolean isUnboundValue() {
+  default Maybe isUnboundValue() {
     if (isUnknown()) {
-      return Troolean.MAYBE;
+      return Maybe.MAYBE;
     }
-    Troolean result = null;
+    Maybe result = null;
     for (var o : origins()) {
       var update = o.value().equals(new Constant(SEXPs.UNBOUND_VALUE));
-      result = Troolean.intersection(result, update);
+      result = Maybe.intersection(result, update);
     }
-    return result == null ? Troolean.NO : result;
+    return result == null ? Maybe.NO : result;
   }
 }
 

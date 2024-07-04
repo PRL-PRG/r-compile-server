@@ -14,7 +14,7 @@ import org.prlprg.ir.cfg.Node;
 import org.prlprg.ir.cfg.RValue;
 import org.prlprg.ir.cfg.StaticEnv;
 import org.prlprg.ir.closure.ClosureVersion.CallContext;
-import org.prlprg.ir.type.lattice.Troolean;
+import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.Printer;
@@ -96,7 +96,7 @@ public final class Closure extends CodeObject {
       throw new IllegalArgumentException(
           "`origin` body must be bytecode (required by the compiler so how did you get `baselineVersion`?).");
     }
-    if (env.isEnv() != Troolean.YES) {
+    if (env.isEnv() != Maybe.YES) {
       throw new IllegalArgumentException("`env` must be statically known to be an environment.");
     }
 
@@ -333,7 +333,7 @@ public final class Closure extends CodeObject {
       if (!(newNode instanceof RValue newEnv)) {
         throw new IllegalArgumentException("Closure replacement `env` node must be an RValue.");
       }
-      if (newEnv.isEnv() != Troolean.YES) {
+      if (newEnv.isEnv() != Maybe.YES) {
         throw new IllegalArgumentException(
             "Closure replacement `env` node must be statically known to be an environment.");
       }
@@ -343,7 +343,7 @@ public final class Closure extends CodeObject {
 
   @Override
   public void verifyOuterCfgRValuesAreOfCorrectTypes() {
-    if (env.isEnv() != Troolean.YES) {
+    if (env.isEnv() != Maybe.YES) {
       throw new IllegalStateException(
           "Closure `env` must be statically known to be an environment.");
     }

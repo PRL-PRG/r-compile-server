@@ -3,10 +3,12 @@ package org.prlprg.util;
 import com.google.common.collect.Streams;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.RecordComponent;
 import java.util.Arrays;
 import java.util.stream.Stream;
+import javax.annotation.Nullable;
 
 public class Reflection {
   /**
@@ -43,6 +45,15 @@ public class Reflection {
           "checked exception in reflectively called record component accessor", e);
     } catch (ReflectiveOperationException e) {
       throw new RuntimeException("failed to reflectively get record component", e);
+    }
+  }
+
+  /** Reflectively get the (static or instance) field. */
+  public static Object getField(@Nullable Object target, Field field) {
+    try {
+      return field.get(target);
+    } catch (IllegalAccessException e) {
+      throw new RuntimeException("failed to reflectively get field", e);
     }
   }
 

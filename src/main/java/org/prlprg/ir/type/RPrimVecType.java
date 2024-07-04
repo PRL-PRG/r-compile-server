@@ -1,9 +1,9 @@
 package org.prlprg.ir.type;
 
 import javax.annotation.Nullable;
+import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.ir.type.lattice.MaybeNat;
 import org.prlprg.ir.type.lattice.NoOrMaybe;
-import org.prlprg.ir.type.lattice.Troolean;
 import org.prlprg.sexp.PrimVectorSXP;
 
 /** Primitive vector {@link RType} projection. */
@@ -15,12 +15,12 @@ public sealed interface RPrimVecType extends RValueType {
   PrimVecElementRType elementType();
 
   /** Is this a primitive vector of numbers (int, real, or complex)? */
-  default Troolean isNumeric() {
+  default Maybe isNumeric() {
     return elementType().isNumeric();
   }
 
   /** Is this a primitive vector of numbers (int, real, or complex) or logicals? */
-  default Troolean isNumericOrLogical() {
+  default Maybe isNumericOrLogical() {
     return elementType().isNumericOrLogical();
   }
 
@@ -28,23 +28,23 @@ public sealed interface RPrimVecType extends RValueType {
   MaybeNat length();
 
   /** Is this a scalar? */
-  default Troolean isScalar() {
+  default Maybe isScalar() {
     if (length().isDefinitely(1)) {
-      return Troolean.YES;
+      return Maybe.YES;
     }
     if (length().isKnown()) {
-      return Troolean.NO;
+      return Maybe.NO;
     }
-    return Troolean.MAYBE;
+    return Maybe.MAYBE;
   }
 
   /** Whether the vector contains NAs or NaNs. */
   NoOrMaybe hasNAOrNaN();
 
   /** Whether we can do fast access (no {@code class}, {@code dim}, ...). */
-  default Troolean fastAccess() {
+  default Maybe fastAccess() {
     // TODO check in AttributesType
-    return Troolean.MAYBE;
+    return Maybe.MAYBE;
   }
 
   /** Returns the same type but not scalar. */

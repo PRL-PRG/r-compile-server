@@ -13,7 +13,7 @@ import org.prlprg.ir.type.REffect;
 import org.prlprg.ir.type.REffects;
 import org.prlprg.ir.type.RType;
 import org.prlprg.ir.type.RTypes;
-import org.prlprg.ir.type.lattice.Troolean;
+import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.ir.type.lattice.YesOrMaybe;
 import org.prlprg.primitive.BuiltinId;
 import org.prlprg.primitive.IsTypeCheck;
@@ -280,7 +280,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
      */
     public YesOrMaybe isStrict() {
       var isLazy = promise.type().isLazy();
-      return YesOrMaybe.of(isLazy == null || isLazy == Troolean.NO);
+      return YesOrMaybe.of(isLazy == null || isLazy == Maybe.NO);
     }
 
     @Override

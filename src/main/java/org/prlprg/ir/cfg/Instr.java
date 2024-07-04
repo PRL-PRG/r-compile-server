@@ -18,7 +18,7 @@ import org.prlprg.ir.type.REffect;
 import org.prlprg.ir.type.REffects;
 import org.prlprg.ir.type.RType;
 import org.prlprg.ir.type.RTypes;
-import org.prlprg.ir.type.lattice.Troolean;
+import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.sexp.SEXPType;
 import org.prlprg.util.Classes;
 import org.prlprg.util.Reflection;
@@ -328,7 +328,7 @@ abstract sealed class InstrImpl<D extends InstrData<?>> extends InstrOrPhiImpl i
                   return env1;
                 })
             .orElse(null);
-    if (env != null && env.isEnv() != Troolean.YES) {
+    if (env != null && env.isEnv() != Maybe.YES) {
       throw new InstrVerifyException("value assigned to `@IsEnv` must be a guaranteed environment");
     }
   }

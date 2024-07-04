@@ -15,7 +15,7 @@ import org.prlprg.ir.cfg.Stmt;
 import org.prlprg.ir.cfg.StmtData;
 import org.prlprg.ir.type.REffect;
 import org.prlprg.ir.type.RTypes;
-import org.prlprg.ir.type.lattice.Troolean;
+import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.sexp.RegSymSXP;
 import org.prlprg.util.UnreachableError;
 
@@ -80,8 +80,7 @@ class LoopInvariantCodeMotion implements OptimizationPass {
               && cb.args().stream()
                   .anyMatch(
                       a ->
-                          a.type().isObject() != Troolean.NO
-                              || a.type().equals(RTypes.EXPANDED_DOTS));
+                          a.type().isObject() != Maybe.NO || a.type().equals(RTypes.EXPANDED_DOTS));
         // For these instructions we test later they don't change the particular binding.
       case StmtData.StVar _, StmtData.StVarSuper _, StmtData.MkEnv _ -> false;
         // If `loop == null` these are checked elsewhere.
