@@ -22,7 +22,8 @@ import org.prlprg.ir.type.lattice.YesOrMaybe;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.util.UnreachableError;
 
-/** Removes and stubs environment instructions which are not needed (from PIR).
+/**
+ * Removes and stubs environment instructions which are not needed (from PIR).
  *
  * <p>Specifically looks at all uses of a {@link MkEnv}. If none of them leak the environment or
  * read its contents, then it's removed.

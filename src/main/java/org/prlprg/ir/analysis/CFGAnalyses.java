@@ -42,6 +42,7 @@ public interface CFGAnalyses {
    * expensive.
    */
   default Scopes scopes() {
+    // TODO: this may belong in `ClosureVersion`
     return new Scopes((CFG) this);
   }
 }

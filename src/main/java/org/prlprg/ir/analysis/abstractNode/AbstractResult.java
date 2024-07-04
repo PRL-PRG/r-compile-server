@@ -1,4 +1,4 @@
-package org.prlprg.ir.cfg.abstractNode;
+package org.prlprg.ir.analysis.abstractNode;
 
 public record AbstractResult(Kind kind, boolean keepSnapshot, boolean needRecursion) {
   public enum Kind {

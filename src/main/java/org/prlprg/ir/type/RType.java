@@ -162,6 +162,30 @@ public final class RType implements BoundedLattice<RType> {
     return promise == null ? null : promise.isLazy();
   }
 
+  /**
+   * Is this type a function (closure, builtin, or special)? Returns {@code null} if it's the
+   * nothing type.
+   *
+   * <p>If it's a lazy promise that is or may be a function, this will still return {@link
+   * Troolean#YES} or {@link Troolean#MAYBE}.
+   */
+  public @Nullable Troolean isFunction() {
+    if (base() == null) {
+      return null;
+    } else if (base().isSubsetOf(BaseRType.ANY_FUN)) {
+      return Troolean.YES;
+    } else if (!BaseRType.ANY_FUN.isSubsetOf(base())) {
+      return Troolean.NO;
+    } else {
+      return Troolean.MAYBE;
+    }
+  }
+
+  /** Returns whether instances are R objects, or {@code null} if this is the nothing type. */
+  public @Nullable Troolean isObject() {
+    return attributes() == null ? null : attributes().isObject();
+  }
+
   // endregion
   // endregion
 
@@ -249,13 +273,6 @@ public final class RType implements BoundedLattice<RType> {
     }
   }
 
-  // region helpers
-  /** Returns whether instances are R objects, or {@code null} if this is the nothing type. */
-  public @Nullable Troolean isObject() {
-    return attributes() == null ? null : attributes().isObject();
-  }
-
-  // endregion
   // endregion
 
   // region specific `RValueType` projections

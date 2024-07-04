@@ -113,6 +113,14 @@ public enum Troolean implements Lattice<Troolean> {
     return intersection(lhs, of(rhs));
   }
 
+  /**
+   * Returns {@link Troolean#YES} if {@link Troolean#NO} and vice versa, {@link Troolean#MAYBE} if
+   * {@link Troolean#MAYBE}.
+   */
+  public Troolean negate() {
+    return this == MAYBE ? MAYBE : this == YES ? NO : YES;
+  }
+
   /** Anything is a subset of MAYBE, otherwise (if YES or NO) they must be equal. */
   @Override
   public boolean isSubsetOf(Troolean other) {
