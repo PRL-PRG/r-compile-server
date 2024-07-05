@@ -4,7 +4,6 @@ import com.google.common.collect.ImmutableMap;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.prlprg.ir.type.RType;
-import org.prlprg.sexp.SEXPType;
 
 /** Global static environment, e.g. {@code R_GlobalEnv}, {@code notClosed}. */
 public sealed interface StaticEnv extends RValue, GlobalNode {
@@ -43,7 +42,7 @@ final class StaticEnvImpl implements StaticEnv {
 
   @Override
   public RType type() {
-    return RTypes.simple(SEXPType.ENV);
+    return RType.ANY_ENV;
   }
 
   @Override

@@ -16,6 +16,8 @@ import net.jqwik.api.Arbitraries;
 import net.jqwik.api.Arbitrary;
 import net.jqwik.api.Combinators;
 import net.jqwik.api.providers.TypeUsage;
+import org.prlprg.ir.effect.REffect;
+import org.prlprg.ir.effect.REffects;
 import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.ir.type.lattice.MaybeNat;
 import org.prlprg.ir.type.lattice.NoOrMaybe;
@@ -34,52 +36,45 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
 
   public static Arbitrary<RType> rTypes() {
     return recursive(
-        ArbitraryProvider::basicRTypes,
+        ArbitraryProvider::basicRType,
         r ->
             oneOf(
-                r.list().ofMaxSize(MAX_SIZE).map(RTypes::union),
-                r.list().ofMaxSize(MAX_SIZE).map(RTypes::intersection),
+                r.list().ofMaxSize(MAX_SIZE).map(RType::union),
+                r.list().ofMaxSize(MAX_SIZE).map(RType::intersection),
                 Combinators.combine(rFunctionTypes(r), rPromiseTypes(), defaultFor(NoOrMaybe.class))
                     .as(RType::new)),
         0,
         MAX_DEPTH);
   }
 
-  public static Arbitrary<RType> basicRTypes() {
+  public static Arbitrary<RType> basicRType() {
     return oneOf(
-        Arbitraries.of(
-            RTypes.NOTHING,
-            RTypes.ANY,
-            RTypes.ANY_VALUE,
-            RTypes.ANY_VALUE_NOT_MISSING,
-            RTypes.ANY_FUN,
-            RTypes.ANY_SIMPLE,
-            RTypes.OF_MISSING),
+        Arbitraries.of(RTypeImpl.INTERNED),
         Combinators.combine(rPrimVecTypes(), rPromiseTypes(), defaultFor(NoOrMaybe.class))
             .as(RType::new),
-        // sexpTypes().map(RTypes::simple),
-        sexps().map(RTypes::exact));
+        // sexpTypes().map(RType::simple),
+        sexps().map(RType::exact));
   }
 
-  public static Arbitrary<RFunctionType> rFunctionTypes() {
+  public static Arbitrary<RFunType> rFunctionTypes() {
     return rFunctionTypes(rTypes());
   }
 
-  private static Arbitrary<RFunctionType> rFunctionTypes(Arbitrary<RType> rTypes) {
+  private static Arbitrary<RFunType> rFunctionTypes(Arbitrary<RType> rTypes) {
     return Combinators.combine(
             nulls(CloSXP.class),
             defaultFor(FunctionRType.class),
             attributesTypes(),
             maybeNats(),
-            overloadRTypes(rTypes)
+            overloadRType(rTypes)
                 .list()
                 .ofMaxSize(MAX_SIZE)
-                .map(RFunctionTypeImpl::normalizeOverloadsWrtSubsuming),
+                .map(RFunTypeImpl::normalizeOverloadsWrtSubsuming),
             defaultFor(Maybe.class))
         .filter(
             (exactValue, baseType, attributes, referenceCount, overloads, hasDots) ->
                 hasDots.isSupersetOf(overloads.stream().anyMatch(OverloadRType::hasDots)))
-        .as(RFunctionTypeImpl::new);
+        .as(RFunTypeImpl::new);
   }
 
   public static Arbitrary<RPrimVecType> rPrimVecTypes() {
@@ -97,13 +92,13 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
     return just(Optional.<T>empty()).map(s -> s.orElse(null));
   }
 
-  public static Arbitrary<OverloadRType> overloadRTypes() {
-    return overloadRTypes(rTypes());
+  public static Arbitrary<OverloadRType> overloadRType() {
+    return overloadRType(rTypes());
   }
 
-  private static Arbitrary<OverloadRType> overloadRTypes(Arbitrary<RType> rTypes) {
+  private static Arbitrary<OverloadRType> overloadRType(Arbitrary<RType> rTypes) {
     return Combinators.combine(
-            parameterRTypes(rTypes)
+            parameterRType(rTypes)
                 .list()
                 .ofMaxSize(MAX_SIZE)
                 .filter(
@@ -112,23 +107,23 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
                             p.stream().filter(ParameterRType::isNamed).map(ParameterRType::name))),
             rEffects(),
             rTypes)
-        .as(OverloadRTypes::of);
+        .as(OverloadRType::of);
   }
 
-  public static Arbitrary<ParameterRType> parameterRTypes() {
-    return parameterRTypes(rTypes());
+  public static Arbitrary<ParameterRType> parameterRType() {
+    return parameterRType(rTypes());
   }
 
-  private static Arbitrary<ParameterRType> parameterRTypes(Arbitrary<RType> rTypes) {
+  private static Arbitrary<ParameterRType> parameterRType(Arbitrary<RType> rTypes) {
     return Combinators.combine(symbolStrings(), defaultFor(NoOrMaybe.class), rTypes)
         .as(ParameterRType::new);
   }
 
-  public static Arbitrary<ArgumentRType> argumentRTypes() {
-    return argumentRTypes(rTypes());
+  public static Arbitrary<ArgumentRType> argumentRType() {
+    return argumentRType(rTypes());
   }
 
-  private static Arbitrary<ArgumentRType> argumentRTypes(Arbitrary<RType> rTypes) {
+  private static Arbitrary<ArgumentRType> argumentRType(Arbitrary<RType> rTypes) {
     return Combinators.combine(symbolStrings(), rTypes).as(ArgumentRType::new);
   }
 
@@ -138,15 +133,15 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
         attributes().map(AttributesTypes::exact));
   }
 
-  public static Arbitrary<BaseRType> baseRTypes() {
+  public static Arbitrary<BaseRType> baseRType() {
     return oneOf(
         just(BaseRType.ANY),
-        baseRTypesNotPromises(),
-        Combinators.combine(defaultFor(YesOrMaybe.class), baseRTypesNotPromises())
+        baseRTypeNotPromises(),
+        Combinators.combine(defaultFor(YesOrMaybe.class), baseRTypeNotPromises())
             .as(BaseRType.Promise::new));
   }
 
-  public static Arbitrary<BaseRType.NotPromise> baseRTypesNotPromises() {
+  public static Arbitrary<BaseRType.NotPromise> baseRTypeNotPromises() {
     return oneOf(
         Arbitraries.of(
             BaseRType.ANY_VALUE,
@@ -180,7 +175,7 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
   public boolean canProvideFor(TypeUsage typeUsage) {
     return typeUsage.isOfType(RType.class)
         || typeUsage.isOfType(RPromiseType.class)
-        || typeUsage.isOfType(RFunctionType.class)
+        || typeUsage.isOfType(RFunType.class)
         || typeUsage.isOfType(RPrimVecType.class)
         || typeUsage.isOfType(OverloadRType.class)
         || typeUsage.isOfType(ParameterRType.class)
@@ -200,29 +195,29 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
     if (typeUsage.isOfType(RPromiseType.class)) {
       return Set.of(rPromiseTypes());
     }
-    if (typeUsage.isOfType(RFunctionType.class)) {
+    if (typeUsage.isOfType(RFunType.class)) {
       return Set.of(rFunctionTypes());
     }
     if (typeUsage.isOfType(RPrimVecType.class)) {
       return Set.of(rPrimVecTypes());
     }
     if (typeUsage.isOfType(OverloadRType.class)) {
-      return Set.of(overloadRTypes());
+      return Set.of(overloadRType());
     }
     if (typeUsage.isOfType(ParameterRType.class)) {
-      return Set.of(parameterRTypes());
+      return Set.of(parameterRType());
     }
     if (typeUsage.isOfType(ArgumentRType.class)) {
-      return Set.of(argumentRTypes());
+      return Set.of(argumentRType());
     }
     if (typeUsage.isOfType(AttributesType.class)) {
       return Set.of(attributesTypes());
     }
     if (typeUsage.isOfType(BaseRType.class)) {
-      return Set.of(baseRTypes());
+      return Set.of(baseRType());
     }
     if (typeUsage.isOfType(BaseRType.NotPromise.class)) {
-      return Set.of(baseRTypesNotPromises());
+      return Set.of(baseRTypeNotPromises());
     }
     if (typeUsage.isOfType(REffects.class)) {
       return Set.of(rEffects());

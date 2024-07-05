@@ -16,7 +16,7 @@ import org.prlprg.ir.cfg.StmtData.Force;
 import org.prlprg.ir.cfg.StmtData.LdEnclosEnv;
 import org.prlprg.ir.cfg.StmtData.MkEnv;
 import org.prlprg.ir.cfg.StmtData.StVar;
-import org.prlprg.ir.type.REffect;
+import org.prlprg.ir.effect.REffect;
 import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.ir.type.lattice.YesOrMaybe;
 import org.prlprg.sexp.SEXPs;

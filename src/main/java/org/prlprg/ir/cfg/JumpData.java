@@ -6,7 +6,7 @@ import java.util.Optional;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.checkerframework.checker.index.qual.SameLen;
-import org.prlprg.ir.type.REffect;
+import org.prlprg.ir.effect.REffect;
 import org.prlprg.sexp.LangSXP;
 import org.prlprg.util.Pair;
 

@@ -1,12 +1,14 @@
 package org.prlprg.util;
 
 import com.google.common.collect.Streams;
+import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.RecordComponent;
 import java.util.Arrays;
+import java.util.Optional;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 
@@ -16,23 +18,27 @@ public class Reflection {
    *
    * @throws IllegalArgumentException If {@code target} isn't a record.
    */
-  public static Iterable<Object> getComponents(Record target) {
-    return () -> streamComponents(target).iterator();
+  public static Stream<Optional<Object>> streamComponents(Record target) {
+    assert target.getClass().isRecord()
+        : "target is an instance of `Record` but `getClass().isRecord()` is false?";
+    return Arrays.stream(target.getClass().getRecordComponents())
+        .map(c -> Optional.ofNullable(getComponent(target, c)));
   }
 
   /**
    * Reflectively get the record components, converting all exceptions to runtime exceptions.
    *
    * @throws IllegalArgumentException If {@code target} isn't a record.
+   * @throws NullPointerException If any component is {@code null}.
    */
-  public static Stream<Object> streamComponents(Record target) {
+  public static Stream<Object> streamComponentsNoNulls(Record target) {
     assert target.getClass().isRecord()
         : "target is an instance of `Record` but `getClass().isRecord()` is false?";
     return Arrays.stream(target.getClass().getRecordComponents()).map(c -> getComponent(target, c));
   }
 
   /** Reflectively get the record component, converting all exceptions to runtime exceptions. */
-  public static Object getComponent(Record target, RecordComponent component) {
+  public static @Nullable Object getComponent(Record target, RecordComponent component) {
     try {
       return component.getAccessor().invoke(target);
     } catch (InvocationTargetException e) {
@@ -174,6 +180,20 @@ public class Reflection {
                 Arrays.stream(arguments),
                 (clazz, arg) -> arg == null || clazz.isInstance(arg))
             .allMatch(b -> b);
+  }
+
+  /**
+   * Throws {@link AssertionError} if the syntax node has a different {@code Nullable} annotation
+   * then {@link javax.annotation.Nullable}.
+   *
+   * <p>Call this before reflectively checking for {@link javax.annotation.Nullable} to prevent
+   * surprising bugs.
+   */
+  public static void assertJavaxNullableOrNoNullable(AnnotatedElement node) {
+    assert node.isAnnotationPresent(Nullable.class)
+            || Arrays.stream(node.getAnnotations())
+                .noneMatch(a -> a.getClass().getSimpleName().equals("Nullable"))
+        : "syntax node has `@Nullable` annotation that isn't `javax.annotation.Nullable`";
   }
 
   private Reflection() {}

@@ -1,4 +1,4 @@
-package org.prlprg.ir.type;
+package org.prlprg.ir.effect;
 
 import com.google.common.collect.ForwardingSet;
 import com.google.common.collect.ImmutableSet;
@@ -7,6 +7,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Set;
 import javax.annotation.concurrent.Immutable;
+import org.prlprg.ir.type.RType;
 import org.prlprg.ir.type.lattice.BoundedLattice;
 import org.prlprg.util.Strings;
 

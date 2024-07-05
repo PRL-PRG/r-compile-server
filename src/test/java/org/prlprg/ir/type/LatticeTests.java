@@ -18,6 +18,7 @@ import net.jqwik.api.Tuple.Tuple2;
 import net.jqwik.api.Tuple.Tuple3;
 import net.jqwik.api.lifecycle.BeforeContainer;
 import org.opentest4j.AssertionFailedError;
+import org.prlprg.ir.effect.REffects;
 import org.prlprg.ir.type.lattice.Lattice;
 import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.ir.type.lattice.MaybeNat;

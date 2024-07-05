@@ -13,7 +13,7 @@ import org.prlprg.ir.cfg.JumpData;
 import org.prlprg.ir.cfg.RValue;
 import org.prlprg.ir.cfg.Stmt;
 import org.prlprg.ir.cfg.StmtData;
-import org.prlprg.ir.type.REffect;
+import org.prlprg.ir.effect.REffect;
 import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.sexp.RegSymSXP;
 import org.prlprg.util.UnreachableError;
@@ -78,8 +78,10 @@ class LoopInvariantCodeMotion implements OptimizationPass {
           cb.fun().isNonObject()
               && cb.args().stream()
                   .anyMatch(
-                      a ->
-                          a.type().isObject() != Maybe.NO || a.type().equals(RTypes.EXPANDED_DOTS));
+                      a -> a.type().isObject() != Maybe.NO
+                      // TODO if `RType.EXPANDED_DOTS` is added: `||
+                      // a.type().equals(RType.EXPANDED_DOTS)`
+                      );
         // For these instructions we test later they don't change the particular binding.
       case StmtData.StVar _, StmtData.StVarSuper _, StmtData.MkEnv _ -> false;
         // If `loop == null` these are checked elsewhere.

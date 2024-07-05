@@ -25,21 +25,22 @@ public @interface TypeIs {
 class TypeIsUtil {
   static RType parse(TypeIs annotation) {
     return switch (annotation.value()) {
-      case "ANY" -> RTypes.ANY;
-      case "ANY_VALUE" -> RTypes.ANY_VALUE;
-      case "ANY_FUN" -> RTypes.ANY_FUN;
-      case "ANY_SYM_FUN" -> RTypes.ANY_SYM_FUN;
-      case "PROM" -> RTypes.ANY_PROM;
-      case "CLO" -> RTypes.simple(SEXPType.CLO);
-      case "ENV" -> RTypes.simple(SEXPType.ENV);
-      case "DOTS" -> RTypes.simple(SEXPType.DOT);
-      case "DOTS_ARG" -> RTypes.DOTS_ARG;
-      case "EXPANDED_DOTS" -> RTypes.EXPANDED_DOTS;
-      case "INT" -> RTypes.simple(SEXPType.INT);
-      case "LGL" -> RTypes.simple(SEXPType.LGL);
-      case "BOOL" -> RTypes.BOOL;
-      case "NUMERIC_OR_LOGICAL_NO_NA" -> RTypes.NUMERIC_OR_LOGICAL_NO_NA;
-      case "STR_OR_NIL" -> RTypes.simple(SEXPType.STR).union(RTypes.exact(SEXPs.NULL));
+      case "ANY" -> RType.ANY;
+      case "ANY_VALUE_MAYBE_MISSING" -> RType.ANY_VALUE_MAYBE_MISSING;
+      case "ANY_FUNCTION" -> RType.ANY_FUNCTION;
+      case "ANY_BUILTIN_OR_SPECIAL" -> RType.ANY_BUILTIN_OR_SPECIAL;
+      case "ANY_PROMISE_NOT_MISSING" -> RType.ANY_PROMISE_NOT_MISSING;
+      case "CLO" -> RType.simple(SEXPType.CLO);
+      case "ENV" -> RType.ANY_ENV;
+      case "DOTS" -> RType.simple(SEXPType.DOT);
+      case "DOTS_LIST" -> RType.DOTS_LIST;
+        // TODO `RType.EXPANDED_DOTS` or implement dots differently than PIR.
+      case "EXPANDED_DOTS" -> RType.ANY;
+      case "INT" -> RType.simple(SEXPType.INT);
+      case "LGL" -> RType.simple(SEXPType.LGL);
+      case "BOOL" -> RType.BOOL;
+      case "NUMERIC_OR_LOGICAL_NOT_NA" -> RType.NUMERIC_OR_LOGICAL_NOT_NA;
+      case "STR_OR_NIL" -> RType.union(RType.simple(SEXPType.STR), RType.exact(SEXPs.NULL));
       default ->
           throw new NotImplementedError(
               "Unknown type string representation: " + annotation.value());

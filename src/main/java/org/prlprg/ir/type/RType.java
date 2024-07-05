@@ -2,8 +2,11 @@ package org.prlprg.ir.type;
 
 import com.google.common.collect.ImmutableMap;
 import java.util.Arrays;
-import java.util.Objects;
+import java.util.Collection;
 import java.util.function.Function;
+import java.util.stream.Collector;
+import java.util.stream.Collector.Characteristics;
+import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import org.prlprg.ir.cfg.Node;
@@ -12,12 +15,14 @@ import org.prlprg.ir.type.lattice.BoundedLattice;
 import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
+import org.prlprg.primitive.BuiltinId;
 import org.prlprg.sexp.Attributes;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.PromSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPType;
 import org.prlprg.sexp.SEXPs;
+import org.prlprg.sexp.SymSXP;
 import org.prlprg.util.Reflection;
 
 /**
@@ -31,9 +36,10 @@ import org.prlprg.util.Reflection;
  *
  * <ul>
  *   <li>{@link RValueType} {@link #value()}: the type of the "value". e.g. int-vector, closure,
- *       environment). {@link RValueType}'s class hierarchy is the same shape as {@link SEXP}'s: for
- *       every subclass of {@link SEXP} there is a corresponding subclass of {@link RValueType} (and
- *       vice versa).
+ *       environment). {@link RValueType}'s class hierarchy is similar to {@link SEXP}'s: for every
+ *       subclass of {@link SEXP} except {@link SymSXP} there is a unique corresponding subclass of
+ *       {@link RValueType}, and most (but not all) subclasses of {@link RValueType} correspond to a
+ *       unique subclass of {@link SEXP}.
  *   <li>{@link AttributesType} {@link #attributes()}: the type of the "attributes". Some types of
  *       {@linkplain SEXP}s can have {@linkplain Attributes attributes}, such as "names", "class",
  *       and "dims". This is a type whose instances are those {@link Attributes} objects.
@@ -70,7 +76,7 @@ import org.prlprg.util.Reflection;
  */
 @Immutable
 public sealed interface RType extends RTypeHelpers, BoundedLattice<RType> {
-  // region constructor
+  // region main constructor
   /** Create an {@link RType} with the given {@link #value()}, {@link #attributes()}, {@link
    * {@link #promise()}, and {@link #isMissing()} (missingness).
    */
@@ -87,7 +93,141 @@ public sealed interface RType extends RTypeHelpers, BoundedLattice<RType> {
     return interned == null ? result : interned;
   }
 
-  // endregion constructor
+  // endregion main constructor
+
+  // region helper constructors
+  /** The (most precise representable) type of the given value. */
+  static RType exact(SEXP value) {
+    var promiseWrapped = RPromiseType.VALUE;
+    if (value instanceof PromSXP p) {
+      value = p.val();
+      promiseWrapped = RPromiseType.promise(p.isLazy());
+    }
+
+    if (value == SEXPs.MISSING_ARG) {
+      return MISSING;
+    }
+
+    return RType.of(
+        RValueType.exact(value),
+        AttributesType.exact(value.attributes()),
+        promiseWrapped,
+        Maybe.NO);
+  }
+
+  /**
+   * The type of a value with the given {@link RValueType}, not a promise, not missing, and no
+   * attributes.
+   */
+  static RType value(RValueType type) {
+    return of(type, AttributesType.EMPTY, RPromiseType.VALUE, Maybe.NO);
+  }
+
+  /**
+   * The type of a value with the given {@link SEXPType}, not a promise, not missing, and no
+   * attributes. If {@code type} is the type of a primitive vector, this will also return the type
+   * for a scalar.
+   *
+   * @throws IllegalArgumentException if {@link SEXPType} is a promise, character vector, or "any".
+   */
+  static RType simple(SEXPType type) {
+    switch (type) {
+      case PROM -> throw new IllegalArgumentException("No such thing as a \"simple promise\"");
+      case CHAR ->
+          throw new IllegalArgumentException(
+              "No such thing as a \"simple character vector\", because it never exists in user code (only \"str\" does)");
+      case ANY ->
+          throw new IllegalArgumentException(
+              "No such thing as a \"simple any\" (GNU-R's \"any\" type is special and has no instances)");
+    }
+    return value(RValueType.simple(type));
+  }
+
+  /** The type after a arithmetic unop whose argument has the given types. */
+  static RType arithmeticOp(RType unary) {
+    // TODO
+    return ANY;
+  }
+
+  /** The type after a arithmetic binop whose arguments have the given types. */
+  static RType arithmeticOp(RType lhs, RType rhs) {
+    // TODO
+    return ANY;
+  }
+
+  /** The type after a comparison binop whose arguments have the given types. */
+  static RType comparisonOp(RType lhs, RType rhs) {
+    // TODO
+    return ANY;
+  }
+
+  /** The type after a simple "not" binop whose argument has the given types. */
+  static RType booleanOp(RType unary) {
+    // TODO
+    return ANY;
+  }
+
+  /** The type after a simple "and" or "or" binop whose arguments have the given types. */
+  static RType booleanOp(RType lhs, RType rhs) {
+    // TODO
+    return ANY;
+  }
+
+  /**
+   * The closure type of the given builtin.
+   *
+   * <p><i>Not</i> the return type. Instead, this is guaranteed to be a {@link RFunType}, and you
+   * can get the return of that.
+   */
+  static RType builtin(BuiltinId id) {
+    return RType.value(RBuiltinOrSpecialType.of(id));
+  }
+
+  /** Type which is the {@linkplain RType#union(RType)} union} of all given types. */
+  static RType union(RType type1, RType type2, RType... types) {
+    return Stream.concat(Stream.of(type1, type2), Arrays.stream(types)).collect(toUnion());
+  }
+
+  /** Type which is the {@linkplain RType#union(RType)} union} of all given types. */
+  static RType union(Collection<RType> types) {
+    return types.stream().collect(toUnion());
+  }
+
+  /** Creates a {@linkplain RType#union(RType)} union} from all types in the stream. */
+  static Collector<RType, RType[], RType> toUnion() {
+    return Collector.of(
+        () -> new RType[] {NOTHING},
+        (RType[] acc, RType next) -> acc[0] = acc[0].union(next),
+        (RType[] a, RType[] b) -> new RType[] {a[0].union(b[0])},
+        (RType[] a) -> a[0],
+        Characteristics.CONCURRENT,
+        Characteristics.UNORDERED);
+  }
+
+  /** Type which is the {@linkplain RType#intersection(RType)} intersection} of all given types. */
+  static RType intersection(RType type1, RType type2, RType... types) {
+    return Stream.concat(Stream.of(type1, type2), Arrays.stream(types)).collect(toIntersection());
+  }
+
+  /** Type which is the {@linkplain RType#intersection(RType)} intersection} of all given types. */
+  static RType intersection(Collection<RType> types) {
+    return types.stream().collect(toIntersection());
+  }
+
+  /**
+   * Creates an {@linkplain RType#intersection(RType)} intersection} from all types in the stream.
+   */
+  static Collector<RType, RType[], RType> toIntersection() {
+    return Collector.of(
+        () -> new RType[] {ANY},
+        (RType[] acc, RType next) -> acc[0] = acc[0].intersection(next),
+        (RType[] a, RType[] b) -> new RType[] {a[0].intersection(b[0])},
+        (RType[] a) -> a[0],
+        Characteristics.CONCURRENT,
+        Characteristics.UNORDERED);
+  }
+
+  // endregion helpers constructors
 
   // region field accessors
   /**

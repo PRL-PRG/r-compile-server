@@ -68,7 +68,7 @@ public record Constant(SEXP constant) implements RValue, GlobalNode {
 
   @Override
   public RType type() {
-    return RTypes.exact(constant);
+    return RType.exact(constant);
   }
 
   @Override

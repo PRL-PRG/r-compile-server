@@ -5,7 +5,7 @@ import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
-import org.prlprg.ir.type.REffects;
+import org.prlprg.ir.effect.REffects;
 
 /**
  * Specifies that an instruction has arbitrary {@link REffects REffects}.

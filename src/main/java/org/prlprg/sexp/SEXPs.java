@@ -477,31 +477,31 @@ public final class SEXPs {
         parameters, body, environment, attributes == null ? Attributes.NONE : attributes);
   }
 
-  public static LangSXP lang(SymOrLangSXP fun, SEXP... args) {
+  public static LangSXP lang(RegSymOrLangSXP fun, SEXP... args) {
     return lang(fun, list(args));
   }
 
-  public static LangSXP lang(SymOrLangSXP fun, TaggedElem... args) {
+  public static LangSXP lang(RegSymOrLangSXP fun, TaggedElem... args) {
     return lang(fun, list(args));
   }
 
-  public static LangSXP lang(SymOrLangSXP fun, ImmutableList<TaggedElem> args) {
+  public static LangSXP lang(RegSymOrLangSXP fun, ImmutableList<TaggedElem> args) {
     return lang(fun, list(args));
   }
 
-  public static LangSXP lang(SymOrLangSXP fun, Collection<TaggedElem> args) {
+  public static LangSXP lang(RegSymOrLangSXP fun, Collection<TaggedElem> args) {
     return lang(fun, list(args));
   }
 
-  public static LangSXP lang2(SymOrLangSXP fun, Collection<SEXP> args) {
+  public static LangSXP lang2(RegSymOrLangSXP fun, Collection<SEXP> args) {
     return lang(fun, list1(args));
   }
 
-  public static LangSXP lang(SymOrLangSXP fun, ListSXP args) {
+  public static LangSXP lang(RegSymOrLangSXP fun, ListSXP args) {
     return lang(fun, args, Attributes.NONE);
   }
 
-  public static LangSXP lang(SymOrLangSXP fun, ListSXP args, Attributes attributes) {
+  public static LangSXP lang(RegSymOrLangSXP fun, ListSXP args, Attributes attributes) {
     return new LangSXPImpl(fun, args, attributes);
   }
 

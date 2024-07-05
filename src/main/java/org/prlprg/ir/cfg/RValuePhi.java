@@ -26,11 +26,11 @@ final class RValuePhiImpl extends PhiImpl<RValue> implements RValuePhi {
 
   private RType type(HashSet<RValuePhiImpl> encountered) {
     if (!encountered.add(this)) {
-      return RTypes.NOTHING;
+      return RType.NOTHING;
     }
-    return RTypes.union(
-        inputNodes().stream()
-            .map(node -> node instanceof RValuePhiImpl r ? r.type(encountered) : node.type()));
+    return inputNodes().stream()
+        .map(node -> node instanceof RValuePhiImpl r ? r.type(encountered) : node.type())
+        .collect(RType.toUnion());
   }
 
   @Override

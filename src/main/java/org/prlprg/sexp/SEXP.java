@@ -27,7 +27,8 @@ import org.prlprg.sexp.parseprint.SEXPPrintContext;
  */
 public sealed interface SEXP
     permits StrOrRegSymSXP,
-        SymOrLangSXP,
+        RegSymOrLangSXP,
+        SymSXP,
         ListOrVectorSXP,
         LangOrListSXP,
         FunSXP,

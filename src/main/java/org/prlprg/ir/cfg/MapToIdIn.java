@@ -47,7 +47,7 @@ public sealed interface MapToIdIn<T extends InstrData<?>> {
     }
     return new MapToIdInImpl<>(
         Classes.classOf(data),
-        Reflection.streamComponents(r)
+        Reflection.streamComponentsNoNulls(r)
             .map(MapToIdIn::toId)
             .collect(ImmutableList.toImmutableList()));
   }

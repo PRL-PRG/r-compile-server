@@ -135,6 +135,31 @@ public enum RPromiseType implements Lattice<RPromiseType> {
     };
   }
 
+  /**
+   * If this type is definitely non-lazy, returns the maybe-lazy equivalent. Otherwise returns
+   * itself (including if this is the nothing type).
+   *
+   * <p>In particular, if this is a value, returns a maybe-promise.
+   */
+  public RPromiseType maybeLazy() {
+    return switch (this) {
+      case VALUE, STRICT_MAYBE_PROMISE, MAYBE_LAZY_MAYBE_PROMISE -> MAYBE_LAZY_MAYBE_PROMISE;
+      case STRICT_PROMISE, MAYBE_LAZY_DEFINITELY_PROMISE, LAZY_PROMISE -> LAZY_PROMISE;
+    };
+  }
+
+  /**
+   * If this type is a value or maybe a promise, returns a definitely-promise (strict unless
+   * otherwise specified). Otherwise returns itself (including if this is the nothing type).
+   */
+  public RPromiseType promiseWrapped() {
+    return switch (this) {
+      case VALUE, STRICT_MAYBE_PROMISE -> STRICT_PROMISE;
+      case MAYBE_LAZY_MAYBE_PROMISE -> MAYBE_LAZY_DEFINITELY_PROMISE;
+      case STRICT_PROMISE, MAYBE_LAZY_DEFINITELY_PROMISE, LAZY_PROMISE -> this;
+    };
+  }
+
   @Override
   public boolean isSubsetOf(RPromiseType other) {
     return isPromise().isSubsetOf(other.isPromise()) && isLazy().isSubsetOf(other.isLazy());

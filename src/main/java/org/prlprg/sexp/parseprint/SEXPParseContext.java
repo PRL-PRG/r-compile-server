@@ -25,12 +25,12 @@ import org.prlprg.sexp.GlobalEnvSXP;
 import org.prlprg.sexp.ListSXP;
 import org.prlprg.sexp.NamespaceEnvSXP;
 import org.prlprg.sexp.PromSXP;
+import org.prlprg.sexp.RegSymOrLangSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPOrEnvType;
 import org.prlprg.sexp.SEXPType;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.sexp.StaticEnvSXP;
-import org.prlprg.sexp.SymOrLangSXP;
 import org.prlprg.sexp.SymSXP;
 import org.prlprg.sexp.TaggedElem;
 import org.prlprg.sexp.UserEnvSXP;
@@ -97,7 +97,7 @@ public class SEXPParseContext implements HasSEXPParseContext {
         case "NA_STR" -> SEXPs.NA_STRING;
         case "NA" ->
             throw s.fail("NA type (uppercase): NA_LGL, NA_INT, NA_REAL, NA_CPLX, NA_STR", name);
-        default -> parseSymOrNotBlockLangSXP(name, p);
+        default -> parseRegSymOrNotBlockLangSXP(name, p);
       };
     } else if (s.trySkip('{')) {
       // Block SymOrLangSXP
@@ -414,19 +414,14 @@ public class SEXPParseContext implements HasSEXPParseContext {
   }
 
   @ParseMethod
-  private SymOrLangSXP parseSymOrLangSXP(Parser p) {
-    return parseSymOrNotBlockLangSXP(Names.read(p.scanner(), true), p);
-  }
-
-  @ParseMethod
   private SymSXP parseSymSXP(Parser p) {
     return SEXPs.symbol(Names.read(p.scanner(), true));
   }
 
-  private SymOrLangSXP parseSymOrNotBlockLangSXP(String name, Parser p) {
+  private RegSymOrLangSXP parseRegSymOrNotBlockLangSXP(String name, Parser p) {
     var s = p.scanner();
 
-    SymOrLangSXP result = SEXPs.symbol(name);
+    RegSymOrLangSXP result = SEXPs.symbol(name);
     while (s.trySkip('(')) {
       var args = new ArrayList<TaggedElem>();
       if (!s.trySkip(')')) {

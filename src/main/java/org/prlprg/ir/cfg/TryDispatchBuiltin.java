@@ -38,7 +38,7 @@ final class TryDispatchBuiltinImpl extends StmtImpl<TryDispatchBuiltin_>
       new AuxiliaryRValue(this, 0) {
         @Override
         public RType type() {
-          return RTypes.BOOL;
+          return RType.BOOL;
         }
       };
 
@@ -46,7 +46,7 @@ final class TryDispatchBuiltinImpl extends StmtImpl<TryDispatchBuiltin_>
       new AuxiliaryRValue(this, 1) {
         @Override
         public RType type() {
-          return RTypes.ANY;
+          return RType.ANY;
         }
       };
 

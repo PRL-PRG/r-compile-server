@@ -29,10 +29,14 @@ import org.prlprg.ir.closure.ClosureVersion.CallContext;
 import org.prlprg.ir.closure.Promise;
 import org.prlprg.ir.closure.Promise.Properties;
 import org.prlprg.ir.closure.Promise.Properties.Property;
-import org.prlprg.ir.type.REffect;
-import org.prlprg.ir.type.REffects;
+import org.prlprg.ir.effect.REffect;
+import org.prlprg.ir.effect.REffects;
+import org.prlprg.ir.type.RNAAbleVecType;
+import org.prlprg.ir.type.RNumericOrLogicalType;
+import org.prlprg.ir.type.RPrimVecType;
 import org.prlprg.ir.type.RType;
 import org.prlprg.ir.type.lattice.Maybe;
+import org.prlprg.ir.type.lattice.MaybeNat;
 import org.prlprg.ir.type.lattice.NoOrMaybe;
 import org.prlprg.ir.type.lattice.YesOrMaybe;
 import org.prlprg.parseprint.EnumSerialCaseIs;
@@ -842,7 +846,7 @@ class PirInstrOrPhiParseContext {
 
       if (!s.nextCharsAre("(cls|spec|blt)") && s.trySkip('(')) {
         if (s.trySkip(')')) {
-          return RTypes.NOTHING;
+          return RType.NOTHING;
         }
 
         var type = p.parse(RType.class);
@@ -857,28 +861,29 @@ class PirInstrOrPhiParseContext {
 
       // Base type
       if (s.trySkip("(cls|spec|blt)") || s.trySkip("cls|spec|blt")) {
-        type = RTypes.ANY_FUN;
+        type = RType.ANY_FUNCTION;
       } else if (s.trySkip("miss")) {
-        type = RTypes.OF_MISSING;
+        type = RType.MISSING;
       } else if (s.trySkip("val?")) {
-        type = RTypes.ANY_VALUE;
+        type = RType.ANY_VALUE_MAYBE_MISSING;
       } else if (s.trySkip("val")) {
-        type = RTypes.ANY_VALUE_NOT_MISSING;
+        type = RType.ANY_VALUE_NOT_MISSING;
       } else if (s.trySkip("num")) {
-        type = RTypes.NUMERIC_OR_LOGICAL;
+        type = RType.NUMERIC_OR_LOGICAL_MAYBE_NA;
       } else if (s.trySkip("code")) {
         // This matches lang, bcode, and externalSxp. We can only encode this as ANY_SIMPLE.
-        type = RTypes.ANY_SIMPLE;
+        type = RType.ANY_SIMPLE;
       } else if (s.trySkip("char")) {
         // Character vectors should never be in the PIR IR, this is an overly broad and maybe buggy
         // PIR type.
-        type = RTypes.ANY_SIMPLE;
+        type = RType.ANY_SIMPLE;
       } else if (s.trySkip("other")) {
-        type = RTypes.ANY_SIMPLE;
+        type = RType.ANY_SIMPLE;
       } else if (s.trySkip("_")) {
-        type = RTypes.exact(SEXPs.UNBOUND_VALUE);
+        // Can't represent unbound
+        type = RType.exact(SEXPs.UNBOUND_VALUE);
       } else if (s.trySkip("*dots")) {
-        type = RTypes.DOTS_ARG;
+        type = RType.DOTS_LIST;
       } else {
         SEXPType sexpType;
         try {
@@ -888,19 +893,17 @@ class PirInstrOrPhiParseContext {
         }
         type =
             sexpType == SEXPType.PROM
-                ? RTypes.ANY_PROM
-                : sexpType == SEXPType.SYM ? RTypes.ANY_SIMPLE : RTypes.simple(sexpType);
+                ? RType.ANY_PROMISE_NOT_MISSING
+                : sexpType == SEXPType.SYM ? RType.ANY_SIMPLE : RType.simple(sexpType);
       }
 
       // Attributes
-      if (!s.trySkip('$') && type.primVec() != null) {
-        assert type.promise() != null && type.missing() != null;
-        type = RTypes.primVec(type.primVec().notScalar(), type.promise(), type.missing());
+      if (!s.trySkip('$') && type.value() instanceof RPrimVecType primVecType) {
+        type = type.withValue(primVecType.withLength(MaybeNat.UNKNOWN));
       }
 
-      if (s.trySkip('#') && type.primVec() != null) {
-        assert type.promise() != null && type.missing() != null;
-        type = RTypes.primVec(type.primVec().notNAOrNaN(), type.promise(), type.missing());
+      if (s.trySkip('#') && type.value() instanceof RNAAbleVecType naPrimVecType) {
+        type = type.withValue(naPrimVecType.notNAOrNaN());
       }
 
       if (s.trySkip('^')) {
@@ -1515,38 +1518,34 @@ class PirInstrOrPhiPrintContext {
         w.write("()");
         return;
       }
-      assert self.promise() != null && self.attributes() != null;
-      var strict = self.strict();
-      assert strict.attributes() != null;
+      assert self.promise() != null;
 
       // Base type
-      if (self.missing() == Maybe.YES) {
+      if (self.isMissing() == Maybe.YES) {
         w.write("miss");
-      } else if (Objects.equals(self.exactValue(), SEXPs.UNBOUND_VALUE)) {
-        w.write("_");
-      } else if (strict.base() != null && strict.base().sexpType() != null) {
-        w.write(Objects.requireNonNull(strict.base().sexpType()).toString().toLowerCase());
-        if (self.missing() != Maybe.NO) {
+      } else if (self.valueSexpType() != null) {
+        w.write(Objects.requireNonNull(self.valueSexpType()).toString().toLowerCase());
+        if (self.isMissing() != Maybe.NO) {
           w.write(" | miss");
         }
-      } else if (strict.primVec() != null && strict.primVec().isNumericOrLogical() == Maybe.YES) {
+      } else if (self.value() instanceof RNumericOrLogicalType) {
         w.write("num");
-        if (self.missing() != Maybe.NO) {
+        if (self.isMissing() != Maybe.NO) {
           w.write(" | miss");
         }
       } else {
         w.write("val");
-        if (self.missing() != Maybe.NO) {
+        if (self.isMissing() != Maybe.NO) {
           w.write('?');
         }
       }
 
       // Attributes
-      if (strict.primVec() != null) {
-        if (strict.primVec().isScalar() == Maybe.YES) {
+      if (self.value() instanceof RPrimVecType primVec) {
+        if (primVec.isScalar() == Maybe.YES) {
           w.write('$');
         }
-        if (strict.primVec().hasNAOrNaN() == NoOrMaybe.NO) {
+        if (primVec.hasNAOrNaN() == NoOrMaybe.NO) {
           w.write('#');
         }
       }
@@ -1555,11 +1554,10 @@ class PirInstrOrPhiPrintContext {
       } else if (self.promise().isPromise() != Maybe.NO) {
         w.write("~");
       }
-      if (strict.attributes().isEmpty()) {
+      if (self.attributes().isEmpty() == Maybe.NO) {
         w.write('-');
-      } else if (strict.primVec() != null && strict.primVec().fastAccess() == Maybe.YES) {
-        w.write('_');
-      } else if (strict.attributes().isObject() == Maybe.NO) {
+        // REACH: `else` write '_' for `fastAccess()`
+      } else if (self.isObject() == Maybe.NO) {
         w.write('+');
       }
     }

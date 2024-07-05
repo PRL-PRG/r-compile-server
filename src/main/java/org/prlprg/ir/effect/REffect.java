@@ -1,4 +1,4 @@
-package org.prlprg.ir.type;
+package org.prlprg.ir.effect;
 
 import org.prlprg.ir.cfg.StmtData.Force;
 

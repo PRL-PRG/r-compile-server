@@ -5,11 +5,8 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
-import java.util.ArrayDeque;
-import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -424,60 +421,8 @@ class TypeclassMap<A extends Annotation, M extends TypeclassMethod> {
    *   <li>If {@code clazz} is a record, {@link Record} is yielded second-last.
    *   <li>{@link Object} is yielded last.
    * </ul>
-   *
-   * ;
    */
   private Iterable<Class<?>> methodSuperclassChain(Class<?> clazz, boolean includeSelf) {
-    return () ->
-        new Iterator<>() {
-          final Deque<Class<?>> worklist = new ArrayDeque<>();
-          final Set<Class<?>> seen = new HashSet<>();
-          // Make sure that `Record.class` is iterated second-last, and `Object.class` is iterated
-          // last.
-          final boolean isRecord = clazz.isRecord();
-
-          {
-            worklist.add(clazz);
-            seen.add(clazz);
-            if (!includeSelf) {
-              next();
-            }
-          }
-
-          @Override
-          public boolean hasNext() {
-            return !worklist.isEmpty()
-                || (isRecord && !seen.contains(Record.class))
-                || !seen.contains(Object.class);
-          }
-
-          @Override
-          public Class<?> next() {
-            if (worklist.isEmpty()) {
-              if (isRecord && seen.add(Record.class)) {
-                return Record.class;
-              } else if (seen.add(Object.class)) {
-                return Object.class;
-              }
-              throw new IllegalStateException("No more elements");
-            }
-
-            var next = worklist.removeFirst();
-
-            if (next.getSuperclass() != null
-                && next.getSuperclass() != Record.class
-                && next.getSuperclass() != Object.class
-                && seen.add(next.getSuperclass())) {
-              worklist.add(next.getSuperclass());
-            }
-            for (var iface : next.getInterfaces()) {
-              if (seen.add(iface)) {
-                worklist.add(iface);
-              }
-            }
-
-            return next;
-          }
-        };
+    return Classes.superclassChain(clazz, includeSelf);
   }
 }

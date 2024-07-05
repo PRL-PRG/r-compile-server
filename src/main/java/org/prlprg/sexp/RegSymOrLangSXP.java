@@ -7,4 +7,4 @@ import javax.annotation.concurrent.Immutable;
  * also be simple-scalars.
  */
 @Immutable
-public sealed interface SymOrLangSXP extends SEXP permits SymSXP, LangSXP {}
+public sealed interface RegSymOrLangSXP extends SEXP permits RegSymSXP, LangSXP {}
