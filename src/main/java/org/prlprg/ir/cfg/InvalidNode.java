@@ -5,7 +5,6 @@ import java.util.Objects;
 import java.util.WeakHashMap;
 import javax.annotation.Nullable;
 import org.prlprg.ir.type.RType;
-import org.prlprg.ir.type.RTypes;
 import org.prlprg.primitive.Names;
 
 /** Node representing missing, invalid, or placeholder data. */

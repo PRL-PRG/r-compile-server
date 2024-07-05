@@ -3,7 +3,6 @@ package org.prlprg.ir.cfg;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import javax.annotation.Nullable;
 import org.prlprg.ir.type.RType;
-import org.prlprg.ir.type.RTypes;
 import org.prlprg.primitive.BuiltinId;
 import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.EnvSXP;

@@ -59,26 +59,26 @@ public sealed interface MaybeNat extends Lattice<MaybeNat> {
       case Unknown() -> this;
     };
   }
+}
 
-  record Known(int value) implements MaybeNat {
-    public Known {
-      if (value < 0) {
-        throw new IllegalArgumentException("Can't be negative");
-      }
-    }
-
-    @Override
-    public String toString() {
-      return Integer.toString(value);
+record Known(int value) implements MaybeNat {
+  public Known {
+    if (value < 0) {
+      throw new IllegalArgumentException("Can't be negative");
     }
   }
 
-  record Unknown() implements MaybeNat {
-    public Unknown {}
+  @Override
+  public String toString() {
+    return Integer.toString(value);
+  }
+}
 
-    @Override
-    public String toString() {
-      return "";
-    }
+record Unknown() implements MaybeNat {
+  public Unknown {}
+
+  @Override
+  public String toString() {
+    return "";
   }
 }

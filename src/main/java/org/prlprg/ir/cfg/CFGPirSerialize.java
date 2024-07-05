@@ -32,7 +32,6 @@ import org.prlprg.ir.closure.Promise.Properties.Property;
 import org.prlprg.ir.type.REffect;
 import org.prlprg.ir.type.REffects;
 import org.prlprg.ir.type.RType;
-import org.prlprg.ir.type.RTypes;
 import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.ir.type.lattice.NoOrMaybe;
 import org.prlprg.ir.type.lattice.YesOrMaybe;

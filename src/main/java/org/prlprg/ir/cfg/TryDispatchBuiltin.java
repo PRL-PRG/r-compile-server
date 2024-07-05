@@ -5,7 +5,6 @@ import java.util.List;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.ir.cfg.StmtData.TryDispatchBuiltin_;
 import org.prlprg.ir.type.RType;
-import org.prlprg.ir.type.RTypes;
 
 /**
  * {@link Stmt} (IR instruction) which produces a boolean {@link RValue} (whether it dispatched) and

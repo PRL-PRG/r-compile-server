@@ -6,7 +6,6 @@ import org.prlprg.ir.cfg.Constant;
 import org.prlprg.ir.cfg.Instr;
 import org.prlprg.ir.cfg.RValue;
 import org.prlprg.ir.type.RType;
-import org.prlprg.ir.type.RTypes;
 import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;

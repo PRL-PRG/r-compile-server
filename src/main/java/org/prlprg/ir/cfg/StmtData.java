@@ -12,7 +12,6 @@ import org.prlprg.ir.closure.Promise;
 import org.prlprg.ir.type.REffect;
 import org.prlprg.ir.type.REffects;
 import org.prlprg.ir.type.RType;
-import org.prlprg.ir.type.RTypes;
 import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.ir.type.lattice.YesOrMaybe;
 import org.prlprg.primitive.BuiltinId;
@@ -175,7 +174,8 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
   record ToForSeq(RValue value) implements RValue_ {
     @Override
     public RType computeType() {
-      return RTypes.toForSeq(value.type());
+      // TODO
+      return RType.ANY;
     }
   }
 

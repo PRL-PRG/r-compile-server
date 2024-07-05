@@ -14,7 +14,6 @@ import org.prlprg.ir.cfg.RValue;
 import org.prlprg.ir.cfg.Stmt;
 import org.prlprg.ir.cfg.StmtData;
 import org.prlprg.ir.type.REffect;
-import org.prlprg.ir.type.RTypes;
 import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.sexp.RegSymSXP;
 import org.prlprg.util.UnreachableError;

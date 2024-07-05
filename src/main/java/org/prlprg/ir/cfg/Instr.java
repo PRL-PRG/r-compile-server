@@ -17,7 +17,6 @@ import org.prlprg.ir.closure.CodeObject;
 import org.prlprg.ir.type.REffect;
 import org.prlprg.ir.type.REffects;
 import org.prlprg.ir.type.RType;
-import org.prlprg.ir.type.RTypes;
 import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.sexp.SEXPType;
 import org.prlprg.util.Classes;

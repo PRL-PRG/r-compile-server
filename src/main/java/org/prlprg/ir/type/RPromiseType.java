@@ -95,6 +95,11 @@ public enum RPromiseType implements Lattice<RPromiseType> {
     };
   }
 
+  /** Construct a promise which is or isn't lazy depending on the argument. */
+  public static RPromiseType promise(boolean isLazy) {
+    return of(Maybe.YES, isLazy);
+  }
+
   /** Is the value a promise? */
   public Maybe isPromise() {
     return switch (this) {

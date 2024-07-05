@@ -2,7 +2,6 @@ package org.prlprg.ir.cfg;
 
 import javax.annotation.Nullable;
 import org.prlprg.ir.type.RType;
-import org.prlprg.ir.type.RTypes;
 import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPType;
