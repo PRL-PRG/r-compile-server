@@ -3,7 +3,6 @@ package org.prlprg.ir.cfg;
 import java.util.Collection;
 import java.util.HashSet;
 import org.prlprg.ir.type.RType;
-import org.prlprg.ir.type.RTypes;
 
 /**
  * {@link Phi} (<a

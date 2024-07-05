@@ -6,6 +6,7 @@ import java.util.Objects;
 import java.util.function.Function;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
+import org.prlprg.ir.cfg.Node;
 import org.prlprg.ir.cfg.RValue;
 import org.prlprg.ir.type.lattice.BoundedLattice;
 import org.prlprg.ir.type.lattice.Maybe;
@@ -20,9 +21,11 @@ import org.prlprg.sexp.SEXPs;
 import org.prlprg.util.Reflection;
 
 /**
- * {@link RValue} type; a runtime value's ({@link SEXP})'s type, with information relevant to
- * perform optimizations (e.g. compile unboxed representations if scalar). Not to be confused with
- * {@link SEXPType}.
+ * {@link RValue} type; a runtime ({@link SEXP}) value's type, with information relevant to perform
+ * optimizations.
+ *
+ * <p>Not to be confused with {@link SEXPType}. Also, this is only for {@link RValue}s ({@linkplain
+ * Node IR nodes} encoding {@linkplain SEXP SEXPs}), not unboxed values or PIR objects.
  *
  * <p>It consists of:
  *

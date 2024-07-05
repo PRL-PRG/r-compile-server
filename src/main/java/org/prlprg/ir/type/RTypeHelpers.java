@@ -1,11 +1,25 @@
 package org.prlprg.ir.type;
 
+import com.google.common.collect.ImmutableList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Objects;
+import java.util.stream.Collector;
+import java.util.stream.Collector.Characteristics;
+import java.util.stream.Stream;
 import javax.annotation.Nullable;
+import org.prlprg.ir.type.BaseRType.NotPromise;
 import org.prlprg.ir.type.lattice.Maybe;
+import org.prlprg.ir.type.lattice.MaybeNat;
+import org.prlprg.ir.type.lattice.NoOrMaybe;
+import org.prlprg.primitive.BuiltinId;
+import org.prlprg.sexp.Attributes;
 import org.prlprg.sexp.BuiltinSXP;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.PrimVectorSXP;
+import org.prlprg.sexp.PromSXP;
 import org.prlprg.sexp.SEXP;
+import org.prlprg.sexp.SEXPType;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.sexp.SpecialSXP;
 
@@ -108,6 +122,124 @@ sealed interface RTypeHelpers permits RType {
   // endregion interned constants
 
   // region helper constructors
+  /** The (most precise representable) type of the given value. */
+  static RType exact(SEXP value) {
+    var promiseWrapped = RPromiseType.VALUE;
+    if (value instanceof PromSXP p) {
+      value = p.val();
+      promiseWrapped = RPromiseType.promise(p.isLazy());
+    }
+
+    if (value == SEXPs.MISSING_ARG) {
+      return MISSING;
+    }
+
+    return RType.of(RValueType.exact(value), RAttributesType.exact(value.attributes()), promiseWrapped, Maybe.NO);
+  }
+
+  /**
+   * The type of a value with the given {@link SEXPType}, not a promise, not missing, and no
+   * attributes. If {@code type} is the type of a primitive vector, this will also return the type
+   * for a scalar.
+   *
+   * @throws IllegalArgumentException if {@link SEXPType} is a promise or "any".
+   */
+  static RType simple(SEXPType type) {
+    switch (type) {
+      case SEXPType.PROM ->
+          throw new IllegalArgumentException("No such thing as a \"simple promise\"");
+      case SEXPType.ANY ->
+          throw new IllegalArgumentException(
+              "No such thing as a \"simple any\" (GNU-R's \"any\" type is special and has no instances)");
+    }
+    return new RType(RValueType.simple(type), RAttributesType.NONE, RPromiseType.VALUE, Maybe.NO);
+  }
+
+
+  /** The type after a arithmetic unop whose argument has the given types. */
+  static RType arithmeticOp(RType unary) {
+    // TODO
+    return ANY
+  }
+
+  /** The type after a arithmetic binop whose arguments have the given types. */
+  static RType arithmeticOp(RType lhs, RType rhs) {
+    // TODO
+    return ANY;
+  }
+
+  /** The type after a comparison binop whose arguments have the given types. */
+  static RType comparisonOp(RType lhs, RType rhs) {
+    // TODO
+    return ANY;
+  }
+
+  /**
+   * The type after a simple "not" binop whose argument has the given types.
+   */
+  static RType booleanOp(RType unary) {
+    // TODO
+    return ANY;
+  }
+
+  /**
+   * The type after a simple "and" or "or" binop whose arguments have the given types.
+   */
+  static RType booleanOp(RType lhs, RType rhs) {
+    // TODO
+    return ANY;
+  }
+
+  /** The closure type of the given builtin.
+   *
+   * <p><i>Not</i> the return type. Instead, this is guaranteed to be a {@link RFunctionType}, and
+   * you can get the return of that.
+   */
+  static RType builtin(BuiltinId id) {
+    // TODO: Specialize
+    return ANY_BUILTIN_OR_SPECIAL;
+  }
+
+  /** Type which is the {@linkplain RType#union(RType)} union} of all given types. */
+  static RType union(RType type1, RType type2, RType... types) {
+    return Stream.concat(Stream.of(type1, type2), Arrays.stream(types)).collect(RType.toUnion());
+  }
+
+  /** Type which is the {@linkplain RType#union(RType)} union} of all given types. */
+  static RType union(Collection<RType> types) {
+    return types.stream().collect(toUnion());
+  }
+
+  /** Creates a {@linkplain RType#union(RType)} union} from all types in the stream. */
+  static Collector<RType, RType[], RType> toUnion() {
+    return Collector.of(
+        () -> new RType[]{NOTHING},
+        (RType[] acc, RType next) -> acc[0] = acc[0].union(next),
+        (RType[] a, RType[] b) -> new RType[]{a[0].union(b[0])},
+        (RType[] a) -> a[0],
+        Characteristics.CONCURRENT, Characteristics.UNORDERED);
+  }
+
+  /** Type which is the {@linkplain RType#intersection(RType)} intersection} of all given types. */
+  static RType intersection(RType type1, RType type2, RType... types) {
+    return Stream.concat(Stream.of(type1, type2), Arrays.stream(types)).collect(toIntersection());
+  }
+
+  /** Type which is the {@linkplain RType#intersection(RType)} intersection} of all given types. */
+  static RType intersection(Collection<RType> types) {
+    return types.stream().collect(toIntersection());
+  }
+
+  /** Creates an {@linkplain RType#intersection(RType)} intersection} from all types in the stream. */
+  static Collector<RType, RType[], RType> toIntersection() {
+    return Collector.of(
+        () -> new RType[]{ANY},
+        (RType[] acc, RType next) -> acc[0] = acc[0].intersection(next),
+        (RType[] a, RType[] b) -> new RType[]{a[0].intersection(b[0])},
+        (RType[] a) -> a[0],
+        Characteristics.CONCURRENT, Characteristics.UNORDERED);
+  }
+
   /**
    * Returns the same type except {@link RType#promise() promise()}} is {@link RPromiseType#VALUE},
    * <i>unless</i> this is the nothing type.
@@ -234,8 +366,7 @@ sealed interface RTypeHelpers permits RType {
   }
 
   /**
-   * Is the instance value an {@linkplain Attributes#isObject R object}, i.e. does it have the
-   * "class" attribute?
+   * Is the instance value an R object, i.e. does it have the "class" attribute?
    *
    * <p>Returns {@link Maybe#YES YES} iff {@code self} is {@link #NOTHING}.
    *

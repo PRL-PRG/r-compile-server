@@ -4,7 +4,6 @@ import com.google.common.collect.ImmutableMap;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.prlprg.ir.type.RType;
-import org.prlprg.ir.type.RTypes;
 import org.prlprg.sexp.SEXPType;
 
 /** Global static environment, e.g. {@code R_GlobalEnv}, {@code notClosed}. */
