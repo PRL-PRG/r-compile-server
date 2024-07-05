@@ -3,32 +3,108 @@ package org.prlprg.ir.type;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import org.prlprg.ir.type.lattice.Lattice;
-import org.prlprg.ir.type.lattice.MaybeNat;
 import org.prlprg.sexp.SEXP;
+import org.prlprg.sexp.SEXPType;
 
 /**
- * the runtime type of an SEXP which is guaranteed not to be a promise. There are subclasses for
- * each particular type we care about (e.g. functions, primitive vectors), as well as {@link
- * RGenericValueType} for everything else (including "unknown").
+ * The type of a non-promise, not-missing {@link SEXP}, without the attributes.
+ *
+ * <p>The "value" part of an {@link RType}; see {@link RType#value()}.
+ *
+ * <p>There's a subclass for each type of {@link SEXP}.
  */
 @Immutable
-sealed interface RValueType extends Lattice<RValueType>
-    permits RFunctionType, RPrimVecType, RGenericValueType {
-  /** If this is a constant, the exact value. */
-  // Overridden in record so IntelliJ can't detect that this doesn't apply.
-  @SuppressWarnings("EmptyMethod")
-  @Nullable SEXP exactValue();
-
-  /** The base type of the value (e.g. is it a symbol? Builtin?). */
-  BaseRType.NotPromise base();
+public sealed interface RValueType extends Lattice<RValueType>
+    permits RAnyValueType,
+        RNothingValueType,
+        RStrOrRegSymType,
+        RSymOrLangType,
+        RListOrVectorType,
+        RLangOrListType,
+        RFunType,
+        REnvType,
+        RBCodeType {
+  RValueType ANY = RAnyValueType.INSTANCE;
+  RValueType NOTHING = RNothingValueType.INSTANCE;
 
   /**
-   * Whether the object has attributes and what we know about them; in particular, if it may or does
-   * have certain attributes (e.g. {@code names}, {@code class}, {@code dim}, ...), and if they are
-   * exact values.
+   * If this has a specific {@link SEXPType}, returns it, otherwise {@code null}.
+   *
+   * <p>Note that both {@link RValueType#ANY} and {@link RValueType#NOTHING} return {@code null}.
    */
-  AttributesType attributes();
+  default @Nullable SEXPType sexpType() {
+    return null;
+  }
 
-  /** If there's 0, 1, n, or unknown references to this value. */
-  MaybeNat referenceCount();
+  @Override
+  default boolean isSubsetOf(RValueType other) {
+    return other == this || other == ANY || other.getClass().isInstance(this);
+  }
+
+  @Override
+  default boolean isSupersetOf(RValueType other) {
+    return other == this || other == NOTHING || getClass().isInstance(other);
+  }
+
+  @Override
+  default RValueType union(RValueType other) {
+    return isSupersetOf(other) ? this : isSubsetOf(other) ? other : ANY;
+  }
+
+  @Override
+  default RValueType intersection(RValueType other) {
+    return isSubsetOf(other) ? this : isSupersetOf(other) ? other : NOTHING;
+  }
+}
+
+final class RAnyValueType implements RValueType {
+  static final RAnyValueType INSTANCE = new RAnyValueType();
+
+  @Override
+  public boolean isSubsetOf(RValueType other) {
+    return other == this;
+  }
+
+  @Override
+  public boolean isSupersetOf(RValueType other) {
+    return true;
+  }
+
+  @Override
+  public RValueType intersection(RValueType other) {
+    return other;
+  }
+
+  @Override
+  public String toString() {
+    return "⊤";
+  }
+
+  private RAnyValueType() {}
+}
+
+final class RNothingValueType implements RValueType {
+  static final RNothingValueType INSTANCE = new RNothingValueType();
+
+  @Override
+  public boolean isSubsetOf(RValueType other) {
+    return true;
+  }
+
+  @Override
+  public boolean isSupersetOf(RValueType other) {
+    return other == this;
+  }
+
+  @Override
+  public RValueType union(RValueType other) {
+    return other;
+  }
+
+  @Override
+  public String toString() {
+    return "⊥";
+  }
+
+  private RNothingValueType() {}
 }

@@ -45,6 +45,11 @@ public final class Attributes extends ForwardingMap<String, SEXP> {
     this.attrs = attrs;
   }
 
+  /** Whether this contains the "class" attribute. */
+  public boolean isObject() {
+    return attrs.containsKey("class");
+  }
+
   @Override
   protected Map<String, SEXP> delegate() {
     return attrs;

@@ -1,19 +1,13 @@
 package org.prlprg.ir.type;
 
-import com.google.common.collect.ImmutableList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Objects;
 import java.util.stream.Collector;
 import java.util.stream.Collector.Characteristics;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
-import org.prlprg.ir.type.BaseRType.NotPromise;
 import org.prlprg.ir.type.lattice.Maybe;
-import org.prlprg.ir.type.lattice.MaybeNat;
-import org.prlprg.ir.type.lattice.NoOrMaybe;
 import org.prlprg.primitive.BuiltinId;
-import org.prlprg.sexp.Attributes;
 import org.prlprg.sexp.BuiltinSXP;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.PrimVectorSXP;
@@ -34,66 +28,66 @@ sealed interface RTypeHelpers permits RType {
   // Need to explicitly invoke `new RTypeImpl` to create these instances, because `of` special-cases
   // to return them.
   /** The type of an expression which hangs, errors, or otherwise diverts control flow. */
-  RType NOTHING = new RTypeImpl(RValueType.NOTHING, RAttributesType.NOTHING, null, null);
+  RType NOTHING = new RTypeImpl(RValueType.NOTHING, AttributesType.BOTTOM, null, null);
 
   /** The type of a value we know absolutely nothing about. */
   RType ANY =
       new RTypeImpl(
-          RValueType.ANY, RAttributesType.ANY, RPromiseType.MAYBE_LAZY_MAYBE_PROMISE, Maybe.MAYBE);
+          RValueType.ANY, AttributesType.ANY, RPromiseType.MAYBE_LAZY_MAYBE_PROMISE, Maybe.MAYBE);
 
   /** The type of a value we know absolutely nothing about except it's missing. */
   RType MISSING =
-      new RTypeImpl(RValueType.NOTHING, RAttributesType.NOTHING, RPromiseType.VALUE, Maybe.YES);
+      new RTypeImpl(RValueType.NOTHING, AttributesType.BOTTOM, RPromiseType.VALUE, Maybe.YES);
 
   /** The type of a value we know absolutely nothing about, except that it's not a promise. */
   RType ANY_VALUE_MAYBE_MISSING =
-      new RTypeImpl(RValueType.ANY, RAttributesType.ANY, RPromiseType.VALUE, Maybe.MAYBE);
+      new RTypeImpl(RValueType.ANY, AttributesType.ANY, RPromiseType.VALUE, Maybe.MAYBE);
 
   /**
    * The type of a value we know absolutely nothing about, except that it's not a promise or
    * {@linkplain SEXPs#MISSING_ARG missing}.
    */
   RType ANY_VALUE_NOT_MISSING =
-      new RTypeImpl(RValueType.ANY, RAttributesType.ANY, RPromiseType.VALUE, Maybe.NO);
+      new RTypeImpl(RValueType.ANY, AttributesType.ANY, RPromiseType.VALUE, Maybe.NO);
 
   /**
    * The type of a value we know absolutely nothing about, except that it's either a promise or
    * {@linkplain SEXPs#MISSING_ARG missing}.
    */
   RType ANY_PROMISE_MAYBE_MISSING =
-      new RTypeImpl(RValueType.ANY, RAttributesType.ANY, RPromiseType.STRICT_PROMISE, Maybe.MAYBE);
+      new RTypeImpl(RValueType.ANY, AttributesType.ANY, RPromiseType.STRICT_PROMISE, Maybe.MAYBE);
 
   /** The type of a value we know absolutely nothing about, except that it <i>is</i> a promise. */
   RType ANY_PROMISE_NOT_MISSING =
-      new RTypeImpl(RValueType.ANY, RAttributesType.ANY, RPromiseType.STRICT_PROMISE, Maybe.NO);
+      new RTypeImpl(RValueType.ANY, AttributesType.ANY, RPromiseType.STRICT_PROMISE, Maybe.NO);
 
   /**
    * The type of a function we know absolutely nothing about besides it being a function (could be a
    * special or builtin).
    */
   RType ANY_FUNCTION =
-      new RTypeImpl(RFunctionType.ANY, RAttributesType.ANY, RPromiseType.VALUE, Maybe.NO);
+      new RTypeImpl(RFunctionType.ANY, AttributesType.ANY, RPromiseType.VALUE, Maybe.NO);
 
   /**
    * The type of a function we know absolutely nothing about besides it being a special or builtin
    * function.
    */
   RType ANY_BUILTIN_OR_SPECIAL =
-      new RTypeImpl(RBuiltinOrSpecialType.ANY, RAttributesType.ANY, RPromiseType.VALUE, Maybe.NO);
+      new RTypeImpl(RBuiltinOrSpecialType.ANY, AttributesType.ANY, RPromiseType.VALUE, Maybe.NO);
 
   /**
    * The type of a value we know absolutely nothing about besides it's not a promise, not missing,
    * and doesn't have any attributes (e.g. AST node).
    */
   RType ANY_SIMPLE =
-      new RTypeImpl(RValueType.ANY, RAttributesType.NONE, RPromiseType.VALUE, Maybe.NO);
+      new RTypeImpl(RValueType.ANY, AttributesType.EMPTY, RPromiseType.VALUE, Maybe.NO);
 
   /**
    * The type of a value we know absolutely nothing about besides it's not a promise, not missing,
    * doesn't have any attributes (e.g. AST node), and is a primitive vector.
    */
   RType ANY_SIMPLE_PRIM_VEC =
-      new RTypeImpl(RPrimVecType.ANY, RAttributesType.NONE, RPromiseType.VALUE, Maybe.NO);
+      new RTypeImpl(RPrimVecType.ANY, AttributesType.EMPTY, RPromiseType.VALUE, Maybe.NO);
 
   /**
    * The type of the {@code ...} parameter or argument.
@@ -103,21 +97,21 @@ sealed interface RTypeHelpers permits RType {
    * passing a "missing" argument. But I don't know and maybe it shouldn't be maybe-missing...
    */
   RType DOTS =
-      new RTypeImpl(RDotsType.INSTANCE, RAttributesType.NONE, RPromiseType.VALUE, Maybe.MAYBE);
+      new RTypeImpl(RDotsType.INSTANCE, AttributesType.EMPTY, RPromiseType.VALUE, Maybe.MAYBE);
 
   /** The type of a boolean, i.e. a simple scalar logical that can't be NA. */
   RType BOOL =
-      new RTypeImpl(RBoolType.INSTANCE, RAttributesType.NONE, RPromiseType.VALUE, Maybe.NO);
+      new RTypeImpl(RBoolType.INSTANCE, AttributesType.EMPTY, RPromiseType.VALUE, Maybe.NO);
 
   /** The type of a simple scalar integer, real, or logical that permits NA. */
   RType NUMERIC_OR_LOGICAL_MAYBE_NA =
       new RTypeImpl(
-          RValueType.NUMERIC_OR_LOGICAL, RAttributesType.NONE, RPromiseType.VALUE, Maybe.NO);
+          RValueType.NUMERIC_OR_LOGICAL, AttributesType.EMPTY, RPromiseType.VALUE, Maybe.NO);
 
   /** The type of a simple scalar integer, real, or logical that doesn't permit NA. */
   RType NUMERIC_OR_LOGICAL_NOT_NA =
       new RTypeImpl(
-          RValueType.NUMERIC_OR_LOGICAL, RAttributesType.NONE, RPromiseType.VALUE, Maybe.NO);
+          RValueType.NUMERIC_OR_LOGICAL, AttributesType.EMPTY, RPromiseType.VALUE, Maybe.NO);
 
   // endregion interned constants
 
@@ -134,7 +128,7 @@ sealed interface RTypeHelpers permits RType {
       return MISSING;
     }
 
-    return RType.of(RValueType.exact(value), RAttributesType.exact(value.attributes()), promiseWrapped, Maybe.NO);
+    return RType.of(RValueType.exact(value), AttributesType.exact(value.attributes()), promiseWrapped, Maybe.NO);
   }
 
   /**
@@ -152,7 +146,7 @@ sealed interface RTypeHelpers permits RType {
           throw new IllegalArgumentException(
               "No such thing as a \"simple any\" (GNU-R's \"any\" type is special and has no instances)");
     }
-    return new RType(RValueType.simple(type), RAttributesType.NONE, RPromiseType.VALUE, Maybe.NO);
+    return new RType(RValueType.simple(type), AttributesType.EMPTY, RPromiseType.VALUE, Maybe.NO);
   }
 
 
@@ -374,7 +368,7 @@ sealed interface RTypeHelpers permits RType {
    * or {@link Maybe#MAYBE}.
    */
   default Maybe isObject() {
-    return ((RType) this).attributes().relation(RAttributesType.ANY_OBJECT);
+    return ((RType) this).attributes().relation(AttributesType.ANY_OBJECT);
   }
 
   // endregion helper accessors

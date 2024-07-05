@@ -34,7 +34,7 @@ import org.prlprg.util.Reflection;
  *       environment). {@link RValueType}'s class hierarchy is the same shape as {@link SEXP}'s: for
  *       every subclass of {@link SEXP} there is a corresponding subclass of {@link RValueType} (and
  *       vice versa).
- *   <li>{@link RAttributesType} {@link #attributes()}: the type of the "attributes". Some types of
+ *   <li>{@link AttributesType} {@link #attributes()}: the type of the "attributes". Some types of
  *       {@linkplain SEXP}s can have {@linkplain Attributes attributes}, such as "names", "class",
  *       and "dims". This is a type whose instances are those {@link Attributes} objects.
  *   <li>{@link RPromiseType} {@link #promise()}: the type of the "promise wrapping"; that is,
@@ -47,8 +47,8 @@ import org.prlprg.util.Reflection;
  *       <ul>
  *         <li>To be clear, a runtime {@link SEXP} instance of a "promise" closure type is a {@link
  *             PromSXP}, not a {@link CloSXP}, and its attributes are empty (promises don't have
- *             attributes) even if the {@link RAttributesType} specifies non-empty attributes. The
- *             {@link RValueType} and {@link RAttributesType} don't describe the instance directly,
+ *             attributes) even if the {@link AttributesType} specifies non-empty attributes. The
+ *             {@link RValueType} and {@link AttributesType} don't describe the instance directly,
  *             they describe the part of the instance that may be wrapped within a promise.
  *       </ul>
  *   <li>{@link Maybe} {@link #isMissing()}: whether or not the type is {@linkplain
@@ -60,10 +60,10 @@ import org.prlprg.util.Reflection;
  *       RValueType#NOTHING}, {@link RPromiseType#VALUE}, and {@link Maybe#YES}.
  *       <ul>
  *         <li>Again, to be clear, a runtime {@link SEXP} instance of a "maybe-missing" type that
- *             has a non-symbol {@link RValueType}, non-empty {@link RAttributesType}, and
+ *             has a non-symbol {@link RValueType}, non-empty {@link AttributesType}, and
  *             definitely-promise {@link RPromiseType}, may be {@link SEXPs#MISSING_ARG}, which is a
  *             symbol with no attributes and not a promise. The {@link RValueType}, {@link
- *             RAttributesType}, and {@link RPromiseType} describe the instance assuming that it's
+ *             AttributesType}, and {@link RPromiseType} describe the instance assuming that it's
  *             not missing.
  *       </ul>
  * </ul>
@@ -75,10 +75,10 @@ public sealed interface RType extends RTypeHelpers, BoundedLattice<RType> {
    * {@link #promise()}, and {@link #isMissing()} (missingness).
    */
   static RType of(
-      RValueType value, RAttributesType attributes, RPromiseType promise, Maybe isMissing) {
+      RValueType value, AttributesType attributes, RPromiseType promise, Maybe isMissing) {
     if (isMissing == Maybe.YES) {
       return MISSING;
-    } else if (value == RValueType.NOTHING || attributes == RAttributesType.NOTHING) {
+    } else if (value == RValueType.NOTHING || attributes == AttributesType.BOTTOM) {
       return NOTHING;
     }
 
@@ -105,7 +105,7 @@ public sealed interface RType extends RTypeHelpers, BoundedLattice<RType> {
    * <p>e.g. no attributes, "class" attribute if it's an {@linkplain #isObject() object}, "dims"
    * attribute if it's a matrix.
    */
-  RAttributesType attributes();
+  AttributesType attributes();
 
   /**
    * Whether the "value" (described by {@link #value()} and {@link #attributes()}) is maybe or
@@ -144,7 +144,7 @@ public sealed interface RType extends RTypeHelpers, BoundedLattice<RType> {
   // IntelliJ doesn't know that `this != NOTHING ==> promise() != null && isMissing() != null`, so
   // it reports nullable values (`promise()` and `isMissing()`) in non-null positions (`of` args).
   @SuppressWarnings("DataFlowIssue")
-  default RType withAttributes(RAttributesType newAttributes) {
+  default RType withAttributes(AttributesType newAttributes) {
     return attributes() == newAttributes || this == NOTHING || this == MISSING
         ? this
         : of(value(), newAttributes, promise(), isMissing());
@@ -246,7 +246,7 @@ public sealed interface RType extends RTypeHelpers, BoundedLattice<RType> {
       return NOTHING;
     }
     var attributes = attributes().intersection(other.attributes());
-    if (attributes == RAttributesType.NOTHING) {
+    if (attributes == AttributesType.BOTTOM) {
       return NOTHING;
     }
     var promise = promise().intersection(other.promise());
@@ -288,7 +288,7 @@ public sealed interface RType extends RTypeHelpers, BoundedLattice<RType> {
 
 record RTypeImpl(
     @Override RValueType value,
-    @Override RAttributesType attributes,
+    @Override AttributesType attributes,
     @Override @Nullable RPromiseType promise,
     @Override @Nullable Maybe isMissing)
     implements RType {
@@ -303,16 +303,16 @@ record RTypeImpl(
             || (promise == null
                 && isMissing == null
                 && value == RValueType.NOTHING
-                && attributes == RAttributesType.NOTHING)
+                && attributes == AttributesType.BOTTOM)
         : "If `promise` and `isMissing` are `null`, this must be the nothing type";
     assert promise == null
             || isMissing != Maybe.YES
-            || (value == RValueType.NOTHING && attributes == RAttributesType.NOTHING)
+            || (value == RValueType.NOTHING && attributes == AttributesType.BOTTOM)
         : "If `isMissing` is `YES`, this must be the missing type";
 
     assert promise == null
             || isMissing == Maybe.YES
-            || (value != RValueType.NOTHING && attributes != RAttributesType.NOTHING)
+            || (value != RValueType.NOTHING && attributes != AttributesType.BOTTOM)
         : "If `promise` and `isMissing` are not `null` and `isMissing` isn't `YES`, `value` and `attributes` must not be `NOTHING`";
   }
 
@@ -331,30 +331,14 @@ record RTypeImpl(
       if (isMissing == Maybe.MAYBE) {
         w.write("miss|");
       }
-      switch (promise) {
-      }
-      w.write(value);
-      if (isMissing == Maybe.YES) {
-        w.write("miss");
-      } else if (isMissing == Maybe.MAYBE) {
-        w.write("miss|");
-        w.write(attributes);
-      } else {
-        w.write(attributes);
+      p.print(promise);
+      p.print(value);
+      if (attributes != AttributesType.EMPTY) {
+        w.write('[');
+        p.print(attributes);
+        w.write(']');
       }
     }
-
-    return promise == null || missing == null
-        ? "⊥"
-        : isAny()
-            ? "⊤"
-            : ""
-                + promise
-                + switch (Objects.requireNonNull(missing)) {
-                  case YES -> "miss";
-                  case MAYBE -> "miss|" + inner;
-                  case NO -> inner;
-                };
   }
 
   @Override

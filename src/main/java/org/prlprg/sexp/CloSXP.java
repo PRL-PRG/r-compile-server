@@ -7,7 +7,7 @@ import org.prlprg.parseprint.Printer;
 import org.prlprg.util.Streams;
 
 /** Closure SEXP. */
-public sealed interface CloSXP extends SEXP {
+public sealed interface CloSXP extends FunSXP {
   /** The closure's parameters: specifically, names and default values. */
   ListSXP parameters();
 
