@@ -5,11 +5,11 @@ import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
-import org.prlprg.ir.type.REffect;
-import org.prlprg.ir.type.REffects;
+import org.prlprg.ir.effect.REffect;
+import org.prlprg.ir.effect.REffects;
 
 /**
- * Specifies the {@link org.prlprg.ir.type.REffects REffects} of an instruction.
+ * Specifies the {@link REffects REffects} of an instruction.
  *
  * @see Instr#effects()
  */

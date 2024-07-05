@@ -29,12 +29,12 @@ import org.prlprg.sexp.ListSXP;
 import org.prlprg.sexp.NilSXP;
 import org.prlprg.sexp.PromSXP;
 import org.prlprg.sexp.RealSXP;
+import org.prlprg.sexp.RegSymOrLangSXP;
 import org.prlprg.sexp.RegSymSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPType;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.sexp.StrSXP;
-import org.prlprg.sexp.SymOrLangSXP;
 import org.prlprg.sexp.TaggedElem;
 import org.prlprg.sexp.UserEnvSXP;
 import org.prlprg.sexp.VecSXP;
@@ -393,8 +393,10 @@ public class RDSReader implements Closeable {
       ListSXP ansList = (ListSXP) ans;
 
       var fun = ansList.get(0).value();
-      if (!(fun instanceof SymOrLangSXP funSymOrLang)) {
-        throw new RDSException("Expected symbol or language, got: " + fun.type());
+      if (!(fun instanceof RegSymOrLangSXP funSymOrLang)) {
+        throw new RDSException(
+            "Expected regular (i.e. not missing, unbound, etc.) symbol or language, got: "
+                + fun.type());
       }
 
       ListSXP args = SEXPs.NULL;
@@ -433,8 +435,9 @@ public class RDSReader implements Closeable {
     // any tag that might be present.
     readTag(flags);
 
-    if (!(readItem() instanceof SymOrLangSXP fun)) {
-      throw new RDSException("Expected symbol or language");
+    if (!(readItem() instanceof RegSymOrLangSXP fun)) {
+      throw new RDSException(
+          "Expected regular (i.e. not missing, unbound, etc.) symbol or language");
     }
     if (!(readItem() instanceof ListSXP args)) {
       throw new RDSException("Expected list");

@@ -3,7 +3,6 @@ package org.prlprg.ir.cfg;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import javax.annotation.Nullable;
 import org.prlprg.ir.type.RType;
-import org.prlprg.sexp.SEXPType;
 
 /** {@link Stmt} (IR instruction) which produces an {@link RValue}. */
 public interface RValueStmt extends Stmt, RValue {
@@ -58,9 +57,7 @@ abstract class AbstractRValueStmtImpl<D extends StmtData.RValue_> extends SelfRe
     if (typeIsAnnotation == null && isEnvAnnotation == null) {
       return null;
     }
-    return typeIsAnnotation != null
-        ? TypeIsUtil.parse(typeIsAnnotation)
-        : RTypes.simple(SEXPType.ENV);
+    return typeIsAnnotation != null ? TypeIsUtil.parse(typeIsAnnotation) : RType.ANY_ENV;
   }
 
   @Override

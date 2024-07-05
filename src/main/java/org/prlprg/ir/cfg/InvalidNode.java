@@ -104,7 +104,7 @@ public class InvalidNode implements DeoptReason, RValue, FrameState, GlobalNode 
 
   @Override
   public RType type() {
-    return RTypes.NOTHING;
+    return RType.NOTHING;
   }
 
   @Override

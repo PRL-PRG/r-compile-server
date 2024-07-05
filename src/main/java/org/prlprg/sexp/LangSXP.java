@@ -5,15 +5,13 @@ import java.util.Optional;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
-import org.prlprg.parseprint.ParseMethod;
-import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.Printer;
 
 /** AST function call ("language object") SEXP. */
 @Immutable
-public sealed interface LangSXP extends SymOrLangSXP, LangOrListSXP {
+public sealed interface LangSXP extends RegSymOrLangSXP, LangOrListSXP {
   /** The function being called. */
-  SymOrLangSXP fun();
+  RegSymOrLangSXP fun();
 
   /** The function arguments (all ASTs). */
   ListSXP args();
@@ -48,19 +46,9 @@ public sealed interface LangSXP extends SymOrLangSXP, LangOrListSXP {
   default boolean funNameIs(String name) {
     return funName().map(name::equals).orElse(false);
   }
-
-  @ParseMethod
-  private static LangSXP parse(Parser p) {
-    var sexp = p.parse(SymOrLangSXP.class);
-    if (!(sexp instanceof LangSXP l)) {
-      throw p.scanner().fail("expected LangSXP but this is a symbol: " + sexp);
-    }
-
-    return l;
-  }
 }
 
-record LangSXPImpl(SymOrLangSXP fun, ListSXP args, @Override Attributes attributes)
+record LangSXPImpl(RegSymOrLangSXP fun, ListSXP args, @Override Attributes attributes)
     implements LangSXP {
   @Override
   public LangSXP withAttributes(Attributes attributes) {

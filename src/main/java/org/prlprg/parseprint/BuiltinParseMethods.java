@@ -1,6 +1,5 @@
 package org.prlprg.parseprint;
 
-import java.util.Arrays;
 import java.util.Optional;
 import javax.annotation.Nullable;
 import org.prlprg.util.Reflection;
@@ -121,10 +120,7 @@ public final class BuiltinParseMethods {
         s.assertAndSkip('=');
         var isOptional = components[i].getType() == Optional.class;
         var isNullable = components[i].isAnnotationPresent(Nullable.class);
-        assert isNullable
-                || Arrays.stream(components[i].getAnnotations())
-                    .noneMatch(a -> a.getClass().getSimpleName().equals("Nullable"))
-            : "record has `@Nullable` annotation that isn't `javax.annotations.Nullable`";
+        Reflection.assertJavaxNullableOrNoNullable(components[i]);
         if (isOptional && isNullable) {
           throw new UnsupportedOperationException("Can't parse `@Nullable Optional<...>`");
         }

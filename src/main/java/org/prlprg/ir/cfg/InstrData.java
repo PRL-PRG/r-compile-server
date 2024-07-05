@@ -6,7 +6,7 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
-import org.prlprg.ir.type.REffects;
+import org.prlprg.ir.effect.REffects;
 import org.prlprg.sexp.LangSXP;
 
 /**

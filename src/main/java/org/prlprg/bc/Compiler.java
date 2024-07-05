@@ -544,8 +544,6 @@ public class Compiler {
           compileCallSymFun(call, fun, args);
         }
       }
-      case SpecialSymSXP fun ->
-          throw new IllegalStateException("Trying to call special symbol: " + fun);
       case LangSXP fun ->
           fun.funName()
               .filter(LOOP_BREAK_FUNS::contains)

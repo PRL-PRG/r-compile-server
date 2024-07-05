@@ -1,17 +1,12 @@
 package org.prlprg.ir.type;
 
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.stream.Collector;
-import java.util.stream.Collector.Characteristics;
-import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.prlprg.ir.type.lattice.Maybe;
-import org.prlprg.primitive.BuiltinId;
 import org.prlprg.sexp.BuiltinSXP;
 import org.prlprg.sexp.CloSXP;
+import org.prlprg.sexp.EnvSXP;
+import org.prlprg.sexp.FunSXP;
 import org.prlprg.sexp.PrimVectorSXP;
-import org.prlprg.sexp.PromSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPType;
 import org.prlprg.sexp.SEXPs;
@@ -66,7 +61,7 @@ sealed interface RTypeHelpers permits RType {
    * special or builtin).
    */
   RType ANY_FUNCTION =
-      new RTypeImpl(RFunctionType.ANY, AttributesType.ANY, RPromiseType.VALUE, Maybe.NO);
+      new RTypeImpl(RFunType.ANY, AttributesType.ANY, RPromiseType.VALUE, Maybe.NO);
 
   /**
    * The type of a function we know absolutely nothing about besides it being a special or builtin
@@ -84,10 +79,16 @@ sealed interface RTypeHelpers permits RType {
 
   /**
    * The type of a value we know absolutely nothing about besides it's not a promise, not missing,
-   * doesn't have any attributes (e.g. AST node), and is a primitive vector.
+   * doesn't have any attributes (e.g. AST node), and is a {@link PrimVectorSXP}.
    */
   RType ANY_SIMPLE_PRIM_VEC =
       new RTypeImpl(RPrimVecType.ANY, AttributesType.EMPTY, RPromiseType.VALUE, Maybe.NO);
+
+  /**
+   * The type of a value we know absolutely nothing about besides it's not a promise, not missing,
+   * and doesn't have any attributes (e.g. AST node), and is an {@link EnvSXP}.
+   */
+  RType ANY_ENV = new RTypeImpl(REnvType.ANY, AttributesType.EMPTY, RPromiseType.VALUE, Maybe.NO);
 
   /**
    * The type of the {@code ...} parameter or argument.
@@ -96,144 +97,26 @@ sealed interface RTypeHelpers permits RType {
    * function, there's no guarantee that you are passing anything to it, so we assume that you are
    * passing a "missing" argument. But I don't know and maybe it shouldn't be maybe-missing...
    */
-  RType DOTS =
-      new RTypeImpl(RDotsType.INSTANCE, AttributesType.EMPTY, RPromiseType.VALUE, Maybe.MAYBE);
+  RType DOTS_LIST =
+      new RTypeImpl(RDotsListType.ANY, AttributesType.EMPTY, RPromiseType.VALUE, Maybe.MAYBE);
 
   /** The type of a boolean, i.e. a simple scalar logical that can't be NA. */
-  RType BOOL =
-      new RTypeImpl(RBoolType.INSTANCE, AttributesType.EMPTY, RPromiseType.VALUE, Maybe.NO);
+  RType BOOL = new RTypeImpl(RLogicalType.BOOL, AttributesType.EMPTY, RPromiseType.VALUE, Maybe.NO);
 
   /** The type of a simple scalar integer, real, or logical that permits NA. */
   RType NUMERIC_OR_LOGICAL_MAYBE_NA =
-      new RTypeImpl(
-          RValueType.NUMERIC_OR_LOGICAL, AttributesType.EMPTY, RPromiseType.VALUE, Maybe.NO);
+      new RTypeImpl(RNumericOrLogicalType.ANY, AttributesType.EMPTY, RPromiseType.VALUE, Maybe.NO);
 
   /** The type of a simple scalar integer, real, or logical that doesn't permit NA. */
   RType NUMERIC_OR_LOGICAL_NOT_NA =
-      new RTypeImpl(
-          RValueType.NUMERIC_OR_LOGICAL, AttributesType.EMPTY, RPromiseType.VALUE, Maybe.NO);
+      new RTypeImpl(RNumericOrLogicalType.ANY, AttributesType.EMPTY, RPromiseType.VALUE, Maybe.NO);
+
+  /** The type whose only instance is {@link SEXPs#NULL}. */
+  RType NULL = new RTypeImpl(RNilType.ANY, AttributesType.EMPTY, RPromiseType.VALUE, Maybe.NO);
 
   // endregion interned constants
 
-  // region helper constructors
-  /** The (most precise representable) type of the given value. */
-  static RType exact(SEXP value) {
-    var promiseWrapped = RPromiseType.VALUE;
-    if (value instanceof PromSXP p) {
-      value = p.val();
-      promiseWrapped = RPromiseType.promise(p.isLazy());
-    }
-
-    if (value == SEXPs.MISSING_ARG) {
-      return MISSING;
-    }
-
-    return RType.of(RValueType.exact(value), AttributesType.exact(value.attributes()), promiseWrapped, Maybe.NO);
-  }
-
-  /**
-   * The type of a value with the given {@link SEXPType}, not a promise, not missing, and no
-   * attributes. If {@code type} is the type of a primitive vector, this will also return the type
-   * for a scalar.
-   *
-   * @throws IllegalArgumentException if {@link SEXPType} is a promise or "any".
-   */
-  static RType simple(SEXPType type) {
-    switch (type) {
-      case SEXPType.PROM ->
-          throw new IllegalArgumentException("No such thing as a \"simple promise\"");
-      case SEXPType.ANY ->
-          throw new IllegalArgumentException(
-              "No such thing as a \"simple any\" (GNU-R's \"any\" type is special and has no instances)");
-    }
-    return new RType(RValueType.simple(type), AttributesType.EMPTY, RPromiseType.VALUE, Maybe.NO);
-  }
-
-
-  /** The type after a arithmetic unop whose argument has the given types. */
-  static RType arithmeticOp(RType unary) {
-    // TODO
-    return ANY
-  }
-
-  /** The type after a arithmetic binop whose arguments have the given types. */
-  static RType arithmeticOp(RType lhs, RType rhs) {
-    // TODO
-    return ANY;
-  }
-
-  /** The type after a comparison binop whose arguments have the given types. */
-  static RType comparisonOp(RType lhs, RType rhs) {
-    // TODO
-    return ANY;
-  }
-
-  /**
-   * The type after a simple "not" binop whose argument has the given types.
-   */
-  static RType booleanOp(RType unary) {
-    // TODO
-    return ANY;
-  }
-
-  /**
-   * The type after a simple "and" or "or" binop whose arguments have the given types.
-   */
-  static RType booleanOp(RType lhs, RType rhs) {
-    // TODO
-    return ANY;
-  }
-
-  /** The closure type of the given builtin.
-   *
-   * <p><i>Not</i> the return type. Instead, this is guaranteed to be a {@link RFunctionType}, and
-   * you can get the return of that.
-   */
-  static RType builtin(BuiltinId id) {
-    // TODO: Specialize
-    return ANY_BUILTIN_OR_SPECIAL;
-  }
-
-  /** Type which is the {@linkplain RType#union(RType)} union} of all given types. */
-  static RType union(RType type1, RType type2, RType... types) {
-    return Stream.concat(Stream.of(type1, type2), Arrays.stream(types)).collect(RType.toUnion());
-  }
-
-  /** Type which is the {@linkplain RType#union(RType)} union} of all given types. */
-  static RType union(Collection<RType> types) {
-    return types.stream().collect(toUnion());
-  }
-
-  /** Creates a {@linkplain RType#union(RType)} union} from all types in the stream. */
-  static Collector<RType, RType[], RType> toUnion() {
-    return Collector.of(
-        () -> new RType[]{NOTHING},
-        (RType[] acc, RType next) -> acc[0] = acc[0].union(next),
-        (RType[] a, RType[] b) -> new RType[]{a[0].union(b[0])},
-        (RType[] a) -> a[0],
-        Characteristics.CONCURRENT, Characteristics.UNORDERED);
-  }
-
-  /** Type which is the {@linkplain RType#intersection(RType)} intersection} of all given types. */
-  static RType intersection(RType type1, RType type2, RType... types) {
-    return Stream.concat(Stream.of(type1, type2), Arrays.stream(types)).collect(toIntersection());
-  }
-
-  /** Type which is the {@linkplain RType#intersection(RType)} intersection} of all given types. */
-  static RType intersection(Collection<RType> types) {
-    return types.stream().collect(toIntersection());
-  }
-
-  /** Creates an {@linkplain RType#intersection(RType)} intersection} from all types in the stream. */
-  static Collector<RType, RType[], RType> toIntersection() {
-    return Collector.of(
-        () -> new RType[]{ANY},
-        (RType[] acc, RType next) -> acc[0] = acc[0].intersection(next),
-        (RType[] a, RType[] b) -> new RType[]{a[0].intersection(b[0])},
-        (RType[] a) -> a[0],
-        Characteristics.CONCURRENT, Characteristics.UNORDERED);
-  }
-
+  // region helper derived constructors
   /**
    * Returns the same type except {@link RType#promise() promise()}} is {@link RPromiseType#VALUE},
    * <i>unless</i> this is the nothing type.
@@ -255,7 +138,7 @@ sealed interface RTypeHelpers permits RType {
    * itself (including if this is the nothing type).
    */
   default RType strict() {
-    var self = ((RType) this);
+    var self = (RType) this;
     return self.promise() == null ? self : self.withPromise(self.promise().strict());
   }
 
@@ -266,16 +149,16 @@ sealed interface RTypeHelpers permits RType {
    * <p>In particular, if this is a value, returns a maybe-promise.
    */
   default RType maybeLazy() {
-    var self = ((RType) this);
+    var self = (RType) this;
     return self.promise() == null ? self : self.withPromise(self.promise().maybeLazy());
   }
 
   /**
-   * If this type is a value, returns a maybe-strict-promise. Otherwise returns itself (including if
-   * this is the nothing type).
+   * If this type is a value or maybe a promise, returns a definitely-promise (strict unless
+   * otherwise specified). Otherwise returns itself (including if this is the nothing type).
    */
   default RType promiseWrapped() {
-    var self = ((RType) this);
+    var self = (RType) this;
     return self.promise() == null ? self : self.withPromise(self.promise().promiseWrapped());
   }
 
@@ -292,7 +175,7 @@ sealed interface RTypeHelpers permits RType {
     return ((RType) this).withMissingness(Maybe.MAYBE);
   }
 
-  // endregion helper constructors
+  // endregion helper derived constructors
 
   // region helper accessors
   /**
@@ -320,7 +203,7 @@ sealed interface RTypeHelpers permits RType {
    * <p>Returns {@code null} iff {@code self} is {@link #NOTHING}.
    */
   default @Nullable Maybe isPromise() {
-    var self = ((RType) this);
+    var self = (RType) this;
     return self.promise() == null ? null : self.promise().isPromise();
   }
 
@@ -330,8 +213,17 @@ sealed interface RTypeHelpers permits RType {
    * <p>Returns {@code null} iff {@code self} is {@link #NOTHING}.
    */
   default @Nullable Maybe isLazy() {
-    var self = ((RType) this);
+    var self = (RType) this;
     return self.promise() == null ? null : self.promise().isLazy();
+  }
+
+  /**
+   * Returns the {@link SEXPType} of the value, which may be wrapped in a promise (so the instance's
+   * real {@link SEXPType} is {@link SEXPType#PROM}).
+   */
+  default @Nullable SEXPType valueSexpType() {
+    var self = (RType) this;
+    return self.value().sexpType();
   }
 
   /**
@@ -344,7 +236,7 @@ sealed interface RTypeHelpers permits RType {
    * or {@link Maybe#MAYBE}.
    */
   default Maybe isFunction() {
-    return ((RType) this).value().relation(RFunctionType.ANY);
+    return ((RType) this).value().relation(RFunType.ANY);
   }
 
   /**

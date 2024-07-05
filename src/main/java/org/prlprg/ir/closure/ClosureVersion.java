@@ -9,8 +9,8 @@ import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.prlprg.ir.cfg.CFG;
 import org.prlprg.ir.cfg.RValue;
-import org.prlprg.ir.type.REffect;
-import org.prlprg.ir.type.REffects;
+import org.prlprg.ir.effect.REffect;
+import org.prlprg.ir.effect.REffects;
 import org.prlprg.ir.type.RType;
 import org.prlprg.ir.type.lattice.Lattice;
 import org.prlprg.ir.type.lattice.Maybe;
@@ -436,8 +436,9 @@ public class ClosureVersion {
     }
 
     /** Possible return type from calling this closure version with the given arguments. */
-    public RType returnType(ImmutableList<RValue> args) {
-      return RTypes.ANY;
+    public RType returnType(ImmutableList<RValue> ignored) {
+      // TODO
+      return RType.ANY;
     }
 
     /** Possible effects from calling this closure version with the given arguments. */

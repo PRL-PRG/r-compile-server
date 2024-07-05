@@ -1,5 +1,6 @@
 package org.prlprg.ir.type;
 
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import org.prlprg.ir.type.lattice.BoundedLattice;
 import org.prlprg.ir.type.lattice.Lattice;
@@ -15,14 +16,16 @@ public interface AttributesType extends BoundedLattice<AttributesType> {
   /** Any set of attributes is an instance of this. */
   AttributesType ANY = AnyAttributesType.INSTANCE;
 
-  /** No set of attributes is an instance of this.
+  /**
+   * No set of attributes is an instance of this.
    *
    * <p>Not to be confused with {@link AttributesType#EMPTY}, which has one instance: the empty set
    * of attributes (this is why the field name isn't {@code NOTHING}).
    */
   AttributesType BOTTOM = BottomAttributesType.INSTANCE;
 
-  /** The type of {@link Attributes#NONE} (the empty set of attributes).
+  /**
+   * The type of {@link Attributes#NONE} (the empty set of attributes).
    *
    * <p>Not to be confused with {@link AttributesType#BOTTOM}, which has no instances (the field
    * name isn't {@code NONE} because it's too close to {@code NOTHING}, which typically refers to
@@ -34,8 +37,8 @@ public interface AttributesType extends BoundedLattice<AttributesType> {
   AttributesType ANY_OBJECT = AnyObjectAttributesType.INSTANCE;
 
   /** A type whose instance is only the given attributes. */
-  static AttributesType exact(Attributes attributes) {
-    if (attributes.isEmpty()) {
+  static AttributesType exact(@Nullable Attributes attributes) {
+    if (attributes == null || attributes.isEmpty()) {
       return EMPTY;
     }
 
@@ -179,8 +182,7 @@ record ExactAttributesType(Attributes attributes) implements AttributesType {
   public boolean isSubsetOf(AttributesType other) {
     return other instanceof ExactAttributesType exact
         ? attributes.equals(exact.attributes)
-        : (attributes.isObject() && other == ANY_OBJECT)
-            || AttributesType.super.isSubsetOf(other);
+        : (attributes.isObject() && other == ANY_OBJECT) || AttributesType.super.isSubsetOf(other);
   }
 
   @Override
@@ -202,12 +204,9 @@ record ExactAttributesType(Attributes attributes) implements AttributesType {
   @Override
   public AttributesType union(AttributesType other) {
     return other instanceof ExactAttributesType exact
-        ? (
-            attributes.equals(exact.attributes)
-                ? this
-                : attributes.isObject() && exact.attributes.isObject()
-                    ? ANY_OBJECT
-                    : ANY)
+        ? (attributes.equals(exact.attributes)
+            ? this
+            : attributes.isObject() && exact.attributes.isObject() ? ANY_OBJECT : ANY)
         : other == ANY_OBJECT
             ? (attributes.isObject() ? ANY_OBJECT : ANY)
             : AttributesType.super.union(other);

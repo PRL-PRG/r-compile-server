@@ -83,7 +83,7 @@ public final class ConstPool extends ForwardingList<SEXP> {
       if (s.trySkip(':')) {
         var typeName = s.readJavaIdentifierOrKeyword();
         try {
-          type = Classes.sealedSubclassWithSimpleName(SEXP.class, typeName);
+          type = Classes.permittedSubclassWithSimpleName(SEXP.class, typeName);
         } catch (IllegalArgumentException e) {
           throw s.fail("SEXP subclass", typeName);
         }

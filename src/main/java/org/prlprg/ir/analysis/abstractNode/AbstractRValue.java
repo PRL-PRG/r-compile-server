@@ -34,9 +34,9 @@ public sealed interface AbstractRValue extends AbstractNode<AbstractRValue> {
     }
   }
 
-  AbstractRValue BOTTOM = new AbstractRValueImpl(ImmutableSet.of(), RTypes.NOTHING, false);
+  AbstractRValue BOTTOM = new AbstractRValueImpl(ImmutableSet.of(), RType.NOTHING, false);
   AbstractRValue UNBOUND = of(new Constant(SEXPs.UNBOUND_VALUE), null, 0);
-  AbstractRValue TAINTED = new AbstractRValueImpl(ImmutableSet.of(), RTypes.ANY, true);
+  AbstractRValue TAINTED = new AbstractRValueImpl(ImmutableSet.of(), RType.ANY, true);
 
   static AbstractRValue of(RValue value, @Nullable Instr origin, int recursionLevel) {
     return new AbstractRValueImpl(
@@ -109,7 +109,7 @@ record AbstractRValueImpl(
         }
       }
     }
-    var newType = RTypes.union(type, o.type);
+    var newType = RType.union(type, o.type);
     changed = changed || !type.equals(newType);
 
     return Pair.of(

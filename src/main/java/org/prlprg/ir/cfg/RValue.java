@@ -4,7 +4,6 @@ import javax.annotation.Nullable;
 import org.prlprg.ir.type.RType;
 import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.sexp.SEXP;
-import org.prlprg.sexp.SEXPType;
 
 /**
  * IR node which corresponds to a runtime value ({@link SEXP}), including {@link Instr}s which
@@ -24,9 +23,9 @@ public interface RValue extends Node {
 
   /** Is this guaranteed to be an environment? */
   default Maybe isEnv() {
-    if (type().isSubsetOf(RTypes.simple(SEXPType.ENV))) {
+    if (type().isSubsetOf(RType.ANY_ENV)) {
       return Maybe.YES;
-    } else if (RTypes.simple(SEXPType.ENV).isSubsetOf(type())) {
+    } else if (RType.ANY_ENV.isSubsetOf(type())) {
       return Maybe.MAYBE;
     } else {
       return Maybe.NO;

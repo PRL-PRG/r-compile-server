@@ -14,11 +14,10 @@ import org.checkerframework.checker.index.qual.SameLen;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.ir.cfg.CFGEdit.MutateInstrArgs;
 import org.prlprg.ir.closure.CodeObject;
-import org.prlprg.ir.type.REffect;
-import org.prlprg.ir.type.REffects;
+import org.prlprg.ir.effect.REffect;
+import org.prlprg.ir.effect.REffects;
 import org.prlprg.ir.type.RType;
 import org.prlprg.ir.type.lattice.Maybe;
-import org.prlprg.sexp.SEXPType;
 import org.prlprg.util.Classes;
 import org.prlprg.util.Reflection;
 import org.prlprg.util.Streams;
@@ -619,9 +618,7 @@ abstract sealed class InstrImpl<D extends InstrData<?>> extends InstrOrPhiImpl i
         continue;
       }
       var expectedType =
-          typeIsAnnotation != null
-              ? TypeIsUtil.parse(typeIsAnnotation)
-              : RTypes.simple(SEXPType.ENV);
+          typeIsAnnotation != null ? TypeIsUtil.parse(typeIsAnnotation) : RType.ANY_ENV;
 
       var isRValue = RValue.class.isAssignableFrom(component.getType());
       var isCodeObject = CodeObject.class.isAssignableFrom(component.getType());

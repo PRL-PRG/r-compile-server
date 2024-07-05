@@ -9,8 +9,8 @@ import org.prlprg.ir.closure.Closure;
 import org.prlprg.ir.closure.ClosureVersion;
 import org.prlprg.ir.closure.ClosureVersion.CallContext;
 import org.prlprg.ir.closure.Promise;
-import org.prlprg.ir.type.REffect;
-import org.prlprg.ir.type.REffects;
+import org.prlprg.ir.effect.REffect;
+import org.prlprg.ir.effect.REffects;
 import org.prlprg.ir.type.RType;
 import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.ir.type.lattice.YesOrMaybe;
@@ -154,7 +154,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
   }
 
   /** Effects are arbitrary because it implicitly forces. */
-  @TypeIs("ANY_FUN")
+  @TypeIs("ANY_FUNCTION")
   @EffectsAreAribtrary()
   record LdFun(RegSymSXP name, @IsEnv RValue env) implements RValue_ {}
 
@@ -186,7 +186,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
   @EffectsAre({})
   record LdArg(int index, RType type) implements RValue_ {
     public LdArg(int index) {
-      this(index, RTypes.ANY);
+      this(index, RType.ANY);
     }
 
     @Override
@@ -211,7 +211,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
   record ChkFun(RValue value) implements RValue_ {
     @Override
     public RType computeType() {
-      return value.type().intersection(RTypes.ANY_FUN);
+      return value.type().intersection(RType.ANY_FUNCTION);
     }
   }
 
@@ -229,7 +229,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
     }
   }
 
-  @TypeIs("PROM")
+  @TypeIs("ANY_PROMISE_NOT_MISSING")
   @EffectsAre({})
   record MkProm(Promise promise) implements RValue_ {
     @Override
@@ -298,7 +298,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
   record AsLogical(RValue value) implements RValue_ {
     @Override
     public REffects computeEffects() {
-      return value.type().isSubsetOf(RTypes.ANY_SIMPLE_PRIM_VEC)
+      return value.type().isSubsetOf(RType.ANY_SIMPLE_PRIM_VEC)
           ? REffects.PURE
           : new REffects(REffect.Error);
     }
@@ -321,7 +321,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
     }
   }
 
-  @TypeIs("NUMERIC_OR_LOGICAL_NO_NA")
+  @TypeIs("NUMERIC_OR_LOGICAL_NOT_NA")
   @EffectsAre(REffect.Error)
   record ColonCastLhs(@Override Optional<LangSXP> ast1, RValue lhs)
       implements RValue_, InstrData.HasAst {
@@ -330,10 +330,10 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
     }
   }
 
-  @TypeIs("NUMERIC_OR_LOGICAL_NO_NA")
+  @TypeIs("NUMERIC_OR_LOGICAL_NOT_NA")
   @EffectsAre(REffect.Error)
   record ColonCastRhs(
-      @Override Optional<LangSXP> ast1, @TypeIs("NUMERIC_OR_LOGICAL_NO_NA") RValue lhs, RValue rhs)
+      @Override Optional<LangSXP> ast1, @TypeIs("NUMERIC_OR_LOGICAL_NOT_NA") RValue lhs, RValue rhs)
       implements RValue_, InstrData.HasAst {
     public ColonCastRhs(@Nullable LangSXP ast, RValue lhs, RValue rhs) {
       this(Optional.ofNullable(ast), lhs, rhs);
@@ -353,7 +353,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
     @Override
     default RType computeType() {
       // TODO
-      return RTypes.ANY;
+      return RType.ANY;
     }
 
     @Override
@@ -408,7 +408,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
     @Override
     default RType computeType() {
       // TODO
-      return RTypes.ANY;
+      return RType.ANY;
     }
 
     @Override
@@ -465,7 +465,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
     @Override
     public RType computeType() {
       // TODO
-      return RTypes.ANY;
+      return RType.ANY;
     }
   }
 
@@ -639,7 +639,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
   sealed interface ArithmeticUnOp extends UnOp {
     @Override
     default RType computeType() {
-      return RTypes.arithmeticOp(arg().type());
+      return RType.arithmeticOp(arg().type());
     }
 
     @Override
@@ -651,7 +651,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
   sealed interface BooleanUnOp extends UnOp {
     @Override
     default RType computeType() {
-      return RTypes.booleanOp(arg().type());
+      return RType.booleanOp(arg().type());
     }
 
     @Override
@@ -673,7 +673,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
   sealed interface ArithmeticBinOp extends BinOp {
     @Override
     default RType computeType() {
-      return RTypes.arithmeticOp(lhs().type(), rhs().type());
+      return RType.arithmeticOp(lhs().type(), rhs().type());
     }
 
     @Override
@@ -685,7 +685,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
   sealed interface ComparisonBinOp extends BinOp {
     @Override
     default RType computeType() {
-      return RTypes.comparisonOp(lhs().type(), rhs().type());
+      return RType.comparisonOp(lhs().type(), rhs().type());
     }
 
     @Override
@@ -697,7 +697,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
   sealed interface BooleanBinOp extends BinOp {
     @Override
     default RType computeType() {
-      return RTypes.booleanOp(lhs().type(), rhs().type());
+      return RType.booleanOp(lhs().type(), rhs().type());
     }
 
     @Override
@@ -776,7 +776,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
     @Override
     public RType computeType() {
       // TODO
-      return RTypes.ANY;
+      return RType.ANY;
     }
 
     @Override
@@ -796,7 +796,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
   @EffectsAreAribtrary()
   record NamelessCall(
       @Override Optional<LangSXP> ast1,
-      @TypeIs("ANY_FUN") @Override RValue fun,
+      @TypeIs("ANY_FUNCTION") @Override RValue fun,
       @Override ImmutableList<RValue> args,
       @Override @IsEnv RValue env,
       Optional<FrameState> fs)
@@ -815,7 +815,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
   @EffectsAreAribtrary()
   record NamedCall(
       @Override Optional<LangSXP> ast1,
-      @TypeIs("ANY_FUN") @Override RValue fun,
+      @TypeIs("ANY_FUNCTION") @Override RValue fun,
       @Override ImmutableList<Optional<String>> explicitNames,
       @SameLen("names") @Override ImmutableList<RValue> args,
       @Override @IsEnv RValue env,
@@ -889,7 +889,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
 
     @Override
     public RType computeType() {
-      return RTypes.builtin(fun);
+      return RType.builtin(fun);
     }
   }
 
@@ -919,7 +919,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
 
     @Override
     public RType computeType() {
-      return RTypes.builtin(fun);
+      return RType.builtin(fun);
     }
   }
 
@@ -1036,7 +1036,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
     }
   }
 
-  @TypeIs("ANY_VALUE")
+  @TypeIs("ANY_VALUE_MAYBE_MISSING")
   @EffectsAre(REffect.ChangesContext)
   record PopContext(RValue res, RContext context) implements RValue_ {}
 
@@ -1044,12 +1044,12 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
   record DropContext() implements Void {}
 
   @EffectsAre(REffect.ReadsEnvArg)
-  @TypeIs("DOTS_ARG")
+  @TypeIs("DOTS_LIST")
   record LdDots(@IsEnv RValue env) implements RValue_ {}
 
   @EffectsAre({})
   @TypeIs("EXPANDED_DOTS")
-  record ExpandDots(@TypeIs("DOTS_ARG") RValue dots) implements RValue_ {}
+  record ExpandDots(@TypeIs("DOTS_LIST") RValue dots) implements RValue_ {}
 
   @EffectsAre(REffect.LeaksNonEnvArg)
   @TypeIs("DOTS")
