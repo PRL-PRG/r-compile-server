@@ -7,7 +7,6 @@ import org.prlprg.ir.cfg.CFGEdit;
 import org.prlprg.ir.cfg.Node;
 import org.prlprg.ir.cfg.RValue;
 import org.prlprg.ir.cfg.StmtData;
-import org.prlprg.ir.type.BaseRType;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
