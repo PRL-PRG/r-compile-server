@@ -1,5 +1,6 @@
 package org.prlprg.ir.type;
 
+import java.util.Collection;
 import javax.annotation.Nonnull;
 import org.prlprg.sexp.BuiltinSXP;
 import org.prlprg.sexp.SEXPType;
@@ -14,8 +15,12 @@ public sealed interface RBuiltinType extends RBuiltinOrSpecialType
   }
 }
 
-final class RBuiltinTypeImpl implements RBuiltinType {
-  static final RBuiltinTypeImpl INSTANCE = new RBuiltinTypeImpl();
+record RBuiltinTypeImpl(RFunTypeOverloads overloads) implements RBuiltinType {
+  static final RBuiltinTypeImpl INSTANCE = new RBuiltinTypeImpl(RFunTypeOverloads.NONE);
+
+  RBuiltinTypeImpl(Collection<RSignatureType> overloads) {
+    this(new RFunTypeOverloads(overloads));
+  }
 
   @Override
   public @Nonnull SEXPType sexpType() {
@@ -23,9 +28,7 @@ final class RBuiltinTypeImpl implements RBuiltinType {
   }
 
   @Override
-  public String toString() {
+  public String typeString() {
     return sexpType().toString();
   }
-
-  private RBuiltinTypeImpl() {}
 }

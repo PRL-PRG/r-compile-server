@@ -324,6 +324,11 @@ final class RNothingValueTypeImpl implements RNothingValueType {
   }
 
   @Override
+  public RFunTypeOverloads overloads() {
+    return RFunTypeOverloads.NONE;
+  }
+
+  @Override
   public String typeString() {
     throw handleExplicitly();
   }

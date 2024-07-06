@@ -16,7 +16,6 @@ import net.jqwik.api.Provide;
 import net.jqwik.api.Tuple;
 import net.jqwik.api.Tuple.Tuple2;
 import net.jqwik.api.Tuple.Tuple3;
-import net.jqwik.api.lifecycle.BeforeContainer;
 import org.opentest4j.AssertionFailedError;
 import org.prlprg.ir.effect.REffects;
 import org.prlprg.ir.type.lattice.Lattice;
@@ -33,38 +32,12 @@ public class LatticeTests {
               Tuple.of(NoOrMaybe.class, NoOrMaybe.MAYBE),
               Tuple.of(Maybe.class, Maybe.MAYBE),
               Tuple.of(MaybeNat.class, MaybeNat.UNKNOWN),
-              Tuple.of(AttributesType.class, AttributesTypes.UNKNOWN),
-              Tuple.of(BaseRType.NotPromise.class, BaseRType.NotPromise.ANY_VALUE),
-              Tuple.of(BaseRType.class, BaseRType.ANY),
-              Tuple.of(VectorElementRType.class, VectorElementRType.ANY),
-              Tuple.of(PrimVecElementRType.class, PrimVecElementRType.ANY),
+              Tuple.of(AttributesType.class, AttributesType.ANY),
               Tuple.of(RPromiseType.class, RPromiseType.MAYBE_LAZY_MAYBE_PROMISE),
-              Tuple.of(
-                  RFunctionType.class,
-                  new RFunctionTypeImpl(
-                      null,
-                      null,
-                      AttributesTypes.UNKNOWN,
-                      MaybeNat.UNKNOWN,
-                      ImmutableList.of(),
-                      Maybe.MAYBE)),
-              Tuple.of(
-                  RPrimVecType.class,
-                  new RPrimVecTypeImpl(
-                      null,
-                      AttributesTypes.UNKNOWN,
-                      MaybeNat.UNKNOWN,
-                      PrimVecElementRType.ANY,
-                      MaybeNat.UNKNOWN,
-                      NoOrMaybe.MAYBE)))
+              Tuple.of(RFunType.class, RFunType.ANY),
+              Tuple.of(RVectorType.class, RVectorType.ANY))
           .stream()
           .collect(ImmutableMap.toImmutableMap(Tuple2::get1, Tuple2::get2));
-
-  @BeforeContainer
-  static void setup() {
-    // Disable weird case logs because we generate weird types
-    RGenericValueType.ENABLE_WEIRD_CASE_LOGS = false;
-  }
 
   /** FIXME(jakob): This fails occasionally, closure types need to be fixed. */
   @Property(generation = GenerationMode.RANDOMIZED, tries = 100)
@@ -93,7 +66,7 @@ public class LatticeTests {
   /** FIXME(jakob): This fails occasionally, closure types need to be fixed. */
   @Property(generation = GenerationMode.RANDOMIZED, tries = 100)
   void isCoherent_RType(@ForAll RType lhs, @ForAll RType rhs) {
-    isCoherent(lhs, rhs, RTypes.ANY, RTypes.NOTHING);
+    isCoherent(lhs, rhs, RType.ANY, RType.NOTHING);
   }
 
   @SuppressWarnings("unused")

@@ -13,6 +13,7 @@ import org.prlprg.ir.cfg.Node;
 import org.prlprg.ir.cfg.RValue;
 import org.prlprg.ir.type.lattice.BoundedLattice;
 import org.prlprg.ir.type.lattice.Maybe;
+import org.prlprg.ir.type.lattice.NoOrMaybe;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.primitive.BuiltinId;
@@ -91,6 +92,14 @@ public sealed interface RType extends RTypeHelpers, BoundedLattice<RType> {
     var result = new RTypeImpl(value, attributes, promise, isMissing);
     var interned = RTypeImpl.INTERNED.get(result);
     return interned == null ? result : interned;
+  }
+
+  /** Create an {@link RType} with the given {@link #value()}, {@link #attributes()}, {@link
+   * {@link #promise()}, and {@link #isMissing()} (missingness).
+   */
+  static RType of(
+      RValueType value, AttributesType attributes, RPromiseType promise, NoOrMaybe isMissing) {
+    return of(value, attributes, promise, Maybe.of(isMissing));
   }
 
   // endregion main constructor
@@ -432,6 +441,7 @@ record RTypeImpl(
     @Override @Nullable RPromiseType promise,
     @Override @Nullable Maybe isMissing)
     implements RType {
+  // FIXME
   static final ImmutableMap<RType, RType> INTERNED =
       Arrays.stream(RType.class.getFields())
           .filter(field -> field.getType() == RType.class)
