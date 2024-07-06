@@ -15,6 +15,14 @@ public enum YesOrMaybe implements BoundedLattice<YesOrMaybe> {
     return value == Maybe.YES ? YES : MAYBE;
   }
 
+  /**
+   * Returns {@link NoOrMaybe#NO} if {@link YesOrMaybe#YES} and {@link NoOrMaybe#MAYBE} if {@link
+   * YesOrMaybe#MAYBE}.
+   */
+  public NoOrMaybe negate() {
+    return this == YES ? NoOrMaybe.NO : NoOrMaybe.MAYBE;
+  }
+
   /** Returns true unless this is maybe and other is yes. */
   @Override
   public boolean isSubsetOf(YesOrMaybe other) {

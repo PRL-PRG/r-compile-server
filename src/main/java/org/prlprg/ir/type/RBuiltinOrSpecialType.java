@@ -7,9 +7,9 @@ public sealed interface RBuiltinOrSpecialType extends RFunType
   RBuiltinOrSpecialType ANY = RBuiltinOrSpecialTypeImpl.INSTANCE;
 
   /** Returns a type with the built-in's signature. */
-  static RBuiltinType of(BuiltinId id) {
+  static RBuiltinOrSpecialType of(BuiltinId id) {
     // TODO
-    return RBuiltinType.ANY;
+    return id.isSpecial() ? RSpecialType.ANY : RBuiltinType.ANY;
   }
 }
 
@@ -17,9 +17,12 @@ final class RBuiltinOrSpecialTypeImpl implements RBuiltinOrSpecialType {
   static final RBuiltinOrSpecialTypeImpl INSTANCE = new RBuiltinOrSpecialTypeImpl();
 
   @Override
-  public String toString() {
-    return "blt|spec";
+  public RFunTypeOverloads overloads() {
+    return RFunTypeOverloads.NONE;
   }
 
-  private RBuiltinOrSpecialTypeImpl() {}
+  @Override
+  public String typeString() {
+    return "blt|spec";
+  }
 }
