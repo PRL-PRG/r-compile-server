@@ -1,0 +1,97 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ isTRUE[0x55bbe4c46a50]                                                       │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;Eager0,NonRefl0                      │
+│ Properties:  Eager, ForceOrd: 0                                              │
+├────── Final PIR Version
+isTRUE[0x55bbe4c46a50]
+BB0
+  val?^           %0.0  = LdArg                    0
+  val?            %0.1  = Force!<lazy>             %0.0,    <val?>
+  val+            %0.2  = CallSafeBuiltin    vwed  is.logical(%0.1)    <lgl$->
+  lgl$#-          %0.3  = IsType                   %0.2 isA lgl$-
+  void                    Branch                   %0.3 -> BB13 (if true) | BB14 (if false)
+BB13   <- [0]
+  lgl$-           %13.0 = CastType           d     dn %0.2
+  lgl$-           %13.1 = AsLogical                %13.0
+  lgl$#-          %13.2 = Identical                %13.1, false
+  void                    Branch                   %13.2 -> BB11 (if true) | BB3 (if false)
+BB14   <- [0]
+  void                    Nop                !     
+  val+            %14.1 = %0.2
+  dr              %14.2 = Typecheck@0x55bbe33111e8[Type#2]
+  goto BB12
+BB11   <- [13]
+  void                    Nop                !     
+  lgl$-           %11.1 = %13.1
+  goto BB4
+BB3   <- [13]
+  lgl$#-          %3.0  = IsType                   %0.1 isA lgl$-
+  void                    Branch                   %3.0 -> BB15 (if true) | BB16 (if false)
+BB12   <- [14, 16, 18]
+  val?^ | miss    %12.0 = Phi                      %14.1:BB14, %16.1:BB16, %18.1:BB18
+  val?^ | miss    %12.1 = %12.0
+  dr              %12.2 = Phi                      %14.2:BB14, %16.2:BB16, %18.2:BB18
+  dr              %12.3 = %12.2
+  env             e12.4 = (MkEnv)            l     x=%0.0, parent=R_BaseNamespace, context 1
+  fs              %12.5 = FrameState         R     0x55bbe22716d0+91: [%0.2], env=e12.4
+  void                    Deopt              !v    %12.5, %12.3, %12.1   !
+BB4   <- [11, 15]
+  lgl$-           %4.0  = Phi                      %15.2:BB15, %11.1:BB11
+  lgl$-           %4.1  = %4.0
+  lgl$-           %4.2  = AsLogical                %4.1
+  lgl$#-          %4.3  = Identical                %4.2, false
+  void                    Branch                   %4.3 -> BB10 (if true) | BB5 (if false)
+BB15   <- [3]
+  void                    Visible            v     
+  lgl$-           %15.1 = AsLogical                %13.1
+  lgl$-           %15.2 = %15.1
+  goto BB4
+BB16   <- [3]
+  void                    Nop                !     
+  val?            %16.1 = %0.1
+  dr              %16.2 = Typecheck@0x55bbe33111e8[Type#4]
+  goto BB12
+BB10   <- [4]
+  void                    Nop                !     
+  lgl$-           %10.1 = %4.2
+  goto BB6
+BB5   <- [4]
+  lgl$#-          %5.0  = IsType                   %0.1 isA lgl$-
+  void                    Branch                   %5.0 -> BB17 (if true) | BB18 (if false)
+BB6   <- [10, 17]
+  lgl$-           %6.0  = Phi                      %17.5:BB17, %10.1:BB10
+  lgl$-           %6.1  = %6.0
+  lgl$-           %6.2  = AsLogical                %6.1
+  lgl$#-          %6.3  = Identical                %6.2, false
+  void                    Branch                   %6.3 -> BB9 (if true) | BB7 (if false)
+BB17   <- [5]
+  lgl$-           %17.0 = CastType           d     dn %0.1
+  lgl$-           %17.1 = CallSafeBuiltin    vwed  is.na(%17.0)    <lgl$->
+  lgl$-           %17.2 = Not                vd    %17.1, elided
+  lgl$-           %17.3 = AsLogical                %17.2
+  lgl$-           %17.4 = LAnd                     %4.2, %17.3
+  lgl$-           %17.5 = %17.4
+  goto BB6
+BB18   <- [5]
+  void                    Nop                !     
+  val?            %18.1 = %0.1
+  dr              %18.2 = Typecheck@0x55bbe33111e8[Type#8]
+  goto BB12
+BB9   <- [6]
+  void                    Nop                !     
+  lgl$-           %9.1  = %6.2
+  goto BB8
+BB7   <- [6]
+  void                    Visible            v     
+  lgl$-           %7.1  = AsLogical          e     %0.1
+  lgl$-           %7.2  = LAnd                     %6.2, %7.1
+  lgl$-           %7.3  = %7.2
+  goto BB8
+BB8   <- [9, 7]
+  lgl$-           %8.0  = Phi                      %7.3:BB7, %9.1:BB9
+  lgl$-           %8.1  = %8.0
+  void                    Return             l     %8.1
+
+│ isTRUE[0x55bbe4c46a50]                                                       │
+└──────────────────────────────────────────────────────────────────────────────┘

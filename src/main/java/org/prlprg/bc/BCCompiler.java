@@ -4,13 +4,155 @@ import static org.prlprg.sexp.SEXPType.*;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.primitives.ImmutableIntArray;
-import java.util.*;
-import java.util.function.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.BiFunction;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.IntStream;
 import javax.annotation.Nullable;
 import org.prlprg.RSession;
-import org.prlprg.bc.BcInstr.*;
-import org.prlprg.sexp.*;
+import org.prlprg.bc.BcInstr.Add;
+import org.prlprg.bc.BcInstr.And;
+import org.prlprg.bc.BcInstr.And1st;
+import org.prlprg.bc.BcInstr.And2nd;
+import org.prlprg.bc.BcInstr.BaseGuard;
+import org.prlprg.bc.BcInstr.BrIfNot;
+import org.prlprg.bc.BcInstr.Call;
+import org.prlprg.bc.BcInstr.CallBuiltin;
+import org.prlprg.bc.BcInstr.CallSpecial;
+import org.prlprg.bc.BcInstr.CheckFun;
+import org.prlprg.bc.BcInstr.Colon;
+import org.prlprg.bc.BcInstr.DdVal;
+import org.prlprg.bc.BcInstr.DdValMissOk;
+import org.prlprg.bc.BcInstr.DecLnkStk;
+import org.prlprg.bc.BcInstr.DfltSubassign;
+import org.prlprg.bc.BcInstr.DfltSubassign2;
+import org.prlprg.bc.BcInstr.DfltSubset;
+import org.prlprg.bc.BcInstr.DfltSubset2;
+import org.prlprg.bc.BcInstr.Div;
+import org.prlprg.bc.BcInstr.DoDots;
+import org.prlprg.bc.BcInstr.DoMissing;
+import org.prlprg.bc.BcInstr.Dollar;
+import org.prlprg.bc.BcInstr.DollarGets;
+import org.prlprg.bc.BcInstr.DotCall;
+import org.prlprg.bc.BcInstr.DotsErr;
+import org.prlprg.bc.BcInstr.Dup2nd;
+import org.prlprg.bc.BcInstr.EndAssign;
+import org.prlprg.bc.BcInstr.EndAssign2;
+import org.prlprg.bc.BcInstr.EndFor;
+import org.prlprg.bc.BcInstr.EndLoopCntxt;
+import org.prlprg.bc.BcInstr.Eq;
+import org.prlprg.bc.BcInstr.Exp;
+import org.prlprg.bc.BcInstr.Expt;
+import org.prlprg.bc.BcInstr.Ge;
+import org.prlprg.bc.BcInstr.GetBuiltin;
+import org.prlprg.bc.BcInstr.GetFun;
+import org.prlprg.bc.BcInstr.GetIntlBuiltin;
+import org.prlprg.bc.BcInstr.GetVar;
+import org.prlprg.bc.BcInstr.GetVarMissOk;
+import org.prlprg.bc.BcInstr.GetterCall;
+import org.prlprg.bc.BcInstr.Goto;
+import org.prlprg.bc.BcInstr.Gt;
+import org.prlprg.bc.BcInstr.IncLnkStk;
+import org.prlprg.bc.BcInstr.Invisible;
+import org.prlprg.bc.BcInstr.IsCharacter;
+import org.prlprg.bc.BcInstr.IsComplex;
+import org.prlprg.bc.BcInstr.IsDouble;
+import org.prlprg.bc.BcInstr.IsInteger;
+import org.prlprg.bc.BcInstr.IsLogical;
+import org.prlprg.bc.BcInstr.IsNull;
+import org.prlprg.bc.BcInstr.IsObject;
+import org.prlprg.bc.BcInstr.IsSymbol;
+import org.prlprg.bc.BcInstr.LdConst;
+import org.prlprg.bc.BcInstr.LdFalse;
+import org.prlprg.bc.BcInstr.LdNull;
+import org.prlprg.bc.BcInstr.LdTrue;
+import org.prlprg.bc.BcInstr.Le;
+import org.prlprg.bc.BcInstr.Log;
+import org.prlprg.bc.BcInstr.LogBase;
+import org.prlprg.bc.BcInstr.Lt;
+import org.prlprg.bc.BcInstr.MakeClosure;
+import org.prlprg.bc.BcInstr.MakeProm;
+import org.prlprg.bc.BcInstr.MatSubassign;
+import org.prlprg.bc.BcInstr.MatSubassign2;
+import org.prlprg.bc.BcInstr.MatSubset;
+import org.prlprg.bc.BcInstr.MatSubset2;
+import org.prlprg.bc.BcInstr.Math1;
+import org.prlprg.bc.BcInstr.Mul;
+import org.prlprg.bc.BcInstr.Ne;
+import org.prlprg.bc.BcInstr.Not;
+import org.prlprg.bc.BcInstr.Or;
+import org.prlprg.bc.BcInstr.Or1st;
+import org.prlprg.bc.BcInstr.Or2nd;
+import org.prlprg.bc.BcInstr.Pop;
+import org.prlprg.bc.BcInstr.PushArg;
+import org.prlprg.bc.BcInstr.PushConstArg;
+import org.prlprg.bc.BcInstr.PushFalseArg;
+import org.prlprg.bc.BcInstr.PushNullArg;
+import org.prlprg.bc.BcInstr.PushTrueArg;
+import org.prlprg.bc.BcInstr.Return;
+import org.prlprg.bc.BcInstr.ReturnJmp;
+import org.prlprg.bc.BcInstr.SeqAlong;
+import org.prlprg.bc.BcInstr.SeqLen;
+import org.prlprg.bc.BcInstr.SetTag;
+import org.prlprg.bc.BcInstr.SetVar;
+import org.prlprg.bc.BcInstr.SetVar2;
+import org.prlprg.bc.BcInstr.SetterCall;
+import org.prlprg.bc.BcInstr.SpecialSwap;
+import org.prlprg.bc.BcInstr.Sqrt;
+import org.prlprg.bc.BcInstr.StartAssign;
+import org.prlprg.bc.BcInstr.StartAssign2;
+import org.prlprg.bc.BcInstr.StartFor;
+import org.prlprg.bc.BcInstr.StartLoopCntxt;
+import org.prlprg.bc.BcInstr.StartSubassign;
+import org.prlprg.bc.BcInstr.StartSubassign2;
+import org.prlprg.bc.BcInstr.StartSubassign2N;
+import org.prlprg.bc.BcInstr.StartSubassignN;
+import org.prlprg.bc.BcInstr.StartSubset;
+import org.prlprg.bc.BcInstr.StartSubset2;
+import org.prlprg.bc.BcInstr.StartSubset2N;
+import org.prlprg.bc.BcInstr.StartSubsetN;
+import org.prlprg.bc.BcInstr.StepFor;
+import org.prlprg.bc.BcInstr.Sub;
+import org.prlprg.bc.BcInstr.Subassign2N;
+import org.prlprg.bc.BcInstr.SubassignN;
+import org.prlprg.bc.BcInstr.Subset2N;
+import org.prlprg.bc.BcInstr.SubsetN;
+import org.prlprg.bc.BcInstr.Switch;
+import org.prlprg.bc.BcInstr.UMinus;
+import org.prlprg.bc.BcInstr.UPlus;
+import org.prlprg.bc.BcInstr.VecSubassign;
+import org.prlprg.bc.BcInstr.VecSubassign2;
+import org.prlprg.bc.BcInstr.VecSubset;
+import org.prlprg.bc.BcInstr.VecSubset2;
+import org.prlprg.bc.BcInstr.Visible;
+import org.prlprg.sexp.BCodeSXP;
+import org.prlprg.sexp.CloSXP;
+import org.prlprg.sexp.EnvSXP;
+import org.prlprg.sexp.IntSXP;
+import org.prlprg.sexp.LangSXP;
+import org.prlprg.sexp.LglSXP;
+import org.prlprg.sexp.ListSXP;
+import org.prlprg.sexp.NamespaceEnvSXP;
+import org.prlprg.sexp.NilSXP;
+import org.prlprg.sexp.PromSXP;
+import org.prlprg.sexp.RegSymSXP;
+import org.prlprg.sexp.SEXP;
+import org.prlprg.sexp.SEXPType;
+import org.prlprg.sexp.SEXPs;
+import org.prlprg.sexp.SpecialSymSXP;
+import org.prlprg.sexp.StrOrRegSymSXP;
+import org.prlprg.sexp.StrSXP;
+import org.prlprg.sexp.SymSXP;
+import org.prlprg.sexp.TaggedElem;
+import org.prlprg.sexp.VecSXP;
+import org.prlprg.sexp.VectorSXP;
 
 /**
  * The R bytecode compiler that aims to be byte-to-byte compatible with GNU-R's bytecode compiler.
@@ -23,12 +165,15 @@ import org.prlprg.sexp.*;
  * <p>In the comments below the {@code >> } indicates comments takes directly form [1].
  *
  * <p>[1] A Byte Code Compiler for R by Luke Tierney, University of Iowa, accessed on August 23,
- * 2023 from https://homepage.cs.uiowa.edu/~luke/R/compiler/compiler.pdf
+ * 2023 from <a href="https://homepage.cs.uiowa.edu/~luke/R/compiler/compiler.pdf">
+ * https://homepage.cs.uiowa.edu/~luke/R/compiler/compiler.pdf</a>
  */
 public class BCCompiler {
+  /** The default optimization level in GNU-R's {@code compiler::cmpfun} and here. */
+  public static final int DEFAULT_OPTIMIZATION_LEVEL = 2;
 
   /** SEXP types that can participate in constan folding. */
-  private static final Set<SEXPType> ALLOWED_FOLDABLE_MODES = Set.of(LGL, INT, REAL, CPLX, STR);
+  private static final Set<SEXPType> ALLOWED_FOLDABLE_MODES = Set.of(LGL, INT, REAL, CPLX, STRING);
 
   private static final Set<String> MAYBE_NSE_SYMBOLS = Set.of("bquote");
 
@@ -158,10 +303,10 @@ public class BCCompiler {
    * <pre><code>
    * > x <- function() TRUE
    * > .Internal(inspect(body(x)))
-   * @5c0d69684e48 10 LGLSXP g0c1 [REF(2)] (len=1, tl=0) 1
+   * &#064;5c0d69684e48  10 LGLSXP g0c1 [REF(2)] (len=1, tl=0) 1
    * > x <- function() T
    * > .Internal(inspect(body(x)))
-   * @5c0d6769c910 01 SYMSXP g0c0 [MARK,REF(4),LCK,gp=0x4000] "T" (has value)
+   * &#064;5c0d6769c910  01 SYMSXP g0c0 [MARK,REF(4),LCK,gp=0x4000] "T" (has value)
    * </code></pre>
    */
   private static final Set<String> ALLOWED_FOLDABLE_CONSTS = Set.of("pi", "T", "F");
@@ -236,7 +381,7 @@ public class BCCompiler {
    *     </tr>
    * </table>
    */
-  private int optimizationLevel = 2;
+  private int optimizationLevel = DEFAULT_OPTIMIZATION_LEVEL;
 
   /**
    * Creates a compiler for the given expression, context, session, and location.
@@ -336,7 +481,7 @@ public class BCCompiler {
 
   private void compileConst(SEXP val) {
     switch (val) {
-      case NilSXP ignored -> cb.addInstr(new LdNull());
+      case NilSXP _ -> cb.addInstr(new LdNull());
       case LglSXP x when x == SEXPs.TRUE -> cb.addInstr(new LdTrue());
       case LglSXP x when x == SEXPs.FALSE -> cb.addInstr(new LdFalse());
       default -> cb.addInstr(new LdConst(cb.addConst(val)));
@@ -350,8 +495,8 @@ public class BCCompiler {
       case LangSXP e -> compileCall(e, true);
       case RegSymSXP e -> compileSym(e, missingOK);
       case SpecialSymSXP e -> stop("unhandled special symbol: " + e);
-      case PromSXP ignored -> stop("cannot compile promise literals in code");
-      case BCodeSXP ignored -> stop("cannot compile byte code literals in code");
+      case PromSXP _ -> stop("cannot compile promise literals in code");
+      case BCodeSXP _ -> stop("cannot compile byte code literals in code");
       default -> compileConst(expr);
     }
   }
@@ -453,8 +598,8 @@ public class BCCompiler {
           compileNormArg(x, nse);
           compileTag(tag);
         }
-        case PromSXP ignored -> stop("can't compile promises in code");
-        case BCodeSXP ignored -> stop("can't compile byte code literals in code");
+        case PromSXP _ -> stop("can't compile promises in code");
+        case BCodeSXP _ -> stop("can't compile byte code literals in code");
         default -> {
           compileConstArg(val);
           compileTag(tag);
@@ -478,7 +623,7 @@ public class BCCompiler {
 
   private void compileConstArg(SEXP arg) {
     switch (arg) {
-      case NilSXP ignored -> cb.addInstr(new PushNullArg());
+      case NilSXP _ -> cb.addInstr(new PushNullArg());
       case LglSXP x when x == SEXPs.TRUE -> cb.addInstr(new PushTrueArg());
       case LglSXP x when x == SEXPs.FALSE -> cb.addInstr(new PushFalseArg());
       default -> cb.addInstr(new PushConstArg(cb.addConst(arg)));
@@ -969,7 +1114,7 @@ public class BCCompiler {
   }
 
   private boolean isSimpleFormals(CloSXP def) {
-    var formals = def.formals();
+    var formals = def.parameters();
     var names = formals.names();
 
     if (names.contains("...")) {
@@ -1008,17 +1153,17 @@ public class BCCompiler {
 
     var b = def.bodyAST();
 
-    if (b instanceof LangSXP lb && lb.funName("{") && lb.args().size() == 1) {
+    if (b instanceof LangSXP lb && lb.funNameIs("{") && lb.args().size() == 1) {
       // unwrap the { call if it has just one argument
       b = lb.arg(0);
     }
 
     return b.asLang()
-        .filter(call -> call.funName(".Internal"))
+        .filter(call -> call.funNameIs(".Internal"))
         .flatMap(call -> call.arg(0).asLang())
         .filter(
             internalCall -> internalCall.funName().map(rsession::isBuiltinInternal).orElse(false))
-        .filter(internalCall -> hasSimpleArgs(internalCall, def.formals().names()));
+        .filter(internalCall -> hasSimpleArgs(internalCall, def.parameters().names()));
   }
 
   private Optional<LangSXP> tryConvertToDotInternalCall(LangSXP call) {
@@ -1033,7 +1178,7 @@ public class BCCompiler {
                         internalCall -> {
                           var cenv = new HashMap<String, SEXP>();
 
-                          def.formals().forEach((x) -> cenv.put(x.tag(), x.value()));
+                          def.parameters().forEach((x) -> cenv.put(x.tag(), x.value()));
                           matchCall(def, call).args().forEach((x) -> cenv.put(x.tag(), x.value()));
 
                           var args =
@@ -1047,7 +1192,7 @@ public class BCCompiler {
 
                           return SEXPs.lang(
                               SEXPs.symbol(".Internal"),
-                              SEXPs.list(SEXPs.lang(internalCall.fun(), SEXPs.list2(args))));
+                              SEXPs.list(SEXPs.lang(internalCall.fun(), SEXPs.list1(args))));
                         }));
   }
 
@@ -1518,7 +1663,7 @@ public class BCCompiler {
 
       for (var n : uniqueNames) {
         var start = names.indexOf(n);
-        var idx = aidx.stream().filter(x -> x >= start).min().getAsInt();
+        var idx = aidx.stream().filter(x -> x >= start).min().orElseThrow();
         nLabels.add(labels.get(idx));
       }
 
@@ -1565,11 +1710,11 @@ public class BCCompiler {
         switchIdx,
         (instr) -> {
           var oldSwitch = (Switch) instr;
-          var numLabelsIdx = SEXPs.integer(labels.stream().map(BcLabel::getTarget).toList());
+          var numLabelsIdx = SEXPs.integer(labels.stream().map(BcLabel::target).toList());
           Switch newSwitch;
 
           if (haveNames) {
-            var chrLabelsIdx = SEXPs.integer(nLabels.stream().map(BcLabel::getTarget).toList());
+            var chrLabelsIdx = SEXPs.integer(nLabels.stream().map(BcLabel::target).toList());
             newSwitch =
                 new Switch(
                     oldSwitch.ast(),
@@ -1590,7 +1735,7 @@ public class BCCompiler {
     // > empty alternative (fall through, as for character, might
     // > make more sense but that isn't the way switch() works)
     if (miss.contains(true)) {
-      cb.patchLabel(missLabel);
+      cb.patchLabel(Objects.requireNonNull(missLabel));
       compile(
           SEXPs.lang(
               SEXPs.symbol("stop"),
@@ -1601,7 +1746,7 @@ public class BCCompiler {
     cb.patchLabel(defaultLabel);
     cb.addInstr(new LdNull());
     if (!tailCallInvisibleReturn()) {
-      cb.addInstr(new Goto(endLabel));
+      cb.addInstr(new Goto(Objects.requireNonNull(endLabel)));
     }
 
     // code for the non-empty cases
@@ -1618,12 +1763,12 @@ public class BCCompiler {
       cb.patchLabel(labels.get(i));
       compile(cases.get(i));
       if (!ctx.isTailCall()) {
-        cb.addInstr(new Goto(endLabel));
+        cb.addInstr(new Goto(Objects.requireNonNull(endLabel)));
       }
     }
 
     if (!ctx.isTailCall()) {
-      cb.patchLabel(endLabel);
+      cb.patchLabel(Objects.requireNonNull(endLabel));
     }
 
     return true;
@@ -1795,9 +1940,9 @@ public class BCCompiler {
 
     var lhs = call.arg(0);
     return switch (lhs) {
-      case RegSymSXP ignored -> true;
+      case RegSymSXP _ -> true;
       case StrSXP s -> s.size() == 1;
-      case LangSXP ignored -> {
+      case LangSXP _ -> {
         while (lhs instanceof LangSXP l) {
           var fun = l.fun();
           var args = l.args();
@@ -2047,8 +2192,8 @@ public class BCCompiler {
     return switch (expr) {
       case LangSXP l -> constantFoldCall(l);
       case RegSymSXP s -> constantFoldSym(s);
-      case PromSXP ignored -> stop("cannot constant fold literal promises");
-      case BCodeSXP ignored -> stop("cannot constant fold literal bytecode objects");
+      case PromSXP _ -> stop("cannot constant fold literal promises");
+      case BCodeSXP _ -> stop("cannot constant fold literal bytecode objects");
       default -> checkConst(expr);
     };
   }
@@ -2056,7 +2201,7 @@ public class BCCompiler {
   private Optional<SEXP> checkConst(SEXP e) {
     var r =
         switch (e) {
-          case NilSXP ignored -> e;
+          case NilSXP _ -> e;
           case VectorSXP<?> xs when xs.size() <= MAX_CONST_SIZE -> e;
           default -> null;
         };
@@ -2209,7 +2354,7 @@ public class BCCompiler {
   static LangSXP matchCall(CloSXP definition, LangSXP call) {
     var matched = ImmutableList.<TaggedElem>builder();
     var remaining = new ArrayList<SEXP>();
-    var formals = definition.formals();
+    var formals = definition.parameters();
 
     if (formals.size() < call.args().size()) {
       throw new IllegalArgumentException("Too many arguments and we do not support ... yet");
@@ -2239,7 +2384,7 @@ public class BCCompiler {
 
     Optional<IntSXP> srcRef;
 
-    if (body instanceof LangSXP b && b.funName("{")) {
+    if (body instanceof LangSXP b && b.funNameIs("{")) {
       srcRef = extractSrcRef(body, 0);
     } else {
       // try to get the srcRef from the function itself
@@ -2267,20 +2412,12 @@ public class BCCompiler {
     }
 
     var srcref = attrs.get("srcref");
-    if (srcref == null) {
-      return Optional.empty();
-    }
-
-    if (srcref instanceof IntSXP i && i.size() >= 6) {
-      return Optional.of(i);
-    } else if (srcref instanceof VecSXP v
-        && v.size() >= idx
-        && v.get(idx) instanceof IntSXP i
-        && i.size() >= 6) {
-      return Optional.of(i);
-    } else {
-      return Optional.empty();
-    }
+    return switch (srcref) {
+      case IntSXP i when i.size() >= 6 -> Optional.of(i);
+      case VecSXP v when v.size() >= idx && v.get(idx) instanceof IntSXP i && i.size() >= 6 ->
+          Optional.of(i);
+      case null, default -> Optional.empty();
+    };
   }
 
   /**

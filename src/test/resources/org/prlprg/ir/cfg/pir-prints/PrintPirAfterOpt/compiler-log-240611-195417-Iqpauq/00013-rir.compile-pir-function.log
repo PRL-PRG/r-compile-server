@@ -1,0 +1,59 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ rir.compile[0x55abb4647970]                                                  │
+│ Context: CorrOrd,!TMany                                                      │
+│ Properties:  Eager                                                           │
+├────── PIR Version After Optimizations
+rir.compile[0x55abb4647970]
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = MkEnv              l     parent=R_GlobalEnv, context 1
+  cls             %1.1  = MkCls                    rir.compile>id@0, e1.0
+  void                    StVar              lW    id, %1.1, e1.0
+  void                    StVar              lW    i, 1L, e1.0
+  void                    Visible            v     
+  goto BB2
+BB2   <- [1, 6]
+  int$-           %2.0  = Phi                      2L:BB1, %4.1:BB6
+  lgl$-           %2.1  = Neq                vd    4L, %2.0, elided
+  lgl$#-          %2.2  = Identical                %2.1, false
+  void                    Branch                   %2.2 -> BB3 (if true) | BB4 (if false)
+BB3   <- [2]
+  (cls|spec|blt)  %3.0  = LdFun              !     id, e1.0
+  prom-           %3.1  = MkArg                    unboundValue, rir.compile[0x55abb4647970]_p1, e1.0
+  val?            %3.2  = Call               !     %3.0(%3.1) e1.0   <val?_>
+  void                    Return             l     %3.2
+BB4   <- [2]
+  void                    StVar              lW    i, %2.0, e1.0
+  int$-           %4.1  = Add                d     %2.0, 1L, elided
+  void                    Visible            v     
+  lgl$-           %4.3  = Eq                 vd    %2.0, 2, elided   <val?_>
+  lgl$#-          %4.4  = CheckTrueFalse     e     %4.3
+  void                    Branch                   %4.4 -> BB5 (if true) | BB7 (if false)
+BB5   <- [4]
+  (cls|spec|blt)  %5.0  = LdFun              !     id, e1.0
+  prom-           %5.1  = MkArg                    unboundValue, rir.compile[0x55abb4647970]_p0, e1.0
+  val?            %5.2  = Call               !     %5.0(%5.1) e1.0
+  goto BB6
+BB7   <- [4]
+  goto BB6
+BB6   <- [7, 5]
+  goto BB2
+Prom 0:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  void                    Visible            v     
+  void                    NonLocalReturn     !     1, e1.0
+Prom 1:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  void                    Visible            v     
+  void                    NonLocalReturn     !     0, e1.0
+
+│ rir.compile[0x55abb4647970]                                                  │
+└──────────────────────────────────────────────────────────────────────────────┘

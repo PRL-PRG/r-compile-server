@@ -1,0 +1,55 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ body[0x5638c3c6e7c0]                                                         │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;Eager0,NonRefl0                      │
+│ Properties:  Eager, ForceOrd: 0                                              │
+├────── Final PIR Version
+body[0x5638c3c6e7c0]
+BB0
+  val?^           %0.0  = LdArg                    0
+  val?            %0.1  = Force!<lazy>             %0.0,    <cls->
+  lgl$#-          %0.2  = IsType                   %0.1 isA val?-
+  void                    Branch                   %0.2 -> BB7 (if true) | BB8 (if false)
+BB7   <- [0]
+  val?-           %7.0  = CastType           d     dn %0.1   <cls->
+  lgl$#-          %7.1  = CallSafeBuiltin    wed   is.character(%7.0)    <lgl$->
+  env             e7.2  = MkEnv              l     fun=%0.0, parent=R_BaseNamespace, context 1
+  void                    Branch                   %7.1 -> BB5 (if true) | BB3 (if false)
+BB8   <- [0]
+  env             e8.0  = (MkEnv)            l     fun=%0.0, parent=R_BaseNamespace, context 1
+  fs              %8.1  = FrameState         R     0x5638bc4d7760+69: [<blt is.character>, %0.1], env=e8.0
+  void                    Deopt              !v    %8.1, Typecheck@0x5638bc88c328[Type#3], %0.1
+BB5   <- [7]
+  prom-           %5.0  = MkArg                    unboundValue, body[0x5638c3c6e7c0]_p0 (!refl), e7.2
+  prom-           %5.1  = MkArg                    unboundValue, body[0x5638c3c6e7c0]_p1, e7.2
+  val?            %5.2  = StaticCall         !v    unknown--fromConstant[0x5638ba48cac0](%5.0, missingArg, %5.1, "function") from function(x, pos=-(1L), envir=as.environment(po|... { 0 3n 2n } e7.2   <val?_>
+  void                    StVar              lW    fun, %5.2, e7.2
+  val?            %5.4  = %5.2
+  goto BB4
+BB3   <- [7]
+  void                    Nop                !     
+  val?^           %3.1  = %0.0
+  goto BB4
+BB4   <- [3, 5]
+  val?^ | miss    %4.0  = Phi                      %5.4:BB5, %3.1:BB3
+  val?^ | miss    %4.1  = %4.0
+  val?^           %4.2  = ChkMissing         e     %4.1
+  val?            %4.3  = Force!<wrapped>    !v    %4.2, e7.2   <cls->
+  val+            %4.4  = CallSafeBuiltin    vwed  body(%4.3) 
+  void                    Return             l     %4.4
+Prom 0:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    fun, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 1:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     parent.frame, e0.0
+  val?            %0.2  = Call               !     %0.1() e0.0   <val?_>
+  void                    Return             l     %0.2
+
+│ body[0x5638c3c6e7c0]                                                         │
+└──────────────────────────────────────────────────────────────────────────────┘

@@ -1,0 +1,40 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ pirCheck[0x55cbf47187e0]                                                     │
+│ Context: CorrOrd,!TMany                                                      │
+│ Properties:  Eager, ForceOrd: 0                                              │
+├────── PIR Version After Optimizations
+pirCheck[0x55cbf47187e0]
+BB0
+  goto BB1
+BB1   <- [0]
+  val?^ | miss    %1.0  = LdArg                    0
+  val?^           %1.1  = ChkMissing         e     %1.0
+  env             e1.2  = (MkEnv)            l     x=%1.0, parent=R_GlobalEnv, context 1
+  val?            %1.3  = Force!<value>      !vL   %1.1, e1.2   <int$->
+  lgl$#-          %1.4  = IsType                   %1.3 isA int$-
+  cp              %1.5  = Checkpoint                -> BB2 (default) | BB6 (if assume failed)
+BB2   <- [1]
+  lgl$#-          %2.0  = IsEnvStub          R     , e1.2
+  void                    Assume             D     %2.0, %1.5 (EnvStubMaterialized@0x55cbf3ba4ba8[Call#unknown])
+  void                    Assume             D     %1.4, %1.5 (Typecheck@0x55cbf3ba4ba8[Type#0])
+  int$-           %2.3  = CastType           d     dn %1.3
+  lgl$-           %2.4  = Eq                 d     %2.3, 1, elided   <lgl$->
+  lgl$-           %2.5  = Not                d     %2.4, elided
+  lgl$#-          %2.6  = CheckTrueFalse     e     %2.5
+  void                    Branch                   %2.6 -> BB5 (if true) | BB3 (if false)
+BB6   <- [1]
+  fs              %6.0  = FrameState         R     0x55cbf49d6a60+9: [%1.3], env=e1.2
+  void                    Deopt              !v    %6.0   !
+BB5   <- [2]
+  void                    Visible            v     
+  goto BB4
+BB3   <- [2]
+  void                    Visible            v     
+  goto BB4
+BB4   <- [3, 5]
+  real$#-         %4.0  = Phi                      4:BB3, 5:BB5
+  void                    Return             l     %4.0
+
+│ pirCheck[0x55cbf47187e0]                                                     │
+└──────────────────────────────────────────────────────────────────────────────┘

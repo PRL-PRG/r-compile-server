@@ -1,0 +1,30 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ f[0x55b46f557d70]                                                            │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;NonRefl0                             │
+│ Properties:  Eager, ForceOrd: 0                                              │
+├────── Final PIR Version
+f[0x55b46f557d70]
+BB0
+  val?^           %0.0  = LdArg                    0
+  env             e0.1  = MkEnv              l     x=%0.0, parent=R_GlobalEnv, context 1
+  val?            %0.2  = Force!<lazy>       !vr   %0.0,    <vec>
+  lgl$#-          %0.3  = IsType                   %0.2 isA val+   <false>
+  void                    Branch                   %0.3 -> BB7 (if true) | BB6 (if false)
+BB7   <- [0]
+  fs              %7.0  = FrameState         R     0x55b46ec05d70+9: [%0.2], env=e0.1
+  void                    Deopt              !v    %7.0, DeadBranchReached@0x55b46ff102d8[Test#0], %0.3   !
+BB6   <- [0]
+  val?            %6.0  = Extract2_1D        !v    %0.2, 2, e0.1   <real$->
+  lgl$#-          %6.1  = IsType                   %6.0 isA real$-
+  void                    Branch                   %6.1 -> BB8 (if true) | BB9 (if false)
+BB8   <- [6]
+  real$-          %8.0  = CastType           d     dn %6.0
+  void                    Visible            v     
+  void                    Return             l     %8.0
+BB9   <- [6]
+  fs              %9.0  = FrameState         R     0x55b46ec05d70+52: [%6.0], env=e0.1
+  void                    Deopt              !v    %9.0, Typecheck@0x55b46ff102d8[Type#1], %6.0   !
+
+│ f[0x55b46f557d70]                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘

@@ -1,0 +1,15 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ a[0x55d89bdef760]                                                            │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch                                      │
+│ Properties:  Eager, !Reflection                                              │
+├────── PIR Version After Optimizations
+a[0x55d89bdef760]
+BB0
+  goto BB1
+BB1   <- [0]
+  void                    Visible            v     
+  void                    Return             l     1
+
+│ a[0x55d89bdef760]                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘

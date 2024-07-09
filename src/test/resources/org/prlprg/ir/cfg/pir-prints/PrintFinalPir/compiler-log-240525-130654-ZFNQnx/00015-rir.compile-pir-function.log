@@ -1,0 +1,13 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ rir.compile[0x561ce6f0eb20]                                                  │
+│ Context: CorrOrd,!TMany                                                      │
+│ Properties:  Eager, !Reflection                                              │
+├────── Final PIR Version
+rir.compile[0x561ce6f0eb20]
+BB0
+  void                    Visible            v     
+  void                    Return             l     1
+
+│ rir.compile[0x561ce6f0eb20]                                                  │
+└──────────────────────────────────────────────────────────────────────────────┘

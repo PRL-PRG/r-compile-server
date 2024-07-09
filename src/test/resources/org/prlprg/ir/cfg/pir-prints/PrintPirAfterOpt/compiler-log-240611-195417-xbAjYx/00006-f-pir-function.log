@@ -1,0 +1,36 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ f[0x559891284160]                                                            │
+│ Context: CorrOrd,!TMany,Argmatch;Eager0,NonRefl0                             │
+│ Properties:                                                                  │
+├────── PIR Version After Optimizations
+f[0x559891284160]
+BB0
+  goto BB1
+BB1   <- [0]
+  val?~ | miss    %1.0  = LdArg                    0
+  lgl$#-          %1.1  = Identical                %1.0, missingArg
+  env             e1.2  = MkEnv              l     x=%1.0, parent=?, context 1
+  void                    Branch                   %1.1 -> BB2 (if true) | BB4 (if false)
+BB2   <- [1]
+  prom-           %2.0  = MkArg                    missingArg, f[0x559891284160]_p0 (!refl), 
+  val?^ | miss    %2.1  = CastType                 up %2.0
+  void                    StArg              lW    x, %2.1, e1.2
+  goto BB3
+BB4   <- [1]
+  goto BB3
+BB3   <- [4, 2]
+  lgl$-           %3.0  = Missing            eR    x, e1.2
+  void                    StVarSuper         lRW   miss, %3.0, e1.2
+  val?^ | miss    %3.2  = LdVar              eR    x, e1.2
+  void                    Visible            v     
+  val?            %3.4  = Force!<lazy>       !     %3.2, e1.2   <(sym|real)->
+  void                    Return             l     %3.4
+Prom 0:
+BB0
+  goto BB1
+BB1   <- [0]
+  void                    Return             l     missingArg
+
+│ f[0x559891284160]                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘

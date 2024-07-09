@@ -1,0 +1,42 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ rir.compile[0x55abb4508fb0]                                                  │
+│ Context: CorrOrd,!TMany                                                      │
+│ Properties:  Eager, !Reflection                                              │
+├────── PIR Version After Optimizations
+rir.compile[0x55abb4508fb0]
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = (MkEnv)            l     i=unboundValue, j=unboundValue, last=unboundValue, parent=R_GlobalEnv, context 1
+  goto BB2
+BB2   <- [1, 6]
+  int$-           %2.0  = Phi                      1L:BB1, %4.0:BB6
+  lgl$-           %2.1  = Neq                d     11L, %2.0, elided
+  lgl$#-          %2.2  = Identical                %2.1, false
+  void                    Branch                   %2.2 -> BB3 (if true) | BB4 (if false)
+BB3   <- [2]
+  val?^ | miss    %3.0  = LdVar              eRd   last, e1.0
+  void                    Visible            v     
+  val?            %3.2  = Force!             !r    %3.0,    <val?_>
+  void                    Return             l     %3.2
+BB4   <- [2]
+  int$-           %4.0  = Add                d     %2.0, 1L, elided
+  int$-           %4.1  = Add                d     %2.0, 1L, elided   <val?_>
+  void                    StVar              lWd   last, %4.1, e1.0
+  goto BB5
+BB5   <- [7, 4]
+  int$-           %5.0  = Phi                      2L:BB4, %7.0:BB7
+  lgl$-           %5.1  = Neq                d     11L, %5.0, elided
+  lgl$#-          %5.2  = Identical                %5.1, false
+  void                    Branch                   %5.2 -> BB6 (if true) | BB7 (if false)
+BB6   <- [5]
+  goto BB2
+BB7   <- [5]
+  int$-           %7.0  = Add                d     %5.0, 1L, elided
+  int$-           %7.1  = Add                d     %2.0, %5.0, elided   <val?_>
+  void                    StVar              lWd   last, %7.1, e1.0
+  goto BB5
+
+│ rir.compile[0x55abb4508fb0]                                                  │
+└──────────────────────────────────────────────────────────────────────────────┘

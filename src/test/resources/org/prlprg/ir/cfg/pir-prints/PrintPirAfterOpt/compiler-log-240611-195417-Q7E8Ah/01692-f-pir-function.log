@@ -1,0 +1,15 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ f[0x55e861f24880]                                                            │
+│ Context: CorrOrd,!TMany                                                      │
+│ Properties:  Eager, !Reflection                                              │
+├────── PIR Version After Optimizations
+f[0x55e861f24880]
+BB0
+  goto BB1
+BB1   <- [0]
+  void                    Visible            v     
+  void                    Return             l     0
+
+│ f[0x55e861f24880]                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘

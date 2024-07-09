@@ -3,6 +3,8 @@ package org.prlprg.sexp;
 import com.google.common.primitives.ImmutableIntArray;
 import java.util.PrimitiveIterator;
 import javax.annotation.concurrent.Immutable;
+import org.prlprg.parseprint.Printer;
+import org.prlprg.primitive.Constants;
 
 /** Integer vector SEXP. */
 @Immutable
@@ -17,6 +19,16 @@ public sealed interface IntSXP extends NumericSXP<Integer>
   @Override
   default SEXPType type() {
     return SEXPType.INT;
+  }
+
+  @Override
+  default boolean hasNaOrNaN() {
+    for (var integer : this) {
+      if (integer == Constants.NA_INT) {
+        return true;
+      }
+    }
+    return false;
   }
 
   @Override
@@ -47,11 +59,6 @@ record IntSXPImpl(@Override ImmutableIntArray data, @Override Attributes attribu
   }
 
   @Override
-  public String toString() {
-    return VectorSXPs.toString(this, data().stream());
-  }
-
-  @Override
   public IntSXP withAttributes(Attributes attributes) {
     return SEXPs.integer(data, attributes);
   }
@@ -64,6 +71,11 @@ record IntSXPImpl(@Override ImmutableIntArray data, @Override Attributes attribu
   @Override
   public double asReal(int index) {
     return get(index);
+  }
+
+  @Override
+  public String toString() {
+    return Printer.toString(this);
   }
 }
 

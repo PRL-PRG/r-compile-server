@@ -1,0 +1,40 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ is.logint[0x56368de81910]                                                    │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch                                      │
+│ Properties:                                                                  │
+├────── PIR Version After Optimizations
+is.logint[0x56368de81910]
+BB0
+  goto BB1
+BB1   <- [0]
+  val?^           %1.0  = LdArg                    0
+  cp              %1.1  = Checkpoint                -> BB2 (default) | BB5 (if assume failed)
+BB2   <- [1]
+  val?^ | miss    %2.0  = LdVar              eR    is.integer, ?
+  lgl$#-          %2.1  = Identical                <blt is.integer>, %2.0   <true>
+  void                    Assume             D     %2.1, %1.1 (DeadBranchReached@0x56368ba75918[Test#0])
+  env             e2.3  = (MkEnv)            l     .=%1.0, parent=?, context 1
+  val?            %2.4  = Force!<lazy>       !vL   %1.0, e2.3   <int$->
+  lgl$#-          %2.5  = IsType                   %2.4 isA int$-
+  cp              %2.6  = Checkpoint                -> BB4 (default) | BB3 (if assume failed)
+BB5   <- [1]
+  env             e5.0  = (MkEnv)            l     .=%1.0, parent=?, context 1
+  fs              %5.1  = FrameState         R     0x56368c40f240+0: [], env=e5.0
+  void                    Deopt              !v    %5.1   !
+BB4   <- [2]
+  lgl$#-          %4.0  = IsEnvStub          R     , e2.3
+  void                    Assume             D     %4.0, %2.6 (EnvStubMaterialized@0x56368ba75918[Call#unknown])
+  void                    Assume             D     %2.5, %2.6 (Typecheck@0x56368ba75918[Type#1])
+  val?^ | miss    %4.3  = LdVar              eRd   is.object, ?
+  lgl$#-          %4.4  = Identical                <blt is.object>, %4.3   <true>
+  void                    Assume             D     %4.4, %2.6 (DeadBranchReached@0x56368ba75918[Test#2])
+  lgl$#-          %4.6  = CallSafeBuiltin    vwed  is.object(%2.4)    <lgl$->
+  lgl$#-          %4.7  = Not                vd    %4.6, elided
+  void                    Return             l     %4.7
+BB3   <- [2]
+  fs              %3.0  = FrameState         R     0x56368c40f240+69: [<blt is.integer>, %2.4], env=e2.3
+  void                    Deopt              !v    %3.0   !
+
+│ is.logint[0x56368de81910]                                                    │
+└──────────────────────────────────────────────────────────────────────────────┘

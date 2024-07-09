@@ -1,0 +1,74 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ isTRUE[0x5558d8eece50]                                                       │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch                                      │
+│ Properties:  Eager, ForceOrd: 0                                              │
+├────── PIR Version After Optimizations
+isTRUE[0x5558d8eece50]
+BB0
+  goto BB1
+BB1   <- [0]
+  val?^           %1.0  = LdArg                    0
+  env             e1.1  = (MkEnv)            l     x=%1.0, parent=R_BaseNamespace, context 1
+  val?            %1.2  = Force!<lazy>       !vL   %1.0, e1.1   <val?>
+  cp              %1.3  = Checkpoint                -> BB2 (default) | BB14 (if assume failed)
+BB2   <- [1]
+  lgl$#-          %2.0  = IsEnvStub          R     , e1.1
+  void                    Assume             D     %2.0, %1.3 (EnvStubMaterialized@0x5558d493a838[Call#unknown])
+  val+            %2.2  = CallSafeBuiltin    vwed  is.logical(%1.2)    <lgl$->
+  lgl$#-          %2.3  = IsType                   %2.2 isA lgl$-
+  cp              %2.4  = Checkpoint                -> BB4 (default) | BB3 (if assume failed)
+BB14   <- [1]
+  fs              %14.0 = FrameState         R     0x5558d37d66d0+69: [<blt is.logical>, %1.2], env=e1.1
+  void                    Deopt              !v    %14.0   !
+BB4   <- [2]
+  void                    Assume             D     %2.3, %2.4 (Typecheck@0x5558d493a838[Type#2])
+  lgl$-           %4.1  = CastType           d     dn %2.2
+  lgl$-           %4.2  = AsLogical                %4.1
+  lgl$#-          %4.3  = Identical                %4.2, false
+  void                    Branch                   %4.3 -> BB13 (if true) | BB5 (if false)
+BB3   <- [2]
+  fs              %3.0  = FrameState         R     0x5558d37d66d0+91: [%2.2], env=e1.1
+  void                    Deopt              !v    %3.0   !
+BB13   <- [4]
+  goto BB6
+BB5   <- [4]
+  lgl$#-          %5.0  = IsType                   %1.2 isA lgl$-
+  void                    Assume             D     %5.0, %2.4 (Typecheck@0x5558d493a838[Type#4])
+  void                    Visible            v     
+  lgl$-           %5.3  = AsLogical                %4.2
+  goto BB6
+BB6   <- [13, 5]
+  lgl$-           %6.0  = Phi                      %5.3:BB5, %4.2:BB13
+  lgl$-           %6.1  = AsLogical                %6.0
+  lgl$#-          %6.2  = Identical                %6.1, false
+  void                    Branch                   %6.2 -> BB12 (if true) | BB7 (if false)
+BB12   <- [6]
+  goto BB8
+BB7   <- [6]
+  lgl$#-          %7.0  = IsType                   %1.2 isA lgl$-
+  void                    Assume             D     %7.0, %2.4 (Typecheck@0x5558d493a838[Type#8])
+  lgl$-           %7.2  = CastType           d     dn %1.2
+  lgl$-           %7.3  = CallSafeBuiltin    vwed  is.na(%7.2)    <lgl$->
+  lgl$-           %7.4  = Not                vd    %7.3, elided
+  lgl$-           %7.5  = AsLogical                %7.4
+  lgl$-           %7.6  = LAnd                     %6.1, %7.5
+  goto BB8
+BB8   <- [12, 7]
+  lgl$-           %8.0  = Phi                      %7.6:BB7, %6.1:BB12
+  lgl$-           %8.1  = AsLogical                %8.0
+  lgl$#-          %8.2  = Identical                %8.1, false
+  void                    Branch                   %8.2 -> BB11 (if true) | BB9 (if false)
+BB11   <- [8]
+  goto BB10
+BB9   <- [8]
+  void                    Visible            v     
+  lgl$-           %9.1  = AsLogical          e     %1.2
+  lgl$-           %9.2  = LAnd                     %8.1, %9.1
+  goto BB10
+BB10   <- [11, 9]
+  lgl$-           %10.0 = Phi                      %9.2:BB9, %8.1:BB11
+  void                    Return             l     %10.0
+
+│ isTRUE[0x5558d8eece50]                                                       │
+└──────────────────────────────────────────────────────────────────────────────┘

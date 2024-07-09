@@ -109,7 +109,7 @@ public class BC2CCompiler {
   }
 
   private void fillLabels() {
-    bc.code().forEach(x -> x.labels().forEach(l -> labels.add(l.getTarget())));
+    bc.code().forEach(x -> x.labels().forEach(l -> labels.add(l.target())));
   }
 
   public List<SEXP> constants() {
@@ -168,7 +168,7 @@ public class BC2CCompiler {
   }
 
   private void compileGoto(BcLabel label) {
-    body.line("goto %s;".formatted(label(label.getTarget())));
+    body.line("goto %s;".formatted(label(label.target())));
   }
 
   private void compileBrIfNot(ConstPool.Idx<LangSXP> call, BcLabel label) {
@@ -176,7 +176,7 @@ public class BC2CCompiler {
     var unprotect = stack.pop(1);
     body.line(
         "if (!Rsh_is_true(%s, %s)) { %s; goto %s; }"
-            .formatted(curr, constant(call), unprotect, label(label.getTarget())));
+            .formatted(curr, constant(call), unprotect, label(label.target())));
     body.line(unprotect + ";");
   }
 

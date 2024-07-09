@@ -4,7 +4,11 @@ import static java.util.Objects.requireNonNull;
 
 import com.google.common.collect.ImmutableList;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
-import java.io.*;
+import java.io.Closeable;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.Charset;
 import java.util.*;
 import javax.annotation.Nullable;
@@ -13,7 +17,27 @@ import org.prlprg.bc.Bc;
 import org.prlprg.primitive.Complex;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
-import org.prlprg.sexp.*;
+import org.prlprg.sexp.Attributes;
+import org.prlprg.sexp.BCodeSXP;
+import org.prlprg.sexp.CloSXP;
+import org.prlprg.sexp.EnvSXP;
+import org.prlprg.sexp.ExprSXP;
+import org.prlprg.sexp.IntSXP;
+import org.prlprg.sexp.LangSXP;
+import org.prlprg.sexp.LglSXP;
+import org.prlprg.sexp.ListSXP;
+import org.prlprg.sexp.NilSXP;
+import org.prlprg.sexp.PromSXP;
+import org.prlprg.sexp.RealSXP;
+import org.prlprg.sexp.RegSymSXP;
+import org.prlprg.sexp.SEXP;
+import org.prlprg.sexp.SEXPType;
+import org.prlprg.sexp.SEXPs;
+import org.prlprg.sexp.StrSXP;
+import org.prlprg.sexp.SymOrLangSXP;
+import org.prlprg.sexp.TaggedElem;
+import org.prlprg.sexp.UserEnvSXP;
+import org.prlprg.sexp.VecSXP;
 import org.prlprg.util.IO;
 
 public class RDSReader implements Closeable {
@@ -86,7 +110,7 @@ public class RDSReader implements Closeable {
             case LGL -> readLogicals(flags);
             case VEC -> readVec(flags);
             case ENV -> readEnv();
-            case STR -> readStrs(flags);
+            case STRING -> readStrs(flags);
             case LANG -> readLang(flags);
             case BCODE -> readByteCode();
             case EXPR -> readExpr(flags);
@@ -384,13 +408,13 @@ public class RDSReader implements Closeable {
     // enclosing environment - parent
     switch (readItem()) {
       case EnvSXP parent -> item.setParent(parent);
-      case NilSXP ignored -> item.setParent(rsession.baseEnv());
+      case NilSXP _ -> item.setParent(rsession.baseEnv());
       default -> throw new RDSException("Expected environment (ENCLOS)");
     }
 
     // frame
     switch (readItem()) {
-      case NilSXP ignored -> {}
+      case NilSXP _ -> {}
       case ListSXP frame -> {
         for (var elem : frame) {
           item.set(requireNonNull(elem.tag()), elem.value());
@@ -401,11 +425,11 @@ public class RDSReader implements Closeable {
 
     // hashtab
     switch (readItem()) {
-      case NilSXP ignored -> {}
+      case NilSXP _ -> {}
       case VecSXP hashtab -> {
         for (var elem : hashtab) {
           switch (elem) {
-            case NilSXP ignored -> {}
+            case NilSXP _ -> {}
             case ListSXP list -> {
               for (var e : list) {
                 item.set(requireNonNull(e.tag()), e.value());

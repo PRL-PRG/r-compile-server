@@ -1,9 +1,17 @@
 package org.prlprg.bc;
 
 import com.google.common.primitives.ImmutableIntArray;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import javax.annotation.Nullable;
+import org.prlprg.parseprint.ParseMethod;
+import org.prlprg.parseprint.Parser;
+import org.prlprg.parseprint.PrintMethod;
+import org.prlprg.parseprint.Printer;
 import org.prlprg.primitive.Constants;
 import org.prlprg.sexp.IntSXP;
 import org.prlprg.sexp.SEXP;
@@ -21,14 +29,18 @@ public record Bc(BcCode code, ConstPool consts) {
    */
   public static final int R_BC_VERSION = 12;
 
-  @Override
-  public String toString() {
-    return code + "\n" + consts;
+  /**
+   * Create a bytecode which has no code or constants.
+   *
+   * <p>This is necessary when we need to store a non-null value or stub.
+   */
+  public static Bc empty() {
+    return new Builder().build();
   }
 
   public static class Builder {
-    private final BcCode.Builder code = new BcCode.Builder();
-    private final ConstPool.Builder consts = new ConstPool.Builder();
+    private final BcCode.Builder code;
+    private final ConstPool.Builder consts;
     private final List<BcLabel> labels = new ArrayList<>();
     private final ImmutableIntArray.Builder expressions =
         ImmutableIntArray.builder()
@@ -44,6 +56,15 @@ public record Bc(BcCode code, ConstPool consts) {
     private boolean trackSrcRefs = true;
     private boolean trackExpressions = true;
     private final Map<Integer, Function<BcInstr, BcInstr>> patches = new LinkedHashMap<>();
+
+    public Builder() {
+      this(Collections.emptyList());
+    }
+
+    public Builder(List<SEXP> consts) {
+      code = new BcCode.Builder();
+      this.consts = new ConstPool.Builder(consts);
+    }
 
     public void setTrackSrcRefs(boolean track) {
       this.trackSrcRefs = track;
@@ -131,4 +152,25 @@ public record Bc(BcCode code, ConstPool consts) {
       patches.put(instrIdx, patch);
     }
   }
+
+  // region serialization and deserialization
+  @ParseMethod
+  private static Bc parse(Parser p) {
+    var code = p.parse(BcCode.class);
+    var consts = p.parse(ConstPool.class);
+    return new Bc(code, consts);
+  }
+
+  @PrintMethod
+  private void print(Printer p) {
+    p.print(code);
+    p.writer().write('\n');
+    p.print(consts);
+  }
+
+  @Override
+  public String toString() {
+    return Printer.toString(this);
+  }
+  // endregion serialization and deserialization
 }

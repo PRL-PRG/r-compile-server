@@ -10,14 +10,13 @@ import java.nio.charset.Charset;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
+import org.prlprg.AbstractGNURBasedTest;
 import org.prlprg.bc.BCCompiler;
 import org.prlprg.rds.RDSWriter;
 import org.prlprg.service.RshCompiler;
 import org.prlprg.sexp.*;
-import org.prlprg.util.AbstractGNURBasedTest;
-import org.prlprg.util.Tests;
 
-public class BC2CCompilerTest extends AbstractGNURBasedTest implements Tests {
+public class BC2CCompilerTest extends AbstractGNURBasedTest {
 
   @Test
   public void test3() throws Exception {

@@ -1,0 +1,22 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ rir.compile[0x55c69907ca60]                                                  │
+│ Context: CorrOrd,!TMany                                                      │
+│ Properties:  Eager                                                           │
+├────── Final PIR Version
+rir.compile[0x55c69907ca60]
+BB0
+  env             e0.0  = MkEnv              l     parent=R_GlobalEnv, context 1
+  (cls|spec|blt)  %0.1  = LdFun              !     g, R_GlobalEnv
+  prom-           %0.2  = MkArg                    unboundValue, rir.compile[0x55c69907ca60]_p0, e0.0
+  val?            %0.3  = Call               !     %0.1(%0.2) e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 0:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     f, e0.0
+  val?            %0.2  = Call               !     %0.1(2) e0.0   <val?_>
+  void                    Return             l     %0.2
+
+│ rir.compile[0x55c69907ca60]                                                  │
+└──────────────────────────────────────────────────────────────────────────────┘

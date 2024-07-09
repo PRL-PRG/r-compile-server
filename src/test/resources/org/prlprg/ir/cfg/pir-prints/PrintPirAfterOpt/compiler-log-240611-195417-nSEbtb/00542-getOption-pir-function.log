@@ -1,0 +1,43 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ getOption[0x56039642f6b0]                                                    │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;Eager0,NonRefl0,!Obj0 miss: 1        │
+│ Properties:  Eager, ForceOrd: 0                                              │
+├────── PIR Version After Optimizations
+getOption[0x56039642f6b0]
+BB0
+  goto BB1
+BB1   <- [0]
+  val?~+          %1.0  = LdArg                    0
+  val+            %1.1  = Force                    %1.0,    <str$->
+  env             e1.2  = MkEnv              l     x=%1.0, default(miss)=nil, parent=R_BaseNamespace, context 1
+  lgl$-           %1.3  = Missing            eR    default, e1.2
+  lgl$#-          %1.4  = CheckTrueFalse     e     %1.3
+  void                    Branch                   %1.4 -> BB2 (if true) | BB4 (if false)
+BB2   <- [1]
+  val?            %2.0  = CallBuiltin        !     getOption(%1.1) e1.2
+  goto BB3
+BB4   <- [1]
+  val?            %4.0  = CallBuiltin        !v    getOption(%1.1) e1.2   <nil->
+  lgl$-           %4.1  = Is                       %4.0, NULL
+  void                    StVar              lW    ans, %4.0, e1.2
+  val             %4.3  = ChkMissing         e     %4.0
+  lgl$#-          %4.4  = CheckTrueFalse     e     %4.1
+  void                    Branch                   %4.4 -> BB5 (if true) | BB7 (if false)
+BB3   <- [2, 6]
+  val?            %3.0  = Phi                      %6.0:BB6, %2.0:BB2
+  void                    Return             l     %3.0
+BB5   <- [4]
+  val?^ | miss    %5.0  = LdVar              eR    default, e1.2
+  void                    Visible            v     
+  val?            %5.2  = Force!<value>      !     %5.0, e1.2   <(lgl|str)$->
+  goto BB6
+BB7   <- [4]
+  void                    Visible            v     
+  goto BB6
+BB6   <- [5, 7]
+  val?            %6.0  = Phi                      %4.0:BB7, %5.2:BB5
+  goto BB3
+
+│ getOption[0x56039642f6b0]                                                    │
+└──────────────────────────────────────────────────────────────────────────────┘

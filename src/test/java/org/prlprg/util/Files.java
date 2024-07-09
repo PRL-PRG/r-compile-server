@@ -123,6 +123,14 @@ public class Files {
     }
   }
 
+  public static void delete(Path path) {
+    try {
+      java.nio.file.Files.delete(path);
+    } catch (IOException e) {
+      throw new RuntimeException("Failed to delete " + path, e);
+    }
+  }
+
   @CanIgnoreReturnValue
   public static boolean deleteIfExists(Path path) {
     try {

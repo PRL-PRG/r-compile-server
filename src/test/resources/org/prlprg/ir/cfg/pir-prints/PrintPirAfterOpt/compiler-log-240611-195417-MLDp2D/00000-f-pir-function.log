@@ -1,0 +1,26 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ f[0x562e909fad70]                                                            │
+│ Context: CorrOrd,!TMany                                                      │
+│ Properties:  Eager, !Reflection                                              │
+├────── PIR Version After Optimizations
+f[0x562e909fad70]
+BB0
+  goto BB1
+BB1   <- [0]
+  goto BB2
+BB2   <- [1, 4]
+  int$-           %2.0  = Phi                      1L:BB1, %2.1:BB4
+  int$-           %2.1  = Phi                      2L:BB1, %4.0:BB4
+  lgl$-           %2.2  = Neq                d     2L, %2.1, elided
+  lgl$#-          %2.3  = Identical                %2.2, false
+  void                    Branch                   %2.3 -> BB3 (if true) | BB4 (if false)
+BB3   <- [2]
+  void                    Visible            v     
+  void                    Return             l     %2.0
+BB4   <- [2]
+  int$-           %4.0  = Add                d     %2.1, 1L, elided
+  goto BB2
+
+│ f[0x562e909fad70]                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘

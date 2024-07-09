@@ -48,7 +48,7 @@ class GNURByteCodeDecoderFactory {
 
         // FIXME: too many exceptions
         try {
-          var sanityCheckJFromI = labelMapping.make(curr).getTarget();
+          var sanityCheckJFromI = labelMapping.make(curr).target();
           if (sanityCheckJFromI != sanityCheckJ) {
             throw new AssertionError(
                 "expected target offset " + sanityCheckJ + ", got " + sanityCheckJFromI);

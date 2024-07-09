@@ -1,0 +1,43 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ isFALSE[0x55bbe4789480]                                                      │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;NonRefl0,!Obj0                       │
+│ Properties:  Eager, ForceOrd: 0                                              │
+├────── Final PIR Version
+isFALSE[0x55bbe4789480]
+BB0
+  val?^           %0.0  = LdArg                    0
+  val+            %0.1  = Force!<lazy>       !vr   %0.0,    <lgl$->
+  lgl$#-          %0.2  = IsType                   %0.1 isA lgl$-
+  void                    Branch                   %0.2 -> BB7 (if true) | BB8 (if false)
+BB7   <- [0]
+  lgl$-           %7.0  = CastType           d     dn %0.1
+  lgl$-           %7.1  = CallSafeBuiltin    vwed  is.na(%7.0)    <lgl$->
+  lgl$-           %7.2  = Not                vd    %7.1, elided
+  lgl$-           %7.3  = AsLogical                %7.2
+  lgl$-           %7.4  = AsLogical                %7.3
+  lgl$-           %7.5  = AsLogical                %7.4
+  lgl$#-          %7.6  = Identical                %7.5, false
+  void                    Branch                   %7.6 -> BB5 (if true) | BB3 (if false)
+BB8   <- [0]
+  env             e8.0  = (MkEnv)            l     x=%0.0, parent=R_BaseNamespace, context 1
+  fs              %8.1  = FrameState         R     0x55bbe2bba400+69: [<blt is.logical>, %0.1], env=e8.0
+  void                    Deopt              !v    %8.1, Typecheck@0x55bbe3659718[Type#1], %0.1   !
+BB5   <- [7]
+  void                    Nop                !     
+  lgl$-           %5.1  = %7.5
+  goto BB4
+BB3   <- [7]
+  void                    Visible            v     
+  lgl$-           %3.1  = Not                vd    %7.0, elided
+  lgl$-           %3.2  = AsLogical                %3.1
+  lgl$-           %3.3  = LAnd                     %7.5, %3.2
+  lgl$-           %3.4  = %3.3
+  goto BB4
+BB4   <- [5, 3]
+  lgl$-           %4.0  = Phi                      %3.4:BB3, %5.1:BB5
+  lgl$-           %4.1  = %4.0
+  void                    Return             l     %4.1
+
+│ isFALSE[0x55bbe4789480]                                                      │
+└──────────────────────────────────────────────────────────────────────────────┘

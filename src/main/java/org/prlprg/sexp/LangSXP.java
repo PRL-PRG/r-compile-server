@@ -2,12 +2,16 @@ package org.prlprg.sexp;
 
 import com.google.common.collect.ImmutableList;
 import java.util.Optional;
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
-import org.prlprg.primitive.Names;
+import org.prlprg.parseprint.ParseMethod;
+import org.prlprg.parseprint.Parser;
+import org.prlprg.parseprint.Printer;
 
 /** AST function call ("language object") SEXP. */
 @Immutable
-public sealed interface LangSXP extends SymOrLangSXP, LangOrListSXP {
+public sealed interface LangSXP extends SymOrLangSXP, SEXP, LangOrListSXP {
   /** The function being called. */
   SymOrLangSXP fun();
 
@@ -25,10 +29,13 @@ public sealed interface LangSXP extends SymOrLangSXP, LangOrListSXP {
   }
 
   @Override
+  @Nonnull
   Attributes attributes();
 
   @Override
   LangSXP withAttributes(Attributes attributes);
+
+  @Nullable RegSymSXP argName(int i);
 
   SEXP arg(int i);
 
@@ -38,32 +45,31 @@ public sealed interface LangSXP extends SymOrLangSXP, LangOrListSXP {
     return fun() instanceof RegSymSXP funSym ? Optional.of(funSym.name()) : Optional.empty();
   }
 
-  default boolean funName(String name) {
+  default boolean funNameIs(String name) {
     return funName().map(name::equals).orElse(false);
+  }
+
+  @ParseMethod
+  private static LangSXP parse(Parser p) {
+    var sexp = p.parse(SymOrLangSXP.class);
+    if (!(sexp instanceof LangSXP l)) {
+      throw p.scanner().fail("expected LangSXP but this is a symbol: " + sexp);
+    }
+
+    return l;
   }
 }
 
 record LangSXPImpl(SymOrLangSXP fun, ListSXP args, @Override Attributes attributes)
     implements LangSXP {
   @Override
-  public String toString() {
-    return attributes().isEmpty() ? deparse() : SEXPs.toString(this, deparse(), attributes());
-  }
-
-  // TODO: Special print `{`, `if`, `while`, `for`, ...
-  private String deparse() {
-    if (fun instanceof RegSymSXP funSym) {
-      var funName = funSym.name();
-      if (Names.BINOPS.contains(funName) && args.size() == 2) {
-        return args.get(0) + " " + funName + " " + args.get(1);
-      }
-    }
-    return fun() + (args() instanceof NilSXP ? "()" : args().toString());
+  public LangSXP withAttributes(Attributes attributes) {
+    return SEXPs.lang(fun, args, attributes);
   }
 
   @Override
-  public LangSXP withAttributes(Attributes attributes) {
-    return SEXPs.lang(fun, args, attributes);
+  public @Nullable RegSymSXP argName(int i) {
+    return args.get(i).tagAsSymbol();
   }
 
   @Override
@@ -74,6 +80,11 @@ record LangSXPImpl(SymOrLangSXP fun, ListSXP args, @Override Attributes attribut
   @Override
   public ListSXP asList() {
     var l = new ImmutableList.Builder<SEXP>().add(fun).addAll(args.values()).build();
-    return SEXPs.list2(l);
+    return SEXPs.list1(l);
+  }
+
+  @Override
+  public String toString() {
+    return Printer.toString(this);
   }
 }

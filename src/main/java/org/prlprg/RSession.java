@@ -18,4 +18,8 @@ public interface RSession {
   boolean isBuiltinInternal(String name);
 
   NamespaceEnvSXP getNamespace(String name, String version);
+
+  default String version() {
+    return baseNamespace().version();
+  }
 }
