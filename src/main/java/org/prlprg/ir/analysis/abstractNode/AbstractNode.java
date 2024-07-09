@@ -1,7 +1,6 @@
 package org.prlprg.ir.analysis.abstractNode;
 
 import org.prlprg.ir.type.lattice.Lattice;
-import org.prlprg.util.Pair;
 
 /**
  * A lattice used for abstract interpretation.
@@ -10,5 +9,10 @@ import org.prlprg.util.Pair;
  * it could.
  */
 public interface AbstractNode<Self> {
-  Pair<AbstractResult, Self> merge(Self other);
+  /**
+   * Merge in-place with {@code other} and return if we changed.
+   *
+   * <p>After this call, you can't use {@code other} again (it's effectively "moved").
+   */
+  AbstractResult merge(Self other);
 }

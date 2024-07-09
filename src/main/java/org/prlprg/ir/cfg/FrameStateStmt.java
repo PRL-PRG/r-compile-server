@@ -21,6 +21,16 @@ final class FrameStateStmtImpl extends SelfReturningStmtImpl<FrameState_>
   }
 
   @Override
+  public @IsEnv RValue frameStateEnv() {
+    return data().env();
+  }
+
+  @Override
+  public FrameState inlinedNext() {
+    return data().inlinedNext();
+  }
+
+  @Override
   public NodeId<? extends FrameStateStmt> id() {
     return uncheckedCastId();
   }

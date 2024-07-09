@@ -8,6 +8,7 @@ import java.lang.reflect.Executable;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.util.Map;
 import java.util.function.Consumer;
 import javax.annotation.Nullable;
 import org.prlprg.util.InvalidAnnotationError;
@@ -150,10 +151,13 @@ public class Printer {
   /**
    * Print an iterable as a list of the form {@code [a,b,...]}.
    *
-   * @param whitespaceAfterComma whether to print a space after each comma.
+   * @param printWhitespace whether to print a space after each comma. Additionally, {@linkplain
+   *                        Map.Entry entries} are special-cased to print spaces iff this isn't set
+   *                        to {@link PrintWhitespace#NONE}, so printing a map is equivalent to
+   *                        printing a list of map entries.
    * @see #print(Object)
    */
-  public void printAsList(Iterable<?> list, boolean whitespaceAfterComma) {
+  public void printAsList(Iterable<?> list, PrintWhitespace printWhitespace) {
     writer.write('[');
     var first = true;
     for (var item : list) {
@@ -161,13 +165,34 @@ public class Printer {
         first = false;
       } else {
         writer.write(',');
-        if (whitespaceAfterComma) {
+        if (printWhitespace == PrintWhitespace.SPACES) {
           writer.write(' ');
         }
       }
-      print(item);
+      if (printWhitespace == PrintWhitespace.NEWLINES) {
+        writer.write('\n');
+      }
+
+      if (item instanceof Map.Entry<?, ?> entry) {
+        print(entry.getKey());
+        writer.write(printWhitespace == PrintWhitespace.NONE ? "->" : " -> ");
+        print(entry.getValue());
+      } else {
+        print(item);
+      }
     }
     writer.write(']');
+  }
+
+  /**
+   * Print a map as {@code [ka->a,kb->b,...]}.
+   *
+   * @param printWhitespace whether to print a space after each comma and around each arrow.
+   * @see #print(Object)
+   */
+  public void printAsMap(Map<?, ?> map, PrintWhitespace printWhitespace) {
+    // Entries are special-cased in `printAsList` to print correctly.
+    printAsList(map.entrySet(), printWhitespace);
   }
 
   // endregion

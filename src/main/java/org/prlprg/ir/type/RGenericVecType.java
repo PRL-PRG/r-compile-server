@@ -6,9 +6,16 @@ import org.prlprg.sexp.SEXPType;
 
 public sealed interface RGenericVecType extends RVectorType
     permits RGenericVecTypeImpl, RNothingValueType {
-  RGenericVecType ANY = RGenericVecTypeImpl.INSTANCE;
+  RGenericVecType ANY = new RGenericVecTypeImpl(MaybeNat.UNKNOWN);
+  RGenericVecType SCALAR = new RGenericVecTypeImpl(MaybeNat.of(1));
 
   static RGenericVecType of(MaybeNat length) {
+    if (!length.isKnown()) {
+      return ANY;
+    } else if (length.isDefinitely(1)) {
+      return SCALAR;
+    }
+
     return new RGenericVecTypeImpl(length);
   }
 
@@ -17,8 +24,6 @@ public sealed interface RGenericVecType extends RVectorType
 }
 
 record RGenericVecTypeImpl(@Override MaybeNat length) implements RGenericVecType {
-  static final RGenericVecTypeImpl INSTANCE = new RGenericVecTypeImpl(MaybeNat.UNKNOWN);
-
   @Override
   public RGenericVecType withLength(MaybeNat length) {
     return new RGenericVecTypeImpl(length);

@@ -5,23 +5,29 @@ import org.prlprg.ir.cfg.RValue;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 
-public sealed interface AbstractLoad {
-  static AbstractLoad of(AbstractRValue value) {
-    return new AbstractLoadImpl(AbstractEnvImpl.UNKNOWN_PARENT, value);
+public final class AbstractLoad {
+  private final @IsEnv RValue env;
+  private final AbstractRValue result;
+
+  public AbstractLoad(AbstractRValue value) {
+    env = AbstractEnv.UNKNOWN_PARENT;
+    result = value;
   }
 
-  static AbstractLoad of(@IsEnv RValue env, AbstractRValue value) {
-    return new AbstractLoadImpl(env, value);
+  public AbstractLoad(@IsEnv RValue env, AbstractRValue value) {
+    this.env = env;
+    this.result = value;
   }
 
-  @IsEnv
-  RValue env();
+  public @IsEnv RValue env() {
+    return env;
+  }
 
-  AbstractRValue result();
-}
+  public AbstractRValue result() {
+    return result;
+  }
 
-record AbstractLoadImpl(@Override @IsEnv RValue env, @Override AbstractRValue result)
-    implements AbstractLoad {
+  // region serialization and deserialization
   @PrintMethod
   private void print(Printer p) {
     var w = p.writer();
@@ -35,4 +41,5 @@ record AbstractLoadImpl(@Override @IsEnv RValue env, @Override AbstractRValue re
   public String toString() {
     return Printer.toString(this);
   }
+  // endregion serialization and deserialization
 }

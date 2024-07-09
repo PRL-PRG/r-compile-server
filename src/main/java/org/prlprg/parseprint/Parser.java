@@ -18,10 +18,16 @@ import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.NavigableMap;
+import java.util.NavigableSet;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
@@ -161,8 +167,19 @@ public class Parser {
           List.class, ArrayList::new,
           ArrayList.class, ArrayList::new,
           HashSet.class, HashSet::new,
+          NavigableSet.class, TreeSet::new,
+          TreeSet.class, TreeSet::new,
           ImmutableList.class, ImmutableList::copyOf,
           ImmutableSet.class, ImmutableSet::copyOf);
+
+  /** Reflectively parseable two-argument generic map types and their constructors. */
+  private static final ImmutableMap<Class<?>, Function<Map<?, ?>, ?>> KNOWN_MAP_TYPES =
+      ImmutableMap.of(
+          Map.class, HashMap::new,
+          HashMap.class, HashMap::new,
+          NavigableMap.class, TreeMap::new,
+          TreeMap.class, TreeMap::new,
+          ImmutableMap.class, ImmutableMap::copyOf);
 
   /**
    * Parse an object of the given generic type, with limited support for parameterized types.
@@ -173,22 +190,30 @@ public class Parser {
    *   <li>If the type has no generic parameters, will invoke {@link #parse(Class)}.
    *   <li>If the type is a known collection type, will attempt to parse a list using {@link
    *       #parseList(Type, SkipWhitespace)}, then wrap in the correct type.
+   *   <li>If the type is a known map type, will attempt to parse a list using {@link
+   *       #parseMap(Type, Type, SkipWhitespace)}, then wrap in the correct type.
    *   <li>Otherwise, throws {@link UnsupportedOperationException} (must add to this method to
    *       support more types).
    * </ul>
    */
-  public Object parse(Type type, SkipWhitespace skipWhitespaceIfList) {
+  public Object parse(Type type, SkipWhitespace skipWhitespaceIfGeneric) {
     return switch (type) {
       case ParameterizedType t -> {
         if (t.getRawType() == Optional.class) {
           assert t.getActualTypeArguments().length == 1;
-          yield parseOptional(t.getActualTypeArguments()[0], skipWhitespaceIfList);
+          yield parseOptional(t.getActualTypeArguments()[0], skipWhitespaceIfGeneric);
         } else if (t.getRawType() instanceof Class<?> collClass
             && KNOWN_COLLECTION_TYPES.containsKey(collClass)) {
           var constructor = Objects.requireNonNull(KNOWN_COLLECTION_TYPES.get(collClass));
           assert t.getActualTypeArguments().length == 1;
-          var asList = parseList(t.getActualTypeArguments()[0], skipWhitespaceIfList);
+          var asList = parseList(t.getActualTypeArguments()[0], skipWhitespaceIfGeneric);
           yield constructor.apply(asList);
+        } else if (t.getRawType() instanceof Class<?> mapClass
+            && KNOWN_MAP_TYPES.containsKey(mapClass)) {
+          var constructor = Objects.requireNonNull(KNOWN_MAP_TYPES.get(mapClass));
+          assert t.getActualTypeArguments().length == 2;
+          var asMap = parseMap(t.getActualTypeArguments()[0], t.getActualTypeArguments()[1], skipWhitespaceIfGeneric);
+          yield constructor.apply(asMap);
         } else if (t.getRawType() instanceof Class<?> clazz) {
           yield parse(clazz);
         } else {
@@ -210,7 +235,7 @@ public class Parser {
                       "can't parse generic array of non-class, non-parameterized-class type "
                           + elemType);
             };
-        var asList = parseList(elemType, skipWhitespaceIfList);
+        var asList = parseList(elemType, skipWhitespaceIfGeneric);
         var array = Array.newInstance(elemClass, asList.size());
         for (int i = 0; i < asList.size(); i++) {
           Array.set(array, i, asList.get(i));
@@ -278,15 +303,15 @@ public class Parser {
    * <p>Specifically, this parses the string "null" for {@link Optional#empty()}, otherwise it
    * parses the value and wraps in {@link Optional#of(Object)}.
    *
-   * @param skipWhitespaceIfList applied to {@code type} and its generic parameters if any of them
-   *     are lists. Otherwise it won't affect anything.
+   * @param skipWhitespaceIfGeneric applied to {@code type} and its generic parameters if any of
+   *     them are collections or maps. Otherwise it won't affect anything.
    * @see #parseOptional(Class)
    */
-  public Optional<?> parseOptional(Type type, SkipWhitespace skipWhitespaceIfList) {
+  public Optional<?> parseOptional(Type type, SkipWhitespace skipWhitespaceIfGeneric) {
     if (scanner.trySkip("null")) {
       return Optional.empty();
     }
-    return Optional.of(parse(type, skipWhitespaceIfList));
+    return Optional.of(parse(type, skipWhitespaceIfGeneric));
   }
 
   /**
@@ -344,10 +369,92 @@ public class Parser {
             } else {
               scanner.assertAndSkip(',');
             }
+
             list.add(parseElement.get());
           }
         });
     return list.build();
+  }
+
+  /**
+   * Parse a map of the form {@code [ka->a,kb->b,...]}.
+   *
+   * <p>The current {@linkplain Scanner#skipsWhitespace() whitespace policy} will be used to scan
+   * delimiters. This means that, if set, whitespace before {@code [}, and before and after each key
+   * and value, will be skipped; however, whitespace after {@code ]} won't be skipped, and within
+   * the keys and values themselves they have their own whitespace policy.
+   *
+   * @throws UnsupportedOperationException if there's not {@link ParseMethod} registered for {@code
+   *     elementClass}.
+   * @see #parse(Class)
+   * @see #parseMap(Supplier, Supplier, SkipWhitespace)
+   */
+  public <K, V> ImmutableMap<K, V> parseMap(
+      Class<K> keyClass,
+      Class<V> valueClass,
+      SkipWhitespace skipWhitespace) {
+    return parseMap(() -> parse(keyClass), () -> parse(valueClass), skipWhitespace);
+  }
+
+  /**
+   * Parse a map of the form {@code [ka->a,kb->b,...]}.
+   *
+   * <p>This is a version of {@link #parseMap(Class, Class, SkipWhitespace)} which takes
+   * {@link Type} instead, so it can parse nested maps. The current {@linkplain
+   * Scanner#skipsWhitespace() whitespace policy} will be used to scan delimiters both in the outer
+   * map and in {@code keyType} and {@code valueType} if either are themselves generic.
+   *
+   * @throws UnsupportedOperationException if the element type can't be parsed.
+   * @see #parse(Type, SkipWhitespace)
+   * @see #parseMap(Supplier, Supplier, SkipWhitespace)
+   */
+  public ImmutableMap<?, ?> parseMap(
+      Type keyType,
+      Type valueType,
+      SkipWhitespace skipWhitespace) {
+    return parseMap(() -> parse(keyType, skipWhitespace), () -> parse(valueType, skipWhitespace), skipWhitespace);
+  }
+
+  /**
+   * Parse a map of the form {@code [ka->a,kb->b,...]}, using the given functions to parse
+   * keys and values.
+   *
+   * <p>The current {@linkplain Scanner#skipsWhitespace() whitespace policy} will be set throughout
+   * the parse, including when keys and values are parsed.
+   *
+   * @throws ParseException if there's a duplicate key.
+   * @see #parseMap(Class, Class, SkipWhitespace)
+   * @see #parseMap(Type, Type, SkipWhitespace)
+   */
+  public <K, V> ImmutableMap<K, V> parseMap(
+      Supplier<K> parseKey,
+      Supplier<V> parseValue,
+      SkipWhitespace skipWhitespace) {
+    var list = ImmutableMap.<K, V>builder();
+    scanner.runWithWhitespacePolicy(
+        skipWhitespace,
+        () -> {
+          scanner.assertAndSkip('[');
+          boolean first = true;
+          while (!scanner.trySkip(']')) {
+            if (first) {
+              first = false;
+            } else {
+              scanner.assertAndSkip(',');
+            }
+
+            var key = parseKey.get();
+            scanner.assertAndSkip("->");
+            var value = parseValue.get();
+            list.put(key, value);
+          }
+        });
+
+    try {
+      return list.buildOrThrow();
+    } catch (IllegalArgumentException e) {
+      throw scanner.fail("duplicate key in map", e);
+    }
   }
 
   // endregion parse non-terminals

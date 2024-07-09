@@ -7,11 +7,21 @@ import org.prlprg.sexp.SEXPType;
 
 public sealed interface RStringType extends RNAAbleVecType, RStringOrRegSymType
     permits RStringTypeImpl, RNothingValueType {
-  RStringType ANY = RStringTypeImpl.INSTANCE;
+  RStringType ANY = new RStringTypeImpl(MaybeNat.UNKNOWN, NoOrMaybe.MAYBE);
+  RStringType NO_NA = new RStringTypeImpl(MaybeNat.UNKNOWN, NoOrMaybe.NO);
+  RStringType SCALAR = new RStringTypeImpl(MaybeNat.of(1), NoOrMaybe.MAYBE);
+  RStringType SCALAR_NO_NA = new RStringTypeImpl(MaybeNat.of(1), NoOrMaybe.NO);
 
+  @SuppressWarnings("DuplicatedCode")
   static RStringType of(MaybeNat length, NoOrMaybe hasNAOrNaN) {
     if (!length.isKnown() && hasNAOrNaN == NoOrMaybe.MAYBE) {
       return ANY;
+    } else if (!length.isKnown() && hasNAOrNaN == NoOrMaybe.NO) {
+      return NO_NA;
+    } else if (length.isDefinitely(1) && hasNAOrNaN == NoOrMaybe.MAYBE) {
+      return SCALAR;
+    } else if (length.isDefinitely(1) && hasNAOrNaN == NoOrMaybe.NO) {
+      return SCALAR_NO_NA;
     }
 
     return new RStringTypeImpl(length, hasNAOrNaN);
@@ -26,8 +36,6 @@ public sealed interface RStringType extends RNAAbleVecType, RStringOrRegSymType
 
 record RStringTypeImpl(@Override MaybeNat length, @Override NoOrMaybe hasNAOrNaN)
     implements RStringType {
-  static final RStringTypeImpl INSTANCE = new RStringTypeImpl(MaybeNat.UNKNOWN, NoOrMaybe.NO);
-
   @Override
   public RStringType withLength(MaybeNat length) {
     return new RStringTypeImpl(length, hasNAOrNaN);

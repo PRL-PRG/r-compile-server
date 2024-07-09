@@ -3,19 +3,22 @@ package org.prlprg.ir.type;
 import org.prlprg.ir.type.lattice.Lattice;
 import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.ir.type.lattice.MaybeNat;
-import org.prlprg.ir.type.lattice.NoOrMaybe;
 
 /** Primitive vector {@link RType} projection. */
 public sealed interface RPrimVecType extends RVectorType
     permits RPrimVecTypeImpl, RNAAbleVecType, RRawType {
-  RPrimVecType ANY = RPrimVecTypeImpl.INSTANCE;
+  RPrimVecType ANY = new RPrimVecTypeImpl(MaybeNat.UNKNOWN);
+  RPrimVecType SCALAR = new RPrimVecTypeImpl(MaybeNat.of(1));
 
   static RPrimVecType of(MaybeNat length) {
+    if (!length.isKnown()) {
+      return ANY;
+    } else if (length.isDefinitely(1)) {
+      return SCALAR;
+    }
+
     return new RPrimVecTypeImpl(length);
   }
-
-  /** Whether the vector contains NAs or NaNs. */
-  NoOrMaybe hasNAOrNaN();
 
   @Override
   RPrimVecType withLength(MaybeNat length);
@@ -27,13 +30,6 @@ public sealed interface RPrimVecType extends RVectorType
 }
 
 record RPrimVecTypeImpl(@Override MaybeNat length) implements RPrimVecType {
-  static final RPrimVecTypeImpl INSTANCE = new RPrimVecTypeImpl(MaybeNat.UNKNOWN);
-
-  @Override
-  public NoOrMaybe hasNAOrNaN() {
-    return NoOrMaybe.NO;
-  }
-
   @Override
   public RPrimVecType withLength(MaybeNat length) {
     return new RPrimVecTypeImpl(length);

@@ -548,7 +548,7 @@ public class CFGCompiler {
       case PrintValue() ->
           pushInsert(
               new StmtData.CallBuiltin(
-                  Optional.empty(),
+                  null,
                   BuiltinId.PRINT_VALUE,
                   ImmutableList.of(pop(RValue.class)),
                   env));
@@ -632,14 +632,14 @@ public class CFGCompiler {
         index1.rename("index");
         push(index1);
         // Compare the index to the length
-        var cond = cursor.insert(new StmtData.Lt(Optional.of(get(ast)), length, index1));
+        var cond = cursor.insert(new StmtData.Lt(get(ast), length, index1));
         // Jump to `end` if it's greater (remember, GNU-R indexing is one-based)
         cursor.insert(new JumpData.Branch(get(ast), cond, endBb, forBodyBb));
 
         // For loop body
         moveTo(forBodyBb);
         // Extract element at index
-        var elem = cursor.insert(new StmtData.Extract2_1D(Optional.of(get(ast)), seq, index1, env));
+        var elem = cursor.insert(new StmtData.Extract2_1D(get(ast), seq, index1, env));
         // Store in the element variable
         cursor.insert(new StmtData.StVar(get(elemName), elem, env));
         // Now we compile the rest of the body...
@@ -842,13 +842,13 @@ public class CFGCompiler {
               (ast, args) ->
                   switch (args.size()) {
                     case 2 ->
-                        new StmtData.Extract1_1D(Optional.of(ast), args.get(0), args.get(1), env);
+                        new StmtData.Extract1_1D(ast, args.get(0), args.get(1), env);
                     case 3 ->
                         new StmtData.Extract1_2D(
-                            Optional.of(ast), args.get(0), args.get(1), args.get(2), env);
+                            ast, args.get(0), args.get(1), args.get(2), env);
                     case 4 ->
                         new StmtData.Extract1_3D(
-                            Optional.of(ast),
+                            ast,
                             args.get(0),
                             args.get(1),
                             args.get(2),
@@ -868,10 +868,10 @@ public class CFGCompiler {
                   switch (args.size()) {
                     case 3 ->
                         new StmtData.Subassign1_1D(
-                            Optional.of(ast), args.get(0), args.get(1), args.get(2), env);
+                            ast, args.get(0), args.get(1), args.get(2), env);
                     case 4 ->
                         new StmtData.Subassign1_2D(
-                            Optional.of(ast),
+                            ast,
                             args.get(0),
                             args.get(1),
                             args.get(2),
@@ -879,7 +879,7 @@ public class CFGCompiler {
                             env);
                     case 5 ->
                         new StmtData.Subassign1_3D(
-                            Optional.of(ast),
+                            ast,
                             args.get(0),
                             args.get(1),
                             args.get(2),
@@ -908,10 +908,10 @@ public class CFGCompiler {
               (ast, args) ->
                   switch (args.size()) {
                     case 2 ->
-                        new StmtData.Extract2_1D(Optional.of(ast), args.get(0), args.get(1), env);
+                        new StmtData.Extract2_1D(ast, args.get(0), args.get(1), env);
                     case 3 ->
                         new StmtData.Extract2_2D(
-                            Optional.of(ast), args.get(0), args.get(1), args.get(2), env);
+                            ast, args.get(0), args.get(1), args.get(2), env);
                     default ->
                         throw new UnreachableError("index should've been range-checked above");
                   });
@@ -926,10 +926,10 @@ public class CFGCompiler {
                   switch (args.size()) {
                     case 3 ->
                         new StmtData.Subassign2_1D(
-                            Optional.of(ast), args.get(0), args.get(1), args.get(2), env);
+                            ast, args.get(0), args.get(1), args.get(2), env);
                     case 4 ->
                         new StmtData.Subassign2_2D(
-                            Optional.of(ast),
+                            ast,
                             args.get(0),
                             args.get(1),
                             args.get(2),
@@ -952,7 +952,7 @@ public class CFGCompiler {
         pop(RValue.class);
         pushInsert(
             new StmtData.CallBuiltin(
-                Optional.of(get(ast)),
+                get(ast),
                 BuiltinId.DOLLAR,
                 ImmutableList.of(target, new Constant(get(member))),
                 env));
@@ -975,7 +975,7 @@ public class CFGCompiler {
         pop(RValue.class);
         pushInsert(
             new StmtData.CallBuiltin(
-                Optional.of(get(ast)),
+                get(ast),
                 BuiltinId.DOLLAR_GETS,
                 ImmutableList.of(target, new Constant(get(member)), rhs),
                 env));
@@ -985,7 +985,7 @@ public class CFGCompiler {
       }
       case IsNull() ->
           pushInsert(
-              new StmtData.Eq(Optional.empty(), pop(RValue.class), new Constant(SEXPs.NULL)));
+              new StmtData.Eq(null, pop(RValue.class), new Constant(SEXPs.NULL)));
       case IsLogical() -> pushInsert(new StmtData.GnuRIs(IsTypeCheck.LGL, pop(RValue.class)));
       case IsInteger() -> pushInsert(new StmtData.GnuRIs(IsTypeCheck.INT, pop(RValue.class)));
       case IsDouble() -> pushInsert(new StmtData.GnuRIs(IsTypeCheck.REAL, pop(RValue.class)));
@@ -999,28 +999,28 @@ public class CFGCompiler {
               Dispatch.Type.SUBSETN,
               2,
               (ast, args) ->
-                  new StmtData.Extract2_1D(Optional.of(ast), args.getFirst(), args.get(1), env));
+                  new StmtData.Extract2_1D(ast, args.getFirst(), args.get(1), env));
       case MatSubset(var _) ->
           compileDefaultDispatchN(
               Dispatch.Type.SUBSETN,
               3,
               (ast, args) ->
                   new StmtData.Extract2_2D(
-                      Optional.of(ast), args.getFirst(), args.get(1), args.get(2), env));
+                      ast, args.getFirst(), args.get(1), args.get(2), env));
       case VecSubassign(var _) ->
           compileDefaultDispatchN(
               Dispatch.Type.SUBASSIGNN,
               3,
               (ast, args) ->
                   new StmtData.Subassign2_1D(
-                      Optional.of(ast), args.getFirst(), args.get(1), args.get(2), env));
+                      ast, args.getFirst(), args.get(1), args.get(2), env));
       case MatSubassign(var _) ->
           compileDefaultDispatchN(
               Dispatch.Type.SUBASSIGNN,
               4,
               (ast, args) ->
                   new StmtData.Subassign2_2D(
-                      Optional.of(ast),
+                      ast,
                       args.getFirst(),
                       args.get(1),
                       args.get(2),
@@ -1174,7 +1174,7 @@ public class CFGCompiler {
               var ifMatch = bbAt(new BcLabel(chrLabels.get(i)));
               var cond =
                   cursor.insert(
-                      new StmtData.Eq(Optional.of(get(ast)), value, Constant.string(name)));
+                      new StmtData.Eq(get(ast), value, Constant.string(name)));
               var prev = cursor.bb();
               cursor.insert(next -> new JumpData.Branch(cond, ifMatch, next));
               addPhiInputsForStack(ifMatch, prev);
@@ -1200,7 +1200,7 @@ public class CFGCompiler {
             var ifMatch = bbAt(new BcLabel(numLabels.get(i)));
             var cond =
                 cursor.insert(
-                    new StmtData.Eq(Optional.of(get(ast)), asInteger, Constant.integer(i)));
+                    new StmtData.Eq(get(ast), asInteger, Constant.integer(i)));
             var prev = cursor.bb();
             cursor.insert(next -> new JumpData.Branch(cond, ifMatch, next));
             addPhiInputsForStack(ifMatch, prev);
@@ -1224,28 +1224,28 @@ public class CFGCompiler {
               Dispatch.Type.SUBSET2N,
               2,
               (ast, args) ->
-                  new StmtData.Extract2_1D(Optional.of(ast), args.getFirst(), args.get(1), env));
+                  new StmtData.Extract2_1D(ast, args.getFirst(), args.get(1), env));
       case MatSubset2(var _) ->
           compileDefaultDispatchN(
               Dispatch.Type.SUBSET2N,
               3,
               (ast, args) ->
                   new StmtData.Extract2_2D(
-                      Optional.of(ast), args.getFirst(), args.get(1), args.get(2), env));
+                      ast, args.getFirst(), args.get(1), args.get(2), env));
       case VecSubassign2(var _) ->
           compileDefaultDispatchN(
               Dispatch.Type.SUBASSIGN2N,
               3,
               (ast, args) ->
                   new StmtData.Subassign2_1D(
-                      Optional.of(ast), args.getFirst(), args.get(1), args.get(2), env));
+                      ast, args.getFirst(), args.get(1), args.get(2), env));
       case MatSubassign2(var _) ->
           compileDefaultDispatchN(
               Dispatch.Type.SUBASSIGN2N,
               4,
               (ast, args) ->
                   new StmtData.Subassign2_2D(
-                      Optional.of(ast),
+                      ast,
                       args.getFirst(),
                       args.get(1),
                       args.get(2),
@@ -1262,7 +1262,7 @@ public class CFGCompiler {
       case Log(var ast) -> pushInsert(mkUnop(ast, StmtData.Log::new));
       case LogBase(var ast) -> pushInsert(mkBinop(ast, StmtData.LogBase::new));
       case Math1(var ast, var funId) ->
-          pushInsert(new StmtData.Math1(Optional.of(get(ast)), funId, pop(RValue.class)));
+          pushInsert(new StmtData.Math1(get(ast), funId, pop(RValue.class)));
       case DotCall(var ast, var numArgs) -> {
         if (stack.size() < numArgs + 1) {
           throw fail("stack underflow");
@@ -1278,14 +1278,14 @@ public class CFGCompiler {
       case SeqAlong(var ast) ->
           pushInsert(
               new StmtData.CallBuiltin(
-                  Optional.of(get(ast)),
+                  get(ast),
                   BuiltinId.SEQ_ALONG,
                   ImmutableList.of(pop(RValue.class)),
                   env));
       case SeqLen(var ast) ->
           pushInsert(
               new StmtData.CallBuiltin(
-                  Optional.of(get(ast)),
+                  get(ast),
                   BuiltinId.SEQ_LEN,
                   ImmutableList.of(pop(RValue.class)),
                   env));
@@ -1295,7 +1295,7 @@ public class CFGCompiler {
         var fun = (RegSymSXP) expr.fun();
         var sym = cursor.insert(fun.name(), new StmtData.LdFun(fun, env));
         var base = cursor.insert("base." + fun.name(), new StmtData.LdFun(fun, StaticEnv.BASE));
-        var guard = cursor.insert(new StmtData.Eq(Optional.of(expr), sym, base));
+        var guard = cursor.insert(new StmtData.Eq(expr, sym, base));
 
         var safeBb = cfg.addBB("baseGuardSafe");
         var fallbackBb = cfg.addBB("baseGuardFail");
@@ -1333,22 +1333,22 @@ public class CFGCompiler {
 
   @FunctionalInterface
   private interface MkUnopFn {
-    StmtData.RValue_ make(Optional<LangSXP> ast, RValue value);
+    StmtData.RValue_ make(@Nullable LangSXP ast, RValue value);
   }
 
   @FunctionalInterface
   private interface MkBinopFn {
-    StmtData.RValue_ make(Optional<LangSXP> ast, RValue lhs, RValue rhs);
+    StmtData.RValue_ make(@Nullable LangSXP ast, RValue lhs, RValue rhs);
   }
 
   private StmtData.RValue_ mkUnop(ConstPool.Idx<LangSXP> ast, MkUnopFn unop) {
-    return unop.make(Optional.of(get(ast)), pop(RValue.class));
+    return unop.make(get(ast), pop(RValue.class));
   }
 
   private StmtData.RValue_ mkBinop(ConstPool.Idx<LangSXP> ast, MkBinopFn binop) {
     var rhs = pop(RValue.class);
     var lhs = pop(RValue.class);
-    return binop.make(Optional.of(get(ast)), lhs, rhs);
+    return binop.make(get(ast), lhs, rhs);
   }
 
   /**

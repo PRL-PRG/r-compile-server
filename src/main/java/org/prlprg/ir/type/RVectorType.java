@@ -7,9 +7,16 @@ import org.prlprg.parseprint.Printer;
 
 public sealed interface RVectorType extends RListOrVectorType
     permits RVectorTypeImpl, RPrimVecType, RGenericVecType, RExprVecType {
-  RVectorType ANY = RVectorTypeImpl.INSTANCE;
+  RVectorType ANY = new RVectorTypeImpl(MaybeNat.UNKNOWN);
+  RVectorType SCALAR = new RVectorTypeImpl(MaybeNat.of(1));
 
   static RVectorType of(MaybeNat length) {
+    if (!length.isKnown()) {
+      return ANY;
+    } else if (length.isDefinitely(1)) {
+      return SCALAR;
+    }
+
     return new RVectorTypeImpl(length);
   }
 
@@ -47,8 +54,6 @@ public sealed interface RVectorType extends RListOrVectorType
 }
 
 record RVectorTypeImpl(@Override MaybeNat length) implements RVectorType {
-  static final RVectorTypeImpl INSTANCE = new RVectorTypeImpl(MaybeNat.UNKNOWN);
-
   @Override
   public RVectorType withLength(MaybeNat length) {
     return new RVectorTypeImpl(length);

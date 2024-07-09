@@ -7,6 +7,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
@@ -102,6 +103,10 @@ public sealed interface Instr extends InstrOrPhi permits Jump, Stmt {
   @Nullable @IsEnv
   RValue env();
 
+  /** Returns the instruction's frame-state argument, or {@code null} if it cannot have one or it's
+   * elided. */
+  @Nullable FrameState frameState();
+
   /**
    * Whether the instruction can have an environment, but it may be elided.
    *
@@ -183,6 +188,7 @@ abstract sealed class InstrImpl<D extends InstrData<?>> extends InstrOrPhiImpl i
   private ImmutableList<Node> args;
 
   private @Nullable @IsEnv RValue env;
+  private @Nullable FrameState frameState;
 
   @SuppressWarnings("NotNullFieldNotInitialized")
   private REffects effects;
@@ -253,6 +259,11 @@ abstract sealed class InstrImpl<D extends InstrData<?>> extends InstrOrPhiImpl i
   }
 
   // @Override
+  public final @Nullable FrameState frameState() {
+    return frameState;
+  }
+
+  // @Override
   @SuppressWarnings("unchecked")
   public final void replaceInArgs(Node old, Node replacement) {
     var oldData = data;
@@ -279,28 +290,21 @@ abstract sealed class InstrImpl<D extends InstrData<?>> extends InstrOrPhiImpl i
                       || CodeObject.class.isAssignableFrom(cmp.getType())) {
                     return true;
                   }
-                  if (cmp.getType() == Optional.class
-                      || Collection.class.isAssignableFrom(cmp.getType())) {
-                    return Node.class.isAssignableFrom(
-                        optionalOrCollectionComponentElementClass(cmp));
+                  if (Collection.class.isAssignableFrom(cmp.getType())) {
+                    return Node.class.isAssignableFrom(collectionComponentElementClass(cmp));
                   }
                   return false;
                 })
             .flatMap(
-                cmp ->
-                    switch (Reflection.getComponent(r, cmp)) {
-                      case Node n -> Stream.of(n);
-                      case CodeObject c -> c.outerCfgNodes().stream();
-                      case Optional<?> o -> o.map(Node.class::cast).stream();
-                      case Collection<?> c ->
-                          c.stream()
-                              .flatMap(
-                                  e ->
-                                      e instanceof Optional<?> e1
-                                          ? e1.map(Node.class::cast).stream()
-                                          : Stream.of((Node) e));
-                      default -> throw new UnreachableError();
-                    })
+                cmp -> {
+                  var value = Reflection.getComponent(r, cmp);
+                  return value == null ? Stream.of() : switch (value) {
+                    case Node n -> Stream.of(n);
+                    case CodeObject c -> c.outerCfgNodes().stream();
+                    case Collection<?> c -> c.stream().flatMap(e -> e instanceof Optional<?> e1 ? e1.map(Node.class::cast).stream() : Stream.of((Node) e));
+                    default -> throw new UnreachableError();
+                  };
+                })
             .collect(ImmutableList.toImmutableList());
   }
 
@@ -331,6 +335,24 @@ abstract sealed class InstrImpl<D extends InstrData<?>> extends InstrOrPhiImpl i
     }
   }
 
+  private void computeFrameState() {
+    if (!(data instanceof Record r)) {
+      throw new AssertionError("`InstrData` must be a record");
+    }
+    var components = data.getClass().getRecordComponents();
+
+    frameState =
+        Arrays.stream(components)
+            .filter(cmp -> cmp.getType() == FrameState.class)
+            .collect(
+                Streams.intoOneOrThrow(
+                    () ->
+                        new AssertionError(
+                            "`InstrData` can't have multiple `FrameState` fields")))
+            .map(component -> (FrameState)Reflection.getComponent(r, component))
+            .orElse(null);
+  }
+
   /**
    * Replace the object in {@link #data()}.
    *
@@ -354,7 +376,7 @@ abstract sealed class InstrImpl<D extends InstrData<?>> extends InstrOrPhiImpl i
       var cmp = components[i];
       var value = Reflection.getComponent(r, cmp);
 
-      if (value.equals(old)) {
+      if (Objects.equals(value, old)) {
         if (!cmp.getType().isInstance(replacement)) {
           throw new IllegalArgumentException(
               "replacement "
@@ -372,23 +394,8 @@ abstract sealed class InstrImpl<D extends InstrData<?>> extends InstrOrPhiImpl i
               "replacing a Node with a non-Node (`unsafeReplaceInData` should be called with two nodes or two jumps)");
         }
         c.unsafeReplaceOuterCfgNode(oldNode, replacementNode);
-      } else if (value instanceof Optional<?> o) {
-        var elemClass = optionalOrCollectionComponentElementClass(cmp);
-        if (o.isPresent() && o.get().equals(old)) {
-          if (!elemClass.isInstance(replacement)) {
-            throw new IllegalArgumentException(
-                "replacement "
-                    + argTypeStr
-                    + " (in optional) is of wrong type: required "
-                    + cmp.getType().getSimpleName()
-                    + " but it's a "
-                    + replacement.getClass().getSimpleName());
-          }
-
-          value = Optional.of(replacement);
-        }
       } else if (value instanceof Collection<?> c) {
-        var elemClass = optionalOrCollectionComponentElementClass(cmp);
+        var elemClass = collectionComponentElementClass(cmp);
         var builder = ImmutableList.builderWithExpectedSize(c.size());
         for (var item : c) {
           if (item.equals(old)) {
@@ -520,6 +527,7 @@ abstract sealed class InstrImpl<D extends InstrData<?>> extends InstrOrPhiImpl i
     verifySameLenInData();
     computeArgs();
     computeEnv();
+    computeFrameState();
     computeEffects();
     // TODO: also have annotations for if the RValue is a specific subclass?
     verifyRValueArgsAreOfCorrectTypes();
@@ -564,7 +572,7 @@ abstract sealed class InstrImpl<D extends InstrData<?>> extends InstrOrPhiImpl i
       var isCollection = Collection.class.isAssignableFrom(component.getType());
       var collectionName = component.getName();
       var collection = isCollection ? (Collection<?>) Reflection.getComponent(r, component) : null;
-      if (isCollection) {
+      if (collection != null) {
         collectionSizes.put(collectionName, collection.size());
       }
 
@@ -582,7 +590,7 @@ abstract sealed class InstrImpl<D extends InstrData<?>> extends InstrOrPhiImpl i
       assert otherCollectionSize != null
           : "`@SameLen` annotation must refer to an earlier record component of type `Collection`";
 
-      if (collection.size() != otherCollectionSize) {
+      if (collection != null && collection.size() != otherCollectionSize) {
         throw new InstrVerifyException(
             "Collections "
                 + collectionName
@@ -622,84 +630,71 @@ abstract sealed class InstrImpl<D extends InstrData<?>> extends InstrOrPhiImpl i
 
       var isRValue = RValue.class.isAssignableFrom(component.getType());
       var isCodeObject = CodeObject.class.isAssignableFrom(component.getType());
-      var isOptionalRValue =
-          component.getType() == Optional.class
-              && RValue.class.isAssignableFrom(
-                  optionalOrCollectionComponentElementClass(component));
       var isListOfRValues =
           List.class.isAssignableFrom(component.getType())
               && RValue.class.isAssignableFrom(
-                  optionalOrCollectionComponentElementClass(component));
-      assert isRValue || isOptionalRValue || isListOfRValues
-          : "Only `RValue`s or lists of `RValue`s can have `@TypeIs` or `@IsEnv` annotation: argument "
+              collectionComponentElementClass(component));
+      assert isRValue || isListOfRValues
+          :
+          "Only `RValue`s or lists of `RValue`s can have `@TypeIs` or `@IsEnv` annotation: argument "
               + i
               + " has a `@TypeIs` or `@IsEnv` annotation but isn't an `RValue` or list of them";
       var arg = Reflection.getComponent(r, component);
 
-      if (isRValue) {
-        var rValue = (RValue) arg;
-        if (!rValue.isInstanceOf(expectedType)) {
-          throw new InstrVerifyException(
-              "Argument "
-                  + i
-                  + " is of wrong type: expected "
-                  + expectedType
-                  + " but it's a "
-                  + rValue.type());
-        }
-      } else if (isCodeObject) {
-        var codeObject = (CodeObject) arg;
-        try {
-          codeObject.verifyOuterCfgRValuesAreOfCorrectTypes();
-        } catch (IllegalStateException e) {
-          throw new InstrVerifyException(
-              "Argument" + i + " contains value of wrong type: " + e.getMessage());
-        }
-      } else if (isOptionalRValue) {
-        var rValue = (RValue) ((Optional<?>) arg).orElse(null);
-        if (rValue != null && !rValue.isInstanceOf(expectedType)) {
-          throw new InstrVerifyException(
-              "Argument "
-                  + i
-                  + " is of wrong type: expected "
-                  + expectedType
-                  + " (or null) but it's a "
-                  + rValue.type());
-        }
-      } else {
-        var rValues = (List<?>) arg;
-        for (var j = 0; j < rValues.size(); j++) {
-          switch (rValues.get(j)) {
-            case Optional<?> optRValue -> {
-              var rValue = (RValue) optRValue.orElse(null);
-              if (rValue != null && !rValue.isInstanceOf(expectedType)) {
-                throw new InstrVerifyException(
-                    "Argument "
-                        + i
-                        + " element "
-                        + j
-                        + " is of wrong type: expected "
-                        + expectedType
-                        + " (or null) but it's a "
-                        + rValue.type());
+      if (arg != null) {
+        if (isRValue) {
+          var rValue = (RValue) arg;
+          if (!rValue.isInstanceOf(expectedType)) {
+            throw new InstrVerifyException(
+                "Argument "
+                    + i
+                    + " is of wrong type: expected "
+                    + expectedType
+                    + " but it's a "
+                    + rValue.type());
+          }
+        } else if (isCodeObject) {
+          var codeObject = (CodeObject) arg;
+          try {
+            codeObject.verifyOuterCfgRValuesAreOfCorrectTypes();
+          } catch (IllegalStateException e) {
+            throw new InstrVerifyException(
+                "Argument" + i + " contains value of wrong type: " + e.getMessage());
+          }
+        } else {
+          var rValues = (List<?>) arg;
+          for (var j = 0; j < rValues.size(); j++) {
+            switch (rValues.get(j)) {
+              case Optional<?> optRValue -> {
+                var rValue = (RValue) optRValue.orElse(null);
+                if (rValue != null && !rValue.isInstanceOf(expectedType)) {
+                  throw new InstrVerifyException(
+                      "Argument "
+                          + i
+                          + " element "
+                          + j
+                          + " is of wrong type: expected "
+                          + expectedType
+                          + " (or null) but it's a "
+                          + rValue.type());
+                }
               }
-            }
-            case RValue rValue -> {
-              if (!rValue.isInstanceOf(expectedType)) {
-                throw new InstrVerifyException(
-                    "Argument "
-                        + i
-                        + " element "
-                        + j
-                        + " is of wrong type: expected "
-                        + expectedType
-                        + " but it's a "
-                        + rValue.type());
+              case RValue rValue -> {
+                if (!rValue.isInstanceOf(expectedType)) {
+                  throw new InstrVerifyException(
+                      "Argument "
+                          + i
+                          + " element "
+                          + j
+                          + " is of wrong type: expected "
+                          + expectedType
+                          + " but it's a "
+                          + rValue.type());
+                }
               }
+              default -> throw new AssertionError(
+                  "`optionalOrCollectionComponentElementClass` returned something for this list, so it should either be a list of `RValue`s or `Optional`s");
             }
-            default ->
-                throw new AssertionError(
-                    "`optionalOrCollectionComponentElementClass` returned something for this list, so it should either be a list of `RValue`s or `Optional`s");
           }
         }
       }
@@ -714,27 +709,16 @@ abstract sealed class InstrImpl<D extends InstrData<?>> extends InstrOrPhiImpl i
   }
 
   // region misc reflection helpers
-  /**
-   * If this is an {@code Optional<T>}, {@code ImmutableList<T>}, or {@code
-   * ImmutableList<Optional<T>>}, returns {@code T}.
-   */
-  private static Class<?> optionalOrCollectionComponentElementClass(RecordComponent cmp) {
-    assert cmp.getType() == Optional.class || cmp.getType() == ImmutableList.class
+  /** Asserts the component's type is either {@code ImmutableList<Optional<T>>} or
+   * {@code ImmutableList<T>} (prioritizing the first), then returns {@code T}. */
+  @SuppressWarnings("DataFlowIssue")
+  private static Class<?> collectionComponentElementClass(RecordComponent cmp) {
+    assert cmp.getType() == ImmutableList.class
         : "`InstrData` has `Collection` component which isn't an `ImmutableList`";
-    if (cmp.getGenericType() instanceof ParameterizedType p
-        && p.getActualTypeArguments().length == 1) {
-      if (p.getActualTypeArguments()[0] instanceof ParameterizedType innerP
-          && innerP.getRawType() == Optional.class
-          && innerP.getActualTypeArguments().length == 1
-          && innerP.getActualTypeArguments()[0] instanceof Class<?> elemClass) {
-        return elemClass;
-      } else if (p.getActualTypeArguments()[0] instanceof Class<?> elemClass) {
-        return elemClass;
-      }
-    }
-    throw new AssertionError(
-        "`InstrData` has `Collection` component which isn't a straightforward generic type, don't know how to handle: "
-            + cmp.getGenericType());
+    var arg = ((ParameterizedType)cmp.getGenericType()).getActualTypeArguments()[0];
+    return arg instanceof ParameterizedType p && p.getRawType() == Optional.class
+        ? (Class<?>)p.getActualTypeArguments()[0]
+        : (Class<?>)arg;
   }
   // endregion misc reflection helpers
 }

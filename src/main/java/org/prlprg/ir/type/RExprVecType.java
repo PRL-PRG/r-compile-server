@@ -6,9 +6,16 @@ import org.prlprg.sexp.SEXPType;
 
 public sealed interface RExprVecType extends RVectorType
     permits RExprVecTypeImpl, RNothingValueType {
-  RExprVecType ANY = RExprVecTypeImpl.INSTANCE;
+  RExprVecType ANY = new RExprVecTypeImpl(MaybeNat.UNKNOWN);
+  RExprVecType SCALAR = new RExprVecTypeImpl(MaybeNat.of(1));
 
   static RExprVecType of(MaybeNat length) {
+    if (!length.isKnown()) {
+      return ANY;
+    } else if (length.isDefinitely(1)) {
+      return SCALAR;
+    }
+
     return new RExprVecTypeImpl(length);
   }
 
@@ -17,8 +24,6 @@ public sealed interface RExprVecType extends RVectorType
 }
 
 record RExprVecTypeImpl(@Override MaybeNat length) implements RExprVecType {
-  static final RExprVecTypeImpl INSTANCE = new RExprVecTypeImpl(MaybeNat.UNKNOWN);
-
   @Override
   public RExprVecType withLength(MaybeNat length) {
     return new RExprVecTypeImpl(length);

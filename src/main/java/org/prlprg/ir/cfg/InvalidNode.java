@@ -108,6 +108,16 @@ public class InvalidNode implements DeoptReason, RValue, FrameState, GlobalNode 
   }
 
   @Override
+  public @Nullable @IsEnv RValue frameStateEnv() {
+    return null;
+  }
+
+  @Override
+  public @Nullable FrameState inlinedNext() {
+    return null;
+  }
+
+  @Override
   public @Nullable InstrOrPhi origin() {
     return null;
   }

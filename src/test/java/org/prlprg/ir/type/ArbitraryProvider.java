@@ -12,6 +12,7 @@ import static org.prlprg.sexp.ArbitraryProvider.sexps;
 import static org.prlprg.sexp.ArbitraryProvider.symbolStrings;
 
 import com.google.common.collect.ImmutableSet;
+import java.util.Arrays;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -23,8 +24,10 @@ import org.prlprg.ir.effect.REffect;
 import org.prlprg.ir.effect.REffects;
 import org.prlprg.ir.type.lattice.MaybeNat;
 import org.prlprg.ir.type.lattice.NoOrMaybe;
+import org.prlprg.ir.type.lattice.YesOrMaybe;
 import org.prlprg.primitive.BuiltinId;
 import org.prlprg.sexp.SEXPType;
+import org.prlprg.util.Reflection;
 import org.prlprg.util.Streams;
 
 public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvider {
@@ -44,6 +47,7 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
                 r.list().ofMaxSize(MAX_SIZE).map(RType::intersection),
                 Combinators.combine(
                         rFunctionTypes(r),
+                        defaultFor(YesOrMaybe.class),
                         attributesTypes(),
                         defaultFor(RPromiseType.class),
                         defaultFor(NoOrMaybe.class))
@@ -65,17 +69,26 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
       ImmutableSet.of(SEXPType.CHAR, SEXPType.ANY, SEXPType.S4, SEXPType.EXTPTR, SEXPType.WEAKREF);
 
   public static Arbitrary<RType> basicRTypes() {
+    var staticFields =
+        Arrays.stream(RType.class.getFields())
+            .filter(field -> field.getType() == RType.class)
+            .map(field -> (RType) Reflection.getField(null, field))
+            .toList();
     return oneOf(
-        Arbitraries.of(RTypeImpl.INTERNED.values()),
+        Arbitraries.of(staticFields),
         Combinators.combine(
                 rVectorTypes(),
+                defaultFor(YesOrMaybe.class),
                 attributesTypes(),
                 defaultFor(RPromiseType.class),
                 defaultFor(NoOrMaybe.class))
             .as(RType::of),
-        sexpTypes()
-            .filter(Predicate.not(NONSENSICAL_OR_UNHANDLED_SEXP_TYPE_VALUE_TYPES::contains))
-            .map(RType::simple),
+        Combinators.combine(
+                sexpTypes()
+                    .filter(
+                        Predicate.not(NONSENSICAL_OR_UNHANDLED_SEXP_TYPE_VALUE_TYPES::contains)),
+                defaultFor(YesOrMaybe.class))
+            .as(RType::simple),
         sexps().map(RType::exact));
   }
 
