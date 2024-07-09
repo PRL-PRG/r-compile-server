@@ -28,6 +28,8 @@ message InitRequest {
 
 message InitResponse {}
 
+message Empty {}
+
 message Function {
   optional string package = 1;// There can be only one version of a package loaded at a time
   string name = 2; //What if it is a closure passed to a HOF?
@@ -35,9 +37,28 @@ message Function {
   optional bytes hash = 4;
 }
 
-enum TypeFeedback {
-  SCALAR = 0;
-  VECTOR = 1;// Add more types
+message CallContext {
+  bool args_statically_matched = 1;
+  bool correct_number_of_args = 2;
+  bool correct_order_of_args = 3;
+  bool no_missing_args = 4;
+}
+
+message ArgumentContext {
+  bool eager = 1;
+  bool reflection = 2;
+  bool object = 3;
+  optional Type type = 4;
+}
+
+message Context {
+  CallContext call_context = 1;
+  repeated ArgumentContext argument_context = 2;
+}
+
+enum Type {
+  INTEGER = 0;
+  REAL = 1;// Add more types
 }
 enum Tier {
   BASELINE = 0;
@@ -48,10 +69,7 @@ message CompileRequest {
   Function function = 2;// Add package version
   optional Tier tier = 4;//if not defined, let the compile server decide
   optional int32 optimization_level = 5;// if not defined, the server decides
-  repeated TypeFeedback type_feedback = 6;// n arguments + return type
-  // should we rather use a map parameter -> type feedback?
-  // Indeed if the types keep the same but parameters are swapped
-  // in the parameter list, we should recompile the function
+  optional Context context = 6;
 }
 
 message CompileResponse {
@@ -59,6 +77,10 @@ message CompileResponse {
   Tier tier = 2;
   optional bytes native_code = 3;
   optional bytes constant_pool = 4;
+}
+
+message ContextRequest {
+  Function function = 1;
 }
 
 message FactRequest {

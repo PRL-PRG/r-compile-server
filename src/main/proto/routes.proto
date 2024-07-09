@@ -7,4 +7,6 @@ import "messages.proto";
 service CompileService {
   rpc Compile(CompileRequest) returns (CompileResponse) {}
   rpc Init(InitRequest) returns (InitResponse) {}
+  rpc GetContext(ContextRequest) returns (Context) {}
+  rpc LoadPackage(Package) returns (Empty) {}
 }
