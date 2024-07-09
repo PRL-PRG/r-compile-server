@@ -11,6 +11,8 @@ public interface FrameState extends Node {
   @Override
   NodeId<? extends FrameState> id();
 
-  @Nullable @IsEnv RValue frameStateEnv();
+  @Nullable @IsEnv
+  RValue frameStateEnv();
+
   @Nullable FrameState inlinedNext();
 }

@@ -606,8 +606,7 @@ class PirInstrOrPhiParseContext {
             var invert = instrTypeName.equals("AssumeNot");
             var assumption = p.parse(RValue.class);
             if (invert) {
-              assumption =
-                  bb.append("assumeInvert", new StmtData.Not(null, assumption));
+              assumption = bb.append("assumeInvert", new StmtData.Not(null, assumption));
             }
             s.assertAndSkip(", ");
             var checkpoint = p.parse(Checkpoint.class);
@@ -895,7 +894,9 @@ class PirInstrOrPhiParseContext {
         type =
             sexpType == SEXPType.PROM
                 ? RType.ANY_PROMISE_NOT_MISSING
-                : sexpType == SEXPType.SYM ? RType.ANY_SIMPLE : RType.simple(sexpType, YesOrMaybe.MAYBE);
+                : sexpType == SEXPType.SYM
+                    ? RType.ANY_SIMPLE
+                    : RType.simple(sexpType, YesOrMaybe.MAYBE);
       }
 
       // Attributes

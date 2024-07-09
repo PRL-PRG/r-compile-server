@@ -3,6 +3,8 @@ package org.prlprg.ir.analysis;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.stream.IntStream;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import org.prlprg.ir.analysis.abstractNode.AbstractEnv;
@@ -10,41 +12,53 @@ import org.prlprg.ir.analysis.abstractNode.AbstractEnvHierarchy;
 import org.prlprg.ir.analysis.abstractNode.AbstractLoad;
 import org.prlprg.ir.analysis.abstractNode.AbstractNode;
 import org.prlprg.ir.analysis.abstractNode.AbstractRValue;
-import org.prlprg.ir.analysis.abstractNode.AbstractRValue.ValueOrigin;
 import org.prlprg.ir.analysis.abstractNode.AbstractResult;
+import org.prlprg.ir.analysis.abstractNode.AbstractResult2;
+import org.prlprg.ir.cfg.BB;
 import org.prlprg.ir.cfg.CFG;
-import org.prlprg.ir.cfg.Call;
 import org.prlprg.ir.cfg.Instr;
 import org.prlprg.ir.cfg.IsEnv;
-import org.prlprg.ir.cfg.JumpData;
 import org.prlprg.ir.cfg.JumpData.Deopt;
 import org.prlprg.ir.cfg.JumpData.Return;
 import org.prlprg.ir.cfg.RValue;
 import org.prlprg.ir.cfg.RValueStmt;
 import org.prlprg.ir.cfg.StaticEnv;
+import org.prlprg.ir.cfg.Stmt;
 import org.prlprg.ir.cfg.StmtData;
 import org.prlprg.ir.cfg.StmtData.CallSafeBuiltin;
 import org.prlprg.ir.cfg.StmtData.Call_;
 import org.prlprg.ir.cfg.StmtData.CastType;
 import org.prlprg.ir.cfg.StmtData.ChkFun;
+import org.prlprg.ir.cfg.StmtData.ExpandDots;
 import org.prlprg.ir.cfg.StmtData.Force;
 import org.prlprg.ir.cfg.StmtData.IsMissing;
+import org.prlprg.ir.cfg.StmtData.LdArg;
 import org.prlprg.ir.cfg.StmtData.LdDots;
 import org.prlprg.ir.cfg.StmtData.LdEnclosEnv;
 import org.prlprg.ir.cfg.StmtData.LdFun;
 import org.prlprg.ir.cfg.StmtData.LdVar;
 import org.prlprg.ir.cfg.StmtData.LdVarSuper;
 import org.prlprg.ir.cfg.StmtData.MaterializeEnv;
+import org.prlprg.ir.cfg.StmtData.MkCls;
 import org.prlprg.ir.cfg.StmtData.MkEnv;
 import org.prlprg.ir.cfg.StmtData.MkProm;
 import org.prlprg.ir.cfg.StmtData.StVar;
 import org.prlprg.ir.cfg.StmtData.StVarSuper;
+import org.prlprg.ir.closure.ClosureVersion;
+import org.prlprg.ir.closure.ClosureVersion.CallContext.ArgAssumption;
+import org.prlprg.ir.closure.ClosureVersion.CallContext.ArgsAssumption;
+import org.prlprg.ir.closure.Promise;
 import org.prlprg.ir.effect.REffect;
+import org.prlprg.ir.type.lattice.Maybe;
+import org.prlprg.ir.type.lattice.NoOrMaybe;
+import org.prlprg.ir.type.lattice.YesOrMaybe;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.PrintWhitespace;
 import org.prlprg.parseprint.Printer;
+import org.prlprg.primitive.BuiltinId;
 import org.prlprg.sexp.RegSymSXP;
 import org.prlprg.sexp.SEXPs;
+import org.prlprg.util.Pair;
 
 /**
  * Heavyweight scope analysis (from PIR).
@@ -63,7 +77,7 @@ public class Scopes {
    * <p>TODO: Make configurable via environment variables.
    */
   public record Config(
-      int maxDepth, int maxSize, int maxPromSize, int maxResults, int maxSubAnalysis) {
+      int maxDepth, int maxSize, int maxPromSize, int maxResults, int maxNumSubAnalyses) {
     /** The default config, if no environment variables are set. */
     public static final Config DEFAULT = new Config(2, 120, 14, 800, 10);
   }
@@ -130,20 +144,21 @@ public class Scopes {
       var w = p.writer();
 
       w.write("AState(");
-      w.runIndented(() -> {
-        w.write('\n');
-        p.print(envs);
+      w.runIndented(
+          () -> {
+            w.write('\n');
+            p.print(envs);
 
-        w.write(",\nforcedPromises = ");
-        p.printAsMap(forcedPromises, PrintWhitespace.NEWLINES);
+            w.write(",\nforcedPromises = ");
+            p.printAsMap(forcedPromises, PrintWhitespace.NEWLINES);
 
-        w.write(",\nreturn = ");
-        p.print(returnValue);
+            w.write(",\nreturn = ");
+            p.print(returnValue);
 
-        if (mayUseReflection) {
-          w.write(",\nmayUseReflection");
-        }
-      });
+            if (mayUseReflection) {
+              w.write(",\nmayUseReflection");
+            }
+          });
       w.write(')');
     }
   }
@@ -151,40 +166,58 @@ public class Scopes {
   // Config
   private final Config config;
 
+  // Sub-analyses
+  private final Map<Instr, SubAnalysis> subAnalyses = new HashMap<>();
+
   // Results
   private final Map<Instr, AbstractLoad> results = new HashMap<>();
   private final Map<Instr, AbstractRValue> returnValues = new HashMap<>();
   private boolean changed = false;
 
-
-  /** Computes scopes in the given CFG. */
-  public Scopes(CFG cfg, Config config) {
+  /** Computes scopes in the given closure. */
+  public Scopes(ClosureVersion closureVersion, Config config) {
     this.config = config;
 
-    new SubAnalysis(cfg, false, List.of(), StaticEnv.NOT_CLOSED, new State(), 0);
+    new SubAnalysis(closureVersion, List.of(), new State(), 0);
   }
 
   private class SubAnalysis {
+    private final ClosureVersion innermostVersion;
     private final CFG cfg;
     private final boolean isInPromise;
     private final List<RValue> args;
     private final @IsEnv RValue staticClosureEnv;
-    private final State state;
+    private State state;
     private final int depth;
     private final boolean canDeopt;
 
-    /** Run a sub-analysis.
-     *
-     * <p>This is a class and constructor, not a function, only so that we can implicitly pass
-     * around the class's fields.
-     */
+    /** Create a sub-analysis to run on the given closure version. */
+    private SubAnalysis(ClosureVersion closureVersion, List<RValue> args, State state, int depth) {
+      this(
+          closureVersion,
+          closureVersion.body(),
+          false,
+          args,
+          closureVersion.closure().env(),
+          state,
+          depth);
+    }
+
+    /** Create a sub-analysis to run on the given promise. */
+    private SubAnalysis(ClosureVersion outerVersion, Promise promise, State state, int depth) {
+      this(outerVersion, promise.body(), true, List.of(), promise.env(), state, depth);
+    }
+
+    /** Create a sub-analysis to run. */
     private SubAnalysis(
+        ClosureVersion innermostVersion,
         CFG cfg,
         boolean isInPromise,
         List<RValue> args,
         @IsEnv RValue staticClosureEnv,
         State state,
         int depth) {
+      this.innermostVersion = innermostVersion;
       this.cfg = cfg;
       this.isInPromise = isInPromise;
       this.args = args;
@@ -194,9 +227,10 @@ public class Scopes {
       canDeopt = cfg.canDeopt();
     }
 
-    private AbstractResult doCompute(State state, Instr instr, boolean updateGlobalState) {
+    private AbstractResult2 doCompute(
+        State state, BB instrBb, int instrIdx, Instr instr, boolean updateGlobalState) {
       var handled = false;
-      var res = AbstractResult.NONE;
+      var res = new AbstractResult2();
 
       if (instr.effects().contains(REffect.TriggerDeopt)) {
         var fs = instr.frameState();
@@ -215,13 +249,13 @@ public class Scopes {
           var lookup = ret.value() instanceof Instr i ? lookup(i) : null;
           state.returnValue.merge(
               lookup == null ? new AbstractRValue(ret.value(), instr, depth) : lookup.result());
-          res = res.union(AbstractResult.UPDATED);
+          res.update();
         }
         case Deopt _ -> {
           if (canDeopt) {
             state.returnValue.setToUnknown();
             state.mayUseReflection = true;
-            res = AbstractResult.TAINTED;
+            res.taint();
           }
         }
         case MkEnv mk -> {
@@ -234,13 +268,13 @@ public class Scopes {
             env.set(localVar.name(), localVar.value(), instr, depth);
           }
           handled = true;
-          res = res.union(AbstractResult.UPDATED);
+          res.update();
         }
         case MaterializeEnv mat -> state.envs.addAlias((RValueStmt) instr, mat.env());
         case LdEnclosEnv _ -> {
           if (staticClosureEnv == StaticEnv.NOT_CLOSED) {
-            state.envs.at((RValueStmt)instr).leak();
-            res = AbstractResult.TAINTED;
+            state.envs.at((RValueStmt) instr).leak();
+            res.taint();
           } else {
             // `LdEnclosEnv` happens inside promises and refers back to the caller environment, i.e.
             // the instruction that created the promise.
@@ -265,7 +299,7 @@ public class Scopes {
             var env = state.envs.at(load.env());
             state.envs.leak(load.env());
             env.setToUnknown();
-            res = AbstractResult.TAINTED;
+            res.taint();
             handled = true;
           }
         }
@@ -280,7 +314,7 @@ public class Scopes {
         case StVar st -> {
           state.envs.at(st.env()).set(st.name(), st.value(), instr, depth);
           handled = true;
-          res = res.union(AbstractResult.UPDATED);
+          res.update();
         }
         case StVarSuper st -> {
           var superEnv = state.envs.at(st.env()).parentEnv();
@@ -289,7 +323,7 @@ public class Scopes {
             if (!binding.result().isUnknown()) {
               state.envs.at(superEnv).set(st.name(), st.value(), instr, depth);
               handled = true;
-              res = res.union(AbstractResult.UPDATED);
+              res.update();
             }
           }
         }
@@ -300,24 +334,293 @@ public class Scopes {
           }
         }
         case StmtData.Force f -> {
-          // TODO
+          var arg = f.promise();
+
+          // If it's a non lazy thing, we do not need to bother.
+          if (arg.type().isLazy() == Maybe.NO) {
+            if (arg.type().isPromise() == Maybe.NO) {
+              updateReturnValue(instr, new AbstractRValue(arg, instr, depth));
+            }
+            handled = true;
+          }
+
+          // Often we have `x = LdVar(...); y = Force(x)`. Since `LdVar` does not change the
+          // environment, the state at `Force` is usable to query the result of the `LdVar`. This
+          // generalizes to any `x = ...; ...; y = Force(x)`, where nothing in `...` writes to the
+          // env.
+          if (!handled) {
+            var isAdjacent =
+                arg instanceof Stmt s
+                    && instrBb.stmts().contains(s)
+                    && instrBb.stmts().indexOf(s) < instrIdx
+                    && IntStream.range(instrBb.stmts().indexOf(s), instrIdx)
+                        .mapToObj(instrBb.stmts()::get)
+                        .noneMatch(
+                            between ->
+                                between.effects().contains(REffect.WritesEnvArg)
+                                    || between.effects().contains(REffect.Reflection));
+            var lookup =
+                isAdjacent ? lookup(state, (Stmt) arg) : arg instanceof Instr i ? lookup(i) : null;
+            if (lookup != null) {
+              var lookupRes = lookup.result();
+              var singleOrigin = lookupRes.singleOrigin();
+              if (lookupRes.type().isLazy() == Maybe.NO) {
+                updateReturnValue(
+                    instr,
+                    lookupRes.type().isPromise() == Maybe.NO ? lookupRes : AbstractRValue.UNKNOWN);
+                handled = true;
+              } else if (singleOrigin != null) {
+                arg = singleOrigin.value();
+              }
+            }
+          }
+
+          // Forcing an argument can only affect local envs by reflection.
+          // Hence, only leaked envs can be affected
+          if (!handled) {
+            var concreteEnv =
+                f.env() instanceof RValueStmt s && s.data() instanceof MkEnv mk ? mk : null;
+            if (arg instanceof Instr i && i.data() instanceof MkProm concretePromise) {
+              var found = state.forcedPromises.get(concretePromise);
+              if (found == null) {
+                if (depth < config.maxDepth
+                    && !fixedPointReached()
+                    && f.isStrict() == YesOrMaybe.YES
+                    && !state.envs.areAllUnknown()
+                    && concretePromise.promise().body().numNodes() < config.maxPromSize) {
+                  // We are certain that we do force something here. Let's peek through the
+                  // argument and see if we find a promise. If so, we will analyze it.
+                  var promAnalysis = subAnalyses.get(instr);
+                  if (promAnalysis == null && subAnalyses.size() < config.maxNumSubAnalyses) {
+                    promAnalysis =
+                        new SubAnalysis(
+                            innermostVersion, concretePromise.promise(), state.clone(), depth + 1);
+                  } else if (promAnalysis != null) {
+                    promAnalysis.state = state.clone();
+                  }
+
+                  if (promAnalysis != null) {
+                    promAnalysis.state.mayUseReflection = false;
+
+                    var subResult = promAnalysis.run();
+
+                    state.merge(subResult);
+                    updateReturnValue(instr, subResult.returnValue);
+                    res.merge(
+                        state.forcedPromises.get(concretePromise).merge(subResult.returnValue));
+                    res.update();
+                    res.setKeepSnapshot();
+                    handled = true;
+                  }
+                }
+              } else if (!found.isUnknown()) {
+                updateReturnValue(instr, found);
+                handled = true;
+              }
+
+              if (!handled) {
+                state.envs.at(concretePromise.promise().env()).setToUnknown();
+                res.merge(state.envs.taintLeaked());
+                updateReturnValue(instr, AbstractRValue.UNKNOWN);
+                handled = true;
+              }
+            } else if (arg instanceof Instr i && i.data() instanceof LdArg ldArg) {
+              if (innermostVersion
+                  .callContext()
+                  .requires(ldArg.index(), ArgAssumption.IS_NON_REFLECTIVE)) {
+                res.merge(state.envs.taintLeaked());
+                updateReturnValue(instr, AbstractRValue.UNKNOWN);
+                handled = true;
+              }
+            } else if (concreteEnv != null && concreteEnv.isStub()) {
+              // Forcing using a stub should deopt if local vars are modified.
+              res.merge(state.envs.taintLeaked());
+              updateReturnValue(instr, AbstractRValue.UNKNOWN);
+              handled = true;
+            }
+          }
+
+          if (!handled) {
+            res.taint();
+            updateReturnValue(instr, AbstractRValue.UNKNOWN);
+          }
         }
-        case Call_ call -> {
-          // TODO
+        case Call_<?> call -> {
+          var fun = call.fun();
+          var hasDots =
+              call.args().stream()
+                  .anyMatch(a -> a instanceof Instr i && i.data() instanceof ExpandDots);
+          var hasExplicitNames = call.explicitNames() != null;
+          if (fun instanceof Instr i) {
+            var improvedFun = lookup(i);
+            var improvedFun1 = improvedFun == null ? null : improvedFun.result().singleOrigin();
+            if (improvedFun1 != null) {
+              fun = improvedFun1.value();
+            }
+          }
+          if (fun instanceof Instr i && i.data() instanceof MkCls c) {
+            fun = c.closure().getVersion(call.context());
+          }
+
+          // Do inter-procedural analysis if we have a static closure (and no dots argument or
+          // explicit names, because those are too difficult to handle to be worth it).
+          if (!hasDots && !hasExplicitNames && fun instanceof ClosureVersion concreteClosure) {
+            if (depth == 0 && concreteClosure == innermostVersion) {
+              // At depth 0 we are sure that no contextual information is considered when computing
+              // the analysis. Thus whatever is the result of this functions analysis, a recursive
+              // call to itself cannot excert more behaviors.
+              handled = true;
+              res.setNeedRecursion();
+              updateReturnValue(instr, AbstractRValue.UNKNOWN);
+            } else if (!fixedPointReached()
+                && depth != config.maxDepth
+                && concreteClosure.body().numNodes() <= config.maxSize
+                && !state.envs.areAllUnknown()) {
+              // While analyzing the callee we have to assume the caller's environment leaked.
+              // Because the callee can always access it reflectively. If when the callee returns
+              // the env was not tainted, it can be un-leaked again.
+              var ienv = instr.env();
+              var myEnvWasLeaked = ienv != null && state.envs.at(ienv).isLeaked();
+
+              var closureAnalysis = subAnalyses.get(instr);
+              if (closureAnalysis == null && subAnalyses.size() < config.maxNumSubAnalyses) {
+                closureAnalysis =
+                    new SubAnalysis(concreteClosure, call.args(), state.clone(), depth + 1);
+              } else if (closureAnalysis != null) {
+                closureAnalysis.state = state.clone();
+              }
+
+              if (closureAnalysis != null) {
+                if (ienv != null) {
+                  closureAnalysis.state.envs.at(ienv).leak();
+                }
+
+                var subResult = closureAnalysis.run();
+
+                if (ienv != null) {
+                  var myEnv = subResult.envs.at(ienv);
+                  if (!myEnvWasLeaked && myEnv.isUnknown()) {
+                    myEnv.unleak();
+                  }
+                }
+
+                state.merge(subResult);
+                updateReturnValue(instr, subResult.returnValue);
+                res.update();
+                res.setKeepSnapshot();
+                handled = true;
+              }
+            }
+          }
+
+          if (fun instanceof BuiltinId builtin) {
+            var isGuaranteedSafe =
+                call instanceof CallSafeBuiltin
+                    || (builtin.isNonObject()
+                        && call.args().stream()
+                            .noneMatch(
+                                arg -> {
+                                  var lookupArg = arg instanceof Instr i ? lookup(i) : null;
+                                  var type =
+                                      lookupArg == null ? arg.type() : lookupArg.result().type();
+                                  return type.isObject() != Maybe.NO
+                                      || type.isExpandedDots() != Maybe.NO;
+                                }));
+
+            if (isGuaranteedSafe) {
+              handled = true;
+            }
+          }
+
+          if (!handled) {
+            if (!(fun instanceof BuiltinId builtin) || !builtin.canSafelyBeInlined()) {
+              state.mayUseReflection = true;
+            }
+            res.taint();
+          }
         }
       }
 
       if (switch (instr.data()) {
         case CallSafeBuiltin _, ChkFun _, CastType _, Force _ -> false;
-        default -> true
+        default -> true;
       }) {
         for (var arg : instr.args()) {
-          // TODO
+          // The env arg has special treatment below since it can only be leaked by instructions
+          // with the `LeaksEnvArg` effect.
+          if (arg == instr.env()) {
+            continue;
+          }
+
+          RValue leak = null;
+          if (arg instanceof Instr i && i.data() instanceof MkProm p) {
+            leak = p.promise().env();
+          } else if (arg instanceof Instr i && i.data() instanceof MkCls c) {
+            leak = c.closure().env();
+          } else if (!(instr instanceof RValue v && v.isEnv() == Maybe.YES)
+              && (arg instanceof RValue v && v.isEnv() == Maybe.YES)) {
+            leak = (RValue) arg;
+          }
+
+          if (leak != null && leak != StaticEnv.ELIDED) {
+            if (instr instanceof RValueStmt instrAsRValueStmt && instr.data() instanceof MkEnv) {
+              state.envs.addDependency(instrAsRValueStmt, leak);
+            } else if (instr.data() instanceof StVar st) {
+              state.envs.addDependency(st.env(), leak);
+            } else if (instr.data() instanceof StVarSuper st) {
+              var ld = state.envs.lookupSuper(st.env(), st.name());
+              state.envs.addDependency(ld.env(), leak);
+            } else {
+              state.envs.leak(leak);
+            }
+            res.update();
+          }
         }
       }
 
       if (!handled) {
-        // TODO
+        var ienv = instr.env();
+        if (ienv != null) {
+          // Already exclude the case where an operation needs an env only for object arguments, but
+          // we know that none of the args are objects.
+          var envIsNeeded =
+              instr.args().stream()
+                  .anyMatch(
+                      arg -> {
+                        if (!(arg instanceof RValue varg)) {
+                          return false;
+                        }
+
+                        var lookupArg = varg instanceof Instr i ? lookup(i) : null;
+                        var type = lookupArg == null ? varg.type() : lookupArg.result().type();
+                        return type.isObject() != Maybe.NO || type.isExpandedDots() != Maybe.NO;
+                      });
+
+          if (envIsNeeded) {
+            var isEnvStub =
+                instr.env() instanceof Instr i && i.data() instanceof MkEnv mk && mk.isStub();
+
+            if (!isEnvStub && instr.effects().contains(REffect.LeaksEnvArg)) {
+              state.envs.leak(Objects.requireNonNull(instr.env()));
+              res.update();
+            }
+
+            // If an instruction does arbitrary changes to the environment, we need to consider it
+            // tainted.
+            if (instr.effects().contains(REffect.WritesEnvArg)) {
+              state.envs.taintLeaked();
+              if (!isEnvStub) {
+                state.envs.at(Objects.requireNonNull(instr.env())).setToUnknown();
+              }
+              res.taint();
+            }
+          }
+        }
+
+        if (instr.effects().contains(REffect.Reflection)) {
+          state.mayUseReflection = true;
+          res.losePrecision();
+        }
       }
 
       return res;
@@ -408,11 +711,63 @@ public class Scopes {
     }
 
     /**
-     * If it can materialize, it returns the abstract environment entries.
+     * If it has enough information about the given environment at the given state, it returns its
+     * abstract entries, along with a boolean indicating whether each entry is initially set to
+     * {@linkplain SEXPs#MISSING_ARG missing}.
+     *
+     * <p>Otherwise, if the environment at the state is too ambiguous, it returns {@code null}.
      */
-    private @Nullable Map<RegSymSXP, AbstractRValue> tryMaterializeEnv(State state,
-        @IsEnv RValue env) {
-      // TODO
+    private @Nullable Map<RegSymSXP, Pair<AbstractRValue, Boolean>> tryMaterializeEnv(
+        State state, @IsEnv RValue env) {
+      var resultIfKnown = new HashMap<RegSymSXP, Pair<AbstractRValue, Boolean>>();
+
+      var envState = state.envs.at(env);
+      for (var e : envState.entries().entrySet()) {
+        var name = e.getKey();
+        var value = e.getValue();
+
+        if (value.isUnknown()) {
+          return null;
+        }
+
+        var isInitiallyMissing = Maybe.NO;
+        var skipsStArg = NoOrMaybe.NO;
+        for (var origin : value.origins()) {
+          var originInstr = origin.origin();
+          if (originInstr != null) {
+            switch (originInstr.data()) {
+              case MkEnv mk -> {
+                for (var localVar : mk.localVars()) {
+                  if (localVar.name().equals(name)) {
+                    if (localVar.isMissing()) {
+                      isInitiallyMissing = Maybe.YES;
+                    } else if (!innermostVersion
+                        .callContext()
+                        .requires(ArgsAssumption.NO_EXPLICITLY_MISSING_ARGUMENTS)) {
+                      isInitiallyMissing = Maybe.MAYBE;
+                    }
+                  }
+                }
+              }
+              case StVar st -> {
+                if (st.isArg()) {
+                  skipsStArg = NoOrMaybe.MAYBE;
+                }
+              }
+              default -> skipsStArg = NoOrMaybe.MAYBE;
+            }
+          }
+        }
+
+        // Ambiguous, we don't know if missing is set or not
+        if (isInitiallyMissing == Maybe.MAYBE || skipsStArg == NoOrMaybe.MAYBE) {
+          return null;
+        }
+
+        resultIfKnown.put(name, Pair.of(value, isInitiallyMissing == Maybe.YES));
+      }
+
+      return resultIfKnown;
     }
 
     private AbstractLoad load(State state, RegSymSXP name, @IsEnv RValue env) {

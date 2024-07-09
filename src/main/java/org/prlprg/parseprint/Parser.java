@@ -212,7 +212,11 @@ public class Parser {
             && KNOWN_MAP_TYPES.containsKey(mapClass)) {
           var constructor = Objects.requireNonNull(KNOWN_MAP_TYPES.get(mapClass));
           assert t.getActualTypeArguments().length == 2;
-          var asMap = parseMap(t.getActualTypeArguments()[0], t.getActualTypeArguments()[1], skipWhitespaceIfGeneric);
+          var asMap =
+              parseMap(
+                  t.getActualTypeArguments()[0],
+                  t.getActualTypeArguments()[1],
+                  skipWhitespaceIfGeneric);
           yield constructor.apply(asMap);
         } else if (t.getRawType() instanceof Class<?> clazz) {
           yield parse(clazz);
@@ -390,34 +394,32 @@ public class Parser {
    * @see #parseMap(Supplier, Supplier, SkipWhitespace)
    */
   public <K, V> ImmutableMap<K, V> parseMap(
-      Class<K> keyClass,
-      Class<V> valueClass,
-      SkipWhitespace skipWhitespace) {
+      Class<K> keyClass, Class<V> valueClass, SkipWhitespace skipWhitespace) {
     return parseMap(() -> parse(keyClass), () -> parse(valueClass), skipWhitespace);
   }
 
   /**
    * Parse a map of the form {@code [ka->a,kb->b,...]}.
    *
-   * <p>This is a version of {@link #parseMap(Class, Class, SkipWhitespace)} which takes
-   * {@link Type} instead, so it can parse nested maps. The current {@linkplain
-   * Scanner#skipsWhitespace() whitespace policy} will be used to scan delimiters both in the outer
-   * map and in {@code keyType} and {@code valueType} if either are themselves generic.
+   * <p>This is a version of {@link #parseMap(Class, Class, SkipWhitespace)} which takes {@link
+   * Type} instead, so it can parse nested maps. The current {@linkplain Scanner#skipsWhitespace()
+   * whitespace policy} will be used to scan delimiters both in the outer map and in {@code keyType}
+   * and {@code valueType} if either are themselves generic.
    *
    * @throws UnsupportedOperationException if the element type can't be parsed.
    * @see #parse(Type, SkipWhitespace)
    * @see #parseMap(Supplier, Supplier, SkipWhitespace)
    */
-  public ImmutableMap<?, ?> parseMap(
-      Type keyType,
-      Type valueType,
-      SkipWhitespace skipWhitespace) {
-    return parseMap(() -> parse(keyType, skipWhitespace), () -> parse(valueType, skipWhitespace), skipWhitespace);
+  public ImmutableMap<?, ?> parseMap(Type keyType, Type valueType, SkipWhitespace skipWhitespace) {
+    return parseMap(
+        () -> parse(keyType, skipWhitespace),
+        () -> parse(valueType, skipWhitespace),
+        skipWhitespace);
   }
 
   /**
-   * Parse a map of the form {@code [ka->a,kb->b,...]}, using the given functions to parse
-   * keys and values.
+   * Parse a map of the form {@code [ka->a,kb->b,...]}, using the given functions to parse keys and
+   * values.
    *
    * <p>The current {@linkplain Scanner#skipsWhitespace() whitespace policy} will be set throughout
    * the parse, including when keys and values are parsed.
@@ -427,9 +429,7 @@ public class Parser {
    * @see #parseMap(Type, Type, SkipWhitespace)
    */
   public <K, V> ImmutableMap<K, V> parseMap(
-      Supplier<K> parseKey,
-      Supplier<V> parseValue,
-      SkipWhitespace skipWhitespace) {
+      Supplier<K> parseKey, Supplier<V> parseValue, SkipWhitespace skipWhitespace) {
     var list = ImmutableMap.<K, V>builder();
     scanner.runWithWhitespacePolicy(
         skipWhitespace,

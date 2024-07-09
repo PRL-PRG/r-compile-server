@@ -21,9 +21,11 @@ import org.prlprg.sexp.SpecialSXP;
 sealed interface RTypeHelpers permits RType {
   // region interned constants
   /** The type of an expression which hangs, errors, or otherwise diverts control flow. */
-  RType NOTHING = new RTypeImpl(RValueType.NOTHING, YesOrMaybe.YES, AttributesType.BOTTOM, null, null);
+  RType NOTHING =
+      new RTypeImpl(RValueType.NOTHING, YesOrMaybe.YES, AttributesType.BOTTOM, null, null);
 
-  /** The type of a value we know absolutely nothing about except it's missing.
+  /**
+   * The type of a value we know absolutely nothing about except it's missing.
    *
    * <p>The missing type <i>is</i> considered "owned", even though {@link SEXPs#MISSING_ARG} is
    * shared, because the missing type's value type is {@link RValueType#NOTHING}. The "missingness"
@@ -33,11 +35,17 @@ sealed interface RTypeHelpers permits RType {
    * that it's not missing.
    */
   RType MISSING =
-      new RTypeImpl(RValueType.NOTHING, YesOrMaybe.YES, AttributesType.BOTTOM, RPromiseType.VALUE, Maybe.YES);
+      new RTypeImpl(
+          RValueType.NOTHING, YesOrMaybe.YES, AttributesType.BOTTOM, RPromiseType.VALUE, Maybe.YES);
 
   /** The type of a value we know absolutely nothing about. */
   RType ANY =
-      RType.of(RValueType.ANY, YesOrMaybe.MAYBE, AttributesType.ANY, RPromiseType.MAYBE_LAZY_MAYBE_PROMISE, Maybe.MAYBE);
+      RType.of(
+          RValueType.ANY,
+          YesOrMaybe.MAYBE,
+          AttributesType.ANY,
+          RPromiseType.MAYBE_LAZY_MAYBE_PROMISE,
+          Maybe.MAYBE);
 
   /** The type of a value we know absolutely nothing about, except that it's not a promise. */
   RType ANY_VALUE_MAYBE_MISSING = ANY.forced();
@@ -99,8 +107,19 @@ sealed interface RTypeHelpers permits RType {
    * <p>Surprisingly, it's maybe missing. I think because when you pass {@code ...} to another
    * function, there's no guarantee that you are passing anything to it, so we assume that you are
    * passing a "missing" argument. But I don't know and maybe it shouldn't be maybe-missing...
+   *
+   * <p>Idk if it can maybe be or always is a promise (since GNU-R passes function arguments as
+   * promises), but right now it's marked as always being a value.
    */
-  RType DOTS_LIST = ANY_SIMPLE.withValue(RDotsListType.ANY);
+  RType DOTS_LIST = ANY_VALUE_MAYBE_MISSING.withValue(RDotsListType.ANY);
+
+  /**
+   * The type of the {@code ...} argument, but maybe different. Currently it's not different.
+   *
+   * <p>TODO: Figure this out. Idk if we'll do it different than PIR. I think they could be the same
+   * type as long as they occur in disjoint positions, but maybe there are some issues...
+   */
+  RType EXPANDED_DOTS = DOTS_LIST;
 
   /** The type of a boolean, i.e. a simple scalar logical that can't be NA. */
   RType BOOL = ANY_SIMPLE.withValue(RLogicalType.BOOL);
@@ -113,18 +132,21 @@ sealed interface RTypeHelpers permits RType {
 
   /** The type whose only instance is {@link SEXPs#NULL}. */
   RType NULL = ANY_SIMPLE.withValue(RNilType.ANY);
+
   // endregion interned constants
 
   // region helper derived constructors
-  /** Returns the same type except owned; that is, the type at its definition is guaranteed to be
+  /**
+   * Returns the same type except owned; that is, the type at its definition is guaranteed to be
    * unique, so if it's last use is consuming, that use doesn't have to copy.
    */
   default RType owned() {
     return ((RType) this).withOwnership(YesOrMaybe.YES);
   }
 
-  /** Returns the same type except not owned; that is, the type at its definition isn't guaranteed
-   * to be unique, so every consuming use must copy.
+  /**
+   * Returns the same type except not owned; that is, the type at its definition isn't guaranteed to
+   * be unique, so every consuming use must copy.
    */
   default RType shared() {
     return ((RType) this).withOwnership(YesOrMaybe.MAYBE);
@@ -280,6 +302,15 @@ sealed interface RTypeHelpers permits RType {
   default Maybe isObject() {
     // FIXME: handle S4 when we add them.
     return ((RType) this).attributes().relation(AttributesType.ANY_OBJECT);
+  }
+
+  /**
+   * Is the instance value the "..." in a function call?
+   *
+   * <p>Returns {@link Maybe#YES YES} iff {@code self} is {@link #NOTHING}.
+   */
+  default Maybe isExpandedDots() {
+    return ((RType) this).relation(RType.EXPANDED_DOTS);
   }
 
   // endregion helper accessors

@@ -29,9 +29,19 @@ public class AbstractResult2 {
     this.needRecursion = true;
   }
 
-  public void merge(AbstractResult2 other) {
-    kind = kind.union(other.kind);
-    keepSnapshot |= other.keepSnapshot;
-    needRecursion |= other.needRecursion;
+  public void update() {
+    setKind(kind.union(AbstractResult.UPDATED));
+  }
+
+  public void losePrecision() {
+    setKind(kind.union(AbstractResult.LOST_PRECISION));
+  }
+
+  public void taint() {
+    setKind(AbstractResult.TAINTED);
+  }
+
+  public void merge(AbstractResult otherKind) {
+    kind = kind.union(otherKind);
   }
 }
