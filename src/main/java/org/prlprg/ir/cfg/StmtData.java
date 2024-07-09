@@ -86,6 +86,12 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
     default Call make(CFG cfg, NodeId<? extends Instr> id) {
       return new CallImpl(cfg, id, this);
     }
+
+    /** Compute the {@link CallContext} provided to the closure being called. */
+    default CallContext context() {
+      // TODO: Compute something better if we can.
+      return CallContext.EMPTY;
+    }
   }
 
   /**
@@ -254,8 +260,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
     }
   }
 
-  record Force(RValue promise, @Nullable FrameState fs, @IsEnv RValue env)
-      implements RValue_ {
+  record Force(RValue promise, @Nullable FrameState fs, @IsEnv RValue env) implements RValue_ {
 
     @Override
     public RType computeType() {
@@ -430,11 +435,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
   }
 
   record Subassign1_1D(
-      @Override @Nullable LangSXP ast,
-      RValue vector,
-      RValue index,
-      RValue value,
-      @IsEnv RValue env)
+      @Override @Nullable LangSXP ast, RValue vector, RValue index, RValue value, @IsEnv RValue env)
       implements SubassignN_1D {}
 
   @EffectsAre(REffect.Error)
@@ -447,11 +448,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
   }
 
   record Subassign2_1D(
-      @Override @Nullable LangSXP ast,
-      RValue vector,
-      RValue index,
-      RValue value,
-      @IsEnv RValue env)
+      @Override @Nullable LangSXP ast, RValue vector, RValue index, RValue value, @IsEnv RValue env)
       implements SubassignN_1D {}
 
   record Subassign1_2D(
@@ -794,7 +791,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
       @Override @Nullable LangSXP ast,
       @TypeIs("CLO") @Nullable RValue runtimeClosure,
       @Override ClosureVersion fun,
-      CallContext givenContext,
+      @Override CallContext context,
       @Override ImmutableList<RValue> args,
       @Override @SameLen("args") ImmutableIntArray arglistOrder,
       @Override @IsEnv RValue env,
@@ -917,35 +914,37 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
 
     public interface LocalVar {
       RegSymSXP name();
+
       RValue value();
+
       boolean isMissing();
     }
 
     private record LocalVarImpl(
-        @Override RegSymSXP name,
-        @Override RValue value,
-        @Override boolean isMissing) implements LocalVar {}
+        @Override RegSymSXP name, @Override RValue value, @Override boolean isMissing)
+        implements LocalVar {}
 
     public Iterable<LocalVar> localVars() {
-      return () -> new Iterator<>() {
-        private int i = 0;
+      return () ->
+          new Iterator<>() {
+            private int i = 0;
 
-        @Override
-        public boolean hasNext() {
-          return i < size();
-        }
+            @Override
+            public boolean hasNext() {
+              return i < size();
+            }
 
-        @Override
-        public LocalVar next() {
-          if (i == size()) {
-            throw new IndexOutOfBoundsException();
-          }
+            @Override
+            public LocalVar next() {
+              if (i == size()) {
+                throw new IndexOutOfBoundsException();
+              }
 
-          var result = new LocalVarImpl(names.get(i), values.get(i), missingness.get(i));
-          i++;
-          return result;
-        }
-      };
+              var result = new LocalVarImpl(names.get(i), values.get(i), missingness.get(i));
+              i++;
+              return result;
+            }
+          };
     }
   }
 

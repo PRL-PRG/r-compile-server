@@ -91,7 +91,11 @@ public sealed interface RType extends RTypeHelpers, BoundedLattice<RType> {
    * {@link #promise()}, and {@link #isMissing()} (missingness).
    */
   static RType of(
-      RValueType value, YesOrMaybe isOwned, AttributesType attributes, RPromiseType promise, Maybe isMissing) {
+      RValueType value,
+      YesOrMaybe isOwned,
+      AttributesType attributes,
+      RPromiseType promise,
+      Maybe isMissing) {
     if (isMissing == Maybe.YES) {
       return MISSING;
     } else if (value == RValueType.NOTHING || attributes == AttributesType.BOTTOM) {
@@ -106,7 +110,11 @@ public sealed interface RType extends RTypeHelpers, BoundedLattice<RType> {
    * {@link #promise()}, and {@link #isMissing()} (missingness).
    */
   static RType of(
-      RValueType value, YesOrMaybe isOwned, AttributesType attributes, RPromiseType promise, NoOrMaybe isMissing) {
+      RValueType value,
+      YesOrMaybe isOwned,
+      AttributesType attributes,
+      RPromiseType promise,
+      NoOrMaybe isMissing) {
     return of(value, isOwned, attributes, promise, Maybe.of(isMissing));
   }
 
@@ -198,15 +206,17 @@ public sealed interface RType extends RTypeHelpers, BoundedLattice<RType> {
   /** The type "casted" into a logical according to the rules after a boolean operation. */
   static RType coerceToLogical(RType type) {
     if (!(type.value() instanceof RLogicalType)) {
-      type = switch (type.value()) {
-        case RNAAbleVecType v -> type.withNoAttributes().withValue(RLogicalType.of(v.length(), v.hasNAOrNaN()));
-        case RRawType v -> type.withNoAttributes().withValue(RLogicalType.of(v.length(), NoOrMaybe.NO));
-        // It errors.
-        default -> RType.NOTHING;
-      };
+      type =
+          switch (type.value()) {
+            case RNAAbleVecType v ->
+                type.withNoAttributes().withValue(RLogicalType.of(v.length(), v.hasNAOrNaN()));
+            case RRawType v ->
+                type.withNoAttributes().withValue(RLogicalType.of(v.length(), NoOrMaybe.NO));
+              // It errors.
+            default -> RType.NOTHING;
+          };
     }
     return type;
-
   }
 
   /**
@@ -274,7 +284,8 @@ public sealed interface RType extends RTypeHelpers, BoundedLattice<RType> {
    */
   RValueType value();
 
-  /** Whether the "value" part of the instance is unique (has no aliases) at its definition.
+  /**
+   * Whether the "value" part of the instance is unique (has no aliases) at its definition.
    *
    * <p>The value may be used multiple times. The purpose of this is that, normally a "consuming"
    * use must copy its value, but if its value is owned and not used again afterward, it doesn't
@@ -323,8 +334,6 @@ public sealed interface RType extends RTypeHelpers, BoundedLattice<RType> {
         ? this
         : of(newValue, isOwned(), attributes(), promise(), isMissing());
   }
-
-
 
   /** Returns the same type except {@link #isOwned()} is {@code newOwned}. */
   // IntelliJ doesn't know that `this != NOTHING ==> promise() != null && isMissing() != null`, so
@@ -495,7 +504,7 @@ record RTypeImpl(
     @Override @Nullable RPromiseType promise,
     @Override @Nullable Maybe isMissing)
     implements RType {
-  private final static Map<RType, RType> INTERNED = new HashMap<>();
+  private static final Map<RType, RType> INTERNED = new HashMap<>();
 
   static RType interned(RType base) {
     return INTERNED.computeIfAbsent(base, Function.identity());

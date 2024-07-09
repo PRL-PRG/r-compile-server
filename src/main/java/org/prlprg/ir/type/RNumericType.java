@@ -11,7 +11,6 @@ public sealed interface RNumericType extends RNumericOrLogicalType
   RNumericType SCALAR = new RNumericTypeImpl(MaybeNat.of(1), NoOrMaybe.MAYBE);
   RNumericType SCALAR_NO_NA = new RNumericTypeImpl(MaybeNat.of(1), NoOrMaybe.NO);
 
-
   @SuppressWarnings("DuplicatedCode")
   static RNumericType of(MaybeNat length, NoOrMaybe hasNAOrNaN) {
     if (!length.isKnown() && hasNAOrNaN == NoOrMaybe.MAYBE) {

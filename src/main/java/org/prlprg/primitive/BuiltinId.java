@@ -87,6 +87,12 @@ public record BuiltinId(int index) {
     return false;
   }
 
+  /** Whether this builtin can be safely inlined as defined in PIR's {@code SafeBuiltinsList}. */
+  public boolean canSafelyBeInlined() {
+    // TODO
+    return false;
+  }
+
   // region serialization and deserialization
   @ParseMethod
   private static BuiltinId parse(Parser p) {

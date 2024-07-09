@@ -103,8 +103,10 @@ public sealed interface Instr extends InstrOrPhi permits Jump, Stmt {
   @Nullable @IsEnv
   RValue env();
 
-  /** Returns the instruction's frame-state argument, or {@code null} if it cannot have one or it's
-   * elided. */
+  /**
+   * Returns the instruction's frame-state argument, or {@code null} if it cannot have one or it's
+   * elided.
+   */
   @Nullable FrameState frameState();
 
   /**
@@ -298,12 +300,20 @@ abstract sealed class InstrImpl<D extends InstrData<?>> extends InstrOrPhiImpl i
             .flatMap(
                 cmp -> {
                   var value = Reflection.getComponent(r, cmp);
-                  return value == null ? Stream.of() : switch (value) {
-                    case Node n -> Stream.of(n);
-                    case CodeObject c -> c.outerCfgNodes().stream();
-                    case Collection<?> c -> c.stream().flatMap(e -> e instanceof Optional<?> e1 ? e1.map(Node.class::cast).stream() : Stream.of((Node) e));
-                    default -> throw new UnreachableError();
-                  };
+                  return value == null
+                      ? Stream.of()
+                      : switch (value) {
+                        case Node n -> Stream.of(n);
+                        case CodeObject c -> c.outerCfgNodes().stream();
+                        case Collection<?> c ->
+                            c.stream()
+                                .flatMap(
+                                    e ->
+                                        e instanceof Optional<?> e1
+                                            ? e1.map(Node.class::cast).stream()
+                                            : Stream.of((Node) e));
+                        default -> throw new UnreachableError();
+                      };
                 })
             .collect(ImmutableList.toImmutableList());
   }
@@ -347,9 +357,8 @@ abstract sealed class InstrImpl<D extends InstrData<?>> extends InstrOrPhiImpl i
             .collect(
                 Streams.intoOneOrThrow(
                     () ->
-                        new AssertionError(
-                            "`InstrData` can't have multiple `FrameState` fields")))
-            .map(component -> (FrameState)Reflection.getComponent(r, component))
+                        new AssertionError("`InstrData` can't have multiple `FrameState` fields")))
+            .map(component -> (FrameState) Reflection.getComponent(r, component))
             .orElse(null);
   }
 
@@ -632,11 +641,9 @@ abstract sealed class InstrImpl<D extends InstrData<?>> extends InstrOrPhiImpl i
       var isCodeObject = CodeObject.class.isAssignableFrom(component.getType());
       var isListOfRValues =
           List.class.isAssignableFrom(component.getType())
-              && RValue.class.isAssignableFrom(
-              collectionComponentElementClass(component));
+              && RValue.class.isAssignableFrom(collectionComponentElementClass(component));
       assert isRValue || isListOfRValues
-          :
-          "Only `RValue`s or lists of `RValue`s can have `@TypeIs` or `@IsEnv` annotation: argument "
+          : "Only `RValue`s or lists of `RValue`s can have `@TypeIs` or `@IsEnv` annotation: argument "
               + i
               + " has a `@TypeIs` or `@IsEnv` annotation but isn't an `RValue` or list of them";
       var arg = Reflection.getComponent(r, component);
@@ -692,8 +699,9 @@ abstract sealed class InstrImpl<D extends InstrData<?>> extends InstrOrPhiImpl i
                           + rValue.type());
                 }
               }
-              default -> throw new AssertionError(
-                  "`optionalOrCollectionComponentElementClass` returned something for this list, so it should either be a list of `RValue`s or `Optional`s");
+              default ->
+                  throw new AssertionError(
+                      "`optionalOrCollectionComponentElementClass` returned something for this list, so it should either be a list of `RValue`s or `Optional`s");
             }
           }
         }
@@ -709,16 +717,18 @@ abstract sealed class InstrImpl<D extends InstrData<?>> extends InstrOrPhiImpl i
   }
 
   // region misc reflection helpers
-  /** Asserts the component's type is either {@code ImmutableList<Optional<T>>} or
-   * {@code ImmutableList<T>} (prioritizing the first), then returns {@code T}. */
+  /**
+   * Asserts the component's type is either {@code ImmutableList<Optional<T>>} or {@code
+   * ImmutableList<T>} (prioritizing the first), then returns {@code T}.
+   */
   @SuppressWarnings("DataFlowIssue")
   private static Class<?> collectionComponentElementClass(RecordComponent cmp) {
     assert cmp.getType() == ImmutableList.class
         : "`InstrData` has `Collection` component which isn't an `ImmutableList`";
-    var arg = ((ParameterizedType)cmp.getGenericType()).getActualTypeArguments()[0];
+    var arg = ((ParameterizedType) cmp.getGenericType()).getActualTypeArguments()[0];
     return arg instanceof ParameterizedType p && p.getRawType() == Optional.class
-        ? (Class<?>)p.getActualTypeArguments()[0]
-        : (Class<?>)arg;
+        ? (Class<?>) p.getActualTypeArguments()[0]
+        : (Class<?>) arg;
   }
   // endregion misc reflection helpers
 }

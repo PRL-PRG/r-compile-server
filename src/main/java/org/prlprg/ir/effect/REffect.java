@@ -20,7 +20,8 @@ public enum REffect {
   Error("e"),
   /** Performs arbitrary reflection. */
   Reflection("r"),
-  /** "Consumes" a non-environment argument: unless the value is {@linkplain
+  /**
+   * "Consumes" a non-environment argument: unless the value is {@linkplain
    * org.prlprg.ir.type.RType#isOwned() owned} <i>and</i> this is the last use, it must be
    * implicitly copied before this instruction.
    */

@@ -548,10 +548,7 @@ public class CFGCompiler {
       case PrintValue() ->
           pushInsert(
               new StmtData.CallBuiltin(
-                  null,
-                  BuiltinId.PRINT_VALUE,
-                  ImmutableList.of(pop(RValue.class)),
-                  env));
+                  null, BuiltinId.PRINT_VALUE, ImmutableList.of(pop(RValue.class)), env));
       case StartLoopCntxt(var isForLoop, var end) -> {
         // REACH: Complicated loop contexts.
         // Currently we only handle simple cases like PIR, where `next` and `break` aren't in
@@ -841,19 +838,12 @@ public class CFGCompiler {
               4,
               (ast, args) ->
                   switch (args.size()) {
-                    case 2 ->
-                        new StmtData.Extract1_1D(ast, args.get(0), args.get(1), env);
+                    case 2 -> new StmtData.Extract1_1D(ast, args.get(0), args.get(1), env);
                     case 3 ->
-                        new StmtData.Extract1_2D(
-                            ast, args.get(0), args.get(1), args.get(2), env);
+                        new StmtData.Extract1_2D(ast, args.get(0), args.get(1), args.get(2), env);
                     case 4 ->
                         new StmtData.Extract1_3D(
-                            ast,
-                            args.get(0),
-                            args.get(1),
-                            args.get(2),
-                            args.get(3),
-                            env);
+                            ast, args.get(0), args.get(1), args.get(2), args.get(3), env);
                     default ->
                         throw new UnreachableError("index should've been range-checked above");
                   });
@@ -867,16 +857,10 @@ public class CFGCompiler {
               (ast, args) ->
                   switch (args.size()) {
                     case 3 ->
-                        new StmtData.Subassign1_1D(
-                            ast, args.get(0), args.get(1), args.get(2), env);
+                        new StmtData.Subassign1_1D(ast, args.get(0), args.get(1), args.get(2), env);
                     case 4 ->
                         new StmtData.Subassign1_2D(
-                            ast,
-                            args.get(0),
-                            args.get(1),
-                            args.get(2),
-                            args.get(3),
-                            env);
+                            ast, args.get(0), args.get(1), args.get(2), args.get(3), env);
                     case 5 ->
                         new StmtData.Subassign1_3D(
                             ast,
@@ -907,11 +891,9 @@ public class CFGCompiler {
               3,
               (ast, args) ->
                   switch (args.size()) {
-                    case 2 ->
-                        new StmtData.Extract2_1D(ast, args.get(0), args.get(1), env);
+                    case 2 -> new StmtData.Extract2_1D(ast, args.get(0), args.get(1), env);
                     case 3 ->
-                        new StmtData.Extract2_2D(
-                            ast, args.get(0), args.get(1), args.get(2), env);
+                        new StmtData.Extract2_2D(ast, args.get(0), args.get(1), args.get(2), env);
                     default ->
                         throw new UnreachableError("index should've been range-checked above");
                   });
@@ -925,16 +907,10 @@ public class CFGCompiler {
               (ast, args) ->
                   switch (args.size()) {
                     case 3 ->
-                        new StmtData.Subassign2_1D(
-                            ast, args.get(0), args.get(1), args.get(2), env);
+                        new StmtData.Subassign2_1D(ast, args.get(0), args.get(1), args.get(2), env);
                     case 4 ->
                         new StmtData.Subassign2_2D(
-                            ast,
-                            args.get(0),
-                            args.get(1),
-                            args.get(2),
-                            args.get(3),
-                            env);
+                            ast, args.get(0), args.get(1), args.get(2), args.get(3), env);
                     default ->
                         throw new UnreachableError("index should've been range-checked above");
                   });
@@ -984,8 +960,7 @@ public class CFGCompiler {
         moveTo(after);
       }
       case IsNull() ->
-          pushInsert(
-              new StmtData.Eq(null, pop(RValue.class), new Constant(SEXPs.NULL)));
+          pushInsert(new StmtData.Eq(null, pop(RValue.class), new Constant(SEXPs.NULL)));
       case IsLogical() -> pushInsert(new StmtData.GnuRIs(IsTypeCheck.LGL, pop(RValue.class)));
       case IsInteger() -> pushInsert(new StmtData.GnuRIs(IsTypeCheck.INT, pop(RValue.class)));
       case IsDouble() -> pushInsert(new StmtData.GnuRIs(IsTypeCheck.REAL, pop(RValue.class)));
@@ -998,34 +973,26 @@ public class CFGCompiler {
           compileDefaultDispatchN(
               Dispatch.Type.SUBSETN,
               2,
-              (ast, args) ->
-                  new StmtData.Extract2_1D(ast, args.getFirst(), args.get(1), env));
+              (ast, args) -> new StmtData.Extract2_1D(ast, args.getFirst(), args.get(1), env));
       case MatSubset(var _) ->
           compileDefaultDispatchN(
               Dispatch.Type.SUBSETN,
               3,
               (ast, args) ->
-                  new StmtData.Extract2_2D(
-                      ast, args.getFirst(), args.get(1), args.get(2), env));
+                  new StmtData.Extract2_2D(ast, args.getFirst(), args.get(1), args.get(2), env));
       case VecSubassign(var _) ->
           compileDefaultDispatchN(
               Dispatch.Type.SUBASSIGNN,
               3,
               (ast, args) ->
-                  new StmtData.Subassign2_1D(
-                      ast, args.getFirst(), args.get(1), args.get(2), env));
+                  new StmtData.Subassign2_1D(ast, args.getFirst(), args.get(1), args.get(2), env));
       case MatSubassign(var _) ->
           compileDefaultDispatchN(
               Dispatch.Type.SUBASSIGNN,
               4,
               (ast, args) ->
                   new StmtData.Subassign2_2D(
-                      ast,
-                      args.getFirst(),
-                      args.get(1),
-                      args.get(2),
-                      args.get(3),
-                      env));
+                      ast, args.getFirst(), args.get(1), args.get(2), args.get(3), env));
       case And1st(var ast, var shortCircuit) -> {
         var shortCircuitBb = bbAt(shortCircuit);
         pushInsert(new StmtData.AsLogical(pop(RValue.class)));
@@ -1172,9 +1139,7 @@ public class CFGCompiler {
             for (var i = 0; i < chrLabels.size() - 1; i++) {
               var name = names.get(i);
               var ifMatch = bbAt(new BcLabel(chrLabels.get(i)));
-              var cond =
-                  cursor.insert(
-                      new StmtData.Eq(get(ast), value, Constant.string(name)));
+              var cond = cursor.insert(new StmtData.Eq(get(ast), value, Constant.string(name)));
               var prev = cursor.bb();
               cursor.insert(next -> new JumpData.Branch(cond, ifMatch, next));
               addPhiInputsForStack(ifMatch, prev);
@@ -1198,9 +1163,7 @@ public class CFGCompiler {
           var asInteger = cursor.insert(new StmtData.AsSwitchIdx(value));
           for (var i = 0; i < numLabels.size() - 1; i++) {
             var ifMatch = bbAt(new BcLabel(numLabels.get(i)));
-            var cond =
-                cursor.insert(
-                    new StmtData.Eq(get(ast), asInteger, Constant.integer(i)));
+            var cond = cursor.insert(new StmtData.Eq(get(ast), asInteger, Constant.integer(i)));
             var prev = cursor.bb();
             cursor.insert(next -> new JumpData.Branch(cond, ifMatch, next));
             addPhiInputsForStack(ifMatch, prev);
@@ -1223,34 +1186,26 @@ public class CFGCompiler {
           compileDefaultDispatchN(
               Dispatch.Type.SUBSET2N,
               2,
-              (ast, args) ->
-                  new StmtData.Extract2_1D(ast, args.getFirst(), args.get(1), env));
+              (ast, args) -> new StmtData.Extract2_1D(ast, args.getFirst(), args.get(1), env));
       case MatSubset2(var _) ->
           compileDefaultDispatchN(
               Dispatch.Type.SUBSET2N,
               3,
               (ast, args) ->
-                  new StmtData.Extract2_2D(
-                      ast, args.getFirst(), args.get(1), args.get(2), env));
+                  new StmtData.Extract2_2D(ast, args.getFirst(), args.get(1), args.get(2), env));
       case VecSubassign2(var _) ->
           compileDefaultDispatchN(
               Dispatch.Type.SUBASSIGN2N,
               3,
               (ast, args) ->
-                  new StmtData.Subassign2_1D(
-                      ast, args.getFirst(), args.get(1), args.get(2), env));
+                  new StmtData.Subassign2_1D(ast, args.getFirst(), args.get(1), args.get(2), env));
       case MatSubassign2(var _) ->
           compileDefaultDispatchN(
               Dispatch.Type.SUBASSIGN2N,
               4,
               (ast, args) ->
                   new StmtData.Subassign2_2D(
-                      ast,
-                      args.getFirst(),
-                      args.get(1),
-                      args.get(2),
-                      args.get(3),
-                      env));
+                      ast, args.getFirst(), args.get(1), args.get(2), args.get(3), env));
       case StartSubset2N(var ast, var after) ->
           compileStartDispatch(Dispatch.Type.SUBSET2N, ast, after);
       case StartSubassign2N(var ast, var after) ->
@@ -1278,17 +1233,11 @@ public class CFGCompiler {
       case SeqAlong(var ast) ->
           pushInsert(
               new StmtData.CallBuiltin(
-                  get(ast),
-                  BuiltinId.SEQ_ALONG,
-                  ImmutableList.of(pop(RValue.class)),
-                  env));
+                  get(ast), BuiltinId.SEQ_ALONG, ImmutableList.of(pop(RValue.class)), env));
       case SeqLen(var ast) ->
           pushInsert(
               new StmtData.CallBuiltin(
-                  get(ast),
-                  BuiltinId.SEQ_LEN,
-                  ImmutableList.of(pop(RValue.class)),
-                  env));
+                  get(ast), BuiltinId.SEQ_LEN, ImmutableList.of(pop(RValue.class)), env));
       case BaseGuard(var exprIdx, var after) -> {
         // PIR apparently just ignores the guards (`rir2pir.cpp:341`), but we can handle here.
         var expr = get(exprIdx);

@@ -152,9 +152,8 @@ public class Printer {
    * Print an iterable as a list of the form {@code [a,b,...]}.
    *
    * @param printWhitespace whether to print a space after each comma. Additionally, {@linkplain
-   *                        Map.Entry entries} are special-cased to print spaces iff this isn't set
-   *                        to {@link PrintWhitespace#NONE}, so printing a map is equivalent to
-   *                        printing a list of map entries.
+   *     Map.Entry entries} are special-cased to print spaces iff this isn't set to {@link
+   *     PrintWhitespace#NONE}, so printing a map is equivalent to printing a list of map entries.
    * @see #print(Object)
    */
   public void printAsList(Iterable<?> list, PrintWhitespace printWhitespace) {
