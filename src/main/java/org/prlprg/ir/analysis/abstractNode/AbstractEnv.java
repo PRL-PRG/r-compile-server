@@ -1,11 +1,13 @@
 package org.prlprg.ir.analysis.abstractNode;
 
-import static org.prlprg.ir.analysis.abstractNode.AbstractEnvImpl.UNINITIALIZED_PARENT;
-
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import javax.annotation.Nullable;
+import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.ir.cfg.Instr;
 import org.prlprg.ir.cfg.InvalidNode;
 import org.prlprg.ir.cfg.IsEnv;
@@ -14,7 +16,6 @@ import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.RegSymSXP;
-import org.prlprg.util.Pair;
 
 /**
  * A static approximation of an {@linkplain EnvSXP R runtime environment} (from PIR).
@@ -29,184 +30,185 @@ import org.prlprg.util.Pair;
  *
  * <p>For inter-procedural analysis we can additionally keep track of closures.
  */
-public sealed interface AbstractEnv extends AbstractNode<AbstractEnv> {
-  AbstractEnv EMPTY =
-      new AbstractEnvImpl(ImmutableMap.of(), ImmutableSet.of(), UNINITIALIZED_PARENT, false, false);
-  AbstractEnv TAINTED =
-      new AbstractEnvImpl(ImmutableMap.of(), ImmutableSet.of(), UNINITIALIZED_PARENT, false, true);
-
-  ImmutableMap<RegSymSXP, AbstractRValue> entries();
-
-  ImmutableSet<RValue> reachableEnvs();
-
-  @IsEnv
-  RValue parentEnv();
-
-  boolean isLeaked();
-
-  boolean isTainted();
-
-  default boolean isPresent(RegSymSXP name) {
-    return !isTainted() && entries().containsKey(name);
-  }
-
-  default AbstractRValue get(RegSymSXP name) {
-    return Objects.requireNonNull(entries().getOrDefault(name, AbstractRValue.TAINTED));
-  }
-
-  default AbstractEnv withEntry(
-      RegSymSXP name, RValue value, @Nullable Instr origin, int recursionLevel) {
-    return isTainted()
-        ? this
-        : new AbstractEnvImpl(
-            ImmutableMap.<RegSymSXP, AbstractRValue>builder()
-                .putAll(entries())
-                .put(name, AbstractRValue.of(value, origin, recursionLevel))
-                .buildKeepingLast(),
-            reachableEnvs(),
-            parentEnv(),
-            isLeaked(),
-            isTainted());
-  }
-
-  default AbstractEnv withParentEnv(@IsEnv RValue parentEnv) {
-    return new AbstractEnvImpl(entries(), reachableEnvs(), parentEnv, isLeaked(), isTainted());
-  }
-
-  default AbstractEnv leaked() {
-    return new AbstractEnvImpl(entries(), reachableEnvs(), parentEnv(), true, isTainted());
-  }
-
-  default AbstractEnv notLeaked() {
-    return new AbstractEnvImpl(entries(), reachableEnvs(), parentEnv(), false, isTainted());
-  }
-}
-
-record AbstractEnvImpl(
-    @Override ImmutableMap<RegSymSXP, AbstractRValue> entries,
-    @Override ImmutableSet<RValue> reachableEnvs,
-    RValue actualParentEnv,
-    @Override boolean isLeaked,
-    @Override boolean isTainted)
-    implements AbstractEnv {
-  static final RValue UNKNOWN_PARENT = InvalidNode.create("unknownParent");
+public final class AbstractEnv implements AbstractNode<AbstractEnv> {
+  public static final RValue UNKNOWN_PARENT = InvalidNode.create("unknownParent");
   static final RValue UNINITIALIZED_PARENT = InvalidNode.create("uninitializedParent");
+  public static final AbstractEnv UNKNOWN =
+      new AbstractEnv(Collections.emptyMap(), Collections.emptySet(), UNKNOWN_PARENT, false, true);
 
-  AbstractEnvImpl {
-    if (isTainted
-        && (!entries.isEmpty()
-            || !reachableEnvs.isEmpty()
-            || actualParentEnv != UNINITIALIZED_PARENT
-            || isLeaked)) {
-      throw new IllegalArgumentException(
-          "A tainted environment must be equal to `AbstractEnv#TAINTED`");
+  private Map<RegSymSXP, AbstractRValue> entries;
+  private Set<RValue> reachableEnvs;
+  private @IsEnv RValue parentEnv;
+  private boolean isLeaked;
+  private boolean isUnknown;
+
+  /** Creates an empty abstract environment. */
+  public AbstractEnv() {
+    entries = new HashMap<>();
+    reachableEnvs = new HashSet<>();
+    parentEnv = UNINITIALIZED_PARENT;
+    isLeaked = false;
+    isUnknown = false;
+  }
+
+  /** Internal constructor for {@link #UNKNOWN}. */
+  private AbstractEnv(
+      Map<RegSymSXP, AbstractRValue> entries,
+      Set<RValue> reachableEnvs,
+      RValue parentEnv,
+      boolean isLeaked,
+      boolean isUnknown) {
+    this.entries = entries;
+    this.reachableEnvs = reachableEnvs;
+    this.parentEnv = parentEnv;
+    this.isLeaked = isLeaked;
+    this.isUnknown = isUnknown;
+  }
+
+  public @UnmodifiableView Map<RegSymSXP, AbstractRValue> entries() {
+    return Collections.unmodifiableMap(entries);
+  }
+
+  public @UnmodifiableView Set<RValue> reachableEnvs() {
+    return Collections.unmodifiableSet(reachableEnvs);
+  }
+
+  public @IsEnv RValue parentEnv() {
+    return parentEnv == UNINITIALIZED_PARENT ? UNKNOWN_PARENT : parentEnv;
+  }
+
+  public boolean isLeaked() {
+    return isLeaked;
+  }
+
+  public boolean isUnknown() {
+    return isUnknown;
+  }
+
+  public boolean isPresent(RegSymSXP name) {
+    return !isUnknown() && entries.containsKey(name);
+  }
+
+  public AbstractRValue get(RegSymSXP name) {
+    return Objects.requireNonNull(entries.getOrDefault(name, AbstractRValue.UNKNOWN));
+  }
+
+  public void set(RegSymSXP name, RValue value, @Nullable Instr origin, int recursionLevel) {
+    if (isUnknown) {
+      return;
+    }
+
+    var abstractValue = new AbstractRValue(value, origin, recursionLevel);
+    if (entries.containsKey(name)) {
+      entries.get(name).merge(abstractValue);
+    } else {
+      entries.put(name, abstractValue);
     }
   }
 
-  @Override
-  public @IsEnv RValue parentEnv() {
-    return actualParentEnv == UNINITIALIZED_PARENT ? UNKNOWN_PARENT : actualParentEnv;
+  public void addReachableEnv(@IsEnv RValue env) {
+    if (isUnknown) {
+      return;
+    }
+
+    reachableEnvs.add(env);
   }
 
-  AbstractEnvImpl withReachableEnv(@IsEnv RValue env) {
-    return new AbstractEnvImpl(
-        entries,
-        ImmutableSet.<RValue>builderWithExpectedSize(reachableEnvs.size() + 1)
-            .addAll(reachableEnvs)
-            .add(env)
-            .build(),
-        actualParentEnv,
-        isLeaked,
-        isTainted);
+  public void setParentEnv(@IsEnv RValue parentEnv) {
+    if (isUnknown) {
+      return;
+    }
+
+    this.parentEnv = parentEnv;
+  }
+
+  public void leak() {
+    if (isUnknown) {
+      return;
+    }
+
+    isLeaked = true;
+  }
+
+  public void unleak() {
+    if (isUnknown) {
+      return;
+    }
+
+    isLeaked = false;
+  }
+
+  public void setToUnknown() {
+    entries = Collections.emptyMap();
+    reachableEnvs = Collections.emptySet();
+    parentEnv = UNKNOWN_PARENT;
+    isLeaked = false;
+    isUnknown = true;
   }
 
   @Override
-  public Pair<AbstractResult, AbstractEnv> merge(AbstractEnv other) {
-    var o =
-        switch (other) {
-          case AbstractEnvImpl e -> e;
-        };
-
-    if (isTainted || o.isTainted) {
-      return Pair.of(AbstractResult.TAINTED, TAINTED);
+  public AbstractResult merge(AbstractEnv other) {
+    if (isUnknown || other.isUnknown) {
+      return AbstractResult.TAINTED;
     }
 
     var res = AbstractResult.NONE;
-    var newEntries =
-        ImmutableMap.<RegSymSXP, AbstractRValue>builderWithExpectedSize(
-            entries.size() + o.entries.size());
-    var newReachableEnvs =
-        ImmutableSet.<RValue>builderWithExpectedSize(reachableEnvs.size() + o.reachableEnvs.size())
-            .addAll(reachableEnvs);
-    var newActualParentEnv = actualParentEnv;
 
-    if (!isLeaked && o.isLeaked) {
-      res = res.withLostPrecision();
+    if (!isLeaked && other.isLeaked) {
+      isLeaked = true;
+      res = res.union(AbstractResult.LOST_PRECISION);
     }
 
-    for (var e : o.entries.entrySet()) {
+    for (var e : other.entries.entrySet()) {
       var name = e.getKey();
       var otherValue = e.getValue();
       var myValue = entries.get(name);
 
-      Pair<AbstractResult, AbstractRValue> newResAndValue;
       if (myValue == null) {
-        newResAndValue = otherValue.merge(AbstractRValue.UNBOUND);
-        res = res.updated();
+        res = res.union(otherValue.merge(AbstractRValue.UNBOUND));
+        // `UPDATED` is because we add to `entries`.
+        entries.put(name, otherValue);
+        res = res.union(AbstractResult.UPDATED);
       } else {
-        newResAndValue = myValue.merge(otherValue);
+        res = res.union(myValue.merge(otherValue));
       }
-      res = res.merge(newResAndValue.first());
-      newEntries.put(name, newResAndValue.second());
     }
     for (var e : entries.entrySet()) {
       var name = e.getKey();
       var myValue = e.getValue();
 
-      if (!myValue.isUnknown() && !o.entries.containsKey(name)) {
-        var newResAndValue = myValue.merge(AbstractRValue.UNBOUND);
-        // Note: no `updated()` even though it's similar to above.
-        res = res.merge(newResAndValue.first());
-        newEntries.put(name, newResAndValue.second());
+      if (!myValue.isUnknown() && !other.entries.containsKey(name)) {
+        res = res.union(myValue.merge(AbstractRValue.UNBOUND));
+        // No `UPDATED` because we didn't add to `entries`.
       }
     }
 
-    for (var env : o.reachableEnvs) {
-      if (!reachableEnvs.contains(env)) {
-        newReachableEnvs.add(env);
-        res = res.updated();
-      }
+    if (reachableEnvs.addAll(other.reachableEnvs)) {
+      res = res.union(AbstractResult.UPDATED);
     }
 
-    if (actualParentEnv == UNINITIALIZED_PARENT && o.actualParentEnv != UNINITIALIZED_PARENT) {
-      newActualParentEnv = o.actualParentEnv;
-      res = res.updated();
-    } else if (actualParentEnv != UNINITIALIZED_PARENT
-        && actualParentEnv != UNKNOWN_PARENT
-        && o.actualParentEnv != actualParentEnv) {
-      newActualParentEnv = UNKNOWN_PARENT;
-      res = res.withLostPrecision();
+    if (parentEnv == UNINITIALIZED_PARENT && other.parentEnv != UNINITIALIZED_PARENT) {
+      parentEnv = other.parentEnv;
+      res = res.union(AbstractResult.UPDATED);
+    } else if (parentEnv != UNINITIALIZED_PARENT
+        && parentEnv != UNKNOWN_PARENT
+        && other.parentEnv != parentEnv) {
+      parentEnv = UNKNOWN_PARENT;
+      res = res.union(AbstractResult.LOST_PRECISION);
     }
 
-    return Pair.of(
-        res,
-        new AbstractEnvImpl(
-            newEntries.build(),
-            newReachableEnvs.build(),
-            newActualParentEnv,
-            isLeaked || o.isLeaked,
-            false));
+    return res;
   }
 
+  // region serialization and deserialization
   @PrintMethod
   private void print(Printer p) {
     var w = p.writer();
 
-    if (isTainted) {
-      w.write("AEnv(tainted)");
+    if (isUnknown) {
+      w.write("AEnv(unknown)");
     } else {
       w.write("AEnv(");
-
       w.runIndented(
           () -> {
             var written = false;
@@ -235,7 +237,6 @@ record AbstractEnvImpl(
               p.print(entry.getValue());
             }
           });
-
       w.write(')');
     }
   }
@@ -244,4 +245,5 @@ record AbstractEnvImpl(
   public String toString() {
     return Printer.toString(this);
   }
+  // endregion serialization and deserialization
 }

@@ -6,11 +6,21 @@ import org.prlprg.ir.type.lattice.NoOrMaybe;
 import org.prlprg.sexp.SEXPType;
 
 public sealed interface RIntType extends RNumericType permits RIntTypeImpl, RNothingValueType {
-  RIntType ANY = RIntTypeImpl.INSTANCE;
+  RIntType ANY = new RIntTypeImpl(MaybeNat.UNKNOWN, NoOrMaybe.MAYBE);
+  RIntType NO_NA = new RIntTypeImpl(MaybeNat.UNKNOWN, NoOrMaybe.NO);
+  RIntType SCALAR = new RIntTypeImpl(MaybeNat.of(1), NoOrMaybe.MAYBE);
+  RIntType SCALAR_NO_NA = new RIntTypeImpl(MaybeNat.of(1), NoOrMaybe.NO);
 
+  @SuppressWarnings("DuplicatedCode")
   static RIntType of(MaybeNat length, NoOrMaybe hasNAOrNaN) {
     if (!length.isKnown() && hasNAOrNaN == NoOrMaybe.MAYBE) {
       return ANY;
+    } else if (!length.isKnown() && hasNAOrNaN == NoOrMaybe.NO) {
+      return NO_NA;
+    } else if (length.isDefinitely(1) && hasNAOrNaN == NoOrMaybe.MAYBE) {
+      return SCALAR;
+    } else if (length.isDefinitely(1) && hasNAOrNaN == NoOrMaybe.NO) {
+      return SCALAR_NO_NA;
     }
 
     return new RIntTypeImpl(length, hasNAOrNaN);
@@ -24,8 +34,6 @@ public sealed interface RIntType extends RNumericType permits RIntTypeImpl, RNot
 }
 
 record RIntTypeImpl(@Override MaybeNat length, @Override NoOrMaybe hasNAOrNaN) implements RIntType {
-  static final RIntTypeImpl INSTANCE = new RIntTypeImpl(MaybeNat.UNKNOWN, NoOrMaybe.MAYBE);
-
   @Override
   public RIntType withLength(MaybeNat length) {
     return new RIntTypeImpl(length, hasNAOrNaN);

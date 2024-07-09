@@ -1,8 +1,9 @@
 package org.prlprg.ir.type;
 
-import com.google.common.collect.ImmutableMap;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collector;
 import java.util.stream.Collector.Characteristics;
@@ -14,6 +15,7 @@ import org.prlprg.ir.cfg.RValue;
 import org.prlprg.ir.type.lattice.BoundedLattice;
 import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.ir.type.lattice.NoOrMaybe;
+import org.prlprg.ir.type.lattice.YesOrMaybe;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.primitive.BuiltinId;
@@ -24,7 +26,6 @@ import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPType;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.sexp.SymSXP;
-import org.prlprg.util.Reflection;
 
 /**
  * {@link RValue} type; a runtime ({@link SEXP}) value's type, with information relevant to perform
@@ -41,6 +42,14 @@ import org.prlprg.util.Reflection;
  *       subclass of {@link SEXP} except {@link SymSXP} there is a unique corresponding subclass of
  *       {@link RValueType}, and most (but not all) subclasses of {@link RValueType} correspond to a
  *       unique subclass of {@link SEXP}.
+ *   <li>{@link YesOrMaybe} {@link #isOwned()}: whether the "value" described above has no aliases
+ *       <i>on its creation</i>, i.e. we can modify it in-place instead of creating a copy on the
+ *       last use, even if that use is consuming. Note that the value may be used by multiple
+ *       consuming instructions, in which case it needs to be copied for every one that we can't
+ *       prove is the last; additionally, if there is a non-consuming instruction that may be after
+ *       the last consuming instruction, we have to copy the value (also consider loops, don't have
+ *       to consider reflective instructions because they access environments, not SSA variables
+ *       that aren't their arguments).
  *   <li>{@link AttributesType} {@link #attributes()}: the type of the "attributes". Some types of
  *       {@linkplain SEXP}s can have {@linkplain Attributes attributes}, such as "names", "class",
  *       and "dims". This is a type whose instances are those {@link Attributes} objects.
@@ -82,24 +91,23 @@ public sealed interface RType extends RTypeHelpers, BoundedLattice<RType> {
    * {@link #promise()}, and {@link #isMissing()} (missingness).
    */
   static RType of(
-      RValueType value, AttributesType attributes, RPromiseType promise, Maybe isMissing) {
+      RValueType value, YesOrMaybe isOwned, AttributesType attributes, RPromiseType promise, Maybe isMissing) {
     if (isMissing == Maybe.YES) {
       return MISSING;
     } else if (value == RValueType.NOTHING || attributes == AttributesType.BOTTOM) {
       return NOTHING;
     }
 
-    var result = new RTypeImpl(value, attributes, promise, isMissing);
-    var interned = RTypeImpl.INTERNED.get(result);
-    return interned == null ? result : interned;
+    var result = new RTypeImpl(value, isOwned, attributes, promise, isMissing);
+    return RTypeImpl.interned(result);
   }
 
   /** Create an {@link RType} with the given {@link #value()}, {@link #attributes()}, {@link
    * {@link #promise()}, and {@link #isMissing()} (missingness).
    */
   static RType of(
-      RValueType value, AttributesType attributes, RPromiseType promise, NoOrMaybe isMissing) {
-    return of(value, attributes, promise, Maybe.of(isMissing));
+      RValueType value, YesOrMaybe isOwned, AttributesType attributes, RPromiseType promise, NoOrMaybe isMissing) {
+    return of(value, isOwned, attributes, promise, Maybe.of(isMissing));
   }
 
   // endregion main constructor
@@ -119,6 +127,7 @@ public sealed interface RType extends RTypeHelpers, BoundedLattice<RType> {
 
     return RType.of(
         RValueType.exact(value),
+        YesOrMaybe.MAYBE,
         AttributesType.exact(value.attributes()),
         promiseWrapped,
         Maybe.NO);
@@ -128,8 +137,8 @@ public sealed interface RType extends RTypeHelpers, BoundedLattice<RType> {
    * The type of a value with the given {@link RValueType}, not a promise, not missing, and no
    * attributes.
    */
-  static RType value(RValueType type) {
-    return of(type, AttributesType.EMPTY, RPromiseType.VALUE, Maybe.NO);
+  static RType value(RValueType type, YesOrMaybe isOwned) {
+    return of(type, isOwned, AttributesType.EMPTY, RPromiseType.VALUE, Maybe.NO);
   }
 
   /**
@@ -139,7 +148,7 @@ public sealed interface RType extends RTypeHelpers, BoundedLattice<RType> {
    *
    * @throws IllegalArgumentException if {@link SEXPType} is a promise, character vector, or "any".
    */
-  static RType simple(SEXPType type) {
+  static RType simple(SEXPType type, YesOrMaybe isOwned) {
     switch (type) {
       case PROM -> throw new IllegalArgumentException("No such thing as a \"simple promise\"");
       case CHAR ->
@@ -149,7 +158,7 @@ public sealed interface RType extends RTypeHelpers, BoundedLattice<RType> {
           throw new IllegalArgumentException(
               "No such thing as a \"simple any\" (GNU-R's \"any\" type is special and has no instances)");
     }
-    return value(RValueType.simple(type));
+    return value(RValueType.simple(type), isOwned);
   }
 
   /** The type after a arithmetic unop whose argument has the given types. */
@@ -172,14 +181,32 @@ public sealed interface RType extends RTypeHelpers, BoundedLattice<RType> {
 
   /** The type after a simple "not" binop whose argument has the given types. */
   static RType booleanOp(RType unary) {
-    // TODO
-    return ANY;
+    if (unary.isObject() != Maybe.NO) {
+      return ANY;
+    }
+    return coerceToLogical(unary.notMissing());
   }
 
   /** The type after a simple "and" or "or" binop whose arguments have the given types. */
   static RType booleanOp(RType lhs, RType rhs) {
-    // TODO
-    return ANY;
+    if (lhs.isObject() != Maybe.NO && rhs.isObject() != Maybe.NO) {
+      return ANY;
+    }
+    return coerceToLogical(lhs.union(rhs).notMissing());
+  }
+
+  /** The type "casted" into a logical according to the rules after a boolean operation. */
+  static RType coerceToLogical(RType type) {
+    if (!(type.value() instanceof RLogicalType)) {
+      type = switch (type.value()) {
+        case RNAAbleVecType v -> type.withNoAttributes().withValue(RLogicalType.of(v.length(), v.hasNAOrNaN()));
+        case RRawType v -> type.withNoAttributes().withValue(RLogicalType.of(v.length(), NoOrMaybe.NO));
+        // It errors.
+        default -> RType.NOTHING;
+      };
+    }
+    return type;
+
   }
 
   /**
@@ -189,7 +216,7 @@ public sealed interface RType extends RTypeHelpers, BoundedLattice<RType> {
    * can get the return of that.
    */
   static RType builtin(BuiltinId id) {
-    return RType.value(RBuiltinOrSpecialType.of(id));
+    return RType.value(RBuiltinOrSpecialType.of(id), YesOrMaybe.MAYBE);
   }
 
   /** Type which is the {@linkplain RType#union(RType)} union} of all given types. */
@@ -247,6 +274,14 @@ public sealed interface RType extends RTypeHelpers, BoundedLattice<RType> {
    */
   RValueType value();
 
+  /** Whether the "value" part of the instance is unique (has no aliases) at its definition.
+   *
+   * <p>The value may be used multiple times. The purpose of this is that, normally a "consuming"
+   * use must copy its value, but if its value is owned and not used again afterward, it doesn't
+   * have to copy.
+   */
+  YesOrMaybe isOwned();
+
   /**
    * The type of the "value" part of the instance (described by {@link #value()})'s {@linkplain
    * Attributes attributes}.
@@ -286,7 +321,19 @@ public sealed interface RType extends RTypeHelpers, BoundedLattice<RType> {
   default RType withValue(RValueType newValue) {
     return value() == newValue || this == NOTHING || this == MISSING
         ? this
-        : of(newValue, attributes(), promise(), isMissing());
+        : of(newValue, isOwned(), attributes(), promise(), isMissing());
+  }
+
+
+
+  /** Returns the same type except {@link #isOwned()} is {@code newOwned}. */
+  // IntelliJ doesn't know that `this != NOTHING ==> promise() != null && isMissing() != null`, so
+  // it reports nullable values (`promise()` and `isMissing()`) in non-null positions (`of` args).
+  @SuppressWarnings("DataFlowIssue")
+  default RType withOwnership(YesOrMaybe newIsOwned) {
+    return isOwned() == newIsOwned || this == NOTHING || this == MISSING
+        ? this
+        : of(value(), newIsOwned, attributes(), promise(), isMissing());
   }
 
   /** Returns the same type except {@link #attributes()}} is {@code newAttributes}. */
@@ -296,7 +343,7 @@ public sealed interface RType extends RTypeHelpers, BoundedLattice<RType> {
   default RType withAttributes(AttributesType newAttributes) {
     return attributes() == newAttributes || this == NOTHING || this == MISSING
         ? this
-        : of(value(), newAttributes, promise(), isMissing());
+        : of(value(), isOwned(), newAttributes, promise(), isMissing());
   }
 
   /** Returns the same type except {@link #promise()}} is {@code newPromise}. */
@@ -306,7 +353,7 @@ public sealed interface RType extends RTypeHelpers, BoundedLattice<RType> {
   default RType withPromise(RPromiseType newPromise) {
     return promise() == newPromise || this == NOTHING || this == MISSING
         ? this
-        : of(value(), attributes(), newPromise, isMissing());
+        : of(value(), isOwned(), attributes(), newPromise, isMissing());
   }
 
   /** Returns the same type except {@link #isMissing()}} is {@code newIsMissing}. */
@@ -322,7 +369,9 @@ public sealed interface RType extends RTypeHelpers, BoundedLattice<RType> {
             || this == NOTHING
             || (isMissing() == Maybe.YES && newIsMissing == Maybe.MAYBE)
         ? this
-        : isMissing() == Maybe.YES ? NOTHING : of(value(), attributes(), promise(), newIsMissing);
+        : isMissing() == Maybe.YES
+            ? NOTHING
+            : of(value(), isOwned(), attributes(), promise(), newIsMissing);
   }
 
   // endregion field "with"ers
@@ -345,6 +394,7 @@ public sealed interface RType extends RTypeHelpers, BoundedLattice<RType> {
         && other.isMissing() != null;
 
     return value().isSubsetOf(other.value())
+        && owned().isSubsetOf(other.owned())
         && attributes().isSubsetOf(other.attributes())
         && promise().isSubsetOf(other.promise())
         && isMissing().isSubsetOf(other.isMissing());
@@ -367,6 +417,7 @@ public sealed interface RType extends RTypeHelpers, BoundedLattice<RType> {
         && other.isMissing() != null;
 
     return value().isSupersetOf(other.value())
+        && owned().isSupersetOf(other.owned())
         && attributes().isSupersetOf(other.attributes())
         && promise().isSupersetOf(other.promise())
         && isMissing().isSupersetOf(other.isMissing());
@@ -394,6 +445,7 @@ public sealed interface RType extends RTypeHelpers, BoundedLattice<RType> {
     if (value == RValueType.NOTHING) {
       return NOTHING;
     }
+    var isOwned = isOwned().intersection(other.isOwned());
     var attributes = attributes().intersection(other.attributes());
     if (attributes == AttributesType.BOTTOM) {
       return NOTHING;
@@ -406,7 +458,7 @@ public sealed interface RType extends RTypeHelpers, BoundedLattice<RType> {
     if (isMissing == null) {
       return NOTHING;
     }
-    return of(value, attributes, promise, isMissing);
+    return of(value, isOwned, attributes, promise, isMissing);
   }
 
   @Override
@@ -426,10 +478,11 @@ public sealed interface RType extends RTypeHelpers, BoundedLattice<RType> {
         && other.isMissing() != null;
 
     var value = value().union(other.value());
+    var isOwned = isOwned().union(other.isOwned());
     var attributes = attributes().union(other.attributes());
     var promise = promise().union(other.promise());
     var isMissing = isMissing().union(other.isMissing());
-    return of(value, attributes, promise, isMissing);
+    return of(value, isOwned, attributes, promise, isMissing);
   }
 
   // endregion lattice operations
@@ -437,27 +490,32 @@ public sealed interface RType extends RTypeHelpers, BoundedLattice<RType> {
 
 record RTypeImpl(
     @Override RValueType value,
+    @Override YesOrMaybe isOwned,
     @Override AttributesType attributes,
     @Override @Nullable RPromiseType promise,
     @Override @Nullable Maybe isMissing)
     implements RType {
-  // FIXME
-  static final ImmutableMap<RType, RType> INTERNED =
-      Arrays.stream(RType.class.getFields())
-          .filter(field -> field.getType() == RType.class)
-          .map(field -> (RType) Reflection.getField(null, field))
-          .collect(ImmutableMap.toImmutableMap(Function.identity(), Function.identity()));
+  private final static Map<RType, RType> INTERNED = new HashMap<>();
+
+  static RType interned(RType base) {
+    return INTERNED.computeIfAbsent(base, Function.identity());
+  }
 
   RTypeImpl {
     assert (promise != null && isMissing != null)
             || (promise == null
                 && isMissing == null
                 && value == RValueType.NOTHING
+                && isOwned == YesOrMaybe.YES
                 && attributes == AttributesType.BOTTOM)
         : "If `promise` and `isMissing` are `null`, this must be the nothing type";
+    // The missing type *is* owned, because the missing type's value type is `NOTHING`:
+    // the "missingness" part, like the "promise-wrapper" part, is separate from the "value" part.
     assert promise == null
             || isMissing != Maybe.YES
-            || (value == RValueType.NOTHING && attributes == AttributesType.BOTTOM)
+            || (value == RValueType.NOTHING
+                && isOwned == YesOrMaybe.YES
+                && attributes == AttributesType.BOTTOM)
         : "If `isMissing` is `YES`, this must be the missing type";
 
     assert promise == null
@@ -483,6 +541,9 @@ record RTypeImpl(
       }
       p.print(promise);
       p.print(value);
+      if (isOwned == YesOrMaybe.YES) {
+        w.write('*');
+      }
       if (attributes != AttributesType.EMPTY) {
         w.write('[');
         p.print(attributes);

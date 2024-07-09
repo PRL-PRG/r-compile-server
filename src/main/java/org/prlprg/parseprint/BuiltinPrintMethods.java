@@ -2,6 +2,7 @@ package org.prlprg.parseprint;
 
 import java.lang.reflect.RecordComponent;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.prlprg.util.Classes;
 import org.prlprg.util.Reflection;
@@ -114,7 +115,21 @@ public final class BuiltinPrintMethods {
 
   @PrintMethod
   private static void printCollection(Iterable<?> data, Printer p) {
-    p.printAsList(data, true);
+    p.printAsList(data, PrintWhitespace.SPACES);
+  }
+
+  @PrintMethod
+  private static void printMap(Map<?, ?> data, Printer p) {
+    p.printAsMap(data, PrintWhitespace.SPACES);
+  }
+
+  @PrintMethod
+  private static void printMapEntry(Map.Entry<?, ?> data, Printer p) {
+    var w = p.writer();
+
+    p.print(data.getKey());
+    w.write(" -> ");
+    p.print(data.getValue());
   }
 
   private BuiltinPrintMethods() {}

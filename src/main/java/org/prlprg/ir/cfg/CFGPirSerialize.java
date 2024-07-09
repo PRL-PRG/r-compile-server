@@ -44,6 +44,7 @@ import org.prlprg.parseprint.ParseException;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
+import org.prlprg.parseprint.PrintWhitespace;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.parseprint.SkipWhitespace;
 import org.prlprg.primitive.BuiltinId;
@@ -606,7 +607,7 @@ class PirInstrOrPhiParseContext {
             var assumption = p.parse(RValue.class);
             if (invert) {
               assumption =
-                  bb.append("assumeInvert", new StmtData.Not(Optional.empty(), assumption));
+                  bb.append("assumeInvert", new StmtData.Not(null, assumption));
             }
             s.assertAndSkip(", ");
             var checkpoint = p.parse(Checkpoint.class);
@@ -673,7 +674,7 @@ class PirInstrOrPhiParseContext {
                   args[i] = stubLangSxp();
                   continue;
                 } else if (name.equals("ast1")) {
-                  args[i] = Optional.empty();
+                  args[i] = null;
                   continue;
                 }
               }
@@ -894,7 +895,7 @@ class PirInstrOrPhiParseContext {
         type =
             sexpType == SEXPType.PROM
                 ? RType.ANY_PROMISE_NOT_MISSING
-                : sexpType == SEXPType.SYM ? RType.ANY_SIMPLE : RType.simple(sexpType);
+                : sexpType == SEXPType.SYM ? RType.ANY_SIMPLE : RType.simple(sexpType, YesOrMaybe.MAYBE);
       }
 
       // Attributes
@@ -1291,8 +1292,8 @@ class PirInstrOrPhiPrintContext {
       case StmtData.Force f -> {
         p.print(f.promise());
         w.write(", ");
-        if (f.frameState().isPresent()) {
-          p.print(f.frameState().get());
+        if (f.fs() != null) {
+          p.print(f.fs());
           w.write(", ");
         }
         if (f.env() != StaticEnv.ELIDED) {
@@ -1336,7 +1337,7 @@ class PirInstrOrPhiPrintContext {
           w.write("(pr)");
         }
         w.write(": ");
-        p.printAsList(f.stack(), true);
+        p.printAsList(f.stack(), PrintWhitespace.SPACES);
         w.write(", env=");
         p.print(f.env());
         if (f.inlinedNext().isPresent()) {
@@ -1364,26 +1365,26 @@ class PirInstrOrPhiPrintContext {
       case StmtData.NamelessCall c -> {
         p.print(c.fun());
         printCallArgs(c, p);
-        if (c.fs().isPresent()) {
+        if (c.fs() != null) {
           w.write(", ");
-          p.print(c.fs().get());
+          p.print(c.fs());
         }
       }
       case StmtData.NamedCall c -> {
         p.print(c.fun());
         printCallArgs(c, p);
-        if (c.fs().isPresent()) {
+        if (c.fs() != null) {
           w.write(", ");
-          p.print(c.fs().get());
+          p.print(c.fs());
         }
       }
       case StmtData.StaticCall c -> {
         p.print(c.fun().closure().name());
         // REACH: tryOptimizationDispatch hint
         printCallArgs(c, p);
-        if (c.fs().isPresent()) {
+        if (c.fs() != null) {
           w.write(", ");
-          p.print(c.fs().get());
+          p.print(c.fs());
         }
       }
       case StmtData.CallBuiltin c -> {
@@ -1545,8 +1546,10 @@ class PirInstrOrPhiPrintContext {
         if (primVec.isScalar() == Maybe.YES) {
           w.write('$');
         }
-        if (primVec.hasNAOrNaN() == NoOrMaybe.NO) {
-          w.write('#');
+        if (self.value() instanceof RNAAbleVecType naAbleVec) {
+          if (naAbleVec.hasNAOrNaN() == NoOrMaybe.NO) {
+            w.write('#');
+          }
         }
       }
       if (self.promise().isLazy() != Maybe.NO) {
@@ -1573,17 +1576,18 @@ class PirInstrOrPhiPrintContext {
       for (var flag : self) {
         w.write(
             switch (flag) {
-              case Visibility -> 'v';
-              case Warn -> 'w';
-              case Error -> 'e';
-              case Reflection -> 'r';
-              case LeaksNonEnvArg -> 'l';
-              case ChangesContext -> 'C';
-              case ReadsEnvArg -> 'R';
-              case WritesEnvArg -> 'W';
-              case LeaksEnvArg -> 'L';
-              case TriggerDeopt -> 'D';
-              case SemiArbitrary -> 'X';
+              case Visibility -> "v";
+              case Warn -> "w";
+              case Error -> "e";
+              case Reflection -> "r";
+              case ConsumesNonEnvArg -> "";
+              case LeaksNonEnvArg -> "l";
+              case ChangesContext -> "C";
+              case ReadsEnvArg -> "R";
+              case WritesEnvArg -> "W";
+              case LeaksEnvArg -> "L";
+              case TriggerDeopt -> "D";
+              case SemiArbitrary -> "X";
             });
       }
     }

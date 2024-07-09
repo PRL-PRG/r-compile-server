@@ -6,11 +6,21 @@ import org.prlprg.ir.type.lattice.NoOrMaybe;
 /** Primitive vector {@link RType} projection. */
 public sealed interface RNumericOrLogicalType extends RNAAbleVecType
     permits RNumericOrLogicalTypeImpl, RNumericType, RLogicalType {
-  RNumericOrLogicalType ANY = RNumericOrLogicalTypeImpl.INSTANCE;
+  RNumericOrLogicalType ANY = new RNumericOrLogicalTypeImpl(MaybeNat.UNKNOWN, NoOrMaybe.MAYBE);
+  RNumericOrLogicalType NO_NA = new RNumericOrLogicalTypeImpl(MaybeNat.UNKNOWN, NoOrMaybe.NO);
+  RNumericOrLogicalType SCALAR = new RNumericOrLogicalTypeImpl(MaybeNat.of(1), NoOrMaybe.MAYBE);
+  RNumericOrLogicalType SCALAR_NO_NA = new RNumericOrLogicalTypeImpl(MaybeNat.of(1), NoOrMaybe.NO);
 
+  @SuppressWarnings("DuplicatedCode")
   static RNumericOrLogicalType of(MaybeNat length, NoOrMaybe hasNAOrNaN) {
     if (!length.isKnown() && hasNAOrNaN == NoOrMaybe.MAYBE) {
       return ANY;
+    } else if (!length.isKnown() && hasNAOrNaN == NoOrMaybe.NO) {
+      return NO_NA;
+    } else if (length.isDefinitely(1) && hasNAOrNaN == NoOrMaybe.MAYBE) {
+      return SCALAR;
+    } else if (length.isDefinitely(1) && hasNAOrNaN == NoOrMaybe.NO) {
+      return SCALAR_NO_NA;
     }
 
     return new RNumericOrLogicalTypeImpl(length, hasNAOrNaN);
@@ -25,9 +35,6 @@ public sealed interface RNumericOrLogicalType extends RNAAbleVecType
 
 record RNumericOrLogicalTypeImpl(@Override MaybeNat length, @Override NoOrMaybe hasNAOrNaN)
     implements RNumericOrLogicalType {
-  static final RNumericOrLogicalTypeImpl INSTANCE =
-      new RNumericOrLogicalTypeImpl(MaybeNat.UNKNOWN, NoOrMaybe.MAYBE);
-
   @Override
   public RNumericOrLogicalType withLength(MaybeNat length) {
     return new RNumericOrLogicalTypeImpl(length, hasNAOrNaN);

@@ -57,10 +57,6 @@ public sealed interface InstrData<I extends Instr> permits JumpData, StmtData {
 
   /** Am {@link InstrData} with an AST. */
   interface HasAst {
-    Optional<LangSXP> ast1();
-
-    default @Nullable LangSXP ast() {
-      return ast1().orElse(null);
-    }
+    @Nullable LangSXP ast();
   }
 }

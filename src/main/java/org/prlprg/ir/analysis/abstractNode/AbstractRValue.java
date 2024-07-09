@@ -1,7 +1,9 @@
 package org.prlprg.ir.analysis.abstractNode;
 
-import com.google.common.collect.ImmutableSet;
+import java.util.Collections;
+import java.util.Set;
 import javax.annotation.Nullable;
+import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.ir.cfg.Constant;
 import org.prlprg.ir.cfg.Instr;
 import org.prlprg.ir.cfg.RValue;
@@ -10,15 +12,14 @@ import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.SEXPs;
-import org.prlprg.util.Pair;
 import org.prlprg.util.SmallListSet;
 
 /**
  * The possible {@linkplain RValue R SEXPs} at a particular {@linkplain Instr instruction} in any
  * interpretation trace.
  */
-public sealed interface AbstractRValue extends AbstractNode<AbstractRValue> {
-  record ValueOrigin(RValue value, @Nullable Instr origin, int recursionLevel) {
+public final class AbstractRValue implements AbstractNode<AbstractRValue> {
+  public record ValueOrigin(RValue value, @Nullable Instr origin, int recursionLevel) {
     @PrintMethod
     private void print(Printer p) {
       p.print(value.id());
@@ -34,89 +35,112 @@ public sealed interface AbstractRValue extends AbstractNode<AbstractRValue> {
     }
   }
 
-  AbstractRValue BOTTOM = new AbstractRValueImpl(ImmutableSet.of(), RType.NOTHING, false);
-  AbstractRValue UNBOUND = of(new Constant(SEXPs.UNBOUND_VALUE), null, 0);
-  AbstractRValue TAINTED = new AbstractRValueImpl(ImmutableSet.of(), RType.ANY, true);
+  public static final AbstractRValue UNBOUND =
+      new AbstractRValue(new Constant(SEXPs.UNBOUND_VALUE), null, 0);
+  public static final AbstractRValue UNKNOWN =
+      new AbstractRValue(Collections.emptySet(), RType.ANY, true);
+  private static final int MAX_VALUES = 5;
 
-  static AbstractRValue of(RValue value, @Nullable Instr origin, int recursionLevel) {
-    return new AbstractRValueImpl(
-        ImmutableSet.of(new ValueOrigin(value, origin, recursionLevel)), value.type(), false);
+  private Set<ValueOrigin> origins;
+  private RType type;
+  private boolean isUnknown;
+
+  /** Creates an abstract value representing "bottom". */
+  public AbstractRValue() {
+    origins = new SmallListSet<>(MAX_VALUES);
+    type = RType.NOTHING;
+    isUnknown = false;
   }
 
-  ImmutableSet<ValueOrigin> origins();
-
-  RType type();
-
-  boolean isUnknown();
-
-  default boolean hasSingleOrigin() {
-    return origins().size() == 1;
+  /** Creates an abstract value representing the given concrete value. */
+  public AbstractRValue(RValue value, @Nullable Instr origin, int recursionLevel) {
+    origins = new SmallListSet<>(MAX_VALUES);
+    origins.add(new ValueOrigin(value, origin, recursionLevel));
+    type = value.type();
+    isUnknown = false;
   }
 
-  default @Nullable ValueOrigin singleOrigin() {
-    return hasSingleOrigin() ? origins().iterator().next() : null;
+  /** Internal constructor for {@link #UNKNOWN}. */
+  private AbstractRValue(Set<ValueOrigin> origins, RType type, boolean isUnknown) {
+    this.origins = origins;
+    this.type = type;
+    this.isUnknown = isUnknown;
   }
 
-  default Maybe isUnboundValue() {
-    if (isUnknown()) {
+  public @UnmodifiableView Set<ValueOrigin> origins() {
+    return Collections.unmodifiableSet(origins);
+  }
+
+  public RType type() {
+    return type;
+  }
+
+  public boolean isUnknown() {
+    return isUnknown;
+  }
+
+  public boolean hasSingleOrigin() {
+    return origins.size() == 1;
+  }
+
+  public @Nullable ValueOrigin singleOrigin() {
+    return hasSingleOrigin() ? origins.iterator().next() : null;
+  }
+
+  public Maybe isUnboundValue() {
+    if (isUnknown) {
       return Maybe.MAYBE;
     }
     Maybe result = null;
-    for (var o : origins()) {
+    for (var o : origins) {
       var update = o.value().equals(new Constant(SEXPs.UNBOUND_VALUE));
       result = Maybe.intersection(result, update);
     }
     return result == null ? Maybe.NO : result;
   }
-}
-
-record AbstractRValueImpl(
-    @Override ImmutableSet<ValueOrigin> origins, @Override RType type, @Override boolean isUnknown)
-    implements AbstractRValue {
-  AbstractRValueImpl {
-    if (isUnknown && (!origins.isEmpty() || !type.isNothing())) {
-      throw new IllegalArgumentException("An unknown value has no origins and nothing type");
-    }
-  }
-
-  static final int MAX_VALUES = 5;
 
   @Override
-  public Pair<AbstractResult, AbstractRValue> merge(AbstractRValue other) {
-    var o =
-        switch (other) {
-          case AbstractRValueImpl r -> r;
-        };
-
+  public AbstractResult merge(AbstractRValue other) {
     if (isUnknown) {
-      return Pair.of(AbstractResult.NONE, this);
+      return AbstractResult.NONE;
     }
     if (type.isNothing()) {
-      return Pair.of(o.type.isNothing() ? AbstractResult.NONE : AbstractResult.UPDATED, other);
+      origins = other.origins;
+      type = other.type;
+      isUnknown = other.isUnknown;
+      return AbstractResult.UPDATED;
     }
-    if (o.isUnknown) {
-      return Pair.of(AbstractResult.LOST_PRECISION, TAINTED);
+    if (other.isUnknown) {
+      setToUnknown();
+      return AbstractResult.LOST_PRECISION;
     }
 
-    var newValues = new SmallListSet<ValueOrigin>(MAX_VALUES + 1);
-    newValues.addAll(origins);
     var changed = false;
-    for (var origin : o.origins) {
-      if (newValues.add(origin)) {
+    for (var origin : other.origins) {
+      if (origins.add(origin)) {
         changed = true;
-        if (newValues.size() > MAX_VALUES) {
-          return Pair.of(AbstractResult.LOST_PRECISION, TAINTED);
+        if (origins.size() > MAX_VALUES) {
+          setToUnknown();
+          return AbstractResult.LOST_PRECISION;
         }
       }
     }
-    var newType = RType.union(type, o.type);
-    changed = changed || !type.equals(newType);
 
-    return Pair.of(
-        changed ? AbstractResult.UPDATED : AbstractResult.NONE,
-        new AbstractRValueImpl(ImmutableSet.copyOf(newValues), newType, false));
+    if (changed) {
+      type = type.union(other.type);
+      return AbstractResult.UPDATED;
+    } else {
+      return AbstractResult.NONE;
+    }
   }
 
+  public void setToUnknown() {
+    origins = Collections.emptySet();
+    type = RType.ANY;
+    isUnknown = true;
+  }
+
+  // region serialization and deserialization
   @PrintMethod
   private void print(Printer p) {
     var w = p.writer();
@@ -141,4 +165,5 @@ record AbstractRValueImpl(
   public String toString() {
     return Printer.toString(this);
   }
+  // endregion serialization and deserialization
 }

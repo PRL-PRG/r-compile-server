@@ -20,6 +20,11 @@ public enum REffect {
   Error("e"),
   /** Performs arbitrary reflection. */
   Reflection("r"),
+  /** "Consumes" a non-environment argument: unless the value is {@linkplain
+   * org.prlprg.ir.type.RType#isOwned() owned} <i>and</i> this is the last use, it must be
+   * implicitly copied before this instruction.
+   */
+  ConsumesNonEnvArg("c"),
   /**
    * "Leaks" a non-environment argument: makes it so that the runtime value is no longer tracked by
    * SSA (e.g. stores in an environment).

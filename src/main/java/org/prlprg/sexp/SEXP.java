@@ -67,6 +67,7 @@ public sealed interface SEXP
 
   /** Whether the SEXP is an object i.e. has the "class" attribute. */
   default boolean isObject() {
+    // FIXME: handle S4 when we add them.
     var attributes = attributes();
     return attributes != null && attributes.isObject();
   }

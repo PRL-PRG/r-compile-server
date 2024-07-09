@@ -1,6 +1,7 @@
 package org.prlprg.ir.cfg;
 
 import java.util.Collection;
+import javax.annotation.Nullable;
 
 /**
  * {@link Phi} (<a
@@ -15,6 +16,16 @@ public interface FrameStatePhi extends Phi<FrameState>, FrameState {
 final class FrameStatePhiImpl extends PhiImpl<FrameState> implements FrameStatePhi {
   FrameStatePhiImpl(CFG cfg, NodeId<? extends Phi<?>> id, Collection<? extends Input<?>> inputs) {
     super(FrameState.class, cfg, id, inputs);
+  }
+
+  @Override
+  public @Nullable @IsEnv RValue frameStateEnv() {
+    return null;
+  }
+
+  @Override
+  public @Nullable FrameState inlinedNext() {
+    return null;
   }
 
   @Override

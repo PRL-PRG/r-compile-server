@@ -2,6 +2,7 @@ package org.prlprg.ir.type;
 
 import javax.annotation.Nullable;
 import org.prlprg.ir.type.lattice.Maybe;
+import org.prlprg.ir.type.lattice.YesOrMaybe;
 import org.prlprg.sexp.BuiltinSXP;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.EnvSXP;
@@ -19,76 +20,78 @@ import org.prlprg.sexp.SpecialSXP;
  */
 sealed interface RTypeHelpers permits RType {
   // region interned constants
-  //
-  // Need to explicitly invoke `new RTypeImpl` to create these instances, because `of` special-cases
-  // to return them.
   /** The type of an expression which hangs, errors, or otherwise diverts control flow. */
-  RType NOTHING = new RTypeImpl(RValueType.NOTHING, AttributesType.BOTTOM, null, null);
+  RType NOTHING = new RTypeImpl(RValueType.NOTHING, YesOrMaybe.YES, AttributesType.BOTTOM, null, null);
+
+  /** The type of a value we know absolutely nothing about except it's missing.
+   *
+   * <p>The missing type <i>is</i> considered "owned", even though {@link SEXPs#MISSING_ARG} is
+   * shared, because the missing type's value type is {@link RValueType#NOTHING}. The "missingness"
+   * part, like the "promise-wrapper" part, is separate from the "value" part. Furthermore, the
+   * missing type is immutable, so its ownership doesn't matter to itself, but "maybe missing" types
+   * can be owned and that does matter, because we want to be able to consume the type after proving
+   * that it's not missing.
+   */
+  RType MISSING =
+      new RTypeImpl(RValueType.NOTHING, YesOrMaybe.YES, AttributesType.BOTTOM, RPromiseType.VALUE, Maybe.YES);
 
   /** The type of a value we know absolutely nothing about. */
   RType ANY =
-      new RTypeImpl(
-          RValueType.ANY, AttributesType.ANY, RPromiseType.MAYBE_LAZY_MAYBE_PROMISE, Maybe.MAYBE);
-
-  /** The type of a value we know absolutely nothing about except it's missing. */
-  RType MISSING =
-      new RTypeImpl(RValueType.NOTHING, AttributesType.BOTTOM, RPromiseType.VALUE, Maybe.YES);
+      RType.of(RValueType.ANY, YesOrMaybe.MAYBE, AttributesType.ANY, RPromiseType.MAYBE_LAZY_MAYBE_PROMISE, Maybe.MAYBE);
 
   /** The type of a value we know absolutely nothing about, except that it's not a promise. */
-  RType ANY_VALUE_MAYBE_MISSING =
-      new RTypeImpl(RValueType.ANY, AttributesType.ANY, RPromiseType.VALUE, Maybe.MAYBE);
+  RType ANY_VALUE_MAYBE_MISSING = ANY.forced();
 
   /**
    * The type of a value we know absolutely nothing about, except that it's not a promise or
    * {@linkplain SEXPs#MISSING_ARG missing}.
    */
-  RType ANY_VALUE_NOT_MISSING =
-      new RTypeImpl(RValueType.ANY, AttributesType.ANY, RPromiseType.VALUE, Maybe.NO);
+  RType ANY_VALUE_NOT_MISSING = ANY_VALUE_MAYBE_MISSING.notMissing();
 
   /**
    * The type of a value we know absolutely nothing about, except that it's either a promise or
    * {@linkplain SEXPs#MISSING_ARG missing}.
    */
-  RType ANY_PROMISE_MAYBE_MISSING =
-      new RTypeImpl(RValueType.ANY, AttributesType.ANY, RPromiseType.STRICT_PROMISE, Maybe.MAYBE);
+  RType ANY_PROMISE_MAYBE_MISSING = ANY.promiseWrapped();
 
   /** The type of a value we know absolutely nothing about, except that it <i>is</i> a promise. */
-  RType ANY_PROMISE_NOT_MISSING =
-      new RTypeImpl(RValueType.ANY, AttributesType.ANY, RPromiseType.STRICT_PROMISE, Maybe.NO);
+  RType ANY_PROMISE_NOT_MISSING = ANY_PROMISE_MAYBE_MISSING.notMissing();
 
   /**
    * The type of a function we know absolutely nothing about besides it being a function (could be a
    * special or builtin).
+   *
+   * <p>These <i>can</i> have attributes.
    */
-  RType ANY_FUNCTION =
-      new RTypeImpl(RFunType.ANY, AttributesType.ANY, RPromiseType.VALUE, Maybe.NO);
+  RType ANY_FUNCTION = ANY_VALUE_NOT_MISSING.withValue(RFunType.ANY);
 
   /**
    * The type of a function we know absolutely nothing about besides it being a special or builtin
    * function.
+   *
+   * <p>These <i>can</i> have attributes.
    */
-  RType ANY_BUILTIN_OR_SPECIAL =
-      new RTypeImpl(RBuiltinOrSpecialType.ANY, AttributesType.ANY, RPromiseType.VALUE, Maybe.NO);
+  RType ANY_BUILTIN_OR_SPECIAL = ANY_VALUE_NOT_MISSING.withValue(RBuiltinOrSpecialType.ANY);
+
+  /**
+   * The type of a value we know absolutely nothing about besides it's not a promise, not missing,
+   * and doesn't have any attributes (e.g. AST node), and is an {@link EnvSXP}.
+   *
+   * <p>These <i>can</i> have attributes.
+   */
+  RType ANY_ENV = ANY_VALUE_NOT_MISSING.withValue(REnvType.ANY);
 
   /**
    * The type of a value we know absolutely nothing about besides it's not a promise, not missing,
    * and doesn't have any attributes (e.g. AST node).
    */
-  RType ANY_SIMPLE =
-      new RTypeImpl(RValueType.ANY, AttributesType.EMPTY, RPromiseType.VALUE, Maybe.NO);
+  RType ANY_SIMPLE = ANY_VALUE_NOT_MISSING.withAttributes(AttributesType.EMPTY);
 
   /**
    * The type of a value we know absolutely nothing about besides it's not a promise, not missing,
    * doesn't have any attributes (e.g. AST node), and is a {@link PrimVectorSXP}.
    */
-  RType ANY_SIMPLE_PRIM_VEC =
-      new RTypeImpl(RPrimVecType.ANY, AttributesType.EMPTY, RPromiseType.VALUE, Maybe.NO);
-
-  /**
-   * The type of a value we know absolutely nothing about besides it's not a promise, not missing,
-   * and doesn't have any attributes (e.g. AST node), and is an {@link EnvSXP}.
-   */
-  RType ANY_ENV = new RTypeImpl(REnvType.ANY, AttributesType.EMPTY, RPromiseType.VALUE, Maybe.NO);
+  RType ANY_SIMPLE_PRIM_VEC = ANY_SIMPLE.withValue(RPrimVecType.ANY);
 
   /**
    * The type of the {@code ...} parameter or argument.
@@ -97,26 +100,41 @@ sealed interface RTypeHelpers permits RType {
    * function, there's no guarantee that you are passing anything to it, so we assume that you are
    * passing a "missing" argument. But I don't know and maybe it shouldn't be maybe-missing...
    */
-  RType DOTS_LIST =
-      new RTypeImpl(RDotsListType.ANY, AttributesType.EMPTY, RPromiseType.VALUE, Maybe.MAYBE);
+  RType DOTS_LIST = ANY_SIMPLE.withValue(RDotsListType.ANY);
 
   /** The type of a boolean, i.e. a simple scalar logical that can't be NA. */
-  RType BOOL = new RTypeImpl(RLogicalType.BOOL, AttributesType.EMPTY, RPromiseType.VALUE, Maybe.NO);
+  RType BOOL = ANY_SIMPLE.withValue(RLogicalType.BOOL);
 
   /** The type of a simple scalar integer, real, or logical that permits NA. */
-  RType NUMERIC_OR_LOGICAL_MAYBE_NA =
-      new RTypeImpl(RNumericOrLogicalType.ANY, AttributesType.EMPTY, RPromiseType.VALUE, Maybe.NO);
+  RType NUMERIC_OR_LOGICAL_MAYBE_NA = ANY_SIMPLE.withValue(RNumericOrLogicalType.ANY);
 
   /** The type of a simple scalar integer, real, or logical that doesn't permit NA. */
-  RType NUMERIC_OR_LOGICAL_NOT_NA =
-      new RTypeImpl(RNumericOrLogicalType.ANY, AttributesType.EMPTY, RPromiseType.VALUE, Maybe.NO);
+  RType NUMERIC_OR_LOGICAL_NOT_NA = ANY_SIMPLE.withValue(RNumericOrLogicalType.NO_NA);
 
   /** The type whose only instance is {@link SEXPs#NULL}. */
-  RType NULL = new RTypeImpl(RNilType.ANY, AttributesType.EMPTY, RPromiseType.VALUE, Maybe.NO);
-
+  RType NULL = ANY_SIMPLE.withValue(RNilType.ANY);
   // endregion interned constants
 
   // region helper derived constructors
+  /** Returns the same type except owned; that is, the type at its definition is guaranteed to be
+   * unique, so if it's last use is consuming, that use doesn't have to copy.
+   */
+  default RType owned() {
+    return ((RType) this).withOwnership(YesOrMaybe.YES);
+  }
+
+  /** Returns the same type except not owned; that is, the type at its definition isn't guaranteed
+   * to be unique, so every consuming use must copy.
+   */
+  default RType shared() {
+    return ((RType) this).withOwnership(YesOrMaybe.MAYBE);
+  }
+
+  /** Returns the same type except with {@link AttributesType#EMPTY}. */
+  default RType withNoAttributes() {
+    return ((RType) this).withAttributes(AttributesType.EMPTY);
+  }
+
   /**
    * Returns the same type except {@link RType#promise() promise()}} is {@link RPromiseType#VALUE},
    * <i>unless</i> this is the nothing type.
@@ -260,6 +278,7 @@ sealed interface RTypeHelpers permits RType {
    * or {@link Maybe#MAYBE}.
    */
   default Maybe isObject() {
+    // FIXME: handle S4 when we add them.
     return ((RType) this).attributes().relation(AttributesType.ANY_OBJECT);
   }
 
