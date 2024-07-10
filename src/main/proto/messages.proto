@@ -57,13 +57,14 @@ message Context {
 }
 
 enum Type {
-  INTEGER = 0;
-  REAL = 1;// Add more types
+  ANY = 0;
+  INTEGER = 1;
+  REAL = 2;// Add more types
 }
 
 enum Tier {
-  BASELINE = 0;
-  OPTIMIZED = 1;
+  BASELINE = 0;// bytecode
+  OPTIMIZED = 1; // native code
 }
 
 enum TestLattice {
