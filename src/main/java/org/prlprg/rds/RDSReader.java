@@ -1,6 +1,7 @@
 package org.prlprg.rds;
 
 import com.google.common.collect.ImmutableList;
+import com.google.protobuf.ByteString;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.*;
 import java.nio.charset.Charset;
@@ -38,6 +39,10 @@ public class RDSReader implements Closeable {
     try (var reader = new RDSReader(session, input)) {
       return reader.read();
     }
+  }
+
+  public static SEXP readByteString(RSession session, ByteString byteString) throws IOException {
+    return RDSReader.readStream(session, byteString.newInput());
   }
 
   private void readHeader() throws IOException {

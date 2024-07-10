@@ -3,8 +3,14 @@ package org.prlprg.server;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.stub.StreamObserver;
+import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
+import org.prlprg.RSession;
+import org.prlprg.bc.Compiler;
+import org.prlprg.rds.RDSReader;
+import org.prlprg.sexp.CloSXP;
+import org.prlprg.sexp.SEXP;
 
 class CompileServer {
   private static final Logger logger = Logger.getLogger(CompileServer.class.getName());
@@ -71,6 +77,25 @@ class CompileServer {
       // Compile the code and build response
       Messages.CompileResponse.Builder response = Messages.CompileResponse.newBuilder();
       // TODO
+      if (function.hasBody()) {
+        // TODO: we need a RSession. Create it at the level of the CompileServer class.
+        RSession session = null;
+        SEXP closure = null;
+        try {
+          closure = RDSReader.readByteString(session, function.getBody());
+        } catch (IOException e) {
+          throw new RuntimeException(e);
+        }
+        if (closure instanceof CloSXP c) {
+          Compiler compiler = new Compiler(c, session);
+        } else {
+          // TODO: fail because we are asked to compile something which is not
+          // a closure
+        }
+      } else {
+        // We should cache the Compiler instance for that function and then
+        // retrieve it here.
+      }
 
       // Send the response
       responseObserver.onNext(response.build());
