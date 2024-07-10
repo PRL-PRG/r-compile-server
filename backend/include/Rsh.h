@@ -52,17 +52,6 @@ static INLINE SEXP Rsh_get_builtin(const char *name) {
   return Rif_Primitive(name);
 }
 
-// FIXME: remove
-static INLINE SEXP Rsh_call_builtin(SEXP call, SEXP fun, SEXP args, SEXP env) {
-  int flag = PRIMPRINT(fun);
-  R_Visible = (Rboolean)(flag != 1);
-  SEXP value = PRIMFUN(fun)(call, fun, args, env);
-  if (flag < 2) {
-    R_Visible = (Rboolean)(flag != 1);
-  }
-  return value;
-}
-
 static INLINE SEXP Rsh_call(SEXP call, SEXP fun, SEXP args, SEXP rho) {
     SEXP value = NULL;
     int flag;

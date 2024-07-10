@@ -143,7 +143,7 @@ public class BC2CCompiler {
       case BcInstr.Pop() -> pop(1);
       case BcInstr.GetBuiltin(var idx) -> compileGetBuiltin(idx);
       case BcInstr.PushConstArg(var idx) -> compilePushConstArg(idx);
-      case BcInstr.CallBuiltin(var idx) -> compileCallBuiltin(idx);
+      case BcInstr.CallBuiltin(var idx) -> compileCall(idx);
       case BcInstr.PushArg() -> compilePushArg();
       case BcInstr.SetTag(var idx) -> compilerSetTag(idx);
       case BcInstr.Lt(_) -> compileLt();
@@ -229,16 +229,6 @@ public class BC2CCompiler {
   private void compilePushConstArg(ConstPool.Idx<SEXP> idx) {
     body.line(
         "RSH_LIST_APPEND(%s, %s, %s);".formatted(stack.curr(-1), stack.curr(0), constant(idx)));
-  }
-
-  private void compileCallBuiltin(ConstPool.Idx<LangSXP> idx) {
-    var call = push(constant(idx), false);
-    var fun = stack.curr(-3);
-    var args = stack.curr(-2);
-
-    var callBuiltIn = "Rsh_call_builtin(%s, %s, %s, %s)".formatted(call, fun, args, NAME_ENV);
-    // we are going to pop 4 elements from the stack - all the until the beginning of the call frame
-    popPush(4, callBuiltIn, true);
   }
 
   private void compileGetBuiltin(ConstPool.Idx<RegSymSXP> idx) {
