@@ -60,9 +60,47 @@ enum Type {
   INTEGER = 0;
   REAL = 1;// Add more types
 }
+
 enum Tier {
   BASELINE = 0;
   OPTIMIZED = 1;
+}
+
+enum TestLattice {
+  BOTH = 0;
+  ONLY_TRUE = 1;
+  ONLY_FALSE = 2;
+  NONE = 3;
+}
+
+message TestFeedback {
+  TestLattice test_lattice = 1;
+}
+
+message CallFeedback {
+  int64 n_calls = 1;
+  bytes callee_hash = 2;
+}
+
+message ValueFeedback {
+  bool scalar = 1;
+  bool object = 2;
+  bool accessed_attributes = 3;
+  bool vectorizable = 4;
+  bool is_promise = 5;
+}
+
+
+
+message TypeFeedback {
+  message Feedback {
+    oneof feedback {
+      TestFeedback test_feedback = 1;
+      CallFeedback call_feedback = 2;
+      ValueFeedback value_feedback = 3;
+    }
+  }
+  map<int64, Feedback> types = 1;//Offset in the bytecode to the feedback
 }
 
 message CompileRequest {
