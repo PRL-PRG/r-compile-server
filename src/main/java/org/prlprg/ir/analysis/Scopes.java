@@ -7,6 +7,7 @@ import java.util.Objects;
 import java.util.stream.IntStream;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
+import org.prlprg.ir.analysis.AbstractInterpretation.AnalysisDebugLevel;
 import org.prlprg.ir.analysis.abstractNode.AbstractEnv;
 import org.prlprg.ir.analysis.abstractNode.AbstractEnvHierarchy;
 import org.prlprg.ir.analysis.abstractNode.AbstractLoad;
@@ -58,6 +59,7 @@ import org.prlprg.parseprint.Printer;
 import org.prlprg.primitive.BuiltinId;
 import org.prlprg.sexp.RegSymSXP;
 import org.prlprg.sexp.SEXPs;
+import org.prlprg.util.NotImplementedError;
 import org.prlprg.util.Pair;
 
 /**
@@ -77,9 +79,15 @@ public class Scopes {
    * <p>TODO: Make configurable via environment variables.
    */
   public record Config(
-      int maxDepth, int maxSize, int maxPromSize, int maxResults, int maxNumSubAnalyses) {
+      int maxDepth,
+      int maxSize,
+      int maxPromSize,
+      int maxResults,
+      int maxNumSubAnalyses,
+      AnalysisDebugLevel debugLevel) {
     /** The default config, if no environment variables are set. */
-    public static final Config DEFAULT = new Config(2, 120, 14, 800, 10);
+    public static final Config DEFAULT =
+        new Config(2, 120, 14, 800, 10, AnalysisDebugLevel.INSTRUCTION);
   }
 
   // State
@@ -138,6 +146,12 @@ public class Scopes {
       return !envs.isKnown(env) || envs.at(env).isLeaked();
     }
 
+    @Override
+    public State clone() {
+      // TODO
+      throw new NotImplementedError();
+    }
+
     // region serialization and deserialization
     @PrintMethod
     private void print(Printer p) {
@@ -161,6 +175,12 @@ public class Scopes {
           });
       w.write(')');
     }
+
+    @Override
+    public String toString() {
+      return Printer.toString(this);
+    }
+    // endregion serialization and deserialization
   }
 
   // Config
@@ -181,50 +201,57 @@ public class Scopes {
     new SubAnalysis(closureVersion, List.of(), new State(), 0);
   }
 
-  private class SubAnalysis {
-    private final ClosureVersion innermostVersion;
-    private final CFG cfg;
-    private final boolean isInPromise;
+  private class SubAnalysis extends AbstractInterpretation<State> {
     private final List<RValue> args;
     private final @IsEnv RValue staticClosureEnv;
-    private State state;
     private final int depth;
     private final boolean canDeopt;
 
     /** Create a sub-analysis to run on the given closure version. */
-    private SubAnalysis(ClosureVersion closureVersion, List<RValue> args, State state, int depth) {
+    private SubAnalysis(
+        ClosureVersion closureVersion, List<RValue> args, State initial, int depth) {
       this(
           closureVersion,
           closureVersion.body(),
-          false,
           args,
           closureVersion.closure().env(),
-          state,
+          initial,
           depth);
     }
 
     /** Create a sub-analysis to run on the given promise. */
-    private SubAnalysis(ClosureVersion outerVersion, Promise promise, State state, int depth) {
-      this(outerVersion, promise.body(), true, List.of(), promise.env(), state, depth);
+    private SubAnalysis(ClosureVersion outerVersion, Promise promise, State initial, int depth) {
+      this(outerVersion, promise.body(), List.of(), promise.env(), initial, depth);
     }
 
     /** Create a sub-analysis to run. */
     private SubAnalysis(
         ClosureVersion innermostVersion,
         CFG cfg,
-        boolean isInPromise,
         List<RValue> args,
         @IsEnv RValue staticClosureEnv,
-        State state,
+        State initial,
         int depth) {
-      this.innermostVersion = innermostVersion;
-      this.cfg = cfg;
-      this.isInPromise = isInPromise;
+      super(config.debugLevel, Direction.FORWARD, innermostVersion, cfg, initial);
       this.args = args;
       this.staticClosureEnv = staticClosureEnv;
-      this.state = state;
       this.depth = depth;
       canDeopt = cfg.canDeopt();
+    }
+
+    @Override
+    protected AbstractResult2 compute(State state, BB instrBB, int instrIdx, Instr instr) {
+      return doCompute(state, instrBB, instrIdx, instr, true);
+    }
+
+    @Override
+    protected AbstractResult2 apply(State state, BB instrBB, int instrIdx, Instr instr) {
+      return doCompute(state, instrBB, instrIdx, instr, false);
+    }
+
+    @Override
+    protected boolean globallyChanged() {
+      return changed;
     }
 
     private AbstractResult2 doCompute(
@@ -289,7 +316,9 @@ public class Scopes {
           // `loadFun` has collateral forcing if we touch intermediate envs. But if we statically
           // find the closure to load, then there is no issue and we don't do anything.
           var load = loadFun(state, ld.name(), ld.env());
-          storeResult(instr, load);
+          if (updateGlobalState) {
+            storeResult(instr, load);
+          }
           if (!load.result().isUnknown()) {
             // We statically know the closure.
             handled = true;
@@ -305,11 +334,15 @@ public class Scopes {
         }
         case LdVar ld -> {
           var load = load(state, ld.name(), ld.env());
-          storeResult(instr, load);
+          if (updateGlobalState) {
+            storeResult(instr, load);
+          }
         }
         case LdVarSuper ld -> {
           var load = loadSuper(state, ld.name(), ld.env());
-          storeResult(instr, load);
+          if (updateGlobalState) {
+            storeResult(instr, load);
+          }
         }
         case StVar st -> {
           state.envs.at(st.env()).set(st.name(), st.value(), instr, depth);
@@ -338,7 +371,7 @@ public class Scopes {
 
           // If it's a non lazy thing, we do not need to bother.
           if (arg.type().isLazy() == Maybe.NO) {
-            if (arg.type().isPromise() == Maybe.NO) {
+            if (updateGlobalState && arg.type().isPromise() == Maybe.NO) {
               updateReturnValue(instr, new AbstractRValue(arg, instr, depth));
             }
             handled = true;
@@ -364,7 +397,7 @@ public class Scopes {
             if (lookup != null) {
               var lookupRes = lookup.result();
               var singleOrigin = lookupRes.singleOrigin();
-              if (lookupRes.type().isLazy() == Maybe.NO) {
+              if (updateGlobalState && lookupRes.type().isLazy() == Maybe.NO) {
                 updateReturnValue(
                     instr,
                     lookupRes.type().isPromise() == Maybe.NO ? lookupRes : AbstractRValue.UNKNOWN);
@@ -384,7 +417,7 @@ public class Scopes {
               var found = state.forcedPromises.get(concretePromise);
               if (found == null) {
                 if (depth < config.maxDepth
-                    && !fixedPointReached()
+                    && !reachedFixedPoint()
                     && f.isStrict() == YesOrMaybe.YES
                     && !state.envs.areAllUnknown()
                     && concretePromise.promise().body().numNodes() < config.maxPromSize) {
@@ -394,18 +427,21 @@ public class Scopes {
                   if (promAnalysis == null && subAnalyses.size() < config.maxNumSubAnalyses) {
                     promAnalysis =
                         new SubAnalysis(
-                            innermostVersion, concretePromise.promise(), state.clone(), depth + 1);
+                            innermostVersion, concretePromise.promise(), state, depth + 1);
+                    subAnalyses.put(instr, promAnalysis);
                   } else if (promAnalysis != null) {
-                    promAnalysis.state = state.clone();
+                    promAnalysis.setInitialState(state);
                   }
 
                   if (promAnalysis != null) {
-                    promAnalysis.state.mayUseReflection = false;
+                    promAnalysis.onInitialState(subState -> subState.mayUseReflection = false);
 
                     var subResult = promAnalysis.run();
 
                     state.merge(subResult);
-                    updateReturnValue(instr, subResult.returnValue);
+                    if (updateGlobalState) {
+                      updateReturnValue(instr, subResult.returnValue);
+                    }
                     res.merge(
                         state.forcedPromises.get(concretePromise).merge(subResult.returnValue));
                     res.update();
@@ -414,14 +450,18 @@ public class Scopes {
                   }
                 }
               } else if (!found.isUnknown()) {
-                updateReturnValue(instr, found);
+                if (updateGlobalState) {
+                  updateReturnValue(instr, found);
+                }
                 handled = true;
               }
 
               if (!handled) {
                 state.envs.at(concretePromise.promise().env()).setToUnknown();
                 res.merge(state.envs.taintLeaked());
-                updateReturnValue(instr, AbstractRValue.UNKNOWN);
+                if (updateGlobalState) {
+                  updateReturnValue(instr, AbstractRValue.UNKNOWN);
+                }
                 handled = true;
               }
             } else if (arg instanceof Instr i && i.data() instanceof LdArg ldArg) {
@@ -429,20 +469,26 @@ public class Scopes {
                   .callContext()
                   .requires(ldArg.index(), ArgAssumption.IS_NON_REFLECTIVE)) {
                 res.merge(state.envs.taintLeaked());
-                updateReturnValue(instr, AbstractRValue.UNKNOWN);
+                if (updateGlobalState) {
+                  updateReturnValue(instr, AbstractRValue.UNKNOWN);
+                }
                 handled = true;
               }
             } else if (concreteEnv != null && concreteEnv.isStub()) {
               // Forcing using a stub should deopt if local vars are modified.
               res.merge(state.envs.taintLeaked());
-              updateReturnValue(instr, AbstractRValue.UNKNOWN);
+              if (updateGlobalState) {
+                updateReturnValue(instr, AbstractRValue.UNKNOWN);
+              }
               handled = true;
             }
           }
 
           if (!handled) {
             res.taint();
-            updateReturnValue(instr, AbstractRValue.UNKNOWN);
+            if (updateGlobalState) {
+              updateReturnValue(instr, AbstractRValue.UNKNOWN);
+            }
           }
         }
         case Call_<?> call -> {
@@ -471,8 +517,10 @@ public class Scopes {
               // call to itself cannot excert more behaviors.
               handled = true;
               res.setNeedRecursion();
-              updateReturnValue(instr, AbstractRValue.UNKNOWN);
-            } else if (!fixedPointReached()
+              if (updateGlobalState) {
+                updateReturnValue(instr, AbstractRValue.UNKNOWN);
+              }
+            } else if (!reachedFixedPoint()
                 && depth != config.maxDepth
                 && concreteClosure.body().numNodes() <= config.maxSize
                 && !state.envs.areAllUnknown()) {
@@ -484,15 +532,15 @@ public class Scopes {
 
               var closureAnalysis = subAnalyses.get(instr);
               if (closureAnalysis == null && subAnalyses.size() < config.maxNumSubAnalyses) {
-                closureAnalysis =
-                    new SubAnalysis(concreteClosure, call.args(), state.clone(), depth + 1);
+                closureAnalysis = new SubAnalysis(concreteClosure, call.args(), state, depth + 1);
+                subAnalyses.put(instr, closureAnalysis);
               } else if (closureAnalysis != null) {
-                closureAnalysis.state = state.clone();
+                closureAnalysis.setInitialState(state);
               }
 
               if (closureAnalysis != null) {
                 if (ienv != null) {
-                  closureAnalysis.state.envs.at(ienv).leak();
+                  closureAnalysis.onInitialState(subState -> subState.envs.at(ienv).leak());
                 }
 
                 var subResult = closureAnalysis.run();
@@ -505,7 +553,9 @@ public class Scopes {
                 }
 
                 state.merge(subResult);
-                updateReturnValue(instr, subResult.returnValue);
+                if (updateGlobalState) {
+                  updateReturnValue(instr, subResult.returnValue);
+                }
                 res.update();
                 res.setKeepSnapshot();
                 handled = true;
@@ -539,6 +589,7 @@ public class Scopes {
             res.taint();
           }
         }
+        default -> {}
       }
 
       if (switch (instr.data()) {

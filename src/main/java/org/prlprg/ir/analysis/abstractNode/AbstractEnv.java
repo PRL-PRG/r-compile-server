@@ -16,6 +16,7 @@ import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.RegSymSXP;
+import org.prlprg.util.NotImplementedError;
 
 /**
  * A static approximation of an {@linkplain EnvSXP R runtime environment} (from PIR).
@@ -198,6 +199,12 @@ public final class AbstractEnv implements AbstractNode<AbstractEnv> {
     }
 
     return res;
+  }
+
+  @Override
+  public AbstractEnv clone() {
+    // TODO
+    throw new NotImplementedError();
   }
 
   // region serialization and deserialization

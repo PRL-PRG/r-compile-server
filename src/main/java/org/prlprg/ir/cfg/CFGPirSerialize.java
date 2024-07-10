@@ -589,7 +589,7 @@ class PirInstrOrPhiParseContext {
             var ast = allArgs.get(allArgs.size() - 3);
             var op = allArgs.get(allArgs.size() - 2);
             var sysParent = allArgs.getLast();
-            yield new StmtData.PushContext(ast, op, ctxArgs, (ImmutableIntArray) null, sysParent);
+            yield new StmtData.PushContext(ast, op, ctxArgs, null, sysParent);
           }
           case "Branch" -> {
             var cond = p.parse(RValue.class);
@@ -1341,9 +1341,9 @@ class PirInstrOrPhiPrintContext {
         p.printAsList(f.stack(), PrintWhitespace.SPACES);
         w.write(", env=");
         p.print(f.env());
-        if (f.inlinedNext().isPresent()) {
+        if (f.inlinedNext() != null) {
           w.write(", next=");
-          p.print(f.inlinedNext().get());
+          p.print(f.inlinedNext());
         }
       }
       case StmtData.PushContext c -> {
@@ -1437,12 +1437,12 @@ class PirInstrOrPhiPrintContext {
       }
       case JumpData.Deopt d -> {
         p.print(d.frameState());
-        if (d.reason().isPresent()) {
-          assert d.trigger().isPresent();
+        if (d.reason() != null) {
+          assert d.trigger() != null;
           w.write(", ");
-          p.print(d.reason().get());
+          p.print(d.reason());
           w.write(", ");
-          p.print(d.trigger().get());
+          p.print(d.trigger());
         }
         if (d.escapedEnv()) {
           w.write("   !");

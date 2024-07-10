@@ -532,7 +532,7 @@ abstract sealed class InstrImpl<D extends InstrData<?>> extends InstrOrPhiImpl i
   }
 
   protected void verify(boolean isInsert) throws InstrVerifyException {
-    verifyNoNullableArgs();
+    verifyNoOptionalArgs();
     verifySameLenInData();
     computeArgs();
     computeEnv();
@@ -543,7 +543,7 @@ abstract sealed class InstrImpl<D extends InstrData<?>> extends InstrOrPhiImpl i
     data.verify(isInsert);
   }
 
-  private void verifyNoNullableArgs() throws InstrVerifyException {
+  private void verifyNoOptionalArgs() throws InstrVerifyException {
     // Reflectively get all record components, assert that none of them are nullable.
     if (!(data instanceof Record)) {
       throw new AssertionError("InstrData must be a record");
@@ -552,13 +552,13 @@ abstract sealed class InstrImpl<D extends InstrData<?>> extends InstrOrPhiImpl i
     var components = cls.getRecordComponents();
 
     for (var component : components) {
-      if (component.isAnnotationPresent(Nullable.class)) {
+      if (component.getType() == Optional.class) {
         throw new InstrVerifyException(
-            "Argument "
-                + component.getName()
-                + " in "
+            "Top-level `"
                 + cls.getSimpleName()
-                + " is `@Nullable`. InstrData arguments must be `Optional` (since they are often streamed it's easier this way).");
+                + "` argument "
+                + component.getName()
+                + " is `Optional`, must be `@Nullable` instead.");
       }
     }
   }

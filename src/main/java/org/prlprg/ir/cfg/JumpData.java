@@ -2,7 +2,6 @@ package org.prlprg.ir.cfg;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Streams;
-import java.util.Optional;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.checkerframework.checker.index.qual.SameLen;
@@ -32,14 +31,10 @@ public sealed interface JumpData<I extends Jump> extends InstrData<I> {
   record Goto(BB next) implements Void {}
 
   @EffectsAre({})
-  record Branch(Optional<LangSXP> ast1, RValue condition, BB ifTrue, BB ifFalse)
+  record Branch(@Nullable LangSXP ast, RValue condition, BB ifTrue, BB ifFalse)
       implements Void, InstrData.HasAst {
-    public Branch(@Nullable LangSXP ast1, RValue condition, BB ifTrue, BB ifFalse) {
-      this(Optional.ofNullable(ast1), condition, ifTrue, ifFalse);
-    }
-
     public Branch(RValue condition, BB ifTrue, BB ifFalse) {
-      this(Optional.empty(), condition, ifTrue, ifFalse);
+      this(null, condition, ifTrue, ifFalse);
     }
   }
 
@@ -88,31 +83,23 @@ public sealed interface JumpData<I extends Jump> extends InstrData<I> {
   @EffectsAreAribtrary
   record Deopt(
       FrameState frameState,
-      Optional<DeoptReason> reason,
-      Optional<RValue> trigger,
+      @Nullable DeoptReason reason,
+      @Nullable RValue trigger,
       boolean escapedEnv)
       implements Void {
     public Deopt {
-      if (reason.isEmpty() && trigger.isPresent()) {
+      if (reason == null && trigger != null) {
         throw new IllegalArgumentException(
             "trigger must be null if reason is null (same will non-null)");
       }
-      if (reason.isPresent() && trigger.isEmpty()) {
+      if (reason != null && trigger == null) {
         throw new IllegalArgumentException(
             "trigger must be non-null if reason is non-null (same will null)");
       }
     }
 
-    public Deopt(
-        FrameState frameState,
-        @Nullable DeoptReason reason,
-        @Nullable RValue trigger,
-        boolean escapedEnv) {
-      this(frameState, Optional.ofNullable(reason), Optional.ofNullable(trigger), escapedEnv);
-    }
-
     public Deopt(FrameState frameState) {
-      this(frameState, (DeoptReason) null, null, false);
+      this(frameState, null, null, false);
     }
   }
 }

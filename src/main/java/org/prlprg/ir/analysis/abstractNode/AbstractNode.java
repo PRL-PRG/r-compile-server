@@ -15,4 +15,11 @@ public interface AbstractNode<Self> extends Cloneable {
    * <p>After this call, you can't use {@code other} again (it's effectively "moved").
    */
   AbstractResult merge(Self other);
+
+  default AbstractResult mergeExit(Self other) {
+    return merge(other);
+  }
+
+  /** Deep-copy the node. */
+  Self clone();
 }

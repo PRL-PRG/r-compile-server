@@ -2,7 +2,6 @@ package org.prlprg.optimizations;
 
 import com.google.common.collect.ImmutableList;
 import java.util.HashSet;
-import java.util.Optional;
 import java.util.stream.Stream;
 import org.prlprg.ir.cfg.CFG;
 import org.prlprg.ir.cfg.Constant;
@@ -60,8 +59,7 @@ class ElideEnvs implements OptimizationPass {
         // TODO: Put this somewhere else
         if (instr.data() instanceof Force(var promise, var _, var _)
             && promise.type().isLazy() == Maybe.NO) {
-          Instr.mutateArgs(
-              (RValueStmt) instr, new Force(promise, Optional.empty(), StaticEnv.ELIDED));
+          Instr.mutateArgs((RValueStmt) instr, new Force(promise, null, StaticEnv.ELIDED));
         }
       }
     }

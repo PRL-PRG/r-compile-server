@@ -4,6 +4,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.SequencedCollection;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
@@ -25,6 +26,15 @@ interface BBQuery extends Iterable<InstrOrPhi> {
   @UnmodifiableView
   Collection<BB> predecessors();
 
+  /** Whether the BB is the {@linkplain CFG}'s entry, i.e. has no successors. */
+  default boolean isEntry() {
+    assert predecessors().isEmpty() || (this != cfg().entry())
+        : "BB has predecessors but is its CFG's entry";
+    assert !predecessors().isEmpty() || (this == cfg().entry())
+        : "BB has no predecessors but isn't its CFG's entry";
+    return predecessors().isEmpty();
+  }
+
   /** Whether this block has a single predecessor. */
   default boolean hasSinglePredecessor() {
     return predecessors().size() == 1;
@@ -43,6 +53,15 @@ interface BBQuery extends Iterable<InstrOrPhi> {
    */
   @UnmodifiableView
   SequencedCollection<BB> successors();
+
+  /** Whether the BB is an exit, i.e. has no successors. */
+  default boolean isExit() {
+    assert successors().isEmpty() || !cfg().exits().contains((BB) this)
+        : "BB has no successors but isn't an exit according to its CFG";
+    assert !successors().isEmpty() || cfg().exits().contains((BB) this)
+        : "BB has successors but is an exit according to its CFG";
+    return successors().isEmpty();
+  }
 
   /** Whether this block has a single successor. */
   default boolean hasSingleSuccessor() {
@@ -114,6 +133,21 @@ interface BBQuery extends Iterable<InstrOrPhi> {
 
   /** Returns whether this BB contains the given instruction or phi. */
   boolean contains(InstrOrPhi instr);
+
+  /**
+   * Returns the instruction at the given index in this BB.
+   *
+   * <p>That is, the statement at the index, unless the index is {@link #stmts() stmts().size()} and
+   * this BB has a jump, in which case it's the jump.
+   *
+   * @throws IndexOutOfBoundsException If the index is out of range.
+   */
+  default Instr instr(int index) {
+    if (index > numInstrs()) {
+      throw new IndexOutOfBoundsException("Index: " + index + ", Size: " + numInstrs());
+    }
+    return index < stmts().size() ? stmt(index) : Objects.requireNonNull(jump());
+  }
 
   /**
    * Returns (a view of) the phis in this BB.
