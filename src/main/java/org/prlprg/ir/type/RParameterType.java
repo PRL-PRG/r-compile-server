@@ -3,6 +3,7 @@ package org.prlprg.ir.type;
 import org.prlprg.ir.type.lattice.Lattice;
 import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.ir.type.lattice.NoOrMaybe;
+import org.prlprg.ir.type.lattice.YesOrMaybe;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.primitive.Names;
@@ -40,10 +41,17 @@ public record RParameterType(
    * promises can have arbitrary side effects that may completely change the function's effects and
    * return type, and we don't analyze if a parameter is never used because that isn't common, so we
    * only assert the signature's effects and return types if all arguments are strict.
+   *
+   * <p>The parameter type is always owned, because we automatically insert a clone before calling
+   * when necessary.
    */
   public RType type() {
     return RType.of(
-        valueType, attributesType, RPromiseType.STRICT_MAYBE_PROMISE, Maybe.of(isRequired));
+        valueType,
+        YesOrMaybe.YES,
+        attributesType,
+        RPromiseType.STRICT_MAYBE_PROMISE,
+        Maybe.of(isRequired));
   }
 
   public boolean isNamed() {

@@ -403,7 +403,7 @@ public sealed interface RType extends RTypeHelpers, BoundedLattice<RType> {
         && other.isMissing() != null;
 
     return value().isSubsetOf(other.value())
-        && owned().isSubsetOf(other.owned())
+        && isOwned().isSubsetOf(other.isOwned())
         && attributes().isSubsetOf(other.attributes())
         && promise().isSubsetOf(other.promise())
         && isMissing().isSubsetOf(other.isMissing());

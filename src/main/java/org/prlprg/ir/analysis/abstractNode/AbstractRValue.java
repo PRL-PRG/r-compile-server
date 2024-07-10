@@ -12,6 +12,7 @@ import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.SEXPs;
+import org.prlprg.util.NotImplementedError;
 import org.prlprg.util.SmallListSet;
 
 /**
@@ -99,6 +100,12 @@ public final class AbstractRValue implements AbstractNode<AbstractRValue> {
     return result == null ? Maybe.NO : result;
   }
 
+  public void setToUnknown() {
+    origins = Collections.emptySet();
+    type = RType.ANY;
+    isUnknown = true;
+  }
+
   @Override
   public AbstractResult merge(AbstractRValue other) {
     if (isUnknown) {
@@ -134,10 +141,10 @@ public final class AbstractRValue implements AbstractNode<AbstractRValue> {
     }
   }
 
-  public void setToUnknown() {
-    origins = Collections.emptySet();
-    type = RType.ANY;
-    isUnknown = true;
+  @Override
+  public AbstractRValue clone() {
+    // TODO
+    throw new NotImplementedError();
   }
 
   // region serialization and deserialization

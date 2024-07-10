@@ -35,6 +35,7 @@ import org.prlprg.util.Strings;
  * <p>{@link T} must be a record. Unfortunately this is checked at runtime because interfaces can't
  * be records, and this is given interfaces of {@link InstrData}.
  */
+// FIXME: Handle `@Nullable` (wrap/unwrap `Optional` when necessary).
 public sealed interface MapToIdIn<T extends InstrData<?>> {
   /**
    * Encodes the given record, but replaces every {@linkplain BB basic block} or {@linkplain Node

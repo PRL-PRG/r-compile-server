@@ -18,6 +18,7 @@ import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.RegSymSXP;
+import org.prlprg.util.NotImplementedError;
 
 /** An abstract tree of environments that can perform variable lookup in abstract interpretation. */
 public final class AbstractEnvHierarchy implements AbstractNode<AbstractEnvHierarchy> {
@@ -291,6 +292,12 @@ public final class AbstractEnvHierarchy implements AbstractNode<AbstractEnvHiera
     }
 
     return res;
+  }
+
+  @Override
+  public AbstractEnvHierarchy clone() {
+    // TODO
+    throw new NotImplementedError();
   }
 
   // region serialization and deserialization
