@@ -138,7 +138,7 @@ public class BC2CCompiler {
       case BcInstr.SetVar(var idx) -> compileSetVar(idx);
       case BcInstr.LdConst(var idx) -> compilerLdConst(idx);
       case BcInstr.GetVar(var idx) -> compileGetVar(idx);
-      case BcInstr.Add(var ignored) -> compileAdd();
+      case BcInstr.Add(_) -> compileAdd();
       case BcInstr.Return() -> compileReturn();
       case BcInstr.Pop() -> pop(1);
       case BcInstr.GetBuiltin(var idx) -> compileGetBuiltin(idx);
@@ -146,16 +146,34 @@ public class BC2CCompiler {
       case BcInstr.CallBuiltin(var idx) -> compileCallBuiltin(idx);
       case BcInstr.PushArg() -> compilePushArg();
       case BcInstr.SetTag(var idx) -> compilerSetTag(idx);
-      case BcInstr.Lt(var ignored) -> compileLt();
+      case BcInstr.Lt(_) -> compileLt();
       case BcInstr.BrIfNot(var call, var label) -> compileBrIfNot(call, label);
       case BcInstr.Goto(var label) -> compileGoto(label);
       case BcInstr.Invisible() -> compileInvisible();
       case BcInstr.LdNull() -> compileLdNull();
+      case BcInstr.GetFun(var idx) -> compileGetFun(idx);
+      case BcInstr.Call(var idx) -> compileCall(idx);
 
       default -> throw new UnsupportedOperationException(instr + ": not supported");
     }
     body.comment("end: " + instr);
     body.nl();
+  }
+
+  // FIXME: refactor
+  private void compileCall(ConstPool.Idx<LangSXP> idx) {
+    var call = push(constant(idx), false);
+    var fun = stack.curr(-3);
+    var args = stack.curr(-2);
+
+    var c = "Rsh_call(%s, %s, %s, %s)".formatted(call, fun, args, NAME_ENV);
+    // we are going to pop 4 elements from the stack - all the until the beginning of the call frame
+    popPush(4, c, true);
+  }
+
+  private void compileGetFun(ConstPool.Idx<RegSymSXP> idx) {
+    push("Rf_findFun(%s, %s)".formatted(constant(idx), NAME_ENV));
+    initCallFrame();
   }
 
   private void compileLdNull() {
@@ -226,6 +244,10 @@ public class BC2CCompiler {
   private void compileGetBuiltin(ConstPool.Idx<RegSymSXP> idx) {
     var name = bc.consts().get(idx).name();
     push("Rsh_get_builtin(\"%s\")".formatted(name));
+    initCallFrame();
+  }
+
+  private void initCallFrame() {
     push(VAL_NULL);
     push(VAL_NULL);
   }

@@ -1,12 +1,9 @@
 package org.prlprg.bc2c;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.prlprg.util.Files.clearDirectory;
 
-import com.google.common.io.Files;
 import java.io.File;
-import java.io.OutputStreamWriter;
-import java.nio.charset.Charset;
+import java.util.Set;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
@@ -15,6 +12,7 @@ import org.prlprg.bc.BCCompiler;
 import org.prlprg.rds.RDSWriter;
 import org.prlprg.service.RshCompiler;
 import org.prlprg.sexp.*;
+import org.prlprg.util.Files;
 
 public class BC2CCompilerTest extends AbstractGNURBasedTest {
 
@@ -27,6 +25,20 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
         "list(x=1)",
         (RealSXP v) -> {
           assertEquals(85.0, v.asReal(0));
+        });
+  }
+
+  @Test
+  public void testCall() throws Exception {
+    compileAndCall(
+        """
+          function () { timestamp() }
+          """,
+        "list()",
+        (StrSXP v) -> {
+          assertEquals(1, v.size());
+          assertTrue(v.get(0).startsWith("##------"));
+          assertTrue(v.get(0).endsWith("------##"));
         });
   }
 
@@ -77,7 +89,7 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
     var soFile = new File(tempDir, funName + ".so");
     var rFile = new File(tempDir, "driver.R");
 
-    clearDirectory(tempDir.toPath());
+    Files.clearDirectory(tempDir.toPath());
 
     var closure = (CloSXP) R.eval(code);
     var ast2bc = new BCCompiler(closure, rsession);
@@ -89,18 +101,14 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
             .compile()
             .orElseThrow(() -> new RuntimeException("Compilation did not produce byte code"));
 
-    var bc2c = new BC2CCompiler(funName, bc);
-    var cCode = bc2c.compile();
-    var cConsts = bc2c.constants();
-
     try {
+      var bc2c = new BC2CCompiler(funName, bc);
+      var cCode = bc2c.compile();
+      var cConsts = bc2c.constants();
+
       RDSWriter.writeFile(rsession, cpFile, SEXPs.vec(cConsts));
 
-      // TODO: a utility method
-      try (var cOut = Files.asCharSink(cFile, Charset.defaultCharset()).openBufferedStream()) {
-        cCode.writeTo(cOut);
-      }
-      cCode.writeTo(new OutputStreamWriter(System.out));
+      Files.writeString(cFile.toPath(), cCode.toString());
 
       RshCompiler.getInstance().compileShared(cFile, soFile);
 
@@ -108,23 +116,22 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
           "dyn.load('%s')\n".formatted(soFile.getAbsolutePath())
               + "cp <- readRDS('%s')\n".formatted(cpFile.getAbsolutePath())
               + "env <- as.environment(%s)\n".formatted(env)
+              + "parent.env(env) <- globalenv()\n"
               + "res <- .Call('%s', env, cp, '%s')\n".formatted(funName, name)
               + "dyn.unload('%s')\n".formatted(soFile.getAbsolutePath())
               + "res\n";
 
-      try (var out = Files.asCharSink(rFile, Charset.defaultCharset()).openBufferedStream()) {
-        out.write(testDriver);
-      }
+      Files.writeString(rFile.toPath(), testDriver);
 
       var res = R.eval("source('%s', local=F)$value".formatted(rFile.getAbsolutePath()));
 
       System.out.println(res);
 
       validator.accept((T) res);
-      // GNUR.cmd("SHLIB", "-o", soFile.getPath(), oFile.getPath());
+
+      Set.of(cFile, cpFile, soFile, rFile).forEach(File::deleteOnExit);
     } catch (AssertionError | Exception e) {
-      System.err.println(tempDir.getAbsolutePath());
-      throw e;
+      throw new RuntimeException("BC2C compilation failed. Temp: " + tempDir.getAbsolutePath(), e);
     }
   }
 }

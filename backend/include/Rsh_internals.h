@@ -1,6 +1,8 @@
 #ifndef RSH_INTERNALS_H
 #define RSH_INTERNALS_H
 
+#define COMPUTE_REFCNT_VALUES
+
 #include <Rinternals.h>
 #include <string.h>
 
@@ -249,5 +251,109 @@ static INLINE Rboolean Rif_asLogicalNoNA(SEXP s, SEXP call) {
   }
   return cond;
 }
+
+#define INCREMENT_LINKS(x) do {			\
+	SEXP il__x__ = (x);			\
+	INCREMENT_NAMED(il__x__);		\
+	INCREMENT_REFCNT(il__x__);		\
+    } while (0)
+#define DECREMENT_LINKS(x) do {			\
+	SEXP dl__x__ = (x);			\
+	DECREMENT_NAMED(dl__x__);		\
+	DECREMENT_REFCNT(dl__x__);		\
+    } while (0)
+
+static INLINE void signalMissingArgError(SEXP args, SEXP call)
+{
+    SEXP a, c;
+    int n, k;
+    for (a = args, n = 1; a != R_NilValue; a = CDR(a), n++)
+	if (CAR(a) == R_MissingArg) {
+	    /* check for an empty argument in the call -- start from
+	       the beginning in case of ... arguments */
+	    if (call != R_NilValue) {
+		for (k = 1, c = CDR(call); c != R_NilValue; c = CDR(c), k++)
+		    if (CAR(c) == R_MissingArg)
+			Rf_errorcall(call, "argument %d is empty", k);
+	    }
+	    /* An error from evaluating a symbol will already have
+	       been signaled.  The interpreter, in evalList, does
+	       _not_ signal an error for a call expression that
+	       produces an R_MissingArg value; for example
+
+		   c(alist(a=)$a)
+
+	       does not signal an error. If we decide we do want an
+	       error in this case we can modify evalList for the
+	       interpreter and here use the code below. */
+#ifdef NO_COMPUTED_MISSINGS
+	    /* otherwise signal a 'missing argument' error */
+	    Rf_errorcall(call, "argument %d is missing", n);
+#endif
+	}
+}
+
+static INLINE void Rif_checkForMissings(SEXP args, SEXP call)
+{
+    Rboolean found = FALSE;
+    for (SEXP a = args; a != R_NilValue; a = CDR(a))
+	if (CAR(a) == R_MissingArg) {
+	    found = TRUE;
+	    break;
+	}
+    if (found)
+	signalMissingArgError(args, call);
+}
+
+static INLINE SEXP Rif_markSpecialArgs(SEXP args)
+{
+    SEXP arg;
+    for(arg = args; arg != R_NilValue; arg = CDR(arg))
+	MARK_NOT_MUTABLE(CAR(arg));
+    return args;
+}
+
+
+// FIXME: can we include the Defn.h??
+
+#define NAMED_BITS 16
+#define REFCNTMAX ((1 << NAMED_BITS) - 1)
+
+#if defined(COMPUTE_REFCNT_VALUES)
+# define REFCNT(x) ((x)->sxpinfo.named)
+# define TRACKREFS(x) (TYPEOF(x) == CLOSXP ? TRUE : ! (x)->sxpinfo.spare)
+#else
+# define REFCNT(x) 0
+# define TRACKREFS(x) FALSE
+#endif
+
+#if defined(COMPUTE_REFCNT_VALUES)
+# define SET_REFCNT(x,v) (REFCNT(x) = (v))
+# if defined(EXTRA_REFCNT_FIELDS)
+#  define SET_TRACKREFS(x,v) (TRACKREFS(x) = (v))
+# else
+#  define SET_TRACKREFS(x,v) ((x)->sxpinfo.spare = ! (v))
+# endif
+# define DECREMENT_REFCNT(x) do {					\
+	SEXP drc__x__ = (x);						\
+	if (REFCNT(drc__x__) > 0 && REFCNT(drc__x__) < REFCNTMAX)	\
+	    SET_REFCNT(drc__x__, REFCNT(drc__x__) - 1);			\
+    } while (0)
+# define INCREMENT_REFCNT(x) do {			      \
+	SEXP irc__x__ = (x);				      \
+	if (REFCNT(irc__x__) < REFCNTMAX)		      \
+	    SET_REFCNT(irc__x__, REFCNT(irc__x__) + 1);	      \
+    } while (0)
+#else
+# define SET_REFCNT(x,v) do {} while(0)
+# define SET_TRACKREFS(x,v) do {} while(0)
+# define DECREMENT_REFCNT(x) do {} while(0)
+# define INCREMENT_REFCNT(x) do {} while(0)
+#endif
+
+#define ENABLE_REFCNT(x) SET_TRACKREFS(x, TRUE)
+#define DISABLE_REFCNT(x) SET_TRACKREFS(x, FALSE)
+
+
 
 #endif

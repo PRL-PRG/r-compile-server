@@ -1,6 +1,7 @@
 package org.prlprg.bc2c;
 
 import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.io.Writer;
 import java.util.ArrayList;
 import java.util.List;
@@ -28,5 +29,11 @@ public class CFile {
     }
 
     funs.forEach(x -> x.writeTo(pw));
+  }
+
+  public String toString() {
+    var w = new StringWriter();
+    writeTo(new PrintWriter(w));
+    return w.toString();
   }
 }

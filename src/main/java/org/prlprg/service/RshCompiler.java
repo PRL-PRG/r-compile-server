@@ -31,6 +31,7 @@ public class RshCompiler {
           "-Wformat",
           "-Werror=format-security",
           "-Wall",
+          "-Wno-unused-but-set-variable",
           "-pedantic",
           "-g");
 
