@@ -12,18 +12,26 @@ message Version {
   int32 patch = 3;
 }
 
+message PackageSource {
+ oneof source {
+    string r_mirror = 2;
+    string github_url = 3;
+  }
+}
+
 message Package {
   string name = 1;
   Version version = 2;
   optional bytes hash = 3;//Hash of the whole package
   repeated Function functions = 4;// we can send some/all of the functions (with their bodies and/or hash)
   // What about package data? Maybe just the sysdata?
+  optional PackageSource source = 5;
 }
 
 message InitRequest {
   Version Rsh_version = 1;// version of the compile server
   Version R_version = 2;
-  string platform = 3;
+  string platform = 3;//amd64, etc TODO: use an enum for the allowed platforms?
   repeated Package packages = 4;//Packages we are initially part of the environment (in addition to base)
 }
 
@@ -133,7 +141,6 @@ message FactRequest {
 }
 
 message Fact {
-  Function function = 1;// which function is that about
   string factName = 2;
   string factValue = 3;// Make it more typed when we know more about what kind of facts we want
 }

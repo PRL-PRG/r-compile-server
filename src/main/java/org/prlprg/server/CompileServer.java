@@ -74,6 +74,9 @@ class CompileServer {
   }
 
   private static class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
+
+    // Testing externally: grpcurl -plaintext -d '{"function":{"name": "testFunc"}}' 0.0.0.0:8980
+    // CompileService.Compile
     @Override
     public void compile(
         Messages.CompileRequest request,
@@ -84,6 +87,8 @@ class CompileServer {
       Messages.Tier tier = request.getTier(); // Default is baseline
       int optimizationLevel = request.getOptimizationLevel(); // default is 0
       Messages.Context context = request.getContext(); // null if not provided
+
+      logger.info("Received request to compile function " + function.getName());
 
       // Compile the code and build response
       Messages.CompileResponse.Builder response = Messages.CompileResponse.newBuilder();
@@ -114,6 +119,7 @@ class CompileServer {
       }
 
       // Send the response
+      response.setTier(tier);
       responseObserver.onNext(response.build());
       responseObserver.onCompleted();
     }
