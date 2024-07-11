@@ -7,9 +7,11 @@ import java.io.OutputStream;
 
 public class RDSOutputStream implements Closeable {
   private final DataOutputStream out;
+  private final RDSLogger logger;
 
-  RDSOutputStream(OutputStream out) {
+  RDSOutputStream(OutputStream out, RDSLogger logger) {
     this.out = new DataOutputStream(out);
+    this.logger = logger;
   }
 
   @Override
@@ -17,90 +19,39 @@ public class RDSOutputStream implements Closeable {
     out.close();
   }
 
-  public void writeByte(byte v) throws IOException {
+  public void writeByte(byte v, String desc) throws IOException {
     out.writeByte(v);
+    logger.log(v, desc);
   }
 
-  public void writeInt(int v) throws IOException {
+  public void writeInt(int v, String desc) throws IOException {
     out.writeInt(v);
+    logger.log(v, desc);
   }
 
-  public void writeDouble(double v) throws IOException {
+  public void writeDouble(double v, String desc) throws IOException {
     out.writeDouble(v);
+    logger.log(v, desc);
   }
 
-  public void writeString(String s) throws IOException {
+  public void writeString(String s, String desc) throws IOException {
     // one byte per character.
     // Fixme: supports the charset (when a character is more than 1 byte!)
     out.writeBytes(s);
+    logger.log(s, desc);
   }
 
-  public void writeInts(int[] v) throws IOException {
+  public void writeInts(int[] v, String desc) throws IOException {
     for (int e : v) {
       out.writeInt(e);
     }
+    logger.logAll(v, desc);
   }
 
-  public void writeDoubles(double[] v) throws IOException {
+  public void writeDoubles(double[] v, String desc) throws IOException {
     for (double e : v) {
       out.writeDouble(e);
     }
-  }
-}
-
-class RDSOutputStreamVerbose extends RDSOutputStream {
-  RDSOutputStreamVerbose(OutputStream out) {
-    super(out);
-    System.out.println("\n=====================  WRITING STREAM  ====================\n");
-    StackTraceElement caller = Thread.currentThread().getStackTrace()[4];
-    System.out.println("Testing: " + caller + "\n");
-  }
-
-  @Override
-  public void writeByte(byte v) throws IOException {
-    StackTraceElement caller = Thread.currentThread().getStackTrace()[2];
-    System.out.printf(
-        "%-20s |  writing byte: %d (%s)%n", caller.getMethodName(), v, Integer.toBinaryString(v));
-    super.writeByte(v);
-  }
-
-  @Override
-  public void writeInt(int v) throws IOException {
-    StackTraceElement caller = Thread.currentThread().getStackTrace()[2];
-    System.out.printf(
-        "%-20s |  writing int: %d (%s)%n", caller.getMethodName(), v, Integer.toBinaryString(v));
-    super.writeInt(v);
-  }
-
-  @Override
-  public void writeDouble(double v) throws IOException {
-    StackTraceElement caller = Thread.currentThread().getStackTrace()[2];
-    System.out.printf("%-20s |  writing double: %f%n", caller.getMethodName(), v);
-    super.writeDouble(v);
-  }
-
-  @Override
-  public void writeString(String s) throws IOException {
-    StackTraceElement caller = Thread.currentThread().getStackTrace()[2];
-    System.out.printf("%-20s |  writing String: %s%n", caller.getMethodName(), s);
-    // one byte per character.
-    // Fixme: supports the charset (when a character is more than [2] byte!)
-    super.writeString(s);
-  }
-
-  @Override
-  public void writeInts(int[] v) throws IOException {
-    StackTraceElement caller = Thread.currentThread().getStackTrace()[2];
-    System.out.printf("%-20s |  writing %d ints...%n", caller.getMethodName(), v.length);
-    super.writeInts(v);
-    System.out.printf("%-20s |  done writing ints%n", caller.getMethodName());
-  }
-
-  @Override
-  public void writeDoubles(double[] v) throws IOException {
-    StackTraceElement caller = Thread.currentThread().getStackTrace()[2];
-    System.out.printf("%-20s |  writing %d doubles...%n", caller.getMethodName(), v.length);
-    super.writeDoubles(v);
-    System.out.printf("%-20s |  done writing doubles%n", caller.getMethodName());
+    logger.logAll(v, desc);
   }
 }

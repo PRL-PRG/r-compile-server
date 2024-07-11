@@ -14,8 +14,7 @@ public final class GlobalEnvSXP extends AbstractStaticEnvSXP implements StaticEn
 
   @Override
   public int size() {
-    // FIXME: implement
-    return 0;
+    return bindings.size();
   }
 
   @Override

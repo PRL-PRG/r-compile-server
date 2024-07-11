@@ -49,6 +49,14 @@ public final class AppConfig extends Config {
   public static final OptimizationLogLevel OPTIMIZATION_LOG_LEVEL =
       get("OPTIMIZATION_LOG_LEVEL", OptimizationLogLevel.NONE);
 
+  /**
+   * How to log RDS reads and writes. Useful for diagnosing misalignments between input and output
+   * streams.
+   *
+   * <p><b>Default:</b>: {@link RDSLogLevel#NONE}
+   */
+  public static final RDSLogLevel RDS_LOG_LEVEL = get("RDS_LOG_LEVEL", RDSLogLevel.NONE);
+
   public enum CfgDebugLevel {
     /** No extra checks. */
     NONE,
@@ -73,6 +81,18 @@ public final class AppConfig extends Config {
     PASS,
     /** Log every optimization pass <i>and</i> every inner {@link CodeObject} it's applied to. */
     ALL,
+  }
+
+  public enum RDSLogLevel implements Comparable<RDSLogLevel> {
+    /** Don't log any RDS input or output */
+    NONE,
+    /** Only log RDS input and output directly from tests */
+    TEST,
+    /**
+     * Log general RDS input and output, such as from base initialization (WARNING: logging general
+     * output may cause very large files to be generated, or even lead to out-of-memory errors)
+     */
+    GENERAL,
   }
 }
 

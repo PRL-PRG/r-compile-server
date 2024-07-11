@@ -82,6 +82,19 @@ final class Flags {
     return flags >> 8;
   }
 
+  /**
+   * Returns a new Flags identical to this one, but with the hasAttr bit set according to
+   * hasAttributes.
+   */
+  public Flags withAttributes(boolean hasAttributes) {
+    return new Flags(this.flags & ~ATTR_MASK | (hasAttributes ? ATTR_MASK : 0));
+  }
+
+  /** Returns a new Flags identical to this one, but with the hasTag bit set according to hasTag. */
+  public Flags withTag(boolean hasTag) {
+    return new Flags(this.flags & ~TAG_MASK | (hasTag ? TAG_MASK : 0));
+  }
+
   @Override
   public String toString() {
     return "Flags{"

@@ -26,7 +26,7 @@ public class GNUR implements AutoCloseable {
     this.rout = new BufferedReader(new InputStreamReader(rprocess.getInputStream()));
   }
 
-  private void run(String code) {
+  public void run(String code) {
     var requestId = UUID.randomUUID().toString();
 
     if (!rprocess.isAlive()) {
@@ -77,7 +77,7 @@ public class GNUR implements AutoCloseable {
   public SEXP eval(String source, SEXP input) {
     try {
       var inputFile = File.createTempFile("RCS-input", ".rds");
-      RDSWriter.writeFile(rsession, inputFile, input);
+      RDSWriter.writeFile(inputFile, input);
       String full_source = "input <- readRDS('" + inputFile.getAbsolutePath() + "')\n" + source;
 
       return eval(full_source);

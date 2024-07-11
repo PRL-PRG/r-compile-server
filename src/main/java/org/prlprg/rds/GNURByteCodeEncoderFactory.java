@@ -1,6 +1,7 @@
 package org.prlprg.rds;
 
 import com.google.common.primitives.ImmutableIntArray;
+import org.jetbrains.annotations.NotNull;
 import org.prlprg.bc.Bc;
 import org.prlprg.bc.BcCode;
 import org.prlprg.bc.BcInstr;
@@ -37,7 +38,7 @@ public class GNURByteCodeEncoderFactory {
   }
 
   /** Converts the arguments of the provided BcInstr to a "raw" format; i.e. an array of integers */
-  public int[] args(BcInstr instr) {
+  public int[] args(@NotNull BcInstr instr) {
     return switch (instr) {
       case BcInstr.Goto i -> new int[] {mapping.extract(i.label())};
       case BcInstr.BrIfNot i -> new int[] {i.ast().idx(), mapping.extract(i.label())};

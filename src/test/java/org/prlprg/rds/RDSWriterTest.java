@@ -1,15 +1,17 @@
 package org.prlprg.rds;
 
 import static java.lang.Double.NaN;
+import static java.lang.String.format;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
+import java.io.*;
 import java.util.HashMap;
 import java.util.List;
+import java.util.logging.*;
 import org.junit.jupiter.api.Test;
 import org.prlprg.AbstractGNURBasedTest;
+import org.prlprg.AppConfig;
 import org.prlprg.bc.Compiler;
 import org.prlprg.primitive.Complex;
 import org.prlprg.primitive.Constants;
@@ -17,16 +19,15 @@ import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.*;
 
 public class RDSWriterTest extends AbstractGNURBasedTest {
-
   @Test
   public void testInts() throws Exception {
     var ints = SEXPs.integer(5, 4, 3, 2, 1);
     var output = new ByteArrayOutputStream();
 
-    RDSWriter.writeStream(rsession, output, ints);
+    RDSWriter.writeStream(output, ints, AppConfig.RDSLogLevel.TEST);
 
     var input = new ByteArrayInputStream(output.toByteArray());
-    var sexp = RDSReader.readStream(rsession, input);
+    var sexp = RDSReader.readStream(rsession, input, AppConfig.RDSLogLevel.TEST);
 
     if (sexp instanceof IntSXP read_ints) {
       assertEquals(5, read_ints.size());
@@ -63,10 +64,10 @@ public class RDSWriterTest extends AbstractGNURBasedTest {
     var complexes = SEXPs.complex(new Complex(0, 0), new Complex(1, 2), new Complex(-2, -1));
     var output = new ByteArrayOutputStream();
 
-    RDSWriter.writeStream(rsession, output, complexes);
+    RDSWriter.writeStream(output, complexes, AppConfig.RDSLogLevel.TEST);
 
     var input = new ByteArrayInputStream(output.toByteArray());
-    var sexp = RDSReader.readStream(rsession, input);
+    var sexp = RDSReader.readStream(rsession, input, AppConfig.RDSLogLevel.TEST);
 
     if (sexp instanceof ComplexSXP read_complexes) {
       assertEquals(3, read_complexes.size());
@@ -104,10 +105,10 @@ public class RDSWriterTest extends AbstractGNURBasedTest {
                     new TaggedElem("arg", SEXPs.integer(1)), new TaggedElem(SEXPs.integer(2)))));
     var output = new ByteArrayOutputStream();
 
-    RDSWriter.writeStream(rsession, output, lang);
+    RDSWriter.writeStream(output, lang, AppConfig.RDSLogLevel.TEST);
 
     var input = new ByteArrayInputStream(output.toByteArray());
-    var sexp = RDSReader.readStream(rsession, input);
+    var sexp = RDSReader.readStream(rsession, input, AppConfig.RDSLogLevel.TEST);
 
     if (sexp instanceof LangSXP read_lang) {
       var name = read_lang.funName();
@@ -133,10 +134,10 @@ public class RDSWriterTest extends AbstractGNURBasedTest {
 
     var output = new ByteArrayOutputStream();
 
-    RDSWriter.writeStream(rsession, output, ints);
+    RDSWriter.writeStream(output, ints, AppConfig.RDSLogLevel.TEST);
 
     var input = new ByteArrayInputStream(output.toByteArray());
-    var sexp = RDSReader.readStream(rsession, input);
+    var sexp = RDSReader.readStream(rsession, input, AppConfig.RDSLogLevel.TEST);
 
     if (sexp instanceof IntSXP read_ints) {
       assertEquals(1, read_ints.size());
@@ -152,10 +153,10 @@ public class RDSWriterTest extends AbstractGNURBasedTest {
     var lgls = SEXPs.logical(Logical.TRUE, Logical.FALSE, Logical.NA);
     var output = new ByteArrayOutputStream();
 
-    RDSWriter.writeStream(rsession, output, lgls);
+    RDSWriter.writeStream(output, lgls, AppConfig.RDSLogLevel.TEST);
 
     var input = new ByteArrayInputStream(output.toByteArray());
-    var sexp = RDSReader.readStream(rsession, input);
+    var sexp = RDSReader.readStream(rsession, input, AppConfig.RDSLogLevel.TEST);
 
     if (sexp instanceof LglSXP read_lgls) {
       assertEquals(3, read_lgls.size());
@@ -172,10 +173,10 @@ public class RDSWriterTest extends AbstractGNURBasedTest {
     var reals = SEXPs.real(5.2, 4.0, Constants.NA_REAL, 2.0, NaN, 1.0);
     var output = new ByteArrayOutputStream();
 
-    RDSWriter.writeStream(rsession, output, reals);
+    RDSWriter.writeStream(output, reals, AppConfig.RDSLogLevel.TEST);
 
     var input = new ByteArrayInputStream(output.toByteArray());
-    var sexp = RDSReader.readStream(rsession, input);
+    var sexp = RDSReader.readStream(rsession, input, AppConfig.RDSLogLevel.TEST);
 
     if (sexp instanceof RealSXP read_reals) {
       assertEquals(6, read_reals.size());
@@ -194,10 +195,10 @@ public class RDSWriterTest extends AbstractGNURBasedTest {
   public void testNull() throws Exception {
     var output = new ByteArrayOutputStream();
 
-    RDSWriter.writeStream(rsession, output, SEXPs.NULL);
+    RDSWriter.writeStream(output, SEXPs.NULL, AppConfig.RDSLogLevel.TEST);
 
     var input = new ByteArrayInputStream(output.toByteArray());
-    var sexp = RDSReader.readStream(rsession, input);
+    var sexp = RDSReader.readStream(rsession, input, AppConfig.RDSLogLevel.TEST);
 
     assertEquals(SEXPs.NULL, sexp);
   }
@@ -208,10 +209,10 @@ public class RDSWriterTest extends AbstractGNURBasedTest {
         SEXPs.vec(SEXPs.integer(1, 2, 3), SEXPs.logical(Logical.TRUE, Logical.FALSE, Logical.NA));
     var output = new ByteArrayOutputStream();
 
-    RDSWriter.writeStream(rsession, output, vec);
+    RDSWriter.writeStream(output, vec, AppConfig.RDSLogLevel.TEST);
 
     var input = new ByteArrayInputStream(output.toByteArray());
-    var sexp = RDSReader.readStream(rsession, input);
+    var sexp = RDSReader.readStream(rsession, input, AppConfig.RDSLogLevel.TEST);
 
     if (sexp instanceof VecSXP read_vec) {
       assertEquals(2, read_vec.size());
@@ -247,10 +248,10 @@ public class RDSWriterTest extends AbstractGNURBasedTest {
     var list = SEXPs.list(elems, Attributes.NONE);
     var output = new ByteArrayOutputStream();
 
-    RDSWriter.writeStream(rsession, output, list);
+    RDSWriter.writeStream(output, list, AppConfig.RDSLogLevel.TEST);
 
     var input = new ByteArrayInputStream(output.toByteArray());
-    var sexp = RDSReader.readStream(rsession, input);
+    var sexp = RDSReader.readStream(rsession, input, AppConfig.RDSLogLevel.TEST);
 
     if (sexp instanceof ListSXP l) {
       assertEquals(3, l.size());
@@ -289,10 +290,10 @@ public class RDSWriterTest extends AbstractGNURBasedTest {
 
     var output = new ByteArrayOutputStream();
 
-    RDSWriter.writeStream(rsession, output, env);
+    RDSWriter.writeStream(output, env, AppConfig.RDSLogLevel.TEST);
 
     var input = new ByteArrayInputStream(output.toByteArray());
-    var sexp = RDSReader.readStream(rsession, input);
+    var sexp = RDSReader.readStream(rsession, input, AppConfig.RDSLogLevel.TEST);
 
     if (sexp instanceof UserEnvSXP read_env) {
       assertEquals(4, read_env.size());
@@ -337,19 +338,22 @@ public class RDSWriterTest extends AbstractGNURBasedTest {
     // test by loading the closure into R and evaluating
     var clo =
         SEXPs.closure(
-            SEXPs.list(
-                List.of(
-                    new TaggedElem("x", SEXPs.MISSING_ARG), new TaggedElem("y", SEXPs.real(3)))),
-            SEXPs.lang(
-                SEXPs.symbol("+"),
                 SEXPs.list(
-                    SEXPs.lang(
-                        SEXPs.symbol("+"),
-                        SEXPs.list(
-                            SEXPs.lang(SEXPs.symbol("length"), SEXPs.list(SEXPs.symbol("x"))),
-                            SEXPs.symbol("x"))),
-                    SEXPs.symbol("y"))),
-            new BaseEnvSXP(new HashMap<>()));
+                    List.of(
+                        new TaggedElem("x", SEXPs.MISSING_ARG),
+                        new TaggedElem("y", SEXPs.real(3)))),
+                SEXPs.lang(
+                    SEXPs.symbol("+"),
+                    SEXPs.list(
+                        SEXPs.lang(
+                            SEXPs.symbol("+"),
+                            SEXPs.list(
+                                SEXPs.lang(SEXPs.symbol("length"), SEXPs.list(SEXPs.symbol("x"))),
+                                SEXPs.symbol("x"))),
+                        SEXPs.symbol("y"))),
+                new BaseEnvSXP(new HashMap<>()))
+            .withAttributes(new Attributes.Builder().put("a", SEXPs.integer(1)).build());
+    ;
 
     var output =
         R.eval(
@@ -384,10 +388,10 @@ public class RDSWriterTest extends AbstractGNURBasedTest {
 
     var output = new ByteArrayOutputStream();
 
-    RDSWriter.writeStream(rsession, output, SEXPs.bcode(bc));
+    RDSWriter.writeStream(output, SEXPs.bcode(bc), AppConfig.RDSLogLevel.TEST);
 
     var input = new ByteArrayInputStream(output.toByteArray());
-    var sexp = RDSReader.readStream(rsession, input);
+    var sexp = RDSReader.readStream(rsession, input, AppConfig.RDSLogLevel.TEST);
 
     assertEquals(sexp, SEXPs.bcode(bc));
   }
@@ -422,5 +426,45 @@ public class RDSWriterTest extends AbstractGNURBasedTest {
             compiled_clo);
 
     assertEquals(output, SEXPs.real(6, 7));
+  }
+
+  @Test
+  public void testRDSAgainstR() throws Exception {
+    RDSLogger.addHandler(new FileHandler("rds_output.log"));
+
+    var expectedOutputFile = File.createTempFile("expected", ".rds");
+    var actualOutputFile = File.createTempFile("actual", ".rds");
+
+    // Write the expected output
+    var input = "c('a', 'bb', 'ccc')";
+    var code =
+        format(
+            "saveRDS(%s, '%s', version=2, compress=FALSE)",
+            input, expectedOutputFile.getAbsoluteFile());
+    R.eval(code);
+
+    // Write the actual output
+    RDSWriter.writeFile(actualOutputFile, R.eval(input));
+
+    // Read for verbose output
+    RDSReader.readFile(rsession, expectedOutputFile, AppConfig.RDSLogLevel.TEST);
+    RDSReader.readFile(rsession, actualOutputFile, AppConfig.RDSLogLevel.TEST);
+
+    // Check that the output is the same across both
+    try (var expected = new FileInputStream(expectedOutputFile);
+        var actual = new FileInputStream(actualOutputFile)) {
+      System.out.println("expected | actual");
+      while (expected.available() != 0 && actual.available() != 0) {
+        var enext = expected.read();
+        var anext = actual.read();
+        assertEquals(enext, anext);
+      }
+      expected.close();
+      actual.close();
+    }
+    ;
+
+    assert expectedOutputFile.delete();
+    assert actualOutputFile.delete();
   }
 }

@@ -8,9 +8,11 @@ import java.nio.charset.Charset;
 
 class RDSInputStream implements Closeable {
   private final DataInputStream in;
+  private final RDSLogger logger;
 
-  RDSInputStream(InputStream in) {
+  RDSInputStream(InputStream in, RDSLogger logger) {
     this.in = new DataInputStream(in);
+    this.logger = logger;
   }
 
   @Override
@@ -24,114 +26,55 @@ class RDSInputStream implements Closeable {
    * @return the next byte of data, or -1 if the end of the stream is reached.
    * @throws IOException if an I/O error occurs.
    */
-  public int readRaw() throws IOException {
-    return in.read();
+  public int readRaw(String desc) throws IOException {
+    var input = in.read();
+    logger.log(input, desc);
+    return input;
   }
 
-  public byte readByte() throws IOException {
-    return in.readByte();
+  public byte readByte(String desc) throws IOException {
+    var input = in.readByte();
+    logger.log(input, desc);
+    return input;
   }
 
-  public int readInt() throws IOException {
-    return in.readInt();
+  public int readInt(String desc) throws IOException {
+    var input = in.readInt();
+    logger.log(input, desc);
+    return input;
   }
 
-  public double readDouble() throws IOException {
-    return in.readDouble();
+  public double readDouble(String desc) throws IOException {
+    var input = in.readDouble();
+    logger.log(input, desc);
+    return input;
   }
 
-  public String readString(int natEncSize, Charset charset) throws IOException {
+  public String readString(int natEncSize, Charset charset, String desc) throws IOException {
     var buf = new byte[natEncSize];
     in.readFully(buf, 0, natEncSize);
-    return new String(buf, charset);
+    var input = new String(buf, charset);
+    logger.log(input, desc);
+    return input;
   }
 
-  public int[] readInts(int length) throws IOException {
+  public int[] readInts(int length, String desc) throws IOException {
     int[] ints = new int[length];
     for (int i = 0; i < length; i++) {
-      var n = readInt();
+      var n = in.readInt();
       ints[i] = n;
     }
+    logger.logAll(ints, desc);
     return ints;
   }
 
-  public double[] readDoubles(int length) throws IOException {
-    double[] ints = new double[length];
+  public double[] readDoubles(int length, String desc) throws IOException {
+    double[] doubles = new double[length];
     for (int i = 0; i < length; i++) {
-      var n = readDouble();
-      ints[i] = n;
+      var n = in.readDouble();
+      doubles[i] = n;
     }
-    return ints;
-  }
-}
-
-class RDSInputStreamVerbose extends RDSInputStream {
-  RDSInputStreamVerbose(InputStream in) {
-    super(in);
-    System.out.println("\n=====================  READING STREAM  ====================\n");
-    StackTraceElement caller = Thread.currentThread().getStackTrace()[4];
-    System.out.println("Testing: " + caller + "\n");
-  }
-
-  @Override
-  public int readRaw() throws IOException {
-    var res = super.readRaw();
-    StackTraceElement caller = Thread.currentThread().getStackTrace()[2];
-    System.out.printf("%-20s |  reading raw: %d%n", caller.getMethodName(), res);
-    return res;
-  }
-
-  @Override
-  public byte readByte() throws IOException {
-    var res = super.readByte();
-    StackTraceElement caller = Thread.currentThread().getStackTrace()[2];
-    System.out.printf(
-        "%-20s |  reading byte: %d (%s)%n",
-        caller.getMethodName(), res, Integer.toBinaryString(res));
-    return res;
-  }
-
-  @Override
-  public int readInt() throws IOException {
-    var res = super.readInt();
-    StackTraceElement caller = Thread.currentThread().getStackTrace()[2];
-    System.out.printf(
-        "%-20s |  reading int: %d (%s)%n",
-        caller.getMethodName(), res, Integer.toBinaryString(res));
-    return res;
-  }
-
-  @Override
-  public double readDouble() throws IOException {
-    var res = super.readDouble();
-    StackTraceElement caller = Thread.currentThread().getStackTrace()[2];
-    System.out.printf("%-20s |  reading double: %f%n", caller.getMethodName(), res);
-    return res;
-  }
-
-  @Override
-  public String readString(int natEncSize, Charset charset) throws IOException {
-    var res = super.readString(natEncSize, charset);
-    StackTraceElement caller = Thread.currentThread().getStackTrace()[2];
-    System.out.printf("%-20s |  reading String: %s%n", caller.getMethodName(), res);
-    return res;
-  }
-
-  @Override
-  public int[] readInts(int length) throws IOException {
-    StackTraceElement caller = Thread.currentThread().getStackTrace()[2];
-    System.out.printf("%-20s |  reading %d ints...%n", caller.getMethodName(), length);
-    var res = super.readInts(length);
-    System.out.printf("%-20s |  done reading ints%n", caller.getMethodName());
-    return res;
-  }
-
-  @Override
-  public double[] readDoubles(int length) throws IOException {
-    StackTraceElement caller = Thread.currentThread().getStackTrace()[2];
-    System.out.printf("%-20s |  reading %d doubles...%n", caller.getMethodName(), length);
-    var res = super.readDoubles(length);
-    System.out.printf("%-20s |  done reading doubles%n", caller.getMethodName());
-    return res;
+    logger.logAll(doubles, desc);
+    return doubles;
   }
 }
