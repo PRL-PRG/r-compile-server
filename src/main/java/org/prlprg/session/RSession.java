@@ -1,4 +1,4 @@
-package org.prlprg;
+package org.prlprg.session;
 
 import org.prlprg.sexp.BaseEnvSXP;
 import org.prlprg.sexp.GlobalEnvSXP;

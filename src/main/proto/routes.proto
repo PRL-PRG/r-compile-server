@@ -4,13 +4,16 @@ option java_package = "org.prlprg.server";
 
 import "messages.proto";
 
-// R sends requests to the server
+// R sends requests to the compile server
 service CompileService {
   rpc Compile(CompileRequest) returns (CompileResponse) {}
   rpc Init(InitRequest) returns (InitResponse) {}
-  rpc GetContext(ContextRequest) returns (Context) {}
   rpc LoadPackage(Package) returns (Empty) {}
 }
 
-// TODO: add a request service which will be use
-// by the compile server to ask questions to R
+// Used by the compile server to ask questions to R
+service FactService {
+  rpc GetFact(FactRequest) returns (Fact) {} // Generic fact
+  rpc GetContext(ContextRequest) returns (Context) {}
+  rpc GetTypeFeedback(FeedbackRequest) returns (TypeFeedback) {}
+}

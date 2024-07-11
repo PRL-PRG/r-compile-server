@@ -15,15 +15,16 @@ message Version {
 message Package {
   string name = 1;
   Version version = 2;
-  optional bytes hash = 3;
-  repeated Function functions = 4;
+  optional bytes hash = 3;//Hash of the whole package
+  repeated Function functions = 4;// we can send some/all of the functions (with their bodies and/or hash)
+  // What about package data? Maybe just the sysdata?
 }
 
 message InitRequest {
-  Version Rsh_version = 1;
+  Version Rsh_version = 1;// version of the compile server
   Version R_version = 2;
   string platform = 3;
-  repeated Package packages = 4;
+  repeated Package packages = 4;//Packages we are initially part of the environment (in addition to base)
 }
 
 message InitResponse {}
@@ -54,6 +55,10 @@ message ArgumentContext {
 message Context {
   CallContext call_context = 1;
   repeated ArgumentContext argument_context = 2;
+}
+
+message ContextRequest {
+  Function function = 1;
 }
 
 enum Type {
@@ -91,9 +96,8 @@ message ValueFeedback {
   bool is_promise = 5;
 }
 
-
-
 message TypeFeedback {
+  Function function = 1;
   message Feedback {
     oneof feedback {
       TestFeedback test_feedback = 1;
@@ -101,7 +105,11 @@ message TypeFeedback {
       ValueFeedback value_feedback = 3;
     }
   }
-  map<int64, Feedback> types = 1;//Offset in the bytecode to the feedback
+  map<int64, Feedback> types = 2;//Offset in the bytecode to the feedback
+}
+
+message FeedbackRequest {
+  Function function = 1;
 }
 
 message CompileRequest {
@@ -118,9 +126,6 @@ message CompileResponse {
   optional bytes constant_pool = 4;
 }
 
-message ContextRequest {
-  Function function = 1;
-}
 
 message FactRequest {
   Function function = 1;

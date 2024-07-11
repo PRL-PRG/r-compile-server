@@ -2,13 +2,17 @@ package org.prlprg.server;
 
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
+import io.grpc.Status;
+import io.grpc.protobuf.services.ProtoReflectionService;
 import io.grpc.stub.StreamObserver;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
-import org.prlprg.RSession;
 import org.prlprg.bc.Compiler;
 import org.prlprg.rds.RDSReader;
+import org.prlprg.session.GNURSession;
+import org.prlprg.session.RSession;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.SEXP;
 
@@ -20,7 +24,13 @@ class CompileServer {
 
   public CompileServer(int port) {
     this.port = port;
-    this.server = ServerBuilder.forPort(port).addService(new CompileService()).build();
+    this.server =
+        ServerBuilder.forPort(port)
+            .addService(new CompileService())
+            .addService(
+                ProtoReflectionService
+                    .newInstance()) // automatic discovery of all services and messages
+            .build();
   }
 
   public void start() throws Exception {
@@ -68,6 +78,7 @@ class CompileServer {
     public void compile(
         Messages.CompileRequest request,
         StreamObserver<Messages.CompileResponse> responseObserver) {
+
       // Parse the request
       Messages.Function function = request.getFunction();
       Messages.Tier tier = request.getTier(); // Default is baseline
@@ -79,7 +90,8 @@ class CompileServer {
       // TODO
       if (function.hasBody()) {
         // TODO: we need a RSession. Create it at the level of the CompileServer class.
-        RSession session = null;
+        // TODO: find out the right path. Env var?
+        RSession session = new GNURSession(Path.of("path/to/R/"));
         SEXP closure = null;
         try {
           closure = RDSReader.readByteString(session, function.getBody());
@@ -89,8 +101,12 @@ class CompileServer {
         if (closure instanceof CloSXP c) {
           Compiler compiler = new Compiler(c, session);
         } else {
-          // TODO: fail because we are asked to compile something which is not
-          // a closure
+          // See
+          // https://github.com/grpc/grpc-java/blob/master/examples/src/main/java/io/grpc/examples/errorhandling/DetailErrorSample.java
+          // We could have more details using that:
+          // https://github.com/grpc/grpc-java/blob/master/examples/src/main/java/io/grpc/examples/errordetails/ErrorDetailsExample.java
+          responseObserver.onError(
+              Status.INTERNAL.withDescription("Not a closure").asRuntimeException());
         }
       } else {
         // We should cache the Compiler instance for that function and then

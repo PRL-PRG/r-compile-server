@@ -5,9 +5,9 @@ import java.io.InputStream;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.TestInstance;
-import org.prlprg.RSession;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.rsession.TestRSession;
+import org.prlprg.session.RSession;
 import org.prlprg.sexp.SEXP;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)

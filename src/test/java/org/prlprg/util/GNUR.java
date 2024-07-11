@@ -5,8 +5,8 @@ import static java.lang.String.format;
 import java.io.*;
 import java.util.UUID;
 import javax.annotation.concurrent.NotThreadSafe;
-import org.prlprg.RSession;
 import org.prlprg.rds.RDSReader;
+import org.prlprg.session.RSession;
 import org.prlprg.sexp.SEXP;
 
 @NotThreadSafe

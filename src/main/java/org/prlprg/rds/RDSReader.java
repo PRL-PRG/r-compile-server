@@ -8,11 +8,11 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import javax.annotation.Nullable;
-import org.prlprg.RSession;
 import org.prlprg.bc.Bc;
 import org.prlprg.primitive.Complex;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
+import org.prlprg.session.RSession;
 import org.prlprg.sexp.*;
 import org.prlprg.util.IO;
 
