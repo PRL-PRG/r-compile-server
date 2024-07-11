@@ -17,10 +17,10 @@ import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.ir.analysis.CFGAnalyses;
+import org.prlprg.ir.analysis.Contexts;
 import org.prlprg.ir.analysis.DefUses;
 import org.prlprg.ir.analysis.DomTree;
 import org.prlprg.ir.analysis.Loops;
-import org.prlprg.ir.analysis.Scopes;
 import org.prlprg.ir.cfg.CFGEdit.Semantic;
 import org.prlprg.ir.cfg.CFGIterator.DomTreeBfs;
 import org.prlprg.ir.cfg.CFGVerifyException.BrokenInvariant;
@@ -57,7 +57,7 @@ public class CFG
   private @Nullable DomTree cachedDomTree;
   private @Nullable DefUses cachedDefUses;
   private @Nullable Loops cachedLoops;
-  private @Nullable Scopes cachedScopes;
+  private @Nullable Contexts cachedContexts;
 
   /** Create a new CFG, with a single basic block and no instructions. */
   @SuppressFBWarnings("CT_CONSTRUCTOR_THROW")
@@ -204,11 +204,11 @@ public class CFG
   }
 
   @Override
-  public Scopes scopes() {
-    if (cachedScopes == null) {
-      cachedScopes = CFGCleanup.super.scopes();
+  public Contexts contexts() {
+    if (cachedContexts == null) {
+      cachedContexts = CFGCleanup.super.contexts();
     }
-    return cachedScopes;
+    return cachedContexts;
   }
 
   // endregion analyses
@@ -305,7 +305,7 @@ public class CFG
 
   private void invalidateCachesForInstrChange() {
     cachedDefUses = null;
-    cachedScopes = null;
+    cachedContexts = null;
   }
 
   private void invalidateCachesForBbChange() {

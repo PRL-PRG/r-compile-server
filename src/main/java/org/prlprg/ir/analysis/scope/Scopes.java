@@ -1,4 +1,4 @@
-package org.prlprg.ir.analysis;
+package org.prlprg.ir.analysis.scope;
 
 import java.util.HashMap;
 import java.util.List;
@@ -7,14 +7,6 @@ import java.util.Objects;
 import java.util.stream.IntStream;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
-import org.prlprg.ir.analysis.AbstractInterpretation.AnalysisDebugLevel;
-import org.prlprg.ir.analysis.abstractNode.AbstractEnv;
-import org.prlprg.ir.analysis.abstractNode.AbstractEnvHierarchy;
-import org.prlprg.ir.analysis.abstractNode.AbstractLoad;
-import org.prlprg.ir.analysis.abstractNode.AbstractNode;
-import org.prlprg.ir.analysis.abstractNode.AbstractRValue;
-import org.prlprg.ir.analysis.abstractNode.AbstractResult;
-import org.prlprg.ir.analysis.abstractNode.AbstractResult2;
 import org.prlprg.ir.cfg.BB;
 import org.prlprg.ir.cfg.CFG;
 import org.prlprg.ir.cfg.Instr;
@@ -53,13 +45,9 @@ import org.prlprg.ir.effect.REffect;
 import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.ir.type.lattice.NoOrMaybe;
 import org.prlprg.ir.type.lattice.YesOrMaybe;
-import org.prlprg.parseprint.PrintMethod;
-import org.prlprg.parseprint.PrintWhitespace;
-import org.prlprg.parseprint.Printer;
 import org.prlprg.primitive.BuiltinId;
 import org.prlprg.sexp.RegSymSXP;
 import org.prlprg.sexp.SEXPs;
-import org.prlprg.util.NotImplementedError;
 import org.prlprg.util.Pair;
 
 /**
@@ -70,121 +58,8 @@ import org.prlprg.util.Pair;
  */
 @Immutable
 public class Scopes {
-
-  /**
-   * Configure the "strength" of the scope analysis.
-   *
-   * <p>More strength = more precision, but more time and memory.
-   *
-   * <p>TODO: Make configurable via environment variables.
-   */
-  public record Config(
-      int maxDepth,
-      int maxSize,
-      int maxPromSize,
-      int maxResults,
-      int maxNumSubAnalyses,
-      AnalysisDebugLevel debugLevel) {
-    /** The default config, if no environment variables are set. */
-    public static final Config DEFAULT =
-        new Config(2, 120, 14, 800, 10, AnalysisDebugLevel.INSTRUCTION);
-  }
-
-  // State
-  private static class State implements AbstractNode<State> {
-    private final AbstractEnvHierarchy envs = new AbstractEnvHierarchy();
-    private final AbstractRValue returnValue = new AbstractRValue();
-    private final Map<MkProm, AbstractRValue> forcedPromises = new HashMap<>();
-    private boolean mayUseReflection = false;
-
-    @Override
-    public AbstractResult merge(State other) {
-      var res = AbstractResult.NONE;
-
-      if (!mayUseReflection && other.mayUseReflection) {
-        mayUseReflection = true;
-        res = res.union(AbstractResult.LOST_PRECISION);
-      }
-      if (!returnValue.isUnknown() && other.returnValue.isUnknown()) {
-        returnValue.setToUnknown();
-        res = res.union(AbstractResult.LOST_PRECISION);
-      }
-
-      for (var e : forcedPromises.entrySet()) {
-        var mkProm = e.getKey();
-        var myForcedPromise = e.getValue();
-        var otherForcePromise = other.forcedPromises.get(mkProm);
-
-        if (!myForcedPromise.isUnknown()) {
-          if (otherForcePromise == null) {
-            myForcedPromise.setToUnknown();
-            res = res.union(AbstractResult.LOST_PRECISION);
-          } else {
-            res = res.union(myForcedPromise.merge(otherForcePromise));
-          }
-        }
-      }
-
-      if (forcedPromises.size() < other.forcedPromises.size()) {
-        for (var e : other.forcedPromises.entrySet()) {
-          var mkProm = e.getKey();
-          var myForcedPromise = forcedPromises.get(mkProm);
-          var otherForcedPromise = e.getValue();
-
-          if (myForcedPromise == null) {
-            forcedPromises.put(mkProm, AbstractRValue.UNKNOWN);
-          }
-        }
-
-        res = res.union(AbstractResult.LOST_PRECISION);
-      }
-
-      return res.union(envs.merge(other.envs));
-    }
-
-    public boolean didEnvEscape(@IsEnv RValue env) {
-      return !envs.isKnown(env) || envs.at(env).isLeaked();
-    }
-
-    @Override
-    public State clone() {
-      // TODO
-      throw new NotImplementedError();
-    }
-
-    // region serialization and deserialization
-    @PrintMethod
-    private void print(Printer p) {
-      var w = p.writer();
-
-      w.write("AState(");
-      w.runIndented(
-          () -> {
-            w.write('\n');
-            p.print(envs);
-
-            w.write(",\nforcedPromises = ");
-            p.printAsMap(forcedPromises, PrintWhitespace.NEWLINES);
-
-            w.write(",\nreturn = ");
-            p.print(returnValue);
-
-            if (mayUseReflection) {
-              w.write(",\nmayUseReflection");
-            }
-          });
-      w.write(')');
-    }
-
-    @Override
-    public String toString() {
-      return Printer.toString(this);
-    }
-    // endregion serialization and deserialization
-  }
-
   // Config
-  private final Config config;
+  private final ScopeAnalysisConfig config;
 
   // Sub-analyses
   private final Map<Instr, SubAnalysis> subAnalyses = new HashMap<>();
@@ -192,16 +67,31 @@ public class Scopes {
   // Results
   private final Map<Instr, AbstractLoad> results = new HashMap<>();
   private final Map<Instr, AbstractRValue> returnValues = new HashMap<>();
+  private final SubAnalysis rootSubAnalysis;
+  private final ScopeAnalysisState finalState;
   private boolean changed = false;
 
-  /** Computes scopes in the given closure. */
-  public Scopes(ClosureVersion closureVersion, Config config) {
-    this.config = config;
+  /** Computes scopes in the given closure.
+   *
+   * <p>The analysis runs on construction. The rest of {@link Scopes}'s public API exposes the
+   * results.
+   */
+  public Scopes(ClosureVersion closureVersion) {
+    this.config = ScopeAnalysisConfig.DEFAULT;
 
-    new SubAnalysis(closureVersion, List.of(), new State(), 0);
+    rootSubAnalysis = new SubAnalysis(closureVersion, List.of(), new ScopeAnalysisState(), 0);
+    finalState = rootSubAnalysis.run();
   }
 
-  private class SubAnalysis extends AbstractInterpretation<State> {
+  public boolean mayUseReflection() {
+    return finalState.mayUseReflection();
+  }
+
+  public ScopeAnalysisState atEntry(BB bb) {
+    return rootSubAnalysis.
+  }
+
+  private class SubAnalysis extends AbstractInterpretation<ScopeAnalysisState> {
     private final List<RValue> args;
     private final @IsEnv RValue staticClosureEnv;
     private final int depth;
@@ -209,7 +99,7 @@ public class Scopes {
 
     /** Create a sub-analysis to run on the given closure version. */
     private SubAnalysis(
-        ClosureVersion closureVersion, List<RValue> args, State initial, int depth) {
+        ClosureVersion closureVersion, List<RValue> args, ScopeAnalysisState initial, int depth) {
       this(
           closureVersion,
           closureVersion.body(),
@@ -220,7 +110,7 @@ public class Scopes {
     }
 
     /** Create a sub-analysis to run on the given promise. */
-    private SubAnalysis(ClosureVersion outerVersion, Promise promise, State initial, int depth) {
+    private SubAnalysis(ClosureVersion outerVersion, Promise promise, ScopeAnalysisState initial, int depth) {
       this(outerVersion, promise.body(), List.of(), promise.env(), initial, depth);
     }
 
@@ -230,9 +120,9 @@ public class Scopes {
         CFG cfg,
         List<RValue> args,
         @IsEnv RValue staticClosureEnv,
-        State initial,
+        ScopeAnalysisState initial,
         int depth) {
-      super(config.debugLevel, Direction.FORWARD, innermostVersion, cfg, initial);
+      super(config.debugLevel(), Direction.FORWARD, innermostVersion, cfg, initial);
       this.args = args;
       this.staticClosureEnv = staticClosureEnv;
       this.depth = depth;
@@ -240,12 +130,12 @@ public class Scopes {
     }
 
     @Override
-    protected AbstractResult2 compute(State state, BB instrBB, int instrIdx, Instr instr) {
+    protected AbstractResult2 compute(ScopeAnalysisState state, BB instrBB, int instrIdx, Instr instr) {
       return doCompute(state, instrBB, instrIdx, instr, true);
     }
 
     @Override
-    protected AbstractResult2 apply(State state, BB instrBB, int instrIdx, Instr instr) {
+    protected AbstractResult2 apply(ScopeAnalysisState state, BB instrBB, int instrIdx, Instr instr) {
       return doCompute(state, instrBB, instrIdx, instr, false);
     }
 
@@ -255,7 +145,7 @@ public class Scopes {
     }
 
     private AbstractResult2 doCompute(
-        State state, BB instrBb, int instrIdx, Instr instr, boolean updateGlobalState) {
+        ScopeAnalysisState state, BB instrBb, int instrIdx, Instr instr, boolean updateGlobalState) {
       var handled = false;
       var res = new AbstractResult2();
 
@@ -264,7 +154,7 @@ public class Scopes {
         while (fs != null) {
           var fsEnv = fs.frameStateEnv();
           if (!(fsEnv instanceof Instr i) || !(i.data() instanceof MkEnv mk) || !mk.isStub()) {
-            state.envs.leak(fsEnv);
+            state.envs().leak(fsEnv);
             break;
           }
           fs = fs.inlinedNext();
@@ -274,19 +164,19 @@ public class Scopes {
       switch (instr.data()) {
         case Return ret -> {
           var lookup = ret.value() instanceof Instr i ? lookup(i) : null;
-          state.returnValue.merge(
+          state.returnValue().merge(
               lookup == null ? new AbstractRValue(ret.value(), instr, depth) : lookup.result());
           res.update();
         }
         case Deopt _ -> {
           if (canDeopt) {
-            state.returnValue.setToUnknown();
-            state.mayUseReflection = true;
+            state.returnValue().setToUnknown();
+            state.setMayUseReflection(true);
             res.taint();
           }
         }
         case MkEnv mk -> {
-          var env = state.envs.at((RValueStmt) instr);
+          var env = state.envs().at((RValueStmt) instr);
           env.setParentEnv(
               mk.parent() == StaticEnv.NOT_CLOSED && staticClosureEnv != StaticEnv.NOT_CLOSED
                   ? staticClosureEnv
@@ -297,18 +187,18 @@ public class Scopes {
           handled = true;
           res.update();
         }
-        case MaterializeEnv mat -> state.envs.addAlias((RValueStmt) instr, mat.env());
+        case MaterializeEnv mat -> state.envs().addAlias((RValueStmt) instr, mat.env());
         case LdEnclosEnv _ -> {
           if (staticClosureEnv == StaticEnv.NOT_CLOSED) {
-            state.envs.at((RValueStmt) instr).leak();
+            state.envs().at((RValueStmt) instr).leak();
             res.taint();
           } else {
             // `LdEnclosEnv` happens inside promises and refers back to the caller environment, i.e.
             // the instruction that created the promise.
-            var alias = state.envs.dealias((RValueStmt) instr);
+            var alias = state.envs().dealias((RValueStmt) instr);
             assert alias == instr || alias == staticClosureEnv;
             if (alias == instr) {
-              state.envs.addAlias((RValueStmt) instr, staticClosureEnv);
+              state.envs().addAlias((RValueStmt) instr, staticClosureEnv);
             }
           }
         }
@@ -325,8 +215,8 @@ public class Scopes {
           } else if (load.env() != AbstractEnv.UNKNOWN_PARENT) {
             // If our analysis give us an environment approximation for the `LdFun`, then we can at
             // least contain the tainted environments.
-            var env = state.envs.at(load.env());
-            state.envs.leak(load.env());
+            var env = state.envs().at(load.env());
+            state.envs().leak(load.env());
             env.setToUnknown();
             res.taint();
             handled = true;
@@ -345,16 +235,16 @@ public class Scopes {
           }
         }
         case StVar st -> {
-          state.envs.at(st.env()).set(st.name(), st.value(), instr, depth);
+          state.envs().at(st.env()).set(st.name(), st.value(), instr, depth);
           handled = true;
           res.update();
         }
         case StVarSuper st -> {
-          var superEnv = state.envs.at(st.env()).parentEnv();
+          var superEnv = state.envs().at(st.env()).parentEnv();
           if (superEnv != AbstractEnv.UNKNOWN_PARENT) {
-            var binding = state.envs.lookupSuper(st.env(), st.name());
+            var binding = state.envs().lookupSuper(st.env(), st.name());
             if (!binding.result().isUnknown()) {
-              state.envs.at(superEnv).set(st.name(), st.value(), instr, depth);
+              state.envs().at(superEnv).set(st.name(), st.value(), instr, depth);
               handled = true;
               res.update();
             }
@@ -414,36 +304,36 @@ public class Scopes {
             var concreteEnv =
                 f.env() instanceof RValueStmt s && s.data() instanceof MkEnv mk ? mk : null;
             if (arg instanceof Instr i && i.data() instanceof MkProm concretePromise) {
-              var found = state.forcedPromises.get(concretePromise);
+              var found = state.forcedPromises().get(concretePromise);
               if (found == null) {
-                if (depth < config.maxDepth
+                if (depth < config.maxDepth()
                     && !reachedFixedPoint()
                     && f.isStrict() == YesOrMaybe.YES
-                    && !state.envs.areAllUnknown()
-                    && concretePromise.promise().body().numNodes() < config.maxPromSize) {
+                    && !state.envs().areAllUnknown()
+                    && concretePromise.promise().body().numNodes() < config.maxPromSize()) {
                   // We are certain that we do force something here. Let's peek through the
                   // argument and see if we find a promise. If so, we will analyze it.
                   var promAnalysis = subAnalyses.get(instr);
-                  if (promAnalysis == null && subAnalyses.size() < config.maxNumSubAnalyses) {
+                  if (promAnalysis == null && subAnalyses.size() < config.maxNumSubAnalyses()) {
                     promAnalysis =
                         new SubAnalysis(
                             innermostVersion, concretePromise.promise(), state, depth + 1);
                     subAnalyses.put(instr, promAnalysis);
                   } else if (promAnalysis != null) {
-                    promAnalysis.setInitialState(state);
+                    promAnalysis.mergeInitial(state);
                   }
 
                   if (promAnalysis != null) {
-                    promAnalysis.onInitialState(subState -> subState.mayUseReflection = false);
+                    promAnalysis.onInitialState(subState -> subState.setMayUseReflection(false));
 
                     var subResult = promAnalysis.run();
 
                     state.merge(subResult);
                     if (updateGlobalState) {
-                      updateReturnValue(instr, subResult.returnValue);
+                      updateReturnValue(instr, subResult.returnValue());
                     }
                     res.merge(
-                        state.forcedPromises.get(concretePromise).merge(subResult.returnValue));
+                        state.forcedPromises().get(concretePromise).merge(subResult.returnValue()));
                     res.update();
                     res.setKeepSnapshot();
                     handled = true;
@@ -457,8 +347,8 @@ public class Scopes {
               }
 
               if (!handled) {
-                state.envs.at(concretePromise.promise().env()).setToUnknown();
-                res.merge(state.envs.taintLeaked());
+                state.envs().at(concretePromise.promise().env()).setToUnknown();
+                res.merge(state.envs().taintLeaked());
                 if (updateGlobalState) {
                   updateReturnValue(instr, AbstractRValue.UNKNOWN);
                 }
@@ -468,7 +358,7 @@ public class Scopes {
               if (innermostVersion
                   .callContext()
                   .requires(ldArg.index(), ArgAssumption.IS_NON_REFLECTIVE)) {
-                res.merge(state.envs.taintLeaked());
+                res.merge(state.envs().taintLeaked());
                 if (updateGlobalState) {
                   updateReturnValue(instr, AbstractRValue.UNKNOWN);
                 }
@@ -476,7 +366,7 @@ public class Scopes {
               }
             } else if (concreteEnv != null && concreteEnv.isStub()) {
               // Forcing using a stub should deopt if local vars are modified.
-              res.merge(state.envs.taintLeaked());
+              res.merge(state.envs().taintLeaked());
               if (updateGlobalState) {
                 updateReturnValue(instr, AbstractRValue.UNKNOWN);
               }
@@ -521,32 +411,32 @@ public class Scopes {
                 updateReturnValue(instr, AbstractRValue.UNKNOWN);
               }
             } else if (!reachedFixedPoint()
-                && depth != config.maxDepth
-                && concreteClosure.body().numNodes() <= config.maxSize
-                && !state.envs.areAllUnknown()) {
+                && depth != config.maxDepth()
+                && concreteClosure.body().numNodes() <= config.maxSize()
+                && !state.envs().areAllUnknown()) {
               // While analyzing the callee we have to assume the caller's environment leaked.
               // Because the callee can always access it reflectively. If when the callee returns
               // the env was not tainted, it can be un-leaked again.
               var ienv = instr.env();
-              var myEnvWasLeaked = ienv != null && state.envs.at(ienv).isLeaked();
+              var myEnvWasLeaked = ienv != null && state.envs().at(ienv).isLeaked();
 
               var closureAnalysis = subAnalyses.get(instr);
-              if (closureAnalysis == null && subAnalyses.size() < config.maxNumSubAnalyses) {
+              if (closureAnalysis == null && subAnalyses.size() < config.maxNumSubAnalyses()) {
                 closureAnalysis = new SubAnalysis(concreteClosure, call.args(), state, depth + 1);
                 subAnalyses.put(instr, closureAnalysis);
               } else if (closureAnalysis != null) {
-                closureAnalysis.setInitialState(state);
+                closureAnalysis.mergeInitial(state);
               }
 
               if (closureAnalysis != null) {
                 if (ienv != null) {
-                  closureAnalysis.onInitialState(subState -> subState.envs.at(ienv).leak());
+                  closureAnalysis.onInitialState(subState -> subState.envs().at(ienv).leak());
                 }
 
                 var subResult = closureAnalysis.run();
 
                 if (ienv != null) {
-                  var myEnv = subResult.envs.at(ienv);
+                  var myEnv = subResult.envs().at(ienv);
                   if (!myEnvWasLeaked && myEnv.isUnknown()) {
                     myEnv.unleak();
                   }
@@ -554,7 +444,7 @@ public class Scopes {
 
                 state.merge(subResult);
                 if (updateGlobalState) {
-                  updateReturnValue(instr, subResult.returnValue);
+                  updateReturnValue(instr, subResult.returnValue());
                 }
                 res.update();
                 res.setKeepSnapshot();
@@ -584,7 +474,7 @@ public class Scopes {
 
           if (!handled) {
             if (!(fun instanceof BuiltinId builtin) || !builtin.canSafelyBeInlined()) {
-              state.mayUseReflection = true;
+              state.setMayUseReflection(true);
             }
             res.taint();
           }
@@ -615,14 +505,14 @@ public class Scopes {
 
           if (leak != null && leak != StaticEnv.ELIDED) {
             if (instr instanceof RValueStmt instrAsRValueStmt && instr.data() instanceof MkEnv) {
-              state.envs.addDependency(instrAsRValueStmt, leak);
+              state.envs().addDependency(instrAsRValueStmt, leak);
             } else if (instr.data() instanceof StVar st) {
-              state.envs.addDependency(st.env(), leak);
+              state.envs().addDependency(st.env(), leak);
             } else if (instr.data() instanceof StVarSuper st) {
-              var ld = state.envs.lookupSuper(st.env(), st.name());
-              state.envs.addDependency(ld.env(), leak);
+              var ld = state.envs().lookupSuper(st.env(), st.name());
+              state.envs().addDependency(ld.env(), leak);
             } else {
-              state.envs.leak(leak);
+              state.envs().leak(leak);
             }
             res.update();
           }
@@ -652,16 +542,16 @@ public class Scopes {
                 instr.env() instanceof Instr i && i.data() instanceof MkEnv mk && mk.isStub();
 
             if (!isEnvStub && instr.effects().contains(REffect.LeaksEnvArg)) {
-              state.envs.leak(Objects.requireNonNull(instr.env()));
+              state.envs().leak(Objects.requireNonNull(instr.env()));
               res.update();
             }
 
             // If an instruction does arbitrary changes to the environment, we need to consider it
             // tainted.
             if (instr.effects().contains(REffect.WritesEnvArg)) {
-              state.envs.taintLeaked();
+              state.envs().taintLeaked();
               if (!isEnvStub) {
-                state.envs.at(Objects.requireNonNull(instr.env())).setToUnknown();
+                state.envs().at(Objects.requireNonNull(instr.env())).setToUnknown();
               }
               res.taint();
             }
@@ -669,7 +559,7 @@ public class Scopes {
         }
 
         if (instr.effects().contains(REffect.Reflection)) {
-          state.mayUseReflection = true;
+          state.setMayUseReflection(true);
           res.losePrecision();
         }
       }
@@ -678,7 +568,7 @@ public class Scopes {
     }
 
     private void storeResult(Instr instr, AbstractLoad load) {
-      if (!results.containsKey(instr) && results.size() >= config.maxResults) {
+      if (!results.containsKey(instr) && results.size() >= config.maxResults()) {
         return;
       }
 
@@ -729,7 +619,7 @@ public class Scopes {
      * Tries {@link #lookup(Instr)}, but if it returns {@code null}, assumes the state at the given
      * instruction is the given state to further try resolving.
      */
-    private @Nullable AbstractLoad lookup(State state, Instr instr) {
+    private @Nullable AbstractLoad lookup(ScopeAnalysisState state, Instr instr) {
       var known = lookup(instr);
       if (known != null) {
         return known;
@@ -769,10 +659,10 @@ public class Scopes {
      * <p>Otherwise, if the environment at the state is too ambiguous, it returns {@code null}.
      */
     private @Nullable Map<RegSymSXP, Pair<AbstractRValue, Boolean>> tryMaterializeEnv(
-        State state, @IsEnv RValue env) {
+        ScopeAnalysisState state, @IsEnv RValue env) {
       var resultIfKnown = new HashMap<RegSymSXP, Pair<AbstractRValue, Boolean>>();
 
-      var envState = state.envs.at(env);
+      var envState = state.envs().at(env);
       for (var e : envState.entries().entrySet()) {
         var name = e.getKey();
         var value = e.getValue();
@@ -821,16 +711,16 @@ public class Scopes {
       return resultIfKnown;
     }
 
-    private AbstractLoad load(State state, RegSymSXP name, @IsEnv RValue env) {
-      return tryToImprove(state.envs.lookup(env, name));
+    private AbstractLoad load(ScopeAnalysisState state, RegSymSXP name, @IsEnv RValue env) {
+      return tryToImprove(state.envs().lookup(env, name));
     }
 
-    private AbstractLoad loadFun(State state, RegSymSXP name, @IsEnv RValue env) {
-      return tryToImprove(state.envs.lookupFun(env, name));
+    private AbstractLoad loadFun(ScopeAnalysisState state, RegSymSXP name, @IsEnv RValue env) {
+      return tryToImprove(state.envs().lookupFun(env, name));
     }
 
-    private AbstractLoad loadSuper(State state, RegSymSXP name, @IsEnv RValue env) {
-      return tryToImprove(state.envs.lookupSuper(env, name));
+    private AbstractLoad loadSuper(ScopeAnalysisState state, RegSymSXP name, @IsEnv RValue env) {
+      return tryToImprove(state.envs().lookupSuper(env, name));
     }
 
     /**

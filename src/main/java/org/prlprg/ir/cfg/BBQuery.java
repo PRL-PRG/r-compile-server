@@ -131,6 +131,18 @@ interface BBQuery extends Iterable<InstrOrPhi> {
    */
   Iterable<Instr> instrs();
 
+  /**
+   * The basic block's instructions, iterated in reverse order: jump and reversed statements.
+   *
+   * <p>The iterator supports removing the current element.
+   *
+   * <p>Be aware that mutating the block will affect the jump before it's reached, or will affect
+   * this iterator the same way it would be affected while iterating {@link #stmts()}.
+   *
+   * @see #streamInstrs()
+   */
+  Iterable<Instr> revInstrs();
+
   /** Returns whether this BB contains the given instruction or phi. */
   boolean contains(InstrOrPhi instr);
 
