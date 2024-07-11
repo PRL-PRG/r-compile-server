@@ -464,6 +464,11 @@ public class ClosureVersion {
     //  implementation (generics are
     // [SAMs](https://stackoverflow.com/questions/17913409/what-is-a-sam-type-in-java)).
 
+    public Properties withFlags(Property... newFlags) {
+      return new Properties(
+          ImmutableSet.<Property>builder().addAll(flags).add(newFlags).build(), argumentForce);
+    }
+
     /** Whether these properties guarantee everything that the given properties do. */
     @Override
     public boolean isSubsetOf(Properties other) {

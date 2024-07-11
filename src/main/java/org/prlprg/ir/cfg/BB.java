@@ -195,20 +195,95 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     return Streams.concat(stmts.stream(), Stream.ofNullable(jump));
   }
 
+  private abstract class Instrs implements Iterator<Instr> {
+    protected int i = 0;
+    protected int index;
+    protected final ListIterator<Stmt> stmts;
+    protected @Nullable Instr next;
+
+    protected Instrs(ListIterator<Stmt> stmts, int initialIndex) {
+      this.stmts = stmts;
+      this.index = initialIndex;
+    }
+
+    @Override
+    public void remove() {
+      if (next == null) {
+        throw new IllegalStateException("`next()` not called");
+      }
+
+      switch (i) {
+        case 0 -> stmts.remove();
+        case 1 -> setJump(null);
+        default ->
+            throw new IllegalStateException("`remove()` called beyond end of iteration");
+      }
+      cfg().untrack(next);
+      switch (i) {
+        case 0 ->
+          cfg()
+              .record(
+                  new CFGEdit.RemoveStmt(BB.this, index),
+                  CFGEdit.InsertStmt.of(BB.this, index, (Stmt) next));
+        case 1 ->
+            cfg()
+                .record(
+                    new CFGEdit.RemoveJump(BB.this),
+                    CFGEdit.InsertJump.of(BB.this, (Jump) next));
+        case 2 -> throw new NoSuchElementException();
+        default -> throw new UnreachableError();
+      }
+      next = null;
+    }
+  }
+
   @Override
   public Iterable<Instr> instrs() {
-    return () ->
-        new Iterator<>() {
-          private int i = 0;
-          private final ListIterator<Stmt> stmts = BB.this.stmts.listIterator();
-          private @Nullable Instr next;
+    return () -> new Instrs(stmts.listIterator(), -1) {
+      @Override
+      public boolean hasNext() {
+        var end = 2;
+        if (jump == null) {
+          end--;
+          if (!stmts.hasNext()) {
+            end--;
+          }
+        }
+        return i < end;
+      }
 
+      @Override
+      public Instr next() {
+        index++;
+        if (i == 0) {
+          if (stmts.hasNext()) {
+            next = stmts.next();
+            return next;
+          }
+          i++;
+        }
+        if (i == 1) {
+          i++;
+          if (jump != null) {
+            next = jump;
+            return next;
+          }
+        }
+        throw new NoSuchElementException();
+      }
+    };
+  }
+
+  @Override
+  public Iterable<Instr> revInstrs() {
+    return () ->
+        new Instrs(stmts.listIterator(stmts.size()), numInstrs()) {
           @Override
           public boolean hasNext() {
             var end = 2;
-            if (jump == null) {
+            if (!stmts.hasPrevious()) {
               end--;
-              if (!stmts.hasNext()) {
+              if (jump == null) {
                 end--;
               }
             }
@@ -217,55 +292,24 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
 
           @Override
           public Instr next() {
+            index--;
             if (i == 0) {
-              if (stmts.hasNext()) {
-                next = stmts.next();
-                return next;
-              }
-              i++;
-            }
-            if (i == 1) {
               i++;
               if (jump != null) {
                 next = jump;
                 return next;
               }
             }
+            if (i == 1) {
+              if (stmts.hasPrevious()) {
+                next = stmts.previous();
+                return next;
+              }
+              i++;
+            }
             throw new NoSuchElementException();
           }
-
-          @Override
-          public void remove() {
-            if (next == null) {
-              throw new IllegalStateException("`next()` not called");
-            }
-
-            switch (i) {
-              case 0 -> stmts.remove();
-              case 1 -> setJump(null);
-              default ->
-                  throw new IllegalStateException("`remove()` called beyond end of iteration");
-            }
-            cfg().untrack(next);
-            switch (i) {
-              case 0 -> {
-                var index = stmts.nextIndex();
-                cfg()
-                    .record(
-                        new CFGEdit.RemoveStmt(BB.this, index),
-                        CFGEdit.InsertStmt.of(BB.this, index, (Stmt) next));
-              }
-              case 1 ->
-                  cfg()
-                      .record(
-                          new CFGEdit.RemoveJump(BB.this),
-                          CFGEdit.InsertJump.of(BB.this, (Jump) next));
-              case 2 -> throw new NoSuchElementException();
-              default -> throw new UnreachableError();
-            }
-            next = null;
-          }
-        };
+     };
   }
 
   @Override

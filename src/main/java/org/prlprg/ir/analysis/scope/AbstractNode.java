@@ -1,4 +1,4 @@
-package org.prlprg.ir.analysis.abstractNode;
+package org.prlprg.ir.analysis.scope;
 
 import org.prlprg.ir.type.lattice.Lattice;
 

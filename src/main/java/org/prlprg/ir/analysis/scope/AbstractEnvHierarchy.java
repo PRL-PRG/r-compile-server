@@ -1,4 +1,4 @@
-package org.prlprg.ir.analysis.abstractNode;
+package org.prlprg.ir.analysis.scope;
 
 import com.google.common.collect.ImmutableSet;
 import java.util.HashMap;
