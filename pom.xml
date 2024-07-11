@@ -61,6 +61,11 @@
       <version>${protobuf.version}</version>
     </dependency>
     <dependency>
+      <groupId>io.grpc</groupId>
+      <artifactId>grpc-services</artifactId>
+      <version>${grpc.version}</version>
+    </dependency>
+    <dependency>
       <!-- necessary for Java 9+ -->
       <groupId>org.apache.tomcat</groupId>
       <artifactId>annotations-api</artifactId>
