@@ -43,6 +43,19 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
   }
 
   @Test
+  public void testCallSpecial() throws Exception {
+    compileAndCall(
+        """
+                  function (...) { return(...) }
+                  """,
+        "list(1L)",
+        (IntSXP v) -> {
+          assertEquals(1, v.size());
+          assertEquals(1, v.asInt(0));
+        });
+  }
+
+  @Test
   public void testSumIn0Loop() throws Exception {
     compileAndCall(
         """

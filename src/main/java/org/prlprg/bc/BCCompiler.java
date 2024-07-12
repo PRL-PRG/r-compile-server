@@ -2012,9 +2012,9 @@ public class BCCompiler {
     }
 
     var ci = cb.addConst(call);
-    var label = cb.makeLabel();
+    var endLabel = cb.makeLabel();
     cb.addInstr(new Dup2nd());
-    cb.addInstr(doubleBracket ? new StartSubset2N(ci, label) : new StartSubsetN(ci, label));
+    cb.addInstr(doubleBracket ? new StartSubset2N(ci, endLabel) : new StartSubsetN(ci, endLabel));
     var indices = call.args().subList(1);
     compileIndices(indices);
 
@@ -2030,7 +2030,7 @@ public class BCCompiler {
             doubleBracket ? new Subset2N(ci, indices.size()) : new SubsetN(ci, indices.size()));
     }
 
-    cb.patchLabel(label);
+    cb.patchLabel(endLabel);
     cb.addInstr(new SpecialSwap());
 
     return true;

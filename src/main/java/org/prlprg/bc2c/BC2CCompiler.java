@@ -144,6 +144,8 @@ public class BC2CCompiler {
       case BcInstr.GetBuiltin(var idx) -> compileGetBuiltin(idx);
       case BcInstr.PushConstArg(var idx) -> compilePushConstArg(idx);
       case BcInstr.CallBuiltin(var idx) -> compileCall(idx);
+      case BcInstr.CallSpecial(var idx) -> compileCall(idx);
+      case BcInstr.Call(var idx) -> compileCall(idx);
       case BcInstr.PushArg() -> compilePushArg();
       case BcInstr.SetTag(var idx) -> compilerSetTag(idx);
       case BcInstr.Lt(_) -> compileLt();
@@ -152,7 +154,6 @@ public class BC2CCompiler {
       case BcInstr.Invisible() -> compileInvisible();
       case BcInstr.LdNull() -> compileLdNull();
       case BcInstr.GetFun(var idx) -> compileGetFun(idx);
-      case BcInstr.Call(var idx) -> compileCall(idx);
 
       default -> throw new UnsupportedOperationException(instr + ": not supported");
     }
@@ -160,7 +161,6 @@ public class BC2CCompiler {
     body.nl();
   }
 
-  // FIXME: refactor
   private void compileCall(ConstPool.Idx<LangSXP> idx) {
     var call = push(constant(idx), false);
     var fun = stack.curr(-3);
