@@ -762,29 +762,30 @@ void R_reinit_altrep_classes(DllInfo *);
 
 /* Defining NO_RINLINEDFUNS disables use to simulate platforms where
    this is not available */
-#if !defined(__MAIN__) &&                                                      \
-    (defined(COMPILING_R) || (__GNUC__ && !defined(__INTEL_COMPILER))) &&      \
-    (defined(COMPILING_R) || !defined(NO_RINLINEDFUNS))
 #include "Rinlinedfuns.h"
-#else
-/* need remapped names here for use with R_NO_REMAP */
-
-/*
-   These are the private inlinable functions that are provided in
-   Rinlinedfuns.h It is *essential* that these do not appear in any
-   other header file, with or without the Rf_ prefix.
-*/
-
-SEXP R_FixupRHS(SEXP x, SEXP y);
-double SCALAR_DVAL(SEXP x);
-int SCALAR_LVAL(SEXP x);
-int SCALAR_IVAL(SEXP x);
-void SET_SCALAR_DVAL(SEXP x, double v);
-void SET_SCALAR_LVAL(SEXP x, int v);
-void SET_SCALAR_IVAL(SEXP x, int v);
-void SET_SCALAR_CVAL(SEXP x, Rcomplex v);
-void SET_SCALAR_BVAL(SEXP x, Rbyte v);
-#endif
+// #if !defined(__MAIN__) &&                                                      \
+//     (defined(COMPILING_R) || (__GNUC__ && !defined(__INTEL_COMPILER))) &&      \
+//     (defined(COMPILING_R) || !defined(NO_RINLINEDFUNS))
+// #include "Rinlinedfuns.h"
+// #else
+// /* need remapped names here for use with R_NO_REMAP */
+//
+// /*
+//    These are the private inlinable functions that are provided in
+//    Rinlinedfuns.h It is *essential* that these do not appear in any
+//    other header file, with or without the Rf_ prefix.
+// */
+//
+// SEXP R_FixupRHS(SEXP x, SEXP y);
+// double SCALAR_DVAL(SEXP x);
+// int SCALAR_LVAL(SEXP x);
+// int SCALAR_IVAL(SEXP x);
+// void SET_SCALAR_DVAL(SEXP x, double v);
+// void SET_SCALAR_LVAL(SEXP x, int v);
+// void SET_SCALAR_IVAL(SEXP x, int v);
+// void SET_SCALAR_CVAL(SEXP x, Rcomplex v);
+// void SET_SCALAR_BVAL(SEXP x, Rbyte v);
+// #endif
 
 #ifdef USE_RINTERNALS
 
