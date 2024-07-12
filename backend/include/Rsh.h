@@ -1,10 +1,9 @@
 #ifndef RSH_H
 #define RSH_H
 
-#include "Rinternals.h"
-#include "Rsh_internals.h"
+#define COMPILING_R 1
 
-extern Rboolean R_Visible;
+#include "Rsh_internals.h"
 
 #define Rsh_error(msg, ...)                                                    \
   {                                                                            \
@@ -12,6 +11,7 @@ extern Rboolean R_Visible;
     return R_NilValue;                                                         \
   }
 
+// TODO: use the getvar from eval.c instead
 static INLINE SEXP Rsh_get_var(SEXP sym, SEXP env) {
   SEXP v = Rf_findVar(sym, env);
 
@@ -28,24 +28,23 @@ static INLINE SEXP Rsh_get_var(SEXP sym, SEXP env) {
   return v;
 }
 
-
 static INLINE SEXP Rsh_builtin_call_args(SEXP args) {
-    for (SEXP a = args; a  != R_NilValue; a = CDR(a)) {
-	    DECREMENT_LINKS(CAR(a));
-	}
-    return args;
+  for (SEXP a = args; a != R_NilValue; a = CDR(a)) {
+    DECREMENT_LINKS(CAR(a));
+  }
+  return args;
 }
 
 static INLINE SEXP Rsh_closure_call_args(SEXP args) {
-    for (SEXP a = args; a  != R_NilValue; a = CDR(a)) {
-        DECREMENT_LINKS(CAR(a));
-        if (! TRACKREFS(a)) {
-            ENABLE_REFCNT(a);
-            INCREMENT_REFCNT(CAR(a));
-            INCREMENT_REFCNT(CDR(a));
-        }
+  for (SEXP a = args; a != R_NilValue; a = CDR(a)) {
+    DECREMENT_LINKS(CAR(a));
+    if (!TRACKREFS(a)) {
+      ENABLE_REFCNT(a);
+      INCREMENT_REFCNT(CAR(a));
+      INCREMENT_REFCNT(CDR(a));
     }
-    return args;
+  }
+  return args;
 }
 
 static INLINE SEXP Rsh_get_builtin(const char *name) {
@@ -53,35 +52,36 @@ static INLINE SEXP Rsh_get_builtin(const char *name) {
 }
 
 static INLINE SEXP Rsh_call(SEXP call, SEXP fun, SEXP args, SEXP rho) {
-    SEXP value = NULL;
-    int flag;
+  SEXP value = NULL;
+  int flag;
 
-    switch (TYPEOF(fun)) {
-    	case BUILTINSXP:
-    	  args = Rsh_builtin_call_args(args);
-    	  Rif_checkForMissings(args, call);
-    	  flag = PRIMPRINT(fun);
-    	  R_Visible = flag != 1;
-    	  value = PRIMFUN(fun) (call, fun, args, rho);
-    	  if (flag < 2) {
-    	    R_Visible = flag != 1;
-    	  }
-    	  break;
-    	case SPECIALSXP:
-    	  flag = PRIMPRINT(fun);
-    	  R_Visible = flag != 1;
-    	  value = PRIMFUN(fun) (call, fun, Rif_markSpecialArgs(CDR(call)), rho);
-    	  if (flag < 2) {
-    	    R_Visible = flag != 1;
-    	  }
-    	  break;
-    	case CLOSXP:
-    	  args = Rsh_closure_call_args(args);
-    	  value = Rf_applyClosure(call, fun, args, rho, R_NilValue);
-    	  break;
-    	default: Rf_error("bad function");
+  switch (TYPEOF(fun)) {
+  case BUILTINSXP:
+    args = Rsh_builtin_call_args(args);
+    Rif_checkForMissings(args, call);
+    flag = PRIMPRINT(fun);
+    R_Visible = flag != 1;
+    value = PRIMFUN(fun)(call, fun, args, rho);
+    if (flag < 2) {
+      R_Visible = flag != 1;
     }
-    return value;
+    break;
+  case SPECIALSXP:
+    flag = PRIMPRINT(fun);
+    R_Visible = flag != 1;
+    value = PRIMFUN(fun)(call, fun, Rif_markSpecialArgs(CDR(call)), rho);
+    if (flag < 2) {
+      R_Visible = flag != 1;
+    }
+    break;
+  case CLOSXP:
+    args = Rsh_closure_call_args(args);
+    value = Rf_applyClosure(call, fun, args, rho, R_NilValue);
+    break;
+  default:
+    Rf_error("bad function");
+  }
+  return value;
 }
 
 static INLINE Rboolean Rsh_is_true(SEXP value, SEXP call) {
