@@ -2,6 +2,7 @@ package org.prlprg.ir.analysis.scope;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.prlprg.ir.cfg.Instr;
 import org.prlprg.ir.cfg.IsEnv;
 import org.prlprg.ir.cfg.RValue;
@@ -9,17 +10,42 @@ import org.prlprg.ir.cfg.StmtData.MkProm;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.PrintWhitespace;
 import org.prlprg.parseprint.Printer;
-import org.prlprg.util.NotImplementedError;
+import org.prlprg.util.UnreachableError;
 
 /**
  * Abstract state (abstract interpretation "context" that exists between every {@link Instr}) for
  * scope analysis.
  */
 public class ScopeAnalysisState implements AbstractNode<ScopeAnalysisState> {
-  private final AbstractEnvHierarchy envs = new AbstractEnvHierarchy();
-  private final AbstractRValue returnValue = new AbstractRValue();
-  private final Map<MkProm, AbstractRValue> forcedPromises = new HashMap<>();
-  private boolean mayUseReflection = false;
+  private final AbstractEnvHierarchy envs;
+  private final AbstractRValue returnValue;
+  private final Map<MkProm, AbstractRValue> forcedPromises;
+  private boolean mayUseReflection;
+
+  /** Create an "empty" state: no envs, returns nothing, no forced promises, and no reflection. */
+  ScopeAnalysisState() {
+    envs = new AbstractEnvHierarchy();
+    returnValue = new AbstractRValue();
+    forcedPromises = new HashMap<>();
+    mayUseReflection = false;
+  }
+
+  /** Copy constructor, but exposed via {@link AbstractNode#copy()}. */
+  private ScopeAnalysisState(ScopeAnalysisState copy) {
+    this.envs = copy.envs.copy();
+    this.returnValue = copy.returnValue.copy();
+    this.forcedPromises =
+        copy.forcedPromises.entrySet().stream()
+            .collect(
+                Collectors.toMap(
+                    Map.Entry::getKey,
+                    e -> e.getValue().copy(),
+                    (_, _) -> {
+                      throw new UnreachableError();
+                    },
+                    HashMap::new));
+    this.mayUseReflection = copy.mayUseReflection;
+  }
 
   AbstractEnvHierarchy envs() {
     return envs;
@@ -33,7 +59,7 @@ public class ScopeAnalysisState implements AbstractNode<ScopeAnalysisState> {
     return forcedPromises;
   }
 
-  boolean mayUseReflection() {
+  public boolean mayUseReflection() {
     return mayUseReflection;
   }
 
@@ -49,15 +75,10 @@ public class ScopeAnalysisState implements AbstractNode<ScopeAnalysisState> {
   public AbstractResult merge(ScopeAnalysisState other) {
     var res = AbstractResult.NONE;
 
-    if (!mayUseReflection && other.mayUseReflection) {
-      mayUseReflection = true;
-      res = res.union(AbstractResult.LOST_PRECISION);
-    }
-    if (!returnValue.isUnknown() && other.returnValue.isUnknown()) {
-      returnValue.taint();
-      res = res.union(AbstractResult.LOST_PRECISION);
-    }
+    // Merge `envs`.
+    res = res.union(envs.merge(other.envs));
 
+    // Merge `forcedPromises`.
     for (var e : forcedPromises.entrySet()) {
       var mkProm = e.getKey();
       var myForcedPromise = e.getValue();
@@ -72,28 +93,31 @@ public class ScopeAnalysisState implements AbstractNode<ScopeAnalysisState> {
         }
       }
     }
-
     if (forcedPromises.size() < other.forcedPromises.size()) {
-      for (var e : other.forcedPromises.entrySet()) {
-        var mkProm = e.getKey();
-        var myForcedPromise = forcedPromises.get(mkProm);
-        var otherForcedPromise = e.getValue();
-
-        if (myForcedPromise == null) {
-          forcedPromises.put(mkProm, AbstractRValue.UNKNOWN);
-        }
+      for (var mkProm : other.forcedPromises.keySet()) {
+        forcedPromises.putIfAbsent(mkProm, AbstractRValue.UNKNOWN);
       }
-
       res = res.union(AbstractResult.LOST_PRECISION);
     }
 
-    return res.union(envs.merge(other.envs));
+    // Merge `mayUseReflection`.
+    if (!mayUseReflection && other.mayUseReflection) {
+      mayUseReflection = true;
+      res = res.union(AbstractResult.LOST_PRECISION);
+    }
+
+    // Merge `returnValue`.
+    if (!returnValue.isUnknown() && other.returnValue.isUnknown()) {
+      returnValue.taint();
+      res = res.union(AbstractResult.LOST_PRECISION);
+    }
+
+    return res;
   }
 
   @Override
-  public ScopeAnalysisState clone() {
-    // TODO
-    throw new NotImplementedError();
+  public ScopeAnalysisState copy() {
+    return new ScopeAnalysisState(this);
   }
 
   // region serialization and deserialization

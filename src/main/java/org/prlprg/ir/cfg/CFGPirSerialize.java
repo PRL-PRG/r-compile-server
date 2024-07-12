@@ -394,7 +394,7 @@ class PirInstrOrPhiParseContext {
 
     var data =
         switch (instrTypeName) {
-          // No `LdFunctionEnv` analogue in this IR.
+            // No `LdFunctionEnv` analogue in this IR.
           case "LdFunctionEnv" -> new StmtData.NoOp();
           case "LdArg" -> {
             var index = s.readUInt();
