@@ -8,6 +8,7 @@ import java.util.Objects;
 import java.util.Set;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
+import org.prlprg.ir.cfg.CFG;
 import org.prlprg.ir.cfg.Instr;
 import org.prlprg.ir.cfg.InvalidNode;
 import org.prlprg.ir.cfg.IsEnv;
@@ -16,7 +17,6 @@ import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.RegSymSXP;
-import org.prlprg.util.NotImplementedError;
 
 /**
  * A static approximation of an {@linkplain EnvSXP R runtime environment} (from PIR).
@@ -32,14 +32,29 @@ import org.prlprg.util.NotImplementedError;
  * <p>For inter-procedural analysis we can additionally keep track of closures.
  */
 public final class AbstractEnv implements AbstractNode<AbstractEnv> {
+  /**
+   * An {@link InvalidNode} for a {@link RValue} (in other cases a concrete node) that actually
+   * represents an abstract unknown environment.
+   *
+   * <p>Instead of having a separate class that can either be a single {@link RValue} or "unknown
+   * parent", to represent abstract parent environments this way, we just reuse {@link RValue} and
+   * add this dummy instance. It's not really dangerous because if the stub somehow ends up where it
+   * shouldn't be, it's easy to spot, and if it ends up in a {@link CFG} outside of scope analysis,
+   * it will cause {@link CFG#verify()} to fail.
+   */
   public static final RValue UNKNOWN_PARENT = InvalidNode.create("unknownParent");
-  static final RValue UNINITIALIZED_PARENT = InvalidNode.create("uninitializedParent");
+
+  /**
+   * The "top" of the lattice, representing a completely unknown environment.
+   *
+   * <p>This can is because it can't change; merging with unknown always produces unknown.
+   */
   public static final AbstractEnv UNKNOWN =
       new AbstractEnv(Collections.emptyMap(), Collections.emptySet(), UNKNOWN_PARENT, false, true);
 
   private Map<RegSymSXP, AbstractRValue> entries;
   private Set<RValue> reachableEnvs;
-  private @IsEnv RValue parentEnv;
+  private @Nullable @IsEnv RValue parentEnv;
   private boolean isLeaked;
   private boolean isUnknown;
 
@@ -47,16 +62,16 @@ public final class AbstractEnv implements AbstractNode<AbstractEnv> {
   public AbstractEnv() {
     entries = new HashMap<>();
     reachableEnvs = new HashSet<>();
-    parentEnv = UNINITIALIZED_PARENT;
+    parentEnv = null;
     isLeaked = false;
     isUnknown = false;
   }
 
-  /** Internal constructor for {@link #UNKNOWN}. */
+  /** Internal constructor for {@link #copy()} and {@link #UNKNOWN}. */
   private AbstractEnv(
       Map<RegSymSXP, AbstractRValue> entries,
       Set<RValue> reachableEnvs,
-      RValue parentEnv,
+      @Nullable RValue parentEnv,
       boolean isLeaked,
       boolean isUnknown) {
     this.entries = entries;
@@ -75,7 +90,7 @@ public final class AbstractEnv implements AbstractNode<AbstractEnv> {
   }
 
   public @IsEnv RValue parentEnv() {
-    return parentEnv == UNINITIALIZED_PARENT ? UNKNOWN_PARENT : parentEnv;
+    return parentEnv == null ? UNKNOWN_PARENT : parentEnv;
   }
 
   public boolean isLeaked() {
@@ -131,15 +146,8 @@ public final class AbstractEnv implements AbstractNode<AbstractEnv> {
     isLeaked = true;
   }
 
-  public void unleak() {
-    if (isUnknown) {
-      return;
-    }
-
-    isLeaked = false;
-  }
-
-  public void setToUnknown() {
+  /** Set to {@link #UNKNOWN}. */
+  public void taint() {
     entries = Collections.emptyMap();
     reachableEnvs = Collections.emptySet();
     parentEnv = UNKNOWN_PARENT;
@@ -149,26 +157,30 @@ public final class AbstractEnv implements AbstractNode<AbstractEnv> {
 
   @Override
   public AbstractResult merge(AbstractEnv other) {
-    if (isUnknown || other.isUnknown) {
+    // Skip if top.
+    if (isUnknown) {
+      return AbstractResult.NONE;
+    }
+
+    // Taint if other is top.
+    if (other.isUnknown) {
+      taint();
       return AbstractResult.TAINTED;
     }
 
     var res = AbstractResult.NONE;
 
-    if (!isLeaked && other.isLeaked) {
-      isLeaked = true;
-      res = res.union(AbstractResult.LOST_PRECISION);
-    }
-
+    // Merge `entries`.
     for (var e : other.entries.entrySet()) {
       var name = e.getKey();
       var otherValue = e.getValue();
       var myValue = entries.get(name);
 
       if (myValue == null) {
-        res = res.union(otherValue.merge(AbstractRValue.UNBOUND));
+        myValue = otherValue.copy();
+        res = res.union(myValue.mergeUnbound());
         // `UPDATED` is because we add to `entries`.
-        entries.put(name, otherValue);
+        entries.put(name, myValue);
         res = res.union(AbstractResult.UPDATED);
       } else {
         res = res.union(myValue.merge(otherValue));
@@ -179,22 +191,28 @@ public final class AbstractEnv implements AbstractNode<AbstractEnv> {
       var myValue = e.getValue();
 
       if (!myValue.isUnknown() && !other.entries.containsKey(name)) {
-        res = res.union(myValue.merge(AbstractRValue.UNBOUND));
+        res = res.union(myValue.mergeUnbound());
         // No `UPDATED` because we didn't add to `entries`.
       }
     }
 
+    // Merge `reachableEnvs`.
     if (reachableEnvs.addAll(other.reachableEnvs)) {
       res = res.union(AbstractResult.UPDATED);
     }
 
-    if (parentEnv == UNINITIALIZED_PARENT && other.parentEnv != UNINITIALIZED_PARENT) {
+    // Merge `parentEnv`.
+    if (parentEnv == null && other.parentEnv != null) {
       parentEnv = other.parentEnv;
       res = res.union(AbstractResult.UPDATED);
-    } else if (parentEnv != UNINITIALIZED_PARENT
-        && parentEnv != UNKNOWN_PARENT
-        && other.parentEnv != parentEnv) {
+    } else if (parentEnv != null && parentEnv != UNKNOWN_PARENT && other.parentEnv != parentEnv) {
       parentEnv = UNKNOWN_PARENT;
+      res = res.union(AbstractResult.LOST_PRECISION);
+    }
+
+    // Merge `isLeaked`.
+    if (!isLeaked && other.isLeaked) {
+      isLeaked = true;
       res = res.union(AbstractResult.LOST_PRECISION);
     }
 
@@ -202,9 +220,17 @@ public final class AbstractEnv implements AbstractNode<AbstractEnv> {
   }
 
   @Override
-  public AbstractEnv clone() {
-    // TODO
-    throw new NotImplementedError();
+  public AbstractEnv copy() {
+    if (isUnknown) {
+      return UNKNOWN;
+    }
+
+    var newEntries = new HashMap<RegSymSXP, AbstractRValue>();
+    for (var e : entries.entrySet()) {
+      newEntries.put(e.getKey(), e.getValue().copy());
+    }
+
+    return new AbstractEnv(newEntries, new HashSet<>(reachableEnvs), parentEnv, isLeaked, false);
   }
 
   // region serialization and deserialization

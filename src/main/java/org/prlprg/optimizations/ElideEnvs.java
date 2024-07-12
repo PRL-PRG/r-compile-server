@@ -12,7 +12,6 @@ import org.prlprg.ir.cfg.StaticEnv;
 import org.prlprg.ir.cfg.Stmt;
 import org.prlprg.ir.cfg.StmtData;
 import org.prlprg.ir.cfg.StmtData.Force;
-import org.prlprg.ir.cfg.StmtData.LdEnclosEnv;
 import org.prlprg.ir.cfg.StmtData.MkEnv;
 import org.prlprg.ir.cfg.StmtData.StVar;
 import org.prlprg.ir.effect.REffect;
@@ -69,8 +68,7 @@ class ElideEnvs implements OptimizationPass {
       var instrs = bb.instrs().iterator();
       while (instrs.hasNext()) {
         var instr = instrs.next();
-        if ((instr.data() instanceof LdEnclosEnv || instr.data() instanceof MkEnv)
-            && !(neededEnvs.contains((RValue) instr))) {
+        if (instr.data() instanceof MkEnv && !(neededEnvs.contains((RValue) instr))) {
           instrs.remove();
         }
       }

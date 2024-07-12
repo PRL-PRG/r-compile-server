@@ -21,7 +21,6 @@ import org.prlprg.ir.cfg.PirType.NativeType;
 import org.prlprg.ir.cfg.PirType.RType_;
 import org.prlprg.ir.cfg.StmtData.Call_;
 import org.prlprg.ir.cfg.StmtData.FrameState_;
-import org.prlprg.ir.cfg.StmtData.LdEnclosEnv;
 import org.prlprg.ir.cfg.StmtData.NamelessCall;
 import org.prlprg.ir.closure.Closure;
 import org.prlprg.ir.closure.ClosureVersion;
@@ -395,6 +394,8 @@ class PirInstrOrPhiParseContext {
 
     var data =
         switch (instrTypeName) {
+          // No `LdFunctionEnv` analogue in this IR.
+          case "LdFunctionEnv" -> new StmtData.NoOp();
           case "LdArg" -> {
             var index = s.readUInt();
             var type = ((PirType.RType_) pirType).type();
@@ -653,7 +654,6 @@ class PirInstrOrPhiParseContext {
                   case "Plus" -> StmtData.UPlus.class;
                   case "Minus" -> StmtData.UMinus.class;
                   case "ChkFunction" -> StmtData.ChkFun.class;
-                  case "LdFunctionEnv" -> LdEnclosEnv.class;
                   default -> InstrData.CLASSES.get(instrTypeName);
                 };
             if (clazz == null) {
@@ -1243,7 +1243,6 @@ class PirInstrOrPhiPrintContext {
           case StmtData.UPlus _ -> "Plus";
           case StmtData.UMinus _ -> "Minus";
           case StmtData.ChkFun _ -> "ChkFunction";
-          case StmtData.LdEnclosEnv _ -> "LdFunctionEnv";
           default -> data.getClass().getSimpleName();
         };
     // No feedback, so we only write the base name

@@ -559,15 +559,6 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
     }
   }
 
-  @EffectsAre({})
-  @IsEnv
-  record LdEnclosEnv() implements RValue_ {
-    @Override
-    public EnvAux computeEnvAux() {
-      return new EnvAux(null);
-    }
-  }
-
   @EffectsAre(REffect.Visibility)
   record Visible() implements Void {}
 
@@ -949,14 +940,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
   }
 
   @EffectsAre({})
-  @IsEnv
-  record MaterializeEnv(@IsEnv RValue env) implements RValue_ {
-    @Override
-    public EnvAux computeEnvAux() {
-      var envAux = env.envAux();
-      return new EnvAux(envAux == null ? null : envAux.parent());
-    }
-  }
+  record MaterializeEnv(@IsEnv RValue env) implements Void {}
 
   /**
    * Doesn't have {@link REffect#ReadsEnvArg} because it doesn't read the "environment" part of the

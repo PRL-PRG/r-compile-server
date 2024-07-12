@@ -1,9 +1,10 @@
 package org.prlprg.ir.analysis.scope;
 
-import java.util.Collections;
+import com.google.common.collect.ImmutableSet;
 import java.util.Set;
+import java.util.stream.Stream;
 import javax.annotation.Nullable;
-import org.jetbrains.annotations.UnmodifiableView;
+import org.jetbrains.annotations.Unmodifiable;
 import org.prlprg.ir.cfg.Constant;
 import org.prlprg.ir.cfg.Instr;
 import org.prlprg.ir.cfg.RValue;
@@ -12,8 +13,6 @@ import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.SEXPs;
-import org.prlprg.util.NotImplementedError;
-import org.prlprg.util.SmallListSet;
 
 /**
  * The possible {@linkplain RValue R SEXPs} at a particular {@linkplain Instr instruction} in any
@@ -21,6 +20,9 @@ import org.prlprg.util.SmallListSet;
  */
 public final class AbstractRValue implements AbstractNode<AbstractRValue> {
   public record ValueOrigin(RValue value, @Nullable Instr origin, int recursionLevel) {
+    private static final ValueOrigin UNBOUND =
+        new ValueOrigin(new Constant(SEXPs.UNBOUND_VALUE), null, 0);
+
     @PrintMethod
     private void print(Printer p) {
       p.print(value.id());
@@ -36,40 +38,44 @@ public final class AbstractRValue implements AbstractNode<AbstractRValue> {
     }
   }
 
-  public static final AbstractRValue UNBOUND =
-      new AbstractRValue(new Constant(SEXPs.UNBOUND_VALUE), null, 0);
+  /**
+   * The "top" of the lattice, representing a completely unknown value.
+   *
+   * <p>This can is because it can't change; merging with unknown always produces unknown.
+   */
   public static final AbstractRValue UNKNOWN =
-      new AbstractRValue(Collections.emptySet(), RType.ANY, true);
+      new AbstractRValue(ImmutableSet.of(), RType.ANY, true);
+
   private static final int MAX_VALUES = 5;
 
-  private Set<ValueOrigin> origins;
+  // These are small so we just keep them immutable and create new ones when necessary.
+  private ImmutableSet<ValueOrigin> origins;
   private RType type;
   private boolean isUnknown;
 
   /** Creates an abstract value representing "bottom". */
   public AbstractRValue() {
-    origins = new SmallListSet<>(MAX_VALUES);
+    origins = ImmutableSet.of();
     type = RType.NOTHING;
     isUnknown = false;
   }
 
   /** Creates an abstract value representing the given concrete value. */
   public AbstractRValue(RValue value, @Nullable Instr origin, int recursionLevel) {
-    origins = new SmallListSet<>(MAX_VALUES);
-    origins.add(new ValueOrigin(value, origin, recursionLevel));
+    origins = ImmutableSet.of(new ValueOrigin(value, origin, recursionLevel));
     type = value.type();
     isUnknown = false;
   }
 
-  /** Internal constructor for {@link #UNKNOWN}. */
-  private AbstractRValue(Set<ValueOrigin> origins, RType type, boolean isUnknown) {
+  /** Internal constructor for {@link #copy()} and {@link #UNKNOWN}. */
+  private AbstractRValue(ImmutableSet<ValueOrigin> origins, RType type, boolean isUnknown) {
     this.origins = origins;
     this.type = type;
     this.isUnknown = isUnknown;
   }
 
-  public @UnmodifiableView Set<ValueOrigin> origins() {
-    return Collections.unmodifiableSet(origins);
+  public @Unmodifiable Set<ValueOrigin> origins() {
+    return origins;
   }
 
   public RType type() {
@@ -100,51 +106,72 @@ public final class AbstractRValue implements AbstractNode<AbstractRValue> {
     return result == null ? Maybe.NO : result;
   }
 
-  public void setToUnknown() {
-    origins = Collections.emptySet();
+  /** Set to {@link #UNKNOWN}. */
+  public void taint() {
+    origins = ImmutableSet.of();
     type = RType.ANY;
     isUnknown = true;
   }
 
-  @Override
-  public AbstractResult merge(AbstractRValue other) {
-    if (isUnknown) {
+  public AbstractResult mergeUnbound() {
+    // Skip if unknown or equal
+    if (isUnknown || origins.contains(ValueOrigin.UNBOUND)) {
       return AbstractResult.NONE;
     }
+
+    // Give up if there are too many origins.
+    if (origins.size() == MAX_VALUES) {
+      taint();
+      return AbstractResult.LOST_PRECISION;
+    }
+
+    // Merge (guaranteed updated).
+    origins = ImmutableSet.<ValueOrigin>builder().addAll(origins).add(ValueOrigin.UNBOUND).build();
+    return AbstractResult.UPDATED;
+  }
+
+  @Override
+  public AbstractResult merge(AbstractRValue other) {
+    // Skip if unknown or equal.
+    if (isUnknown
+        || (type.isNothing() && other.type.isNothing())
+        || origins.equals(other.origins)) {
+      return AbstractResult.NONE;
+    }
+
+    // Replace with other if `self == BOTTOM`.
     if (type.isNothing()) {
       origins = other.origins;
       type = other.type;
       isUnknown = other.isUnknown;
       return AbstractResult.UPDATED;
     }
+
+    // Replace with other and lose precision if `self != BOTTOM && other == TOP`.
     if (other.isUnknown) {
-      setToUnknown();
+      taint();
       return AbstractResult.LOST_PRECISION;
     }
 
-    var changed = false;
-    for (var origin : other.origins) {
-      if (origins.add(origin)) {
-        changed = true;
-        if (origins.size() > MAX_VALUES) {
-          setToUnknown();
-          return AbstractResult.LOST_PRECISION;
-        }
-      }
+    var newOrigins =
+        Stream.concat(origins.stream(), other.origins.stream())
+            .collect(ImmutableSet.toImmutableSet());
+
+    // Give up if there are too many origins.
+    if (newOrigins.size() > MAX_VALUES) {
+      taint();
+      return AbstractResult.LOST_PRECISION;
     }
 
-    if (changed) {
-      type = type.union(other.type);
-      return AbstractResult.UPDATED;
-    } else {
-      return AbstractResult.NONE;
-    }
+    // Merge (guaranteed updated).
+    origins = newOrigins;
+    type = type.union(other.type);
+    return AbstractResult.UPDATED;
   }
 
   @Override
-  public AbstractRValue clone() {
-    // TODO
-    throw new NotImplementedError();
+  public AbstractRValue copy() {
+    return new AbstractRValue(origins, type, isUnknown);
   }
 
   // region serialization and deserialization

@@ -2,6 +2,7 @@ package org.prlprg.ir.analysis.scope;
 
 import java.util.HashMap;
 import java.util.Map;
+import org.prlprg.ir.cfg.Instr;
 import org.prlprg.ir.cfg.IsEnv;
 import org.prlprg.ir.cfg.RValue;
 import org.prlprg.ir.cfg.StmtData.MkProm;
@@ -10,9 +11,11 @@ import org.prlprg.parseprint.PrintWhitespace;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.util.NotImplementedError;
 
-// State
-class ScopeAnalysisState implements AbstractNode<ScopeAnalysisState> {
-
+/**
+ * Abstract state (abstract interpretation "context" that exists between every {@link Instr}) for
+ * scope analysis.
+ */
+public class ScopeAnalysisState implements AbstractNode<ScopeAnalysisState> {
   private final AbstractEnvHierarchy envs = new AbstractEnvHierarchy();
   private final AbstractRValue returnValue = new AbstractRValue();
   private final Map<MkProm, AbstractRValue> forcedPromises = new HashMap<>();
@@ -39,7 +42,7 @@ class ScopeAnalysisState implements AbstractNode<ScopeAnalysisState> {
   }
 
   public boolean didEnvEscape(@IsEnv RValue env) {
-    return !envs.isKnown(env) || envs.at(env).isLeaked();
+    return !envs.contains(env) || envs.at(env).isLeaked();
   }
 
   @Override
@@ -51,7 +54,7 @@ class ScopeAnalysisState implements AbstractNode<ScopeAnalysisState> {
       res = res.union(AbstractResult.LOST_PRECISION);
     }
     if (!returnValue.isUnknown() && other.returnValue.isUnknown()) {
-      returnValue.setToUnknown();
+      returnValue.taint();
       res = res.union(AbstractResult.LOST_PRECISION);
     }
 
@@ -62,7 +65,7 @@ class ScopeAnalysisState implements AbstractNode<ScopeAnalysisState> {
 
       if (!myForcedPromise.isUnknown()) {
         if (otherForcePromise == null) {
-          myForcedPromise.setToUnknown();
+          myForcedPromise.taint();
           res = res.union(AbstractResult.LOST_PRECISION);
         } else {
           res = res.union(myForcedPromise.merge(otherForcePromise));
