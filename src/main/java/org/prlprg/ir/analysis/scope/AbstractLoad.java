@@ -5,6 +5,10 @@ import org.prlprg.ir.cfg.RValue;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 
+/**
+ * An {@link AbstractRValue} produced from an "abstract load" operation, and the environment (either
+ * concrete or {@linkplain AbstractEnv#UNKNOWN_PARENT unknown}) it was loaded from.
+ */
 public final class AbstractLoad {
   private final @IsEnv RValue env;
   private final AbstractRValue result;

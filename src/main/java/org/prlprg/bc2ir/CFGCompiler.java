@@ -160,7 +160,6 @@ import org.prlprg.ir.cfg.Stmt;
 import org.prlprg.ir.cfg.StmtData;
 import org.prlprg.ir.cfg.StmtData.FrameState_;
 import org.prlprg.ir.cfg.StmtData.GnuRIs;
-import org.prlprg.ir.cfg.StmtData.LdEnclosEnv;
 import org.prlprg.ir.cfg.StmtData.MkEnv;
 import org.prlprg.ir.cfg.StmtData.NamelessCall;
 import org.prlprg.ir.cfg.StmtData.RValue_;
@@ -198,7 +197,7 @@ public class CFGCompiler {
   public static CFG compileCFG(Bc bc) {
     var cfg = new CFG();
     var module = new Module();
-    new CFGCompiler(bc, cfg, false, module).doCompile();
+    new CFGCompiler(bc, cfg, false, StaticEnv.NOT_CLOSED, module).doCompile();
     return cfg;
   }
 
@@ -206,8 +205,8 @@ public class CFGCompiler {
    * Compile {@linkplain Bc bytecode} into the given {@linkplain org.prlprg.ir IR} {@linkplain CFG
    * control-flow-graph}.
    */
-  static void compileCFG(Bc bc, CFG cfg, boolean isPromise, Module module) {
-    new CFGCompiler(bc, cfg, isPromise, module).doCompile();
+  static void compileCFG(Bc bc, CFG cfg, boolean isPromise, RValue enclos, Module module) {
+    new CFGCompiler(bc, cfg, isPromise, enclos, module).doCompile();
   }
 
   // region compiler data types
@@ -325,7 +324,7 @@ public class CFGCompiler {
    * <p>After this, it initialized the variables necessary for compiling but has only put the "load
    * function environment" instruction.
    */
-  private CFGCompiler(Bc bc, CFG cfg, boolean isPromise, Module module) {
+  private CFGCompiler(Bc bc, CFG cfg, boolean isPromise, RValue enclos, Module module) {
     if (!cfg.isEmpty()) {
       throw new IllegalArgumentException(
           "CFG must be empty (idk when you'd call CFGCompiler with a non-empty CFG)");
@@ -338,8 +337,6 @@ public class CFGCompiler {
 
     cursor = new CFGCursor(cfg);
 
-    // Insert `LdEnclosEnv`, which goes before all bytecode instructions.
-    var enclos = cursor.insert("enclos", new LdEnclosEnv());
     if (isPromise) {
       // If this is a promise, it re-uses ENCLOS (assignments in a promise assign the variable after
       // the promise is evaluated)
@@ -467,7 +464,7 @@ public class CFGCompiler {
       assert clazz != BcLabel.class || labelName != null
           : "BcLabel fields should be annotated with @LabelName";
 
-      if (clazz == BcLabel.class) {
+      if (clazz == BcLabel.class && value != null) {
         ensureBbAt((BcLabel) value, labelName.value());
       }
     }

@@ -118,7 +118,7 @@ public class ClosureCompiler {
     }
 
     try {
-      compileCFG(version.closure().bc(), version.body(), false, module);
+      compileCFG(version.closure().bc(), version.body(), false, version.closure().env(), module);
     } catch (CFGCompilerUnsupportedBcException e) {
       throw new ClosureCompilerUnsupportedException(
           "Bytecode does something unsupported", version.closure().origin().body(), e);
@@ -135,7 +135,7 @@ public class ClosureCompiler {
    * @throws ClosureCompilerUnsupportedException If the promise code is an AST.
    */
   static Promise compilePromise(
-      String name, SEXP promiseCodeSexp, @IsEnv RValue env, Module module) {
+      String name, SEXP promiseCodeSexp, @IsEnv RValue prenv, Module module) {
     if (!(promiseCodeSexp instanceof BCodeSXP promiseBcSexp)) {
       throw new ClosureCompilerUnsupportedException(
           "Can't compile a promise whose body is an AST", promiseCodeSexp);
@@ -144,8 +144,8 @@ public class ClosureCompiler {
 
     // compilePromise(Bc, @IsEnv RValue, Module)
     var cfg = new CFG();
-    compileCFG(promiseBc, cfg, true, module);
+    compileCFG(promiseBc, cfg, true, prenv, module);
     var properties = computePromiseProperties(cfg);
-    return new Promise(name, promiseBc, cfg, env, properties);
+    return new Promise(name, promiseBc, cfg, prenv, properties);
   }
 }

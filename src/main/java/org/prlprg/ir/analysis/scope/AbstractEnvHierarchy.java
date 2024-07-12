@@ -12,51 +12,44 @@ import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.ir.cfg.IsEnv;
 import org.prlprg.ir.cfg.RValue;
 import org.prlprg.ir.cfg.StaticEnv;
-import org.prlprg.ir.cfg.Stmt;
-import org.prlprg.ir.cfg.StmtData.LdEnclosEnv;
 import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.RegSymSXP;
-import org.prlprg.util.NotImplementedError;
 
-/** An abstract tree of environments that can perform variable lookup in abstract interpretation. */
+/**
+ * An abstract tree of environments that can perform variable lookup in abstract interpretation.
+ *
+ * <p>Specifically, it maps concrete environments ({@link RValue}s) to abstract environments {@link
+ * AbstractEnv}, and the abstract environments have parents ({@link AbstractEnv#parentEnv()}).
+ */
 public final class AbstractEnvHierarchy implements AbstractNode<AbstractEnvHierarchy> {
   private final Map<RValue, AbstractEnv> envs = new HashMap<>();
-  private final Map<RValue, RValue> aliases = new HashMap<>();
 
-  /** Creates an empty abstract environment hierarchy (no environments or aliases). */
+  /** Creates an empty abstract environment hierarchy (no mapped environments). */
   public AbstractEnvHierarchy() {}
 
-  public void addAlias(RValue value, RValue alias) {
-    if (aliases.containsKey(value)) {
-      throw new IllegalArgumentException(
-          "Alias already exists: " + value + " -> " + aliases.get(value));
-    }
-
-    aliases.put(value, alias);
-  }
-
-  public @IsEnv RValue dealias(@IsEnv RValue env) {
-    while (aliases.containsKey(env)) {
-      env = aliases.get(env);
-    }
-    return env;
-  }
-
+  /** Returns {@code true} iff every environment in the hierarchy is {@link AbstractEnv#UNKNOWN}. */
   public boolean areAllUnknown() {
     return envs.values().stream().allMatch(AbstractEnv::isUnknown);
   }
 
-  public boolean isKnown(@IsEnv RValue env) {
-    env = dealias(env);
-
+  /**
+   * Returns {@code true} iff the given concrete environment is mapped to an abstract environment.
+   *
+   * <p>This returns {@code true} even if the mapped environment is unknown. It's required before
+   * calling {@link #at(RValue)} if you don't know whether the environment is mapped.
+   */
+  public boolean contains(@IsEnv RValue env) {
     return envs.containsKey(env);
   }
 
+  /**
+   * Returns the abstract environment for the given concrete environment.
+   *
+   * @throws NoSuchElementException If the concrete environment isn't mapped.
+   */
   public AbstractEnv at(@IsEnv RValue env) {
-    env = dealias(env);
-
     var result = envs.get(env);
     if (result == null) {
       throw new NoSuchElementException("Environment not in hierarchy: " + env);
@@ -64,9 +57,8 @@ public final class AbstractEnvHierarchy implements AbstractNode<AbstractEnvHiera
     return result;
   }
 
+  /** Returns all concrete environments that could be parents of the given concrete environment. */
   public @UnmodifiableView Set<RValue> potentialParents(@IsEnv RValue env) {
-    env = dealias(env);
-
     var result = ImmutableSet.<RValue>builder();
 
     var hasBaseParent = false;
@@ -87,9 +79,8 @@ public final class AbstractEnvHierarchy implements AbstractNode<AbstractEnvHiera
           knownParent == AbstractEnv.UNKNOWN_PARENT && auxParent != null ? auxParent : knownParent;
     }
 
-    // We did not reach the outer most environment of the current closure.
-    // Therefore we have no clue which envs are the actual parents. The
-    // conservative choice is to return all candidates.
+    // We did not reach the outermost environment of the current closure. Therefore, we have no clue
+    // which envs are the actual parents. The conservative choice is to return all candidates.
     if (!hasBaseParent) {
       result.addAll(envs.keySet());
     }
@@ -147,14 +138,10 @@ public final class AbstractEnvHierarchy implements AbstractNode<AbstractEnvHiera
         });
   }
 
+  /** Private method for shared code in all {@code lookup...} functions. */
   private AbstractLoad lookupGeneric(
       RValue env, RegSymSXP name, boolean skipInnermost, Function<AbstractRValue, Maybe> test) {
-    // First, de-alias.
-    while (aliases.containsKey(env)) {
-      env = Objects.requireNonNull(aliases.get(env));
-    }
-
-    // Then, do a regular lookup from innermost to outermost.
+    // First, do a regular lookup from innermost to outermost.
     // Except we're dealing with abstract values, so there are cases where a value "may" be present.
     // In these cases, we have to return the union of what we'd return if the value was present and
     // what we'd return if not, which in our domain loses precision to become "unknown environment"
@@ -188,8 +175,7 @@ public final class AbstractEnvHierarchy implements AbstractNode<AbstractEnvHiera
           // else, this env didn't find a real candidate, so we fall through.
         }
 
-        if (env instanceof StaticEnv
-            || (env instanceof Stmt s && s.data() instanceof LdEnclosEnv)) {
+        if (env instanceof StaticEnv /* && env != StaticEnv.EMPTY, if we add `StaticEnv.EMPTY` */) {
           // In the case of existing R envs we only have a partial view (i.e. we
           // don't see all stores happening before entering the current function,
           // therefore we cannot practically exclude the existence of a binding
@@ -210,25 +196,34 @@ public final class AbstractEnvHierarchy implements AbstractNode<AbstractEnvHiera
     return new AbstractLoad(AbstractEnv.UNKNOWN_PARENT, AbstractRValue.UNKNOWN);
   }
 
+  /**
+   * Mark {@code to} as "reachable" from {@code from}.
+   *
+   * <p>Specifically, if {@code from} is leaked or eventually leaks, {@code to} also leaks, and if
+   * {@code to} is unknown or static, {@code from} leaks. I don't know the significance of
+   * "dependency" here.
+   */
   public void addDependency(@IsEnv RValue from, @IsEnv RValue to) {
     if (from.equals(to)) {
       return;
     }
 
-    if (to == AbstractEnv.UNKNOWN_PARENT
-        || to instanceof StaticEnv
-        || (to instanceof Stmt s && s.data() instanceof LdEnclosEnv)) {
+    if (to == AbstractEnv.UNKNOWN_PARENT || to instanceof StaticEnv
+    /* && env != StaticEnv.EMPTY, if we add `StaticEnv.EMPTY` */ ) {
       leak(from);
       return;
     }
 
-    var a = at(from);
-    if (a.isLeaked()) {
+    var afrom = at(from);
+    if (afrom.isLeaked()) {
       leak(to);
     }
-    a.addReachableEnv(to);
+    afrom.addReachableEnv(to);
   }
 
+  /**
+   * Mark the abstract environment mapped to the concrete environment (and dependencies) as leaked.
+   */
   public void leak(@IsEnv RValue env) {
     var e = at(env);
 
@@ -242,13 +237,19 @@ public final class AbstractEnvHierarchy implements AbstractNode<AbstractEnvHiera
     }
   }
 
+  /**
+   * Taint every leaked environment (or environment mapped to the global concrete environment?).
+   *
+   * <p>Returns {@link AbstractResult#TAINTED} if we had to taint an environment (otherwise {@link
+   * AbstractResult#NONE}.
+   */
   public AbstractResult taintLeaked() {
     var res = AbstractResult.NONE;
     for (var e : envs.entrySet()) {
       var load = e.getKey();
       var env = e.getValue();
 
-      if (env.isLeaked() || load == StaticEnv.GLOBAL) {
+      if ((env.isLeaked() || load == StaticEnv.GLOBAL) && !env.isUnknown()) {
         e.setValue(AbstractEnv.UNKNOWN);
         res = AbstractResult.TAINTED;
       }
@@ -266,28 +267,16 @@ public final class AbstractEnvHierarchy implements AbstractNode<AbstractEnvHiera
       var otherEnv = e.getValue();
       var myEnv = envs.get(load);
 
-      // Env only known on one branch -> merge with empty environment (not a no-op).
+      // Env only known on one branch -> merge with empty environment
+      // (not a no-op because it makes values maybe unbound).
       if (myEnv == null) {
-        res = res.union(otherEnv.merge(new AbstractEnv()));
+        myEnv = otherEnv.copy();
+        res = res.union(myEnv.merge(new AbstractEnv()));
         // `UPDATED` is because we add to `envs`.
-        envs.put(load, otherEnv);
+        envs.put(load, myEnv);
         res = res.union(AbstractResult.UPDATED);
       } else {
         res = res.union(myEnv.merge(otherEnv));
-      }
-    }
-
-    for (var e : other.aliases.entrySet()) {
-      var aliased = e.getKey();
-      var otherAlias = e.getValue();
-      var myAlias = aliases.get(aliased);
-
-      if (myAlias == null) {
-        // `UPDATED` is because we add to `aliases`.
-        aliases.put(aliased, otherAlias);
-        res = res.union(AbstractResult.UPDATED);
-      } else {
-        assert myAlias.equals(otherAlias);
       }
     }
 
@@ -295,9 +284,12 @@ public final class AbstractEnvHierarchy implements AbstractNode<AbstractEnvHiera
   }
 
   @Override
-  public AbstractEnvHierarchy clone() {
-    // TODO
-    throw new NotImplementedError();
+  public AbstractEnvHierarchy copy() {
+    var result = new AbstractEnvHierarchy();
+    for (var e : envs.entrySet()) {
+      result.envs.put(e.getKey(), e.getValue().copy());
+    }
+    return result;
   }
 
   // region serialization and deserialization
@@ -317,18 +309,6 @@ public final class AbstractEnvHierarchy implements AbstractNode<AbstractEnvHiera
             }
 
             w.write('\n');
-            p.print(e.getKey());
-            w.write(" -> ");
-            p.print(e.getValue());
-          }
-
-          for (var e : aliases.entrySet()) {
-            if (!written) {
-              w.write(',');
-              written = true;
-            }
-
-            w.write("\nalias ");
             p.print(e.getKey());
             w.write(" -> ");
             p.print(e.getValue());
