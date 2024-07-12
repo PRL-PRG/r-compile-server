@@ -146,6 +146,16 @@ public final class AbstractEnv implements AbstractNode<AbstractEnv> {
     isLeaked = true;
   }
 
+  public void unleak() {
+    if (isUnknown) {
+      throw new IllegalStateException("Can't unleak an unknown environment");
+    } else if (!isLeaked) {
+      throw new IllegalStateException("Can't unleak an environment that hasn't been leaked");
+    }
+
+    isLeaked = false;
+  }
+
   /** Set to {@link #UNKNOWN}. */
   public void taint() {
     entries = Collections.emptyMap();

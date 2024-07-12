@@ -76,6 +76,7 @@ abstract class AbstractInterpretation<State extends AbstractNode<State>> {
   protected final AnalysisDebugLevel debugLevel;
   protected final Direction direction;
   protected final ClosureVersion innermostVersion;
+  protected final boolean isPromise;
   protected final CFG cfg;
   private final ImmutableSet<BB> entries;
   private final ImmutableMap<BB, BBSnapshot<State>> snapshots;
@@ -86,17 +87,20 @@ abstract class AbstractInterpretation<State extends AbstractNode<State>> {
   /**
    * Create and immediately run a new abstract interpretation static analysis.
    *
-   * <p>The initial state is cloned, so you can continue to mutate it after calling.
+   * <p>The initial state is {@linkplain AbstractNode#copy() copied}, so you can continue to mutate
+   * it after calling.
    */
   public AbstractInterpretation(
       AnalysisDebugLevel debugLevel,
       Direction direction,
       ClosureVersion innermostVersion,
+      boolean isPromise,
       CFG cfg,
       State initial) {
     this.debugLevel = debugLevel;
     this.direction = direction;
     this.innermostVersion = innermostVersion;
+    this.isPromise = isPromise;
     this.cfg = cfg;
 
     // We assume the class is exact, `State` can't have subclasses.
@@ -113,7 +117,7 @@ abstract class AbstractInterpretation<State extends AbstractNode<State>> {
             : ImmutableSet.copyOf(cfg.exits());
 
     for (var snapshot : snapshots.values()) {
-      snapshot.beforeEntry = initial.clone();
+      snapshot.beforeEntry = initial.copy();
     }
 
     logHeader();
@@ -144,9 +148,8 @@ abstract class AbstractInterpretation<State extends AbstractNode<State>> {
   // endregion construct and run
 
   // region get results
-  protected final BBSnapshot<State> snapshot(BB bb) {
-    return Objects.requireNonNull(
-        snapshots.get(bb), "CFG was modified during analysis (added a BB), that can't happen");
+  public final State atCfgExit() {
+    return Objects.requireNonNull(mergedExitpoint);
   }
 
   public final State atEntry(BB bb) {
@@ -189,6 +192,11 @@ abstract class AbstractInterpretation<State extends AbstractNode<State>> {
         });
   }
 
+  protected final BBSnapshot<State> snapshot(BB bb) {
+    return Objects.requireNonNull(
+        snapshots.get(bb), "CFG was modified during analysis (added a BB), that can't happen");
+  }
+
   // endregion get results
 
   // region abstract methods
@@ -205,7 +213,9 @@ abstract class AbstractInterpretation<State extends AbstractNode<State>> {
    *
    * <p>Note that if the analysis is backward, this will compute at the <i>exit</i>.
    */
-  protected abstract AbstractResult computeAtEntry(State state, BB bb);
+  protected AbstractResult computeAtEntry(State ignored, BB ignored1) {
+    return AbstractResult.NONE;
+  }
 
   // endregion abstract methods
 
@@ -216,16 +226,13 @@ abstract class AbstractInterpretation<State extends AbstractNode<State>> {
       var bb = changedBeforeEntry.removeFirst();
       var snapshot = snapshot(bb);
 
-      var state = Objects.requireNonNull(snapshot.beforeEntry).clone();
-      logInitialState(state);
+      var state = Objects.requireNonNull(snapshot.beforeEntry).copy();
+      logInitialState(state, bb);
 
       var entryRes = computeAtEntry(state, bb);
-      snapshot.atEntry = state;
+      // If `res == NONE`, we can reuse the previous state instead of copying.
+      snapshot.atEntry = entryRes == AbstractResult.NONE ? snapshot.beforeEntry : state.copy();
       logEntryChange(snapshot.beforeEntry, state, bb, entryRes);
-
-      if (entryRes != AbstractResult.NONE) {
-        state = state.clone();
-      }
 
       var instrs =
           switch (direction) {
@@ -238,12 +245,9 @@ abstract class AbstractInterpretation<State extends AbstractNode<State>> {
         var old = i == 0 ? snapshot.atEntry : snapshot.afterInstruction[i - 1];
 
         var res = compute(state, bb, i, instr);
-        snapshot.afterInstruction[i] = state;
+        // If `res == NONE`, we can reuse the previous state instead of copying.
+        snapshot.afterInstruction[i] = res == AbstractResult.NONE ? old : state.copy();
         logChange(old, state, bb, i, instr, res);
-
-        if (res != AbstractResult.NONE) {
-          state = state.clone();
-        }
       }
 
       var nexts =
@@ -256,9 +260,10 @@ abstract class AbstractInterpretation<State extends AbstractNode<State>> {
         logExit(state);
 
         if (mergedExitpoint == null) {
-          mergedExitpoint = state.clone();
+          // We don't use the state after, so we can assign it directly ("move" it).
+          mergedExitpoint = state;
         } else {
-          mergedExitpoint.merge(state.clone());
+          mergedExitpoint.merge(state);
         }
       } else {
         for (var next : nexts) {
@@ -286,11 +291,8 @@ abstract class AbstractInterpretation<State extends AbstractNode<State>> {
         : "can't call `mergeEntry` unless entry has already been visited";
 
     var oldForLogging =
-        debugLevel.compareTo(AnalysisDebugLevel.MERGE) >= 0
-                || debugLevel == AnalysisDebugLevel.TAINT
-            ? thisState.beforeEntry.clone()
-            : null;
-    var res = thisState.beforeEntry.merge(state.clone());
+        debugLevel == AnalysisDebugLevel.TAINT ? thisState.beforeEntry.copy() : null;
+    var res = thisState.beforeEntry.merge(state);
     logMergeEntry(oldForLogging, state, thisState.beforeEntry, entry, res);
 
     return res != AbstractResult.NONE;
@@ -309,16 +311,16 @@ abstract class AbstractInterpretation<State extends AbstractNode<State>> {
     var thisState = snapshot(branch);
     if (thisState.beforeEntry == null) {
       // This is the first time we've seen this branch.
-      thisState.beforeEntry = state.clone();
+      thisState.beforeEntry = state.copy();
       return true;
     } else {
       // Not the first time, so merge prior entry state.
       var oldForLogging =
           debugLevel.compareTo(AnalysisDebugLevel.MERGE) >= 0
                   || debugLevel == AnalysisDebugLevel.TAINT
-              ? thisState.beforeEntry.clone()
+              ? thisState.beforeEntry.copy()
               : null;
-      var res = thisState.beforeEntry.merge(state.clone());
+      var res = thisState.beforeEntry.merge(state);
       logMerge(oldForLogging, state, thisState.beforeEntry, in, branch, res);
 
       return res != AbstractResult.NONE;
@@ -334,57 +336,109 @@ abstract class AbstractInterpretation<State extends AbstractNode<State>> {
   }
 
   private void logHeader() {
-    // TODO
+    if (debugLevel == AnalysisDebugLevel.NONE) {
+      return;
+    }
+
+    logger.info(
+        "========= Running "
+            + name()
+            + " analysis on @"
+            + innermostVersion.closure().name()
+            + "#"
+            + innermostVersion.index()
+            + (isPromise ? " promise" : ""));
   }
 
-  private void logInitialState(State state) {
-    // TODO
+  private void logInitialState(State state, BB bb) {
+    if (debugLevel.compareTo(AnalysisDebugLevel.BB) < 0) {
+      return;
+    }
+
+    logger.info("======= Entering BB " + bb.id() + ", initial state:");
+    logger.info(state.toString());
   }
 
   private void logEntryChange(State old, State state, BB bb, AbstractResult res) {
-    // TODO
+    if (res != AbstractResult.NONE
+        && debugLevel.compareTo(AnalysisDebugLevel.BB) < 0
+        && (debugLevel != AnalysisDebugLevel.TAINT || res != AbstractResult.TAINTED)) {
+      return;
+    }
+
+    if (debugLevel == AnalysisDebugLevel.TAINT) {
+      logger.info("======= Entering BB " + bb.id() + ", initial state:");
+      logger.info(old.toString());
+    }
+
+    logger.info("===== After entry change (" + res + "):");
+    logger.info(state.toString());
   }
 
   private void logChange(State old, State state, BB bb, int i, Instr instr, AbstractResult res) {
-    // TODO
+    if (debugLevel.compareTo(AnalysisDebugLevel.INSTRUCTION) < 0
+        && (debugLevel != AnalysisDebugLevel.TAINT || res != AbstractResult.TAINTED)) {
+      return;
+    }
+
+    logger.info("===== After applying instruction " + i + " in BB " + bb.id() + " (" + res + "):");
+    if (res != AbstractResult.NONE) {
+      if (debugLevel == AnalysisDebugLevel.TAINT) {
+        logger.info("===- Old:");
+        logger.info(old.toString());
+        logger.info("===- New:");
+      }
+      logger.info(state.toString());
+    }
   }
 
   private void logMergeEntry(
       @Nullable State old, State incoming, State state, BB entry, AbstractResult res) {
-    if (debugLevel.compareTo(AnalysisDebugLevel.MERGE) >= 0
-        || (res == AbstractResult.TAINTED && debugLevel == AnalysisDebugLevel.TAINT)) {
+    if (debugLevel.compareTo(AnalysisDebugLevel.MERGE) < 0
+        && (debugLevel != AnalysisDebugLevel.TAINT || res != AbstractResult.TAINTED)) {
       return;
     }
 
-    logger.info("===== Merging entry into BB " + entry.id() + ": " + res);
+    logger.info("======= Merging entry into BB " + entry.id() + " (" + res + "):");
     if (res != AbstractResult.NONE) {
       if (old != null) {
-        logger.info("===- Old:\n" + old);
+        logger.info("===- Old:");
+        logger.info(old.toString());
       }
-      logger.info("===- Incoming:\n" + incoming);
-      logger.info("===- New:\n" + state);
+      logger.info("===- Incoming:");
+      logger.info(incoming.toString());
+      logger.info("===- New:");
+      logger.info(state.toString());
     }
   }
 
   private void logMerge(
       @Nullable State old, State incoming, State state, BB in, BB branch, AbstractResult res) {
-    if (debugLevel.compareTo(AnalysisDebugLevel.MERGE) >= 0
-        || (res == AbstractResult.TAINTED && debugLevel == AnalysisDebugLevel.TAINT)) {
+    if (debugLevel.compareTo(AnalysisDebugLevel.MERGE) < 0
+        && (debugLevel != AnalysisDebugLevel.TAINT || res != AbstractResult.TAINTED)) {
       return;
     }
 
-    logger.info("===== Merging BB " + in.id() + " into " + branch.id() + ": " + res);
+    logger.info("===== Merging BB " + in.id() + " into " + branch.id() + " (" + res + ")");
     if (res != AbstractResult.NONE) {
-      if (old != null) {
-        logger.info("===- Old:\n" + old);
+      if (debugLevel == AnalysisDebugLevel.TAINT) {
+        logger.info("===- Old:");
+        logger.info(Objects.requireNonNull(old).toString());
       }
-      logger.info("===- Incoming:\n" + incoming);
-      logger.info("===- New:\n" + state);
+      logger.info("===- Incoming:");
+      logger.info(incoming.toString());
+      logger.info("===- New:");
+      logger.info(state.toString());
     }
   }
 
   private void logExit(State state) {
-    // TODO
+    if (debugLevel.compareTo(AnalysisDebugLevel.EXIT) < 0) {
+      return;
+    }
+
+    logger.info("======= Exiting, final state:");
+    logger.info(state.toString());
   }
   // endregion logging
 }
