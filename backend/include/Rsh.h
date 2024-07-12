@@ -1,19 +1,20 @@
 #ifndef RSH_H
 #define RSH_H
 
-#define COMPILING_R 1
+#define HAVE_DECL_SIZE_MAX 1
 
+#include "Rinternals.h"
 #include "Rsh_internals.h"
 
 #define Rsh_error(msg, ...)                                                    \
   {                                                                            \
-    Rf_error(msg, __VA_ARGS__);                                                \
+    error(msg, __VA_ARGS__);                                                   \
     return R_NilValue;                                                         \
   }
 
 // TODO: use the getvar from eval.c instead
 static INLINE SEXP Rsh_get_var(SEXP sym, SEXP env) {
-  SEXP v = Rf_findVar(sym, env);
+  SEXP v = findVar(sym, env);
 
   if (v == R_UnboundValue) {
     Rsh_error("'%s' not found", CHAR(PRINTNAME(sym)));
@@ -21,7 +22,7 @@ static INLINE SEXP Rsh_get_var(SEXP sym, SEXP env) {
     Rsh_error("'%s' is missing", CHAR(PRINTNAME(sym)));
   } else if (TYPEOF(v) == PROMSXP) {
     PROTECT(v);
-    v = Rf_eval(v, env);
+    v = eval(v, env);
     UNPROTECT(1);
   }
 
@@ -76,10 +77,10 @@ static INLINE SEXP Rsh_call(SEXP call, SEXP fun, SEXP args, SEXP rho) {
     break;
   case CLOSXP:
     args = Rsh_closure_call_args(args);
-    value = Rf_applyClosure(call, fun, args, rho, R_NilValue);
+    value = applyClosure(call, fun, args, rho, R_NilValue);
     break;
   default:
-    Rf_error("bad function");
+    error("bad function");
   }
   return value;
 }
@@ -99,7 +100,7 @@ static INLINE Rboolean Rsh_is_true(SEXP value, SEXP call) {
 
 #define RSH_LIST_APPEND(head, tail, value)                                     \
   do {                                                                         \
-    SEXP __elem__ = Rf_cons(value, R_NilValue);                                \
+    SEXP __elem__ = cons(value, R_NilValue);                                   \
     if (head == R_NilValue) {                                                  \
       head = __elem__;                                                         \
     } else {                                                                   \
@@ -113,7 +114,7 @@ static INLINE Rboolean Rsh_is_true(SEXP value, SEXP call) {
     SEXP __tag__ = (t);                                                        \
     if (__tag__ != R_NilValue) {                                               \
       if (v != R_NilValue)                                                     \
-        SET_TAG(v, Rf_CreateTag(__tag__));                                     \
+        SET_TAG(v, CreateTag(__tag__));                                        \
     }                                                                          \
   } while (0)
 
@@ -124,19 +125,19 @@ static INLINE SEXP Rsh_fast_binary(BINARY_OP op, SEXP x, SEXP y) {
   case ADD:
     if (TYPEOF(x) == REALSXP && TYPEOF(y) == REALSXP) {
       // FIXME: NA, ...
-      return Rf_ScalarReal(REAL(x)[0] + REAL(y)[0]);
+      return ScalarReal(REAL(x)[0] + REAL(y)[0]);
     }
-    Rf_error("Unsupported type");
+    error("Unsupported type");
     break;
   case LT:
     if (TYPEOF(x) == REALSXP && TYPEOF(y) == REALSXP) {
       // FIXME: NA, ...
-      return Rf_ScalarLogical(REAL(x)[0] < REAL(y)[0]);
+      return ScalarLogical(REAL(x)[0] < REAL(y)[0]);
     }
-    Rf_error("Unsupported type");
+    error("Unsupported type");
     break;
   default:
-    Rf_error("Unsupported op: %d", op);
+    error("Unsupported op: %d", op);
   }
 
   // FIXME: pull in the arith
@@ -147,7 +148,7 @@ static INLINE void Rsh_set_var(SEXP symbol, SEXP value, SEXP env) {
   INCREMENT_NAMED(value);
   // FIXME: shouldn't it be caller protected?
   PROTECT(value);
-  Rf_defineVar(symbol, value, env);
+  defineVar(symbol, value, env);
   UNPROTECT(1);
 }
 

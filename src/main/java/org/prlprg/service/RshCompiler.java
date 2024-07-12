@@ -15,7 +15,6 @@ public class RshCompiler {
   private static final List<String> COMPILER_FLAGS =
       List.of(
           "-DNDEBUG",
-          "-DR_NO_REMAP",
           "-I.",
           "-I" + INCLUDE_PATH,
           "-fpic",
@@ -33,6 +32,7 @@ public class RshCompiler {
           "-Wall",
           "-Wno-unused-but-set-variable",
           "-pedantic",
+          "-O3",
           "-g");
 
   private static RshCompiler instance;
