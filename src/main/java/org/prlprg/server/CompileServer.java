@@ -6,13 +6,12 @@ import io.grpc.Status;
 import io.grpc.protobuf.services.ProtoReflectionService;
 import io.grpc.stub.StreamObserver;
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
+import javax.annotation.Nullable;
 import org.prlprg.bc.Compiler;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.session.GNURSession;
-import org.prlprg.session.RSession;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.SEXP;
 
@@ -74,6 +73,7 @@ class CompileServer {
   }
 
   private static class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
+    private @Nullable GNURSession session = null;
 
     // Testing externally: grpcurl -plaintext -d '{"function":{"name": "testFunc"}}' 0.0.0.0:8980
     // CompileService.Compile
@@ -81,6 +81,11 @@ class CompileServer {
     public void compile(
         Messages.CompileRequest request,
         StreamObserver<Messages.CompileResponse> responseObserver) {
+
+      if (session == null) {
+        responseObserver.onError(
+            Status.INTERNAL.withDescription("Session not initialized.").asRuntimeException());
+      }
 
       // Parse the request
       Messages.Function function = request.getFunction();
@@ -94,9 +99,6 @@ class CompileServer {
       Messages.CompileResponse.Builder response = Messages.CompileResponse.newBuilder();
       // TODO
       if (function.hasBody()) {
-        // TODO: we need a RSession. Create it at the level of the CompileServer class.
-        // TODO: find out the right path. Env var?
-        RSession session = new GNURSession(Path.of("path/to/R/"));
         SEXP closure = null;
         try {
           closure = RDSReader.readByteString(session, function.getBody());
@@ -122,6 +124,22 @@ class CompileServer {
       response.setTier(tier);
       responseObserver.onNext(response.build());
       responseObserver.onCompleted();
+    }
+
+    @Override
+    public void init(
+        Messages.InitRequest request, StreamObserver<Messages.InitResponse> responseObserver) {
+
+      // Parse the request
+      Messages.Version rshVersion = request.getRshVersion();
+      Messages.Version RVersion = request.getRVersion();
+      String platform = request.getPlatform();
+
+      var packages = request.getPackageHashList();
+
+      // Look into our cache if we have the packages.
+      // Request the packages for those we do not have hashes for.
+
     }
   }
 }

@@ -1,23 +1,37 @@
 package org.prlprg.session;
 
+import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Set;
+import javax.annotation.Nullable;
+import org.prlprg.RVersion;
+import org.prlprg.rds.RDSReader;
 import org.prlprg.server.Messages;
-import org.prlprg.sexp.BaseEnvSXP;
-import org.prlprg.sexp.GlobalEnvSXP;
-import org.prlprg.sexp.NamespaceEnvSXP;
+import org.prlprg.sexp.*;
 
 public class GNURSession implements RSession {
   private URI cranMirror;
+  private org.prlprg.RVersion RVersion;
+
+  private @Nullable BaseEnvSXP baseEnvSXP = null;
+  private @Nullable NamespaceEnvSXP baseNamespace = null;
+  private @Nullable GlobalEnvSXP globalEnv = null;
+  private @Nullable Set<String> builtins = null;
+  private @Nullable Set<String> specials = null;
+  private @Nullable Set<String> builtinsInternal = null;
+  private @Nullable HashMap<String, NamespaceEnvSXP> namespaces = null;
 
   // TODO: need the path to R *and* the path to the installed packages
-  public GNURSession(Path r_dir) {
+  public GNURSession(org.prlprg.RVersion version, Path r_dir) {
     cranMirror = URI.create("https://cran.r-project.org");
+    RVersion = version;
   }
 
-  GNURSession(Path r_dir, URI cranMirror) {
-    this(r_dir);
+  public GNURSession(RVersion version, Path r_dir, URI cranMirror) {
+    this(version, r_dir);
     this.cranMirror = cranMirror;
   }
 
@@ -41,8 +55,29 @@ public class GNURSession implements RSession {
    * @param name
    * @param version
    * @param functions in the package
+   * @return the populated environment
    */
-  public void loadPackage(String name, String version, List<Messages.Function> functions) {}
+  public EnvSXP loadPackage(String name, String version, List<Messages.Function> functions) {
+    if (name.equals("base")) {
+      throw new RuntimeException("Cannot load base namespace this way");
+    }
+    // Should the parent rather be the package namespace?
+    if (baseNamespace == null) {
+      throw new RuntimeException("Base namespace not loaded yet");
+    }
+
+    var bindings = new HashMap<String, SEXP>(functions.size());
+    functions.forEach(
+        function -> {
+          try {
+            bindings.put(
+                function.getName(), (CloSXP) RDSReader.readByteString(this, function.getBody()));
+          } catch (IOException e) {
+            throw new RuntimeException(e);
+          }
+        });
+    return new NamespaceEnvSXP(name, version, baseNamespace, bindings);
+  }
 
   @Override
   public NamespaceEnvSXP baseNamespace() {

@@ -22,17 +22,20 @@ message PackageSource {
 message Package {
   string name = 1;
   Version version = 2;
-  optional bytes hash = 3;//Hash of the whole package
-  repeated Function functions = 4;// we can send some/all of the functions (with their bodies and/or hash)
+  repeated bytes function_hashes = 4;
   // What about package data? Maybe just the sysdata?
-  optional PackageSource source = 5;
+  optional PackageSource source = 5;//If none, it is a base package or a local package
+}
+
+message PackageRequest {
+  bytes hash = 1;
 }
 
 message InitRequest {
   Version Rsh_version = 1;// version of the compile server
   Version R_version = 2;
   string platform = 3;//amd64, etc TODO: use an enum for the allowed platforms?
-  repeated Package packages = 4;//Packages we are initially part of the environment (in addition to base)
+  repeated bytes package_hash = 4;//Packages which are initially part of the environment (in addition to base)
 }
 
 message InitResponse {}
@@ -40,10 +43,14 @@ message InitResponse {}
 message Empty {}
 
 message Function {
-  optional string package = 1;// There can be only one version of a package loaded at a time
+  bytes package_hash = 1;
   string name = 2; //What if it is a closure passed to a HOF?
   optional bytes body = 3;
-  optional bytes hash = 4;
+  // what about the function parameters?
+}
+
+message FunctionRequest {
+  bytes hash = 1;
 }
 
 message CallContext {
@@ -105,7 +112,6 @@ message ValueFeedback {
 }
 
 message TypeFeedback {
-  Function function = 1;
   message Feedback {
     oneof feedback {
       TestFeedback test_feedback = 1;
