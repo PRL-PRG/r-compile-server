@@ -95,7 +95,7 @@ interface BBIntrinsicMutate {
    * predecessors.
    *
    * @throws UnsupportedOperationException If there's no phi class implemented for the given class
-   *     (e.g. {@link RValuePhi} is for {@link RValue}s; there isn't an analogue for all node types,
+   *     (e.g. {@link ISexpPhi} is for {@link ISexp}s; there isn't an analogue for all node types,
    *     those without one will cause this exception).
    */
   <N extends Node> Phi<N> addPhi(Class<? extends N> nodeClass);

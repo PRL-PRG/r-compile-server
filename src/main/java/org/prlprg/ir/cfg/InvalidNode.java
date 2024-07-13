@@ -8,7 +8,7 @@ import org.prlprg.ir.type.RType;
 import org.prlprg.primitive.Names;
 
 /** Node representing missing, invalid, or placeholder data. */
-public class InvalidNode implements DeoptReason, RValue, FrameState, GlobalNode {
+public class InvalidNode implements DeoptReason, ISexp, FrameState, GlobalNode {
   private static class Globals {
     private final NodeOrBBIdDisambiguatorMap DISAMBIGUATORS = new NodeOrBBIdDisambiguatorMap();
     private final WeakHashMap<String, InvalidNode> EXISTING = new WeakHashMap<>();
@@ -108,7 +108,7 @@ public class InvalidNode implements DeoptReason, RValue, FrameState, GlobalNode 
   }
 
   @Override
-  public @Nullable @IsEnv RValue frameStateEnv() {
+  public @Nullable @IsEnv ISexp frameStateEnv() {
     return null;
   }
 

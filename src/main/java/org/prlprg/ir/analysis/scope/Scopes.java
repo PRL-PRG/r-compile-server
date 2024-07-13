@@ -9,17 +9,16 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import org.prlprg.ir.cfg.BB;
 import org.prlprg.ir.cfg.CFG;
+import org.prlprg.ir.cfg.ISexp;
+import org.prlprg.ir.cfg.ISexpStmt;
 import org.prlprg.ir.cfg.Instr;
 import org.prlprg.ir.cfg.IsEnv;
 import org.prlprg.ir.cfg.JumpData.Deopt;
 import org.prlprg.ir.cfg.JumpData.Return;
-import org.prlprg.ir.cfg.RValue;
-import org.prlprg.ir.cfg.RValueStmt;
 import org.prlprg.ir.cfg.StaticEnv;
 import org.prlprg.ir.cfg.Stmt;
 import org.prlprg.ir.cfg.StmtData;
 import org.prlprg.ir.cfg.StmtData.CallSafeBuiltin;
-import org.prlprg.ir.cfg.StmtData.Call_;
 import org.prlprg.ir.cfg.StmtData.CastType;
 import org.prlprg.ir.cfg.StmtData.ChkFun;
 import org.prlprg.ir.cfg.StmtData.ExpandDots;
@@ -64,7 +63,7 @@ public class Scopes {
 
   // Results
   private final Map<Instr, AbstractLoad> results = new HashMap<>();
-  private final Map<Instr, AbstractRValue> returnValues = new HashMap<>();
+  private final Map<Instr, AbstractISexp> returnValues = new HashMap<>();
   private final SubAnalysis rootSubAnalysis;
   private final ScopeAnalysisState finalState;
   private boolean changed = false;
@@ -106,14 +105,14 @@ public class Scopes {
   // endregion get results
 
   private class SubAnalysis extends AbstractInterpretation<ScopeAnalysisState> {
-    private final List<RValue> args;
-    private final @IsEnv RValue staticClosureEnv;
+    private final List<ISexp> args;
+    private final @IsEnv ISexp staticClosureEnv;
     private final int depth;
     private final boolean canDeopt;
 
     /** Create a sub-analysis to run on the given closure version. */
     private SubAnalysis(
-        ClosureVersion closureVersion, List<RValue> args, ScopeAnalysisState initial, int depth) {
+        ClosureVersion closureVersion, List<ISexp> args, ScopeAnalysisState initial, int depth) {
       this(
           closureVersion,
           false,
@@ -135,8 +134,8 @@ public class Scopes {
         ClosureVersion innermostVersion,
         boolean isPromise,
         CFG cfg,
-        List<RValue> args,
-        @IsEnv RValue staticClosureEnv,
+        List<ISexp> args,
+        @IsEnv ISexp staticClosureEnv,
         ScopeAnalysisState initial,
         int depth) {
       super(config.debugLevel(), Direction.FORWARD, innermostVersion, isPromise, cfg, initial);
@@ -169,7 +168,7 @@ public class Scopes {
           state
               .returnValue()
               .merge(
-                  lookup == null ? new AbstractRValue(ret.value(), instr, depth) : lookup.result());
+                  lookup == null ? new AbstractISexp(ret.value(), instr, depth) : lookup.result());
           res = res.union(AbstractResult.UPDATED);
         }
         case Deopt _ -> {
@@ -180,7 +179,7 @@ public class Scopes {
           }
         }
         case MkEnv mk -> {
-          var env = state.envs().at((RValueStmt) instr);
+          var env = state.envs().at((ISexpStmt) instr);
           env.setParentEnv(
               mk.parent() == StaticEnv.NOT_CLOSED && staticClosureEnv != StaticEnv.NOT_CLOSED
                   ? staticClosureEnv
@@ -239,7 +238,7 @@ public class Scopes {
           // If it's a non lazy thing, we do not need to bother.
           if (arg.type().isLazy() == Maybe.NO) {
             if (arg.type().isPromise() == Maybe.NO) {
-              updateReturnValue(instr, new AbstractRValue(arg, instr, depth));
+              updateReturnValue(instr, new AbstractISexp(arg, instr, depth));
             }
             handled = true;
           }
@@ -267,7 +266,7 @@ public class Scopes {
               if (lookupRes.type().isLazy() == Maybe.NO) {
                 updateReturnValue(
                     instr,
-                    lookupRes.type().isPromise() == Maybe.NO ? lookupRes : AbstractRValue.UNKNOWN);
+                    lookupRes.type().isPromise() == Maybe.NO ? lookupRes : AbstractISexp.UNKNOWN);
                 handled = true;
               } else if (singleOrigin != null) {
                 arg = singleOrigin.value();
@@ -279,7 +278,7 @@ public class Scopes {
           // Hence, only leaked envs can be affected
           if (!handled) {
             var concreteEnv =
-                f.env() instanceof RValueStmt s && s.data() instanceof MkEnv mk ? mk : null;
+                f.env() instanceof ISexpStmt s && s.data() instanceof MkEnv mk ? mk : null;
             if (arg instanceof Instr i && i.data() instanceof MkProm concretePromise) {
               var found = state.forcedPromises().get(concretePromise);
               if (found == null) {
@@ -323,7 +322,7 @@ public class Scopes {
               if (!handled) {
                 state.envs().at(concretePromise.promise().env()).taint();
                 res = res.union(state.envs().taintLeaked());
-                updateReturnValue(instr, AbstractRValue.UNKNOWN);
+                updateReturnValue(instr, AbstractISexp.UNKNOWN);
                 handled = true;
               }
             } else if (arg instanceof Instr i && i.data() instanceof LdArg ldArg) {
@@ -331,23 +330,23 @@ public class Scopes {
                   .callContext()
                   .requires(ldArg.index(), ArgAssumption.IS_NON_REFLECTIVE)) {
                 res = res.union(state.envs().taintLeaked());
-                updateReturnValue(instr, AbstractRValue.UNKNOWN);
+                updateReturnValue(instr, AbstractISexp.UNKNOWN);
                 handled = true;
               }
             } else if (concreteEnv != null && concreteEnv.isStub()) {
               // Forcing using a stub should deopt if local vars are modified.
               res = res.union(state.envs().taintLeaked());
-              updateReturnValue(instr, AbstractRValue.UNKNOWN);
+              updateReturnValue(instr, AbstractISexp.UNKNOWN);
               handled = true;
             }
           }
 
           if (!handled) {
             res = AbstractResult.TAINTED;
-            updateReturnValue(instr, AbstractRValue.UNKNOWN);
+            updateReturnValue(instr, AbstractISexp.UNKNOWN);
           }
         }
-        case Call_<?> call -> {
+        case StmtData.Call<?> call -> {
           var fun = call.fun();
           var hasDots =
               call.args().stream()
@@ -372,7 +371,7 @@ public class Scopes {
               // the analysis. Thus whatever is the result of this functions analysis, a recursive
               // call to itself cannot excert more behaviors.
               handled = true;
-              updateReturnValue(instr, AbstractRValue.UNKNOWN);
+              updateReturnValue(instr, AbstractISexp.UNKNOWN);
             } else if (!reachedFixedPoint()
                 && depth != config.maxDepth()
                 && concreteClosure.body().numNodes() <= config.maxSize()
@@ -452,19 +451,19 @@ public class Scopes {
             continue;
           }
 
-          RValue leak = null;
+          ISexp leak = null;
           if (arg instanceof Instr i && i.data() instanceof MkProm p) {
             leak = p.promise().env();
           } else if (arg instanceof Instr i && i.data() instanceof MkCls c) {
             leak = c.closure().env();
-          } else if (!(instr instanceof RValue v && v.isEnv() == Maybe.YES)
-              && (arg instanceof RValue v && v.isEnv() == Maybe.YES)) {
-            leak = (RValue) arg;
+          } else if (!(instr instanceof ISexp v && v.isEnv() == Maybe.YES)
+              && (arg instanceof ISexp v && v.isEnv() == Maybe.YES)) {
+            leak = (ISexp) arg;
           }
 
           if (leak != null && leak != StaticEnv.ELIDED) {
-            if (instr instanceof RValueStmt instrAsRValueStmt && instr.data() instanceof MkEnv) {
-              state.envs().addDependency(instrAsRValueStmt, leak);
+            if (instr instanceof ISexpStmt instrAsISexpStmt && instr.data() instanceof MkEnv) {
+              state.envs().addDependency(instrAsISexpStmt, leak);
             } else if (instr.data() instanceof StVar st) {
               state.envs().addDependency(st.env(), leak);
             } else if (instr.data() instanceof StVarSuper st) {
@@ -487,7 +486,7 @@ public class Scopes {
               instr.args().stream()
                   .anyMatch(
                       arg -> {
-                        if (!(arg instanceof RValue varg)) {
+                        if (!(arg instanceof ISexp varg)) {
                           return false;
                         }
 
@@ -537,7 +536,7 @@ public class Scopes {
       }
     }
 
-    private void updateReturnValue(Instr instr, AbstractRValue returnValue) {
+    private void updateReturnValue(Instr instr, AbstractISexp returnValue) {
       var oldReturn = returnValues.get(instr);
       if (oldReturn == null) {
         returnValues.put(instr, returnValue);
@@ -617,9 +616,9 @@ public class Scopes {
      *
      * <p>Otherwise, if the environment at the state is too ambiguous, it returns {@code null}.
      */
-    private @Nullable Map<RegSymSXP, Pair<AbstractRValue, Boolean>> tryMaterializeEnv(
-        ScopeAnalysisState state, @IsEnv RValue env) {
-      var resultIfKnown = new HashMap<RegSymSXP, Pair<AbstractRValue, Boolean>>();
+    private @Nullable Map<RegSymSXP, Pair<AbstractISexp, Boolean>> tryMaterializeEnv(
+        ScopeAnalysisState state, @IsEnv ISexp env) {
+      var resultIfKnown = new HashMap<RegSymSXP, Pair<AbstractISexp, Boolean>>();
 
       var envState = state.envs().at(env);
       for (var e : envState.entries().entrySet()) {
@@ -670,15 +669,15 @@ public class Scopes {
       return resultIfKnown;
     }
 
-    private AbstractLoad load(ScopeAnalysisState state, RegSymSXP name, @IsEnv RValue env) {
+    private AbstractLoad load(ScopeAnalysisState state, RegSymSXP name, @IsEnv ISexp env) {
       return tryToImprove(state.envs().lookup(env, name));
     }
 
-    private AbstractLoad loadFun(ScopeAnalysisState state, RegSymSXP name, @IsEnv RValue env) {
+    private AbstractLoad loadFun(ScopeAnalysisState state, RegSymSXP name, @IsEnv ISexp env) {
       return tryToImprove(state.envs().lookupFun(env, name));
     }
 
-    private AbstractLoad loadSuper(ScopeAnalysisState state, RegSymSXP name, @IsEnv RValue env) {
+    private AbstractLoad loadSuper(ScopeAnalysisState state, RegSymSXP name, @IsEnv ISexp env) {
       return tryToImprove(state.envs().lookupSuper(env, name));
     }
 
@@ -701,7 +700,7 @@ public class Scopes {
       return atCfgExit().envs();
     }
 
-    private AbstractRValue returnValue() {
+    private AbstractISexp returnValue() {
       return atCfgExit().returnValue();
     }
   }

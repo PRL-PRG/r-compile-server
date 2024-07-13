@@ -10,6 +10,7 @@ import org.prlprg.ir.type.lattice.BoundedLattice;
 import org.prlprg.ir.type.lattice.Lattice;
 import org.prlprg.ir.type.lattice.MaybeNat;
 import org.prlprg.ir.type.lattice.NoOrMaybe;
+import org.prlprg.ir.type.lattice.YesOrMaybe;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.BCodeSXP;
@@ -89,7 +90,7 @@ public sealed interface RValueType extends BoundedLattice<RValueType>
               "There is no `RValueType` for promises (`RType#exact` special-cases `PromSXP`)");
       case SymSXP _ ->
           throw new IllegalArgumentException(
-              "There is no `RValueType` for special symbols (`RType#exact` special-cases `MISSING_ARG` and \"unbound value\" `RValue`s should be represented by `null` or `Optional#empty` since they don't occur in normal code)");
+              "There is no `RValueType` for special symbols (`RType#exact` special-cases `MISSING_ARG` and \"unbound value\" `ISexp`s should be represented by `null` or `Optional#empty` since they don't occur in normal code)");
     };
   }
 
@@ -325,7 +326,12 @@ final class RNothingValueTypeImpl implements RNothingValueType {
 
   @Override
   public RFunTypeOverloads overloads() {
-    return RFunTypeOverloads.NONE;
+    throw handleExplicitly();
+  }
+
+  @Override
+  public YesOrMaybe isJit() {
+    throw handleExplicitly();
   }
 
   @Override

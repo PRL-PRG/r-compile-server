@@ -421,7 +421,7 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
       }
 
       // These four methods override all parsers for nodes when they are parsed in this context, so
-      // we can call e.g. `p.parse(RValue.class)` and it dispatches this.
+      // we can call e.g. `p.parse(ISexp.class)` and it dispatches this.
       @ParseMethod
       private BB parseBB(Parser p) {
         var id = p.parse(BBId.class);
@@ -536,7 +536,7 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
         s.assertAndSkip(clazz.getSimpleName());
         s.assertAndSkip('(');
 
-        var fun = p.parse(RValue.class);
+        var fun = p.parse(ISexp.class);
         SymOrLangSXP astFun = null;
         if (s.trySkip('[')) {
           astFun = p.parse(SymOrLangSXP.class);
@@ -546,7 +546,7 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
         s.assertAndSkip('(');
         var explicitNames =
             explicitNamesComponent == null ? null : ImmutableList.<Optional<String>>builder();
-        var args = ImmutableList.<RValue>builder();
+        var args = ImmutableList.<ISexp>builder();
         var astArgs = astFun == null ? null : ImmutableList.<TaggedElem>builder();
         if (!s.trySkip(')')) {
           do {
@@ -586,7 +586,7 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
               s.assertAndSkip('=');
             }
 
-            args.add(p.parse(RValue.class));
+            args.add(p.parse(ISexp.class));
 
             SEXP astDefaultValue;
             if (s.trySkip('[')) {
@@ -710,9 +710,9 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
         s.assertAndSkip('(');
         var name = p.parse(RegSymSXP.class);
         s.assertAndSkip("<-");
-        var value = p.parse(RValue.class);
+        var value = p.parse(ISexp.class);
         s.assertAndSkip(", env=");
-        var env = p.parse(RValue.class);
+        var env = p.parse(ISexp.class);
         s.assertAndSkip(')');
 
         return new StVar(name, value, env, isArg);

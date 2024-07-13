@@ -6,8 +6,8 @@ import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.Unmodifiable;
 import org.prlprg.ir.cfg.Constant;
+import org.prlprg.ir.cfg.ISexp;
 import org.prlprg.ir.cfg.Instr;
-import org.prlprg.ir.cfg.RValue;
 import org.prlprg.ir.type.RType;
 import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.parseprint.PrintMethod;
@@ -15,11 +15,11 @@ import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.SEXPs;
 
 /**
- * The possible {@linkplain RValue R SEXPs} at a particular {@linkplain Instr instruction} in any
+ * The possible {@linkplain ISexp R SEXPs} at a particular {@linkplain Instr instruction} in any
  * interpretation trace.
  */
-public final class AbstractRValue implements AbstractNode<AbstractRValue> {
-  public record ValueOrigin(RValue value, @Nullable Instr origin, int recursionLevel) {
+public final class AbstractISexp implements AbstractNode<AbstractISexp> {
+  public record ValueOrigin(ISexp value, @Nullable Instr origin, int recursionLevel) {
     private static final ValueOrigin UNBOUND =
         new ValueOrigin(new Constant(SEXPs.UNBOUND_VALUE), null, 0);
 
@@ -43,8 +43,7 @@ public final class AbstractRValue implements AbstractNode<AbstractRValue> {
    *
    * <p>This can is because it can't change; merging with unknown always produces unknown.
    */
-  public static final AbstractRValue UNKNOWN =
-      new AbstractRValue(ImmutableSet.of(), RType.ANY, true);
+  public static final AbstractISexp UNKNOWN = new AbstractISexp(ImmutableSet.of(), RType.ANY, true);
 
   private static final int MAX_VALUES = 5;
 
@@ -54,21 +53,21 @@ public final class AbstractRValue implements AbstractNode<AbstractRValue> {
   private boolean isUnknown;
 
   /** Creates an abstract value representing "bottom". */
-  public AbstractRValue() {
+  public AbstractISexp() {
     origins = ImmutableSet.of();
     type = RType.NOTHING;
     isUnknown = false;
   }
 
   /** Creates an abstract value representing the given concrete value. */
-  public AbstractRValue(RValue value, @Nullable Instr origin, int recursionLevel) {
+  public AbstractISexp(ISexp value, @Nullable Instr origin, int recursionLevel) {
     origins = ImmutableSet.of(new ValueOrigin(value, origin, recursionLevel));
     type = value.type();
     isUnknown = false;
   }
 
   /** Internal constructor for {@link #copy()} and {@link #UNKNOWN}. */
-  private AbstractRValue(ImmutableSet<ValueOrigin> origins, RType type, boolean isUnknown) {
+  private AbstractISexp(ImmutableSet<ValueOrigin> origins, RType type, boolean isUnknown) {
     this.origins = origins;
     this.type = type;
     this.isUnknown = isUnknown;
@@ -131,7 +130,7 @@ public final class AbstractRValue implements AbstractNode<AbstractRValue> {
   }
 
   @Override
-  public AbstractResult merge(AbstractRValue other) {
+  public AbstractResult merge(AbstractISexp other) {
     // Skip if unknown or equal.
     if (isUnknown
         || (type.isNothing() && other.type.isNothing())
@@ -170,8 +169,8 @@ public final class AbstractRValue implements AbstractNode<AbstractRValue> {
   }
 
   @Override
-  public AbstractRValue copy() {
-    return new AbstractRValue(origins, type, isUnknown);
+  public AbstractISexp copy() {
+    return new AbstractISexp(origins, type, isUnknown);
   }
 
   // region serialization and deserialization

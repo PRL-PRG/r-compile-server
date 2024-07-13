@@ -8,7 +8,7 @@ import java.lang.annotation.Target;
 import org.prlprg.ir.closure.Closure;
 
 /**
- * Annotation for {@link RValue} in an {@link InstrData} which is always an environment.
+ * Annotation for {@link ISexp} in an {@link InstrData} which is always an environment.
  *
  * <p>This is essentially {@link TypeIs TypeIs("ENV")}, but shorter because it's extremely common.
  * It's also applied to more Java elements (e.g. {@link Closure#env()}, although some of those

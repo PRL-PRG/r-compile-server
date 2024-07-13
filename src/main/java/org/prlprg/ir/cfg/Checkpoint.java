@@ -21,7 +21,7 @@ public interface Checkpoint extends Jump {
   @Override
   Checkpoint_ data();
 
-  default void addAssumption(RValue test, org.prlprg.rshruntime.DeoptReason failReason) {
+  default void addAssumption(ISexp test, org.prlprg.rshruntime.DeoptReason failReason) {
     Instr.mutateArgs(
         this,
         new Checkpoint_(
@@ -34,7 +34,7 @@ public interface Checkpoint extends Jump {
   }
 
   /** Remove assumptions whose tests don't pass {@code keepTest}. */
-  default void filterAssumptions(Predicate<RValue> keepTest) {
+  default void filterAssumptions(Predicate<ISexp> keepTest) {
     var testsAndFailReasons =
         data().streamAssumptionData().filter(pair -> keepTest.test(pair.first())).toList();
     Instr.mutateArgs(

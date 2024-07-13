@@ -19,7 +19,7 @@ import org.prlprg.bc.Bc;
 import org.prlprg.ir.cfg.JumpData.Checkpoint_;
 import org.prlprg.ir.cfg.PirType.NativeType;
 import org.prlprg.ir.cfg.PirType.RType_;
-import org.prlprg.ir.cfg.StmtData.Call_;
+import org.prlprg.ir.cfg.StmtData.Call;
 import org.prlprg.ir.cfg.StmtData.FrameState_;
 import org.prlprg.ir.cfg.StmtData.NamelessCall;
 import org.prlprg.ir.closure.Closure;
@@ -405,25 +405,25 @@ class PirInstrOrPhiParseContext {
             var name = p.parse(RegSymSXP.class);
             s.trySkip(" !upd");
             s.assertAndSkip(", ");
-            var env = p.parse(RValue.class);
+            var env = p.parse(ISexp.class);
             yield new StmtData.LdVar(name, false, env);
           }
           case "StVar", "StArg" -> {
             var varName = p.parse(RegSymSXP.class);
             s.assertAndSkip(", ");
-            var r = p.parse(RValue.class);
+            var r = p.parse(ISexp.class);
             s.assertAndSkip(", ");
-            var env = p.parse(RValue.class);
+            var env = p.parse(ISexp.class);
             yield new StmtData.StVar(varName, r, env, instrTypeName.equals("StArg"));
           }
           case "Is" -> {
-            var value = p.parse(RValue.class);
+            var value = p.parse(ISexp.class);
             s.assertAndSkip(", ");
             var typeCheck = p.parse(IsTypeCheck.class);
             yield new StmtData.GnuRIs(typeCheck, value);
           }
           case "IsType" -> {
-            var value = p.parse(RValue.class);
+            var value = p.parse(ISexp.class);
             s.assertAndSkip(" isA ");
             var type = p.parse(RType.class);
             yield new StmtData.IsType(type, value);
@@ -435,7 +435,7 @@ class PirInstrOrPhiParseContext {
             if (!(pirType instanceof PirType.RType_(var rType))) {
               throw s.fail("can't CastType a native PIR type");
             }
-            var value = p.parse(RValue.class);
+            var value = p.parse(ISexp.class);
             yield new StmtData.CastType(rType, value);
           }
           case "Force", "Force!" -> {
@@ -445,51 +445,51 @@ class PirInstrOrPhiParseContext {
             //
             // Currently there's no `strict` field in `Force` instructions in the Java compiler,
             // instead it's a method. But maybe there's a good reason for them being separate?
-            var promise = p.parse(RValue.class);
+            var promise = p.parse(ISexp.class);
             s.assertAndSkip(", ");
             var frameStateOrEnv =
                 s.nextCharSatisfies(Character::isWhitespace) ? null : p.parse(Node.class);
             FrameState frameState = null;
-            RValue env = null;
+            ISexp env = null;
             if (s.trySkip(", ")) {
               frameState = (FrameState) frameStateOrEnv;
-              env = p.parse(RValue.class);
+              env = p.parse(ISexp.class);
             } else if (frameStateOrEnv instanceof FrameState f) {
               frameState = f;
             } else {
-              env = (RValue) frameStateOrEnv;
+              env = (ISexp) frameStateOrEnv;
             }
             yield new StmtData.Force(promise, frameState, env == null ? StaticEnv.ELIDED : env);
           }
           case "MkCls" -> {
             var cls = p.parse(Closure.class);
             s.assertAndSkip(", ");
-            p.parse(RValue.class); // env
+            p.parse(ISexp.class); // env
             yield new StmtData.MkCls(cls);
           }
           case "MkArg" -> {
-            p.parse(RValue.class);
+            p.parse(ISexp.class);
             s.assertAndSkip(", ");
             s.readUntil(',');
             s.assertAndSkip(", ");
             // If the next character is whitespace, the env is null (I assume same as elided).
             if (!s.nextCharSatisfies(Character::isWhitespace)) {
-              p.parse(RValue.class);
+              p.parse(ISexp.class);
             }
             yield new StmtData.MkProm(stubPromise());
           }
           case "MkEnv", "(MkEnv)" -> {
             var isStub = instrTypeName.equals("(MkEnv)");
             var names = ImmutableList.<RegSymSXP>builder();
-            var values = ImmutableList.<RValue>builder();
+            var values = ImmutableList.<ISexp>builder();
             var missingness = ImmutableList.<Boolean>builder();
-            RValue parent;
+            ISexp parent;
             int context;
             while (true) {
               var name1 = p.parse(RegSymSXP.class);
               var missing = s.trySkip("(miss)");
               s.assertAndSkip("=");
-              var value = p.parse(RValue.class);
+              var value = p.parse(ISexp.class);
               s.assertAndSkip(", ");
 
               if (s.trySkip("context ")) {
@@ -514,17 +514,17 @@ class PirInstrOrPhiParseContext {
             var inPromise = s.trySkip("(pr)");
             s.assertAndSkip(": ");
             var stack =
-                p.parseList(RValue.class, SkipWhitespace.ALL_EXCEPT_NEWLINES).stream()
+                p.parseList(ISexp.class, SkipWhitespace.ALL_EXCEPT_NEWLINES).stream()
                     .map(e -> (Node) e)
                     .collect(ImmutableList.toImmutableList());
             s.assertAndSkip(", env=");
-            var env = p.parse(RValue.class);
+            var env = p.parse(ISexp.class);
             var inlined = s.trySkip(", next=") ? p.parse(FrameState.class) : null;
             yield new FrameState_(location, inPromise, stack, env, inlined);
           }
           case "DotsList" -> {
             var names = ImmutableList.<Optional<RegSymSXP>>builder();
-            var values = ImmutableList.<RValue>builder();
+            var values = ImmutableList.<ISexp>builder();
             do {
               var nameAndValue = parseNameAndValue(p);
               names.add(nameAndValue.first());
@@ -533,13 +533,13 @@ class PirInstrOrPhiParseContext {
             yield new StmtData.DotsList(names.build(), values.build());
           }
           case "Call" -> {
-            var fun = p.parse(RValue.class);
+            var fun = p.parse(ISexp.class);
             var callArgs = parseCallArgs(p);
             var fs = s.trySkip(", ") ? p.parse(FrameState.class) : null;
             yield new NamelessCall(stubLangSxp(), fun, callArgs, StaticEnv.NOT_CLOSED, fs);
           }
           case "NamedCall" -> {
-            var fun = p.parse(RValue.class);
+            var fun = p.parse(ISexp.class);
             var namedCallArgs = parseNamedCallArgs(p);
             var fs = s.trySkip(", ") ? p.parse(FrameState.class) : null;
             yield new StmtData.NamedCall(
@@ -576,12 +576,12 @@ class PirInstrOrPhiParseContext {
                 stubLangSxp(), builtin, callArgs, ImmutableList.of());
           }
           case "PushContext" -> {
-            var allArgs = new ArrayList<RValue>();
+            var allArgs = new ArrayList<ISexp>();
             do {
-              allArgs.add(p.parse(RValue.class));
+              allArgs.add(p.parse(ISexp.class));
             } while (s.trySkip(", "));
 
-            ImmutableList<RValue> ctxArgs;
+            ImmutableList<ISexp> ctxArgs;
             try {
               ctxArgs = ImmutableList.copyOf(allArgs.subList(0, allArgs.size() - 3));
             } catch (IllegalArgumentException e) {
@@ -593,7 +593,7 @@ class PirInstrOrPhiParseContext {
             yield new StmtData.PushContext(ast, op, ctxArgs, null, sysParent);
           }
           case "Branch" -> {
-            var cond = p.parse(RValue.class);
+            var cond = p.parse(ISexp.class);
             s.assertAndSkip(" -> BB");
             var trueBBIndex = s.readUInt();
             var trueBB = bbs.get(trueBBIndex);
@@ -605,7 +605,7 @@ class PirInstrOrPhiParseContext {
           }
           case "Assume", "AssumeNot" -> {
             var invert = instrTypeName.equals("AssumeNot");
-            var assumption = p.parse(RValue.class);
+            var assumption = p.parse(ISexp.class);
             if (invert) {
               assumption = bb.append("assumeInvert", new StmtData.Not(null, assumption));
             }
@@ -632,17 +632,17 @@ class PirInstrOrPhiParseContext {
           case "Deopt" -> {
             var frameState = p.parse(FrameState.class);
             DeoptReason deoptReason = null;
-            RValue deoptTrigger = null;
+            ISexp deoptTrigger = null;
             if (s.trySkip(", ")) {
               deoptReason = p.parse(DeoptReason.class);
               s.assertAndSkip(", ");
-              deoptTrigger = p.parse(RValue.class);
+              deoptTrigger = p.parse(ISexp.class);
             }
             var escapedEnv = s.trySkip("   !");
             yield new JumpData.Deopt(frameState, deoptReason, deoptTrigger, escapedEnv);
           }
           case "Return" -> {
-            var value = s.nextCharIs('\n') ? new Constant(SEXPs.NULL) : p.parse(RValue.class);
+            var value = s.nextCharIs('\n') ? new Constant(SEXPs.NULL) : p.parse(ISexp.class);
             yield new JumpData.Return(value);
           }
           default -> {
@@ -713,14 +713,14 @@ class PirInstrOrPhiParseContext {
   }
 
   /** The given printer must have {@link ArgContext}. */
-  private ImmutableList<RValue> parseCallArgs(Parser p) {
+  private ImmutableList<ISexp> parseCallArgs(Parser p) {
     var s = p.scanner();
-    var args = ImmutableList.<RValue>builder();
+    var args = ImmutableList.<ISexp>builder();
 
     s.assertAndSkip('(');
     if (!s.trySkip(')')) {
       do {
-        args.add(p.parse(RValue.class));
+        args.add(p.parse(ISexp.class));
       } while (s.trySkip(", "));
       s.assertAndSkip(')');
     }
@@ -729,11 +729,10 @@ class PirInstrOrPhiParseContext {
   }
 
   /** The given printer must have {@link ArgContext}. */
-  private Pair<ImmutableList<Optional<String>>, ImmutableList<RValue>> parseNamedCallArgs(
-      Parser p) {
+  private Pair<ImmutableList<Optional<String>>, ImmutableList<ISexp>> parseNamedCallArgs(Parser p) {
     var s = p.scanner();
     var names = ImmutableList.<Optional<String>>builder();
-    var args = ImmutableList.<RValue>builder();
+    var args = ImmutableList.<ISexp>builder();
 
     s.assertAndSkip('(');
     if (!s.trySkip(')')) {
@@ -749,7 +748,7 @@ class PirInstrOrPhiParseContext {
   }
 
   /** The given printer must have {@link ArgContext}. */
-  private Pair<Optional<RegSymSXP>, RValue> parseNameAndValue(Parser p) {
+  private Pair<Optional<RegSymSXP>, ISexp> parseNameAndValue(Parser p) {
     var s = p.scanner();
     var nameAndValue = s.readUntil(c -> c == -1 || c == '\n' || c == ',' || c == ')' || c == '<');
 
@@ -765,7 +764,7 @@ class PirInstrOrPhiParseContext {
     }
 
     RegSymSXP name;
-    RValue value;
+    ISexp value;
     try {
       name =
           nameString == null ? null : Parser.fromString(nameString, RegSymSXP.class, p.context());
@@ -773,7 +772,7 @@ class PirInstrOrPhiParseContext {
       throw s.fail("failed to parse name in name/value pair: " + nameString, e);
     }
     try {
-      value = Parser.fromString(valueString, RValue.class, p.context());
+      value = Parser.fromString(valueString, ISexp.class, p.context());
     } catch (ParseException e) {
       throw s.fail("failed to parse value in name/value pair: " + valueString, e);
     }
@@ -818,13 +817,13 @@ class PirInstrOrPhiParseContext {
     return SEXPs.closure(SEXPs.NULL, SEXPs.bcode(Bc.empty()), SEXPs.EMPTY_ENV);
   }
 
-  private ImmutableIntArray stubArglistOrder(ImmutableList<RValue> callArgs) {
+  private ImmutableIntArray stubArglistOrder(ImmutableList<ISexp> callArgs) {
     return ImmutableIntArray.copyOf(IntStream.range(0, callArgs.size())::iterator);
   }
 
   private class ArgContext {
     // This method overrides all parsers for nodes when they are parsed in this context, so we can
-    // call e.g. `p.parse(RValue.class)` and it dispatches this.
+    // call e.g. `p.parse(ISexp.class)` and it dispatches this.
     @ParseMethod(SkipWhitespace.NONE)
     private Node parseNodeInInstrOrPhi(Parser p) {
       return pirIdToNode.get(p.parse(PirId.class));
@@ -1067,7 +1066,7 @@ class PirInstrOrPhiParseContext {
 sealed interface PirType {
   static PirType of(InstrOrPhi instrOrPhi) {
     return switch (instrOrPhi) {
-      case RValue v -> new RType_(v.type());
+      case ISexp v -> new RType_(v.type());
       case Checkpoint _ -> NativeType.CHECKPOINT;
       case FrameState _ -> NativeType.FRAME_STATE;
       case DeoptReason _ -> NativeType.DEOPT_REASON;
@@ -1306,8 +1305,8 @@ class PirInstrOrPhiPrintContext {
         p.print(closure.env());
       }
       case StmtData.MkProm(var promise) -> {
-        var eagerValue = promise.eagerValue();
-        p.print(eagerValue == null ? new Constant(SEXPs.UNBOUND_VALUE) : eagerValue);
+        var eageiSexp = promise.eageiSexp();
+        p.print(eageiSexp == null ? new Constant(SEXPs.UNBOUND_VALUE) : eageiSexp);
         w.write(", ");
         p.print("0xinvalid");
         if (promise.properties().flags().contains(Property.NO_REFLECTION)) {
@@ -1477,7 +1476,7 @@ class PirInstrOrPhiPrintContext {
   }
 
   /** The given printer must have {@link ArgContext}. */
-  private void printCallArgs(Call_<?> c, Printer p) {
+  private void printCallArgs(Call<?> c, Printer p) {
     var w = p.writer();
     var names = c.explicitNames();
 
@@ -1497,7 +1496,7 @@ class PirInstrOrPhiPrintContext {
 
   private class ArgContext {
     // This overrides all printers for nodes when they are printed in this context, so we can call
-    // e.g. `p.print(rValue)` and it dispatches this.
+    // e.g. `p.print(iSexp)` and it dispatches this.
     @PrintMethod
     private void printNodeInInstrOrPhi(Node self, Printer p) {
       p.print(nodeToPirId.get(self));
@@ -1704,7 +1703,7 @@ abstract sealed class PirId {
     return (instrOrPhi instanceof Instr i && i.data() instanceof StmtData.Void)
         ? new PirId.Anonymous()
         : new PirId.Local(
-            (instrOrPhi instanceof RValue r && r.isEnv() == Maybe.YES ? "e" : "%")
+            (instrOrPhi instanceof ISexp r && r.isEnv() == Maybe.YES ? "e" : "%")
                 + bbIndex
                 + "."
                 + instrIndex);

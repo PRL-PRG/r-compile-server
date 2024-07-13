@@ -6,8 +6,8 @@ import java.util.stream.Stream;
 import org.prlprg.ir.cfg.CFG;
 import org.prlprg.ir.cfg.Constant;
 import org.prlprg.ir.cfg.Instr;
-import org.prlprg.ir.cfg.RValue;
-import org.prlprg.ir.cfg.RValueStmt;
+import org.prlprg.ir.cfg.ISexp;
+import org.prlprg.ir.cfg.ISexpStmt;
 import org.prlprg.ir.cfg.StaticEnv;
 import org.prlprg.ir.cfg.Stmt;
 import org.prlprg.ir.cfg.StmtData;
@@ -33,8 +33,8 @@ import org.prlprg.util.UnreachableError;
 class ElideEnvs implements OptimizationPass {
   @Override
   public void doApply(CFG cfg, OptimizationContext ctx) {
-    var neededEnvs = new HashSet<RValue>();
-    var envsToStub = new HashSet<RValue>();
+    var neededEnvs = new HashSet<ISexp>();
+    var envsToStub = new HashSet<ISexp>();
 
     for (var bb : cfg.iter()) {
       for (var instr : bb.instrs()) {
@@ -58,7 +58,7 @@ class ElideEnvs implements OptimizationPass {
         // TODO: Put this somewhere else
         if (instr.data() instanceof Force(var promise, var _, var _)
             && promise.type().isLazy() == Maybe.NO) {
-          Instr.mutateArgs((RValueStmt) instr, new Force(promise, null, StaticEnv.ELIDED));
+          Instr.mutateArgs((ISexpStmt) instr, new Force(promise, null, StaticEnv.ELIDED));
         }
       }
     }
@@ -68,7 +68,7 @@ class ElideEnvs implements OptimizationPass {
       var instrs = bb.instrs().iterator();
       while (instrs.hasNext()) {
         var instr = instrs.next();
-        if (instr.data() instanceof MkEnv && !(neededEnvs.contains((RValue) instr))) {
+        if (instr.data() instanceof MkEnv && !(neededEnvs.contains((ISexp) instr))) {
           instrs.remove();
         }
       }
@@ -78,7 +78,7 @@ class ElideEnvs implements OptimizationPass {
     // This involves adding explicit unbound values to all variables that will be set in the stub.
     // TODO: improve the code below, it's very verbose.
     for (var env : envsToStub) {
-      if (!(((RValueStmt) env).data()
+      if (!(((ISexpStmt) env).data()
           instanceof
           MkEnv(
               var parent,
@@ -93,14 +93,14 @@ class ElideEnvs implements OptimizationPass {
       assert !isStub && !neverStub;
 
       Instr.mutateArgs(
-          (RValueStmt) env, new MkEnv(parent, names, values, missingness, context, true, false));
+          (ISexpStmt) env, new MkEnv(parent, names, values, missingness, context, true, false));
     }
 
     for (var bb : cfg.iter()) {
       for (var instr : bb.instrs()) {
         if (instr.data() instanceof StVar(var name, var _, var env, var _)
             && envsToStub.contains(env)) {
-          if (!(((RValueStmt) env).data()
+          if (!(((ISexpStmt) env).data()
               instanceof
               MkEnv(
                   var parent,
@@ -116,7 +116,7 @@ class ElideEnvs implements OptimizationPass {
 
           if (!names.contains(name)) {
             Instr.mutateArgs(
-                (RValueStmt) env,
+                (ISexpStmt) env,
                 new MkEnv(
                     parent,
                     Stream.concat(names.stream(), Stream.of(name))

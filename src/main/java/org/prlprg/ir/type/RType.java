@@ -10,8 +10,8 @@ import java.util.stream.Collector.Characteristics;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
+import org.prlprg.ir.cfg.ISexp;
 import org.prlprg.ir.cfg.Node;
-import org.prlprg.ir.cfg.RValue;
 import org.prlprg.ir.type.lattice.BoundedLattice;
 import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.ir.type.lattice.NoOrMaybe;
@@ -28,10 +28,10 @@ import org.prlprg.sexp.SEXPs;
 import org.prlprg.sexp.SymSXP;
 
 /**
- * {@link RValue} type; a runtime ({@link SEXP}) value's type, with information relevant to perform
+ * {@link ISexp} type; a runtime ({@link SEXP}) value's type, with information relevant to perform
  * optimizations.
  *
- * <p>Not to be confused with {@link SEXPType}. Also, this is only for {@link RValue}s ({@linkplain
+ * <p>Not to be confused with {@link SEXPType}. Also, this is only for {@link ISexp}s ({@linkplain
  * Node IR nodes} encoding {@linkplain SEXP SEXPs}), not unboxed values or PIR objects.
  *
  * <p>It consists of:

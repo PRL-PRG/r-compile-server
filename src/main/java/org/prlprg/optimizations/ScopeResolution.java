@@ -2,7 +2,7 @@ package org.prlprg.optimizations;
 
 import org.prlprg.ir.analysis.scope.Scopes;
 import org.prlprg.ir.cfg.CFG;
-import org.prlprg.ir.cfg.RValue;
+import org.prlprg.ir.cfg.ISexp;
 import org.prlprg.ir.closure.ClosureVersion;
 import org.prlprg.ir.closure.ClosureVersion.Properties.Property;
 import org.prlprg.ir.closure.Promise;
@@ -11,7 +11,7 @@ import org.prlprg.ir.closure.Promise;
  * Uses scope analysis to get rid of as many `LdVar`'s as possible (from PIR).
  *
  * <p>Similar to LLVM's {@code mem2reg} pass, we try to lift as many loads from the R environment to
- * {@linkplain RValue SSA variables}.
+ * {@linkplain ISexp SSA variables}.
  */
 class ScopeResolution implements OptimizationPass {
   private void actuallyDoApply(ClosureVersion version, OptimizationContext ctx) {
@@ -30,14 +30,14 @@ class ScopeResolution implements OptimizationPass {
       var before = scopes.
 
       for (var stmt : bb) {
-        if (stmt instanceof RValue) {
-          var rvalue = (RValue) stmt;
-          var scope = scopes.at(rvalue);
+        if (stmt instanceof ISexp) {
+          var iSexp = (ISexp) stmt;
+          var scope = scopes.at(iSexp);
           if (scope == null) {
             continue;
           }
 
-          var context = contexts.at(rvalue);
+          var context = contexts.at(iSexp);
           if (context == null) {
             continue;
           }
@@ -53,7 +53,7 @@ class ScopeResolution implements OptimizationPass {
           }
 
           if (dom.dominates(envContext, context)) {
-            rvalue.replaceWith(env);
+            iSexp.replaceWith(env);
             anyChanges = true;
           }
         }

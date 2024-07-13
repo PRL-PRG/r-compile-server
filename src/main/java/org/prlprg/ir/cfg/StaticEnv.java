@@ -6,15 +6,14 @@ import javax.annotation.Nullable;
 import org.prlprg.ir.type.RType;
 
 /** Global static environment, e.g. {@code R_GlobalEnv}, {@code notClosed}. */
-public sealed interface StaticEnv extends RValue, GlobalNode {
+public sealed interface StaticEnv extends ISexp, GlobalNode {
   StaticEnv GLOBAL = new StaticEnvImpl("R_GlobalEnv");
   StaticEnv BASE = new StaticEnvImpl("R_BaseEnv");
   StaticEnv NOT_CLOSED = new StaticEnvImpl("notClosed");
-  StaticEnv ELIDED = new StaticEnvImpl("elided");
 
   /** All global static environments, associated to their name. */
   ImmutableMap<String, StaticEnv> ALL =
-      Stream.of(GLOBAL, BASE, NOT_CLOSED, ELIDED)
+      Stream.of(GLOBAL, BASE, NOT_CLOSED)
           .collect(ImmutableMap.toImmutableMap(StaticEnv::name, e -> e));
 
   /** Descriptive, uniquely identifying name of this environment. */

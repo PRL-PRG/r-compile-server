@@ -9,9 +9,9 @@ import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.bc.Bc;
 import org.prlprg.ir.cfg.CFG;
+import org.prlprg.ir.cfg.ISexp;
 import org.prlprg.ir.cfg.IsEnv;
 import org.prlprg.ir.cfg.Node;
-import org.prlprg.ir.cfg.RValue;
 import org.prlprg.ir.cfg.StaticEnv;
 import org.prlprg.ir.closure.ClosureVersion.CallContext;
 import org.prlprg.ir.type.lattice.Maybe;
@@ -59,12 +59,12 @@ public final class Closure extends CodeObject {
   // The non-final fields are only non-final so that they can be set in `LateConstruct`.
   // Otherwise they are effectively final.
   private CloSXP origin;
-  private @IsEnv RValue env;
+  private @IsEnv ISexp env;
   private ClosureVersion baselineVersion;
   private final NavigableMap<CallContext, ClosureVersion> optimizedVersions;
 
   /**
-   * {@link Closure(String, CloSXP, RValue)} with an {@linkplain StaticEnv#NOT_CLOSED unclosed}
+   * {@link Closure(String, CloSXP, ISexp)} with an {@linkplain StaticEnv#NOT_CLOSED unclosed}
    * environment (not an inner closure).
    */
   public Closure(String name, CloSXP origin) {
@@ -87,9 +87,9 @@ public final class Closure extends CodeObject {
    *     order to normalize the data since it shouldn't be used.
    * @throws IllegalArgumentException If the closure's body isn't bytecode.
    *     <p><b>OR</b> if {@code env} isn't statically known to be an environment ({@link
-   *     RValue#isEnv()}).
+   *     ISexp#isEnv()}).
    */
-  public Closure(String name, CloSXP origin, @IsEnv RValue env) {
+  public Closure(String name, CloSXP origin, @IsEnv ISexp env) {
     super(name);
 
     if (!(origin.body() instanceof BCodeSXP)) {
@@ -149,7 +149,7 @@ public final class Closure extends CodeObject {
    * <p>This is {@linkplain StaticEnv#NOT_CLOSED unclosed} unless it's an inner closure (from {@link
    * org.prlprg.ir.cfg.StmtData.MkCls MkCls}), in which case it's the outer closure's environment.
    */
-  public @IsEnv RValue env() {
+  public @IsEnv ISexp env() {
     return env;
   }
 
@@ -330,8 +330,8 @@ public final class Closure extends CodeObject {
   @Override
   public void unsafeReplaceOuterCfgNode(Node oldNode, Node newNode) {
     if (env.equals(oldNode)) {
-      if (!(newNode instanceof RValue newEnv)) {
-        throw new IllegalArgumentException("Closure replacement `env` node must be an RValue.");
+      if (!(newNode instanceof ISexp newEnv)) {
+        throw new IllegalArgumentException("Closure replacement `env` node must be an ISexp.");
       }
       if (newEnv.isEnv() != Maybe.YES) {
         throw new IllegalArgumentException(
@@ -342,7 +342,7 @@ public final class Closure extends CodeObject {
   }
 
   @Override
-  public void verifyOuterCfgRValuesAreOfCorrectTypes() {
+  public void verifyOuterCfgISexpsAreOfCorrectTypes() {
     if (env.isEnv() != Maybe.YES) {
       throw new IllegalStateException(
           "Closure `env` must be statically known to be an environment.");
@@ -398,7 +398,7 @@ public final class Closure extends CodeObject {
     var s = p.scanner();
 
     var parameters = p.withContext(ctx.sexpParseContext().forBindings()).parse(ListSXP.class);
-    env = s.trySkip("env") ? p.parse(RValue.class) : StaticEnv.NOT_CLOSED;
+    env = s.trySkip("env") ? p.parse(ISexp.class) : StaticEnv.NOT_CLOSED;
     var attributes = s.trySkip("with") ? p.parse(Attributes.class) : Attributes.NONE;
 
     s.assertAndSkip('{');

@@ -3,25 +3,31 @@ package org.prlprg.ir.type;
 import com.google.common.collect.ImmutableList;
 import java.util.Collection;
 import javax.annotation.Nonnull;
+import org.prlprg.ir.closure.Closure;
 import org.prlprg.ir.effect.REffects;
 import org.prlprg.ir.type.lattice.NoOrMaybe;
+import org.prlprg.ir.type.lattice.YesOrMaybe;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.SEXPType;
 import org.prlprg.sexp.SEXPs;
 
 public sealed interface RClosureType extends RFunType permits RNothingValueType, RClosureTypeImpl {
-  RClosureType ANY = RClosureTypeImpl.INSTANCE;
+  RClosureType ANY = new RClosureTypeImpl(YesOrMaybe.MAYBE, RFunTypeOverloads.NONE);
+  RClosureType ANY_JIT = new RClosureTypeImpl(YesOrMaybe.YES, RFunTypeOverloads.NONE);
 
-  static RClosureType of(Collection<RSignatureType> overloads) {
+  static RClosureType of(YesOrMaybe isJit, Collection<RSignatureType> overloads) {
     if (overloads.isEmpty()) {
-      return ANY;
+      return switch (isJit) {
+        case MAYBE -> ANY;
+        case YES -> ANY_JIT;
+      };
     }
 
-    return new RClosureTypeImpl(overloads);
+    return new RClosureTypeImpl(isJit, overloads);
   }
 
-  static RClosureType of(RSignatureType overload) {
-    return of(ImmutableList.of(overload));
+  static RClosureType of(YesOrMaybe isJit, RSignatureType overload) {
+    return of(isJit, ImmutableList.of(overload));
   }
 
   /**
@@ -31,6 +37,7 @@ public sealed interface RClosureType extends RFunType permits RNothingValueType,
    */
   static RClosureType exact(CloSXP sexp) {
     return of(
+        YesOrMaybe.MAYBE,
         RSignatureType.of(
             sexp.parameters().stream()
                 .map(
@@ -41,13 +48,19 @@ public sealed interface RClosureType extends RFunType permits RNothingValueType,
             REffects.ARBITRARY,
             RType.ANY));
   }
+
+  /**
+   * {@link YesOrMaybe#YES YES} if this is statically known to be created from a {@link Closure}.
+   *
+   * <p>If {@link YesOrMaybe#YES YES}, we explicitly provide a call context when calling this via
+   * {@link org.prlprg.ir.cfg.StmtData.Call Call} instruction.
+   */
+  YesOrMaybe isJit();
 }
 
-record RClosureTypeImpl(RFunTypeOverloads overloads) implements RClosureType {
-  static final RClosureTypeImpl INSTANCE = new RClosureTypeImpl(RFunTypeOverloads.NONE);
-
-  RClosureTypeImpl(Collection<RSignatureType> overloads) {
-    this(new RFunTypeOverloads(overloads));
+record RClosureTypeImpl(YesOrMaybe isJit, RFunTypeOverloads overloads) implements RClosureType {
+  RClosureTypeImpl(YesOrMaybe isJit, Collection<RSignatureType> overloads) {
+    this(isJit, new RFunTypeOverloads(overloads));
   }
 
   @Override

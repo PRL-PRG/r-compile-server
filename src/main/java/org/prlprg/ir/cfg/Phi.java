@@ -18,9 +18,9 @@ import org.prlprg.util.SmallBinarySet;
  * phi (φ) node</a>: a node referenced within a basic block that may originate from more than one of
  * its predecessors.
  *
- * <p>Each φ only handles nodes of a particular type, e.g. {@link RValue}s or {@link FrameState}s.
+ * <p>Each φ only handles nodes of a particular type, e.g. {@link ISexp}s or {@link FrameState}s.
  * This interface is also extended for specific classes so that it can inherit them, e.g. {@link
- * RValuePhi} and {@link FrameStatePhi}.
+ * ISexpPhi} and {@link FrameStatePhi}.
  *
  * <p>φ nodes can temporarily have only 0 or 1 input. However, before {@link CFG#verify()}, nodes
  * with one input must be replaced with the input itself, and nodes with 0 inputs must be removed.
@@ -31,7 +31,7 @@ public non-sealed interface Phi<N extends Node> extends InstrOrPhi {
    * subclasses.
    *
    * <p>This <i>does not</i> return the phi class itself. For example, if both nodes are {@link
-   * RValue}s, it would return {@link RValue}, not {@link RValuePhi}.
+   * ISexp}s, it would return {@link ISexp}, not {@link ISexpPhi}.
    *
    * @throws IllegalArgumentException if there are no such classes.
    */
@@ -44,8 +44,8 @@ public non-sealed interface Phi<N extends Node> extends InstrOrPhi {
       // returns `InvalidNode` for all classes, replace the entire phi with an invalid node (because
       // whatever we're doing we already accepted we'll have invalid stub nodes).
       return InvalidNode.class;
-    } else if (RValue.class.isAssignableFrom(a) && RValue.class.isAssignableFrom(b)) {
-      return RValue.class;
+    } else if (ISexp.class.isAssignableFrom(a) && ISexp.class.isAssignableFrom(b)) {
+      return ISexp.class;
     } else if (DeoptReason.class.isAssignableFrom(a) && DeoptReason.class.isAssignableFrom(b)) {
       return DeoptReason.class;
     } else if (FrameState.class.isAssignableFrom(a) && FrameState.class.isAssignableFrom(b)) {
@@ -275,8 +275,8 @@ abstract non-sealed class PhiImpl<N extends Node> extends InstrOrPhiImpl impleme
       NodeId<? extends Phi<? extends N>> id,
       Collection<? extends Input<?>> inputs) {
     Phi<?> phi;
-    if (RValue.class.isAssignableFrom(nodeSubclass)) {
-      phi = new RValuePhiImpl(cfg, id, inputs);
+    if (ISexp.class.isAssignableFrom(nodeSubclass)) {
+      phi = new ISexpPhiImpl(cfg, id, inputs);
     } else if (DeoptReason.class.isAssignableFrom(nodeSubclass)) {
       phi = new DeoptReasonPhiImpl(cfg, id, inputs);
     } else if (FrameState.class.isAssignableFrom(nodeSubclass)) {

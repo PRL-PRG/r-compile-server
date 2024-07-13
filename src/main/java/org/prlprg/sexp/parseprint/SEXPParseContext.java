@@ -512,13 +512,13 @@ public class SEXPParseContext implements HasSEXPParseContext {
       return new TaggedElem(null, SEXPs.MISSING_ARG);
     }
 
-    var tagOrValue = p.parse(SEXP.class);
+    var tagOiSexp = p.parse(SEXP.class);
     if (!s.trySkip('=')) {
-      return new TaggedElem(null, tagOrValue);
+      return new TaggedElem(null, tagOiSexp);
     }
 
     // `tag` may be `NULL`, `NA_INT`, etc., but it should be a symbol.
-    var tagQuoted = tagOrValue.toString();
+    var tagQuoted = tagOiSexp.toString();
     if (!Names.isValid(tagQuoted)) {
       throw s.fail("valid R symbol (before '=')", tagQuoted);
     }

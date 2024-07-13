@@ -14,7 +14,7 @@ import org.prlprg.util.NotImplementedError;
 /**
  * Specifies the {@link org.prlprg.ir.type.RType RType} of a statement that produces a value.
  *
- * @see RValueStmt#type()
+ * @see ISexpStmt#type()
  */
 @Documented
 @Retention(RetentionPolicy.RUNTIME)

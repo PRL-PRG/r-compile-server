@@ -151,18 +151,18 @@ import org.prlprg.ir.cfg.BB;
 import org.prlprg.ir.cfg.CFG;
 import org.prlprg.ir.cfg.Constant;
 import org.prlprg.ir.cfg.FrameState;
+import org.prlprg.ir.cfg.ISexp;
 import org.prlprg.ir.cfg.JumpData;
 import org.prlprg.ir.cfg.Node;
 import org.prlprg.ir.cfg.Phi;
-import org.prlprg.ir.cfg.RValue;
 import org.prlprg.ir.cfg.StaticEnv;
 import org.prlprg.ir.cfg.Stmt;
 import org.prlprg.ir.cfg.StmtData;
 import org.prlprg.ir.cfg.StmtData.FrameState_;
 import org.prlprg.ir.cfg.StmtData.GnuRIs;
+import org.prlprg.ir.cfg.StmtData.ISexp_;
 import org.prlprg.ir.cfg.StmtData.MkEnv;
 import org.prlprg.ir.cfg.StmtData.NamelessCall;
-import org.prlprg.ir.cfg.StmtData.RValue_;
 import org.prlprg.ir.cfg.builder.CFGCursor;
 import org.prlprg.ir.closure.Closure;
 import org.prlprg.ir.closure.Promise;
@@ -205,7 +205,7 @@ public class CFGCompiler {
    * Compile {@linkplain Bc bytecode} into the given {@linkplain org.prlprg.ir IR} {@linkplain CFG
    * control-flow-graph}.
    */
-  static void compileCFG(Bc bc, CFG cfg, boolean isPromise, RValue enclos, Module module) {
+  static void compileCFG(Bc bc, CFG cfg, boolean isPromise, ISexp enclos, Module module) {
     new CFGCompiler(bc, cfg, isPromise, enclos, module).doCompile();
   }
 
@@ -226,7 +226,7 @@ public class CFGCompiler {
    * A pending complex assignment (between {@link StartAssign} and {@link EndAssign}, or {@link
    * StartAssign2} and {@link EndAssign2}).
    */
-  private record ComplexAssign(boolean isSuper, RegSymSXP name, RValue originalRhs) {}
+  private record ComplexAssign(boolean isSuper, RegSymSXP name, ISexp originalRhs) {}
 
   /**
    * A call currently being built.
@@ -242,18 +242,18 @@ public class CFGCompiler {
     }
 
     sealed interface Fun {
-      record Value(RValue fun) implements Fun {}
+      record Value(ISexp fun) implements Fun {}
 
       record Builtin(BuiltinId id) implements Fun {}
     }
 
-    /** Stores information about a call argument: a {@link RValue} node and optional name. */
-    private record Arg(RValue value, @Nullable String name) {
+    /** Stores information about a call argument: a {@link ISexp} node and optional name. */
+    private record Arg(ISexp value, @Nullable String name) {
       static Arg missing() {
         return new Arg(new Constant(SEXPs.MISSING_ARG), null);
       }
 
-      Arg(RValue value) {
+      Arg(ISexp value) {
         this(value, null);
       }
     }
@@ -302,7 +302,7 @@ public class CFGCompiler {
   private final Bc bc;
   private final CFG cfg;
   private final boolean isPromise;
-  private final RValue env;
+  private final ISexp env;
   private final Map<Integer, BB> bbByLabel = new HashMap<>();
   private final Set<BB> bbsWithPhis = new HashSet<>();
   private int bcPos = 0;
@@ -324,7 +324,7 @@ public class CFGCompiler {
    * <p>After this, it initialized the variables necessary for compiling but has only put the "load
    * function environment" instruction.
    */
-  private CFGCompiler(Bc bc, CFG cfg, boolean isPromise, RValue enclos, Module module) {
+  private CFGCompiler(Bc bc, CFG cfg, boolean isPromise, ISexp enclos, Module module) {
     if (!cfg.isEmpty()) {
       throw new IllegalArgumentException(
           "CFG must be empty (idk when you'd call CFGCompiler with a non-empty CFG)");
@@ -520,7 +520,7 @@ public class CFGCompiler {
   private void addBcInstrIrInstrs(BcInstr instr) {
     switch (instr) {
       case Return() -> {
-        var retVal = pop(RValue.class);
+        var retVal = pop(ISexp.class);
         assertStacksForReturn();
         cursor.insert(new JumpData.Return(retVal));
         setInUnreachableBytecode();
@@ -533,7 +533,7 @@ public class CFGCompiler {
       }
       case BrIfNot(var ast, var label) -> {
         var bb = bbAt(label);
-        cursor.insert(new JumpData.Branch(get(ast), pop(RValue.class), bbAfterCurrent(), bb));
+        cursor.insert(new JumpData.Branch(get(ast), pop(ISexp.class), bbAfterCurrent(), bb));
         addPhiInputsForStack(bb);
       }
       case Pop() -> pop(Node.class);
@@ -545,7 +545,7 @@ public class CFGCompiler {
       case PrintValue() ->
           pushInsert(
               new StmtData.CallBuiltin(
-                  null, BuiltinId.PRINT_VALUE, ImmutableList.of(pop(RValue.class)), env));
+                  null, BuiltinId.PRINT_VALUE, ImmutableList.of(pop(ISexp.class)), env));
       case StartLoopCntxt(var isForLoop, var end) -> {
         // REACH: Complicated loop contexts.
         // Currently we only handle simple cases like PIR, where `next` and `break` aren't in
@@ -611,14 +611,14 @@ public class CFGCompiler {
         }
 
         // For loop init
-        var seq = cursor.insert(new StmtData.ToForSeq(pop(RValue.class)));
+        var seq = cursor.insert(new StmtData.ToForSeq(pop(ISexp.class)));
         var length = cursor.insert(new StmtData.Length(seq));
         var init = Constant.integer(0);
         cursor.insert(new JumpData.Goto(stepBb));
 
         // For loop step
         moveTo(stepBb);
-        var index = stepBb.addPhi(RValue.class);
+        var index = stepBb.addPhi(ISexp.class);
         index.rename("index");
         index.setInput(initBb, init);
         // Increment the index
@@ -703,8 +703,8 @@ public class CFGCompiler {
       case SetLoopVal() -> {
         // This one is weird. It doesn't get inserted by the Java compiler anywhere.
         // However it has a simple (unhelpful) implementation, so even if unused, we'll support it.
-        pop(RValue.class);
-        pop(RValue.class);
+        pop(ISexp.class);
+        pop(ISexp.class);
         push(new Constant(SEXPs.NULL));
       }
       case Invisible() -> insert(new StmtData.Invisible());
@@ -714,14 +714,14 @@ public class CFGCompiler {
       case LdFalse() -> push(new Constant(SEXPs.FALSE));
       case GetVar(var name) -> {
         pushInsert(name, new StmtData.LdVar(get(name), false, env));
-        pushInsert(new StmtData.Force(pop(RValue.class), compileFrameState(), env));
+        pushInsert(new StmtData.Force(pop(ISexp.class), compileFrameState(), env));
       }
       case DdVal(var name) -> {
         var ddIndex = get(name).ddNum();
         pushInsert(name, new StmtData.LdDdVal(ddIndex, false, env));
-        pushInsert(new StmtData.Force(pop(RValue.class), compileFrameState(), env));
+        pushInsert(new StmtData.Force(pop(ISexp.class), compileFrameState(), env));
       }
-      case SetVar(var name) -> insert(new StmtData.StVar(get(name), top(RValue.class), env));
+      case SetVar(var name) -> insert(new StmtData.StVar(get(name), top(ISexp.class), env));
       case GetFun(var name) -> pushCallFunInsert(name, new StmtData.LdFun(get(name), env));
       case GetGlobFun(var name) ->
           pushCallFunInsert(name, new StmtData.LdFun(get(name), StaticEnv.GLOBAL));
@@ -730,7 +730,7 @@ public class CFGCompiler {
       case GetSymFun(var name) -> pushCall(BuiltinId.referencedBy(get(name)));
       case GetBuiltin(var name) -> pushCall(BuiltinId.referencedBy(get(name)));
       case GetIntlBuiltin(var name) -> pushCall(BuiltinId.referencedBy(get(name)));
-      case CheckFun() -> pushCallFunInsert(new StmtData.ChkFun(pop(RValue.class)));
+      case CheckFun() -> pushCallFunInsert(new StmtData.ChkFun(pop(ISexp.class)));
       case MakeProm(var code) -> {
         // REACH: Could cache compiled promise CFGs (env will always be different) in the module...
         // TODO: infer name
@@ -752,7 +752,7 @@ public class CFGCompiler {
         }
       }
       case DoDots() -> pushCallArgInsert("...", new StmtData.LdDots(env));
-      case PushArg() -> pushCallArg(pop(RValue.class));
+      case PushArg() -> pushCallArg(pop(ISexp.class));
       case PushConstArg(var constant) -> pushCallArg(new Constant(get(constant)));
       case PushNullArg() -> pushCallArg(new Constant(SEXPs.NULL));
       case PushTrueArg() -> pushCallArg(new Constant(SEXPs.TRUE));
@@ -770,7 +770,7 @@ public class CFGCompiler {
         // GNU-R just passes `CDR(call)` to the builtin.
         var args =
             ast.args().stream()
-                .map(arg -> (RValue) new Constant(arg.value()))
+                .map(arg -> (ISexp) new Constant(arg.value()))
                 .collect(ImmutableList.toImmutableList());
         pushInsert(new StmtData.CallBuiltin(ast, builtin, args, env));
       }
@@ -819,7 +819,7 @@ public class CFGCompiler {
       case DotsErr() -> insert(new StmtData.Error("'...' used in an incorrect context"));
       case StartAssign(var name) -> {
         var lhs = cursor.insert(get(name).name(), new StmtData.LdVar(get(name), false, env));
-        var rhs = top(RValue.class);
+        var rhs = top(ISexp.class);
         pushComplexAssign(false, get(name), lhs, rhs);
       }
       case EndAssign(var name) -> {
@@ -914,7 +914,7 @@ public class CFGCompiler {
       case Dollar(var ast, var member) -> {
         var after = cfg.addBB("afterDollar");
 
-        var target = top(RValue.class);
+        var target = top(ISexp.class);
         compileGeneralDispatchCommon(BuiltinId.DOLLAR, false, get(ast), target, null, after);
 
         var call = popCall();
@@ -922,7 +922,7 @@ public class CFGCompiler {
           throw fail("Dollar: expected a call to $");
         }
 
-        pop(RValue.class);
+        pop(ISexp.class);
         pushInsert(
             new StmtData.CallBuiltin(
                 get(ast),
@@ -936,8 +936,8 @@ public class CFGCompiler {
       case DollarGets(var ast, var member) -> {
         var after = cfg.addBB("afterDollarGets");
 
-        var rhs = pop(RValue.class);
-        var target = top(RValue.class);
+        var rhs = pop(ISexp.class);
+        var target = top(ISexp.class);
         compileGeneralDispatchCommon(BuiltinId.DOLLAR_GETS, false, get(ast), target, rhs, after);
 
         var call = popCall();
@@ -945,7 +945,7 @@ public class CFGCompiler {
           throw fail("Dollar: expected a call to $");
         }
 
-        pop(RValue.class);
+        pop(ISexp.class);
         pushInsert(
             new StmtData.CallBuiltin(
                 get(ast),
@@ -957,15 +957,15 @@ public class CFGCompiler {
         moveTo(after);
       }
       case IsNull() ->
-          pushInsert(new StmtData.Eq(null, pop(RValue.class), new Constant(SEXPs.NULL)));
-      case IsLogical() -> pushInsert(new StmtData.GnuRIs(IsTypeCheck.LGL, pop(RValue.class)));
-      case IsInteger() -> pushInsert(new StmtData.GnuRIs(IsTypeCheck.INT, pop(RValue.class)));
-      case IsDouble() -> pushInsert(new StmtData.GnuRIs(IsTypeCheck.REAL, pop(RValue.class)));
-      case IsComplex() -> pushInsert(new StmtData.GnuRIs(IsTypeCheck.CPLX, pop(RValue.class)));
-      case IsCharacter() -> pushInsert(new StmtData.GnuRIs(IsTypeCheck.STR, pop(RValue.class)));
-      case IsSymbol() -> pushInsert(new StmtData.GnuRIs(IsTypeCheck.SYM, pop(RValue.class)));
-      case IsObject() -> pushInsert(new StmtData.GnuRIs(IsTypeCheck.NON_OBJECT, pop(RValue.class)));
-      case IsNumeric() -> pushInsert(new StmtData.GnuRIs(IsTypeCheck.NUM, pop(RValue.class)));
+          pushInsert(new StmtData.Eq(null, pop(ISexp.class), new Constant(SEXPs.NULL)));
+      case IsLogical() -> pushInsert(new StmtData.GnuRIs(IsTypeCheck.LGL, pop(ISexp.class)));
+      case IsInteger() -> pushInsert(new StmtData.GnuRIs(IsTypeCheck.INT, pop(ISexp.class)));
+      case IsDouble() -> pushInsert(new StmtData.GnuRIs(IsTypeCheck.REAL, pop(ISexp.class)));
+      case IsComplex() -> pushInsert(new StmtData.GnuRIs(IsTypeCheck.CPLX, pop(ISexp.class)));
+      case IsCharacter() -> pushInsert(new StmtData.GnuRIs(IsTypeCheck.STR, pop(ISexp.class)));
+      case IsSymbol() -> pushInsert(new StmtData.GnuRIs(IsTypeCheck.SYM, pop(ISexp.class)));
+      case IsObject() -> pushInsert(new StmtData.GnuRIs(IsTypeCheck.NON_OBJECT, pop(ISexp.class)));
+      case IsNumeric() -> pushInsert(new StmtData.GnuRIs(IsTypeCheck.NUM, pop(ISexp.class)));
       case VecSubset(var _) ->
           compileDefaultDispatchN(
               Dispatch.Type.SUBSETN,
@@ -992,45 +992,45 @@ public class CFGCompiler {
                       ast, args.getFirst(), args.get(1), args.get(2), args.get(3), env));
       case And1st(var ast, var shortCircuit) -> {
         var shortCircuitBb = bbAt(shortCircuit);
-        pushInsert(new StmtData.AsLogical(pop(RValue.class)));
+        pushInsert(new StmtData.AsLogical(pop(ISexp.class)));
         cursor.insert(
-            new JumpData.Branch(get(ast), top(RValue.class), bbAfterCurrent(), shortCircuitBb));
+            new JumpData.Branch(get(ast), top(ISexp.class), bbAfterCurrent(), shortCircuitBb));
         addPhiInputsForStack(shortCircuitBb);
       }
       case And2nd(var ast) -> {
-        pushInsert(new StmtData.AsLogical(pop(RValue.class)));
+        pushInsert(new StmtData.AsLogical(pop(ISexp.class)));
         pushInsert(mkBinop(ast, StmtData.LAnd::new));
         cursor.insert(new JumpData.Goto(bbAfterCurrent()));
       }
       case Or1st(var ast, var shortCircuit) -> {
         var shortCircuitBb = bbAt(shortCircuit);
-        pushInsert(new StmtData.AsLogical(pop(RValue.class)));
+        pushInsert(new StmtData.AsLogical(pop(ISexp.class)));
         cursor.insert(
-            new JumpData.Branch(get(ast), top(RValue.class), shortCircuitBb, bbAfterCurrent()));
+            new JumpData.Branch(get(ast), top(ISexp.class), shortCircuitBb, bbAfterCurrent()));
         addPhiInputsForStack(shortCircuitBb);
       }
       case Or2nd(var ast) -> {
-        pushInsert(new StmtData.AsLogical(pop(RValue.class)));
+        pushInsert(new StmtData.AsLogical(pop(ISexp.class)));
         pushInsert(mkBinop(ast, StmtData.LOr::new));
         cursor.insert(new JumpData.Goto(bbAfterCurrent()));
       }
       case GetVarMissOk(var name) -> {
         pushInsert(name, new StmtData.LdVar(get(name), true, env));
-        pushInsert(new StmtData.Force(pop(RValue.class), compileFrameState(), env));
+        pushInsert(new StmtData.Force(pop(ISexp.class), compileFrameState(), env));
       }
       case DdValMissOk(var name) -> {
         var ddIndex = get(name).ddNum();
         pushInsert(name, new StmtData.LdDdVal(ddIndex, true, env));
-        pushInsert(new StmtData.Force(pop(RValue.class), compileFrameState(), env));
+        pushInsert(new StmtData.Force(pop(ISexp.class), compileFrameState(), env));
       }
       case Visible() -> insert(new StmtData.Visible());
-      case SetVar2(var name) -> insert(new StmtData.StVarSuper(get(name), top(RValue.class), env));
+      case SetVar2(var name) -> insert(new StmtData.StVarSuper(get(name), top(ISexp.class), env));
       case StartAssign2(var name) -> {
         // GNU-R has "cells" and stores the assign on the main stack.
         // But we don't have cells, and since we're compiling, we can store the assignment on its
         // own stack.
         var lhs = cursor.insert(get(name).name(), new StmtData.LdVarSuper(get(name), env));
-        var rhs = top(RValue.class);
+        var rhs = top(ISexp.class);
         pushComplexAssign(true, get(name), lhs, rhs);
       }
       case EndAssign2(var name) -> {
@@ -1041,8 +1041,8 @@ public class CFGCompiler {
         // GNU-R has to wrap these call args in evaluated promises depending on the call type,
         // but presumably this is something we abstract. This is also what `valueExpr` is for,
         // which is why it's unused.
-        var rhs = pop(RValue.class);
-        var lhs = pop(RValue.class);
+        var rhs = pop(ISexp.class);
+        var lhs = pop(ISexp.class);
         prependCallArg(lhs);
         pushCallArg(rhs);
         compileCall(ast);
@@ -1050,7 +1050,7 @@ public class CFGCompiler {
       case GetterCall(var ast) -> {
         // GNU-R has to wrap this call arg in an evaluated promise depending on the call type,
         // but presumably this is something we abstract.
-        prependCallArg(top(RValue.class));
+        prependCallArg(top(ISexp.class));
         compileCall(ast);
       }
       case SpecialSwap() -> {
@@ -1066,7 +1066,7 @@ public class CFGCompiler {
         push(value2);
       }
       case ReturnJmp() -> {
-        var retVal = pop(RValue.class);
+        var retVal = pop(ISexp.class);
         assertStacksForReturn();
         cursor.insert(new JumpData.NonLocalReturn(retVal, env));
         setInUnreachableBytecode();
@@ -1076,7 +1076,7 @@ public class CFGCompiler {
         var chrLabels = chrLabelsIdx == null ? null : get(chrLabelsIdx);
         var numLabels = numLabelsIdx == null ? null : get(numLabelsIdx);
 
-        var value = pop(RValue.class);
+        var value = pop(ISexp.class);
 
         var isVector = cursor.insert(new GnuRIs(IsTypeCheck.SCALAR, value));
         var isVectorBb = cfg.addBB();
@@ -1214,14 +1214,13 @@ public class CFGCompiler {
       case Log(var ast) -> pushInsert(mkUnop(ast, StmtData.Log::new));
       case LogBase(var ast) -> pushInsert(mkBinop(ast, StmtData.LogBase::new));
       case Math1(var ast, var funId) ->
-          pushInsert(new StmtData.Math1(get(ast), funId, pop(RValue.class)));
+          pushInsert(new StmtData.Math1(get(ast), funId, pop(ISexp.class)));
       case DotCall(var ast, var numArgs) -> {
         if (stack.size() < numArgs + 1) {
           throw fail("stack underflow");
         }
         var funAndArgs = stack.subList(stack.size() - numArgs - 1, stack.size());
-        var args =
-            funAndArgs.stream().map(a -> (RValue) a).collect(ImmutableList.toImmutableList());
+        var args = funAndArgs.stream().map(a -> (ISexp) a).collect(ImmutableList.toImmutableList());
         funAndArgs.clear();
 
         pushInsert(new StmtData.CallBuiltin(get(ast), BuiltinId.DOT_CALL, args, env));
@@ -1230,11 +1229,11 @@ public class CFGCompiler {
       case SeqAlong(var ast) ->
           pushInsert(
               new StmtData.CallBuiltin(
-                  get(ast), BuiltinId.SEQ_ALONG, ImmutableList.of(pop(RValue.class)), env));
+                  get(ast), BuiltinId.SEQ_ALONG, ImmutableList.of(pop(ISexp.class)), env));
       case SeqLen(var ast) ->
           pushInsert(
               new StmtData.CallBuiltin(
-                  get(ast), BuiltinId.SEQ_LEN, ImmutableList.of(pop(RValue.class)), env));
+                  get(ast), BuiltinId.SEQ_LEN, ImmutableList.of(pop(ISexp.class)), env));
       case BaseGuard(var exprIdx, var after) -> {
         // PIR apparently just ignores the guards (`rir2pir.cpp:341`), but we can handle here.
         var expr = get(exprIdx);
@@ -1259,7 +1258,7 @@ public class CFGCompiler {
                 .collect(ImmutableList.toImmutableList());
         var args =
             expr.args().values().stream()
-                .map(v -> (RValue) new Constant(v))
+                .map(v -> (ISexp) new Constant(v))
                 .collect(ImmutableList.toImmutableList());
         var fs = compileFrameState();
         pushInsert(
@@ -1268,7 +1267,7 @@ public class CFGCompiler {
                 : new StmtData.NamelessCall(expr, sym, args, env, fs));
         cursor.insert(new JumpData.Goto(afterBb));
         addPhiInputsForStack(afterBb);
-        pop(RValue.class); // the `CallBuiltin` pushed above.
+        pop(ISexp.class); // the `CallBuiltin` pushed above.
 
         // Has one predecessor (no phis) so we can call `cursor.moveToStart` instead of `moveTo`.
         cursor.moveToStart(safeBb);
@@ -1279,21 +1278,21 @@ public class CFGCompiler {
 
   @FunctionalInterface
   private interface MkUnopFn {
-    StmtData.RValue_ make(@Nullable LangSXP ast, RValue value);
+    StmtData.ISexp_ make(@Nullable LangSXP ast, ISexp value);
   }
 
   @FunctionalInterface
   private interface MkBinopFn {
-    StmtData.RValue_ make(@Nullable LangSXP ast, RValue lhs, RValue rhs);
+    StmtData.ISexp_ make(@Nullable LangSXP ast, ISexp lhs, ISexp rhs);
   }
 
-  private StmtData.RValue_ mkUnop(ConstPool.Idx<LangSXP> ast, MkUnopFn unop) {
-    return unop.make(get(ast), pop(RValue.class));
+  private StmtData.ISexp_ mkUnop(ConstPool.Idx<LangSXP> ast, MkUnopFn unop) {
+    return unop.make(get(ast), pop(ISexp.class));
   }
 
-  private StmtData.RValue_ mkBinop(ConstPool.Idx<LangSXP> ast, MkBinopFn binop) {
-    var rhs = pop(RValue.class);
-    var lhs = pop(RValue.class);
+  private StmtData.ISexp_ mkBinop(ConstPool.Idx<LangSXP> ast, MkBinopFn binop) {
+    var rhs = pop(ISexp.class);
+    var lhs = pop(ISexp.class);
     return binop.make(get(ast), lhs, rhs);
   }
 
@@ -1324,8 +1323,8 @@ public class CFGCompiler {
   }
 
   private void compileStartDispatch(Dispatch.Type type, LangSXP ast, BB after) {
-    var rhs = type.hasRhs ? pop(RValue.class) : null;
-    var target = top(RValue.class);
+    var rhs = type.hasRhs ? pop(ISexp.class) : null;
+    var target = top(ISexp.class);
     compileGeneralDispatchCommon(type.builtin, type.isNForm, ast, target, rhs, after);
     if (rhs != null) {
       push(rhs);
@@ -1342,7 +1341,7 @@ public class CFGCompiler {
   }
 
   private void compileGeneralDispatchCommon(
-      BuiltinId fun, boolean isNForm, LangSXP ast, RValue target, @Nullable RValue rhs, BB after) {
+      BuiltinId fun, boolean isNForm, LangSXP ast, ISexp target, @Nullable ISexp rhs, BB after) {
     var isNotObject = cursor.insert(new StmtData.GnuRIs(IsTypeCheck.NON_OBJECT, target));
     var nonObjectBb = cfg.addBB("dispatchNonObject");
     var objectBb = cfg.addBB("dispatchObject");
@@ -1350,7 +1349,7 @@ public class CFGCompiler {
 
     // Has one predecessor (no phis) so we can call `cursor.moveToStart` instead of `moveTo`.
     cursor.moveToStart(objectBb);
-    var target1 = pop(RValue.class);
+    var target1 = pop(ISexp.class);
     assert target == target1
         : "`compileGeneralDispatchCommon` only called with top-of-stack as `target`";
     var dispatch = cursor.insert(new StmtData.TryDispatchBuiltin_(ast, fun, target, rhs, env));
@@ -1358,7 +1357,7 @@ public class CFGCompiler {
     push(dispatch.value());
     cursor.insert(new JumpData.Goto(after));
     addPhiInputsForStack(after);
-    pop(RValue.class); // the `CallBuiltin` pushed above.
+    pop(ISexp.class); // the `CallBuiltin` pushed above.
 
     // Has one predecessor (no phis) so we can call `cursor.moveToStart` instead of `moveTo`.
     cursor.moveToStart(nonObjectBb);
@@ -1373,17 +1372,17 @@ public class CFGCompiler {
       Dispatch.Type type,
       int minNumArgs,
       int maxNumArgs,
-      BiFunction<LangSXP, List<RValue>, StmtData.RValue_> dispatchInstrData) {
+      BiFunction<LangSXP, List<ISexp>, StmtData.ISexp_> dispatchInstrData) {
     assert !type.isNForm : "use compileDefaultDispatchN for `...N` bytecodes";
 
     if (type.hasRhs) {
-      pushCallArg(pop(RValue.class));
+      pushCallArg(pop(ISexp.class));
     }
 
     var dispatch = popDispatch(type);
     var call = popCall();
 
-    pop(RValue.class);
+    pop(ISexp.class);
 
     var argValues = Lists.map(call.args, Call.Arg::value);
     if (call.args.stream()
@@ -1413,15 +1412,15 @@ public class CFGCompiler {
   private void compileDefaultDispatchN(
       Dispatch.Type type,
       int numArgs,
-      @Nullable BiFunction<LangSXP, List<RValue>, StmtData.RValue_> dispatchInstrData) {
+      @Nullable BiFunction<LangSXP, List<ISexp>, StmtData.ISexp_> dispatchInstrData) {
     assert type.isNForm : "use compileDefaultDispatch for non-`...N` bytecodes";
 
     var dispatch = popDispatch(type);
     var uncastedArgs = stack.subList(stack.size() - numArgs, stack.size());
     for (var arg : uncastedArgs) {
-      if (!(arg instanceof RValue)) {
+      if (!(arg instanceof ISexp)) {
         throw fail(
-            "expected RValue on stack for `compileDefaultDispatchN("
+            "expected ISexp on stack for `compileDefaultDispatchN("
                 + type
                 + ", "
                 + numArgs
@@ -1429,7 +1428,7 @@ public class CFGCompiler {
       }
     }
     @SuppressWarnings("unchecked")
-    var args = (List<RValue>) (List<?>) uncastedArgs;
+    var args = (List<ISexp>) (List<?>) uncastedArgs;
 
     // Unlike `compileDefaultDispatch`, there's no call, instead we take the args from the stack.
     // Like `compileDefaultDispatch`, there's either a specialized instruction or a fallback call,
@@ -1493,7 +1492,7 @@ public class CFGCompiler {
         && n.args().getFirst().equals(Constant.string("empty alternative in numeric switch"))
         && hasBbAfterCurrent()
         && bbAfterCurrent().phis().size() == stack.size() - 1) {
-      pop(RValue.class);
+      pop(ISexp.class);
     }
   }
 
@@ -1649,38 +1648,38 @@ public class CFGCompiler {
    * <p>Most bytecode instructions that produce values, such as operations, are compiled into IR
    * instructions that are added this way.
    */
-  private void pushInsert(StmtData.RValue_ data) {
+  private void pushInsert(StmtData.ISexp_ data) {
     push(cursor.insert(data));
   }
 
-  /** {@link #pushInsert(RValue_)} but gives the instruction the name of the symbol. */
-  private void pushInsert(ConstPool.Idx<RegSymSXP> name, StmtData.RValue_ data) {
+  /** {@link #pushInsert(ISexp_)} but gives the instruction the name of the symbol. */
+  private void pushInsert(ConstPool.Idx<RegSymSXP> name, StmtData.ISexp_ data) {
     push(cursor.insert(get(name).name(), data));
   }
 
   /**
    * Insert a statement that produces a value, and begin a call with it as the function via {@link
-   * #pushCall(RValue)}.
+   * #pushCall(ISexp)}.
    */
-  private void pushCallFunInsert(StmtData.RValue_ data) {
+  private void pushCallFunInsert(StmtData.ISexp_ data) {
     pushCall(cursor.insert(data));
   }
 
-  /** {@link #pushCallFunInsert(RValue_)} but gives the instruction the name of the symbol. */
-  private void pushCallFunInsert(ConstPool.Idx<RegSymSXP> name, StmtData.RValue_ data) {
+  /** {@link #pushCallFunInsert(ISexp_)} but gives the instruction the name of the symbol. */
+  private void pushCallFunInsert(ConstPool.Idx<RegSymSXP> name, StmtData.ISexp_ data) {
     pushCall(cursor.insert(get(name).name(), data));
   }
 
   /**
    * Insert a statement that produces a value, and add it to the current call arguments via {@link
-   * #pushCallArg(RValue)}.
+   * #pushCallArg(ISexp)}.
    */
-  private void pushCallArgInsert(StmtData.RValue_ data) {
+  private void pushCallArgInsert(StmtData.ISexp_ data) {
     pushCallArg(cursor.insert(data));
   }
 
-  /** {@link #pushCallArgInsert(RValue_)} but gives the instruction a name. */
-  private void pushCallArgInsert(String name, StmtData.RValue_ data) {
+  /** {@link #pushCallArgInsert(ISexp_)} but gives the instruction a name. */
+  private void pushCallArgInsert(String name, StmtData.ISexp_ data) {
     pushCallArg(cursor.insert(name, data));
   }
 
@@ -1841,7 +1840,7 @@ public class CFGCompiler {
    * different, but we will probably abstract it so that we don't have to do anything here even in
    * the future.
    */
-  private void pushComplexAssign(boolean isSuper, RegSymSXP name, RValue lhs, RValue rhs) {
+  private void pushComplexAssign(boolean isSuper, RegSymSXP name, ISexp lhs, ISexp rhs) {
     complexAssignStack.add(new ComplexAssign(isSuper, name, rhs));
     push(lhs);
     push(rhs);
@@ -1849,10 +1848,10 @@ public class CFGCompiler {
 
   /**
    * Get the current complex assign (the one that was pushed by the last call to {@link
-   * #pushComplexAssign(boolean, RegSymSXP, RValue, RValue)}), assert that the given {@code isSuper}
+   * #pushComplexAssign(boolean, RegSymSXP, ISexp, ISexp)}), assert that the given {@code isSuper}
    * and {@code name} match its own, and remove it from the stack.
    */
-  private RValue popComplexAssign(boolean isSuper, RegSymSXP name) {
+  private ISexp popComplexAssign(boolean isSuper, RegSymSXP name) {
     require(!complexAssignStack.isEmpty(), () -> "complex assign stack underflow");
     var assign = complexAssignStack.removeLast();
 
@@ -1876,11 +1875,11 @@ public class CFGCompiler {
               + " assign");
     }
 
-    return pop(RValue.class);
+    return pop(ISexp.class);
   }
 
   /** Begin a new call of the given function (abstract value). */
-  private void pushCall(RValue fun) {
+  private void pushCall(ISexp fun) {
     callStack.add(new Call(new Call.Fun.Value(fun)));
   }
 
@@ -1890,7 +1889,7 @@ public class CFGCompiler {
   }
 
   /**
-   * Get the current call (the one that was pushed by the last call to {@link #pushCall(RValue)}).
+   * Get the current call (the one that was pushed by the last call to {@link #pushCall(ISexp)}).
    */
   private Call topCall() {
     require(!callStack.isEmpty(), () -> "no call on stack");
@@ -1898,7 +1897,7 @@ public class CFGCompiler {
   }
 
   /**
-   * Pop the current call (the one that was pushed by the last call to {@link #pushCall(RValue)}).
+   * Pop the current call (the one that was pushed by the last call to {@link #pushCall(ISexp)}).
    */
   private Call popCall() {
     require(!callStack.isEmpty(), () -> "call stack underflow");
@@ -1909,10 +1908,10 @@ public class CFGCompiler {
    * Prepend a value to the current call stack ({@link #topCall()}).
    *
    * <p>This is required for {@link GetterCall} and {@link SetterCall}, since the {@code lhs} of the
-   * complex assignment is prepended in the GNU-R. See also {@link #pushCallArg(RValue)}, which
+   * complex assignment is prepended in the GNU-R. See also {@link #pushCallArg(ISexp)}, which
    * appends the argument.
    */
-  private void prependCallArg(RValue value) {
+  private void prependCallArg(ISexp value) {
     topCall().args.addFirst(new Call.Arg(value));
   }
 
@@ -1923,14 +1922,14 @@ public class CFGCompiler {
    * separately. Either way generates the same IR, but this way makes errors clearer, e.g.
    * forgetting to push a call raises a specific error earlier instead of a stack mismatch later.
    */
-  private void pushCallArg(RValue value) {
+  private void pushCallArg(ISexp value) {
     topCall().args.add(new Call.Arg(value));
   }
 
   /**
    * Push the missing value onto the "call arguments list".
    *
-   * @see #pushCallArg(RValue)
+   * @see #pushCallArg(ISexp)
    */
   private void pushMissingCallArg() {
     topCall().args.add(Call.Arg.missing());
@@ -1939,7 +1938,7 @@ public class CFGCompiler {
   /**
    * Set the name of the last argument on the "call arguments list".
    *
-   * @see #pushCallArg(RValue)
+   * @see #pushCallArg(ISexp)
    */
   private void setNameOfLastCallArg(String name) {
     var args = topCall().args;

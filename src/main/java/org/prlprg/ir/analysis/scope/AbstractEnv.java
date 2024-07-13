@@ -9,10 +9,10 @@ import java.util.Set;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.ir.cfg.CFG;
+import org.prlprg.ir.cfg.ISexp;
 import org.prlprg.ir.cfg.Instr;
 import org.prlprg.ir.cfg.InvalidNode;
 import org.prlprg.ir.cfg.IsEnv;
-import org.prlprg.ir.cfg.RValue;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.EnvSXP;
@@ -33,16 +33,16 @@ import org.prlprg.sexp.RegSymSXP;
  */
 public final class AbstractEnv implements AbstractNode<AbstractEnv> {
   /**
-   * An {@link InvalidNode} for a {@link RValue} (in other cases a concrete node) that actually
+   * An {@link InvalidNode} for a {@link ISexp} (in other cases a concrete node) that actually
    * represents an abstract unknown environment.
    *
-   * <p>Instead of having a separate class that can either be a single {@link RValue} or "unknown
-   * parent", to represent abstract parent environments this way, we just reuse {@link RValue} and
+   * <p>Instead of having a separate class that can either be a single {@link ISexp} or "unknown
+   * parent", to represent abstract parent environments this way, we just reuse {@link ISexp} and
    * add this dummy instance. It's not really dangerous because if the stub somehow ends up where it
    * shouldn't be, it's easy to spot, and if it ends up in a {@link CFG} outside of scope analysis,
    * it will cause {@link CFG#verify()} to fail.
    */
-  public static final RValue UNKNOWN_PARENT = InvalidNode.create("unknownParent");
+  public static final ISexp UNKNOWN_PARENT = InvalidNode.create("unknownParent");
 
   /**
    * The "top" of the lattice, representing a completely unknown environment.
@@ -52,9 +52,9 @@ public final class AbstractEnv implements AbstractNode<AbstractEnv> {
   public static final AbstractEnv UNKNOWN =
       new AbstractEnv(Collections.emptyMap(), Collections.emptySet(), UNKNOWN_PARENT, false, true);
 
-  private Map<RegSymSXP, AbstractRValue> entries;
-  private Set<RValue> reachableEnvs;
-  private @Nullable @IsEnv RValue parentEnv;
+  private Map<RegSymSXP, AbstractISexp> entries;
+  private Set<ISexp> reachableEnvs;
+  private @Nullable @IsEnv ISexp parentEnv;
   private boolean isLeaked;
   private boolean isUnknown;
 
@@ -69,9 +69,9 @@ public final class AbstractEnv implements AbstractNode<AbstractEnv> {
 
   /** Internal constructor for {@link #copy()} and {@link #UNKNOWN}. */
   private AbstractEnv(
-      Map<RegSymSXP, AbstractRValue> entries,
-      Set<RValue> reachableEnvs,
-      @Nullable RValue parentEnv,
+      Map<RegSymSXP, AbstractISexp> entries,
+      Set<ISexp> reachableEnvs,
+      @Nullable ISexp parentEnv,
       boolean isLeaked,
       boolean isUnknown) {
     this.entries = entries;
@@ -81,15 +81,15 @@ public final class AbstractEnv implements AbstractNode<AbstractEnv> {
     this.isUnknown = isUnknown;
   }
 
-  public @UnmodifiableView Map<RegSymSXP, AbstractRValue> entries() {
+  public @UnmodifiableView Map<RegSymSXP, AbstractISexp> entries() {
     return Collections.unmodifiableMap(entries);
   }
 
-  public @UnmodifiableView Set<RValue> reachableEnvs() {
+  public @UnmodifiableView Set<ISexp> reachableEnvs() {
     return Collections.unmodifiableSet(reachableEnvs);
   }
 
-  public @IsEnv RValue parentEnv() {
+  public @IsEnv ISexp parentEnv() {
     return parentEnv == null ? UNKNOWN_PARENT : parentEnv;
   }
 
@@ -105,16 +105,16 @@ public final class AbstractEnv implements AbstractNode<AbstractEnv> {
     return !isUnknown() && entries.containsKey(name);
   }
 
-  public AbstractRValue get(RegSymSXP name) {
-    return Objects.requireNonNull(entries.getOrDefault(name, AbstractRValue.UNKNOWN));
+  public AbstractISexp get(RegSymSXP name) {
+    return Objects.requireNonNull(entries.getOrDefault(name, AbstractISexp.UNKNOWN));
   }
 
-  public void set(RegSymSXP name, RValue value, @Nullable Instr origin, int recursionLevel) {
+  public void set(RegSymSXP name, ISexp value, @Nullable Instr origin, int recursionLevel) {
     if (isUnknown) {
       return;
     }
 
-    var abstractValue = new AbstractRValue(value, origin, recursionLevel);
+    var abstractValue = new AbstractISexp(value, origin, recursionLevel);
     if (entries.containsKey(name)) {
       entries.get(name).merge(abstractValue);
     } else {
@@ -122,7 +122,7 @@ public final class AbstractEnv implements AbstractNode<AbstractEnv> {
     }
   }
 
-  public void addReachableEnv(@IsEnv RValue env) {
+  public void addReachableEnv(@IsEnv ISexp env) {
     if (isUnknown) {
       return;
     }
@@ -130,7 +130,7 @@ public final class AbstractEnv implements AbstractNode<AbstractEnv> {
     reachableEnvs.add(env);
   }
 
-  public void setParentEnv(@IsEnv RValue parentEnv) {
+  public void setParentEnv(@IsEnv ISexp parentEnv) {
     if (isUnknown) {
       return;
     }
@@ -183,17 +183,17 @@ public final class AbstractEnv implements AbstractNode<AbstractEnv> {
     // Merge `entries`.
     for (var e : other.entries.entrySet()) {
       var name = e.getKey();
-      var otherValue = e.getValue();
+      var otheiSexp = e.getValue();
       var myValue = entries.get(name);
 
       if (myValue == null) {
-        myValue = otherValue.copy();
+        myValue = otheiSexp.copy();
         res = res.union(myValue.mergeUnbound());
         // `UPDATED` is because we add to `entries`.
         entries.put(name, myValue);
         res = res.union(AbstractResult.UPDATED);
       } else {
-        res = res.union(myValue.merge(otherValue));
+        res = res.union(myValue.merge(otheiSexp));
       }
     }
     for (var e : entries.entrySet()) {
@@ -235,7 +235,7 @@ public final class AbstractEnv implements AbstractNode<AbstractEnv> {
       return UNKNOWN;
     }
 
-    var newEntries = new HashMap<RegSymSXP, AbstractRValue>();
+    var newEntries = new HashMap<RegSymSXP, AbstractISexp>();
     for (var e : entries.entrySet()) {
       newEntries.put(e.getKey(), e.getValue().copy());
     }

@@ -3,9 +3,9 @@ package org.prlprg.ir.analysis.scope;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.prlprg.ir.cfg.ISexp;
 import org.prlprg.ir.cfg.Instr;
 import org.prlprg.ir.cfg.IsEnv;
-import org.prlprg.ir.cfg.RValue;
 import org.prlprg.ir.cfg.StmtData.MkProm;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.PrintWhitespace;
@@ -18,14 +18,14 @@ import org.prlprg.util.UnreachableError;
  */
 public class ScopeAnalysisState implements AbstractNode<ScopeAnalysisState> {
   private final AbstractEnvHierarchy envs;
-  private final AbstractRValue returnValue;
-  private final Map<MkProm, AbstractRValue> forcedPromises;
+  private final AbstractISexp returnValue;
+  private final Map<MkProm, AbstractISexp> forcedPromises;
   private boolean mayUseReflection;
 
   /** Create an "empty" state: no envs, returns nothing, no forced promises, and no reflection. */
   ScopeAnalysisState() {
     envs = new AbstractEnvHierarchy();
-    returnValue = new AbstractRValue();
+    returnValue = new AbstractISexp();
     forcedPromises = new HashMap<>();
     mayUseReflection = false;
   }
@@ -51,11 +51,11 @@ public class ScopeAnalysisState implements AbstractNode<ScopeAnalysisState> {
     return envs;
   }
 
-  AbstractRValue returnValue() {
+  AbstractISexp returnValue() {
     return returnValue;
   }
 
-  Map<MkProm, AbstractRValue> forcedPromises() {
+  Map<MkProm, AbstractISexp> forcedPromises() {
     return forcedPromises;
   }
 
@@ -67,7 +67,7 @@ public class ScopeAnalysisState implements AbstractNode<ScopeAnalysisState> {
     this.mayUseReflection = mayUseReflection;
   }
 
-  public boolean didEnvEscape(@IsEnv RValue env) {
+  public boolean didEnvEscape(@IsEnv ISexp env) {
     return !envs.contains(env) || envs.at(env).isLeaked();
   }
 
@@ -95,7 +95,7 @@ public class ScopeAnalysisState implements AbstractNode<ScopeAnalysisState> {
     }
     if (forcedPromises.size() < other.forcedPromises.size()) {
       for (var mkProm : other.forcedPromises.keySet()) {
-        forcedPromises.putIfAbsent(mkProm, AbstractRValue.UNKNOWN);
+        forcedPromises.putIfAbsent(mkProm, AbstractISexp.UNKNOWN);
       }
       res = res.union(AbstractResult.LOST_PRECISION);
     }

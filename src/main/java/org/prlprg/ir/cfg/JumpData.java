@@ -31,15 +31,15 @@ public sealed interface JumpData<I extends Jump> extends InstrData<I> {
   record Goto(BB next) implements Void {}
 
   @EffectsAre({})
-  record Branch(@Nullable LangSXP ast, RValue condition, BB ifTrue, BB ifFalse)
+  record Branch(@Nullable LangSXP ast, ISexp condition, BB ifTrue, BB ifFalse)
       implements Void, InstrData.HasAst {
-    public Branch(RValue condition, BB ifTrue, BB ifFalse) {
+    public Branch(ISexp condition, BB ifTrue, BB ifFalse) {
       this(null, condition, ifTrue, ifFalse);
     }
   }
 
   @EffectsAreAribtrary
-  record NonLocalReturn(RValue value, @IsEnv RValue env) implements Void {
+  record NonLocalReturn(ISexp value, @IsEnv ISexp env) implements Void {
     @Override
     public JumpData<Jump> replaceReturnWith(BB newTarget) {
       throw new UnsupportedOperationException(
@@ -48,7 +48,7 @@ public sealed interface JumpData<I extends Jump> extends InstrData<I> {
   }
 
   @EffectsAre(REffect.LeaksNonEnvArg)
-  record Return(RValue value) implements Void {
+  record Return(ISexp value) implements Void {
     @Override
     public JumpData<Jump> replaceReturnWith(BB newTarget) {
       return new Goto(newTarget);
@@ -60,7 +60,7 @@ public sealed interface JumpData<I extends Jump> extends InstrData<I> {
 
   @EffectsAre({})
   record Checkpoint_(
-      @TypeIs("BOOL") ImmutableList<RValue> tests,
+      @TypeIs("BOOL") ImmutableList<ISexp> tests,
       @SameLen("tests") ImmutableList<org.prlprg.rshruntime.DeoptReason> failReasons,
       BB ifPass,
       BB ifFail)
@@ -70,7 +70,7 @@ public sealed interface JumpData<I extends Jump> extends InstrData<I> {
     }
 
     @SuppressWarnings("UnstableApiUsage")
-    public Stream<Pair<RValue, org.prlprg.rshruntime.DeoptReason>> streamAssumptionData() {
+    public Stream<Pair<ISexp, org.prlprg.rshruntime.DeoptReason>> streamAssumptionData() {
       return Streams.zip(tests.stream(), failReasons.stream(), Pair::new);
     }
 
@@ -84,7 +84,7 @@ public sealed interface JumpData<I extends Jump> extends InstrData<I> {
   record Deopt(
       FrameState frameState,
       @Nullable DeoptReason reason,
-      @Nullable RValue trigger,
+      @Nullable ISexp trigger,
       boolean escapedEnv)
       implements Void {
     public Deopt {

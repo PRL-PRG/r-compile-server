@@ -100,7 +100,7 @@ public class LabelMapping {
     }
 
     /** Step <i>m</i> times in the source bytecode and <i>n</i> times in the target bytecode */
-    void step(int sourceOffset, @SuppressWarnings("SameParameterValue") int targetOffset) {
+    void step(int sourceOffset, @SuppressWarnings("SameParameteiSexp") int targetOffset) {
       if (sourceOffset < 0 || targetOffset < 0) {
         throw new IllegalArgumentException("offsets must be nonnegative");
       }
