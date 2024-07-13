@@ -10,12 +10,13 @@ import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
 
 /**
- * A constant {@link RValue}: an IR node of a {@link SEXP} constant.
+ * A constant {@link ISexp}: an IR node of a {@link SEXP} constant.
  *
  * <p>Global environments aren't constants. Use {@link StaticEnv Envs.SOMETHING} instead.
  */
 @SuppressFBWarnings("SING_SINGLETON_HAS_NONPRIVATE_CONSTRUCTOR")
-public record Constant(SEXP constant) implements RValue, GlobalNode {
+public record Constant(SEXP constant) implements ISexp, GlobalNode {
+  public static final Constant DOTS = new Constant(SEXPs.DOTS_SYMBOL);
   private static final Constant TRUE = new Constant(SEXPs.TRUE);
   private static final Constant FALSE = new Constant(SEXPs.FALSE);
   private static final Constant NA_LOGICAL = new Constant(SEXPs.NA_LOGICAL);

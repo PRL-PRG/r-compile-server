@@ -24,7 +24,7 @@ public sealed interface MaybeNat extends Lattice<MaybeNat> {
 
   default @Override MaybeNat union(MaybeNat other) {
     return switch (other) {
-      case Known(var otherValue) -> union(otherValue);
+      case Known(var otheiSexp) -> union(otheiSexp);
       case Unknown() -> other;
     };
   }
@@ -32,9 +32,9 @@ public sealed interface MaybeNat extends Lattice<MaybeNat> {
   @Override
   default boolean isSubsetOf(MaybeNat other) {
     return switch (other) {
-      case Known(var otherValue) ->
+      case Known(var otheiSexp) ->
           switch (this) {
-            case Known(var value) -> value == otherValue;
+            case Known(var value) -> value == otheiSexp;
             case Unknown() -> false;
           };
       case Unknown() -> true;
@@ -51,9 +51,9 @@ public sealed interface MaybeNat extends Lattice<MaybeNat> {
   @Override
   default @Nullable MaybeNat intersection(MaybeNat other) {
     return switch (other) {
-      case Known(var otherValue) ->
+      case Known(var otheiSexp) ->
           switch (this) {
-            case Known(var value) -> value == otherValue ? this : null;
+            case Known(var value) -> value == otheiSexp ? this : null;
             case Unknown() -> other;
           };
       case Unknown() -> this;

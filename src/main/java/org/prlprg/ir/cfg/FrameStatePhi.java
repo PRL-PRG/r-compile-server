@@ -19,7 +19,7 @@ final class FrameStatePhiImpl extends PhiImpl<FrameState> implements FrameStateP
   }
 
   @Override
-  public @Nullable @IsEnv RValue frameStateEnv() {
+  public @Nullable @IsEnv ISexp frameStateEnv() {
     return null;
   }
 

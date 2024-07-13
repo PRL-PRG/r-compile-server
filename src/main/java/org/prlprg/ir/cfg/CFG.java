@@ -393,7 +393,7 @@ public class CFG
         prevNodes.addAll(instr.returns());
       }
 
-      // Instruction-specific checks ({@link Instr#verify()}). Example: every {@link RValue}
+      // Instruction-specific checks ({@link Instr#verify()}). Example: every {@link ISexp}
       // instruction argument is of the correct (dynamic) type.
       for (var instr : bb.instrs()) {
         try {

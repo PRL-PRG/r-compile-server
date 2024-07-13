@@ -1,33 +1,33 @@
 package org.prlprg.ir.analysis.scope;
 
+import org.prlprg.ir.cfg.ISexp;
 import org.prlprg.ir.cfg.IsEnv;
-import org.prlprg.ir.cfg.RValue;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 
 /**
- * An {@link AbstractRValue} produced from an "abstract load" operation, and the environment (either
+ * An {@link AbstractISexp} produced from an "abstract load" operation, and the environment (either
  * concrete or {@linkplain AbstractEnv#UNKNOWN_PARENT unknown}) it was loaded from.
  */
 public final class AbstractLoad {
-  private final @IsEnv RValue env;
-  private final AbstractRValue result;
+  private final @IsEnv ISexp env;
+  private final AbstractISexp result;
 
-  public AbstractLoad(AbstractRValue value) {
+  public AbstractLoad(AbstractISexp value) {
     env = AbstractEnv.UNKNOWN_PARENT;
     result = value;
   }
 
-  public AbstractLoad(@IsEnv RValue env, AbstractRValue value) {
+  public AbstractLoad(@IsEnv ISexp env, AbstractISexp value) {
     this.env = env;
     this.result = value;
   }
 
-  public @IsEnv RValue env() {
+  public @IsEnv ISexp env() {
     return env;
   }
 
-  public AbstractRValue result() {
+  public AbstractISexp result() {
     return result;
   }
 

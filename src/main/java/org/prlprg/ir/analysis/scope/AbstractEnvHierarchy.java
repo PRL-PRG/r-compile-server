@@ -9,8 +9,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import org.jetbrains.annotations.UnmodifiableView;
+import org.prlprg.ir.cfg.ISexp;
 import org.prlprg.ir.cfg.IsEnv;
-import org.prlprg.ir.cfg.RValue;
 import org.prlprg.ir.cfg.StaticEnv;
 import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.parseprint.PrintMethod;
@@ -20,11 +20,11 @@ import org.prlprg.sexp.RegSymSXP;
 /**
  * An abstract tree of environments that can perform variable lookup in abstract interpretation.
  *
- * <p>Specifically, it maps concrete environments ({@link RValue}s) to abstract environments {@link
+ * <p>Specifically, it maps concrete environments ({@link ISexp}s) to abstract environments {@link
  * AbstractEnv}, and the abstract environments have parents ({@link AbstractEnv#parentEnv()}).
  */
 public final class AbstractEnvHierarchy implements AbstractNode<AbstractEnvHierarchy> {
-  private final Map<RValue, AbstractEnv> envs = new HashMap<>();
+  private final Map<ISexp, AbstractEnv> envs = new HashMap<>();
 
   /** Creates an empty abstract environment hierarchy (no mapped environments). */
   public AbstractEnvHierarchy() {}
@@ -38,9 +38,9 @@ public final class AbstractEnvHierarchy implements AbstractNode<AbstractEnvHiera
    * Returns {@code true} iff the given concrete environment is mapped to an abstract environment.
    *
    * <p>This returns {@code true} even if the mapped environment is unknown. It's required before
-   * calling {@link #at(RValue)} if you don't know whether the environment is mapped.
+   * calling {@link #at(ISexp)} if you don't know whether the environment is mapped.
    */
-  public boolean contains(@IsEnv RValue env) {
+  public boolean contains(@IsEnv ISexp env) {
     return envs.containsKey(env);
   }
 
@@ -49,7 +49,7 @@ public final class AbstractEnvHierarchy implements AbstractNode<AbstractEnvHiera
    *
    * @throws NoSuchElementException If the concrete environment isn't mapped.
    */
-  public AbstractEnv at(@IsEnv RValue env) {
+  public AbstractEnv at(@IsEnv ISexp env) {
     var result = envs.get(env);
     if (result == null) {
       throw new NoSuchElementException("Environment not in hierarchy: " + env);
@@ -58,8 +58,8 @@ public final class AbstractEnvHierarchy implements AbstractNode<AbstractEnvHiera
   }
 
   /** Returns all concrete environments that could be parents of the given concrete environment. */
-  public @UnmodifiableView Set<RValue> potentialParents(@IsEnv RValue env) {
-    var result = ImmutableSet.<RValue>builder();
+  public @UnmodifiableView Set<ISexp> potentialParents(@IsEnv ISexp env) {
+    var result = ImmutableSet.<ISexp>builder();
 
     var hasBaseParent = false;
     while (envs.containsKey(env)) {
@@ -89,14 +89,14 @@ public final class AbstractEnvHierarchy implements AbstractNode<AbstractEnvHiera
   }
 
   /** Do a regular variable lookup. */
-  public AbstractLoad lookup(@IsEnv RValue env, RegSymSXP name) {
+  public AbstractLoad lookup(@IsEnv ISexp env, RegSymSXP name) {
     // If unbound, we fall through. If maybe unbound, we "maybe fallthrough" (return tainted because
     // we can't be exact enough).
     return lookupGeneric(env, name, false, res -> res.isUnboundValue().negate());
   }
 
   /** Lookup, but skip the innermost environment (e.g. rebind super-assignment). */
-  public AbstractLoad lookupSuper(@IsEnv RValue env, RegSymSXP name) {
+  public AbstractLoad lookupSuper(@IsEnv ISexp env, RegSymSXP name) {
     // The `test` argument is the same as that in `lookup`
     return lookupGeneric(env, name, true, res -> res.isUnboundValue().negate());
   }
@@ -117,7 +117,7 @@ public final class AbstractEnvHierarchy implements AbstractNode<AbstractEnvHiera
    * it has the same name, because the {@code c} being called is being called and the variable
    * {@code c} is not a function.
    */
-  public AbstractLoad lookupFun(@IsEnv RValue env, RegSymSXP name) {
+  public AbstractLoad lookupFun(@IsEnv ISexp env, RegSymSXP name) {
     return lookupGeneric(
         env,
         name,
@@ -140,7 +140,7 @@ public final class AbstractEnvHierarchy implements AbstractNode<AbstractEnvHiera
 
   /** Private method for shared code in all {@code lookup...} functions. */
   private AbstractLoad lookupGeneric(
-      RValue env, RegSymSXP name, boolean skipInnermost, Function<AbstractRValue, Maybe> test) {
+      ISexp env, RegSymSXP name, boolean skipInnermost, Function<AbstractISexp, Maybe> test) {
     // First, do a regular lookup from innermost to outermost.
     // Except we're dealing with abstract values, so there are cases where a value "may" be present.
     // In these cases, we have to return the union of what we'd return if the value was present and
@@ -151,7 +151,7 @@ public final class AbstractEnvHierarchy implements AbstractNode<AbstractEnvHiera
       if (aEnv == null) {
         // We have no idea what this env contains, so we definitely don't know if lookup succeeds or
         // what it finds.
-        return new AbstractLoad(AbstractEnv.UNKNOWN_PARENT, AbstractRValue.UNKNOWN);
+        return new AbstractLoad(AbstractEnv.UNKNOWN_PARENT, AbstractISexp.UNKNOWN);
       }
 
       if (skipInnermost) {
@@ -170,7 +170,7 @@ public final class AbstractEnvHierarchy implements AbstractNode<AbstractEnvHiera
             // This *may* be the result of the lookup, and env it was found
             // Unfortunately, that means we don't know the real env or result,
             // and don't have enough precision to represent anything except "unknown".
-            return new AbstractLoad(AbstractEnv.UNKNOWN_PARENT, AbstractRValue.UNKNOWN);
+            return new AbstractLoad(AbstractEnv.UNKNOWN_PARENT, AbstractISexp.UNKNOWN);
           }
           // else, this env didn't find a real candidate, so we fall through.
         }
@@ -180,7 +180,7 @@ public final class AbstractEnvHierarchy implements AbstractNode<AbstractEnvHiera
           // don't see all stores happening before entering the current function,
           // therefore we cannot practically exclude the existence of a binding
           // in those environments).
-          return new AbstractLoad(AbstractEnv.UNKNOWN_PARENT, AbstractRValue.UNKNOWN);
+          return new AbstractLoad(AbstractEnv.UNKNOWN_PARENT, AbstractISexp.UNKNOWN);
         }
       }
 
@@ -193,7 +193,7 @@ public final class AbstractEnvHierarchy implements AbstractNode<AbstractEnvHiera
           knownParent == AbstractEnv.UNKNOWN_PARENT && auxParent != null ? auxParent : knownParent;
     }
 
-    return new AbstractLoad(AbstractEnv.UNKNOWN_PARENT, AbstractRValue.UNKNOWN);
+    return new AbstractLoad(AbstractEnv.UNKNOWN_PARENT, AbstractISexp.UNKNOWN);
   }
 
   /**
@@ -203,7 +203,7 @@ public final class AbstractEnvHierarchy implements AbstractNode<AbstractEnvHiera
    * {@code to} is unknown or static, {@code from} leaks. I don't know the significance of
    * "dependency" here.
    */
-  public void addDependency(@IsEnv RValue from, @IsEnv RValue to) {
+  public void addDependency(@IsEnv ISexp from, @IsEnv ISexp to) {
     if (from.equals(to)) {
       return;
     }
@@ -224,7 +224,7 @@ public final class AbstractEnvHierarchy implements AbstractNode<AbstractEnvHiera
   /**
    * Mark the abstract environment mapped to the concrete environment (and dependencies) as leaked.
    */
-  public void leak(@IsEnv RValue env) {
+  public void leak(@IsEnv ISexp env) {
     var e = at(env);
 
     if (e.isLeaked()) {

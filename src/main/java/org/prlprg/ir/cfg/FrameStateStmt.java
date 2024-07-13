@@ -21,7 +21,7 @@ final class FrameStateStmtImpl extends SelfReturningStmtImpl<FrameState_>
   }
 
   @Override
-  public @IsEnv RValue frameStateEnv() {
+  public @IsEnv ISexp frameStateEnv() {
     return data().env();
   }
 

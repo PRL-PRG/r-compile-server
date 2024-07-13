@@ -4,8 +4,8 @@ import java.util.List;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.ir.cfg.CFG;
 import org.prlprg.ir.cfg.CFGEdit;
+import org.prlprg.ir.cfg.ISexp;
 import org.prlprg.ir.cfg.Node;
-import org.prlprg.ir.cfg.RValue;
 import org.prlprg.ir.cfg.StmtData;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
@@ -48,7 +48,7 @@ public abstract sealed class CodeObject permits Closure, Promise {
    * outermost closure), this will be empty.
    *
    * @see #unsafeReplaceOuterCfgNode(Node, Node)
-   * @see #verifyOuterCfgRValuesAreOfCorrectTypes()
+   * @see #verifyOuterCfgISexpsAreOfCorrectTypes()
    */
   public abstract @UnmodifiableView List<Node> outerCfgNodes();
 
@@ -62,15 +62,15 @@ public abstract sealed class CodeObject permits Closure, Promise {
    * this method will no longer be "unsafe").
    *
    * @throws IllegalArgumentException If the replacement node type is incompatible with the old node
-   *     type (e.g. if {@code oldNode} is an {@link RValue} and {@code newNode} is not).
+   *     type (e.g. if {@code oldNode} is an {@link ISexp} and {@code newNode} is not).
    * @see #outerCfgNodes()
-   * @see #verifyOuterCfgRValuesAreOfCorrectTypes()
+   * @see #verifyOuterCfgISexpsAreOfCorrectTypes()
    */
   public abstract void unsafeReplaceOuterCfgNode(Node oldNode, Node newNode);
 
   /**
-   * Verify that all {@linkplain #outerCfgNodes() outer CFG nodes} that are {@link RValue}s
-   * (abstract R values) have the correct dynamic type.
+   * Verify that all {@linkplain #outerCfgNodes() outer CFG nodes} that are {@link ISexp}s (abstract
+   * R values) have the correct dynamic type.
    *
    * <p>For example, verify that an environment value is still {@link BaseRType#ENV}.
    *
@@ -78,7 +78,7 @@ public abstract sealed class CodeObject permits Closure, Promise {
    * @see #outerCfgNodes()
    * @see #unsafeReplaceOuterCfgNode(Node, Node)
    */
-  public abstract void verifyOuterCfgRValuesAreOfCorrectTypes();
+  public abstract void verifyOuterCfgISexpsAreOfCorrectTypes();
 
   /** Verify all {@link CFG}s within this code object. */
   public abstract void verify();

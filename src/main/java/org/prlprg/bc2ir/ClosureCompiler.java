@@ -7,8 +7,8 @@ import static org.prlprg.ir.analysis.PropertiesComputer.computePromiseProperties
 import org.prlprg.RSession;
 import org.prlprg.bc.Compiler;
 import org.prlprg.ir.cfg.CFG;
+import org.prlprg.ir.cfg.ISexp;
 import org.prlprg.ir.cfg.IsEnv;
-import org.prlprg.ir.cfg.RValue;
 import org.prlprg.ir.cfg.StaticEnv;
 import org.prlprg.ir.closure.Closure;
 import org.prlprg.ir.closure.ClosureVersion;
@@ -24,8 +24,8 @@ import org.prlprg.sexp.SEXPs;
  */
 public class ClosureCompiler {
   /**
-   * {@link #compileBaselineClosure(String, CloSXP, RValue)} with an {@linkplain
-   * StaticEnv#NOT_CLOSED unclosed} environment (not an inner closure).
+   * {@link #compileBaselineClosure(String, CloSXP, ISexp)} with an {@linkplain StaticEnv#NOT_CLOSED
+   * unclosed} environment (not an inner closure).
    */
   public static Closure compileBaselineClosure(String name, CloSXP sexp) {
     return compileBaselineClosure(name, sexp, StaticEnv.NOT_CLOSED);
@@ -46,12 +46,12 @@ public class ClosureCompiler {
    * @throws CFGCompilerUnsupportedBcException If the closure can't be compiled because it does
    *     something complex which the compiler doesn't support yet.
    */
-  public static Closure compileBaselineClosure(String name, CloSXP sexp, @IsEnv RValue env) {
+  public static Closure compileBaselineClosure(String name, CloSXP sexp, @IsEnv ISexp env) {
     return compileBaselineClosure(name, sexp, env, new Module());
   }
 
   /**
-   * {@link #compileBaselineClosure(String, CloSXP, RValue, Module)} with an {@linkplain
+   * {@link #compileBaselineClosure(String, CloSXP, ISexp, Module)} with an {@linkplain
    * StaticEnv#NOT_CLOSED unclosed} environment (not an inner closure).
    */
   public static Closure compileBaselineClosure(String name, CloSXP sexp, Module module) {
@@ -79,7 +79,7 @@ public class ClosureCompiler {
    *     something complex that the compiler doesn't support yet.
    */
   public static Closure compileBaselineClosure(
-      String name, CloSXP sexp, @IsEnv RValue env, Module module) {
+      String name, CloSXP sexp, @IsEnv ISexp env, Module module) {
     if (!(sexp.body() instanceof BCodeSXP)) {
       var rSession = module.serverRSession();
       if (rSession == null) {
@@ -135,14 +135,14 @@ public class ClosureCompiler {
    * @throws ClosureCompilerUnsupportedException If the promise code is an AST.
    */
   static Promise compilePromise(
-      String name, SEXP promiseCodeSexp, @IsEnv RValue prenv, Module module) {
+      String name, SEXP promiseCodeSexp, @IsEnv ISexp prenv, Module module) {
     if (!(promiseCodeSexp instanceof BCodeSXP promiseBcSexp)) {
       throw new ClosureCompilerUnsupportedException(
           "Can't compile a promise whose body is an AST", promiseCodeSexp);
     }
     var promiseBc = promiseBcSexp.bc();
 
-    // compilePromise(Bc, @IsEnv RValue, Module)
+    // compilePromise(Bc, @IsEnv ISexp, Module)
     var cfg = new CFG();
     compileCFG(promiseBc, cfg, true, prenv, module);
     var properties = computePromiseProperties(cfg);

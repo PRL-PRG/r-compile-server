@@ -101,7 +101,7 @@ public sealed interface Instr extends InstrOrPhi permits Jump, Stmt {
    * <p>Instructions with elided environments, this will be non-null and {@link StaticEnv#ELIDED}.
    */
   @Nullable @IsEnv
-  RValue env();
+  ISexp env();
 
   /**
    * Returns the instruction's frame-state argument, or {@code null} if it cannot have one or it's
@@ -130,7 +130,7 @@ public sealed interface Instr extends InstrOrPhi permits Jump, Stmt {
 
   /**
    * (A view of) the instruction's return values, which other nodes may depend on. If the
-   * instruction produces a single value (may or may not be {@link RValue}), this will be itself. An
+   * instruction produces a single value (may or may not be {@link ISexp}), this will be itself. An
    * instruction may return multiple values, in which case this contains multiple nodes. "Void"
    * instructions return nothing.
    */
@@ -189,7 +189,7 @@ abstract sealed class InstrImpl<D extends InstrData<?>> extends InstrOrPhiImpl i
   @SuppressWarnings("NotNullFieldNotInitialized")
   private ImmutableList<Node> args;
 
-  private @Nullable @IsEnv RValue env;
+  private @Nullable @IsEnv ISexp env;
   private @Nullable FrameState frameState;
 
   @SuppressWarnings("NotNullFieldNotInitialized")
@@ -256,7 +256,7 @@ abstract sealed class InstrImpl<D extends InstrData<?>> extends InstrOrPhiImpl i
   }
 
   // @Override
-  public final @Nullable @IsEnv RValue env() {
+  public final @Nullable @IsEnv ISexp env() {
     return env;
   }
 
@@ -334,8 +334,8 @@ abstract sealed class InstrImpl<D extends InstrData<?>> extends InstrOrPhiImpl i
                             "`InstrData` can't have multiple fields with `@IsEnv` annotations")))
             .map(
                 component -> {
-                  if (!(Reflection.getComponent(r, component) instanceof RValue env1)) {
-                    throw new AssertionError("`@IsEnv` annotation must be on an `RValue` field");
+                  if (!(Reflection.getComponent(r, component) instanceof ISexp env1)) {
+                    throw new AssertionError("`@IsEnv` annotation must be on an `ISexp` field");
                   }
                   return env1;
                 })
@@ -538,8 +538,8 @@ abstract sealed class InstrImpl<D extends InstrData<?>> extends InstrOrPhiImpl i
     computeEnv();
     computeFrameState();
     computeEffects();
-    // TODO: also have annotations for if the RValue is a specific subclass?
-    verifyRValueArgsAreOfCorrectTypes();
+    // TODO: also have annotations for if the ISexp is a specific subclass?
+    verifyISexpArgsAreOfCorrectTypes();
     data.verify(isInsert);
   }
 
@@ -613,9 +613,9 @@ abstract sealed class InstrImpl<D extends InstrData<?>> extends InstrOrPhiImpl i
     }
   }
 
-  private void verifyRValueArgsAreOfCorrectTypes() throws InstrVerifyException {
+  private void verifyISexpArgsAreOfCorrectTypes() throws InstrVerifyException {
     // Reflectively get all record components, filter to ones with `@TypeIs` and `@IsEnv`
-    // annotations, check that their type is an `RValue` or a list of `RValue`s, and check that the
+    // annotations, check that their type is an `ISexp` or a list of `ISexp`s, and check that the
     // argument is of the expected type.
     if (!(data instanceof Record r)) {
       throw new AssertionError("InstrData must be a record");
@@ -637,44 +637,44 @@ abstract sealed class InstrImpl<D extends InstrData<?>> extends InstrOrPhiImpl i
       var expectedType =
           typeIsAnnotation != null ? TypeIsUtil.parse(typeIsAnnotation) : RType.ANY_ENV;
 
-      var isRValue = RValue.class.isAssignableFrom(component.getType());
+      var isISexp = ISexp.class.isAssignableFrom(component.getType());
       var isCodeObject = CodeObject.class.isAssignableFrom(component.getType());
-      var isListOfRValues =
+      var isListOfISexps =
           List.class.isAssignableFrom(component.getType())
-              && RValue.class.isAssignableFrom(collectionComponentElementClass(component));
-      assert isRValue || isListOfRValues
-          : "Only `RValue`s or lists of `RValue`s can have `@TypeIs` or `@IsEnv` annotation: argument "
+              && ISexp.class.isAssignableFrom(collectionComponentElementClass(component));
+      assert isISexp || isListOfISexps
+          : "Only `ISexp`s or lists of `ISexp`s can have `@TypeIs` or `@IsEnv` annotation: argument "
               + i
-              + " has a `@TypeIs` or `@IsEnv` annotation but isn't an `RValue` or list of them";
+              + " has a `@TypeIs` or `@IsEnv` annotation but isn't an `ISexp` or list of them";
       var arg = Reflection.getComponent(r, component);
 
       if (arg != null) {
-        if (isRValue) {
-          var rValue = (RValue) arg;
-          if (!rValue.isInstanceOf(expectedType)) {
+        if (isISexp) {
+          var iSexp = (ISexp) arg;
+          if (iSexp.isInstanceOf(expectedType) != Maybe.YES) {
             throw new InstrVerifyException(
                 "Argument "
                     + i
                     + " is of wrong type: expected "
                     + expectedType
                     + " but it's a "
-                    + rValue.type());
+                    + iSexp.type());
           }
         } else if (isCodeObject) {
           var codeObject = (CodeObject) arg;
           try {
-            codeObject.verifyOuterCfgRValuesAreOfCorrectTypes();
+            codeObject.verifyOuterCfgISexpsAreOfCorrectTypes();
           } catch (IllegalStateException e) {
             throw new InstrVerifyException(
                 "Argument" + i + " contains value of wrong type: " + e.getMessage());
           }
         } else {
-          var rValues = (List<?>) arg;
-          for (var j = 0; j < rValues.size(); j++) {
-            switch (rValues.get(j)) {
-              case Optional<?> optRValue -> {
-                var rValue = (RValue) optRValue.orElse(null);
-                if (rValue != null && !rValue.isInstanceOf(expectedType)) {
+          var iSexps = (List<?>) arg;
+          for (var j = 0; j < iSexps.size(); j++) {
+            switch (iSexps.get(j)) {
+              case Optional<?> optISexp -> {
+                var iSexp = (ISexp) optISexp.orElse(null);
+                if (iSexp != null && iSexp.isInstanceOf(expectedType) != Maybe.YES) {
                   throw new InstrVerifyException(
                       "Argument "
                           + i
@@ -683,11 +683,11 @@ abstract sealed class InstrImpl<D extends InstrData<?>> extends InstrOrPhiImpl i
                           + " is of wrong type: expected "
                           + expectedType
                           + " (or null) but it's a "
-                          + rValue.type());
+                          + iSexp.type());
                 }
               }
-              case RValue rValue -> {
-                if (!rValue.isInstanceOf(expectedType)) {
+              case ISexp iSexp -> {
+                if (iSexp.isInstanceOf(expectedType) != Maybe.YES) {
                   throw new InstrVerifyException(
                       "Argument "
                           + i
@@ -696,12 +696,12 @@ abstract sealed class InstrImpl<D extends InstrData<?>> extends InstrOrPhiImpl i
                           + " is of wrong type: expected "
                           + expectedType
                           + " but it's a "
-                          + rValue.type());
+                          + iSexp.type());
                 }
               }
               default ->
                   throw new AssertionError(
-                      "`optionalOrCollectionComponentElementClass` returned something for this list, so it should either be a list of `RValue`s or `Optional`s");
+                      "`optionalOrCollectionComponentElementClass` returned something for this list, so it should either be a list of `ISexp`s or `Optional`s");
             }
           }
         }

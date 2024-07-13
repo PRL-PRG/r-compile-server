@@ -7,16 +7,16 @@ import org.prlprg.ir.type.RType;
 /**
  * {@link Phi} (<a
  * href="https://mapping-high-level-constructs-to-llvm-ir.readthedocs.io/en/latest/control-structures/ssa-phi.html">SSA
- * φ-node.</a>) of {@link RValue}s.
+ * φ-node.</a>) of {@link ISexp}s.
  */
-public interface RValuePhi extends Phi<RValue>, RValue {
+public interface ISexpPhi extends Phi<ISexp>, ISexp {
   @Override
-  NodeId<RValuePhi> id();
+  NodeId<ISexpPhi> id();
 }
 
-final class RValuePhiImpl extends PhiImpl<RValue> implements RValuePhi {
-  RValuePhiImpl(CFG cfg, NodeId<? extends Phi<?>> id, Collection<? extends Input<?>> inputs) {
-    super(RValue.class, cfg, id, inputs);
+final class ISexpPhiImpl extends PhiImpl<ISexp> implements ISexpPhi {
+  ISexpPhiImpl(CFG cfg, NodeId<? extends Phi<?>> id, Collection<? extends Input<?>> inputs) {
+    super(ISexp.class, cfg, id, inputs);
   }
 
   @Override
@@ -24,17 +24,17 @@ final class RValuePhiImpl extends PhiImpl<RValue> implements RValuePhi {
     return type(new HashSet<>());
   }
 
-  private RType type(HashSet<RValuePhiImpl> encountered) {
+  private RType type(HashSet<ISexpPhiImpl> encountered) {
     if (!encountered.add(this)) {
       return RType.NOTHING;
     }
     return inputNodes().stream()
-        .map(node -> node instanceof RValuePhiImpl r ? r.type(encountered) : node.type())
+        .map(node -> node instanceof ISexpPhiImpl r ? r.type(encountered) : node.type())
         .collect(RType.toUnion());
   }
 
   @Override
-  public NodeId<RValuePhi> id() {
+  public NodeId<ISexpPhi> id() {
     return uncheckedCastId();
   }
 }

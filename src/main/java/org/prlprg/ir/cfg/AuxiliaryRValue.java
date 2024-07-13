@@ -3,21 +3,21 @@ package org.prlprg.ir.cfg;
 import javax.annotation.Nonnull;
 
 /**
- * {@link RValue} produced by an instruction which isn't a value itself.
+ * {@link ISexp} produced by an instruction which isn't a value itself.
  *
  * @see AuxiliaryNodeIdImpl
  */
-abstract class AuxiliaryRValue implements RValue {
+abstract class AuxiliaryISexp implements ISexp {
   private final InstrOrPhi origin;
-  private final NodeId<? extends RValue> id;
+  private final NodeId<? extends ISexp> id;
 
-  AuxiliaryRValue(InstrOrPhi origin, int auxiliaryIndex) {
+  AuxiliaryISexp(InstrOrPhi origin, int auxiliaryIndex) {
     this.origin = origin;
     id = new AuxiliaryNodeIdImpl<>(origin.id(), auxiliaryIndex);
   }
 
   @Override
-  public NodeId<? extends RValue> id() {
+  public NodeId<? extends ISexp> id() {
     return id;
   }
 

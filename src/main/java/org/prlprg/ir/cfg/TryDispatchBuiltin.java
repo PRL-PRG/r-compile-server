@@ -7,8 +7,8 @@ import org.prlprg.ir.cfg.StmtData.TryDispatchBuiltin_;
 import org.prlprg.ir.type.RType;
 
 /**
- * {@link Stmt} (IR instruction) which produces a boolean {@link RValue} (whether it dispatched) and
- * second {@link RValue} (the result if it dispatched, otherwise undefined).
+ * {@link Stmt} (IR instruction) which produces a boolean {@link ISexp} (whether it dispatched) and
+ * second {@link ISexp} (the result if it dispatched, otherwise undefined).
  *
  * <p>IR node which corresponds to a runtime context. But there is only one, which is this
  * instruction type. If more need to be added (or there can be {@link Phi}s), we'll need to extract
@@ -21,29 +21,29 @@ public interface TryDispatchBuiltin extends Stmt {
   @Override
   TryDispatchBuiltin_ data();
 
-  /** A boolean {@link RValue} that is true iff the builtin was dispatched. */
-  RValue dispatched();
+  /** A boolean {@link ISexp} that is true iff the builtin was dispatched. */
+  ISexp dispatched();
 
   /**
-   * An {@link RValue} that is the dispatch result in the same trace {@link #dispatched()} is true.
+   * An {@link ISexp} that is the dispatch result in the same trace {@link #dispatched()} is true.
    *
    * <p>If {@code dispatched} is false this value is undefined.
    */
-  RValue value();
+  ISexp value();
 }
 
 final class TryDispatchBuiltinImpl extends StmtImpl<TryDispatchBuiltin_>
     implements TryDispatchBuiltin {
-  private final RValue dispatched =
-      new AuxiliaryRValue(this, 0) {
+  private final ISexp dispatched =
+      new AuxiliaryISexp(this, 0) {
         @Override
         public RType type() {
           return RType.BOOL;
         }
       };
 
-  private final RValue value =
-      new AuxiliaryRValue(this, 1) {
+  private final ISexp value =
+      new AuxiliaryISexp(this, 1) {
         @Override
         public RType type() {
           return RType.ANY;
@@ -57,12 +57,12 @@ final class TryDispatchBuiltinImpl extends StmtImpl<TryDispatchBuiltin_>
   }
 
   @Override
-  public RValue dispatched() {
+  public ISexp dispatched() {
     return dispatched;
   }
 
   @Override
-  public RValue value() {
+  public ISexp value() {
     return value;
   }
 
