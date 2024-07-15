@@ -198,7 +198,7 @@ public class Scopes {
           if (!load.result().isUnknown()) {
             // We statically know the closure.
             handled = true;
-          } else if (load.env() != AbstractEnv.UNKNOWN_PARENT) {
+          } else if (load.env() != StaticEnv.NOT_CLOSED) {
             // If our analysis give us an environment approximation for the `LdFun`, then we can at
             // least contain the tainted environments.
             var env = state.envs().at(load.env());
@@ -217,7 +217,7 @@ public class Scopes {
         }
         case StVarSuper st -> {
           var superEnv = state.envs().at(st.env()).parentEnv();
-          if (superEnv != AbstractEnv.UNKNOWN_PARENT) {
+          if (superEnv != StaticEnv.NOT_CLOSED) {
             var binding = state.envs().lookupSuper(st.env(), st.name());
             if (!binding.result().isUnknown()) {
               state.envs().at(superEnv).set(st.name(), st.value(), instr, depth);
