@@ -212,8 +212,13 @@ public class RDSReader implements Closeable {
     var length = in.readInt("length");
     var name = in.readString(length, nativeEncoding, "name");
 
-    logger.pop();
-    return special ? SEXPs.special(name) : SEXPs.builtin(name);
+    // For now, we throw an exception upon reading any SpecialSXP or BuiltinSXP. This is because
+    // RDS serializes builtins via their name, but we do not have any (fully implemented) construct
+    // representing the name of a builtin (instead, they are represented with indices)
+    throw new UnsupportedOperationException("Unable to read builtin: " + name);
+
+    // Spec for future implementation:
+    // - return SEXPs.builtin() or SEXPs.special() depending on the boolean passed to the method
   }
 
   private SEXP readPromise(Flags flags) throws IOException {
@@ -227,9 +232,12 @@ public class RDSReader implements Closeable {
 
     logger.pop();
     if (tag instanceof NilSXP) {
+      // If the tag is nil, the promise is evaluated
       return new PromSXP(expr, val, SEXPs.EMPTY_ENV);
     } else if (tag instanceof EnvSXP env) {
-      return new PromSXP(expr, val, env);
+      // Otherwise, the promise is lazy. We represent lazy promises as having a val of
+      // SEXPs.UNBOUND_VALUE, so we set it here accordingly
+      return new PromSXP(expr, SEXPs.UNBOUND_VALUE, env);
     } else {
       throw new RDSException("Expected promise ENV to be environment");
     }
@@ -494,7 +502,10 @@ public class RDSReader implements Closeable {
 
     var attributes = readAttributes(flags);
 
-    // FIXME: not sure what it is good for
+    // We do not support tags for LangSXPs. It is technically possible to have a tag on a LangSXP
+    // by adding it manually, but this is very rare. It is more common for the arguments, which
+    // are members of a ListSXP, to have names associated with them. As such, we read and discard
+    // any tag that might be present.
     readTag(flags);
 
     if (!(readItem() instanceof SymOrLangSXP fun)) {
@@ -513,13 +524,16 @@ public class RDSReader implements Closeable {
     if (!flags.getType().isSexp(SEXPType.CHAR)) {
       throw new RDSException("Expected CHAR");
     }
+    var encoding = flags.getLevels().encoding();
+
     var length = in.readInt("length");
 
     String out;
     if (length == -1) {
       out = Constants.NA_STRING;
     } else {
-      out = in.readString(length, nativeEncoding, "value");
+      assert encoding != null;
+      out = in.readString(length, encoding, "value");
     }
 
     logger.pop();
@@ -690,20 +704,19 @@ public class RDSReader implements Closeable {
   }
 
   private @Nullable String readTag(Flags flags) throws IOException {
-    logger.push("Tag");
-
     String tagVal;
     if (flags.hasTag()) {
+      logger.push("Tag");
       if (readItem() instanceof RegSymSXP s) {
         tagVal = s.name();
       } else {
         throw new RDSException("Expected tag to be a symbol");
       }
+      logger.pop();
     } else {
       tagVal = null;
     }
 
-    logger.pop();
     return tagVal;
   }
 

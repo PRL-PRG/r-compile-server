@@ -115,6 +115,9 @@ public class RDSWriter implements Closeable {
         switch (special) {
           case RDSItemType.Special.NAMESPACESXP -> {
             logger.push("NamespaceSXP");
+            // add to the ref table
+            refAdd(s);
+            // write details about the namespace
             var namespace = (NamespaceEnvSXP) s;
             writeStringVec(SEXPs.string(namespace.name(), namespace.version()));
             logger.pop();
@@ -171,15 +174,32 @@ public class RDSWriter implements Closeable {
     refTable.put(s, refIndex++);
   }
 
-  /** Determines if the hasTag bit should be set based on the SEXP */
+  /**
+   * Determines if the hasTag bit should be set based on the SEXP.
+   *
+   * <p>The meaning of "tag" varies depending on the SEXP. In C, it is defined based on the position
+   * of the field (namely, the last field of the struct). So, it corresponds with the fields as
+   * follows:
+   *
+   * <ul>
+   *   <li>{@link CloSXP}: the closure's environment
+   *   <li>{@link PromSXP}: the promise's environment (null if the promise has been evaluated)
+   *   <li>{@link ListSXP}: the name assigned to an element
+   *   <li>{@link LangSXP}: a name assigned to the function (we do not support this since it's such
+   *       a rare case)
+   * </ul>
+   */
   private boolean hasTag(SEXP s) {
     return switch (s) {
         // CloSXP should always be marked as having a tag
       case CloSXP _ -> true;
-        // Tags for LangSXP are argument names, but it does not seem that we support them
+        // The tag for a LangSXP is manually assigned to the function (this is very rare). We
+        // don't support them.
       case LangSXP _ -> false;
-        // A promise has a tag as long as its environment isn't an EmptyEnvSXP
-      case PromSXP prom -> !(prom.env() instanceof EmptyEnvSXP);
+        // In GNUR, the tag of a promise is its environment. The environment is set to null once
+        // the promise is evaluated. So, hasTag should return true if and only if the promise is
+        // unevaluated (lazy)
+      case PromSXP prom -> prom.isLazy();
         // hasTag is based on the first element
       case ListSXP list -> !list.isEmpty() && list.get(0).hasTag();
       default -> false;
@@ -251,12 +271,12 @@ public class RDSWriter implements Closeable {
 
   /** Writes the tag of the provided TaggedElem, if one exists. If none exists, does nothing. */
   private void writeTagIfPresent(TaggedElem elem) throws IOException {
-    logger.push("Tag");
     if (elem.hasTag()) {
+      logger.push("Tag");
       // Convert the tag to a symbol, since we need to add it to the ref table
       writeItem(Objects.requireNonNull(elem.tagAsSymbol()));
+      logger.pop();
     }
-    logger.pop();
   }
 
   /**
@@ -287,7 +307,9 @@ public class RDSWriter implements Closeable {
   private void writeEnv(EnvSXP env) throws IOException {
     logger.push("EnvSXP");
 
+    // Add to the ref table
     refAdd(env);
+
     if (env instanceof UserEnvSXP userEnv) {
       // Write 1 if the environment is locked, or 0 if it is not
       // FIXME: implement locked environments, as is this will always be false
@@ -337,15 +359,14 @@ public class RDSWriter implements Closeable {
   }
 
   private void writeBuiltinOrSpecialSXP(BuiltinOrSpecialSXP bos) throws IOException {
-    logger.push("BuiltinOrSpecialSXP");
+    // For now, we throw an exception upon writing any SpecialSXP or BuiltinSXP. This is because
+    // RDS serializes builtins via their name, but we do not have any (fully implemented) construct
+    // representing the name of a builtin (instead, they are represented with indices)
+    throw new UnsupportedOperationException("Unable to write builtin: " + bos);
 
-    var name = bos.id().name();
-    var length = name.length();
-
-    out.writeInt(length, "length");
-    out.writeString(name, "name");
-
-    logger.pop();
+    // Spec for future implementation:
+    // - write an int representing the length of the BuiltinOrSpecialSXP's name
+    // - write the name as a String (not a CHARSXP, in that no additional flags are written)
   }
 
   private void writeListSXP(ListSXP lsxp) throws IOException {
@@ -383,6 +404,7 @@ public class RDSWriter implements Closeable {
     logger.push("LangSXP");
 
     writeAttributesIfPresent(lang);
+    // LangSXPs can have tags, but we don't support them, so no tag is written here
     writeItem(lang.fun());
     writeItem(lang.args());
 
@@ -393,12 +415,16 @@ public class RDSWriter implements Closeable {
     logger.push("PromSXP");
 
     writeAttributesIfPresent(prom);
-    // a promise has the value, expression and environment, in this order
+
+    // TODO: test that this is the correct order of arguments
+
+    // Only write the
+    if (prom.isLazy()) {
+      writeItem(prom.env());
+    }
+
     writeItem(prom.val());
     writeItem(prom.expr());
-    // FIXME: if the environment is the tag of the promise, should we avoid writing it if that
-    //  tag is "empty" (the env is an EmptyEnvSXP)
-    writeItem(prom.env());
 
     logger.pop();
   }
@@ -554,7 +580,7 @@ public class RDSWriter implements Closeable {
       switch (lol) {
           // For a LangSXP, recursively write the function and args
         case LangSXP lang -> {
-          // The tag of a LangSXP is always null (I think)
+          // The tag of a LangSXP is an argument name, but it does not seem that we support them.
           writeItem(SEXPs.NULL);
           // write head
           writeByteCodeLang(lang.fun(), reps, nextRepIndex);
@@ -590,23 +616,24 @@ public class RDSWriter implements Closeable {
 
     // Decode the bytecode (we will get a vector of integers)
     // write the vector of integers
-    var encoder = new GNURByteCodeEncoderFactory(s.bc().code());
+    var encoder = new GNURByteCodeEncoderFactory(s.bc());
+
     var code_bytes = encoder.buildRaw();
-    writeItem(SEXPs.integer(code_bytes));
-    writeByteCodeConsts(s, reps, nextRepIndex);
+    writeItem(SEXPs.integer(code_bytes.getInstructions()));
+    writeByteCodeConsts(code_bytes.getConsts(), reps, nextRepIndex);
 
     logger.pop();
   }
 
   private void writeByteCodeConsts(
-      BCodeSXP s, HashMap<SEXP, Integer> reps, AtomicInteger nextRepIndex) throws IOException {
+      List<SEXP> consts, HashMap<SEXP, Integer> reps, AtomicInteger nextRepIndex)
+      throws IOException {
     logger.push("BCodeSXP (consts)");
 
     // write the number of consts in the bytecode
     // iterate the consts: if it s bytecode, write the type and recurse
     // if it is langsxp or listsxp,  write them , using the BCREDPEF, ATTRALANGSXP and ATTRLISTSXP
     // else write the type and the value
-    var consts = s.bc().consts();
     out.writeInt(consts.size(), "length");
 
     // Iterate the constant pool and write the values

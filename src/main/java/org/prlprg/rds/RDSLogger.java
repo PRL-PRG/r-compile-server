@@ -1,14 +1,27 @@
 package org.prlprg.rds;
 
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 import java.util.*;
 import java.util.function.Supplier;
 import java.util.logging.*;
 import org.prlprg.AppConfig;
 
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.METHOD)
+@interface RDSComponentWrite {
+  public String name();
+}
+
 final class RDSLogger {
   private final StringBuilder output = new StringBuilder();
   private final boolean shouldLog;
   private int indentLevel;
+
+  //  private Stack<String> componentLabels;
+  //  private String opLabel;
 
   /**
    * @param name a description of the read or write, printed at the start of logging
@@ -26,6 +39,11 @@ final class RDSLogger {
     handler.setLevel(Level.FINE);
   }
 
+  /** Updates the component currently being written */
+  //  private void updateComponent() {
+  //    Thread.currentThread().getStackTrace()[0].;
+  //  }
+
   /**
    * Logs a lazily-evaluated String with the current indent level with Level.FINE.
    *
@@ -38,6 +56,10 @@ final class RDSLogger {
       output.append(indent).append(msg.get()).append("\n");
     }
   }
+
+  //  public void setOpLabel(String opLabel) {
+  //    this.opLabel = opLabel;
+  //  }
 
   /**
    * Logs the reading or writing of a new SEXP by printing an identifier and increasing the

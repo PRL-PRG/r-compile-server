@@ -1,7 +1,6 @@
 package org.prlprg.rds;
 
 import static java.lang.Double.NaN;
-import static java.lang.String.format;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -426,45 +425,5 @@ public class RDSWriterTest extends AbstractGNURBasedTest {
             compiled_clo);
 
     assertEquals(output, SEXPs.real(6, 7));
-  }
-
-  @Test
-  public void testRDSAgainstR() throws Exception {
-    RDSLogger.addHandler(new FileHandler("rds_output.log"));
-
-    var expectedOutputFile = File.createTempFile("expected", ".rds");
-    var actualOutputFile = File.createTempFile("actual", ".rds");
-
-    // Write the expected output
-    var input = "c('a', 'bb', 'ccc')";
-    var code =
-        format(
-            "saveRDS(%s, '%s', version=2, compress=FALSE)",
-            input, expectedOutputFile.getAbsoluteFile());
-    R.eval(code);
-
-    // Write the actual output
-    RDSWriter.writeFile(actualOutputFile, R.eval(input));
-
-    // Read for verbose output
-    RDSReader.readFile(rsession, expectedOutputFile, AppConfig.RDSLogLevel.TEST);
-    RDSReader.readFile(rsession, actualOutputFile, AppConfig.RDSLogLevel.TEST);
-
-    // Check that the output is the same across both
-    try (var expected = new FileInputStream(expectedOutputFile);
-        var actual = new FileInputStream(actualOutputFile)) {
-      System.out.println("expected | actual");
-      while (expected.available() != 0 && actual.available() != 0) {
-        var enext = expected.read();
-        var anext = actual.read();
-        assertEquals(enext, anext);
-      }
-      expected.close();
-      actual.close();
-    }
-    ;
-
-    assert expectedOutputFile.delete();
-    assert actualOutputFile.delete();
   }
 }

@@ -1,5 +1,6 @@
 package org.prlprg.sexp;
 
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Predicate;
 import javax.annotation.Nonnull;
@@ -80,5 +81,16 @@ record CloSXPImpl(ListSXP parameters, SEXP body, EnvSXP env, @Override Attribute
   @Override
   public String toString() {
     return Printer.toString(this);
+  }
+
+  @Override
+  public boolean equals(Object other) {
+    if (other instanceof CloSXP clo) {
+      return Objects.equals(this.attributes, clo.attributes())
+          && Objects.equals(this.body, clo.body())
+          && Objects.equals(this.parameters, clo.parameters());
+    } else {
+      return false;
+    }
   }
 }

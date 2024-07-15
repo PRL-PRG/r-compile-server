@@ -17,7 +17,8 @@ class GNURByteCodeDecoderFactory {
   GNURByteCodeDecoderFactory(ImmutableIntArray byteCode, List<SEXP> consts) {
     this.byteCode = byteCode;
 
-    cpb = new ConstPool.Builder(consts);
+    cpb = new ConstPool.Builder(consts.size());
+    cpb.addAllPreservingIndices(consts);
     cbb = new BcCode.Builder();
     labelMapping = LabelMapping.fromGNUR(byteCode);
 
@@ -213,9 +214,9 @@ class GNURByteCodeDecoderFactory {
         case DUP2ND -> new BcInstr.Dup2nd();
         case SWITCH -> {
           var ast = cpb.indexLang(byteCode.get(curr++));
-          var names = cpb.indexStrOrNil(byteCode.get(curr++));
-          var chrLabelsIdx = cpb.indexIntOrNil(byteCode.get(curr++));
-          var numlabelsIdx = cpb.indexIntOrNil(byteCode.get(curr++));
+          var names = cpb.indexStrOrNilIfNegative(byteCode.get(curr++));
+          var chrLabelsIdx = cpb.indexIntOrNilIfNegative(byteCode.get(curr++));
+          var numLabelsIdx = cpb.indexIntOrNilIfNegative(byteCode.get(curr++));
 
           // in the case switch does not have any named labels this will be null,
           if (chrLabelsIdx != null) {
@@ -226,11 +227,11 @@ class GNURByteCodeDecoderFactory {
           // case of empty switch?
           // in some cases, the number labels can be the same as the chrLabels
           // and we do not want to remap twice
-          if (numlabelsIdx != null && !numlabelsIdx.equals(chrLabelsIdx)) {
-            cpb.reset(numlabelsIdx, this::remapLabels);
+          if (numLabelsIdx != null && !numLabelsIdx.equals(chrLabelsIdx)) {
+            cpb.reset(numLabelsIdx, this::remapLabels);
           }
 
-          yield new BcInstr.Switch(ast, names, chrLabelsIdx, numlabelsIdx);
+          yield new BcInstr.Switch(ast, names, chrLabelsIdx, numLabelsIdx);
         }
         case RETURNJMP -> new BcInstr.ReturnJmp();
         case STARTSUBSET_N ->

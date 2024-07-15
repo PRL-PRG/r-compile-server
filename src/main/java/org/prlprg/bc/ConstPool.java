@@ -4,7 +4,6 @@ import com.google.common.collect.ForwardingList;
 import com.google.common.collect.ImmutableList;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -125,16 +124,13 @@ public final class ConstPool extends ForwardingList<SEXP> {
     private final List<SEXP> values;
 
     public Builder() {
-      this(Collections.emptyList());
+      this.index = new HashMap<>();
+      this.values = new ArrayList<>();
     }
 
-    public Builder(List<SEXP> consts) {
-      index = new HashMap<>(consts.size());
-      values = new ArrayList<>(consts.size());
-
-      for (var e : consts) {
-        add(e);
-      }
+    public Builder(int expectedSize) {
+      this.index = new HashMap<>(expectedSize);
+      this.values = new ArrayList<>(expectedSize);
     }
 
     public <S extends SEXP> Idx<S> add(S c) {
@@ -142,12 +138,43 @@ public final class ConstPool extends ForwardingList<SEXP> {
           index.computeIfAbsent(
               c,
               (ignored) -> {
-                var x = index.size();
+                var x = values.size();
                 values.add(c);
                 return x;
               });
 
       return Idx.create(i, c);
+    }
+
+    /**
+     * Adds all the constants from {@code consts} to the builder.
+     *
+     * @apiNote Unlike {@link #addAllPreservingIndices(List) addAllPreservingIndices}, this method
+     *     will not necessarily maintain the invariant that the builder's size is the same as the
+     *     list's size. That is, if an element appears multiple times in the list, it will only be
+     *     added once to the constant pool.
+     */
+    public void addAll(List<SEXP> consts) {
+      for (var e : consts) {
+        add(e);
+      }
+    }
+
+    /**
+     * Adds all the constants from {@code consts} to the builder, preserving their indices in the
+     * original list.
+     *
+     * @apiNote This method should not be used unless it is critical for the indices in the supplied
+     *     list to align with those in the constant pool, and possible that they will not (e.g.,
+     *     reading a constant pool from RDS). To add a list of constants to the constant pool while
+     *     ensuring that there are no duplicates, invoke {@link #addAll(List) addAll} on an empty
+     *     {@link ConstPool.Builder}.
+     */
+    public void addAllPreservingIndices(List<SEXP> consts) {
+      for (var e : consts) {
+        this.index.put(e, values.size());
+        this.values.add(e);
+      }
     }
 
     /**
@@ -180,10 +207,20 @@ public final class ConstPool extends ForwardingList<SEXP> {
       return index(i, RegSymSXP.class);
     }
 
-    // FIXME: do we need this?
+    // FIXME: do we need these? ---
     public @Nullable Idx<LangSXP> indexLangOrNilIfNegative(int i) {
       return i >= 0 ? orNil(i, LangSXP.class) : null;
     }
+
+    public @Nullable Idx<IntSXP> indexIntOrNilIfNegative(int i) {
+      return i >= 0 ? orNil(i, IntSXP.class) : null;
+    }
+
+    public @Nullable Idx<StrSXP> indexStrOrNilIfNegative(int i) {
+      return i >= 0 ? orNil(i, StrSXP.class) : null;
+    }
+
+    // -- FIXME
 
     public @Nullable Idx<StrOrRegSymSXP> indexStrOrSymOrNil(int i) {
       return orNil(i, StrOrRegSymSXP.class);
