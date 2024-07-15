@@ -386,9 +386,9 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
       implements ISexp_, InstrData.HasAst {}
 
   sealed interface Subassign extends ISexp_, InstrData.HasAst {
-    ISexp value();
-
     ISexp vecOrMtx();
+
+    ISexp value();
 
     ImmutableList<ISexp> indices();
 
@@ -498,11 +498,11 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
   }
 
   record Subassign1_1D(
-      @Override @Nullable LangSXP ast, ISexp vector, ISexp index, ISexp value, @IsEnv ISexp env)
+      @Override @Nullable LangSXP ast, ISexp vector, ISexp value, ISexp index, @IsEnv ISexp env)
       implements SubassignN_1D {}
 
   @EffectsAre(REffect.Error)
-  record SetVecElt(ISexp value, ISexp vector, ISexp index) implements ISexp_ {
+  record SetVecElt(ISexp vector, ISexp value, ISexp index) implements ISexp_ {
     @Override
     public RType computeType() {
       // TODO
@@ -511,34 +511,34 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
   }
 
   record Subassign2_1D(
-      @Override @Nullable LangSXP ast, ISexp vector, ISexp index, ISexp value, @IsEnv ISexp env)
+      @Override @Nullable LangSXP ast, ISexp value, ISexp vector, ISexp index, @IsEnv ISexp env)
       implements SubassignN_1D {}
 
   record Subassign1_2D(
       @Override @Nullable LangSXP ast,
       ISexp matrix,
+      ISexp value,
       ISexp index1,
       ISexp index2,
-      ISexp value,
       @IsEnv ISexp env)
       implements SubassignN_2D {}
 
   record Subassign2_2D(
       @Override @Nullable LangSXP ast,
       ISexp matrix,
+      ISexp value,
       ISexp index1,
       ISexp index2,
-      ISexp value,
       @IsEnv ISexp env)
       implements SubassignN_2D {}
 
   record Subassign1_3D(
       @Override @Nullable LangSXP ast,
       ISexp matrix,
+      ISexp value,
       ISexp index1,
       ISexp index2,
       ISexp index3,
-      ISexp value,
       @IsEnv ISexp env)
       implements Subassign {
     @Override

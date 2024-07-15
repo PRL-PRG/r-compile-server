@@ -8,11 +8,10 @@ import java.util.Objects;
 import java.util.Set;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
-import org.prlprg.ir.cfg.CFG;
 import org.prlprg.ir.cfg.ISexp;
 import org.prlprg.ir.cfg.Instr;
-import org.prlprg.ir.cfg.InvalidNode;
 import org.prlprg.ir.cfg.IsEnv;
+import org.prlprg.ir.cfg.StaticEnv;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.EnvSXP;
@@ -33,24 +32,13 @@ import org.prlprg.sexp.RegSymSXP;
  */
 public final class AbstractEnv implements AbstractNode<AbstractEnv> {
   /**
-   * An {@link InvalidNode} for a {@link ISexp} (in other cases a concrete node) that actually
-   * represents an abstract unknown environment.
-   *
-   * <p>Instead of having a separate class that can either be a single {@link ISexp} or "unknown
-   * parent", to represent abstract parent environments this way, we just reuse {@link ISexp} and
-   * add this dummy instance. It's not really dangerous because if the stub somehow ends up where it
-   * shouldn't be, it's easy to spot, and if it ends up in a {@link CFG} outside of scope analysis,
-   * it will cause {@link CFG#verify()} to fail.
-   */
-  public static final ISexp UNKNOWN_PARENT = InvalidNode.create("unknownParent");
-
-  /**
    * The "top" of the lattice, representing a completely unknown environment.
    *
    * <p>This can is because it can't change; merging with unknown always produces unknown.
    */
   public static final AbstractEnv UNKNOWN =
-      new AbstractEnv(Collections.emptyMap(), Collections.emptySet(), UNKNOWN_PARENT, false, true);
+      new AbstractEnv(
+          Collections.emptyMap(), Collections.emptySet(), StaticEnv.NOT_CLOSED, false, true);
 
   private Map<RegSymSXP, AbstractISexp> entries;
   private Set<ISexp> reachableEnvs;
@@ -90,7 +78,7 @@ public final class AbstractEnv implements AbstractNode<AbstractEnv> {
   }
 
   public @IsEnv ISexp parentEnv() {
-    return parentEnv == null ? UNKNOWN_PARENT : parentEnv;
+    return parentEnv == null ? StaticEnv.NOT_CLOSED : parentEnv;
   }
 
   public boolean isLeaked() {
@@ -160,7 +148,7 @@ public final class AbstractEnv implements AbstractNode<AbstractEnv> {
   public void taint() {
     entries = Collections.emptyMap();
     reachableEnvs = Collections.emptySet();
-    parentEnv = UNKNOWN_PARENT;
+    parentEnv = StaticEnv.NOT_CLOSED;
     isLeaked = false;
     isUnknown = true;
   }
@@ -215,8 +203,10 @@ public final class AbstractEnv implements AbstractNode<AbstractEnv> {
     if (parentEnv == null && other.parentEnv != null) {
       parentEnv = other.parentEnv;
       res = res.union(AbstractResult.UPDATED);
-    } else if (parentEnv != null && parentEnv != UNKNOWN_PARENT && other.parentEnv != parentEnv) {
-      parentEnv = UNKNOWN_PARENT;
+    } else if (parentEnv != null
+        && parentEnv != StaticEnv.NOT_CLOSED
+        && other.parentEnv != parentEnv) {
+      parentEnv = StaticEnv.NOT_CLOSED;
       res = res.union(AbstractResult.LOST_PRECISION);
     }
 

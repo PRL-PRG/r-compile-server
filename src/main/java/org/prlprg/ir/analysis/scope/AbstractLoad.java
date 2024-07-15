@@ -2,19 +2,20 @@ package org.prlprg.ir.analysis.scope;
 
 import org.prlprg.ir.cfg.ISexp;
 import org.prlprg.ir.cfg.IsEnv;
+import org.prlprg.ir.cfg.StaticEnv;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 
 /**
  * An {@link AbstractISexp} produced from an "abstract load" operation, and the environment (either
- * concrete or {@linkplain AbstractEnv#UNKNOWN_PARENT unknown}) it was loaded from.
+ * concrete or {@linkplain StaticEnv#NOT_CLOSED not closed}) it was loaded from.
  */
 public final class AbstractLoad {
   private final @IsEnv ISexp env;
   private final AbstractISexp result;
 
   public AbstractLoad(AbstractISexp value) {
-    env = AbstractEnv.UNKNOWN_PARENT;
+    env = StaticEnv.NOT_CLOSED;
     result = value;
   }
 
