@@ -142,32 +142,19 @@ public class RDSWriter implements Closeable {
         switch (s) {
           case SymSXP sym -> writeSymbol(sym);
           case EnvSXP env -> writeEnv(env);
-
-            // Dotted-pair (pairlist) objects
           case ListSXP list -> writeListSXP(list);
           case LangSXP lang -> writeLangSXP(lang);
           case PromSXP prom -> writePromSXP(prom);
           case CloSXP clo -> writeCloSXP(clo);
-
-            // TODO: external pointer
-            // TODO: weak reference
-
-            // Other functions--special and builtin
           case BuiltinOrSpecialSXP bos -> writeBuiltinOrSpecialSXP(bos);
-
-            // Vectors
           case VectorSXP<?> vec -> writeVectorSXP(vec);
-
-            // Bytecode
           case BCodeSXP bc -> writeByteCode(bc);
-
-          default -> throw new UnsupportedOperationException("Unsupported sexp type: " + s.type());
         }
       }
     }
   }
 
-  // utility functions ----------------------------------------------------------------------------
+  // UTILITY (not standard SEXPs) -----------------------------------------------------------------
 
   /** Adds s to the ref table at the next available index */
   private void refAdd(SEXP s) {
@@ -228,6 +215,8 @@ public class RDSWriter implements Closeable {
    * Returns the flags associated with the provided SEXP. If the SEXP is already present in the ref
    * table, will return flags associated with its reference index.
    */
+  final int MAX_PACKED_INDEX = Integer.MAX_VALUE >> 8;
+
   private Flags flags(SEXP s) {
     // If refIndex is greater than 0, the object has already been written, so we can
     // write a reference (since the index is 1-based)
@@ -302,7 +291,26 @@ public class RDSWriter implements Closeable {
     logger.pop();
   }
 
-  // SEXP writing ---------------------------------------------------------------------------------
+  /**
+   * Writes a StrSXP with an unused placeholder "name" int before the length.
+   *
+   * @apiNote this is NOT used to write regular StrSXPs. It is currently only used to write
+   *     namespace and package environment spec.
+   */
+  private void writeStringVec(StrSXP s) throws IOException {
+    logger.push("String Vector");
+
+    out.writeInt(0, "name");
+    out.writeInt(s.size(), "length");
+
+    for (String str : s) {
+      writeChars(str);
+    }
+
+    logger.pop();
+  }
+
+  // STANDARD SEXPs -------------------------------------------------------------------------------
 
   private void writeEnv(EnvSXP env) throws IOException {
     logger.push("EnvSXP");
@@ -337,22 +345,21 @@ public class RDSWriter implements Closeable {
     logger.pop();
   }
 
-  final int MAX_PACKED_INDEX = Integer.MAX_VALUE >> 8;
+  private void writeSymbol(SymSXP s) throws IOException {
+    logger.push("SymSXP");
 
-  /**
-   * Writes a StrSXP with an unused placeholder "name" int before the length.
-   *
-   * @apiNote this is NOT used to write regular StrSXPs. It is currently only used to write
-   *     namespace and package environment spec.
-   */
-  private void writeStringVec(StrSXP s) throws IOException {
-    logger.push("String Vector");
-
-    out.writeInt(0, "name");
-    out.writeInt(s.size(), "length");
-
-    for (String str : s) {
-      writeChars(str);
+    switch (s) {
+      case RegSymSXP rs -> {
+        // Add to the ref table
+        refAdd(rs);
+        // Write the symbol
+        writeChars(rs.name());
+      }
+      case SpecialSymSXP specialSymSXP when specialSymSXP.isEllipsis() -> {
+        writeChars("..."); // Really?
+      }
+      default ->
+          throw new UnsupportedOperationException("Unreachable: implemented in special sexps.");
     }
 
     logger.pop();
@@ -500,6 +507,8 @@ public class RDSWriter implements Closeable {
 
     logger.pop();
   }
+
+  // BYTECODE -------------------------------------------------------------------------------------
 
   private void scanForCircles(SEXP sexp, HashMap<SEXP, Integer> reps, HashSet<SEXP> seen) {
     switch (sexp) {
@@ -668,26 +677,6 @@ public class RDSWriter implements Closeable {
 
     var nextRepIndex = new AtomicInteger(0);
     writeByteCode1(s, reps, nextRepIndex);
-
-    logger.pop();
-  }
-
-  private void writeSymbol(SymSXP s) throws IOException {
-    logger.push("SymSXP");
-
-    switch (s) {
-      case RegSymSXP rs -> {
-        // Add to the ref table
-        refAdd(rs);
-        // Write the symbol
-        writeChars(rs.name());
-      }
-      case SpecialSymSXP specialSymSXP when specialSymSXP.isEllipsis() -> {
-        writeChars("..."); // Really?
-      }
-      default ->
-          throw new UnsupportedOperationException("Unreachable: implemented in special sexps.");
-    }
 
     logger.pop();
   }

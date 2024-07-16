@@ -136,7 +136,7 @@ final class Flags {
  */
 final class GPFlags {
   // HASHASH_MASK: 1;
-  // BYTES_MASK: 1 << 1
+  // private static final int BYTES_MASK = 1 << 1;
   private static final int LATIN1_MASK = 1 << 2;
   private static final int UTF8_MASK = 1 << 3;
   // S4_OBJECT_MASK: 1 << 4
@@ -148,8 +148,7 @@ final class GPFlags {
 
   GPFlags(@Nullable Charset charset, boolean locked) {
     // NOTE: CACHED_MASK and HASHASH_MASK should be off when packing RDS flags for SEXPType.CHAR,
-    // but
-    // since we don't have external input for levels I think they should be off anyways
+    //  but since we don't have external input for levels I think they should be off anyways
     this.flags =
         (locked ? LOCKED_MASK : 0)
             | (charset == StandardCharsets.UTF_8 ? UTF8_MASK : 0)
