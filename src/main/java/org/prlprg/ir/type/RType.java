@@ -200,7 +200,7 @@ public sealed interface RType extends RTypeHelpers, BoundedLattice<RType> {
     if (lhs.isObject() != Maybe.NO && rhs.isObject() != Maybe.NO) {
       return ANY;
     }
-    return coerceToLogical(lhs.union(rhs).notMissing());
+    return coerceToLogical(lhs.unionOf(rhs).notMissing());
   }
 
   /** The type "casted" into a logical according to the rules after a boolean operation. */
@@ -229,45 +229,49 @@ public sealed interface RType extends RTypeHelpers, BoundedLattice<RType> {
     return RType.value(RBuiltinOrSpecialType.of(id), YesOrMaybe.MAYBE);
   }
 
-  /** Type which is the {@linkplain RType#union(RType)} union} of all given types. */
+  /** Type which is the {@linkplain RType#unionOf(RType)} union} of all given types. */
   static RType union(RType type1, RType type2, RType... types) {
     return Stream.concat(Stream.of(type1, type2), Arrays.stream(types)).collect(toUnion());
   }
 
-  /** Type which is the {@linkplain RType#union(RType)} union} of all given types. */
+  /** Type which is the {@linkplain RType#unionOf(RType)} union} of all given types. */
   static RType union(Collection<RType> types) {
     return types.stream().collect(toUnion());
   }
 
-  /** Creates a {@linkplain RType#union(RType)} union} from all types in the stream. */
+  /** Creates a {@linkplain RType#unionOf(RType)} union} from all types in the stream. */
   static Collector<RType, RType[], RType> toUnion() {
     return Collector.of(
         () -> new RType[] {NOTHING},
-        (RType[] acc, RType next) -> acc[0] = acc[0].union(next),
-        (RType[] a, RType[] b) -> new RType[] {a[0].union(b[0])},
+        (RType[] acc, RType next) -> acc[0] = acc[0].unionOf(next),
+        (RType[] a, RType[] b) -> new RType[] {a[0].unionOf(b[0])},
         (RType[] a) -> a[0],
         Characteristics.CONCURRENT,
         Characteristics.UNORDERED);
   }
 
-  /** Type which is the {@linkplain RType#intersection(RType)} intersection} of all given types. */
+  /**
+   * Type which is the {@linkplain RType#intersectionOf(RType)} intersection} of all given types.
+   */
   static RType intersection(RType type1, RType type2, RType... types) {
     return Stream.concat(Stream.of(type1, type2), Arrays.stream(types)).collect(toIntersection());
   }
 
-  /** Type which is the {@linkplain RType#intersection(RType)} intersection} of all given types. */
+  /**
+   * Type which is the {@linkplain RType#intersectionOf(RType)} intersection} of all given types.
+   */
   static RType intersection(Collection<RType> types) {
     return types.stream().collect(toIntersection());
   }
 
   /**
-   * Creates an {@linkplain RType#intersection(RType)} intersection} from all types in the stream.
+   * Creates an {@linkplain RType#intersectionOf(RType)} intersection} from all types in the stream.
    */
   static Collector<RType, RType[], RType> toIntersection() {
     return Collector.of(
         () -> new RType[] {ANY},
-        (RType[] acc, RType next) -> acc[0] = acc[0].intersection(next),
-        (RType[] a, RType[] b) -> new RType[] {a[0].intersection(b[0])},
+        (RType[] acc, RType next) -> acc[0] = acc[0].intersectionOf(next),
+        (RType[] a, RType[] b) -> new RType[] {a[0].intersectionOf(b[0])},
         (RType[] a) -> a[0],
         Characteristics.CONCURRENT,
         Characteristics.UNORDERED);
@@ -433,7 +437,7 @@ public sealed interface RType extends RTypeHelpers, BoundedLattice<RType> {
   }
 
   @Override
-  default RType intersection(RType other) {
+  default RType intersectionOf(RType other) {
     if (this == ANY) {
       return other;
     } else if (other == ANY) {
@@ -450,20 +454,20 @@ public sealed interface RType extends RTypeHelpers, BoundedLattice<RType> {
         && other.promise() != null
         && other.isMissing() != null;
 
-    var value = value().intersection(other.value());
+    var value = value().intersectionOf(other.value());
     if (value == RValueType.NOTHING) {
       return NOTHING;
     }
-    var isOwned = isOwned().intersection(other.isOwned());
-    var attributes = attributes().intersection(other.attributes());
+    var isOwned = isOwned().intersectionOf(other.isOwned());
+    var attributes = attributes().intersectionOf(other.attributes());
     if (attributes == AttributesType.BOTTOM) {
       return NOTHING;
     }
-    var promise = promise().intersection(other.promise());
+    var promise = promise().intersectionOf(other.promise());
     if (promise == null) {
       return NOTHING;
     }
-    var isMissing = isMissing().intersection(other.isMissing());
+    var isMissing = isMissing().intersectionOf(other.isMissing());
     if (isMissing == null) {
       return NOTHING;
     }
@@ -471,7 +475,7 @@ public sealed interface RType extends RTypeHelpers, BoundedLattice<RType> {
   }
 
   @Override
-  default RType union(RType other) {
+  default RType unionOf(RType other) {
     if (this == NOTHING) {
       return other;
     } else if (other == NOTHING) {
@@ -486,11 +490,11 @@ public sealed interface RType extends RTypeHelpers, BoundedLattice<RType> {
         && other.promise() != null
         && other.isMissing() != null;
 
-    var value = value().union(other.value());
-    var isOwned = isOwned().union(other.isOwned());
-    var attributes = attributes().union(other.attributes());
-    var promise = promise().union(other.promise());
-    var isMissing = isMissing().union(other.isMissing());
+    var value = value().unionOf(other.value());
+    var isOwned = isOwned().unionOf(other.isOwned());
+    var attributes = attributes().unionOf(other.attributes());
+    var promise = promise().unionOf(other.promise());
+    var isMissing = isMissing().unionOf(other.isMissing());
     return of(value, isOwned, attributes, promise, isMissing);
   }
 

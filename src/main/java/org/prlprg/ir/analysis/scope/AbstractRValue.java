@@ -164,7 +164,7 @@ public final class AbstractISexp implements AbstractNode<AbstractISexp> {
 
     // Merge (guaranteed updated).
     origins = newOrigins;
-    type = type.union(other.type);
+    type = type.unionOf(other.type);
     return AbstractResult.UPDATED;
   }
 

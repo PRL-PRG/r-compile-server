@@ -40,7 +40,7 @@ public enum YesOrMaybe implements BoundedLattice<YesOrMaybe> {
    * representation.
    */
   @Override
-  public YesOrMaybe union(YesOrMaybe other) {
+  public YesOrMaybe unionOf(YesOrMaybe other) {
     return this == YES ? other : this;
   }
 
@@ -49,7 +49,7 @@ public enum YesOrMaybe implements BoundedLattice<YesOrMaybe> {
    * representation.
    */
   @Override
-  public YesOrMaybe intersection(YesOrMaybe other) {
+  public YesOrMaybe intersectionOf(YesOrMaybe other) {
     return this == YES ? this : other;
   }
 }

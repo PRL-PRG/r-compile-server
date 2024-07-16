@@ -72,7 +72,8 @@ public abstract sealed class CodeObject permits Closure, Promise {
    * Verify that all {@linkplain #outerCfgNodes() outer CFG nodes} that are {@link ISexp}s (abstract
    * R values) have the correct dynamic type.
    *
-   * <p>For example, verify that an environment value is still {@link BaseRType#ENV}.
+   * <p>For example, verify that an environment value is still {@link
+   * org.prlprg.ir.type.RType#ANY_ENV ANY_ENV}.
    *
    * @throws IllegalStateException If a node has an incorrect dynamic type.
    * @see #outerCfgNodes()
@@ -136,7 +137,7 @@ public abstract sealed class CodeObject permits Closure, Promise {
   // region parse/print methods
   @ParseMethod
   private static CodeObject parse(Parser p, Class<? extends CodeObject> clazz) {
-    return p.withContext(new ClosureParseContext.Outermost(p.context())).parse(clazz);
+    return p.withContext(new ClosureParseContext.Outermost()).parse(clazz);
   }
 
   @PrintMethod
@@ -164,8 +165,10 @@ public abstract sealed class CodeObject permits Closure, Promise {
       @SuppressWarnings("ClassEscapesDefinedScope") ClosureParseContext ctx) {
     var s = p.scanner();
 
-    s.assertAndSkip(prefix + " ");
-    name = parseId(p, ctx.lastYieldedIdIndex());
+    if (ctx instanceof ClosureParseContext.Outermost) {
+      s.assertAndSkip(prefix + " ");
+    }
+    name = parseId(p, ctx.currentIdIndex());
   }
 
   /** Print the start of a {@link CodeObject}, which is the prefix (given string) and identifier. */
@@ -176,9 +179,11 @@ public abstract sealed class CodeObject permits Closure, Promise {
       @SuppressWarnings("ClassEscapesDefinedScope") ClosurePrintContext ctx) {
     var w = p.writer();
 
-    w.write(prefix);
-    w.write(' ');
-    printId(name, p, ctx.lastYieldedIdIndex());
+    if (ctx instanceof ClosurePrintContext.Outermost) {
+      w.write(prefix);
+      w.write(' ');
+    }
+    printId(name, p, ctx.currentIdIndex());
   }
 
   /**

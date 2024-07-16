@@ -96,7 +96,7 @@ public final class RFunTypeOverloads extends ForwardingCollection<RSignatureType
   }
 
   @Override
-  public RFunTypeOverloads union(RFunTypeOverloads other) {
+  public RFunTypeOverloads unionOf(RFunTypeOverloads other) {
     return new RFunTypeOverloads(
         Streams.concat(
                 stream().filter(ko -> other.stream().anyMatch(oko -> oko.subsumes(ko))),
@@ -105,7 +105,7 @@ public final class RFunTypeOverloads extends ForwardingCollection<RSignatureType
   }
 
   @Override
-  public RFunTypeOverloads intersection(RFunTypeOverloads other) {
+  public RFunTypeOverloads intersectionOf(RFunTypeOverloads other) {
     return new RFunTypeOverloads(Streams.concat(stream(), other.stream()).toList());
   }
 

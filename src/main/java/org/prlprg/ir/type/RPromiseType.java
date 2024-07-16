@@ -171,12 +171,12 @@ public enum RPromiseType implements Lattice<RPromiseType> {
   }
 
   @Override
-  public RPromiseType union(RPromiseType other) {
-    return of(isPromise().union(other.isPromise()), isLazy().union(other.isLazy()));
+  public RPromiseType unionOf(RPromiseType other) {
+    return of(isPromise().unionOf(other.isPromise()), isLazy().unionOf(other.isLazy()));
   }
 
   @Override
-  public @Nullable RPromiseType intersection(RPromiseType other) {
+  public @Nullable RPromiseType intersectionOf(RPromiseType other) {
     var isPromise = Maybe.intersection(isPromise(), other.isPromise());
     var isLazy = Maybe.intersection(isLazy(), other.isLazy());
     return isPromise == null || isLazy == null ? null : tryOf(isPromise, isLazy);

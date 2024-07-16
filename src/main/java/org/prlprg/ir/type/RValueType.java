@@ -154,12 +154,12 @@ public sealed interface RValueType extends BoundedLattice<RValueType>
   }
 
   @Override
-  default RValueType union(RValueType other) {
+  default RValueType unionOf(RValueType other) {
     return isSupersetOf(other) ? this : isSubsetOf(other) ? other : simpleRecordUnion(this, other);
   }
 
   @Override
-  default RValueType intersection(RValueType other) {
+  default RValueType intersectionOf(RValueType other) {
     return isSubsetOf(other)
         ? this
         : isSupersetOf(other) ? other : simpleRecordIntersection(this, other);
@@ -230,12 +230,12 @@ final class RValueTypeImpl implements RValueType {
   }
 
   @Override
-  public RValueType union(RValueType other) {
+  public RValueType unionOf(RValueType other) {
     return this;
   }
 
   @Override
-  public RValueType intersection(RValueType other) {
+  public RValueType intersectionOf(RValueType other) {
     return other;
   }
 
@@ -284,12 +284,12 @@ sealed interface RNothingValueType
   }
 
   @Override
-  default RValueType union(RValueType other) {
+  default RValueType unionOf(RValueType other) {
     return other;
   }
 
   @Override
-  default RValueType intersection(RValueType other) {
+  default RValueType intersectionOf(RValueType other) {
     return this;
   }
 

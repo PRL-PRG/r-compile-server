@@ -168,7 +168,7 @@ public interface Lattice<T extends Lattice<T>> {
    * "bottom".
    */
   static <T extends Lattice<T>> @Nullable T union(@Nullable T lhs, @Nullable T rhs) {
-    return lhs == null ? rhs : rhs == null ? lhs : lhs.union(rhs);
+    return lhs == null ? rhs : rhs == null ? lhs : lhs.unionOf(rhs);
   }
 
   /**
@@ -176,7 +176,7 @@ public interface Lattice<T extends Lattice<T>> {
    * "bottom" (which means it may return {@code null} if the types are disjoint.
    */
   static <T extends Lattice<T>> @Nullable T intersection(@Nullable T lhs, @Nullable T rhs) {
-    return lhs == null || rhs == null ? null : lhs.intersection(rhs);
+    return lhs == null || rhs == null ? null : lhs.intersectionOf(rhs);
   }
 
   /**
@@ -207,7 +207,7 @@ public interface Lattice<T extends Lattice<T>> {
 
   /** Returns the most precise representable superset (also called "join"). */
   @SuppressWarnings("unchecked")
-  default T union(T other) {
+  default T unionOf(T other) {
     return simpleRecordUnion((T) this, other);
   }
 
@@ -216,7 +216,7 @@ public interface Lattice<T extends Lattice<T>> {
    * types are disjoint and there's no expressible "bottom" type.
    */
   @SuppressWarnings("unchecked")
-  default @Nullable T intersection(T other) {
+  default @Nullable T intersectionOf(T other) {
     return simpleRecordIntersection((T) this, other);
   }
 }

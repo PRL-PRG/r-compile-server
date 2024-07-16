@@ -109,20 +109,20 @@ public class LatticeTests {
         lhs.equals(rhs), lhs.isSubsetOf(rhs) && lhs.isSupersetOf(rhs), "a ≤ b & a ≥ b ⇔ a = b");
 
     // Subset of union and intersection
-    var union = lhs.union(rhs);
-    var intersection = lhs.intersection(rhs);
+    var union = lhs.unionOf(rhs);
+    var intersection = lhs.intersectionOf(rhs);
     assertTrue(lhs.isSubsetOf(union), () -> "a ≤ (a ∨ b)  | " + union);
     assertTrue(rhs.isSubsetOf(union), () -> "b ≤ (a ∨ b)  | " + union);
     assertTrue(Lattice.isSubset(intersection, lhs), () -> "(a ∧ b) ≤ a  | " + intersection);
     assertTrue(Lattice.isSubset(intersection, rhs), () -> "(a ∧ b) ≤ b  | " + intersection);
 
     // Union and intersection
-    assertEquals(lhs, lhs.union(lhs), () -> "a ∨ a = a  | " + lhs.union(lhs));
-    assertEquals(lhs, lhs.intersection(lhs), () -> "a ∧ a = a  | " + lhs.intersection(lhs));
-    assertEquals(top, lhs.union(top), () -> "a ∨ ⊤ = ⊤  | " + lhs.union(top));
-    assertEquals(top, top.union(lhs), () -> "⊤ ∨ a = ⊤  | " + top.union(lhs));
-    assertEquals(lhs, lhs.intersection(top), () -> "a ∧ ⊤ = a  | " + lhs.intersection(top));
-    assertEquals(lhs, top.intersection(lhs), () -> "⊤ ∧ a = a  | " + top.intersection(lhs));
+    assertEquals(lhs, lhs.unionOf(lhs), () -> "a ∨ a = a  | " + lhs.unionOf(lhs));
+    assertEquals(lhs, lhs.intersectionOf(lhs), () -> "a ∧ a = a  | " + lhs.intersectionOf(lhs));
+    assertEquals(top, lhs.unionOf(top), () -> "a ∨ ⊤ = ⊤  | " + lhs.unionOf(top));
+    assertEquals(top, top.unionOf(lhs), () -> "⊤ ∨ a = ⊤  | " + top.unionOf(lhs));
+    assertEquals(lhs, lhs.intersectionOf(top), () -> "a ∧ ⊤ = a  | " + lhs.intersectionOf(top));
+    assertEquals(lhs, top.intersectionOf(lhs), () -> "⊤ ∧ a = a  | " + top.intersectionOf(lhs));
     assertEquals(
         lhs, Lattice.union(lhs, bottom), () -> "a ∨ ⊥ = a  | " + Lattice.union(lhs, bottom));
     assertEquals(
@@ -135,15 +135,15 @@ public class LatticeTests {
         bottom,
         Lattice.intersection(bottom, lhs),
         () -> "⊥ ∧ a = ⊥  | " + Lattice.intersection(bottom, lhs));
-    assertEquals(union, rhs.union(lhs), () -> "a ∨ b = b ∨ a  | " + rhs.union(lhs));
+    assertEquals(union, rhs.unionOf(lhs), () -> "a ∨ b = b ∨ a  | " + rhs.unionOf(lhs));
     assertEquals(
-        intersection, rhs.intersection(lhs), () -> "a ∧ b = b ∧ a  | " + rhs.intersection(lhs));
+        intersection, rhs.intersectionOf(lhs), () -> "a ∧ b = b ∧ a  | " + rhs.intersectionOf(lhs));
     assertEquals(
         lhs,
         Lattice.union(lhs, intersection),
         () -> "a ∨ (a ∧ b) = a  | " + Lattice.union(lhs, intersection));
     assertEquals(
-        lhs, lhs.intersection(union), () -> "a ∧ (a ∨ b) = a  | " + lhs.intersection(union));
+        lhs, lhs.intersectionOf(union), () -> "a ∧ (a ∨ b) = a  | " + lhs.intersectionOf(union));
   }
 
   @Provide

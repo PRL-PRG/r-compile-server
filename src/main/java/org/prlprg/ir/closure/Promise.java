@@ -220,7 +220,7 @@ public final class Promise extends CodeObject {
      * @throws IllegalArgumentException If both properties have different non-null eager values.
      */
     @Override
-    public Properties union(Properties other) {
+    public Properties unionOf(Properties other) {
       if (eageiSexp != null && other.eageiSexp != null && !eageiSexp.equals(other.eageiSexp)) {
         throw new IllegalArgumentException("Properties have different non-null eager values.");
       }
@@ -236,7 +236,7 @@ public final class Promise extends CodeObject {
      * @throws IllegalArgumentException If both properties have different non-null eager values.
      */
     @Override
-    public Properties intersection(Properties other) {
+    public Properties intersectionOf(Properties other) {
       if (eageiSexp != null && other.eageiSexp != null && !eageiSexp.equals(other.eageiSexp)) {
         throw new IllegalArgumentException("Properties have different non-null eager values.");
       }
@@ -286,25 +286,17 @@ public final class Promise extends CodeObject {
   @ParseMethod
   private Promise(Parser p, ClosureParseContext ctx) {
     super("prom", p, ctx);
-    var idIndex = ctx.lastYieldedIdIndex();
+    var idIndex = ctx.currentIdIndex();
 
     var s = p.scanner();
 
-    s.assertAndSkip("env");
-    env = p.parse(ISexp.class);
     properties = s.trySkip("has") ? p.parse(Properties.class) : Properties.EMPTY;
+    env = s.trySkip("env") ? p.parse(ISexp.class) : StaticEnv.NOT_CLOSED;
+    bc = s.trySkip("body") ? p.parse(BCodeSXP.class).bc() : Bc.empty();
 
     s.assertAndSkip("{");
-
-    bc = p.parse(Bc.class);
-    s.assertAndSkip("=== IR ===");
     body = p.withContext(ctx.ref(new NodeIdQualifier(name, idIndex))).parse(CFG.class);
-
     s.assertAndSkip('}');
-
-    if (ctx instanceof ClosureParseContext.Outermost o) {
-      o.parseRemaining(p);
-    }
   }
 
   // The class doesn't escape its visibility, because this is a protected method of a sealed class.
@@ -312,32 +304,28 @@ public final class Promise extends CodeObject {
   protected void print(
       Printer p, @SuppressWarnings("ClassEscapesDefinedScope") ClosurePrintContext ctx) {
     printHeader("prom", p, ctx);
-    var idIndex = ctx.lastYieldedIdIndex();
+    var idIndex = ctx.currentIdIndex();
 
     var w = p.writer();
 
-    w.write(" env ");
-    p.print(env);
     if (!properties.isEmpty()) {
       w.write(" has ");
       w.runIndented(() -> p.print(properties));
     }
+    if (ctx.options().printFullOrigin()) {
+      w.write(" env ");
+      w.runIndented(() -> p.print(env));
+      w.write(" bc ");
+      w.runIndented(() -> p.print(bc));
+    }
 
     w.write(" {");
-
     w.runIndented(
         () -> {
           w.write('\n');
-          p.print(bc);
-          w.write("\n=== IR ===\n");
           p.withContext(ctx.ref(new NodeIdQualifier(name, idIndex))).print(body);
         });
-
     w.write("\n}");
-
-    if (ctx instanceof ClosurePrintContext.Outermost o) {
-      o.printRemaining(p);
-    }
   }
 
   @Override

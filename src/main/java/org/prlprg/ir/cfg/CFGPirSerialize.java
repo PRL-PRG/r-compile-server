@@ -850,7 +850,7 @@ class PirInstrOrPhiParseContext {
 
         var type = p.parse(RType.class);
         while (s.trySkip("|")) {
-          type = type.union(p.parse(RType.class));
+          type = type.unionOf(p.parse(RType.class));
         }
         s.assertAndSkip(')');
         return type;

@@ -22,10 +22,10 @@ import org.prlprg.ir.type.lattice.Lattice;
  *       #copy()}), because merging is more common and scope analysis is very expensive, so we the
  *       performance benefit of in-place merging and benefit of not accidentally using stale values
  *       and suffer the tradeoff of aliased-mutation bugs. <b>{@link Lattice}s are immutable and
- *       expose {@link Lattice#union(Lattice)}, which creates a new object</b>. {@link Lattice}s are
- *       also typically smaller, so the performance tradeoff for them is less significant.
+ *       expose {@link Lattice#unionOf(Lattice)}, which creates a new object</b>. {@link Lattice}s
+ *       are also typically smaller, so the performance tradeoff for them is less significant.
  *   <li><b>{@link Lattice} exposes {@link Lattice#isSubset(Lattice, Lattice)} and {@link
- *       Lattice#intersection(Lattice)}</b>, but we don't ever check subset or intersect instances
+ *       Lattice#intersectionOf(Lattice)}</b>, but we don't ever check subset or intersect instances
  *       of this interface, so it doesn't expose those operations. (And if some subclasses of this
  *       interface did need those operations, we could create a sub-interface for them
  *       specifically.)

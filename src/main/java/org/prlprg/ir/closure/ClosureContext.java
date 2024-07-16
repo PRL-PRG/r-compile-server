@@ -3,30 +3,26 @@ package org.prlprg.ir.closure;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
 import javax.annotation.Nullable;
 import org.prlprg.ir.cfg.CFG;
 import org.prlprg.ir.cfg.Node;
 import org.prlprg.ir.cfg.NodeId;
-import org.prlprg.ir.closure.CodeObject.LateConstructException;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
-import org.prlprg.primitive.Names;
 import org.prlprg.sexp.parseprint.HasSEXPParseContext;
 import org.prlprg.sexp.parseprint.HasSEXPPrintContext;
 import org.prlprg.sexp.parseprint.SEXPParseContext;
 import org.prlprg.sexp.parseprint.SEXPPrintContext;
-import org.prlprg.util.Pair;
 
 /**
  * Context for {@linkplain org.prlprg.parseprint.Parser parsing} {@link Closure} so that inner
  * closures and promises are parsed after.
  */
 abstract sealed class ClosureParseContext implements HasSEXPParseContext {
-  abstract int lastYieldedIdIndex();
+  abstract int currentIdIndex();
 
   abstract Inner inner();
 
@@ -34,23 +30,19 @@ abstract sealed class ClosureParseContext implements HasSEXPParseContext {
 
   static final class Outermost extends ClosureParseContext {
     private final SEXPParseContext sexpParseContext;
-    private final Deque<CodeObject.LateConstruct<?>> innerCodeConsumers = new ArrayDeque<>();
     private final Map<NodeIdQualifier, CFG> cfgQualifiers = new HashMap<>();
-    private int nextInnerIdIndex = 0;
-    private int lastYieldedInnerIdIndex = 0;
+    private int currentIdIndex = 0;
     private final Inner inner = new Inner(this);
-    private final InCfg inCfg = new InCfg(this);
 
-    Outermost(@Nullable Object outerContext) {
-      sexpParseContext =
-          outerContext instanceof HasSEXPParseContext h
-              ? h.sexpParseContext()
-              : new SEXPParseContext();
+    Outermost() {
+      sexpParseContext = new SEXPParseContext();
     }
 
     @Override
-    int lastYieldedIdIndex() {
-      return 0;
+    int currentIdIndex() {
+      assert currentIdIndex == 0
+          : "the outermost code object should be the first parsed, so `currentIdIndex` should be 0";
+      return currentIdIndex++;
     }
 
     @Override
@@ -66,62 +58,6 @@ abstract sealed class ClosureParseContext implements HasSEXPParseContext {
     @Override
     public SEXPParseContext sexpParseContext() {
       return sexpParseContext;
-    }
-
-    private <T extends CodeObject> T deferInnerCode(
-        Parser p, int index, T code, CodeObject.LateConstruct<T> lateConstruct) {
-      if (index != ++nextInnerIdIndex) {
-        throw p.scanner()
-            .fail(
-                "Inner code object index isn't in order: expected "
-                    + nextInnerIdIndex
-                    + " got "
-                    + index);
-      }
-      innerCodeConsumers.addLast(lateConstruct);
-      return code;
-    }
-
-    private Closure deferInnerClosure(Parser p, int index, String name) {
-      var codeAndLateConstruct = Closure.lateConstruct(name);
-      return deferInnerCode(p, index, codeAndLateConstruct.first(), codeAndLateConstruct.second());
-    }
-
-    private Promise deferPromise(Parser p, int index, String name) {
-      var codeAndLateConstruct = Promise.lateConstruct(name);
-      return deferInnerCode(p, index, codeAndLateConstruct.first(), codeAndLateConstruct.second());
-    }
-
-    void parseRemaining(Parser p) {
-      iterator()
-          .forEachRemaining(
-              lateConstruct -> {
-                try {
-                  switch (lateConstruct) {
-                    case Closure.LateConstruct cc ->
-                        cc.set(p.withContext(inner).parse(Closure.class));
-                    case Promise.LateConstruct pc ->
-                        pc.set(p.withContext(inner).parse(Promise.class));
-                  }
-                } catch (LateConstructException e) {
-                  throw p.scanner().fail(e.getMessage());
-                }
-              });
-    }
-
-    private Iterator<CodeObject.LateConstruct<?>> iterator() {
-      return new Iterator<>() {
-        @Override
-        public boolean hasNext() {
-          return !innerCodeConsumers.isEmpty();
-        }
-
-        @Override
-        public CodeObject.LateConstruct<?> next() {
-          lastYieldedInnerIdIndex++;
-          return innerCodeConsumers.removeFirst();
-        }
-      };
     }
 
     @ParseMethod
@@ -153,11 +89,10 @@ abstract sealed class ClosureParseContext implements HasSEXPParseContext {
     }
 
     @Override
-    int lastYieldedIdIndex() {
-      if (outermost.lastYieldedInnerIdIndex == 0) {
-        throw new IllegalStateException("No deferred inner closures were yielded");
-      }
-      return outermost.lastYieldedInnerIdIndex;
+    int currentIdIndex() {
+      assert outermost.currentIdIndex == 0
+          : "inner code objects should be parsed after the outer one incremented `currentIdIndex`";
+      return outermost.currentIdIndex++;
     }
 
     @Override
@@ -198,38 +133,9 @@ abstract sealed class ClosureParseContext implements HasSEXPParseContext {
 
     @ParseMethod
     private CFG parseCFG(Parser p) {
-      var cfg = p.withContext(outermost.inCfg).parse(CFG.class);
+      var cfg = p.withContext(outermost.inner).parse(CFG.class);
       outermost.cfgQualifiers.put(qualifier, cfg);
       return cfg;
-    }
-  }
-
-  private record InCfg(Outermost outermost) implements HasSEXPParseContext {
-    @Override
-    public SEXPParseContext sexpParseContext() {
-      return outermost.sexpParseContext;
-    }
-
-    @ParseMethod
-    private Closure parseInnerClosure(Parser p) {
-      var indexAndName = parseName(p);
-      return outermost.deferInnerClosure(p, indexAndName.first(), indexAndName.second());
-    }
-
-    @ParseMethod
-    private Promise parsePromise(Parser p) {
-      var indexAndName = parseName(p);
-      return outermost.deferPromise(p, indexAndName.first(), indexAndName.second());
-    }
-
-    private Pair<Integer, String> parseName(Parser p) {
-      var s = p.scanner();
-
-      s.assertAndSkip('@');
-      var index = s.readUInt();
-      var name = s.nextCharSatisfies(Names::isValidStartChar) ? Names.read(s, true) : "";
-
-      return Pair.of(index, name);
     }
   }
 }
@@ -239,31 +145,40 @@ abstract sealed class ClosureParseContext implements HasSEXPParseContext {
  * closures and promises are printed after.
  */
 abstract sealed class ClosurePrintContext implements HasSEXPPrintContext {
-  abstract int lastYieldedIdIndex();
+  abstract CodeObjectPrintOptions options();
+
+  abstract int currentIdIndex();
 
   abstract Inner inner();
 
   abstract Ref ref(NodeIdQualifier qualifier);
 
   static final class Outermost extends ClosurePrintContext {
+    private final CodeObjectPrintOptions options;
     private final SEXPPrintContext sexpPrintContext;
     private final Deque<CodeObject> innerCodes = new ArrayDeque<>();
     private final Map<CFG, NodeIdQualifier> cfgQualifiers = new HashMap<>();
-    private int nextInnerIdIndex = 0;
-    private int lastYieldedInnerIdIndex = 0;
+    private int currentIdIndex = 0;
     private final Inner inner = new Inner(this);
-    private final InCfg inCfg = new InCfg(this);
 
     Outermost(@Nullable Object outerContext) {
-      sexpPrintContext =
-          outerContext instanceof HasSEXPPrintContext h
-              ? h.sexpPrintContext()
-              : new SEXPPrintContext();
+      options =
+          outerContext instanceof HasCodeObjectPrintOptions h
+              ? h.codeObjectPrintOptions()
+              : CodeObjectPrintOptions.DEFAULT;
+      sexpPrintContext = options.sexpPrintContext();
     }
 
     @Override
-    int lastYieldedIdIndex() {
-      return 0;
+    CodeObjectPrintOptions options() {
+      return options;
+    }
+
+    @Override
+    int currentIdIndex() {
+      assert currentIdIndex == 0
+          : "the outermost code object should be the first parsed, so `currentIdIndex` should be 0";
+      return currentIdIndex++;
     }
 
     @Override
@@ -279,37 +194,6 @@ abstract sealed class ClosurePrintContext implements HasSEXPPrintContext {
     @Override
     public SEXPPrintContext sexpPrintContext() {
       return sexpPrintContext;
-    }
-
-    private int deferInnerCode(CodeObject elem) {
-      innerCodes.addLast(elem);
-      return ++nextInnerIdIndex;
-    }
-
-    void printRemaining(Printer p) {
-      var w = p.writer();
-
-      iterator()
-          .forEachRemaining(
-              innerCode -> {
-                w.write('\n');
-                p.withContext(inner).print(innerCode);
-              });
-    }
-
-    private Iterator<CodeObject> iterator() {
-      return new Iterator<>() {
-        @Override
-        public boolean hasNext() {
-          return !innerCodes.isEmpty();
-        }
-
-        @Override
-        public CodeObject next() {
-          lastYieldedInnerIdIndex++;
-          return innerCodes.removeFirst();
-        }
-      };
     }
 
     @PrintMethod
@@ -329,11 +213,15 @@ abstract sealed class ClosurePrintContext implements HasSEXPPrintContext {
     }
 
     @Override
-    int lastYieldedIdIndex() {
-      if (outermost.lastYieldedInnerIdIndex == 0) {
-        throw new IllegalStateException("No deferred inner elements were yielded");
-      }
-      return outermost.lastYieldedInnerIdIndex;
+    CodeObjectPrintOptions options() {
+      return outermost.options;
+    }
+
+    @Override
+    int currentIdIndex() {
+      assert outermost.currentIdIndex == 0
+          : "inner code objects should be parsed after the outer one incremented `currentIdIndex`";
+      return outermost.currentIdIndex++;
     }
 
     @Override
@@ -376,26 +264,7 @@ abstract sealed class ClosurePrintContext implements HasSEXPPrintContext {
     private void printCfg(CFG cfg, Printer p) {
       assert !outermost.cfgQualifiers.containsKey(cfg);
       outermost.cfgQualifiers.put(cfg, qualifier);
-      p.withContext(outermost.inCfg).print(cfg);
-    }
-  }
-
-  // Doesn't implement `ClosurePrintContext`
-  private record InCfg(Outermost outermost) implements HasSEXPPrintContext {
-    @Override
-    public SEXPPrintContext sexpPrintContext() {
-      return outermost.sexpPrintContext;
-    }
-
-    @PrintMethod
-    private void printInnerCode(CodeObject elem, Printer p) {
-      var w = p.writer();
-
-      w.write('@');
-      p.print(outermost.deferInnerCode(elem));
-      if (!elem.name().isEmpty()) {
-        Names.write(w, elem.name());
-      }
+      p.withContext(outermost.inner).print(cfg);
     }
   }
 }

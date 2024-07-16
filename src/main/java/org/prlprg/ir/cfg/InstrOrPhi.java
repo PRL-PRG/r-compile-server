@@ -5,7 +5,7 @@ import java.util.SequencedCollection;
 import org.jetbrains.annotations.UnmodifiableView;
 
 /** Either {@link Instr} or {@link Phi}. An immediate child node of a basic block. */
-public sealed interface InstrOrPhi extends LocalNode permits Instr, Phi {
+public sealed interface InstrOrPhi extends LocalNode permits Instr, Phi, Param {
   /**
    * (A view of) the instruction or phi's arguments, which are the other nodes it depends on. If a
    * phi, these are its {@link Phi#inputs()} without the extra type information or associated basic
