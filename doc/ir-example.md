@@ -17,8 +17,8 @@ fn @foo(n, m) {
   #1(%n, %m) {
       %inclos <- env({n <- %n, m <- %m}, parent=?)
       %replicate <- ldFun(replicate, env=%inclos)
-      %n <- prom(@[env=%inclos] {
-          %n <- ld(n, env=%inclos)
+      %n <- prom(@1 env %inclos {
+          %n <- ld(n, env=@foo%inclos)
           %1n <- force(%n, env=%inclos)
           return %1n
       })
@@ -73,7 +73,7 @@ fn @foo(n, m) {
       br %4 ^forEnd ^forBody
     ^forBody:
       %5 <- `*`(%i, %m)
-      %2array <- `[<-`(%1array, %5, index=%i) 
+      %2array <- `[<-`(%1array, %5, index=%i)
       goto ^forStep
     ^forEnd:
       return %1array
@@ -91,7 +91,6 @@ Every instruction is a "call" consisting of a **function**, list of **inputs**, 
   - Closure ("semi-static"): `@foo` (calls the cached compiled closure whose name is `foo`; specifically, calls the version of the closure statically determined by a call context computed from the inputs).
   - Variable (dynamic): `%1` (calls the SSA variable assigned the name `1`).
     - Iff the variable is a compiled closure (subtype of `cclo[?]`), we generate a call that passes the arguments more efficiently and additionally passes a statically-computed context. Otherwise, we generate a call to `Rf_applyClosure` (that creates a `ListSXP`, passes no statically-computed context, ...).
-
 - **Input**: a node (the argument), **type**, and **ownership**.
   - **Type**: `ISexp` for any-typed SEXP, `ScalarIntISexp` for SEXP guaranteed to be a scalar integer, `UnboxedInt` etc.
     - See if we can encode our full type system in Java's type system, maybe with compile-time code generation. Otherwise, we'll will need a "strong type" (e.g. `ISexp` or `UnboxedInt`) and "weak type" (e.g. `$int`, `any`, etc.), or make everything checked at runtime.
@@ -150,26 +149,26 @@ fn @foo(n, m) {
 }
 ```
 
-`#1`, `#2`, are versions. Each version has a call context defined by the argument types (and if we need argument-generic context data, e.g. `NoExplicitlyMissing`, `[…]` after arguments, e.g. `#2(%n:int$$, %m:int$$)[NoExplicitlyMissing]:`. `#1` is the baseline, so the arguments are guaranteed to be untyped, hence the lack of annotations.
+`#1`, `#2`, are versions. Each version has a call context defined by the argument types (and if we need argument-generic context data, e.g. `NoExplicitlyMissing`, `needs …` after arguments, e.g. `#2(%n:int$$, %m:int$$) needs NoExplicitlyMissing { … }`. `#1` is the baseline, so the arguments are guaranteed to be untyped, hence the lack of annotations.
 
 ##### Inner closures and promises
 
 Inner closures and promises may be defined in `fn(…)` or `prom(…)` instructions, see the below example.
 
-An inner function or promise may reference nodes from an outer function. If so, they are passed as "implicit" arguments to the inner function in `[…]` after the regular arguments list `(…)`. Most commonly (perhaps only), the `CLOENV`/`PRENV` of the nested function or promise is explicitly specified via `[env=…]`.
+The `CLOENV`/`PRENV` of inner function or promise may be from an outer function or promise. If so, it's specified after the regular arguments list `(…)`, and in the function or promise's body, the environment will be prefixed with the outer function or promise's identifier, to make clear that it's an inter-procedural node.
 
 ```
 fn @foo(n, m) {
   #1(%n, %m) {
       %inclos <- env({n <- %n, m <- %m}, parent=?)
       …
-      %n <- prom(@[env=%inclos] {
-          %n <- ld(n, env=%inclos)
+      %n <- prom(@1 env %inclos {
+          %n <- ld(n, env=@foo%inclos)
           %1n <- force(%n, env=%inclos)
           return %1n
       })
       …
-      %f <- fn(@(k)[env=%inclos] {
+      %f <- fn(@2(k) env %inclos {
         #1(%k) {
             %1inclos <- env({k <- %k}, parent=%inclos)
             …
@@ -183,13 +182,13 @@ fn @foo(n, m) {
 Phi nodes are defined at the top of the BB like so:
 
 ```
-  ^someBB(
-    %somePhi(%a:^pred, %b:^otherPred)
-    %someOtherPhi(%c:^pred, \1:^otherPred)
-  ):
-    … # instructions
-  ^someOtherBB: # No `(…)` if there are no phis
-    … # instructions
+^someBB(
+  %somePhi(%a:^pred, %b:^otherPred)
+  %someOtherPhi(%c:^pred, \1:^otherPred)
+):
+  … # instructions
+^someOtherBB: # No `(…)` if there are no phis
+  … # instructions
 ```
 
 #### Instructions
