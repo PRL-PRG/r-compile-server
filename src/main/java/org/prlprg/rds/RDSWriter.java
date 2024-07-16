@@ -285,8 +285,7 @@ public class RDSWriter implements Closeable {
             false,
             false);
     out.writeInt(flags.encode(), "flags");
-    out.writeInt(s.length(), "length");
-    out.writeString(s, "data");
+    out.writeString(s);
 
     logger.pop();
   }

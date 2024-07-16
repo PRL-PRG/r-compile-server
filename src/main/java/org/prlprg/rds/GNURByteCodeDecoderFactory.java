@@ -18,7 +18,7 @@ class GNURByteCodeDecoderFactory {
     this.byteCode = byteCode;
 
     cpb = new ConstPool.Builder(consts.size());
-    cpb.addAllPreservingIndices(consts);
+    cpb.addAll(consts);
     cbb = new BcCode.Builder();
     labelMapping = LabelMapping.fromGNUR(byteCode);
 

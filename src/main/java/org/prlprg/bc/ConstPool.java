@@ -146,34 +146,10 @@ public final class ConstPool extends ForwardingList<SEXP> {
       return Idx.create(i, c);
     }
 
-    /**
-     * Adds all the constants from {@code consts} to the builder.
-     *
-     * @apiNote Unlike {@link #addAllPreservingIndices(List) addAllPreservingIndices}, this method
-     *     will not necessarily maintain the invariant that the builder's size is the same as the
-     *     list's size. That is, if an element appears multiple times in the list, it will only be
-     *     added once to the constant pool.
-     */
+    /** Adds all the constants from {@code consts} to the builder. */
     public void addAll(List<SEXP> consts) {
       for (var e : consts) {
         add(e);
-      }
-    }
-
-    /**
-     * Adds all the constants from {@code consts} to the builder, preserving their indices in the
-     * original list.
-     *
-     * @apiNote This method should not be used unless it is critical for the indices in the supplied
-     *     list to align with those in the constant pool, and possible that they will not (e.g.,
-     *     reading a constant pool from RDS). To add a list of constants to the constant pool while
-     *     ensuring that there are no duplicates, invoke {@link #addAll(List) addAll} on an empty
-     *     {@link ConstPool.Builder}.
-     */
-    public void addAllPreservingIndices(List<SEXP> consts) {
-      for (var e : consts) {
-        this.index.put(e, values.size());
-        this.values.add(e);
       }
     }
 

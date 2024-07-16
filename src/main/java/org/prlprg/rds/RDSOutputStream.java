@@ -4,6 +4,7 @@ import java.io.Closeable;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 
 public class RDSOutputStream implements Closeable {
   private final DataOutputStream out;
@@ -34,11 +35,10 @@ public class RDSOutputStream implements Closeable {
     logger.log(v, desc);
   }
 
-  public void writeString(String s, String desc) throws IOException {
-    // one byte per character.
-    // Fixme: supports the charset (when a character is more than 1 byte!)
-    out.writeBytes(s);
-    logger.log(s, desc);
+  public void writeString(String s) throws IOException {
+    var bytes = s.getBytes(StandardCharsets.UTF_8);
+    out.writeInt(bytes.length);
+    out.write(bytes);
   }
 
   public void writeInts(int[] v, String desc) throws IOException {
