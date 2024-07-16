@@ -31,7 +31,7 @@ public interface BoundedLattice<T extends BoundedLattice<T>> extends Lattice<T> 
   @SuppressWarnings({"NullableProblems", "unchecked"})
   @Override
   @Nonnull
-  default T intersection(T other) {
+  default T intersectionOf(T other) {
     return BoundedLattice.simpleRecordIntersection((T) this, other);
   }
 }

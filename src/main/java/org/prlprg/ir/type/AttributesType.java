@@ -64,12 +64,12 @@ public interface AttributesType extends BoundedLattice<AttributesType> {
   }
 
   @Override
-  default AttributesType union(AttributesType other) {
+  default AttributesType unionOf(AttributesType other) {
     return other == BOTTOM ? this : ANY;
   }
 
   @Override
-  default AttributesType intersection(AttributesType other) {
+  default AttributesType intersectionOf(AttributesType other) {
     return other == ANY ? this : BOTTOM;
   }
 }
@@ -88,12 +88,12 @@ class AnyAttributesType implements AttributesType {
   }
 
   @Override
-  public AttributesType union(AttributesType other) {
+  public AttributesType unionOf(AttributesType other) {
     return this;
   }
 
   @Override
-  public AttributesType intersection(AttributesType other) {
+  public AttributesType intersectionOf(AttributesType other) {
     return other;
   }
 
@@ -119,12 +119,12 @@ class BottomAttributesType implements AttributesType {
   }
 
   @Override
-  public AttributesType union(AttributesType other) {
+  public AttributesType unionOf(AttributesType other) {
     return other;
   }
 
   @Override
-  public AttributesType intersection(AttributesType other) {
+  public AttributesType intersectionOf(AttributesType other) {
     return this;
   }
 
@@ -156,17 +156,17 @@ class AnyObjectAttributesType implements AttributesType {
   }
 
   @Override
-  public AttributesType union(AttributesType other) {
+  public AttributesType unionOf(AttributesType other) {
     return other instanceof ExactAttributesType exact
         ? (exact.attributes().isObject() ? this : ANY)
-        : AttributesType.super.union(other);
+        : AttributesType.super.unionOf(other);
   }
 
   @Override
-  public AttributesType intersection(AttributesType other) {
+  public AttributesType intersectionOf(AttributesType other) {
     return other instanceof ExactAttributesType exact
         ? (exact.attributes().isObject() ? other : BOTTOM)
-        : AttributesType.super.intersection(other);
+        : AttributesType.super.intersectionOf(other);
   }
 
   @Override
@@ -193,23 +193,23 @@ record ExactAttributesType(Attributes attributes) implements AttributesType {
   }
 
   @Override
-  public AttributesType intersection(AttributesType other) {
+  public AttributesType intersectionOf(AttributesType other) {
     return other instanceof ExactAttributesType exact
         ? (attributes.equals(exact.attributes) ? this : BOTTOM)
         : other == ANY_OBJECT
             ? (attributes.isObject() ? this : BOTTOM)
-            : AttributesType.super.intersection(other);
+            : AttributesType.super.intersectionOf(other);
   }
 
   @Override
-  public AttributesType union(AttributesType other) {
+  public AttributesType unionOf(AttributesType other) {
     return other instanceof ExactAttributesType exact
         ? (attributes.equals(exact.attributes)
             ? this
             : attributes.isObject() && exact.attributes.isObject() ? ANY_OBJECT : ANY)
         : other == ANY_OBJECT
             ? (attributes.isObject() ? ANY_OBJECT : ANY)
-            : AttributesType.super.union(other);
+            : AttributesType.super.unionOf(other);
   }
 
   @Override

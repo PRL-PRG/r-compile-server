@@ -96,9 +96,9 @@ public sealed interface Instr extends InstrOrPhi permits Jump, Stmt {
   ImmutableList<Node> args();
 
   /**
-   * Returns the instruction's environment argument, or {@code null} if it cannot have one.
+   * Returns the instruction's environment argument.
    *
-   * <p>Instructions with elided environments, this will be non-null and {@link StaticEnv#ELIDED}.
+   * <p>Returns {@code null} if it can't have one or was elided.
    */
   @Nullable @IsEnv
   ISexp env();
@@ -110,22 +110,12 @@ public sealed interface Instr extends InstrOrPhi permits Jump, Stmt {
   @Nullable FrameState frameState();
 
   /**
-   * Whether the instruction can have an environment, but it may be elided.
-   *
-   * <p>i.e. whether {@link #env()} is non-null, but clearer meaning.
-   */
-  default boolean canHaveEnv() {
-    return env() != null;
-  }
-
-  /**
    * Whether the instruction has an environment which isn't elided.
    *
-   * <p>i.e. whether {@link #env()} is non-null ({@link #canHaveEnv()}) and not {@link
-   * StaticEnv#ELIDED}.
+   * <p>i.e. whether {@link #env() env()}{@code !=null}.
    */
   default boolean hasEnv() {
-    return env() != null && env() != StaticEnv.ELIDED;
+    return env() != null;
   }
 
   /**
@@ -474,7 +464,7 @@ abstract sealed class InstrImpl<D extends InstrData<?>> extends InstrOrPhiImpl i
    * <p>e.g. removes environment effects if the instruction's environment is elided.
    */
   private REffects implicitlyFilterEffects(REffects effects) {
-    if (env == StaticEnv.ELIDED) {
+    if (env == null) {
       // ???: Can it do reflection without an environment?
       // We rely on these being filtered in `ElideEnvs`.
       effects =

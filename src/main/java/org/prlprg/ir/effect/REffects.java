@@ -117,7 +117,7 @@ public final class REffects extends ForwardingSet<REffect> implements BoundedLat
   }
 
   @Override
-  public REffects intersection(REffects other) {
+  public REffects intersectionOf(REffects other) {
     return new REffects(
         ImmutableSet.copyOf(flags).stream()
             .filter(other.flags::contains)
@@ -125,7 +125,7 @@ public final class REffects extends ForwardingSet<REffect> implements BoundedLat
   }
 
   @Override
-  public REffects union(REffects other) {
+  public REffects unionOf(REffects other) {
     return new REffects(ImmutableSet.<REffect>builder().addAll(flags).addAll(other.flags).build());
   }
 

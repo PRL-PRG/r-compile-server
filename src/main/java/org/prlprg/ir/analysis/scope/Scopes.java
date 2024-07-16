@@ -35,8 +35,6 @@ import org.prlprg.ir.cfg.StmtData.MkProm;
 import org.prlprg.ir.cfg.StmtData.StVar;
 import org.prlprg.ir.cfg.StmtData.StVarSuper;
 import org.prlprg.ir.closure.ClosureVersion;
-import org.prlprg.ir.closure.ClosureVersion.CallContext.ArgAssumption;
-import org.prlprg.ir.closure.ClosureVersion.CallContext.ArgsAssumption;
 import org.prlprg.ir.closure.Promise;
 import org.prlprg.ir.effect.REffect;
 import org.prlprg.ir.type.lattice.Maybe;

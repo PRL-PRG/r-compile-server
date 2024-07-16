@@ -391,48 +391,43 @@ public final class Closure extends CodeObject {
   /** Deserializing constructor (so we can set the final fields). */
   @ParseMethod
   private Closure(Parser p1, ClosureParseContext ctx) {
-    super("func", p1, ctx);
-    var idIndex = ctx.lastYieldedIdIndex();
+    super("fn", p1, ctx);
+    var idIndex = ctx.currentIdIndex();
 
     var p = p1.withContext(ctx.inner());
     var s = p.scanner();
 
     var parameters = p.withContext(ctx.sexpParseContext().forBindings()).parse(ListSXP.class);
     env = s.trySkip("env") ? p.parse(ISexp.class) : StaticEnv.NOT_CLOSED;
-    var attributes = s.trySkip("with") ? p.parse(Attributes.class) : Attributes.NONE;
+    var attributes = s.trySkip("attrs") ? p.parse(Attributes.class) : Attributes.NONE;
+    var bc = s.trySkip("bc") ? p.parse(BCodeSXP.class) : SEXPs.bcode(Bc.empty());
+    origin = SEXPs.closure(parameters, bc, SEXPs.EMPTY_ENV, attributes);
 
     s.assertAndSkip('{');
+    var versionCtx = ctx.ref(new NodeIdQualifier(name, idIndex));
 
-    var bc = p.parse(Bc.class);
-    origin = SEXPs.closure(parameters, SEXPs.bcode(bc), SEXPs.EMPTY_ENV, attributes);
-
-    s.assertAndSkip("=== IR ===");
-    s.assertAndSkip("baseline");
-    s.assertAndSkip(':');
-
+    s.assertAndSkip('#');
+    s.assertAndSkip('0');
     baselineVersion =
-        p.withContext(ctx.ref(new NodeIdQualifier(name, idIndex))).parse(ClosureVersion.class);
+        p.withContext(new ClosureVersion.ParseContext(true, versionCtx))
+            .parse(ClosureVersion.class);
 
     optimizedVersions = new TreeMap<>();
-    for (var i = 1; s.trySkip("opt"); i++) {
+    for (var i = 1; !s.trySkip('#'); i++) {
       var i1 = s.readUInt();
       if (i != i1) {
         throw s.fail("Optimized version index isn't in order: expected " + i + " got " + i1);
       }
-      s.assertAndSkip(':');
 
       // Optimized versions parse their call context.
       var version =
-          p.withContext(ctx.ref(new NodeIdQualifier(name, idIndex, i))).parse(ClosureVersion.class);
+          p.withContext(new ClosureVersion.ParseContext(false, versionCtx))
+              .parse(ClosureVersion.class);
       var context = version.callContext();
       if (optimizedVersions.containsKey(context)) {
         throw s.fail("Duplicate optimized version for context: " + context);
       }
       optimizedVersions.put(context, version);
-    }
-
-    if (ctx instanceof ClosureParseContext.Outermost o) {
-      o.parseRemaining(p);
     }
 
     s.assertAndSkip('}');
@@ -442,8 +437,8 @@ public final class Closure extends CodeObject {
   @Override
   protected void print(
       Printer p1, @SuppressWarnings("ClassEscapesDefinedScope") ClosurePrintContext ctx) {
-    printHeader("func", p1, ctx);
-    var idIndex = ctx.lastYieldedIdIndex();
+    printHeader("fn", p1, ctx);
+    var idIndex = ctx.currentIdIndex();
 
     var p = p1.withContext(ctx.inner());
     var w = p.writer();
@@ -453,31 +448,31 @@ public final class Closure extends CodeObject {
       w.write(" env ");
       w.runIndented(() -> p.print(env));
     }
-    if (!origin.attributes().isEmpty()) {
-      w.write(" with ");
+    if (!origin.attributes().isEmpty() && ctx.options().printFullOrigin()) {
+      w.write(" attrs ");
       w.runIndented(() -> p.print(origin.attributes()));
+      w.write(" bc ");
+      w.runIndented(() -> p.print(origin.body()));
     }
 
-    w.write(" {\n");
+    w.write(" {");
+    var versionCtx = ctx.ref(new NodeIdQualifier(name, idIndex));
 
-    p.print(bc());
-    w.write("\n=== IR ===\n");
+    w.runIndented(
+        () -> {
+          w.write('\n');
 
-    w.write("baseline: ");
-    p.withContext(ctx.ref(new NodeIdQualifier(name, idIndex))).print(baselineVersion);
+          w.write("#0");
+          p.withContext(versionCtx).print(baselineVersion);
 
-    var i = 1;
-    for (var optVersion : optimizedVersions.values()) {
-      w.formatter().format("\nopt %d: ", i);
-      w.write('\n');
-      // Optimized versions print their call context.
-      p.withContext(ctx.ref(new NodeIdQualifier(name, idIndex, i))).print(optVersion);
-      i++;
-    }
-
-    if (ctx instanceof ClosurePrintContext.Outermost o) {
-      o.printRemaining(p);
-    }
+          var i = 1;
+          for (var optVersion : optimizedVersions.values()) {
+            w.formatter().format("\n#%d", i);
+            // Optimized versions print their call context.
+            p.withContext(versionCtx).print(optVersion);
+            i++;
+          }
+        });
 
     w.write("\n}");
   }

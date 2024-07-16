@@ -40,7 +40,7 @@ public enum NoOrMaybe implements BoundedLattice<NoOrMaybe> {
    * representation.
    */
   @Override
-  public NoOrMaybe union(NoOrMaybe other) {
+  public NoOrMaybe unionOf(NoOrMaybe other) {
     return this == NO ? other : this;
   }
 
@@ -49,7 +49,7 @@ public enum NoOrMaybe implements BoundedLattice<NoOrMaybe> {
    * representation.
    */
   @Override
-  public NoOrMaybe intersection(NoOrMaybe other) {
+  public NoOrMaybe intersectionOf(NoOrMaybe other) {
     return this == NO ? this : other;
   }
 }

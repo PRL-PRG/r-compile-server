@@ -22,9 +22,9 @@ public sealed interface MaybeNat extends Lattice<MaybeNat> {
     return this instanceof Known known && known.value() < value;
   }
 
-  default @Override MaybeNat union(MaybeNat other) {
+  default @Override MaybeNat unionOf(MaybeNat other) {
     return switch (other) {
-      case Known(var otheiSexp) -> union(otheiSexp);
+      case Known(var otheiSexp) -> unionOf(otheiSexp);
       case Unknown() -> other;
     };
   }
@@ -41,7 +41,7 @@ public sealed interface MaybeNat extends Lattice<MaybeNat> {
     };
   }
 
-  default MaybeNat union(int exact) {
+  default MaybeNat unionOf(int exact) {
     return switch (this) {
       case Known(var value) -> value == exact ? this : new Unknown();
       case Unknown() -> this;
@@ -49,7 +49,7 @@ public sealed interface MaybeNat extends Lattice<MaybeNat> {
   }
 
   @Override
-  default @Nullable MaybeNat intersection(MaybeNat other) {
+  default @Nullable MaybeNat intersectionOf(MaybeNat other) {
     return switch (other) {
       case Known(var otheiSexp) ->
           switch (this) {

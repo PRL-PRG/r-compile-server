@@ -192,7 +192,7 @@ public sealed interface RSignatureType {
       var j = indices.get(i);
       var a = arguments.get(i);
       // Multiple arguments may correspond to the same parameter if there are dots.
-      var nType = normalizedTypes[j] == null ? a.type() : normalizedTypes[j].union(a.type());
+      var nType = normalizedTypes[j] == null ? a.type() : normalizedTypes[j].unionOf(a.type());
       normalizedTypes[j] = nType;
       if (j == dotsIndex()) {
         dotArgs.add(a);

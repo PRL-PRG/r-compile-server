@@ -167,7 +167,7 @@ public enum Maybe implements Lattice<Maybe> {
 
   /** If args are YES and NO, or either is MAYBE, returns MAYBE. */
   @Override
-  public Maybe union(Maybe other) {
+  public Maybe unionOf(Maybe other) {
     var result = union(this, other);
     assert result != null;
     return result;
@@ -175,7 +175,7 @@ public enum Maybe implements Lattice<Maybe> {
 
   /** If args are YES and NO, returns {@code null}. If either arg is MAYBE, returns the other. */
   @Nullable @Override
-  public Maybe intersection(Maybe other) {
+  public Maybe intersectionOf(Maybe other) {
     return intersection(this, other);
   }
 }

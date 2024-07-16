@@ -3,12 +3,15 @@ package org.prlprg.ir.closure;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Streams;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.prlprg.ir.cfg.CFG;
+import org.prlprg.ir.cfg.CFGParsePrint;
 import org.prlprg.ir.cfg.ISexp;
+import org.prlprg.ir.cfg.NodeId;
 import org.prlprg.ir.effect.REffect;
 import org.prlprg.ir.effect.REffects;
 import org.prlprg.ir.type.RType;
@@ -20,7 +23,7 @@ import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
-import org.prlprg.util.UnreachableError;
+import org.prlprg.sexp.TaggedElem;
 
 /**
  * An IR closure version (baseline or optimized).
@@ -44,17 +47,31 @@ public class ClosureVersion {
    * @param isBaseline Whether this is the closure's baseline or an optimized version. Iff baseline,
    *     it will be compiled with recording instructions.
    * @throws IllegalArgumentException If the closure is baseline and the call context isn't empty.
+   * @throws IllegalArgumentException If the call context has a different number of parameter types
+   *     than the closure's number of parameters.
    */
   ClosureVersion(Closure closure, boolean isBaseline, CallContext callContext) {
     if (isBaseline && !callContext.isEmpty()) {
       throw new IllegalArgumentException("Baseline version must have an empty call context");
+    }
+    if (!isBaseline && callContext.paramTypes == null) {
+      throw new UnsupportedOperationException(
+          "Optimized version's call context must have a fixed number of parameters (`paramTypes != null`)");
+    }
+    if (callContext.paramTypes != null
+        && callContext.paramTypes.size() != closure.numParameters()) {
+      throw new IllegalArgumentException(
+          "Call context must have the same number of parameter types as the number of parameters");
     }
 
     this.closure = closure;
     this.isBaseline = isBaseline;
     this.callContext = callContext;
     properties = Properties.EMPTY;
-    body = new CFG();
+    body =
+        new CFG(
+            closure.parameters().stream().map(TaggedElem::tagOrEmpty).toList(),
+            callContext.paramTypes);
   }
 
   /** The closure which contains this version. */
@@ -166,139 +183,133 @@ public class ClosureVersion {
    * Properties <b>for</b> a closure version that are <b>required</b> by the caller the version to
    * be dispatched and not another one (<b>preconditions</b>).
    *
-   * <p>e.g. argument types and count. For now these are all properties of the arguments, but maybe
-   * in the future they could cover the callee environment or other context.
+   * <p>Specifically, each param's type, or {@code null} if we don't even know what number of
+   * params.
    *
    * <p>This implements {@link Comparable} so that contexts that are strict subsets of other
    * contexts are "greater than" the other contexts. "Subset" means that any call that satisfies the
    * subset also satisfies the superset, "strict subset" is a subset that is not equal.
    */
-  public record CallContext(
-      ImmutableSet<ArgsAssumption> flags,
-      ImmutableList<ImmutableSet<ArgAssumption>> argumentFlags,
-      int numMissing)
+  public record CallContext(@Nullable ImmutableList<RType> paramTypes)
       implements Lattice<CallContext>, Comparable<CallContext> {
     /** Context that doesn't require anything. All callers satisfy this context. */
-    public static final CallContext EMPTY =
-        new CallContext(ImmutableSet.of(), ImmutableList.of(), 0);
-
-    public CallContext {
-      if (numMissing < 0) {
-        throw new IllegalArgumentException("# missing arguments must be non-negative");
-      }
-      if (argumentFlags.stream()
-          .anyMatch(
-              f ->
-                  f.contains(ArgAssumption.IS_SIMPLE_INT)
-                      && f.contains(ArgAssumption.IS_SIMPLE_REAL))) {
-        throw new IllegalArgumentException("Argument can't be both simple int and simple real");
-      }
-      if (argumentFlags.stream()
-          .anyMatch(
-              f ->
-                  (f.contains(ArgAssumption.IS_SIMPLE_INT)
-                          || f.contains(ArgAssumption.IS_SIMPLE_REAL))
-                      && !f.contains(ArgAssumption.IS_NOT_OBJECT))) {
-        throw new IllegalArgumentException("Argument can't be both simple scalar and object");
-      }
-    }
+    public static final CallContext EMPTY = new CallContext(null);
 
     /** Whether the context has no requirements, i.e. equals {@link CallContext#EMPTY}. */
     public boolean isEmpty() {
       return this.equals(EMPTY);
     }
 
-    /** Whether the context is only met when the assumption is. */
-    public boolean requires(ArgsAssumption assumption) {
-      return flags.contains(assumption);
+    /** Whether the context is met given the argument types. */
+    public boolean permits(Iterable<RType> argTypes) {
+      // Return `true` if this has no argument requirements.
+      if (paramTypes == null) {
+        return true;
+      }
+
+      var argTypesIter = argTypes.iterator();
+      for (var i = 0; i < paramTypes.size(); i++) {
+        // Return `false` if too few arguments, or the type isn't correct.
+        if (!argTypesIter.hasNext() || !permits(i, argTypesIter.next())) {
+          return false;
+        }
+      }
+
+      // Return `false` if too many arguments.
+      return !argTypesIter.hasNext();
     }
 
-    /** Whether the context is only met when the assumption for the specific argument is. */
-    public boolean requires(int argument, ArgAssumption assumption) {
-      return argumentFlags.get(argument).contains(assumption);
+    /**
+     * Whether the context is met iff the argument at the given index has the given type, assuming
+     * other argument types and assumptions are permitted.
+     */
+    private boolean permits(int argument, RType type) {
+      return paramTypes == null
+          || (argument < paramTypes.size() && type.isSubsetOf(paramTypes.get(argument)));
+    }
+
+    /**
+     * Whether the context is <i>not</i> met iff the argument at the given index <i>doesn't</i> have
+     * the given type.
+     */
+    public boolean requires(int argument, RType type) {
+      return paramTypes != null
+          && (argument >= paramTypes.size() || paramTypes.get(argument).isSubsetOf(type));
     }
 
     /** Whether a call that satisfies this context also satisfies the given context. */
     @SuppressWarnings("UnstableApiUsage")
     @Override
     public boolean isSubsetOf(CallContext other) {
-      return flags.containsAll(other.flags)
-          && Streams.zip(
-                  argumentFlags.stream(), other.argumentFlags.stream(), ImmutableSet::containsAll)
-              .allMatch(b -> b)
-          && (numMissing == other.numMissing
-              || (numMissing < other.numMissing
-                  && flags.contains(ArgsAssumption.NO_EXPLICITLY_MISSING_ARGUMENTS)));
+      return other.paramTypes == null
+          || (paramTypes != null
+              && paramTypes.size() == other.paramTypes.size()
+              && Streams.zip(paramTypes.stream(), other.paramTypes.stream(), RType::isSubsetOf)
+                  .allMatch(b -> b));
     }
 
     /**
      * Create a context that is satisfied when <b>either</b> this and the other context are
      * satisfied.
      *
-     * <p>This is actually corresponds to {@code &} in PIR's {@code Context.h}.
+     * @throws UnsupportedOperationException If the contexts have different numbers of parameters.
      */
+    @SuppressWarnings("UnstableApiUsage")
     @Override
-    public CallContext union(CallContext other) {
-      var unionFlagsStream = flags.stream().filter(other.flags::contains);
-      if (numMissing != other.numMissing) {
-        unionFlagsStream =
-            Stream.concat(
-                unionFlagsStream, Stream.of(ArgsAssumption.NO_EXPLICITLY_MISSING_ARGUMENTS));
+    public CallContext unionOf(CallContext other) {
+      if (paramTypes == null) {
+        return other;
       }
-      var unionFlags = unionFlagsStream.collect(ImmutableSet.toImmutableSet());
-      @SuppressWarnings("UnstableApiUsage")
-      var unionArgumentFlags =
-          Streams.zip(
-                  argumentFlags.stream(),
-                  other.argumentFlags.stream(),
-                  (a, b) -> a.stream().filter(b::contains).collect(ImmutableSet.toImmutableSet()))
-              .collect(ImmutableList.toImmutableList());
-      var unionNumMissing = Math.min(numMissing, other.numMissing);
-      return new CallContext(unionFlags, unionArgumentFlags, unionNumMissing);
+      if (other.paramTypes == null) {
+        return this;
+      }
+
+      if (paramTypes.size() != other.paramTypes.size()) {
+        throw new UnsupportedOperationException(
+            "Can't union contexts with different numbers of parameters");
+      }
+
+      return new CallContext(
+          Streams.zip(paramTypes.stream(), other.paramTypes.stream(), RType::union)
+              .collect(ImmutableList.toImmutableList()));
     }
 
     /**
      * Create a context that, when satisfied, means <b>both</b> this and the other context are
      * satisfied.
      *
-     * <p>Returns {@code null} if one doesn't exist (due to a different number of missing
-     * arguments).
+     * <p>Returns {@code null} if one doesn't exist (e.g. due to incompatible parameter types).
      *
-     * <p>This is actually corresponds to {@code |} in PIR's {@code Context.h}.
+     * @throws UnsupportedOperationException If the contexts have different numbers of parameters.
      */
+    @SuppressWarnings("UnstableApiUsage")
     @Override
-    public @Nullable CallContext intersection(CallContext other) {
-      if (numMissing != other.numMissing) {
-        var minContext = numMissing < other.numMissing ? this : other;
-        if (minContext.flags.contains(ArgsAssumption.NO_EXPLICITLY_MISSING_ARGUMENTS)) {
-          return null;
-        }
+    public @Nullable CallContext intersectionOf(CallContext other) {
+      if (paramTypes == null) {
+        return other;
+      }
+      if (other.paramTypes == null) {
+        return this;
       }
 
-      var intersectionFlags =
-          Stream.concat(
-                  flags.stream().filter(other.flags::contains),
-                  other.flags.stream().filter(flags::contains))
-              .collect(ImmutableSet.toImmutableSet());
-      @SuppressWarnings("UnstableApiUsage")
-      var intersectionArgumentFlags =
-          Streams.concat(
-                  Streams.zip(
-                      argumentFlags.stream(),
-                      other.argumentFlags.stream(),
-                      (a, b) ->
-                          Stream.concat(
-                                  a.stream().filter(b::contains), b.stream().filter(a::contains))
-                              .collect(ImmutableSet.toImmutableSet())),
-                  argumentFlags.stream().skip(other.argumentFlags.size()),
-                  other.argumentFlags.stream().skip(argumentFlags.size()))
+      if (paramTypes.size() != other.paramTypes.size()) {
+        throw new UnsupportedOperationException(
+            "Can't intersect contexts with different numbers of parameters");
+      }
+
+      var paramTypes =
+          Streams.zip(this.paramTypes.stream(), other.paramTypes.stream(), RType::intersection)
               .collect(ImmutableList.toImmutableList());
-      var intersectionNumMissing = Math.max(numMissing, other.numMissing);
-      return new CallContext(intersectionFlags, intersectionArgumentFlags, intersectionNumMissing);
+      if (paramTypes.stream().anyMatch(RType::isNothing)) {
+        return null;
+      }
+
+      return new CallContext(paramTypes);
     }
 
+    @SuppressWarnings("UnstableApiUsage")
     @Override
-    public int compareTo(ClosureVersion.CallContext o) {
+    public int compareTo(CallContext o) {
       if (equals(o)) {
         return 0;
       }
@@ -309,20 +320,20 @@ public class ClosureVersion {
         return 1;
       }
 
-      // A heuristic is to put contexts with less assumptions total first.
-      if (flags.size() != o.flags.size()) {
-        return Integer.compare(flags.size(), o.flags.size());
+      if (paramTypes == null || o.paramTypes == null) {
+        throw new UnsupportedOperationException(
+            "Didn't implement comparison for contexts with `null` parameter types that aren't handled by the above");
       }
-      if (argumentFlags.size() != o.argumentFlags.size()) {
-        return Integer.compare(argumentFlags.size(), o.argumentFlags.size());
-      }
-      for (int i = 0; i < argumentFlags.size(); i++) {
-        if (argumentFlags.get(i).size() != o.argumentFlags.get(i).size()) {
-          return Integer.compare(argumentFlags.get(i).size(), o.argumentFlags.get(i).size());
-        }
-      }
-      if (numMissing != o.numMissing) {
-        return Integer.compare(numMissing, o.numMissing);
+
+      // A heuristic is to put contexts with more subtyping parameters first.
+      int numSubtypes =
+          Streams.zip(
+                  paramTypes.stream(),
+                  o.paramTypes.stream(),
+                  (a, b) -> a.isSubsetOf(b) ? 1 : b.isSubsetOf(a) ? -1 : 0)
+              .reduce(0, Integer::sum);
+      if (numSubtypes != 0) {
+        return numSubtypes;
       }
 
       // Ok, now we really don't try to use heuristics to decide which context is "smaller".
@@ -330,65 +341,8 @@ public class ClosureVersion {
       if (hashCode() != o.hashCode()) {
         return Integer.compare(hashCode(), o.hashCode());
       }
-      // Last resort: deep comparison.
-      for (int i = 0; i < flags.size(); i++) {
-        if (flags.contains(ArgsAssumption.values()[i])
-            != o.flags.contains(ArgsAssumption.values()[i])) {
-          return Boolean.compare(
-              flags.contains(ArgsAssumption.values()[i]),
-              o.flags.contains(ArgsAssumption.values()[i]));
-        }
-      }
-      for (int i = 0; i < argumentFlags.size(); i++) {
-        for (int j = 0; j < argumentFlags.get(i).size(); j++) {
-          if (argumentFlags.get(i).contains(ArgAssumption.values()[j])
-              != o.argumentFlags.get(i).contains(ArgAssumption.values()[j])) {
-            return Boolean.compare(
-                argumentFlags.get(i).contains(ArgAssumption.values()[j]),
-                o.argumentFlags.get(i).contains(ArgAssumption.values()[j]));
-          }
-        }
-      }
-      // We checked equality at the beginning, so this shouldn't be possible.
-      throw new UnreachableError(
-          "Call contexts are not equal but the deep comparison didn't reveal any differences");
-    }
-
-    /** Flag in {@link CallContext} pertaining to all arguments in general. */
-    public enum ArgsAssumption {
-      /**
-       * Explicitly missing is e.g. {@code f(,,)} ({@code f} is given 3 explicitly missing
-       * arguments).
-       *
-       * <p>There can also be implicitly missing arguments, e.g. {@code f()}, but {@code f} takes 3
-       * arguments.
-       */
-      NO_EXPLICITLY_MISSING_ARGUMENTS,
-      /** i.e. the args are not named (? unless they're in the same order without any gaps ?). */
-      CORRECT_ORDER_OF_ARGUMENTS,
-      /** The number of args supplied is less than or equal to {@link Closure#numParameters}. */
-      NOT_TOO_MANY_ARGUMENTS,
-      /**
-       * Arguments are statically matched.
-       *
-       * <p>TODO clarify this. It's very similar to CORRECT_ORDER_OF_ARGUMENTS, but neither seems to
-       * imply the other.
-       */
-      STATICALLY_ARGMATCHED
-    }
-
-    /** Flag in {@link CallContext} pertaining to a specific argument. */
-    public enum ArgAssumption {
-      /** Argument isn't lazy. */
-      IS_EAGER,
-      /** Argument isn't reflective (? promise doesn't perform reflection ?). */
-      IS_NON_REFLECTIVE,
-      /** Argument isn't an object. */
-      IS_NOT_OBJECT,
-      /** Argument is a simple int: int scalar with no attributes or altrep. */
-      IS_SIMPLE_INT,
-      /** Argument is a simple real: double scalar with no attributes or altrep. */
-      IS_SIMPLE_REAL
+      // Last resort: `toString()`.
+      return toString().compareTo(o.toString());
     }
   }
 
@@ -477,10 +431,10 @@ public class ClosureVersion {
 
     /** Create properties that only guarantee what both this and the other properties do. */
     @Override
-    public Properties union(Properties other) {
+    public Properties unionOf(Properties other) {
       var unionFlags =
           flags.stream().filter(other.flags::contains).collect(ImmutableSet.toImmutableSet());
-      var unionArgumentForce = argumentForce.union(other.argumentForce);
+      var unionArgumentForce = argumentForce.unionOf(other.argumentForce);
       return new Properties(unionFlags, unionArgumentForce);
     }
 
@@ -490,11 +444,11 @@ public class ClosureVersion {
      * <p>Returns {@code null} if the guarantees conflict so that such properties can't exist.
      */
     @Override
-    public @Nullable Properties intersection(Properties other) {
+    public @Nullable Properties intersectionOf(Properties other) {
       var intersectionFlags =
           Stream.concat(flags.stream(), other.flags.stream())
               .collect(ImmutableSet.toImmutableSet());
-      var intersectionArgumentForce = argumentForce.intersection(other.argumentForce);
+      var intersectionArgumentForce = argumentForce.intersectionOf(other.argumentForce);
       if (intersectionArgumentForce == null) {
         return null;
       }
@@ -543,10 +497,10 @@ public class ClosureVersion {
 
       /** Create a data-structure with only the guarantees that both data-structures have. */
       @Override
-      public ArgumentForce union(ArgumentForce other) {
+      public ArgumentForce unionOf(ArgumentForce other) {
         @SuppressWarnings("UnstableApiUsage")
         var unionArgIsForced =
-            Streams.zip(argIsForced.stream(), other.argIsForced.stream(), (a, b) -> a.union(b))
+            Streams.zip(argIsForced.stream(), other.argIsForced.stream(), Maybe::union)
                 .collect(Collectors.toList());
         while (!unionArgIsForced.isEmpty() && unionArgIsForced.getLast() == Maybe.MAYBE) {
           unionArgIsForced.removeLast();
@@ -563,14 +517,14 @@ public class ClosureVersion {
        */
       @SuppressWarnings("OptionalGetWithoutIsPresent")
       @Override
-      public @Nullable ArgumentForce intersection(ArgumentForce other) {
+      public @Nullable ArgumentForce intersectionOf(ArgumentForce other) {
         @SuppressWarnings("UnstableApiUsage")
         var unionArgIsForced =
             Streams.concat(
                     Streams.zip(
                         argIsForced.stream(),
                         other.argIsForced.stream(),
-                        (a, b) -> Optional.ofNullable(a.intersection(b))),
+                        (a, b) -> Optional.ofNullable(a.intersectionOf(b))),
                     argIsForced.stream().skip(other.argIsForced.size()).map(Optional::of),
                     other.argIsForced.stream().skip(argIsForced.size()).map(Optional::of))
                 .toList();
@@ -610,20 +564,40 @@ public class ClosureVersion {
   }
 
   // region serialization and deserialization
+  record ParseContext(boolean isBaseline, @Nullable Object inner) {}
+
+  /** Deserializing constructor (so we can set the final fields). */
   @ParseMethod
-  private static ClosureVersion parse(Parser p) {
-    return new ClosureVersion(p);
+  private ClosureVersion(Parser p) {
+    this(p, new ParseContext(false, p.context()));
   }
 
   /** Deserializing constructor (so we can set the final fields). */
-  private ClosureVersion(Parser p) {
+  @ParseMethod
+  private ClosureVersion(Parser p1, ParseContext ctx) {
+    this.isBaseline = ctx.isBaseline();
+    var p = p1.withContext(ctx.inner());
     var s = p.scanner();
 
-    isBaseline = !s.nextCharsAre("CallContext");
-    callContext = isBaseline ? CallContext.EMPTY : p.parse(CallContext.class);
+    var paramNodeIdsBuilder = ImmutableList.<NodeId<?>>builder();
+    var paramTypesBuilder = isBaseline ? null : ImmutableList.<RType>builder();
+
+    s.assertAndSkip('(');
+    if (!s.trySkip(')')) {
+      do {
+        paramNodeIdsBuilder.add(p.parse(NodeId.class));
+        if (!isBaseline) {
+          s.assertAndSkip(':');
+          paramTypesBuilder.add(p.parse(RType.class));
+        }
+      } while (s.trySkip(','));
+      s.assertAndSkip(')');
+    }
+
+    callContext = new CallContext(isBaseline ? null : paramTypesBuilder.build());
     properties = s.trySkip("has") ? p.parse(Properties.class) : Properties.EMPTY;
     s.assertAndSkip('{');
-    body = p.parse(CFG.class);
+    body = p.parse(CFG.class, new CFGParsePrint.ParamsContext(paramNodeIdsBuilder.build()));
     s.assertAndSkip('}');
   }
 
@@ -631,10 +605,22 @@ public class ClosureVersion {
   private void print(Printer p) {
     var w = p.writer();
 
-    if (!isBaseline) {
-      p.print(callContext);
-      w.write(' ');
-    }
+    w.write('(');
+    w.runIndented(
+        () -> {
+          for (var i = 0; i < closure().numParameters(); i++) {
+            if (i != 0) {
+              w.write(",\n");
+            }
+            p.print(body.params().get(i));
+            if (!isBaseline) {
+              w.write(':');
+              p.print(Objects.requireNonNull(callContext.paramTypes).get(i));
+            }
+          }
+        });
+    w.write(')');
+
     if (!properties.isEmpty()) {
       w.write(" has ");
       w.runIndented(() -> p.print(properties));

@@ -9,7 +9,7 @@ import org.prlprg.parseprint.Printer;
 /**
  * Common package-private logic between {@linkplain Instr instructions} and {@linkplain Phi phis}.
  */
-abstract sealed class InstrOrPhiImpl implements LocalNode permits PhiImpl, InstrImpl {
+abstract sealed class InstrOrPhiImpl implements LocalNode permits PhiImpl, InstrImpl, ParamImpl {
   private final CFG cfg;
   private InstrOrPhiIdImpl<?> id;
 

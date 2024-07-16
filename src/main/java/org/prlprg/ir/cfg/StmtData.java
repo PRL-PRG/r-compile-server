@@ -264,7 +264,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
   record ChkFun(ISexp value) implements ISexp_ {
     @Override
     public RType computeType() {
-      return value.type().intersection(RType.ANY_FUNCTION);
+      return value.type().intersectionOf(RType.ANY_FUNCTION);
     }
   }
 
