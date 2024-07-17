@@ -6,6 +6,8 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import org.prlprg.RClosureTests;
+import org.prlprg.sexp.BCodeSXP;
+import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.SEXP;
 
 public class RDSRoundtripTest extends RClosureTests {
@@ -25,13 +27,23 @@ public class RDSRoundtripTest extends RClosureTests {
 
     // Read from the stream using the RDS reader
     var input = new ByteArrayInputStream(output.toByteArray());
-    SEXP readSexp;
+    SEXP res;
     try {
-      readSexp = RDSReader.readStream(rsession, input);
+      res = RDSReader.readStream(rsession, input);
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
+    if (clo instanceof CloSXP c && res instanceof CloSXP r) {
+      assertEquals(c.attributes().toString(), r.attributes().toString());
+      assertEquals(c.body().toString(), r.body().toString());
+      assertEquals(c.parameters().toString(), r.parameters().toString());
 
-    assertEquals(clo, readSexp);
+      // If the body is bytecode, also check that the operations and constant pool match
+      if (c.body() instanceof BCodeSXP cbc && r.body() instanceof BCodeSXP rbc) {
+        assertEquals(cbc.bc(), rbc.bc());
+      }
+    } else {
+      throw new AssertionError("Expected deserialized SEXP to be a closure");
+    }
   }
 }
