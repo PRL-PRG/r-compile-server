@@ -8,11 +8,9 @@ import java.nio.charset.Charset;
 
 class RDSInputStream implements Closeable {
   private final DataInputStream in;
-  private final RDSLogger logger;
 
-  RDSInputStream(InputStream in, RDSLogger logger) {
+  RDSInputStream(InputStream in) {
     this.in = new DataInputStream(in);
-    this.logger = logger;
   }
 
   @Override
@@ -28,25 +26,21 @@ class RDSInputStream implements Closeable {
    */
   public int readRaw() throws IOException {
     var input = in.read();
-    logger.log(input);
     return input;
   }
 
   public byte readByte() throws IOException {
     var input = in.readByte();
-    logger.log(input);
     return input;
   }
 
   public int readInt() throws IOException {
     var input = in.readInt();
-    logger.log(input);
     return input;
   }
 
   public double readDouble() throws IOException {
     var input = in.readDouble();
-    logger.log(input);
     return input;
   }
 
@@ -54,7 +48,6 @@ class RDSInputStream implements Closeable {
     var buf = new byte[natEncSize];
     in.readFully(buf, 0, natEncSize);
     var input = new String(buf, charset);
-    logger.log(input);
     return input;
   }
 
@@ -64,7 +57,6 @@ class RDSInputStream implements Closeable {
       var n = in.readInt();
       ints[i] = n;
     }
-    logger.logInts(ints);
     return ints;
   }
 
@@ -74,7 +66,6 @@ class RDSInputStream implements Closeable {
       var n = in.readDouble();
       doubles[i] = n;
     }
-    logger.logDoubles(doubles);
     return doubles;
   }
 }

@@ -12,7 +12,6 @@ import java.io.InputStream;
 import java.nio.charset.Charset;
 import java.util.*;
 import javax.annotation.Nullable;
-import org.prlprg.AppConfig;
 import org.prlprg.RSession;
 import org.prlprg.bc.Bc;
 import org.prlprg.primitive.Complex;
@@ -46,7 +45,6 @@ public class RDSReader implements Closeable {
   private final RSession rsession;
   private final RDSInputStream in;
   private final List<SEXP> refTable = new ArrayList<>(128);
-  private final RDSLogger logger;
 
   // FIXME: this should include the logic from platform.c
   //  or should we individually read the charset property of each SEXP? this will require
@@ -54,21 +52,9 @@ public class RDSReader implements Closeable {
   //  builtin/special?
   private final Charset nativeEncoding = Charset.defaultCharset();
 
-  private RDSReader(RSession session, InputStream in, AppConfig.RDSLogLevel level) {
+  private RDSReader(RSession session, InputStream in) {
     this.rsession = session;
-    this.logger = new RDSLogger("=========== READING STREAM ===========", level);
-    this.in = new RDSInputStream(in, logger);
-  }
-
-  /**
-   * Reads a SEXP from the provided file. By default, logs details at {@code RDSLogLevel.GENERAL}.
-   *
-   * @param session The current R session, used to supply special constructs such as the base
-   *     environment and namespace
-   * @param file The file to read from
-   */
-  public static SEXP readFile(RSession session, File file) throws IOException {
-    return readFile(session, file, AppConfig.RDSLogLevel.GENERAL);
+    this.in = new RDSInputStream(in);
   }
 
   /**
@@ -77,25 +63,11 @@ public class RDSReader implements Closeable {
    * @param session The current R session, used to supply special constructs such as the base
    *     environment and namespace
    * @param file The file to read from
-   * @param level The logging level details will be written at
    */
-  public static SEXP readFile(RSession session, File file, AppConfig.RDSLogLevel level)
-      throws IOException {
+  public static SEXP readFile(RSession session, File file) throws IOException {
     try (var input = new FileInputStream(file)) {
-      return readStream(session, IO.maybeDecompress(input), level);
+      return readStream(session, IO.maybeDecompress(input));
     }
-  }
-
-  /**
-   * Reads a SEXP from the provided {@code InputStream}. By default, logs details at {@code
-   * RDSLogLevel.GENERAL}.
-   *
-   * @param session The current R session, used to supply special constructs such as the base
-   *     environment and namespace
-   * @param input The stream to read from
-   */
-  public static SEXP readStream(RSession session, InputStream input) throws IOException {
-    return readStream(session, input, AppConfig.RDSLogLevel.GENERAL);
   }
 
   /**
@@ -104,17 +76,14 @@ public class RDSReader implements Closeable {
    * @param session The current R session, used to supply special constructs such as the base
    *     environment and namespace
    * @param input The stream to read from
-   * @param level The logging level details will be written at
    */
-  public static SEXP readStream(RSession session, InputStream input, AppConfig.RDSLogLevel level)
-      throws IOException {
-    try (var reader = new RDSReader(session, input, level)) {
+  public static SEXP readStream(RSession session, InputStream input) throws IOException {
+    try (var reader = new RDSReader(session, input)) {
       return reader.read();
     }
   }
 
   private void readHeader() throws IOException {
-    logger.push("Header");
 
     if (in.readByte() != 'X') {
       throw new RDSException("Unsupported type (possibly compressed)");
@@ -131,8 +100,6 @@ public class RDSReader implements Closeable {
     in.readInt();
     // minimal reader version
     in.readInt();
-
-    logger.pop();
   }
 
   public SEXP read() throws IOException {
@@ -165,8 +132,8 @@ public class RDSReader implements Closeable {
             case BCODE -> readByteCode();
             case EXPR -> readExpr(flags);
             case PROM -> readPromise(flags);
-            case BUILTIN -> readBuiltin(false);
-            case SPECIAL -> readBuiltin(true);
+            case BUILTIN -> readBuiltinOrSpecial();
+            case SPECIAL -> readBuiltinOrSpecial();
             case CPLX -> readComplex(flags);
             default -> throw new RDSException("Unsupported SEXP type: " + s.sexp());
           };
@@ -191,8 +158,6 @@ public class RDSReader implements Closeable {
   }
 
   private SEXP readComplex(Flags flags) throws IOException {
-    logger.push("ComplexSXP");
-
     var length = in.readInt();
     var cplx = ImmutableList.<Complex>builder();
     for (int i = 0; i < length; i++) {
@@ -202,13 +167,10 @@ public class RDSReader implements Closeable {
     }
     var attributes = readAttributes(flags);
 
-    logger.pop();
     return SEXPs.complex(cplx.build(), attributes);
   }
 
-  private SEXP readBuiltin(boolean special) throws IOException {
-    logger.push(special ? "SpecialSXP" : "BuiltinSXP");
-
+  private SEXP readBuiltinOrSpecial() throws IOException {
     var length = in.readInt();
     var name = in.readString(length, nativeEncoding);
 
@@ -222,15 +184,12 @@ public class RDSReader implements Closeable {
   }
 
   private SEXP readPromise(Flags flags) throws IOException {
-    logger.push("PromiseSXP");
-
     // FIXME: do something with the attributes here?
     readAttributes(flags);
     var tag = flags.hasTag() ? readItem() : SEXPs.NULL;
     var val = readItem();
     var expr = readItem();
 
-    logger.pop();
     if (tag instanceof NilSXP) {
       // If the tag is nil, the promise is evaluated
       return new PromSXP(expr, val, SEXPs.EMPTY_ENV);
@@ -244,8 +203,6 @@ public class RDSReader implements Closeable {
   }
 
   private SEXP readNamespace() throws IOException {
-    logger.push("NamespaceSXP");
-
     var namespaceInfo = readStringVec();
     if (namespaceInfo.size() != 2) {
       throw new RDSException("Expected 2-element list, got: " + namespaceInfo);
@@ -254,14 +211,11 @@ public class RDSReader implements Closeable {
     var namespace = rsession.getNamespace(namespaceInfo.get(0), namespaceInfo.get(1));
     refTable.add(namespace);
 
-    logger.pop();
     return namespace;
   }
 
   // Note that this method is not used to StringSXPs.
   private StrSXP readStringVec() throws IOException {
-    logger.push("String Vector");
-
     if (in.readInt() != 0) {
       // cf. InStringVec
       throw new RDSException("names in persistent strings are not supported yet");
@@ -273,13 +227,10 @@ public class RDSReader implements Closeable {
       strings.add(readChars());
     }
 
-    logger.pop();
     return SEXPs.string(strings);
   }
 
   private ExprSXP readExpr(Flags flags) throws IOException {
-    logger.push("ExprSXP");
-
     var length = in.readInt();
     var sexps = new ArrayList<SEXP>(length);
     for (int i = 0; i < length; i++) {
@@ -288,24 +239,18 @@ public class RDSReader implements Closeable {
 
     Attributes attributes = readAttributes(flags);
 
-    logger.pop();
     return SEXPs.expr(sexps, attributes);
   }
 
   private BCodeSXP readByteCode() throws IOException {
-    logger.push("BCodeSXP");
-
     var length = in.readInt();
     var reps = new SEXP[length];
 
     var bc = readByteCode1(reps);
-    logger.pop();
     return bc;
   }
 
   private BCodeSXP readByteCode1(SEXP[] reps) throws IOException {
-    logger.push("BCodeSXP (1)");
-
     @SuppressWarnings("SwitchStatementWithTooFewBranches")
     var code =
         switch (readItem()) {
@@ -320,13 +265,10 @@ public class RDSReader implements Closeable {
     var consts = readByteCodeConsts(reps);
     var factory = new GNURByteCodeDecoderFactory(code.data(), consts);
 
-    logger.pop();
     return SEXPs.bcode(factory.create());
   }
 
   private List<SEXP> readByteCodeConsts(SEXP[] reps) throws IOException {
-    logger.push("BCodeSXP (consts)");
-
     var length = in.readInt();
 
     var consts = new ArrayList<SEXP>(length);
@@ -351,7 +293,6 @@ public class RDSReader implements Closeable {
       }
     }
 
-    logger.pop();
     return consts;
   }
 
@@ -360,13 +301,10 @@ public class RDSReader implements Closeable {
   // include a padding int so the next SEXP can be read in full. This is why the function accepts
   // an integer instead of an RDSItemType.
   private SEXP readByteCodeLang(int type, SEXP[] reps) throws IOException {
-    logger.push("BCodeSXP (lang)");
-
     // If the type is 0, we encountered a padding bit, meaning we jump back to "regular" SEXP
     // processing.
     if (type == 0) {
       var item = readItem();
-      logger.pop();
       return item;
     }
 
@@ -399,7 +337,6 @@ public class RDSReader implements Closeable {
               };
         };
 
-    logger.pop();
     return res;
   }
 
@@ -480,8 +417,6 @@ public class RDSReader implements Closeable {
   }
 
   private SEXP readRef(Flags flags) throws IOException {
-    logger.push("Reference");
-
     var index = flags.unpackRefIndex();
     // if index is 0, it was too large to be packed with the flags and was therefore written
     // afterward
@@ -491,15 +426,11 @@ public class RDSReader implements Closeable {
 
     // since index is 1-based
     var ref = refTable.get(index - 1);
-    logger.log("REF: " + ref);
 
-    logger.pop();
     return ref;
   }
 
   private LangSXP readLang(Flags flags) throws IOException {
-    logger.push("LangSXP");
-
     var attributes = readAttributes(flags);
 
     // We do not support tags for LangSXPs. It is technically possible to have a tag on a LangSXP
@@ -518,8 +449,6 @@ public class RDSReader implements Closeable {
   }
 
   private String readChars() throws IOException {
-    logger.push("Chars");
-
     var flags = readFlags();
     if (!flags.getType().isSexp(SEXPType.CHAR)) {
       throw new RDSException("Expected CHAR");
@@ -536,13 +465,10 @@ public class RDSReader implements Closeable {
       out = in.readString(length, encoding);
     }
 
-    logger.pop();
     return out;
   }
 
   private StrSXP readStrs(Flags flags) throws IOException {
-    logger.push("StrSXP");
-
     var length = in.readInt();
     var strings = ImmutableList.<String>builderWithExpectedSize(length);
     for (int i = 0; i < length; i++) {
@@ -551,14 +477,11 @@ public class RDSReader implements Closeable {
 
     var attributes = readAttributes(flags);
 
-    logger.pop();
     return SEXPs.string(strings.build(), attributes);
   }
 
   @SuppressFBWarnings("DLS_DEAD_LOCAL_STORE")
   private UserEnvSXP readEnv() throws IOException {
-    logger.push("UserEnvSXP");
-
     var item = new UserEnvSXP();
     refTable.add(item);
 
@@ -608,8 +531,6 @@ public class RDSReader implements Closeable {
   }
 
   private VecSXP readVec(Flags flags) throws IOException {
-    logger.push("VecSXP");
-
     var length = in.readInt();
     var data = ImmutableList.<SEXP>builderWithExpectedSize(length);
     for (int i = 0; i < length; i++) {
@@ -617,48 +538,36 @@ public class RDSReader implements Closeable {
     }
     var attributes = readAttributes(flags);
 
-    logger.pop();
     return SEXPs.vec(data.build(), attributes);
   }
 
   private LglSXP readLogicals(Flags flags) throws IOException {
-    logger.push("LglSXP");
-
     var length = in.readInt();
     var data = in.readInts(length);
     var attributes = readAttributes(flags);
 
-    logger.pop();
     return SEXPs.logical(
         Arrays.stream(data).mapToObj(Logical::valueOf).collect(ImmutableList.toImmutableList()),
         attributes);
   }
 
   private RealSXP readReals(Flags flags) throws IOException {
-    logger.push("RealSXP");
-
     var length = in.readInt();
     var data = in.readDoubles(length);
     var attributes = readAttributes(flags);
 
-    logger.pop();
     return SEXPs.real(data, attributes);
   }
 
   private IntSXP readInts(Flags flags) throws IOException {
-    logger.push("IntSXP");
-
     var length = in.readInt();
     var data = in.readInts(length);
     var attributes = readAttributes(flags);
 
-    logger.pop();
     return SEXPs.integer(data, attributes);
   }
 
   private ListSXP readList(Flags flags) throws IOException {
-    logger.push("ListSXP");
-
     var data = ImmutableList.<TaggedElem>builder();
     Attributes attributes = null;
 
@@ -682,14 +591,11 @@ public class RDSReader implements Closeable {
       flags = readFlags();
     }
 
-    logger.pop();
     // TODO: add the attributes here?
     return SEXPs.list(data.build());
   }
 
   private CloSXP readClosure(Flags flags) throws IOException {
-    logger.push("CloSXP");
-
     var attributes = readAttributes(flags);
     if (!(readItem() instanceof EnvSXP env)) {
       throw new RDSException("Expected CLOENV to be environment");
@@ -699,20 +605,17 @@ public class RDSReader implements Closeable {
     }
     var body = readItem();
 
-    logger.pop();
     return SEXPs.closure(formals, body, env, attributes);
   }
 
   private @Nullable String readTag(Flags flags) throws IOException {
     String tagVal;
     if (flags.hasTag()) {
-      logger.push("Tag");
       if (readItem() instanceof RegSymSXP s) {
         tagVal = s.name();
       } else {
         throw new RDSException("Expected tag to be a symbol");
       }
-      logger.pop();
     } else {
       tagVal = null;
     }
@@ -733,8 +636,6 @@ public class RDSReader implements Closeable {
   }
 
   private Attributes readAttributes() throws IOException {
-    logger.push("Attributes");
-
     if (readItem() instanceof ListSXP xs) {
       var attrs = new Attributes.Builder();
 
@@ -746,7 +647,6 @@ public class RDSReader implements Closeable {
         attrs.put(attr, x.value());
       }
 
-      logger.pop();
       return attrs.build();
     } else {
       throw new RDSException("Expected list");
@@ -754,27 +654,21 @@ public class RDSReader implements Closeable {
   }
 
   private RegSymSXP readSymbol() throws IOException {
-    logger.push("RegSymSXP");
-
     var flags = readFlags();
-    var s = readString(flags);
+    var s = readChars(flags);
     var item = SEXPs.symbol(s);
 
     refTable.add(item);
 
-    logger.pop();
     return item;
   }
 
-  private String readString(Flags flags) throws IOException {
-    logger.push("String");
-
+  private String readChars(Flags flags) throws IOException {
     var len = in.readInt();
     // charset should never be null for strings
     var charset = requireNonNull(flags.getLevels().encoding());
     var data = in.readString(len, charset);
 
-    logger.pop();
     return data;
   }
 
@@ -786,6 +680,5 @@ public class RDSReader implements Closeable {
   @Override
   public void close() throws IOException {
     in.close();
-    logger.finish();
   }
 }

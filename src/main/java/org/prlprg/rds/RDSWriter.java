@@ -6,7 +6,6 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.DoubleStream;
 import java.util.stream.StreamSupport;
-import org.prlprg.AppConfig;
 import org.prlprg.RVersion;
 import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.*;
@@ -18,22 +17,9 @@ public class RDSWriter implements Closeable {
   // refIndex is 1-based, so the first ref will have index 1
   private int refIndex = 1;
   private final HashMap<SEXP, Integer> refTable = new HashMap<>(128);
-  private final RDSLogger logger;
 
-  protected RDSWriter(OutputStream out, AppConfig.RDSLogLevel level) {
-    this.logger = new RDSLogger("=========== WRITING STREAM ===========", level);
-    this.out = new RDSOutputStream(out, logger);
-  }
-
-  /**
-   * Writes a SEXP to the provided output stream. By default, logs details at {@code
-   * RDSLogLevel.GENERAL}.
-   *
-   * @param output The stream to write to
-   * @param sexp the SEXP to write
-   */
-  public static void writeStream(OutputStream output, SEXP sexp) throws IOException {
-    writeStream(output, sexp, AppConfig.RDSLogLevel.GENERAL);
+  protected RDSWriter(OutputStream out) {
+    this.out = new RDSOutputStream(out);
   }
 
   /**
@@ -41,23 +27,11 @@ public class RDSWriter implements Closeable {
    *
    * @param output The stream to write to
    * @param sexp the SEXP to write
-   * @param level the logging level at which to write details
    */
-  public static void writeStream(OutputStream output, SEXP sexp, AppConfig.RDSLogLevel level)
-      throws IOException {
-    try (var writer = new RDSWriter(output, level)) {
+  public static void writeStream(OutputStream output, SEXP sexp) throws IOException {
+    try (var writer = new RDSWriter(output)) {
       writer.write(sexp);
     }
-  }
-
-  /**
-   * Writes a SEXP to the provided file. By default, logs details at {@code RDSLogLevel.GENERAL}.
-   *
-   * @param file The file to write to
-   * @param sexp the SEXP to write
-   */
-  public static void writeFile(File file, SEXP sexp) throws IOException {
-    writeFile(file, sexp, AppConfig.RDSLogLevel.GENERAL);
   }
 
   /**
@@ -65,18 +39,14 @@ public class RDSWriter implements Closeable {
    *
    * @param file The file to write to
    * @param sexp the SEXP to write
-   * @param level the logging level at which to write details
    */
-  public static void writeFile(File file, SEXP sexp, AppConfig.RDSLogLevel level)
-      throws IOException {
+  public static void writeFile(File file, SEXP sexp) throws IOException {
     try (var output = new FileOutputStream(file)) {
-      writeStream(output, sexp, level);
+      writeStream(output, sexp);
     }
   }
 
   public void writeHeader() throws IOException {
-    logger.push("Header");
-
     // Could also be "B" (binary) and "A" (ASCII) but we only support XDR.
     // XDR just means big endian and DataInputStream/DataOutputStream from Java use BigEndian
     out.writeByte((byte) 'X');
@@ -92,8 +62,6 @@ public class RDSWriter implements Closeable {
 
     // Minimal version of R required to read back
     out.writeInt(new RVersion(2, 3, 0, null).encode());
-
-    logger.pop();
   }
 
   public void write(SEXP sexp) throws IOException {
@@ -114,23 +82,18 @@ public class RDSWriter implements Closeable {
       case RDSItemType.Special special -> {
         switch (special) {
           case RDSItemType.Special.NAMESPACESXP -> {
-            logger.push("NamespaceSXP");
             // add to the ref table
             refAdd(s);
             // write details about the namespace
             var namespace = (NamespaceEnvSXP) s;
             writeStringVec(SEXPs.string(namespace.name(), namespace.version()));
-            logger.pop();
           }
           case RDSItemType.Special.REFSXP -> {
             // If the flags encoded a reference, then we may need to write the ref index (only if
             // it was too large to be packed in the flags)
-            logger.push("Reference");
             if (flags.unpackRefIndex() == 0) {
               out.writeInt(refIndex);
             }
-            logger.log("REF: " + s);
-            logger.pop();
           }
           default -> {
             /* nothing to write */
@@ -242,16 +205,12 @@ public class RDSWriter implements Closeable {
    * such, it is essential to check if an object has attributes before invoking this method.
    */
   private void writeAttributes(Attributes attrs) throws IOException {
-    logger.push("Attributes");
-
     if (attrs.isEmpty())
       throw new IllegalArgumentException("Cannot write an empty set of attributes");
     // convert to ListSXP
     var l = attrs.entrySet().stream().map(e -> new TaggedElem(e.getKey(), e.getValue())).toList();
     // Write it
     writeItem(SEXPs.list(l));
-
-    logger.pop();
   }
 
   private void writeAttributesIfPresent(SEXP s) throws IOException {
@@ -261,10 +220,8 @@ public class RDSWriter implements Closeable {
   /** Writes the tag of the provided TaggedElem, if one exists. If none exists, does nothing. */
   private void writeTagIfPresent(TaggedElem elem) throws IOException {
     if (elem.hasTag()) {
-      logger.push("Tag");
       // Convert the tag to a symbol, since we need to add it to the ref table
       writeItem(Objects.requireNonNull(elem.tagAsSymbol()));
-      logger.pop();
     }
   }
 
@@ -273,8 +230,6 @@ public class RDSWriter implements Closeable {
    * CHARSXP, we need to write metadata like flags.
    */
   private void writeChars(String s) throws IOException {
-    logger.push("Chars");
-
     var flags =
         new Flags(
             RDSItemType.valueOf(SEXPType.CHAR.i),
@@ -294,8 +249,6 @@ public class RDSWriter implements Closeable {
     var bytes = s.getBytes(Charset.defaultCharset());
     out.writeInt(bytes.length);
     out.writeBytes(bytes);
-
-    logger.pop();
   }
 
   /**
@@ -305,23 +258,17 @@ public class RDSWriter implements Closeable {
    *     namespace and package environment spec.
    */
   private void writeStringVec(StrSXP s) throws IOException {
-    logger.push("String Vector");
-
     out.writeInt(0);
     out.writeInt(s.size());
 
     for (String str : s) {
       writeChars(str);
     }
-
-    logger.pop();
   }
 
   // STANDARD SEXPs -------------------------------------------------------------------------------
 
   private void writeEnv(EnvSXP env) throws IOException {
-    logger.push("EnvSXP");
-
     // Add to the ref table
     refAdd(env);
 
@@ -348,13 +295,9 @@ public class RDSWriter implements Closeable {
     } else {
       throw new UnreachableError("Implemented as special RDS type: " + env.type());
     }
-
-    logger.pop();
   }
 
   private void writeSymbol(SymSXP s) throws IOException {
-    logger.push("SymSXP");
-
     switch (s) {
       case RegSymSXP rs -> {
         // Add to the ref table
@@ -368,8 +311,6 @@ public class RDSWriter implements Closeable {
       default ->
           throw new UnsupportedOperationException("Unreachable: implemented in special sexps.");
     }
-
-    logger.pop();
   }
 
   private void writeBuiltinOrSpecialSXP(BuiltinOrSpecialSXP bos) throws IOException {
@@ -384,8 +325,6 @@ public class RDSWriter implements Closeable {
   }
 
   private void writeListSXP(ListSXP lsxp) throws IOException {
-    logger.push("ListSXP");
-
     Flags listFlags = flags(lsxp);
 
     // Write the first element. This case is separate because:
@@ -410,24 +349,16 @@ public class RDSWriter implements Closeable {
 
     // Write a NilSXP to end the list
     writeItem(SEXPs.NULL);
-
-    logger.pop();
   }
 
   private void writeLangSXP(LangSXP lang) throws IOException {
-    logger.push("LangSXP");
-
     writeAttributesIfPresent(lang);
     // LangSXPs can have tags, but we don't support them, so no tag is written here
     writeItem(lang.fun());
     writeItem(lang.args());
-
-    logger.pop();
   }
 
   private void writePromSXP(PromSXP prom) throws IOException {
-    logger.push("PromSXP");
-
     writeAttributesIfPresent(prom);
 
     // TODO: test that this is the correct order of arguments
@@ -439,25 +370,17 @@ public class RDSWriter implements Closeable {
 
     writeItem(prom.val());
     writeItem(prom.expr());
-
-    logger.pop();
   }
 
   private void writeCloSXP(CloSXP clo) throws IOException {
-    logger.push("CloSXP");
-
     writeAttributesIfPresent(clo);
     // a closure has the environment, formals, and then body
     writeItem(clo.env());
     writeItem(clo.parameters());
     writeItem(clo.body());
-
-    logger.pop();
   }
 
   private <T> void writeVectorSXP(VectorSXP<T> s) throws IOException {
-    logger.push("VectorSXP");
-
     var length = s.size();
     out.writeInt(length);
 
@@ -511,8 +434,6 @@ public class RDSWriter implements Closeable {
     }
 
     writeAttributesIfPresent(s);
-
-    logger.pop();
   }
 
   // BYTECODE -------------------------------------------------------------------------------------
@@ -553,8 +474,6 @@ public class RDSWriter implements Closeable {
 
   private void writeByteCodeLang(SEXP s, HashMap<SEXP, Integer> reps, AtomicInteger nextRepIndex)
       throws IOException {
-    logger.push("BCodeSXP (lang)");
-
     if (s instanceof LangOrListSXP lol && lol.type() != SEXPType.NIL) {
       var assignedRepIndex = reps.get(lol);
       if (assignedRepIndex != null) {
@@ -573,7 +492,6 @@ public class RDSWriter implements Closeable {
           out.writeInt(assignedRepIndex);
           // We also return, since the child nodes have already been written, and we don't want
           // to write them again
-          logger.pop();
           return;
         }
       }
@@ -622,14 +540,10 @@ public class RDSWriter implements Closeable {
       out.writeInt(0);
       writeItem(s);
     }
-
-    logger.pop();
   }
 
   private void writeByteCode1(BCodeSXP s, HashMap<SEXP, Integer> reps, AtomicInteger nextRepIndex)
       throws IOException {
-    logger.push("BCodeSXP (1)");
-
     // Decode the bytecode (we will get a vector of integers)
     // write the vector of integers
     var encoder = new GNURByteCodeEncoderFactory(s.bc());
@@ -637,15 +551,11 @@ public class RDSWriter implements Closeable {
     var code_bytes = encoder.buildRaw();
     writeItem(SEXPs.integer(code_bytes.getInstructions()));
     writeByteCodeConsts(code_bytes.getConsts(), reps, nextRepIndex);
-
-    logger.pop();
   }
 
   private void writeByteCodeConsts(
       List<SEXP> consts, HashMap<SEXP, Integer> reps, AtomicInteger nextRepIndex)
       throws IOException {
-    logger.push("BCodeSXP (consts)");
-
     // write the number of consts in the bytecode
     // iterate the consts: if it s bytecode, write the type and recurse
     // if it is langsxp or listsxp,  write them , using the BCREDPEF, ATTRALANGSXP and ATTRLISTSXP
@@ -669,13 +579,9 @@ public class RDSWriter implements Closeable {
         }
       }
     }
-
-    logger.pop();
   }
 
   private void writeByteCode(BCodeSXP s) throws IOException {
-    logger.push("BCodeSXP");
-
     // Scan for circles
     var reps = new HashMap<SEXP, Integer>();
     var seen = new HashSet<SEXP>();
@@ -684,13 +590,10 @@ public class RDSWriter implements Closeable {
 
     var nextRepIndex = new AtomicInteger(0);
     writeByteCode1(s, reps, nextRepIndex);
-
-    logger.pop();
   }
 
   @Override
   public void close() throws IOException {
     out.close();
-    logger.finish();
   }
 }
