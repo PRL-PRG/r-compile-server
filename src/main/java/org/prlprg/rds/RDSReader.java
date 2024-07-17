@@ -116,21 +116,21 @@ public class RDSReader implements Closeable {
   private void readHeader() throws IOException {
     logger.push("Header");
 
-    if (in.readByte("type") != 'X') {
+    if (in.readByte() != 'X') {
       throw new RDSException("Unsupported type (possibly compressed)");
     }
-    assert in.readByte("nl") == '\n';
+    assert in.readByte() == '\n';
 
     // versions
-    var formatVersion = in.readInt("format version");
+    var formatVersion = in.readInt();
     if (formatVersion != 2) {
       // we do not support RDS version 3 because it uses ALTREP
       throw new RDSException("Unsupported RDS version: " + formatVersion);
     }
     // writer version
-    in.readInt("writer version");
+    in.readInt();
     // minimal reader version
-    in.readInt("minimal reader version");
+    in.readInt();
 
     logger.pop();
   }
@@ -139,7 +139,7 @@ public class RDSReader implements Closeable {
     readHeader();
     var sexp = readItem();
 
-    if (in.readRaw("eof") != -1) {
+    if (in.readRaw() != -1) {
       throw new RDSException("Expected end of file");
     }
     return sexp;
@@ -193,11 +193,11 @@ public class RDSReader implements Closeable {
   private SEXP readComplex(Flags flags) throws IOException {
     logger.push("ComplexSXP");
 
-    var length = in.readInt("length");
+    var length = in.readInt();
     var cplx = ImmutableList.<Complex>builder();
     for (int i = 0; i < length; i++) {
-      var real = in.readDouble("real");
-      var im = in.readDouble("im");
+      var real = in.readDouble();
+      var im = in.readDouble();
       cplx.add(new Complex(real, im));
     }
     var attributes = readAttributes(flags);
@@ -209,8 +209,8 @@ public class RDSReader implements Closeable {
   private SEXP readBuiltin(boolean special) throws IOException {
     logger.push(special ? "SpecialSXP" : "BuiltinSXP");
 
-    var length = in.readInt("length");
-    var name = in.readString(length, nativeEncoding, "name");
+    var length = in.readInt();
+    var name = in.readString(length, nativeEncoding);
 
     // For now, we throw an exception upon reading any SpecialSXP or BuiltinSXP. This is because
     // RDS serializes builtins via their name, but we do not have any (fully implemented) construct
@@ -262,12 +262,12 @@ public class RDSReader implements Closeable {
   private StrSXP readStringVec() throws IOException {
     logger.push("String Vector");
 
-    if (in.readInt("name") != 0) {
+    if (in.readInt() != 0) {
       // cf. InStringVec
       throw new RDSException("names in persistent strings are not supported yet");
     }
 
-    var length = in.readInt("length");
+    var length = in.readInt();
     var strings = new ArrayList<String>(length);
     for (int i = 0; i < length; i++) {
       strings.add(readChars());
@@ -280,7 +280,7 @@ public class RDSReader implements Closeable {
   private ExprSXP readExpr(Flags flags) throws IOException {
     logger.push("ExprSXP");
 
-    var length = in.readInt("length");
+    var length = in.readInt();
     var sexps = new ArrayList<SEXP>(length);
     for (int i = 0; i < length; i++) {
       sexps.add(readItem());
@@ -295,7 +295,7 @@ public class RDSReader implements Closeable {
   private BCodeSXP readByteCode() throws IOException {
     logger.push("BCodeSXP");
 
-    var length = in.readInt("reps");
+    var length = in.readInt();
     var reps = new SEXP[length];
 
     var bc = readByteCode1(reps);
@@ -327,11 +327,11 @@ public class RDSReader implements Closeable {
   private List<SEXP> readByteCodeConsts(SEXP[] reps) throws IOException {
     logger.push("BCodeSXP (consts)");
 
-    var length = in.readInt("length");
+    var length = in.readInt();
 
     var consts = new ArrayList<SEXP>(length);
     for (int i = 0; i < length; i++) {
-      var type = in.readInt("type");
+      var type = in.readInt();
 
       switch (RDSItemType.valueOf(type)) {
         case RDSItemType.Sexp s -> {
@@ -387,7 +387,7 @@ public class RDSReader implements Closeable {
           case RDSItemType.Special s ->
               switch (s) {
                 case BCREPREF -> {
-                  int pos = in.readInt("BCREPREF location");
+                  int pos = in.readInt();
                   yield reps[pos];
                 }
                 case BCREPDEF, ATTRLISTSXP, ATTRLANGSXP -> readByteCodeLang1(rdsType, reps);
@@ -406,8 +406,8 @@ public class RDSReader implements Closeable {
   private SEXP readByteCodeLang1(RDSItemType type, SEXP[] reps) throws IOException {
     var pos = -1;
     if (type == RDSItemType.Special.BCREPDEF) {
-      pos = in.readInt("BCREPDEF location");
-      var type_i = in.readInt("BCREPDEF type");
+      pos = in.readInt();
+      var type_i = in.readInt();
       type = RDSItemType.valueOf(type_i);
     }
     var attributes =
@@ -435,10 +435,10 @@ public class RDSReader implements Closeable {
       throw new RDSException("Expected regular symbol or nil");
     }
 
-    var headType = in.readInt("head type");
+    var headType = in.readInt();
     var head = readByteCodeLang(headType, reps);
 
-    var tailType = in.readInt("tail type");
+    var tailType = in.readInt();
     var tail = readByteCodeLang(tailType, reps);
 
     ListSXP tailList;
@@ -486,12 +486,12 @@ public class RDSReader implements Closeable {
     // if index is 0, it was too large to be packed with the flags and was therefore written
     // afterward
     if (index == 0) {
-      index = in.readInt("ref index (large)");
+      index = in.readInt();
     }
 
     // since index is 1-based
     var ref = refTable.get(index - 1);
-    logger.log(ref, "*");
+    logger.log("REF: " + ref);
 
     logger.pop();
     return ref;
@@ -526,14 +526,14 @@ public class RDSReader implements Closeable {
     }
     var encoding = flags.getLevels().encoding();
 
-    var length = in.readInt("length");
+    var length = in.readInt();
 
     String out;
     if (length == -1) {
       out = Constants.NA_STRING;
     } else {
       assert encoding != null;
-      out = in.readString(length, encoding, "value");
+      out = in.readString(length, encoding);
     }
 
     logger.pop();
@@ -543,7 +543,7 @@ public class RDSReader implements Closeable {
   private StrSXP readStrs(Flags flags) throws IOException {
     logger.push("StrSXP");
 
-    var length = in.readInt("length");
+    var length = in.readInt();
     var strings = ImmutableList.<String>builderWithExpectedSize(length);
     for (int i = 0; i < length; i++) {
       strings.add(readChars());
@@ -562,7 +562,7 @@ public class RDSReader implements Closeable {
     var item = new UserEnvSXP();
     refTable.add(item);
 
-    var locked = in.readInt("locked");
+    var locked = in.readInt();
     if (locked != 0 && locked != 1) {
       throw new RDSException("Expected 0 or 1 (LOCKED)");
     }
@@ -610,7 +610,7 @@ public class RDSReader implements Closeable {
   private VecSXP readVec(Flags flags) throws IOException {
     logger.push("VecSXP");
 
-    var length = in.readInt("length");
+    var length = in.readInt();
     var data = ImmutableList.<SEXP>builderWithExpectedSize(length);
     for (int i = 0; i < length; i++) {
       data.add(readItem());
@@ -624,8 +624,8 @@ public class RDSReader implements Closeable {
   private LglSXP readLogicals(Flags flags) throws IOException {
     logger.push("LglSXP");
 
-    var length = in.readInt("length");
-    var data = in.readInts(length, "data");
+    var length = in.readInt();
+    var data = in.readInts(length);
     var attributes = readAttributes(flags);
 
     logger.pop();
@@ -637,8 +637,8 @@ public class RDSReader implements Closeable {
   private RealSXP readReals(Flags flags) throws IOException {
     logger.push("RealSXP");
 
-    var length = in.readInt("length");
-    var data = in.readDoubles(length, "data");
+    var length = in.readInt();
+    var data = in.readDoubles(length);
     var attributes = readAttributes(flags);
 
     logger.pop();
@@ -648,8 +648,8 @@ public class RDSReader implements Closeable {
   private IntSXP readInts(Flags flags) throws IOException {
     logger.push("IntSXP");
 
-    var length = in.readInt("length");
-    var data = in.readInts(length, "data");
+    var length = in.readInt();
+    var data = in.readInts(length);
     var attributes = readAttributes(flags);
 
     logger.pop();
@@ -769,17 +769,17 @@ public class RDSReader implements Closeable {
   private String readString(Flags flags) throws IOException {
     logger.push("String");
 
-    var len = in.readInt("length");
+    var len = in.readInt();
     // charset should never be null for strings
     var charset = requireNonNull(flags.getLevels().encoding());
-    var data = in.readString(len, charset, "data");
+    var data = in.readString(len, charset);
 
     logger.pop();
     return data;
   }
 
   private Flags readFlags() throws IOException {
-    var raw = in.readInt("flags");
+    var raw = in.readInt();
     return new Flags(raw);
   }
 

@@ -1,27 +1,14 @@
 package org.prlprg.rds;
 
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
 import java.util.*;
 import java.util.function.Supplier;
 import java.util.logging.*;
 import org.prlprg.AppConfig;
 
-@Retention(RetentionPolicy.RUNTIME)
-@Target(ElementType.METHOD)
-@interface RDSComponentWrite {
-  public String name();
-}
-
 final class RDSLogger {
   private final StringBuilder output = new StringBuilder();
   private final boolean shouldLog;
   private int indentLevel;
-
-  //  private Stack<String> componentLabels;
-  //  private String opLabel;
 
   /**
    * @param name a description of the read or write, printed at the start of logging
@@ -38,11 +25,6 @@ final class RDSLogger {
     logger.addHandler(handler);
     handler.setLevel(Level.FINE);
   }
-
-  /** Updates the component currently being written */
-  //  private void updateComponent() {
-  //    Thread.currentThread().getStackTrace()[0].;
-  //  }
 
   /**
    * Logs a lazily-evaluated String with the current indent level with Level.FINE.
@@ -82,45 +64,46 @@ final class RDSLogger {
   }
 
   /**
-   * Lazily logs a value read from the input stream or written to the output stream, alongside a
-   * description of the value's usage
+   * Lazily logs a value read from the input stream or written to the output stream
    *
    * @param <T> the type of the value to be logged
    * @param value the value to be logged
-   * @param description a description of the value's usage
    */
-  public <T> void log(T value, String description) {
+  public <T> void log(T value) {
     logString(
         () ->
             switch (value) {
-              case Integer i ->
-                  String.format("%s: %d (%s)", description, i, Integer.toBinaryString(i));
-              case Byte b ->
-                  String.format("%s: %d (%s)", description, b, Integer.toBinaryString(b));
-              default -> String.format("%s: %s", description, value);
+              case Integer i -> String.format("%d (%s)", i, Integer.toBinaryString(i));
+              case Byte b -> String.format("%d (%s)", b, Integer.toBinaryString(b));
+              default -> String.format("%s: %s", value);
             });
   }
 
   /**
-   * Lazily logs an array of ints read from the input stream or written to the output stream,
-   * alongside a description of the array's usage
+   * Lazily logs an array of ints read from the input stream or written to the output stream
    *
    * @param ints the array to be logged
-   * @param description a description of the array's usage
    */
-  public void logAll(int[] ints, String description) {
-    logString(() -> String.format("%s: %s", description, Arrays.toString(ints)));
+  public void logInts(int[] ints) {
+    logString(() -> String.format("%s", Arrays.toString(ints)));
   }
 
   /**
-   * Lazily logs an array of doubles read from the input stream or written to the output stream,
-   * alongside a description of the array's usage
+   * Lazily logs an array of doubles read from the input stream or written to the output stream
    *
    * @param doubles the array to be logged
-   * @param description a description of the array's usage
    */
-  public void logAll(double[] doubles, String description) {
-    logString(() -> String.format("%s: %s", description, Arrays.toString(doubles)));
+  public void logDoubles(double[] doubles) {
+    logString(() -> String.format("%s", Arrays.toString(doubles)));
+  }
+
+  /**
+   * Lazily logs an array of doubles read from the input stream or written to the output stream
+   *
+   * @param doubles the array to be logged
+   */
+  public void logBytes(byte[] bytes) {
+    logString(() -> String.format("%s", Arrays.toString(bytes)));
   }
 
   /**

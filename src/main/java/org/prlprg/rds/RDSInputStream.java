@@ -26,55 +26,55 @@ class RDSInputStream implements Closeable {
    * @return the next byte of data, or -1 if the end of the stream is reached.
    * @throws IOException if an I/O error occurs.
    */
-  public int readRaw(String desc) throws IOException {
+  public int readRaw() throws IOException {
     var input = in.read();
-    logger.log(input, desc);
+    logger.log(input);
     return input;
   }
 
-  public byte readByte(String desc) throws IOException {
+  public byte readByte() throws IOException {
     var input = in.readByte();
-    logger.log(input, desc);
+    logger.log(input);
     return input;
   }
 
-  public int readInt(String desc) throws IOException {
+  public int readInt() throws IOException {
     var input = in.readInt();
-    logger.log(input, desc);
+    logger.log(input);
     return input;
   }
 
-  public double readDouble(String desc) throws IOException {
+  public double readDouble() throws IOException {
     var input = in.readDouble();
-    logger.log(input, desc);
+    logger.log(input);
     return input;
   }
 
-  public String readString(int natEncSize, Charset charset, String desc) throws IOException {
+  public String readString(int natEncSize, Charset charset) throws IOException {
     var buf = new byte[natEncSize];
     in.readFully(buf, 0, natEncSize);
     var input = new String(buf, charset);
-    logger.log(input, desc);
+    logger.log(input);
     return input;
   }
 
-  public int[] readInts(int length, String desc) throws IOException {
+  public int[] readInts(int length) throws IOException {
     int[] ints = new int[length];
     for (int i = 0; i < length; i++) {
       var n = in.readInt();
       ints[i] = n;
     }
-    logger.logAll(ints, desc);
+    logger.logInts(ints);
     return ints;
   }
 
-  public double[] readDoubles(int length, String desc) throws IOException {
+  public double[] readDoubles(int length) throws IOException {
     double[] doubles = new double[length];
     for (int i = 0; i < length; i++) {
       var n = in.readDouble();
       doubles[i] = n;
     }
-    logger.logAll(doubles, desc);
+    logger.logDoubles(doubles);
     return doubles;
   }
 }

@@ -79,19 +79,19 @@ public class RDSWriter implements Closeable {
 
     // Could also be "B" (binary) and "A" (ASCII) but we only support XDR.
     // XDR just means big endian and DataInputStream/DataOutputStream from Java use BigEndian
-    out.writeByte((byte) 'X', "type");
+    out.writeByte((byte) 'X');
 
-    out.writeByte((byte) '\n', "nl");
+    out.writeByte((byte) '\n');
 
     // Write version 2 of the encoding, since we want the writer to align with the reader and
     // the reader does not support ALTREP
-    out.writeInt(2, "format version");
+    out.writeInt(2);
 
     // Version of R for the writer
-    out.writeInt(RVersion.LATEST_AWARE.encode(), "writer version");
+    out.writeInt(RVersion.LATEST_AWARE.encode());
 
     // Minimal version of R required to read back
-    out.writeInt(new RVersion(2, 3, 0, null).encode(), "minimal reader version");
+    out.writeInt(new RVersion(2, 3, 0, null).encode());
 
     logger.pop();
   }
@@ -107,7 +107,7 @@ public class RDSWriter implements Closeable {
     // Write the flags for this SEXP. This will vary depending on whether the SEXP is a special
     // RDS type or not
     var flags = flags(s);
-    out.writeInt(flags.encode(), "flags");
+    out.writeInt(flags.encode());
 
     switch (flags.getType()) {
         // Special types not handled by Save Special hooks
@@ -127,9 +127,9 @@ public class RDSWriter implements Closeable {
             // it was too large to be packed in the flags)
             logger.push("Reference");
             if (flags.unpackRefIndex() == 0) {
-              out.writeInt(refIndex, "ref index (large)");
+              out.writeInt(refIndex);
             }
-            logger.log(s, "*");
+            logger.log("REF: " + s);
             logger.pop();
           }
           default -> {
@@ -275,8 +275,6 @@ public class RDSWriter implements Closeable {
   private void writeChars(String s) throws IOException {
     logger.push("Chars");
 
-    // Never NA because we assume so
-    // We only consider scalar Na strings
     var flags =
         new Flags(
             RDSItemType.valueOf(SEXPType.CHAR.i),
@@ -284,8 +282,18 @@ public class RDSWriter implements Closeable {
             false,
             false,
             false);
-    out.writeInt(flags.encode(), "flags");
-    out.writeString(s);
+    out.writeInt(flags.encode());
+
+    // If the string is NA, we write -1 for the length and exit
+    if (Coercions.isNA(s)) {
+      out.writeInt(-1);
+      return;
+    }
+
+    // Otherwise, do a standard string write (length in bytes, then bytes)
+    var bytes = s.getBytes(Charset.defaultCharset());
+    out.writeInt(bytes.length);
+    out.writeBytes(bytes);
 
     logger.pop();
   }
@@ -299,8 +307,8 @@ public class RDSWriter implements Closeable {
   private void writeStringVec(StrSXP s) throws IOException {
     logger.push("String Vector");
 
-    out.writeInt(0, "name");
-    out.writeInt(s.size(), "length");
+    out.writeInt(0);
+    out.writeInt(s.size());
 
     for (String str : s) {
       writeChars(str);
@@ -320,7 +328,7 @@ public class RDSWriter implements Closeable {
     if (env instanceof UserEnvSXP userEnv) {
       // Write 1 if the environment is locked, or 0 if it is not
       // FIXME: implement locked environments, as is this will always be false
-      out.writeInt(new GPFlags().isLocked() ? 1 : 0, "locked");
+      out.writeInt(new GPFlags().isLocked() ? 1 : 0);
       // Enclosure
       writeItem(userEnv.parent());
       // Frame
@@ -393,7 +401,7 @@ public class RDSWriter implements Closeable {
     for (var el : lsxp.subList(1)) {
       // Write flags
       var itemFlags = listFlags.withTag(el.hasTag()).withAttributes(false);
-      out.writeInt(itemFlags.encode(), "flags");
+      out.writeInt(itemFlags.encode());
       // Write tag
       writeTagIfPresent(el);
       // Write item
@@ -451,7 +459,7 @@ public class RDSWriter implements Closeable {
     logger.push("VectorSXP");
 
     var length = s.size();
-    out.writeInt(length, "length");
+    out.writeInt(length);
 
     switch (s) {
       case VecSXP vec -> {
@@ -469,18 +477,18 @@ public class RDSWriter implements Closeable {
       case IntSXP ints -> {
         // Write all the ints to the stream
         var vec = StreamSupport.stream(ints.spliterator(), false).mapToInt(i -> i).toArray();
-        out.writeInts(vec, "data");
+        out.writeInts(vec);
       }
       case LglSXP lgls -> {
         // Write all the logicals to the stream as ints
         var vec =
             StreamSupport.stream(lgls.spliterator(), false).mapToInt(Logical::toInt).toArray();
-        out.writeInts(vec, "data");
+        out.writeInts(vec);
       }
       case RealSXP reals -> {
         // Write all the reals to the stream as doubles
         var vec = StreamSupport.stream(reals.spliterator(), false).mapToDouble(d -> d).toArray();
-        out.writeDoubles(vec, "data");
+        out.writeDoubles(vec);
       }
       case ComplexSXP cplxs -> {
         // For each complex number in the vector, add two doubles representing the real and
@@ -489,7 +497,7 @@ public class RDSWriter implements Closeable {
             StreamSupport.stream(cplxs.spliterator(), false)
                 .flatMapToDouble(c -> DoubleStream.builder().add(c.real()).add(c.imag()).build())
                 .toArray();
-        out.writeDoubles(doubles, "data");
+        out.writeDoubles(doubles);
       }
       case StrSXP strs -> {
         // For each string in the vector, we write its chars because R represents each string as a
@@ -556,13 +564,13 @@ public class RDSWriter implements Closeable {
           int newIndex = nextRepIndex.getAndIncrement();
           reps.put(lol, newIndex);
 
-          out.writeInt(RDSItemType.Special.BCREPDEF.i(), "type");
-          out.writeInt(newIndex, "BCREPDEF location");
+          out.writeInt(RDSItemType.Special.BCREPDEF.i());
+          out.writeInt(newIndex);
         } else {
           // If the rep is present with an index other than -1, we have already seen it, so we
           // emit a BCREPREF with the reference index.
-          out.writeInt(RDSItemType.Special.BCREPREF.i(), "type");
-          out.writeInt(assignedRepIndex, "BCREPREF location");
+          out.writeInt(RDSItemType.Special.BCREPREF.i());
+          out.writeInt(assignedRepIndex);
           // We also return, since the child nodes have already been written, and we don't want
           // to write them again
           logger.pop();
@@ -582,7 +590,7 @@ public class RDSWriter implements Closeable {
               case ListSXP _list -> RDSItemType.Special.ATTRLISTSXP;
             };
       }
-      out.writeInt(type.i(), "type");
+      out.writeInt(type.i());
       writeAttributesIfPresent(lol);
 
       switch (lol) {
@@ -611,7 +619,7 @@ public class RDSWriter implements Closeable {
         }
       }
     } else { // Print a zero as padding and write the item normally
-      out.writeInt(0, "padding");
+      out.writeInt(0);
       writeItem(s);
     }
 
@@ -642,13 +650,13 @@ public class RDSWriter implements Closeable {
     // iterate the consts: if it s bytecode, write the type and recurse
     // if it is langsxp or listsxp,  write them , using the BCREDPEF, ATTRALANGSXP and ATTRLISTSXP
     // else write the type and the value
-    out.writeInt(consts.size(), "length");
+    out.writeInt(consts.size());
 
     // Iterate the constant pool and write the values
     for (var c : consts) {
       switch (c) {
         case BCodeSXP bc -> {
-          out.writeInt(c.type().i, "type");
+          out.writeInt(c.type().i);
           writeByteCode1(bc, reps, nextRepIndex);
         }
         case LangOrListSXP l -> {
@@ -656,7 +664,7 @@ public class RDSWriter implements Closeable {
           writeByteCodeLang(l, reps, nextRepIndex);
         }
         default -> {
-          out.writeInt(c.type().i, "type");
+          out.writeInt(c.type().i);
           writeItem(c);
         }
       }
@@ -672,7 +680,7 @@ public class RDSWriter implements Closeable {
     var reps = new HashMap<SEXP, Integer>();
     var seen = new HashSet<SEXP>();
     scanForCircles(s, reps, seen);
-    out.writeInt(reps.size() + 1, "reps");
+    out.writeInt(reps.size() + 1);
 
     var nextRepIndex = new AtomicInteger(0);
     writeByteCode1(s, reps, nextRepIndex);
