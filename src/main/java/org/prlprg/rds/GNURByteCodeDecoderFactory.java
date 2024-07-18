@@ -17,8 +17,7 @@ class GNURByteCodeDecoderFactory {
   GNURByteCodeDecoderFactory(ImmutableIntArray byteCode, List<SEXP> consts) {
     this.byteCode = byteCode;
 
-    cpb = new ConstPool.Builder(consts.size());
-    cpb.addAll(consts);
+    cpb = new ConstPool.Builder(consts);
     cbb = new BcCode.Builder();
     labelMapping = LabelMapping.fromGNUR(byteCode);
 

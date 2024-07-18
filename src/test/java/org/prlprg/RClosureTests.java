@@ -6,7 +6,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.prlprg.bc.BCCompiler;
 import org.prlprg.sexp.StrSXP;
 import org.prlprg.util.Predicates;
 
@@ -19,7 +18,7 @@ import org.prlprg.util.Predicates;
  */
 public abstract class RClosureTests extends AbstractGNURBasedTest {
   @Test
-  public void testEmptyList() {
+  public void testEmptyList() throws Exception {
     testClosure(
         """
         function ()
@@ -30,7 +29,7 @@ public abstract class RClosureTests extends AbstractGNURBasedTest {
   }
 
   @Test
-  public void testEmptyBlock() {
+  public void testEmptyBlock() throws Exception {
     testClosure(
         """
         function() {}
@@ -38,7 +37,7 @@ public abstract class RClosureTests extends AbstractGNURBasedTest {
   }
 
   @Test
-  public void testSingleExpressionBlock() {
+  public void testSingleExpressionBlock() throws Exception {
     testClosure(
         """
         function() { 1 }
@@ -46,7 +45,7 @@ public abstract class RClosureTests extends AbstractGNURBasedTest {
   }
 
   @Test
-  public void testMultipleExpressionBlock() {
+  public void testMultipleExpressionBlock() throws Exception {
     testClosure(
         """
         function() { 1; 2 }
@@ -54,7 +53,7 @@ public abstract class RClosureTests extends AbstractGNURBasedTest {
   }
 
   @Test
-  public void testIf() {
+  public void testIf() throws Exception {
     testClosure(
         """
         function(x) if (x) 1
@@ -62,7 +61,7 @@ public abstract class RClosureTests extends AbstractGNURBasedTest {
   }
 
   @Test
-  public void testIfElse() {
+  public void testIfElse() throws Exception {
     testClosure(
         """
         function(x) if (x) 1 else 2
@@ -70,7 +69,7 @@ public abstract class RClosureTests extends AbstractGNURBasedTest {
   }
 
   @Test
-  public void testFunctionInlining() {
+  public void testFunctionInlining() throws Exception {
     testClosure(
         """
         function(x) function(y) 1
@@ -78,7 +77,7 @@ public abstract class RClosureTests extends AbstractGNURBasedTest {
   }
 
   @Test
-  public void testFunctionLeftParenInlining() {
+  public void testFunctionLeftParenInlining() throws Exception {
     testClosure(
         """
         function(x) (x)
@@ -91,7 +90,7 @@ public abstract class RClosureTests extends AbstractGNURBasedTest {
   }
 
   @Test
-  public void builtinsInlining() {
+  public void builtinsInlining() throws Exception {
     // expecting a guard
     testClosure(
         """
@@ -115,7 +114,7 @@ public abstract class RClosureTests extends AbstractGNURBasedTest {
   }
 
   @Test
-  public void specialsInlining() {
+  public void specialsInlining() throws Exception {
     testClosure(
         """
       function() rep(1, 10)
@@ -123,7 +122,7 @@ public abstract class RClosureTests extends AbstractGNURBasedTest {
   }
 
   @Test
-  public void inlineLocal() {
+  public void inlineLocal() throws Exception {
     testClosure(
         """
       function(x) local(x)
@@ -131,7 +130,7 @@ public abstract class RClosureTests extends AbstractGNURBasedTest {
   }
 
   @Test
-  public void inlineReturn() {
+  public void inlineReturn() throws Exception {
     testClosure(
         """
       function(x) return(x)
@@ -139,7 +138,7 @@ public abstract class RClosureTests extends AbstractGNURBasedTest {
   }
 
   @Test
-  public void inlineBuiltinsInternal() {
+  public void inlineBuiltinsInternal() throws Exception {
     testClosure(
         """
       function(x) .Internal(inspect(x))
@@ -152,7 +151,7 @@ public abstract class RClosureTests extends AbstractGNURBasedTest {
   }
 
   @Test
-  public void inlineLogicalAnd() {
+  public void inlineLogicalAnd() throws Exception {
     testClosure(
         """
       function(x, y) x && y
@@ -170,7 +169,7 @@ public abstract class RClosureTests extends AbstractGNURBasedTest {
   }
 
   @Test
-  public void inlineLogicalOr() {
+  public void inlineLogicalOr() throws Exception {
     testClosure(
         """
       function(x, y) x || y
@@ -188,7 +187,7 @@ public abstract class RClosureTests extends AbstractGNURBasedTest {
   }
 
   @Test
-  public void inlineLogicalAndOr() {
+  public void inlineLogicalAndOr() throws Exception {
     testClosure(
         """
       function(x, y) x && y || y
@@ -201,7 +200,7 @@ public abstract class RClosureTests extends AbstractGNURBasedTest {
   }
 
   @Test
-  public void inlineRepeat() {
+  public void inlineRepeat() throws Exception {
     testClosure(
         """
       function(x) repeat(x)
@@ -224,7 +223,7 @@ public abstract class RClosureTests extends AbstractGNURBasedTest {
   }
 
   @Test
-  public void inlineWhile() {
+  public void inlineWhile() throws Exception {
     testClosure(
         """
       function(x) while(x) 1
@@ -242,7 +241,7 @@ public abstract class RClosureTests extends AbstractGNURBasedTest {
   }
 
   @Test
-  public void inlineFor() {
+  public void inlineFor() throws Exception {
     testClosure(
         """
       function(x) for (i in x) 1
@@ -255,7 +254,7 @@ public abstract class RClosureTests extends AbstractGNURBasedTest {
   }
 
   @Test
-  public void inlineArithmetics() {
+  public void inlineArithmetics() throws Exception {
     testClosure(
         """
       function(x, y) x + y
@@ -289,7 +288,7 @@ public abstract class RClosureTests extends AbstractGNURBasedTest {
   }
 
   @Test
-  public void inlineMath1() {
+  public void inlineMath1() throws Exception {
     testClosure(
         """
       function(x) {
@@ -306,7 +305,7 @@ public abstract class RClosureTests extends AbstractGNURBasedTest {
   }
 
   @Test
-  public void inlineLogical() {
+  public void inlineLogical() throws Exception {
     testClosure(
         """
       function(x, y) {
@@ -318,7 +317,7 @@ public abstract class RClosureTests extends AbstractGNURBasedTest {
   }
 
   @Test
-  public void inlineDollar() {
+  public void inlineDollar() throws Exception {
     testClosure(
         """
       # xs <- list(a=1, b=list(c=2))
@@ -333,7 +332,7 @@ public abstract class RClosureTests extends AbstractGNURBasedTest {
   }
 
   @Test
-  public void inlineIsXYZ() {
+  public void inlineIsXYZ() throws Exception {
     testClosure(
         """
       function(x) {
@@ -353,7 +352,7 @@ public abstract class RClosureTests extends AbstractGNURBasedTest {
   }
 
   @Test
-  public void inlineDotCall() {
+  public void inlineDotCall() throws Exception {
     testClosure(
         """
       function(x) {
@@ -364,7 +363,7 @@ public abstract class RClosureTests extends AbstractGNURBasedTest {
   }
 
   @Test
-  public void inlineIntGeneratingSequences() {
+  public void inlineIntGeneratingSequences() throws Exception {
     testClosure(
         """
       function(x, xs) {
@@ -374,7 +373,7 @@ public abstract class RClosureTests extends AbstractGNURBasedTest {
   }
 
   @Test
-  public void multiColon() {
+  public void multiColon() throws Exception {
     testClosure(
         """
       function() {
@@ -384,7 +383,7 @@ public abstract class RClosureTests extends AbstractGNURBasedTest {
   }
 
   @Test
-  public void inlineSwitch() {
+  public void inlineSwitch() throws Exception {
     testClosure(
         """
       function(x) {
@@ -396,7 +395,7 @@ public abstract class RClosureTests extends AbstractGNURBasedTest {
   }
 
   @Test
-  public void inlineAssign1() {
+  public void inlineAssign1() throws Exception {
     testClosure(
         """
       function() {
@@ -422,7 +421,7 @@ public abstract class RClosureTests extends AbstractGNURBasedTest {
   }
 
   @Test
-  public void inlineAssign2() {
+  public void inlineAssign2() throws Exception {
     testClosure(
         """
       function() {
@@ -439,7 +438,7 @@ public abstract class RClosureTests extends AbstractGNURBasedTest {
   }
 
   @Test
-  public void inlineAssign3() {
+  public void inlineAssign3() throws Exception {
     testClosure(
         """
       function() {
@@ -449,7 +448,7 @@ public abstract class RClosureTests extends AbstractGNURBasedTest {
   }
 
   @Test
-  public void inlineDollarAssign() {
+  public void inlineDollarAssign() throws Exception {
     testClosure(
         """
       function() {
@@ -461,7 +460,7 @@ public abstract class RClosureTests extends AbstractGNURBasedTest {
   }
 
   @Test
-  public void inlineSquareAssign1() {
+  public void inlineSquareAssign1() throws Exception {
     testClosure(
         """
       function() {
@@ -472,7 +471,7 @@ public abstract class RClosureTests extends AbstractGNURBasedTest {
   }
 
   @Test
-  public void inlineSquareAssign2() {
+  public void inlineSquareAssign2() throws Exception {
     testClosure(
         """
       function() {
@@ -483,7 +482,7 @@ public abstract class RClosureTests extends AbstractGNURBasedTest {
   }
 
   @Test
-  public void inlineSquareAssign3() {
+  public void inlineSquareAssign3() throws Exception {
     testClosure(
         """
       function() {
@@ -494,7 +493,7 @@ public abstract class RClosureTests extends AbstractGNURBasedTest {
   }
 
   @Test
-  public void inlineSquareAssign4() {
+  public void inlineSquareAssign4() throws Exception {
     testClosure(
         """
       function() {
@@ -504,7 +503,7 @@ public abstract class RClosureTests extends AbstractGNURBasedTest {
   }
 
   @Test
-  public void inlineSquareSubset1() {
+  public void inlineSquareSubset1() throws Exception {
     testClosure(
         """
       function() {
@@ -515,7 +514,7 @@ public abstract class RClosureTests extends AbstractGNURBasedTest {
   }
 
   @Test
-  public void inlineSquareSubset2() {
+  public void inlineSquareSubset2() throws Exception {
     testClosure(
         """
       function() {
@@ -526,7 +525,7 @@ public abstract class RClosureTests extends AbstractGNURBasedTest {
   }
 
   @Test
-  public void inlineSquareSubset3() {
+  public void inlineSquareSubset3() throws Exception {
     testClosure(
         """
       function() {
@@ -537,7 +536,7 @@ public abstract class RClosureTests extends AbstractGNURBasedTest {
   }
 
   @Test
-  public void inlineSquareSubset4() {
+  public void inlineSquareSubset4() throws Exception {
     testClosure(
         """
       function() {
@@ -548,7 +547,7 @@ public abstract class RClosureTests extends AbstractGNURBasedTest {
   }
 
   @Test
-  public void inlineSlotAssign() {
+  public void inlineSlotAssign() throws Exception {
     testClosure(
         """
       function() {
@@ -560,7 +559,7 @@ public abstract class RClosureTests extends AbstractGNURBasedTest {
   }
 
   @Test
-  public void inlineIdentical() {
+  public void inlineIdentical() throws Exception {
     testClosure(
         """
       function(x) {
@@ -570,7 +569,7 @@ public abstract class RClosureTests extends AbstractGNURBasedTest {
   }
 
   @Test
-  public void constantFoldingC() {
+  public void constantFoldingC() throws Exception {
     // no constant folding - c is resolved from baseenv()
     testClosure(
         """
@@ -590,7 +589,7 @@ public abstract class RClosureTests extends AbstractGNURBasedTest {
   }
 
   @Test
-  public void constantFoldMul() {
+  public void constantFoldMul() throws Exception {
     testClosure(
         """
       function() {
@@ -601,7 +600,7 @@ public abstract class RClosureTests extends AbstractGNURBasedTest {
 
   @ParameterizedTest
   @MethodSource("stdlibFunctionsList")
-  public void stdlibFunctions(String name) {
+  public void stdlibFunctions(String name) throws Exception {
     testClosure(name);
   }
 
@@ -640,9 +639,9 @@ public abstract class RClosureTests extends AbstractGNURBasedTest {
     return 1;
   }
 
-  protected void testClosure(String closure) {
-    testClosure(closure, BCCompiler.DEFAULT_OPTIMIZATION_LEVEL);
+  protected void testClosure(String closure) throws Exception {
+    testClosure(closure, Compiler.DEFAULT_OPTIMIZATION_LEVEL);
   }
 
-  protected abstract void testClosure(String closure, int optimizationLevel);
+  protected abstract void testClosure(String closure, int optimizationLevel) throws Exception;
 }
