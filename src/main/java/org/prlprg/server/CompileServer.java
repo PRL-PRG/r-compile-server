@@ -135,9 +135,13 @@ class CompileServer {
         Bc cached = bcCache.get(functionHash);
         if (cached != null) {
           // TODO:
-          // Serialize BcCode and COnstPool and set them in the response
+          // Serialize BcCode and ConstPool and set them in the response
+        } else {
+          // Compile the function
+
+          // Add it to the code cache
         }
-        // We should cache the Compiler instance for that function and then
+        // TODO: We should cache the Compiler instance for that function and then
         // retrieve it here.
       }
 
