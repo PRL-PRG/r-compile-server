@@ -132,8 +132,7 @@ public class RDSReader implements Closeable {
             case BCODE -> readByteCode();
             case EXPR -> readExpr(flags);
             case PROM -> readPromise(flags);
-            case BUILTIN -> readBuiltinOrSpecial();
-            case SPECIAL -> readBuiltinOrSpecial();
+            case BUILTIN, SPECIAL -> readBuiltinOrSpecial();
             case CPLX -> readComplex(flags);
             default -> throw new RDSException("Unsupported SEXP type: " + s.sexp());
           };
@@ -246,8 +245,7 @@ public class RDSReader implements Closeable {
     var length = in.readInt();
     var reps = new SEXP[length];
 
-    var bc = readByteCode1(reps);
-    return bc;
+    return readByteCode1(reps);
   }
 
   private BCodeSXP readByteCode1(SEXP[] reps) throws IOException {
@@ -304,40 +302,36 @@ public class RDSReader implements Closeable {
     // If the type is 0, we encountered a padding bit, meaning we jump back to "regular" SEXP
     // processing.
     if (type == 0) {
-      var item = readItem();
-      return item;
+      return readItem();
     }
 
     // Otherwise, we continue with bytecode processing
     var rdsType = RDSItemType.valueOf(type);
 
-    SEXP res =
-        switch (rdsType) {
-          case RDSItemType.Sexp s -> {
-            if (s.sexp() == SEXPType.LANG || s.sexp() == SEXPType.LIST) {
-              yield readByteCodeLang1(rdsType, reps);
-            } else {
-              throw new UnsupportedOperationException(
-                  "RDS reader error when reading SEXP: expected a padding bit, lang or list SXP, got: "
-                      + rdsType);
+    return switch (rdsType) {
+      case RDSItemType.Sexp s -> {
+        if (s.sexp() == SEXPType.LANG || s.sexp() == SEXPType.LIST) {
+          yield readByteCodeLang1(rdsType, reps);
+        } else {
+          throw new UnsupportedOperationException(
+              "RDS reader error when reading SEXP: expected a padding bit, lang or list SXP, got: "
+                  + rdsType);
+        }
+      }
+      case RDSItemType.Special s ->
+          switch (s) {
+            case BCREPREF -> {
+              int pos = in.readInt();
+              yield reps[pos];
             }
-          }
-          case RDSItemType.Special s ->
-              switch (s) {
-                case BCREPREF -> {
-                  int pos = in.readInt();
-                  yield reps[pos];
-                }
-                case BCREPDEF, ATTRLISTSXP, ATTRLANGSXP -> readByteCodeLang1(rdsType, reps);
-                default ->
-                    throw new UnsupportedOperationException(
-                        "RDS reader error when reading special: expected a padding bit, BCREPDEF, "
-                            + "BCREPREF, ATTRLISTSXP, or ATTRLANGSXP, got: "
-                            + rdsType);
-              };
-        };
-
-    return res;
+            case BCREPDEF, ATTRLISTSXP, ATTRLANGSXP -> readByteCodeLang1(rdsType, reps);
+            default ->
+                throw new UnsupportedOperationException(
+                    "RDS reader error when reading special: expected a padding bit, BCREPDEF, "
+                        + "BCREPREF, ATTRLISTSXP, or ATTRLANGSXP, got: "
+                        + rdsType);
+          };
+    };
   }
 
   private SEXP readByteCodeLang1(RDSItemType type, SEXP[] reps) throws IOException {
@@ -425,9 +419,7 @@ public class RDSReader implements Closeable {
     }
 
     // since index is 1-based
-    var ref = refTable.get(index - 1);
-
-    return ref;
+    return refTable.get(index - 1);
   }
 
   private LangSXP readLang(Flags flags) throws IOException {
@@ -609,30 +601,23 @@ public class RDSReader implements Closeable {
   }
 
   private @Nullable String readTag(Flags flags) throws IOException {
-    String tagVal;
     if (flags.hasTag()) {
       if (readItem() instanceof RegSymSXP s) {
-        tagVal = s.name();
+        return s.name();
       } else {
         throw new RDSException("Expected tag to be a symbol");
       }
     } else {
-      tagVal = null;
+      return null;
     }
-
-    return tagVal;
   }
 
   private Attributes readAttributes(Flags flags) throws IOException {
-
-    Attributes attributes;
     if (flags.hasAttributes()) {
-      attributes = readAttributes();
+      return readAttributes();
     } else {
-      attributes = Attributes.NONE;
+      return Attributes.NONE;
     }
-
-    return attributes;
   }
 
   private Attributes readAttributes() throws IOException {
@@ -667,9 +652,8 @@ public class RDSReader implements Closeable {
     var len = in.readInt();
     // charset should never be null for strings
     var charset = requireNonNull(flags.getLevels().encoding());
-    var data = in.readString(len, charset);
 
-    return data;
+    return in.readString(len, charset);
   }
 
   private Flags readFlags() throws IOException {

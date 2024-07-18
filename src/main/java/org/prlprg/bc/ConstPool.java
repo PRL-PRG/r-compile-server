@@ -3,11 +3,7 @@ package org.prlprg.bc;
 import com.google.common.collect.ForwardingList;
 import com.google.common.collect.ImmutableList;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.function.Function;
 import javax.annotation.concurrent.Immutable;
 import org.prlprg.parseprint.ParseMethod;
@@ -128,9 +124,12 @@ public final class ConstPool extends ForwardingList<SEXP> {
       this.values = new ArrayList<>();
     }
 
-    public Builder(int expectedSize) {
-      this.index = new HashMap<>(expectedSize);
-      this.values = new ArrayList<>(expectedSize);
+    public Builder(Collection<? extends SEXP> consts) {
+      this.index = new HashMap<>(consts.size());
+      this.values = new ArrayList<>(consts.size());
+      for (var e : consts) {
+        add(e);
+      }
     }
 
     public <S extends SEXP> Idx<S> add(S c) {
@@ -144,13 +143,6 @@ public final class ConstPool extends ForwardingList<SEXP> {
               });
 
       return Idx.create(i, c);
-    }
-
-    /** Adds all the constants from {@code consts} to the builder. */
-    public void addAll(List<SEXP> consts) {
-      for (var e : consts) {
-        add(e);
-      }
     }
 
     /**

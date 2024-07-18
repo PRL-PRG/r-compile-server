@@ -19,8 +19,7 @@ public class GNURByteCodeEncoderFactory {
     this.bc = bc.code();
     this.builder = ImmutableIntArray.builder();
     this.labelMapping = LabelMapping.toGNUR(this.bc);
-    this.cpb = new ConstPool.Builder(bc.consts().size());
-    this.cpb.addAll(bc.consts());
+    this.cpb = new ConstPool.Builder(bc.consts());
   }
 
   public static class GNURByteCode {

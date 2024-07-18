@@ -19,7 +19,7 @@ import javax.annotation.ParametersAreNonnullByDefault;
 
 In IntelliJ you can simply copy `package-info.json` from any package into the new one and it will create this.
 
-The project requires at least Java 21.
+The project requires at least Java 22.
 
 ## Commands
 
