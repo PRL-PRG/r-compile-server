@@ -8,12 +8,12 @@ import "messages.proto";
 service CompileService {
   rpc Compile(CompileRequest) returns (CompileResponse) {}
   rpc Init(InitRequest) returns (InitResponse) {}
-  rpc LoadPackage(Package) returns (Empty) {}
 }
 
 // Used by the compile server to ask questions to R
 service FactService {
-  rpc GetFact(FactRequest) returns (Fact) {} // Generic fact
   rpc GetContext(ContextRequest) returns (Context) {}
   rpc GetTypeFeedback(FeedbackRequest) returns (TypeFeedback) {}
+  rpc GetValues(ValueRequest) returns (Values) {}
+  rpc GetFunction(FunctionRequest) returns (Function) {}
 }

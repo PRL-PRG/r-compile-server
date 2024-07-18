@@ -3,6 +3,8 @@ package org.prlprg.server;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.Status;
+import io.grpc.health.v1.HealthCheckResponse;
+import io.grpc.protobuf.services.HealthStatusManager;
 import io.grpc.protobuf.services.ProtoReflectionService;
 import io.grpc.stub.StreamObserver;
 import java.io.IOException;
@@ -20,12 +22,15 @@ class CompileServer {
 
   private final int port;
   private final Server server;
+  private HealthStatusManager health;
 
   public CompileServer(int port) {
     this.port = port;
+    this.health = new HealthStatusManager();
     this.server =
         ServerBuilder.forPort(port)
             .addService(new CompileService())
+            .addService(health.getHealthService())
             .addService(
                 ProtoReflectionService
                     .newInstance()) // automatic discovery of all services and messages
@@ -50,6 +55,7 @@ class CompileServer {
                 System.err.println("*** server shut down");
               }
             });
+    health.setStatus("", HealthCheckResponse.ServingStatus.SERVING);
   }
 
   /** Stop serving requests and shutdown resources. */
