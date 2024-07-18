@@ -4,7 +4,6 @@ import com.google.common.collect.ImmutableList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.Unmodifiable;
@@ -19,7 +18,25 @@ import org.prlprg.util.Lists;
  * <p><b>Implementation note:</b> in GNU-R this is represented as a linked list, but we internally
  * use an array-list because it's more efficient.
  */
-public sealed interface ListSXP extends ListOrVectorSXP<TaggedElem> permits NilSXP, ListSXPImpl {
+public sealed interface ListSXP extends ListOrVectorSXP<TaggedElem>, LangOrListSXP
+    permits NilSXP, ListSXPImpl {
+  /**
+   * Flatten {@code src} while adding its elements to {@code target}. Ex:
+   *
+   * <pre>
+   *   b = []; flatten([1, [2, 3], 4], b) ==> b = [1, 2, 3, 4]
+   * </pre>
+   */
+  static void flatten(ListSXP src, ImmutableList.Builder<TaggedElem> target) {
+    for (var i : src) {
+      if (i.value() instanceof ListSXP lst) {
+        flatten(lst, target);
+      } else {
+        target.add(i);
+      }
+    }
+  }
+
   @Override
   ListSXP withAttributes(Attributes attributes);
 
@@ -54,8 +71,6 @@ public sealed interface ListSXP extends ListOrVectorSXP<TaggedElem> permits NilS
   ListSXP remove(@Nullable String tag);
 
   Stream<TaggedElem> stream();
-
-  Optional<TaggedElem> get(String name);
 
   ListSXP prepend(TaggedElem elem);
 
@@ -147,11 +162,6 @@ record ListSXPImpl(ImmutableList<TaggedElem> data, @Override Attributes attribut
   @Override
   public Stream<TaggedElem> stream() {
     return data.stream();
-  }
-
-  @Override
-  public Optional<TaggedElem> get(String name) {
-    return Optional.empty();
   }
 
   @Override

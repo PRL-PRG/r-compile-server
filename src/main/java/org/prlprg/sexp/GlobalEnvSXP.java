@@ -13,6 +13,11 @@ public final class GlobalEnvSXP extends AbstractStaticEnvSXP implements StaticEn
   }
 
   @Override
+  public int size() {
+    return bindings.size();
+  }
+
+  @Override
   public EnvType envType() {
     return EnvType.GLOBAL;
   }

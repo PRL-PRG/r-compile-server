@@ -4,7 +4,6 @@ import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
 import org.jetbrains.annotations.UnmodifiableView;
-import org.prlprg.parseprint.Printer;
 import org.prlprg.util.Pair;
 
 public final class EmptyEnvSXP implements StaticEnvSXP {
@@ -48,6 +47,11 @@ public final class EmptyEnvSXP implements StaticEnvSXP {
   }
 
   @Override
+  public int size() {
+    return 0;
+  }
+
+  @Override
   public Optional<Pair<EnvSXP, SEXP>> find(String name) {
     return Optional.empty();
   }
@@ -58,17 +62,12 @@ public final class EmptyEnvSXP implements StaticEnvSXP {
   }
 
   @Override
-  public int size() {
-    return 0;
-  }
-
-  @Override
   public EnvType envType() {
     return EnvType.EMPTY;
   }
 
   @Override
   public String toString() {
-    return Printer.toString(this);
+    return "<environment: R_EmptyEnv>";
   }
 }

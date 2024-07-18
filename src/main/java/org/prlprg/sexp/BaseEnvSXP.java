@@ -18,6 +18,11 @@ public final class BaseEnvSXP extends AbstractStaticEnvSXP implements StaticEnvS
   }
 
   @Override
+  public int size() {
+    return bindings.size();
+  }
+
+  @Override
   public void setParent(StaticEnvSXP parent) {
     if (parent instanceof EmptyEnvSXP e) {
       assert e == EmptyEnvSXP.INSTANCE;

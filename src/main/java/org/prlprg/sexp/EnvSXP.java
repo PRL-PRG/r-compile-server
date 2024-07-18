@@ -49,6 +49,13 @@ public sealed interface EnvSXP extends SEXP permits StaticEnvSXP, UserEnvSXP {
    */
   Optional<SEXP> getLocal(String name);
 
+  /**
+   * Get the number of symbols in the environment (locally)
+   *
+   * @return the number of symbols in the environment
+   */
+  int size();
+
   @Override
   default SEXPType type() {
     return SEXPType.ENV;
@@ -74,13 +81,6 @@ public sealed interface EnvSXP extends SEXP permits StaticEnvSXP, UserEnvSXP {
   default Iterable<TaggedElem> bindingsAsTaggedElems() {
     return streamBindingsAsTaggedElems()::iterator;
   }
-
-  /**
-   * Get the number of symbols in the environment.
-   *
-   * @return the number of symbols in the environment
-   */
-  int size();
 
   /** Whether this is a user, global, namespace, base, or empty environment. */
   EnvType envType();

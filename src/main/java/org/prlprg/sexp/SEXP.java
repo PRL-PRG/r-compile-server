@@ -29,6 +29,7 @@ public sealed interface SEXP
     permits StrOrRegSymSXP,
         SymOrLangSXP,
         ListOrVectorSXP,
+        LangOrListSXP,
         CloSXP,
         EnvSXP,
         BCodeSXP,
@@ -176,4 +177,8 @@ public sealed interface SEXP
   // `toString` is overridden in every subclass to call `Printer.toString(this)`.
 
   // endregion serialization and deserialization
+
+  default boolean isObject() {
+    return attributes() != null && Objects.requireNonNull(attributes()).containsKey("class");
+  }
 }

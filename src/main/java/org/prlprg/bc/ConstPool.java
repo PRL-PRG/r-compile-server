@@ -3,12 +3,7 @@ package org.prlprg.bc;
 import com.google.common.collect.ForwardingList;
 import com.google.common.collect.ImmutableList;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.function.Function;
 import javax.annotation.concurrent.Immutable;
 import org.prlprg.parseprint.ParseMethod;
@@ -125,13 +120,13 @@ public final class ConstPool extends ForwardingList<SEXP> {
     private final List<SEXP> values;
 
     public Builder() {
-      this(Collections.emptyList());
+      this.index = new HashMap<>();
+      this.values = new ArrayList<>();
     }
 
-    public Builder(List<SEXP> consts) {
-      index = new HashMap<>(consts.size());
-      values = new ArrayList<>(consts.size());
-
+    public Builder(Collection<? extends SEXP> consts) {
+      this.index = new HashMap<>(consts.size());
+      this.values = new ArrayList<>(consts.size());
       for (var e : consts) {
         add(e);
       }
@@ -142,7 +137,7 @@ public final class ConstPool extends ForwardingList<SEXP> {
           index.computeIfAbsent(
               c,
               (ignored) -> {
-                var x = index.size();
+                var x = values.size();
                 values.add(c);
                 return x;
               });
@@ -180,10 +175,20 @@ public final class ConstPool extends ForwardingList<SEXP> {
       return index(i, RegSymSXP.class);
     }
 
-    // FIXME: do we need this?
+    // FIXME: do we need these? ---
     public @Nullable Idx<LangSXP> indexLangOrNilIfNegative(int i) {
       return i >= 0 ? orNil(i, LangSXP.class) : null;
     }
+
+    public @Nullable Idx<IntSXP> indexIntOrNilIfNegative(int i) {
+      return i >= 0 ? orNil(i, IntSXP.class) : null;
+    }
+
+    public @Nullable Idx<StrSXP> indexStrOrNilIfNegative(int i) {
+      return i >= 0 ? orNil(i, StrSXP.class) : null;
+    }
+
+    // -- FIXME
 
     public @Nullable Idx<StrOrRegSymSXP> indexStrOrSymOrNil(int i) {
       return orNil(i, StrOrRegSymSXP.class);

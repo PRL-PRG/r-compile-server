@@ -26,6 +26,11 @@ public enum Logical {
     };
   }
 
+  /** Convert to GNU-R representation. */
+  public int toInt() {
+    return i;
+  }
+
   Logical(int i) {
     this.i = i;
   }
