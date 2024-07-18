@@ -95,14 +95,6 @@ public final class SEXPs {
     return integer(ImmutableIntArray.of(first, rest));
   }
 
-  public static LglSXP logical(Logical first, Logical... rest) {
-    return logical(
-        ImmutableList.<Logical>builderWithExpectedSize(rest.length + 1)
-            .add(first)
-            .add(rest)
-            .build());
-  }
-
   public static RealSXP real(double first, double... rest) {
     return real(ImmutableDoubleArray.of(first, rest));
   }

@@ -126,10 +126,12 @@ public class RDSReaderTest extends AbstractGNURBasedTest {
   @Test
   public void testClosure() {
     var sexp = (CloSXP) R.eval("function(x, y=1) 'abc' + x + length(y)");
+    System.out.println(sexp);
 
     var formals = sexp.parameters();
     assertEquals(2, formals.size());
     assertEquals(new TaggedElem("x", SEXPs.MISSING_ARG), formals.get(0));
+    assertEquals(new TaggedElem("y", SEXPs.real(1.0)), formals.get(1));
 
     // TODO: this should really be a snapshot test
     var body = sexp.bodyAST();
@@ -147,6 +149,7 @@ public class RDSReaderTest extends AbstractGNURBasedTest {
 
     // TODO: this should really be a snapshot test
     var body = sexp.body();
+    System.out.println(body);
     assertThat(body).isInstanceOf(BCodeSXP.class);
   }
 

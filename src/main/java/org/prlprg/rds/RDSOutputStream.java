@@ -29,10 +29,15 @@ public class RDSOutputStream implements Closeable {
     out.writeDouble(v);
   }
 
-  public void writeString(String s) throws IOException {
-    // one byte per character.
-    // Fixme: supports the charset (when a character is more than 1 byte!)
-    out.writeBytes(s);
+  /**
+   * Writes a series of bytes to the output stream.
+   *
+   * <p>Note: This replaces the writeString method. This is done since the representation of
+   * "length" when reading a String is <b>not</b> the actual length of the string in characters, but
+   * the length of the String in bytes.
+   */
+  public void writeBytes(byte[] v) throws IOException {
+    out.write(v);
   }
 
   public void writeInts(int[] v) throws IOException {

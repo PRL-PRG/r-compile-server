@@ -25,42 +25,47 @@ class RDSInputStream implements Closeable {
    * @throws IOException if an I/O error occurs.
    */
   public int readRaw() throws IOException {
-    return in.read();
+    var input = in.read();
+    return input;
   }
 
   public byte readByte() throws IOException {
-    return in.readByte();
+    var input = in.readByte();
+    return input;
   }
 
   public int readInt() throws IOException {
-    return in.readInt();
+    var input = in.readInt();
+    return input;
   }
 
   public double readDouble() throws IOException {
-    return in.readDouble();
+    var input = in.readDouble();
+    return input;
   }
 
   public String readString(int natEncSize, Charset charset) throws IOException {
     var buf = new byte[natEncSize];
     in.readFully(buf, 0, natEncSize);
-    return new String(buf, charset);
+    var input = new String(buf, charset);
+    return input;
   }
 
   public int[] readInts(int length) throws IOException {
     int[] ints = new int[length];
     for (int i = 0; i < length; i++) {
-      var n = readInt();
+      var n = in.readInt();
       ints[i] = n;
     }
     return ints;
   }
 
   public double[] readDoubles(int length) throws IOException {
-    double[] ints = new double[length];
+    double[] doubles = new double[length];
     for (int i = 0; i < length; i++) {
-      var n = readDouble();
-      ints[i] = n;
+      var n = in.readDouble();
+      doubles[i] = n;
     }
-    return ints;
+    return doubles;
   }
 }

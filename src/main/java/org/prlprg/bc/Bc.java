@@ -63,7 +63,8 @@ public record Bc(BcCode code, ConstPool consts) {
 
     public Builder(List<SEXP> consts) {
       code = new BcCode.Builder();
-      this.consts = new ConstPool.Builder(consts);
+      this.consts = new ConstPool.Builder(consts.size());
+      this.consts.addAll(consts);
     }
 
     public void setTrackSrcRefs(boolean track) {

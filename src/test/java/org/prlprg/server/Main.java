@@ -98,7 +98,7 @@ public class Main {
 
   private byte[] serialize(SEXP data) throws IOException {
     var output = new ByteArrayOutputStream();
-    RDSWriter.writeStream(rsession, output, data);
+    RDSWriter.writeStream(output, data);
     return output.toByteArray();
   }
 
