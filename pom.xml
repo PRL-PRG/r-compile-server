@@ -66,6 +66,17 @@
       <version>${grpc.version}</version>
     </dependency>
     <dependency>
+      <groupId>io.grpc</groupId>
+      <artifactId>grpc-inprocess</artifactId>
+      <version>${grpc.version}</version>
+    </dependency>
+    <!-- To write unit tests for gRPC when using JUnit 5 -->
+    <dependency>
+      <groupId>com.asarkar.grpc</groupId>
+      <artifactId>grpc-test</artifactId>
+      <version>1.2.2</version>
+    </dependency>
+    <dependency>
       <!-- necessary for Java 9+ -->
       <groupId>org.apache.tomcat</groupId>
       <artifactId>annotations-api</artifactId>
