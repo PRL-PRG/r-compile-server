@@ -1,5 +1,6 @@
 package org.prlprg.server;
 
+import com.google.protobuf.ByteString;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.Status;
@@ -8,9 +9,11 @@ import io.grpc.protobuf.services.HealthStatusManager;
 import io.grpc.protobuf.services.ProtoReflectionService;
 import io.grpc.stub.StreamObserver;
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 import javax.annotation.Nullable;
+import org.prlprg.bc.Bc;
 import org.prlprg.bc.Compiler;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.session.GNURSession;
@@ -78,8 +81,14 @@ class CompileServer {
     server.blockUntilShutdown();
   }
 
-  private static class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
+  static class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
     private @Nullable GNURSession session = null;
+    // Cache for all values (including functions)
+    private HashMap<ByteString, SEXP> cache = new HashMap<>();
+    // Cache for byte-code, only for functions
+    private HashMap<ByteString, Bc> bcCache = new HashMap<>();
+
+    // TODO: cache for native code, which should also include contexts
 
     // Testing externally: grpcurl -plaintext -d '{"function":{"name": "testFunc"}}' 0.0.0.0:8980
     // CompileService.Compile
@@ -122,6 +131,12 @@ class CompileServer {
               Status.INTERNAL.withDescription("Not a closure").asRuntimeException());
         }
       } else {
+        var functionHash = function.getHash();
+        Bc cached = bcCache.get(functionHash);
+        if (cached != null) {
+          // TODO:
+          // Serialize BcCode and COnstPool and set them in the response
+        }
         // We should cache the Compiler instance for that function and then
         // retrieve it here.
       }
@@ -143,9 +158,20 @@ class CompileServer {
 
       var packages = request.getPackageHashList();
 
+      logger.info(
+          "Received init request with R version "
+              + RVersion
+              + "and Rsh version"
+              + rshVersion
+              + " and platform "
+              + platform);
+      logger.info("Received package hashes: " + packages);
+
       // Look into our cache if we have the packages.
       // Request the packages for those we do not have hashes for.
 
+      responseObserver.onNext(Messages.InitResponse.newBuilder().build());
+      responseObserver.onCompleted();
     }
   }
 }

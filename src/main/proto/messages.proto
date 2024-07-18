@@ -7,6 +7,11 @@ option java_package = "org.prlprg.server";
 // Status message: https://grpc.github.io/grpc-java/javadoc/io/grpc/Status.html
 
 // Init
+message Version {
+  int32 major = 1;
+  int32 minor = 2;
+  int32 patch = 3;
+}
 
 message InitRequest {
   Version Rsh_version = 1;// version of the compile server
@@ -31,7 +36,7 @@ message CompileRequest {
 message CompileResponse {
   bytes hash = 1;
   Tier tier = 2;
-  optional bytes native_code = 3;
+  optional bytes code = 3;
   optional bytes constant_pool = 4;
 }
 
@@ -39,7 +44,8 @@ message CompileResponse {
 message Function {
   bytes package_hash = 1;
   string name = 2; //What if it is a closure passed to a HOF?
-  optional bytes body = 3;
+  bytes hash = 3;
+  optional bytes body = 4;
   // what about the function parameters?
 }
 
@@ -146,11 +152,6 @@ message FeedbackRequest {
 
 // Packages
 
-message Version {
-  int32 major = 1;
-  int32 minor = 2;
-  int32 patch = 3;
-}
 
 message PackageSource {
   oneof source {

@@ -11,6 +11,7 @@ service CompileService {
 }
 
 // Used by the compile server to ask questions to R
+// The server part there should be in the C++ code
 service FactService {
   rpc GetContext(ContextRequest) returns (Context) {}
   rpc GetTypeFeedback(FeedbackRequest) returns (TypeFeedback) {}
