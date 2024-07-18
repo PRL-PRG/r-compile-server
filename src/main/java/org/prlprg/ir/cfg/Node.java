@@ -1,23 +1,67 @@
 package org.prlprg.ir.cfg;
 
-import javax.annotation.Nullable;
+import org.prlprg.ir.cfg.StmtData.Void;
 
-/** IR (intermediate representation) node; value or instruction. */
-public interface Node {
-  /** CFG containing the node, or {@code null} if it's a global node (e.g. {@code R_GlobalEnv}. */
-  @Nullable CFG cfg();
+/**
+ * An abstract value of type {@code T}; the IR representation of a value of type {@code T} that
+ * exists in compiled code at runtime.
+ */
+public sealed interface Node<T> permits LocalNode, GlobalNode {
+  /**
+   * Downcast {@code Node<A>} to {@code Node<B>} where {@code B &lt;: A}.
+   *
+   * <p>This is needed due to Java's type erasure: see {@link #type()} for more details.
+   *
+   * @throws ClassCastException if {@code B &lt;/: A}.
+   */
+  @SuppressWarnings("unchecked")
+  default <U extends T> Node<? extends U> cast(Class<U> clazz) {
+    // `Void` is special-cased to allow `InvalidNode` to emulate subclassing every other `Node`,
+    // even though Java's type system can't encode BOTTOM.
+    if (!clazz.isAssignableFrom(type()) && type() != Void.class) {
+      if (type().getSimpleName().equals(clazz.getSimpleName())) {
+        throw new ClassCastException(
+            "Can't cast "
+                + id()
+                + " of type "
+                + type().getName()
+                + " to "
+                + clazz.getName()
+                + " (they have the same simple name, but are different classes)");
+      } else {
+        throw new ClassCastException(
+            "Can't cast "
+                + id()
+                + " of type "
+                + type().getSimpleName()
+                + " to "
+                + clazz.getSimpleName());
+      }
+    }
+    return (Node<? extends U>) this;
+  }
 
   /**
-   * The instruction that created this node. If this node is a phi or instruction, it will be
-   * itself. If this node is a global, it will be {@code null}.
+   * This is {@code T}: the type that the node represents an abstract runtime value of.
+   *
+   * <p>This is needed due to Java's type erasure: if you cast {@code Node<A>} to {@code Node<B>}
+   * where {@code B &lt;/: A} the compiler silently allows it, and if you upcast {@code Node<B>} to
+   * {@code Node<A>} there's no way to safely recover the original type and downcast. So, we store
+   * this data in {@link Node}, and periodically check it (to prevent the illegal upcast) and to
+   * recover the original type (to enable safe downcast).
+   *
+   * <p>For {@link GlobalNode}, which is the subtype of any other node, this returns {@link Void}.
+   * Java's type system can't encode a true BOTTOM type, but {@link Void} is a type with no
+   * (non-null) inhabitants, and we special-case it to emulate BOTTOM (e.g. {@link #cast(Class)}
+   * always works on {@link InvalidNode} even though {@link Void} isn't a subclass).
    */
-  @Nullable InstrOrPhi origin();
+  Class<T> type();
 
   /**
    * Unique identifier for the node.
    *
-   * <p>If {@link #cfg()} is non-null, the returned ID must be unique to this node within the CFG.
-   * If {@link #cfg()} is null, the returned ID must be unique within <b>every</b> CFG.
+   * <p>If this is a {@link LocalNode}, the returned ID must be unique to this node within the CFG.
+   * If this is a {@link GlobalNode}, the returned ID must be unique within <b>every</b> CFG.
    */
-  NodeId<?> id();
+  NodeId<T> id();
 }

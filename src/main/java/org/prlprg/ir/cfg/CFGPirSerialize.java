@@ -303,24 +303,24 @@ class PirInstrOrPhiParseContext {
       return "alias";
     } else if (s.nextCharIs('"')) {
       var str = s.readQuoted('"');
-      pirIdToNode.put(pirId, Constant.string(str));
+      pirIdToNode.put(pirId, Constant.strSxp(str));
       return "constant_string";
     } else if (s.nextCharIs('-') || s.nextCharSatisfies(Character::isDigit)) {
       var num = s.readDouble();
       var isInt = s.trySkip('L');
-      pirIdToNode.put(pirId, isInt ? Constant.integer((int) num) : Constant.real(num));
+      pirIdToNode.put(pirId, isInt ? Constant.intSxp((int) num) : Constant.realSxp(num));
       return isInt ? "constant_integer" : "constant_real";
     } else if (s.trySkip("NA")) {
-      pirIdToNode.put(pirId, Constant.real(Constants.NA_REAL));
+      pirIdToNode.put(pirId, Constant.realSxp(Constants.NA_REAL));
       return "constant_missing";
     } else if (s.trySkip("true") || s.trySkip("opaqueTrue")) {
-      pirIdToNode.put(pirId, Constant.logical(Logical.TRUE));
+      pirIdToNode.put(pirId, Constant.lglSxp(Logical.TRUE));
       return "constant_logical_true";
     } else if (s.trySkip("false") || s.trySkip("opaqueFalse")) {
-      pirIdToNode.put(pirId, Constant.logical(Logical.FALSE));
+      pirIdToNode.put(pirId, Constant.lglSxp(Logical.FALSE));
       return "constant_logical_false";
     } else if (s.trySkip("na-lgl")) {
-      pirIdToNode.put(pirId, Constant.logical(Logical.NA));
+      pirIdToNode.put(pirId, Constant.lglSxp(Logical.NA));
       return "constant_logical_na";
     } else if (s.trySkip("nil")) {
       pirIdToNode.put(pirId, new Constant(SEXPs.NULL));
@@ -536,7 +536,7 @@ class PirInstrOrPhiParseContext {
             var fun = p.parse(ISexp.class);
             var callArgs = parseCallArgs(p);
             var fs = s.trySkip(", ") ? p.parse(FrameState.class) : null;
-            yield new NamelessCall(stubLangSxp(), fun, callArgs, StaticEnv.NOT_CLOSED, fs);
+            yield new NamelessCall(stubLangSxp(), fun, callArgs, StaticEnv.UNKNOWN, fs);
           }
           case "NamedCall" -> {
             var fun = p.parse(ISexp.class);
@@ -547,7 +547,7 @@ class PirInstrOrPhiParseContext {
                 fun,
                 namedCallArgs.first(),
                 namedCallArgs.second(),
-                StaticEnv.NOT_CLOSED,
+                StaticEnv.UNKNOWN,
                 fs);
           }
           case "StaticCall" -> {
@@ -561,13 +561,13 @@ class PirInstrOrPhiParseContext {
                 CallContext.EMPTY,
                 callArgs,
                 stubArglistOrder(callArgs),
-                StaticEnv.NOT_CLOSED,
+                StaticEnv.UNKNOWN,
                 fs);
           }
           case "CallBuiltin" -> {
             var builtin = p.parse(BuiltinId.class);
             var callArgs = parseCallArgs(p);
-            yield new StmtData.CallBuiltin(stubLangSxp(), builtin, callArgs, StaticEnv.NOT_CLOSED);
+            yield new StmtData.CallBuiltin(stubLangSxp(), builtin, callArgs, StaticEnv.UNKNOWN);
           }
           case "CallSafeBuiltin" -> {
             var builtin = p.parse(BuiltinId.class);
@@ -806,8 +806,7 @@ class PirInstrOrPhiParseContext {
   }
 
   private Promise stubPromise() {
-    var promise =
-        new Promise("stub", Bc.empty(), new CFG(), StaticEnv.NOT_CLOSED, Properties.EMPTY);
+    var promise = new Promise("stub", Bc.empty(), new CFG(), StaticEnv.UNKNOWN, Properties.EMPTY);
     // The CFG has to be valid, or verification will fail.
     promise.body().entry().addJump(new JumpData.Return(new Constant(SEXPs.NULL)));
     return promise;
@@ -1746,7 +1745,7 @@ abstract sealed class PirId {
 
     @Override
     Node getGlobal() {
-      return Constant.logical(value);
+      return Constant.lglSxp(value);
     }
   }
 
@@ -1760,7 +1759,7 @@ abstract sealed class PirId {
 
     @Override
     Node getGlobal() {
-      return Constant.integer(value);
+      return Constant.intSxp(value);
     }
   }
 
@@ -1774,7 +1773,7 @@ abstract sealed class PirId {
 
     @Override
     Node getGlobal() {
-      return Constant.real(value);
+      return Constant.realSxp(value);
     }
   }
 
@@ -1788,7 +1787,7 @@ abstract sealed class PirId {
 
     @Override
     Node getGlobal() {
-      return Constant.string(value);
+      return Constant.strSxp(value);
     }
   }
 
@@ -1866,7 +1865,7 @@ abstract sealed class PirId {
       }
       case '?' -> {
         s.assertAndSkip('?');
-        yield new PirId.GlobalNamed(StaticEnv.NOT_CLOSED);
+        yield new PirId.GlobalNamed(StaticEnv.UNKNOWN);
       }
       case '%', 'e' -> {
         if (s.trySkip("elided")) {

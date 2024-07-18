@@ -75,7 +75,7 @@ public final class AbstractEnvHierarchy implements AbstractNode<AbstractEnvHiera
           Optional.ofNullable(env.envAux())
               .flatMap(e -> Optional.ofNullable(e.parent()))
               .orElse(null);
-      env = knownParent == StaticEnv.NOT_CLOSED && auxParent != null ? auxParent : knownParent;
+      env = knownParent == StaticEnv.UNKNOWN && auxParent != null ? auxParent : knownParent;
     }
 
     // We did not reach the outermost environment of the current closure. Therefore, we have no clue
@@ -145,12 +145,12 @@ public final class AbstractEnvHierarchy implements AbstractNode<AbstractEnvHiera
     // In these cases, we have to return the union of what we'd return if the value was present and
     // what we'd return if not, which in our domain loses precision to become "unknown environment"
     // and "unknown (tainted) value".
-    while (env != StaticEnv.NOT_CLOSED) {
+    while (env != StaticEnv.UNKNOWN) {
       var aEnv = envs.get(env);
       if (aEnv == null) {
         // We have no idea what this env contains, so we definitely don't know if lookup succeeds or
         // what it finds.
-        return new AbstractLoad(StaticEnv.NOT_CLOSED, AbstractISexp.UNKNOWN);
+        return new AbstractLoad(StaticEnv.UNKNOWN, AbstractISexp.UNKNOWN);
       }
 
       if (skipInnermost) {
@@ -169,7 +169,7 @@ public final class AbstractEnvHierarchy implements AbstractNode<AbstractEnvHiera
             // This *may* be the result of the lookup, and env it was found
             // Unfortunately, that means we don't know the real env or result,
             // and don't have enough precision to represent anything except "unknown".
-            return new AbstractLoad(StaticEnv.NOT_CLOSED, AbstractISexp.UNKNOWN);
+            return new AbstractLoad(StaticEnv.UNKNOWN, AbstractISexp.UNKNOWN);
           }
           // else, this env didn't find a real candidate, so we fall through.
         }
@@ -179,7 +179,7 @@ public final class AbstractEnvHierarchy implements AbstractNode<AbstractEnvHiera
           // don't see all stores happening before entering the current function,
           // therefore we cannot practically exclude the existence of a binding
           // in those environments).
-          return new AbstractLoad(StaticEnv.NOT_CLOSED, AbstractISexp.UNKNOWN);
+          return new AbstractLoad(StaticEnv.UNKNOWN, AbstractISexp.UNKNOWN);
         }
       }
 
@@ -188,10 +188,10 @@ public final class AbstractEnvHierarchy implements AbstractNode<AbstractEnvHiera
       // but the env has a concrete parent (`auxParent`), we use that instead.
       var auxParent = env.envAux() == null ? null : Objects.requireNonNull(env.envAux()).parent();
       var knownParent = aEnv.parentEnv();
-      env = knownParent == StaticEnv.NOT_CLOSED && auxParent != null ? auxParent : knownParent;
+      env = knownParent == StaticEnv.UNKNOWN && auxParent != null ? auxParent : knownParent;
     }
 
-    return new AbstractLoad(StaticEnv.NOT_CLOSED, AbstractISexp.UNKNOWN);
+    return new AbstractLoad(StaticEnv.UNKNOWN, AbstractISexp.UNKNOWN);
   }
 
   /**

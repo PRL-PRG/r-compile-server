@@ -197,7 +197,7 @@ public class CFGCompiler {
   public static CFG compileCFG(Bc bc) {
     var cfg = new CFG();
     var module = new Module();
-    new CFGCompiler(bc, cfg, false, StaticEnv.NOT_CLOSED, module).doCompile();
+    new CFGCompiler(bc, cfg, false, StaticEnv.UNKNOWN, module).doCompile();
     return cfg;
   }
 
@@ -613,7 +613,7 @@ public class CFGCompiler {
         // For loop init
         var seq = cursor.insert(new StmtData.ToForSeq(pop(ISexp.class)));
         var length = cursor.insert(new StmtData.Length(seq));
-        var init = Constant.integer(0);
+        var init = Constant.intSxp(0);
         cursor.insert(new JumpData.Goto(stepBb));
 
         // For loop step
@@ -1136,7 +1136,7 @@ public class CFGCompiler {
             for (var i = 0; i < chrLabels.size() - 1; i++) {
               var name = names.get(i);
               var ifMatch = bbAt(new BcLabel(chrLabels.get(i)));
-              var cond = cursor.insert(new StmtData.Eq(get(ast), value, Constant.string(name)));
+              var cond = cursor.insert(new StmtData.Eq(get(ast), value, Constant.strSxp(name)));
               var prev = cursor.bb();
               cursor.insert(next -> new JumpData.Branch(cond, ifMatch, next));
               addPhiInputsForStack(ifMatch, prev);
@@ -1160,7 +1160,7 @@ public class CFGCompiler {
           var asInteger = cursor.insert(new StmtData.AsSwitchIdx(value));
           for (var i = 0; i < numLabels.size() - 1; i++) {
             var ifMatch = bbAt(new BcLabel(numLabels.get(i)));
-            var cond = cursor.insert(new StmtData.Eq(get(ast), asInteger, Constant.integer(i)));
+            var cond = cursor.insert(new StmtData.Eq(get(ast), asInteger, Constant.intSxp(i)));
             var prev = cursor.bb();
             cursor.insert(next -> new JumpData.Branch(cond, ifMatch, next));
             addPhiInputsForStack(ifMatch, prev);
@@ -1489,7 +1489,7 @@ public class CFGCompiler {
         && f.data() instanceof StmtData.LdFun(var name, var _)
         && name.name().equals("stop")
         && n.args().size() == 1
-        && n.args().getFirst().equals(Constant.string("empty alternative in numeric switch"))
+        && n.args().getFirst().equals(Constant.strSxp("empty alternative in numeric switch"))
         && hasBbAfterCurrent()
         && bbAfterCurrent().phis().size() == stack.size() - 1) {
       pop(ISexp.class);

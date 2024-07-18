@@ -2,65 +2,59 @@ package org.prlprg.ir.cfg;
 
 import com.google.common.collect.ImmutableMap;
 import java.util.stream.Stream;
-import javax.annotation.Nullable;
-import org.prlprg.ir.type.RType;
+import org.prlprg.parseprint.ParseMethod;
+import org.prlprg.parseprint.Parser;
+import org.prlprg.sexp.EnvSXP;
 
-/** Global static environment, e.g. {@code R_GlobalEnv}, {@code notClosed}. */
-public sealed interface StaticEnv extends ISexp, GlobalNode {
-  StaticEnv GLOBAL = new StaticEnvImpl("R_GlobalEnv");
-  StaticEnv BASE = new StaticEnvImpl("R_BaseEnv");
-  StaticEnv NOT_CLOSED = new StaticEnvImpl("notClosed");
+/** Unknown or global static environment. */
+public sealed interface StaticEnv extends GlobalNode<EnvSXP> {
+  StaticEnv GLOBAL = new StaticEnvImpl("global");
+  StaticEnv BASE = new StaticEnvImpl("base");
+  StaticEnv UNKNOWN = new StaticEnvImpl("");
 
-  /** All global static environments, associated to their name. */
-  ImmutableMap<String, StaticEnv> ALL =
-      Stream.of(GLOBAL, BASE, NOT_CLOSED)
-          .collect(ImmutableMap.toImmutableMap(StaticEnv::name, e -> e));
+  @ParseMethod
+  private static StaticEnv parse(Parser p) {
+    var s = p.scanner();
 
-  /** Descriptive, uniquely identifying name of this environment. */
-  String name();
+    if (!s.nextCharSatisfies(Character::isJavaIdentifierStart)) {
+      return UNKNOWN;
+    }
 
-  @Override
-  GlobalNodeId<? extends StaticEnv> id();
+    var name = s.readJavaIdentifierOrKeyword();
+    var result = StaticEnvImpl.ALL.get(name);
+    if (result == null) {
+      throw s.fail("Unknown static environment: " + name);
+    }
+    return result;
+  }
 }
 
 final class StaticEnvImpl implements StaticEnv {
-  private final String name;
-  private final GlobalNodeId<StaticEnvImpl> id;
-  private final EnvAux envAux;
+  /** All global static environments, associated to their name. */
+  static final ImmutableMap<String, StaticEnv> ALL =
+      Stream.of(GLOBAL, BASE, UNKNOWN)
+          .collect(ImmutableMap.toImmutableMap(e -> e.toString().substring(1), e -> e));
+
+  private final GlobalNodeId<EnvSXP> id;
+  private final String toString;
 
   public StaticEnvImpl(String name) {
-    this.name = name;
     id = new GlobalNodeIdImpl<>(this);
-    envAux = new EnvAux(null);
+    toString = '?' + name;
   }
 
   @Override
-  public String name() {
-    return name;
+  public Class<EnvSXP> type() {
+    return EnvSXP.class;
   }
 
   @Override
-  public RType type() {
-    return RType.ANY_ENV;
-  }
-
-  @Override
-  public EnvAux envAux() {
-    return envAux;
-  }
-
-  @Nullable @Override
-  public InstrOrPhi origin() {
-    return null;
-  }
-
-  @Override
-  public GlobalNodeId<? extends StaticEnv> id() {
+  public GlobalNodeId<EnvSXP> id() {
     return id;
   }
 
   @Override
   public String toString() {
-    return name;
+    return toString;
   }
 }
