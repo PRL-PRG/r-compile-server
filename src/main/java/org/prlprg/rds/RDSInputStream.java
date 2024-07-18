@@ -49,18 +49,18 @@ class RDSInputStream implements Closeable {
   public int[] readInts(int length) throws IOException {
     int[] ints = new int[length];
     for (int i = 0; i < length; i++) {
-      var n = readInt();
+      var n = in.readInt();
       ints[i] = n;
     }
     return ints;
   }
 
   public double[] readDoubles(int length) throws IOException {
-    double[] ints = new double[length];
+    double[] doubles = new double[length];
     for (int i = 0; i < length; i++) {
-      var n = readDouble();
-      ints[i] = n;
+      var n = in.readDouble();
+      doubles[i] = n;
     }
-    return ints;
+    return doubles;
   }
 }

@@ -1,0 +1,17 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ warmup[0x559b85287e50]                                                       │
+│ Context: CorrOrd,!TMany                                                      │
+│ Properties:  Eager, ForceOrd: 0                                              │
+├────── Final PIR Version
+warmup[0x559b85287e50]
+BB0
+  val?^ | miss    %0.0  = LdArg                    0
+  env             e0.1  = MkEnv              l     f=%0.0, parent=R_GlobalEnv, context 1
+  val?            %0.2  = Force!             !     %0.0, e0.1
+  (cls|spec|blt)  %0.3  = LdFun              !     f, e0.1
+  val?            %0.4  = Call               !     %0.3() e0.1   <val?_>
+  void                    Return             l     %0.4
+
+│ warmup[0x559b85287e50]                                                       │
+└──────────────────────────────────────────────────────────────────────────────┘

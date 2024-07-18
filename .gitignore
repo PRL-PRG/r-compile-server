@@ -1,4 +1,5 @@
 **/src/test/snapshots/**/*.fail*
+!src/test/resources/**/*.log
 
 ### Build ###
 target/

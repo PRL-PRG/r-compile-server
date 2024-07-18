@@ -1,0 +1,50 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ nrow[0x55bbe9f8fe80]                                                         │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;NonRefl0                             │
+│ Properties:  Eager, ForceOrd: 0                                              │
+├────── Final PIR Version
+nrow[0x55bbe9f8fe80]
+BB0
+  val?^           %0.0  = LdArg                    0
+  env             e0.1  = (MkEnv)            l     x=%0.0, parent=R_BaseNamespace, context 1
+  val?            %0.2  = Force!<lazy>       !vr   %0.0,    <val?>
+  val?            %0.3  = CallBuiltin        !vL   dim(%0.2) e0.1   <(nil|int)->
+  lgl$#-          %0.4  = IsType                   %0.3 isA val+   <true>
+  lgl$#-          %0.5  = IsType                   %0.3 isA val?-
+  lgl$#-          %0.6  = IsEnvStub          R     , e0.1
+  void                    Branch                   %0.6 -> BB4 (if true) | BB5 (if false)
+BB4   <- [0]
+  void                    Branch                   %0.4 -> BB6 (if true) | BB7 (if false)
+BB5   <- [0]
+  void                    Nop                !     
+  env             e5.1  = e0.1
+  dr              %5.2  = EnvStubMaterialized@0x55bbe3077408[Call#unknown]
+  goto BB3
+BB6   <- [4]
+  void                    Branch                   %0.5 -> BB8 (if true) | BB9 (if false)
+BB7   <- [4]
+  void                    Nop                !     
+  lgl$#-          %7.1  = %0.4
+  dr              %7.2  = DeadBranchReached@0x55bbe3077408[Test#1]
+  goto BB3
+BB3   <- [5, 7, 9]
+  val?^ | miss    %3.0  = Phi                      e5.1:BB5, %7.1:BB7, %9.1:BB9
+  val?^ | miss    %3.1  = %3.0
+  dr              %3.2  = Phi                      %5.2:BB5, %7.2:BB7, %9.2:BB9
+  dr              %3.3  = %3.2
+  fs              %3.4  = FrameState         R     0x55bbe43efa70+91: [%0.3], env=e0.1
+  void                    Deopt              !v    %3.4, %3.3, %3.1   !
+BB8   <- [6]
+  val?-           %8.0  = CastType           d     dn %0.3   <(nil|int)->
+  val?            %8.1  = Extract1_1D        wed   %8.0, 1L, elided   <(nil|int)->
+  void                    Visible            v     
+  void                    Return             l     %8.1
+BB9   <- [6]
+  void                    Nop                !     
+  val?            %9.1  = %0.3
+  dr              %9.2  = Typecheck@0x55bbe3077408[Type#2]
+  goto BB3
+
+│ nrow[0x55bbe9f8fe80]                                                         │
+└──────────────────────────────────────────────────────────────────────────────┘

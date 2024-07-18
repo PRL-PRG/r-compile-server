@@ -12,9 +12,9 @@
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <maven.compiler.source>21</maven.compiler.source>
+    <maven.compiler.source>22</maven.compiler.source>
     <maven.compiler.target>${maven.compiler.source}</maven.compiler.target>
-    <pmdVersion>7.0.0-rc4</pmdVersion>
+    <pmdVersion>7.2.0</pmdVersion>
     <protobuf.version>3.25.3</protobuf.version>
     <grpc.version>1.64.0</grpc.version>
   </properties>
@@ -37,7 +37,7 @@
     <dependency>
       <groupId>org.zeromq</groupId>
       <artifactId>jeromq</artifactId>
-      <version>0.5.4</version>
+      <version>0.6.0</version>
     </dependency>
     <!-- gRPC, RPC communication -->
     <dependency>
@@ -88,7 +88,7 @@
     <dependency>
       <groupId>com.google.guava</groupId>
       <artifactId>guava</artifactId>
-      <version>33.0.0-jre</version>
+      <version>33.1.0-jre</version>
     </dependency>
     <!-- jsr305, annotations for IDEs and static analyses -->
     <!-- (jsr305 is apparently deprecated, but seems to be the most well-supported annotation library) -->
@@ -97,6 +97,18 @@
       <artifactId>spotbugs-annotations</artifactId>
       <version>4.8.3</version>
       <optional>true</optional>
+    </dependency>
+    <!-- JetBrains annotations, specifically for `@Contract` and `@UnmodifiableView` -->
+    <dependency>
+      <groupId>org.jetbrains</groupId>
+      <artifactId>annotations</artifactId>
+      <version>24.1.0</version>
+    </dependency>
+    <!-- javac-warning-annotation, @Warning annotation so we can annotate unsafe methods -->
+    <dependency>
+      <groupId>com.pushtorefresh</groupId>
+      <artifactId>javac-warning-annotation</artifactId>
+      <version>1.0.0</version>
     </dependency>
     <!-- JUnit5, unit tests -->
     <dependency>
@@ -109,6 +121,13 @@
       <groupId>com.google.truth</groupId>
       <artifactId>truth</artifactId>
       <version>1.3.0</version>
+      <scope>test</scope>
+    </dependency>
+    <!-- JQwik, property-based tests -->
+    <dependency>
+      <groupId>net.jqwik</groupId>
+      <artifactId>jqwik</artifactId>
+      <version>1.8.3</version>
       <scope>test</scope>
     </dependency>
   </dependencies>
@@ -196,7 +215,7 @@
               <exclude>target/**/*</exclude>
             </excludes>
             <googleJavaFormat>
-              <version>1.19.2</version>
+              <version>1.22.0</version>
               <style>GOOGLE</style>
               <formatJavadoc>true</formatJavadoc>
             </googleJavaFormat>
@@ -261,26 +280,11 @@
           </execution>
         </executions>
       </plugin>
-      <!-- spotbugs, static analysis on bytecode -->
-      <!--  ignored for now -->
-      <!--      <plugin>-->
-      <!--        <groupId>com.github.spotbugs</groupId>-->
-      <!--        <artifactId>spotbugs-maven-plugin</artifactId>-->
-      <!--        <version>4.8.2.0</version>-->
-      <!--        &lt;!&ndash; `executions` is required to run this on verify &ndash;&gt;-->
-      <!--        <executions>-->
-      <!--          <execution>-->
-      <!--            <goals>-->
-      <!--              <goal>check</goal>-->
-      <!--            </goals>-->
-      <!--          </execution>-->
-      <!--        </executions>-->
-      <!--      </plugin>-->
       <!-- pmd (and cpd), static analysis on syntax -->
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-pmd-plugin</artifactId>
-        <version>3.21.2</version>
+        <version>3.23.0</version>
         <configuration>
           <!-- This prevents the warning "Unable to locate Source XRef to link to - DISABLED" -->
           <!-- If we want source-links in the `site` pmd report we need to add jxr instead, -->
@@ -339,6 +343,22 @@
           <threadCount>8</threadCount>
         </configuration>
         <!-- automatically runs on `test` (and `verify` because `verify` invokes `test`) -->
+      </plugin>
+      <!-- maven-javadoc-plugin, ensures there aren't javadoc issues -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-javadoc-plugin</artifactId>
+        <version>3.7.0</version>
+        <!-- `executions` is required to run this on verify -->
+        <executions>
+          <execution>
+            <goals>
+              <goal>javadoc</goal>
+              <goal>test-javadoc</goal>
+            </goals>
+            <phase>verify</phase>
+          </execution>
+        </executions>
       </plugin>
     </plugins>
     <extensions>

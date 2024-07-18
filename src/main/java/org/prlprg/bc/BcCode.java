@@ -8,7 +8,13 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
+import org.prlprg.parseprint.ClassProvidingContext;
+import org.prlprg.parseprint.ParseMethod;
+import org.prlprg.parseprint.Parser;
+import org.prlprg.parseprint.PrintMethod;
+import org.prlprg.parseprint.Printer;
 
 /**
  * An array of bytecode instructions, which make up the code of a closure or promise. A complete
@@ -25,16 +31,6 @@ public final class BcCode extends ForwardingList<BcInstr> {
   @Override
   protected List<BcInstr> delegate() {
     return code;
-  }
-
-  @Override
-  public String toString() {
-    StringBuilder sb = new StringBuilder("=== CODE ===");
-    var idx = 0;
-    for (BcInstr instr : code) {
-      sb.append(String.format("%n%3d: ", idx++)).append(instr);
-    }
-    return sb.toString();
   }
 
   @Override
@@ -87,4 +83,58 @@ public final class BcCode extends ForwardingList<BcInstr> {
       code.set(idx, patch.apply(code.get(idx)));
     }
   }
+
+  // region serialization and deserialization
+  private static class InstrContext implements ClassProvidingContext {
+    private static final InstrContext INSTANCE = new InstrContext();
+
+    @Override
+    public @Nullable Class<?> getClass(String className) {
+      return BcInstr.CLASSES.get(className);
+    }
+
+    @ParseMethod
+    private BcInstr parseBcInstr(Parser p) {
+      return (BcInstr) p.parse(Record.class);
+    }
+  }
+
+  @ParseMethod
+  private static BcCode parse(Parser p1) {
+    var p = p1.withContext(InstrContext.INSTANCE);
+    var s = p.scanner();
+
+    var code = new ArrayList<BcInstr>();
+    s.assertAndSkip("=== CODE ===");
+    for (var idx = 0; s.nextCharSatisfies(Character::isDigit); idx++) {
+      var actualIdx = s.readUInt();
+      if (actualIdx != idx) {
+        throw s.fail("index " + idx, "index " + actualIdx);
+      }
+      s.assertAndSkip(":");
+
+      code.add(p.parse(BcInstr.class));
+    }
+
+    return new BcCode(code);
+  }
+
+  @PrintMethod
+  private void print(Printer p) {
+    var w = p.writer();
+
+    w.write("=== CODE ===");
+    var n = (int) Math.log10(size()) + 1;
+    var idx = 0;
+    for (BcInstr instr : code) {
+      w.formatter().format("%n%" + n + "d: ", idx++);
+      p.print(instr);
+    }
+  }
+
+  @Override
+  public String toString() {
+    return Printer.toString(this);
+  }
+  // endregion serialization and deserialization
 }

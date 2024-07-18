@@ -10,6 +10,13 @@ import javax.annotation.Nullable;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.session.RSession;
 import org.prlprg.sexp.*;
+import org.prlprg.sexp.BaseEnvSXP;
+import org.prlprg.sexp.EnvSXP;
+import org.prlprg.sexp.GlobalEnvSXP;
+import org.prlprg.sexp.NamespaceEnvSXP;
+import org.prlprg.sexp.SEXP;
+import org.prlprg.sexp.SEXPs;
+import org.prlprg.sexp.StrSXP;
 import org.prlprg.util.IO;
 
 // http://adv-r.had.co.nz/Environments.html

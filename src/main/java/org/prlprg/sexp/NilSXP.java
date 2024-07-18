@@ -3,10 +3,10 @@ package org.prlprg.sexp;
 import com.google.common.collect.ImmutableList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
+import org.jetbrains.annotations.Unmodifiable;
 import org.prlprg.util.EmptyIterator;
 
 /**
@@ -27,11 +27,6 @@ public final class NilSXP implements ListSXP {
   @Override
   public Class<? extends SEXP> getCanonicalType() {
     return NilSXP.class;
-  }
-
-  @Override
-  public String toString() {
-    return "NULL";
   }
 
   /** In R, nil is equivalent to an empty list, so this is always {@code true}. */
@@ -62,12 +57,12 @@ public final class NilSXP implements ListSXP {
   }
 
   @Override
-  public List<SEXP> values() {
+  public @Unmodifiable List<SEXP> values() {
     return Collections.emptyList();
   }
 
   @Override
-  public List<SEXP> values(int fromIndex) {
+  public @Unmodifiable List<SEXP> values(int fromIndex) {
     if (fromIndex == 0) {
       return Collections.emptyList();
     } else {
@@ -76,7 +71,7 @@ public final class NilSXP implements ListSXP {
   }
 
   @Override
-  public List<String> names() {
+  public @Unmodifiable List<String> names() {
     return Collections.emptyList();
   }
 
@@ -116,18 +111,17 @@ public final class NilSXP implements ListSXP {
   }
 
   @Override
-  public ListSXP remove(String tag) {
-    throw new UnsupportedOperationException("NULL is empty");
+  public ListSXP remove(@Nullable String tag) {
+    if (tag != null && tag.isEmpty()) {
+      throw new IllegalArgumentException(
+          "The empty tag doesn't exist, pass `null` to remove untagged elements.");
+    }
+    return this;
   }
 
   @Override
   public Stream<TaggedElem> stream() {
-    throw new UnsupportedOperationException("NULL is empty");
-  }
-
-  @Override
-  public Optional<TaggedElem> get(String name) {
-    return Optional.empty();
+    return Stream.of();
   }
 
   @Override
@@ -138,5 +132,11 @@ public final class NilSXP implements ListSXP {
   @Override
   public ListSXP withAttributes(Attributes attributes) {
     throw new UnsupportedOperationException("Cannot set attributes on NULL");
+  }
+
+  // This can't call `Printer.toString`, because it calls this.
+  @Override
+  public String toString() {
+    return "NULL";
   }
 }

@@ -1,0 +1,31 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ myrandom[0x56267e3a2d70]                                                     │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;Eager0,NonRefl0,!Obj0,SimpleReal0    │
+│ Properties:                                                                  │
+├────── Final PIR Version
+myrandom[0x56267e3a2d70]
+BB0
+  (real|miss)$~-  %0.0  = LdArg                    0
+  val?^ | miss    %0.1  = LdVar              eR    myrandom_last, R_GlobalEnv
+  val?            %0.2  = Force!<value>      !vr   %0.1,    <int$->
+  lgl$#-          %0.3  = IsType                   %0.2 isA int$-
+  real$-          %0.4  = Force!<value>            %0.0,    <real$->
+  void                    Branch                   %0.3 -> BB4 (if true) | BB5 (if false)
+BB4   <- [0]
+  int$-           %4.0  = CastType           d     dn %0.2
+  int$-           %4.1  = Mul                d     %4.0, 3877L, elided   <int$->
+  int$-           %4.2  = Add                d     %4.1, 29573L, elided   <int$->
+  int$-           %4.3  = Mod                d     %4.2, 139968L, elided   <int$->
+  void                    StVar              lW    myrandom_last, %4.3, R_GlobalEnv
+  real$-          %4.5  = Mul                d     %0.4, %4.3, elided   <real$->
+  void                    Visible            v     
+  real$-          %4.7  = Div                vd    %4.5, 139968, elided   <real$->
+  void                    Return             l     %4.7
+BB5   <- [0]
+  env             e5.0  = (MkEnv)            l     m=%0.0, parent=R_GlobalEnv, context 1
+  fs              %5.1  = FrameState         R     0x56267dc843f0+9: [%0.2], env=e5.0
+  void                    Deopt              !v    %5.1, Typecheck@0x56267ed5a728[Type#0], %0.2
+
+│ myrandom[0x56267e3a2d70]                                                     │
+└──────────────────────────────────────────────────────────────────────────────┘

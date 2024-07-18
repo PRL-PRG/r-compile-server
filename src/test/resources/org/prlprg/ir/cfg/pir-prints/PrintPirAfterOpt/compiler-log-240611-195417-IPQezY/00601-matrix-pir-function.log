@@ -1,0 +1,52 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ matrix[0x55ccaa4d1ce0]                                                       │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;NonRefl1,NonRefl2,!Obj1,!Obj2,SimpleInt1,SimpleInt2 miss: 2│
+│ Properties:  ForceOrd: 0                                                     │
+├────── PIR Version After Optimizations
+matrix[0x55ccaa4d1ce0]
+BB0
+  goto BB1
+BB1   <- [0]
+  val?^           %1.0  = LdArg                    2
+  val?^           %1.1  = LdArg                    1
+  val?^           %1.2  = LdArg                    0
+  env             e1.3  = MkEnv              l     data=%1.2, nrow=%1.1, ncol=%1.0, byrow(miss)=false, dimnames(miss)=nil, parent=R_BaseNamespace, context 1
+  val?            %1.4  = Force!<lazy>       !v    %1.2, e1.3   <val?->
+  lgl$#-          %1.5  = IsType                   %1.4 isA val?-
+  cp              %1.6  = Checkpoint                -> BB2 (default) | BB5 (if assume failed)
+BB2   <- [1]
+  void                    Assume             D     %1.5, %1.6 (Typecheck@0x55cca92b22d0[Type#1])
+  val?^ | miss    %2.1  = LdVar              eR    is.atomic, e1.3
+  lgl$#-          %2.2  = Identical                <blt is.atomic>, %2.1   <true>
+  void                    Assume             D     %2.2, %1.6 (DeadBranchReached@0x55cca92b22d0[Test#1])
+  val?^ | miss    %2.4  = LdVar              eR    data, e1.3
+  lgl$#-          %2.5  = IsType                   %2.4 isA val?~-
+  void                    Assume             D     %2.5, %1.6 (Typecheck@0x55cca92b22d0[Type#4])
+  val?~-          %2.7  = CastType           d     dn %2.4
+  val?-           %2.8  = Force!<wrapped>          %2.7,    <val?->
+  lgl$#-          %2.9  = CallSafeBuiltin    wed   is.atomic(%2.8)    <lgl$->
+  void                    Branch                   %2.9 -> BB4 (if true) | BB3 (if false)
+BB5   <- [1]
+  fs              %5.0  = FrameState         R     0x55cca92e42f0+69: [<blt is.object>, %1.4], env=e1.3
+  void                    Deopt              !v    %5.0   !
+BB4   <- [2]
+  val?^ | miss    %4.0  = LdVar              eR    nrow, e1.3
+  val?            %4.1  = Force!<lazy>       !v    %4.0, e1.3   <(int|real)$->
+  val?^ | miss    %4.2  = LdVar              eR    ncol, e1.3
+  val?            %4.3  = Force!<lazy>       !v    %4.2, e1.3   <(int|real)$->
+  val?^ | miss    %4.4  = LdVar              eR    byrow, e1.3
+  val?            %4.5  = Force!<lazy>       !v    %4.4, e1.3   <lgl$->
+  val?^ | miss    %4.6  = LdVar              eR    dimnames, e1.3
+  val?            %4.7  = Force!<lazy>       !v    %4.6, e1.3   <nil->
+  lgl$-           %4.8  = Missing            eR    nrow, e1.3
+  lgl$-           %4.9  = Missing            eR    ncol, e1.3
+  val+            %4.10 = CallSafeBuiltin    vwed  matrix(%2.8, %4.1, %4.3, %4.5, %4.7, %4.8, %4.9) 
+  void                    Return             l     %4.10
+BB3   <- [2]
+  (cls|spec|blt)  %3.0  = LdFun              !v    as.vector, e1.3
+  fs              %3.1  = FrameState         R     0x55cca92e42f0+218: [%3.0], env=e1.3
+  void                    Deopt              !v    %3.1, DeadCall@0x55cca92b22d0[Call#2], %3.0   !
+
+│ matrix[0x55ccaa4d1ce0]                                                       │
+└──────────────────────────────────────────────────────────────────────────────┘

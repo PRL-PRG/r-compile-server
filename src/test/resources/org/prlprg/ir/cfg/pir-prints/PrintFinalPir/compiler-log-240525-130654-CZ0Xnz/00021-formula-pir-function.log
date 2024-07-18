@@ -1,0 +1,23 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ formula[0x5612a01dcb80]                                                      │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;Eager0,Eager1,NonRefl0,NonRefl1,!Obj1│
+│ Properties:                                                                  │
+├────── Final PIR Version
+formula[0x5612a01dcb80]
+BB0
+  dots+           %0.0  = LdArg                    1
+  val?~           %0.1  = LdArg                    0
+  env             e0.2  = (MkEnv)            l     x=%0.1, ...=%0.0, parent=<env 0x56129e96cb50>, context 1
+  (cls|spec|blt)  %0.3  = LdFun              !     UseMethod, <0x56129e336520>, <env 0x56129e96cb50>
+  val?            %0.4  = Call               !L    %0.3("formula") e0.2   <val?_>
+  lgl$#-          %0.5  = IsEnvStub          R     , e0.2
+  void                    Branch                   %0.5 -> BB4 (if true) | BB5 (if false)
+BB4   <- [0]
+  void                    Return             l     %0.4
+BB5   <- [0]
+  fs              %5.0  = FrameState         R     0x5612a0363700+32: [%0.4], env=e0.2
+  void                    Deopt              !v    %5.0, EnvStubMaterialized@0x56129f79bad8[Call#unknown], e0.2   !
+
+│ formula[0x5612a01dcb80]                                                      │
+└──────────────────────────────────────────────────────────────────────────────┘

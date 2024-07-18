@@ -1,0 +1,17 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ match[0x559d92f7a250]                                                        │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;NonRefl0,NonRefl1,!Obj0,!Obj1 miss: 2│
+│ Properties:  Eager, !Reflection, ForceOrd: 0 1                               │
+├────── Final PIR Version
+match[0x559d92f7a250]
+BB0
+  val?^           %0.0  = LdArg                    1
+  val?^           %0.1  = LdArg                    0
+  val+            %0.2  = Force!<lazy>       !vr   %0.1,    <val?->
+  val+            %0.3  = Force!<lazy>       !vr   %0.0,    <val?+>
+  val+            %0.4  = CallSafeBuiltin    vwed  match(%0.2, %0.3, NA, nil) 
+  void                    Return             l     %0.4
+
+│ match[0x559d92f7a250]                                                        │
+└──────────────────────────────────────────────────────────────────────────────┘

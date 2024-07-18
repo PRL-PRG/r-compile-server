@@ -1,0 +1,19 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ match[0x560a3600c660]                                                        │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;Eager2,NonRefl0,NonRefl1,NonRefl2,!Obj0,!Obj1,!Obj2,SimpleInt2 miss: 1│
+│ Properties:  Eager, !Reflection, ForceOrd: 0 1 2                             │
+├────── Final PIR Version
+match[0x560a3600c660]
+BB0
+  (int|miss)$~-   %0.0  = LdArg                    2
+  val?^           %0.1  = LdArg                    1
+  val?^           %0.2  = LdArg                    0
+  val+            %0.3  = Force!<lazy>       !vr   %0.2,    <val?+>
+  val+            %0.4  = Force!<lazy>       !vr   %0.1,    <val?+>
+  int$-           %0.5  = Force!<lazy>             %0.0,    <int$->
+  val+            %0.6  = CallSafeBuiltin    vwed  match(%0.3, %0.4, %0.5, nil) 
+  void                    Return             l     %0.6
+
+│ match[0x560a3600c660]                                                        │
+└──────────────────────────────────────────────────────────────────────────────┘

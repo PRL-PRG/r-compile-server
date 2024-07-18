@@ -19,7 +19,7 @@ class GNURByteCodeDecoderFactory {
 
     cpb = new ConstPool.Builder(consts);
     cbb = new BcCode.Builder();
-    labelMapping = LabelMapping.from(byteCode);
+    labelMapping = LabelMapping.fromGNUR(byteCode);
 
     curr = 1;
   }
@@ -48,7 +48,7 @@ class GNURByteCodeDecoderFactory {
 
         // FIXME: too many exceptions
         try {
-          var sanityCheckJFromI = labelMapping.make(curr).getTarget();
+          var sanityCheckJFromI = labelMapping.make(curr).target();
           if (sanityCheckJFromI != sanityCheckJ) {
             throw new AssertionError(
                 "expected target offset " + sanityCheckJ + ", got " + sanityCheckJFromI);
@@ -213,9 +213,9 @@ class GNURByteCodeDecoderFactory {
         case DUP2ND -> new BcInstr.Dup2nd();
         case SWITCH -> {
           var ast = cpb.indexLang(byteCode.get(curr++));
-          var names = cpb.indexStrOrNil(byteCode.get(curr++));
-          var chrLabelsIdx = cpb.indexIntOrNil(byteCode.get(curr++));
-          var numlabelsIdx = cpb.indexIntOrNil(byteCode.get(curr++));
+          var names = cpb.indexStrOrNilIfNegative(byteCode.get(curr++));
+          var chrLabelsIdx = cpb.indexIntOrNilIfNegative(byteCode.get(curr++));
+          var numLabelsIdx = cpb.indexIntOrNilIfNegative(byteCode.get(curr++));
 
           // in the case switch does not have any named labels this will be null,
           if (chrLabelsIdx != null) {
@@ -226,11 +226,11 @@ class GNURByteCodeDecoderFactory {
           // case of empty switch?
           // in some cases, the number labels can be the same as the chrLabels
           // and we do not want to remap twice
-          if (numlabelsIdx != null && !numlabelsIdx.equals(chrLabelsIdx)) {
-            cpb.reset(numlabelsIdx, this::remapLabels);
+          if (numLabelsIdx != null && !numLabelsIdx.equals(chrLabelsIdx)) {
+            cpb.reset(numLabelsIdx, this::remapLabels);
           }
 
-          yield new BcInstr.Switch(ast, names, chrLabelsIdx, numlabelsIdx);
+          yield new BcInstr.Switch(ast, names, chrLabelsIdx, numLabelsIdx);
         }
         case RETURNJMP -> new BcInstr.ReturnJmp();
         case STARTSUBSET_N ->
@@ -293,99 +293,5 @@ class GNURByteCodeDecoderFactory {
   private IntSXP remapLabels(IntSXP oldLabels) {
     var remapped = oldLabels.data().stream().map(labelMapping::getTarget).toArray();
     return SEXPs.integer(remapped);
-  }
-}
-
-/**
- * Create labels from GNU-R labels.
- *
- * @implNote This contains a map of positions in GNU-R bytecode to positions in our bytecode. We
- *     need this because every index in our bytecode maps to an instruction, while indexes in
- *     GNU-R's bytecode also map to the bytecode version and instruction metadata.
- */
-class LabelMapping {
-  private final ImmutableIntArray posMap;
-
-  private LabelMapping(ImmutableIntArray posMap) {
-    this.posMap = posMap;
-  }
-
-  /** Create a label from a GNU-R label. */
-  BcLabel make(int gnurLabel) {
-    return new BcLabel(getTarget(gnurLabel));
-  }
-
-  int getTarget(int gnurLabel) {
-    if (gnurLabel == 0) {
-      throw new IllegalArgumentException("GNU-R label 0 is reserved for the version number");
-    }
-
-    var target = posMap.get(gnurLabel);
-    if (target == -1) {
-      var gnurEarlier = gnurLabel - 1;
-      int earlier = posMap.get(gnurEarlier);
-      var gnurLater = gnurLabel + 1;
-      int later = posMap.get(gnurLater);
-      throw new IllegalArgumentException(
-          "GNU-R position maps to the middle of one of our instructions: "
-              + gnurLabel
-              + " between "
-              + earlier
-              + " and "
-              + later);
-    }
-
-    return target;
-  }
-
-  static LabelMapping from(ImmutableIntArray gnurBC) {
-    var builder = new Builder();
-    // skip the BC version number
-    int i = 1;
-    while (i < gnurBC.length()) {
-      try {
-        var op = BcOp.valueOf(gnurBC.get(i));
-        var size = 1 + op.nArgs();
-        builder.step(size, 1);
-        i += size;
-      } catch (IllegalArgumentException e) {
-        throw new IllegalArgumentException(
-            "malformed bytecode at " + i + "\nBytecode up to this point: " + builder.build(), e);
-      }
-    }
-    return builder.build();
-  }
-
-  // FIXME: inline
-  static class Builder {
-    private final ImmutableIntArray.Builder map = ImmutableIntArray.builder();
-    private int targetPc = 0;
-
-    Builder() {
-      // Add initial mapping of 1 -> 0 (version # is 0)
-      map.add(-1);
-      map.add(0);
-    }
-
-    /** Step <i>m</i> times in the source bytecode and <i>n</i> times in the target bytecode */
-    void step(int sourceOffset, @SuppressWarnings("SameParameterValue") int targetOffset) {
-      if (sourceOffset < 0 || targetOffset < 0) {
-        throw new IllegalArgumentException("offsets must be nonnegative");
-      }
-
-      targetPc += targetOffset;
-      // Offsets before sourceOffset map to the middle of the previous instruction
-      for (int i = 0; i < sourceOffset - 1; i++) {
-        map.add(-1);
-      }
-      // Add target position
-      if (sourceOffset > 0) {
-        map.add(targetPc);
-      }
-    }
-
-    LabelMapping build() {
-      return new LabelMapping(map.build());
-    }
   }
 }

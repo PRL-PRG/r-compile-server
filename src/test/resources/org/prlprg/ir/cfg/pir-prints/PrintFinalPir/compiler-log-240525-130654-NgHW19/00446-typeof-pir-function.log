@@ -1,0 +1,22 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ typeof[0x56096d4fabe0]                                                       │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch                                      │
+│ Properties:  Eager, ForceOrd: 0                                              │
+├────── Final PIR Version
+typeof[0x56096d4fabe0]
+BB0
+  val?^           %0.0  = LdArg                    0
+  env             e0.1  = (MkEnv)            l     x=%0.0, parent=R_BaseNamespace, context 1
+  val?            %0.2  = Force!<lazy>       !vL   %0.0, e0.1   <val?>
+  lgl$#-          %0.3  = IsEnvStub          R     , e0.1
+  void                    Branch                   %0.3 -> BB4 (if true) | BB5 (if false)
+BB4   <- [0]
+  str$-           %4.0  = CallSafeBuiltin    vwed  typeof(%0.2) 
+  void                    Return             l     %4.0
+BB5   <- [0]
+  fs              %5.0  = FrameState         R     0x56096c0a79f0+9: [%0.2], env=e0.1
+  void                    Deopt              !v    %5.0, EnvStubMaterialized@0x56096b327af8[Call#unknown], e0.1   !
+
+│ typeof[0x56096d4fabe0]                                                       │
+└──────────────────────────────────────────────────────────────────────────────┘

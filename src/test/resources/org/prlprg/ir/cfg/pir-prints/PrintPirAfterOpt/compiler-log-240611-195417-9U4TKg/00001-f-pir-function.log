@@ -1,0 +1,58 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ f[0x562750436c10]                                                            │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;Eager0,NonRefl0,!Obj0,SimpleReal0    │
+│ Properties:  Eager, ForceOrd: 0                                              │
+├────── PIR Version After Optimizations
+f[0x562750436c10]
+BB0
+  goto BB1
+BB1   <- [0]
+  real$~-         %1.0  = LdArg                    0
+  real$-          %1.1  = Force<value>             %1.0,    <real$->
+  lgl$#-          %1.2  = ColonInputEffects        1, %1.1   <true>
+  lgl$#-          %1.3  = ColonInputEffects        1, %1.1   <true>
+  cp              %1.4  = Checkpoint                -> BB2 (default) | BB9 (if assume failed)
+BB2   <- [1]
+  void                    Assume             D     %1.2, %1.4 (DeadBranchReached@0x56274f9a59f8[Test#0])
+  int$#-          %2.1  = ColonCastRhs       e     1L, %1.1   <int$->
+  lgl$#-          %2.2  = Lte                d     1L, %2.1, elided   <true>
+  void                    Assume             D     %2.2, %1.4 (DeadBranchReached@0x56274f9a59f8[Test#9])
+  goto BB3
+BB9   <- [1]
+  env             e9.0  = (MkEnv)            l     k=unboundValue, j=unboundValue, i=unboundValue, x=%1.0, parent=R_GlobalEnv, context 1
+  fs              %9.1  = FrameState         R     0x56274ed71670+16: [1, %1.1], env=e9.0
+  void                    Deopt              !v    %9.1
+BB3   <- [2, 7]
+  int$#-          %3.0  = Phi                      1L:BB2, %5.0:BB7
+  lgl$#-          %3.1  = Neq                d     %2.1, %3.0, elided
+  void                    Branch                   %3.1 -> BB5 (if true) | BB4 (if false)
+BB5   <- [3]
+  int$#-          %5.0  = Add                d     %3.0, 1L, elided
+  void                    Assume             D     %1.3, %1.4 (DeadBranchReached@0x56274f9a59f8[Test#10])
+  int$#-          %5.2  = ColonCastRhs       e     1L, %1.1   <int$->
+  lgl$#-          %5.3  = Lte                d     1L, %5.2, elided   <true>
+  void                    Assume             D     %5.3, %1.4 (DeadBranchReached@0x56274f9a59f8[Test#14])
+  goto BB6
+BB4   <- [3]
+  void                    Invisible          v     
+  void                    Return             l     nil
+BB6   <- [5, 8]
+  int$#-          %6.0  = Phi                      1L:BB5, %8.0:BB8
+  lgl$#-          %6.1  = Neq                d     %5.2, %6.0, elided
+  void                    Branch                   %6.1 -> BB8 (if true) | BB7 (if false)
+BB8   <- [6]
+  int$#-          %8.0  = Add                d     %6.0, 1L, elided
+  lgl$#-          %8.1  = ColonInputEffects        1, %1.1   <true>
+  void                    Assume             D     %8.1, %1.4 (DeadBranchReached@0x56274f9a59f8[Test#15])
+  int$#-          %8.3  = ColonCastRhs       e     1L, %1.1   <int$->
+  lgl$#-          %8.4  = Lte                d     1L, %8.3, elided   <true>
+  void                    Assume             D     %8.4, %1.4 (DeadBranchReached@0x56274f9a59f8[Test#16])
+  lgl$#-          %8.6  = Neq                d     %8.3, 1L, elided   <true>
+  void                    Assume             D     %8.6, %1.4 (DeadBranchReached@0x56274f9a59f8[Test#17])
+  goto BB6
+BB7   <- [6]
+  goto BB3
+
+│ f[0x562750436c10]                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘
