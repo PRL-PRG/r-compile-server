@@ -891,7 +891,7 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
   record MutateInstrOrPhiId(NodeId<? extends InstrOrPhi> oldId, NodeId<? extends InstrOrPhi> newId)
       implements MutateInstrOrPhi<MutateInstrOrPhiId> {
     public MutateInstrOrPhiId {
-      if (oldId.clazz() != newId.clazz()) {
+      if (oldId.type() != newId.type()) {
         throw new IllegalArgumentException(
             "`MutateInstrOrPhiId` must preserve the node ID's class: the node's class doesn't change, so the ID class shouldn't either");
       }

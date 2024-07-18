@@ -25,7 +25,7 @@ import org.prlprg.util.SmallBinarySet;
  * <p>φ nodes can temporarily have only 0 or 1 input. However, before {@link CFG#verify()}, nodes
  * with one input must be replaced with the input itself, and nodes with 0 inputs must be removed.
  */
-public non-sealed interface Phi<N extends Node> extends InstrOrPhi {
+public non-sealed interface Phi<T> extends InstrOrPhi, LocalNode<T> {
   /**
    * Returns the most specific class with a {@link Phi} implementation where both input nodes are
    * subclasses.

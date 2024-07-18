@@ -38,7 +38,7 @@ public final class AbstractEnv implements AbstractNode<AbstractEnv> {
    */
   public static final AbstractEnv UNKNOWN =
       new AbstractEnv(
-          Collections.emptyMap(), Collections.emptySet(), StaticEnv.NOT_CLOSED, false, true);
+          Collections.emptyMap(), Collections.emptySet(), StaticEnv.UNKNOWN, false, true);
 
   private Map<RegSymSXP, AbstractISexp> entries;
   private Set<ISexp> reachableEnvs;
@@ -78,7 +78,7 @@ public final class AbstractEnv implements AbstractNode<AbstractEnv> {
   }
 
   public @IsEnv ISexp parentEnv() {
-    return parentEnv == null ? StaticEnv.NOT_CLOSED : parentEnv;
+    return parentEnv == null ? StaticEnv.UNKNOWN : parentEnv;
   }
 
   public boolean isLeaked() {
@@ -148,7 +148,7 @@ public final class AbstractEnv implements AbstractNode<AbstractEnv> {
   public void taint() {
     entries = Collections.emptyMap();
     reachableEnvs = Collections.emptySet();
-    parentEnv = StaticEnv.NOT_CLOSED;
+    parentEnv = StaticEnv.UNKNOWN;
     isLeaked = false;
     isUnknown = true;
   }
@@ -204,9 +204,9 @@ public final class AbstractEnv implements AbstractNode<AbstractEnv> {
       parentEnv = other.parentEnv;
       res = res.union(AbstractResult.UPDATED);
     } else if (parentEnv != null
-        && parentEnv != StaticEnv.NOT_CLOSED
+        && parentEnv != StaticEnv.UNKNOWN
         && other.parentEnv != parentEnv) {
-      parentEnv = StaticEnv.NOT_CLOSED;
+      parentEnv = StaticEnv.UNKNOWN;
       res = res.union(AbstractResult.LOST_PRECISION);
     }
 

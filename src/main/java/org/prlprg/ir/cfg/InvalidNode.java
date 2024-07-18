@@ -3,12 +3,10 @@ package org.prlprg.ir.cfg;
 import java.lang.ref.Cleaner;
 import java.util.Objects;
 import java.util.WeakHashMap;
-import javax.annotation.Nullable;
-import org.prlprg.ir.type.RType;
 import org.prlprg.primitive.Names;
 
 /** Node representing missing, invalid, or placeholder data. */
-public class InvalidNode implements DeoptReason, ISexp, FrameState, GlobalNode {
+public class InvalidNode implements GlobalNode<Void> {
   private static class Globals {
     private final NodeOrBBIdDisambiguatorMap DISAMBIGUATORS = new NodeOrBBIdDisambiguatorMap();
     private final WeakHashMap<String, InvalidNode> EXISTING = new WeakHashMap<>();
@@ -34,20 +32,29 @@ public class InvalidNode implements DeoptReason, ISexp, FrameState, GlobalNode {
     return create("todoGlobal");
   }
 
-  private final GlobalNodeId<InvalidNode> id;
+  private final GlobalNodeId<Void> id;
   private final String toString;
 
   /**
    * Returns itself, casted.
    *
-   * <p>This cast is usually valid because {@code InvalidNode} is the superclass of all node types
-   * except {@code ...Impl}s. <i>This method can't be called to cast to an {@code ...Impl} or it
-   * will fail.</i> This method is defined because this cast is so frequent, but kept package-
-   * private because it's not safe.
+   * <p>Semantically, this is legal, because an invalid node represents BOTTOM, which is the subtype
+   * of any type. Java's type system can't encode BOTTOM. However, Java's type system also permits
+   * this due to erasure, and we special-case it in code like {@link Node#cast(Class)}.
    */
   @SuppressWarnings("unchecked")
-  <N extends Node> N uncheckedCast() {
-    return (N) this;
+  public <T> GlobalNode<T> cast() {
+    return (GlobalNode<T>) this;
+  }
+
+  /**
+   * Returns the identifier casted to any other type.
+   *
+   * <p>Semantically, this is legal, because an invalid node represents BOTTOM, which is the subtype
+   * of any type. See {@link #cast()}.
+   */
+  public <T> GlobalNodeId<T> castId() {
+    return this.<T>cast().id();
   }
 
   /**
@@ -103,27 +110,12 @@ public class InvalidNode implements DeoptReason, ISexp, FrameState, GlobalNode {
   }
 
   @Override
-  public RType type() {
-    return RType.NOTHING;
+  public Class<Void> type() {
+    return Void.class;
   }
 
   @Override
-  public @Nullable @IsEnv ISexp frameStateEnv() {
-    return null;
-  }
-
-  @Override
-  public @Nullable FrameState inlinedNext() {
-    return null;
-  }
-
-  @Override
-  public @Nullable InstrOrPhi origin() {
-    return null;
-  }
-
-  @Override
-  public GlobalNodeId<InvalidNode> id() {
+  public GlobalNodeId<Void> id() {
     return id;
   }
 

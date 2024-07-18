@@ -8,14 +8,14 @@ import org.prlprg.parseprint.Printer;
 
 /**
  * An {@link AbstractISexp} produced from an "abstract load" operation, and the environment (either
- * concrete or {@linkplain StaticEnv#NOT_CLOSED not closed}) it was loaded from.
+ * concrete or {@linkplain StaticEnv#UNKNOWN not closed}) it was loaded from.
  */
 public final class AbstractLoad {
   private final @IsEnv ISexp env;
   private final AbstractISexp result;
 
   public AbstractLoad(AbstractISexp value) {
-    env = StaticEnv.NOT_CLOSED;
+    env = StaticEnv.UNKNOWN;
     result = value;
   }
 

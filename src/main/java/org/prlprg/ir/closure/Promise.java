@@ -264,7 +264,7 @@ public final class Promise extends CodeObject {
    * to code outside the package.
    */
   static Pair<Promise, Promise.LateConstruct> lateConstruct(String name) {
-    var promise = new Promise(name, Bc.empty(), new CFG(), StaticEnv.NOT_CLOSED, Properties.EMPTY);
+    var promise = new Promise(name, Bc.empty(), new CFG(), StaticEnv.UNKNOWN, Properties.EMPTY);
     return Pair.of(promise, promise.new LateConstruct());
   }
 
@@ -291,7 +291,7 @@ public final class Promise extends CodeObject {
     var s = p.scanner();
 
     properties = s.trySkip("has") ? p.parse(Properties.class) : Properties.EMPTY;
-    env = s.trySkip("env") ? p.parse(ISexp.class) : StaticEnv.NOT_CLOSED;
+    env = s.trySkip("env") ? p.parse(ISexp.class) : StaticEnv.UNKNOWN;
     bc = s.trySkip("body") ? p.parse(BCodeSXP.class).bc() : Bc.empty();
 
     s.assertAndSkip("{");

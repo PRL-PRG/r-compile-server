@@ -24,11 +24,11 @@ import org.prlprg.sexp.SEXPs;
  */
 public class ClosureCompiler {
   /**
-   * {@link #compileBaselineClosure(String, CloSXP, ISexp)} with an {@linkplain StaticEnv#NOT_CLOSED
+   * {@link #compileBaselineClosure(String, CloSXP, ISexp)} with an {@linkplain StaticEnv#UNKNOWN
    * unclosed} environment (not an inner closure).
    */
   public static Closure compileBaselineClosure(String name, CloSXP sexp) {
-    return compileBaselineClosure(name, sexp, StaticEnv.NOT_CLOSED);
+    return compileBaselineClosure(name, sexp, StaticEnv.UNKNOWN);
   }
 
   /**
@@ -37,7 +37,7 @@ public class ClosureCompiler {
    *
    * @param name A name for debugging. Typically the variable it was assigned to if known. "" is
    *     acceptable.
-   * @param env The closure's environment. This is {@linkplain StaticEnv#NOT_CLOSED unclosed} unless
+   * @param env The closure's environment. This is {@linkplain StaticEnv#UNKNOWN unclosed} unless
    *     it's an inner closure (from {@link org.prlprg.ir.cfg.StmtData.MkCls MkCls}), in which case
    *     it's the outer closure's environment.
    * @throws IllegalArgumentException If the closure's body isn't bytecode (in this case, you must
@@ -52,10 +52,10 @@ public class ClosureCompiler {
 
   /**
    * {@link #compileBaselineClosure(String, CloSXP, ISexp, Module)} with an {@linkplain
-   * StaticEnv#NOT_CLOSED unclosed} environment (not an inner closure).
+   * StaticEnv#UNKNOWN unclosed} environment (not an inner closure).
    */
   public static Closure compileBaselineClosure(String name, CloSXP sexp, Module module) {
-    return compileBaselineClosure(name, sexp, StaticEnv.NOT_CLOSED, module);
+    return compileBaselineClosure(name, sexp, StaticEnv.UNKNOWN, module);
   }
 
   /**
@@ -69,7 +69,7 @@ public class ClosureCompiler {
    *
    * @param name A name for debugging. Typically the variable it was assigned to if known. "" is
    *     acceptable.
-   * @param env The closure's environment. This is {@linkplain StaticEnv#NOT_CLOSED unclosed} unless
+   * @param env The closure's environment. This is {@linkplain StaticEnv#UNKNOWN unclosed} unless
    *     it's an inner closure (from {@link org.prlprg.ir.cfg.StmtData.MkCls MkCls}), in which case
    *     it's the outer closure's environment.
    * @throws IllegalArgumentException If the closure's body isn't bytecode (in this case, you must

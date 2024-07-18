@@ -1,41 +1,33 @@
 package org.prlprg.ir.cfg;
 
-import java.util.List;
-import java.util.SequencedCollection;
-import org.jetbrains.annotations.UnmodifiableView;
+public final class Param<T> implements LocalNode<T> {
+  private final CFG cfg;
+  private final Class<T> type;
+  private final LocalNodeId<T> id;
 
-public sealed interface Param extends InstrOrPhi {}
-
-abstract sealed class ParamImpl extends InstrOrPhiImpl implements Param permits ISexpParam {
-  protected ParamImpl(CFG cfg, NodeId<? extends InstrOrPhi> id) {
-    super(cfg, id);
+  Param(CFG cfg, Class<T> type, LocalNodeId<T> id) {
+    this.cfg = cfg;
+    this.type = type;
+    this.id = id;
   }
 
   @Override
-  public @UnmodifiableView SequencedCollection<Node> args() {
-    return List.of();
+  public CFG cfg() {
+    return cfg;
   }
 
   @Override
-  public @UnmodifiableView List<Node> returns() {
-    return List.of(this);
+  public Class<T> type() {
+    return type;
   }
 
   @Override
-  public boolean isPure() {
-    return true;
+  public LocalNodeId<T> id() {
+    return id;
   }
 
   @Override
-  public void replaceInArgs(Node old, Node replacement) {}
-
-  @Override
-  public Param origin() {
-    return this;
-  }
-
-  @Override
-  public NodeId<? extends Param> id() {
-    return uncheckedCastId();
+  public String toString() {
+    return id.toString();
   }
 }

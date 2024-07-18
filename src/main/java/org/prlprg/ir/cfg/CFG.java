@@ -128,8 +128,8 @@ public class CFG
       throw new NoSuchElementException("node not global and not in CFG");
     }
     var node = (N) nodes.get(nodeId);
-    assert nodeId.clazz() == null || nodeId.clazz().isInstance(node)
-        : "node with id has wrong class: " + nodeId.clazz() + " -> " + node;
+    assert nodeId.type() == null || nodeId.type().isInstance(node)
+        : "node with id has wrong class: " + nodeId.type() + " -> " + node;
     return node;
   }
 
@@ -625,7 +625,7 @@ public class CFG
     assert node.cfg() == this : "node to track is global or belongs to a different CFG: " + node;
 
     var id = node.id();
-    assert id.clazz() == null || id.clazz().isInstance(node);
+    assert id.type() == null || id.type().isInstance(node);
     var old = nodes.put(id, node);
     assert old == null : "node with id already tracked: " + id + "\nold: " + old + "\nnew: " + node;
   }

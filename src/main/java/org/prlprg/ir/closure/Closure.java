@@ -64,11 +64,11 @@ public final class Closure extends CodeObject {
   private final NavigableMap<CallContext, ClosureVersion> optimizedVersions;
 
   /**
-   * {@link Closure(String, CloSXP, ISexp)} with an {@linkplain StaticEnv#NOT_CLOSED unclosed}
+   * {@link Closure(String, CloSXP, ISexp)} with an {@linkplain StaticEnv#UNKNOWN unclosed}
    * environment (not an inner closure).
    */
   public Closure(String name, CloSXP origin) {
-    this(name, origin, StaticEnv.NOT_CLOSED);
+    this(name, origin, StaticEnv.UNKNOWN);
   }
 
   /**
@@ -80,7 +80,7 @@ public final class Closure extends CodeObject {
    *     acceptable if there's no better name (anonymous closure).
    * @param origin The GNU-R closure. The IR closure keeps this closure's parameters, environment
    *     (although static environment may differ, see {@link #env()}), and behavior.
-   * @param env The closure's environment. This is {@linkplain StaticEnv#NOT_CLOSED unclosed} unless
+   * @param env The closure's environment. This is {@linkplain StaticEnv#UNKNOWN unclosed} unless
    *     it's an inner closure (from {@link org.prlprg.ir.cfg.StmtData.MkCls MkCls}), in which case
    *     it's the outer closure's environment.
    *     <p>{@code origin}'s environment is replaced with {@link SEXPs#EMPTY_ENV} if not already, in
@@ -146,7 +146,7 @@ public final class Closure extends CodeObject {
   /**
    * Closure's environment.
    *
-   * <p>This is {@linkplain StaticEnv#NOT_CLOSED unclosed} unless it's an inner closure (from {@link
+   * <p>This is {@linkplain StaticEnv#UNKNOWN unclosed} unless it's an inner closure (from {@link
    * org.prlprg.ir.cfg.StmtData.MkCls MkCls}), in which case it's the outer closure's environment.
    */
   public @IsEnv ISexp env() {
@@ -398,7 +398,7 @@ public final class Closure extends CodeObject {
     var s = p.scanner();
 
     var parameters = p.withContext(ctx.sexpParseContext().forBindings()).parse(ListSXP.class);
-    env = s.trySkip("env") ? p.parse(ISexp.class) : StaticEnv.NOT_CLOSED;
+    env = s.trySkip("env") ? p.parse(ISexp.class) : StaticEnv.UNKNOWN;
     var attributes = s.trySkip("attrs") ? p.parse(Attributes.class) : Attributes.NONE;
     var bc = s.trySkip("bc") ? p.parse(BCodeSXP.class) : SEXPs.bcode(Bc.empty());
     origin = SEXPs.closure(parameters, bc, SEXPs.EMPTY_ENV, attributes);
@@ -444,7 +444,7 @@ public final class Closure extends CodeObject {
     var w = p.writer();
 
     p.withContext(ctx.sexpPrintContext().forBindings()).print(parameters());
-    if (env != StaticEnv.NOT_CLOSED) {
+    if (env != StaticEnv.UNKNOWN) {
       w.write(" env ");
       w.runIndented(() -> p.print(env));
     }
