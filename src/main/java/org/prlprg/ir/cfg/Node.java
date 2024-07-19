@@ -57,6 +57,11 @@ public sealed interface Node<T> permits LocalNode, GlobalNode {
    */
   Class<T> type();
 
+  /** Whether this node's {@link #type()}} is a subtype of the given type (incl. identical). */
+  default boolean isSubtypeOf(Class<?> otherType) {
+    return otherType.isAssignableFrom(type());
+  }
+
   /**
    * Unique identifier for the node.
    *

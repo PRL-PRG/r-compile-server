@@ -349,7 +349,7 @@ public class CFG
       for (var instrOrPhi : bb) {
         assert instrOrPhi.cfg() == this;
 
-        for (var arg : instrOrPhi.args()) {
+        for (var arg : instrOrPhi.inputNodes()) {
           assert arg.cfg() == null || arg.cfg() == this;
           assert !nodes.containsKey(arg.id()) || nodes.get(arg.id()) == arg;
 
@@ -378,7 +378,7 @@ public class CFG
       // block, or originates from a strictly dominating block.
       prevNodes.addAll(bb.phis());
       for (var instr : bb.instrs()) {
-        for (var arg : instr.args()) {
+        for (var arg : instr.inputNodes()) {
           // `prevNodesInBBs` will contain iff the argument originates from earlier in the current
           // block OR the argument originates from anywhere in a strictly dominating block.
           if (arg.origin() != null
@@ -390,7 +390,7 @@ public class CFG
         }
         // The lines where we add to `prevNodes` (this one and the one above the for loop) ensure
         // the invariant in the above comment.
-        prevNodes.addAll(instr.returns());
+        prevNodes.addAll(instr.outputs());
       }
 
       // Instruction-specific checks ({@link Instr#verify()}). Example: every {@link ISexp}
@@ -560,7 +560,7 @@ public class CFG
     nextInstrOrPhiDisambiguator.add(id.name(), id.disambiguator());
 
     if (instrOrPhi instanceof Instr instr) {
-      for (var aux : instr.returns()) {
+      for (var aux : instr.outputs()) {
         if (aux != instrOrPhi) {
           track(aux);
         }
@@ -594,7 +594,7 @@ public class CFG
     nextInstrOrPhiDisambiguator.remove(id.name(), id.disambiguator());
 
     if (instrOrPhi instanceof Instr instr) {
-      for (var aux : instr.returns()) {
+      for (var aux : instr.outputs()) {
         if (aux != instrOrPhi) {
           untrack(aux);
         }
@@ -657,20 +657,20 @@ public class CFG
    * Return a unique id for an {@linkplain InstrOrPhi instruction or phi} with no name.
    *
    * <p>The returned ID can be assigned to any type of instruction or phi, because its type checked
-   * at runtime is assigned in the {@link InstrOrPhiImpl} constructor.
+   * at runtime is assigned in the {@link LocalNodeIdImpl} constructor.
    */
-  <I extends InstrOrPhi> NodeId<? extends I> uniqueInstrOrPhiId() {
-    return this.<I>uniqueInstrOrPhiId("");
+  <T> NodeId<T> uniqueLocalId() {
+    return this.<T>uniqueLocalId("");
   }
 
   /**
    * Return a unique id for an {@linkplain InstrOrPhi instruction or phi} with the given name.
    *
    * <p>The returned ID can be assigned to any type of instruction or phi, because its type checked
-   * at runtime is assigned in the {@link InstrOrPhiImpl} constructor.
+   * at runtime is assigned in the {@link LocalNodeIdImpl} constructor.
    */
-  <I extends InstrOrPhi> NodeId<? extends I> uniqueInstrOrPhiId(String name) {
-    return new InstrOrPhiIdImpl<>(nextInstrOrPhiDisambiguator.get(name), name);
+  <T> LocalNodeId<T> uniqueLocalId(String name) {
+    return new LocalNodeIdImpl<>(nextInstrOrPhiDisambiguator.get(name), name);
   }
   // region unique ids
   // endregion for BB and node

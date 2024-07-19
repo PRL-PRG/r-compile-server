@@ -16,7 +16,7 @@ import org.prlprg.util.Strings;
  * <p>This stores a back-reference to the {@link GlobalNode} it identifies, for convenience and for
  * parsing and printing; see {@link #node()} for more explanation.
  */
-public interface GlobalNodeId<T> extends NodeId<T> {
+public sealed interface GlobalNodeId<T> extends NodeId<T> {
   /**
    * Gets the node with this ID.
    *

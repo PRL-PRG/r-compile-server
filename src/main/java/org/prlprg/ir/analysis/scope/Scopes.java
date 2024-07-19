@@ -442,7 +442,7 @@ public class Scopes {
         case CallSafeBuiltin _, ChkFun _, CastType _, Force _ -> false;
         default -> true;
       }) {
-        for (var arg : instr.args()) {
+        for (var arg : instr.inputNodes()) {
           // The env arg has special treatment below since it can only be leaked by instructions
           // with the `LeaksEnvArg` effect.
           if (arg == instr.env()) {
@@ -481,7 +481,7 @@ public class Scopes {
           // Already exclude the case where an operation needs an env only for object arguments, but
           // we know that none of the args are objects.
           var envIsNeeded =
-              instr.args().stream()
+              instr.inputNodes().stream()
                   .anyMatch(
                       arg -> {
                         if (!(arg instanceof ISexp varg)) {

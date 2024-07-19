@@ -92,7 +92,7 @@ interface CFGQuery {
    * @throws NoSuchElementException If the node with the given id is not global and is not in the
    *     CFG.
    */
-  <N extends Node> N get(NodeId<N> nodeId);
+  <T> Node<T> get(NodeId<T> nodeId);
 
   // endregion general properties
 

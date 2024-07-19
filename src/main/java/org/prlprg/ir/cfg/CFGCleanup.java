@@ -42,7 +42,7 @@ interface CFGCleanup extends CFGQuery, CFGAnalyses, CFGIntrinsicMutate, CFGCompo
                 i ->
                     i.isPure()
                         && !(i instanceof Jump)
-                        && i.returns().stream().allMatch(defUses::isUnused));
+                        && i.outputs().stream().allMatch(defUses::isUnused));
           }
 
           // Remove basic blocks that are unreachable from the entry block.

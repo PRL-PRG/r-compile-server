@@ -7,20 +7,13 @@ import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.SkipWhitespace;
 
 /** {@link NodeId} of a {@link LocalNode}. */
-public interface LocalNodeId<T> extends NodeId<T> {
-  @ParseMethod
-  private static LocalNodeIdImpl<?> parse(Parser p) {
-    return p.parse(LocalNodeIdImpl.class);
-  }
-}
-
-final class LocalNodeIdImpl<T> implements LocalNodeId<T> {
+public sealed class LocalNodeId<T> implements NodeId<T> {
   private @Nullable Class<T> type;
   private final int disambiguator;
   private final String name;
   private final String toString;
 
-  LocalNodeIdImpl(int disambiguator, String name) {
+  LocalNodeId(int disambiguator, String name) {
     this.disambiguator = disambiguator;
     this.name = name;
     toString =
@@ -57,7 +50,7 @@ final class LocalNodeIdImpl<T> implements LocalNodeId<T> {
   @Override
   public boolean equals(Object o) {
     if (this == o) return true;
-    if (!(o instanceof LocalNodeIdImpl<?> that)) return false;
+    if (!(o instanceof LocalNodeId<?> that)) return false;
     return disambiguator == that.disambiguator && name.equals(that.name);
   }
 
@@ -72,12 +65,12 @@ final class LocalNodeIdImpl<T> implements LocalNodeId<T> {
   }
 
   @ParseMethod(SkipWhitespace.NONE)
-  private static LocalNodeIdImpl<?> parse(Parser p) {
+  private static LocalNodeId<?> parse(Parser p) {
     var s = p.scanner();
 
     s.assertAndSkip('%');
     var disambiguator = s.nextCharSatisfies(Character::isDigit) ? s.readUInt() : 0;
     var name = NodeAndBBIds.readName(s);
-    return new LocalNodeIdImpl<>(disambiguator, name);
+    return new LocalNodeId<>(disambiguator, name);
   }
 }

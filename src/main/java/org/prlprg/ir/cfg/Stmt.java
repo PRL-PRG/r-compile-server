@@ -123,7 +123,7 @@ final class VoidStmtImpl extends StmtImpl<StmtData.Void> {
   }
 
   @Override
-  public ImmutableList<Node> returns() {
+  public ImmutableList<Node> outputs() {
     return ImmutableList.of();
   }
 }
@@ -137,7 +137,7 @@ abstract class SelfReturningStmtImpl<D extends StmtData<?>> extends StmtImpl<D> 
   }
 
   @Override
-  public ImmutableList<Node> returns() {
+  public ImmutableList<Node> outputs() {
     return returns;
   }
 }

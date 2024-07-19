@@ -37,8 +37,8 @@ import org.prlprg.util.UnreachableError;
  */
 public sealed interface Instr extends InstrOrPhi permits Jump, Stmt {
   /**
-   * Mutate the instruction by changing its {@linkplain #data() data} (and thus {@linkplain #args()
-   * arguments}).
+   * Mutate the instruction by changing its {@linkplain #data() data} (and thus {@linkplain
+   * #inputNodes() arguments}).
    *
    * <p>If the data isn't of a compatible type (has the same return types and count), you must use
    * {@link BatchSubst} to instead "substitute" the instruction with an entirely new one ({@link
@@ -93,7 +93,7 @@ public sealed interface Instr extends InstrOrPhi permits Jump, Stmt {
 
   /** (A shallow copy of) the instruction's arguments, which are the other nodes it depends on. */
   @Override
-  ImmutableList<Node> args();
+  ImmutableList<Node> inputNodes();
 
   /**
    * Returns the instruction's environment argument.
@@ -126,7 +126,7 @@ public sealed interface Instr extends InstrOrPhi permits Jump, Stmt {
    */
   @Override
   @UnmodifiableView
-  List<Node> returns();
+  List<Node> outputs();
 
   /** Side-effects performed when this instruction is executed. */
   REffects effects();
@@ -241,7 +241,7 @@ abstract sealed class InstrImpl<D extends InstrData<?>> extends InstrOrPhiImpl i
 
   // region args
   // @Override
-  public final ImmutableList<Node> args() {
+  public final ImmutableList<Node> inputNodes() {
     return args;
   }
 

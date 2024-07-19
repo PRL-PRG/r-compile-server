@@ -10,7 +10,7 @@ package org.prlprg.ir.cfg;
  */
 public non-sealed interface InstrOutput<T> extends LocalNode<T> {
   /**
-   * Downcast {@code LocalNode<A>} to {@code LocalNode<B>} where {@code B &lt;: A}.
+   * Downcast {@code InstrOutput<A>} to {@code InstrOutput<B>} where {@code B &lt;: A}.
    *
    * <p>This is needed due to Java's type erasure: see {@link #type()} for more details.
    *

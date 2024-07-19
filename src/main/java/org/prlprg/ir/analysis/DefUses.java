@@ -39,14 +39,14 @@ public class DefUses {
     // Populate du-chains
     for (var bb : cfg.iter()) {
       for (var instrOrPhi : bb) {
-        for (var ret : instrOrPhi.returns()) {
+        for (var ret : instrOrPhi.outputs()) {
           duChains.put(ret, new DuChain(bb));
         }
       }
     }
     for (var bb : cfg.iter()) {
       for (var instrOrPhi : bb) {
-        for (var arg : instrOrPhi.args()) {
+        for (var arg : instrOrPhi.inputNodes()) {
           if (arg.cfg() != null) {
             assert arg.cfg() == cfg;
 
@@ -98,7 +98,7 @@ public class DefUses {
             "node is global, so it doesn't have a DU-chain or origin block: " + node);
       } else if (node.cfg() != cfg) {
         throw new IllegalArgumentException("node not in CFG: " + node);
-      } else if (node instanceof Instr i && !i.returns().contains(i)) {
+      } else if (node instanceof Instr i && !i.outputs().contains(i)) {
         throw new IllegalStateException(
             "instruction doesn't return itself so this analysis doesn't record it: " + node);
       } else {
