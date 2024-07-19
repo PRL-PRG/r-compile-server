@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.logging.Logger;
 import javax.annotation.Nullable;
+import org.prlprg.RVersion;
 import org.prlprg.bc.Bc;
 import org.prlprg.bc.Compiler;
 import org.prlprg.rds.RDSReader;
@@ -51,42 +52,20 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
     Messages.CompileResponse.Builder response = Messages.CompileResponse.newBuilder();
     // TODO
     if (function.hasBody()) {
-      SEXP closure = null;
       try {
-        closure = RDSReader.readByteString(session, function.getBody());
-      } catch (IOException e) {
-        throw new RuntimeException(e);
-      }
-      if (closure instanceof CloSXP c) {
-        Compiler compiler = new Compiler(c, session);
-        compiler.setOptimizationLevel(optimizationLevel);
-        var res = compiler.compile();
-        if (res.isEmpty()) {
-          responseObserver.onError(
-              Status.INTERNAL
-                  .withDescription("Cannot compile with browser() in the function")
-                  .asRuntimeException());
-        } else {
-          BCodeSXP bc = SEXPs.bcode(res.get());
-          ByteString serializedBc = null;
-          try {
-            serializedBc = RDSWriter.writeByteString(bc);
-          } catch (Exception e) {
-            responseObserver.onError(
-                Status.INTERNAL
-                    .withDescription("Impossible to serialize the bytecode")
-                    .asRuntimeException());
-          }
-          assert serializedBc != null;
-          response.setCode(serializedBc);
-        }
-      } else {
+        ByteString serializedBc =
+            compileClosure(function.getBody(), optimizationLevel, responseObserver);
+        response.setCode(serializedBc);
+      } catch (Exception e) {
         // See
         // https://github.com/grpc/grpc-java/blob/master/examples/src/main/java/io/grpc/examples/errorhandling/DetailErrorSample.java
         // We could have more details using that:
         // https://github.com/grpc/grpc-java/blob/master/examples/src/main/java/io/grpc/examples/errordetails/ErrorDetailsExample.java
         responseObserver.onError(
-            Status.INTERNAL.withDescription("Not a closure").asRuntimeException());
+            Status.INTERNAL
+                .withDescription(
+                    "Cannot compile function " + function.getName() + " ; " + e.getMessage())
+                .asRuntimeException());
       }
     } else {
       var functionHash = function.getHash();
@@ -96,6 +75,8 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
         // TODO:
         // Serialize BcCode and ConstPool and set them in the response
       } else {
+        // Ask the client for the body of the function
+
         // Compile the function
 
         // Add it to the code cache
@@ -128,10 +109,50 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
             + platform);
     logger.info("Received package hashes: " + packages);
 
+    // TODO: Lookup to see if we have this version of R installed or not.
+    session = new GNURSession(convertVersion(RVersion), null);
+
     // Look into our cache if we have the packages.
     // Request the packages for those we do not have hashes for.
 
     responseObserver.onNext(Messages.InitResponse.newBuilder().build());
     responseObserver.onCompleted();
+  }
+
+  private RVersion convertVersion(Messages.Version version) {
+    return new RVersion(version.getMajor(), version.getMinor(), version.getPatch());
+  }
+
+  private ByteString compileClosure(
+      ByteString body,
+      int optimizationLevel,
+      StreamObserver<Messages.CompileResponse> responseObserver) {
+    SEXP closure = null;
+    ByteString serializedBc = null;
+    try {
+      assert session != null;
+      closure = RDSReader.readByteString(session, body);
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+    if (closure instanceof CloSXP c) {
+      Compiler compiler = new Compiler(c, session);
+      compiler.setOptimizationLevel(optimizationLevel);
+      var res = compiler.compile();
+      if (res.isEmpty()) {
+        throw new RuntimeException("Cannot compile a closure with a browser call");
+      } else {
+        BCodeSXP bc = SEXPs.bcode(res.get());
+
+        try {
+          serializedBc = RDSWriter.writeByteString(bc);
+        } catch (Exception e) {
+          throw new RuntimeException("Impossible to serialize the bytecode");
+        }
+      }
+    } else {
+      throw new RuntimeException("Not a closure");
+    }
+    return serializedBc;
   }
 }

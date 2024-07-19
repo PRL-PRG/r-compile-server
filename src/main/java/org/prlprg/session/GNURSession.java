@@ -1,5 +1,6 @@
 package org.prlprg.session;
 
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Path;
@@ -45,7 +46,44 @@ public class GNURSession implements RSession {
     // Or rather do lazy loading like R?
   }
 
-  private void readPackageDatabase(Path path, String packageName) {}
+  private HashMap<String, CloSXP> readPackageDatabase(Path path, String packageName)
+      throws IOException {
+    // .libPaths and installed_packages() in R can help to see
+    // where packages are installed
+    var basePath = path.resolve("R");
+    // Read the index file .rdx
+    // we get a list with 3 elements, variables, references and compressed
+    // See LazyLoading in https://cran.r-project.org/doc/manuals/r-devel/R-ints.html
+    var index = RDSReader.readFile(this, basePath.resolve(packageName + ".rdx").toFile());
+
+    // Load objects .rdb
+    var objectFile = basePath.resolve(packageName + ".rdb").toFile();
+    try (var input = new FileInputStream(objectFile)) {
+
+      if (index instanceof ListSXP l) {
+        var variables = (ListSXP) l.get(0).value();
+        var references = (ListSXP) l.get(1).value();
+        // We ignore compressed. Nowadays, it is always compressed
+
+        var bindings = new HashMap<String, CloSXP>(variables.size());
+
+        int offset = 0;
+        for (int i = 0; i < variables.size(); i++) {
+          var name = variables.get(i).tag();
+          var posInRdb = (IntSXP) variables.get(i).value();
+
+          input.skip(posInRdb.get(0) - offset);
+          offset = posInRdb.get(0);
+          // Read the object from the rdb file at the right positions
+          var obj = RDSReader.readStream(this, input);
+          bindings.put(name, (CloSXP) obj);
+        }
+        return bindings;
+      } else {
+        throw new RuntimeException("Invalid index file");
+      }
+    }
+  }
 
   /**
    * Makes it possible to load a package by providing its functions directly.
@@ -77,6 +115,16 @@ public class GNURSession implements RSession {
           }
         });
     return new NamespaceEnvSXP(name, version, baseNamespace, bindings);
+  }
+
+  /**
+   * Load the base environment and namespace.
+   *
+   * <p>It requires a special treatment as the reader refers to base functions and so we need to
+   * carefully load symbols and then bind them.
+   */
+  public void loadBase(List<Messages.Function> functions) {
+    // TODO
   }
 
   @Override
