@@ -56,7 +56,18 @@ public record BuiltinId(int index) {
     return named(symbol.name());
   }
 
-  /** The id of the builtin function with the given name (in R). */
+  /** Whether there exists a builtin function with the given name (in R). */
+  public static boolean existsNamed(String name) {
+    // TODO: this isn't the actual ID or name
+    return false;
+  }
+
+  /**
+   * The id of the builtin function with the given name (in R).
+   *
+   * @throws IllegalArgumentException If no builtin has the given name ({@link #existsNamed(String)}
+   *     returns {@code false}).
+   */
   public static BuiltinId named(String name) {
     // TODO: this isn't the actual ID or name
     return new BuiltinId(name.equals("environment") ? 1 : 0);

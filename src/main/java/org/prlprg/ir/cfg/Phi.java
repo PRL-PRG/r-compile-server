@@ -44,7 +44,7 @@ public sealed class Phi<T> extends LocalNode<T> implements InstrOrPhi {
    */
   @SuppressWarnings("unchecked")
   @Override
-  public <U extends T> Phi<? extends U> cast(Class<U> clazz) {
+  public <U> Phi<? extends U> cast(Class<U> clazz) {
     return (Phi<U>) super.cast(clazz);
   }
 

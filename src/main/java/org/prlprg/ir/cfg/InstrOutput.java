@@ -17,7 +17,7 @@ public non-sealed interface InstrOutput<T> extends LocalNode<T> {
    * @throws ClassCastException if {@code B &lt;/: A}.
    */
   @SuppressWarnings("unchecked")
-  default <U extends T> InstrOutput<? extends U> cast(Class<U> clazz) {
+  default <U> InstrOutput<? extends U> cast(Class<U> clazz) {
     return (InstrOutput<U>) LocalNode.super.cast(clazz);
   }
 

@@ -6,9 +6,9 @@ import java.util.Optional;
 import javax.annotation.Nullable;
 import org.checkerframework.checker.index.qual.SameLen;
 import org.prlprg.ir.cfg.CallArguments.UnknownOrder;
-import org.prlprg.ir.cfg.CallTarget.DynamicCall;
-import org.prlprg.ir.cfg.CallTarget.StaticBuiltinCall;
-import org.prlprg.ir.cfg.CallTarget.StaticCompiledCall;
+import org.prlprg.ir.cfg.IFun.DynamicCall;
+import org.prlprg.ir.cfg.IFun.StaticBuiltinCall;
+import org.prlprg.ir.cfg.IFun.StaticCompiledCall;
 import org.prlprg.ir.closure.Closure;
 import org.prlprg.ir.closure.ClosureVersion;
 import org.prlprg.ir.closure.ClosureVersion.CallContext;
@@ -94,7 +94,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
      * speculatively guard the statically-known things, but that's outside this instruction, and not
      * necessarily e.g. in {@code (function(…) { … })(…) }).
      */
-    CallTarget fun();
+    IFun fun();
 
     /**
      * Call arguments.
@@ -822,7 +822,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
       implements Call {
 
     @Override
-    public CallTarget fun() {
+    public IFun fun() {
       return new DynamicCall(fun_);
     }
 
@@ -844,7 +844,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
       @Override @Nullable FrameState fs)
       implements Call {
     @Override
-    public CallTarget fun() {
+    public IFun fun() {
       return new DynamicCall(fun_);
     }
 
@@ -869,7 +869,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
     }
 
     @Override
-    public CallTarget fun() {
+    public IFun fun() {
       return new StaticCompiledCall(fun_);
     }
 
@@ -903,7 +903,7 @@ public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
       @Override @Nullable @IsEnv ISexp env)
       implements Call {
     @Override
-    public CallTarget fun() {
+    public IFun fun() {
       return new StaticBuiltinCall(fun_);
     }
 

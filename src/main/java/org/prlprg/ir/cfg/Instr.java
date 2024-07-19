@@ -3,8 +3,10 @@ package org.prlprg.ir.cfg;
 import com.google.common.collect.ImmutableList;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.RecordComponent;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
@@ -35,138 +37,202 @@ import org.prlprg.util.UnreachableError;
  * StmtData)}, which take {@link InstrData} as an argument and construct the {@link Instr}
  * themselves.
  */
-public sealed interface Instr extends InstrOrPhi permits Jump, Stmt {
-  /**
-   * Mutate the instruction by changing its {@linkplain #data() data} (and thus {@linkplain
-   * #inputNodes() arguments}).
-   *
-   * <p>If the data isn't of a compatible type (has the same return types and count), you must use
-   * {@link BatchSubst} to instead "substitute" the instruction with an entirely new one ({@link
-   * BB#replace(int, String, StmtData)} <i>does not</i> have the same behavior, because it won't
-   * change the instruction in the arguments of any other instructions).
-   *
-   * <p>Note that {@link BatchSubst}'s time complexity is O(&lt;# instructions in CFG&gt;), while
-   * this methods's is O(1), so this method is preferred when possible. However, if you already need
-   * to run a {@link BatchSubst}, adding to it doesn't noticeably increase its running time.
-   *
-   * <p>This can't be an instance method because the type parameter of {@link InstrData} is
-   * invariant and restricts type of {@code instr}. Since Java's generics aren't very good you may
-   * still need to cast the {@code args}, fortunately the compatibility is also checked at runtime.
-   */
-  static <I extends Instr> void mutateArgs(I instr, InstrData<I> newArgs) {
-    if (!InstrImpl.cast(instr).canReplaceDataWith(newArgs)) {
-      throw new IllegalArgumentException(
-          "incompatible data for replacement: " + instr + " -> " + newArgs);
-    }
+public sealed class Instr implements InstrOrPhi permits Jump, Stmt {
+  private final CFG cfg;
 
-    var wasEmpty = false;
-    if (instr instanceof Jump j) {
-      for (var succ : j.targets()) {
-        succ.unsafeRemovePredecessor(JumpImpl.cast(j).bb());
-      }
-      wasEmpty = j.targets().isEmpty();
-    }
+  private InstrData data;
 
-    @SuppressWarnings("unchecked")
-    var oldArgs = (InstrData<I>) instr.data();
-    InstrImpl.cast(instr).unsafeReplaceArgs(newArgs);
+  private IFun fun;
+  private final Object[] inputs;
+  private final REffects effects;
+  private final Node<?>[] outputs;
 
-    if (instr instanceof Jump j) {
-      var bb = JumpImpl.cast(j).bb();
+  private final List<Node<?>> cachedInputNodes = new ArrayList<>();
 
-      for (var succ : j.targets()) {
-        succ.unsafeAddPredecessor(bb);
-      }
+  Instr(CFG cfg, InstrData data) {
+    this.cfg = cfg;
+    this.data = data;
 
-      var isEmpty = j.targets().isEmpty();
-      if (!wasEmpty && isEmpty) {
-        instr.cfg().markExit(bb);
-      } else if (wasEmpty && !isEmpty) {
-        instr.cfg().unmarkExit(bb);
-      }
-    }
+    fun = data.resolveFun();
+    inputs = data.resolveInputs();
+    effects = data.resolveEffects();
+    outputs = data.resolveOutputs();
 
-    instr
-        .cfg()
-        .record(new MutateInstrArgs<>(instr, newArgs), new MutateInstrArgs<>(instr, oldArgs));
-  }
-
-  /** (A shallow copy of) the instruction's arguments, which are the other nodes it depends on. */
-  @Override
-  ImmutableList<Node> inputNodes();
-
-  /**
-   * Returns the instruction's environment argument.
-   *
-   * <p>Returns {@code null} if it can't have one or was elided.
-   */
-  @Nullable @IsEnv
-  ISexp env();
-
-  /**
-   * Returns the instruction's frame-state argument, or {@code null} if it cannot have one or it's
-   * elided.
-   */
-  @Nullable FrameState frameState();
-
-  /**
-   * Whether the instruction has an environment which isn't elided.
-   *
-   * <p>i.e. whether {@link #env() env()}{@code !=null}.
-   */
-  default boolean hasEnv() {
-    return env() != null;
+    updateCached();
   }
 
   /**
-   * (A view of) the instruction's return values, which other nodes may depend on. If the
-   * instruction produces a single value (may or may not be {@link ISexp}), this will be itself. An
-   * instruction may return multiple values, in which case this contains multiple nodes. "Void"
-   * instructions return nothing.
+   * The instruction's "type"-sans-overloads, in the way it's parsed/printed and lowered.
+   *
+   * <p>This isn't the same as the type of "data", because the same type (e.g. {@code `+`} may have
+   * many overloads, each with different arguments.
    */
-  @Override
-  @UnmodifiableView
-  List<Node> outputs();
-
-  /** Side-effects performed when this instruction is executed. */
-  REffects effects();
-
-  /** Whether the instruction produces no side-effects. */
-  default boolean isPure() {
-    return effects().isEmpty();
+  public IFun fun() {
+    return fun;
   }
 
   /**
-   * The instruction's data, which determines what type of instruction it is and contains specificly
-   * typed children. This is useful for pattern-matching:
+   * (A view of) the instruction's inputs.
    *
-   * <pre>
-   *   switch (i.data()) {
-   *     case Jumps.Goto(var next) -> ...
-   *     case Jumps.Branch(var cond, var ifTrue, var ifFalse) -> ...
-   *     ...
-   *   }
-   * </pre>
-   *
-   * <p>The erased type in {@link InstrData} isn't guaranteed to be equal to this object's class,
-   * it's merely guaranteed to be a superclass. Specifically, it's guaranteed to be the same class
-   * as any {@link InstrData} which can be replaced in this instruction via {@link
-   * Instr#mutateArgs(Instr, InstrData)} (without throwing a runtime exception).
+   * <p>This includes nodes, as well as data like the load or store symbol.
    */
-  // Overridden via an class that doesn't implement `Instr` so it doesn't mess up `Instr`'s sealed
-  // interface hierarchy. So IntelliJ can't detect that `EmptyMethod` doesn't apply.
-  @SuppressWarnings("EmptyMethod")
-  InstrData<?> data();
+  public @UnmodifiableView List<Object> inputs() {
+    return List.of(inputs);
+  }
 
   /**
-   * Check that arguments are of the correct dynamic type ({@link RType}) and set cached data.
+   * (A shallow copy of) the nodes in the instruction's {@link #inputs()}.
    *
-   * @throws InstrVerifyException If there are issues with the instruction.
+   * <p>If an input is an array of nodes, this includes all nodes in that array.
    */
-  void verify() throws InstrVerifyException;
+  @Override
+  public @UnmodifiableView List<Node<?>> inputNodes() {
+    return Collections.unmodifiableList(cachedInputNodes);
+  }
+
+  /**
+   * Side-effects performed when this instruction is executed.
+   *
+   * <p>Effects also include references to inputs and outputs. For instance, the "load" effect
+   * references the name of the variable to load, as well as the environment it's loaded from.
+   */
+  public REffects effects() {
+    return effects;
+  }
+
+  /**
+   * (A view of) the instruction's outputs.
+   *
+   * <p>Outputs may be inputs to other instructions. Some instructions, like {@code st} (store)
+   * don't produce any outputs. Most, like {@code ld} (load) and {@code `+`}, produce a single
+   * output. A few may produce multiple outputs.
+   *
+   * <p>Typed outputs can be accessed through {@link #effects()}.
+   */
+  @Override
+  public @UnmodifiableView List<Node<?>> outputs() {
+    return List.of(outputs);
+  }
+
+  private void updateCached() {
+    cachedInputNodes.clear();
+    for (var input : inputs) {
+      addInputNodesFrom(cachedInputNodes, input);
+    }
+  }
+
+  private static void addInputNodesFrom(List<Node<?>> nodes, @Nullable Object input) {
+    switch (input) {
+      case Node<?> node -> nodes.add(node);
+      case CodeObject codeObject -> nodes.addAll(codeObject.outerCfgNodes());
+      case Collection<?> collection -> {
+        for (var item : collection) {
+          addInputNodesFrom(nodes, item);
+        }
+      }
+      case Optional<?> optional -> optional.ifPresent(o -> addInputNodesFrom(nodes, o));
+      case null, default -> {}
+    }
+  }
 
   @Override
-  NodeId<? extends Instr> id();
+  public final void replaceInInputs(Node<?> old, Node<?> replacement) {
+    var oldData = data;
+    unsafeReplaceInputs("node", old, replacement);
+
+    cfg.record(new MutateInstrArgs(this, data), new MutateInstrArgs(this, oldData));
+  }
+
+  /**
+   * Replace every occurrence of {@code old} with {@code replacement} in the instruction's {@link
+   * #inputs()}.
+   *
+   * <p>This will <i>not</i> record a {@link CFGEdit} (hence "unsafe").
+   *
+   * @throws IllegalArgumentException If the {@code replacement}'s type is incompatible with the
+   *     input's required type: if the class isn't a subclass of the component's class, or if the
+   *     class is {@link Node} and the node's {@link Node#type()} isn't a subtype of the component's
+   *     required type.
+   */
+  protected final void unsafeReplaceInputs(String argTypeStr, Object old, Object replacement) {
+    // TODO: this
+
+    // Reflectively look through the arguments AKA record components,
+    // and throw an exception if `old` isn't present or `replacement` is the wrong type.
+    // Also, build an array of new arguments, where `old` is replaced with `replacement`.
+    if (!(data instanceof Record r)) {
+      throw new AssertionError("`InstrData` must be a record");
+    }
+    var cls = Classes.classOf(data);
+    var components = cls.getRecordComponents();
+
+    var newValues = new Object[components.length];
+    for (var i = 0; i < components.length; i++) {
+      var cmp = components[i];
+      var value = Reflection.getComponent(r, cmp);
+
+      if (Objects.equals(value, old)) {
+        if (!cmp.getType().isInstance(replacement)) {
+          throw new IllegalArgumentException(
+              "replacement "
+                  + argTypeStr
+                  + " is of wrong type: required "
+                  + cmp.getType().getSimpleName()
+                  + " but it's a "
+                  + replacement.getClass().getSimpleName());
+        }
+
+        value = replacement;
+      } else if (value instanceof CodeObject c && old instanceof Node oldNode) {
+        if (!(replacement instanceof Node replacementNode)) {
+          throw new AssertionError(
+              "replacing a Node with a non-Node (`unsafeReplaceInData` should be called with two nodes or two jumps)");
+        }
+        c.unsafeReplaceOuterCfgNode(oldNode, replacementNode);
+      } else if (value instanceof Collection<?> c) {
+        var elemClass = collectionComponentElementClass(cmp);
+        var builder = ImmutableList.builderWithExpectedSize(c.size());
+        for (var item : c) {
+          if (item.equals(old)) {
+            if (!elemClass.isInstance(replacement)) {
+              throw new IllegalArgumentException(
+                  "replacement "
+                      + argTypeStr
+                      + " (in collection) is of wrong type: required "
+                      + cmp.getType().getSimpleName()
+                      + " but it's a "
+                      + replacement.getClass().getSimpleName());
+            }
+
+            builder.add(replacement);
+          } else if (item instanceof Optional<?> o) {
+            if (o.isPresent() && o.get().equals(old)) {
+              if (!elemClass.isInstance(replacement)) {
+                throw new IllegalArgumentException(
+                    "replacement "
+                        + argTypeStr
+                        + " (in optional in collection) is of wrong type: required "
+                        + cmp.getType().getSimpleName()
+                        + " but it's a "
+                        + replacement.getClass().getSimpleName());
+              }
+
+              builder.add(Optional.of(replacement));
+            }
+          } else {
+            builder.add(item);
+          }
+        }
+        value = builder.build();
+      }
+
+      newValues[i] = value;
+    }
+
+    // Reflectively re-construct with the new arguments
+    data = Reflection.construct(cls, newValues);
+    verify();
+  }
 }
 
 abstract sealed class InstrImpl<D extends InstrData<?>> extends InstrOrPhiImpl implements LocalNode
@@ -263,8 +329,8 @@ abstract sealed class InstrImpl<D extends InstrData<?>> extends InstrOrPhiImpl i
 
     cfg()
         .record(
-            new CFGEdit.MutateInstrArgs<>((Instr) this, (InstrData<Instr>) data),
-            new CFGEdit.MutateInstrArgs<>((Instr) this, (InstrData<Instr>) oldData));
+            new MutateInstrArgs<>((Instr) this, (InstrData<Instr>) data),
+            new MutateInstrArgs<>((Instr) this, (InstrData<Instr>) oldData));
   }
 
   private void computeArgs() {
