@@ -26,7 +26,7 @@ public class GNURSession implements RSession {
   private @Nullable HashMap<String, NamespaceEnvSXP> namespaces = null;
 
   // TODO: need the path to R *and* the path to the installed packages
-  public GNURSession(org.prlprg.RVersion version, Path r_dir) {
+  public GNURSession(RVersion version, Path r_dir) {
     cranMirror = URI.create("https://cran.r-project.org");
     RVersion = version;
   }
@@ -46,11 +46,11 @@ public class GNURSession implements RSession {
     // Or rather do lazy loading like R?
   }
 
-  private HashMap<String, CloSXP> readPackageDatabase(Path path, String packageName)
+  public HashMap<String, CloSXP> readPackageDatabase(Path path, String packageName)
       throws IOException {
     // .libPaths and installed_packages() in R can help to see
     // where packages are installed
-    var basePath = path.resolve("R");
+    var basePath = path.resolve(packageName + "/R");
     // Read the index file .rdx
     // we get a list with 3 elements, variables, references and compressed
     // See LazyLoading in https://cran.r-project.org/doc/manuals/r-devel/R-ints.html
