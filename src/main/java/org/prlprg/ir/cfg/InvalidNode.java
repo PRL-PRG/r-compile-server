@@ -6,7 +6,7 @@ import java.util.WeakHashMap;
 import org.prlprg.primitive.Names;
 
 /** Node representing missing, invalid, or placeholder data. */
-public class InvalidNode implements GlobalNode<Void> {
+public final class InvalidNode implements GlobalNode<Void> {
   private static class Globals {
     private final NodeOrBBIdDisambiguatorMap DISAMBIGUATORS = new NodeOrBBIdDisambiguatorMap();
     private final WeakHashMap<String, InvalidNode> EXISTING = new WeakHashMap<>();

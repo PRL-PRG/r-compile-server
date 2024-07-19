@@ -888,9 +888,9 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
     }
   }
 
-  record MutateInstrOrPhiId(NodeId<? extends InstrOrPhi> oldId, NodeId<? extends InstrOrPhi> newId)
-      implements MutateInstrOrPhi<MutateInstrOrPhiId> {
-    public MutateInstrOrPhiId {
+  record SetLocalNodeId(NodeId<? extends InstrOrPhi> oldId, NodeId<? extends InstrOrPhi> newId)
+      implements MutateInstrOrPhi<SetLocalNodeId> {
+    public SetLocalNodeId {
       if (oldId.type() != newId.type()) {
         throw new IllegalArgumentException(
             "`MutateInstrOrPhiId` must preserve the node ID's class: the node's class doesn't change, so the ID class shouldn't either");
@@ -904,10 +904,10 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
     }
 
     @Override
-    public MutateInstrOrPhiId apply(CFG cfg) {
+    public SetLocalNodeId apply(CFG cfg) {
       var old = cfg.get(oldId);
       InstrOrPhiImpl.cast(old).setId(newId);
-      return new MutateInstrOrPhiId(newId, oldId);
+      return new SetLocalNodeId(newId, oldId);
     }
 
     @Override

@@ -16,7 +16,7 @@ import org.prlprg.parseprint.SkipWhitespace;
  * unique within all {@link CFG}s.
  */
 @Immutable
-public interface NodeId<T> {
+public sealed interface NodeId<T> permits LocalNodeId, GlobalNodeId {
   /**
    * Returns {@code true} if the next string begins a {@link NodeId}.
    *

@@ -91,10 +91,10 @@ public class BatchSubst {
       return;
     }
     for (var instrOrPhi : instrsAndPhis) {
-      for (var arg : instrOrPhi.args()) {
+      for (var arg : instrOrPhi.inputNodes()) {
         var replacement = substs.get(arg);
         if (replacement != null) {
-          instrOrPhi.replaceInArgs(arg, replacement);
+          instrOrPhi.replaceInInputs(arg, replacement);
         }
       }
     }

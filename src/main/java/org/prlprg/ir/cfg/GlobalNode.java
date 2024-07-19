@@ -15,6 +15,7 @@ public sealed interface GlobalNode<T> extends Node<T> permits Constant, StaticEn
    * @throws ClassCastException if {@code B &lt;/: A}.
    */
   @SuppressWarnings("unchecked")
+  @Override
   default <U extends T> GlobalNode<? extends U> cast(Class<U> clazz) {
     return (GlobalNode<U>) Node.super.cast(clazz);
   }

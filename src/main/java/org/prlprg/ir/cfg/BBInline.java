@@ -44,8 +44,8 @@ interface BBInline extends BBCompoundMutate {
                   (oldInstrOrPhi, newInstrOrPhi) -> {
                     newInstrOrPhis.add(newInstrOrPhi);
 
-                    var oldReturns = oldInstrOrPhi.returns();
-                    var newReturns = newInstrOrPhi.returns();
+                    var oldReturns = oldInstrOrPhi.outputs();
+                    var newReturns = newInstrOrPhi.outputs();
                     assert oldReturns.size() == newReturns.size();
                     for (var i = 0; i < oldReturns.size(); i++) {
                       oldToNewArgs.stage(oldReturns.get(i), newReturns.get(i));

@@ -427,7 +427,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     // Don't call `insert` or `addJump`, since this is intrinsic.
     newBB.phis.addAll(phis);
     newBB.stmts.addAll(stmts.subList(0, index));
-    var newJump = new JumpData.Goto(this).make(cfg(), cfg().<Instr>uniqueInstrOrPhiId());
+    var newJump = new JumpData.Goto(this).make(cfg(), cfg().<Instr>uniqueLocalId());
     newBB.setJump(newJump);
     cfg().track(newJump);
     phis.clear();
@@ -474,7 +474,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     }
     stmts.subList(index, stmts.size()).clear();
     jump = null;
-    var newJump = new JumpData.Goto(newBB).make(cfg(), cfg().<Instr>uniqueInstrOrPhiId());
+    var newJump = new JumpData.Goto(newBB).make(cfg(), cfg().<Instr>uniqueLocalId());
     setJump(newJump);
     cfg().track(newJump);
 
@@ -591,13 +591,13 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
   // region add nodes
   @Override
   public <N extends Node> Phi<N> addPhi(Class<? extends N> nodeClass) {
-    return addPhiWithId(cfg().<Phi<? extends N>>uniqueInstrOrPhiId(), nodeClass);
+    return addPhiWithId(cfg().<Phi<? extends N>>uniqueLocalId(), nodeClass);
   }
 
   @Override
   public <N extends Node> Phi<N> addPhi(
       Class<? extends N> nodeClass, Collection<? extends Phi.Input<? extends N>> inputs) {
-    return addPhiWithId(cfg().<Phi<? extends N>>uniqueInstrOrPhiId(), nodeClass, inputs);
+    return addPhiWithId(cfg().<Phi<? extends N>>uniqueLocalId(), nodeClass, inputs);
   }
 
   <N extends Node> Phi<N> addPhiWithId(
@@ -644,7 +644,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
         nodeClasses.stream()
             .map(
                 nodeClass ->
-                    PhiImpl.forClass(nodeClass, cfg(), cfg().<Phi<?>>uniqueInstrOrPhiId(), inputs))
+                    PhiImpl.forClass(nodeClass, cfg(), cfg().<Phi<?>>uniqueLocalId(), inputs))
             .collect(ImmutableList.toImmutableList());
     this.phis.addAll(phis);
     cfg().trackAll(phis);
@@ -656,9 +656,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
   @Override
   public ImmutableList<? extends Phi<?>> addPhis1(Collection<Phi.Args> phiArgs) {
     return addPhisWithIds(
-        phiArgs.stream()
-            .map(a -> new PhiImpl.Args(cfg().<Phi<?>>uniqueInstrOrPhiId(), a))
-            .toList());
+        phiArgs.stream().map(a -> new PhiImpl.Args(cfg().<Phi<?>>uniqueLocalId(), a)).toList());
   }
 
   ImmutableList<? extends Phi<?>> addPhisWithIds(Collection<? extends PhiImpl.Args> phiArgs) {
@@ -714,7 +712,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
 
   @Override
   public <I extends Stmt> I insertAt(int index, String name, StmtData<I> args) {
-    return insertAtWithId(index, cfg().<I>uniqueInstrOrPhiId(name), args);
+    return insertAtWithId(index, cfg().<I>uniqueLocalId(name), args);
   }
 
   <I extends Stmt> I insertAtWithId(int index, NodeId<? extends I> id, StmtData<? extends I> args) {
@@ -735,7 +733,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     return insertAllAtWithIds(
         index,
         namesAndArgs.stream()
-            .map(a -> new StmtImpl.Args(cfg().<Stmt>uniqueInstrOrPhiId(a.name()), a.data()))
+            .map(a -> new StmtImpl.Args(cfg().<Stmt>uniqueLocalId(a.name()), a.data()))
             .toList());
   }
 
@@ -771,8 +769,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
                     Map.Entry::getKey,
                     e ->
                         new StmtImpl.Args(
-                            cfg().<Stmt>uniqueInstrOrPhiId(e.getValue().name()),
-                            e.getValue().data()))));
+                            cfg().<Stmt>uniqueLocalId(e.getValue().name()), e.getValue().data()))));
   }
 
   ImmutableList<? extends Stmt> insertAllAtWithIds(Map<Integer, StmtImpl.Args> indicesIdsAndArgs) {
@@ -818,7 +815,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
 
   @Override
   public <I extends Jump> I addJump(String name, JumpData<I> args) {
-    return addJumpWithId(cfg().<I>uniqueInstrOrPhiId(name), args);
+    return addJumpWithId(cfg().<I>uniqueLocalId(name), args);
   }
 
   <I extends Jump> I addJumpWithId(NodeId<? extends I> id, JumpData<? extends I> args) {
@@ -847,7 +844,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     if (newName == null) {
       newName = InstrOrPhiIdImpl.cast(oldStmt.id()).name();
     }
-    return replaceWithId(index, cfg().<I>uniqueInstrOrPhiId(newName), newArgs);
+    return replaceWithId(index, cfg().<I>uniqueLocalId(newName), newArgs);
   }
 
   <I extends Stmt> I replaceWithId(
@@ -880,7 +877,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     if (newName == null) {
       newName = InstrOrPhiIdImpl.cast(oldJump.id()).name();
     }
-    return replaceJumpWithId(cfg().<I>uniqueInstrOrPhiId(newName), newArgs);
+    return replaceJumpWithId(cfg().<I>uniqueLocalId(newName), newArgs);
   }
 
   public <I extends Jump> I replaceJumpWithId(

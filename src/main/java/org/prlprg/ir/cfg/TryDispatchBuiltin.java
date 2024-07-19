@@ -67,7 +67,7 @@ final class TryDispatchBuiltinImpl extends StmtImpl<TryDispatchBuiltin_>
   }
 
   @Override
-  public @UnmodifiableView List<Node> returns() {
+  public @UnmodifiableView List<Node> outputs() {
     return returns;
   }
 

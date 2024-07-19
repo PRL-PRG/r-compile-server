@@ -13,55 +13,77 @@ import org.prlprg.sexp.SEXPs;
  *
  * <p>Global environments aren't constants. Use {@link StaticEnv Envs.SOMETHING} instead.
  */
-public record Constant<T>(T constant) implements GlobalNode<T> {
-  public static final Constant<DotsSXP> DOTS = new Constant<>(SEXPs.DOTS_SYMBOL);
-  private static final Constant<BoolSXP> TRUE_SEXP = new Constant<>(SEXPs.TRUE);
-  private static final Constant<BoolSXP> FALSE_SEXP = new Constant<>(SEXPs.FALSE);
-  private static final Constant<SimpleLglSXP> NA_LOGICAL_SEXP = new Constant<>(SEXPs.NA_LOGICAL);
+public sealed interface Constant<T> extends GlobalNode<T> {
+  static <T> Constant<? extends T> of(T constant) {
+    return new ConstantImpl<>(constant);
+  }
 
-  public Constant {
+  Constant<DotsSXP> DOTS = new ConstantImpl<>(SEXPs.DOTS_SYMBOL);
+
+  /** Logical {@link Node} of a constant boolean (simple non-NA logical) {@link SEXP}. */
+  static Constant<BoolSXP> bool(boolean value) {
+    return value ? ConstantImpl.TRUE_SEXP : ConstantImpl.FALSE_SEXP;
+  }
+
+  /** {@link Node} of a constant simple logical {@link SEXP}. */
+  static Constant<SimpleLglSXP> lglSxp(Logical value) {
+    return switch (value) {
+      case TRUE -> ConstantImpl.TRUE_SEXP;
+      case FALSE -> ConstantImpl.FALSE_SEXP;
+      case NA -> ConstantImpl.NA_LOGICAL_SEXP;
+    };
+  }
+
+  /** {@link Node} of a constant simple integer {@link SEXP}. */
+  static Constant<SimpleIntSXP> intSxp(int value) {
+    return new ConstantImpl<>(SEXPs.integer(value));
+  }
+
+  /** {@link Node} of a constant simple real {@link SEXP}. */
+  static Constant<SimpleRealSXP> realSxp(double value) {
+    return new ConstantImpl<>(SEXPs.real(value));
+  }
+
+  /** {@link Node} of a constant simple string {@link SEXP}. */
+  static Constant<SimpleStrSXP> strSxp(String value) {
+    return new ConstantImpl<>(SEXPs.string(value));
+  }
+
+  /** {@link Node} of a constant {@link RegSymSXP}. */
+  static Constant<RegSymSXP> symbol(String name) {
+    return new ConstantImpl<>(SEXPs.symbol(name));
+  }
+
+  /** {@link Node} of a constant {@link BuiltinSXP}. */
+  static Constant<BuiltinSXP> bltSxp(BuiltinId name) {
+    return new ConstantImpl<>(SEXPs.builtin(name));
+  }
+
+  /**
+   * The node's value.
+   *
+   * <p>The only value at runtime of variables represented by this node.
+   */
+  T constant();
+}
+
+record ConstantImpl<T>(T constant) implements Constant<T> {
+  static final Constant<BoolSXP> TRUE_SEXP = new ConstantImpl<>(SEXPs.TRUE);
+  static final Constant<BoolSXP> FALSE_SEXP = new ConstantImpl<>(SEXPs.FALSE);
+  static final Constant<SimpleLglSXP> NA_LOGICAL_SEXP = new ConstantImpl<>(SEXPs.NA_LOGICAL);
+
+  ConstantImpl {
     if (constant instanceof EnvSXP) {
       throw new IllegalArgumentException("Global environments aren't constants.");
     }
   }
 
-  /** Logical {@link Node} of a simple boolean constant. */
-  public static Constant<BoolSXP> bool(boolean value) {
-    return value ? TRUE_SEXP : FALSE_SEXP;
-  }
-
-  /** {@link Node} of a constant simple logical {@link SEXP}. */
-  public static synchronized Constant<SimpleLglSXP> lglSxp(Logical value) {
-    return switch (value) {
-      case TRUE -> TRUE_SEXP;
-      case FALSE -> FALSE_SEXP;
-      case NA -> NA_LOGICAL_SEXP;
-    };
-  }
-
-  /** {@link Node} of a constant simple integer {@link SEXP}. */
-  public static Constant<SimpleIntSXP> intSxp(int value) {
-    return new Constant<>(SEXPs.integer(value));
-  }
-
-  /** {@link Node} of a constant simple real {@link SEXP}. */
-  public static Constant<SimpleRealSXP> realSxp(double value) {
-    return new Constant<>(SEXPs.real(value));
-  }
-
-  /** {@link Node} of a constant simple string {@link SEXP}. */
-  public static Constant<SimpleStrSXP> strSxp(String value) {
-    return new Constant<>(SEXPs.string(value));
-  }
-
-  /** {@link Node} of a constant {@link RegSymSXP}. */
-  public static Constant<RegSymSXP> symbol(String name) {
-    return new Constant<>(SEXPs.symbol(name));
-  }
-
-  /** {@link Node} of a constant {@link BuiltinSXP}. */
-  public static Constant<BuiltinSXP> bltSxp(BuiltinId name) {
-    return new Constant<>(SEXPs.builtin(name));
+  @Override
+  @SuppressWarnings("unchecked")
+  public Class<T> type() {
+    // The exact cast is OK because we only expose `Constant<? extends T>` from `Constant#of`,
+    // and other methods where `T` is `constant`'s exact type.`
+    return (Class<T>) constant.getClass();
   }
 
   @Override

@@ -151,7 +151,7 @@ final class VoidJumpImpl extends JumpImpl<JumpData.Void> {
   }
 
   @Override
-  public ImmutableList<Node> returns() {
+  public ImmutableList<Node> outputs() {
     return ImmutableList.of();
   }
 }

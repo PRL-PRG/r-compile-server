@@ -1071,7 +1071,7 @@ sealed interface PirType {
       case DeoptReason _ -> NativeType.DEOPT_REASON;
       case RContext _ -> NativeType.CONTEXT;
       default -> {
-        if (instrOrPhi.returns().isEmpty()) {
+        if (instrOrPhi.outputs().isEmpty()) {
           yield NativeType.VOID;
         } else {
           throw new UnsupportedOperationException("Unhandled InstrOrPhi: " + instrOrPhi);

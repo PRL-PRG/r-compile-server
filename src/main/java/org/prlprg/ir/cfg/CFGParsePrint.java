@@ -323,7 +323,7 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
 
       if (id == null) {
         // ID doesn't matter
-        id = cfg.<Instr>uniqueInstrOrPhiId();
+        id = cfg.<Instr>uniqueLocalId();
       } else {
         ensureIdNotTakenByAnonymous(id, p);
       }
@@ -342,7 +342,7 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
             }
           };
 
-      for (var node : instr.returns()) {
+      for (var node : instr.outputs()) {
         patchIfPending(node);
       }
       return instr;
@@ -352,7 +352,7 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
     private void printInstr(Instr instr, Printer p) {
       var w = p.writer();
 
-      if (!instr.returns().isEmpty()) {
+      if (!instr.outputs().isEmpty()) {
         p.print(instr.id());
         w.write(" = ");
       }
@@ -377,7 +377,7 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
         }
         assert InstrOrPhiIdImpl.cast(id).name().isEmpty()
             : "expected ID of `Void` instruction we created to have no name";
-        InstrOrPhiImpl.cast(old).setId(cfg.uniqueInstrOrPhiId());
+        InstrOrPhiImpl.cast(old).setId(cfg.uniqueLocalId());
       }
     }
 
@@ -441,10 +441,10 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
         // If this is the case, we want to rename that instruction and pretend the ID never existed.
         if (!(id instanceof GlobalNodeId<?>) && cfg.contains(id)) {
           var node = cfg.get(id);
-          if (node instanceof Instr i && i.returns().isEmpty()) {
+          if (node instanceof Instr i && i.outputs().isEmpty()) {
             assert InstrOrPhiIdImpl.cast(i.id()).name().isEmpty()
                 : "expected ID of `Void` instruction we created to have no name";
-            InstrOrPhiImpl.cast(i).setId(cfg.uniqueInstrOrPhiId());
+            InstrOrPhiImpl.cast(i).setId(cfg.uniqueLocalId());
             assert !cfg.contains(id);
           }
         }

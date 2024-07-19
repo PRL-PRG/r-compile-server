@@ -75,7 +75,7 @@ final class CheckpointImpl extends JumpImpl<Checkpoint_> implements Checkpoint {
   }
 
   @Override
-  public List<Node> returns() {
+  public List<Node> outputs() {
     return Collections.unmodifiableList(assumptions);
   }
 
