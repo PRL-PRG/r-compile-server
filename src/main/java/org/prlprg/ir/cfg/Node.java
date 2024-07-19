@@ -7,15 +7,21 @@ import org.prlprg.ir.cfg.StmtData.Void;
  * exists in compiled code at runtime.
  */
 public sealed interface Node<T> permits LocalNode, GlobalNode {
+  /** {@link #cast(Class)}, but call on a raw type. */
+  @SuppressWarnings("rawtypes")
+  static <U> Node<? extends U> cast(Node node, Class<U> clazz) {
+    return ((Node<?>) node).cast(clazz);
+  }
+
   /**
-   * Downcast {@code Node<A>} to {@code Node<B>} where {@code B &lt;: A}.
+   * Cast {@code Node<A>} to {@code Node<B>} where {@code B &lt;: A}.
    *
    * <p>This is needed due to Java's type erasure: see {@link #type()} for more details.
    *
    * @throws ClassCastException if {@code B &lt;/: A}.
    */
   @SuppressWarnings("unchecked")
-  default <U extends T> Node<? extends U> cast(Class<U> clazz) {
+  default <U> Node<? extends U> cast(Class<U> clazz) {
     // `Void` is special-cased to allow `InvalidNode` to emulate subclassing every other `Node`,
     // even though Java's type system can't encode BOTTOM.
     if (!clazz.isAssignableFrom(type()) && type() != Void.class) {

@@ -31,7 +31,7 @@ public sealed class LocalNode<T> implements Node<T> permits Param, Phi, InstrOut
    */
   @SuppressWarnings("unchecked")
   @Override
-  public <U extends T> LocalNode<? extends U> cast(Class<U> clazz) {
+  public <U> LocalNode<? extends U> cast(Class<U> clazz) {
     return (LocalNode<U>) Node.super.cast(clazz);
   }
 

@@ -7,6 +7,16 @@ import org.jetbrains.annotations.UnmodifiableView;
 /** Either {@link Instr} or {@link Phi}. An immediate child node of a basic block. */
 public sealed interface InstrOrPhi permits Instr, Phi {
   /**
+   * The control-flow graph containing this instruction or phi.
+   *
+   * <p>Currently, the basic block ({@link BB}) isn't stored in the instruction or phi, because it
+   * may change and the time complexity of updating it is too high for the convenience. But the
+   * control-flow graph is constant (changing the control-flow graph is only possible via creating a
+   * new instruction), so storing a reference to it for convenience is OK.
+   */
+  CFG cfg();
+
+  /**
    * (A view of) the nodes in the instruction or phi's inputs.
    *
    * <p>For phis, these are the input nodes from each predecessor. For instructions, these include
