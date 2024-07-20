@@ -2,7 +2,10 @@ package org.prlprg.ir.cfg;
 
 import java.util.List;
 import java.util.SequencedCollection;
+import org.jetbrains.annotations.Unmodifiable;
 import org.jetbrains.annotations.UnmodifiableView;
+import org.prlprg.ir.cfg.InstrData.CascadingInstrUpdate;
+import org.prlprg.ir.cfg.InstrData.CascadingUpdatedInstrs;
 
 /** Either {@link Instr} or {@link Phi}. An immediate child node of a basic block. */
 public sealed interface InstrOrPhi permits Instr, Phi {
@@ -32,20 +35,26 @@ public sealed interface InstrOrPhi permits Instr, Phi {
    * are usually 0 (for effect-only instructions like stores and errors) or 1 (for instructions that
    * produce a value like loads and calls).
    */
-  @UnmodifiableView
-  List<? extends Node<?>> outputs();
+  @Unmodifiable List<? extends Node<?>> outputs();
 
   /**
    * Replace every occurrence of {@code old} with {@code replacement} in the instruction or phi's
    * inputs ({@link #inputNodes()}).
    *
-   * <p>This will record a {@link CFGEdit}.
+   * <p>Returns whether this caused the phi's {@link Node#type()}, or the instruction's {@link
+   * Instr#effects()} or one ot its {@link Instr#outputs()} {@link Node#type()}s, to change.
    *
+   * <p>This will record a {@link CFGEdit}.
    * @throws IllegalArgumentException If the {@code replacement}'s {@link Node#type()} is
    *     incompatible with the input's required type. If {@code replacement}'s {@link Node#type()}
    *     is a subtype of {@code old}'s (including if they're identical) this is guaranteed not to
    *     error. If it's a supertype, it depends on whether {@code old} is in a position where the
    *     supertype is still a subtype of the required type.
+   * @throws InfiniteCascadingUpdateException if an instruction's updated outputs trigger more
+   * updates that eventually update that instruction's inputs so that its outputs update again. This
+   * is checked via the {@link CascadingUpdatedInstrs} data-structure, which can be constructed with
+   * the initial instruction whose outputs have changed, and passed to each instruction whose inputs
+   * change.
    */
-  void replaceInInputs(Node<?> old, Node<?> replacement);
+  CascadingInstrUpdate replaceInInputs(CascadingUpdatedInstrs seen, Node<?> old, Node<?> replacement);
 }

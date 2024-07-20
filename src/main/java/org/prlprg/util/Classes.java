@@ -157,6 +157,22 @@ public final class Classes {
   }
 
   /**
+   * Returns a class that both classes inherit, which is guaranteed not to be a superclass of any
+   * other classes that both classes inherit.
+   *
+   * <p>Note that "best" is semi-arbitrary: if there are multiple superclasses that aren't
+   * subclasses of each other, and this will only return one of them.
+   *
+   * @throws IllegalArgumentException If there are no common superclasses, not even `Object`.
+   */
+  public static <A> Class<? extends A> bestCommonSuperclass(Class<A> class1, Class<?> class2) {
+    return streamCommonSuperclasses(class1, class2)
+        .findFirst()
+        .orElseThrow(
+            () -> new IllegalArgumentException("no common superclasses, not even `Object`"));
+  }
+
+  /**
    * Returns every class or interface inherited by all the given classes, ordered so that subclasses
    * are before superclasses.
    */

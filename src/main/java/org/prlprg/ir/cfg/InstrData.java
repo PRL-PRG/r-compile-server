@@ -2,60 +2,173 @@ package org.prlprg.ir.cfg;
 
 import com.google.common.collect.ImmutableMap;
 import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
+import org.jetbrains.annotations.Unmodifiable;
+import org.jetbrains.annotations.UnmodifiableView;
+import org.prlprg.ir.cfg.IFun.Static;
 import org.prlprg.ir.effect.REffects;
 import org.prlprg.sexp.LangSXP;
+import org.prlprg.util.InvalidAnnotationError;
+import org.prlprg.util.NotImplementedError;
 
 /**
  * Every type of instruction as an immutable, pattern-matchable record.
  *
  * @see Instr for why we have this separate from instructions.
  */
-public sealed interface InstrData<I extends Instr> permits JumpData, StmtData {
+public sealed interface InstrData permits JumpData, StmtData {
+  // TODO: Refactor this: we need `INTRINSIC_CLASSES`, `CLOSURE_CLASS`, and `DYNAMIC_CALL_CLASSES`.
   @SuppressWarnings("unchecked")
-  ImmutableMap<String, Class<? extends InstrData<?>>> CLASSES =
+  ImmutableMap<String, Class<? extends InstrData>> CLASSES =
       Stream.concat(
               Arrays.stream(StmtData.class.getNestMembers()),
               Arrays.stream(JumpData.class.getNestMembers()))
           .filter(c -> c.isRecord() && InstrData.class.isAssignableFrom(c))
-          .map(c -> (Class<? extends InstrData<?>>) c)
+          .map(c -> (Class<? extends InstrData>) c)
           .collect(ImmutableMap.toImmutableMap(Class::getSimpleName, Function.identity()));
 
-  /**
-   * Create an instruction containing this data.
+  /** Compute and return the {@link Instr#fun()} of an instruction with this data.
    *
-   * <p>This should only be called in the package, since the returned value will not be tracked in
-   * the {@link CFG}, attempting to insert it will raise errors.
+   * <p>By default, this does so via annotations, and throws {@link InvalidAnnotationError} if the
+   * instruction has bad or missing annotations.
    */
-  I make(CFG cfg, NodeId<? extends Instr> id);
+  default IFun fun() {
+    throw new NotImplementedError();
+  }
 
-  /**
-   * Compute the effects for this instruction, or for trivial cases, <b>this will return {@code
-   * null} </b>and an annotation on this class will compute the effects instead.
+  /** Compute, allocate, and return the {@link Instr#inputs()} of an instruction with this data.
+   *
+   * <p>By default, this does so via annotations, and throws {@link InvalidAnnotationError} if the
+   * instruction has bad or missing annotations.
+   *
+   * <p>You can modify this array and call {@link #setInputs(Objects[])} to return an updated {@link
+   * InstrData} which is the same class as this, but with the new inputs (note that {@link #fun()},
+   * {@link #effects()}, and {@link #outputTypes()} may be affected if they depend on the inputs).
    */
-  default @Nullable REffects computeEffects() {
-    return null;
+  default Object[] inputs() {
+    throw new NotImplementedError();
+  }
+
+  /** Create a new {@link InstrData} with the same class as this one, but new inputs.
+   *
+   * <p>The {@link #fun()}, {@link #effects()}, and {@link #outputTypes()}} may also change, if they
+   * depend on the inputs. For example, an {@link IFun.Static} {@link #fun()} won't change, but a
+   * {@link IFun.SemiStatic} or {@link IFun.DynamicNode} may. The number of outputs
+   * {@link #outputTypes()}{@code .size()} is guaranteed not to change, because it's guaranteed to
+   * be the same for all instances of a given {@link InstrData} class.
+   *
+   * @throws IllegalArgumentException If the new inputs are incompatible with the instruction's
+   *                                  required input types or the count is incorrect. Each
+   *                                  instruction is a record: the number of inputs must match the
+   *                                  number of components, and each input's class must be a
+   *                                  subclass of the corresponding component's; unless the last
+   *                                  component is a {@link VarArgs} collection, then there can be
+   *                                  any number of trailing inputs at its index (including zero)
+   *                                  and they must all be subclasses of its element class.
+   */
+  default InstrData setInputs(Object[] inputs) {
+    throw new NotImplementedError();
   }
 
   /**
-   * Perform non-trivial assertions on the arguments.
+   * Handle changes to {@link Node#type()} in inputs that are outputs to other instructions
+   * ({@link InstrOutput}s) whose inputs have changed.
    *
-   * <p>e.g. check that arguments are of the correct types that are too dynamic or otherwise
-   * inexpressible in Java's type system, in a way that annotating the arguments with {@link TypeIs}
-   * and {@link IsEnv} won't do on its own.
+   * <p>Specifically, if the changed input {@link Node#type()}s would cause {@link #effects()} or
+   * {@link #outputTypes()} to return differently, this will return a value indicating such, and if
+   * an input is the wrong type, this will throw {@link CascadingInstrInputException}.
    *
-   * <p>The base implementation is empty, so overriders should skip {@code super.verify()}.
+   * <p>The {@link CascadingInstrInputException} is the same as the one that would be thrown by
+   * calling {@link #setInputs(Object[])} given the existing {@link #inputs()} (which were
+   * originally valid, but are no longer because the node's type changed).
    *
-   * @param isInsert If true, the verification is called when the instruction is inserted. Otherwise
-   *     it's called in {@link CFG#verify()}.
-   * @throws InstrVerifyException If there are issues with the instruction data.
+   * @throws InfiniteCascadingUpdateException if an instruction's updated
+   * outputs trigger more updates that eventually update that instruction's inputs so that its
+   * outputs update again. This is checked via the {@link CascadingUpdatedInstrs} data-structure,
+   * which can be constructed with the initial instruction whose outputs have changed, and passed to
+   * each instruction whose inputs change.
    */
-  default void verify(boolean isInsert) throws InstrVerifyException {}
+  default CascadingInstrUpdate handleUpdatedNodeInputs(CascadingUpdatedInstrs seen) {
+    throw new NotImplementedError();
+  }
 
-  /** Am {@link InstrData} with an AST. */
-  interface HasAst {
-    @Nullable LangSXP ast();
+  enum CascadingInstrUpdate {
+    NONE(false, false),
+    UPDATED_EFFECTS(true, false),
+    UPDATED_OUTPUT(false, true),
+    UPDATED_EFFECTS_AND_OUTPUT(true, true);
+
+    private final boolean updatedEffects;
+    private final boolean updatedOutput;
+
+    CascadingInstrUpdate(boolean updatedEffects, boolean updatedOutput) {
+      this.updatedEffects = updatedEffects;
+      this.updatedOutput = updatedOutput;
+    }
+
+    public boolean updatedEffects() {
+      return updatedEffects;
+    }
+
+    public boolean updatedOutput() {
+      return updatedOutput;
+    }
+  }
+
+  class CascadingUpdatedInstrs {
+    // This only needs `InstrData` because instruction IDs and phis aren't relevant; if there's a
+    // recursive loop, it's exclusively caused by `InstrData`s whose polymorphism is broken.
+    private final Set<InstrData> instrDatasWhoseOutputsHaveChanged = new HashSet<>();
+
+    public CascadingUpdatedInstrs(InstrData initialInstrDataWhoseOutputsHaveChanged) {
+      instrDatasWhoseOutputsHaveChanged.add(initialInstrDataWhoseOutputsHaveChanged);
+    }
+
+    private void handleUpdatedInstrData(InstrData data, CascadingInstrUpdate update) {
+      if (update.updatedOutput) {
+        if (!instrDatasWhoseOutputsHaveChanged.add(data)) {
+          throw new InfiniteCascadingUpdateException(instrDatasWhoseOutputsHaveChanged);
+        }
+      }
+    }
+  }
+
+  /** Check that the {@link Node} inputs' {@link Node#type()}s are subtypes of their corresponding
+   * {@link Node} components' type parameters.
+   *
+   * <p>This is called by {@link #setInputs(Object[])} and {@link
+   * #handleUpdatedNodeInputs(CascadingUpdatedInstrs)}. It's also called by {@link Instr}'s
+   * constructor (it "should" be called on the {@link InstrData} constructor, but we can't abstract
+   * that and don't want to write the boilerplate, so we just call in {@link Instr}'s constructor
+   * because it's guaranteed to run for every {@link InstrData} before it's added to a {@link CFG}).
+   *
+   * @throws RuntimeException if any input {@link Node#type()}s aren't subtypes.
+   */
+  default void checkInputNodeTypes() {
+    throw new NotImplementedError();
+  }
+
+  /** Compute and return the {@link Instr#effects()} of an instruction with this data.
+   *
+   * <p>By default, this does so via annotations, and throws {@link InvalidAnnotationError} if the
+   * instruction has bad or missing annotations.
+   */
+  default REffects effects() {
+    throw new NotImplementedError();
+  }
+
+  /** Compute and return the {@link Node#type()}s of the {@link Instr#outputs()} of an instruction
+   * with this data.
+   *
+   * <p>By default, this does so via annotations, and throws {@link InvalidAnnotationError} if the
+   * instruction has bad or missing annotations.
+   */
+  default @Unmodifiable List<Class<?>> outputTypes() {
+    throw new NotImplementedError();
   }
 }

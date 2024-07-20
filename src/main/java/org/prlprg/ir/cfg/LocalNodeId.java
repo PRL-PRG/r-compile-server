@@ -47,6 +47,12 @@ public sealed class LocalNodeId<T> implements NodeId<T> {
     this.type = (Class<T>) type;
   }
 
+  /** Unsafely change this ID's type. */
+  @SuppressWarnings("unchecked")
+  void unsafeReassignType(Class<?> type) {
+    this.type = (Class<T>) type;
+  }
+
   @Override
   public boolean equals(Object o) {
     if (this == o) return true;
