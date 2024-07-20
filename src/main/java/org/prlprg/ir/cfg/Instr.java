@@ -14,8 +14,11 @@ import java.util.Optional;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.checkerframework.checker.index.qual.SameLen;
+import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.ir.cfg.CFGEdit.MutateInstrArgs;
+import org.prlprg.ir.cfg.InstrData.CascadingInstrUpdate;
+import org.prlprg.ir.cfg.InstrData.CascadingUpdatedInstrs;
 import org.prlprg.ir.closure.CodeObject;
 import org.prlprg.ir.effect.REffect;
 import org.prlprg.ir.effect.REffects;
@@ -44,8 +47,8 @@ public sealed class Instr implements InstrOrPhi permits Jump, Stmt {
 
   private IFun fun;
   private final Object[] inputs;
-  private final REffects effects;
-  private final Node<?>[] outputs;
+  private REffects effects;
+  private final ImmutableList<Node<?>> outputs;
 
   private final List<Node<?>> cachedInputNodes = new ArrayList<>();
 
@@ -53,10 +56,13 @@ public sealed class Instr implements InstrOrPhi permits Jump, Stmt {
     this.cfg = cfg;
     this.data = data;
 
-    fun = data.resolveFun();
-    inputs = data.resolveInputs();
-    effects = data.resolveEffects();
-    outputs = data.resolveOutputs();
+    fun = data.fun();
+    inputs = data.inputs();
+    effects = data.effects();
+    outputs = data.outputTypes()
+        .stream()
+        .map(this::mkOutput)
+        .collect(ImmutableList.toImmutableList());
 
     updateCached();
   }
@@ -110,8 +116,8 @@ public sealed class Instr implements InstrOrPhi permits Jump, Stmt {
    * <p>Typed outputs can be accessed through {@link #effects()}.
    */
   @Override
-  public @UnmodifiableView List<Node<?>> outputs() {
-    return List.of(outputs);
+  public ImmutableList<Node<?>> outputs() {
+    return outputs;
   }
 
   private void updateCached() {
@@ -124,23 +130,60 @@ public sealed class Instr implements InstrOrPhi permits Jump, Stmt {
   private static void addInputNodesFrom(List<Node<?>> nodes, @Nullable Object input) {
     switch (input) {
       case Node<?> node -> nodes.add(node);
-      case CodeObject codeObject -> nodes.addAll(codeObject.outerCfgNodes());
-      case Collection<?> collection -> {
+      case Node<?>[] nodes1 -> nodes.addAll(Arrays.asList(nodes1));
+      case Optional<?> optional -> optional.ifPresent(o -> addInputNodesFrom(nodes, o));
+      case ImmutableList<?> collection -> {
         for (var item : collection) {
           addInputNodesFrom(nodes, item);
         }
       }
-      case Optional<?> optional -> optional.ifPresent(o -> addInputNodesFrom(nodes, o));
+      case Collection<?> _ -> throw new UnsupportedOperationException("Collections in `InstrData` must be `ImmutableList`s (arrays are also allowed)");
+      case CodeObject codeObject -> nodes.addAll(codeObject.outerCfgNodes());
       case null, default -> {}
     }
   }
 
   @Override
-  public final void replaceInInputs(Node<?> old, Node<?> replacement) {
+  public final CascadingInstrUpdate replaceInInputs(CascadingUpdatedInstrs seen, Node<?> old, Node<?> replacement) {
     var oldData = data;
-    unsafeReplaceInputs("node", old, replacement);
+
+    for (var i = 0; i < inputs.length; i++) {
+      inputs[i] = replaceInputNodesIn(inputs[i], old, replacement);
+    }
+
+    var update = data.handleUpdatedNodeInputs(seen);
 
     cfg.record(new MutateInstrArgs(this, data), new MutateInstrArgs(this, oldData));
+
+    return update;
+  }
+
+  @SuppressWarnings("unchecked")
+  @Contract("null, _, _ -> null; !null, _, _ -> !null")
+  private static <T> @Nullable T replaceInputNodesIn(@Nullable T input, Node<?> old, Node<?> replacement) {
+    return switch (input) {
+      case Node<?> n -> n == old ? (T) replacement : input;
+      case Node<?>[] n -> {
+        for (var j = 0; j < n.length; j++) {
+          n[j] = replaceInputNodesIn(n[j], old, replacement);
+        }
+        yield (T) n;
+      }
+      case Optional<?> o -> (T) o.map(o1 -> replaceInputNodesIn(o1, old, replacement));
+      case ImmutableList<?> c -> {
+        var builder = ImmutableList.builderWithExpectedSize(c.size());
+        for (var item : c) {
+          builder.add(replaceInputNodesIn(item, old, replacement));
+        }
+        yield (T) builder.build();
+      }
+      case Collection<?> _ -> throw new UnsupportedOperationException("Collections in `InstrData` must be `ImmutableList`s (arrays are also allowed)");
+      case CodeObject c -> {
+        c.unsafeReplaceOuterCfgNode(old, replacement);
+        yield (T) c;
+      }
+      case null, default -> input;
+    };
   }
 
   /**

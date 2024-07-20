@@ -19,7 +19,7 @@ import org.prlprg.parseprint.Printer;
  */
 public sealed class LocalNode<T> implements Node<T> permits Param, Phi, InstrOutput {
   private final CFG cfg;
-  private final Class<T> type;
+  private Class<T> type;
   private LocalNodeId<T> id;
 
   /**
@@ -41,6 +41,11 @@ public sealed class LocalNode<T> implements Node<T> permits Param, Phi, InstrOut
     this.id = id;
 
     id.lateAssignType(type);
+  }
+
+  protected void unsafeSetType(Class<T> type) {
+    this.type = type;
+    id.unsafeReassignType(type);
   }
 
   /**

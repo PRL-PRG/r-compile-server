@@ -50,7 +50,7 @@ public abstract sealed class CodeObject permits Closure, Promise {
    * @see #unsafeReplaceOuterCfgNode(Node, Node)
    * @see #verifyOuterCfgISexpsAreOfCorrectTypes()
    */
-  public abstract @UnmodifiableView List<Node> outerCfgNodes();
+  public abstract @UnmodifiableView List<Node<?>> outerCfgNodes();
 
   /**
    * Replaces an {@linkplain #outerCfgNodes() outer CFG node} with another one.
@@ -66,7 +66,7 @@ public abstract sealed class CodeObject permits Closure, Promise {
    * @see #outerCfgNodes()
    * @see #verifyOuterCfgISexpsAreOfCorrectTypes()
    */
-  public abstract void unsafeReplaceOuterCfgNode(Node oldNode, Node newNode);
+  public abstract void unsafeReplaceOuterCfgNode(Node<?> oldNode, Node<?> newNode);
 
   /**
    * Verify that all {@linkplain #outerCfgNodes() outer CFG nodes} that are {@link ISexp}s (abstract
