@@ -50,6 +50,14 @@ public class RDSReader implements Closeable {
   private final List<SEXP> refTable = new ArrayList<>(128);
   private final Logger logger = Logger.getLogger(RDSReader.class.getName());
 
+  // User-provided hook for PERSISTSXP
+  // Used for package databases for instance
+  public interface Hook {
+    SEXP hook(SEXP sexp);
+  }
+
+  private Hook hook = null;
+
   // FIXME: this should include the logic from platform.c
   //  or should we individually read the charset property of each SEXP? this will require
   //  verifying which SEXPs we need to write the charset for--just CHARSXP, or also
@@ -59,6 +67,10 @@ public class RDSReader implements Closeable {
   private RDSReader(RSession session, InputStream in) {
     this.rsession = session;
     this.in = new RDSInputStream(in);
+  }
+
+  private void setHook(Hook hook) {
+    this.hook = hook;
   }
 
   /**
@@ -83,6 +95,13 @@ public class RDSReader implements Closeable {
    */
   public static SEXP readStream(RSession session, InputStream input) throws IOException {
     try (var reader = new RDSReader(session, input)) {
+      return reader.read();
+    }
+  }
+
+  public static SEXP readStream(RSession session, InputStream input, Hook hook) throws IOException {
+    try (var reader = new RDSReader(session, input)) {
+      reader.setHook(hook);
       return reader.read();
     }
   }
@@ -166,10 +185,19 @@ public class RDSReader implements Closeable {
                 throw new RDSException("Unexpected bytecode reference here (not in bytecode)");
             case ATTRLANGSXP, ATTRLISTSXP -> throw new RDSException("Unexpected attr here");
             case UNBOUNDVALUE_SXP -> SEXPs.UNBOUND_VALUE;
-            case GENERICREFSXP, PACKAGESXP, PERSISTSXP, CLASSREFSXP, ALTREPSXP ->
+            case PERSISTSXP -> readPersist(flags);
+            case GENERICREFSXP, PACKAGESXP, CLASSREFSXP, ALTREPSXP ->
                 throw new RDSException("Unsupported RDS special type: " + s);
           };
     };
+  }
+
+  private SEXP readPersist(Flags flags) throws IOException {
+    var strs = readStringVec();
+    // Call the persistent hook on that strsxp
+    var res = hook.hook(strs);
+    refTable.add(res);
+    return res;
   }
 
   private SEXP readComplex(Flags flags) throws IOException {

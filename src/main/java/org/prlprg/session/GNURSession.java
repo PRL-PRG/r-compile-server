@@ -2,6 +2,7 @@ package org.prlprg.session;
 
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
 import java.nio.file.Path;
 import java.util.HashMap;
@@ -47,7 +48,36 @@ public class GNURSession implements RSession {
     // Or rather do lazy loading like R?
   }
 
-  public HashMap<String, CloSXP> readPackageDatabase(Path path, String packageName)
+  class EnvHook implements RDSReader.Hook {
+    private HashMap<String, VecSXP> references = new HashMap<>();
+    private InputStream in;
+
+    EnvHook(VecSXP refs, InputStream in) {
+      this.in = in;
+      var names = refs.names();
+      for (int i = 0; i < refs.size(); i++) {
+        this.references.put(names.get(i), (VecSXP) refs.get(i));
+      }
+    }
+
+    @Override
+    public SEXP hook(SEXP sexp) {
+      if (sexp instanceof StrSXP s) {
+        var position = references.getOrDefault(s.get(0), (VecSXP) sexp);
+
+        // TODO: factorize with the other object reading function
+        // And it looks like we cannot read linearly, can't we?
+        // or we need first to merge the symbols and the temp environments in offset increasing
+        // order
+        // and then load in order.
+        return sexp;
+      }
+
+      return sexp;
+    }
+  }
+
+  public HashMap<String, SEXP> readPackageDatabase(Path path, String packageName)
       throws IOException {
     // .libPaths and installed_packages() in R can help to see
     // where packages are installed
@@ -78,10 +108,10 @@ public class GNURSession implements RSession {
           // For the other ones, there would be one more byte in addition to the length
           // that would contain the compression method again or 0 if the compressed size
           // had exceeded the uncompressed one.
-          throw new RuntimeException(algo + " compression detected; only gzip is supported");
+          throw new RuntimeException(algo + " compression detected; only zlib is supported");
         }
 
-        var bindings = new HashMap<String, CloSXP>(variables.size());
+        var bindings = new HashMap<String, SEXP>(variables.size());
 
         int offset = 0;
         for (int i = 0; i < variables.size(); i++) {
@@ -95,7 +125,7 @@ public class GNURSession implements RSession {
           // Read the object from the rdb file at the right positions
           assert length + 4 == posInRdb.get(1) + 1;
           var obj = RDSReader.readStream(this, new InflaterInputStream(input));
-          bindings.put(names.get(i), (CloSXP) obj);
+          bindings.put(names.get(i), obj);
         }
         return bindings;
       } else {
