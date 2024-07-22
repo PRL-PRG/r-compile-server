@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.Charset;
 import java.util.*;
+import java.util.logging.Logger;
 import javax.annotation.Nullable;
 import org.prlprg.bc.Bc;
 import org.prlprg.primitive.Complex;
@@ -47,12 +48,13 @@ public class RDSReader implements Closeable {
   private final RSession rsession;
   private final RDSInputStream in;
   private final List<SEXP> refTable = new ArrayList<>(128);
+  private final Logger logger = Logger.getLogger(RDSReader.class.getName());
 
   // FIXME: this should include the logic from platform.c
   //  or should we individually read the charset property of each SEXP? this will require
   //  verifying which SEXPs we need to write the charset for--just CHARSXP, or also
   //  builtin/special?
-  private final Charset nativeEncoding = Charset.defaultCharset();
+  private Charset nativeEncoding = Charset.defaultCharset();
 
   private RDSReader(RSession session, InputStream in) {
     this.rsession = session;
@@ -90,22 +92,30 @@ public class RDSReader implements Closeable {
   }
 
   private void readHeader() throws IOException {
-
-    if (in.readByte() != 'X') {
-      throw new RDSException("Unsupported type (possibly compressed)");
+    var RDSkind = in.readByte();
+    if (RDSkind != 'X') {
+      throw new RDSException("Unsupported type (possibly compressed): " + RDSkind);
     }
     assert in.readByte() == '\n';
 
     // versions
     var formatVersion = in.readInt();
-    if (formatVersion != 2) {
-      // we do not support RDS version 3 because it uses ALTREP
-      throw new RDSException("Unsupported RDS version: " + formatVersion);
+    if (formatVersion > 2) {
+      // we do not completely support RDS version 3 because it uses ALTREP
+      logger.warning("RDS version: " + formatVersion + "; some features are not supported.");
     }
     // writer version
     in.readInt();
     // minimal reader version
     in.readInt();
+
+    if (formatVersion >= 3) {
+      int encodingLength = in.readInt();
+      if (encodingLength > 0) {
+        var encoding = in.readString(encodingLength, nativeEncoding);
+        nativeEncoding = Charset.forName(encoding);
+      }
+    }
   }
 
   public SEXP read() throws IOException {

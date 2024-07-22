@@ -11,7 +11,7 @@ public class GNURSessionTest {
   @Test
   public void testReadPackageDatabase() throws IOException {
     var session = new GNURSession(RVersion.LATEST_AWARE, null);
-    var p = "/home/pierre/R/x86_64-pc-linux-gnu-library/4.3/";
+    var p = "~/R/x86_64-pc-linux-gnu-library/4.3/";
     p = p.replaceFirst("^~", System.getProperty("user.home"));
     var funs = session.readPackageDatabase(Path.of(p), "askpass");
 

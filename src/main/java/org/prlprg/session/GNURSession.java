@@ -7,6 +7,7 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
+import java.util.zip.InflaterInputStream;
 import javax.annotation.Nullable;
 import org.prlprg.RVersion;
 import org.prlprg.rds.RDSReader;
@@ -60,23 +61,41 @@ public class GNURSession implements RSession {
     var objectFile = basePath.resolve(packageName + ".rdb").toFile();
     try (var input = new FileInputStream(objectFile)) {
 
-      if (index instanceof ListSXP l) {
-        var variables = (ListSXP) l.get(0).value();
-        var references = (ListSXP) l.get(1).value();
-        // We ignore compressed. Nowadays, it is always compressed
+      if (index instanceof VecSXP l) {
+        var variables = (VecSXP) l.get(0);
+        var names = variables.names();
+        var references = (VecSXP) l.get(1);
+        // Nowadays, it is always compressed. It can be a boolean,
+        // or an Int to indicate the compression algorithm: 2 bzip2, 3: xz
+        var compressed = l.get(2);
+        if (compressed instanceof IntSXP i) {
+          var algo =
+              switch (i.get(0)) {
+                case 2 -> "bzip2";
+                case 3 -> "xz";
+                default -> "unknown";
+              };
+          // For the other ones, there would be one more byte in addition to the length
+          // that would contain the compression method again or 0 if the compressed size
+          // had exceeded the uncompressed one.
+          throw new RuntimeException(algo + " compression detected; only gzip is supported");
+        }
 
         var bindings = new HashMap<String, CloSXP>(variables.size());
 
         int offset = 0;
         for (int i = 0; i < variables.size(); i++) {
-          var name = variables.get(i).tag();
-          var posInRdb = (IntSXP) variables.get(i).value();
+          var posInRdb = (IntSXP) variables.get(i);
 
           input.skip(posInRdb.get(0) - offset);
           offset = posInRdb.get(0);
+          byte[] len = input.readNBytes(4); // Skip the 4 bytes of the length
+          // convert to a 4 byte big endian int
+          int length = (len[0] << 24) | (len[1] << 16) | (len[2] << 8) | len[3];
           // Read the object from the rdb file at the right positions
-          var obj = RDSReader.readStream(this, input);
-          bindings.put(name, (CloSXP) obj);
+          assert length + 4 == posInRdb.get(1) + 1;
+          var obj = RDSReader.readStream(this, new InflaterInputStream(input));
+          bindings.put(names.get(i), (CloSXP) obj);
         }
         return bindings;
       } else {
