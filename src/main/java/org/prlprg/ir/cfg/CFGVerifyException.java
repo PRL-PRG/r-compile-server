@@ -71,7 +71,7 @@ public class CFGVerifyException extends IllegalStateException {
 
   public record IncorrectIncomingBBInPhi(
       BBId bbId,
-      NodeId<? extends Phi<?>> phiId,
+      LocalNodeId<?> phiId,
       NodeId<?> inputId,
       BBId inputOriginId,
       BBId incomingBBId,
@@ -95,7 +95,7 @@ public class CFGVerifyException extends IllegalStateException {
     }
   }
 
-  public record UnsetPhiInput(BBId bbId, NodeId<? extends Phi<?>> phiId, BBId incomingBBId)
+  public record UnsetPhiInput(BBId bbId, LocalNodeId<?> phiId, BBId incomingBBId)
       implements BrokenInvariant {
     @Override
     public String toString() {
@@ -103,27 +103,32 @@ public class CFGVerifyException extends IllegalStateException {
     }
   }
 
-  public record UntrackedArg(BBId bbId, NodeId<? extends InstrOrPhi> userId, NodeId<?> argId)
+  public record UntrackedArg(BBId bbId, String userStr, NodeId<?> argId)
       implements BrokenInvariant {
     @Override
     public String toString() {
-      return "Untracked arg: " + argId + " in " + userId;
+      return "Untracked arg: " + argId + " in:\n" + userStr;
     }
   }
 
-  public record ArgNotDefinedBeforeUse(
-      BBId bbId, NodeId<? extends InstrOrPhi> userId, NodeId<?> argId) implements BrokenInvariant {
-    @Override
-    public String toString() {
-      return "Arg not guaranteed to be defined before use: " + argId + " in " + userId;
-    }
-  }
-
-  public record InstrVerify(BBId bbId, NodeId<? extends InstrOrPhi> instrId, InstrVerifyException e)
+  public record ArgNotDefinedBeforeUse(BBId bbId, String userStr, NodeId<?> argId)
       implements BrokenInvariant {
     @Override
     public String toString() {
-      return "Instruction verification failed: " + instrId + " in " + bbId + "\n" + e.getMessage();
+      return "Arg not guaranteed to be defined before use: " + argId + " in:\n" + userStr;
+    }
+  }
+
+  public record InstrVerify(BBId bbId, String instrStr, InstrVerifyException e)
+      implements BrokenInvariant {
+    @Override
+    public String toString() {
+      return "Instruction verification failed in "
+          + bbId
+          + ":\n"
+          + instrStr
+          + "\n"
+          + e.getMessage();
     }
   }
 

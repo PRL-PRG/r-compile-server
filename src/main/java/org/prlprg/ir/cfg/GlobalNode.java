@@ -8,7 +8,8 @@ package org.prlprg.ir.cfg;
  */
 public sealed interface GlobalNode<T> extends Node<T> permits Constant, StaticEnv, InvalidNode {
   /**
-   * Downcast {@code LocalNode<A>} to {@code LocalNode<B>} where {@code B &lt;: A}.
+   * Downcast {@code LocalNode<? extends A>} to {@code LocalNode<? extends B>} where {@code B &lt;:
+   * A}.
    *
    * <p>This is needed due to Java's type erasure: see {@link #type()} for more details.
    *

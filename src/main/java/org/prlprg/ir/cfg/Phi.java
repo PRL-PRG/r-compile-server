@@ -34,15 +34,11 @@ import org.prlprg.util.SmallBinarySet;
  * with one input must be replaced with the input itself, and nodes with 0 inputs must be removed.
  * This is automatically done by {@link CFG#cleanup()}.
  */
-public sealed class Phi<T> extends LocalNode<T> implements InstrOrPhi {
+public final class Phi<T> extends LocalNode<T> implements InstrOrPhi {
   private final SmallBinarySet<Input<? extends T>> inputs;
-  // TODO: Make this `LocalNode#type`, and add `improvedType` and `LocalNode#improvedType()`.
-  //  Then do this for `Instr` so that `InstrData`s return "base" output types that don't depend on
-  //  inputs, and "improved" output types (subtypes) that do.
-  private final Class<T> minimumType;
 
   /**
-   * Downcast {@code Phi<A>} to {@code Phi<B>} where {@code B &lt;: A}.
+   * Downcast {@code Phi<? extends A>} to {@code Phi<? extends B>} where {@code B &lt;: A}.
    *
    * <p>This is needed due to Java's type erasure: see {@link #type()} for more details.
    *
@@ -55,17 +51,11 @@ public sealed class Phi<T> extends LocalNode<T> implements InstrOrPhi {
   }
 
   // region construct
-  /**
-   * Constructor arguments that can be stored in a collection (since there are multiple;
-   * alternatively could use {@link org.prlprg.util.Pair} but this is clearer).
-   */
-  public record Args<T>(Class<T> type, Collection<? extends Input<? extends T>> inputs) {}
-
   /** Serialized form where everything is replaced by IDs. */
   public record Serial<T>(
-      LocalNodeId<T> id, Class<T> type, Collection<? extends InputId<? extends T>> inputIds) {
+      LocalNodeId<T> id, Collection<? extends InputId<? extends T>> inputIds) {
     Serial(Phi<T> phi) {
-      this(phi.id(), phi.type(), phi.inputs().stream().map(Input::id).toList());
+      this(phi.id(), phi.inputs().stream().map(Input::id).toList());
     }
   }
 
@@ -73,45 +63,33 @@ public sealed class Phi<T> extends LocalNode<T> implements InstrOrPhi {
    * Constructor arguments that can be stored in a collection (since there are multiple;
    * alternatively could use {@link org.prlprg.util.Pair} but this is clearer).
    *
-   * <p>Unlike {@link Args}, this exposes that phis can be created with existing IDs. Such
-   * functionality is only used in {@link CFGEdit}s that are replayed to maintain determinism.
+   * <p>This exposes that phis can be created with existing IDs. Such functionality is only used in
+   * {@link CFGEdit}s that are replayed to maintain determinism.
    */
-  record ArgsImpl<T>(NodeId<T> id, Class<T> type, Collection<? extends Input<? extends T>> inputs) {
-    ArgsImpl(NodeId<T> id, Phi.Args<T> args) {
-      this(id, args.type(), args.inputs());
-    }
-
+  record ArgsImpl<T>(NodeId<T> id, Collection<? extends Input<? extends T>> inputs) {
     ArgsImpl(CFG cfg, Serial<T> serial) {
       this(
           serial.id(),
-          serial.type(),
           serial.inputIds().stream().map(id -> id.decode(cfg)).toList());
     }
 
     ArgsImpl(Phi<T> phi) {
-      this(phi.id(), phi.type(), ImmutableList.copyOf(phi.inputs()));
+      this(phi.id(), ImmutableList.copyOf(phi.inputs()));
     }
   }
 
   /**
    * Create a new phi-node with the given inputs.
    *
-   * <p>The provided nodes, and any nodes added after creation, must all have {@link Node#type()}s
-   * that are subtypes of {@code minumumType}.
-   *
    * <p>The phis' {@link #type()} is the common supertype of all inputs' {@link Node}s, or
    * {@link Void} if there are none.
-   *
-   * @throws IllegalArgumentException If any node's {@link Node#type()} isn't a subtype of
-   * {@code minimumType}.
    */
-  Phi(CFG cfg, Class<T> minimumType, LocalNodeId<T> id, Collection<? extends Input<? extends T>> inputs) {
+  Phi(CFG cfg, LocalNodeId<T> id, Collection<? extends Input<? extends T>> inputs) {
     super(cfg, phiType(inputs), id);
+
     this.inputs =
         new SmallBinarySet<>(
             inputs.size(), Comparator.comparing(i -> i.incomingBB().id().toString()));
-    this.minimumType = minimumType;
-
     for (var input : inputs) {
       assert !this.hasIncomingBB(input.incomingBB())
           : "duplicate incoming BB on Phi init: " + input.incomingBB();
@@ -121,7 +99,7 @@ public sealed class Phi<T> extends LocalNode<T> implements InstrOrPhi {
 
   /** The common supertype of all inputs' {@link Node}s, or {@link Void} if there are none. */
   @SuppressWarnings({"rawtypes", "unchecked"})
-  private static <T> Class<T> phiType(Collection<? extends Input<? extends T>> inputs) {
+  private static <T> Class<? extends T> phiType(Collection<? extends Input<? extends T>> inputs) {
     return inputs
         .stream()
         .map(Input::node)
@@ -277,18 +255,6 @@ public sealed class Phi<T> extends LocalNode<T> implements InstrOrPhi {
               + ")");
     }
 
-    if (!minimumType.isInstance(node)) {
-      throw new IllegalArgumentException(
-          "Tried to add an input of incompatible type to "
-              + id()
-              + ": "
-              + node.id()
-              + " ("
-              + node.getClass().getSimpleName()
-              + ") is not an instance of the phi's node class "
-              + minimumType.getSimpleName());
-    }
-
     if (EAGERLY_VERIFY_PHI_INPUTS) {
       eagerlyVerifyInput(Input.of(incomingBB, node));
     }
@@ -337,18 +303,6 @@ public sealed class Phi<T> extends LocalNode<T> implements InstrOrPhi {
   @SuppressWarnings("unchecked")
   @Override
   public CascadingInstrUpdate replaceInInputs(CascadingUpdatedInstrs seen, Node<?> old, Node<?> replacement) {
-    if (!replacement.isSubtypeOf(minimumType)) {
-      throw new IllegalArgumentException(
-          "Tried to replace with a node of incompatible type: "
-              + replacement.type().getSimpleName()
-              + " ("
-              + replacement
-              + ") is not an instance of the phi's type "
-              + minimumType.getSimpleName()
-              + " (the phi is "
-              + id()
-              + ")");
-    }
     for (var i = 0; i < inputs.size(); i++) {
       var input = inputs.get(i);
       if (input.node().equals(old)) {
@@ -361,7 +315,9 @@ public sealed class Phi<T> extends LocalNode<T> implements InstrOrPhi {
       }
     }
 
+    var result = type() != phiType(inputs) ? CascadingInstrUpdate.UPDATED_OUTPUT : CascadingInstrUpdate.NONE;
     updateType();
+    return result;
   }
 
   /**

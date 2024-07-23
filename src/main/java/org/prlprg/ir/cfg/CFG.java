@@ -50,7 +50,7 @@ public class CFG
   private final BB entry;
   private final Set<BB> exits = new HashSet<>();
   private final Map<BBId, BB> bbs = new HashMap<>();
-  private final Map<NodeId<?>, Node> nodes = new HashMap<>();
+  private final Map<LocalNodeId<?>, LocalNode<?>> localNodes = new HashMap<>();
   private final NodeOrBBIdDisambiguatorMap nextBbDisambiguator = new NodeOrBBIdDisambiguatorMap();
   private final NodeOrBBIdDisambiguatorMap nextInstrOrPhiDisambiguator =
       new NodeOrBBIdDisambiguatorMap();
@@ -76,7 +76,7 @@ public class CFG
 
   @Override
   public int numNodes() {
-    return nodes.size();
+    return localNodes.size();
   }
 
   @Override
@@ -101,12 +101,8 @@ public class CFG
   }
 
   @Override
-  public boolean contains(NodeId<?> nodeId) {
-    if (nodeId instanceof GlobalNodeId<?>) {
-      throw new IllegalArgumentException(
-          "`CFG#contains` can't be called with a `GlobalNodeId`: we don't track whether it's in the CFG, and usually want to special case it anyways");
-    }
-    return nodes.containsKey(nodeId);
+  public boolean contains(LocalNodeId<?> nodeId) {
+    return localNodes.containsKey(nodeId);
   }
 
   @Override
@@ -114,20 +110,18 @@ public class CFG
     if (!bbs.containsKey(bbId)) {
       throw new NoSuchElementException("BB not in CFG");
     }
+
     return bbs.get(bbId);
   }
 
   @SuppressWarnings("unchecked")
   @Override
-  public <N extends Node> N get(NodeId<N> nodeId) {
-    if (nodeId instanceof GlobalNodeId<?> g) {
-      return (N) g.node();
-    }
-
-    if (!nodes.containsKey(nodeId)) {
+  public <T> LocalNode<T> get(LocalNodeId<T> nodeId) {
+    if (!localNodes.containsKey(nodeId)) {
       throw new NoSuchElementException("node not global and not in CFG");
     }
-    var node = (N) nodes.get(nodeId);
+
+    var node = (LocalNode<T>) localNodes.get(nodeId);
     assert nodeId.type() == null || nodeId.type().isInstance(node)
         : "node with id has wrong class: " + nodeId.type() + " -> " + node;
     return node;
@@ -325,11 +319,11 @@ public class CFG
     // Must be dom-tree so that we store nodes encountered from dominators to correctly report that
     // they don't need to be in phi nodes (unlike those not in dominators).
     var iter = new CFGIterator.DomTreeBfs(domTree);
-    var prevNodesInBBs = new HashMap<BB, HashSet<Node>>();
+    var prevNodesInBBs = new HashMap<BB, HashSet<LocalNode<?>>>();
     while (iter.hasNext()) {
       var bb = iter.next();
 
-      var prevNodes = new HashSet<Node>(bb.numChildren());
+      var prevNodes = new HashSet<LocalNode<?>>(bb.numChildren());
       prevNodesInBBs.put(bb, prevNodes);
 
       // Every basic block has a non-null jump.
@@ -350,11 +344,13 @@ public class CFG
         assert instrOrPhi.cfg() == this;
 
         for (var arg : instrOrPhi.inputNodes()) {
-          assert arg.cfg() == null || arg.cfg() == this;
-          assert !nodes.containsKey(arg.id()) || nodes.get(arg.id()) == arg;
+          if (arg instanceof LocalNode<?> localArg) {
+            assert localArg.cfg() == this;
+            assert !localNodes.containsKey(localArg.id()) || localNodes.get(localArg.id()) == localArg;
 
-          if (arg.cfg() != null && !nodes.containsKey(arg.id())) {
-            errors.add(new CFGVerifyException.UntrackedArg(bb.id(), instrOrPhi.id(), arg.id()));
+            if (!localNodes.containsKey(localArg.id())) {
+              errors.add(new CFGVerifyException.UntrackedArg(bb.id(), instrOrPhi.toString(), arg.id()));
+            }
           }
         }
       }
@@ -381,11 +377,11 @@ public class CFG
         for (var arg : instr.inputNodes()) {
           // `prevNodesInBBs` will contain iff the argument originates from earlier in the current
           // block OR the argument originates from anywhere in a strictly dominating block.
-          if (arg.origin() != null
+          if (arg instanceof LocalNode<?> localArg
               && Streams.stream(domTree.iterDominators(bb, false))
-                  .noneMatch(d -> prevNodesInBBs.get(d).contains(arg))) {
+                  .noneMatch(d -> prevNodesInBBs.get(d).contains(localArg))) {
             errors.add(
-                new CFGVerifyException.ArgNotDefinedBeforeUse(bb.id(), instr.id(), arg.id()));
+                new CFGVerifyException.ArgNotDefinedBeforeUse(bb.id(), instr.toString(), arg.id()));
           }
         }
         // The lines where we add to `prevNodes` (this one and the one above the for loop) ensure
@@ -399,7 +395,7 @@ public class CFG
         try {
           instr.verify();
         } catch (InstrVerifyException e) {
-          errors.add(new CFGVerifyException.InstrVerify(bb.id(), instr.id(), e));
+          errors.add(new CFGVerifyException.InstrVerify(bb.id(), instr.toString(), e));
         }
       }
     }
@@ -424,9 +420,8 @@ public class CFG
     // early just to ensure this invariant. If the `null` jump is never set so that origin dominates
     // the incoming BB, we'll report this phi in later in `CFG#verify`.
     var incomingBB = input.incomingBB();
-    var node = input.node();
 
-    if (node.cfg() == null) {
+    if (!(input.node() instanceof LocalNode<?> node)) {
       // Node is global.
       return null;
     }
@@ -548,31 +543,28 @@ public class CFG
 
   // region nodes
   /**
-   * Mark an instruction or phi <i>and its auxillary values</i> as belonging to this CFG.
+   * Mark an instruction or phi as belonging to this CFG.
+   *
+   * <p>Additionally, if an instruction, tracks its {@link InstrOutput}s.
    *
    * <p>This is called from {@link BB} when it inserts or replaces an instruction or phi. Tracked
    * nodes are used for verification.
    */
   void track(InstrOrPhi instrOrPhi) {
-    track((Node) instrOrPhi);
-
-    var id = InstrOrPhiIdImpl.cast(instrOrPhi.id());
-    nextInstrOrPhiDisambiguator.add(id.name(), id.disambiguator());
-
-    if (instrOrPhi instanceof Instr instr) {
-      for (var aux : instr.outputs()) {
-        if (aux != instrOrPhi) {
-          track(aux);
+    switch (instrOrPhi) {
+      case Phi<?> phi -> track((LocalNode<?>) phi);
+      case Instr instr -> {
+        for (var output : instr.outputs()) {
+          track(output);
         }
       }
     }
   }
 
   /**
-   * Mark an instructions and/or phis <i>and their auxillary values</i> as belonging to this CFG.
+   * Mark an instructions and/or phis as belonging to this CFG.
    *
-   * <p>This is called from {@link BB} when it inserts or replaces an instruction or phi. All local
-   * nodes in the CFG must be tracked (global nodes are <i>not</i> tracked).
+   * @see #track(InstrOrPhi)
    */
   void trackAll(Collection<? extends InstrOrPhi> instrOrPhis) {
     for (var instrOrPhi : instrOrPhis) {
@@ -581,33 +573,29 @@ public class CFG
   }
 
   /**
-   * Mark an instruction or phi <i>and its auxillary values</i> as no longer belonging to this CFG.
+   * Mark an instruction or phi as no longer belonging to this CFG.
+   *
+   * <p>Additionally, if an instruction, untracks its {@link InstrOutput}s.
    *
    * <p>This is called from {@link BB} when it replaces or removes an instruction or phi, and {@link
    * CFG} itself when it removes a {@link BB}. All local nodes in the CFG must be tracked (global
    * nodes are <i>not</i> tracked)
    */
   void untrack(InstrOrPhi instrOrPhi) {
-    untrack((Node) instrOrPhi);
-
-    var id = InstrOrPhiIdImpl.cast(instrOrPhi.id());
-    nextInstrOrPhiDisambiguator.remove(id.name(), id.disambiguator());
-
-    if (instrOrPhi instanceof Instr instr) {
-      for (var aux : instr.outputs()) {
-        if (aux != instrOrPhi) {
-          untrack(aux);
+    switch (instrOrPhi) {
+      case Phi<?> phi -> untrack((LocalNode<?>) phi);
+      case Instr instr -> {
+        for (var output : instr.outputs()) {
+          untrack(output);
         }
       }
     }
   }
 
   /**
-   * Mark instructions and/or phis <i>and their auxillary values</i> as no longer belonging to this
-   * CFG.
+   * Mark instructions and/or phis as no longer belonging to this CFG.
    *
-   * <p>This is called from {@link BB} when it replaces or removes an instruction or phi, and {@link
-   * CFG} itself when it removes a {@link BB}. Tracked nodes are used for verification.
+   * @see #untrack(InstrOrPhi)
    */
   void untrackAll(Collection<? extends InstrOrPhi> instrOrPhis) {
     for (var instrOrPhi : instrOrPhis) {
@@ -615,19 +603,19 @@ public class CFG
     }
   }
 
-  /**
-   * Mark a node as belonging to this CFG.
-   *
-   * <p>If the node is an instruction or phi, it may in the future require extra code to fully
-   * untrack. This method should remain private.
-   */
-  private void track(Node node) {
+  /** Mark a local node as belonging to this CFG. */
+  private void track(LocalNode<?> node) {
     assert node.cfg() == this : "node to track is global or belongs to a different CFG: " + node;
 
     var id = node.id();
-    assert id.type() == null || id.type().isInstance(node);
-    var old = nodes.put(id, node);
+    assert node.type() == id.type()
+        : "node's type isn't its ID type: "
+        + node.type().getName()
+        + " vs "
+        + (id.type() == null ? "null" :  id.type().getName());
+    var old = localNodes.put(id, node);
     assert old == null : "node with id already tracked: " + id + "\nold: " + old + "\nnew: " + node;
+    nextInstrOrPhiDisambiguator.add(id.name(), id.disambiguator());
   }
 
   /**
@@ -636,12 +624,19 @@ public class CFG
    * <p>If the node is an instruction or phi, it requires extra code to fully untrack. This method
    * should remain private.
    */
-  private void untrack(Node node) {
+  private void untrack(LocalNode<?> node) {
     assert node.cfg() == this : "node to untrack is global or belongs to a different CFG: " + node;
 
-    var removed = nodes.remove(node.id());
+    var id = node.id();
+    assert node.type() == id.type()
+        : "node's type isn't its ID type: "
+        + node.type().getName()
+        + " vs "
+        + (id.type() == null ? "null" :  id.type().getName());
+    var removed = localNodes.remove(node.id());
     assert removed != null : "node was never tracked";
     assert removed == node;
+    nextInstrOrPhiDisambiguator.remove(id.name(), id.disambiguator());
   }
 
   // endregion nodes
@@ -654,23 +649,23 @@ public class CFG
   }
 
   /**
-   * Return a unique id for an {@linkplain InstrOrPhi instruction or phi} with no name.
+   * Return a unique id for a {@linkplain LocalNode local node} with no name (empty string).
    *
-   * <p>The returned ID can be assigned to any type of instruction or phi, because its type checked
-   * at runtime is assigned in the {@link LocalNodeIdImpl} constructor.
+   * <p>The returned ID can be assigned to any type of local node, because its type checked at
+   * runtime is assigned in the {@link LocalNode} constructor.
    */
-  <T> NodeId<T> uniqueLocalId() {
-    return this.<T>uniqueLocalId("");
+  <T> LocalNodeId<T> uniqueLocalId() {
+    return this.uniqueLocalId("");
   }
 
   /**
-   * Return a unique id for an {@linkplain InstrOrPhi instruction or phi} with the given name.
+   * Return a unique id for an {@linkplain LocalNode local node} with the given name.
    *
-   * <p>The returned ID can be assigned to any type of instruction or phi, because its type checked
-   * at runtime is assigned in the {@link LocalNodeIdImpl} constructor.
+   * <p>The returned ID can be assigned to any type of local node, because its type checked at
+   * runtime is assigned in the {@link LocalNode} constructor.
    */
   <T> LocalNodeId<T> uniqueLocalId(String name) {
-    return new LocalNodeIdImpl<>(nextInstrOrPhiDisambiguator.get(name), name);
+    return new LocalNodeId<>(nextInstrOrPhiDisambiguator.get(name), name);
   }
   // region unique ids
   // endregion for BB and node

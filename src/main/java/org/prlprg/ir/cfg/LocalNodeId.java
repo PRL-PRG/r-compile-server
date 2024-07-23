@@ -7,8 +7,8 @@ import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.SkipWhitespace;
 
 /** {@link NodeId} of a {@link LocalNode}. */
-public sealed class LocalNodeId<T> implements NodeId<T> {
-  private @Nullable Class<T> type;
+public final class LocalNodeId<T> implements NodeId<T> {
+  private @Nullable Class<? extends T> type;
   private final int disambiguator;
   private final String name;
   private final String toString;
@@ -29,7 +29,7 @@ public sealed class LocalNodeId<T> implements NodeId<T> {
   }
 
   @Override
-  public @Nullable Class<T> type() {
+  public @Nullable Class<? extends T> type() {
     return type;
   }
 
@@ -44,13 +44,13 @@ public sealed class LocalNodeId<T> implements NodeId<T> {
     // `assert` because this is only used within the package.
     assert this.type == null || this.type == type
         : "node ID is for a different type: expected " + this.type + ", got " + type;
-    this.type = (Class<T>) type;
+    this.type = (Class<? extends T>) type;
   }
 
   /** Unsafely change this ID's type. */
   @SuppressWarnings("unchecked")
   void unsafeReassignType(Class<?> type) {
-    this.type = (Class<T>) type;
+    this.type = (Class<? extends T>) type;
   }
 
   @Override

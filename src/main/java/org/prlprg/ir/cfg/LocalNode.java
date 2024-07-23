@@ -19,11 +19,12 @@ import org.prlprg.parseprint.Printer;
  */
 public sealed class LocalNode<T> implements Node<T> permits Param, Phi, InstrOutput {
   private final CFG cfg;
-  private Class<T> type;
+  private Class<? extends T> type;
   private LocalNodeId<T> id;
 
   /**
-   * Downcast {@code LocalNode<A>} to {@code LocalNode<B>} where {@code B &lt;: A}.
+   * Downcast {@code LocalNode<? extends A>} to {@code LocalNode<? extends B>} where {@code B &lt;:
+   * A}.
    *
    * <p>This is needed due to Java's type erasure: see {@link #type()} for more details.
    *
@@ -35,7 +36,7 @@ public sealed class LocalNode<T> implements Node<T> permits Param, Phi, InstrOut
     return (LocalNode<U>) Node.super.cast(clazz);
   }
 
-  protected LocalNode(CFG cfg, Class<T> type, LocalNodeId<T> id) {
+  protected LocalNode(CFG cfg, Class<? extends T> type, LocalNodeId<T> id) {
     this.cfg = cfg;
     this.type = type;
     this.id = id;
@@ -43,8 +44,15 @@ public sealed class LocalNode<T> implements Node<T> permits Param, Phi, InstrOut
     id.lateAssignType(type);
   }
 
-  protected void unsafeSetType(Class<T> type) {
-    this.type = type;
+  /**
+   * Unsafely change this node's type.
+   *
+   * <p>You must ensure that, either the type is a subtype of the current one, or all occurrences of
+   * the node have the new type checked, to ensure no occurrence's static type is more specific.
+   */
+  @SuppressWarnings("unchecked")
+  protected void unsafeSetType(Class<?> type) {
+    this.type = (Class<? extends T>) type;
     id.unsafeReassignType(type);
   }
 
@@ -95,7 +103,7 @@ public sealed class LocalNode<T> implements Node<T> permits Param, Phi, InstrOut
   }
 
   @Override
-  public Class<T> type() {
+  public Class<? extends T> type() {
     return type;
   }
 

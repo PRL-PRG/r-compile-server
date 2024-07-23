@@ -8,19 +8,28 @@ package org.prlprg.ir.cfg;
  * {@link BB} that is dominated by the {@link Instr}'s {@link BB}). {@link Phi} nodes also have
  * liveness.
  */
-public non-sealed interface InstrOutput<T> extends LocalNode<T> {
+public final class InstrOutput<T> extends LocalNode<T> {
+  private final Instr origin;
+
   /**
-   * Downcast {@code InstrOutput<A>} to {@code InstrOutput<B>} where {@code B &lt;: A}.
+   * Downcast {@code InstrOutput<? extends A>} to {@code InstrOutput<? extends B>} where
+   * {@code B &lt;: A}.
    *
    * <p>This is needed due to Java's type erasure: see {@link #type()} for more details.
    *
    * @throws ClassCastException if {@code B &lt;/: A}.
    */
   @SuppressWarnings("unchecked")
-  default <U> InstrOutput<? extends U> cast(Class<U> clazz) {
-    return (InstrOutput<U>) LocalNode.super.cast(clazz);
+  public <U> InstrOutput<? extends U> cast(Class<U> clazz) {
+    return (InstrOutput<U>) super.cast(clazz);
+  }
+  InstrOutput(Instr origin, Class<? extends T> type) {
+    super(origin.cfg(), type, origin.cfg().uniqueLocalId());
+    this.origin = origin;
   }
 
   /** Instruction that produced this node. */
-  Instr origin();
+  public Instr origin() {
+    return origin;
+  }
 }

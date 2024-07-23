@@ -72,11 +72,8 @@ interface CFGQuery {
 
   /**
    * Whether the CFG contains a node with the given id.
-   *
-   * @throws IllegalArgumentException if given {@link GlobalNodeId} (we don't track whether it's in
-   *     the CFG, and usually want to special case it anyways).
    */
-  boolean contains(NodeId<?> nodeId);
+  boolean contains(LocalNodeId<?> nodeId);
 
   /**
    * Get the basic block in the CFG with the given id.
@@ -86,14 +83,25 @@ interface CFGQuery {
   BB get(BBId bbId);
 
   /**
-   * Get the node in the CFG with the given id, or if the node ID is global, get its corresponding
-   * node.
+   * Get the node in the CFG with the given id.
+   *
+   * @throws NoSuchElementException If the node with the given id is not in the CFG.
+   */
+  <T> LocalNode<T> get(LocalNodeId<T> nodeId);
+
+  /**
+   * Get the node in the CFG with the given id if it's local. If it's global, returns
+   * {@link GlobalNodeId#node()}.
    *
    * @throws NoSuchElementException If the node with the given id is not global and is not in the
    *     CFG.
    */
-  <T> Node<T> get(NodeId<T> nodeId);
-
+  default <T> Node<T> get(NodeId<T> nodeId) {
+    return switch (nodeId) {
+      case LocalNodeId<T> localId -> get(localId);
+      case GlobalNodeId<T> globalId -> globalId.node();
+    };
+  }
   // endregion general properties
 
   // region iterate BBs
