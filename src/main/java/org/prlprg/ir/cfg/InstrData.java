@@ -171,4 +171,17 @@ public sealed interface InstrData permits JumpData, StmtData {
   default @Unmodifiable List<Class<?>> outputTypes() {
     throw new NotImplementedError();
   }
+
+  /** Run sanity checks. Either does nothing or throws {@link InstrVerifyException}.
+   *
+   * <p>Specifically:
+   * <ul>
+   *   <li>Check that all input nodes' {@link Node#type()}s are correct (since this isn't enforced
+   *   by Java, since they are generic).
+   *   <li>Any annotation-specific or instruction-specific checks.
+   * </ul>
+   */
+  default void verify() {
+    throw new NotImplementedError();
+  }
 }

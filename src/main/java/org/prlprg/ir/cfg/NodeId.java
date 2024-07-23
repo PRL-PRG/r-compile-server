@@ -39,7 +39,7 @@ public sealed interface NodeId<T> permits LocalNodeId, GlobalNodeId {
    * Once one of these "untyped" IDs is assigned to a node, the node will create a new ID with the
    * correct class and the untyped one will be discarded.
    */
-  @Nullable Class<T> type();
+  @Nullable Class<? extends T> type();
 
   @ParseMethod(SkipWhitespace.NONE)
   private static NodeId<?> parse(Parser p) {
