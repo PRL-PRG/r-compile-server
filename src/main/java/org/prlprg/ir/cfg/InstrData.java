@@ -7,12 +7,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Stream;
-import javax.annotation.Nullable;
 import org.jetbrains.annotations.Unmodifiable;
-import org.jetbrains.annotations.UnmodifiableView;
-import org.prlprg.ir.cfg.IFun.Static;
 import org.prlprg.ir.effect.REffects;
-import org.prlprg.sexp.LangSXP;
 import org.prlprg.util.InvalidAnnotationError;
 import org.prlprg.util.NotImplementedError;
 
@@ -46,7 +42,7 @@ public sealed interface InstrData permits JumpData, StmtData {
    * <p>By default, this does so via annotations, and throws {@link InvalidAnnotationError} if the
    * instruction has bad or missing annotations.
    *
-   * <p>You can modify this array and call {@link #setInputs(Objects[])} to return an updated {@link
+   * <p>You can modify this array and call {@link #setInputs(Object[])} to return an updated {@link
    * InstrData} which is the same class as this, but with the new inputs (note that {@link #fun()},
    * {@link #effects()}, and {@link #outputTypes()} may be affected if they depend on the inputs).
    */
@@ -81,9 +77,9 @@ public sealed interface InstrData permits JumpData, StmtData {
    *
    * <p>Specifically, if the changed input {@link Node#type()}s would cause {@link #effects()} or
    * {@link #outputTypes()} to return differently, this will return a value indicating such, and if
-   * an input is the wrong type, this will throw {@link CascadingInstrInputException}.
+   * an input is the wrong {@link Node#type()}, this will throw {@link InputNodeTypeException}.
    *
-   * <p>The {@link CascadingInstrInputException} is the same as the one that would be thrown by
+   * <p>The {@link InputNodeTypeException} is the same as the one that would be thrown by
    * calling {@link #setInputs(Object[])} given the existing {@link #inputs()} (which were
    * originally valid, but are no longer because the node's type changed).
    *
@@ -100,23 +96,35 @@ public sealed interface InstrData permits JumpData, StmtData {
   enum CascadingInstrUpdate {
     NONE(false, false),
     UPDATED_EFFECTS(true, false),
-    UPDATED_OUTPUT(false, true),
-    UPDATED_EFFECTS_AND_OUTPUT(true, true);
+    UPDATED_OUTPUT_TYPES(false, true),
+    UPDATED_EFFECTS_AND_OUTPUT_TYPES(true, true);
 
     private final boolean updatedEffects;
-    private final boolean updatedOutput;
+    private final boolean updatedOutputTypes;
 
-    CascadingInstrUpdate(boolean updatedEffects, boolean updatedOutput) {
+    public static CascadingInstrUpdate of(boolean updatedEffects, boolean updatedOutputTypes) {
+      if (updatedEffects && updatedOutputTypes) {
+        return UPDATED_EFFECTS_AND_OUTPUT_TYPES;
+      } else if (updatedEffects) {
+        return UPDATED_EFFECTS;
+      } else if (updatedOutputTypes) {
+        return UPDATED_OUTPUT_TYPES;
+      } else {
+        return NONE;
+      }
+    }
+
+    CascadingInstrUpdate(boolean updatedEffects, boolean updatedOutputTypes) {
       this.updatedEffects = updatedEffects;
-      this.updatedOutput = updatedOutput;
+      this.updatedOutputTypes = updatedOutputTypes;
     }
 
     public boolean updatedEffects() {
       return updatedEffects;
     }
 
-    public boolean updatedOutput() {
-      return updatedOutput;
+    public boolean updatedOutputTypes() {
+      return updatedOutputTypes;
     }
   }
 
@@ -130,7 +138,7 @@ public sealed interface InstrData permits JumpData, StmtData {
     }
 
     private void handleUpdatedInstrData(InstrData data, CascadingInstrUpdate update) {
-      if (update.updatedOutput) {
+      if (update.updatedOutputTypes) {
         if (!instrDatasWhoseOutputsHaveChanged.add(data)) {
           throw new InfiniteCascadingUpdateException(instrDatasWhoseOutputsHaveChanged);
         }
@@ -147,7 +155,7 @@ public sealed interface InstrData permits JumpData, StmtData {
    * that and don't want to write the boilerplate, so we just call in {@link Instr}'s constructor
    * because it's guaranteed to run for every {@link InstrData} before it's added to a {@link CFG}).
    *
-   * @throws RuntimeException if any input {@link Node#type()}s aren't subtypes.
+   * @throws InputNodeTypeException if any input {@link Node#type()}s aren't subtypes.
    */
   default void checkInputNodeTypes() {
     throw new NotImplementedError();

@@ -604,7 +604,7 @@ public class CFG
   }
 
   /** Mark a local node as belonging to this CFG. */
-  private void track(LocalNode<?> node) {
+  void track(LocalNode<?> node) {
     assert node.cfg() == this : "node to track is global or belongs to a different CFG: " + node;
 
     var id = node.id();
@@ -624,7 +624,7 @@ public class CFG
    * <p>If the node is an instruction or phi, it requires extra code to fully untrack. This method
    * should remain private.
    */
-  private void untrack(LocalNode<?> node) {
+  void untrack(LocalNode<?> node) {
     assert node.cfg() == this : "node to untrack is global or belongs to a different CFG: " + node;
 
     var id = node.id();

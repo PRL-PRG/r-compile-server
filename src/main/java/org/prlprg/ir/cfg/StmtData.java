@@ -11,11 +11,9 @@ import org.prlprg.ir.cfg.IFun.StaticBuiltinCall;
 import org.prlprg.ir.cfg.IFun.StaticCompiledCall;
 import org.prlprg.ir.closure.Closure;
 import org.prlprg.ir.closure.ClosureVersion;
-import org.prlprg.ir.closure.ClosureVersion.CallContext;
 import org.prlprg.ir.closure.Promise;
 import org.prlprg.ir.effect.REffect;
 import org.prlprg.ir.effect.REffects;
-import org.prlprg.ir.type.RClosureType;
 import org.prlprg.ir.type.RType;
 import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.ir.type.lattice.YesOrMaybe;
@@ -32,119 +30,7 @@ import org.prlprg.sexp.SEXPs;
  *
  * @see InstrData and {@link Instr} for why we have this separate from statements.
  */
-public sealed interface StmtData<I extends Stmt> extends InstrData<I> {
-  /** An instruction that doesn't produce any value. */
-  sealed interface Void extends StmtData<Stmt> {
-    @Override
-    default Stmt make(CFG cfg, NodeId<? extends Instr> id) {
-      return new VoidStmtImpl(cfg, id, this);
-    }
-  }
-
-  /** An instruction that produces a {@link SEXP}. */
-  sealed interface ISexp_ extends StmtData<ISexpStmt> {
-    /**
-     * Compute the type from the arguments, or for trivial cases, <i>this will return {@code null}
-     * </i> and an annotation on this class will compute the type instead.
-     */
-    default @Nullable RType computeType() {
-      return null;
-    }
-
-    /**
-     * Compute the environment data from the arguments if this is guaranteed to be an environment,
-     * otherwise return {@code null}.
-     */
-    default @Nullable EnvAux computeEnvAux() {
-      return null;
-    }
-
-    @Override
-    default ISexpStmt make(CFG cfg, NodeId<? extends Instr> id) {
-      return new ISexpStmtImpl(cfg, id, this);
-    }
-  }
-
-  /** A load instruction, e.g. {@link LdVar}, {@link LdVarSuper} */
-  sealed interface Load {
-    RegSymSXP name();
-
-    boolean missOk();
-
-    @IsEnv
-    ISexp env();
-  }
-
-  /** A store instruction, e.g. {@link StVar}, {@link StVarSuper} */
-  sealed interface Store {
-    RegSymSXP name();
-
-    ISexp value();
-
-    @IsEnv
-    ISexp env();
-  }
-
-  /** A call instruction, e.g. {@link NamelessCall}, {@link NamedCall} */
-  sealed interface Call extends ISexp_, InstrData.HasAst {
-    /**
-     * The function to be called.
-     *
-     * <p>It may be an arbitrary {@link ISexp} or something statically-known (typically we must
-     * speculatively guard the statically-known things, but that's outside this instruction, and not
-     * necessarily e.g. in {@code (function(…) { … })(…) }).
-     */
-    IFun fun();
-
-    /**
-     * Call arguments.
-     *
-     * <p>They may or may not be ordered, and may or may not contain "dots" that expand to unknown
-     * names and arguments.
-     *
-     * <p>This doesn't indicate how we'll pass the arguments; we will create an R-list for GNU-R
-     * closures, but call directly and maybe unbox for JITted closures (and append necessary missing
-     * arguments). It is only what arguments we'll pass, and whether they are in order ({@link
-     * CallArguments.KnownOrder}), in order except with dots ({@link
-     * CallArguments.KnownOrderExceptDots}), or possibly out of order what names (which determine
-     * the order based on the closure's parameters; {@link CallArguments.UnknownOrder}).
-     */
-    CallArguments args();
-
-    /**
-     * Caller's environment.
-     *
-     * <p>The callee can access this via {@code sys.frame}. If {@code null}, that means we know the
-     * callee won't access the environment, so we elided it.
-     */
-    @Nullable @IsEnv
-    ISexp env();
-
-    /** Frame-state for deoptimization. */
-    @Nullable FrameState fs();
-
-    /**
-     * Compute the most specific {@link CallContext} we can from {@code args} and {@code env}.
-     *
-     * <p>If {@link #fun()} is statically known to be a {@linkplain Closure compiled closure}
-     * ({@link RClosureType#isJit()}, but not a specific closure, we will provide this call context
-     * to the call. If {@link #fun()} is statically known to be a specific compiled closure, we will
-     * directly call the {@link ClosureVersion} that matches the context.
-     */
-    default CallContext context() {
-      // TODO
-      return CallContext.EMPTY;
-    }
-  }
-
-  /**
-   * Temporary placeholders that shouldn't be inserted or replaced directly. Instead, these are
-   * inserted and replaced indirectly in insert, replace, and remove operations for other
-   * instructions, to improve performance by batching array changes and non-local substitutions for
-   * later.
-   */
-  sealed interface Placeholder {}
-
+public sealed interface StmtData extends InstrData {
   /**
    * If we are removing many statements staggered throughout a {@link BB}, instead of removing them
    * immediately, we can replace with {@code NoOp}s, then batch remove all {@code NoOp}s to improve
