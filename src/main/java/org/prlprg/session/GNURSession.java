@@ -1,6 +1,5 @@
 package org.prlprg.session;
 
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
@@ -8,7 +7,6 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
-import java.util.zip.InflaterInputStream;
 import javax.annotation.Nullable;
 import org.prlprg.RVersion;
 import org.prlprg.rds.RDSReader;
@@ -49,21 +47,24 @@ public class GNURSession implements RSession {
   }
 
   class EnvHook implements RDSReader.Hook {
-    private HashMap<String, VecSXP> references = new HashMap<>();
+    private HashMap<String, IntSXP> references = new HashMap<>();
     private InputStream in;
 
     EnvHook(VecSXP refs, InputStream in) {
       this.in = in;
       var names = refs.names();
       for (int i = 0; i < refs.size(); i++) {
-        this.references.put(names.get(i), (VecSXP) refs.get(i));
+        this.references.put(names.get(i), (IntSXP) refs.get(i));
       }
     }
 
     @Override
     public SEXP hook(SEXP sexp) {
       if (sexp instanceof StrSXP s) {
-        var position = references.getOrDefault(s.get(0), (VecSXP) sexp);
+        var position = references.get(s.get(0));
+        if (position == null) {
+          return sexp;
+        }
 
         // TODO: factorize with the other object reading function
         // And it looks like we cannot read linearly, can't we?
@@ -79,59 +80,8 @@ public class GNURSession implements RSession {
 
   public HashMap<String, SEXP> readPackageDatabase(Path path, String packageName)
       throws IOException {
-    // .libPaths and installed_packages() in R can help to see
-    // where packages are installed
-    var basePath = path.resolve(packageName + "/R");
-    // Read the index file .rdx
-    // we get a list with 3 elements, variables, references and compressed
-    // See LazyLoading in https://cran.r-project.org/doc/manuals/r-devel/R-ints.html
-    var index = RDSReader.readFile(this, basePath.resolve(packageName + ".rdx").toFile());
-
-    // Load objects .rdb
-    var objectFile = basePath.resolve(packageName + ".rdb").toFile();
-    try (var input = new FileInputStream(objectFile)) {
-
-      if (index instanceof VecSXP l) {
-        var variables = (VecSXP) l.get(0);
-        var names = variables.names();
-        var references = (VecSXP) l.get(1);
-        // Nowadays, it is always compressed. It can be a boolean,
-        // or an Int to indicate the compression algorithm: 2 bzip2, 3: xz
-        var compressed = l.get(2);
-        if (compressed instanceof IntSXP i) {
-          var algo =
-              switch (i.get(0)) {
-                case 2 -> "bzip2";
-                case 3 -> "xz";
-                default -> "unknown";
-              };
-          // For the other ones, there would be one more byte in addition to the length
-          // that would contain the compression method again or 0 if the compressed size
-          // had exceeded the uncompressed one.
-          throw new RuntimeException(algo + " compression detected; only zlib is supported");
-        }
-
-        var bindings = new HashMap<String, SEXP>(variables.size());
-
-        int offset = 0;
-        for (int i = 0; i < variables.size(); i++) {
-          var posInRdb = (IntSXP) variables.get(i);
-
-          input.skip(posInRdb.get(0) - offset);
-          offset = posInRdb.get(0);
-          byte[] len = input.readNBytes(4); // Skip the 4 bytes of the length
-          // convert to a 4 byte big endian int
-          int length = (len[0] << 24) | (len[1] << 16) | (len[2] << 8) | len[3];
-          // Read the object from the rdb file at the right positions
-          assert length + 4 == posInRdb.get(1) + 1;
-          var obj = RDSReader.readStream(this, new InflaterInputStream(input));
-          bindings.put(names.get(i), obj);
-        }
-        return bindings;
-      } else {
-        throw new RuntimeException("Invalid index file");
-      }
-    }
+    var db = new PackageDatabase(this, path, packageName);
+    return db.getBindings();
   }
 
   /**

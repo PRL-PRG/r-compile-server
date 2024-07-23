@@ -53,7 +53,7 @@ public class RDSReader implements Closeable {
   // User-provided hook for PERSISTSXP
   // Used for package databases for instance
   public interface Hook {
-    SEXP hook(SEXP sexp);
+    SEXP hook(SEXP sexp) throws IOException;
   }
 
   private Hook hook = null;
@@ -195,6 +195,9 @@ public class RDSReader implements Closeable {
   private SEXP readPersist(Flags flags) throws IOException {
     var strs = readStringVec();
     // Call the persistent hook on that strsxp
+    if (hook == null) {
+      throw new RDSException("No hook provided for PERSISTSXP");
+    }
     var res = hook.hook(strs);
     refTable.add(res);
     return res;
