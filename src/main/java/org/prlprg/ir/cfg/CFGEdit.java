@@ -888,8 +888,8 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
     }
   }
 
-  record SetLocalNodeId(NodeId<? extends InstrOrPhi> oldId, NodeId<? extends InstrOrPhi> newId)
-      implements MutateInstrOrPhi<SetLocalNodeId> {
+  record SetLocalNodeId<T>(LocalNodeId<T> oldId, LocalNodeId<T> newId)
+      implements MutateInstrOrPhi<SetLocalNodeId<T>> {
     public SetLocalNodeId {
       if (oldId.type() != newId.type()) {
         throw new IllegalArgumentException(
@@ -899,15 +899,15 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
 
     /** Alias for {@code oldId} for this to implement {@link MutateInstrOrPhi#targetId()}. */
     @Override
-    public NodeId<? extends InstrOrPhi> targetId() {
+    public LocalNodeId<T> targetId() {
       return oldId;
     }
 
     @Override
-    public SetLocalNodeId apply(CFG cfg) {
+    public SetLocalNodeId<T> apply(CFG cfg) {
       var old = cfg.get(oldId);
-      InstrOrPhiImpl.cast(old).setId(newId);
-      return new SetLocalNodeId(newId, oldId);
+      old.setId(newId);
+      return new SetLocalNodeId<T>(newId, oldId);
     }
 
     @Override

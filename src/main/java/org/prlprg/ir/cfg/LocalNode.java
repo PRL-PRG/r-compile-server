@@ -88,7 +88,7 @@ public sealed class LocalNode<T> implements Node<T> permits Param, Phi, InstrOut
     id = newId;
     cfg().track(this);
 
-    cfg().record(new SetLocalNodeId(oldId, newId), new SetLocalNodeId(newId, oldId));
+    cfg().record(new SetLocalNodeId<>(oldId, newId), new SetLocalNodeId<>(newId, oldId));
   }
 
   /**

@@ -10,12 +10,10 @@ import java.util.Optional;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.UnmodifiableView;
-import org.prlprg.ir.cfg.CFGEdit.MutateInstrArgs;
 import org.prlprg.ir.cfg.InstrData.CascadingInstrUpdate;
 import org.prlprg.ir.cfg.InstrData.CascadingUpdatedInstrs;
 import org.prlprg.ir.closure.CodeObject;
 import org.prlprg.ir.effect.REffects;
-import org.prlprg.ir.type.RType;
 
 /**
  * IR instruction: {@link Stmt} or {@link Jump}. An instruction is a single operation in a basic
@@ -31,15 +29,16 @@ import org.prlprg.ir.type.RType;
 public sealed class Instr implements InstrOrPhi permits Jump, Stmt {
   private final CFG cfg;
 
-  private InstrData data;
+  protected InstrData data;
 
   private IFun fun;
-  private final Object[] inputs;
+  protected final Object[] inputs;
   private REffects effects;
   private final ImmutableList<InstrOutput<?>> outputs;
 
   private final List<Node<?>> cachedInputNodes = new ArrayList<>();
 
+  // region construct
   Instr(CFG cfg, InstrData data) {
     this.cfg = cfg;
     this.data = data;
@@ -49,12 +48,15 @@ public sealed class Instr implements InstrOrPhi permits Jump, Stmt {
     effects = data.effects();
     outputs = data.outputTypes()
         .stream()
-        .map(this::mkOutput)
+        .map(type -> new InstrOutput<>(this, type))
         .collect(ImmutableList.toImmutableList());
 
-    updateCached();
+    updateCachedInputNodes();
   }
 
+  // endregion construct
+
+  // region accessors
   /**
    * The instruction's "type"-sans-overloads, in the way it's parsed/printed and lowered.
    *
@@ -108,37 +110,13 @@ public sealed class Instr implements InstrOrPhi permits Jump, Stmt {
     return outputs;
   }
 
-  /** Run sanity checks. Either does nothing or throws {@link InstrVerifyException}.
-   *
-   * <p>See {@link InstrData#verify()} for what it does specifically.
-   */
-  public void verify() {
-    data.verify();
+  @Override
+  public CFG cfg() {
+    return cfg;
   }
+  // endregion accessors
 
-  private void updateCached() {
-    cachedInputNodes.clear();
-    for (var input : inputs) {
-      addInputNodesFrom(cachedInputNodes, input);
-    }
-  }
-
-  private static void addInputNodesFrom(List<Node<?>> nodes, @Nullable Object input) {
-    switch (input) {
-      case Node<?> node -> nodes.add(node);
-      case Node<?>[] nodes1 -> nodes.addAll(Arrays.asList(nodes1));
-      case Optional<?> optional -> optional.ifPresent(o -> addInputNodesFrom(nodes, o));
-      case ImmutableList<?> collection -> {
-        for (var item : collection) {
-          addInputNodesFrom(nodes, item);
-        }
-      }
-      case Collection<?> _ -> throw new UnsupportedOperationException("Collections in `InstrData` must be `ImmutableList`s (arrays are also allowed)");
-      case CodeObject codeObject -> nodes.addAll(codeObject.outerCfgNodes());
-      case null, default -> {}
-    }
-  }
-
+  // region mutators
   @Override
   public final CascadingInstrUpdate replaceInInputs(CascadingUpdatedInstrs seen, Node<?> old, Node<?> replacement) {
     var oldData = data;
@@ -147,25 +125,30 @@ public sealed class Instr implements InstrOrPhi permits Jump, Stmt {
       inputs[i] = replaceInputNodesIn(inputs[i], old, replacement);
     }
 
-    var update = data.handleUpdatedNodeInputs(seen);
-    if (update.updatedEffects()) {
-      effects = data.effects();
+    data = data.setInputs(inputs);
+
+    fun = data.fun();
+
+    var effectsChanged = !effects.equals(data.effects());
+    effects = data.effects();
+
+    var outputTypesChanged = false;
+    var outputTypes = data.outputTypes();
+    if (outputTypes.size() != outputs.size()) {
+      throw new IllegalStateException("`InstrData` changed output count, that isn't allowed");
     }
-    if (update.updatedOutput()) {
-      var outputTypes = data.outputTypes();
-
-      if (outputTypes.size() != outputs.size()) {
-        throw new IllegalStateException("`InstrData` changed output count, that isn't allowed");
-      }
-
-      for (var i = 0; i < outputs.size(); i++) {
+    for (var i = 0; i < outputs.size(); i++) {
+      if (outputs.get(i).type() != outputTypes.get(i)) {
+        outputTypesChanged = true;
         outputs.get(i).unsafeSetType(outputTypes.get(i));
       }
     }
 
-    cfg.record(new MutateInstrArgs(this, data), new MutateInstrArgs(this, oldData));
+    updateCachedInputNodes();
 
-    return update;
+    cfg.record(new ReplaceInInputs(this, data), new ReplaceInInputs(this, oldData));
+
+    return CascadingInstrUpdate.of(effectsChanged, outputTypesChanged);
   }
 
   @SuppressWarnings("unchecked")
@@ -195,13 +178,38 @@ public sealed class Instr implements InstrOrPhi permits Jump, Stmt {
       case null, default -> input;
     };
   }
+  // endregion mutators
 
-  private <T> InstrOutput<T> mkOutput(Class<? extends T> type) {
-    return new InstrOutput<>(this, type);
+  // region verify and update cached
+  /** Run sanity checks. Either does nothing or throws {@link InstrVerifyException}.
+   *
+   * <p>See {@link InstrData#verify()} for what it does specifically.
+   */
+  public void verify() {
+    data.verify();
   }
 
-  @Override
-  public CFG cfg() {
-    return cfg;
+  protected void updateCachedInputNodes() {
+    cachedInputNodes.clear();
+    for (var input : inputs) {
+      addInputNodesFrom(cachedInputNodes, input);
+    }
   }
+
+  private static void addInputNodesFrom(List<Node<?>> nodes, @Nullable Object input) {
+    switch (input) {
+      case Node<?> node -> nodes.add(node);
+      case Node<?>[] nodes1 -> nodes.addAll(Arrays.asList(nodes1));
+      case Optional<?> optional -> optional.ifPresent(o -> addInputNodesFrom(nodes, o));
+      case ImmutableList<?> collection -> {
+        for (var item : collection) {
+          addInputNodesFrom(nodes, item);
+        }
+      }
+      case Collection<?> _ -> throw new UnsupportedOperationException("Collections in `InstrData` must be `ImmutableList`s (arrays are also allowed)");
+      case CodeObject codeObject -> nodes.addAll(codeObject.outerCfgNodes());
+      case null, default -> {}
+    }
+  }
+  // endregion verify and update cached
 }

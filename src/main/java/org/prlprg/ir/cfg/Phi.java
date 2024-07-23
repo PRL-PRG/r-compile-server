@@ -315,7 +315,7 @@ public final class Phi<T> extends LocalNode<T> implements InstrOrPhi {
       }
     }
 
-    var result = type() != phiType(inputs) ? CascadingInstrUpdate.UPDATED_OUTPUT : CascadingInstrUpdate.NONE;
+    var result = type() != phiType(inputs) ? CascadingInstrUpdate.UPDATED_OUTPUT_TYPES : CascadingInstrUpdate.NONE;
     updateType();
     return result;
   }

@@ -32,4 +32,9 @@ public final class InstrOutput<T> extends LocalNode<T> {
   public Instr origin() {
     return origin;
   }
+
+  @Override
+  public String toString() {
+    return id() + " from " + origin;
+  }
 }

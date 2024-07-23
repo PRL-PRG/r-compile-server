@@ -7,6 +7,7 @@ import javax.annotation.Nullable;
 import org.checkerframework.checker.index.qual.SameLen;
 import org.prlprg.ir.effect.REffect;
 import org.prlprg.sexp.LangSXP;
+import org.prlprg.util.NotImplementedError;
 import org.prlprg.util.Pair;
 
 /**
@@ -14,49 +15,36 @@ import org.prlprg.util.Pair;
  *
  * @see InstrData and {@link Instr} for why we have this separate from jumps.
  */
-public sealed interface JumpData<I extends Jump> extends InstrData<I> {
+public sealed interface JumpData extends InstrData {
   /** Replace "return" with a new target. */
-  default JumpData<I> replaceReturnWith(BB newTarget) {
-    return this;
-  }
-
-  sealed interface Void extends JumpData<Jump> {
-    @Override
-    default Jump make(CFG cfg, NodeId<? extends Instr> id) {
-      return new VoidJumpImpl(cfg, id, this);
-    }
+  default JumpData replaceReturnWith(BB newTarget) {
+    return switch (this) {
+      case NonLocalReturn _ -> throw new UnsupportedOperationException(
+          "Can't inline or otherwise replace the return, because we don't know if it's local");
+      case Return _ -> new Goto(newTarget);
+      default -> this;
+    };
   }
 
   @EffectsAre({})
-  record Goto(BB next) implements Void {}
+  record Goto(BB next) implements JumpData {}
 
   @EffectsAre({})
   record Branch(@Nullable LangSXP ast, ISexp condition, BB ifTrue, BB ifFalse)
-      implements Void, InstrData.HasAst {
+      implements JumpData {
     public Branch(ISexp condition, BB ifTrue, BB ifFalse) {
       this(null, condition, ifTrue, ifFalse);
     }
   }
 
   @EffectsAreAribtrary
-  record NonLocalReturn(ISexp value, @IsEnv ISexp env) implements Void {
-    @Override
-    public JumpData<Jump> replaceReturnWith(BB newTarget) {
-      throw new UnsupportedOperationException(
-          "Can't inline or otherwise replace the return, because we don't know if it's local");
-    }
-  }
+  record NonLocalReturn(ISexp value, @IsEnv ISexp env) implements JumpData {}
 
   @EffectsAre(REffect.LeaksNonEnvArg)
-  record Return(ISexp value) implements Void {
-    @Override
-    public JumpData<Jump> replaceReturnWith(BB newTarget) {
-      return new Goto(newTarget);
-    }
-  }
+  record Return(ISexp value) implements JumpData {}
 
   @EffectsAre({})
-  record Unreachable() implements Void {}
+  record Unreachable() implements JumpData {}
 
   @EffectsAre({})
   record Checkpoint_(
@@ -64,7 +52,7 @@ public sealed interface JumpData<I extends Jump> extends InstrData<I> {
       @SameLen("tests") ImmutableList<org.prlprg.rshruntime.DeoptReason> failReasons,
       BB ifPass,
       BB ifFail)
-      implements JumpData<Checkpoint> {
+      implements JumpData {
     public int numAssumptions() {
       return tests.size();
     }
@@ -72,11 +60,6 @@ public sealed interface JumpData<I extends Jump> extends InstrData<I> {
     @SuppressWarnings("UnstableApiUsage")
     public Stream<Pair<ISexp, org.prlprg.rshruntime.DeoptReason>> streamAssumptionData() {
       return Streams.zip(tests.stream(), failReasons.stream(), Pair::new);
-    }
-
-    @Override
-    public Checkpoint make(CFG cfg, NodeId<? extends Instr> id) {
-      return new CheckpointImpl(cfg, id, this);
     }
   }
 
@@ -86,7 +69,7 @@ public sealed interface JumpData<I extends Jump> extends InstrData<I> {
       @Nullable DeoptReason reason,
       @Nullable ISexp trigger,
       boolean escapedEnv)
-      implements Void {
+      implements JumpData {
     public Deopt {
       if (reason == null && trigger != null) {
         throw new IllegalArgumentException(
