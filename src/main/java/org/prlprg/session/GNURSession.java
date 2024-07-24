@@ -1,23 +1,70 @@
 package org.prlprg.session;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.URI;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
+import java.util.logging.Logger;
 import javax.annotation.Nullable;
 import org.prlprg.RVersion;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.server.Messages;
 import org.prlprg.sexp.*;
 
+/**
+ * Dummy session used to bootstrap base. Indeed, the RDS reader that reads base package database
+ * requires a session.
+ */
+class DummySession implements RSession {
+  private final Logger logger = Logger.getLogger(DummySession.class.getName());
+  private final GlobalEnvSXP globalEnv = new GlobalEnvSXP(SEXPs.EMPTY_ENV);
+  private final NamespaceEnvSXP namespaceEnv =
+      new NamespaceEnvSXP("base", "4.3.2", globalEnv, new HashMap<>());
+  private final BaseEnvSXP baseEnv = new BaseEnvSXP(new HashMap<>());
+
+  @Override
+  public NamespaceEnvSXP baseNamespace() {
+    return namespaceEnv;
+  }
+
+  @Override
+  public BaseEnvSXP baseEnv() {
+    return baseEnv;
+  }
+
+  @Override
+  public GlobalEnvSXP globalEnv() {
+    return globalEnv;
+  }
+
+  @Override
+  public boolean isBuiltin(String name) {
+    return false;
+  }
+
+  @Override
+  public boolean isSpecial(String name) {
+    return false;
+  }
+
+  @Override
+  public boolean isBuiltinInternal(String name) {
+    return false;
+  }
+
+  @Override
+  public NamespaceEnvSXP getNamespace(String name, String version) {
+    return null;
+  }
+}
+
 public class GNURSession implements RSession {
   private URI cranMirror;
   private org.prlprg.RVersion RVersion;
 
-  private @Nullable BaseEnvSXP baseEnvSXP = null;
+  private @Nullable BaseEnvSXP baseEnv = null;
   private @Nullable NamespaceEnvSXP baseNamespace = null;
   private @Nullable GlobalEnvSXP globalEnv = null;
   private @Nullable Set<String> builtins = null;
@@ -46,41 +93,9 @@ public class GNURSession implements RSession {
     // Or rather do lazy loading like R?
   }
 
-  class EnvHook implements RDSReader.Hook {
-    private HashMap<String, IntSXP> references = new HashMap<>();
-    private InputStream in;
-
-    EnvHook(VecSXP refs, InputStream in) {
-      this.in = in;
-      var names = refs.names();
-      for (int i = 0; i < refs.size(); i++) {
-        this.references.put(names.get(i), (IntSXP) refs.get(i));
-      }
-    }
-
-    @Override
-    public SEXP hook(SEXP sexp) {
-      if (sexp instanceof StrSXP s) {
-        var position = references.get(s.get(0));
-        if (position == null) {
-          return sexp;
-        }
-
-        // TODO: factorize with the other object reading function
-        // And it looks like we cannot read linearly, can't we?
-        // or we need first to merge the symbols and the temp environments in offset increasing
-        // order
-        // and then load in order.
-        return sexp;
-      }
-
-      return sexp;
-    }
-  }
-
-  public HashMap<String, SEXP> readPackageDatabase(Path path, String packageName)
-      throws IOException {
-    var db = new PackageDatabase(this, path, packageName);
+  public static HashMap<String, SEXP> readPackageDatabase(
+      RSession session, Path path, String packageName) throws IOException {
+    var db = new PackageDatabase(session, path, packageName);
     return db.getBindings();
   }
 
@@ -124,21 +139,40 @@ public class GNURSession implements RSession {
    */
   public void loadBase(List<Messages.Function> functions) {
     // TODO
+    // Bootstrap the reader with an ad-hoc session?
+  }
+
+  /** Load base from the given installed R version */
+  public void loadBase(Path r_lib) throws IOException {
+    var session = new DummySession();
+    var objs = GNURSession.readPackageDatabase(session, r_lib, "base");
+    // TODO: write the right version of R (extract ot from the path?)
+    baseNamespace = new NamespaceEnvSXP("base", "4.3.2", this.globalEnv(), objs);
+    baseEnv = new BaseEnvSXP(objs);
   }
 
   @Override
   public NamespaceEnvSXP baseNamespace() {
-    return null;
+    if (baseNamespace == null) {
+      // loadBase();
+    }
+    return baseNamespace;
   }
 
   @Override
   public BaseEnvSXP baseEnv() {
-    return null;
+    if (baseEnv == null) {
+      // loadBase();
+    }
+    return baseEnv;
   }
 
   @Override
   public GlobalEnvSXP globalEnv() {
-    return null;
+    if (globalEnv == null) {
+      globalEnv = new GlobalEnvSXP(baseEnv());
+    }
+    return globalEnv;
   }
 
   @Override

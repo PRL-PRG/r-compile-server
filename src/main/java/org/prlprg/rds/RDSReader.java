@@ -19,7 +19,6 @@ import org.prlprg.primitive.Complex;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
 import org.prlprg.session.RSession;
-import org.prlprg.sexp.*;
 import org.prlprg.sexp.Attributes;
 import org.prlprg.sexp.BCodeSXP;
 import org.prlprg.sexp.CloSXP;
@@ -48,7 +47,7 @@ public class RDSReader implements Closeable {
   private final RSession rsession;
   private final RDSInputStream in;
   private final List<SEXP> refTable = new ArrayList<>(128);
-  private final Logger logger = Logger.getLogger(RDSReader.class.getName());
+  private static Logger LOGGER = Logger.getLogger(RDSReader.class.getName());
 
   // User-provided hook for PERSISTSXP
   // Used for package databases for instance
@@ -121,7 +120,7 @@ public class RDSReader implements Closeable {
     var formatVersion = in.readInt();
     if (formatVersion > 2) {
       // we do not completely support RDS version 3 because it uses ALTREP
-      logger.warning("RDS version: " + formatVersion + "; some features are not supported.");
+      // LOGGER.warning("RDS version: " + formatVersion + "; some features are not supported.");
     }
     // writer version
     in.readInt();
@@ -186,10 +185,51 @@ public class RDSReader implements Closeable {
             case ATTRLANGSXP, ATTRLISTSXP -> throw new RDSException("Unexpected attr here");
             case UNBOUNDVALUE_SXP -> SEXPs.UNBOUND_VALUE;
             case PERSISTSXP -> readPersist(flags);
-            case GENERICREFSXP, PACKAGESXP, CLASSREFSXP, ALTREPSXP ->
+            case ALTREPSXP -> readAltRep(flags);
+            case GENERICREFSXP, PACKAGESXP, CLASSREFSXP ->
                 throw new RDSException("Unsupported RDS special type: " + s);
           };
     };
+  }
+
+  private SEXP readAltRep(Flags flags) throws IOException {
+    // Info: serialized class (looks like it is also the attribute of the altrep object!)
+    // Info is a 3 element list: class name, package name, type
+    var info = (ListSXP) readItem();
+    var state = readItem();
+    var attributes = readItem();
+
+    var className = ((RegSymSXP) info.get(0).value()).name();
+    var packageName = ((RegSymSXP) info.get(1).value()).name();
+    var type = SEXPType.valueOf(((IntSXP) info.get(2).value()).get(0));
+
+    // Alt classes used in base are defined here:
+    // https://github.com/wch/r-source/blob/abaa89600f4f024a80121ebb95fc4d80ea0a9b12/src/main/altclasses.c
+
+    LOGGER.info(
+        "Reading ALTREP with class "
+            + className
+            + " from package "
+            + packageName
+            + " with type "
+            + type);
+
+    // Dummy, just to test
+    // TODO: implement for at least int and real compact sequences.
+    // If you have R installed on a Linux machine,
+    // then running testLoadBase should log the necessary altrep classes
+    return switch (type) {
+      case INT -> SEXPs.integer(0);
+      case REAL -> SEXPs.real(0.0);
+      case STR -> SEXPs.string("hello world");
+      case LGL -> SEXPs.logical(Logical.NA);
+      case VEC -> SEXPs.vec();
+      case CPLX -> SEXPs.complex(0, 0);
+      case RAW -> SEXPs.raw((byte) 0);
+      default -> throw new RDSException("ALTREP type not supported: " + type);
+    };
+
+    // throw new RDSException("ALTREP not supported");
   }
 
   private SEXP readPersist(Flags flags) throws IOException {

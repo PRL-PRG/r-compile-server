@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.logging.Logger;
 import java.util.zip.InflaterInputStream;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.sexp.IntSXP;
@@ -22,12 +23,13 @@ import org.prlprg.sexp.VecSXP;
  * <p>This class can load object in the package on demand, and not all of them at once.
  */
 public class PackageDatabase {
-  private RandomAccessFile objectFile;
-  private HashMap<String, IntSXP> index = new HashMap<>();
-  private HashMap<String, IntSXP> tmpEnvs = new HashMap<>();
-  private HashMap<String, SEXP> objects = new HashMap<>();
-  private RSession session;
-  private EnvHook envHook = new EnvHook();
+  private static Logger LOGGER = Logger.getLogger(PackageDatabase.class.getName());
+  private final RandomAccessFile objectFile;
+  private final HashMap<String, IntSXP> index = new HashMap<>();
+  private final HashMap<String, IntSXP> tmpEnvs = new HashMap<>();
+  private final HashMap<String, SEXP> objects = new HashMap<>();
+  private final RSession session;
+  private final EnvHook envHook = new EnvHook();
 
   private class EnvHook implements RDSReader.Hook {
     @Override
@@ -151,8 +153,11 @@ public class PackageDatabase {
     if (objects.size() == index.size() + tmpEnvs.size()) {
       return objects;
     }
-    readObject(".__NAMESPACE__.", index);
+    if (index.containsKey(".__NAMESPACE__.")) {
+      readObject(".__NAMESPACE__.", index);
+    }
     for (var name : index.keySet()) {
+      LOGGER.info("Loading " + name);
       readObject(name, index);
     }
     return objects;
