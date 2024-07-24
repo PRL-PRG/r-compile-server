@@ -9,7 +9,6 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import org.prlprg.ir.cfg.BB;
 import org.prlprg.ir.cfg.CFG;
-import org.prlprg.ir.cfg.ISexp;
 import org.prlprg.ir.cfg.ISexpStmt;
 import org.prlprg.ir.cfg.Instr;
 import org.prlprg.ir.cfg.IsEnv;

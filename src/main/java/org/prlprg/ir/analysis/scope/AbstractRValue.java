@@ -6,7 +6,6 @@ import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.Unmodifiable;
 import org.prlprg.ir.cfg.Constant;
-import org.prlprg.ir.cfg.ISexp;
 import org.prlprg.ir.cfg.Instr;
 import org.prlprg.ir.type.RType;
 import org.prlprg.ir.type.lattice.Maybe;

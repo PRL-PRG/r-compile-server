@@ -54,14 +54,14 @@ public sealed interface MapToIdIn<T extends InstrData<?>> {
   }
 
   /** Call {@link #decode(CFG)} on each element of the list. */
-  static <T extends InstrData<?>> ImmutableList<T> decodeList(
-      List<? extends MapToIdIn<? extends T>> list, CFG cfg) {
+  static <T extends InstrData> ImmutableList<T> decodeList(
+      List<? extends MapToIdIn<T>> list, CFG cfg) {
     return list.stream().map(m -> m.decode(cfg)).collect(ImmutableList.toImmutableList());
   }
 
   /** Call {@link #decode(CFG)} on each value of the map. */
-  static <K, V extends InstrData<?>> ImmutableMap<K, V> decodeMap(
-      Map<K, ? extends MapToIdIn<? extends V>> map, CFG cfg) {
+  static <K, V extends InstrData> ImmutableMap<K, V> decodeMap(
+      Map<K, ? extends MapToIdIn<V>> map, CFG cfg) {
     return map.entrySet().stream()
         .collect(ImmutableMap.toImmutableMap(Map.Entry::getKey, e -> e.getValue().decode(cfg)));
   }

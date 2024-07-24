@@ -1,6 +1,5 @@
 package org.prlprg.ir.analysis.scope;
 
-import org.prlprg.ir.cfg.ISexp;
 import org.prlprg.ir.cfg.IsEnv;
 import org.prlprg.ir.cfg.StaticEnv;
 import org.prlprg.parseprint.PrintMethod;

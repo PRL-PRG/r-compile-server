@@ -8,7 +8,6 @@ import java.util.Objects;
 import java.util.Set;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
-import org.prlprg.ir.cfg.ISexp;
 import org.prlprg.ir.cfg.Instr;
 import org.prlprg.ir.cfg.IsEnv;
 import org.prlprg.ir.cfg.StaticEnv;

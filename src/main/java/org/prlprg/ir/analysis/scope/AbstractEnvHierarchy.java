@@ -9,7 +9,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import org.jetbrains.annotations.UnmodifiableView;
-import org.prlprg.ir.cfg.ISexp;
 import org.prlprg.ir.cfg.IsEnv;
 import org.prlprg.ir.cfg.StaticEnv;
 import org.prlprg.ir.type.lattice.Maybe;

@@ -3,7 +3,6 @@ package org.prlprg.ir.analysis.scope;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
-import org.prlprg.ir.cfg.ISexp;
 import org.prlprg.ir.cfg.Instr;
 import org.prlprg.ir.cfg.IsEnv;
 import org.prlprg.ir.cfg.StmtData.MkProm;

@@ -1,7 +1,6 @@
 package org.prlprg.ir.cfg;
 
 import com.google.common.collect.Streams;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.prlprg.ir.analysis.CFGAnalyses;
@@ -38,11 +37,7 @@ interface CFGCleanup extends CFGQuery, CFGAnalyses, CFGIntrinsicMutate, CFGCompo
 
             // Remove phi nodes and "pure" statements with no users (including temporary `NoOp`
             // statements).
-            bb.removeWhere(
-                i ->
-                    i.isPure()
-                        && !(i instanceof Jump)
-                        && i.outputs().stream().allMatch(defUses::isUnused));
+            bb.removeWhere(i -> i.isPure() && i.outputs().stream().allMatch(defUses::isUnused));
           }
 
           // Remove basic blocks that are unreachable from the entry block.
@@ -56,10 +51,10 @@ interface CFGCleanup extends CFGQuery, CFGAnalyses, CFGIntrinsicMutate, CFGCompo
             // Convert branch instructions where both branches are the same BB into single-branch
             // variants.
             for (var bb : iter()) {
-              if (bb.jumpData() instanceof JumpData.Branch(var _, var _, var ifTrue, var ifFalse)
+              if (bb.controlFlow() instanceof ControlFlow.Branch(var ifTrue, var ifFalse)
                   && ifTrue == ifFalse) {
                 var phiInputs = ifTrue.phis().stream().map(phi -> phi.input(bb)).toList();
-                Instr.mutateArgs(Objects.requireNonNull(bb.jump()), new JumpData.Goto(ifTrue));
+                bb.replaceJump(new JumpData.Goto(ifTrue));
                 Streams.forEachPair(
                     ifTrue.phis().stream(),
                     phiInputs.stream(),
@@ -67,7 +62,7 @@ interface CFGCleanup extends CFGQuery, CFGAnalyses, CFGIntrinsicMutate, CFGCompo
                       // This is safe because the input is the same type as the phi,
                       // but Java can't enforce because it's an existential.
                       @SuppressWarnings("unchecked")
-                      var phi1 = (Phi<Node>) phi;
+                      var phi1 = (Phi<Object>) phi;
                       phi1.setInput(bb, input);
                     });
                 // Don't need to set `mayImproveOnRepeat` for the first optimization.
@@ -97,7 +92,7 @@ interface CFGCleanup extends CFGQuery, CFGAnalyses, CFGIntrinsicMutate, CFGCompo
             var iter1 = new CFGIterator.Dfs((CFG) this);
             while (iter1.hasNext()) {
               var bb = iter1.next();
-              while (bb.jumpData() instanceof JumpData.Goto(var nextBb)
+              while (bb.controlFlow() instanceof ControlFlow.Goto(var nextBb)
                   && ((nextBb != entry() && nextBb.hasSinglePredecessor())
                       || (bb.stmts().isEmpty()
                           && nextBb.phis().stream()
@@ -125,7 +120,7 @@ interface CFGCleanup extends CFGQuery, CFGAnalyses, CFGIntrinsicMutate, CFGCompo
                           var jump = pred.jump();
                           assert jump != null && jump.targets().contains(bb)
                               : "BB has predecessor whose jump doesn't point to it";
-                          JumpImpl.cast(jump).replaceInTargets(bb, nextBb);
+                          jump.replaceInTargets(bb, nextBb);
                         }
                         iter1.remove();
                       });

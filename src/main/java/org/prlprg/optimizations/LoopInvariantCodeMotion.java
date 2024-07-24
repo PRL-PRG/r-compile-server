@@ -10,7 +10,6 @@ import org.prlprg.ir.cfg.CFG;
 import org.prlprg.ir.cfg.Instr;
 import org.prlprg.ir.cfg.IsEnv;
 import org.prlprg.ir.cfg.JumpData;
-import org.prlprg.ir.cfg.ISexp;
 import org.prlprg.ir.cfg.Stmt;
 import org.prlprg.ir.cfg.StmtData;
 import org.prlprg.ir.effect.REffect;

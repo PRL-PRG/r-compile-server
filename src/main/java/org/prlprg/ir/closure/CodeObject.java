@@ -4,7 +4,6 @@ import java.util.List;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.ir.cfg.CFG;
 import org.prlprg.ir.cfg.CFGEdit;
-import org.prlprg.ir.cfg.ISexp;
 import org.prlprg.ir.cfg.Node;
 import org.prlprg.ir.cfg.StmtData;
 import org.prlprg.parseprint.ParseMethod;

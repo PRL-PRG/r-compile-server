@@ -11,6 +11,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
@@ -62,7 +63,7 @@ public class CFG
   /** Create a new CFG, with a single basic block and no instructions. */
   @SuppressFBWarnings("CT_CONSTRUCTOR_THROW")
   public CFG() {
-    entry = new BB(this, new BBIdImpl(0, "entry"));
+    entry = new BB(this, new BBId(0, "entry"));
     nextBbDisambiguator.add("entry", 0);
     bbs.put(entry.id(), entry);
     markExit(entry);
@@ -122,8 +123,11 @@ public class CFG
     }
 
     var node = (LocalNode<T>) localNodes.get(nodeId);
-    assert nodeId.type() == null || nodeId.type().isInstance(node)
-        : "node with id has wrong class: " + nodeId.type() + " -> " + node;
+    assert nodeId.type() == null || nodeId.type() == node.type()
+        : "node with id has wrong class: "
+        + Objects.requireNonNull(nodeId.type()).getName()
+        + " -> "
+        + node.type().getName();
     return node;
   }
 
@@ -488,8 +492,7 @@ public class CFG
     bbs.put(id, bb);
 
     markExit(bb);
-    var id1 = BBIdImpl.cast(id);
-    nextBbDisambiguator.add(id1.name(), id1.disambiguator());
+    nextBbDisambiguator.add(id.name(), id.disambiguator());
     return bb;
   }
 
@@ -515,7 +518,7 @@ public class CFG
     if (bb.successors().isEmpty()) {
       unmarkExit(bb);
     }
-    var id = BBIdImpl.cast(bb.id());
+    var id = bb.id();
     nextBbDisambiguator.remove(id.name(), id.disambiguator());
   }
 
@@ -561,6 +564,11 @@ public class CFG
     }
   }
 
+  /** @see #track(InstrOrPhi) */
+  void track(Phi<?> phi) {
+    track((InstrOrPhi) phi);
+  }
+
   /**
    * Mark an instructions and/or phis as belonging to this CFG.
    *
@@ -570,6 +578,11 @@ public class CFG
     for (var instrOrPhi : instrOrPhis) {
       track(instrOrPhi);
     }
+  }
+
+  /** @see #untrack(InstrOrPhi) */
+  void untrack(Phi<?> phi) {
+    untrack((InstrOrPhi) phi);
   }
 
   /**
@@ -612,7 +625,7 @@ public class CFG
         : "node's type isn't its ID type: "
         + node.type().getName()
         + " vs "
-        + (id.type() == null ? "null" :  id.type().getName());
+        + (id.type() == null ? "null" :  Objects.requireNonNull(id.type()).getName());
     var old = localNodes.put(id, node);
     assert old == null : "node with id already tracked: " + id + "\nold: " + old + "\nnew: " + node;
     nextInstrOrPhiDisambiguator.add(id.name(), id.disambiguator());
@@ -632,7 +645,7 @@ public class CFG
         : "node's type isn't its ID type: "
         + node.type().getName()
         + " vs "
-        + (id.type() == null ? "null" :  id.type().getName());
+        + (id.type() == null ? "null" : Objects.requireNonNull(id.type()).getName());
     var removed = localNodes.remove(node.id());
     assert removed != null : "node was never tracked";
     assert removed == node;
@@ -645,7 +658,7 @@ public class CFG
   // endregion unique ids
   /** Return a unique id for an {@linkplain BB basic block} with the given name. */
   BBId uniqueBBId(String name) {
-    return new BBIdImpl(nextBbDisambiguator.get(name), name);
+    return new BBId(nextBbDisambiguator.get(name), name);
   }
 
   /**

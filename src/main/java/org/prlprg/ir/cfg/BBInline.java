@@ -5,6 +5,11 @@ import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.prlprg.ir.cfg.JumpData.Deopt;
+import org.prlprg.ir.cfg.JumpData.Goto;
+import org.prlprg.ir.cfg.JumpData.NonLocalReturn;
+import org.prlprg.ir.cfg.JumpData.Return;
+import org.prlprg.ir.cfg.JumpData.Unreachable;
 
 interface BBInline extends BBCompoundMutate {
   /**
@@ -33,9 +38,7 @@ interface BBInline extends BBCompoundMutate {
               // Add BBs.
               var oldToNewBBs =
                   cfgToInline.bbIds().stream()
-                      .collect(
-                          Collectors.toMap(
-                              Function.identity(), id -> cfg().addBB(BBIdImpl.cast(id).name())));
+                      .collect(Collectors.toMap(Function.identity(), id -> cfg().addBB(id.name())));
 
               // Add instructions, replace BB arguments, and prepare to replace node arguments.
               var newInstrOrPhis = new ArrayList<InstrOrPhi>(cfgToInline.numNodes());
@@ -57,31 +60,23 @@ interface BBInline extends BBCompoundMutate {
                 for (var oldPhi : oldBB.phis()) {
                   var newPhi =
                       newBB.addPhi(
-                          oldPhi.nodeClass(),
                           oldPhi.inputs().stream()
                               .map(
                                   i -> {
                                     var newIncomingBB =
                                         Objects.requireNonNull(
                                             oldToNewBBs.get(i.incomingBB().id()));
-                                    return new Phi.Input<>(newIncomingBB, i.node());
+                                    return Phi.Input.of(newIncomingBB, i.node());
                                   })
                               .toList());
                   prePatchInstrOrPhi.accept(oldPhi, newPhi);
                 }
                 for (var oldStmt : oldBB.stmts()) {
-                  var newStmt =
-                      newBB.insertAt(
-                          newBB.stmts().size(),
-                          InstrOrPhiIdImpl.cast(oldStmt.id()).name(),
-                          oldStmt.data());
+                  var newStmt = newBB.insertCopyAt(newBB.stmts().size(), oldStmt);
                   prePatchInstrOrPhi.accept(oldStmt, newStmt);
                 }
                 if (oldBB.jump() != null) {
-                  var newJump =
-                      newBB.addJump(
-                          InstrOrPhiIdImpl.cast(oldBB.jump().id()).name(),
-                          oldBB.jump().data().replaceReturnWith(lastBB));
+                  var newJump = newBB.addJump(replaceReturnWith(oldBB.jump(), lastBB));
                   for (var oldTarget : newJump.targets()) {
                     var newTarget = Objects.requireNonNull(oldToNewBBs.get(oldTarget.id()));
                     newJump.replaceInTargets(oldTarget, newTarget);
@@ -94,5 +89,23 @@ interface BBInline extends BBCompoundMutate {
 
               return lastBB;
             });
+  }
+
+  /**
+   * If the jump is a regular {@link Return}, return a {@link Goto} to the given {@link BB}.
+   *
+   * <p>If it's a {@link NonLocalReturn}, this throws an {@link UnsupportedOperationException}. If
+   * it's a {@link Deopt} or {@link Unreachable}, this returns its {@link Jump#data}.
+   *
+   * <p>???: this is ugly because it exposes {@code data}, it's currently used by {@link BBInline}.
+   * Is there a better way?
+   */
+  private static JumpData replaceReturnWith(Jump jump, BB gotoBB) {
+    return switch (jump.data) {
+      case Return _ -> new Goto(gotoBB);
+      case NonLocalReturn _ ->
+          throw new UnsupportedOperationException("Can't inline a `NonLocalReturn`");
+      default -> (JumpData) jump.data;
+    };
   }
 }

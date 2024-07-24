@@ -5,21 +5,21 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
-import java.util.SequencedCollection;
+import java.util.SequencedSet;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
 
 interface BBQuery extends Iterable<InstrOrPhi> {
   // region access
-  // region parent and self
+  // region cfg and self
   /** CFG containing this block. */
   CFG cfg();
 
   /** Uniquely identifies this block within {@link #cfg()}. */
   BBId id();
 
-  // endregion
+  // endregion cfg and self
 
   // region predecessors and successors (access)
   /** Returns (a view of) the BBs whose jumps point to this. */
@@ -48,11 +48,11 @@ interface BBQuery extends Iterable<InstrOrPhi> {
   /**
    * Returns (a view of) the BBs this one's jump points to.
    *
-   * <p>These are in the same order as the jump's {@linkplain Jump#targets() targets}, which is the
-   * same order as they are in its {@linkplain Jump#data() data} ({@link JumpData} record).
+   * <p>This is the same as calling {@link #jump()}{@link Jump#targets() .targets()}, except will
+   * return an empty set if there's no jump.
    */
   @UnmodifiableView
-  SequencedCollection<BB> successors();
+  SequencedSet<BB> successors();
 
   /** Whether the BB is an exit, i.e. has no successors. */
   default boolean isExit() {
@@ -207,10 +207,10 @@ interface BBQuery extends Iterable<InstrOrPhi> {
   /** Returns this BB's jump, or {@code null} if unset. */
   @Nullable Jump jump();
 
-  /** Returns the {@linkplain #jump() jump's} {@linkplain Jump#data() data} if non-null. */
-  default @Nullable JumpData<?> jumpData() {
+  /** Returns the {@link #jump()}'s {@link Jump#controlFlow()} if non-null. */
+  default @Nullable ControlFlow controlFlow() {
     var jump = jump();
-    return jump == null ? null : jump.data();
+    return jump == null ? null : jump.controlFlow();
   }
   // endregion
   // endregion
