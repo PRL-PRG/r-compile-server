@@ -1,11 +1,10 @@
 package org.prlprg.ir.cfg;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
-import javax.annotation.Nullable;
 
 interface BBIntrinsicMutate {
   // region split and merge
@@ -88,86 +87,71 @@ interface BBIntrinsicMutate {
 
   // region add nodes
   /**
-   * Add a {@linkplain Phi phi node}, whose input nodes are of the given class, to this BB and
-   * return it.
+   * Add an empty {@linkplain Phi phi node} to this BB and return it.
    *
    * <p>The actual input nodes are all "unset" {@link InvalidNode}s, one for each of the BB's
    * predecessors.
-   *
-   * @throws UnsupportedOperationException If there's no phi class implemented for the given class
-   *     (e.g. {@link ISexpPhi} is for {@link ISexp}s; there isn't an analogue for all node types,
-   *     those without one will cause this exception).
    */
-  <N extends Node> Phi<N> addPhi(Class<? extends N> nodeClass);
+  <T> Phi<? extends T> addPhi();
 
   /**
-   * {@link #addPhi(Class)} with a preset inputs.
+   * Add a {@linkplain Phi phi node} with the given inputs to this BB and return it.
    *
    * @throws IllegalArgumentException If {@code inputs} doesn't contain an input for each of this
    *     block's predecessors.
    */
-  <N extends Node> Phi<N> addPhi(
-      Class<? extends N> nodeClass, Collection<? extends Phi.Input<? extends N>> inputs);
+  <T> Phi<? extends T> addPhi(Collection<? extends Phi.Input<? extends T>> inputs);
 
   /**
-   * Add {@linkplain Phi phi nodes}, whose input nodes are of the given class, to this BB and
-   * returns them.
-   *
-   * @see #addPhi(Class)
-   */
-  ImmutableList<? extends Phi<?>> addPhis(Collection<? extends Class<? extends Node>> nodeClasses);
-
-  /**
-   * {@link #addPhis(Collection)} with preset inputs
+   * Add {@linkplain Phi phi nodes} with the given inputs to this BB and return them.
    *
    * @throws IllegalArgumentException If any of the args' inputs doesn't contain an input for each
    *     of this block's predecessors.
+   * @see #addPhi(Collection)
    */
-  ImmutableList<? extends Phi<?>> addPhis1(Collection<Phi.Args> phiArgs);
+  <T> ImmutableList<? extends Phi<? extends T>> addPhis(
+      Collection<? extends Collection<? extends Phi.Input<? extends T>>> inputss);
 
   /**
    * Insert a statement in this BB at the given index.
    *
-   * @param name A name for the statement, useful for debugging and error messages, e.g. the
-   *     variable name if this is {@link org.prlprg.ir.cfg.StmtData.LdVar}. If there's no good name,
-   *     pass the empty string.
-   * @param args The statement's arguments (data).
+   * @param data The statement's data, which determines what kind of statement it is and its inputs.
    * @return The inserted statement.
    * @throws IndexOutOfBoundsException If the index is out of range.
    */
-  <I extends Stmt> I insertAt(int index, String name, StmtData<I> args);
+  Stmt insertAt(int index, StmtData data);
 
   /**
-   * Insert a statement in this BB at the given index.
+   * Insert a statement in this BB at the given index that is a copy of the given statement.
    *
-   * @param args The statement's arguments (data).
    * @return The inserted statement.
    * @throws IndexOutOfBoundsException If the index is out of range.
+   * @see #insertAt(int, StmtData)
    */
-  default <I extends Stmt> I insertAt(int index, StmtData<I> args) {
-    return insertAt(index, "", args);
+  default Stmt insertCopyAt(int index, Stmt stmt) {
+    return insertAt(index, (StmtData) stmt.data);
   }
 
   /**
    * Insert statements in this BB starting from the given index.
    *
-   * @param namesAndArgs The name and data of each statement.
+   * @param datas The statements' datas, which determine what kind of statements they are and their
+   *     inputs.
    * @return The inserted statements.
    * @throws IndexOutOfBoundsException If the index is out of range.
-   * @see #insertAt(int, String, StmtData)
+   * @see #insertAt(int, StmtData)
    */
-  ImmutableList<? extends Stmt> insertAllAt(int index, List<Stmt.Args> namesAndArgs);
+  ImmutableList<Stmt> insertAllAt(int index, List<StmtData> datas);
 
   /**
-   * Insert statements in this BB starting from the given index.
+   * Insert statements in this BB starting from the given index that are copies of the given ones.
    *
-   * @param args The data of each statement.
    * @return The inserted statements.
    * @throws IndexOutOfBoundsException If the index is out of range.
-   * @see #insertAt(int, String, StmtData)
+   * @see #insertAt(int, StmtData)
    */
-  default ImmutableList<? extends Stmt> insertAllAt1(int index, List<StmtData<?>> args) {
-    return insertAllAt(index, args.stream().map(Stmt.Args::new).toList());
+  default ImmutableList<Stmt> insertAllCopiesAt(int index, List<Stmt> stmts) {
+    return insertAllAt(index, stmts.stream().map(s -> (StmtData) s.data).toList());
   }
 
   /**
@@ -176,49 +160,47 @@ interface BBIntrinsicMutate {
    * <p>The statements are inserted so that later indices aren't offset by earlier ones, as if we
    * inserted the statements with bigger indices before those with smaller ones.
    *
-   * @param indicesNamesAndArgs The index to insert, name, and data of each statement.
-   * @return The inserted statements.
+   * @param indicesAndDatas The indices to insert each statement and the statements' datas, which
+   *     determine what kind of statements they are and their inputs.
    * @throws IndexOutOfBoundsException If any of the indices are out of range.
-   * @see #insertAt(int, String, StmtData)
+   * @see #insertCopyAt(int, Stmt)
    */
-  ImmutableList<? extends Stmt> insertAllAt(Map<Integer, Stmt.Args> indicesNamesAndArgs);
+  ImmutableList<Stmt> insertAllAt(Map<Integer, StmtData> indicesAndDatas);
 
   /**
-   * Insert statements in this BB at the given indices.
+   * Insert statements in this BB at the given indices that are copies of the given ones.
    *
    * <p>The statements are inserted so that later indices aren't offset by earlier ones, as if we
    * inserted the statements with bigger indices before those with smaller ones.
    *
-   * @param indicesAndArgs The index to insert, name, and data of each statement.
-   * @return The inserted statements.
    * @throws IndexOutOfBoundsException If any of the indices are out of range.
-   * @see #insertAt(int, String, StmtData)
+   * @see #insertCopyAt(int, Stmt)
    */
-  default ImmutableList<? extends Stmt> insertAllAt1(Map<Integer, StmtData<?>> indicesAndArgs) {
+  default ImmutableList<Stmt> insertAllCopiesAt(Map<Integer, Stmt> indicesAndStmts) {
     return insertAllAt(
-        indicesAndArgs.entrySet().stream()
-            .collect(Collectors.toMap(Map.Entry::getKey, e -> new Stmt.Args(e.getValue()))));
+        indicesAndStmts.entrySet().stream()
+            .collect(
+                ImmutableMap.toImmutableMap(Map.Entry::getKey, e -> (StmtData) e.getValue().data)));
   }
 
   /**
    * Add a jump to this BB.
    *
-   * @param name Usually the empty string; see {@link #insertAt(int, String, StmtData)}.
-   * @param args The jump's arguments (data).
+   * @param data The jump's data, which determines what kind of jump it is and its inputs.
    * @return The added jump.
    * @throws IllegalArgumentException If the BB already has a jump.
    */
-  <I extends Jump> I addJump(String name, JumpData<I> args);
+  Jump addJump(JumpData data);
 
   /**
-   * Add a jump to this BB.
+   * Add a jump to this BB that is a copy of the given jump.
    *
-   * @param args The jump's arguments (data).
    * @return The added jump.
    * @throws IllegalArgumentException If the BB already has a jump.
+   * @see #addJump(JumpData)
    */
-  default <I extends Jump> I addJump(JumpData<I> args) {
-    return addJump("", args);
+  default Jump addJumpCopy(Jump jump) {
+    return addJump((JumpData) jump.data);
   }
 
   // endregion add nodes
@@ -227,66 +209,28 @@ interface BBIntrinsicMutate {
   /**
    * Create a new statement with {@code newArgs} and replace the statement at {@code index} with it.
    *
-   * <p><i>This won't replace occurrences of any return values of the old statement.</i> Use {@link
-   * Instr#mutateArgs(Instr, InstrData)} to do that if both statements have the same # of return
-   * values, otherwise you must replace them manually (if there are any).
+   * <p><i>This won't replace occurrences of any {@link Instr#outputs()} of the old statement.</i>
+   * Use {@link BatchSubst} to do that.
    *
-   * @param newName A small name for the new statement, an empty string, or {@code null} to take the
-   *     old statement's name (empty string makes the new statement unnamed). This is useful for
-   *     debugging and error messages. See {@link #insertAt(int, String, StmtData)}.
-   * @param newArgs The new statement's arguments (data).
-   * @return The new statement.
+   * @param newData The new statement's data, which determines what kind of statement it is and its
+   *     inputs.
+   * @return The new statement (not the one that got replaced).
    * @throws IndexOutOfBoundsException If the index is out of range.
    */
-  <I extends Stmt> I replace(int index, @Nullable String newName, StmtData<I> newArgs);
-
-  /**
-   * Create a new statement with {@code newArgs} and replace the statement at {@code index} with it.
-   *
-   * <p><i>This won't replace occurrences of any return values of the old statement.</i> Use {@link
-   * Instr#mutateArgs(Instr, InstrData)} to do that if both statements have the same # of return
-   * values, otherwise you must replace them manually (if there are any).
-   *
-   * @param newArgs The new statement's arguments (data).
-   * @return The new statement.
-   * @throws IndexOutOfBoundsException If the index is out of range.
-   */
-  default <I extends Stmt> I replace(int index, StmtData<I> newArgs) {
-    return replace(index, "", newArgs);
-  }
+  Stmt replace(int index, StmtData newData);
 
   /**
    * Create a new jump with {@code newArgs} and replace the BB's current jump with it.
    *
-   * <p><i>This won't replace occurrences of any return values of the old jump.</i> Use {@link
-   * Instr#mutateArgs(Instr, InstrData)} to do that if both jumps have the same # of return values,
-   * otherwise you must replace them manually (if there are any).
+   * <p><i>This won't replace occurrences of any {@link Instr#outputs()} of the old jump.</i> Use
+   * {@link BatchSubst} to do that.
    *
-   * @param newName A small name for the new jump, an empty string, or {@code null} to take the old
-   *     jump's name (empty string makes the new jump unnamed). This is useful for debugging and
-   *     error messages. See {@link #insertAt(int, String, StmtData)}.
-   * @param newArgs The new jump's arguments (data).
-   * @return The new jump.
+   * @param newData The new jump's data, which determines what kind of jump it is and its inputs.
+   * @return The new jump (not the one that got replaced).
    * @throws IllegalStateException If the BB doesn't have a jump. If this is the case, use {@link
-   *     BB#addJump(String, JumpData)} instead.
+   *     BB#addJump(JumpData)} instead.
    */
-  <I extends Jump> I replaceJump(@Nullable String newName, JumpData<I> newArgs);
-
-  /**
-   * Create a new jump with {@code newArgs} and replace the BB's current jump with it.
-   *
-   * <p><i>This won't replace occurrences of any return values of the old jump.</i> Use {@link
-   * Instr#mutateArgs(Instr, InstrData)} to do that if both jumps have the same # of return values,
-   * otherwise you must replace them manually (if there are any).
-   *
-   * @param newArgs The new jump's arguments (data).
-   * @return The new jump.
-   * @throws IllegalStateException If the BB doesn't have a jump. If this is the case, use {@link
-   *     BB#addJump(String, JumpData)} instead.
-   */
-  default <I extends Jump> I replaceJump(JumpData<I> newArgs) {
-    return replaceJump("", newArgs);
-  }
+  Jump replaceJump(JumpData newData);
 
   // endregion update nodes (replace and subst)
 
@@ -378,7 +322,7 @@ interface BBIntrinsicMutate {
    * @throws IllegalArgumentException If not all statements are in this BB.
    * @see #removeAt(int)
    */
-  void removeAllStmts(Collection<? extends Stmt> stmts);
+  void removeAllStmts(Collection<Stmt> stmts);
 
   /**
    * Remove the BB's jump.

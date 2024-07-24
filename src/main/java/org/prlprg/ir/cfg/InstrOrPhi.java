@@ -6,6 +6,7 @@ import org.jetbrains.annotations.Unmodifiable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.ir.cfg.InstrData.CascadingInstrUpdate;
 import org.prlprg.ir.cfg.InstrData.CascadingUpdatedInstrs;
+import org.prlprg.ir.effect.REffects;
 
 /** Either {@link Instr} or {@link Phi}. An immediate child node of a basic block. */
 public sealed interface InstrOrPhi permits Instr, Phi {
@@ -37,14 +38,24 @@ public sealed interface InstrOrPhi permits Instr, Phi {
    */
   @Unmodifiable List<? extends Node<?>> outputs();
 
+  /** {@code true} for {@link Phi}s, {@code false} for {@link Jump}s, and for {@link Stmt}s, whether
+   * {@linkplain Instr#effects()} are {@linkplain REffects#isEmpty() empty}.
+   */
+  boolean isPure();
+}
+
+sealed interface InstrOrPhiImpl permits Instr, Phi {
   /**
    * Replace every occurrence of {@code old} with {@code replacement} in the instruction or phi's
-   * inputs ({@link #inputNodes()}).
+   * inputs ({@link InstrOrPhi#inputNodes()}).
    *
    * <p>Returns whether this caused the phi's {@link Node#type()}, or the instruction's {@link
    * Instr#effects()} or one ot its {@link Instr#outputs()} {@link Node#type()}s, to change.
    *
-   * <p>This will record a {@link CFGEdit}.
+   * <p>This will not record a {@link CFGEdit}, it may cause a {@link Phi} to no longer by an
+   * expected type, and you are responsible for cascading updates, hence this is package-private and
+   * "unsafe".
+   *
    * @throws IllegalArgumentException If the {@code replacement}'s {@link Node#type()} is
    *     incompatible with the input's required type. If {@code replacement}'s {@link Node#type()}
    *     is a subtype of {@code old}'s (including if they're identical) this is guaranteed not to
@@ -56,5 +67,5 @@ public sealed interface InstrOrPhi permits Instr, Phi {
    * the initial instruction whose outputs have changed, and passed to each instruction whose inputs
    * change.
    */
-  CascadingInstrUpdate replaceInInputs(CascadingUpdatedInstrs seen, Node<?> old, Node<?> replacement);
+  CascadingInstrUpdate unsafeReplaceInInputs(CascadingUpdatedInstrs seen, Node<?> old, Node<?> replacement);
 }

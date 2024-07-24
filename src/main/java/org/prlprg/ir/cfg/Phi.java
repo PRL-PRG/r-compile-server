@@ -34,7 +34,7 @@ import org.prlprg.util.SmallBinarySet;
  * with one input must be replaced with the input itself, and nodes with 0 inputs must be removed.
  * This is automatically done by {@link CFG#cleanup()}.
  */
-public final class Phi<T> extends LocalNode<T> implements InstrOrPhi {
+public final class Phi<T> extends LocalNode<T> implements InstrOrPhi, InstrOrPhiImpl {
   private final SmallBinarySet<Input<? extends T>> inputs;
 
   /**
@@ -53,28 +53,9 @@ public final class Phi<T> extends LocalNode<T> implements InstrOrPhi {
   // region construct
   /** Serialized form where everything is replaced by IDs. */
   public record Serial<T>(
-      LocalNodeId<T> id, Collection<? extends InputId<? extends T>> inputIds) {
+      PhiId<? extends T> id, Collection<? extends InputId<? extends T>> inputIds) {
     Serial(Phi<T> phi) {
       this(phi.id(), phi.inputs().stream().map(Input::id).toList());
-    }
-  }
-
-  /**
-   * Constructor arguments that can be stored in a collection (since there are multiple;
-   * alternatively could use {@link org.prlprg.util.Pair} but this is clearer).
-   *
-   * <p>This exposes that phis can be created with existing IDs. Such functionality is only used in
-   * {@link CFGEdit}s that are replayed to maintain determinism.
-   */
-  record ArgsImpl<T>(NodeId<T> id, Collection<? extends Input<? extends T>> inputs) {
-    ArgsImpl(CFG cfg, Serial<T> serial) {
-      this(
-          serial.id(),
-          serial.inputIds().stream().map(id -> id.decode(cfg)).toList());
-    }
-
-    ArgsImpl(Phi<T> phi) {
-      this(phi.id(), ImmutableList.copyOf(phi.inputs()));
     }
   }
 
@@ -85,7 +66,7 @@ public final class Phi<T> extends LocalNode<T> implements InstrOrPhi {
    * {@link Void} if there are none.
    */
   Phi(CFG cfg, LocalNodeId<T> id, Collection<? extends Input<? extends T>> inputs) {
-    super(cfg, phiType(inputs), id);
+    super(cfg, phiType(inputs), PhiId.of(id));
 
     this.inputs =
         new SmallBinarySet<>(
@@ -108,6 +89,16 @@ public final class Phi<T> extends LocalNode<T> implements InstrOrPhi {
   }
 
   // endregion constructors
+
+  // region id
+
+  /** {@link LocalNode#id()}, but the ID is a subtype that lets you retrieve the phi using
+   * {@link CFG#get(PhiId)} without a cast. */
+  @Override
+  public PhiId<T> id() {
+    return (PhiId<T>) super.id();
+  }
+  // endregion id
 
   // region inputs
   public sealed interface Input<T> {
@@ -302,7 +293,7 @@ public final class Phi<T> extends LocalNode<T> implements InstrOrPhi {
 
   @SuppressWarnings("unchecked")
   @Override
-  public CascadingInstrUpdate replaceInInputs(CascadingUpdatedInstrs seen, Node<?> old, Node<?> replacement) {
+  public CascadingInstrUpdate unsafeReplaceInInputs(CascadingUpdatedInstrs seen, Node<?> old, Node<?> replacement) {
     for (var i = 0; i < inputs.size(); i++) {
       var input = inputs.get(i);
       if (input.node().equals(old)) {
@@ -333,14 +324,16 @@ public final class Phi<T> extends LocalNode<T> implements InstrOrPhi {
   /**
    * Add an input to the phi.
    *
-   * <p>This is "unsafe" because no {@linkplain CFGEdit edit} is recorded. It's called from {@link
-   * BB} when it adds a predecessor.
+   * <p>This is "unsafe" because no {@linkplain CFGEdit edit} is recorded, and because it changes
+   * the phi's {@link Node#type()} (which may illegally make it a supertype of {@code T}). It's
+   * called from {@link BB} when it adds a predecessor.
    */
-  void unsafeAddInput(Input<T> input) {
+  @SuppressWarnings("unchecked")
+  void unsafeAddInput(Input<?> input) {
     assert !hasIncomingBB(input.incomingBB())
         : "phi is in an inconsistent state, it has an input that it was told to add: "
             + input.incomingBB();
-    inputs.add(input);
+    inputs.add((Input<? extends T>) input);
     // The phi's name changes when the input changes, but unset inputs don't have any affect on it
     // so we don't have to call `updateName()`.
 
@@ -387,8 +380,15 @@ public final class Phi<T> extends LocalNode<T> implements InstrOrPhi {
     return ImmutableList.of(this);
   }
 
+  @Override
+  public boolean isPure() {
+    return true;
+  }
+  // endregion other `InstrOrPhi` inherited
+
+  // region misc
   private void updateType() {
     unsafeSetType(phiType(inputs));
   }
-  // endregion other `InstrOrPhi` inherited
+  // endregion misc
 }

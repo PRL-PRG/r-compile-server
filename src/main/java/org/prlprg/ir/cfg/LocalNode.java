@@ -75,20 +75,35 @@ public sealed class LocalNode<T> implements Node<T> permits Param, Phi, InstrOut
    * <p>This is called internally and only when a specific ID is needed (e.g. for {@link CFGEdit}
    * undo/replay or {@link CFGCleanup} re-numbering), otherwise call {@link #rename(String)}.
    *
-   * @throws IllegalArgumentException If the ID's {@link #type()} isn't delayed or the instruction
-   *     or phi's {@link #type()}.
-   *     <p><b>OR</b> if the ID is taken by another instruction or phi in the {@link CFG}.
+   * @throws IllegalArgumentException If the ID's {@link #type()} isn't delayed or the node's {@link
+   *     #type()}.
+   *     <p><b>OR</b> if the ID is taken by another {@link LocalNode} in the {@link CFG}.
    */
   final void setId(LocalNodeId<T> newId) {
     var oldId = id();
 
+    unsafeSetId(id);
+
+    cfg().record(new SetLocalNodeId<>(oldId, newId), new SetLocalNodeId<>(newId, oldId));
+  }
+
+  /**
+   * Change the node's id.
+   *
+   * <p>This is the same as {@link #setId(LocalNodeId)}, except it doesn't record a {@link CFGEdit},
+   * and it performs an unchecked cast on the {@link LocalNodeId}, hence "unsafe".
+   *
+   * @throws IllegalArgumentException If the ID's {@link #type()} isn't delayed or the node's {@link
+   *     #type()}.
+   *     <p><b>OR</b> if the ID is taken by another {@link LocalNode} in the {@link CFG}.
+   */
+  @SuppressWarnings("unchecked")
+  final void unsafeSetId(LocalNodeId<?> newId) {
     newId.lateAssignType(type);
 
     cfg().untrack(this);
-    id = newId;
+    id = (LocalNodeId<T>) newId;
     cfg().track(this);
-
-    cfg().record(new SetLocalNodeId<>(oldId, newId), new SetLocalNodeId<>(newId, oldId));
   }
 
   /**

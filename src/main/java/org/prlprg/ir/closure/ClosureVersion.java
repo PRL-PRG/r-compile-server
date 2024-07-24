@@ -10,7 +10,6 @@ import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.prlprg.ir.cfg.CFG;
 import org.prlprg.ir.cfg.CFGParsePrint;
-import org.prlprg.ir.cfg.ISexp;
 import org.prlprg.ir.cfg.NodeId;
 import org.prlprg.ir.effect.REffect;
 import org.prlprg.ir.effect.REffects;

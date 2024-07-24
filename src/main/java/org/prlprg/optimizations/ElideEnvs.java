@@ -6,7 +6,6 @@ import java.util.stream.Stream;
 import org.prlprg.ir.cfg.CFG;
 import org.prlprg.ir.cfg.Constant;
 import org.prlprg.ir.cfg.Instr;
-import org.prlprg.ir.cfg.ISexp;
 import org.prlprg.ir.cfg.ISexpStmt;
 import org.prlprg.ir.cfg.StaticEnv;
 import org.prlprg.ir.cfg.Stmt;

@@ -176,7 +176,7 @@ public class CFGCursor {
    * @return Ths inserted statements.
    * @see #insert(String, StmtData)
    */
-  public ImmutableList<? extends Stmt> insert(List<Stmt.Args> namesAndArgs) {
+  public ImmutableList<Stmt> insert(List<Stmt.Args> namesAndArgs) {
     var result = bb.insertAllAt(stmtIdx, namesAndArgs);
     stmtIdx += namesAndArgs.size();
     return result;

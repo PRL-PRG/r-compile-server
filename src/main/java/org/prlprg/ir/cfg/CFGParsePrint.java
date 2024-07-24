@@ -332,12 +332,12 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
           switch (data) {
             case StmtData<?> stmtData -> {
               @SuppressWarnings("unchecked")
-              var id1 = (NodeId<? extends Stmt>) id;
+              var id1 = (NodeId<Stmt>) id;
               yield bb.insertAtWithId(bb.stmts().size(), id1, stmtData);
             }
             case JumpData<?> jumpData -> {
               @SuppressWarnings("unchecked")
-              var id1 = (NodeId<? extends Jump>) id;
+              var id1 = (NodeId<Jump>) id;
               yield bb.addJumpWithId(id1, jumpData);
             }
           };

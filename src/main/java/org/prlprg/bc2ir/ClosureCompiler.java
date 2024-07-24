@@ -7,7 +7,6 @@ import static org.prlprg.ir.analysis.PropertiesComputer.computePromiseProperties
 import org.prlprg.RSession;
 import org.prlprg.bc.Compiler;
 import org.prlprg.ir.cfg.CFG;
-import org.prlprg.ir.cfg.ISexp;
 import org.prlprg.ir.cfg.IsEnv;
 import org.prlprg.ir.cfg.StaticEnv;
 import org.prlprg.ir.closure.Closure;

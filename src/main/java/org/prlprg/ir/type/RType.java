@@ -10,7 +10,6 @@ import java.util.stream.Collector.Characteristics;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
-import org.prlprg.ir.cfg.ISexp;
 import org.prlprg.ir.cfg.Node;
 import org.prlprg.ir.type.lattice.BoundedLattice;
 import org.prlprg.ir.type.lattice.Maybe;

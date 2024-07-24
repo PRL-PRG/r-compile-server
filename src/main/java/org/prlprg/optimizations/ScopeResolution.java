@@ -2,7 +2,6 @@ package org.prlprg.optimizations;
 
 import org.prlprg.ir.analysis.scope.Scopes;
 import org.prlprg.ir.cfg.CFG;
-import org.prlprg.ir.cfg.ISexp;
 import org.prlprg.ir.closure.ClosureVersion;
 import org.prlprg.ir.closure.ClosureVersion.Properties.Property;
 import org.prlprg.ir.closure.Promise;

@@ -1,17 +1,22 @@
 package org.prlprg.ir.cfg;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Streams;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Objects;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import javax.annotation.Nullable;
 import org.prlprg.ir.cfg.Phi.Input;
 import org.prlprg.ir.cfg.Phi.InputId;
+import org.prlprg.util.Pair;
 import org.prlprg.util.Strings;
 
 /**
@@ -86,9 +91,6 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
    * <p>{@link MoveStmts}, {@link MoveStmt}, and {@link MoveJump} don't inherit this. Instead they
    * inherit {@link Move}, because although they affect multiple blocks, they affect those blocks
    * internally.
-   *
-   * <p>{@link MutateInstrArgs} also doesn't inherit this, even though the instruction may be used
-   * in multiple basic blocks. Instead it inherits {@link OnInstrOrPhi}.
    */
   sealed interface OnCFG<Reverse extends OnCFG<?>> extends Semantic<Reverse> {
     @Override
@@ -117,11 +119,6 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
    * Edit is local to a {@linkplain BB basic block}, but not {@linkplain InstrOrPhi instruction or
    * phi}.
    *
-   * <p>{@link ReplaceWithInstr} ({@link ReplaceStmt}, {@link ReplaceJump}) inherit this, as they
-   * aren't considered local to an instruction or phi, because they remove the old instruction and
-   * insert a new one. {@link MutateInstrArgs} doesn't inherit this, as it is considered local,
-   * because it reuses the original instruction.
-   *
    * <p>{@link MoveStmts}, {@link MoveStmt}, and {@link MoveJump} inherit {@link Move} because they
    * are local to two basic blocks.
    */
@@ -148,10 +145,6 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
   /**
    * Edit is local to an {@linkplain InstrOrPhi instruction or phi}.
    *
-   * <p>{@link MutateInstrArgs} inherits this, although the instruction or phi changes in arguments
-   * to other instructions or phis; this change is excluded from the definition of "local" used
-   * within this and other immediate subclasses of {@link Semantic}.
-   *
    * <p>{@link ReplaceWithInstr} ({@link ReplaceStmt}, {@link ReplaceJump}) inherit this, as they
    * aren't considered local to an instruction or phi, because they remove the old instruction and
    * insert a new one.
@@ -160,10 +153,7 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
    * considered local, because the instructions move to a different block and therefore affect both
    * blocks' children.
    */
-  sealed interface OnInstrOrPhi<Reverse extends OnInstrOrPhi<?>> extends Semantic<Reverse> {
-    /** Id of the {@linkplain Node node} that the edit will affect. */
-    NodeId<? extends InstrOrPhi> targetId();
-  }
+  sealed interface OnInstrOrPhi<Reverse extends OnInstrOrPhi<?>> extends Semantic<Reverse> {}
 
   sealed interface InsertInstrsOrPhis<Reverse extends RemoveInstrsOrPhis<?>> extends OnBB<Reverse> {
     @Override
@@ -204,7 +194,10 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
     }
   }
 
-  /** Changes the instruction including in arguments of other instructions. */
+  /** Changes the instruction or one of its {@link Instr#outputs()}.
+   *
+   * <p>If the output changes, it affects other instructions.
+   */
   sealed interface MutateInstrOrPhi<Reverse extends MutateInstrOrPhi<?>>
       extends OnInstrOrPhi<Reverse> {}
 
@@ -213,9 +206,9 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
   // region edits
   record InsertBB(
       BBId id,
-      ImmutableList<Phi.Serial> phiArgs,
-      ImmutableList<Stmt.Serial> stmtIdsAndArgs,
-      @Nullable Jump.Serial jumpIdAndArgs)
+      ImmutableList<Phi.Serial<?>> phis,
+      ImmutableList<Stmt.Serial> stmts,
+      @Nullable Jump.Serial jump)
       implements OnCFG<RemoveBB> {
     public InsertBB(BB bb) {
       this(
@@ -228,11 +221,11 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
     @Override
     public RemoveBB apply(CFG cfg) {
       var bb = cfg.addBBWithId(id);
-      bb.addPhisWithIds(phiArgs.stream().map(a -> new PhiImpl.Args(cfg, a)).toList());
-      bb.insertAllAtWithIds(
-          0, stmtIdsAndArgs.stream().map(a -> new StmtImpl.Args(cfg, a)).toList());
-      if (jumpIdAndArgs != null) {
-        bb.addJumpWithId(jumpIdAndArgs.id(), jumpIdAndArgs.data().decode(cfg));
+
+      bb.addPhisWithIds(phis.stream().map(data -> Pair.of(data.id(), data.inputIds().stream().map(inputId -> inputId.decode(cfg)).toList())).toList());
+      InsertStmts.doApply(bb, stmts);
+      if (jump != null) {
+        InsertJump.doApply(bb, jump);
       }
 
       return new RemoveBB(bb);
@@ -289,7 +282,7 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
     }
   }
 
-  record InsertPhis(@Override BBId bbId, ImmutableSet<Phi.Serial> phis)
+  record InsertPhis<T>(@Override BBId bbId, ImmutableSet<Phi.Serial<? extends T>> phis)
       implements InsertPhis_<RemovePhis> {
     public InsertPhis {
       if (phis.isEmpty()) {
@@ -297,7 +290,7 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
       }
     }
 
-    public InsertPhis(BB bb, Collection<? extends Phi<?>> phis) {
+    public InsertPhis(BB bb, Collection<? extends Phi<? extends T>> phis) {
       this(bb.id(), phis.stream().map(Phi.Serial::new).collect(ImmutableSet.toImmutableSet()));
     }
 
@@ -305,25 +298,23 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
     public RemovePhis apply(CFG cfg) {
       var phis =
           cfg.get(bbId)
-              .addPhisWithIds(this.phis.stream().map(a -> new PhiImpl.Args(cfg, a)).toList());
+              .addPhisWithIds(this.phis.stream().map(data -> Pair.of(data.id(), data.inputIds().stream().map(inputId -> inputId.decode(cfg)).toList())).toList());
       return new RemovePhis(
           bbId, phis.stream().map(Phi::id).collect(ImmutableSet.toImmutableSet()));
     }
 
-    // The type argument and cast *are* redundant, but the Java compiler has an annoying bug where
-    // it occasionally fails to type-check and must be fully rebuilt without them.
-    @SuppressWarnings({"Convert2Diamond", "RedundantCast"})
+    // The cast is required because we can't create `InsertPhi<? extends T>`, so we unsoundly create
+    // `InsertPhi<T>`, then upcast to make sound.
+    @SuppressWarnings("unchecked")
     @Override
-    public Iterable<? extends InsertPhi<?>> subEdits() {
+    public Iterable<? extends InsertPhi<? extends T>> subEdits() {
       return phis.stream()
           .map(
-              a ->
-                  new InsertPhi<Node>(
+              data ->
+                  new InsertPhi<>(
                       bbId,
-                      (NodeId<? extends Phi<? extends Node>>) a.id(),
-                      (Class<? extends Node>) a.nodeClass(),
-                      ImmutableSet.copyOf(
-                          (Collection<? extends InputId<? extends Node>>) a.inputIds())))
+                      (LocalNodeId<T>) data.id(),
+                      ImmutableSet.copyOf(data.inputIds())))
           .toList();
     }
 
@@ -338,25 +329,22 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
     }
   }
 
-  record InsertPhi<N extends Node>(
+  record InsertPhi<T>(
       @Override BBId bbId,
-      NodeId<? extends Phi<? extends N>> nodeId,
-      Class<? extends N> nodeClass,
-      ImmutableSet<? extends InputId<? extends N>> inputs)
+      LocalNodeId<T> phiId,
+      ImmutableSet<? extends InputId<? extends T>> inputs)
       implements InsertPhis_<RemovePhi> {
-    public InsertPhi(BB bb, Phi<? extends N> phi) {
+    public InsertPhi(BB bb, Phi<T> phi) {
       this(
           bb.id(),
           phi.id(),
-          phi.nodeClass(),
           phi.inputs().stream().map(Input::id).collect(ImmutableSet.toImmutableSet()));
     }
 
     @Override
     public RemovePhi apply(CFG cfg) {
       var phi =
-          cfg.get(bbId)
-              .addPhiWithId(nodeId, nodeClass, inputs.stream().map(i -> i.decode(cfg)).toList());
+          cfg.get(bbId).addPhiWithId(phiId, inputs.stream().map(i -> i.decode(cfg)).toList());
       return new RemovePhi(bbId, phi.id());
     }
 
@@ -379,7 +367,7 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
       }
     }
 
-    public InsertStmts(BB bb, int index, List<? extends Stmt> stmts) {
+    public InsertStmts(BB bb, int index, List<Stmt> stmts) {
       this(
           bb.id(),
           index,
@@ -388,18 +376,29 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
 
     @Override
     public RemoveStmts apply(CFG cfg) {
-      var stmts =
-          cfg.get(bbId)
-              .insertAllAtWithIds(
-                  index, this.stmts.stream().map(a -> new StmtImpl.Args(cfg, a)).toList());
+      doApply(cfg.get(bbId), stmts);
       return new RemoveStmts(bbId, index, index + stmts.size());
     }
 
+    private static void doApply(BB bb, List<Stmt.Serial> stmtSerials) {
+      var stmts = bb.insertAllAt(0, stmtSerials.stream().map(s -> s.data().decode(bb.cfg())).toList());
+      assert stmts.size() == stmtSerials.size();
+      for (var i = 0; i < stmts.size(); i++) {
+        var outputs = stmts.get(i).outputs();
+        var outputIds = stmtSerials.get(i).outputIds();
+        assert outputs.size() == outputIds.size();
+
+        for (var j = 0; j < stmts.size(); j++) {
+          outputs.get(j).unsafeSetId(outputIds.get(j));
+        }
+      }
+    }
+
     @Override
-    public Iterable<? extends InsertStmt<?>> subEdits() {
+    public Iterable<InsertStmt> subEdits() {
       return Streams.mapWithIndex(
               stmts.stream(),
-              (args, i) -> new InsertStmt<>(bbId, index + (int) i, args.id(), args.data()))
+              (data, i) -> new InsertStmt(bbId, index + (int) i, data))
           .toList();
     }
 
@@ -414,7 +413,7 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
     }
   }
 
-  record InsertStmts2(@Override BBId bbId, Map<Integer, Stmt.Serial> indicesAndStmts)
+  record InsertStmts2(@Override BBId bbId, ImmutableMap<Integer, Stmt.Serial> indicesAndStmts)
       implements InsertStmts_<RemoveStmts2> {
     public InsertStmts2 {
       if (indicesAndStmts.isEmpty()) {
@@ -422,37 +421,45 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
       }
     }
 
-    public InsertStmts2(BB bb, Map<Integer, ? extends Stmt> indicesAndStmts) {
+    public InsertStmts2(BB bb, Map<Integer, Stmt> indicesAndStmts) {
       this(
           bb.id(),
           indicesAndStmts.entrySet().stream()
-              .collect(Collectors.toMap(Map.Entry::getKey, e -> new Stmt.Serial(e.getValue()))));
+              .collect(ImmutableMap.toImmutableMap(Map.Entry::getKey, e -> new Stmt.Serial(e.getValue()))));
     }
 
     @Override
     public RemoveStmts2 apply(CFG cfg) {
-      var indicesAndStmts =
-          cfg.get(bbId)
-              .insertAllAtWithIds(
-                  this.indicesAndStmts.entrySet().stream()
-                      .collect(
-                          Collectors.toMap(
-                              Map.Entry::getKey, e -> new StmtImpl.Args(cfg, e.getValue()))));
-      return new RemoveStmts2(
-          bbId, indicesAndStmts.stream().map(Stmt::id).collect(ImmutableSet.toImmutableSet()));
+      doApply(cfg.get(bbId), this.indicesAndStmts);
+      return new RemoveStmts2(bbId, indicesAndStmts.keySet());
+    }
+
+    private static void doApply(BB bb, Map<Integer, Stmt.Serial> indicesAndStmtSerials) {
+      var indicesAndStmtSerialsWithConstantOrder = indicesAndStmtSerials.entrySet().stream().toList();
+      var stmts = bb.insertAllAt(indicesAndStmtSerialsWithConstantOrder.stream().collect(
+          Collectors.toMap(Entry::getKey, e -> e.getValue().data().decode(bb.cfg()))));
+      assert stmts.size() == indicesAndStmtSerials.size();
+      for (var i = 0; i < stmts.size(); i++) {
+        var outputs = stmts.get(i).outputs();
+        var outputIds = indicesAndStmtSerialsWithConstantOrder.get(i).getValue().outputIds();
+        assert outputs.size() == outputIds.size();
+
+        for (var j = 0; j < stmts.size(); j++) {
+          outputs.get(j).unsafeSetId(outputIds.get(j));
+        }
+      }
     }
 
     @Override
-    public Iterable<? extends InsertStmt<?>> subEdits() {
+    public Iterable<InsertStmt> subEdits() {
       return indicesAndStmts.entrySet().stream()
           .sorted(Comparator.comparingInt(s -> -s.getKey()))
           .map(
               indexIdAndArgs ->
-                  new InsertStmt<>(
+                  new InsertStmt(
                       bbId,
                       indexIdAndArgs.getKey(),
-                      indexIdAndArgs.getValue().id(),
-                      indexIdAndArgs.getValue().data()))
+                      indexIdAndArgs.getValue()))
           .toList();
     }
 
@@ -467,24 +474,22 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
     }
   }
 
-  record InsertStmt<I extends Stmt>(
-      @Override BBId bbId,
-      int index,
-      NodeId<? extends I> id,
-      MapToIdIn<? extends StmtData<? extends I>> args)
+  record InsertStmt(@Override BBId bbId, int index, Stmt.Serial stmt)
       implements InsertStmts_<RemoveStmt> {
-    public InsertStmt(BB bb, int index, NodeId<? extends I> nodeId, StmtData<? extends I> args) {
-      this(bb.id(), index, nodeId, MapToIdIn.of(args));
-    }
-
-    public static InsertStmt<?> of(BB bb, int index, Stmt stmt) {
-      return new InsertStmt<>(bb, index, stmt.id(), stmt.data());
+    public InsertStmt(BB bb, int index, Stmt stmt) {
+      this(bb.id(), index, new Stmt.Serial(stmt));
     }
 
     @Override
     public RemoveStmt apply(CFG cfg) {
-      cfg.get(bbId).insertAtWithId(index, id, args.decode(cfg));
+      doApply(cfg.get(bbId), index, stmt);
       return new RemoveStmt(bbId, index);
+    }
+
+    private static void doApply(BB bb, int index, Stmt.Serial stmtSerial) {
+      var stmt = bb.insertAt(index, stmtSerial.data().decode(bb.cfg()));
+
+      setOutputIds(stmt, stmtSerial);
     }
 
     @Override
@@ -498,23 +503,22 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
     }
   }
 
-  record InsertJump<I extends Jump>(
-      @Override BBId bbId,
-      NodeId<? extends I> nodeId,
-      MapToIdIn<? extends JumpData<? extends I>> args)
+  record InsertJump(@Override BBId bbId, Jump.Serial jump)
       implements InsertInstrsOrPhis<RemoveJump> {
-    public InsertJump(BB bb, NodeId<? extends I> nodeId, JumpData<? extends I> args) {
-      this(bb.id(), nodeId, MapToIdIn.of(args));
-    }
-
-    public static InsertJump<?> of(BB bb, Jump jump) {
-      return new InsertJump<>(bb, jump.id(), jump.data());
+    public InsertJump(BB bb, Jump jump) {
+      this(bb.id(), new Jump.Serial(jump));
     }
 
     @Override
     public RemoveJump apply(CFG cfg) {
-      cfg.get(bbId).addJumpWithId(nodeId, args.decode(cfg));
+      doApply(cfg.get(bbId), jump);
       return new RemoveJump(bbId);
+    }
+
+    private static void doApply(BB bb, Jump.Serial jumpSerial) {
+      var jump = bb.addJump(jumpSerial.data().decode(bb.cfg()));
+
+      setOutputIds(jump, jumpSerial);
     }
 
     @Override
@@ -528,11 +532,11 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
     }
   }
 
-  record RemovePhis(@Override BBId bbId, ImmutableSet<? extends NodeId<? extends Phi<?>>> nodeIds)
-      implements RemovePhis_<InsertPhis> {
+  record RemovePhis(@Override BBId bbId, ImmutableSet<? extends PhiId<?>> phiIds)
+      implements RemovePhis_<InsertPhis<?>> {
     public RemovePhis {
-      if (nodeIds.isEmpty()) {
-        throw new IllegalArgumentException("no-op (nodeIds.isEmpty())");
+      if (phiIds.isEmpty()) {
+        throw new IllegalArgumentException("no-op (phiIds.isEmpty())");
       }
     }
 
@@ -541,21 +545,23 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
     }
 
     @Override
-    public InsertPhis apply(CFG cfg) {
-      var phis = nodeIds.stream().map(cfg::get).toList();
-      cfg.get(bbId).removePhis(phis);
-      return new InsertPhis(
-          bbId, phis.stream().map(Phi.Serial::new).collect(ImmutableSet.toImmutableSet()));
+    public InsertPhis<?> apply(CFG cfg) {
+      var bb = cfg.get(bbId);
+      var phis = phiIds.stream().map(id -> (Phi<?>) cfg.get(id)).toList();
+
+      bb.removePhis(phis);
+
+      return new InsertPhis<>(bb, phis);
     }
 
     @Override
-    public Iterable<? extends CFGEdit<?>> subEdits() {
-      return nodeIds.stream().map(id -> new RemovePhi(bbId, id)).toList();
+    public Iterable<RemovePhi> subEdits() {
+      return phiIds.stream().map(id -> new RemovePhi(bbId, id)).toList();
     }
 
     @Override
     public int numAffected() {
-      return nodeIds.size();
+      return phiIds.size();
     }
 
     @Override
@@ -564,7 +570,7 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
     }
   }
 
-  record RemovePhi(@Override BBId bbId, NodeId<? extends Phi<?>> nodeId)
+  record RemovePhi(@Override BBId bbId, PhiId<?> phiId)
       implements RemovePhis_<InsertPhi<?>> {
     public RemovePhi(BB bb, Phi<?> phi) {
       this(bb.id(), phi.id());
@@ -572,13 +578,12 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
 
     @Override
     public InsertPhi<?> apply(CFG cfg) {
-      var phi = cfg.get(nodeId);
-      cfg.get(bbId).remove(phi);
-      return new InsertPhi<>(
-          bbId,
-          phi.id(),
-          phi.nodeClass(),
-          phi.inputs().stream().map(Input::id).collect(ImmutableSet.toImmutableSet()));
+      var bb = cfg.get(bbId);
+      var phi = cfg.get(phiId);
+
+      bb.remove(phi);
+
+      return new InsertPhi<>(bb, phi);
     }
 
     @Override
@@ -613,12 +618,14 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
           bb.stmts(fromIndex, toIndex).stream()
               .map(Stmt.Serial::new)
               .collect(ImmutableList.toImmutableList());
+
       bb.removeAllAt(fromIndex, toIndex);
+
       return new InsertStmts(bbId, fromIndex, stmtArgs);
     }
 
     @Override
-    public Iterable<? extends CFGEdit<?>> subEdits() {
+    public Iterable<RemoveStmt> subEdits() {
       return IntStream.range(fromIndex, toIndex)
           .mapToObj(_ -> new RemoveStmt(bbId, fromIndex))
           .toList();
@@ -635,30 +642,31 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
     }
   }
 
-  record RemoveStmts2(@Override BBId bbId, ImmutableSet<? extends NodeId<? extends Stmt>> stmts)
+  record RemoveStmts2(@Override BBId bbId, ImmutableSet<Integer> indices)
       implements RemoveStmts_<InsertStmts2> {
     public RemoveStmts2 {
-      if (stmts.isEmpty()) {
-        throw new IllegalArgumentException("no-op (stmts.isEmpty())");
+      if (indices.isEmpty()) {
+        throw new IllegalArgumentException("no-op (indices.isEmpty())");
       }
     }
 
-    public RemoveStmts2(BB bb, Collection<? extends Stmt> stmts) {
-      this(bb.id(), stmts.stream().map(Stmt::id).collect(ImmutableSet.toImmutableSet()));
+    public RemoveStmts2(BB bb, Collection<Integer> indices) {
+      this(bb.id(), ImmutableSet.copyOf(indices));
     }
 
     @Override
     public InsertStmts2 apply(CFG cfg) {
-      var stmts = this.stmts.stream().map(cfg::get).toList();
       var bb = cfg.get(bbId);
-      var stmtArgs = stmts.stream().collect(Collectors.toMap(bb::indexOf, Stmt.Serial::new));
-      bb.removeAllStmts(stmts);
-      return new InsertStmts2(bbId, stmtArgs);
+      var stmts = this.indices.stream().collect(Collectors.toMap(Function.identity(), bb::stmt));
+
+      bb.removeAllStmts(stmts.values());
+
+      return new InsertStmts2(bb, stmts);
     }
 
     @Override
     public int numAffected() {
-      return stmts.size();
+      return indices.size();
     }
 
     @Override
@@ -667,16 +675,17 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
     }
   }
 
-  record RemoveStmt(@Override BBId bbId, int index) implements RemoveStmts_<InsertStmt<?>> {
+  record RemoveStmt(@Override BBId bbId, int index) implements RemoveStmts_<InsertStmt> {
     public RemoveStmt(BB bb, int index) {
       this(bb.id(), index);
     }
 
     @Override
-    public InsertStmt<?> apply(CFG cfg) {
+    public InsertStmt apply(CFG cfg) {
       var bb = cfg.get(bbId);
       var stmt = bb.removeAt(index);
-      return new InsertStmt<>(bbId, index, stmt.id(), MapToIdIn.of(stmt.data()));
+
+      return new InsertStmt(bb, index, stmt);
     }
 
     @Override
@@ -690,16 +699,17 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
     }
   }
 
-  record RemoveJump(@Override BBId bbId) implements RemoveInstrsOrPhis<InsertJump<?>> {
+  record RemoveJump(@Override BBId bbId) implements RemoveInstrsOrPhis<InsertJump> {
     public RemoveJump(BB bb) {
       this(bb.id());
     }
 
     @Override
-    public InsertJump<?> apply(CFG cfg) {
+    public InsertJump apply(CFG cfg) {
       var bb = cfg.get(bbId);
       var jump = bb.removeJump();
-      return new InsertJump<>(bbId, jump.id(), MapToIdIn.of(jump.data()));
+
+      return new InsertJump(bb, jump);
     }
 
     @Override
@@ -713,34 +723,26 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
     }
   }
 
-  record ReplaceStmt<I extends Stmt>(
-      @Override BBId bbId,
-      int index,
-      String newName,
-      MapToIdIn<? extends StmtData<? extends I>> newArgs)
-      implements ReplaceWithInstr<ReplaceStmt<?>> {
-    public ReplaceStmt(BB bb, int index, String newName, StmtData<? extends I> newArgs) {
-      this(bb.id(), index, newName, MapToIdIn.of(newArgs));
-    }
-
-    @SuppressWarnings("unchecked")
-    public ReplaceStmt(BB bb, int index, I stmt) {
-      this(bb, index, InstrOrPhiIdImpl.cast(stmt.id()).name(), (StmtData<? extends I>) stmt.data());
+  record ReplaceStmt(@Override BBId bbId, int index, Stmt.Serial newStmt)
+      implements ReplaceWithInstr<ReplaceStmt> {
+    public ReplaceStmt(BB bb, int index, Stmt stmt) {
+      this(bb.id(), index, new Stmt.Serial(stmt));
     }
 
     @Override
-    public ReplaceStmt<?> apply(CFG cfg) {
+    public ReplaceStmt apply(CFG cfg) {
       var bb = cfg.get(bbId);
       var old = bb.stmt(index);
-      var oldName = InstrOrPhiIdImpl.cast(old.id()).name();
-      // `replaceNoSubst` *does not* require that `oldData` has the same erased type as `newData`;
-      // you can replace an instruction with one of a different type. This is why the reverse action
-      // has an erased `I`.
-      var oldArgs = MapToIdIn.of(old.data());
-      bb.replace(index, newName, newArgs.decode(cfg));
-      @SuppressWarnings("unchecked") // Required, otherwise "cannot infer type arguments" error
-      var oldArgsCasted = (MapToIdIn<? extends StmtData<Stmt>>) oldArgs;
-      return new ReplaceStmt<>(bbId, index, oldName, oldArgsCasted);
+
+      doApply(bb, index, newStmt);
+
+      return new ReplaceStmt(bb, index, old);
+    }
+
+    private static void doApply(BB bb, int index, Stmt.Serial newStmtSerial) {
+      var newStmt = bb.replace(index, newStmtSerial.data().decode(bb.cfg()));
+
+      setOutputIds(newStmt, newStmtSerial);
     }
 
     @Override
@@ -749,29 +751,26 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
     }
   }
 
-  record ReplaceJump<I extends Jump>(
-      @Override BBId bbId, String newName, MapToIdIn<? extends JumpData<? extends I>> newArgs)
-      implements ReplaceWithInstr<ReplaceJump<?>> {
-    public ReplaceJump(BB bb, String newName, JumpData<? extends I> newArgs) {
-      this(bb.id(), newName, MapToIdIn.of(newArgs));
-    }
-
-    @SuppressWarnings("unchecked")
-    public ReplaceJump(BB bb, I jump) {
-      this(bb, InstrOrPhiIdImpl.cast(jump.id()).name(), (JumpData<? extends I>) jump.data());
+  record ReplaceJump(@Override BBId bbId, Jump.Serial newJump)
+      implements ReplaceWithInstr<ReplaceJump> {
+    public ReplaceJump(BB bb, Jump jump) {
+      this(bb.id(), new Jump.Serial(jump));
     }
 
     @Override
-    public ReplaceJump<?> apply(CFG cfg) {
+    public ReplaceJump apply(CFG cfg) {
       var bb = cfg.get(bbId);
-      var old = bb.jump();
-      var oldName = old == null ? null : InstrOrPhiIdImpl.cast(old.id()).name();
-      var oldArgs = old == null ? null : MapToIdIn.of(old.data());
-      bb.replaceJump(newName, newArgs.decode(cfg)); // Throws if `old == null`
-      assert oldName != null; // implies `oldArgs == null`
-      @SuppressWarnings("unchecked") // Required, otherwise "cannot infer type arguments" error
-      var oldArgsCasted = (MapToIdIn<? extends JumpData<Jump>>) oldArgs;
-      return new ReplaceJump<>(bbId, oldName, oldArgsCasted);
+      var old = Objects.requireNonNull(bb.jump(), "`ReplaceJump` applied to BB that doesn't have a jump");
+
+      doApply(bb, newJump);
+
+      return new ReplaceJump(bb, old);
+    }
+
+    private static void doApply(BB bb, Jump.Serial newJumpSerial) {
+      var newJump = bb.replaceJump(newJumpSerial.data().decode(bb.cfg()));
+
+      setOutputIds(newJump, newJumpSerial);
     }
 
     @Override
@@ -807,7 +806,7 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
     }
 
     @Override
-    public Iterable<? extends CFGEdit<?>> subEdits() {
+    public Iterable<MoveStmt> subEdits() {
       return IntStream.range(oldFromIndex, oldToIndex)
           .mapToObj(i -> new MoveStmt(oldBBId, i, newBBId, newFromIndex + (i - oldFromIndex)))
           .toList();
@@ -869,17 +868,17 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
     }
   }
 
-  record SetPhiInput<N extends Node>(
-      NodeId<? extends Phi<N>> targetId, BBId incomingBBId, NodeId<? extends N> inputNodeId)
-      implements MutateInstrOrPhi<SetPhiInput<N>> {
-    public SetPhiInput(Phi<N> phi, BB incomingBB, N inputNode) {
-      this(phi.id(), incomingBB.id(), NodeId.of(inputNode));
+  record SetPhiInput<T>(
+      PhiId<T> phiId, BBId incomingBBId, NodeId<? extends T> inputNodeId)
+      implements MutateInstrOrPhi<SetPhiInput<T>> {
+    public SetPhiInput(Phi<T> phi, BB incomingBB, Node<? extends T> inputNode) {
+      this(phi.id(), incomingBB.id(), inputNode.id());
     }
 
     @Override
-    public SetPhiInput<N> apply(CFG cfg) {
-      var oldInputNode = cfg.get(targetId).setInput(cfg.get(incomingBBId), cfg.get(inputNodeId));
-      return new SetPhiInput<>(targetId, incomingBBId, NodeId.of(oldInputNode));
+    public SetPhiInput<T> apply(CFG cfg) {
+      var oldInputNode = cfg.get(phiId).setInput(cfg.get(incomingBBId), cfg.get(inputNodeId));
+      return new SetPhiInput<>(phiId, incomingBBId, oldInputNode.id());
     }
 
     @Override
@@ -897,17 +896,11 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
       }
     }
 
-    /** Alias for {@code oldId} for this to implement {@link MutateInstrOrPhi#targetId()}. */
-    @Override
-    public LocalNodeId<T> targetId() {
-      return oldId;
-    }
-
     @Override
     public SetLocalNodeId<T> apply(CFG cfg) {
       var old = cfg.get(oldId);
       old.setId(newId);
-      return new SetLocalNodeId<T>(newId, oldId);
+      return new SetLocalNodeId<>(newId, oldId);
     }
 
     @Override
@@ -916,29 +909,43 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
     }
   }
 
-  record MutateInstrArgs<I extends Instr>(
-      NodeId<? extends I> targetId, MapToIdIn<? extends InstrData<I>> newArgs)
-      implements MutateInstrOrPhi<MutateInstrArgs<I>> {
-    public MutateInstrArgs(I target, InstrData<I> newArgs) {
-      this(NodeId.of(target), MapToIdIn.of(newArgs));
+  record ReplaceInJumpTargets(BBId bbWithJumpId, BBId oldId, BBId replacementId)
+      implements MutateInstrOrPhi<ReplaceInJumpTargets> {
+    public ReplaceInJumpTargets(Jump jump, BB old, BB replacement) {
+      this(jump.bb().id(), old.id(), replacement.id());
     }
 
     @Override
-    public MutateInstrArgs<I> apply(CFG cfg) {
-      var target = cfg.get(targetId);
-      // `subst` requires that `oldData` has the same erased type as `newData` (not asserted
-      // directly, but should be enforced by `Instr#canReplaceDataWith`).
-      @SuppressWarnings("unchecked")
-      var oldArgs = MapToIdIn.of((InstrData<I>) target.data());
-      Instr.mutateArgs(target, newArgs.decode(cfg));
-      return new MutateInstrArgs<>(targetId, oldArgs);
+    public ReplaceInJumpTargets apply(CFG cfg) {
+      var jump = Objects.requireNonNull(cfg.get(bbWithJumpId).jump(), "`ReplaceInJumpTargets` applied to BB that doesn't have a jump");
+      jump.replaceInTargets(cfg.get(oldId), cfg.get(replacementId));
+      return new ReplaceInJumpTargets(bbWithJumpId, replacementId, oldId);
     }
 
     @Override
     public boolean affectsCfgGraph() {
-      return JumpData.class.isAssignableFrom(newArgs.mappedClass());
+      return true;
     }
   }
+
+  /* TODO
+  record BatchSubst(TODO)
+      implements OnCFG<BatchSubst> {
+    public BatchSubst(BatchSubst subst) {
+      this(TODO);
+    }
+
+    @Override
+    public BatchSubst apply(CFG cfg) {
+      TODO
+    }
+
+    @Override
+    public boolean affectsCfgGraph() {
+      // Since we only change input nodes, not targets, the graph's shape remains the same.
+      return false;
+    }
+  } */
 
   /** Doesn't do anything but is useful in logs. */
   record Divider(String label) implements Context<Divider> {
@@ -963,6 +970,16 @@ public sealed interface CFGEdit<Reverse extends CFGEdit<?>> {
   }
 
   // endregion edits
+
+  private static void setOutputIds(Instr instr, Instr.Serial instrSerial) {
+    var outputs = instr.outputs();
+    var outputIds = instrSerial.outputIds();
+    assert outputs.size() == outputIds.size();
+
+    for (var i = 0; i < outputs.size(); i++) {
+      outputs.get(i).unsafeSetId(outputIds.get(i));
+    }
+  }
 
   /**
    * Prepends "Undo " to the label if it isn't already prepended, otherwise removes it (so {@code

@@ -1,9 +1,5 @@
 package org.prlprg.ir.cfg;
 
-import org.prlprg.ir.cfg.StmtData.Void;
-import org.prlprg.sexp.EnvSXP;
-import org.prlprg.sexp.SEXP;
-
 /**
  * An abstract value of type {@code T}; the IR representation of a value of type {@code T} that
  * exists in compiled code at runtime.

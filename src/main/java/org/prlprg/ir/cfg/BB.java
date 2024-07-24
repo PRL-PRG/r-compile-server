@@ -4,6 +4,7 @@ import static org.prlprg.AppConfig.EAGERLY_VERIFY_PHI_INPUTS;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSortedSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Streams;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -29,6 +30,7 @@ import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
+import org.prlprg.util.Pair;
 import org.prlprg.util.SmallBinarySet;
 import org.prlprg.util.Strings;
 import org.prlprg.util.UnreachableError;
@@ -40,7 +42,7 @@ import org.prlprg.util.UnreachableError;
  */
 @SuppressFBWarnings({"EI_EXPOSE_REP", "EI_EXPOSE_REP2"})
 public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, BBInline {
-  private final CFG parent;
+  private final CFG cfg;
   private final BBId id;
   private final SequencedSet<BB> predecessors =
       new SmallBinarySet<>(4, Comparator.comparing(bb -> bb.id.toString()));
@@ -49,16 +51,16 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
   private final List<Stmt> stmts = new ArrayList<>();
   private @Nullable Jump jump = null;
 
-  BB(CFG parent, BBId id) {
-    this.parent = parent;
+  BB(CFG cfg, BBId id) {
+    this.cfg = cfg;
     this.id = id;
   }
 
   // region access
-  // region parent and self
+  // region cfg and self
   @Override
   public CFG cfg() {
-    return parent;
+    return cfg;
   }
 
   @Override
@@ -66,7 +68,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     return id;
   }
 
-  // endregion parent and self
+  // endregion cfg and self
 
   // region predecessors and successors (access)
   @Override
@@ -75,8 +77,8 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
   }
 
   @Override
-  public @UnmodifiableView SequencedCollection<BB> successors() {
-    return jump == null ? List.of() : Collections.unmodifiableSequencedCollection(jump.targets());
+  public @UnmodifiableView SequencedSet<BB> successors() {
+    return jump == null ? ImmutableSortedSet.of() : jump.targets();
   }
 
   // endregion predecessors and successors (access)
@@ -164,24 +166,21 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
           case 2 -> setJump(null);
           default -> throw new IllegalStateException("`remove()` called beyond end of iteration");
         }
-        cfg().untrack(next);
+        cfg.untrack(next);
         switch (i) {
           case 0 ->
-              cfg()
-                  .record(
+              cfg.record(
                       new CFGEdit.RemovePhi(BB.this, (Phi<?>) next),
                       new CFGEdit.InsertPhi<>(BB.this, (Phi<?>) next));
           case 1 -> {
             var index = stmts.nextIndex();
-            cfg()
-                .record(
+            cfg.record(
                     new CFGEdit.RemoveStmt(BB.this, index),
-                    CFGEdit.InsertStmt.of(BB.this, index, (Stmt) next));
+                    new CFGEdit.InsertStmt(BB.this, index, (Stmt) next));
           }
           case 2 ->
-              cfg()
-                  .record(
-                      new CFGEdit.RemoveJump(BB.this), CFGEdit.InsertJump.of(BB.this, (Jump) next));
+              cfg.record(
+                      new CFGEdit.RemoveJump(BB.this), new CFGEdit.InsertJump(BB.this, (Jump) next));
           case 3 -> throw new NoSuchElementException();
           default -> throw new UnreachableError();
         }
@@ -217,17 +216,15 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
         case 1 -> setJump(null);
         default -> throw new IllegalStateException("`remove()` called beyond end of iteration");
       }
-      cfg().untrack(next);
+      cfg.untrack(next);
       switch (i) {
         case 0 ->
-            cfg()
-                .record(
+            cfg.record(
                     new CFGEdit.RemoveStmt(BB.this, index),
-                    CFGEdit.InsertStmt.of(BB.this, index, (Stmt) next));
+                    new CFGEdit.InsertStmt(BB.this, index, (Stmt) next));
         case 1 ->
-            cfg()
-                .record(
-                    new CFGEdit.RemoveJump(BB.this), CFGEdit.InsertJump.of(BB.this, (Jump) next));
+            cfg.record(
+                    new CFGEdit.RemoveJump(BB.this), new CFGEdit.InsertJump(BB.this, (Jump) next));
         case 2 -> throw new NoSuchElementException();
         default -> throw new UnreachableError();
       }
@@ -349,8 +346,8 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
         }
 
         phis.remove();
-        cfg().untrack(next);
-        cfg().record(new CFGEdit.RemovePhi(BB.this, next), new CFGEdit.InsertPhi<>(BB.this, next));
+        cfg.untrack(next);
+        cfg.record(new CFGEdit.RemovePhi(BB.this, next), new CFGEdit.InsertPhi<>(BB.this, next));
         next = null;
       }
     };
@@ -399,54 +396,53 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
   // region split and merge
   @Override
   public BB splitNewPredecessor(int index) {
-    return splitNewPredecessor(BBIdImpl.cast(id).name(), index);
+    return splitNewPredecessor(id.name(), index);
   }
 
   @Override
   public BB splitNewPredecessor(String name, int index) {
-    return splitNewPredecessorWithId(cfg().uniqueBBId(name), index);
+    return splitNewPredecessorWithId(cfg.uniqueBBId(name), index);
   }
 
   BB splitNewPredecessorWithId(BBId predecessorId, int index) {
     if (index < 0 || index > stmts.size()) {
       throw new IndexOutOfBoundsException("Index out of range: " + index);
     }
-    if (this == cfg().entry()) {
+    if (this == cfg.entry()) {
       throw new UnsupportedOperationException(
           "Can't split a predecessor on the entry block, you must call `splitNewSuccessor` instead.");
     }
 
-    var newBB = cfg().doAddBB(predecessorId);
+    var newBB = cfg.doAddBB(predecessorId);
 
     for (var pred : predecessors) {
       assert pred.jump != null && pred.jump.targets().contains(this)
           : "BB has predecessor whose jump doesn't point to it";
-      JumpImpl.cast(pred.jump).unsafeReplaceInTargets(this, newBB);
+      pred.jump.unsafeReplaceInTargets(this, newBB);
     }
 
     // Don't call `insert` or `addJump`, since this is intrinsic.
     newBB.phis.addAll(phis);
     newBB.stmts.addAll(stmts.subList(0, index));
-    var newJump = new JumpData.Goto(this).make(cfg(), cfg().<Instr>uniqueLocalId());
+    var newJump = new Jump(cfg, new JumpData.Goto(this));
     newBB.setJump(newJump);
-    cfg().track(newJump);
+    cfg.track(newJump);
     phis.clear();
     stmts.subList(0, index).clear();
 
-    cfg()
-        .record(
+    cfg.record(
             new CFGEdit.SplitBB(newBB, this, true, index), new CFGEdit.MergeBBs(newBB, this, true));
     return newBB;
   }
 
   @Override
   public BB splitNewSuccessor(int index) {
-    return splitNewSuccessor(BBIdImpl.cast(id).name(), index);
+    return splitNewSuccessor(id.name(), index);
   }
 
   @Override
   public BB splitNewSuccessor(String name, int index) {
-    return splitNewSuccessorWithId(cfg().uniqueBBId(name), index);
+    return splitNewSuccessorWithId(cfg.uniqueBBId(name), index);
   }
 
   BB splitNewSuccessorWithId(BBId successorId, int index) {
@@ -454,7 +450,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
       throw new IndexOutOfBoundsException("Index out of range: " + index);
     }
 
-    var newBB = cfg().doAddBB(successorId);
+    var newBB = cfg.doAddBB(successorId);
 
     for (var succ : successors()) {
       assert succ.predecessors.contains(this)
@@ -462,7 +458,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
       succ.predecessors.remove(this);
       succ.predecessors.add(newBB);
       for (var phi : succ.phis) {
-        PhiImpl.cast(phi).unsafeReplaceIncomingBB(this, newBB);
+        phi.unsafeReplaceIncomingBB(this, newBB);
       }
     }
 
@@ -470,16 +466,15 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     newBB.stmts.addAll(stmts.subList(index, stmts.size()));
     newBB.jump = jump;
     if (newBB.jump != null) {
-      JumpImpl.cast(newBB.jump).unsafeSetBB(newBB);
+      newBB.jump.unsafeSetBB(newBB);
     }
     stmts.subList(index, stmts.size()).clear();
     jump = null;
-    var newJump = new JumpData.Goto(newBB).make(cfg(), cfg().<Instr>uniqueLocalId());
+    var newJump = new Jump(cfg, new JumpData.Goto(newBB));
     setJump(newJump);
-    cfg().track(newJump);
+    cfg.track(newJump);
 
-    cfg()
-        .record(
+    cfg.record(
             new CFGEdit.SplitBB(this, newBB, false, index),
             new CFGEdit.MergeBBs(this, newBB, false));
     return newBB;
@@ -488,11 +483,11 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
   @Override
   public void mergeWithSuccessor(BB succ) {
     if (jump == null
-        || !(jump.data() instanceof JumpData.Goto gotoJump)
-        || gotoJump.next() != succ) {
+        || !(jump.controlFlow() instanceof ControlFlow.Goto(var next))
+        || next != succ) {
       throw new IllegalArgumentException("This block's jump isn't a GOTO to the successor");
     }
-    if (succ == cfg().entry() && !stmts.isEmpty()) {
+    if (succ == cfg.entry() && !stmts.isEmpty()) {
       throw new IllegalArgumentException("The successor is the entry block (can't be removed)");
     }
     if (succ.predecessors.size() != 1 && !stmts.isEmpty()) {
@@ -519,7 +514,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     for (var pred : succ.predecessors) {
       assert pred.jump != null && pred.jump.targets().contains(succ)
           : "Successor has predecessor whose jump doesn't point to it";
-      JumpImpl.cast(pred.jump).unsafeReplaceInTargets(succ, this);
+      pred.jump.unsafeReplaceInTargets(succ, this);
     }
 
     for (var succ2 : succ.successors()) {
@@ -528,7 +523,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
       succ2.predecessors.remove(succ);
       succ2.predecessors.add(this);
       for (var phi : succ2.phis) {
-        PhiImpl.cast(phi).unsafeReplaceIncomingBB(succ, this);
+        phi.unsafeReplaceIncomingBB(succ, this);
       }
     }
 
@@ -538,20 +533,17 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
           myInput instanceof Phi<?> myPhi && phis.contains(myPhi)
               ? myPhi.inputs().stream()
               : predecessors.stream().map(pred -> Phi.Input.of(pred, myInput));
-      // The input is the correct type, but it's existential so we need to erase `phi`'s generic.
-      @SuppressWarnings("unchecked")
-      var phi1 = (PhiImpl<Node>) PhiImpl.cast(phi);
-      phi1.unsafeRemoveInput(this);
+      phi.unsafeRemoveInput(this);
       newInputsStream
-          .filter(i -> !phi1.hasIncomingBB(i.incomingBB()))
-          .forEach(phi1::unsafeAddInput);
+          .filter(i -> !phi.hasIncomingBB(i.incomingBB()))
+          .forEach(phi::unsafeAddInput);
     }
 
     if (succ.predecessors.size() > 1) {
       // Remove this node's phis because they don't have inputs for the new predecessors. We merged
       // them if they were in the successor's phis, and if not, they are definitely unused because
       // this BB (before the merge) only dominates itself.
-      cfg().untrackAll(phis);
+      cfg.untrackAll(phis);
       phis.clear();
     }
 
@@ -563,13 +555,13 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     phis.addAll(succ.phis);
     stmts.addAll(succ.stmts);
     // Inline `setJump` except we already handled predecessors and successors.
-    cfg().untrack(jump);
+    cfg.untrack(jump);
     jump = succ.jump;
     if (jump != null) {
-      JumpImpl.cast(jump).unsafeSetBB(this);
+      jump.unsafeSetBB(this);
     }
     if (jump == null || jump.targets().isEmpty()) {
-      cfg().markExit(this);
+      cfg.markExit(this);
     }
     succ.predecessors.clear();
     succ.phis.clear();
@@ -577,11 +569,10 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     // First call `doRemove` so that, if the jump had successors, the CFG won't try to remove the BB
     // from the exits (since it's not one, but if the jump is set to null, it has no successors so
     // the CFG thinks it is).
-    cfg().doRemove(succ);
+    cfg.doRemove(succ);
     succ.jump = null;
 
-    cfg()
-        .record(
+    cfg.record(
             new CFGEdit.MergeBBs(this, succ, false),
             new CFGEdit.SplitBB(this, succ, false, resplitIndex));
   }
@@ -590,106 +581,78 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
 
   // region add nodes
   @Override
-  public <N extends Node> Phi<N> addPhi(Class<? extends N> nodeClass) {
-    return addPhiWithId(cfg().<Phi<? extends N>>uniqueLocalId(), nodeClass);
+  public <T> Phi<T> addPhi() {
+    return addPhiWithId(cfg.uniqueLocalId());
   }
 
   @Override
-  public <N extends Node> Phi<N> addPhi(
-      Class<? extends N> nodeClass, Collection<? extends Phi.Input<? extends N>> inputs) {
-    return addPhiWithId(cfg().<Phi<? extends N>>uniqueLocalId(), nodeClass, inputs);
+  public <T> Phi<T> addPhi(Collection<? extends Phi.Input<? extends T>> inputs) {
+    return addPhiWithId(cfg.uniqueLocalId(), inputs);
   }
 
-  <N extends Node> Phi<N> addPhiWithId(
-      NodeId<? extends Phi<? extends N>> id, Class<? extends N> nodeClass) {
-    var phi =
-        PhiImpl.forClass(
-            nodeClass, cfg(), id, predecessors.stream().map(Phi.Input::unset).toList());
+  <T> Phi<T> addPhiWithId(LocalNodeId<T> id) {
+    var phi = new Phi<>(cfg, id, predecessors.stream().map(Phi.Input::<T>unset).toList());
     phis.add(phi);
-    cfg().track(phi);
+    cfg.track(phi);
 
-    cfg().record(new CFGEdit.InsertPhi<>(this, phi), new CFGEdit.RemovePhi(this, phi));
+    cfg.record(new CFGEdit.InsertPhi<>(this, phi), new CFGEdit.RemovePhi(this, phi));
     return phi;
   }
 
-  <N extends Node> Phi<N> addPhiWithId(
-      NodeId<? extends Phi<? extends N>> id,
-      Class<? extends N> nodeClass,
-      Collection<? extends Phi.Input<? extends N>> inputs) {
-    var phi = PhiImpl.forClass(nodeClass, cfg(), id, inputs);
+  <T> Phi<T> addPhiWithId(LocalNodeId<T> id, Collection<? extends Phi.Input<? extends T>> inputs) {
+    var phi = new Phi<>(cfg, id, inputs);
     verifyPhiInputBBs(phi);
     phis.add(phi);
-    cfg().track(phi);
+    cfg.track(phi);
 
-    cfg().record(new CFGEdit.InsertPhi<>(this, phi), new CFGEdit.RemovePhi(this, phi));
+    cfg.record(new CFGEdit.InsertPhi<>(this, phi), new CFGEdit.RemovePhi(this, phi));
 
     // Has to be after insertion, and we want to try and not leave the state inconsistent on
     // exception (this specific check is allowed to fail in a consistent state).
     if (EAGERLY_VERIFY_PHI_INPUTS) {
-      PhiImpl.cast(phi).eagerlyVerifyInputs();
+      phi.eagerlyVerifyInputs();
     }
 
     return phi;
   }
 
   @Override
-  public ImmutableList<? extends Phi<?>> addPhis(
-      Collection<? extends Class<? extends Node>> nodeClasses) {
-    if (nodeClasses.isEmpty()) {
+  public <T> ImmutableList<? extends Phi<? extends T>> addPhis(
+      Collection<? extends Collection<? extends Phi.Input<? extends T>>> inputss) {
+    return this.addPhisWithIds(
+            inputss.stream().map(inputs -> Pair.of(cfg.<T>uniqueLocalId(), inputs)).toList());
+  }
+
+  <T> ImmutableList<? extends Phi<? extends T>> addPhisWithIds(
+      Collection<
+          ? extends Pair<
+              ? extends LocalNodeId<? extends T>,
+              ? extends Collection<
+                  ? extends Phi.Input<? extends T>>>> idAndInputss) {
+    if (idAndInputss.isEmpty()) {
       return ImmutableList.of();
     }
 
-    var inputs = predecessors.stream().map(Phi.Input::unset).toList();
+    // We want to create `new Phi<? extends T>`, but Java's type system doesn't allow it. So we do
+    // an unchecked cast to create a `Phi<T>`, then upcast it to `Phi<? extends T>`.
+    @SuppressWarnings("unchecked")
     var phis =
-        nodeClasses.stream()
-            .map(
-                nodeClass ->
-                    PhiImpl.forClass(nodeClass, cfg(), cfg().<Phi<?>>uniqueLocalId(), inputs))
-            .collect(ImmutableList.toImmutableList());
-    this.phis.addAll(phis);
-    cfg().trackAll(phis);
-
-    cfg().record(new CFGEdit.InsertPhis(this, phis), new CFGEdit.RemovePhis(this, phis));
-    return phis;
-  }
-
-  @Override
-  public ImmutableList<? extends Phi<?>> addPhis1(Collection<Phi.Args> phiArgs) {
-    return addPhisWithIds(
-        phiArgs.stream().map(a -> new PhiImpl.Args(cfg().<Phi<?>>uniqueLocalId(), a)).toList());
-  }
-
-  ImmutableList<? extends Phi<?>> addPhisWithIds(Collection<? extends PhiImpl.Args> phiArgs) {
-    if (phiArgs.isEmpty()) {
-      return ImmutableList.of();
-    }
-
-    // The type argument and cast *are* redundant, but the Java compiler has an annoying bug where
-    // it occasionally fails to type-check and must be fully rebuilt without them.
-    @SuppressWarnings({"RedundantTypeArguments", "RedundantCast"})
-    var phis =
-        phiArgs.stream()
-            .map(
-                a ->
-                    PhiImpl.<Node>forClass(
-                        a.nodeClass(),
-                        cfg(),
-                        (NodeId<? extends Phi<? extends Node>>) a.id(),
-                        a.inputs()))
+        idAndInputss.stream()
+            .map(idAndInputs -> (Phi<? extends T>) new Phi<>(cfg, (LocalNodeId<T>) idAndInputs.first(), idAndInputs.second()))
             .collect(ImmutableList.toImmutableList());
     for (var phi : phis) {
       verifyPhiInputBBs(phi);
     }
     this.phis.addAll(phis);
-    cfg().trackAll(phis);
+    cfg.trackAll(phis);
 
-    cfg().record(new CFGEdit.InsertPhis(this, phis), new CFGEdit.RemovePhis(this, phis));
+    cfg.record(new CFGEdit.InsertPhis<>(this, phis), new CFGEdit.RemovePhis(this, phis));
 
     // Has to be after insertion, and we want to try and not leave the state inconsistent on
     // exception (this specific check is allowed to fail in a consistent state).
     if (EAGERLY_VERIFY_PHI_INPUTS) {
       for (var phi : phis) {
-        PhiImpl.cast(phi).eagerlyVerifyInputs();
+        phi.eagerlyVerifyInputs();
       }
     }
 
@@ -711,75 +674,49 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
   }
 
   @Override
-  public <I extends Stmt> I insertAt(int index, String name, StmtData<I> args) {
-    return insertAtWithId(index, cfg().<I>uniqueLocalId(name), args);
-  }
-
-  <I extends Stmt> I insertAtWithId(int index, NodeId<? extends I> id, StmtData<? extends I> args) {
+  public Stmt insertAt(int index, StmtData data) {
     if (index < 0 || index > stmts.size()) {
       throw new IndexOutOfBoundsException("Index out of range: " + index);
     }
 
-    var stmt = args.make(cfg(), id);
+    var stmt = new Stmt(cfg, data);
     stmts.add(index, stmt);
-    cfg().track(stmt);
+    cfg.track(stmt);
 
-    cfg().record(CFGEdit.InsertStmt.of(this, index, stmt), new CFGEdit.RemoveStmt(this, index));
+    cfg.record(new CFGEdit.InsertStmt(this, index, stmt), new CFGEdit.RemoveStmt(this, index));
     return stmt;
   }
 
   @Override
-  public ImmutableList<? extends Stmt> insertAllAt(int index, List<Stmt.Args> namesAndArgs) {
-    return insertAllAtWithIds(
-        index,
-        namesAndArgs.stream()
-            .map(a -> new StmtImpl.Args(cfg().<Stmt>uniqueLocalId(a.name()), a.data()))
-            .toList());
-  }
-
-  ImmutableList<? extends Stmt> insertAllAtWithIds(int index, List<StmtImpl.Args> idsAndArgs) {
+  public ImmutableList<Stmt> insertAllAt(int index, List<StmtData> datas) {
     if (index < 0 || index > stmts.size()) {
       throw new IndexOutOfBoundsException("Index out of range: " + index);
     }
 
-    if (idsAndArgs.isEmpty()) {
+    if (datas.isEmpty()) {
       return ImmutableList.of();
     }
 
     var stmts =
-        idsAndArgs.stream()
-            .map(idAndArgs -> idAndArgs.data().make(cfg(), idAndArgs.id()))
-            .collect(ImmutableList.toImmutableList());
+        datas.stream().map(data -> new Stmt(cfg, data)).collect(ImmutableList.toImmutableList());
     this.stmts.addAll(index, stmts);
-    cfg().trackAll(stmts);
+    cfg.trackAll(stmts);
 
-    cfg()
-        .record(
+    cfg.record(
             new CFGEdit.InsertStmts(this, index, stmts),
             new CFGEdit.RemoveStmts(this, index, stmts.size()));
     return stmts;
   }
 
   @Override
-  public ImmutableList<? extends Stmt> insertAllAt(Map<Integer, Stmt.Args> indicesNamesAndArgs) {
-    return insertAllAtWithIds(
-        indicesNamesAndArgs.entrySet().stream()
-            .collect(
-                Collectors.toMap(
-                    Map.Entry::getKey,
-                    e ->
-                        new StmtImpl.Args(
-                            cfg().<Stmt>uniqueLocalId(e.getValue().name()), e.getValue().data()))));
-  }
-
-  ImmutableList<? extends Stmt> insertAllAtWithIds(Map<Integer, StmtImpl.Args> indicesIdsAndArgs) {
-    for (var index : indicesIdsAndArgs.keySet()) {
+  public ImmutableList<Stmt> insertAllAt(Map<Integer, StmtData> indicesAndDatas) {
+    for (var index : indicesAndDatas.keySet()) {
       if (index < 0 || index > stmts.size()) {
         throw new IndexOutOfBoundsException("Index out of range: " + index);
       }
     }
 
-    if (indicesIdsAndArgs.isEmpty()) {
+    if (indicesAndDatas.isEmpty()) {
       return ImmutableList.of();
     }
 
@@ -787,14 +724,14 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     // O(origStmts.size * indicesNamesAndArgs.size) time if we inserted one by one.
     // Also remember that later indices must not be offset by earlier ones.
     var origStmts = new ArrayList<>(stmts);
-    var newStmtsBuilder = ImmutableList.<Stmt>builderWithExpectedSize(indicesIdsAndArgs.size());
+    var newStmtsBuilder = ImmutableList.<Stmt>builderWithExpectedSize(indicesAndDatas.size());
     var indicesStmts =
-        ImmutableMap.<Integer, Stmt>builderWithExpectedSize(indicesIdsAndArgs.size());
+        ImmutableMap.<Integer, Stmt>builderWithExpectedSize(indicesAndDatas.size());
     stmts.clear();
     for (var i = 0; i < origStmts.size(); i++) {
-      if (indicesIdsAndArgs.containsKey(i)) {
-        var idAndArgs = indicesIdsAndArgs.get(i);
-        var stmt = idAndArgs.data().make(cfg(), idAndArgs.id());
+      if (indicesAndDatas.containsKey(i)) {
+        var idAndArgs = indicesAndDatas.get(i);
+        var stmt = new Stmt(cfg, idAndArgs);
         stmts.add(stmt);
         newStmtsBuilder.add(stmt);
         indicesStmts.put(i, stmt);
@@ -804,30 +741,25 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     }
 
     var newStmts = newStmtsBuilder.build();
-    cfg().trackAll(newStmts);
+    cfg.trackAll(newStmts);
 
-    cfg()
-        .record(
+    cfg.record(
             new CFGEdit.InsertStmts2(this, indicesStmts.build()),
-            new CFGEdit.RemoveStmts2(this, stmts));
+            new CFGEdit.RemoveStmts2(this, indicesAndDatas.keySet()));
     return newStmts;
   }
 
   @Override
-  public <I extends Jump> I addJump(String name, JumpData<I> args) {
-    return addJumpWithId(cfg().<I>uniqueLocalId(name), args);
-  }
-
-  <I extends Jump> I addJumpWithId(NodeId<? extends I> id, JumpData<? extends I> args) {
+  public Jump addJump(JumpData data) {
     if (this.jump != null) {
       throw new IllegalStateException(id() + " already has a jump, call replaceJump instead");
     }
 
-    var jump = args.make(cfg(), id);
+    var jump = new Jump(cfg, data);
     setJump(jump);
-    cfg().track(jump);
+    cfg.track(jump);
 
-    cfg().record(CFGEdit.InsertJump.of(this, jump), new CFGEdit.RemoveJump(this));
+    cfg.record(new CFGEdit.InsertJump(this, jump), new CFGEdit.RemoveJump(this));
     return jump;
   }
 
@@ -835,66 +767,38 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
 
   // region replace nodes
   @Override
-  public <I extends Stmt> I replace(int index, @Nullable String newName, StmtData<I> newArgs) {
+  public Stmt replace(int index, StmtData newData) {
     if (index < 0 || index >= stmts.size()) {
       throw new IndexOutOfBoundsException("Index out of range: " + index);
     }
 
     var oldStmt = stmts.get(index);
-    if (newName == null) {
-      newName = InstrOrPhiIdImpl.cast(oldStmt.id()).name();
-    }
-    return replaceWithId(index, cfg().<I>uniqueLocalId(newName), newArgs);
-  }
-
-  <I extends Stmt> I replaceWithId(
-      int index, NodeId<? extends I> newId, StmtData<? extends I> newArgs) {
-    if (index < 0 || index >= stmts.size()) {
-      throw new IndexOutOfBoundsException("Index out of range: " + index);
-    }
-
-    var oldStmt = stmts.get(index);
-    var newStmt = newArgs.make(cfg(), newId);
+    var newStmt = new Stmt(cfg, newData);
     stmts.set(index, newStmt);
 
-    cfg().untrack(oldStmt);
-    cfg().track(newStmt);
+    cfg.untrack(oldStmt);
+    cfg.track(newStmt);
 
-    cfg()
-        .record(
-            new CFGEdit.ReplaceStmt<>(this, index, newStmt),
-            new CFGEdit.ReplaceStmt<>(this, index, oldStmt));
+    cfg.record(
+            new CFGEdit.ReplaceStmt(this, index, newStmt),
+            new CFGEdit.ReplaceStmt(this, index, oldStmt));
     return newStmt;
   }
 
   @Override
-  public <I extends Jump> I replaceJump(@Nullable String newName, JumpData<I> newArgs) {
+  public Jump replaceJump(JumpData newData) {
     if (jump == null) {
       throw new IllegalStateException(id() + " doesn't have a jump");
     }
 
     var oldJump = jump;
-    if (newName == null) {
-      newName = InstrOrPhiIdImpl.cast(oldJump.id()).name();
-    }
-    return replaceJumpWithId(cfg().<I>uniqueLocalId(newName), newArgs);
-  }
-
-  public <I extends Jump> I replaceJumpWithId(
-      NodeId<? extends I> newId, JumpData<? extends I> newArgs) {
-    if (jump == null) {
-      throw new IllegalStateException(id() + " doesn't have a jump");
-    }
-
-    var oldJump = jump;
-    var newJump = newArgs.make(cfg(), newId);
+    var newJump = new Jump(cfg, newData);
     setJump(newJump);
 
-    cfg().untrack(oldJump);
-    cfg().track(newJump);
+    cfg.untrack(oldJump);
+    cfg.track(newJump);
 
-    cfg()
-        .record(new CFGEdit.ReplaceJump<>(this, newJump), new CFGEdit.ReplaceJump<>(this, oldJump));
+    cfg.record(new CFGEdit.ReplaceJump(this, newJump), new CFGEdit.ReplaceJump(this, oldJump));
     return newJump;
   }
 
@@ -904,7 +808,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
 
   @Override
   public void moveStmt(int oldIndex, BB newBb, int newIndex) {
-    if (newBb.cfg() != cfg()) {
+    if (newBb.cfg != cfg) {
       throw new IllegalArgumentException("Can't move between different CFGs");
     }
     if (oldIndex < 0 || oldIndex >= stmts.size()) {
@@ -918,15 +822,14 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     var stmt = stmts.remove(oldIndex);
     newBb.stmts.add(newIndex, stmt);
 
-    cfg()
-        .record(
+    cfg.record(
             new CFGEdit.MoveStmt(this, oldIndex, newBb, newIndex),
             new CFGEdit.MoveStmt(newBb, newIndex, this, oldIndex));
   }
 
   @Override
   public void moveStmts(int oldFromIndex, int oldToIndex, BB newBb, int newFromIndex) {
-    if (newBb.cfg() != cfg()) {
+    if (newBb.cfg != cfg) {
       throw new IllegalArgumentException("Can't move between different CFGs");
     }
     if (oldFromIndex > oldToIndex) {
@@ -950,8 +853,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     newBb.stmts.addAll(newFromIndex, stmts);
     stmts.clear();
 
-    cfg()
-        .record(
+    cfg.record(
             new CFGEdit.MoveStmts(this, oldFromIndex, oldToIndex, newBb, newFromIndex),
             new CFGEdit.MoveStmts(
                 newBb,
@@ -963,7 +865,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
 
   @Override
   public void moveJump(BB newBb) {
-    if (newBb.cfg() != cfg()) {
+    if (newBb.cfg != cfg) {
       throw new IllegalArgumentException("Can't move between different CFGs");
     }
     if (jump == null) {
@@ -977,7 +879,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     setJump(null);
     newBb.setJump(oldJump);
 
-    cfg().record(new CFGEdit.MoveJump(this, newBb), new CFGEdit.MoveJump(newBb, this));
+    cfg.record(new CFGEdit.MoveJump(this, newBb), new CFGEdit.MoveJump(newBb, this));
   }
 
   // endregion move nodes
@@ -989,9 +891,9 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
       throw new IllegalArgumentException("Not in " + id() + ": " + phi);
     }
 
-    cfg().untrack(phi);
+    cfg.untrack(phi);
 
-    cfg().record(new CFGEdit.RemovePhi(this, phi), new CFGEdit.InsertPhi<>(this, phi));
+    cfg.record(new CFGEdit.RemovePhi(this, phi), new CFGEdit.InsertPhi<>(this, phi));
   }
 
   @Override
@@ -1006,9 +908,9 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     if (this.phis.size() != oldSize - phis.size()) {
       throw new IllegalArgumentException("Not all in " + id() + ": " + phis);
     }
-    cfg().untrackAll(phis);
+    cfg.untrackAll(phis);
 
-    cfg().record(new CFGEdit.RemovePhis(this, phis), new CFGEdit.InsertPhis(this, phis));
+    cfg.record(new CFGEdit.RemovePhis(this, phis), new CFGEdit.InsertPhis<>(this, phis));
   }
 
   @Override
@@ -1018,9 +920,9 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     }
 
     var stmt = stmts.remove(index);
-    cfg().untrack(stmt);
+    cfg.untrack(stmt);
 
-    cfg().record(new CFGEdit.RemoveStmt(this, index), CFGEdit.InsertStmt.of(this, index, stmt));
+    cfg.record(new CFGEdit.RemoveStmt(this, index), new CFGEdit.InsertStmt(this, index, stmt));
     return stmt;
   }
 
@@ -1038,15 +940,15 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
     }
 
     var stmts = this.stmts.subList(fromIndex, toIndex);
-    cfg().untrackAll(stmts);
+    cfg.untrackAll(stmts);
     var reInsert = new CFGEdit.InsertStmts(this, fromIndex, stmts);
     stmts.clear();
 
-    cfg().record(new CFGEdit.RemoveStmts(this, fromIndex, toIndex), reInsert);
+    cfg.record(new CFGEdit.RemoveStmts(this, fromIndex, toIndex), reInsert);
   }
 
   @Override
-  public void removeAllStmts(Collection<? extends Stmt> stmts) {
+  public void removeAllStmts(Collection<Stmt> stmts) {
     if (stmts.isEmpty()) {
       return;
     }
@@ -1060,11 +962,11 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
       throw new IllegalArgumentException("Not all in " + id() + ": " + stmts);
     }
 
-    cfg().untrackAll(stmts);
+    cfg.untrackAll(stmts);
 
-    cfg()
-        .record(
-            new CFGEdit.RemoveStmts2(this, stmts), new CFGEdit.InsertStmts2(this, stmtsAtIndices));
+    cfg.record(
+        new CFGEdit.RemoveStmts2(this, stmtsAtIndices.keySet()),
+        new CFGEdit.InsertStmts2(this, stmtsAtIndices));
   }
 
   @Override
@@ -1075,9 +977,9 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
 
     var jump = this.jump;
     setJump(null);
-    cfg().untrack(jump);
+    cfg.untrack(jump);
 
-    cfg().record(new CFGEdit.RemoveJump(this), CFGEdit.InsertJump.of(this, jump));
+    cfg.record(new CFGEdit.RemoveJump(this), new CFGEdit.InsertJump(this, jump));
     return jump;
   }
 
@@ -1091,7 +993,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
    *
    * <p>This <i>will</i> add an input to phis within the block for the new predecessor.
    *
-   * <p>Called by {@link Instr#mutateArgs(Instr, InstrData)} so it can't be private.
+   * <p>Called by {@link Jump#unsafeReplaceInTargets(BB, BB)}, so it can't be private.
    */
   void unsafeAddPredecessor(BB predecessor) {
     if (predecessors.contains(predecessor)) {
@@ -1100,7 +1002,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
 
     predecessors.add(predecessor);
     for (var phi : phis) {
-      PhiImpl.cast(phi).unsafeAddUnsetInput(predecessor);
+      phi.unsafeAddUnsetInput(predecessor);
     }
   }
 
@@ -1110,7 +1012,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
    *
    * <p>This <i>will</i> remove the input to phis within the block for the old predecessor.
    *
-   * <p>Called by {@link Instr#mutateArgs(Instr, InstrData)} so it can't be private.
+   * <p>Called by {@link Jump#unsafeReplaceInTargets(BB, BB)}, so it can't be private.
    */
   void unsafeRemovePredecessor(BB predecessor) {
     if (!predecessors.contains(predecessor)) {
@@ -1119,7 +1021,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
 
     predecessors.remove(predecessor);
     for (var phi : phis) {
-      PhiImpl.cast(phi).unsafeRemoveInput(predecessor);
+      phi.unsafeRemoveInput(predecessor);
     }
   }
 
@@ -1135,7 +1037,7 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
       for (var succ : this.jump.targets()) {
         succ.unsafeRemovePredecessor(this);
       }
-      JumpImpl.cast(this.jump).unsafeSetBB(null);
+      this.jump.unsafeSetBB(null);
     }
 
     this.jump = jump;
@@ -1144,31 +1046,33 @@ public final class BB implements BBQuery, BBIntrinsicMutate, BBCompoundMutate, B
       for (var succ : jump.targets()) {
         succ.unsafeAddPredecessor(this);
       }
-      JumpImpl.cast(jump).unsafeSetBB(this);
+      jump.unsafeSetBB(this);
     }
 
     var isExit = jump == null || jump.targets().isEmpty();
     if (!wasExit && isExit) {
-      cfg().markExit(this);
+      cfg.markExit(this);
     } else if (wasExit && !isExit) {
-      cfg().unmarkExit(this);
+      cfg.unmarkExit(this);
     }
   }
 
   // endregion misc internal methods
 
-  @Override
-  public String toString() {
-    return Printer.toString(this);
-  }
-
+  // region serialization and deserialization
   @ParseMethod
   private BB parse(Parser p) {
-    return p.withContext(new CFGParseOrPrintContext(null, cfg())).parse(BB.class);
+    return p.withContext(new CFGParseOrPrintContext(null, cfg)).parse(BB.class);
   }
 
   @PrintMethod
   private void print(Printer p) {
-    p.withContext(new CFGParseOrPrintContext(null, cfg())).print(this);
+    p.withContext(new CFGParseOrPrintContext(null, cfg)).print(this);
   }
+
+  @Override
+  public String toString() {
+    return Printer.toString(this);
+  }
+  // endregion serialization and deserialization
 }

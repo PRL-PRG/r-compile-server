@@ -7,7 +7,7 @@ import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.SkipWhitespace;
 
 /** {@link NodeId} of a {@link LocalNode}. */
-public final class LocalNodeId<T> implements NodeId<T> {
+public sealed class LocalNodeId<T> implements NodeId<T> permits PhiId {
   private @Nullable Class<? extends T> type;
   private final int disambiguator;
   private final String name;
@@ -80,3 +80,4 @@ public final class LocalNodeId<T> implements NodeId<T> {
     return new LocalNodeId<>(disambiguator, name);
   }
 }
+

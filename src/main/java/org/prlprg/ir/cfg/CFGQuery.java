@@ -1,9 +1,9 @@
 package org.prlprg.ir.cfg;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
@@ -67,34 +67,44 @@ interface CFGQuery {
   @UnmodifiableView
   Collection<BBId> bbIds();
 
-  /** Whether the CFG contains a basic block with the given id. */
+  /** Whether the CFG contains a basic block with the given ID. */
   boolean contains(BBId bbId);
 
   /**
-   * Whether the CFG contains a node with the given id.
+   * Whether the CFG contains a node with the given ID.
    */
   boolean contains(LocalNodeId<?> nodeId);
 
   /**
-   * Get the basic block in the CFG with the given id.
+   * Get the basic block in the CFG with the given ID.
    *
-   * @throws NoSuchElementException If the basic block with the given id is not in the CFG.
+   * @throws NoSuchElementException If the basic block with the given ID isn't in the CFG.
    */
   BB get(BBId bbId);
 
   /**
-   * Get the node in the CFG with the given id.
+   * Get the node in the CFG with the given ID.
    *
-   * @throws NoSuchElementException If the node with the given id is not in the CFG.
+   * @throws NoSuchElementException If the node with the given ID isn't in the CFG.
    */
   <T> LocalNode<T> get(LocalNodeId<T> nodeId);
 
   /**
-   * Get the node in the CFG with the given id if it's local. If it's global, returns
+   * Get the node in the CFG with the given ID.
+   *
+   * @throws NoSuchElementException If the node with the given ID isn't in the CFG.
+   * @throws ClassCastException If the node with the given ID isn't a {@link Phi} (should only be
+   * possible if you pass an ID from a different CFG).
+   */
+  default <T> Phi<T> get(PhiId<T> nodeId) {
+    return (Phi<T>) get((LocalNodeId<T>) nodeId);
+  }
+
+  /**
+   * Get the node in the CFG with the given ID if it's local. If it's global, returns
    * {@link GlobalNodeId#node()}.
    *
-   * @throws NoSuchElementException If the node with the given id is not global and is not in the
-   *     CFG.
+   * @throws NoSuchElementException If the node with the given ID isn't global and isn't in the CFG.
    */
   default <T> Node<T> get(NodeId<T> nodeId) {
     return switch (nodeId) {
@@ -257,7 +267,8 @@ interface CFGQuery {
   default Stream<CodeObject> streamInnerCodeObjects() {
     return stream()
         .flatMap(bb -> bb.stmts().stream())
-        .flatMap(stmt -> Optional.ofNullable(stmt.codeObject()).stream());
+        .flatMap(stmt -> Arrays.stream(stmt.inputs))
+        .flatMap(input -> (input instanceof CodeObject co ? Optional.of(co) : Optional.<CodeObject>empty()).stream());
   }
 
   // endregion iterate nodes
@@ -265,8 +276,7 @@ interface CFGQuery {
   // region misc
   /** Does the CFG have a {@link Deopt} instruction? */
   default boolean canDeopt() {
-    return exits().stream()
-        .anyMatch(bb -> Objects.requireNonNull(bb.jump()).data() instanceof Deopt);
+    return exits().stream().anyMatch(bb -> bb.jump() != null && bb.jump().effects().canDeopt());
   }
   // endregion misc
 }

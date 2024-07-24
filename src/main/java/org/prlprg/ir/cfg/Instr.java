@@ -22,16 +22,24 @@ import org.prlprg.ir.effect.REffects;
  *
  * <p>This type is mutable and does not have subclasses for each specific instruction, while {@link
  * InstrData} is immutable and does. Don't construct {@link Instr}s directly, instead via {@link BB}
- * methods such as {@link BB#insertAt(int, String, StmtData)} and {@link BB#replace(int, String,
- * StmtData)}, which take {@link InstrData} as an argument and construct the {@link Instr}
- * themselves.
+ * methods such as {@link BB#insertAt(int, StmtData)} and {@link BB#replace(int, StmtData)}, which
+ * take {@link InstrData} as an argument and construct the {@link Instr} themselves.
  */
-public sealed class Instr implements InstrOrPhi permits Jump, Stmt {
+public sealed abstract class Instr implements InstrOrPhi, InstrOrPhiImpl permits Stmt, Jump {
   private final CFG cfg;
 
+  /**
+   * The instruction's data, which determines its {@link #fun()}, {@link #inputs()},
+   * {@link #effects()}, and the {@link Node#type()}s of its {@link #outputs()}.
+   *
+   * <p>This is only exposed internally because, outside of instruction creation and lowering, the
+   * instruction should only be queried for its other public methods. This is because there are many
+   * instructions, and many are handled very similarly, so it's better design to abstract how they
+   * are handled (e.g. query a "load" effect vs pattern-matching the load {@link InstrData}s).
+   */
   protected InstrData data;
 
-  private IFun fun;
+  protected IFun fun;
   protected final Object[] inputs;
   private REffects effects;
   private final ImmutableList<InstrOutput<?>> outputs;
@@ -39,6 +47,19 @@ public sealed class Instr implements InstrOrPhi permits Jump, Stmt {
   private final List<Node<?>> cachedInputNodes = new ArrayList<>();
 
   // region construct
+  /** Serialized form where everything is replaced by IDs. */
+  public sealed interface Serial permits Stmt.Serial, Jump.Serial {
+    /** The {@link StmtData} or {@link JumpData} the instruction is constructed with. */
+    MapToIdIn<? extends InstrData> data();
+
+    /** The {@link LocalNodeId}s of the instruction's {@link #outputs()} after it's constructed. */
+    ImmutableList<LocalNodeId<?>> outputIds();
+  }
+
+  /** Creates an instruction.
+   *
+   * <p>Doesn't {@link CFG#track(InstrOrPhi)} it in the {@link CFG}, so this should be called in
+   * {@link BB}. */
   Instr(CFG cfg, InstrData data) {
     this.cfg = cfg;
     this.data = data;
@@ -118,11 +139,14 @@ public sealed class Instr implements InstrOrPhi permits Jump, Stmt {
 
   // region mutators
   @Override
-  public final CascadingInstrUpdate replaceInInputs(CascadingUpdatedInstrs seen, Node<?> old, Node<?> replacement) {
-    var oldData = data;
-
+  public final CascadingInstrUpdate unsafeReplaceInInputs(CascadingUpdatedInstrs seen, Node<?> old, Node<?> replacement) {
+    boolean[] replaced = {false};
     for (var i = 0; i < inputs.length; i++) {
-      inputs[i] = replaceInputNodesIn(inputs[i], old, replacement);
+      inputs[i] = replaceInputNodesIn(inputs[i], old, replacement, replaced);
+    }
+
+    if (!replaced[0]) {
+      return CascadingInstrUpdate.NONE;
     }
 
     data = data.setInputs(inputs);
@@ -146,27 +170,28 @@ public sealed class Instr implements InstrOrPhi permits Jump, Stmt {
 
     updateCachedInputNodes();
 
-    cfg.record(new ReplaceInInputs(this, data), new ReplaceInInputs(this, oldData));
-
     return CascadingInstrUpdate.of(effectsChanged, outputTypesChanged);
   }
 
   @SuppressWarnings("unchecked")
-  @Contract("null, _, _ -> null; !null, _, _ -> !null")
-  private static <T> @Nullable T replaceInputNodesIn(@Nullable T input, Node<?> old, Node<?> replacement) {
+  @Contract("null, _, _, _ -> null; !null, _, _, _ -> !null")
+  private static <T> @Nullable T replaceInputNodesIn(@Nullable T input, Node<?> old, Node<?> replacement, boolean[] replaced) {
     return switch (input) {
-      case Node<?> n -> n == old ? (T) replacement : input;
+      case Node<?> n when n == old -> {
+        replaced[0] = true;
+        yield (T) replacement;
+      }
       case Node<?>[] n -> {
         for (var j = 0; j < n.length; j++) {
-          n[j] = replaceInputNodesIn(n[j], old, replacement);
+          n[j] = replaceInputNodesIn(n[j], old, replacement, replaced);
         }
         yield (T) n;
       }
-      case Optional<?> o -> (T) o.map(o1 -> replaceInputNodesIn(o1, old, replacement));
+      case Optional<?> o -> (T) o.map(o1 -> replaceInputNodesIn(o1, old, replacement, replaced));
       case ImmutableList<?> c -> {
         var builder = ImmutableList.builderWithExpectedSize(c.size());
         for (var item : c) {
-          builder.add(replaceInputNodesIn(item, old, replacement));
+          builder.add(replaceInputNodesIn(item, old, replacement, replaced));
         }
         yield (T) builder.build();
       }

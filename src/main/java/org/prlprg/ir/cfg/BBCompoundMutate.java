@@ -31,7 +31,7 @@ public interface BBCompoundMutate extends BBIntrinsicMutate, BBQuery {
    * @return Ths inserted statements.
    * @see #append(String, StmtData)
    */
-  default ImmutableList<? extends Stmt> append(List<Stmt.Args> namesAndArgs) {
+  default ImmutableList<Stmt> append(List<Stmt.Args> namesAndArgs) {
     return insertAllAt(stmts().size(), namesAndArgs);
   }
 
@@ -50,7 +50,7 @@ public interface BBCompoundMutate extends BBIntrinsicMutate, BBQuery {
       int index, String name, JumpInsertion<? extends I> insertion) {
     return cfg()
         .section(
-            "BB#insertAt(int, String, JumpInsertion)",
+            "BB#insertAt(int, JumpInsertion)",
             () -> {
               var newSuccessor = splitNewSuccessor(index);
               return replaceJump(name, insertion.compute(newSuccessor));

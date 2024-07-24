@@ -6,7 +6,6 @@ import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.bc.Bc;
 import org.prlprg.ir.cfg.CFG;
-import org.prlprg.ir.cfg.ISexp;
 import org.prlprg.ir.cfg.IsEnv;
 import org.prlprg.ir.cfg.Node;
 import org.prlprg.ir.cfg.StaticEnv;

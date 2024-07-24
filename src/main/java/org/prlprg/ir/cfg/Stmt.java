@@ -1,5 +1,7 @@
 package org.prlprg.ir.cfg;
 
+import com.google.common.collect.ImmutableList;
+
 /**
  * IR instruction which isn't the final instruction of a basic block and doesn't affect control
  * flow.
@@ -7,24 +9,28 @@ package org.prlprg.ir.cfg;
  * @see Instr
  */
 public final class Stmt extends Instr {
+  /** Creates a statement.
+   *
+   * <p>Doesn't {@link CFG#track(InstrOrPhi)} it in the {@link CFG}, so this should be called in
+   * {@link BB}. */
   Stmt(CFG cfg, StmtData data) {
     super(cfg, data);
   }
 
-  /**
-   * Constructor arguments that can be stored in a collection (since there are multiple;
-   * alternatively could use {@link org.prlprg.util.Pair} but this is clearer).
-   */
-  record Args(String name, StmtData data) {
-    public Args(StmtData data) {
-      this("", data);
+  /** Serialized form where everything is replaced by IDs. */
+  public record Serial(
+      @Override MapToIdIn<StmtData> data,
+      @Override ImmutableList<LocalNodeId<?>> outputIds) implements Instr.Serial {
+    Serial(Stmt node) {
+      this(
+          MapToIdIn.of((StmtData) node.data),
+          node.outputs().stream().map(LocalNode::id).collect(ImmutableList.toImmutableList())
+      );
     }
   }
 
-  /** Serialized form where everything is replaced by IDs. */
-  record Serial(MapToIdIn<? extends StmtData> data) {
-    Serial(Stmt node) {
-      this(MapToIdIn.of((StmtData) node.data));
-    }
+  @Override
+  public boolean isPure() {
+    return effects().isEmpty();
   }
 }

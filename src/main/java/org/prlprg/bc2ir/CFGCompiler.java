@@ -150,8 +150,6 @@ import org.prlprg.bc.LabelName;
 import org.prlprg.ir.cfg.BB;
 import org.prlprg.ir.cfg.CFG;
 import org.prlprg.ir.cfg.Constant;
-import org.prlprg.ir.cfg.FrameState;
-import org.prlprg.ir.cfg.ISexp;
 import org.prlprg.ir.cfg.JumpData;
 import org.prlprg.ir.cfg.Node;
 import org.prlprg.ir.cfg.Phi;
@@ -1311,7 +1309,7 @@ public class CFGCompiler {
             // so `loop.end` will only consist of a `Goto` to the "real" end BB. This is allowed,
             // and this long inverted AND-chain checks if it's the case.
             && !(loop.end.stmts().isEmpty()
-                && loop.end.jumpData() instanceof JumpData.Goto(var loopEndGoto)
+                && loop.end.controlFlow() instanceof JumpData.Goto(var loopEndGoto)
                 && loopEndGoto == cursor.bb()))
         || cursor.stmtIdx() != 0) {
       throw fail("compileEndLoop: expected to be at start of end BB " + loop.end.id());
