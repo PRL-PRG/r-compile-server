@@ -26,15 +26,15 @@ import org.prlprg.sexp.parseprint.SEXPPrintContext;
  * suspect GNU-R SEXPs aren't actually S-expressions.
  */
 public sealed interface SEXP
-    permits StrOrRegSymSXP,
-        SymOrLangSXP,
-        ListOrVectorSXP,
-        LangOrListSXP,
+    permits BCodeSXP,
+        BuiltinOrSpecialSXP,
         CloSXP,
         EnvSXP,
-        BCodeSXP,
+        LangOrListSXP,
+        ListOrVectorSXP,
         PromSXP,
-        BuiltinOrSpecialSXP {
+        StrOrRegSymSXP,
+        SymOrLangSXP {
   /**
    * SEXPTYPE. It's important to distinguish these from the SEXP's class, because there's a class
    * for every type but not vice versa due to subclasses (e.g. simple-scalar ints have the same

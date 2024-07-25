@@ -676,7 +676,8 @@ public class RDSReader implements Closeable {
 
   private CloSXP readClosure(Flags flags) throws IOException {
     var attributes = readAttributes(flags);
-    if (!(readItem() instanceof EnvSXP env)) {
+    var item = readItem();
+    if (!(item instanceof EnvSXP env)) {
       throw new RDSException("Expected CLOENV to be environment");
     }
     if (!(readItem() instanceof ListSXP formals)) {

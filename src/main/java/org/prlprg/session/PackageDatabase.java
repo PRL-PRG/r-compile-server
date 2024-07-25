@@ -8,10 +8,7 @@ import java.util.*;
 import java.util.logging.Logger;
 import java.util.zip.InflaterInputStream;
 import org.prlprg.rds.RDSReader;
-import org.prlprg.sexp.IntSXP;
-import org.prlprg.sexp.SEXP;
-import org.prlprg.sexp.StrSXP;
-import org.prlprg.sexp.VecSXP;
+import org.prlprg.sexp.*;
 
 /**
  * Read a package database. As described in the <a
@@ -30,6 +27,7 @@ public class PackageDatabase {
   private final HashMap<String, SEXP> objects = new HashMap<>();
   private final RSession session;
   private final EnvHook envHook = new EnvHook();
+  private final Set<String> seenTmpEnvs = new HashSet<>();
 
   private class EnvHook implements RDSReader.Hook {
     @Override
@@ -39,6 +37,15 @@ public class PackageDatabase {
         if (position == null) {
           return sexp;
         }
+        // There is a cycle in the Env!
+        if (seenTmpEnvs.contains(s.get(0))) {
+          // create a placeholder environment, which we will replace later
+          // by the actual environment
+          return new NamespaceEnvSXP(
+              s.get(0), "placeholder", session.baseNamespace(), new HashMap<>());
+        }
+
+        seenTmpEnvs.add(s.get(0));
 
         return readObject(s.get(0), tmpEnvs);
       }
@@ -157,7 +164,7 @@ public class PackageDatabase {
       readObject(".__NAMESPACE__.", index);
     }
     for (var name : index.keySet()) {
-      LOGGER.info("Loading " + name);
+      // LOGGER.info("Loading " + name);
       readObject(name, index);
     }
     return objects;
