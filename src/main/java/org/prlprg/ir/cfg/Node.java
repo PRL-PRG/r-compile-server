@@ -1,10 +1,17 @@
 package org.prlprg.ir.cfg;
 
+import org.prlprg.parseprint.Parser;
+
 /**
  * An abstract value of type {@code T}; the IR representation of a value of type {@code T} that
  * exists in compiled code at runtime.
  */
 public sealed interface Node<T> permits LocalNode, GlobalNode {
+  /** Parse a node ({@link Parser#parse(Class)}), and {@link #cast(Class)} it to the given type. */
+  static <T> Node<? extends T> parse(Parser p, Class<T> type) {
+    return Node.cast(p.parse(Node.class), type);
+  }
+
   /** {@link #cast(Class)}, but call on a raw type. */
   @SuppressWarnings("rawtypes")
   static <U> Node<? extends U> cast(Node node, Class<U> clazz) {
@@ -59,11 +66,11 @@ public sealed interface Node<T> permits LocalNode, GlobalNode {
    * (non-null) inhabitants, and we special-case it to emulate BOTTOM (e.g. {@link #cast(Class)}
    * always works on {@link InvalidNode} even though {@link Void} isn't a subclass).
    *
-   * <p>This is needed due to Java's type erasure: if you cast {@code Node<? extends A>} to
-   * {@code Node<? extends B>} where {@code B &lt;/: A} the compiler silently allows it, and if you
-   * upcast {@code Node<? extends B>} to {@code Node<? extends A>} there's no way to safely recover
-   * the original type and downcast. So, we store this data in {@link Node}, and periodically check
-   * it (to prevent the illegal upcast) and to recover the original type (to enable safe downcast).
+   * <p>This is needed due to Java's type erasure: if you cast {@code Node<? extends A>} to {@code
+   * Node<? extends B>} where {@code B &lt;/: A} the compiler silently allows it, and if you upcast
+   * {@code Node<? extends B>} to {@code Node<? extends A>} there's no way to safely recover the
+   * original type and downcast. So, we store this data in {@link Node}, and periodically check it
+   * (to prevent the illegal upcast) and to recover the original type (to enable safe downcast).
    */
   Class<? extends T> type();
 

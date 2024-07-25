@@ -10,6 +10,7 @@ import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.prlprg.ir.cfg.CFG;
 import org.prlprg.ir.cfg.CFGParsePrint;
+import org.prlprg.ir.cfg.Node;
 import org.prlprg.ir.cfg.NodeId;
 import org.prlprg.ir.effect.REffect;
 import org.prlprg.ir.effect.REffects;
@@ -389,13 +390,13 @@ public class ClosureVersion {
     }
 
     /** Possible return type from calling this closure version with the given arguments. */
-    public RType returnType(ImmutableList<ISexp> ignored) {
+    public RType returnType(ImmutableList<Node<?>> ignored) {
       // TODO
       return RType.ANY;
     }
 
     /** Possible effects from calling this closure version with the given arguments. */
-    public REffects effects(ImmutableList<ISexp> args) {
+    public REffects effects(ImmutableList<Node<?>> args) {
       var effects = REffects.ARBITRARY;
       if (flags.contains(Property.NO_REFLECTION)) {
         var anyIsReflectivePromise = false;
