@@ -1304,7 +1304,7 @@ class PirInstrOrPhiPrintContext {
         p.print(closure.env());
       }
       case StmtData.MkProm(var promise) -> {
-        var eageiSexp = promise.eageiSexp();
+        var eageiSexp = promise.eagerValue();
         p.print(eageiSexp == null ? new Constant(SEXPs.UNBOUND_VALUE) : eageiSexp);
         w.write(", ");
         p.print("0xinvalid");

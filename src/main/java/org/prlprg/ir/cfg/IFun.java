@@ -64,7 +64,7 @@ public sealed interface IFun {
 
     var peek = s.peekChar();
     return switch (peek) {
-      case '%' -> new DynamicNode(Node.cast(p.parse(Node.class), FunSXP.class));
+      case '%' -> new DynamicNode(Node.parse(p, FunSXP.class));
       case '@' -> new SemiStatic(p.parse(Closure.class));
       default -> {
         if (Character.isJavaIdentifierStart(peek)) {

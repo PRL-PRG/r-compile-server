@@ -9,17 +9,16 @@ import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.bc.Bc;
 import org.prlprg.ir.cfg.CFG;
-import org.prlprg.ir.cfg.IsEnv;
 import org.prlprg.ir.cfg.Node;
 import org.prlprg.ir.cfg.StaticEnv;
 import org.prlprg.ir.closure.ClosureVersion.CallContext;
-import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.Attributes;
 import org.prlprg.sexp.BCodeSXP;
 import org.prlprg.sexp.CloSXP;
+import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.ListSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
@@ -42,8 +41,7 @@ import org.prlprg.util.Pair;
  * <ul>
  *   <li>The baseline version is dispatched when no optimized versions are available for the current
  *       call context. It records information (<b>feedback</b>), which is eventually used to predict
- *       call contexts that are likely to be met and {@linkplain org.prlprg.ir.cfg.Assumption
- *       speculative assumptions} that are likely to hold.
+ *       call contexts that are likely to be met and assumptions that are likely to hold.
  *   <li>The optimized versions are created using this feedback: they have the predicated call
  *       contexts and speculative assumptions. They are only dispatched if their call context is
  *       met, and if any of their speculative assumptions fail, they {@linkplain
@@ -58,13 +56,13 @@ public final class Closure extends CodeObject {
   // The non-final fields are only non-final so that they can be set in `LateConstruct`.
   // Otherwise they are effectively final.
   private CloSXP origin;
-  private @IsEnv ISexp env;
+  private Node<? extends EnvSXP> env;
   private ClosureVersion baselineVersion;
   private final NavigableMap<CallContext, ClosureVersion> optimizedVersions;
 
   /**
-   * {@link Closure(String, CloSXP, ISexp)} with an {@linkplain StaticEnv#UNKNOWN unclosed}
-   * environment (not an inner closure).
+   * {@link Closure(String, CloSXP, Node)} with {@link StaticEnv#UNKNOWN unknown} (not an inner
+   * closure).
    */
   public Closure(String name, CloSXP origin) {
     this(name, origin, StaticEnv.UNKNOWN);
@@ -85,17 +83,17 @@ public final class Closure extends CodeObject {
    *     <p>{@code origin}'s environment is replaced with {@link SEXPs#EMPTY_ENV} if not already, in
    *     order to normalize the data since it shouldn't be used.
    * @throws IllegalArgumentException If the closure's body isn't bytecode.
-   *     <p><b>OR</b> if {@code env} isn't statically known to be an environment ({@link
-   *     ISexp#isEnv()}).
+   *     <p><b>OR</b> if {@code env} isn't statically known to be an environment (its {@link
+   *     Node#type()} isn't a subtype of {@link EnvSXP}).
    */
-  public Closure(String name, CloSXP origin, @IsEnv ISexp env) {
+  public Closure(String name, CloSXP origin, Node<? extends EnvSXP> env) {
     super(name);
 
     if (!(origin.body() instanceof BCodeSXP)) {
       throw new IllegalArgumentException(
           "`origin` body must be bytecode (required by the compiler so how did you get `baselineVersion`?).");
     }
-    if (env.isEnv() != Maybe.YES) {
+    if (!env.isSubtypeOf(EnvSXP.class)) {
       throw new IllegalArgumentException("`env` must be statically known to be an environment.");
     }
 
@@ -148,7 +146,7 @@ public final class Closure extends CodeObject {
    * <p>This is {@linkplain StaticEnv#UNKNOWN unclosed} unless it's an inner closure (from {@link
    * org.prlprg.ir.cfg.StmtData.MkCls MkCls}), in which case it's the outer closure's environment.
    */
-  public @IsEnv ISexp env() {
+  public Node<? extends EnvSXP> env() {
     return env;
   }
 
@@ -322,29 +320,25 @@ public final class Closure extends CodeObject {
   }
 
   @Override
-  public @UnmodifiableView List<Node> outerCfgNodes() {
+  public @UnmodifiableView List<Node<?>> outerCfgNodes() {
     return List.of(env);
   }
 
   @Override
-  public void unsafeReplaceOuterCfgNode(Node oldNode, Node newNode) {
+  public void unsafeReplaceOuterCfgNode(Node<?> oldNode, Node<?> newNode) {
     if (env.equals(oldNode)) {
-      if (!(newNode instanceof ISexp newEnv)) {
-        throw new IllegalArgumentException("Closure replacement `env` node must be an ISexp.");
-      }
-      if (newEnv.isEnv() != Maybe.YES) {
+      if (!newNode.isSubtypeOf(EnvSXP.class)) {
         throw new IllegalArgumentException(
-            "Closure replacement `env` node must be statically known to be an environment.");
+            "Replacement closure `env` node must be an environment node.");
       }
-      env = newEnv;
+      env = newNode.cast(EnvSXP.class);
     }
   }
 
   @Override
-  public void verifyOuterCfgISexpsAreOfCorrectTypes() {
-    if (env.isEnv() != Maybe.YES) {
-      throw new IllegalStateException(
-          "Closure `env` must be statically known to be an environment.");
+  public void verifyOuterCfgNodesAreOfCorrectTypes() {
+    if (!env.isSubtypeOf(EnvSXP.class)) {
+      throw new IllegalStateException("Closure `env` must be an environment node.");
     }
   }
 
@@ -397,9 +391,9 @@ public final class Closure extends CodeObject {
     var s = p.scanner();
 
     var parameters = p.withContext(ctx.sexpParseContext().forBindings()).parse(ListSXP.class);
-    env = s.trySkip("env") ? p.parse(ISexp.class) : StaticEnv.UNKNOWN;
-    var attributes = s.trySkip("attrs") ? p.parse(Attributes.class) : Attributes.NONE;
-    var bc = s.trySkip("bc") ? p.parse(BCodeSXP.class) : SEXPs.bcode(Bc.empty());
+    env = s.trySkip("env=") ? Node.parse(p, EnvSXP.class) : StaticEnv.UNKNOWN;
+    var attributes = s.trySkip("attrs=") ? p.parse(Attributes.class) : Attributes.NONE;
+    var bc = s.trySkip("bc=") ? p.parse(BCodeSXP.class) : SEXPs.bcode(Bc.empty());
     origin = SEXPs.closure(parameters, bc, SEXPs.EMPTY_ENV, attributes);
 
     s.assertAndSkip('{');
@@ -444,13 +438,13 @@ public final class Closure extends CodeObject {
 
     p.withContext(ctx.sexpPrintContext().forBindings()).print(parameters());
     if (env != StaticEnv.UNKNOWN) {
-      w.write(" env ");
+      w.write(" env=");
       w.runIndented(() -> p.print(env));
     }
     if (!origin.attributes().isEmpty() && ctx.options().printFullOrigin()) {
-      w.write(" attrs ");
+      w.write(" attrs=");
       w.runIndented(() -> p.print(origin.attributes()));
-      w.write(" bc ");
+      w.write(" bc=");
       w.runIndented(() -> p.print(origin.body()));
     }
 

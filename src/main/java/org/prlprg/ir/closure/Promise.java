@@ -6,18 +6,17 @@ import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.bc.Bc;
 import org.prlprg.ir.cfg.CFG;
-import org.prlprg.ir.cfg.IsEnv;
 import org.prlprg.ir.cfg.Node;
 import org.prlprg.ir.cfg.StaticEnv;
 import org.prlprg.ir.effect.REffect;
 import org.prlprg.ir.effect.REffects;
 import org.prlprg.ir.type.lattice.Lattice;
-import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.ir.type.lattice.NoOrMaybe;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.BCodeSXP;
+import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.util.Pair;
 
@@ -25,16 +24,16 @@ import org.prlprg.util.Pair;
  * IR for a promise used by an IR {@linkplain ClosureVersion closure version}.
  *
  * <p>Contains a {@link BCodeSXP} which is the GNU-R promise code, {@link CFG} which is the compiled
- * {@linkplain org.prlprg.ir IR} code, an {@link ISexp} which is the eager value (if known), an
- * {@link ISexp} which is the environment that code is evaluated in, and {@link Promise.Properties}
- * which are guarantees that the promise invoker can assume for its own optimizations.
+ * {@linkplain org.prlprg.ir IR} code, a {@link Node} which is the eager value (if known), a {@link
+ * Node} which is the environment that code is evaluated in, and {@link Promise.Properties} which
+ * are guarantees that the promise invoker can assume for its own optimizations.
  */
 public final class Promise extends CodeObject {
   // The non-final fields are only non-final so that they can be set in `LateConstruct`.
   // Otherwise they are effectively final.
   private Bc bc;
   private CFG body;
-  private @IsEnv ISexp env;
+  private Node<? extends EnvSXP> env;
   // Except `properties` is set even after `LateConstruct`.
   private Properties properties;
 
@@ -50,9 +49,9 @@ public final class Promise extends CodeObject {
    *     isn't a good one.
    * @throws IllegalArgumentException If {@code env} isn't statically known to be an environment/
    */
-  public Promise(String name, Bc bc, CFG body, @IsEnv ISexp env, Properties properties) {
+  public Promise(String name, Bc bc, CFG body, Node<? extends EnvSXP> env, Properties properties) {
     super(name);
-    if (env.isEnv() != Maybe.YES) {
+    if (env.isSubtypeOf(EnvSXP.class)) {
       throw new IllegalArgumentException("`env` must be statically known to be an environment.");
     }
 
@@ -78,7 +77,7 @@ public final class Promise extends CodeObject {
   }
 
   /** The environment that the promise gets evaluated in. */
-  public @IsEnv ISexp env() {
+  public Node<? extends EnvSXP> env() {
     return env;
   }
 
@@ -93,8 +92,8 @@ public final class Promise extends CodeObject {
    * <p>This is in {@link #properties()} because it's one of the things inferred from the promise
    * body (similar to whether it performs reflection).
    */
-  public @Nullable ISexp eageiSexp() {
-    return properties.eageiSexp();
+  public @Nullable Node<? extends SEXP> eagerValue() {
+    return properties.eagerValue();
   }
 
   /**
@@ -116,35 +115,36 @@ public final class Promise extends CodeObject {
   }
 
   @Override
-  public @UnmodifiableView List<Node> outerCfgNodes() {
-    return properties.eageiSexp != null ? List.of(properties.eageiSexp, env) : List.of(env);
+  public @UnmodifiableView List<Node<?>> outerCfgNodes() {
+    return properties.eagerValue != null ? List.of(properties.eagerValue, env) : List.of(env);
   }
 
   @Override
-  public void unsafeReplaceOuterCfgNode(Node oldNode, Node newNode) {
-    if (properties.eageiSexp != null && properties.eageiSexp.equals(oldNode)) {
-      if (!(newNode instanceof ISexp newEageiSexp)) {
+  public void unsafeReplaceOuterCfgNode(Node<?> oldNode, Node<?> newNode) {
+    if (properties.eagerValue != null && properties.eagerValue.equals(oldNode)) {
+      if (!newNode.isSubtypeOf(SEXP.class)) {
         throw new IllegalArgumentException(
-            "Promise replacement `eageiSexp` node must be an ISexp.");
+            "Replacement promise `eagerValue` node must be a `SEXP` node.");
       }
-      properties = properties.withEageiSexp(newEageiSexp);
+      properties = properties.witheagerValue(newNode.cast(SEXP.class));
     }
 
     if (env.equals(oldNode)) {
-      if (!(newNode instanceof ISexp newEnv)) {
-        throw new IllegalArgumentException("Promise replacement `env` node must be an ISexp.");
-      }
-      if (newEnv.isEnv() != Maybe.YES) {
+      if (!newNode.isSubtypeOf(EnvSXP.class)) {
         throw new IllegalArgumentException(
-            "Promise replacement `env` node must be statically known to be an environment.");
+            "Replacement promise `env` node must be an environment node.");
       }
-      env = newEnv;
+      env = newNode.cast(EnvSXP.class);
     }
   }
 
   @Override
-  public void verifyOuterCfgISexpsAreOfCorrectTypes() {
-    if (env.isEnv() != Maybe.YES) {
+  public void verifyOuterCfgNodesAreOfCorrectTypes() {
+    if (eagerValue() != null && !eagerValue().isSubtypeOf(SEXP.class)) {
+      throw new IllegalStateException(
+          "Promise `eagerValue` must be statically known to be an SEXP.");
+    }
+    if (!env.isSubtypeOf(EnvSXP.class)) {
       throw new IllegalStateException(
           "Promise `env` must be statically known to be an environment.");
     }
@@ -170,14 +170,14 @@ public final class Promise extends CodeObject {
    *
    * <p>Also, currently the only property is that a promise doesn't perform reflection.
    */
-  public record Properties(ImmutableSet<Property> flags, @Nullable ISexp eageiSexp)
+  public record Properties(ImmutableSet<Property> flags, @Nullable Node<? extends SEXP> eagerValue)
       implements Lattice<Properties> {
     /** Properties that don't guarantee anything. */
     public static final Properties EMPTY = new Properties(ImmutableSet.of(), null);
 
     /** Returns the same properties but with a different eager value. */
-    public Properties withEageiSexp(ISexp eageiSexp) {
-      return new Properties(flags, eageiSexp);
+    public Properties witheagerValue(Node<? extends SEXP> eagerValue) {
+      return new Properties(flags, eagerValue);
     }
 
     /** Whether the properties don't guarantee anything, i.e. equal {@link Properties#EMPTY}. */
@@ -206,11 +206,11 @@ public final class Promise extends CodeObject {
      */
     @Override
     public boolean isSubsetOf(Properties other) {
-      if (eageiSexp != null && other.eageiSexp != null && !eageiSexp.equals(other.eageiSexp)) {
+      if (eagerValue != null && other.eagerValue != null && !eagerValue.equals(other.eagerValue)) {
         throw new IllegalArgumentException("Properties have different non-null eager values.");
       }
 
-      return flags.containsAll(other.flags) && (eageiSexp != null || other.eageiSexp == null);
+      return flags.containsAll(other.flags) && (eagerValue != null || other.eagerValue == null);
     }
 
     /**
@@ -220,13 +220,13 @@ public final class Promise extends CodeObject {
      */
     @Override
     public Properties unionOf(Properties other) {
-      if (eageiSexp != null && other.eageiSexp != null && !eageiSexp.equals(other.eageiSexp)) {
+      if (eagerValue != null && other.eagerValue != null && !eagerValue.equals(other.eagerValue)) {
         throw new IllegalArgumentException("Properties have different non-null eager values.");
       }
 
       return new Properties(
           flags.stream().filter(other.flags::contains).collect(ImmutableSet.toImmutableSet()),
-          eageiSexp == null ? null : other.eageiSexp);
+          eagerValue == null ? null : other.eagerValue);
     }
 
     /**
@@ -236,13 +236,13 @@ public final class Promise extends CodeObject {
      */
     @Override
     public Properties intersectionOf(Properties other) {
-      if (eageiSexp != null && other.eageiSexp != null && !eageiSexp.equals(other.eageiSexp)) {
+      if (eagerValue != null && other.eagerValue != null && !eagerValue.equals(other.eagerValue)) {
         throw new IllegalArgumentException("Properties have different non-null eager values.");
       }
 
       return new Properties(
           ImmutableSet.<Property>builder().addAll(flags).addAll(other.flags).build(),
-          eageiSexp != null ? eageiSexp : other.eageiSexp);
+          eagerValue != null ? eagerValue : other.eagerValue);
     }
 
     /** Flag in {@link Properties} (flag of a promise which allows optimizations in the invoker). */
@@ -290,8 +290,8 @@ public final class Promise extends CodeObject {
     var s = p.scanner();
 
     properties = s.trySkip("has") ? p.parse(Properties.class) : Properties.EMPTY;
-    env = s.trySkip("env") ? p.parse(ISexp.class) : StaticEnv.UNKNOWN;
-    bc = s.trySkip("body") ? p.parse(BCodeSXP.class).bc() : Bc.empty();
+    env = s.trySkip("env=") ? Node.parse(p, EnvSXP.class) : StaticEnv.UNKNOWN;
+    bc = s.trySkip("body=") ? p.parse(BCodeSXP.class).bc() : Bc.empty();
 
     s.assertAndSkip("{");
     body = p.withContext(ctx.ref(new NodeIdQualifier(name, idIndex))).parse(CFG.class);
@@ -312,9 +312,9 @@ public final class Promise extends CodeObject {
       w.runIndented(() -> p.print(properties));
     }
     if (ctx.options().printFullOrigin()) {
-      w.write(" env ");
+      w.write(" env=");
       w.runIndented(() -> p.print(env));
-      w.write(" bc ");
+      w.write(" bc=");
       w.runIndented(() -> p.print(bc));
     }
 
