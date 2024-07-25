@@ -19,20 +19,20 @@ fn @foo(n, m) {
   #1(%n, %m) {
       %inclos <- env({n <- %n, m <- %m}, parent=?)
       %replicate <- ldFun(replicate, env=%inclos)
-      %n <- prom(@1 env %inclos {
-          %n <- ld(n, env=@foo%inclos)
+      %1n <- prom(@1 env=%inclos {
+          %n <- ld(n, env=%inclos)
           %1n <- force(%n, env=%inclos)
           return %1n
       })
-      %1 <- %replicate(\100, %n)
+      %1 <- %replicate(\100, %1n)
       st(array, %1, env=%inclos)
-      %n <- ld(n, env=%inclos)
-      %1n <- force(%n, env=%inclos)
-      %2 <- `:`(\1, %1n, env=%inclos)
+      %2n <- ld(n, env=%inclos)
+      %3n <- force(%2n, env=%inclos)
+      %2 <- `:`(\1, %3n, env=%inclos)
       %forSeq <- toForSeq(%2)
       %forLength <- length(%forSeq)
       goto ^forStep
-    ^forStep(%index(%1index:^1, \0:^entry)):
+    ^forStep(%index(%1index:^1, \0L:^entry)):
       %1index <- `+1`(%index)
       %3 <- `<`(%forLength, %1index)
       br %3 ^forEnd ^forBody
@@ -48,15 +48,15 @@ fn @foo(n, m) {
       %6 <- is(NonObject, %array)
       br %6 ^dispatchNonObject ^tryDispatchObject
     ^tryDispatchObject:
-      %7 <- `tryDispatch.[<-`(array, %5, index=%1index, env=%inclos)
-      br %7#didDispatch ^1 ^dispatchNonObject
+      %didDispatch, %dispatchResult <- `tryDispatch.[<-`(array, %5, index=%1index, env=%inclos)
+      br %didDispatch ^1 ^dispatchNonObject
     ^dispatchNonObject:
       %2i <- ld(i, env=%inclos)
       %3i <- force(%2i, env=%inclos)
-      %8 <- `[<-`(%array, %5, index=%3i, env=%inclos)
+      %7 <- `[<-`(%array, %5, index=%3i, env=%inclos)
       goto ^1
-    ^1(%9(%8:^dispatchNonObject, %7#value:^tryDispatchObject)):
-      st(array, %9, env=%inclos)
+    ^1(%8(%7:^dispatchNonObject, %dispatchResult:^tryDispatchObject)):
+      st(array, %8, env=%inclos)
       goto ^forStep
   #2(%n:int$$, %m:int$$) {
       %replicate <- ld(replicate, env=?)
@@ -67,9 +67,9 @@ fn @foo(n, m) {
       %3 <- funEq(`*`, %`*`)
       cp [%1, %2, %3] ^1
     ^1:
-      %array <- replicate(\100, %n)
+      %array <- replicate(\100L, %n)
       goto ^forStep
-    ^forStep(%i(\0:^1, %1i:^forBody), %1array(%array:^1, %2array:^forBody)):
+    ^forStep(%i(\0L:^1, %1i:^forBody), %1array(%array:^1, %2array:^forBody)):
       %1i <- `+1`(%i)
       %4 <- `<`(%i, %n)
       br %4 ^forEnd ^forBody
@@ -91,18 +91,19 @@ Every statement is a "call" consisting of a **function**, list of **inputs**, se
 
 - **Function**: either an **intrinsic (static)**, **closure ("semi-static")**, or **variable (dynamic)**.
   - **Intrinsic (static)**: a name (R identifier), e.g. `ld`, `env`, `` `+` ``, `setSessionTimeLimit`.
-    - Includes "made-up" builtins like `ld` (formerly `LdVar`) and `env` (formerly `MkEnv`), builtins with specialized overloads e.g. `` `+` ``, and every actual builtin even niche e.g. `setSessionTimeLimit`.
-    - Whether an intrinsic is a "made-up" or real builtin only matters when lowering, because *except in code generation and lowering, we don't special-case specific functions, only effects (e.g. "loads", "stores")*.
+    - Includes "made-up" builtins like `ld` (formerly `LdVar`) and `env` (formerly `MkEnv`), builtins with specialized overloads like `` `+` `` (formerly `Add`), and actual builtins (formerly `CallBuiltin` or `CallSafeBuiltin`) like `setSessionTimeLimit`.
+    - Whether an intrinsic is a "made-up" or real builtin only matters when lowering, because *except in code generation and lowering, we don't pattern-match specific functions, only effects (e.g. "loads", "stores")*.
   - **Closure ("semi-static")**: `@foo` (calls the cached compiled closure whose name is `foo`; specifically, calls the version of the closure statically determined by a call context computed from the inputs).
-    - Inter-procedural analysis is handled by the closure getting fine-grained inferred effects, because *except in code generation and lowering, we don't special-case specific functions, only effects (e.g. "loads", "stores")*.
+    - Inter-procedural analysis is handled by the closure getting fine-grained inferred effects, because *except in code generation and lowering, we don't pattern-match specific functions, only effects (e.g. "loads", "stores")*.
   - **Variable (dynamic)**: `%1` (calls the SSA variable assigned the name `1`).
     - The variable must statically be a function. This seems obvious but sometimes we may compile a call to something that isn't necessarily a function (e.g. `(…)(…)`). In this case, we have to insert a guard before the call to cast the variable.
     - A trivial call to an inner function is dynamic (`%1 = fn(…); %1(…)`), but it has as fine-grained effects as a semi-static call so it doesn't hurt analysis.
 - **Input**: a value (the argument, has a provided type), **required type**, and **input ownership**.
   - **Type**: any SEXP, simple-scalar integer SEXP, unboxed integer, constant symbol SEXP, etc.
     - These are Java types, e.g. the above are respectively `Node<? extends SEXP>`, `Node<? extends ScalarIntSXP>`, `Node<? extends Integer>`, and `RegSymSXP`.
-      - `Node<T>` = IR node that represents a `T` = anything not guaranteed statically-known. Statically known constants like the name in `ld` and `st` are just `T`, e.g. `RegSymSXP`.
-      - Benefits of encoding the full type system in Java is that it's checked at compile time.
+      - `Node<? extends T>` = IR node that represents a `T` = anything not guaranteed statically-known. Statically known constants like the name in `ld` and `st` are just `T`, e.g. `RegSymSXP`.
+      - We would need to create many more `SEXP` subclasses, e.g. `SimpleScalarIntSXP`, `ScalarIntSEXPNoAttrs`, `ScalarIntSXP`, `IntSEXPNoNANoAttrs`, `IntSEXPNoAttrs`, ...
+        - Some of these can be computer-generated (and Java has good support for generated source code). It's definitely *possible* because all the types are immutable, except `EnvSXP` which is not specialized beyond what we currently have. But this creates a lot of classes, so maybe isn't ideal.
     - If a node is the wrong type...
       - If we know the instance is guaranteed to be the correct type, just not in the type system, we can do a regular Java cast.
       - If a type may be wrong but we assume it's correct, we can speculate on it.
@@ -157,10 +158,10 @@ To lower each statement:
 - `BB` (basic block): contains a set of `Phi`s, list of `Stmt`s, and optional `Jump`. Also redundantly stores its predecessors for sanity and efficiency.
 - `InstrOrPhi`: immediate child of a basic block. It exposes a list of inputs, and the ability to replace all occurrences of a node in the inputs.
   - `Instr`: subtypes are `Stmt` or `Jump`; the main difference is that jumps can only be at the end of a block, and statements can't be at the end of a block (if they are, the block has a "null jump" and the CFG isn't valid). Internally contains an `InstrData` (`StmtData` for `Stmt`, `JumpData` for `Jump`) and output `Node`s. Externally, only exposes a function, list of inputs, effects, outputs, the ability to replace all occurrences of a node in the inputs, and the ability to provide a new `InstrData` (`mutate`); the function/effects/outputs and input types/ownerships/count can only be changed by changing the `InstrData`.
-  - `Phi<T>`: SSA phi node. Contains a map of predecessor `BB` to input `Node`. It's also a subclass of `Node`.
-- `Param<T>`: input parameter to a compiled closure stored in the `CFG`. This replaces PIR's `LdArg`. Like `Phi`, it's a subclass of `Node`. Specialized versions will specific type parameters.
+  - `Phi<? extends T>`: SSA phi node. Contains a map of predecessor `BB` to input `Node`. It's also a subclass of `Node`.
+- `Param<? extends T>`: input parameter to a compiled closure stored in the `CFG`. This replaces PIR's `LdArg`. Like `Phi`, it's a subclass of `Node`. Specialized versions will specific type parameters.
 - `InstrData`: subtypes are `StmtData` or `JumpData`. An immutable record that determines the function, inputs, effects, and outputs. Specifically, the function type (specific intrinsic, "semi-static", or "dynamic") is determined by the record's class (specific intrinsic classes, `GenericBuiltinCall`, `SemiStaticCall`, or `DynamicCall`), the input count is determined by the number of components and whether one of them has the `@VarArgs` annotation, the input are determined by the components' Java types whether each has a `@Nullable` annotation, the input ownerships are determined by the components' annotations, the effects are determined by the record's annotations, the output count is determined by the record's class, the output types are determined by either a record annotation or function override, and the output ownership is determined by a record annotation. This is similar to what we currently have. An example `StmtData` is `record EqIntSexp(@Consumes Node<? extends SimpleScalarIntSXP> lhs, Node<? extends SimpleScalarIntSXP> rhs, @Nullable Node<? extends EnvSXP> env) {}`. There are a lot of these, but we don't explicitly pattern-match on them except during lowering.
-- `Node<T>`: an abstract value of type `T`: an IR value of type `T` that may not be constant (although there is `Constant<T>`, if an input is required to be constant we'll just store it directly). Because Java has erasure, `Node` stores the actual class of the value it encodes.
+- `Node<? extends T>`: an abstract value of type `T`: an IR value of type `T` that may not be constant (although there is `Constant<? extends T>`, if an input is required to be constant we'll just store it directly). Because Java has erasure, `Node` stores the actual class of the value it encodes.
 
 ## Syntax
 
@@ -168,7 +169,7 @@ To lower each statement:
 
 #### Prefixes (for parsing)
 
-Closures are prefixed with `@` (e.g. `@foo`, `@1`), basic blocks are prefixed with `^` (e.g. `^bb`), variable nodes are prefixed with `%`, constants are prefixed with ` \ `, and special nodes are prefixed with `?`.
+Closures are prefixed with `@` (e.g. `@foo`, `@1`), basic blocks are prefixed with `^` (e.g. `^bb`), variable nodes are prefixed with `%`, constants are prefixed with ` \ `, invalid nodes are prefixed with `!`, and special nodes are prefixed with `?`.
 
 #### Names
 
@@ -201,22 +202,22 @@ fn @foo(n, m) {
 
 Inner closures and promises may be defined in `fn(…)` or `prom(…)` instructions, see the below example.
 
-The `CLOENV`/`PRENV` of inner function or promise may be from an outer function or promise. If so, it's specified after the regular arguments list `(…)`, and in the function or promise's body, the environment will be prefixed with the outer function or promise's identifier, to make clear that it's an inter-procedural node.
+The `CLOENV`/`PRENV` of inner function or promise may be from an outer function. If so, it's specified after the regular arguments list `(…)`. Also, if a variable is defined in the function or promise's body with the same name as this outer environment, the outer environment identifier will be prefixed with the outer function's identifier to disambiguate it.
 
 ```
 fn @foo(n, m) {
   #1(%n, %m) {
       %inclos <- env({n <- %n, m <- %m}, parent=?)
       …
-      %n <- prom(@1 env %inclos {
-          %n <- ld(n, env=@foo%inclos)
+      %1n <- prom(@1 env=%inclos {
+          %n <- ld(n, env=%inclos)
           %1n <- force(%n, env=%inclos)
           return %1n
       })
       …
-      %f <- fn(@2(k) env %inclos {
+      %f <- fn(@2(k) env=%inclos {
         #1(%k) {
-            %1inclos <- env({k <- %k}, parent=%inclos)
+            %1inclos <- env({k <- %k}, parent=@foo%inclos)
             …
         }
       })
@@ -229,7 +230,7 @@ Phi nodes are defined at the top of the BB like so:
 
 ```
 ^someBB(
-  %somePhi(%a:^pred, %b:^otherPred)
+  %somePhi(%a:^pred, %b:^otherPred),
   %someOtherPhi(%c:^pred, \1:^otherPred)
 ):
   … # instructions
@@ -241,18 +242,19 @@ Phi nodes are defined at the top of the BB like so:
 
 - Non-producing statement: `fun(…)`
 - Statement producing value: `%var <- fun(…)`
+- Statement producing multiple values: `` %didDispatch, %dispatchResult <- `tryDispatch.[<-`(…) ``
 - Jump: `jump ^bb`, `br %cond ^ifTrue ^ifFalse`, `return %value`, ...
 
 As explained above, every statement is a "call", and there are 3 main types of calls: intrinsic/builtin (static) calls, exact compiled closure (semi-static) calls, and variable (dynamic) calls. This is reflected in the syntax:
 
 - Intrinsic/builtin (static) calls
-  - `%inclos <- env({…}, parent=?)` create an environment with the bindings in `…` and unknown parent, assign it to the SSA variable `%inclos`.
+  - `%inclos <- env({…}, parent=?)` create an environment with the bindings in `…` and unknown parent, assign it to the SSA variable `%inclos` ("inclos" = implicit environment created for a closure body).
   - `%n <- ld(n, env=%inclos)` = load the symbol `n` in the environment `%inclos`, assigns it to the SSA variable `%n`.
   - `st(n, %n, env=%inclos)` = store the value in the SSA variable `%n` under the symbol `n` in the environment `%inclos`.
   - `` `*`(%i, %n, env=%inclos) `` = multiply the SSA variables `%i` and `%n`, also pass the environment `%inclos` since the multiplication needs it if it dispatches.
 - Exact compiled closure (semi-static) calls:
   - `%foo <- @foo(%i, %n)` = call the function named `foo` with variables `%i` and `%n`, store the result in `%foo`.
-  - - `%2 <- @3(%i, \[int]100)` = call the function named `3` with variables `%i` and `\[int]100`, store the result in `%2`.
+  - - `%2 <- @3(%i, \[int]100L)` = call the function named `3` with variables `%i` and `\[int]100L`, store the result in `%2`.
 - Dynamic calls:
   - `%12 <- %foo(%i, %n)` = call the function in the variable named `foo` with arguments `%i` and `%n` and no explicit names.
   - `%14 <- %range(start=%i, end=\100)` = call the function in the variable named `range` with argument `%i` named `start` and `\100` named `end`.
@@ -260,9 +262,12 @@ As explained above, every statement is a "call", and there are 3 main types of c
 
 ### Nodes
 
-- Variables: `%var`
-- SEXP constants: `\<vec 1 2 3>` (the syntax of the SEXPs after ` \ ` is reused from how we parse/print SEXPs)
-- Non-sexp constants: `\[int]5L`, `\[invalid]unsetPhiInput`
+- Variables: `%var`.
+- SEXP constants: `\<vec 1 2 3>` (the syntax of the SEXPs after ` \ ` is reused from how we parse/print SEXPs).
+- Non-sexp constants: `\[int]5L` (unboxed integer).
+  - `[…]` specifies the type of a constant. If not present, it defaults to SEXP because that's the most common type.
+- Invalid nodes: `!unsetPhiInput`.
+  - These can be assigned any type, and are stubs that cause CFG verification and lowering to fail.
 - Special nodes: `?` = unknown environment ("not closed", the parent of a compiled closure that isn't an inner closure).
 
 Examples:
@@ -275,9 +280,6 @@ Examples:
 - `\<bcode#1 ...>` = constant SEXP, bytecode. `<bcode#1>` somewhere else refer to the same (pointer) SEXP.
 - `\hello(world, ...)` = constant SEXP, language object whose function is the symbol `hello` and takes two arguments: the symbol `world` and the symbol `...`.
 - `?` = unknown ("not closed") environment.
-
-`[…]` = list of nodes (e.g. `[%1, %2, %3]`.)
-`{…}` = map of nodes, usually to symbols (e.g. `{n <- %n, m <- %n}`).
 
 ### Types
 
@@ -296,3 +298,11 @@ Examples:
 - `miss|lazy?(int)` = maybe-missing, maybe-lazy-promise-wrapped vector integer
 - `any` = maybe-promise-wrapped, maybe missing any type (TOP)
 - `nothing` = nothing type (BOTTOM)s
+
+### Misc
+
+Unless otherwise specified:
+
+- `[…]` = list of nodes (e.g. `[%1, %2, %3]`.)
+- `{…}` = map of nodes, usually to symbols (e.g. `{n <- %n, m <- %n}`).
+- `…` in the examples denotes a "hole" that can be filled with anything. `…` is used for this purpose instead of the more common `...`, because `...` actually refers to the dots SEXP.
