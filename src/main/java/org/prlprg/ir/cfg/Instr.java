@@ -139,7 +139,7 @@ public sealed abstract class Instr implements InstrOrPhi, InstrOrPhiImpl permits
 
   // region mutators
   @Override
-  public final CascadingInstrUpdate unsafeReplaceInInputs(CascadingUpdatedInstrs seen, Node<?> old, Node<?> replacement) {
+  public CascadingInstrUpdate unsafeReplaceInInputs(CascadingUpdatedInstrs seen, Node<?> old, Node<?> replacement) {
     boolean[] replaced = {false};
     for (var i = 0; i < inputs.length; i++) {
       inputs[i] = replaceInputNodesIn(inputs[i], old, replacement, replaced);
@@ -151,6 +151,39 @@ public sealed abstract class Instr implements InstrOrPhi, InstrOrPhiImpl permits
 
     data = data.setInputs(inputs);
 
+    return postUpdateData(seen);
+  }
+
+  /**
+   * Calls {@link InstrData#handleUpdatedNodeInputs(CascadingUpdatedInstrs)} to properly handle
+   * input {@link Node}s whose {@link Node#type()}s have changed.
+   *
+   * <p>Returns whether this caused the phi's {@link Node#type()}, or the instruction's {@link
+   * Instr#effects()} or one ot its {@link Instr#outputs()} {@link Node#type()}s, to change. If the
+   * latter, you are responsible for updating instructions whose inputs contain the changed outputs.
+   *
+   * <p>This will not record a {@link CFGEdit}, it may cause a {@link Phi} to no longer by an
+   * expected type, and you are responsible for updating instructions whose inputs contain outputs
+   * that the replacement changed the type of. Hence this is package-private and "unsafe".
+   *
+   * @throws InputNodeTypeException If an input's {@link Node#type()} has changed so that it's no
+   * longer a subtype of the required type.
+   * @throws InfiniteCascadingUpdateException if an instruction's updated outputs trigger more
+   * updates that eventually update that instruction's inputs so that its outputs update again. This
+   * is checked via the {@link CascadingUpdatedInstrs} data-structure, which can be constructed with
+   * the initial instruction whose outputs have changed, and passed to each instruction whose inputs
+   * change.
+   */
+  CascadingInstrUpdate unsafeCascadeUpdate(CascadingUpdatedInstrs seen) {
+    var update = data.handleUpdatedNodeInputs(seen);
+    if (update == CascadingInstrUpdate.NONE) {
+      return update;
+    }
+
+    return postUpdateData(seen);
+  }
+
+  private CascadingInstrUpdate postUpdateData(CascadingUpdatedInstrs seen) {
     fun = data.fun();
 
     var effectsChanged = !effects.equals(data.effects());
@@ -170,7 +203,11 @@ public sealed abstract class Instr implements InstrOrPhi, InstrOrPhiImpl permits
 
     updateCachedInputNodes();
 
-    return CascadingInstrUpdate.of(effectsChanged, outputTypesChanged);
+    var result = CascadingInstrUpdate.of(effectsChanged, outputTypesChanged);
+
+    seen.handleUpdatedInstrData(this, result);
+
+    return result;
   }
 
   @SuppressWarnings("unchecked")

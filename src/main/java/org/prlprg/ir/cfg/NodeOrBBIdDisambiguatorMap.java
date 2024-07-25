@@ -6,9 +6,8 @@ import java.util.NavigableSet;
 import java.util.TreeSet;
 
 /**
- * Map that stores names and disambiguators for {@link NodeId}s ({@link InstrOrPhiIdImpl}s) and
- * {@link BBId}s ({@link BBIdImpl}s), so that a low disambiguator can be returned that is unique to
- * the map (actually disambiguates said name).
+ * Map that stores names and disambiguators for {@link LocalNodeId}s  and ({@link BBId}s), so that a
+ * low disambiguator can be returned that is unique to the map (actually disambiguates said name).
  *
  * <p>Specifically, it stores every "freed" disambiguator and the next un-assigned disambiguator for
  * each name, so generating a low unique disambiguator is removing the lowest element from the free-

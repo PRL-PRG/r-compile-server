@@ -9,9 +9,14 @@ import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
 
 /**
- * A constant {@link ISexp}: an IR node of a {@link SEXP} constant.
+ * An IR node that, at runtime, is guaranteed to be a single statically-known constant value:
+ * {@link Constant#value()}.
  *
- * <p>Global environments aren't constants. Use {@link StaticEnv Envs.SOMETHING} instead.
+ * <p>Environments aren't constants, because even though they are guaranteed to be a single
+ * statically-known value, the value itself isn't constant. As such, creating a constant
+ * {@link EnvSXP} throws {@link IllegalArgumentException}. To represent global environments, use
+ * {@link StaticEnv Envs.SOMETHING}. To represent locally-created environments, use an "env"
+ * instruction.
  */
 public sealed interface Constant<T> extends GlobalNode<T> {
   static <T> Constant<? extends T> of(T constant) {
@@ -64,16 +69,16 @@ public sealed interface Constant<T> extends GlobalNode<T> {
    *
    * <p>The only value at runtime of variables represented by this node.
    */
-  T constant();
+  T value();
 }
 
-record ConstantImpl<T>(T constant) implements Constant<T> {
+record ConstantImpl<T>(T value) implements Constant<T> {
   static final Constant<BoolSXP> TRUE_SEXP = new ConstantImpl<>(SEXPs.TRUE);
   static final Constant<BoolSXP> FALSE_SEXP = new ConstantImpl<>(SEXPs.FALSE);
   static final Constant<SimpleLglSXP> NA_LOGICAL_SEXP = new ConstantImpl<>(SEXPs.NA_LOGICAL);
 
   ConstantImpl {
-    if (constant instanceof EnvSXP) {
+    if (value instanceof EnvSXP) {
       throw new IllegalArgumentException("Global environments aren't constants.");
     }
   }
@@ -83,7 +88,7 @@ record ConstantImpl<T>(T constant) implements Constant<T> {
   public Class<T> type() {
     // The exact cast is OK because we only expose `Constant<? extends T>` from `Constant#of`,
     // and other methods where `T` is `constant`'s exact type.`
-    return (Class<T>) constant.getClass();
+    return (Class<T>) value.getClass();
   }
 
   @Override
@@ -93,6 +98,6 @@ record ConstantImpl<T>(T constant) implements Constant<T> {
 
   @Override
   public String toString() {
-    return constant.toString();
+    return value.toString();
   }
 }

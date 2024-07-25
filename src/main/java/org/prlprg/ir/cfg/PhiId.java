@@ -7,7 +7,7 @@ package org.prlprg.ir.cfg;
  * considered equal (and thus both can't exist in the {@link CFG} unless they refer to the same
  * node).
  */
-public final class PhiId<T> extends LocalNodeId<T> {
+public final class PhiId<T> extends LocalNodeId<T> implements InstrOrPhiId {
   PhiId(int disambiguator, String name) {
     super(disambiguator, name);
   }

@@ -9,6 +9,8 @@ import org.prlprg.ir.cfg.Instr;
 import org.prlprg.ir.cfg.InstrOrPhi;
 import org.prlprg.ir.cfg.Jump;
 import org.prlprg.ir.cfg.JumpData;
+import org.prlprg.ir.cfg.JumpData.Goto;
+import org.prlprg.ir.cfg.JumpData.Return;
 import org.prlprg.ir.cfg.Stmt;
 import org.prlprg.ir.cfg.StmtData;
 
@@ -141,25 +143,11 @@ public class CFGCursor {
    *
    * <p>This advances the insertion point to after the inserted statement.
    *
-   * @param args The statement's arguments (data).
+   * @param data The statement's data, which determines what kind of statement it is and its inputs.
    * @return Ths inserted statement.
    */
-  public <I extends Stmt> I insert(StmtData<I> args) {
-    return insert("", args);
-  }
-
-  /**
-   * Insert a statement at the current insertion point.
-   *
-   * <p>This advances the insertion point to after the inserted statement.
-   *
-   * @param name A small name for the statement, or an empty string. This is useful for debugging
-   *     and error messages.
-   * @param args The statement's arguments (data).
-   * @return Ths inserted statement.
-   */
-  public <I extends Stmt> I insert(String name, StmtData<I> args) {
-    var result = bb.insertAt(stmtIdx, name, args);
+  public Stmt insert(StmtData data) {
+    var result = bb.insertAt(stmtIdx, data);
     stmtIdx++;
     return result;
   }
@@ -167,18 +155,18 @@ public class CFGCursor {
   /**
    * Insert statements at the current insertion point.
    *
-   * <p>This is faster than {@link #insert(String, StmtData)} for many instructions.
+   * <p>This is faster than {@link #insert(StmtData)} for many instructions.
    *
    * <p>This advances the insertion point to after the inserted statements.
    *
-   * @param namesAndArgs The name and argument of each statement. See {@link #insert(String,
-   *     StmtData)}.
+   * @param datas The statements' datas, which determine what kind of statements they are and their
+   *              inputs.
    * @return Ths inserted statements.
-   * @see #insert(String, StmtData)
+   * @see #insert(StmtData)
    */
-  public ImmutableList<Stmt> insert(List<Stmt.Args> namesAndArgs) {
-    var result = bb.insertAllAt(stmtIdx, namesAndArgs);
-    stmtIdx += namesAndArgs.size();
+  public ImmutableList<Stmt> insert(List<StmtData> datas) {
+    var result = bb.insertAllAt(stmtIdx, datas);
+    stmtIdx += datas.size();
     return result;
   }
 
@@ -189,61 +177,34 @@ public class CFGCursor {
    * or if the block already has a jump.
    *
    * <p>This <i>doesn't</i> move the insertion point, unlike statement insertions (e.g. {@link
-   * #insert(String, StmtData)}), since the jump may be a return or branch, so it's ambiguous where
-   * the new insertion point should be.
+   * #insert(StmtData)}), since the jump may be a return or branch, so it's ambiguous where the new
+   * insertion point should be.
    *
-   * @param args The jump's arguments (data).
+   * <p>You may want to use {@link #insert(JumpInsertion)} instead, which splits this {@link BB} (so
+   * doesn't throw in the middle), uses the split successor to create the inserted jump, and moves
+   * to the split successor afterward.
+   *
+   * @param data The jump's data, which determines what kind of jump it is and its inputs.
    * @return Ths inserted jump.
    */
-  public <I extends Jump> I insert(JumpData<I> args) {
-    return insert("", args);
-  }
-
-  /**
-   * Insert a jump at the current insertion point, assuming it's at the end of the block.
-   *
-   * <p>Throws {@link IllegalStateException} if the cursor is not at the end of the current block,
-   * or if the block already has a jump.
-   *
-   * <p>This <i>doesn't</i> move the insertion point, unlike statement insertions (e.g. {@link
-   * #insert(String, StmtData)}), since the jump may be a return or branch, so it's ambiguous where
-   * the new insertion point should be.
-   *
-   * @param name A small name for the jump, or an empty string. This is useful for debugging and
-   *     error messages.
-   * @param args The jump's arguments (data).
-   * @return Ths inserted jump.
-   */
-  public <I extends Jump> I insert(String name, JumpData<I> args) {
+  public Jump addJump(JumpData data) {
     if (stmtIdx != bb.stmts().size()) {
       throw new IllegalStateException("can't insert jump in the middle of a block");
     }
-    return bb.addJump(name, args);
+    return bb.addJump(data);
   }
 
   /**
-   * Insert a jump at the current insertion point, splitting the BB in two, and move to the
-   * successor.
+   * Insert a jump at the current insertion point, splitting the BB in two, passing it to the given
+   * function which computes the jump, and move to the split successor.
    *
-   * @param insertion Computes the jump's data (arguments) given the new successor.
+   * @param insertion Computes the jump's data (kind and inputs) given the new successor.
    * @return The inserted jump.
    */
-  public <I extends Jump> I insert(JumpInsertion<? extends I> insertion) {
-    return insert("", insertion);
-  }
-
-  /**
-   * Insert a jump at the current insertion point, splitting the BB in two, and move to the
-   * successor.
-   *
-   * @param name A name of the jump, or an empty string. This is useful for debugging and error
-   *     messages.
-   * @param insertion Computes the jump's data (arguments) given the new successor.
-   * @return The inserted jump.
-   */
-  public <I extends Jump> I insert(String name, JumpInsertion<? extends I> insertion) {
+  public Jump insert(JumpInsertion insertion) {
     var newSuccessor = bb.splitNewSuccessor(stmtIdx);
-    var result = bb.replaceJump(name, insertion.compute(newSuccessor));
+    // `splitNewSuccessor` adds a `Goto`, so we have to `replaceJump`, not `addJump`.
+    var result = bb.replaceJump(insertion.compute(newSuccessor));
     moveToStart(newSuccessor);
     return result;
   }
@@ -251,11 +212,9 @@ public class CFGCursor {
   /**
    * Insert the entire {@link CFG} in between statements in the current basic block.
    *
-   * <p>Specifically, at the current index, insert the CFG's entry block, then the CFG's blocks in
-   * order, then the CFG's exits will all be followed by the instructions after.
-   *
-   * <p>This effectively copies the CFG: it doesn't mutate the original, and all inserted BBs and
-   * instructions are new.
+   * <p>Specifically, clone the CFG into this one, split the current block at the current index, set
+   * the pre-split block to {@link Goto} the CFG's {@link CFG#entry()}, then change the CFG's
+   * {@link Return} {@link CFG#exits()} to instead {@link Goto} the post-split block.
    */
   public void inline(CFG cfgToInline) {
     bb = bb.inlineAt(stmtIdx, cfgToInline);
@@ -321,12 +280,12 @@ public class CFGCursor {
    *
    * @return the new statement which replaced the current one.
    */
-  public <I extends Stmt> I replace(String name, StmtData<I> args) {
+  public Stmt replace(StmtData args) {
     if (bb.stmts().size() == stmtIdx) {
       bb.removeJump();
-      return bb.insertAt(stmtIdx, name, args);
+      return bb.insertAt(stmtIdx, args);
     } else {
-      return bb.replace(stmtIdx, name, args);
+      return bb.replace(stmtIdx, args);
     }
   }
 

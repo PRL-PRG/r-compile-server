@@ -18,8 +18,8 @@ interface CFGVerify extends CFGQuery {
    *   <li>There are no {@linkplain InvalidNode#UNSET_PHI_INPUT unset phi inputs}
    *   <li>Every instruction argument is either global, originates from earlier in the instruction's
    *       block, or originates from a strictly dominating block.
-   *   <li>Instruction-specific checks ({@link Instr#verify()}). Example: every {@link ISexp}
-   *       instruction argument is of the correct (dynamic) type.
+   *   <li>Instruction-specific checks ({@link Instr#verify()}). Example: every {@link Node}
+   *       instruction argument is of the correct generic {@link Node#type()}.
    *   <li>Every basic block is connected to the entry block.
    * </ul>
    *
