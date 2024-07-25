@@ -14,46 +14,40 @@ public interface BBCompoundMutate extends BBIntrinsicMutate, BBQuery {
   /**
    * Insert a statement at the end of the current {@link BB}.
    *
-   * @param name A small name for the statement, or an empty string. This is useful for debugging
-   *     and error messages.
-   * @param args The statement's arguments (data).
+   * @param data The statement's data, which determines what kind of statement it is and its inputs.
    * @return Ths inserted statement.
    */
-  default <I extends Stmt> I append(String name, StmtData<I> args) {
-    return insertAt(stmts().size(), name, args);
+  default Stmt append(StmtData data) {
+    return insertAt(stmts().size(), data);
   }
 
   /**
    * Insert statements at the end of the current {@link BB}.
    *
-   * @param namesAndArgs The name and argument of each statement. See {@link #append(String,
-   *     StmtData)}.
+   * @param datas The statements' datas, which determine what kind of statements they are and their inputs.
    * @return Ths inserted statements.
-   * @see #append(String, StmtData)
+   * @see #append(StmtData)
    */
-  default ImmutableList<Stmt> append(List<Stmt.Args> namesAndArgs) {
-    return insertAllAt(stmts().size(), namesAndArgs);
+  default ImmutableList<Stmt> append(List<StmtData> datas) {
+    return insertAllAt(stmts().size(), datas);
   }
 
   /**
    * Insert a jump at the given insertion point, splitting the BB.
    *
-   * @param name A name of the jump, or an empty string. This is useful for debugging and error
-   *     messages.
-   * @param insertion Computes the jump's data (arguments) given the new successor.
+   * @param insertion Computes the jump's data (kind and inputs) given the new successor.
    * @return The inserted jump.
    * @throws IndexOutOfBoundsException If the index is out of range.
-   * @see #insertAt(int, String, StmtData)
-   * @see #addJump(String, JumpData)
+   * @see #insertAt(int, StmtData)
+   * @see #addJump(JumpData)
    */
-  default <I extends Jump> I insertAt(
-      int index, String name, JumpInsertion<? extends I> insertion) {
+  default Jump insertAt(int index, JumpInsertion insertion) {
     return cfg()
         .section(
             "BB#insertAt(int, JumpInsertion)",
             () -> {
               var newSuccessor = splitNewSuccessor(index);
-              return replaceJump(name, insertion.compute(newSuccessor));
+              return replaceJump(insertion.compute(newSuccessor));
             });
   }
 

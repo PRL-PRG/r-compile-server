@@ -6,8 +6,8 @@ import org.checkerframework.checker.index.qual.SameLen;
 import org.prlprg.sexp.SEXPs;
 
 /**
- * The list of {@link ISexp}s representing arguments to a {@link StmtData.Call}, and whether or not
- * we statically know their order.
+ * The list of {@link Node}s representing arguments to a call, and whether we statically know their
+ * order.
  */
 public sealed interface CallArguments {
   /**
@@ -15,7 +15,7 @@ public sealed interface CallArguments {
    *
    * <p>The order is known iff there's no dots argument.
    */
-  static CallArguments withoutNames(ImmutableList<ISexp> args) {
+  static CallArguments withoutNames(ImmutableList<Node<?>> args) {
     return args.contains(Constant.DOTS) ? new KnownOrder(args) : new KnownOrderExceptDots(args);
   }
 
@@ -27,7 +27,7 @@ public sealed interface CallArguments {
    *     (less arguments = {@linkplain SEXPs#MISSING_ARG missings} are implicitly inserted, more =
    *     error).
    */
-  record KnownOrder(ImmutableList<ISexp> args) implements CallArguments {
+  record KnownOrder(ImmutableList<Node<?>> args) implements CallArguments {
     public KnownOrder {
       if (args.contains(Constant.DOTS)) {
         throw new IllegalArgumentException(
@@ -37,7 +37,7 @@ public sealed interface CallArguments {
   }
 
   /** Arguments would have a known order except contain the dots argument. */
-  record KnownOrderExceptDots(ImmutableList<ISexp> args) implements CallArguments {
+  record KnownOrderExceptDots(ImmutableList<Node<?>> args) implements CallArguments {
     public KnownOrderExceptDots {
       if (!args.contains(Constant.DOTS)) {
         throw new IllegalArgumentException(
@@ -55,6 +55,6 @@ public sealed interface CallArguments {
    *     the function's parameters.
    */
   record UnknownOrder(
-      ImmutableList<Optional<String>> names, @SameLen("names") ImmutableList<ISexp> args)
+      ImmutableList<Optional<String>> names, @SameLen("names") ImmutableList<Node<?>> args)
       implements CallArguments {}
 }

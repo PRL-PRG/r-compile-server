@@ -5,6 +5,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
+import org.prlprg.ir.cfg.InstrData.CascadingInstrUpdate;
+import org.prlprg.ir.cfg.InstrData.CascadingUpdatedInstrs;
 
 /**
  * Records a set of {@link Node} substitutions to be performed all at once for efficiency.
@@ -16,8 +18,8 @@ import java.util.function.Consumer;
  * @see CFG#batchSubst(Consumer)
  */
 public class BatchSubst {
-  private final Map<Node, Node> substs;
-  private final Map<Node, List<Node>> reverseSubsts;
+  private final Map<Node<?>, Node<?>> substs;
+  private final Map<Node<?>, List<Node<?>>> reverseSubsts;
 
   /** Create a new set of substitutions. */
   public BatchSubst() {
@@ -40,12 +42,13 @@ public class BatchSubst {
    * Add a substitution to be performed when this is {@linkplain #commit(CFG) committed}.
    *
    * <p>Note that {@code from} won't be removed, only its occurrences will be substituted. You must
-   * also call {@link BB#remove(InstrOrPhi) bb.remove(from)} to remove {@code from}.
+   * also call {@link BB#remove(InstrOrPhi)} on the phi or instruction containing {@code from} to
+   * remove it.
    *
    * @throws IllegalArgumentException if {@code from} was already staged to be substituted with a
    *     different {@code to}.
    */
-  public void stage(Node from, Node to) {
+  public void stage(Node<?> from, Node<?> to) {
     if (from == to || substs.get(from) == to) {
       return;
     } else if (substs.containsKey(from)) {
@@ -85,36 +88,80 @@ public class BatchSubst {
     }
   }
 
-  /** Run the given substitutions on the given instructions and phis. */
-  public void commit(Iterable<InstrOrPhi> instrsAndPhis) {
-    if (isEmpty()) {
-      return;
-    }
-    for (var instrOrPhi : instrsAndPhis) {
-      for (var arg : instrOrPhi.inputNodes()) {
-        var replacement = substs.get(arg);
-        if (replacement != null) {
-          instrOrPhi.replaceInInputs(arg, replacement);
-        }
-      }
-    }
-  }
-
   /** Run the given substitutions on all instructions and phis in the {@link CFG}. */
   public void commit(CFG cfg) {
     if (isEmpty()) {
       return;
     }
-    commit1(cfg.iter());
+
+    commit(cfg.iter());
   }
 
-  /** Run the given substitutions on all instructions and phis in the given {@link BB}s. */
-  public void commit1(Iterable<BB> bbs) {
+  /** Run the given substitutions on all instructions and phis in the given {@link BB}s.
+   *
+   * <p>Note that cascading changes may affect {@link Instr#effects()} and {@link Node#type()}s of
+   * {@link Instr}s and their output {@link Node}s outside the given BBs.
+   */
+  public void commit(Iterable<BB> bbs) {
     if (isEmpty()) {
       return;
     }
+
     for (var bb : bbs) {
       commit(bb);
+    }
+  }
+
+  /** Run the given substitutions on the given instructions and phis in the given {@link BB}.
+   *
+   * <p>Note that cascading changes may affect {@link Instr#effects()} and {@link Node#type()}s of
+   * {@link Instr}s and their output {@link Node}s outside the given BB.
+   */
+  public void commit(BB bb) {
+    if (isEmpty()) {
+      return;
+    }
+
+    var duAnalysis = bb.cfg().defUses();
+
+    var seen = new CascadingUpdatedInstrs();
+    var update = CascadingInstrUpdate.NONE;
+    var updatedOutputs = new ArrayList<LocalNode<?>>();
+
+    for (var instrOrPhi : bb) {
+      for (var arg : instrOrPhi.inputNodes()) {
+        var replacement = substs.get(arg);
+        if (replacement != null) {
+          var newUpdate = InstrOrPhiImpl.cast(instrOrPhi).unsafeReplaceInInputs(seen, arg, replacement);
+
+          if (newUpdate.updatedOutputTypes()) {
+            updatedOutputs.addAll(instrOrPhi.outputs());
+          }
+          update = update.merge(newUpdate);
+        }
+      }
+    }
+
+    var prevUpdatedOutputs = new ArrayList<LocalNode<?>>();
+    while (update.updatedOutputTypes()) {
+      update = CascadingInstrUpdate.NONE;
+      prevUpdatedOutputs.addAll(updatedOutputs);
+      updatedOutputs.clear();
+
+      for (var output : prevUpdatedOutputs) {
+        for (var instrOrPhi : duAnalysis.uses(output)) {
+          if (!(instrOrPhi instanceof Instr instr)) {
+            continue;
+          }
+
+          var newUpdate = instr.unsafeCascadeUpdate(seen);
+
+          if (newUpdate.updatedOutputTypes()) {
+            updatedOutputs.addAll(instrOrPhi.outputs());
+          }
+          update = update.merge(newUpdate);
+        }
+      }
     }
   }
 

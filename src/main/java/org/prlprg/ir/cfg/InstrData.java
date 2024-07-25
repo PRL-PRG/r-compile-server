@@ -11,6 +11,7 @@ import org.jetbrains.annotations.Unmodifiable;
 import org.prlprg.ir.effect.REffects;
 import org.prlprg.util.InvalidAnnotationError;
 import org.prlprg.util.NotImplementedError;
+import org.prlprg.util.Strings;
 
 /**
  * Every type of instruction as an immutable, pattern-matchable record.
@@ -126,23 +127,31 @@ public sealed interface InstrData permits JumpData, StmtData {
     public boolean updatedOutputTypes() {
       return updatedOutputTypes;
     }
+
+    /** Return an update is the result of applying both updates, i.e. {@code updated…} is true iff
+     *  either {@code this} or {@code other}'s is true.
+     */
+    public CascadingInstrUpdate merge(CascadingInstrUpdate other) {
+      return of(updatedEffects || other.updatedEffects, updatedOutputTypes || other.updatedOutputTypes);
+    }
   }
 
   class CascadingUpdatedInstrs {
-    // This only needs `InstrData` because instruction IDs and phis aren't relevant; if there's a
-    // recursive loop, it's exclusively caused by `InstrData`s whose polymorphism is broken.
-    private final Set<InstrData> instrDatasWhoseOutputsHaveChanged = new HashSet<>();
+    private final Set<Instr> instrDatasWhoseOutputsHaveChanged = new HashSet<>();
 
-    public CascadingUpdatedInstrs(InstrData initialInstrDataWhoseOutputsHaveChanged) {
-      instrDatasWhoseOutputsHaveChanged.add(initialInstrDataWhoseOutputsHaveChanged);
-    }
+    public CascadingUpdatedInstrs() {}
 
-    private void handleUpdatedInstrData(InstrData data, CascadingInstrUpdate update) {
+    void handleUpdatedInstrData(Instr data, CascadingInstrUpdate update) {
       if (update.updatedOutputTypes) {
         if (!instrDatasWhoseOutputsHaveChanged.add(data)) {
-          throw new InfiniteCascadingUpdateException(instrDatasWhoseOutputsHaveChanged);
+          throw new InfiniteCascadingUpdateException(this);
         }
       }
+    }
+
+    @Override
+    public String toString() {
+      return "- " + Strings.join("\n- ", instrDatasWhoseOutputsHaveChanged);
     }
   }
 

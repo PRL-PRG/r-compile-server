@@ -28,13 +28,15 @@ public interface CFGCompoundMutate extends CFGQuery, CFGIntrinsicMutate {
    * Substitute many nodes at once: run the given action and then perform the prepared
    * substitutions.
    *
-   * <p>Use {@link InstrOrPhi#rename(String)}, {@link Phi#setInput(Input)}, or {@link
-   * Instr#mutateArgs(Instr, InstrData)} when applicable. Those have O(&lt;# arguments in all
-   * instructions and phis&gt;) time complexity per call. However, they are less flexible than this
-   * method, which can substitute a node with one of a different shape (# of return values) or one
-   * that already exists.
+   * <p>Use {@link LocalNode#rename(String)} or {@link Phi#setInput(Input)} when applicable. Those
+   * have O(&lt;# arguments in all instructions and phis&gt;) time complexity per call. However,
+   * they are less flexible than this method, since they mutate nodes, while this substitutes an
+   * arbitrary node with another one.
    *
-   * <p>Some of the substitutions may change the number of inputs in phi nodes.
+   * <p>If a {@link Jump} is substituted with another jump that has different targets, the shape of
+   * the graph will change, and this will change the number of inputs in {@link Phi} nodes (adding
+   * an {@linkplain InvalidNode#UNSET_PHI_INPUT "unset"} input to phis in blocks with a new
+   * predecessor, and removing inputs from phis in blocks with a removed predecessor).
    */
   default void batchSubst(Consumer<BatchSubst> action) {
     section(

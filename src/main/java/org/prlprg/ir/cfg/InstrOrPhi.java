@@ -36,7 +36,7 @@ public sealed interface InstrOrPhi permits Instr, Phi {
    * are usually 0 (for effect-only instructions like stores and errors) or 1 (for instructions that
    * produce a value like loads and calls).
    */
-  @Unmodifiable List<? extends Node<?>> outputs();
+  @Unmodifiable List<? extends LocalNode<?>> outputs();
 
   /** {@code true} for {@link Phi}s, {@code false} for {@link Jump}s, and for {@link Stmt}s, whether
    * {@linkplain Instr#effects()} are {@linkplain REffects#isEmpty() empty}.
@@ -45,27 +45,35 @@ public sealed interface InstrOrPhi permits Instr, Phi {
 }
 
 sealed interface InstrOrPhiImpl permits Instr, Phi {
+  /** Return the {@link InstrOrPhi} as-is, but casted to this type.
+   *
+   * <p>This is preferred instead of doing a Java cast, because Java allows casts that would throw
+   * {@link ClassCastException} at runtime.
+   */
+  static InstrOrPhiImpl cast(InstrOrPhi instrOrPhi) {
+    return switch (instrOrPhi) {
+      case Instr instr -> instr;
+      case Phi<?> phi -> phi;
+    };
+  }
+
   /**
    * Replace every occurrence of {@code old} with {@code replacement} in the instruction or phi's
    * inputs ({@link InstrOrPhi#inputNodes()}).
    *
    * <p>Returns whether this caused the phi's {@link Node#type()}, or the instruction's {@link
-   * Instr#effects()} or one ot its {@link Instr#outputs()} {@link Node#type()}s, to change.
+   * Instr#effects()} or one ot its {@link Instr#outputs()} {@link Node#type()}s, to change. If the
+   * latter, you are responsible for updating instructions whose inputs contain the changed outputs.
    *
    * <p>This will not record a {@link CFGEdit}, it may cause a {@link Phi} to no longer by an
-   * expected type, and you are responsible for cascading updates, hence this is package-private and
-   * "unsafe".
+   * expected type, and you are responsible for updating instructions whose inputs contain outputs
+   * that the replacement changed the type of. Hence this is package-private and "unsafe".
    *
    * @throws IllegalArgumentException If the {@code replacement}'s {@link Node#type()} is
    *     incompatible with the input's required type. If {@code replacement}'s {@link Node#type()}
    *     is a subtype of {@code old}'s (including if they're identical) this is guaranteed not to
    *     error. If it's a supertype, it depends on whether {@code old} is in a position where the
    *     supertype is still a subtype of the required type.
-   * @throws InfiniteCascadingUpdateException if an instruction's updated outputs trigger more
-   * updates that eventually update that instruction's inputs so that its outputs update again. This
-   * is checked via the {@link CascadingUpdatedInstrs} data-structure, which can be constructed with
-   * the initial instruction whose outputs have changed, and passed to each instruction whose inputs
-   * change.
    */
   CascadingInstrUpdate unsafeReplaceInInputs(CascadingUpdatedInstrs seen, Node<?> old, Node<?> replacement);
 }

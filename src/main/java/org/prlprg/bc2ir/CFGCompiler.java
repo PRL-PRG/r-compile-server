@@ -349,7 +349,7 @@ public class CFGCompiler {
     // The previous block had implicit instructions added by default to every closure (though they
     // may be elided later).
     var entry_ = cfg.addBB("entry_");
-    cursor.insert(new JumpData.Goto(entry_));
+    cursor.addJump(new JumpData.Goto(entry_));
     cursor.moveToStart(entry_);
     bbByLabel.put(0, entry_);
   }
@@ -381,7 +381,7 @@ public class CFGCompiler {
           if (cursor.bb().jump() == null) {
             // We need to insert a jump because in the bytecode it just falls through, but there's
             // no such thing as fallthrough in IR.
-            cursor.insert(new JumpData.Goto(nextBb));
+            cursor.addJump(new JumpData.Goto(nextBb));
           }
           if (nextBb.predecessors().isEmpty() && !bbsWithPhis.contains(nextBb)) {
             // This happens after a compiled `repeat`, so the following bytecode is unreachable and
@@ -520,18 +520,18 @@ public class CFGCompiler {
       case Return() -> {
         var retVal = pop(ISexp.class);
         assertStacksForReturn();
-        cursor.insert(new JumpData.Return(retVal));
+        cursor.addJump(new JumpData.Return(retVal));
         setInUnreachableBytecode();
       }
       case Goto(var label) -> {
         var bb = bbAt(label);
-        cursor.insert(new JumpData.Goto(bb));
+        cursor.addJump(new JumpData.Goto(bb));
         addPhiInputsForStack(bb);
         setInUnreachableBytecode();
       }
       case BrIfNot(var ast, var label) -> {
         var bb = bbAt(label);
-        cursor.insert(new JumpData.Branch(get(ast), pop(ISexp.class), bbAfterCurrent(), bb));
+        cursor.addJump(new JumpData.Branch(get(ast), pop(ISexp.class), bbAfterCurrent(), bb));
         addPhiInputsForStack(bb);
       }
       case Pop() -> pop(Node.class);
@@ -612,7 +612,7 @@ public class CFGCompiler {
         var seq = cursor.insert(new StmtData.ToForSeq(pop(ISexp.class)));
         var length = cursor.insert(new StmtData.Length(seq));
         var init = Constant.intSxp(0);
-        cursor.insert(new JumpData.Goto(stepBb));
+        cursor.addJump(new JumpData.Goto(stepBb));
 
         // For loop step
         moveTo(stepBb);
@@ -626,7 +626,7 @@ public class CFGCompiler {
         // Compare the index to the length
         var cond = cursor.insert(new StmtData.Lt(get(ast), length, index1));
         // Jump to `end` if it's greater (remember, GNU-R indexing is one-based)
-        cursor.insert(new JumpData.Branch(get(ast), cond, endBb, forBodyBb));
+        cursor.addJump(new JumpData.Branch(get(ast), cond, endBb, forBodyBb));
 
         // For loop body
         moveTo(forBodyBb);
@@ -653,7 +653,7 @@ public class CFGCompiler {
           throw failUnsupported("`next` or `break` in promise (complex loop context)");
         }
         var stepBb = topLoop().next;
-        cursor.insert(new JumpData.Goto(stepBb));
+        cursor.addJump(new JumpData.Goto(stepBb));
         addPhiInputsForStack(stepBb);
 
         setInUnreachableBytecode();
@@ -665,7 +665,7 @@ public class CFGCompiler {
           throw failUnsupported("`next` or `break` in promise (complex loop context)");
         }
         var endBb = topLoop().end;
-        cursor.insert(new JumpData.Goto(endBb));
+        cursor.addJump(new JumpData.Goto(endBb));
         addPhiInputsForStack(endBb);
 
         setInUnreachableBytecode();
@@ -927,7 +927,7 @@ public class CFGCompiler {
                 BuiltinId.DOLLAR,
                 ImmutableList.of(target, new Constant(get(member))),
                 env));
-        cursor.insert(new JumpData.Goto(after));
+        cursor.addJump(new JumpData.Goto(after));
 
         moveTo(after);
       }
@@ -950,7 +950,7 @@ public class CFGCompiler {
                 BuiltinId.DOLLAR_GETS,
                 ImmutableList.of(target, new Constant(get(member)), rhs),
                 env));
-        cursor.insert(new JumpData.Goto(after));
+        cursor.addJump(new JumpData.Goto(after));
 
         moveTo(after);
       }
@@ -991,26 +991,26 @@ public class CFGCompiler {
       case And1st(var ast, var shortCircuit) -> {
         var shortCircuitBb = bbAt(shortCircuit);
         pushInsert(new StmtData.AsLogical(pop(ISexp.class)));
-        cursor.insert(
+        cursor.addJump(
             new JumpData.Branch(get(ast), top(ISexp.class), bbAfterCurrent(), shortCircuitBb));
         addPhiInputsForStack(shortCircuitBb);
       }
       case And2nd(var ast) -> {
         pushInsert(new StmtData.AsLogical(pop(ISexp.class)));
         pushInsert(mkBinop(ast, StmtData.LAnd::new));
-        cursor.insert(new JumpData.Goto(bbAfterCurrent()));
+        cursor.addJump(new JumpData.Goto(bbAfterCurrent()));
       }
       case Or1st(var ast, var shortCircuit) -> {
         var shortCircuitBb = bbAt(shortCircuit);
         pushInsert(new StmtData.AsLogical(pop(ISexp.class)));
-        cursor.insert(
+        cursor.addJump(
             new JumpData.Branch(get(ast), top(ISexp.class), shortCircuitBb, bbAfterCurrent()));
         addPhiInputsForStack(shortCircuitBb);
       }
       case Or2nd(var ast) -> {
         pushInsert(new StmtData.AsLogical(pop(ISexp.class)));
         pushInsert(mkBinop(ast, StmtData.LOr::new));
-        cursor.insert(new JumpData.Goto(bbAfterCurrent()));
+        cursor.addJump(new JumpData.Goto(bbAfterCurrent()));
       }
       case GetVarMissOk(var name) -> {
         pushInsert(name, new StmtData.LdVar(get(name), true, env));
@@ -1066,7 +1066,7 @@ public class CFGCompiler {
       case ReturnJmp() -> {
         var retVal = pop(ISexp.class);
         assertStacksForReturn();
-        cursor.insert(new JumpData.NonLocalReturn(retVal, env));
+        cursor.addJump(new JumpData.NonLocalReturn(retVal, env));
         setInUnreachableBytecode();
       }
       case Switch(var ast, var namesIdx, var chrLabelsIdx, var numLabelsIdx) -> {
@@ -1079,26 +1079,26 @@ public class CFGCompiler {
         var isVector = cursor.insert(new GnuRIs(IsTypeCheck.SCALAR, value));
         var isVectorBb = cfg.addBB();
         var isNotVectorBb = cfg.addBB("failNotVector");
-        cursor.insert(new JumpData.Branch(isVector, isVectorBb, isNotVectorBb));
+        cursor.addJump(new JumpData.Branch(isVector, isVectorBb, isNotVectorBb));
 
         // Has one predecessor (no phis) so we can call `cursor.moveToStart` instead of `moveTo`.
         cursor.moveToStart(isNotVectorBb);
         cursor.insert(new StmtData.Error("EXPR must be a length 1 vector"));
-        cursor.insert(new JumpData.Unreachable());
+        cursor.addJump(new JumpData.Unreachable());
 
         // Has one predecessor (no phis) so we can call `cursor.moveToStart` instead of `moveTo`.
         cursor.moveToStart(isVectorBb);
         var isFactor = cursor.insert(new GnuRIs(IsTypeCheck.FACTOR, value));
         var isFactorBb = cfg.addBB();
         var isNotFactorBb = cfg.addBB("warnNotFactor");
-        cursor.insert(new JumpData.Branch(isFactor, isFactorBb, isNotFactorBb));
+        cursor.addJump(new JumpData.Branch(isFactor, isFactorBb, isNotFactorBb));
 
         // Has one predecessor (no phis) so we can call `cursor.moveToStart` instead of `moveTo`.
         cursor.moveToStart(isNotFactorBb);
         cursor.insert(
             new StmtData.Warning(
                 "EXPR is a \"factor\", treated as integer.\n Consider using 'switch(as.character( * ), ...)' instead."));
-        cursor.insert(new JumpData.Goto(isFactorBb));
+        cursor.addJump(new JumpData.Goto(isFactorBb));
 
         // Has two predecessors, but the second defines no values (means no phis), so we can call
         // `cursor.moveToStart` instead of `moveTo`.
@@ -1106,30 +1106,30 @@ public class CFGCompiler {
         var isString = cursor.insert(new GnuRIs(IsTypeCheck.STR, value));
         var stringBb = cfg.addBB("switchString");
         var asIntegerBb = cfg.addBB("switchAsInteger");
-        cursor.insert(new JumpData.Branch(isString, stringBb, asIntegerBb));
+        cursor.addJump(new JumpData.Branch(isString, stringBb, asIntegerBb));
 
         // Has one predecessor (no phis) so we can call `cursor.moveToStart` instead of `moveTo`.
         cursor.moveToStart(stringBb);
         if (names == null) {
           if (numLabels == null) {
             cursor.insert(new StmtData.Error("bad numeric 'switch' offsets"));
-            cursor.insert(new JumpData.Unreachable());
+            cursor.addJump(new JumpData.Unreachable());
           } else if (numLabels.isScalar()) {
             cursor.insert(new StmtData.Warning("'switch' with no alternatives"));
-            cursor.insert(new JumpData.Goto(bbAt(new BcLabel(numLabels.get(0)))));
+            cursor.addJump(new JumpData.Goto(bbAt(new BcLabel(numLabels.get(0)))));
           } else {
             cursor.insert(
                 new StmtData.Error(
                     "numeric EXPR required for 'switch' without named alternatives"));
-            cursor.insert(new JumpData.Unreachable());
+            cursor.addJump(new JumpData.Unreachable());
           }
         } else {
           if (chrLabels == null) {
             cursor.insert(new StmtData.Error("bad character 'switch' offsets"));
-            cursor.insert(new JumpData.Unreachable());
+            cursor.addJump(new JumpData.Unreachable());
           } else if (names.size() != chrLabels.size()) {
             cursor.insert(new StmtData.Error("bad 'switch' names"));
-            cursor.insert(new JumpData.Unreachable());
+            cursor.addJump(new JumpData.Unreachable());
           } else {
             for (var i = 0; i < chrLabels.size() - 1; i++) {
               var name = names.get(i);
@@ -1141,7 +1141,7 @@ public class CFGCompiler {
             }
             // `switch` just goes to the last label regardless of whether it matches.
             var lastBb = bbAt(new BcLabel(chrLabels.last()));
-            cursor.insert(new JumpData.Goto(lastBb));
+            cursor.addJump(new JumpData.Goto(lastBb));
             addPhiInputsForStack(lastBb);
           }
         }
@@ -1150,10 +1150,10 @@ public class CFGCompiler {
         cursor.moveToStart(asIntegerBb);
         if (numLabels == null) {
           cursor.insert(new StmtData.Error("bad numeric 'switch' offsets"));
-          cursor.insert(new JumpData.Unreachable());
+          cursor.addJump(new JumpData.Unreachable());
         } else if (numLabels.isScalar()) {
           cursor.insert(new StmtData.Warning("'switch' with no alternatives"));
-          cursor.insert(new JumpData.Goto(bbAt(new BcLabel(numLabels.get(0)))));
+          cursor.addJump(new JumpData.Goto(bbAt(new BcLabel(numLabels.get(0)))));
         } else {
           var asInteger = cursor.insert(new StmtData.AsSwitchIdx(value));
           for (var i = 0; i < numLabels.size() - 1; i++) {
@@ -1165,7 +1165,7 @@ public class CFGCompiler {
           }
           // `switch` just goes to the last label regardless of whether it matches.
           var lastBb = bbAt(new BcLabel(numLabels.last()));
-          cursor.insert(new JumpData.Goto(lastBb));
+          cursor.addJump(new JumpData.Goto(lastBb));
           addPhiInputsForStack(lastBb);
         }
 
@@ -1243,7 +1243,7 @@ public class CFGCompiler {
         var safeBb = cfg.addBB("baseGuardSafe");
         var fallbackBb = cfg.addBB("baseGuardFail");
         var afterBb = bbAt(after);
-        cursor.insert(new JumpData.Branch(guard, safeBb, fallbackBb));
+        cursor.addJump(new JumpData.Branch(guard, safeBb, fallbackBb));
 
         // Has one predecessor (no phis) so we can call `cursor.moveToStart` instead of `moveTo`.
         cursor.moveToStart(fallbackBb);
@@ -1263,7 +1263,7 @@ public class CFGCompiler {
             argNames.stream().anyMatch(Optional::isPresent)
                 ? new StmtData.NamedCall(expr, sym, argNames, args, env, fs)
                 : new StmtData.NamelessCall(expr, sym, args, env, fs));
-        cursor.insert(new JumpData.Goto(afterBb));
+        cursor.addJump(new JumpData.Goto(afterBb));
         addPhiInputsForStack(afterBb);
         pop(ISexp.class); // the `CallBuiltin` pushed above.
 
@@ -1343,7 +1343,7 @@ public class CFGCompiler {
     var isNotObject = cursor.insert(new StmtData.GnuRIs(IsTypeCheck.NON_OBJECT, target));
     var nonObjectBb = cfg.addBB("dispatchNonObject");
     var objectBb = cfg.addBB("dispatchObject");
-    cursor.insert(new JumpData.Branch(isNotObject, nonObjectBb, objectBb));
+    cursor.addJump(new JumpData.Branch(isNotObject, nonObjectBb, objectBb));
 
     // Has one predecessor (no phis) so we can call `cursor.moveToStart` instead of `moveTo`.
     cursor.moveToStart(objectBb);
@@ -1353,7 +1353,7 @@ public class CFGCompiler {
     var dispatch = cursor.insert(new StmtData.TryDispatchBuiltin_(ast, fun, target, rhs, env));
     cursor.insert(next -> new JumpData.Branch(dispatch.dispatched(), next, nonObjectBb));
     push(dispatch.value());
-    cursor.insert(new JumpData.Goto(after));
+    cursor.addJump(new JumpData.Goto(after));
     addPhiInputsForStack(after);
     pop(ISexp.class); // the `CallBuiltin` pushed above.
 
@@ -1397,7 +1397,7 @@ public class CFGCompiler {
       pushInsert(dispatchInstrData.apply(dispatch.ast, argValues));
     }
 
-    cursor.insert(new JumpData.Goto(bbAfterCurrent()));
+    cursor.addJump(new JumpData.Goto(bbAfterCurrent()));
     if (bbAfterCurrent() != dispatch.after) {
       throw fail("expected to be immediately before `after` BB " + dispatch.after.id());
     }
@@ -1438,7 +1438,7 @@ public class CFGCompiler {
     args.clear();
     pushInsert(result);
 
-    cursor.insert(new JumpData.Goto(bbAfterCurrent()));
+    cursor.addJump(new JumpData.Goto(bbAfterCurrent()));
     if (bbAfterCurrent() != dispatch.after) {
       throw fail("expected to be immediately before `after` BB " + dispatch.after.id());
     }

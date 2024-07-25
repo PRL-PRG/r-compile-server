@@ -1,6 +1,5 @@
 package org.prlprg.ir.cfg;
 
-import java.util.ArrayList;
 import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -41,12 +40,9 @@ interface BBInline extends BBCompoundMutate {
                       .collect(Collectors.toMap(Function.identity(), id -> cfg().addBB(id.name())));
 
               // Add instructions, replace BB arguments, and prepare to replace node arguments.
-              var newInstrOrPhis = new ArrayList<InstrOrPhi>(cfgToInline.numNodes());
               var oldToNewArgs = new BatchSubst(cfgToInline.numNodes());
               BiConsumer<InstrOrPhi, InstrOrPhi> prePatchInstrOrPhi =
                   (oldInstrOrPhi, newInstrOrPhi) -> {
-                    newInstrOrPhis.add(newInstrOrPhi);
-
                     var oldReturns = oldInstrOrPhi.outputs();
                     var newReturns = newInstrOrPhi.outputs();
                     assert oldReturns.size() == newReturns.size();
@@ -54,7 +50,7 @@ interface BBInline extends BBCompoundMutate {
                       oldToNewArgs.stage(oldReturns.get(i), newReturns.get(i));
                     }
                   };
-              for (var oldBB : cfg().iter()) {
+              for (var oldBB : cfgToInline.iter()) {
                 var newBB = Objects.requireNonNull(oldToNewBBs.get(oldBB.id()));
 
                 for (var oldPhi : oldBB.phis()) {
@@ -85,7 +81,7 @@ interface BBInline extends BBCompoundMutate {
                 }
               }
               // Replace node arguments
-              oldToNewArgs.commit(newInstrOrPhis);
+              oldToNewArgs.commit(oldToNewBBs.values());
 
               return lastBB;
             });
