@@ -3,6 +3,7 @@ package org.prlprg.ir.cfg;
 import com.google.common.collect.ImmutableList;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.Collection;
+import org.prlprg.ir.cfg.instr.InstrVerifyException;
 import org.prlprg.util.Strings;
 
 /** Thrown by {@link CFG#verify()} when one of the CFG's invariants is broken. */

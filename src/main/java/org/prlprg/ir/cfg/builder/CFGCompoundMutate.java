@@ -1,7 +1,14 @@
-package org.prlprg.ir.cfg;
+package org.prlprg.ir.cfg.builder;
 
 import java.util.Collection;
 import java.util.function.Consumer;
+import org.prlprg.ir.cfg.BBId;
+import org.prlprg.ir.cfg.BatchSubst;
+import org.prlprg.ir.cfg.CFG;
+import org.prlprg.ir.cfg.InvalidNode;
+import org.prlprg.ir.cfg.Jump;
+import org.prlprg.ir.cfg.LocalNode;
+import org.prlprg.ir.cfg.Phi;
 import org.prlprg.ir.cfg.Phi.Input;
 
 public interface CFGCompoundMutate extends CFGQuery, CFGIntrinsicMutate {

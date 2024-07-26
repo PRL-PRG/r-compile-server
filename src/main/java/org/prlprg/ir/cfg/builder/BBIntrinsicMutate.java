@@ -1,12 +1,22 @@
-package org.prlprg.ir.cfg;
+package org.prlprg.ir.cfg.builder;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import org.prlprg.ir.cfg.BB;
+import org.prlprg.ir.cfg.BatchSubst;
+import org.prlprg.ir.cfg.CFG;
+import org.prlprg.ir.cfg.Instr;
+import org.prlprg.ir.cfg.InvalidNode;
+import org.prlprg.ir.cfg.Jump;
+import org.prlprg.ir.cfg.Phi;
+import org.prlprg.ir.cfg.Stmt;
+import org.prlprg.ir.cfg.instr.JumpData;
+import org.prlprg.ir.cfg.instr.StmtData;
 
-interface BBIntrinsicMutate {
+public interface BBIntrinsicMutate {
   // region split and merge
   /**
    * {@link #splitNewPredecessor(String, int)} giving the predecessor the same name as this block.

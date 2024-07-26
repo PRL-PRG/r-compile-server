@@ -11,28 +11,27 @@ import org.prlprg.ir.cfg.BB;
 import org.prlprg.ir.cfg.CFG;
 import org.prlprg.ir.cfg.ISexpStmt;
 import org.prlprg.ir.cfg.Instr;
-import org.prlprg.ir.cfg.IsEnv;
-import org.prlprg.ir.cfg.JumpData.Deopt;
-import org.prlprg.ir.cfg.JumpData.Return;
 import org.prlprg.ir.cfg.StaticEnv;
 import org.prlprg.ir.cfg.Stmt;
-import org.prlprg.ir.cfg.StmtData;
-import org.prlprg.ir.cfg.StmtData.CallSafeBuiltin;
-import org.prlprg.ir.cfg.StmtData.CastType;
-import org.prlprg.ir.cfg.StmtData.ChkFun;
-import org.prlprg.ir.cfg.StmtData.ExpandDots;
-import org.prlprg.ir.cfg.StmtData.Force;
-import org.prlprg.ir.cfg.StmtData.IsMissing;
-import org.prlprg.ir.cfg.StmtData.LdArg;
-import org.prlprg.ir.cfg.StmtData.LdDots;
-import org.prlprg.ir.cfg.StmtData.LdFun;
-import org.prlprg.ir.cfg.StmtData.LdVar;
-import org.prlprg.ir.cfg.StmtData.LdVarSuper;
-import org.prlprg.ir.cfg.StmtData.MkCls;
-import org.prlprg.ir.cfg.StmtData.MkEnv;
-import org.prlprg.ir.cfg.StmtData.MkProm;
-import org.prlprg.ir.cfg.StmtData.StVar;
-import org.prlprg.ir.cfg.StmtData.StVarSuper;
+import org.prlprg.ir.cfg.instr.JumpData.Deopt;
+import org.prlprg.ir.cfg.instr.JumpData.Return;
+import org.prlprg.ir.cfg.instr.StmtData;
+import org.prlprg.ir.cfg.instr.StmtData.CallSafeBuiltin;
+import org.prlprg.ir.cfg.instr.StmtData.CastType;
+import org.prlprg.ir.cfg.instr.StmtData.ChkFun;
+import org.prlprg.ir.cfg.instr.StmtData.ExpandDots;
+import org.prlprg.ir.cfg.instr.StmtData.Force;
+import org.prlprg.ir.cfg.instr.StmtData.IsMissing;
+import org.prlprg.ir.cfg.instr.StmtData.LdArg;
+import org.prlprg.ir.cfg.instr.StmtData.LdDots;
+import org.prlprg.ir.cfg.instr.StmtData.LdFun;
+import org.prlprg.ir.cfg.instr.StmtData.LdVar;
+import org.prlprg.ir.cfg.instr.StmtData.LdVarSuper;
+import org.prlprg.ir.cfg.instr.StmtData.MkCls;
+import org.prlprg.ir.cfg.instr.StmtData.MkEnv;
+import org.prlprg.ir.cfg.instr.StmtData.MkProm;
+import org.prlprg.ir.cfg.instr.StmtData.StVar;
+import org.prlprg.ir.cfg.instr.StmtData.StVarSuper;
 import org.prlprg.ir.closure.ClosureVersion;
 import org.prlprg.ir.closure.Promise;
 import org.prlprg.ir.effect.REffect;
@@ -103,7 +102,7 @@ public class Scopes {
 
   private class SubAnalysis extends AbstractInterpretation<ScopeAnalysisState> {
     private final List<ISexp> args;
-    private final @IsEnv ISexp staticClosureEnv;
+    private final ISexp staticClosureEnv;
     private final int depth;
     private final boolean canDeopt;
 
@@ -132,7 +131,7 @@ public class Scopes {
         boolean isPromise,
         CFG cfg,
         List<ISexp> args,
-        @IsEnv ISexp staticClosureEnv,
+        ISexp staticClosureEnv,
         ScopeAnalysisState initial,
         int depth) {
       super(config.debugLevel(), Direction.FORWARD, innermostVersion, isPromise, cfg, initial);
@@ -614,7 +613,7 @@ public class Scopes {
      * <p>Otherwise, if the environment at the state is too ambiguous, it returns {@code null}.
      */
     private @Nullable Map<RegSymSXP, Pair<AbstractISexp, Boolean>> tryMaterializeEnv(
-        ScopeAnalysisState state, @IsEnv ISexp env) {
+        ScopeAnalysisState state, ISexp env) {
       var resultIfKnown = new HashMap<RegSymSXP, Pair<AbstractISexp, Boolean>>();
 
       var envState = state.envs().at(env);
@@ -666,15 +665,15 @@ public class Scopes {
       return resultIfKnown;
     }
 
-    private AbstractLoad load(ScopeAnalysisState state, RegSymSXP name, @IsEnv ISexp env) {
+    private AbstractLoad load(ScopeAnalysisState state, RegSymSXP name, ISexp env) {
       return tryToImprove(state.envs().lookup(env, name));
     }
 
-    private AbstractLoad loadFun(ScopeAnalysisState state, RegSymSXP name, @IsEnv ISexp env) {
+    private AbstractLoad loadFun(ScopeAnalysisState state, RegSymSXP name, ISexp env) {
       return tryToImprove(state.envs().lookupFun(env, name));
     }
 
-    private AbstractLoad loadSuper(ScopeAnalysisState state, RegSymSXP name, @IsEnv ISexp env) {
+    private AbstractLoad loadSuper(ScopeAnalysisState state, RegSymSXP name, ISexp env) {
       return tryToImprove(state.envs().lookupSuper(env, name));
     }
 

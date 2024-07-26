@@ -4,8 +4,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.prlprg.ir.cfg.Instr;
-import org.prlprg.ir.cfg.IsEnv;
-import org.prlprg.ir.cfg.StmtData.MkProm;
+import org.prlprg.ir.cfg.instr.StmtData.MkProm;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.PrintWhitespace;
 import org.prlprg.parseprint.Printer;
@@ -66,7 +65,7 @@ public class ScopeAnalysisState implements AbstractNode<ScopeAnalysisState> {
     this.mayUseReflection = mayUseReflection;
   }
 
-  public boolean didEnvEscape(@IsEnv ISexp env) {
+  public boolean didEnvEscape(ISexp env) {
     return !envs.contains(env) || envs.at(env).isLeaked();
   }
 

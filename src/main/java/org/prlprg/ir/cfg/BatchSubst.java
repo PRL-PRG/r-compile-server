@@ -5,8 +5,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
-import org.prlprg.ir.cfg.InstrData.CascadingInstrUpdate;
-import org.prlprg.ir.cfg.InstrData.CascadingUpdatedInstrs;
 
 /**
  * Records a set of {@link Node} substitutions to be performed all at once for efficiency.

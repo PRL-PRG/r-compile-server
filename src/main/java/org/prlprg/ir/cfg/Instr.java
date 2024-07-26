@@ -10,8 +10,11 @@ import java.util.Optional;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.UnmodifiableView;
-import org.prlprg.ir.cfg.InstrData.CascadingInstrUpdate;
-import org.prlprg.ir.cfg.InstrData.CascadingUpdatedInstrs;
+import org.prlprg.ir.cfg.instr.InputNodeTypeException;
+import org.prlprg.ir.cfg.instr.InstrData;
+import org.prlprg.ir.cfg.instr.InstrVerifyException;
+import org.prlprg.ir.cfg.instr.JumpData;
+import org.prlprg.ir.cfg.instr.StmtData;
 import org.prlprg.ir.closure.CodeObject;
 import org.prlprg.ir.effect.REffects;
 
@@ -149,14 +152,16 @@ public sealed abstract class Instr implements InstrOrPhi, InstrOrPhiImpl permits
       return CascadingInstrUpdate.NONE;
     }
 
-    data = data.setInputs(inputs);
+    data = data.setInputs(seen, inputs);
 
     return postUpdateData(seen);
   }
 
   /**
-   * Calls {@link InstrData#handleUpdatedNodeInputs(CascadingUpdatedInstrs)} to properly handle
-   * input {@link Node}s whose {@link Node#type()}s have changed.
+   * Calls {@link InstrData#checkInputNodeTypes(CascadingUpdatedInstrs)}, then updates cached
+   * accessors ({@link Instr#fun()}, {@link Instr#effects()}, and the {@link Node#type()}s of
+   * {@link Instr#outputs()}) to properly handle input {@link Node}s whose {@link Node#type()}s have
+   * changed.
    *
    * <p>Returns whether this caused the phi's {@link Node#type()}, or the instruction's {@link
    * Instr#effects()} or one ot its {@link Instr#outputs()} {@link Node#type()}s, to change. If the
@@ -175,10 +180,7 @@ public sealed abstract class Instr implements InstrOrPhi, InstrOrPhiImpl permits
    * change.
    */
   CascadingInstrUpdate unsafeCascadeUpdate(CascadingUpdatedInstrs seen) {
-    var update = data.handleUpdatedNodeInputs(seen);
-    if (update == CascadingInstrUpdate.NONE) {
-      return update;
-    }
+    data.checkInputNodeTypes(seen);
 
     return postUpdateData(seen);
   }

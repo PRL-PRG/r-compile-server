@@ -1,14 +1,22 @@
-package org.prlprg.ir.cfg;
+package org.prlprg.ir.cfg.instr;
 
 import com.google.common.collect.ImmutableList;
 import java.util.Iterator;
 import java.util.Optional;
 import javax.annotation.Nullable;
 import org.checkerframework.checker.index.qual.SameLen;
+import org.prlprg.ir.cfg.BB;
+import org.prlprg.ir.cfg.CFG;
+import org.prlprg.ir.cfg.CallArguments;
 import org.prlprg.ir.cfg.CallArguments.UnknownOrder;
+import org.prlprg.ir.cfg.IFun;
 import org.prlprg.ir.cfg.IFun.DynamicCall;
 import org.prlprg.ir.cfg.IFun.StaticBuiltinCall;
 import org.prlprg.ir.cfg.IFun.StaticCompiledCall;
+import org.prlprg.ir.cfg.Instr;
+import org.prlprg.ir.cfg.Node;
+import org.prlprg.ir.cfg.NodeId;
+import org.prlprg.ir.cfg.Stmt;
 import org.prlprg.ir.closure.Closure;
 import org.prlprg.ir.closure.ClosureVersion;
 import org.prlprg.ir.closure.Promise;
@@ -66,11 +74,11 @@ public sealed interface StmtData extends InstrData {
       BcPosition location,
       boolean inPromise,
       ImmutableList<Node> stack,
-      @IsEnv ISexp env,
+      ISexp env,
       @Nullable FrameState inlinedNext)
       implements StmtData<FrameStateStmt> {
     public FrameState_(
-        BcPosition location, boolean inPromise, ImmutableList<Node> stack, @IsEnv ISexp env) {
+        BcPosition location, boolean inPromise, ImmutableList<Node> stack, ISexp env) {
       this(location, inPromise, stack, env, null);
     }
 
@@ -83,7 +91,7 @@ public sealed interface StmtData extends InstrData {
   /** Effects are arbitrary because it implicitly forces. */
   @TypeIs("ANY_FUNCTION")
   @EffectsAreAribtrary()
-  record LdFun(@Override RegSymSXP name, @Override @IsEnv ISexp env) implements Load {
+  record LdFun(@Override RegSymSXP name, @Override ISexp env) implements Load {
     @Override
     public boolean missOk() {
       return false;
@@ -93,13 +101,13 @@ public sealed interface StmtData extends InstrData {
   /** Doesn't implicitly force, unlike {@link org.prlprg.bc.BcInstr.GetVar BcInstr.GetVar}. */
   @TypeIs("ANY")
   @EffectsAre({REffect.Error, REffect.ReadsEnvArg})
-  record LdVar(@Override RegSymSXP name, @Override boolean missOk, @Override @IsEnv ISexp env)
+  record LdVar(@Override RegSymSXP name, @Override boolean missOk, @Override ISexp env)
       implements Load {}
 
   /** Doesn't implicitly force, unlike {@link org.prlprg.bc.BcInstr.DdVal BcInstr.DdVal}. */
   @TypeIs("ANY")
   @EffectsAre({REffect.Error, REffect.ReadsEnvArg})
-  record LdDdVal(int ddNum, @Override boolean missOk, @Override @IsEnv ISexp env) implements Load {
+  record LdDdVal(int ddNum, @Override boolean missOk, @Override ISexp env) implements Load {
     @Override
     public RegSymSXP name() {
       return SEXPs.symbol(".." + ddNum);
@@ -136,7 +144,7 @@ public sealed interface StmtData extends InstrData {
 
   @TypeIs("LGL")
   @EffectsAre({REffect.Error, REffect.ReadsEnvArg})
-  record IsMissing(RegSymSXP varName, @IsEnv ISexp env) implements ISexp_ {}
+  record IsMissing(RegSymSXP varName, ISexp env) implements ISexp_ {}
 
   @EffectsAre(REffect.Error)
   record ChkMissing(ISexp value) implements ISexp_ {
@@ -155,12 +163,12 @@ public sealed interface StmtData extends InstrData {
   }
 
   @EffectsAre({REffect.LeaksNonEnvArg, REffect.ReadsEnvArg, REffect.WritesEnvArg})
-  record StVarSuper(@Override RegSymSXP name, @Override ISexp value, @Override @IsEnv ISexp env)
+  record StVarSuper(@Override RegSymSXP name, @Override ISexp value, @Override ISexp env)
       implements Store {}
 
   @TypeIs("ANY")
   @EffectsAre({REffect.Error, REffect.ReadsEnvArg})
-  record LdVarSuper(RegSymSXP name, @IsEnv ISexp env) implements Load {
+  record LdVarSuper(RegSymSXP name, ISexp env) implements Load {
     @Override
     public boolean missOk() {
       return false;
@@ -169,9 +177,9 @@ public sealed interface StmtData extends InstrData {
 
   @EffectsAre({REffect.LeaksNonEnvArg, REffect.WritesEnvArg})
   record StVar(
-      @Override RegSymSXP name, @Override ISexp value, @Override @IsEnv ISexp env, boolean isArg)
+      @Override RegSymSXP name, @Override ISexp value, @Override ISexp env, boolean isArg)
       implements Store {
-    public StVar(RegSymSXP name, ISexp value, @IsEnv ISexp env) {
+    public StVar(RegSymSXP name, ISexp value, ISexp env) {
       this(name, value, env, false);
     }
   }
@@ -209,7 +217,7 @@ public sealed interface StmtData extends InstrData {
     }
   }
 
-  record Force(ISexp promise, @Nullable FrameState fs, @IsEnv ISexp env) implements ISexp_ {
+  record Force(ISexp promise, @Nullable FrameState fs, ISexp env) implements ISexp_ {
 
     @Override
     public RType computeType() {
@@ -278,7 +286,6 @@ public sealed interface StmtData extends InstrData {
 
     ImmutableList<ISexp> indices();
 
-    @IsEnv
     ISexp env();
 
     @Override
@@ -333,7 +340,6 @@ public sealed interface StmtData extends InstrData {
 
     ImmutableList<ISexp> indices();
 
-    @IsEnv
     ISexp env();
 
     @Override
@@ -384,7 +390,7 @@ public sealed interface StmtData extends InstrData {
   }
 
   record Subassign1_1D(
-      @Override @Nullable LangSXP ast, ISexp vector, ISexp value, ISexp index, @IsEnv ISexp env)
+      @Override @Nullable LangSXP ast, ISexp vector, ISexp value, ISexp index, ISexp env)
       implements SubassignN_1D {}
 
   @EffectsAre(REffect.Error)
@@ -397,7 +403,7 @@ public sealed interface StmtData extends InstrData {
   }
 
   record Subassign2_1D(
-      @Override @Nullable LangSXP ast, ISexp value, ISexp vector, ISexp index, @IsEnv ISexp env)
+      @Override @Nullable LangSXP ast, ISexp value, ISexp vector, ISexp index, ISexp env)
       implements SubassignN_1D {}
 
   record Subassign1_2D(
@@ -406,7 +412,7 @@ public sealed interface StmtData extends InstrData {
       ISexp value,
       ISexp index1,
       ISexp index2,
-      @IsEnv ISexp env)
+      ISexp env)
       implements SubassignN_2D {}
 
   record Subassign2_2D(
@@ -415,7 +421,7 @@ public sealed interface StmtData extends InstrData {
       ISexp value,
       ISexp index1,
       ISexp index2,
-      @IsEnv ISexp env)
+      ISexp env)
       implements SubassignN_2D {}
 
   record Subassign1_3D(
@@ -425,7 +431,7 @@ public sealed interface StmtData extends InstrData {
       ISexp index1,
       ISexp index2,
       ISexp index3,
-      @IsEnv ISexp env)
+      ISexp env)
       implements Subassign {
     @Override
     public ISexp vecOrMtx() {
@@ -438,18 +444,18 @@ public sealed interface StmtData extends InstrData {
     }
   }
 
-  record Extract1_1D(@Override @Nullable LangSXP ast, ISexp vector, ISexp index, @IsEnv ISexp env)
+  record Extract1_1D(@Override @Nullable LangSXP ast, ISexp vector, ISexp index, ISexp env)
       implements ExtractN_1D {}
 
-  record Extract2_1D(@Override @Nullable LangSXP ast, ISexp vector, ISexp index, @IsEnv ISexp env)
+  record Extract2_1D(@Override @Nullable LangSXP ast, ISexp vector, ISexp index, ISexp env)
       implements ExtractN_1D {}
 
   record Extract1_2D(
-      @Override @Nullable LangSXP ast, ISexp matrix, ISexp index1, ISexp index2, @IsEnv ISexp env)
+      @Override @Nullable LangSXP ast, ISexp matrix, ISexp index1, ISexp index2, ISexp env)
       implements ExtractN_2D {}
 
   record Extract2_2D(
-      @Override @Nullable LangSXP ast, ISexp matrix, ISexp index1, ISexp index2, @IsEnv ISexp env)
+      @Override @Nullable LangSXP ast, ISexp matrix, ISexp index1, ISexp index2, ISexp env)
       implements ExtractN_2D {}
 
   record Extract1_3D(
@@ -458,7 +464,7 @@ public sealed interface StmtData extends InstrData {
       ISexp index1,
       ISexp index2,
       ISexp index3,
-      @IsEnv ISexp env)
+      ISexp env)
       implements Extract {
     @Override
     public ISexp vecOrMtx() {
@@ -703,7 +709,7 @@ public sealed interface StmtData extends InstrData {
       @Override @Nullable LangSXP ast,
       @TypeIs("ANY_FUNCTION") @Override ISexp fun_,
       @Override ImmutableList<ISexp> args_,
-      @Override @IsEnv ISexp env,
+      @Override ISexp env,
       @Override @Nullable FrameState fs)
       implements Call {
 
@@ -726,7 +732,7 @@ public sealed interface StmtData extends InstrData {
       @TypeIs("ANY_FUNCTION") @Override ISexp fun_,
       @Override ImmutableList<Optional<String>> names,
       @SameLen("names") @Override ImmutableList<ISexp> args_,
-      @Override @IsEnv ISexp env,
+      @Override ISexp env,
       @Override @Nullable FrameState fs)
       implements Call {
     @Override
@@ -746,7 +752,7 @@ public sealed interface StmtData extends InstrData {
       @TypeIs("CLO") @Nullable ISexp runtimeClosure,
       @Override Closure fun_,
       @Override ImmutableList<ISexp> args_,
-      @Override @Nullable @IsEnv ISexp env,
+      @Override @Nullable ISexp env,
       @Nullable FrameState fs)
       implements Call {
     /** The exact closure version we dispatch. */
@@ -786,7 +792,7 @@ public sealed interface StmtData extends InstrData {
       @Override @Nullable LangSXP ast,
       @Override BuiltinId fun_,
       @Override ImmutableList<ISexp> args_,
-      @Override @Nullable @IsEnv ISexp env)
+      @Override @Nullable ISexp env)
       implements Call {
     @Override
     public IFun fun() {
@@ -816,7 +822,7 @@ public sealed interface StmtData extends InstrData {
       @Override BuiltinId fun,
       ISexp target,
       @Nullable ISexp rhs,
-      @Override @IsEnv ISexp env)
+      @Override ISexp env)
       implements StmtData<TryDispatchBuiltin> {
     @Override
     public TryDispatchBuiltin make(CFG cfg, NodeId<? extends Instr> id) {
@@ -834,9 +840,8 @@ public sealed interface StmtData extends InstrData {
    * @param neverStub Set on a stubbed environment if we deoptimize because it materialized.
    */
   @EffectsAre(REffect.LeaksNonEnvArg)
-  @IsEnv
   record MkEnv(
-      @Override @IsEnv ISexp parent,
+      @Override ISexp parent,
       ImmutableList<RegSymSXP> names,
       @SameLen("names") ImmutableList<ISexp> values,
       @SameLen("names") ImmutableList<Boolean> missingness,
@@ -845,7 +850,7 @@ public sealed interface StmtData extends InstrData {
       boolean neverStub)
       implements ISexp_ {
     public MkEnv(
-        @IsEnv ISexp parent,
+        ISexp parent,
         ImmutableList<RegSymSXP> names,
         @SameLen("names") ImmutableList<ISexp> values,
         @SameLen("names") ImmutableList<Boolean> missingness,
@@ -855,14 +860,14 @@ public sealed interface StmtData extends InstrData {
     }
 
     public MkEnv(
-        @IsEnv ISexp parent,
+        ISexp parent,
         ImmutableList<RegSymSXP> names,
         @SameLen("names") ImmutableList<ISexp> values,
         @SameLen("names") ImmutableList<Boolean> missingness) {
       this(parent, names, values, missingness, 1, false);
     }
 
-    public MkEnv(@IsEnv ISexp parent) {
+    public MkEnv(ISexp parent) {
       this(parent, ImmutableList.of(), ImmutableList.of(), ImmutableList.of());
     }
 
@@ -914,7 +919,7 @@ public sealed interface StmtData extends InstrData {
   }
 
   @EffectsAre({})
-  record MaterializeEnv(@IsEnv ISexp env) implements Void {}
+  record MaterializeEnv(ISexp env) implements Void {}
 
   /**
    * Doesn't have {@link REffect#ReadsEnvArg} because it doesn't read the "environment" part of the
@@ -923,13 +928,13 @@ public sealed interface StmtData extends InstrData {
    */
   @EffectsAre({})
   @TypeIs("BOOL")
-  record IsEnvStub(@IsEnv ISexp env) implements ISexp_ {}
+  record IsEnvStub(ISexp env) implements ISexp_ {}
 
   @EffectsAre({REffect.ChangesContext, REffect.LeaksNonEnvArg, REffect.LeaksEnvArg})
-  record PushContext(ISexp ast, ISexp op, ImmutableList<ISexp> callArgs, @IsEnv ISexp sysParent)
+  record PushContext(ISexp ast, ISexp op, ImmutableList<ISexp> callArgs, ISexp sysParent)
       implements StmtData<RContext> {
     public PushContext(
-        ISexp ast, ISexp op, CallArguments.KnownOrder callArgs, @IsEnv ISexp sysParent) {
+        ISexp ast, ISexp op, CallArguments.KnownOrder callArgs, ISexp sysParent) {
       this(ast, op, callArgs.args(), sysParent);
     }
 
@@ -948,7 +953,7 @@ public sealed interface StmtData extends InstrData {
 
   @EffectsAre(REffect.ReadsEnvArg)
   @TypeIs("DOTS_LIST")
-  record LdDots(@IsEnv ISexp env) implements Load {
+  record LdDots(ISexp env) implements Load {
     @Override
     public RegSymSXP name() {
       return SEXPs.DOTS_SYMBOL;

@@ -1,4 +1,4 @@
-package org.prlprg.ir.cfg;
+package org.prlprg.ir.cfg.builder;
 
 import java.util.Collection;
 import java.util.Iterator;
@@ -9,8 +9,17 @@ import java.util.SequencedSet;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
+import org.prlprg.ir.cfg.BB;
+import org.prlprg.ir.cfg.BBId;
+import org.prlprg.ir.cfg.CFG;
+import org.prlprg.ir.cfg.ControlFlow;
+import org.prlprg.ir.cfg.Instr;
+import org.prlprg.ir.cfg.InstrOrPhi;
+import org.prlprg.ir.cfg.Jump;
+import org.prlprg.ir.cfg.Phi;
+import org.prlprg.ir.cfg.Stmt;
 
-interface BBQuery extends Iterable<InstrOrPhi> {
+public interface BBQuery extends Iterable<InstrOrPhi> {
   // region access
   // region cfg and self
   /** CFG containing this block. */

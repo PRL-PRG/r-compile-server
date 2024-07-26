@@ -1,4 +1,4 @@
-package org.prlprg.ir.cfg;
+package org.prlprg.ir.cfg.instr;
 
 /** Exception thrown when {@link org.prlprg.ir.cfg.Instr#verify()} fails. */
 public class InstrVerifyException extends RuntimeException {

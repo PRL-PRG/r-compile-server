@@ -8,6 +8,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.prlprg.ir.cfg.instr.InstrData;
 import org.prlprg.parseprint.BuiltinParseMethods;
 import org.prlprg.parseprint.BuiltinPrintMethods;
 import org.prlprg.parseprint.ClassProvidingContext;

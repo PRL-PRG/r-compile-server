@@ -1,6 +1,5 @@
 package org.prlprg.ir.analysis.scope;
 
-import org.prlprg.ir.cfg.IsEnv;
 import org.prlprg.ir.cfg.StaticEnv;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
@@ -10,7 +9,7 @@ import org.prlprg.parseprint.Printer;
  * concrete or {@linkplain StaticEnv#UNKNOWN not closed}) it was loaded from.
  */
 public final class AbstractLoad {
-  private final @IsEnv ISexp env;
+  private final ISexp env;
   private final AbstractISexp result;
 
   public AbstractLoad(AbstractISexp value) {
@@ -18,12 +17,12 @@ public final class AbstractLoad {
     result = value;
   }
 
-  public AbstractLoad(@IsEnv ISexp env, AbstractISexp value) {
+  public AbstractLoad(ISexp env, AbstractISexp value) {
     this.env = env;
     this.result = value;
   }
 
-  public @IsEnv ISexp env() {
+  public ISexp env() {
     return env;
   }
 

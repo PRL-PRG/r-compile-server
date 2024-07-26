@@ -1,7 +1,12 @@
-package org.prlprg.ir.cfg;
+package org.prlprg.ir.cfg.builder;
 
-interface CFGVerify extends CFGQuery {
+import org.prlprg.ir.cfg.CFGVerifyException;
+import org.prlprg.ir.cfg.Instr;
+import org.prlprg.ir.cfg.InvalidNode;
+import org.prlprg.ir.cfg.Node;
+import org.prlprg.ir.cfg.instr.JumpData;
 
+public interface CFGVerify extends CFGQuery {
   /**
    * Verify some CFG invariants. Specifically:
    *

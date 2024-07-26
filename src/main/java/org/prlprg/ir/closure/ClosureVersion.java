@@ -12,6 +12,7 @@ import org.prlprg.ir.cfg.CFG;
 import org.prlprg.ir.cfg.CFGParsePrint;
 import org.prlprg.ir.cfg.Node;
 import org.prlprg.ir.cfg.NodeId;
+import org.prlprg.ir.cfg.instr.StmtData;
 import org.prlprg.ir.effect.REffect;
 import org.prlprg.ir.effect.REffects;
 import org.prlprg.ir.type.RType;
@@ -147,7 +148,7 @@ public class ClosureVersion {
    * behavior under this version's call context.
    *
    * <p>This also contains the inner {@linkplain Promise promises}, since promises are stored
-   * directly within {@link org.prlprg.ir.cfg.StmtData.MkProm MkProm} instructions.
+   * directly within {@link StmtData.MkProm MkProm} instructions.
    *
    * <p>This is mutable, <i>however</i> you are responsible for updating {@link #properties()} so
    * that they are the properties of the version's body.

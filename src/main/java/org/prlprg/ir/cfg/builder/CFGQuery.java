@@ -1,4 +1,4 @@
-package org.prlprg.ir.cfg;
+package org.prlprg.ir.cfg.builder;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -9,12 +9,24 @@ import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.ir.analysis.DomTree;
-import org.prlprg.ir.cfg.JumpData.Deopt;
-import org.prlprg.ir.cfg.StmtData.MkCls;
-import org.prlprg.ir.cfg.StmtData.MkProm;
+import org.prlprg.ir.cfg.BB;
+import org.prlprg.ir.cfg.BBId;
+import org.prlprg.ir.cfg.CFG;
+import org.prlprg.ir.cfg.CFGIterator;
+import org.prlprg.ir.cfg.GlobalNodeId;
+import org.prlprg.ir.cfg.InstrOrPhi;
+import org.prlprg.ir.cfg.LocalNode;
+import org.prlprg.ir.cfg.LocalNodeId;
+import org.prlprg.ir.cfg.Node;
+import org.prlprg.ir.cfg.NodeId;
+import org.prlprg.ir.cfg.Phi;
+import org.prlprg.ir.cfg.PhiId;
+import org.prlprg.ir.cfg.instr.JumpData.Deopt;
+import org.prlprg.ir.cfg.instr.StmtData.MkCls;
+import org.prlprg.ir.cfg.instr.StmtData.MkProm;
 import org.prlprg.ir.closure.CodeObject;
 
-interface CFGQuery {
+public interface CFGQuery {
   // region general properties
   /**
    * The number of {@link BB}s in the CFG.

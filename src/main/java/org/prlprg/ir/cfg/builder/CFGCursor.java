@@ -8,11 +8,11 @@ import org.prlprg.ir.cfg.CFG;
 import org.prlprg.ir.cfg.Instr;
 import org.prlprg.ir.cfg.InstrOrPhi;
 import org.prlprg.ir.cfg.Jump;
-import org.prlprg.ir.cfg.JumpData;
-import org.prlprg.ir.cfg.JumpData.Goto;
-import org.prlprg.ir.cfg.JumpData.Return;
+import org.prlprg.ir.cfg.instr.JumpData;
+import org.prlprg.ir.cfg.instr.JumpData.Goto;
+import org.prlprg.ir.cfg.instr.JumpData.Return;
 import org.prlprg.ir.cfg.Stmt;
-import org.prlprg.ir.cfg.StmtData;
+import org.prlprg.ir.cfg.instr.StmtData;
 
 /**
  * Stores a location within a {@link CFG} and updates when operations are performed on it.

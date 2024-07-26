@@ -3,6 +3,7 @@ package org.prlprg.ir.type;
 import com.google.common.collect.ImmutableList;
 import java.util.Collection;
 import javax.annotation.Nonnull;
+import org.prlprg.ir.cfg.instr.StmtData;
 import org.prlprg.ir.closure.Closure;
 import org.prlprg.ir.effect.REffects;
 import org.prlprg.ir.type.lattice.NoOrMaybe;
@@ -53,7 +54,7 @@ public sealed interface RClosureType extends RFunType permits RNothingValueType,
    * {@link YesOrMaybe#YES YES} if this is statically known to be created from a {@link Closure}.
    *
    * <p>If {@link YesOrMaybe#YES YES}, we explicitly provide a call context when calling this via
-   * {@link org.prlprg.ir.cfg.StmtData.Call Call} instruction.
+   * {@link StmtData.Call Call} instruction.
    */
   YesOrMaybe isJit();
 }

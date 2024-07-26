@@ -6,7 +6,8 @@ import java.util.SequencedSet;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.ir.cfg.CFGEdit.ReplaceInJumpTargets;
-import org.prlprg.ir.cfg.JumpData.Branch;
+import org.prlprg.ir.cfg.instr.JumpData;
+import org.prlprg.ir.cfg.instr.JumpData.Branch;
 import org.prlprg.util.SmallListSet;
 
 /** IR instruction which is the final instruction and outgoing edge of a basic block.

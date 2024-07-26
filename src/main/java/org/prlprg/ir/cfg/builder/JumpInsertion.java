@@ -2,7 +2,7 @@ package org.prlprg.ir.cfg.builder;
 
 import org.prlprg.ir.cfg.BB;
 import org.prlprg.ir.cfg.Jump;
-import org.prlprg.ir.cfg.JumpData;
+import org.prlprg.ir.cfg.instr.JumpData;
 
 /**
  * Constructs a {@link Jump} to be inserted in the middle of a {@link BB}, splitting it into two.

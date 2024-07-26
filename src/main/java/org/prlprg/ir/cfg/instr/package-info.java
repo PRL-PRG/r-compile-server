@@ -1,11 +1,10 @@
-/**
- * Interfaces and utilities to construct, query, and mutate {@link org.prlprg.ir.cfg.CFG CFG}s and
- * {@link org.prlprg.ir.cfg.BB BB}s.
+/** All the different kinds of instructions ({@link org.prlprg.ir.cfg.instr.InstrData}s), and the
+ * annotations that determine their properties.
  */
 @ParametersAreNonnullByDefault
 @FieldsAreNonNullByDefault
 @ReturnTypesAreNonNullByDefault
-package org.prlprg.ir.cfg.builder;
+package org.prlprg.ir.cfg.instr;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 import org.prlprg.util.FieldsAreNonNullByDefault;

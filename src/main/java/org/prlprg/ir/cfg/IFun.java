@@ -16,6 +16,24 @@ import org.prlprg.sexp.FunSXP;
  * don't rely on the instruction's type, only its effects, inputs, and outputs.
  */
 public sealed interface IFun {
+  /** Create an {@link IFun} representing the given value:
+   *
+   * <ul>
+   *   <li>If given a {@link Node}, this is {@link IFun.DynamicNode}.
+   *   <li>If given a {@link Closure}, this is {@link IFun.SemiStatic}.
+   *   <li>If given a {@link BuiltinId}, this is {@link IFun.Static.Builtin}.
+   *   <li>Otherwise, this throws an {@link IllegalArgumentException}.
+   * </ul>
+   */
+  static IFun of(Object value) {
+    return switch (value) {
+      case Node<?> n -> new DynamicNode(n.cast(FunSXP.class));
+      case Closure c -> new SemiStatic(c);
+      case BuiltinId b -> new Static.Builtin(b);
+      default -> throw new IllegalArgumentException("Unknown IFun value: " + value);
+    };
+  }
+
   /** The instruction whose function is this is a call to a dynamically-resolved function. */
   record DynamicNode(Node<? extends FunSXP> value) implements IFun {}
 

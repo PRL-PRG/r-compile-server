@@ -1,16 +1,23 @@
-package org.prlprg.ir.cfg;
+package org.prlprg.ir.cfg.builder;
 
 import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import org.prlprg.ir.cfg.JumpData.Deopt;
-import org.prlprg.ir.cfg.JumpData.Goto;
-import org.prlprg.ir.cfg.JumpData.NonLocalReturn;
-import org.prlprg.ir.cfg.JumpData.Return;
-import org.prlprg.ir.cfg.JumpData.Unreachable;
+import org.prlprg.ir.cfg.BB;
+import org.prlprg.ir.cfg.BatchSubst;
+import org.prlprg.ir.cfg.CFG;
+import org.prlprg.ir.cfg.InstrOrPhi;
+import org.prlprg.ir.cfg.Jump;
+import org.prlprg.ir.cfg.Phi;
+import org.prlprg.ir.cfg.instr.JumpData;
+import org.prlprg.ir.cfg.instr.JumpData.Deopt;
+import org.prlprg.ir.cfg.instr.JumpData.Goto;
+import org.prlprg.ir.cfg.instr.JumpData.NonLocalReturn;
+import org.prlprg.ir.cfg.instr.JumpData.Return;
+import org.prlprg.ir.cfg.instr.JumpData.Unreachable;
 
-interface BBInline extends BBCompoundMutate {
+public interface BBInline extends BBCompoundMutate {
   /**
    * Insert the entire {@link CFG} in between statements in the basic block.
    *

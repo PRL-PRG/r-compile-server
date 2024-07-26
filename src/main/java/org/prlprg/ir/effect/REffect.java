@@ -1,6 +1,6 @@
 package org.prlprg.ir.effect;
 
-import org.prlprg.ir.cfg.StmtData.Force;
+import org.prlprg.ir.cfg.instr.StmtData.Force;
 
 /** Effect which may be performed when evaluating an instruction or calling a function. */
 public enum REffect {

@@ -11,6 +11,8 @@ import org.prlprg.bc.Bc;
 import org.prlprg.ir.cfg.CFG;
 import org.prlprg.ir.cfg.Node;
 import org.prlprg.ir.cfg.StaticEnv;
+import org.prlprg.ir.cfg.instr.JumpData;
+import org.prlprg.ir.cfg.instr.StmtData;
 import org.prlprg.ir.closure.ClosureVersion.CallContext;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
@@ -44,12 +46,12 @@ import org.prlprg.util.Pair;
  *       call contexts that are likely to be met and assumptions that are likely to hold.
  *   <li>The optimized versions are created using this feedback: they have the predicated call
  *       contexts and speculative assumptions. They are only dispatched if their call context is
- *       met, and if any of their speculative assumptions fail, they {@linkplain
- *       org.prlprg.ir.cfg.JumpData.Deopt "deopt"}. In a deopt, evaluation constructs the context
- *       (stack frame etc.) that would be at the equivalent line of code the baseline version, then
- *       long-jumps to that line of code. When a closure version "deopt"s, it also deletes itself
- *       and adds new feedback to the closure which will prevent the failed speculative assumption
- *       from being compiled again (since deopt-ing is expensive).
+ *       met, and if any of their speculative assumptions fail, they {@linkplain JumpData.Deopt
+ *       "deopt"}. In a deopt, evaluation constructs the context (stack frame etc.) that would be at
+ *       the equivalent line of code the baseline version, then long-jumps to that line of code.
+ *       When a closure version "deopt"s, it also deletes itself and adds new feedback to the
+ *       closure which will prevent the failed speculative assumption from being compiled again
+ *       (since deopt-ing is expensive).
  * </ul>
  */
 public final class Closure extends CodeObject {
@@ -78,8 +80,8 @@ public final class Closure extends CodeObject {
    * @param origin The GNU-R closure. The IR closure keeps this closure's parameters, environment
    *     (although static environment may differ, see {@link #env()}), and behavior.
    * @param env The closure's environment. This is {@linkplain StaticEnv#UNKNOWN unclosed} unless
-   *     it's an inner closure (from {@link org.prlprg.ir.cfg.StmtData.MkCls MkCls}), in which case
-   *     it's the outer closure's environment.
+   *     it's an inner closure (from {@link StmtData.MkCls MkCls}), in which case it's the outer
+   *     closure's environment.
    *     <p>{@code origin}'s environment is replaced with {@link SEXPs#EMPTY_ENV} if not already, in
    *     order to normalize the data since it shouldn't be used.
    * @throws IllegalArgumentException If the closure's body isn't bytecode.
@@ -144,7 +146,7 @@ public final class Closure extends CodeObject {
    * Closure's environment.
    *
    * <p>This is {@linkplain StaticEnv#UNKNOWN unclosed} unless it's an inner closure (from {@link
-   * org.prlprg.ir.cfg.StmtData.MkCls MkCls}), in which case it's the outer closure's environment.
+   * StmtData.MkCls MkCls}), in which case it's the outer closure's environment.
    */
   public Node<? extends EnvSXP> env() {
     return env;
@@ -355,11 +357,10 @@ public final class Closure extends CodeObject {
   /**
    * Return a closure, and then replace its data with that of another closure later.
    *
-   * <p>This is necessary for deserialization, since we deserialize {@link
-   * org.prlprg.ir.cfg.StmtData.MkCls StmtData.MkCls} before we deserialize the inner closure it
-   * contains; we give {@link org.prlprg.ir.cfg.StmtData.MkCls MkCls} the returned inner closure,
-   * which is initially filled with misc data, but is late-assigned before the entire closure is
-   * returned to code outside the package.
+   * <p>This is necessary for deserialization, since we deserialize {@link StmtData.MkCls
+   * StmtData.MkCls} before we deserialize the inner closure it contains; we give {@link
+   * StmtData.MkCls MkCls} the returned inner closure, which is initially filled with misc data, but
+   * is late-assigned before the entire closure is returned to code outside the package.
    */
   static Pair<Closure, LateConstruct> lateConstruct(String name) {
     var closure =

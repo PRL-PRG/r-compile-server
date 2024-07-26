@@ -1,8 +1,14 @@
-package org.prlprg.ir.cfg;
+package org.prlprg.ir.cfg.builder;
 
 import java.util.function.Supplier;
+import org.prlprg.ir.cfg.BB;
+import org.prlprg.ir.cfg.BBId;
+import org.prlprg.ir.cfg.CFG;
+import org.prlprg.ir.cfg.CFGEdit;
+import org.prlprg.ir.cfg.CFGObserver;
+import org.prlprg.ir.cfg.Node;
 
-interface CFGIntrinsicMutate {
+public interface CFGIntrinsicMutate {
   // region mutate BBs
   /** Create, insert, and return a new basic block. */
   BB addBB();

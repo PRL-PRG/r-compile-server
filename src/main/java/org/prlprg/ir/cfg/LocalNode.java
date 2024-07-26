@@ -1,6 +1,7 @@
 package org.prlprg.ir.cfg;
 
 import org.prlprg.ir.cfg.CFGEdit.SetLocalNodeId;
+import org.prlprg.ir.cfg.builder.CFGCleanup;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;

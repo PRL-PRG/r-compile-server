@@ -28,6 +28,12 @@ import org.prlprg.ir.cfg.CFGVerifyException.BrokenInvariant;
 import org.prlprg.ir.cfg.CFGVerifyException.MissingJump;
 import org.prlprg.ir.cfg.CFGVerifyException.PhisInEntryBB;
 import org.prlprg.ir.cfg.CFGVerifyException.PhisInSinglePredecessorBB;
+import org.prlprg.ir.cfg.builder.CFGCleanup;
+import org.prlprg.ir.cfg.builder.CFGCompoundMutate;
+import org.prlprg.ir.cfg.builder.CFGIntrinsicMutate;
+import org.prlprg.ir.cfg.builder.CFGQuery;
+import org.prlprg.ir.cfg.builder.CFGVerify;
+import org.prlprg.ir.cfg.instr.InstrVerifyException;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.util.WeakHashSet;
 
@@ -40,10 +46,10 @@ import org.prlprg.util.WeakHashSet;
 public class CFG
     implements CFGQuery,
         CFGAnalyses,
-        CFGIntrinsicMutate,
-        CFGCompoundMutate,
-        CFGCleanup,
-        CFGVerify,
+    CFGIntrinsicMutate,
+    CFGCompoundMutate,
+    CFGCleanup,
+    CFGVerify,
         CFGParsePrint,
         CFGPirSerialize {
   private final Set<CFGObserver> setObservers = new WeakHashSet<>();
