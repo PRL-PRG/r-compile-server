@@ -9,12 +9,12 @@ import javax.annotation.concurrent.Immutable;
 import org.prlprg.ir.cfg.BB;
 import org.prlprg.ir.cfg.CFG;
 import org.prlprg.ir.cfg.Instr;
-import org.prlprg.ir.cfg.JumpData.Deopt;
-import org.prlprg.ir.cfg.JumpData.Unreachable;
 import org.prlprg.ir.cfg.Node;
 import org.prlprg.ir.cfg.RContext;
-import org.prlprg.ir.cfg.StmtData.PopContext;
-import org.prlprg.ir.cfg.StmtData.PushContext;
+import org.prlprg.ir.cfg.instr.JumpData.Deopt;
+import org.prlprg.ir.cfg.instr.JumpData.Unreachable;
+import org.prlprg.ir.cfg.instr.StmtData.PopContext;
+import org.prlprg.ir.cfg.instr.StmtData.PushContext;
 import org.prlprg.util.Pair;
 import org.prlprg.util.Strings;
 

@@ -1,11 +1,18 @@
-package org.prlprg.ir.cfg;
+package org.prlprg.ir.cfg.builder;
 
 import com.google.common.collect.Streams;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.prlprg.ir.analysis.CFGAnalyses;
+import org.prlprg.ir.cfg.CFG;
+import org.prlprg.ir.cfg.CFGIterator.Dfs;
+import org.prlprg.ir.cfg.ControlFlow.Branch;
+import org.prlprg.ir.cfg.ControlFlow.Goto;
+import org.prlprg.ir.cfg.Phi;
+import org.prlprg.ir.cfg.instr.JumpData;
+import org.prlprg.ir.cfg.instr.StmtData;
 
-interface CFGCleanup extends CFGQuery, CFGAnalyses, CFGIntrinsicMutate, CFGCompoundMutate {
+public interface CFGCleanup extends CFGQuery, CFGAnalyses, CFGIntrinsicMutate, CFGCompoundMutate {
   /**
    * Cleanup the CFG. Specifically:
    *
@@ -31,7 +38,7 @@ interface CFGCleanup extends CFGQuery, CFGAnalyses, CFGIntrinsicMutate, CFGCompo
         () -> {
           var defUses = defUses();
 
-          var iter = new CFGIterator.Dfs((CFG) this);
+          var iter = new Dfs((CFG) this);
           while (iter.hasNext()) {
             var bb = iter.next();
 
@@ -51,7 +58,7 @@ interface CFGCleanup extends CFGQuery, CFGAnalyses, CFGIntrinsicMutate, CFGCompo
             // Convert branch instructions where both branches are the same BB into single-branch
             // variants.
             for (var bb : iter()) {
-              if (bb.controlFlow() instanceof ControlFlow.Branch(var ifTrue, var ifFalse)
+              if (bb.controlFlow() instanceof Branch(var ifTrue, var ifFalse)
                   && ifTrue == ifFalse) {
                 var phiInputs = ifTrue.phis().stream().map(phi -> phi.input(bb)).toList();
                 bb.replaceJump(new JumpData.Goto(ifTrue));
@@ -89,10 +96,10 @@ interface CFGCleanup extends CFGQuery, CFGAnalyses, CFGIntrinsicMutate, CFGCompo
 
             // Merge basic blocks with only one successor that has only one predecessor (and vice
             // versa), and blocks with only one successor, no instructions, and no unique phi input.
-            var iter1 = new CFGIterator.Dfs((CFG) this);
+            var iter1 = new Dfs((CFG) this);
             while (iter1.hasNext()) {
               var bb = iter1.next();
-              while (bb.controlFlow() instanceof ControlFlow.Goto(var nextBb)
+              while (bb.controlFlow() instanceof Goto(var nextBb)
                   && ((nextBb != entry() && nextBb.hasSinglePredecessor())
                       || (bb.stmts().isEmpty()
                           && nextBb.phis().stream()

@@ -1,6 +1,7 @@
 package org.prlprg.ir.cfg;
 
 import com.google.common.collect.ImmutableList;
+import org.prlprg.ir.cfg.instr.StmtData;
 
 /**
  * IR instruction which isn't the final instruction of a basic block and doesn't affect control

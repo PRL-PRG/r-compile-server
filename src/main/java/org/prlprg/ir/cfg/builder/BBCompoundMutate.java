@@ -1,4 +1,4 @@
-package org.prlprg.ir.cfg;
+package org.prlprg.ir.cfg.builder;
 
 import com.google.common.collect.ImmutableList;
 import java.util.Collection;
@@ -6,7 +6,14 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-import org.prlprg.ir.cfg.builder.JumpInsertion;
+import org.prlprg.ir.cfg.BB;
+import org.prlprg.ir.cfg.CFG;
+import org.prlprg.ir.cfg.InstrOrPhi;
+import org.prlprg.ir.cfg.Jump;
+import org.prlprg.ir.cfg.Phi;
+import org.prlprg.ir.cfg.Stmt;
+import org.prlprg.ir.cfg.instr.JumpData;
+import org.prlprg.ir.cfg.instr.StmtData;
 import org.prlprg.util.Strings;
 
 public interface BBCompoundMutate extends BBIntrinsicMutate, BBQuery {

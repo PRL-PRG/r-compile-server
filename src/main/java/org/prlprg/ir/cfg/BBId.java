@@ -23,11 +23,19 @@ public final class BBId {
         "^" + (disambiguator == 0 ? "" : disambiguator) + NodeAndBBIds.quoteNameIfNecessary(name);
   }
 
-  int disambiguator() {
+  /** The part of the identifier that distinguishes it from other BB identifiers with the same
+   * {@link #name()}. */
+  public int disambiguator() {
     return disambiguator;
   }
 
-  String name() {
+  /** The part of the identiifer that is for the user, to provide insight into what the BB does.
+   *
+   * <p>e.g. "entry", "forLoopStart", "dispatchNonObject".
+   *
+   * <p>In some cases (if we don't really have a good name) this will be empty.
+   */
+  public String name() {
     return name;
   }
 

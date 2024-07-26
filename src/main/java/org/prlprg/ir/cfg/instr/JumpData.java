@@ -1,13 +1,14 @@
-package org.prlprg.ir.cfg;
+package org.prlprg.ir.cfg.instr;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Streams;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.checkerframework.checker.index.qual.SameLen;
+import org.prlprg.ir.cfg.BB;
+import org.prlprg.ir.cfg.Instr;
 import org.prlprg.ir.effect.REffect;
 import org.prlprg.sexp.LangSXP;
-import org.prlprg.util.NotImplementedError;
 import org.prlprg.util.Pair;
 
 /**
@@ -38,7 +39,7 @@ public sealed interface JumpData extends InstrData {
   }
 
   @EffectsAreAribtrary
-  record NonLocalReturn(ISexp value, @IsEnv ISexp env) implements JumpData {}
+  record NonLocalReturn(ISexp value, ISexp env) implements JumpData {}
 
   @EffectsAre(REffect.LeaksNonEnvArg)
   record Return(ISexp value) implements JumpData {}

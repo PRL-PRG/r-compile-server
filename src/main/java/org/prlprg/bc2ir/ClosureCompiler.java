@@ -7,8 +7,8 @@ import static org.prlprg.ir.analysis.PropertiesComputer.computePromiseProperties
 import org.prlprg.RSession;
 import org.prlprg.bc.Compiler;
 import org.prlprg.ir.cfg.CFG;
-import org.prlprg.ir.cfg.IsEnv;
 import org.prlprg.ir.cfg.StaticEnv;
+import org.prlprg.ir.cfg.instr.StmtData;
 import org.prlprg.ir.closure.Closure;
 import org.prlprg.ir.closure.ClosureVersion;
 import org.prlprg.ir.closure.Promise;
@@ -37,7 +37,7 @@ public class ClosureCompiler {
    * @param name A name for debugging. Typically the variable it was assigned to if known. "" is
    *     acceptable.
    * @param env The closure's environment. This is {@linkplain StaticEnv#UNKNOWN unclosed} unless
-   *     it's an inner closure (from {@link org.prlprg.ir.cfg.StmtData.MkCls MkCls}), in which case
+   *     it's an inner closure (from {@link StmtData.MkCls MkCls}), in which case
    *     it's the outer closure's environment.
    * @throws IllegalArgumentException If the closure's body isn't bytecode (in this case, you must
    *     use a {@link org.prlprg.bc.Compiler} to compile it before calling this).
@@ -45,7 +45,7 @@ public class ClosureCompiler {
    * @throws CFGCompilerUnsupportedBcException If the closure can't be compiled because it does
    *     something complex which the compiler doesn't support yet.
    */
-  public static Closure compileBaselineClosure(String name, CloSXP sexp, @IsEnv ISexp env) {
+  public static Closure compileBaselineClosure(String name, CloSXP sexp, ISexp env) {
     return compileBaselineClosure(name, sexp, env, new Module());
   }
 
@@ -69,7 +69,7 @@ public class ClosureCompiler {
    * @param name A name for debugging. Typically the variable it was assigned to if known. "" is
    *     acceptable.
    * @param env The closure's environment. This is {@linkplain StaticEnv#UNKNOWN unclosed} unless
-   *     it's an inner closure (from {@link org.prlprg.ir.cfg.StmtData.MkCls MkCls}), in which case
+   *     it's an inner closure (from {@link StmtData.MkCls MkCls}), in which case
    *     it's the outer closure's environment.
    * @throws IllegalArgumentException If the closure's body isn't bytecode (in this case, you must
    *     use a {@link org.prlprg.bc.Compiler} to compile it before calling this).
@@ -78,7 +78,7 @@ public class ClosureCompiler {
    *     something complex that the compiler doesn't support yet.
    */
   public static Closure compileBaselineClosure(
-      String name, CloSXP sexp, @IsEnv ISexp env, Module module) {
+      String name, CloSXP sexp, ISexp env, Module module) {
     if (!(sexp.body() instanceof BCodeSXP)) {
       var rSession = module.serverRSession();
       if (rSession == null) {
@@ -134,7 +134,7 @@ public class ClosureCompiler {
    * @throws ClosureCompilerUnsupportedException If the promise code is an AST.
    */
   static Promise compilePromise(
-      String name, SEXP promiseCodeSexp, @IsEnv ISexp prenv, Module module) {
+      String name, SEXP promiseCodeSexp, ISexp prenv, Module module) {
     if (!(promiseCodeSexp instanceof BCodeSXP promiseBcSexp)) {
       throw new ClosureCompilerUnsupportedException(
           "Can't compile a promise whose body is an AST", promiseCodeSexp);

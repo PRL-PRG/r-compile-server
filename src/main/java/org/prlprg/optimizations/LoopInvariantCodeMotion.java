@@ -8,10 +8,9 @@ import org.prlprg.ir.analysis.Loops.Loop;
 import org.prlprg.ir.cfg.BB;
 import org.prlprg.ir.cfg.CFG;
 import org.prlprg.ir.cfg.Instr;
-import org.prlprg.ir.cfg.IsEnv;
-import org.prlprg.ir.cfg.JumpData;
+import org.prlprg.ir.cfg.instr.JumpData;
 import org.prlprg.ir.cfg.Stmt;
-import org.prlprg.ir.cfg.StmtData;
+import org.prlprg.ir.cfg.instr.StmtData;
 import org.prlprg.ir.effect.REffect;
 import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.sexp.RegSymSXP;
@@ -90,13 +89,13 @@ class LoopInvariantCodeMotion implements OptimizationPass {
     };
   }
 
-  private boolean loopOverwritesBinding(RegSymSXP binding, @IsEnv ISexp env, Loop loop) {
+  private boolean loopOverwritesBinding(RegSymSXP binding, ISexp env, Loop loop) {
     return loop.body().stream()
         .flatMap(BB::streamInstrs)
         .anyMatch(instr -> instrOverwritesBinding(binding, env, instr));
   }
 
-  private boolean instrOverwritesBinding(RegSymSXP binding, @IsEnv ISexp env, Instr instr) {
+  private boolean instrOverwritesBinding(RegSymSXP binding, ISexp env, Instr instr) {
     return switch (instr.data()) {
       case StmtData.MkEnv mk -> instr == env || mk.names().contains(binding);
       case StmtData.StVar st -> st.name().equals(binding);

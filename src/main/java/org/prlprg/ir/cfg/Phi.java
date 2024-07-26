@@ -10,8 +10,6 @@ import java.util.Map;
 import java.util.SequencedCollection;
 import java.util.SequencedSet;
 import org.jetbrains.annotations.UnmodifiableView;
-import org.prlprg.ir.cfg.InstrData.CascadingInstrUpdate;
-import org.prlprg.ir.cfg.InstrData.CascadingUpdatedInstrs;
 import org.prlprg.util.Classes;
 import org.prlprg.util.SequencedCollections;
 import org.prlprg.util.SmallBinarySet;

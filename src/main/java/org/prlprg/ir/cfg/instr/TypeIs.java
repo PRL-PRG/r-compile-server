@@ -1,4 +1,4 @@
-package org.prlprg.ir.cfg;
+package org.prlprg.ir.cfg.instr;
 
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;

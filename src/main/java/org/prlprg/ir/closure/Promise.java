@@ -8,6 +8,7 @@ import org.prlprg.bc.Bc;
 import org.prlprg.ir.cfg.CFG;
 import org.prlprg.ir.cfg.Node;
 import org.prlprg.ir.cfg.StaticEnv;
+import org.prlprg.ir.cfg.instr.StmtData;
 import org.prlprg.ir.effect.REffect;
 import org.prlprg.ir.effect.REffects;
 import org.prlprg.ir.type.lattice.Lattice;
@@ -256,11 +257,10 @@ public final class Promise extends CodeObject {
   /**
    * Return a promise, and then replace its data with that of another promise later.
    *
-   * <p>This is necessary for deserialization, since we deserialize {@link
-   * org.prlprg.ir.cfg.StmtData.MkProm StmtData.MkProm} before we deserialize the promise it
-   * contains; we give {@link org.prlprg.ir.cfg.StmtData.MkProm MkProm} the returned promise, which
-   * is initially filled with misc data, but is late-assigned before the entire closure is returned
-   * to code outside the package.
+   * <p>This is necessary for deserialization, since we deserialize {@link StmtData.MkProm
+   * StmtData.MkProm} before we deserialize the promise it contains; we give {@link StmtData.MkProm
+   * MkProm} the returned promise, which is initially filled with misc data, but is late-assigned
+   * before the entire closure is returned to code outside the package.
    */
   static Pair<Promise, Promise.LateConstruct> lateConstruct(String name) {
     var promise = new Promise(name, Bc.empty(), new CFG(), StaticEnv.UNKNOWN, Properties.EMPTY);

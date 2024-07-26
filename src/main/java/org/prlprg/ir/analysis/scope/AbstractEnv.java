@@ -9,7 +9,6 @@ import java.util.Set;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.ir.cfg.Instr;
-import org.prlprg.ir.cfg.IsEnv;
 import org.prlprg.ir.cfg.StaticEnv;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
@@ -41,7 +40,7 @@ public final class AbstractEnv implements AbstractNode<AbstractEnv> {
 
   private Map<RegSymSXP, AbstractISexp> entries;
   private Set<ISexp> reachableEnvs;
-  private @Nullable @IsEnv ISexp parentEnv;
+  private @Nullable ISexp parentEnv;
   private boolean isLeaked;
   private boolean isUnknown;
 
@@ -76,7 +75,7 @@ public final class AbstractEnv implements AbstractNode<AbstractEnv> {
     return Collections.unmodifiableSet(reachableEnvs);
   }
 
-  public @IsEnv ISexp parentEnv() {
+  public ISexp parentEnv() {
     return parentEnv == null ? StaticEnv.UNKNOWN : parentEnv;
   }
 
@@ -109,7 +108,7 @@ public final class AbstractEnv implements AbstractNode<AbstractEnv> {
     }
   }
 
-  public void addReachableEnv(@IsEnv ISexp env) {
+  public void addReachableEnv(ISexp env) {
     if (isUnknown) {
       return;
     }
@@ -117,7 +116,7 @@ public final class AbstractEnv implements AbstractNode<AbstractEnv> {
     reachableEnvs.add(env);
   }
 
-  public void setParentEnv(@IsEnv ISexp parentEnv) {
+  public void setParentEnv(ISexp parentEnv) {
     if (isUnknown) {
       return;
     }

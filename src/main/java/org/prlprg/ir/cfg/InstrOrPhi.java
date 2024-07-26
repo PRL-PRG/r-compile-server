@@ -4,8 +4,6 @@ import java.util.List;
 import java.util.SequencedCollection;
 import org.jetbrains.annotations.Unmodifiable;
 import org.jetbrains.annotations.UnmodifiableView;
-import org.prlprg.ir.cfg.InstrData.CascadingInstrUpdate;
-import org.prlprg.ir.cfg.InstrData.CascadingUpdatedInstrs;
 import org.prlprg.ir.effect.REffects;
 
 /** Either {@link Instr} or {@link Phi}. An immediate child node of a basic block. */
