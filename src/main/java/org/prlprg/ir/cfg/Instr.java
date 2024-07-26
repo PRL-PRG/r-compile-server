@@ -12,7 +12,6 @@ import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.ir.cfg.instr.InputNodeTypeException;
 import org.prlprg.ir.cfg.instr.InstrData;
-import org.prlprg.ir.cfg.instr.InstrVerifyException;
 import org.prlprg.ir.cfg.instr.JumpData;
 import org.prlprg.ir.cfg.instr.StmtData;
 import org.prlprg.ir.closure.CodeObject;
@@ -245,7 +244,7 @@ public sealed abstract class Instr implements InstrOrPhi, InstrOrPhiImpl permits
   // endregion mutators
 
   // region verify and update cached
-  /** Run sanity checks. Either does nothing or throws {@link InstrVerifyException}.
+  /** Run sanity checks. Either does nothing or throws {@link RuntimeException}.
    *
    * <p>See {@link InstrData#verify()} for what it does specifically.
    */

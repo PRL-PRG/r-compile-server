@@ -60,8 +60,9 @@ public abstract sealed class CodeObject permits Closure, Promise {
    * but we still are for outer CFG nodes. We may decide to change this in the future, in which case
    * this method will no longer be "unsafe").
    *
-   * @throws IllegalArgumentException If the replacement node type is incompatible with the old node
-   *     type (e.g. if {@code oldNode} is an {@link Node} and {@code newNode} is not).
+   * @throws IllegalArgumentException If the replacement node type is incompatible with the required
+   *     type of the old node (e.g. if {@code oldNode} is {@code env} and {@code newNode} isn't an
+   *     environment).
    * @see #outerCfgNodes()
    * @see #verifyOuterCfgNodesAreOfCorrectTypes()
    */

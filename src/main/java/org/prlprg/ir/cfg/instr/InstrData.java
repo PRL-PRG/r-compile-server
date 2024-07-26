@@ -14,15 +14,15 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Stream;
-import org.jetbrains.annotations.Nullable;
+import javax.annotation.Nullable;
 import org.jetbrains.annotations.Unmodifiable;
 import org.prlprg.ir.cfg.CascadingUpdatedInstrs;
 import org.prlprg.ir.cfg.IFun;
 import org.prlprg.ir.cfg.Instr;
 import org.prlprg.ir.cfg.Node;
+import org.prlprg.ir.closure.CodeObject;
 import org.prlprg.ir.effect.REffects;
 import org.prlprg.util.InvalidAnnotationError;
-import org.prlprg.util.NotImplementedError;
 import org.prlprg.util.Reflection;
 
 /**
@@ -116,6 +116,8 @@ public sealed interface InstrData permits JumpData, StmtData {
               "`@VarInputs` component must not be nullable, but found nullable");
         }
         inputs.addAll(Arrays.asList((Object[]) Objects.requireNonNull(value)));
+      } else if (CodeObject.class.isAssignableFrom(component.getType())) {
+        inputs.add(((CodeObject) value).outerCfgNodes());
       } else {
         inputs.add(value);
       }
@@ -145,7 +147,7 @@ public sealed interface InstrData permits JumpData, StmtData {
    *                               corresponding {@link Node} component's type parameter (if the
    *                               input's actual type is wrong, it gets {@link IllegalArgumentException}).
    */
-  default InstrData setInputs(CascadingUpdatedInstrs cascade, Object[] inputs) {
+  default InstrData setInputs(@Nullable CascadingUpdatedInstrs cascade, Object[] inputs) {
     var components = getClass().getRecordComponents();
     var newComponentValues = new Object[components.length];
     var expectedNumInputs = 0;
@@ -186,6 +188,13 @@ public sealed interface InstrData permits JumpData, StmtData {
                       + ", but got a " + varInputs[j].getClass().getName());
             }
           }
+        } else if (CodeObject.class.isAssignableFrom(component.getType())) {
+          var codeObject = (CodeObject) oldComponentValue;
+          var oldOuterCfgNodes = codeObject.outerCfgNodes();
+          for (var j = 0; j < oldOuterCfgNodes.size(); j++) {
+            expectedNumInputs++;
+            codeObject.unsafeReplaceOuterCfgNode(oldOuterCfgNodes.get(j), (Node<?>) inputs[i + j]);
+          }
         } else {
           expectedNumInputs++;
           newComponentValues[i] = inputs[i];
@@ -224,7 +233,7 @@ public sealed interface InstrData permits JumpData, StmtData {
    *                                given the existing {@link #inputs()} (which were originally
    *                                valid, but are no longer because the node's type changed).
    */
-  default void checkInputNodeTypes(CascadingUpdatedInstrs cascade) {
+  default void checkInputNodeTypes(@Nullable CascadingUpdatedInstrs cascade) {
     for (var component : getClass().getRecordComponents()) {
       var componentValue = Reflection.getComponent(asRecord(), component);
 
@@ -252,6 +261,8 @@ public sealed interface InstrData permits JumpData, StmtData {
             throw new InputNodeTypeException(cascade, varInputNode, componentElementNodeType);
           }
         }
+      } else if (CodeObject.class.isAssignableFrom(component.getType())) {
+        ((CodeObject) componentValue).verifyOuterCfgNodesAreOfCorrectTypes();
       } else {
         var componentNodeType = nodeTypeIfNode(component.getGenericType());
         if (componentNodeType == null) {
@@ -298,7 +309,39 @@ public sealed interface InstrData permits JumpData, StmtData {
    * {@link InvalidAnnotationError} if the instruction has bad or missing annotations.
    */
   default REffects effects() {
-    throw new NotImplementedError();
+    var effects = new REffects();
+
+    var annotations = getClass().getAnnotation(Effects.class);
+    if (annotations == null) {
+      return effects;
+    }
+
+    var components = getClass().getRecordComponents();
+
+    for (var annotation : annotations.value()) {
+      var effectClass = annotation.value();
+      var effectInputIndices = annotation.inputs();
+
+      var effectInputs = new Object[effectInputIndices.length];
+      for (var i = 0; i < effectInputIndices.length; i++) {
+        var effectInputIndex = effectInputIndices[i];
+        effectInputs[i] = Reflection.getComponent(asRecord(), components[effectInputIndex]);
+      }
+
+      try {
+        var effect = Reflection.construct(effectClass, effectInputs);
+        effects.add(effect);
+      } catch (IllegalArgumentException e) {
+        throw new InvalidAnnotationError(
+            getClass().getSimpleName(),
+            "Malformed effect " + effectClass.getSimpleName() + " and inputs "
+                + Arrays.toString(effectInputs),
+            e);
+
+      }
+    }
+
+    return effects;
   }
 
   /** Compute and return the {@link Node#type()}s of the {@link Instr#outputs()} of an instruction
@@ -308,10 +351,11 @@ public sealed interface InstrData permits JumpData, StmtData {
    * {@link InvalidAnnotationError} if the instruction has bad or missing annotations.
    */
   default @Unmodifiable List<Class<?>> outputTypes() {
-    throw new NotImplementedError();
+    var outputs = getClass().getAnnotation(Outputs.class);
+    return outputs == null ? List.of() : Arrays.asList(outputs.value());
   }
 
-  /** Run sanity checks. Either does nothing or throws {@link InstrVerifyException}.
+  /** Run sanity checks. Either does nothing or throws {@link RuntimeException}.
    *
    * <p>Specifically:
    * <ul>
@@ -321,6 +365,10 @@ public sealed interface InstrData permits JumpData, StmtData {
    * </ul>
    */
   default void verify() {
-    throw new NotImplementedError();
+    // Make sure node types are correct.
+    checkInputNodeTypes(null);
+
+    // Make sure effects can be constructed.
+    effects();
   }
 }

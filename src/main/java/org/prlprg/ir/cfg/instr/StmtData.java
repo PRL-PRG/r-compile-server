@@ -9,10 +9,8 @@ import org.prlprg.ir.cfg.BB;
 import org.prlprg.ir.cfg.CFG;
 import org.prlprg.ir.cfg.CallArguments;
 import org.prlprg.ir.cfg.CallArguments.UnknownOrder;
+import org.prlprg.ir.cfg.FrameState;
 import org.prlprg.ir.cfg.IFun;
-import org.prlprg.ir.cfg.IFun.DynamicCall;
-import org.prlprg.ir.cfg.IFun.StaticBuiltinCall;
-import org.prlprg.ir.cfg.IFun.StaticCompiledCall;
 import org.prlprg.ir.cfg.Instr;
 import org.prlprg.ir.cfg.Node;
 import org.prlprg.ir.cfg.NodeId;
@@ -28,6 +26,9 @@ import org.prlprg.ir.type.lattice.YesOrMaybe;
 import org.prlprg.primitive.BuiltinId;
 import org.prlprg.primitive.IsTypeCheck;
 import org.prlprg.rshruntime.BcPosition;
+import org.prlprg.sexp.EnvSXP;
+import org.prlprg.sexp.FunSXP;
+import org.prlprg.sexp.IntSXP;
 import org.prlprg.sexp.LangSXP;
 import org.prlprg.sexp.RegSymSXP;
 import org.prlprg.sexp.SEXP;
@@ -44,131 +45,74 @@ public sealed interface StmtData extends InstrData {
    * immediately, we can replace with {@code NoOp}s, then batch remove all {@code NoOp}s to improve
    * performance.
    */
-  @EffectsAre({})
-  record NoOp() implements Void, Placeholder {}
+  @Intrinsic("noOp")
+  record NoOp() implements StmtData {}
 
-  /**
-   * If we are substituting many statements with ones of a different shape (different compile-time
-   * type, # of return values, or the substitution already exists), instead of doing so immediately,
-   * which is ordinarily {@code O(numSubsts * cfg.numInstrs)}, we can substitute each with a {@code
-   * Proxy} that is the same shape and compile-time type, which is {@code O(numSubsts)}, then in a
-   * single pass "actually" substitute all {@code Proxy}s with their targets in {@code
-   * O(cfg.numInstrs)} (regardless of the # of proxies; the combined time complexity of both phases
-   * is {@code O(numSubsts + cfg.numInstrs)}).
-   */
-  sealed interface Proxy<I extends Stmt> extends StmtData<I>, Placeholder {
-    I target();
+  // Many of these are derived from PIR `instruction.h`
 
-    @Override
-    default REffects computeEffects() {
-      return target().effects();
-    }
-  }
-
-  record ISexpProxy(ISexpStmt target) implements ISexp_, Proxy<ISexpStmt> {}
-
-  // Order of the following is the same as in PIR `instruction.h`
-
-  @EffectsAre(REffect.ReadsEnvArg)
+  @Intrinsic("fs")
+  @Effect(value = ReadsEnv.class, inputs = 3)
+  @Outputs(FrameState.class)
   record FrameState_(
       BcPosition location,
       boolean inPromise,
-      ImmutableList<Node> stack,
-      ISexp env,
-      @Nullable FrameState inlinedNext)
-      implements StmtData<FrameStateStmt> {
+      ImmutableList<Node<?>> stack,
+      Node<? extends EnvSXP> env,
+      @Nullable Node<? extends FrameState> inlinedNext)
+      implements StmtData {
     public FrameState_(
-        BcPosition location, boolean inPromise, ImmutableList<Node> stack, ISexp env) {
+        BcPosition location, boolean inPromise, ImmutableList<Node<?>> stack, Node<? extends EnvSXP> env) {
       this(location, inPromise, stack, env, null);
-    }
-
-    @Override
-    public FrameStateStmt make(CFG cfg, NodeId<? extends Instr> id) {
-      return new FrameStateStmtImpl(cfg, id, this);
     }
   }
 
   /** Effects are arbitrary because it implicitly forces. */
-  @TypeIs("ANY_FUNCTION")
-  @EffectsAreAribtrary()
-  record LdFun(@Override RegSymSXP name, @Override ISexp env) implements Load {
-    @Override
-    public boolean missOk() {
-      return false;
-    }
-  }
+  @Effect(value = Loads.class, inputs = {0, 1})
+  @Effect(Forces.class)
+  @Outputs(FunSXP.class)
+  record LdFun(RegSymSXP name, Node<? extends EnvSXP> env) implements StmtData {}
 
   /** Doesn't implicitly force, unlike {@link org.prlprg.bc.BcInstr.GetVar BcInstr.GetVar}. */
-  @TypeIs("ANY")
-  @EffectsAre({REffect.Error, REffect.ReadsEnvArg})
-  record LdVar(@Override RegSymSXP name, @Override boolean missOk, @Override ISexp env)
-      implements Load {}
+  @Effect(value = Loads.class, inputs = {0, 1})
+  @Outputs(SEXP.class)
+  record LdVar(RegSymSXP name, Node<? extends EnvSXP> env, boolean missOk) implements StmtData {}
 
   /** Doesn't implicitly force, unlike {@link org.prlprg.bc.BcInstr.DdVal BcInstr.DdVal}. */
-  @TypeIs("ANY")
-  @EffectsAre({REffect.Error, REffect.ReadsEnvArg})
-  record LdDdVal(int ddNum, @Override boolean missOk, @Override ISexp env) implements Load {
-    @Override
-    public RegSymSXP name() {
-      return SEXPs.symbol(".." + ddNum);
-    }
-  }
+  @Effect(value = Loads.class, inputs = {0, 1})
+  @Outputs(ValueSXP.class)
+  record LdDdVal(int ddNum, Node<? extends EnvSXP> env, boolean missOk) implements StmtData {}
 
   // TODO: It says in PIR that this should eventually be replaced with a non-dispatching extract
   //  call (probably an old comment so idk if it's still relevant)
-  @EffectsAre(REffect.Error)
-  record ToForSeq(ISexp value) implements ISexp_ {
-    @Override
-    public RType computeType() {
-      // TODO
-      return RType.ANY;
-    }
-  }
+  @Effect(value = Errors.class)
+  @Outputs(SEXP.class)
+  record ToForSeq(Node<? extends SEXP> value) implements StmtData {}
 
-  @TypeIs("INT")
-  @EffectsAre({})
-  record Length(ISexp value) implements ISexp_ {}
+  @Outputs(IntSXP.class)
+  record Length(Node<? extends SEXP> value) implements StmtData {}
 
-  // FIXME: Insert in bytecode->IR `Compiler`. Should this be a `Load`?
-  @EffectsAre({})
-  record LdArg(int index, RType type) implements ISexp_ {
-    public LdArg(int index) {
-      this(index, RType.ANY);
-    }
+  @Effect(value = Loads.class, inputs = {0, 1})
+  @Effect(value = Errors.class)
+  @Outputs(BoolSXP.class)
+  record IsMissing(RegSymSXP varName, Node<? extends EnvSXP> env) implements StmtData {}
 
-    @Override
-    public RType computeType() {
-      return type;
-    }
-  }
+  @Effect(value = Errors.class)
+  @Outputs(NotMissingSXP.class)
+  @OutputsGeneric("Intersect 0")
+  record ChkMissing(Node<? extends SEXP> value) implements StmtData {}
 
-  @TypeIs("LGL")
-  @EffectsAre({REffect.Error, REffect.ReadsEnvArg})
-  record IsMissing(RegSymSXP varName, ISexp env) implements ISexp_ {}
-
-  @EffectsAre(REffect.Error)
-  record ChkMissing(ISexp value) implements ISexp_ {
-    @Override
-    public RType computeType() {
-      return value.type().notMissing();
-    }
-  }
-
-  @EffectsAre(REffect.Error)
-  record ChkFun(ISexp value) implements ISexp_ {
-    @Override
-    public RType computeType() {
-      return value.type().intersectionOf(RType.ANY_FUNCTION);
-    }
-  }
+  @Effect(value = Errors.class)
+  @Outputs(FunSXP.class)
+  @OutputsGeneric("Intersect 0")
+  record ChkFun(Node<? extends SEXP> value) implements StmtData {}
 
   @EffectsAre({REffect.LeaksNonEnvArg, REffect.ReadsEnvArg, REffect.WritesEnvArg})
-  record StVarSuper(@Override RegSymSXP name, @Override ISexp value, @Override ISexp env)
-      implements Store {}
+  record StVarSuper(RegSymSXP name, ISexp value, ISexp env)
+      implements StmtData {}
 
   @TypeIs("ANY")
   @EffectsAre({REffect.Error, REffect.ReadsEnvArg})
-  record LdVarSuper(RegSymSXP name, ISexp env) implements Load {
+  record LdVarSuper(RegSymSXP name, ISexp env) implements StmtData {
     @Override
     public boolean missOk() {
       return false;
@@ -177,8 +121,8 @@ public sealed interface StmtData extends InstrData {
 
   @EffectsAre({REffect.LeaksNonEnvArg, REffect.WritesEnvArg})
   record StVar(
-      @Override RegSymSXP name, @Override ISexp value, @Override ISexp env, boolean isArg)
-      implements Store {
+      RegSymSXP name, ISexp value, ISexp env, boolean isArg)
+      implements StmtData {
     public StVar(RegSymSXP name, ISexp value, ISexp env) {
       this(name, value, env, false);
     }
@@ -186,7 +130,7 @@ public sealed interface StmtData extends InstrData {
 
   @TypeIs("ANY_PROMISE_NOT_MISSING")
   @EffectsAre({})
-  record MkProm(Promise promise) implements ISexp_ {
+  record MkProm(Promise promise) implements StmtData {
     @Override
     public void verify(boolean isInsert) throws InstrVerifyException {
       // If `isInsert` is `true`, `promise` will be empty, because it gets late-assigned.
@@ -198,7 +142,7 @@ public sealed interface StmtData extends InstrData {
 
   /** Force promise, but don't unwrap it. */
   @EffectsAre(REffect.LeaksNonEnvArg)
-  record StrictifyProm(@TypeIs("PROM") ISexp promise, ISexp value) implements ISexp_ {
+  record StrictifyProm(@TypeIs("PROM") ISexp promise, ISexp value) implements StmtData {
     @Override
     public RType computeType() {
       return promise.type().strict();
@@ -207,7 +151,7 @@ public sealed interface StmtData extends InstrData {
 
   @EffectsAre({})
   @TypeIs("CLO")
-  record MkCls(Closure closure) implements ISexp_ {
+  record MkCls(Closure closure) implements StmtData {
     @Override
     public void verify(boolean isInsert) throws InstrVerifyException {
       // If `isInsert` is `true`, `closure` will be empty, because it gets late-assigned.
@@ -217,7 +161,7 @@ public sealed interface StmtData extends InstrData {
     }
   }
 
-  record Force(ISexp promise, @Nullable FrameState fs, ISexp env) implements ISexp_ {
+  record Force(ISexp promise, @Nullable FrameState fs, ISexp env) implements StmtData {
 
     @Override
     public RType computeType() {
@@ -246,7 +190,7 @@ public sealed interface StmtData extends InstrData {
   }
 
   @TypeIs("LGL")
-  record AsLogical(ISexp value) implements ISexp_ {
+  record AsLogical(ISexp value) implements StmtData {
     @Override
     public REffects computeEffects() {
       return value.type().isSubsetOf(RType.ANY_SIMPLE_PRIM_VEC)
@@ -257,27 +201,27 @@ public sealed interface StmtData extends InstrData {
 
   @TypeIs("INT")
   @EffectsAre({REffect.Warn, REffect.Error})
-  record AsSwitchIdx(ISexp value) implements ISexp_ {}
+  record AsSwitchIdx(ISexp value) implements StmtData {}
 
   @TypeIs("BOOL")
   @EffectsAre({REffect.Warn, REffect.Error})
-  record CheckTrueFalse(ISexp value) implements ISexp_ {}
+  record CheckTrueFalse(ISexp value) implements StmtData {}
 
   @TypeIs("BOOL")
   @EffectsAre({REffect.Warn, REffect.Error})
-  record ColonInputEffects(@Override @Nullable LangSXP ast, ISexp lhs, ISexp rhs)
-      implements ISexp_, InstrData.HasAst {}
+  record ColonInputEffects(@Nullable LangSXP ast, ISexp lhs, ISexp rhs)
+      implements StmtData, InstrData.HasAst {}
 
   @TypeIs("NUMERIC_OR_LOGICAL_NOT_NA")
   @EffectsAre(REffect.Error)
-  record ColonCastLhs(@Override @Nullable LangSXP ast, ISexp lhs)
-      implements ISexp_, InstrData.HasAst {}
+  record ColonCastLhs(@Nullable LangSXP ast, ISexp lhs)
+      implements StmtData, InstrData.HasAst {}
 
   @TypeIs("NUMERIC_OR_LOGICAL_NOT_NA")
   @EffectsAre(REffect.Error)
   record ColonCastRhs(
-      @Override @Nullable LangSXP ast, @TypeIs("NUMERIC_OR_LOGICAL_NOT_NA") ISexp lhs, ISexp rhs)
-      implements ISexp_, InstrData.HasAst {}
+      @Nullable LangSXP ast, @TypeIs("NUMERIC_OR_LOGICAL_NOT_NA") ISexp lhs, ISexp rhs)
+      implements StmtData, InstrData.HasAst {}
 
   sealed interface Subassign extends ISexp_, InstrData.HasAst {
     ISexp vecOrMtx();
@@ -390,11 +334,11 @@ public sealed interface StmtData extends InstrData {
   }
 
   record Subassign1_1D(
-      @Override @Nullable LangSXP ast, ISexp vector, ISexp value, ISexp index, ISexp env)
-      implements SubassignN_1D {}
+      @Nullable LangSXP ast, ISexp vector, ISexp value, ISexp index, ISexp env)
+      implements StmtData {}
 
   @EffectsAre(REffect.Error)
-  record SetVecElt(ISexp vector, ISexp value, ISexp index) implements ISexp_ {
+  record SetVecElt(ISexp vector, ISexp value, ISexp index) implements StmtData {
     @Override
     public RType computeType() {
       // TODO
@@ -403,36 +347,36 @@ public sealed interface StmtData extends InstrData {
   }
 
   record Subassign2_1D(
-      @Override @Nullable LangSXP ast, ISexp value, ISexp vector, ISexp index, ISexp env)
-      implements SubassignN_1D {}
+      @Nullable LangSXP ast, ISexp value, ISexp vector, ISexp index, ISexp env)
+      implements StmtData {}
 
   record Subassign1_2D(
-      @Override @Nullable LangSXP ast,
+      @Nullable LangSXP ast,
       ISexp matrix,
       ISexp value,
       ISexp index1,
       ISexp index2,
       ISexp env)
-      implements SubassignN_2D {}
+      implements StmtData {}
 
   record Subassign2_2D(
-      @Override @Nullable LangSXP ast,
+      @Nullable LangSXP ast,
       ISexp matrix,
       ISexp value,
       ISexp index1,
       ISexp index2,
       ISexp env)
-      implements SubassignN_2D {}
+      implements StmtData {}
 
   record Subassign1_3D(
-      @Override @Nullable LangSXP ast,
+      @Nullable LangSXP ast,
       ISexp matrix,
       ISexp value,
       ISexp index1,
       ISexp index2,
       ISexp index3,
       ISexp env)
-      implements Subassign {
+      implements StmtData {
     @Override
     public ISexp vecOrMtx() {
       return matrix;
@@ -444,28 +388,28 @@ public sealed interface StmtData extends InstrData {
     }
   }
 
-  record Extract1_1D(@Override @Nullable LangSXP ast, ISexp vector, ISexp index, ISexp env)
-      implements ExtractN_1D {}
+  record Extract1_1D(@Nullable LangSXP ast, ISexp vector, ISexp index, ISexp env)
+      implements StmtData {}
 
-  record Extract2_1D(@Override @Nullable LangSXP ast, ISexp vector, ISexp index, ISexp env)
-      implements ExtractN_1D {}
+  record Extract2_1D(@Nullable LangSXP ast, ISexp vector, ISexp index, ISexp env)
+      implements StmtData {}
 
   record Extract1_2D(
-      @Override @Nullable LangSXP ast, ISexp matrix, ISexp index1, ISexp index2, ISexp env)
-      implements ExtractN_2D {}
+      @Nullable LangSXP ast, ISexp matrix, ISexp index1, ISexp index2, ISexp env)
+      implements StmtData {}
 
   record Extract2_2D(
-      @Override @Nullable LangSXP ast, ISexp matrix, ISexp index1, ISexp index2, ISexp env)
-      implements ExtractN_2D {}
+      @Nullable LangSXP ast, ISexp matrix, ISexp index1, ISexp index2, ISexp env)
+      implements StmtData {}
 
   record Extract1_3D(
-      @Override @Nullable LangSXP ast,
+      @Nullable LangSXP ast,
       ISexp matrix,
       ISexp index1,
       ISexp index2,
       ISexp index3,
       ISexp env)
-      implements Extract {
+      implements StmtData {
     @Override
     public ISexp vecOrMtx() {
       return matrix;
@@ -484,7 +428,7 @@ public sealed interface StmtData extends InstrData {
    */
   @TypeIs("LGL")
   @EffectsAre({})
-  record GnuRIs(IsTypeCheck typeCheck, ISexp value) implements ISexp_ {}
+  record GnuRIs(IsTypeCheck typeCheck, ISexp value) implements StmtData {}
 
   /**
    * Java compiler runtime type test.
@@ -493,11 +437,11 @@ public sealed interface StmtData extends InstrData {
    */
   @TypeIs("BOOL")
   @EffectsAre({})
-  record IsType(RType type, ISexp value) implements ISexp_ {}
+  record IsType(RType type, ISexp value) implements StmtData {}
 
   /** Type coercion. */
   @EffectsAre({})
-  record CastType(RType type, ISexp value) implements ISexp_ {
+  record CastType(RType type, ISexp value) implements StmtData {
     @Override
     public RType computeType() {
       return type;
@@ -505,17 +449,17 @@ public sealed interface StmtData extends InstrData {
   }
 
   @EffectsAre(REffect.Visibility)
-  record Visible() implements Void {}
+  record Visible() implements StmtData {}
 
   @EffectsAre(REffect.Visibility)
-  record Invisible() implements Void {}
+  record Invisible() implements StmtData {}
 
   @EffectsAre({})
   @TypeIs("STR_OR_NIL")
-  record Names(ISexp value) implements ISexp_ {}
+  record Names(ISexp value) implements StmtData {}
 
   @EffectsAre(REffect.Error)
-  record SetNames(ISexp value, ISexp names) implements ISexp_ {
+  record SetNames(ISexp value, ISexp names) implements StmtData {
     @Override
     public RType computeType() {
       return value.type();
@@ -523,7 +467,7 @@ public sealed interface StmtData extends InstrData {
   }
 
   @EffectsAre({})
-  record PirCopy(ISexp value) implements ISexp_ {
+  record PirCopy(ISexp value) implements StmtData {
     @Override
     public RType computeType() {
       return value.type();
@@ -532,11 +476,11 @@ public sealed interface StmtData extends InstrData {
 
   @EffectsAre({})
   @TypeIs("BOOL")
-  record Identical(ISexp lhs, ISexp rhs) implements ISexp_ {}
+  record Identical(ISexp lhs, ISexp rhs) implements StmtData {}
 
   @EffectsAre({})
   @TypeIs("INT")
-  record Inc(ISexp value) implements ISexp_ {}
+  record Inc(ISexp value) implements StmtData {}
 
   /**
    * Unlike PIR, unary operations are guarnateed not to dispatch, because we compile the dispatch
@@ -616,73 +560,73 @@ public sealed interface StmtData extends InstrData {
     }
   }
 
-  record UMinus(@Override @Nullable LangSXP ast, @Override ISexp arg) implements ArithmeticUnOp {}
+  record UMinus(@Nullable LangSXP ast, ISexp arg) implements StmtData {}
 
-  record UPlus(@Override @Nullable LangSXP ast, @Override ISexp arg) implements ArithmeticUnOp {}
+  record UPlus(@Nullable LangSXP ast, ISexp arg) implements StmtData {}
 
-  record Sqrt(@Override @Nullable LangSXP ast, @Override ISexp arg) implements ArithmeticUnOp {}
+  record Sqrt(@Nullable LangSXP ast, ISexp arg) implements StmtData {}
 
-  record Exp(@Override @Nullable LangSXP ast, @Override ISexp arg) implements ArithmeticUnOp {}
+  record Exp(@Nullable LangSXP ast, ISexp arg) implements StmtData {}
 
-  record Log(@Override @Nullable LangSXP ast, @Override ISexp arg) implements ArithmeticUnOp {}
+  record Log(@Nullable LangSXP ast, ISexp arg) implements StmtData {}
 
-  record LogBase(@Override @Nullable LangSXP ast, @Override ISexp lhs, @Override ISexp rhs)
-      implements ArithmeticBinOp {}
+  record LogBase(@Nullable LangSXP ast, ISexp lhs, ISexp rhs)
+      implements StmtData {}
 
   // ???: Should we put all unary math functions in math1 or make all math1 functions separate
   // instructions?
-  record Math1(@Override @Nullable LangSXP ast, int funId, @Override ISexp arg)
-      implements ArithmeticUnOp {}
+  record Math1(@Nullable LangSXP ast, int funId, ISexp arg)
+      implements StmtData {}
 
-  record Add(@Override @Nullable LangSXP ast, @Override ISexp lhs, @Override ISexp rhs)
-      implements ArithmeticBinOp {}
+  record Add(@Nullable LangSXP ast, ISexp lhs, ISexp rhs)
+      implements StmtData {}
 
-  record Sub(@Override @Nullable LangSXP ast, @Override ISexp lhs, @Override ISexp rhs)
-      implements ArithmeticBinOp {}
+  record Sub(@Nullable LangSXP ast, ISexp lhs, ISexp rhs)
+      implements StmtData {}
 
-  record Mul(@Override @Nullable LangSXP ast, @Override ISexp lhs, @Override ISexp rhs)
-      implements ArithmeticBinOp {}
+  record Mul(@Nullable LangSXP ast, ISexp lhs, ISexp rhs)
+      implements StmtData {}
 
-  record Div(@Override @Nullable LangSXP ast, @Override ISexp lhs, @Override ISexp rhs)
-      implements ArithmeticBinOp {}
+  record Div(@Nullable LangSXP ast, ISexp lhs, ISexp rhs)
+      implements StmtData {}
 
-  record IDiv(@Override @Nullable LangSXP ast, @Override ISexp lhs, @Override ISexp rhs)
-      implements ArithmeticBinOp {}
+  record IDiv(@Nullable LangSXP ast, ISexp lhs, ISexp rhs)
+      implements StmtData {}
 
-  record Mod(@Override @Nullable LangSXP ast, @Override ISexp lhs, @Override ISexp rhs)
-      implements ArithmeticBinOp {}
+  record Mod(@Nullable LangSXP ast, ISexp lhs, ISexp rhs)
+      implements StmtData {}
 
-  record Pow(@Override @Nullable LangSXP ast, @Override ISexp lhs, @Override ISexp rhs)
-      implements ArithmeticBinOp {}
+  record Pow(@Nullable LangSXP ast, ISexp lhs, ISexp rhs)
+      implements StmtData {}
 
-  record Eq(@Override @Nullable LangSXP ast, @Override ISexp lhs, @Override ISexp rhs)
-      implements ComparisonBinOp {}
+  record Eq(@Nullable LangSXP ast, ISexp lhs, ISexp rhs)
+      implements StmtData {}
 
-  record Neq(@Override @Nullable LangSXP ast, @Override ISexp lhs, @Override ISexp rhs)
-      implements ComparisonBinOp {}
+  record Neq(@Nullable LangSXP ast, ISexp lhs, ISexp rhs)
+      implements StmtData {}
 
-  record Lt(@Override @Nullable LangSXP ast, @Override ISexp lhs, @Override ISexp rhs)
-      implements ComparisonBinOp {}
+  record Lt(@Nullable LangSXP ast, ISexp lhs, ISexp rhs)
+      implements StmtData {}
 
-  record Lte(@Override @Nullable LangSXP ast, @Override ISexp lhs, @Override ISexp rhs)
-      implements ComparisonBinOp {}
+  record Lte(@Nullable LangSXP ast, ISexp lhs, ISexp rhs)
+      implements StmtData {}
 
-  record Gte(@Override @Nullable LangSXP ast, @Override ISexp lhs, @Override ISexp rhs)
-      implements ComparisonBinOp {}
+  record Gte(@Nullable LangSXP ast, ISexp lhs, ISexp rhs)
+      implements StmtData {}
 
-  record Gt(@Override @Nullable LangSXP ast, @Override ISexp lhs, @Override ISexp rhs)
-      implements ComparisonBinOp {}
+  record Gt(@Nullable LangSXP ast, ISexp lhs, ISexp rhs)
+      implements StmtData {}
 
-  record LAnd(@Override @Nullable LangSXP ast, @Override ISexp lhs, @Override ISexp rhs)
-      implements BooleanBinOp {}
+  record LAnd(@Nullable LangSXP ast, ISexp lhs, ISexp rhs)
+      implements StmtData {}
 
-  record LOr(@Override @Nullable LangSXP ast, @Override ISexp lhs, @Override ISexp rhs)
-      implements BooleanBinOp {}
+  record LOr(@Nullable LangSXP ast, ISexp lhs, ISexp rhs)
+      implements StmtData {}
 
-  record Not(@Override @Nullable LangSXP ast, @Override ISexp arg) implements BooleanUnOp {}
+  record Not(@Nullable LangSXP ast, ISexp arg) implements StmtData {}
 
-  record Colon(@Override @Nullable LangSXP ast, ISexp lhs, ISexp rhs)
-      implements ISexp_, InstrData.HasAst {
+  record Colon(@Nullable LangSXP ast, ISexp lhs, ISexp rhs)
+      implements StmtData, InstrData.HasAst {
     @Override
     public RType computeType() {
       // TODO
@@ -697,21 +641,20 @@ public sealed interface StmtData extends InstrData {
   }
 
   @EffectsAre(REffect.Warn)
-  record Warning(String message) implements Void {}
+  record Warning(String message) implements StmtData {}
 
   @EffectsAre(REffect.Error)
-  record Error(String message) implements Void {}
+  record Error(String message) implements StmtData {}
 
   /** Dynamic call with no named arguments. */
   @TypeIs("ANY")
-  @EffectsAreAribtrary()
   record NamelessCall(
-      @Override @Nullable LangSXP ast,
-      @TypeIs("ANY_FUNCTION") @Override ISexp fun_,
-      @Override ImmutableList<ISexp> args_,
-      @Override ISexp env,
-      @Override @Nullable FrameState fs)
-      implements Call {
+      @Nullable LangSXP ast,
+      @TypeIs("ANY_FUNCTION") ISexp fun_,
+      ImmutableList<ISexp> args_,
+      ISexp env,
+      @Nullable FrameState fs)
+      implements StmtData {
 
     @Override
     public IFun fun() {
@@ -726,15 +669,14 @@ public sealed interface StmtData extends InstrData {
 
   /** Dynamic call with at least one named argument. */
   @TypeIs("ANY")
-  @EffectsAreAribtrary()
   record NamedCall(
-      @Override @Nullable LangSXP ast,
-      @TypeIs("ANY_FUNCTION") @Override ISexp fun_,
-      @Override ImmutableList<Optional<String>> names,
-      @SameLen("names") @Override ImmutableList<ISexp> args_,
-      @Override ISexp env,
-      @Override @Nullable FrameState fs)
-      implements Call {
+      @Nullable LangSXP ast,
+      @TypeIs("ANY_FUNCTION") ISexp fun_,
+      ImmutableList<Optional<String>> names,
+      @SameLen("names") ImmutableList<ISexp> args_,
+      ISexp env,
+      @Nullable FrameState fs)
+      implements StmtData {
     @Override
     public IFun fun() {
       return new DynamicCall(fun_);
@@ -748,13 +690,13 @@ public sealed interface StmtData extends InstrData {
 
   /** Statically-known {@link Closure} call. */
   record StaticCall(
-      @Override @Nullable LangSXP ast,
+      @Nullable LangSXP ast,
       @TypeIs("CLO") @Nullable ISexp runtimeClosure,
-      @Override Closure fun_,
-      @Override ImmutableList<ISexp> args_,
-      @Override @Nullable ISexp env,
+      Closure fun_,
+      ImmutableList<ISexp> args_,
+      @Nullable ISexp env,
       @Nullable FrameState fs)
-      implements Call {
+      implements StmtData {
     /** The exact closure version we dispatch. */
     public ClosureVersion version() {
       return fun_.getVersion(context());
@@ -787,13 +729,12 @@ public sealed interface StmtData extends InstrData {
   }
 
   /** Statically-known builtin ({@link BuiltinId}) call. */
-  @EffectsAreAribtrary()
   record CallBuiltin(
-      @Override @Nullable LangSXP ast,
-      @Override BuiltinId fun_,
-      @Override ImmutableList<ISexp> args_,
-      @Override @Nullable ISexp env)
-      implements Call {
+      @Nullable LangSXP ast,
+      BuiltinId fun_,
+      ImmutableList<ISexp> args_,
+      @Nullable ISexp env)
+      implements StmtData {
     @Override
     public IFun fun() {
       return new StaticBuiltinCall(fun_);
@@ -816,13 +757,12 @@ public sealed interface StmtData extends InstrData {
     }
   }
 
-  @EffectsAreAribtrary()
   record TryDispatchBuiltin_(
-      @Override LangSXP ast,
-      @Override BuiltinId fun,
+      LangSXP ast,
+      BuiltinId fun,
       ISexp target,
       @Nullable ISexp rhs,
-      @Override ISexp env)
+      ISexp env)
       implements StmtData<TryDispatchBuiltin> {
     @Override
     public TryDispatchBuiltin make(CFG cfg, NodeId<? extends Instr> id) {
@@ -841,14 +781,14 @@ public sealed interface StmtData extends InstrData {
    */
   @EffectsAre(REffect.LeaksNonEnvArg)
   record MkEnv(
-      @Override ISexp parent,
+      ISexp parent,
       ImmutableList<RegSymSXP> names,
       @SameLen("names") ImmutableList<ISexp> values,
       @SameLen("names") ImmutableList<Boolean> missingness,
       int context,
       boolean isStub,
       boolean neverStub)
-      implements ISexp_ {
+      implements StmtData {
     public MkEnv(
         ISexp parent,
         ImmutableList<RegSymSXP> names,
@@ -891,8 +831,8 @@ public sealed interface StmtData extends InstrData {
     }
 
     private record LocalVarImpl(
-        @Override RegSymSXP name, @Override ISexp value, @Override boolean isMissing)
-        implements LocalVar {}
+        RegSymSXP name, ISexp value, boolean isMissing)
+        implements StmtData {}
 
     public Iterable<LocalVar> localVars() {
       return () ->
@@ -919,7 +859,7 @@ public sealed interface StmtData extends InstrData {
   }
 
   @EffectsAre({})
-  record MaterializeEnv(ISexp env) implements Void {}
+  record MaterializeEnv(ISexp env) implements StmtData {}
 
   /**
    * Doesn't have {@link REffect#ReadsEnvArg} because it doesn't read the "environment" part of the
@@ -928,7 +868,7 @@ public sealed interface StmtData extends InstrData {
    */
   @EffectsAre({})
   @TypeIs("BOOL")
-  record IsEnvStub(ISexp env) implements ISexp_ {}
+  record IsEnvStub(ISexp env) implements StmtData {}
 
   @EffectsAre({REffect.ChangesContext, REffect.LeaksNonEnvArg, REffect.LeaksEnvArg})
   record PushContext(ISexp ast, ISexp op, ImmutableList<ISexp> callArgs, ISexp sysParent)
@@ -946,14 +886,14 @@ public sealed interface StmtData extends InstrData {
 
   @TypeIs("ANY_VALUE_MAYBE_MISSING")
   @EffectsAre(REffect.ChangesContext)
-  record PopContext(ISexp res, RContext context) implements ISexp_ {}
+  record PopContext(ISexp res, RContext context) implements StmtData {}
 
   @EffectsAre(REffect.ChangesContext)
-  record DropContext() implements Void {}
+  record DropContext() implements StmtData {}
 
   @EffectsAre(REffect.ReadsEnvArg)
   @TypeIs("DOTS_LIST")
-  record LdDots(ISexp env) implements Load {
+  record LdDots(ISexp env) implements StmtData {
     @Override
     public RegSymSXP name() {
       return SEXPs.DOTS_SYMBOL;
@@ -967,11 +907,11 @@ public sealed interface StmtData extends InstrData {
 
   @EffectsAre({})
   @TypeIs("EXPANDED_DOTS")
-  record ExpandDots(@TypeIs("DOTS_LIST") ISexp dots) implements ISexp_ {}
+  record ExpandDots(@TypeIs("DOTS_LIST") ISexp dots) implements StmtData {}
 
   @EffectsAre(REffect.LeaksNonEnvArg)
   @TypeIs("DOTS")
   record DotsList(
       ImmutableList<Optional<RegSymSXP>> names, @SameLen("names") ImmutableList<ISexp> values)
-      implements ISexp_ {}
+      implements StmtData {}
 }

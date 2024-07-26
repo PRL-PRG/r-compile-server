@@ -38,7 +38,6 @@ public sealed interface JumpData extends InstrData {
     }
   }
 
-  @EffectsAreAribtrary
   record NonLocalReturn(ISexp value, ISexp env) implements JumpData {}
 
   @EffectsAre(REffect.LeaksNonEnvArg)
@@ -64,7 +63,6 @@ public sealed interface JumpData extends InstrData {
     }
   }
 
-  @EffectsAreAribtrary
   record Deopt(
       FrameState frameState,
       @Nullable DeoptReason reason,
