@@ -197,39 +197,10 @@ public class RDSReader implements Closeable {
     // Info is a 3 element list: class name, package name, type
     var info = (ListSXP) readItem();
     var state = readItem();
-    var attributes = readItem();
+    var attributes = readAttributes();
 
-    var className = ((RegSymSXP) info.get(0).value()).name();
-    var packageName = ((RegSymSXP) info.get(1).value()).name();
-    var type = SEXPType.valueOf(((IntSXP) info.get(2).value()).get(0));
-
-    // Alt classes used in base are defined here:
-    // https://github.com/wch/r-source/blob/abaa89600f4f024a80121ebb95fc4d80ea0a9b12/src/main/altclasses.c
-
-    LOGGER.info(
-        "Reading ALTREP with class "
-            + className
-            + " from package "
-            + packageName
-            + " with type "
-            + type);
-
-    // Dummy, just to test
-    // TODO: implement for at least int and real compact sequences.
-    // If you have R installed on a Linux machine,
-    // then running testLoadBase should log the necessary altrep classes
-    return switch (type) {
-      case INT -> SEXPs.integer(0);
-      case REAL -> SEXPs.real(0.0);
-      case STR -> SEXPs.string("hello world");
-      case LGL -> SEXPs.logical(Logical.NA);
-      case VEC -> SEXPs.vec();
-      case CPLX -> SEXPs.complex(0, 0);
-      case RAW -> SEXPs.raw((byte) 0);
-      default -> throw new RDSException("ALTREP type not supported: " + type);
-    };
-
-    // throw new RDSException("ALTREP not supported");
+    var sexp = new AltRepUnserializer(info, state).unserialize();
+    return sexp.withAttributes(attributes);
   }
 
   private SEXP readPersist(Flags flags) throws IOException {

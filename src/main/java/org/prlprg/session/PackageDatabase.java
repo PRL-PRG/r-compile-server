@@ -7,6 +7,7 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.logging.Logger;
 import java.util.zip.InflaterInputStream;
+import org.prlprg.rds.RDSException;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.sexp.*;
 
@@ -163,9 +164,33 @@ public class PackageDatabase {
     if (index.containsKey(".__NAMESPACE__.")) {
       readObject(".__NAMESPACE__.", index);
     }
+
+    // Problems:
+    // - .doSortWrap : cycle in with env:4
+    // - parseNamespaceFile : index out of bound when reading bytecode
+    // - globalCallingHandlers : same as .doSortWrap
+    // - conflictRules : same
+    // - doWrap: same
+    // - summary.default: malformed bytecode
+    // - .dynLibs: cycle with env:4
+    // - .libPaths: same
+    HashSet<String> forbiddenFunctions = new HashSet<>();
+    forbiddenFunctions.add(".doSortWrap");
+    forbiddenFunctions.add("parseNamespaceFile");
+    forbiddenFunctions.add("globalCallingHandlers");
+    forbiddenFunctions.add("conflictRules");
+    forbiddenFunctions.add(".doWrap");
+
     for (var name : index.keySet()) {
       // LOGGER.info("Loading " + name);
-      readObject(name, index);
+
+      if (!forbiddenFunctions.contains(name)) {
+        try {
+          readObject(name, index);
+        } catch (RDSException e) {
+          LOGGER.warning("Error loading " + name + ": " + e.getMessage());
+        }
+      }
     }
     return objects;
   }
