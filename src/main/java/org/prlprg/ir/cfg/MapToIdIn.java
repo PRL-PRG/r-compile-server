@@ -11,7 +11,6 @@ import java.util.Optional;
 import org.prlprg.ir.cfg.instr.InstrData;
 import org.prlprg.parseprint.BuiltinParseMethods;
 import org.prlprg.parseprint.BuiltinPrintMethods;
-import org.prlprg.parseprint.ClassProvidingContext;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
@@ -33,20 +32,23 @@ import org.prlprg.util.Strings;
  * addresses are different in <a href="https://stackoverflow.com/a/1692882">equivalent (but not
  * identical)</a> CFGs. See the documentation of {@link CFGEdit} for why this is useful.
  *
- * <p>{@link T} must be a record. Unfortunately this is checked at runtime because interfaces can't
- * be records, and this is given interfaces of {@link InstrData}.
+ * <p>{@link T} must be a record. Unfortunately, this has to be checked at runtime even though
+ * {@code T extends Record} exists, because some interfaces (e.g. {@link InstrData} are asserted to
+ * all be records but can't statically inherit {@link Record}.
  */
 // FIXME: Handle `@Nullable` (wrap/unwrap `Optional` when necessary).
-public sealed interface MapToIdIn<T extends InstrData<?>> {
+public sealed interface MapToIdIn<T> {
   /**
    * Encodes the given record, but replaces every {@linkplain BB basic block} or {@linkplain Node
    * node} component with its corresponding id ({@link BBId} or {@link NodeId}).
+   *
+   * @throws IllegalArgumentException if {@code data} is not a record.
    */
-  static <T extends InstrData<?>> MapToIdIn<T> of(T data) {
+  static <T> MapToIdIn<T> of(T data) {
     if (!(data instanceof Record r)) {
-      throw new AssertionError(
-          "all InstrData must be Java records: " + data.getClass().getSimpleName() + " isn't");
+      throw new IllegalArgumentException("data must be a record");
     }
+
     return new MapToIdInImpl<>(
         Classes.classOf(data),
         Reflection.streamComponentsNoNulls(r)
@@ -54,14 +56,18 @@ public sealed interface MapToIdIn<T extends InstrData<?>> {
             .collect(ImmutableList.toImmutableList()));
   }
 
-  /** Call {@link #decode(CFG)} on each element of the list. */
-  static <T extends InstrData> ImmutableList<T> decodeList(
+  /** Call {@link #decode(CFG)} on each element of the list.
+   *
+   * @throws IllegalArgumentException If an element isn't a record. */
+  static <T> ImmutableList<T> decodeList(
       List<? extends MapToIdIn<T>> list, CFG cfg) {
     return list.stream().map(m -> m.decode(cfg)).collect(ImmutableList.toImmutableList());
   }
 
-  /** Call {@link #decode(CFG)} on each value of the map. */
-  static <K, V extends InstrData> ImmutableMap<K, V> decodeMap(
+  /** Call {@link #decode(CFG)} on each value of the map.
+   *
+   * @throws IllegalArgumentException If a value isn't a record. */
+  static <K, V> ImmutableMap<K, V> decodeMap(
       Map<K, ? extends MapToIdIn<V>> map, CFG cfg) {
     return map.entrySet().stream()
         .collect(ImmutableMap.toImmutableMap(Map.Entry::getKey, e -> e.getValue().decode(cfg)));
@@ -72,7 +78,7 @@ public sealed interface MapToIdIn<T extends InstrData<?>> {
    * node} IDs replaced by the actual blocks and nodes in the given {@linkplain CFG control-flow
    * graph}.
    *
-   * <p>This is the inverse of {@link #of(InstrData)}.
+   * <p>This is the inverse of {@link #of(Object)}.
    *
    * @throws java.util.NoSuchElementException if a block or node ID is not in the CFG.
    */
@@ -88,21 +94,22 @@ public sealed interface MapToIdIn<T extends InstrData<?>> {
   private static Object toId(Object o) {
     return switch (o) {
       case BB bb -> bb.id();
-      case Node node -> node.id();
+      case Node<?> node -> node.id();
       case Optional<?> op -> op.map(MapToIdIn::toId);
       case Collection<?> c -> {
         assert c instanceof ImmutableList<?>
-            : "all InstrData collection components must be ImmutableList";
+            : "all collection components must be `ImmutableList`s (arrays are also allowed)";
         yield c.stream().map(MapToIdIn::toId).collect(ImmutableList.toImmutableList());
       }
+      case Object[] a -> Arrays.stream(a).map(MapToIdIn::toId).toArray();
       case BBId _, NodeId<?> _ ->
-          throw new AssertionError("all InstrData components must not be `BBId`s or `NodeId`s");
+          throw new AssertionError("all components must not be `BBId`s or `NodeId`s");
       default -> o;
     };
   }
 }
 
-record MapToIdInImpl<T extends InstrData<?>>(
+record MapToIdInImpl<T>(
     @Override Class<? extends T> mappedClass, @Override ImmutableList<Object> components)
     implements MapToIdIn<T> {
   private static Object fromId(Object o, CFG cfg) {
@@ -111,12 +118,18 @@ record MapToIdInImpl<T extends InstrData<?>>(
       case NodeId<?> id -> cfg.get(id);
       case Optional<?> op -> op.map(e -> fromId(e, cfg));
       case Collection<?> c -> {
-        assert c instanceof ImmutableList<?> : "non-ImmutableList collection in MapToIdInImpl";
+        assert c instanceof ImmutableList<?> : "non-`ImmutableList` collection in `MapToIdInImpl`";
         yield c.stream().map(e -> fromId(e, cfg)).collect(ImmutableList.toImmutableList());
       }
-      case BB _, Node _ -> throw new AssertionError("BB or Node (not ID) in MapToIdInImpl");
+      case Object[] a -> Arrays.stream(a).map(e -> fromId(e, cfg)).toArray();
+      case BB _, Node<?> _ ->
+          throw new AssertionError("`BB` or `Node` (not ID) in `MapToIdInImpl`");
       default -> o;
     };
+  }
+
+  MapToIdInImpl {
+    assert mappedClass().isRecord() : "`mappedClass` must be a record";
   }
 
   @Override
@@ -139,27 +152,12 @@ record MapToIdInImpl<T extends InstrData<?>>(
   }
 
   @ParseMethod
-  private static MapToIdIn<?> parse(Parser p, ClassProvidingContext ctx) {
+  private static MapToIdIn<?> parse(Parser p) {
     var s = p.scanner();
 
-    var className = s.readJavaIdentifierOrKeyword();
-    @SuppressWarnings("unchecked")
-    var mappedClass = (Class<? extends InstrData<?>>) ctx.getClass(className);
-    @SuppressWarnings("unchecked")
-    var class1 = (Class<? extends Record>) mappedClass;
-    if (class1 == null) {
-      throw s.fail("Unknown record class: " + className);
-    }
-    if (!class1.isRecord()) {
-      throw s.fail("Class isn't a record: " + className);
-    }
-    if (!InstrData.class.isAssignableFrom(class1)) {
-      throw s.fail("Class isn't an InstrData: " + className);
-    }
-
+    var mappedClass = BuiltinParseMethods.parseRecordClass(p);
     s.assertAndSkip('\'');
-
-    var arguments = BuiltinParseMethods.parseRecordComponents(class1, p);
+    var arguments = BuiltinParseMethods.parseRecordComponents(mappedClass, p);
 
     return new MapToIdInImpl<>(mappedClass, ImmutableList.copyOf(arguments));
   }

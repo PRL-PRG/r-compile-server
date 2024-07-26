@@ -2,6 +2,7 @@ package org.prlprg.ir.cfg.instr;
 
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
+import java.lang.annotation.Repeatable;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
@@ -39,3 +40,49 @@ import org.prlprg.ir.cfg.Instr;
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.RECORD_COMPONENT)
 @interface VarInputs {}
+
+/** Applied to a component in an {@link InstrData}, specifies that the corresponding input is
+ * "consumed", so the value must be implicitly copied before the instruction unless it's owned and
+ * the input is its last use.
+ */
+@Documented
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.RECORD_COMPONENT)
+@interface Consume {}
+
+/** Applied to an {@link InstrData}, specifies that the instruction has the effect with the given
+ * class and inputs.
+ */
+@Documented
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.TYPE)
+@Repeatable(Effects.class)
+@interface Effect {
+  Class<?> value();
+
+  int[] inputs() default {};
+}
+
+/** Multiple {@link Effect} annotations.
+ *
+ * <p>This annotation shouldn't be written explicitly, instead add multiple {@link Effect}
+ * annotations and it gets added implicitly.
+ * <a href="https://docs.oracle.com/javase/tutorial/java/annotations/repeating.html">Java repeatable
+ * annotations.</a>
+ */
+@Documented
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.TYPE)
+@interface Effects {
+  Effect[] value();
+}
+
+/** Applied to an {@link InstrData}, specifies that the instruction has the given number of outputs
+ * of the given types.
+ */
+@Documented
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.TYPE)
+@interface Outputs {
+  Class<?>[] value();
+}

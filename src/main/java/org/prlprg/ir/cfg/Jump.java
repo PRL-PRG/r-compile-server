@@ -128,7 +128,7 @@ public final class Jump extends Instr {
     old.unsafeRemovePredecessor(bb());
     replacement.unsafeAddPredecessor(bb());
 
-    data = data.setInputs(inputs);
+    data = data.setInputs(null, inputs);
 
     // Don't need to update `fun()`, `effects()`, or `outputTypes()` because they're guaranteed to
     // be the same.

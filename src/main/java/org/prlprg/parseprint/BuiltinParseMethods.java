@@ -78,25 +78,38 @@ public final class BuiltinParseMethods {
 
   @ParseMethod
   private static Record parseRecord(Parser p) {
+    var clazz = parseRecordClass(p);
+    var arguments = parseRecordComponents(clazz, p);
+
+    return Reflection.construct(clazz, arguments);
+  }
+
+  /** Parse a simple name, use {@link ClassProvidingContext} to resolve it into a class, then assert
+   * that it's a record class.
+   *
+   * @return The parsed class.
+   */
+  public static Class<? extends Record> parseRecordClass(Parser p) {
     if (!(p.context() instanceof ClassProvidingContext ctx)) {
       throw new IllegalStateException(
           "Can't parse record the builtin way without a context inheriting ClassProvidingContext");
     }
+
     var s = p.scanner();
 
-    var className = s.readJavaIdentifierOrKeyword();
+    var className = p.scanner().readJavaIdentifierOrKeyword();
+
+    // We manually check that `mappedClass.isRecord()`.
     @SuppressWarnings("unchecked")
     var clazz = (Class<? extends Record>) ctx.getClass(className);
     if (clazz == null) {
       throw s.fail("Unknown record class: " + className);
     }
     if (!clazz.isRecord()) {
-      throw s.fail("Class isn't a record: " + className);
+      throw s.fail("Class isn't a record: " + clazz.getName() + " (" + className + ")");
     }
 
-    var arguments = parseRecordComponents(clazz, p);
-
-    return Reflection.construct(clazz, arguments);
+    return clazz;
   }
 
   /**

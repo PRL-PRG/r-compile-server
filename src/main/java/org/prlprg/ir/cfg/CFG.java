@@ -33,7 +33,6 @@ import org.prlprg.ir.cfg.builder.CFGCompoundMutate;
 import org.prlprg.ir.cfg.builder.CFGIntrinsicMutate;
 import org.prlprg.ir.cfg.builder.CFGQuery;
 import org.prlprg.ir.cfg.builder.CFGVerify;
-import org.prlprg.ir.cfg.instr.InstrVerifyException;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.util.WeakHashSet;
 
@@ -404,7 +403,7 @@ public class CFG
       for (var instr : bb.instrs()) {
         try {
           instr.verify();
-        } catch (InstrVerifyException e) {
+        } catch (RuntimeException e) {
           errors.add(new CFGVerifyException.InstrVerify(bb.id(), instr.toString(), e));
         }
       }
