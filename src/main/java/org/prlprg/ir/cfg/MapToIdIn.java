@@ -51,7 +51,7 @@ public sealed interface MapToIdIn<T> {
 
     return new MapToIdInImpl<>(
         Classes.classOf(data),
-        Reflection.streamComponentsNoNulls(r)
+        Reflection.streamComponentValuesNoNulls(r)
             .map(MapToIdIn::toId)
             .collect(ImmutableList.toImmutableList()));
   }

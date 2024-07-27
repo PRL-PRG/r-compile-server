@@ -123,7 +123,7 @@ public sealed interface RType extends RTypeHelpers, BoundedLattice<RType> {
   /** The (most precise representable) type of the given value. */
   static RType exact(SEXP value) {
     var promiseWrapped = RPromiseType.VALUE;
-    if (value instanceof PromSXP p) {
+    if (value instanceof PromSXP<?> p) {
       value = p.val();
       promiseWrapped = RPromiseType.promise(p.isLazy());
     }

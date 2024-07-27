@@ -14,31 +14,59 @@ import javax.annotation.Nullable;
 
 public class Reflection {
   /**
-   * Reflectively get the record components, converting all exceptions to runtime exceptions.
+   * Reflectively get the record components' values, converting all exceptions to runtime
+   * exceptions.
    *
    * @throws IllegalArgumentException If {@code target} isn't a record.
+   * @see #streamComponentValues(Record)
    */
-  public static Stream<Optional<Object>> streamComponents(Record target) {
+  public static Object[] getComponentValues(Record target) {
     assert target.getClass().isRecord()
         : "target is an instance of `Record` but `getClass().isRecord()` is false?";
-    return Arrays.stream(target.getClass().getRecordComponents())
-        .map(c -> Optional.ofNullable(getComponent(target, c)));
+
+    var components = target.getClass().getRecordComponents();
+
+    var values = new Object[components.length];
+    for (int i = 0; i < components.length; i++) {
+      values[i] = getComponentValue(target, components[i]);
+    }
+
+    return values;
   }
 
   /**
-   * Reflectively get the record components, converting all exceptions to runtime exceptions.
+   * Reflectively get the record components' values, converting all exceptions to runtime
+   * exceptions.
+   *
+   * @throws IllegalArgumentException If {@code target} isn't a record.
+   * @see #getComponentValues(Record)
+   */
+  public static Stream<Optional<Object>> streamComponentValues(Record target) {
+    assert target.getClass().isRecord()
+        : "target is an instance of `Record` but `getClass().isRecord()` is false?";
+    return Arrays.stream(target.getClass().getRecordComponents())
+        .map(c -> Optional.ofNullable(getComponentValue(target, c)));
+  }
+
+  /**
+   * Reflectively get the record components' values, converting all exceptions to runtime
+   * exceptions.
    *
    * @throws IllegalArgumentException If {@code target} isn't a record.
    * @throws NullPointerException If any component is {@code null}.
+   * @see #streamComponentValues(Record)
    */
-  public static Stream<Object> streamComponentsNoNulls(Record target) {
+  public static Stream<Object> streamComponentValuesNoNulls(Record target) {
     assert target.getClass().isRecord()
         : "target is an instance of `Record` but `getClass().isRecord()` is false?";
-    return Arrays.stream(target.getClass().getRecordComponents()).map(c -> getComponent(target, c));
+    return Arrays.stream(target.getClass().getRecordComponents())
+        .map(c -> getComponentValue(target, c));
   }
 
-  /** Reflectively get the record component, converting all exceptions to runtime exceptions. */
-  public static @Nullable Object getComponent(Record target, RecordComponent component) {
+  /**
+   * Reflectively get the record component's value, converting all exceptions to runtime exceptions.
+   */
+  public static @Nullable Object getComponentValue(Record target, RecordComponent component) {
     try {
       return component.getAccessor().invoke(target);
     } catch (InvocationTargetException e) {

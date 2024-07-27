@@ -4,7 +4,7 @@ import javax.annotation.concurrent.Immutable;
 
 /** R Identifier. */
 @Immutable
-public sealed interface SymSXP extends SEXP permits RegSymSXP, SpecialSymSXP {
+public sealed interface SymSXP extends ValueSXP permits RegSymSXP, MissingSXP {
   @Override
   default SEXPType type() {
     return SEXPType.SYM;
@@ -23,10 +23,5 @@ public sealed interface SymSXP extends SEXP permits RegSymSXP, SpecialSymSXP {
   /** Whether this is the missing symbol. */
   default boolean isMissing() {
     return this == SEXPs.MISSING_ARG;
-  }
-
-  /** Whether this is the unbound value symbol. */
-  default boolean isUnbound() {
-    return this == SEXPs.UNBOUND_VALUE;
   }
 }

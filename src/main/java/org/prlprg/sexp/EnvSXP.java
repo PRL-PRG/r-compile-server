@@ -4,10 +4,11 @@ import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Stream;
+import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.util.Pair;
 
-public sealed interface EnvSXP extends SEXP permits StaticEnvSXP, UserEnvSXP {
+public sealed interface EnvSXP extends ValueSXP permits StaticEnvSXP, UserEnvSXP {
   /**
    * Environments are linked in a parent chain. Every environment, except the empty environment, has
    * a parent that will be returned by this function.
@@ -34,12 +35,12 @@ public sealed interface EnvSXP extends SEXP permits StaticEnvSXP, UserEnvSXP {
   Optional<SEXP> get(String name);
 
   /**
-   * Set the value of a symbol in the environment.
+   * Set the value of a symbol in the environment, or unset the value if {@code null}.
    *
    * @param name the name of the symbol
    * @param value the value of the symbol
    */
-  void set(String name, SEXP value);
+  void set(String name, @Nullable SEXP value);
 
   /**
    * Get the value of a symbol in the environment, without following the parent chain.

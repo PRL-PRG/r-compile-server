@@ -147,6 +147,7 @@ import org.prlprg.sexp.IntSXP;
 import org.prlprg.sexp.LangSXP;
 import org.prlprg.sexp.LglSXP;
 import org.prlprg.sexp.ListSXP;
+import org.prlprg.sexp.MissingSXP;
 import org.prlprg.sexp.NamespaceEnvSXP;
 import org.prlprg.sexp.NilSXP;
 import org.prlprg.sexp.PromSXP;
@@ -154,7 +155,6 @@ import org.prlprg.sexp.RegSymSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPType;
 import org.prlprg.sexp.SEXPs;
-import org.prlprg.sexp.SpecialSymSXP;
 import org.prlprg.sexp.StrOrRegSymSXP;
 import org.prlprg.sexp.StrSXP;
 import org.prlprg.sexp.SymSXP;
@@ -502,8 +502,8 @@ public class Compiler {
     switch (expr) {
       case LangSXP e -> compileCall(e, true);
       case RegSymSXP e -> compileSym(e, missingOK);
-      case SpecialSymSXP e -> stop("unhandled special symbol: " + e);
-      case PromSXP _ -> stop("cannot compile promise literals in code");
+      case MissingSXP e -> stop("unhandled special symbol: " + e);
+      case PromSXP<?> _ -> stop("cannot compile promise literals in code");
       case BCodeSXP _ -> stop("cannot compile byte code literals in code");
       default -> compileConst(expr);
     }
@@ -604,7 +604,7 @@ public class Compiler {
           compileNormArg(x, nse);
           compileTag(tag);
         }
-        case PromSXP _ -> stop("can't compile promises in code");
+        case PromSXP<?> _ -> stop("can't compile promises in code");
         case BCodeSXP _ -> stop("can't compile byte code literals in code");
         default -> {
           compileConstArg(val);
@@ -1041,7 +1041,7 @@ public class Compiler {
         }
       } else if (arg.value() instanceof BCodeSXP) {
         stop("cannot compile byte code literals in code");
-      } else if (arg.value() instanceof PromSXP) {
+      } else if (arg.value() instanceof PromSXP<?>) {
         stop("cannot compile promise literals in code");
       } else {
         switch (arg.value()) {
@@ -2198,7 +2198,7 @@ public class Compiler {
     return switch (expr) {
       case LangSXP l -> constantFoldCall(l);
       case RegSymSXP s -> constantFoldSym(s);
-      case PromSXP _ -> stop("cannot constant fold literal promises");
+      case PromSXP<?> _ -> stop("cannot constant fold literal promises");
       case BCodeSXP _ -> stop("cannot constant fold literal bytecode objects");
       default -> checkConst(expr);
     };

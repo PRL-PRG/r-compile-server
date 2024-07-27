@@ -5,13 +5,11 @@ import java.util.Set;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.Unmodifiable;
-import org.prlprg.ir.cfg.Constant;
 import org.prlprg.ir.cfg.Instr;
 import org.prlprg.ir.type.RType;
 import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
-import org.prlprg.sexp.SEXPs;
 
 /**
  * The possible {@linkplain ISexp R SEXPs} at a particular {@linkplain Instr instruction} in any
@@ -19,8 +17,7 @@ import org.prlprg.sexp.SEXPs;
  */
 public final class AbstractISexp implements AbstractNode<AbstractISexp> {
   public record ValueOrigin(ISexp value, @Nullable Instr origin, int recursionLevel) {
-    private static final ValueOrigin UNBOUND =
-        new ValueOrigin(new Constant(SEXPs.UNBOUND_VALUE), null, 0);
+    private static final ValueOrigin UNBOUND = new ValueOrigin(null, null, 0);
 
     @PrintMethod
     private void print(Printer p) {
@@ -98,7 +95,7 @@ public final class AbstractISexp implements AbstractNode<AbstractISexp> {
     }
     Maybe result = null;
     for (var o : origins) {
-      var update = o.value().equals(new Constant(SEXPs.UNBOUND_VALUE));
+      var update = o.value() == null;
       result = Maybe.intersection(result, update);
     }
     return result == null ? Maybe.NO : result;

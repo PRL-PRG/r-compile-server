@@ -5,17 +5,14 @@ import java.util.Optional;
 import org.prlprg.primitive.Names;
 
 /** Symbol which isn't "unbound value" or "missing arg" */
-public final class RegSymSXP implements SymSXP, StrOrRegSymSXP, RegSymOrLangSXP {
+public sealed class RegSymSXP implements SymSXP, StrOrRegSymSXP, RegSymOrLangSXP permits
+    DotsSymSXP {
   private final String name;
   private final String toString;
 
-  // `DOTS_SYMBOL` has to be constructed, and to do this we just call `new RegSymSxp("...")`. When
-  // we do this, `DOTS_SYMBOL` is `null` since it doesn't exist yet, since it's being constructed.
-  // Thus `@SuppressWarnings("ConstantValue")`.
-  @SuppressWarnings("ConstantValue")
   RegSymSXP(String name) {
-    assert !name.equals("...") || SEXPs.DOTS_SYMBOL == null
-        : "Constructed a \"...\" symbol, use SEXPs.ELLIPSIS instead (that's why this is package-private)";
+    assert !name.equals("...") || this instanceof DotsSymSXP
+        : "Constructed a \"...\" symbol, use SEXPs.DOTS_SYM instead (that's why this is package-private)";
     if (name.isEmpty()) {
       // GNU-R would throw "Error: attempt to use zero-length variable name"
       throw new IllegalArgumentException("symbol name cannot be empty");
@@ -77,3 +74,4 @@ public final class RegSymSXP implements SymSXP, StrOrRegSymSXP, RegSymOrLangSXP 
     return toString;
   }
 }
+

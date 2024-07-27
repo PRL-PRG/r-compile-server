@@ -70,32 +70,6 @@ record StrSXPImpl(ImmutableList<String> data, @Override Attributes attributes) i
   }
 }
 
-final class ScalarStrSXP extends ScalarSXPImpl<String> implements StrSXP {
-  ScalarStrSXP(String data) {
-    super(data);
-  }
-
-  @SuppressWarnings("MissingJavadoc")
-  public String value() {
-    return data;
-  }
-
-  @Override
-  public String toString() {
-    return StrSXPs.quoteString(data);
-  }
-
-  @Override
-  public StrSXP withAttributes(Attributes attributes) {
-    return SEXPs.string(data, attributes);
-  }
-
-  @Override
-  public Optional<String> reifyString() {
-    return Optional.of(data);
-  }
-}
-
 /** Empty string vector with no ALTREP, ATTRIB, or OBJECT. */
 final class EmptyStrSXPImpl extends EmptyVectorSXPImpl<String> implements StrSXP {
   static final EmptyStrSXPImpl INSTANCE = new EmptyStrSXPImpl();

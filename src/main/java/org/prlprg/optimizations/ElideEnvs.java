@@ -120,7 +120,7 @@ class ElideEnvs implements OptimizationPass {
                     parent,
                     Stream.concat(names.stream(), Stream.of(name))
                         .collect(ImmutableList.toImmutableList()),
-                    Stream.concat(values.stream(), Stream.of(new Constant(SEXPs.UNBOUND_VALUE)))
+                    Stream.concat(values.stream(), Stream.of(unbound))
                         .collect(ImmutableList.toImmutableList()),
                     Stream.concat(missingness.stream(), Stream.of(false))
                         .collect(ImmutableList.toImmutableList()),

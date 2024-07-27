@@ -85,7 +85,7 @@ public sealed interface RValueType extends BoundedLattice<RValueType>
       case StaticEnvSXP _ -> RStaticEnvType.ANY;
       case UserEnvSXP _ -> RUserEnvType.ANY;
       case BCodeSXP _ -> RBCodeType.ANY;
-      case PromSXP _ ->
+      case PromSXP<?> _ ->
           throw new IllegalArgumentException(
               "There is no `RValueType` for promises (`RType#exact` special-cases `PromSXP`)");
       case SymSXP _ ->

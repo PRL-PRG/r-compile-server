@@ -5,6 +5,7 @@ import java.nio.charset.Charset;
 import java.util.*;
 import java.util.stream.DoubleStream;
 import java.util.stream.StreamSupport;
+import javax.annotation.Nullable;
 import org.prlprg.RVersion;
 import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.*;
@@ -56,13 +57,17 @@ public class RDSWriter implements Closeable {
     writeItem(sexp);
   }
 
+  public void writeItem(SEXP s) throws IOException {
+    writeItemOrUnbound(s);
+  }
+
   /**
    * See <a
    * href="https://github.com/wch/r-source/blob/65892cc124ac20a44950e6e432f9860b1d6e9bf4/src/main/serialize.c#L1021">GNU-R
    * serialize.c</a>.
    */
-  public void writeItem(SEXP s) throws IOException {
-    var type = rdsType(s);
+  public void writeItemOrUnbound(@Nullable SEXP s) throws IOException {
+    var type = s == null ? RDSItemType.Special.UNBOUNDVALUE_SXP : rdsType(s);
 
     // Persisted through the ref table? TODO
 
@@ -88,7 +93,7 @@ public class RDSWriter implements Closeable {
             // Dotted-pair (pairlist) objects
           case ListSXP list -> writeListSXP(list);
           case LangSXP lang -> writeLangSXP(lang);
-          case PromSXP prom -> writePromSXP(prom);
+          case PromSXP<?> prom -> writePromSXP(prom);
           case CloSXP clo -> writeCloSXP(clo);
 
             // TODO: external pointer
@@ -122,7 +127,7 @@ public class RDSWriter implements Closeable {
     return switch (s) {
       case CloSXP _clo -> true; // CloSXP should always be marked as having a tag I think
       case LangSXP _lang -> false; // FIXME: maybe wrong
-      case PromSXP _prom -> false; // FIXME: maybe wrong
+      case PromSXP<?> _prom -> false; // FIXME: maybe wrong
       default -> false; // by default (if it's not a dotted-pair type object), there is no tag
     };
   }
@@ -139,9 +144,7 @@ public class RDSWriter implements Closeable {
       case EmptyEnvSXP _empty -> RDSItemType.Special.EMPTYENV_SXP;
       case BaseEnvSXP _base -> RDSItemType.Special.BASEENV_SXP;
       case GlobalEnvSXP _global -> RDSItemType.Special.GLOBALENV_SXP;
-      case SpecialSymSXP sexp when sexp == SEXPs.UNBOUND_VALUE ->
-          RDSItemType.Special.UNBOUNDVALUE_SXP;
-      case SpecialSymSXP sexp when sexp == SEXPs.MISSING_ARG -> RDSItemType.Special.MISSINGARG_SXP;
+      case MissingSXP sexp when sexp == SEXPs.MISSING_ARG -> RDSItemType.Special.MISSINGARG_SXP;
 
         // BaseNamespace not supported
 
@@ -294,13 +297,13 @@ public class RDSWriter implements Closeable {
     writeItem(lang.args());
   }
 
-  private void writePromSXP(PromSXP prom) throws IOException {
+  private void writePromSXP(PromSXP<?> prom) throws IOException {
     if (hasAttr(prom)) {
       writeAttributes(Objects.requireNonNull(prom.attributes()));
     }
     writeFlags(flags(prom));
     // a promise has the value, expression and environment, in this order
-    writeItem(prom.val());
+    writeItemOrUnbound(prom.val());
     writeItem(prom.expr());
     writeItem(prom.env());
   }
@@ -537,7 +540,7 @@ public class RDSWriter implements Closeable {
   private void writeSymbol(SymSXP s) throws IOException {
     switch (s) {
       case RegSymSXP regSymSXP -> writeRegSymbol(regSymSXP);
-      case SpecialSymSXP specialSymSXP when specialSymSXP.isEllipsis() -> {
+      case MissingSXP missingSXP when missingSXP.isEllipsis() -> {
         out.writeByte((byte) SEXPType.SYM.i);
         writeChars("..."); // Really?
       }

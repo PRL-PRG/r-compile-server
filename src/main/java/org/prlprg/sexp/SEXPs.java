@@ -27,26 +27,25 @@ import org.prlprg.primitive.Names;
 public final class SEXPs {
   // region constants
   public static final NilSXP NULL = NilSXP.INSTANCE;
-  public static final LglSXP TRUE = ScalarLglSXP.TRUE;
-  public static final LglSXP FALSE = ScalarLglSXP.FALSE;
-  public static final LglSXP NA_LOGICAL = ScalarLglSXP.NA;
-  public static final IntSXP NA_INTEGER = new ScalarIntSXP(Constants.NA_INT);
-  public static final RealSXP NA_REAL = new ScalarRealSXP(Constants.NA_REAL);
-  public static final StrSXP NA_STRING = new ScalarStrSXP(Constants.NA_STRING);
-  public static final ComplexSXP NA_COMPLEX = new ScalarComplexSXP(Constants.NA_COMPLEX);
+  public static final BoolSXP TRUE = BoolSXP.TRUE;
+  public static final BoolSXP FALSE = BoolSXP.FALSE;
+  public static final ScalarLglSXP NA_LOGICAL = ScalarLglSXP.NA;
+  public static final ScalarIntSXP NA_INTEGER = new ScalarIntSXP(Constants.NA_INT);
+  public static final ScalarRealSXP NA_REAL = new ScalarRealSXP(Constants.NA_REAL);
+  public static final ScalarStrSXP NA_STRING = new ScalarStrSXP(Constants.NA_STRING);
+  public static final ScalarComplexSXP NA_COMPLEX = new ScalarComplexSXP(Constants.NA_COMPLEX);
   public static final IntSXP EMPTY_INTEGER = EmptyIntSXPImpl.INSTANCE;
   public static final RealSXP EMPTY_REAL = EmptyRealSXPImpl.INSTANCE;
   public static final LglSXP EMPTY_LOGICAL = EmptyLglSXPImpl.INSTANCE;
   public static final RawSXP EMPTY_RAW = EmptyRawSXPImpl.INSTANCE;
   public static final ComplexSXP EMPTY_COMPLEX = EmptyComplexSXPImpl.INSTANCE;
   public static final StrSXP EMPTY_STRING = EmptyStrSXPImpl.INSTANCE;
-  public static final SpecialSymSXP UNBOUND_VALUE = new SpecialSymSXP("unbound");
 
-  public static final SpecialSymSXP MISSING_ARG = new SpecialSymSXP("missing");
+  public static final MissingSXP MISSING_ARG = MissingSXP.INSTANCE;
 
   private static final Map<String, RegSymSXP> SYMBOL_POOL = new HashMap<>();
 
-  public static final RegSymSXP DOTS_SYMBOL = symbol("...");
+  public static final DotsSymSXP DOTS_SYMBOL = new DotsSymSXP();
   public static final RegSymSXP SUPER_ASSIGN = symbol("<<-");
   public static final RegSymSXP ASSIGN_TMP = symbol("*tmp*");
   public static final RegSymSXP ASSIGN_VTMP = symbol("*vtmp*");
@@ -61,15 +60,15 @@ public final class SEXPs {
   // endregion constants
 
   // region constructors
-  public static IntSXP integer(int data) {
+  public static ScalarIntSXP integer(int data) {
     return new ScalarIntSXP(data);
   }
 
-  public static RealSXP real(double data) {
+  public static ScalarRealSXP real(double data) {
     return new ScalarRealSXP(data);
   }
 
-  public static LglSXP logical(Logical data) {
+  public static ScalarLglSXP logical(Logical data) {
     return switch (data) {
       case TRUE -> TRUE;
       case FALSE -> FALSE;
@@ -77,15 +76,19 @@ public final class SEXPs {
     };
   }
 
-  public static RawSXP raw(byte data) {
+  public static BoolSXP bool(boolean data) {
+    return data ? TRUE : FALSE;
+  }
+
+  public static ScalarRawSXP raw(byte data) {
     return new ScalarRawSXP(data);
   }
 
-  public static ComplexSXP complex(Complex data) {
+  public static ScalarComplexSXP complex(Complex data) {
     return new ScalarComplexSXP(data);
   }
 
-  public static StrSXP string(String data) {
+  public static ScalarStrSXP string(String data) {
     return new ScalarStrSXP(data);
   }
 

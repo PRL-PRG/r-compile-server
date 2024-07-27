@@ -4,6 +4,7 @@ import static org.prlprg.util.Reflection.assertJavaxNullableOrNoNullable;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Streams;
 import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
@@ -59,7 +60,7 @@ public sealed interface InstrData permits JumpData, StmtData {
     var components = getClass().getRecordComponents();
     var firstComponent = components.length == 0 ? null : components[0];
     var hasFunAnnotation = firstComponent != null && firstComponent.isAnnotationPresent(Fun.class);
-    var annotatedFun = hasFunAnnotation ? IFun.of(Objects.requireNonNull(Reflection.getComponent(asRecord(), firstComponent))) : null;
+    var annotatedFun = hasFunAnnotation ? IFun.of(Objects.requireNonNull(Reflection.getComponentValue(asRecord(), firstComponent))) : null;
 
     var intrinsicFun = Optional.ofNullable(getClass().getAnnotation(Intrinsic.class))
         .map(Intrinsic::value)
@@ -90,7 +91,7 @@ public sealed interface InstrData permits JumpData, StmtData {
     for (var i = 0; i < components.length; i++) {
       var component = components[i];
 
-      var value = Reflection.getComponent(asRecord(), component);
+      var value = Reflection.getComponentValue(asRecord(), component);
 
       assertJavaxNullableOrNoNullable(component);
       assert !(value instanceof Optional)
@@ -155,7 +156,7 @@ public sealed interface InstrData permits JumpData, StmtData {
     try {
       for (var i = 0; i < components.length; i++) {
         var component = components[i];
-        var oldComponentValue = Reflection.getComponent(asRecord(), component);
+        var oldComponentValue = Reflection.getComponentValue(asRecord(), component);
 
         if (oldComponentValue == null) {
           continue;
@@ -235,7 +236,7 @@ public sealed interface InstrData permits JumpData, StmtData {
    */
   default void checkInputNodeTypes(@Nullable CascadingUpdatedInstrs cascade) {
     for (var component : getClass().getRecordComponents()) {
-      var componentValue = Reflection.getComponent(asRecord(), component);
+      var componentValue = Reflection.getComponentValue(asRecord(), component);
 
       if (componentValue == null) {
         continue;
@@ -325,7 +326,7 @@ public sealed interface InstrData permits JumpData, StmtData {
       var effectInputs = new Object[effectInputIndices.length];
       for (var i = 0; i < effectInputIndices.length; i++) {
         var effectInputIndex = effectInputIndices[i];
-        effectInputs[i] = Reflection.getComponent(asRecord(), components[effectInputIndex]);
+        effectInputs[i] = Reflection.getComponentValue(asRecord(), components[effectInputIndex]);
       }
 
       try {
@@ -350,9 +351,39 @@ public sealed interface InstrData permits JumpData, StmtData {
    * <p>By default, this does so via reflection and annotations, and throws
    * {@link InvalidAnnotationError} if the instruction has bad or missing annotations.
    */
-  default @Unmodifiable List<Class<?>> outputTypes() {
+  @SuppressWarnings("UnstableApiUsage")
+  default @Unmodifiable List<? extends Class<?>> outputTypes() {
     var outputs = getClass().getAnnotation(Outputs.class);
-    return outputs == null ? List.of() : Arrays.asList(outputs.value());
+    var outputsGeneric = getClass().getAnnotation(OutputsGeneric.class);
+
+    if (outputs == null) {
+      if (outputsGeneric != null) {
+        throw new InvalidAnnotationError(
+            getClass().getSimpleName(),
+            "`@OutputsGeneric` can only be present with `@Outputs` (and they must have the same number of values)");
+      }
+
+      return List.of();
+    }
+
+    if (outputsGeneric == null) {
+      return Arrays.asList(outputs.value());
+    }
+
+    if (outputs.value().length != outputsGeneric.value().length) {
+      throw new InvalidAnnotationError(
+          getClass().getSimpleName(),
+          "`@Outputs` and `@OutputsGeneric` must have the same number of values: "
+              + outputs.value().length + " != " + outputsGeneric.value().length);
+    }
+
+    var components = getClass().getRecordComponents();
+    var values = Reflection.getComponentValues(asRecord());
+
+    return Streams.zip(
+        Arrays.stream(outputs.value()),
+        Arrays.stream(outputsGeneric.value()),
+        (output, genericExpression) -> genericExpression.apply(output, components, values)).toList();
   }
 
   /** Run sanity checks. Either does nothing or throws {@link RuntimeException}.

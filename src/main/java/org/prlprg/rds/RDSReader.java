@@ -100,7 +100,7 @@ public class RDSReader implements Closeable {
     return sexp;
   }
 
-  private SEXP readItem() throws IOException {
+  private @Nullable SEXP readItemOrUnbound() throws IOException {
     var flags = readFlags();
 
     return switch (flags.getType()) {
@@ -138,11 +138,21 @@ public class RDSReader implements Closeable {
             case BCREPDEF, BCREPREF ->
                 throw new RDSException("Unexpected bytecode reference here (not in bytecode)");
             case ATTRLANGSXP, ATTRLISTSXP -> throw new RDSException("Unexpected attr here");
-            case UNBOUNDVALUE_SXP -> SEXPs.UNBOUND_VALUE;
+            case UNBOUNDVALUE_SXP -> null;
             case GENERICREFSXP, PACKAGESXP, PERSISTSXP, CLASSREFSXP, ALTREPSXP ->
                 throw new RDSException("Unsupported RDS special type: " + s);
           };
     };
+  }
+
+  private SEXP readItem() throws IOException {
+    var itemOrUnbound = readItemOrUnbound();
+
+    if (itemOrUnbound == null) {
+      throw new RDSException("Unexpected unbound value here");
+    }
+
+    return itemOrUnbound;
   }
 
   private SEXP readComplex(Flags flags) throws IOException {
@@ -166,13 +176,13 @@ public class RDSReader implements Closeable {
   private SEXP readPromise(Flags flags) throws IOException {
     readAttributes(flags);
     var tag = flags.hasTag() ? readItem() : SEXPs.NULL;
-    var val = readItem();
+    var val = readItemOrUnbound();
     var expr = readItem();
 
     if (tag instanceof NilSXP) {
-      return new PromSXP(expr, val, SEXPs.EMPTY_ENV);
+      return new PromSXP<>(expr, val, SEXPs.EMPTY_ENV);
     } else if (tag instanceof EnvSXP env) {
-      return new PromSXP(expr, val, env);
+      return new PromSXP<>(expr, val, env);
     } else {
       throw new RDSException("Expected promise ENV to be environment");
     }

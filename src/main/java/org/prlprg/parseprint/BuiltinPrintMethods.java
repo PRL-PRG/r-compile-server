@@ -66,7 +66,7 @@ public final class BuiltinPrintMethods {
         }
         w.write(component.getName());
         w.write('=');
-        p.print(Reflection.getComponent(data, component));
+        p.print(Reflection.getComponentValue(data, component));
       }
       w.write(')');
     }
