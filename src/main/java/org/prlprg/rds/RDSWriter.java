@@ -6,6 +6,7 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.DoubleStream;
 import java.util.stream.StreamSupport;
+import javax.annotation.Nullable;
 import org.prlprg.RVersion;
 import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.*;
@@ -69,12 +70,16 @@ public class RDSWriter implements Closeable {
     writeItem(sexp);
   }
 
+  public void writeItem(SEXP s) throws IOException {
+    writeItemOrUnbound(s);
+  }
+
   /**
    * See <a
    * href="https://github.com/wch/r-source/blob/65892cc124ac20a44950e6e432f9860b1d6e9bf4/src/main/serialize.c#L1021">GNU-R
    * serialize.c</a>.
    */
-  public void writeItem(SEXP s) throws IOException {
+  public void writeItemOrUnbound(@Nullable SEXP s) throws IOException {
     // Write the flags for this SEXP. This will vary depending on whether the SEXP is a special
     // RDS type or not
     var flags = flags(s);
@@ -110,7 +115,7 @@ public class RDSWriter implements Closeable {
           case EnvSXP env -> writeEnv(env);
           case ListSXP list -> writeListSXP(list);
           case LangSXP lang -> writeLangSXP(lang);
-          case PromSXP prom -> writePromSXP(prom);
+          case PromSXP<?> prom -> writePromSXP(prom);
           case CloSXP clo -> writeCloSXP(clo);
           case BuiltinOrSpecialSXP bos -> writeBuiltinOrSpecialSXP(bos);
           case VectorSXP<?> vec -> writeVectorSXP(vec);
@@ -152,7 +157,7 @@ public class RDSWriter implements Closeable {
         // In GNUR, the tag of a promise is its environment. The environment is set to null once
         // the promise is evaluated. So, hasTag should return true if and only if the promise is
         // unevaluated (lazy)
-      case PromSXP prom -> prom.isLazy();
+      case PromSXP<?> prom -> prom.isLazy();
         // hasTag is based on the first element
       case ListSXP list -> !list.isEmpty() && list.get(0).hasTag();
       default -> false;
@@ -160,7 +165,7 @@ public class RDSWriter implements Closeable {
   }
 
   /** Determines the RDS item type associated with the provided SEXP. */
-  private RDSItemType rdsType(SEXP s) {
+  private RDSItemType rdsType(@Nullable SEXP s) {
     return switch (s) {
         // "Save Special hooks" from serialize.c
       case NilSXP _ -> RDSItemType.Special.NILVALUE_SXP;
@@ -168,11 +173,10 @@ public class RDSWriter implements Closeable {
       case EmptyEnvSXP _ -> RDSItemType.Special.EMPTYENV_SXP;
       case BaseEnvSXP _ -> RDSItemType.Special.BASEENV_SXP;
       case GlobalEnvSXP _ -> RDSItemType.Special.GLOBALENV_SXP;
-      case SpecialSymSXP sexp when sexp == SEXPs.UNBOUND_VALUE ->
-          RDSItemType.Special.UNBOUNDVALUE_SXP;
-      case SpecialSymSXP sexp when sexp == SEXPs.MISSING_ARG -> RDSItemType.Special.MISSINGARG_SXP;
         // Non-"Save Special" cases
       case NamespaceEnvSXP ns -> RDSItemType.Special.NAMESPACESXP;
+      case MissingSXP _ -> RDSItemType.Special.MISSINGARG_SXP;
+      case null -> RDSItemType.Special.UNBOUNDVALUE_SXP;
       default -> new RDSItemType.Sexp(s.type());
     };
   }
@@ -183,10 +187,10 @@ public class RDSWriter implements Closeable {
    */
   final int MAX_PACKED_INDEX = Integer.MAX_VALUE >> 8;
 
-  private Flags flags(SEXP s) {
+  private Flags flags(@Nullable SEXP s) {
     // If refIndex is greater than 0, the object has already been written, so we can
     // write a reference (since the index is 1-based)
-    int sexpRefIndex = refTable.getOrDefault(s, 0);
+    int sexpRefIndex = s == null ? 0 : refTable.getOrDefault(s, 0);
     if (sexpRefIndex > 0) {
       if (sexpRefIndex > MAX_PACKED_INDEX) {
         // If the reference index can't be packed in the flags, it will be written afterward
@@ -200,7 +204,12 @@ public class RDSWriter implements Closeable {
     // Otherwise, write flags based on the RDSType of s
     // FIXME: we should actually get the proper "locked" flag, but we currently don't have a
     //  representation of this in our environments
-    return new Flags(rdsType(s), new GPFlags(), s.isObject(), s.hasAttributes(), hasTag(s));
+    return new Flags(
+        rdsType(s),
+        new GPFlags(), 
+        s != null && s.isObject(),
+        s != null && s.hasAttributes(),
+        s != null && hasTag(s));
   }
 
   /**
@@ -308,14 +317,10 @@ public class RDSWriter implements Closeable {
         // Write the symbol
         writeChars(rs.name());
       }
-      case SpecialSymSXP specialSymSXP when specialSymSXP.isEllipsis() -> {
-        writeChars("..."); // Really?
-      }
-      default ->
-          throw new UnsupportedOperationException("Unreachable: implemented in special sexps.");
+      case MissingSXP _ -> throw new UnsupportedOperationException("can't directly serialize the missing value");
     }
   }
-
+  
   private void writeBuiltinOrSpecialSXP(BuiltinOrSpecialSXP bos) throws IOException {
     // For now, we throw an exception upon writing any SpecialSXP or BuiltinSXP. This is because
     // RDS serializes builtins via their name, but we do not have any (fully implemented) construct
@@ -361,7 +366,7 @@ public class RDSWriter implements Closeable {
     writeItem(lang.args());
   }
 
-  private void writePromSXP(PromSXP prom) throws IOException {
+  private void writePromSXP(PromSXP<?> prom) throws IOException {
     writeAttributesIfPresent(prom);
 
     // TODO: test that this is the correct order of arguments
@@ -371,7 +376,7 @@ public class RDSWriter implements Closeable {
       writeItem(prom.env());
     }
 
-    writeItem(prom.val());
+    writeItemOrUnbound(prom.val());
     writeItem(prom.expr());
   }
 

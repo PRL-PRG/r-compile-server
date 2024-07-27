@@ -3,6 +3,7 @@ package org.prlprg.sexp;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
+import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.util.Pair;
@@ -38,7 +39,7 @@ public final class EmptyEnvSXP implements StaticEnvSXP {
   }
 
   @Override
-  public void set(String name, SEXP value) {
+  public void set(String name, @Nullable SEXP value) {
     throw new UnsupportedOperationException("cannot set a value in the empty environment");
   }
 

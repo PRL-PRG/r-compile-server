@@ -6,8 +6,14 @@ import java.lang.annotation.Repeatable;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.RecordComponent;
+import java.lang.reflect.WildcardType;
 import org.prlprg.ir.cfg.IFun;
 import org.prlprg.ir.cfg.Instr;
+import org.prlprg.ir.cfg.Node;
+import org.prlprg.ir.type.RType;
+import org.prlprg.sexp.SEXP;
 
 /** Applied to the first component in an {@link InstrData}, specifies that the component value is
  * the {@link Instr#fun()} of an instruction with this data.
@@ -85,4 +91,36 @@ import org.prlprg.ir.cfg.Instr;
 @Target(ElementType.TYPE)
 @interface Outputs {
   Class<?>[] value();
+}
+
+/** Applied to an {@link InstrData} with {@link Outputs}, intersects the output type with other
+ * inputs and outputs based on the given enum.
+ */
+@Documented
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.TYPE)
+@interface OutputsGeneric {
+  GenericOutput[] value();
+}
+
+enum GenericOutput {
+  INTERSECT_VALUE;
+
+  Class<?> apply(Class<?> output, RecordComponent[] components, Object[] values) {
+    return switch (this) {
+      case INTERSECT_VALUE -> {
+        if (components.length != 1 || !components[0].getName().equals("value") ||
+            !(components[0].getGenericType() instanceof ParameterizedType p) ||
+            p.getRawType() != Node.class ||
+            !(p.getActualTypeArguments()[0] instanceof WildcardType w) ||
+            w.getLowerBounds().length != 1 ||
+            !(w.getLowerBounds()[0] instanceof Class<?> c) ||
+            !SEXP.class.isAssignableFrom(c)) {
+          throw new IllegalArgumentException("`INTERSECT_VALUE` can only be used with a single component `Node<? extends SEXP> value`");
+        }
+
+        yield RType.intersection(output, ((Node<?>)values[0]).type());
+      }
+    }
+  }
 }

@@ -121,8 +121,6 @@ public class SEXPParseContext implements HasSEXPParseContext {
       return SEXPs.list(parseList(p));
     } else if (s.trySkip("<missing>")) {
       return SEXPs.MISSING_ARG;
-    } else if (s.trySkip("<unbound>")) {
-      return SEXPs.UNBOUND_VALUE;
     } else if (s.nextCharSatisfies(Character::isDigit)
         || s.nextCharIs('+')
         || s.nextCharIs('-')
@@ -369,10 +367,10 @@ public class SEXPParseContext implements HasSEXPParseContext {
             case SEXPType.PROM -> {
               s.assertAndSkip("env=");
               var env = p.parse(EnvSXP.class);
-              var val = s.trySkip("val=") ? p.parse(SEXP.class) : SEXPs.UNBOUND_VALUE;
+              var val = s.trySkip("val=") ? p.parse(SEXP.class) : null;
               s.assertAndSkip('⇒');
               var expr = p.parse(SEXP.class);
-              yield new PromSXP(expr, val, env);
+              yield new PromSXP<>(expr, val, env);
             }
             case SEXPType.BUILTIN, SEXPType.SPECIAL -> {
               var id = p.parse(BuiltinId.class);

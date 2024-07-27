@@ -114,7 +114,7 @@ public class RDSReader implements Closeable {
     return sexp;
   }
 
-  private SEXP readItem() throws IOException {
+  private @Nullable SEXP readItemOrUnbound() throws IOException {
     var flags = readFlags();
 
     return switch (flags.getType()) {
@@ -151,11 +151,21 @@ public class RDSReader implements Closeable {
             case BCREPDEF, BCREPREF ->
                 throw new RDSException("Unexpected bytecode reference here (not in bytecode)");
             case ATTRLANGSXP, ATTRLISTSXP -> throw new RDSException("Unexpected attr here");
-            case UNBOUNDVALUE_SXP -> SEXPs.UNBOUND_VALUE;
+            case UNBOUNDVALUE_SXP -> null;
             case GENERICREFSXP, PACKAGESXP, PERSISTSXP, CLASSREFSXP, ALTREPSXP ->
                 throw new RDSException("Unsupported RDS special type: " + s);
           };
     };
+  }
+
+  private SEXP readItem() throws IOException {
+    var itemOrUnbound = readItemOrUnbound();
+
+    if (itemOrUnbound == null) {
+      throw new RDSException("Unexpected unbound value here");
+    }
+
+    return itemOrUnbound;
   }
 
   private SEXP readComplex(Flags flags) throws IOException {
@@ -188,16 +198,19 @@ public class RDSReader implements Closeable {
     // FIXME: do something with the attributes here?
     readAttributes(flags);
     var tag = flags.hasTag() ? readItem() : SEXPs.NULL;
-    var val = readItem();
+    var val = readItemOrUnbound();
     var expr = readItem();
 
     if (tag instanceof NilSXP) {
-      // If the tag is nil, the promise is evaluated
-      return new PromSXP(expr, val, SEXPs.EMPTY_ENV);
+      // If the tag is nil, the promise is eager. We put `EMPTY_ENV` instead of nil as the promise
+      // environment (it can be anything, since it's only used for lazy evaluation).
+      return new PromSXP<>(expr, val, SEXPs.EMPTY_ENV);
     } else if (tag instanceof EnvSXP env) {
-      // Otherwise, the promise is lazy. We represent lazy promises as having a val of
-      // SEXPs.UNBOUND_VALUE, so we set it here accordingly
-      return new PromSXP(expr, SEXPs.UNBOUND_VALUE, env);
+      // Otherwise, the tag should be an environment, the promise's environment, and the promise is
+      // lazy. The "value" of a lazy promise is "unbound", which we represent as `null`.
+      assert val == null
+          : "promise serialized with env but not unbound value (so the environment is redundant, GNU-R doesn't serialize promises like this)";
+      return new PromSXP<>(expr, null, env);
     } else {
       throw new RDSException("Expected promise ENV to be environment");
     }

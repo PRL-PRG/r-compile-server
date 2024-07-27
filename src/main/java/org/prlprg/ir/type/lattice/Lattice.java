@@ -37,8 +37,8 @@ public interface Lattice<T extends Lattice<T>> {
 
     return lhs.getClass().getRecordComponents().length > rhs.getClass().getRecordComponents().length
         && Streams.zip(
-                Reflection.streamComponents(lhsRecord),
-                Reflection.streamComponents(rhsRecord),
+                Reflection.streamComponentValues(lhsRecord),
+                Reflection.streamComponentValues(rhsRecord),
                 (l, r) -> Lattice.isSubset((Lattice) l.orElse(null), (Lattice) r.orElse(null)))
             .allMatch(x -> x);
   }
@@ -56,8 +56,8 @@ public interface Lattice<T extends Lattice<T>> {
     return lhs.getClass().getRecordComponents().length
             <= rhs.getClass().getRecordComponents().length
         && Streams.zip(
-                Reflection.streamComponents(lhsRecord),
-                Reflection.streamComponents(rhsRecord),
+                Reflection.streamComponentValues(lhsRecord),
+                Reflection.streamComponentValues(rhsRecord),
                 (l, r) -> Lattice.isSuperset((Lattice) l.orElse(null), (Lattice) r.orElse(null)))
             .allMatch(x -> x);
   }
@@ -107,8 +107,8 @@ public interface Lattice<T extends Lattice<T>> {
     return Reflection.construct(
         returnClass,
         Streams.zip(
-                Reflection.streamComponents(lhsRecord),
-                Reflection.streamComponents(rhsRecord),
+                Reflection.streamComponentValues(lhsRecord),
+                Reflection.streamComponentValues(rhsRecord),
                 (l, r) -> Lattice.union((Lattice) l.orElse(null), (Lattice) r.orElse(null)))
             .toArray());
   }
@@ -128,13 +128,13 @@ public interface Lattice<T extends Lattice<T>> {
     var components =
         Streams.concat(
                 Streams.zip(
-                    Reflection.streamComponents(lhsRecord),
-                    Reflection.streamComponents(rhsRecord),
+                    Reflection.streamComponentValues(lhsRecord),
+                    Reflection.streamComponentValues(rhsRecord),
                     (l, r) ->
                         Lattice.intersection((Lattice) l.orElse(null), (Lattice) r.orElse(null))),
-                Reflection.streamComponents(lhsRecord)
+                Reflection.streamComponentValues(lhsRecord)
                     .skip(rhsRecord.getClass().getRecordComponents().length),
-                Reflection.streamComponents(rhsRecord)
+                Reflection.streamComponentValues(rhsRecord)
                     .skip(lhsRecord.getClass().getRecordComponents().length))
             .toArray();
 

@@ -53,7 +53,7 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
   private static Arbitrary<Attributes> attributes(Arbitrary<SEXP> sexps) {
     return Arbitraries.maps(
             symbolStrings().edgeCases(c -> c.add("names", "dim", "class")),
-            sexps.filter(s -> !(s instanceof PromSXP)))
+            sexps.filter(s -> !(s instanceof PromSXP<?>)))
         .map(Attributes::new);
   }
 
@@ -135,12 +135,12 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
         .as(SEXPs::closure);
   }
 
-  public static Arbitrary<PromSXP> promises() {
+  public static Arbitrary<PromSXP<?>> promises() {
     return promises(sexps());
   }
 
-  private static Arbitrary<PromSXP> promises(Arbitrary<SEXP> sexps) {
-    var sexpsNoPromises = sexps.filter(s -> !(s instanceof PromSXP));
+  private static Arbitrary<PromSXP<?>> promises(Arbitrary<SEXP> sexps) {
+    var sexpsNoPromises = sexps.filter(s -> !(s instanceof PromSXP<?>));
     return Combinators.combine(sexpsNoPromises, sexpsNoPromises, envs(sexps)).as(PromSXP::new);
   }
 
@@ -197,7 +197,7 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
   }
 
   public static Arbitrary<SymSXP> symbols() {
-    return oneOf(Arbitraries.of(SEXPs.MISSING_ARG, SEXPs.UNBOUND_VALUE), regSymbols());
+    return oneOf(Arbitraries.of(SEXPs.MISSING_ARG), regSymbols());
   }
 
   public static Arbitrary<RegSymSXP> regSymbols() {

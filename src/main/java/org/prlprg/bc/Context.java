@@ -59,23 +59,11 @@ public class Context {
   }
 
   public static Context functionContext(CloSXP fun) {
-    var env = new UserEnvSXP(fun.env());
-    var ctx = topLevelContext(env);
-
-    return ctx.functionContext(fun.parameters(), fun.bodyAST());
+    return topLevelContext(new UserEnvSXP(fun.env()));
   }
 
-  public Context functionContext(ListSXP formals, SEXP body) {
-    var env = new UserEnvSXP(environment);
-    var ctx = new Context(true, true, false, env, loop);
-
-    formals.names().forEach(x -> env.set(x, SEXPs.UNBOUND_VALUE));
-    for (var v : formals.values()) {
-      ctx.findLocals(v).forEach(x -> env.set(x, SEXPs.UNBOUND_VALUE));
-    }
-    ctx.findLocals(body).forEach(x -> env.set(x, SEXPs.UNBOUND_VALUE));
-
-    return ctx;
+  public Context functionContext(ListSXP ignored, SEXP ignored1) {
+    return new Context(true, true, false, new UserEnvSXP(environment), loop);
   }
 
   public Context nonTailContext() {

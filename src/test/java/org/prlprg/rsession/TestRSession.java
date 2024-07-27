@@ -2,7 +2,6 @@ package org.prlprg.rsession;
 
 import com.google.common.collect.ImmutableSet;
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -13,8 +12,6 @@ import org.prlprg.sexp.BaseEnvSXP;
 import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.GlobalEnvSXP;
 import org.prlprg.sexp.NamespaceEnvSXP;
-import org.prlprg.sexp.SEXP;
-import org.prlprg.sexp.SEXPs;
 import org.prlprg.sexp.StrSXP;
 import org.prlprg.util.IO;
 
@@ -45,16 +42,12 @@ public class TestRSession implements RSession {
                       Objects.requireNonNull(
                           TestRSession.class.getResourceAsStream(BASE_SYMBOLS_RDS_FILE))));
 
-      // 2. Create empty bindings
-      var bindings = new HashMap<String, SEXP>(names.size());
-      names.forEach(x -> bindings.put(x, SEXPs.UNBOUND_VALUE));
-
-      // 3. Create a temporary baseenv and temporart base namespace
-      baseEnv = new BaseEnvSXP(bindings);
+      // 2. Create a temporary baseenv and temporary base namespace
+      baseEnv = new BaseEnvSXP();
       // the 4.3.2 should correspond to the R version that written the RDS files used in this class
-      baseNamespace = new NamespaceEnvSXP("base", "4.3.2", baseEnv, bindings);
+      baseNamespace = new NamespaceEnvSXP("base", "4.3.2", baseEnv);
 
-      // 4. Load the values
+      // 3. Load the values
       var temp =
           (EnvSXP)
               RDSReader.readStream(
@@ -63,7 +56,7 @@ public class TestRSession implements RSession {
                       Objects.requireNonNull(
                           TestRSession.class.getResourceAsStream(BASE_ENV_RDS_FILE))));
 
-      // 5. update them in the baseenv and base namespace
+      // 4. update them in the baseenv and base namespace
       temp.bindings()
           .forEach(
               x -> {

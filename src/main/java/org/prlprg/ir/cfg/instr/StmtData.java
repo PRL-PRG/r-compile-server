@@ -51,7 +51,7 @@ public sealed interface StmtData extends InstrData {
   // Many of these are derived from PIR `instruction.h`
 
   @Intrinsic("fs")
-  @Effect(value = ReadsEnv.class, inputs = 3)
+  @Effect(value = ReadsEnv.class, inputs = "env")
   @Outputs(FrameState.class)
   record FrameState_(
       BcPosition location,
@@ -67,13 +67,13 @@ public sealed interface StmtData extends InstrData {
   }
 
   /** Effects are arbitrary because it implicitly forces. */
-  @Effect(value = Loads.class, inputs = {0, 1})
+  @Effect(value = Loads.class, inputs = {"name", "env"})
   @Effect(Forces.class)
   @Outputs(FunSXP.class)
   record LdFun(RegSymSXP name, Node<? extends EnvSXP> env) implements StmtData {}
 
   /** Doesn't implicitly force, unlike {@link org.prlprg.bc.BcInstr.GetVar BcInstr.GetVar}. */
-  @Effect(value = Loads.class, inputs = {0, 1})
+  @Effect(value = Loads.class, inputs = {"name", "env"})
   @Outputs(SEXP.class)
   record LdVar(RegSymSXP name, Node<? extends EnvSXP> env, boolean missOk) implements StmtData {}
 
@@ -98,12 +98,12 @@ public sealed interface StmtData extends InstrData {
 
   @Effect(value = Errors.class)
   @Outputs(NotMissingSXP.class)
-  @OutputsGeneric("Intersect 0")
+  @OutputsGeneric(GenericOutput.INTERSECT_ARG)
   record ChkMissing(Node<? extends SEXP> value) implements StmtData {}
 
   @Effect(value = Errors.class)
   @Outputs(FunSXP.class)
-  @OutputsGeneric("Intersect 0")
+  @OutputsGeneric(GenericOutput.INTERSECT_ARG)
   record ChkFun(Node<? extends SEXP> value) implements StmtData {}
 
   @EffectsAre({REffect.LeaksNonEnvArg, REffect.ReadsEnvArg, REffect.WritesEnvArg})

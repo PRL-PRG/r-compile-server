@@ -456,7 +456,7 @@ public class CFGCompiler {
     for (var component : instr.getClass().getRecordComponents()) {
       var clazz = component.getType();
       var labelName = component.getAnnotation(LabelName.class);
-      var value = Reflection.getComponent(r, component);
+      var value = Reflection.getComponentValue(r, component);
       assert clazz == BcLabel.class || labelName == null
           : "only BcLabel fields should be annotated with @LabelName";
       assert clazz != BcLabel.class || labelName != null
@@ -1385,7 +1385,7 @@ public class CFGCompiler {
     var argValues = Lists.map(call.args, Call.Arg::value);
     if (call.args.stream()
             .anyMatch(
-                arg -> arg.name() != null || arg.value.equals(new Constant(SEXPs.DOTS_SYMBOL)))
+                arg -> arg.name() != null || arg.value == Constant.DOTS)
         || call.args.size() < minNumArgs
         || call.args.size() > maxNumArgs) {
       // Slowcase, for when we don't have a specialized instruction.

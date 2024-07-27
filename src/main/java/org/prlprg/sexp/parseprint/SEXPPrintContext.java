@@ -293,7 +293,7 @@ public class SEXPPrintContext implements HasSEXPPrintContext {
   }
 
   @PrintMethod
-  private void print(PromSXP sexp, Printer p) {
+  private void print(PromSXP<?> sexp, Printer p) {
     handleDepth(
         p,
         () -> {
