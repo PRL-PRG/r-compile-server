@@ -144,7 +144,6 @@ public class BC2CCompiler {
       case BcInstr.GetBuiltin(var idx) -> compileGetBuiltin(idx);
       case BcInstr.PushConstArg(var idx) -> compilePushConstArg(idx);
       case BcInstr.CallBuiltin(var idx) -> compileCall(idx);
-      case BcInstr.CallSpecial(var idx) -> compileCall(idx);
       case BcInstr.Call(var idx) -> compileCall(idx);
       case BcInstr.PushArg() -> compilePushArg();
       case BcInstr.SetTag(var idx) -> compilerSetTag(idx);
@@ -154,11 +153,18 @@ public class BC2CCompiler {
       case BcInstr.Invisible() -> compileInvisible();
       case BcInstr.LdNull() -> compileLdNull();
       case BcInstr.GetFun(var idx) -> compileGetFun(idx);
+      case BcInstr.Eq(var idx) -> compileEq(idx);
 
       default -> throw new UnsupportedOperationException(instr + ": not supported");
     }
     body.comment("end: " + instr);
     body.nl();
+  }
+
+  private void compileEq(ConstPool.Idx<LangSXP> idx) {
+    var lhs = stack.curr(-1);
+    var rhs = stack.curr(0);
+    popPush(2, "Rsh_binary(EQ, %s, %s);".formatted(lhs, rhs), true);
   }
 
   private void compileCall(ConstPool.Idx<LangSXP> idx) {
@@ -199,7 +205,7 @@ public class BC2CCompiler {
   }
 
   private void compileLt() {
-    popPush(2, "Rsh_fast_binary(LT, %s, %s)".formatted(stack.curr(-1), stack.curr(0)), true);
+    popPush(2, "Rsh_binary(LT, %s, %s)".formatted(stack.curr(-1), stack.curr(0)), true);
   }
 
   private void compilerSetTag(ConstPool.Idx<StrOrRegSymSXP> idx) {
@@ -253,7 +259,7 @@ public class BC2CCompiler {
   }
 
   private void compileAdd() {
-    popPush(2, "Rsh_fast_binary(ADD, %s, %s)".formatted(stack.curr(-1), stack.curr(0)), true);
+    popPush(2, "Rsh_binary(ADD, %s, %s)".formatted(stack.curr(-1), stack.curr(0)), true);
   }
 
   private void compileGetVar(ConstPool.Idx<RegSymSXP> idx) {

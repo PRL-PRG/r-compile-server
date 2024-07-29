@@ -43,19 +43,6 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
   }
 
   @Test
-  public void testCallSpecial() throws Exception {
-    compileAndCall(
-        """
-                  function (...) { return(...) }
-                  """,
-        "list(1L)",
-        (IntSXP v) -> {
-          assertEquals(1, v.size());
-          assertEquals(1, v.asInt(0));
-        });
-  }
-
-  @Test
   public void testSumIn0Loop() throws Exception {
     compileAndCall(
         """
@@ -85,6 +72,31 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
         (VecSXP v) -> {
           assertArrayEquals(new Double[] {1.0, 2.0, 3.0, 4.0}, v.coerceTo(Double.class));
           assertEquals("x", v.names().get(3));
+        });
+  }
+
+  @Test
+  public void testEq(TestInfo info) throws Exception {
+    compileAndCall(
+        """
+                            function (x) { x == 1 }
+                        """,
+        "list(x=1)",
+        (LglSXP v) -> {
+          assertEquals(SEXPs.TRUE, v);
+        });
+  }
+
+  @Test
+  public void testIfElse(TestInfo info) throws Exception {
+    compileAndCall(
+        """
+                    function (x) { if (x == 1) 1 else if (x == 2) 2 else 3 }
+                """,
+        "list(x=2)",
+        (RealSXP v) -> {
+          assertEquals(2.0, v.asReal(0));
+          assertEquals(1, v.size());
         });
   }
 
