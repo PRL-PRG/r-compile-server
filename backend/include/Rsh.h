@@ -118,9 +118,9 @@ static INLINE Rboolean Rsh_is_true(SEXP value, SEXP call) {
     }                                                                          \
   } while (0)
 
-typedef enum { ADD, LT } BINARY_OP;
+typedef enum { ADD, LT, EQ } BINARY_OP;
 
-static INLINE SEXP Rsh_fast_binary(BINARY_OP op, SEXP x, SEXP y) {
+static INLINE SEXP Rsh_binary(BINARY_OP op, SEXP x, SEXP y) {
   switch (op) {
   case ADD:
     if (TYPEOF(x) == REALSXP && TYPEOF(y) == REALSXP) {
@@ -133,6 +133,13 @@ static INLINE SEXP Rsh_fast_binary(BINARY_OP op, SEXP x, SEXP y) {
     if (TYPEOF(x) == REALSXP && TYPEOF(y) == REALSXP) {
       // FIXME: NA, ...
       return ScalarLogical(REAL(x)[0] < REAL(y)[0]);
+    }
+    error("Unsupported type");
+    break;
+  case EQ:
+    if (TYPEOF(x) == REALSXP && TYPEOF(y) == REALSXP) {
+      // FIXME: NA, ...
+      return ScalarLogical(REAL(x)[0] == REAL(y)[0]);
     }
     error("Unsupported type");
     break;
@@ -151,5 +158,31 @@ static INLINE void Rsh_set_var(SEXP symbol, SEXP value, SEXP env) {
   defineVar(symbol, value, env);
   UNPROTECT(1);
 }
+
+static INLINE SEXP Rsh_compare(SEXP lhs, SEXP rhs) {
+    return R_NilValue;
+}
+
+//#define DO_FAST_COMPARE(op,res,lhs,rhs) do { \
+//    R_Visible = TRUE;                          \
+//    res = ((lhs) op (rhs)) ? TRUE : FALSE; \
+//} while(0)
+//
+//#define Rsh_fast_compare(op,res,lhs,rhs) do { \
+//	if (lhs->tag == REALSXP && ! ISNAN(lhs->u.dval)) {		\
+//	    if (rhs->tag == REALSXP && ! ISNAN(rhs->u.dval))		\
+//		DO_FAST_COMPARE(op, lhs->u.dval, rhs->u.dval);		\
+//	    else if (rhs->tag == INTSXP && rhs->u.ival != NA_INTEGER)	\
+//		DO_FAST_COMPARE(op, lhs->u.dval, rhs->u.ival);		\
+//	}								\
+//	else if (lhs->tag == INTSXP && lhs->u.ival != NA_INTEGER) {	\
+//	    if (rhs->tag == REALSXP && ! ISNAN(rhs->u.dval))		\
+//		DO_FAST_COMPARE(op, lhs->u.ival, rhs->u.dval);		\
+//	    else if (rhs->tag == INTSXP && rhs->u.ival != NA_INTEGER) {	\
+//		DO_FAST_COMPARE(op, lhs->u.ival, rhs->u.ival);		\
+//	    }								\
+//	}								\
+//	Rsh_compare(lhs, rhs);						\
+//} while (0)
 
 #endif // RSH_H
