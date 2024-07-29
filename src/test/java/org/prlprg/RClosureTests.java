@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.prlprg.bc.BCCompiler;
 import org.prlprg.sexp.StrSXP;
 import org.prlprg.util.Predicates;
 
@@ -640,7 +641,7 @@ public abstract class RClosureTests extends AbstractGNURBasedTest {
   }
 
   protected void testClosure(String closure) throws Exception {
-    testClosure(closure, Compiler.DEFAULT_OPTIMIZATION_LEVEL);
+    testClosure(closure, BCCompiler.DEFAULT_OPTIMIZATION_LEVEL);
   }
 
   protected abstract void testClosure(String closure, int optimizationLevel) throws Exception;

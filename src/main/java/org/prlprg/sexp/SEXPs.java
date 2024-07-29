@@ -99,6 +99,14 @@ public final class SEXPs {
     return real(ImmutableDoubleArray.of(first, rest));
   }
 
+  public static LglSXP logical(Logical first, Logical... rest) {
+    return logical(
+        ImmutableList.<Logical>builderWithExpectedSize(rest.length + 1)
+            .add(first)
+            .add(rest)
+            .build());
+  }
+
   public static RawSXP raw(byte first, byte... rest) {
     var result = ImmutableList.<Byte>builderWithExpectedSize(rest.length + 1);
     result.add(first);

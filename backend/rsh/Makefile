@@ -13,6 +13,7 @@ clean:
 	-rm -f rsh*tar.gz
 	-rm -fr rsh.Rcheck
 	-rm -rf src/*.o src/*.so
+	-rm -f src/Makevars
 
 document:
 	$(R) -e 'devtools::document()'

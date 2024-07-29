@@ -1,5 +1,6 @@
 #include "client.h"
 #include "protocol.pb.h"
+#include "zmq.hpp"
 #include <iostream>
 
 namespace rsh {

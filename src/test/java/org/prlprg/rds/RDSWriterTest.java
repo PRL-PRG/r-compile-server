@@ -270,7 +270,7 @@ public class RDSWriterTest extends AbstractGNURBasedTest {
     env.set("b", logical(Logical.TRUE));
     env.set("c", real(3.14, 2.71));
     env.set("d", string("foo", "bar"));
-    env.setAttributes(new Attributes.Builder().put("test", logical(Logical.TRUE)).build());
+    env = env.withAttributes(new Attributes.Builder().put("test", logical(Logical.TRUE)).build());
 
     var output = new ByteArrayOutputStream();
 
@@ -372,7 +372,7 @@ public class RDSWriterTest extends AbstractGNURBasedTest {
                     lang(symbol("+"), list(lang(symbol("length"), list(symbol("x"))), symbol("x"))),
                     symbol("y"))),
             new BaseEnvSXP(new HashMap<>()));
-    var bc = new Compiler(clo, rsession).compile().orElseThrow();
+    var bc = new BCCompiler(clo, rsession).compile().orElseThrow();
     var compiled_clo = closure(clo.parameters(), bcode(bc), clo.env());
 
     var output = R.eval("input(x=c(1, 2))", compiled_clo);
