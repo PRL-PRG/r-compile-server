@@ -2,8 +2,8 @@
 #include "llvm/ExecutionEngine/Orc/DebugObjectManagerPlugin.h"
 #include "llvm/ExecutionEngine/Orc/EPCDebugObjectRegistrar.h"
 #include <R_ext/Error.h>
-#include <llvm-17/llvm/ExecutionEngine/Orc/Core.h>
-#include <llvm-17/llvm/Object/Binary.h>
+#include <llvm/ExecutionEngine/Orc/Core.h>
+#include <llvm/Object/Binary.h>
 #include <llvm/ExecutionEngine/Orc/LLJIT.h>
 #include <llvm/Support/TargetSelect.h>
 

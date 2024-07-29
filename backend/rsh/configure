@@ -1,0 +1,14 @@
+#!/bin/sh
+
+LLVM_CONFIG=llvm-config-17
+
+LLVM_CPPFLAGS=$(eval "$LLVM_CONFIG --cxxflags")
+LLVM_LIBS=$(eval "$LLVM_CONFIG --ldflags --libs" | tr '\n' ' ')
+
+PB_CPPFLAGS=$(eval "pkg-config --cflags protobuf")
+PB_LIBS=$(eval "pkg-config --libs protobuf")
+
+PKG_CPPFLAGS="$LLVM_CPPFLAGS $PB_CPPFLAGS -fexceptions -I../inst -DR_NO_REMAP -DSTRICT_R_HEADERS"
+PKG_LIBS="$LLVM_LIBS $PB_LIBS -lzmq"
+
+sed -e "s|@PKG_LIBS@|$PKG_LIBS|" -e "s|@PKG_CPPFLAGS@|$PKG_CPPFLAGS|" src/Makevars.in > src/Makevars
