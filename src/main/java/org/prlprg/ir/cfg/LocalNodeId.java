@@ -33,6 +33,11 @@ public sealed class LocalNodeId<T> implements NodeId<T> permits PhiId {
     return type;
   }
 
+  @Override
+  public boolean isLocal() {
+    return true;
+  }
+
   /**
    * Assign a class to an ID which may have been parsed, or if not, just check that the class is the
    * same as the one that would've been assigned.
@@ -80,4 +85,3 @@ public sealed class LocalNodeId<T> implements NodeId<T> permits PhiId {
     return new LocalNodeId<>(disambiguator, name);
   }
 }
-

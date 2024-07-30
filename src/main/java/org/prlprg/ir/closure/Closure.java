@@ -327,13 +327,14 @@ public final class Closure extends CodeObject {
   }
 
   @Override
-  public void unsafeReplaceOuterCfgNode(Node<?> oldNode, Node<?> newNode) {
+  public void unsafeReplaceInOuterCfgNodes(Node<?> oldNode, Node<?> newNode, boolean[] replaced) {
     if (env.equals(oldNode)) {
       if (!newNode.isSubtypeOf(EnvSXP.class)) {
         throw new IllegalArgumentException(
             "Replacement closure `env` node must be an environment node.");
       }
       env = newNode.cast(EnvSXP.class);
+      replaced[0] = true;
     }
   }
 

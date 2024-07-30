@@ -1,15 +1,11 @@
 package org.prlprg.ir.cfg;
 
-import com.google.common.collect.ImmutableBiMap;
-import com.google.common.collect.ImmutableMap;
-import java.util.Objects;
 import javax.annotation.Nonnull;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.parseprint.SkipWhitespace;
-import org.prlprg.util.Strings;
 
 /**
  * Unique identifier for a {@link GlobalNode}.
@@ -33,6 +29,11 @@ public sealed interface GlobalNodeId<T> extends NodeId<T> {
   @Nonnull
   Class<? extends T> type();
 
+  @Override
+  default boolean isLocal() {
+    return false;
+  }
+
   @ParseMethod
   private static GlobalNodeId<?> parse(Parser p) {
     return p.parse(GlobalNodeIdImpl.class);
@@ -55,12 +56,16 @@ record GlobalNodeIdImpl<T>(GlobalNode<T> node) implements GlobalNodeId<T> {
   private static GlobalNodeIdImpl<?> parse(Parser p) {
     var s = p.scanner();
 
-    var subclass = switch (s.peekChar()) {
-      case '?' -> StaticEnv.class;
-      case '!' -> InvalidNode.class;
-      case '[', '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '"', '\'', '<' -> Constant.class;
-      default -> throw s.fail("Expected global node ID (starting with '?', '!', '[', '-', a digit, '\"', '\\'', or '<')");
-    };
+    var subclass =
+        switch (s.peekChar()) {
+          case '?' -> StaticEnv.class;
+          case '!' -> InvalidNode.class;
+          case '[', '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '"', '\'', '<' ->
+              Constant.class;
+          default ->
+              throw s.fail(
+                  "Expected global node ID (starting with '?', '!', '[', '-', a digit, '\"', '\\'', or '<')");
+        };
 
     var id = p.parse(subclass).id();
 

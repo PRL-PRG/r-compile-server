@@ -46,13 +46,15 @@ public abstract sealed class CodeObject permits Closure, Promise {
    * {@link StmtData.MkProm}), if it's an inner code object. If it's an outermost code object (e.g.
    * outermost closure), this will be empty.
    *
-   * @see #unsafeReplaceOuterCfgNode(Node, Node)
+   * @see #unsafeReplaceInOuterCfgNodes(Node, Node, boolean[])
    * @see #verifyOuterCfgNodesAreOfCorrectTypes()
    */
   public abstract @UnmodifiableView List<Node<?>> outerCfgNodes();
 
   /**
-   * Replaces an {@linkplain #outerCfgNodes() outer CFG node} with another one.
+   * Replaces all occurrences of {@code oldNode} with {@code newNode} in {@link #outerCfgNodes()}.
+   *
+   * <p>Sets {@code replaced[0]} to true iff any replacement occurred.
    *
    * <p>This shouldn't be called directly except internally in {@link org.prlprg.ir.cfg}. It's
    * "unsafe" because it doesn't record a {@link CFGEdit} for the replacement, but we want one to be
@@ -66,7 +68,8 @@ public abstract sealed class CodeObject permits Closure, Promise {
    * @see #outerCfgNodes()
    * @see #verifyOuterCfgNodesAreOfCorrectTypes()
    */
-  public abstract void unsafeReplaceOuterCfgNode(Node<?> oldNode, Node<?> newNode);
+  public abstract void unsafeReplaceInOuterCfgNodes(
+      Node<?> oldNode, Node<?> newNode, boolean[] replaced);
 
   /**
    * Verify that all {@linkplain #outerCfgNodes() outer CFG nodes} have the correct dynamic type.
@@ -76,7 +79,7 @@ public abstract sealed class CodeObject permits Closure, Promise {
    *
    * @throws IllegalStateException If a node has an incorrect dynamic type.
    * @see #outerCfgNodes()
-   * @see #unsafeReplaceOuterCfgNode(Node, Node)
+   * @see #unsafeReplaceInOuterCfgNodes(Node, Node, boolean[])
    */
   public abstract void verifyOuterCfgNodesAreOfCorrectTypes();
 

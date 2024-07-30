@@ -121,13 +121,14 @@ public final class Promise extends CodeObject {
   }
 
   @Override
-  public void unsafeReplaceOuterCfgNode(Node<?> oldNode, Node<?> newNode) {
+  public void unsafeReplaceInOuterCfgNodes(Node<?> oldNode, Node<?> newNode, boolean[] replaced) {
     if (properties.eagerValue != null && properties.eagerValue.equals(oldNode)) {
       if (!newNode.isSubtypeOf(SEXP.class)) {
         throw new IllegalArgumentException(
             "Replacement promise `eagerValue` node must be a `SEXP` node.");
       }
       properties = properties.witheagerValue(newNode.cast(SEXP.class));
+      replaced[0] = true;
     }
 
     if (env.equals(oldNode)) {
@@ -136,6 +137,7 @@ public final class Promise extends CodeObject {
             "Replacement promise `env` node must be an environment node.");
       }
       env = newNode.cast(EnvSXP.class);
+      replaced[0] = true;
     }
   }
 

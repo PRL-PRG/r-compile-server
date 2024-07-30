@@ -3,7 +3,6 @@ package org.prlprg.ir.cfg;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -28,12 +27,12 @@ import org.prlprg.ir.effect.REffects;
  * methods such as {@link BB#insertAt(int, StmtData)} and {@link BB#replace(int, StmtData)}, which
  * take {@link InstrData} as an argument and construct the {@link Instr} themselves.
  */
-public sealed abstract class Instr implements InstrOrPhi, InstrOrPhiImpl permits Stmt, Jump {
+public abstract sealed class Instr implements InstrOrPhi, InstrOrPhiImpl permits Stmt, Jump {
   private final CFG cfg;
 
   /**
-   * The instruction's data, which determines its {@link #fun()}, {@link #inputs()},
-   * {@link #effects()}, and the {@link Node#type()}s of its {@link #outputs()}.
+   * The instruction's data, which determines its {@link #fun()}, {@link #inputs()}, {@link
+   * #effects()}, and the {@link Node#type()}s of its {@link #outputs()}.
    *
    * <p>This is only exposed internally because, outside of instruction creation and lowering, the
    * instruction should only be queried for its other public methods. This is because there are many
@@ -59,10 +58,12 @@ public sealed abstract class Instr implements InstrOrPhi, InstrOrPhiImpl permits
     ImmutableList<LocalNodeId<?>> outputIds();
   }
 
-  /** Creates an instruction.
+  /**
+   * Creates an instruction.
    *
    * <p>Doesn't {@link CFG#track(InstrOrPhi)} it in the {@link CFG}, so this should be called in
-   * {@link BB}. */
+   * {@link BB}.
+   */
   Instr(CFG cfg, InstrData data) {
     this.cfg = cfg;
     this.data = data;
@@ -70,10 +71,10 @@ public sealed abstract class Instr implements InstrOrPhi, InstrOrPhiImpl permits
     fun = data.fun();
     inputs = data.inputs();
     effects = data.effects();
-    outputs = data.outputTypes()
-        .stream()
-        .map(type -> new InstrOutput<>(this, type))
-        .collect(ImmutableList.toImmutableList());
+    outputs =
+        data.outputTypes().stream()
+            .map(type -> new InstrOutput<>(this, type))
+            .collect(ImmutableList.toImmutableList());
 
     updateCachedInputNodes();
   }
@@ -138,11 +139,13 @@ public sealed abstract class Instr implements InstrOrPhi, InstrOrPhiImpl permits
   public CFG cfg() {
     return cfg;
   }
+
   // endregion accessors
 
   // region mutators
   @Override
-  public CascadingInstrUpdate unsafeReplaceInInputs(CascadingUpdatedInstrs seen, Node<?> old, Node<?> replacement) {
+  public CascadingInstrUpdate unsafeReplaceInInputs(
+      CascadingUpdatedInstrs seen, Node<?> old, Node<?> replacement) {
     boolean[] replaced = {false};
     for (var i = 0; i < inputs.length; i++) {
       inputs[i] = replaceInputNodesIn(inputs[i], old, replacement, replaced);
@@ -159,8 +162,8 @@ public sealed abstract class Instr implements InstrOrPhi, InstrOrPhiImpl permits
 
   /**
    * Calls {@link InstrData#checkInputNodeTypes(CascadingUpdatedInstrs)}, then updates cached
-   * accessors ({@link Instr#fun()}, {@link Instr#effects()}, and the {@link Node#type()}s of
-   * {@link Instr#outputs()}) to properly handle input {@link Node}s whose {@link Node#type()}s have
+   * accessors ({@link Instr#fun()}, {@link Instr#effects()}, and the {@link Node#type()}s of {@link
+   * Instr#outputs()}) to properly handle input {@link Node}s whose {@link Node#type()}s have
    * changed.
    *
    * <p>Returns whether this caused the phi's {@link Node#type()}, or the instruction's {@link
@@ -172,12 +175,12 @@ public sealed abstract class Instr implements InstrOrPhi, InstrOrPhiImpl permits
    * that the replacement changed the type of. Hence this is package-private and "unsafe".
    *
    * @throws InputNodeTypeException If an input's {@link Node#type()} has changed so that it's no
-   * longer a subtype of the required type.
+   *     longer a subtype of the required type.
    * @throws InfiniteCascadingUpdateException if an instruction's updated outputs trigger more
-   * updates that eventually update that instruction's inputs so that its outputs update again. This
-   * is checked via the {@link CascadingUpdatedInstrs} data-structure, which can be constructed with
-   * the initial instruction whose outputs have changed, and passed to each instruction whose inputs
-   * change.
+   *     updates that eventually update that instruction's inputs so that its outputs update again.
+   *     This is checked via the {@link CascadingUpdatedInstrs} data-structure, which can be
+   *     constructed with the initial instruction whose outputs have changed, and passed to each
+   *     instruction whose inputs change.
    */
   CascadingInstrUpdate unsafeCascadeUpdate(CascadingUpdatedInstrs seen) {
     data.checkInputNodeTypes(seen);
@@ -214,21 +217,16 @@ public sealed abstract class Instr implements InstrOrPhi, InstrOrPhiImpl permits
 
   @SuppressWarnings("unchecked")
   @Contract("null, _, _, _ -> null; !null, _, _, _ -> !null")
-  private static <T> @Nullable T replaceInputNodesIn(@Nullable T input, Node<?> old, Node<?> replacement, boolean[] replaced) {
+  private static <T> @Nullable T replaceInputNodesIn(
+      @Nullable T input, Node<?> old, Node<?> replacement, boolean[] replaced) {
     return switch (input) {
       case Node<?> n when n == old -> {
         replaced[0] = true;
         yield (T) replacement;
       }
       case PureExpressionNode<?> c -> {
-        replaced[0] |= c.unsafeReplaceInDescendants(old, replacement);
+        PureExpressionNodeImpl.cast(c).unsafeReplaceInDescendants(old, replacement, replaced);
         yield (T) c;
-      }
-      case Node<?>[] n -> {
-        for (var j = 0; j < n.length; j++) {
-          n[j] = replaceInputNodesIn(n[j], old, replacement, replaced);
-        }
-        yield (T) n;
       }
       case Optional<?> o -> (T) o.map(o1 -> replaceInputNodesIn(o1, old, replacement, replaced));
       case ImmutableList<?> c -> {
@@ -238,14 +236,18 @@ public sealed abstract class Instr implements InstrOrPhi, InstrOrPhiImpl permits
         }
         yield (T) builder.build();
       }
-      case Collection<?> _ -> throw new UnsupportedOperationException("Collections in `InstrData` must be `ImmutableList`s (arrays are also allowed)");
+      case Collection<?> _ ->
+          throw new UnsupportedOperationException(
+              "Collections in `InstrData` must be `ImmutableList`s (arrays are also allowed)");
       case null, default -> input;
     };
   }
+
   // endregion mutators
 
   // region verify and update cached
-  /** Run sanity checks. Either does nothing or throws {@link RuntimeException}.
+  /**
+   * Run sanity checks. Either does nothing or throws {@link RuntimeException}.
    *
    * <p>See {@link InstrData#verify()} for what it does specifically.
    */
@@ -268,7 +270,6 @@ public sealed abstract class Instr implements InstrOrPhi, InstrOrPhiImpl permits
           nodes.addAll(c.descendants());
         }
       }
-      case Node<?>[] nodes1 -> nodes.addAll(Arrays.asList(nodes1));
       case Optional<?> optional -> optional.ifPresent(o -> addInputNodesFrom(nodes, o));
       case ImmutableList<?> collection -> {
         for (var item : collection) {
@@ -280,8 +281,11 @@ public sealed abstract class Instr implements InstrOrPhi, InstrOrPhiImpl permits
           addInputNodesFrom(nodes, item);
         }
       }
-      case Collection<?> _ -> throw new UnsupportedOperationException("Collections in `InstrData` must be `ImmutableList`s");
-      case Map<?, ?> _ -> throw new UnsupportedOperationException("Maps in `InstrData` must be `ImmutableMap`s");
+      case Collection<?> _ ->
+          throw new UnsupportedOperationException(
+              "Collections in `InstrData` must be `ImmutableList`s");
+      case Map<?, ?> _ ->
+          throw new UnsupportedOperationException("Maps in `InstrData` must be `ImmutableMap`s");
       case null, default -> {}
     }
   }

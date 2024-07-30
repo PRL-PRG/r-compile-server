@@ -16,7 +16,7 @@ import org.prlprg.parseprint.SkipWhitespace;
  * unique within all {@link CFG}s.
  */
 @Immutable
-public sealed interface NodeId<T> permits LocalNodeId, GlobalNodeId {
+public sealed interface NodeId<T> permits LocalNodeId, GlobalNodeId, PureExpressionNodeId {
   /**
    * Returns {@code true} if the next string begins a {@link NodeId}.
    *
@@ -26,7 +26,27 @@ public sealed interface NodeId<T> permits LocalNodeId, GlobalNodeId {
   static boolean isNodeIdStart(Scanner s) {
     var c = s.peekChar();
     return switch (c) {
-      case '%', '?', '!', '[', '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '"', '\'', '<' -> true;
+      case '%',
+              '?',
+              '!',
+              '[',
+              '-',
+              '0',
+              '1',
+              '2',
+              '3',
+              '4',
+              '5',
+              '6',
+              '7',
+              '8',
+              '9',
+              '"',
+              '\'',
+              '<',
+              '{',
+              '(' ->
+          true;
       default -> false;
     };
   }
@@ -45,13 +65,24 @@ public sealed interface NodeId<T> permits LocalNodeId, GlobalNodeId {
    */
   @Nullable Class<? extends T> type();
 
+  /**
+   * Whether this identifier is for a local node.
+   *
+   * <p>Specifically, whether it implements {@link LocalNodeId} <i>or</i> it both implements {@link
+   * PureExpressionNodeId} and has a local child.
+   */
+  boolean isLocal();
+
   @ParseMethod(SkipWhitespace.NONE)
   private static NodeId<?> parse(Parser p) {
     var s = p.scanner();
 
     return switch (s.peekChar()) {
       case '%' -> p.parse(LocalNodeId.class);
-      case '?', '!', '[', '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '"', '\'', '<' -> p.parse(GlobalNodeId.class);
+      case '?', '!', '[', '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '"', '\'', '<' ->
+          p.parse(GlobalNodeId.class);
+      case '{' -> p.parse(PromiseNode.class).id();
+      case '(' -> p.parse(InnerClosureNode.class).id();
       default ->
           throw s.fail(
               "Expected local node ID (starting with '%') or global node ID (starting with '?', '!', '[', '-', a digit, '\"', '\\'', or '<')");
