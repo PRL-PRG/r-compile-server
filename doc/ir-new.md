@@ -17,7 +17,7 @@ Compiles to something like:
 ```
 fn @foo(n, m) {
   @foo#1(%n, %m) {
-      %e <- [n <- %n, m <- %m]@?
+      %e <- env(n <- %n, m <- %m)@?
       'array@e <- 'replicate@e(100, {'n@e}@e)@e
       %2 <- `:`(1, 'n@e)@e
       %forSeq <- toForSeq(%2)
