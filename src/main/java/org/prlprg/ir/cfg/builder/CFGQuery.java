@@ -1,6 +1,5 @@
 package org.prlprg.ir.cfg.builder;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
@@ -278,7 +277,7 @@ public interface CFGQuery {
   default Stream<CodeObject> streamInnerCodeObjects() {
     return stream()
         .flatMap(bb -> bb.stmts().stream())
-        .flatMap(stmt -> Arrays.stream(stmt.inputs))
+        .flatMap(stmt -> stmt.inputs().stream())
         .flatMap(
             input ->
                 (input instanceof CodeObject co ? Optional.of(co) : Optional.<CodeObject>empty())
