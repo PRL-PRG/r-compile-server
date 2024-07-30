@@ -6,7 +6,7 @@ import org.prlprg.parseprint.Parser;
  * An abstract value of type {@code T}; the IR representation of a value of type {@code T} that
  * exists in compiled code at runtime.
  */
-public sealed interface Node<T> permits LocalNode, GlobalNode {
+public sealed interface Node<T> permits LocalNode, GlobalNode, PureExpressionNode {
   /** Parse a node ({@link Parser#parse(Class)}), and {@link #cast(Class)} it to the given type. */
   static <T> Node<? extends T> parse(Parser p, Class<T> type) {
     return Node.cast(p.parse(Node.class), type);
@@ -86,4 +86,11 @@ public sealed interface Node<T> permits LocalNode, GlobalNode {
    * If this is a {@link GlobalNode}, the returned ID must be unique within <b>every</b> CFG.
    */
   NodeId<T> id();
+
+  /** Whether this is a local node.
+   *
+   * <p>Specifically, whether it implements {@link LocalNode} <i>or</i> it both implements
+   * {@link PureExpressionNode} and has a local child.
+   */
+  boolean isLocal();
 }

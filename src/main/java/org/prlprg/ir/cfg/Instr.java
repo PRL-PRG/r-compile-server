@@ -1,11 +1,13 @@
 package org.prlprg.ir.cfg;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.Contract;
@@ -14,7 +16,6 @@ import org.prlprg.ir.cfg.instr.InputNodeTypeException;
 import org.prlprg.ir.cfg.instr.InstrData;
 import org.prlprg.ir.cfg.instr.JumpData;
 import org.prlprg.ir.cfg.instr.StmtData;
-import org.prlprg.ir.closure.CodeObject;
 import org.prlprg.ir.effect.REffects;
 
 /**
@@ -166,7 +167,7 @@ public sealed abstract class Instr implements InstrOrPhi, InstrOrPhiImpl permits
    * Instr#effects()} or one ot its {@link Instr#outputs()} {@link Node#type()}s, to change. If the
    * latter, you are responsible for updating instructions whose inputs contain the changed outputs.
    *
-   * <p>This will not record a {@link CFGEdit}, it may cause a {@link Phi} to no longer by an
+   * <p>This will not record a {@link CFGEdit}, it may cause a {@link Phi} to no longer be an
    * expected type, and you are responsible for updating instructions whose inputs contain outputs
    * that the replacement changed the type of. Hence this is package-private and "unsafe".
    *
@@ -219,6 +220,10 @@ public sealed abstract class Instr implements InstrOrPhi, InstrOrPhiImpl permits
         replaced[0] = true;
         yield (T) replacement;
       }
+      case PureExpressionNode<?> c -> {
+        replaced[0] |= c.unsafeReplaceInDescendants(old, replacement);
+        yield (T) c;
+      }
       case Node<?>[] n -> {
         for (var j = 0; j < n.length; j++) {
           n[j] = replaceInputNodesIn(n[j], old, replacement, replaced);
@@ -234,10 +239,6 @@ public sealed abstract class Instr implements InstrOrPhi, InstrOrPhiImpl permits
         yield (T) builder.build();
       }
       case Collection<?> _ -> throw new UnsupportedOperationException("Collections in `InstrData` must be `ImmutableList`s (arrays are also allowed)");
-      case CodeObject c -> {
-        c.unsafeReplaceOuterCfgNode(old, replacement);
-        yield (T) c;
-      }
       case null, default -> input;
     };
   }
@@ -261,7 +262,12 @@ public sealed abstract class Instr implements InstrOrPhi, InstrOrPhiImpl permits
 
   private static void addInputNodesFrom(List<Node<?>> nodes, @Nullable Object input) {
     switch (input) {
-      case Node<?> node -> nodes.add(node);
+      case Node<?> node -> {
+        nodes.add(node);
+        if (node instanceof PureExpressionNode<?> c) {
+          nodes.addAll(c.descendants());
+        }
+      }
       case Node<?>[] nodes1 -> nodes.addAll(Arrays.asList(nodes1));
       case Optional<?> optional -> optional.ifPresent(o -> addInputNodesFrom(nodes, o));
       case ImmutableList<?> collection -> {
@@ -269,8 +275,13 @@ public sealed abstract class Instr implements InstrOrPhi, InstrOrPhiImpl permits
           addInputNodesFrom(nodes, item);
         }
       }
-      case Collection<?> _ -> throw new UnsupportedOperationException("Collections in `InstrData` must be `ImmutableList`s (arrays are also allowed)");
-      case CodeObject codeObject -> nodes.addAll(codeObject.outerCfgNodes());
+      case ImmutableMap<?, ?> map -> {
+        for (var item : map.values()) {
+          addInputNodesFrom(nodes, item);
+        }
+      }
+      case Collection<?> _ -> throw new UnsupportedOperationException("Collections in `InstrData` must be `ImmutableList`s");
+      case Map<?, ?> _ -> throw new UnsupportedOperationException("Maps in `InstrData` must be `ImmutableMap`s");
       case null, default -> {}
     }
   }

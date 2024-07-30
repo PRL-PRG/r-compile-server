@@ -134,6 +134,11 @@ public sealed class LocalNode<T> implements Node<T> permits Param, Phi, InstrOut
     return id;
   }
 
+  @Override
+  public boolean isLocal() {
+    return true;
+  }
+
   // region serialization and deserialization
   @ParseMethod
   private Phi<?> parse(Parser ignored) {

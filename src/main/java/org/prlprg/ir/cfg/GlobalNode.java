@@ -30,4 +30,9 @@ public sealed interface GlobalNode<T> extends Node<T> permits Constant, StaticEn
    */
   @Override
   GlobalNodeId<T> id();
+
+  @Override
+  default boolean isLocal() {
+    return false;
+  }
 }

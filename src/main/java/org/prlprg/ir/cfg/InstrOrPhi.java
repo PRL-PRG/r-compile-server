@@ -63,7 +63,7 @@ sealed interface InstrOrPhiImpl permits Instr, Phi {
    * Instr#effects()} or one ot its {@link Instr#outputs()} {@link Node#type()}s, to change. If the
    * latter, you are responsible for updating instructions whose inputs contain the changed outputs.
    *
-   * <p>This will not record a {@link CFGEdit}, it may cause a {@link Phi} to no longer by an
+   * <p>This will not record a {@link CFGEdit}, it may cause a {@link Phi} to no longer be an
    * expected type, and you are responsible for updating instructions whose inputs contain outputs
    * that the replacement changed the type of. Hence this is package-private and "unsafe".
    *
