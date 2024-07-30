@@ -39,7 +39,7 @@ public enum CascadingInstrUpdate {
    * either {@code this} or {@code other}'s is true.
    */
   public CascadingInstrUpdate merge(CascadingInstrUpdate other) {
-    return of(updatedEffects || other.updatedEffects,
-        updatedOutputTypes || other.updatedOutputTypes);
+    return of(
+        updatedEffects || other.updatedEffects, updatedOutputTypes || other.updatedOutputTypes);
   }
 }

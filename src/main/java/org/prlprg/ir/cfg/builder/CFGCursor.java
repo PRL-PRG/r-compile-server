@@ -8,10 +8,10 @@ import org.prlprg.ir.cfg.CFG;
 import org.prlprg.ir.cfg.Instr;
 import org.prlprg.ir.cfg.InstrOrPhi;
 import org.prlprg.ir.cfg.Jump;
+import org.prlprg.ir.cfg.Stmt;
 import org.prlprg.ir.cfg.instr.JumpData;
 import org.prlprg.ir.cfg.instr.JumpData.Goto;
 import org.prlprg.ir.cfg.instr.JumpData.Return;
-import org.prlprg.ir.cfg.Stmt;
 import org.prlprg.ir.cfg.instr.StmtData;
 
 /**
@@ -160,7 +160,7 @@ public class CFGCursor {
    * <p>This advances the insertion point to after the inserted statements.
    *
    * @param datas The statements' datas, which determine what kind of statements they are and their
-   *              inputs.
+   *     inputs.
    * @return Ths inserted statements.
    * @see #insert(StmtData)
    */
@@ -213,8 +213,8 @@ public class CFGCursor {
    * Insert the entire {@link CFG} in between statements in the current basic block.
    *
    * <p>Specifically, clone the CFG into this one, split the current block at the current index, set
-   * the pre-split block to {@link Goto} the CFG's {@link CFG#entry()}, then change the CFG's
-   * {@link Return} {@link CFG#exits()} to instead {@link Goto} the post-split block.
+   * the pre-split block to {@link Goto} the CFG's {@link CFG#entry()}, then change the CFG's {@link
+   * Return} {@link CFG#exits()} to instead {@link Goto} the post-split block.
    */
   public void inline(CFG cfgToInline) {
     bb = bb.inlineAt(stmtIdx, cfgToInline);

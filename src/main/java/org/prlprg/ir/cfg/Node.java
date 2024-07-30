@@ -87,10 +87,11 @@ public sealed interface Node<T> permits LocalNode, GlobalNode, PureExpressionNod
    */
   NodeId<T> id();
 
-  /** Whether this is a local node.
+  /**
+   * Whether this is a local node.
    *
-   * <p>Specifically, whether it implements {@link LocalNode} <i>or</i> it both implements
-   * {@link PureExpressionNode} and has a local child.
+   * <p>Specifically, whether it implements {@link LocalNode} <i>or</i> it both implements {@link
+   * PureExpressionNode} and has a local child.
    */
   boolean isLocal();
 }

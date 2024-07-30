@@ -8,8 +8,7 @@ public class CascadingUpdatedInstrs {
 
   private final Set<Instr> instrDatasWhoseOutputsHaveChanged = new HashSet<>();
 
-  public CascadingUpdatedInstrs() {
-  }
+  public CascadingUpdatedInstrs() {}
 
   void handleUpdatedInstrData(Instr data, CascadingInstrUpdate update) {
     if (update.updatedOutputTypes()) {

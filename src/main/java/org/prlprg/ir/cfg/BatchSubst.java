@@ -95,7 +95,8 @@ public class BatchSubst {
     commit(cfg.iter());
   }
 
-  /** Run the given substitutions on all instructions and phis in the given {@link BB}s.
+  /**
+   * Run the given substitutions on all instructions and phis in the given {@link BB}s.
    *
    * <p>Note that cascading changes may affect {@link Instr#effects()} and {@link Node#type()}s of
    * {@link Instr}s and their output {@link Node}s outside the given BBs.
@@ -110,7 +111,8 @@ public class BatchSubst {
     }
   }
 
-  /** Run the given substitutions on the given instructions and phis in the given {@link BB}.
+  /**
+   * Run the given substitutions on the given instructions and phis in the given {@link BB}.
    *
    * <p>Note that cascading changes may affect {@link Instr#effects()} and {@link Node#type()}s of
    * {@link Instr}s and their output {@link Node}s outside the given BB.
@@ -130,7 +132,8 @@ public class BatchSubst {
       for (var arg : instrOrPhi.inputNodes()) {
         var replacement = substs.get(arg);
         if (replacement != null) {
-          var newUpdate = InstrOrPhiImpl.cast(instrOrPhi).unsafeReplaceInInputs(seen, arg, replacement);
+          var newUpdate =
+              InstrOrPhiImpl.cast(instrOrPhi).unsafeReplaceInInputs(seen, arg, replacement);
 
           if (newUpdate.updatedOutputTypes()) {
             updatedOutputs.addAll(instrOrPhi.outputs());

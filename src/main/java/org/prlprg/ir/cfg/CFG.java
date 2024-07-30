@@ -45,10 +45,10 @@ import org.prlprg.util.WeakHashSet;
 public class CFG
     implements CFGQuery,
         CFGAnalyses,
-    CFGIntrinsicMutate,
-    CFGCompoundMutate,
-    CFGCleanup,
-    CFGVerify,
+        CFGIntrinsicMutate,
+        CFGCompoundMutate,
+        CFGCleanup,
+        CFGVerify,
         CFGParsePrint,
         CFGPirSerialize {
   private final Set<CFGObserver> setObservers = new WeakHashSet<>();
@@ -130,9 +130,9 @@ public class CFG
     var node = (LocalNode<T>) localNodes.get(nodeId);
     assert nodeId.type() == null || nodeId.type() == node.type()
         : "node with id has wrong class: "
-        + Objects.requireNonNull(nodeId.type()).getName()
-        + " -> "
-        + node.type().getName();
+            + Objects.requireNonNull(nodeId.type()).getName()
+            + " -> "
+            + node.type().getName();
     return node;
   }
 
@@ -355,10 +355,12 @@ public class CFG
         for (var arg : instrOrPhi.inputNodes()) {
           if (arg instanceof LocalNode<?> localArg) {
             assert localArg.cfg() == this;
-            assert !localNodes.containsKey(localArg.id()) || localNodes.get(localArg.id()) == localArg;
+            assert !localNodes.containsKey(localArg.id())
+                || localNodes.get(localArg.id()) == localArg;
 
             if (!localNodes.containsKey(localArg.id())) {
-              errors.add(new CFGVerifyException.UntrackedArg(bb.id(), instrOrPhi.toString(), arg.id()));
+              errors.add(
+                  new CFGVerifyException.UntrackedArg(bb.id(), instrOrPhi.toString(), arg.id()));
             }
           }
         }
@@ -569,7 +571,9 @@ public class CFG
     }
   }
 
-  /** @see #track(InstrOrPhi) */
+  /**
+   * @see #track(InstrOrPhi)
+   */
   void track(Phi<?> phi) {
     track((InstrOrPhi) phi);
   }
@@ -585,7 +589,9 @@ public class CFG
     }
   }
 
-  /** @see #untrack(InstrOrPhi) */
+  /**
+   * @see #untrack(InstrOrPhi)
+   */
   void untrack(Phi<?> phi) {
     untrack((InstrOrPhi) phi);
   }
@@ -628,9 +634,9 @@ public class CFG
     var id = node.id();
     assert node.type() == id.type()
         : "node's type isn't its ID type: "
-        + node.type().getName()
-        + " vs "
-        + (id.type() == null ? "null" :  Objects.requireNonNull(id.type()).getName());
+            + node.type().getName()
+            + " vs "
+            + (id.type() == null ? "null" : Objects.requireNonNull(id.type()).getName());
     var old = localNodes.put(id, node);
     assert old == null : "node with id already tracked: " + id + "\nold: " + old + "\nnew: " + node;
     nextInstrOrPhiDisambiguator.add(id.name(), id.disambiguator());
@@ -648,9 +654,9 @@ public class CFG
     var id = node.id();
     assert node.type() == id.type()
         : "node's type isn't its ID type: "
-        + node.type().getName()
-        + " vs "
-        + (id.type() == null ? "null" : Objects.requireNonNull(id.type()).getName());
+            + node.type().getName()
+            + " vs "
+            + (id.type() == null ? "null" : Objects.requireNonNull(id.type()).getName());
     var removed = localNodes.remove(node.id());
     assert removed != null : "node was never tracked";
     assert removed == node;

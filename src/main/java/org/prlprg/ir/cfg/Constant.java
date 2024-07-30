@@ -22,14 +22,13 @@ import org.prlprg.sexp.ScalarStrSXP;
 import org.prlprg.util.Classes;
 
 /**
- * An IR node that, at runtime, is guaranteed to be a single statically-known constant value:
- * {@link Constant#value()}.
+ * An IR node that, at runtime, is guaranteed to be a single statically-known constant value: {@link
+ * Constant#value()}.
  *
  * <p>Environments aren't constants, because even though they are guaranteed to be a single
- * statically-known value, the value itself isn't constant. As such, creating a constant
- * {@link EnvSXP} throws {@link IllegalArgumentException}. To represent global environments, use
- * {@link StaticEnv Envs.SOMETHING}. To represent locally-created environments, use an "env"
- * instruction.
+ * statically-known value, the value itself isn't constant. As such, creating a constant {@link
+ * EnvSXP} throws {@link IllegalArgumentException}. To represent global environments, use {@link
+ * StaticEnv Envs.SOMETHING}. To represent locally-created environments, use an "env" instruction.
  */
 public sealed interface Constant<T> extends GlobalNode<T> {
   @SuppressWarnings("unchecked")
@@ -104,7 +103,8 @@ public sealed interface Constant<T> extends GlobalNode<T> {
 record ConstantImpl<T>(T value) implements Constant<T> {
   static final Constant<? extends BoolSXP> TRUE_SEXP = new ConstantImpl<>(SEXPs.TRUE);
   static final Constant<? extends BoolSXP> FALSE_SEXP = new ConstantImpl<>(SEXPs.FALSE);
-  static final Constant<? extends ScalarLglSXP> NA_LOGICAL_SEXP = new ConstantImpl<>(SEXPs.NA_LOGICAL);
+  static final Constant<? extends ScalarLglSXP> NA_LOGICAL_SEXP =
+      new ConstantImpl<>(SEXPs.NA_LOGICAL);
 
   ConstantImpl {
     if (value instanceof EnvSXP) {
@@ -123,12 +123,12 @@ record ConstantImpl<T>(T value) implements Constant<T> {
   }
 
   // region serialization and deserialization
-  private static final ImmutableBiMap<Class<?>, String> EXPLICIT_TYPE_SPECIFIERS = ImmutableBiMap.of(
-      Integer.class, "Int",
-      Double.class, "Real",
-      String.class, "Str",
-      Boolean.class, "Bool"
-  );
+  private static final ImmutableBiMap<Class<?>, String> EXPLICIT_TYPE_SPECIFIERS =
+      ImmutableBiMap.of(
+          Integer.class, "Int",
+          Double.class, "Real",
+          String.class, "Str",
+          Boolean.class, "Bool");
 
   private static @Nullable String explicitSpecifierForClass(Class<?> clazz) {
     if (SEXP.class.isAssignableFrom(clazz)) {
@@ -140,7 +140,9 @@ record ConstantImpl<T>(T value) implements Constant<T> {
       return explicitSpecifier;
     }
 
-    throw new UnsupportedOperationException("Need to add type specifier for constant so it can be parsed and printed: " + clazz.getSimpleName());
+    throw new UnsupportedOperationException(
+        "Need to add type specifier for constant so it can be parsed and printed: "
+            + clazz.getSimpleName());
   }
 
   private static Class<?> classForExplicitSpecifier(@Nullable String specifier) {
@@ -153,7 +155,8 @@ record ConstantImpl<T>(T value) implements Constant<T> {
       return clazz;
     }
 
-    throw new UnsupportedOperationException("Need to add type specifier for constant so it can be parsed and printed: " + specifier);
+    throw new UnsupportedOperationException(
+        "Need to add type specifier for constant so it can be parsed and printed: " + specifier);
   }
 
   @ParseMethod
