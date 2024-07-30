@@ -33,13 +33,13 @@ class AltRepUnserializer {
     packageName = ((RegSymSXP) info.get(1).value()).name();
     type = SEXPType.valueOf(((IntSXP) info.get(2).value()).get(0));
 
-    LOGGER.info(
-        "Reading ALTREP with class "
-            + className
-            + " from package "
-            + packageName
-            + " with type "
-            + type);
+    //    LOGGER.info(
+    //        "Reading ALTREP with class "
+    //            + className
+    //            + " from package "
+    //            + packageName
+    //            + " with type "
+    //            + type);
 
     this.state = state;
   }

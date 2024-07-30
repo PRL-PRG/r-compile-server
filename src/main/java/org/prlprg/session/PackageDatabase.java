@@ -34,25 +34,128 @@ public class PackageDatabase {
     @Override
     public SEXP hook(SEXP sexp) throws IOException {
       if (sexp instanceof StrSXP s) {
-        var position = tmpEnvs.get(s.get(0));
+        var name = s.get(0);
+        var position = tmpEnvs.get(name);
         if (position == null) {
           return sexp;
         }
         // There is a cycle in the Env!
-        if (seenTmpEnvs.contains(s.get(0))) {
+        if (seenTmpEnvs.contains(name)) {
           // create a placeholder environment, which we will replace later
           // by the actual environment
           return new NamespaceEnvSXP(
-              s.get(0), "placeholder", session.baseNamespace(), new HashMap<>());
+              // add a binding which would be the parent SEXP?
+              name, "__placeholder__", session.baseNamespace(), new HashMap<>());
         }
 
-        seenTmpEnvs.add(s.get(0));
+        seenTmpEnvs.add(name);
+        // env::4, env::10, env::9 are not environments but VecSXP!
+        // We should convert them to environments.
+        // They are created when the function was defined using `local`
+        // But more generally, any non special env (i.e, not global, namespace, base etc)
+        // is serialized to a VecSXP in the rdb file.
+        var tmpEnv = readObject(name, tmpEnvs);
+        if (tmpEnv instanceof VecSXP v) {
+          var realEnv = vecToEnv(v);
+          replacePlaceHolder(realEnv, tmpEnv, name);
+          return realEnv;
+        }
 
-        return readObject(s.get(0), tmpEnvs);
+        return tmpEnv;
       }
 
       return sexp;
     }
+  }
+
+  /**
+   * Find occurrences of all placeholder environments, that we added when reading back environments
+   * with cycles and put back the cycle. Placeholder envs are NamespaceEnv with "__placeholder__" as
+   * version and the original env::n as name. We have to do this 2-step dance here because we first
+   * need to build the environment before putting a reference to it inside itself!
+   *
+   * @param selfRefEnv the environment that we want to make refer to itself
+   * @param v the sexp on which we currently recurse
+   * @param name the name of the environment used in the placeholder
+   */
+  private static void replacePlaceHolder(UserEnvSXP selfRefEnv, SEXP v, String name) {
+    switch (v) {
+      case EnvSXP env -> {
+        for (var e : env.bindings()) {
+          if (e.getValue() instanceof EnvSXP e2) {
+            if (e2 instanceof NamespaceEnvSXP n) {
+              if (n.version().equals("__placeholder__") && n.name().equals(name)) {
+                e.setValue(selfRefEnv);
+              }
+            } else {
+              replacePlaceHolder(selfRefEnv, e2, name);
+            }
+          }
+        }
+      }
+      case VecSXP vec -> {
+        for (var e : vec) {
+          // There could also be the placeholder here, but that's unlikely
+          if (e instanceof NamespaceEnvSXP n) {
+            if (n.version().equals("__placeholder__") && n.name().equals(name)) {
+              LOGGER.warning("Unexpected cycle placeholder in a list.");
+            }
+          }
+          replacePlaceHolder(selfRefEnv, e, name);
+        }
+      }
+      case CloSXP clo when clo.env() instanceof NamespaceEnvSXP n
+          && n.version().equals("__placeholder__")
+          && n.name().equals(name) -> {
+        // we need to set up that environment to selfRefEnv
+        // but because of our practically immutable SEXPs, we would have to modify its parent
+      }
+      case CloSXP clo -> replacePlaceHolder(selfRefEnv, clo.env(), name);
+      default -> {}
+    }
+  }
+
+  /**
+   * Envs that are not special environments are serialized as VecSXP, with a specific shape. Here,
+   * we transform them back into EnvSXP
+   *
+   * <p>See makebasedb.R or makelazyload.R
+   *
+   * <p>- <a
+   * href="https://github.com/SurajGupta/r-source/blob/a28e609e72ed7c47f6ddfbb86c85279a0750f0b7/src/library/base/makebasedb.R#L69">makebasedb</a>
+   * - <a
+   * href="https://github.com/SurajGupta/r-source/blob/a28e609e72ed7c47f6ddfbb86c85279a0750f0b7/src/library/tools/R/makeLazyLoad.R">makelazyload</a>
+   *
+   * @param v
+   * @return
+   */
+  private static UserEnvSXP vecToEnv(VecSXP v) {
+    /*
+     env is a list with 2 elements with names:
+     - `bindings`: all the symbols in the environment (names + value)
+     - `enclos`: the parent environment
+    */
+    // Check if the names are correct
+    var names = (StrSXP) v.attributes().get("names");
+    assert Objects.requireNonNull(names).get(0).equals("bindings");
+    assert names.get(1).equals("enclos");
+
+    // Enclos
+    var enclos = (EnvSXP) v.get(1);
+
+    // Bindings
+    var symbols = (VecSXP) v.get(0);
+    names = (StrSXP) symbols.attributes().get("names");
+    assert names != null;
+    var bindings = new HashMap<String, SEXP>();
+    for (int i = 0; i < symbols.size(); i++) {
+      var name = names.get(i);
+      assert name != null;
+      var value = symbols.get(i);
+      bindings.put(name, value);
+    }
+
+    return new UserEnvSXP(enclos, bindings);
   }
 
   /**
@@ -167,31 +270,30 @@ public class PackageDatabase {
 
     // Problems:
     // - .doSortWrap : cycle in with env:4
-    // - parseNamespaceFile : index out of bound when reading bytecode
     // - globalCallingHandlers : same as .doSortWrap
     // - conflictRules : same
-    // - doWrap: same
-    // - summary.default: malformed bytecode
+    // - .doWrap : same (but it seems it depends on the order of the symbol reading
     // - .dynLibs: cycle with env:4
     // - .libPaths: same
-    HashSet<String> forbiddenFunctions = new HashSet<>();
-    forbiddenFunctions.add(".doSortWrap");
-    forbiddenFunctions.add("parseNamespaceFile");
-    forbiddenFunctions.add("globalCallingHandlers");
-    forbiddenFunctions.add("conflictRules");
-    forbiddenFunctions.add(".doWrap");
-
     for (var name : index.keySet()) {
       // LOGGER.info("Loading " + name);
 
-      if (!forbiddenFunctions.contains(name)) {
-        try {
-          readObject(name, index);
-        } catch (RDSException e) {
-          LOGGER.warning("Error loading " + name + ": " + e.getMessage());
-        }
+      try {
+        readObject(name, index);
+      } catch (RDSException e) {
+        LOGGER.warning("Error loading " + name + ": " + e.getMessage());
       }
     }
+
+    var notClos =
+        objects.entrySet().stream()
+            .filter(e -> !(e.getValue() instanceof CloSXP))
+            .map(e -> e.getKey() + ":" + e.getValue().type())
+            .toList();
+    LOGGER.info("Not Closures: " + notClos);
+
+    // TODO: filter out the env::n
+
     return objects;
   }
 }
