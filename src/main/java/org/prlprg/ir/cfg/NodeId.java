@@ -24,7 +24,11 @@ public sealed interface NodeId<T> permits LocalNodeId, GlobalNodeId {
    * and node IDs, since they may both start with alphanumeric characters.
    */
   static boolean isNodeIdStart(Scanner s) {
-    return s.nextCharIs('%') || s.nextCharIs('\\') || s.nextCharIs('?') || s.nextCharIs('!');
+    var c = s.peekChar();
+    return switch (c) {
+      case '%', '?', '!', '[', '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '"', '\'', '<' -> true;
+      default -> false;
+    };
   }
 
   /**
@@ -47,10 +51,10 @@ public sealed interface NodeId<T> permits LocalNodeId, GlobalNodeId {
 
     return switch (s.peekChar()) {
       case '%' -> p.parse(LocalNodeId.class);
-      case '\\' -> p.parse(GlobalNodeId.class);
+      case '?', '!', '[', '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '"', '\'', '<' -> p.parse(GlobalNodeId.class);
       default ->
           throw s.fail(
-              "Expected local node ID (starting with '%') or global node ID (starting with letter or '\\')");
+              "Expected local node ID (starting with '%') or global node ID (starting with '?', '!', '[', '-', a digit, '\"', '\\'', or '<')");
     };
   }
 }

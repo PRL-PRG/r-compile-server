@@ -1,5 +1,11 @@
 package org.prlprg.ir.cfg;
 
+import com.google.common.collect.ImmutableBiMap;
+import javax.annotation.Nullable;
+import org.prlprg.parseprint.ParseMethod;
+import org.prlprg.parseprint.Parser;
+import org.prlprg.parseprint.PrintMethod;
+import org.prlprg.parseprint.Printer;
 import org.prlprg.primitive.BuiltinId;
 import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.BoolSXP;
@@ -13,6 +19,7 @@ import org.prlprg.sexp.ScalarIntSXP;
 import org.prlprg.sexp.ScalarLglSXP;
 import org.prlprg.sexp.ScalarRealSXP;
 import org.prlprg.sexp.ScalarStrSXP;
+import org.prlprg.util.Classes;
 
 /**
  * An IR node that, at runtime, is guaranteed to be a single statically-known constant value:
@@ -87,6 +94,11 @@ public sealed interface Constant<T> extends GlobalNode<T> {
    * <p>The only value at runtime of variables represented by this node.
    */
   T value();
+
+  @ParseMethod
+  private static Constant<?> parse(Parser p) {
+    return p.parse(ConstantImpl.class);
+  }
 }
 
 record ConstantImpl<T>(T value) implements Constant<T> {
@@ -101,11 +113,8 @@ record ConstantImpl<T>(T value) implements Constant<T> {
   }
 
   @Override
-  @SuppressWarnings("unchecked")
-  public Class<T> type() {
-    // The exact cast is OK because we only expose `Constant<? extends T>` from `Constant#of`,
-    // and other methods where `T` is `constant`'s exact type.`
-    return (Class<T>) value.getClass();
+  public Class<? extends T> type() {
+    return Classes.classOf(value);
   }
 
   @Override
@@ -113,8 +122,72 @@ record ConstantImpl<T>(T value) implements Constant<T> {
     return new GlobalNodeIdImpl<>(this);
   }
 
+  // region serialization and deserialization
+  private static final ImmutableBiMap<Class<?>, String> EXPLICIT_TYPE_SPECIFIERS = ImmutableBiMap.of(
+      Integer.class, "Int",
+      Double.class, "Real",
+      String.class, "Str",
+      Boolean.class, "Bool"
+  );
+
+  private static @Nullable String explicitSpecifierForClass(Class<?> clazz) {
+    if (SEXP.class.isAssignableFrom(clazz)) {
+      return null;
+    }
+
+    var explicitSpecifier = EXPLICIT_TYPE_SPECIFIERS.get(clazz);
+    if (explicitSpecifier != null) {
+      return explicitSpecifier;
+    }
+
+    throw new UnsupportedOperationException("Need to add type specifier for constant so it can be parsed and printed: " + clazz.getSimpleName());
+  }
+
+  private static Class<?> classForExplicitSpecifier(@Nullable String specifier) {
+    if (specifier == null) {
+      return SEXP.class;
+    }
+
+    var clazz = EXPLICIT_TYPE_SPECIFIERS.inverse().get(specifier);
+    if (clazz != null) {
+      return clazz;
+    }
+
+    throw new UnsupportedOperationException("Need to add type specifier for constant so it can be parsed and printed: " + specifier);
+  }
+
+  @ParseMethod
+  private static ConstantImpl<?> parse(Parser p) {
+    var s = p.scanner();
+
+    String explicitSpecifier = null;
+    if (s.trySkip('[')) {
+      explicitSpecifier = s.readJavaIdentifierOrKeyword();
+      s.assertAndSkip(']');
+    }
+    var clazz = classForExplicitSpecifier(explicitSpecifier);
+
+    var value = p.parse(clazz);
+    return new ConstantImpl<>(value);
+  }
+
+  @PrintMethod
+  private void print(Printer p) {
+    var w = p.writer();
+
+    var explicitSpecifier = explicitSpecifierForClass(value.getClass());
+    if (explicitSpecifier != null) {
+      w.write('[');
+      w.write(explicitSpecifier);
+      w.write(']');
+    }
+
+    p.print(value);
+  }
+
   @Override
   public String toString() {
     return value.toString();
   }
+  // endregion serialization and deserialization
 }

@@ -1,6 +1,7 @@
 package org.prlprg.ir.cfg;
 
 import com.google.common.collect.ImmutableBiMap;
+import com.google.common.collect.ImmutableMap;
 import java.util.Objects;
 import javax.annotation.Nonnull;
 import org.prlprg.parseprint.ParseMethod;
@@ -30,7 +31,7 @@ public sealed interface GlobalNodeId<T> extends NodeId<T> {
 
   @Override
   @Nonnull
-  Class<T> type();
+  Class<? extends T> type();
 
   @ParseMethod
   private static GlobalNodeId<?> parse(Parser p) {
@@ -40,7 +41,7 @@ public sealed interface GlobalNodeId<T> extends NodeId<T> {
 
 record GlobalNodeIdImpl<T>(GlobalNode<T> node) implements GlobalNodeId<T> {
   @Override
-  public @Nonnull Class<T> type() {
+  public @Nonnull Class<? extends T> type() {
     return node.type();
   }
 
@@ -50,41 +51,26 @@ record GlobalNodeIdImpl<T>(GlobalNode<T> node) implements GlobalNodeId<T> {
   }
 
   // region serialization and deserialization
-  /**
-   * The first character identifies the type of global node the ID encodes when it's parsed.
-   *
-   * <p>e.g. "\" for constants, "!" for invalid nodes.
-   */
-  @SuppressWarnings("rawtypes")
-  private static final ImmutableBiMap<Class<? extends GlobalNode>, Character> NODE_CLASS_MAP =
-      ImmutableBiMap.of(
-          Constant.class, '\\',
-          StaticEnv.class, '?',
-          InvalidNode.class, '!');
-
   @ParseMethod(SkipWhitespace.NONE)
   private static GlobalNodeIdImpl<?> parse(Parser p) {
     var s = p.scanner();
 
-    var subclass = s.peekChar() > 127 ? null : NODE_CLASS_MAP.inverse().get((char) s.peekChar());
-    if (subclass == null) {
-      throw s.fail(
-          Strings.join(" | ", c -> Character.toString(c), NODE_CLASS_MAP.values()),
-          Character.toString(s.peekChar()));
-    }
-    s.readChar();
+    var subclass = switch (s.peekChar()) {
+      case '?' -> StaticEnv.class;
+      case '!' -> InvalidNode.class;
+      case '[', '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '"', '\'', '<' -> Constant.class;
+      default -> throw s.fail("Expected global node ID (starting with '?', '!', '[', '-', a digit, '\"', '\\'', or '<')");
+    };
 
-    return (GlobalNodeIdImpl<?>) p.parse(subclass).id();
+    var id = p.parse(subclass).id();
+
+    return switch (id) {
+      case GlobalNodeIdImpl<?> g -> g;
+    };
   }
 
   @PrintMethod
   private void print(Printer p) {
-    var w = p.writer();
-
-    w.write(
-        Objects.requireNonNull(
-            NODE_CLASS_MAP.get(node.getClass()),
-            "global node subclass not in `GlobalNodeId#NODE_CLASS_MAP`"));
     p.print(node);
   }
   // endregion serialization and deserialization

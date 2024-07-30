@@ -1,5 +1,6 @@
 package org.prlprg.sexp.parseprint;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -23,6 +24,7 @@ import org.prlprg.sexp.ListSXP;
 import org.prlprg.sexp.NamespaceEnvSXP;
 import org.prlprg.sexp.NilSXP;
 import org.prlprg.sexp.PromSXP;
+import org.prlprg.sexp.RegSymOrLangSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPType;
 import org.prlprg.sexp.SEXPs;
@@ -97,30 +99,7 @@ public class SEXPPrintContext implements HasSEXPPrintContext {
 
   @PrintMethod
   private void print(SymSXP sexp, Printer p) {
-    handleDepth(
-        p,
-        () -> {
-          var w = p.writer();
-
-          var toString = sexp.toString();
-          switch (toString) {
-              // These will be parsed as other things if they aren't explicitly quoted.
-            case "NULL",
-                "TRUE",
-                "FALSE",
-                "NA_LGL",
-                "NA_INT",
-                "NA_REAL",
-                "NA_CPLX",
-                "NA_STR",
-                "NA" -> {
-              w.write('`');
-              w.write(toString);
-              w.write('`');
-            }
-            default -> w.write(toString);
-          }
-        });
+    handleDepth(p, () -> p.writer().write(sexp.toString()));
   }
 
   @PrintMethod
@@ -131,6 +110,8 @@ public class SEXPPrintContext implements HasSEXPPrintContext {
           var w = p.writer();
 
           if (sexp.funNameIs("{")) {
+            w.write('\'');
+
             if (sexp.args().isEmpty()) {
               w.write("{}");
             } else {
@@ -150,11 +131,27 @@ public class SEXPPrintContext implements HasSEXPPrintContext {
               w.write("\n}");
             }
           } else {
-            p.print(sexp.fun());
-            if (sexp.args().isEmpty()) {
-              w.write("()");
-            } else {
-              p.print(sexp.args());
+            var argLists = new ArrayList<ListSXP>();
+
+            RegSymOrLangSXP head = sexp;
+            while (head instanceof LangSXP head1) {
+              argLists.add(head1.args());
+              head = head1.fun();
+            }
+
+            // Writes the \' prefix.
+            w.write(head.toString());
+
+            var numElems = 0;
+            for (var argList : argLists.reversed()) {
+              if (numElems == options.maxElements()) {
+                w.write("...");
+                break;
+              }
+
+              printList(argList, p);
+
+              numElems++;
             }
           }
         });
@@ -167,10 +164,11 @@ public class SEXPPrintContext implements HasSEXPPrintContext {
         () -> {
           if (sexp.hasAttributes()) {
             printGeneralStart(sexp.type(), p);
-            printList(sexp, p);
+            printElems(sexp, p);
             printAttributes(sexp, p);
             printGeneralEnd(p);
           } else {
+            p.writer().write('\'');
             printList(sexp, p);
           }
         });
@@ -404,11 +402,11 @@ public class SEXPPrintContext implements HasSEXPPrintContext {
     private void print(Logical logical, Printer p) {
       var w = p.writer();
 
-      if (logical == Logical.NA) {
-        w.write("NA_LGL");
-      } else {
-        p.withContext(null).print(logical);
-      }
+      w.write(switch (logical) {
+        case TRUE -> "<TRUE>";
+        case FALSE -> "<FALSE>";
+        case NA -> "<NA_LGL>";
+      });
     }
 
     @PrintMethod
@@ -416,7 +414,7 @@ public class SEXPPrintContext implements HasSEXPPrintContext {
       var w = p.writer();
 
       if (integer == Constants.NA_INT) {
-        w.write("NA_INT");
+        w.write("<NA_INT>");
       } else {
         p.withContext(null).print(integer);
         w.write('L');
@@ -429,7 +427,7 @@ public class SEXPPrintContext implements HasSEXPPrintContext {
 
       // Technically only one NaN is NA, but Java only has one NaN. See `Constants#NA_REAL`'s docs.
       if (Double.isNaN(real)) {
-        w.write("NA_REAL");
+        w.write("<NA_REAL>");
       } else {
         p.withContext(null).print(real);
       }
@@ -440,7 +438,7 @@ public class SEXPPrintContext implements HasSEXPPrintContext {
       var w = p.writer();
 
       if (cplx == Constants.NA_COMPLEX) {
-        w.write("NA_CPLX");
+        w.write("<NA_CPLX>");
       } else {
         p.withContext(null).print(cplx);
         if (cplx.imag() == 0) {
@@ -454,7 +452,7 @@ public class SEXPPrintContext implements HasSEXPPrintContext {
       var w = p.writer();
 
       if (Constants.isNaString(string)) {
-        w.write("NA_STR");
+        w.write("<NA_STR>");
       } else {
         p.withContext(null).print(string);
       }
