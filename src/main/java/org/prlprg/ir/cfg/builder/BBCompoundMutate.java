@@ -31,7 +31,8 @@ public interface BBCompoundMutate extends BBIntrinsicMutate, BBQuery {
   /**
    * Insert statements at the end of the current {@link BB}.
    *
-   * @param datas The statements' datas, which determine what kind of statements they are and their inputs.
+   * @param datas The statements' datas, which determine what kind of statements they are and their
+   *     inputs.
    * @return Ths inserted statements.
    * @see #append(StmtData)
    */

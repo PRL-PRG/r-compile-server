@@ -60,8 +60,8 @@ public final class Phi<T> extends LocalNode<T> implements InstrOrPhi, InstrOrPhi
   /**
    * Create a new phi-node with the given inputs.
    *
-   * <p>The phis' {@link #type()} is the common supertype of all inputs' {@link Node}s, or
-   * {@link Void} if there are none.
+   * <p>The phis' {@link #type()} is the common supertype of all inputs' {@link Node}s, or {@link
+   * Void} if there are none.
    */
   Phi(CFG cfg, LocalNodeId<T> id, Collection<? extends Input<? extends T>> inputs) {
     super(cfg, phiType(inputs), PhiId.of(id));
@@ -79,8 +79,7 @@ public final class Phi<T> extends LocalNode<T> implements InstrOrPhi, InstrOrPhi
   /** The common supertype of all inputs' {@link Node}s, or {@link Void} if there are none. */
   @SuppressWarnings({"rawtypes", "unchecked"})
   private static <T> Class<? extends T> phiType(Collection<? extends Input<? extends T>> inputs) {
-    return inputs
-        .stream()
+    return inputs.stream()
         .map(Input::node)
         .map(Node::type)
         .reduce((Class) Void.class, (a, b) -> (Class) Classes.bestCommonSuperclass(a, b));
@@ -90,12 +89,15 @@ public final class Phi<T> extends LocalNode<T> implements InstrOrPhi, InstrOrPhi
 
   // region id
 
-  /** {@link LocalNode#id()}, but the ID is a subtype that lets you retrieve the phi using
-   * {@link CFG#get(PhiId)} without a cast. */
+  /**
+   * {@link LocalNode#id()}, but the ID is a subtype that lets you retrieve the phi using {@link
+   * CFG#get(PhiId)} without a cast.
+   */
   @Override
   public PhiId<T> id() {
     return (PhiId<T>) super.id();
   }
+
   // endregion id
 
   // region inputs
@@ -291,7 +293,8 @@ public final class Phi<T> extends LocalNode<T> implements InstrOrPhi, InstrOrPhi
 
   @SuppressWarnings("unchecked")
   @Override
-  public CascadingInstrUpdate unsafeReplaceInInputs(CascadingUpdatedInstrs seen, Node<?> old, Node<?> replacement) {
+  public CascadingInstrUpdate unsafeReplaceInInputs(
+      CascadingUpdatedInstrs seen, Node<?> old, Node<?> replacement) {
     for (var i = 0; i < inputs.size(); i++) {
       var input = inputs.get(i);
       if (input.node().equals(old)) {
@@ -304,7 +307,10 @@ public final class Phi<T> extends LocalNode<T> implements InstrOrPhi, InstrOrPhi
       }
     }
 
-    var result = type() != phiType(inputs) ? CascadingInstrUpdate.UPDATED_OUTPUT_TYPES : CascadingInstrUpdate.NONE;
+    var result =
+        type() != phiType(inputs)
+            ? CascadingInstrUpdate.UPDATED_OUTPUT_TYPES
+            : CascadingInstrUpdate.NONE;
     updateType();
     return result;
   }
@@ -382,6 +388,7 @@ public final class Phi<T> extends LocalNode<T> implements InstrOrPhi, InstrOrPhi
   public boolean isPure() {
     return true;
   }
+
   // endregion other `InstrOrPhi` inherited
 
   // region misc

@@ -16,7 +16,8 @@ import org.prlprg.sexp.FunSXP;
  * don't rely on the instruction's type, only its effects, inputs, and outputs.
  */
 public sealed interface IFun {
-  /** Create an {@link IFun} representing the given value:
+  /**
+   * Create an {@link IFun} representing the given value:
    *
    * <ul>
    *   <li>If given a {@link Node}, this is {@link IFun.DynamicNode}.

@@ -10,7 +10,8 @@ import org.prlprg.ir.cfg.instr.JumpData;
 import org.prlprg.ir.cfg.instr.JumpData.Branch;
 import org.prlprg.util.SmallListSet;
 
-/** IR instruction which is the final instruction and outgoing edge of a basic block.
+/**
+ * IR instruction which is the final instruction and outgoing edge of a basic block.
  *
  * @see Instr
  */
@@ -23,25 +24,27 @@ public final class Jump extends Instr {
   // region construct
   /** Serialized form where everything is replaced by IDs. */
   public record Serial(
-      @Override MapToIdIn<JumpData> data,
-      @Override ImmutableList<LocalNodeId<?>> outputIds) implements Instr.Serial {
+      @Override MapToIdIn<JumpData> data, @Override ImmutableList<LocalNodeId<?>> outputIds)
+      implements Instr.Serial {
     Serial(Jump node) {
       this(
           MapToIdIn.of((JumpData) node.data),
-          node.outputs().stream().map(LocalNode::id).collect(ImmutableList.toImmutableList())
-      );
+          node.outputs().stream().map(LocalNode::id).collect(ImmutableList.toImmutableList()));
     }
   }
 
-  /** Creates a jump.
+  /**
+   * Creates a jump.
    *
    * <p>Doesn't {@link CFG#track(InstrOrPhi)} it in the {@link CFG}, so this should be called in
-   * {@link BB}. */
+   * {@link BB}.
+   */
   Jump(CFG cfg, JumpData data) {
     super(cfg, data);
 
     updateCachedTargets();
   }
+
   // endregion construct
 
   // region BB
@@ -67,21 +70,23 @@ public final class Jump extends Instr {
   void unsafeSetBB(@Nullable BB bb) {
     this.bb = bb;
   }
+
   // endregion BB
 
   // region targets
   /**
    * (A shallow copy of) {@link BB}s that this jump can go to.
    *
-   * <p>These are in the same order as they are defined in {@link #inputs()} and the
-   * {@link JumpData} this was constructed with. Duplicates (e.g. in {@link Branch}es) that are
-   * redundant and will be cleaned up later) are removed.
+   * <p>These are in the same order as they are defined in {@link #inputs()} and the {@link
+   * JumpData} this was constructed with. Duplicates (e.g. in {@link Branch}es) that are redundant
+   * and will be cleaned up later) are removed.
    */
   public @UnmodifiableView SequencedSet<BB> targets() {
     return Collections.unmodifiableSequencedSet(cachedTargets);
   }
 
-  /** Whether this is a return (0 targets), goto (1 target), or branch (2 targets).
+  /**
+   * Whether this is a return (0 targets), goto (1 target), or branch (2 targets).
    *
    * <p>This is entirely dependent on the number of targets.
    */
@@ -91,22 +96,28 @@ public final class Jump extends Instr {
       case 0 -> new ControlFlow.Return();
       case 1 -> new ControlFlow.Goto(targetsIter.next());
       case 2 -> new ControlFlow.Branch(targetsIter.next(), targetsIter.next());
-      default -> throw new IllegalStateException(
-          "Jump has " + targets().size() + " targets, we haven't handled that");
+      default ->
+          throw new IllegalStateException(
+              "Jump has " + targets().size() + " targets, we haven't handled that");
     };
   }
 
-  /** Replace any occurrences of the target block in {@link #targets()}.
+  /**
+   * Replace any occurrences of the target block in {@link #targets()}.
    *
    * <p>This records a {@link CFGEdit}.
    */
   public void replaceInTargets(BB old, BB replacement) {
     unsafeReplaceInTargets(old, replacement);
 
-    cfg().record(new ReplaceInJumpTargets(this, old, replacement), new ReplaceInJumpTargets(this, replacement, old));
+    cfg()
+        .record(
+            new ReplaceInJumpTargets(this, old, replacement),
+            new ReplaceInJumpTargets(this, replacement, old));
   }
 
-  /** Replace any occurrences of the target block in {@link #targets()}.
+  /**
+   * Replace any occurrences of the target block in {@link #targets()}.
    *
    * <p>This doesn't record a {@link CFGEdit}, so it should only be used internally by another
    * function that returns its on intrinsic edit (hence "unsafe").
@@ -144,6 +155,7 @@ public final class Jump extends Instr {
       }
     }
   }
+
   // endregion targets
 
   // region inherited

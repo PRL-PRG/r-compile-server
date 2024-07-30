@@ -34,16 +34,19 @@ public sealed interface InstrOrPhi permits Instr, Phi {
    * are usually 0 (for effect-only instructions like stores and errors) or 1 (for instructions that
    * produce a value like loads and calls).
    */
-  @Unmodifiable List<? extends LocalNode<?>> outputs();
+  @Unmodifiable
+  List<? extends LocalNode<?>> outputs();
 
-  /** {@code true} for {@link Phi}s, {@code false} for {@link Jump}s, and for {@link Stmt}s, whether
+  /**
+   * {@code true} for {@link Phi}s, {@code false} for {@link Jump}s, and for {@link Stmt}s, whether
    * {@linkplain Instr#effects()} are {@linkplain REffects#isEmpty() empty}.
    */
   boolean isPure();
 }
 
 sealed interface InstrOrPhiImpl permits Instr, Phi {
-  /** Return the {@link InstrOrPhi} as-is, but casted to this type.
+  /**
+   * Return the {@link InstrOrPhi} as-is, but casted to this type.
    *
    * <p>This is preferred instead of doing a Java cast, because Java allows casts that would throw
    * {@link ClassCastException} at runtime.
@@ -73,5 +76,6 @@ sealed interface InstrOrPhiImpl permits Instr, Phi {
    *     error. If it's a supertype, it depends on whether {@code old} is in a position where the
    *     supertype is still a subtype of the required type.
    */
-  CascadingInstrUpdate unsafeReplaceInInputs(CascadingUpdatedInstrs seen, Node<?> old, Node<?> replacement);
+  CascadingInstrUpdate unsafeReplaceInInputs(
+      CascadingUpdatedInstrs seen, Node<?> old, Node<?> replacement);
 }

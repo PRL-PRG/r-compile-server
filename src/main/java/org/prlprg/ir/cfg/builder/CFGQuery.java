@@ -82,9 +82,7 @@ public interface CFGQuery {
   /** Whether the CFG contains a basic block with the given ID. */
   boolean contains(BBId bbId);
 
-  /**
-   * Whether the CFG contains a node with the given ID.
-   */
+  /** Whether the CFG contains a node with the given ID. */
   boolean contains(LocalNodeId<?> nodeId);
 
   /**
@@ -106,15 +104,15 @@ public interface CFGQuery {
    *
    * @throws NoSuchElementException If the node with the given ID isn't in the CFG.
    * @throws ClassCastException If the node with the given ID isn't a {@link Phi} (should only be
-   * possible if you pass an ID from a different CFG).
+   *     possible if you pass an ID from a different CFG).
    */
   default <T> Phi<T> get(PhiId<T> nodeId) {
     return (Phi<T>) get((LocalNodeId<T>) nodeId);
   }
 
   /**
-   * Get the node in the CFG with the given ID if it's local. If it's global, returns
-   * {@link GlobalNodeId#node()}.
+   * Get the node in the CFG with the given ID if it's local. If it's global, returns {@link
+   * GlobalNodeId#node()}.
    *
    * @throws NoSuchElementException If the node with the given ID isn't global and isn't in the CFG.
    */
@@ -124,6 +122,7 @@ public interface CFGQuery {
       case GlobalNodeId<T> globalId -> globalId.node();
     };
   }
+
   // endregion general properties
 
   // region iterate BBs
@@ -280,7 +279,10 @@ public interface CFGQuery {
     return stream()
         .flatMap(bb -> bb.stmts().stream())
         .flatMap(stmt -> Arrays.stream(stmt.inputs))
-        .flatMap(input -> (input instanceof CodeObject co ? Optional.of(co) : Optional.<CodeObject>empty()).stream());
+        .flatMap(
+            input ->
+                (input instanceof CodeObject co ? Optional.of(co) : Optional.<CodeObject>empty())
+                    .stream());
   }
 
   // endregion iterate nodes

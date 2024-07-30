@@ -21,7 +21,6 @@ import org.prlprg.ir.cfg.CascadingUpdatedInstrs;
 import org.prlprg.ir.cfg.IFun;
 import org.prlprg.ir.cfg.Instr;
 import org.prlprg.ir.cfg.Node;
-import org.prlprg.ir.closure.CodeObject;
 import org.prlprg.ir.effect.REffects;
 import org.prlprg.util.InvalidAnnotationError;
 import org.prlprg.util.Reflection;
@@ -117,8 +116,6 @@ public sealed interface InstrData permits JumpData, StmtData {
               "`@VarInputs` component must not be nullable, but found nullable");
         }
         inputs.addAll(Arrays.asList((Object[]) Objects.requireNonNull(value)));
-      } else if (CodeObject.class.isAssignableFrom(component.getType())) {
-        inputs.add(((CodeObject) value).outerCfgNodes());
       } else {
         inputs.add(value);
       }
@@ -189,13 +186,6 @@ public sealed interface InstrData permits JumpData, StmtData {
                       + ", but got a " + varInputs[j].getClass().getName());
             }
           }
-        } else if (CodeObject.class.isAssignableFrom(component.getType())) {
-          var codeObject = (CodeObject) oldComponentValue;
-          var oldOuterCfgNodes = codeObject.outerCfgNodes();
-          for (var j = 0; j < oldOuterCfgNodes.size(); j++) {
-            expectedNumInputs++;
-            codeObject.unsafeReplaceOuterCfgNode(oldOuterCfgNodes.get(j), (Node<?>) inputs[i + j]);
-          }
         } else {
           expectedNumInputs++;
           newComponentValues[i] = inputs[i];
@@ -262,8 +252,6 @@ public sealed interface InstrData permits JumpData, StmtData {
             throw new InputNodeTypeException(cascade, varInputNode, componentElementNodeType);
           }
         }
-      } else if (CodeObject.class.isAssignableFrom(component.getType())) {
-        ((CodeObject) componentValue).verifyOuterCfgNodesAreOfCorrectTypes();
       } else {
         var componentNodeType = nodeTypeIfNode(component.getGenericType());
         if (componentNodeType == null) {
