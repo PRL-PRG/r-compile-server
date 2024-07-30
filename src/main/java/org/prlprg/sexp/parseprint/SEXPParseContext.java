@@ -2,6 +2,7 @@ package org.prlprg.sexp.parseprint;
 
 import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -27,13 +28,13 @@ import org.prlprg.sexp.NamespaceEnvSXP;
 import org.prlprg.sexp.PromSXP;
 import org.prlprg.sexp.RegSymOrLangSXP;
 import org.prlprg.sexp.SEXP;
-import org.prlprg.sexp.SEXPOrEnvType;
 import org.prlprg.sexp.SEXPType;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.sexp.StaticEnvSXP;
 import org.prlprg.sexp.SymSXP;
 import org.prlprg.sexp.TaggedElem;
 import org.prlprg.sexp.UserEnvSXP;
+import org.prlprg.util.StringCase;
 import org.prlprg.util.UnreachableError;
 
 /**
@@ -49,7 +50,43 @@ import org.prlprg.util.UnreachableError;
 public class SEXPParseContext implements HasSEXPParseContext {
   /** {@code true} if the character indicates the end of an {@link SEXP} or {@link TaggedElem}. */
   public static boolean delimitsSEXP(Integer c) {
-    return c == -1 || c == ',' || c == ';' || c == ')' || c == ']' || c == '}' || c == '>';
+    return c == -1 || c == '|' || c == ',' || c == ';' || c == ')' || c == ']' || c == '}' || c == '>';
+  }
+
+  private sealed interface AngleFormType {
+    record Ellipsis() implements AngleFormType {}
+
+    record Missing() implements AngleFormType {}
+
+    record Literal(org.prlprg.sexp.parseprint.Literal value) implements AngleFormType {}
+
+    record SEXPOrEnvType(org.prlprg.sexp.SEXPOrEnvType value) implements AngleFormType {}
+
+
+    @ParseMethod
+    private static AngleFormType parse(Parser p) {
+      var s = p.scanner();
+
+      if (s.trySkip("...")) {
+        return new AngleFormType.Ellipsis();
+      } else if (s.trySkip("missing")) {
+        return new AngleFormType.Missing();
+      }
+
+      var id =
+          StringCase.convert(
+              s.readJavaIdentifierOrKeyword(), StringCase.SNAKE, StringCase.SCREAMING_SNAKE);
+
+      if (Arrays.stream(org.prlprg.sexp.parseprint.Literal.values()).anyMatch(e -> e.name().equals(id))) {
+        return new AngleFormType.Literal(org.prlprg.sexp.parseprint.Literal.valueOf(id));
+      } else if (Arrays.stream(SEXPType.values()).anyMatch(e -> e.name().equals(id))) {
+        return new AngleFormType.SEXPOrEnvType(SEXPType.valueOf(id));
+      } else if (Arrays.stream(EnvType.values()).anyMatch(e -> e.name().equals(id))) {
+        return new AngleFormType.SEXPOrEnvType(EnvType.valueOf(id));
+      } else {
+        throw s.fail("SEXPType or EnvType", id);
+      }
+    }
   }
 
   private final ForBindings forBindings = new ForBindings();
@@ -82,49 +119,7 @@ public class SEXPParseContext implements HasSEXPParseContext {
   private SEXP parseSEXP(Parser p) {
     var s = p.scanner();
 
-    if (s.trySkip("<...")) {
-      throw failParsingTruncated(p);
-    } else if (s.nextCharSatisfies(Names::isValidStartChar)) {
-      var name = Names.read(s, true);
-      return switch (name) {
-        case "NULL" -> SEXPs.NULL;
-        case "TRUE" -> SEXPs.TRUE;
-        case "FALSE" -> SEXPs.FALSE;
-        case "NA_LGL" -> SEXPs.NA_LOGICAL;
-        case "NA_INT" -> SEXPs.NA_INTEGER;
-        case "NA_REAL" -> SEXPs.NA_REAL;
-        case "NA_CPLX" -> SEXPs.NA_COMPLEX;
-        case "NA_STR" -> SEXPs.NA_STRING;
-        case "NA" ->
-            throw s.fail("NA type (uppercase): NA_LGL, NA_INT, NA_REAL, NA_CPLX, NA_STR", name);
-        default -> parseRegSymOrNotBlockLangSXP(name, p);
-      };
-    } else if (s.trySkip('{')) {
-      // Block SymOrLangSXP
-      var elems = ImmutableList.<TaggedElem>builder();
-      if (!s.trySkip('}')) {
-        do {
-          // while (s.trySkip(';')) but IntelliJ doesn't complain
-          while (true) {
-            if (!s.trySkip(';')) {
-              break;
-            }
-          }
-
-          elems.add(p.parse(TaggedElem.class));
-        } while (s.trySkip(';'));
-        s.assertAndSkip('}');
-      }
-      return SEXPs.blockLang(elems.build());
-    } else if (s.nextCharIs('(')) {
-      // ListSXP
-      return SEXPs.list(parseList(p));
-    } else if (s.trySkip("<missing>")) {
-      return SEXPs.MISSING_ARG;
-    } else if (s.nextCharSatisfies(Character::isDigit)
-        || s.nextCharIs('+')
-        || s.nextCharIs('-')
-        || s.nextCharsAre("NaN")) {
+    if (s.nextCharSatisfies(Character::isDigit) || s.nextCharIs('-')) {
       var decimal = s.readDecimalString();
       if (s.trySkip('L')) {
         try {
@@ -147,265 +142,326 @@ public class SEXPParseContext implements HasSEXPParseContext {
       }
     } else if (s.nextCharIs('"')) {
       var str = s.readQuoted('"');
+
       if (s.nextCharsAre("...")) {
         throw failParsingTruncated(p);
       }
+
       return SEXPs.string(str);
+    } else if (s.trySkip('\'')) {
+      if (s.trySkip('{')) {
+        // Block SymOrLangSXP
+        var elems = ImmutableList.<TaggedElem>builder();
+
+        if (!s.trySkip('}')) {
+          do {
+            // while (s.trySkip(';')) but IntelliJ doesn't complain
+            while (true) {
+              if (!s.trySkip(';')) {
+                break;
+              }
+            }
+
+            elems.add(p.parse(TaggedElem.class));
+          } while (s.trySkip(';'));
+          s.assertAndSkip('}');
+        }
+
+        return SEXPs.blockLang(elems.build());
+      } else if (s.nextCharIs('(')) {
+        // ListSXP
+        return SEXPs.list(parseList(p));
+      } else {
+        // SymOrLangSXP
+        RegSymOrLangSXP result = SEXPs.symbol(Names.read(s, true));
+
+        while (s.nextCharIs('(')) {
+          var args = parseList(p);
+          result = SEXPs.lang(result, SEXPs.list(args));
+        }
+
+        if (s.trySkip("...")) {
+          throw failParsingTruncated(p);
+        }
+
+        return result;
+      }
     } else if (s.trySkip('<')) {
-      var type = s.runWithWhitespacePolicy(SkipWhitespace.NONE, () -> p.parse(SEXPOrEnvType.class));
+      var type = s.runWithWhitespacePolicy(SkipWhitespace.NONE, () -> p.parse(AngleFormType.class));
+      return switch (type) {
+        case AngleFormType.Ellipsis() -> throw failParsingTruncated(p);
+        case AngleFormType.Missing() -> SEXPs.MISSING_ARG;
+        case AngleFormType.Literal(var literal) -> literal.value();
+        case AngleFormType.SEXPOrEnvType(var sexpOrEnvType) -> {
+          // If a ref is found, this is set to the index, we will yield the ref's SEXP in `base`
+          // early, we won't parse attributes, and we will sanity check that the ref SEXP's type is
+          // `sexpOrEnvType`.
+          var foundRefIndex = -1;
+          var base =
+              switch (sexpOrEnvType) {
+                case SEXPType.LIST -> {
+                  var elems = ImmutableList.<TaggedElem>builder();
 
-      // If a ref is found, this is set to the index, we will yield the ref's SEXP in `base` early,
-      // we won't parse attributes, and we will sanity check that the ref SEXP's type is `type`.
-      var foundRefIndex = -1;
-      var base =
-          switch (type) {
-            case SEXPType.LIST -> SEXPs.list(parseList(p));
-            case SEXPType.LGL,
-                SEXPType.INT,
-                SEXPType.REAL,
-                SEXPType.RAW,
-                SEXPType.CPLX,
-                SEXPType.STR,
-                SEXPType.VEC,
-                SEXPType.EXPR -> {
-              var elems = new ArrayList<>();
-              if (!s.trySkip('>') && !s.trySkip('|')) {
-                if (s.nextCharsAre("...")) {
-                  throw failParsingTruncated(p);
-                }
+                  if (!s.nextCharIs('>') && !s.nextCharIs('|')) {
+                    do {
+                      elems.add(p.parse(TaggedElem.class));
 
-                do {
-                  var untypedElem = p.parse(SEXP.class);
-                  var optTypedElem =
-                      switch ((SEXPType) type) {
-                        case LGL -> untypedElem.asScalarLogical();
-                        case INT -> untypedElem.asScalarInteger();
-                        case REAL -> untypedElem.asScalarReal();
-                        case RAW -> untypedElem.asScalarRaw();
-                        case CPLX -> untypedElem.asScalarComplex();
-                        case STR -> untypedElem.asScalarString();
-                        case VEC, EXPR -> Optional.of(untypedElem);
-                        default -> throw new UnreachableError();
-                      };
-                  if (optTypedElem.isEmpty()) {
-                    throw s.fail("scalar of type " + type, untypedElem.toString());
+                      if (s.nextCharsAre("...")) {
+                        throw failParsingTruncated(p);
+                      }
+                    } while (s.trySkip(','));
                   }
-                  elems.add(optTypedElem.get());
+
+                  yield SEXPs.list(elems.build());
+                }
+                case SEXPType.LGL,
+                     SEXPType.INT,
+                     SEXPType.REAL,
+                     SEXPType.RAW,
+                     SEXPType.CPLX,
+                     SEXPType.STR,
+                     SEXPType.VEC,
+                     SEXPType.EXPR -> {
+                  var elems = new ArrayList<>();
+                  if (!s.nextCharIs('>') && !s.nextCharIs('|')) {
+                    if (s.nextCharsAre("...")) {
+                      throw failParsingTruncated(p);
+                    }
+
+                    do {
+                      var untypedElem = p.parse(SEXP.class);
+                      var optTypedElem =
+                          switch ((SEXPType) sexpOrEnvType) {
+                            case LGL -> untypedElem.asScalarLogical();
+                            case INT -> untypedElem.asScalarInteger();
+                            case REAL -> untypedElem.asScalarReal();
+                            case RAW -> untypedElem.asScalarRaw();
+                            case CPLX -> untypedElem.asScalarComplex();
+                            case STR -> untypedElem.asScalarString();
+                            case VEC, EXPR -> Optional.of(untypedElem);
+                            default -> throw new UnreachableError();
+                          };
+                      if (optTypedElem.isEmpty()) {
+                        throw s.fail("scalar of type " + sexpOrEnvType, untypedElem.toString());
+                      }
+                      elems.add(optTypedElem.get());
+
+                      if (s.nextCharsAre("...")) {
+                        throw failParsingTruncated(p);
+                      }
+                    } while (s.trySkip(','));
+                  }
+                  yield switch ((SEXPType) sexpOrEnvType) {
+                    case LGL ->
+                        SEXPs.logical(
+                            elems.stream()
+                                .map(e -> (Logical) e)
+                                .collect(ImmutableList.toImmutableList()));
+                    case INT -> SEXPs.integer(elems.stream().mapToInt(e -> (int) e).toArray());
+                    case REAL -> SEXPs.real(elems.stream().mapToDouble(e -> (double) e).toArray());
+                    case RAW ->
+                        SEXPs.raw(
+                            elems.stream().map(e -> (byte) e).collect(ImmutableList.toImmutableList()));
+                    case CPLX ->
+                        SEXPs.complex(
+                            elems.stream()
+                                .map(e -> (Complex) e)
+                                .collect(ImmutableList.toImmutableList()));
+                    case STR ->
+                        SEXPs.string(
+                            elems.stream()
+                                .map(e -> (String) e)
+                                .collect(ImmutableList.toImmutableList()));
+                    case VEC ->
+                        SEXPs.vec(
+                            elems.stream().map(e -> (SEXP) e).collect(ImmutableList.toImmutableList()));
+                    case EXPR ->
+                        SEXPs.expr(
+                            elems.stream().map(e -> (SEXP) e).collect(ImmutableList.toImmutableList()));
+                    default -> throw new UnreachableError();
+                  };
+                }
+                case SEXPType.CLO -> {
+                  var parameters = SEXPs.list(parseList(p.withContext(forBindings)));
+                  s.assertAndSkip("env=");
+                  var env = p.parse(EnvSXP.class);
+                  var attributes = s.trySkip("|") ? p.parse(Attributes.class) : Attributes.NONE;
+                  s.assertAndSkip("⇒");
+                  var body = p.parse(SEXP.class);
+                  yield SEXPs.closure(parameters, body, env, attributes);
+                }
+                case EnvType.USER, EnvType.GLOBAL, EnvType.NAMESPACE, EnvType.BASE, EnvType.EMPTY -> {
+                  var refIndex = parseRefIndex(p);
+                  if (refs.containsKey(refIndex)) {
+                    foundRefIndex = refIndex;
+                    yield refs.get(refIndex);
+                  }
+
+                  String name;
+                  String version;
+                  if (sexpOrEnvType == EnvType.NAMESPACE) {
+                    name = Names.read(s, true);
+                    s.assertAndSkip(':');
+                    version = s.readUntilWhitespace();
+                  } else {
+                    name = null;
+                    version = null;
+                  }
 
                   if (s.nextCharsAre("...")) {
                     throw failParsingTruncated(p);
                   }
-                } while (s.trySkip(','));
-              }
-              yield switch ((SEXPType) type) {
-                case LGL ->
-                    SEXPs.logical(
-                        elems.stream()
-                            .map(e -> (Logical) e)
-                            .collect(ImmutableList.toImmutableList()));
-                case INT -> SEXPs.integer(elems.stream().mapToInt(e -> (int) e).toArray());
-                case REAL -> SEXPs.real(elems.stream().mapToDouble(e -> (double) e).toArray());
-                case RAW ->
-                    SEXPs.raw(
-                        elems.stream().map(e -> (byte) e).collect(ImmutableList.toImmutableList()));
-                case CPLX ->
-                    SEXPs.complex(
-                        elems.stream()
-                            .map(e -> (Complex) e)
-                            .collect(ImmutableList.toImmutableList()));
-                case STR ->
-                    SEXPs.string(
-                        elems.stream()
-                            .map(e -> (String) e)
-                            .collect(ImmutableList.toImmutableList()));
-                case VEC ->
-                    SEXPs.vec(
-                        elems.stream().map(e -> (SEXP) e).collect(ImmutableList.toImmutableList()));
-                case EXPR ->
-                    SEXPs.expr(
-                        elems.stream().map(e -> (SEXP) e).collect(ImmutableList.toImmutableList()));
-                default -> throw new UnreachableError();
+
+                  boolean hasParent;
+                  boolean hasBindings;
+
+                  var env =
+                      switch ((EnvType) sexpOrEnvType) {
+                        case EMPTY -> {
+                          if (refIndex != -1) {
+                            throw s.fail("Empty environment can't have ref index");
+                          }
+                          hasParent = false;
+                          hasBindings = false;
+                          yield SEXPs.EMPTY_ENV;
+                        }
+                        case BASE -> {
+                          hasParent = false;
+                          hasBindings = true;
+                          yield new BaseEnvSXP();
+                        }
+                        case NAMESPACE -> {
+                          hasParent = true;
+                          hasBindings = true;
+                          try {
+                            yield new NamespaceEnvSXP(name, version, SEXPs.EMPTY_ENV);
+                          } catch (ClassCastException e) {
+                            throw s.fail("Static environment must have static parent", e);
+                          }
+                        }
+                        case GLOBAL -> {
+                          hasParent = true;
+                          hasBindings = true;
+                          try {
+                            yield new GlobalEnvSXP(SEXPs.EMPTY_ENV);
+                          } catch (ClassCastException e) {
+                            throw s.fail("Static environment must have static parent", e);
+                          }
+                        }
+                        case USER -> {
+                          hasParent = true;
+                          hasBindings = true;
+                          yield new UserEnvSXP(SEXPs.EMPTY_ENV);
+                        }
+                      };
+
+                  if (refIndex != -1) {
+                    refs.put(refIndex, env);
+                  }
+
+                  if (s.trySkip("parent=")) {
+                    if (!hasParent) {
+                      throw s.fail("Environment of type " + sexpOrEnvType + " doesn't have an explicit parent");
+                    }
+
+                    try {
+                      env.setParent(p.parse(EnvSXP.class));
+                    } catch (UnsupportedOperationException e) {
+                      throw s.fail(
+                          "Environment of type " + sexpOrEnvType + " can't have a parent of this type", e);
+                    }
+                  } else if (hasParent) {
+                    throw s.fail("Environment of type " + sexpOrEnvType + " must have an explicit parent");
+                  }
+
+                  if (s.nextCharIs('(')) {
+                    if (!hasBindings) {
+                      throw s.fail("Environment of type " + sexpOrEnvType + " doesn't have explicit bindings");
+                    }
+
+                    var bindings = parseList(p.withContext(forBindings));
+                    for (var i = 0; i < bindings.size(); i++) {
+                      var binding = bindings.get(i);
+                      if (binding.tag() == null) {
+                        throw s.fail("Binding " + i + "has no tag");
+                      }
+                      if (env.getLocal(binding.tag()).isPresent()) {
+                        throw s.fail("Duplicate binding (second at index " + i + "): " + binding.tag());
+                      }
+                      env.set(binding.tag(), binding.value());
+                    }
+                  } else if (hasBindings) {
+                    throw s.fail("Environment of type " + sexpOrEnvType + " must have explicit bindings");
+                  }
+
+                  yield env;
+                }
+                case SEXPType.ENV ->
+                    throw s.fail("ENV SEXP must have a specific type (one of the `EnvType` instances)");
+                case SEXPType.BCODE -> {
+                  var refIndex = parseRefIndex(p);
+                  if (refs.containsKey(refIndex)) {
+                    foundRefIndex = refIndex;
+                    yield refs.get(refIndex);
+                  }
+
+                  if (s.nextCharsAre("...")) {
+                    throw failParsingTruncated(p);
+                  }
+
+                  var bc = p.parse(Bc.class);
+                  var bcSexp = SEXPs.bcode(bc);
+
+                  if (refIndex != -1) {
+                    refs.put(refIndex, bcSexp);
+                  }
+
+                  yield bcSexp;
+                }
+                case SEXPType.PROM -> {
+                  s.assertAndSkip("env=");
+                  var env = p.parse(EnvSXP.class);
+                  var val = s.trySkip("val=") ? p.parse(SEXP.class) : null;
+                  s.assertAndSkip('⇒');
+                  var expr = p.parse(SEXP.class);
+                  yield new PromSXP<>(expr, val, env);
+                }
+                case SEXPType.BUILTIN, SEXPType.SPECIAL -> {
+                  var id = p.parse(BuiltinId.class);
+                  if (sexpOrEnvType == SEXPType.BUILTIN && id.isSpecial()) {
+                    throw s.fail("builtin SEXP", "special form");
+                  } else if (sexpOrEnvType == SEXPType.SPECIAL && !id.isSpecial()) {
+                    throw s.fail("special SEXP", "builtin form");
+                  }
+                  yield sexpOrEnvType == SEXPType.BUILTIN ? SEXPs.builtin(id) : SEXPs.special(id);
+                }
+                default ->
+                    throw s.fail(
+                        "SEXP of type has a special syntax, so it can't be parsed this way: "
+                            + s.readJavaIdentifierOrKeyword());
               };
+
+          if (foundRefIndex != -1) {
+            if ((base instanceof EnvSXP e ? e.envType() : base.type()) != sexpOrEnvType) {
+              throw s.fail("Ref " + base + " at index " + foundRefIndex + " has wrong type: " + sexpOrEnvType);
             }
-            case SEXPType.CLO -> {
-              var parameters = SEXPs.list(parseList(p.withContext(forBindings)));
-              s.assertAndSkip("env=");
-              var env = p.parse(EnvSXP.class);
-              var attributes = s.trySkip("|") ? p.parse(Attributes.class) : Attributes.NONE;
-              s.assertAndSkip("⇒");
-              var body = p.parse(SEXP.class);
-              yield SEXPs.closure(parameters, body, env, attributes);
+          } else {
+            if (sexpOrEnvType != SEXPType.CLO && s.trySkip("|")) {
+              try {
+                base = base.withAttributes(p.parse(Attributes.class));
+              } catch (UnsupportedOperationException e) {
+                throw s.fail("SEXP of type " + sexpOrEnvType + " can't have attributes", e);
+              }
+            } else if (sexpOrEnvType == SEXPType.LIST) {
+              throw s.fail(
+                  "List SEXP in this syntax must have attributes, otherwise replace `<list …>` with `'(…)`");
             }
-            case EnvType.USER, EnvType.GLOBAL, EnvType.NAMESPACE, EnvType.BASE, EnvType.EMPTY -> {
-              var refIndex = parseRefIndex(p);
-              if (refs.containsKey(refIndex)) {
-                foundRefIndex = refIndex;
-                yield refs.get(refIndex);
-              }
-
-              String name;
-              String version;
-              if (type == EnvType.NAMESPACE) {
-                name = Names.read(s, true);
-                s.assertAndSkip(':');
-                version = s.readUntilWhitespace();
-              } else {
-                name = null;
-                version = null;
-              }
-
-              if (s.nextCharsAre("...")) {
-                throw failParsingTruncated(p);
-              }
-
-              boolean hasParent;
-              boolean hasBindings;
-
-              var env =
-                  switch ((EnvType) type) {
-                    case EMPTY -> {
-                      if (refIndex != -1) {
-                        throw s.fail("Empty environment can't have ref index");
-                      }
-                      hasParent = false;
-                      hasBindings = false;
-                      yield SEXPs.EMPTY_ENV;
-                    }
-                    case BASE -> {
-                      hasParent = false;
-                      hasBindings = true;
-                      yield new BaseEnvSXP();
-                    }
-                    case NAMESPACE -> {
-                      hasParent = true;
-                      hasBindings = true;
-                      try {
-                        yield new NamespaceEnvSXP(name, version, SEXPs.EMPTY_ENV);
-                      } catch (ClassCastException e) {
-                        throw s.fail("Static environment must have static parent", e);
-                      }
-                    }
-                    case GLOBAL -> {
-                      hasParent = true;
-                      hasBindings = true;
-                      try {
-                        yield new GlobalEnvSXP(SEXPs.EMPTY_ENV);
-                      } catch (ClassCastException e) {
-                        throw s.fail("Static environment must have static parent", e);
-                      }
-                    }
-                    case USER -> {
-                      hasParent = true;
-                      hasBindings = true;
-                      yield new UserEnvSXP(SEXPs.EMPTY_ENV);
-                    }
-                  };
-
-              if (refIndex != -1) {
-                refs.put(refIndex, env);
-              }
-
-              if (s.trySkip("parent=")) {
-                if (!hasParent) {
-                  throw s.fail("Environment of type " + type + " doesn't have an explicit parent");
-                }
-
-                try {
-                  env.setParent(p.parse(EnvSXP.class));
-                } catch (UnsupportedOperationException e) {
-                  throw s.fail(
-                      "Environment of type " + type + " can't have a parent of this type", e);
-                }
-              } else if (hasParent) {
-                throw s.fail("Environment of type " + type + " must have an explicit parent");
-              }
-
-              if (s.nextCharIs('(')) {
-                if (!hasBindings) {
-                  throw s.fail("Environment of type " + type + " doesn't have explicit bindings");
-                }
-
-                var bindings = parseList(p.withContext(forBindings));
-                for (var i = 0; i < bindings.size(); i++) {
-                  var binding = bindings.get(i);
-                  if (binding.tag() == null) {
-                    throw s.fail("Binding " + i + "has no tag");
-                  }
-                  if (env.getLocal(binding.tag()).isPresent()) {
-                    throw s.fail("Duplicate binding (second at index " + i + "): " + binding.tag());
-                  }
-                  env.set(binding.tag(), binding.value());
-                }
-              } else if (hasBindings) {
-                throw s.fail("Environment of type " + type + " must have explicit bindings");
-              }
-
-              yield env;
-            }
-            case SEXPType.ENV ->
-                throw s.fail("ENV SEXP must have a specific type (one of the `EnvType` instances)");
-            case SEXPType.BCODE -> {
-              var refIndex = parseRefIndex(p);
-              if (refs.containsKey(refIndex)) {
-                foundRefIndex = refIndex;
-                yield refs.get(refIndex);
-              }
-
-              if (s.nextCharsAre("...")) {
-                throw failParsingTruncated(p);
-              }
-
-              var bc = p.parse(Bc.class);
-              var bcSexp = SEXPs.bcode(bc);
-
-              if (refIndex != -1) {
-                refs.put(refIndex, bcSexp);
-              }
-
-              yield bcSexp;
-            }
-            case SEXPType.PROM -> {
-              s.assertAndSkip("env=");
-              var env = p.parse(EnvSXP.class);
-              var val = s.trySkip("val=") ? p.parse(SEXP.class) : null;
-              s.assertAndSkip('⇒');
-              var expr = p.parse(SEXP.class);
-              yield new PromSXP<>(expr, val, env);
-            }
-            case SEXPType.BUILTIN, SEXPType.SPECIAL -> {
-              var id = p.parse(BuiltinId.class);
-              if (type == SEXPType.BUILTIN && id.isSpecial()) {
-                throw s.fail("builtin SEXP", "special form");
-              } else if (type == SEXPType.SPECIAL && !id.isSpecial()) {
-                throw s.fail("special SEXP", "builtin form");
-              }
-              yield type == SEXPType.BUILTIN ? SEXPs.builtin(id) : SEXPs.special(id);
-            }
-            default ->
-                throw s.fail(
-                    "SEXP of type has a special syntax, so it can't be parsed this way: "
-                        + s.readJavaIdentifierOrKeyword());
-          };
-
-      if (foundRefIndex != -1) {
-        if ((base instanceof EnvSXP e ? e.envType() : base.type()) != type) {
-          throw s.fail("Ref " + base + " at index " + foundRefIndex + " has wrong type: " + type);
-        }
-      } else {
-        if (type != SEXPType.CLO && s.trySkip("|")) {
-          try {
-            base = base.withAttributes(p.parse(Attributes.class));
-          } catch (UnsupportedOperationException e) {
-            throw s.fail("SEXP of type " + type + " can't have attributes", e);
           }
-        } else if (type == SEXPType.LIST) {
-          throw s.fail(
-              "List SEXP in this syntax must have attributes, otherwise remove the surrounding `<list` and `>`");
-        }
-      }
 
-      s.trySkip('>');
-      return base;
+          s.assertAndSkip('>');
+          yield base;
+        }
+      };
     } else {
       throw s.fail("Unexpected start of SEXP: " + Character.toString(s.peekChar()));
     }
@@ -413,28 +469,10 @@ public class SEXPParseContext implements HasSEXPParseContext {
 
   @ParseMethod
   private SymSXP parseSymSXP(Parser p) {
-    return SEXPs.symbol(Names.read(p.scanner(), true));
-  }
-
-  private RegSymOrLangSXP parseRegSymOrNotBlockLangSXP(String name, Parser p) {
     var s = p.scanner();
 
-    RegSymOrLangSXP result = SEXPs.symbol(name);
-    while (s.trySkip('(')) {
-      var args = new ArrayList<TaggedElem>();
-      if (!s.trySkip(')')) {
-        while (true) {
-          var arg = p.parse(TaggedElem.class);
-          args.add(arg);
-          if (s.trySkip(')')) {
-            break;
-          }
-          s.assertAndSkip(',');
-        }
-      }
-      result = SEXPs.lang(result, SEXPs.list(args));
-    }
-    return result;
+    s.assertAndSkip('\'');
+    return SEXPs.symbol(Names.read(p.scanner(), true));
   }
 
   /**
@@ -506,25 +544,17 @@ public class SEXPParseContext implements HasSEXPParseContext {
   private TaggedElem parseTaggedElem(Parser p) {
     var s = p.scanner();
 
-    if (s.nextCharSatisfies(SEXPParseContext::delimitsSEXP)) {
-      return new TaggedElem(null, SEXPs.MISSING_ARG);
+    String tag = null;
+    if (Names.isValidStartChar(s.peekChar())) {
+      tag = Names.read(s, true);
+      s.assertAndSkip('=');
     }
 
-    var tagOiSexp = p.parse(SEXP.class);
-    if (!s.trySkip('=')) {
-      return new TaggedElem(null, tagOiSexp);
-    }
-
-    // `tag` may be `NULL`, `NA_INT`, etc., but it should be a symbol.
-    var tagQuoted = tagOiSexp.toString();
-    if (!Names.isValid(tagQuoted)) {
-      throw s.fail("valid R symbol (before '=')", tagQuoted);
-    }
-    var tag = Names.unquoteIfNecessary(tagQuoted);
     var value =
         s.nextCharSatisfies(SEXPParseContext::delimitsSEXP)
             ? SEXPs.MISSING_ARG
             : p.parse(SEXP.class);
+
     return new TaggedElem(tag, value);
   }
 
@@ -546,10 +576,12 @@ public class SEXPParseContext implements HasSEXPParseContext {
       }
 
       var tag = s.nextCharIs('=') ? null : Names.read(s, true);
+
       var value =
           s.trySkip('=')
               ? p.withContext(SEXPParseContext.this).parse(SEXP.class)
               : SEXPs.MISSING_ARG;
+
       return new TaggedElem(tag, value);
     }
 

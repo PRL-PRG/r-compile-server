@@ -64,7 +64,7 @@ public final class InvalidNode implements GlobalNode<Void> {
   public static InvalidNode create(String name) {
     synchronized (GLOBALS) {
       var disambiguator = disambiguatorFor(name);
-      var toString = (disambiguator == 0 ? "" : disambiguator) + Names.quoteIfNecessary(name);
+      var toString = toString(disambiguator, name);
 
       var node = new InvalidNode(disambiguator, name, toString);
       GLOBALS.EXISTING.put(toString, node);
@@ -77,12 +77,16 @@ public final class InvalidNode implements GlobalNode<Void> {
    * Otherwise creates a new one.
    */
   static InvalidNode getOrCreate(int disambiguator, String name) {
-    var toString = (disambiguator == 0 ? "" : disambiguator) + Names.quoteIfNecessary(name);
+    var toString = toString(disambiguator, name);
 
     synchronized (GLOBALS) {
       return GLOBALS.EXISTING.computeIfAbsent(
           toString, _ -> new InvalidNode(disambiguator, name, toString));
     }
+  }
+
+  private static String toString(int disambiguator, String name) {
+    return "!" + (disambiguator == 0 ? "" : disambiguator) + Names.quoteIfNecessary(name);
   }
 
   private InvalidNode(int disambiguator, String name, String toString) {

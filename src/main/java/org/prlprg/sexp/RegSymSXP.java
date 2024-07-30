@@ -19,7 +19,7 @@ public sealed class RegSymSXP implements SymSXP, StrOrRegSymSXP, RegSymOrLangSXP
     }
 
     this.name = name;
-    toString = Names.quoteIfNecessary(name);
+    toString = "'" + Names.quoteIfNecessary(name);
   }
 
   /** Returns the name of this symbol. */

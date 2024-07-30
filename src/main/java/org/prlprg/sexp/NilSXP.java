@@ -137,6 +137,6 @@ public final class NilSXP implements ListSXP {
   // This can't call `Printer.toString`, because it calls this.
   @Override
   public String toString() {
-    return "NULL";
+    return "<NULL>";
   }
 }

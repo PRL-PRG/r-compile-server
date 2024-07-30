@@ -16,69 +16,97 @@ Compiles to something like:
 
 ```
 fn @foo(n, m) {
-  #1(%n, %m) {
-      %inclos <- env({n <- %n, m <- %m}, parent=?)
-      %replicate <- ldFun(replicate, env=%inclos)
-      %1n <- prom(@1 env=%inclos {
-          %n <- ld(n, env=%inclos)
-          %1n <- force(%n, env=%inclos)
-          return %1n
-      })
-      %1 <- %replicate(\100, %1n)
-      st(array, %1, env=%inclos)
-      %2n <- ld(n, env=%inclos)
-      %3n <- force(%2n, env=%inclos)
-      %2 <- `:`(\1, %3n, env=%inclos)
+  @foo#1(%n, %m) {
+      %e <- [n <- %n, m <- %m]@?
+      'array@e <- 'replicate@e(100, {'n@e}@e)@e
+      %2 <- `:`(1, 'n@e)@e
       %forSeq <- toForSeq(%2)
       %forLength <- length(%forSeq)
       goto ^forStep
-    ^forStep(%index(%1index:^1, \0L:^entry)):
+    ^forStep(%index(%1index:^forStep, 0L:^entry)):
       %1index <- `+1`(%index)
       %3 <- `<`(%forLength, %1index)
       br %3 ^forEnd ^forBody
     ^forBody:
-      %4 <- `[[`(%forSeq, %1index, env=%inclos)
-      st(i, %4, env=%inclos)
-      %i <- ld(i, env=%inclos)
-      %1i <- force(%i, env=%inclos)
-      %m <- ld(m, env=%inclos)
-      %1m <- force(%m, env=%inclos)
-      %5 <- `*`(%1i, %1m, env=%inclos)
-      %array <- ld(array, env=%inclos)
+      'i@e <- `[[`(%forSeq, %1index)@e
+      %5 <- `*`('i@e, 'm@e)@e
+      %array <- 'array@e
       %6 <- is(NonObject, %array)
       br %6 ^dispatchNonObject ^tryDispatchObject
     ^tryDispatchObject:
-      %didDispatch, %dispatchResult <- `tryDispatch.[<-`(array, %5, index=%1index, env=%inclos)
-      br %didDispatch ^1 ^dispatchNonObject
+      %didDispatch, 'array@e <- `tryDispatch.[<-`(%array, %5, %1index)@e
+      br %didDispatch ^forStep ^dispatchNonObject
     ^dispatchNonObject:
-      %2i <- ld(i, env=%inclos)
-      %3i <- force(%2i, env=%inclos)
-      %7 <- `[<-`(%array, %5, index=%3i, env=%inclos)
+      'array@e <- `[<-`(%array, %5, 'i@e)@e
       goto ^1
-    ^1(%8(%7:^dispatchNonObject, %dispatchResult:^tryDispatchObject)):
-      st(array, %8, env=%inclos)
-      goto ^forStep
-  #2(%n:int$$, %m:int$$) {
-      %replicate <- ld(replicate, env=?)
-      %`:` <- ld(`:`, env=?)
-      %`*` <- ld(`*`, env=?)
-      %1 <- funEq(replicate, %replicate)
-      %2 <- funEq(`:`, %`:`)
-      %3 <- funEq(`*`, %`*`)
-      cp [%1, %2, %3] ^1
+  @foo#2(%n:int$$, %m:int$$) {
+      cp [
+        replicate == 'replicate@?,
+        `:` == '`:`@?
+        `*` == '`*`@?
+      ] ^1
     ^1:
-      %array <- replicate(\100L, %n)
+      %array <- replicate(100L, %n)
       goto ^forStep
-    ^forStep(%i(\0L:^1, %1i:^forBody), %1array(%array:^1, %2array:^forBody)):
+    ^forStep(%i(0L:^1, %1i:^forBody), %1array(%array:^1, %2array:^forBody)):
       %1i <- `+1`(%i)
-      %4 <- `<`(%i, %n)
-      br %4 ^forEnd ^forBody
+      br `<`(%i, %n) ^forEnd ^forBody
     ^forBody:
       %5 <- `*`(%i, %m)
       %2array <- `[<-`(%1array, %5, index=%i)
       goto ^forStep
     ^forEnd:
       return %1array
+  }
+}
+```
+
+```
+fn @foo('n, 'm) {
+  @foo#1(n, m) {
+      e <- ['n=n, 'm=m]@?
+      'array@e <- f'replicate@e(100, {'n@e}@e)
+      _1 <- `:`(1, 'n@e)@e
+      forSeq <- toForSeq(_1)
+      forLength <- length(forSeq)
+      goto ^forStep
+    ^forStep(index(index1:^1, 0L:^entry)):
+      index1 <- `+1`(index)
+      _2 <- `<`(forLength, index1)
+      br _2 ^forEnd ^forBody
+    ^forBody:
+      'i@e <- `[[`(forSeq, index1)@e
+      _3 <- `*`('i@e, 'm@e)@e
+      array <- 'array@e
+      _4 <- is(NonObject, array)
+      br _4 ^dispatchNonObject ^tryDispatchObject
+    ^tryDispatchObject:
+      didDispatch, dispatchResult <- `tryDispatch.[<-`(array, _3, index=index1)@e
+      br didDispatch ^1 ^dispatchNonObject
+    ^dispatchNonObject:
+      _5 <- `[<-`(array, _3, index='i@e)@e
+      goto ^1
+    ^1(_6(_5:^dispatchNonObject, dispatchResult:^tryDispatchObject)):
+      'array@e <- _6
+      goto ^forStep
+  @foo#2(n:int$$, m:int$$) {
+      _1 <- funEq(replicate, 'replicate@?)
+      _2 <- funEq(`:`, '`:`@?)
+      _3 <- funEq(`*`, '`*`@?)
+      cp [_1, _2, _3] ^1
+    ^1:
+      array <- replicate(100L, n)
+      goto ^forStep
+    ^forStep(i(0L:^1, i1:^forBody), array1(array:^1, array2:^forBody)):
+      i1 <- `+1`(i)
+      _4 <- `<`(i, n)
+      br _4 ^forEnd ^forBody
+    ^forBody:
+      _5 <- `*`(i1, m)
+      array2 <- `[<-`(array1, _5, index=i1)
+      goto ^forStep
+    ^forEnd:
+      return array1
   }
 }
 ```
@@ -207,17 +235,17 @@ The `CLOENV`/`PRENV` of inner function or promise may be from an outer function.
 ```
 fn @foo(n, m) {
   #1(%n, %m) {
-      %inclos <- env({n <- %n, m <- %m}, parent=?)
+      %e <- env({n <- %n, m <- %m}, parent=?)
       …
-      %1n <- prom(@1 env=%inclos {
-          %n <- ld(n, env=%inclos)
-          %1n <- force(%n, env=%inclos)
+      %1n <- prom(@1 env=%e {
+          %n <- ld(n, env=%e)
+          %1n <- force(%n, env=%e)
           return %1n
       })
       …
-      %f <- fn(@2(k) env=%inclos {
+      %f <- fn(@2(k) env=%e {
         #1(%k) {
-            %1inclos <- env({k <- %k}, parent=@foo%inclos)
+            %1inclos <- env({k <- %k}, parent=@foo%e)
             …
         }
       })
@@ -248,10 +276,10 @@ Phi nodes are defined at the top of the BB like so:
 As explained above, every statement is a "call", and there are 3 main types of calls: intrinsic/builtin (static) calls, exact compiled closure (semi-static) calls, and variable (dynamic) calls. This is reflected in the syntax:
 
 - Intrinsic/builtin (static) calls
-  - `%inclos <- env({…}, parent=?)` create an environment with the bindings in `…` and unknown parent, assign it to the SSA variable `%inclos` ("inclos" = implicit environment created for a closure body).
-  - `%n <- ld(n, env=%inclos)` = load the symbol `n` in the environment `%inclos`, assigns it to the SSA variable `%n`.
-  - `st(n, %n, env=%inclos)` = store the value in the SSA variable `%n` under the symbol `n` in the environment `%inclos`.
-  - `` `*`(%i, %n, env=%inclos) `` = multiply the SSA variables `%i` and `%n`, also pass the environment `%inclos` since the multiplication needs it if it dispatches.
+  - `%e <- env({…}, parent=?)` create an environment with the bindings in `…` and unknown parent, assign it to the SSA variable `%e` ("inclos" = implicit environment created for a closure body).
+  - `%n <- ld(n, env=%e)` = load the symbol `n` in the environment `%e`, assigns it to the SSA variable `%n`.
+  - `st(n, %n, env=%e)` = store the value in the SSA variable `%n` under the symbol `n` in the environment `%e`.
+  - `` `*`(%i, %n, env=%e) `` = multiply the SSA variables `%i` and `%n`, also pass the environment `%e` since the multiplication needs it if it dispatches.
 - Exact compiled closure (semi-static) calls:
   - `%foo <- @foo(%i, %n)` = call the function named `foo` with variables `%i` and `%n`, store the result in `%foo`.
   - - `%2 <- @3(%i, \[int]100L)` = call the function named `3` with variables `%i` and `\[int]100L`, store the result in `%2`.

@@ -68,23 +68,32 @@ public final class Names {
         && s.chars().allMatch(Names::isValidMiddleCharOfUnquoted);
   }
 
-  /** Whether the character can be the first in an R symbol. */
+  /** Whether the character can be the first in an R symbol string, quoted or unquoted.
+   *
+   * <p>i.e. a letter, "_", ".", or "`".
+   */
   public static boolean isValidStartChar(int c) {
     return isValidStartCharToUnquoted(c) || c == '`';
   }
 
-  /** Whether the character can be the first in an R symbol string which isn't quoted. */
+  /** Whether the character can be the first in an R symbol string which isn't quoted.
+   *
+   * <p>i.e. a letter, "_" or ".".
+   **/
   public static boolean isValidStartCharToUnquoted(int c) {
-    return Character.isLetter(c) || c == '_' || c == '.' || c == '`';
+    return Character.isLetter(c) || c == '_' || c == '.';
   }
 
-  /** Whether the character can be in the middle of an R symbol string which isn't quoted. */
+  /** Whether the character can be in the middle of an R symbol string which isn't quoted.
+   *
+   * <p>i.e. a letter, digit, "_" or ".".
+   */
   private static boolean isValidMiddleCharOfUnquoted(int c) {
     return isValidStartCharToUnquoted(c) || Character.isDigit(c);
   }
 
   /**
-   * Reads a valid R symbol string.
+   * Reads a valid R symbol string, quoted or unquoted.
    *
    * <p>If {@code unquote} is false and the symbol is quoted (between "`"s), returns it still
    * quoted. Otherwise, returns it unquoted; however, the unquoted value may no longer be a valid
@@ -117,7 +126,7 @@ public final class Names {
   }
 
   /**
-   * Writes a valid R symbol string.
+   * Writes a valid R symbol string, quoted or unquoted.
    *
    * <p>This is semantically equivalent to {@code w.write(}{@link Names#quoteIfNecessary(String)
    * Names.quoteIfNecessary}{@code (s))}, but faster.
