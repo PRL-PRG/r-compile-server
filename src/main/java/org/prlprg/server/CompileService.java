@@ -110,7 +110,7 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
     logger.info("Received package hashes: " + packages);
 
     // TODO: Lookup to see if we have this version of R installed or not.
-    session = new GNURSession(convertVersion(RVersion), null);
+    session = new GNURSession(convertVersion(RVersion), null, null);
 
     // Look into our cache if we have the packages.
     // Request the packages for those we do not have hashes for.

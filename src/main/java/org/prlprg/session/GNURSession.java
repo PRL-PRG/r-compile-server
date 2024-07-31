@@ -99,10 +99,23 @@ public class GNURSession implements RSession {
 
   public static HashMap<String, SEXP> readPackageDatabase(
       RSession session, Path libPath, String packageName) throws IOException {
-    // the database is in the R subdirectory
-    var dbPath = libPath.resolve(packageName).resolve("R");
-    var db = new PackageDatabase(session, dbPath, packageName);
+    var db = new PackageDatabase(session, libPath, packageName);
     return db.getBindings();
+  }
+
+  /**
+   * Objects in a package database refer to their own namespace so we need to create it before
+   * reading.
+   *
+   * @param name
+   * @param version
+   */
+  public void prepareNamespace(String name, String version) {
+    var ns = namespaces.get(name + version);
+    if (ns == null) {
+      ns = new NamespaceEnvSXP(name, version, globalEnv, new HashMap<>());
+      namespaces.put(name + version, ns);
+    }
   }
 
   /**
@@ -154,8 +167,9 @@ public class GNURSession implements RSession {
     var baseLibPath = RDir.resolve("library");
     try {
       var objs = GNURSession.readPackageDatabase(session, baseLibPath, "base");
-      baseNamespace = new NamespaceEnvSXP("base", RVersion.toString(), this.globalEnv(), objs);
       baseEnv = new BaseEnvSXP(objs);
+      globalEnv = new GlobalEnvSXP(baseEnv);
+      baseNamespace = new NamespaceEnvSXP("base", RVersion.toString(), globalEnv, objs);
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
@@ -180,7 +194,7 @@ public class GNURSession implements RSession {
   @Override
   public GlobalEnvSXP globalEnv() {
     if (globalEnv == null) {
-      globalEnv = new GlobalEnvSXP(baseEnv());
+      loadBase();
     }
     return globalEnv;
   }
@@ -202,7 +216,7 @@ public class GNURSession implements RSession {
 
   @Override
   public NamespaceEnvSXP getNamespace(String name, String version) {
-    var ns = namespaces.get(name);
+    var ns = namespaces.get(name + version);
     if (ns == null) {
       // TODO: check if the library is installed in the library path and load it
     }

@@ -12,19 +12,22 @@ public class GNURSessionTest {
 
   @Test
   public void testReadPackageDatabase() throws IOException {
-    var session = new GNURSession(RVersion.LATEST_AWARE, null, null);
-    var p = "~/R/x86_64-pc-linux-gnu-library/4.3/";
-    p = p.replaceFirst("^~", System.getProperty("user.home"));
-    var funs = GNURSession.readPackageDatabase(session, Path.of(p), "yaml");
+    var r_dir = Path.of("/usr/lib/R/");
+    var lib_dir = "~/R/x86_64-pc-linux-gnu-library/4.3/";
+    lib_dir = lib_dir.replaceFirst("^~", System.getProperty("user.home"));
+    var session = new GNURSession(RVersion.LATEST_AWARE, r_dir, Path.of(lib_dir));
+
+    session.prepareNamespace("yaml", "2.3.8");
+    var funs = GNURSession.readPackageDatabase(session, Path.of(lib_dir), "yaml");
 
     Assertions.assertFalse(funs.isEmpty());
   }
 
   @Test
   public void testLoadBase() throws IOException {
-    var session = new GNURSession(RVersion.LATEST_AWARE, null, null);
-    var p = "/usr/lib/R/library";
-    session.loadBase(Path.of(p));
+    var p = Path.of("/usr/lib/R/");
+    var session = new GNURSession(RVersion.LATEST_AWARE, p, null);
+    session.loadBase();
 
     Assertions.assertFalse(session.baseNamespace().isEmpty());
   }
