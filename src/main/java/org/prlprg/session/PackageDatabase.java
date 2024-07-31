@@ -57,7 +57,7 @@ public class PackageDatabase {
         var tmpEnv = readObject(name, tmpEnvs);
         if (tmpEnv instanceof VecSXP v) {
           var realEnv = vecToEnv(v);
-          replacePlaceHolder(realEnv, tmpEnv, name);
+          realEnv = (UserEnvSXP) replacePlaceHolder(realEnv, realEnv, name);
           return realEnv;
         }
 
@@ -77,42 +77,52 @@ public class PackageDatabase {
    * @param selfRefEnv the environment that we want to make refer to itself
    * @param v the sexp on which we currently recurse
    * @param name the name of the environment used in the placeholder
+   * @return the sexp with the placeholder replaced by the actual environment
    */
-  private static void replacePlaceHolder(UserEnvSXP selfRefEnv, SEXP v, String name) {
-    switch (v) {
+  private static SEXP replacePlaceHolder(UserEnvSXP selfRefEnv, SEXP v, String name) {
+    // FIXME: there could also be environments in attributes
+    return switch (v) {
+      case NamespaceEnvSXP n -> {
+        if (n.version().equals("__placeholder__") && n.name().equals(name)) {
+          yield selfRefEnv;
+        } else {
+          yield n;
+        }
+      }
       case EnvSXP env -> {
         for (var e : env.bindings()) {
-          if (e.getValue() instanceof EnvSXP e2) {
-            if (e2 instanceof NamespaceEnvSXP n) {
-              if (n.version().equals("__placeholder__") && n.name().equals(name)) {
-                e.setValue(selfRefEnv);
-              }
-            } else {
-              replacePlaceHolder(selfRefEnv, e2, name);
-            }
+          var res = replacePlaceHolder(selfRefEnv, e.getValue(), name);
+          if (res != e.getValue()) {
+            env.set(e.getKey(), res);
           }
         }
+        yield env;
       }
       case VecSXP vec -> {
-        for (var e : vec) {
-          // There could also be the placeholder here, but that's unlikely
-          if (e instanceof NamespaceEnvSXP n) {
-            if (n.version().equals("__placeholder__") && n.name().equals(name)) {
-              LOGGER.warning("Unexpected cycle placeholder in a list.");
-            }
+        SEXP[] res = new SEXP[vec.size()];
+        boolean change = false;
+        for (int i = 0; i < vec.size(); i++) {
+          res[i] = replacePlaceHolder(selfRefEnv, vec.get(i), name);
+          if (res[i] != vec.get(i)) {
+            change = true;
           }
-          replacePlaceHolder(selfRefEnv, e, name);
+        }
+        if (change) {
+          yield SEXPs.vec(res, vec.attributes());
+        } else {
+          yield vec;
         }
       }
-      case CloSXP clo when clo.env() instanceof NamespaceEnvSXP n
-          && n.version().equals("__placeholder__")
-          && n.name().equals(name) -> {
-        // we need to set up that environment to selfRefEnv
-        // but because of our practically immutable SEXPs, we would have to modify its parent
+      case CloSXP clo -> {
+        var res = replacePlaceHolder(selfRefEnv, clo.env(), name);
+        if (res != clo.env()) {
+          yield SEXPs.closure(clo.parameters(), clo.body(), (EnvSXP) res, clo.attributes());
+        } else {
+          yield clo;
+        }
       }
-      case CloSXP clo -> replacePlaceHolder(selfRefEnv, clo.env(), name);
-      default -> {}
-    }
+      default -> v;
+    };
   }
 
   /**
