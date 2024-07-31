@@ -1,9 +1,10 @@
 package org.prlprg.bc2c;
 
-import java.text.MessageFormat;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+
+import org.jetbrains.annotations.NotNull;
 import org.prlprg.bc.Bc;
 import org.prlprg.bc.BcInstr;
 import org.prlprg.bc.BcLabel;
@@ -75,7 +76,6 @@ class ByteCodeStack {
 public class BC2CCompiler {
   private static final String NAME_ENV = "ENV";
   private static final String NAME_CP = "CP";
-  private static final String CONST_GET = "CONST";
   private static final Value VAL_NULL = new Value("R_NilValue", false);
 
   private final String name;
@@ -83,6 +83,7 @@ public class BC2CCompiler {
   private final Map<Integer, Constant> constants = new LinkedHashMap<>();
   private final ByteCodeStack stack = new ByteCodeStack();
   private final Set<Integer> labels = new HashSet<>();
+  private final Set<Integer> cells = new HashSet<>();
 
   private final CFile file;
   private CFunction fun;
@@ -103,6 +104,7 @@ public class BC2CCompiler {
       compile(code.get(i), i);
     }
 
+    compileCells();
     compileRegisters();
     preamble();
     return file;
@@ -117,15 +119,7 @@ public class BC2CCompiler {
   }
 
   private void preamble() {
-    file.setPreamble(
-        MessageFormat.format(
-            """
-        #include <Rsh.h>
-
-        // constant pool accessor
-        #define {0}(i)        ((SEXP *) STDVEC_DATAPTR({1}))[i]
-        """,
-            CONST_GET, NAME_CP));
+    file.setPreamble("#include <Rsh.h>");
   }
 
   private void compile(BcInstr instr, int instrIdx) {
@@ -227,8 +221,16 @@ public class BC2CCompiler {
     var sec = fun.insertAbove(body);
     var line =
         IntStream.rangeClosed(0, stack.max())
-            .mapToObj("_%d = NULL"::formatted)
-            .collect(Collectors.joining(", ", "SEXP ", ";"));
+            .mapToObj("_%d"::formatted)
+            .collect(Collectors.joining(", ", "Value ", ";"));
+    sec.line(line);
+  }
+
+  private void compileCells() {
+    var sec = fun.insertAbove(body);
+    var line =
+            cells.stream().map("C%d = NULL"::formatted)
+                    .collect(Collectors.joining(", ", "BCell ", ";"));
     sec.line(line);
   }
 
@@ -248,26 +250,22 @@ public class BC2CCompiler {
     push(VAL_NULL);
   }
 
+  private void compileGetVar(ConstPool.Idx<RegSymSXP> idx) {
+    push("Rsh_get_var(%s, %s, FALSE, FALSE, &%s)".formatted(constantRaw(idx), NAME_ENV, cell(idx)), false);
+  }
+
   private void compileSetVar(ConstPool.Idx<RegSymSXP> idx) {
-    body.line("Rsh_set_var(%s, %s, %s);".formatted(constant(idx), stack.curr(0), NAME_ENV));
+    body.line("Rsh_set_var(%s, %s, %s, %s);".formatted(constantRaw(idx), stack.curr(0), NAME_ENV, cell(idx)));
   }
 
   private void compileReturn() {
     pop(1);
     assert stack.currIdx(0) == -1 : "Stack not empty (%d)".formatted(stack.currIdx(0));
-    body.line("return %s;".formatted(stack.curr(1)));
+    body.line("return Rsh_return(%s);".formatted(stack.curr(1)));
   }
 
   private void compileAdd() {
     popPush(2, "Rsh_binary(ADD, %s, %s)".formatted(stack.curr(-1), stack.curr(0)), true);
-  }
-
-  private void compileGetVar(ConstPool.Idx<RegSymSXP> idx) {
-    push(getVar(constant(idx)));
-  }
-
-  private String getVar(String expr) {
-    return "Rsh_get_var(%s, %s)".formatted(expr, NAME_ENV);
   }
 
   private void compilerLdConst(ConstPool.Idx<SEXP> idx) {
@@ -303,21 +301,43 @@ public class BC2CCompiler {
     body.line(stack.set(i, expr, protect));
   }
 
+  private String constantRaw(ConstPool.Idx<? extends SEXP> idx) {
+    var c = getConstant(idx);
+    return "Rsh_const(%s, %d)".formatted(NAME_CP, c.id());
+  }
+
   private String constant(ConstPool.Idx<? extends SEXP> idx) {
-    var c =
+    var c = getConstant(idx);
+
+    var f = switch(c.value()) {
+      case IntSXP v when v.size() == 1 -> "Rsh_const_int";
+      case RealSXP v when v.size() == 1 -> "Rsh_const_dbl";
+      case SEXP _ -> "Rsh_const_sxp";
+    };
+
+    return "%s(%s, %d)".formatted(f, NAME_CP, c.id());
+  }
+
+  @NotNull
+  private Constant getConstant(ConstPool.Idx<? extends SEXP> idx) {
+    return
         constants.computeIfAbsent(
             idx.idx(),
             ignored -> {
               var next = constants.size();
               return new Constant(next, bc.consts().get(idx));
             });
-
-    return "%s(%d)".formatted(CONST_GET, c.id());
   }
 
   private String label(int instrIndex) {
     labels.add(instrIndex);
     return "L%d".formatted(instrIndex);
+  }
+
+  private String cell(ConstPool.Idx<? extends SEXP> idx) {
+    var id = getConstant(idx).id();
+    cells.add(id);
+    return "C%d".formatted(id);
   }
 
   private void visible(boolean visible) {

@@ -31,9 +31,12 @@ public class RshCompiler {
           "-Werror=format-security",
           "-Wall",
           "-Wno-unused-but-set-variable",
+          "-Wno-comment",
           "-pedantic",
           "-O3",
-          "-g");
+          // FIXME: the debugging should be parameterize
+          "-ggdb",
+          "-g3");
 
   private static RshCompiler instance;
 

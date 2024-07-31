@@ -139,4 +139,104 @@ static INLINE SEXP Rif_markSpecialArgs(SEXP args) {
   return args;
 }
 
+static int ddVal(SEXP symbol) {
+  const char *buf;
+  char *endp;
+  int rval;
+
+  buf = CHAR(PRINTNAME(symbol));
+  if (!strncmp(buf, "..", 2) && strlen(buf) > 2) {
+    buf += 2;
+    rval = (int)strtol(buf, &endp, 10);
+    if (*endp != '\0')
+      return 0;
+    else
+      return rval;
+  }
+  return 0;
+}
+SEXP ddfind(int i, SEXP rho);
+SEXP ddfindVar(SEXP symbol, SEXP rho) {
+  int i = ddVal(symbol);
+  return ddfind(i, rho);
+}
+
+SEXP findRootPromise(SEXP p) {
+  if (TYPEOF(p) == PROMSXP) {
+    while (TYPEOF(PREXPR(p)) == PROMSXP) {
+      p = PREXPR(p);
+    }
+  }
+  return p;
+}
+
+int R_isMissing(SEXP symbol, SEXP rho) {
+  int ddv = 0;
+  SEXP vl, s;
+
+  if (symbol == R_MissingArg) /* Yes, this can happen */
+    return 1;
+
+  /* check for infinite recursion */
+  R_CheckStack();
+
+  if (DDVAL(symbol)) {
+    s = R_DotsSymbol;
+    ddv = ddVal(symbol);
+  } else
+    s = symbol;
+
+  if (rho == R_BaseEnv || rho == R_BaseNamespace)
+    return 0; /* is this really the right thing to do? LT */
+
+  // The original call findVarLocInFrame which is not exposed
+  R_varloc_t loc = R_findVarLocInFrame(rho, s);
+  vl = loc.cell;
+
+  if (vl != R_NilValue) {
+    if (DDVAL(symbol)) {
+      if (length(CAR(vl)) < ddv || CAR(vl) == R_MissingArg)
+        return 1;
+      /* defineVar(symbol, value, R_GlobalEnv); */
+      else
+        vl = nthcdr(CAR(vl), ddv - 1);
+    }
+    if (MISSING(vl) == 1 || (BNDCELL_TAG(vl) == 0 && CAR(vl) == R_MissingArg))
+      return 1;
+    if (IS_ACTIVE_BINDING(vl))
+      return 0;
+    if (BNDCELL_TAG(vl))
+      return 0;
+    SETCAR(vl, findRootPromise(CAR(vl)));
+    if (TYPEOF(CAR(vl)) == PROMSXP && PRVALUE(CAR(vl)) == R_UnboundValue &&
+        TYPEOF(PREXPR(CAR(vl))) == SYMSXP) {
+      /* This code uses the PRSEEN value to detect cycles.  If a
+         cycle occurs then a missing argument was encountered,
+         so the return value is TRUE.  It would be a little
+         safer to use the promise stack to ensure unsetting of
+         the bits in the event of a longjump, but doing so would
+         require distinguishing between evaluating promises and
+         checking for missingness.  Because of the test above
+         for an active binding a longjmp should only happen if
+         the stack check fails.  LT */
+      if (PRSEEN(CAR(vl)) == 1)
+        return 1;
+      else {
+        int val;
+        int oldseen = PRSEEN(CAR(vl));
+        SET_PRSEEN(CAR(vl), 1);
+        PROTECT(vl);
+        val = R_isMissing(PREXPR(CAR(vl)), PRENV(CAR(vl)));
+        UNPROTECT(1); /* vl */
+        /* The oldseen value will usually be 0, but might be 2
+           from an interrupted evaluation. LT */
+        SET_PRSEEN(CAR(vl), oldseen);
+        return val;
+      }
+    } else
+      return 0;
+  }
+  return 0;
+}
+
 #endif
