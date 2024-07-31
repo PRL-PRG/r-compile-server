@@ -63,6 +63,8 @@ class DummySession implements RSession {
 public class GNURSession implements RSession {
   private URI cranMirror;
   private org.prlprg.RVersion RVersion;
+  private Path RDir;
+  private Path RLibraries;
 
   private @Nullable BaseEnvSXP baseEnv = null;
   private @Nullable NamespaceEnvSXP baseNamespace = null;
@@ -70,22 +72,24 @@ public class GNURSession implements RSession {
   private @Nullable Set<String> builtins = null;
   private @Nullable Set<String> specials = null;
   private @Nullable Set<String> builtinsInternal = null;
-  private @Nullable HashMap<String, NamespaceEnvSXP> namespaces = null;
+  private final HashMap<String, NamespaceEnvSXP> namespaces = new HashMap<>();
 
   // TODO: need the path to R *and* the path to the installed packages
-  public GNURSession(RVersion version, Path r_dir) {
+  public GNURSession(RVersion version, Path r_dir, Path r_libraries) {
     cranMirror = URI.create("https://cran.r-project.org");
     RVersion = version;
+    RDir = r_dir;
+    RLibraries = r_libraries;
   }
 
-  public GNURSession(RVersion version, Path r_dir, URI cranMirror) {
-    this(version, r_dir);
+  public GNURSession(RVersion version, Path r_dir, Path r_libraries, URI cranMirror) {
+    this(version, r_dir, r_libraries);
     this.cranMirror = cranMirror;
   }
 
   public void setCranMirror(URI uri) {}
 
-  // We should also handle installation of a package from a Github repo?
+  // We should also handle installation of a package from a GitHub repo?
   public void loadPackage(String name, String version) {
     // Check if package is installed and if not install it
 
@@ -94,8 +98,10 @@ public class GNURSession implements RSession {
   }
 
   public static HashMap<String, SEXP> readPackageDatabase(
-      RSession session, Path path, String packageName) throws IOException {
-    var db = new PackageDatabase(session, path, packageName);
+      RSession session, Path libPath, String packageName) throws IOException {
+    // the database is in the R subdirectory
+    var dbPath = libPath.resolve(packageName).resolve("R");
+    var db = new PackageDatabase(session, dbPath, packageName);
     return db.getBindings();
   }
 
@@ -134,7 +140,7 @@ public class GNURSession implements RSession {
   /**
    * Load the base environment and namespace.
    *
-   * <p>It requires a special treatment as the reader refers to base functions and so we need to
+   * <p>It requires a special treatment as the reader refers to base functions, and so we need to
    * carefully load symbols and then bind them.
    */
   public void loadBase(List<Messages.Function> functions) {
@@ -143,18 +149,22 @@ public class GNURSession implements RSession {
   }
 
   /** Load base from the given installed R version */
-  public void loadBase(Path r_lib) throws IOException {
+  public void loadBase() {
     var session = new DummySession();
-    var objs = GNURSession.readPackageDatabase(session, r_lib, "base");
-    // TODO: write the right version of R (extract ot from the path?)
-    baseNamespace = new NamespaceEnvSXP("base", "4.3.2", this.globalEnv(), objs);
-    baseEnv = new BaseEnvSXP(objs);
+    var baseLibPath = RDir.resolve("library");
+    try {
+      var objs = GNURSession.readPackageDatabase(session, baseLibPath, "base");
+      baseNamespace = new NamespaceEnvSXP("base", RVersion.toString(), this.globalEnv(), objs);
+      baseEnv = new BaseEnvSXP(objs);
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
   }
 
   @Override
   public NamespaceEnvSXP baseNamespace() {
     if (baseNamespace == null) {
-      // loadBase();
+      loadBase();
     }
     return baseNamespace;
   }
@@ -162,7 +172,7 @@ public class GNURSession implements RSession {
   @Override
   public BaseEnvSXP baseEnv() {
     if (baseEnv == null) {
-      // loadBase();
+      loadBase();
     }
     return baseEnv;
   }
@@ -192,6 +202,10 @@ public class GNURSession implements RSession {
 
   @Override
   public NamespaceEnvSXP getNamespace(String name, String version) {
-    return null;
+    var ns = namespaces.get(name);
+    if (ns == null) {
+      // TODO: check if the library is installed in the library path and load it
+    }
+    return ns;
   }
 }

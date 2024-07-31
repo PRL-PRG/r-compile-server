@@ -302,8 +302,6 @@ public class PackageDatabase {
             .toList();
     LOGGER.info("Not Closures: " + notClos);
 
-    // TODO: filter out the env::n
-
     return objects;
   }
 }

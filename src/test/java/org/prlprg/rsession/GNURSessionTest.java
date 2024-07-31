@@ -12,7 +12,7 @@ public class GNURSessionTest {
 
   @Test
   public void testReadPackageDatabase() throws IOException {
-    var session = new GNURSession(RVersion.LATEST_AWARE, null);
+    var session = new GNURSession(RVersion.LATEST_AWARE, null, null);
     var p = "~/R/x86_64-pc-linux-gnu-library/4.3/";
     p = p.replaceFirst("^~", System.getProperty("user.home"));
     var funs = GNURSession.readPackageDatabase(session, Path.of(p), "yaml");
@@ -22,7 +22,7 @@ public class GNURSessionTest {
 
   @Test
   public void testLoadBase() throws IOException {
-    var session = new GNURSession(RVersion.LATEST_AWARE, null);
+    var session = new GNURSession(RVersion.LATEST_AWARE, null, null);
     var p = "/usr/lib/R/library";
     session.loadBase(Path.of(p));
 
