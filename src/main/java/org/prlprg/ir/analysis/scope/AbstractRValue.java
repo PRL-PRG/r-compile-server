@@ -6,7 +6,7 @@ import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.Unmodifiable;
 import org.prlprg.ir.cfg.Instr;
-import org.prlprg.ir.type.RType;
+import org.prlprg.ir.type.RSexpType;
 import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
@@ -39,19 +39,20 @@ public final class AbstractISexp implements AbstractNode<AbstractISexp> {
    *
    * <p>This can is because it can't change; merging with unknown always produces unknown.
    */
-  public static final AbstractISexp UNKNOWN = new AbstractISexp(ImmutableSet.of(), RType.ANY, true);
+  public static final AbstractISexp UNKNOWN =
+      new AbstractISexp(ImmutableSet.of(), RSexpType.ANY, true);
 
   private static final int MAX_VALUES = 5;
 
   // These are small so we just keep them immutable and create new ones when necessary.
   private ImmutableSet<ValueOrigin> origins;
-  private RType type;
+  private RSexpType type;
   private boolean isUnknown;
 
   /** Creates an abstract value representing "bottom". */
   public AbstractISexp() {
     origins = ImmutableSet.of();
-    type = RType.NOTHING;
+    type = RSexpType.NOTHING;
     isUnknown = false;
   }
 
@@ -63,7 +64,7 @@ public final class AbstractISexp implements AbstractNode<AbstractISexp> {
   }
 
   /** Internal constructor for {@link #copy()} and {@link #UNKNOWN}. */
-  private AbstractISexp(ImmutableSet<ValueOrigin> origins, RType type, boolean isUnknown) {
+  private AbstractISexp(ImmutableSet<ValueOrigin> origins, RSexpType type, boolean isUnknown) {
     this.origins = origins;
     this.type = type;
     this.isUnknown = isUnknown;
@@ -73,7 +74,7 @@ public final class AbstractISexp implements AbstractNode<AbstractISexp> {
     return origins;
   }
 
-  public RType type() {
+  public RSexpType type() {
     return type;
   }
 
@@ -104,7 +105,7 @@ public final class AbstractISexp implements AbstractNode<AbstractISexp> {
   /** Set to {@link #UNKNOWN}. */
   public void taint() {
     origins = ImmutableSet.of();
-    type = RType.ANY;
+    type = RSexpType.ANY;
     isUnknown = true;
   }
 

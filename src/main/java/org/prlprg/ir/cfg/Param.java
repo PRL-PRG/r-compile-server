@@ -1,5 +1,6 @@
 package org.prlprg.ir.cfg;
 
+import java.util.Collection;
 import org.prlprg.ir.closure.ClosureVersion;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
@@ -18,6 +19,15 @@ import org.prlprg.sexp.SEXP;
  * we can replace the load and direct access to the parameter.
  */
 public final class Param<T> extends LocalNode<T> {
+  /** Arguments to construct a parameter.
+   *
+   * <p>Pass a list of these to {@link CFG#CFG(Collection)}.
+   *
+   * @param name A name for the parameter which is used to compute its identifier.
+   * @param type The type of the parameter.
+   */
+  public record Args<T>(String name, Class<T> type) {}
+
   /**
    * Create a parameter for the given {@link ClosureVersion} with the given type and ID.
    *
@@ -31,13 +41,8 @@ public final class Param<T> extends LocalNode<T> {
    * @throws IllegalArgumentException If {@link ClosureVersion#isBaseline()} and {@code type} isn't
    *     {@link SEXP}.
    */
-  Param(ClosureVersion version, Class<T> type, LocalNodeId<T> id) {
-    super(version.body(), type, id);
-    if (version.isBaseline() && type != SEXP.class) {
-      throw new IllegalArgumentException("Baseline version parameters must be of type SEXP");
-    }
-
-    version.body().addParam(this);
+  Param(CFG cfg, Class<T> type, LocalNodeId<T> id) {
+    super(cfg, type, id);
   }
 
   // region serialization and deserialization
@@ -46,12 +51,13 @@ public final class Param<T> extends LocalNode<T> {
     var w = p.writer();
 
     p.print(id());
-    if (!ctx.isClosureVersionBaseline()) {
+    if (!ctx.isInBaselineClosureVersion()) {
       w.write(":");
       p.print(type());
     }
   }
 
+  // `parse` is handled by an inherited interface, and throws an `UnsupportedOperationException`.
   // `toString` is overridden by the superclass.
   // endregion serialization and deserialization
 }

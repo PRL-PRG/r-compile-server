@@ -2,12 +2,12 @@ package org.prlprg.ir.type.lattice;
 
 import com.google.common.collect.Streams;
 import javax.annotation.Nullable;
-import org.prlprg.ir.type.RType;
+import org.prlprg.ir.type.RSexpType;
 import org.prlprg.util.Classes;
 import org.prlprg.util.Reflection;
 
 /**
- * Lattice from type theory which is bounded at the top. These methods are common in {@link RType}
+ * Lattice from type theory which is bounded at the top. These methods are common in {@link RSexpType}
  * and its parts.
  */
 public interface Lattice<T extends Lattice<T>> {

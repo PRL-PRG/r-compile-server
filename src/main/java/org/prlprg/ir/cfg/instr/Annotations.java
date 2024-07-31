@@ -12,7 +12,7 @@ import java.lang.reflect.WildcardType;
 import org.prlprg.ir.cfg.IFun;
 import org.prlprg.ir.cfg.Instr;
 import org.prlprg.ir.cfg.Node;
-import org.prlprg.ir.type.RType;
+import org.prlprg.ir.type.RSexpType;
 import org.prlprg.sexp.SEXP;
 
 /** Applied to the first component in an {@link InstrData}, specifies that the component value is
@@ -119,7 +119,7 @@ enum GenericOutput {
           throw new IllegalArgumentException("`INTERSECT_VALUE` can only be used with a single component `Node<? extends SEXP> value`");
         }
 
-        yield RType.intersection(output, ((Node<?>)values[0]).type());
+        yield RSexpType.intersection(output, ((Node<?>)values[0]).type());
       }
     }
   }

@@ -12,10 +12,11 @@ import org.prlprg.ir.cfg.CFG;
 import org.prlprg.ir.cfg.CFGParsePrint;
 import org.prlprg.ir.cfg.Node;
 import org.prlprg.ir.cfg.NodeId;
+import org.prlprg.ir.cfg.Param;
 import org.prlprg.ir.cfg.instr.StmtData;
 import org.prlprg.ir.effect.REffect;
 import org.prlprg.ir.effect.REffects;
-import org.prlprg.ir.type.RType;
+import org.prlprg.ir.type.RSexpType;
 import org.prlprg.ir.type.lattice.Lattice;
 import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.ir.type.lattice.NoOrMaybe;
@@ -24,6 +25,7 @@ import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
+import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.TaggedElem;
 
 /**
@@ -51,6 +53,7 @@ public class ClosureVersion {
    * @throws IllegalArgumentException If the call context has a different number of parameter types
    *     than the closure's number of parameters.
    */
+  @SuppressWarnings("UnstableApiUsage")
   ClosureVersion(Closure closure, boolean isBaseline, CallContext callContext) {
     if (isBaseline && !callContext.isEmpty()) {
       throw new IllegalArgumentException("Baseline version must have an empty call context");
@@ -71,8 +74,13 @@ public class ClosureVersion {
     properties = Properties.EMPTY;
     body =
         new CFG(
-            closure.parameters().stream().map(TaggedElem::tagOrEmpty).toList(),
-            callContext.paramTypes);
+            Streams.zip(
+                    closure.parameters().stream().map(TaggedElem::tagOrEmpty),
+                    callContext.paramTypes == null
+                        ? Stream.generate(() -> SEXP.class)
+                        : callContext.paramTypes.stream(),
+                    Param.Args::new)
+                .collect(ImmutableList.toImmutableList()));
   }
 
   /** The closure which contains this version. */
@@ -191,7 +199,7 @@ public class ClosureVersion {
    * contexts are "greater than" the other contexts. "Subset" means that any call that satisfies the
    * subset also satisfies the superset, "strict subset" is a subset that is not equal.
    */
-  public record CallContext(@Nullable ImmutableList<RType> paramTypes)
+  public record CallContext(@Nullable ImmutableList<Class<?>> paramTypes)
       implements Lattice<CallContext>, Comparable<CallContext> {
     /** Context that doesn't require anything. All callers satisfy this context. */
     public static final CallContext EMPTY = new CallContext(null);
@@ -202,7 +210,7 @@ public class ClosureVersion {
     }
 
     /** Whether the context is met given the argument types. */
-    public boolean permits(Iterable<RType> argTypes) {
+    public boolean permits(Iterable<RSexpType> argTypes) {
       // Return `true` if this has no argument requirements.
       if (paramTypes == null) {
         return true;
@@ -224,7 +232,7 @@ public class ClosureVersion {
      * Whether the context is met iff the argument at the given index has the given type, assuming
      * other argument types and assumptions are permitted.
      */
-    private boolean permits(int argument, RType type) {
+    private boolean permits(int argument, RSexpType type) {
       return paramTypes == null
           || (argument < paramTypes.size() && type.isSubsetOf(paramTypes.get(argument)));
     }
@@ -233,7 +241,7 @@ public class ClosureVersion {
      * Whether the context is <i>not</i> met iff the argument at the given index <i>doesn't</i> have
      * the given type.
      */
-    public boolean requires(int argument, RType type) {
+    public boolean requires(int argument, RSexpType type) {
       return paramTypes != null
           && (argument >= paramTypes.size() || paramTypes.get(argument).isSubsetOf(type));
     }
@@ -245,7 +253,7 @@ public class ClosureVersion {
       return other.paramTypes == null
           || (paramTypes != null
               && paramTypes.size() == other.paramTypes.size()
-              && Streams.zip(paramTypes.stream(), other.paramTypes.stream(), RType::isSubsetOf)
+              && Streams.zip(paramTypes.stream(), other.paramTypes.stream(), RSexpType::isSubsetOf)
                   .allMatch(b -> b));
     }
 
@@ -271,7 +279,7 @@ public class ClosureVersion {
       }
 
       return new CallContext(
-          Streams.zip(paramTypes.stream(), other.paramTypes.stream(), RType::union)
+          Streams.zip(paramTypes.stream(), other.paramTypes.stream(), RSexpType::union)
               .collect(ImmutableList.toImmutableList()));
     }
 
@@ -299,9 +307,9 @@ public class ClosureVersion {
       }
 
       var paramTypes =
-          Streams.zip(this.paramTypes.stream(), other.paramTypes.stream(), RType::intersection)
+          Streams.zip(this.paramTypes.stream(), other.paramTypes.stream(), RSexpType::intersection)
               .collect(ImmutableList.toImmutableList());
-      if (paramTypes.stream().anyMatch(RType::isNothing)) {
+      if (paramTypes.stream().anyMatch(RSexpType::isNothing)) {
         return null;
       }
 
@@ -391,9 +399,9 @@ public class ClosureVersion {
     }
 
     /** Possible return type from calling this closure version with the given arguments. */
-    public RType returnType(ImmutableList<Node<?>> ignored) {
+    public RSexpType returnType(ImmutableList<Node<?>> ignored) {
       // TODO
-      return RType.ANY;
+      return RSexpType.ANY;
     }
 
     /** Possible effects from calling this closure version with the given arguments. */
@@ -581,7 +589,7 @@ public class ClosureVersion {
     var s = p.scanner();
 
     var paramNodeIdsBuilder = ImmutableList.<NodeId<?>>builder();
-    var paramTypesBuilder = isBaseline ? null : ImmutableList.<RType>builder();
+    var paramTypesBuilder = isBaseline ? null : ImmutableList.<RSexpType>builder();
 
     s.assertAndSkip('(');
     if (!s.trySkip(')')) {
@@ -589,7 +597,7 @@ public class ClosureVersion {
         paramNodeIdsBuilder.add(p.parse(NodeId.class));
         if (!isBaseline) {
           s.assertAndSkip(':');
-          paramTypesBuilder.add(p.parse(RType.class));
+          paramTypesBuilder.add(p.parse(RSexpType.class));
         }
       } while (s.trySkip(','));
       s.assertAndSkip(')');

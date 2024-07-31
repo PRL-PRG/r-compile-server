@@ -78,6 +78,7 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
   private final @Nullable Object outerContext;
   private final SEXPParseContext sexpParseContext;
   private final SEXPPrintContext sexpPrintContext;
+  private final boolean isInBaselineClosureVersion;
   private final CFG cfg;
 
   /**
@@ -95,14 +96,16 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
 
   CFGParseOrPrintContext(@Nullable Object outerContext, CFG cfg) {
     this.outerContext = outerContext;
-    this.sexpParseContext =
+    sexpParseContext =
         outerContext instanceof HasSEXPParseContext h
             ? h.sexpParseContext()
             : new SEXPParseContext();
-    this.sexpPrintContext =
+    sexpPrintContext =
         outerContext instanceof HasSEXPPrintContext h
             ? h.sexpPrintContext()
             : new SEXPPrintContext();
+    isInBaselineClosureVersion =
+        outerContext instanceof ClosureVersionContext c && c.version().isBaseline();
     this.cfg = cfg;
   }
 
@@ -113,6 +116,10 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
 
   public SEXPPrintContext sexpPrintContext() {
     return sexpPrintContext;
+  }
+
+  boolean isInBaselineClosureVersion() {
+    return isInBaselineClosureVersion;
   }
 
   @ParseMethod

@@ -270,7 +270,7 @@ public sealed interface InstrData permits JumpData, StmtData {
   }
 
   /** If {@code genericType} is {@code Node<…>}, asserts {@code …} is {@code ? extends T} and
-   * {@code T} is a class, then returns {@code T}.
+   * {@link T} is a class, then returns {@link T}.
    *
    * <p>Otherwise, returns {@code null}.
    */

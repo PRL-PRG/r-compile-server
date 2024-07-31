@@ -20,7 +20,7 @@ import org.prlprg.ir.closure.ClosureVersion;
 import org.prlprg.ir.closure.Promise;
 import org.prlprg.ir.effect.REffect;
 import org.prlprg.ir.effect.REffects;
-import org.prlprg.ir.type.RType;
+import org.prlprg.ir.type.RSexpType;
 import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.ir.type.lattice.YesOrMaybe;
 import org.prlprg.primitive.BuiltinId;
@@ -144,7 +144,7 @@ public sealed interface StmtData extends InstrData {
   @EffectsAre(REffect.LeaksNonEnvArg)
   record StrictifyProm(@TypeIs("PROM") ISexp promise, ISexp value) implements StmtData {
     @Override
-    public RType computeType() {
+    public RSexpType computeType() {
       return promise.type().strict();
     }
   }
@@ -164,7 +164,7 @@ public sealed interface StmtData extends InstrData {
   record Force(ISexp promise, @Nullable FrameState fs, ISexp env) implements StmtData {
 
     @Override
-    public RType computeType() {
+    public RSexpType computeType() {
       return promise.type().forced();
     }
 
@@ -193,7 +193,7 @@ public sealed interface StmtData extends InstrData {
   record AsLogical(ISexp value) implements StmtData {
     @Override
     public REffects computeEffects() {
-      return value.type().isSubsetOf(RType.ANY_SIMPLE_PRIM_VEC)
+      return value.type().isSubsetOf(RSexpType.ANY_SIMPLE_PRIM_VEC)
           ? REffects.PURE
           : new REffects(REffect.Error);
     }
@@ -233,9 +233,9 @@ public sealed interface StmtData extends InstrData {
     ISexp env();
 
     @Override
-    default RType computeType() {
+    default RSexpType computeType() {
       // TODO
-      return RType.ANY;
+      return RSexpType.ANY;
     }
 
     @Override
@@ -287,9 +287,9 @@ public sealed interface StmtData extends InstrData {
     ISexp env();
 
     @Override
-    default RType computeType() {
+    default RSexpType computeType() {
       // TODO
-      return RType.ANY;
+      return RSexpType.ANY;
     }
 
     @Override
@@ -340,9 +340,9 @@ public sealed interface StmtData extends InstrData {
   @EffectsAre(REffect.Error)
   record SetVecElt(ISexp vector, ISexp value, ISexp index) implements StmtData {
     @Override
-    public RType computeType() {
+    public RSexpType computeType() {
       // TODO
-      return RType.ANY;
+      return RSexpType.ANY;
     }
   }
 
@@ -437,13 +437,13 @@ public sealed interface StmtData extends InstrData {
    */
   @TypeIs("BOOL")
   @EffectsAre({})
-  record IsType(RType type, ISexp value) implements StmtData {}
+  record IsType(RSexpType type, ISexp value) implements StmtData {}
 
   /** Type coercion. */
   @EffectsAre({})
-  record CastType(RType type, ISexp value) implements StmtData {
+  record CastType(RSexpType type, ISexp value) implements StmtData {
     @Override
-    public RType computeType() {
+    public RSexpType computeType() {
       return type;
     }
   }
@@ -461,7 +461,7 @@ public sealed interface StmtData extends InstrData {
   @EffectsAre(REffect.Error)
   record SetNames(ISexp value, ISexp names) implements StmtData {
     @Override
-    public RType computeType() {
+    public RSexpType computeType() {
       return value.type();
     }
   }
@@ -469,7 +469,7 @@ public sealed interface StmtData extends InstrData {
   @EffectsAre({})
   record PirCopy(ISexp value) implements StmtData {
     @Override
-    public RType computeType() {
+    public RSexpType computeType() {
       return value.type();
     }
   }
@@ -492,8 +492,8 @@ public sealed interface StmtData extends InstrData {
 
   sealed interface ArithmeticUnOp extends UnOp {
     @Override
-    default RType computeType() {
-      return RType.arithmeticOp(arg().type());
+    default RSexpType computeType() {
+      return RSexpType.arithmeticOp(arg().type());
     }
 
     @Override
@@ -504,8 +504,8 @@ public sealed interface StmtData extends InstrData {
 
   sealed interface BooleanUnOp extends UnOp {
     @Override
-    default RType computeType() {
-      return RType.booleanOp(arg().type());
+    default RSexpType computeType() {
+      return RSexpType.booleanOp(arg().type());
     }
 
     @Override
@@ -526,8 +526,8 @@ public sealed interface StmtData extends InstrData {
 
   sealed interface ArithmeticBinOp extends BinOp {
     @Override
-    default RType computeType() {
-      return RType.arithmeticOp(lhs().type(), rhs().type());
+    default RSexpType computeType() {
+      return RSexpType.arithmeticOp(lhs().type(), rhs().type());
     }
 
     @Override
@@ -538,8 +538,8 @@ public sealed interface StmtData extends InstrData {
 
   sealed interface ComparisonBinOp extends BinOp {
     @Override
-    default RType computeType() {
-      return RType.comparisonOp(lhs().type(), rhs().type());
+    default RSexpType computeType() {
+      return RSexpType.comparisonOp(lhs().type(), rhs().type());
     }
 
     @Override
@@ -550,8 +550,8 @@ public sealed interface StmtData extends InstrData {
 
   sealed interface BooleanBinOp extends BinOp {
     @Override
-    default RType computeType() {
-      return RType.booleanOp(lhs().type(), rhs().type());
+    default RSexpType computeType() {
+      return RSexpType.booleanOp(lhs().type(), rhs().type());
     }
 
     @Override
@@ -628,9 +628,9 @@ public sealed interface StmtData extends InstrData {
   record Colon(@Nullable LangSXP ast, ISexp lhs, ISexp rhs)
       implements StmtData, InstrData.HasAst {
     @Override
-    public RType computeType() {
+    public RSexpType computeType() {
       // TODO
-      return RType.ANY;
+      return RSexpType.ANY;
     }
 
     @Override
@@ -718,7 +718,7 @@ public sealed interface StmtData extends InstrData {
     }
 
     @Override
-    public RType computeType() {
+    public RSexpType computeType() {
       return version().properties().returnType(args_);
     }
 
@@ -747,8 +747,8 @@ public sealed interface StmtData extends InstrData {
     }
 
     @Override
-    public RType computeType() {
-      return RType.builtin(fun_);
+    public RSexpType computeType() {
+      return RSexpType.builtin(fun_);
     }
 
     @Override

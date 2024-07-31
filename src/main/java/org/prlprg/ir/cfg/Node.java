@@ -3,7 +3,7 @@ package org.prlprg.ir.cfg;
 import org.prlprg.parseprint.Parser;
 
 /**
- * An abstract value of type {@code T}; the IR representation of a value of type {@code T} that
+ * An abstract value of type {@link T}; the IR representation of a value of type {@link T} that
  * exists in compiled code at runtime.
  */
 public sealed interface Node<T> permits LocalNode, GlobalNode {
@@ -53,9 +53,9 @@ public sealed interface Node<T> permits LocalNode, GlobalNode {
   }
 
   /**
-   * This is {@code T}: the type that the node represents an abstract runtime value of.
+   * This is {@link T}: the type that the node represents an abstract runtime value of.
    *
-   * <p>In some cases, it may be a subtype of {@code T}. For example, a {@link Phi}'s dynamic type
+   * <p>In some cases, it may be a subtype of {@link T}. For example, a {@link Phi}'s dynamic type
    * is always the union of its inputs' types. Since phi inputs can change, this means that the
    * phi's dynamic type can become more or less specific, but it's static type, being static, will
    * always be the same (in the event a phi's type becomes less specific in a way that breaks

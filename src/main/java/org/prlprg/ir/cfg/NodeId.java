@@ -32,7 +32,7 @@ public sealed interface NodeId<T> permits LocalNodeId, GlobalNodeId {
   }
 
   /**
-   * This is {@code T}, the type of the value a node with this identifier represents.
+   * This is {@link T}, the type of the value a node with this identifier represents.
    *
    * <p>It can be {@code null} if the ID hasn't been assigned to a node (e.g. was just parsed). In
    * this case, it will be set when the ID is assigned to a node.

@@ -1,5 +1,6 @@
 package org.prlprg.ir.cfg;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Streams;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -49,13 +50,13 @@ public class CFG
         CFGCompoundMutate,
         CFGCleanup,
         CFGVerify,
-        CFGParsePrint,
-        CFGPirSerialize {
+        CFGParsePrint {
   private final Set<CFGObserver> setObservers = new WeakHashSet<>();
   private final List<CFGObserver> stackObservers = new ArrayList<>();
   private final BB entry;
   private final Set<BB> exits = new HashSet<>();
   private final Map<BBId, BB> bbs = new HashMap<>();
+  private final ImmutableList<Param<?>> params;
   private final Map<LocalNodeId<?>, LocalNode<?>> localNodes = new HashMap<>();
   private final NodeOrBBIdDisambiguatorMap nextBbDisambiguator = new NodeOrBBIdDisambiguatorMap();
   private final NodeOrBBIdDisambiguatorMap nextInstrOrPhiDisambiguator =
@@ -65,13 +66,30 @@ public class CFG
   private @Nullable Loops cachedLoops;
   private @Nullable Contexts cachedContexts;
 
-  /** Create a new CFG, with a single basic block and no instructions. */
-  @SuppressFBWarnings("CT_CONSTRUCTOR_THROW")
+  /** Create a new CFG, with no parameters, a single basic block, and no instructions. */
   public CFG() {
+    this(ImmutableList.of());
+  }
+
+  /** Create a new CFG, with the given parameters, a single basic block, and no instructions. */
+  public CFG(Collection<Param.Args<?>> params) {
+    // Entry block
     entry = new BB(this, new BBId(0, "entry"));
     nextBbDisambiguator.add("entry", 0);
     bbs.put(entry.id(), entry);
     markExit(entry);
+
+    // Params
+    var paramsBuilder = ImmutableList.<Param<?>>builderWithExpectedSize(params.size());
+    for (var paramArgs : params) {
+      var param = new Param<>(this, paramArgs.type(), uniqueLocalId(paramArgs.name()));
+      paramsBuilder.add(param);
+
+      // We need to track while building, so that the next call to `uniqueLocalId` doesn't return
+      // the same ID as a previous call if given the same name.
+      track(param);
+    }
+    this.params = paramsBuilder.build();
   }
 
   // region general properties
@@ -99,6 +117,11 @@ public class CFG
   @UnmodifiableView
   public Collection<BBId> bbIds() {
     return Collections.unmodifiableCollection(bbs.keySet());
+  }
+
+  @Override
+  public ImmutableList<Param<?>> params() {
+    return params;
   }
 
   @Override

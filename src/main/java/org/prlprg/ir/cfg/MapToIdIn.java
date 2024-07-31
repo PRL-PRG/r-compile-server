@@ -20,7 +20,7 @@ import org.prlprg.util.Reflection;
 import org.prlprg.util.Strings;
 
 /**
- * A type which encodes the record {@code T}, except every occurrence of a {@linkplain BB basic
+ * A type which encodes the record {@link T}, except every occurrence of a {@linkplain BB basic
  * block} or {@linkplain Node node} is replaced by its corresponding id ({@link BBId} or {@link
  * NodeId}).
  *

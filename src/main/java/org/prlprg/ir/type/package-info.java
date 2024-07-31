@@ -1,10 +1,8 @@
 /**
- * The {@linkplain org.prlprg.ir IR} type system for {@link org.prlprg.sexp.SEXP SEXP}s
- * specifically.
+ * The type system for {@linkplain org.prlprg.ir IR} {@link org.prlprg.ir.cfg.Node Node}s.
  *
- * <p>This package contains {@link org.prlprg.ir.type.RType RType}, the type of an {@link
- * org.prlprg.ir.cfg.ISexp ISexp} (runtime {@linkplain org.prlprg.sexp.SEXP R SEXP}), and the
- * associated classes that implement it.
+ * <p>This package contains {@link org.prlprg.ir.type.RType RType}, which is an enhanced {@link
+ * java.lang.Class Class} with more details.
  *
  * <p>This does <i>not</i> contain the effect system, that's in {@link org.prlprg.ir.effect}.
  */

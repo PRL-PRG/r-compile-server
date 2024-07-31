@@ -329,7 +329,7 @@ public final class Phi<T> extends LocalNode<T> implements InstrOrPhi, InstrOrPhi
    * Add an input to the phi.
    *
    * <p>This is "unsafe" because no {@linkplain CFGEdit edit} is recorded, and because it changes
-   * the phi's {@link Node#type()} (which may illegally make it a supertype of {@code T}). It's
+   * the phi's {@link Node#type()} (which may illegally make it a supertype of {@link T}). It's
    * called from {@link BB} when it adds a predecessor.
    */
   @SuppressWarnings("unchecked")

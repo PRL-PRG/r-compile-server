@@ -3,7 +3,7 @@ package org.prlprg.sexp;
 import javax.annotation.Nullable;
 import org.prlprg.parseprint.Printer;
 
-/** A promise that produces a value of type {@code T}.
+/** A promise that produces a value of type {@link T}.
  *
  * <p>A promise is a fundamental R data-type that encodes lazy computation. Promises are created as
  * function arguments: when you pass an argument to a function (e.g. "b + c" "f(b + c)"), instead of

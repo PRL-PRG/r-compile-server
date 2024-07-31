@@ -7,7 +7,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Set;
 import javax.annotation.concurrent.Immutable;
-import org.prlprg.ir.type.RType;
+import org.prlprg.ir.type.RSexpType;
 import org.prlprg.ir.type.lattice.BoundedLattice;
 import org.prlprg.util.Strings;
 
@@ -29,13 +29,13 @@ public final class REffects extends ForwardingSet<REffect> implements BoundedLat
   public static final REffects ARBITRARY = new REffects(REffect.values());
 
   /** The effects of a arithmetic bytecode instruction, whose arguments have the given types. */
-  public static REffects arithmeticOp(RType... types) {
+  public static REffects arithmeticOp(RSexpType... types) {
     // TODO
     return ARBITRARY;
   }
 
   /** The effects of a comparison bytecode instruction, whose arguments have the given types. */
-  public static REffects comparisonOp(RType... types) {
+  public static REffects comparisonOp(RSexpType... types) {
     // TODO
     return ARBITRARY;
   }
@@ -44,7 +44,7 @@ public final class REffects extends ForwardingSet<REffect> implements BoundedLat
    * The effects of a simple "and", "or", or "not" bytecode instruction, whose arguments have the
    * given types.
    */
-  public static REffects booleanOp(RType... types) {
+  public static REffects booleanOp(RSexpType... types) {
     // TODO
     return ARBITRARY;
   }

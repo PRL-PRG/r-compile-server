@@ -1,6 +1,7 @@
 package org.prlprg.ir.effect;
 
 import org.prlprg.ir.cfg.instr.StmtData.Force;
+import org.prlprg.ir.type.RSexpType;
 
 /** Effect which may be performed when evaluating an instruction or calling a function. */
 public enum REffect {
@@ -21,9 +22,8 @@ public enum REffect {
   /** Performs arbitrary reflection. */
   Reflection("r"),
   /**
-   * "Consumes" a non-environment argument: unless the value is {@linkplain
-   * org.prlprg.ir.type.RType#isOwned() owned} <i>and</i> this is the last use, it must be
-   * implicitly copied before this instruction.
+   * "Consumes" a non-environment argument: unless the value is {@linkplain RSexpType#isOwned()
+   * owned} <i>and</i> this is the last use, it must be implicitly copied before this instruction.
    */
   ConsumesNonEnvArg("c"),
   /**

@@ -38,20 +38,20 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
   private static final int MAX_DEPTH = 1;
   private static final int MAX_SIZE = 3;
 
-  public static Arbitrary<RType> rTypes() {
+  public static Arbitrary<RSexpType> rTypes() {
     return recursive(
         ArbitraryProvider::basicRTypes,
         r ->
             oneOf(
-                r.list().ofMaxSize(MAX_SIZE).map(RType::union),
-                r.list().ofMaxSize(MAX_SIZE).map(RType::intersection),
+                r.list().ofMaxSize(MAX_SIZE).map(RSexpType::union),
+                r.list().ofMaxSize(MAX_SIZE).map(RSexpType::intersection),
                 Combinators.combine(
                         rFunctionTypes(r),
                         defaultFor(YesOrMaybe.class),
                         attributesTypes(),
                         defaultFor(RPromiseType.class),
                         defaultFor(NoOrMaybe.class))
-                    .as(RType::of)),
+                    .as(RSexpType::of)),
         0,
         MAX_DEPTH);
   }
@@ -60,19 +60,19 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
     return rValueTypes(rTypes());
   }
 
-  public static Arbitrary<RValueType> rValueTypes(Arbitrary<RType> rTypes) {
+  public static Arbitrary<RValueType> rValueTypes(Arbitrary<RSexpType> rTypes) {
     // REACH: Refactor so it creates the value types directly, doesn't discard.
-    return rTypes.map(RType::value);
+    return rTypes.map(RSexpType::value);
   }
 
   private static final ImmutableSet<SEXPType> NONSENSICAL_OR_UNHANDLED_SEXP_TYPE_VALUE_TYPES =
       ImmutableSet.of(SEXPType.CHAR, SEXPType.ANY, SEXPType.S4, SEXPType.EXTPTR, SEXPType.WEAKREF);
 
-  public static Arbitrary<RType> basicRTypes() {
+  public static Arbitrary<RSexpType> basicRTypes() {
     var staticFields =
-        Arrays.stream(RType.class.getFields())
-            .filter(field -> field.getType() == RType.class)
-            .map(field -> (RType) Reflection.getField(null, field))
+        Arrays.stream(RSexpType.class.getFields())
+            .filter(field -> field.getType() == RSexpType.class)
+            .map(field -> (RSexpType) Reflection.getField(null, field))
             .toList();
     return oneOf(
         Arbitraries.of(staticFields),
@@ -82,21 +82,21 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
                 attributesTypes(),
                 defaultFor(RPromiseType.class),
                 defaultFor(NoOrMaybe.class))
-            .as(RType::of),
+            .as(RSexpType::of),
         Combinators.combine(
                 sexpTypes()
                     .filter(
                         Predicate.not(NONSENSICAL_OR_UNHANDLED_SEXP_TYPE_VALUE_TYPES::contains)),
                 defaultFor(YesOrMaybe.class))
-            .as(RType::simple),
-        sexps().map(RType::exact));
+            .as(RSexpType::simple),
+        sexps().map(RSexpType::exact));
   }
 
   public static Arbitrary<RFunType> rFunctionTypes() {
     return rFunctionTypes(rTypes());
   }
 
-  private static Arbitrary<RFunType> rFunctionTypes(Arbitrary<RType> rTypes) {
+  private static Arbitrary<RFunType> rFunctionTypes(Arbitrary<RSexpType> rTypes) {
     return oneOf(
         builtinIds().map(RBuiltinOrSpecialType::of),
         rSignatureTypes().list().ofMaxSize(MAX_SIZE).map(RFunType::of));
@@ -136,7 +136,7 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
     return rSignatureTypes(rTypes());
   }
 
-  private static Arbitrary<RSignatureType> rSignatureTypes(Arbitrary<RType> rTypes) {
+  private static Arbitrary<RSignatureType> rSignatureTypes(Arbitrary<RSexpType> rTypes) {
     return Combinators.combine(
             parameterRType(rTypes)
                 .list()
@@ -154,7 +154,7 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
     return parameterRType(rTypes());
   }
 
-  private static Arbitrary<RParameterType> parameterRType(Arbitrary<RType> rTypes) {
+  private static Arbitrary<RParameterType> parameterRType(Arbitrary<RSexpType> rTypes) {
     return Combinators.combine(
             oneOf(Arbitraries.of(""), symbolStrings()),
             defaultFor(NoOrMaybe.class),
@@ -167,7 +167,7 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
     return argumentRType(rTypes());
   }
 
-  private static Arbitrary<RArgumentType> argumentRType(Arbitrary<RType> rTypes) {
+  private static Arbitrary<RArgumentType> argumentRType(Arbitrary<RSexpType> rTypes) {
     return Combinators.combine(symbolStrings(), rTypes).as(RArgumentType::new);
   }
 
@@ -192,7 +192,7 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
 
   @Override
   public boolean canProvideFor(TypeUsage typeUsage) {
-    return typeUsage.isOfType(RType.class)
+    return typeUsage.isOfType(RSexpType.class)
         || typeUsage.isOfType(RValueType.class)
         || typeUsage.isOfType(AttributesType.class)
         || typeUsage.isOfType(RPromiseType.class)
@@ -209,7 +209,7 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
 
   @Override
   public Set<Arbitrary<?>> provideFor(TypeUsage typeUsage, SubtypeProvider subtypeProvider) {
-    if (typeUsage.isOfType(RType.class)) {
+    if (typeUsage.isOfType(RSexpType.class)) {
       return Set.of(rTypes());
     }
     if (typeUsage.isOfType(RValueType.class)) {

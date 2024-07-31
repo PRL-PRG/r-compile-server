@@ -1,11 +1,11 @@
 package org.prlprg.ir.type.generic;
 
 import org.prlprg.ir.type.RSignatureTypeNormalizedArity;
-import org.prlprg.ir.type.RType;
+import org.prlprg.ir.type.RSexpType;
 
 public record ReturnUnionOfArgumentTypes() implements GenericOverloadReturnType {
   @Override
-  public RType givenArguments(RSignatureTypeNormalizedArity arguments) {
-    return RType.union(arguments.types());
+  public RSexpType givenArguments(RSignatureTypeNormalizedArity arguments) {
+    return RSexpType.union(arguments.types());
   }
 }

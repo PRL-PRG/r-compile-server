@@ -2,11 +2,11 @@ package org.prlprg.ir.type.lattice;
 
 import java.util.Objects;
 import javax.annotation.Nonnull;
-import org.prlprg.ir.type.RType;
+import org.prlprg.ir.type.RSexpType;
 
 /**
  * Bounded lattice from type theory (lattice with top and bottom). These methods are common in
- * {@link RType} and its parts.
+ * {@link RSexpType} and its parts.
  */
 public interface BoundedLattice<T extends BoundedLattice<T>> extends Lattice<T> {
   /**

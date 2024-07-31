@@ -65,8 +65,8 @@ public class LatticeTests {
 
   /** FIXME(jakob): This fails occasionally, closure types need to be fixed. */
   @Property(generation = GenerationMode.RANDOMIZED, tries = 100)
-  void isCoherent_RType(@ForAll RType lhs, @ForAll RType rhs) {
-    isCoherent(lhs, rhs, RType.ANY, RType.NOTHING);
+  void isCoherent_RType(@ForAll RSexpType lhs, @ForAll RSexpType rhs) {
+    isCoherent(lhs, rhs, RSexpType.ANY, RSexpType.NOTHING);
   }
 
   @SuppressWarnings("unused")

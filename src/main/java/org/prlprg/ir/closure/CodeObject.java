@@ -6,6 +6,7 @@ import org.prlprg.ir.cfg.CFG;
 import org.prlprg.ir.cfg.CFGEdit;
 import org.prlprg.ir.cfg.Node;
 import org.prlprg.ir.cfg.instr.StmtData;
+import org.prlprg.ir.type.RSexpType;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
@@ -71,8 +72,7 @@ public abstract sealed class CodeObject permits Closure, Promise {
   /**
    * Verify that all {@linkplain #outerCfgNodes() outer CFG nodes} have the correct dynamic type.
    *
-   * <p>For example, verify that an environment value is still {@link
-   * org.prlprg.ir.type.RType#ANY_ENV ANY_ENV}.
+   * <p>For example, verify that an environment value is still {@link RSexpType#ANY_ENV ANY_ENV}.
    *
    * @throws IllegalStateException If a node has an incorrect dynamic type.
    * @see #outerCfgNodes()
