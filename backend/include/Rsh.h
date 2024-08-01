@@ -79,17 +79,23 @@ static INLINE Value sexp_as_val(SEXP s) {
 
 // TODO: add logicals contants and some other singletons?
 
-// BINDING CELLS (bcell)
-// They have to be compatible with R BNDCELL
-
-// use the tag to identify if it is an int or double or sexp
-
-// A binding cell is a frame in which a variable is located
-// It is the cell that is returned from R_findVarLocInFrame
-// It's extrs fields contains the tags (BCELL_TAG) which is either
+// BINDING CELLS (bcell) implementation
+//
+// A binding cell is a hack that R BC interpreter uses to gain some performance
+// in the number of environment lookups for GETVAR and SETVAR.
+// It also help with scalar doubles, intergers and logicals.
+// The problem with R BNDCELLs is that its implementation is private,
+// scattered over buch of files. Bringing it over is not easy as it brings
+// a whole bunch of other stuff.
+//
+// Essentially a binding cell is a LISTSXP pointing to the frame in which
+// the binding is stored. The CAR of the cell is the value of the binding.
+// The tag of the cell identifies whether it is a scalar or a full SEXP.
+// The BCELL_TAG(cell) is one of:
 // - REALSXP, INTSXP, LGLSXP for scalars
 // - 0 for any other type
-// The value is stored in the CAR of the cell (BCELL_VAL)
+// The BCELL_VAL(cell) is the value of the binding.
+
 typedef SEXP BCell;
 typedef union {
   SEXP sxpval;
