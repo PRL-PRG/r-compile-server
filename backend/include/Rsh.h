@@ -13,6 +13,23 @@
     return R_NilValue;                                                         \
   }
 
+#ifdef RSH_TESTS
+#define JIT_EXTERN
+#else
+#define JIT_EXTERN extern
+#endif
+
+JIT_EXTERN CCODE Rex_do_arith;
+JIT_EXTERN SEXP R_AddOp;
+
+static INLINE void Rsh_initialize_runtime(void) {
+  R_AddOp = PROTECT(Rif_Primitive("+"));
+  R_PreserveObject(R_AddOp);
+  UNPROTECT(1);
+
+  Rex_do_arith = PRIMFUN(R_AddOp);
+}
+
 // IEEE 754 double-precision float:
 //
 // 1 Sign bit
@@ -89,9 +106,9 @@ static INLINE Value sexp_as_val(SEXP s) {
 // a whole bunch of other stuff.
 //
 // Essentially a binding cell is a LISTSXP pointing to the frame in which
-// the binding is stored. The CAR of the cell is the value of the binding.
-// The tag of the cell identifies whether it is a scalar or a full SEXP.
-// The BCELL_TAG(cell) is one of:
+// the binding is stored. The CAR of the cell is the value of the binding
+// (BCellVal). The tag of the cell identifies whether it is a scalar or a full
+// SEXP. The BCELL_TAG(cell) is one of:
 // - REALSXP, INTSXP, LGLSXP for scalars
 // - 0 for any other type
 // The BCELL_VAL(cell) is the value of the binding.
@@ -137,13 +154,13 @@ typedef union {
 #define BCELL_IVAL_NEW(cell, val)                                              \
   do {                                                                         \
     BCELL_INIT(cell, INTSXP);                                                  \
-    BCELL_DVAL_SET(cell, val);                                                 \
+    BCELL_IVAL_SET(cell, val);                                                 \
   } while (0)
 
 #define BCELL_LVAL_NEW(cell, val)                                              \
   do {                                                                         \
     BCELL_INIT(cell, LGLSXP);                                                  \
-    BCELL_DVAL_SET(cell, val);                                                 \
+    BCELL_LVAL_SET(cell, val);                                                 \
   } while (0)
 
 #define BCELL_TAG_CLEAR(cell)                                                  \
@@ -297,6 +314,23 @@ static void UNBOUND_VARIABLE_ERROR(SEXP symbol, SEXP rho) {
   error("object '%s' not found", EncodeChar(PRINTNAME(symbol)));
 }
 
+#define BCELL_INLINE(cell, v)                                                  \
+  do {                                                                         \
+    if (BCELL_WRITABLE(cell)) {                                                \
+      switch (VAL_TAG(v)) {                                                    \
+      case REALSXP:                                                            \
+        BCELL_DVAL_NEW(cell, VAL_DBL(v));                                      \
+        break;                                                                 \
+      case INTSXP:                                                             \
+        BCELL_IVAL_NEW(cell, VAL_INT(v));                                      \
+        break;                                                                 \
+      case LGLSXP:                                                             \
+        BCELL_LVAL_NEW(cell, VAL_INT(v));                                      \
+        break;                                                                 \
+      }                                                                        \
+    }                                                                          \
+  } while (0)
+
 static INLINE Value Rsh_do_get_var(SEXP symbol, SEXP rho, Rboolean dd,
                                    Rboolean keepmiss, BCell *cache) {
   SEXP value;
@@ -339,16 +373,7 @@ static INLINE Value Rsh_do_get_var(SEXP symbol, SEXP rho, Rboolean dd,
 
   Value v = sexp_as_val(value);
   if (has_cell) {
-    if (BCELL_WRITABLE(*cache)) {
-      switch (VAL_TAG(v)) {
-      case REALSXP:
-        BCELL_DVAL_NEW(*cache, VAL_DBL(v));
-      case INTSXP:
-        BCELL_IVAL_NEW(*cache, VAL_INT(v));
-      case LGLSXP:
-        BCELL_LVAL_NEW(*cache, VAL_INT(v));
-      }
-    }
+    BCELL_INLINE(*cache, v);
   }
 
   return v;
@@ -435,18 +460,11 @@ static INLINE void Rsh_set_var(SEXP symbol, Value value, SEXP rho,
     defineVar(symbol, sexp_value, rho);
     UNPROTECT(1);
     bcell_get_cache(symbol, rho, cell);
+    BCELL_INLINE(*cell, value);
   }
 }
 
-static INLINE SEXP Rsh_return(Value v) {
-  if (VAL_IS_SXP((v))) {
-    return VAL_SXP((v));
-  } else if (VAL_IS_DBL((v))) {
-    return ScalarReal(VAL_DBL((v)));
-  } else {
-    return ScalarInteger(VAL_INT((v)));
-  }
-}
+static INLINE SEXP Rsh_return(Value v) { return val_as_sexp(v); }
 
 static INLINE SEXP Rsh_builtin_call_args(SEXP args) {
   for (SEXP a = args; a != R_NilValue; a = CDR(a)) {
@@ -537,61 +555,60 @@ static INLINE Rboolean Rsh_is_true(SEXP value, SEXP call) {
     }                                                                          \
   } while (0)
 
-typedef enum { ADD, LT, EQ } BINARY_OP;
+#define DO_BINARY(op, a, b, r)                                                 \
+  do {                                                                         \
+    R_Visible = TRUE;                                                          \
+    switch (op) {                                                              \
+    case PLUSOP:                                                               \
+      *(r) = (a) + (b);                                                        \
+      break;                                                                   \
+    case MINUSOP:                                                              \
+      *(r) = (a) - (b);                                                        \
+      break;                                                                   \
+    case TIMESOP:                                                              \
+      *(r) = (a) * (b);                                                        \
+      break;                                                                   \
+    case DIVOP:                                                                \
+      *(r) = (a) / (b);                                                        \
+      break;                                                                   \
+    }                                                                          \
+  } while (0)
 
-static INLINE SEXP Rsh_binary(BINARY_OP op, SEXP x, SEXP y) {
-  switch (op) {
-  case ADD:
-    if (TYPEOF(x) == REALSXP && TYPEOF(y) == REALSXP) {
-      // FIXME: NA, ...
-      return ScalarReal(REAL(x)[0] + REAL(y)[0]);
+static INLINE Value Rsh_binary(ARITHOP_TYPE type, Value lhs, Value rhs,
+                               SEXP call, SEXP op, SEXP rho) {
+  Value res;
+
+  if (VAL_IS_DBL(lhs)) {
+    if (VAL_IS_DBL(rhs)) {
+      DO_BINARY(type, lhs, rhs, &res);
+      return res;
+    } else if (VAL_IS_INT(rhs) && VAL_INT(rhs) != NA_INTEGER) {
+      DO_BINARY(type, lhs, VAL_INT(rhs), &res);
+      return res;
     }
-    error("Unsupported type");
-    break;
-  case LT:
-    if (TYPEOF(x) == REALSXP && TYPEOF(y) == REALSXP) {
-      // FIXME: NA, ...
-      return ScalarLogical(REAL(x)[0] < REAL(y)[0]);
-    }
-    error("Unsupported type");
-    break;
-  case EQ:
-    if (TYPEOF(x) == REALSXP && TYPEOF(y) == REALSXP) {
-      // FIXME: NA, ...
-      return ScalarLogical(REAL(x)[0] == REAL(y)[0]);
-    }
-    error("Unsupported type");
-    break;
-  default:
-    error("Unsupported op: %d", op);
   }
 
-  // FIXME: pull in the arith
-  return R_NilValue;
+  if (VAL_IS_INT(lhs) && VAL_INT(lhs) != NA_INTEGER) {
+    int l = VAL_INT(lhs);
+    if (VAL_IS_DBL(rhs)) {
+      DO_BINARY(type, l, rhs, &res);
+      return res;
+    } else if (VAL_IS_INT(rhs) && VAL_INT(rhs) != NA_INTEGER) {
+      int res_int;
+      DO_BINARY(type, l, VAL_INT(rhs), &res_int);
+      return INT_TO_VAL(res_int);
+    }
+  }
+
+  // Slow path!
+  // We could have made it somewhat faster iff we could get our hands on the
+  // R_Binary from arithmetics.c it is not exported, so we have to go through
+  // from the do_arith which we can leak via the BUILTINSXP
+  SEXP args = list2(val_as_sexp(lhs), val_as_sexp(rhs));
+  PROTECT(args);
+  SEXP res_sexp = Rex_do_arith(call, op, args, rho);
+  UNPROTECT(1);
+  return sexp_as_val(res_sexp);
 }
-
-static INLINE SEXP Rsh_compare(SEXP lhs, SEXP rhs) { return R_NilValue; }
-
-//#define DO_FAST_COMPARE(op,res,lhs,rhs) do { \
-//    R_Visible = TRUE;                          \
-//    res = ((lhs) op (rhs)) ? TRUE : FALSE; \
-//} while(0)
-//
-// #define Rsh_fast_compare(op,res,lhs,rhs) do { \
-//	if (lhs->tag == REALSXP && ! ISNAN(lhs->u.dval)) {		\
-//	    if (rhs->tag == REALSXP && ! ISNAN(rhs->u.dval))		\
-//		DO_FAST_COMPARE(op, lhs->u.dval, rhs->u.dval);		\
-//	    else if (rhs->tag == INTSXP && rhs->u.ival != NA_INTEGER)	\
-//		DO_FAST_COMPARE(op, lhs->u.dval, rhs->u.ival);		\
-//	}								\
-//	else if (lhs->tag == INTSXP && lhs->u.ival != NA_INTEGER) {	\
-//	    if (rhs->tag == REALSXP && ! ISNAN(rhs->u.dval))		\
-//		DO_FAST_COMPARE(op, lhs->u.ival, rhs->u.dval);		\
-//	    else if (rhs->tag == INTSXP && rhs->u.ival != NA_INTEGER) {	\
-//		DO_FAST_COMPARE(op, lhs->u.ival, rhs->u.ival);		\
-//	    }								\
-//	}								\
-//	Rsh_compare(lhs, rhs);						\
-//} while (0)
 
 #endif // RSH_H
