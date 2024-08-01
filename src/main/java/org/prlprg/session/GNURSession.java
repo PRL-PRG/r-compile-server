@@ -92,12 +92,34 @@ public class GNURSession implements RSession {
   // We should also handle installation of a package from a GitHub repo?
   public void loadPackage(String name, String version) {
     // Check if package is installed and if not install it
+    var pkgPath = RLibraries.resolve(name);
+    var pkgDir = pkgPath.toFile();
+    if (!pkgDir.exists() || !pkgDir.isDirectory()) {
+      // Check if the package exists in a repo
+      // Install the package
+      // TODO: call install.packages from GNU R
+      throw new UnsupportedOperationException("Package installation not implemented yet");
+    }
 
-    // Load index (name.rdx) and serialized objects (name.rdb)
-    // Or rather do lazy loading like R?
+    // Make sure base is loaded
+    if (baseNamespace == null) {
+      loadBase();
+    }
+
+    // Bootstrap the namespace
+    prepareNamespace(name, version);
+
+    // Load the package
+    try {
+      var bindings = readPackageDatabase(this, RLibraries, name);
+      var ns = namespaces.get(name + version);
+      ns.setBindings(bindings);
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
   }
 
-  public static HashMap<String, SEXP> readPackageDatabase(
+  private static HashMap<String, SEXP> readPackageDatabase(
       RSession session, Path libPath, String packageName) throws IOException {
     var db = new PackageDatabase(session, libPath, packageName);
     return db.getBindings();
@@ -110,8 +132,11 @@ public class GNURSession implements RSession {
    * @param name
    * @param version
    */
-  public void prepareNamespace(String name, String version) {
+  private void prepareNamespace(String name, String version) {
     var ns = namespaces.get(name + version);
+    if (globalEnv == null) {
+      loadBase();
+    }
     if (ns == null) {
       ns = new NamespaceEnvSXP(name, version, globalEnv, new HashMap<>());
       namespaces.put(name + version, ns);

@@ -17,10 +17,11 @@ public class GNURSessionTest {
     lib_dir = lib_dir.replaceFirst("^~", System.getProperty("user.home"));
     var session = new GNURSession(RVersion.LATEST_AWARE, r_dir, Path.of(lib_dir));
 
-    session.prepareNamespace("yaml", "2.3.8");
-    var funs = GNURSession.readPackageDatabase(session, Path.of(lib_dir), "yaml");
+    session.loadPackage("yaml", "2.3.8");
 
-    Assertions.assertFalse(funs.isEmpty());
+    var ns = session.getNamespace("yaml", "2.3.8");
+
+    Assertions.assertFalse(ns.bindings().isEmpty());
   }
 
   @Test
