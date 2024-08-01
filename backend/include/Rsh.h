@@ -20,14 +20,23 @@
 #endif
 
 JIT_EXTERN CCODE Rex_do_arith;
+JIT_EXTERN CCODE Rex_do_relop;
 JIT_EXTERN SEXP R_AddOp;
+JIT_EXTERN SEXP R_LtOp;
+
+#define LOAD_R_BUILTIN(target, name)                                           \
+  do {                                                                         \
+    target = PROTECT(Rif_Primitive(name));                                     \
+    R_PreserveObject(target);                                                  \
+    UNPROTECT(1);                                                              \
+  } while (0);
 
 static INLINE void Rsh_initialize_runtime(void) {
-  R_AddOp = PROTECT(Rif_Primitive("+"));
-  R_PreserveObject(R_AddOp);
-  UNPROTECT(1);
+  LOAD_R_BUILTIN(R_AddOp, "+");
+  LOAD_R_BUILTIN(R_LtOp, "<");
 
   Rex_do_arith = PRIMFUN(R_AddOp);
+  Rex_do_relop = PRIMFUN(R_LtOp);
 }
 
 // IEEE 754 double-precision float:
@@ -574,6 +583,16 @@ static INLINE Rboolean Rsh_is_true(SEXP value, SEXP call) {
     }                                                                          \
   } while (0)
 
+#define DO_RELOP(op, a, b, r)                                                  \
+  do {                                                                         \
+    R_Visible = TRUE;                                                          \
+    switch (op) {                                                              \
+    case LTOP:                                                                 \
+      *(r) = (a) < (b);                                                        \
+      break;                                                                   \
+    }                                                                          \
+  } while (0)
+
 static INLINE Value Rsh_binary(ARITHOP_TYPE type, Value lhs, Value rhs,
                                SEXP call, SEXP op, SEXP rho) {
   Value res;
@@ -600,6 +619,45 @@ static INLINE Value Rsh_binary(ARITHOP_TYPE type, Value lhs, Value rhs,
     }
   }
 
+  // Slow path!
+  // We could have made it somewhat faster iff we could get our hands on the
+  // R_Binary from arithmetics.c it is not exported, so we have to go through
+  // from the do_arith which we can leak via the BUILTINSXP
+  SEXP args = list2(val_as_sexp(lhs), val_as_sexp(rhs));
+  PROTECT(args);
+  SEXP res_sexp = Rex_do_arith(call, op, args, rho);
+  UNPROTECT(1);
+  return sexp_as_val(res_sexp);
+}
+
+static INLINE Value Rsh_relop(RELOP_TYPE type, Value lhs, Value rhs, SEXP call,
+                              SEXP op, SEXP rho) {
+  Value res;
+
+  if (VAL_IS_DBL(lhs) && !ISNAN(VAL_DBL(lhs))) {
+    if (VAL_IS_DBL(rhs) && !ISNAN(VAL_DBL(rhs))) {
+      DO_RELOP(type, lhs, rhs, &res);
+      return res;
+    } else if (VAL_IS_INT(rhs) && VAL_INT(rhs) != NA_INTEGER) {
+      DO_BINARY(type, lhs, VAL_INT(rhs), &res);
+      return res;
+    }
+  }
+
+  if (VAL_IS_INT(lhs) && VAL_INT(lhs) != NA_INTEGER) {
+    int l = VAL_INT(lhs);
+    if (VAL_IS_DBL(rhs) && !ISNAN(VAL_DBL(rhs))) {
+      DO_BINARY(type, l, rhs, &res);
+      return res;
+    } else if (VAL_IS_INT(rhs) && VAL_INT(rhs) != NA_INTEGER) {
+      int res_int;
+      DO_BINARY(type, l, VAL_INT(rhs), &res_int);
+      return INT_TO_VAL(res_int);
+    }
+  }
+
+  // FIXME: duplicate code with Rsh_binary
+  //
   // Slow path!
   // We could have made it somewhat faster iff we could get our hands on the
   // R_Binary from arithmetics.c it is not exported, so we have to go through
