@@ -63,35 +63,7 @@ public class RshCompiler {
         .compile();
   }
 
-  public void compile(File input, File output, int ccOptimization)
-      throws IOException, InterruptedException {
-    logger.fine("Compiling input: " + input + ", output: " + output);
-
-    var builder =
-        new CCCompilationBuilder(input, output)
-            .flags(COMPILER_FLAGS)
-            .flag("-c")
-            .flag("-O" + ccOptimization);
-    var time = System.currentTimeMillis();
-    builder.compile();
-    time = System.currentTimeMillis() - time;
-
-    var size = output.length();
-
-    logger.fine("Finished compilation in %d ms (size: %d)\n".formatted(time, size));
-  }
-
-  // FIXME: remove the duplication
-  public void compileShared(File input, File output) throws IOException, InterruptedException {
-    logger.fine("Compiling input: " + input + ", output: " + output);
-
-    var builder = new CCCompilationBuilder(input, output).flags(COMPILER_FLAGS).flag("-shared");
-    var time = System.currentTimeMillis();
-    builder.compile();
-    time = System.currentTimeMillis() - time;
-
-    var size = output.length();
-
-    logger.fine("Finished compilation in %d ms (size: %d)\n".formatted(time, size));
+  public CCCompilationBuilder createBuilder(File input, File output) {
+    return new CCCompilationBuilder(input, output).flags(COMPILER_FLAGS);
   }
 }

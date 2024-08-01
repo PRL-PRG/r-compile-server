@@ -34,7 +34,11 @@ public class JITService {
     // var output = new File("/tmp/jit.o");
     var output = File.createTempFile("ofile", ".o");
 
-    RshCompiler.getInstance().compile(input, output, ccOptimization);
+    RshCompiler.getInstance()
+        .createBuilder(input, output)
+        .flag("-c")
+        .flag("-O" + ccOptimization)
+        .compile();
 
     var res = Files.asByteSource(output).read();
 

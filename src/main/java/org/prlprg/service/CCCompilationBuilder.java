@@ -31,6 +31,8 @@ public class CCCompilationBuilder {
   // TODO: return something with warnings, ...
   public void compile() throws IOException, InterruptedException {
     var logger = Logger.getLogger(CCCompilationBuilder.class.getName());
+    logger.fine("Compiling input: " + input + ", output: " + output);
+    var time = System.currentTimeMillis();
 
     var builder = new ProcessBuilder();
     builder.redirectErrorStream(true);
@@ -38,7 +40,7 @@ public class CCCompilationBuilder {
     builder.command(compiler, "-o", output.getPath(), input.getPath());
     builder.command().addAll(flags);
 
-    logger.fine("Running command: " + String.join(" ", builder.command()));
+    logger.finer("Running command: " + String.join(" ", builder.command()));
 
     Process process = builder.start();
 
@@ -67,6 +69,10 @@ public class CCCompilationBuilder {
     if (!output.isEmpty()) {
       logger.warning("Compilation warnings:\n" + output);
     }
+
+    time = System.currentTimeMillis() - time;
+    var size = output.length();
+    logger.fine("Finished compilation in %d ms (size: %d)\n".formatted(time, size));
   }
 
   public CCCompilationBuilder flags(Collection<String> flags) {

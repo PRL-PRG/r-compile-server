@@ -36,7 +36,11 @@ class ByteCodeStack {
       unprotect += protects.pop();
     }
 
-    return UNPROTECT_EXPR.formatted(unprotect);
+    if (unprotect > 0) {
+      return UNPROTECT_EXPR.formatted(unprotect);
+    } else {
+      return "";
+    }
   }
 
   public String curr(int n) {
@@ -73,20 +77,20 @@ class ByteCodeStack {
 }
 
 public class BC2CCompiler {
-  private static final String NAME_ENV = "ENV";
-  private static final String NAME_CP = "CP";
-  private static final Value VAL_NULL = new Value("R_NilValue", false);
+  protected static final String NAME_ENV = "ENV";
+  protected static final String NAME_CP = "CP";
+  protected static final Value VAL_NULL = new Value("R_NilValue", false);
 
-  private final String name;
-  private final Bc bc;
-  private final Map<Integer, Constant> constants = new LinkedHashMap<>();
-  private final ByteCodeStack stack = new ByteCodeStack();
-  private final Set<Integer> labels = new HashSet<>();
-  private final Set<Integer> cells = new HashSet<>();
+  protected final String name;
+  protected final Bc bc;
+  protected final Map<Integer, Constant> constants = new LinkedHashMap<>();
+  protected final ByteCodeStack stack = new ByteCodeStack();
+  protected final Set<Integer> labels = new HashSet<>();
+  protected final Set<Integer> cells = new HashSet<>();
 
-  private final CFile file;
-  private CFunction fun;
-  private CCode body;
+  protected final CFile file;
+  protected CFunction fun;
+  protected CCode body;
 
   public BC2CCompiler(String name, Bc bc) {
     this.name = name;
@@ -97,16 +101,25 @@ public class BC2CCompiler {
   }
 
   public CFile compile() {
-    fillLabels();
+    beforeCompile();
+
     var code = bc.code();
     for (int i = 0; i < code.size(); i++) {
       compile(code.get(i), i);
     }
 
+    afterCompile();
+    return file;
+  }
+
+  protected void beforeCompile() {
+    fillLabels();
+  }
+
+  protected void afterCompile() {
     compileCells();
     compileRegisters();
     preamble();
-    return file;
   }
 
   private void fillLabels() {
@@ -131,7 +144,7 @@ public class BC2CCompiler {
       case BcInstr.SetVar(var idx) -> compileSetVar(idx);
       case BcInstr.LdConst(var idx) -> compilerLdConst(idx);
       case BcInstr.GetVar(var idx) -> compileGetVar(idx);
-      case BcInstr.Add(_) -> compileAdd();
+      case BcInstr.Add(var idx) -> compileAdd(idx);
       case BcInstr.Return() -> compileReturn();
       case BcInstr.Pop() -> pop(1);
       case BcInstr.GetBuiltin(var idx) -> compileGetBuiltin(idx);
@@ -268,8 +281,11 @@ public class BC2CCompiler {
     body.line("return Rsh_return(%s);".formatted(stack.curr(1)));
   }
 
-  private void compileAdd() {
-    popPush(2, "Rsh_binary(ADD, %s, %s)".formatted(stack.curr(-1), stack.curr(0)), true);
+  private void compileAdd(ConstPool.Idx<LangSXP> idx) {
+    var call = constantRaw(idx);
+    var lhs = stack.curr(-1);
+    var rhs = stack.curr(0);
+    popPush(2, "Rsh_binary(PLUSOP, %s, %s, %s, R_AddOp, %s)".formatted(lhs, rhs, call, NAME_ENV), false);
   }
 
   private void compilerLdConst(ConstPool.Idx<SEXP> idx) {
@@ -279,7 +295,10 @@ public class BC2CCompiler {
   // API
 
   private void pop(int n) {
-    body.line("%s;".formatted(stack.pop(n)));
+    var unprotect = stack.pop(n);
+    if (!unprotect.isEmpty()) {
+      body.line(unprotect + ";");
+    }
   }
 
   private String push(String expr, boolean protect) {

@@ -93,6 +93,30 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
   }
 
   @Test
+  public void testGetAndSetVar2() throws Exception {
+    compileAndCall(
+        """
+           function (x) { y <- x; x <- y; x }
+           """,
+        "list(x=42)",
+        (RealSXP v) -> {
+          assertEquals(42.0, v.asReal(0));
+        });
+  }
+
+  @Test
+  public void testAddScalars() throws Exception {
+    compileAndCall(
+        """
+                   function (x) { x + 21 }
+                   """,
+        "list(x=42)",
+        (RealSXP v) -> {
+          assertEquals(63.0, v.asReal(0));
+        });
+  }
+
+  @Test
   public void test3() throws Exception {
     compileAndCall(
         """
@@ -201,7 +225,15 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
             .orElseThrow(() -> new RuntimeException("Compilation did not produce byte code"));
 
     try {
-      var bc2c = new BC2CCompiler(funName, bc);
+      var bc2c =
+          new BC2CCompiler(funName, bc) {
+            @Override
+            protected void beforeCompile() {
+              super.beforeCompile();
+              body.line("Rsh_initialize_runtime();");
+            }
+          };
+
       var cCode = bc2c.compile();
       var cConsts = bc2c.constants();
 
@@ -209,7 +241,11 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
 
       Files.writeString(cFile.toPath(), cCode.toString());
 
-      RshCompiler.getInstance().compileShared(cFile, soFile);
+      RshCompiler.getInstance()
+          .createBuilder(cFile, soFile)
+          .flag("-shared")
+          .flag("-DRSH_TESTS")
+          .compile();
 
       String testDriver =
           "dyn.load('%s')\n".formatted(soFile.getAbsolutePath())
