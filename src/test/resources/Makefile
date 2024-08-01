@@ -5,9 +5,6 @@ CC := gcc
 CFLAGS := -DNDEBUG \
           -I$(RSH_HOME)/backend/include\
           -fpic \
-          -march=x86-64 \
-          -mtune=generic \
-          -pipe \
           -fno-plt \
           -fexceptions \
           -fstack-clash-protection \
@@ -23,9 +20,9 @@ CFLAGS := -DNDEBUG \
           -pedantic \
           -shared
 
-all: test
+all: run
 
-compile-release:
+compile:
 	$(CC) $(CFLAGS) -O3 -o f.so f.c
 
 compile-release-debug:
@@ -34,11 +31,20 @@ compile-release-debug:
 compile-debug:
 	$(CC) $(CFLAGS) -g3 -ggdb -O0 -o f.so f.c
 
-test: compile-release
+run: compile
 	$(R) -f driver.R
 
-release-debug: compile-release-debug
+run-debug: compile-debug
+	$(R) -f driver.R
+
+gdb-release: compile-release-debug
 	$(R) -d gdb -f driver.R
 
-debug: compile-debug
+gdb-debug: compile-debug
 	$(R) -d gdb -f driver.R
+
+rr-release: compile-release-debug
+	$(R) -d rr -f driver.R
+
+rr-debug: compile-debug
+	$(R) -d rr -f driver.R

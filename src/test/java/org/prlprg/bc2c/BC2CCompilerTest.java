@@ -84,8 +84,8 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
   public void testGetAndSetVar() throws Exception {
     compileAndCall(
         """
-                          function (x) { y <- x; y }
-                          """,
+          function (x) { y <- x; y }
+          """,
         "list(x=42)",
         (RealSXP v) -> {
           assertEquals(42.0, v.asReal(0));

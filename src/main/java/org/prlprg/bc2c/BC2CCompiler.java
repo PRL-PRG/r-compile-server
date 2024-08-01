@@ -3,7 +3,6 @@ package org.prlprg.bc2c;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-
 import org.jetbrains.annotations.NotNull;
 import org.prlprg.bc.Bc;
 import org.prlprg.bc.BcInstr;
@@ -229,8 +228,9 @@ public class BC2CCompiler {
   private void compileCells() {
     var sec = fun.insertAbove(body);
     var line =
-            cells.stream().map("C%d = NULL"::formatted)
-                    .collect(Collectors.joining(", ", "BCell ", ";"));
+        cells.stream()
+            .map("C%d = R_NilValue"::formatted)
+            .collect(Collectors.joining(", ", "BCell ", ";"));
     sec.line(line);
   }
 
@@ -251,11 +251,15 @@ public class BC2CCompiler {
   }
 
   private void compileGetVar(ConstPool.Idx<RegSymSXP> idx) {
-    push("Rsh_get_var(%s, %s, FALSE, FALSE, &%s)".formatted(constantRaw(idx), NAME_ENV, cell(idx)), false);
+    push(
+        "Rsh_get_var(%s, %s, FALSE, FALSE, &%s)".formatted(constantRaw(idx), NAME_ENV, cell(idx)),
+        false);
   }
 
   private void compileSetVar(ConstPool.Idx<RegSymSXP> idx) {
-    body.line("Rsh_set_var(%s, %s, %s, %s);".formatted(constantRaw(idx), stack.curr(0), NAME_ENV, cell(idx)));
+    body.line(
+        "Rsh_set_var(%s, %s, %s, &%s);"
+            .formatted(constantRaw(idx), stack.curr(0), NAME_ENV, cell(idx)));
   }
 
   private void compileReturn() {
@@ -309,24 +313,23 @@ public class BC2CCompiler {
   private String constant(ConstPool.Idx<? extends SEXP> idx) {
     var c = getConstant(idx);
 
-    var f = switch(c.value()) {
-      case IntSXP v when v.size() == 1 -> "Rsh_const_int";
-      case RealSXP v when v.size() == 1 -> "Rsh_const_dbl";
-      case SEXP _ -> "Rsh_const_sxp";
-    };
+    var f =
+        switch (c.value()) {
+          case IntSXP v when v.size() == 1 -> "Rsh_const_int";
+          case RealSXP v when v.size() == 1 -> "Rsh_const_dbl";
+          case SEXP _ -> "Rsh_const_sxp";
+        };
 
     return "%s(%s, %d)".formatted(f, NAME_CP, c.id());
   }
 
-  @NotNull
-  private Constant getConstant(ConstPool.Idx<? extends SEXP> idx) {
-    return
-        constants.computeIfAbsent(
-            idx.idx(),
-            ignored -> {
-              var next = constants.size();
-              return new Constant(next, bc.consts().get(idx));
-            });
+  @NotNull private Constant getConstant(ConstPool.Idx<? extends SEXP> idx) {
+    return constants.computeIfAbsent(
+        idx.idx(),
+        ignored -> {
+          var next = constants.size();
+          return new Constant(next, bc.consts().get(idx));
+        });
   }
 
   private String label(int instrIndex) {
