@@ -2,7 +2,7 @@ package org.prlprg.sexp;
 
 /** SEXP vector of a single data type. */
 public sealed interface PrimVectorSXP<T> extends VectorSXP<T>
-    permits NumericSXP, LglSXP, RawSXP, StrSXP {
+    permits NumericOrLogicalSXP, RawSXP, StrSXP {
   /** Is one of the elements NA or (for reals) NaN? */
   boolean hasNaOrNaN();
 

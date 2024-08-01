@@ -1,6 +1,6 @@
 package org.prlprg.ir.type.sexp;
 
-public sealed interface RListType extends RLangOrListType, RListOrVectorType
+public sealed interface RListType extends RAbstractPairListType, RListOrVectorType
     permits RListTypeImpl, RNilType, RConsType {
   RListType ANY = RListTypeImpl.INSTANCE;
 }

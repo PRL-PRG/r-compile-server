@@ -4,7 +4,7 @@ import javax.annotation.concurrent.Immutable;
 
 /** R Identifier. */
 @Immutable
-public sealed interface SymSXP extends ValueSXP permits RegSymSXP, MissingSXP {
+public sealed interface SymSXP extends ValueOrMissingSXP permits RegSymSXP, MissingSXP {
   @Override
   default SEXPType type() {
     return SEXPType.SYM;

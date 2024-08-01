@@ -2,9 +2,10 @@ package org.prlprg.ir.type;
 
 import org.prlprg.ir.cfg.Node;
 import org.prlprg.ir.type.lattice.BoundedLattice;
-import org.prlprg.ir.type.lattice.Maybe;
-import org.prlprg.ir.type.lattice.YesOrMaybe;
-import org.prlprg.sexp.SEXP; /**
+import org.prlprg.parseprint.Parser;
+import org.prlprg.sexp.SEXP;
+
+/**
  * The type of a ({@link Node}), i.e. the set of all possible values it can represent at runtime.
  *
  * <p>This encompasses both {@link SEXP}s and unboxed values.
@@ -22,10 +23,55 @@ import org.prlprg.sexp.SEXP; /**
  * don't have to iterate over the entire set of supertypes or subtypes.
  */
 public interface RType<T> extends BoundedLattice<RType<?>> {
-  /** The type of an expression which hangs, errors, or otherwise diverts control flow. */
-  RType<Void> NOTHING = new RNothingType();
+    /** Parse a type ({@link Parser#parse(Class)}), and {@link #cast(Class)} it to the given type. */
+  static <T> RType<? extends T> parse(Parser p, Class<T> type) {
+    return RType.cast(p.parse(RType.class), type);
+  }
 
-  RType<Object> ANY = new RAnyType();
+  /** {@link #cast(Class)}, but call on a raw type. */
+  @SuppressWarnings("rawtypes")
+  static <U> RType<? extends U> cast(RType type, Class<U> clazz) {
+    return ((RType<?>) type).cast(clazz);
+  }
+
+  /**
+   * Cast {@code RType<? extends A>} to {@code RType<? extends B>} where {@code B &lt;: A}.
+   *
+   * <p>This is needed due to Java's type erasure: see {@link #clazz()} for more details.
+   *
+   * @throws ClassCastException if {@code B &lt;/: A}.
+   */
+  @SuppressWarnings("unchecked")
+  default <U> RType<? extends U> cast(Class<U> clazz) {
+    // `Void` is special-cased to allow `InvalidRType` to emulate subclassing every other `RType`,
+    // even though Java's type system can't encode BOTTOM.
+    if (!clazz.isAssignableFrom(clazz()) && clazz() != Void.class) {
+      if (clazz().getSimpleName().equals(clazz.getSimpleName())) {
+        throw new ClassCastException(
+            "Can't cast "
+                + this
+                + " (with erased type parameter "
+                + clazz().getName()
+                + ") type parameter to "
+                + clazz.getName()
+                + " (they have the same simple name, but are different classes)");
+      } else {
+        throw new ClassCastException(
+            "Can't cast "
+                + this
+                + " (with erased type parameter "
+                + clazz().getSimpleName()
+                + ") to type parameter "
+                + clazz.getSimpleName());
+      }
+    }
+    return (RType<? extends U>) this;
+  }
+
+  /** The type of an expression which hangs, errors, or otherwise diverts control flow. */
+  RNothingType<Void> NOTHING = new RNothingType<>();
+
+  RAnyType ANY = new RAnyType();
 
   /**
    * This encodes {@link T}: the type that this represents.
@@ -33,7 +79,7 @@ public interface RType<T> extends BoundedLattice<RType<?>> {
    * <p>This is exclusively used to combat Java's type erasure and manually check that a value is
    * not a variable, field, record component, etc. with the wrong {@link T} type.
    */
-  Class<T> clazz();
+  Class<? extends T> clazz();
 
   /**
    * Whether this is {@link #NOTHING}.
@@ -54,3 +100,4 @@ public interface RType<T> extends BoundedLattice<RType<?>> {
     return this == ANY;
   }
 }
+

@@ -27,13 +27,7 @@ import org.prlprg.parseprint.Printer;
  * @param env The environment in which the promise was created, and {@code expr} will be evaluated
  *            in (unless its AST is accessed directly).
  */
-public record PromSXP<T extends SEXP>(SEXP expr, @Nullable T val, EnvSXP env) implements SEXP {
-  public PromSXP {
-    if (val instanceof PromSXP) {
-      throw new IllegalArgumentException("Promises cannot be nested");
-    }
-  }
-
+public record PromSXP<T extends ValueSXP>(SEXP expr, @Nullable T val, EnvSXP env) implements SEXP {
   /** Returns the promise's AST.
    *
    * <p>If {@code expr} is {@link BCodeSXP}, returns the AST which is stored in the first constant

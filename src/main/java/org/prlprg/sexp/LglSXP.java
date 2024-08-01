@@ -8,7 +8,7 @@ import org.prlprg.primitive.Logical;
 
 /** Logical vector SEXP. */
 @Immutable
-public sealed interface LglSXP extends PrimVectorSXP<Logical>
+public sealed interface LglSXP extends NumericOrLogicalSXP<Logical>
     permits EmptyLglSXPImpl, LglSXPImpl, ScalarLglSXP {
   @Override
   default SEXPType type() {
@@ -47,6 +47,16 @@ record LglSXPImpl(ImmutableList<Logical> data, @Override Attributes attributes) 
   }
 
   @Override
+  public int asInt(int index) {
+    return data.get(index).asInt();
+  }
+
+  @Override
+  public double asReal(int index) {
+    return data.get(index).asReal();
+  }
+
+  @Override
   public int size() {
     return data.size();
   }
@@ -68,6 +78,16 @@ final class EmptyLglSXPImpl extends EmptyVectorSXPImpl<Logical> implements LglSX
 
   private EmptyLglSXPImpl() {
     super();
+  }
+
+  @Override
+  public int asInt(int index) {
+    throw new IndexOutOfBoundsException();
+  }
+
+  @Override
+  public double asReal(int index) {
+    throw new IndexOutOfBoundsException();
   }
 
   @Override

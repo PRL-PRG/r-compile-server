@@ -1,7 +1,7 @@
 package org.prlprg.sexp;
 
 /** The missing value. */
-public final class MissingSXP implements SymSXP {
+public final class MissingSXP implements ValueSXP, SymSXP, DotsListOrMissingSXP {
   static final MissingSXP INSTANCE = new MissingSXP();
 
   private MissingSXP() {

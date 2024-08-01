@@ -18,7 +18,7 @@ import org.prlprg.util.Lists;
  * <p><b>Implementation note:</b> in GNU-R this is represented as a linked list, but we internally
  * use an array-list because it's more efficient.
  */
-public sealed interface ListSXP extends ListOrVectorSXP<TaggedElem>, LangOrListSXP
+public sealed interface ListSXP extends ListOrVectorSXP<TaggedElem>, AbstractPairListSXP
     permits NilSXP, ListSXPImpl {
   @Override
   ListSXP withAttributes(Attributes attributes);

@@ -17,6 +17,7 @@ import org.prlprg.sexp.BCodeSXP;
 import org.prlprg.sexp.BuiltinSXP;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.ComplexSXP;
+import org.prlprg.sexp.DotsListSXP;
 import org.prlprg.sexp.ExprSXP;
 import org.prlprg.sexp.IntSXP;
 import org.prlprg.sexp.LangSXP;
@@ -51,11 +52,10 @@ public sealed interface RValueType extends BoundedLattice<RValueType>
         RStringOrRegSymType,
         RRegSymOrLangType,
         RListOrVectorType,
-        RLangOrListType,
+        RAbstractPairListType,
         RFunType,
         REnvType,
-        RBCodeType,
-        RDotsListType {
+        RBCodeType {
   RValueType ANY = RValueTypeImpl.INSTANCE;
   RValueType NOTHING = RNothingValueTypeImpl.INSTANCE;
 
@@ -68,8 +68,9 @@ public sealed interface RValueType extends BoundedLattice<RValueType>
   static RValueType exact(SEXP sexp) {
     return switch (sexp) {
       case NilSXP _ -> RNilType.ANY;
-      case LangSXP _ -> RLangType.ANY;
       case ListSXP _ -> RListType.ANY;
+      case LangSXP _ -> RLangType.ANY;
+      case DotsListSXP _ -> RDotsListType.ANY;
       case RegSymSXP _ -> RRegSymType.ANY;
       case IntSXP s -> RIntType.of(MaybeNat.of(s.size()), NoOrMaybe.of(s.hasNaOrNaN()));
       case RealSXP s -> RRealType.of(MaybeNat.of(s.size()), NoOrMaybe.of(s.hasNaOrNaN()));

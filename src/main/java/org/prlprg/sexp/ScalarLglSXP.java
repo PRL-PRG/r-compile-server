@@ -16,6 +16,22 @@ public sealed class ScalarLglSXP extends ScalarSXPImpl<Logical> implements LglSX
   }
 
   @Override
+  public int asInt(int index) {
+    if (index != 0) {
+      throw new IndexOutOfBoundsException();
+    }
+    return data.asInt();
+  }
+
+  @Override
+  public double asReal(int index) {
+    if (index != 0) {
+      throw new IndexOutOfBoundsException();
+    }
+    return data.asReal();
+  }
+
+  @Override
   public LglSXP withAttributes(Attributes attributes) {
     return SEXPs.logical(data, attributes);
   }

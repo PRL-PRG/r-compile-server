@@ -9,7 +9,7 @@ import org.prlprg.parseprint.Printer;
 
 /** AST function call ("language object") SEXP. */
 @Immutable
-public sealed interface LangSXP extends RegSymOrLangSXP, LangOrListSXP {
+public sealed interface LangSXP extends RegSymOrLangSXP, AbstractPairListSXP {
   /** The function being called. */
   RegSymOrLangSXP fun();
 

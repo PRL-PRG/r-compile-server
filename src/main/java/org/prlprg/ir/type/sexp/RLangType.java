@@ -3,7 +3,7 @@ package org.prlprg.ir.type.sexp;
 import javax.annotation.Nonnull;
 import org.prlprg.sexp.SEXPType;
 
-public sealed interface RLangType extends RRegSymOrLangType, RLangOrListType
+public sealed interface RLangType extends RRegSymOrLangType, RAbstractPairListType
     permits RNothingValueType, RLangTypeImpl {
   RLangType ANY = RLangTypeImpl.INSTANCE;
 }

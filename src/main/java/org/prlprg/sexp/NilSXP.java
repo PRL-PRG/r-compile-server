@@ -14,7 +14,7 @@ import org.prlprg.util.EmptyIterator;
  * that it represents "no value" (not to be confused with R's {@code NA} or {@code .missingVal}).
  */
 @Immutable
-public final class NilSXP implements ListSXP {
+public final class NilSXP implements ListSXP, DotsListSXP {
   static final NilSXP INSTANCE = new NilSXP();
 
   private NilSXP() {}
@@ -41,6 +41,11 @@ public final class NilSXP implements ListSXP {
    */
   @Override
   public TaggedElem get(int i) {
+    throw new UnsupportedOperationException("NULL is empty");
+  }
+
+  @Override
+  public SEXP value(int i) {
     throw new UnsupportedOperationException("NULL is empty");
   }
 
@@ -130,7 +135,7 @@ public final class NilSXP implements ListSXP {
   }
 
   @Override
-  public ListSXP withAttributes(Attributes attributes) {
+  public NilSXP withAttributes(Attributes attributes) {
     throw new UnsupportedOperationException("Cannot set attributes on NULL");
   }
 

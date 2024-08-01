@@ -31,7 +31,7 @@ public class RDSReaderTest extends AbstractGNURBasedTest {
 
     if (sexp instanceof IntSXP ints) {
       assertEquals(6, ints.size());
-      assertEquals(Constants.INT_MIN, ints.get(0));
+      assertEquals(Constants.GNUR_INT_MIN, ints.get(0));
       assertEquals(-1, ints.get(1));
       assertEquals(0, ints.get(2));
       assertTrue(isNA(ints.get(3)));

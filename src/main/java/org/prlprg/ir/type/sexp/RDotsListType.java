@@ -1,6 +1,6 @@
 package org.prlprg.ir.type.sexp;
 
-public sealed interface RDotsListType extends RValueType
+public sealed interface RDotsListType extends RAbstractPairListType
     permits RDotsListTypeImpl, RNilType, RDotsConsType {
   RDotsListType ANY = RDotsListTypeImpl.INSTANCE;
 }

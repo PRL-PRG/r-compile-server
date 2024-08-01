@@ -448,7 +448,7 @@ public class RDSWriter implements Closeable {
 
   private void scanForCircles(SEXP sexp, HashMap<SEXP, Integer> reps, HashSet<SEXP> seen) {
     switch (sexp) {
-      case LangOrListSXP lol -> {
+      case AbstractPairListSXP lol -> {
         if (seen.contains(lol)) {
           // Add to reps if the cell has already been seen
           // We put -1 for the time being so that we can update reps in the correct order later
@@ -482,7 +482,7 @@ public class RDSWriter implements Closeable {
 
   private void writeByteCodeLang(SEXP s, HashMap<SEXP, Integer> reps, AtomicInteger nextRepIndex)
       throws IOException {
-    if (s instanceof LangOrListSXP lol && lol.type() != SEXPType.NIL) {
+    if (s instanceof AbstractPairListSXP lol && lol.type() != SEXPType.NIL) {
       var assignedRepIndex = reps.get(lol);
       if (assignedRepIndex != null) {
         if (assignedRepIndex == -1) {
@@ -577,7 +577,7 @@ public class RDSWriter implements Closeable {
           out.writeInt(c.type().i);
           writeByteCode1(bc, reps, nextRepIndex);
         }
-        case LangOrListSXP l -> {
+        case AbstractPairListSXP l -> {
           // writeBCLang writes the type i
           writeByteCodeLang(l, reps, nextRepIndex);
         }
