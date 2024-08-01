@@ -145,6 +145,7 @@ public class BC2CCompiler {
       case BcInstr.LdConst(var idx) -> compilerLdConst(idx);
       case BcInstr.GetVar(var idx) -> compileGetVar(idx);
       case BcInstr.Add(var idx) -> compileAdd(idx);
+      case BcInstr.Lt(var idx) -> compileLt(idx);
       case BcInstr.Return() -> compileReturn();
       case BcInstr.Pop() -> pop(1);
       case BcInstr.GetBuiltin(var idx) -> compileGetBuiltin(idx);
@@ -153,7 +154,6 @@ public class BC2CCompiler {
       case BcInstr.Call(var idx) -> compileCall(idx);
       case BcInstr.PushArg() -> compilePushArg();
       case BcInstr.SetTag(var idx) -> compilerSetTag(idx);
-      case BcInstr.Lt(_) -> compileLt();
       case BcInstr.BrIfNot(var call, var label) -> compileBrIfNot(call, label);
       case BcInstr.Goto(var label) -> compileGoto(label);
       case BcInstr.Invisible() -> compileInvisible();
@@ -208,10 +208,6 @@ public class BC2CCompiler {
         "if (!Rsh_is_true(%s, %s)) { %s; goto %s; }"
             .formatted(curr, constant(call), unprotect, label(label.target())));
     body.line(unprotect + ";");
-  }
-
-  private void compileLt() {
-    popPush(2, "Rsh_binary(LT, %s, %s)".formatted(stack.curr(-1), stack.curr(0)), true);
   }
 
   private void compilerSetTag(ConstPool.Idx<StrOrRegSymSXP> idx) {
@@ -286,6 +282,13 @@ public class BC2CCompiler {
     var lhs = stack.curr(-1);
     var rhs = stack.curr(0);
     popPush(2, "Rsh_binary(PLUSOP, %s, %s, %s, R_AddOp, %s)".formatted(lhs, rhs, call, NAME_ENV), false);
+  }
+
+  private void compileLt(ConstPool.Idx<LangSXP> idx) {
+    var call = constantRaw(idx);
+    var lhs = stack.curr(-1);
+    var rhs = stack.curr(0);
+    popPush(2, "Rsh_relop(LTOP, %s, %s, %s, R_LtOp, %s)".formatted(lhs, rhs, call, NAME_ENV), false);
   }
 
   private void compilerLdConst(ConstPool.Idx<SEXP> idx) {

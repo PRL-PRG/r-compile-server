@@ -117,6 +117,18 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
   }
 
   @Test
+  public void testCompareScalars() throws Exception {
+    compileAndCall(
+        """
+                           function (x) { x < 100 }
+                           """,
+        "list(x=42)",
+        (LglSXP v) -> {
+          assertEquals(SEXPs.TRUE, v);
+        });
+  }
+
+  @Test
   public void test3() throws Exception {
     compileAndCall(
         """
