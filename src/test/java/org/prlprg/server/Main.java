@@ -81,12 +81,6 @@ public class Main {
     try {
       var name = compile.getName();
 
-      StringBuilder s = new StringBuilder();
-      for (byte b : compile.getClosure()) {
-        s.append(b).append(" ");
-      }
-      logger.info("bytecode: " + s);
-
       var inClosure = deserialize(new ByteArrayInputStream(compile.getClosure().toByteArray()));
       var bc = new BCCompiler(inClosure, rsession).compile().orElseThrow();
       var outBCode = SEXPs.bcode(bc);
