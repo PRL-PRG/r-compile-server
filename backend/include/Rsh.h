@@ -47,36 +47,56 @@ static INLINE void Rsh_initialize_runtime(void) {
 // | |          |
 // S[Exponent-][Mantissa------------------------------------------]
 //
+// Our QNAN - 13 bits:
 //   NaN bits
-//  +---------+
-// -111111111111---------------------------------------------------
+//  +---------+ v Intel’s QNaN Floating-Point Indefinite
+// -1111111111111--------------------------------------------------
 //             ^ NaN type (1 - quiet (QNAN), 0 - signalling)
 //
 // Our NaN boxing:
-// int: 0111111111111-------------------[------------------------------]
-//      32 bits for the payload
-// sxp: 1111111111111---[----------------------------------------------]
-//      48 bits for the payload
-// dbl: no encoding needed
+//
+//          63              49                                                 0
+//           v               v                                                 v
+//      QNAN 0|1111111111111|00|000000000000000000000000000000000000000000000000
+//      MASK 1|1111111111111|11|000000000000000000000000000000000000000000000000
+//  MASK_INT 0|1111111111111|00|000000000000000000000000000000000000000000000000
+//  MASK_SXP 1|1111111111111|00|000000000000000000000000000000000000000000000000
+//  MASK_LGL 0|1111111111111|10|000000000000000000000000000000000000000000000010
+//      TRUE 0|1111111111111|10|000000000000000000000000000000000000000000000011
+//     FALSE 0|1111111111111|10|000000000000000000000000000000000000000000000010
 
-typedef uint64_t Value;
+typedef uint64_t u64;
+typedef u64 Value;
 
-#define QNAN ((uint64_t)0x7ffc000000000000)
-#define SIGN_BIT ((uint64_t)1 << 63)
+// the 13 bits of the NaN boxing
+#define QNAN ((u64)0x7ffc000000000000)
+#define SIGN_BIT ((u64)1 << 63)
+#define MASK ((SIGN_BIT | QNAN | ((u64)3 << 48)))
+#define MASK_INT QNAN
+#define MASK_SXP (SIGN_BIT | QNAN)
+#define MASK_LGL (QNAN | ((u64)1 << 49) | 2)
 
-#define VAL_SXP(v) (SEXP)((v) & (((uint64_t)1 << 48) - 1))
-#define VAL_INT(v) (int)((v) & (((uint64_t)1 << 32) - 1))
+#define VAL_TRUE ((Value)(MASK_LGL | 3))
+#define VAL_FALSE ((Value)(MASK_LGL | 2))
+
+#define VAL_IS_INT(v) (((v) & MASK) == MASK_INT)
+#define VAL_IS_SXP(v) (((v) & MASK) == MASK_SXP)
+#define VAL_IS_DBL(v) (((v) & QNAN) != QNAN)
+#define VAL_IS_LGL(v) (((v) & MASK_LGL) == MASK_LGL)
+
+#define VAL_INT(v) (int)(v)
+#define VAL_SXP(v) (SEXP)((v) & (((u64)1 << 48) - 1))
 #define VAL_DBL(v) (double)(v)
+#define VAL_LGL(v) (Rboolean)((v) & 1)
 
-#define SXP_TO_VAL(v)                                                          \
-  (Value)(QNAN | SIGN_BIT | (((uint64_t)v) & (((uint64_t)1 << 48) - 1)))
-#define INT_TO_VAL(v) (Value)(QNAN | (v))
+#define INT_TO_VAL(v) (Value)(MASK_INT | ((u64)(v)))
+#define SXP_TO_VAL(v) (Value)(MASK_SXP | ((u64)(v)))
+#define LGL_TO_VAL(v) (Value)((v) ? VAL_TRUE : VAL_FALSE)
 #define DBL_TO_VAL(v) (Value)((v))
 
-#define VAL_IS_SXP(v) (((v) & (QNAN | SIGN_BIT)) == (QNAN | SIGN_BIT))
-#define VAL_IS_INT(v) (((v) & (QNAN | SIGN_BIT)) == ((QNAN | SIGN_BIT) << 1))
-#define VAL_IS_DBL(v) (((v) & QNAN) != QNAN)
-#define VAL_TAG(v) ((VAL_IS_DBL(v) ? REALSXP : (VAL_IS_INT(v) ? INTSXP : 0)))
+#define VAL_TAG(v)                                                             \
+  ((VAL_IS_DBL(v) ? REALSXP                                                    \
+                  : (VAL_IS_INT(v) ? INTSXP : (VAL_IS_LGL(v) ? LGLSXP : 0))))
 
 // TODO: can we share this bcell expand?
 static INLINE SEXP val_as_sexp(Value v) {
@@ -97,13 +117,12 @@ static INLINE Value sexp_as_val(SEXP s) {
     return DBL_TO_VAL(REAL(s)[0]);
   } else if (IS_SCALAR(s, INTSXP)) {
     return INT_TO_VAL(INTEGER(s)[0]);
+  } else if (IS_SCALAR(s, LGLSXP)) {
+    return LGL_TO_VAL(INTEGER(s)[0]);
   } else {
-    // TODO: logical
     return SXP_TO_VAL(s);
   }
 }
-
-// TODO: add logicals contants and some other singletons?
 
 // BINDING CELLS (bcell) implementation
 //
@@ -280,6 +299,7 @@ static INLINE Rboolean bcell_set_value(BCell cell, SEXP value) {
 #define Rsh_const_sxp(env, idx) SXP_TO_VAL(Rsh_const(env, idx))
 #define Rsh_const_dbl(env, idx) DBL_TO_VAL(REAL(Rsh_const(env, idx))[0])
 #define Rsh_const_int(env, idx) INT_TO_VAL(INTEGER(Rsh_const(env, idx))[0])
+#define Rsh_const_lgl(env, idx) LGL_TO_VAL(INTEGER(Rsh_const(env, idx))[0])
 
 // TODO: move to internal
 static INLINE SEXP FORCE_PROMISE(SEXP value, SEXP symbol, SEXP rho,
@@ -395,6 +415,8 @@ static INLINE Value Rsh_get_var(SEXP symbol, SEXP rho, Rboolean dd,
     return DBL_TO_VAL(BCELL_DVAL(*cell));
   case INTSXP:
     return INT_TO_VAL(BCELL_IVAL(*cell));
+  case LGLSXP:
+    return LGL_TO_VAL(BCELL_IVAL(*cell));
   }
 
   SEXP value = CAR(*cell);
@@ -585,12 +607,14 @@ static INLINE Rboolean Rsh_is_true(SEXP value, SEXP call) {
 
 #define DO_RELOP(op, a, b, r)                                                  \
   do {                                                                         \
+    int __res__;                                                               \
     R_Visible = TRUE;                                                          \
     switch (op) {                                                              \
     case LTOP:                                                                 \
-      *(r) = (a) < (b);                                                        \
+      __res__ = (a) < (b);                                                     \
       break;                                                                   \
     }                                                                          \
+    *(r) = LGL_TO_VAL(__res__);                                                \
   } while (0)
 
 static INLINE Value Rsh_binary(ARITHOP_TYPE type, Value lhs, Value rhs,
@@ -629,7 +653,8 @@ static INLINE Value Rsh_binary(ARITHOP_TYPE type, Value lhs, Value rhs,
   UNPROTECT(1);
   return sexp_as_val(res_sexp);
 }
-
+// TODO: union
+// TODO: VAL_IS_INT_NA
 static INLINE Value Rsh_relop(RELOP_TYPE type, Value lhs, Value rhs, SEXP call,
                               SEXP op, SEXP rho) {
   Value res;
@@ -639,20 +664,20 @@ static INLINE Value Rsh_relop(RELOP_TYPE type, Value lhs, Value rhs, SEXP call,
       DO_RELOP(type, lhs, rhs, &res);
       return res;
     } else if (VAL_IS_INT(rhs) && VAL_INT(rhs) != NA_INTEGER) {
-      DO_BINARY(type, lhs, VAL_INT(rhs), &res);
+      DO_RELOP(type, lhs, VAL_INT(rhs), &res);
       return res;
     }
   }
 
   if (VAL_IS_INT(lhs) && VAL_INT(lhs) != NA_INTEGER) {
     int l = VAL_INT(lhs);
+
     if (VAL_IS_DBL(rhs) && !ISNAN(VAL_DBL(rhs))) {
-      DO_BINARY(type, l, rhs, &res);
+      DO_RELOP(type, l, rhs, &res);
       return res;
     } else if (VAL_IS_INT(rhs) && VAL_INT(rhs) != NA_INTEGER) {
-      int res_int;
-      DO_BINARY(type, l, VAL_INT(rhs), &res_int);
-      return INT_TO_VAL(res_int);
+      DO_RELOP(type, l, VAL_INT(rhs), &res);
+      return res;
     }
   }
 
@@ -664,7 +689,7 @@ static INLINE Value Rsh_relop(RELOP_TYPE type, Value lhs, Value rhs, SEXP call,
   // from the do_arith which we can leak via the BUILTINSXP
   SEXP args = list2(val_as_sexp(lhs), val_as_sexp(rhs));
   PROTECT(args);
-  SEXP res_sexp = Rex_do_arith(call, op, args, rho);
+  SEXP res_sexp = Rex_do_relop(call, op, args, rho);
   UNPROTECT(1);
   return sexp_as_val(res_sexp);
 }
