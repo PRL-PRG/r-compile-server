@@ -1,0 +1,15 @@
+{
+  "build": {
+    "dockerfile": "./Dockerfile",
+    "context": "."
+  },
+  features: {
+    "ghcr.io/devcontainers/features/java:1": {
+      "installMaven": "true"
+    }
+  },
+  "containerEnv": {
+    "JAVA_HOME": "/usr/lib/jvm/jdk"
+  },
+  "remoteUser": "user"
+}
