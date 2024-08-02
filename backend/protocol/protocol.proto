@@ -9,6 +9,7 @@ message Request {
   oneof payload {
     HandshakeRequest handshake = 1;
     CompileRequest compile = 2;
+    BcCompileRequest bc_compile = 3;
   }
 }
 
@@ -27,6 +28,12 @@ message CompileRequest {
   uint32 cc_optimization = 5;
 }
 
+message BcCompileRequest {
+  string name = 2;
+  bytes closure = 3;
+  uint32 bc_optimization = 4;
+}
+
 message CompiledFunction {
   string name = 2;
   // content of the object file as spilled by the compiler
@@ -35,9 +42,22 @@ message CompiledFunction {
   bytes constants = 4;
 }
 
+message BcCompiledFunction {
+  string name = 2;
+  // BCodeSXP output from the RDS writer
+  bytes bcode = 3;
+}
+
 message CompileResponse {
   oneof data {
     string failure = 2;
     CompiledFunction result = 3;
+  }
+}
+
+message BcCompileResponse {
+  oneof data {
+    string failure = 2;
+    BcCompiledFunction result = 3;
   }
 }

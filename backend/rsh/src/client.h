@@ -17,4 +17,6 @@ CompileResponse remote_compile(std::string const &name,
                                std::vector<uint8_t> const &rds_closure,
                                u32 opt_level);
 
+BcCompileResponse remote_compile_bc(std::string const &name,
+                                    std::vector<uint8_t> const &rds_closure);
 } // namespace rsh

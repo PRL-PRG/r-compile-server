@@ -11,6 +11,13 @@ public interface CompileResponseOrBuilder
   /**
    * <code>string failure = 2;</code>
    *
+   * @return Whether the failure field is set.
+   */
+  boolean hasFailure();
+
+  /**
+   * <code>string failure = 2;</code>
+   *
    * @return The failure.
    */
   java.lang.String getFailure();

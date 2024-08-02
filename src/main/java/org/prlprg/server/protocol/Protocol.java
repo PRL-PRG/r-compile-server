@@ -25,13 +25,25 @@ public final class Protocol {
   static final com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_rsh_server_protocol_CompileRequest_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
+      internal_static_rsh_server_protocol_BcCompileRequest_descriptor;
+  static final com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
+      internal_static_rsh_server_protocol_BcCompileRequest_fieldAccessorTable;
+  static final com.google.protobuf.Descriptors.Descriptor
       internal_static_rsh_server_protocol_CompiledFunction_descriptor;
   static final com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_rsh_server_protocol_CompiledFunction_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
+      internal_static_rsh_server_protocol_BcCompiledFunction_descriptor;
+  static final com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
+      internal_static_rsh_server_protocol_BcCompiledFunction_fieldAccessorTable;
+  static final com.google.protobuf.Descriptors.Descriptor
       internal_static_rsh_server_protocol_CompileResponse_descriptor;
   static final com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_rsh_server_protocol_CompileResponse_fieldAccessorTable;
+  static final com.google.protobuf.Descriptors.Descriptor
+      internal_static_rsh_server_protocol_BcCompileResponse_descriptor;
+  static final com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
+      internal_static_rsh_server_protocol_BcCompileResponse_fieldAccessorTable;
 
   public static com.google.protobuf.Descriptors.FileDescriptor getDescriptor() {
     return descriptor;
@@ -41,21 +53,29 @@ public final class Protocol {
 
   static {
     java.lang.String[] descriptorData = {
-      "\n\016protocol.proto\022\023rsh.server.protocol\"\210\001"
+      "\n\016protocol.proto\022\023rsh.server.protocol\"\305\001"
           + "\n\007Request\022:\n\thandshake\030\001 \001(\0132%.rsh.serve"
           + "r.protocol.HandshakeRequestH\000\0226\n\007compile"
           + "\030\002 \001(\0132#.rsh.server.protocol.CompileRequ"
-          + "estH\000B\t\n\007payload\"^\n\020HandshakeRequest\022\023\n\013"
-          + "Rsh_version\030\001 \001(\t\022\021\n\tR_version\030\002 \001(\t\022\020\n\010"
-          + "platform\030\003 \001(\t\022\020\n\010packages\030\004 \003(\t\"a\n\016Comp"
-          + "ileRequest\022\014\n\004name\030\002 \001(\t\022\017\n\007closure\030\003 \001("
-          + "\014\022\027\n\017bc_optimization\030\004 \001(\r\022\027\n\017cc_optimiz"
-          + "ation\030\005 \001(\r\"H\n\020CompiledFunction\022\014\n\004name\030"
-          + "\002 \001(\t\022\023\n\013native_code\030\003 \001(\014\022\021\n\tconstants\030"
-          + "\004 \001(\014\"e\n\017CompileResponse\022\021\n\007failure\030\002 \001("
-          + "\tH\000\0227\n\006result\030\003 \001(\0132%.rsh.server.protoco"
-          + "l.CompiledFunctionH\000B\006\n\004dataB\036\n\032org.prlp"
-          + "rg.server.protocolP\001b\006proto3"
+          + "estH\000\022;\n\nbc_compile\030\003 \001(\0132%.rsh.server.p"
+          + "rotocol.BcCompileRequestH\000B\t\n\007payload\"^\n"
+          + "\020HandshakeRequest\022\023\n\013Rsh_version\030\001 \001(\t\022\021"
+          + "\n\tR_version\030\002 \001(\t\022\020\n\010platform\030\003 \001(\t\022\020\n\010p"
+          + "ackages\030\004 \003(\t\"a\n\016CompileRequest\022\014\n\004name\030"
+          + "\002 \001(\t\022\017\n\007closure\030\003 \001(\014\022\027\n\017bc_optimizatio"
+          + "n\030\004 \001(\r\022\027\n\017cc_optimization\030\005 \001(\r\"J\n\020BcCo"
+          + "mpileRequest\022\014\n\004name\030\002 \001(\t\022\017\n\007closure\030\003 "
+          + "\001(\014\022\027\n\017bc_optimization\030\004 \001(\r\"H\n\020Compiled"
+          + "Function\022\014\n\004name\030\002 \001(\t\022\023\n\013native_code\030\003 "
+          + "\001(\014\022\021\n\tconstants\030\004 \001(\014\"1\n\022BcCompiledFunc"
+          + "tion\022\014\n\004name\030\002 \001(\t\022\r\n\005bcode\030\003 \001(\014\"e\n\017Com"
+          + "pileResponse\022\021\n\007failure\030\002 \001(\tH\000\0227\n\006resul"
+          + "t\030\003 \001(\0132%.rsh.server.protocol.CompiledFu"
+          + "nctionH\000B\006\n\004data\"i\n\021BcCompileResponse\022\021\n"
+          + "\007failure\030\002 \001(\tH\000\0229\n\006result\030\003 \001(\0132\'.rsh.s"
+          + "erver.protocol.BcCompiledFunctionH\000B\006\n\004d"
+          + "ataB\036\n\032org.prlprg.server.protocolP\001b\006pro"
+          + "to3"
     };
     descriptor =
         com.google.protobuf.Descriptors.FileDescriptor.internalBuildGeneratedFileFrom(
@@ -66,7 +86,7 @@ public final class Protocol {
         new com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
             internal_static_rsh_server_protocol_Request_descriptor,
             new java.lang.String[] {
-              "Handshake", "Compile", "Payload",
+              "Handshake", "Compile", "BcCompile", "Payload",
             });
     internal_static_rsh_server_protocol_HandshakeRequest_descriptor =
         getDescriptor().getMessageTypes().get(1);
@@ -84,19 +104,43 @@ public final class Protocol {
             new java.lang.String[] {
               "Name", "Closure", "BcOptimization", "CcOptimization",
             });
-    internal_static_rsh_server_protocol_CompiledFunction_descriptor =
+    internal_static_rsh_server_protocol_BcCompileRequest_descriptor =
         getDescriptor().getMessageTypes().get(3);
+    internal_static_rsh_server_protocol_BcCompileRequest_fieldAccessorTable =
+        new com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
+            internal_static_rsh_server_protocol_BcCompileRequest_descriptor,
+            new java.lang.String[] {
+              "Name", "Closure", "BcOptimization",
+            });
+    internal_static_rsh_server_protocol_CompiledFunction_descriptor =
+        getDescriptor().getMessageTypes().get(4);
     internal_static_rsh_server_protocol_CompiledFunction_fieldAccessorTable =
         new com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
             internal_static_rsh_server_protocol_CompiledFunction_descriptor,
             new java.lang.String[] {
               "Name", "NativeCode", "Constants",
             });
+    internal_static_rsh_server_protocol_BcCompiledFunction_descriptor =
+        getDescriptor().getMessageTypes().get(5);
+    internal_static_rsh_server_protocol_BcCompiledFunction_fieldAccessorTable =
+        new com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
+            internal_static_rsh_server_protocol_BcCompiledFunction_descriptor,
+            new java.lang.String[] {
+              "Name", "Bcode",
+            });
     internal_static_rsh_server_protocol_CompileResponse_descriptor =
-        getDescriptor().getMessageTypes().get(4);
+        getDescriptor().getMessageTypes().get(6);
     internal_static_rsh_server_protocol_CompileResponse_fieldAccessorTable =
         new com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
             internal_static_rsh_server_protocol_CompileResponse_descriptor,
+            new java.lang.String[] {
+              "Failure", "Result", "Data",
+            });
+    internal_static_rsh_server_protocol_BcCompileResponse_descriptor =
+        getDescriptor().getMessageTypes().get(7);
+    internal_static_rsh_server_protocol_BcCompileResponse_fieldAccessorTable =
+        new com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
+            internal_static_rsh_server_protocol_BcCompileResponse_descriptor,
             new java.lang.String[] {
               "Failure", "Result", "Data",
             });

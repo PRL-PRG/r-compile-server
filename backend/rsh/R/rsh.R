@@ -40,6 +40,18 @@ rsh_compile <- function(f, name, opt_level = 0L) {
   invisible(.Call(C_compile_fun, f, name, opt_level))
 }
 
+#' Compile given closure to bytecode
+#'
+#' Changes the closure in place.
+#' @param f the closure to be compiled
+#' @export
+bc_compile <- function(f, name) {
+  if (missing(name)) {
+    name <- as.character(substitute(f))
+  }
+  invisible(.Call(C_bc_compile_fun, f, name))
+}
+
 #' Compile given closure
 #'
 #' It makes a copy the given closure and compiles it.
@@ -55,6 +67,20 @@ rsh_cmpfun <- function(f, options=list(optimize=0L)) {
   # compile the copy
   rsh_compile(g, as.character(substitute(f)), options$optimize)
   g
+}
+
+#' Compile given closure to bytecode
+#'
+#' It makes a copy of the given closure and compiles it to bytecode
+#'
+#' Changes the closure in place.
+#' @param f the closure to be compiled
+#' @export
+bc_cmpfun <- function(f, name) {
+  if (missing(name)) {
+    name <- as.character(substitute(f))
+  }
+  invisible(.Call(C_bc_compile_fun, f, name))
 }
 
 rsh_override_cmpfun <- function(f) {

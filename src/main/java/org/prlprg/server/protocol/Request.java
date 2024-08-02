@@ -28,75 +28,6 @@ public final class Request extends com.google.protobuf.GeneratedMessageV3
     return this.unknownFields;
   }
 
-  private Request(
-      com.google.protobuf.CodedInputStream input,
-      com.google.protobuf.ExtensionRegistryLite extensionRegistry)
-      throws com.google.protobuf.InvalidProtocolBufferException {
-    this();
-    if (extensionRegistry == null) {
-      throw new java.lang.NullPointerException();
-    }
-    com.google.protobuf.UnknownFieldSet.Builder unknownFields =
-        com.google.protobuf.UnknownFieldSet.newBuilder();
-    try {
-      boolean done = false;
-      while (!done) {
-        int tag = input.readTag();
-        switch (tag) {
-          case 0:
-            done = true;
-            break;
-          case 10:
-            {
-              org.prlprg.server.protocol.HandshakeRequest.Builder subBuilder = null;
-              if (payloadCase_ == 1) {
-                subBuilder = ((org.prlprg.server.protocol.HandshakeRequest) payload_).toBuilder();
-              }
-              payload_ =
-                  input.readMessage(
-                      org.prlprg.server.protocol.HandshakeRequest.parser(), extensionRegistry);
-              if (subBuilder != null) {
-                subBuilder.mergeFrom((org.prlprg.server.protocol.HandshakeRequest) payload_);
-                payload_ = subBuilder.buildPartial();
-              }
-              payloadCase_ = 1;
-              break;
-            }
-          case 18:
-            {
-              org.prlprg.server.protocol.CompileRequest.Builder subBuilder = null;
-              if (payloadCase_ == 2) {
-                subBuilder = ((org.prlprg.server.protocol.CompileRequest) payload_).toBuilder();
-              }
-              payload_ =
-                  input.readMessage(
-                      org.prlprg.server.protocol.CompileRequest.parser(), extensionRegistry);
-              if (subBuilder != null) {
-                subBuilder.mergeFrom((org.prlprg.server.protocol.CompileRequest) payload_);
-                payload_ = subBuilder.buildPartial();
-              }
-              payloadCase_ = 2;
-              break;
-            }
-          default:
-            {
-              if (!parseUnknownField(input, unknownFields, extensionRegistry, tag)) {
-                done = true;
-              }
-              break;
-            }
-        }
-      }
-    } catch (com.google.protobuf.InvalidProtocolBufferException e) {
-      throw e.setUnfinishedMessage(this);
-    } catch (java.io.IOException e) {
-      throw new com.google.protobuf.InvalidProtocolBufferException(e).setUnfinishedMessage(this);
-    } finally {
-      this.unknownFields = unknownFields.build();
-      makeExtensionsImmutable();
-    }
-  }
-
   public static final com.google.protobuf.Descriptors.Descriptor getDescriptor() {
     return org.prlprg.server.protocol.Protocol
         .internal_static_rsh_server_protocol_Request_descriptor;
@@ -121,6 +52,7 @@ public final class Request extends com.google.protobuf.GeneratedMessageV3
           com.google.protobuf.AbstractMessage.InternalOneOfEnum {
     HANDSHAKE(1),
     COMPILE(2),
+    BC_COMPILE(3),
     PAYLOAD_NOT_SET(0);
     private final int value;
 
@@ -144,6 +76,8 @@ public final class Request extends com.google.protobuf.GeneratedMessageV3
           return HANDSHAKE;
         case 2:
           return COMPILE;
+        case 3:
+          return BC_COMPILE;
         case 0:
           return PAYLOAD_NOT_SET;
         default:
@@ -228,6 +162,40 @@ public final class Request extends com.google.protobuf.GeneratedMessageV3
     return org.prlprg.server.protocol.CompileRequest.getDefaultInstance();
   }
 
+  public static final int BC_COMPILE_FIELD_NUMBER = 3;
+
+  /**
+   * <code>.rsh.server.protocol.BcCompileRequest bc_compile = 3;</code>
+   *
+   * @return Whether the bcCompile field is set.
+   */
+  @java.lang.Override
+  public boolean hasBcCompile() {
+    return payloadCase_ == 3;
+  }
+
+  /**
+   * <code>.rsh.server.protocol.BcCompileRequest bc_compile = 3;</code>
+   *
+   * @return The bcCompile.
+   */
+  @java.lang.Override
+  public org.prlprg.server.protocol.BcCompileRequest getBcCompile() {
+    if (payloadCase_ == 3) {
+      return (org.prlprg.server.protocol.BcCompileRequest) payload_;
+    }
+    return org.prlprg.server.protocol.BcCompileRequest.getDefaultInstance();
+  }
+
+  /** <code>.rsh.server.protocol.BcCompileRequest bc_compile = 3;</code> */
+  @java.lang.Override
+  public org.prlprg.server.protocol.BcCompileRequestOrBuilder getBcCompileOrBuilder() {
+    if (payloadCase_ == 3) {
+      return (org.prlprg.server.protocol.BcCompileRequest) payload_;
+    }
+    return org.prlprg.server.protocol.BcCompileRequest.getDefaultInstance();
+  }
+
   private byte memoizedIsInitialized = -1;
 
   @java.lang.Override
@@ -248,7 +216,10 @@ public final class Request extends com.google.protobuf.GeneratedMessageV3
     if (payloadCase_ == 2) {
       output.writeMessage(2, (org.prlprg.server.protocol.CompileRequest) payload_);
     }
-    unknownFields.writeTo(output);
+    if (payloadCase_ == 3) {
+      output.writeMessage(3, (org.prlprg.server.protocol.BcCompileRequest) payload_);
+    }
+    getUnknownFields().writeTo(output);
   }
 
   @java.lang.Override
@@ -267,7 +238,12 @@ public final class Request extends com.google.protobuf.GeneratedMessageV3
           com.google.protobuf.CodedOutputStream.computeMessageSize(
               2, (org.prlprg.server.protocol.CompileRequest) payload_);
     }
-    size += unknownFields.getSerializedSize();
+    if (payloadCase_ == 3) {
+      size +=
+          com.google.protobuf.CodedOutputStream.computeMessageSize(
+              3, (org.prlprg.server.protocol.BcCompileRequest) payload_);
+    }
+    size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
     return size;
   }
@@ -290,10 +266,13 @@ public final class Request extends com.google.protobuf.GeneratedMessageV3
       case 2:
         if (!getCompile().equals(other.getCompile())) return false;
         break;
+      case 3:
+        if (!getBcCompile().equals(other.getBcCompile())) return false;
+        break;
       case 0:
       default:
     }
-    if (!unknownFields.equals(other.unknownFields)) return false;
+    if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
 
@@ -313,10 +292,14 @@ public final class Request extends com.google.protobuf.GeneratedMessageV3
         hash = (37 * hash) + COMPILE_FIELD_NUMBER;
         hash = (53 * hash) + getCompile().hashCode();
         break;
+      case 3:
+        hash = (37 * hash) + BC_COMPILE_FIELD_NUMBER;
+        hash = (53 * hash) + getBcCompile().hashCode();
+        break;
       case 0:
       default:
     }
-    hash = (29 * hash) + unknownFields.hashCode();
+    hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
     return hash;
   }
@@ -437,22 +420,24 @@ public final class Request extends com.google.protobuf.GeneratedMessageV3
     }
 
     // Construct using org.prlprg.server.protocol.Request.newBuilder()
-    private Builder() {
-      maybeForceBuilderInitialization();
-    }
+    private Builder() {}
 
     private Builder(com.google.protobuf.GeneratedMessageV3.BuilderParent parent) {
       super(parent);
-      maybeForceBuilderInitialization();
-    }
-
-    private void maybeForceBuilderInitialization() {
-      if (com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders) {}
     }
 
     @java.lang.Override
     public Builder clear() {
       super.clear();
+      if (handshakeBuilder_ != null) {
+        handshakeBuilder_.clear();
+      }
+      if (compileBuilder_ != null) {
+        compileBuilder_.clear();
+      }
+      if (bcCompileBuilder_ != null) {
+        bcCompileBuilder_.clear();
+      }
       payloadCase_ = 0;
       payload_ = null;
       return this;
@@ -493,6 +478,13 @@ public final class Request extends com.google.protobuf.GeneratedMessageV3
           result.payload_ = payload_;
         } else {
           result.payload_ = compileBuilder_.build();
+        }
+      }
+      if (payloadCase_ == 3) {
+        if (bcCompileBuilder_ == null) {
+          result.payload_ = payload_;
+        } else {
+          result.payload_ = bcCompileBuilder_.build();
         }
       }
       result.payloadCase_ = payloadCase_;
@@ -556,12 +548,17 @@ public final class Request extends com.google.protobuf.GeneratedMessageV3
             mergeCompile(other.getCompile());
             break;
           }
+        case BC_COMPILE:
+          {
+            mergeBcCompile(other.getBcCompile());
+            break;
+          }
         case PAYLOAD_NOT_SET:
           {
             break;
           }
       }
-      this.mergeUnknownFields(other.unknownFields);
+      this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
       return this;
     }
@@ -576,17 +573,49 @@ public final class Request extends com.google.protobuf.GeneratedMessageV3
         com.google.protobuf.CodedInputStream input,
         com.google.protobuf.ExtensionRegistryLite extensionRegistry)
         throws java.io.IOException {
-      org.prlprg.server.protocol.Request parsedMessage = null;
+      if (extensionRegistry == null) {
+        throw new java.lang.NullPointerException();
+      }
       try {
-        parsedMessage = PARSER.parsePartialFrom(input, extensionRegistry);
+        boolean done = false;
+        while (!done) {
+          int tag = input.readTag();
+          switch (tag) {
+            case 0:
+              done = true;
+              break;
+            case 10:
+              {
+                input.readMessage(getHandshakeFieldBuilder().getBuilder(), extensionRegistry);
+                payloadCase_ = 1;
+                break;
+              } // case 10
+            case 18:
+              {
+                input.readMessage(getCompileFieldBuilder().getBuilder(), extensionRegistry);
+                payloadCase_ = 2;
+                break;
+              } // case 18
+            case 26:
+              {
+                input.readMessage(getBcCompileFieldBuilder().getBuilder(), extensionRegistry);
+                payloadCase_ = 3;
+                break;
+              } // case 26
+            default:
+              {
+                if (!super.parseUnknownField(input, extensionRegistry, tag)) {
+                  done = true; // was an endgroup tag
+                }
+                break;
+              } // default:
+          } // switch (tag)
+        } // while (!done)
       } catch (com.google.protobuf.InvalidProtocolBufferException e) {
-        parsedMessage = (org.prlprg.server.protocol.Request) e.getUnfinishedMessage();
         throw e.unwrapIOException();
       } finally {
-        if (parsedMessage != null) {
-          mergeFrom(parsedMessage);
-        }
-      }
+        onChanged();
+      } // finally
       return this;
     }
 
@@ -685,8 +714,9 @@ public final class Request extends com.google.protobuf.GeneratedMessageV3
       } else {
         if (payloadCase_ == 1) {
           handshakeBuilder_.mergeFrom(value);
+        } else {
+          handshakeBuilder_.setMessage(value);
         }
-        handshakeBuilder_.setMessage(value);
       }
       payloadCase_ = 1;
       return this;
@@ -834,8 +864,9 @@ public final class Request extends com.google.protobuf.GeneratedMessageV3
       } else {
         if (payloadCase_ == 2) {
           compileBuilder_.mergeFrom(value);
+        } else {
+          compileBuilder_.setMessage(value);
         }
-        compileBuilder_.setMessage(value);
       }
       payloadCase_ = 2;
       return this;
@@ -903,6 +934,157 @@ public final class Request extends com.google.protobuf.GeneratedMessageV3
       return compileBuilder_;
     }
 
+    private com.google.protobuf.SingleFieldBuilderV3<
+            org.prlprg.server.protocol.BcCompileRequest,
+            org.prlprg.server.protocol.BcCompileRequest.Builder,
+            org.prlprg.server.protocol.BcCompileRequestOrBuilder>
+        bcCompileBuilder_;
+
+    /**
+     * <code>.rsh.server.protocol.BcCompileRequest bc_compile = 3;</code>
+     *
+     * @return Whether the bcCompile field is set.
+     */
+    @java.lang.Override
+    public boolean hasBcCompile() {
+      return payloadCase_ == 3;
+    }
+
+    /**
+     * <code>.rsh.server.protocol.BcCompileRequest bc_compile = 3;</code>
+     *
+     * @return The bcCompile.
+     */
+    @java.lang.Override
+    public org.prlprg.server.protocol.BcCompileRequest getBcCompile() {
+      if (bcCompileBuilder_ == null) {
+        if (payloadCase_ == 3) {
+          return (org.prlprg.server.protocol.BcCompileRequest) payload_;
+        }
+        return org.prlprg.server.protocol.BcCompileRequest.getDefaultInstance();
+      } else {
+        if (payloadCase_ == 3) {
+          return bcCompileBuilder_.getMessage();
+        }
+        return org.prlprg.server.protocol.BcCompileRequest.getDefaultInstance();
+      }
+    }
+
+    /** <code>.rsh.server.protocol.BcCompileRequest bc_compile = 3;</code> */
+    public Builder setBcCompile(org.prlprg.server.protocol.BcCompileRequest value) {
+      if (bcCompileBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        payload_ = value;
+        onChanged();
+      } else {
+        bcCompileBuilder_.setMessage(value);
+      }
+      payloadCase_ = 3;
+      return this;
+    }
+
+    /** <code>.rsh.server.protocol.BcCompileRequest bc_compile = 3;</code> */
+    public Builder setBcCompile(
+        org.prlprg.server.protocol.BcCompileRequest.Builder builderForValue) {
+      if (bcCompileBuilder_ == null) {
+        payload_ = builderForValue.build();
+        onChanged();
+      } else {
+        bcCompileBuilder_.setMessage(builderForValue.build());
+      }
+      payloadCase_ = 3;
+      return this;
+    }
+
+    /** <code>.rsh.server.protocol.BcCompileRequest bc_compile = 3;</code> */
+    public Builder mergeBcCompile(org.prlprg.server.protocol.BcCompileRequest value) {
+      if (bcCompileBuilder_ == null) {
+        if (payloadCase_ == 3
+            && payload_ != org.prlprg.server.protocol.BcCompileRequest.getDefaultInstance()) {
+          payload_ =
+              org.prlprg.server.protocol.BcCompileRequest.newBuilder(
+                      (org.prlprg.server.protocol.BcCompileRequest) payload_)
+                  .mergeFrom(value)
+                  .buildPartial();
+        } else {
+          payload_ = value;
+        }
+        onChanged();
+      } else {
+        if (payloadCase_ == 3) {
+          bcCompileBuilder_.mergeFrom(value);
+        } else {
+          bcCompileBuilder_.setMessage(value);
+        }
+      }
+      payloadCase_ = 3;
+      return this;
+    }
+
+    /** <code>.rsh.server.protocol.BcCompileRequest bc_compile = 3;</code> */
+    public Builder clearBcCompile() {
+      if (bcCompileBuilder_ == null) {
+        if (payloadCase_ == 3) {
+          payloadCase_ = 0;
+          payload_ = null;
+          onChanged();
+        }
+      } else {
+        if (payloadCase_ == 3) {
+          payloadCase_ = 0;
+          payload_ = null;
+        }
+        bcCompileBuilder_.clear();
+      }
+      return this;
+    }
+
+    /** <code>.rsh.server.protocol.BcCompileRequest bc_compile = 3;</code> */
+    public org.prlprg.server.protocol.BcCompileRequest.Builder getBcCompileBuilder() {
+      return getBcCompileFieldBuilder().getBuilder();
+    }
+
+    /** <code>.rsh.server.protocol.BcCompileRequest bc_compile = 3;</code> */
+    @java.lang.Override
+    public org.prlprg.server.protocol.BcCompileRequestOrBuilder getBcCompileOrBuilder() {
+      if ((payloadCase_ == 3) && (bcCompileBuilder_ != null)) {
+        return bcCompileBuilder_.getMessageOrBuilder();
+      } else {
+        if (payloadCase_ == 3) {
+          return (org.prlprg.server.protocol.BcCompileRequest) payload_;
+        }
+        return org.prlprg.server.protocol.BcCompileRequest.getDefaultInstance();
+      }
+    }
+
+    /** <code>.rsh.server.protocol.BcCompileRequest bc_compile = 3;</code> */
+    private com.google.protobuf.SingleFieldBuilderV3<
+            org.prlprg.server.protocol.BcCompileRequest,
+            org.prlprg.server.protocol.BcCompileRequest.Builder,
+            org.prlprg.server.protocol.BcCompileRequestOrBuilder>
+        getBcCompileFieldBuilder() {
+      if (bcCompileBuilder_ == null) {
+        if (!(payloadCase_ == 3)) {
+          payload_ = org.prlprg.server.protocol.BcCompileRequest.getDefaultInstance();
+        }
+        bcCompileBuilder_ =
+            new com.google.protobuf.SingleFieldBuilderV3<
+                org.prlprg.server.protocol.BcCompileRequest,
+                org.prlprg.server.protocol.BcCompileRequest.Builder,
+                org.prlprg.server.protocol.BcCompileRequestOrBuilder>(
+                (org.prlprg.server.protocol.BcCompileRequest) payload_,
+                getParentForChildren(),
+                isClean());
+        payload_ = null;
+      }
+      payloadCase_ = 3;
+      onChanged();
+      ;
+      return bcCompileBuilder_;
+    }
+
     @java.lang.Override
     public final Builder setUnknownFields(final com.google.protobuf.UnknownFieldSet unknownFields) {
       return super.setUnknownFields(unknownFields);
@@ -935,7 +1117,18 @@ public final class Request extends com.google.protobuf.GeneratedMessageV3
             com.google.protobuf.CodedInputStream input,
             com.google.protobuf.ExtensionRegistryLite extensionRegistry)
             throws com.google.protobuf.InvalidProtocolBufferException {
-          return new Request(input, extensionRegistry);
+          Builder builder = newBuilder();
+          try {
+            builder.mergeFrom(input, extensionRegistry);
+          } catch (com.google.protobuf.InvalidProtocolBufferException e) {
+            throw e.setUnfinishedMessage(builder.buildPartial());
+          } catch (com.google.protobuf.UninitializedMessageException e) {
+            throw e.asInvalidProtocolBufferException().setUnfinishedMessage(builder.buildPartial());
+          } catch (java.io.IOException e) {
+            throw new com.google.protobuf.InvalidProtocolBufferException(e)
+                .setUnfinishedMessage(builder.buildPartial());
+          }
+          return builder.buildPartial();
         }
       };
 

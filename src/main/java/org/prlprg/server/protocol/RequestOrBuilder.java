@@ -42,5 +42,22 @@ public interface RequestOrBuilder
   /** <code>.rsh.server.protocol.CompileRequest compile = 2;</code> */
   org.prlprg.server.protocol.CompileRequestOrBuilder getCompileOrBuilder();
 
+  /**
+   * <code>.rsh.server.protocol.BcCompileRequest bc_compile = 3;</code>
+   *
+   * @return Whether the bcCompile field is set.
+   */
+  boolean hasBcCompile();
+
+  /**
+   * <code>.rsh.server.protocol.BcCompileRequest bc_compile = 3;</code>
+   *
+   * @return The bcCompile.
+   */
+  org.prlprg.server.protocol.BcCompileRequest getBcCompile();
+
+  /** <code>.rsh.server.protocol.BcCompileRequest bc_compile = 3;</code> */
+  org.prlprg.server.protocol.BcCompileRequestOrBuilder getBcCompileOrBuilder();
+
   public org.prlprg.server.protocol.Request.PayloadCase getPayloadCase();
 }

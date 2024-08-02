@@ -2,6 +2,8 @@
 
 export(rsh_cmpfun)
 export(rsh_compile)
+export(bc_cmpfun)
+export(bc_compile)
 export(rsh_jit_disable)
 export(rsh_jit_enable)
 importFrom(compiler,cmpfun)
