@@ -10,6 +10,5 @@
   },
   "containerEnv": {
     "JAVA_HOME": "/usr/lib/jvm/jdk"
-  },
-  "remoteUser": "user"
+  }
 }
