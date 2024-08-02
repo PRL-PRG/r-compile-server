@@ -1,10 +1,13 @@
 #include "compiler.h"
+#include "R_ext/Boolean.h"
+#include "Rinternals.h"
 #include "client.h"
 #include "protocol.pb.h"
 #include "rsh.h"
 #include "serialize.h"
 #include <cstdio>
 #include <cstring>
+#include <string>
 
 // clang-format off
 static i32 CALL_FUN_BC[] = {
@@ -40,6 +43,12 @@ static CompileResponse compile_closure(std::string const &name, SEXP closure,
   return rsh::remote_compile(name, closure_bytes, opt_level);
 }
 
+static BcCompileResponse compile_closure_bc(std::string const &name,
+                                          SEXP closure) {
+  auto closure_bytes = rsh::serialize(closure);
+  return rsh::remote_compile_bc(name, closure_bytes);
+}
+
 static void *insert_into_jit(CompiledFunction const &compiled_fun) {
   auto native_code = compiled_fun.native_code();
   GJIT->add_object(native_code);
@@ -57,6 +66,9 @@ static SEXP create_constant_pool(void *fun_ptr,
   // create an external pointer to the JITed function with a finalizer
   auto p = R_MakeExternalPtr(fun_ptr, RSH_JIT_FUN_PTR,
                              Rf_mkString(compiled_fun.name().c_str()));
+
+  // FALSE is defined on macOS in mach/boolean.h, so I need to undef it here.. seems fishy
+  #undef FALSE
   R_RegisterCFinalizerEx(p, &jit_fun_destructor, FALSE);
 
   // slot 0: the pointer to the compiled function
@@ -106,6 +118,39 @@ static SEXP create_wrapper_body(SEXP closure, SEXP c_cp) {
 
   UNPROTECT(3);
   return body;
+}
+
+SEXP compile_fun_bc(SEXP closure, SEXP name) {
+  if (!RSH_JIT_FUN_PTR) {
+    Rf_error("The package was not initialized");
+  }
+
+  if (TYPEOF(name) != STRSXP || XLENGTH(name) != 1) {
+    Rf_error("Expected a single string as a name");
+  }
+
+  const char *closure_name = CHAR(STRING_ELT(name, 0));
+  char name_str[strlen(closure_name) + 1 + 16];
+  sprintf(name_str, "%s_%p", closure_name, closure);
+
+  auto response = compile_closure_bc(name_str, closure);
+  if (!response.has_result()) {
+    Rf_error("Compilation failed: %s", response.failure().c_str());
+    return closure;
+  }
+  auto compiled_fun = response.result();
+  auto bcode_rds = compiled_fun.bcode();
+
+  SEXP body = PROTECT(rsh::deserialize(bcode_rds));
+
+  // replace the closure body in place
+  SET_BODY(closure, body);
+
+  Rprintf("Compiled fun %s to bytecode (fun=%p, body=%p)\n", name_str, closure, body);
+
+  UNPROTECT(1);
+
+  return closure;
 }
 
 SEXP compile_fun(SEXP closure, SEXP name, SEXP opt_level_sxp) {

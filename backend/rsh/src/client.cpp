@@ -40,4 +40,39 @@ CompileResponse remote_compile(std::string const &name,
 
   return response;
 }
+
+
+BcCompileResponse remote_compile_bc(std::string const &name,
+                                    std::vector<uint8_t> const &rds_closure) {
+  zmq::context_t context(1);
+  zmq::socket_t socket(context, zmq::socket_type::req);
+
+  std::cout << "Connecting to compile server..." << std::endl;
+
+  socket.connect("tcp://localhost:5555");
+
+  Request request;
+  request.mutable_bc_compile()->set_name(name);
+  request.mutable_bc_compile()->set_bc_optimization(3);
+  request.mutable_bc_compile()->set_closure(rds_closure.data(),
+                                            rds_closure.size());
+
+  zmq::message_t msg(request.ByteSizeLong());
+  request.SerializeToArray(msg.data<uint8_t>(), msg.size());
+  socket.send(msg, zmq::send_flags::none);
+
+  zmq::message_t reply;
+  auto res = socket.recv(reply, zmq::recv_flags::none);
+  if (!res.has_value()) {
+    BcCompileResponse response;
+    response.set_failure("Error receiving reply");
+    return response;
+  }
+
+  BcCompileResponse response;
+  response.ParseFromArray(reply.data<uint8_t>(), reply.size());
+
+  return response;
+}
+
 } // namespace rsh
