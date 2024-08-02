@@ -1,11 +1,14 @@
 #ifndef RSH_H
 #define RSH_H
 
+#include <assert.h>
 #define HAVE_DECL_SIZE_MAX 1
 #define R_USE_SIGNALS
 
 #include "Rinternals.h"
 #include "Rsh_internals.h"
+
+double R_pow(double x, double y);
 
 #define Rsh_error(msg, ...)                                                    \
   {                                                                            \
@@ -22,6 +25,7 @@
 JIT_EXTERN CCODE Rex_do_arith;
 JIT_EXTERN CCODE Rex_do_relop;
 JIT_EXTERN SEXP R_AddOp;
+JIT_EXTERN SEXP R_LtOp;
 JIT_EXTERN SEXP R_LtOp;
 
 #define LOAD_R_BUILTIN(target, name)                                           \
@@ -79,15 +83,17 @@ typedef u64 Value;
 #define VAL_TRUE ((Value)(MASK_LGL | 3))
 #define VAL_FALSE ((Value)(MASK_LGL | 2))
 
-#define VAL_IS_INT(v) (((v) & MASK) == MASK_INT)
-#define VAL_IS_SXP(v) (((v) & MASK) == MASK_SXP)
-#define VAL_IS_DBL(v) (((v) & QNAN) != QNAN)
-#define VAL_IS_LGL(v) (((v) & MASK_LGL) == MASK_LGL)
-
 #define VAL_INT(v) (int)(v)
 #define VAL_SXP(v) (SEXP)((v) & (((u64)1 << 48) - 1))
 #define VAL_DBL(v) (double)(v)
 #define VAL_LGL(v) (Rboolean)((v) & 1)
+
+#define VAL_IS_INT(v) (((v) & MASK) == MASK_INT)
+#define VAL_IS_INT_NOT_NA(v) (VAL_IS_INT(v) && VAL_INT(v) != NA_INTEGER)
+#define VAL_IS_SXP(v) (((v) & MASK) == MASK_SXP)
+#define VAL_IS_DBL(v) (((v) & QNAN) != QNAN)
+#define VAL_IS_DBL_NOT_NAN(v) VAL_IS_DBL(v) && !ISNAN(VAL_DBL(v))
+#define VAL_IS_LGL(v) (((v) & MASK_LGL) == MASK_LGL)
 
 #define INT_TO_VAL(v) (Value)(MASK_INT | ((u64)(v)))
 #define SXP_TO_VAL(v) (Value)(MASK_SXP | ((u64)(v)))
@@ -602,96 +608,127 @@ static INLINE Rboolean Rsh_is_true(SEXP value, SEXP call) {
     case DIVOP:                                                                \
       *(r) = (a) / (b);                                                        \
       break;                                                                   \
+    case POWOP:                                                                \
+      *(r) = (a) == 2.0 ? (a) * (a) : R_pow((a), (b));                         \
+      break;                                                                   \
+    case MODOP:                                                                \
+      assert(FALSE && "MODOP is not supported in the fast case");              \
+      break;                                                                   \
+    case IDIVOP:                                                               \
+      assert(FALSE);                                                           \
+      assert(FALSE && "IDIVOP is not supported in the fast case");             \
+      break;                                                                   \
     }                                                                          \
   } while (0)
 
+// Sets r to LGL_TO_VAL(a op b)
 #define DO_RELOP(op, a, b, r)                                                  \
   do {                                                                         \
-    int __res__;                                                               \
     R_Visible = TRUE;                                                          \
+    int __res__;                                                               \
     switch (op) {                                                              \
+    case EQOP:                                                                 \
+      __res__ = (a) == (b);                                                    \
+      break;                                                                   \
+    case NEOP:                                                                 \
+      __res__ = (a) != (b);                                                    \
+      break;                                                                   \
     case LTOP:                                                                 \
       __res__ = (a) < (b);                                                     \
+      break;                                                                   \
+    case LEOP:                                                                 \
+      __res__ = (a) <= (b);                                                    \
+      break;                                                                   \
+    case GTOP:                                                                 \
+      __res__ = (a) > (b);                                                     \
+      break;                                                                   \
+    case GEOP:                                                                 \
+      __res__ = (a) >= (b);                                                    \
       break;                                                                   \
     }                                                                          \
     *(r) = LGL_TO_VAL(__res__);                                                \
   } while (0)
 
+#define DO_BINARY_BUILTIN(fun, lsh, rhs, call, op, rho, res)                   \
+  do {                                                                         \
+    SEXP __args__ = PROTECT(list2(val_as_sexp((lhs)), val_as_sexp((rhs))));    \
+    SEXP __res_sexp__ = fun((call), (op), (__args__), (rho));                  \
+    UNPROTECT(1);                                                              \
+    (*res) = sexp_as_val(__res_sexp__);                                        \
+  } while (0)
+
 static INLINE Value Rsh_binary(ARITHOP_TYPE type, Value lhs, Value rhs,
                                SEXP call, SEXP op, SEXP rho) {
-  Value res;
+  Value res = 0;
 
   if (VAL_IS_DBL(lhs)) {
     if (VAL_IS_DBL(rhs)) {
       DO_BINARY(type, lhs, rhs, &res);
       return res;
-    } else if (VAL_IS_INT(rhs) && VAL_INT(rhs) != NA_INTEGER) {
+    } else if (VAL_IS_INT_NOT_NA(rhs)) {
       DO_BINARY(type, lhs, VAL_INT(rhs), &res);
       return res;
     }
   }
 
-  if (VAL_IS_INT(lhs) && VAL_INT(lhs) != NA_INTEGER) {
-    int l = VAL_INT(lhs);
+  if (VAL_IS_INT_NOT_NA(lhs)) {
+    int lhs_int = VAL_INT(lhs);
+
     if (VAL_IS_DBL(rhs)) {
-      DO_BINARY(type, l, rhs, &res);
+      DO_BINARY(type, lhs_int, rhs, &res);
       return res;
-    } else if (VAL_IS_INT(rhs) && VAL_INT(rhs) != NA_INTEGER) {
-      int res_int;
-      DO_BINARY(type, l, VAL_INT(rhs), &res_int);
-      return INT_TO_VAL(res_int);
+    } else if (VAL_IS_INT_NOT_NA(rhs)) {
+      if (type == DIVOP || type == POWOP) {
+        DO_BINARY(type, (double)lhs_int, (double)VAL_INT(rhs), &res);
+        return res;
+      } else {
+        int res_int = 0;
+        DO_BINARY(type, lhs_int, VAL_INT(rhs), &res_int);
+        return INT_TO_VAL(res_int);
+      }
     }
   }
 
   // Slow path!
-  // We could have made it somewhat faster iff we could get our hands on the
+  // We could have made it somewhat faster if we could get our hands on the
   // R_Binary from arithmetics.c it is not exported, so we have to go through
   // from the do_arith which we can leak via the BUILTINSXP
-  SEXP args = list2(val_as_sexp(lhs), val_as_sexp(rhs));
-  PROTECT(args);
-  SEXP res_sexp = Rex_do_arith(call, op, args, rho);
-  UNPROTECT(1);
-  return sexp_as_val(res_sexp);
+  DO_BINARY_BUILTIN(Rex_do_arith, lhs, rhs, call, op, rho, &res);
+  return res;
 }
-// TODO: union
-// TODO: VAL_IS_INT_NA
+
 static INLINE Value Rsh_relop(RELOP_TYPE type, Value lhs, Value rhs, SEXP call,
                               SEXP op, SEXP rho) {
   Value res;
 
-  if (VAL_IS_DBL(lhs) && !ISNAN(VAL_DBL(lhs))) {
-    if (VAL_IS_DBL(rhs) && !ISNAN(VAL_DBL(rhs))) {
+  if (VAL_IS_DBL_NOT_NAN(lhs)) {
+    if (VAL_IS_DBL_NOT_NAN(rhs)) {
       DO_RELOP(type, lhs, rhs, &res);
       return res;
-    } else if (VAL_IS_INT(rhs) && VAL_INT(rhs) != NA_INTEGER) {
+    } else if (VAL_IS_INT_NOT_NA(rhs)) {
       DO_RELOP(type, lhs, VAL_INT(rhs), &res);
       return res;
     }
   }
 
-  if (VAL_IS_INT(lhs) && VAL_INT(lhs) != NA_INTEGER) {
-    int l = VAL_INT(lhs);
+  if (VAL_IS_INT_NOT_NA(lhs)) {
+    int lhs_int = VAL_INT(lhs);
 
-    if (VAL_IS_DBL(rhs) && !ISNAN(VAL_DBL(rhs))) {
-      DO_RELOP(type, l, rhs, &res);
+    if (VAL_IS_DBL_NOT_NAN(rhs)) {
+      DO_RELOP(type, lhs_int, rhs, &res);
       return res;
-    } else if (VAL_IS_INT(rhs) && VAL_INT(rhs) != NA_INTEGER) {
-      DO_RELOP(type, l, VAL_INT(rhs), &res);
+    } else if (VAL_IS_INT_NOT_NA(rhs)) {
+      DO_RELOP(type, lhs_int, VAL_INT(rhs), &res);
       return res;
     }
   }
 
-  // FIXME: duplicate code with Rsh_binary
-  //
   // Slow path!
-  // We could have made it somewhat faster iff we could get our hands on the
-  // R_Binary from arithmetics.c it is not exported, so we have to go through
-  // from the do_arith which we can leak via the BUILTINSXP
-  SEXP args = list2(val_as_sexp(lhs), val_as_sexp(rhs));
-  PROTECT(args);
-  SEXP res_sexp = Rex_do_relop(call, op, args, rho);
-  UNPROTECT(1);
-  return sexp_as_val(res_sexp);
+  // We could have made it somewhat faster if we could get our hands on the
+  // do_relop_dflt from relop.c it is not exported, so we have to go through
+  // from the do_relop which we can leak via the BUILTINSXP
+  DO_BINARY_BUILTIN(Rex_do_relop, lhs, rhs, call, op, rho, &res);
+  return res;
 }
 
 #endif // RSH_H
