@@ -339,6 +339,7 @@ public class BC2CCompiler {
         switch (c.value()) {
           case IntSXP v when v.size() == 1 -> "Rsh_const_int";
           case RealSXP v when v.size() == 1 -> "Rsh_const_dbl";
+          case LglSXP v when v.size() == 1 -> "Rsh_const_lgl";
           case SEXP _ -> "Rsh_const_sxp";
         };
 
