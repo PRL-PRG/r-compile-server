@@ -11,10 +11,10 @@ USER root
 # ARG TARGET_JAVA_DISTIBUTION
 # ARG TARGET_JAVA_VERSION
 ARG TARGET_GNUR_VERSION
-ENV JAVA_HOME /usr/lib/jvm/jdk
-ENV PATH "${JAVA_HOME}/bin:${PATH}"
+ENV JAVA_HOME=/usr/lib/jvm/jdk
+ENV PATH="${JAVA_HOME}/bin:${PATH}"
 # Default to UTF-8 file.encoding
-ENV LANG en_US.UTF-8
+ENV LANG=en_US.UTF-8
 
 # Install OpenJDK (Adoptium / temurin)
 RUN arch="$(dpkg --print-architecture)" \
