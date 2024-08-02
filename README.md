@@ -12,7 +12,7 @@ To run the IntelliJ inside the dev container:
 - Install [Jetbrains Gateway](https://www.jetbrains.com/remote-development/gateway/)
 - Launch JetBrains Gateway and select "Create Dev Container", set "Git Repository" to "https://github.com/PRL-PRG/r-compile-server.git" or "git@github.com/PRL-PRG/r-compiler-server.git", then click "Build Container and Continue".
   - The process is also described at https://www.jetbrains.com/help/idea/connect-to-devcontainer.html#start_from_gateway.
-- If everything works, the dev container should build and you can click "Continue" to launch the project. If not, [open a GitHub issue](https://github.com/PRL-PRG/r-compile-server/issues/new/choose).
+- If everything works, the dev container should build and you can click "Continue" to launch the project. If not, see [troubleshooting](#troubleshooting).
 
 ### Manually
 
@@ -31,6 +31,17 @@ If the dev container is too slow, you can also setup on the host machine. To do 
 - Test (no static analyses) with `make test` or `mvn test`
 - Test and static anaylses with `make check` or `mvn verify`
 - Format with `make format` or `mvn spotless:apply`. This requires to have `npm` installed.
+
+## Troubleshooting
+
+- **Problem:** In Maven, `Could not find or initialize a local git repository. A repository is required`
+  - This happens if you downloaded a ZIP instead of `git clone`-ing. The solution is to run `git init`. Note that you won't be able to push changes or create a PR since it's not a proper git repo.
+- **Problem:** In Maven, `Fatal error compiling: invalid target release: 22`
+  - **Solution:** ensure you have a Java 22 JDK installed, then run `JAVA_HOME=<path to JDK 22> mvn …`
+    - e.g. if using IntelliJ on macOS, openJDK 22, set `JAVA_HOME=~/Library/Java/JavaVirtualMachines/openjdk-22/Contents/Home`
+    - In the devcontainer, `JAVA_HOME=/usr/lib/jvm/jdk`
+
+If you have a different issue than the above, [report it on GitHub](https://github.com/PRL-PRG/r-compile-server/issues/new/choose).
 
 ## Development Notes
 
