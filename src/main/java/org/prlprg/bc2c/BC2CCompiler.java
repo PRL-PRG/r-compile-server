@@ -79,7 +79,7 @@ class ByteCodeStack {
 public class BC2CCompiler {
   protected static final String NAME_ENV = "ENV";
   protected static final String NAME_CP = "CP";
-  protected static final Value VAL_NULL = new Value("R_NilValue", false);
+  protected static final Value VAL_NULL = new Value("Rsh_NilValue", false);
 
   protected final String name;
   protected final Bc bc;
@@ -174,17 +174,18 @@ public class BC2CCompiler {
   }
 
   private void compileCall(ConstPool.Idx<LangSXP> idx) {
-    var call = push(constant(idx), false);
-    var fun = stack.curr(-3);
-    var args = stack.curr(-2);
+    var call = constantRaw(idx);
+    var fun = stack.curr(-2);
+    var args = stack.curr(-1);
 
+    // FIXME: how do we signal back the whether the value needs protection?
     var c = "Rsh_call(%s, %s, %s, %s)".formatted(call, fun, args, NAME_ENV);
     // we are going to pop 4 elements from the stack - all the until the beginning of the call frame
-    popPush(4, c, true);
+    popPush(3, c, false);
   }
 
   private void compileGetFun(ConstPool.Idx<RegSymSXP> idx) {
-    push("Rf_findFun(%s, %s)".formatted(constant(idx), NAME_ENV));
+    push("Rsh_getFun(%s, %s)".formatted(constantRaw(idx), NAME_ENV), false);
     initCallFrame();
   }
 
@@ -250,7 +251,7 @@ public class BC2CCompiler {
 
   private void compileGetBuiltin(ConstPool.Idx<RegSymSXP> idx) {
     var name = bc.consts().get(idx).name();
-    push("Rsh_get_builtin(\"%s\")".formatted(name));
+    push("Rsh_get_builtin(\"%s\")".formatted(name), false);
     initCallFrame();
   }
 

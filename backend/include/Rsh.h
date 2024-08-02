@@ -51,25 +51,6 @@ SEXP R_ARITH_OPS[] = {X_ARITH_OPS};
 SEXP R_REL_OPS[] = {X_REL_OPS};
 #undef X
 
-#define LOAD_R_BUILTIN(target, name)                                           \
-  do {                                                                         \
-    target = PROTECT(Rif_Primitive(name));                                     \
-    R_PreserveObject(target);                                                  \
-    UNPROTECT(1);                                                              \
-  } while (0)
-
-static INLINE void Rsh_initialize_runtime(void) {
-#define X(a, b) LOAD_R_BUILTIN(R_ARITH_OPS[b], #a);
-  X_ARITH_OPS
-#undef X
-#define X(a, b) LOAD_R_BUILTIN(R_REL_OPS[b], #a);
-  X_REL_OPS
-#undef X
-
-  Rex_do_arith = PRIMFUN(R_ARITH_OPS[0]);
-  Rex_do_relop = PRIMFUN(R_REL_OPS[0]);
-}
-
 // VALUE REPRESENTATION
 // --------------------
 //
@@ -135,7 +116,7 @@ typedef u64 Value;
                   : (VAL_IS_INT(v) ? INTSXP : (VAL_IS_LGL(v) ? LGLSXP : 0))))
 
 // TODO: can we share this bcell expand?
-static INLINE SEXP val_as_sexp(Value v) {
+static INLINE SEXP val_as_sxp(Value v) {
   switch (VAL_TAG(v)) {
   case REALSXP:
     return ScalarReal(VAL_DBL(v));
@@ -159,6 +140,8 @@ static INLINE Value sexp_as_val(SEXP s) {
     return SXP_TO_VAL(s);
   }
 }
+
+static Value Rsh_NilValue;
 
 // BINDING CELLS (bcell) implementation
 // ------------------------------------
@@ -334,6 +317,32 @@ static INLINE Rboolean bcell_set_value(BCell cell, SEXP value) {
 #define Rsh_const_dbl(env, idx) DBL_TO_VAL(REAL(Rsh_const(env, idx))[0])
 #define Rsh_const_int(env, idx) INT_TO_VAL(INTEGER(Rsh_const(env, idx))[0])
 #define Rsh_const_lgl(env, idx) LGL_TO_VAL(INTEGER(Rsh_const(env, idx))[0])
+
+// RUNTIME INITIALIZATION
+// ----------------------
+
+#define LOAD_R_BUILTIN(target, name)                                           \
+  do {                                                                         \
+    target = PROTECT(Rif_Primitive(name));                                     \
+    R_PreserveObject(target);                                                  \
+    UNPROTECT(1);                                                              \
+  } while (0)
+
+static INLINE void Rsh_initialize_runtime(void) {
+#define X(a, b) LOAD_R_BUILTIN(R_ARITH_OPS[b], #a);
+  X_ARITH_OPS
+#undef X
+#define X(a, b) LOAD_R_BUILTIN(R_REL_OPS[b], #a);
+  X_REL_OPS
+#undef X
+
+  Rex_do_arith = PRIMFUN(R_ARITH_OPS[0]);
+  Rex_do_relop = PRIMFUN(R_REL_OPS[0]);
+  Rsh_NilValue = SXP_TO_VAL(R_NilValue);
+}
+
+// INSTRUCTIONS
+// ------------
 
 // TODO: move to internal
 static INLINE SEXP FORCE_PROMISE(SEXP value, SEXP symbol, SEXP rho,
@@ -517,7 +526,7 @@ static INLINE void Rsh_set_var(SEXP symbol, Value value, SEXP rho,
     }
   }
 
-  SEXP sexp_value = val_as_sexp(value);
+  SEXP sexp_value = val_as_sxp(value);
   INCREMENT_NAMED(sexp_value);
 
   if (!bcell_set_value(*cell, sexp_value)) {
@@ -529,7 +538,7 @@ static INLINE void Rsh_set_var(SEXP symbol, Value value, SEXP rho,
   }
 }
 
-static INLINE SEXP Rsh_return(Value v) { return val_as_sexp(v); }
+static INLINE SEXP Rsh_return(Value v) { return val_as_sxp(v); }
 
 static INLINE SEXP Rsh_builtin_call_args(SEXP args) {
   for (SEXP a = args; a != R_NilValue; a = CDR(a)) {
@@ -550,41 +559,51 @@ static INLINE SEXP Rsh_closure_call_args(SEXP args) {
   return args;
 }
 
-static INLINE SEXP Rsh_get_builtin(const char *name) {
-  return Rif_Primitive(name);
+static INLINE Value Rsh_get_builtin(const char *name) {
+  return SXP_TO_VAL(Rif_Primitive(name));
 }
 
-static INLINE SEXP Rsh_call(SEXP call, SEXP fun, SEXP args, SEXP rho) {
+static INLINE Value Rsh_getFun(SEXP symbol, SEXP rho) {
+  SEXP fun = findFun(symbol, rho);
+  return SXP_TO_VAL(fun);
+}
+
+static INLINE Value Rsh_call(SEXP call, Value fun, Value args, SEXP rho) {
   SEXP value = NULL;
   int flag;
 
-  switch (TYPEOF(fun)) {
+  SEXP fun_sxp = VAL_SXP(fun);
+  SEXP args_sxp = VAL_SXP(args);
+
+  switch (TYPEOF(fun_sxp)) {
   case BUILTINSXP:
-    args = Rsh_builtin_call_args(args);
-    Rif_checkForMissings(args, call);
-    flag = PRIMPRINT(fun);
+    args_sxp = Rsh_builtin_call_args(args_sxp);
+    Rif_checkForMissings(args_sxp, call);
+    flag = PRIMPRINT(fun_sxp);
     R_Visible = flag != 1;
-    value = PRIMFUN(fun)(call, fun, args, rho);
+    value = PRIMFUN(fun_sxp)(call, fun_sxp, args_sxp, rho);
     if (flag < 2) {
       R_Visible = flag != 1;
     }
     break;
   case SPECIALSXP:
-    flag = PRIMPRINT(fun);
+    flag = PRIMPRINT(fun_sxp);
     R_Visible = flag != 1;
-    value = PRIMFUN(fun)(call, fun, Rif_markSpecialArgs(CDR(call)), rho);
+    value =
+        PRIMFUN(fun_sxp)(call, fun_sxp, Rif_markSpecialArgs(CDR(call)), rho);
     if (flag < 2) {
       R_Visible = flag != 1;
     }
     break;
   case CLOSXP:
-    args = Rsh_closure_call_args(args);
-    value = applyClosure(call, fun, args, rho, R_NilValue);
+    args_sxp = Rsh_closure_call_args(args_sxp);
+    value = applyClosure(call, fun_sxp, args_sxp, rho, R_NilValue);
     break;
   default:
     error("bad function");
   }
-  return value;
+
+  return sexp_as_val(value);
 }
 
 static INLINE Rboolean Rsh_is_true(SEXP value, SEXP call) {
@@ -672,10 +691,10 @@ static INLINE Rboolean Rsh_is_true(SEXP value, SEXP call) {
 
 #define DO_BINARY_BUILTIN(fun, lsh, rhs, call, op, rho, res)                   \
   do {                                                                         \
-    SEXP __args__ = PROTECT(list2(val_as_sexp((lhs)), val_as_sexp((rhs))));    \
-    SEXP __res_sexp__ = fun((call), (op), (__args__), (rho));                  \
+    SEXP __args__ = PROTECT(list2(val_as_sxp((lhs)), val_as_sxp((rhs))));      \
+    SEXP __res_sxp__ = fun((call), (op), (__args__), (rho));                   \
     UNPROTECT(1);                                                              \
-    (*res) = sexp_as_val(__res_sexp__);                                        \
+    (*res) = sexp_as_val(__res_sxp__);                                         \
   } while (0)
 
 static INLINE Value Rsh_arith(RshArithOp op, Value lhs, Value rhs, SEXP call,

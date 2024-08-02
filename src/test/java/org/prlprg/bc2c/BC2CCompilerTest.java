@@ -104,7 +104,7 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
   }
 
   @Test
-  public void testAddScalars() throws Exception {
+  public void testAdd() throws Exception {
     compileAndCall(
         """
            function (x) { x + 21 }
@@ -115,19 +115,39 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
         });
     compileAndCall(
         """
-                 function (x) { x + 21L }
-                 """,
+           function (x) { x + 21L }
+           """,
         "list(x=42L)",
         (IntSXP v) -> {
           assertEquals(63, v.asInt(0));
         });
     compileAndCall(
         """
-                 function (x) { x + 21 }
-                 """,
+           function (x) { x + 21 }
+           """,
         "list(x=42L)",
         (RealSXP v) -> {
           assertEquals(63.0, v.asReal(0));
+        });
+    compileAndCall(
+        """
+           function (x) { x + c(1, 2) }
+           """,
+        "list(x=42)",
+        (RealSXP v) -> {
+          assertEquals(2, v.size());
+          assertEquals(43.0, v.asReal(0));
+          assertEquals(44.0, v.asReal(1));
+        });
+    compileAndCall(
+        """
+           function (x) { x + c(1, 2) }
+           """,
+        "list(x=c(42, 42))",
+        (RealSXP v) -> {
+          assertEquals(2, v.size());
+          assertEquals(43.0, v.asReal(0));
+          assertEquals(44.0, v.asReal(1));
         });
   }
 
@@ -143,32 +163,20 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
         });
   }
 
-  //  @Test
-  //  public void test3() throws Exception {
-  //    compileAndCall(
-  //        """
-  //          function (x) { y <- x + 42; y + 42 }
-  //          """,
-  //        "list(x=1)",
-  //        (RealSXP v) -> {
-  //          assertEquals(85.0, v.asReal(0));
-  //        });
-  //  }
-  //
-  //  @Test
-  //  public void testCall() throws Exception {
-  //    compileAndCall(
-  //        """
-  //          function () { timestamp() }
-  //          """,
-  //        "list()",
-  //        (StrSXP v) -> {
-  //          assertEquals(1, v.size());
-  //          assertTrue(v.get(0).startsWith("##------"));
-  //          assertTrue(v.get(0).endsWith("------##"));
-  //        });
-  //  }
-  //
+  @Test
+  public void testCall() throws Exception {
+    compileAndCall(
+        """
+            function () { timestamp() }
+            """,
+        "list()",
+        (StrSXP v) -> {
+          assertEquals(1, v.size());
+          assertTrue(v.get(0).startsWith("##------"));
+          assertTrue(v.get(0).endsWith("------##"));
+        });
+  }
+
   //  @Test
   //  public void testSumIn0Loop() throws Exception {
   //    compileAndCall(
@@ -286,6 +294,7 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
       Files.writeString(rFile.toPath(), testDriver);
 
       // FIXME: UGLY - define a utility to copy file from resource folder
+      // FIXME: do this only when we do not delete the directory
       Files.writeString(
           makeFile.toPath(),
           Files.readString(
