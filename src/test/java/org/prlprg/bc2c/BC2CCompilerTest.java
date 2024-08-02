@@ -285,7 +285,7 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
 
       System.out.println(tempDir.getAbsolutePath());
       // Set.of(cFile, cpFile, soFile, rFile, makeFile).forEach(File::deleteOnExit);
-    } catch (AssertionError e) {
+    } catch (AssertionError | ClassCastException e) {
       throw new CCompilationException("<no command>", cFile, e);
     }
   }

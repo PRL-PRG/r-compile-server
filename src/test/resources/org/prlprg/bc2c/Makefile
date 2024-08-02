@@ -21,6 +21,7 @@ CFLAGS := -DNDEBUG \
 		-Wno-unused-but-set-variable \
 		-Wno-comments \
 		-pedantic \
+		-DRSH_TESTS \
 		-shared
 
 all: release
