@@ -70,6 +70,9 @@ static INLINE void Rsh_initialize_runtime(void) {
   Rex_do_relop = PRIMFUN(R_REL_OPS[0]);
 }
 
+// VALUE REPRESENTATION
+// --------------------
+//
 // IEEE 754 double-precision float:
 //
 // 1 Sign bit
@@ -158,21 +161,19 @@ static INLINE Value sexp_as_val(SEXP s) {
 }
 
 // BINDING CELLS (bcell) implementation
+// ------------------------------------
 //
 // A binding cell is a hack that R BC interpreter uses to gain some performance
-// in the number of environment lookups for GETVAR and SETVAR.
-// It also help with scalar doubles, intergers and logicals.
-// The problem with R BNDCELLs is that its implementation is private,
-// scattered over buch of files. Bringing it over is not easy as it brings
-// a whole bunch of other stuff.
+// in the number of environment lookups for GETVAR and SETVAR. It also help
+// with scalar doubles, intergers and logicals. The problem with R BNDCELLs is
+// that its implementation is private, scattered over buch of files. Bringing
+// it over is not easy as it brings a whole bunch of other stuff.
 //
-// Essentially a binding cell is a LISTSXP pointing to the frame in which
-// the binding is stored. The CAR of the cell is the value of the binding
+// Essentially a binding cell is a LISTSXP pointing to the frame in which the
+// binding is stored. The CAR of the cell is the value of the binding
 // (BCellVal). The tag of the cell identifies whether it is a scalar or a full
-// SEXP. The BCELL_TAG(cell) is one of:
-// - REALSXP, INTSXP, LGLSXP for scalars
-// - 0 for any other type
-// The BCELL_VAL(cell) is the value of the binding.
+// SEXP. The BCELL_TAG(cell) is one of: - REALSXP, INTSXP, LGLSXP for scalars -
+// 0 for any other type The BCELL_VAL(cell) is the value of the binding.
 
 typedef SEXP BCell;
 typedef union {
