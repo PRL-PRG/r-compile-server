@@ -20,6 +20,7 @@ If the dev container is too slow, you can also setup on the host machine. To do 
 
 - **Java 22 and Maven 3**
   - IntelliJ will automatically install these. If not, you can download a Java 22 binary from https://adoptium.net/temurin/releases/?version=22, and Maven from https://maven.apache.org/download.cgi.
+  - If you are using IntelliJ, navigate to "Project Structure > Project" and make sure the **SDK* is set to **a JDK of version 22** (e.g. "openjdk-22"). If not, click the dropdown and "Download JDK", then select any JDK of version 22.
 - **GNU-R 4.3.2:** https://cloud.r-project.org/src/base/R-4/R-4.3.2.tar.gz
   - It has to be *exactly* 4.3.2 in order for bytecode tests to pass, because they check against precompiled bytecode.
 
