@@ -53,6 +53,20 @@ public class ServerTests {
     assert channel != null;
     resources.register(channel, Duration.ofSeconds(3));
 
+    // Init compile server
+    var initRequest =
+        Messages.InitRequest.newBuilder()
+            .setRVersion(Messages.Version.newBuilder().setMajor(4).setMinor(3).setPatch(2).build())
+            .setRshVersion(Messages.Version.newBuilder().build())
+            .setPlatform("amd64")
+            .build();
+    assert blockingStub != null;
+    assertDoesNotThrow(
+        () -> {
+          Messages.InitResponse initResponse = blockingStub.init(initRequest);
+        });
+
+    // Compile identify function
     var function =
         SEXPs.closure(
             SEXPs.list(new TaggedElem("x", SEXPs.symbol("x"))), SEXPs.symbol("x"), SEXPs.EMPTY_ENV);

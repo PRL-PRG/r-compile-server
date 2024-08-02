@@ -4,6 +4,7 @@ import com.google.protobuf.ByteString;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.logging.Logger;
 import javax.annotation.Nullable;
@@ -110,9 +111,13 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
     logger.info("Received package hashes: " + packages);
 
     // TODO: Lookup to see if we have this version of R installed or not.
-    session = new GNURSession(convertVersion(RVersion), null, null);
+    // Hardcoded so far:
+    var r_dir = Path.of("/usr/lib/R/");
+    var lib_dir = "~/R/x86_64-pc-linux-gnu-library/4.3/";
+    lib_dir = lib_dir.replaceFirst("^~", System.getProperty("user.home"));
+    session = new GNURSession(convertVersion(RVersion), r_dir, Path.of(lib_dir));
 
-    // Look into our cache if we have the packages.
+    // TODO: Look into our cache if we have the packages.
     // Request the packages for those we do not have hashes for.
 
     responseObserver.onNext(Messages.InitResponse.newBuilder().build());
