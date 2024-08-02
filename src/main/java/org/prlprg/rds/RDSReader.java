@@ -88,7 +88,9 @@ public class RDSReader implements Closeable {
     if (in.readByte() != 'X') {
       throw new RDSException("Unsupported type (possibly compressed)");
     }
-    assert in.readByte() == '\n';
+    if (in.readByte() != '\n') {
+      throw new RDSException("Expected newline");
+    }
 
     // versions
     var formatVersion = in.readInt();
