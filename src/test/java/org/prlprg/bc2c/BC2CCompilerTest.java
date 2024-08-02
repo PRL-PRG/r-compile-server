@@ -113,6 +113,22 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
         (RealSXP v) -> {
           assertEquals(63.0, v.asReal(0));
         });
+    compileAndCall(
+        """
+                 function (x) { x + 21L }
+                 """,
+        "list(x=42L)",
+        (IntSXP v) -> {
+          assertEquals(63, v.asInt(0));
+        });
+    compileAndCall(
+        """
+                 function (x) { x + 21 }
+                 """,
+        "list(x=42L)",
+        (RealSXP v) -> {
+          assertEquals(63.0, v.asReal(0));
+        });
   }
 
   @Test
@@ -252,8 +268,8 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
 
       Files.writeString(cFile.toPath(), cCode.toString());
 
-      RshCompiler.getInstance()
-          .createBuilder(cFile, soFile)
+      RshCompiler.getInstance(0)
+          .createBuilder(cFile.getPath(), soFile.getPath())
           .flag("-shared")
           .flag("-DRSH_TESTS")
           .compile();

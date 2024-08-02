@@ -12,13 +12,13 @@ public class CCCompilationBuilder {
   // TODO: configurable from environment variable
   private static final String DEFAULT_COMPILER = "gcc";
 
-  private final File input;
-  private final File output;
+  private final String input;
+  private final String output;
   private final List<String> flags = new ArrayList<>();
   private String compiler = DEFAULT_COMPILER;
   private File workingDirectory;
 
-  public CCCompilationBuilder(File input, File output) {
+  public CCCompilationBuilder(String input, String output) {
     this.input = input;
     this.output = output;
   }
@@ -37,7 +37,7 @@ public class CCCompilationBuilder {
     var builder = new ProcessBuilder();
     builder.redirectErrorStream(true);
     builder.directory(workingDirectory);
-    builder.command(compiler, "-o", output.getPath(), input.getPath());
+    builder.command(compiler, "-o", output, input);
     builder.command().addAll(flags);
 
     logger.finer("Running command: " + String.join(" ", builder.command()));
@@ -45,12 +45,12 @@ public class CCCompilationBuilder {
     Process process = builder.start();
 
     // Capture the output and error streams
-    StringBuilder output = new StringBuilder();
+    StringBuilder stdout = new StringBuilder();
     try (BufferedReader reader =
         new BufferedReader(new InputStreamReader(process.getInputStream()))) {
       String line;
       while ((line = reader.readLine()) != null) {
-        output.append(line).append(System.lineSeparator());
+        stdout.append(line).append(System.lineSeparator());
       }
     }
 
@@ -63,15 +63,15 @@ public class CCCompilationBuilder {
               + ":\n"
               + String.join(" ", builder.command())
               + "\n"
-              + output);
+              + stdout);
     }
 
-    if (!output.isEmpty()) {
-      logger.warning("Compilation warnings:\n" + output);
+    if (!stdout.isEmpty()) {
+      logger.warning("Compilation warnings:\n" + stdout);
     }
 
     time = System.currentTimeMillis() - time;
-    var size = output.length();
+    var size = new File(workingDirectory, output).length();
     logger.fine("Finished compilation in %d ms (size: %d)\n".formatted(time, size));
   }
 

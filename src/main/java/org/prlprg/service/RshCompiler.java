@@ -2,6 +2,7 @@ package org.prlprg.service;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Logger;
 
@@ -12,38 +13,48 @@ public class RshCompiler {
   private static final String INCLUDE_PATH = "backend/include";
 
   // TODO: which ones are needed? Can we bootstrap it from R?
-  private static final List<String> COMPILER_FLAGS =
+  private static final List<String> COMMON_COMPILER_FLAGS =
       List.of(
-          "-DNDEBUG",
           "-I.",
           "-I" + INCLUDE_PATH,
           "-fpic",
-          "-march=x86-64",
-          "-mtune=generic",
-          "-pipe",
           "-fno-plt",
           "-fexceptions",
           "-fstack-clash-protection",
           "-fcf-protection",
           "-flto=auto",
           "-ffat-lto-objects",
+          "-pedantic",
           "-Wformat",
           "-Werror=format-security",
           "-Wall",
           "-Wno-unused-but-set-variable",
-          "-Wno-comment",
-          "-pedantic",
-          "-O3",
-          // FIXME: the debugging should be parameterize
-          "-ggdb",
-          "-g3");
+          "-Wno-comment");
 
   private static RshCompiler instance;
 
-  public static RshCompiler getInstance() {
+  private final List<String> compilerFlags;
+
+  public RshCompiler(List<String> compilerFlags) {
+    this.compilerFlags = compilerFlags;
+  }
+
+  public static RshCompiler getInstance(int optimizationLevel) {
+    var flags = new ArrayList<>(COMMON_COMPILER_FLAGS);
+
+    if (optimizationLevel == 0) {
+      flags.add("-g3");
+      flags.add("-ggdb");
+      flags.add("-DDEBUG");
+    } else {
+      flags.add("-NDEBUG");
+      flags.add("-g");
+    }
+    flags.add("-O" + optimizationLevel);
+
     if (instance == null) {
       try {
-        instance = new RshCompiler();
+        instance = new RshCompiler(flags);
         instance.initialize();
       } catch (Exception e) {
         throw new RuntimeException(e);
@@ -55,15 +66,15 @@ public class RshCompiler {
 
   private void initialize() throws IOException, InterruptedException {
     // TODO: make it constants
-    var input = new File("Rsh.h");
-    var output = new File("Rsh.h.gch");
+    var input = "Rsh.h";
+    var output = "Rsh.h.gch";
     new CCCompilationBuilder(input, output)
         .workingDirectory(new File(INCLUDE_PATH))
-        .flags(COMPILER_FLAGS)
+        .flags(COMMON_COMPILER_FLAGS)
         .compile();
   }
 
-  public CCCompilationBuilder createBuilder(File input, File output) {
-    return new CCCompilationBuilder(input, output).flags(COMPILER_FLAGS);
+  public CCCompilationBuilder createBuilder(String input, String output) {
+    return new CCCompilationBuilder(input, output).flags(COMMON_COMPILER_FLAGS);
   }
 }
