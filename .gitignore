@@ -1,6 +1,9 @@
 **/src/test/snapshots/**/*.fail*
 !src/test/resources/**/*.log
 
+### Tempfiles ###
+.devcontainer/.features.temp.dockerfile
+
 ### Build ###
 target/
 !.mvn/wrapper/maven-wrapper.jar
