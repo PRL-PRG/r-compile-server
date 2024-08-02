@@ -1,0 +1,24 @@
+build:
+	gcc \
+	-DNDEBUG \
+	-I. \
+	-I/usr/local/include \
+	-fpic \
+	-march=x86-64 \
+	-mtune=generic \
+	-pipe \
+	-fno-plt \
+	-fexceptions \
+	-Wformat \
+	-Werror=format-security \
+	-fstack-clash-protection \
+	-fcf-protection \
+	-flto=auto \
+	-ffat-lto-objects \
+	-Wall \
+	-pedantic \
+	-g \
+	-fdiagnostics-color=always \
+	-x c-header \
+	-c Rsh.h \
+	-o Rsh.h.gch

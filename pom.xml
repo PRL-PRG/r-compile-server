@@ -133,7 +133,7 @@
   </dependencies>
   <build>
     <!-- Snapshots aren't test resources, because we have to write to them, so we access them
-                                 at their actual locations (bundled are overridden on recompile). -->
+                                     at their actual locations (bundled are overridden on recompile). -->
     <plugins>
       <!-- code gen for protobuf -->
       <plugin>
