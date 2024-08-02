@@ -16,6 +16,7 @@ double R_pow(double x, double y);
     return R_NilValue;                                                         \
   }
 
+// a flag to be set when running this code from tests, i.e., without the JIT
 #ifdef RSH_TESTS
 #define JIT_EXTERN
 #else
@@ -24,23 +25,49 @@ double R_pow(double x, double y);
 
 JIT_EXTERN CCODE Rex_do_arith;
 JIT_EXTERN CCODE Rex_do_relop;
-JIT_EXTERN SEXP R_AddOp;
-JIT_EXTERN SEXP R_LtOp;
-JIT_EXTERN SEXP R_LtOp;
+
+#define X_ARITH_OPS                                                            \
+  X(+, ADD_OP)                                                                 \
+  X(-, SUB_OP)                                                                 \
+  X(*, MUL_OP)                                                                 \
+  X(/, DIV_OP)                                                                 \
+  X(^, POW_OP)
+
+#define X_REL_OPS                                                              \
+  X(==, EQ_OP)                                                                 \
+  X(!=, NE_OP)                                                                 \
+  X(<, LT_OP)                                                                  \
+  X(<=, LE_OP)                                                                 \
+  X(>, GT_OP)                                                                  \
+  X(>=, GE_OP)
+
+#define X(a, b) b,
+typedef enum { X_ARITH_OPS } RshArithOp;
+typedef enum { X_REL_OPS } RshRelOp;
+#undef X
+
+#define X(a, b) NULL,
+SEXP R_ARITH_OPS[] = {X_ARITH_OPS};
+SEXP R_REL_OPS[] = {X_REL_OPS};
+#undef X
 
 #define LOAD_R_BUILTIN(target, name)                                           \
   do {                                                                         \
     target = PROTECT(Rif_Primitive(name));                                     \
     R_PreserveObject(target);                                                  \
     UNPROTECT(1);                                                              \
-  } while (0);
+  } while (0)
 
 static INLINE void Rsh_initialize_runtime(void) {
-  LOAD_R_BUILTIN(R_AddOp, "+");
-  LOAD_R_BUILTIN(R_LtOp, "<");
+#define X(a, b) LOAD_R_BUILTIN(R_ARITH_OPS[b], #a);
+  X_ARITH_OPS
+#undef X
+#define X(a, b) LOAD_R_BUILTIN(R_REL_OPS[b], #a);
+  X_REL_OPS
+#undef X
 
-  Rex_do_arith = PRIMFUN(R_AddOp);
-  Rex_do_relop = PRIMFUN(R_LtOp);
+  Rex_do_arith = PRIMFUN(R_ARITH_OPS[0]);
+  Rex_do_relop = PRIMFUN(R_REL_OPS[0]);
 }
 
 // IEEE 754 double-precision float:
@@ -592,31 +619,24 @@ static INLINE Rboolean Rsh_is_true(SEXP value, SEXP call) {
     }                                                                          \
   } while (0)
 
-#define DO_BINARY(op, a, b, r)                                                 \
+#define DO_ARITH(op, a, b, r)                                                  \
   do {                                                                         \
     R_Visible = TRUE;                                                          \
     switch (op) {                                                              \
-    case PLUSOP:                                                               \
+    case ADD_OP:                                                               \
       *(r) = (a) + (b);                                                        \
       break;                                                                   \
-    case MINUSOP:                                                              \
+    case SUB_OP:                                                               \
       *(r) = (a) - (b);                                                        \
       break;                                                                   \
-    case TIMESOP:                                                              \
+    case MUL_OP:                                                               \
       *(r) = (a) * (b);                                                        \
       break;                                                                   \
-    case DIVOP:                                                                \
+    case DIV_OP:                                                               \
       *(r) = (a) / (b);                                                        \
       break;                                                                   \
-    case POWOP:                                                                \
+    case POW_OP:                                                               \
       *(r) = (a) == 2.0 ? (a) * (a) : R_pow((a), (b));                         \
-      break;                                                                   \
-    case MODOP:                                                                \
-      assert(FALSE && "MODOP is not supported in the fast case");              \
-      break;                                                                   \
-    case IDIVOP:                                                               \
-      assert(FALSE);                                                           \
-      assert(FALSE && "IDIVOP is not supported in the fast case");             \
       break;                                                                   \
     }                                                                          \
   } while (0)
@@ -627,22 +647,22 @@ static INLINE Rboolean Rsh_is_true(SEXP value, SEXP call) {
     R_Visible = TRUE;                                                          \
     int __res__;                                                               \
     switch (op) {                                                              \
-    case EQOP:                                                                 \
+    case EQ_OP:                                                                \
       __res__ = (a) == (b);                                                    \
       break;                                                                   \
-    case NEOP:                                                                 \
+    case NE_OP:                                                                \
       __res__ = (a) != (b);                                                    \
       break;                                                                   \
-    case LTOP:                                                                 \
+    case LT_OP:                                                                \
       __res__ = (a) < (b);                                                     \
       break;                                                                   \
-    case LEOP:                                                                 \
+    case LE_OP:                                                                \
       __res__ = (a) <= (b);                                                    \
       break;                                                                   \
-    case GTOP:                                                                 \
+    case GT_OP:                                                                \
       __res__ = (a) > (b);                                                     \
       break;                                                                   \
-    case GEOP:                                                                 \
+    case GE_OP:                                                                \
       __res__ = (a) >= (b);                                                    \
       break;                                                                   \
     }                                                                          \
@@ -657,16 +677,16 @@ static INLINE Rboolean Rsh_is_true(SEXP value, SEXP call) {
     (*res) = sexp_as_val(__res_sexp__);                                        \
   } while (0)
 
-static INLINE Value Rsh_binary(ARITHOP_TYPE type, Value lhs, Value rhs,
-                               SEXP call, SEXP op, SEXP rho) {
+static INLINE Value Rsh_arith(RshArithOp op, Value lhs, Value rhs, SEXP call,
+                              SEXP rho) {
   Value res = 0;
 
   if (VAL_IS_DBL(lhs)) {
     if (VAL_IS_DBL(rhs)) {
-      DO_BINARY(type, lhs, rhs, &res);
+      DO_ARITH(op, lhs, rhs, &res);
       return res;
     } else if (VAL_IS_INT_NOT_NA(rhs)) {
-      DO_BINARY(type, lhs, VAL_INT(rhs), &res);
+      DO_ARITH(op, lhs, VAL_INT(rhs), &res);
       return res;
     }
   }
@@ -675,15 +695,15 @@ static INLINE Value Rsh_binary(ARITHOP_TYPE type, Value lhs, Value rhs,
     int lhs_int = VAL_INT(lhs);
 
     if (VAL_IS_DBL(rhs)) {
-      DO_BINARY(type, lhs_int, rhs, &res);
+      DO_ARITH(op, lhs_int, rhs, &res);
       return res;
     } else if (VAL_IS_INT_NOT_NA(rhs)) {
-      if (type == DIVOP || type == POWOP) {
-        DO_BINARY(type, (double)lhs_int, (double)VAL_INT(rhs), &res);
+      if (op == DIV_OP || op == POW_OP) {
+        DO_ARITH(op, (double)lhs_int, (double)VAL_INT(rhs), &res);
         return res;
       } else {
         int res_int = 0;
-        DO_BINARY(type, lhs_int, VAL_INT(rhs), &res_int);
+        DO_ARITH(op, lhs_int, VAL_INT(rhs), &res_int);
         return INT_TO_VAL(res_int);
       }
     }
@@ -693,20 +713,20 @@ static INLINE Value Rsh_binary(ARITHOP_TYPE type, Value lhs, Value rhs,
   // We could have made it somewhat faster if we could get our hands on the
   // R_Binary from arithmetics.c it is not exported, so we have to go through
   // from the do_arith which we can leak via the BUILTINSXP
-  DO_BINARY_BUILTIN(Rex_do_arith, lhs, rhs, call, op, rho, &res);
+  DO_BINARY_BUILTIN(Rex_do_arith, lhs, rhs, call, R_ARITH_OPS[op], rho, &res);
   return res;
 }
 
-static INLINE Value Rsh_relop(RELOP_TYPE type, Value lhs, Value rhs, SEXP call,
-                              SEXP op, SEXP rho) {
+static INLINE Value Rsh_relop(RshRelOp op, Value lhs, Value rhs, SEXP call,
+                              SEXP rho) {
   Value res;
 
   if (VAL_IS_DBL_NOT_NAN(lhs)) {
     if (VAL_IS_DBL_NOT_NAN(rhs)) {
-      DO_RELOP(type, lhs, rhs, &res);
+      DO_RELOP(op, lhs, rhs, &res);
       return res;
     } else if (VAL_IS_INT_NOT_NA(rhs)) {
-      DO_RELOP(type, lhs, VAL_INT(rhs), &res);
+      DO_RELOP(op, lhs, VAL_INT(rhs), &res);
       return res;
     }
   }
@@ -715,10 +735,10 @@ static INLINE Value Rsh_relop(RELOP_TYPE type, Value lhs, Value rhs, SEXP call,
     int lhs_int = VAL_INT(lhs);
 
     if (VAL_IS_DBL_NOT_NAN(rhs)) {
-      DO_RELOP(type, lhs_int, rhs, &res);
+      DO_RELOP(op, lhs_int, rhs, &res);
       return res;
     } else if (VAL_IS_INT_NOT_NA(rhs)) {
-      DO_RELOP(type, lhs_int, VAL_INT(rhs), &res);
+      DO_RELOP(op, lhs_int, VAL_INT(rhs), &res);
       return res;
     }
   }
@@ -727,7 +747,7 @@ static INLINE Value Rsh_relop(RELOP_TYPE type, Value lhs, Value rhs, SEXP call,
   // We could have made it somewhat faster if we could get our hands on the
   // do_relop_dflt from relop.c it is not exported, so we have to go through
   // from the do_relop which we can leak via the BUILTINSXP
-  DO_BINARY_BUILTIN(Rex_do_relop, lhs, rhs, call, op, rho, &res);
+  DO_BINARY_BUILTIN(Rex_do_relop, lhs, rhs, call, R_REL_OPS[op], rho, &res);
   return res;
 }
 
