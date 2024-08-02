@@ -1,14 +1,6 @@
 package org.prlprg.bc;
 
-import static org.prlprg.sexp.SEXPType.BCODE;
-import static org.prlprg.sexp.SEXPType.CPLX;
-import static org.prlprg.sexp.SEXPType.INT;
-import static org.prlprg.sexp.SEXPType.LANG;
-import static org.prlprg.sexp.SEXPType.LGL;
-import static org.prlprg.sexp.SEXPType.PROM;
-import static org.prlprg.sexp.SEXPType.REAL;
-import static org.prlprg.sexp.SEXPType.STR;
-import static org.prlprg.sexp.SEXPType.SYM;
+import static org.prlprg.sexp.SEXPType.*;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.primitives.ImmutableIntArray;
@@ -178,12 +170,12 @@ import org.prlprg.sexp.VectorSXP;
  * 2023 from <a href="https://homepage.cs.uiowa.edu/~luke/R/compiler/compiler.pdf">
  * https://homepage.cs.uiowa.edu/~luke/R/compiler/compiler.pdf</a>
  */
-public class Compiler {
+public class BCCompiler {
   /** The default optimization level in GNU-R's {@code compiler::cmpfun} and here. */
   public static final int DEFAULT_OPTIMIZATION_LEVEL = 2;
 
   /** SEXP types that can participate in constan folding. */
-  private static final Set<SEXPType> ALLOWED_FOLDABLE_MODES = Set.of(LGL, INT, REAL, CPLX, STR);
+  private static final Set<SEXPType> ALLOWED_FOLDABLE_MODES = Set.of(LGL, INT, REAL, CPLX, STRING);
 
   private static final Set<String> MAYBE_NSE_SYMBOLS = Set.of("bquote");
 
@@ -401,7 +393,7 @@ public class Compiler {
    * @param rsession the session used for symbol resolution
    * @param loc the source code location of the expression
    */
-  private Compiler(SEXP expr, Context ctx, RSession rsession, Loc loc) {
+  private BCCompiler(SEXP expr, Context ctx, RSession rsession, Loc loc) {
     this.expr = expr;
     this.ctx = ctx;
     this.rsession = rsession;
@@ -423,7 +415,7 @@ public class Compiler {
    * @param fun the function to be compiled
    * @param rsession the session used for symbol resolution
    */
-  public Compiler(CloSXP fun, RSession rsession) {
+  public BCCompiler(CloSXP fun, RSession rsession) {
     this(fun.bodyAST(), Context.functionContext(fun), rsession, functionLoc(fun));
   }
 
@@ -434,8 +426,8 @@ public class Compiler {
    * @param ctx the new context for the compilation
    * @param loc the source code location of the expression
    */
-  private Compiler fork(SEXP expr, Context ctx, Loc loc) {
-    var compiler = new Compiler(expr, ctx, rsession, loc);
+  private BCCompiler fork(SEXP expr, Context ctx, Loc loc) {
+    var compiler = new BCCompiler(expr, ctx, rsession, loc);
     compiler.setOptimizationLevel(optimizationLevel);
     return compiler;
   }
@@ -2022,9 +2014,9 @@ public class Compiler {
     }
 
     var ci = cb.addConst(call);
-    var label = cb.makeLabel();
+    var endLabel = cb.makeLabel();
     cb.addInstr(new Dup2nd());
-    cb.addInstr(doubleBracket ? new StartSubset2N(ci, label) : new StartSubsetN(ci, label));
+    cb.addInstr(doubleBracket ? new StartSubset2N(ci, endLabel) : new StartSubsetN(ci, endLabel));
     var indices = call.args().subList(1);
     compileIndices(indices);
 
@@ -2040,7 +2032,7 @@ public class Compiler {
             doubleBracket ? new Subset2N(ci, indices.size()) : new SubsetN(ci, indices.size()));
     }
 
-    cb.patchLabel(label);
+    cb.patchLabel(endLabel);
     cb.addInstr(new SpecialSwap());
 
     return true;

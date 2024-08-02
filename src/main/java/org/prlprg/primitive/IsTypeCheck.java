@@ -10,7 +10,7 @@ public enum IsTypeCheck {
   NIL(SEXPType.NIL.i),
   LGL(SEXPType.LGL.i),
   REAL(SEXPType.REAL.i),
-  STR(SEXPType.STR.i),
+  STR(SEXPType.STRING.i),
   INT(SEXPType.INT.i),
   CPLX(SEXPType.CPLX.i),
   RAW(SEXPType.RAW.i),

@@ -12,7 +12,7 @@ public enum VectorElementRType implements Lattice<VectorElementRType> {
   NUMERIC_OR_LOGICAL(null),
   SEXP(SEXPType.VEC),
   INT(SEXPType.INT),
-  STRING(SEXPType.STR),
+  STRING(SEXPType.STRING),
   LOGICAL(SEXPType.LGL),
   RAW(SEXPType.RAW),
   COMPLEX(SEXPType.CPLX),
@@ -43,7 +43,7 @@ public enum VectorElementRType implements Lattice<VectorElementRType> {
           null;
       case VEC -> SEXP;
       case EXPR -> EXPRESSION;
-      case CHAR, LGL, INT, REAL, CPLX, STR, RAW -> {
+      case CHAR, LGL, INT, REAL, CPLX, STRING, RAW -> {
         var primType = PrimVecElementRType.of(type);
         assert primType != null;
         yield primType.toVectorElementType();

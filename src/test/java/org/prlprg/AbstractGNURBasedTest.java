@@ -2,6 +2,8 @@ package org.prlprg;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Path;
+import java.util.logging.LogManager;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.TestInstance;
@@ -11,15 +13,22 @@ import org.prlprg.session.RSession;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.util.GNUR;
 import org.prlprg.util.IO;
+import org.prlprg.util.Tests;
 
 /** Tests that require an {@link RSession} and running instance of GNU-R. */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-public class AbstractGNURBasedTest {
+public class AbstractGNURBasedTest implements Tests {
   protected static RSession rsession = new TestRSession();
 
   // Gets initialized in `@BeforeAll`.
   @SuppressWarnings("NotNullFieldNotInitialized")
   protected GNUR R;
+
+  @BeforeAll
+  public void initializeLogging() throws IOException {
+    var config = getResourceAsStream(Path.of("/logging.properties"));
+    LogManager.getLogManager().readConfiguration(config);
+  }
 
   @BeforeAll
   public void startR() {

@@ -26,7 +26,7 @@ import org.prlprg.util.Classes;
 public final class ConstPool extends ForwardingList<SEXP> {
   private final ImmutableList<SEXP> consts;
 
-  private ConstPool(List<SEXP> consts) {
+  public ConstPool(List<SEXP> consts) {
     this.consts = ImmutableList.copyOf(consts);
   }
 
@@ -58,6 +58,10 @@ public final class ConstPool extends ForwardingList<SEXP> {
   @Override
   public int hashCode() {
     return Objects.hash(super.hashCode(), consts);
+  }
+
+  public List<SEXP> toList() {
+    return new ArrayList<>(consts);
   }
 
   /**

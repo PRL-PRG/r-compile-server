@@ -3,6 +3,9 @@ package org.prlprg.bc;
 import com.google.common.collect.ImmutableMap;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Set;
 import javax.annotation.Nullable;
 import org.prlprg.sexp.IntSXP;
 import org.prlprg.sexp.LangSXP;
@@ -31,6 +34,10 @@ public sealed interface BcInstr {
   /** The instruction's operation. */
   BcOp op();
 
+  default Collection<BcLabel> labels() {
+    return Collections.emptySet();
+  }
+
   record Return() implements BcInstr {
     @Override
     public BcOp op() {
@@ -43,6 +50,11 @@ public sealed interface BcInstr {
     public BcOp op() {
       return BcOp.GOTO;
     }
+
+    @Override
+    public Collection<BcLabel> labels() {
+      return Set.of(label);
+    }
   }
 
   record BrIfNot(ConstPool.Idx<LangSXP> ast, @LabelName("ifFalse") BcLabel label)
@@ -50,6 +62,11 @@ public sealed interface BcInstr {
     @Override
     public BcOp op() {
       return BcOp.BRIFNOT;
+    }
+
+    @Override
+    public Collection<BcLabel> labels() {
+      return Set.of(label);
     }
   }
 

@@ -9,8 +9,8 @@ import java.util.HashMap;
 import java.util.logging.Logger;
 import javax.annotation.Nullable;
 import org.prlprg.RVersion;
+import org.prlprg.bc.BCCompiler;
 import org.prlprg.bc.Bc;
-import org.prlprg.bc.Compiler;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.rds.RDSWriter;
 import org.prlprg.session.GNURSession;
@@ -141,7 +141,7 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
       throw new RuntimeException(e);
     }
     if (closure instanceof CloSXP c) {
-      Compiler compiler = new Compiler(c, session);
+      BCCompiler compiler = new BCCompiler(c, session);
       compiler.setOptimizationLevel(optimizationLevel);
       var res = compiler.compile();
       if (res.isEmpty()) {

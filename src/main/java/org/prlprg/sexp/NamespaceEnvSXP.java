@@ -30,4 +30,10 @@ public final class NamespaceEnvSXP extends AbstractStaticEnvSXP implements Stati
   public EnvType envType() {
     return EnvType.NAMESPACE;
   }
+
+  @Override
+  public String toString() {
+    // TODO: add some link to the R session?
+    return "<namespace:" + name + ">";
+  }
 }

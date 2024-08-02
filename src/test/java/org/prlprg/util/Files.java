@@ -12,6 +12,7 @@ import java.util.Collection;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
+// FIXME: remove the wrappers over java Files class
 public class Files {
   /**
    * @param root Directory to list files from
@@ -137,6 +138,13 @@ public class Files {
       return java.nio.file.Files.deleteIfExists(path);
     } catch (IOException e) {
       throw new RuntimeException("Failed to delete " + path, e);
+    }
+  }
+
+  public static void clearDirectory(Path path) throws IOException {
+    deleteIfExists(path);
+    if (!path.toFile().mkdirs()) {
+      throw new IOException("Unable to create directory: " + path);
     }
   }
 

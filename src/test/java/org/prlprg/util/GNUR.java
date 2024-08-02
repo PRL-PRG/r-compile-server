@@ -4,6 +4,7 @@ import static java.lang.String.format;
 import static org.prlprg.AppConfig.R_BIN;
 
 import java.io.*;
+import java.util.Arrays;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.concurrent.NotThreadSafe;
@@ -99,6 +100,8 @@ public class GNUR implements AutoCloseable {
           throw new RuntimeException("R exited unexpectedly");
         }
 
+        // FIXME: add some verbose flag
+
         if (line.equals(requestId)) {
           return;
         }
@@ -156,6 +159,44 @@ public class GNUR implements AutoCloseable {
       throw new RuntimeException("Unable to start R (R_BIN = " + R_BIN + ")", e);
     } catch (InterruptedException e) {
       throw new RuntimeException("Interrupted while running R (R_BIN = " + R_BIN + ")", e);
+    }
+  }
+
+  public static void cmd(String cmd, String... args) throws IOException {
+    var pb = new ProcessBuilder(R_BIN, "CMD", cmd);
+    pb.command().addAll(Arrays.stream(args).toList());
+    pb.redirectErrorStream(true);
+    var proc = pb.start();
+
+    // FIXME: refactor the code duplication
+    var rout = new BufferedReader(new InputStreamReader(proc.getInputStream()));
+
+    var output = new StringBuilder();
+    try {
+      while (proc.isAlive()) {
+        var line = rout.readLine();
+        if (line == null) {
+          throw new RuntimeException("R exited unexpectedly");
+        }
+
+        output.append(line).append("\n");
+      }
+    } catch (Exception e) {
+      int exit;
+      try {
+        exit = proc.waitFor();
+
+        throw new RuntimeException(
+            "R REPL died (status: " + exit + ") Output so far:\n " + output, e);
+
+      } catch (InterruptedException ex) {
+        throw new RuntimeException("Interrupted waiting for R process to finish dying", ex);
+      }
+    }
+
+    if (proc.exitValue() != 0) {
+      throw new RuntimeException(
+          "R CMD " + cmd + " failed with exit code " + proc.exitValue() + ":\n" + output);
     }
   }
 }

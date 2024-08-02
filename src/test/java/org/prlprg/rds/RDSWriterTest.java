@@ -10,7 +10,7 @@ import java.util.HashMap;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.prlprg.AbstractGNURBasedTest;
-import org.prlprg.bc.Compiler;
+import org.prlprg.bc.BCCompiler;
 import org.prlprg.primitive.Complex;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
@@ -347,7 +347,7 @@ public class RDSWriterTest extends AbstractGNURBasedTest {
                     lang(symbol("+"), list(lang(symbol("length"), list(symbol("x"))), symbol("x"))),
                     symbol("y"))),
             new BaseEnvSXP(new HashMap<>()));
-    var bc = new Compiler(clo, rsession).compile().orElseThrow();
+    var bc = new BCCompiler(clo, rsession).compile().orElseThrow();
 
     var output = new ByteArrayOutputStream();
 
@@ -372,7 +372,7 @@ public class RDSWriterTest extends AbstractGNURBasedTest {
                     lang(symbol("+"), list(lang(symbol("length"), list(symbol("x"))), symbol("x"))),
                     symbol("y"))),
             new BaseEnvSXP(new HashMap<>()));
-    var bc = new Compiler(clo, rsession).compile().orElseThrow();
+    var bc = new BCCompiler(clo, rsession).compile().orElseThrow();
     var compiled_clo = closure(clo.parameters(), bcode(bc), clo.env());
 
     var output = R.eval("input(x=c(1, 2))", compiled_clo);

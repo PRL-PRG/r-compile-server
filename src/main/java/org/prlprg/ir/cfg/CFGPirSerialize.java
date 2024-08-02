@@ -944,7 +944,7 @@ class PirInstrOrPhiParseContext {
       } else if (s.trySkip("complex")) {
         return SEXPType.CPLX;
       } else if (s.trySkip("str")) {
-        return SEXPType.STR;
+        return SEXPType.STRING;
       } else if (s.trySkip("env")) {
         return SEXPType.ENV;
       } else if (s.trySkip("expressions")) {

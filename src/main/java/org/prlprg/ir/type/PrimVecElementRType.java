@@ -10,7 +10,7 @@ public enum PrimVecElementRType implements Lattice<PrimVecElementRType> {
   ANY(null),
   NUMERIC_OR_LOGICAL(null),
   INT(SEXPType.INT),
-  STRING(SEXPType.STR),
+  STRING(SEXPType.STRING),
   LOGICAL(SEXPType.LGL),
   RAW(SEXPType.RAW),
   COMPLEX(SEXPType.CPLX),
@@ -47,7 +47,7 @@ public enum PrimVecElementRType implements Lattice<PrimVecElementRType> {
       case INT -> INT;
       case REAL -> DOUBLE;
       case CPLX -> COMPLEX;
-      case STR -> STRING;
+      case STRING -> STRING;
       case RAW -> RAW;
     };
   }

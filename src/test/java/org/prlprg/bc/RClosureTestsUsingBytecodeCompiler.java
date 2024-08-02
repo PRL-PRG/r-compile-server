@@ -83,7 +83,7 @@ public abstract class RClosureTestsUsingBytecodeCompiler extends RClosureTests {
   }
 
   private SEXP compileBody(CloSXP fun, int optimizationLevel) {
-    var compiler = new Compiler(fun, rsession);
+    var compiler = new BCCompiler(fun, rsession);
     compiler.setOptimizationLevel(optimizationLevel);
     return compiler.compile().<SEXP>map(SEXPs::bcode).orElse(fun.body());
   }

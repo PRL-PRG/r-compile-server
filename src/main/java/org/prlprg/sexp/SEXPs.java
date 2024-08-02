@@ -51,6 +51,8 @@ public final class SEXPs {
   public static final RegSymSXP ASSIGN_TMP = symbol("*tmp*");
   public static final RegSymSXP ASSIGN_VTMP = symbol("*vtmp*");
 
+  public static final RegSymSXP DOT_EXTERNAL2 = symbol(".External2");
+
   static {
     Set.of("TRUE", "FALSE", "NULL", "NA", "Inf", "NaN")
         .forEach(x -> SYMBOL_POOL.put(x, new RegSymSXP(x)));
@@ -544,7 +546,7 @@ public final class SEXPs {
               case LGL -> Logical.class;
               case RAW -> Byte.class;
               case CPLX -> Complex.class;
-              case STR -> String.class;
+              case STRING -> String.class;
               default -> throw new IllegalArgumentException("Unsupported type: " + type);
             }) {
       throw new IllegalArgumentException(
@@ -557,7 +559,7 @@ public final class SEXPs {
       case LGL -> (PrimVectorSXP<T>) logical((List<Logical>) build);
       case RAW -> (PrimVectorSXP<T>) raw((List<Byte>) build);
       case CPLX -> (PrimVectorSXP<T>) complex((List<Complex>) build);
-      case STR -> (PrimVectorSXP<T>) string((List<String>) build);
+      case STRING -> (PrimVectorSXP<T>) string((List<String>) build);
       default -> throw new IllegalArgumentException("Unsupported type: " + type);
     };
   }

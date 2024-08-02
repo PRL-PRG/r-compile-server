@@ -40,7 +40,7 @@ class TypeIsUtil {
       case "LGL" -> RTypes.simple(SEXPType.LGL);
       case "BOOL" -> RTypes.BOOL;
       case "NUMERIC_OR_LOGICAL_NO_NA" -> RTypes.NUMERIC_OR_LOGICAL_NO_NA;
-      case "STR_OR_NIL" -> RTypes.simple(SEXPType.STR).union(RTypes.exact(SEXPs.NULL));
+      case "STR_OR_NIL" -> RTypes.simple(SEXPType.STRING).union(RTypes.exact(SEXPs.NULL));
       default ->
           throw new NotImplementedError(
               "Unknown type string representation: " + annotation.value());

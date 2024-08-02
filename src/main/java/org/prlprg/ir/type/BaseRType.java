@@ -20,7 +20,7 @@ public sealed interface BaseRType extends Lattice<BaseRType> {
   static BaseRType of(SEXPType type) {
     return switch (type) {
       case NIL, LIST -> ANY_LIST;
-      case CHAR, LGL, INT, REAL, CPLX, STR, RAW, VEC ->
+      case CHAR, LGL, INT, REAL, CPLX, STRING, RAW, VEC ->
           new Vector(Objects.requireNonNull(VectorElementRType.of(type)));
         //noinspection DuplicatedCode
       case SYM -> SYMBOL;

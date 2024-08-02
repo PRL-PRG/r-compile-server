@@ -4,7 +4,7 @@ import static org.prlprg.bc2ir.CFGCompiler.compileCFG;
 import static org.prlprg.ir.analysis.PropertiesComputer.computeClosureVersionProperties;
 import static org.prlprg.ir.analysis.PropertiesComputer.computePromiseProperties;
 
-import org.prlprg.bc.Compiler;
+import org.prlprg.bc.BCCompiler;
 import org.prlprg.ir.cfg.CFG;
 import org.prlprg.ir.cfg.IsEnv;
 import org.prlprg.ir.cfg.RValue;
@@ -41,7 +41,7 @@ public class ClosureCompiler {
    *     it's an inner closure (from {@link org.prlprg.ir.cfg.StmtData.MkCls MkCls}), in which case
    *     it's the outer closure's environment.
    * @throws IllegalArgumentException If the closure's body isn't bytecode (in this case, you must
-   *     use a {@link org.prlprg.bc.Compiler} to compile it before calling this).
+   *     use a {@link org.prlprg.bc.BCCompiler} to compile it before calling this).
    *     <p><b>OR</b> if {@code env} isn't statically known to be an environment.
    * @throws CFGCompilerUnsupportedBcException If the closure can't be compiled because it does
    *     something complex which the compiler doesn't support yet.
@@ -73,7 +73,7 @@ public class ClosureCompiler {
    *     it's an inner closure (from {@link org.prlprg.ir.cfg.StmtData.MkCls MkCls}), in which case
    *     it's the outer closure's environment.
    * @throws IllegalArgumentException If the closure's body isn't bytecode (in this case, you must
-   *     use a {@link org.prlprg.bc.Compiler} to compile it before calling this).
+   *     use a {@link org.prlprg.bc.BCCompiler} to compile it before calling this).
    *     <p><b>OR</b> if {@code env} isn't statically known to be an environment.
    * @throws ClosureCompilerUnsupportedException See above, <b>OR</b> if the closure's bytecode does
    *     something complex that the compiler doesn't support yet.
@@ -89,7 +89,7 @@ public class ClosureCompiler {
 
       var sexp1 = sexp;
       var bc =
-          new Compiler(sexp, rSession)
+          new BCCompiler(sexp, rSession)
               .compile()
               .orElseThrow(
                   () ->

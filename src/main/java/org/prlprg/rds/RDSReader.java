@@ -161,7 +161,7 @@ public class RDSReader implements Closeable {
             case LGL -> readLogicals(flags);
             case VEC -> readVec(flags);
             case ENV -> readEnv();
-            case STR -> readStrs(flags);
+            case STRING -> readStrs(flags);
             case LANG -> readLang(flags);
             case BCODE -> readByteCode();
             case EXPR -> readExpr(flags);

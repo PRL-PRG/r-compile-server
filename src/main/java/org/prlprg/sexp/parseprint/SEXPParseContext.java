@@ -167,7 +167,7 @@ public class SEXPParseContext implements HasSEXPParseContext {
                 SEXPType.REAL,
                 SEXPType.RAW,
                 SEXPType.CPLX,
-                SEXPType.STR,
+                SEXPType.STRING,
                 SEXPType.VEC,
                 SEXPType.EXPR -> {
               var elems = new ArrayList<>();
@@ -185,7 +185,7 @@ public class SEXPParseContext implements HasSEXPParseContext {
                         case REAL -> untypedElem.asScalarReal();
                         case RAW -> untypedElem.asScalarRaw();
                         case CPLX -> untypedElem.asScalarComplex();
-                        case STR -> untypedElem.asScalarString();
+                        case STRING -> untypedElem.asScalarString();
                         case VEC, EXPR -> Optional.of(untypedElem);
                         default -> throw new UnreachableError();
                       };
@@ -215,7 +215,7 @@ public class SEXPParseContext implements HasSEXPParseContext {
                         elems.stream()
                             .map(e -> (Complex) e)
                             .collect(ImmutableList.toImmutableList()));
-                case STR ->
+                case STRING ->
                     SEXPs.string(
                         elems.stream()
                             .map(e -> (String) e)
