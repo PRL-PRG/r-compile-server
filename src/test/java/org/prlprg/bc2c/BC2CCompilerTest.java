@@ -201,12 +201,34 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
   public void testNA() throws Exception {
     compileAndCall(
         """
-                    function () {
-                      x <- TRUE
-                      is.na(x)
-                    }
-                    """,
-        "list()",
+              function (x) {
+                y <- x
+                is.na(y)
+              }
+              """,
+        "list(x=TRUE)",
+        (LglSXP v) -> {
+          assertEquals(SEXPs.FALSE, v);
+        });
+    compileAndCall(
+        """
+              function (x) {
+                y <- x
+                is.na(y)
+              }
+              """,
+        "list(x=FALSE)",
+        (LglSXP v) -> {
+          assertEquals(SEXPs.FALSE, v);
+        });
+    compileAndCall(
+        """
+          function (x) {
+            y <- x
+            is.na(y)
+          }
+          """,
+        "list(x=NA)",
         (LglSXP v) -> {
           assertEquals(SEXPs.TRUE, v);
         });

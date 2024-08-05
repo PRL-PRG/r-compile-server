@@ -76,11 +76,12 @@ SEXP R_REL_OPS[] = {X_REL_OPS};
 //      MASK 1|1111111111111|11|000000000000000000000000000000000000000000000000
 //  MASK_INT 0|1111111111111|00|000000000000000000000000000000000000000000000000
 //  MASK_SXP 1|1111111111111|00|000000000000000000000000000000000000000000000000
-//  MASK_LGL 0|1111111111111|10|000000000000000000000000000000000000000000000010
-//      TRUE 0|1111111111111|10|000000000000000000000000000000000000000000000011
-//     FALSE 0|1111111111111|10|000000000000000000000000000000000000000000000010
+//  MASK_LGL 0|1111111111111|11|000000000000000000000000000000000000000000000000
+//      TRUE 0|1111111111111|11|000000000000000000000000000000000000000000000001
+//     FALSE 0|1111111111111|11|000000000000000000000000000000000000000000000000
 
 typedef uint64_t u64;
+typedef uint32_t u32;
 typedef u64 Value;
 
 // the 13 bits of the NaN boxing
@@ -89,26 +90,27 @@ typedef u64 Value;
 #define MASK ((SIGN_BIT | QNAN | ((u64)3 << 48)))
 #define MASK_INT QNAN
 #define MASK_SXP (SIGN_BIT | QNAN)
-#define MASK_LGL (QNAN | ((u64)1 << 49) | 2)
+#define MASK_LGL (QNAN | ((u64)3 << 48))
 
-#define VAL_TRUE ((Value)(MASK_LGL | 3))
-#define VAL_FALSE ((Value)(MASK_LGL | 2))
+#define VAL_TRUE ((Value)(MASK_LGL | 1))
+#define VAL_FALSE ((Value)(MASK_LGL | 0))
 
 #define VAL_INT(v) (int)(v)
 #define VAL_SXP(v) (SEXP)((v) & (((u64)1 << 48) - 1))
 #define VAL_DBL(v) (double)(v)
-#define VAL_LGL(v) (Rboolean)((v) & 1)
 
 #define VAL_IS_INT(v) (((v) & MASK) == MASK_INT)
 #define VAL_IS_INT_NOT_NA(v) (VAL_IS_INT(v) && VAL_INT(v) != NA_INTEGER)
 #define VAL_IS_SXP(v) (((v) & MASK) == MASK_SXP)
 #define VAL_IS_DBL(v) (((v) & QNAN) != QNAN)
 #define VAL_IS_DBL_NOT_NAN(v) VAL_IS_DBL(v) && !ISNAN(VAL_DBL(v))
-#define VAL_IS_LGL(v) (((v) & MASK_LGL) == MASK_LGL)
+#define VAL_IS_LGL(v) (((v) & MASK) == MASK_LGL)
+#define VAL_IS_LGL_NOT_NA(v) (VAL_IS_LGL(v) && VAL_INT(v) != NA_LOGICAL)
 
-#define INT_TO_VAL(v) (Value)(MASK_INT | ((u64)(v)))
 #define SXP_TO_VAL(v) (Value)(MASK_SXP | ((u64)(v)))
-#define LGL_TO_VAL(v) (Value)((v) ? VAL_TRUE : VAL_FALSE)
+// this is to prevent the NA value to change all the bits to 1
+#define INT_TO_VAL(v) (Value)(MASK_INT | ((u64)(u32)(v)))
+#define LGL_TO_VAL(v) (Value)(MASK_LGL | ((u64)(u32)(v)))
 #define DBL_TO_VAL(v) (Value)((v))
 
 #define VAL_TAG(v)                                                             \
@@ -607,8 +609,8 @@ static INLINE Value Rsh_call(SEXP call, Value fun, Value args, SEXP rho) {
 }
 
 static INLINE Rboolean Rsh_is_true(Value value, SEXP call) {
-  if (VAL_IS_LGL(value)) {
-    return VAL_LGL(value);
+  if (VAL_IS_LGL_NOT_NA(value)) {
+    return VAL_INT(value);
   } else if (VAL_IS_INT_NOT_NA(value)) {
     return VAL_INT(value) != 0;
   } else if (VAL_IS_DBL_NOT_NAN(value)) {
