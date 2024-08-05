@@ -606,20 +606,30 @@ static INLINE Value Rsh_call(SEXP call, Value fun, Value args, SEXP rho) {
   return sexp_as_val(value);
 }
 
-static INLINE Rboolean Rsh_is_true(SEXP value, SEXP call) {
-  if (IS_SCALAR(value, LGLSXP)) {
-    Rboolean lval = LOGICAL0(value)[0];
+static INLINE Rboolean Rsh_is_true(Value value, SEXP call) {
+  if (VAL_IS_LGL(value)) {
+    return VAL_LGL(value);
+  } else if (VAL_IS_INT_NOT_NA(value)) {
+    return VAL_INT(value) != 0;
+  } else if (VAL_IS_DBL_NOT_NAN(value)) {
+    return VAL_DBL(value) != 0.0;
+  }
+
+  SEXP value_sxp = VAL_SXP(value);
+
+  if (IS_SCALAR(value_sxp, LGLSXP)) {
+    Rboolean lval = LOGICAL0(value_sxp)[0];
     if (lval != NA_LOGICAL)
       return lval;
   }
 
-  PROTECT(value);
-  Rboolean ans = Rif_asLogicalNoNA(value, call);
+  PROTECT(value_sxp);
+  Rboolean ans = Rif_asLogicalNoNA(value_sxp, call);
   UNPROTECT(1);
   return ans;
 }
 
-#define RSH_LIST_APPEND(head, tail, value)                                     \
+#define RSH_LIST_APPEND(/* SEXP */ head, /* SEXP */ tail, /* SEXP */ value)    \
   do {                                                                         \
     SEXP __elem__ = cons(value, R_NilValue);                                   \
     if (head == R_NilValue) {                                                  \
@@ -630,7 +640,7 @@ static INLINE Rboolean Rsh_is_true(SEXP value, SEXP call) {
     tail = __elem__;                                                           \
   } while (0)
 
-#define RSH_SET_TAG(v, t)                                                      \
+#define RSH_SET_TAG(/* SEXP */ v, /* SEXP */ t)                                \
   do {                                                                         \
     SEXP __tag__ = (t);                                                        \
     if (__tag__ != R_NilValue) {                                               \
