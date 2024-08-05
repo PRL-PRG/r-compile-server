@@ -16,15 +16,22 @@ NULL
 #' Activate the Rsh JIT
 #'
 #' @export
-rsh_jit_enable <- function() {
-    rsh_override_cmpfun(rsh_cmpfun)
+enable_rsh_jit <- function() {
+  rsh_override_cmpfun(rsh_cmpfun)
 }
 
-#' Deactivate the Rsh JIT
+#' Activate the bytecode JIT
 #'
 #' @export
-rsh_jit_disable <- function() {
-    rsh_override_cmpfun(.gnur_cmpfun)
+enable_bc_jit <- function() {
+  rsh_override_cmpfun(bc_cmpfun)
+}
+
+#' Deactivate JIT compilation via the server
+#'
+#' @export
+disable_remote_jit <- function() {
+  rsh_override_cmpfun(.gnur_cmpfun)
 }
 
 #' Compile given closure

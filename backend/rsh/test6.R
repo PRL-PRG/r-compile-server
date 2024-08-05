@@ -5,7 +5,8 @@ f <- function(x) {
   y + x
 }
 
-rsh::bc_compile(f)
+rsh::enable_bc_jit()
+compiler::cmpfun(f)
 print(f)
 
 f(5)
