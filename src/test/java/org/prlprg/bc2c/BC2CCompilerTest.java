@@ -177,26 +177,26 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
         });
   }
 
-  //  @Test
-  //  public void testSumIn0Loop() throws Exception {
-  //    compileAndCall(
-  //        """
-  //          function (n) {
-  //            s <- 0
-  //            i <- 0
-  //            while (i < n) {
-  //              s <- s + i
-  //              i <- i + 1
-  //            }
-  //            s
-  //          }
-  //          """,
-  //        "list(n=100)",
-  //        (RealSXP v) -> {
-  //          assertEquals(4950.0, v.asReal(0));
-  //        });
-  //  }
-  //
+  @Test
+  public void testSumIn0Loop() throws Exception {
+    compileAndCall(
+        """
+            function (n) {
+              s <- 0
+              i <- 0
+              while (i < n) {
+                s <- s + i
+                i <- i + 1
+              }
+              s
+            }
+            """,
+        "list(n=100)",
+        (RealSXP v) -> {
+          assertEquals(4950.0, v.asReal(0));
+        });
+  }
+
   //  @Test
   //  public void testList(TestInfo info) throws Exception {
   //    compileAndCall(

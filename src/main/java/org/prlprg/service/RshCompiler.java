@@ -70,11 +70,11 @@ public class RshCompiler {
     var output = "Rsh.h.gch";
     new CCCompilationBuilder(input, output)
         .workingDirectory(new File(INCLUDE_PATH))
-        .flags(COMMON_COMPILER_FLAGS)
+        .flags(compilerFlags)
         .compile();
   }
 
   public CCCompilationBuilder createBuilder(String input, String output) {
-    return new CCCompilationBuilder(input, output).flags(COMMON_COMPILER_FLAGS);
+    return new CCCompilationBuilder(input, output).flags(compilerFlags);
   }
 }

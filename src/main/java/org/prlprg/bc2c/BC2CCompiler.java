@@ -15,7 +15,6 @@ record Constant(int id, SEXP value) {}
 record Value(String expr, boolean protect) {}
 
 class ByteCodeStack {
-  private static final String NAME = "_%d";
   private static final String PROTECT_EXPR = "PROTECT(%s)";
   private static final String UNPROTECT_EXPR = "UNPROTECT(%d)";
 
@@ -24,10 +23,10 @@ class ByteCodeStack {
 
   public String push(String expr, boolean protect) {
     protects.push(0);
-    int curr = protects.size() - 1;
+    int curr = protects.size();
     max = Math.max(max, curr);
 
-    return set(curr, expr, protect);
+    return set(curr - 1, expr, protect);
   }
 
   public String pop(int n) {
@@ -44,13 +43,13 @@ class ByteCodeStack {
   }
 
   public String curr(int n) {
-    return NAME.formatted(currIdx(n));
+    return register(currIdx(n));
   }
 
   public int currIdx(int n) {
     int curr = protects.size() - 1;
 
-    assert curr + n >= -1 && curr + n <= max
+    assert curr + n >= 0 && curr + n <= max
         : "Invalid offset: %d (curr: %d, max: %d)".formatted(n, curr, max);
 
     return curr + n;
@@ -60,6 +59,10 @@ class ByteCodeStack {
     return max;
   }
 
+  public boolean isEmpty() {
+    return protects.isEmpty();
+  }
+
   public String set(int i, String expr, boolean protect) {
     assert i >= 0 && i <= max : "Invalid index: %d (max: %d)".formatted(i, max);
 
@@ -67,15 +70,34 @@ class ByteCodeStack {
       expr = protect(i, expr);
     }
 
-    return "%s = %s;".formatted(NAME.formatted(i), expr);
+    return "%s = %s;".formatted(register(i), expr);
   }
 
   private String protect(int i, String expr) {
     protects.set(i, protects.get(i) + 1);
     return PROTECT_EXPR.formatted(expr);
   }
+
+  protected String register(int idx) {
+    assert idx >=0;
+    return "_" + idx;
+  }
+
+  protected Optional<String> registerInitialization() {
+    if (max == 0) {
+      return Optional.empty();
+    }
+
+    var line =
+            IntStream.range(0, max)
+                    .mapToObj("_%d"::formatted)
+                    .collect(Collectors.joining(", ", "Value ", ";"));
+
+    return Optional.of(line);
+  }
 }
 
+// TODO: extract labels and cells into its own classes
 public class BC2CCompiler {
   protected static final String NAME_ENV = "ENV";
   protected static final String NAME_CP = "CP";
@@ -174,7 +196,7 @@ public class BC2CCompiler {
   }
 
   private void compileCall(ConstPool.Idx<LangSXP> idx) {
-    var call = constantRaw(idx);
+    var call = constantSXP(idx);
     var fun = stack.curr(-2);
     var args = stack.curr(-1);
 
@@ -185,7 +207,7 @@ public class BC2CCompiler {
   }
 
   private void compileGetFun(ConstPool.Idx<RegSymSXP> idx) {
-    push("Rsh_getFun(%s, %s)".formatted(constantRaw(idx), NAME_ENV), false);
+    push("Rsh_getFun(%s, %s)".formatted(constantSXP(idx), NAME_ENV), false);
     initCallFrame();
   }
 
@@ -207,7 +229,7 @@ public class BC2CCompiler {
     var unprotect = stack.pop(1);
     body.line(
         "if (!Rsh_is_true(%s, %s)) { %s; goto %s; }"
-            .formatted(curr, constant(call), unprotect, label(label.target())));
+            .formatted(curr, constantSXP(call), unprotect, label(label.target())));
     body.line(unprotect + ";");
   }
 
@@ -217,7 +239,7 @@ public class BC2CCompiler {
     if (TYPEOF(%s) != SPECIALSXP) {
       RSH_SET_TAG(%s, %s);
     }"""
-            .formatted(stack.curr(-2), stack.curr(0), constant(idx)));
+            .formatted(stack.curr(-2), stack.curr(0), constantVAL(idx)));
   }
 
   private void compilePushArg() {
@@ -227,15 +249,18 @@ public class BC2CCompiler {
   }
 
   private void compileRegisters() {
-    var sec = fun.insertAbove(body);
-    var line =
-        IntStream.rangeClosed(0, stack.max())
-            .mapToObj("_%d"::formatted)
-            .collect(Collectors.joining(", ", "Value ", ";"));
-    sec.line(line);
+    var code = stack.registerInitialization();
+    if (code.isPresent()) {
+      var sec = fun.insertAbove(body);
+      sec.line(code.get());
+    }
   }
 
   private void compileCells() {
+    if (cells.isEmpty()) {
+      return;
+    }
+
     var sec = fun.insertAbove(body);
     var line =
         cells.stream()
@@ -246,7 +271,7 @@ public class BC2CCompiler {
 
   private void compilePushConstArg(ConstPool.Idx<SEXP> idx) {
     body.line(
-        "RSH_LIST_APPEND(%s, %s, %s);".formatted(stack.curr(-1), stack.curr(0), constant(idx)));
+        "RSH_LIST_APPEND(%s, %s, %s);".formatted(stack.curr(-1), stack.curr(0), constantVAL(idx)));
   }
 
   private void compileGetBuiltin(ConstPool.Idx<RegSymSXP> idx) {
@@ -262,38 +287,38 @@ public class BC2CCompiler {
 
   private void compileGetVar(ConstPool.Idx<RegSymSXP> idx) {
     push(
-        "Rsh_get_var(%s, %s, FALSE, FALSE, &%s)".formatted(constantRaw(idx), NAME_ENV, cell(idx)),
+        "Rsh_get_var(%s, %s, FALSE, FALSE, &%s)".formatted(constantSXP(idx), NAME_ENV, cell(idx)),
         false);
   }
 
   private void compileSetVar(ConstPool.Idx<RegSymSXP> idx) {
     body.line(
         "Rsh_set_var(%s, %s, %s, &%s);"
-            .formatted(constantRaw(idx), stack.curr(0), NAME_ENV, cell(idx)));
+            .formatted(constantSXP(idx), stack.curr(0), NAME_ENV, cell(idx)));
   }
 
   private void compileReturn() {
     pop(1);
-    assert stack.currIdx(0) == -1 : "Stack not empty (%d)".formatted(stack.currIdx(0));
+    assert stack.isEmpty() : "Stack not empty (%d)".formatted(stack.currIdx(0));
     body.line("return Rsh_return(%s);".formatted(stack.curr(1)));
   }
 
   private void compileAdd(ConstPool.Idx<LangSXP> idx) {
-    var call = constantRaw(idx);
+    var call = constantSXP(idx);
     var lhs = stack.curr(-1);
     var rhs = stack.curr(0);
     popPush(2, "Rsh_arith(ADD_OP, %s, %s, %s, %s)".formatted(lhs, rhs, call, NAME_ENV), false);
   }
 
   private void compileLt(ConstPool.Idx<LangSXP> idx) {
-    var call = constantRaw(idx);
+    var call = constantSXP(idx);
     var lhs = stack.curr(-1);
     var rhs = stack.curr(0);
     popPush(2, "Rsh_relop(LT_OP, %s, %s, %s, %s)".formatted(lhs, rhs, call, NAME_ENV), false);
   }
 
   private void compilerLdConst(ConstPool.Idx<SEXP> idx) {
-    push(constant(idx), false);
+    push(constantVAL(idx), false);
   }
 
   // API
@@ -328,12 +353,12 @@ public class BC2CCompiler {
     body.line(stack.set(i, expr, protect));
   }
 
-  private String constantRaw(ConstPool.Idx<? extends SEXP> idx) {
+  private String constantSXP(ConstPool.Idx<? extends SEXP> idx) {
     var c = getConstant(idx);
     return "Rsh_const(%s, %d)".formatted(NAME_CP, c.id());
   }
 
-  private String constant(ConstPool.Idx<? extends SEXP> idx) {
+  private String constantVAL(ConstPool.Idx<? extends SEXP> idx) {
     var c = getConstant(idx);
 
     var f =
