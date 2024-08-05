@@ -629,15 +629,15 @@ static INLINE Rboolean Rsh_is_true(Value value, SEXP call) {
   return ans;
 }
 
-#define RSH_LIST_APPEND(/* SEXP */ head, /* SEXP */ tail, /* SEXP */ value)    \
+#define RSH_LIST_APPEND(/* Value */ head, /* Value */ tail, /* Value */ value) \
   do {                                                                         \
-    SEXP __elem__ = cons(value, R_NilValue);                                   \
-    if (head == R_NilValue) {                                                  \
-      head = __elem__;                                                         \
+    SEXP __elem__ = cons(val_as_sxp(value), R_NilValue);                       \
+    if (head == Rsh_NilValue) {                                                \
+      head = SXP_TO_VAL(__elem__);                                             \
     } else {                                                                   \
-      SETCDR(tail, __elem__);                                                  \
+      SETCDR(VAL_SXP(tail), __elem__);                                         \
     }                                                                          \
-    tail = __elem__;                                                           \
+    tail = SXP_TO_VAL(__elem__);                                               \
   } while (0)
 
 #define RSH_SET_TAG(/* SEXP */ v, /* SEXP */ t)                                \
