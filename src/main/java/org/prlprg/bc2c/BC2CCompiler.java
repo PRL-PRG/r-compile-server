@@ -102,6 +102,7 @@ public class BC2CCompiler {
   protected static final String NAME_ENV = "ENV";
   protected static final String NAME_CP = "CP";
   protected static final Value VAL_NULL = new Value("Rsh_NilValue", false);
+  public static final String VAL_TRUE = "VAL_TRUE";
 
   protected final String name;
   protected final Bc bc;
@@ -164,7 +165,8 @@ public class BC2CCompiler {
 
     switch (instr) {
       case BcInstr.SetVar(var idx) -> compileSetVar(idx);
-      case BcInstr.LdConst(var idx) -> compilerLdConst(idx);
+      case BcInstr.LdConst(var idx) -> compileLdConst(idx);
+      case BcInstr.LdTrue() -> compileLdTrue();
       case BcInstr.GetVar(var idx) -> compileGetVar(idx);
       case BcInstr.Add(var idx) -> compileAdd(idx);
       case BcInstr.Lt(var idx) -> compileLt(idx);
@@ -175,7 +177,7 @@ public class BC2CCompiler {
       case BcInstr.CallBuiltin(var idx) -> compileCall(idx);
       case BcInstr.Call(var idx) -> compileCall(idx);
       case BcInstr.PushArg() -> compilePushArg();
-      case BcInstr.SetTag(var idx) -> compilerSetTag(idx);
+      case BcInstr.SetTag(var idx) -> compileSetTag(idx);
       case BcInstr.BrIfNot(var call, var label) -> compileBrIfNot(call, label);
       case BcInstr.Goto(var label) -> compileGoto(label);
       case BcInstr.Invisible() -> compileInvisible();
@@ -233,7 +235,7 @@ public class BC2CCompiler {
     body.line(unprotect + ";");
   }
 
-  private void compilerSetTag(ConstPool.Idx<StrOrRegSymSXP> idx) {
+  private void compileSetTag(ConstPool.Idx<StrOrRegSymSXP> idx) {
     body.line(
         """
     if (TYPEOF(%s) != SPECIALSXP) {
@@ -317,7 +319,11 @@ public class BC2CCompiler {
     popPush(2, "Rsh_relop(LT_OP, %s, %s, %s, %s)".formatted(lhs, rhs, call, NAME_ENV), false);
   }
 
-  private void compilerLdConst(ConstPool.Idx<SEXP> idx) {
+  private void compileLdTrue() {
+    push(VAL_TRUE, false);
+  }
+
+  private void compileLdConst(ConstPool.Idx<SEXP> idx) {
     push(constantVAL(idx), false);
   }
 

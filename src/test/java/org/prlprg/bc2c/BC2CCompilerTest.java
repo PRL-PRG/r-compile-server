@@ -197,6 +197,21 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
         });
   }
 
+  @Test
+  public void testNA() throws Exception {
+    compileAndCall(
+        """
+                    function () {
+                      x <- TRUE
+                      is.na(x)
+                    }
+                    """,
+        "list()",
+        (LglSXP v) -> {
+          assertEquals(SEXPs.TRUE, v);
+        });
+  }
+
   //  @Test
   //  public void testList(TestInfo info) throws Exception {
   //    compileAndCall(
