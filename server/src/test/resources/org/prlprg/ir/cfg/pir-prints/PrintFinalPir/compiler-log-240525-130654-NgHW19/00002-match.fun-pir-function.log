@@ -1,0 +1,88 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ match.fun[0x56096c0014c0]                                                    │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch miss: 1                              │
+│ Properties:  Eager, ForceOrd: 0                                              │
+├────── Final PIR Version
+match.fun[0x56096c0014c0]
+BB0
+  val?^           %0.0  = LdArg                    0
+  env             e0.1  = (MkEnv)            l     FUN=%0.0, descend(miss)=true, parent=R_BaseNamespace, context 1
+  val?            %0.2  = Force!<lazy>       !vL   %0.0, e0.1   <cls->
+  lgl$#-          %0.3  = IsType                   %0.2 isA val?-
+  void                    Branch                   %0.3 -> BB14 (if true) | BB15 (if false)
+BB14   <- [0]
+  val?-           %14.0 = CastType           d     dn %0.2   <cls->
+  lgl$#-          %14.1 = IsEnvStub          R     , e0.1
+  void                    Branch                   %14.1 -> BB16 (if true) | BB17 (if false)
+BB15   <- [0]
+  void                    Nop                !     
+  val?            %15.1 = %0.2
+  dr              %15.2 = Typecheck@0x56096b3cf918[Type#1]
+  goto BB13
+BB16   <- [14]
+  lgl$#-          %16.0 = CallSafeBuiltin    wed   is.function(%14.0)    <lgl$->
+  void                    Branch                   %16.0 -> BB12 (if true) | BB3 (if false)
+BB17   <- [14]
+  void                    Nop                !     
+  env             e17.1 = e0.1
+  dr              %17.2 = EnvStubMaterialized@0x56096b3cf918[Call#unknown]
+  goto BB13
+BB13   <- [15, 17]
+  val?^ | miss    %13.0 = Phi                      %15.1:BB15, e17.1:BB17
+  val?^ | miss    %13.1 = %13.0
+  dr              %13.2 = Phi                      %15.2:BB15, %17.2:BB17
+  dr              %13.3 = %13.2
+  fs              %13.4 = FrameState         R     0x56096c04be10+69: [<blt is.function>, %0.2], env=e0.1
+  void                    Deopt              !v    %13.4, %13.3, %13.1   !
+BB12   <- [16]
+  void                    Visible            v     
+  void                    Return             l     %14.0
+BB3   <- [16]
+  lgl$#-          %3.0  = CallSafeBuiltin    wed   is.character(%14.0)    <val?_>
+  void                    Branch                   %3.0 -> BB11 (if true) | BB4 (if false)
+BB11   <- [3]
+  real$-          %11.0 = CallSafeBuiltin    wed   length(%14.0)    <val?_>
+  lgl$-           %11.1 = Eq                 d     %11.0, 1L, elided   <val?_>
+  lgl$-           %11.2 = AsLogical                %11.1
+  lgl$-           %11.3 = LAnd                     %3.0, %11.2
+  lgl$-           %11.4 = %11.3
+  goto BB5
+BB4   <- [3]
+  void                    Nop                !     
+  lgl$#-          %4.1  = %3.0
+  goto BB5
+BB5   <- [4, 11]
+  lgl$-           %5.0  = Phi                      %11.4:BB11, %4.1:BB4
+  lgl$-           %5.1  = %5.0
+  lgl$-           %5.2  = AsLogical                %5.1
+  lgl$#-          %5.3  = Identical                %5.2, true
+  void                    Branch                   %5.3 -> BB10 (if true) | BB6 (if false)
+BB10   <- [5]
+  void                    Nop                !     
+  lgl$-           %10.1 = %5.2
+  goto BB7
+BB6   <- [5]
+  lgl$#-          %6.0  = CallSafeBuiltin    wed   is.symbol(%14.0)    <val?_>
+  lgl$-           %6.1  = LOr                      %5.2, %6.0
+  lgl$-           %6.2  = %6.1
+  goto BB7
+BB7   <- [10, 6]
+  lgl$-           %7.0  = Phi                      %6.2:BB6, %10.1:BB10
+  lgl$-           %7.1  = %7.0
+  lgl$-           %7.2  = Not                d     %7.1, elided
+  lgl$#-          %7.3  = CheckTrueFalse     e     %7.2
+  void                    Branch                   %7.3 -> BB9 (if true) | BB8 (if false)
+BB9   <- [7]
+  env             e9.0  = MaterializeEnv           , e0.1   <@?>
+  (cls|spec|blt)  %9.1  = LdFun              !v    eval.parent, e9.0
+  fs              %9.2  = FrameState         R     0x56096c04be10+458: [%9.1], env=e9.0
+  void                    Deopt              !v    %9.2, DeadCall@0x56096b3cf918[Call#4], %9.1   !
+BB8   <- [7]
+  env             e8.0  = MaterializeEnv           , e0.1   <@?>
+  (cls|spec|blt)  %8.1  = LdFun              !v    parent.frame, e8.0
+  fs              %8.2  = FrameState         R     0x56096c04be10+658: [%8.1], env=e8.0
+  void                    Deopt              !v    %8.2, DeadCall@0x56096b3cf918[Call#11], %8.1   !
+
+│ match.fun[0x56096c0014c0]                                                    │
+└──────────────────────────────────────────────────────────────────────────────┘

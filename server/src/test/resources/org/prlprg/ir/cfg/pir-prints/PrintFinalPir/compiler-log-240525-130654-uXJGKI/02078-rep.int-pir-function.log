@@ -1,0 +1,17 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ rep.int[0x561505ed81a0]                                                      │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;NonRefl0,NonRefl1,!Obj0,!Obj1,SimpleInt0,SimpleInt1│
+│ Properties:  Eager, !Reflection, ForceOrd: 0 1                               │
+├────── Final PIR Version
+rep.int[0x561505ed81a0]
+BB0
+  val?^           %0.0  = LdArg                    1
+  val?^           %0.1  = LdArg                    0
+  int$-           %0.2  = Force!<lazy>       !vr   %0.1,    <val?->
+  int$-           %0.3  = Force!<lazy>       !vr   %0.0,    <(int|real)->
+  val+            %0.4  = CallSafeBuiltin    vwed  rep.int(%0.2, %0.3) 
+  void                    Return             l     %0.4
+
+│ rep.int[0x561505ed81a0]                                                      │
+└──────────────────────────────────────────────────────────────────────────────┘

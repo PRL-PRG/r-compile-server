@@ -1,0 +1,31 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ identical[0x55fa16e20eb0]                                                    │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;Eager1,NonRefl1,!Obj1 miss: 6        │
+│ Properties:  ForceOrd: 0                                                     │
+├────── Final PIR Version
+identical[0x55fa16e20eb0]
+BB0
+  val?~+          %0.0  = LdArg                    1
+  val?^           %0.1  = LdArg                    0
+  env             e0.2  = MkEnv              l     x=%0.1, y=%0.0, num.eq(miss)=true, single.NA(miss)=true, attrib.as.set(miss)=true, ignore.bytecode(miss)=true, ignore.environment(miss)=false, ignore.srcref(miss)=true, parent=R_BaseNamespace, context 1
+  val?            %0.3  = Force!<lazy>       !v    %0.1, e0.2   <val?>
+  val?^ | miss    %0.4  = LdVar              eR    y, e0.2
+  val?            %0.5  = Force!<lazy>       !v    %0.4, e0.2   <val?>
+  val?^ | miss    %0.6  = LdVar              eR    num.eq, e0.2
+  val?            %0.7  = Force!<lazy>       !v    %0.6, e0.2   <lgl$->
+  val?^ | miss    %0.8  = LdVar              eR    single.NA, e0.2
+  val?            %0.9  = Force!<lazy>       !v    %0.8, e0.2   <lgl$->
+  val?^ | miss    %0.10 = LdVar              eR    attrib.as.set, e0.2
+  val?            %0.11 = Force!<lazy>       !v    %0.10, e0.2   <lgl$->
+  val?^ | miss    %0.12 = LdVar              eR    ignore.bytecode, e0.2
+  val?            %0.13 = Force!<lazy>       !v    %0.12, e0.2   <lgl$->
+  val?^ | miss    %0.14 = LdVar              eR    ignore.environment, e0.2
+  val?            %0.15 = Force!<lazy>       !v    %0.14, e0.2   <lgl$->
+  val?^ | miss    %0.16 = LdVar              eR    ignore.srcref, e0.2
+  val?            %0.17 = Force!<lazy>       !v    %0.16, e0.2   <lgl$->
+  val?            %0.18 = CallBuiltin        !     identical(%0.3, %0.5, %0.7, %0.9, %0.11, %0.13, %0.15, %0.17) e0.2
+  void                    Return             l     %0.18
+
+│ identical[0x55fa16e20eb0]                                                    │
+└──────────────────────────────────────────────────────────────────────────────┘

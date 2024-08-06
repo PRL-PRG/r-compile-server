@@ -1,0 +1,77 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ rir.compile[0x55abb2f23870]                                                  │
+│ Context: CorrOrd,!TMany                                                      │
+│ Properties:  Eager                                                           │
+├────── PIR Version After Optimizations
+rir.compile[0x55abb2f23870]
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = MkEnv              l     parent=R_GlobalEnv, context 1
+  cls             %1.1  = MkCls                    rir.compile>id@0, e1.0
+  void                    StVar              lW    id, %1.1, e1.0
+  void                    StVar              lW    i, 1, e1.0
+  goto BB2
+BB2   <- [1, 9]
+  val?^ | miss    %2.0  = LdVar              eR    i, e1.0
+  val?            %2.1  = Force!             !v    %2.0, e1.0   <val?_>
+  lgl$#-          %2.2  = IsType                   %2.1 isA val?+
+  cp              %2.3  = Checkpoint                -> BB3 (default) | BB11 (if assume failed)
+BB3   <- [2]
+  void                    Visible            v     
+  void                    Assume             D     %2.2, %2.3 (Typecheck@0x55abb3b40ea8[Type#6])
+  val?+           %3.2  = CastType           d     dn %2.1   <val?_>
+  lgl             %3.3  = Lt                 vwed  %3.2, 3, elided   <val?_>
+  lgl$#-          %3.4  = CheckTrueFalse     we    %3.3
+  void                    Branch                   %3.4 -> BB5 (if true) | BB4 (if false)
+BB11   <- [2]
+  fs              %11.0 = FrameState         R     0x55abb48a00f0+191: [%2.1], env=e1.0
+  void                    Deopt              !v    %11.0   !
+BB5   <- [3]
+  val?^ | miss    %5.0  = LdVar              eR    i, e1.0
+  val?            %5.1  = Force!             !v    %5.0, e1.0   <val?_>
+  lgl$#-          %5.2  = IsType                   %5.1 isA val?+
+  cp              %5.3  = Checkpoint                -> BB7 (default) | BB6 (if assume failed)
+BB4   <- [3]
+  (cls|spec|blt)  %4.0  = LdFun              !     id, e1.0
+  prom-           %4.1  = MkArg                    unboundValue, rir.compile[0x55abb2f23870]_p1, e1.0
+  val?            %4.2  = Call               !     %4.0(%4.1) e1.0   <val?_>
+  void                    Return             l     %4.2
+BB7   <- [5]
+  void                    Assume             D     %5.2, %5.3 (Typecheck@0x55abb3b40ea8[Type#8])
+  val?+           %7.1  = CastType           d     dn %5.1   <val?_>
+  (real|complex)+ %7.2  = Add                wed   %7.1, 1, elided   <val?_>
+  void                    StVar              lW    i, %7.2, e1.0
+  lgl             %7.4  = Eq                 wed   %7.2, 2, elided   <val?_>
+  lgl$#-          %7.5  = CheckTrueFalse     we    %7.4
+  void                    Branch                   %7.5 -> BB10 (if true) | BB8 (if false)
+BB6   <- [5]
+  fs              %6.0  = FrameState         R     0x55abb48a00f0+223: [%5.1], env=e1.0
+  void                    Deopt              !v    %6.0   !
+BB10   <- [7]
+  (cls|spec|blt)  %10.0 = LdFun              !v    id, e1.0
+  prom-           %10.1 = MkArg                    unboundValue, rir.compile[0x55abb2f23870]_p0, e1.0
+  val?            %10.2 = Call               !v    %10.0(%10.1) e1.0
+  goto BB9
+BB8   <- [7]
+  goto BB9
+BB9   <- [8, 10]
+  goto BB2
+Prom 0:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  void                    Visible            v     
+  void                    NonLocalReturn     !     1, e1.0
+Prom 1:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  void                    Visible            v     
+  void                    NonLocalReturn     !     0, e1.0
+
+│ rir.compile[0x55abb2f23870]                                                  │
+└──────────────────────────────────────────────────────────────────────────────┘

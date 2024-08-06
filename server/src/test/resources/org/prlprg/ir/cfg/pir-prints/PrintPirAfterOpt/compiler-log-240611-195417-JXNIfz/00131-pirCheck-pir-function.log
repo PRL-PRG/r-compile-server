@@ -1,0 +1,35 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ pirCheck[0x55cbf4b1f3b0]                                                     │
+│ Context: CorrOrd,!TMany                                                      │
+│ Properties:  ForceOrd: 0                                                     │
+├────── PIR Version After Optimizations
+pirCheck[0x55cbf4b1f3b0]
+BB0
+  goto BB1
+BB1   <- [0]
+  val?^ | miss    %1.0  = LdArg                    1
+  val?^ | miss    %1.1  = LdArg                    0
+  val?^           %1.2  = ChkMissing         e     %1.1
+  env             e1.3  = (MkEnv)            l     x=%1.1, y=%1.0, parent=R_GlobalEnv, context 1
+  val?            %1.4  = Force!<value>      !vL   %1.2, e1.3   <int$->
+  lgl$#-          %1.5  = IsType                   %1.4 isA int$-
+  cp              %1.6  = Checkpoint                -> BB2 (default) | BB3 (if assume failed)
+BB2   <- [1]
+  lgl$#-          %2.0  = IsEnvStub          R     , e1.3
+  void                    Assume             D     %2.0, %1.6 (EnvStubMaterialized@0x55cbf3aa94e8[Call#unknown])
+  void                    Assume             D     %1.5, %1.6 (Typecheck@0x55cbf3aa94e8[Type#0])
+  int$-           %2.3  = CastType           d     dn %1.4
+  val?^           %2.4  = ChkMissing         e     %1.0
+  lgl$#-          %2.5  = IsType                   %2.4 isA int$-
+  void                    Assume             D     %2.5, %1.6 (Typecheck@0x55cbf3aa94e8[Type#2])
+  int$-           %2.7  = CastType           d     dn %2.4
+  void                    Visible            v     
+  int$-           %2.9  = Add                vd    %2.3, %2.7, elided   <int$->
+  void                    Return             l     %2.9
+BB3   <- [1]
+  fs              %3.0  = FrameState         R     0x55cbf4b3a180+9: [%1.4], env=e1.3
+  void                    Deopt              !v    %3.0   !
+
+│ pirCheck[0x55cbf4b1f3b0]                                                     │
+└──────────────────────────────────────────────────────────────────────────────┘

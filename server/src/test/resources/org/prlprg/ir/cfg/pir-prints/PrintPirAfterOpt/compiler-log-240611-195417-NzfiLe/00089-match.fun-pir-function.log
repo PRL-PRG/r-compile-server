@@ -1,0 +1,68 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ match.fun[0x5629e40440f0]                                                    │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch miss: 1                              │
+│ Properties:  Eager, ForceOrd: 0                                              │
+├────── PIR Version After Optimizations
+match.fun[0x5629e40440f0]
+BB0
+  goto BB1
+BB1   <- [0]
+  val?^           %1.0  = LdArg                    0
+  env             e1.1  = (MkEnv)            l     FUN=%1.0, descend(miss)=true, parent=R_BaseNamespace, context 1
+  val?            %1.2  = Force!<lazy>       !vL   %1.0, e1.1   <(cls|blt)->
+  lgl$#-          %1.3  = IsType                   %1.2 isA val?-
+  cp              %1.4  = Checkpoint                -> BB2 (default) | BB13 (if assume failed)
+BB2   <- [1]
+  void                    Assume             D     %1.3, %1.4 (Typecheck@0x5629e2b39498[Type#1])
+  val?-           %2.1  = CastType           d     dn %1.2   <(cls|blt)->
+  lgl$#-          %2.2  = IsEnvStub          R     , e1.1
+  void                    Assume             D     %2.2, %1.4 (EnvStubMaterialized@0x5629e2b39498[Call#unknown])
+  lgl$#-          %2.4  = CallSafeBuiltin    wed   is.function(%2.1)    <lgl$->
+  void                    Branch                   %2.4 -> BB12 (if true) | BB3 (if false)
+BB13   <- [1]
+  fs              %13.0 = FrameState         R     0x5629e3491af0+69: [<blt is.function>, %1.2], env=e1.1
+  void                    Deopt              !v    %13.0   !
+BB12   <- [2]
+  void                    Visible            v     
+  void                    Return             l     %2.1
+BB3   <- [2]
+  lgl$#-          %3.0  = CallSafeBuiltin    wed   is.character(%2.1)    <val?_>
+  void                    Branch                   %3.0 -> BB11 (if true) | BB4 (if false)
+BB11   <- [3]
+  (int|real)$-    %11.0 = CallSafeBuiltin    wed   length(%2.1)    <val?_>
+  lgl$-           %11.1 = Eq                 d     %11.0, 1L, elided   <val?_>
+  lgl$-           %11.2 = AsLogical                %11.1
+  lgl$-           %11.3 = LAnd                     %3.0, %11.2
+  goto BB5
+BB4   <- [3]
+  goto BB5
+BB5   <- [4, 11]
+  lgl$-           %5.0  = Phi                      %11.3:BB11, %3.0:BB4
+  lgl$-           %5.1  = AsLogical                %5.0
+  lgl$#-          %5.2  = Identical                %5.1, true
+  void                    Branch                   %5.2 -> BB10 (if true) | BB6 (if false)
+BB10   <- [5]
+  goto BB7
+BB6   <- [5]
+  lgl$#-          %6.0  = CallSafeBuiltin    wed   is.symbol(%2.1)    <val?_>
+  lgl$-           %6.1  = LOr                      %5.1, %6.0
+  goto BB7
+BB7   <- [10, 6]
+  lgl$-           %7.0  = Phi                      %6.1:BB6, %5.1:BB10
+  lgl$-           %7.1  = Not                d     %7.0, elided
+  lgl$#-          %7.2  = CheckTrueFalse     e     %7.1
+  void                    Branch                   %7.2 -> BB9 (if true) | BB8 (if false)
+BB9   <- [7]
+  env             e9.0  = MaterializeEnv           , e1.1   <@?>
+  (cls|spec|blt)  %9.1  = LdFun              !v    eval.parent, e9.0
+  fs              %9.2  = FrameState         R     0x5629e3491af0+458: [%9.1], env=e9.0
+  void                    Deopt              !v    %9.2, DeadCall@0x5629e2b39498[Call#4], %9.1   !
+BB8   <- [7]
+  env             e8.0  = MaterializeEnv           , e1.1   <@?>
+  (cls|spec|blt)  %8.1  = LdFun              !v    parent.frame, e8.0
+  fs              %8.2  = FrameState         R     0x5629e3491af0+658: [%8.1], env=e8.0
+  void                    Deopt              !v    %8.2, DeadCall@0x5629e2b39498[Call#11], %8.1   !
+
+│ match.fun[0x5629e40440f0]                                                    │
+└──────────────────────────────────────────────────────────────────────────────┘

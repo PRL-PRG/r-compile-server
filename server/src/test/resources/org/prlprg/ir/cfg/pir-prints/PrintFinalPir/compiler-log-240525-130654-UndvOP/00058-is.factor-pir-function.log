@@ -1,0 +1,35 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ is.factor[0x55d000d62680]                                                    │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;NonRefl0,!Obj0                       │
+│ Properties:  Eager, ForceOrd: 0                                              │
+├────── Final PIR Version
+is.factor[0x55d000d62680]
+BB0
+  val?^           %0.0  = LdArg                    0
+  env             e0.1  = (MkEnv)            l     x=%0.0, parent=R_BaseNamespace, context 1
+  val+            %0.2  = Force!<lazy>       !vr   %0.0,    <(lgl|str)+>
+  val+            %0.3  = CallSafeBuiltin    vwed  inherits(%0.2, "factor", false)    <lgl$->
+  lgl$#-          %0.4  = IsType                   %0.3 isA lgl$-
+  void                    Branch                   %0.4 -> BB4 (if true) | BB5 (if false)
+BB4   <- [0]
+  lgl$-           %4.0  = CastType           d     dn %0.3
+  void                    Return             l     %4.0
+BB5   <- [0]
+  env             e5.0  = MaterializeEnv           , e0.1   <@?>
+  fs              %5.1  = FrameState         R     0x55d00008be10+37: [], env=e5.0
+  prom-           %5.2  = MkArg                    %0.2, is.factor[0x55d000d62680]_p0 (!refl), e5.0
+  val?~           %5.3  = CastType                 up %5.2
+  env             e5.4  = (MkEnv)            l     which(miss)=false, what="factor", x=%5.3, parent=R_BaseNamespace, context 0
+  fs              %5.5  = FrameState         R     0x55d0000889e0+55: [%0.3], env=e5.4, next=%5.1
+  void                    Deopt              !v    %5.5, Typecheck@0x55cfff5d5428[Type#1], %0.3
+Prom 0:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    x, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <(lgl|str)+>
+  void                    Return             l     %0.3
+
+│ is.factor[0x55d000d62680]                                                    │
+└──────────────────────────────────────────────────────────────────────────────┘
