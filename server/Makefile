@@ -1,5 +1,10 @@
-# Maven commands
-# ---
+# Saner makefile
+MAKEFLAGS += --no-builtin-rules
+
+BASE_DIR = $(realpath $(dir $(abspath $(lastword $(MAKEFILE_LIST))))/..)
+R_HOME ?= $(BASE_DIR)/external/R
+R := $(R_HOME)/bin/R
+
 build:
 	mvn $(MVN_ARGS) package
 
@@ -7,17 +12,12 @@ format:
 	mvn $(MVN_ARGS) spotless:apply
 
 # `test` only runs unit tests
-test:
-	mvn $(MVN_ARGS) test
+test: 
+	R_BIN=$(R) mvn $(MVN_ARGS) test
 
 # `verify` runs both tests and static analyses
 verify:
-	mvn $(MVN_ARGS) verify
+	R_BIN=$(R) mvn $(MVN_ARGS) verify
 
 clean:
 	mvn $(MVN_ARGS) clean
-# ---
-
-# Install pre-commit and pre-push hooks
-setup:
-	cp -f .githooks/pre-commit.sh .git/hooks/pre-commit

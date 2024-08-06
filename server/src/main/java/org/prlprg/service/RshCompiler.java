@@ -10,7 +10,7 @@ public class RshCompiler {
   private static final Logger logger = Logger.getLogger(RshCompiler.class.getName());
 
   // TODO: make it configurable
-  private static final String INCLUDE_PATH = "backend/include";
+  private static final String INCLUDE_PATH = "../client/include";
 
   // TODO: which ones are needed? Can we bootstrap it from R?
   private static final List<String> COMMON_COMPILER_FLAGS =
