@@ -29,7 +29,7 @@ namespace rsh {
 
 using Bytes = std::vector<u8>;
 
-// This should point to the R ExterbalRoutine/NativeSymbolInfo structure
+// This should point to the R ExternalRoutine/NativeSymbolInfo structure
 // that represents the exported C function registered in r_init_rsh
 extern SEXP CALL_FUN;
 
