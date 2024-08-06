@@ -13,8 +13,8 @@ import java.io.StringReader;
 import java.util.function.IntPredicate;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
-import org.prlprg.util.IOThrowingSupplier;
 import org.prlprg.util.Strings;
+import org.prlprg.util.ThrowingSupplier;
 
 /**
  * Read specific structure (e.g. identifiers, numbers, specific punctuation) from a stream of text.
@@ -984,7 +984,7 @@ public class Scanner {
   }
 
   /** Skip whitespace if necessary, prevent nested read and rethrow {@link IOException}. */
-  private <T> T doRead(IOThrowingSupplier<T> r) {
+  private <T> T doRead(ThrowingSupplier<T> r) {
     if (isReading) {
       throw new IllegalStateException("attempted nested read");
     }
@@ -994,7 +994,7 @@ public class Scanner {
       skipWhitespaceAccordingToPolicy();
 
       return r.get();
-    } catch (IOException e) {
+    } catch (Exception e) {
       throw new RuntimeException("failed to read from input", e);
     } finally {
       isReading = false;

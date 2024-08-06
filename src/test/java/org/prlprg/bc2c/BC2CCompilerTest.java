@@ -3,7 +3,7 @@ package org.prlprg.bc2c;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.File;
-import java.util.Objects;
+import java.util.Set;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.Test;
 import org.prlprg.AbstractGNURBasedTest;
@@ -12,34 +12,6 @@ import org.prlprg.rds.RDSWriter;
 import org.prlprg.service.RshCompiler;
 import org.prlprg.sexp.*;
 import org.prlprg.util.Files;
-
-// FIXME: move to the compiler
-class CCompilationException extends Exception {
-  private final String command;
-  private final File cFile;
-
-  public CCompilationException(String command, File cFile, Throwable cause) {
-    super(cause);
-    this.command = command;
-    this.cFile = cFile;
-  }
-
-  @Override
-  public String getMessage() {
-    var sb = new StringBuilder();
-    sb.append("Compilation failed\n").append("Command: ").append(command).append("\n");
-    if (cFile.exists()) {
-      sb.append("File: ")
-          .append(cFile.getAbsolutePath())
-          .append("\n")
-          .append(Files.readString(cFile.toPath()))
-          .append("\n");
-    } else {
-      sb.append("No file\n");
-    }
-    return sb.toString();
-  }
-}
 
 public class BC2CCompilerTest extends AbstractGNURBasedTest {
 
@@ -187,12 +159,11 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
     var funName = "f";
     var fileName = "test";
 
-    var tempDir = java.nio.file.Files.createTempDirectory("test-bc2cc").toFile();
+    var tempDir = Files.createTempDirectory("test-bc2cc").toFile();
     var cFile = new File(tempDir, funName + ".c");
     var cpFile = new File(tempDir, fileName + ".RDS");
     var soFile = new File(tempDir, funName + ".so");
     var rFile = new File(tempDir, "driver.R");
-    var makeFile = new File(tempDir, "Makefile");
 
     Files.clearDirectory(tempDir.toPath());
 
@@ -241,23 +212,17 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
 
       Files.writeString(rFile.toPath(), testDriver);
 
-      // FIXME: UGLY - define a utility to copy file from resource folder
-      // FIXME: do this only when we do not delete the directory
-      Files.writeString(
-          makeFile.toPath(),
-          Files.readString(
-              Files.pathFromFileUrl(
-                  Objects.requireNonNull(getClass().getResource("Makefile")).toURI().toURL())));
-
       var res = R.eval("source('%s', local=F)$value".formatted(rFile.getAbsolutePath()));
 
-      System.out.println(res);
-      System.out.println(tempDir.getAbsolutePath());
-
+      Set.of(cFile, cpFile, soFile, rFile).forEach(File::deleteOnExit);
       return (T) res;
-      // Set.of(cFile, cpFile, soFile, rFile, makeFile).forEach(File::deleteOnExit);
-    } catch (AssertionError | ClassCastException e) {
-      throw new CCompilationException("<no command>", cFile, e);
+    } catch (AssertionError | Exception e) {
+      var makeFile = new File(tempDir, "Makefile");
+
+      Files.copyURL(getClass().getResource("Makefile"),
+          makeFile.toPath());
+
+      throw new RuntimeException("Test failed - temp file: " + tempDir.getAbsolutePath(), e);
     }
   }
 

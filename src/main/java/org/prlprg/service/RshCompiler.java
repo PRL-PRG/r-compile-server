@@ -1,10 +1,10 @@
 package org.prlprg.service;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Logger;
+import org.prlprg.util.cc.CCCompilationBuilder;
 
 public class RshCompiler {
   private static final Logger logger = Logger.getLogger(RshCompiler.class.getName());
@@ -64,7 +64,7 @@ public class RshCompiler {
     return instance;
   }
 
-  private void initialize() throws IOException, InterruptedException {
+  private void initialize() throws Exception {
     // TODO: make it constants
     var input = "Rsh.h";
     var output = "Rsh.h.gch";

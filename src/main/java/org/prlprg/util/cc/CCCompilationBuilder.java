@@ -1,13 +1,15 @@
-package org.prlprg.service;
+package org.prlprg.util.cc;
 
 import java.io.*;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 // TODO: consider in-memory filesystem
 public class CCCompilationBuilder {
+  public static final Logger LOG = Logger.getLogger(CCCompilationBuilder.class.getName());
 
   // TODO: configurable from environment variable
   private static final String DEFAULT_COMPILER = "gcc";
@@ -28,10 +30,11 @@ public class CCCompilationBuilder {
     return this;
   }
 
-  // TODO: return something with warnings, ...
-  public void compile() throws IOException, InterruptedException {
-    var logger = Logger.getLogger(CCCompilationBuilder.class.getName());
-    logger.fine("Compiling input: " + input + ", output: " + output);
+  public void compile() throws IOException, InterruptedException, CCompilationException {
+    if (LOG.isLoggable(Level.FINE)) {
+      LOG.fine("Compiling input: " + input + ", output: " + output);
+    }
+
     var time = System.currentTimeMillis();
 
     var builder = new ProcessBuilder();
@@ -40,7 +43,11 @@ public class CCCompilationBuilder {
     builder.command(compiler, "-o", output, input);
     builder.command().addAll(flags);
 
-    logger.finer("Running command: " + String.join(" ", builder.command()));
+    var cmd = String.join(" ", builder.command());
+
+    if (LOG.isLoggable(Level.FINER)) {
+      LOG.finer("Running command: " + cmd);
+    }
 
     Process process = builder.start();
 
@@ -57,22 +64,20 @@ public class CCCompilationBuilder {
     int exitCode = process.waitFor();
 
     if (exitCode != 0) {
-      throw new RuntimeException(
-          "Compilation failed with exit code "
-              + exitCode
-              + ":\n"
-              + String.join(" ", builder.command())
-              + "\n"
-              + stdout);
+      throw new CCompilationException(
+          cmd, new File(workingDirectory, input), stdout.toString(), exitCode);
     }
 
     if (!stdout.isEmpty()) {
-      logger.warning("Compilation warnings:\n" + stdout);
+      LOG.warning("Compilation warnings:\n" + stdout);
     }
 
     time = System.currentTimeMillis() - time;
     var size = new File(workingDirectory, output).length();
-    logger.fine("Finished compilation in %d ms (size: %d)\n".formatted(time, size));
+
+    if (LOG.isLoggable(Level.FINE)) {
+      LOG.fine("Finished compilation in %d ms (size: %d)\n".formatted(time, size));
+    }
   }
 
   public CCCompilationBuilder flags(Collection<String> flags) {

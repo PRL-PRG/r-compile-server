@@ -2,7 +2,6 @@ package org.prlprg.service;
 
 import com.google.common.io.Files;
 import java.io.File;
-import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.logging.Logger;
 import org.prlprg.RSession;
@@ -20,7 +19,7 @@ public class JITService {
   }
 
   public CompiledFunction execute(String name, CloSXP closure, int ccOptimization)
-      throws IOException, InterruptedException {
+      throws Exception {
     logger.fine("Compiling closure: " + name + "\n" + closure + "\n");
 
     var bcCompiler = new BCCompiler(closure, rsession);

@@ -9,10 +9,10 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.FileTime;
 import java.util.Collection;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
-// FIXME: remove the wrappers over java Files class
 public class Files {
   /**
    * @param root Directory to list files from
@@ -76,69 +76,37 @@ public class Files {
   }
 
   public static Path pathFromFileUrl(URL url) {
-    try {
-      return Paths.get(url.toURI());
-    } catch (URISyntaxException e) {
-      throw new RuntimeException("Not a file URL: " + url, e);
-    }
+    return ThrowingSupplier.get(() -> Paths.get(url.toURI()));
   }
 
   // region boilerplate wrappers which don't throw IOException
   public static Path createTempDirectory(String prefix) {
-    try {
-      return java.nio.file.Files.createTempDirectory(prefix);
-    } catch (IOException e) {
-      throw new RuntimeException("Failed to create temp directory", e);
-    }
+    return ThrowingSupplier.get(() -> java.nio.file.Files.createTempDirectory(prefix));
   }
 
   public static void createDirectories(Path path) {
-    try {
-      java.nio.file.Files.createDirectories(path);
-    } catch (IOException e) {
-      throw new RuntimeException("Failed to create directories", e);
-    }
+    ThrowingRunnable.run(() -> java.nio.file.Files.createDirectories(path));
   }
 
   public static FileTime getLastModifiedTime(Path path) {
-    try {
-      return java.nio.file.Files.getLastModifiedTime(path);
-    } catch (IOException e) {
-      throw new RuntimeException("Failed to get last modified time", e);
-    }
+    return ThrowingSupplier.get(() -> java.nio.file.Files.getLastModifiedTime(path));
   }
 
   public static void writeString(Path path, CharSequence out) {
-    try {
-      java.nio.file.Files.writeString(path, out);
-    } catch (IOException e) {
-      throw new RuntimeException("Failed to write string to " + path, e);
-    }
+    ThrowingRunnable.run(() -> java.nio.file.Files.writeString(path, out));
   }
 
   public static String readString(Path path) {
-    try {
-      return java.nio.file.Files.readString(path);
-    } catch (IOException e) {
-      throw new RuntimeException("Failed to read string from " + path, e);
-    }
+    return ThrowingSupplier.get(() -> java.nio.file.Files.readString(path));
   }
 
   public static void delete(Path path) {
-    try {
-      java.nio.file.Files.delete(path);
-    } catch (IOException e) {
-      throw new RuntimeException("Failed to delete " + path, e);
-    }
+    ThrowingRunnable.run(() -> java.nio.file.Files.delete(path));
   }
 
   @CanIgnoreReturnValue
   public static boolean deleteIfExists(Path path) {
-    try {
-      return java.nio.file.Files.deleteIfExists(path);
-    } catch (IOException e) {
-      throw new RuntimeException("Failed to delete " + path, e);
-    }
+    return ThrowingSupplier.get(() -> java.nio.file.Files.deleteIfExists(path));
   }
 
   public static void clearDirectory(Path path) throws IOException {
@@ -158,6 +126,15 @@ public class Files {
 
   public static boolean isRegularFile(Path path) {
     return java.nio.file.Files.isRegularFile(path);
+  }
+
+  public static void copy(Path from, Path to) {
+    ThrowingRunnable.run(() -> java.nio.file.Files.copy(from, to));
+  }
+
+  public static void copyURL(URL from, Path to) {
+    ThrowingRunnable.run(
+        () -> copy(Files.pathFromFileUrl(Objects.requireNonNull(from).toURI().toURL()), to));
   }
 
   // endregion
