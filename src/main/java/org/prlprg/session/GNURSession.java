@@ -243,7 +243,10 @@ public class GNURSession implements RSession {
   public NamespaceEnvSXP getNamespace(String name, String version) {
     var ns = namespaces.get(name + version);
     if (ns == null) {
-      // TODO: check if the library is installed in the library path and load it
+      // That could also fail!
+      // In that case, ask the client to send the package content
+      loadPackage(name, version);
+      ns = namespaces.get(name + version);
     }
     return ns;
   }

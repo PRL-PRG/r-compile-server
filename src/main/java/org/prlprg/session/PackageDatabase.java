@@ -302,6 +302,9 @@ public class PackageDatabase {
             .toList();
     LOGGER.info("Not Closures: " + notClos);
 
+    // Remove the persist environments
+    objects.keySet().removeAll(tmpEnvs.keySet());
+
     return objects;
   }
 }
