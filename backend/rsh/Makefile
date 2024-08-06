@@ -1,6 +1,7 @@
 LLVM_LIB := $(shell llvm-config-17 --libfiles)
 BEAR := $(shell command -v bear 2> /dev/null)
-R := ../../../resources/R-4.3.2/bin/R
+R_HOME ?= ../../../resources/R-4.3.2
+R := $(R_HOME)/bin/R
 
 .PHONY: all build check document test install setup
 

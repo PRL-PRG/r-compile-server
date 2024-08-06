@@ -47,7 +47,7 @@ public class RshCompiler {
       flags.add("-ggdb");
       flags.add("-DDEBUG");
     } else {
-      flags.add("-NDEBUG");
+      flags.add("-DNDEBUG");
       flags.add("-g");
     }
     flags.add("-O" + optimizationLevel);
