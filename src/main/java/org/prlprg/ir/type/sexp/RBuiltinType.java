@@ -4,6 +4,7 @@ import java.util.Collection;
 import javax.annotation.Nonnull;
 import org.prlprg.sexp.BuiltinSXP;
 import org.prlprg.sexp.SEXPType;
+import org.prlprg.sexp.ValueSXP;
 
 public sealed interface RBuiltinType extends RBuiltinOrSpecialType
     permits RNothingValueType, RBuiltinTypeImpl {
@@ -20,6 +21,11 @@ record RBuiltinTypeImpl(RFunTypeOverloads overloads) implements RBuiltinType {
 
   RBuiltinTypeImpl(Collection<RSignatureType> overloads) {
     this(new RFunTypeOverloads(overloads));
+  }
+
+  @Override
+  public Class<? extends ValueSXP> clazz() {
+    return BuiltinSXP.class;
   }
 
   @Override

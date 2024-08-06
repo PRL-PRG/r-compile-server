@@ -2,7 +2,9 @@ package org.prlprg.ir.type.sexp;
 
 import javax.annotation.Nonnull;
 import org.prlprg.ir.type.lattice.MaybeNat;
+import org.prlprg.sexp.RawSXP;
 import org.prlprg.sexp.SEXPType;
+import org.prlprg.sexp.ValueSXP;
 
 public sealed interface RRawType extends RPrimVecType permits RRawTypeImpl, RNothingValueType {
   RRawType ANY = new RRawTypeImpl(MaybeNat.UNKNOWN);
@@ -23,6 +25,11 @@ public sealed interface RRawType extends RPrimVecType permits RRawTypeImpl, RNot
 }
 
 record RRawTypeImpl(@Override MaybeNat length) implements RRawType {
+  @Override
+  public Class<? extends ValueSXP> clazz() {
+    return RawSXP.class;
+  }
+
   @Override
   public RRawType withLength(MaybeNat length) {
     return new RRawTypeImpl(length);

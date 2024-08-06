@@ -3,6 +3,8 @@ package org.prlprg.ir.type.sexp;
 import org.prlprg.ir.type.lattice.Lattice;
 import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.ir.type.lattice.MaybeNat;
+import org.prlprg.sexp.PrimVectorSXP;
+import org.prlprg.sexp.ValueSXP;
 
 /** Primitive vector {@link RSexpType} projection. */
 public sealed interface RPrimVecType extends RVectorType
@@ -30,6 +32,11 @@ public sealed interface RPrimVecType extends RVectorType
 }
 
 record RPrimVecTypeImpl(@Override MaybeNat length) implements RPrimVecType {
+  @Override
+  public Class<? extends ValueSXP> clazz() {
+    return PrimVectorSXP.class;
+  }
+
   @Override
   public RPrimVecType withLength(MaybeNat length) {
     return new RPrimVecTypeImpl(length);

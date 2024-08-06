@@ -14,11 +14,13 @@ import org.prlprg.ir.type.lattice.YesOrMaybe;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.BCodeSXP;
+import org.prlprg.sexp.BuiltinOrSpecialSXP;
 import org.prlprg.sexp.BuiltinSXP;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.ComplexSXP;
 import org.prlprg.sexp.DotsListSXP;
 import org.prlprg.sexp.ExprSXP;
+import org.prlprg.sexp.FunSXP;
 import org.prlprg.sexp.IntSXP;
 import org.prlprg.sexp.LangSXP;
 import org.prlprg.sexp.LglSXP;
@@ -35,6 +37,7 @@ import org.prlprg.sexp.StaticEnvSXP;
 import org.prlprg.sexp.StrSXP;
 import org.prlprg.sexp.SymSXP;
 import org.prlprg.sexp.UserEnvSXP;
+import org.prlprg.sexp.ValueSXP;
 import org.prlprg.sexp.VecSXP;
 import org.prlprg.util.Classes;
 import org.prlprg.util.NotImplementedError;
@@ -144,6 +147,18 @@ public sealed interface RValueType extends BoundedLattice<RValueType>
     return null;
   }
 
+  /** The class of {@link ValueSXP} this type represents.
+   *
+   * <p>Specifically, the most specific subclass of {@link ValueSXP} that is guaranteed to be an
+   * instance of this type.
+   *
+   * <p>{@link BuiltinOrSpecialSXP} for {@link RBuiltinOrSpecialType}, {@link FunSXP} for {@link
+   * RFunType}, etc.
+   *
+   * <p>Returns {@code null} for the nothing type.
+   */
+  @Nullable Class<? extends ValueSXP> clazz();
+
   @Override
   default boolean isSubsetOf(RValueType other) {
     return other == this || other == ANY || simpleRecordIsSubset(this, other);
@@ -219,6 +234,11 @@ final class RValueTypeImpl implements RValueType {
           Class<? extends RValueType>,
           Map<Class<? extends RValueType>, Optional<Class<? extends RValueType>>>>
       cachedCommonSimpleRecordSuperclasses = new HashMap<>();
+
+  @Override
+  public Class<? extends ValueSXP> clazz() {
+    return ValueSXP.class;
+  }
 
   @Override
   public boolean isSubsetOf(RValueType other) {
@@ -304,6 +324,11 @@ sealed interface RNothingValueType
 
 final class RNothingValueTypeImpl implements RNothingValueType {
   static final RNothingValueTypeImpl INSTANCE = new RNothingValueTypeImpl();
+
+  @Override
+  public @Nullable Class<? extends ValueSXP> clazz() {
+    return null;
+  }
 
   @Override
   public RNothingValueType withLength(MaybeNat length) {

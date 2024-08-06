@@ -1,7 +1,9 @@
 package org.prlprg.ir.type.sexp;
 
 import javax.annotation.Nonnull;
+import org.prlprg.sexp.LangSXP;
 import org.prlprg.sexp.SEXPType;
+import org.prlprg.sexp.ValueSXP;
 
 public sealed interface RLangType extends RRegSymOrLangType, RAbstractPairListType
     permits RNothingValueType, RLangTypeImpl {
@@ -10,6 +12,11 @@ public sealed interface RLangType extends RRegSymOrLangType, RAbstractPairListTy
 
 final class RLangTypeImpl implements RLangType {
   static final RLangTypeImpl INSTANCE = new RLangTypeImpl();
+
+  @Override
+  public Class<? extends ValueSXP> clazz() {
+    return LangSXP.class;
+  }
 
   @Override
   public @Nonnull SEXPType sexpType() {

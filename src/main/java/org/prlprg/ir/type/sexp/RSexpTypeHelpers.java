@@ -46,22 +46,22 @@ sealed interface RSexpTypeHelpers<T> permits RSexpType {
           RValueType.NOTHING, YesOrMaybe.YES, AttributesType.BOTTOM, RPromiseType.VALUE, Maybe.YES);
 
   /** The type of a value that is an {@link SEXP} and not a promise. */
-  RSexpType<? extends ValueOrMissingSXP> VALUE_MAYBE_MISSING = ANY.forced();
+  RSexpType<? extends ValueOrMissingSXP> VALUE_MAYBE_MISSING = RSexpType.ANY.forced();
 
   /**
    * The type of a value that is an {@link SEXP}, not a promise, and not
    * {@linkplain SEXPs#MISSING_ARG missing}.
    */
-  RSexpType<? extends ValueSXP> VALUE_NOT_MISSING = ANY.forcedNotMissing();
+  RSexpType<? extends ValueSXP> VALUE_NOT_MISSING = RSexpType.ANY.forcedNotMissing();
 
   /**
    * The type of a value we know absolutely nothing about, except that it's either a promise or
    * {@linkplain SEXPs#MISSING_ARG missing}.
    */
-  RSexpType<? extends PromSXP<?>> PROMISE_MAYBE_MISSING = ANY.promiseWrapped();
+  RSexpType<? extends PromSXP<?>> PROMISE_MAYBE_MISSING = RSexpType.ANY.promiseWrapped();
 
   /** The type of a value we know absolutely nothing about, except that it <i>is</i> a promise. */
-  RSexpType<? extends PromSXP<?>> PROMISE_NOT_MISSING = ANY.notMissing().promiseWrapped();
+  RSexpType<? extends PromSXP<?>> PROMISE_NOT_MISSING = RSexpType.ANY.notMissing().promiseWrapped();
 
   /**
    * The type of a function we know absolutely nothing about besides it being a function (could be a
@@ -160,7 +160,7 @@ sealed interface RSexpTypeHelpers<T> permits RSexpType {
    * <i>unless</i> this is the nothing type.
    */
   default RSexpType<? extends ValueOrMissingSXP> forced() {
-    return cast(this).withPromise(RPromiseType.VALUE);
+    return (RSexpType<? extends ValueOrMissingSXP>) cast(this).withPromise(RPromiseType.VALUE);
   }
 
   /**
@@ -168,16 +168,16 @@ sealed interface RSexpTypeHelpers<T> permits RSexpType {
    * RPromiseType#LAZY_PROMISE}, <i>unless</i> this is the nothing type.
    */
   default RSexpType<? extends PromSXP<?>> lazy() {
-    return cast(this).withPromise(RPromiseType.LAZY_PROMISE);
+    return (RSexpType<? extends PromSXP<?>>) cast(this).withPromise(RPromiseType.LAZY_PROMISE);
   }
 
   /**
    * If this type is maybe or definitely lazy, returns the not-lazy equivalent. Otherwise returns
    * itself (including if this is the nothing type).
    */
-  default RSexpType<T> strict() {
+  default RSexpType<? extends T> strict() {
     var self = cast(this);
-    return self.promise() == null ? self : self.withPromise(self.promise().strict());
+    return self.promise() == null ? self : (RSexpType<T>) self.withPromise(self.promise().strict());
   }
 
   /**
@@ -189,7 +189,7 @@ sealed interface RSexpTypeHelpers<T> permits RSexpType {
   default RSexpType<? extends SEXP> maybeLazy() {
     var self = cast(this);
     return self.promise() == null ? (RSexpType<? extends SEXP>) self
-        : self.withPromise(self.promise().maybeLazy());
+        : (RSexpType<? extends SEXP>) self.withPromise(self.promise().maybeLazy());
   }
 
   /**
@@ -199,7 +199,7 @@ sealed interface RSexpTypeHelpers<T> permits RSexpType {
   default RSexpType<? extends PromSXP<?>> promiseWrapped() {
     var self = cast(this);
     return self.promise() == null ? (RSexpType<? extends PromSXP<?>>) self
-        : self.withPromise(self.promise().promiseWrapped());
+        : (RSexpType<? extends PromSXP<?>>) self.withPromise(self.promise().promiseWrapped());
   }
 
   /**
@@ -207,12 +207,12 @@ sealed interface RSexpTypeHelpers<T> permits RSexpType {
    * the nothing type.
    */
   default RSexpType<? extends T> notMissing() {
-    return cast(this).withMissingness(Maybe.NO);
+    return (RSexpType<? extends T>) cast(this).withMissingness(Maybe.NO);
   }
 
   /** Returns the maybe-missing equivalent of this type. */
   default RSexpType<? extends SEXP> maybeMissing() {
-    return cast(this).withMissingness(Maybe.MAYBE);
+    return (RSexpType<? extends SEXP>) cast(this).withMissingness(Maybe.MAYBE);
   }
 
   /**
@@ -222,19 +222,19 @@ sealed interface RSexpTypeHelpers<T> permits RSexpType {
    * forced, then missingness throws an error).
    */
   default RSexpType<? extends ValueSXP> forcedNotMissing() {
-    return cast(this).withMissingness(Maybe.NO);
+    return (RSexpType<? extends ValueSXP>) cast(this).withMissingness(Maybe.NO);
   }
 
   // endregion helper derived constructors
 
   // region helper accessors
   /**
-   * Whether this is {@link #ANY}.
+   * Whether this is {@link RSexpType#ANY}.
    *
    * <p>If true, every {@link SEXP} is an instance.
    */
   default boolean isSEXP() {
-    return this == ANY;
+    return this == RSexpType.ANY;
   }
 
   /**

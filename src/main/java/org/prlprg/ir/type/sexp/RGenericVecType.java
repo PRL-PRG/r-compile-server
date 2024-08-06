@@ -3,6 +3,8 @@ package org.prlprg.ir.type.sexp;
 import javax.annotation.Nonnull;
 import org.prlprg.ir.type.lattice.MaybeNat;
 import org.prlprg.sexp.SEXPType;
+import org.prlprg.sexp.ValueSXP;
+import org.prlprg.sexp.VecSXP;
 
 public sealed interface RGenericVecType extends RVectorType
     permits RGenericVecTypeImpl, RNothingValueType {
@@ -24,6 +26,11 @@ public sealed interface RGenericVecType extends RVectorType
 }
 
 record RGenericVecTypeImpl(@Override MaybeNat length) implements RGenericVecType {
+  @Override
+  public Class<? extends ValueSXP> clazz() {
+    return VecSXP.class;
+  }
+
   @Override
   public RGenericVecType withLength(MaybeNat length) {
     return new RGenericVecTypeImpl(length);

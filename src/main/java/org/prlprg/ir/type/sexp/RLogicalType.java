@@ -3,7 +3,9 @@ package org.prlprg.ir.type.sexp;
 import javax.annotation.Nonnull;
 import org.prlprg.ir.type.lattice.MaybeNat;
 import org.prlprg.ir.type.lattice.NoOrMaybe;
+import org.prlprg.sexp.LglSXP;
 import org.prlprg.sexp.SEXPType;
+import org.prlprg.sexp.ValueSXP;
 
 public sealed interface RLogicalType extends RNumericOrLogicalType
     permits RLogicalTypeImpl, RNothingValueType {
@@ -35,6 +37,11 @@ public sealed interface RLogicalType extends RNumericOrLogicalType
 
 record RLogicalTypeImpl(@Override MaybeNat length, @Override NoOrMaybe hasNAOrNaN)
     implements RLogicalType {
+  @Override
+  public Class<? extends ValueSXP> clazz() {
+    return LglSXP.class;
+  }
+
   @Override
   public RLogicalType withLength(MaybeNat length) {
     return new RLogicalTypeImpl(length, hasNAOrNaN);

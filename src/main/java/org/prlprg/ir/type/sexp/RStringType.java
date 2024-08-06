@@ -4,6 +4,8 @@ import javax.annotation.Nonnull;
 import org.prlprg.ir.type.lattice.MaybeNat;
 import org.prlprg.ir.type.lattice.NoOrMaybe;
 import org.prlprg.sexp.SEXPType;
+import org.prlprg.sexp.StrSXP;
+import org.prlprg.sexp.ValueSXP;
 
 public sealed interface RStringType extends RNAAbleVecType, RStringOrRegSymType
     permits RStringTypeImpl, RNothingValueType {
@@ -36,6 +38,11 @@ public sealed interface RStringType extends RNAAbleVecType, RStringOrRegSymType
 
 record RStringTypeImpl(@Override MaybeNat length, @Override NoOrMaybe hasNAOrNaN)
     implements RStringType {
+  @Override
+  public Class<? extends ValueSXP> clazz() {
+    return StrSXP.class;
+  }
+
   @Override
   public RStringType withLength(MaybeNat length) {
     return new RStringTypeImpl(length, hasNAOrNaN);

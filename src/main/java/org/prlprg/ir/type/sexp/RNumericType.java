@@ -2,6 +2,8 @@ package org.prlprg.ir.type.sexp;
 
 import org.prlprg.ir.type.lattice.MaybeNat;
 import org.prlprg.ir.type.lattice.NoOrMaybe;
+import org.prlprg.sexp.NumericSXP;
+import org.prlprg.sexp.ValueSXP;
 
 /** Primitive vector {@link RSexpType} projection. */
 public sealed interface RNumericType extends RNumericOrLogicalType
@@ -36,6 +38,11 @@ public sealed interface RNumericType extends RNumericOrLogicalType
 record RNumericTypeImpl(@Override MaybeNat length, @Override NoOrMaybe hasNAOrNaN)
     implements RNumericType {
   static final RNumericTypeImpl INSTANCE = new RNumericTypeImpl(MaybeNat.UNKNOWN, NoOrMaybe.MAYBE);
+
+  @Override
+  public Class<? extends ValueSXP> clazz() {
+    return NumericSXP.class;
+  }
 
   @Override
   public RNumericType withLength(MaybeNat length) {

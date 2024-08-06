@@ -3,7 +3,9 @@ package org.prlprg.ir.type.sexp;
 import javax.annotation.Nonnull;
 import org.prlprg.ir.type.lattice.MaybeNat;
 import org.prlprg.ir.type.lattice.NoOrMaybe;
+import org.prlprg.sexp.IntSXP;
 import org.prlprg.sexp.SEXPType;
+import org.prlprg.sexp.ValueSXP;
 
 public sealed interface RIntType extends RNumericType permits RIntTypeImpl, RNothingValueType {
   RIntType ANY = new RIntTypeImpl(MaybeNat.UNKNOWN, NoOrMaybe.MAYBE);
@@ -34,6 +36,11 @@ public sealed interface RIntType extends RNumericType permits RIntTypeImpl, RNot
 }
 
 record RIntTypeImpl(@Override MaybeNat length, @Override NoOrMaybe hasNAOrNaN) implements RIntType {
+  @Override
+  public Class<? extends ValueSXP> clazz() {
+    return IntSXP.class;
+  }
+
   @Override
   public RIntType withLength(MaybeNat length) {
     return new RIntTypeImpl(length, hasNAOrNaN);

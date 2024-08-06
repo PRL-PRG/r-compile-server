@@ -2,6 +2,8 @@ package org.prlprg.ir.type.sexp;
 
 import org.prlprg.ir.type.lattice.MaybeNat;
 import org.prlprg.ir.type.lattice.NoOrMaybe;
+import org.prlprg.sexp.NumericOrLogicalSXP;
+import org.prlprg.sexp.ValueSXP;
 
 /** Primitive vector {@link RSexpType} projection. */
 public sealed interface RNumericOrLogicalType extends RNAAbleVecType
@@ -35,6 +37,11 @@ public sealed interface RNumericOrLogicalType extends RNAAbleVecType
 
 record RNumericOrLogicalTypeImpl(@Override MaybeNat length, @Override NoOrMaybe hasNAOrNaN)
     implements RNumericOrLogicalType {
+  @Override
+  public Class<? extends ValueSXP> clazz() {
+    return NumericOrLogicalSXP.class;
+  }
+
   @Override
   public RNumericOrLogicalType withLength(MaybeNat length) {
     return new RNumericOrLogicalTypeImpl(length, hasNAOrNaN);

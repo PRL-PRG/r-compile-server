@@ -4,6 +4,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collector;
 import java.util.stream.Collector.Characteristics;
@@ -416,7 +417,7 @@ public non-sealed interface RSexpType<T> extends RSexpTypeHelpers<T>, RType<T> {
   @Nullable RPromiseType promise();
 
   /** Whether the "value", possibly wrapped in a promise (described by {@link #value()}, {@link
-   * {@link #attributes()}, and {@link #promise()}, is maybe or definitely missing.
+   * #attributes()}, and {@link #promise()}, is maybe or definitely missing.
    *
    * <p>If maybe missing, the instance is either what {@link #value()}/{@link #attributes()}/
    * {@link #promise()} describe <i>or</i> {@link SEXPs#MISSING_ARG}. If definitely missing, then
@@ -648,16 +649,17 @@ record RSexpTypeImpl<T extends SEXP>(
         : "If `isMissing` is `YES`, this must be the missing type";
   }
 
+  @SuppressWarnings("unchecked")
   @Override
   public Class<? extends T> clazz() {
     return switch (promise.isPromise()) {
       case NO -> switch (isMissing) {
-        case NO -> value.clazz();
-        case MAYBE -> ValueOrMissingSXP.class;
-        case YES -> MissingSXP.class;
+        case NO -> (Class<? extends T>) Objects.requireNonNull(value.clazz(), "`RSexpTypeImpl` constructor prevents `isMissing == NO && value instanceof RNothingValueType`, so it should prevent `value.clazz() == null`");
+        case MAYBE -> (Class<? extends T>) ValueOrMissingSXP.class;
+        case YES -> (Class<? extends T>) MissingSXP.class;
       };
-      case MAYBE -> SEXP.class;
-      case YES -> PromSXP.class;
+      case MAYBE -> (Class<? extends T>) SEXP.class;
+      case YES -> (Class<? extends T>) PromSXP.class;
     };
   }
 

@@ -8,6 +8,8 @@ import org.prlprg.ir.type.lattice.Lattice;
 import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
+import org.prlprg.sexp.FunSXP;
+import org.prlprg.sexp.ValueSXP;
 
 public sealed interface RFunType extends RValueType
     permits RFunTypeImpl, RClosureType, RBuiltinOrSpecialType {
@@ -77,6 +79,11 @@ public sealed interface RFunType extends RValueType
 
 record RFunTypeImpl(RFunTypeOverloads overloads) implements RFunType {
   static final RFunTypeImpl INSTANCE = new RFunTypeImpl(RFunTypeOverloads.NONE);
+
+  @Override
+  public Class<? extends ValueSXP> clazz() {
+    return FunSXP.class;
+  }
 
   @Override
   public String typeString() {

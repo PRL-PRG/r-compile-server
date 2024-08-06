@@ -2,6 +2,8 @@ package org.prlprg.ir.type.sexp;
 
 import javax.annotation.Nonnull;
 import org.prlprg.sexp.SEXPType;
+import org.prlprg.sexp.StaticEnvSXP;
+import org.prlprg.sexp.ValueSXP;
 
 public sealed interface RStaticEnvType extends REnvType
     permits RStaticEnvTypeImpl, RNothingValueType {
@@ -10,6 +12,11 @@ public sealed interface RStaticEnvType extends REnvType
 
 final class RStaticEnvTypeImpl implements RStaticEnvType {
   static final RStaticEnvTypeImpl INSTANCE = new RStaticEnvTypeImpl();
+
+  @Override
+  public Class<? extends ValueSXP> clazz() {
+    return StaticEnvSXP.class;
+  }
 
   @Override
   public @Nonnull SEXPType sexpType() {

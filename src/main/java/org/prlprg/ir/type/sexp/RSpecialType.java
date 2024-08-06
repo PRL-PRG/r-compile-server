@@ -4,6 +4,7 @@ import java.util.Collection;
 import javax.annotation.Nonnull;
 import org.prlprg.sexp.SEXPType;
 import org.prlprg.sexp.SpecialSXP;
+import org.prlprg.sexp.ValueSXP;
 
 public sealed interface RSpecialType extends RBuiltinOrSpecialType
     permits RNothingValueType, RSpecialTypeImpl {
@@ -18,8 +19,9 @@ public sealed interface RSpecialType extends RBuiltinOrSpecialType
 record RSpecialTypeImpl(RFunTypeOverloads overloads) implements RSpecialType {
   static final RSpecialTypeImpl INSTANCE = new RSpecialTypeImpl(RFunTypeOverloads.NONE);
 
-  RSpecialTypeImpl(Collection<RSignatureType> overloads) {
-    this(new RFunTypeOverloads(overloads));
+  @Override
+  public Class<? extends ValueSXP> clazz() {
+    return SpecialSXP.class;
   }
 
   @Override
@@ -30,5 +32,9 @@ record RSpecialTypeImpl(RFunTypeOverloads overloads) implements RSpecialType {
   @Override
   public String typeString() {
     return sexpType().toString();
+  }
+
+  private RSpecialTypeImpl(Collection<RSignatureType> overloads) {
+    this(new RFunTypeOverloads(overloads));
   }
 }

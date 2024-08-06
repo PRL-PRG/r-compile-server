@@ -1,7 +1,9 @@
 package org.prlprg.ir.type.sexp;
 
 import javax.annotation.Nonnull;
+import org.prlprg.sexp.NilSXP;
 import org.prlprg.sexp.SEXPType;
+import org.prlprg.sexp.ValueSXP;
 
 public sealed interface RNilType extends RListType, RDotsListType
     permits RNothingValueType, RNilTypeImpl {
@@ -10,6 +12,11 @@ public sealed interface RNilType extends RListType, RDotsListType
 
 final class RNilTypeImpl implements RNilType {
   static final RNilTypeImpl INSTANCE = new RNilTypeImpl();
+
+  @Override
+  public Class<? extends ValueSXP> clazz() {
+    return NilSXP.class;
+  }
 
   @Override
   public @Nonnull SEXPType sexpType() {

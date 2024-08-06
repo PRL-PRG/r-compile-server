@@ -4,6 +4,8 @@ import org.prlprg.ir.type.lattice.MaybeNat;
 import org.prlprg.ir.type.lattice.NoOrMaybe;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
+import org.prlprg.sexp.PrimVectorSXP;
+import org.prlprg.sexp.ValueSXP;
 
 /** Primitive vector that can contain {@code NA} values. */
 public sealed interface RNAAbleVecType extends RPrimVecType
@@ -56,6 +58,12 @@ public sealed interface RNAAbleVecType extends RPrimVecType
 
 record RNAAbleVecTypeImpl(@Override MaybeNat length, @Override NoOrMaybe hasNAOrNaN)
     implements RNAAbleVecType {
+  @Override
+  public Class<? extends ValueSXP> clazz() {
+    // TODO: Add `NAAbleVectorSXP` class
+    return PrimVectorSXP.class;
+  }
+
   @Override
   public RNAAbleVecType withLength(MaybeNat length) {
     return new RNAAbleVecTypeImpl(length, hasNAOrNaN);

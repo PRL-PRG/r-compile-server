@@ -11,6 +11,7 @@ import org.prlprg.ir.type.lattice.YesOrMaybe;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.SEXPType;
 import org.prlprg.sexp.SEXPs;
+import org.prlprg.sexp.ValueSXP;
 
 public sealed interface RClosureType extends RFunType permits RNothingValueType, RClosureTypeImpl {
   RClosureType ANY = new RClosureTypeImpl(YesOrMaybe.MAYBE, RFunTypeOverloads.NONE);
@@ -53,8 +54,8 @@ public sealed interface RClosureType extends RFunType permits RNothingValueType,
   /**
    * {@link YesOrMaybe#YES YES} if this is statically known to be created from a {@link Closure}.
    *
-   * <p>If {@link YesOrMaybe#YES YES}, we explicitly provide a call context when calling this via
-   * {@link StmtData.Call Call} instruction.
+   * <p>If {@link YesOrMaybe#YES YES}, we explicitly provide a call context when calling this via a
+   * call instruction.
    */
   YesOrMaybe isJit();
 }
@@ -62,6 +63,11 @@ public sealed interface RClosureType extends RFunType permits RNothingValueType,
 record RClosureTypeImpl(YesOrMaybe isJit, RFunTypeOverloads overloads) implements RClosureType {
   RClosureTypeImpl(YesOrMaybe isJit, Collection<RSignatureType> overloads) {
     this(isJit, new RFunTypeOverloads(overloads));
+  }
+
+  @Override
+  public Class<? extends ValueSXP> clazz() {
+    return CloSXP.class;
   }
 
   @Override

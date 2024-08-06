@@ -3,7 +3,9 @@ package org.prlprg.ir.type.sexp;
 import javax.annotation.Nonnull;
 import org.prlprg.ir.type.lattice.MaybeNat;
 import org.prlprg.ir.type.lattice.NoOrMaybe;
+import org.prlprg.sexp.RealSXP;
 import org.prlprg.sexp.SEXPType;
+import org.prlprg.sexp.ValueSXP;
 
 public sealed interface RRealType extends RNumericType permits RRealTypeImpl, RNothingValueType {
   RRealType ANY = new RRealTypeImpl(MaybeNat.UNKNOWN, NoOrMaybe.MAYBE);
@@ -32,6 +34,11 @@ public sealed interface RRealType extends RNumericType permits RRealTypeImpl, RN
 
 record RRealTypeImpl(@Override MaybeNat length, @Override NoOrMaybe hasNAOrNaN)
     implements RRealType {
+  @Override
+  public Class<? extends ValueSXP> clazz() {
+    return RealSXP.class;
+  }
+
   @Override
   public RRealType withLength(MaybeNat length) {
     return new RRealTypeImpl(length, hasNAOrNaN);

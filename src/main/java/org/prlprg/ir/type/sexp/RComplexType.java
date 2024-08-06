@@ -3,7 +3,9 @@ package org.prlprg.ir.type.sexp;
 import javax.annotation.Nonnull;
 import org.prlprg.ir.type.lattice.MaybeNat;
 import org.prlprg.ir.type.lattice.NoOrMaybe;
+import org.prlprg.sexp.ComplexSXP;
 import org.prlprg.sexp.SEXPType;
+import org.prlprg.sexp.ValueSXP;
 
 public sealed interface RComplexType extends RNumericType
     permits RComplexTypeImpl, RNothingValueType {
@@ -36,6 +38,11 @@ public sealed interface RComplexType extends RNumericType
 
 record RComplexTypeImpl(@Override MaybeNat length, @Override NoOrMaybe hasNAOrNaN)
     implements RComplexType {
+  @Override
+  public Class<? extends ValueSXP> clazz() {
+    return ComplexSXP.class;
+  }
+
   @Override
   public RComplexType withLength(MaybeNat length) {
     return new RComplexTypeImpl(length, hasNAOrNaN);

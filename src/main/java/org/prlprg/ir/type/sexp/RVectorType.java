@@ -4,6 +4,8 @@ import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.ir.type.lattice.MaybeNat;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
+import org.prlprg.sexp.ValueSXP;
+import org.prlprg.sexp.VectorSXP;
 
 public sealed interface RVectorType extends RListOrVectorType
     permits RVectorTypeImpl, RPrimVecType, RGenericVecType, RExprVecType {
@@ -54,6 +56,11 @@ public sealed interface RVectorType extends RListOrVectorType
 }
 
 record RVectorTypeImpl(@Override MaybeNat length) implements RVectorType {
+  @Override
+  public Class<? extends ValueSXP> clazz() {
+    return VectorSXP.class;
+  }
+
   @Override
   public RVectorType withLength(MaybeNat length) {
     return new RVectorTypeImpl(length);

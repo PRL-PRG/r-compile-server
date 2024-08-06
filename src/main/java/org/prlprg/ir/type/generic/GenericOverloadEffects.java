@@ -1,7 +1,7 @@
 package org.prlprg.ir.type.generic;
 
 import org.prlprg.ir.effect.REffects;
-import org.prlprg.ir.type.RSignatureTypeNormalizedArity;
+import org.prlprg.ir.type.sexp.RSignatureTypeNormalizedArity;
 
 /**
  * Computes the effects emitted from the overload containing this instance, when it receives the
