@@ -42,3 +42,8 @@ build/
 
 ### Mac OS ###
 .DS_Store
+
+### Native ###
+perf.data
+*.so
+*.gch
