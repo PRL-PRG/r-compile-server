@@ -7,7 +7,7 @@
 
 ### Mac OS ###
 .DS_Store
-client/include/.cache/clangd/index
-client/rsh/.cache/clangd/index
-client/rsh/.RData
-client/rsh/.Rhistory
+
+### R ###
+.RData
+.Rhistory

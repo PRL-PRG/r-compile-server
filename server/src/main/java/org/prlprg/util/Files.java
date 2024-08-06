@@ -133,7 +133,7 @@ public class Files {
 
   public static void copyURL(URL from, Path to) {
     ThrowingRunnable.run(
-        () -> copy(Files.pathFromFileUrl(Objects.requireNonNull(from).toURI().toURL()), to));
+        () -> copy(pathFromFileUrl(Objects.requireNonNull(from).toURI().toURL()), to));
   }
 
   // endregion

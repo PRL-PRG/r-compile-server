@@ -1,22 +1,28 @@
+# Saner makefile
+MAKEFLAGS += --no-builtin-rules
+
+BASE_DIR = $(realpath $(dir $(abspath $(lastword $(MAKEFILE_LIST))))/../..)
+R_HOME ?= $(BASE_DIR)/external/R
 GCH := Rsh.h.gch
 
 build:
 	gcc \
 	-DNDEBUG \
 	-I. \
+	-I$(R_HOME)/include \
 	-I/usr/local/include \
 	-fpic \
 	-fno-plt \
 	-fexceptions \
-	-Wformat \
-	-Werror=format-security \
-	-Wno-comment \
 	-fstack-clash-protection \
 	-fcf-protection \
 	-flto=auto \
 	-ffat-lto-objects \
-	-Wall \
 	-pedantic \
+	-Wformat \
+	-Werror=format-security \
+	-Wno-comment \
+	-Wall \
 	-g \
 	-fdiagnostics-color=always \
 	-x c-header \
