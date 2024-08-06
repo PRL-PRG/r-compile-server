@@ -35,20 +35,26 @@ final class Flags {
     }
   }
 
+  // Pack the flags of a regular item
   public Flags(
-      RDSItemType type,
-      GPFlags levels,
-      boolean isObject,
-      boolean hasAttributes,
-      boolean hasTag,
-      int refIndex) {
+      RDSItemType type, GPFlags levels, boolean isObject, boolean hasAttributes, boolean hasTag) {
+    if (type.i() == RDSItemType.Special.REFSXP.i())
+      throw new IllegalArgumentException(
+          "Cannot write REFSXP with this constructor: ref index " + "needed");
     this.flags =
         type.i()
             | (levels.encode() << 12)
             | (isObject ? OBJECT_MASK : 0)
             | (hasAttributes ? ATTR_MASK : 0)
-            | (hasTag ? TAG_MASK : 0)
-            | (refIndex << 8);
+            | (hasTag ? TAG_MASK : 0);
+  }
+
+  // Pack the flags of a reference
+  public Flags(RDSItemType type, int refIndex) {
+    if (type.i() != RDSItemType.Special.REFSXP.i())
+      throw new IllegalArgumentException(
+          "Cannot write REFSXP with this constructor: ref index " + "needed");
+    this.flags = type.i() | (refIndex << 8);
   }
 
   public RDSItemType getType() {
@@ -74,6 +80,19 @@ final class Flags {
 
   public int unpackRefIndex() {
     return flags >> 8;
+  }
+
+  /**
+   * Returns a new Flags identical to this one, but with the hasAttr bit set according to
+   * hasAttributes.
+   */
+  public Flags withAttributes(boolean hasAttributes) {
+    return new Flags(this.flags & ~ATTR_MASK | (hasAttributes ? ATTR_MASK : 0));
+  }
+
+  /** Returns a new Flags identical to this one, but with the hasTag bit set according to hasTag. */
+  public Flags withTag(boolean hasTag) {
+    return new Flags(this.flags & ~TAG_MASK | (hasTag ? TAG_MASK : 0));
   }
 
   @Override
@@ -117,7 +136,7 @@ final class Flags {
  */
 final class GPFlags {
   // HASHASH_MASK: 1;
-  // BYTES_MASK: 1 << 1
+  // private static final int BYTES_MASK = 1 << 1;
   private static final int LATIN1_MASK = 1 << 2;
   private static final int UTF8_MASK = 1 << 3;
   // S4_OBJECT_MASK: 1 << 4
@@ -129,8 +148,7 @@ final class GPFlags {
 
   GPFlags(@Nullable Charset charset, boolean locked) {
     // NOTE: CACHED_MASK and HASHASH_MASK should be off when packing RDS flags for SEXPType.CHAR,
-    // but
-    // since we don't have external input for levels I think they should be off anyways
+    //  but since we don't have external input for levels I think they should be off anyways
     this.flags =
         (locked ? LOCKED_MASK : 0)
             | (charset == StandardCharsets.UTF_8 ? UTF8_MASK : 0)
@@ -140,6 +158,10 @@ final class GPFlags {
 
   GPFlags(int levels) {
     this.flags = levels;
+  }
+
+  GPFlags() {
+    this.flags = 0;
   }
 
   public int encode() {

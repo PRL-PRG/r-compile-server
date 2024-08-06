@@ -31,7 +31,7 @@ public class GNUR implements AutoCloseable {
     return rprocess.isAlive();
   }
 
-  private void run(String code) {
+  public void run(String code) {
     var requestId = UUID.randomUUID().toString();
 
     if (!rprocess.isAlive()) {
@@ -72,7 +72,6 @@ public class GNUR implements AutoCloseable {
     }
   }
 
-  // FIXME: refactor -- this is a weird test
   /**
    * Evaluate R source with input SEXP. The SEXP is passed from Java to the R world using RDS.
    *
@@ -83,7 +82,7 @@ public class GNUR implements AutoCloseable {
   public SEXP eval(String source, SEXP input) {
     try {
       var inputFile = File.createTempFile("RCS-input", ".rds");
-      RDSWriter.writeFile(rsession, inputFile, input);
+      RDSWriter.writeFile(inputFile, input);
       String full_source = "input <- readRDS('" + inputFile.getAbsolutePath() + "')\n" + source;
 
       return eval(full_source);
@@ -104,8 +103,6 @@ public class GNUR implements AutoCloseable {
         if (line == null) {
           throw new RuntimeException("R exited unexpectedly");
         }
-
-        // FIXME: add some verbose flag
 
         if (line.equals(requestId)) {
           return;

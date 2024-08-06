@@ -48,6 +48,11 @@ public final class EmptyEnvSXP implements StaticEnvSXP {
   }
 
   @Override
+  public int size() {
+    return 0;
+  }
+
+  @Override
   public Optional<Pair<EnvSXP, SEXP>> find(String name) {
     return Optional.empty();
   }
@@ -55,11 +60,6 @@ public final class EmptyEnvSXP implements StaticEnvSXP {
   @Override
   public @UnmodifiableView Set<Entry<String, SEXP>> bindings() {
     return Set.of();
-  }
-
-  @Override
-  public int size() {
-    return 0;
   }
 
   @Override

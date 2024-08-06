@@ -13,6 +13,16 @@ public final class GlobalEnvSXP extends AbstractStaticEnvSXP implements StaticEn
   }
 
   @Override
+  public int size() {
+    return bindings.size();
+  }
+
+  @Override
+  public String toString() {
+    // TODO: add some link to the R session?
+    return "<environment: R_GlobalEnv>";
+  }
+
   public EnvType envType() {
     return EnvType.GLOBAL;
   }

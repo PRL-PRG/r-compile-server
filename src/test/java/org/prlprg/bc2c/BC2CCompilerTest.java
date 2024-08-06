@@ -191,7 +191,7 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
       var cCode = bc2c.compile();
       var cConsts = bc2c.constants();
 
-      RDSWriter.writeFile(rsession, cpFile, SEXPs.vec(cConsts));
+      RDSWriter.writeFile(cpFile, SEXPs.vec(cConsts));
 
       Files.writeString(cFile.toPath(), cCode.toString());
 
@@ -219,8 +219,7 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
     } catch (AssertionError | Exception e) {
       var makeFile = new File(tempDir, "Makefile");
 
-      Files.copyURL(getClass().getResource("Makefile"),
-          makeFile.toPath());
+      Files.copyURL(getClass().getResource("Makefile"), makeFile.toPath());
 
       throw new RuntimeException("Test failed - temp file: " + tempDir.getAbsolutePath(), e);
     }

@@ -8,7 +8,7 @@ import org.prlprg.ir.closure.Closure;
 /** Test our {@linkplain ClosureCompiler IR closure compiler} specifically. */
 public class IRCompilerTests extends RClosureTestsUsingIRCompiler {
   @Test
-  public void inlineForReturn() {
+  public void inlineForReturn() throws Exception {
     testClosure(
         """
       function(x) for (i in x) if (i) return() else 1
