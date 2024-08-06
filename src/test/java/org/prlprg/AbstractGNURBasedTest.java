@@ -3,8 +3,10 @@ package org.prlprg;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.logging.LogManager;
+import javax.annotation.Nullable;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestInstance;
 import org.prlprg.rsession.TestRSession;
 import org.prlprg.util.GNUR;
@@ -16,8 +18,7 @@ public class AbstractGNURBasedTest implements Tests {
   protected static RSession rsession = new TestRSession();
 
   // Gets initialized in `@BeforeAll`.
-  @SuppressWarnings("NotNullFieldNotInitialized")
-  protected GNUR R;
+  protected @Nullable GNUR R = null;
 
   @BeforeAll
   public void initializeLogging() throws IOException {
@@ -25,9 +26,11 @@ public class AbstractGNURBasedTest implements Tests {
     LogManager.getLogManager().readConfiguration(config);
   }
 
-  @BeforeAll
+  @BeforeEach
   public void startR() {
-    R = GNUR.spawn(rsession);
+    if (R == null || !R.isAlive()) {
+      R = GNUR.spawn(rsession);
+    }
   }
 
   // It's not constant if `startR` fails.

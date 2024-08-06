@@ -79,7 +79,7 @@ class ByteCodeStack {
   }
 
   protected String register(int idx) {
-    assert idx >=0;
+    assert idx >= 0;
     return "_" + idx;
   }
 
@@ -89,9 +89,9 @@ class ByteCodeStack {
     }
 
     var line =
-            IntStream.range(0, max)
-                    .mapToObj("_%d"::formatted)
-                    .collect(Collectors.joining(", ", "Value ", ";"));
+        IntStream.range(0, max)
+            .mapToObj("_%d"::formatted)
+            .collect(Collectors.joining(", ", "Value ", ";"));
 
     return Optional.of(line);
   }
@@ -103,6 +103,7 @@ public class BC2CCompiler {
   protected static final String NAME_CP = "CP";
   protected static final Value VAL_NULL = new Value("Rsh_NilValue", false);
   public static final String VAL_TRUE = "VAL_TRUE";
+  public static final String VAL_FALSE = "VAL_FALSE";
 
   protected final String name;
   protected final Bc bc;
@@ -165,8 +166,9 @@ public class BC2CCompiler {
 
     switch (instr) {
       case BcInstr.SetVar(var idx) -> compileSetVar(idx);
-      case BcInstr.LdConst(var idx) -> compileLdConst(idx);
-      case BcInstr.LdTrue() -> compileLdTrue();
+      case BcInstr.LdConst(var idx) -> compileLd(constantVAL(idx));
+      case BcInstr.LdTrue() -> compileLd(VAL_TRUE);
+      case BcInstr.LdFalse() -> compileLd(VAL_FALSE);
       case BcInstr.GetVar(var idx) -> compileGetVar(idx);
       case BcInstr.Add(var idx) -> compileAdd(idx);
       case BcInstr.Lt(var idx) -> compileLt(idx);
@@ -319,12 +321,8 @@ public class BC2CCompiler {
     popPush(2, "Rsh_relop(LT_OP, %s, %s, %s, %s)".formatted(lhs, rhs, call, NAME_ENV), false);
   }
 
-  private void compileLdTrue() {
-    push(VAL_TRUE, false);
-  }
-
-  private void compileLdConst(ConstPool.Idx<SEXP> idx) {
-    push(constantVAL(idx), false);
+  private void compileLd(String constant) {
+    push(constant, false);
   }
 
   // API

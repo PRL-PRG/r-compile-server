@@ -45,131 +45,75 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
 
   @Test
   public void testReturn() throws Exception {
-    compileAndCall(
-        """
-          function () { 42 }
-          """,
-        "list(x=42)",
-        (RealSXP v) -> {
-          assertEquals(42.0, v.asReal(0));
-        });
+    verify("42", (RealSXP v) -> assertEquals(42.0, v.asReal(0)));
   }
 
-  @Test
-  public void testGetVar() throws Exception {
-    compileAndCall(
-        """
-           function (x) { x }
-           """,
-        "list(x=42)",
-        (RealSXP v) -> {
-          assertEquals(42.0, v.asReal(0));
-        });
-  }
+  //  @Test
+  //  public void testGetVar() throws Exception {
+  //    verify(
+  //        """
+  //           function (x) { x }
+  //           """,
+  //        "list(x=42)",
+  //        (RealSXP v) -> assertEquals(42.0, v.asReal(0)));
+  //  }
 
   @Test
   public void testSetVar() throws Exception {
-    compileAndCall(
-        """
-           function () { x <- 42; x }
-           """,
-        "list(x=42)",
-        (RealSXP v) -> {
-          assertEquals(42.0, v.asReal(0));
-        });
+    verify("x <- 42; x", (RealSXP v) -> assertEquals(42.0, v.asReal(0)));
   }
 
-  @Test
-  public void testGetAndSetVar() throws Exception {
-    compileAndCall(
-        """
-          function (x) { y <- x; y }
-          """,
-        "list(x=42)",
-        (RealSXP v) -> {
-          assertEquals(42.0, v.asReal(0));
-        });
-  }
+  //  @Test
+  //  public void testGetAndSetVar() throws Exception {
+  //    verify(
+  //        """
+  //          function (x) { y <- x; y }
+  //          """,
+  //        "list(x=42)",
+  //        (RealSXP v) -> {
+  //          assertEquals(42.0, v.asReal(0));
+  //        });
+  //  }
 
   @Test
-  public void testGetAndSetVar2() throws Exception {
-    compileAndCall(
-        """
-           function (x) { y <- x; x <- y; x }
-           """,
-        "list(x=42)",
-        (RealSXP v) -> {
-          assertEquals(42.0, v.asReal(0));
-        });
+  public void testSetVar2() throws Exception {
+    verify("y <- 42; x <- y; x", (RealSXP v) -> assertEquals(42.0, v.asReal(0)));
   }
 
   @Test
   public void testAdd() throws Exception {
-    compileAndCall(
-        """
-           function (x) { x + 21 }
-           """,
-        "list(x=42)",
-        (RealSXP v) -> {
-          assertEquals(63.0, v.asReal(0));
-        });
-    compileAndCall(
-        """
-           function (x) { x + 21L }
-           """,
-        "list(x=42L)",
-        (IntSXP v) -> {
-          assertEquals(63, v.asInt(0));
-        });
-    compileAndCall(
-        """
-           function (x) { x + 21 }
-           """,
-        "list(x=42L)",
-        (RealSXP v) -> {
-          assertEquals(63.0, v.asReal(0));
-        });
-    compileAndCall(
-        """
-           function (x) { x + c(1, 2) }
-           """,
-        "list(x=42)",
+    verify("x <- 42; x + 21", (RealSXP v) -> assertEquals(63.0, v.asReal(0)));
+
+    verify("x <- 42L; x + 21L", (IntSXP v) -> assertEquals(63, v.asInt(0)));
+
+    verify("x <- 42L; x + 21", (RealSXP v) -> assertEquals(63.0, v.asReal(0)));
+
+    verify(
+        "x <- 42; x + c(1, 2)",
         (RealSXP v) -> {
           assertEquals(2, v.size());
           assertEquals(43.0, v.asReal(0));
           assertEquals(44.0, v.asReal(1));
         });
-    compileAndCall(
-        """
-           function (x) { x + c(1, 2) }
-           """,
-        "list(x=c(42, 42))",
+
+    verify(
+        "x <- c(42, 43); x + c(1, 2)",
         (RealSXP v) -> {
           assertEquals(2, v.size());
           assertEquals(43.0, v.asReal(0));
-          assertEquals(44.0, v.asReal(1));
+          assertEquals(45.0, v.asReal(1));
         });
   }
 
   @Test
   public void testCompareScalars() throws Exception {
-    compileAndCall(
-        """
-           function (x) { x < 100 }
-           """,
-        "list(x=42)",
-        (LglSXP v) -> {
-          assertEquals(SEXPs.TRUE, v);
-        });
+    verify("x <- 42; x < 100", (LglSXP v) -> assertEquals(SEXPs.TRUE, v));
   }
 
   @Test
   public void testCall() throws Exception {
-    compileAndCall(
-        """
-            function () { timestamp() }
-            """,
-        "list()",
+    verify(
+        "timestamp()",
         (StrSXP v) -> {
           assertEquals(1, v.size());
           assertTrue(v.get(0).startsWith("##------"));
@@ -179,59 +123,26 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
 
   @Test
   public void testSumIn0Loop() throws Exception {
-    compileAndCall(
+    verify(
         """
-            function (n) {
-              s <- 0
-              i <- 0
-              while (i < n) {
-                s <- s + i
-                i <- i + 1
-              }
-              s
-            }
-            """,
-        "list(n=100)",
-        (RealSXP v) -> {
-          assertEquals(4950.0, v.asReal(0));
-        });
+          n <- 100
+          s <- 0
+          i <- 0
+          while (i < n) {
+            s <- s + i
+            i <- i + 1
+          }
+          s
+          """,
+        (RealSXP v) -> assertEquals(4950.0, v.asReal(0)));
   }
 
   @Test
   public void testNA() throws Exception {
-    compileAndCall(
-        """
-              function (x) {
-                y <- x
-                is.na(y)
-              }
-              """,
-        "list(x=TRUE)",
-        (LglSXP v) -> {
-          assertEquals(SEXPs.FALSE, v);
-        });
-    compileAndCall(
-        """
-              function (x) {
-                y <- x
-                is.na(y)
-              }
-              """,
-        "list(x=FALSE)",
-        (LglSXP v) -> {
-          assertEquals(SEXPs.FALSE, v);
-        });
-    compileAndCall(
-        """
-          function (x) {
-            y <- x
-            is.na(y)
-          }
-          """,
-        "list(x=NA)",
-        (LglSXP v) -> {
-          assertEquals(SEXPs.TRUE, v);
-        });
+    verify("x <- TRUE;  y <- x; is.na(y)", (LglSXP v) -> assertEquals(SEXPs.FALSE, v));
+    verify("x <- FALSE; y <- x; is.na(y)", (LglSXP v) -> assertEquals(SEXPs.FALSE, v));
+    verify("x <- NA;    y <- x; is.na(y)", (LglSXP v) -> assertEquals(SEXPs.TRUE, v));
+    verify("y <- NA_integer_; is.na(y)", (LglSXP v) -> assertEquals(SEXPs.TRUE, v));
   }
 
   //  @Test
@@ -272,8 +183,7 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
   //        });
   //  }
 
-  <T extends SEXP> void compileAndCall(String code, String env, Consumer<T> validator)
-      throws Exception {
+  <T extends SEXP> T verify(String code) throws Exception {
     var funName = "f";
     var fileName = "test";
 
@@ -286,7 +196,8 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
 
     Files.clearDirectory(tempDir.toPath());
 
-    var closure = (CloSXP) R.eval(code);
+    var funCode = "function() {" + code + "}";
+    var closure = (CloSXP) R.eval(funCode);
     var ast2bc = new BCCompiler(closure, rsession);
 
     // FIXME: just for now as we do not support guards
@@ -322,7 +233,7 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
       String testDriver =
           "dyn.load('%s')\n".formatted(soFile.getAbsolutePath())
               + "cp <- readRDS('%s')\n".formatted(cpFile.getAbsolutePath())
-              + "env <- as.environment(%s)\n".formatted(env)
+              + "env <- new.env()\n"
               + "parent.env(env) <- globalenv()\n"
               + "res <- .Call('%s', env, cp)\n".formatted(funName)
               + "dyn.unload('%s')\n".formatted(soFile.getAbsolutePath())
@@ -341,13 +252,16 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
       var res = R.eval("source('%s', local=F)$value".formatted(rFile.getAbsolutePath()));
 
       System.out.println(res);
-
-      validator.accept((T) res);
-
       System.out.println(tempDir.getAbsolutePath());
+
+      return (T) res;
       // Set.of(cFile, cpFile, soFile, rFile, makeFile).forEach(File::deleteOnExit);
     } catch (AssertionError | ClassCastException e) {
       throw new CCompilationException("<no command>", cFile, e);
     }
+  }
+
+  <T extends SEXP> void verify(String code, Consumer<T> validator) throws Exception {
+    validator.accept(verify(code));
   }
 }

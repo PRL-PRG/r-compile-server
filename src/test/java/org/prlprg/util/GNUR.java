@@ -27,6 +27,10 @@ public class GNUR implements AutoCloseable {
     this.rout = new BufferedReader(new InputStreamReader(rprocess.getInputStream()));
   }
 
+  public boolean isAlive() {
+    return rprocess.isAlive();
+  }
+
   private void run(String code) {
     var requestId = UUID.randomUUID().toString();
 
@@ -68,6 +72,7 @@ public class GNUR implements AutoCloseable {
     }
   }
 
+  // FIXME: refactor -- this is a weird test
   /**
    * Evaluate R source with input SEXP. The SEXP is passed from Java to the R world using RDS.
    *
