@@ -12,7 +12,7 @@ format:
 	mvn $(MVN_ARGS) spotless:apply
 
 # `test` only runs unit tests
-test: 
+test:
 	R_BIN=$(R) mvn $(MVN_ARGS) test
 
 # `verify` runs both tests and static analyses
