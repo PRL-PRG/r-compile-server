@@ -1,0 +1,106 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ substr[0x55b0cb2df760]                                                       │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;Eager1,Eager2,NonRefl1,NonRefl2,!Obj1,!Obj2,SimpleReal1,SimpleReal2│
+│ Properties:  ForceOrd: 0                                                     │
+├────── PIR Version After Optimizations
+substr[0x55b0cb2df760]
+BB0
+  goto BB1
+BB1   <- [0]
+  real$~-         %1.0  = LdArg                    2
+  real$~-         %1.1  = LdArg                    1
+  val?^           %1.2  = LdArg                    0
+  env             e1.3  = MkEnv              l     x=%1.2, start=%1.1, stop=%1.0, parent=R_BaseNamespace, context 1
+  val?            %1.4  = Force!<lazy>       !v    %1.2, e1.3   <str->
+  lgl$#-          %1.5  = IsType                   %1.4 isA val?-
+  cp              %1.6  = Checkpoint                -> BB2 (default) | BB20 (if assume failed)
+BB2   <- [1]
+  void                    Assume             D     %1.5, %1.6 (Typecheck@0x55b0c9276730[Type#1])
+  val?-           %2.1  = CastType           d     dn %1.4   <str->
+  lgl$#-          %2.2  = CallSafeBuiltin    wed   is.character(%2.1)    <lgl$->
+  void                    Branch                   %2.2 -> BB19 (if true) | BB3 (if false)
+BB20   <- [1]
+  fs              %20.0 = FrameState         R     0x55b0c8de8a20+69: [<blt is.character>, %1.4], env=e1.3
+  void                    Deopt              !v    %20.0   !
+BB19   <- [2]
+  goto BB8
+BB3   <- [2]
+  val?^ | miss    %3.0  = LdVar              eR    as.character, e1.3
+  lgl$#-          %3.1  = Identical                <blt as.character>, %3.0   <@?>
+  void                    Branch                   %3.1 -> BB5 (if true) | BB4 (if false)
+BB8   <- [19, 7]
+  val?^ | miss    %8.0  = LdVar              eR    x, e1.3
+  val?            %8.1  = Force!<wrapped>    !v    %8.0, e1.3   <str->
+  cp              %8.2  = Checkpoint                -> BB10 (default) | BB9 (if assume failed)
+BB5   <- [3]
+  val?^ | miss    %5.0  = LdVar              eR    x, e1.3
+  val?            %5.1  = Force!             !v    %5.0, e1.3   <val?_>
+  lgl$#-          %5.2  = IsType                   %5.1 isA val?+
+  cp              %5.3  = Checkpoint                -> BB7 (default) | BB6 (if assume failed)
+BB4   <- [3]
+  (cls|spec|blt)  %4.0  = LdFun              !v    as.character, e1.3
+  fs              %4.1  = FrameState         R     0x55b0c8de8a20+136: [%4.0], env=e1.3
+  void                    Deopt              !v    %4.1, DeadCall@0x55b0c9276730[Call#1], %4.0   !
+BB10   <- [8]
+  val?^ | miss    %10.0 = LdVar              eR    as.integer, e1.3
+  lgl$#-          %10.1 = Identical                <blt as.integer>, %10.0   <true>
+  void                    Assume             D     %10.1, %8.2 (DeadBranchReached@0x55b0c9276730[Test#2])
+  val?^ | miss    %10.3 = LdVar              eR    start, e1.3
+  val?            %10.4 = Force!<wrapped>    !v    %10.3, e1.3   <(int|real)$->
+  lgl$#-          %10.5 = IsType                   %10.4 isA val?-
+  cp              %10.6 = Checkpoint                -> BB12 (default) | BB11 (if assume failed)
+BB9   <- [8]
+  fs              %9.0  = FrameState         R     0x55b0c8de8a20+222: [%8.1], env=e1.3
+  void                    Deopt              !v    %9.0   !
+BB7   <- [5]
+  void                    Assume             D     %5.2, %5.3 (Typecheck@0x55b0c9276730[Type#4])
+  val?+           %7.1  = CastType           d     dn %5.1   <val?_>
+  val+            %7.2  = CallSafeBuiltin    wed   as.character(%7.1)    <val?_>
+  void                    StVar              lW    x, %7.2, e1.3
+  goto BB8
+BB6   <- [5]
+  fs              %6.0  = FrameState         R     0x55b0c8de8a20+177: [<blt as.character>, %5.1], env=e1.3
+  void                    Deopt              !v    %6.0   !
+BB12   <- [10]
+  void                    Assume             D     %10.5, %10.6 (Typecheck@0x55b0c9276730[Type#8])
+  val?-           %12.1 = CastType           d     dn %10.4   <(int|real)$->
+  int-            %12.2 = CallSafeBuiltin    wed   as.integer(%12.1)    <int$->
+  lgl$#-          %12.3 = IsType                   %12.2 isA int$-
+  cp              %12.4 = Checkpoint                -> BB14 (default) | BB13 (if assume failed)
+BB11   <- [10]
+  fs              %11.0 = FrameState         R     0x55b0c8de8a20+296: [%8.1, <blt as.integer>, %10.4], env=e1.3
+  void                    Deopt              !v    %11.0   !
+BB14   <- [12]
+  void                    Assume             D     %12.3, %12.4 (Typecheck@0x55b0c9276730[Type#9])
+  int$-           %14.1 = CastType           d     dn %12.2
+  val?^ | miss    %14.2 = LdVar              eR    as.integer, e1.3
+  lgl$#-          %14.3 = Identical                <blt as.integer>, %14.2   <true>
+  void                    Assume             D     %14.3, %12.4 (DeadBranchReached@0x55b0c9276730[Test#3])
+  val?^ | miss    %14.5 = LdVar              eR    stop, e1.3
+  val?            %14.6 = Force!<lazy>       !v    %14.5, e1.3   <(int|real)$->
+  lgl$#-          %14.7 = IsType                   %14.6 isA val?-
+  cp              %14.8 = Checkpoint                -> BB16 (default) | BB15 (if assume failed)
+BB13   <- [12]
+  fs              %13.0 = FrameState         R     0x55b0c8de8a20+318: [%8.1, %12.2], env=e1.3
+  void                    Deopt              !v    %13.0   !
+BB16   <- [14]
+  void                    Assume             D     %14.7, %14.8 (Typecheck@0x55b0c9276730[Type#11])
+  val?-           %16.1 = CastType           d     dn %14.6   <(int|real)$->
+  int-            %16.2 = CallSafeBuiltin    wed   as.integer(%16.1)    <int$->
+  lgl$#-          %16.3 = IsType                   %16.2 isA int$-
+  cp              %16.4 = Checkpoint                -> BB18 (default) | BB17 (if assume failed)
+BB15   <- [14]
+  fs              %15.0 = FrameState         R     0x55b0c8de8a20+392: [%8.1, %14.1, <blt as.integer>, %14.6], env=e1.3
+  void                    Deopt              !v    %15.0   !
+BB18   <- [16]
+  void                    Assume             D     %16.3, %16.4 (Typecheck@0x55b0c9276730[Type#12])
+  int$-           %18.1 = CastType           d     dn %16.2
+  val?            %18.2 = CallBuiltin        !     substr(%8.1, %14.1, %18.1) e1.3
+  void                    Return             l     %18.2
+BB17   <- [16]
+  fs              %17.0 = FrameState         R     0x55b0c8de8a20+414: [%8.1, %14.1, %16.2], env=e1.3
+  void                    Deopt              !v    %17.0   !
+
+│ substr[0x55b0cb2df760]                                                       │
+└──────────────────────────────────────────────────────────────────────────────┘

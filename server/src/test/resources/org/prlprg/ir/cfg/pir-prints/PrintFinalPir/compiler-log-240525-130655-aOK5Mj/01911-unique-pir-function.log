@@ -1,0 +1,33 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ unique[0x55bbeaedce90]                                                       │
+│ Context: CorrOrd,!TMany,Argmatch;Eager0,Eager1,Eager2,NonRefl0,NonRefl1,NonRefl2,!Obj2│
+│ Properties:                                                                  │
+├────── Final PIR Version
+unique[0x55bbeaedce90]
+BB0
+  dots+           %0.0  = LdArg                    2
+  val?~ | miss    %0.1  = LdArg                    1
+  val?~ | miss    %0.2  = LdArg                    0
+  lgl$#-          %0.3  = Identical                %0.1, missingArg
+  env             e0.4  = (MkEnv)            l     x=%0.2, incomparables=%0.1, ...=%0.0, parent=R_BaseNamespace, context 1
+  void                    Branch                   %0.3 -> BB2 (if true) | BB6 (if false)
+BB2   <- [0]
+  void                    Visible            v     
+  void                    StArg              lWd   incomparables, false, e0.4
+  goto BB3
+BB6   <- [0]
+  void                    Nop                !     
+  goto BB3
+BB3   <- [6, 2]
+  val?            %3.0  = Call               !L    <spec UseMethod>("unique") e0.4   <val?_>
+  lgl$#-          %3.1  = IsEnvStub          R     , e0.4
+  void                    Branch                   %3.1 -> BB7 (if true) | BB8 (if false)
+BB7   <- [3]
+  void                    Return             l     %3.0
+BB8   <- [3]
+  fs              %8.0  = FrameState         R     0x55bbe3e76270+32: [%3.0], env=e0.4
+  void                    Deopt              !v    %8.0, EnvStubMaterialized@0x55bbe3e84f30[Call#unknown], e0.4
+
+│ unique[0x55bbeaedce90]                                                       │
+└──────────────────────────────────────────────────────────────────────────────┘

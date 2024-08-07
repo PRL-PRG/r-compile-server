@@ -1,0 +1,30 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ match[0x55bbe20e5720]                                                        │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;NonRefl1,!Obj1 miss: 2               │
+│ Properties:  ForceOrd: 0                                                     │
+├────── Final PIR Version
+match[0x55bbe20e5720]
+BB0
+  val?^           %0.0  = LdArg                    1
+  val?^           %0.1  = LdArg                    0
+  env             e0.2  = MkEnv              l     x=%0.1, table=%0.0, nomatch(miss)=NA, incomparables(miss)=nil, parent=R_BaseNamespace, context 1
+  val?            %0.3  = Force!<lazy>       !v    %0.1, e0.2   <val?+>
+  lgl$#-          %0.4  = IsType                   %0.3 isA val?+
+  void                    Branch                   %0.4 -> BB4 (if true) | BB5 (if false)
+BB4   <- [0]
+  val?+           %4.0  = CastType           d     dn %0.3
+  val?^ | miss    %4.1  = LdVar              eR    table, e0.2
+  val?            %4.2  = Force!<lazy>       !v    %4.1, e0.2   <val?>
+  val?^ | miss    %4.3  = LdVar              eR    nomatch, e0.2
+  val?            %4.4  = Force!<lazy>       !v    %4.3, e0.2   <int$->
+  val?^ | miss    %4.5  = LdVar              eR    incomparables, e0.2
+  val?            %4.6  = Force!<lazy>       !v    %4.5, e0.2   <nil->
+  val?            %4.7  = CallBuiltin        !     match(%4.0, %4.2, %4.4, %4.6) e0.2
+  void                    Return             l     %4.7
+BB5   <- [0]
+  fs              %5.0  = FrameState         R     0x55bbe2634d40+9: [%0.3], env=e0.2
+  void                    Deopt              !v    %5.0, Typecheck@0x55bbe2687cb0[Type#0], %0.3   !
+
+│ match[0x55bbe20e5720]                                                        │
+└──────────────────────────────────────────────────────────────────────────────┘

@@ -1,0 +1,14 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ rir.compile[0x5593d7c98d70]                                                  │
+│ Context: CorrOrd,!TMany                                                      │
+│ Properties:  Eager, !Reflection                                              │
+├────── Final PIR Version
+rir.compile[0x5593d7c98d70]
+BB0
+  void                    Visible            v     
+  lgl$#-          %0.1  = CheckTrueFalse     e     ""   <@?>
+  void                    Unreachable              
+
+│ rir.compile[0x5593d7c98d70]                                                  │
+└──────────────────────────────────────────────────────────────────────────────┘

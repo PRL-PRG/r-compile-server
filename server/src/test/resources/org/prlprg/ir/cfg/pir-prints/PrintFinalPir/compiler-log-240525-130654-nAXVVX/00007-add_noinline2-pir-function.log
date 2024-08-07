@@ -1,0 +1,18 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ add_noinline2[0x563e73d0a410]                                                │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;Eager0,NonRefl0,NonRefl1,!Obj0,!Obj1,SimpleInt1,SimpleReal0│
+│ Properties:  Eager, !Reflection, ForceOrd: 0 1                               │
+├────── Final PIR Version
+add_noinline2[0x563e73d0a410]
+BB0
+  val?^           %0.0  = LdArg                    1
+  (real|miss)$~-  %0.1  = LdArg                    0
+  real$-          %0.2  = Force<value>             %0.1,    <(int|real)$->
+  void                    Visible            v     
+  int$-           %0.4  = Force!<lazy>       !r    %0.0,    <(int|real)$->
+  real$-          %0.5  = Add                vd    %0.2, %0.4, elided   <real$->
+  void                    Return             l     %0.5
+
+│ add_noinline2[0x563e73d0a410]                                                │
+└──────────────────────────────────────────────────────────────────────────────┘

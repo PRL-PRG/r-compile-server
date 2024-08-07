@@ -1,0 +1,16 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ environment[0x5558ddc59fd0]                                                  │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch miss: 1                              │
+│ Properties:  Eager                                                           │
+├────── PIR Version After Optimizations
+environment[0x5558ddc59fd0]
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = MkEnv              l     fun(miss)=nil, parent=R_BaseNamespace, context 1
+  val?            %1.1  = CallBuiltin        !     environment(nil) e1.0
+  void                    Return             l     %1.1
+
+│ environment[0x5558ddc59fd0]                                                  │
+└──────────────────────────────────────────────────────────────────────────────┘

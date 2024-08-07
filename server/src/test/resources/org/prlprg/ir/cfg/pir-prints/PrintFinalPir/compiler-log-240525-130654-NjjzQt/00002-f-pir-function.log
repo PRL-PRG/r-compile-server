@@ -1,0 +1,23 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ f[0x5650a4807f00]                                                            │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;Eager1,NonRefl1,!Obj1,SimpleReal1    │
+│ Properties:  ForceOrd: 0                                                     │
+├────── Final PIR Version
+f[0x5650a4807f00]
+BB0
+  (real|miss)$~-  %0.0  = LdArg                    1
+  val?^           %0.1  = LdArg                    0
+  env             e0.2  = MkEnv              l     a=%0.1, b=%0.0, localVar="local", parent=R_GlobalEnv, context 1
+  val?            %0.3  = Force!             !v    %0.1, e0.2
+  (cls|spec|blt)  %0.4  = LdFun              !v    a, e0.2
+  val?            %0.5  = Call               !v    %0.4() e0.2
+  val?^ | miss    %0.6  = LdVar              eR    b, e0.2
+  val?            %0.7  = Force!<wrapped>    !v    %0.6, e0.2   <real$->
+  val?^ | miss    %0.8  = LdVar              eR    localVar, e0.2
+  void                    Visible            v     
+  val?            %0.10 = Force!<value>      !     %0.8, e0.2   <str$->
+  void                    Return             l     %0.10
+
+│ f[0x5650a4807f00]                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘

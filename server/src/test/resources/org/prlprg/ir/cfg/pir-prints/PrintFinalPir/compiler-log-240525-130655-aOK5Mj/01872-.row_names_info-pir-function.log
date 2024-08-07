@@ -1,0 +1,18 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ .row_names_info[0x55bbe9479960]                                              │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;Eager1,NonRefl0,NonRefl1,!Obj1,SimpleInt1│
+│ Properties:  Eager, ForceOrd: 0 1                                            │
+├────── Final PIR Version
+.row_names_info[0x55bbe9479960]
+BB0
+  (int|miss)$~-   %0.0  = LdArg                    1
+  val?^           %0.1  = LdArg                    0
+  env             e0.2  = MkEnv              l     x=%0.1, type=%0.0, parent=R_BaseNamespace, context 1
+  val?            %0.3  = Force!<lazy>       !vr   %0.1,    <(vec|env)>
+  int$-           %0.4  = Force!<lazy>             %0.0,    <int$->
+  val?            %0.5  = CallBuiltin        !     shortRowNames(%0.3, %0.4) e0.2
+  void                    Return             l     %0.5
+
+│ .row_names_info[0x55bbe9479960]                                              │
+└──────────────────────────────────────────────────────────────────────────────┘

@@ -1,0 +1,13 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ a[0x5650a48b7570]                                                            │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch                                      │
+│ Properties:  Eager, !Reflection                                              │
+├────── Final PIR Version
+a[0x5650a48b7570]
+BB0
+  void                    Visible            v     
+  void                    Return             l     1
+
+│ a[0x5650a48b7570]                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘

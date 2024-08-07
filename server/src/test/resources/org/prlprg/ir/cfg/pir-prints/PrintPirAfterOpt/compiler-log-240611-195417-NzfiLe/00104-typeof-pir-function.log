@@ -1,0 +1,17 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ typeof[0x5629e25d4c20]                                                       │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;NonRefl0                             │
+│ Properties:  Eager, !Reflection, ForceOrd: 0                                 │
+├────── PIR Version After Optimizations
+typeof[0x5629e25d4c20]
+BB0
+  goto BB1
+BB1   <- [0]
+  val?^           %1.0  = LdArg                    0
+  val?            %1.1  = Force!<lazy>       !vr   %1.0,    <val?>
+  str$-           %1.2  = CallSafeBuiltin    vwed  typeof(%1.1) 
+  void                    Return             l     %1.2
+
+│ typeof[0x5629e25d4c20]                                                       │
+└──────────────────────────────────────────────────────────────────────────────┘

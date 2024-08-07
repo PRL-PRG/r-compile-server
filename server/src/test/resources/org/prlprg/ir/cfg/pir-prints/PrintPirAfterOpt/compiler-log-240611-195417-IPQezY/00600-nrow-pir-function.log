@@ -1,0 +1,19 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ nrow[0x55ccb06fcd90]                                                         │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;NonRefl0,!Obj0                       │
+│ Properties:  Eager, !Reflection, ForceOrd: 0                                 │
+├────── PIR Version After Optimizations
+nrow[0x55ccb06fcd90]
+BB0
+  goto BB1
+BB1   <- [0]
+  val?^           %1.0  = LdArg                    0
+  val+            %1.1  = Force!<lazy>       !vr   %1.0,    <val?>
+  val+            %1.2  = CallSafeBuiltin    wed   dim(%1.1)    <(nil|int)->
+  val?            %1.3  = Extract1_1D        wed   %1.2, 1L, elided   <(nil|int)->
+  void                    Visible            v     
+  void                    Return             l     %1.3
+
+│ nrow[0x55ccb06fcd90]                                                         │
+└──────────────────────────────────────────────────────────────────────────────┘

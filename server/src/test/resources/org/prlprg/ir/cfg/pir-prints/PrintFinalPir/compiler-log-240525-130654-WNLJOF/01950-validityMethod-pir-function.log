@@ -1,0 +1,34 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ validityMethod[0x55fa11c47ce0]                                               │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch                                      │
+│ Properties:                                                                  │
+├────── Final PIR Version
+validityMethod[0x55fa11c47ce0]
+BB0
+  val?^           %0.0  = LdArg                    0
+  val?^ | miss    %0.1  = LdVar              eR    .Call, <env 0x55fa0d1a9f20>
+  lgl$#-          %0.2  = Identical                <blt .Call>, %0.1   <true>
+  void                    Branch                   %0.2 -> BB6 (if true) | BB7 (if false)
+BB6   <- [0]
+  val?^ | miss    %6.0  = LdVar              eR    dMatrix_validate, <env 0x55fa0d1a9f20>
+  env             e6.1  = MkEnv              l     object=%0.0, parent=<env 0x55fa0d1a9f20>, context 1
+  val?            %6.2  = Force!<value>      !v    %6.0, e6.1   <vec>
+  val?^ | miss    %6.3  = LdVar              eR    object, e6.1
+  val?            %6.4  = Force!<lazy>       !v    %6.3, e6.1   <other>
+  val?            %6.5  = CallBuiltin        !     .Call(%6.2, %6.4) e6.1   <lgl$->
+  lgl$#-          %6.6  = IsType                   %6.5 isA lgl$-
+  void                    Branch                   %6.6 -> BB8 (if true) | BB9 (if false)
+BB7   <- [0]
+  env             e7.0  = (MkEnv)            l     object=%0.0, parent=<env 0x55fa0d1a9f20>, context 1
+  fs              %7.1  = FrameState         R     0x55fa0edf4b30+0: [], env=e7.0
+  void                    Deopt              !v    %7.1, DeadBranchReached@0x55fa16ae0298[Test#0], %0.2   !
+BB8   <- [6]
+  lgl$-           %8.0  = CastType           d     dn %6.5
+  void                    Return             l     %8.0
+BB9   <- [6]
+  fs              %9.0  = FrameState         R     0x55fa0edf4b30+110: [%6.5], env=e6.1
+  void                    Deopt              !v    %9.0, Typecheck@0x55fa16ae0298[Type#4], %6.5   !
+
+│ validityMethod[0x55fa11c47ce0]                                               │
+└──────────────────────────────────────────────────────────────────────────────┘

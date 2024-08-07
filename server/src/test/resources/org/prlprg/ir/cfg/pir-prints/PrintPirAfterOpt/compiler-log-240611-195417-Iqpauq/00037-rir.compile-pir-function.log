@@ -1,0 +1,76 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ rir.compile[0x55abb46ee220]                                                  │
+│ Context: CorrOrd,!TMany                                                      │
+│ Properties:  Eager                                                           │
+├────── PIR Version After Optimizations
+rir.compile[0x55abb46ee220]
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = MkEnv              l     parent=R_GlobalEnv, context 1
+  cls             %1.1  = MkCls                    rir.compile>id@15, e1.0
+  void                    StVar              lW    id, %1.1, e1.0
+  void                    StVar              lW    i, 1, e1.0
+  void                    StVar              lW    x, 33, e1.0
+  goto BB2
+BB2   <- [1, 11]
+  val?^ | miss    %2.0  = LdVar              eR    i, e1.0
+  val?            %2.1  = Force!             !v    %2.0, e1.0   <val?_>
+  lgl$#-          %2.2  = IsType                   %2.1 isA val?+
+  cp              %2.3  = Checkpoint                -> BB3 (default) | BB13 (if assume failed)
+BB3   <- [2]
+  void                    Assume             D     %2.2, %2.3 (Typecheck@0x55abb3b0e858[Type#9])
+  val?+           %3.1  = CastType           d     dn %2.1   <val?_>
+  lgl             %3.2  = Lt                 wed   %3.1, 10, elided   <val?_>
+  lgl$#-          %3.3  = CheckTrueFalse     we    %3.2
+  void                    Branch                   %3.3 -> BB7 (if true) | BB4 (if false)
+BB13   <- [2]
+  fs              %13.0 = FrameState         R     0x55abb454fdc0+253: [%2.1], env=e1.0
+  void                    Deopt              !v    %13.0   !
+BB7   <- [3]
+  val?^ | miss    %7.0  = LdVar              eR    i, e1.0
+  val?            %7.1  = Force!             !v    %7.0, e1.0   <val?_>
+  lgl$#-          %7.2  = IsType                   %7.1 isA val?+
+  cp              %7.3  = Checkpoint                -> BB9 (default) | BB8 (if assume failed)
+BB4   <- [3]
+  val?^ | miss    %4.0  = LdVar              eR    x, e1.0
+  val?            %4.1  = Force!             !v    %4.0, e1.0   <val?_>
+  lgl$#-          %4.2  = IsType                   %4.1 isA val?+
+  cp              %4.3  = Checkpoint                -> BB6 (default) | BB5 (if assume failed)
+BB9   <- [7]
+  void                    Assume             D     %7.2, %7.3 (Typecheck@0x55abb3b0e858[Type#11])
+  val?+           %9.1  = CastType           d     dn %7.1   <val?_>
+  (real|complex)+ %9.2  = Add                wed   %9.1, 1, elided   <val?_>
+  void                    StVar              lW    i, %9.2, e1.0
+  (real|complex)+ %9.4  = Mod                wed   %9.2, 2, elided   <val?_>
+  lgl             %9.5  = Eq                 wed   %9.4, 0, elided   <val?_>
+  lgl$#-          %9.6  = CheckTrueFalse     we    %9.5
+  void                    Branch                   %9.6 -> BB12 (if true) | BB10 (if false)
+BB8   <- [7]
+  fs              %8.0  = FrameState         R     0x55abb454fdc0+285: [%7.1], env=e1.0
+  void                    Deopt              !v    %8.0   !
+BB6   <- [4]
+  void                    Visible            v     
+  void                    Assume             D     %4.2, %4.3 (Typecheck@0x55abb3b0e858[Type#18])
+  val?+           %6.2  = CastType           d     dn %4.1   <val?_>
+  (real|complex)+ %6.3  = Add                vwed  %6.2, 40, elided   <val?_>
+  void                    Return             l     %6.3
+BB5   <- [4]
+  fs              %5.0  = FrameState         R     0x55abb454fdc0+457: [%4.1], env=e1.0
+  void                    Deopt              !v    %5.0   !
+BB12   <- [9]
+  (cls|spec|blt)  %12.0 = LdFun              !v    id, e1.0
+  val?            %12.1 = Call               !v    %12.0(2) e1.0   <val?_>
+  goto BB11
+BB10   <- [9]
+  (cls|spec|blt)  %10.0 = LdFun              !v    id, e1.0
+  val?            %10.1 = Call               !v    %10.0(33) e1.0   <val?_>
+  goto BB11
+BB11   <- [12, 10]
+  val?            %11.0 = Phi                      %10.1:BB10, %12.1:BB12
+  void                    StVar              lW    x, %11.0, e1.0
+  goto BB2
+
+│ rir.compile[0x55abb46ee220]                                                  │
+└──────────────────────────────────────────────────────────────────────────────┘

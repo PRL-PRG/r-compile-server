@@ -1,0 +1,39 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ FUN[0x5638ba7b0490]                                                          │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;Eager0,NonRefl0                      │
+│ Properties:                                                                  │
+├────── Final PIR Version
+FUN[0x5638ba7b0490]
+BB0
+  val?~           %0.0  = LdArg                    0
+  env             e0.1  = MkEnv              l     x=%0.0, parent=?, context 1
+  (cls|spec|blt)  %0.2  = LdFun              !     @, <0x5638b9a6cbd8>, ?
+  prom-           %0.3  = MkArg                    unboundValue, FUN[0x5638ba7b0490]_p0 (!refl), e0.1
+  prom-           %0.4  = MkArg                    unboundValue, FUN[0x5638ba7b0490]_p1, e0.1
+  val?            %0.5  = Call               !     %0.2(%0.3, %0.4) e0.1   <real$->
+  lgl$#-          %0.6  = IsType                   %0.5 isA real$-
+  void                    Branch                   %0.6 -> BB4 (if true) | BB5 (if false)
+BB4   <- [0]
+  real$-          %4.0  = CastType           d     dn %0.5
+  void                    Return             l     %4.0
+BB5   <- [0]
+  fs              %5.0  = FrameState         R     0x5638bd3b5040+37: [%0.5], env=e0.1
+  void                    Deopt              !v    %5.0, Typecheck@0x5638bc8b5d58[Type#2], %0.5   !
+Prom 0:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    x, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 1:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    distance, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+
+│ FUN[0x5638ba7b0490]                                                          │
+└──────────────────────────────────────────────────────────────────────────────┘

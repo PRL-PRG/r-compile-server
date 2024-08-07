@@ -1,0 +1,18 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ identical[0x55fa0ddf3a30]                                                    │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;NonRefl0,NonRefl1,!Obj0,!Obj1 miss: 6│
+│ Properties:  Eager, ForceOrd: 0 1                                            │
+├────── Final PIR Version
+identical[0x55fa0ddf3a30]
+BB0
+  val?^           %0.0  = LdArg                    1
+  val?^           %0.1  = LdArg                    0
+  env             e0.2  = MkEnv              l     x=%0.1, y=%0.0, num.eq(miss)=true, single.NA(miss)=true, attrib.as.set(miss)=true, ignore.bytecode(miss)=true, ignore.environment(miss)=false, ignore.srcref(miss)=true, parent=R_BaseNamespace, context 1
+  val+            %0.3  = Force!<lazy>       !vr   %0.1,    <val?+>
+  val+            %0.4  = Force!<lazy>       !vr   %0.0,    <val?+>
+  val?            %0.5  = CallBuiltin        !     identical(%0.3, %0.4, true, true, true, true, false, true) e0.2
+  void                    Return             l     %0.5
+
+│ identical[0x55fa0ddf3a30]                                                    │
+└──────────────────────────────────────────────────────────────────────────────┘

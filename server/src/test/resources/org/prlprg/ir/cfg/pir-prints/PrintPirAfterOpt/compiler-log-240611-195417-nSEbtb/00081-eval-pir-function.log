@@ -1,0 +1,72 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ eval[0x560397e7a3d0]                                                         │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch miss: 1                              │
+│ Properties:  ForceOrd: 0                                                     │
+├────── PIR Version After Optimizations
+eval[0x560397e7a3d0]
+BB0
+  goto BB1
+BB1   <- [0]
+  val?^           %1.0  = LdArg                    1
+  val?^           %1.1  = LdArg                    0
+  env             e1.2  = MkEnv              l     expr=%1.1, envir=%1.0, enclos(miss)=missingArg, parent=R_BaseNamespace, context 1
+  prom-           %1.3  = MkArg                    unboundValue, eval[0x560397e7a3d0]_p0, e1.2
+  val?^ | miss    %1.4  = CastType                 up %1.3
+  void                    StArg              lW    enclos, %1.4, e1.2
+  val?            %1.6  = Force!<lazy>       !v    %1.1, e1.2   <(code|ast)->
+  lgl$#-          %1.7  = IsType                   %1.6 isA val?-
+  cp              %1.8  = Checkpoint                -> BB2 (default) | BB3 (if assume failed)
+BB2   <- [1]
+  void                    Assume             D     %1.7, %1.8 (Typecheck@0x560397a4ebb0[Type#5])
+  val?-           %2.1  = CastType           d     dn %1.6   <(code|ast)->
+  val?^ | miss    %2.2  = LdVar              eR    envir, e1.2
+  val?            %2.3  = Force!<lazy>       !v    %2.2, e1.2   <env->
+  val?^ | miss    %2.4  = LdVar              eR    enclos, e1.2
+  void                    Visible            v     
+  val?            %2.6  = Force!<lazy>       !     %2.4, e1.2   <env->
+  val?            %2.7  = CallBuiltin        !     eval(%2.1, %2.3, %2.6) e1.2
+  void                    Return             l     %2.7
+BB3   <- [1]
+  fs              %3.0  = FrameState         R     0x560397b01a50+9: [%1.6], env=e1.2
+  void                    Deopt              !v    %3.0   !
+Prom 0:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    envir, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<wrapped>     !     %1.1, e1.0   <env->
+  lgl$-           %1.4  = Is                       %1.3, list
+  lgl$-           %1.5  = AsLogical                %1.4
+  lgl$#-          %1.6  = Identical                %1.5, true
+  void                    Branch                   %1.6 -> BB2 (if true) | BB7 (if false)
+BB2   <- [1]
+  goto BB3
+BB7   <- [1]
+  val?^ | miss    %7.0  = LdVar              eR    envir, e1.0
+  void                    Visible            v     
+  val?            %7.2  = Force<wrapped>     !     %7.0, e1.0   <env->
+  lgl$-           %7.3  = Is                       %7.2, pairlist
+  lgl$-           %7.4  = AsLogical                %7.3
+  lgl$-           %7.5  = LOr                      %1.5, %7.4
+  goto BB3
+BB3   <- [2, 7]
+  lgl$-           %3.0  = Phi                      %7.5:BB7, %1.5:BB2
+  lgl$#-          %3.1  = CheckTrueFalse     e     %3.0
+  void                    Branch                   %3.1 -> BB6 (if true) | BB4 (if false)
+BB6   <- [3]
+  (cls|spec|blt)  %6.0  = LdFun              !     parent.frame, e1.0
+  val?            %6.1  = Call               !     %6.0() e1.0   <val?_>
+  goto BB5
+BB4   <- [3]
+  (cls|spec|blt)  %4.0  = LdFun              !     baseenv, <0x560395a24278>, e1.0
+  val?            %4.1  = Call               !     %4.0() e1.0   <env->
+  goto BB5
+BB5   <- [4, 6]
+  val?            %5.0  = Phi                      %4.1:BB4, %6.1:BB6
+  void                    Return             l     %5.0
+
+│ eval[0x560397e7a3d0]                                                         │
+└──────────────────────────────────────────────────────────────────────────────┘

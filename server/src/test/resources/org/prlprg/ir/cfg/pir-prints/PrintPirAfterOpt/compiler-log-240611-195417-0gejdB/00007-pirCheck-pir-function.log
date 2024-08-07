@@ -1,0 +1,28 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ pirCheck[0x55700ca1a680]                                                     │
+│ Context: CorrOrd,!TMany                                                      │
+│ Properties:                                                                  │
+├────── PIR Version After Optimizations
+pirCheck[0x55700ca1a680]
+BB0
+  goto BB1
+BB1   <- [0]
+  val?^ | miss    %1.0  = LdArg                    0
+  env             e1.1  = MkEnv              l     b=%1.0, parent=R_GlobalEnv, context 1
+  cls             %1.2  = MkCls                    f, e1.1
+  void                    StVar              lW    f, %1.2, e1.1
+  prom-           %1.4  = MkArg                    unboundValue, pirCheck[0x55700ca1a680]_p0, e1.1
+  val?            %1.5  = StaticCall         !     f[0x55700ca1c7d0](%1.4) from %1.2 e1.1   <str$->
+  void                    Return             l     %1.5
+Prom 0:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  (cls|spec|blt)  %1.1  = LdFun              !     b, <0x55700c9769f8>, e1.0
+  val?            %1.2  = Call               !     %1.1() e1.0   <lgl$->
+  void                    Return             l     %1.2
+
+│ pirCheck[0x55700ca1a680]                                                     │
+└──────────────────────────────────────────────────────────────────────────────┘

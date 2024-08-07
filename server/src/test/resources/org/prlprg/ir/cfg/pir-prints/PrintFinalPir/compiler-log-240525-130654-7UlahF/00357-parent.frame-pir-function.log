@@ -1,0 +1,14 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ parent.frame[0x56034b401f10]                                                 │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch miss: 1                              │
+│ Properties:  Eager                                                           │
+├────── Final PIR Version
+parent.frame[0x56034b401f10]
+BB0
+  env             e0.0  = MkEnv              l     n(miss)=1, parent=R_BaseNamespace, context 1
+  val?            %0.1  = CallBuiltin        !     parent.frame(1) e0.0
+  void                    Return             l     %0.1
+
+│ parent.frame[0x56034b401f10]                                                 │
+└──────────────────────────────────────────────────────────────────────────────┘
