@@ -1,0 +1,89 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ storage.mode[0x558f3e760520]                                                 │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;NonRefl0,!Obj0                       │
+│ Properties:  Eager, ForceOrd: 0                                              │
+├────── Final PIR Version
+storage.mode[0x558f3e760520]
+BB0
+  val?^           %0.0  = LdArg                    0
+  env             e0.1  = (MkEnv)            l     x=%0.0, tx=unboundValue, parent=R_BaseNamespace, context 1
+  val+            %0.2  = Force!<lazy>       !vr   %0.0,    <int->
+  lgl$#-          %0.3  = IsType                   %0.2 isA int-
+  void                    Branch                   %0.3 -> BB8 (if true) | BB9 (if false)
+BB8   <- [0]
+  int-            %8.0  = CastType           d     dn %0.2
+  str$-           %8.1  = CallSafeBuiltin    wed   typeof(%8.0)    <str$->
+  int$-           %8.2  = Length                   %8.1
+  void                    StVar              lWd   tx, %8.1, e0.1
+  lgl$-           %8.4  = Eq                 d     %8.2, 1L, elided   <true>
+  lgl$#-          %8.5  = Identical                %8.4, true
+  void                    Branch                   %8.5 -> BB10 (if true) | BB11 (if false)
+BB9   <- [0]
+  env             e9.0  = MaterializeEnv           , e0.1   <@?>
+  prom-           %9.1  = MkArg                    unboundValue, storage.mode[0x558f3e760520]_p0 (!refl), e9.0
+  val?^           %9.2  = CastType                 up %9.1
+  fs              %9.3  = FrameState         R     0x558f3aa447b0+32: [], env=e9.0
+  env             e9.4  = (MkEnv)            l     x=%9.2, parent=R_BaseNamespace, context 0
+  fs              %9.5  = FrameState         R     0x558f3e1b07d0+9: [], env=e9.4, next=%9.3
+  fs              %9.6  = FrameState         R     0x558f3e674550+5(pr): [%0.2], env=e9.0, next=%9.5
+  void                    Deopt              !v    %9.6, Typecheck@0x558f3af754e8[Type#0], %0.2
+BB10   <- [8]
+  lgl$-           %10.0 = CallSafeBuiltin    wed   is.na(%8.1) 
+  lgl$#-          %10.1 = CheckTrueFalse     e     %10.0   <false>
+  void                    Branch                   %10.1 -> BB13 (if true) | BB12 (if false)
+BB11   <- [8]
+  fs              %11.0 = FrameState         R     0x558f3aa447b0+48: [%8.1], env=e0.1
+  void                    Deopt              !v    %11.0, DeadBranchReached@0x558f3af754e8[Test#1], %8.5
+BB13   <- [10]
+  void                    Nop                !     
+  lgl$#-          %13.1 = %10.1
+  dr              %13.2 = DeadBranchReached@0x558f3af754e8[Test#8]
+  goto BB5
+BB12   <- [10]
+  lgl$-           %12.0 = Eq                 d     %8.1, closure, elided
+  lgl$#-          %12.1 = CheckTrueFalse     e     %12.0   <false>
+  void                    Branch                   %12.1 -> BB15 (if true) | BB14 (if false)
+BB5   <- [13, 15, 17, 19]
+  val?^ | miss    %5.0  = Phi                      %13.1:BB13, %15.1:BB15, %17.1:BB17, %19.1:BB19
+  val?^ | miss    %5.1  = %5.0
+  dr              %5.2  = Phi                      %13.2:BB13, %15.2:BB15, %17.2:BB17, %19.2:BB19
+  dr              %5.3  = %5.2
+  fs              %5.4  = FrameState         R     0x558f3aa447b0+269: [%8.1, %10.0], env=e0.1
+  void                    Deopt              !v    %5.4, %5.3, %5.1
+BB15   <- [12]
+  void                    Nop                !     
+  lgl$#-          %15.1 = %12.1
+  dr              %15.2 = DeadBranchReached@0x558f3af754e8[Test#9]
+  goto BB5
+BB14   <- [12]
+  lgl$-           %14.0 = Eq                 d     %8.1, builtin, elided
+  lgl$#-          %14.1 = CheckTrueFalse     e     %14.0   <false>
+  void                    Branch                   %14.1 -> BB17 (if true) | BB16 (if false)
+BB17   <- [14]
+  void                    Nop                !     
+  lgl$#-          %17.1 = %14.1
+  dr              %17.2 = DeadBranchReached@0x558f3af754e8[Test#10]
+  goto BB5
+BB16   <- [14]
+  lgl$-           %16.0 = Eq                 d     %8.1, special, elided
+  lgl$#-          %16.1 = CheckTrueFalse     e     %16.0   <false>
+  void                    Branch                   %16.1 -> BB19 (if true) | BB18 (if false)
+BB19   <- [16]
+  void                    Nop                !     
+  lgl$#-          %19.1 = %16.1
+  dr              %19.2 = DeadBranchReached@0x558f3af754e8[Test#11]
+  goto BB5
+BB18   <- [16]
+  void                    Visible            v     
+  void                    Return             l     %8.1
+Prom 0:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    x, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <int->
+  void                    Return             l     %0.3
+
+│ storage.mode[0x558f3e760520]                                                 │
+└──────────────────────────────────────────────────────────────────────────────┘

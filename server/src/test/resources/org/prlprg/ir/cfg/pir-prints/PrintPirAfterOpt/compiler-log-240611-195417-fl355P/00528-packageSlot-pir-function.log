@@ -1,0 +1,27 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ packageSlot[0x56555020e5a0]                                                  │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch                                      │
+│ Properties:                                                                  │
+├────── PIR Version After Optimizations
+packageSlot[0x56555020e5a0]
+BB0
+  goto BB1
+BB1   <- [0]
+  val?^           %1.0  = LdArg                    0
+  cp              %1.1  = Checkpoint                -> BB2 (default) | BB3 (if assume failed)
+BB2   <- [1]
+  val?^ | miss    %2.0  = LdVar              eR    attr, <env 0x56554a41b378>
+  lgl$#-          %2.1  = Identical                <blt attr>, %2.0   <true>
+  void                    Assume             D     %2.1, %1.1 (DeadBranchReached@0x56554cf3dce8[Test#0])
+  env             e2.3  = MkEnv              l     object=%1.0, parent=<env 0x56554a41b378>, context 1
+  val?            %2.4  = Force!<lazy>       !v    %1.0, e2.3   <(str|other)>
+  val?            %2.5  = CallBuiltin        !     attr(%2.4, "package") e2.3   <(nil|str)->
+  void                    Return             l     %2.5
+BB3   <- [1]
+  env             e3.0  = (MkEnv)            l     object=%1.0, parent=<env 0x56554a41b378>, context 1
+  fs              %3.1  = FrameState         R     0x56554c21b3a0+0: [], env=e3.0
+  void                    Deopt              !v    %3.1   !
+
+│ packageSlot[0x56555020e5a0]                                                  │
+└──────────────────────────────────────────────────────────────────────────────┘

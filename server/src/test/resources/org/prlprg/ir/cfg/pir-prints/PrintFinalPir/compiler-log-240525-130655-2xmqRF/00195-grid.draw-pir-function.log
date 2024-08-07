@@ -1,0 +1,45 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ grid.draw[0x55eeee189e20]                                                    │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;NonRefl0 miss: 1                     │
+│ Properties:  Eager, ForceOrd: 0                                              │
+├────── Final PIR Version
+grid.draw[0x55eeee189e20]
+BB0
+  val?^           %0.0  = LdArg                    0
+  void                    Visible            v     
+  env             e0.2  = (MkEnv)            l     x=%0.0, recording(miss)=true, parent=<env 0x55eeedfdc408>, context 1
+  val?            %0.3  = Force!<lazy>       !r    %0.0,    <vec>
+  lgl$-           %0.4  = Is                       %0.3, NULL
+  lgl$-           %0.5  = Not                vd    %0.4, elided
+  lgl$#-          %0.6  = CheckTrueFalse     e     %0.5
+  void                    Branch                   %0.6 -> BB2 (if true) | BB8 (if false)
+BB2   <- [0]
+  (cls|spec|blt)  %2.0  = LdFun              !     UseMethod, <0x55eeeba96520>, <env 0x55eeedfdc408>
+  lgl$#-          %2.1  = IsEnvStub          R     , e0.2
+  void                    Branch                   %2.1 -> BB9 (if true) | BB10 (if false)
+BB8   <- [0]
+  void                    Invisible          v     
+  nil-            %8.1  = nil
+  goto BB7
+BB9   <- [2]
+  val?            %9.0  = Call               !L    %2.0("grid.draw") e0.2   <val?_>
+  lgl$#-          %9.1  = IsEnvStub          R     , e0.2
+  void                    Branch                   %9.1 -> BB11 (if true) | BB12 (if false)
+BB10   <- [2]
+  fs              %10.0 = FrameState         R     0x55eeef079da0+37: [], env=e0.2
+  void                    Deopt              !v    %10.0, EnvStubMaterialized@0x55eeed220178[Call#unknown], e0.2   !
+BB7   <- [8, 11]
+  val?            %7.0  = Phi                      %8.1:BB8, %11.1:BB11
+  val?            %7.1  = %7.0
+  void                    Return             l     %7.1
+BB11   <- [9]
+  void                    Nop                !     
+  val?            %11.1 = %9.0
+  goto BB7
+BB12   <- [9]
+  fs              %12.0 = FrameState         R     0x55eeef079da0+69: [%9.0], env=e0.2
+  void                    Deopt              !v    %12.0, EnvStubMaterialized@0x55eeed220178[Call#unknown], e0.2   !
+
+│ grid.draw[0x55eeee189e20]                                                    │
+└──────────────────────────────────────────────────────────────────────────────┘

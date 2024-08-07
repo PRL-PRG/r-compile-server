@@ -1,0 +1,65 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ finalDefaultMethod[0x560399c2ffb0]                                           │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch                                      │
+│ Properties:                                                                  │
+├────── PIR Version After Optimizations
+finalDefaultMethod[0x560399c2ffb0]
+BB0
+  goto BB1
+BB1   <- [0]
+  val?^           %1.0  = LdArg                    0
+  cp              %1.1  = Checkpoint                -> BB2 (default) | BB12 (if assume failed)
+BB2   <- [1]
+  val?^ | miss    %2.0  = LdVar              eR    is.function, <env 0x560396017378>
+  lgl$#-          %2.1  = Identical                <blt is.function>, %2.0   <true>
+  void                    Assume             D     %2.1, %1.1 (DeadBranchReached@0x5603987da1f8[Test#0])
+  env             e2.3  = (MkEnv)            l     method=%1.0, parent=<env 0x560396017378>, context 1
+  val?            %2.4  = Force!<lazy>       !vL   %1.0, e2.3   <val?>
+  cp              %2.5  = Checkpoint                -> BB4 (default) | BB3 (if assume failed)
+BB12   <- [1]
+  env             e12.0 = (MkEnv)            l     method=%1.0, parent=<env 0x560396017378>, context 1
+  fs              %12.1 = FrameState         R     0x560395cfa070+0: [], env=e12.0
+  void                    Deopt              !v    %12.1   !
+BB4   <- [2]
+  lgl$#-          %4.0  = IsEnvStub          R     , e2.3
+  void                    Assume             D     %4.0, %2.5 (EnvStubMaterialized@0x5603987da1f8[Call#unknown])
+  val?            %4.2  = CallBuiltin        !vL   is.function(%2.4) e2.3   <lgl$->
+  lgl$#-          %4.3  = IsType                   %4.2 isA lgl$-
+  cp              %4.4  = Checkpoint                -> BB6 (default) | BB5 (if assume failed)
+BB3   <- [2]
+  fs              %3.0  = FrameState         R     0x560395cfa070+69: [<blt is.function>, %2.4], env=e2.3
+  void                    Deopt              !v    %3.0   !
+BB6   <- [4]
+  void                    Assume             D     %4.3, %4.4 (Typecheck@0x5603987da1f8[Type#2])
+  lgl$-           %6.1  = CastType           d     dn %4.2
+  lgl$#-          %6.2  = IsEnvStub          R     , e2.3
+  void                    Assume             D     %6.2, %4.4 (EnvStubMaterialized@0x5603987da1f8[Call#unknown])
+  lgl$-           %6.4  = AsLogical                %6.1
+  lgl$#-          %6.5  = Identical                %6.4, true
+  void                    Branch                   %6.5 -> BB11 (if true) | BB7 (if false)
+BB5   <- [4]
+  fs              %5.0  = FrameState         R     0x560395cfa070+91: [%4.2], env=e2.3
+  void                    Deopt              !v    %5.0   !
+BB11   <- [6]
+  goto BB8
+BB7   <- [6]
+  lgl$-           %7.0  = Is                       %2.4, NULL
+  lgl$-           %7.1  = AsLogical                %7.0
+  lgl$-           %7.2  = LOr                      %6.4, %7.1
+  goto BB8
+BB8   <- [11, 7]
+  lgl$-           %8.0  = Phi                      %7.2:BB7, %6.4:BB11
+  lgl$#-          %8.1  = CheckTrueFalse     e     %8.0
+  void                    Branch                   %8.1 -> BB10 (if true) | BB9 (if false)
+BB10   <- [8]
+  void                    Visible            v     
+  void                    Return             l     %2.4
+BB9   <- [8]
+  env             e9.0  = MaterializeEnv           , e2.3   <@?>
+  (cls|spec|blt)  %9.1  = LdFun              !v    is, e9.0
+  fs              %9.2  = FrameState         R     0x560395cfa070+150: [%9.1], env=e9.0
+  void                    Deopt              !v    %9.2, DeadCall@0x5603987da1f8[Call#1], %9.1   !
+
+│ finalDefaultMethod[0x560399c2ffb0]                                           │
+└──────────────────────────────────────────────────────────────────────────────┘

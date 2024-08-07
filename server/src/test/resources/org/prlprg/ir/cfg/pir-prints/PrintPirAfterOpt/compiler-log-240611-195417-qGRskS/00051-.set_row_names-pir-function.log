@@ -1,0 +1,28 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ .set_row_names[0x561663798400]                                               │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;NonRefl0,!Obj0,SimpleInt0            │
+│ Properties:  Eager, !Reflection, ForceOrd: 0                                 │
+├────── PIR Version After Optimizations
+.set_row_names[0x561663798400]
+BB0
+  goto BB1
+BB1   <- [0]
+  val?^           %1.0  = LdArg                    0
+  env             e1.1  = (MkEnv)            l     n=%1.0, parent=R_BaseNamespace, context 1
+  int$-           %1.2  = Force!<lazy>       !vr   %1.0,    <int$->
+  lgl$-           %1.3  = Gt                 d     %1.2, 0, elided   <lgl$->
+  lgl$#-          %1.4  = CheckTrueFalse     e     %1.3
+  void                    Branch                   %1.4 -> BB2 (if true) | BB3 (if false)
+BB2   <- [1]
+  int$-           %2.0  = Minus              d     %1.2, elided
+  int-            %2.1  = CallSafeBuiltin    vwed  c(NA, %2.0)    <int->
+  void                    Return             l     %2.1
+BB3   <- [1]
+  env             e3.0  = MaterializeEnv           , e1.1   <@?>
+  (cls|spec|blt)  %3.1  = LdFun              !v    integer, e3.0
+  fs              %3.2  = FrameState         R     0x5616635ecf90+37: [%3.1], env=e3.0
+  void                    Deopt              !v    %3.2, DeadCall@0x561663acb0c8[Call#0], %3.1   !
+
+│ .set_row_names[0x561663798400]                                               │
+└──────────────────────────────────────────────────────────────────────────────┘

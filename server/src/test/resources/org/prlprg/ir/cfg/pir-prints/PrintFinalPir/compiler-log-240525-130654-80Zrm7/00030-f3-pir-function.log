@@ -1,0 +1,55 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ f3[0x55eeddc77350]                                                           │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;Eager0,NonRefl0,!Obj0,SimpleReal0    │
+│ Properties:  Eager, ForceOrd: 0                                              │
+├────── Final PIR Version
+f3[0x55eeddc77350]
+BB0
+  (real|miss)$~-  %0.0  = LdArg                    0
+  void                    Visible            v     
+  real$-          %0.2  = Force<lazy>              %0.0,    <val?->
+  int$-           %0.3  = AsSwitchIdx              %0.2
+  lgl$-           %0.4  = Eq                 vd    %0.3, 1L, elided
+  lgl$#-          %0.5  = CheckTrueFalse     e     %0.4
+  env             e0.6  = MkEnv              l     x=%0.0, parent=R_GlobalEnv, context 1
+  void                    Branch                   %0.5 -> BB9 (if true) | BB3 (if false)
+BB9   <- [0]
+  val?            %9.0  = CallBuiltin        !     stop(true, "empty alternative in numeric switch") e0.6
+  void                    Unreachable              
+BB3   <- [0]
+  lgl$-           %3.0  = Eq                 vd    %0.3, 2L, elided
+  lgl$#-          %3.1  = CheckTrueFalse     e     %3.0
+  void                    Branch                   %3.1 -> BB8 (if true) | BB4 (if false)
+BB8   <- [3]
+  void                    Visible            v     
+  real$#-         %8.1  = 17
+  goto BB6
+BB4   <- [3]
+  lgl$-           %4.0  = Eq                 vd    %0.3, 3L, elided
+  lgl$#-          %4.1  = CheckTrueFalse     e     %4.0
+  void                    Branch                   %4.1 -> BB7 (if true) | BB5 (if false)
+BB6   <- [7, 8, 11]
+  (nil|real)-     %6.0  = Phi                      %11.1:BB11, %7.1:BB7, %8.1:BB8
+  (nil|real)-     %6.1  = %6.0
+  void                    Return             l     %6.1
+BB7   <- [4]
+  void                    Visible            v     
+  real$#-         %7.1  = 42
+  goto BB6
+BB5   <- [4]
+  lgl$-           %5.0  = Eq                 vd    %0.3, 4L, elided
+  lgl$#-          %5.1  = CheckTrueFalse     e     %5.0   <false>
+  void                    Branch                   %5.1 -> BB12 (if true) | BB11 (if false)
+BB12   <- [5]
+  void                    Visible            v     
+  env             e12.1 = (MkEnv)            l     x=%0.0, parent=R_GlobalEnv, context 1
+  fs              %12.2 = FrameState         R     0x55eeddb038d0+9: [%0.2], env=e12.1
+  void                    Deopt              !v    %12.2, DeadBranchReached@0x55eedd11b038[Test#7], %5.1   !
+BB11   <- [5]
+  void                    Nop                !     
+  nil-            %11.1 = nil
+  goto BB6
+
+│ f3[0x55eeddc77350]                                                           │
+└──────────────────────────────────────────────────────────────────────────────┘

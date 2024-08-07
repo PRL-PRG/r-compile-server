@@ -1,0 +1,42 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ bindingIsLocked[0x55fa0b57fdb0]                                              │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;Eager0,NonRefl0                      │
+│ Properties:  ForceOrd: 0                                                     │
+├────── Final PIR Version
+bindingIsLocked[0x55fa0b57fdb0]
+BB0
+  val?^           %0.0  = LdArg                    1
+  val?^           %0.1  = LdArg                    0
+  val?            %0.2  = Force!<lazy>             %0.1,    <str$->
+  lgl$#-          %0.3  = IsType                   %0.2 isA val?-
+  void                    Branch                   %0.3 -> BB7 (if true) | BB8 (if false)
+BB7   <- [0]
+  val?-           %7.0  = CastType           d     dn %0.2   <str$->
+  lgl$#-          %7.1  = CallSafeBuiltin    wed   is.character(%7.0)    <lgl$->
+  env             e7.2  = MkEnv              l     sym=%0.1, env=%0.0, parent=R_BaseNamespace, context 1
+  void                    Branch                   %7.1 -> BB5 (if true) | BB3 (if false)
+BB8   <- [0]
+  env             e8.0  = (MkEnv)            l     sym=%0.1, env=%0.0, parent=R_BaseNamespace, context 1
+  fs              %8.1  = FrameState         R     0x55fa0e9bb400+69: [<blt is.character>, %0.2], env=e8.0
+  void                    Deopt              !v    %8.1, Typecheck@0x55fa107fc818[Type#1], %0.2
+BB5   <- [7]
+  val             %5.0  = CallSafeBuiltin    wed   as.vector(%7.0, "symbol")    <sym->
+  void                    StVar              lW    sym, %5.0, e7.2
+  val             %5.2  = %5.0
+  goto BB4
+BB3   <- [7]
+  void                    Nop                !     
+  val?^           %3.1  = %0.1
+  goto BB4
+BB4   <- [3, 5]
+  val?^           %4.0  = Phi                      %5.2:BB5, %3.1:BB3
+  val?^           %4.1  = %4.0
+  val?            %4.2  = Force!<value>      !v    %4.1, e7.2   <sym->
+  val?^ | miss    %4.3  = LdVar              eR    env, e7.2
+  val?            %4.4  = Force!<lazy>       !v    %4.3, e7.2   <env->
+  val?            %4.5  = CallBuiltin        !     bindingIsLocked(%4.2, %4.4) e7.2
+  void                    Return             l     %4.5
+
+│ bindingIsLocked[0x55fa0b57fdb0]                                              │
+└──────────────────────────────────────────────────────────────────────────────┘

@@ -1,0 +1,110 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ f[0x55e90f8fcd70]                                                            │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;Eager0,NonRefl0,!Obj0,SimpleReal0    │
+│ Properties:  Eager, ForceOrd: 0                                              │
+├────── Final PIR Version
+f[0x55e90f8fcd70]
+BB0
+  (real|miss)$~-  %0.0  = LdArg                    0
+  real$-          %0.1  = Force<value>             %0.0,    <real$->
+  lgl$#-          %0.2  = ColonInputEffects        1, %0.1   <true>
+  lgl$#-          %0.3  = ColonInputEffects        1, %0.1   <true>
+  void                    Branch                   %0.2 -> BB10 (if true) | BB11 (if false)
+BB10   <- [0]
+  int$#-          %10.0 = ColonCastRhs       e     1L, %0.1   <int$->
+  lgl$#-          %10.1 = Lte                d     1L, %10.0, elided   <true>
+  void                    Branch                   %10.1 -> BB12 (if true) | BB13 (if false)
+BB11   <- [0]
+  void                    Nop                !     
+  lgl$#-          %11.1 = %0.2
+  dr              %11.2 = DeadBranchReached@0x55e9102d6948[Test#0]
+  goto BB9
+BB12   <- [10]
+  void                    Nop                !     
+  int$#-          %12.1 = 1L
+  goto BB3
+BB13   <- [10]
+  void                    Nop                !     
+  lgl$#-          %13.1 = %10.1
+  dr              %13.2 = DeadBranchReached@0x55e9102d6948[Test#9]
+  goto BB9
+BB9   <- [11, 13, 15, 17, 19, 21, 23]
+  val?^ | miss    %9.0  = Phi                      %11.1:BB11, %13.1:BB13, %15.1:BB15, %17.1:BB17, %19.1:BB19, %21.1:BB21, %23.1:BB23
+  val?^ | miss    %9.1  = %9.0
+  dr              %9.2  = Phi                      %11.2:BB11, %13.2:BB13, %15.2:BB15, %17.2:BB17, %19.2:BB19, %21.2:BB21, %23.2:BB23
+  dr              %9.3  = %9.2
+  env             e9.4  = (MkEnv)            l     k=unboundValue, j=unboundValue, i=unboundValue, x=%0.0, parent=R_GlobalEnv, context 1
+  fs              %9.5  = FrameState         R     0x55e90fe530e0+16: [1, %0.1], env=e9.4
+  void                    Deopt              !v    %9.5, %9.3, %9.1
+BB3   <- [7, 12]
+  int$#-          %3.0  = Phi                      %12.1:BB12, %7.1:BB7
+  int$#-          %3.1  = %3.0
+  lgl$#-          %3.2  = Neq                d     %10.0, %3.1, elided
+  void                    Branch                   %3.2 -> BB5 (if true) | BB4 (if false)
+BB5   <- [3]
+  int$#-          %5.0  = Add                d     %3.1, 1L, elided
+  void                    Branch                   %0.3 -> BB14 (if true) | BB15 (if false)
+BB4   <- [3]
+  void                    Invisible          v     
+  void                    Return             l     nil
+BB14   <- [5]
+  int$#-          %14.0 = ColonCastRhs       e     1L, %0.1   <int$->
+  lgl$#-          %14.1 = Lte                d     1L, %14.0, elided   <true>
+  void                    Branch                   %14.1 -> BB16 (if true) | BB17 (if false)
+BB15   <- [5]
+  void                    Nop                !     
+  lgl$#-          %15.1 = %0.3
+  dr              %15.2 = DeadBranchReached@0x55e9102d6948[Test#10]
+  goto BB9
+BB16   <- [14]
+  void                    Nop                !     
+  int$#-          %16.1 = 1L
+  goto BB6
+BB17   <- [14]
+  void                    Nop                !     
+  lgl$#-          %17.1 = %14.1
+  dr              %17.2 = DeadBranchReached@0x55e9102d6948[Test#14]
+  goto BB9
+BB6   <- [16, 22]
+  int$#-          %6.0  = Phi                      %16.1:BB16, %22.1:BB22
+  int$#-          %6.1  = %6.0
+  lgl$#-          %6.2  = Neq                d     %14.0, %6.1, elided
+  void                    Branch                   %6.2 -> BB8 (if true) | BB7 (if false)
+BB8   <- [6]
+  int$#-          %8.0  = Add                d     %6.1, 1L, elided
+  lgl$#-          %8.1  = ColonInputEffects        1, %0.1   <true>
+  void                    Branch                   %8.1 -> BB18 (if true) | BB19 (if false)
+BB7   <- [6]
+  void                    Nop                !     
+  int$#-          %7.1  = %5.0
+  goto BB3
+BB18   <- [8]
+  int$#-          %18.0 = ColonCastRhs       e     1L, %0.1   <int$->
+  lgl$#-          %18.1 = Lte                d     1L, %18.0, elided   <true>
+  void                    Branch                   %18.1 -> BB20 (if true) | BB21 (if false)
+BB19   <- [8]
+  void                    Nop                !     
+  lgl$#-          %19.1 = %8.1
+  dr              %19.2 = DeadBranchReached@0x55e9102d6948[Test#15]
+  goto BB9
+BB20   <- [18]
+  lgl$#-          %20.0 = Neq                d     %18.0, 1L, elided   <true>
+  void                    Branch                   %20.0 -> BB22 (if true) | BB23 (if false)
+BB21   <- [18]
+  void                    Nop                !     
+  lgl$#-          %21.1 = %18.1
+  dr              %21.2 = DeadBranchReached@0x55e9102d6948[Test#16]
+  goto BB9
+BB22   <- [20]
+  void                    Nop                !     
+  int$#-          %22.1 = %8.0
+  goto BB6
+BB23   <- [20]
+  void                    Nop                !     
+  lgl$#-          %23.1 = %20.0
+  dr              %23.2 = DeadBranchReached@0x55e9102d6948[Test#17]
+  goto BB9
+
+│ f[0x55e90f8fcd70]                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘

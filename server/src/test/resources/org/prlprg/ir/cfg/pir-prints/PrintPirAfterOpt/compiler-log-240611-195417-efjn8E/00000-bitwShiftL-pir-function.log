@@ -1,0 +1,19 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ bitwShiftL[0x55b1c8a69d70]                                                   │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;Eager1,NonRefl0,NonRefl1,!Obj0,!Obj1,SimpleReal0,SimpleReal1│
+│ Properties:  Eager, !Reflection, ForceOrd: 0 1                               │
+├────── PIR Version After Optimizations
+bitwShiftL[0x55b1c8a69d70]
+BB0
+  goto BB1
+BB1   <- [0]
+  real$~-         %1.0  = LdArg                    1
+  val?^           %1.1  = LdArg                    0
+  real$-          %1.2  = Force!<lazy>       !vr   %1.1,    <real$->
+  real$-          %1.3  = Force!<lazy>             %1.0,    <real$->
+  int$-           %1.4  = CallSafeBuiltin    vwed  bitwiseShiftL(%1.2, %1.3) 
+  void                    Return             l     %1.4
+
+│ bitwShiftL[0x55b1c8a69d70]                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘

@@ -1,0 +1,90 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ %in%[0x5558d72d12f0]                                                         │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;Eager0,Eager1,NonRefl0,NonRefl1,!Obj0,SimpleInt0│
+│ Properties:  Eager, ForceOrd: 0 1                                            │
+├────── PIR Version After Optimizations
+%in%[0x5558d72d12f0]
+BB0
+  goto BB1
+BB1   <- [0]
+  val?^           %1.0  = LdArg                    1
+  int$~-          %1.1  = LdArg                    0
+  int$-           %1.2  = Force<lazy>              %1.1,    <val?+>
+  val?            %1.3  = Force!<lazy>             %1.0,    <val?+>
+  lgl$#-          %1.4  = IsType                   %1.3 isA val?+
+  cp              %1.5  = Checkpoint                -> BB2 (default) | BB5 (if assume failed)
+BB2   <- [1]
+  void                    Assume             D     %1.4, %1.5 (Typecheck@0x5558d49e4688[Type#1])
+  val?+           %2.1  = CastType           d     dn %1.3
+  val+            %2.2  = CallSafeBuiltin    wed   match(%1.2, %2.1, 0L, nil)    <int->
+  lgl$#-          %2.3  = IsType                   %2.2 isA int-
+  cp              %2.4  = Checkpoint                -> BB4 (default) | BB3 (if assume failed)
+BB5   <- [1]
+  env             e5.0  = (MkEnv)            l     x=%1.1, table=%1.0, parent=R_BaseNamespace, context 1
+  env             e5.1  = MaterializeEnv           , e5.0   <@?>
+  fs              %5.2  = FrameState         R     0x5558d39b24e0+54: [], env=e5.1
+  prom-           %5.3  = MkArg                    unboundValue, %in%[0x5558d72d12f0]_p1 (!refl), e5.1
+  val?^           %5.4  = CastType                 up %5.3
+  prom-           %5.5  = MkArg                    %1.2, %in%[0x5558d72d12f0]_p4 (!refl), e5.1
+  val?~           %5.6  = CastType                 up %5.5
+  env             e5.7  = (MkEnv)            l     incomparables(miss)=nil, nomatch=0L, table=%5.4, x=%5.6, parent=R_BaseNamespace, context 0
+  fs              %5.8  = FrameState         R     0x5558d3ebad70+23: [%1.2], env=e5.7, next=%5.2
+  fs              %5.9  = FrameState         R     0x5558d39b31e0+5(pr): [%1.3], env=e5.1, next=%5.8
+  void                    Deopt              !v    %5.9   !
+BB4   <- [2]
+  void                    Visible            v     
+  void                    Assume             D     %2.3, %2.4 (Typecheck@0x5558d49e4688[Type#2])
+  int-            %4.2  = CastType           d     dn %2.2
+  lgl-            %4.3  = Gt                 vwed  %4.2, 0L, elided   <lgl->
+  void                    Return             l     %4.3
+BB3   <- [2]
+  env             e3.0  = (MkEnv)            l     x=%1.1, table=%1.0, parent=R_BaseNamespace, context 1
+  env             e3.1  = MaterializeEnv           , e3.0   <@?>
+  fs              %3.2  = FrameState         R     0x5558d39b24e0+54: [], env=e3.1
+  prom-           %3.3  = MkArg                    %2.1, %in%[0x5558d72d12f0]_p2 (!refl), e3.1
+  val?~           %3.4  = CastType                 up %3.3
+  prom-           %3.5  = MkArg                    %1.2, %in%[0x5558d72d12f0]_p3 (!refl), e3.1
+  val?~           %3.6  = CastType                 up %3.5
+  env             e3.7  = (MkEnv)            l     incomparables(miss)=nil, nomatch=0L, table=%3.4, x=%3.6, parent=R_BaseNamespace, context 0
+  fs              %3.8  = FrameState         R     0x5558d3ebad70+69: [%2.2], env=e3.7, next=%3.2
+  void                    Deopt              !v    %3.8   !
+Prom 1:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    table, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<lazy>        !     %1.1, e1.0   <val?+>
+  void                    Return             l     %1.3
+Prom 2:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    table, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<lazy>        !     %1.1, e1.0   <val?+>
+  void                    Return             l     %1.3
+Prom 3:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    x, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<lazy>        !     %1.1, e1.0   <val?+>
+  void                    Return             l     %1.3
+Prom 4:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    x, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<lazy>        !     %1.1, e1.0   <val?+>
+  void                    Return             l     %1.3
+
+│ %in%[0x5558d72d12f0]                                                         │
+└──────────────────────────────────────────────────────────────────────────────┘

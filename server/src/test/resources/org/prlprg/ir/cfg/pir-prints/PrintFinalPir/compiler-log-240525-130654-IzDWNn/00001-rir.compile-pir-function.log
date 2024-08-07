@@ -1,0 +1,13 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ rir.compile[0x56172c9a7bd0]                                                  │
+│ Context: CorrOrd,!TMany                                                      │
+│ Properties:  !Reflection                                                     │
+├────── Final PIR Version
+rir.compile[0x56172c9a7bd0]
+BB0
+  void                    Invisible          v     
+  void                    Return             l     nil
+
+│ rir.compile[0x56172c9a7bd0]                                                  │
+└──────────────────────────────────────────────────────────────────────────────┘
