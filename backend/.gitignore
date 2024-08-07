@@ -1,9 +1,0 @@
-rsh/src/*.so
-rsh/src/*.o
-rsh/src/*.dll
-rsh/src/Makevars
-rsh/compile_commands.json
-.cache/
-*.tar.gz
-.RData
-.Rhistory

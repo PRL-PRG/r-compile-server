@@ -1,0 +1,17 @@
+<<<<<<< HEAD:backend/.gitignore
+rsh/src/*.so
+rsh/src/*.o
+rsh/src/*.dll
+rsh/src/Makevars
+rsh/compile_commands.json
+.cache/
+*.tar.gz
+=======
+perf.data
+*.so
+*.gch
+*.o
+>>>>>>> 1b8e2f9416c1dfe08ba75f0be65408d42b24cc0b:client/.gitignore
+.RData
+.Rhistory
+.cache/
