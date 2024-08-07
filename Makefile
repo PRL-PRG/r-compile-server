@@ -1,6 +1,12 @@
 # Saner makefile
 MAKEFLAGS += --no-builtin-rules
+BASE_DIR := $(realpath $(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
+TOOLS_DIR := $(BASE_DIR)/tools
 
-# Install pre-commit and pre-push hooks
+.PHONY: setup
 setup:
+	$(TOOLS_DIR)/build-gnur.sh
+
+.PHONY: setup-git
+setup-git:
 	cp -f .githooks/pre-commit.sh .git/hooks/pre-commit
