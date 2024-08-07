@@ -1,5 +1,4 @@
 # Saner makefile
-MAKEFLAGS += --no-builtin-rules
 BASE_DIR := $(realpath $(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 TOOLS_DIR := $(BASE_DIR)/tools
 

@@ -13,12 +13,21 @@ if [ ! -d "$BASE_DIR" ]; then
 	exit 1
 fi
 
-if [[ "$1" == "--debug" ]]; then
-	export CFLAGS="-ggdb3 -O0"
-	export CXXFLAGS="-ggdb3 -O0"
-	export CPPFLAGS="-ggdb3 -O0"
-	echo "Building a debug version of R"
-fi
+while [[ $# -gt 0 ]]; do
+	case $1 in
+	-d | --debug)
+		export CFLAGS="-ggdb3 -O0"
+		export CXXFLAGS="-ggdb3 -O0"
+		export CPPFLAGS="-ggdb3 -O0"
+		echo "Building a debug version of R"
+		shift
+		;;
+	*)
+		echo "Unknown option $1"
+		exit 1
+		;;
+	esac
+done
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
 	USING_OSX=1
