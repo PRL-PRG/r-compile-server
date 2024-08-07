@@ -1,6 +1,11 @@
+# Saner makefile
+MAKEFLAGS += --no-builtin-rules
+
 LLVM_LIB := $(shell llvm-config-17 --libfiles)
 BEAR := $(shell command -v bear 2> /dev/null)
-R_HOME ?= ../../../resources/R-4.3.2
+
+BASE_DIR = $(realpath $(dir $(abspath $(lastword $(MAKEFILE_LIST))))/../..)
+R_HOME ?= $(BASE_DIR)/external/R
 R := $(R_HOME)/bin/R
 
 .PHONY: all build check document test install setup
