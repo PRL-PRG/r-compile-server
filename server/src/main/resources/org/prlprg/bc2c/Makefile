@@ -1,7 +1,7 @@
 # Saner makefile
 MAKEFLAGS += --no-builtin-rules
 
-BASE_DIR = $(realpath $(dir $(abspath $(lastword $(MAKEFILE_LIST))))/../..)
+BASE_DIR = $(realpath $(dir $(abspath $(lastword $(MAKEFILE_LIST))))/../../../../../../..)
 R_HOME ?= $(BASE_DIR)/external/R
 GCH := Rsh.h.gch
 
