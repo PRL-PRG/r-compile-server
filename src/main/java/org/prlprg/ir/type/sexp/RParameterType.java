@@ -16,7 +16,7 @@ import org.prlprg.sexp.SEXP;
  * <p>This doesn't implement {@link Lattice} because you can't compare parameters with different
  * names, and comparing those with the same name is just comparing their {@link #type()}s.
  */
-public record RParameterType(String name, RType<?> type) {
+public record RParameterType(String name, RType type) {
   public RParameterType(
       String name, NoOrMaybe isRequired, RValueType valueType, AttributesType attributesType) {
     this(name,
@@ -47,7 +47,7 @@ public record RParameterType(String name, RType<?> type) {
    * we're calling one of our compiled closures. If we call an arbitrary closure that takes
    * arguments the GNU-R way, we don't even have a signature.
    */
-  public RType<?> type() {
+  public RType type() {
     return type;
   }
 

@@ -1,8 +1,8 @@
 package org.prlprg.ir.type;
 
+import javax.annotation.Nullable;
 import org.prlprg.ir.cfg.Node;
 import org.prlprg.ir.type.lattice.BoundedLattice;
-import org.prlprg.parseprint.Parser;
 import org.prlprg.sexp.SEXP;
 
 /**
@@ -10,79 +10,56 @@ import org.prlprg.sexp.SEXP;
  *
  * <p>This encompasses both {@link SEXP}s and unboxed values.
  *
- * <p>This data-structure is essentially an enhanced {@link Class} that provides more detail. Like
- * {@link Class}, {@link T} is the Java type this data-structure represents, e.g.
- * {@code RType<Integer>} is a type representing an unboxed integer. {@link #clazz()} encodes what
- * {@link T} is supposed to be at runtime, since it can be improperly casted (Java type erasure);
- * {@link #clazz()} is occasionally checked so that an improper cast will still throw an exception,
- * although it may be later in the program's execution.
+ * <p>This data-structure is essentially an enhanced {@link Class} that provides intersection,
+ * union, and "BOTTOM" (the subtype of all other types), as well as helpers for {@link SEXP} types
+ * (e.g. get whether the type is a promise, or return the same type but promise-wrapped). The un-
+ * enhanced class that this represents is exposed via {@link #clazz()} (e.g. an {@link RType} of an
+ * unboxed integer's {@link #clazz()} returns {@link Integer}).
  *
- * <p>Unlike {@link Class}, this provides better intersection and union operations. {@link Class}
- * intersection isn't always possible because packages can declare arbitrary classes, but this type
- * hierarchy is sealed. Also, the intersection and union operations are more efficient, because they
- * don't have to iterate over the entire set of supertypes or subtypes.
+ * <p>Unlike {@link Class}, this doesn't have a type parameter. The reason is that intersection,
+ * union, and many of the helper methods can't provide good type inference, so the parameter must be
+ * unsafely casted a lot, and that is not good. ({@link Class}'s type parameter also tends to be
+ * casted a lot, perhaps it wasn't a good idea either...)
  */
-public interface RType<T> extends BoundedLattice<RType<?>> {
-    /** Parse a type ({@link Parser#parse(Class)}), and {@link #cast(Class)} it to the given type. */
-  static <T> RType<? extends T> parse(Parser p, Class<T> type) {
-    return RType.cast(p.parse(RType.class), type);
-  }
-
-  /** {@link #cast(Class)}, but call on a raw type. */
-  @SuppressWarnings("rawtypes")
-  static <U> RType<? extends U> cast(RType type, Class<U> clazz) {
-    return ((RType<?>) type).cast(clazz);
-  }
-
-  /**
-   * Cast {@code RType<? extends A>} to {@code RType<? extends B>} where {@code B &lt;: A}.
+public interface RType extends BoundedLattice<RType> {
+  /** The type of an expression which hangs, errors, or otherwise diverts control flow.
    *
-   * <p>This is needed due to Java's type erasure: see {@link #clazz()} for more details.
-   *
-   * @throws ClassCastException if {@code B &lt;/: A}.
+   * <p>AKA "BOTTOM", the subtype of all other types (because if the expression never returns, we
+   * can optimize as if it returned whatever helps optimization the most).
    */
-  @SuppressWarnings("unchecked")
-  default <U> RType<? extends U> cast(Class<U> clazz) {
-    // `Void` is special-cased to allow `InvalidRType` to emulate subclassing every other `RType`,
-    // even though Java's type system can't encode BOTTOM.
-    if (!clazz.isAssignableFrom(clazz()) && clazz() != Void.class) {
-      if (clazz().getSimpleName().equals(clazz.getSimpleName())) {
-        throw new ClassCastException(
-            "Can't cast "
-                + this
-                + " (with erased type parameter "
-                + clazz().getName()
-                + ") type parameter to "
-                + clazz.getName()
-                + " (they have the same simple name, but are different classes)");
-      } else {
-        throw new ClassCastException(
-            "Can't cast "
-                + this
-                + " (with erased type parameter "
-                + clazz().getSimpleName()
-                + ") to type parameter "
-                + clazz.getSimpleName());
-      }
-    }
-    return (RType<? extends U>) this;
+  RNothingType NOTHING = new RNothingType();
+
+  /** Anything can be an instance of this (including an {@link SEXP} or unboxed value).
+   *
+   * <p>AKA "TOP", the supertype of all other types.
+   */
+  RType ANY = new RAnyType();
+
+  /**
+   * The class of instances that are instances of this type.
+   *
+   * <p>As its documentation explains, {@link RType} is essentially an enhanced {@link Class}. This
+   * property returns the regular, "un-enhanced" class it represents.
+   *
+   * <p>An example of this property's use case {@link #isInstance(Object)}.
+   *
+   * <p>This is {@code null} for {@link #NOTHING}, because there is no Java class for BOTTOM
+   * ({@link Void} is similar, but is not a subclass of all other classes).
+   */
+  @Nullable Class<?> clazz();
+
+  /**
+   * Whether the given object is an instance of this type.
+   *
+   * <p>This is essentially {@link #clazz()}{@link Class#isInstance(Object) .isInstance(obj)}.
+   */
+  default boolean isInstance(Object obj) {
+    var clazz = clazz();
+    return clazz == null || clazz.isInstance(obj);
   }
 
-  /** The type of an expression which hangs, errors, or otherwise diverts control flow. */
-  RNothingType<Void> NOTHING = new RNothingType<>();
-
-  RAnyType ANY = new RAnyType();
-
   /**
-   * This encodes {@link T}: the type that this represents.
-   *
-   * <p>This is exclusively used to combat Java's type erasure and manually check that a value is
-   * not a variable, field, record component, etc. with the wrong {@link T} type.
-   */
-  Class<? extends T> clazz();
-
-  /**
-   * Whether this is {@link #NOTHING}.
+   * Whether this is {@link #NOTHING}, the subtype of all other types.
    *
    * <p>If true, an instance will never exist, and any code which would produce an instance actually
    * either crashes, hangs, or otherwise diverts control flow.
@@ -92,9 +69,9 @@ public interface RType<T> extends BoundedLattice<RType<?>> {
   }
 
   /**
-   * Whether this is {@link #ANY}.
+   * Whether this is {@link #ANY}, the supertype of all other types.
    *
-   * <p>If true, every possible runtime value is an instance.
+   * <p>If true, every possible runtime value is an instance of this type.
    */
   default boolean isAny() {
     return this == ANY;

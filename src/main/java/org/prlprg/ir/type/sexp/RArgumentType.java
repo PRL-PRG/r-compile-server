@@ -16,7 +16,7 @@ import org.prlprg.sexp.TaggedElem;
  * <i>provided to</i> the function, while {@link RParameterType} is the type of the argument
  * <i>required by</i> the function.
  */
-public record RArgumentType(String name, RType<?> type) {
+public record RArgumentType(String name, RType type) {
   /** Create an argument type list from the argument list (uses {@link RSexpType#exact}). */
   public static List<RArgumentType> exact(ListSXP arguments) {
     return arguments.stream().map(RArgumentType::exact).collect(Collectors.toList());

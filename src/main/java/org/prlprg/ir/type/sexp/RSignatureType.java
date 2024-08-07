@@ -36,7 +36,7 @@ public sealed interface RSignatureType {
       List<RParameterType> parameters,
       REffects fallbackEffects,
       @Nullable GenericOverloadEffects genericEffects,
-      RType<?> fallbackReturnType,
+      RType fallbackReturnType,
       @Nullable GenericOverloadReturnType genericReturnType) {
     return new RSignatureTypeImpl(
         ImmutableList.copyOf(parameters),
@@ -51,7 +51,7 @@ public sealed interface RSignatureType {
    * given effects, and returns the given type,
    */
   static RSignatureType of(
-      List<RParameterType> parameters, REffects fallbackEffects, RType<?> fallbackReturnType) {
+      List<RParameterType> parameters, REffects fallbackEffects, RType fallbackReturnType) {
     return of(parameters, fallbackEffects, null, fallbackReturnType, null);
   }
 
@@ -187,7 +187,7 @@ public sealed interface RSignatureType {
       return null;
     }
 
-    var normalizedTypes = new RType<?>[parameters().size()];
+    var normalizedTypes = new RType[parameters().size()];
     var dotArgs = ImmutableList.<RArgumentType>builder();
     for (int i = 0; i < indices.length(); i++) {
       var j = indices.get(i);
@@ -282,7 +282,7 @@ public sealed interface RSignatureType {
    *
    * <p>The arguments must be normalized with {@link #normalizeToMatch(List)}
    */
-  RType<?> returnType(@Nullable RSignatureTypeNormalizedArity arguments);
+  RType returnType(@Nullable RSignatureTypeNormalizedArity arguments);
 
   /**
    * Returns the name and type of the parameter at index {@code i}, or {@code null} if the index is
@@ -392,14 +392,14 @@ final class RSignatureTypeImpl implements RSignatureType {
   private final int dotsIndex;
   private final REffects fallbackEffects;
   private final @Nullable GenericOverloadEffects genericEffects;
-  private final RType<?> fallbackReturnType;
+  private final RType fallbackReturnType;
   private final @Nullable GenericOverloadReturnType genericReturnType;
 
   RSignatureTypeImpl(
       ImmutableList<RParameterType> parameters,
       REffects fallbackEffects,
       @Nullable GenericOverloadEffects genericEffects,
-      RType<?> fallbackReturnType,
+      RType fallbackReturnType,
       @Nullable GenericOverloadReturnType genericReturnType) {
     this.parameters = parameters;
     try {
@@ -439,7 +439,7 @@ final class RSignatureTypeImpl implements RSignatureType {
   }
 
   @Override
-  public RType<?> returnType(@Nullable RSignatureTypeNormalizedArity arguments) {
+  public RType returnType(@Nullable RSignatureTypeNormalizedArity arguments) {
     return genericReturnType == null || arguments == null
         ? fallbackReturnType
         : genericReturnType.givenArguments(arguments);

@@ -7,6 +7,7 @@ import javax.annotation.Nullable;
 import org.jetbrains.annotations.Unmodifiable;
 import org.prlprg.ir.cfg.Instr;
 import org.prlprg.ir.type.RSexpType;
+import org.prlprg.ir.type.RType;
 import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
@@ -52,7 +53,7 @@ public final class AbstractISexp implements AbstractNode<AbstractISexp> {
   /** Creates an abstract value representing "bottom". */
   public AbstractISexp() {
     origins = ImmutableSet.of();
-    type = RSexpType.NOTHING;
+    type = RType.NOTHING;
     isUnknown = false;
   }
 

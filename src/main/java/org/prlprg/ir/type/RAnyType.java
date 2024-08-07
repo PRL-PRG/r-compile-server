@@ -1,6 +1,6 @@
 package org.prlprg.ir.type;
 
-public final class RAnyType implements RType<Object> {
+final class RAnyType implements RType {
   @SuppressWarnings("ConstantValue")
   RAnyType() {
     assert ANY == null || ANY == this
@@ -13,22 +13,22 @@ public final class RAnyType implements RType<Object> {
   }
 
   @Override
-  public boolean isSubsetOf(RType<?> other) {
+  public boolean isSubsetOf(RType other) {
     return other == ANY;
   }
 
   @Override
-  public boolean isSupersetOf(RType<?> other) {
+  public boolean isSupersetOf(RType other) {
     return true;
   }
 
   @Override
-  public RAnyType unionOf(RType<?> other) {
+  public RAnyType unionOf(RType other) {
     return this;
   }
 
   @Override
-  public RType<?> intersectionOf(RType<?> other) {
+  public RType intersectionOf(RType other) {
     return other;
   }
 }

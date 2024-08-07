@@ -3,7 +3,6 @@ package org.prlprg.ir.type.sexp;
 import com.google.common.collect.ImmutableList;
 import java.util.Collection;
 import javax.annotation.Nonnull;
-import org.prlprg.ir.cfg.instr.StmtData;
 import org.prlprg.ir.closure.Closure;
 import org.prlprg.ir.effect.REffects;
 import org.prlprg.ir.type.lattice.NoOrMaybe;
@@ -48,7 +47,7 @@ public sealed interface RClosureType extends RFunType permits RNothingValueType,
                             e.tagOrEmpty(), NoOrMaybe.of(e.value() == SEXPs.MISSING_ARG)))
                 .collect(ImmutableList.toImmutableList()),
             REffects.ARBITRARY,
-            RSexpType.ANY));
+            RSexpType.SEXP));
   }
 
   /**

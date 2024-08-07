@@ -9,7 +9,7 @@ public interface GenericOverloadReturnType {
    * Returns the type returned from the overload containing this instance, when it receives the
    * given arguments.
    */
-  RType<?> givenArguments(RSignatureTypeNormalizedArity arguments);
+  RType givenArguments(RSignatureTypeNormalizedArity arguments);
 
   /**
    * Is the return type guaranteed to be a subset of the other's, no matter what the given arguments

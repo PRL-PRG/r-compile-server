@@ -10,7 +10,7 @@ public sealed interface RSignatureTypeNormalizedArity {
    * The type of the matching argument at each parameter index, or union if the parameter is dots
    * and there are multiple arguments that match it.
    */
-  ImmutableList<RType<?>> types();
+  ImmutableList<RType> types();
 
   /** The arguments that match the dots parameter, or an empty list if there is no dots. */
   ImmutableList<RArgumentType> dotArgs();
@@ -21,5 +21,5 @@ public sealed interface RSignatureTypeNormalizedArity {
  * RSignatureType#normalizeToMatch(List)}.
  */
 record RSignatureTypeNormalizedArityImpl(
-    @Override ImmutableList<RType<?>> types, @Override ImmutableList<RArgumentType> dotArgs)
+    @Override ImmutableList<RType> types, @Override ImmutableList<RArgumentType> dotArgs)
     implements RSignatureTypeNormalizedArity {}
