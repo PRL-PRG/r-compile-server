@@ -91,6 +91,7 @@ public class GNURSession implements RSession {
 
   // We should also handle installation of a package from a GitHub repo?
   public void loadPackage(String name, String version) {
+    // TODO support RLibraries with multiple paths
     // Check if package is installed and if not install it
     var pkgPath = RLibraries.resolve(name);
     var pkgDir = pkgPath.toFile();
