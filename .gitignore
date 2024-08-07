@@ -11,3 +11,6 @@
 ### R ###
 .RData
 .Rhistory
+
+### clangd ###
+.cache

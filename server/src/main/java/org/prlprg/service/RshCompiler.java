@@ -66,7 +66,7 @@ public class RshCompiler {
 
   private void initialize() throws Exception {
     // TODO: make it constants
-    var input = "Rsh.h";
+    var input = "org/prlprg/bc2c/Rsh.h";
     var output = "Rsh.h.gch";
     new CCCompilationBuilder(input, output)
         .workingDirectory(new File(INCLUDE_PATH))
