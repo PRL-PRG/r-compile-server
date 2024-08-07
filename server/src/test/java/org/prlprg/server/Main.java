@@ -84,7 +84,8 @@ public class Main {
       var inClosure = deserialize(new ByteArrayInputStream(compile.getClosure().toByteArray()));
 
       // corrupt inClosure to verify namespace is loaded correctly in testing
-      inClosure = SEXPs.closure(inClosure.parameters(), SEXPs.string("whoops :P"), inClosure.env());
+      //      inClosure = SEXPs.closure(inClosure.parameters(), SEXPs.string("whoops :P"),
+      // inClosure.env());
 
       var bc = new BCCompiler(inClosure, rsession).compile().orElseThrow();
       var outBCode = SEXPs.bcode(bc);

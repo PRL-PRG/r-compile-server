@@ -7,7 +7,7 @@
 # (for example, by R CMD INSTALL or install.packages()). In this case, it
 # is necessary to use the environment variable.
 
-dyn.load(paste(R.home(), "library/rsh/libs/rsh.so", sep="/"), local = FALSE)
+dyn.load(file.path(R.home(), "library", "rsh", "libs", "rsh.so"), local = FALSE)
 rsh::enable_bc_jit()
 
 .First <- function(){

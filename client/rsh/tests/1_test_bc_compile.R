@@ -1,7 +1,7 @@
 # Verify that compiler::cmpfun properly uses the server after calling
 # rsh::enable_bc_jit()
 
-dyn.load("../../../resources/R-4.3.2/library/rsh/libs/rsh.so", local = FALSE)
+dyn.load(file.path(R.home(), "library", "rsh", "libs", "rsh.so"), local = FALSE)
 
 f <- function(x) {
   y <- x + 42

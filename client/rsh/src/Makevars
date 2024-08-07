@@ -1,2 +1,0 @@
-PKG_LIBS = -L/opt/homebrew/Cellar/llvm@17/17.0.6/lib -Wl,-search_paths_first -Wl,-headerpad_max_install_names -lLLVM-17  -L/opt/homebrew/Cellar/protobuf@3/3.20.3/lib -lprotobuf -lzmq
-PKG_CPPFLAGS = -I/opt/homebrew/Cellar/llvm@17/17.0.6/include -std=c++17 -stdlib=libc++   -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -I/opt/homebrew/Cellar/protobuf@3/3.20.3/include -fexceptions -I../inst -DR_NO_REMAP -DSTRICT_R_HEADERS
