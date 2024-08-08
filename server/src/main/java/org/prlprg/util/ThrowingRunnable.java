@@ -14,8 +14,10 @@ public interface ThrowingRunnable extends Runnable {
   default void run() {
     try {
       runWithException();
+    } catch (RuntimeException e) {
+      throw  e;
     } catch (Exception e) {
-      throw new RuntimeException(e.getMessage(), e.getCause());
+      throw new RuntimeException(e);
     }
   }
 }

@@ -27,8 +27,8 @@
       "Rsh.h.gch",
       "Rsh.h"
     ],
-    "directory": "/home/krikava/r-compile-server/code/server/src/main/resources/org/prlprg/bc2c",
-    "file": "/home/krikava/r-compile-server/code/server/src/main/resources/org/prlprg/bc2c/Rsh.h",
-    "output": "/home/krikava/r-compile-server/code/server/src/main/resources/org/prlprg/bc2c/Rsh.h.gch"
+    "directory": "/home/krikava/r-compile-server/code/server/backend",
+    "file": "/home/krikava/r-compile-server/code/server/backend/Rsh.h",
+    "output": "/home/krikava/r-compile-server/code/server/backend/Rsh.h.gch"
   }
 ]
