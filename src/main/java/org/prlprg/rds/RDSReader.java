@@ -37,6 +37,7 @@ import org.prlprg.sexp.SEXPs;
 import org.prlprg.sexp.StrSXP;
 import org.prlprg.sexp.TaggedElem;
 import org.prlprg.sexp.UserEnvSXP;
+import org.prlprg.sexp.ValueSXP;
 import org.prlprg.sexp.VecSXP;
 import org.prlprg.util.IO;
 
@@ -204,12 +205,21 @@ public class RDSReader implements Closeable {
     if (tag instanceof NilSXP) {
       // If the tag is nil, the promise is eager. We put `EMPTY_ENV` instead of nil as the promise
       // environment (it can be anything, since it's only used for lazy evaluation).
-      return new PromSXP<>(expr, val, SEXPs.EMPTY_ENV);
+      if (val == null) {
+        throw new RDSException(
+            "Promise serialized with nil tag but no value (so it's lazy, but evaluating in GNU-R would crash because the environment is `NULL`)");
+      }
+      if (!(val instanceof ValueSXP v)) {
+        throw new RDSException("Nested promise");
+      }
+      return new PromSXP<>(expr, v, SEXPs.EMPTY_ENV);
     } else if (tag instanceof EnvSXP env) {
       // Otherwise, the tag should be an environment, the promise's environment, and the promise is
       // lazy. The "value" of a lazy promise is "unbound", which we represent as `null`.
-      assert val == null
-          : "promise serialized with env but not unbound value (so the environment is redundant, GNU-R doesn't serialize promises like this)";
+      if (val != null) {
+          throw new RDSException(
+              "Promise serialized with env but not unbound value (so the environment is redundant, GNU-R doesn't serialize promises like this)");
+          }
       return new PromSXP<>(expr, null, env);
     } else {
       throw new RDSException("Expected promise ENV to be environment");
@@ -601,7 +611,7 @@ public class RDSReader implements Closeable {
       flags = readFlags();
     }
 
-    return SEXPs.list(data.build(), attributes);
+    return SEXPs.list(data.build(), Objects.requireNonNull(attributes));
   }
 
   private CloSXP readClosure(Flags flags) throws IOException {
