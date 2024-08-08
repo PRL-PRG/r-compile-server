@@ -1,22 +1,31 @@
 package org.prlprg.service;
 
 import java.io.File;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.prlprg.util.cc.CCCompilationBuilder;
 
 public class RshCompiler {
   private static final Logger logger = Logger.getLogger(RshCompiler.class.getName());
 
-  // TODO: make it configurable
-  private static final String INCLUDE_PATH = "../client/include";
+  // TODO: this is just temporary
+  //  what we need is to keep this in the resources, versioned by R version
+  //  and upon server instantiation, copy it to some temp directory
+  //  and precompile the header file (if needed)
+  private static final Path RSH_INCLUDE_PATH = Paths.get("backend").normalize().toAbsolutePath();
+  private static final Path R_INCLUDE_PATH = Paths.get("../external/R/include").normalize().toAbsolutePath();
+  private static final String RSH_H_FILE = "Rsh.h";
+  private static final String RSH_GHC_FILE = "Rsh.h.gch";
 
-  // TODO: which ones are needed? Can we bootstrap it from R?
+  // TODO: which ones are needed?
   private static final List<String> COMMON_COMPILER_FLAGS =
       List.of(
-          "-I.",
-          "-I" + INCLUDE_PATH,
+          "-I" + RSH_INCLUDE_PATH,
+          "-I" + R_INCLUDE_PATH,
           "-fpic",
           "-fno-plt",
           "-fexceptions",
@@ -65,11 +74,12 @@ public class RshCompiler {
   }
 
   private void initialize() throws Exception {
-    // TODO: make it constants
-    var input = "org/prlprg/bc2c/Rsh.h";
-    var output = "Rsh.h.gch";
-    new CCCompilationBuilder(input, output)
-        .workingDirectory(new File(INCLUDE_PATH))
+    if (logger.isLoggable(Level.FINE)) {
+      logger.fine("Pre-compiling Rsh.h");
+    }
+
+    new CCCompilationBuilder(RSH_H_FILE, RSH_GHC_FILE)
+        .workingDirectory(RSH_INCLUDE_PATH.toFile())
         .flags(compilerFlags)
         .compile();
   }

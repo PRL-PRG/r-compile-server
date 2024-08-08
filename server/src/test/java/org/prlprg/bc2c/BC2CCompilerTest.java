@@ -155,7 +155,7 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
   //        });
   //  }
 
-  <T extends SEXP> T verify(String code) throws Exception {
+  <T extends SEXP> T compileAndCall(String code) throws Exception {
     var funName = "f";
     var fileName = "test";
 
@@ -226,6 +226,6 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
   }
 
   <T extends SEXP> void verify(String code, Consumer<T> validator) throws Exception {
-    validator.accept(verify(code));
+    validator.accept(compileAndCall(code));
   }
 }
