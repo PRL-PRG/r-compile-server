@@ -5,6 +5,7 @@ BASE_DIR = $(realpath $(dir $(abspath $(lastword $(MAKEFILE_LIST))))/../..)
 R_HOME ?= $(BASE_DIR)/external/R
 GCH := Rsh.h.gch
 
+# TODO: sync the flags with RhsCompiler.java
 build:
 	gcc \
 	-DNDEBUG \

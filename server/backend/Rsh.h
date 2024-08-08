@@ -1,12 +1,8 @@
 #ifndef RSH_H
 #define RSH_H
 
-#include <assert.h>
-#define HAVE_DECL_SIZE_MAX 1
-#define R_USE_SIGNALS
-
-#include "Rinternals.h"
 #include "Rsh_internals.h"
+#include <stdint.h>
 
 double R_pow(double x, double y);
 
@@ -325,7 +321,7 @@ static INLINE Rboolean bcell_set_value(BCell cell, SEXP value) {
 
 #define LOAD_R_BUILTIN(target, name)                                           \
   do {                                                                         \
-    target = PROTECT(Rif_Primitive(name));                                     \
+    target = PROTECT(R_Primitive(name));                                       \
     R_PreserveObject(target);                                                  \
     UNPROTECT(1);                                                              \
   } while (0)
@@ -362,30 +358,6 @@ static INLINE SEXP FORCE_PROMISE(SEXP value, SEXP symbol, SEXP rho,
   }
   ENSURE_NAMEDMAX(value);
   return value;
-}
-
-// TODO: move to internal
-// FIXME: this is not the same as in eval.c
-static void MISSING_ARGUMENT_ERROR(SEXP symbol, SEXP rho) {
-  const char *n = CHAR(PRINTNAME(symbol));
-  if (*n) {
-    error("argument \"%s\" is missing, with no default", n);
-  } else {
-    error("argument is missing, with no default");
-  }
-}
-
-// TODO: move to internal
-#define MAYBE_MISSING_ARGUMENT_ERROR(symbol, keepmiss, rho)                    \
-  do {                                                                         \
-    if (!keepmiss)                                                             \
-      MISSING_ARGUMENT_ERROR(symbol, rho);                                     \
-  } while (0)
-
-// TODO: move to internal
-// FIXME: this is not the same as in eval.c
-static void UNBOUND_VARIABLE_ERROR(SEXP symbol, SEXP rho) {
-  error("object '%s' not found", EncodeChar(PRINTNAME(symbol)));
 }
 
 #define BCELL_INLINE(cell, v)                                                  \
@@ -562,7 +534,7 @@ static INLINE SEXP Rsh_closure_call_args(SEXP args) {
 }
 
 static INLINE Value Rsh_get_builtin(const char *name) {
-  return SXP_TO_VAL(Rif_Primitive(name));
+  return SXP_TO_VAL(R_Primitive(name));
 }
 
 static INLINE Value Rsh_getFun(SEXP symbol, SEXP rho) {
@@ -580,7 +552,7 @@ static INLINE Value Rsh_call(SEXP call, Value fun, Value args, SEXP rho) {
   switch (TYPEOF(fun_sxp)) {
   case BUILTINSXP:
     args_sxp = Rsh_builtin_call_args(args_sxp);
-    Rif_checkForMissings(args_sxp, call);
+    checkForMissings(args_sxp, call);
     flag = PRIMPRINT(fun_sxp);
     R_Visible = flag != 1;
     value = PRIMFUN(fun_sxp)(call, fun_sxp, args_sxp, rho);
@@ -591,15 +563,14 @@ static INLINE Value Rsh_call(SEXP call, Value fun, Value args, SEXP rho) {
   case SPECIALSXP:
     flag = PRIMPRINT(fun_sxp);
     R_Visible = flag != 1;
-    value =
-        PRIMFUN(fun_sxp)(call, fun_sxp, Rif_markSpecialArgs(CDR(call)), rho);
+    value = PRIMFUN(fun_sxp)(call, fun_sxp, markSpecialArgs(CDR(call)), rho);
     if (flag < 2) {
       R_Visible = flag != 1;
     }
     break;
   case CLOSXP:
     args_sxp = Rsh_closure_call_args(args_sxp);
-    value = applyClosure(call, fun_sxp, args_sxp, rho, R_NilValue);
+    value = applyClosure(call, fun_sxp, args_sxp, rho, R_NilValue, TRUE);
     break;
   default:
     error("bad function");
@@ -608,7 +579,7 @@ static INLINE Value Rsh_call(SEXP call, Value fun, Value args, SEXP rho) {
   return sexp_as_val(value);
 }
 
-static INLINE Rboolean Rsh_is_true(Value value, SEXP call) {
+static INLINE Rboolean Rsh_is_true(Value value, SEXP call, SEXP rho) {
   if (VAL_IS_LGL_NOT_NA(value)) {
     return VAL_INT(value);
   } else if (VAL_IS_INT_NOT_NA(value)) {
@@ -626,7 +597,7 @@ static INLINE Rboolean Rsh_is_true(Value value, SEXP call) {
   }
 
   PROTECT(value_sxp);
-  Rboolean ans = Rif_asLogicalNoNA(value_sxp, call);
+  Rboolean ans = asLogicalNoNA(value_sxp, call, rho);
   UNPROTECT(1);
   return ans;
 }
