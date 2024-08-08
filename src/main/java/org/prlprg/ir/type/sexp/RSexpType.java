@@ -101,6 +101,12 @@ public non-sealed interface RSexpType extends RSexpTypeHelpers, RType {
           Maybe.MAYBE);
 
   // region main constructor
+  /** Create an {@link RSexpType} that represents the given class. */
+  static RSexpType of(Class<? extends SEXP> ignored) {
+    // TODO: use reflection here. Also add reflection in other areas to reduce boilerplate.
+    throw new NotImplementedError();
+  }
+
   /** Create an {@link RSexpType} with the given {@link #value()}, {@link #attributes()}, {@link
    * {@link #promise()}, and {@link #isMissing()} (missingness).
    */
@@ -135,10 +141,7 @@ public non-sealed interface RSexpType extends RSexpTypeHelpers, RType {
   // endregion main constructor
 
   // region helper constructors
-  /** The (most precise representable) type of the given value. */
-  // We have to cast because the type system can't know that, when we give `RSexpType.of` arguments
-  // computed for `value`, the result represents `value`, and thus it's generic is `value`'s type.
-
+  /** The most specific type that the given value is an instance of. */
   static RSexpType exact(SEXP value) {
     if (value == SEXPs.MISSING_ARG) {
       return MISSING;
@@ -200,14 +203,14 @@ public non-sealed interface RSexpType extends RSexpTypeHelpers, RType {
   /** The type after a arithmetic unop whose argument has the given types. */
   static RSexpType arithmeticOp(RSexpType unary) {
     return unary.isObject() == Maybe.NO
-        ? coerceToNumber(unary)
+        ? unary.coerceToNumber()
         : RSexpType.SEXP;
   }
 
   /** The type after a arithmetic binop whose arguments have the given types. */
   static RSexpType arithmeticOp(RSexpType lhs, RSexpType rhs) {
     return lhs.isObject() == Maybe.NO && rhs.isObject() == Maybe.NO
-        ? coerceToNumber(lhs.unionOf(rhs))
+        ? lhs.unionOf(rhs).coerceToNumber()
         : RSexpType.SEXP;
   }
 
@@ -220,13 +223,13 @@ public non-sealed interface RSexpType extends RSexpTypeHelpers, RType {
 
   /** The type after a simple "not" binop whose argument has the given types. */
   static RSexpType booleanOp(RSexpType unary) {
-    return unary.isObject() == Maybe.NO ? coerceToLogical(unary) : RSexpType.SEXP;
+    return unary.isObject() == Maybe.NO ? unary.coerceToLogical() : RSexpType.SEXP;
   }
 
   /** The type after a simple "and" or "or" binop whose arguments have the given types. */
   static RSexpType booleanOp(RSexpType lhs, RSexpType rhs) {
     return lhs.isObject() == Maybe.NO && rhs.isObject() == Maybe.NO
-        ? coerceToLogical(lhs.unionOf(rhs))
+        ? lhs.unionOf(rhs).coerceToLogical()
         : RSexpType.SEXP;
   }
 
@@ -260,8 +263,8 @@ public non-sealed interface RSexpType extends RSexpTypeHelpers, RType {
    * {@link RType#NOTHING} in such case.
    */
 
-  static RSexpType coerceToNumber(RSexpType type) {
-    type = type.forced().notMissing().withNoAttributes();
+  default RSexpType coerceToNumber() {
+    var type = forced().notMissing().withNoAttributes();
     return switch (type.value()) {
       case RNumericType _ -> type;
       case RLogicalType v -> type.withValue(RIntType.of(v.length(), v.hasNAOrNaN()));
@@ -291,8 +294,8 @@ public non-sealed interface RSexpType extends RSexpTypeHelpers, RType {
    * returns {@link RType#NOTHING} in such case.
    */
 
-  static RSexpType coerceToLogical(RSexpType type) {
-    type = type.forced().notMissing().withNoAttributes();
+  default RSexpType coerceToLogical() {
+    var type = forced().notMissing().withNoAttributes();
     return switch (type.value()) {
           case RLogicalType _ -> type;
           case RNumericOrLogicalType v ->
@@ -617,6 +620,9 @@ public non-sealed interface RSexpType extends RSexpTypeHelpers, RType {
   }
 
   // endregion lattice operations
+
+  @Override
+  Class<? extends SEXP> clazz();
 }
 
 record RSexpTypeImpl(
@@ -645,7 +651,7 @@ record RSexpTypeImpl(
   }
 
   @Override
-  public Class<?> clazz() {
+  public Class<? extends SEXP> clazz() {
     return switch (promise.isPromise()) {
       case NO -> switch (isMissing) {
         case NO -> Objects.requireNonNull(value.clazz(), "`RSexpTypeImpl` constructor prevents `isMissing == NO && value instanceof RNothingValueType`, so it should prevent `value.clazz() == null`");

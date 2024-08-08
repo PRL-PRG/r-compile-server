@@ -1,5 +1,7 @@
 package org.prlprg.ir.cfg;
 
+import java.util.Objects;
+import org.prlprg.ir.type.RType;
 import org.prlprg.parseprint.Parser;
 
 /**
@@ -27,15 +29,16 @@ public sealed interface Node<T> permits LocalNode, GlobalNode {
    */
   @SuppressWarnings("unchecked")
   default <U> Node<? extends U> cast(Class<U> clazz) {
-    // `Void` is special-cased to allow `InvalidNode` to emulate subclassing every other `Node`,
-    // even though Java's type system can't encode BOTTOM.
-    if (!clazz.isAssignableFrom(type()) && type() != Void.class) {
-      if (type().getSimpleName().equals(clazz.getSimpleName())) {
+    if (!type().isSubsetOf(clazz)) {
+      var myClass = Objects.requireNonNull(type().clazz(), "the nothing type is a subset of all classes");
+      assert myClass != clazz;
+
+      if (myClass.getSimpleName().equals(clazz.getSimpleName())) {
         throw new ClassCastException(
             "Can't cast "
                 + id()
                 + " of type "
-                + type().getName()
+                + myClass.getName()
                 + " to "
                 + clazz.getName()
                 + " (they have the same simple name, but are different classes)");
@@ -44,7 +47,7 @@ public sealed interface Node<T> permits LocalNode, GlobalNode {
             "Can't cast "
                 + id()
                 + " of type "
-                + type().getSimpleName()
+                + myClass.getSimpleName()
                 + " to "
                 + clazz.getSimpleName());
       }
@@ -53,30 +56,26 @@ public sealed interface Node<T> permits LocalNode, GlobalNode {
   }
 
   /**
-   * This is {@link T}: the type that the node represents an abstract runtime value of.
+   * This represents {@link T}: the type that the node represents an abstract runtime value of.
    *
-   * <p>In some cases, it may be a subtype of {@link T}. For example, a {@link Phi}'s dynamic type
-   * is always the union of its inputs' types. Since phi inputs can change, this means that the
-   * phi's dynamic type can become more or less specific, but it's static type, being static, will
-   * always be the same (in the event a phi's type becomes less specific in a way that breaks
-   * occurrences in other instructions, a runtime exception is thrown).
-   *
-   * <p>For {@link GlobalNode}, which is the subtype of any other node, this returns {@link Void}.
-   * Java's type system can't encode a true BOTTOM type, but {@link Void} is a type with no
-   * (non-null) inhabitants, and we special-case it to emulate BOTTOM (e.g. {@link #cast(Class)}
-   * always works on {@link InvalidNode} even though {@link Void} isn't a subclass).
-   *
-   * <p>This is needed due to Java's type erasure: if you cast {@code Node<? extends A>} to {@code
-   * Node<? extends B>} where {@code B &lt;/: A} the compiler silently allows it, and if you upcast
-   * {@code Node<? extends B>} to {@code Node<? extends A>} there's no way to safely recover the
-   * original type and downcast. So, we store this data in {@link Node}, and periodically check it
-   * (to prevent the illegal upcast) and to recover the original type (to enable safe downcast).
+   * <p>It's used to check node types at runtime. Due to Java's type erasure and because some node
+   * types change when the node is mutated (e.g. {@link Phi}s when their inputs change), it's
+   * possible to have a node in {@code Node<? extends A>} whose runtime values aren't actually
+   * subtypes of {@code A}. To alleviate this issue, we periodically check the node's runtime {@code
+   * #type()} against its compile-time {@code T} (specifically, in {@link #cast(Class)} and in
+   * {@linkplain Instr#inputs() instruction inputs}.
    */
-  Class<? extends T> type();
+  RType type();
 
   /** Whether this node's {@link #type()}} is a subtype of the given type (incl. identical). */
+  default boolean isSubtypeOf(RType otherType) {
+    return type().isSubsetOf(otherType);
+  }
+
+  /** Whether this node's {@link #type()}} is a subtype of the {@link RType} representing the given
+   * class (incl. identical). */
   default boolean isSubtypeOf(Class<?> otherType) {
-    return otherType.isAssignableFrom(type());
+    return type().isSubsetOf(otherType);
   }
 
   /**

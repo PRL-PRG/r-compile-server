@@ -6,73 +6,102 @@ import java.lang.annotation.Repeatable;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
-import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.RecordComponent;
-import java.lang.reflect.WildcardType;
 import org.prlprg.ir.cfg.IFun;
 import org.prlprg.ir.cfg.Instr;
-import org.prlprg.ir.cfg.Node;
-import org.prlprg.ir.type.RSexpType;
-import org.prlprg.sexp.SEXP;
+import org.prlprg.ir.effect.REffect;
+import org.prlprg.ir.type.RType;
+import org.prlprg.ir.type.sexp.RSexpType;
 
-/** Applied to the first component in an {@link InstrData}, specifies that the component value is
- * the {@link Instr#fun()} of an instruction with this data.
+/** On {@link InstrData}, specifies that an instruction created with this data's {@linkplain
+ * Instr#fun() function} is {@link IFun#of(Object)} called with the first component.
  *
- * <p>If not present, then {@link Intrinsic} must be present on the {@link InstrData}, and the
- * {@link Instr#fun()} is {@link IFun.Static.Intrinsic} with the given name.
+ * <p>An {@link InstrData} annotated with this can't also be annotated with {@link Intrinsic}.
  */
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
-@Target(ElementType.RECORD_COMPONENT)
+@Target(ElementType.TYPE)
 @interface Fun {}
 
-/** Specifies that the {@link Instr#fun()} of an instruction with this data is
- * {@link IFun.Static.Intrinsic} with the given name.
+/** On {@link InstrData}, specifies that an instruction created with this data's {@linkplain
+ * Instr#fun() function} is {@link IFun.Static#named(String)} called with the given name.
  *
- * <p>If not present, then {@link Fun} must be present on the first component.
+ * <p>An {@link InstrData} annotated with this can't also be annotated with {@link Fun}.
  */
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)
 @interface Intrinsic {
+  /** The name of the intrinsic function ({@link IFun.Static#named(String)} argument). */
   String value();
 }
 
-/** Applied to the last component in an {@link InstrData} which is an array, specifies that the
- * {@link Instr#inputs()} of an instruction with this data is variable length, and the array
- * contains the remaining inputs (after those from previous components).
+/** On an {@link InstrData} component, specifies that an {@linkplain Instr#inputs() input}
+ * corresponding to this component has a type refined further than the component's class.
+ *
+ * <p>The string value is parsed into an {@link RType}, and inputs corresponding to the record
+ * component are checked at runtime to conform to this type.
+ *
+ * <p>Inputs are already checked at runtime to conform to their corresponding record component's
+ * Java class. However, classes aren't as specific as {@link RType}s, e.g. you can have an
+ * {@link RType} for a vector of specific length, but there's no const generic in Java, so no
+ * corresponding Java class. Hence the reason this annotation exists.
  */
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.RECORD_COMPONENT)
-@interface VarInputs {}
+@interface Input {
+  /** See {@link Input} documentation. */
+  String value();
+}
 
-/** Applied to a component in an {@link InstrData}, specifies that the corresponding input is
+/** On an {@link InstrData} component, specifies that an input corresponding to the component is
  * "consumed", so the value must be implicitly copied before the instruction unless it's owned and
  * the input is its last use.
+ *
+ * <p>May also be applied to a {@link VarInputs} component, in which case every one of the inputs
+ * are consumed.
  */
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.RECORD_COMPONENT)
 @interface Consume {}
 
-/** Applied to an {@link InstrData}, specifies that the instruction has the effect with the given
- * class and inputs.
+/** On an {@link InstrData} component, specifies that the component doesn't correspond to one input
+ * per instruction, but zero to many.
+ *
+ * <p>The component must be the last in the record and an array. It's analogous to a "variardic
+ * parameter", e.g. a {@code Foo...} argument in a Java function.
+ */
+@Documented
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.RECORD_COMPONENT)
+@interface VarInputs {
+  /** The refined type of each input.
+   *
+   * <p>This has the same function as {@link Input#value()}, except instead of being applied to the
+   * whole component, it's applied to each element (the type of each element is refined).
+   */
+  String value();
+}
+
+/** On an {@link InstrData}, specifies that an instruction created from the data has the effect that
+ * is constructed by the given class and inputs.
  */
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)
 @Repeatable(Effects.class)
 @interface Effect {
-  Class<?> value();
+  Class<? extends REffect> value();
 
-  int[] inputs() default {};
+  String[] inputs() default {};
 }
 
 /** Multiple {@link Effect} annotations.
  *
  * <p>This annotation shouldn't be written explicitly, instead add multiple {@link Effect}
- * annotations and it gets added implicitly.
+ * annotations and it gets added implicitly. See
  * <a href="https://docs.oracle.com/javase/tutorial/java/annotations/repeating.html">Java repeatable
  * annotations.</a>
  */
@@ -83,14 +112,16 @@ import org.prlprg.sexp.SEXP;
   Effect[] value();
 }
 
-/** Applied to an {@link InstrData}, specifies that the instruction has the given number of outputs
- * of the given types.
+/** On an {@link InstrData}, specifies that the instruction has the given number of outputs of the
+ * given types.
+ *
+ * <p>Types are represented by strings that are parsed into {@link RType}s.
  */
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)
 @interface Outputs {
-  Class<?>[] value();
+  String[] value();
 }
 
 /** Applied to an {@link InstrData} with {@link Outputs}, intersects the output type with other
@@ -104,23 +135,35 @@ import org.prlprg.sexp.SEXP;
 }
 
 enum GenericOutput {
-  INTERSECT_VALUE;
+  INTERSECT_VALUE,
+  FORCE_MAYBE_PROM,
+  COERCE_VALUE_TO_LOGICAL;
 
-  Class<?> apply(Class<?> output, RecordComponent[] components, Object[] values) {
+  RType apply(RType output, RecordComponent[] components, Object[] values) {
     return switch (this) {
       case INTERSECT_VALUE -> {
-        if (components.length != 1 || !components[0].getName().equals("value") ||
-            !(components[0].getGenericType() instanceof ParameterizedType p) ||
-            p.getRawType() != Node.class ||
-            !(p.getActualTypeArguments()[0] instanceof WildcardType w) ||
-            w.getLowerBounds().length != 1 ||
-            !(w.getLowerBounds()[0] instanceof Class<?> c) ||
-            !SEXP.class.isAssignableFrom(c)) {
-          throw new IllegalArgumentException("`INTERSECT_VALUE` can only be used with a single component `Node<? extends SEXP> value`");
+        if (components.length != 1 || !components[0].getName().equals("value")) {
+          throw new IllegalArgumentException("`INTERSECT_VALUE` can only be used with a single component named `value`");
         }
 
-        yield RSexpType.intersection(output, ((Node<?>)values[0]).type());
+        yield output.intersectionOf(InstrDataUtil.componentInputType(components[0]));
       }
-    }
+      case FORCE_MAYBE_PROM -> {
+        if (components.length < 1 || !components[0].getName().equals("maybeProm")
+            || !(InstrDataUtil.componentInputType(components[0]) instanceof RSexpType maybePromType)) {
+          throw new IllegalArgumentException("`FORCE_MAYBE_PROM` can only be used with a component that is an `SEXP` named `maybeProm`");
+        }
+
+        yield output.intersectionOf(maybePromType.forced());
+      }
+      case COERCE_VALUE_TO_LOGICAL -> {
+        if (components.length != 1 || !components[0].getName().equals("value")
+            || !(InstrDataUtil.componentInputType(components[0]) instanceof RSexpType valueType)) {
+          throw new IllegalArgumentException("`COERCE_VALUE_TO_LOGICAL` can only be used with a single component that is an `SEXP` named `value`");
+        }
+
+        yield output.intersectionOf(valueType.coerceToLogical());
+      }
+    };
   }
 }

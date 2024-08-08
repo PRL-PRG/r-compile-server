@@ -2,13 +2,14 @@ package org.prlprg.ir.cfg;
 
 import java.util.Objects;
 import javax.annotation.Nullable;
+import org.prlprg.ir.type.RType;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.SkipWhitespace;
 
 /** {@link NodeId} of a {@link LocalNode}. */
 public sealed class LocalNodeId<T> implements NodeId<T> permits PhiId {
-  private @Nullable Class<? extends T> type;
+  private @Nullable RType type;
   private final int disambiguator;
   private final String name;
   private final String toString;
@@ -29,7 +30,7 @@ public sealed class LocalNodeId<T> implements NodeId<T> permits PhiId {
   }
 
   @Override
-  public @Nullable Class<? extends T> type() {
+  public @Nullable RType type() {
     return type;
   }
 
@@ -37,20 +38,20 @@ public sealed class LocalNodeId<T> implements NodeId<T> permits PhiId {
    * Assign a class to an ID which may have been parsed, or if not, just check that the class is the
    * same as the one that would've been assigned.
    */
-  // Cast is valid if `this.clazz` is unset (means we dynamically delayed assigning a generic arg)
-  // or `this.clazz == clazz` (no-op);
-  @SuppressWarnings("unchecked")
-  void lateAssignType(Class<?> type) {
+  void lateAssignType(RType type) {
     // `assert` because this is only used within the package.
     assert this.type == null || this.type == type
         : "node ID is for a different type: expected " + this.type + ", got " + type;
-    this.type = (Class<? extends T>) type;
+    this.type = type;
   }
 
-  /** Unsafely change this ID's type. */
-  @SuppressWarnings("unchecked")
-  void unsafeReassignType(Class<?> type) {
-    this.type = (Class<? extends T>) type;
+  /** Change this ID's {@link #type()}.
+   *
+   * <p>It's "unsafe" because you need to maintain that the ID's runtime values are guaranteed to be
+   * subtypes of its type.
+   */
+  void unsafeReassignType(RType type) {
+    this.type = type;
   }
 
   @Override

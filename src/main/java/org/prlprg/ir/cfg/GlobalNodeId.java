@@ -1,15 +1,12 @@
 package org.prlprg.ir.cfg;
 
-import com.google.common.collect.ImmutableBiMap;
-import com.google.common.collect.ImmutableMap;
-import java.util.Objects;
 import javax.annotation.Nonnull;
+import org.prlprg.ir.type.RType;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.parseprint.SkipWhitespace;
-import org.prlprg.util.Strings;
 
 /**
  * Unique identifier for a {@link GlobalNode}.
@@ -31,7 +28,7 @@ public sealed interface GlobalNodeId<T> extends NodeId<T> {
 
   @Override
   @Nonnull
-  Class<? extends T> type();
+  RType type();
 
   @ParseMethod
   private static GlobalNodeId<?> parse(Parser p) {
@@ -41,7 +38,7 @@ public sealed interface GlobalNodeId<T> extends NodeId<T> {
 
 record GlobalNodeIdImpl<T>(GlobalNode<T> node) implements GlobalNodeId<T> {
   @Override
-  public @Nonnull Class<? extends T> type() {
+  public @Nonnull RType type() {
     return node.type();
   }
 

@@ -14,21 +14,15 @@ import org.prlprg.ir.cfg.IFun;
 import org.prlprg.ir.cfg.Instr;
 import org.prlprg.ir.cfg.Node;
 import org.prlprg.ir.cfg.NodeId;
-import org.prlprg.ir.cfg.Stmt;
 import org.prlprg.ir.closure.Closure;
 import org.prlprg.ir.closure.ClosureVersion;
 import org.prlprg.ir.closure.Promise;
 import org.prlprg.ir.effect.REffect;
 import org.prlprg.ir.effect.REffects;
-import org.prlprg.ir.type.RSexpType;
-import org.prlprg.ir.type.lattice.Maybe;
-import org.prlprg.ir.type.lattice.YesOrMaybe;
 import org.prlprg.primitive.BuiltinId;
 import org.prlprg.primitive.IsTypeCheck;
 import org.prlprg.rshruntime.BcPosition;
 import org.prlprg.sexp.EnvSXP;
-import org.prlprg.sexp.FunSXP;
-import org.prlprg.sexp.IntSXP;
 import org.prlprg.sexp.LangSXP;
 import org.prlprg.sexp.RegSymSXP;
 import org.prlprg.sexp.SEXP;
@@ -45,14 +39,13 @@ public sealed interface StmtData extends InstrData {
    * immediately, we can replace with {@code NoOp}s, then batch remove all {@code NoOp}s to improve
    * performance.
    */
-  @Intrinsic("noOp")
   record NoOp() implements StmtData {}
 
   // Many of these are derived from PIR `instruction.h`
 
   @Intrinsic("fs")
   @Effect(value = ReadsEnv.class, inputs = "env")
-  @Outputs(FrameState.class)
+  @Outputs("FrameState")
   record FrameState_(
       BcPosition location,
       boolean inPromise,
@@ -69,40 +62,42 @@ public sealed interface StmtData extends InstrData {
   /** Effects are arbitrary because it implicitly forces. */
   @Effect(value = Loads.class, inputs = {"name", "env"})
   @Effect(Forces.class)
-  @Outputs(FunSXP.class)
+  @Outputs("fun")
   record LdFun(RegSymSXP name, Node<? extends EnvSXP> env) implements StmtData {}
 
   /** Doesn't implicitly force, unlike {@link org.prlprg.bc.BcInstr.GetVar BcInstr.GetVar}. */
+  @Intrinsic("ld")
   @Effect(value = Loads.class, inputs = {"name", "env"})
-  @Outputs(SEXP.class)
+  @Outputs("sexp")
   record LdVar(RegSymSXP name, Node<? extends EnvSXP> env, boolean missOk) implements StmtData {}
 
   /** Doesn't implicitly force, unlike {@link org.prlprg.bc.BcInstr.DdVal BcInstr.DdVal}. */
+  @Intrinsic("ldDd")
   @Effect(value = Loads.class, inputs = {0, 1})
-  @Outputs(ValueSXP.class)
+  @Outputs("val")
   record LdDdVal(int ddNum, Node<? extends EnvSXP> env, boolean missOk) implements StmtData {}
 
   // TODO: It says in PIR that this should eventually be replaced with a non-dispatching extract
   //  call (probably an old comment so idk if it's still relevant)
   @Effect(value = Errors.class)
-  @Outputs(SEXP.class)
+  @Outputs("sexp")
   record ToForSeq(Node<? extends SEXP> value) implements StmtData {}
 
-  @Outputs(IntSXP.class)
+  @Outputs("int")
   record Length(Node<? extends SEXP> value) implements StmtData {}
 
   @Effect(value = Loads.class, inputs = {0, 1})
   @Effect(value = Errors.class)
-  @Outputs(BoolSXP.class)
+  @Outputs("bool")
   record IsMissing(RegSymSXP varName, Node<? extends EnvSXP> env) implements StmtData {}
 
   @Effect(value = Errors.class)
-  @Outputs(NotMissingSXP.class)
+  @Outputs("val|prom")
   @OutputsGeneric(GenericOutput.INTERSECT_ARG)
   record ChkMissing(Node<? extends SEXP> value) implements StmtData {}
 
   @Effect(value = Errors.class)
-  @Outputs(FunSXP.class)
+  @Outputs("fun")
   @OutputsGeneric(GenericOutput.INTERSECT_ARG)
   record ChkFun(Node<? extends SEXP> value) implements StmtData {}
 
@@ -161,43 +156,14 @@ public sealed interface StmtData extends InstrData {
     }
   }
 
-  record Force(ISexp promise, @Nullable FrameState fs, ISexp env) implements StmtData {
+  @Effect(value = Forces.class, inputs = {"maybeProm", "fs", "env"})
+  @Outputs("sexp")
+  @OutputsGeneric(GenericOutput.FORCE_MAYBE_PROM)
+  record Force(Node<? extends SEXP> maybeProm, @Nullable FrameState fs, Node<? extends EnvSXP> env) implements StmtData {}
 
-    @Override
-    public RSexpType computeType() {
-      return promise.type().forced();
-    }
-
-    /**
-     * Whether the forced {@link SEXP} is guaranteed to already be evaluated.
-     *
-     * <p>If {@link YesOrMaybe#YES}, the force simply unwraps it if it's a promise.
-     */
-    public YesOrMaybe isStrict() {
-      var isLazy = promise.type().isLazy();
-      return YesOrMaybe.of(isLazy == null || isLazy == Maybe.NO);
-    }
-
-    @Override
-    public REffects computeEffects() {
-      if (isStrict() == YesOrMaybe.YES) {
-        return REffects.PURE;
-      }
-      return promise instanceof Stmt s && s.data() instanceof MkProm(var p)
-          ? p.properties().effects()
-          : REffects.ARBITRARY;
-    }
-  }
-
-  @TypeIs("LGL")
-  record AsLogical(ISexp value) implements StmtData {
-    @Override
-    public REffects computeEffects() {
-      return value.type().isSubsetOf(RSexpType.ANY_SIMPLE_PRIM_VEC)
-          ? REffects.PURE
-          : new REffects(REffect.Error);
-    }
-  }
+  @Outputs("sexp")
+  @OutputsGeneric(GenericOutput.COERCE_VALUE_TO_LOGICAL)
+  record AsLogical(Node<? extends SEXP> value) implements StmtData {}
 
   @TypeIs("INT")
   @EffectsAre({REffect.Warn, REffect.Error})

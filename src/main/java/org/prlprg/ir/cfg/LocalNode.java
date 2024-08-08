@@ -2,6 +2,7 @@ package org.prlprg.ir.cfg;
 
 import org.prlprg.ir.cfg.CFGEdit.SetLocalNodeId;
 import org.prlprg.ir.cfg.builder.CFGCleanup;
+import org.prlprg.ir.type.RType;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
@@ -20,7 +21,7 @@ import org.prlprg.parseprint.Printer;
  */
 public sealed class LocalNode<T> implements Node<T> permits Param, Phi, InstrOutput {
   private final CFG cfg;
-  private Class<? extends T> type;
+  private RType type;
   private LocalNodeId<T> id;
 
   /**
@@ -37,7 +38,7 @@ public sealed class LocalNode<T> implements Node<T> permits Param, Phi, InstrOut
     return (LocalNode<U>) Node.super.cast(clazz);
   }
 
-  protected LocalNode(CFG cfg, Class<? extends T> type, LocalNodeId<T> id) {
+  protected LocalNode(CFG cfg, RType type, LocalNodeId<T> id) {
     this.cfg = cfg;
     this.type = type;
     this.id = id;
@@ -48,12 +49,11 @@ public sealed class LocalNode<T> implements Node<T> permits Param, Phi, InstrOut
   /**
    * Unsafely change this node's type.
    *
-   * <p>You must ensure that, either the type is a subtype of the current one, or all occurrences of
-   * the node have the new type checked, to ensure no occurrence's static type is more specific.
+   * <p>It's "unsafe" because you need to maintain that the node's runtime values are guaranteed to
+   * be subtypes of its type.
    */
-  @SuppressWarnings("unchecked")
-  protected void unsafeSetType(Class<?> type) {
-    this.type = (Class<? extends T>) type;
+  protected void unsafeSetType(RType type) {
+    this.type = type;
     id.unsafeReassignType(type);
   }
 
@@ -119,7 +119,7 @@ public sealed class LocalNode<T> implements Node<T> permits Param, Phi, InstrOut
   }
 
   @Override
-  public Class<? extends T> type() {
+  public RType type() {
     return type;
   }
 

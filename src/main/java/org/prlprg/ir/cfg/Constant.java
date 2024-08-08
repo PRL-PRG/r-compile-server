@@ -2,6 +2,7 @@ package org.prlprg.ir.cfg;
 
 import com.google.common.collect.ImmutableBiMap;
 import javax.annotation.Nullable;
+import org.prlprg.ir.type.RType;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
@@ -19,7 +20,6 @@ import org.prlprg.sexp.ScalarIntSXP;
 import org.prlprg.sexp.ScalarLglSXP;
 import org.prlprg.sexp.ScalarRealSXP;
 import org.prlprg.sexp.ScalarStrSXP;
-import org.prlprg.util.Classes;
 
 /**
  * An IR node that, at runtime, is guaranteed to be a single statically-known constant value: {@link
@@ -113,8 +113,8 @@ record ConstantImpl<T>(T value) implements Constant<T> {
   }
 
   @Override
-  public Class<? extends T> type() {
-    return Classes.classOf(value);
+  public RType type() {
+    return RType.exact(value);
   }
 
   @Override

@@ -10,12 +10,13 @@ import java.util.Optional;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.UnmodifiableView;
-import org.prlprg.ir.cfg.instr.InputNodeTypeException;
+import org.prlprg.ir.cfg.instr.InputTypeException;
 import org.prlprg.ir.cfg.instr.InstrData;
 import org.prlprg.ir.cfg.instr.JumpData;
 import org.prlprg.ir.cfg.instr.StmtData;
 import org.prlprg.ir.closure.CodeObject;
 import org.prlprg.ir.effect.REffects;
+import org.prlprg.ir.type.RType;
 
 /**
  * IR instruction: {@link Stmt} or {@link Jump}. An instruction is a single operation in a basic
@@ -43,6 +44,7 @@ public sealed abstract class Instr implements InstrOrPhi, InstrOrPhiImpl permits
 
   protected IFun fun;
   protected final Object[] inputs;
+  protected final RType[] requiredInputTypes;
   private REffects effects;
   private final ImmutableList<InstrOutput<?>> outputs;
 
@@ -68,6 +70,7 @@ public sealed abstract class Instr implements InstrOrPhi, InstrOrPhiImpl permits
 
     fun = data.fun();
     inputs = data.inputs();
+    requiredInputTypes = data.requiredInputTypes();
     effects = data.effects();
     outputs = data.outputTypes()
         .stream()
@@ -97,6 +100,17 @@ public sealed abstract class Instr implements InstrOrPhi, InstrOrPhiImpl permits
    */
   public @UnmodifiableView List<Object> inputs() {
     return List.of(inputs);
+  }
+
+  /**
+   * (A view of) the required {@link RType} type of each of the instruction's inputs.
+   *
+   * <p>You usually don't need to use this directly, e.g. input types are automatically checked when
+   * an instruction is created or when one of its inputs is mutated in a way that changes its {@link
+   * RType}.
+   */
+  public @UnmodifiableView List<RType> requiredInputTypes() {
+    return List.of(requiredInputTypes);
   }
 
   /**
@@ -170,7 +184,7 @@ public sealed abstract class Instr implements InstrOrPhi, InstrOrPhiImpl permits
    * expected type, and you are responsible for updating instructions whose inputs contain outputs
    * that the replacement changed the type of. Hence this is package-private and "unsafe".
    *
-   * @throws InputNodeTypeException If an input's {@link Node#type()} has changed so that it's no
+   * @throws InputTypeException If an input's {@link Node#type()} has changed so that it's no
    * longer a subtype of the required type.
    * @throws InfiniteCascadingUpdateException if an instruction's updated outputs trigger more
    * updates that eventually update that instruction's inputs so that its outputs update again. This

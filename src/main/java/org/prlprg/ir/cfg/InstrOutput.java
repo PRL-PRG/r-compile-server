@@ -1,5 +1,7 @@
 package org.prlprg.ir.cfg;
 
+import org.prlprg.ir.type.RType;
+
 /**
  * A {@link Node} that was produced by an {@link Instr}.
  *
@@ -23,7 +25,7 @@ public final class InstrOutput<T> extends LocalNode<T> {
   public <U> InstrOutput<? extends U> cast(Class<U> clazz) {
     return (InstrOutput<U>) super.cast(clazz);
   }
-  InstrOutput(Instr origin, Class<? extends T> type) {
+  InstrOutput(Instr origin, RType type) {
     super(origin.cfg(), type, origin.cfg().uniqueLocalId());
     this.origin = origin;
   }

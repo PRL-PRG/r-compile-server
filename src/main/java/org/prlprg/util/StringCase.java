@@ -37,13 +37,13 @@ public enum StringCase {
             case SNAKE -> camelOrPascalToSnake(s, false);
             case SCREAMING_SNAKE -> camelOrPascalToSnake(s, true);
             case CAMEL -> s;
-            case PASCAL -> snakeToCamelOrPascal(s, true);
+            case PASCAL -> changeFirstCharacterCase(s, true);
           };
       case PASCAL ->
           switch (to) {
             case SNAKE -> camelOrPascalToSnake(s, false);
             case SCREAMING_SNAKE -> camelOrPascalToSnake(s, true);
-            case CAMEL -> snakeToCamelOrPascal(s, false);
+            case CAMEL -> changeFirstCharacterCase(s, false);
             case PASCAL -> s;
           };
     };
@@ -79,5 +79,11 @@ public enum StringCase {
       }
     }
     return sb.toString();
+  }
+
+  private static String changeFirstCharacterCase(String s, boolean toUpper) {
+    var c = s.charAt(0);
+    c = toUpper ? Character.toUpperCase(c) : Character.toLowerCase(c);
+    return c + s.substring(1);
   }
 }

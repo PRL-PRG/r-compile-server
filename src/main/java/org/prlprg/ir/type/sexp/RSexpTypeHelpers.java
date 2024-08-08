@@ -32,7 +32,7 @@ sealed interface RSexpTypeHelpers permits RSexpType {
    * that it's not missing.
    */
   RSexpType MISSING =
-      new RSexpTypeImpl<>(
+      new RSexpTypeImpl(
           RValueType.NOTHING, YesOrMaybe.YES, AttributesType.BOTTOM, RPromiseType.VALUE, Maybe.YES);
 
   /** The type of a value that is an {@link SEXP} and not a promise. */
@@ -183,8 +183,8 @@ sealed interface RSexpTypeHelpers permits RSexpType {
   }
 
   /**
-   * If this type is a value or maybe a promise, returns a definitely-promise (strict unless
-   * otherwise specified). Otherwise returns itself (including if this is the nothing type).
+   * If this type is a value or maybe a promise, returns a definitely-promise (maybe lazy if it's a
+   * value). Otherwise returns itself (including if this is the nothing type).
    */
   default RSexpType promiseWrapped() {
     var self = cast(this);

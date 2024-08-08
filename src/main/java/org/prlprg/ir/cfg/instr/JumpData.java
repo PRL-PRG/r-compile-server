@@ -6,9 +6,11 @@ import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.checkerframework.checker.index.qual.SameLen;
 import org.prlprg.ir.cfg.BB;
+import org.prlprg.ir.cfg.FrameState;
 import org.prlprg.ir.cfg.Instr;
-import org.prlprg.ir.effect.REffect;
-import org.prlprg.sexp.LangSXP;
+import org.prlprg.ir.cfg.Node;
+import org.prlprg.rshruntime.DeoptReason;
+import org.prlprg.sexp.EnvSXP;
 import org.prlprg.util.Pair;
 
 /**
@@ -27,28 +29,22 @@ public sealed interface JumpData extends InstrData {
     };
   }
 
-  @EffectsAre({})
   record Goto(BB next) implements JumpData {}
 
-  @EffectsAre({})
-  record Branch(@Nullable LangSXP ast, ISexp condition, BB ifTrue, BB ifFalse)
-      implements JumpData {
-    public Branch(ISexp condition, BB ifTrue, BB ifFalse) {
-      this(null, condition, ifTrue, ifFalse);
-    }
-  }
+  record Branch(Node<? extends Boolean> condition, BB ifTrue, BB ifFalse)
+      implements JumpData {}
 
-  record NonLocalReturn(ISexp value, ISexp env) implements JumpData {}
+  @Effect(value = Leaks.class, inputs = "value")
+  // TODO: Effect on `env`?
+  record NonLocalReturn(Node<?> value, Node<? extends EnvSXP> env) implements JumpData {}
 
-  @EffectsAre(REffect.LeaksNonEnvArg)
-  record Return(ISexp value) implements JumpData {}
+  @Effect(value = Leaks.class, inputs = "value")
+  record Return(Node<?> value) implements JumpData {}
 
-  @EffectsAre({})
   record Unreachable() implements JumpData {}
 
-  @EffectsAre({})
   record Checkpoint_(
-      @TypeIs("BOOL") ImmutableList<ISexp> tests,
+      ImmutableList<Node<? extends Boolean>> tests,
       @SameLen("tests") ImmutableList<org.prlprg.rshruntime.DeoptReason> failReasons,
       BB ifPass,
       BB ifFail)
@@ -58,15 +54,16 @@ public sealed interface JumpData extends InstrData {
     }
 
     @SuppressWarnings("UnstableApiUsage")
-    public Stream<Pair<ISexp, org.prlprg.rshruntime.DeoptReason>> streamAssumptionData() {
+    public Stream<Pair<Node<? extends Boolean>, org.prlprg.rshruntime.DeoptReason>> streamAssumptionData() {
       return Streams.zip(tests.stream(), failReasons.stream(), Pair::new);
     }
   }
 
+  @Effect(Arbitrary.class)
   record Deopt(
-      FrameState frameState,
+      Node<? extends FrameState> frameState,
       @Nullable DeoptReason reason,
-      @Nullable ISexp trigger,
+      @Nullable Node<?> trigger,
       boolean escapedEnv)
       implements JumpData {
     public Deopt {
@@ -80,7 +77,7 @@ public sealed interface JumpData extends InstrData {
       }
     }
 
-    public Deopt(FrameState frameState) {
+    public Deopt(Node<? extends FrameState> frameState) {
       this(frameState, null, null, false);
     }
   }
