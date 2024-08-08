@@ -232,8 +232,8 @@ public class BC2CCompiler {
     var curr = stack.curr(0);
     var unprotect = stack.pop(1);
     body.line(
-        "if (!Rsh_is_true(%s, %s)) { %s; goto %s; }"
-            .formatted(curr, constantSXP(call), unprotect, label(label.target())));
+        "if (!Rsh_is_true(%s, %s, %s)) { %s; goto %s; }"
+            .formatted(curr, constantSXP(call), NAME_ENV, unprotect, label(label.target())));
     body.line(unprotect + ";");
   }
 
