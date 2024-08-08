@@ -20,7 +20,7 @@ public final class AppConfig extends Config {
    * <p>Note that we pass extra arguments to the command. The working directory of the command is
    * the working directory of this running program.
    */
-  public static final String R_BIN = get("R_BIN", "R");
+  public static final String R_BIN = get("R_BIN", "../external/R/bin/R");
 
   /**
    * R library paths. There are the paths that the compile server will look libraries for in. We

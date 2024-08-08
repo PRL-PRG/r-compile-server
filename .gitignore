@@ -13,3 +13,6 @@
 .Rhistory
 external/R/doc/manual/*.html
 external/R/doc/NEWS.pdf
+
+### clangd ###
+.cache
