@@ -38,7 +38,8 @@ public class RshCompiler {
           "-Werror=format-security",
           "-Wall",
           "-Wno-unused-but-set-variable",
-          "-Wno-comment");
+          "-Wno-comment",
+          "-DRSH");
 
   private static RshCompiler instance;
 
