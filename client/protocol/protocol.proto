@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "org.prlprg.server.protocol";
+
+package rsh.server.protocol;
+
+message Request {
+  oneof payload {
+    HandshakeRequest handshake = 1;
+    CompileRequest compile = 2;
+  }
+}
+
+message HandshakeRequest {
+  string Rsh_version = 1;
+  string R_version = 2;
+  string platform = 3;
+  repeated string packages = 4;
+}
+
+message CompileRequest {
+  string name = 2;
+  // the closure to be compiled as CLOSXP
+  bytes closure = 3;
+  uint32 bc_optimization = 4;
+  uint32 cc_optimization = 5;
+}
+
+message CompiledFunction {
+  string name = 2;
+  // content of the object file as spilled by the compiler
+  bytes native_code = 3;
+  // the constants used by the native code as VECSXP
+  bytes constants = 4;
+}
+
+message CompileResponse {
+  oneof data {
+    string failure = 2;
+    CompiledFunction result = 3;
+  }
+}

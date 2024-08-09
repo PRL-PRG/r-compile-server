@@ -1,0 +1,11 @@
+LLVM_CONFIG := llvm-config-17
+
+LLVM_CPPFLAGS != $(LLVM_CONFIG) --cxxflags
+LLVM_LIBS != $(LLVM_CONFIG) --libs
+
+PB_CPPFLAGS != pkg-config --cflags protobuf
+PB_LIBS != pkg-config --libs protobuf
+
+PKG_CPPFLAGS := $(LLVM_CPPFLAGS) $(PB_CPPFLAGS) -fexceptions -I../inst -DR_NO_REMAP -DSTRICT_R_HEADERS
+PKG_LIBS := $(LLVM_LIBS) $(PB_LIBS) -lzmq
+

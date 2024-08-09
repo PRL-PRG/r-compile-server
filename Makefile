@@ -1,23 +1,11 @@
-# Maven commands
-# ---
-build:
-	mvn $(MVN_ARGS) package
+# Saner makefile
+BASE_DIR := $(realpath $(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
+TOOLS_DIR := $(BASE_DIR)/tools
 
-format:
-	mvn $(MVN_ARGS) spotless:apply
-
-# `test` only runs unit tests
-test:
-	mvn $(MVN_ARGS) test
-
-# `verify` runs both tests and static analyses
-verify:
-	mvn $(MVN_ARGS) verify
-
-clean:
-	mvn $(MVN_ARGS) clean
-# ---
-
-# Install pre-commit and pre-push hooks
+.PHONY: setup
 setup:
+	$(TOOLS_DIR)/build-gnur.sh
+
+.PHONY: setup-git
+setup-git:
 	cp -f .githooks/pre-commit.sh .git/hooks/pre-commit
