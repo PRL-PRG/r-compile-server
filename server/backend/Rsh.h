@@ -19,9 +19,6 @@ double R_pow(double x, double y);
 #define JIT_EXTERN extern
 #endif
 
-JIT_EXTERN CCODE Rex_do_arith;
-JIT_EXTERN CCODE Rex_do_relop;
-
 #define X_ARITH_OPS                                                            \
   X(+, ADD_OP)                                                                 \
   X(-, SUB_OP)                                                                 \
@@ -45,6 +42,8 @@ typedef enum { X_REL_OPS } RshRelOp;
 #define X(a, b) NULL,
 SEXP R_ARITH_OPS[] = {X_ARITH_OPS};
 SEXP R_REL_OPS[] = {X_REL_OPS};
+SEXP R_ARITH_OP_SYMS[] = {X_ARITH_OPS};
+SEXP R_REL_OP_SYMS[] = {X_REL_OPS};
 #undef X
 
 // VALUE REPRESENTATION
@@ -334,8 +333,13 @@ static INLINE void Rsh_initialize_runtime(void) {
   X_REL_OPS
 #undef X
 
-  Rex_do_arith = PRIMFUN(R_ARITH_OPS[0]);
-  Rex_do_relop = PRIMFUN(R_REL_OPS[0]);
+#define X(a, b) R_ARITH_OP_SYMS[b] = install(#a);
+  X_ARITH_OPS
+#undef X
+#define X(a, b) R_REL_OP_SYMS[b] = install(#a);
+  X_REL_OPS
+#undef X
+
   Rsh_NilValue = SXP_TO_VAL(R_NilValue);
 }
 
@@ -672,15 +676,14 @@ static INLINE Rboolean Rsh_is_true(Value value, SEXP call, SEXP rho) {
     *(r) = LGL_TO_VAL(__res__);                                                \
   } while (0)
 
-#define DO_BINARY_BUILTIN(fun, lsh, rhs, call, op, rho, res)                   \
+#define DO_BINARY_BUILTIN(fun, call, op, opSym, lsh, rhs, rho, res)            \
   do {                                                                         \
-    SEXP __args__ = PROTECT(list2(val_as_sxp((lhs)), val_as_sxp((rhs))));      \
-    SEXP __res_sxp__ = fun((call), (op), (__args__), (rho));                   \
-    UNPROTECT(1);                                                              \
-    (*res) = sexp_as_val(__res_sxp__);                                         \
+    SEXP __res_sxp__ = fun((call), (op), (opSym), val_as_sxp((lhs)),           \
+                           val_as_sxp((rhs)), (rho));                          \
+    res = sexp_as_val(__res_sxp__);                                            \
   } while (0)
 
-static INLINE Value Rsh_arith(RshArithOp op, Value lhs, Value rhs, SEXP call,
+static INLINE Value Rsh_arith(SEXP call, RshArithOp op, Value lhs, Value rhs,
                               SEXP rho) {
   Value res = 0;
 
@@ -713,14 +716,12 @@ static INLINE Value Rsh_arith(RshArithOp op, Value lhs, Value rhs, SEXP call,
   }
 
   // Slow path!
-  // We could have made it somewhat faster if we could get our hands on the
-  // R_Binary from arithmetics.c it is not exported, so we have to go through
-  // from the do_arith which we can leak via the BUILTINSXP
-  DO_BINARY_BUILTIN(Rex_do_arith, lhs, rhs, call, R_ARITH_OPS[op], rho, &res);
+  DO_BINARY_BUILTIN(arith2, call, R_ARITH_OPS[op], R_ARITH_OP_SYMS[op], lsh,
+                    rhs, rho, res);
   return res;
 }
 
-static INLINE Value Rsh_relop(RshRelOp op, Value lhs, Value rhs, SEXP call,
+static INLINE Value Rsh_relop(SEXP call, RshRelOp op, Value lhs, Value rhs,
                               SEXP rho) {
   Value res;
 
@@ -747,10 +748,9 @@ static INLINE Value Rsh_relop(RshRelOp op, Value lhs, Value rhs, SEXP call,
   }
 
   // Slow path!
-  // We could have made it somewhat faster if we could get our hands on the
-  // do_relop_dflt from relop.c it is not exported, so we have to go through
-  // from the do_relop which we can leak via the BUILTINSXP
-  DO_BINARY_BUILTIN(Rex_do_relop, lhs, rhs, call, R_REL_OPS[op], rho, &res);
+  DO_BINARY_BUILTIN(relop, call, R_REL_OPS[op], R_REL_OP_SYMS[op], lhs, rhs,
+                    rho, res);
+
   return res;
 }
 

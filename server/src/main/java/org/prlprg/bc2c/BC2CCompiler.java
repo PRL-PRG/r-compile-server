@@ -170,8 +170,8 @@ public class BC2CCompiler {
       case BcInstr.LdTrue() -> compileLd(VAL_TRUE);
       case BcInstr.LdFalse() -> compileLd(VAL_FALSE);
       case BcInstr.GetVar(var idx) -> compileGetVar(idx);
-      case BcInstr.Add(var idx) -> compileAdd(idx);
-      case BcInstr.Lt(var idx) -> compileLt(idx);
+      case BcInstr.Add(var idx) -> compileArith(idx, "ADD_OP");
+      case BcInstr.Lt(var idx) -> compileLt(idx, "LT_OP");
       case BcInstr.Return() -> compileReturn();
       case BcInstr.Pop() -> pop(1);
       case BcInstr.GetBuiltin(var idx) -> compileGetBuiltin(idx);
@@ -307,18 +307,18 @@ public class BC2CCompiler {
     body.line("return Rsh_return(%s);".formatted(stack.curr(1)));
   }
 
-  private void compileAdd(ConstPool.Idx<LangSXP> idx) {
+  private void compileArith(ConstPool.Idx<LangSXP> idx, String op) {
     var call = constantSXP(idx);
     var lhs = stack.curr(-1);
     var rhs = stack.curr(0);
-    popPush(2, "Rsh_arith(ADD_OP, %s, %s, %s, %s)".formatted(lhs, rhs, call, NAME_ENV), false);
+    popPush(2, "Rsh_arith(%s, %s, %s, %s, %s)".formatted(call, op, lhs, rhs, NAME_ENV), false);
   }
 
-  private void compileLt(ConstPool.Idx<LangSXP> idx) {
+  private void compileLt(ConstPool.Idx<LangSXP> idx, String op) {
     var call = constantSXP(idx);
     var lhs = stack.curr(-1);
     var rhs = stack.curr(0);
-    popPush(2, "Rsh_relop(LT_OP, %s, %s, %s, %s)".formatted(lhs, rhs, call, NAME_ENV), false);
+    popPush(2, "Rsh_relop(%s, %s, %s, %s, %s)".formatted(call,op, lhs, rhs, NAME_ENV), false);
   }
 
   private void compileLd(String constant) {
