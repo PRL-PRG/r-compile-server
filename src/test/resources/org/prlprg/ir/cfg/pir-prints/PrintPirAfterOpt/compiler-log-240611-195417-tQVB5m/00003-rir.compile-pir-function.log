@@ -1,0 +1,26 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ rir.compile[0x5587cf0678e0]                                                  │
+│ Context: CorrOrd,!TMany                                                      │
+│ Properties:  Eager, ForceOrd: 0                                              │
+├────── PIR Version After Optimizations
+rir.compile[0x5587cf0678e0]
+BB0
+  goto BB1
+BB1   <- [0]
+  val?^ | miss    %1.0  = LdArg                    0
+  val?^           %1.1  = ChkMissing         e     %1.0
+  void                    Visible            v     
+  env             e1.3  = (MkEnv)            l     y=%1.0, parent=R_GlobalEnv, context 1
+  val?            %1.4  = Force!             !L    %1.1, e1.3   <val?_>
+  cp              %1.5  = Checkpoint                -> BB2 (default) | BB3 (if assume failed)
+BB2   <- [1]
+  lgl$#-          %2.0  = IsEnvStub          R     , e1.3
+  void                    Assume             D     %2.0, %1.5 (EnvStubMaterialized@0x5587cec54e28[Call#unknown])
+  void                    Return             l     %1.4
+BB3   <- [1]
+  fs              %3.0  = FrameState         R     0x5587cf655f30+5: [%1.4], env=e1.3
+  void                    Deopt              !v    %3.0   !
+
+│ rir.compile[0x5587cf0678e0]                                                  │
+└──────────────────────────────────────────────────────────────────────────────┘

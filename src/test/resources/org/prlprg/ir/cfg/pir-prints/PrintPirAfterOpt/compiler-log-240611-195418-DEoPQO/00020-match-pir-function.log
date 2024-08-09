@@ -1,0 +1,32 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ match[0x55c18d792f40]                                                        │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;Eager2,NonRefl0,NonRefl2,!Obj0,!Obj2,SimpleInt2 miss: 1│
+│ Properties:  ForceOrd: 0 1                                                   │
+├────── PIR Version After Optimizations
+match[0x55c18d792f40]
+BB0
+  goto BB1
+BB1   <- [0]
+  int$~-          %1.0  = LdArg                    2
+  val?^           %1.1  = LdArg                    1
+  val?^           %1.2  = LdArg                    0
+  env             e1.3  = (MkEnv)            l     x=%1.2, table=%1.1, nomatch=%1.0, incomparables(miss)=nil, parent=R_BaseNamespace, context 1
+  val+            %1.4  = Force!<lazy>       !vr   %1.2,    <val?+>
+  val?            %1.5  = Force!<lazy>       !vL   %1.1, e1.3   <val?->
+  lgl$#-          %1.6  = IsType                   %1.5 isA val?-
+  int$-           %1.7  = Force!<lazy>             %1.0,    <int$->
+  cp              %1.8  = Checkpoint                -> BB2 (default) | BB3 (if assume failed)
+BB2   <- [1]
+  void                    Assume             D     %1.6, %1.8 (Typecheck@0x55c18b1f2b30[Type#1])
+  val?-           %2.1  = CastType           d     dn %1.5
+  lgl$#-          %2.2  = IsEnvStub          R     , e1.3
+  void                    Assume             D     %2.2, %1.8 (EnvStubMaterialized@0x55c18b1f2b30[Call#unknown])
+  val+            %2.4  = CallSafeBuiltin    vwed  match(%1.4, %2.1, %1.7, nil) 
+  void                    Return             l     %2.4
+BB3   <- [1]
+  fs              %3.0  = FrameState         R     0x55c18ba1ad70+23: [%1.4, %1.5], env=e1.3
+  void                    Deopt              !v    %3.0   !
+
+│ match[0x55c18d792f40]                                                        │
+└──────────────────────────────────────────────────────────────────────────────┘

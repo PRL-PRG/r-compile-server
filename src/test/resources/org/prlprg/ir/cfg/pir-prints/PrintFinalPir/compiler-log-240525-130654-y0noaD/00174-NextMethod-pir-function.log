@@ -1,0 +1,41 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ NextMethod[0x564985347790]                                                   │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;Eager0,NonRefl0,!Obj0 miss: 2        │
+│ Properties:                                                                  │
+├────── Final PIR Version
+NextMethod[0x564985347790]
+BB0
+  val?~+          %0.0  = LdArg                    0
+  void                    Visible            v     
+  env             e0.2  = MkEnv              l     generic=%0.0, object(miss)=nil, ...(miss)=missingArg, parent=R_BaseNamespace, context 1
+  prom-           %0.3  = MkArg                    unboundValue, NextMethod[0x564985347790]_p1, e0.2
+  val?            %0.4  = Call               !     <spec .Internal>(%0.3) e0.2   <(real|vec)+>
+  void                    Return             l     %0.4
+Prom 1:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     NextMethod, e0.0
+  prom-           %0.2  = MkArg                    unboundValue, NextMethod[0x564985347790]_p2, e0.0
+  prom-           %0.3  = MkArg                    unboundValue, NextMethod[0x564985347790]_p3, e0.0
+  (miss|dots)     %0.4  = LdDots             R     , e0.0
+  *dots-          %0.5  = ExpandDots               %0.4
+  val?            %0.6  = NamedCall          !     %0.1(%0.2, %0.3, .xpandDotsTrigger=%0.5) e0.0   <val?_>
+  void                    Return             l     %0.6
+Prom 2:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    generic, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 3:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    object, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+
+│ NextMethod[0x564985347790]                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘

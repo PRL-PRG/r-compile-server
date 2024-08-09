@@ -1,0 +1,71 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ %in%[0x560a36e565d0]                                                         │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;Eager0,Eager1,NonRefl0,NonRefl1,!Obj1│
+│ Properties:  ForceOrd: 0                                                     │
+├────── Final PIR Version
+%in%[0x560a36e565d0]
+BB0
+  val?~+          %0.0  = LdArg                    1
+  val?^           %0.1  = LdArg                    0
+  val?            %0.2  = Force!<lazy>             %0.1,    <(int|str)+>
+  lgl$#-          %0.3  = IsType                   %0.2 isA val?+
+  val+            %0.4  = Force<lazy>              %0.0,    <val?->
+  void                    Branch                   %0.3 -> BB6 (if true) | BB7 (if false)
+BB6   <- [0]
+  val?+           %6.0  = CastType           d     dn %0.2   <(int|str)+>
+  val+            %6.1  = CallSafeBuiltin    wed   match(%6.0, %0.4, 0L, nil)    <int->
+  lgl$#-          %6.2  = IsType                   %6.1 isA int-
+  void                    Visible            v     
+  void                    Branch                   %6.2 -> BB8 (if true) | BB9 (if false)
+BB7   <- [0]
+  env             e7.0  = (MkEnv)            l     x=%0.1, table=%0.0, parent=R_BaseNamespace, context 1
+  env             e7.1  = MaterializeEnv           , e7.0   <@?>
+  prom-           %7.2  = MkArg                    unboundValue, %in%[0x560a36e565d0]_p1 (!refl), e7.1
+  val?^           %7.3  = CastType                 up %7.2
+  prom-           %7.4  = MkArg                    unboundValue, %in%[0x560a36e565d0]_p0 (!refl), e7.1
+  val?^           %7.5  = CastType                 up %7.4
+  fs              %7.6  = FrameState         R     0x560a3431e320+54: [], env=e7.1
+  env             e7.7  = (MkEnv)            l     incomparables(miss)=nil, nomatch=0L, table=%7.3, x=%7.5, parent=R_BaseNamespace, context 0
+  fs              %7.8  = FrameState         R     0x560a34505d40+9: [], env=e7.7, next=%7.6
+  fs              %7.9  = FrameState         R     0x560a3431ebc0+5(pr): [%0.2], env=e7.1, next=%7.8
+  void                    Deopt              !v    %7.9, Typecheck@0x560a35350688[Type#0], %0.2
+BB8   <- [6]
+  int-            %8.0  = CastType           d     dn %6.1
+  lgl-            %8.1  = Gt                 vwed  %8.0, 0L, elided   <lgl->
+  void                    Return             l     %8.1
+BB9   <- [6]
+  env             e9.0  = (MkEnv)            l     x=%0.1, table=%0.0, parent=R_BaseNamespace, context 1
+  env             e9.1  = MaterializeEnv           , e9.0   <@?>
+  prom-           %9.2  = MkArg                    %0.4, %in%[0x560a36e565d0]_p1 (!refl), e9.1
+  val?~           %9.3  = CastType                 up %9.2
+  prom-           %9.4  = MkArg                    %6.0, %in%[0x560a36e565d0]_p2 (!refl), e9.1
+  val?~           %9.5  = CastType                 up %9.4
+  fs              %9.6  = FrameState         R     0x560a3431e320+54: [], env=e9.1
+  env             e9.7  = (MkEnv)            l     incomparables(miss)=nil, nomatch=0L, table=%9.3, x=%9.5, parent=R_BaseNamespace, context 0
+  fs              %9.8  = FrameState         R     0x560a34505d40+69: [%6.1], env=e9.7, next=%9.6
+  void                    Deopt              !v    %9.8, Typecheck@0x560a35350688[Type#2], %6.1
+Prom 0:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    x, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <(int|str)+>
+  void                    Return             l     %0.3
+Prom 1:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    table, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <val?->
+  void                    Return             l     %0.3
+Prom 2:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    x, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <(int|str)+>
+  void                    Return             l     %0.3
+
+│ %in%[0x560a36e565d0]                                                         │
+└──────────────────────────────────────────────────────────────────────────────┘

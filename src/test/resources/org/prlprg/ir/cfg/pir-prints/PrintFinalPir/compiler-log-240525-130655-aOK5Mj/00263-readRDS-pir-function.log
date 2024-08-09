@@ -1,0 +1,77 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ readRDS[0x55bbe408ff70]                                                      │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;NonRefl0,!Obj0                       │
+│ Properties:                                                                  │
+├────── Final PIR Version
+readRDS[0x55bbe408ff70]
+BB0
+  val?^           %0.0  = LdArg                    0
+  env             e0.1  = MkEnv              l     file=%0.0, parent=?, context 1
+  cls             %0.2  = MkCls                    readRDS>halt@0, e0.1
+  cls             %0.3  = MkCls                    gzfile, e0.1
+  cls             %0.4  = MkCls                    readRDS>close@50, e0.1
+  void                    StVar              lW    halt, %0.2, e0.1
+  void                    StVar              lW    gzfile, %0.3, e0.1
+  void                    StVar              lW    close, %0.4, e0.1
+  val?^ | miss    %0.8  = LdVar              eR    is.character, ?
+  lgl$#-          %0.9  = Identical                <blt is.character>, %0.8   <true>
+  void                    Branch                   %0.9 -> BB8 (if true) | BB9 (if false)
+BB8   <- [0]
+  val+            %8.0  = Force!<lazy>       !vr   %0.0,    <str$->
+  lgl$#-          %8.1  = CallSafeBuiltin    wed   is.character(%8.0)    <lgl$->
+  void                    Branch                   %8.1 -> BB4 (if true) | BB3 (if false)
+BB9   <- [0]
+  fs              %9.0  = FrameState         R     0x55bbe442d240+75: [], env=e0.1
+  void                    Deopt              !v    %9.0, DeadBranchReached@0x55bbe4297838[Test#0], %0.9
+BB4   <- [8]
+  prom-           %4.0  = MkArg                    unboundValue, readRDS[0x55bbe408ff70]_p0 (!refl), e0.1
+  ct              %4.1  = PushContext        lCL   %4.0, "rb", gzfile(file, "rb"), %0.3, e0.1
+  val?^           %4.2  = CastType                 up %4.0
+  env             e4.3  = MkEnv              l     description=%4.2, open="rb", parent=e0.1, context 1
+  val?            %4.4  = Force!<lazy>       !vr   %4.2,    <str$->
+  val?            %4.5  = CallBuiltin        !v    gzfile(%4.4, "rb", "", 6) e4.3
+  val?            %4.6  = PopContext         C     %4.5, %4.1   <int$>
+  void                    StVar              lW    con, %4.6, e0.1
+  (cls|spec|blt)  %4.8  = LdFun              !v    on.exit, <0x55bbe1e1f270>, e0.1
+  prom-           %4.9  = MkArg                    unboundValue, readRDS[0x55bbe408ff70]_p1, e0.1
+  val?            %4.10 = Call               !v    %4.8(%4.9) e0.1
+  val?^ | miss    %4.11 = LdVar              eR    con, e0.1
+  val?            %4.12 = Force!<value>      !v    %4.11, e0.1   <int$>
+  val?^ | miss    %4.13 = LdVar              eR    baseenv, e0.1
+  lgl$#-          %4.14 = Identical                <blt baseenv>, %4.13   <true>
+  void                    Branch                   %4.14 -> BB10 (if true) | BB11 (if false)
+BB3   <- [8]
+  fs              %3.0  = FrameState         R     0x55bbe442d240+188: [%0.2], env=e0.1
+  void                    Deopt              !v    %3.0, DeadCall@0x55bbe4297838[Call#1], %0.2
+BB10   <- [4]
+  val?            %10.0 = CallBuiltin        !v    baseenv() e0.1   <env->
+  val?            %10.1 = CallBuiltin        !     unserializeFromConn(%4.12, %10.0) e0.1
+  void                    Return             l     %10.1
+BB11   <- [4]
+  fs              %11.0 = FrameState         R     0x55bbe442d240+309: [%4.12], env=e0.1
+  void                    Deopt              !v    %11.0, DeadBranchReached@0x55bbe4297838[Test#1], %4.14   !
+Prom 0:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    file, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<wrapped>     !     %0.1, e0.0   <str$->
+  void                    Return             l     %0.3
+Prom 1:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     close, e0.0
+  prom-           %0.2  = MkArg                    unboundValue, readRDS[0x55bbe408ff70]_p2, e0.0
+  val?            %0.3  = Call               !     %0.1(%0.2) e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 2:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    con, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+
+│ readRDS[0x55bbe408ff70]                                                      │
+└──────────────────────────────────────────────────────────────────────────────┘

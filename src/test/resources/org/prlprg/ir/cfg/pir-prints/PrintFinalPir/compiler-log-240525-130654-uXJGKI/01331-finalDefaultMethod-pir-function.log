@@ -1,0 +1,79 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ finalDefaultMethod[0x5614fd735200]                                           │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch                                      │
+│ Properties:                                                                  │
+├────── Final PIR Version
+finalDefaultMethod[0x5614fd735200]
+BB0
+  val?^           %0.0  = LdArg                    0
+  val?^ | miss    %0.1  = LdVar              eR    is.function, <env 0x5614f8eae378>
+  lgl$#-          %0.2  = Identical                <blt is.function>, %0.1   <true>
+  void                    Branch                   %0.2 -> BB13 (if true) | BB14 (if false)
+BB13   <- [0]
+  env             e13.0 = (MkEnv)            l     method=%0.0, parent=<env 0x5614f8eae378>, context 1
+  val?            %13.1 = Force!<lazy>       !vL   %0.0, e13.0   <val?>
+  lgl$#-          %13.2 = IsEnvStub          R     , e13.0
+  void                    Branch                   %13.2 -> BB15 (if true) | BB16 (if false)
+BB14   <- [0]
+  env             e14.0 = (MkEnv)            l     method=%0.0, parent=<env 0x5614f8eae378>, context 1
+  fs              %14.1 = FrameState         R     0x5614fc48dc30+0: [], env=e14.0
+  void                    Deopt              !v    %14.1, DeadBranchReached@0x5614fc4a2388[Test#0], %0.2   !
+BB15   <- [13]
+  val?            %15.0 = CallBuiltin        !vL   is.function(%13.1) e13.0   <lgl$->
+  lgl$#-          %15.1 = IsType                   %15.0 isA lgl$-
+  void                    Branch                   %15.1 -> BB17 (if true) | BB18 (if false)
+BB16   <- [13]
+  fs              %16.0 = FrameState         R     0x5614fc48dc30+69: [<blt is.function>, %13.1], env=e13.0
+  void                    Deopt              !v    %16.0, EnvStubMaterialized@0x5614fc4a2388[Call#unknown], e13.0   !
+BB17   <- [15]
+  lgl$-           %17.0 = CastType           d     dn %15.0
+  lgl$#-          %17.1 = IsEnvStub          R     , e13.0
+  void                    Branch                   %17.1 -> BB19 (if true) | BB20 (if false)
+BB18   <- [15]
+  void                    Nop                !     
+  val?            %18.1 = %15.0
+  dr              %18.2 = Typecheck@0x5614fc4a2388[Type#2]
+  goto BB5
+BB19   <- [17]
+  lgl$-           %19.0 = AsLogical                %17.0
+  lgl$#-          %19.1 = Identical                %19.0, true
+  void                    Branch                   %19.1 -> BB11 (if true) | BB7 (if false)
+BB20   <- [17]
+  void                    Nop                !     
+  env             e20.1 = e13.0
+  dr              %20.2 = EnvStubMaterialized@0x5614fc4a2388[Call#unknown]
+  goto BB5
+BB5   <- [18, 20]
+  val?^ | miss    %5.0  = Phi                      %18.1:BB18, e20.1:BB20
+  val?^ | miss    %5.1  = %5.0
+  dr              %5.2  = Phi                      %18.2:BB18, %20.2:BB20
+  dr              %5.3  = %5.2
+  fs              %5.4  = FrameState         R     0x5614fc48dc30+91: [%15.0], env=e13.0
+  void                    Deopt              !v    %5.4, %5.3, %5.1   !
+BB11   <- [19]
+  void                    Nop                !     
+  lgl$-           %11.1 = %19.0
+  goto BB8
+BB7   <- [19]
+  lgl$-           %7.0  = Is                       %13.1, NULL
+  lgl$-           %7.1  = AsLogical                %7.0
+  lgl$-           %7.2  = LOr                      %19.0, %7.1
+  lgl$-           %7.3  = %7.2
+  goto BB8
+BB8   <- [11, 7]
+  lgl$-           %8.0  = Phi                      %7.3:BB7, %11.1:BB11
+  lgl$-           %8.1  = %8.0
+  lgl$#-          %8.2  = CheckTrueFalse     e     %8.1
+  void                    Branch                   %8.2 -> BB10 (if true) | BB9 (if false)
+BB10   <- [8]
+  void                    Visible            v     
+  void                    Return             l     %13.1
+BB9   <- [8]
+  env             e9.0  = MaterializeEnv           , e13.0   <@?>
+  (cls|spec|blt)  %9.1  = LdFun              !v    is, e9.0
+  fs              %9.2  = FrameState         R     0x5614fc48dc30+150: [%9.1], env=e9.0
+  void                    Deopt              !v    %9.2, DeadCall@0x5614fc4a2388[Call#1], %9.1   !
+
+│ finalDefaultMethod[0x5614fd735200]                                           │
+└──────────────────────────────────────────────────────────────────────────────┘

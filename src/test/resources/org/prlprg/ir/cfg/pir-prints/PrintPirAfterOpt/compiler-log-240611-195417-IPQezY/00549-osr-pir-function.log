@@ -1,0 +1,15 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ osr[0x55ccaac79160]                                                          │
+│ Context: CorrOrd,!TMany                                                      │
+│ Properties:  Eager, !Reflection                                              │
+├────── PIR Version After Optimizations
+osr[0x55ccaac79160]
+BB0
+  goto BB1
+BB1   <- [0]
+  str$#-          %1.0  = LdArg                    0   <val?_>
+  void                    Return             l     %1.0
+
+│ osr[0x55ccaac79160]                                                          │
+└──────────────────────────────────────────────────────────────────────────────┘

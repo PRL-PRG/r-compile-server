@@ -1,0 +1,78 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ check.length[0x55c18de639a0]                                                 │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch                                      │
+│ Properties:                                                                  │
+├────── PIR Version After Optimizations
+check.length[0x55c18de639a0]
+BB0
+  goto BB1
+BB1   <- [0]
+  val?^           %1.0  = LdArg                    0
+  cp              %1.1  = Checkpoint                -> BB2 (default) | BB13 (if assume failed)
+BB2   <- [1]
+  val?^ | miss    %2.0  = LdVar              eR    length, ?
+  lgl$#-          %2.1  = Identical                <blt length>, %2.0   <true>
+  void                    Assume             D     %2.1, %1.1 (DeadBranchReached@0x55c18d8fc338[Test#0])
+  val?^ | miss    %2.3  = LdVar              eR    gpars, ?
+  env             e2.4  = (MkEnv)            l     gparname=%1.0, parent=?, context 1
+  val?            %2.5  = Force!<wrapped>    !vr   %2.3,    <vec+>
+  lgl$#-          %2.6  = IsType                   %2.5 isA val+   <true>
+  cp              %2.7  = Checkpoint                -> BB4 (default) | BB3 (if assume failed)
+BB13   <- [1]
+  env             e13.0 = (MkEnv)            l     gparname=%1.0, parent=?, context 1
+  fs              %13.1 = FrameState         R     0x55c18dbfd750+0: [], env=e13.0
+  void                    Deopt              !v    %13.1   !
+BB4   <- [2]
+  lgl$#-          %4.0  = IsEnvStub          R     , e2.4
+  void                    Assume             D     %4.0, %2.7 (EnvStubMaterialized@0x55c18d8fc338[Call#unknown])
+  void                    Assume             D     %2.6, %2.7 (DeadBranchReached@0x55c18d8fc338[Test#2])
+  val?            %4.3  = Force!<lazy>       !vL   %1.0, e2.4   <str$->
+  lgl$#-          %4.4  = IsType                   %4.3 isA val?-
+  cp              %4.5  = Checkpoint                -> BB6 (default) | BB5 (if assume failed)
+BB3   <- [2]
+  fs              %3.0  = FrameState         R     0x55c18dbfd750+69: [<blt length>, %2.5], env=e2.4
+  void                    Deopt              !v    %3.0   !
+BB6   <- [4]
+  void                    Assume             D     %4.4, %4.5 (Typecheck@0x55c18d8fc338[Type#6])
+  val?-           %6.1  = CastType           d     dn %4.3   <str$->
+  lgl$#-          %6.2  = IsEnvStub          R     , e2.4
+  void                    Assume             D     %6.2, %4.5 (EnvStubMaterialized@0x55c18d8fc338[Call#unknown])
+  lgl$#-          %6.4  = IsType                   %2.5 isA val?+
+  void                    Assume             D     %6.4, %4.5 (Typecheck@0x55c18d8fc338[Type#4])
+  val?+           %6.6  = CastType           d     dn %2.5   <vec+>
+  val?            %6.7  = Extract2_1D        wed   %6.6, %6.1, elided   <(real|str)$->
+  lgl$#-          %6.8  = IsType                   %6.7 isA val?-
+  cp              %6.9  = Checkpoint                -> BB8 (default) | BB7 (if assume failed)
+BB5   <- [4]
+  fs              %5.0  = FrameState         R     0x55c18dbfd750+114: [<blt length>, %2.5, %4.3], env=e2.4
+  void                    Deopt              !v    %5.0   !
+BB8   <- [6]
+  void                    Assume             D     %6.8, %6.9 (Typecheck@0x55c18d8fc338[Type#7])
+  val?-           %8.1  = CastType           d     dn %6.7   <(real|str)$->
+  (int|real)$-    %8.2  = CallSafeBuiltin    wed   length(%8.1)    <int$->
+  lgl$#-          %8.3  = IsType                   %8.2 isA int$-
+  cp              %8.4  = Checkpoint                -> BB10 (default) | BB9 (if assume failed)
+BB7   <- [6]
+  fs              %7.0  = FrameState         R     0x55c18dbfd750+120: [<blt length>, %6.7], env=e2.4
+  void                    Deopt              !v    %7.0   !
+BB10   <- [8]
+  void                    Assume             D     %8.3, %8.4 (Typecheck@0x55c18d8fc338[Type#8])
+  int$-           %10.1 = CastType           d     dn %8.2
+  lgl$-           %10.2 = Eq                 d     %10.1, 0, elided   <lgl$->
+  lgl$#-          %10.3 = CheckTrueFalse     e     %10.2
+  void                    Branch                   %10.3 -> BB12 (if true) | BB11 (if false)
+BB9   <- [8]
+  fs              %9.0  = FrameState         R     0x55c18dbfd750+143: [%8.2], env=e2.4
+  void                    Deopt              !v    %9.0   !
+BB12   <- [10]
+  env             e12.0 = MaterializeEnv           , e2.4   <@?>
+  (cls|spec|blt)  %12.1 = LdFun              !v    stop, e12.0
+  fs              %12.2 = FrameState         R     0x55c18dbfd750+182: [%12.1], env=e12.0
+  void                    Deopt              !v    %12.2, DeadCall@0x55c18d8fc338[Call#1], %12.1   !
+BB11   <- [10]
+  void                    Invisible          v     
+  void                    Return             l     nil
+
+│ check.length[0x55c18de639a0]                                                 │
+└──────────────────────────────────────────────────────────────────────────────┘

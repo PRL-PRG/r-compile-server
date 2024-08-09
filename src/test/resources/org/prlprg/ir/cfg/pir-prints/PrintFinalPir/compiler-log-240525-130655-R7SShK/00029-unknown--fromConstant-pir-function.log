@@ -1,0 +1,39 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ unknown--fromConstant[0x557089a47aa0]                                        │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;Eager0,!Obj0                         │
+│ Properties:  Eager, ForceOrd: 0                                              │
+├────── Final PIR Version
+unknown--fromConstant[0x557089a47aa0]
+BB0
+  val?~+          %0.0  = LdArg                    0
+  val+            %0.1  = Force!<lazy>             %0.0,    <int>
+  env             e0.2  = MkEnv              l     x=%0.0, parent=R_BaseNamespace, context 1
+  prom-           %0.3  = MkArg                    %0.1, unknown--fromConstant[0x557089a47aa0]_p0 (!refl), e0.2
+  val?            %0.4  = StaticCall         !v    levels[0x557089edcca0](%0.3) e0.2   <str->
+  lgl$#-          %0.5  = IsType                   %0.4 isA val?-
+  void                    Branch                   %0.5 -> BB6 (if true) | BB7 (if false)
+BB6   <- [0]
+  val?-           %6.0  = CastType           d     dn %0.4   <str->
+  (int|real)$-    %6.1  = CallSafeBuiltin    vwed  length(%6.0)    <int$->
+  lgl$#-          %6.2  = IsType                   %6.1 isA int$-
+  void                    Branch                   %6.2 -> BB8 (if true) | BB9 (if false)
+BB7   <- [0]
+  fs              %7.0  = FrameState         R     0x55708984f3b0+92: [<blt length>, %0.4], env=e0.2
+  void                    Deopt              !v    %7.0, Typecheck@0x557088e00a98[Type#3], %0.4   !
+BB8   <- [6]
+  int$-           %8.0  = CastType           d     dn %6.1
+  void                    Return             l     %8.0
+BB9   <- [6]
+  fs              %9.0  = FrameState         R     0x55708984f3b0+114: [%6.1], env=e0.2
+  void                    Deopt              !v    %9.0, Typecheck@0x557088e00a98[Type#4], %6.1   !
+Prom 0:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    x, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <int>
+  void                    Return             l     %0.3
+
+│ unknown--fromConstant[0x557089a47aa0]                                        │
+└──────────────────────────────────────────────────────────────────────────────┘

@@ -1,0 +1,39 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ rir.compile[0x560912e31b80]                                                  │
+│ Context: CorrOrd,!TMany                                                      │
+│ Properties:  Eager, !Reflection                                              │
+├────── Final PIR Version
+rir.compile[0x560912e31b80]
+BB0
+  void                    Nop                !     
+  real$#-         %0.1  = 1
+  real$#-         %0.2  = 1
+  goto BB2
+BB2   <- [3, 6, 0]
+  real$#-         %2.0  = Phi                      %0.1:BB0, %3.1:BB3, %6.1:BB6   <val?_>
+  real$#-         %2.1  = %2.0
+  real$#-         %2.2  = Phi                      %0.2:BB0, %3.2:BB3, %6.2:BB6   <val?_>
+  real$#-         %2.3  = %2.2
+  real$#-         %2.4  = Add                d     %2.3, 1, elided   <val?_>
+  lgl$#-          %2.5  = Eq                 d     %2.4, 5, elided   <val?_>
+  void                    Branch                   %2.5 -> BB3 (if true) | BB4 (if false)
+BB3   <- [2]
+  void                    Nop                !     
+  real$#-         %3.1  = %2.1
+  real$#-         %3.2  = %2.4
+  goto BB2
+BB4   <- [2]
+  lgl$#-          %4.0  = Gt                 d     %2.4, 10, elided   <val?_>
+  void                    Branch                   %4.0 -> BB5 (if true) | BB6 (if false)
+BB5   <- [4]
+  void                    Visible            v     
+  void                    Return             l     %2.1
+BB6   <- [4]
+  real$#-         %6.0  = Add                d     %2.1, %2.4, elided   <val?_>
+  real$#-         %6.1  = %6.0
+  real$#-         %6.2  = %2.4
+  goto BB2
+
+│ rir.compile[0x560912e31b80]                                                  │
+└──────────────────────────────────────────────────────────────────────────────┘

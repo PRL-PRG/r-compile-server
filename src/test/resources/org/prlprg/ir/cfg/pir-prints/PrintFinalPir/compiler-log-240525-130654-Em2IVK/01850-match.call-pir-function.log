@@ -1,0 +1,52 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ match.call[0x556a224f39b0]                                                   │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;Eager2,NonRefl2,!Obj2                │
+│ Properties:                                                                  │
+├────── Final PIR Version
+match.call[0x556a224f39b0]
+BB0
+  val?^           %0.0  = LdArg                    3
+  val?~+          %0.1  = LdArg                    2
+  val?^           %0.2  = LdArg                    1
+  val?^           %0.3  = LdArg                    0
+  env             e0.4  = MkEnv              l     definition=%0.3, call=%0.2, expand.dots=%0.1, envir=%0.0, parent=R_BaseNamespace, context 1
+  lgl$-           %0.5  = Missing            eR    definition, e0.4
+  lgl$-           %0.6  = Not                d     %0.5, elided
+  lgl$-           %0.7  = AsLogical                %0.6
+  lgl$#-          %0.8  = Identical                %0.7, false
+  void                    Branch                   %0.8 -> BB2 (if true) | BB6 (if false)
+BB2   <- [0]
+  void                    Nop                !     
+  lgl$-           %2.1  = %0.7
+  goto BB3
+BB6   <- [0]
+  val?            %6.0  = Force<lazy>        !v    %0.3, e0.4   <cls>
+  lgl$-           %6.1  = Is                       %6.0, NULL
+  lgl$-           %6.2  = AsLogical                %6.1
+  lgl$-           %6.3  = LAnd                     %0.7, %6.2
+  lgl$-           %6.4  = %6.3
+  goto BB3
+BB3   <- [2, 6]
+  lgl$-           %3.0  = Phi                      %6.4:BB6, %2.1:BB2
+  lgl$-           %3.1  = %3.0
+  lgl$#-          %3.2  = CheckTrueFalse     e     %3.1
+  void                    Branch                   %3.2 -> BB5 (if true) | BB4 (if false)
+BB5   <- [3]
+  (cls|spec|blt)  %5.0  = LdFun              !v    sys.function, e0.4
+  fs              %5.1  = FrameState         R     0x556a27b7ae70+51: [%5.0], env=e0.4
+  void                    Deopt              !v    %5.1, DeadCall@0x556a277b2c90[Call#5], %5.0   !
+BB4   <- [3]
+  val?^ | miss    %4.0  = LdVar              eR    definition, e0.4
+  val?            %4.1  = Force!<lazy>       !v    %4.0, e0.4   <cls>
+  val?^ | miss    %4.2  = LdVar              eR    call, e0.4
+  val?            %4.3  = Force!<lazy>       !v    %4.2, e0.4   <code->
+  val?^ | miss    %4.4  = LdVar              eR    expand.dots, e0.4
+  val?            %4.5  = Force!<value>      !v    %4.4, e0.4   <lgl$->
+  val?^ | miss    %4.6  = LdVar              eR    envir, e0.4
+  val?            %4.7  = Force!<lazy>       !v    %4.6, e0.4   <env->
+  val?            %4.8  = CallBuiltin        !     match.call(%4.1, %4.3, %4.5, %4.7) e0.4
+  void                    Return             l     %4.8
+
+│ match.call[0x556a224f39b0]                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘

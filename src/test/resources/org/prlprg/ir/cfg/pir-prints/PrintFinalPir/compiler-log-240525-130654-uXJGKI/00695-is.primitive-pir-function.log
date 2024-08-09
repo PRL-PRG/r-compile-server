@@ -1,0 +1,67 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ is.primitive[0x5614fcb134c0]                                                 │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;NonRefl0                             │
+│ Properties:  Eager, ForceOrd: 0                                              │
+├────── Final PIR Version
+is.primitive[0x5614fcb134c0]
+BB0
+  val?^           %0.0  = LdArg                    0
+  env             e0.1  = (MkEnv)            l     x=%0.0, parent=R_BaseNamespace, context 1
+  val?            %0.2  = Force!<lazy>       !vr   %0.0,    <val?>
+  str$-           %0.3  = CallSafeBuiltin    wed   typeof(%0.2)    <str$->
+  int$-           %0.4  = Length                   %0.3
+  lgl$-           %0.5  = Eq                 d     %0.4, 1L, elided   <true>
+  lgl$#-          %0.6  = Identical                %0.5, true
+  void                    Branch                   %0.6 -> BB12 (if true) | BB13 (if false)
+BB12   <- [0]
+  lgl$-           %12.0 = CallSafeBuiltin    wed   is.na(%0.3) 
+  lgl$#-          %12.1 = CheckTrueFalse     e     %12.0   <false>
+  void                    Branch                   %12.1 -> BB15 (if true) | BB14 (if false)
+BB13   <- [0]
+  env             e13.0 = MaterializeEnv           , e0.1   <@?>
+  fs              %13.1 = FrameState         R     0x5614fb9a90f0+32: [], env=e13.0
+  prom-           %13.2 = MkArg                    %0.2, is.primitive[0x5614fcb134c0]_p0 (!refl), e13.0
+  val?~           %13.3 = CastType                 up %13.2
+  env             e13.4 = (MkEnv)            l     x=%13.3, parent=R_BaseNamespace, context 0
+  fs              %13.5 = FrameState         R     0x5614fa9a51b0+27: [%0.3], env=e13.4, next=%13.1
+  void                    Deopt              !v    %13.5, DeadBranchReached@0x5614fb5b9618[Test#1], %0.6
+BB15   <- [12]
+  fs              %15.0 = FrameState         R     0x5614fb9a90f0+240: [%0.3, %12.0], env=e0.1
+  void                    Deopt              !v    %15.0, DeadBranchReached@0x5614fb5b9618[Test#7], %12.1   !
+BB14   <- [12]
+  lgl$-           %14.0 = Eq                 d     %0.3, special, elided
+  lgl$#-          %14.1 = CheckTrueFalse     e     %14.0
+  void                    Branch                   %14.1 -> BB10 (if true) | BB5 (if false)
+BB10   <- [14]
+  void                    Nop                !     
+  goto BB9
+BB5   <- [14]
+  lgl$-           %5.0  = Eq                 d     %0.3, builtin, elided
+  lgl$#-          %5.1  = CheckTrueFalse     e     %5.0
+  void                    Branch                   %5.1 -> BB8 (if true) | BB6 (if false)
+BB9   <- [8, 10]
+  void                    Visible            v     
+  lgl$#-          %9.1  = true
+  goto BB7
+BB8   <- [5]
+  void                    Nop                !     
+  goto BB9
+BB6   <- [5]
+  void                    Visible            v     
+  lgl$#-          %6.1  = false
+  goto BB7
+BB7   <- [6, 9]
+  lgl$#-          %7.0  = Phi                      %6.1:BB6, %9.1:BB9
+  lgl$#-          %7.1  = %7.0
+  void                    Return             l     %7.1
+Prom 0:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    x, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <val?>
+  void                    Return             l     %0.3
+
+│ is.primitive[0x5614fcb134c0]                                                 │
+└──────────────────────────────────────────────────────────────────────────────┘

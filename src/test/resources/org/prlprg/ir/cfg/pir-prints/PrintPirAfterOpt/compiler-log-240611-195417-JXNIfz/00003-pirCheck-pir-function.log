@@ -1,0 +1,36 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ pirCheck[0x55cbf471de30]                                                     │
+│ Context: CorrOrd,!TMany                                                      │
+│ Properties:                                                                  │
+├────── PIR Version After Optimizations
+pirCheck[0x55cbf471de30]
+BB0
+  goto BB1
+BB1   <- [0]
+  val?^ | miss    %1.0  = LdArg                    0
+  goto BB2
+BB2   <- [1, 5]
+  real$-          %2.0  = Phi                      0:BB1, %5.4:BB5
+  cp              %2.1  = Checkpoint                -> BB3 (default) | BB6 (if assume failed)
+BB3   <- [2]
+  lgl$-           %3.0  = Lt                 d     %2.0, 5, elided   <lgl$->
+  lgl$#-          %3.1  = CheckTrueFalse     e     %3.0
+  void                    Branch                   %3.1 -> BB5 (if true) | BB4 (if false)
+BB6   <- [2]
+  env             e6.0  = (MkEnv)            l     i=%2.0, x=%1.0, parent=R_GlobalEnv, context 1
+  fs              %6.1  = FrameState         R     0x55cbf46e9f00+15: [], env=e6.0
+  void                    Deopt              !v    %6.1
+BB5   <- [3]
+  val?^           %5.0  = ChkMissing         e     %1.0
+  lgl$#-          %5.1  = IsType                   %5.0 isA real$-
+  void                    Assume             D     %5.1, %2.1 (Typecheck@0x55cbf3dd3168[Type#3])
+  real$-          %5.3  = CastType           d     dn %5.0
+  real$-          %5.4  = Add                d     %2.0, %5.3, elided   <real$->
+  goto BB2
+BB4   <- [3]
+  void                    Invisible          v     
+  void                    Return             l     nil
+
+│ pirCheck[0x55cbf471de30]                                                     │
+└──────────────────────────────────────────────────────────────────────────────┘
