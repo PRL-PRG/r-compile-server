@@ -5,9 +5,8 @@ import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.ir.cfg.CFG;
 import org.prlprg.ir.cfg.CFGEdit;
 import org.prlprg.ir.cfg.Node;
-import org.prlprg.ir.cfg.RValue;
-import org.prlprg.ir.cfg.StmtData;
-import org.prlprg.ir.type.BaseRType;
+import org.prlprg.ir.cfg.instr.StmtData;
+import org.prlprg.ir.type.RSexpType;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
@@ -49,9 +48,9 @@ public abstract sealed class CodeObject permits Closure, Promise {
    * outermost closure), this will be empty.
    *
    * @see #unsafeReplaceOuterCfgNode(Node, Node)
-   * @see #verifyOuterCfgRValuesAreOfCorrectTypes()
+   * @see #verifyOuterCfgNodesAreOfCorrectTypes()
    */
-  public abstract @UnmodifiableView List<Node> outerCfgNodes();
+  public abstract @UnmodifiableView List<Node<?>> outerCfgNodes();
 
   /**
    * Replaces an {@linkplain #outerCfgNodes() outer CFG node} with another one.
@@ -62,24 +61,24 @@ public abstract sealed class CodeObject permits Closure, Promise {
    * but we still are for outer CFG nodes. We may decide to change this in the future, in which case
    * this method will no longer be "unsafe").
    *
-   * @throws IllegalArgumentException If the replacement node type is incompatible with the old node
-   *     type (e.g. if {@code oldNode} is an {@link RValue} and {@code newNode} is not).
+   * @throws IllegalArgumentException If the replacement node type is incompatible with the required
+   *     type of the old node (e.g. if {@code oldNode} is {@code env} and {@code newNode} isn't an
+   *     environment).
    * @see #outerCfgNodes()
-   * @see #verifyOuterCfgRValuesAreOfCorrectTypes()
+   * @see #verifyOuterCfgNodesAreOfCorrectTypes()
    */
-  public abstract void unsafeReplaceOuterCfgNode(Node oldNode, Node newNode);
+  public abstract void unsafeReplaceOuterCfgNode(Node<?> oldNode, Node<?> newNode);
 
   /**
-   * Verify that all {@linkplain #outerCfgNodes() outer CFG nodes} that are {@link RValue}s
-   * (abstract R values) have the correct dynamic type.
+   * Verify that all {@linkplain #outerCfgNodes() outer CFG nodes} have the correct dynamic type.
    *
-   * <p>For example, verify that an environment value is still {@link BaseRType#ENV}.
+   * <p>For example, verify that an environment value is still {@link RSexpType#ANY_ENV ANY_ENV}.
    *
    * @throws IllegalStateException If a node has an incorrect dynamic type.
    * @see #outerCfgNodes()
    * @see #unsafeReplaceOuterCfgNode(Node, Node)
    */
-  public abstract void verifyOuterCfgRValuesAreOfCorrectTypes();
+  public abstract void verifyOuterCfgNodesAreOfCorrectTypes();
 
   /** Verify all {@link CFG}s within this code object. */
   public abstract void verify();
@@ -137,7 +136,7 @@ public abstract sealed class CodeObject permits Closure, Promise {
   // region parse/print methods
   @ParseMethod
   private static CodeObject parse(Parser p, Class<? extends CodeObject> clazz) {
-    return p.withContext(new ClosureParseContext.Outermost(p.context())).parse(clazz);
+    return p.withContext(new ClosureParseContext.Outermost()).parse(clazz);
   }
 
   @PrintMethod
@@ -165,8 +164,10 @@ public abstract sealed class CodeObject permits Closure, Promise {
       @SuppressWarnings("ClassEscapesDefinedScope") ClosureParseContext ctx) {
     var s = p.scanner();
 
-    s.assertAndSkip(prefix + " ");
-    name = parseId(p, ctx.lastYieldedIdIndex());
+    if (ctx instanceof ClosureParseContext.Outermost) {
+      s.assertAndSkip(prefix + " ");
+    }
+    name = parseId(p, ctx.currentIdIndex());
   }
 
   /** Print the start of a {@link CodeObject}, which is the prefix (given string) and identifier. */
@@ -177,9 +178,11 @@ public abstract sealed class CodeObject permits Closure, Promise {
       @SuppressWarnings("ClassEscapesDefinedScope") ClosurePrintContext ctx) {
     var w = p.writer();
 
-    w.write(prefix);
-    w.write(' ');
-    printId(name, p, ctx.lastYieldedIdIndex());
+    if (ctx instanceof ClosurePrintContext.Outermost) {
+      w.write(prefix);
+      w.write(' ');
+    }
+    printId(name, p, ctx.currentIdIndex());
   }
 
   /**

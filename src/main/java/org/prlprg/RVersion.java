@@ -51,9 +51,9 @@ public record RVersion(int major, int minor, int patch, @Nullable String suffix)
   }
 
   /**
-   * Encode the version as an integer. It is used for the RDS serialization for instance.
+   * Encode the version as an integer.
    *
-   * @return
+   * <p>It is used for the RDS serialization for instance.
    */
   public int encode() {
     return patch + 256 * minor + 65536 * major;

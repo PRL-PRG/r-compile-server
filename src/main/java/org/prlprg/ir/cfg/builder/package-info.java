@@ -1,6 +1,6 @@
 /**
- * Utilities for mutations on {@link org.prlprg.ir.cfg.CFG CFG}s and {@link org.prlprg.ir.cfg.BB
- * BB}s.
+ * Interfaces and utilities to construct, query, and mutate {@link org.prlprg.ir.cfg.CFG CFG}s and
+ * {@link org.prlprg.ir.cfg.BB BB}s.
  */
 @ParametersAreNonnullByDefault
 @FieldsAreNonNullByDefault

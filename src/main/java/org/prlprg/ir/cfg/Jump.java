@@ -1,70 +1,53 @@
 package org.prlprg.ir.cfg;
 
 import com.google.common.collect.ImmutableList;
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
-import java.util.Arrays;
-import java.util.HashSet;
+import java.util.Collections;
+import java.util.SequencedSet;
 import javax.annotation.Nullable;
-import org.prlprg.ir.cfg.JumpData.Branch;
-import org.prlprg.util.Reflection;
+import org.jetbrains.annotations.UnmodifiableView;
+import org.prlprg.ir.cfg.CFGEdit.ReplaceInJumpTargets;
+import org.prlprg.ir.cfg.instr.JumpData;
+import org.prlprg.ir.cfg.instr.JumpData.Branch;
+import org.prlprg.util.SmallListSet;
 
-/** IR instruction which is the final instruction and outgoing edge of a basic block. */
-public non-sealed interface Jump extends Instr {
-  /**
-   * (A shallow copy of) {@link BB}s that this jump can go to.
-   *
-   * <p>These are in the same order as they are defined in {@link #data()} (the {@link JumpData}
-   * record). Duplicates (e.g. in redundant {@link Branch}es) are removed.
-   */
-  ImmutableList<BB> targets();
-
-  /**
-   * Replace the target block in {@link #targets()} and {@link #data()}.
-   *
-   * @throws IllegalArgumentException If the old target block wasn't in {@link #targets()}.
-   */
-  void replaceInTargets(BB old, BB replacement);
-
-  @Override
-  JumpData<?> data();
-
-  @Override
-  NodeId<? extends Jump> id();
-
-  /** Serialized form where everything is replaced by IDs. */
-  record Serial(NodeId<? extends Jump> id, MapToIdIn<? extends JumpData<?>> data) {
-    Serial(Jump node) {
-      this(NodeId.of(node), MapToIdIn.of((JumpData<? extends Jump>) node.data()));
-    }
-  }
-}
-
-abstract non-sealed class JumpImpl<D extends JumpData<?>> extends InstrImpl<D> implements Jump {
-  /**
-   * This is only {@code null} to keep {@link InstrData#make(CFG, NodeId)} not require {@link BB}.
-   * It gets set immediately after creation.
-   */
+/**
+ * IR instruction which is the final instruction and outgoing edge of a basic block.
+ *
+ * @see Instr
+ */
+public final class Jump extends Instr {
+  /** This is {@code null} when the jump isn't in a {@link BB}, i.e. removed or not yet added. */
   private @Nullable BB bb;
 
-  // Set after creation in `computeTargets`
-  @SuppressWarnings("NotNullFieldNotInitialized")
-  @SuppressFBWarnings("NP_NONNULL_FIELD_NOT_INITIALIZED_IN_CONSTRUCTOR")
-  private ImmutableList<BB> targets;
+  private final SequencedSet<BB> cachedTargets = new SmallListSet<>();
+
+  // region construct
+  /** Serialized form where everything is replaced by IDs. */
+  public record Serial(
+      @Override MapToIdIn<JumpData> data, @Override ImmutableList<LocalNodeId<?>> outputIds)
+      implements Instr.Serial {
+    Serial(Jump node) {
+      this(
+          MapToIdIn.of((JumpData) node.data),
+          node.outputs().stream().map(LocalNode::id).collect(ImmutableList.toImmutableList()));
+    }
+  }
 
   /**
-   * Return the given jump casted.
+   * Creates a jump.
    *
-   * <p>Any {@link Jump} is guaranteed to be an {@link JumpImpl}, so this method is provided to
-   * reduce the number of casts in the code text.
+   * <p>Doesn't {@link CFG#track(InstrOrPhi)} it in the {@link CFG}, so this should be called in
+   * {@link BB}.
    */
-  static JumpImpl<?> cast(Jump jump) {
-    return (JumpImpl<?>) jump;
+  Jump(CFG cfg, JumpData data) {
+    super(cfg, data);
+
+    updateCachedTargets();
   }
 
-  JumpImpl(Class<D> dataClass, CFG cfg, NodeId<? extends Instr> id, D data) {
-    super(dataClass, cfg, id, data);
-  }
+  // endregion construct
 
+  // region BB
   /**
    * Basic block containing this jump.
    *
@@ -88,70 +71,97 @@ abstract non-sealed class JumpImpl<D extends JumpData<?>> extends InstrImpl<D> i
     this.bb = bb;
   }
 
-  @Override
-  public ImmutableList<BB> targets() {
-    return targets;
-  }
+  // endregion BB
 
-  private void computeTargets() {
-    // Reflectively get all BB record components
-    if (!(data() instanceof Record r)) {
-      throw new IllegalArgumentException("data is not a record");
-    }
-
-    var seenTargets = new HashSet<>(data().getClass().getRecordComponents().length);
-    targets =
-        Arrays.stream(data().getClass().getRecordComponents())
-            .filter(cmp -> cmp.getType() == BB.class)
-            .map(cmp -> (BB) Reflection.getComponent(r, cmp))
-            .filter(seenTargets::add)
-            .collect(ImmutableList.toImmutableList());
+  // region targets
+  /**
+   * (A shallow copy of) {@link BB}s that this jump can go to.
+   *
+   * <p>These are in the same order as they are defined in {@link #inputs()} and the {@link
+   * JumpData} this was constructed with. Duplicates (e.g. in {@link Branch}es) that are redundant
+   * and will be cleaned up later) are removed.
+   */
+  public @UnmodifiableView SequencedSet<BB> targets() {
+    return Collections.unmodifiableSequencedSet(cachedTargets);
   }
 
   /**
-   * Replace the target block in {@link #targets()} and {@link #data()}.
+   * Whether this is a return (0 targets), goto (1 target), or branch (2 targets).
    *
-   * <p>This is "unsafe" because no {@linkplain CFGEdit edit} is recorded. It should only be used
-   * internally by {@link BB}.
-   *
-   * @throws IllegalArgumentException If the old target block wasn't in {@link #targets()}.
+   * <p>This is entirely dependent on the number of targets.
    */
-  void unsafeReplaceInTargets(BB old, BB replacement) {
-    unsafeReplaceInData("BB", old, replacement);
+  public ControlFlow controlFlow() {
+    var targetsIter = targets().iterator();
+    return switch (targets().size()) {
+      case 0 -> new ControlFlow.Return();
+      case 1 -> new ControlFlow.Goto(targetsIter.next());
+      case 2 -> new ControlFlow.Branch(targetsIter.next(), targetsIter.next());
+      default ->
+          throw new IllegalStateException(
+              "Jump has " + targets().size() + " targets, we haven't handled that");
+    };
   }
 
-  @SuppressWarnings("unchecked")
-  @Override
+  /**
+   * Replace any occurrences of the target block in {@link #targets()}.
+   *
+   * <p>This records a {@link CFGEdit}.
+   */
   public void replaceInTargets(BB old, BB replacement) {
-    var oldData = data();
     unsafeReplaceInTargets(old, replacement);
 
     cfg()
         .record(
-            new CFGEdit.MutateInstrArgs<>(this, (JumpData<Jump>) data()),
-            new CFGEdit.MutateInstrArgs<>(this, (JumpData<Jump>) oldData));
+            new ReplaceInJumpTargets(this, old, replacement),
+            new ReplaceInJumpTargets(this, replacement, old));
   }
 
+  /**
+   * Replace any occurrences of the target block in {@link #targets()}.
+   *
+   * <p>This doesn't record a {@link CFGEdit}, so it should only be used internally by another
+   * function that returns its on intrinsic edit (hence "unsafe").
+   */
+  void unsafeReplaceInTargets(BB old, BB replacement) {
+    var didReplace = false;
+    for (var i = 0; i < inputs.length; i++) {
+      if (inputs[i] == old) {
+        didReplace = true;
+        inputs[i] = replacement;
+      }
+    }
+
+    if (!didReplace) {
+      return;
+    }
+
+    // Update precessors
+    old.unsafeRemovePredecessor(bb());
+    replacement.unsafeAddPredecessor(bb());
+
+    data = data.setInputs(null, inputs);
+
+    // Don't need to update `fun()`, `effects()`, or `outputTypes()` because they're guaranteed to
+    // be the same.
+
+    updateCachedTargets();
+  }
+
+  private void updateCachedTargets() {
+    cachedTargets.clear();
+    for (var input : inputs()) {
+      if (input instanceof BB target) {
+        cachedTargets.add(target);
+      }
+    }
+  }
+
+  // endregion targets
+
+  // region inherited
   @Override
-  protected void verify(boolean isInsert) throws InstrVerifyException {
-    super.verify(isInsert);
-    computeTargets();
+  public boolean isPure() {
+    return false;
   }
-
-  @Override
-  public NodeId<? extends Jump> id() {
-    return uncheckedCastId();
-  }
-}
-
-/** {@link Jump} which doesn't return anything. */
-final class VoidJumpImpl extends JumpImpl<JumpData.Void> {
-  VoidJumpImpl(CFG cfg, NodeId<? extends Instr> id, JumpData.Void data) {
-    super(JumpData.Void.class, cfg, id, data);
-  }
-
-  @Override
-  public ImmutableList<Node> returns() {
-    return ImmutableList.of();
-  }
+  // endregion inherited
 }

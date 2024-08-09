@@ -11,8 +11,16 @@ public enum YesOrMaybe implements BoundedLattice<YesOrMaybe> {
   }
 
   /** Converts no into maybe. */
-  public static YesOrMaybe of(Troolean value) {
-    return value == Troolean.YES ? YES : MAYBE;
+  public static YesOrMaybe of(Maybe value) {
+    return value == Maybe.YES ? YES : MAYBE;
+  }
+
+  /**
+   * Returns {@link NoOrMaybe#NO} if {@link YesOrMaybe#YES} and {@link NoOrMaybe#MAYBE} if {@link
+   * YesOrMaybe#MAYBE}.
+   */
+  public NoOrMaybe negate() {
+    return this == YES ? NoOrMaybe.NO : NoOrMaybe.MAYBE;
   }
 
   /** Returns true unless this is maybe and other is yes. */
@@ -32,7 +40,7 @@ public enum YesOrMaybe implements BoundedLattice<YesOrMaybe> {
    * representation.
    */
   @Override
-  public YesOrMaybe union(YesOrMaybe other) {
+  public YesOrMaybe unionOf(YesOrMaybe other) {
     return this == YES ? other : this;
   }
 
@@ -41,7 +49,7 @@ public enum YesOrMaybe implements BoundedLattice<YesOrMaybe> {
    * representation.
    */
   @Override
-  public YesOrMaybe intersection(YesOrMaybe other) {
+  public YesOrMaybe intersectionOf(YesOrMaybe other) {
     return this == YES ? this : other;
   }
 }

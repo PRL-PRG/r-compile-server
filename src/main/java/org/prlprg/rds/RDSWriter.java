@@ -6,6 +6,7 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.DoubleStream;
 import java.util.stream.StreamSupport;
+import javax.annotation.Nullable;
 import org.prlprg.RVersion;
 import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.*;
@@ -69,9 +70,16 @@ public class RDSWriter implements Closeable {
     writeItem(sexp);
   }
 
-  // See
-  // https://github.com/wch/r-source/blob/65892cc124ac20a44950e6e432f9860b1d6e9bf4/src/main/serialize.c#L1021
   public void writeItem(SEXP s) throws IOException {
+    writeItemOrUnbound(s);
+  }
+
+  /**
+   * See <a
+   * href="https://github.com/wch/r-source/blob/65892cc124ac20a44950e6e432f9860b1d6e9bf4/src/main/serialize.c#L1021">GNU-R
+   * serialize.c</a>.
+   */
+  public void writeItemOrUnbound(@Nullable SEXP s) throws IOException {
     // Write the flags for this SEXP. This will vary depending on whether the SEXP is a special
     // RDS type or not
     var flags = flags(s);
@@ -82,6 +90,7 @@ public class RDSWriter implements Closeable {
       case RDSItemType.Special special -> {
         switch (special) {
           case RDSItemType.Special.NAMESPACESXP -> {
+            Objects.requireNonNull(s);
             // add to the ref table
             refAdd(s);
             // write details about the namespace
@@ -103,11 +112,14 @@ public class RDSWriter implements Closeable {
       case RDSItemType.Sexp _ -> {
         // Otherwise, write the sexp as normal
         switch (s) {
-          case SymSXP sym -> writeSymbol(sym);
+          case RegSymSXP sym -> writeRegSymbol(sym);
+          case MissingSXP _ -> throw new UnsupportedOperationException("can't directly serialize the missing value");
+          case null -> throw new UnsupportedOperationException("can't serialize the unbound value");
           case EnvSXP env -> writeEnv(env);
           case ListSXP list -> writeListSXP(list);
           case LangSXP lang -> writeLangSXP(lang);
-          case PromSXP prom -> writePromSXP(prom);
+          case DotsListSXP _ -> throw new UnsupportedOperationException("can't directly serialize a dots list");
+          case PromSXP<?> prom -> writePromSXP(prom);
           case CloSXP clo -> writeCloSXP(clo);
           case BuiltinOrSpecialSXP bos -> writeBuiltinOrSpecialSXP(bos);
           case VectorSXP<?> vec -> writeVectorSXP(vec);
@@ -149,7 +161,7 @@ public class RDSWriter implements Closeable {
         // In GNUR, the tag of a promise is its environment. The environment is set to null once
         // the promise is evaluated. So, hasTag should return true if and only if the promise is
         // unevaluated (lazy)
-      case PromSXP prom -> prom.isLazy();
+      case PromSXP<?> prom -> prom.isLazy();
         // hasTag is based on the first element
       case ListSXP list -> !list.isEmpty() && list.get(0).hasTag();
       default -> false;
@@ -157,7 +169,7 @@ public class RDSWriter implements Closeable {
   }
 
   /** Determines the RDS item type associated with the provided SEXP. */
-  private RDSItemType rdsType(SEXP s) {
+  private RDSItemType rdsType(@Nullable SEXP s) {
     return switch (s) {
         // "Save Special hooks" from serialize.c
       case NilSXP _ -> RDSItemType.Special.NILVALUE_SXP;
@@ -165,11 +177,10 @@ public class RDSWriter implements Closeable {
       case EmptyEnvSXP _ -> RDSItemType.Special.EMPTYENV_SXP;
       case BaseEnvSXP _ -> RDSItemType.Special.BASEENV_SXP;
       case GlobalEnvSXP _ -> RDSItemType.Special.GLOBALENV_SXP;
-      case SpecialSymSXP sexp when sexp == SEXPs.UNBOUND_VALUE ->
-          RDSItemType.Special.UNBOUNDVALUE_SXP;
-      case SpecialSymSXP sexp when sexp == SEXPs.MISSING_ARG -> RDSItemType.Special.MISSINGARG_SXP;
         // Non-"Save Special" cases
-      case NamespaceEnvSXP ns -> RDSItemType.Special.NAMESPACESXP;
+      case NamespaceEnvSXP _ -> RDSItemType.Special.NAMESPACESXP;
+      case MissingSXP _ -> RDSItemType.Special.MISSINGARG_SXP;
+      case null -> RDSItemType.Special.UNBOUNDVALUE_SXP;
       default -> new RDSItemType.Sexp(s.type());
     };
   }
@@ -180,10 +191,10 @@ public class RDSWriter implements Closeable {
    */
   final int MAX_PACKED_INDEX = Integer.MAX_VALUE >> 8;
 
-  private Flags flags(SEXP s) {
+  private Flags flags(@Nullable SEXP s) {
     // If refIndex is greater than 0, the object has already been written, so we can
     // write a reference (since the index is 1-based)
-    int sexpRefIndex = refTable.getOrDefault(s, 0);
+    int sexpRefIndex = s == null ? 0 : refTable.getOrDefault(s, 0);
     if (sexpRefIndex > 0) {
       if (sexpRefIndex > MAX_PACKED_INDEX) {
         // If the reference index can't be packed in the flags, it will be written afterward
@@ -197,7 +208,12 @@ public class RDSWriter implements Closeable {
     // Otherwise, write flags based on the RDSType of s
     // FIXME: we should actually get the proper "locked" flag, but we currently don't have a
     //  representation of this in our environments
-    return new Flags(rdsType(s), new GPFlags(), s.isObject(), s.hasAttributes(), hasTag(s));
+    return new Flags(
+        rdsType(s),
+        new GPFlags(), 
+        s != null && s.isObject(),
+        s != null && s.hasAttributes(),
+        s != null && hasTag(s));
   }
 
   /**
@@ -297,23 +313,14 @@ public class RDSWriter implements Closeable {
     }
   }
 
-  private void writeSymbol(SymSXP s) throws IOException {
-    switch (s) {
-      case RegSymSXP rs -> {
-        // Add to the ref table
-        refAdd(rs);
-        // Write the symbol
-        writeChars(rs.name());
-      }
-      case SpecialSymSXP specialSymSXP when specialSymSXP.isEllipsis() -> {
-        writeChars("..."); // Really?
-      }
-      default ->
-          throw new UnsupportedOperationException("Unreachable: implemented in special sexps.");
-    }
+  private void writeRegSymbol(RegSymSXP rs) throws IOException {
+    // Add to the ref table
+    refAdd(rs);
+    // Write the symbol
+    writeChars(rs.name());
   }
-
-  private void writeBuiltinOrSpecialSXP(BuiltinOrSpecialSXP bos) throws IOException {
+  
+  private void writeBuiltinOrSpecialSXP(BuiltinOrSpecialSXP bos) {
     // For now, we throw an exception upon writing any SpecialSXP or BuiltinSXP. This is because
     // RDS serializes builtins via their name, but we do not have any (fully implemented) construct
     // representing the name of a builtin (instead, they are represented with indices)
@@ -358,7 +365,7 @@ public class RDSWriter implements Closeable {
     writeItem(lang.args());
   }
 
-  private void writePromSXP(PromSXP prom) throws IOException {
+  private void writePromSXP(PromSXP<?> prom) throws IOException {
     writeAttributesIfPresent(prom);
 
     // TODO: test that this is the correct order of arguments
@@ -368,7 +375,7 @@ public class RDSWriter implements Closeable {
       writeItem(prom.env());
     }
 
-    writeItem(prom.val());
+    writeItemOrUnbound(prom.val());
     writeItem(prom.expr());
   }
 
@@ -440,7 +447,7 @@ public class RDSWriter implements Closeable {
 
   private void scanForCircles(SEXP sexp, HashMap<SEXP, Integer> reps, HashSet<SEXP> seen) {
     switch (sexp) {
-      case LangOrListSXP lol -> {
+      case AbstractPairListSXP lol -> {
         if (seen.contains(lol)) {
           // Add to reps if the cell has already been seen
           // We put -1 for the time being so that we can update reps in the correct order later
@@ -456,16 +463,18 @@ public class RDSWriter implements Closeable {
             scanForCircles(lang.fun(), reps, seen);
             lang.args().values().forEach((el) -> scanForCircles(el, reps, seen));
           }
-          case ListSXP list -> {
-            // For ListSXP, we scan the values
-            list.values().forEach((el) -> scanForCircles(el, reps, seen));
+          // For ListSXP, we scan the values
+          case ListSXP list ->
+              list.values().forEach((el) -> scanForCircles(el, reps, seen));
+          case DotsListSXP _ -> {
+            // Do nothing
           }
         }
       }
-      case BCodeSXP bc -> {
-        // For bytecode, we scan the constant pool
+      // For bytecode, we scan the constant pool
+      case BCodeSXP bc ->
         bc.bc().consts().forEach((el) -> scanForCircles(el, reps, seen));
-      }
+
       default -> {
         // do nothing
       }
@@ -474,7 +483,7 @@ public class RDSWriter implements Closeable {
 
   private void writeByteCodeLang(SEXP s, HashMap<SEXP, Integer> reps, AtomicInteger nextRepIndex)
       throws IOException {
-    if (s instanceof LangOrListSXP lol && lol.type() != SEXPType.NIL) {
+    if (s instanceof AbstractPairListSXP lol && lol.type() != SEXPType.NIL) {
       var assignedRepIndex = reps.get(lol);
       if (assignedRepIndex != null) {
         if (assignedRepIndex == -1) {
@@ -504,8 +513,9 @@ public class RDSWriter implements Closeable {
       if (lol.hasAttributes()) {
         type =
             switch (lol) {
-              case LangSXP _lang -> RDSItemType.Special.ATTRLANGSXP;
-              case ListSXP _list -> RDSItemType.Special.ATTRLISTSXP;
+              case LangSXP _ -> RDSItemType.Special.ATTRLANGSXP;
+              case ListSXP _ -> RDSItemType.Special.ATTRLISTSXP;
+              case DotsListSXP _ -> throw new UnreachableError();
             };
       }
       out.writeInt(type.i());
@@ -535,6 +545,7 @@ public class RDSWriter implements Closeable {
           // write tail
           writeByteCodeLang(list.subList(1), reps, nextRepIndex);
         }
+        case DotsListSXP _ -> throw new UnreachableError();
       }
     } else { // Print a zero as padding and write the item normally
       out.writeInt(0);
@@ -569,10 +580,9 @@ public class RDSWriter implements Closeable {
           out.writeInt(c.type().i);
           writeByteCode1(bc, reps, nextRepIndex);
         }
-        case LangOrListSXP l -> {
-          // writeBCLang writes the type i
+        // writeBCLang writes the type i
+        case AbstractPairListSXP l ->
           writeByteCodeLang(l, reps, nextRepIndex);
-        }
         default -> {
           out.writeInt(c.type().i);
           writeItem(c);

@@ -6,7 +6,7 @@ import org.prlprg.parseprint.Printer;
 
 /** GNU-R compiled code SEXP, such as a promise or closure body. */
 @Immutable
-public sealed interface BCodeSXP extends SEXP {
+public sealed interface BCodeSXP extends ValueSXP {
 
   /** The typed compiled code. */
   Bc bc();

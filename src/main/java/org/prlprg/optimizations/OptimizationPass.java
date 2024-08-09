@@ -1,8 +1,8 @@
 package org.prlprg.optimizations;
 
 import org.prlprg.ir.cfg.CFG;
-import org.prlprg.ir.cfg.StmtData.MkCls;
-import org.prlprg.ir.cfg.StmtData.MkProm;
+import org.prlprg.ir.cfg.instr.StmtData.MkCls;
+import org.prlprg.ir.cfg.instr.StmtData.MkProm;
 import org.prlprg.ir.closure.ClosureVersion;
 import org.prlprg.ir.closure.CodeObject;
 import org.prlprg.ir.closure.Promise;

@@ -6,6 +6,9 @@ import java.util.List;
 import java.util.Map;
 import javax.annotation.Nullable;
 import org.prlprg.ir.cfg.Phi.Input;
+import org.prlprg.ir.cfg.instr.InstrData;
+import org.prlprg.ir.cfg.instr.JumpData;
+import org.prlprg.ir.cfg.instr.StmtData;
 import org.prlprg.ir.closure.Closure;
 import org.prlprg.ir.closure.ClosureVersion;
 import org.prlprg.ir.closure.Promise;
@@ -75,6 +78,7 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
   private final @Nullable Object outerContext;
   private final SEXPParseContext sexpParseContext;
   private final SEXPPrintContext sexpPrintContext;
+  private final boolean isInBaselineClosureVersion;
   private final CFG cfg;
 
   /**
@@ -92,14 +96,16 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
 
   CFGParseOrPrintContext(@Nullable Object outerContext, CFG cfg) {
     this.outerContext = outerContext;
-    this.sexpParseContext =
+    sexpParseContext =
         outerContext instanceof HasSEXPParseContext h
             ? h.sexpParseContext()
             : new SEXPParseContext();
-    this.sexpPrintContext =
+    sexpPrintContext =
         outerContext instanceof HasSEXPPrintContext h
             ? h.sexpPrintContext()
             : new SEXPPrintContext();
+    isInBaselineClosureVersion =
+        outerContext instanceof ClosureVersionContext c && c.version().isBaseline();
     this.cfg = cfg;
   }
 
@@ -110,6 +116,10 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
 
   public SEXPPrintContext sexpPrintContext() {
     return sexpPrintContext;
+  }
+
+  boolean isInBaselineClosureVersion() {
+    return isInBaselineClosureVersion;
   }
 
   @ParseMethod
@@ -323,7 +333,7 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
 
       if (id == null) {
         // ID doesn't matter
-        id = cfg.<Instr>uniqueInstrOrPhiId();
+        id = cfg.<Instr>uniqueLocalId();
       } else {
         ensureIdNotTakenByAnonymous(id, p);
       }
@@ -332,17 +342,17 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
           switch (data) {
             case StmtData<?> stmtData -> {
               @SuppressWarnings("unchecked")
-              var id1 = (NodeId<? extends Stmt>) id;
+              var id1 = (NodeId<Stmt>) id;
               yield bb.insertAtWithId(bb.stmts().size(), id1, stmtData);
             }
             case JumpData<?> jumpData -> {
               @SuppressWarnings("unchecked")
-              var id1 = (NodeId<? extends Jump>) id;
+              var id1 = (NodeId<Jump>) id;
               yield bb.addJumpWithId(id1, jumpData);
             }
           };
 
-      for (var node : instr.returns()) {
+      for (var node : instr.outputs()) {
         patchIfPending(node);
       }
       return instr;
@@ -352,7 +362,7 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
     private void printInstr(Instr instr, Printer p) {
       var w = p.writer();
 
-      if (!instr.returns().isEmpty()) {
+      if (!instr.outputs().isEmpty()) {
         p.print(instr.id());
         w.write(" = ");
       }
@@ -377,7 +387,7 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
         }
         assert InstrOrPhiIdImpl.cast(id).name().isEmpty()
             : "expected ID of `Void` instruction we created to have no name";
-        InstrOrPhiImpl.cast(old).setId(cfg.uniqueInstrOrPhiId());
+        InstrOrPhiImpl.cast(old).setId(cfg.uniqueLocalId());
       }
     }
 
@@ -421,7 +431,7 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
       }
 
       // These four methods override all parsers for nodes when they are parsed in this context, so
-      // we can call e.g. `p.parse(RValue.class)` and it dispatches this.
+      // we can call e.g. `p.parse(ISexp.class)` and it dispatches this.
       @ParseMethod
       private BB parseBB(Parser p) {
         var id = p.parse(BBId.class);
@@ -441,10 +451,10 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
         // If this is the case, we want to rename that instruction and pretend the ID never existed.
         if (!(id instanceof GlobalNodeId<?>) && cfg.contains(id)) {
           var node = cfg.get(id);
-          if (node instanceof Instr i && i.returns().isEmpty()) {
+          if (node instanceof Instr i && i.outputs().isEmpty()) {
             assert InstrOrPhiIdImpl.cast(i.id()).name().isEmpty()
                 : "expected ID of `Void` instruction we created to have no name";
-            InstrOrPhiImpl.cast(i).setId(cfg.uniqueInstrOrPhiId());
+            InstrOrPhiImpl.cast(i).setId(cfg.uniqueLocalId());
             assert !cfg.contains(id);
           }
         }
@@ -536,7 +546,7 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
         s.assertAndSkip(clazz.getSimpleName());
         s.assertAndSkip('(');
 
-        var fun = p.parse(RValue.class);
+        var fun = p.parse(ISexp.class);
         SymOrLangSXP astFun = null;
         if (s.trySkip('[')) {
           astFun = p.parse(SymOrLangSXP.class);
@@ -546,7 +556,7 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
         s.assertAndSkip('(');
         var explicitNames =
             explicitNamesComponent == null ? null : ImmutableList.<Optional<String>>builder();
-        var args = ImmutableList.<RValue>builder();
+        var args = ImmutableList.<ISexp>builder();
         var astArgs = astFun == null ? null : ImmutableList.<TaggedElem>builder();
         if (!s.trySkip(')')) {
           do {
@@ -586,7 +596,7 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
               s.assertAndSkip('=');
             }
 
-            args.add(p.parse(RValue.class));
+            args.add(p.parse(ISexp.class));
 
             SEXP astDefaultValue;
             if (s.trySkip('[')) {
@@ -710,9 +720,9 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
         s.assertAndSkip('(');
         var name = p.parse(RegSymSXP.class);
         s.assertAndSkip("<-");
-        var value = p.parse(RValue.class);
+        var value = p.parse(ISexp.class);
         s.assertAndSkip(", env=");
-        var env = p.parse(RValue.class);
+        var env = p.parse(ISexp.class);
         s.assertAndSkip(')');
 
         return new StVar(name, value, env, isArg);

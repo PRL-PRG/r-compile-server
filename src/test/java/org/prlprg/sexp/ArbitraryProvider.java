@@ -53,7 +53,7 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
   private static Arbitrary<Attributes> attributes(Arbitrary<SEXP> sexps) {
     return Arbitraries.maps(
             symbolStrings().edgeCases(c -> c.add("names", "dim", "class")),
-            sexps.filter(s -> !(s instanceof PromSXP)))
+            sexps.filter(s -> !(s instanceof PromSXP<?>)))
         .map(Attributes::new);
   }
 
@@ -135,12 +135,12 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
         .as(SEXPs::closure);
   }
 
-  public static Arbitrary<PromSXP> promises() {
+  public static Arbitrary<PromSXP<?>> promises() {
     return promises(sexps());
   }
 
-  private static Arbitrary<PromSXP> promises(Arbitrary<SEXP> sexps) {
-    var sexpsNoPromises = sexps.filter(s -> !(s instanceof PromSXP));
+  private static Arbitrary<PromSXP<?>> promises(Arbitrary<SEXP> sexps) {
+    var sexpsNoPromises = sexps.filter(s -> !(s instanceof PromSXP<?>));
     return Combinators.combine(sexpsNoPromises, sexpsNoPromises, envs(sexps)).as(PromSXP::new);
   }
 
@@ -161,7 +161,7 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
   }
 
   private static Arbitrary<LangSXP> languages(Arbitrary<SEXP> astSexps) {
-    return Combinators.combine(symbols(), astLists(astSexps)).as(SEXPs::lang);
+    return Combinators.combine(regSymbols(), astLists(astSexps)).as(SEXPs::lang);
   }
 
   public static Arbitrary<SEXP> basicSexps() {
@@ -193,18 +193,21 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
         basicBytes().map(SEXPs::raw),
         complexes().map(SEXPs::complex),
         shortStrings().map(SEXPs::string),
-        symbols());
+        regSymbols());
   }
 
   public static Arbitrary<SymSXP> symbols() {
+    return oneOf(Arbitraries.of(SEXPs.MISSING_ARG), regSymbols());
+  }
+
+  public static Arbitrary<RegSymSXP> regSymbols() {
     return symbolStrings().map(SEXPs::symbol);
   }
 
   /** Generates valid symbol (and tag) names. */
   public static Arbitrary<String> symbolStrings() {
     return Arbitraries.frequencyOf(
-        Tuple.of(8, Arbitraries.of("foo", "bar", "baz", "abc")),
-        Tuple.of(2, Arbitraries.of("NULL", " ", "|g", "0")));
+        Tuple.of(7, Arbitraries.of("foo", "bar", "baz")), Tuple.of(3, Arbitraries.of("🐾")));
   }
 
   /** Returns strings which aren't too long, because we really don't need to test those. */

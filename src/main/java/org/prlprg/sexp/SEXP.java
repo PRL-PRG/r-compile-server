@@ -26,15 +26,7 @@ import org.prlprg.sexp.parseprint.SEXPPrintContext;
  * suspect GNU-R SEXPs aren't actually S-expressions.
  */
 public sealed interface SEXP
-    permits StrOrRegSymSXP,
-        SymOrLangSXP,
-        ListOrVectorSXP,
-        LangOrListSXP,
-        CloSXP,
-        EnvSXP,
-        BCodeSXP,
-        PromSXP,
-        BuiltinOrSpecialSXP {
+    permits ValueOrMissingSXP, PromSXP {
   /**
    * SEXPTYPE. It's important to distinguish these from the SEXP's class, because there's a class
    * for every type but not vice versa due to subclasses (e.g. simple-scalar ints have the same
@@ -63,6 +55,13 @@ public sealed interface SEXP
   default boolean hasAttributes() {
     var attributes = attributes();
     return attributes != null && !attributes.isEmpty();
+  }
+
+  /** Whether the SEXP is an object i.e. has the "class" attribute. */
+  default boolean isObject() {
+    // FIXME: handle S4 when we add them.
+    var attributes = attributes();
+    return attributes != null && attributes.isObject();
   }
 
   /**
@@ -177,8 +176,4 @@ public sealed interface SEXP
   // `toString` is overridden in every subclass to call `Printer.toString(this)`.
 
   // endregion serialization and deserialization
-
-  default boolean isObject() {
-    return attributes() != null && Objects.requireNonNull(attributes()).containsKey("class");
-  }
 }

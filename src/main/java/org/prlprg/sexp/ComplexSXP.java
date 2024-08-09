@@ -8,7 +8,7 @@ import org.prlprg.primitive.Complex;
 
 /** Complex vector SEXP. */
 @Immutable
-public sealed interface ComplexSXP extends PrimVectorSXP<Complex>
+public sealed interface ComplexSXP extends NumericSXP<Complex>
     permits ComplexSXPImpl, EmptyComplexSXPImpl, ScalarComplexSXP {
   @Override
   default SEXPType type() {
@@ -53,6 +53,16 @@ record ComplexSXPImpl(ImmutableList<Complex> data, @Override Attributes attribut
   }
 
   @Override
+  public int asInt(int index) {
+    return (int) data.get(index).real();
+  }
+
+  @Override
+  public double asReal(int index) {
+    return data.get(index).real();
+  }
+
+  @Override
   public ComplexSXP withAttributes(Attributes attributes) {
     return new ComplexSXPImpl(data, attributes);
   }
@@ -63,28 +73,22 @@ record ComplexSXPImpl(ImmutableList<Complex> data, @Override Attributes attribut
   }
 }
 
-final class ScalarComplexSXP extends ScalarSXPImpl<Complex> implements ComplexSXP {
-  ScalarComplexSXP(Complex data) {
-    super(data);
-  }
-
-  @SuppressWarnings("MissingJavadoc")
-  public Complex value() {
-    return data;
-  }
-
-  @Override
-  public ComplexSXP withAttributes(Attributes attributes) {
-    return SEXPs.complex(data, attributes);
-  }
-}
-
 /** Empty complex vector with no ALTREP, ATTRIB, or OBJECT. */
 final class EmptyComplexSXPImpl extends EmptyVectorSXPImpl<Complex> implements ComplexSXP {
   static final EmptyComplexSXPImpl INSTANCE = new EmptyComplexSXPImpl();
 
   private EmptyComplexSXPImpl() {
     super();
+  }
+
+  @Override
+  public int asInt(int index) {
+    throw new ArrayIndexOutOfBoundsException("Empty complex vector");
+  }
+
+  @Override
+  public double asReal(int index) {
+    throw new ArrayIndexOutOfBoundsException("Empty complex vector");
   }
 
   @Override

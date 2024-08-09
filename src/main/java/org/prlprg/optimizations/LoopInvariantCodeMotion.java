@@ -8,14 +8,11 @@ import org.prlprg.ir.analysis.Loops.Loop;
 import org.prlprg.ir.cfg.BB;
 import org.prlprg.ir.cfg.CFG;
 import org.prlprg.ir.cfg.Instr;
-import org.prlprg.ir.cfg.IsEnv;
-import org.prlprg.ir.cfg.JumpData;
-import org.prlprg.ir.cfg.RValue;
+import org.prlprg.ir.cfg.instr.JumpData;
 import org.prlprg.ir.cfg.Stmt;
-import org.prlprg.ir.cfg.StmtData;
-import org.prlprg.ir.type.REffect;
-import org.prlprg.ir.type.RTypes;
-import org.prlprg.ir.type.lattice.Troolean;
+import org.prlprg.ir.cfg.instr.StmtData;
+import org.prlprg.ir.effect.REffect;
+import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.sexp.RegSymSXP;
 import org.prlprg.util.UnreachableError;
 
@@ -79,9 +76,10 @@ class LoopInvariantCodeMotion implements OptimizationPass {
           cb.fun().isNonObject()
               && cb.args().stream()
                   .anyMatch(
-                      a ->
-                          a.type().isObject() != Troolean.NO
-                              || a.type().equals(RTypes.EXPANDED_DOTS));
+                      a -> a.type().isObject() != Maybe.NO
+                      // TODO if `RType.EXPANDED_DOTS` is added: `||
+                      // a.type().equals(RType.EXPANDED_DOTS)`
+                      );
         // For these instructions we test later they don't change the particular binding.
       case StmtData.StVar _, StmtData.StVarSuper _, StmtData.MkEnv _ -> false;
         // If `loop == null` these are checked elsewhere.
@@ -91,13 +89,13 @@ class LoopInvariantCodeMotion implements OptimizationPass {
     };
   }
 
-  private boolean loopOverwritesBinding(RegSymSXP binding, @IsEnv RValue env, Loop loop) {
+  private boolean loopOverwritesBinding(RegSymSXP binding, ISexp env, Loop loop) {
     return loop.body().stream()
         .flatMap(BB::streamInstrs)
         .anyMatch(instr -> instrOverwritesBinding(binding, env, instr));
   }
 
-  private boolean instrOverwritesBinding(RegSymSXP binding, @IsEnv RValue env, Instr instr) {
+  private boolean instrOverwritesBinding(RegSymSXP binding, ISexp env, Instr instr) {
     return switch (instr.data()) {
       case StmtData.MkEnv mk -> instr == env || mk.names().contains(binding);
       case StmtData.StVar st -> st.name().equals(binding);
