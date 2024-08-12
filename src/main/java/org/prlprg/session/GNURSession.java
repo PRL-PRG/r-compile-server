@@ -3,7 +3,6 @@ package org.prlprg.session;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Path;
-import java.nio.file.Files;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
@@ -90,47 +89,14 @@ public class GNURSession implements RSession {
 
   public void setCranMirror(URI uri) {}
 
-  public String getPackageVersion(Path packagePath) throws IOException {
-    Path descriptionFile = packagePath.resolve("DESCRIPTION");
-    List<String> lines = Files.readAllLines(descriptionFile);
-    for (String line : lines) {
-      if (line.startsWith("Version:")) {
-        return line.split(":")[1].trim();
-      }
-    }
-    throw new IOException("Version not found in DESCRIPTION file");
-  }
   // We should also handle installation of a package from a GitHub repo?
   public void loadPackage(String name, String version) {
-    var pkgPath = RLibraries.resolve(name);
-    var pkgDir = pkgPath.toFile();
-    if (!pkgDir.exists() || !pkgDir.isDirectory()) {
-      // Check if package is installed and if not install it
-      try {
-        ProcessBuilder processBuilder = new ProcessBuilder(
-                "Rscript", "-e", "install.packages('" + name + "', repos='" + cranMirror + "')"
-        );
-        processBuilder.inheritIO();
-        Process process = processBuilder.start();
-        int exitCode = process.waitFor();
-        if (exitCode != 0) {
-          throw new RuntimeException("Failed to install package " + name);
-        }
-      } catch (IOException | InterruptedException e) {
-        throw new RuntimeException("Failed to install package " + name, e);
-      }
-    }
-
-      // Verify the installation
-      if (!pkgDir.exists() || !pkgDir.isDirectory()) {
-        throw new UnsupportedOperationException("Package installation not implemented yet");
-      }
-        // Verify the version
-    DESCRIPTION description = new DESCRIPTION(descriptionFile);
+    DESCRIPTION description = getDescription(name);
 
     String installedVersion = description.getVersion();
     if (!version.equals(installedVersion)) {
-      throw new RuntimeException("Version mismatch: expected " + version + " but found " + installedVersion);
+      throw new RuntimeException(
+          "Version mismatch: expected " + version + " but found " + installedVersion);
     }
 
     // Use suggests and imports as needed
@@ -153,6 +119,36 @@ public class GNURSession implements RSession {
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
+  }
+
+  private DESCRIPTION getDescription(String name) {
+    var pkgPath = RLibraries.resolve(name);
+    var pkgDir = pkgPath.toFile();
+    if (!pkgDir.exists() || !pkgDir.isDirectory()) {
+      // Check if package is installed and if not install it
+      try {
+        ProcessBuilder processBuilder =
+            new ProcessBuilder(
+                "Rscript", "-e", "install.packages('" + name + "', repos='" + cranMirror + "')");
+        processBuilder.inheritIO();
+        Process process = processBuilder.start();
+        int exitCode = process.waitFor();
+        if (exitCode != 0) {
+          throw new RuntimeException("Failed to install package " + name);
+        }
+      } catch (IOException | InterruptedException e) {
+        throw new RuntimeException("Failed to install package " + name, e);
+      }
+    }
+
+    Path descriptionFile = pkgPath.resolve("DESCRIPTION");
+    DESCRIPTION description;
+    try {
+      description = new DESCRIPTION(descriptionFile);
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+    return description;
   }
 
   private static HashMap<String, SEXP> readPackageDatabase(
