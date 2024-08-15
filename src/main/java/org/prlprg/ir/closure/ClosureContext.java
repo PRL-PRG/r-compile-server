@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.Map;
 import javax.annotation.Nullable;
 import org.prlprg.ir.cfg.CFG;
+import org.prlprg.ir.cfg.LocalNode;
 import org.prlprg.ir.cfg.Node;
 import org.prlprg.ir.cfg.NodeId;
 import org.prlprg.parseprint.ParseMethod;
@@ -61,7 +62,7 @@ abstract sealed class ClosureParseContext implements HasSEXPParseContext {
     }
 
     @ParseMethod
-    private Node parseNode(Parser p) {
+    private Node<?> parseNode(Parser p) {
       var s = p.scanner();
 
       if (!s.nextCharIs('@')) {
@@ -111,7 +112,7 @@ abstract sealed class ClosureParseContext implements HasSEXPParseContext {
     }
 
     @ParseMethod
-    private Node parseNode(Parser p) {
+    private Node<?> parseNode(Parser p) {
       return outermost.parseNode(p);
     }
   }
@@ -197,9 +198,9 @@ abstract sealed class ClosurePrintContext implements HasSEXPPrintContext {
     }
 
     @PrintMethod
-    private void printNode(Node node, Printer p) {
-      if (node.cfg() != null && cfgQualifiers.containsKey(node.cfg())) {
-        p.print(cfgQualifiers.get(node.cfg()));
+    private void printNode(Node<?> node, Printer p) {
+      if (node instanceof LocalNode<?> localNode && cfgQualifiers.containsKey(localNode.cfg())) {
+        p.print(cfgQualifiers.get(localNode.cfg()));
       }
       p.print(node.id());
     }
@@ -240,7 +241,7 @@ abstract sealed class ClosurePrintContext implements HasSEXPPrintContext {
     }
 
     @PrintMethod
-    private void printNode(Node node, Printer p) {
+    private void printNode(Node<?> node, Printer p) {
       outermost.printNode(node, p);
     }
   }

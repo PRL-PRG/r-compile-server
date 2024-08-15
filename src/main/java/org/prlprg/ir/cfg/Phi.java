@@ -10,7 +10,7 @@ import java.util.Map;
 import java.util.SequencedCollection;
 import java.util.SequencedSet;
 import org.jetbrains.annotations.UnmodifiableView;
-import org.prlprg.util.Classes;
+import org.prlprg.ir.type.RType;
 import org.prlprg.util.SequencedCollections;
 import org.prlprg.util.SmallBinarySet;
 
@@ -77,12 +77,8 @@ public final class Phi<T> extends LocalNode<T> implements InstrOrPhi, InstrOrPhi
   }
 
   /** The common supertype of all inputs' {@link Node}s, or {@link Void} if there are none. */
-  @SuppressWarnings({"rawtypes", "unchecked"})
-  private static <T> Class<? extends T> phiType(Collection<? extends Input<? extends T>> inputs) {
-    return inputs.stream()
-        .map(Input::node)
-        .map(Node::type)
-        .reduce((Class) Void.class, (a, b) -> (Class) Classes.bestCommonSuperclass(a, b));
+  private static <T> RType phiType(Collection<? extends Input<? extends T>> inputs) {
+    return inputs.stream().map(Input::node).map(Node::type).reduce(RType.NOTHING, RType::unionOf);
   }
 
   // endregion constructors
@@ -380,7 +376,7 @@ public final class Phi<T> extends LocalNode<T> implements InstrOrPhi, InstrOrPhi
   // region other `InstrOrPhi` inherited
   /** Returns {@code this}, since a phi simply "outputs" one of its input nodes. */
   @Override
-  public ImmutableList<? extends Node<? extends T>> outputs() {
+  public ImmutableList<? extends LocalNode<? extends T>> outputs() {
     return ImmutableList.of(this);
   }
 

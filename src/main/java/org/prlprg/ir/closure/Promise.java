@@ -9,7 +9,7 @@ import org.prlprg.ir.cfg.CFG;
 import org.prlprg.ir.cfg.Node;
 import org.prlprg.ir.cfg.StaticEnv;
 import org.prlprg.ir.cfg.instr.StmtData;
-import org.prlprg.ir.effect.REffect;
+import org.prlprg.ir.effect.PerformsReflection;
 import org.prlprg.ir.effect.REffects;
 import org.prlprg.ir.type.lattice.Lattice;
 import org.prlprg.ir.type.lattice.NoOrMaybe;
@@ -195,7 +195,7 @@ public final class Promise extends CodeObject {
     public REffects effects() {
       var effects = REffects.ARBITRARY;
       if (flags.contains(Property.NO_REFLECTION)) {
-        effects = effects.without(REffect.Reflection);
+        effects = effects.without(new PerformsReflection());
       }
       return effects;
     }

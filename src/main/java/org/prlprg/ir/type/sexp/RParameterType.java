@@ -4,7 +4,6 @@ import org.prlprg.ir.type.RType;
 import org.prlprg.ir.type.lattice.Lattice;
 import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.ir.type.lattice.NoOrMaybe;
-import org.prlprg.ir.type.lattice.YesOrMaybe;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.primitive.Names;
@@ -19,13 +18,10 @@ import org.prlprg.sexp.SEXP;
 public record RParameterType(String name, RType type) {
   public RParameterType(
       String name, NoOrMaybe isRequired, RValueType valueType, AttributesType attributesType) {
-    this(name,
+    this(
+        name,
         RSexpType.of(
-            valueType,
-            YesOrMaybe.YES,
-            attributesType,
-            RPromiseType.STRICT_MAYBE_PROMISE,
-            Maybe.of(isRequired)));
+            valueType, attributesType, RPromiseType.STRICT_MAYBE_PROMISE, Maybe.of(isRequired)));
   }
 
   public RParameterType(
@@ -52,7 +48,7 @@ public record RParameterType(String name, RType type) {
   }
 
   public NoOrMaybe isRequired() {
-    return NoOrMaybe.of(!(type instanceof RSexpType<?> s) || s.isMissing() != Maybe.NO);
+    return NoOrMaybe.of(!(type instanceof RSexpType s) || s.isMissing() != Maybe.NO);
   }
 
   public boolean isNamed() {
@@ -71,7 +67,7 @@ public record RParameterType(String name, RType type) {
       Names.write(w, name);
     }
 
-    if (type instanceof RSexpType<?> s) {
+    if (type instanceof RSexpType s) {
       if (isRequired() == NoOrMaybe.NO) {
         w.write('?');
       }

@@ -84,7 +84,8 @@ public final class BuiltinParseMethods {
     return Reflection.construct(clazz, arguments);
   }
 
-  /** Parse a simple name, use {@link ClassProvidingContext} to resolve it into a class, then assert
+  /**
+   * Parse a simple name, use {@link ClassProvidingContext} to resolve it into a class, then assert
    * that it's a record class.
    *
    * @return The parsed class.

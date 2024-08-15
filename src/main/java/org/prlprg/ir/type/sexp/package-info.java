@@ -3,13 +3,13 @@
  * specifically.
  *
  * <p>This package contains {@link org.prlprg.ir.type.RSexpType RSexpType}, the {@linkplain
- * org.prlprg.ir.cfg.Node#type() type} of a
- * {@link org.prlprg.ir.cfg.Node Node}{@code <}{@link org.prlprg.sexp.SEXP SEXP}{@code >} (IR node
- * representing an R SEXP at runtime), and the associated classes that implement it.
+ * org.prlprg.ir.cfg.Node#type() type} of a {@link org.prlprg.ir.cfg.Node Node}{@code <}{@link
+ * org.prlprg.sexp.SEXP SEXP}{@code >} (IR node representing an R SEXP at runtime), and the
+ * associated classes that implement it.
  *
  * <p>{@link org.prlprg.ir.type} contains {@link org.prlprg.ir.type.RType RType}, a superclass of
  * {@link org.prlprg.ir.type.RSexpType RSexpType} that also encompasses unboxed (non-SEXP) runtime
- * values.</p>
+ * values.
  */
 @ParametersAreNonnullByDefault
 @FieldsAreNonNullByDefault

@@ -45,7 +45,8 @@ public sealed class LocalNodeId<T> implements NodeId<T> permits PhiId {
     this.type = type;
   }
 
-  /** Change this ID's {@link #type()}.
+  /**
+   * Change this ID's {@link #type()}.
    *
    * <p>It's "unsafe" because you need to maintain that the ID's runtime values are guaranteed to be
    * subtypes of its type.
@@ -81,4 +82,3 @@ public sealed class LocalNodeId<T> implements NodeId<T> permits PhiId {
     return new LocalNodeId<>(disambiguator, name);
   }
 }
-

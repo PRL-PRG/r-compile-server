@@ -1,15 +1,10 @@
-package org.prlprg.ir.cfg.builder;
+package org.prlprg.ir.cfg;
 
 import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import org.prlprg.ir.cfg.BB;
-import org.prlprg.ir.cfg.BatchSubst;
-import org.prlprg.ir.cfg.CFG;
-import org.prlprg.ir.cfg.InstrOrPhi;
-import org.prlprg.ir.cfg.Jump;
-import org.prlprg.ir.cfg.Phi;
+import org.prlprg.ir.cfg.builder.BBCompoundMutate;
 import org.prlprg.ir.cfg.instr.JumpData;
 import org.prlprg.ir.cfg.instr.JumpData.Deopt;
 import org.prlprg.ir.cfg.instr.JumpData.Goto;

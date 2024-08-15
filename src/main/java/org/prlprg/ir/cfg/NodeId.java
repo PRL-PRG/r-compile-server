@@ -27,7 +27,25 @@ public sealed interface NodeId<T> permits LocalNodeId, GlobalNodeId {
   static boolean isNodeIdStart(Scanner s) {
     var c = s.peekChar();
     return switch (c) {
-      case '%', '?', '!', '[', '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '"', '\'', '<' -> true;
+      case '%',
+              '?',
+              '!',
+              '[',
+              '-',
+              '0',
+              '1',
+              '2',
+              '3',
+              '4',
+              '5',
+              '6',
+              '7',
+              '8',
+              '9',
+              '"',
+              '\'',
+              '<' ->
+          true;
       default -> false;
     };
   }
@@ -41,8 +59,7 @@ public sealed interface NodeId<T> permits LocalNodeId, GlobalNodeId {
    *
    * <p>It's purpose is the same as {@link Node#type()}'s, see that documentation for more details.
    */
-  @Nullable
-  RType type();
+  @Nullable RType type();
 
   @ParseMethod(SkipWhitespace.NONE)
   private static NodeId<?> parse(Parser p) {
@@ -50,7 +67,8 @@ public sealed interface NodeId<T> permits LocalNodeId, GlobalNodeId {
 
     return switch (s.peekChar()) {
       case '%' -> p.parse(LocalNodeId.class);
-      case '?', '!', '[', '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '"', '\'', '<' -> p.parse(GlobalNodeId.class);
+      case '?', '!', '[', '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '"', '\'', '<' ->
+          p.parse(GlobalNodeId.class);
       default ->
           throw s.fail(
               "Expected local node ID (starting with '%') or global node ID (starting with '?', '!', '[', '-', a digit, '\"', '\\'', or '<')");

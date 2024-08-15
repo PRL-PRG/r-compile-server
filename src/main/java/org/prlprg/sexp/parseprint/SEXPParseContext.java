@@ -34,6 +34,7 @@ import org.prlprg.sexp.StaticEnvSXP;
 import org.prlprg.sexp.SymSXP;
 import org.prlprg.sexp.TaggedElem;
 import org.prlprg.sexp.UserEnvSXP;
+import org.prlprg.sexp.ValueSXP;
 import org.prlprg.util.StringCase;
 import org.prlprg.util.UnreachableError;
 
@@ -50,7 +51,8 @@ import org.prlprg.util.UnreachableError;
 public class SEXPParseContext implements HasSEXPParseContext {
   /** {@code true} if the character indicates the end of an {@link SEXP} or {@link TaggedElem}. */
   public static boolean delimitsSEXP(Integer c) {
-    return c == -1 || c == '|' || c == ',' || c == ';' || c == ')' || c == ']' || c == '}' || c == '>';
+    return c == -1 || c == '|' || c == ',' || c == ';' || c == ')' || c == ']' || c == '}'
+        || c == '>';
   }
 
   private sealed interface AngleFormType {
@@ -61,7 +63,6 @@ public class SEXPParseContext implements HasSEXPParseContext {
     record Literal(org.prlprg.sexp.parseprint.Literal value) implements AngleFormType {}
 
     record SEXPOrEnvType(org.prlprg.sexp.SEXPOrEnvType value) implements AngleFormType {}
-
 
     @ParseMethod
     private static AngleFormType parse(Parser p) {
@@ -77,7 +78,8 @@ public class SEXPParseContext implements HasSEXPParseContext {
           StringCase.convert(
               s.readJavaIdentifierOrKeyword(), StringCase.SNAKE, StringCase.SCREAMING_SNAKE);
 
-      if (Arrays.stream(org.prlprg.sexp.parseprint.Literal.values()).anyMatch(e -> e.name().equals(id))) {
+      if (Arrays.stream(org.prlprg.sexp.parseprint.Literal.values())
+          .anyMatch(e -> e.name().equals(id))) {
         return new AngleFormType.Literal(org.prlprg.sexp.parseprint.Literal.valueOf(id));
       } else if (Arrays.stream(SEXPType.values()).anyMatch(e -> e.name().equals(id))) {
         return new AngleFormType.SEXPOrEnvType(SEXPType.valueOf(id));
@@ -215,13 +217,13 @@ public class SEXPParseContext implements HasSEXPParseContext {
                   yield SEXPs.list(elems.build());
                 }
                 case SEXPType.LGL,
-                     SEXPType.INT,
-                     SEXPType.REAL,
-                     SEXPType.RAW,
-                     SEXPType.CPLX,
-                     SEXPType.STR,
-                     SEXPType.VEC,
-                     SEXPType.EXPR -> {
+                    SEXPType.INT,
+                    SEXPType.REAL,
+                    SEXPType.RAW,
+                    SEXPType.CPLX,
+                    SEXPType.STR,
+                    SEXPType.VEC,
+                    SEXPType.EXPR -> {
                   var elems = new ArrayList<>();
                   if (!s.nextCharIs('>') && !s.nextCharIs('|')) {
                     if (s.nextCharsAre("...")) {
@@ -261,7 +263,9 @@ public class SEXPParseContext implements HasSEXPParseContext {
                     case REAL -> SEXPs.real(elems.stream().mapToDouble(e -> (double) e).toArray());
                     case RAW ->
                         SEXPs.raw(
-                            elems.stream().map(e -> (byte) e).collect(ImmutableList.toImmutableList()));
+                            elems.stream()
+                                .map(e -> (byte) e)
+                                .collect(ImmutableList.toImmutableList()));
                     case CPLX ->
                         SEXPs.complex(
                             elems.stream()
@@ -274,10 +278,14 @@ public class SEXPParseContext implements HasSEXPParseContext {
                                 .collect(ImmutableList.toImmutableList()));
                     case VEC ->
                         SEXPs.vec(
-                            elems.stream().map(e -> (SEXP) e).collect(ImmutableList.toImmutableList()));
+                            elems.stream()
+                                .map(e -> (SEXP) e)
+                                .collect(ImmutableList.toImmutableList()));
                     case EXPR ->
                         SEXPs.expr(
-                            elems.stream().map(e -> (SEXP) e).collect(ImmutableList.toImmutableList()));
+                            elems.stream()
+                                .map(e -> (SEXP) e)
+                                .collect(ImmutableList.toImmutableList()));
                     default -> throw new UnreachableError();
                   };
                 }
@@ -290,7 +298,11 @@ public class SEXPParseContext implements HasSEXPParseContext {
                   var body = p.parse(SEXP.class);
                   yield SEXPs.closure(parameters, body, env, attributes);
                 }
-                case EnvType.USER, EnvType.GLOBAL, EnvType.NAMESPACE, EnvType.BASE, EnvType.EMPTY -> {
+                case EnvType.USER,
+                    EnvType.GLOBAL,
+                    EnvType.NAMESPACE,
+                    EnvType.BASE,
+                    EnvType.EMPTY -> {
                   var refIndex = parseRefIndex(p);
                   if (refs.containsKey(refIndex)) {
                     foundRefIndex = refIndex;
@@ -361,22 +373,32 @@ public class SEXPParseContext implements HasSEXPParseContext {
 
                   if (s.trySkip("parent=")) {
                     if (!hasParent) {
-                      throw s.fail("Environment of type " + sexpOrEnvType + " doesn't have an explicit parent");
+                      throw s.fail(
+                          "Environment of type "
+                              + sexpOrEnvType
+                              + " doesn't have an explicit parent");
                     }
 
                     try {
                       env.setParent(p.parse(EnvSXP.class));
                     } catch (UnsupportedOperationException e) {
                       throw s.fail(
-                          "Environment of type " + sexpOrEnvType + " can't have a parent of this type", e);
+                          "Environment of type "
+                              + sexpOrEnvType
+                              + " can't have a parent of this type",
+                          e);
                     }
                   } else if (hasParent) {
-                    throw s.fail("Environment of type " + sexpOrEnvType + " must have an explicit parent");
+                    throw s.fail(
+                        "Environment of type " + sexpOrEnvType + " must have an explicit parent");
                   }
 
                   if (s.nextCharIs('(')) {
                     if (!hasBindings) {
-                      throw s.fail("Environment of type " + sexpOrEnvType + " doesn't have explicit bindings");
+                      throw s.fail(
+                          "Environment of type "
+                              + sexpOrEnvType
+                              + " doesn't have explicit bindings");
                     }
 
                     var bindings = parseList(p.withContext(forBindings));
@@ -386,18 +408,21 @@ public class SEXPParseContext implements HasSEXPParseContext {
                         throw s.fail("Binding " + i + "has no tag");
                       }
                       if (env.getLocal(binding.tag()).isPresent()) {
-                        throw s.fail("Duplicate binding (second at index " + i + "): " + binding.tag());
+                        throw s.fail(
+                            "Duplicate binding (second at index " + i + "): " + binding.tag());
                       }
                       env.set(binding.tag(), binding.value());
                     }
                   } else if (hasBindings) {
-                    throw s.fail("Environment of type " + sexpOrEnvType + " must have explicit bindings");
+                    throw s.fail(
+                        "Environment of type " + sexpOrEnvType + " must have explicit bindings");
                   }
 
                   yield env;
                 }
                 case SEXPType.ENV ->
-                    throw s.fail("ENV SEXP must have a specific type (one of the `EnvType` instances)");
+                    throw s.fail(
+                        "ENV SEXP must have a specific type (one of the `EnvType` instances)");
                 case SEXPType.BCODE -> {
                   var refIndex = parseRefIndex(p);
                   if (refs.containsKey(refIndex)) {
@@ -421,7 +446,7 @@ public class SEXPParseContext implements HasSEXPParseContext {
                 case SEXPType.PROM -> {
                   s.assertAndSkip("env=");
                   var env = p.parse(EnvSXP.class);
-                  var val = s.trySkip("val=") ? p.parse(SEXP.class) : null;
+                  var val = s.trySkip("val=") ? p.parse(ValueSXP.class) : null;
                   s.assertAndSkip('⇒');
                   var expr = p.parse(SEXP.class);
                   yield new PromSXP<>(expr, val, env);
@@ -443,7 +468,13 @@ public class SEXPParseContext implements HasSEXPParseContext {
 
           if (foundRefIndex != -1) {
             if ((base instanceof EnvSXP e ? e.envType() : base.type()) != sexpOrEnvType) {
-              throw s.fail("Ref " + base + " at index " + foundRefIndex + " has wrong type: " + sexpOrEnvType);
+              throw s.fail(
+                  "Ref "
+                      + base
+                      + " at index "
+                      + foundRefIndex
+                      + " has wrong type: "
+                      + sexpOrEnvType);
             }
           } else {
             if (sexpOrEnvType != SEXPType.CLO && s.trySkip("|")) {

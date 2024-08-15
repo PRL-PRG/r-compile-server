@@ -9,6 +9,9 @@ import org.prlprg.ir.cfg.BB;
 import org.prlprg.ir.cfg.FrameState;
 import org.prlprg.ir.cfg.Instr;
 import org.prlprg.ir.cfg.Node;
+import org.prlprg.ir.effect.Arbitrary;
+import org.prlprg.ir.effect.CanDeopt;
+import org.prlprg.ir.effect.Leaks;
 import org.prlprg.rshruntime.DeoptReason;
 import org.prlprg.sexp.EnvSXP;
 import org.prlprg.util.Pair;
@@ -22,8 +25,9 @@ public sealed interface JumpData extends InstrData {
   /** Replace "return" with a new target. */
   default JumpData replaceReturnWith(BB newTarget) {
     return switch (this) {
-      case NonLocalReturn _ -> throw new UnsupportedOperationException(
-          "Can't inline or otherwise replace the return, because we don't know if it's local");
+      case NonLocalReturn _ ->
+          throw new UnsupportedOperationException(
+              "Can't inline or otherwise replace the return, because we don't know if it's local");
       case Return _ -> new Goto(newTarget);
       default -> this;
     };
@@ -31,8 +35,7 @@ public sealed interface JumpData extends InstrData {
 
   record Goto(BB next) implements JumpData {}
 
-  record Branch(Node<? extends Boolean> condition, BB ifTrue, BB ifFalse)
-      implements JumpData {}
+  record Branch(Node<? extends Boolean> condition, BB ifTrue, BB ifFalse) implements JumpData {}
 
   @Effect(value = Leaks.class, inputs = "value")
   // TODO: Effect on `env`?
@@ -54,11 +57,13 @@ public sealed interface JumpData extends InstrData {
     }
 
     @SuppressWarnings("UnstableApiUsage")
-    public Stream<Pair<Node<? extends Boolean>, org.prlprg.rshruntime.DeoptReason>> streamAssumptionData() {
+    public Stream<Pair<Node<? extends Boolean>, org.prlprg.rshruntime.DeoptReason>>
+        streamAssumptionData() {
       return Streams.zip(tests.stream(), failReasons.stream(), Pair::new);
     }
   }
 
+  @Effect(CanDeopt.class)
   @Effect(Arbitrary.class)
   record Deopt(
       Node<? extends FrameState> frameState,

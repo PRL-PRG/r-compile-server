@@ -30,7 +30,8 @@ public sealed interface Node<T> permits LocalNode, GlobalNode {
   @SuppressWarnings("unchecked")
   default <U> Node<? extends U> cast(Class<U> clazz) {
     if (!type().isSubsetOf(clazz)) {
-      var myClass = Objects.requireNonNull(type().clazz(), "the nothing type is a subset of all classes");
+      var myClass =
+          Objects.requireNonNull(type().clazz(), "the nothing type is a subset of all classes");
       assert myClass != clazz;
 
       if (myClass.getSimpleName().equals(clazz.getSimpleName())) {
@@ -72,8 +73,10 @@ public sealed interface Node<T> permits LocalNode, GlobalNode {
     return type().isSubsetOf(otherType);
   }
 
-  /** Whether this node's {@link #type()}} is a subtype of the {@link RType} representing the given
-   * class (incl. identical). */
+  /**
+   * Whether this node's {@link #type()}} is a subtype of the {@link RType} representing the given
+   * class (incl. identical).
+   */
   default boolean isSubtypeOf(Class<?> otherType) {
     return type().isSubsetOf(otherType);
   }

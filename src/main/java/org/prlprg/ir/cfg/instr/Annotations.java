@@ -13,7 +13,8 @@ import org.prlprg.ir.effect.REffect;
 import org.prlprg.ir.type.RType;
 import org.prlprg.ir.type.sexp.RSexpType;
 
-/** On {@link InstrData}, specifies that an instruction created with this data's {@linkplain
+/**
+ * On {@link InstrData}, specifies that an instruction created with this data's {@linkplain
  * Instr#fun() function} is {@link IFun#of(Object)} called with the first component.
  *
  * <p>An {@link InstrData} annotated with this can't also be annotated with {@link Intrinsic}.
@@ -23,7 +24,8 @@ import org.prlprg.ir.type.sexp.RSexpType;
 @Target(ElementType.TYPE)
 @interface Fun {}
 
-/** On {@link InstrData}, specifies that an instruction created with this data's {@linkplain
+/**
+ * On {@link InstrData}, specifies that an instruction created with this data's {@linkplain
  * Instr#fun() function} is {@link IFun.Static#named(String)} called with the given name.
  *
  * <p>An {@link InstrData} annotated with this can't also be annotated with {@link Fun}.
@@ -36,16 +38,17 @@ import org.prlprg.ir.type.sexp.RSexpType;
   String value();
 }
 
-/** On an {@link InstrData} component, specifies that an {@linkplain Instr#inputs() input}
+/**
+ * On an {@link InstrData} component, specifies that an {@linkplain Instr#inputs() input}
  * corresponding to this component has a type refined further than the component's class.
  *
  * <p>The string value is parsed into an {@link RType}, and inputs corresponding to the record
  * component are checked at runtime to conform to this type.
  *
  * <p>Inputs are already checked at runtime to conform to their corresponding record component's
- * Java class. However, classes aren't as specific as {@link RType}s, e.g. you can have an
- * {@link RType} for a vector of specific length, but there's no const generic in Java, so no
- * corresponding Java class. Hence the reason this annotation exists.
+ * Java class. However, classes aren't as specific as {@link RType}s, e.g. you can have an {@link
+ * RType} for a vector of specific length, but there's no const generic in Java, so no corresponding
+ * Java class. Hence the reason this annotation exists.
  */
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
@@ -55,7 +58,8 @@ import org.prlprg.ir.type.sexp.RSexpType;
   String value();
 }
 
-/** On an {@link InstrData} component, specifies that an input corresponding to the component is
+/**
+ * On an {@link InstrData} component, specifies that an input corresponding to the component is
  * "consumed", so the value must be implicitly copied before the instruction unless it's owned and
  * the input is its last use.
  *
@@ -67,7 +71,8 @@ import org.prlprg.ir.type.sexp.RSexpType;
 @Target(ElementType.RECORD_COMPONENT)
 @interface Consume {}
 
-/** On an {@link InstrData} component, specifies that the component doesn't correspond to one input
+/**
+ * On an {@link InstrData} component, specifies that the component doesn't correspond to one input
  * per instruction, but zero to many.
  *
  * <p>The component must be the last in the record and an array. It's analogous to a "variardic
@@ -77,7 +82,8 @@ import org.prlprg.ir.type.sexp.RSexpType;
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.RECORD_COMPONENT)
 @interface VarInputs {
-  /** The refined type of each input.
+  /**
+   * The refined type of each input.
    *
    * <p>This has the same function as {@link Input#value()}, except instead of being applied to the
    * whole component, it's applied to each element (the type of each element is refined).
@@ -85,7 +91,8 @@ import org.prlprg.ir.type.sexp.RSexpType;
   String value();
 }
 
-/** On an {@link InstrData}, specifies that an instruction created from the data has the effect that
+/**
+ * On an {@link InstrData}, specifies that an instruction created from the data has the effect that
  * is constructed by the given class and inputs.
  */
 @Documented
@@ -98,11 +105,12 @@ import org.prlprg.ir.type.sexp.RSexpType;
   String[] inputs() default {};
 }
 
-/** Multiple {@link Effect} annotations.
+/**
+ * Multiple {@link Effect} annotations.
  *
  * <p>This annotation shouldn't be written explicitly, instead add multiple {@link Effect}
- * annotations and it gets added implicitly. See
- * <a href="https://docs.oracle.com/javase/tutorial/java/annotations/repeating.html">Java repeatable
+ * annotations and it gets added implicitly. See <a
+ * href="https://docs.oracle.com/javase/tutorial/java/annotations/repeating.html">Java repeatable
  * annotations.</a>
  */
 @Documented
@@ -112,7 +120,8 @@ import org.prlprg.ir.type.sexp.RSexpType;
   Effect[] value();
 }
 
-/** On an {@link InstrData}, specifies that the instruction has the given number of outputs of the
+/**
+ * On an {@link InstrData}, specifies that the instruction has the given number of outputs of the
  * given types.
  *
  * <p>Types are represented by strings that are parsed into {@link RType}s.
@@ -124,7 +133,8 @@ import org.prlprg.ir.type.sexp.RSexpType;
   String[] value();
 }
 
-/** Applied to an {@link InstrData} with {@link Outputs}, intersects the output type with other
+/**
+ * Applied to an {@link InstrData} with {@link Outputs}, intersects the output type with other
  * inputs and outputs based on the given enum.
  */
 @Documented
@@ -143,23 +153,29 @@ enum GenericOutput {
     return switch (this) {
       case INTERSECT_VALUE -> {
         if (components.length != 1 || !components[0].getName().equals("value")) {
-          throw new IllegalArgumentException("`INTERSECT_VALUE` can only be used with a single component named `value`");
+          throw new IllegalArgumentException(
+              "`INTERSECT_VALUE` can only be used with a single component named `value`");
         }
 
         yield output.intersectionOf(InstrDataUtil.componentInputType(components[0]));
       }
       case FORCE_MAYBE_PROM -> {
-        if (components.length < 1 || !components[0].getName().equals("maybeProm")
-            || !(InstrDataUtil.componentInputType(components[0]) instanceof RSexpType maybePromType)) {
-          throw new IllegalArgumentException("`FORCE_MAYBE_PROM` can only be used with a component that is an `SEXP` named `maybeProm`");
+        if (components.length < 1
+            || !components[0].getName().equals("maybeProm")
+            || !(InstrDataUtil.componentInputType(components[0])
+                instanceof RSexpType maybePromType)) {
+          throw new IllegalArgumentException(
+              "`FORCE_MAYBE_PROM` can only be used with a component that is an `SEXP` named `maybeProm`");
         }
 
         yield output.intersectionOf(maybePromType.forced());
       }
       case COERCE_VALUE_TO_LOGICAL -> {
-        if (components.length != 1 || !components[0].getName().equals("value")
+        if (components.length != 1
+            || !components[0].getName().equals("value")
             || !(InstrDataUtil.componentInputType(components[0]) instanceof RSexpType valueType)) {
-          throw new IllegalArgumentException("`COERCE_VALUE_TO_LOGICAL` can only be used with a single component that is an `SEXP` named `value`");
+          throw new IllegalArgumentException(
+              "`COERCE_VALUE_TO_LOGICAL` can only be used with a single component that is an `SEXP` named `value`");
         }
 
         yield output.intersectionOf(valueType.coerceToLogical());

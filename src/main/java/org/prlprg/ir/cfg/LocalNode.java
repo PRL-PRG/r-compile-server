@@ -80,12 +80,16 @@ public sealed class LocalNode<T> implements Node<T> permits Param, Phi, InstrOut
    *     #type()}.
    *     <p><b>OR</b> if the ID is taken by another {@link LocalNode} in the {@link CFG}.
    */
-  final void setId(LocalNodeId<T> newId) {
+  final void setId(LocalNodeId<?> newId) {
     var oldId = id();
 
     unsafeSetId(id);
+    // Would throw if `newId` has the wrong generic type.
+    @SuppressWarnings("unchecked")
+    var newIdCasted = (LocalNodeId<T>) newId;
 
-    cfg().record(new SetLocalNodeId<>(oldId, newId), new SetLocalNodeId<>(newId, oldId));
+    cfg()
+        .record(new SetLocalNodeId<>(oldId, newIdCasted), new SetLocalNodeId<>(newIdCasted, oldId));
   }
 
   /**

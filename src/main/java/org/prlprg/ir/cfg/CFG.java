@@ -19,7 +19,6 @@ import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.ir.analysis.CFGAnalyses;
-import org.prlprg.ir.analysis.Contexts;
 import org.prlprg.ir.analysis.DefUses;
 import org.prlprg.ir.analysis.DomTree;
 import org.prlprg.ir.analysis.Loops;
@@ -64,7 +63,6 @@ public class CFG
   private @Nullable DomTree cachedDomTree;
   private @Nullable DefUses cachedDefUses;
   private @Nullable Loops cachedLoops;
-  private @Nullable Contexts cachedContexts;
 
   /** Create a new CFG, with no parameters, a single basic block, and no instructions. */
   public CFG() {
@@ -72,7 +70,7 @@ public class CFG
   }
 
   /** Create a new CFG, with the given parameters, a single basic block, and no instructions. */
-  public CFG(Collection<Param.Args<?>> params) {
+  public CFG(Collection<Param.Args> params) {
     // Entry block
     entry = new BB(this, new BBId(0, "entry"));
     nextBbDisambiguator.add("entry", 0);
@@ -90,6 +88,28 @@ public class CFG
       track(param);
     }
     this.params = paramsBuilder.build();
+  }
+
+  /**
+   * Create a new CFG, with the given parameters, a single basic block, and no instructions.
+   *
+   * @param ignore So the JVM signatures aren't the same (it's ugly, but this is package-private).
+   */
+  CFG(Collection<Param.IdArgs> params, @Nullable Void ignore) {
+    // Entry block
+    entry = new BB(this, new BBId(0, "entry"));
+    nextBbDisambiguator.add("entry", 0);
+    bbs.put(entry.id(), entry);
+    markExit(entry);
+
+    // Params
+    this.params =
+        params.stream()
+            .map(paramArgs -> new Param<>(this, paramArgs.type(), paramArgs.id()))
+            .collect(ImmutableList.toImmutableList());
+    for (var param : this.params) {
+      track(param);
+    }
   }
 
   // region general properties
@@ -151,11 +171,11 @@ public class CFG
     }
 
     var node = (LocalNode<T>) localNodes.get(nodeId);
-    assert nodeId.type() == null || nodeId.type() == node.type()
-        : "node with id has wrong class: "
-            + Objects.requireNonNull(nodeId.type()).getName()
+    assert nodeId.type() == null || Objects.equals(nodeId.type(), node.type())
+        : "node with id has wrong type: "
+            + Objects.requireNonNull(nodeId.type())
             + " -> "
-            + node.type().getName();
+            + node.type();
     return node;
   }
 
@@ -227,14 +247,6 @@ public class CFG
       cachedLoops = CFGCleanup.super.loops();
     }
     return cachedLoops;
-  }
-
-  @Override
-  public Contexts contexts() {
-    if (cachedContexts == null) {
-      cachedContexts = CFGCleanup.super.contexts();
-    }
-    return cachedContexts;
   }
 
   // endregion analyses
@@ -331,7 +343,6 @@ public class CFG
 
   private void invalidateCachesForInstrChange() {
     cachedDefUses = null;
-    cachedContexts = null;
   }
 
   private void invalidateCachesForBbChange() {
@@ -602,7 +613,7 @@ public class CFG
   }
 
   /**
-   * Mark an instructions and/or phis as belonging to this CFG.
+   * Mark instructions and/or phis as belonging to this CFG.
    *
    * @see #track(InstrOrPhi)
    */
@@ -657,9 +668,9 @@ public class CFG
     var id = node.id();
     assert node.type() == id.type()
         : "node's type isn't its ID type: "
-            + node.type().getName()
+            + node.type()
             + " vs "
-            + (id.type() == null ? "null" : Objects.requireNonNull(id.type()).getName());
+            + (id.type() == null ? "null" : Objects.requireNonNull(id.type()));
     var old = localNodes.put(id, node);
     assert old == null : "node with id already tracked: " + id + "\nold: " + old + "\nnew: " + node;
     nextInstrOrPhiDisambiguator.add(id.name(), id.disambiguator());
@@ -677,9 +688,9 @@ public class CFG
     var id = node.id();
     assert node.type() == id.type()
         : "node's type isn't its ID type: "
-            + node.type().getName()
+            + node.type()
             + " vs "
-            + (id.type() == null ? "null" : Objects.requireNonNull(id.type()).getName());
+            + (id.type() == null ? "null" : Objects.requireNonNull(id.type()));
     var removed = localNodes.remove(node.id());
     assert removed != null : "node was never tracked";
     assert removed == node;

@@ -1,4 +1,5 @@
-/** All the different kinds of instructions ({@link org.prlprg.ir.cfg.instr.InstrData}s), and the
+/**
+ * All the different kinds of instructions ({@link org.prlprg.ir.cfg.instr.InstrData}s), and the
  * annotations that determine their properties.
  */
 @ParametersAreNonnullByDefault

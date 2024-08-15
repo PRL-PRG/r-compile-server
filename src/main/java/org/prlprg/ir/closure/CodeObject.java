@@ -5,8 +5,7 @@ import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.ir.cfg.CFG;
 import org.prlprg.ir.cfg.CFGEdit;
 import org.prlprg.ir.cfg.Node;
-import org.prlprg.ir.cfg.instr.StmtData;
-import org.prlprg.ir.type.RSexpType;
+import org.prlprg.ir.type.sexp.RSexpType;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
@@ -43,8 +42,8 @@ public abstract sealed class CodeObject permits Closure, Promise {
    * Returns a list of all {@linkplain Node nodes} that this code object contains belonging to the
    * {@linkplain CFG} it's stored in.
    *
-   * <p>Specifically, the code object would be stored in a CFG via {@link StmtData.MkCls MkCls} or
-   * {@link StmtData.MkProm}), if it's an inner code object. If it's an outermost code object (e.g.
+   * <p>Specifically, the code object would be stored in a CFG via {@code StmtData.MkCls MkCls} or
+   * {@code StmtData.MkProm}), if it's an inner code object. If it's an outermost code object (e.g.
    * outermost closure), this will be empty.
    *
    * @see #unsafeReplaceOuterCfgNode(Node, Node)
@@ -72,7 +71,7 @@ public abstract sealed class CodeObject permits Closure, Promise {
   /**
    * Verify that all {@linkplain #outerCfgNodes() outer CFG nodes} have the correct dynamic type.
    *
-   * <p>For example, verify that an environment value is still {@link RSexpType#ANY_ENV ANY_ENV}.
+   * <p>For example, verify that an environment node is still an instance of {@link RSexpType#ENV}.
    *
    * @throws IllegalStateException If a node has an incorrect dynamic type.
    * @see #outerCfgNodes()

@@ -1,8 +1,6 @@
 package org.prlprg.optimizations;
 
 import org.prlprg.ir.cfg.CFG;
-import org.prlprg.ir.cfg.instr.StmtData.MkCls;
-import org.prlprg.ir.cfg.instr.StmtData.MkProm;
 import org.prlprg.ir.closure.ClosureVersion;
 import org.prlprg.ir.closure.CodeObject;
 import org.prlprg.ir.closure.Promise;
@@ -50,8 +48,8 @@ interface OptimizationPass {
   void doApply(CFG cfg, OptimizationContext ctx);
 
   /**
-   * Whether to recursively transform nested {@linkplain CodeObject code} ({@link MkCls} closures
-   * and {@link MkProm} promises).
+   * Whether to recursively transform nested {@linkplain CodeObject code} ({@code MkCls} closures
+   * and {@code MkProm} promises).
    *
    * <p>Currently we transform all versions of inner closures. However, unless multiple versions are
    * actually used, we'll probably end up making inner closures only have the baseline version, and

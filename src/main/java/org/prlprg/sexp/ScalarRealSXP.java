@@ -1,6 +1,8 @@
 package org.prlprg.sexp;
 
-import com.google.common.math.DoubleMath; /** Simple scalar real = vector of size 1 with no ALTERP, ATTRIB, or OBJECT. */
+import com.google.common.math.DoubleMath;
+
+/** Simple scalar real = vector of size 1 with no ALTERP, ATTRIB, or OBJECT. */
 public final class ScalarRealSXP extends ScalarSXPImpl<Double> implements RealSXP {
   ScalarRealSXP(double data) {
     super(data);

@@ -51,8 +51,10 @@ public sealed interface InstrData permits JumpData, StmtData {
           .map(c -> (Class<? extends InstrData>) c)
           .collect(ImmutableMap.toImmutableMap(Class::getSimpleName, Function.identity()));
 
-  /** Returns {@code this} casted to {@link Record}, which is guaranteed to succeed because all
-   * {@link InstrData} are records. */
+  /**
+   * Returns {@code this} casted to {@link Record}, which is guaranteed to succeed because all
+   * {@link InstrData} are records.
+   */
   default Record asRecord() {
     if (!(this instanceof Record r)) {
       throw new AssertionError("`InstrData` must be record: " + getClass().getSimpleName());
@@ -60,10 +62,11 @@ public sealed interface InstrData permits JumpData, StmtData {
     return r;
   }
 
-  /** Compute and return the {@link Instr#fun()} of an instruction with this data.
+  /**
+   * Compute and return the {@link Instr#fun()} of an instruction with this data.
    *
-   * <p>By default, this does so via reflection and annotations, and throws
-   * {@link InvalidAnnotationError} if the instruction has bad or missing annotations.
+   * <p>By default, this does so via reflection and annotations, and throws {@link
+   * InvalidAnnotationError} if the instruction has bad or missing annotations.
    */
   default IFun fun() {
     var clazz = getClass();
@@ -72,8 +75,7 @@ public sealed interface InstrData permits JumpData, StmtData {
 
     if (hasFunAnnotation && hasIntrinsicAnnotation) {
       throw new InvalidAnnotationError(
-          clazz.getSimpleName(),
-          "`@Fun` and `@Intrinsic` can't both be present");
+          clazz.getSimpleName(), "`@Fun` and `@Intrinsic` can't both be present");
     } else if (hasFunAnnotation) {
       var components = clazz.getRecordComponents();
       if (components.length == 0) {
@@ -82,24 +84,27 @@ public sealed interface InstrData permits JumpData, StmtData {
             "`InstrData` with `@Fun` must have at least one component (the function)");
       }
 
-      return IFun.of(Objects.requireNonNull(Reflection.getComponentValue(asRecord(), components[0])));
+      return IFun.of(
+          Objects.requireNonNull(Reflection.getComponentValue(asRecord(), components[0])));
     } else if (hasIntrinsicAnnotation) {
       return IFun.Static.named(clazz.getAnnotation(Intrinsic.class).value());
     } else {
-      return IFun.Static.named(StringCase.convert(clazz.getSimpleName(), StringCase.PASCAL, StringCase.CAMEL));
+      return IFun.Static.named(
+          StringCase.convert(clazz.getSimpleName(), StringCase.PASCAL, StringCase.CAMEL));
     }
   }
 
-  /** Compute, allocate, and return the {@link Instr#inputs()} of an instruction with this data.
+  /**
+   * Compute, allocate, and return the {@link Instr#inputs()} of an instruction with this data.
    *
-   * <p>By default, this does so via reflection and annotations, and throws
-   * {@link InvalidAnnotationError} if the instruction has bad or missing annotations.
+   * <p>By default, this does so via reflection and annotations, and throws {@link
+   * InvalidAnnotationError} if the instruction has bad or missing annotations.
    *
    * <p>You can modify this array and call {@link #setInputs(CascadingUpdatedInstrs, Object[])} to
    * return an updated {@link InstrData} which is the same class as this, but with the new inputs.
-   * Note that the new inputs must conform to {@link #requiredInputTypes()}. Also note that
-   * {@link #fun()}, {@link #effects()}, and {@link #outputTypes()} may be affected if they depend
-   * on the inputs.
+   * Note that the new inputs must conform to {@link #requiredInputTypes()}. Also note that {@link
+   * #fun()}, {@link #effects()}, and {@link #outputTypes()} may be affected if they depend on the
+   * inputs.
    */
   default Object[] inputs() {
     var inputs = ImmutableList.builder();
@@ -112,11 +117,12 @@ public sealed interface InstrData permits JumpData, StmtData {
     return inputs.build().toArray();
   }
 
-  /** Compute, allocate, and return the {@link Instr#requiredInputTypes()} of an instruction with
+  /**
+   * Compute, allocate, and return the {@link Instr#requiredInputTypes()} of an instruction with
    * this data.
    *
-   * <p>By default, this does so via reflection and annotations, and throws
-   * {@link InvalidAnnotationError} if the instruction has bad or missing annotations.
+   * <p>By default, this does so via reflection and annotations, and throws {@link
+   * InvalidAnnotationError} if the instruction has bad or missing annotations.
    */
   default RType[] requiredInputTypes() {
     var inputTypes = ImmutableList.<RType>builder();
@@ -135,26 +141,25 @@ public sealed interface InstrData permits JumpData, StmtData {
     return inputTypes.build().toArray(RType[]::new);
   }
 
-  /** Create a new {@link InstrData} with the same class as this one, but new inputs.
+  /**
+   * Create a new {@link InstrData} with the same class as this one, but new inputs.
    *
    * <p>The {@link #fun()}, {@link #effects()}, and {@link #outputTypes()}} may also change, if they
    * depend on the inputs. For example, an {@link IFun.Static} {@link #fun()} won't change, but a
-   * {@link IFun.SemiStatic} or {@link IFun.DynamicNode} may. The number of outputs
-   * {@link #outputTypes()}{@code .size()} is guaranteed not to change, because it's guaranteed to
-   * be the same for all instances of a given {@link InstrData} class.
+   * {@link IFun.SemiStatic} or {@link IFun.DynamicNode} may. The number of outputs {@link
+   * #outputTypes()}{@code .size()} is guaranteed not to change, because it's guaranteed to be the
+   * same for all instances of a given {@link InstrData} class.
    *
    * @param cascade For the {@link InputTypeException} message if it gets thrown.
    * @throws IllegalArgumentException If the new inputs are incompatible with the instruction's
-   *                                  required input types or the count is incorrect. Each
-   *                                  instruction is a record: the number of inputs must match the
-   *                                  number of components, and each input's class must be a
-   *                                  subclass of the corresponding component's; unless the last
-   *                                  component is a {@link VarInputs} collection, then there can be
-   *                                  any number of trailing inputs at its index (including zero)
-   *                                  and they must all be subclasses of its element class.
+   *     required input types or the count is incorrect. Each instruction is a record: the number of
+   *     inputs must match the number of components, and each input's class must be a subclass of
+   *     the corresponding component's; unless the last component is a {@link VarInputs} collection,
+   *     then there can be any number of trailing inputs at its index (including zero) and they must
+   *     all be subclasses of its element class.
    * @throws InputTypeException If the {@link Node#type()} of an input is not a subtype of the
-   *                               corresponding {@link Node} component's type parameter (if the
-   *                               input's actual type is wrong, it gets {@link IllegalArgumentException}).
+   *     corresponding {@link Node} component's type parameter (if the input's actual type is wrong,
+   *     it gets {@link IllegalArgumentException}).
    */
   default InstrData setInputs(@Nullable CascadingUpdatedInstrs cascade, Object[] inputs) {
     var newComponentValues = new Object[getClass().getRecordComponents().length];
@@ -191,16 +196,16 @@ public sealed interface InstrData permits JumpData, StmtData {
     return newSelf;
   }
 
-  /** Check that the {@link Node} inputs' {@link Node#type()}s are subtypes of their corresponding
+  /**
+   * Check that the {@link Node} inputs' {@link Node#type()}s are subtypes of their corresponding
    * {@link Node} components' type parameters.
    *
    * @param cascade For the {@link InputTypeException} message if it gets thrown.
    * @throws InputTypeException If the {@link Node#type()} of an input is not a subtype of the
-   *                                corresponding {@link Node} component's type parameter.
-   *                                <p>This is the same exception that would be thrown by
-   *                                calling {@link #setInputs(CascadingUpdatedInstrs, Object[])}
-   *                                given the existing {@link #inputs()} (which were originally
-   *                                valid, but are no longer because the node's type changed).
+   *     corresponding {@link Node} component's type parameter.
+   *     <p>This is the same exception that would be thrown by calling {@link
+   *     #setInputs(CascadingUpdatedInstrs, Object[])} given the existing {@link #inputs()} (which
+   *     were originally valid, but are no longer because the node's type changed).
    */
   default void checkInputNodeTypes(@Nullable CascadingUpdatedInstrs cascade) {
     traverseComponentsAndInputs(
@@ -221,7 +226,6 @@ public sealed interface InstrData permits JumpData, StmtData {
           }
         });
   }
-
 
   private static void traverseComponentsAndInputs(
       InstrData data,
@@ -260,7 +264,7 @@ public sealed interface InstrData permits JumpData, StmtData {
               clazz.getSimpleName(),
               "`@VarInputs` component must not be nullable, but found nullable");
         }
-        var values = ((Object[])Objects.requireNonNull(value));
+        var values = ((Object[]) Objects.requireNonNull(value));
 
         variadicMapper.accept(i, component, values);
       } else {
@@ -269,10 +273,11 @@ public sealed interface InstrData permits JumpData, StmtData {
     }
   }
 
-  /** Compute and return the {@link Instr#effects()} of an instruction with this data.
+  /**
+   * Compute and return the {@link Instr#effects()} of an instruction with this data.
    *
-   * <p>By default, this does so via reflection and annotations, and throws
-   * {@link InvalidAnnotationError} if the instruction has bad or missing annotations.
+   * <p>By default, this does so via reflection and annotations, and throws {@link
+   * InvalidAnnotationError} if the instruction has bad or missing annotations.
    */
   default REffects effects() {
     var effects = new REffects();
@@ -288,16 +293,19 @@ public sealed interface InstrData permits JumpData, StmtData {
       var effectClass = annotation.value();
       var effectInputNames = annotation.inputs();
 
-      var effectInputs = Arrays.stream(effectInputNames)
-          .map(inputName ->
-              Arrays.stream(components)
-                  .filter(c -> c.getName().equals(inputName))
-                  .findFirst()
-                  .orElseThrow(() ->
-                      new InvalidAnnotationError(
-                          getClass().getSimpleName(),
-                          "Input named " + inputName + " not found in components")))
-          .toArray();
+      var effectInputs =
+          Arrays.stream(effectInputNames)
+              .map(
+                  inputName ->
+                      Arrays.stream(components)
+                          .filter(c -> c.getName().equals(inputName))
+                          .findFirst()
+                          .orElseThrow(
+                              () ->
+                                  new InvalidAnnotationError(
+                                      getClass().getSimpleName(),
+                                      "Input named " + inputName + " not found in components")))
+              .toArray();
 
       REffect effect;
       try {
@@ -305,7 +313,9 @@ public sealed interface InstrData permits JumpData, StmtData {
       } catch (IllegalArgumentException e) {
         throw new InvalidAnnotationError(
             getClass().getSimpleName(),
-            "Malformed effect " + effectClass.getSimpleName() + " and inputs "
+            "Malformed effect "
+                + effectClass.getSimpleName()
+                + " and inputs "
                 + Arrays.toString(effectInputs),
             e);
       }
@@ -316,11 +326,12 @@ public sealed interface InstrData permits JumpData, StmtData {
     return effects;
   }
 
-  /** Compute and return the {@link Node#type()}s of the {@link Instr#outputs()} of an instruction
+  /**
+   * Compute and return the {@link Node#type()}s of the {@link Instr#outputs()} of an instruction
    * with this data.
    *
-   * <p>By default, this does so via reflection and annotations, and throws
-   * {@link InvalidAnnotationError} if the instruction has bad or missing annotations.
+   * <p>By default, this does so via reflection and annotations, and throws {@link
+   * InvalidAnnotationError} if the instruction has bad or missing annotations.
    */
   @SuppressWarnings("UnstableApiUsage")
   default @Unmodifiable List<? extends RType> outputTypes() {
@@ -337,16 +348,18 @@ public sealed interface InstrData permits JumpData, StmtData {
       return List.of();
     }
 
-    var outputTypes = Arrays.stream(outputs.value()).map(output -> {
-      try {
-        return RType.parse(output);
-      } catch (ParseException e) {
-        throw new InvalidAnnotationError(
-            outputs,
-            "Malformed `RType` in `@Outputs`: `" + output + "`",
-            e);
-      }
-    }).toList();
+    var outputTypes =
+        Arrays.stream(outputs.value())
+            .map(
+                output -> {
+                  try {
+                    return RType.parse(output);
+                  } catch (ParseException e) {
+                    throw new InvalidAnnotationError(
+                        outputs, "Malformed `RType` in `@Outputs`: `" + output + "`", e);
+                  }
+                })
+            .toList();
 
     if (outputsGeneric == null) {
       return outputTypes;
@@ -356,24 +369,30 @@ public sealed interface InstrData permits JumpData, StmtData {
       throw new InvalidAnnotationError(
           getClass().getSimpleName(),
           "`@Outputs` and `@OutputsGeneric` must have the same number of values: "
-              + outputTypes.size() + " != " + outputsGeneric.value().length);
+              + outputTypes.size()
+              + " != "
+              + outputsGeneric.value().length);
     }
 
     var components = getClass().getRecordComponents();
     var values = Reflection.getComponentValues(asRecord());
 
     return Streams.zip(
-        outputTypes.stream(),
-        Arrays.stream(outputsGeneric.value()),
-        (outputType, genericExpression) -> genericExpression.apply(outputType, components, values)).toList();
+            outputTypes.stream(),
+            Arrays.stream(outputsGeneric.value()),
+            (outputType, genericExpression) ->
+                genericExpression.apply(outputType, components, values))
+        .toList();
   }
 
-  /** Run sanity checks. Either does nothing or throws {@link RuntimeException}.
+  /**
+   * Run sanity checks. Either does nothing or throws {@link RuntimeException}.
    *
    * <p>Specifically:
+   *
    * <ul>
    *   <li>Check that all input nodes' {@link Node#type()}s are correct (since this isn't enforced
-   *   by Java, since they are generic).
+   *       by Java, since they are generic).
    *   <li>Any annotation-specific or instruction-specific checks.
    * </ul>
    */
@@ -387,21 +406,26 @@ public sealed interface InstrData permits JumpData, StmtData {
 }
 
 class InstrDataUtil {
-  /** Returns the required type of an input corresponding to the given component.
+  /**
+   * Returns the required type of an input corresponding to the given component.
    *
-   * <p>Any value that is assigned to the input (e.g. in
-   * {@link InstrData#setInputs(CascadingUpdatedInstrs, Object[])} is checked to be an instance of
-   * this required type, and an {@link InputTypeException} is thrown if it isn't one.
+   * <p>Any value that is assigned to the input (e.g. in {@link
+   * InstrData#setInputs(CascadingUpdatedInstrs, Object[])} is checked to be an instance of this
+   * required type, and an {@link InputTypeException} is thrown if it isn't one.
    *
    * @throws AssertionError If an {@link RType} can't be extracted from the component's combination
-   * of annotations and type because they're nonsensical (e.g. {@code Node<? extends Node…>}).
+   *     of annotations and type because they're nonsensical (e.g. {@code Node<? extends Node…>}).
    * @throws UnsupportedOperationException If an {@link RType} could theoretically be extracted from
-   * the component's combination of annotations and type, but we didn't implement it.
+   *     the component's combination of annotations and type, but we didn't implement it.
    */
   static RType componentInputType(RecordComponent component) {
-    var inferredType = componentInputTypeFromClass(component.getGenericType(), component.getAnnotation(VarInputs.class));
-    var explicitType = component.isAnnotationPresent(Input.class) ? componentInputTypeFromAnnotation(
-        component.getAnnotation(Input.class)) : null;
+    var inferredType =
+        componentInputTypeFromClass(
+            component.getGenericType(), component.getAnnotation(VarInputs.class));
+    var explicitType =
+        component.isAnnotationPresent(Input.class)
+            ? componentInputTypeFromAnnotation(component.getAnnotation(Input.class))
+            : null;
 
     if (explicitType == null) {
       return inferredType;
@@ -409,7 +433,9 @@ class InstrDataUtil {
       if (!explicitType.isSubsetOf(inferredType)) {
         throw new InvalidAnnotationError(
             component.getAnnotation(Input.class),
-            "Explicit input type " + explicitType + " must be a subset of inferred input type "
+            "Explicit input type "
+                + explicitType
+                + " must be a subset of inferred input type "
                 + inferredType);
       }
 
@@ -417,13 +443,13 @@ class InstrDataUtil {
     }
   }
 
-  private static RType componentInputTypeFromClass(Type type, @Nullable VarInputs varInputsAnnotation) {
+  private static RType componentInputTypeFromClass(
+      Type type, @Nullable VarInputs varInputsAnnotation) {
     // If var-inputs, the input type is the element type.
     if (varInputsAnnotation != null) {
       if (!(type instanceof GenericArrayType genericArrayType)) {
         throw new InvalidAnnotationError(
-            varInputsAnnotation,
-            "`@VarInputs` component must be an array, but found " + type);
+            varInputsAnnotation, "`@VarInputs` component must be an array, but found " + type);
       }
 
       // The following code sets `type` to the array *element* type.
@@ -435,7 +461,8 @@ class InstrDataUtil {
     // `Object` or `…`, respectively.
     if (type instanceof ParameterizedType p && p.getRawType() == Node.class) {
       if (!(p.getActualTypeArguments()[0] instanceof WildcardType w)) {
-        throw new AssertionError("`Node` component must have a wildcard type parameter (`Node<? extends …>`)");
+        throw new AssertionError(
+            "`Node` component must have a wildcard type parameter (`Node<? extends …>`)");
       }
 
       type = w.getLowerBounds().length == 0 ? Object.class : w.getLowerBounds()[0];
@@ -468,25 +495,28 @@ class InstrDataUtil {
       throw new AssertionError("Only a `@VarArgs` component can be an array type");
     }
     if (type instanceof ParameterizedType p
-        && Arrays.stream(p.getActualTypeArguments()).allMatch(arg -> arg instanceof WildcardType w && w.getLowerBounds().length == 0)) {
+        && Arrays.stream(p.getActualTypeArguments())
+            .allMatch(arg -> arg instanceof WildcardType w && w.getLowerBounds().length == 0)) {
       type = p.getRawType();
     }
     if (!(type instanceof Class<?> clazz)) {
-      throw new UnsupportedOperationException("Need to add code to extract a detailed RType from an " + type);
+      throw new UnsupportedOperationException(
+          "Need to add code to extract a detailed RType from an " + type);
     }
     if (clazz.isPrimitive()) {
       clazz = Classes.boxed(clazz);
     }
 
     var base = RType.of(clazz);
-    return isPromise ? ((RSexpType)base).promiseWrapped() : base;
+    return isPromise ? ((RSexpType) base).promiseWrapped() : base;
   }
 
   private static RType componentInputTypeFromAnnotation(Input annotation) {
     try {
       return RType.parse(annotation.value());
     } catch (ParseException e) {
-      throw new InvalidAnnotationError(annotation, "Malformed `RType`: `" + annotation.value() + "`", e);
+      throw new InvalidAnnotationError(
+          annotation, "Malformed `RType`: `" + annotation.value() + "`", e);
     }
   }
 }

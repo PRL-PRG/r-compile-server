@@ -1,7 +1,6 @@
 package org.prlprg.ir.type.sexp;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import org.prlprg.sexp.SEXPType;
 import org.prlprg.sexp.UserEnvSXP;
 import org.prlprg.sexp.ValueSXP;

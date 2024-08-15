@@ -147,7 +147,8 @@ public sealed interface RValueType extends BoundedLattice<RValueType>
     return null;
   }
 
-  /** The class of {@link ValueSXP} this type represents.
+  /**
+   * The class of {@link ValueSXP} this type represents.
    *
    * <p>Specifically, the most specific subclass of {@link ValueSXP} that is guaranteed to be an
    * instance of this type.

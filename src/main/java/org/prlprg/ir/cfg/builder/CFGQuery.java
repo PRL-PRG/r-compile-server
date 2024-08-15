@@ -23,12 +23,11 @@ import org.prlprg.ir.cfg.Param;
 import org.prlprg.ir.cfg.Phi;
 import org.prlprg.ir.cfg.PhiId;
 import org.prlprg.ir.cfg.instr.JumpData.Deopt;
-import org.prlprg.ir.cfg.instr.StmtData.MkCls;
-import org.prlprg.ir.cfg.instr.StmtData.MkProm;
 import org.prlprg.ir.closure.ClosureVersion;
 import org.prlprg.ir.closure.ClosureVersion.CallContext;
 import org.prlprg.ir.closure.CodeObject;
 import org.prlprg.ir.closure.Promise;
+import org.prlprg.ir.effect.CanDeopt;
 
 public interface CFGQuery {
   // region general properties
@@ -83,7 +82,8 @@ public interface CFGQuery {
   @UnmodifiableView
   Collection<BBId> bbIds();
 
-  /** A view of the CFG's parameters.
+  /**
+   * A view of the CFG's parameters.
    *
    * <p>If this is the CFG of a {@link ClosureVersion}, there are the parameters, with types that
    * are guaranteed by the version's {@link CallContext}. If this is the CFG of a {@link Promise},
@@ -283,7 +283,7 @@ public interface CFGQuery {
   /**
    * Iterate through inner {@link CodeObject}s: inner data-structures containing more CFGs.
    *
-   * <p>Specifically, visits the closure in every {@link MkCls} and promise in every {@link MkProm}.
+   * <p>Specifically, visits the closure in every {@code MkCls} and promise in every {@code MkProm}.
    *
    * <p>The order is deterministic but otherwise unspecified.
    */
@@ -302,7 +302,8 @@ public interface CFGQuery {
   // region misc
   /** Does the CFG have a {@link Deopt} instruction? */
   default boolean canDeopt() {
-    return exits().stream().anyMatch(bb -> bb.jump() != null && bb.jump().effects().canDeopt());
+    return exits().stream()
+        .anyMatch(bb -> bb.jump() != null && bb.jump().effects().containsAny(new CanDeopt()));
   }
   // endregion misc
 }

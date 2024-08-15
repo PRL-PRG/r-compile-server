@@ -14,8 +14,8 @@ public final class InstrOutput<T> extends LocalNode<T> {
   private final Instr origin;
 
   /**
-   * Downcast {@code InstrOutput<? extends A>} to {@code InstrOutput<? extends B>} where
-   * {@code B &lt;: A}.
+   * Downcast {@code InstrOutput<? extends A>} to {@code InstrOutput<? extends B>} where {@code B
+   * &lt;: A}.
    *
    * <p>This is needed due to Java's type erasure: see {@link #type()} for more details.
    *
@@ -25,6 +25,7 @@ public final class InstrOutput<T> extends LocalNode<T> {
   public <U> InstrOutput<? extends U> cast(Class<U> clazz) {
     return (InstrOutput<U>) super.cast(clazz);
   }
+
   InstrOutput(Instr origin, RType type) {
     super(origin.cfg(), type, origin.cfg().uniqueLocalId());
     this.origin = origin;

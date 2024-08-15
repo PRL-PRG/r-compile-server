@@ -5,8 +5,8 @@ import java.util.Optional;
 import org.prlprg.primitive.Names;
 
 /** Symbol which isn't "unbound value" or "missing arg" */
-public sealed class RegSymSXP implements SymSXP, StrOrRegSymSXP, RegSymOrLangSXP permits
-    DotsSymSXP {
+public sealed class RegSymSXP implements SymSXP, StrOrRegSymSXP, RegSymOrLangSXP
+    permits DotsSymSXP {
   private final String name;
   private final String toString;
 
@@ -74,4 +74,3 @@ public sealed class RegSymSXP implements SymSXP, StrOrRegSymSXP, RegSymOrLangSXP
     return toString;
   }
 }
-

@@ -164,22 +164,22 @@ final class MapSequencedCollectionView<I, O> implements SequencedCollection<O> {
       }
 
       @Override
-      public boolean containsAll(@NotNull Collection<?> c) {
+      public boolean containsAll(@Nonnull Collection<?> c) {
         return MapSequencedCollectionView.this.containsAll(c);
       }
 
       @Override
-      public boolean addAll(@NotNull Collection<? extends O> c) {
+      public boolean addAll(@Nonnull Collection<? extends O> c) {
         return MapSequencedCollectionView.this.addAll(c);
       }
 
       @Override
-      public boolean removeAll(@NotNull Collection<?> c) {
+      public boolean removeAll(@Nonnull Collection<?> c) {
         return MapSequencedCollectionView.this.removeAll(c);
       }
 
       @Override
-      public boolean retainAll(@NotNull Collection<?> c) {
+      public boolean retainAll(@Nonnull Collection<?> c) {
         return MapSequencedCollectionView.this.retainAll(c);
       }
 

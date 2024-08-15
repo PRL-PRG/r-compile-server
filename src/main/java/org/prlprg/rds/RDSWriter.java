@@ -113,12 +113,14 @@ public class RDSWriter implements Closeable {
         // Otherwise, write the sexp as normal
         switch (s) {
           case RegSymSXP sym -> writeRegSymbol(sym);
-          case MissingSXP _ -> throw new UnsupportedOperationException("can't directly serialize the missing value");
+          case MissingSXP _ ->
+              throw new UnsupportedOperationException("can't directly serialize the missing value");
           case null -> throw new UnsupportedOperationException("can't serialize the unbound value");
           case EnvSXP env -> writeEnv(env);
           case ListSXP list -> writeListSXP(list);
           case LangSXP lang -> writeLangSXP(lang);
-          case DotsListSXP _ -> throw new UnsupportedOperationException("can't directly serialize a dots list");
+          case DotsListSXP _ ->
+              throw new UnsupportedOperationException("can't directly serialize a dots list");
           case PromSXP<?> prom -> writePromSXP(prom);
           case CloSXP clo -> writeCloSXP(clo);
           case BuiltinOrSpecialSXP bos -> writeBuiltinOrSpecialSXP(bos);
@@ -210,7 +212,7 @@ public class RDSWriter implements Closeable {
     //  representation of this in our environments
     return new Flags(
         rdsType(s),
-        new GPFlags(), 
+        new GPFlags(),
         s != null && s.isObject(),
         s != null && s.hasAttributes(),
         s != null && hasTag(s));
@@ -319,7 +321,7 @@ public class RDSWriter implements Closeable {
     // Write the symbol
     writeChars(rs.name());
   }
-  
+
   private void writeBuiltinOrSpecialSXP(BuiltinOrSpecialSXP bos) {
     // For now, we throw an exception upon writing any SpecialSXP or BuiltinSXP. This is because
     // RDS serializes builtins via their name, but we do not have any (fully implemented) construct
@@ -463,17 +465,15 @@ public class RDSWriter implements Closeable {
             scanForCircles(lang.fun(), reps, seen);
             lang.args().values().forEach((el) -> scanForCircles(el, reps, seen));
           }
-          // For ListSXP, we scan the values
-          case ListSXP list ->
-              list.values().forEach((el) -> scanForCircles(el, reps, seen));
+            // For ListSXP, we scan the values
+          case ListSXP list -> list.values().forEach((el) -> scanForCircles(el, reps, seen));
           case DotsListSXP _ -> {
             // Do nothing
           }
         }
       }
-      // For bytecode, we scan the constant pool
-      case BCodeSXP bc ->
-        bc.bc().consts().forEach((el) -> scanForCircles(el, reps, seen));
+        // For bytecode, we scan the constant pool
+      case BCodeSXP bc -> bc.bc().consts().forEach((el) -> scanForCircles(el, reps, seen));
 
       default -> {
         // do nothing
@@ -580,9 +580,8 @@ public class RDSWriter implements Closeable {
           out.writeInt(c.type().i);
           writeByteCode1(bc, reps, nextRepIndex);
         }
-        // writeBCLang writes the type i
-        case AbstractPairListSXP l ->
-          writeByteCodeLang(l, reps, nextRepIndex);
+          // writeBCLang writes the type i
+        case AbstractPairListSXP l -> writeByteCodeLang(l, reps, nextRepIndex);
         default -> {
           out.writeInt(c.type().i);
           writeItem(c);

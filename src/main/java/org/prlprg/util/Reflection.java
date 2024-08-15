@@ -68,7 +68,11 @@ public class Reflection {
    */
   public static @Nullable Object getComponentValue(Record target, RecordComponent component) {
     try {
-      return component.getAccessor().invoke(target);
+      // The class itself may not be public.
+      var accessor = component.getAccessor();
+      accessor.setAccessible(true);
+
+      return accessor.invoke(target);
     } catch (InvocationTargetException e) {
       if (e.getCause() instanceof RuntimeException e1) {
         throw e1;

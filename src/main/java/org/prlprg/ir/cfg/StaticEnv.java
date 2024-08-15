@@ -2,6 +2,7 @@ package org.prlprg.ir.cfg;
 
 import com.google.common.collect.ImmutableMap;
 import java.util.stream.Stream;
+import org.prlprg.ir.type.sexp.RSexpType;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.sexp.EnvSXP;
@@ -44,8 +45,8 @@ final class StaticEnvImpl implements StaticEnv {
   }
 
   @Override
-  public Class<EnvSXP> type() {
-    return EnvSXP.class;
+  public RSexpType type() {
+    return RSexpType.ENV;
   }
 
   @Override

@@ -23,6 +23,9 @@ import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.ir.type.lattice.MaybeNat;
 import org.prlprg.ir.type.lattice.NoOrMaybe;
 import org.prlprg.ir.type.lattice.YesOrMaybe;
+import org.prlprg.ir.type.sexp.AttributesType;
+import org.prlprg.ir.type.sexp.RFunType;
+import org.prlprg.ir.type.sexp.RVectorType;
 import org.prlprg.util.Reflection;
 
 public class LatticeTests {
@@ -33,7 +36,6 @@ public class LatticeTests {
               Tuple.of(Maybe.class, Maybe.MAYBE),
               Tuple.of(MaybeNat.class, MaybeNat.UNKNOWN),
               Tuple.of(AttributesType.class, AttributesType.ANY),
-              Tuple.of(RPromiseType.class, RPromiseType.MAYBE_LAZY_MAYBE_PROMISE),
               Tuple.of(RFunType.class, RFunType.ANY),
               Tuple.of(RVectorType.class, RVectorType.ANY))
           .stream()

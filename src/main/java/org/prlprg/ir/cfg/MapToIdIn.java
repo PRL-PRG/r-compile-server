@@ -56,19 +56,21 @@ public sealed interface MapToIdIn<T> {
             .collect(ImmutableList.toImmutableList()));
   }
 
-  /** Call {@link #decode(CFG)} on each element of the list.
+  /**
+   * Call {@link #decode(CFG)} on each element of the list.
    *
-   * @throws IllegalArgumentException If an element isn't a record. */
-  static <T> ImmutableList<T> decodeList(
-      List<? extends MapToIdIn<T>> list, CFG cfg) {
+   * @throws IllegalArgumentException If an element isn't a record.
+   */
+  static <T> ImmutableList<T> decodeList(List<? extends MapToIdIn<T>> list, CFG cfg) {
     return list.stream().map(m -> m.decode(cfg)).collect(ImmutableList.toImmutableList());
   }
 
-  /** Call {@link #decode(CFG)} on each value of the map.
+  /**
+   * Call {@link #decode(CFG)} on each value of the map.
    *
-   * @throws IllegalArgumentException If a value isn't a record. */
-  static <K, V> ImmutableMap<K, V> decodeMap(
-      Map<K, ? extends MapToIdIn<V>> map, CFG cfg) {
+   * @throws IllegalArgumentException If a value isn't a record.
+   */
+  static <K, V> ImmutableMap<K, V> decodeMap(Map<K, ? extends MapToIdIn<V>> map, CFG cfg) {
     return map.entrySet().stream()
         .collect(ImmutableMap.toImmutableMap(Map.Entry::getKey, e -> e.getValue().decode(cfg)));
   }

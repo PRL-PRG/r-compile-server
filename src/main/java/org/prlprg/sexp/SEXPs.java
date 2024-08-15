@@ -51,6 +51,7 @@ public final class SEXPs {
   public static final RegSymSXP ASSIGN_VTMP = symbol("*vtmp*");
 
   static {
+    SYMBOL_POOL.put("...", DOTS_SYMBOL);
     Set.of("TRUE", "FALSE", "NULL", "NA", "Inf", "NaN")
         .forEach(x -> SYMBOL_POOL.put(x, new RegSymSXP(x)));
   }
@@ -518,6 +519,10 @@ public final class SEXPs {
 
   public static RegSymSXP symbol(String name) {
     return SYMBOL_POOL.computeIfAbsent(name, RegSymSXP::new);
+  }
+
+  public static RegSymSXP ddSymbol(int ddNum) {
+    return symbol(".." + ddNum);
   }
 
   public static BuiltinSXP builtin(BuiltinId id) {

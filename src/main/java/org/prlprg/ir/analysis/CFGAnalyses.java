@@ -34,9 +34,4 @@ public interface CFGAnalyses {
   default Loops loops() {
     return new Loops((CFG) this);
   }
-
-  /** Get or compute the context stack at every position in the control-flow graph. */
-  default Contexts contexts() {
-    return new Contexts((CFG) this);
-  }
 }

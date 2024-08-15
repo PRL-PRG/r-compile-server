@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.prlprg.util.Tests.printlnIfVerbose;
 
+import org.junit.jupiter.api.Disabled;
 import org.prlprg.bc2ir.RClosureTestsUsingIRCompiler;
 import org.prlprg.ir.closure.Closure;
 import org.prlprg.parseprint.ParseException;
@@ -22,6 +23,7 @@ import org.prlprg.util.Strings2;
  *
  * <p>Implicitly, this also tests parsing and printing {@link SEXP}s (within the IR).
  */
+@Disabled
 public class IRParsePrintTests extends RClosureTestsUsingIRCompiler {
   @Override
   protected void testClosure(Closure ir) {

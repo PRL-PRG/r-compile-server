@@ -1,21 +1,15 @@
 package org.prlprg.ir.type.sexp;
 
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
-import java.util.stream.Collector;
-import java.util.stream.Collector.Characteristics;
-import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import org.prlprg.ir.cfg.Node;
 import org.prlprg.ir.type.RType;
 import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.ir.type.lattice.NoOrMaybe;
-import org.prlprg.ir.type.lattice.YesOrMaybe;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.primitive.BuiltinId;
@@ -47,14 +41,6 @@ import org.prlprg.util.NotImplementedError;
  *       subclass of {@link SEXP} except {@link SymSXP} there is a unique corresponding subclass of
  *       {@link RValueType}, and most (but not all) subclasses of {@link RValueType} correspond to a
  *       unique subclass of {@link SEXP}.
- *   <li>{@link YesOrMaybe} {@link #isOwned()}: whether the "value" described above has no aliases
- *       <i>on its creation</i>, i.e. we can modify it in-place instead of creating a copy on the
- *       last use, even if that use is consuming. Note that the value may be used by multiple
- *       consuming instructions, in which case it needs to be copied for every one that we can't
- *       prove is the last; additionally, if there is a non-consuming instruction that may be after
- *       the last consuming instruction, we have to copy the value (also consider loops, don't have
- *       to consider reflective instructions because they access environments, not SSA variables
- *       that aren't their arguments).
  *   <li>{@link AttributesType} {@link #attributes()}: the type of the "attributes". Some types of
  *       {@linkplain SEXP}s can have {@linkplain Attributes attributes}, such as "names", "class",
  *       and "dims". This is a type whose instances are those {@link Attributes} objects.
@@ -90,16 +76,6 @@ import org.prlprg.util.NotImplementedError;
  */
 @Immutable
 public non-sealed interface RSexpType extends RSexpTypeHelpers, RType {
-  // Can't be in `RSexpTypeHelpers`, because then `RSexpType.ANY` is ambiguous with `RType.ANY`.
-  /** The type of a value we know absolutely nothing about, besides it being an {@link SEXP}. */
-  RSexpType SEXP =
-      RSexpType.of(
-          RValueType.ANY,
-          YesOrMaybe.MAYBE,
-          AttributesType.ANY,
-          RPromiseType.MAYBE_LAZY_MAYBE_PROMISE,
-          Maybe.MAYBE);
-
   // region main constructor
   /** Create an {@link RSexpType} that represents the given class. */
   static RSexpType of(Class<? extends SEXP> ignored) {
@@ -111,18 +87,14 @@ public non-sealed interface RSexpType extends RSexpTypeHelpers, RType {
    * {@link #promise()}, and {@link #isMissing()} (missingness).
    */
   static RSexpType of(
-      RValueType value,
-      YesOrMaybe isOwned,
-      AttributesType attributes,
-      RPromiseType promise,
-      Maybe isMissing) {
+      RValueType value, AttributesType attributes, RPromiseType promise, Maybe isMissing) {
     if (isMissing == Maybe.YES) {
       return MISSING;
     } else if (value == RValueType.NOTHING || attributes == AttributesType.BOTTOM) {
       return NOTHING;
     }
 
-    var result = new RSexpTypeImpl(value, isOwned, attributes, promise, isMissing);
+    var result = new RSexpTypeImpl(value, attributes, promise, isMissing);
     return RSexpTypeImpl.interned(result);
   }
 
@@ -130,12 +102,8 @@ public non-sealed interface RSexpType extends RSexpTypeHelpers, RType {
    * {@link #promise()}, and {@link #isMissing()} (missingness).
    */
   static RSexpType of(
-      RValueType value,
-      YesOrMaybe isOwned,
-      AttributesType attributes,
-      RPromiseType promise,
-      NoOrMaybe isMissing) {
-    return of(value, isOwned, attributes, promise, Maybe.of(isMissing));
+      RValueType value, AttributesType attributes, RPromiseType promise, NoOrMaybe isMissing) {
+    return of(value, attributes, promise, Maybe.of(isMissing));
   }
 
   // endregion main constructor
@@ -156,28 +124,25 @@ public non-sealed interface RSexpType extends RSexpTypeHelpers, RType {
 
     return RSexpType.of(
         value1 == null ? RValueType.ANY : RValueType.exact(value1),
-        YesOrMaybe.MAYBE,
         value1 == null ? AttributesType.ANY : AttributesType.exact(value1.attributes()),
         promiseWrapped,
         Maybe.NO);
   }
 
   /**
-   * The type of a value (i.e. not a promise), which is also not missing, with the given
-   * {@link RValueType} and attributes.
+   * The type of a value (i.e. not a promise), which is also not missing, with the given {@link
+   * RValueType} and attributes.
    */
-
-  static RSexpType value(RValueType type, YesOrMaybe isOwned, AttributesType attrs) {
-    return of(type, isOwned, attrs, RPromiseType.VALUE, Maybe.NO);
+  static RSexpType value(RValueType type, AttributesType attrs) {
+    return of(type, attrs, RPromiseType.VALUE, Maybe.NO);
   }
 
   /**
    * The type of a value (i.e. not a promise), which is also not missing and has no attributes, with
    * the given {@link RValueType}.
    */
-
-  static RSexpType value(RValueType type, YesOrMaybe isOwned) {
-    return of(type, isOwned, AttributesType.EMPTY, RPromiseType.VALUE, Maybe.NO);
+  static RSexpType value(RValueType type) {
+    return of(type, AttributesType.EMPTY, RPromiseType.VALUE, Maybe.NO);
   }
 
   /**
@@ -187,7 +152,7 @@ public non-sealed interface RSexpType extends RSexpTypeHelpers, RType {
    *
    * @throws IllegalArgumentException if {@link SEXPType} is a promise, character vector, or "any".
    */
-  static RSexpType simple(SEXPType type, YesOrMaybe isOwned) {
+  static RSexpType simple(SEXPType type) {
     switch (type) {
       case PROM -> throw new IllegalArgumentException("No such thing as a \"simple promise\"");
       case CHAR ->
@@ -197,14 +162,12 @@ public non-sealed interface RSexpType extends RSexpTypeHelpers, RType {
           throw new IllegalArgumentException(
               "No such thing as a \"simple any\" (GNU-R's \"any\" type is special and has no instances)");
     }
-    return value(RValueType.simple(type), isOwned);
+    return value(RValueType.simple(type));
   }
 
   /** The type after a arithmetic unop whose argument has the given types. */
   static RSexpType arithmeticOp(RSexpType unary) {
-    return unary.isObject() == Maybe.NO
-        ? unary.coerceToNumber()
-        : RSexpType.SEXP;
+    return unary.isObject() == Maybe.NO ? unary.coerceToNumber() : RSexpType.SEXP;
   }
 
   /** The type after a arithmetic binop whose arguments have the given types. */
@@ -233,88 +196,80 @@ public non-sealed interface RSexpType extends RSexpTypeHelpers, RType {
         : RSexpType.SEXP;
   }
 
-  /** The type of the result of a non-object comparison whose union is the given type.
+  /**
+   * The type of the result of a non-object comparison whose union is the given type.
    *
    * <p>Note that the "cast" errors if the type isn't a primitive vector, so this method returns
    * {@link RType#NOTHING} in such case.
    */
-
   private static RSexpType comparisonResult(RSexpType type) {
     type = type.forced().notMissing().withNoAttributes();
     return switch (type.value()) {
       case RNAAbleVecType v -> type.withValue(RLogicalType.of(v.length(), v.hasNAOrNaN()));
       case RRawType v -> type.withValue(RLogicalType.of(v.length(), NoOrMaybe.NO));
-      case RPrimVecType v
-          -> type.withValue(RLogicalType.of(v.length(), NoOrMaybe.MAYBE));
-      // It errors.
-      case RRegSymType _,
-           RAbstractPairListType _,
-           RFunType _,
-           REnvType _,
-           RBCodeType _  -> NOTHING;
-      // It maybe errors, but maybe not.
+      case RPrimVecType v -> type.withValue(RLogicalType.of(v.length(), NoOrMaybe.MAYBE));
+        // It errors.
+      case RRegSymType _, RAbstractPairListType _, RFunType _, REnvType _, RBCodeType _ -> NOTHING;
+        // It maybe errors, but maybe not.
       case RValueType _ -> type.withValue(RLogicalType.ANY);
     };
   }
 
-  /** The type "casted" into a number according to the rules after an arithmetic operation.
+  /**
+   * The type "casted" into a number according to the rules after an arithmetic operation.
    *
    * <p>Note that the "cast" errors if the type isn't a logical or number, so this method returns
    * {@link RType#NOTHING} in such case.
    */
-
   default RSexpType coerceToNumber() {
     var type = forced().notMissing().withNoAttributes();
     return switch (type.value()) {
       case RNumericType _ -> type;
       case RLogicalType v -> type.withValue(RIntType.of(v.length(), v.hasNAOrNaN()));
       case RNumericOrLogicalType v -> type.withValue(RNumericType.of(v.length(), v.hasNAOrNaN()));
-      // It errors.
+        // It errors.
       case RRawType _,
-           RStringType _,
-           RRegSymType _,
-           RAbstractPairListType _,
-           RFunType _,
-           REnvType _,
-           RBCodeType _ -> NOTHING;
-      // It maybe errors, but maybe not.
-      case RNAAbleVecType v ->
-          type.withValue(RNumericType.of(v.length(), v.hasNAOrNaN()));
-      // It maybe errors, but maybe not.
-      case RVectorType v ->
-          type.withValue(RNumericType.of(v.length(), NoOrMaybe.MAYBE));
-      // It maybe errors, but maybe not.
+              RStringType _,
+              RRegSymType _,
+              RAbstractPairListType _,
+              RFunType _,
+              REnvType _,
+              RBCodeType _ ->
+          NOTHING;
+        // It maybe errors, but maybe not.
+      case RNAAbleVecType v -> type.withValue(RNumericType.of(v.length(), v.hasNAOrNaN()));
+        // It maybe errors, but maybe not.
+      case RVectorType v -> type.withValue(RNumericType.of(v.length(), NoOrMaybe.MAYBE));
+        // It maybe errors, but maybe not.
       case RValueType _ -> type.withValue(RNumericType.ANY);
     };
   }
 
-  /** The type "casted" into a logical according to the rules after a boolean operation.
+  /**
+   * The type "casted" into a logical according to the rules after a boolean operation.
    *
    * <p>Note that the "cast" errors if the type isn't a logical, number, or raw, so this method
    * returns {@link RType#NOTHING} in such case.
    */
-
   default RSexpType coerceToLogical() {
     var type = forced().notMissing().withNoAttributes();
     return switch (type.value()) {
-          case RLogicalType _ -> type;
-          case RNumericOrLogicalType v ->
-              type.withValue(RLogicalType.of(v.length(), v.hasNAOrNaN()));
-          case RRawType v ->
-              type.withValue(RLogicalType.of(v.length(), NoOrMaybe.NO));
-          // It errors.
-          case RStringType _,
-               RRegSymType _,
-               RAbstractPairListType _,
-               RFunType _,
-               REnvType _,
-               RBCodeType _  -> NOTHING;
-          // It maybe errors, but maybe not.
-          case RVectorType v ->
-              type.withValue(RLogicalType.of(v.length(), NoOrMaybe.MAYBE));
-          // It maybe errors, but maybe not.
-          case RValueType _ -> type.withValue(RLogicalType.ANY);
-        };
+      case RLogicalType _ -> type;
+      case RNumericOrLogicalType v -> type.withValue(RLogicalType.of(v.length(), v.hasNAOrNaN()));
+      case RRawType v -> type.withValue(RLogicalType.of(v.length(), NoOrMaybe.NO));
+        // It errors.
+      case RStringType _,
+              RRegSymType _,
+              RAbstractPairListType _,
+              RFunType _,
+              REnvType _,
+              RBCodeType _ ->
+          NOTHING;
+        // It maybe errors, but maybe not.
+      case RVectorType v -> type.withValue(RLogicalType.of(v.length(), NoOrMaybe.MAYBE));
+        // It maybe errors, but maybe not.
+      case RValueType _ -> type.withValue(RLogicalType.ANY);
+    };
   }
 
   /**
@@ -323,59 +278,8 @@ public non-sealed interface RSexpType extends RSexpTypeHelpers, RType {
    * <p><i>Not</i> the return type. Instead, this is guaranteed to be a {@link RFunType}, and you
    * can get the return of that.
    */
-
   static RSexpType builtin(BuiltinId id) {
-    return RSexpType.value(RBuiltinOrSpecialType.of(id), YesOrMaybe.MAYBE);
-  }
-
-  /** Type which is the {@linkplain RSexpType#unionOf(RSexpType)} union} of all given types. */
-  static RSexpType union(RSexpType type1, RSexpType type2, RSexpType... types) {
-    return Stream.concat(Stream.of(type1, type2), Arrays.stream(types)).collect(toUnion());
-  }
-
-  /** Type which is the {@linkplain RSexpType#unionOf(RSexpType)} union} of all given types. */
-  static RSexpType union(Collection<RSexpType> types) {
-    return types.stream().collect(toUnion());
-  }
-
-  /** Creates a {@linkplain RSexpType#unionOf(RSexpType)} union} from all types in the stream. */
-
-  static Collector<RSexpType, RSexpType[], RSexpType> toUnion() {
-    return Collector.of(
-        () -> new RSexpType[] {NOTHING},
-        (RSexpType[] acc, RSexpType next) -> acc[0] = acc[0].unionOf(next),
-        (RSexpType[] a, RSexpType[] b) -> new RSexpType[] {a[0].unionOf(b[0])},
-        (RSexpType[] a) -> a[0],
-        Characteristics.CONCURRENT,
-        Characteristics.UNORDERED);
-  }
-
-  /**
-   * Type which is the {@linkplain RSexpType#intersectionOf(RSexpType)} intersection} of all given types.
-   */
-  static RSexpType intersection(RSexpType type1, RSexpType type2, RSexpType... types) {
-    return Stream.concat(Stream.of(type1, type2), Arrays.stream(types)).collect(toIntersection());
-  }
-
-  /**
-   * Type which is the {@linkplain RSexpType#intersectionOf(RSexpType)} intersection} of all given types.
-   */
-  static RSexpType intersection(Collection<RSexpType> types) {
-    return types.stream().collect(toIntersection());
-  }
-
-  /**
-   * Creates an {@linkplain RSexpType#intersectionOf(RSexpType)} intersection} from all types in the stream.
-   */
-
-  static Collector<RSexpType, RSexpType[], RSexpType> toIntersection() {
-    return Collector.of(
-        () -> new RSexpType[] {SEXP},
-        (RSexpType[] acc, RSexpType next) -> acc[0] = acc[0].intersectionOf(next),
-        (RSexpType[] a, RSexpType[] b) -> new RSexpType[] {a[0].intersectionOf(b[0])},
-        (RSexpType[] a) -> a[0],
-        Characteristics.CONCURRENT,
-        Characteristics.UNORDERED);
+    return RSexpType.value(RBuiltinOrSpecialType.of(id));
   }
 
   // endregion helpers constructors
@@ -388,15 +292,6 @@ public non-sealed interface RSexpType extends RSexpTypeHelpers, RType {
    * <p>e.g. int-vector, closure, environment.
    */
   RValueType value();
-
-  /**
-   * Whether the "value" part of the instance is unique (has no aliases) at its definition.
-   *
-   * <p>The value may be used multiple times. The purpose of this is that, normally a "consuming"
-   * use must copy its value, but if its value is owned and not used again afterward, it doesn't
-   * have to copy.
-   */
-  YesOrMaybe isOwned();
 
   /**
    * The type of the "value" part of the instance (described by {@link #value()})'s {@linkplain
@@ -415,13 +310,14 @@ public non-sealed interface RSexpType extends RSexpTypeHelpers, RType {
    */
   @Nullable RPromiseType promise();
 
-  /** Whether the "value", possibly wrapped in a promise (described by {@link #value()}, {@link
+  /**
+   * Whether the "value", possibly wrapped in a promise (described by {@link #value()}, {@link
    * #attributes()}, and {@link #promise()}, is maybe or definitely missing.
    *
-   * <p>If maybe missing, the instance is either what {@link #value()}/{@link #attributes()}/
-   * {@link #promise()} describe <i>or</i> {@link SEXPs#MISSING_ARG}. If definitely missing, then
-   * {@link #value()}, {@link #attributes()}, and {@link #promise()} may be completely ignored, the
-   * only possible instance is {@link SEXPs#MISSING_ARG}.
+   * <p>If maybe missing, the instance is either what {@link #value()}/{@link #attributes()}/ {@link
+   * #promise()} describe <i>or</i> {@link SEXPs#MISSING_ARG}. If definitely missing, then {@link
+   * #value()}, {@link #attributes()}, and {@link #promise()} may be completely ignored, the only
+   * possible instance is {@link SEXPs#MISSING_ARG}.
    *
    * <p>This is {@code null} iff {@code self} is {@link RSexpType#NOTHING}.
    */
@@ -437,17 +333,7 @@ public non-sealed interface RSexpType extends RSexpTypeHelpers, RType {
   default RSexpType withValue(RValueType newValue) {
     return value() == newValue || this == NOTHING || this == MISSING
         ? this
-        : of(newValue, isOwned(), attributes(), promise(), isMissing());
-  }
-
-  /** Returns the same type except {@link #isOwned()} is {@code newOwned}. */
-  // IntelliJ doesn't know that `this != NOTHING ==> promise() != null && isMissing() != null`, so
-  // it reports nullable values (`promise()` and `isMissing()`) in non-null positions (`of` args).
-  @SuppressWarnings("DataFlowIssue")
-  default RSexpType withOwnership(YesOrMaybe newIsOwned) {
-    return isOwned() == newIsOwned || this == NOTHING || this == MISSING
-        ? this
-        : of(value(), newIsOwned, attributes(), promise(), isMissing());
+        : of(newValue, attributes(), promise(), isMissing());
   }
 
   /** Returns the same type except {@link #attributes()}} is {@code newAttributes}. */
@@ -457,7 +343,7 @@ public non-sealed interface RSexpType extends RSexpTypeHelpers, RType {
   default RSexpType withAttributes(AttributesType newAttributes) {
     return attributes() == newAttributes || this == NOTHING || this == MISSING
         ? this
-        : of(value(), isOwned(), newAttributes, promise(), isMissing());
+        : of(value(), newAttributes, promise(), isMissing());
   }
 
   /** Returns the same type except {@link #promise()}} is {@code newPromise}. */
@@ -467,7 +353,7 @@ public non-sealed interface RSexpType extends RSexpTypeHelpers, RType {
   default RSexpType withPromise(RPromiseType newPromise) {
     return promise() == newPromise || this == NOTHING || this == MISSING
         ? this
-        : of(value(), isOwned(), attributes(), newPromise, isMissing());
+        : of(value(), attributes(), newPromise, isMissing());
   }
 
   /** Returns the same type except {@link #isMissing()}} is {@code newIsMissing}. */
@@ -483,9 +369,7 @@ public non-sealed interface RSexpType extends RSexpTypeHelpers, RType {
             || this == NOTHING
             || (isMissing() == Maybe.YES && newIsMissing == Maybe.MAYBE)
         ? this
-        : isMissing() == Maybe.YES
-            ? NOTHING
-            : of(value(), isOwned(), attributes(), promise(), newIsMissing);
+        : isMissing() == Maybe.YES ? NOTHING : of(value(), attributes(), promise(), newIsMissing);
   }
 
   // endregion field "with"ers
@@ -531,7 +415,6 @@ public non-sealed interface RSexpType extends RSexpTypeHelpers, RType {
         && other.isMissing() != null;
 
     return value().isSubsetOf(other.value())
-        && isOwned().isSubsetOf(other.isOwned())
         && attributes().isSubsetOf(other.attributes())
         && promise().isSubsetOf(other.promise())
         && isMissing().isSubsetOf(other.isMissing());
@@ -553,7 +436,6 @@ public non-sealed interface RSexpType extends RSexpTypeHelpers, RType {
         && other.isMissing() != null;
 
     return value().isSupersetOf(other.value())
-        && owned().isSupersetOf(other.owned())
         && attributes().isSupersetOf(other.attributes())
         && promise().isSupersetOf(other.promise())
         && isMissing().isSupersetOf(other.isMissing());
@@ -580,7 +462,6 @@ public non-sealed interface RSexpType extends RSexpTypeHelpers, RType {
     if (value == RValueType.NOTHING) {
       return NOTHING;
     }
-    var isOwned = isOwned().intersectionOf(other.isOwned());
     var attributes = attributes().intersectionOf(other.attributes());
     if (attributes == AttributesType.BOTTOM) {
       return NOTHING;
@@ -593,7 +474,7 @@ public non-sealed interface RSexpType extends RSexpTypeHelpers, RType {
     if (isMissing == null) {
       return NOTHING;
     }
-    return of(value, isOwned, attributes, promise, isMissing);
+    return of(value, attributes, promise, isMissing);
   }
 
   default RSexpType unionOf(RSexpType other) {
@@ -612,11 +493,10 @@ public non-sealed interface RSexpType extends RSexpTypeHelpers, RType {
         && other.isMissing() != null;
 
     var value = value().unionOf(other.value());
-    var isOwned = isOwned().unionOf(other.isOwned());
     var attributes = attributes().unionOf(other.attributes());
     var promise = promise().unionOf(other.promise());
     var isMissing = isMissing().unionOf(other.isMissing());
-    return of(value, isOwned, attributes, promise, isMissing);
+    return of(value, attributes, promise, isMissing);
   }
 
   // endregion lattice operations
@@ -627,7 +507,6 @@ public non-sealed interface RSexpType extends RSexpTypeHelpers, RType {
 
 record RSexpTypeImpl(
     @Override RValueType value,
-    @Override YesOrMaybe isOwned,
     @Override AttributesType attributes,
     @Override RPromiseType promise,
     @Override Maybe isMissing)
@@ -641,23 +520,25 @@ record RSexpTypeImpl(
 
   RSexpTypeImpl {
     assert isMissing == Maybe.YES
-        || (value != RValueType.NOTHING && attributes != AttributesType.BOTTOM)
+            || (value != RValueType.NOTHING && attributes != AttributesType.BOTTOM)
         : "If `isMissing` is not `YES`, `value` and `attributes` must not be `NOTHING`.\nThe only nothing type is `RNothingType`.";
-    // The missing type *is* owned, because the missing type's value type is `NOTHING`:
-    // the "missingness" part, like the "promise-wrapper" part, is separate from the "value" part.
     assert isMissing != Maybe.YES
-        || (value == RValueType.NOTHING && isOwned == YesOrMaybe.YES && attributes == AttributesType.BOTTOM)
+            || (value == RValueType.NOTHING && attributes == AttributesType.BOTTOM)
         : "If `isMissing` is `YES`, this must be the missing type";
   }
 
   @Override
   public Class<? extends SEXP> clazz() {
     return switch (promise.isPromise()) {
-      case NO -> switch (isMissing) {
-        case NO -> Objects.requireNonNull(value.clazz(), "`RSexpTypeImpl` constructor prevents `isMissing == NO && value instanceof RNothingValueType`, so it should prevent `value.clazz() == null`");
-        case MAYBE -> ValueOrMissingSXP.class;
-        case YES -> MissingSXP.class;
-      };
+      case NO ->
+          switch (isMissing) {
+            case NO ->
+                Objects.requireNonNull(
+                    value.clazz(),
+                    "`RSexpTypeImpl` constructor prevents `isMissing == NO && value instanceof RNothingValueType`, so it should prevent `value.clazz() == null`");
+            case MAYBE -> ValueOrMissingSXP.class;
+            case YES -> MissingSXP.class;
+          };
       case MAYBE -> SEXP.class;
       case YES -> PromSXP.class;
     };
@@ -678,9 +559,6 @@ record RSexpTypeImpl(
       }
       p.print(promise);
       p.print(value);
-      if (isOwned == YesOrMaybe.YES) {
-        w.write('*');
-      }
       if (attributes != AttributesType.EMPTY) {
         w.write('[');
         p.print(attributes);

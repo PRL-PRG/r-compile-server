@@ -1,7 +1,6 @@
 package org.prlprg.ir.cfg.builder;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -138,9 +137,7 @@ public interface BBIntrinsicMutate {
    * @throws IndexOutOfBoundsException If the index is out of range.
    * @see #insertAt(int, StmtData)
    */
-  default Stmt insertCopyAt(int index, Stmt stmt) {
-    return insertAt(index, (StmtData) stmt.data);
-  }
+  Stmt insertCopyAt(int index, Stmt stmt);
 
   /**
    * Insert statements in this BB starting from the given index.
@@ -160,9 +157,7 @@ public interface BBIntrinsicMutate {
    * @throws IndexOutOfBoundsException If the index is out of range.
    * @see #insertAt(int, StmtData)
    */
-  default ImmutableList<Stmt> insertAllCopiesAt(int index, List<Stmt> stmts) {
-    return insertAllAt(index, stmts.stream().map(s -> (StmtData) s.data).toList());
-  }
+  ImmutableList<Stmt> insertAllCopiesAt(int index, List<Stmt> stmts);
 
   /**
    * Insert statements in this BB at the given indices.
@@ -186,12 +181,7 @@ public interface BBIntrinsicMutate {
    * @throws IndexOutOfBoundsException If any of the indices are out of range.
    * @see #insertCopyAt(int, Stmt)
    */
-  default ImmutableList<Stmt> insertAllCopiesAt(Map<Integer, Stmt> indicesAndStmts) {
-    return insertAllAt(
-        indicesAndStmts.entrySet().stream()
-            .collect(
-                ImmutableMap.toImmutableMap(Map.Entry::getKey, e -> (StmtData) e.getValue().data)));
-  }
+  ImmutableList<Stmt> insertAllCopiesAt(Map<Integer, Stmt> indicesAndStmts);
 
   /**
    * Add a jump to this BB.
@@ -209,9 +199,7 @@ public interface BBIntrinsicMutate {
    * @throws IllegalArgumentException If the BB already has a jump.
    * @see #addJump(JumpData)
    */
-  default Jump addJumpCopy(Jump jump) {
-    return addJump((JumpData) jump.data);
-  }
+  Jump addJumpCopy(Jump jump);
 
   // endregion add nodes
 

@@ -3,8 +3,7 @@ package org.prlprg.ir.type;
 final class RAnyType implements RType {
   @SuppressWarnings("ConstantValue")
   RAnyType() {
-    assert ANY == null || ANY == this
-        : "`RType#Any` should be the only `RAnyType` instance";
+    assert ANY == null || ANY == this : "`RType#Any` should be the only `RAnyType` instance";
   }
 
   @Override

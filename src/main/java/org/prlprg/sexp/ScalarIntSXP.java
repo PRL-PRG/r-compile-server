@@ -1,6 +1,8 @@
 package org.prlprg.sexp;
 
-import com.google.common.primitives.ImmutableIntArray; /** Simple scalar integer = int vector of size 1 with no ALTREP, ATTRIB, or OBJECT. */
+import com.google.common.primitives.ImmutableIntArray;
+
+/** Simple scalar integer = int vector of size 1 with no ALTREP, ATTRIB, or OBJECT. */
 public final class ScalarIntSXP extends ScalarSXPImpl<Integer> implements IntSXP {
   ScalarIntSXP(int data) {
     super(data);

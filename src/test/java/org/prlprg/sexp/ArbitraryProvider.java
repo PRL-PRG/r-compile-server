@@ -65,6 +65,14 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
         MAX_DEPTH);
   }
 
+  public static Arbitrary<ValueSXP> values() {
+    return values(sexps());
+  }
+
+  private static Arbitrary<ValueSXP> values(Arbitrary<SEXP> sexps) {
+    return sexps.filter(s -> !(s instanceof PromSXP<?>)).map(s -> (ValueSXP) s);
+  }
+
   public static Arbitrary<EnvSXP> envs() {
     return envs(sexps());
   }
@@ -140,8 +148,8 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
   }
 
   private static Arbitrary<PromSXP<?>> promises(Arbitrary<SEXP> sexps) {
-    var sexpsNoPromises = sexps.filter(s -> !(s instanceof PromSXP<?>));
-    return Combinators.combine(sexpsNoPromises, sexpsNoPromises, envs(sexps)).as(PromSXP::new);
+    var valueSexps = values(sexps);
+    return Combinators.combine(valueSexps, valueSexps, envs(sexps)).as(PromSXP::new);
   }
 
   private static Arbitrary<TaggedElem> taggedElems(Arbitrary<SEXP> sexps) {
@@ -218,6 +226,7 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
   @Override
   public boolean canProvideFor(TypeUsage typeUsage) {
     return typeUsage.isOfType(SEXP.class)
+        || typeUsage.isOfType(ValueSXP.class)
         || typeUsage.isOfType(CloSXP.class)
         || typeUsage.isOfType(PromSXP.class)
         || typeUsage.isOfType(EnvSXP.class)
@@ -230,6 +239,9 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
   public Set<Arbitrary<?>> provideFor(TypeUsage typeUsage, SubtypeProvider subtypeProvider) {
     if (typeUsage.isOfType(SEXP.class)) {
       return Set.of(sexps());
+    }
+    if (typeUsage.isOfType(ValueSXP.class)) {
+      return Set.of(values());
     }
     if (typeUsage.isOfType(CloSXP.class)) {
       return Set.of(closures());

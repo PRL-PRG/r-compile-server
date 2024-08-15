@@ -1,11 +1,11 @@
 package org.prlprg.ir.type.generic;
 
-import org.prlprg.ir.type.RSignatureTypeNormalizedArity;
-import org.prlprg.ir.type.RSexpType;
+import org.prlprg.ir.type.RType;
+import org.prlprg.ir.type.sexp.RSignatureTypeNormalizedArity;
 
 public record ReturnNthArgumentType(int n) implements GenericOverloadReturnType {
   @Override
-  public RSexpType givenArguments(RSignatureTypeNormalizedArity arguments) {
+  public RType givenArguments(RSignatureTypeNormalizedArity arguments) {
     return arguments.types().get(n);
   }
 

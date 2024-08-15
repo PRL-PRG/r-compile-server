@@ -137,7 +137,7 @@ public class RDSReaderTest extends AbstractGNURBasedTest {
     // TODO: this should really be a snapshot test
     var body = sexp.bodyAST();
     assertThat(body).isInstanceOf(LangSXP.class);
-    assertThat(body.toString()).isEqualTo("`+`(`+`(\"abc\", x), length(y))");
+    assertThat(body.toString()).isEqualTo("'`+`('`+`(\"abc\", 'x), 'length('y))");
   }
 
   @Test

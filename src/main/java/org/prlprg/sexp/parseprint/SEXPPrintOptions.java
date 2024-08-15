@@ -47,7 +47,7 @@ public record SEXPPrintOptions(
    * The default print options that you get when calling {@link Printer#print(Object)
    * Printer#print(SEXP)} and {@link Object#toString SEXP#toString()}.
    */
-  public static final SEXPPrintOptions DEFAULT = new SEXPPrintOptions(false, false, 10, 3, 100, 5);
+  public static final SEXPPrintOptions DEFAULT = new SEXPPrintOptions(false, true, 10, 3, 100, 5);
 
   /** Print every part of the {@link SEXP}. Required for the string to be parse-able. */
   public static final SEXPPrintOptions FULL =

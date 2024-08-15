@@ -68,7 +68,8 @@ public final class Names {
         && s.chars().allMatch(Names::isValidMiddleCharOfUnquoted);
   }
 
-  /** Whether the character can be the first in an R symbol string, quoted or unquoted.
+  /**
+   * Whether the character can be the first in an R symbol string, quoted or unquoted.
    *
    * <p>i.e. a letter, "_", ".", or "`".
    */
@@ -76,15 +77,17 @@ public final class Names {
     return isValidStartCharToUnquoted(c) || c == '`';
   }
 
-  /** Whether the character can be the first in an R symbol string which isn't quoted.
+  /**
+   * Whether the character can be the first in an R symbol string which isn't quoted.
    *
    * <p>i.e. a letter, "_" or ".".
-   **/
+   */
   public static boolean isValidStartCharToUnquoted(int c) {
     return Character.isLetter(c) || c == '_' || c == '.';
   }
 
-  /** Whether the character can be in the middle of an R symbol string which isn't quoted.
+  /**
+   * Whether the character can be in the middle of an R symbol string which isn't quoted.
    *
    * <p>i.e. a letter, digit, "_" or ".".
    */

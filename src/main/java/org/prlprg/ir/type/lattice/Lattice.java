@@ -1,13 +1,18 @@
 package org.prlprg.ir.type.lattice;
 
 import com.google.common.collect.Streams;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Optional;
+import java.util.stream.Collector;
+import java.util.stream.Collector.Characteristics;
 import javax.annotation.Nullable;
-import org.prlprg.ir.type.RSexpType;
+import org.prlprg.ir.type.RType;
 import org.prlprg.util.Classes;
 import org.prlprg.util.Reflection;
 
 /**
- * Lattice from type theory which is bounded at the top. These methods are common in {@link RSexpType}
+ * Lattice from type theory which is bounded at the top. These methods are common in {@link RType}
  * and its parts.
  */
 public interface Lattice<T extends Lattice<T>> {
@@ -177,6 +182,62 @@ public interface Lattice<T extends Lattice<T>> {
    */
   static <T extends Lattice<T>> @Nullable T intersection(@Nullable T lhs, @Nullable T rhs) {
     return lhs == null || rhs == null ? null : lhs.intersectionOf(rhs);
+  }
+
+  /** Type which is the {@linkplain Lattice#unionOf(Lattice)} union} of all given types. */
+  @SafeVarargs
+  static <T extends Lattice<T>> T union(T type1, T type2, T... types) {
+    return Arrays.stream(types).collect(toUnion(type1.unionOf(type2)));
+  }
+
+  /** Type which is the {@linkplain Lattice#unionOf(Lattice)} union} of all given types. */
+  static <T extends Lattice<T>> T union(T any, Collection<T> types) {
+    return types.stream().collect(toUnion(any));
+  }
+
+  /** Creates a {@linkplain Lattice#unionOf(Lattice)} union} from all types in the stream. */
+  @SuppressWarnings("unchecked")
+  static <T extends Lattice<T>> Collector<T, Object[], T> toUnion(T nothing) {
+    return Collector.of(
+        () -> new Object[] {nothing},
+        (Object[] acc, T next) -> acc[0] = ((T) acc[0]).unionOf(next),
+        (Object[] a, Object[] b) -> new Object[] {((T) a[0]).unionOf((T) b[0])},
+        (Object[] a) -> (T) a[0],
+        Characteristics.CONCURRENT,
+        Characteristics.UNORDERED);
+  }
+
+  /**
+   * Type which is the {@linkplain Lattice#intersectionOf(Lattice)} intersection} of all given
+   * types.
+   */
+  @SafeVarargs
+  static <T extends Lattice<T>> Optional<T> intersection(T type1, T type2, T... types) {
+    return Arrays.stream(types).collect(toIntersection(type1.intersectionOf(type2)));
+  }
+
+  /**
+   * Type which is the {@linkplain Lattice#intersectionOf(Lattice)} intersection} of all given
+   * types.
+   */
+  static <T extends Lattice<T>> Optional<T> intersection(@Nullable T any, Collection<T> types) {
+    return types.stream().collect(toIntersection(any));
+  }
+
+  /**
+   * Creates an {@linkplain Lattice#intersectionOf(Lattice)} intersection} from all types in the
+   * stream.
+   */
+  @SuppressWarnings("unchecked")
+  static <T extends Lattice<T>> Collector<T, Object[], Optional<T>> toIntersection(
+      @Nullable T any) {
+    return Collector.of(
+        () -> new Object[] {any},
+        (Object[] acc, T next) -> acc[0] = intersection((T) acc[0], next),
+        (Object[] a, Object[] b) -> new Object[] {intersection((T) a[0], (T) b[0])},
+        (Object[] a) -> Optional.ofNullable((T) a[0]),
+        Characteristics.CONCURRENT,
+        Characteristics.UNORDERED);
   }
 
   /**

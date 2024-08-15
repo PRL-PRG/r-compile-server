@@ -2,7 +2,6 @@ package org.prlprg.ir.type;
 
 import javax.annotation.Nullable;
 import org.prlprg.ir.type.lattice.Maybe;
-import org.prlprg.ir.type.lattice.YesOrMaybe;
 import org.prlprg.ir.type.sexp.AttributesType;
 import org.prlprg.ir.type.sexp.RPromiseType;
 import org.prlprg.ir.type.sexp.RSexpType;
@@ -16,7 +15,7 @@ public final class RNothingType implements RSexpType {
   }
 
   @Override
-  public @Nullable Class<?> clazz() {
+  public @Nullable Class<? extends org.prlprg.sexp.SEXP> clazz() {
     return null;
   }
 
@@ -46,23 +45,16 @@ public final class RNothingType implements RSexpType {
   }
 
   @Override
-  public YesOrMaybe isOwned() {
-    return YesOrMaybe.YES;
-  }
-
-  @Override
   public AttributesType attributes() {
     return AttributesType.BOTTOM;
   }
 
-  @Nullable
-  @Override
+  @Nullable @Override
   public RPromiseType promise() {
     return null;
   }
 
-  @Nullable
-  @Override
+  @Nullable @Override
   public Maybe isMissing() {
     return null;
   }

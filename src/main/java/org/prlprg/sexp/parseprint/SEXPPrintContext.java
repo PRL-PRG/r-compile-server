@@ -402,11 +402,12 @@ public class SEXPPrintContext implements HasSEXPPrintContext {
     private void print(Logical logical, Printer p) {
       var w = p.writer();
 
-      w.write(switch (logical) {
-        case TRUE -> "<TRUE>";
-        case FALSE -> "<FALSE>";
-        case NA -> "<NA_LGL>";
-      });
+      w.write(
+          switch (logical) {
+            case TRUE -> "<TRUE>";
+            case FALSE -> "<FALSE>";
+            case NA -> "<NA_LGL>";
+          });
     }
 
     @PrintMethod

@@ -25,14 +25,16 @@ import org.prlprg.sexp.SEXP;
  * casted a lot, perhaps it wasn't a good idea either...)
  */
 public interface RType extends BoundedLattice<RType> {
-  /** The type of an expression which hangs, errors, or otherwise diverts control flow.
+  /**
+   * The type of an expression which hangs, errors, or otherwise diverts control flow.
    *
    * <p>AKA "BOTTOM", the subtype of all other types (because if the expression never returns, we
    * can optimize as if it returned whatever helps optimization the most).
    */
   RNothingType NOTHING = new RNothingType();
 
-  /** Anything can be an instance of this (including an {@link SEXP} or unboxed value).
+  /**
+   * Anything can be an instance of this (including an {@link SEXP} or unboxed value).
    *
    * <p>AKA "TOP", the supertype of all other types.
    */
@@ -43,7 +45,8 @@ public interface RType extends BoundedLattice<RType> {
     return Parser.fromString(string, RType.class);
   }
 
-  /** Returns an {@link RType} representing the given {@link Class}, i.e. all instances of the type
+  /**
+   * Returns an {@link RType} representing the given {@link Class}, i.e. all instances of the type
    * are instances of the class and vice versa.
    */
   // The cast is trivially safe.
@@ -54,10 +57,12 @@ public interface RType extends BoundedLattice<RType> {
         : RUnboxedType.of(clazz);
   }
 
-  /** The most specific {@link RType} that the given value is an instance of.
+  /**
+   * The most specific {@link RType} that the given value is an instance of.
    *
    * <p>If the value is an {@link SEXP}, this is guaranteed to be {@link RSexpType}. If you want to
-   * rely on this, use {@link RSexpType#exact(SEXP)} instead of casting. */
+   * rely on this, use {@link RSexpType#exact(SEXP)} instead of casting.
+   */
   static RType exact(Object instance) {
     if (instance instanceof SEXP) {
       return RSexpType.exact((SEXP) instance);
@@ -74,8 +79,8 @@ public interface RType extends BoundedLattice<RType> {
    *
    * <p>An example of this property's use case {@link #isInstance(Object)}.
    *
-   * <p>This is {@code null} for {@link #NOTHING}, because there is no Java class for BOTTOM
-   * ({@link Void} is similar, but is not a subclass of all other classes).
+   * <p>This is {@code null} for {@link #NOTHING}, because there is no Java class for BOTTOM ({@link
+   * Void} is similar, but is not a subclass of all other classes).
    */
   @Nullable Class<?> clazz();
 
@@ -88,7 +93,6 @@ public interface RType extends BoundedLattice<RType> {
     var clazz = clazz();
     return clazz == null || clazz.isInstance(value);
   }
-
 
   /**
    * Whether the given class is a superclass of this class.
@@ -120,4 +124,3 @@ public interface RType extends BoundedLattice<RType> {
     return this == ANY;
   }
 }
-

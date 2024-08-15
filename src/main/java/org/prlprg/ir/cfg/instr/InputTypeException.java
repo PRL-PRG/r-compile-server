@@ -6,7 +6,8 @@ import org.prlprg.ir.cfg.InstrOutput;
 import org.prlprg.ir.cfg.Phi;
 import org.prlprg.ir.type.RType;
 
-/** Thrown when an instruction input doesn't conform to its required type.
+/**
+ * Thrown when an instruction input doesn't conform to its required type.
  *
  * <p>Java checks that the input conforms to the required class, but {@link RType} is more fine-
  * grained than classes. We explicitly check a) that generic type arguments are correct, and b)
@@ -19,7 +20,8 @@ import org.prlprg.ir.type.RType;
  * potentially break the type, so they can be displayed.
  */
 public class InputTypeException extends RuntimeException {
-  InputTypeException(@Nullable CascadingUpdatedInstrs cascade, Object input, RType requiredInputType) {
+  InputTypeException(
+      @Nullable CascadingUpdatedInstrs cascade, Object input, RType requiredInputType) {
     super(
         "Expected input "
             + input

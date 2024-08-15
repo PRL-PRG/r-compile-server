@@ -7,13 +7,14 @@ import static org.prlprg.ir.analysis.PropertiesComputer.computePromiseProperties
 import org.prlprg.RSession;
 import org.prlprg.bc.Compiler;
 import org.prlprg.ir.cfg.CFG;
+import org.prlprg.ir.cfg.Node;
 import org.prlprg.ir.cfg.StaticEnv;
-import org.prlprg.ir.cfg.instr.StmtData;
 import org.prlprg.ir.closure.Closure;
 import org.prlprg.ir.closure.ClosureVersion;
 import org.prlprg.ir.closure.Promise;
 import org.prlprg.sexp.BCodeSXP;
 import org.prlprg.sexp.CloSXP;
+import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
 
@@ -23,7 +24,7 @@ import org.prlprg.sexp.SEXPs;
  */
 public class ClosureCompiler {
   /**
-   * {@link #compileBaselineClosure(String, CloSXP, ISexp)} with an {@linkplain StaticEnv#UNKNOWN
+   * {@link #compileBaselineClosure(String, CloSXP, Node)} with an {@linkplain StaticEnv#UNKNOWN
    * unclosed} environment (not an inner closure).
    */
   public static Closure compileBaselineClosure(String name, CloSXP sexp) {
@@ -37,20 +38,21 @@ public class ClosureCompiler {
    * @param name A name for debugging. Typically the variable it was assigned to if known. "" is
    *     acceptable.
    * @param env The closure's environment. This is {@linkplain StaticEnv#UNKNOWN unclosed} unless
-   *     it's an inner closure (from {@link StmtData.MkCls MkCls}), in which case
-   *     it's the outer closure's environment.
+   *     it's an inner closure (from {@code StmtData.MkCls MkCls}), in which case it's the outer
+   *     closure's environment.
    * @throws IllegalArgumentException If the closure's body isn't bytecode (in this case, you must
    *     use a {@link org.prlprg.bc.Compiler} to compile it before calling this).
    *     <p><b>OR</b> if {@code env} isn't statically known to be an environment.
    * @throws CFGCompilerUnsupportedBcException If the closure can't be compiled because it does
    *     something complex which the compiler doesn't support yet.
    */
-  public static Closure compileBaselineClosure(String name, CloSXP sexp, ISexp env) {
+  public static Closure compileBaselineClosure(
+      String name, CloSXP sexp, Node<? extends EnvSXP> env) {
     return compileBaselineClosure(name, sexp, env, new Module());
   }
 
   /**
-   * {@link #compileBaselineClosure(String, CloSXP, ISexp, Module)} with an {@linkplain
+   * {@link #compileBaselineClosure(String, CloSXP, Node, Module)} with an {@linkplain
    * StaticEnv#UNKNOWN unclosed} environment (not an inner closure).
    */
   public static Closure compileBaselineClosure(String name, CloSXP sexp, Module module) {
@@ -69,8 +71,8 @@ public class ClosureCompiler {
    * @param name A name for debugging. Typically the variable it was assigned to if known. "" is
    *     acceptable.
    * @param env The closure's environment. This is {@linkplain StaticEnv#UNKNOWN unclosed} unless
-   *     it's an inner closure (from {@link StmtData.MkCls MkCls}), in which case
-   *     it's the outer closure's environment.
+   *     it's an inner closure (from {@code StmtData.MkCls MkCls}), in which case it's the outer
+   *     closure's environment.
    * @throws IllegalArgumentException If the closure's body isn't bytecode (in this case, you must
    *     use a {@link org.prlprg.bc.Compiler} to compile it before calling this).
    *     <p><b>OR</b> if {@code env} isn't statically known to be an environment.
@@ -78,7 +80,7 @@ public class ClosureCompiler {
    *     something complex that the compiler doesn't support yet.
    */
   public static Closure compileBaselineClosure(
-      String name, CloSXP sexp, ISexp env, Module module) {
+      String name, CloSXP sexp, Node<? extends EnvSXP> env, Module module) {
     if (!(sexp.body() instanceof BCodeSXP)) {
       var rSession = module.serverRSession();
       if (rSession == null) {
@@ -134,7 +136,7 @@ public class ClosureCompiler {
    * @throws ClosureCompilerUnsupportedException If the promise code is an AST.
    */
   static Promise compilePromise(
-      String name, SEXP promiseCodeSexp, ISexp prenv, Module module) {
+      String name, SEXP promiseCodeSexp, Node<? extends EnvSXP> prenv, Module module) {
     if (!(promiseCodeSexp instanceof BCodeSXP promiseBcSexp)) {
       throw new ClosureCompilerUnsupportedException(
           "Can't compile a promise whose body is an AST", promiseCodeSexp);

@@ -3,6 +3,7 @@ package org.prlprg.ir.cfg;
 import java.lang.ref.Cleaner;
 import java.util.Objects;
 import java.util.WeakHashMap;
+import org.prlprg.ir.type.RType;
 import org.prlprg.primitive.Names;
 
 /** Node representing missing, invalid, or placeholder data. */
@@ -114,8 +115,8 @@ public final class InvalidNode implements GlobalNode<Void> {
   }
 
   @Override
-  public Class<Void> type() {
-    return Void.class;
+  public RType type() {
+    return RType.NOTHING;
   }
 
   @Override

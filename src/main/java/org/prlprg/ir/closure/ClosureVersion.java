@@ -10,22 +10,21 @@ import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.prlprg.ir.cfg.CFG;
 import org.prlprg.ir.cfg.CFGParsePrint;
+import org.prlprg.ir.cfg.LocalNodeId;
 import org.prlprg.ir.cfg.Node;
-import org.prlprg.ir.cfg.NodeId;
 import org.prlprg.ir.cfg.Param;
-import org.prlprg.ir.cfg.instr.StmtData;
-import org.prlprg.ir.effect.REffect;
+import org.prlprg.ir.effect.PerformsReflection;
 import org.prlprg.ir.effect.REffects;
-import org.prlprg.ir.type.RSexpType;
+import org.prlprg.ir.type.RType;
 import org.prlprg.ir.type.lattice.Lattice;
 import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.ir.type.lattice.NoOrMaybe;
 import org.prlprg.ir.type.lattice.YesOrMaybe;
+import org.prlprg.ir.type.sexp.RSexpType;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
-import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.TaggedElem;
 
 /**
@@ -77,7 +76,7 @@ public class ClosureVersion {
             Streams.zip(
                     closure.parameters().stream().map(TaggedElem::tagOrEmpty),
                     callContext.paramTypes == null
-                        ? Stream.generate(() -> SEXP.class)
+                        ? Stream.generate(() -> RSexpType.SEXP)
                         : callContext.paramTypes.stream(),
                     Param.Args::new)
                 .collect(ImmutableList.toImmutableList()));
@@ -156,7 +155,7 @@ public class ClosureVersion {
    * behavior under this version's call context.
    *
    * <p>This also contains the inner {@linkplain Promise promises}, since promises are stored
-   * directly within {@link StmtData.MkProm MkProm} instructions.
+   * directly within {@code MkProm} instructions.
    *
    * <p>This is mutable, <i>however</i> you are responsible for updating {@link #properties()} so
    * that they are the properties of the version's body.
@@ -199,7 +198,7 @@ public class ClosureVersion {
    * contexts are "greater than" the other contexts. "Subset" means that any call that satisfies the
    * subset also satisfies the superset, "strict subset" is a subset that is not equal.
    */
-  public record CallContext(@Nullable ImmutableList<Class<?>> paramTypes)
+  public record CallContext(@Nullable ImmutableList<RType> paramTypes)
       implements Lattice<CallContext>, Comparable<CallContext> {
     /** Context that doesn't require anything. All callers satisfy this context. */
     public static final CallContext EMPTY = new CallContext(null);
@@ -210,7 +209,7 @@ public class ClosureVersion {
     }
 
     /** Whether the context is met given the argument types. */
-    public boolean permits(Iterable<RSexpType> argTypes) {
+    public boolean permits(Iterable<RType> argTypes) {
       // Return `true` if this has no argument requirements.
       if (paramTypes == null) {
         return true;
@@ -232,7 +231,7 @@ public class ClosureVersion {
      * Whether the context is met iff the argument at the given index has the given type, assuming
      * other argument types and assumptions are permitted.
      */
-    private boolean permits(int argument, RSexpType type) {
+    private boolean permits(int argument, RType type) {
       return paramTypes == null
           || (argument < paramTypes.size() && type.isSubsetOf(paramTypes.get(argument)));
     }
@@ -241,7 +240,7 @@ public class ClosureVersion {
      * Whether the context is <i>not</i> met iff the argument at the given index <i>doesn't</i> have
      * the given type.
      */
-    public boolean requires(int argument, RSexpType type) {
+    public boolean requires(int argument, RType type) {
       return paramTypes != null
           && (argument >= paramTypes.size() || paramTypes.get(argument).isSubsetOf(type));
     }
@@ -253,7 +252,7 @@ public class ClosureVersion {
       return other.paramTypes == null
           || (paramTypes != null
               && paramTypes.size() == other.paramTypes.size()
-              && Streams.zip(paramTypes.stream(), other.paramTypes.stream(), RSexpType::isSubsetOf)
+              && Streams.zip(paramTypes.stream(), other.paramTypes.stream(), RType::isSubsetOf)
                   .allMatch(b -> b));
     }
 
@@ -279,7 +278,7 @@ public class ClosureVersion {
       }
 
       return new CallContext(
-          Streams.zip(paramTypes.stream(), other.paramTypes.stream(), RSexpType::union)
+          Streams.zip(paramTypes.stream(), other.paramTypes.stream(), RType::unionOf)
               .collect(ImmutableList.toImmutableList()));
     }
 
@@ -307,9 +306,9 @@ public class ClosureVersion {
       }
 
       var paramTypes =
-          Streams.zip(this.paramTypes.stream(), other.paramTypes.stream(), RSexpType::intersection)
+          Streams.zip(this.paramTypes.stream(), other.paramTypes.stream(), RType::intersectionOf)
               .collect(ImmutableList.toImmutableList());
-      if (paramTypes.stream().anyMatch(RSexpType::isNothing)) {
+      if (paramTypes.stream().anyMatch(RType::isNothing)) {
         return null;
       }
 
@@ -399,9 +398,9 @@ public class ClosureVersion {
     }
 
     /** Possible return type from calling this closure version with the given arguments. */
-    public RSexpType returnType(ImmutableList<Node<?>> ignored) {
+    public RType returnType(ImmutableList<Node<?>> ignored) {
       // TODO
-      return RSexpType.ANY;
+      return RType.ANY;
     }
 
     /** Possible effects from calling this closure version with the given arguments. */
@@ -410,14 +409,16 @@ public class ClosureVersion {
       if (flags.contains(Property.NO_REFLECTION)) {
         var anyIsReflectivePromise = false;
         for (var i = 0; i < args.size(); i++) {
-          if (args.get(i).type().isLazy() != Maybe.NO && argumentForce.argIsForced(i) != Maybe.NO) {
+          if (args.get(i).type() instanceof RSexpType s
+              && s.isLazy() != Maybe.NO
+              && argumentForce.argIsForced(i) != Maybe.NO) {
             anyIsReflectivePromise = true;
             break;
           }
         }
 
         if (!anyIsReflectivePromise) {
-          effects = effects.without(REffect.Reflection);
+          effects = effects.without(new PerformsReflection());
         }
       }
       return effects;
@@ -588,25 +589,34 @@ public class ClosureVersion {
     var p = p1.withContext(ctx.inner());
     var s = p.scanner();
 
-    var paramNodeIdsBuilder = ImmutableList.<NodeId<?>>builder();
-    var paramTypesBuilder = isBaseline ? null : ImmutableList.<RSexpType>builder();
-
+    var paramsBuilder = ImmutableList.<Param.IdArgs>builder();
     s.assertAndSkip('(');
     if (!s.trySkip(')')) {
       do {
-        paramNodeIdsBuilder.add(p.parse(NodeId.class));
+        var paramId = p.parse(LocalNodeId.class);
+        RType paramType;
         if (!isBaseline) {
           s.assertAndSkip(':');
-          paramTypesBuilder.add(p.parse(RSexpType.class));
+          paramType = p.parse(RType.class);
+        } else {
+          paramType = RSexpType.SEXP;
         }
+        paramsBuilder.add(new Param.IdArgs(paramId, paramType));
       } while (s.trySkip(','));
       s.assertAndSkip(')');
     }
+    var params = paramsBuilder.build();
 
-    callContext = new CallContext(isBaseline ? null : paramTypesBuilder.build());
+    callContext =
+        new CallContext(
+            isBaseline
+                ? null
+                : params.stream().map(Param.IdArgs::type).collect(ImmutableList.toImmutableList()));
     properties = s.trySkip("has") ? p.parse(Properties.class) : Properties.EMPTY;
     s.assertAndSkip('{');
-    body = p.parse(CFG.class, new CFGParsePrint.ParamsContext(paramNodeIdsBuilder.build()));
+    body =
+        p.withContext(new CFGParsePrint.ParamsContext(paramsBuilder.build(), p.context()))
+            .parse(CFG.class);
     s.assertAndSkip('}');
   }
 

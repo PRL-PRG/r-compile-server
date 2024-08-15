@@ -217,9 +217,9 @@ public class RDSReader implements Closeable {
       // Otherwise, the tag should be an environment, the promise's environment, and the promise is
       // lazy. The "value" of a lazy promise is "unbound", which we represent as `null`.
       if (val != null) {
-          throw new RDSException(
-              "Promise serialized with env but not unbound value (so the environment is redundant, GNU-R doesn't serialize promises like this)");
-          }
+        throw new RDSException(
+            "Promise serialized with env but not unbound value (so the environment is redundant, GNU-R doesn't serialize promises like this)");
+      }
       return new PromSXP<>(expr, null, env);
     } else {
       throw new RDSException("Expected promise ENV to be environment");

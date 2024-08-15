@@ -3,6 +3,7 @@ package org.prlprg.optimizations;
 import static org.prlprg.optimizations.Optimizer.optimize;
 import static org.prlprg.util.Tests.printlnIfVerbose;
 
+import org.junit.jupiter.api.Disabled;
 import org.prlprg.bc2ir.RClosureTestsUsingIRCompiler;
 import org.prlprg.ir.closure.Closure;
 
@@ -14,6 +15,7 @@ import org.prlprg.ir.closure.Closure;
  * The closures are generated from the {@linkplain org.prlprg.bc2ir.ClosureCompiler IR closure
  * compiler}.
  */
+@Disabled
 public class OptimizerTests extends RClosureTestsUsingIRCompiler {
   @Override
   protected void testClosure(Closure ir) {

@@ -1,20 +1,20 @@
 package org.prlprg.optimizations;
 
-import org.prlprg.ir.analysis.scope.Scopes;
 import org.prlprg.ir.cfg.CFG;
+import org.prlprg.ir.cfg.Node;
 import org.prlprg.ir.closure.ClosureVersion;
-import org.prlprg.ir.closure.ClosureVersion.Properties.Property;
 import org.prlprg.ir.closure.Promise;
 
 /**
  * Uses scope analysis to get rid of as many `LdVar`'s as possible (from PIR).
  *
  * <p>Similar to LLVM's {@code mem2reg} pass, we try to lift as many loads from the R environment to
- * {@linkplain ISexp SSA variables}.
+ * {@linkplain Node SSA variables}.
  */
 class ScopeResolution implements OptimizationPass {
-  private void actuallyDoApply(ClosureVersion version, OptimizationContext ctx) {
-    var cfg = version.body();
+  private void actuallyDoApply(ClosureVersion ignored, OptimizationContext ignored1) {
+    // TODO
+    /* var cfg = version.body();
     var dom = cfg.domTree();
     var contexts = cfg.contexts();
 
@@ -57,7 +57,7 @@ class ScopeResolution implements OptimizationPass {
           }
         }
       }
-    }
+    } */
   }
 
   // region boilerplate
@@ -78,7 +78,8 @@ class ScopeResolution implements OptimizationPass {
 
   @Override
   public void doApply(CFG cfg, OptimizationContext ctx) {
-    throw new UnsupportedOperationException("`ScopeResolution` does not apply to `CFG`s, it's overridden for `ClosureVersion`s and `Promise`s.")
+    throw new UnsupportedOperationException(
+        "`ScopeResolution` does not apply to `CFG`s, it's overridden for `ClosureVersion`s and `Promise`s.");
   }
   // endregion boilerplate
 }

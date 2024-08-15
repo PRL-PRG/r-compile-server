@@ -3,7 +3,6 @@ package org.prlprg.ir.type.sexp;
 import javax.annotation.Nullable;
 import org.prlprg.ir.type.RType;
 import org.prlprg.ir.type.lattice.Maybe;
-import org.prlprg.ir.type.lattice.YesOrMaybe;
 import org.prlprg.sexp.BuiltinSXP;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.EnvSXP;
@@ -17,30 +16,26 @@ import org.prlprg.sexp.SpecialSXP;
 /**
  * Helper (static and instance) methods for {@link RSexpType}.
  *
- * <p>This is an interface because we don't want to make the {@link RSexpType}{@code .java} too large.
+ * <p>This is an interface because we don't want to make the {@link RSexpType}{@code .java} too
+ * large.
  */
 sealed interface RSexpTypeHelpers permits RSexpType {
   // region interned constants
-  /**
-   * The type of a value we know absolutely nothing about except it's missing.
-   *
-   * <p>The missing type <i>is</i> considered "owned", even though {@link SEXPs#MISSING_ARG} is
-   * shared, because the missing type's value type is {@link RValueType#NOTHING}. The "missingness"
-   * part, like the "promise-wrapper" part, is separate from the "value" part. Furthermore, the
-   * missing type is immutable, so its ownership doesn't matter to itself, but "maybe missing" types
-   * can be owned and that does matter, because we want to be able to consume the type after proving
-   * that it's not missing.
-   */
+  /** The type of a value we know absolutely nothing about, besides it being an {@link SEXP}. */
+  RSexpType SEXP =
+      RSexpType.of(
+          RValueType.ANY, AttributesType.ANY, RPromiseType.MAYBE_LAZY_MAYBE_PROMISE, Maybe.MAYBE);
+
+  /** The type of a value we know absolutely nothing about except it's missing. */
   RSexpType MISSING =
-      new RSexpTypeImpl(
-          RValueType.NOTHING, YesOrMaybe.YES, AttributesType.BOTTOM, RPromiseType.VALUE, Maybe.YES);
+      new RSexpTypeImpl(RValueType.NOTHING, AttributesType.BOTTOM, RPromiseType.VALUE, Maybe.YES);
 
   /** The type of a value that is an {@link SEXP} and not a promise. */
   RSexpType VALUE_MAYBE_MISSING = RSexpType.SEXP.forced();
 
   /**
-   * The type of a value that is an {@link SEXP}, not a promise, and not
-   * {@linkplain SEXPs#MISSING_ARG missing}.
+   * The type of a value that is an {@link SEXP}, not a promise, and not {@linkplain
+   * SEXPs#MISSING_ARG missing}.
    */
   RSexpType VALUE_NOT_MISSING = RSexpType.SEXP.forcedNotMissing();
 
@@ -124,30 +119,14 @@ sealed interface RSexpTypeHelpers permits RSexpType {
   // endregion interned constants
 
   // region helper derived constructors
-  /**
-   * Returns the same type except owned; that is, the type at its definition is guaranteed to be
-   * unique, so if it's last use is consuming, that use doesn't have to copy.
-   */
-  default RSexpType owned() {
-    return cast(this).withOwnership(YesOrMaybe.YES);
-  }
-
-  /**
-   * Returns the same type except not owned; that is, the type at its definition isn't guaranteed to
-   * be unique, so every consuming use must copy.
-   */
-  default RSexpType shared() {
-    return cast(this).withOwnership(YesOrMaybe.MAYBE);
-  }
-
   /** Returns the same type except with {@link AttributesType#EMPTY}. */
   default RSexpType withNoAttributes() {
     return cast(this).withAttributes(AttributesType.EMPTY);
   }
 
   /**
-   * Returns the same type except {@link RSexpType#promise() promise()}} is {@link RPromiseType#VALUE},
-   * <i>unless</i> this is the nothing type.
+   * Returns the same type except {@link RSexpType#promise() promise()}} is {@link
+   * RPromiseType#VALUE}, <i>unless</i> this is the nothing type.
    */
   default RSexpType forced() {
     return cast(this).withPromise(RPromiseType.VALUE);
@@ -178,8 +157,7 @@ sealed interface RSexpTypeHelpers permits RSexpType {
    */
   default RSexpType maybeLazy() {
     var self = cast(this);
-    return self.promise() == null ? self
-        : self.withPromise(self.promise().maybeLazy());
+    return self.promise() == null ? self : self.withPromise(self.promise().maybeLazy());
   }
 
   /**
@@ -188,8 +166,7 @@ sealed interface RSexpTypeHelpers permits RSexpType {
    */
   default RSexpType promiseWrapped() {
     var self = cast(this);
-    return self.promise() == null ? self
-        : self.withPromise(self.promise().promiseWrapped());
+    return self.promise() == null ? self : self.withPromise(self.promise().promiseWrapped());
   }
 
   /**

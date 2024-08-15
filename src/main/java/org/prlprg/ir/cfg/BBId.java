@@ -23,13 +23,16 @@ public final class BBId {
         "^" + (disambiguator == 0 ? "" : disambiguator) + NodeAndBBIds.quoteNameIfNecessary(name);
   }
 
-  /** The part of the identifier that distinguishes it from other BB identifiers with the same
-   * {@link #name()}. */
+  /**
+   * The part of the identifier that distinguishes it from other BB identifiers with the same {@link
+   * #name()}.
+   */
   public int disambiguator() {
     return disambiguator;
   }
 
-  /** The part of the identiifer that is for the user, to provide insight into what the BB does.
+  /**
+   * The part of the identiifer that is for the user, to provide insight into what the BB does.
    *
    * <p>e.g. "entry", "forLoopStart", "dispatchNonObject".
    *

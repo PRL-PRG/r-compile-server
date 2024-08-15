@@ -13,8 +13,9 @@ import org.prlprg.parseprint.Printer;
  * <p><b>Implementation note:</b> in GNU-R this is represented as a linked list, but we internally
  * use an array-list because it's more efficient.
  */
-public sealed interface DotsListSXP extends Iterable<TaggedElem>, AbstractPairListSXP,
-    DotsListOrMissingSXP permits NilSXP, DotsListSXPImpl {
+public sealed interface DotsListSXP
+    extends Iterable<TaggedElem>, AbstractPairListSXP, DotsListOrMissingSXP
+    permits NilSXP, DotsListSXPImpl {
   /**
    * Get the element at index i.
    *

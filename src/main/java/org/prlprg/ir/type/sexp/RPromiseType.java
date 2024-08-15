@@ -8,8 +8,8 @@ import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 
 /**
- * A value's type (part of {@link RSexpType}) that encodes whether or not a value is in a promise, and
- * if so, whether it's unevaluated.
+ * A value's type (part of {@link RSexpType}) that encodes whether or not a value is in a promise,
+ * and if so, whether it's unevaluated.
  */
 public enum RPromiseType implements Lattice<RPromiseType> {
   /** Value isn't in a promise. */
