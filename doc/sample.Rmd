@@ -1,0 +1,481 @@
+### xor
+
+```r
+xor <- function(x, y) { (x | y) & !(x & y) }
+```
+
+Annotated
+
+
+```r
+xor <- function(x:lgl[]@mutate, y:lgl[]@borrow) -> lgl[]@fresh {
+    _1:lgl[]@fresh = `|`(x, y)
+    _2:lgl[]@fresh = `&`(x, y)    {@mutates x}
+    _3:lgl[]@fresh = `!`(_2)      {@mutates _2}
+    _4:lgl[]@fresh = `&`(_1, _3)  {@mutates _1}
+    return _4
+}
+
+xor <- function(x:lgl[]@borrow, y:lgl[]@mutate) -> lgl[]@fresh {
+    _1:lgl[]@fresh = `|`(x, y)
+    _2:lgl[]@fresh = `&`(x, y)    {@mutates y}
+    _3:lgl[]@fresh = `!`(_2)      {@mutates _2}
+    _4:lgl[]@fresh = `&`(_1, _3)  {@mutates _1}
+    return _4
+}
+
+xor <- function(x:lgl[]@borrow, y:lgl[]@borrow) -> lgl[]@fresh {
+    _1:lgl[]@fresh = `|`(x, y)
+    _2:lgl[]@fresh = `&`(x, y)
+    _3:lgl[]@fresh = `!`(_2)      {@mutates _2}
+    _4:lgl[]@fresh = `&`(_1, _3)  {@mutates _1}
+    return _4
+}
+
+xor <- function(x:lgl, y:lgl) -> lgl {
+    _1:lgl = `|`(x, y)
+    _2:lgl = `&`(x, y)
+    _3:lgl = `!`(_2)
+    _4:lgl = `&`(_1, _3)
+    return _4
+}
+```
+
+Notes
+
+- There are two ways we can compile `xor` to consume vectors, suggesting that we compile `@mutate` based on whether the callee passes a last-use value.
+- Scalars should never be mutated in-place, even if SEXPs we can use global constants, interning if necessary.
+- `` `&` `` and `` `|` `` are overloaded based on the argument types. We could make the specializations explicit with syntax like `` `&`(:lgl[]@mutate, :lgl[]@borrow) ``, but I think the added information is too obvious. I chose to only annotate local variable types because I think they can be less obvious particularly with large chains of statements.
+
+### isTRUE
+
+```r
+isTRUE <- function(x) is.logical(x) && length(x) == 1L && !is.na(x) && x
+```
+
+Annotated
+
+```r
+isTRUE <- function(x:bool) -> bool {
+    return x
+}
+
+isTRUE <- function(x:lgl) -> bool {
+    _1:bool <- is.na(x)
+    if _1 goto ^1 else ^2
+  ^1:
+    return FALSE
+  ^2:
+    assume x is bool
+    return x
+}
+
+isTRUE <- function(x:any@!reflect@borrow) -> bool+attrs {
+    _1:bool <- is.logical(x)
+    if _1 goto ^1 else ^2
+  ^1:
+    assume x is lgl+attrs[]
+    _2:whole|real <- length(x)
+    _3:bool <- `==`(_2, 1L)
+    if _3 goto ^3 else ^2
+  ^2:
+    return FALSE
+  ^3:
+    assume x is lgl+attrs
+    _4:bool <- is.na(x)
+    if _4 goto ^2 else ^4
+  ^4:
+    assume x is bool+attrs
+    return x
+}
+```
+
+Notes
+
+- Can't prove `isTRUE(:lgl)` returns a boolean, because `` `&&`(TRUE, NA) `` produces `NA`, and it's hard for the compiler to determine that `_2` is `FALSE` if `x` is `NA`. But we can speculate.
+  - Since the speculation only affects the return type, should we actually do it, or defer it to the callees that will only do it when it matters? The former can waste overhead on a useless speculation. But the latter increases code size; moreover, it decreases understandability, since you may have a lot of functions whose return types are less specific than they could be, but they always get speculated whenever the more specific type is necessary. Ultimately, I chose the former (a speculation is not considered redundant when it affects the return type), assuming the overhead of speculating is negligable enough to justify the code-size/readability improvements.
+
+- Alternatively or additionally, the speculated **assumptions** can be replaced with **inferences** statically proven by the conditions. Functions like `is.logical`, `is.na` etc. can be hard-coded, and user-defined functions can be inferred, with annotations that state, when they return a specific value, their argument(s) have a **guarantee**. We can chain these guarantees, e.g. if a variable that must be a specific value for a particular guarantee, is compared with that value, the comparison returning `TRUE` provides that guarantee; and negation/conjunction/disjunction affects guarantees. We also hard-code and infer annotations that provide guarantees when a returned value is of a particular type, which lets us build off existing speculations (if we determine that we want to speculate the returned value is said type, suddenly we have a lot more info).
+
+With guarantees:
+
+```r
+isTRUE <- function(x:lgl) -> bool @guarantee(TRUE => x is bool) {
+    _1:bool <- is.na(x)         {@guarantee(TRUE => x is bool)}
+    if _1 goto ^1 else ^2
+  ^1:
+    return FALSE
+  ^2:
+    infer x is bool
+    return x
+}
+
+isTRUE <- function(x:any@!reflect) -> bool+attrs @guarantee(TRUE => x is bool+attrs) {
+    _1:bool <- is.logical(x)    {@guarantee(TRUE => x is lgl+attrs[])}
+    if _1 goto ^1 else ^2
+  ^1:
+    infer x is lgl+attrs[]
+    _2:whole|real <- length(x)  {@guarantee(1L => x is lgl+attrs)}
+    _3:bool <- `==`(_2, 1L)     {@guarantee(TRUE => _2 == 1L)} ==> {@guarantee(TRUE => x is lgl+attrs)}
+    if _3 goto ^3 else ^2
+  ^2:
+    return FALSE
+  ^3:
+    infer x is lgl+attrs
+    _4:bool <- is.na(x)         {@guarantee(FALSE => x is bool+attrs)}
+    if _4 goto ^2 else ^4
+  ^4:
+    infer x is bool+attrs
+    return x
+}
+```
+
+### append
+
+```r
+append <- function(x, values, after = length(x)) {
+    lengx <- length(x)
+    if (!after) c(values, x)
+    else if (after >= lengx) c(x, values)
+    else c(x[1L:after], values, x[(after + 1L):lengx])
+}
+```
+
+Annotated
+
+```r
+append <- function[T <: !obj](x:T[]@mutate, values:T[]@borrow) -> T[]@fresh {
+    _1:T[] = c(x, values)  {@mutates x}
+    return _1
+}
+
+append <- function[T <: !obj](x:T[]@borrow, values:T[]@mutate, after:int = 0) -> T[]@fresh {
+    _1:T[] = c(values, x)  {@mutates values}
+    return _1
+}
+
+append <- function[T <: !obj](x:T[]@borrow, values:T[]@borrow, after:whole) ->{error} T[]@fresh {
+    lengx:whole = length(x)
+    _1:bool = `>=`(after, lengx)
+    if _1 goto ^1 else ^2
+  ^1:
+    _2:T[]@fresh = c(x, values)
+    return _2
+  ^2:
+    _3:whole[]@range = `:`(1L, after)
+    _4:T[] = `[`(x, _3)                {error}
+    _5:whole = `+`(after, 1L)
+    _6:whole[]@range = `:`(_5, lengx)
+    _7:T[] = `[`(x, _6)                {error}
+    _8:T[]@fresh = c(_4, values, _7)
+    return _8
+}
+
+append <- function[T <: !obj](x:T[]@borrow, values:T[]@borrow, after:nat) ->{error} T[]@fresh {
+    lengx:whole = length(x)
+    _1:bool = `!`(after)
+    if _1 goto ^1 else ^2
+  ^1:
+    _2:T[]@fresh = c(values, x)
+    return _2
+  ^2:
+    _3:bool = `>=`(after, lengx)
+    if _3 goto ^3 else ^4
+  ^3:
+    _4:T[]@fresh = c(x, values)
+    return _4
+  ^4:
+    _5:nat[]@range = `:`(1L, after)
+    _6:T[] = `[`(x, _5)                {error}
+    _7:whole|real = `+`(after, 1L)
+    _8:whole|real[]@range = `:`(_7, lengx)
+    _9:T[] = `[`(x, _8)                {error}
+    _10:T[]@fresh = c(_6, values, _9)
+    return _9
+}
+
+append <- function[T <: !obj](x:T[]@borrow, values:T[]@borrow, after:int|NA) ->{error} T[]@fresh {
+    lengx:whole = length(x)
+    _1:lgl = `!`(after)
+    assume _1 is bool
+    if _1 goto ^1 else ^2
+  ^1:
+    _2:T[]@fresh = c(values, x)
+    return _2
+  ^2:
+    _3:lgl = `>=`(after, lengx)
+    assume _3 is bool
+    if _3 goto ^3 else ^4
+  ^3:
+    _4:T[]@fresh = c(x, values)
+    return _4
+  ^4:
+    _5:int[]@range = `:`(1L, after)  {error}
+    _6:T[] = `[`(x, _5)              {error}
+    _7:num|NA = `+`(after, 1L)
+    _8:num[]@range = `:`(_7, lengx)  {error}
+    _9:T[] = `[`(x, _8)              {error}
+    _10:T[]@fresh = c(_6, values, _9)
+    return _9
+}
+```
+
+Notes
+
+- We should be able to compile versions of functions where arguments are statically known to be default.
+  - Then it would be nice to be able to constant-fold expressions like `∀x:!obj[]. length(x) >= length(x)`. That could be done by adding a rule that specifies a function without read-state effects, given equivalent inputs, produces an equivalent output.
+  - We should also be able to compile versions where arguments are exact values, if we record that the argument is the same value enough. We probably also want to speculate on variables being exact values. However, speculation won't work if the the variable is *commonly but not always* the value, because speculation falls back to deoptimization, and it's difficult for the compiler to figure out the condition that makes it so in the general case; but for arguments specicially we can compile a unique version for a common exact value, because we only fall back to selecting a different optimized version.
+- I chose to make growing/shrinking a vector an in-place operation, but maybe it shouldn't be. Usually, we have to re-allocate and move the data anyways. However, if people write code like `foo <- c(); for (i in 1:100) foo <- c(foo, i)`, not mutating in-place will be much more expensive.
+  - R has runtime copy-on-write semantics that handle both cases, because in the latter case the latter 99 operations are guaranteed to be in-place. We could preserve copy-on-write semantics in the generated C code. The issue is that it adds overhead when we know something will be copied or not copied. We could add "conditionally mutates" and "conditionally fresh" annotations and only have copy-on-write semantics *then*, but it adds uncommon complexity.
+- Some edge-cases are pervasive. For example, we can't disprove subsetting causes an out-of-bounds error. We also can't disprove addition causes a to-real conversion because of integer overflow.
+  - I probably missed some other examples...
+
+### mode
+
+```r
+mode <- function(x) {
+    if(is.expression(x)) return("expression")
+    if(is.call(x))
+        return(switch(deparse(x[[1L]])[1L],
+                      "(" = "(",
+                      ## otherwise
+                      "call"))
+    if(is.name(x)) "name" else
+    switch(tx <- typeof(x),
+           double =, integer = "numeric", # 'real=' dropped, 2000/Jan/14
+           closure =, builtin =, special = "function",
+           ## otherwise
+           tx)
+}
+```
+
+Annotated
+
+```r
+mode <- function(x:any@!reflect) -> str {
+    _1:bool <- is.expression(x)
+    if _1 goto ^1 else ^2
+  ^1:
+    return "expression"
+  ^2:
+    _2:bool <- is.call(x)
+    if _2 goto ^3 else ^4
+  ^3:
+    assume x is lang
+    _3:sym|lang <- `[[`(x, 1L)
+    _4:str[] <- deparse(_3)
+    _5:str <- `[`(_4, 1L)
+    _6:bool <- `===`(_5, "(")
+    if _6 goto ^5 else ^6
+  ^4:
+    _7:bool <- is.name(x)
+    if _7 goto ^7 else ^8
+  ^5:
+    return "expression"
+  ^6:
+    return "call"
+  ^7:
+    return "name"
+  ^8:
+    tx:str <- typeof(x)
+    _8:bool <- `===`(tx, "double")
+    if _8 goto ^9 else ^10
+  ^9:
+    return "numeric"
+  ^10:
+    _9:bool <- `===`(tx, "integer")
+    if _9 goto ^9 else ^11
+  ^11:
+    _10:bool <- `===`(tx, "closure")
+    if _10 goto ^12 else ^13
+  ^12:
+    return "function"
+  ^13:
+    _11:bool <- `===`(tx, "builtin")
+    if _11 goto ^12 else ^14
+  ^14:
+    _12:bool <- `===`(tx, "special")
+    if _12 goto ^12 else ^15
+  ^15:
+    return tx
+}
+```
+
+### anyDots
+
+```r
+anyDots <- function(args) {
+    for (i in 1:length(args)) {
+        a <-args[[i]]
+        if (!missing(a) && identical(a, quote(`...`)))
+            return(TRUE)
+    }
+    return(FALSE)
+}
+```
+
+Annotated
+
+```r
+anyDots <- function(args:sym|miss[]@borrow) ->{error} bool {
+    _forLast:whole = length(args)
+    i:nat = 0L
+    goto ^forStep
+  ^forStep(i.1(i:^entry, i.2:^forBody, i.2:^1)):
+    i.2:whole = `+`(i.1, 1L)
+    _breakFor:bool <- `<`(_forLast, i.2)
+    if _breakFor goto ^forExit else ^forBody
+  ^forExit:
+    return FALSE
+  ^forBody:
+    a:sym|miss <- `[[`(args, i.2)  {error}
+    _2:bool <- missing(a)
+    if _2 goto ^forStep else ^1
+  ^1:
+    _3:bool <- `===`(a, '...)
+    if _3 goto ^2 else ^forStep
+  ^2:
+    return TRUE
+}
+```
+
+Notes
+
+- Someone mentioned before, but the functions in `compiler/R/cmp.R` are the best to test the compiler (both whether it works and whether it produces speedups).
+- We should have explicit optimization for `1L:…` and `1:…` ranges, especially those where the start is a real but we can convert to an integer.
+
+# missingArgs
+
+```r
+missingArgs <- function(args) {
+    val <- logical(length(args))
+    for (i in seq_along(args)) {
+        a <- args[[i]]
+        if (missing(a))
+            val[i] <- TRUE
+        else
+            val[i] <- FALSE
+    }
+    val
+}
+```
+
+Annotated
+
+```r
+missingArgs <- function(args:sym|miss[]@borrow) ->{error} lgl[]@fresh {
+    _1:whole = length(args)
+    val:bool[]@fresh = logical(_1)
+    _forLast:whole <- length(val)
+    i:nat = 0L
+    goto ^forStep
+  ^forStep(i.1(i:^entry, i.2:^forBody), val.1(val:^entry, val.2:^forBody)):
+    i.2:whole = `+`(i.1, 1L)
+    _breakFor:bool <- `<`(_forLast, i.2)
+    if _breakFor goto ^forExit else ^forBody
+  ^forExit:
+    return val.1
+  ^forBody:
+    a:sym|miss <- `[[`(args, i.2)  {error}
+    _2:bool <- missing(a)
+    val.2 <- `[`(val.1, i.2, _2)   {@mutates val.1}
+    goto ^forStep
+}
+```
+
+Notes
+
+- Like above, we should have an optimization for `seq_along` for loops. One thing we could do is use e-graphs to rewrite `seq_along(x)` to/from `1L:length(x)`.
+- In this case, I assume we can't infer `length(_2) == length(args)`. However, we could if explicit support was added.
+- I assume we *can* optimize the redundant `if (missing(a))` though.
+
+### patchLabels
+
+```r
+patchlabels <- function(cntxt) {
+    offset <- function(lbl) {
+        if (is.null(labels[[lbl]]))
+            cntxt$stop(gettextf("no offset recorded for label \"%s\"", lbl),
+                        cntxt)
+        labels[[lbl]]
+    }
+    for (i in 1 : codeCount) {
+        v <- codeBuf[[i]]
+        if (is.character(v))
+            codeBuf[[i]] <<- offset(v)
+        else if (typeof(v) == "list") {
+            off <- as.integer(lapply(v, offset))
+            ci <- putconst(off)
+            codeBuf[[i]] <<- ci
+        }
+    }
+}
+```
+
+Annotated
+
+```r
+patchlabels <- function(cntxt:env) {
+    labels:any = ld('labels)
+    codeBuf:any = ld('codeBuf)
+    codeCount:any = ld('codeCount)
+    putConst:any = ld('putConst)
+    assume labels is int|nil[]
+    assume codeBuf is val[]
+    assume codeCount is nat
+    assume putConst is fn(:int[])->int
+    offset = function(lbl:str) -> int {
+        _1:int|nil = `[[`(labels, lbl)
+        _2:bool = is.null(_1)
+        if _2 goto ^1 else ^2
+      ^1:
+        stop:any = `[`(cntxt, 'stop)
+        assume stop is fun
+        _3:str = gettextf("no offset recorded for label \"%s\"", lbl)
+        _ = stop(_3, cntxt)
+        goto ^2
+      ^2:
+        assume _1 is int
+        return _1
+    }
+    i:nat = 0L
+    goto ^forStep
+  ^forStep(i.1(i:^entry, i.2:^2, i.2:^4), codeBuf.1(codeBuf:^entry, codeBuf.1:^2, codeBuf.2:^4)):
+    i.2:whole = `+`(i, 1L)
+    _breakFor:bool = `<`(codeCount, i.2)
+    if _breakFor goto ^forExit else ^forBody
+  ^forBody:
+    v:val = `[[`(codeBuf, i.2)
+    _1:bool = is.character(v)
+    if _1 goto ^1 else ^2
+  ^1:
+    assume v is str
+    _2:int = offset(v)
+    goto ^4
+  ^2:
+    _3:str = typeof(v)
+    _4:bool = `==`(_3, "list")
+    if _4 goto ^3 else ^forStep
+  ^3:
+    assume v is str[]
+    off:int[]@fresh = sapply(v, offset)
+    ci:int = putconst(off)
+    goto ^4
+  ^4(_5(_2:^1, ci:^3)):
+    codeBuf.2:val[] = `[[`(codeBuf.1, _5)
+    goto ^forStep
+  ^forExit:
+    stSuper('codeBuf, codeBuf.1)
+    return NULL
+}
+```
+
+Notes
+
+- If we can disprove reflection, we can hoist loading external variables. One thing we can do is speculate that the loaded variables aren't lazy promises before.
+- We can use e-graphs or some other form of rewriting to replace `$` with `[`.
+  - There are many cases we can rewrite `==` with `===` (including in above examples), which I didn't do because we may want to rewrite the opposite way. (`===` is a made-up intrinsic similar to `identical`.)
+- Syntax can be confusing, because `stop` here refers to the local `stop`, if global `stop` was used it would have to be something like `base:::stop`. This is why I originally prefixed variables with `%`. However, it may be workable, because the lack of `%`s means the syntax is a lot cleaner in other areas, and moreover, it's probably very rare that a shadowed builtin is called (and when it is, it's probably almost always qualified in the same way we'd qualify it in the IR).
+- The compiler should be able to remove the redundant `labels[[lbl]]`, and it may be able to also remove the redundant `codeBuf[[i]] <<-`. For the example I assumed both.
+- I assume we have polymorphic type annotations on `lapply`. I also assume we can simplify `as.integer(lapply(…))` into `sapply(…)` (they're equivalent if the function returns an integer, at least excluding any edge cases I didn't realize).
+- In-place mutation of `codeBuf` is hard, because it's only from one predecessor, so we'd need to be smart and insert an implicit copy on the other predecessor. I think we at least need to preserve the runtime support, and that may make the whole compile-time advantage negligable. But maybe we can figure out a way, at the least we can implement "maybe-fresh".
