@@ -19,6 +19,10 @@ double R_pow(double x, double y);
 #define JIT_EXTERN extern
 #endif
 
+#define X_MATH1_OPS                                                            \
+  X(sqrt, SQRT_OP)                                                             \
+  X(exp, EXP_OP)
+
 #define X_ARITH_OPS                                                            \
   X(+, ADD_OP)                                                                 \
   X(-, SUB_OP)                                                                 \
@@ -37,13 +41,16 @@ double R_pow(double x, double y);
 #define X(a, b) b,
 typedef enum { X_ARITH_OPS } RshArithOp;
 typedef enum { X_REL_OPS } RshRelOp;
+typedef enum { X_MATH1_OPS } RshMath1Op;
 #undef X
 
 #define X(a, b) NULL,
 SEXP R_ARITH_OPS[] = {X_ARITH_OPS};
-SEXP R_REL_OPS[] = {X_REL_OPS};
 SEXP R_ARITH_OP_SYMS[] = {X_ARITH_OPS};
+SEXP R_REL_OPS[] = {X_REL_OPS};
 SEXP R_REL_OP_SYMS[] = {X_REL_OPS};
+SEXP R_MATH1_OPS[] = {X_MATH1_OPS};
+SEXP R_MATH1_OP_SYMS[] = {X_MATH1_OPS};
 #undef X
 
 // VALUE REPRESENTATION
@@ -318,6 +325,7 @@ static INLINE Rboolean bcell_set_value(BCell cell, SEXP value) {
 // RUNTIME INITIALIZATION
 // ----------------------
 
+// TODO: add this to the package
 #define LOAD_R_BUILTIN(target, name)                                           \
   do {                                                                         \
     target = PROTECT(R_Primitive(name));                                       \
@@ -332,12 +340,18 @@ static INLINE void Rsh_initialize_runtime(void) {
 #define X(a, b) LOAD_R_BUILTIN(R_REL_OPS[b], #a);
   X_REL_OPS
 #undef X
+#define X(a, b) LOAD_R_BUILTIN(R_MATH1_OPS[b], #a);
+  X_MATH1_OPS
+#undef X
 
 #define X(a, b) R_ARITH_OP_SYMS[b] = install(#a);
   X_ARITH_OPS
 #undef X
 #define X(a, b) R_REL_OP_SYMS[b] = install(#a);
   X_REL_OPS
+#undef X
+#define X(a, b) R_MATH1_OP_SYMS[b] = install(#a);
+  X_MATH1_OPS
 #undef X
 
   Rsh_NilValue = SXP_TO_VAL(R_NilValue);
@@ -750,6 +764,66 @@ static INLINE Value Rsh_relop(SEXP call, RshRelOp op, Value lhs, Value rhs,
   // Slow path!
   DO_BINARY_BUILTIN(relop, call, R_REL_OPS[op], R_REL_OP_SYMS[op], lhs, rhs,
                     rho, res);
+
+  return res;
+}
+
+#define Builtin1(fun, call, op, opSym, arg, rho, res)                          \
+  do {                                                                         \
+    SEXP __res_sxp__ = fun((call), (op), val_as_sxp((arg)), (rho));            \
+    res = sexp_as_val(__res_sxp__);                                            \
+    R_Visible = TRUE;                                                          \
+  } while (0)
+
+static INLINE Value Rsh_math1(SEXP call, RshMath1Op op, Value arg, SEXP rho) {
+  Value res;
+
+  if (VAL_IS_DBL(arg)) {
+    double d = VAL_DBL(arg);
+
+    switch (op) {
+    case SQRT_OP:
+      d = sqrt(d);
+      break;
+    case EXP_OP:
+      d = exp(d);
+      break;
+    }
+
+    if (ISNAN(d)) {
+      if (ISNAN(VAL_DBL(arg))) {
+        d = VAL_DBL(arg);
+      } else {
+        Rf_warningcall(call, R_MSG_NA);
+      }
+    }
+
+    res = DBL_TO_VAL(d);
+    R_Visible = TRUE;
+  } else if (VAL_IS_INT_NOT_NA(arg)) {
+
+    double d = (double)VAL_INT(arg);
+
+    switch (op) {
+    case SQRT_OP:
+      d = sqrt(d);
+      break;
+    case EXP_OP:
+      d = exp(d);
+      break;
+    }
+
+    if (ISNAN(d)) {
+      Rf_warningcall(call, R_MSG_NA);
+    }
+
+    res = DBL_TO_VAL(d);
+    R_Visible = TRUE;
+  } else {
+    // Slow path!
+    Builtin1(do_math1, call, R_MATH1_OPS[op], R_MATH1_OP_SYMS[op], arg, rho,
+             res);
+  }
 
   return res;
 }

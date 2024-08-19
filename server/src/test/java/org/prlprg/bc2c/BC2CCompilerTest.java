@@ -99,6 +99,12 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
     }
 
     @Test
+    public void testMath1Builtins() throws Exception {
+        verify("sqrt(4)", (RealSXP v) -> assertEquals(2.0, v.asReal(0)));
+        verify("exp(0)", (RealSXP v) -> assertEquals(1.0, v.asReal(0)));
+    }
+
+    @Test
     public void testScalarCompare() throws Exception {
         verify("x <- 42; x < 100", (LglSXP v) -> assertEquals(SEXPs.TRUE, v));
         verify("x <- 42; x > 100", (LglSXP v) -> assertEquals(SEXPs.FALSE, v));

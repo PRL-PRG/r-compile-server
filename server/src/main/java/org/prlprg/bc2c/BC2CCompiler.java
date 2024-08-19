@@ -184,6 +184,8 @@ public class BC2CCompiler {
             case BcInstr.Ge(var idx) -> compileRelop(idx, "GE_OP");
             case BcInstr.Eq(var idx) -> compileRelop(idx, "EQ_OP");
             case BcInstr.Ne(var idx) -> compileRelop(idx, "NE_OP");
+            case BcInstr.Exp(var idx) -> compileMath1(idx, "EXP_OP");
+            case BcInstr.Sqrt(var idx) -> compileMath1(idx, "SQRT_OP");
             case BcInstr.Return() -> compileReturn();
             case BcInstr.Pop() -> pop(1);
             case BcInstr.GetBuiltin(var idx) -> compileGetBuiltin(idx);
@@ -310,6 +312,12 @@ public class BC2CCompiler {
         pop(1);
         assert stack.isEmpty() : "Stack not empty (%d)".formatted(stack.currIdx(0));
         body.line("return Rsh_return(%s);".formatted(stack.curr(1)));
+    }
+
+    private void compileMath1(ConstPool.Idx<LangSXP> idx, String op) {
+        var call = constantSXP(idx);
+        var arg = stack.curr(0);
+        popPush(1, "Rsh_math1(%s, %s, %s, %s)".formatted(call, op, arg, NAME_ENV), false);
     }
 
     private void compileArith(ConstPool.Idx<LangSXP> idx, String op) {
