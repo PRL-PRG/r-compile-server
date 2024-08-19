@@ -32,6 +32,9 @@ int DispatchGroup(const char *group, SEXP call, SEXP op, SEXP args, SEXP rho,
 SEXP CONS_NR(SEXP car, SEXP cdr);
 SEXP R_binary(SEXP call, SEXP op, SEXP x, SEXP y);
 SEXP do_relop_dflt(SEXP call, SEXP op, SEXP x, SEXP y);
+SEXP do_math1(SEXP call, SEXP op, SEXP args, SEXP env);
+
+#define R_MSG_NA "NaNs produced"
 
 // from: eval.c modified version of cmp_arith2
 static INLINE SEXP arith2(SEXP call, SEXP op, SEXP opsym, SEXP x, SEXP y,
