@@ -178,7 +178,12 @@ public class BC2CCompiler {
             case BcInstr.Mul(var idx) -> compileArith(idx, "MUL_OP");
             case BcInstr.Div(var idx) -> compileArith(idx, "DIV_OP");
             case BcInstr.Expt(var idx) -> compileArith(idx, "POW_OP");
-            case BcInstr.Lt(var idx) -> compileLt(idx, "LT_OP");
+            case BcInstr.Lt(var idx) -> compileRelop(idx, "LT_OP");
+            case BcInstr.Le(var idx) -> compileRelop(idx, "LE_OP");
+            case BcInstr.Gt(var idx) -> compileRelop(idx, "GT_OP");
+            case BcInstr.Ge(var idx) -> compileRelop(idx, "GE_OP");
+            case BcInstr.Eq(var idx) -> compileRelop(idx, "EQ_OP");
+            case BcInstr.Ne(var idx) -> compileRelop(idx, "NE_OP");
             case BcInstr.Return() -> compileReturn();
             case BcInstr.Pop() -> pop(1);
             case BcInstr.GetBuiltin(var idx) -> compileGetBuiltin(idx);
@@ -192,18 +197,11 @@ public class BC2CCompiler {
             case BcInstr.Invisible() -> compileInvisible();
             case BcInstr.LdNull() -> compileLdNull();
             case BcInstr.GetFun(var idx) -> compileGetFun(idx);
-            case BcInstr.Eq(var idx) -> compileEq(idx);
 
             default -> throw new UnsupportedOperationException(instr + ": not supported");
         }
         body.comment("end: " + instr);
         body.nl();
-    }
-
-    private void compileEq(ConstPool.Idx<LangSXP> idx) {
-        var lhs = stack.curr(-1);
-        var rhs = stack.curr(0);
-        popPush(2, "Rsh_binary(EQ, %s, %s);".formatted(lhs, rhs), true);
     }
 
     private void compileCall(ConstPool.Idx<LangSXP> idx) {
@@ -321,7 +319,7 @@ public class BC2CCompiler {
         popPush(2, "Rsh_arith(%s, %s, %s, %s, %s)".formatted(call, op, lhs, rhs, NAME_ENV), false);
     }
 
-    private void compileLt(ConstPool.Idx<LangSXP> idx, String op) {
+    private void compileRelop(ConstPool.Idx<LangSXP> idx, String op) {
         var call = constantSXP(idx);
         var lhs = stack.curr(-1);
         var rhs = stack.curr(0);

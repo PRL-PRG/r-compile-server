@@ -101,6 +101,13 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
     @Test
     public void testScalarCompare() throws Exception {
         verify("x <- 42; x < 100", (LglSXP v) -> assertEquals(SEXPs.TRUE, v));
+        verify("x <- 42; x > 100", (LglSXP v) -> assertEquals(SEXPs.FALSE, v));
+        verify("x <- 42; x <= 42", (LglSXP v) -> assertEquals(SEXPs.TRUE, v));
+        verify("x <- 42; x >= 42", (LglSXP v) -> assertEquals(SEXPs.TRUE, v));
+        verify("x <- 42; x == 42", (LglSXP v) -> assertEquals(SEXPs.TRUE, v));
+        verify("x <- 42; x == 100", (LglSXP v) -> assertEquals(SEXPs.FALSE, v));
+        verify("x <- 42; x != 42", (LglSXP v) -> assertEquals(SEXPs.FALSE, v));
+        verify("x <- 42; x != 100", (LglSXP v) -> assertEquals(SEXPs.TRUE, v));
     }
 
     @Test
