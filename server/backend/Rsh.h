@@ -42,11 +42,16 @@ double R_pow(double x, double y);
   X(+, UPLUS_OP)                                                               \
   X(-, UMINUS_OP)
 
+#define X_LOGIC2_OPS                                                           \
+  X(&, AND_OP)                                                                 \
+  X(|, OR_OP)
+
 #define X(a, b) b,
 typedef enum { X_ARITH_OPS } RshArithOp;
 typedef enum { X_REL_OPS } RshRelOp;
 typedef enum { X_MATH1_OPS } RshMath1Op;
 typedef enum { X_UNARY_OPS } RshUnaryOp;
+typedef enum { X_LOGIC2_OPS } RshLogic2Op;
 #undef X
 
 #define X(a, b) NULL,
@@ -54,10 +59,11 @@ SEXP R_ARITH_OPS[] = {X_ARITH_OPS};
 SEXP R_ARITH_OP_SYMS[] = {X_ARITH_OPS};
 SEXP R_REL_OPS[] = {X_REL_OPS};
 SEXP R_REL_OP_SYMS[] = {X_REL_OPS};
+
 SEXP R_MATH1_OPS[] = {X_MATH1_OPS};
-SEXP R_MATH1_OP_SYMS[] = {X_MATH1_OPS};
 SEXP R_UNARY_OPS[] = {X_UNARY_OPS};
 SEXP R_UNARY_OP_SYMS[] = {X_UNARY_OPS};
+SEXP R_LOGIC2_OPS[] = {X_LOGIC2_OPS};
 #undef X
 
 // VALUE REPRESENTATION
@@ -165,6 +171,7 @@ static INLINE Value sexp_as_val(SEXP s) {
 }
 
 static Value Rsh_NilValue;
+static SEXP NOT_OP;
 
 // BINDING CELLS (bcell) implementation
 // ------------------------------------
@@ -365,6 +372,9 @@ static INLINE void Rsh_initialize_runtime(void) {
 #define X(a, b) LOAD_R_BUILTIN(R_UNARY_OPS[b], #a);
   X_UNARY_OPS
 #undef X
+#define X(a, b) LOAD_R_BUILTIN(R_LOGIC2_OPS[b], #a);
+  X_LOGIC2_OPS
+#undef X
 
 #define X(a, b) R_ARITH_OP_SYMS[b] = install(#a);
   X_ARITH_OPS
@@ -372,14 +382,12 @@ static INLINE void Rsh_initialize_runtime(void) {
 #define X(a, b) R_REL_OP_SYMS[b] = install(#a);
   X_REL_OPS
 #undef X
-#define X(a, b) R_MATH1_OP_SYMS[b] = install(#a);
-  X_MATH1_OPS
-#undef X
 #define X(a, b) R_UNARY_OP_SYMS[b] = install(#a);
   X_UNARY_OPS
 #undef X
 
   Rsh_NilValue = SXP_TO_VAL(R_NilValue);
+  LOAD_R_BUILTIN(NOT_OP, "!");
 }
 
 // INSTRUCTIONS
@@ -715,6 +723,8 @@ static INLINE Rboolean Rsh_is_true(Value value, SEXP call, SEXP rho) {
     *(r) = LGL_TO_VAL(__res__);                                                \
   } while (0)
 
+// calls R internal function which takes two arguments
+// it is like a second level builtin - called itself from do_* functions
 #define DO_BINARY_BUILTIN(fun, call, op, opSym, lsh, rhs, rho, res)            \
   do {                                                                         \
     SEXP __res_sxp__ = fun((call), (op), (opSym), val_as_sexp((lhs)),          \
@@ -794,9 +804,23 @@ static INLINE Value Rsh_relop(SEXP call, RshRelOp op, Value lhs, Value rhs,
   return res;
 }
 
-#define Builtin1(fun, call, op, opSym, arg, rho, res)                          \
+// FIXME: refactor the builtin calls
+
+// calls R builtin function do_* with 1 argument
+#define DO_BUILTIN1(fun, call, op, arg, rho, res)                              \
   do {                                                                         \
-    SEXP __res_sxp__ = fun((call), (op), val_as_sexp((arg)), (rho));           \
+    SEXP __res_sxp__ =                                                         \
+        fun((call), (op), CONS_NR(val_as_sexp((arg)), R_NilValue), (rho));     \
+    res = sexp_as_val(__res_sxp__);                                            \
+    R_Visible = TRUE;                                                          \
+  } while (0)
+
+// calls R builtin function do_* with 2 arguments
+#define DO_BUILTIN2(fun, call, op, arg1, arg2, rho, res)                       \
+  do {                                                                         \
+    SEXP __tmp__ = CONS_NR(val_as_sexp((arg1)),                                \
+                           CONS_NR(val_as_sexp((arg2)), R_NilValue));          \
+    SEXP __res_sxp__ = fun((call), (op), __tmp__, (rho));                      \
     res = sexp_as_val(__res_sxp__);                                            \
     R_Visible = TRUE;                                                          \
   } while (0)
@@ -830,8 +854,7 @@ static INLINE Value Rsh_math1(SEXP call, RshMath1Op op, Value arg, SEXP rho) {
     R_Visible = TRUE;
   } else {
     // Slow path!
-    Builtin1(do_math1, call, R_MATH1_OPS[op], R_MATH1_OP_SYMS[op], arg, rho,
-             res);
+    DO_BUILTIN1(do_math1, call, R_MATH1_OPS[op], arg, rho, res);
   }
 
   return res;
@@ -859,6 +882,30 @@ static INLINE Value Rsh_unary(SEXP call, RshUnaryOp op, Value arg, SEXP rho) {
   }
 
   R_Visible = TRUE;
+  return res;
+}
+
+static INLINE Value Rsh_not(SEXP call, Value arg, SEXP rho) {
+  Value res;
+
+  if (VAL_IS_LGL_NOT_NA(arg) || VAL_IS_INT_NOT_NA(arg)) {
+    res = LGL_TO_VAL(!VAL_INT(arg));
+  } else {
+    // Slow path!
+    DO_BUILTIN1(do_logic, call, NOT_OP, arg, rho, res);
+  }
+
+  return res;
+}
+
+static INLINE Value Rsh_logic(SEXP call, RshLogic2Op op, Value lhs, Value rhs,
+                              SEXP rho) {
+  Value res;
+
+  // TODO: not optimized
+  // Slow path!
+  DO_BUILTIN2(do_logic, call, R_LOGIC2_OPS[op], lhs, rhs, rho, res);
+
   return res;
 }
 

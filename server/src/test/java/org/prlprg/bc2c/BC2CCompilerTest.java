@@ -12,6 +12,7 @@ import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.prlprg.AbstractGNURBasedTest;
 import org.prlprg.bc.BCCompiler;
+import org.prlprg.primitive.Logical;
 import org.prlprg.rds.RDSWriter;
 import org.prlprg.service.RshCompiler;
 import org.prlprg.sexp.*;
@@ -132,6 +133,15 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
         verify("x <- 42; x == 100", (LglSXP v) -> assertEquals(SEXPs.FALSE, v));
         verify("x <- 42; x != 42", (LglSXP v) -> assertEquals(SEXPs.FALSE, v));
         verify("x <- 42; x != 100", (LglSXP v) -> assertEquals(SEXPs.TRUE, v));
+    }
+
+    @Test
+    public void testBooleanOperators() throws Exception {
+        verify("x <- TRUE; y <- FALSE; x & y", (LglSXP v) -> assertEquals(SEXPs.FALSE, v));
+        verify("x <- TRUE; y <- FALSE; x | y", (LglSXP v) -> assertEquals(SEXPs.TRUE, v));
+        verify("x <- TRUE; !x", (LglSXP v) -> assertEquals(SEXPs.FALSE, v));
+        verify("x <- 42; !!x", (LglSXP v) -> assertEquals(SEXPs.TRUE, v));
+        verify("x <- c(T,F,T,F); y <- c(T,T,F,F); x | y", (LglSXP v) -> assertArrayEquals(new Logical[]{Logical.TRUE, Logical.TRUE, Logical.TRUE, Logical.FALSE}, v.coerceTo(Logical.class)));
     }
 
     @Test
