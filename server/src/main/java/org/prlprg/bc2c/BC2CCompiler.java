@@ -188,6 +188,9 @@ public class BC2CCompiler {
             case BcInstr.Sqrt(var idx) -> compileMath1(idx, "SQRT_OP");
             case BcInstr.UPlus(var idx) -> compileUnary(idx, "UPLUS_OP");
             case BcInstr.UMinus(var idx) -> compileUnary(idx, "UMINUS_OP");
+            case BcInstr.And(var idx) -> compileLogic(idx, "AND_OP");
+            case BcInstr.Or(var idx) -> compileLogic(idx, "OR_OP");
+            case BcInstr.Not(var idx) -> compileNot(idx);
             case BcInstr.Return() -> compileReturn();
             case BcInstr.Pop() -> pop(1);
             case BcInstr.GetBuiltin(var idx) -> compileGetBuiltin(idx);
@@ -329,11 +332,24 @@ public class BC2CCompiler {
         popPush(1, "Rsh_unary(%s, %s, %s, %s)".formatted(call, op, arg, NAME_ENV), false);
     }
 
+    private void compileNot(ConstPool.Idx<LangSXP> idx) {
+        var call = constantSXP(idx);
+        var arg = stack.curr(0);
+        popPush(1, "Rsh_not(%s, %s, %s)".formatted(call, arg, NAME_ENV), false);
+    }
+
     private void compileArith(ConstPool.Idx<LangSXP> idx, String op) {
         var call = constantSXP(idx);
         var lhs = stack.curr(-1);
         var rhs = stack.curr(0);
         popPush(2, "Rsh_arith(%s, %s, %s, %s, %s)".formatted(call, op, lhs, rhs, NAME_ENV), false);
+    }
+
+    private void compileLogic(ConstPool.Idx<LangSXP> idx, String op) {
+        var call = constantSXP(idx);
+        var lhs = stack.curr(-1);
+        var rhs = stack.curr(0);
+        popPush(2, "Rsh_logic(%s, %s, %s, %s, %s)".formatted(call, op, lhs, rhs, NAME_ENV), false);
     }
 
     private void compileRelop(ConstPool.Idx<LangSXP> idx, String op) {

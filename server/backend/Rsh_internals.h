@@ -38,6 +38,7 @@ SEXP R_binary(SEXP call, SEXP op, SEXP x, SEXP y);
 SEXP do_relop_dflt(SEXP call, SEXP op, SEXP x, SEXP y);
 SEXP do_math1(SEXP call, SEXP op, SEXP args, SEXP env);
 SEXP R_unary(SEXP call, SEXP op, SEXP s1);
+SEXP do_logic(SEXP call, SEXP op, SEXP args, SEXP env);
 
 #define R_MSG_NA "NaNs produced"
 
