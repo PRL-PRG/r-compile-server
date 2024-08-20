@@ -3,17 +3,22 @@ package org.prlprg.bc2c;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.File;
-import java.util.Set;
+import java.io.IOException;
+import java.util.Objects;
 import java.util.function.Consumer;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.prlprg.AbstractGNURBasedTest;
 import org.prlprg.bc.BCCompiler;
 import org.prlprg.rds.RDSWriter;
 import org.prlprg.service.RshCompiler;
 import org.prlprg.sexp.*;
+import org.prlprg.util.Either;
 import org.prlprg.util.Files;
 
+@Execution(ExecutionMode.CONCURRENT)
 public class BC2CCompilerTest extends AbstractGNURBasedTest {
 
     @Test
@@ -105,6 +110,19 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
     }
 
     @Test
+    public void testUnaryBuiltins() throws Exception {
+        verify("x <- 42; +x", (RealSXP v) -> assertEquals(42.0, v.asReal(0)));
+        verify("x <- 42; -x", (RealSXP v) -> assertEquals(-42.0, v.asReal(0)));
+        verify("x <- -42; +x", (RealSXP v) -> assertEquals(-42.0, v.asReal(0)));
+        verify("x <- -42; -x", (RealSXP v) -> assertEquals(42.0, v.asReal(0)));
+        verify("x <- 42L; +x", (IntSXP v) -> assertEquals(42, v.asInt(0)));
+        verify("x <- 42L; -x", (IntSXP v) -> assertEquals(-42, v.asInt(0)));
+        verify("x <- -42L; +x", (IntSXP v) -> assertEquals(-42, v.asInt(0)));
+        verify("x <- -42L; -x", (IntSXP v) -> assertEquals(42, v.asInt(0)));
+        verify("x <- c(1, -2); -x", (RealSXP v) -> assertArrayEquals(new Double[]{-1.0, 2.0}, v.coerceTo(Double.class)));
+    }
+
+    @Test
     public void testScalarCompare() throws Exception {
         verify("x <- 42; x < 100", (LglSXP v) -> assertEquals(SEXPs.TRUE, v));
         verify("x <- 42; x > 100", (LglSXP v) -> assertEquals(SEXPs.FALSE, v));
@@ -189,7 +207,13 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
     //        });
     //  }
 
-    <T extends SEXP> T compileAndCall(String code) throws Exception {
+    record TestArtifact<T extends SEXP>(Either<Exception, T> result, File tempDir) {
+        public void destroy() throws IOException {
+            Files.deleteRecursively(tempDir.toPath());
+        }
+    }
+
+    <T extends SEXP> TestArtifact<T> compileAndCall(String code) throws Exception {
         var funName = "f";
         var fileName = "test";
 
@@ -248,18 +272,26 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
 
             var res = R.eval("source('%s', local=F)$value".formatted(rFile.getAbsolutePath()));
 
-            Set.of(cFile, cpFile, soFile, rFile).forEach(File::deleteOnExit);
-            return (T) res;
-        } catch (AssertionError | Exception e) {
-            var makeFile = new File(tempDir, "Makefile");
-
-            Files.copyURL(getClass().getResource("Makefile"), makeFile.toPath());
-
-            throw new RuntimeException("Test failed - temp file: " + tempDir.getAbsolutePath(), e);
+            return new TestArtifact<>(Either.right((T) res), tempDir);
+        } catch (Exception e) {
+            return new TestArtifact<>(Either.left(e), tempDir);
         }
     }
 
     <T extends SEXP> void verify(String code, Consumer<T> validator) throws Exception {
-        validator.accept(compileAndCall(code));
+        TestArtifact<T> artifact = compileAndCall(code);
+        try {
+            if (artifact.result.isLeft()) {
+                throw artifact.result.getLeft();
+            } else {
+                validator.accept(artifact.result.getRight());
+                artifact.destroy();
+            }
+        } catch (Throwable e) {
+            var makeFile = new File(artifact.tempDir, "Makefile");
+
+            Files.copyURL(Objects.requireNonNull(getClass().getResource("Makefile")), makeFile.toPath());
+            throw new RuntimeException("Test failed - compilation dir: " + artifact.tempDir.getAbsolutePath(), e);
+        }
     }
 }

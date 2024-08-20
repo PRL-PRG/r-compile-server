@@ -38,10 +38,15 @@ double R_pow(double x, double y);
   X(>, GT_OP)                                                                  \
   X(>=, GE_OP)
 
+#define X_UNARY_OPS                                                            \
+  X(+, UPLUS_OP)                                                               \
+  X(-, UMINUS_OP)
+
 #define X(a, b) b,
 typedef enum { X_ARITH_OPS } RshArithOp;
 typedef enum { X_REL_OPS } RshRelOp;
 typedef enum { X_MATH1_OPS } RshMath1Op;
+typedef enum { X_UNARY_OPS } RshUnaryOp;
 #undef X
 
 #define X(a, b) NULL,
@@ -51,6 +56,8 @@ SEXP R_REL_OPS[] = {X_REL_OPS};
 SEXP R_REL_OP_SYMS[] = {X_REL_OPS};
 SEXP R_MATH1_OPS[] = {X_MATH1_OPS};
 SEXP R_MATH1_OP_SYMS[] = {X_MATH1_OPS};
+SEXP R_UNARY_OPS[] = {X_UNARY_OPS};
+SEXP R_UNARY_OP_SYMS[] = {X_UNARY_OPS};
 #undef X
 
 // VALUE REPRESENTATION
@@ -99,7 +106,13 @@ typedef u64 Value;
 
 #define VAL_INT(v) (int)(v)
 #define VAL_SXP(v) (SEXP)((v) & (((u64)1 << 48) - 1))
-#define VAL_DBL(v) (double)(v)
+
+static INLINE double VAL_DBL(Value v) {
+  double d;
+  // type punning
+  memcpy(&d, &v, sizeof(double));
+  return d;
+}
 
 #define VAL_IS_INT(v) (((v) & MASK) == MASK_INT)
 #define VAL_IS_INT_NOT_NA(v) (VAL_IS_INT(v) && VAL_INT(v) != NA_INTEGER)
@@ -113,14 +126,20 @@ typedef u64 Value;
 // this is to prevent the NA value to change all the bits to 1
 #define INT_TO_VAL(v) (Value)(MASK_INT | ((u64)(u32)(v)))
 #define LGL_TO_VAL(v) (Value)(MASK_LGL | ((u64)(u32)(v)))
-#define DBL_TO_VAL(v) (Value)((v))
+
+static INLINE Value DBL_TO_VAL(double d) {
+  Value v;
+  // type punning
+  memcpy(&v, &d, sizeof(double));
+  return v;
+}
 
 #define VAL_TAG(v)                                                             \
   ((VAL_IS_DBL(v) ? REALSXP                                                    \
                   : (VAL_IS_INT(v) ? INTSXP : (VAL_IS_LGL(v) ? LGLSXP : 0))))
 
 // TODO: can we share this bcell expand?
-static INLINE SEXP val_as_sxp(Value v) {
+static INLINE SEXP val_as_sexp(Value v) {
   switch (VAL_TAG(v)) {
   case REALSXP:
     return ScalarReal(VAL_DBL(v));
@@ -343,6 +362,9 @@ static INLINE void Rsh_initialize_runtime(void) {
 #define X(a, b) LOAD_R_BUILTIN(R_MATH1_OPS[b], #a);
   X_MATH1_OPS
 #undef X
+#define X(a, b) LOAD_R_BUILTIN(R_UNARY_OPS[b], #a);
+  X_UNARY_OPS
+#undef X
 
 #define X(a, b) R_ARITH_OP_SYMS[b] = install(#a);
   X_ARITH_OPS
@@ -352,6 +374,9 @@ static INLINE void Rsh_initialize_runtime(void) {
 #undef X
 #define X(a, b) R_MATH1_OP_SYMS[b] = install(#a);
   X_MATH1_OPS
+#undef X
+#define X(a, b) R_UNARY_OP_SYMS[b] = install(#a);
+  X_UNARY_OPS
 #undef X
 
   Rsh_NilValue = SXP_TO_VAL(R_NilValue);
@@ -518,7 +543,7 @@ static INLINE void Rsh_set_var(SEXP symbol, Value value, SEXP rho,
     }
   }
 
-  SEXP sexp_value = val_as_sxp(value);
+  SEXP sexp_value = val_as_sexp(value);
   INCREMENT_NAMED(sexp_value);
 
   if (!bcell_set_value(*cell, sexp_value)) {
@@ -530,7 +555,7 @@ static INLINE void Rsh_set_var(SEXP symbol, Value value, SEXP rho,
   }
 }
 
-static INLINE SEXP Rsh_return(Value v) { return val_as_sxp(v); }
+static INLINE SEXP Rsh_return(Value v) { return val_as_sexp(v); }
 
 static INLINE SEXP Rsh_builtin_call_args(SEXP args) {
   for (SEXP a = args; a != R_NilValue; a = CDR(a)) {
@@ -622,7 +647,7 @@ static INLINE Rboolean Rsh_is_true(Value value, SEXP call, SEXP rho) {
 
 #define RSH_LIST_APPEND(/* Value */ head, /* Value */ tail, /* Value */ value) \
   do {                                                                         \
-    SEXP __elem__ = cons(val_as_sxp(value), R_NilValue);                       \
+    SEXP __elem__ = cons(val_as_sexp(value), R_NilValue);                      \
     if (head == Rsh_NilValue) {                                                \
       head = SXP_TO_VAL(__elem__);                                             \
     } else {                                                                   \
@@ -692,22 +717,22 @@ static INLINE Rboolean Rsh_is_true(Value value, SEXP call, SEXP rho) {
 
 #define DO_BINARY_BUILTIN(fun, call, op, opSym, lsh, rhs, rho, res)            \
   do {                                                                         \
-    SEXP __res_sxp__ = fun((call), (op), (opSym), val_as_sxp((lhs)),           \
-                           val_as_sxp((rhs)), (rho));                          \
+    SEXP __res_sxp__ = fun((call), (op), (opSym), val_as_sexp((lhs)),          \
+                           val_as_sexp((rhs)), (rho));                         \
     res = sexp_as_val(__res_sxp__);                                            \
   } while (0)
 
 static INLINE Value Rsh_arith(SEXP call, RshArithOp op, Value lhs, Value rhs,
                               SEXP rho) {
-  Value res = 0;
+  double res_dbl = 0;
 
   if (VAL_IS_DBL(lhs)) {
     if (VAL_IS_DBL(rhs)) {
-      DO_ARITH(op, lhs, rhs, &res);
-      return res;
+      DO_ARITH(op, VAL_DBL(lhs), VAL_DBL(rhs), &res_dbl);
+      return DBL_TO_VAL(res_dbl);
     } else if (VAL_IS_INT_NOT_NA(rhs)) {
-      DO_ARITH(op, lhs, VAL_INT(rhs), &res);
-      return res;
+      DO_ARITH(op, VAL_DBL(lhs), VAL_INT(rhs), &res_dbl);
+      return DBL_TO_VAL(res_dbl);
     }
   }
 
@@ -715,12 +740,12 @@ static INLINE Value Rsh_arith(SEXP call, RshArithOp op, Value lhs, Value rhs,
     int lhs_int = VAL_INT(lhs);
 
     if (VAL_IS_DBL(rhs)) {
-      DO_ARITH(op, lhs_int, rhs, &res);
-      return res;
+      DO_ARITH(op, lhs_int, VAL_DBL(rhs), &res_dbl);
+      return DBL_TO_VAL(res_dbl);
     } else if (VAL_IS_INT_NOT_NA(rhs)) {
       if (op == DIV_OP || op == POW_OP) {
-        DO_ARITH(op, (double)lhs_int, (double)VAL_INT(rhs), &res);
-        return res;
+        DO_ARITH(op, (double)lhs_int, (double)VAL_INT(rhs), &res_dbl);
+        return DBL_TO_VAL(res_dbl);
       } else {
         int res_int = 0;
         DO_ARITH(op, lhs_int, VAL_INT(rhs), &res_int);
@@ -730,6 +755,7 @@ static INLINE Value Rsh_arith(SEXP call, RshArithOp op, Value lhs, Value rhs,
   }
 
   // Slow path!
+  Value res;
   DO_BINARY_BUILTIN(arith2, call, R_ARITH_OPS[op], R_ARITH_OP_SYMS[op], lsh,
                     rhs, rho, res);
   return res;
@@ -770,7 +796,7 @@ static INLINE Value Rsh_relop(SEXP call, RshRelOp op, Value lhs, Value rhs,
 
 #define Builtin1(fun, call, op, opSym, arg, rho, res)                          \
   do {                                                                         \
-    SEXP __res_sxp__ = fun((call), (op), val_as_sxp((arg)), (rho));            \
+    SEXP __res_sxp__ = fun((call), (op), val_as_sexp((arg)), (rho));           \
     res = sexp_as_val(__res_sxp__);                                            \
     R_Visible = TRUE;                                                          \
   } while (0)
@@ -780,15 +806,7 @@ static INLINE Value Rsh_math1(SEXP call, RshMath1Op op, Value arg, SEXP rho) {
 
   if (VAL_IS_DBL(arg)) {
     double d = VAL_DBL(arg);
-
-    switch (op) {
-    case SQRT_OP:
-      d = sqrt(d);
-      break;
-    case EXP_OP:
-      d = exp(d);
-      break;
-    }
+    d = op == SQRT_OP ? sqrt(d) : exp(d);
 
     if (ISNAN(d)) {
       if (ISNAN(VAL_DBL(arg))) {
@@ -801,17 +819,8 @@ static INLINE Value Rsh_math1(SEXP call, RshMath1Op op, Value arg, SEXP rho) {
     res = DBL_TO_VAL(d);
     R_Visible = TRUE;
   } else if (VAL_IS_INT_NOT_NA(arg)) {
-
     double d = (double)VAL_INT(arg);
-
-    switch (op) {
-    case SQRT_OP:
-      d = sqrt(d);
-      break;
-    case EXP_OP:
-      d = exp(d);
-      break;
-    }
+    d = op == SQRT_OP ? sqrt(d) : exp(d);
 
     if (ISNAN(d)) {
       Rf_warningcall(call, R_MSG_NA);
@@ -825,6 +834,31 @@ static INLINE Value Rsh_math1(SEXP call, RshMath1Op op, Value arg, SEXP rho) {
              res);
   }
 
+  return res;
+}
+
+static INLINE Value Rsh_unary(SEXP call, RshUnaryOp op, Value arg, SEXP rho) {
+  Value res = arg;
+
+  if (VAL_IS_DBL(arg)) {
+    if (op == UMINUS_OP) {
+      double d = VAL_DBL(arg);
+      double e = -d;
+      res = DBL_TO_VAL(e);
+    }
+  } else if (VAL_IS_INT_NOT_NA(arg)) {
+    if (op == UMINUS_OP) {
+      int i = VAL_INT(arg);
+      int j = -i;
+      res = INT_TO_VAL(VAL_INT(j));
+    }
+  } else {
+    // Slow path!
+    res = sexp_as_val(arith1(call, R_UNARY_OPS[op], R_UNARY_OP_SYMS[op],
+                             val_as_sexp(arg), rho));
+  }
+
+  R_Visible = TRUE;
   return res;
 }
 
