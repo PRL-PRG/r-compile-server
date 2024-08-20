@@ -186,6 +186,8 @@ public class BC2CCompiler {
             case BcInstr.Ne(var idx) -> compileRelop(idx, "NE_OP");
             case BcInstr.Exp(var idx) -> compileMath1(idx, "EXP_OP");
             case BcInstr.Sqrt(var idx) -> compileMath1(idx, "SQRT_OP");
+            case BcInstr.UPlus(var idx) -> compileUnary(idx, "UPLUS_OP");
+            case BcInstr.UMinus(var idx) -> compileUnary(idx, "UMINUS_OP");
             case BcInstr.Return() -> compileReturn();
             case BcInstr.Pop() -> pop(1);
             case BcInstr.GetBuiltin(var idx) -> compileGetBuiltin(idx);
@@ -314,10 +316,17 @@ public class BC2CCompiler {
         body.line("return Rsh_return(%s);".formatted(stack.curr(1)));
     }
 
+    // FIXME: refactor
     private void compileMath1(ConstPool.Idx<LangSXP> idx, String op) {
         var call = constantSXP(idx);
         var arg = stack.curr(0);
         popPush(1, "Rsh_math1(%s, %s, %s, %s)".formatted(call, op, arg, NAME_ENV), false);
+    }
+
+    private void compileUnary(ConstPool.Idx<LangSXP> idx, String op) {
+        var call = constantSXP(idx);
+        var arg = stack.curr(0);
+        popPush(1, "Rsh_unary(%s, %s, %s, %s)".formatted(call, op, arg, NAME_ENV), false);
     }
 
     private void compileArith(ConstPool.Idx<LangSXP> idx, String op) {

@@ -12,7 +12,11 @@
 extern FUNTAB R_FunTab[];
 extern Rboolean R_Visible; /* Value visibility flag */
 
+#ifdef NDEBUG
 #define INLINE inline __attribute__((always_inline))
+#else
+#define INLINE
+#endif
 
 SEXP R_Primitive(const char *primname);
 Rboolean asLogicalNoNA(SEXP s, SEXP call, SEXP rho);
@@ -33,6 +37,7 @@ SEXP CONS_NR(SEXP car, SEXP cdr);
 SEXP R_binary(SEXP call, SEXP op, SEXP x, SEXP y);
 SEXP do_relop_dflt(SEXP call, SEXP op, SEXP x, SEXP y);
 SEXP do_math1(SEXP call, SEXP op, SEXP args, SEXP env);
+SEXP R_unary(SEXP call, SEXP op, SEXP s1);
 
 #define R_MSG_NA "NaNs produced"
 
@@ -50,6 +55,21 @@ static INLINE SEXP arith2(SEXP call, SEXP op, SEXP opsym, SEXP x, SEXP y,
     UNPROTECT(1);
   }
   return R_binary(call, op, x, y);
+}
+
+// from: eval.c modified version of cmp_arith1
+static INLINE SEXP arith1(SEXP call, SEXP op, SEXP opsym, SEXP x, SEXP rho) {
+  if (isObject(x)) {
+    SEXP args, ans;
+    args = CONS_NR(x, R_NilValue);
+    PROTECT(args);
+    if (DispatchGroup("Ops", call, op, args, rho, &ans)) {
+      UNPROTECT(1);
+      return ans;
+    }
+    UNPROTECT(1);
+  }
+  return R_unary(call, op, x);
 }
 
 // from: eval.c modified version of cmp_relop
