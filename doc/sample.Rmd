@@ -6,7 +6,6 @@ xor <- function(x, y) { (x | y) & !(x & y) }
 
 Annotated
 
-
 ```r
 xor <- function(x:lgl[]@mutate, y:lgl[]@borrow) -> lgl[]@fresh {
     _1:lgl[]@fresh = `|`(x, y)
@@ -43,9 +42,9 @@ xor <- function(x:lgl, y:lgl) -> lgl {
 
 Notes
 
-- There are two ways we can compile `xor` to consume vectors, suggesting that we compile `@mutate` based on whether the callee passes a last-use value.
-- Scalars should never be mutated in-place, even if SEXPs we can use global constants, interning if necessary.
-- `` `&` `` and `` `|` `` are overloaded based on the argument types. We could make the specializations explicit with syntax like `` `&`(:lgl[]@mutate, :lgl[]@borrow) ``, but I think the added information is too obvious. I chose to only annotate local variable types because I think they can be less obvious particularly with large chains of statements.
+- There are two ways we can compile `xor` to consume vectors, suggesting that we compile `@mutate` based on callee (compile context says "this argument is fresh", then if the compiled closure actually mutates the argument, it gets the `@mutate` annotation).
+- Scalars are never mutated in-place, because even if they're wrapped in SEXPs, we should probably use global constants, lazily interning if necessary.
+- In the syntax, `` `&` `` and `` `|` `` are overloaded based on the argument types: a function with the same name applied to arguments of different types is actually a different function. We could make the specializations explicit with syntax like `` `&`(:lgl[]@mutate, :lgl[]@borrow) ``, but I think the added information is too obvious. I chose to only annotate local variable types because I think they can be less obvious particularly with large chains of statements.
 
 ### isTRUE
 
@@ -130,6 +129,8 @@ isTRUE <- function(x:any@!reflect) -> bool+attrs @guarantee(TRUE => x is bool+at
 }
 ```
 
+- The problem with guarantees is that they can create complex constraints that may be hard/impossible to automatically satisfy. On the other hand, assumptions can "prove" *any* true property, by not actually proving, but inserting a guard at runtime which will deoptimize when false. If the cost of these guards is negligable, it doesn't seem worth the effort to add new intrinsics and an SAT solver to the compiler for some of them to be elided.
+
 ### append
 
 ```r
@@ -144,13 +145,13 @@ append <- function(x, values, after = length(x)) {
 Annotated
 
 ```r
-append <- function[T <: !obj](x:T[]@mutate, values:T[]@borrow) -> T[]@fresh {
-    _1:T[] = c(x, values)  {@mutates x}
+append <- function[T <: !obj](x:T[]@borrow, values:T[]@borrow) -> T[]@fresh {
+    _1:T[] = c(x, values)
     return _1
 }
 
-append <- function[T <: !obj](x:T[]@borrow, values:T[]@mutate, after:int = 0) -> T[]@fresh {
-    _1:T[] = c(values, x)  {@mutates values}
+append <- function[T <: !obj](x:T[]@borrow, values:T[]@borrow, after:int = 0) -> T[]@fresh {
+    _1:T[] = c(values, x)
     return _1
 }
 
@@ -222,13 +223,12 @@ append <- function[T <: !obj](x:T[]@borrow, values:T[]@borrow, after:int|NA) ->{
 
 Notes
 
-- We should be able to compile versions of functions where arguments are statically known to be default.
-  - Then it would be nice to be able to constant-fold expressions like `∀x:!obj[]. length(x) >= length(x)`. That could be done by adding a rule that specifies a function without read-state effects, given equivalent inputs, produces an equivalent output.
-  - We should also be able to compile versions where arguments are exact values, if we record that the argument is the same value enough. We probably also want to speculate on variables being exact values. However, speculation won't work if the the variable is *commonly but not always* the value, because speculation falls back to deoptimization, and it's difficult for the compiler to figure out the condition that makes it so in the general case; but for arguments specicially we can compile a unique version for a common exact value, because we only fall back to selecting a different optimized version.
-- I chose to make growing/shrinking a vector an in-place operation, but maybe it shouldn't be. Usually, we have to re-allocate and move the data anyways. However, if people write code like `foo <- c(); for (i in 1:100) foo <- c(foo, i)`, not mutating in-place will be much more expensive.
-  - R has runtime copy-on-write semantics that handle both cases, because in the latter case the latter 99 operations are guaranteed to be in-place. We could preserve copy-on-write semantics in the generated C code. The issue is that it adds overhead when we know something will be copied or not copied. We could add "conditionally mutates" and "conditionally fresh" annotations and only have copy-on-write semantics *then*, but it adds uncommon complexity.
+- We should compile versions of functions where default arguments are not provided (so the compiler knows they are exact and can constant-fold etc.), specifically when the callee doesn't provide those arguments.
+  - We should also record arguments and variables being the same value many times, then compile versions where the arguments are *usually* the same value, and speculate on variables that are *always* the same value.
+- We can constant-fold expressions like `∀x:!obj[]. length(x) >= length(x)` by adding a GVN/CSE/e-graph analysis that looks for functions without "read-outside-state" effects that have equivalent inputs, produces an equivalent output.
+- I chose to make growing/shrinking a vector not mutate its argument, but always copy. The reason being, usually we have to re-allocate and move the data anyways. There are some cases where we don't and furthermore, not doing so is very expensive: e.g. `foo <- c(); for (i in 1:100) foo <- c(foo, i)`. *However*, those cases are handled by R's runtime copy-on-write semantics (which we probably have to preserve, because there are other cases that would be expensive where we probably can't prove last-use but are handled by the runtime).
 - Some edge-cases are pervasive. For example, we can't disprove subsetting causes an out-of-bounds error. We also can't disprove addition causes a to-real conversion because of integer overflow.
-  - I probably missed some other examples...
+  - I probably missed some other examples of these cases, here and in other examples...
 
 ### mode
 
@@ -253,22 +253,22 @@ Annotated
 
 ```r
 mode <- function(x:any@!reflect) -> str {
-    _1:bool <- is.expression(x)
+    _1:bool = is.expression(x)
     if _1 goto ^1 else ^2
   ^1:
     return "expression"
   ^2:
-    _2:bool <- is.call(x)
+    _2:bool = is.call(x)
     if _2 goto ^3 else ^4
   ^3:
     assume x is lang
-    _3:sym|lang <- `[[`(x, 1L)
-    _4:str[] <- deparse(_3)
-    _5:str <- `[`(_4, 1L)
-    _6:bool <- `===`(_5, "(")
+    _3:sym|lang = `[[`(x, 1L)
+    _4:str[] = deparse(_3)
+    _5:str = `[`(_4, 1L)
+    _6:bool = `==`(_5, "(")
     if _6 goto ^5 else ^6
   ^4:
-    _7:bool <- is.name(x)
+    _7:bool = is.name(x)
     if _7 goto ^7 else ^8
   ^5:
     return "expression"
@@ -277,24 +277,24 @@ mode <- function(x:any@!reflect) -> str {
   ^7:
     return "name"
   ^8:
-    tx:str <- typeof(x)
-    _8:bool <- `===`(tx, "double")
+    tx:str = typeof(x)
+    _8:bool = `==`(tx, "double")
     if _8 goto ^9 else ^10
   ^9:
     return "numeric"
   ^10:
-    _9:bool <- `===`(tx, "integer")
+    _9:bool = `==`(tx, "integer")
     if _9 goto ^9 else ^11
   ^11:
-    _10:bool <- `===`(tx, "closure")
+    _10:bool = `==`(tx, "closure")
     if _10 goto ^12 else ^13
   ^12:
     return "function"
   ^13:
-    _11:bool <- `===`(tx, "builtin")
+    _11:bool = `==`(tx, "builtin")
     if _11 goto ^12 else ^14
   ^14:
-    _12:bool <- `===`(tx, "special")
+    _12:bool = `==`(tx, "special")
     if _12 goto ^12 else ^15
   ^15:
     return tx
@@ -323,16 +323,16 @@ anyDots <- function(args:sym|miss[]@borrow) ->{error} bool {
     goto ^forStep
   ^forStep(i.1(i:^entry, i.2:^forBody, i.2:^1)):
     i.2:whole = `+`(i.1, 1L)
-    _breakFor:bool <- `<`(_forLast, i.2)
+    _breakFor:bool = `<`(_forLast, i.2)
     if _breakFor goto ^forExit else ^forBody
   ^forExit:
     return FALSE
   ^forBody:
-    a:sym|miss <- `[[`(args, i.2)  {error}
-    _2:bool <- missing(a)
+    a:sym|miss = `[[`(args, i.2)  {error}
+    _2:bool = missing(a)
     if _2 goto ^forStep else ^1
   ^1:
-    _3:bool <- `===`(a, '...)
+    _3:bool = identical(a, '...)
     if _3 goto ^2 else ^forStep
   ^2:
     return TRUE
@@ -378,15 +378,16 @@ missingArgs <- function(args:sym|miss[]@borrow) ->{error} lgl[]@fresh {
   ^forBody:
     a:sym|miss <- `[[`(args, i.2)  {error}
     _2:bool <- missing(a)
-    val.2 <- `[`(val.1, i.2, _2)   {@mutates val.1}
+    val.2:bool[]@fresh <- `[`(val.1, i.2, _2)   {@mutates val.1}
     goto ^forStep
 }
 ```
 
 Notes
 
-- Like above, we should have an optimization for `seq_along` for loops. One thing we could do is use e-graphs to rewrite `seq_along(x)` to/from `1L:length(x)`.
-- In this case, I assume we can't infer `length(_2) == length(args)`. However, we could if explicit support was added.
+- Like above, we should have an optimization for `seq_along` for loops. One thing we could do is use an analysis to rewrite `seq_along(x)` to/from `1L:length(x)`.
+  - e-graphs seem to be very useful, because there are a lot of these rewrite rules. For example, we should also be able to "normalize" equivalent expressions, like convert `identical(<scalar1>, <scalar2>)` into `` `==`(<scalar1>, <scalar2>) ``, since they should ultimately be optimized the same.
+- In this case, I assume we can't infer `length(val) == length(args)`. However, we could if explicit support was added for `length(logical(n)) ==> n`. I don't think the performance gain of this particular optimization is worth the complexity though, so it would probably only exist if it's part of a more general optimization.
 - I assume we *can* optimize the redundant `if (missing(a))` though.
 
 ### patchLabels
@@ -416,14 +417,14 @@ Annotated
 
 ```r
 patchlabels <- function(cntxt:env) {
-    labels:any = ld('labels)
-    codeBuf:any = ld('codeBuf)
-    codeCount:any = ld('codeCount)
-    putConst:any = ld('putConst)
+    labels:any = ld('labels)@?
+    codeBuf:any = ld('codeBuf)@?
+    codeCount:any = ld('codeCount)@?
+    putConst:any = ld('putConst)@?
     assume labels is int|nil[]
     assume codeBuf is val[]
     assume codeCount is nat
-    assume putConst is fn(:int[])->int
+    assume putConst(:int[]) is int
     offset = function(lbl:str) -> int {
         _1:int|nil = `[[`(labels, lbl)
         _2:bool = is.null(_1)
@@ -462,20 +463,38 @@ patchlabels <- function(cntxt:env) {
     ci:int = putconst(off)
     goto ^4
   ^4(_5(_2:^1, ci:^3)):
-    codeBuf.2:val[] = `[[`(codeBuf.1, _5)
+    codeBuf.2:val[]@fresh = `[[`(codeBuf.1, _5)
     goto ^forStep
   ^forExit:
-    stSuper('codeBuf, codeBuf.1)
+    st('codeBuf, codeBuf.1)@?
     return NULL
 }
 ```
 
 Notes
 
-- If we can disprove reflection, we can hoist loading external variables. One thing we can do is speculate that the loaded variables aren't lazy promises before.
+- If we can disprove reflection, we can hoist loading external variables to the beginning and push storing them to the end, which lets us not worry about environments. One thing we can do is speculate that the loaded variables aren't lazy promises before.
+    - I don't know if it's possible, but it would be nice to also have inner closures reference locals from outer closures. It would require an analysis to prove the closure doesn't escape and some runtime technique, but it would remove environments even in this example.
+- Function speculation: we don't need to assume `putConst` is a function that takes and returns an integer, we specifically need to assume that `putConst` applied with an integer returns `int`. The distinction is important because `putConst` may have other overloads.
 - We can use e-graphs or some other form of rewriting to replace `$` with `[`.
-  - There are many cases we can rewrite `==` with `===` (including in above examples), which I didn't do because we may want to rewrite the opposite way. (`===` is a made-up intrinsic similar to `identical`.)
 - Syntax can be confusing, because `stop` here refers to the local `stop`, if global `stop` was used it would have to be something like `base:::stop`. This is why I originally prefixed variables with `%`. However, it may be workable, because the lack of `%`s means the syntax is a lot cleaner in other areas, and moreover, it's probably very rare that a shadowed builtin is called (and when it is, it's probably almost always qualified in the same way we'd qualify it in the IR).
-- The compiler should be able to remove the redundant `labels[[lbl]]`, and it may be able to also remove the redundant `codeBuf[[i]] <<-`. For the example I assumed both.
-- I assume we have polymorphic type annotations on `lapply`. I also assume we can simplify `as.integer(lapply(…))` into `sapply(…)` (they're equivalent if the function returns an integer, at least excluding any edge cases I didn't realize).
-- In-place mutation of `codeBuf` is hard, because it's only from one predecessor, so we'd need to be smart and insert an implicit copy on the other predecessor. I think we at least need to preserve the runtime support, and that may make the whole compile-time advantage negligable. But maybe we can figure out a way, at the least we can implement "maybe-fresh".
+- The compiler should be able to merge the `labels[[lbl]]` loads, and it may be able to also merge the `codeBuf[[i]] <<-` stores. For the example I assumed both.
+- I assume we have polymorphic type annotations on `lapply`. However, we may not even need them (or polymorphic effect annotations), because alternatively, we could specialize `lapply` for `int` and some other functions.
+  - I don't know if we can compile annotations `lapply` directly because it's very complicated (it was going to be one of the examples before I realized that), but we can manually add annotations to built-ins like it.
+  - I also assume we can simplify `as.integer(lapply(…))` into `sapply(…)` (they're equivalent if the function returns an integer, at least excluding any edge cases I didn't realize).
+- We *could* optimize the mutation of `codeBuf[[i]] <-` to be in-place unless if we do loop unrolling, although I didn't do any in the examples. However, I still don't know if we can optimize every assignment in for loops in the general case.
+
+---
+
+General notes
+
+- In every example, I assume we can elide environments and objects everywhere. If not, it makes the code a lot harder to optimize, because local variables are constantly loaded and stored, and functions return `any` since they could dispatch. But in all these examples I think we can elide environments practically everywhere.
+- I also assume things like, builtins aren't overridden.
+- `@mutate`, `@borrow`, and `@fresh`: there are definitely some cases where we can elide copying that GNU-R can't (at least in the example I posted on Slack earlier), but there are also cases where GNU-R's runtime reference counting can elide copying but we can't, particularly in loops where the copying would be very frequent and expensive.
+- I think we should incorporate e-graphs or some other system, to rewrite expressions into equivalent "normalized" ones, and merge common expressions. I've been thinking about this analysis in Cranelift (https://github.com/bytecodealliance/rfcs/blob/main/accepted/cranelift-egraph.md) that I think we can implement, and maybe extend to cover environment elision and other optimizations.
+- Specializing builtins for specific argument types is very useful, but the types don't need to be very complicated. e.g. we want `==` on non-NA scalars to return a boolean, we want `` `[`(<int vector>, <int scalar>) `` and `` `[[`(<int vector>, <int scalar>) `` to return an integer scalar, ...
+- We also want to specialize for loops and simple ranges.
+  - We might not need true function types, but instead some other system of speculating that a particular variable, when applied with arguments of particular types, returns a value of a particular type.
+- Type speculations are also very useful, and we'll need a lot of them to disprove reflection and simplify the IR. Exact value dispatch and speculations may also be useful although less so.
+- There are some optimizations that I assumed, that are trivial in the specific case but I don't really know if we'll implement them in the general case. e.g. converting `as.integer(lapply(…))` into `sapply(…)`.
+
