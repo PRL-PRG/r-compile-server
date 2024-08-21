@@ -224,14 +224,14 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
     }
 
     <T extends SEXP> TestArtifact<T> compileAndCall(String code) throws Exception {
-        var funName = "f";
-        var fileName = "test";
+        // this has to be the same as in the test/resources/.../Makefile
+        var prefix = "test";
 
         var tempDir = Files.createTempDirectory("test-bc2cc").toFile();
-        var cFile = new File(tempDir, funName + ".c");
-        var cpFile = new File(tempDir, fileName + ".RDS");
-        var soFile = new File(tempDir, funName + ".so");
-        var rFile = new File(tempDir, "driver.R");
+        var cFile = new File(tempDir, prefix + ".c");
+        var cpFile = new File(tempDir, prefix + ".RDS");
+        var soFile = new File(tempDir, prefix + ".so");
+        var rFile = new File(tempDir, prefix + ".R");
 
         Files.clearDirectory(tempDir.toPath());
 
@@ -247,21 +247,12 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
                         .orElseThrow(() -> new RuntimeException("Compilation did not produce byte code"));
 
         try {
-            var bc2c =
-                    new BC2CCompiler(funName, bc) {
-                        @Override
-                        protected void beforeCompile() {
-                            super.beforeCompile();
-                            body.line("Rsh_initialize_runtime();");
-                        }
-                    };
+            var bc2c = new BC2CCompiler(bc);
+            var module = bc2c.finish();
 
-            var cCode = bc2c.compile();
-            var cConsts = bc2c.constants();
+            RDSWriter.writeFile(cpFile, module.constantPool());
 
-            RDSWriter.writeFile(cpFile, SEXPs.vec(cConsts));
-
-            Files.writeString(cFile.toPath(), cCode.toString());
+            Files.writeString(cFile.toPath(), module.file().toString());
 
             RshCompiler.getInstance(0)
                     .createBuilder(cFile.getPath(), soFile.getPath())
@@ -274,7 +265,8 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
                             + "cp <- readRDS('%s')\n".formatted(cpFile.getAbsolutePath())
                             + "env <- new.env()\n"
                             + "parent.env(env) <- globalenv()\n"
-                            + "res <- .Call('%s', env, cp)\n".formatted(funName)
+                            + "invisible(.Call('Rsh_initialize_runtime'))\n"
+                            + "res <- .Call('%s', env, cp)\n".formatted(module.topLevelFunName())
                             + "dyn.unload('%s')\n".formatted(soFile.getAbsolutePath())
                             + "res\n";
 

@@ -100,34 +100,78 @@ class ByteCodeStack {
     }
 }
 
-// TODO: extract labels and cells into its own classes
+record CompiledClosure(String name, VectorSXP<SEXP> constantPool) {
+}
+
+class CModule {
+    private final List<CFunction> funs = new ArrayList<>();
+
+    CFunction createFun(String returnType, String name, String args) {
+        var fun = new CFunction(returnType, name, args);
+        funs.add(fun);
+        return fun;
+    }
+
+    CompiledClosure compileClosure(Bc bc) {
+        var bcHash = Math.abs(bc.hashCode());
+        var randomSuffix = UUID.randomUUID().toString().substring(0, 8);
+        var name = "f_" + bcHash + "_" + randomSuffix;
+
+        var compiler = new ClosureCompiler(this, name, bc);
+        var constants = compiler.compile();
+
+        return new CompiledClosure(name, constants);
+    }
+
+    public Iterable<CFunction> funs() {
+        return funs;
+    }
+}
+
 public class BC2CCompiler {
-    protected static final String NAME_ENV = "ENV";
-    protected static final String NAME_CP = "CP";
-    protected static final Value VAL_NULL = new Value("Rsh_NilValue", false);
-    public static final String VAL_TRUE = "VAL_TRUE";
-    public static final String VAL_FALSE = "VAL_FALSE";
+    private final CModule module = new CModule();
+    private final Bc bc;
 
-    protected final String name;
-    protected final Bc bc;
-    protected final Map<Integer, Constant> constants = new LinkedHashMap<>();
-    protected final ByteCodeStack stack = new ByteCodeStack();
-    protected final Set<Integer> labels = new HashSet<>();
-    protected final Set<Integer> cells = new HashSet<>();
+    public BC2CCompiler(Bc bc) {
+        this.bc = bc;
+    }
 
-    protected final CFile file;
+    public CompiledModule finish() {
+        var compiledClosure = module.compileClosure(bc);
+
+        var file = new CFile();
+        file.setPreamble("#include <Rsh.h>");
+        module.funs().forEach(file::add);
+
+        return new CompiledModule(file, compiledClosure.name(), compiledClosure.constantPool());
+    }
+}
+
+// TODO: extract labels and cells into its own classes
+class ClosureCompiler {
+    private static final String NAME_ENV = "ENV";
+    private static final String NAME_CP = "CP";
+    private static final Value VAL_NULL = new Value("Rsh_NilValue", false);
+    private static final String VAL_TRUE = "VAL_TRUE";
+    private static final String VAL_FALSE = "VAL_FALSE";
+
+    private final Bc bc;
+    private final Map<Integer, Constant> constants = new LinkedHashMap<>();
+    private final ByteCodeStack stack = new ByteCodeStack();
+    private final Set<Integer> labels = new HashSet<>();
+    private final Set<Integer> cells = new HashSet<>();
+
+    protected CModule module;
     protected CFunction fun;
     protected CCode body;
 
-    public BC2CCompiler(String name, Bc bc) {
-        this.name = name;
+    public ClosureCompiler(CModule module, String name, Bc bc) {
         this.bc = bc;
-        this.file = new CFile();
-        this.fun = file.createFun("SEXP", name, "SEXP %s, SEXP %s".formatted(NAME_ENV, NAME_CP));
+        this.fun = module.createFun("SEXP", name, "SEXP %s, SEXP %s".formatted(NAME_ENV, NAME_CP));
         this.body = fun.add();
     }
 
-    public CFile compile() {
+    public VectorSXP<SEXP> compile() {
         beforeCompile();
 
         var code = bc.code();
@@ -136,17 +180,17 @@ public class BC2CCompiler {
         }
 
         afterCompile();
-        return file;
+
+        return SEXPs.vec(constants());
     }
 
-    protected void beforeCompile() {
+    private void beforeCompile() {
         fillLabels();
     }
 
-    protected void afterCompile() {
+    private void afterCompile() {
         compileCells();
         compileRegisters();
-        preamble();
     }
 
     private void fillLabels() {
@@ -155,10 +199,6 @@ public class BC2CCompiler {
 
     public List<SEXP> constants() {
         return List.copyOf(constants.values().stream().map(Constant::value).toList());
-    }
-
-    private void preamble() {
-        file.setPreamble("#include <Rsh.h>");
     }
 
     private void compile(BcInstr instr, int instrIdx) {
@@ -204,11 +244,28 @@ public class BC2CCompiler {
             case BcInstr.Invisible() -> compileInvisible();
             case BcInstr.LdNull() -> compileLdNull();
             case BcInstr.GetFun(var idx) -> compileGetFun(idx);
+            case BcInstr.MakeClosure(var idx) -> compileMakeClosure(idx);
 
             default -> throw new UnsupportedOperationException(instr + ": not supported");
         }
         body.comment("end: " + instr);
         body.nl();
+    }
+
+    private void compileMakeClosure(ConstPool.Idx<VecSXP> idx) {
+        var cls = bc.consts().get(idx);
+        var formals = cls.get(0);
+        // TODO: srcref
+
+        if (cls.get(1) instanceof BCodeSXP body) {
+            var compiledClosure = module.compileClosure(body.bc());
+            var cpIdx = constants.size();
+            constants.put(cpIdx, new Constant(cpIdx, compiledClosure.constantPool()));
+            // push("Rsh_native_closure(%s, %s, %s, %s, %s)".formatted(constantSXP(idx), formals, NAME_ENV, cpIdx, NAME_CP));
+            // TODO: create the closure object
+        } else {
+            throw new UnsupportedOperationException("Unsupported body: " + body);
+        }
     }
 
     private void compileCall(ConstPool.Idx<LangSXP> idx) {
