@@ -137,8 +137,8 @@ public class BC2CCompiler {
         var compiledClosure = module.compileClosure(bc);
 
         var file = new CFile();
-        file.setPreamble("#include <Rsh.h>");
-        module.funs().forEach(file::add);
+        file.addInclude("Rsh.h");
+        module.funs().forEach(fun -> file.addFun(fun, true));
 
         return new CompiledModule(file, compiledClosure.name(), compiledClosure.constantPool());
     }
@@ -157,6 +157,7 @@ class ClosureCompiler {
     private final ByteCodeStack stack = new ByteCodeStack();
     private final Set<Integer> labels = new HashSet<>();
     private final Set<Integer> cells = new HashSet<>();
+    private int extraConstPoolIdx;
 
     protected CModule module;
     protected CFunction fun;
@@ -167,6 +168,7 @@ class ClosureCompiler {
         this.module = module;
         this.fun = module.createFun("SEXP", name, "SEXP %s, SEXP %s".formatted(NAME_ENV, NAME_CP));
         this.body = fun.add();
+        this.extraConstPoolIdx = bc.consts().size() + 1;
     }
 
     public VectorSXP<SEXP> compile() {
@@ -252,14 +254,11 @@ class ClosureCompiler {
 
     private void compileMakeClosure(ConstPool.Idx<VecSXP> idx) {
         var cls = bc.consts().get(idx);
-        // TODO: srcref
 
-        if (cls.get(1) instanceof BCodeSXP body) {
-            var compiledClosure = module.compileClosure(body.bc());
-            var cpId = constants.size();
-            // new body for the closure itself
-            constants.put(cpId, new Constant(cpId, compiledClosure.constantPool()));
-            push("Rsh_native_closure(%s, \"%s\", %s, %s)".formatted(constantSXP(idx), compiledClosure.name(), constantSXP(cpId), NAME_ENV), false);
+        if (cls.get(1) instanceof BCodeSXP closureBody) {
+            var compiledClosure = module.compileClosure(closureBody.bc());
+            var cpConst = createExtraConstant(compiledClosure.constantPool());
+            push("Rsh_native_closure(%s, &%s, %s, %s)".formatted(constantSXP(idx), compiledClosure.name(), constantSXP(cpConst), NAME_ENV), false);
         } else {
             throw new UnsupportedOperationException("Unsupported body: " + body);
         }
@@ -451,11 +450,11 @@ class ClosureCompiler {
 
     private String constantSXP(ConstPool.Idx<? extends SEXP> idx) {
         var c = getConstant(idx);
-        return "Rsh_const(%s, %d)".formatted(NAME_CP, c.id());
+        return constantSXP(c);
     }
 
-    private String constantSXP(int id) {
-        return "Rsh_const(%s, %d)".formatted(NAME_CP, id);
+    private String constantSXP(Constant c) {
+        return "Rsh_const(%s, %d)".formatted(NAME_CP, c.id());
     }
 
     private String constantVAL(ConstPool.Idx<? extends SEXP> idx) {
@@ -472,7 +471,6 @@ class ClosureCompiler {
         return "%s(%s, %d)".formatted(f, NAME_CP, c.id());
     }
 
-    @NotNull
     private Constant getConstant(ConstPool.Idx<? extends SEXP> idx) {
         return constants.computeIfAbsent(
                 idx.idx(),
@@ -480,6 +478,13 @@ class ClosureCompiler {
                     var next = constants.size();
                     return new Constant(next, bc.consts().get(idx));
                 });
+    }
+
+    private Constant createExtraConstant(SEXP v) {
+        var next = constants.size();
+        var c = new Constant(next, v);
+        constants.put(extraConstPoolIdx++, c);
+        return c;
     }
 
     private String label(int instrIndex) {
