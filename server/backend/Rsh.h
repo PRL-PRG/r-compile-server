@@ -2,6 +2,7 @@
 #define RSH_H
 
 #include "Rsh_internals.h"
+#include <assert.h>
 #include <stdint.h>
 
 double R_pow(double x, double y);
@@ -95,6 +96,7 @@ SEXP R_LOGIC2_OPS[] = {X_LOGIC2_OPS};
 //      TRUE 0|1111111111111|11|000000000000000000000000000000000000000000000001
 //     FALSE 0|1111111111111|11|000000000000000000000000000000000000000000000000
 
+typedef int32_t i32;
 typedef uint64_t u64;
 typedef uint32_t u32;
 typedef u64 Value;
@@ -911,6 +913,90 @@ static INLINE Value Rsh_logic(SEXP call, RshLogic2Op op, Value lhs, Value rhs,
   DO_BUILTIN2(do_logic, call, R_LOGIC2_OPS[op], lhs, rhs, rho, res);
 
   return res;
+}
+
+#define LDCONST_OP 16
+#define DOTCALL_OP 119
+#define RETURN_OP 1
+
+#define BCODE_CODE(x) CAR(x)
+#define BCODE_CONSTS(x) CDR(x)
+#define IS_BYTECODE(x) (TYPEOF(x) == BCODESXP)
+
+static INLINE SEXP create_wrapper_body(SEXP original_body,
+                                       const char *native_fun_name, SEXP rho,
+                                       SEXP c_cp) {
+
+  // clang-format off
+  static i32 CALL_FUN_BC[] = {
+    12,
+    LDCONST_OP, 2,
+    LDCONST_OP, 3,
+    LDCONST_OP, 4,
+    DOTCALL_OP, 1, 2,
+    RETURN_OP
+  };
+  // clang-format on
+
+  assert(IS_BYTECODE(original_body));
+
+  SEXP original_cp = BCODE_CONSTS(original_body);
+
+  i32 bc_size = sizeof(CALL_FUN_BC) / sizeof(i32);
+
+  SEXP bc = PROTECT(Rf_allocVector(INTSXP, bc_size));
+  memcpy(INTEGER(bc), CALL_FUN_BC, sizeof(CALL_FUN_BC));
+  bc = R_bcEncode(bc);
+
+  SEXP expr_index = PROTECT(Rf_allocVector(INTSXP, bc_size));
+  INTEGER(expr_index)[0] = NA_INTEGER;
+  memset(INTEGER(expr_index) + 1, 0, (bc_size - 1) * sizeof(i32));
+
+  SEXP natfun_sxp = Rf_mkString(native_fun_name);
+  SEXP cp = PROTECT(Rf_allocVector(VECSXP, 6));
+  int i = 0;
+
+  // store the original AST (consequently it will not correspond to the AST)
+  SET_VECTOR_ELT(cp, i++, VECTOR_ELT(original_cp, 0));
+  SET_VECTOR_ELT(cp, i++, Rf_lang4(install(".Call"), natfun_sxp, rho, c_cp));
+  SET_VECTOR_ELT(cp, i++, natfun_sxp);
+  SET_VECTOR_ELT(cp, i++, rho);
+  SET_VECTOR_ELT(cp, i++, c_cp);
+  SET_VECTOR_ELT(cp, i++, expr_index);
+
+  // properly name the expression index (the last element of the constant pool)
+  SEXP cp_names = Rf_allocVector(STRSXP, 6);
+  Rf_setAttrib(cp, R_NamesSymbol, cp_names);
+  for (i = 0; i < 5; i++) {
+    SET_STRING_ELT(cp_names, i, R_BlankString);
+  }
+  SET_STRING_ELT(cp_names, 5, Rf_mkChar("expressionIndex"));
+
+  SEXP body = Rf_cons(bc, cp);
+  SET_TYPEOF(body, BCODESXP);
+
+  UNPROTECT(3);
+  return body;
+}
+
+static INLINE Value Rsh_native_closure(SEXP mkclos_arg,
+                                       const char *native_fun_name, SEXP c_cp,
+                                       SEXP rho) {
+
+  SEXP forms = VECTOR_ELT(mkclos_arg, 0);
+  SEXP original_body = VECTOR_ELT(mkclos_arg, 1);
+  SEXP body = create_wrapper_body(original_body, native_fun_name, rho, c_cp);
+  SEXP closure = Rf_mkCLOSXP(forms, body, rho);
+
+  if (LENGTH(mkclos_arg) > 2) {
+    SEXP srcref = VECTOR_ELT(mkclos_arg, 2);
+    if (TYPEOF(srcref) != NILSXP)
+      // FIXME: expose R_SrcrefSymbol
+      setAttrib(closure, install("srcref"), srcref);
+  }
+  R_Visible = TRUE;
+
+  return SXP_TO_VAL(closure);
 }
 
 #endif // RSH_H

@@ -5,10 +5,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import org.jetbrains.annotations.NotNull;
-import org.prlprg.bc.Bc;
-import org.prlprg.bc.BcInstr;
-import org.prlprg.bc.BcLabel;
-import org.prlprg.bc.ConstPool;
+import org.prlprg.bc.*;
 import org.prlprg.sexp.*;
 
 record Constant(int id, SEXP value) {
@@ -167,6 +164,7 @@ class ClosureCompiler {
 
     public ClosureCompiler(CModule module, String name, Bc bc) {
         this.bc = bc;
+        this.module = module;
         this.fun = module.createFun("SEXP", name, "SEXP %s, SEXP %s".formatted(NAME_ENV, NAME_CP));
         this.body = fun.add();
     }
@@ -254,15 +252,14 @@ class ClosureCompiler {
 
     private void compileMakeClosure(ConstPool.Idx<VecSXP> idx) {
         var cls = bc.consts().get(idx);
-        var formals = cls.get(0);
         // TODO: srcref
 
         if (cls.get(1) instanceof BCodeSXP body) {
             var compiledClosure = module.compileClosure(body.bc());
-            var cpIdx = constants.size();
-            constants.put(cpIdx, new Constant(cpIdx, compiledClosure.constantPool()));
-            // push("Rsh_native_closure(%s, %s, %s, %s, %s)".formatted(constantSXP(idx), formals, NAME_ENV, cpIdx, NAME_CP));
-            // TODO: create the closure object
+            var cpId = constants.size();
+            // new body for the closure itself
+            constants.put(cpId, new Constant(cpId, compiledClosure.constantPool()));
+            push("Rsh_native_closure(%s, \"%s\", %s, %s)".formatted(constantSXP(idx), compiledClosure.name(), constantSXP(cpId), NAME_ENV), false);
         } else {
             throw new UnsupportedOperationException("Unsupported body: " + body);
         }
@@ -455,6 +452,10 @@ class ClosureCompiler {
     private String constantSXP(ConstPool.Idx<? extends SEXP> idx) {
         var c = getConstant(idx);
         return "Rsh_const(%s, %d)".formatted(NAME_CP, c.id());
+    }
+
+    private String constantSXP(int id) {
+        return "Rsh_const(%s, %d)".formatted(NAME_CP, id);
     }
 
     private String constantVAL(ConstPool.Idx<? extends SEXP> idx) {

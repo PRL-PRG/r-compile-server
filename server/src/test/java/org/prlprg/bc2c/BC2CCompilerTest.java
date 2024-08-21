@@ -145,6 +145,16 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
     }
 
     @Test
+    public void testClosure() throws Exception {
+        verify(
+                """
+                        f <- function (x) { x + 1 }
+                        f(42)
+                        """,
+                (RealSXP v) -> assertEquals(43.0, v.asReal(0)));
+    }
+
+    @Test
     public void testCall() throws Exception {
         verify(
                 "timestamp()",
@@ -178,6 +188,7 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
         verify("x <- NA;    y <- x; is.na(y)", (LglSXP v) -> assertEquals(SEXPs.TRUE, v));
         verify("y <- NA_integer_; is.na(y)", (LglSXP v) -> assertEquals(SEXPs.TRUE, v));
     }
+
 
     //  @Test
     //  public void testList(TestInfo info) throws Exception {
