@@ -19,33 +19,37 @@ CFLAGS := -I$(RSH_HOME)/server/backend \
 		  -Wno-comments \
 		  -pedantic \
 		  -shared \
-          -DRSH_TESTS
+		  -DRSH_TESTS
+
+DRIVER := test.R
+SOURCE := test.c
+SHLIB := test.so
 
 all: run
 
 compile:
-	$(CC) $(CFLAGS) -DNDEBUG -g -O3 -o f.so f.c
+	$(CC) $(CFLAGS) -DNDEBUG -g -O3 -o $(SHLIB) $(SOURCE)
 
 compile-release-debug:
-	$(CC) $(CFLAGS) -DDEBUG -g3 -ggdb -O3 -o f.so f.c
+	$(CC) $(CFLAGS) -g3 -ggdb -O3 -o $(SHLIB) $(SOURCE)
 
 compile-debug:
-	$(CC) $(CFLAGS) -DDEBUG -g3 -ggdb -O0 -o f.so f.c
+	$(CC) $(CFLAGS) -g3 -ggdb -O0 -o $(SHLIB) $(SOURCE)
 
 run: compile
-	$(R) -f driver.R
+	$(R) -f $(DRIVER)
 
 run-debug: compile-debug
-	$(R) -f driver.R
+	$(R) -f $(DRIVER)
 
 gdb-release: compile-release-debug
-	$(R) -d gdb -f driver.R
+	$(R) -d gdb -f $(DRIVER)
 
 gdb-debug: compile-debug
-	$(R) -d gdb -f driver.R
+	$(R) -d gdb -f $(DRIVER)
 
 rr-release: compile-release-debug
-	$(R) -d rr -f driver.R
+	$(R) -d rr -f $(DRIVER)
 
 rr-debug: compile-debug
-	$(R) -d rr -f driver.R
+	$(R) -d rr -f $(DRIVER)

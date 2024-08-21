@@ -359,7 +359,8 @@ static INLINE Rboolean bcell_set_value(BCell cell, SEXP value) {
     UNPROTECT(1);                                                              \
   } while (0)
 
-static INLINE void Rsh_initialize_runtime(void) {
+#ifdef RSH_TESTS
+SEXP Rsh_initialize_runtime(void) {
 #define X(a, b) LOAD_R_BUILTIN(R_ARITH_OPS[b], #a);
   X_ARITH_OPS
 #undef X
@@ -388,7 +389,10 @@ static INLINE void Rsh_initialize_runtime(void) {
 
   Rsh_NilValue = SXP_TO_VAL(R_NilValue);
   LOAD_R_BUILTIN(NOT_OP, "!");
+
+  return R_NilValue;
 }
+#endif
 
 // INSTRUCTIONS
 // ------------
