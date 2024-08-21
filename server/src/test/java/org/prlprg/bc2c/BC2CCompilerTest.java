@@ -148,10 +148,11 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
     public void testClosure() throws Exception {
         verify(
                 """
-                        f <- function (x) { x + 1 }
+                        y <- 21
+                        f <- function (x) { x + y }
                         f(42)
                         """,
-                (RealSXP v) -> assertEquals(43.0, v.asReal(0)));
+                (RealSXP v) -> assertEquals(63.0, v.asReal(0)));
     }
 
     @Test
