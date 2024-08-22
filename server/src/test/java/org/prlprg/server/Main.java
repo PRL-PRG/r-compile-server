@@ -82,7 +82,7 @@ public class Main {
                             .setName(nativeClosure.name())
                             .setNativeCode(ByteString.copyFrom(nativeClosure.code()))
                             .setConstants(
-                                    ByteString.copyFrom(serialize(SEXPs.vec(nativeClosure.constantPool()))));
+                                    ByteString.copyFrom(serialize(nativeClosure.constantPool())));
 
             var response = CompileResponse.newBuilder().setResult(result);
 
