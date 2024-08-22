@@ -17,8 +17,8 @@ public class RshCompiler {
     //  what we need is to keep this in the resources, versioned by R version
     //  and upon server instantiation, copy it to some temp directory
     //  and precompile the header file (if needed)
-    private static final Path RSH_INCLUDE_PATH = Paths.get("backend").normalize().toAbsolutePath();
-    private static final Path R_INCLUDE_PATH = Paths.get("../external/R/include").normalize().toAbsolutePath();
+    private static final Path RSH_INCLUDE_PATH = Paths.get("server/backend").normalize().toAbsolutePath();
+    private static final Path R_INCLUDE_PATH = Paths.get("external/R/include").normalize().toAbsolutePath();
     private static final String RSH_H_FILE = "Rsh.h";
     private static final String RSH_GHC_FILE = "Rsh.h.gch";
 
