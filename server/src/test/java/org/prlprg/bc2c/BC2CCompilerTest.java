@@ -156,6 +156,27 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
     }
 
     @Test
+    public void testNestedClosures() throws Exception {
+        verify(
+                """
+                        a <- 1
+                        f <- function(z) {
+                          c <- 2
+                          g <- function(y) {
+                            e <- 3
+                            h <- function(x) {
+                                a + c + e + x + y + z
+                            }
+                            h
+                          }
+                          g(20)
+                        }
+                        f(10)(30)
+                        """,
+                (RealSXP v) -> assertEquals(66.0, v.asReal(0)));
+    }
+
+    @Test
     public void testCall() throws Exception {
         verify(
                 "timestamp()",

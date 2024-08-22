@@ -245,11 +245,17 @@ class ClosureCompiler {
             case BcInstr.LdNull() -> compileLdNull();
             case BcInstr.GetFun(var idx) -> compileGetFun(idx);
             case BcInstr.MakeClosure(var idx) -> compileMakeClosure(idx);
+            case BcInstr.CheckFun() -> compileCheckFun();
 
             default -> throw new UnsupportedOperationException(instr + ": not supported");
         }
         body.comment("end: " + instr);
         body.nl();
+    }
+
+    private void compileCheckFun() {
+        body.line("Rsh_check_fun(%s);".formatted(stack.curr(0)));
+        initCallFrame();
     }
 
     private void compileMakeClosure(ConstPool.Idx<VecSXP> idx) {
