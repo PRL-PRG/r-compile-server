@@ -12,8 +12,9 @@
 .RData
 .Rhistory
 
-### clangd ###
+### C ###
 .cache
+.gdb_history
 
 ### IntelliJ IDEA ###
 /.idea/uiDesigner.xml
