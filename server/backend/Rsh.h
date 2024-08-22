@@ -353,6 +353,35 @@ static INLINE Rboolean bcell_set_value(BCell cell, SEXP value) {
 #define Rsh_const_int(env, idx) INT_TO_VAL(INTEGER(Rsh_const(env, idx))[0])
 #define Rsh_const_lgl(env, idx) LGL_TO_VAL(INTEGER(Rsh_const(env, idx))[0])
 
+// CLOSURE REPRESENTATION
+// ----------------------
+//
+// Closure (CLOSXP) whose budy is a BCODESXP are compiled into C functions.
+// At runtime, these closures are represented as regular R closures with
+// BCODESXP body containing code that calls a trampoline functions which in turn
+// calls the compiled C function.
+//
+// Each closure has the same body:
+//
+// .External2(Rsh_call_trampoline, <closure>)
+//
+// the <closure> is the closure itself.
+// The constant pool of the BCODESXP constants an extra element - extra pool
+// entry, which is  a VECSXP with two elements:
+//
+// [0] the EXTERNALPTR of the compiled C function
+// [1] the C constant pool (c_cp) used by the compiled C function
+//
+// The trampoline extracts these two elements from the extra pool entry and
+// calls the function using the environment passed to the .External2 call.
+//
+// The C functions have the following signature (Rsh_closure):
+//
+// SEXP compiled_function(SEXP rho, SEXP c_cp)
+//
+// where rho is the environment created for the call of the function (passed
+// from .External2), and c_cp the C constant pool.
+
 typedef SEXP (*Rsh_closure)(SEXP, SEXP);
 
 // RUNTIME INITIALIZATION
@@ -1056,6 +1085,20 @@ static INLINE Value Rsh_native_closure(SEXP mkclos_arg, Rsh_closure fun_ptr,
 
   UNPROTECT(3);
   return SXP_TO_VAL(closure);
+}
+
+static INLINE void Rsh_check_fun(Value v) {
+  int is_fun = FALSE;
+
+  if (VAL_IS_SXP(v)) {
+    SEXP fun = VAL_SXP(v);
+    is_fun = TYPEOF(fun) == CLOSXP || TYPEOF(fun) == BUILTINSXP ||
+             TYPEOF(fun) == SPECIALSXP;
+  }
+
+  if (!is_fun) {
+    error("attempt to apply non-function");
+  }
 }
 
 #endif // RSH_H
