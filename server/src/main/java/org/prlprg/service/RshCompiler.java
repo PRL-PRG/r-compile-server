@@ -19,8 +19,6 @@ public class RshCompiler {
     //  and precompile the header file (if needed)
     private static final Path RSH_INCLUDE_PATH = Paths.get("server/backend").normalize().toAbsolutePath();
     private static final Path R_INCLUDE_PATH = Paths.get("external/R/include").normalize().toAbsolutePath();
-    private static final String RSH_H_FILE = "Rsh.h";
-    private static final String RSH_GHC_FILE = "Rsh.h.gch";
 
     // TODO: which ones are needed?
     private static final List<String> COMMON_COMPILER_FLAGS =
@@ -76,14 +74,6 @@ public class RshCompiler {
     }
 
     private void initialize() throws Exception {
-        if (logger.isLoggable(Level.FINE)) {
-            logger.fine("Pre-compiling Rsh.h");
-        }
-
-        new CCCompilationBuilder(RSH_H_FILE, RSH_GHC_FILE)
-                .workingDirectory(RSH_INCLUDE_PATH.toFile())
-                .flags(compilerFlags)
-                .compile();
     }
 
     public CCCompilationBuilder createBuilder(String input, String output) {
