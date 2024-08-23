@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -12,12 +13,17 @@ import java.util.regex.Pattern;
 /** DESCRIPTION file parser. */
 public class DESCRIPTION {
     private String version;
-    private final List<String> suggests;
-    private final List<String> imports;
+    private final HashMap<String, String> suggests;
+    private final HashMap<String, String> imports;
+
+    private static final Pattern versionPattern = Pattern.compile("^Version:\\s*(.*)$");
+    private static final Pattern suggestsPattern = Pattern.compile("^Suggests:\\s*(.*)$");
+    private static final Pattern importsPattern = Pattern.compile("^Imports:\\s*(.*)$");
+    private static final Pattern versionRequirementPattern = Pattern.compile("([a-zA-Z0-9]+)\\s*\\((>=|=|>|<=|<)\\s*([0-9\\.]+)\\)");
 
     public DESCRIPTION(Path descriptionFile) throws IOException {
-        this.suggests = new ArrayList<>();
-        this.imports = new ArrayList<>();
+        this.suggests = new HashMap<>();
+        this.imports = new HashMap<>();
         parseDescriptionFile(descriptionFile);
     }
 
@@ -29,9 +35,6 @@ public class DESCRIPTION {
      */
     private void parseDescriptionFile(Path descriptionFile) throws IOException {
         List<String> lines = Files.readAllLines(descriptionFile);
-        Pattern versionPattern = Pattern.compile("^Version:\\s*(.*)$");
-        Pattern suggestsPattern = Pattern.compile("^Suggests:\\s*(.*)$");
-        Pattern importsPattern = Pattern.compile("^Imports:\\s*(.*)$");
 
         for (String line : lines) {
             Matcher versionMatcher = versionPattern.matcher(line);
@@ -49,17 +52,23 @@ public class DESCRIPTION {
     }
 
     /**
-     * Parses a comma-separated list of packages.
+     * Parses a comma-separated list of packages with version requirements.
      *
      * @param packages the comma-separated list of packages
-     * @param list the list to add the packages to
+     * @param map the map to add the packages and their version requirements to
      */
-    private void parsePackages(String packages, List<String> list) {
+    private void parsePackages(String packages, HashMap<String, String> map) {
         String[] packageArray = packages.split(",");
         for (String pkg : packageArray) {
-            list.add(pkg.trim());
+            Matcher matcher = versionRequirementPattern.matcher(pkg.trim());
+            if (matcher.find()) {
+                map.put(matcher.group(1).trim(), matcher.group(2).trim() + " " + matcher.group(3).trim());
+            } else {
+                map.put(pkg.trim(), "");
+            }
         }
     }
+
 
     /**
      * Returns the version of the package.
@@ -75,7 +84,7 @@ public class DESCRIPTION {
      *
      * @return the list of suggested packages
      */
-    public List<String> getSuggests() {
+    public HashMap<String,String> getSuggests() {
         return suggests;
     }
 
@@ -84,7 +93,7 @@ public class DESCRIPTION {
      *
      * @return the list of imported packages
      */
-    public List<String> getImports() {
+    public HashMap<String, String> getImports() {
         return imports;
     }
 }
