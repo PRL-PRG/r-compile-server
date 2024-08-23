@@ -1,13 +1,14 @@
 package org.prlprg.rsession;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.List;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.prlprg.session.DESCRIPTION;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Map;
 
 public class DESCRIPTIONTest {
 
@@ -26,8 +27,8 @@ public class DESCRIPTIONTest {
 
         // Assert the parsed values
         Assertions.assertEquals("1.2.3", description.getVersion());
-        Assertions.assertEquals(List.of("pkgA (>= 1.0.0)", "pkgB"), description.getSuggests());
-        Assertions.assertEquals(List.of("pkgC", "pkgD (>= 2.0.0)"), description.getImports());
+        Assertions.assertEquals(Map.of("pkgA", ">= 1.0.0", "pkgB", ""), description.getSuggests());
+        Assertions.assertEquals(Map.of("pkgC", "", "pkgD", ">= 2.0.0"), description.getImports());
     }
 
     @Test
@@ -58,8 +59,8 @@ public class DESCRIPTIONTest {
 
         // Assert the parsed values
         Assertions.assertNull(description.getVersion());
-        Assertions.assertEquals(List.of("pkgA (>= 1.0.0)", "pkgB"), description.getSuggests());
-        Assertions.assertEquals(List.of("pkgC", "pkgD (>= 2.0.0)"), description.getImports());
+        Assertions.assertEquals(Map.of("pkgA", ">= 1.0.0", "pkgB", ""), description.getSuggests());
+        Assertions.assertEquals(Map.of("pkgC", "", "pkgD", ">= 2.0.0"), description.getImports());
     }
 
     @Test
@@ -76,6 +77,6 @@ public class DESCRIPTIONTest {
         // Assert the parsed values
         Assertions.assertEquals("1.2.3", description.getVersion());
         Assertions.assertTrue(description.getSuggests().isEmpty());
-        Assertions.assertEquals(List.of("pkgC", "pkgD (>= 2.0.0)"), description.getImports());
+        Assertions.assertEquals(Map.of("pkgC", "", "pkgD", ">= 2.0.0"), description.getImports());
     }
 }
