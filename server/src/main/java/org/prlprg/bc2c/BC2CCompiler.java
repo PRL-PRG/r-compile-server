@@ -137,7 +137,7 @@ public class BC2CCompiler {
         var compiledClosure = module.compileClosure(bc);
 
         var file = new CFile();
-        file.addInclude("Rsh.h");
+        file.addInclude("runtime.h");
         module.funs().forEach(fun -> file.addFun(fun, true));
 
         return new CompiledModule(file, compiledClosure.name(), compiledClosure.constantPool());

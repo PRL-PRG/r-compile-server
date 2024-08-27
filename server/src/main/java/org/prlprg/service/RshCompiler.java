@@ -17,8 +17,8 @@ public class RshCompiler {
     //  what we need is to keep this in the resources, versioned by R version
     //  and upon server instantiation, copy it to some temp directory
     //  and precompile the header file (if needed)
-    private static final Path RSH_INCLUDE_PATH = Paths.get("server/backend").normalize().toAbsolutePath();
-    private static final Path R_INCLUDE_PATH = Paths.get("external/R/include").normalize().toAbsolutePath();
+    private static final Path RSH_INCLUDE_PATH = Paths.get("../client/rsh/src").normalize().toAbsolutePath();
+    private static final Path R_INCLUDE_PATH = Paths.get("../external/R/include").normalize().toAbsolutePath();
 
     // TODO: which ones are needed?
     private static final List<String> COMMON_COMPILER_FLAGS =

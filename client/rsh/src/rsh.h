@@ -1,7 +1,6 @@
 #pragma once
 
 #include "jit.h"
-#include <R.h>
 #include <Rinternals.h>
 #include <cstdint>
 #include <vector>
@@ -17,13 +16,6 @@ using usize = std::size_t;
 #define GETBUILTIN_OP 26
 #define CALLBUILTIN_OP 39
 #define RETURN_OP 1
-
-// Missing API from R
-extern "C" {
-#define BCODE_CODE(x) CAR(x)
-SEXP R_bcEncode(SEXP);
-SEXP R_bcDecode(SEXP);
-}
 
 namespace rsh {
 

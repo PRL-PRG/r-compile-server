@@ -1,11 +1,13 @@
-#ifndef RSH_H
-#define RSH_H
+#ifndef RUNTIME_H
+#define RUNTIME_H
 
-#include "Rsh_internals.h"
+// THIS HEADER NEEDS TO BE A C-compatible HEADER
+// IT IS USED BY THE SERVER COMPILER
+
+#include "runtime_internals.h"
 #include <assert.h>
+#include <math.h>
 #include <stdint.h>
-
-double R_pow(double x, double y);
 
 #define Rsh_error(msg, ...)                                                    \
   {                                                                            \
@@ -15,9 +17,9 @@ double R_pow(double x, double y);
 
 // a flag to be set when running this code from tests, i.e., without the JIT
 #ifdef RSH_TESTS
-#define JIT_EXTERN
+#define JIT_EXTERN static INLINE
 #else
-#define JIT_EXTERN extern
+#define JIT_EXTERN static INLINE
 #endif
 
 #define X_MATH1_OPS                                                            \
@@ -55,6 +57,7 @@ typedef enum { X_UNARY_OPS } RshUnaryOp;
 typedef enum { X_LOGIC2_OPS } RshLogic2Op;
 #undef X
 
+#ifdef RSH_TESTS
 #define X(a, b) NULL,
 SEXP R_ARITH_OPS[] = {X_ARITH_OPS};
 SEXP R_ARITH_OP_SYMS[] = {X_ARITH_OPS};
@@ -66,6 +69,17 @@ SEXP R_UNARY_OPS[] = {X_UNARY_OPS};
 SEXP R_UNARY_OP_SYMS[] = {X_UNARY_OPS};
 SEXP R_LOGIC2_OPS[] = {X_LOGIC2_OPS};
 #undef X
+#else
+extern SEXP R_ARITH_OPS[];
+extern SEXP R_ARITH_OP_SYMS[];
+extern SEXP R_REL_OPS[];
+extern SEXP R_REL_OP_SYMS[];
+
+extern SEXP R_MATH1_OPS[];
+extern SEXP R_UNARY_OPS[];
+extern SEXP R_UNARY_OP_SYMS[];
+extern SEXP R_LOGIC2_OPS[];
+#endif
 
 // VALUE REPRESENTATION
 // --------------------
@@ -86,15 +100,22 @@ SEXP R_LOGIC2_OPS[] = {X_LOGIC2_OPS};
 //
 // Our NaN boxing:
 //
-//          63              49                                                 0
-//           v               v                                                 v
-//      QNAN 0|1111111111111|00|000000000000000000000000000000000000000000000000
-//      MASK 1|1111111111111|11|000000000000000000000000000000000000000000000000
-//  MASK_INT 0|1111111111111|00|000000000000000000000000000000000000000000000000
-//  MASK_SXP 1|1111111111111|00|000000000000000000000000000000000000000000000000
-//  MASK_LGL 0|1111111111111|11|000000000000000000000000000000000000000000000000
-//      TRUE 0|1111111111111|11|000000000000000000000000000000000000000000000001
-//     FALSE 0|1111111111111|11|000000000000000000000000000000000000000000000000
+//          63              49 0
+//           v               v v
+//      QNAN
+//      0|1111111111111|00|000000000000000000000000000000000000000000000000
+//      MASK
+//      1|1111111111111|11|000000000000000000000000000000000000000000000000
+//  MASK_INT
+//  0|1111111111111|00|000000000000000000000000000000000000000000000000
+//  MASK_SXP
+//  1|1111111111111|00|000000000000000000000000000000000000000000000000
+//  MASK_LGL
+//  0|1111111111111|11|000000000000000000000000000000000000000000000000
+//      TRUE
+//      0|1111111111111|11|000000000000000000000000000000000000000000000001
+//     FALSE
+//     0|1111111111111|11|000000000000000000000000000000000000000000000000
 
 typedef int32_t i32;
 typedef uint64_t u64;
@@ -150,11 +171,11 @@ static INLINE Value DBL_TO_VAL(double d) {
 static INLINE SEXP val_as_sexp(Value v) {
   switch (VAL_TAG(v)) {
   case REALSXP:
-    return ScalarReal(VAL_DBL(v));
+    return Rf_ScalarReal(VAL_DBL(v));
   case INTSXP:
-    return ScalarInteger(VAL_INT(v));
+    return Rf_ScalarInteger(VAL_INT(v));
   case LGLSXP:
-    return ScalarLogical(VAL_INT(v));
+    return Rf_ScalarLogical(VAL_INT(v));
   default:
     return VAL_SXP(v);
   }
@@ -268,21 +289,21 @@ static INLINE void bcell_expand(BCell b) {
     switch (typetag) {
     case REALSXP:
       PROTECT(b);
-      val = ScalarReal(vv.dval);
+      val = Rf_ScalarReal(vv.dval);
       BCELL_SET(b, val);
       INCREMENT_NAMED(val);
       UNPROTECT(1);
       break;
     case INTSXP:
       PROTECT(b);
-      val = ScalarInteger(vv.ival);
+      val = Rf_ScalarInteger(vv.ival);
       BCELL_SET(b, val);
       INCREMENT_NAMED(val);
       UNPROTECT(1);
       break;
     case LGLSXP:
       PROTECT(b);
-      val = ScalarLogical(vv.ival);
+      val = Rf_ScalarLogical(vv.ival);
       BCELL_SET(b, val);
       INCREMENT_NAMED(val);
       UNPROTECT(1);
@@ -292,7 +313,7 @@ static INLINE void bcell_expand(BCell b) {
 }
 
 #define IS_USER_DATABASE(rho)                                                  \
-  (OBJECT((rho)) && inherits((rho), "UserDefinedDatabase"))
+  (OBJECT((rho)) && Rf_inherits((rho), "UserDefinedDatabase"))
 
 // Returns a binding cell
 static INLINE BCell bcell_get(SEXP symbol, SEXP rho) {
@@ -395,9 +416,7 @@ typedef SEXP (*Rsh_closure)(SEXP, SEXP);
     UNPROTECT(1);                                                              \
   } while (0)
 
-#ifdef RSH_TESTS
-
-SEXP Rsh_initialize_runtime(void) {
+JIT_EXTERN SEXP Rsh_initialize_runtime(void) {
 #define X(a, b) LOAD_R_BUILTIN(R_ARITH_OPS[b], #a);
   X_ARITH_OPS
 #undef X
@@ -414,28 +433,27 @@ SEXP Rsh_initialize_runtime(void) {
   X_LOGIC2_OPS
 #undef X
 
-#define X(a, b) R_ARITH_OP_SYMS[b] = install(#a);
+#define X(a, b) R_ARITH_OP_SYMS[b] = Rf_install(#a);
   X_ARITH_OPS
 #undef X
-#define X(a, b) R_REL_OP_SYMS[b] = install(#a);
+#define X(a, b) R_REL_OP_SYMS[b] = Rf_install(#a);
   X_REL_OPS
 #undef X
-#define X(a, b) R_UNARY_OP_SYMS[b] = install(#a);
+#define X(a, b) R_UNARY_OP_SYMS[b] = Rf_install(#a);
   X_UNARY_OPS
 #undef X
 
   Rsh_NilValue = SXP_TO_VAL(R_NilValue);
   LOAD_R_BUILTIN(NOT_OP, "!");
-  DOTEXTERNAL2_SYM = install(".External2");
+  DOTEXTERNAL2_SYM = Rf_install(".External2");
 
   RSH_CALL_TRAMPOLINE_SXP = Rf_mkString("Rsh_call_trampoline");
   R_PreserveObject(RSH_CALL_TRAMPOLINE_SXP);
 
   return R_NilValue;
 }
-#endif
 
-SEXP Rsh_call_trampoline(SEXP call, SEXP op, SEXP args, SEXP rho) {
+SEXP INLINE Rsh_call_trampoline(SEXP call, SEXP op, SEXP args, SEXP rho) {
   SEXP closure = CADR(args);
   if (TYPEOF(closure) != CLOSXP) {
     Rf_error("Expected a closure");
@@ -472,7 +490,7 @@ static INLINE SEXP FORCE_PROMISE(SEXP value, SEXP symbol, SEXP rho,
       value = R_MissingArg;
     } else {
       // FIXME: port the forcePromise from eval.c
-      value = eval(value, rho);
+      value = Rf_eval(value, rho);
     }
   } else {
     value = PRVALUE(value);
@@ -511,7 +529,7 @@ static INLINE Value Rsh_do_get_var(SEXP symbol, SEXP rho, Rboolean dd,
     if (value == R_UnboundValue) {
       // TODO: the original is calling FIND_VAR_NO_CACHE which in turn calls
       // R_GetVarLocValue which is private
-      value = findVar(symbol, rho);
+      value = Rf_findVar(symbol, rho);
     } else {
       has_cell = TRUE;
     }
@@ -626,7 +644,7 @@ static INLINE void Rsh_set_var(SEXP symbol, Value value, SEXP rho,
 
   if (!bcell_set_value(*cell, sexp_value)) {
     PROTECT(sexp_value);
-    defineVar(symbol, sexp_value, rho);
+    Rf_defineVar(symbol, sexp_value, rho);
     UNPROTECT(1);
     bcell_get_cache(symbol, rho, cell);
     BCELL_INLINE(*cell, value);
@@ -659,7 +677,7 @@ static INLINE Value Rsh_get_builtin(const char *name) {
 }
 
 static INLINE Value Rsh_getFun(SEXP symbol, SEXP rho) {
-  SEXP fun = findFun(symbol, rho);
+  SEXP fun = Rf_findFun(symbol, rho);
   return SXP_TO_VAL(fun);
 }
 
@@ -675,26 +693,26 @@ static INLINE Value Rsh_call(SEXP call, Value fun, Value args, SEXP rho) {
     args_sxp = Rsh_builtin_call_args(args_sxp);
     checkForMissings(args_sxp, call);
     flag = PRIMPRINT(fun_sxp);
-    R_Visible = flag != 1;
+    R_Visible = (Rboolean)(flag != 1);
     value = PRIMFUN(fun_sxp)(call, fun_sxp, args_sxp, rho);
     if (flag < 2) {
-      R_Visible = flag != 1;
+      R_Visible = (Rboolean)(flag != 1);
     }
     break;
   case SPECIALSXP:
     flag = PRIMPRINT(fun_sxp);
-    R_Visible = flag != 1;
+    R_Visible = (Rboolean)(flag != 1);
     value = PRIMFUN(fun_sxp)(call, fun_sxp, markSpecialArgs(CDR(call)), rho);
     if (flag < 2) {
-      R_Visible = flag != 1;
+      R_Visible = (Rboolean)(flag != 1);
     }
     break;
   case CLOSXP:
     args_sxp = Rsh_closure_call_args(args_sxp);
-    value = applyClosure(call, fun_sxp, args_sxp, rho, R_NilValue, TRUE);
+    value = Rf_applyClosure(call, fun_sxp, args_sxp, rho, R_NilValue, TRUE);
     break;
   default:
-    error("bad function");
+    Rf_error("bad function");
   }
 
   return sexp_as_val(value);
@@ -702,17 +720,17 @@ static INLINE Value Rsh_call(SEXP call, Value fun, Value args, SEXP rho) {
 
 static INLINE Rboolean Rsh_is_true(Value value, SEXP call, SEXP rho) {
   if (VAL_IS_LGL_NOT_NA(value)) {
-    return VAL_INT(value);
+    return (Rboolean)VAL_INT(value);
   } else if (VAL_IS_INT_NOT_NA(value)) {
-    return VAL_INT(value) != 0;
+    return (Rboolean)(VAL_INT(value) != 0);
   } else if (VAL_IS_DBL_NOT_NAN(value)) {
-    return VAL_DBL(value) != 0.0;
+    return (Rboolean)(VAL_DBL(value) != 0.0);
   }
 
   SEXP value_sxp = VAL_SXP(value);
 
   if (IS_SCALAR(value_sxp, LGLSXP)) {
-    Rboolean lval = LOGICAL0(value_sxp)[0];
+    Rboolean lval = (Rboolean)LOGICAL0(value_sxp)[0];
     if (lval != NA_LOGICAL)
       return lval;
   }
@@ -1079,7 +1097,7 @@ static INLINE Value Rsh_native_closure(SEXP mkclos_arg, Rsh_closure fun_ptr,
     SEXP srcref = VECTOR_ELT(mkclos_arg, 2);
     if (TYPEOF(srcref) != NILSXP)
       // FIXME: expose R_SrcrefSymbol
-      setAttrib(closure, install("srcref"), srcref);
+      Rf_setAttrib(closure, Rf_install("srcref"), srcref);
   }
   R_Visible = TRUE;
 
@@ -1097,8 +1115,8 @@ static INLINE void Rsh_check_fun(Value v) {
   }
 
   if (!is_fun) {
-    error("attempt to apply non-function");
+    Rf_error("attempt to apply non-function");
   }
 }
 
-#endif // RSH_H
+#endif // RUNTIME_H

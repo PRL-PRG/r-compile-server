@@ -6,6 +6,9 @@
 #include <cstdio>
 #include <cstring>
 
+extern "C" {
+#include "bc2c/runtime.h"
+}
 // clang-format off
 static i32 CALL_FUN_BC[] = {
   12,
@@ -178,6 +181,7 @@ SEXP initialize(SEXP call_fun) {
   // intializing it in the init method.
   // I just don't know how.
   CALL_FUN = call_fun;
+  Rsh_initialize_runtime();
 
   return R_NilValue;
 }
