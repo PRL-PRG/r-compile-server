@@ -1,6 +1,6 @@
-# RIR^2^ specification
+# RIR^2^ idea
 
-## Idea
+## Abstract
 
 Optimization has 2 phases:
 
