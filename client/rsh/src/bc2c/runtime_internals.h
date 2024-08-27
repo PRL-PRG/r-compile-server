@@ -32,6 +32,8 @@ extern Rboolean R_Visible; /* Value visibility flag */
 #define R_MSG_NA "NaNs produced"
 
 void forcePromise(SEXP e);
+SEXP Rf_mkPROMISE(SEXP expr, SEXP rho);
+SEXP bcEval(SEXP call, SEXP rho);
 double R_pow(double x, double y);
 SEXP R_bcDecode(SEXP);
 SEXP R_bcEncode(SEXP);
