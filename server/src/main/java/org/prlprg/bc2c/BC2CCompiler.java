@@ -246,11 +246,16 @@ class ClosureCompiler {
             case BcInstr.GetFun(var idx) -> compileGetFun(idx);
             case BcInstr.MakeClosure(var idx) -> compileMakeClosure(idx);
             case BcInstr.CheckFun() -> compileCheckFun();
+            case BcInstr.MakeProm(var idx) -> compileMakeProm(idx);
 
             default -> throw new UnsupportedOperationException(instr + ": not supported");
         }
         body.comment("end: " + instr);
         body.nl();
+    }
+
+    private void compileMakeProm(ConstPool.Idx<SEXP> idx) {
+        body.line("Rsh_make_prom(%s, %s, %s, %s, %s);".formatted(stack.curr(-2), stack.curr(-1), stack.curr(0), constantSXP(idx), NAME_ENV));
     }
 
     private void compileCheckFun() {

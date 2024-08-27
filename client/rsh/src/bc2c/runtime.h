@@ -673,13 +673,14 @@ static INLINE Rboolean Rsh_is_true(Value value, SEXP call, SEXP rho) {
 
 #define RSH_LIST_APPEND(/* Value */ head, /* Value */ tail, /* Value */ value) \
   do {                                                                         \
-    SEXP __elem__ = cons(val_as_sexp(value), R_NilValue);                      \
+    SEXP __elem__ = CONS(val_as_sexp(value), R_NilValue);                      \
     if (head == Rsh_NilValue) {                                                \
       head = SXP_TO_VAL(__elem__);                                             \
     } else {                                                                   \
       SETCDR(VAL_SXP(tail), __elem__);                                         \
     }                                                                          \
     tail = SXP_TO_VAL(__elem__);                                               \
+    INCREMENT_LINKS(CAR(__elem__));                                            \
   } while (0)
 
 #define RSH_SET_TAG(/* SEXP */ v, /* SEXP */ t)                                \
@@ -1046,6 +1047,31 @@ static INLINE void Rsh_check_fun(Value v) {
 
   if (!is_fun) {
     Rf_error("attempt to apply non-function");
+  }
+}
+
+static INLINE void Rsh_make_prom(Value fun, Value args_head, Value args_tail,
+                                 SEXP code, SEXP rho) {
+  SEXP res = NULL;
+
+  switch (TYPEOF(VAL_SXP(fun))) {
+  case CLOSXP:
+    res = Rf_mkPROMISE(code, rho);
+    break;
+  case BUILTINSXP:
+    if (TYPEOF(code) == BCODESXP)
+      res = bcEval(code, rho);
+    else
+      /* uncommon but possible, the compiler may decide not
+         to compile an argument expression */
+      res = Rf_eval(code, rho);
+    break;
+  case SPECIALSXP:
+    break;
+  }
+
+  if (res != NULL) {
+    RSH_LIST_APPEND(args_head, args_tail, sexp_as_val(res));
   }
 }
 
