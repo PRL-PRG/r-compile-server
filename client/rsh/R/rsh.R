@@ -13,6 +13,10 @@ NULL
   .Call(C_initialize, C_call_fun)
 }
 
+rhs_bc2c_opt_level <- function() {
+  as.integer(Sys.getenv("RSH_BC2C_OPT", default = "0"))
+}
+
 #' Activate the Rsh JIT
 #'
 #' @export
@@ -33,7 +37,7 @@ rsh_jit_disable <- function() {
 #'
 #' @param f closure to be compiled
 #' @export
-rsh_compile <- function(f, name, opt_level = 0L) {
+rsh_compile <- function(f, name, opt_level = rsh_bc2c_opt_level()) {
   if (missing(name)) {
     name <- as.character(substitute(f))
   }
@@ -48,12 +52,19 @@ rsh_compile <- function(f, name, opt_level = 0L) {
 #' @param options list of options
 #' @return compiled closure
 #' @export
-rsh_cmpfun <- function(f, options=list(optimize=0L)) {
+rsh_cmpfun <- function(f, options) {
+  # FIXME: this does not seem to do what I think it should
   # make a copy - the compiler::cmpfun takes a function and returns
   # a new one with BCSXP body (if possible)
   g <- f
-  # compile the copy
+
+  if (!is.list(options)) {
+    stop("options must be a list")
+  }
+  options <- utils::modifyList(list(optimize = rsh_bc2c_opt_level()), options)
+
   rsh_compile(g, as.character(substitute(f)), options$optimize)
+
   g
 }
 

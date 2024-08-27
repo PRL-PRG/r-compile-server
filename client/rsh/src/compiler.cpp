@@ -124,7 +124,7 @@ SEXP compile_fun(SEXP closure, SEXP name, SEXP opt_level_sxp) {
     Rf_error("Expected a single integer as an optimization level");
   }
 
-  u32 opt_level = INTEGER(opt_level_sxp)[0];
+  u32 opt_level = Rf_asInteger(opt_level_sxp);
 
   const char *closure_name = CHAR(STRING_ELT(name, 0));
   char name_str[strlen(closure_name) + 1 + 16];
