@@ -25,6 +25,7 @@ public class JITService {
         logger.fine("Compiling closure: " + name + "\n" + closure + "\n");
 
         var bcCompiler = new BCCompiler(closure, rsession);
+        bcCompiler.setOptimizationLevel(ccOptimization);
         var bc = bcCompiler.compile().get();
         var bc2cCompiler = new BC2CCompiler(bc);
         var module = bc2cCompiler.finish();
@@ -35,7 +36,7 @@ public class JITService {
         // var output = new File("/tmp/jit.o");
         var output = File.createTempFile("ofile", ".o");
 
-        RshCompiler.getInstance(ccOptimization)
+        RshCompiler.getInstance(0)//ccOptimization)
                 .createBuilder(input.getPath(), output.getPath())
                 .flag("-c")
                 .compile();

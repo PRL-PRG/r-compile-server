@@ -1,6 +1,5 @@
 #pragma once
 
-#include <Rinternals.h>
 #include <llvm-17/llvm/ExecutionEngine/Orc/Core.h>
 #include <memory>
 #undef PI
