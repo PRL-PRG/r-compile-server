@@ -1,6 +1,6 @@
 #pragma one
 
-#include "Rinternals.h"
+#include <Rinternals.h>
 
 namespace rsh {
 

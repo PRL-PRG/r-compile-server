@@ -1,4 +1,5 @@
-#include "util.h"
+#include "util.hpp"
+
 SEXP append_vec(SEXP v1, SEXP v2) {
   int n1 = LENGTH(v1);
   int n2 = LENGTH(v2);

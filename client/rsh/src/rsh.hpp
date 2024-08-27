@@ -1,6 +1,6 @@
 #pragma once
 
-#include "jit.h"
+#include "jit.hpp"
 #include <Rinternals.h>
 #include <cstdint>
 #include <vector>

@@ -1,6 +1,6 @@
 #include <R_ext/Rdynload.h>
 
-#include "compiler.h"
+#include "compiler.hpp"
 
 extern "C" {
 static const R_CallMethodDef callMethods[] = {
