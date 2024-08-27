@@ -1,4 +1,4 @@
-#include "bc2c/runtime.h"
+#include "runtime.h"
 
 #ifdef RSH_TESTS
 #error "RSH_TESTS cannot be set"
@@ -21,4 +21,4 @@ SEXP NOT_OP;
 SEXP DOTEXTERNAL2_SYM;
 SEXP RSH_CALL_TRAMPOLINE_SXP;
 
-#include "bc2c/runtime_impl.h"
+#include "runtime_impl.h"
