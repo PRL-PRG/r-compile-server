@@ -15,11 +15,22 @@
     return R_NilValue;                                                         \
   }
 
-// a flag to be set when running this code from tests, i.e., without the JIT
+// The code linking to this header can run in two modes:
+// 1. as a standalone executable (shared library) that uses just the R runtime
+//    which is used in tests
+// 2. as a part of the Rsh package, loaded by the ORC JIT
+//
+// In the first case all the runtime functions are part of one translation unit.
+// All of them should be static and depending on the NDEBUG state also inline.
+//
+// In the second case, only the Rsh instructions should be inlined and the rest
+// should be linked to.
 #ifdef RSH_TESTS
-#define JIT_EXTERN static INLINE
+#define JIT_DECL
+#define JIT_DEF INLINE
 #else
-#define JIT_EXTERN static INLINE
+#define JIT_DECL extern
+#define JIT_DEF
 #endif
 
 #define X_MATH1_OPS                                                            \
@@ -57,6 +68,8 @@ typedef enum { X_UNARY_OPS } RshUnaryOp;
 typedef enum { X_LOGIC2_OPS } RshLogic2Op;
 #undef X
 
+// while a little cumbersome, it allows us to keep everything just
+// in the header file, simplifying the standalone (test) mode.
 #ifdef RSH_TESTS
 #define X(a, b) NULL,
 SEXP R_ARITH_OPS[] = {X_ARITH_OPS};
@@ -193,11 +206,13 @@ static INLINE Value sexp_as_val(SEXP s) {
   }
 }
 
-// FIXME: should be in the test runtime or extern
-static Value Rsh_NilValue;
-static SEXP NOT_OP;
-static SEXP DOTEXTERNAL2_SYM;
-static SEXP RSH_CALL_TRAMPOLINE_SXP;
+// CONSTANTS
+// ------------------------------------
+
+JIT_DECL Value Rsh_NilValue;
+JIT_DECL SEXP NOT_OP;
+JIT_DECL SEXP DOTEXTERNAL2_SYM;
+JIT_DECL SEXP RSH_CALL_TRAMPOLINE_SXP;
 
 // BINDING CELLS (bcell) implementation
 // ------------------------------------
@@ -405,83 +420,17 @@ static INLINE Rboolean bcell_set_value(BCell cell, SEXP value) {
 
 typedef SEXP (*Rsh_closure)(SEXP, SEXP);
 
-// RUNTIME INITIALIZATION
-// ----------------------
-
-// TODO: add this to the package
-#define LOAD_R_BUILTIN(target, name)                                           \
-  do {                                                                         \
-    target = PROTECT(R_Primitive(name));                                       \
-    R_PreserveObject(target);                                                  \
-    UNPROTECT(1);                                                              \
-  } while (0)
-
-JIT_EXTERN SEXP Rsh_initialize_runtime(void) {
-#define X(a, b) LOAD_R_BUILTIN(R_ARITH_OPS[b], #a);
-  X_ARITH_OPS
-#undef X
-#define X(a, b) LOAD_R_BUILTIN(R_REL_OPS[b], #a);
-  X_REL_OPS
-#undef X
-#define X(a, b) LOAD_R_BUILTIN(R_MATH1_OPS[b], #a);
-  X_MATH1_OPS
-#undef X
-#define X(a, b) LOAD_R_BUILTIN(R_UNARY_OPS[b], #a);
-  X_UNARY_OPS
-#undef X
-#define X(a, b) LOAD_R_BUILTIN(R_LOGIC2_OPS[b], #a);
-  X_LOGIC2_OPS
-#undef X
-
-#define X(a, b) R_ARITH_OP_SYMS[b] = Rf_install(#a);
-  X_ARITH_OPS
-#undef X
-#define X(a, b) R_REL_OP_SYMS[b] = Rf_install(#a);
-  X_REL_OPS
-#undef X
-#define X(a, b) R_UNARY_OP_SYMS[b] = Rf_install(#a);
-  X_UNARY_OPS
-#undef X
-
-  Rsh_NilValue = SXP_TO_VAL(R_NilValue);
-  LOAD_R_BUILTIN(NOT_OP, "!");
-  DOTEXTERNAL2_SYM = Rf_install(".External2");
-
-  RSH_CALL_TRAMPOLINE_SXP = Rf_mkString("Rsh_call_trampoline");
-  R_PreserveObject(RSH_CALL_TRAMPOLINE_SXP);
-
-  return R_NilValue;
-}
-
-SEXP INLINE Rsh_call_trampoline(SEXP call, SEXP op, SEXP args, SEXP rho) {
-  SEXP closure = CADR(args);
-  if (TYPEOF(closure) != CLOSXP) {
-    Rf_error("Expected a closure");
-  }
-
-  SEXP body = BODY(closure);
-  if (TYPEOF(body) != BCODESXP) {
-    Rf_error("Expected a compiled closure");
-  }
-
-  SEXP cp = BCODE_CONSTS(body);
-  if (XLENGTH(cp) != 6) {
-    Rf_error("Expected a constant pool with 6 elements");
-  }
-
-  SEXP c_cp = VECTOR_ELT(cp, LENGTH(cp) - 2);
-  // cf. https://stackoverflow.com/a/19487645
-  Rsh_closure fun;
-  *(void **)(&fun) = R_ExternalPtrAddr(VECTOR_ELT(c_cp, 0));
-  SEXP res = fun(rho, VECTOR_ELT(c_cp, 1));
-
-  return res;
-}
+#ifdef RSH_TESTS
+#include "runtime_impl.h"
+#else
+JIT_DECL SEXP Rsh_initialize_runtime(void);
+JIT_DECL SEXP Rsh_call_trampoline(SEXP call, SEXP op, SEXP args, SEXP rho);
+#endif
 
 // INSTRUCTIONS
 // ------------
 
-// TODO: move to internal
+// FIXME: move to internal ++ all the ones in get_var
 static INLINE SEXP FORCE_PROMISE(SEXP value, SEXP symbol, SEXP rho,
                                  Rboolean keepmiss) {
   if (PRVALUE(value) == R_UnboundValue) {

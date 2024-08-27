@@ -7,11 +7,15 @@
 #include <llvm/ExecutionEngine/Orc/LLJIT.h>
 #include <llvm/Support/TargetSelect.h>
 
+extern "C" {
+#include "bc2c/runtime.h"
+}
 namespace rsh {
 
 JIT *GJIT = JIT::create();
 
 JIT *JIT::create() {
+  Rsh_initialize_runtime();
   llvm::InitializeNativeTarget();
   llvm::InitializeNativeTargetAsmPrinter();
 
@@ -44,11 +48,17 @@ JIT *JIT::create() {
           .create();
 
   if (auto err = orc.takeError()) {
-    Rf_error("Unable to create LLVJIT: %s\n", toString(std::move(err)).c_str());
+    Rf_error("Unable to create LLVMJIT: %s\n",
+             toString(std::move(err)).c_str());
     return nullptr;
   }
 
-  return new JIT(std::move(*orc));
+  auto o = std::move(*orc);
+  // o->getMainJITDylib().addGenerator(
+  //     cantFail(llvm::orc::DynamicLibrarySearchGenerator::GetForCurrentProcess(
+  //         o->getDataLayout().getGlobalPrefix())));
+
+  return new JIT(std::move(o));
 }
 
 void JIT::add_object_file(const char *filename) {

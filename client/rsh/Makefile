@@ -28,7 +28,7 @@ install:
 	$(R) CMD INSTALL .
 
 setup:
-	$(BEAR) -- $(MAKE) clean install
+	$(BEAR) -- $(MAKE) install
 
 test:
 	LD_PRELOAD=$(LLVM_LIB) ../../external/R/bin/R -f test5.R

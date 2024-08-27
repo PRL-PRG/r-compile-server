@@ -36,7 +36,7 @@ public class JITService {
         // var output = new File("/tmp/jit.o");
         var output = File.createTempFile("ofile", ".o");
 
-        RshCompiler.getInstance(0)//ccOptimization)
+        RshCompiler.getInstance(ccOptimization)
                 .createBuilder(input.getPath(), output.getPath())
                 .flag("-c")
                 .compile();
