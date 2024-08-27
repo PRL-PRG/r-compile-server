@@ -1,8 +1,8 @@
-#include "compiler.h"
-#include "client.h"
+#include "compiler.hpp"
+#include "client.hpp"
 #include "protocol.pb.h"
-#include "rsh.h"
-#include "serialize.h"
+#include "rsh.hpp"
+#include "serialize.hpp"
 #include <cstdio>
 #include <cstring>
 

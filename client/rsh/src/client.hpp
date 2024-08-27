@@ -1,6 +1,6 @@
 #pragma once
 #include "protocol.pb.h"
-#include "rsh.h"
+#include "rsh.hpp"
 #include <R.h>
 #include <Rinternals.h>
 #include <cstdint>

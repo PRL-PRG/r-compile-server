@@ -1,4 +1,4 @@
-#include "jit.h"
+#include "jit.hpp"
 #include "llvm/ExecutionEngine/Orc/DebugObjectManagerPlugin.h"
 #include "llvm/ExecutionEngine/Orc/EPCDebugObjectRegistrar.h"
 #include <R_ext/Error.h>
