@@ -18,7 +18,8 @@ build:
 clean:
 	-rm -f rsh*tar.gz
 	-rm -fr rsh.Rcheck
-	-rm -rf src/*.o src/*.so
+	-rm -rf src/*.so
+	-find src -name '*.o' -exec rm {} \;
 
 document:
 	$(R) -e 'devtools::document()'
