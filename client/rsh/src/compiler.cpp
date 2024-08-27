@@ -181,7 +181,7 @@ SEXP initialize(SEXP call_fun) {
   // intializing it in the init method.
   // I just don't know how.
   CALL_FUN = call_fun;
-  Rsh_initialize_runtime();
+  // Rsh_initialize_runtime();
 
   return R_NilValue;
 }

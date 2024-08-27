@@ -15,6 +15,7 @@
 ### C ###
 .cache
 .gdb_history
+compile_commands.json
 
 ### IntelliJ IDEA ###
 /.idea/uiDesigner.xml
