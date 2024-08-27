@@ -430,24 +430,6 @@ JIT_DECL SEXP Rsh_call_trampoline(SEXP call, SEXP op, SEXP args, SEXP rho);
 // INSTRUCTIONS
 // ------------
 
-// FIXME: move to internal ++ all the ones in get_var
-static INLINE SEXP FORCE_PROMISE(SEXP value, SEXP symbol, SEXP rho,
-                                 Rboolean keepmiss) {
-  if (PRVALUE(value) == R_UnboundValue) {
-    /**** R_isMissing is inefficient */
-    if (keepmiss && R_isMissing(symbol, rho)) {
-      value = R_MissingArg;
-    } else {
-      // FIXME: port the forcePromise from eval.c
-      value = Rf_eval(value, rho);
-    }
-  } else {
-    value = PRVALUE(value);
-  }
-  ENSURE_NAMEDMAX(value);
-  return value;
-}
-
 #define BCELL_INLINE(cell, v)                                                  \
   do {                                                                         \
     if (BCELL_WRITABLE(cell)) {                                                \
@@ -485,24 +467,23 @@ static INLINE Value Rsh_do_get_var(SEXP symbol, SEXP rho, Rboolean dd,
   }
 
   if (value == R_UnboundValue) {
-    // FIXME: make my own
     UNBOUND_VARIABLE_ERROR(symbol, rho);
   } else if (value == R_MissingArg) {
-    // FIXME: make my own
     MAYBE_MISSING_ARGUMENT_ERROR(symbol, keepmiss, rho);
   } else if (TYPEOF(value) == PROMSXP) {
-    SEXP pv = PRVALUE(value);
-    if (pv == R_UnboundValue) {
-      PROTECT(value);
-      // FIXME: make my own
-      value = FORCE_PROMISE(value, symbol, rho, keepmiss);
-      UNPROTECT(1);
-    } else {
-      ENSURE_NAMEDMAX(pv);
-      value = pv;
+    if (PROMISE_IS_EVALUATED(value))
+      value = PRVALUE(value);
+    else {
+      /**** R_isMissing is inefficient */
+      if (keepmiss && R_isMissing(symbol, rho))
+        value = R_MissingArg;
+      else {
+        forcePromise(value);
+        value = PRVALUE(value);
+      }
     }
   } else {
-    ENSURE_NAMED(value); /* needed for .Last.value - LT */
+    ENSURE_NAMEDMAX(value);
   }
 
   Value v = sexp_as_val(value);

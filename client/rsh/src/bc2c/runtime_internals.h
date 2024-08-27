@@ -29,14 +29,9 @@ extern Rboolean R_Visible; /* Value visibility flag */
 #define INLINE
 #endif
 
-#define MAYBE_MISSING_ARGUMENT_ERROR(symbol, keepmiss, rho)                    \
-  do {                                                                         \
-    if (!keepmiss)                                                             \
-      MISSING_ARGUMENT_ERROR(symbol, rho);                                     \
-  } while (0)
-
 #define R_MSG_NA "NaNs produced"
 
+void forcePromise(SEXP e);
 double R_pow(double x, double y);
 SEXP R_bcDecode(SEXP);
 SEXP R_bcEncode(SEXP);
@@ -55,6 +50,12 @@ SEXP do_relop_dflt(SEXP call, SEXP op, SEXP x, SEXP y);
 SEXP do_math1(SEXP call, SEXP op, SEXP args, SEXP env);
 SEXP R_unary(SEXP call, SEXP op, SEXP s1);
 SEXP do_logic(SEXP call, SEXP op, SEXP args, SEXP env);
+
+#define MAYBE_MISSING_ARGUMENT_ERROR(symbol, keepmiss, rho)                    \
+  do {                                                                         \
+    if (!keepmiss)                                                             \
+      MISSING_ARGUMENT_ERROR(symbol, rho);                                     \
+  } while (0)
 
 static INLINE SEXP arith2(SEXP call, SEXP op, SEXP opsym, SEXP x, SEXP y,
                           SEXP rho) {
