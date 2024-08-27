@@ -75,7 +75,7 @@ public class Main {
         try {
             var name = compile.getName();
             var closure = deserialize(new ByteArrayInputStream(compile.getClosure().toByteArray()));
-            var nativeClosure = jit.execute(name, closure, compile.getCcOptimization());
+            var nativeClosure = jit.execute(name, closure, compile.getBcOptimization(), compile.getCcOptimization());
 
             var result =
                     CompiledFunction.newBuilder()

@@ -20,12 +20,12 @@ public class JITService {
         this.rsession = rsession;
     }
 
-    public NativeClosure execute(String name, CloSXP closure, int ccOptimization)
+    public NativeClosure execute(String name, CloSXP closure, int bcOptimization, int ccOptimization)
             throws Exception {
         logger.fine("Compiling closure: " + name + "\n" + closure + "\n");
 
         var bcCompiler = new BCCompiler(closure, rsession);
-        bcCompiler.setOptimizationLevel(ccOptimization);
+        bcCompiler.setOptimizationLevel(bcOptimization);
         var bc = bcCompiler.compile().get();
         var bc2cCompiler = new BC2CCompiler(bc);
         var module = bc2cCompiler.finish();
