@@ -34,6 +34,25 @@ To disprove lazy effects and reflection, we need to handle the things that may c
   - Besides recording call callees, we must also record the `class` of the first argument, and second argument if it's a specific fuction that may double-dispatch. When analyzing the callee, if it dispatches, we first assert that the `class`es are the same, and abort compiling otherwise; then we statically resolve the actual closure that it dispatches to and check that it doesn't perform reflection (e.g. `fun.foo` for `fun`); then we insert at the beginning of the closure, not only a guard for the function itself, but a guard for its argument(s) to have the correct `class`.
   - Additionally, since we know the exact dispatch target after the guards, replace the dispatching callee with it in the optimized body.
 
+Lastly, we need to handle edge-cases:
+
+- Global variable is loaded from a promise and super-assigned in the body:
+
+  ```r
+  f <- function(x) {
+    foobar <<- 4
+    x
+  }
+
+  foobar <- 5
+  f(foobar + 1)
+  ```
+
+  <sup>Does this behavior cause bugs in real programs?</sup>
+
+  - We have to store, in the closure, every external variable that gets loaded or super-assigned, and ensure that none of the promises reference a super-assigned variable during the "safe force" (we store external variables that get loaded in the closure, so we can look at them during the safe force without inspecting the function body).
+  - Or we refuse to optimize closures with super-assignments; are they rare enough that this is OK?
+
 [^why inferred]: Assuming the runtime guards that guarantee no reflection or unknown calls, we can already infer accurate variable types, and thus a specific context for the builtins and compiled closures. We need a specific context, because if we can't determine the object type, a lot of functions may dispatch or call something that dispatches.
 [^function load]: Although do a "function load" instead of "variable load" if the callee is external. Also, if the callee is locally-bound and/or an inner closure, instead of inserting a load, we must infer either a) which external variable (we already loaded) to check, or b) (if it's an inner closure) statically whether or not the closure is trusted.
 
