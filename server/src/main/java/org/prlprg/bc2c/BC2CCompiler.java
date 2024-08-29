@@ -255,7 +255,8 @@ class ClosureCompiler {
     }
 
     private void compileMakeProm(ConstPool.Idx<SEXP> idx) {
-        body.line("Rsh_make_prom(%s, %s, %s, %s, %s);".formatted(stack.curr(-2), stack.curr(-1), stack.curr(0), constantSXP(idx), NAME_ENV));
+        push("Rsh_make_prom(%s, %s, %s);".formatted(stack.curr(-2), constantSXP(idx), NAME_ENV), false);
+        compilePushArg();
     }
 
     private void compileCheckFun() {

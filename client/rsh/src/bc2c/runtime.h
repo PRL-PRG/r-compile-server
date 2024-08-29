@@ -27,7 +27,7 @@
 // should be linked to.
 #ifdef RSH_TESTS
 #define JIT_DECL
-#define JIT_DEF INLINE
+#define JIT_DEF
 #else
 #define JIT_DECL extern
 #define JIT_DEF
@@ -206,14 +206,6 @@ static INLINE Value sexp_as_val(SEXP s) {
   }
 }
 
-// CONSTANTS
-// ------------------------------------
-
-JIT_DECL Value Rsh_NilValue;
-JIT_DECL SEXP NOT_OP;
-JIT_DECL SEXP DOTEXTERNAL2_SYM;
-JIT_DECL SEXP RSH_CALL_TRAMPOLINE_SXP;
-
 // BINDING CELLS (bcell) implementation
 // ------------------------------------
 //
@@ -330,15 +322,22 @@ static INLINE void bcell_expand(BCell b) {
 #define IS_USER_DATABASE(rho)                                                  \
   (OBJECT((rho)) && Rf_inherits((rho), "UserDefinedDatabase"))
 
-// Returns a binding cell
+// Returns a binding cell or R_UnboundValue if the symbol is not bound
 static INLINE BCell bcell_get(SEXP symbol, SEXP rho) {
   if (rho == R_BaseEnv || rho == R_BaseNamespace || IS_USER_DATABASE(rho)) {
     return R_NilValue;
   } else {
     R_varloc_t loc = R_findVarLocInFrame(rho, symbol);
-    return (!R_VARLOC_IS_NULL(loc) && !IS_ACTIVE_BINDING(loc.cell))
-               ? loc.cell
-               : R_NilValue;
+    SEXP cell = loc.cell;
+
+    if (cell == NULL || cell == R_UnboundValue) {
+      return R_UnboundValue;
+    } else if (TYPEOF(cell) == SYMSXP) {
+      return SYMVALUE(cell);
+    } else {
+      // FIXME: shouldn't this be BINDING_VALUE? (cf. envir.c:956)
+      return cell;
+    }
   }
 }
 
@@ -347,7 +346,7 @@ static INLINE SEXP bcell_get_cache(SEXP symbol, SEXP rho, BCell *cache) {
     return *cache;
   } else {
     SEXP ncell = bcell_get(symbol, rho);
-    if (ncell != R_NilValue) {
+    if (ncell != R_UnboundValue) {
       *cache = ncell;
     } else if (*cache != R_NilValue && BCELL_IS_UNBOUND(*cache)) {
       *cache = R_NilValue;
@@ -420,6 +419,15 @@ static INLINE Rboolean bcell_set_value(BCell cell, SEXP value) {
 
 typedef SEXP (*Rsh_closure)(SEXP, SEXP);
 
+// RUNTIME CONSTANTS
+// -----------------
+
+JIT_DECL Value Rsh_NilValue;
+JIT_DECL Value Rsh_UnboundValue;
+JIT_DECL SEXP NOT_OP;
+JIT_DECL SEXP DOTEXTERNAL2_SYM;
+JIT_DECL SEXP RSH_CALL_TRAMPOLINE_SXP;
+
 #ifdef RSH_TESTS
 #include "runtime_impl.h"
 #else
@@ -458,12 +466,14 @@ static INLINE Value Rsh_do_get_var(SEXP symbol, SEXP rho, Rboolean dd,
     SEXP cell = bcell_get_cache(symbol, rho, cache);
     value = bcell_value(cell);
     if (value == R_UnboundValue) {
-      // TODO: the original is calling FIND_VAR_NO_CACHE which in turn calls
-      // R_GetVarLocValue which is private
       value = Rf_findVar(symbol, rho);
     } else {
       has_cell = TRUE;
     }
+  }
+
+  if (!keepmiss && TYPEOF(value) == PROMSXP) {
+    forcePromise(value);
   }
 
   if (value == R_UnboundValue) {
@@ -508,6 +518,7 @@ static INLINE Value Rsh_get_var(SEXP symbol, SEXP rho, Rboolean dd,
   SEXP value = CAR(*cell);
   int type = TYPEOF(value);
   /* extract value of forced promises */
+  // FIXME: sync with bc
   if (type == PROMSXP) {
     SEXP pv = PRVALUE(value);
     if (pv != R_UnboundValue) {
@@ -1050,29 +1061,30 @@ static INLINE void Rsh_check_fun(Value v) {
   }
 }
 
-static INLINE void Rsh_make_prom(Value fun, Value args_head, Value args_tail,
-                                 SEXP code, SEXP rho) {
-  SEXP res = NULL;
+static INLINE Value Rsh_make_prom(Value fun, SEXP code, SEXP rho) {
+  Value value;
 
   switch (TYPEOF(VAL_SXP(fun))) {
   case CLOSXP:
-    res = Rf_mkPROMISE(code, rho);
+    value = SXP_TO_VAL(Rf_mkPROMISE(code, rho));
     break;
   case BUILTINSXP:
-    if (TYPEOF(code) == BCODESXP)
-      res = bcEval(code, rho);
-    else
+    if (TYPEOF(code) == BCODESXP) {
+      value = sexp_as_val(bcEval(code, rho));
+    } else {
       /* uncommon but possible, the compiler may decide not
          to compile an argument expression */
-      res = Rf_eval(code, rho);
+      value = sexp_as_val(Rf_eval(code, rho));
+    }
     break;
   case SPECIALSXP:
+    value = Rsh_UnboundValue;
     break;
+  default:
+    Rf_error("bad function");
   }
 
-  if (res != NULL) {
-    RSH_LIST_APPEND(args_head, args_tail, sexp_as_val(res));
-  }
+  return value;
 }
 
 #endif // RUNTIME_H
