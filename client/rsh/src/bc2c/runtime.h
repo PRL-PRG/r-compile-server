@@ -1061,7 +1061,8 @@ static INLINE void Rsh_check_fun(Value v) {
   }
 }
 
-static INLINE Value Rsh_make_prom(Value fun, SEXP code, SEXP rho) {
+static INLINE void Rsh_make_prom(Value fun, Value *args_head, Value *args_tail,
+                                 SEXP code, SEXP rho) {
   Value value;
 
   switch (TYPEOF(VAL_SXP(fun))) {
@@ -1084,7 +1085,9 @@ static INLINE Value Rsh_make_prom(Value fun, SEXP code, SEXP rho) {
     Rf_error("bad function");
   }
 
-  return value;
+  if (value != Rsh_UnboundValue) {
+    RSH_LIST_APPEND(*args_head, *args_tail, value);
+  }
 }
 
 #endif // RUNTIME_H
