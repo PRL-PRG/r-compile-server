@@ -13,8 +13,8 @@ NULL
   .Call(C_initialize, C_call_fun)
 }
 
-rhs_bc2c_opt_level <- function() {
-  as.integer(Sys.getenv("RSH_BC2C_OPT", default = "0"))
+rsh_bc2c_opt_level <- function() {
+  as.integer(Sys.getenv("RSH_BC2C_OPT", unset = "0"))
 }
 
 #' Activate the Rsh JIT
@@ -57,6 +57,10 @@ rsh_cmpfun <- function(f, options) {
   # make a copy - the compiler::cmpfun takes a function and returns
   # a new one with BCSXP body (if possible)
   g <- f
+
+  if (missing(options)) {
+    options <- list()
+  }
 
   if (!is.list(options)) {
     stop("options must be a list")
