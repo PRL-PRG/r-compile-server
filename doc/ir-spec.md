@@ -4,7 +4,7 @@
 
 An SSA-based IR with R-specific details:
 
-- **R type hierarchy** (value/promise, missing/not-missing, `SEXPTYPE`, `"class"` attribute, "is scalar", "is maybe NA").
+- **R type hierarchy** (value/promise, missing/not-missing, `SEXPTYPE`, class AKA `"class"` attribute, "is scalar", "is maybe NA").
 - **Ownership annotations and alias tracking** for some in-place mutation beyond R's reference counting (`@borrows` and `@mutates` parameter attributes, `@fresh` return attribute).
 - Limited notion of **effects**, to control reordering.
 - Signatures for R's builtins and hard-coded library functions, ability to add manual signatures for third-party libraries.
@@ -294,12 +294,76 @@ The class hierarchy of `SEXP` and `RType` are the same (for instance we have an 
 
 #### Code
 
-TODO
+##### Meta-grammar
 
-Examples:
+The following syntax is very similar to BNF, but has Rust-style "separate by rules":
+
+- `Foo ::= …` defines the non-terminal `Foo` with the expression `…`.
+- An uppercase identifier (e.g. `Foo`) refers to the corresponding non-terminal. A lowercase identifier followed by `:` and an uppercase identifier (e.g. `name:Foo`) also refers to the corresponding non-terminal (`Foo`), and the lowercase identifier (`name`) is a descriptive label (no semantics).
+- A quoted string is a terminal.
+- `|` is an alternative (e.g. `Expr '+' Expr | '-' Expr` matches `Expr '+' Expr` or `'-' Expr`).
+- An expression in parenthesis followed by a sigil is a repetition or optional:
+  - `(…)` matches `…` one time, its only purpose is to group alternatives (e.g. `'{' (Foo | Bar) '}'` matches `'{' Foo '}'` or `'{' Bar '}'`).
+  - `(…)?` matches `…` zero or one times.
+  - `(…)*` matches `…` zero, one, or many times.
+  - `(…)+` matches `…` one or many times.
+  - `(…),*` matches `…` zero, one, or many times, where consecutive match must be separated by `','`.
+  - `(…),+` matches `…` one or many times, where consecutive match must be separated by `','`.
+- `/…/` matches a terminal defined by the regular expression `…`.
+- `...` means the grammar is defined somewhere else (for instance `RType` in the next section).
+- `// …` is a comment (no semantics).
+
+##### Grammar
+
+```pegjs
+Closure ::=
+      'function' name:SymSXP '(' (arg:SymSXP ('=' default:SEXP)?),* ')' '{'
+        'baseline' baselineAST:BlockLangSXP
+        (OptimizedClosureVersion)*
+    '}'
+OptimizedClosureVersion ::=
+    '(' (arg:TypedNodeId ('@borrow' | '@mutate')?),* ')'
+    ('{' (externalLoad:TypedNodeId),* '}')?
+    '->' ('{' effects:REffects '}')? returnType:RType ('@fresh')? ('{' '->' externalStore:Phi '}')
+    '{' body:CFG '}'
+CFG ::= entry:ImplicitBB (BB)*
+BB ::= id:BBId ('(' (Phi),+ ')')? ':' body:ImplicitBB
+ImplicitBB ::= (Statement '\n')* Jump '\n'
+Statement ::=
+  ((output:TypedNodeId ('@fresh')?),+ '=')? FunId '(' (arg:Node),* ')'
+  ('{' (REffects | (OwnershipEffect),+ | REffects ',' (OwnershipEffect),+) '}')?
+Jump ::=
+    'unreachable' |
+    'return' return:Node |
+    'goto' goto:BBId |
+    'if' cond:Node 'goto' then:BBId 'else' else:BBId
+OwnershipEffect ::= ('@borrows' | '@mutates') arg:LocalNodeId
+
+Phi ::= LocalNodeId '(' (input:Node ':' inputBB:BBId),* ')'
+Node ::= LocalNodeId | constant:SEXP | StaticEnv | InvalidNode
+StaticEnv ::= '?' Name?
+InvalidNode ::= '!' Name
+TypedNodeId ::= LocalNodeId ':' RType
+FunId ::= LocalNodeId | Name ':::' namespace:Name
+LocalNodeId ::= Name
+BbId ::= '^' Name
+
+Name ::= /[A-Za-z_.][A-Za-z_.0-9]*|'`'([^`\\]|'\\'.)+'`')/ // R symbol
+RType ::= ... // See below
+REffects ::= ... // TODO
+SEXP ::= ... // Similar to R's parser, except symbols are prefixed with `'`
+```
+
+##### Conventions
+
+Anonymous nodes are `_` followed by a number (e.g. `_1`, `_2`).
+
+Nodes that would've had the same name but don't because of SSA have the name followed by `.` and a number to disambiguate them (e.g. `foo`, `foo.1`, `foo.2`).
+
+##### Example
 
 ```r
-function @missingArgs(args) {
+function missingArgs(args) {
   baseline {
       val <- logical(length(args))
       for (i in seq_along(args)) {
@@ -311,7 +375,7 @@ function @missingArgs(args) {
       }
       val
   }
-  optimized(args:sym|miss[]@borrow) ->{error} lgl[]@fresh {
+  (args:sym|miss[]@borrow) ->{error} lgl[]@fresh {
       _1:whole = length(args)
       val:bool[]@fresh = logical(_1)
       _forLast:whole <- length(val)
@@ -324,9 +388,9 @@ function @missingArgs(args) {
     ^forExit:
       return val.1
     ^forBody:
-      a:sym|miss <- `[[`(args, i.2)  {error}
+      a:sym|miss <- `[[`(args, i.2){error}
       _2:bool <- missing(a)
-      val.2:bool[]@fresh <- `[`(val.1, i.2, _2)   {@mutates val.1}
+      val.2:bool[]@fresh <- `[`(val.1, i.2, _2){@mutates val.1}
       goto ^forStep
   }
 }
@@ -374,7 +438,7 @@ function @missingArgs(args) {
 - `SEXP` = `any`
   - If `classAttribute` is a string (e.g. `foo`), the type has the suffix `@"foo"`. If `classAttribute` is unknown and `maybeHasOtherAttributes` is `false`, the type has suffix `@class`. If `maybeHasOtherAttributes` is `true`, the type has the suffix `@attrs`: if it has no class, `@noclass@attrs`, if it has a specific class (e.g. `foo`), `@"foo"@attr`, and if it has an unknown class, `@attrs`.
 
-Examples:
+##### Examples
 
 - Integer simple scalar (no attributes, no NA, etc.): `int`.
 - Same but maybe NA: `int|na`.
