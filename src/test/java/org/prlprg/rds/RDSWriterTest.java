@@ -43,7 +43,7 @@ public class RDSWriterTest extends AbstractGNURBasedTest {
   public void testInts_withR() throws Exception {
     var ints = integer(5, 4, 3, 2, 1);
     var output =
-        R.eval("typeof(input) == 'integer' && identical(input, c(5L, 4L, 3L, 2L, 1L))", ints);
+            R.eval("typeof(input) == 'integer' && identical(input, c(5L, 4L, 3L, 2L, 1L))", ints);
 
     if (output instanceof LglSXP read_lgls) {
       assertEquals(1, read_lgls.size());
@@ -75,7 +75,7 @@ public class RDSWriterTest extends AbstractGNURBasedTest {
   public void testComplex_withR() throws Exception {
     var complexes = complex(new Complex(0, 0), new Complex(1, 2), new Complex(-2, -1));
     var output =
-        R.eval("typeof(input) == 'complex' && identical(input, c(0+0i, 1+2i, -2-1i))", complexes);
+            R.eval("typeof(input) == 'complex' && identical(input, c(0+0i, 1+2i, -2-1i))", complexes);
 
     if (output instanceof LglSXP read_lgls) {
       assertEquals(1, read_lgls.size());
@@ -88,9 +88,9 @@ public class RDSWriterTest extends AbstractGNURBasedTest {
   @Test
   public void testLang() throws Exception {
     var lang =
-        lang(
-            symbol("func"),
-            list(List.of(new TaggedElem("arg", integer(1)), new TaggedElem(integer(2)))));
+            lang(
+                    symbol("func"),
+                    list(List.of(new TaggedElem("arg", integer(1)), new TaggedElem(integer(2)))));
     var output = new ByteArrayOutputStream();
 
     RDSWriter.writeStream(output, lang);
@@ -114,7 +114,7 @@ public class RDSWriterTest extends AbstractGNURBasedTest {
   @Test
   public void testVecAttributes() throws Exception {
     var attrs =
-        new Attributes.Builder().put("a", integer(1)).put("b", logical(Logical.TRUE)).build();
+            new Attributes.Builder().put("a", integer(1)).put("b", logical(Logical.TRUE)).build();
     var ints = integer(1, attrs);
 
     var output = new ByteArrayOutputStream();
@@ -224,11 +224,11 @@ public class RDSWriterTest extends AbstractGNURBasedTest {
   @Test
   public void testList() throws Exception {
     var elems =
-        new TaggedElem[] {
-          new TaggedElem("a", integer(1)),
-          new TaggedElem("b", logical(Logical.TRUE)),
-          new TaggedElem("c", real(3.14, 2.71))
-        };
+            new TaggedElem[] {
+                    new TaggedElem("a", integer(1)),
+                    new TaggedElem("b", logical(Logical.TRUE)),
+                    new TaggedElem("c", real(3.14, 2.71))
+            };
     var list = list(elems, Attributes.NONE);
     var output = new ByteArrayOutputStream();
 
@@ -286,8 +286,8 @@ public class RDSWriterTest extends AbstractGNURBasedTest {
       assertEquals(real(3.14, 2.71), read_env.get("c").orElseThrow());
       assertEquals(string("foo", "bar"), read_env.get("d").orElseThrow());
       assertEquals(
-          new Attributes.Builder().put("test", logical(Logical.TRUE)).build(),
-          read_env.attributes());
+              new Attributes.Builder().put("test", logical(Logical.TRUE)).build(),
+              read_env.attributes());
     } else {
       fail("Expected UserEnvSXP");
     }
@@ -316,17 +316,17 @@ public class RDSWriterTest extends AbstractGNURBasedTest {
     // function(x, y=1) length(x) + x + y
     // test by loading the closure into R and evaluating
     var clo =
-        closure(
-                list(List.of(new TaggedElem("x", MISSING_ARG), new TaggedElem("y", real(3)))),
-                lang(
-                    symbol("+"),
-                    list(
-                        lang(
+            closure(
+                    list(List.of(new TaggedElem("x", MISSING_ARG), new TaggedElem("y", real(3)))),
+                    lang(
                             symbol("+"),
-                            list(lang(symbol("length"), list(symbol("x"))), symbol("x"))),
-                        symbol("y"))),
-                new BaseEnvSXP(new HashMap<>()))
-            .withAttributes(new Attributes.Builder().put("a", integer(1)).build());
+                            list(
+                                    lang(
+                                            symbol("+"),
+                                            list(lang(symbol("length"), list(symbol("x"))), symbol("x"))),
+                                    symbol("y"))),
+                    new BaseEnvSXP(new HashMap<>()))
+                    .withAttributes(new Attributes.Builder().put("a", integer(1)).build());
     ;
 
     var output = R.eval("input(x=c(1, 2))", clo);
@@ -339,14 +339,14 @@ public class RDSWriterTest extends AbstractGNURBasedTest {
     // Same closure as `testClosure`, just compiled to bytecode
     // Test by serializing and deserializing
     var clo =
-        closure(
-            list(List.of(new TaggedElem("x", MISSING_ARG), new TaggedElem("y", real(3)))),
-            lang(
-                symbol("+"),
-                list(
-                    lang(symbol("+"), list(lang(symbol("length"), list(symbol("x"))), symbol("x"))),
-                    symbol("y"))),
-            new BaseEnvSXP(new HashMap<>()));
+            closure(
+                    list(List.of(new TaggedElem("x", MISSING_ARG), new TaggedElem("y", real(3)))),
+                    lang(
+                            symbol("+"),
+                            list(
+                                    lang(symbol("+"), list(lang(symbol("length"), list(symbol("x"))), symbol("x"))),
+                                    symbol("y"))),
+                    new BaseEnvSXP(new HashMap<>()));
     var bc = new Compiler(clo, rsession).compile().orElseThrow();
 
     var output = new ByteArrayOutputStream();
@@ -364,14 +364,14 @@ public class RDSWriterTest extends AbstractGNURBasedTest {
     // Same closure as `testClosure`, just compiled to bytecode
     // Test by loading into R and evaluating
     var clo =
-        closure(
-            list(List.of(new TaggedElem("x", MISSING_ARG), new TaggedElem("y", real(3)))),
-            lang(
-                symbol("+"),
-                list(
-                    lang(symbol("+"), list(lang(symbol("length"), list(symbol("x"))), symbol("x"))),
-                    symbol("y"))),
-            new BaseEnvSXP(new HashMap<>()));
+            closure(
+                    list(List.of(new TaggedElem("x", MISSING_ARG), new TaggedElem("y", real(3)))),
+                    lang(
+                            symbol("+"),
+                            list(
+                                    lang(symbol("+"), list(lang(symbol("length"), list(symbol("x"))), symbol("x"))),
+                                    symbol("y"))),
+                    new BaseEnvSXP(new HashMap<>()));
     var bc = new Compiler(clo, rsession).compile().orElseThrow();
     var compiled_clo = closure(clo.parameters(), bcode(bc), clo.env());
 
@@ -379,4 +379,30 @@ public class RDSWriterTest extends AbstractGNURBasedTest {
 
     assertEquals(output, real(6, 7));
   }
+  @Test
+  public void testWritePromSXP() throws Exception {
+    // Create a PromSXP object
+    var expr = lang(symbol("sum"), list(integer(1), integer(2)));
+    var val = integer(3);
+    var env = new BaseEnvSXP(new HashMap<>());
+    var prom = new PromSXP(expr, val, env);
+
+    // Write the PromSXP to a stream
+    var output = new ByteArrayOutputStream();
+    RDSWriter.writeStream(output, prom);
+
+    // Read the PromSXP from the stream
+    var input = new ByteArrayInputStream(output.toByteArray());
+    var sexp = RDSReader.readStream(rsession, input);
+
+    // Verify the results
+    if (sexp instanceof PromSXP read_prom) {
+      assertEquals(prom.expr(), read_prom.expr());
+      assertEquals(prom.val(), read_prom.val());
+    } else {
+      fail("Expected PromSXP");
+    }
+  }
+
+
 }
