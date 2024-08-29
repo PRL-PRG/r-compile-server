@@ -211,7 +211,10 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
         verify("y <- NA_integer_; is.na(y)", (LglSXP v) -> assertEquals(SEXPs.TRUE, v));
     }
 
-
+    @Test
+    public void testPromise() throws Exception {
+        verify("f <- function(x) x + 1;  y <- 2; f(y*2)", (RealSXP v) -> assertEquals(5, v.asInt(0)));
+    }
     //  @Test
     //  public void testList(TestInfo info) throws Exception {
     //    compileAndCall(

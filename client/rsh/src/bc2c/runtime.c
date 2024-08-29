@@ -17,6 +17,7 @@ SEXP R_LOGIC2_OPS[] = {X_LOGIC2_OPS};
 #undef X
 
 Value Rsh_NilValue;
+Value Rsh_UnboundValue;
 SEXP NOT_OP;
 SEXP DOTEXTERNAL2_SYM;
 SEXP RSH_CALL_TRAMPOLINE_SXP;
