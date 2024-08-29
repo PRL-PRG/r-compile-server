@@ -6,4 +6,5 @@ f <- function (n) {
 
 rsh <- rsh:::rsh_cmpfun(f)
 
+f(1) == c(2,3)
 stopifnot(f(1) == c(2,3))
