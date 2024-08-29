@@ -5,22 +5,22 @@ import java.util.List;
 import java.util.NavigableMap;
 import java.util.TreeMap;
 import java.util.stream.Stream;
-import org.jetbrains.annotations.Nullable;
+import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.bc.Bc;
 import org.prlprg.ir.cfg.CFG;
-import org.prlprg.ir.cfg.IsEnv;
 import org.prlprg.ir.cfg.Node;
-import org.prlprg.ir.cfg.RValue;
 import org.prlprg.ir.cfg.StaticEnv;
+import org.prlprg.ir.cfg.instr.JumpData;
+import org.prlprg.ir.cfg.instr.StmtData;
 import org.prlprg.ir.closure.ClosureVersion.CallContext;
-import org.prlprg.ir.type.lattice.Troolean;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.Attributes;
 import org.prlprg.sexp.BCodeSXP;
 import org.prlprg.sexp.CloSXP;
+import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.ListSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
@@ -43,32 +43,31 @@ import org.prlprg.util.Pair;
  * <ul>
  *   <li>The baseline version is dispatched when no optimized versions are available for the current
  *       call context. It records information (<b>feedback</b>), which is eventually used to predict
- *       call contexts that are likely to be met and {@linkplain org.prlprg.ir.cfg.Assumption
- *       speculative assumptions} that are likely to hold.
+ *       call contexts that are likely to be met and assumptions that are likely to hold.
  *   <li>The optimized versions are created using this feedback: they have the predicated call
  *       contexts and speculative assumptions. They are only dispatched if their call context is
- *       met, and if any of their speculative assumptions fail, they {@linkplain
- *       org.prlprg.ir.cfg.JumpData.Deopt "deopt"}. In a deopt, evaluation constructs the context
- *       (stack frame etc.) that would be at the equivalent line of code the baseline version, then
- *       long-jumps to that line of code. When a closure version "deopt"s, it also deletes itself
- *       and adds new feedback to the closure which will prevent the failed speculative assumption
- *       from being compiled again (since deopt-ing is expensive).
+ *       met, and if any of their speculative assumptions fail, they {@linkplain JumpData.Deopt
+ *       "deopt"}. In a deopt, evaluation constructs the context (stack frame etc.) that would be at
+ *       the equivalent line of code the baseline version, then long-jumps to that line of code.
+ *       When a closure version "deopt"s, it also deletes itself and adds new feedback to the
+ *       closure which will prevent the failed speculative assumption from being compiled again
+ *       (since deopt-ing is expensive).
  * </ul>
  */
 public final class Closure extends CodeObject {
   // The non-final fields are only non-final so that they can be set in `LateConstruct`.
   // Otherwise they are effectively final.
   private CloSXP origin;
-  private @IsEnv RValue env;
+  private Node<? extends EnvSXP> env;
   private ClosureVersion baselineVersion;
   private final NavigableMap<CallContext, ClosureVersion> optimizedVersions;
 
   /**
-   * {@link Closure(String, CloSXP, RValue)} with an {@linkplain StaticEnv#NOT_CLOSED unclosed}
-   * environment (not an inner closure).
+   * {@link Closure(String, CloSXP, Node)} with {@link StaticEnv#UNKNOWN unknown} (not an inner
+   * closure).
    */
   public Closure(String name, CloSXP origin) {
-    this(name, origin, StaticEnv.NOT_CLOSED);
+    this(name, origin, StaticEnv.UNKNOWN);
   }
 
   /**
@@ -80,23 +79,23 @@ public final class Closure extends CodeObject {
    *     acceptable if there's no better name (anonymous closure).
    * @param origin The GNU-R closure. The IR closure keeps this closure's parameters, environment
    *     (although static environment may differ, see {@link #env()}), and behavior.
-   * @param env The closure's environment. This is {@linkplain StaticEnv#NOT_CLOSED unclosed} unless
-   *     it's an inner closure (from {@link org.prlprg.ir.cfg.StmtData.MkCls MkCls}), in which case
-   *     it's the outer closure's environment.
+   * @param env The closure's environment. This is {@linkplain StaticEnv#UNKNOWN unclosed} unless
+   *     it's an inner closure (from {@link StmtData.MkCls MkCls}), in which case it's the outer
+   *     closure's environment.
    *     <p>{@code origin}'s environment is replaced with {@link SEXPs#EMPTY_ENV} if not already, in
    *     order to normalize the data since it shouldn't be used.
    * @throws IllegalArgumentException If the closure's body isn't bytecode.
-   *     <p><b>OR</b> if {@code env} isn't statically known to be an environment ({@link
-   *     RValue#isEnv()}).
+   *     <p><b>OR</b> if {@code env} isn't statically known to be an environment (its {@link
+   *     Node#type()} isn't a subtype of {@link EnvSXP}).
    */
-  public Closure(String name, CloSXP origin, @IsEnv RValue env) {
+  public Closure(String name, CloSXP origin, Node<? extends EnvSXP> env) {
     super(name);
 
     if (!(origin.body() instanceof BCodeSXP)) {
       throw new IllegalArgumentException(
           "`origin` body must be bytecode (required by the compiler so how did you get `baselineVersion`?).");
     }
-    if (env.isEnv() != Troolean.YES) {
+    if (!env.isSubtypeOf(EnvSXP.class)) {
       throw new IllegalArgumentException("`env` must be statically known to be an environment.");
     }
 
@@ -146,10 +145,10 @@ public final class Closure extends CodeObject {
   /**
    * Closure's environment.
    *
-   * <p>This is {@linkplain StaticEnv#NOT_CLOSED unclosed} unless it's an inner closure (from {@link
-   * org.prlprg.ir.cfg.StmtData.MkCls MkCls}), in which case it's the outer closure's environment.
+   * <p>This is {@linkplain StaticEnv#UNKNOWN unclosed} unless it's an inner closure (from {@link
+   * StmtData.MkCls MkCls}), in which case it's the outer closure's environment.
    */
-  public @IsEnv RValue env() {
+  public Node<? extends EnvSXP> env() {
     return env;
   }
 
@@ -323,29 +322,25 @@ public final class Closure extends CodeObject {
   }
 
   @Override
-  public @UnmodifiableView List<Node> outerCfgNodes() {
+  public @UnmodifiableView List<Node<?>> outerCfgNodes() {
     return List.of(env);
   }
 
   @Override
-  public void unsafeReplaceOuterCfgNode(Node oldNode, Node newNode) {
+  public void unsafeReplaceOuterCfgNode(Node<?> oldNode, Node<?> newNode) {
     if (env.equals(oldNode)) {
-      if (!(newNode instanceof RValue newEnv)) {
-        throw new IllegalArgumentException("Closure replacement `env` node must be an RValue.");
-      }
-      if (newEnv.isEnv() != Troolean.YES) {
+      if (!newNode.isSubtypeOf(EnvSXP.class)) {
         throw new IllegalArgumentException(
-            "Closure replacement `env` node must be statically known to be an environment.");
+            "Replacement closure `env` node must be an environment node.");
       }
-      env = newEnv;
+      env = newNode.cast(EnvSXP.class);
     }
   }
 
   @Override
-  public void verifyOuterCfgRValuesAreOfCorrectTypes() {
-    if (env.isEnv() != Troolean.YES) {
-      throw new IllegalStateException(
-          "Closure `env` must be statically known to be an environment.");
+  public void verifyOuterCfgNodesAreOfCorrectTypes() {
+    if (!env.isSubtypeOf(EnvSXP.class)) {
+      throw new IllegalStateException("Closure `env` must be an environment node.");
     }
   }
 
@@ -362,11 +357,10 @@ public final class Closure extends CodeObject {
   /**
    * Return a closure, and then replace its data with that of another closure later.
    *
-   * <p>This is necessary for deserialization, since we deserialize {@link
-   * org.prlprg.ir.cfg.StmtData.MkCls StmtData.MkCls} before we deserialize the inner closure it
-   * contains; we give {@link org.prlprg.ir.cfg.StmtData.MkCls MkCls} the returned inner closure,
-   * which is initially filled with misc data, but is late-assigned before the entire closure is
-   * returned to code outside the package.
+   * <p>This is necessary for deserialization, since we deserialize {@link StmtData.MkCls
+   * StmtData.MkCls} before we deserialize the inner closure it contains; we give {@link
+   * StmtData.MkCls MkCls} the returned inner closure, which is initially filled with misc data, but
+   * is late-assigned before the entire closure is returned to code outside the package.
    */
   static Pair<Closure, LateConstruct> lateConstruct(String name) {
     var closure =
@@ -391,48 +385,43 @@ public final class Closure extends CodeObject {
   /** Deserializing constructor (so we can set the final fields). */
   @ParseMethod
   private Closure(Parser p1, ClosureParseContext ctx) {
-    super("func", p1, ctx);
-    var idIndex = ctx.lastYieldedIdIndex();
+    super("fn", p1, ctx);
+    var idIndex = ctx.currentIdIndex();
 
     var p = p1.withContext(ctx.inner());
     var s = p.scanner();
 
     var parameters = p.withContext(ctx.sexpParseContext().forBindings()).parse(ListSXP.class);
-    env = s.trySkip("env") ? p.parse(RValue.class) : StaticEnv.NOT_CLOSED;
-    var attributes = s.trySkip("with") ? p.parse(Attributes.class) : Attributes.NONE;
+    env = s.trySkip("env=") ? Node.parse(p, EnvSXP.class) : StaticEnv.UNKNOWN;
+    var attributes = s.trySkip("attrs=") ? p.parse(Attributes.class) : Attributes.NONE;
+    var bc = s.trySkip("bc=") ? p.parse(BCodeSXP.class) : SEXPs.bcode(Bc.empty());
+    origin = SEXPs.closure(parameters, bc, SEXPs.EMPTY_ENV, attributes);
 
     s.assertAndSkip('{');
+    var versionCtx = ctx.ref(new NodeIdQualifier(name, idIndex));
 
-    var bc = p.parse(Bc.class);
-    origin = SEXPs.closure(parameters, SEXPs.bcode(bc), SEXPs.EMPTY_ENV, attributes);
-
-    s.assertAndSkip("=== IR ===");
-    s.assertAndSkip("baseline");
-    s.assertAndSkip(':');
-
+    s.assertAndSkip('#');
+    s.assertAndSkip('0');
     baselineVersion =
-        p.withContext(ctx.ref(new NodeIdQualifier(name, idIndex))).parse(ClosureVersion.class);
+        p.withContext(new ClosureVersion.ParseContext(true, versionCtx))
+            .parse(ClosureVersion.class);
 
     optimizedVersions = new TreeMap<>();
-    for (var i = 1; s.trySkip("opt"); i++) {
+    for (var i = 1; !s.trySkip('#'); i++) {
       var i1 = s.readUInt();
       if (i != i1) {
         throw s.fail("Optimized version index isn't in order: expected " + i + " got " + i1);
       }
-      s.assertAndSkip(':');
 
       // Optimized versions parse their call context.
       var version =
-          p.withContext(ctx.ref(new NodeIdQualifier(name, idIndex, i))).parse(ClosureVersion.class);
+          p.withContext(new ClosureVersion.ParseContext(false, versionCtx))
+              .parse(ClosureVersion.class);
       var context = version.callContext();
       if (optimizedVersions.containsKey(context)) {
         throw s.fail("Duplicate optimized version for context: " + context);
       }
       optimizedVersions.put(context, version);
-    }
-
-    if (ctx instanceof ClosureParseContext.Outermost o) {
-      o.parseRemaining(p);
     }
 
     s.assertAndSkip('}');
@@ -442,42 +431,42 @@ public final class Closure extends CodeObject {
   @Override
   protected void print(
       Printer p1, @SuppressWarnings("ClassEscapesDefinedScope") ClosurePrintContext ctx) {
-    printHeader("func", p1, ctx);
-    var idIndex = ctx.lastYieldedIdIndex();
+    printHeader("fn", p1, ctx);
+    var idIndex = ctx.currentIdIndex();
 
     var p = p1.withContext(ctx.inner());
     var w = p.writer();
 
     p.withContext(ctx.sexpPrintContext().forBindings()).print(parameters());
-    if (env != StaticEnv.NOT_CLOSED) {
-      w.write(" env ");
+    if (env != StaticEnv.UNKNOWN) {
+      w.write(" env=");
       w.runIndented(() -> p.print(env));
     }
-    if (!origin.attributes().isEmpty()) {
-      w.write(" with ");
+    if (!origin.attributes().isEmpty() && ctx.options().printFullOrigin()) {
+      w.write(" attrs=");
       w.runIndented(() -> p.print(origin.attributes()));
+      w.write(" bc=");
+      w.runIndented(() -> p.print(origin.body()));
     }
 
-    w.write(" {\n");
+    w.write(" {");
+    var versionCtx = ctx.ref(new NodeIdQualifier(name, idIndex));
 
-    p.print(bc());
-    w.write("\n=== IR ===\n");
+    w.runIndented(
+        () -> {
+          w.write('\n');
 
-    w.write("baseline: ");
-    p.withContext(ctx.ref(new NodeIdQualifier(name, idIndex))).print(baselineVersion);
+          w.write("#0");
+          p.withContext(versionCtx).print(baselineVersion);
 
-    var i = 1;
-    for (var optVersion : optimizedVersions.values()) {
-      w.formatter().format("\nopt %d: ", i);
-      w.write('\n');
-      // Optimized versions print their call context.
-      p.withContext(ctx.ref(new NodeIdQualifier(name, idIndex, i))).print(optVersion);
-      i++;
-    }
-
-    if (ctx instanceof ClosurePrintContext.Outermost o) {
-      o.printRemaining(p);
-    }
+          var i = 1;
+          for (var optVersion : optimizedVersions.values()) {
+            w.formatter().format("\n#%d", i);
+            // Optimized versions print their call context.
+            p.withContext(versionCtx).print(optVersion);
+            i++;
+          }
+        });
 
     w.write("\n}");
   }

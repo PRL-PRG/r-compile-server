@@ -16,12 +16,12 @@ public enum Logical {
   /** The value in GNU-R */
   final int i;
 
-  /** Convert from GNU-R representation. */
+  /** Convert from GNU-R representation: 0 → FALSE, 1 → TRUE, NA → NA. */
   public static Logical valueOf(int i) {
     return switch (i) {
       case 0 -> FALSE;
       case 1 -> TRUE;
-      case Integer.MIN_VALUE -> NA;
+      case Constants.NA_INT -> NA;
       default -> throw new IllegalArgumentException("Integer is not a GNU-R logical: " + i);
     };
   }
@@ -33,5 +33,26 @@ public enum Logical {
 
   Logical(int i) {
     this.i = i;
+  }
+
+  /** Coerce to an integer: FALSE → 0, TRUE → 1, NA → NA.
+   *
+   * <p>This also happens to be the opposite of {@link #valueOf(int).
+   */
+  public int asInt() {
+    return switch (this) {
+      case FALSE -> 0;
+      case TRUE -> 1;
+      case NA -> Constants.NA_INT;
+    };
+  }
+
+  /** Coerce to a real (double): FALSE → 0, TRUE → 1, NA → NA. */
+  public double asReal() {
+    return switch (this) {
+      case FALSE -> 0;
+      case TRUE -> 1;
+      case NA -> Constants.NA_REAL;
+    };
   }
 }

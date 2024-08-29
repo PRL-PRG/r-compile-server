@@ -7,8 +7,8 @@ public interface CFGAnalyses {
   // `DomTree::new` and `DefUseAnalysis::new` without exposing them outside the package, so that
   // outside code has to use `CFG#domTree()` and `CFG#defUses()`, which both cache.
   /**
-   * Computes a dominator tree. It lets you query for which nodes are guaranteed to be run before
-   * other nodes.
+   * Gets or computes a dominator tree. It lets you query for which nodes are guaranteed to be run
+   * before other nodes.
    *
    * <p>The returned analysis is cached until the CFG is mutated. Be careful, because mutating the
    * CFG won't update the already-returned analysis (meaning it may have inaccuracies), and will
@@ -19,8 +19,8 @@ public interface CFGAnalyses {
   }
 
   /**
-   * Find uses (<a href="https://en.wikipedia.org/wiki/Use-define_chain">DU-chain</a>) of every
-   * local node.
+   * Get or compute uses (<a href="https://en.wikipedia.org/wiki/Use-define_chain">DU-chain</a>) of
+   * every local node.
    *
    * <p>The returned analysis is cached until the CFG is mutated. Be careful, because mutating the
    * CFG won't update the already-returned analysis (meaning it may have inaccuracies), and will
@@ -30,7 +30,7 @@ public interface CFGAnalyses {
     return new DefUses((CFG) this);
   }
 
-  /** Find loops in the control-flow graph. */
+  /** Get or find loops in the control-flow graph. */
   default Loops loops() {
     return new Loops((CFG) this);
   }

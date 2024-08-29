@@ -5,6 +5,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
+import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.parseprint.Printer;
 
@@ -47,8 +48,12 @@ abstract class AbstractEnvSXP {
     return bindings.size();
   }
 
-  public void set(String name, SEXP value) {
-    bindings.put(name, value);
+  public void set(String name, @Nullable SEXP value) {
+    if (value == null) {
+      bindings.remove(name);
+    } else {
+      bindings.put(name, value);
+    }
   }
 
   @Override

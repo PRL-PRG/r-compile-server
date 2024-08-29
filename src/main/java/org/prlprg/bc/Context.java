@@ -10,11 +10,11 @@ import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.LangSXP;
 import org.prlprg.sexp.ListSXP;
+import org.prlprg.sexp.RegSymOrLangSXP;
 import org.prlprg.sexp.RegSymSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.sexp.StrOrRegSymSXP;
-import org.prlprg.sexp.SymOrLangSXP;
 import org.prlprg.sexp.UserEnvSXP;
 import org.prlprg.util.Pair;
 
@@ -59,23 +59,11 @@ public class Context {
   }
 
   public static Context functionContext(CloSXP fun) {
-    var env = new UserEnvSXP(fun.env());
-    var ctx = topLevelContext(env);
-
-    return ctx.functionContext(fun.parameters(), fun.bodyAST());
+    return topLevelContext(new UserEnvSXP(fun.env()));
   }
 
-  public Context functionContext(ListSXP formals, SEXP body) {
-    var env = new UserEnvSXP(environment);
-    var ctx = new Context(true, true, false, env, loop);
-
-    formals.names().forEach(x -> env.set(x, SEXPs.UNBOUND_VALUE));
-    for (var v : formals.values()) {
-      ctx.findLocals(v).forEach(x -> env.set(x, SEXPs.UNBOUND_VALUE));
-    }
-    ctx.findLocals(body).forEach(x -> env.set(x, SEXPs.UNBOUND_VALUE));
-
-    return ctx;
+  public Context functionContext(ListSXP ignored, SEXP ignored1) {
+    return new Context(true, true, false, new UserEnvSXP(environment), loop);
   }
 
   public Context nonTailContext() {
@@ -215,7 +203,7 @@ public class Context {
     }
   }
 
-  public static Optional<SymOrLangSXP> getAssignFun(SEXP fun) {
+  public static Optional<RegSymOrLangSXP> getAssignFun(SEXP fun) {
     if (fun instanceof RegSymSXP s) {
       return Optional.of(SEXPs.symbol(s.name() + "<-"));
     } else
@@ -224,8 +212,8 @@ public class Context {
         && call.args().size() == 2
         && (call.funNameIs("::") || call.funNameIs(":::"))
         && call.arg(0) instanceof RegSymSXP
-        && call.arg(1) instanceof RegSymSXP) {
-      var args = call.args().set(1, null, SEXPs.symbol(call.arg(1) + "<-"));
+        && call.arg(1) instanceof RegSymSXP arg1) {
+      var args = call.args().set(1, null, SEXPs.symbol(arg1.name() + "<-"));
       return Optional.of(SEXPs.lang(call.fun(), args));
     } else {
       return Optional.empty();

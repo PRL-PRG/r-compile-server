@@ -16,11 +16,7 @@ import org.prlprg.primitive.Names;
  * because {@linkplain Closure closures} contain {@linkplain ClosureVersion versions}, and the
  * versions contain CFGs).
  */
-record NodeIdQualifier(String name, int idIndex, int versionIndex) {
-  public NodeIdQualifier(String name, int idIndex) {
-    this(name, idIndex, 0);
-  }
-
+record NodeIdQualifier(String name, int idIndex) {
   @ParseMethod
   private static NodeIdQualifier parse(Parser p) {
     var s = p.scanner();
@@ -28,8 +24,7 @@ record NodeIdQualifier(String name, int idIndex, int versionIndex) {
     s.assertAndSkip('@');
     var idIndex = s.nextCharSatisfies(Character::isDigit) ? s.readUInt() : 0;
     var name = s.nextCharSatisfies(Names::isValidStartChar) ? Names.read(s, true) : "";
-    var versionIndex = s.trySkip('#') ? s.readUInt() : 0;
-    return new NodeIdQualifier(name, idIndex, versionIndex);
+    return new NodeIdQualifier(name, idIndex);
   }
 
   @PrintMethod
@@ -42,10 +37,6 @@ record NodeIdQualifier(String name, int idIndex, int versionIndex) {
     }
     if (!q.name.isEmpty()) {
       Names.write(w, q.name);
-    }
-    if (q.versionIndex != 0) {
-      w.write('#');
-      p.print(q.versionIndex);
     }
   }
 }

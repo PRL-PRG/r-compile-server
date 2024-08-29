@@ -1,5 +1,7 @@
 package org.prlprg.sexp.parseprint;
 
+import org.prlprg.ir.closure.CodeObjectPrintOptions;
+import org.prlprg.ir.closure.HasCodeObjectPrintOptions;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.SEXP;
 
@@ -40,12 +42,12 @@ public record SEXPPrintOptions(
     long maxAttributes,
     long maxStringLength,
     long maxDepth)
-    implements HasSEXPPrintContext {
+    implements HasSEXPPrintContext, HasCodeObjectPrintOptions {
   /**
    * The default print options that you get when calling {@link Printer#print(Object)
    * Printer#print(SEXP)} and {@link Object#toString SEXP#toString()}.
    */
-  public static final SEXPPrintOptions DEFAULT = new SEXPPrintOptions(false, false, 10, 3, 100, 5);
+  public static final SEXPPrintOptions DEFAULT = new SEXPPrintOptions(false, true, 10, 3, 100, 5);
 
   /** Print every part of the {@link SEXP}. Required for the string to be parse-able. */
   public static final SEXPPrintOptions FULL =
@@ -70,5 +72,11 @@ public record SEXPPrintOptions(
   @Override
   public SEXPPrintContext sexpPrintContext() {
     return new SEXPPrintContext(this);
+  }
+
+  @Override
+  public CodeObjectPrintOptions codeObjectPrintOptions() {
+    throw new UnsupportedOperationException(
+        "Since you're printing a closure, pass `ClosurePrintOptions` instead");
   }
 }

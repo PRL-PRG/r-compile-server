@@ -1,11 +1,16 @@
 package org.prlprg.ir.cfg;
 
+import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import javax.annotation.Nullable;
+import org.prlprg.ir.cfg.Param.IdArgs;
 import org.prlprg.ir.cfg.Phi.Input;
+import org.prlprg.ir.cfg.instr.InstrData;
+import org.prlprg.ir.cfg.instr.JumpData;
+import org.prlprg.ir.cfg.instr.StmtData;
 import org.prlprg.ir.closure.Closure;
 import org.prlprg.ir.closure.ClosureVersion;
 import org.prlprg.ir.closure.Promise;
@@ -18,16 +23,32 @@ import org.prlprg.sexp.parseprint.HasSEXPParseContext;
 import org.prlprg.sexp.parseprint.HasSEXPPrintContext;
 import org.prlprg.sexp.parseprint.SEXPParseContext;
 import org.prlprg.sexp.parseprint.SEXPPrintContext;
+import org.prlprg.util.Strings;
 
 /** CFG's syntax is inspired by <a href="https://mlir.llvm.org/docs/LangRef/">MLIR</a>. */
 public interface CFGParsePrint {
+  class ParamsContext {
+    private final ImmutableList<Param.IdArgs> params;
+    private final @Nullable Object inner;
+
+    public ParamsContext(ImmutableList<IdArgs> params, @Nullable Object inner) {
+      this.params = params;
+      this.inner = inner;
+    }
+  }
+
   @ParseMethod
   private static CFG parse(Parser p) {
+    return p.withContext(new ParamsContext(ImmutableList.of(), p.context())).parse(CFG.class);
+  }
+
+  @ParseMethod
+  private static CFG parse(Parser p, ParamsContext context) {
     var s = p.scanner();
 
-    var cfg = new CFG();
+    var cfg = new CFG(context.params, null);
 
-    var ctx = new CFGParseOrPrintContext(p.context(), cfg);
+    var ctx = new CFGParseOrPrintContext(context.inner, cfg);
     var cfgP = p.withContext(ctx);
     while (!s.isAtEof()) {
       if (s.nextCharIs('^')) {
@@ -75,6 +96,7 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
   private final @Nullable Object outerContext;
   private final SEXPParseContext sexpParseContext;
   private final SEXPPrintContext sexpPrintContext;
+  private final boolean isInBaselineClosureVersion;
   private final CFG cfg;
 
   /**
@@ -85,21 +107,23 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
    * real node, and remove the ID from the set. If the node is never defined and we finished parsing
    * the CFG, we raise an error.
    */
-  private final Map<NodeId<?>, InvalidNode> pendingPatchNodes = new HashMap<>();
+  private final Map<LocalNodeId<?>, InvalidNode> pendingPatchNodes = new HashMap<>();
 
   private final BatchSubst patchSubst = new BatchSubst();
-  private final Map<Phi<Node>, List<Phi.Input<Node>>> delayedPhiInputs = new HashMap<>();
+  private final Map<Phi<Object>, List<Phi.Input<?>>> delayedPhiInputs = new HashMap<>();
 
   CFGParseOrPrintContext(@Nullable Object outerContext, CFG cfg) {
     this.outerContext = outerContext;
-    this.sexpParseContext =
+    sexpParseContext =
         outerContext instanceof HasSEXPParseContext h
             ? h.sexpParseContext()
             : new SEXPParseContext();
-    this.sexpPrintContext =
+    sexpPrintContext =
         outerContext instanceof HasSEXPPrintContext h
             ? h.sexpPrintContext()
             : new SEXPPrintContext();
+    isInBaselineClosureVersion =
+        outerContext instanceof ClosureVersionContext c && c.version().isBaseline();
     this.cfg = cfg;
   }
 
@@ -110,6 +134,10 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
 
   public SEXPPrintContext sexpPrintContext() {
     return sexpPrintContext;
+  }
+
+  boolean isInBaselineClosureVersion() {
+    return isInBaselineClosureVersion;
   }
 
   @ParseMethod
@@ -187,7 +215,7 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
     w.write(";");
   }
 
-  private void patchIfPending(Node node) {
+  private void patchIfPending(LocalNode<?> node) {
     if (pendingPatchNodes.containsKey(node.id())) {
       patchSubst.stage(pendingPatchNodes.remove(node.id()), node);
     }
@@ -239,34 +267,22 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
       }
       var s = p.scanner();
 
-      // A newly-created instruction or phi ID's type parameter is allowed to be anything until it
-      // gets passed to the `InstrOrPhiImpl` constructor, so the unchecked cast is safe.
-      @SuppressWarnings("unchecked")
-      var id = (NodeId<? extends Phi<? extends Node>>) p.parse(NodeId.class);
+      var id = (LocalNodeId<?>) p.parse(LocalNodeId.class);
 
       var inputP = p.withContext(dataContext);
-      var inputs = new ArrayList<Phi.Input<Node>>();
-      s.assertAndSkip("= φ(");
+      var inputs = new ArrayList<Phi.Input<?>>();
+      s.assertAndSkip('(');
       while (!s.trySkip(')')) {
-        @SuppressWarnings("unchecked")
-        var input = (Input<Node>) inputP.parse(Phi.Input.class);
-        inputs.add(input);
+        inputs.add(inputP.parse(Phi.Input.class));
         if (s.trySkip(')')) {
           break;
         }
         s.assertAndSkip(',');
       }
 
-      if (inputs.isEmpty()) {
-        throw s.fail(
-            "Phis must have at least one input to parse (to be valid, they must have at least two)");
-      }
-      var clazz = inputs.getFirst().node().getClass();
+      var phi = bb.<Object>addPhiWithId(id);
 
-      ensureIdNotTakenByAnonymous(id, p);
-      var phi = bb.addPhiWithId(id, clazz);
-
-      var delayedInputs = new ArrayList<Input<Node>>(inputs.size());
+      var delayedInputs = new ArrayList<Input<?>>(inputs.size());
       for (var input : inputs) {
         if (phi.hasIncomingBB(input.incomingBB())) {
           phi.setInput(input);
@@ -289,7 +305,7 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
       p.print(phi.id());
 
       var inputP = p.withContext(dataContext);
-      w.write(" = φ(");
+      w.write('(');
       boolean first = true;
       for (var input : phi.inputs()) {
         if (first) {
@@ -311,40 +327,40 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
 
       // A newly-created instruction or phi ID's type parameter is allowed to be anything until it
       // gets passed to the `InstrOrPhiImpl` constructor, so the following unchecked casts are safe.
-      NodeId<? extends Instr> id = null;
+      var outputIdsBuilder = ImmutableList.<LocalNodeId<?>>builder();
       if (s.nextCharIs('%')) {
-        @SuppressWarnings("unchecked")
-        var id1 = (NodeId<? extends Instr>) p.parse(NodeId.class);
-        id = id1;
+        do {
+          outputIdsBuilder.add((LocalNodeId<?>) p.parse(LocalNodeId.class));
+        } while (s.trySkip(','));
         s.assertAndSkip('=');
       }
+      var outputIds = outputIdsBuilder.build();
 
       var data = p.withContext(dataContext).parse(InstrData.class);
 
-      if (id == null) {
-        // ID doesn't matter
-        id = cfg.<Instr>uniqueInstrOrPhiId();
-      } else {
-        ensureIdNotTakenByAnonymous(id, p);
-      }
-
       var instr =
           switch (data) {
-            case StmtData<?> stmtData -> {
-              @SuppressWarnings("unchecked")
-              var id1 = (NodeId<? extends Stmt>) id;
-              yield bb.insertAtWithId(bb.stmts().size(), id1, stmtData);
-            }
-            case JumpData<?> jumpData -> {
-              @SuppressWarnings("unchecked")
-              var id1 = (NodeId<? extends Jump>) id;
-              yield bb.addJumpWithId(id1, jumpData);
-            }
+            case StmtData stmtData -> bb.insertAt(bb.stmts().size(), stmtData);
+            case JumpData jumpData -> bb.addJump(jumpData);
           };
 
-      for (var node : instr.returns()) {
-        patchIfPending(node);
+      if (instr.outputs().size() != outputIds.size()) {
+        throw s.fail(
+            "expected "
+                + outputIds.size()
+                + " outputs, but got "
+                + instr.outputs().size()
+                + " ("
+                + Strings.join(", ", instr.outputs())
+                + ")");
       }
+
+      for (var i = 0; i < instr.outputs().size(); i++) {
+        var output = instr.output(i);
+        output.setId(outputIds.get(i));
+        patchIfPending(output);
+      }
+
       return instr;
     }
 
@@ -352,33 +368,17 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
     private void printInstr(Instr instr, Printer p) {
       var w = p.writer();
 
-      if (!instr.returns().isEmpty()) {
-        p.print(instr.id());
+      if (!instr.outputs().isEmpty()) {
+        for (var i = 0; i < instr.outputs().size(); i++) {
+          if (i > 0) {
+            w.write(", ");
+          }
+          p.print(instr.output(i));
+        }
         w.write(" = ");
       }
 
-      w.runIndented(() -> p.withContext(dataContext).print(instr.data()));
-    }
-
-    /**
-     * Edge-case: if `id` doesn't have a name, we could've given it to a `Void` instruction via
-     * `CreateInstrWithNewId`. To solve this, we rename the `Void` to update its disambiguator.
-     *
-     * <p>Must be called immediately before adding the node with this ID. Otherwise, if another
-     * argument is parsed, that could re-assign an anonymous node to the ID again.
-     */
-    private void ensureIdNotTakenByAnonymous(NodeId<? extends InstrOrPhi> id, Parser p) {
-      var s = p.scanner();
-
-      if (cfg.contains(id)) {
-        var old = cfg.get(id);
-        if (!old.returns().isEmpty()) {
-          throw s.fail("Defined the same ID twice: " + id);
-        }
-        assert InstrOrPhiIdImpl.cast(id).name().isEmpty()
-            : "expected ID of `Void` instruction we created to have no name";
-        InstrOrPhiImpl.cast(old).setId(cfg.uniqueInstrOrPhiId());
-      }
+      w.runIndented(() -> p.withContext(dataContext).print(instr.data));
     }
 
     private class DataContext
@@ -399,18 +399,18 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
       }
 
       @ParseMethod
-      private InstrData<?> parseInstrData(Parser p) {
-        return (InstrData<?>) p.parse(Record.class);
+      private InstrData parseInstrData(Parser p) {
+        return (InstrData) p.parse(Record.class);
       }
 
       @ParseMethod
       private Phi.Input<?> parsePhiInput(Parser p) {
         var s = p.scanner();
-        var node = p.parse(Node.class);
+        var node = (Node<?>) p.parse(Node.class);
         s.assertAndSkip(':');
         var incomingBB = p.parse(BB.class);
 
-        return new Phi.Input<>(incomingBB, node);
+        return Phi.Input.of(incomingBB, node);
       }
 
       @PrintMethod
@@ -421,7 +421,7 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
       }
 
       // These four methods override all parsers for nodes when they are parsed in this context, so
-      // we can call e.g. `p.parse(RValue.class)` and it dispatches this.
+      // we can call e.g. `p.parse(ISexp.class)` and it dispatches this.
       @ParseMethod
       private BB parseBB(Parser p) {
         var id = p.parse(BBId.class);
@@ -434,34 +434,24 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
       }
 
       @ParseMethod
-      private Node parseNode(Parser p) {
+      private Node<?> parseNode(Parser p) {
         var id = (NodeId<?>) p.parse(NodeId.class);
 
-        // The ID may exist, but in a `Void` instruction that got assigned an "arbitrary" unused ID.
-        // If this is the case, we want to rename that instruction and pretend the ID never existed.
-        if (!(id instanceof GlobalNodeId<?>) && cfg.contains(id)) {
-          var node = cfg.get(id);
-          if (node instanceof Instr i && i.returns().isEmpty()) {
-            assert InstrOrPhiIdImpl.cast(i.id()).name().isEmpty()
-                : "expected ID of `Void` instruction we created to have no name";
-            InstrOrPhiImpl.cast(i).setId(cfg.uniqueInstrOrPhiId());
-            assert !cfg.contains(id);
+        return switch (id) {
+          case GlobalNodeId<?> globalId -> globalId.node();
+          case LocalNodeId<?> localId when cfg.contains(localId) -> cfg.get(localId);
+          case LocalNodeId<?> localId when pendingPatchNodes.containsKey(localId) ->
+              pendingPatchNodes.get(localId);
+          case LocalNodeId<?> localId -> {
+            var placeholder = InvalidNode.create(localId.toString());
+            pendingPatchNodes.put(localId, placeholder);
+            yield placeholder;
           }
-        }
-
-        if (id instanceof GlobalNodeId<?> || cfg.contains(id)) {
-          return cfg.get(id);
-        } else if (pendingPatchNodes.containsKey(id)) {
-          return pendingPatchNodes.get(id);
-        } else {
-          var placeholder = InvalidNode.create(id.toString());
-          pendingPatchNodes.put(id, placeholder);
-          return placeholder;
-        }
+        };
       }
 
       @PrintMethod
-      private void printNode(Node node, Printer p) {
+      private void printNode(Node<?> node, Printer p) {
         p.print(node.id());
       }
 
@@ -536,7 +526,7 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
         s.assertAndSkip(clazz.getSimpleName());
         s.assertAndSkip('(');
 
-        var fun = p.parse(RValue.class);
+        var fun = p.parse(ISexp.class);
         SymOrLangSXP astFun = null;
         if (s.trySkip('[')) {
           astFun = p.parse(SymOrLangSXP.class);
@@ -546,7 +536,7 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
         s.assertAndSkip('(');
         var explicitNames =
             explicitNamesComponent == null ? null : ImmutableList.<Optional<String>>builder();
-        var args = ImmutableList.<RValue>builder();
+        var args = ImmutableList.<ISexp>builder();
         var astArgs = astFun == null ? null : ImmutableList.<TaggedElem>builder();
         if (!s.trySkip(')')) {
           do {
@@ -586,7 +576,7 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
               s.assertAndSkip('=');
             }
 
-            args.add(p.parse(RValue.class));
+            args.add(p.parse(ISexp.class));
 
             SEXP astDefaultValue;
             if (s.trySkip('[')) {
@@ -710,9 +700,9 @@ class CFGParseOrPrintContext implements HasSEXPParseContext, HasSEXPPrintContext
         s.assertAndSkip('(');
         var name = p.parse(RegSymSXP.class);
         s.assertAndSkip("<-");
-        var value = p.parse(RValue.class);
+        var value = p.parse(ISexp.class);
         s.assertAndSkip(", env=");
-        var env = p.parse(RValue.class);
+        var env = p.parse(ISexp.class);
         s.assertAndSkip(')');
 
         return new StVar(name, value, env, isArg);

@@ -6,9 +6,11 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.Map;
 import java.util.SequencedCollection;
 import java.util.SequencedSet;
 import org.jetbrains.annotations.UnmodifiableView;
+import org.prlprg.ir.type.RType;
 import org.prlprg.util.SequencedCollections;
 import org.prlprg.util.SmallBinarySet;
 
@@ -18,108 +20,202 @@ import org.prlprg.util.SmallBinarySet;
  * phi (φ) node</a>: a node referenced within a basic block that may originate from more than one of
  * its predecessors.
  *
- * <p>Each φ only handles nodes of a particular type, e.g. {@link RValue}s or {@link FrameState}s.
- * This interface is also extended for specific classes so that it can inherit them, e.g. {@link
- * RValuePhi} and {@link FrameStatePhi}.
+ * <p>In this IR, phi nodes always have the exact number of inputs as their basic block's number of
+ * predecessors, and each input corresponds to a predecessor. If the phi temporarily needs extra
+ * inputs, for blocks that will be future predecessors, they must be stored outside (e.g. in {@link
+ * Map Map<Phi, Map<BB, Node>>}) until the predecessor is added. If the phi temporarily needs less
+ * inputs, {@link InvalidNode#UNSET_PHI_INPUT} should be used. When a block's predecessors change,
+ * its phis automatically change their inputs, gaining {@link InvalidNode#UNSET_PHI_INPUT}s for
+ * added predecessors and losing inputs for removed predecessors.
  *
- * <p>φ nodes can temporarily have only 0 or 1 input. However, before {@link CFG#verify()}, nodes
+ * <p>Phi nodes can temporarily have only 0 or 1 input. However, before {@link CFG#verify()}, nodes
  * with one input must be replaced with the input itself, and nodes with 0 inputs must be removed.
+ * This is automatically done by {@link CFG#cleanup()}.
  */
-public non-sealed interface Phi<N extends Node> extends InstrOrPhi {
+public final class Phi<T> extends LocalNode<T> implements InstrOrPhi, InstrOrPhiImpl {
+  private final SmallBinarySet<Input<? extends T>> inputs;
+
   /**
-   * Returns the most specific class with a {@link Phi} implementation where both input nodes are
-   * subclasses.
+   * Downcast {@code Phi<? extends A>} to {@code Phi<? extends B>} where {@code B &lt;: A}.
    *
-   * <p>This <i>does not</i> return the phi class itself. For example, if both nodes are {@link
-   * RValue}s, it would return {@link RValue}, not {@link RValuePhi}.
+   * <p>This is needed due to Java's type erasure: see {@link #type()} for more details.
    *
-   * @throws IllegalArgumentException if there are no such classes.
+   * @throws ClassCastException if {@code B &lt;/: A}.
    */
-  static Class<? extends Node> commonInputSuperclass(
-      Class<? extends Node> a, Class<? extends Node> b) {
-    if (InvalidNode.class.isAssignableFrom(a) && InvalidNode.class.isAssignableFrom(b)) {
-      // WARNING: If every node is invalid, the phi will only be able to have invalid node inputs,
-      // which is an issue because it may be set with valid inputs later. Currently this never
-      // happens, but if it does, the solution is to make it so that when `commonInputSuperclass`
-      // returns `InvalidNode` for all classes, replace the entire phi with an invalid node (because
-      // whatever we're doing we already accepted we'll have invalid stub nodes).
-      return InvalidNode.class;
-    } else if (RValue.class.isAssignableFrom(a) && RValue.class.isAssignableFrom(b)) {
-      return RValue.class;
-    } else if (DeoptReason.class.isAssignableFrom(a) && DeoptReason.class.isAssignableFrom(b)) {
-      return DeoptReason.class;
-    } else if (FrameState.class.isAssignableFrom(a) && FrameState.class.isAssignableFrom(b)) {
-      return FrameState.class;
-    } else {
-      throw new IllegalArgumentException(
-          "No common φ type implemented for the given classes: " + a + " and " + b);
+  @SuppressWarnings("unchecked")
+  @Override
+  public <U> Phi<? extends U> cast(Class<U> clazz) {
+    return (Phi<U>) super.cast(clazz);
+  }
+
+  // region construct
+  /** Serialized form where everything is replaced by IDs. */
+  public record Serial<T>(
+      PhiId<? extends T> id, Collection<? extends InputId<? extends T>> inputIds) {
+    Serial(Phi<T> phi) {
+      this(phi.id(), phi.inputs().stream().map(Input::id).toList());
     }
   }
 
   /**
-   * The type of node this is a phi node for. All incoming nodes are an instance of this class, as
-   * well as the phi itself (revealed via {@link #cast()}).
-   */
-  Class<N> nodeClass();
-
-  /**
-   * Cast the phi to its node class.
+   * Create a new phi-node with the given inputs.
    *
-   * <p>{@code Phi<N> extends N} holds for every subclass, but it can't be expressed by Java's type
-   * system, so we need this method as a workaround/
+   * <p>The phis' {@link #type()} is the common supertype of all inputs' {@link Node}s, or {@link
+   * Void} if there are none.
    */
-  @SuppressWarnings("unchecked")
-  default N cast() {
-    assert nodeClass().isInstance(this);
-    return (N) this;
+  Phi(CFG cfg, LocalNodeId<T> id, Collection<? extends Input<? extends T>> inputs) {
+    super(cfg, phiType(inputs), PhiId.of(id));
+
+    this.inputs =
+        new SmallBinarySet<>(
+            inputs.size(), Comparator.comparing(i -> i.incomingBB().id().toString()));
+    for (var input : inputs) {
+      assert !this.hasIncomingBB(input.incomingBB())
+          : "duplicate incoming BB on Phi init: " + input.incomingBB();
+      this.inputs.add(input);
+    }
   }
 
-  /** (A view of) the inputs to this φ-node. */
-  @UnmodifiableView
-  SequencedSet<Input<? extends N>> inputs();
+  /** The common supertype of all inputs' {@link Node}s, or {@link Void} if there are none. */
+  private static <T> RType phiType(Collection<? extends Input<? extends T>> inputs) {
+    return inputs.stream().map(Input::node).map(Node::type).reduce(RType.NOTHING, RType::unionOf);
+  }
 
-  /** (A view of) the input {@link BB}s. */
-  default @UnmodifiableView SequencedCollection<BB> incomingBBs() {
+  // endregion constructors
+
+  // region id
+
+  /**
+   * {@link LocalNode#id()}, but the ID is a subtype that lets you retrieve the phi using {@link
+   * CFG#get(PhiId)} without a cast.
+   */
+  @Override
+  public PhiId<T> id() {
+    return (PhiId<T>) super.id();
+  }
+
+  // endregion id
+
+  // region inputs
+  public sealed interface Input<T> {
+    static <T> Input<T> unset(BB incomingBB) {
+      return of(incomingBB, InvalidNode.UNSET_PHI_INPUT.cast());
+    }
+
+    static <T> Input<T> of(BB incomingBB, Node<T> node) {
+      return new InputImpl<>(incomingBB, node);
+    }
+
+    /** The predecessor the input node originates from. */
+    BB incomingBB();
+
+    /** The phi's runtime value in traces where the trace predecessor is {@link #incomingBB()}. */
+    Node<T> node();
+
+    default InputId<T> id() {
+      return InputId.of(incomingBB().id(), node().id());
+    }
+  }
+
+  public sealed interface InputId<T> {
+    static <T> InputId<T> of(BBId incomingBBId, NodeId<T> nodeId) {
+      return new InputIdImpl<>(incomingBBId, nodeId);
+    }
+
+    /** The id of the predecessor the input node originates from. */
+    BBId incomingBBId();
+
+    /**
+     * The id of the phi's runtime value in traces where the trace predecessor is that identified by
+     * {@link #incomingBBId()}.
+     */
+    NodeId<T> nodeId();
+
+    default Input<T> decode(CFG cfg) {
+      return Input.of(cfg.get(incomingBBId()), cfg.get(nodeId()));
+    }
+  }
+
+  public record InputImpl<T>(BB incomingBB, Node<T> node) implements Input<T> {
+    @Override
+    public String toString() {
+      return incomingBB.id() + ":" + node.id();
+    }
+  }
+
+  public record InputIdImpl<T>(BBId incomingBBId, NodeId<T> nodeId) implements InputId<T> {
+    @Override
+    public String toString() {
+      return incomingBBId + ":" + nodeId;
+    }
+  }
+
+  /**
+   * (A view of) the inputs to this phi-node.
+   *
+   * <p>Each input corresponds to a {@link BB} predecessor. The input is the predecessor ("incoming
+   * BB") and its {@link Node}. The phi's value at runtime is the node corresponding to the trace
+   * predecessor / incoming BB.
+   */
+  @UnmodifiableView
+  public SequencedSet<? extends Input<? extends T>> inputs() {
+    return inputs;
+  }
+
+  /**
+   * (A view of) the input {@link BB}s.
+   *
+   * <p>This is equivalent to the {@link BB} containing this phi's {@link BB#predecessors()}.
+   */
+  public @UnmodifiableView SequencedCollection<BB> incomingBBs() {
     return SequencedCollections.lazyMapView(inputs(), Input::incomingBB);
   }
 
-  /** (A view of) the input {@link Node}s. */
-  default @UnmodifiableView SequencedCollection<N> inputNodes() {
+  /**
+   * (A view of) the input {@link Node}s.
+   *
+   * <p>Each of these corresponds to a {@link BB} predecessor. The phi's value at runtime is the
+   * node corresponding to the trace predecessor / incoming BB.
+   */
+  @Override
+  public @UnmodifiableView SequencedCollection<? extends Node<? extends T>> inputNodes() {
     return SequencedCollections.lazyMapView(inputs(), Input::node);
   }
 
-  /** The number of inputs to this φ-node. */
-  default int numInputs() {
+  /** The number of inputs to this phi-node. */
+  public int numInputs() {
     return inputs().size();
   }
 
   /** Whether this phi-node contains an input with the given node. */
-  @SuppressWarnings("SuspiciousMethodCalls")
-  default boolean containsInput(Node inputNode) {
+  public boolean containsInput(Node<?> inputNode) {
     return inputNodes().contains(inputNode);
   }
 
   /**
-   * Whether this phi-node contains an input with the given incoming BB, i.e. whether it's one of
-   * the parent block's predecessors.
+   * Whether this phi-node contains an input with the given incoming BB.
+   *
+   * <p>i.e. whether it's one of the parent block's predecessors.
    */
-  default boolean hasIncomingBB(BB incomingBB) {
+  public boolean hasIncomingBB(BB incomingBB) {
     return incomingBBs().contains(incomingBB);
   }
 
   /**
-   * Get the input from the given {@link BB}, i.e. the phi's value when control jumps from that
-   * block to the phi's origin block.
+   * Get the input from the given {@link BB}
+   *
+   * <p>This is the phi's runtime value in the trace where control jumps from the given block to the
+   * phi's origin block.
    *
    * @throws IllegalArgumentException if the given block isn't in the phi, i.e. isn't a predecessor.
    */
-  default N input(BB incomingBB) {
-    var result = inputs().stream().filter(input -> input.incomingBB == incomingBB).findFirst();
+  public Node<? extends T> input(BB incomingBB) {
+    var result = inputs().stream().filter(input -> input.incomingBB() == incomingBB).findFirst();
     if (result.isEmpty()) {
       throw new IllegalArgumentException(
-          "basic block not in phi (not a predecessor): " + incomingBB.id());
+          "Basic block not in phi (not a predecessor): " + incomingBB.id());
     }
-    return result.get().node;
+    return result.get().node();
   }
 
   /**
@@ -127,278 +223,13 @@ public non-sealed interface Phi<N extends Node> extends InstrOrPhi {
    *
    * <p>Returns the old node.
    *
-   * @throws IllegalArgumentException If the incoming BB isn't in the input set.
-   *     <p><b>OR</b> if the node is of an incompatible type (the type is also restricted by the
-   *     generic argument, but the phi may be upcasted due to erasure).
-   */
-  N setInput(BB incomingBB, N node);
-
-  /**
-   * {@link #setInput(BB, N)} using the input and node of the provided {@link Input} data-structure.
-   *
-   * <p>Returns the old input's node.
+   * <p>This will record a {@link CFGEdit}.
    *
    * @throws IllegalArgumentException If the incoming BB isn't in the input set.
    *     <p><b>OR</b> if the node is of an incompatible type (the type is also restricted by the
    *     generic argument, but the phi may be upcasted due to erasure).
    */
-  default N setInput(Input<? extends N> newInput) {
-    return setInput(newInput.incomingBB(), newInput.node());
-  }
-
-  /** {@link Phi#inputNodes()} but accessible from {@link InstrOrPhi}. */
-  // The collection is covariant here because it's unmodifiable.
-  // We could alternatively make all `args()` `SequencedCollection<? extends Node>`, but it doesn't
-  // matter and this is a smaller signature.
-  @SuppressWarnings("unchecked")
-  @Override
-  default @UnmodifiableView SequencedCollection<Node> args() {
-    return (SequencedCollection<Node>) inputNodes();
-  }
-
-  /**
-   * Returns {@code this}, since a phi is an instruction which simply "returns" one of its
-   * arguments.
-   */
-  @Override
-  default ImmutableList<Node> returns() {
-    return ImmutableList.of(this);
-  }
-
-  /** true (phis never have side-effects). */
-  @Override
-  default boolean isPure() {
-    return true;
-  }
-
-  @Override
-  NodeId<? extends Phi<N>> id();
-
-  /**
-   * Constructor arguments that can be stored in a collection (since there are multiple;
-   * alternatively could use {@link org.prlprg.util.Pair} but this is clearer).
-   */
-  record Args(Class<? extends Node> nodeClass, Collection<? extends Input<?>> inputs) {}
-
-  /** Serialized form where everything is replaced by IDs. */
-  record Serial(
-      NodeId<? extends Phi<?>> id,
-      Class<? extends Node> nodeClass,
-      Collection<? extends InputId<?>> inputIds) {
-    Serial(Phi<?> phi) {
-      this(phi.id(), phi.nodeClass(), phi.inputs().stream().map(Input::id).toList());
-    }
-  }
-
-  record Input<N extends Node>(BB incomingBB, N node) {
-    static <N extends Node> Input<N> unset(BB incomingBB) {
-      return of(incomingBB, InvalidNode.UNSET_PHI_INPUT.uncheckedCast());
-    }
-
-    public static <N extends Node> Input<N> of(BB incomingBB, N node) {
-      return new Input<>(incomingBB, node);
-    }
-
-    @SuppressWarnings("unchecked")
-    public InputId<N> id() {
-      return InputId.of(incomingBB.id(), (NodeId<? extends N>) node.id());
-    }
-
-    @Override
-    public String toString() {
-      return incomingBB.id() + ":" + node.id();
-    }
-  }
-
-  record InputId<N extends Node>(BBId incomingBBId, NodeId<? extends N> nodeId) {
-    public static <N extends Node> InputId<N> of(BBId incomingBBId, NodeId<? extends N> nodeId) {
-      return new InputId<>(incomingBBId, nodeId);
-    }
-
-    public Input<N> decode(CFG cfg) {
-      return new Input<>(cfg.get(incomingBBId), cfg.get(nodeId));
-    }
-
-    @Override
-    public String toString() {
-      return incomingBBId + ":" + nodeId;
-    }
-  }
-}
-
-abstract non-sealed class PhiImpl<N extends Node> extends InstrOrPhiImpl implements Phi<N> {
-  private final Class<N> nodeClass;
-  private final SmallBinarySet<Input<? extends N>> inputs;
-
-  // region construct
-  /**
-   * Constructor arguments that can be stored in a collection (since there are multiple;
-   * alternatively could use {@link org.prlprg.util.Pair} but this is clearer).
-   *
-   * <p>Unlike {@link Phi.Args}, this exposes that phis can be created with existing IDs. Such
-   * functionality is only used in {@link CFGEdit}s that are replayed to maintain determinism.
-   */
-  record Args(
-      NodeId<? extends Phi<?>> id,
-      Class<? extends Node> nodeClass,
-      Collection<? extends Input<?>> inputs) {
-    Args(NodeId<? extends Phi<?>> id, Phi.Args args) {
-      this(id, args.nodeClass(), args.inputs());
-    }
-
-    Args(CFG cfg, Serial serial) {
-      this(
-          serial.id(),
-          serial.nodeClass(),
-          serial.inputIds().stream().map(id -> id.decode(cfg)).toList());
-    }
-
-    Args(Phi<?> phi) {
-      this(phi.id(), phi.nodeClass(), ImmutableList.copyOf(phi.inputs()));
-    }
-  }
-
-  /**
-   * Create a new phi-node for nodes of the given class.
-   *
-   * <p>The phi's node class will be either the given class <i>or</i> a superclass, and the phi
-   * itself inherits its node class. The phi's node class will be specific enough so that it's
-   * acceptable to replace a node of the given class with this phi, anywhere.
-   *
-   * @throws IllegalArgumentException If inputs is empty.
-   * @throws UnsupportedOperationException If there's no phi type implemented for the given class.
-   */
-  @SuppressWarnings("unchecked")
-  static <N extends Node> Phi<N> forClass(
-      Class<? extends N> nodeSubclass,
-      CFG cfg,
-      NodeId<? extends Phi<? extends N>> id,
-      Collection<? extends Input<?>> inputs) {
-    Phi<?> phi;
-    if (RValue.class.isAssignableFrom(nodeSubclass)) {
-      phi = new RValuePhiImpl(cfg, id, inputs);
-    } else if (DeoptReason.class.isAssignableFrom(nodeSubclass)) {
-      phi = new DeoptReasonPhiImpl(cfg, id, inputs);
-    } else if (FrameState.class.isAssignableFrom(nodeSubclass)) {
-      phi = new FrameStatePhiImpl(cfg, id, inputs);
-    } else {
-      throw new UnsupportedOperationException(
-          "No phi type implemented for the given class: " + nodeSubclass);
-    }
-    return (Phi<N>) phi;
-  }
-
-  /**
-   * Return the given phi casted.
-   *
-   * <p>Any {@link Phi} is guaranteed to be an {@link PhiImpl}, so this method is provided to reduce
-   * the number of casts in the code text.
-   */
-  static <N extends Node> PhiImpl<N> cast(Phi<N> phi) {
-    return (PhiImpl<N>) phi;
-  }
-
-  @SuppressWarnings("unchecked")
-  protected PhiImpl(
-      Class<N> nodeClass,
-      CFG cfg,
-      NodeId<? extends Phi<?>> id,
-      Collection<? extends Input<?>> inputs) {
-    super(cfg, id);
-    this.inputs =
-        new SmallBinarySet<>(
-            inputs.size(), Comparator.comparing(i -> i.incomingBB().id().toString()));
-    for (var input : inputs) {
-      assert !this.hasIncomingBB(input.incomingBB())
-          : "duplicate incoming BB on Phi init: " + input.incomingBB();
-      this.inputs.add((Input<? extends N>) input);
-    }
-    this.nodeClass = nodeClass;
-
-    for (var inputNode : inputNodes()) {
-      if (!nodeClass.isInstance(inputNode)) {
-        throw new IllegalArgumentException(
-            "Input node isn't an instance of the Phi's node class: "
-                + inputNode
-                + " ("
-                + inputNode.getClass().getSimpleName()
-                + ") is not an instance of "
-                + nodeClass);
-      }
-    }
-    assert nodeClass.isAssignableFrom(InvalidNode.class)
-        : "InvalidNode should be an instance of any phi class";
-  }
-
-  // endregion construct
-
-  @Override
-  public Class<N> nodeClass() {
-    return nodeClass;
-  }
-
-  // region inputs
-  @Override
-  public SequencedSet<Input<? extends N>> inputs() {
-    return inputs;
-  }
-
-  /**
-   * Add an "unset" node to the phi's inputs for the given BB.
-   *
-   * <p>This is "unsafe" because no {@linkplain CFGEdit edit} is recorded. It's called from {@link
-   * BB} when it adds a predecessor.
-   */
-  void unsafeAddUnsetInput(BB incomingBB) {
-    unsafeAddInput(Input.of(incomingBB, InvalidNode.UNSET_PHI_INPUT.uncheckedCast()));
-  }
-
-  /**
-   * Add an input to the phi.
-   *
-   * <p>This is "unsafe" because no {@linkplain CFGEdit edit} is recorded. It's called from {@link
-   * BB} when it adds a predecessor.
-   */
-  void unsafeAddInput(Input<? extends N> input) {
-    assert !hasIncomingBB(input.incomingBB())
-        : "phi is in an inconsistent state, it has an input that it was told to add: "
-            + input.incomingBB();
-    inputs.add(input);
-    // The phi's name changes when the input changes, but unset inputs don't have any affect on it
-    // so we don't have to call `updateName()`.
-  }
-
-  /**
-   * Remove the node in the phi's inputs for the given BB.
-   *
-   * <p>This is "unsafe" because no {@linkplain CFGEdit edit} is recorded. It's called from {@link
-   * BB} when it removes a predecessor.
-   */
-  void unsafeRemoveInput(BB incomingBB) {
-    var index = Iterables.indexOf(inputs, input -> input.incomingBB().equals(incomingBB));
-    assert index != -1
-        : "phi is in an inconsistent state, it doesn't have an input that it was told to remove: "
-            + incomingBB;
-    inputs.removeAt(index);
-  }
-
-  /**
-   * Replace the incoming BB of an input with a different one. The input's node remains the same.
-   *
-   * <p>This is "unsafe" because no {@linkplain CFGEdit edit} is recorded. It should only be used
-   * internally by {@link BB}.
-   */
-  void unsafeReplaceIncomingBB(BB oldBB, BB replacementBB) {
-    var index = Iterables.indexOf(inputs, input -> input.incomingBB().equals(oldBB));
-    assert index != -1 : "The old incoming BB isn't in the phi's inputs: " + oldBB;
-    var node = this.inputs.get(index).node();
-    // Can't use `equalReplace` because the index to insert may be different than the one to remove.
-    this.inputs.removeAt(index);
-    this.inputs.add(Input.of(replacementBB, node));
-  }
-
-  @Override
-  public N setInput(BB incomingBB, N node) {
+  public Node<? extends T> setInput(BB incomingBB, Node<? extends T> node) {
     var index = Iterables.indexOf(inputs, input -> input.incomingBB().equals(incomingBB));
     if (index == -1) {
       throw new IllegalArgumentException(
@@ -410,23 +241,15 @@ abstract non-sealed class PhiImpl<N extends Node> extends InstrOrPhiImpl impleme
               + node.id()
               + ")");
     }
-    if (!nodeClass.isInstance(node)) {
-      throw new IllegalArgumentException(
-          "Tried to add an input of incompatible type to "
-              + id()
-              + ": "
-              + node.id()
-              + " ("
-              + node.getClass().getSimpleName()
-              + ") is not an instance of the phi's node class "
-              + nodeClass.getSimpleName());
-    }
+
     if (EAGERLY_VERIFY_PHI_INPUTS) {
-      eagerlyVerifyInput(new Input<>(incomingBB, node));
+      eagerlyVerifyInput(Input.of(incomingBB, node));
     }
 
     var oldNode = inputs.get(index).node();
     inputs.equalReplace(index, Input.of(incomingBB, node));
+
+    updateType();
 
     cfg()
         .record(
@@ -448,37 +271,125 @@ abstract non-sealed class PhiImpl<N extends Node> extends InstrOrPhiImpl impleme
     }
   }
 
-  // endregion inputs
+  /**
+   * {@link #setInput(BB, Node)} using the input and node of the provided {@link Input}
+   * data-structure.
+   *
+   * <p>Returns the old input's node.
+   *
+   * <p>This will record a {@link CFGEdit}.
+   *
+   * @throws IllegalArgumentException If the incoming BB isn't in the input set.
+   *     <p><b>OR</b> if the node is of an incompatible type (the type is also restricted by the
+   *     generic argument, but the phi may be upcasted due to erasure).
+   */
+  public Node<? extends T> setInput(Input<? extends T> newInput) {
+    return setInput(newInput.incomingBB(), newInput.node());
+  }
 
   @SuppressWarnings("unchecked")
   @Override
-  public void replaceInArgs(Node old, Node replacement) {
-    if (!nodeClass.isInstance(replacement)) {
-      throw new IllegalArgumentException(
-          "Tried to replace with a node of incompatible type: "
-              + replacement.getClass().getSimpleName()
-              + " ("
-              + replacement
-              + ") is not an instance of the phi's node class "
-              + nodeClass.getSimpleName()
-              + " (the phi is "
-              + id()
-              + ")");
-    }
+  public CascadingInstrUpdate unsafeReplaceInInputs(
+      CascadingUpdatedInstrs seen, Node<?> old, Node<?> replacement) {
     for (var i = 0; i < inputs.size(); i++) {
       var input = inputs.get(i);
       if (input.node().equals(old)) {
-        inputs.equalReplace(i, Input.of(input.incomingBB(), (N) replacement));
+        inputs.equalReplace(i, Input.of(input.incomingBB(), (Node<? extends T>) replacement));
         cfg()
             .record(
-                new CFGEdit.SetPhiInput<>(this, input.incomingBB(), (N) replacement),
-                new CFGEdit.SetPhiInput<>(this, input.incomingBB(), (N) old));
+                new CFGEdit.SetPhiInput<>(
+                    this, input.incomingBB(), (Node<? extends T>) replacement),
+                new CFGEdit.SetPhiInput<>(this, input.incomingBB(), (Node<? extends T>) old));
       }
     }
+
+    var result =
+        type() != phiType(inputs)
+            ? CascadingInstrUpdate.UPDATED_OUTPUT_TYPES
+            : CascadingInstrUpdate.NONE;
+    updateType();
+    return result;
+  }
+
+  /**
+   * Add an "unset" node to the phi's inputs for the given BB.
+   *
+   * <p>This is "unsafe" because no {@linkplain CFGEdit edit} is recorded. It's called from {@link
+   * BB} when it adds a predecessor.
+   */
+  void unsafeAddUnsetInput(BB incomingBB) {
+    unsafeAddInput(Input.of(incomingBB, InvalidNode.UNSET_PHI_INPUT.cast()));
+  }
+
+  /**
+   * Add an input to the phi.
+   *
+   * <p>This is "unsafe" because no {@linkplain CFGEdit edit} is recorded, and because it changes
+   * the phi's {@link Node#type()} (which may illegally make it a supertype of {@link T}). It's
+   * called from {@link BB} when it adds a predecessor.
+   */
+  @SuppressWarnings("unchecked")
+  void unsafeAddInput(Input<?> input) {
+    assert !hasIncomingBB(input.incomingBB())
+        : "phi is in an inconsistent state, it has an input that it was told to add: "
+            + input.incomingBB();
+    inputs.add((Input<? extends T>) input);
+    // The phi's name changes when the input changes, but unset inputs don't have any affect on it
+    // so we don't have to call `updateName()`.
+
+    updateType();
+  }
+
+  /**
+   * Remove the node in the phi's inputs for the given BB.
+   *
+   * <p>This is "unsafe" because no {@linkplain CFGEdit edit} is recorded. It's called from {@link
+   * BB} when it removes a predecessor.
+   */
+  void unsafeRemoveInput(BB incomingBB) {
+    var index = Iterables.indexOf(inputs, input -> input.incomingBB().equals(incomingBB));
+    assert index != -1
+        : "phi is in an inconsistent state, it doesn't have an input that it was told to remove: "
+            + incomingBB;
+    inputs.removeAt(index);
+
+    updateType();
+  }
+
+  /**
+   * Replace the incoming BB of an input with a different one. The input's node remains the same.
+   *
+   * <p>This is "unsafe" because no {@linkplain CFGEdit edit} is recorded. It should only be used
+   * internally by {@link BB}.
+   */
+  void unsafeReplaceIncomingBB(BB oldBB, BB replacementBB) {
+    var index = Iterables.indexOf(inputs, input -> input.incomingBB().equals(oldBB));
+    assert index != -1 : "The old incoming BB isn't in the phi's inputs: " + oldBB;
+    var node = this.inputs.get(index).node();
+    // Can't use `equalReplace` because the index to insert may be different than the one to remove.
+    this.inputs.removeAt(index);
+    this.inputs.add(Input.of(replacementBB, node));
+  }
+
+  // endregion inputs
+
+  // region other `InstrOrPhi` inherited
+  /** Returns {@code this}, since a phi simply "outputs" one of its input nodes. */
+  @Override
+  public ImmutableList<? extends LocalNode<? extends T>> outputs() {
+    return ImmutableList.of(this);
   }
 
   @Override
-  public NodeId<? extends Phi<N>> id() {
-    return uncheckedCastId();
+  public boolean isPure() {
+    return true;
   }
+
+  // endregion other `InstrOrPhi` inherited
+
+  // region misc
+  private void updateType() {
+    unsafeSetType(phiType(inputs));
+  }
+  // endregion misc
 }

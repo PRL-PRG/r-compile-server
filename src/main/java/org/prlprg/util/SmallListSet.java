@@ -2,6 +2,7 @@ package org.prlprg.util;
 
 import com.google.common.collect.ForwardingCollection;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.SequencedSet;
@@ -18,6 +19,13 @@ public class SmallListSet<T> extends ForwardingCollection<T> implements Sequence
   /** Create a new ListSet with the given capacity. */
   public SmallListSet(int capacity) {
     list = new ArrayList<>(capacity);
+  }
+
+  /** Create a new ListSet with the given elements and capacity for just them. */
+  @SafeVarargs
+  public SmallListSet(T... elements) {
+    list = new ArrayList<>(elements.length);
+    addAll(Arrays.asList(elements));
   }
 
   /**

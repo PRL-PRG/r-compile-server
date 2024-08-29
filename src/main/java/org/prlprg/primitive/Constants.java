@@ -14,7 +14,7 @@ public final class Constants {
   /**
    * Minimum value representable in an R integer, since {@link Integer#MIN_VALUE} is used for NA.
    */
-  public static final int INT_MIN = Integer.MIN_VALUE + 1;
+  public static final int GNUR_INT_MIN = Integer.MIN_VALUE + 1;
 
   /** The actual value of an {@code NA} element of an integer vector in GNU-R. */
   public static final int NA_INT = Integer.MIN_VALUE;

@@ -5,7 +5,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.SequencedCollection;
 import java.util.function.Function;
-import org.jetbrains.annotations.NotNull;
+import javax.annotation.Nonnull;
 import org.jetbrains.annotations.UnmodifiableView;
 
 /**
@@ -123,7 +123,8 @@ final class MapSequencedCollectionView<I, O> implements SequencedCollection<O> {
         return MapSequencedCollectionView.this.contains(o);
       }
 
-      @NotNull @Override
+      @Nonnull
+      @Override
       public Iterator<O> iterator() {
         return new Iterator<>() {
           private final Iterator<I> backingIt = backing.reversed().iterator();
@@ -163,22 +164,22 @@ final class MapSequencedCollectionView<I, O> implements SequencedCollection<O> {
       }
 
       @Override
-      public boolean containsAll(@NotNull Collection<?> c) {
+      public boolean containsAll(@Nonnull Collection<?> c) {
         return MapSequencedCollectionView.this.containsAll(c);
       }
 
       @Override
-      public boolean addAll(@NotNull Collection<? extends O> c) {
+      public boolean addAll(@Nonnull Collection<? extends O> c) {
         return MapSequencedCollectionView.this.addAll(c);
       }
 
       @Override
-      public boolean removeAll(@NotNull Collection<?> c) {
+      public boolean removeAll(@Nonnull Collection<?> c) {
         return MapSequencedCollectionView.this.removeAll(c);
       }
 
       @Override
-      public boolean retainAll(@NotNull Collection<?> c) {
+      public boolean retainAll(@Nonnull Collection<?> c) {
         return MapSequencedCollectionView.this.retainAll(c);
       }
 

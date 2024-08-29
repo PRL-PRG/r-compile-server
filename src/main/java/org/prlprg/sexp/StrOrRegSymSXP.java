@@ -12,7 +12,7 @@ import javax.annotation.concurrent.Immutable;
  * org.prlprg.util.Either} instead...
  */
 @Immutable
-public sealed interface StrOrRegSymSXP extends SEXP permits StrSXP, RegSymSXP {
+public sealed interface StrOrRegSymSXP extends ValueSXP permits StrSXP, RegSymSXP {
   // FIXME: this is not great, but far the most often used pattern matching is
   //  on either symbol or a scalar string
   Optional<String> reifyString();

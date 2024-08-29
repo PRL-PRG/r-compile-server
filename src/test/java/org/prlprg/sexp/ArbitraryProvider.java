@@ -53,7 +53,7 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
   private static Arbitrary<Attributes> attributes(Arbitrary<SEXP> sexps) {
     return Arbitraries.maps(
             symbolStrings().edgeCases(c -> c.add("names", "dim", "class")),
-            sexps.filter(s -> !(s instanceof PromSXP)))
+            sexps.filter(s -> !(s instanceof PromSXP<?>)))
         .map(Attributes::new);
   }
 
@@ -63,6 +63,14 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
         s -> oneOf(promises(s), closures(s), lists(s), envs(s)),
         0,
         MAX_DEPTH);
+  }
+
+  public static Arbitrary<ValueSXP> values() {
+    return values(sexps());
+  }
+
+  private static Arbitrary<ValueSXP> values(Arbitrary<SEXP> sexps) {
+    return sexps.filter(s -> !(s instanceof PromSXP<?>)).map(s -> (ValueSXP) s);
   }
 
   public static Arbitrary<EnvSXP> envs() {
@@ -135,13 +143,13 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
         .as(SEXPs::closure);
   }
 
-  public static Arbitrary<PromSXP> promises() {
+  public static Arbitrary<PromSXP<?>> promises() {
     return promises(sexps());
   }
 
-  private static Arbitrary<PromSXP> promises(Arbitrary<SEXP> sexps) {
-    var sexpsNoPromises = sexps.filter(s -> !(s instanceof PromSXP));
-    return Combinators.combine(sexpsNoPromises, sexpsNoPromises, envs(sexps)).as(PromSXP::new);
+  private static Arbitrary<PromSXP<?>> promises(Arbitrary<SEXP> sexps) {
+    var valueSexps = values(sexps);
+    return Combinators.combine(valueSexps, valueSexps, envs(sexps)).as(PromSXP::new);
   }
 
   private static Arbitrary<TaggedElem> taggedElems(Arbitrary<SEXP> sexps) {
@@ -161,7 +169,7 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
   }
 
   private static Arbitrary<LangSXP> languages(Arbitrary<SEXP> astSexps) {
-    return Combinators.combine(symbols(), astLists(astSexps)).as(SEXPs::lang);
+    return Combinators.combine(regSymbols(), astLists(astSexps)).as(SEXPs::lang);
   }
 
   public static Arbitrary<SEXP> basicSexps() {
@@ -193,18 +201,21 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
         basicBytes().map(SEXPs::raw),
         complexes().map(SEXPs::complex),
         shortStrings().map(SEXPs::string),
-        symbols());
+        regSymbols());
   }
 
   public static Arbitrary<SymSXP> symbols() {
+    return oneOf(Arbitraries.of(SEXPs.MISSING_ARG), regSymbols());
+  }
+
+  public static Arbitrary<RegSymSXP> regSymbols() {
     return symbolStrings().map(SEXPs::symbol);
   }
 
   /** Generates valid symbol (and tag) names. */
   public static Arbitrary<String> symbolStrings() {
     return Arbitraries.frequencyOf(
-        Tuple.of(8, Arbitraries.of("foo", "bar", "baz", "abc")),
-        Tuple.of(2, Arbitraries.of("NULL", " ", "|g", "0")));
+        Tuple.of(7, Arbitraries.of("foo", "bar", "baz")), Tuple.of(3, Arbitraries.of("🐾")));
   }
 
   /** Returns strings which aren't too long, because we really don't need to test those. */
@@ -215,6 +226,7 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
   @Override
   public boolean canProvideFor(TypeUsage typeUsage) {
     return typeUsage.isOfType(SEXP.class)
+        || typeUsage.isOfType(ValueSXP.class)
         || typeUsage.isOfType(CloSXP.class)
         || typeUsage.isOfType(PromSXP.class)
         || typeUsage.isOfType(EnvSXP.class)
@@ -227,6 +239,9 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
   public Set<Arbitrary<?>> provideFor(TypeUsage typeUsage, SubtypeProvider subtypeProvider) {
     if (typeUsage.isOfType(SEXP.class)) {
       return Set.of(sexps());
+    }
+    if (typeUsage.isOfType(ValueSXP.class)) {
+      return Set.of(values());
     }
     if (typeUsage.isOfType(CloSXP.class)) {
       return Set.of(closures());

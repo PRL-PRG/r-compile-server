@@ -16,13 +16,16 @@ import net.jqwik.api.Provide;
 import net.jqwik.api.Tuple;
 import net.jqwik.api.Tuple.Tuple2;
 import net.jqwik.api.Tuple.Tuple3;
-import net.jqwik.api.lifecycle.BeforeContainer;
 import org.opentest4j.AssertionFailedError;
+import org.prlprg.ir.effect.REffects;
 import org.prlprg.ir.type.lattice.Lattice;
+import org.prlprg.ir.type.lattice.Maybe;
 import org.prlprg.ir.type.lattice.MaybeNat;
 import org.prlprg.ir.type.lattice.NoOrMaybe;
-import org.prlprg.ir.type.lattice.Troolean;
 import org.prlprg.ir.type.lattice.YesOrMaybe;
+import org.prlprg.ir.type.sexp.AttributesType;
+import org.prlprg.ir.type.sexp.RFunType;
+import org.prlprg.ir.type.sexp.RVectorType;
 import org.prlprg.util.Reflection;
 
 public class LatticeTests {
@@ -30,40 +33,13 @@ public class LatticeTests {
       ImmutableList.of(
               Tuple.of(YesOrMaybe.class, YesOrMaybe.MAYBE),
               Tuple.of(NoOrMaybe.class, NoOrMaybe.MAYBE),
-              Tuple.of(Troolean.class, Troolean.MAYBE),
+              Tuple.of(Maybe.class, Maybe.MAYBE),
               Tuple.of(MaybeNat.class, MaybeNat.UNKNOWN),
-              Tuple.of(AttributesType.class, AttributesTypes.UNKNOWN),
-              Tuple.of(BaseRType.NotPromise.class, BaseRType.NotPromise.ANY_VALUE),
-              Tuple.of(BaseRType.class, BaseRType.ANY),
-              Tuple.of(VectorElementRType.class, VectorElementRType.ANY),
-              Tuple.of(PrimVecElementRType.class, PrimVecElementRType.ANY),
-              Tuple.of(RPromiseType.class, RPromiseType.MAYBE_LAZY_PROMISE),
-              Tuple.of(
-                  RFunctionType.class,
-                  new RFunctionTypeImpl(
-                      null,
-                      null,
-                      AttributesTypes.UNKNOWN,
-                      MaybeNat.UNKNOWN,
-                      ImmutableList.of(),
-                      Troolean.MAYBE)),
-              Tuple.of(
-                  RPrimVecType.class,
-                  new RPrimVecTypeImpl(
-                      null,
-                      AttributesTypes.UNKNOWN,
-                      MaybeNat.UNKNOWN,
-                      PrimVecElementRType.ANY,
-                      MaybeNat.UNKNOWN,
-                      NoOrMaybe.MAYBE)))
+              Tuple.of(AttributesType.class, AttributesType.ANY),
+              Tuple.of(RFunType.class, RFunType.ANY),
+              Tuple.of(RVectorType.class, RVectorType.ANY))
           .stream()
           .collect(ImmutableMap.toImmutableMap(Tuple2::get1, Tuple2::get2));
-
-  @BeforeContainer
-  static void setup() {
-    // Disable weird case logs because we generate weird types
-    RGenericValueType.ENABLE_WEIRD_CASE_LOGS = false;
-  }
 
   /** FIXME(jakob): This fails occasionally, closure types need to be fixed. */
   @Property(generation = GenerationMode.RANDOMIZED, tries = 100)
@@ -92,7 +68,7 @@ public class LatticeTests {
   /** FIXME(jakob): This fails occasionally, closure types need to be fixed. */
   @Property(generation = GenerationMode.RANDOMIZED, tries = 100)
   void isCoherent_RType(@ForAll RType lhs, @ForAll RType rhs) {
-    isCoherent(lhs, rhs, RTypes.ANY, RTypes.NOTHING);
+    isCoherent(lhs, rhs, RType.ANY, RType.NOTHING);
   }
 
   @SuppressWarnings("unused")
@@ -135,20 +111,20 @@ public class LatticeTests {
         lhs.equals(rhs), lhs.isSubsetOf(rhs) && lhs.isSupersetOf(rhs), "a ≤ b & a ≥ b ⇔ a = b");
 
     // Subset of union and intersection
-    var union = lhs.union(rhs);
-    var intersection = lhs.intersection(rhs);
+    var union = lhs.unionOf(rhs);
+    var intersection = lhs.intersectionOf(rhs);
     assertTrue(lhs.isSubsetOf(union), () -> "a ≤ (a ∨ b)  | " + union);
     assertTrue(rhs.isSubsetOf(union), () -> "b ≤ (a ∨ b)  | " + union);
     assertTrue(Lattice.isSubset(intersection, lhs), () -> "(a ∧ b) ≤ a  | " + intersection);
     assertTrue(Lattice.isSubset(intersection, rhs), () -> "(a ∧ b) ≤ b  | " + intersection);
 
     // Union and intersection
-    assertEquals(lhs, lhs.union(lhs), () -> "a ∨ a = a  | " + lhs.union(lhs));
-    assertEquals(lhs, lhs.intersection(lhs), () -> "a ∧ a = a  | " + lhs.intersection(lhs));
-    assertEquals(top, lhs.union(top), () -> "a ∨ ⊤ = ⊤  | " + lhs.union(top));
-    assertEquals(top, top.union(lhs), () -> "⊤ ∨ a = ⊤  | " + top.union(lhs));
-    assertEquals(lhs, lhs.intersection(top), () -> "a ∧ ⊤ = a  | " + lhs.intersection(top));
-    assertEquals(lhs, top.intersection(lhs), () -> "⊤ ∧ a = a  | " + top.intersection(lhs));
+    assertEquals(lhs, lhs.unionOf(lhs), () -> "a ∨ a = a  | " + lhs.unionOf(lhs));
+    assertEquals(lhs, lhs.intersectionOf(lhs), () -> "a ∧ a = a  | " + lhs.intersectionOf(lhs));
+    assertEquals(top, lhs.unionOf(top), () -> "a ∨ ⊤ = ⊤  | " + lhs.unionOf(top));
+    assertEquals(top, top.unionOf(lhs), () -> "⊤ ∨ a = ⊤  | " + top.unionOf(lhs));
+    assertEquals(lhs, lhs.intersectionOf(top), () -> "a ∧ ⊤ = a  | " + lhs.intersectionOf(top));
+    assertEquals(lhs, top.intersectionOf(lhs), () -> "⊤ ∧ a = a  | " + top.intersectionOf(lhs));
     assertEquals(
         lhs, Lattice.union(lhs, bottom), () -> "a ∨ ⊥ = a  | " + Lattice.union(lhs, bottom));
     assertEquals(
@@ -161,15 +137,15 @@ public class LatticeTests {
         bottom,
         Lattice.intersection(bottom, lhs),
         () -> "⊥ ∧ a = ⊥  | " + Lattice.intersection(bottom, lhs));
-    assertEquals(union, rhs.union(lhs), () -> "a ∨ b = b ∨ a  | " + rhs.union(lhs));
+    assertEquals(union, rhs.unionOf(lhs), () -> "a ∨ b = b ∨ a  | " + rhs.unionOf(lhs));
     assertEquals(
-        intersection, rhs.intersection(lhs), () -> "a ∧ b = b ∧ a  | " + rhs.intersection(lhs));
+        intersection, rhs.intersectionOf(lhs), () -> "a ∧ b = b ∧ a  | " + rhs.intersectionOf(lhs));
     assertEquals(
         lhs,
         Lattice.union(lhs, intersection),
         () -> "a ∨ (a ∧ b) = a  | " + Lattice.union(lhs, intersection));
     assertEquals(
-        lhs, lhs.intersection(union), () -> "a ∧ (a ∨ b) = a  | " + lhs.intersection(union));
+        lhs, lhs.intersectionOf(union), () -> "a ∧ (a ∨ b) = a  | " + lhs.intersectionOf(union));
   }
 
   @Provide

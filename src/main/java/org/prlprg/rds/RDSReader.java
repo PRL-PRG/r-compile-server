@@ -29,14 +29,15 @@ import org.prlprg.sexp.ListSXP;
 import org.prlprg.sexp.NilSXP;
 import org.prlprg.sexp.PromSXP;
 import org.prlprg.sexp.RealSXP;
+import org.prlprg.sexp.RegSymOrLangSXP;
 import org.prlprg.sexp.RegSymSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPType;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.sexp.StrSXP;
-import org.prlprg.sexp.SymOrLangSXP;
 import org.prlprg.sexp.TaggedElem;
 import org.prlprg.sexp.UserEnvSXP;
+import org.prlprg.sexp.ValueSXP;
 import org.prlprg.sexp.VecSXP;
 import org.prlprg.util.IO;
 
@@ -114,7 +115,7 @@ public class RDSReader implements Closeable {
     return sexp;
   }
 
-  private SEXP readItem() throws IOException {
+  private @Nullable SEXP readItemOrUnbound() throws IOException {
     var flags = readFlags();
 
     return switch (flags.getType()) {
@@ -151,11 +152,21 @@ public class RDSReader implements Closeable {
             case BCREPDEF, BCREPREF ->
                 throw new RDSException("Unexpected bytecode reference here (not in bytecode)");
             case ATTRLANGSXP, ATTRLISTSXP -> throw new RDSException("Unexpected attr here");
-            case UNBOUNDVALUE_SXP -> SEXPs.UNBOUND_VALUE;
+            case UNBOUNDVALUE_SXP -> null;
             case GENERICREFSXP, PACKAGESXP, PERSISTSXP, CLASSREFSXP, ALTREPSXP ->
                 throw new RDSException("Unsupported RDS special type: " + s);
           };
     };
+  }
+
+  private SEXP readItem() throws IOException {
+    var itemOrUnbound = readItemOrUnbound();
+
+    if (itemOrUnbound == null) {
+      throw new RDSException("Unexpected unbound value here");
+    }
+
+    return itemOrUnbound;
   }
 
   private SEXP readComplex(Flags flags) throws IOException {
@@ -188,16 +199,28 @@ public class RDSReader implements Closeable {
     // FIXME: do something with the attributes here?
     readAttributes(flags);
     var tag = flags.hasTag() ? readItem() : SEXPs.NULL;
-    var val = readItem();
+    var val = readItemOrUnbound();
     var expr = readItem();
 
     if (tag instanceof NilSXP) {
-      // If the tag is nil, the promise is evaluated
-      return new PromSXP(expr, val, SEXPs.EMPTY_ENV);
+      // If the tag is nil, the promise is eager. We put `EMPTY_ENV` instead of nil as the promise
+      // environment (it can be anything, since it's only used for lazy evaluation).
+      if (val == null) {
+        throw new RDSException(
+            "Promise serialized with nil tag but no value (so it's lazy, but evaluating in GNU-R would crash because the environment is `NULL`)");
+      }
+      if (!(val instanceof ValueSXP v)) {
+        throw new RDSException("Nested promise");
+      }
+      return new PromSXP<>(expr, v, SEXPs.EMPTY_ENV);
     } else if (tag instanceof EnvSXP env) {
-      // Otherwise, the promise is lazy. We represent lazy promises as having a val of
-      // SEXPs.UNBOUND_VALUE, so we set it here accordingly
-      return new PromSXP(expr, SEXPs.UNBOUND_VALUE, env);
+      // Otherwise, the tag should be an environment, the promise's environment, and the promise is
+      // lazy. The "value" of a lazy promise is "unbound", which we represent as `null`.
+      if (val != null) {
+        throw new RDSException(
+            "Promise serialized with env but not unbound value (so the environment is redundant, GNU-R doesn't serialize promises like this)");
+      }
+      return new PromSXP<>(expr, null, env);
     } else {
       throw new RDSException("Expected promise ENV to be environment");
     }
@@ -393,8 +416,10 @@ public class RDSReader implements Closeable {
       ListSXP ansList = (ListSXP) ans;
 
       var fun = ansList.get(0).value();
-      if (!(fun instanceof SymOrLangSXP funSymOrLang)) {
-        throw new RDSException("Expected symbol or language, got: " + fun.type());
+      if (!(fun instanceof RegSymOrLangSXP funSymOrLang)) {
+        throw new RDSException(
+            "Expected regular (i.e. not missing, unbound, etc.) symbol or language, got: "
+                + fun.type());
       }
 
       ListSXP args = SEXPs.NULL;
@@ -433,8 +458,9 @@ public class RDSReader implements Closeable {
     // any tag that might be present.
     readTag(flags);
 
-    if (!(readItem() instanceof SymOrLangSXP fun)) {
-      throw new RDSException("Expected symbol or language");
+    if (!(readItem() instanceof RegSymOrLangSXP fun)) {
+      throw new RDSException(
+          "Expected regular (i.e. not missing, unbound, etc.) symbol or language");
     }
     if (!(readItem() instanceof ListSXP args)) {
       throw new RDSException("Expected list");
@@ -585,8 +611,7 @@ public class RDSReader implements Closeable {
       flags = readFlags();
     }
 
-    // TODO: add the attributes here?
-    return SEXPs.list(data.build());
+    return SEXPs.list(data.build(), Objects.requireNonNull(attributes));
   }
 
   private CloSXP readClosure(Flags flags) throws IOException {

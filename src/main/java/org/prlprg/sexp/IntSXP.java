@@ -79,51 +79,6 @@ record IntSXPImpl(@Override ImmutableIntArray data, @Override Attributes attribu
   }
 }
 
-/** Simple scalar integer = int vector of size 1 with no ALTREP, ATTRIB, or OBJECT. */
-final class ScalarIntSXP extends ScalarSXPImpl<Integer> implements IntSXP {
-  ScalarIntSXP(int data) {
-    super(data);
-  }
-
-  @SuppressWarnings("MissingJavadoc")
-  public int value() {
-    return data;
-  }
-
-  @Override
-  public ImmutableIntArray data() {
-    return ImmutableIntArray.of(data);
-  }
-
-  @Override
-  public IntSXP withAttributes(Attributes attributes) {
-    return SEXPs.integer(data, attributes);
-  }
-
-  @Override
-  public String[] coerceToStrings() {
-    return new String[] {String.valueOf(data)};
-  }
-
-  @Override
-  public int asInt(int index) {
-    if (index == 0) {
-      return data;
-    } else {
-      throw new ArrayIndexOutOfBoundsException("Index out of bounds: " + index);
-    }
-  }
-
-  @Override
-  public double asReal(int index) {
-    if (index == 0) {
-      return data.doubleValue();
-    } else {
-      throw new ArrayIndexOutOfBoundsException("Index out of bounds: " + index);
-    }
-  }
-}
-
 /** Empty int vector with no ALTREP, ATTRIB, or OBJECT. */
 final class EmptyIntSXPImpl extends EmptyVectorSXPImpl<Integer> implements IntSXP {
   static final EmptyIntSXPImpl INSTANCE = new EmptyIntSXPImpl();

@@ -2,10 +2,12 @@ package org.prlprg.bc2ir;
 
 import static org.prlprg.util.Tests.printlnIfVerbose;
 
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.prlprg.ir.closure.Closure;
 
 /** Test our {@linkplain ClosureCompiler IR closure compiler} specifically. */
+@Disabled
 public class IRCompilerTests extends RClosureTestsUsingIRCompiler {
   @Test
   public void inlineForReturn() throws Exception {

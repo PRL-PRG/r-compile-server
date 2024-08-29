@@ -7,10 +7,12 @@ import static org.prlprg.TestConfig.FAST_TESTS;
 import java.io.File;
 import java.io.IOException;
 import org.prlprg.RClosureTests;
+import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.BCodeSXP;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
+import org.prlprg.sexp.parseprint.SEXPPrintOptions;
 import org.prlprg.util.Files;
 
 /** {@link RClosureTests} but has methods to assert that our bytecode compiler works. */
@@ -53,7 +55,9 @@ public abstract class RClosureTestsUsingBytecodeCompiler extends RClosureTests {
         if (!eq) {
           // bytecode can be large, so we only want to do it when it is different
           assertEquals(
-              gnurBc.toString(), ourBc.toString(), "`compile(read(ast)) == read(R.compile(ast))`");
+              Printer.toString(gnurBc, SEXPPrintOptions.FULL),
+              Printer.toString(ourBc, SEXPPrintOptions.FULL),
+              "`compile(read(ast)) == read(R.compile(ast))`");
           fail("Produced bytecode is different, but the toString() representation is the same.");
         }
       } else {

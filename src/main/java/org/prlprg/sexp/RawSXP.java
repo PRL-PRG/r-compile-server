@@ -57,23 +57,6 @@ record RawSXPImpl(ImmutableList<Byte> data, @Override Attributes attributes) imp
   }
 }
 
-/** Simple scalar byte = raw (byte) vector of size 1 with no ALTREP, ATTRIB, or OBJECT. */
-final class ScalarRawSXP extends ScalarSXPImpl<Byte> implements RawSXP {
-  ScalarRawSXP(byte data) {
-    super(data);
-  }
-
-  @SuppressWarnings("MissingJavadoc")
-  public Byte value() {
-    return data;
-  }
-
-  @Override
-  public RawSXP withAttributes(Attributes attributes) {
-    return SEXPs.raw(data, attributes);
-  }
-}
-
 /** Empty byte vector with no ALTREP, ATTRIB, or OBJECT. */
 final class EmptyRawSXPImpl extends EmptyVectorSXPImpl<Byte> implements RawSXP {
   static final EmptyRawSXPImpl INSTANCE = new EmptyRawSXPImpl();

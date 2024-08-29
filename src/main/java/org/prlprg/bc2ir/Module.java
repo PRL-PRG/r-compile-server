@@ -65,7 +65,7 @@ public class Module {
    * it now.
    *
    * <p>The closure must not be an inner closure, i.e. it will must have an {@linkplain
-   * StaticEnv#NOT_CLOSED unclosed} environment, because inner closures are compiled for each outer
+   * StaticEnv#UNKNOWN unclosed} environment, because inner closures are compiled for each outer
    * closure version (even if the AST is the same, the environment will probably be different, and
    * we cache inner closures when we cache their outer closures, so to reduce complexity we don't
    * cache inner closures by themselves).

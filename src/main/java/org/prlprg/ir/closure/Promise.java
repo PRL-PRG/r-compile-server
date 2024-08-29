@@ -6,19 +6,18 @@ import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.bc.Bc;
 import org.prlprg.ir.cfg.CFG;
-import org.prlprg.ir.cfg.IsEnv;
 import org.prlprg.ir.cfg.Node;
-import org.prlprg.ir.cfg.RValue;
 import org.prlprg.ir.cfg.StaticEnv;
-import org.prlprg.ir.type.REffect;
-import org.prlprg.ir.type.REffects;
+import org.prlprg.ir.cfg.instr.StmtData;
+import org.prlprg.ir.effect.PerformsReflection;
+import org.prlprg.ir.effect.REffects;
 import org.prlprg.ir.type.lattice.Lattice;
 import org.prlprg.ir.type.lattice.NoOrMaybe;
-import org.prlprg.ir.type.lattice.Troolean;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.BCodeSXP;
+import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.util.Pair;
 
@@ -26,16 +25,16 @@ import org.prlprg.util.Pair;
  * IR for a promise used by an IR {@linkplain ClosureVersion closure version}.
  *
  * <p>Contains a {@link BCodeSXP} which is the GNU-R promise code, {@link CFG} which is the compiled
- * {@linkplain org.prlprg.ir IR} code, an {@link RValue} which is the eager value (if known), an
- * {@link RValue} which is the environment that code is evaluated in, and {@link Promise.Properties}
- * which are guarantees that the promise invoker can assume for its own optimizations.
+ * {@linkplain org.prlprg.ir IR} code, a {@link Node} which is the eager value (if known), a {@link
+ * Node} which is the environment that code is evaluated in, and {@link Promise.Properties} which
+ * are guarantees that the promise invoker can assume for its own optimizations.
  */
 public final class Promise extends CodeObject {
   // The non-final fields are only non-final so that they can be set in `LateConstruct`.
   // Otherwise they are effectively final.
   private Bc bc;
   private CFG body;
-  private @IsEnv RValue env;
+  private Node<? extends EnvSXP> env;
   // Except `properties` is set even after `LateConstruct`.
   private Properties properties;
 
@@ -51,9 +50,9 @@ public final class Promise extends CodeObject {
    *     isn't a good one.
    * @throws IllegalArgumentException If {@code env} isn't statically known to be an environment/
    */
-  public Promise(String name, Bc bc, CFG body, @IsEnv RValue env, Properties properties) {
+  public Promise(String name, Bc bc, CFG body, Node<? extends EnvSXP> env, Properties properties) {
     super(name);
-    if (env.isEnv() != Troolean.YES) {
+    if (env.isSubtypeOf(EnvSXP.class)) {
       throw new IllegalArgumentException("`env` must be statically known to be an environment.");
     }
 
@@ -79,7 +78,7 @@ public final class Promise extends CodeObject {
   }
 
   /** The environment that the promise gets evaluated in. */
-  public @IsEnv RValue env() {
+  public Node<? extends EnvSXP> env() {
     return env;
   }
 
@@ -94,7 +93,7 @@ public final class Promise extends CodeObject {
    * <p>This is in {@link #properties()} because it's one of the things inferred from the promise
    * body (similar to whether it performs reflection).
    */
-  public @Nullable RValue eagerValue() {
+  public @Nullable Node<? extends SEXP> eagerValue() {
     return properties.eagerValue();
   }
 
@@ -117,35 +116,36 @@ public final class Promise extends CodeObject {
   }
 
   @Override
-  public @UnmodifiableView List<Node> outerCfgNodes() {
+  public @UnmodifiableView List<Node<?>> outerCfgNodes() {
     return properties.eagerValue != null ? List.of(properties.eagerValue, env) : List.of(env);
   }
 
   @Override
-  public void unsafeReplaceOuterCfgNode(Node oldNode, Node newNode) {
+  public void unsafeReplaceOuterCfgNode(Node<?> oldNode, Node<?> newNode) {
     if (properties.eagerValue != null && properties.eagerValue.equals(oldNode)) {
-      if (!(newNode instanceof RValue newEagerValue)) {
+      if (!newNode.isSubtypeOf(SEXP.class)) {
         throw new IllegalArgumentException(
-            "Promise replacement `eagerValue` node must be an RValue.");
+            "Replacement promise `eagerValue` node must be a `SEXP` node.");
       }
-      properties = properties.withEagerValue(newEagerValue);
+      properties = properties.witheagerValue(newNode.cast(SEXP.class));
     }
 
     if (env.equals(oldNode)) {
-      if (!(newNode instanceof RValue newEnv)) {
-        throw new IllegalArgumentException("Promise replacement `env` node must be an RValue.");
-      }
-      if (newEnv.isEnv() != Troolean.YES) {
+      if (!newNode.isSubtypeOf(EnvSXP.class)) {
         throw new IllegalArgumentException(
-            "Promise replacement `env` node must be statically known to be an environment.");
+            "Replacement promise `env` node must be an environment node.");
       }
-      env = newEnv;
+      env = newNode.cast(EnvSXP.class);
     }
   }
 
   @Override
-  public void verifyOuterCfgRValuesAreOfCorrectTypes() {
-    if (env.isEnv() != Troolean.YES) {
+  public void verifyOuterCfgNodesAreOfCorrectTypes() {
+    if (eagerValue() != null && !eagerValue().isSubtypeOf(SEXP.class)) {
+      throw new IllegalStateException(
+          "Promise `eagerValue` must be statically known to be an SEXP.");
+    }
+    if (!env.isSubtypeOf(EnvSXP.class)) {
       throw new IllegalStateException(
           "Promise `env` must be statically known to be an environment.");
     }
@@ -171,13 +171,13 @@ public final class Promise extends CodeObject {
    *
    * <p>Also, currently the only property is that a promise doesn't perform reflection.
    */
-  public record Properties(ImmutableSet<Property> flags, @Nullable RValue eagerValue)
+  public record Properties(ImmutableSet<Property> flags, @Nullable Node<? extends SEXP> eagerValue)
       implements Lattice<Properties> {
     /** Properties that don't guarantee anything. */
     public static final Properties EMPTY = new Properties(ImmutableSet.of(), null);
 
     /** Returns the same properties but with a different eager value. */
-    public Properties withEagerValue(RValue eagerValue) {
+    public Properties witheagerValue(Node<? extends SEXP> eagerValue) {
       return new Properties(flags, eagerValue);
     }
 
@@ -195,7 +195,7 @@ public final class Promise extends CodeObject {
     public REffects effects() {
       var effects = REffects.ARBITRARY;
       if (flags.contains(Property.NO_REFLECTION)) {
-        effects = effects.without(REffect.Reflection);
+        effects = effects.without(new PerformsReflection());
       }
       return effects;
     }
@@ -220,7 +220,7 @@ public final class Promise extends CodeObject {
      * @throws IllegalArgumentException If both properties have different non-null eager values.
      */
     @Override
-    public Properties union(Properties other) {
+    public Properties unionOf(Properties other) {
       if (eagerValue != null && other.eagerValue != null && !eagerValue.equals(other.eagerValue)) {
         throw new IllegalArgumentException("Properties have different non-null eager values.");
       }
@@ -236,7 +236,7 @@ public final class Promise extends CodeObject {
      * @throws IllegalArgumentException If both properties have different non-null eager values.
      */
     @Override
-    public Properties intersection(Properties other) {
+    public Properties intersectionOf(Properties other) {
       if (eagerValue != null && other.eagerValue != null && !eagerValue.equals(other.eagerValue)) {
         throw new IllegalArgumentException("Properties have different non-null eager values.");
       }
@@ -257,14 +257,13 @@ public final class Promise extends CodeObject {
   /**
    * Return a promise, and then replace its data with that of another promise later.
    *
-   * <p>This is necessary for deserialization, since we deserialize {@link
-   * org.prlprg.ir.cfg.StmtData.MkProm StmtData.MkProm} before we deserialize the promise it
-   * contains; we give {@link org.prlprg.ir.cfg.StmtData.MkProm MkProm} the returned promise, which
-   * is initially filled with misc data, but is late-assigned before the entire closure is returned
-   * to code outside the package.
+   * <p>This is necessary for deserialization, since we deserialize {@link StmtData.MkProm
+   * StmtData.MkProm} before we deserialize the promise it contains; we give {@link StmtData.MkProm
+   * MkProm} the returned promise, which is initially filled with misc data, but is late-assigned
+   * before the entire closure is returned to code outside the package.
    */
   static Pair<Promise, Promise.LateConstruct> lateConstruct(String name) {
-    var promise = new Promise(name, Bc.empty(), new CFG(), StaticEnv.NOT_CLOSED, Properties.EMPTY);
+    var promise = new Promise(name, Bc.empty(), new CFG(), StaticEnv.UNKNOWN, Properties.EMPTY);
     return Pair.of(promise, promise.new LateConstruct());
   }
 
@@ -286,25 +285,17 @@ public final class Promise extends CodeObject {
   @ParseMethod
   private Promise(Parser p, ClosureParseContext ctx) {
     super("prom", p, ctx);
-    var idIndex = ctx.lastYieldedIdIndex();
+    var idIndex = ctx.currentIdIndex();
 
     var s = p.scanner();
 
-    s.assertAndSkip("env");
-    env = p.parse(RValue.class);
     properties = s.trySkip("has") ? p.parse(Properties.class) : Properties.EMPTY;
+    env = s.trySkip("env=") ? Node.parse(p, EnvSXP.class) : StaticEnv.UNKNOWN;
+    bc = s.trySkip("body=") ? p.parse(BCodeSXP.class).bc() : Bc.empty();
 
     s.assertAndSkip("{");
-
-    bc = p.parse(Bc.class);
-    s.assertAndSkip("=== IR ===");
     body = p.withContext(ctx.ref(new NodeIdQualifier(name, idIndex))).parse(CFG.class);
-
     s.assertAndSkip('}');
-
-    if (ctx instanceof ClosureParseContext.Outermost o) {
-      o.parseRemaining(p);
-    }
   }
 
   // The class doesn't escape its visibility, because this is a protected method of a sealed class.
@@ -312,32 +303,28 @@ public final class Promise extends CodeObject {
   protected void print(
       Printer p, @SuppressWarnings("ClassEscapesDefinedScope") ClosurePrintContext ctx) {
     printHeader("prom", p, ctx);
-    var idIndex = ctx.lastYieldedIdIndex();
+    var idIndex = ctx.currentIdIndex();
 
     var w = p.writer();
 
-    w.write(" env ");
-    p.print(env);
     if (!properties.isEmpty()) {
       w.write(" has ");
       w.runIndented(() -> p.print(properties));
     }
+    if (ctx.options().printFullOrigin()) {
+      w.write(" env=");
+      w.runIndented(() -> p.print(env));
+      w.write(" bc=");
+      w.runIndented(() -> p.print(bc));
+    }
 
     w.write(" {");
-
     w.runIndented(
         () -> {
           w.write('\n');
-          p.print(bc);
-          w.write("\n=== IR ===\n");
           p.withContext(ctx.ref(new NodeIdQualifier(name, idIndex))).print(body);
         });
-
     w.write("\n}");
-
-    if (ctx instanceof ClosurePrintContext.Outermost o) {
-      o.printRemaining(p);
-    }
   }
 
   @Override

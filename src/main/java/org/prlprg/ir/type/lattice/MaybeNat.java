@@ -22,9 +22,9 @@ public sealed interface MaybeNat extends Lattice<MaybeNat> {
     return this instanceof Known known && known.value() < value;
   }
 
-  default @Override MaybeNat union(MaybeNat other) {
+  default @Override MaybeNat unionOf(MaybeNat other) {
     return switch (other) {
-      case Known(var otherValue) -> union(otherValue);
+      case Known(var otheiSexp) -> unionOf(otheiSexp);
       case Unknown() -> other;
     };
   }
@@ -32,16 +32,16 @@ public sealed interface MaybeNat extends Lattice<MaybeNat> {
   @Override
   default boolean isSubsetOf(MaybeNat other) {
     return switch (other) {
-      case Known(var otherValue) ->
+      case Known(var otheiSexp) ->
           switch (this) {
-            case Known(var value) -> value == otherValue;
+            case Known(var value) -> value == otheiSexp;
             case Unknown() -> false;
           };
       case Unknown() -> true;
     };
   }
 
-  default MaybeNat union(int exact) {
+  default MaybeNat unionOf(int exact) {
     return switch (this) {
       case Known(var value) -> value == exact ? this : new Unknown();
       case Unknown() -> this;
@@ -49,36 +49,36 @@ public sealed interface MaybeNat extends Lattice<MaybeNat> {
   }
 
   @Override
-  default @Nullable MaybeNat intersection(MaybeNat other) {
+  default @Nullable MaybeNat intersectionOf(MaybeNat other) {
     return switch (other) {
-      case Known(var otherValue) ->
+      case Known(var otheiSexp) ->
           switch (this) {
-            case Known(var value) -> value == otherValue ? this : null;
+            case Known(var value) -> value == otheiSexp ? this : null;
             case Unknown() -> other;
           };
       case Unknown() -> this;
     };
   }
+}
 
-  record Known(int value) implements MaybeNat {
-    public Known {
-      if (value < 0) {
-        throw new IllegalArgumentException("Can't be negative");
-      }
-    }
-
-    @Override
-    public String toString() {
-      return Integer.toString(value);
+record Known(int value) implements MaybeNat {
+  public Known {
+    if (value < 0) {
+      throw new IllegalArgumentException("Can't be negative");
     }
   }
 
-  record Unknown() implements MaybeNat {
-    public Unknown {}
+  @Override
+  public String toString() {
+    return Integer.toString(value);
+  }
+}
 
-    @Override
-    public String toString() {
-      return "";
-    }
+record Unknown() implements MaybeNat {
+  public Unknown {}
+
+  @Override
+  public String toString() {
+    return "";
   }
 }

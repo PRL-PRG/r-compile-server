@@ -95,11 +95,11 @@ public class ContextTest extends AbstractGNURBasedTest {
     assertThat(a.first()).isEqualTo(fun.env());
     assertThat(a.second()).isEqualTo(SEXPs.real(1));
 
-    var z = ctx.resolve("z").get();
-    assertThat(z.second()).isEqualTo(SEXPs.UNBOUND_VALUE);
+    var z = ctx.resolve("z");
+    assertTrue(z.isEmpty());
 
-    var b = ctx.resolve("b").get();
-    assertThat(b.second()).isEqualTo(SEXPs.UNBOUND_VALUE);
+    var b = ctx.resolve("b");
+    assertTrue(b.isEmpty());
   }
 
   @Test
