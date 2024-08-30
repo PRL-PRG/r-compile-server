@@ -20,6 +20,6 @@ Value Rsh_NilValue;
 Value Rsh_UnboundValue;
 SEXP NOT_OP;
 SEXP DOTEXTERNAL2_SYM;
-SEXP RSH_CALL_TRAMPOLINE_SXP;
+SEXP BC2C_CALL_TRAMPOLINE_SXP;
 
 #include "runtime_impl.h"

@@ -355,14 +355,17 @@ static INLINE SEXP bcell_get_cache(SEXP symbol, SEXP rho, BCell *cache) {
   }
 }
 
-static INLINE SEXP bcell_value(SEXP loc) {
-  if (BCELL_TAG(loc)) {
-    bcell_expand(loc);
-    return CAR0(loc);
-  } else if (loc != R_NilValue && !IS_ACTIVE_BINDING(loc))
-    return CAR0(loc);
-  else
+static INLINE SEXP bcell_value(SEXP cell) {
+  if (cell == R_UnboundValue) {
     return R_UnboundValue;
+  } else if (BCELL_TAG(cell)) {
+    bcell_expand(cell);
+    return CAR0(cell);
+  } else if (cell != R_NilValue && !IS_ACTIVE_BINDING(cell)) {
+    return CAR0(cell);
+  } else {
+    return R_UnboundValue;
+  }
 }
 
 static INLINE Rboolean bcell_set_value(BCell cell, SEXP value) {
@@ -426,7 +429,7 @@ JIT_DECL Value Rsh_NilValue;
 JIT_DECL Value Rsh_UnboundValue;
 JIT_DECL SEXP NOT_OP;
 JIT_DECL SEXP DOTEXTERNAL2_SYM;
-JIT_DECL SEXP RSH_CALL_TRAMPOLINE_SXP;
+JIT_DECL SEXP BC2C_CALL_TRAMPOLINE_SXP;
 
 #ifdef RSH_TESTS
 #include "runtime_impl.h"
@@ -590,6 +593,11 @@ static INLINE void Rsh_set_var(SEXP symbol, Value value, SEXP rho,
     bcell_get_cache(symbol, rho, cell);
     BCELL_INLINE(*cell, value);
   }
+}
+
+static INLINE void Rsh_set_var2(SEXP symbol, Value value, SEXP rho) {
+  INCREMENT_NAMED(value);
+  Rf_setVar(symbol, val_as_sexp(value), rho);
 }
 
 static INLINE SEXP Rsh_return(Value v) { return val_as_sexp(v); }
@@ -1004,7 +1012,7 @@ static INLINE SEXP create_wrapper_body(SEXP closure, SEXP rho, SEXP c_cp) {
   // store the original AST (consequently it will not correspond to the AST)
   SET_VECTOR_ELT(cp, i++, VECTOR_ELT(original_cp, 0));
   SET_VECTOR_ELT(cp, i++, DOTEXTERNAL2_SYM);
-  SET_VECTOR_ELT(cp, i++, RSH_CALL_TRAMPOLINE_SXP);
+  SET_VECTOR_ELT(cp, i++, BC2C_CALL_TRAMPOLINE_SXP);
   SET_VECTOR_ELT(cp, i++, closure);
   SET_VECTOR_ELT(cp, i++, c_cp);
   SET_VECTOR_ELT(cp, i++, expr_index);

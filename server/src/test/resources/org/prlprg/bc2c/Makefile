@@ -2,7 +2,7 @@ RSH_HOME := /home/krikava/r-compile-server/code
 R_HOME := $(RSH_HOME)/external/R
 R := $(R_HOME)/bin/R
 CC := gcc
-CFLAGS := -I$(RSH_HOME)/server/backend \
+CFLAGS := -I$(RSH_HOME)/client/rsh/src/bc2c \
 		  -I$(R_HOME)/include \
 		  -fpic \
 		  -fno-plt \

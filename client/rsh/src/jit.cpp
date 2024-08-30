@@ -7,15 +7,11 @@
 #include <llvm/ExecutionEngine/Orc/LLJIT.h>
 #include <llvm/Support/TargetSelect.h>
 
-extern "C" {
-#include "bc2c/runtime.h"
-}
 namespace rsh {
 
 JIT *GJIT = JIT::create();
 
 JIT *JIT::create() {
-  Rsh_initialize_runtime();
   llvm::InitializeNativeTarget();
   llvm::InitializeNativeTargetAsmPrinter();
 

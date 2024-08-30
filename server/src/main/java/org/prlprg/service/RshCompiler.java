@@ -40,8 +40,6 @@ public class RshCompiler {
                     "-Wno-comment",
                     "-DRSH");
 
-    private static RshCompiler instance;
-
     private final List<String> compilerFlags;
 
     public RshCompiler(List<String> compilerFlags) {
@@ -61,19 +59,8 @@ public class RshCompiler {
         }
         flags.add("-O" + optimizationLevel);
 
-        if (instance == null) {
-            try {
-                instance = new RshCompiler(flags);
-                instance.initialize();
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        }
-
-        return instance;
-    }
-
-    private void initialize() throws Exception {
+        // TODO: cache
+        return new RshCompiler(flags);
     }
 
     public CCCompilationBuilder createBuilder(String input, String output) {
