@@ -3,6 +3,7 @@
 #include "protocol.pb.h"
 #include "rsh.hpp"
 #include "serialize.hpp"
+#include "util.hpp"
 #include <cstdio>
 #include <cstring>
 
@@ -176,12 +177,14 @@ SEXP call_fun(SEXP call, SEXP op, SEXP args, SEXP env) {
   return res;
 }
 
-SEXP initialize(SEXP call_fun) {
-  // TODO: it would be great if this one can go away,
-  // intializing it in the init method.
-  // I just don't know how.
-  CALL_FUN = call_fun;
-  // Rsh_initialize_runtime();
+#define RSH_PACKAGE_NAME "rsh"
+
+SEXP initialize() {
+  Rsh_initialize_runtime();
+
+  CALL_FUN = load_symbol_checked("rsh", "C_call_fun");
+  BC2C_CALL_TRAMPOLINE_SXP = load_symbol_checked("rsh", "C_call_trampoline");
+
 
   return R_NilValue;
 }

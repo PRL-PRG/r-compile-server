@@ -22,7 +22,7 @@ public class JITService {
 
     public NativeClosure execute(String name, CloSXP closure, int bcOptimization, int ccOptimization)
             throws Exception {
-        logger.fine("Compiling closure: " + name + "\n" + closure + "\n");
+        logger.fine("Compiling closure: " + name + "\n" + closure + "(bcOpt=" + bcOptimization + ", ccOpt=" + ccOptimization + ")\n");
 
         var bcCompiler = new BCCompiler(closure, rsession);
         bcCompiler.setOptimizationLevel(bcOptimization);

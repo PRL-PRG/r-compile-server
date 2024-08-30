@@ -39,8 +39,12 @@ JIT_DEF SEXP Rsh_initialize_runtime(void) {
   LOAD_R_BUILTIN(NOT_OP, "!");
   DOTEXTERNAL2_SYM = Rf_install(".External2");
 
-  RSH_CALL_TRAMPOLINE_SXP = Rf_mkString("Rsh_call_trampoline");
-  R_PreserveObject(RSH_CALL_TRAMPOLINE_SXP);
+#ifdef RSH_TESTS
+  BC2C_CALL_TRAMPOLINE_SXP = Rf_mkString("Rsh_call_trampoline");
+  R_PreserveObject(BC2C_CALL_TRAMPOLINE_SXP);
+#else
+// it is initialized in the rsh::initialize method in the package
+#endif
 
   return R_NilValue;
 }

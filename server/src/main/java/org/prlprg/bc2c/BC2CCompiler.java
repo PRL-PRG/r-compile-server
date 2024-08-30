@@ -209,6 +209,7 @@ class ClosureCompiler {
 
         switch (instr) {
             case BcInstr.SetVar(var idx) -> compileSetVar(idx);
+            case BcInstr.SetVar2(var idx) -> compileSetVar2(idx);
             case BcInstr.LdConst(var idx) -> compileLd(constantVAL(idx));
             case BcInstr.LdTrue() -> compileLd(VAL_TRUE);
             case BcInstr.LdFalse() -> compileLd(VAL_FALSE);
@@ -381,6 +382,12 @@ class ClosureCompiler {
         body.line(
                 "Rsh_set_var(%s, %s, %s, &%s);"
                         .formatted(constantSXP(idx), stack.curr(0), NAME_ENV, cell(idx)));
+    }
+
+    private void compileSetVar2(ConstPool.Idx<RegSymSXP> idx) {
+        body.line(
+                "Rsh_set_var2(%s, %s, %s);"
+                        .formatted(constantSXP(idx), stack.curr(0), NAME_ENV));
     }
 
     private void compileReturn() {

@@ -1,4 +1,5 @@
 #include "util.hpp"
+#include <cassert>
 
 SEXP append_vec(SEXP v1, SEXP v2) {
   int n1 = LENGTH(v1);
@@ -66,5 +67,20 @@ SEXP append_elem(SEXP vec, SEXP element) {
   }
 
   UNPROTECT(1);
+  return v;
+}
+
+SEXP load_symbol_checked(const char *package, const char *name) {
+  SEXP p_sxp = Rf_install(package);
+  SEXP s_sxp = Rf_install(name);
+  static SEXP triple_colon = Rf_install(":::");
+  SEXP expr = PROTECT(Rf_lang3(triple_colon, p_sxp, s_sxp));
+  SEXP v = Rf_eval(expr, R_GlobalEnv);
+  UNPROTECT(1);
+
+  if (v == R_UnboundValue) {
+    Rf_error("Variable '%s' not found", name);
+  }
+
   return v;
 }

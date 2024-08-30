@@ -10,7 +10,7 @@ NULL
 # initialize globals
 .onLoad <- function(libname, pkgname) {
   # TODO: it would be great to make this go away and initialize this in C
-  .Call(C_initialize, C_call_fun)
+  .Call(C_initialize)
 }
 
 rsh_bc2c_opt_level <- function() {
@@ -41,7 +41,7 @@ rsh_compile <- function(f, name, opt_level = rsh_bc2c_opt_level()) {
   if (missing(name)) {
     name <- as.character(substitute(f))
   }
-  invisible(.Call(C_compile_fun, f, name, opt_level))
+  invisible(.Call(C_compile_fun, f, name, as.integer(opt_level)))
 }
 
 #' Compile given closure
@@ -66,8 +66,9 @@ rsh_cmpfun <- function(f, options) {
     stop("options must be a list")
   }
   options <- utils::modifyList(list(optimize = rsh_bc2c_opt_level()), options)
+  print(options)
 
-  rsh_compile(g, as.character(substitute(f)), options$optimize)
+  rsh_compile(g, name = as.character(substitute(f)), opt_level = options$optimize)
 
   g
 }
