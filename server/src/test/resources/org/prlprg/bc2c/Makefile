@@ -3,23 +3,23 @@ R_HOME := $(RSH_HOME)/external/R
 R := $(R_HOME)/bin/R
 CC := gcc
 CFLAGS := -I$(RSH_HOME)/client/rsh/src/bc2c \
-		  -I$(R_HOME)/include \
-		  -fpic \
-		  -fno-plt \
-		  -fexceptions \
-		  -fstack-clash-protection \
-		  -fcf-protection \
-		  -flto=auto \
-		  -ffat-lto-objects \
-		  -Wformat \
-		  -Werror=format-security \
-		  -Wall \
-		  -Winline \
-		  -Wno-unused-but-set-variable \
-		  -Wno-comments \
-		  -pedantic \
-		  -shared \
-		  -DRSH_TESTS
+		-I$(R_HOME)/include \
+		-fpic \
+		-fno-plt \
+		-fexceptions \
+		-fstack-clash-protection \
+		-fcf-protection \
+		-flto=auto \
+		-ffat-lto-objects \
+		-Wformat \
+		-Werror=format-security \
+		-Wall \
+		-Winline \
+		-Wno-unused-but-set-variable \
+		-Wno-comments \
+		-pedantic \
+		-shared \
+		-DRSH_TESTS
 
 DRIVER := test.R
 SOURCE := test.c

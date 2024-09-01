@@ -15,7 +15,7 @@ public interface ThrowingRunnable extends Runnable {
     try {
       runWithException();
     } catch (RuntimeException e) {
-      throw  e;
+      throw e;
     } catch (Exception e) {
       throw new RuntimeException(e);
     }

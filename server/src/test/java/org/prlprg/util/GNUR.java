@@ -143,13 +143,13 @@ public class GNUR implements AutoCloseable {
           version = versionStr.substring("R version ".length()).split(" ", 2)[0];
           if (!version.equals(session.version())) {
             throw new RuntimeException(
-                    "R version can't be used for compiler tests: expected version "
-                            + session.version()
-                            + " but found "
-                            + version
-                            + " (R_BIN = "
-                            + R_BIN
-                            + ")");
+                "R version can't be used for compiler tests: expected version "
+                    + session.version()
+                    + " but found "
+                    + version
+                    + " (R_BIN = "
+                    + R_BIN
+                    + ")");
           }
         } else if (versionStr.startsWith("R Under development (unstable)")) {
           // OK -- this should be a bundled version
