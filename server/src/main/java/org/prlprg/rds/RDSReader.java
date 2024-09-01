@@ -14,6 +14,7 @@ import java.util.*;
 import javax.annotation.Nullable;
 import org.prlprg.RSession;
 import org.prlprg.bc.Bc;
+import org.prlprg.primitive.BuiltinId;
 import org.prlprg.primitive.Complex;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
@@ -134,7 +135,8 @@ public class RDSReader implements Closeable {
             case BCODE -> readByteCode();
             case EXPR -> readExpr(flags);
             case PROM -> readPromise(flags);
-            case BUILTIN, SPECIAL -> readBuiltinOrSpecial();
+            case BUILTIN -> readBuiltin();
+            case SPECIAL -> readSpecial();
             case CPLX -> readComplex(flags);
             default -> throw new RDSException("Unsupported SEXP type: " + s.sexp());
           };
@@ -171,17 +173,24 @@ public class RDSReader implements Closeable {
     return SEXPs.complex(cplx.build(), attributes);
   }
 
-  private SEXP readBuiltinOrSpecial() throws IOException {
+  private SEXP readBuiltin() throws IOException {
+    return SEXPs.builtin(new BuiltinId(readBuiltinOrSpecial()));
+  }
+
+  private SEXP readSpecial() throws IOException {
+    return SEXPs.special(new BuiltinId(readBuiltinOrSpecial()));
+  }
+
+  private int readBuiltinOrSpecial() throws IOException {
     var length = in.readInt();
     var name = in.readString(length, nativeEncoding);
+    var idx = rsession.RFunTab().indexOf(name);
 
-    // For now, we throw an exception upon reading any SpecialSXP or BuiltinSXP. This is because
-    // RDS serializes builtins via their name, but we do not have any (fully implemented) construct
-    // representing the name of a builtin (instead, they are represented with indices)
-    throw new UnsupportedOperationException("Unable to read builtin: " + name);
+    if (idx == -1) {
+      throw new RDSException("Unknown builtin/special function: " + name);
+    }
 
-    // Spec for future implementation:
-    // - return SEXPs.builtin() or SEXPs.special() depending on the boolean passed to the method
+    return idx;
   }
 
   private SEXP readPromise(Flags flags) throws IOException {
@@ -433,7 +442,8 @@ public class RDSReader implements Closeable {
     // any tag that might be present.
     readTag(flags);
 
-    if (!(readItem() instanceof SymOrLangSXP fun)) {
+    var x = readItem();
+    if (!(x instanceof SymOrLangSXP fun)) {
       throw new RDSException("Expected symbol or language");
     }
     if (!(readItem() instanceof ListSXP args)) {

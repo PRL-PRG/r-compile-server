@@ -7,7 +7,8 @@ import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.RegSymSXP;
 import org.prlprg.sexp.SEXPs;
 
-// TODO
+// FIXME: do we need this? can we simplify the builtins/specials to have just an int?
+
 /**
  * Identifies an R "builtin" or "special" function.
  *

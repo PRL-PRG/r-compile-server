@@ -26,8 +26,8 @@ public class BCCompilerTest extends RClosureTestsUsingBytecodeCompiler {
   public void constantFoldNamedC() {
     var code =
         """
-            function(x) c(i = 1, d = 1, s = 1)
-            """;
+                        function(x) c(i = 1, d = 1, s = 1)
+                        """;
     var sexp = compileBody(code, 3);
     var bc = ((BCodeSXP) sexp).bc();
     // FIXME: use some matchers
@@ -42,10 +42,10 @@ public class BCCompilerTest extends RClosureTestsUsingBytecodeCompiler {
   public void constantFoldMul2() {
     var code =
         """
-            function(x) {
-              2 * 3 * x
-            }
-            """;
+                        function(x) {
+                          2 * 3 * x
+                        }
+                        """;
     var sexp = compileBody(code, 2);
     var bc = ((BCodeSXP) sexp).bc();
     // FIXME: use some matchers
@@ -60,8 +60,8 @@ public class BCCompilerTest extends RClosureTestsUsingBytecodeCompiler {
   public void constantFoldAdd() {
     var code =
         """
-            function(x) 1 + 2
-            """;
+                        function(x) 1 + 2
+                        """;
     var sexp = compileBody(code, 3);
     var bc = ((BCodeSXP) sexp).bc();
 
@@ -76,8 +76,8 @@ public class BCCompilerTest extends RClosureTestsUsingBytecodeCompiler {
   public void constantFoldAdd2() {
     var code =
         """
-            function(x) TRUE + c(10, 11)
-            """;
+                        function(x) TRUE + c(10, 11)
+                        """;
     var sexp = compileBody(code, 3);
     var bc = ((BCodeSXP) sexp).bc();
     // FIXME: use some matchers
@@ -86,6 +86,11 @@ public class BCCompilerTest extends RClosureTestsUsingBytecodeCompiler {
     assertEquals(2, v.size());
     assertEquals(11.0, v.get(0));
     assertEquals(12.0, v.get(1));
+  }
+
+  @Test
+  public void adhoc() throws Exception {
+    testClosure("base:::norm");
   }
 
   @Override
