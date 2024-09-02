@@ -817,7 +817,7 @@ static INLINE Value Rsh_relop(SEXP call, RshRelOp op, Value lhs, Value rhs,
   if (VAL_IS_DBL_NOT_NAN(lhs)) {
     double lhs_dbl = VAL_DBL(lhs);
     if (VAL_IS_DBL_NOT_NAN(rhs)) {
-      DO_RELOP(op, lhs_dbl, rhs, &res);
+      DO_RELOP(op, lhs_dbl, VAL_DBL(rhs), &res);
       return res;
     } else if (VAL_IS_INT_NOT_NA(rhs)) {
       DO_RELOP(op, lhs_dbl, VAL_INT(rhs), &res);
