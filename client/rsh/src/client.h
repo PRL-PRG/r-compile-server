@@ -1,5 +1,7 @@
 #pragma once
-#include "protocol.pb.h"
+#include "messages.pb.h"
+#include "routes.pb.h"
+#include "routes.grpc.pb.h"
 #include "rsh.h"
 #include <R.h>
 #include <Rinternals.h>
@@ -8,26 +10,21 @@
 #include <string>
 #include <vector>
 #include <zmq.hpp>
+#include <grpc/grpc.h>
+#include <grpcpp/channel.h>
 
 namespace rsh {
 
-using namespace server::protocol;
-
-// TODO: compiler a CLOSXP
-CompileResponse remote_compile(std::string const &name,
-                               std::vector<uint8_t> const &rds_closure,
-                               u32 opt_level);
-
 class Client {
 private:
-  std::unique_ptr<RouteGuide::Stub> stub_;
+  std::unique_ptr<protocol::CompileService::Stub> stub_;
 
 public:
-  Client(std::shared_ptr<Channel> channel) : stub_(Routes::NewStub(channel));
+  Client(std::shared_ptr<grpc::Channel> channel, std::vector<std::string> installed_packages);
 
-  CompileResponse remote_compile(std::string const& name, 
+  protocol::CompileResponse remote_compile(std::string const& name, 
                                 std::vector<uint8_t> const &rds_closure,
-                                Tier tier,
+                                protocol::Tier tier,
                                 int32_t optimization_level);
 };
 

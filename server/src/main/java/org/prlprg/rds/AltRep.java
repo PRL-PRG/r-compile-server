@@ -4,7 +4,7 @@ import java.util.HashMap;
 import java.util.logging.Logger;
 import org.prlprg.sexp.*;
 
-interface AltRep {
+interface zAltRep {
   SEXPType getType();
 
   String getClassName();

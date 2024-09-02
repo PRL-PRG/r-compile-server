@@ -49,6 +49,8 @@ struct TableStruct_messages_2eproto {
   static const uint32_t offsets[];
 };
 extern const ::PROTOBUF_NAMESPACE_ID::internal::DescriptorTable descriptor_table_messages_2eproto;
+namespace rsh {
+namespace protocol {
 class ArgumentContext;
 struct ArgumentContextDefaultTypeInternal;
 extern ArgumentContextDefaultTypeInternal _ArgumentContext_default_instance_;
@@ -130,35 +132,39 @@ extern ValuesDefaultTypeInternal _Values_default_instance_;
 class Version;
 struct VersionDefaultTypeInternal;
 extern VersionDefaultTypeInternal _Version_default_instance_;
+}  // namespace protocol
+}  // namespace rsh
 PROTOBUF_NAMESPACE_OPEN
-template<> ::ArgumentContext* Arena::CreateMaybeMessage<::ArgumentContext>(Arena*);
-template<> ::CallContext* Arena::CreateMaybeMessage<::CallContext>(Arena*);
-template<> ::CallFeedback* Arena::CreateMaybeMessage<::CallFeedback>(Arena*);
-template<> ::CompileRequest* Arena::CreateMaybeMessage<::CompileRequest>(Arena*);
-template<> ::CompileResponse* Arena::CreateMaybeMessage<::CompileResponse>(Arena*);
-template<> ::Context* Arena::CreateMaybeMessage<::Context>(Arena*);
-template<> ::ContextRequest* Arena::CreateMaybeMessage<::ContextRequest>(Arena*);
-template<> ::Empty* Arena::CreateMaybeMessage<::Empty>(Arena*);
-template<> ::Environment* Arena::CreateMaybeMessage<::Environment>(Arena*);
-template<> ::Environment_ValuesEntry_DoNotUse* Arena::CreateMaybeMessage<::Environment_ValuesEntry_DoNotUse>(Arena*);
-template<> ::FeedbackRequest* Arena::CreateMaybeMessage<::FeedbackRequest>(Arena*);
-template<> ::Function* Arena::CreateMaybeMessage<::Function>(Arena*);
-template<> ::FunctionRequest* Arena::CreateMaybeMessage<::FunctionRequest>(Arena*);
-template<> ::InitRequest* Arena::CreateMaybeMessage<::InitRequest>(Arena*);
-template<> ::InitResponse* Arena::CreateMaybeMessage<::InitResponse>(Arena*);
-template<> ::Package* Arena::CreateMaybeMessage<::Package>(Arena*);
-template<> ::PackageRequest* Arena::CreateMaybeMessage<::PackageRequest>(Arena*);
-template<> ::PackageSource* Arena::CreateMaybeMessage<::PackageSource>(Arena*);
-template<> ::TestFeedback* Arena::CreateMaybeMessage<::TestFeedback>(Arena*);
-template<> ::TypeFeedback* Arena::CreateMaybeMessage<::TypeFeedback>(Arena*);
-template<> ::TypeFeedback_Feedback* Arena::CreateMaybeMessage<::TypeFeedback_Feedback>(Arena*);
-template<> ::TypeFeedback_TypesEntry_DoNotUse* Arena::CreateMaybeMessage<::TypeFeedback_TypesEntry_DoNotUse>(Arena*);
-template<> ::Value* Arena::CreateMaybeMessage<::Value>(Arena*);
-template<> ::ValueFeedback* Arena::CreateMaybeMessage<::ValueFeedback>(Arena*);
-template<> ::ValueRequest* Arena::CreateMaybeMessage<::ValueRequest>(Arena*);
-template<> ::Values* Arena::CreateMaybeMessage<::Values>(Arena*);
-template<> ::Version* Arena::CreateMaybeMessage<::Version>(Arena*);
+template<> ::rsh::protocol::ArgumentContext* Arena::CreateMaybeMessage<::rsh::protocol::ArgumentContext>(Arena*);
+template<> ::rsh::protocol::CallContext* Arena::CreateMaybeMessage<::rsh::protocol::CallContext>(Arena*);
+template<> ::rsh::protocol::CallFeedback* Arena::CreateMaybeMessage<::rsh::protocol::CallFeedback>(Arena*);
+template<> ::rsh::protocol::CompileRequest* Arena::CreateMaybeMessage<::rsh::protocol::CompileRequest>(Arena*);
+template<> ::rsh::protocol::CompileResponse* Arena::CreateMaybeMessage<::rsh::protocol::CompileResponse>(Arena*);
+template<> ::rsh::protocol::Context* Arena::CreateMaybeMessage<::rsh::protocol::Context>(Arena*);
+template<> ::rsh::protocol::ContextRequest* Arena::CreateMaybeMessage<::rsh::protocol::ContextRequest>(Arena*);
+template<> ::rsh::protocol::Empty* Arena::CreateMaybeMessage<::rsh::protocol::Empty>(Arena*);
+template<> ::rsh::protocol::Environment* Arena::CreateMaybeMessage<::rsh::protocol::Environment>(Arena*);
+template<> ::rsh::protocol::Environment_ValuesEntry_DoNotUse* Arena::CreateMaybeMessage<::rsh::protocol::Environment_ValuesEntry_DoNotUse>(Arena*);
+template<> ::rsh::protocol::FeedbackRequest* Arena::CreateMaybeMessage<::rsh::protocol::FeedbackRequest>(Arena*);
+template<> ::rsh::protocol::Function* Arena::CreateMaybeMessage<::rsh::protocol::Function>(Arena*);
+template<> ::rsh::protocol::FunctionRequest* Arena::CreateMaybeMessage<::rsh::protocol::FunctionRequest>(Arena*);
+template<> ::rsh::protocol::InitRequest* Arena::CreateMaybeMessage<::rsh::protocol::InitRequest>(Arena*);
+template<> ::rsh::protocol::InitResponse* Arena::CreateMaybeMessage<::rsh::protocol::InitResponse>(Arena*);
+template<> ::rsh::protocol::Package* Arena::CreateMaybeMessage<::rsh::protocol::Package>(Arena*);
+template<> ::rsh::protocol::PackageRequest* Arena::CreateMaybeMessage<::rsh::protocol::PackageRequest>(Arena*);
+template<> ::rsh::protocol::PackageSource* Arena::CreateMaybeMessage<::rsh::protocol::PackageSource>(Arena*);
+template<> ::rsh::protocol::TestFeedback* Arena::CreateMaybeMessage<::rsh::protocol::TestFeedback>(Arena*);
+template<> ::rsh::protocol::TypeFeedback* Arena::CreateMaybeMessage<::rsh::protocol::TypeFeedback>(Arena*);
+template<> ::rsh::protocol::TypeFeedback_Feedback* Arena::CreateMaybeMessage<::rsh::protocol::TypeFeedback_Feedback>(Arena*);
+template<> ::rsh::protocol::TypeFeedback_TypesEntry_DoNotUse* Arena::CreateMaybeMessage<::rsh::protocol::TypeFeedback_TypesEntry_DoNotUse>(Arena*);
+template<> ::rsh::protocol::Value* Arena::CreateMaybeMessage<::rsh::protocol::Value>(Arena*);
+template<> ::rsh::protocol::ValueFeedback* Arena::CreateMaybeMessage<::rsh::protocol::ValueFeedback>(Arena*);
+template<> ::rsh::protocol::ValueRequest* Arena::CreateMaybeMessage<::rsh::protocol::ValueRequest>(Arena*);
+template<> ::rsh::protocol::Values* Arena::CreateMaybeMessage<::rsh::protocol::Values>(Arena*);
+template<> ::rsh::protocol::Version* Arena::CreateMaybeMessage<::rsh::protocol::Version>(Arena*);
 PROTOBUF_NAMESPACE_CLOSE
+namespace rsh {
+namespace protocol {
 
 enum Tier : int {
   BASELINE = 0,
@@ -241,7 +247,7 @@ inline bool Type_Parse(
 // ===================================================================
 
 class Version final :
-    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:Version) */ {
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:rsh.protocol.Version) */ {
  public:
   inline Version() : Version(nullptr) {}
   ~Version() override;
@@ -344,7 +350,7 @@ class Version final :
   private:
   friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
   static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
-    return "Version";
+    return "rsh.protocol.Version";
   }
   protected:
   explicit Version(::PROTOBUF_NAMESPACE_ID::Arena* arena,
@@ -392,7 +398,7 @@ class Version final :
   void _internal_set_patch(int32_t value);
   public:
 
-  // @@protoc_insertion_point(class_scope:Version)
+  // @@protoc_insertion_point(class_scope:rsh.protocol.Version)
  private:
   class _Internal;
 
@@ -411,7 +417,7 @@ class Version final :
 // -------------------------------------------------------------------
 
 class InitRequest final :
-    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:InitRequest) */ {
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:rsh.protocol.InitRequest) */ {
  public:
   inline InitRequest() : InitRequest(nullptr) {}
   ~InitRequest() override;
@@ -514,7 +520,7 @@ class InitRequest final :
   private:
   friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
   static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
-    return "InitRequest";
+    return "rsh.protocol.InitRequest";
   }
   protected:
   explicit InitRequest(::PROTOBUF_NAMESPACE_ID::Arena* arena,
@@ -574,43 +580,43 @@ class InitRequest final :
   std::string* _internal_mutable_platform();
   public:
 
-  // .Version Rsh_version = 1;
+  // .rsh.protocol.Version Rsh_version = 1;
   bool has_rsh_version() const;
   private:
   bool _internal_has_rsh_version() const;
   public:
   void clear_rsh_version();
-  const ::Version& rsh_version() const;
-  PROTOBUF_NODISCARD ::Version* release_rsh_version();
-  ::Version* mutable_rsh_version();
-  void set_allocated_rsh_version(::Version* rsh_version);
+  const ::rsh::protocol::Version& rsh_version() const;
+  PROTOBUF_NODISCARD ::rsh::protocol::Version* release_rsh_version();
+  ::rsh::protocol::Version* mutable_rsh_version();
+  void set_allocated_rsh_version(::rsh::protocol::Version* rsh_version);
   private:
-  const ::Version& _internal_rsh_version() const;
-  ::Version* _internal_mutable_rsh_version();
+  const ::rsh::protocol::Version& _internal_rsh_version() const;
+  ::rsh::protocol::Version* _internal_mutable_rsh_version();
   public:
   void unsafe_arena_set_allocated_rsh_version(
-      ::Version* rsh_version);
-  ::Version* unsafe_arena_release_rsh_version();
+      ::rsh::protocol::Version* rsh_version);
+  ::rsh::protocol::Version* unsafe_arena_release_rsh_version();
 
-  // .Version R_version = 2;
+  // .rsh.protocol.Version R_version = 2;
   bool has_r_version() const;
   private:
   bool _internal_has_r_version() const;
   public:
   void clear_r_version();
-  const ::Version& r_version() const;
-  PROTOBUF_NODISCARD ::Version* release_r_version();
-  ::Version* mutable_r_version();
-  void set_allocated_r_version(::Version* r_version);
+  const ::rsh::protocol::Version& r_version() const;
+  PROTOBUF_NODISCARD ::rsh::protocol::Version* release_r_version();
+  ::rsh::protocol::Version* mutable_r_version();
+  void set_allocated_r_version(::rsh::protocol::Version* r_version);
   private:
-  const ::Version& _internal_r_version() const;
-  ::Version* _internal_mutable_r_version();
+  const ::rsh::protocol::Version& _internal_r_version() const;
+  ::rsh::protocol::Version* _internal_mutable_r_version();
   public:
   void unsafe_arena_set_allocated_r_version(
-      ::Version* r_version);
-  ::Version* unsafe_arena_release_r_version();
+      ::rsh::protocol::Version* r_version);
+  ::rsh::protocol::Version* unsafe_arena_release_r_version();
 
-  // @@protoc_insertion_point(class_scope:InitRequest)
+  // @@protoc_insertion_point(class_scope:rsh.protocol.InitRequest)
  private:
   class _Internal;
 
@@ -620,8 +626,8 @@ class InitRequest final :
   struct Impl_ {
     ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string> package_hash_;
     ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr platform_;
-    ::Version* rsh_version_;
-    ::Version* r_version_;
+    ::rsh::protocol::Version* rsh_version_;
+    ::rsh::protocol::Version* r_version_;
     mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   };
   union { Impl_ _impl_; };
@@ -630,7 +636,7 @@ class InitRequest final :
 // -------------------------------------------------------------------
 
 class InitResponse final :
-    public ::PROTOBUF_NAMESPACE_ID::internal::ZeroFieldsBase /* @@protoc_insertion_point(class_definition:InitResponse) */ {
+    public ::PROTOBUF_NAMESPACE_ID::internal::ZeroFieldsBase /* @@protoc_insertion_point(class_definition:rsh.protocol.InitResponse) */ {
  public:
   inline InitResponse() : InitResponse(nullptr) {}
   explicit PROTOBUF_CONSTEXPR InitResponse(::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized);
@@ -718,7 +724,7 @@ class InitResponse final :
   private:
   friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
   static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
-    return "InitResponse";
+    return "rsh.protocol.InitResponse";
   }
   protected:
   explicit InitResponse(::PROTOBUF_NAMESPACE_ID::Arena* arena,
@@ -734,7 +740,7 @@ class InitResponse final :
 
   // accessors -------------------------------------------------------
 
-  // @@protoc_insertion_point(class_scope:InitResponse)
+  // @@protoc_insertion_point(class_scope:rsh.protocol.InitResponse)
  private:
   class _Internal;
 
@@ -748,7 +754,7 @@ class InitResponse final :
 // -------------------------------------------------------------------
 
 class CompileRequest final :
-    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:CompileRequest) */ {
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:rsh.protocol.CompileRequest) */ {
  public:
   inline CompileRequest() : CompileRequest(nullptr) {}
   ~CompileRequest() override;
@@ -851,7 +857,7 @@ class CompileRequest final :
   private:
   friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
   static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
-    return "CompileRequest";
+    return "rsh.protocol.CompileRequest";
   }
   protected:
   explicit CompileRequest(::PROTOBUF_NAMESPACE_ID::Arena* arena,
@@ -874,71 +880,71 @@ class CompileRequest final :
     kTierFieldNumber = 4,
     kOptimizationLevelFieldNumber = 5,
   };
-  // .Function function = 2;
+  // .rsh.protocol.Function function = 2;
   bool has_function() const;
   private:
   bool _internal_has_function() const;
   public:
   void clear_function();
-  const ::Function& function() const;
-  PROTOBUF_NODISCARD ::Function* release_function();
-  ::Function* mutable_function();
-  void set_allocated_function(::Function* function);
+  const ::rsh::protocol::Function& function() const;
+  PROTOBUF_NODISCARD ::rsh::protocol::Function* release_function();
+  ::rsh::protocol::Function* mutable_function();
+  void set_allocated_function(::rsh::protocol::Function* function);
   private:
-  const ::Function& _internal_function() const;
-  ::Function* _internal_mutable_function();
+  const ::rsh::protocol::Function& _internal_function() const;
+  ::rsh::protocol::Function* _internal_mutable_function();
   public:
   void unsafe_arena_set_allocated_function(
-      ::Function* function);
-  ::Function* unsafe_arena_release_function();
+      ::rsh::protocol::Function* function);
+  ::rsh::protocol::Function* unsafe_arena_release_function();
 
-  // optional .Context context = 6;
+  // optional .rsh.protocol.Context context = 6;
   bool has_context() const;
   private:
   bool _internal_has_context() const;
   public:
   void clear_context();
-  const ::Context& context() const;
-  PROTOBUF_NODISCARD ::Context* release_context();
-  ::Context* mutable_context();
-  void set_allocated_context(::Context* context);
+  const ::rsh::protocol::Context& context() const;
+  PROTOBUF_NODISCARD ::rsh::protocol::Context* release_context();
+  ::rsh::protocol::Context* mutable_context();
+  void set_allocated_context(::rsh::protocol::Context* context);
   private:
-  const ::Context& _internal_context() const;
-  ::Context* _internal_mutable_context();
+  const ::rsh::protocol::Context& _internal_context() const;
+  ::rsh::protocol::Context* _internal_mutable_context();
   public:
   void unsafe_arena_set_allocated_context(
-      ::Context* context);
-  ::Context* unsafe_arena_release_context();
+      ::rsh::protocol::Context* context);
+  ::rsh::protocol::Context* unsafe_arena_release_context();
 
-  // optional .Environment environment = 7;
+  // optional .rsh.protocol.Environment environment = 7;
   bool has_environment() const;
   private:
   bool _internal_has_environment() const;
   public:
   void clear_environment();
-  const ::Environment& environment() const;
-  PROTOBUF_NODISCARD ::Environment* release_environment();
-  ::Environment* mutable_environment();
-  void set_allocated_environment(::Environment* environment);
+  const ::rsh::protocol::Environment& environment() const;
+  PROTOBUF_NODISCARD ::rsh::protocol::Environment* release_environment();
+  ::rsh::protocol::Environment* mutable_environment();
+  void set_allocated_environment(::rsh::protocol::Environment* environment);
   private:
-  const ::Environment& _internal_environment() const;
-  ::Environment* _internal_mutable_environment();
+  const ::rsh::protocol::Environment& _internal_environment() const;
+  ::rsh::protocol::Environment* _internal_mutable_environment();
   public:
   void unsafe_arena_set_allocated_environment(
-      ::Environment* environment);
-  ::Environment* unsafe_arena_release_environment();
+      ::rsh::protocol::Environment* environment);
+  ::rsh::protocol::Environment* unsafe_arena_release_environment();
 
-  // optional .Tier tier = 4;
+  // optional .rsh.protocol.Tier tier = 4;
   bool has_tier() const;
   private:
   bool _internal_has_tier() const;
   public:
   void clear_tier();
-  ::Tier tier() const;
-  void set_tier(::Tier value);
+  ::rsh::protocol::Tier tier() const;
+  void set_tier(::rsh::protocol::Tier value);
   private:
-  ::Tier _internal_tier() const;
-  void _internal_set_tier(::Tier value);
+  ::rsh::protocol::Tier _internal_tier() const;
+  void _internal_set_tier(::rsh::protocol::Tier value);
   public:
 
   // optional int32 optimization_level = 5;
@@ -954,7 +960,7 @@ class CompileRequest final :
   void _internal_set_optimization_level(int32_t value);
   public:
 
-  // @@protoc_insertion_point(class_scope:CompileRequest)
+  // @@protoc_insertion_point(class_scope:rsh.protocol.CompileRequest)
  private:
   class _Internal;
 
@@ -964,9 +970,9 @@ class CompileRequest final :
   struct Impl_ {
     ::PROTOBUF_NAMESPACE_ID::internal::HasBits<1> _has_bits_;
     mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
-    ::Function* function_;
-    ::Context* context_;
-    ::Environment* environment_;
+    ::rsh::protocol::Function* function_;
+    ::rsh::protocol::Context* context_;
+    ::rsh::protocol::Environment* environment_;
     int tier_;
     int32_t optimization_level_;
   };
@@ -976,7 +982,7 @@ class CompileRequest final :
 // -------------------------------------------------------------------
 
 class CompileResponse final :
-    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:CompileResponse) */ {
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:rsh.protocol.CompileResponse) */ {
  public:
   inline CompileResponse() : CompileResponse(nullptr) {}
   ~CompileResponse() override;
@@ -1079,7 +1085,7 @@ class CompileResponse final :
   private:
   friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
   static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
-    return "CompileResponse";
+    return "rsh.protocol.CompileResponse";
   }
   protected:
   explicit CompileResponse(::PROTOBUF_NAMESPACE_ID::Arena* arena,
@@ -1151,16 +1157,16 @@ class CompileResponse final :
   std::string* _internal_mutable_constant_pool();
   public:
 
-  // .Tier tier = 2;
+  // .rsh.protocol.Tier tier = 2;
   void clear_tier();
-  ::Tier tier() const;
-  void set_tier(::Tier value);
+  ::rsh::protocol::Tier tier() const;
+  void set_tier(::rsh::protocol::Tier value);
   private:
-  ::Tier _internal_tier() const;
-  void _internal_set_tier(::Tier value);
+  ::rsh::protocol::Tier _internal_tier() const;
+  void _internal_set_tier(::rsh::protocol::Tier value);
   public:
 
-  // @@protoc_insertion_point(class_scope:CompileResponse)
+  // @@protoc_insertion_point(class_scope:rsh.protocol.CompileResponse)
  private:
   class _Internal;
 
@@ -1181,7 +1187,7 @@ class CompileResponse final :
 // -------------------------------------------------------------------
 
 class Function final :
-    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:Function) */ {
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:rsh.protocol.Function) */ {
  public:
   inline Function() : Function(nullptr) {}
   ~Function() override;
@@ -1284,7 +1290,7 @@ class Function final :
   private:
   friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
   static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
-    return "Function";
+    return "rsh.protocol.Function";
   }
   protected:
   explicit Function(::PROTOBUF_NAMESPACE_ID::Arena* arena,
@@ -1366,7 +1372,7 @@ class Function final :
   std::string* _internal_mutable_body();
   public:
 
-  // @@protoc_insertion_point(class_scope:Function)
+  // @@protoc_insertion_point(class_scope:rsh.protocol.Function)
  private:
   class _Internal;
 
@@ -1387,7 +1393,7 @@ class Function final :
 // -------------------------------------------------------------------
 
 class FunctionRequest final :
-    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:FunctionRequest) */ {
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:rsh.protocol.FunctionRequest) */ {
  public:
   inline FunctionRequest() : FunctionRequest(nullptr) {}
   ~FunctionRequest() override;
@@ -1490,7 +1496,7 @@ class FunctionRequest final :
   private:
   friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
   static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
-    return "FunctionRequest";
+    return "rsh.protocol.FunctionRequest";
   }
   protected:
   explicit FunctionRequest(::PROTOBUF_NAMESPACE_ID::Arena* arena,
@@ -1523,7 +1529,7 @@ class FunctionRequest final :
   std::string* _internal_mutable_hash();
   public:
 
-  // @@protoc_insertion_point(class_scope:FunctionRequest)
+  // @@protoc_insertion_point(class_scope:rsh.protocol.FunctionRequest)
  private:
   class _Internal;
 
@@ -1555,7 +1561,7 @@ public:
   void MergeFrom(const Environment_ValuesEntry_DoNotUse& other);
   static const Environment_ValuesEntry_DoNotUse* internal_default_instance() { return reinterpret_cast<const Environment_ValuesEntry_DoNotUse*>(&_Environment_ValuesEntry_DoNotUse_default_instance_); }
   static bool ValidateKey(std::string* s) {
-    return ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::VerifyUtf8String(s->data(), static_cast<int>(s->size()), ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::PARSE, "Environment.ValuesEntry.key");
+    return ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::VerifyUtf8String(s->data(), static_cast<int>(s->size()), ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::PARSE, "rsh.protocol.Environment.ValuesEntry.key");
  }
   static bool ValidateValue(void*) { return true; }
   using ::PROTOBUF_NAMESPACE_ID::Message::MergeFrom;
@@ -1566,7 +1572,7 @@ public:
 // -------------------------------------------------------------------
 
 class Environment final :
-    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:Environment) */ {
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:rsh.protocol.Environment) */ {
  public:
   inline Environment() : Environment(nullptr) {}
   ~Environment() override;
@@ -1669,7 +1675,7 @@ class Environment final :
   private:
   friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
   static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
-    return "Environment";
+    return "rsh.protocol.Environment";
   }
   protected:
   explicit Environment(::PROTOBUF_NAMESPACE_ID::Arena* arena,
@@ -1708,7 +1714,7 @@ class Environment final :
   ::PROTOBUF_NAMESPACE_ID::Map< std::string, std::string >*
       mutable_values();
 
-  // @@protoc_insertion_point(class_scope:Environment)
+  // @@protoc_insertion_point(class_scope:rsh.protocol.Environment)
  private:
   class _Internal;
 
@@ -1729,7 +1735,7 @@ class Environment final :
 // -------------------------------------------------------------------
 
 class ValueRequest final :
-    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:ValueRequest) */ {
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:rsh.protocol.ValueRequest) */ {
  public:
   inline ValueRequest() : ValueRequest(nullptr) {}
   ~ValueRequest() override;
@@ -1832,7 +1838,7 @@ class ValueRequest final :
   private:
   friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
   static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
-    return "ValueRequest";
+    return "rsh.protocol.ValueRequest";
   }
   protected:
   explicit ValueRequest(::PROTOBUF_NAMESPACE_ID::Arena* arena,
@@ -1875,7 +1881,7 @@ class ValueRequest final :
   std::string* _internal_add_hash();
   public:
 
-  // @@protoc_insertion_point(class_scope:ValueRequest)
+  // @@protoc_insertion_point(class_scope:rsh.protocol.ValueRequest)
  private:
   class _Internal;
 
@@ -1892,7 +1898,7 @@ class ValueRequest final :
 // -------------------------------------------------------------------
 
 class Value final :
-    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:Value) */ {
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:rsh.protocol.Value) */ {
  public:
   inline Value() : Value(nullptr) {}
   ~Value() override;
@@ -1995,7 +2001,7 @@ class Value final :
   private:
   friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
   static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
-    return "Value";
+    return "rsh.protocol.Value";
   }
   protected:
   explicit Value(::PROTOBUF_NAMESPACE_ID::Arena* arena,
@@ -2043,7 +2049,7 @@ class Value final :
   std::string* _internal_mutable_value();
   public:
 
-  // @@protoc_insertion_point(class_scope:Value)
+  // @@protoc_insertion_point(class_scope:rsh.protocol.Value)
  private:
   class _Internal;
 
@@ -2061,7 +2067,7 @@ class Value final :
 // -------------------------------------------------------------------
 
 class Values final :
-    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:Values) */ {
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:rsh.protocol.Values) */ {
  public:
   inline Values() : Values(nullptr) {}
   ~Values() override;
@@ -2164,7 +2170,7 @@ class Values final :
   private:
   friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
   static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
-    return "Values";
+    return "rsh.protocol.Values";
   }
   protected:
   explicit Values(::PROTOBUF_NAMESPACE_ID::Arena* arena,
@@ -2183,25 +2189,25 @@ class Values final :
   enum : int {
     kValuesFieldNumber = 1,
   };
-  // repeated .Value values = 1;
+  // repeated .rsh.protocol.Value values = 1;
   int values_size() const;
   private:
   int _internal_values_size() const;
   public:
   void clear_values();
-  ::Value* mutable_values(int index);
-  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::Value >*
+  ::rsh::protocol::Value* mutable_values(int index);
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::rsh::protocol::Value >*
       mutable_values();
   private:
-  const ::Value& _internal_values(int index) const;
-  ::Value* _internal_add_values();
+  const ::rsh::protocol::Value& _internal_values(int index) const;
+  ::rsh::protocol::Value* _internal_add_values();
   public:
-  const ::Value& values(int index) const;
-  ::Value* add_values();
-  const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::Value >&
+  const ::rsh::protocol::Value& values(int index) const;
+  ::rsh::protocol::Value* add_values();
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::rsh::protocol::Value >&
       values() const;
 
-  // @@protoc_insertion_point(class_scope:Values)
+  // @@protoc_insertion_point(class_scope:rsh.protocol.Values)
  private:
   class _Internal;
 
@@ -2209,7 +2215,7 @@ class Values final :
   typedef void InternalArenaConstructable_;
   typedef void DestructorSkippable_;
   struct Impl_ {
-    ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::Value > values_;
+    ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::rsh::protocol::Value > values_;
     mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   };
   union { Impl_ _impl_; };
@@ -2218,7 +2224,7 @@ class Values final :
 // -------------------------------------------------------------------
 
 class Empty final :
-    public ::PROTOBUF_NAMESPACE_ID::internal::ZeroFieldsBase /* @@protoc_insertion_point(class_definition:Empty) */ {
+    public ::PROTOBUF_NAMESPACE_ID::internal::ZeroFieldsBase /* @@protoc_insertion_point(class_definition:rsh.protocol.Empty) */ {
  public:
   inline Empty() : Empty(nullptr) {}
   explicit PROTOBUF_CONSTEXPR Empty(::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized);
@@ -2306,7 +2312,7 @@ class Empty final :
   private:
   friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
   static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
-    return "Empty";
+    return "rsh.protocol.Empty";
   }
   protected:
   explicit Empty(::PROTOBUF_NAMESPACE_ID::Arena* arena,
@@ -2322,7 +2328,7 @@ class Empty final :
 
   // accessors -------------------------------------------------------
 
-  // @@protoc_insertion_point(class_scope:Empty)
+  // @@protoc_insertion_point(class_scope:rsh.protocol.Empty)
  private:
   class _Internal;
 
@@ -2336,7 +2342,7 @@ class Empty final :
 // -------------------------------------------------------------------
 
 class CallContext final :
-    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:CallContext) */ {
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:rsh.protocol.CallContext) */ {
  public:
   inline CallContext() : CallContext(nullptr) {}
   ~CallContext() override;
@@ -2439,7 +2445,7 @@ class CallContext final :
   private:
   friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
   static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
-    return "CallContext";
+    return "rsh.protocol.CallContext";
   }
   protected:
   explicit CallContext(::PROTOBUF_NAMESPACE_ID::Arena* arena,
@@ -2497,7 +2503,7 @@ class CallContext final :
   void _internal_set_no_missing_args(bool value);
   public:
 
-  // @@protoc_insertion_point(class_scope:CallContext)
+  // @@protoc_insertion_point(class_scope:rsh.protocol.CallContext)
  private:
   class _Internal;
 
@@ -2517,7 +2523,7 @@ class CallContext final :
 // -------------------------------------------------------------------
 
 class ArgumentContext final :
-    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:ArgumentContext) */ {
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:rsh.protocol.ArgumentContext) */ {
  public:
   inline ArgumentContext() : ArgumentContext(nullptr) {}
   ~ArgumentContext() override;
@@ -2620,7 +2626,7 @@ class ArgumentContext final :
   private:
   friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
   static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
-    return "ArgumentContext";
+    return "rsh.protocol.ArgumentContext";
   }
   protected:
   explicit ArgumentContext(::PROTOBUF_NAMESPACE_ID::Arena* arena,
@@ -2669,20 +2675,20 @@ class ArgumentContext final :
   void _internal_set_object(bool value);
   public:
 
-  // optional .Type type = 4;
+  // optional .rsh.protocol.Type type = 4;
   bool has_type() const;
   private:
   bool _internal_has_type() const;
   public:
   void clear_type();
-  ::Type type() const;
-  void set_type(::Type value);
+  ::rsh::protocol::Type type() const;
+  void set_type(::rsh::protocol::Type value);
   private:
-  ::Type _internal_type() const;
-  void _internal_set_type(::Type value);
+  ::rsh::protocol::Type _internal_type() const;
+  void _internal_set_type(::rsh::protocol::Type value);
   public:
 
-  // @@protoc_insertion_point(class_scope:ArgumentContext)
+  // @@protoc_insertion_point(class_scope:rsh.protocol.ArgumentContext)
  private:
   class _Internal;
 
@@ -2703,7 +2709,7 @@ class ArgumentContext final :
 // -------------------------------------------------------------------
 
 class Context final :
-    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:Context) */ {
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:rsh.protocol.Context) */ {
  public:
   inline Context() : Context(nullptr) {}
   ~Context() override;
@@ -2806,7 +2812,7 @@ class Context final :
   private:
   friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
   static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
-    return "Context";
+    return "rsh.protocol.Context";
   }
   protected:
   explicit Context(::PROTOBUF_NAMESPACE_ID::Arena* arena,
@@ -2826,43 +2832,43 @@ class Context final :
     kArgumentContextFieldNumber = 2,
     kCallContextFieldNumber = 1,
   };
-  // repeated .ArgumentContext argument_context = 2;
+  // repeated .rsh.protocol.ArgumentContext argument_context = 2;
   int argument_context_size() const;
   private:
   int _internal_argument_context_size() const;
   public:
   void clear_argument_context();
-  ::ArgumentContext* mutable_argument_context(int index);
-  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::ArgumentContext >*
+  ::rsh::protocol::ArgumentContext* mutable_argument_context(int index);
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::rsh::protocol::ArgumentContext >*
       mutable_argument_context();
   private:
-  const ::ArgumentContext& _internal_argument_context(int index) const;
-  ::ArgumentContext* _internal_add_argument_context();
+  const ::rsh::protocol::ArgumentContext& _internal_argument_context(int index) const;
+  ::rsh::protocol::ArgumentContext* _internal_add_argument_context();
   public:
-  const ::ArgumentContext& argument_context(int index) const;
-  ::ArgumentContext* add_argument_context();
-  const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::ArgumentContext >&
+  const ::rsh::protocol::ArgumentContext& argument_context(int index) const;
+  ::rsh::protocol::ArgumentContext* add_argument_context();
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::rsh::protocol::ArgumentContext >&
       argument_context() const;
 
-  // .CallContext call_context = 1;
+  // .rsh.protocol.CallContext call_context = 1;
   bool has_call_context() const;
   private:
   bool _internal_has_call_context() const;
   public:
   void clear_call_context();
-  const ::CallContext& call_context() const;
-  PROTOBUF_NODISCARD ::CallContext* release_call_context();
-  ::CallContext* mutable_call_context();
-  void set_allocated_call_context(::CallContext* call_context);
+  const ::rsh::protocol::CallContext& call_context() const;
+  PROTOBUF_NODISCARD ::rsh::protocol::CallContext* release_call_context();
+  ::rsh::protocol::CallContext* mutable_call_context();
+  void set_allocated_call_context(::rsh::protocol::CallContext* call_context);
   private:
-  const ::CallContext& _internal_call_context() const;
-  ::CallContext* _internal_mutable_call_context();
+  const ::rsh::protocol::CallContext& _internal_call_context() const;
+  ::rsh::protocol::CallContext* _internal_mutable_call_context();
   public:
   void unsafe_arena_set_allocated_call_context(
-      ::CallContext* call_context);
-  ::CallContext* unsafe_arena_release_call_context();
+      ::rsh::protocol::CallContext* call_context);
+  ::rsh::protocol::CallContext* unsafe_arena_release_call_context();
 
-  // @@protoc_insertion_point(class_scope:Context)
+  // @@protoc_insertion_point(class_scope:rsh.protocol.Context)
  private:
   class _Internal;
 
@@ -2870,8 +2876,8 @@ class Context final :
   typedef void InternalArenaConstructable_;
   typedef void DestructorSkippable_;
   struct Impl_ {
-    ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::ArgumentContext > argument_context_;
-    ::CallContext* call_context_;
+    ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::rsh::protocol::ArgumentContext > argument_context_;
+    ::rsh::protocol::CallContext* call_context_;
     mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   };
   union { Impl_ _impl_; };
@@ -2880,7 +2886,7 @@ class Context final :
 // -------------------------------------------------------------------
 
 class ContextRequest final :
-    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:ContextRequest) */ {
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:rsh.protocol.ContextRequest) */ {
  public:
   inline ContextRequest() : ContextRequest(nullptr) {}
   ~ContextRequest() override;
@@ -2983,7 +2989,7 @@ class ContextRequest final :
   private:
   friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
   static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
-    return "ContextRequest";
+    return "rsh.protocol.ContextRequest";
   }
   protected:
   explicit ContextRequest(::PROTOBUF_NAMESPACE_ID::Arena* arena,
@@ -3002,25 +3008,25 @@ class ContextRequest final :
   enum : int {
     kFunctionFieldNumber = 1,
   };
-  // .Function function = 1;
+  // .rsh.protocol.Function function = 1;
   bool has_function() const;
   private:
   bool _internal_has_function() const;
   public:
   void clear_function();
-  const ::Function& function() const;
-  PROTOBUF_NODISCARD ::Function* release_function();
-  ::Function* mutable_function();
-  void set_allocated_function(::Function* function);
+  const ::rsh::protocol::Function& function() const;
+  PROTOBUF_NODISCARD ::rsh::protocol::Function* release_function();
+  ::rsh::protocol::Function* mutable_function();
+  void set_allocated_function(::rsh::protocol::Function* function);
   private:
-  const ::Function& _internal_function() const;
-  ::Function* _internal_mutable_function();
+  const ::rsh::protocol::Function& _internal_function() const;
+  ::rsh::protocol::Function* _internal_mutable_function();
   public:
   void unsafe_arena_set_allocated_function(
-      ::Function* function);
-  ::Function* unsafe_arena_release_function();
+      ::rsh::protocol::Function* function);
+  ::rsh::protocol::Function* unsafe_arena_release_function();
 
-  // @@protoc_insertion_point(class_scope:ContextRequest)
+  // @@protoc_insertion_point(class_scope:rsh.protocol.ContextRequest)
  private:
   class _Internal;
 
@@ -3028,7 +3034,7 @@ class ContextRequest final :
   typedef void InternalArenaConstructable_;
   typedef void DestructorSkippable_;
   struct Impl_ {
-    ::Function* function_;
+    ::rsh::protocol::Function* function_;
     mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   };
   union { Impl_ _impl_; };
@@ -3037,7 +3043,7 @@ class ContextRequest final :
 // -------------------------------------------------------------------
 
 class TestFeedback final :
-    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:TestFeedback) */ {
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:rsh.protocol.TestFeedback) */ {
  public:
   inline TestFeedback() : TestFeedback(nullptr) {}
   ~TestFeedback() override;
@@ -3140,7 +3146,7 @@ class TestFeedback final :
   private:
   friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
   static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
-    return "TestFeedback";
+    return "rsh.protocol.TestFeedback";
   }
   protected:
   explicit TestFeedback(::PROTOBUF_NAMESPACE_ID::Arena* arena,
@@ -3159,16 +3165,16 @@ class TestFeedback final :
   enum : int {
     kTestLatticeFieldNumber = 1,
   };
-  // .TestLattice test_lattice = 1;
+  // .rsh.protocol.TestLattice test_lattice = 1;
   void clear_test_lattice();
-  ::TestLattice test_lattice() const;
-  void set_test_lattice(::TestLattice value);
+  ::rsh::protocol::TestLattice test_lattice() const;
+  void set_test_lattice(::rsh::protocol::TestLattice value);
   private:
-  ::TestLattice _internal_test_lattice() const;
-  void _internal_set_test_lattice(::TestLattice value);
+  ::rsh::protocol::TestLattice _internal_test_lattice() const;
+  void _internal_set_test_lattice(::rsh::protocol::TestLattice value);
   public:
 
-  // @@protoc_insertion_point(class_scope:TestFeedback)
+  // @@protoc_insertion_point(class_scope:rsh.protocol.TestFeedback)
  private:
   class _Internal;
 
@@ -3185,7 +3191,7 @@ class TestFeedback final :
 // -------------------------------------------------------------------
 
 class CallFeedback final :
-    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:CallFeedback) */ {
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:rsh.protocol.CallFeedback) */ {
  public:
   inline CallFeedback() : CallFeedback(nullptr) {}
   ~CallFeedback() override;
@@ -3288,7 +3294,7 @@ class CallFeedback final :
   private:
   friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
   static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
-    return "CallFeedback";
+    return "rsh.protocol.CallFeedback";
   }
   protected:
   explicit CallFeedback(::PROTOBUF_NAMESPACE_ID::Arena* arena,
@@ -3331,7 +3337,7 @@ class CallFeedback final :
   void _internal_set_n_calls(int64_t value);
   public:
 
-  // @@protoc_insertion_point(class_scope:CallFeedback)
+  // @@protoc_insertion_point(class_scope:rsh.protocol.CallFeedback)
  private:
   class _Internal;
 
@@ -3349,7 +3355,7 @@ class CallFeedback final :
 // -------------------------------------------------------------------
 
 class ValueFeedback final :
-    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:ValueFeedback) */ {
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:rsh.protocol.ValueFeedback) */ {
  public:
   inline ValueFeedback() : ValueFeedback(nullptr) {}
   ~ValueFeedback() override;
@@ -3452,7 +3458,7 @@ class ValueFeedback final :
   private:
   friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
   static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
-    return "ValueFeedback";
+    return "rsh.protocol.ValueFeedback";
   }
   protected:
   explicit ValueFeedback(::PROTOBUF_NAMESPACE_ID::Arena* arena,
@@ -3520,7 +3526,7 @@ class ValueFeedback final :
   void _internal_set_is_promise(bool value);
   public:
 
-  // @@protoc_insertion_point(class_scope:ValueFeedback)
+  // @@protoc_insertion_point(class_scope:rsh.protocol.ValueFeedback)
  private:
   class _Internal;
 
@@ -3541,7 +3547,7 @@ class ValueFeedback final :
 // -------------------------------------------------------------------
 
 class TypeFeedback_Feedback final :
-    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:TypeFeedback.Feedback) */ {
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:rsh.protocol.TypeFeedback.Feedback) */ {
  public:
   inline TypeFeedback_Feedback() : TypeFeedback_Feedback(nullptr) {}
   ~TypeFeedback_Feedback() override;
@@ -3651,7 +3657,7 @@ class TypeFeedback_Feedback final :
   private:
   friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
   static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
-    return "TypeFeedback.Feedback";
+    return "rsh.protocol.TypeFeedback.Feedback";
   }
   protected:
   explicit TypeFeedback_Feedback(::PROTOBUF_NAMESPACE_ID::Arena* arena,
@@ -3672,63 +3678,63 @@ class TypeFeedback_Feedback final :
     kCallFeedbackFieldNumber = 2,
     kValueFeedbackFieldNumber = 3,
   };
-  // .TestFeedback test_feedback = 1;
+  // .rsh.protocol.TestFeedback test_feedback = 1;
   bool has_test_feedback() const;
   private:
   bool _internal_has_test_feedback() const;
   public:
   void clear_test_feedback();
-  const ::TestFeedback& test_feedback() const;
-  PROTOBUF_NODISCARD ::TestFeedback* release_test_feedback();
-  ::TestFeedback* mutable_test_feedback();
-  void set_allocated_test_feedback(::TestFeedback* test_feedback);
+  const ::rsh::protocol::TestFeedback& test_feedback() const;
+  PROTOBUF_NODISCARD ::rsh::protocol::TestFeedback* release_test_feedback();
+  ::rsh::protocol::TestFeedback* mutable_test_feedback();
+  void set_allocated_test_feedback(::rsh::protocol::TestFeedback* test_feedback);
   private:
-  const ::TestFeedback& _internal_test_feedback() const;
-  ::TestFeedback* _internal_mutable_test_feedback();
+  const ::rsh::protocol::TestFeedback& _internal_test_feedback() const;
+  ::rsh::protocol::TestFeedback* _internal_mutable_test_feedback();
   public:
   void unsafe_arena_set_allocated_test_feedback(
-      ::TestFeedback* test_feedback);
-  ::TestFeedback* unsafe_arena_release_test_feedback();
+      ::rsh::protocol::TestFeedback* test_feedback);
+  ::rsh::protocol::TestFeedback* unsafe_arena_release_test_feedback();
 
-  // .CallFeedback call_feedback = 2;
+  // .rsh.protocol.CallFeedback call_feedback = 2;
   bool has_call_feedback() const;
   private:
   bool _internal_has_call_feedback() const;
   public:
   void clear_call_feedback();
-  const ::CallFeedback& call_feedback() const;
-  PROTOBUF_NODISCARD ::CallFeedback* release_call_feedback();
-  ::CallFeedback* mutable_call_feedback();
-  void set_allocated_call_feedback(::CallFeedback* call_feedback);
+  const ::rsh::protocol::CallFeedback& call_feedback() const;
+  PROTOBUF_NODISCARD ::rsh::protocol::CallFeedback* release_call_feedback();
+  ::rsh::protocol::CallFeedback* mutable_call_feedback();
+  void set_allocated_call_feedback(::rsh::protocol::CallFeedback* call_feedback);
   private:
-  const ::CallFeedback& _internal_call_feedback() const;
-  ::CallFeedback* _internal_mutable_call_feedback();
+  const ::rsh::protocol::CallFeedback& _internal_call_feedback() const;
+  ::rsh::protocol::CallFeedback* _internal_mutable_call_feedback();
   public:
   void unsafe_arena_set_allocated_call_feedback(
-      ::CallFeedback* call_feedback);
-  ::CallFeedback* unsafe_arena_release_call_feedback();
+      ::rsh::protocol::CallFeedback* call_feedback);
+  ::rsh::protocol::CallFeedback* unsafe_arena_release_call_feedback();
 
-  // .ValueFeedback value_feedback = 3;
+  // .rsh.protocol.ValueFeedback value_feedback = 3;
   bool has_value_feedback() const;
   private:
   bool _internal_has_value_feedback() const;
   public:
   void clear_value_feedback();
-  const ::ValueFeedback& value_feedback() const;
-  PROTOBUF_NODISCARD ::ValueFeedback* release_value_feedback();
-  ::ValueFeedback* mutable_value_feedback();
-  void set_allocated_value_feedback(::ValueFeedback* value_feedback);
+  const ::rsh::protocol::ValueFeedback& value_feedback() const;
+  PROTOBUF_NODISCARD ::rsh::protocol::ValueFeedback* release_value_feedback();
+  ::rsh::protocol::ValueFeedback* mutable_value_feedback();
+  void set_allocated_value_feedback(::rsh::protocol::ValueFeedback* value_feedback);
   private:
-  const ::ValueFeedback& _internal_value_feedback() const;
-  ::ValueFeedback* _internal_mutable_value_feedback();
+  const ::rsh::protocol::ValueFeedback& _internal_value_feedback() const;
+  ::rsh::protocol::ValueFeedback* _internal_mutable_value_feedback();
   public:
   void unsafe_arena_set_allocated_value_feedback(
-      ::ValueFeedback* value_feedback);
-  ::ValueFeedback* unsafe_arena_release_value_feedback();
+      ::rsh::protocol::ValueFeedback* value_feedback);
+  ::rsh::protocol::ValueFeedback* unsafe_arena_release_value_feedback();
 
   void clear_feedback();
   FeedbackCase feedback_case() const;
-  // @@protoc_insertion_point(class_scope:TypeFeedback.Feedback)
+  // @@protoc_insertion_point(class_scope:rsh.protocol.TypeFeedback.Feedback)
  private:
   class _Internal;
   void set_has_test_feedback();
@@ -3745,9 +3751,9 @@ class TypeFeedback_Feedback final :
     union FeedbackUnion {
       constexpr FeedbackUnion() : _constinit_{} {}
         ::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized _constinit_;
-      ::TestFeedback* test_feedback_;
-      ::CallFeedback* call_feedback_;
-      ::ValueFeedback* value_feedback_;
+      ::rsh::protocol::TestFeedback* test_feedback_;
+      ::rsh::protocol::CallFeedback* call_feedback_;
+      ::rsh::protocol::ValueFeedback* value_feedback_;
     } feedback_;
     mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
     uint32_t _oneof_case_[1];
@@ -3759,12 +3765,12 @@ class TypeFeedback_Feedback final :
 // -------------------------------------------------------------------
 
 class TypeFeedback_TypesEntry_DoNotUse : public ::PROTOBUF_NAMESPACE_ID::internal::MapEntry<TypeFeedback_TypesEntry_DoNotUse, 
-    int64_t, ::TypeFeedback_Feedback,
+    int64_t, ::rsh::protocol::TypeFeedback_Feedback,
     ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::TYPE_INT64,
     ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::TYPE_MESSAGE> {
 public:
   typedef ::PROTOBUF_NAMESPACE_ID::internal::MapEntry<TypeFeedback_TypesEntry_DoNotUse, 
-    int64_t, ::TypeFeedback_Feedback,
+    int64_t, ::rsh::protocol::TypeFeedback_Feedback,
     ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::TYPE_INT64,
     ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::TYPE_MESSAGE> SuperType;
   TypeFeedback_TypesEntry_DoNotUse();
@@ -3783,7 +3789,7 @@ public:
 // -------------------------------------------------------------------
 
 class TypeFeedback final :
-    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:TypeFeedback) */ {
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:rsh.protocol.TypeFeedback) */ {
  public:
   inline TypeFeedback() : TypeFeedback(nullptr) {}
   ~TypeFeedback() override;
@@ -3886,7 +3892,7 @@ class TypeFeedback final :
   private:
   friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
   static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
-    return "TypeFeedback";
+    return "rsh.protocol.TypeFeedback";
   }
   protected:
   explicit TypeFeedback(::PROTOBUF_NAMESPACE_ID::Arena* arena,
@@ -3909,24 +3915,24 @@ class TypeFeedback final :
   enum : int {
     kTypesFieldNumber = 2,
   };
-  // map<int64, .TypeFeedback.Feedback> types = 2;
+  // map<int64, .rsh.protocol.TypeFeedback.Feedback> types = 2;
   int types_size() const;
   private:
   int _internal_types_size() const;
   public:
   void clear_types();
   private:
-  const ::PROTOBUF_NAMESPACE_ID::Map< int64_t, ::TypeFeedback_Feedback >&
+  const ::PROTOBUF_NAMESPACE_ID::Map< int64_t, ::rsh::protocol::TypeFeedback_Feedback >&
       _internal_types() const;
-  ::PROTOBUF_NAMESPACE_ID::Map< int64_t, ::TypeFeedback_Feedback >*
+  ::PROTOBUF_NAMESPACE_ID::Map< int64_t, ::rsh::protocol::TypeFeedback_Feedback >*
       _internal_mutable_types();
   public:
-  const ::PROTOBUF_NAMESPACE_ID::Map< int64_t, ::TypeFeedback_Feedback >&
+  const ::PROTOBUF_NAMESPACE_ID::Map< int64_t, ::rsh::protocol::TypeFeedback_Feedback >&
       types() const;
-  ::PROTOBUF_NAMESPACE_ID::Map< int64_t, ::TypeFeedback_Feedback >*
+  ::PROTOBUF_NAMESPACE_ID::Map< int64_t, ::rsh::protocol::TypeFeedback_Feedback >*
       mutable_types();
 
-  // @@protoc_insertion_point(class_scope:TypeFeedback)
+  // @@protoc_insertion_point(class_scope:rsh.protocol.TypeFeedback)
  private:
   class _Internal;
 
@@ -3936,7 +3942,7 @@ class TypeFeedback final :
   struct Impl_ {
     ::PROTOBUF_NAMESPACE_ID::internal::MapField<
         TypeFeedback_TypesEntry_DoNotUse,
-        int64_t, ::TypeFeedback_Feedback,
+        int64_t, ::rsh::protocol::TypeFeedback_Feedback,
         ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::TYPE_INT64,
         ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::TYPE_MESSAGE> types_;
     mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
@@ -3947,7 +3953,7 @@ class TypeFeedback final :
 // -------------------------------------------------------------------
 
 class FeedbackRequest final :
-    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:FeedbackRequest) */ {
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:rsh.protocol.FeedbackRequest) */ {
  public:
   inline FeedbackRequest() : FeedbackRequest(nullptr) {}
   ~FeedbackRequest() override;
@@ -4050,7 +4056,7 @@ class FeedbackRequest final :
   private:
   friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
   static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
-    return "FeedbackRequest";
+    return "rsh.protocol.FeedbackRequest";
   }
   protected:
   explicit FeedbackRequest(::PROTOBUF_NAMESPACE_ID::Arena* arena,
@@ -4069,25 +4075,25 @@ class FeedbackRequest final :
   enum : int {
     kFunctionFieldNumber = 1,
   };
-  // .Function function = 1;
+  // .rsh.protocol.Function function = 1;
   bool has_function() const;
   private:
   bool _internal_has_function() const;
   public:
   void clear_function();
-  const ::Function& function() const;
-  PROTOBUF_NODISCARD ::Function* release_function();
-  ::Function* mutable_function();
-  void set_allocated_function(::Function* function);
+  const ::rsh::protocol::Function& function() const;
+  PROTOBUF_NODISCARD ::rsh::protocol::Function* release_function();
+  ::rsh::protocol::Function* mutable_function();
+  void set_allocated_function(::rsh::protocol::Function* function);
   private:
-  const ::Function& _internal_function() const;
-  ::Function* _internal_mutable_function();
+  const ::rsh::protocol::Function& _internal_function() const;
+  ::rsh::protocol::Function* _internal_mutable_function();
   public:
   void unsafe_arena_set_allocated_function(
-      ::Function* function);
-  ::Function* unsafe_arena_release_function();
+      ::rsh::protocol::Function* function);
+  ::rsh::protocol::Function* unsafe_arena_release_function();
 
-  // @@protoc_insertion_point(class_scope:FeedbackRequest)
+  // @@protoc_insertion_point(class_scope:rsh.protocol.FeedbackRequest)
  private:
   class _Internal;
 
@@ -4095,7 +4101,7 @@ class FeedbackRequest final :
   typedef void InternalArenaConstructable_;
   typedef void DestructorSkippable_;
   struct Impl_ {
-    ::Function* function_;
+    ::rsh::protocol::Function* function_;
     mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   };
   union { Impl_ _impl_; };
@@ -4104,7 +4110,7 @@ class FeedbackRequest final :
 // -------------------------------------------------------------------
 
 class PackageSource final :
-    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:PackageSource) */ {
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:rsh.protocol.PackageSource) */ {
  public:
   inline PackageSource() : PackageSource(nullptr) {}
   ~PackageSource() override;
@@ -4213,7 +4219,7 @@ class PackageSource final :
   private:
   friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
   static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
-    return "PackageSource";
+    return "rsh.protocol.PackageSource";
   }
   protected:
   explicit PackageSource(::PROTOBUF_NAMESPACE_ID::Arena* arena,
@@ -4271,7 +4277,7 @@ class PackageSource final :
 
   void clear_source();
   SourceCase source_case() const;
-  // @@protoc_insertion_point(class_scope:PackageSource)
+  // @@protoc_insertion_point(class_scope:rsh.protocol.PackageSource)
  private:
   class _Internal;
   void set_has_r_mirror();
@@ -4300,7 +4306,7 @@ class PackageSource final :
 // -------------------------------------------------------------------
 
 class Package final :
-    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:Package) */ {
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:rsh.protocol.Package) */ {
  public:
   inline Package() : Package(nullptr) {}
   ~Package() override;
@@ -4403,7 +4409,7 @@ class Package final :
   private:
   friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
   static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
-    return "Package";
+    return "rsh.protocol.Package";
   }
   protected:
   explicit Package(::PROTOBUF_NAMESPACE_ID::Arena* arena,
@@ -4463,43 +4469,43 @@ class Package final :
   std::string* _internal_mutable_name();
   public:
 
-  // .Version version = 2;
+  // .rsh.protocol.Version version = 2;
   bool has_version() const;
   private:
   bool _internal_has_version() const;
   public:
   void clear_version();
-  const ::Version& version() const;
-  PROTOBUF_NODISCARD ::Version* release_version();
-  ::Version* mutable_version();
-  void set_allocated_version(::Version* version);
+  const ::rsh::protocol::Version& version() const;
+  PROTOBUF_NODISCARD ::rsh::protocol::Version* release_version();
+  ::rsh::protocol::Version* mutable_version();
+  void set_allocated_version(::rsh::protocol::Version* version);
   private:
-  const ::Version& _internal_version() const;
-  ::Version* _internal_mutable_version();
+  const ::rsh::protocol::Version& _internal_version() const;
+  ::rsh::protocol::Version* _internal_mutable_version();
   public:
   void unsafe_arena_set_allocated_version(
-      ::Version* version);
-  ::Version* unsafe_arena_release_version();
+      ::rsh::protocol::Version* version);
+  ::rsh::protocol::Version* unsafe_arena_release_version();
 
-  // optional .PackageSource source = 5;
+  // optional .rsh.protocol.PackageSource source = 5;
   bool has_source() const;
   private:
   bool _internal_has_source() const;
   public:
   void clear_source();
-  const ::PackageSource& source() const;
-  PROTOBUF_NODISCARD ::PackageSource* release_source();
-  ::PackageSource* mutable_source();
-  void set_allocated_source(::PackageSource* source);
+  const ::rsh::protocol::PackageSource& source() const;
+  PROTOBUF_NODISCARD ::rsh::protocol::PackageSource* release_source();
+  ::rsh::protocol::PackageSource* mutable_source();
+  void set_allocated_source(::rsh::protocol::PackageSource* source);
   private:
-  const ::PackageSource& _internal_source() const;
-  ::PackageSource* _internal_mutable_source();
+  const ::rsh::protocol::PackageSource& _internal_source() const;
+  ::rsh::protocol::PackageSource* _internal_mutable_source();
   public:
   void unsafe_arena_set_allocated_source(
-      ::PackageSource* source);
-  ::PackageSource* unsafe_arena_release_source();
+      ::rsh::protocol::PackageSource* source);
+  ::rsh::protocol::PackageSource* unsafe_arena_release_source();
 
-  // @@protoc_insertion_point(class_scope:Package)
+  // @@protoc_insertion_point(class_scope:rsh.protocol.Package)
  private:
   class _Internal;
 
@@ -4511,8 +4517,8 @@ class Package final :
     mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
     ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string> function_hashes_;
     ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr name_;
-    ::Version* version_;
-    ::PackageSource* source_;
+    ::rsh::protocol::Version* version_;
+    ::rsh::protocol::PackageSource* source_;
   };
   union { Impl_ _impl_; };
   friend struct ::TableStruct_messages_2eproto;
@@ -4520,7 +4526,7 @@ class Package final :
 // -------------------------------------------------------------------
 
 class PackageRequest final :
-    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:PackageRequest) */ {
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:rsh.protocol.PackageRequest) */ {
  public:
   inline PackageRequest() : PackageRequest(nullptr) {}
   ~PackageRequest() override;
@@ -4623,7 +4629,7 @@ class PackageRequest final :
   private:
   friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
   static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
-    return "PackageRequest";
+    return "rsh.protocol.PackageRequest";
   }
   protected:
   explicit PackageRequest(::PROTOBUF_NAMESPACE_ID::Arena* arena,
@@ -4656,7 +4662,7 @@ class PackageRequest final :
   std::string* _internal_mutable_hash();
   public:
 
-  // @@protoc_insertion_point(class_scope:PackageRequest)
+  // @@protoc_insertion_point(class_scope:rsh.protocol.PackageRequest)
  private:
   class _Internal;
 
@@ -4689,7 +4695,7 @@ inline int32_t Version::_internal_major() const {
   return _impl_.major_;
 }
 inline int32_t Version::major() const {
-  // @@protoc_insertion_point(field_get:Version.major)
+  // @@protoc_insertion_point(field_get:rsh.protocol.Version.major)
   return _internal_major();
 }
 inline void Version::_internal_set_major(int32_t value) {
@@ -4698,7 +4704,7 @@ inline void Version::_internal_set_major(int32_t value) {
 }
 inline void Version::set_major(int32_t value) {
   _internal_set_major(value);
-  // @@protoc_insertion_point(field_set:Version.major)
+  // @@protoc_insertion_point(field_set:rsh.protocol.Version.major)
 }
 
 // int32 minor = 2;
@@ -4709,7 +4715,7 @@ inline int32_t Version::_internal_minor() const {
   return _impl_.minor_;
 }
 inline int32_t Version::minor() const {
-  // @@protoc_insertion_point(field_get:Version.minor)
+  // @@protoc_insertion_point(field_get:rsh.protocol.Version.minor)
   return _internal_minor();
 }
 inline void Version::_internal_set_minor(int32_t value) {
@@ -4718,7 +4724,7 @@ inline void Version::_internal_set_minor(int32_t value) {
 }
 inline void Version::set_minor(int32_t value) {
   _internal_set_minor(value);
-  // @@protoc_insertion_point(field_set:Version.minor)
+  // @@protoc_insertion_point(field_set:rsh.protocol.Version.minor)
 }
 
 // int32 patch = 3;
@@ -4729,7 +4735,7 @@ inline int32_t Version::_internal_patch() const {
   return _impl_.patch_;
 }
 inline int32_t Version::patch() const {
-  // @@protoc_insertion_point(field_get:Version.patch)
+  // @@protoc_insertion_point(field_get:rsh.protocol.Version.patch)
   return _internal_patch();
 }
 inline void Version::_internal_set_patch(int32_t value) {
@@ -4738,14 +4744,14 @@ inline void Version::_internal_set_patch(int32_t value) {
 }
 inline void Version::set_patch(int32_t value) {
   _internal_set_patch(value);
-  // @@protoc_insertion_point(field_set:Version.patch)
+  // @@protoc_insertion_point(field_set:rsh.protocol.Version.patch)
 }
 
 // -------------------------------------------------------------------
 
 // InitRequest
 
-// .Version Rsh_version = 1;
+// .rsh.protocol.Version Rsh_version = 1;
 inline bool InitRequest::_internal_has_rsh_version() const {
   return this != internal_default_instance() && _impl_.rsh_version_ != nullptr;
 }
@@ -4758,17 +4764,17 @@ inline void InitRequest::clear_rsh_version() {
   }
   _impl_.rsh_version_ = nullptr;
 }
-inline const ::Version& InitRequest::_internal_rsh_version() const {
-  const ::Version* p = _impl_.rsh_version_;
-  return p != nullptr ? *p : reinterpret_cast<const ::Version&>(
-      ::_Version_default_instance_);
+inline const ::rsh::protocol::Version& InitRequest::_internal_rsh_version() const {
+  const ::rsh::protocol::Version* p = _impl_.rsh_version_;
+  return p != nullptr ? *p : reinterpret_cast<const ::rsh::protocol::Version&>(
+      ::rsh::protocol::_Version_default_instance_);
 }
-inline const ::Version& InitRequest::rsh_version() const {
-  // @@protoc_insertion_point(field_get:InitRequest.Rsh_version)
+inline const ::rsh::protocol::Version& InitRequest::rsh_version() const {
+  // @@protoc_insertion_point(field_get:rsh.protocol.InitRequest.Rsh_version)
   return _internal_rsh_version();
 }
 inline void InitRequest::unsafe_arena_set_allocated_rsh_version(
-    ::Version* rsh_version) {
+    ::rsh::protocol::Version* rsh_version) {
   if (GetArenaForAllocation() == nullptr) {
     delete reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(_impl_.rsh_version_);
   }
@@ -4778,11 +4784,11 @@ inline void InitRequest::unsafe_arena_set_allocated_rsh_version(
   } else {
     
   }
-  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:InitRequest.Rsh_version)
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:rsh.protocol.InitRequest.Rsh_version)
 }
-inline ::Version* InitRequest::release_rsh_version() {
+inline ::rsh::protocol::Version* InitRequest::release_rsh_version() {
   
-  ::Version* temp = _impl_.rsh_version_;
+  ::rsh::protocol::Version* temp = _impl_.rsh_version_;
   _impl_.rsh_version_ = nullptr;
 #ifdef PROTOBUF_FORCE_COPY_IN_RELEASE
   auto* old =  reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(temp);
@@ -4795,27 +4801,27 @@ inline ::Version* InitRequest::release_rsh_version() {
 #endif  // !PROTOBUF_FORCE_COPY_IN_RELEASE
   return temp;
 }
-inline ::Version* InitRequest::unsafe_arena_release_rsh_version() {
-  // @@protoc_insertion_point(field_release:InitRequest.Rsh_version)
+inline ::rsh::protocol::Version* InitRequest::unsafe_arena_release_rsh_version() {
+  // @@protoc_insertion_point(field_release:rsh.protocol.InitRequest.Rsh_version)
   
-  ::Version* temp = _impl_.rsh_version_;
+  ::rsh::protocol::Version* temp = _impl_.rsh_version_;
   _impl_.rsh_version_ = nullptr;
   return temp;
 }
-inline ::Version* InitRequest::_internal_mutable_rsh_version() {
+inline ::rsh::protocol::Version* InitRequest::_internal_mutable_rsh_version() {
   
   if (_impl_.rsh_version_ == nullptr) {
-    auto* p = CreateMaybeMessage<::Version>(GetArenaForAllocation());
+    auto* p = CreateMaybeMessage<::rsh::protocol::Version>(GetArenaForAllocation());
     _impl_.rsh_version_ = p;
   }
   return _impl_.rsh_version_;
 }
-inline ::Version* InitRequest::mutable_rsh_version() {
-  ::Version* _msg = _internal_mutable_rsh_version();
-  // @@protoc_insertion_point(field_mutable:InitRequest.Rsh_version)
+inline ::rsh::protocol::Version* InitRequest::mutable_rsh_version() {
+  ::rsh::protocol::Version* _msg = _internal_mutable_rsh_version();
+  // @@protoc_insertion_point(field_mutable:rsh.protocol.InitRequest.Rsh_version)
   return _msg;
 }
-inline void InitRequest::set_allocated_rsh_version(::Version* rsh_version) {
+inline void InitRequest::set_allocated_rsh_version(::rsh::protocol::Version* rsh_version) {
   ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArenaForAllocation();
   if (message_arena == nullptr) {
     delete _impl_.rsh_version_;
@@ -4832,10 +4838,10 @@ inline void InitRequest::set_allocated_rsh_version(::Version* rsh_version) {
     
   }
   _impl_.rsh_version_ = rsh_version;
-  // @@protoc_insertion_point(field_set_allocated:InitRequest.Rsh_version)
+  // @@protoc_insertion_point(field_set_allocated:rsh.protocol.InitRequest.Rsh_version)
 }
 
-// .Version R_version = 2;
+// .rsh.protocol.Version R_version = 2;
 inline bool InitRequest::_internal_has_r_version() const {
   return this != internal_default_instance() && _impl_.r_version_ != nullptr;
 }
@@ -4848,17 +4854,17 @@ inline void InitRequest::clear_r_version() {
   }
   _impl_.r_version_ = nullptr;
 }
-inline const ::Version& InitRequest::_internal_r_version() const {
-  const ::Version* p = _impl_.r_version_;
-  return p != nullptr ? *p : reinterpret_cast<const ::Version&>(
-      ::_Version_default_instance_);
+inline const ::rsh::protocol::Version& InitRequest::_internal_r_version() const {
+  const ::rsh::protocol::Version* p = _impl_.r_version_;
+  return p != nullptr ? *p : reinterpret_cast<const ::rsh::protocol::Version&>(
+      ::rsh::protocol::_Version_default_instance_);
 }
-inline const ::Version& InitRequest::r_version() const {
-  // @@protoc_insertion_point(field_get:InitRequest.R_version)
+inline const ::rsh::protocol::Version& InitRequest::r_version() const {
+  // @@protoc_insertion_point(field_get:rsh.protocol.InitRequest.R_version)
   return _internal_r_version();
 }
 inline void InitRequest::unsafe_arena_set_allocated_r_version(
-    ::Version* r_version) {
+    ::rsh::protocol::Version* r_version) {
   if (GetArenaForAllocation() == nullptr) {
     delete reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(_impl_.r_version_);
   }
@@ -4868,11 +4874,11 @@ inline void InitRequest::unsafe_arena_set_allocated_r_version(
   } else {
     
   }
-  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:InitRequest.R_version)
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:rsh.protocol.InitRequest.R_version)
 }
-inline ::Version* InitRequest::release_r_version() {
+inline ::rsh::protocol::Version* InitRequest::release_r_version() {
   
-  ::Version* temp = _impl_.r_version_;
+  ::rsh::protocol::Version* temp = _impl_.r_version_;
   _impl_.r_version_ = nullptr;
 #ifdef PROTOBUF_FORCE_COPY_IN_RELEASE
   auto* old =  reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(temp);
@@ -4885,27 +4891,27 @@ inline ::Version* InitRequest::release_r_version() {
 #endif  // !PROTOBUF_FORCE_COPY_IN_RELEASE
   return temp;
 }
-inline ::Version* InitRequest::unsafe_arena_release_r_version() {
-  // @@protoc_insertion_point(field_release:InitRequest.R_version)
+inline ::rsh::protocol::Version* InitRequest::unsafe_arena_release_r_version() {
+  // @@protoc_insertion_point(field_release:rsh.protocol.InitRequest.R_version)
   
-  ::Version* temp = _impl_.r_version_;
+  ::rsh::protocol::Version* temp = _impl_.r_version_;
   _impl_.r_version_ = nullptr;
   return temp;
 }
-inline ::Version* InitRequest::_internal_mutable_r_version() {
+inline ::rsh::protocol::Version* InitRequest::_internal_mutable_r_version() {
   
   if (_impl_.r_version_ == nullptr) {
-    auto* p = CreateMaybeMessage<::Version>(GetArenaForAllocation());
+    auto* p = CreateMaybeMessage<::rsh::protocol::Version>(GetArenaForAllocation());
     _impl_.r_version_ = p;
   }
   return _impl_.r_version_;
 }
-inline ::Version* InitRequest::mutable_r_version() {
-  ::Version* _msg = _internal_mutable_r_version();
-  // @@protoc_insertion_point(field_mutable:InitRequest.R_version)
+inline ::rsh::protocol::Version* InitRequest::mutable_r_version() {
+  ::rsh::protocol::Version* _msg = _internal_mutable_r_version();
+  // @@protoc_insertion_point(field_mutable:rsh.protocol.InitRequest.R_version)
   return _msg;
 }
-inline void InitRequest::set_allocated_r_version(::Version* r_version) {
+inline void InitRequest::set_allocated_r_version(::rsh::protocol::Version* r_version) {
   ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArenaForAllocation();
   if (message_arena == nullptr) {
     delete _impl_.r_version_;
@@ -4922,7 +4928,7 @@ inline void InitRequest::set_allocated_r_version(::Version* r_version) {
     
   }
   _impl_.r_version_ = r_version;
-  // @@protoc_insertion_point(field_set_allocated:InitRequest.R_version)
+  // @@protoc_insertion_point(field_set_allocated:rsh.protocol.InitRequest.R_version)
 }
 
 // string platform = 3;
@@ -4930,7 +4936,7 @@ inline void InitRequest::clear_platform() {
   _impl_.platform_.ClearToEmpty();
 }
 inline const std::string& InitRequest::platform() const {
-  // @@protoc_insertion_point(field_get:InitRequest.platform)
+  // @@protoc_insertion_point(field_get:rsh.protocol.InitRequest.platform)
   return _internal_platform();
 }
 template <typename ArgT0, typename... ArgT>
@@ -4938,11 +4944,11 @@ inline PROTOBUF_ALWAYS_INLINE
 void InitRequest::set_platform(ArgT0&& arg0, ArgT... args) {
  
  _impl_.platform_.Set(static_cast<ArgT0 &&>(arg0), args..., GetArenaForAllocation());
-  // @@protoc_insertion_point(field_set:InitRequest.platform)
+  // @@protoc_insertion_point(field_set:rsh.protocol.InitRequest.platform)
 }
 inline std::string* InitRequest::mutable_platform() {
   std::string* _s = _internal_mutable_platform();
-  // @@protoc_insertion_point(field_mutable:InitRequest.platform)
+  // @@protoc_insertion_point(field_mutable:rsh.protocol.InitRequest.platform)
   return _s;
 }
 inline const std::string& InitRequest::_internal_platform() const {
@@ -4957,7 +4963,7 @@ inline std::string* InitRequest::_internal_mutable_platform() {
   return _impl_.platform_.Mutable(GetArenaForAllocation());
 }
 inline std::string* InitRequest::release_platform() {
-  // @@protoc_insertion_point(field_release:InitRequest.platform)
+  // @@protoc_insertion_point(field_release:rsh.protocol.InitRequest.platform)
   return _impl_.platform_.Release();
 }
 inline void InitRequest::set_allocated_platform(std::string* platform) {
@@ -4972,7 +4978,7 @@ inline void InitRequest::set_allocated_platform(std::string* platform) {
     _impl_.platform_.Set("", GetArenaForAllocation());
   }
 #endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
-  // @@protoc_insertion_point(field_set_allocated:InitRequest.platform)
+  // @@protoc_insertion_point(field_set_allocated:rsh.protocol.InitRequest.platform)
 }
 
 // repeated bytes package_hash = 4;
@@ -4987,66 +4993,66 @@ inline void InitRequest::clear_package_hash() {
 }
 inline std::string* InitRequest::add_package_hash() {
   std::string* _s = _internal_add_package_hash();
-  // @@protoc_insertion_point(field_add_mutable:InitRequest.package_hash)
+  // @@protoc_insertion_point(field_add_mutable:rsh.protocol.InitRequest.package_hash)
   return _s;
 }
 inline const std::string& InitRequest::_internal_package_hash(int index) const {
   return _impl_.package_hash_.Get(index);
 }
 inline const std::string& InitRequest::package_hash(int index) const {
-  // @@protoc_insertion_point(field_get:InitRequest.package_hash)
+  // @@protoc_insertion_point(field_get:rsh.protocol.InitRequest.package_hash)
   return _internal_package_hash(index);
 }
 inline std::string* InitRequest::mutable_package_hash(int index) {
-  // @@protoc_insertion_point(field_mutable:InitRequest.package_hash)
+  // @@protoc_insertion_point(field_mutable:rsh.protocol.InitRequest.package_hash)
   return _impl_.package_hash_.Mutable(index);
 }
 inline void InitRequest::set_package_hash(int index, const std::string& value) {
   _impl_.package_hash_.Mutable(index)->assign(value);
-  // @@protoc_insertion_point(field_set:InitRequest.package_hash)
+  // @@protoc_insertion_point(field_set:rsh.protocol.InitRequest.package_hash)
 }
 inline void InitRequest::set_package_hash(int index, std::string&& value) {
   _impl_.package_hash_.Mutable(index)->assign(std::move(value));
-  // @@protoc_insertion_point(field_set:InitRequest.package_hash)
+  // @@protoc_insertion_point(field_set:rsh.protocol.InitRequest.package_hash)
 }
 inline void InitRequest::set_package_hash(int index, const char* value) {
   GOOGLE_DCHECK(value != nullptr);
   _impl_.package_hash_.Mutable(index)->assign(value);
-  // @@protoc_insertion_point(field_set_char:InitRequest.package_hash)
+  // @@protoc_insertion_point(field_set_char:rsh.protocol.InitRequest.package_hash)
 }
 inline void InitRequest::set_package_hash(int index, const void* value, size_t size) {
   _impl_.package_hash_.Mutable(index)->assign(
     reinterpret_cast<const char*>(value), size);
-  // @@protoc_insertion_point(field_set_pointer:InitRequest.package_hash)
+  // @@protoc_insertion_point(field_set_pointer:rsh.protocol.InitRequest.package_hash)
 }
 inline std::string* InitRequest::_internal_add_package_hash() {
   return _impl_.package_hash_.Add();
 }
 inline void InitRequest::add_package_hash(const std::string& value) {
   _impl_.package_hash_.Add()->assign(value);
-  // @@protoc_insertion_point(field_add:InitRequest.package_hash)
+  // @@protoc_insertion_point(field_add:rsh.protocol.InitRequest.package_hash)
 }
 inline void InitRequest::add_package_hash(std::string&& value) {
   _impl_.package_hash_.Add(std::move(value));
-  // @@protoc_insertion_point(field_add:InitRequest.package_hash)
+  // @@protoc_insertion_point(field_add:rsh.protocol.InitRequest.package_hash)
 }
 inline void InitRequest::add_package_hash(const char* value) {
   GOOGLE_DCHECK(value != nullptr);
   _impl_.package_hash_.Add()->assign(value);
-  // @@protoc_insertion_point(field_add_char:InitRequest.package_hash)
+  // @@protoc_insertion_point(field_add_char:rsh.protocol.InitRequest.package_hash)
 }
 inline void InitRequest::add_package_hash(const void* value, size_t size) {
   _impl_.package_hash_.Add()->assign(reinterpret_cast<const char*>(value), size);
-  // @@protoc_insertion_point(field_add_pointer:InitRequest.package_hash)
+  // @@protoc_insertion_point(field_add_pointer:rsh.protocol.InitRequest.package_hash)
 }
 inline const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>&
 InitRequest::package_hash() const {
-  // @@protoc_insertion_point(field_list:InitRequest.package_hash)
+  // @@protoc_insertion_point(field_list:rsh.protocol.InitRequest.package_hash)
   return _impl_.package_hash_;
 }
 inline ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>*
 InitRequest::mutable_package_hash() {
-  // @@protoc_insertion_point(field_mutable_list:InitRequest.package_hash)
+  // @@protoc_insertion_point(field_mutable_list:rsh.protocol.InitRequest.package_hash)
   return &_impl_.package_hash_;
 }
 
@@ -5058,7 +5064,7 @@ InitRequest::mutable_package_hash() {
 
 // CompileRequest
 
-// .Function function = 2;
+// .rsh.protocol.Function function = 2;
 inline bool CompileRequest::_internal_has_function() const {
   return this != internal_default_instance() && _impl_.function_ != nullptr;
 }
@@ -5071,17 +5077,17 @@ inline void CompileRequest::clear_function() {
   }
   _impl_.function_ = nullptr;
 }
-inline const ::Function& CompileRequest::_internal_function() const {
-  const ::Function* p = _impl_.function_;
-  return p != nullptr ? *p : reinterpret_cast<const ::Function&>(
-      ::_Function_default_instance_);
+inline const ::rsh::protocol::Function& CompileRequest::_internal_function() const {
+  const ::rsh::protocol::Function* p = _impl_.function_;
+  return p != nullptr ? *p : reinterpret_cast<const ::rsh::protocol::Function&>(
+      ::rsh::protocol::_Function_default_instance_);
 }
-inline const ::Function& CompileRequest::function() const {
-  // @@protoc_insertion_point(field_get:CompileRequest.function)
+inline const ::rsh::protocol::Function& CompileRequest::function() const {
+  // @@protoc_insertion_point(field_get:rsh.protocol.CompileRequest.function)
   return _internal_function();
 }
 inline void CompileRequest::unsafe_arena_set_allocated_function(
-    ::Function* function) {
+    ::rsh::protocol::Function* function) {
   if (GetArenaForAllocation() == nullptr) {
     delete reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(_impl_.function_);
   }
@@ -5091,11 +5097,11 @@ inline void CompileRequest::unsafe_arena_set_allocated_function(
   } else {
     
   }
-  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:CompileRequest.function)
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:rsh.protocol.CompileRequest.function)
 }
-inline ::Function* CompileRequest::release_function() {
+inline ::rsh::protocol::Function* CompileRequest::release_function() {
   
-  ::Function* temp = _impl_.function_;
+  ::rsh::protocol::Function* temp = _impl_.function_;
   _impl_.function_ = nullptr;
 #ifdef PROTOBUF_FORCE_COPY_IN_RELEASE
   auto* old =  reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(temp);
@@ -5108,27 +5114,27 @@ inline ::Function* CompileRequest::release_function() {
 #endif  // !PROTOBUF_FORCE_COPY_IN_RELEASE
   return temp;
 }
-inline ::Function* CompileRequest::unsafe_arena_release_function() {
-  // @@protoc_insertion_point(field_release:CompileRequest.function)
+inline ::rsh::protocol::Function* CompileRequest::unsafe_arena_release_function() {
+  // @@protoc_insertion_point(field_release:rsh.protocol.CompileRequest.function)
   
-  ::Function* temp = _impl_.function_;
+  ::rsh::protocol::Function* temp = _impl_.function_;
   _impl_.function_ = nullptr;
   return temp;
 }
-inline ::Function* CompileRequest::_internal_mutable_function() {
+inline ::rsh::protocol::Function* CompileRequest::_internal_mutable_function() {
   
   if (_impl_.function_ == nullptr) {
-    auto* p = CreateMaybeMessage<::Function>(GetArenaForAllocation());
+    auto* p = CreateMaybeMessage<::rsh::protocol::Function>(GetArenaForAllocation());
     _impl_.function_ = p;
   }
   return _impl_.function_;
 }
-inline ::Function* CompileRequest::mutable_function() {
-  ::Function* _msg = _internal_mutable_function();
-  // @@protoc_insertion_point(field_mutable:CompileRequest.function)
+inline ::rsh::protocol::Function* CompileRequest::mutable_function() {
+  ::rsh::protocol::Function* _msg = _internal_mutable_function();
+  // @@protoc_insertion_point(field_mutable:rsh.protocol.CompileRequest.function)
   return _msg;
 }
-inline void CompileRequest::set_allocated_function(::Function* function) {
+inline void CompileRequest::set_allocated_function(::rsh::protocol::Function* function) {
   ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArenaForAllocation();
   if (message_arena == nullptr) {
     delete _impl_.function_;
@@ -5145,10 +5151,10 @@ inline void CompileRequest::set_allocated_function(::Function* function) {
     
   }
   _impl_.function_ = function;
-  // @@protoc_insertion_point(field_set_allocated:CompileRequest.function)
+  // @@protoc_insertion_point(field_set_allocated:rsh.protocol.CompileRequest.function)
 }
 
-// optional .Tier tier = 4;
+// optional .rsh.protocol.Tier tier = 4;
 inline bool CompileRequest::_internal_has_tier() const {
   bool value = (_impl_._has_bits_[0] & 0x00000004u) != 0;
   return value;
@@ -5160,20 +5166,20 @@ inline void CompileRequest::clear_tier() {
   _impl_.tier_ = 0;
   _impl_._has_bits_[0] &= ~0x00000004u;
 }
-inline ::Tier CompileRequest::_internal_tier() const {
-  return static_cast< ::Tier >(_impl_.tier_);
+inline ::rsh::protocol::Tier CompileRequest::_internal_tier() const {
+  return static_cast< ::rsh::protocol::Tier >(_impl_.tier_);
 }
-inline ::Tier CompileRequest::tier() const {
-  // @@protoc_insertion_point(field_get:CompileRequest.tier)
+inline ::rsh::protocol::Tier CompileRequest::tier() const {
+  // @@protoc_insertion_point(field_get:rsh.protocol.CompileRequest.tier)
   return _internal_tier();
 }
-inline void CompileRequest::_internal_set_tier(::Tier value) {
+inline void CompileRequest::_internal_set_tier(::rsh::protocol::Tier value) {
   _impl_._has_bits_[0] |= 0x00000004u;
   _impl_.tier_ = value;
 }
-inline void CompileRequest::set_tier(::Tier value) {
+inline void CompileRequest::set_tier(::rsh::protocol::Tier value) {
   _internal_set_tier(value);
-  // @@protoc_insertion_point(field_set:CompileRequest.tier)
+  // @@protoc_insertion_point(field_set:rsh.protocol.CompileRequest.tier)
 }
 
 // optional int32 optimization_level = 5;
@@ -5192,7 +5198,7 @@ inline int32_t CompileRequest::_internal_optimization_level() const {
   return _impl_.optimization_level_;
 }
 inline int32_t CompileRequest::optimization_level() const {
-  // @@protoc_insertion_point(field_get:CompileRequest.optimization_level)
+  // @@protoc_insertion_point(field_get:rsh.protocol.CompileRequest.optimization_level)
   return _internal_optimization_level();
 }
 inline void CompileRequest::_internal_set_optimization_level(int32_t value) {
@@ -5201,10 +5207,10 @@ inline void CompileRequest::_internal_set_optimization_level(int32_t value) {
 }
 inline void CompileRequest::set_optimization_level(int32_t value) {
   _internal_set_optimization_level(value);
-  // @@protoc_insertion_point(field_set:CompileRequest.optimization_level)
+  // @@protoc_insertion_point(field_set:rsh.protocol.CompileRequest.optimization_level)
 }
 
-// optional .Context context = 6;
+// optional .rsh.protocol.Context context = 6;
 inline bool CompileRequest::_internal_has_context() const {
   bool value = (_impl_._has_bits_[0] & 0x00000001u) != 0;
   PROTOBUF_ASSUME(!value || _impl_.context_ != nullptr);
@@ -5217,17 +5223,17 @@ inline void CompileRequest::clear_context() {
   if (_impl_.context_ != nullptr) _impl_.context_->Clear();
   _impl_._has_bits_[0] &= ~0x00000001u;
 }
-inline const ::Context& CompileRequest::_internal_context() const {
-  const ::Context* p = _impl_.context_;
-  return p != nullptr ? *p : reinterpret_cast<const ::Context&>(
-      ::_Context_default_instance_);
+inline const ::rsh::protocol::Context& CompileRequest::_internal_context() const {
+  const ::rsh::protocol::Context* p = _impl_.context_;
+  return p != nullptr ? *p : reinterpret_cast<const ::rsh::protocol::Context&>(
+      ::rsh::protocol::_Context_default_instance_);
 }
-inline const ::Context& CompileRequest::context() const {
-  // @@protoc_insertion_point(field_get:CompileRequest.context)
+inline const ::rsh::protocol::Context& CompileRequest::context() const {
+  // @@protoc_insertion_point(field_get:rsh.protocol.CompileRequest.context)
   return _internal_context();
 }
 inline void CompileRequest::unsafe_arena_set_allocated_context(
-    ::Context* context) {
+    ::rsh::protocol::Context* context) {
   if (GetArenaForAllocation() == nullptr) {
     delete reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(_impl_.context_);
   }
@@ -5237,11 +5243,11 @@ inline void CompileRequest::unsafe_arena_set_allocated_context(
   } else {
     _impl_._has_bits_[0] &= ~0x00000001u;
   }
-  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:CompileRequest.context)
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:rsh.protocol.CompileRequest.context)
 }
-inline ::Context* CompileRequest::release_context() {
+inline ::rsh::protocol::Context* CompileRequest::release_context() {
   _impl_._has_bits_[0] &= ~0x00000001u;
-  ::Context* temp = _impl_.context_;
+  ::rsh::protocol::Context* temp = _impl_.context_;
   _impl_.context_ = nullptr;
 #ifdef PROTOBUF_FORCE_COPY_IN_RELEASE
   auto* old =  reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(temp);
@@ -5254,27 +5260,27 @@ inline ::Context* CompileRequest::release_context() {
 #endif  // !PROTOBUF_FORCE_COPY_IN_RELEASE
   return temp;
 }
-inline ::Context* CompileRequest::unsafe_arena_release_context() {
-  // @@protoc_insertion_point(field_release:CompileRequest.context)
+inline ::rsh::protocol::Context* CompileRequest::unsafe_arena_release_context() {
+  // @@protoc_insertion_point(field_release:rsh.protocol.CompileRequest.context)
   _impl_._has_bits_[0] &= ~0x00000001u;
-  ::Context* temp = _impl_.context_;
+  ::rsh::protocol::Context* temp = _impl_.context_;
   _impl_.context_ = nullptr;
   return temp;
 }
-inline ::Context* CompileRequest::_internal_mutable_context() {
+inline ::rsh::protocol::Context* CompileRequest::_internal_mutable_context() {
   _impl_._has_bits_[0] |= 0x00000001u;
   if (_impl_.context_ == nullptr) {
-    auto* p = CreateMaybeMessage<::Context>(GetArenaForAllocation());
+    auto* p = CreateMaybeMessage<::rsh::protocol::Context>(GetArenaForAllocation());
     _impl_.context_ = p;
   }
   return _impl_.context_;
 }
-inline ::Context* CompileRequest::mutable_context() {
-  ::Context* _msg = _internal_mutable_context();
-  // @@protoc_insertion_point(field_mutable:CompileRequest.context)
+inline ::rsh::protocol::Context* CompileRequest::mutable_context() {
+  ::rsh::protocol::Context* _msg = _internal_mutable_context();
+  // @@protoc_insertion_point(field_mutable:rsh.protocol.CompileRequest.context)
   return _msg;
 }
-inline void CompileRequest::set_allocated_context(::Context* context) {
+inline void CompileRequest::set_allocated_context(::rsh::protocol::Context* context) {
   ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArenaForAllocation();
   if (message_arena == nullptr) {
     delete _impl_.context_;
@@ -5291,10 +5297,10 @@ inline void CompileRequest::set_allocated_context(::Context* context) {
     _impl_._has_bits_[0] &= ~0x00000001u;
   }
   _impl_.context_ = context;
-  // @@protoc_insertion_point(field_set_allocated:CompileRequest.context)
+  // @@protoc_insertion_point(field_set_allocated:rsh.protocol.CompileRequest.context)
 }
 
-// optional .Environment environment = 7;
+// optional .rsh.protocol.Environment environment = 7;
 inline bool CompileRequest::_internal_has_environment() const {
   bool value = (_impl_._has_bits_[0] & 0x00000002u) != 0;
   PROTOBUF_ASSUME(!value || _impl_.environment_ != nullptr);
@@ -5307,17 +5313,17 @@ inline void CompileRequest::clear_environment() {
   if (_impl_.environment_ != nullptr) _impl_.environment_->Clear();
   _impl_._has_bits_[0] &= ~0x00000002u;
 }
-inline const ::Environment& CompileRequest::_internal_environment() const {
-  const ::Environment* p = _impl_.environment_;
-  return p != nullptr ? *p : reinterpret_cast<const ::Environment&>(
-      ::_Environment_default_instance_);
+inline const ::rsh::protocol::Environment& CompileRequest::_internal_environment() const {
+  const ::rsh::protocol::Environment* p = _impl_.environment_;
+  return p != nullptr ? *p : reinterpret_cast<const ::rsh::protocol::Environment&>(
+      ::rsh::protocol::_Environment_default_instance_);
 }
-inline const ::Environment& CompileRequest::environment() const {
-  // @@protoc_insertion_point(field_get:CompileRequest.environment)
+inline const ::rsh::protocol::Environment& CompileRequest::environment() const {
+  // @@protoc_insertion_point(field_get:rsh.protocol.CompileRequest.environment)
   return _internal_environment();
 }
 inline void CompileRequest::unsafe_arena_set_allocated_environment(
-    ::Environment* environment) {
+    ::rsh::protocol::Environment* environment) {
   if (GetArenaForAllocation() == nullptr) {
     delete reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(_impl_.environment_);
   }
@@ -5327,11 +5333,11 @@ inline void CompileRequest::unsafe_arena_set_allocated_environment(
   } else {
     _impl_._has_bits_[0] &= ~0x00000002u;
   }
-  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:CompileRequest.environment)
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:rsh.protocol.CompileRequest.environment)
 }
-inline ::Environment* CompileRequest::release_environment() {
+inline ::rsh::protocol::Environment* CompileRequest::release_environment() {
   _impl_._has_bits_[0] &= ~0x00000002u;
-  ::Environment* temp = _impl_.environment_;
+  ::rsh::protocol::Environment* temp = _impl_.environment_;
   _impl_.environment_ = nullptr;
 #ifdef PROTOBUF_FORCE_COPY_IN_RELEASE
   auto* old =  reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(temp);
@@ -5344,27 +5350,27 @@ inline ::Environment* CompileRequest::release_environment() {
 #endif  // !PROTOBUF_FORCE_COPY_IN_RELEASE
   return temp;
 }
-inline ::Environment* CompileRequest::unsafe_arena_release_environment() {
-  // @@protoc_insertion_point(field_release:CompileRequest.environment)
+inline ::rsh::protocol::Environment* CompileRequest::unsafe_arena_release_environment() {
+  // @@protoc_insertion_point(field_release:rsh.protocol.CompileRequest.environment)
   _impl_._has_bits_[0] &= ~0x00000002u;
-  ::Environment* temp = _impl_.environment_;
+  ::rsh::protocol::Environment* temp = _impl_.environment_;
   _impl_.environment_ = nullptr;
   return temp;
 }
-inline ::Environment* CompileRequest::_internal_mutable_environment() {
+inline ::rsh::protocol::Environment* CompileRequest::_internal_mutable_environment() {
   _impl_._has_bits_[0] |= 0x00000002u;
   if (_impl_.environment_ == nullptr) {
-    auto* p = CreateMaybeMessage<::Environment>(GetArenaForAllocation());
+    auto* p = CreateMaybeMessage<::rsh::protocol::Environment>(GetArenaForAllocation());
     _impl_.environment_ = p;
   }
   return _impl_.environment_;
 }
-inline ::Environment* CompileRequest::mutable_environment() {
-  ::Environment* _msg = _internal_mutable_environment();
-  // @@protoc_insertion_point(field_mutable:CompileRequest.environment)
+inline ::rsh::protocol::Environment* CompileRequest::mutable_environment() {
+  ::rsh::protocol::Environment* _msg = _internal_mutable_environment();
+  // @@protoc_insertion_point(field_mutable:rsh.protocol.CompileRequest.environment)
   return _msg;
 }
-inline void CompileRequest::set_allocated_environment(::Environment* environment) {
+inline void CompileRequest::set_allocated_environment(::rsh::protocol::Environment* environment) {
   ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArenaForAllocation();
   if (message_arena == nullptr) {
     delete _impl_.environment_;
@@ -5381,7 +5387,7 @@ inline void CompileRequest::set_allocated_environment(::Environment* environment
     _impl_._has_bits_[0] &= ~0x00000002u;
   }
   _impl_.environment_ = environment;
-  // @@protoc_insertion_point(field_set_allocated:CompileRequest.environment)
+  // @@protoc_insertion_point(field_set_allocated:rsh.protocol.CompileRequest.environment)
 }
 
 // -------------------------------------------------------------------
@@ -5393,7 +5399,7 @@ inline void CompileResponse::clear_hash() {
   _impl_.hash_.ClearToEmpty();
 }
 inline const std::string& CompileResponse::hash() const {
-  // @@protoc_insertion_point(field_get:CompileResponse.hash)
+  // @@protoc_insertion_point(field_get:rsh.protocol.CompileResponse.hash)
   return _internal_hash();
 }
 template <typename ArgT0, typename... ArgT>
@@ -5401,11 +5407,11 @@ inline PROTOBUF_ALWAYS_INLINE
 void CompileResponse::set_hash(ArgT0&& arg0, ArgT... args) {
  
  _impl_.hash_.SetBytes(static_cast<ArgT0 &&>(arg0), args..., GetArenaForAllocation());
-  // @@protoc_insertion_point(field_set:CompileResponse.hash)
+  // @@protoc_insertion_point(field_set:rsh.protocol.CompileResponse.hash)
 }
 inline std::string* CompileResponse::mutable_hash() {
   std::string* _s = _internal_mutable_hash();
-  // @@protoc_insertion_point(field_mutable:CompileResponse.hash)
+  // @@protoc_insertion_point(field_mutable:rsh.protocol.CompileResponse.hash)
   return _s;
 }
 inline const std::string& CompileResponse::_internal_hash() const {
@@ -5420,7 +5426,7 @@ inline std::string* CompileResponse::_internal_mutable_hash() {
   return _impl_.hash_.Mutable(GetArenaForAllocation());
 }
 inline std::string* CompileResponse::release_hash() {
-  // @@protoc_insertion_point(field_release:CompileResponse.hash)
+  // @@protoc_insertion_point(field_release:rsh.protocol.CompileResponse.hash)
   return _impl_.hash_.Release();
 }
 inline void CompileResponse::set_allocated_hash(std::string* hash) {
@@ -5435,27 +5441,27 @@ inline void CompileResponse::set_allocated_hash(std::string* hash) {
     _impl_.hash_.Set("", GetArenaForAllocation());
   }
 #endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
-  // @@protoc_insertion_point(field_set_allocated:CompileResponse.hash)
+  // @@protoc_insertion_point(field_set_allocated:rsh.protocol.CompileResponse.hash)
 }
 
-// .Tier tier = 2;
+// .rsh.protocol.Tier tier = 2;
 inline void CompileResponse::clear_tier() {
   _impl_.tier_ = 0;
 }
-inline ::Tier CompileResponse::_internal_tier() const {
-  return static_cast< ::Tier >(_impl_.tier_);
+inline ::rsh::protocol::Tier CompileResponse::_internal_tier() const {
+  return static_cast< ::rsh::protocol::Tier >(_impl_.tier_);
 }
-inline ::Tier CompileResponse::tier() const {
-  // @@protoc_insertion_point(field_get:CompileResponse.tier)
+inline ::rsh::protocol::Tier CompileResponse::tier() const {
+  // @@protoc_insertion_point(field_get:rsh.protocol.CompileResponse.tier)
   return _internal_tier();
 }
-inline void CompileResponse::_internal_set_tier(::Tier value) {
+inline void CompileResponse::_internal_set_tier(::rsh::protocol::Tier value) {
   
   _impl_.tier_ = value;
 }
-inline void CompileResponse::set_tier(::Tier value) {
+inline void CompileResponse::set_tier(::rsh::protocol::Tier value) {
   _internal_set_tier(value);
-  // @@protoc_insertion_point(field_set:CompileResponse.tier)
+  // @@protoc_insertion_point(field_set:rsh.protocol.CompileResponse.tier)
 }
 
 // optional bytes code = 3;
@@ -5471,7 +5477,7 @@ inline void CompileResponse::clear_code() {
   _impl_._has_bits_[0] &= ~0x00000001u;
 }
 inline const std::string& CompileResponse::code() const {
-  // @@protoc_insertion_point(field_get:CompileResponse.code)
+  // @@protoc_insertion_point(field_get:rsh.protocol.CompileResponse.code)
   return _internal_code();
 }
 template <typename ArgT0, typename... ArgT>
@@ -5479,11 +5485,11 @@ inline PROTOBUF_ALWAYS_INLINE
 void CompileResponse::set_code(ArgT0&& arg0, ArgT... args) {
  _impl_._has_bits_[0] |= 0x00000001u;
  _impl_.code_.SetBytes(static_cast<ArgT0 &&>(arg0), args..., GetArenaForAllocation());
-  // @@protoc_insertion_point(field_set:CompileResponse.code)
+  // @@protoc_insertion_point(field_set:rsh.protocol.CompileResponse.code)
 }
 inline std::string* CompileResponse::mutable_code() {
   std::string* _s = _internal_mutable_code();
-  // @@protoc_insertion_point(field_mutable:CompileResponse.code)
+  // @@protoc_insertion_point(field_mutable:rsh.protocol.CompileResponse.code)
   return _s;
 }
 inline const std::string& CompileResponse::_internal_code() const {
@@ -5498,7 +5504,7 @@ inline std::string* CompileResponse::_internal_mutable_code() {
   return _impl_.code_.Mutable(GetArenaForAllocation());
 }
 inline std::string* CompileResponse::release_code() {
-  // @@protoc_insertion_point(field_release:CompileResponse.code)
+  // @@protoc_insertion_point(field_release:rsh.protocol.CompileResponse.code)
   if (!_internal_has_code()) {
     return nullptr;
   }
@@ -5523,7 +5529,7 @@ inline void CompileResponse::set_allocated_code(std::string* code) {
     _impl_.code_.Set("", GetArenaForAllocation());
   }
 #endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
-  // @@protoc_insertion_point(field_set_allocated:CompileResponse.code)
+  // @@protoc_insertion_point(field_set_allocated:rsh.protocol.CompileResponse.code)
 }
 
 // optional bytes constant_pool = 4;
@@ -5539,7 +5545,7 @@ inline void CompileResponse::clear_constant_pool() {
   _impl_._has_bits_[0] &= ~0x00000002u;
 }
 inline const std::string& CompileResponse::constant_pool() const {
-  // @@protoc_insertion_point(field_get:CompileResponse.constant_pool)
+  // @@protoc_insertion_point(field_get:rsh.protocol.CompileResponse.constant_pool)
   return _internal_constant_pool();
 }
 template <typename ArgT0, typename... ArgT>
@@ -5547,11 +5553,11 @@ inline PROTOBUF_ALWAYS_INLINE
 void CompileResponse::set_constant_pool(ArgT0&& arg0, ArgT... args) {
  _impl_._has_bits_[0] |= 0x00000002u;
  _impl_.constant_pool_.SetBytes(static_cast<ArgT0 &&>(arg0), args..., GetArenaForAllocation());
-  // @@protoc_insertion_point(field_set:CompileResponse.constant_pool)
+  // @@protoc_insertion_point(field_set:rsh.protocol.CompileResponse.constant_pool)
 }
 inline std::string* CompileResponse::mutable_constant_pool() {
   std::string* _s = _internal_mutable_constant_pool();
-  // @@protoc_insertion_point(field_mutable:CompileResponse.constant_pool)
+  // @@protoc_insertion_point(field_mutable:rsh.protocol.CompileResponse.constant_pool)
   return _s;
 }
 inline const std::string& CompileResponse::_internal_constant_pool() const {
@@ -5566,7 +5572,7 @@ inline std::string* CompileResponse::_internal_mutable_constant_pool() {
   return _impl_.constant_pool_.Mutable(GetArenaForAllocation());
 }
 inline std::string* CompileResponse::release_constant_pool() {
-  // @@protoc_insertion_point(field_release:CompileResponse.constant_pool)
+  // @@protoc_insertion_point(field_release:rsh.protocol.CompileResponse.constant_pool)
   if (!_internal_has_constant_pool()) {
     return nullptr;
   }
@@ -5591,7 +5597,7 @@ inline void CompileResponse::set_allocated_constant_pool(std::string* constant_p
     _impl_.constant_pool_.Set("", GetArenaForAllocation());
   }
 #endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
-  // @@protoc_insertion_point(field_set_allocated:CompileResponse.constant_pool)
+  // @@protoc_insertion_point(field_set_allocated:rsh.protocol.CompileResponse.constant_pool)
 }
 
 // -------------------------------------------------------------------
@@ -5603,7 +5609,7 @@ inline void Function::clear_package_hash() {
   _impl_.package_hash_.ClearToEmpty();
 }
 inline const std::string& Function::package_hash() const {
-  // @@protoc_insertion_point(field_get:Function.package_hash)
+  // @@protoc_insertion_point(field_get:rsh.protocol.Function.package_hash)
   return _internal_package_hash();
 }
 template <typename ArgT0, typename... ArgT>
@@ -5611,11 +5617,11 @@ inline PROTOBUF_ALWAYS_INLINE
 void Function::set_package_hash(ArgT0&& arg0, ArgT... args) {
  
  _impl_.package_hash_.SetBytes(static_cast<ArgT0 &&>(arg0), args..., GetArenaForAllocation());
-  // @@protoc_insertion_point(field_set:Function.package_hash)
+  // @@protoc_insertion_point(field_set:rsh.protocol.Function.package_hash)
 }
 inline std::string* Function::mutable_package_hash() {
   std::string* _s = _internal_mutable_package_hash();
-  // @@protoc_insertion_point(field_mutable:Function.package_hash)
+  // @@protoc_insertion_point(field_mutable:rsh.protocol.Function.package_hash)
   return _s;
 }
 inline const std::string& Function::_internal_package_hash() const {
@@ -5630,7 +5636,7 @@ inline std::string* Function::_internal_mutable_package_hash() {
   return _impl_.package_hash_.Mutable(GetArenaForAllocation());
 }
 inline std::string* Function::release_package_hash() {
-  // @@protoc_insertion_point(field_release:Function.package_hash)
+  // @@protoc_insertion_point(field_release:rsh.protocol.Function.package_hash)
   return _impl_.package_hash_.Release();
 }
 inline void Function::set_allocated_package_hash(std::string* package_hash) {
@@ -5645,7 +5651,7 @@ inline void Function::set_allocated_package_hash(std::string* package_hash) {
     _impl_.package_hash_.Set("", GetArenaForAllocation());
   }
 #endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
-  // @@protoc_insertion_point(field_set_allocated:Function.package_hash)
+  // @@protoc_insertion_point(field_set_allocated:rsh.protocol.Function.package_hash)
 }
 
 // string name = 2;
@@ -5653,7 +5659,7 @@ inline void Function::clear_name() {
   _impl_.name_.ClearToEmpty();
 }
 inline const std::string& Function::name() const {
-  // @@protoc_insertion_point(field_get:Function.name)
+  // @@protoc_insertion_point(field_get:rsh.protocol.Function.name)
   return _internal_name();
 }
 template <typename ArgT0, typename... ArgT>
@@ -5661,11 +5667,11 @@ inline PROTOBUF_ALWAYS_INLINE
 void Function::set_name(ArgT0&& arg0, ArgT... args) {
  
  _impl_.name_.Set(static_cast<ArgT0 &&>(arg0), args..., GetArenaForAllocation());
-  // @@protoc_insertion_point(field_set:Function.name)
+  // @@protoc_insertion_point(field_set:rsh.protocol.Function.name)
 }
 inline std::string* Function::mutable_name() {
   std::string* _s = _internal_mutable_name();
-  // @@protoc_insertion_point(field_mutable:Function.name)
+  // @@protoc_insertion_point(field_mutable:rsh.protocol.Function.name)
   return _s;
 }
 inline const std::string& Function::_internal_name() const {
@@ -5680,7 +5686,7 @@ inline std::string* Function::_internal_mutable_name() {
   return _impl_.name_.Mutable(GetArenaForAllocation());
 }
 inline std::string* Function::release_name() {
-  // @@protoc_insertion_point(field_release:Function.name)
+  // @@protoc_insertion_point(field_release:rsh.protocol.Function.name)
   return _impl_.name_.Release();
 }
 inline void Function::set_allocated_name(std::string* name) {
@@ -5695,7 +5701,7 @@ inline void Function::set_allocated_name(std::string* name) {
     _impl_.name_.Set("", GetArenaForAllocation());
   }
 #endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
-  // @@protoc_insertion_point(field_set_allocated:Function.name)
+  // @@protoc_insertion_point(field_set_allocated:rsh.protocol.Function.name)
 }
 
 // bytes hash = 3;
@@ -5703,7 +5709,7 @@ inline void Function::clear_hash() {
   _impl_.hash_.ClearToEmpty();
 }
 inline const std::string& Function::hash() const {
-  // @@protoc_insertion_point(field_get:Function.hash)
+  // @@protoc_insertion_point(field_get:rsh.protocol.Function.hash)
   return _internal_hash();
 }
 template <typename ArgT0, typename... ArgT>
@@ -5711,11 +5717,11 @@ inline PROTOBUF_ALWAYS_INLINE
 void Function::set_hash(ArgT0&& arg0, ArgT... args) {
  
  _impl_.hash_.SetBytes(static_cast<ArgT0 &&>(arg0), args..., GetArenaForAllocation());
-  // @@protoc_insertion_point(field_set:Function.hash)
+  // @@protoc_insertion_point(field_set:rsh.protocol.Function.hash)
 }
 inline std::string* Function::mutable_hash() {
   std::string* _s = _internal_mutable_hash();
-  // @@protoc_insertion_point(field_mutable:Function.hash)
+  // @@protoc_insertion_point(field_mutable:rsh.protocol.Function.hash)
   return _s;
 }
 inline const std::string& Function::_internal_hash() const {
@@ -5730,7 +5736,7 @@ inline std::string* Function::_internal_mutable_hash() {
   return _impl_.hash_.Mutable(GetArenaForAllocation());
 }
 inline std::string* Function::release_hash() {
-  // @@protoc_insertion_point(field_release:Function.hash)
+  // @@protoc_insertion_point(field_release:rsh.protocol.Function.hash)
   return _impl_.hash_.Release();
 }
 inline void Function::set_allocated_hash(std::string* hash) {
@@ -5745,7 +5751,7 @@ inline void Function::set_allocated_hash(std::string* hash) {
     _impl_.hash_.Set("", GetArenaForAllocation());
   }
 #endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
-  // @@protoc_insertion_point(field_set_allocated:Function.hash)
+  // @@protoc_insertion_point(field_set_allocated:rsh.protocol.Function.hash)
 }
 
 // optional bytes body = 4;
@@ -5761,7 +5767,7 @@ inline void Function::clear_body() {
   _impl_._has_bits_[0] &= ~0x00000001u;
 }
 inline const std::string& Function::body() const {
-  // @@protoc_insertion_point(field_get:Function.body)
+  // @@protoc_insertion_point(field_get:rsh.protocol.Function.body)
   return _internal_body();
 }
 template <typename ArgT0, typename... ArgT>
@@ -5769,11 +5775,11 @@ inline PROTOBUF_ALWAYS_INLINE
 void Function::set_body(ArgT0&& arg0, ArgT... args) {
  _impl_._has_bits_[0] |= 0x00000001u;
  _impl_.body_.SetBytes(static_cast<ArgT0 &&>(arg0), args..., GetArenaForAllocation());
-  // @@protoc_insertion_point(field_set:Function.body)
+  // @@protoc_insertion_point(field_set:rsh.protocol.Function.body)
 }
 inline std::string* Function::mutable_body() {
   std::string* _s = _internal_mutable_body();
-  // @@protoc_insertion_point(field_mutable:Function.body)
+  // @@protoc_insertion_point(field_mutable:rsh.protocol.Function.body)
   return _s;
 }
 inline const std::string& Function::_internal_body() const {
@@ -5788,7 +5794,7 @@ inline std::string* Function::_internal_mutable_body() {
   return _impl_.body_.Mutable(GetArenaForAllocation());
 }
 inline std::string* Function::release_body() {
-  // @@protoc_insertion_point(field_release:Function.body)
+  // @@protoc_insertion_point(field_release:rsh.protocol.Function.body)
   if (!_internal_has_body()) {
     return nullptr;
   }
@@ -5813,7 +5819,7 @@ inline void Function::set_allocated_body(std::string* body) {
     _impl_.body_.Set("", GetArenaForAllocation());
   }
 #endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
-  // @@protoc_insertion_point(field_set_allocated:Function.body)
+  // @@protoc_insertion_point(field_set_allocated:rsh.protocol.Function.body)
 }
 
 // -------------------------------------------------------------------
@@ -5825,7 +5831,7 @@ inline void FunctionRequest::clear_hash() {
   _impl_.hash_.ClearToEmpty();
 }
 inline const std::string& FunctionRequest::hash() const {
-  // @@protoc_insertion_point(field_get:FunctionRequest.hash)
+  // @@protoc_insertion_point(field_get:rsh.protocol.FunctionRequest.hash)
   return _internal_hash();
 }
 template <typename ArgT0, typename... ArgT>
@@ -5833,11 +5839,11 @@ inline PROTOBUF_ALWAYS_INLINE
 void FunctionRequest::set_hash(ArgT0&& arg0, ArgT... args) {
  
  _impl_.hash_.SetBytes(static_cast<ArgT0 &&>(arg0), args..., GetArenaForAllocation());
-  // @@protoc_insertion_point(field_set:FunctionRequest.hash)
+  // @@protoc_insertion_point(field_set:rsh.protocol.FunctionRequest.hash)
 }
 inline std::string* FunctionRequest::mutable_hash() {
   std::string* _s = _internal_mutable_hash();
-  // @@protoc_insertion_point(field_mutable:FunctionRequest.hash)
+  // @@protoc_insertion_point(field_mutable:rsh.protocol.FunctionRequest.hash)
   return _s;
 }
 inline const std::string& FunctionRequest::_internal_hash() const {
@@ -5852,7 +5858,7 @@ inline std::string* FunctionRequest::_internal_mutable_hash() {
   return _impl_.hash_.Mutable(GetArenaForAllocation());
 }
 inline std::string* FunctionRequest::release_hash() {
-  // @@protoc_insertion_point(field_release:FunctionRequest.hash)
+  // @@protoc_insertion_point(field_release:rsh.protocol.FunctionRequest.hash)
   return _impl_.hash_.Release();
 }
 inline void FunctionRequest::set_allocated_hash(std::string* hash) {
@@ -5867,7 +5873,7 @@ inline void FunctionRequest::set_allocated_hash(std::string* hash) {
     _impl_.hash_.Set("", GetArenaForAllocation());
   }
 #endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
-  // @@protoc_insertion_point(field_set_allocated:FunctionRequest.hash)
+  // @@protoc_insertion_point(field_set_allocated:rsh.protocol.FunctionRequest.hash)
 }
 
 // -------------------------------------------------------------------
@@ -5892,7 +5898,7 @@ Environment::_internal_values() const {
 }
 inline const ::PROTOBUF_NAMESPACE_ID::Map< std::string, std::string >&
 Environment::values() const {
-  // @@protoc_insertion_point(field_map:Environment.values)
+  // @@protoc_insertion_point(field_map:rsh.protocol.Environment.values)
   return _internal_values();
 }
 inline ::PROTOBUF_NAMESPACE_ID::Map< std::string, std::string >*
@@ -5901,7 +5907,7 @@ Environment::_internal_mutable_values() {
 }
 inline ::PROTOBUF_NAMESPACE_ID::Map< std::string, std::string >*
 Environment::mutable_values() {
-  // @@protoc_insertion_point(field_mutable_map:Environment.values)
+  // @@protoc_insertion_point(field_mutable_map:rsh.protocol.Environment.values)
   return _internal_mutable_values();
 }
 
@@ -5921,66 +5927,66 @@ inline void ValueRequest::clear_hash() {
 }
 inline std::string* ValueRequest::add_hash() {
   std::string* _s = _internal_add_hash();
-  // @@protoc_insertion_point(field_add_mutable:ValueRequest.hash)
+  // @@protoc_insertion_point(field_add_mutable:rsh.protocol.ValueRequest.hash)
   return _s;
 }
 inline const std::string& ValueRequest::_internal_hash(int index) const {
   return _impl_.hash_.Get(index);
 }
 inline const std::string& ValueRequest::hash(int index) const {
-  // @@protoc_insertion_point(field_get:ValueRequest.hash)
+  // @@protoc_insertion_point(field_get:rsh.protocol.ValueRequest.hash)
   return _internal_hash(index);
 }
 inline std::string* ValueRequest::mutable_hash(int index) {
-  // @@protoc_insertion_point(field_mutable:ValueRequest.hash)
+  // @@protoc_insertion_point(field_mutable:rsh.protocol.ValueRequest.hash)
   return _impl_.hash_.Mutable(index);
 }
 inline void ValueRequest::set_hash(int index, const std::string& value) {
   _impl_.hash_.Mutable(index)->assign(value);
-  // @@protoc_insertion_point(field_set:ValueRequest.hash)
+  // @@protoc_insertion_point(field_set:rsh.protocol.ValueRequest.hash)
 }
 inline void ValueRequest::set_hash(int index, std::string&& value) {
   _impl_.hash_.Mutable(index)->assign(std::move(value));
-  // @@protoc_insertion_point(field_set:ValueRequest.hash)
+  // @@protoc_insertion_point(field_set:rsh.protocol.ValueRequest.hash)
 }
 inline void ValueRequest::set_hash(int index, const char* value) {
   GOOGLE_DCHECK(value != nullptr);
   _impl_.hash_.Mutable(index)->assign(value);
-  // @@protoc_insertion_point(field_set_char:ValueRequest.hash)
+  // @@protoc_insertion_point(field_set_char:rsh.protocol.ValueRequest.hash)
 }
 inline void ValueRequest::set_hash(int index, const void* value, size_t size) {
   _impl_.hash_.Mutable(index)->assign(
     reinterpret_cast<const char*>(value), size);
-  // @@protoc_insertion_point(field_set_pointer:ValueRequest.hash)
+  // @@protoc_insertion_point(field_set_pointer:rsh.protocol.ValueRequest.hash)
 }
 inline std::string* ValueRequest::_internal_add_hash() {
   return _impl_.hash_.Add();
 }
 inline void ValueRequest::add_hash(const std::string& value) {
   _impl_.hash_.Add()->assign(value);
-  // @@protoc_insertion_point(field_add:ValueRequest.hash)
+  // @@protoc_insertion_point(field_add:rsh.protocol.ValueRequest.hash)
 }
 inline void ValueRequest::add_hash(std::string&& value) {
   _impl_.hash_.Add(std::move(value));
-  // @@protoc_insertion_point(field_add:ValueRequest.hash)
+  // @@protoc_insertion_point(field_add:rsh.protocol.ValueRequest.hash)
 }
 inline void ValueRequest::add_hash(const char* value) {
   GOOGLE_DCHECK(value != nullptr);
   _impl_.hash_.Add()->assign(value);
-  // @@protoc_insertion_point(field_add_char:ValueRequest.hash)
+  // @@protoc_insertion_point(field_add_char:rsh.protocol.ValueRequest.hash)
 }
 inline void ValueRequest::add_hash(const void* value, size_t size) {
   _impl_.hash_.Add()->assign(reinterpret_cast<const char*>(value), size);
-  // @@protoc_insertion_point(field_add_pointer:ValueRequest.hash)
+  // @@protoc_insertion_point(field_add_pointer:rsh.protocol.ValueRequest.hash)
 }
 inline const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>&
 ValueRequest::hash() const {
-  // @@protoc_insertion_point(field_list:ValueRequest.hash)
+  // @@protoc_insertion_point(field_list:rsh.protocol.ValueRequest.hash)
   return _impl_.hash_;
 }
 inline ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>*
 ValueRequest::mutable_hash() {
-  // @@protoc_insertion_point(field_mutable_list:ValueRequest.hash)
+  // @@protoc_insertion_point(field_mutable_list:rsh.protocol.ValueRequest.hash)
   return &_impl_.hash_;
 }
 
@@ -5993,7 +5999,7 @@ inline void Value::clear_hash() {
   _impl_.hash_.ClearToEmpty();
 }
 inline const std::string& Value::hash() const {
-  // @@protoc_insertion_point(field_get:Value.hash)
+  // @@protoc_insertion_point(field_get:rsh.protocol.Value.hash)
   return _internal_hash();
 }
 template <typename ArgT0, typename... ArgT>
@@ -6001,11 +6007,11 @@ inline PROTOBUF_ALWAYS_INLINE
 void Value::set_hash(ArgT0&& arg0, ArgT... args) {
  
  _impl_.hash_.SetBytes(static_cast<ArgT0 &&>(arg0), args..., GetArenaForAllocation());
-  // @@protoc_insertion_point(field_set:Value.hash)
+  // @@protoc_insertion_point(field_set:rsh.protocol.Value.hash)
 }
 inline std::string* Value::mutable_hash() {
   std::string* _s = _internal_mutable_hash();
-  // @@protoc_insertion_point(field_mutable:Value.hash)
+  // @@protoc_insertion_point(field_mutable:rsh.protocol.Value.hash)
   return _s;
 }
 inline const std::string& Value::_internal_hash() const {
@@ -6020,7 +6026,7 @@ inline std::string* Value::_internal_mutable_hash() {
   return _impl_.hash_.Mutable(GetArenaForAllocation());
 }
 inline std::string* Value::release_hash() {
-  // @@protoc_insertion_point(field_release:Value.hash)
+  // @@protoc_insertion_point(field_release:rsh.protocol.Value.hash)
   return _impl_.hash_.Release();
 }
 inline void Value::set_allocated_hash(std::string* hash) {
@@ -6035,7 +6041,7 @@ inline void Value::set_allocated_hash(std::string* hash) {
     _impl_.hash_.Set("", GetArenaForAllocation());
   }
 #endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
-  // @@protoc_insertion_point(field_set_allocated:Value.hash)
+  // @@protoc_insertion_point(field_set_allocated:rsh.protocol.Value.hash)
 }
 
 // bytes value = 2;
@@ -6043,7 +6049,7 @@ inline void Value::clear_value() {
   _impl_.value_.ClearToEmpty();
 }
 inline const std::string& Value::value() const {
-  // @@protoc_insertion_point(field_get:Value.value)
+  // @@protoc_insertion_point(field_get:rsh.protocol.Value.value)
   return _internal_value();
 }
 template <typename ArgT0, typename... ArgT>
@@ -6051,11 +6057,11 @@ inline PROTOBUF_ALWAYS_INLINE
 void Value::set_value(ArgT0&& arg0, ArgT... args) {
  
  _impl_.value_.SetBytes(static_cast<ArgT0 &&>(arg0), args..., GetArenaForAllocation());
-  // @@protoc_insertion_point(field_set:Value.value)
+  // @@protoc_insertion_point(field_set:rsh.protocol.Value.value)
 }
 inline std::string* Value::mutable_value() {
   std::string* _s = _internal_mutable_value();
-  // @@protoc_insertion_point(field_mutable:Value.value)
+  // @@protoc_insertion_point(field_mutable:rsh.protocol.Value.value)
   return _s;
 }
 inline const std::string& Value::_internal_value() const {
@@ -6070,7 +6076,7 @@ inline std::string* Value::_internal_mutable_value() {
   return _impl_.value_.Mutable(GetArenaForAllocation());
 }
 inline std::string* Value::release_value() {
-  // @@protoc_insertion_point(field_release:Value.value)
+  // @@protoc_insertion_point(field_release:rsh.protocol.Value.value)
   return _impl_.value_.Release();
 }
 inline void Value::set_allocated_value(std::string* value) {
@@ -6085,14 +6091,14 @@ inline void Value::set_allocated_value(std::string* value) {
     _impl_.value_.Set("", GetArenaForAllocation());
   }
 #endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
-  // @@protoc_insertion_point(field_set_allocated:Value.value)
+  // @@protoc_insertion_point(field_set_allocated:rsh.protocol.Value.value)
 }
 
 // -------------------------------------------------------------------
 
 // Values
 
-// repeated .Value values = 1;
+// repeated .rsh.protocol.Value values = 1;
 inline int Values::_internal_values_size() const {
   return _impl_.values_.size();
 }
@@ -6102,33 +6108,33 @@ inline int Values::values_size() const {
 inline void Values::clear_values() {
   _impl_.values_.Clear();
 }
-inline ::Value* Values::mutable_values(int index) {
-  // @@protoc_insertion_point(field_mutable:Values.values)
+inline ::rsh::protocol::Value* Values::mutable_values(int index) {
+  // @@protoc_insertion_point(field_mutable:rsh.protocol.Values.values)
   return _impl_.values_.Mutable(index);
 }
-inline ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::Value >*
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::rsh::protocol::Value >*
 Values::mutable_values() {
-  // @@protoc_insertion_point(field_mutable_list:Values.values)
+  // @@protoc_insertion_point(field_mutable_list:rsh.protocol.Values.values)
   return &_impl_.values_;
 }
-inline const ::Value& Values::_internal_values(int index) const {
+inline const ::rsh::protocol::Value& Values::_internal_values(int index) const {
   return _impl_.values_.Get(index);
 }
-inline const ::Value& Values::values(int index) const {
-  // @@protoc_insertion_point(field_get:Values.values)
+inline const ::rsh::protocol::Value& Values::values(int index) const {
+  // @@protoc_insertion_point(field_get:rsh.protocol.Values.values)
   return _internal_values(index);
 }
-inline ::Value* Values::_internal_add_values() {
+inline ::rsh::protocol::Value* Values::_internal_add_values() {
   return _impl_.values_.Add();
 }
-inline ::Value* Values::add_values() {
-  ::Value* _add = _internal_add_values();
-  // @@protoc_insertion_point(field_add:Values.values)
+inline ::rsh::protocol::Value* Values::add_values() {
+  ::rsh::protocol::Value* _add = _internal_add_values();
+  // @@protoc_insertion_point(field_add:rsh.protocol.Values.values)
   return _add;
 }
-inline const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::Value >&
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::rsh::protocol::Value >&
 Values::values() const {
-  // @@protoc_insertion_point(field_list:Values.values)
+  // @@protoc_insertion_point(field_list:rsh.protocol.Values.values)
   return _impl_.values_;
 }
 
@@ -6148,7 +6154,7 @@ inline bool CallContext::_internal_args_statically_matched() const {
   return _impl_.args_statically_matched_;
 }
 inline bool CallContext::args_statically_matched() const {
-  // @@protoc_insertion_point(field_get:CallContext.args_statically_matched)
+  // @@protoc_insertion_point(field_get:rsh.protocol.CallContext.args_statically_matched)
   return _internal_args_statically_matched();
 }
 inline void CallContext::_internal_set_args_statically_matched(bool value) {
@@ -6157,7 +6163,7 @@ inline void CallContext::_internal_set_args_statically_matched(bool value) {
 }
 inline void CallContext::set_args_statically_matched(bool value) {
   _internal_set_args_statically_matched(value);
-  // @@protoc_insertion_point(field_set:CallContext.args_statically_matched)
+  // @@protoc_insertion_point(field_set:rsh.protocol.CallContext.args_statically_matched)
 }
 
 // bool correct_number_of_args = 2;
@@ -6168,7 +6174,7 @@ inline bool CallContext::_internal_correct_number_of_args() const {
   return _impl_.correct_number_of_args_;
 }
 inline bool CallContext::correct_number_of_args() const {
-  // @@protoc_insertion_point(field_get:CallContext.correct_number_of_args)
+  // @@protoc_insertion_point(field_get:rsh.protocol.CallContext.correct_number_of_args)
   return _internal_correct_number_of_args();
 }
 inline void CallContext::_internal_set_correct_number_of_args(bool value) {
@@ -6177,7 +6183,7 @@ inline void CallContext::_internal_set_correct_number_of_args(bool value) {
 }
 inline void CallContext::set_correct_number_of_args(bool value) {
   _internal_set_correct_number_of_args(value);
-  // @@protoc_insertion_point(field_set:CallContext.correct_number_of_args)
+  // @@protoc_insertion_point(field_set:rsh.protocol.CallContext.correct_number_of_args)
 }
 
 // bool correct_order_of_args = 3;
@@ -6188,7 +6194,7 @@ inline bool CallContext::_internal_correct_order_of_args() const {
   return _impl_.correct_order_of_args_;
 }
 inline bool CallContext::correct_order_of_args() const {
-  // @@protoc_insertion_point(field_get:CallContext.correct_order_of_args)
+  // @@protoc_insertion_point(field_get:rsh.protocol.CallContext.correct_order_of_args)
   return _internal_correct_order_of_args();
 }
 inline void CallContext::_internal_set_correct_order_of_args(bool value) {
@@ -6197,7 +6203,7 @@ inline void CallContext::_internal_set_correct_order_of_args(bool value) {
 }
 inline void CallContext::set_correct_order_of_args(bool value) {
   _internal_set_correct_order_of_args(value);
-  // @@protoc_insertion_point(field_set:CallContext.correct_order_of_args)
+  // @@protoc_insertion_point(field_set:rsh.protocol.CallContext.correct_order_of_args)
 }
 
 // bool no_missing_args = 4;
@@ -6208,7 +6214,7 @@ inline bool CallContext::_internal_no_missing_args() const {
   return _impl_.no_missing_args_;
 }
 inline bool CallContext::no_missing_args() const {
-  // @@protoc_insertion_point(field_get:CallContext.no_missing_args)
+  // @@protoc_insertion_point(field_get:rsh.protocol.CallContext.no_missing_args)
   return _internal_no_missing_args();
 }
 inline void CallContext::_internal_set_no_missing_args(bool value) {
@@ -6217,7 +6223,7 @@ inline void CallContext::_internal_set_no_missing_args(bool value) {
 }
 inline void CallContext::set_no_missing_args(bool value) {
   _internal_set_no_missing_args(value);
-  // @@protoc_insertion_point(field_set:CallContext.no_missing_args)
+  // @@protoc_insertion_point(field_set:rsh.protocol.CallContext.no_missing_args)
 }
 
 // -------------------------------------------------------------------
@@ -6232,7 +6238,7 @@ inline bool ArgumentContext::_internal_eager() const {
   return _impl_.eager_;
 }
 inline bool ArgumentContext::eager() const {
-  // @@protoc_insertion_point(field_get:ArgumentContext.eager)
+  // @@protoc_insertion_point(field_get:rsh.protocol.ArgumentContext.eager)
   return _internal_eager();
 }
 inline void ArgumentContext::_internal_set_eager(bool value) {
@@ -6241,7 +6247,7 @@ inline void ArgumentContext::_internal_set_eager(bool value) {
 }
 inline void ArgumentContext::set_eager(bool value) {
   _internal_set_eager(value);
-  // @@protoc_insertion_point(field_set:ArgumentContext.eager)
+  // @@protoc_insertion_point(field_set:rsh.protocol.ArgumentContext.eager)
 }
 
 // bool reflection = 2;
@@ -6252,7 +6258,7 @@ inline bool ArgumentContext::_internal_reflection() const {
   return _impl_.reflection_;
 }
 inline bool ArgumentContext::reflection() const {
-  // @@protoc_insertion_point(field_get:ArgumentContext.reflection)
+  // @@protoc_insertion_point(field_get:rsh.protocol.ArgumentContext.reflection)
   return _internal_reflection();
 }
 inline void ArgumentContext::_internal_set_reflection(bool value) {
@@ -6261,7 +6267,7 @@ inline void ArgumentContext::_internal_set_reflection(bool value) {
 }
 inline void ArgumentContext::set_reflection(bool value) {
   _internal_set_reflection(value);
-  // @@protoc_insertion_point(field_set:ArgumentContext.reflection)
+  // @@protoc_insertion_point(field_set:rsh.protocol.ArgumentContext.reflection)
 }
 
 // bool object = 3;
@@ -6272,7 +6278,7 @@ inline bool ArgumentContext::_internal_object() const {
   return _impl_.object_;
 }
 inline bool ArgumentContext::object() const {
-  // @@protoc_insertion_point(field_get:ArgumentContext.object)
+  // @@protoc_insertion_point(field_get:rsh.protocol.ArgumentContext.object)
   return _internal_object();
 }
 inline void ArgumentContext::_internal_set_object(bool value) {
@@ -6281,10 +6287,10 @@ inline void ArgumentContext::_internal_set_object(bool value) {
 }
 inline void ArgumentContext::set_object(bool value) {
   _internal_set_object(value);
-  // @@protoc_insertion_point(field_set:ArgumentContext.object)
+  // @@protoc_insertion_point(field_set:rsh.protocol.ArgumentContext.object)
 }
 
-// optional .Type type = 4;
+// optional .rsh.protocol.Type type = 4;
 inline bool ArgumentContext::_internal_has_type() const {
   bool value = (_impl_._has_bits_[0] & 0x00000001u) != 0;
   return value;
@@ -6296,27 +6302,27 @@ inline void ArgumentContext::clear_type() {
   _impl_.type_ = 0;
   _impl_._has_bits_[0] &= ~0x00000001u;
 }
-inline ::Type ArgumentContext::_internal_type() const {
-  return static_cast< ::Type >(_impl_.type_);
+inline ::rsh::protocol::Type ArgumentContext::_internal_type() const {
+  return static_cast< ::rsh::protocol::Type >(_impl_.type_);
 }
-inline ::Type ArgumentContext::type() const {
-  // @@protoc_insertion_point(field_get:ArgumentContext.type)
+inline ::rsh::protocol::Type ArgumentContext::type() const {
+  // @@protoc_insertion_point(field_get:rsh.protocol.ArgumentContext.type)
   return _internal_type();
 }
-inline void ArgumentContext::_internal_set_type(::Type value) {
+inline void ArgumentContext::_internal_set_type(::rsh::protocol::Type value) {
   _impl_._has_bits_[0] |= 0x00000001u;
   _impl_.type_ = value;
 }
-inline void ArgumentContext::set_type(::Type value) {
+inline void ArgumentContext::set_type(::rsh::protocol::Type value) {
   _internal_set_type(value);
-  // @@protoc_insertion_point(field_set:ArgumentContext.type)
+  // @@protoc_insertion_point(field_set:rsh.protocol.ArgumentContext.type)
 }
 
 // -------------------------------------------------------------------
 
 // Context
 
-// .CallContext call_context = 1;
+// .rsh.protocol.CallContext call_context = 1;
 inline bool Context::_internal_has_call_context() const {
   return this != internal_default_instance() && _impl_.call_context_ != nullptr;
 }
@@ -6329,17 +6335,17 @@ inline void Context::clear_call_context() {
   }
   _impl_.call_context_ = nullptr;
 }
-inline const ::CallContext& Context::_internal_call_context() const {
-  const ::CallContext* p = _impl_.call_context_;
-  return p != nullptr ? *p : reinterpret_cast<const ::CallContext&>(
-      ::_CallContext_default_instance_);
+inline const ::rsh::protocol::CallContext& Context::_internal_call_context() const {
+  const ::rsh::protocol::CallContext* p = _impl_.call_context_;
+  return p != nullptr ? *p : reinterpret_cast<const ::rsh::protocol::CallContext&>(
+      ::rsh::protocol::_CallContext_default_instance_);
 }
-inline const ::CallContext& Context::call_context() const {
-  // @@protoc_insertion_point(field_get:Context.call_context)
+inline const ::rsh::protocol::CallContext& Context::call_context() const {
+  // @@protoc_insertion_point(field_get:rsh.protocol.Context.call_context)
   return _internal_call_context();
 }
 inline void Context::unsafe_arena_set_allocated_call_context(
-    ::CallContext* call_context) {
+    ::rsh::protocol::CallContext* call_context) {
   if (GetArenaForAllocation() == nullptr) {
     delete reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(_impl_.call_context_);
   }
@@ -6349,11 +6355,11 @@ inline void Context::unsafe_arena_set_allocated_call_context(
   } else {
     
   }
-  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:Context.call_context)
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:rsh.protocol.Context.call_context)
 }
-inline ::CallContext* Context::release_call_context() {
+inline ::rsh::protocol::CallContext* Context::release_call_context() {
   
-  ::CallContext* temp = _impl_.call_context_;
+  ::rsh::protocol::CallContext* temp = _impl_.call_context_;
   _impl_.call_context_ = nullptr;
 #ifdef PROTOBUF_FORCE_COPY_IN_RELEASE
   auto* old =  reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(temp);
@@ -6366,27 +6372,27 @@ inline ::CallContext* Context::release_call_context() {
 #endif  // !PROTOBUF_FORCE_COPY_IN_RELEASE
   return temp;
 }
-inline ::CallContext* Context::unsafe_arena_release_call_context() {
-  // @@protoc_insertion_point(field_release:Context.call_context)
+inline ::rsh::protocol::CallContext* Context::unsafe_arena_release_call_context() {
+  // @@protoc_insertion_point(field_release:rsh.protocol.Context.call_context)
   
-  ::CallContext* temp = _impl_.call_context_;
+  ::rsh::protocol::CallContext* temp = _impl_.call_context_;
   _impl_.call_context_ = nullptr;
   return temp;
 }
-inline ::CallContext* Context::_internal_mutable_call_context() {
+inline ::rsh::protocol::CallContext* Context::_internal_mutable_call_context() {
   
   if (_impl_.call_context_ == nullptr) {
-    auto* p = CreateMaybeMessage<::CallContext>(GetArenaForAllocation());
+    auto* p = CreateMaybeMessage<::rsh::protocol::CallContext>(GetArenaForAllocation());
     _impl_.call_context_ = p;
   }
   return _impl_.call_context_;
 }
-inline ::CallContext* Context::mutable_call_context() {
-  ::CallContext* _msg = _internal_mutable_call_context();
-  // @@protoc_insertion_point(field_mutable:Context.call_context)
+inline ::rsh::protocol::CallContext* Context::mutable_call_context() {
+  ::rsh::protocol::CallContext* _msg = _internal_mutable_call_context();
+  // @@protoc_insertion_point(field_mutable:rsh.protocol.Context.call_context)
   return _msg;
 }
-inline void Context::set_allocated_call_context(::CallContext* call_context) {
+inline void Context::set_allocated_call_context(::rsh::protocol::CallContext* call_context) {
   ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArenaForAllocation();
   if (message_arena == nullptr) {
     delete _impl_.call_context_;
@@ -6403,10 +6409,10 @@ inline void Context::set_allocated_call_context(::CallContext* call_context) {
     
   }
   _impl_.call_context_ = call_context;
-  // @@protoc_insertion_point(field_set_allocated:Context.call_context)
+  // @@protoc_insertion_point(field_set_allocated:rsh.protocol.Context.call_context)
 }
 
-// repeated .ArgumentContext argument_context = 2;
+// repeated .rsh.protocol.ArgumentContext argument_context = 2;
 inline int Context::_internal_argument_context_size() const {
   return _impl_.argument_context_.size();
 }
@@ -6416,33 +6422,33 @@ inline int Context::argument_context_size() const {
 inline void Context::clear_argument_context() {
   _impl_.argument_context_.Clear();
 }
-inline ::ArgumentContext* Context::mutable_argument_context(int index) {
-  // @@protoc_insertion_point(field_mutable:Context.argument_context)
+inline ::rsh::protocol::ArgumentContext* Context::mutable_argument_context(int index) {
+  // @@protoc_insertion_point(field_mutable:rsh.protocol.Context.argument_context)
   return _impl_.argument_context_.Mutable(index);
 }
-inline ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::ArgumentContext >*
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::rsh::protocol::ArgumentContext >*
 Context::mutable_argument_context() {
-  // @@protoc_insertion_point(field_mutable_list:Context.argument_context)
+  // @@protoc_insertion_point(field_mutable_list:rsh.protocol.Context.argument_context)
   return &_impl_.argument_context_;
 }
-inline const ::ArgumentContext& Context::_internal_argument_context(int index) const {
+inline const ::rsh::protocol::ArgumentContext& Context::_internal_argument_context(int index) const {
   return _impl_.argument_context_.Get(index);
 }
-inline const ::ArgumentContext& Context::argument_context(int index) const {
-  // @@protoc_insertion_point(field_get:Context.argument_context)
+inline const ::rsh::protocol::ArgumentContext& Context::argument_context(int index) const {
+  // @@protoc_insertion_point(field_get:rsh.protocol.Context.argument_context)
   return _internal_argument_context(index);
 }
-inline ::ArgumentContext* Context::_internal_add_argument_context() {
+inline ::rsh::protocol::ArgumentContext* Context::_internal_add_argument_context() {
   return _impl_.argument_context_.Add();
 }
-inline ::ArgumentContext* Context::add_argument_context() {
-  ::ArgumentContext* _add = _internal_add_argument_context();
-  // @@protoc_insertion_point(field_add:Context.argument_context)
+inline ::rsh::protocol::ArgumentContext* Context::add_argument_context() {
+  ::rsh::protocol::ArgumentContext* _add = _internal_add_argument_context();
+  // @@protoc_insertion_point(field_add:rsh.protocol.Context.argument_context)
   return _add;
 }
-inline const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::ArgumentContext >&
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::rsh::protocol::ArgumentContext >&
 Context::argument_context() const {
-  // @@protoc_insertion_point(field_list:Context.argument_context)
+  // @@protoc_insertion_point(field_list:rsh.protocol.Context.argument_context)
   return _impl_.argument_context_;
 }
 
@@ -6450,7 +6456,7 @@ Context::argument_context() const {
 
 // ContextRequest
 
-// .Function function = 1;
+// .rsh.protocol.Function function = 1;
 inline bool ContextRequest::_internal_has_function() const {
   return this != internal_default_instance() && _impl_.function_ != nullptr;
 }
@@ -6463,17 +6469,17 @@ inline void ContextRequest::clear_function() {
   }
   _impl_.function_ = nullptr;
 }
-inline const ::Function& ContextRequest::_internal_function() const {
-  const ::Function* p = _impl_.function_;
-  return p != nullptr ? *p : reinterpret_cast<const ::Function&>(
-      ::_Function_default_instance_);
+inline const ::rsh::protocol::Function& ContextRequest::_internal_function() const {
+  const ::rsh::protocol::Function* p = _impl_.function_;
+  return p != nullptr ? *p : reinterpret_cast<const ::rsh::protocol::Function&>(
+      ::rsh::protocol::_Function_default_instance_);
 }
-inline const ::Function& ContextRequest::function() const {
-  // @@protoc_insertion_point(field_get:ContextRequest.function)
+inline const ::rsh::protocol::Function& ContextRequest::function() const {
+  // @@protoc_insertion_point(field_get:rsh.protocol.ContextRequest.function)
   return _internal_function();
 }
 inline void ContextRequest::unsafe_arena_set_allocated_function(
-    ::Function* function) {
+    ::rsh::protocol::Function* function) {
   if (GetArenaForAllocation() == nullptr) {
     delete reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(_impl_.function_);
   }
@@ -6483,11 +6489,11 @@ inline void ContextRequest::unsafe_arena_set_allocated_function(
   } else {
     
   }
-  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:ContextRequest.function)
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:rsh.protocol.ContextRequest.function)
 }
-inline ::Function* ContextRequest::release_function() {
+inline ::rsh::protocol::Function* ContextRequest::release_function() {
   
-  ::Function* temp = _impl_.function_;
+  ::rsh::protocol::Function* temp = _impl_.function_;
   _impl_.function_ = nullptr;
 #ifdef PROTOBUF_FORCE_COPY_IN_RELEASE
   auto* old =  reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(temp);
@@ -6500,27 +6506,27 @@ inline ::Function* ContextRequest::release_function() {
 #endif  // !PROTOBUF_FORCE_COPY_IN_RELEASE
   return temp;
 }
-inline ::Function* ContextRequest::unsafe_arena_release_function() {
-  // @@protoc_insertion_point(field_release:ContextRequest.function)
+inline ::rsh::protocol::Function* ContextRequest::unsafe_arena_release_function() {
+  // @@protoc_insertion_point(field_release:rsh.protocol.ContextRequest.function)
   
-  ::Function* temp = _impl_.function_;
+  ::rsh::protocol::Function* temp = _impl_.function_;
   _impl_.function_ = nullptr;
   return temp;
 }
-inline ::Function* ContextRequest::_internal_mutable_function() {
+inline ::rsh::protocol::Function* ContextRequest::_internal_mutable_function() {
   
   if (_impl_.function_ == nullptr) {
-    auto* p = CreateMaybeMessage<::Function>(GetArenaForAllocation());
+    auto* p = CreateMaybeMessage<::rsh::protocol::Function>(GetArenaForAllocation());
     _impl_.function_ = p;
   }
   return _impl_.function_;
 }
-inline ::Function* ContextRequest::mutable_function() {
-  ::Function* _msg = _internal_mutable_function();
-  // @@protoc_insertion_point(field_mutable:ContextRequest.function)
+inline ::rsh::protocol::Function* ContextRequest::mutable_function() {
+  ::rsh::protocol::Function* _msg = _internal_mutable_function();
+  // @@protoc_insertion_point(field_mutable:rsh.protocol.ContextRequest.function)
   return _msg;
 }
-inline void ContextRequest::set_allocated_function(::Function* function) {
+inline void ContextRequest::set_allocated_function(::rsh::protocol::Function* function) {
   ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArenaForAllocation();
   if (message_arena == nullptr) {
     delete _impl_.function_;
@@ -6537,31 +6543,31 @@ inline void ContextRequest::set_allocated_function(::Function* function) {
     
   }
   _impl_.function_ = function;
-  // @@protoc_insertion_point(field_set_allocated:ContextRequest.function)
+  // @@protoc_insertion_point(field_set_allocated:rsh.protocol.ContextRequest.function)
 }
 
 // -------------------------------------------------------------------
 
 // TestFeedback
 
-// .TestLattice test_lattice = 1;
+// .rsh.protocol.TestLattice test_lattice = 1;
 inline void TestFeedback::clear_test_lattice() {
   _impl_.test_lattice_ = 0;
 }
-inline ::TestLattice TestFeedback::_internal_test_lattice() const {
-  return static_cast< ::TestLattice >(_impl_.test_lattice_);
+inline ::rsh::protocol::TestLattice TestFeedback::_internal_test_lattice() const {
+  return static_cast< ::rsh::protocol::TestLattice >(_impl_.test_lattice_);
 }
-inline ::TestLattice TestFeedback::test_lattice() const {
-  // @@protoc_insertion_point(field_get:TestFeedback.test_lattice)
+inline ::rsh::protocol::TestLattice TestFeedback::test_lattice() const {
+  // @@protoc_insertion_point(field_get:rsh.protocol.TestFeedback.test_lattice)
   return _internal_test_lattice();
 }
-inline void TestFeedback::_internal_set_test_lattice(::TestLattice value) {
+inline void TestFeedback::_internal_set_test_lattice(::rsh::protocol::TestLattice value) {
   
   _impl_.test_lattice_ = value;
 }
-inline void TestFeedback::set_test_lattice(::TestLattice value) {
+inline void TestFeedback::set_test_lattice(::rsh::protocol::TestLattice value) {
   _internal_set_test_lattice(value);
-  // @@protoc_insertion_point(field_set:TestFeedback.test_lattice)
+  // @@protoc_insertion_point(field_set:rsh.protocol.TestFeedback.test_lattice)
 }
 
 // -------------------------------------------------------------------
@@ -6576,7 +6582,7 @@ inline int64_t CallFeedback::_internal_n_calls() const {
   return _impl_.n_calls_;
 }
 inline int64_t CallFeedback::n_calls() const {
-  // @@protoc_insertion_point(field_get:CallFeedback.n_calls)
+  // @@protoc_insertion_point(field_get:rsh.protocol.CallFeedback.n_calls)
   return _internal_n_calls();
 }
 inline void CallFeedback::_internal_set_n_calls(int64_t value) {
@@ -6585,7 +6591,7 @@ inline void CallFeedback::_internal_set_n_calls(int64_t value) {
 }
 inline void CallFeedback::set_n_calls(int64_t value) {
   _internal_set_n_calls(value);
-  // @@protoc_insertion_point(field_set:CallFeedback.n_calls)
+  // @@protoc_insertion_point(field_set:rsh.protocol.CallFeedback.n_calls)
 }
 
 // bytes callee_hash = 2;
@@ -6593,7 +6599,7 @@ inline void CallFeedback::clear_callee_hash() {
   _impl_.callee_hash_.ClearToEmpty();
 }
 inline const std::string& CallFeedback::callee_hash() const {
-  // @@protoc_insertion_point(field_get:CallFeedback.callee_hash)
+  // @@protoc_insertion_point(field_get:rsh.protocol.CallFeedback.callee_hash)
   return _internal_callee_hash();
 }
 template <typename ArgT0, typename... ArgT>
@@ -6601,11 +6607,11 @@ inline PROTOBUF_ALWAYS_INLINE
 void CallFeedback::set_callee_hash(ArgT0&& arg0, ArgT... args) {
  
  _impl_.callee_hash_.SetBytes(static_cast<ArgT0 &&>(arg0), args..., GetArenaForAllocation());
-  // @@protoc_insertion_point(field_set:CallFeedback.callee_hash)
+  // @@protoc_insertion_point(field_set:rsh.protocol.CallFeedback.callee_hash)
 }
 inline std::string* CallFeedback::mutable_callee_hash() {
   std::string* _s = _internal_mutable_callee_hash();
-  // @@protoc_insertion_point(field_mutable:CallFeedback.callee_hash)
+  // @@protoc_insertion_point(field_mutable:rsh.protocol.CallFeedback.callee_hash)
   return _s;
 }
 inline const std::string& CallFeedback::_internal_callee_hash() const {
@@ -6620,7 +6626,7 @@ inline std::string* CallFeedback::_internal_mutable_callee_hash() {
   return _impl_.callee_hash_.Mutable(GetArenaForAllocation());
 }
 inline std::string* CallFeedback::release_callee_hash() {
-  // @@protoc_insertion_point(field_release:CallFeedback.callee_hash)
+  // @@protoc_insertion_point(field_release:rsh.protocol.CallFeedback.callee_hash)
   return _impl_.callee_hash_.Release();
 }
 inline void CallFeedback::set_allocated_callee_hash(std::string* callee_hash) {
@@ -6635,7 +6641,7 @@ inline void CallFeedback::set_allocated_callee_hash(std::string* callee_hash) {
     _impl_.callee_hash_.Set("", GetArenaForAllocation());
   }
 #endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
-  // @@protoc_insertion_point(field_set_allocated:CallFeedback.callee_hash)
+  // @@protoc_insertion_point(field_set_allocated:rsh.protocol.CallFeedback.callee_hash)
 }
 
 // -------------------------------------------------------------------
@@ -6650,7 +6656,7 @@ inline bool ValueFeedback::_internal_scalar() const {
   return _impl_.scalar_;
 }
 inline bool ValueFeedback::scalar() const {
-  // @@protoc_insertion_point(field_get:ValueFeedback.scalar)
+  // @@protoc_insertion_point(field_get:rsh.protocol.ValueFeedback.scalar)
   return _internal_scalar();
 }
 inline void ValueFeedback::_internal_set_scalar(bool value) {
@@ -6659,7 +6665,7 @@ inline void ValueFeedback::_internal_set_scalar(bool value) {
 }
 inline void ValueFeedback::set_scalar(bool value) {
   _internal_set_scalar(value);
-  // @@protoc_insertion_point(field_set:ValueFeedback.scalar)
+  // @@protoc_insertion_point(field_set:rsh.protocol.ValueFeedback.scalar)
 }
 
 // bool object = 2;
@@ -6670,7 +6676,7 @@ inline bool ValueFeedback::_internal_object() const {
   return _impl_.object_;
 }
 inline bool ValueFeedback::object() const {
-  // @@protoc_insertion_point(field_get:ValueFeedback.object)
+  // @@protoc_insertion_point(field_get:rsh.protocol.ValueFeedback.object)
   return _internal_object();
 }
 inline void ValueFeedback::_internal_set_object(bool value) {
@@ -6679,7 +6685,7 @@ inline void ValueFeedback::_internal_set_object(bool value) {
 }
 inline void ValueFeedback::set_object(bool value) {
   _internal_set_object(value);
-  // @@protoc_insertion_point(field_set:ValueFeedback.object)
+  // @@protoc_insertion_point(field_set:rsh.protocol.ValueFeedback.object)
 }
 
 // bool accessed_attributes = 3;
@@ -6690,7 +6696,7 @@ inline bool ValueFeedback::_internal_accessed_attributes() const {
   return _impl_.accessed_attributes_;
 }
 inline bool ValueFeedback::accessed_attributes() const {
-  // @@protoc_insertion_point(field_get:ValueFeedback.accessed_attributes)
+  // @@protoc_insertion_point(field_get:rsh.protocol.ValueFeedback.accessed_attributes)
   return _internal_accessed_attributes();
 }
 inline void ValueFeedback::_internal_set_accessed_attributes(bool value) {
@@ -6699,7 +6705,7 @@ inline void ValueFeedback::_internal_set_accessed_attributes(bool value) {
 }
 inline void ValueFeedback::set_accessed_attributes(bool value) {
   _internal_set_accessed_attributes(value);
-  // @@protoc_insertion_point(field_set:ValueFeedback.accessed_attributes)
+  // @@protoc_insertion_point(field_set:rsh.protocol.ValueFeedback.accessed_attributes)
 }
 
 // bool vectorizable = 4;
@@ -6710,7 +6716,7 @@ inline bool ValueFeedback::_internal_vectorizable() const {
   return _impl_.vectorizable_;
 }
 inline bool ValueFeedback::vectorizable() const {
-  // @@protoc_insertion_point(field_get:ValueFeedback.vectorizable)
+  // @@protoc_insertion_point(field_get:rsh.protocol.ValueFeedback.vectorizable)
   return _internal_vectorizable();
 }
 inline void ValueFeedback::_internal_set_vectorizable(bool value) {
@@ -6719,7 +6725,7 @@ inline void ValueFeedback::_internal_set_vectorizable(bool value) {
 }
 inline void ValueFeedback::set_vectorizable(bool value) {
   _internal_set_vectorizable(value);
-  // @@protoc_insertion_point(field_set:ValueFeedback.vectorizable)
+  // @@protoc_insertion_point(field_set:rsh.protocol.ValueFeedback.vectorizable)
 }
 
 // bool is_promise = 5;
@@ -6730,7 +6736,7 @@ inline bool ValueFeedback::_internal_is_promise() const {
   return _impl_.is_promise_;
 }
 inline bool ValueFeedback::is_promise() const {
-  // @@protoc_insertion_point(field_get:ValueFeedback.is_promise)
+  // @@protoc_insertion_point(field_get:rsh.protocol.ValueFeedback.is_promise)
   return _internal_is_promise();
 }
 inline void ValueFeedback::_internal_set_is_promise(bool value) {
@@ -6739,14 +6745,14 @@ inline void ValueFeedback::_internal_set_is_promise(bool value) {
 }
 inline void ValueFeedback::set_is_promise(bool value) {
   _internal_set_is_promise(value);
-  // @@protoc_insertion_point(field_set:ValueFeedback.is_promise)
+  // @@protoc_insertion_point(field_set:rsh.protocol.ValueFeedback.is_promise)
 }
 
 // -------------------------------------------------------------------
 
 // TypeFeedback_Feedback
 
-// .TestFeedback test_feedback = 1;
+// .rsh.protocol.TestFeedback test_feedback = 1;
 inline bool TypeFeedback_Feedback::_internal_has_test_feedback() const {
   return feedback_case() == kTestFeedback;
 }
@@ -6764,11 +6770,11 @@ inline void TypeFeedback_Feedback::clear_test_feedback() {
     clear_has_feedback();
   }
 }
-inline ::TestFeedback* TypeFeedback_Feedback::release_test_feedback() {
-  // @@protoc_insertion_point(field_release:TypeFeedback.Feedback.test_feedback)
+inline ::rsh::protocol::TestFeedback* TypeFeedback_Feedback::release_test_feedback() {
+  // @@protoc_insertion_point(field_release:rsh.protocol.TypeFeedback.Feedback.test_feedback)
   if (_internal_has_test_feedback()) {
     clear_has_feedback();
-    ::TestFeedback* temp = _impl_.feedback_.test_feedback_;
+    ::rsh::protocol::TestFeedback* temp = _impl_.feedback_.test_feedback_;
     if (GetArenaForAllocation() != nullptr) {
       temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
     }
@@ -6778,49 +6784,49 @@ inline ::TestFeedback* TypeFeedback_Feedback::release_test_feedback() {
     return nullptr;
   }
 }
-inline const ::TestFeedback& TypeFeedback_Feedback::_internal_test_feedback() const {
+inline const ::rsh::protocol::TestFeedback& TypeFeedback_Feedback::_internal_test_feedback() const {
   return _internal_has_test_feedback()
       ? *_impl_.feedback_.test_feedback_
-      : reinterpret_cast< ::TestFeedback&>(::_TestFeedback_default_instance_);
+      : reinterpret_cast< ::rsh::protocol::TestFeedback&>(::rsh::protocol::_TestFeedback_default_instance_);
 }
-inline const ::TestFeedback& TypeFeedback_Feedback::test_feedback() const {
-  // @@protoc_insertion_point(field_get:TypeFeedback.Feedback.test_feedback)
+inline const ::rsh::protocol::TestFeedback& TypeFeedback_Feedback::test_feedback() const {
+  // @@protoc_insertion_point(field_get:rsh.protocol.TypeFeedback.Feedback.test_feedback)
   return _internal_test_feedback();
 }
-inline ::TestFeedback* TypeFeedback_Feedback::unsafe_arena_release_test_feedback() {
-  // @@protoc_insertion_point(field_unsafe_arena_release:TypeFeedback.Feedback.test_feedback)
+inline ::rsh::protocol::TestFeedback* TypeFeedback_Feedback::unsafe_arena_release_test_feedback() {
+  // @@protoc_insertion_point(field_unsafe_arena_release:rsh.protocol.TypeFeedback.Feedback.test_feedback)
   if (_internal_has_test_feedback()) {
     clear_has_feedback();
-    ::TestFeedback* temp = _impl_.feedback_.test_feedback_;
+    ::rsh::protocol::TestFeedback* temp = _impl_.feedback_.test_feedback_;
     _impl_.feedback_.test_feedback_ = nullptr;
     return temp;
   } else {
     return nullptr;
   }
 }
-inline void TypeFeedback_Feedback::unsafe_arena_set_allocated_test_feedback(::TestFeedback* test_feedback) {
+inline void TypeFeedback_Feedback::unsafe_arena_set_allocated_test_feedback(::rsh::protocol::TestFeedback* test_feedback) {
   clear_feedback();
   if (test_feedback) {
     set_has_test_feedback();
     _impl_.feedback_.test_feedback_ = test_feedback;
   }
-  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:TypeFeedback.Feedback.test_feedback)
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:rsh.protocol.TypeFeedback.Feedback.test_feedback)
 }
-inline ::TestFeedback* TypeFeedback_Feedback::_internal_mutable_test_feedback() {
+inline ::rsh::protocol::TestFeedback* TypeFeedback_Feedback::_internal_mutable_test_feedback() {
   if (!_internal_has_test_feedback()) {
     clear_feedback();
     set_has_test_feedback();
-    _impl_.feedback_.test_feedback_ = CreateMaybeMessage< ::TestFeedback >(GetArenaForAllocation());
+    _impl_.feedback_.test_feedback_ = CreateMaybeMessage< ::rsh::protocol::TestFeedback >(GetArenaForAllocation());
   }
   return _impl_.feedback_.test_feedback_;
 }
-inline ::TestFeedback* TypeFeedback_Feedback::mutable_test_feedback() {
-  ::TestFeedback* _msg = _internal_mutable_test_feedback();
-  // @@protoc_insertion_point(field_mutable:TypeFeedback.Feedback.test_feedback)
+inline ::rsh::protocol::TestFeedback* TypeFeedback_Feedback::mutable_test_feedback() {
+  ::rsh::protocol::TestFeedback* _msg = _internal_mutable_test_feedback();
+  // @@protoc_insertion_point(field_mutable:rsh.protocol.TypeFeedback.Feedback.test_feedback)
   return _msg;
 }
 
-// .CallFeedback call_feedback = 2;
+// .rsh.protocol.CallFeedback call_feedback = 2;
 inline bool TypeFeedback_Feedback::_internal_has_call_feedback() const {
   return feedback_case() == kCallFeedback;
 }
@@ -6838,11 +6844,11 @@ inline void TypeFeedback_Feedback::clear_call_feedback() {
     clear_has_feedback();
   }
 }
-inline ::CallFeedback* TypeFeedback_Feedback::release_call_feedback() {
-  // @@protoc_insertion_point(field_release:TypeFeedback.Feedback.call_feedback)
+inline ::rsh::protocol::CallFeedback* TypeFeedback_Feedback::release_call_feedback() {
+  // @@protoc_insertion_point(field_release:rsh.protocol.TypeFeedback.Feedback.call_feedback)
   if (_internal_has_call_feedback()) {
     clear_has_feedback();
-    ::CallFeedback* temp = _impl_.feedback_.call_feedback_;
+    ::rsh::protocol::CallFeedback* temp = _impl_.feedback_.call_feedback_;
     if (GetArenaForAllocation() != nullptr) {
       temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
     }
@@ -6852,49 +6858,49 @@ inline ::CallFeedback* TypeFeedback_Feedback::release_call_feedback() {
     return nullptr;
   }
 }
-inline const ::CallFeedback& TypeFeedback_Feedback::_internal_call_feedback() const {
+inline const ::rsh::protocol::CallFeedback& TypeFeedback_Feedback::_internal_call_feedback() const {
   return _internal_has_call_feedback()
       ? *_impl_.feedback_.call_feedback_
-      : reinterpret_cast< ::CallFeedback&>(::_CallFeedback_default_instance_);
+      : reinterpret_cast< ::rsh::protocol::CallFeedback&>(::rsh::protocol::_CallFeedback_default_instance_);
 }
-inline const ::CallFeedback& TypeFeedback_Feedback::call_feedback() const {
-  // @@protoc_insertion_point(field_get:TypeFeedback.Feedback.call_feedback)
+inline const ::rsh::protocol::CallFeedback& TypeFeedback_Feedback::call_feedback() const {
+  // @@protoc_insertion_point(field_get:rsh.protocol.TypeFeedback.Feedback.call_feedback)
   return _internal_call_feedback();
 }
-inline ::CallFeedback* TypeFeedback_Feedback::unsafe_arena_release_call_feedback() {
-  // @@protoc_insertion_point(field_unsafe_arena_release:TypeFeedback.Feedback.call_feedback)
+inline ::rsh::protocol::CallFeedback* TypeFeedback_Feedback::unsafe_arena_release_call_feedback() {
+  // @@protoc_insertion_point(field_unsafe_arena_release:rsh.protocol.TypeFeedback.Feedback.call_feedback)
   if (_internal_has_call_feedback()) {
     clear_has_feedback();
-    ::CallFeedback* temp = _impl_.feedback_.call_feedback_;
+    ::rsh::protocol::CallFeedback* temp = _impl_.feedback_.call_feedback_;
     _impl_.feedback_.call_feedback_ = nullptr;
     return temp;
   } else {
     return nullptr;
   }
 }
-inline void TypeFeedback_Feedback::unsafe_arena_set_allocated_call_feedback(::CallFeedback* call_feedback) {
+inline void TypeFeedback_Feedback::unsafe_arena_set_allocated_call_feedback(::rsh::protocol::CallFeedback* call_feedback) {
   clear_feedback();
   if (call_feedback) {
     set_has_call_feedback();
     _impl_.feedback_.call_feedback_ = call_feedback;
   }
-  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:TypeFeedback.Feedback.call_feedback)
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:rsh.protocol.TypeFeedback.Feedback.call_feedback)
 }
-inline ::CallFeedback* TypeFeedback_Feedback::_internal_mutable_call_feedback() {
+inline ::rsh::protocol::CallFeedback* TypeFeedback_Feedback::_internal_mutable_call_feedback() {
   if (!_internal_has_call_feedback()) {
     clear_feedback();
     set_has_call_feedback();
-    _impl_.feedback_.call_feedback_ = CreateMaybeMessage< ::CallFeedback >(GetArenaForAllocation());
+    _impl_.feedback_.call_feedback_ = CreateMaybeMessage< ::rsh::protocol::CallFeedback >(GetArenaForAllocation());
   }
   return _impl_.feedback_.call_feedback_;
 }
-inline ::CallFeedback* TypeFeedback_Feedback::mutable_call_feedback() {
-  ::CallFeedback* _msg = _internal_mutable_call_feedback();
-  // @@protoc_insertion_point(field_mutable:TypeFeedback.Feedback.call_feedback)
+inline ::rsh::protocol::CallFeedback* TypeFeedback_Feedback::mutable_call_feedback() {
+  ::rsh::protocol::CallFeedback* _msg = _internal_mutable_call_feedback();
+  // @@protoc_insertion_point(field_mutable:rsh.protocol.TypeFeedback.Feedback.call_feedback)
   return _msg;
 }
 
-// .ValueFeedback value_feedback = 3;
+// .rsh.protocol.ValueFeedback value_feedback = 3;
 inline bool TypeFeedback_Feedback::_internal_has_value_feedback() const {
   return feedback_case() == kValueFeedback;
 }
@@ -6912,11 +6918,11 @@ inline void TypeFeedback_Feedback::clear_value_feedback() {
     clear_has_feedback();
   }
 }
-inline ::ValueFeedback* TypeFeedback_Feedback::release_value_feedback() {
-  // @@protoc_insertion_point(field_release:TypeFeedback.Feedback.value_feedback)
+inline ::rsh::protocol::ValueFeedback* TypeFeedback_Feedback::release_value_feedback() {
+  // @@protoc_insertion_point(field_release:rsh.protocol.TypeFeedback.Feedback.value_feedback)
   if (_internal_has_value_feedback()) {
     clear_has_feedback();
-    ::ValueFeedback* temp = _impl_.feedback_.value_feedback_;
+    ::rsh::protocol::ValueFeedback* temp = _impl_.feedback_.value_feedback_;
     if (GetArenaForAllocation() != nullptr) {
       temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
     }
@@ -6926,45 +6932,45 @@ inline ::ValueFeedback* TypeFeedback_Feedback::release_value_feedback() {
     return nullptr;
   }
 }
-inline const ::ValueFeedback& TypeFeedback_Feedback::_internal_value_feedback() const {
+inline const ::rsh::protocol::ValueFeedback& TypeFeedback_Feedback::_internal_value_feedback() const {
   return _internal_has_value_feedback()
       ? *_impl_.feedback_.value_feedback_
-      : reinterpret_cast< ::ValueFeedback&>(::_ValueFeedback_default_instance_);
+      : reinterpret_cast< ::rsh::protocol::ValueFeedback&>(::rsh::protocol::_ValueFeedback_default_instance_);
 }
-inline const ::ValueFeedback& TypeFeedback_Feedback::value_feedback() const {
-  // @@protoc_insertion_point(field_get:TypeFeedback.Feedback.value_feedback)
+inline const ::rsh::protocol::ValueFeedback& TypeFeedback_Feedback::value_feedback() const {
+  // @@protoc_insertion_point(field_get:rsh.protocol.TypeFeedback.Feedback.value_feedback)
   return _internal_value_feedback();
 }
-inline ::ValueFeedback* TypeFeedback_Feedback::unsafe_arena_release_value_feedback() {
-  // @@protoc_insertion_point(field_unsafe_arena_release:TypeFeedback.Feedback.value_feedback)
+inline ::rsh::protocol::ValueFeedback* TypeFeedback_Feedback::unsafe_arena_release_value_feedback() {
+  // @@protoc_insertion_point(field_unsafe_arena_release:rsh.protocol.TypeFeedback.Feedback.value_feedback)
   if (_internal_has_value_feedback()) {
     clear_has_feedback();
-    ::ValueFeedback* temp = _impl_.feedback_.value_feedback_;
+    ::rsh::protocol::ValueFeedback* temp = _impl_.feedback_.value_feedback_;
     _impl_.feedback_.value_feedback_ = nullptr;
     return temp;
   } else {
     return nullptr;
   }
 }
-inline void TypeFeedback_Feedback::unsafe_arena_set_allocated_value_feedback(::ValueFeedback* value_feedback) {
+inline void TypeFeedback_Feedback::unsafe_arena_set_allocated_value_feedback(::rsh::protocol::ValueFeedback* value_feedback) {
   clear_feedback();
   if (value_feedback) {
     set_has_value_feedback();
     _impl_.feedback_.value_feedback_ = value_feedback;
   }
-  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:TypeFeedback.Feedback.value_feedback)
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:rsh.protocol.TypeFeedback.Feedback.value_feedback)
 }
-inline ::ValueFeedback* TypeFeedback_Feedback::_internal_mutable_value_feedback() {
+inline ::rsh::protocol::ValueFeedback* TypeFeedback_Feedback::_internal_mutable_value_feedback() {
   if (!_internal_has_value_feedback()) {
     clear_feedback();
     set_has_value_feedback();
-    _impl_.feedback_.value_feedback_ = CreateMaybeMessage< ::ValueFeedback >(GetArenaForAllocation());
+    _impl_.feedback_.value_feedback_ = CreateMaybeMessage< ::rsh::protocol::ValueFeedback >(GetArenaForAllocation());
   }
   return _impl_.feedback_.value_feedback_;
 }
-inline ::ValueFeedback* TypeFeedback_Feedback::mutable_value_feedback() {
-  ::ValueFeedback* _msg = _internal_mutable_value_feedback();
-  // @@protoc_insertion_point(field_mutable:TypeFeedback.Feedback.value_feedback)
+inline ::rsh::protocol::ValueFeedback* TypeFeedback_Feedback::mutable_value_feedback() {
+  ::rsh::protocol::ValueFeedback* _msg = _internal_mutable_value_feedback();
+  // @@protoc_insertion_point(field_mutable:rsh.protocol.TypeFeedback.Feedback.value_feedback)
   return _msg;
 }
 
@@ -6983,7 +6989,7 @@ inline TypeFeedback_Feedback::FeedbackCase TypeFeedback_Feedback::feedback_case(
 
 // TypeFeedback
 
-// map<int64, .TypeFeedback.Feedback> types = 2;
+// map<int64, .rsh.protocol.TypeFeedback.Feedback> types = 2;
 inline int TypeFeedback::_internal_types_size() const {
   return _impl_.types_.size();
 }
@@ -6993,22 +6999,22 @@ inline int TypeFeedback::types_size() const {
 inline void TypeFeedback::clear_types() {
   _impl_.types_.Clear();
 }
-inline const ::PROTOBUF_NAMESPACE_ID::Map< int64_t, ::TypeFeedback_Feedback >&
+inline const ::PROTOBUF_NAMESPACE_ID::Map< int64_t, ::rsh::protocol::TypeFeedback_Feedback >&
 TypeFeedback::_internal_types() const {
   return _impl_.types_.GetMap();
 }
-inline const ::PROTOBUF_NAMESPACE_ID::Map< int64_t, ::TypeFeedback_Feedback >&
+inline const ::PROTOBUF_NAMESPACE_ID::Map< int64_t, ::rsh::protocol::TypeFeedback_Feedback >&
 TypeFeedback::types() const {
-  // @@protoc_insertion_point(field_map:TypeFeedback.types)
+  // @@protoc_insertion_point(field_map:rsh.protocol.TypeFeedback.types)
   return _internal_types();
 }
-inline ::PROTOBUF_NAMESPACE_ID::Map< int64_t, ::TypeFeedback_Feedback >*
+inline ::PROTOBUF_NAMESPACE_ID::Map< int64_t, ::rsh::protocol::TypeFeedback_Feedback >*
 TypeFeedback::_internal_mutable_types() {
   return _impl_.types_.MutableMap();
 }
-inline ::PROTOBUF_NAMESPACE_ID::Map< int64_t, ::TypeFeedback_Feedback >*
+inline ::PROTOBUF_NAMESPACE_ID::Map< int64_t, ::rsh::protocol::TypeFeedback_Feedback >*
 TypeFeedback::mutable_types() {
-  // @@protoc_insertion_point(field_mutable_map:TypeFeedback.types)
+  // @@protoc_insertion_point(field_mutable_map:rsh.protocol.TypeFeedback.types)
   return _internal_mutable_types();
 }
 
@@ -7016,7 +7022,7 @@ TypeFeedback::mutable_types() {
 
 // FeedbackRequest
 
-// .Function function = 1;
+// .rsh.protocol.Function function = 1;
 inline bool FeedbackRequest::_internal_has_function() const {
   return this != internal_default_instance() && _impl_.function_ != nullptr;
 }
@@ -7029,17 +7035,17 @@ inline void FeedbackRequest::clear_function() {
   }
   _impl_.function_ = nullptr;
 }
-inline const ::Function& FeedbackRequest::_internal_function() const {
-  const ::Function* p = _impl_.function_;
-  return p != nullptr ? *p : reinterpret_cast<const ::Function&>(
-      ::_Function_default_instance_);
+inline const ::rsh::protocol::Function& FeedbackRequest::_internal_function() const {
+  const ::rsh::protocol::Function* p = _impl_.function_;
+  return p != nullptr ? *p : reinterpret_cast<const ::rsh::protocol::Function&>(
+      ::rsh::protocol::_Function_default_instance_);
 }
-inline const ::Function& FeedbackRequest::function() const {
-  // @@protoc_insertion_point(field_get:FeedbackRequest.function)
+inline const ::rsh::protocol::Function& FeedbackRequest::function() const {
+  // @@protoc_insertion_point(field_get:rsh.protocol.FeedbackRequest.function)
   return _internal_function();
 }
 inline void FeedbackRequest::unsafe_arena_set_allocated_function(
-    ::Function* function) {
+    ::rsh::protocol::Function* function) {
   if (GetArenaForAllocation() == nullptr) {
     delete reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(_impl_.function_);
   }
@@ -7049,11 +7055,11 @@ inline void FeedbackRequest::unsafe_arena_set_allocated_function(
   } else {
     
   }
-  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:FeedbackRequest.function)
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:rsh.protocol.FeedbackRequest.function)
 }
-inline ::Function* FeedbackRequest::release_function() {
+inline ::rsh::protocol::Function* FeedbackRequest::release_function() {
   
-  ::Function* temp = _impl_.function_;
+  ::rsh::protocol::Function* temp = _impl_.function_;
   _impl_.function_ = nullptr;
 #ifdef PROTOBUF_FORCE_COPY_IN_RELEASE
   auto* old =  reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(temp);
@@ -7066,27 +7072,27 @@ inline ::Function* FeedbackRequest::release_function() {
 #endif  // !PROTOBUF_FORCE_COPY_IN_RELEASE
   return temp;
 }
-inline ::Function* FeedbackRequest::unsafe_arena_release_function() {
-  // @@protoc_insertion_point(field_release:FeedbackRequest.function)
+inline ::rsh::protocol::Function* FeedbackRequest::unsafe_arena_release_function() {
+  // @@protoc_insertion_point(field_release:rsh.protocol.FeedbackRequest.function)
   
-  ::Function* temp = _impl_.function_;
+  ::rsh::protocol::Function* temp = _impl_.function_;
   _impl_.function_ = nullptr;
   return temp;
 }
-inline ::Function* FeedbackRequest::_internal_mutable_function() {
+inline ::rsh::protocol::Function* FeedbackRequest::_internal_mutable_function() {
   
   if (_impl_.function_ == nullptr) {
-    auto* p = CreateMaybeMessage<::Function>(GetArenaForAllocation());
+    auto* p = CreateMaybeMessage<::rsh::protocol::Function>(GetArenaForAllocation());
     _impl_.function_ = p;
   }
   return _impl_.function_;
 }
-inline ::Function* FeedbackRequest::mutable_function() {
-  ::Function* _msg = _internal_mutable_function();
-  // @@protoc_insertion_point(field_mutable:FeedbackRequest.function)
+inline ::rsh::protocol::Function* FeedbackRequest::mutable_function() {
+  ::rsh::protocol::Function* _msg = _internal_mutable_function();
+  // @@protoc_insertion_point(field_mutable:rsh.protocol.FeedbackRequest.function)
   return _msg;
 }
-inline void FeedbackRequest::set_allocated_function(::Function* function) {
+inline void FeedbackRequest::set_allocated_function(::rsh::protocol::Function* function) {
   ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArenaForAllocation();
   if (message_arena == nullptr) {
     delete _impl_.function_;
@@ -7103,7 +7109,7 @@ inline void FeedbackRequest::set_allocated_function(::Function* function) {
     
   }
   _impl_.function_ = function;
-  // @@protoc_insertion_point(field_set_allocated:FeedbackRequest.function)
+  // @@protoc_insertion_point(field_set_allocated:rsh.protocol.FeedbackRequest.function)
 }
 
 // -------------------------------------------------------------------
@@ -7127,7 +7133,7 @@ inline void PackageSource::clear_r_mirror() {
   }
 }
 inline const std::string& PackageSource::r_mirror() const {
-  // @@protoc_insertion_point(field_get:PackageSource.r_mirror)
+  // @@protoc_insertion_point(field_get:rsh.protocol.PackageSource.r_mirror)
   return _internal_r_mirror();
 }
 template <typename ArgT0, typename... ArgT>
@@ -7138,11 +7144,11 @@ inline void PackageSource::set_r_mirror(ArgT0&& arg0, ArgT... args) {
     _impl_.source_.r_mirror_.InitDefault();
   }
   _impl_.source_.r_mirror_.Set( static_cast<ArgT0 &&>(arg0), args..., GetArenaForAllocation());
-  // @@protoc_insertion_point(field_set:PackageSource.r_mirror)
+  // @@protoc_insertion_point(field_set:rsh.protocol.PackageSource.r_mirror)
 }
 inline std::string* PackageSource::mutable_r_mirror() {
   std::string* _s = _internal_mutable_r_mirror();
-  // @@protoc_insertion_point(field_mutable:PackageSource.r_mirror)
+  // @@protoc_insertion_point(field_mutable:rsh.protocol.PackageSource.r_mirror)
   return _s;
 }
 inline const std::string& PackageSource::_internal_r_mirror() const {
@@ -7168,7 +7174,7 @@ inline std::string* PackageSource::_internal_mutable_r_mirror() {
   return _impl_.source_.r_mirror_.Mutable(      GetArenaForAllocation());
 }
 inline std::string* PackageSource::release_r_mirror() {
-  // @@protoc_insertion_point(field_release:PackageSource.r_mirror)
+  // @@protoc_insertion_point(field_release:rsh.protocol.PackageSource.r_mirror)
   if (_internal_has_r_mirror()) {
     clear_has_source();
     return _impl_.source_.r_mirror_.Release();
@@ -7184,7 +7190,7 @@ inline void PackageSource::set_allocated_r_mirror(std::string* r_mirror) {
     set_has_r_mirror();
     _impl_.source_.r_mirror_.InitAllocated(r_mirror, GetArenaForAllocation());
   }
-  // @@protoc_insertion_point(field_set_allocated:PackageSource.r_mirror)
+  // @@protoc_insertion_point(field_set_allocated:rsh.protocol.PackageSource.r_mirror)
 }
 
 // string github_url = 3;
@@ -7204,7 +7210,7 @@ inline void PackageSource::clear_github_url() {
   }
 }
 inline const std::string& PackageSource::github_url() const {
-  // @@protoc_insertion_point(field_get:PackageSource.github_url)
+  // @@protoc_insertion_point(field_get:rsh.protocol.PackageSource.github_url)
   return _internal_github_url();
 }
 template <typename ArgT0, typename... ArgT>
@@ -7215,11 +7221,11 @@ inline void PackageSource::set_github_url(ArgT0&& arg0, ArgT... args) {
     _impl_.source_.github_url_.InitDefault();
   }
   _impl_.source_.github_url_.Set( static_cast<ArgT0 &&>(arg0), args..., GetArenaForAllocation());
-  // @@protoc_insertion_point(field_set:PackageSource.github_url)
+  // @@protoc_insertion_point(field_set:rsh.protocol.PackageSource.github_url)
 }
 inline std::string* PackageSource::mutable_github_url() {
   std::string* _s = _internal_mutable_github_url();
-  // @@protoc_insertion_point(field_mutable:PackageSource.github_url)
+  // @@protoc_insertion_point(field_mutable:rsh.protocol.PackageSource.github_url)
   return _s;
 }
 inline const std::string& PackageSource::_internal_github_url() const {
@@ -7245,7 +7251,7 @@ inline std::string* PackageSource::_internal_mutable_github_url() {
   return _impl_.source_.github_url_.Mutable(      GetArenaForAllocation());
 }
 inline std::string* PackageSource::release_github_url() {
-  // @@protoc_insertion_point(field_release:PackageSource.github_url)
+  // @@protoc_insertion_point(field_release:rsh.protocol.PackageSource.github_url)
   if (_internal_has_github_url()) {
     clear_has_source();
     return _impl_.source_.github_url_.Release();
@@ -7261,7 +7267,7 @@ inline void PackageSource::set_allocated_github_url(std::string* github_url) {
     set_has_github_url();
     _impl_.source_.github_url_.InitAllocated(github_url, GetArenaForAllocation());
   }
-  // @@protoc_insertion_point(field_set_allocated:PackageSource.github_url)
+  // @@protoc_insertion_point(field_set_allocated:rsh.protocol.PackageSource.github_url)
 }
 
 inline bool PackageSource::has_source() const {
@@ -7282,7 +7288,7 @@ inline void Package::clear_name() {
   _impl_.name_.ClearToEmpty();
 }
 inline const std::string& Package::name() const {
-  // @@protoc_insertion_point(field_get:Package.name)
+  // @@protoc_insertion_point(field_get:rsh.protocol.Package.name)
   return _internal_name();
 }
 template <typename ArgT0, typename... ArgT>
@@ -7290,11 +7296,11 @@ inline PROTOBUF_ALWAYS_INLINE
 void Package::set_name(ArgT0&& arg0, ArgT... args) {
  
  _impl_.name_.Set(static_cast<ArgT0 &&>(arg0), args..., GetArenaForAllocation());
-  // @@protoc_insertion_point(field_set:Package.name)
+  // @@protoc_insertion_point(field_set:rsh.protocol.Package.name)
 }
 inline std::string* Package::mutable_name() {
   std::string* _s = _internal_mutable_name();
-  // @@protoc_insertion_point(field_mutable:Package.name)
+  // @@protoc_insertion_point(field_mutable:rsh.protocol.Package.name)
   return _s;
 }
 inline const std::string& Package::_internal_name() const {
@@ -7309,7 +7315,7 @@ inline std::string* Package::_internal_mutable_name() {
   return _impl_.name_.Mutable(GetArenaForAllocation());
 }
 inline std::string* Package::release_name() {
-  // @@protoc_insertion_point(field_release:Package.name)
+  // @@protoc_insertion_point(field_release:rsh.protocol.Package.name)
   return _impl_.name_.Release();
 }
 inline void Package::set_allocated_name(std::string* name) {
@@ -7324,10 +7330,10 @@ inline void Package::set_allocated_name(std::string* name) {
     _impl_.name_.Set("", GetArenaForAllocation());
   }
 #endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
-  // @@protoc_insertion_point(field_set_allocated:Package.name)
+  // @@protoc_insertion_point(field_set_allocated:rsh.protocol.Package.name)
 }
 
-// .Version version = 2;
+// .rsh.protocol.Version version = 2;
 inline bool Package::_internal_has_version() const {
   return this != internal_default_instance() && _impl_.version_ != nullptr;
 }
@@ -7340,17 +7346,17 @@ inline void Package::clear_version() {
   }
   _impl_.version_ = nullptr;
 }
-inline const ::Version& Package::_internal_version() const {
-  const ::Version* p = _impl_.version_;
-  return p != nullptr ? *p : reinterpret_cast<const ::Version&>(
-      ::_Version_default_instance_);
+inline const ::rsh::protocol::Version& Package::_internal_version() const {
+  const ::rsh::protocol::Version* p = _impl_.version_;
+  return p != nullptr ? *p : reinterpret_cast<const ::rsh::protocol::Version&>(
+      ::rsh::protocol::_Version_default_instance_);
 }
-inline const ::Version& Package::version() const {
-  // @@protoc_insertion_point(field_get:Package.version)
+inline const ::rsh::protocol::Version& Package::version() const {
+  // @@protoc_insertion_point(field_get:rsh.protocol.Package.version)
   return _internal_version();
 }
 inline void Package::unsafe_arena_set_allocated_version(
-    ::Version* version) {
+    ::rsh::protocol::Version* version) {
   if (GetArenaForAllocation() == nullptr) {
     delete reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(_impl_.version_);
   }
@@ -7360,11 +7366,11 @@ inline void Package::unsafe_arena_set_allocated_version(
   } else {
     
   }
-  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:Package.version)
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:rsh.protocol.Package.version)
 }
-inline ::Version* Package::release_version() {
+inline ::rsh::protocol::Version* Package::release_version() {
   
-  ::Version* temp = _impl_.version_;
+  ::rsh::protocol::Version* temp = _impl_.version_;
   _impl_.version_ = nullptr;
 #ifdef PROTOBUF_FORCE_COPY_IN_RELEASE
   auto* old =  reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(temp);
@@ -7377,27 +7383,27 @@ inline ::Version* Package::release_version() {
 #endif  // !PROTOBUF_FORCE_COPY_IN_RELEASE
   return temp;
 }
-inline ::Version* Package::unsafe_arena_release_version() {
-  // @@protoc_insertion_point(field_release:Package.version)
+inline ::rsh::protocol::Version* Package::unsafe_arena_release_version() {
+  // @@protoc_insertion_point(field_release:rsh.protocol.Package.version)
   
-  ::Version* temp = _impl_.version_;
+  ::rsh::protocol::Version* temp = _impl_.version_;
   _impl_.version_ = nullptr;
   return temp;
 }
-inline ::Version* Package::_internal_mutable_version() {
+inline ::rsh::protocol::Version* Package::_internal_mutable_version() {
   
   if (_impl_.version_ == nullptr) {
-    auto* p = CreateMaybeMessage<::Version>(GetArenaForAllocation());
+    auto* p = CreateMaybeMessage<::rsh::protocol::Version>(GetArenaForAllocation());
     _impl_.version_ = p;
   }
   return _impl_.version_;
 }
-inline ::Version* Package::mutable_version() {
-  ::Version* _msg = _internal_mutable_version();
-  // @@protoc_insertion_point(field_mutable:Package.version)
+inline ::rsh::protocol::Version* Package::mutable_version() {
+  ::rsh::protocol::Version* _msg = _internal_mutable_version();
+  // @@protoc_insertion_point(field_mutable:rsh.protocol.Package.version)
   return _msg;
 }
-inline void Package::set_allocated_version(::Version* version) {
+inline void Package::set_allocated_version(::rsh::protocol::Version* version) {
   ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArenaForAllocation();
   if (message_arena == nullptr) {
     delete _impl_.version_;
@@ -7414,7 +7420,7 @@ inline void Package::set_allocated_version(::Version* version) {
     
   }
   _impl_.version_ = version;
-  // @@protoc_insertion_point(field_set_allocated:Package.version)
+  // @@protoc_insertion_point(field_set_allocated:rsh.protocol.Package.version)
 }
 
 // repeated bytes function_hashes = 4;
@@ -7429,70 +7435,70 @@ inline void Package::clear_function_hashes() {
 }
 inline std::string* Package::add_function_hashes() {
   std::string* _s = _internal_add_function_hashes();
-  // @@protoc_insertion_point(field_add_mutable:Package.function_hashes)
+  // @@protoc_insertion_point(field_add_mutable:rsh.protocol.Package.function_hashes)
   return _s;
 }
 inline const std::string& Package::_internal_function_hashes(int index) const {
   return _impl_.function_hashes_.Get(index);
 }
 inline const std::string& Package::function_hashes(int index) const {
-  // @@protoc_insertion_point(field_get:Package.function_hashes)
+  // @@protoc_insertion_point(field_get:rsh.protocol.Package.function_hashes)
   return _internal_function_hashes(index);
 }
 inline std::string* Package::mutable_function_hashes(int index) {
-  // @@protoc_insertion_point(field_mutable:Package.function_hashes)
+  // @@protoc_insertion_point(field_mutable:rsh.protocol.Package.function_hashes)
   return _impl_.function_hashes_.Mutable(index);
 }
 inline void Package::set_function_hashes(int index, const std::string& value) {
   _impl_.function_hashes_.Mutable(index)->assign(value);
-  // @@protoc_insertion_point(field_set:Package.function_hashes)
+  // @@protoc_insertion_point(field_set:rsh.protocol.Package.function_hashes)
 }
 inline void Package::set_function_hashes(int index, std::string&& value) {
   _impl_.function_hashes_.Mutable(index)->assign(std::move(value));
-  // @@protoc_insertion_point(field_set:Package.function_hashes)
+  // @@protoc_insertion_point(field_set:rsh.protocol.Package.function_hashes)
 }
 inline void Package::set_function_hashes(int index, const char* value) {
   GOOGLE_DCHECK(value != nullptr);
   _impl_.function_hashes_.Mutable(index)->assign(value);
-  // @@protoc_insertion_point(field_set_char:Package.function_hashes)
+  // @@protoc_insertion_point(field_set_char:rsh.protocol.Package.function_hashes)
 }
 inline void Package::set_function_hashes(int index, const void* value, size_t size) {
   _impl_.function_hashes_.Mutable(index)->assign(
     reinterpret_cast<const char*>(value), size);
-  // @@protoc_insertion_point(field_set_pointer:Package.function_hashes)
+  // @@protoc_insertion_point(field_set_pointer:rsh.protocol.Package.function_hashes)
 }
 inline std::string* Package::_internal_add_function_hashes() {
   return _impl_.function_hashes_.Add();
 }
 inline void Package::add_function_hashes(const std::string& value) {
   _impl_.function_hashes_.Add()->assign(value);
-  // @@protoc_insertion_point(field_add:Package.function_hashes)
+  // @@protoc_insertion_point(field_add:rsh.protocol.Package.function_hashes)
 }
 inline void Package::add_function_hashes(std::string&& value) {
   _impl_.function_hashes_.Add(std::move(value));
-  // @@protoc_insertion_point(field_add:Package.function_hashes)
+  // @@protoc_insertion_point(field_add:rsh.protocol.Package.function_hashes)
 }
 inline void Package::add_function_hashes(const char* value) {
   GOOGLE_DCHECK(value != nullptr);
   _impl_.function_hashes_.Add()->assign(value);
-  // @@protoc_insertion_point(field_add_char:Package.function_hashes)
+  // @@protoc_insertion_point(field_add_char:rsh.protocol.Package.function_hashes)
 }
 inline void Package::add_function_hashes(const void* value, size_t size) {
   _impl_.function_hashes_.Add()->assign(reinterpret_cast<const char*>(value), size);
-  // @@protoc_insertion_point(field_add_pointer:Package.function_hashes)
+  // @@protoc_insertion_point(field_add_pointer:rsh.protocol.Package.function_hashes)
 }
 inline const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>&
 Package::function_hashes() const {
-  // @@protoc_insertion_point(field_list:Package.function_hashes)
+  // @@protoc_insertion_point(field_list:rsh.protocol.Package.function_hashes)
   return _impl_.function_hashes_;
 }
 inline ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>*
 Package::mutable_function_hashes() {
-  // @@protoc_insertion_point(field_mutable_list:Package.function_hashes)
+  // @@protoc_insertion_point(field_mutable_list:rsh.protocol.Package.function_hashes)
   return &_impl_.function_hashes_;
 }
 
-// optional .PackageSource source = 5;
+// optional .rsh.protocol.PackageSource source = 5;
 inline bool Package::_internal_has_source() const {
   bool value = (_impl_._has_bits_[0] & 0x00000001u) != 0;
   PROTOBUF_ASSUME(!value || _impl_.source_ != nullptr);
@@ -7505,17 +7511,17 @@ inline void Package::clear_source() {
   if (_impl_.source_ != nullptr) _impl_.source_->Clear();
   _impl_._has_bits_[0] &= ~0x00000001u;
 }
-inline const ::PackageSource& Package::_internal_source() const {
-  const ::PackageSource* p = _impl_.source_;
-  return p != nullptr ? *p : reinterpret_cast<const ::PackageSource&>(
-      ::_PackageSource_default_instance_);
+inline const ::rsh::protocol::PackageSource& Package::_internal_source() const {
+  const ::rsh::protocol::PackageSource* p = _impl_.source_;
+  return p != nullptr ? *p : reinterpret_cast<const ::rsh::protocol::PackageSource&>(
+      ::rsh::protocol::_PackageSource_default_instance_);
 }
-inline const ::PackageSource& Package::source() const {
-  // @@protoc_insertion_point(field_get:Package.source)
+inline const ::rsh::protocol::PackageSource& Package::source() const {
+  // @@protoc_insertion_point(field_get:rsh.protocol.Package.source)
   return _internal_source();
 }
 inline void Package::unsafe_arena_set_allocated_source(
-    ::PackageSource* source) {
+    ::rsh::protocol::PackageSource* source) {
   if (GetArenaForAllocation() == nullptr) {
     delete reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(_impl_.source_);
   }
@@ -7525,11 +7531,11 @@ inline void Package::unsafe_arena_set_allocated_source(
   } else {
     _impl_._has_bits_[0] &= ~0x00000001u;
   }
-  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:Package.source)
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:rsh.protocol.Package.source)
 }
-inline ::PackageSource* Package::release_source() {
+inline ::rsh::protocol::PackageSource* Package::release_source() {
   _impl_._has_bits_[0] &= ~0x00000001u;
-  ::PackageSource* temp = _impl_.source_;
+  ::rsh::protocol::PackageSource* temp = _impl_.source_;
   _impl_.source_ = nullptr;
 #ifdef PROTOBUF_FORCE_COPY_IN_RELEASE
   auto* old =  reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(temp);
@@ -7542,27 +7548,27 @@ inline ::PackageSource* Package::release_source() {
 #endif  // !PROTOBUF_FORCE_COPY_IN_RELEASE
   return temp;
 }
-inline ::PackageSource* Package::unsafe_arena_release_source() {
-  // @@protoc_insertion_point(field_release:Package.source)
+inline ::rsh::protocol::PackageSource* Package::unsafe_arena_release_source() {
+  // @@protoc_insertion_point(field_release:rsh.protocol.Package.source)
   _impl_._has_bits_[0] &= ~0x00000001u;
-  ::PackageSource* temp = _impl_.source_;
+  ::rsh::protocol::PackageSource* temp = _impl_.source_;
   _impl_.source_ = nullptr;
   return temp;
 }
-inline ::PackageSource* Package::_internal_mutable_source() {
+inline ::rsh::protocol::PackageSource* Package::_internal_mutable_source() {
   _impl_._has_bits_[0] |= 0x00000001u;
   if (_impl_.source_ == nullptr) {
-    auto* p = CreateMaybeMessage<::PackageSource>(GetArenaForAllocation());
+    auto* p = CreateMaybeMessage<::rsh::protocol::PackageSource>(GetArenaForAllocation());
     _impl_.source_ = p;
   }
   return _impl_.source_;
 }
-inline ::PackageSource* Package::mutable_source() {
-  ::PackageSource* _msg = _internal_mutable_source();
-  // @@protoc_insertion_point(field_mutable:Package.source)
+inline ::rsh::protocol::PackageSource* Package::mutable_source() {
+  ::rsh::protocol::PackageSource* _msg = _internal_mutable_source();
+  // @@protoc_insertion_point(field_mutable:rsh.protocol.Package.source)
   return _msg;
 }
-inline void Package::set_allocated_source(::PackageSource* source) {
+inline void Package::set_allocated_source(::rsh::protocol::PackageSource* source) {
   ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArenaForAllocation();
   if (message_arena == nullptr) {
     delete _impl_.source_;
@@ -7579,7 +7585,7 @@ inline void Package::set_allocated_source(::PackageSource* source) {
     _impl_._has_bits_[0] &= ~0x00000001u;
   }
   _impl_.source_ = source;
-  // @@protoc_insertion_point(field_set_allocated:Package.source)
+  // @@protoc_insertion_point(field_set_allocated:rsh.protocol.Package.source)
 }
 
 // -------------------------------------------------------------------
@@ -7591,7 +7597,7 @@ inline void PackageRequest::clear_hash() {
   _impl_.hash_.ClearToEmpty();
 }
 inline const std::string& PackageRequest::hash() const {
-  // @@protoc_insertion_point(field_get:PackageRequest.hash)
+  // @@protoc_insertion_point(field_get:rsh.protocol.PackageRequest.hash)
   return _internal_hash();
 }
 template <typename ArgT0, typename... ArgT>
@@ -7599,11 +7605,11 @@ inline PROTOBUF_ALWAYS_INLINE
 void PackageRequest::set_hash(ArgT0&& arg0, ArgT... args) {
  
  _impl_.hash_.SetBytes(static_cast<ArgT0 &&>(arg0), args..., GetArenaForAllocation());
-  // @@protoc_insertion_point(field_set:PackageRequest.hash)
+  // @@protoc_insertion_point(field_set:rsh.protocol.PackageRequest.hash)
 }
 inline std::string* PackageRequest::mutable_hash() {
   std::string* _s = _internal_mutable_hash();
-  // @@protoc_insertion_point(field_mutable:PackageRequest.hash)
+  // @@protoc_insertion_point(field_mutable:rsh.protocol.PackageRequest.hash)
   return _s;
 }
 inline const std::string& PackageRequest::_internal_hash() const {
@@ -7618,7 +7624,7 @@ inline std::string* PackageRequest::_internal_mutable_hash() {
   return _impl_.hash_.Mutable(GetArenaForAllocation());
 }
 inline std::string* PackageRequest::release_hash() {
-  // @@protoc_insertion_point(field_release:PackageRequest.hash)
+  // @@protoc_insertion_point(field_release:rsh.protocol.PackageRequest.hash)
   return _impl_.hash_.Release();
 }
 inline void PackageRequest::set_allocated_hash(std::string* hash) {
@@ -7633,7 +7639,7 @@ inline void PackageRequest::set_allocated_hash(std::string* hash) {
     _impl_.hash_.Set("", GetArenaForAllocation());
   }
 #endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
-  // @@protoc_insertion_point(field_set_allocated:PackageRequest.hash)
+  // @@protoc_insertion_point(field_set_allocated:rsh.protocol.PackageRequest.hash)
 }
 
 #ifdef __GNUC__
@@ -7694,23 +7700,25 @@ inline void PackageRequest::set_allocated_hash(std::string* hash) {
 
 // @@protoc_insertion_point(namespace_scope)
 
+}  // namespace protocol
+}  // namespace rsh
 
 PROTOBUF_NAMESPACE_OPEN
 
-template <> struct is_proto_enum< ::Tier> : ::std::true_type {};
+template <> struct is_proto_enum< ::rsh::protocol::Tier> : ::std::true_type {};
 template <>
-inline const EnumDescriptor* GetEnumDescriptor< ::Tier>() {
-  return ::Tier_descriptor();
+inline const EnumDescriptor* GetEnumDescriptor< ::rsh::protocol::Tier>() {
+  return ::rsh::protocol::Tier_descriptor();
 }
-template <> struct is_proto_enum< ::TestLattice> : ::std::true_type {};
+template <> struct is_proto_enum< ::rsh::protocol::TestLattice> : ::std::true_type {};
 template <>
-inline const EnumDescriptor* GetEnumDescriptor< ::TestLattice>() {
-  return ::TestLattice_descriptor();
+inline const EnumDescriptor* GetEnumDescriptor< ::rsh::protocol::TestLattice>() {
+  return ::rsh::protocol::TestLattice_descriptor();
 }
-template <> struct is_proto_enum< ::Type> : ::std::true_type {};
+template <> struct is_proto_enum< ::rsh::protocol::Type> : ::std::true_type {};
 template <>
-inline const EnumDescriptor* GetEnumDescriptor< ::Type>() {
-  return ::Type_descriptor();
+inline const EnumDescriptor* GetEnumDescriptor< ::rsh::protocol::Type>() {
+  return ::rsh::protocol::Type_descriptor();
 }
 
 PROTOBUF_NAMESPACE_CLOSE

@@ -5,7 +5,9 @@ LLVM_LIBS != $(LLVM_CONFIG) --libs
 
 PB_CPPFLAGS != pkg-config --cflags protobuf
 PB_LIBS != pkg-config --libs protobuf
+GRPC_CPPFLAGS != pkg-config --cflags grpc 
+GRPC_LIBS != pkg-config --libs grpc
 
-PKG_CPPFLAGS := $(LLVM_CPPFLAGS) $(PB_CPPFLAGS) -fexceptions -I../inst -DR_NO_REMAP -DSTRICT_R_HEADERS
-PKG_LIBS := $(LLVM_LIBS) $(PB_LIBS) -lzmq
+PKG_CPPFLAGS := $(LLVM_CPPFLAGS) $(PB_CPPFLAGS) $(GRPC_CPPFLAGS) -fexceptions -I../inst -DR_NO_REMAP -DSTRICT_R_HEADERS
+PKG_LIBS := $(LLVM_LIBS) $(PB_LIBS) $(GRPC_LIBS) -lzmq
 

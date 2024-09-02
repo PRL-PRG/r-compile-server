@@ -45,6 +45,8 @@ struct TableStruct_routes_2eproto {
 extern const ::PROTOBUF_NAMESPACE_ID::internal::DescriptorTable descriptor_table_routes_2eproto;
 PROTOBUF_NAMESPACE_OPEN
 PROTOBUF_NAMESPACE_CLOSE
+namespace rsh {
+namespace protocol {
 
 // ===================================================================
 
@@ -64,6 +66,8 @@ PROTOBUF_NAMESPACE_CLOSE
 
 // @@protoc_insertion_point(namespace_scope)
 
+}  // namespace protocol
+}  // namespace rsh
 
 // @@protoc_insertion_point(global_scope)
 
