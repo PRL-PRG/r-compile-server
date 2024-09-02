@@ -1,3 +1,4 @@
+
 package org.prlprg.session;
 
 import java.io.IOException;
@@ -21,7 +22,7 @@ class DummySession implements RSession {
   private final Logger logger = Logger.getLogger(DummySession.class.getName());
   private final GlobalEnvSXP globalEnv = new GlobalEnvSXP(SEXPs.EMPTY_ENV);
   private final NamespaceEnvSXP namespaceEnv =
-      new NamespaceEnvSXP("base", "4.3.2", globalEnv, new HashMap<>());
+          new NamespaceEnvSXP("base", "4.3.2", globalEnv, new HashMap<>());
   private final BaseEnvSXP baseEnv = new BaseEnvSXP(new HashMap<>());
 
   @Override
@@ -91,16 +92,17 @@ public class GNURSession implements RSession {
 
   // We should also handle installation of a package from a GitHub repo?
   public void loadPackage(String name, String version) {
-    // TODO support RLibraries with multiple paths
-    // Check if package is installed and if not install it
-    var pkgPath = RLibraries.resolve(name);
-    var pkgDir = pkgPath.toFile();
-    if (!pkgDir.exists() || !pkgDir.isDirectory()) {
-      // Check if the package exists in a repo
-      // Install the package
-      // TODO: call install.packages from GNU R
-      throw new UnsupportedOperationException("Package installation not implemented yet");
+    DESCRIPTION description = getDescription(name);
+
+    String installedVersion = description.getVersion();
+    if (!version.equals(installedVersion)) {
+      throw new RuntimeException(
+              "Version mismatch: expected " + version + " but found " + installedVersion);
     }
+
+    // Use suggests and imports as needed
+    List<String> suggests = description.getSuggests();
+    List<String> imports = description.getImports();
 
     // Make sure base is loaded
     if (baseNamespace == null) {
@@ -120,8 +122,38 @@ public class GNURSession implements RSession {
     }
   }
 
+  private DESCRIPTION getDescription(String name) {
+    var pkgPath = RLibraries.resolve(name);
+    var pkgDir = pkgPath.toFile();
+    if (!pkgDir.exists() || !pkgDir.isDirectory()) {
+      // Check if package is installed and if not install it
+      try {
+        ProcessBuilder processBuilder =
+                new ProcessBuilder(
+                        "Rscript", "-e", "install.packages('" + name + "', repos='" + cranMirror + "')");
+        processBuilder.inheritIO();
+        Process process = processBuilder.start();
+        int exitCode = process.waitFor();
+        if (exitCode != 0) {
+          throw new RuntimeException("Failed to install package " + name);
+        }
+      } catch (IOException | InterruptedException e) {
+        throw new RuntimeException("Failed to install package " + name, e);
+      }
+    }
+
+    Path descriptionFile = pkgPath.resolve("DESCRIPTION");
+    DESCRIPTION description;
+    try {
+      description = new DESCRIPTION(descriptionFile);
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+    return description;
+  }
+
   private static HashMap<String, SEXP> readPackageDatabase(
-      RSession session, Path libPath, String packageName) throws IOException {
+          RSession session, Path libPath, String packageName) throws IOException {
     var db = new PackageDatabase(session, libPath, packageName);
     return db.getBindings();
   }
@@ -165,14 +197,14 @@ public class GNURSession implements RSession {
 
     var bindings = new HashMap<String, SEXP>(functions.size());
     functions.forEach(
-        function -> {
-          try {
-            bindings.put(
-                function.getName(), (CloSXP) RDSReader.readByteString(this, function.getBody()));
-          } catch (IOException e) {
-            throw new RuntimeException(e);
-          }
-        });
+            function -> {
+              try {
+                bindings.put(
+                        function.getName(), (CloSXP) RDSReader.readByteString(this, function.getBody()));
+              } catch (IOException e) {
+                throw new RuntimeException(e);
+              }
+            });
     return new NamespaceEnvSXP(name, version, baseNamespace, bindings);
   }
 
@@ -244,9 +276,8 @@ public class GNURSession implements RSession {
   public NamespaceEnvSXP getNamespace(String name, String version) {
     var ns = namespaces.get(name + version);
     if (ns == null) {
-      // That could also fail!
-      // In that case, ask the client to send the package content
       loadPackage(name, version);
+      // Retrieve the namespace again after loading the package
       ns = namespaces.get(name + version);
     }
     return ns;
