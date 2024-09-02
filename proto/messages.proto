@@ -2,6 +2,8 @@ syntax = "proto3";
 
 option java_package = "org.prlprg.server";
 
+package rsh.protocol;
+
 // Error handling
 // grpc already has a way to handle errors
 // Status message: https://grpc.github.io/grpc-java/javadoc/io/grpc/Status.html

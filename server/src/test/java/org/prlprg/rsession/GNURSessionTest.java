@@ -1,4 +1,3 @@
-
 package org.prlprg.rsession;
 
 import java.io.IOException;
@@ -43,10 +42,10 @@ public class GNURSessionTest {
     var session = new GNURSession(RVersion.LATEST_AWARE, r_dir, Path.of(lib_dir));
 
     Assertions.assertThrows(
-            RuntimeException.class,
-            () -> {
-              session.loadPackage("yaml", "1.0.0");
-            });
+        RuntimeException.class,
+        () -> {
+          session.loadPackage("yaml", "1.0.0");
+        });
   }
 
   @Test
@@ -57,10 +56,10 @@ public class GNURSessionTest {
 
     // Assuming "nonexistentpkg" is not installed
     Assertions.assertThrows(
-            RuntimeException.class,
-            () -> {
-              session.loadPackage("nonexistentpkg", "1.0.0");
-            });
+        RuntimeException.class,
+        () -> {
+          session.loadPackage("nonexistentpkg", "1.0.0");
+        });
   }
 
   @Test
@@ -84,9 +83,9 @@ public class GNURSessionTest {
 
     // Assuming "pkgwithnomissingdesc" has no DESCRIPTION file
     Assertions.assertThrows(
-            RuntimeException.class,
-            () -> {
-              session.loadPackage("pkgwithnomissingdesc", "1.0.0");
-            });
+        RuntimeException.class,
+        () -> {
+          session.loadPackage("pkgwithnomissingdesc", "1.0.0");
+        });
   }
 }

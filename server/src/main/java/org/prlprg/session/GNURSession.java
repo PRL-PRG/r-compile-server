@@ -1,4 +1,3 @@
-
 package org.prlprg.session;
 
 import java.io.IOException;
@@ -22,7 +21,7 @@ class DummySession implements RSession {
   private final Logger logger = Logger.getLogger(DummySession.class.getName());
   private final GlobalEnvSXP globalEnv = new GlobalEnvSXP(SEXPs.EMPTY_ENV);
   private final NamespaceEnvSXP namespaceEnv =
-          new NamespaceEnvSXP("base", "4.3.2", globalEnv, new HashMap<>());
+      new NamespaceEnvSXP("base", "4.3.2", globalEnv, new HashMap<>());
   private final BaseEnvSXP baseEnv = new BaseEnvSXP(new HashMap<>());
 
   @Override
@@ -97,7 +96,7 @@ public class GNURSession implements RSession {
     String installedVersion = description.getVersion();
     if (!version.equals(installedVersion)) {
       throw new RuntimeException(
-              "Version mismatch: expected " + version + " but found " + installedVersion);
+          "Version mismatch: expected " + version + " but found " + installedVersion);
     }
 
     // Use suggests and imports as needed
@@ -129,8 +128,8 @@ public class GNURSession implements RSession {
       // Check if package is installed and if not install it
       try {
         ProcessBuilder processBuilder =
-                new ProcessBuilder(
-                        "Rscript", "-e", "install.packages('" + name + "', repos='" + cranMirror + "')");
+            new ProcessBuilder(
+                "Rscript", "-e", "install.packages('" + name + "', repos='" + cranMirror + "')");
         processBuilder.inheritIO();
         Process process = processBuilder.start();
         int exitCode = process.waitFor();
@@ -153,7 +152,7 @@ public class GNURSession implements RSession {
   }
 
   private static HashMap<String, SEXP> readPackageDatabase(
-          RSession session, Path libPath, String packageName) throws IOException {
+      RSession session, Path libPath, String packageName) throws IOException {
     var db = new PackageDatabase(session, libPath, packageName);
     return db.getBindings();
   }
@@ -197,14 +196,14 @@ public class GNURSession implements RSession {
 
     var bindings = new HashMap<String, SEXP>(functions.size());
     functions.forEach(
-            function -> {
-              try {
-                bindings.put(
-                        function.getName(), (CloSXP) RDSReader.readByteString(this, function.getBody()));
-              } catch (IOException e) {
-                throw new RuntimeException(e);
-              }
-            });
+        function -> {
+          try {
+            bindings.put(
+                function.getName(), (CloSXP) RDSReader.readByteString(this, function.getBody()));
+          } catch (IOException e) {
+            throw new RuntimeException(e);
+          }
+        });
     return new NamespaceEnvSXP(name, version, baseNamespace, bindings);
   }
 
