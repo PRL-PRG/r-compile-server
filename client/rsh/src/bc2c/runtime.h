@@ -775,11 +775,12 @@ static INLINE Value Rsh_arith(SEXP call, RshArithOp op, Value lhs, Value rhs,
   double res_dbl = 0;
 
   if (VAL_IS_DBL(lhs)) {
+    double lhs_dbl = VAL_DBL(lhs);
     if (VAL_IS_DBL(rhs)) {
-      DO_ARITH(op, VAL_DBL(lhs), VAL_DBL(rhs), &res_dbl);
+      DO_ARITH(op, lhs_dbl, VAL_DBL(rhs), &res_dbl);
       return DBL_TO_VAL(res_dbl);
     } else if (VAL_IS_INT_NOT_NA(rhs)) {
-      DO_ARITH(op, VAL_DBL(lhs), VAL_INT(rhs), &res_dbl);
+      DO_ARITH(op, lhs_dbl, VAL_INT(rhs), &res_dbl);
       return DBL_TO_VAL(res_dbl);
     }
   }
@@ -814,11 +815,12 @@ static INLINE Value Rsh_relop(SEXP call, RshRelOp op, Value lhs, Value rhs,
   Value res;
 
   if (VAL_IS_DBL_NOT_NAN(lhs)) {
+    double lhs_dbl = VAL_DBL(lhs);
     if (VAL_IS_DBL_NOT_NAN(rhs)) {
-      DO_RELOP(op, lhs, rhs, &res);
+      DO_RELOP(op, lhs_dbl, rhs, &res);
       return res;
     } else if (VAL_IS_INT_NOT_NA(rhs)) {
-      DO_RELOP(op, lhs, VAL_INT(rhs), &res);
+      DO_RELOP(op, lhs_dbl, VAL_INT(rhs), &res);
       return res;
     }
   }
@@ -827,7 +829,7 @@ static INLINE Value Rsh_relop(SEXP call, RshRelOp op, Value lhs, Value rhs,
     int lhs_int = VAL_INT(lhs);
 
     if (VAL_IS_DBL_NOT_NAN(rhs)) {
-      DO_RELOP(op, lhs_int, rhs, &res);
+      DO_RELOP(op, lhs_int, VAL_DBL(rhs), &res);
       return res;
     } else if (VAL_IS_INT_NOT_NA(rhs)) {
       DO_RELOP(op, lhs_int, VAL_INT(rhs), &res);
