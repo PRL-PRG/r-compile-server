@@ -1,4 +1,5 @@
 syntax = "proto3";
+package rsh.protocol;
 
 option java_package = "org.prlprg.server";
 
