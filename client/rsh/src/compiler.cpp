@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <cstring>
 
+
 // clang-format off
 static i32 CALL_FUN_BC[] = {
   12,
@@ -34,16 +35,18 @@ SEXP CALL_FUN = nullptr;
 
 SEXP RSH_JIT_FUN_PTR = Rf_install("RSH_JIT_FUN_PTR");
 
-static CompileResponse compile_closure(std::string const &name, SEXP closure,
+static protocol::CompileResponse compile_closure(std::string const &name, SEXP closure,
                                        u32 opt_level = 3) {
   auto closure_bytes = rsh::serialize(closure);
-  return rsh::remote_compile(name, closure_bytes, opt_level);
+  auto client = rsh::Client::get_client();
+  return client->remote_compile(name, closure_bytes, protocol::Tier::OPTIMIZED, opt_level);
 }
 
-static void *insert_into_jit(CompiledFunction const &compiled_fun) {
-  auto native_code = compiled_fun.native_code();
+static void *insert_into_jit(protocol::CompileResponse const &compiled_fun) {
+  auto native_code = compiled_fun.code();
   GJIT->add_object(native_code);
-  auto ptr = GJIT->lookup(compiled_fun.name().c_str());
+  // TODO: we should have a map hash to name of the function here
+  auto ptr = GJIT->lookup(compiled_fun.hash().c_str());
   if (!ptr) {
     Rf_error("Unable to find the function in the JIT");
   }
@@ -51,12 +54,13 @@ static void *insert_into_jit(CompiledFunction const &compiled_fun) {
 }
 
 static SEXP create_constant_pool(void *fun_ptr,
-                                 CompiledFunction const &compiled_fun) {
+                                 protocol::CompileResponse const &compiled_fun) {
   auto pool = PROTECT(Rf_allocVector(VECSXP, 2));
 
   // create an external pointer to the JITed function with a finalizer
+  // TODO: we should have a map hash to name of the function here
   auto p = R_MakeExternalPtr(fun_ptr, RSH_JIT_FUN_PTR,
-                             Rf_mkString(compiled_fun.name().c_str()));
+                             Rf_mkString(compiled_fun.hash().c_str()));
   R_RegisterCFinalizerEx(p, &jit_fun_destructor, FALSE);
 
   // slot 0: the pointer to the compiled function
@@ -128,11 +132,11 @@ SEXP compile_fun(SEXP closure, SEXP name, SEXP opt_level_sxp) {
   sprintf(name_str, "%s_%p", closure_name, closure);
 
   auto response = compile_closure(name_str, closure, opt_level);
-  if (!response.has_result()) {
-    Rf_error("Compilation failed: %s", response.failure().c_str());
+  if (false) {// TODO: propagate error from the remote compilation
+    //Rf_error("Compilation failed: %s", response.failure().c_str());
     return closure;
   }
-  auto compiled_fun = response.result();
+  auto compiled_fun = response;
 
   auto fun_ptr = insert_into_jit(compiled_fun);
   SEXP c_cp = PROTECT(create_constant_pool(fun_ptr, compiled_fun));

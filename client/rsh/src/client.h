@@ -18,6 +18,12 @@ namespace rsh {
 class Client {
 private:
   std::unique_ptr<protocol::CompileService::Stub> stub_;
+  static inline SEXP CLIENT_INSTANCE = nullptr;
+  static void remove_client(SEXP ptr);
+
+  // For it to be able to access the client instance
+  friend SEXP init_client(SEXP address, SEXP port, SEXP installed_packages);
+
 
 public:
   Client(std::shared_ptr<grpc::Channel> channel, std::vector<std::string> installed_packages);
@@ -26,6 +32,9 @@ public:
                                 std::vector<uint8_t> const &rds_closure,
                                 protocol::Tier tier,
                                 int32_t optimization_level);
+
+  static SEXP make_client(SEXP address, SEXP port, SEXP installed_packages);
+  static Client* get_client();
 };
 
 SEXP init_client(SEXP address, SEXP port, SEXP installed_packages);

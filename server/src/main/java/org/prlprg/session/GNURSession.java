@@ -100,8 +100,8 @@ public class GNURSession implements RSession {
     }
 
     // Use suggests and imports as needed
-    List<String> suggests = description.getSuggests();
-    List<String> imports = description.getImports();
+    var suggests = description.getSuggests();
+    var imports = description.getImports();
 
     // Make sure base is loaded
     if (baseNamespace == null) {

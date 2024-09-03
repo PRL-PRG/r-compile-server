@@ -11,6 +11,16 @@ NULL
 .onLoad <- function(libname, pkgname) {
   # TODO: it would be great to make this go away and initialize this in C
   .Call(C_initialize, C_call_fun)
+  init_client("0.0.0.0", 8980L)
+}
+
+#' Initialize the Rsh client
+#' 
+#' @param IP address of the server
+#' @param port port of the server
+#' @export
+init_client <- function(address, port) {
+  .Call(C_init_client, address, port, installed.packages()[,1])
 }
 
 #' Activate the Rsh JIT
