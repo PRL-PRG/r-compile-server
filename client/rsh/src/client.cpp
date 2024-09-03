@@ -22,7 +22,7 @@ Client::Client(std::shared_ptr<grpc::Channel> channel, std::vector<std::string> 
     request.mutable_r_version()->set_minor(R_VERSION % 65536 / 256);
     request.mutable_r_version()->set_patch(R_VERSION % 256);
 
-    SEXP r_platform = Rf_eval(Rf_lang1(Rf_install("R.version")), R_BaseEnv);
+    SEXP r_platform = Rf_findVar(Rf_install("R.version"), R_BaseEnv);
     // we could also extract the R version from there
     // the platform is R.version$platform and is the st element of the list
     request.set_platform(CHAR(STRING_ELT(VECTOR_ELT(r_platform, 0), 0))); // or R_PLATFORM?
@@ -76,7 +76,7 @@ protocol::CompileResponse Client::remote_compile(std::string const& name,
   }
 }
 
-SEXP init_client(SEXP address, SEXP port, SEXP installed_packages) {
+SEXP Client::make_client(SEXP address, SEXP port, SEXP installed_packages) {
   auto addr = CHAR(STRING_ELT(address, 0));
   auto p = INTEGER(port)[0];
   std::string address_str(addr);
@@ -89,8 +89,40 @@ SEXP init_client(SEXP address, SEXP port, SEXP installed_packages) {
 
   auto channel = grpc::CreateChannel(address_str, grpc::InsecureChannelCredentials());
   auto client = new Client(channel, packages);
-  // TODO: we should also store that in a global variable as for CMP_FUN
-  return R_MakeExternalPtr(client, Rf_install("RSH_CLIENT"), R_NilValue);
+
+  
+  SEXP ptr =  PROTECT(R_MakeExternalPtr(client, Rf_install("RSH_CLIENT"), R_NilValue));
+  R_RegisterCFinalizerEx(ptr, &Client::remove_client, TRUE);// TRUE because we want to shutdown the client when R quits
+
+  UNPROTECT(1);
+  return ptr;
+}
+
+void Client::remove_client(SEXP ptr) {
+  if(ptr == nullptr) {
+    Rf_warning("Client already removed");
+  }
+  auto client = static_cast<Client*>(R_ExternalPtrAddr(ptr));
+  delete client;
+}
+
+Client* Client::get_client() {
+  if(Client::CLIENT_INSTANCE != nullptr) {
+    return static_cast<Client*>(R_ExternalPtrAddr(CLIENT_INSTANCE));
+  }
+  else {
+    Rf_error("Client not initialized");
+  }
+}
+
+SEXP init_client(SEXP address, SEXP port, SEXP installed_packages) {
+  if(Client::CLIENT_INSTANCE != nullptr) {
+    Rf_warning("Client already initialized, replacing it");
+  }
+
+  Client::CLIENT_INSTANCE = Client::make_client(address, port, installed_packages);
+
+  return R_NilValue;
 }
 
 } // namespace rsh

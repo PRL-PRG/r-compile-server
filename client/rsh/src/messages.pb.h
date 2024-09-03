@@ -1104,7 +1104,7 @@ class CompileResponse final :
   enum : int {
     kHashFieldNumber = 1,
     kCodeFieldNumber = 3,
-    kConstantPoolFieldNumber = 4,
+    kConstantsFieldNumber = 4,
     kTierFieldNumber = 2,
   };
   // bytes hash = 1;
@@ -1139,22 +1139,22 @@ class CompileResponse final :
   std::string* _internal_mutable_code();
   public:
 
-  // optional bytes constant_pool = 4;
-  bool has_constant_pool() const;
+  // optional bytes constants = 4;
+  bool has_constants() const;
   private:
-  bool _internal_has_constant_pool() const;
+  bool _internal_has_constants() const;
   public:
-  void clear_constant_pool();
-  const std::string& constant_pool() const;
+  void clear_constants();
+  const std::string& constants() const;
   template <typename ArgT0 = const std::string&, typename... ArgT>
-  void set_constant_pool(ArgT0&& arg0, ArgT... args);
-  std::string* mutable_constant_pool();
-  PROTOBUF_NODISCARD std::string* release_constant_pool();
-  void set_allocated_constant_pool(std::string* constant_pool);
+  void set_constants(ArgT0&& arg0, ArgT... args);
+  std::string* mutable_constants();
+  PROTOBUF_NODISCARD std::string* release_constants();
+  void set_allocated_constants(std::string* constants);
   private:
-  const std::string& _internal_constant_pool() const;
-  inline PROTOBUF_ALWAYS_INLINE void _internal_set_constant_pool(const std::string& value);
-  std::string* _internal_mutable_constant_pool();
+  const std::string& _internal_constants() const;
+  inline PROTOBUF_ALWAYS_INLINE void _internal_set_constants(const std::string& value);
+  std::string* _internal_mutable_constants();
   public:
 
   // .rsh.protocol.Tier tier = 2;
@@ -1178,7 +1178,7 @@ class CompileResponse final :
     mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
     ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr hash_;
     ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr code_;
-    ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr constant_pool_;
+    ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr constants_;
     int tier_;
   };
   union { Impl_ _impl_; };
@@ -5532,72 +5532,72 @@ inline void CompileResponse::set_allocated_code(std::string* code) {
   // @@protoc_insertion_point(field_set_allocated:rsh.protocol.CompileResponse.code)
 }
 
-// optional bytes constant_pool = 4;
-inline bool CompileResponse::_internal_has_constant_pool() const {
+// optional bytes constants = 4;
+inline bool CompileResponse::_internal_has_constants() const {
   bool value = (_impl_._has_bits_[0] & 0x00000002u) != 0;
   return value;
 }
-inline bool CompileResponse::has_constant_pool() const {
-  return _internal_has_constant_pool();
+inline bool CompileResponse::has_constants() const {
+  return _internal_has_constants();
 }
-inline void CompileResponse::clear_constant_pool() {
-  _impl_.constant_pool_.ClearToEmpty();
+inline void CompileResponse::clear_constants() {
+  _impl_.constants_.ClearToEmpty();
   _impl_._has_bits_[0] &= ~0x00000002u;
 }
-inline const std::string& CompileResponse::constant_pool() const {
-  // @@protoc_insertion_point(field_get:rsh.protocol.CompileResponse.constant_pool)
-  return _internal_constant_pool();
+inline const std::string& CompileResponse::constants() const {
+  // @@protoc_insertion_point(field_get:rsh.protocol.CompileResponse.constants)
+  return _internal_constants();
 }
 template <typename ArgT0, typename... ArgT>
 inline PROTOBUF_ALWAYS_INLINE
-void CompileResponse::set_constant_pool(ArgT0&& arg0, ArgT... args) {
+void CompileResponse::set_constants(ArgT0&& arg0, ArgT... args) {
  _impl_._has_bits_[0] |= 0x00000002u;
- _impl_.constant_pool_.SetBytes(static_cast<ArgT0 &&>(arg0), args..., GetArenaForAllocation());
-  // @@protoc_insertion_point(field_set:rsh.protocol.CompileResponse.constant_pool)
+ _impl_.constants_.SetBytes(static_cast<ArgT0 &&>(arg0), args..., GetArenaForAllocation());
+  // @@protoc_insertion_point(field_set:rsh.protocol.CompileResponse.constants)
 }
-inline std::string* CompileResponse::mutable_constant_pool() {
-  std::string* _s = _internal_mutable_constant_pool();
-  // @@protoc_insertion_point(field_mutable:rsh.protocol.CompileResponse.constant_pool)
+inline std::string* CompileResponse::mutable_constants() {
+  std::string* _s = _internal_mutable_constants();
+  // @@protoc_insertion_point(field_mutable:rsh.protocol.CompileResponse.constants)
   return _s;
 }
-inline const std::string& CompileResponse::_internal_constant_pool() const {
-  return _impl_.constant_pool_.Get();
+inline const std::string& CompileResponse::_internal_constants() const {
+  return _impl_.constants_.Get();
 }
-inline void CompileResponse::_internal_set_constant_pool(const std::string& value) {
+inline void CompileResponse::_internal_set_constants(const std::string& value) {
   _impl_._has_bits_[0] |= 0x00000002u;
-  _impl_.constant_pool_.Set(value, GetArenaForAllocation());
+  _impl_.constants_.Set(value, GetArenaForAllocation());
 }
-inline std::string* CompileResponse::_internal_mutable_constant_pool() {
+inline std::string* CompileResponse::_internal_mutable_constants() {
   _impl_._has_bits_[0] |= 0x00000002u;
-  return _impl_.constant_pool_.Mutable(GetArenaForAllocation());
+  return _impl_.constants_.Mutable(GetArenaForAllocation());
 }
-inline std::string* CompileResponse::release_constant_pool() {
-  // @@protoc_insertion_point(field_release:rsh.protocol.CompileResponse.constant_pool)
-  if (!_internal_has_constant_pool()) {
+inline std::string* CompileResponse::release_constants() {
+  // @@protoc_insertion_point(field_release:rsh.protocol.CompileResponse.constants)
+  if (!_internal_has_constants()) {
     return nullptr;
   }
   _impl_._has_bits_[0] &= ~0x00000002u;
-  auto* p = _impl_.constant_pool_.Release();
+  auto* p = _impl_.constants_.Release();
 #ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
-  if (_impl_.constant_pool_.IsDefault()) {
-    _impl_.constant_pool_.Set("", GetArenaForAllocation());
+  if (_impl_.constants_.IsDefault()) {
+    _impl_.constants_.Set("", GetArenaForAllocation());
   }
 #endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
   return p;
 }
-inline void CompileResponse::set_allocated_constant_pool(std::string* constant_pool) {
-  if (constant_pool != nullptr) {
+inline void CompileResponse::set_allocated_constants(std::string* constants) {
+  if (constants != nullptr) {
     _impl_._has_bits_[0] |= 0x00000002u;
   } else {
     _impl_._has_bits_[0] &= ~0x00000002u;
   }
-  _impl_.constant_pool_.SetAllocated(constant_pool, GetArenaForAllocation());
+  _impl_.constants_.SetAllocated(constants, GetArenaForAllocation());
 #ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
-  if (_impl_.constant_pool_.IsDefault()) {
-    _impl_.constant_pool_.Set("", GetArenaForAllocation());
+  if (_impl_.constants_.IsDefault()) {
+    _impl_.constants_.Set("", GetArenaForAllocation());
   }
 #endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
-  // @@protoc_insertion_point(field_set_allocated:rsh.protocol.CompileResponse.constant_pool)
+  // @@protoc_insertion_point(field_set_allocated:rsh.protocol.CompileResponse.constants)
 }
 
 // -------------------------------------------------------------------

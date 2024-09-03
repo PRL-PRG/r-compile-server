@@ -39,7 +39,7 @@ message CompileResponse {
   bytes hash = 1;
   Tier tier = 2;
   optional bytes code = 3;
-  optional bytes constant_pool = 4;
+  optional bytes constants = 4;
 }
 
 

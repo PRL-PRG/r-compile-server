@@ -88,7 +88,7 @@ PROTOBUF_CONSTEXPR CompileResponse::CompileResponse(
   , /*decltype(_impl_._cached_size_)*/{}
   , /*decltype(_impl_.hash_)*/{&::_pbi::fixed_address_empty_string, ::_pbi::ConstantInitialized{}}
   , /*decltype(_impl_.code_)*/{&::_pbi::fixed_address_empty_string, ::_pbi::ConstantInitialized{}}
-  , /*decltype(_impl_.constant_pool_)*/{&::_pbi::fixed_address_empty_string, ::_pbi::ConstantInitialized{}}
+  , /*decltype(_impl_.constants_)*/{&::_pbi::fixed_address_empty_string, ::_pbi::ConstantInitialized{}}
   , /*decltype(_impl_.tier_)*/0} {}
 struct CompileResponseDefaultTypeInternal {
   PROTOBUF_CONSTEXPR CompileResponseDefaultTypeInternal()
@@ -460,7 +460,7 @@ const uint32_t TableStruct_messages_2eproto::offsets[] PROTOBUF_SECTION_VARIABLE
   PROTOBUF_FIELD_OFFSET(::rsh::protocol::CompileResponse, _impl_.hash_),
   PROTOBUF_FIELD_OFFSET(::rsh::protocol::CompileResponse, _impl_.tier_),
   PROTOBUF_FIELD_OFFSET(::rsh::protocol::CompileResponse, _impl_.code_),
-  PROTOBUF_FIELD_OFFSET(::rsh::protocol::CompileResponse, _impl_.constant_pool_),
+  PROTOBUF_FIELD_OFFSET(::rsh::protocol::CompileResponse, _impl_.constants_),
   ~0u,
   ~0u,
   0,
@@ -735,61 +735,61 @@ const char descriptor_table_protodef_messages_2eproto[] PROTOBUF_SECTION_VARIABL
   ".protocol.ContextH\002\210\001\001\0223\n\013environment\030\007 "
   "\001(\0132\031.rsh.protocol.EnvironmentH\003\210\001\001B\007\n\005_"
   "tierB\025\n\023_optimization_levelB\n\n\010_contextB"
-  "\016\n\014_environment\"\213\001\n\017CompileResponse\022\014\n\004h"
+  "\016\n\014_environment\"\203\001\n\017CompileResponse\022\014\n\004h"
   "ash\030\001 \001(\014\022 \n\004tier\030\002 \001(\0162\022.rsh.protocol.T"
-  "ier\022\021\n\004code\030\003 \001(\014H\000\210\001\001\022\032\n\rconstant_pool\030"
-  "\004 \001(\014H\001\210\001\001B\007\n\005_codeB\020\n\016_constant_pool\"X\n"
-  "\010Function\022\024\n\014package_hash\030\001 \001(\014\022\014\n\004name\030"
-  "\002 \001(\t\022\014\n\004hash\030\003 \001(\014\022\021\n\004body\030\004 \001(\014H\000\210\001\001B\007"
-  "\n\005_body\"\037\n\017FunctionRequest\022\014\n\004hash\030\001 \001(\014"
-  "\"s\n\013Environment\0225\n\006values\030\001 \003(\0132%.rsh.pr"
-  "otocol.Environment.ValuesEntry\032-\n\013Values"
-  "Entry\022\013\n\003key\030\001 \001(\t\022\r\n\005value\030\002 \001(\014:\0028\001\"\034\n"
-  "\014ValueRequest\022\014\n\004hash\030\001 \003(\014\"$\n\005Value\022\014\n\004"
-  "hash\030\001 \001(\014\022\r\n\005value\030\002 \001(\014\"-\n\006Values\022#\n\006v"
-  "alues\030\001 \003(\0132\023.rsh.protocol.Value\"\007\n\005Empt"
-  "y\"\206\001\n\013CallContext\022\037\n\027args_statically_mat"
-  "ched\030\001 \001(\010\022\036\n\026correct_number_of_args\030\002 \001"
-  "(\010\022\035\n\025correct_order_of_args\030\003 \001(\010\022\027\n\017no_"
-  "missing_args\030\004 \001(\010\"t\n\017ArgumentContext\022\r\n"
-  "\005eager\030\001 \001(\010\022\022\n\nreflection\030\002 \001(\010\022\016\n\006obje"
-  "ct\030\003 \001(\010\022%\n\004type\030\004 \001(\0162\022.rsh.protocol.Ty"
-  "peH\000\210\001\001B\007\n\005_type\"s\n\007Context\022/\n\014call_cont"
-  "ext\030\001 \001(\0132\031.rsh.protocol.CallContext\0227\n\020"
-  "argument_context\030\002 \003(\0132\035.rsh.protocol.Ar"
-  "gumentContext\":\n\016ContextRequest\022(\n\010funct"
-  "ion\030\001 \001(\0132\026.rsh.protocol.Function\"\?\n\014Tes"
-  "tFeedback\022/\n\014test_lattice\030\001 \001(\0162\031.rsh.pr"
-  "otocol.TestLattice\"4\n\014CallFeedback\022\017\n\007n_"
-  "calls\030\001 \001(\003\022\023\n\013callee_hash\030\002 \001(\014\"v\n\rValu"
-  "eFeedback\022\016\n\006scalar\030\001 \001(\010\022\016\n\006object\030\002 \001("
-  "\010\022\033\n\023accessed_attributes\030\003 \001(\010\022\024\n\014vector"
-  "izable\030\004 \001(\010\022\022\n\nis_promise\030\005 \001(\010\"\321\002\n\014Typ"
-  "eFeedback\0224\n\005types\030\002 \003(\0132%.rsh.protocol."
-  "TypeFeedback.TypesEntry\032\267\001\n\010Feedback\0223\n\r"
-  "test_feedback\030\001 \001(\0132\032.rsh.protocol.TestF"
-  "eedbackH\000\0223\n\rcall_feedback\030\002 \001(\0132\032.rsh.p"
-  "rotocol.CallFeedbackH\000\0225\n\016value_feedback"
-  "\030\003 \001(\0132\033.rsh.protocol.ValueFeedbackH\000B\n\n"
-  "\010feedback\032Q\n\nTypesEntry\022\013\n\003key\030\001 \001(\003\0222\n\005"
-  "value\030\002 \001(\0132#.rsh.protocol.TypeFeedback."
-  "Feedback:\0028\001\";\n\017FeedbackRequest\022(\n\010funct"
-  "ion\030\001 \001(\0132\026.rsh.protocol.Function\"C\n\rPac"
-  "kageSource\022\022\n\010r_mirror\030\002 \001(\tH\000\022\024\n\ngithub"
-  "_url\030\003 \001(\tH\000B\010\n\006source\"\225\001\n\007Package\022\014\n\004na"
-  "me\030\001 \001(\t\022&\n\007version\030\002 \001(\0132\025.rsh.protocol"
-  ".Version\022\027\n\017function_hashes\030\004 \003(\014\0220\n\006sou"
-  "rce\030\005 \001(\0132\033.rsh.protocol.PackageSourceH\000"
-  "\210\001\001B\t\n\007_source\"\036\n\016PackageRequest\022\014\n\004hash"
-  "\030\001 \001(\014*#\n\004Tier\022\014\n\010BASELINE\020\000\022\r\n\tOPTIMIZE"
-  "D\020\001*@\n\013TestLattice\022\010\n\004BOTH\020\000\022\r\n\tONLY_TRU"
-  "E\020\001\022\016\n\nONLY_FALSE\020\002\022\010\n\004NONE\020\003*&\n\004Type\022\007\n"
-  "\003ANY\020\000\022\013\n\007INTEGER\020\001\022\010\n\004REAL\020\002B\023\n\021org.prl"
-  "prg.serverb\006proto3"
+  "ier\022\021\n\004code\030\003 \001(\014H\000\210\001\001\022\026\n\tconstants\030\004 \001("
+  "\014H\001\210\001\001B\007\n\005_codeB\014\n\n_constants\"X\n\010Functio"
+  "n\022\024\n\014package_hash\030\001 \001(\014\022\014\n\004name\030\002 \001(\t\022\014\n"
+  "\004hash\030\003 \001(\014\022\021\n\004body\030\004 \001(\014H\000\210\001\001B\007\n\005_body\""
+  "\037\n\017FunctionRequest\022\014\n\004hash\030\001 \001(\014\"s\n\013Envi"
+  "ronment\0225\n\006values\030\001 \003(\0132%.rsh.protocol.E"
+  "nvironment.ValuesEntry\032-\n\013ValuesEntry\022\013\n"
+  "\003key\030\001 \001(\t\022\r\n\005value\030\002 \001(\014:\0028\001\"\034\n\014ValueRe"
+  "quest\022\014\n\004hash\030\001 \003(\014\"$\n\005Value\022\014\n\004hash\030\001 \001"
+  "(\014\022\r\n\005value\030\002 \001(\014\"-\n\006Values\022#\n\006values\030\001 "
+  "\003(\0132\023.rsh.protocol.Value\"\007\n\005Empty\"\206\001\n\013Ca"
+  "llContext\022\037\n\027args_statically_matched\030\001 \001"
+  "(\010\022\036\n\026correct_number_of_args\030\002 \001(\010\022\035\n\025co"
+  "rrect_order_of_args\030\003 \001(\010\022\027\n\017no_missing_"
+  "args\030\004 \001(\010\"t\n\017ArgumentContext\022\r\n\005eager\030\001"
+  " \001(\010\022\022\n\nreflection\030\002 \001(\010\022\016\n\006object\030\003 \001(\010"
+  "\022%\n\004type\030\004 \001(\0162\022.rsh.protocol.TypeH\000\210\001\001B"
+  "\007\n\005_type\"s\n\007Context\022/\n\014call_context\030\001 \001("
+  "\0132\031.rsh.protocol.CallContext\0227\n\020argument"
+  "_context\030\002 \003(\0132\035.rsh.protocol.ArgumentCo"
+  "ntext\":\n\016ContextRequest\022(\n\010function\030\001 \001("
+  "\0132\026.rsh.protocol.Function\"\?\n\014TestFeedbac"
+  "k\022/\n\014test_lattice\030\001 \001(\0162\031.rsh.protocol.T"
+  "estLattice\"4\n\014CallFeedback\022\017\n\007n_calls\030\001 "
+  "\001(\003\022\023\n\013callee_hash\030\002 \001(\014\"v\n\rValueFeedbac"
+  "k\022\016\n\006scalar\030\001 \001(\010\022\016\n\006object\030\002 \001(\010\022\033\n\023acc"
+  "essed_attributes\030\003 \001(\010\022\024\n\014vectorizable\030\004"
+  " \001(\010\022\022\n\nis_promise\030\005 \001(\010\"\321\002\n\014TypeFeedbac"
+  "k\0224\n\005types\030\002 \003(\0132%.rsh.protocol.TypeFeed"
+  "back.TypesEntry\032\267\001\n\010Feedback\0223\n\rtest_fee"
+  "dback\030\001 \001(\0132\032.rsh.protocol.TestFeedbackH"
+  "\000\0223\n\rcall_feedback\030\002 \001(\0132\032.rsh.protocol."
+  "CallFeedbackH\000\0225\n\016value_feedback\030\003 \001(\0132\033"
+  ".rsh.protocol.ValueFeedbackH\000B\n\n\010feedbac"
+  "k\032Q\n\nTypesEntry\022\013\n\003key\030\001 \001(\003\0222\n\005value\030\002 "
+  "\001(\0132#.rsh.protocol.TypeFeedback.Feedback"
+  ":\0028\001\";\n\017FeedbackRequest\022(\n\010function\030\001 \001("
+  "\0132\026.rsh.protocol.Function\"C\n\rPackageSour"
+  "ce\022\022\n\010r_mirror\030\002 \001(\tH\000\022\024\n\ngithub_url\030\003 \001"
+  "(\tH\000B\010\n\006source\"\225\001\n\007Package\022\014\n\004name\030\001 \001(\t"
+  "\022&\n\007version\030\002 \001(\0132\025.rsh.protocol.Version"
+  "\022\027\n\017function_hashes\030\004 \003(\014\0220\n\006source\030\005 \001("
+  "\0132\033.rsh.protocol.PackageSourceH\000\210\001\001B\t\n\007_"
+  "source\"\036\n\016PackageRequest\022\014\n\004hash\030\001 \001(\014*#"
+  "\n\004Tier\022\014\n\010BASELINE\020\000\022\r\n\tOPTIMIZED\020\001*@\n\013T"
+  "estLattice\022\010\n\004BOTH\020\000\022\r\n\tONLY_TRUE\020\001\022\016\n\nO"
+  "NLY_FALSE\020\002\022\010\n\004NONE\020\003*&\n\004Type\022\007\n\003ANY\020\000\022\013"
+  "\n\007INTEGER\020\001\022\010\n\004REAL\020\002B\023\n\021org.prlprg.serv"
+  "erb\006proto3"
   ;
 static ::_pbi::once_flag descriptor_table_messages_2eproto_once;
 const ::_pbi::DescriptorTable descriptor_table_messages_2eproto = {
-    false, false, 2538, descriptor_table_protodef_messages_2eproto,
+    false, false, 2530, descriptor_table_protodef_messages_2eproto,
     "messages.proto",
     &descriptor_table_messages_2eproto_once, nullptr, 0, 27,
     schemas, file_default_instances, TableStruct_messages_2eproto::offsets,
@@ -1827,7 +1827,7 @@ class CompileResponse::_Internal {
   static void set_has_code(HasBits* has_bits) {
     (*has_bits)[0] |= 1u;
   }
-  static void set_has_constant_pool(HasBits* has_bits) {
+  static void set_has_constants(HasBits* has_bits) {
     (*has_bits)[0] |= 2u;
   }
 };
@@ -1846,7 +1846,7 @@ CompileResponse::CompileResponse(const CompileResponse& from)
     , /*decltype(_impl_._cached_size_)*/{}
     , decltype(_impl_.hash_){}
     , decltype(_impl_.code_){}
-    , decltype(_impl_.constant_pool_){}
+    , decltype(_impl_.constants_){}
     , decltype(_impl_.tier_){}};
 
   _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
@@ -1866,12 +1866,12 @@ CompileResponse::CompileResponse(const CompileResponse& from)
     _this->_impl_.code_.Set(from._internal_code(), 
       _this->GetArenaForAllocation());
   }
-  _impl_.constant_pool_.InitDefault();
+  _impl_.constants_.InitDefault();
   #ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
-    _impl_.constant_pool_.Set("", GetArenaForAllocation());
+    _impl_.constants_.Set("", GetArenaForAllocation());
   #endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
-  if (from._internal_has_constant_pool()) {
-    _this->_impl_.constant_pool_.Set(from._internal_constant_pool(), 
+  if (from._internal_has_constants()) {
+    _this->_impl_.constants_.Set(from._internal_constants(), 
       _this->GetArenaForAllocation());
   }
   _this->_impl_.tier_ = from._impl_.tier_;
@@ -1887,7 +1887,7 @@ inline void CompileResponse::SharedCtor(
     , /*decltype(_impl_._cached_size_)*/{}
     , decltype(_impl_.hash_){}
     , decltype(_impl_.code_){}
-    , decltype(_impl_.constant_pool_){}
+    , decltype(_impl_.constants_){}
     , decltype(_impl_.tier_){0}
   };
   _impl_.hash_.InitDefault();
@@ -1898,9 +1898,9 @@ inline void CompileResponse::SharedCtor(
   #ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
     _impl_.code_.Set("", GetArenaForAllocation());
   #endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
-  _impl_.constant_pool_.InitDefault();
+  _impl_.constants_.InitDefault();
   #ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
-    _impl_.constant_pool_.Set("", GetArenaForAllocation());
+    _impl_.constants_.Set("", GetArenaForAllocation());
   #endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
 }
 
@@ -1917,7 +1917,7 @@ inline void CompileResponse::SharedDtor() {
   GOOGLE_DCHECK(GetArenaForAllocation() == nullptr);
   _impl_.hash_.Destroy();
   _impl_.code_.Destroy();
-  _impl_.constant_pool_.Destroy();
+  _impl_.constants_.Destroy();
 }
 
 void CompileResponse::SetCachedSize(int size) const {
@@ -1937,7 +1937,7 @@ void CompileResponse::Clear() {
       _impl_.code_.ClearNonDefaultToEmpty();
     }
     if (cached_has_bits & 0x00000002u) {
-      _impl_.constant_pool_.ClearNonDefaultToEmpty();
+      _impl_.constants_.ClearNonDefaultToEmpty();
     }
   }
   _impl_.tier_ = 0;
@@ -1979,10 +1979,10 @@ const char* CompileResponse::_InternalParse(const char* ptr, ::_pbi::ParseContex
         } else
           goto handle_unusual;
         continue;
-      // optional bytes constant_pool = 4;
+      // optional bytes constants = 4;
       case 4:
         if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 34)) {
-          auto str = _internal_mutable_constant_pool();
+          auto str = _internal_mutable_constants();
           ptr = ::_pbi::InlineGreedyStringParser(str, ptr, ctx);
           CHK_(ptr);
         } else
@@ -2037,10 +2037,10 @@ uint8_t* CompileResponse::_InternalSerialize(
         3, this->_internal_code(), target);
   }
 
-  // optional bytes constant_pool = 4;
-  if (_internal_has_constant_pool()) {
+  // optional bytes constants = 4;
+  if (_internal_has_constants()) {
     target = stream->WriteBytesMaybeAliased(
-        4, this->_internal_constant_pool(), target);
+        4, this->_internal_constants(), target);
   }
 
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
@@ -2075,11 +2075,11 @@ size_t CompileResponse::ByteSizeLong() const {
           this->_internal_code());
     }
 
-    // optional bytes constant_pool = 4;
+    // optional bytes constants = 4;
     if (cached_has_bits & 0x00000002u) {
       total_size += 1 +
         ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::BytesSize(
-          this->_internal_constant_pool());
+          this->_internal_constants());
     }
 
   }
@@ -2116,7 +2116,7 @@ void CompileResponse::MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const 
       _this->_internal_set_code(from._internal_code());
     }
     if (cached_has_bits & 0x00000002u) {
-      _this->_internal_set_constant_pool(from._internal_constant_pool());
+      _this->_internal_set_constants(from._internal_constants());
     }
   }
   if (from._internal_tier() != 0) {
@@ -2151,8 +2151,8 @@ void CompileResponse::InternalSwap(CompileResponse* other) {
       &other->_impl_.code_, rhs_arena
   );
   ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr::InternalSwap(
-      &_impl_.constant_pool_, lhs_arena,
-      &other->_impl_.constant_pool_, rhs_arena
+      &_impl_.constants_, lhs_arena,
+      &other->_impl_.constants_, rhs_arena
   );
   swap(_impl_.tier_, other->_impl_.tier_);
 }
