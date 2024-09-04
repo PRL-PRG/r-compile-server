@@ -1,4 +1,5 @@
 #include "client.h"
+#include "xxhash.hpp"
 
 #include <grpc/grpc.h>
 #include <grpcpp/channel.h>
@@ -59,9 +60,9 @@ std::variant<protocol::CompileResponse, std::string> Client::remote_compile(std:
   request.mutable_function()->set_name(name);
   request.mutable_function()->set_body(rds_closure.data(), rds_closure.size());
 
-  // TODO: Actually compile the hash
-  std::array<uint8_t,64> hash = {0};
-  request.mutable_function()->set_hash(hash.data(), hash.size());
+  
+  auto hash = xxh::xxhash3<64>(rds_closure.data(), rds_closure.size());
+  request.mutable_function()->set_hash(hash);
 
   grpc::ClientContext context;
   CompileResponse response;

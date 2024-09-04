@@ -47,7 +47,13 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
     int optimizationLevel = request.getOptimizationLevel(); // default is 0
     Messages.Context context = request.getContext(); // null if not provided
 
-    logger.info("Received request to compile function " + function.getName());
+    logger.info(
+        "Received request to compile function "
+            + function.getName()
+            + " at tier "
+            + tier
+            + " with optimization level "
+            + optimizationLevel);
 
     // Compile the code and build response
     Messages.CompileResponse.Builder response = Messages.CompileResponse.newBuilder();

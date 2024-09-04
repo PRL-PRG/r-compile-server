@@ -10,7 +10,7 @@ f <- function(x) {
 
 print(f)
 
-rsh::rsh_compile(f, tier = "bytecode")
+rsh::rsh_compile(f, tier = "bytecode", opt_level = 3L)
 print(f)
 
 print(f(5))

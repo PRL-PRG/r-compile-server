@@ -1102,25 +1102,11 @@ class CompileResponse final :
   // accessors -------------------------------------------------------
 
   enum : int {
-    kHashFieldNumber = 1,
     kCodeFieldNumber = 3,
     kConstantsFieldNumber = 4,
+    kHashFieldNumber = 1,
     kTierFieldNumber = 2,
   };
-  // bytes hash = 1;
-  void clear_hash();
-  const std::string& hash() const;
-  template <typename ArgT0 = const std::string&, typename... ArgT>
-  void set_hash(ArgT0&& arg0, ArgT... args);
-  std::string* mutable_hash();
-  PROTOBUF_NODISCARD std::string* release_hash();
-  void set_allocated_hash(std::string* hash);
-  private:
-  const std::string& _internal_hash() const;
-  inline PROTOBUF_ALWAYS_INLINE void _internal_set_hash(const std::string& value);
-  std::string* _internal_mutable_hash();
-  public:
-
   // optional bytes code = 3;
   bool has_code() const;
   private:
@@ -1157,6 +1143,15 @@ class CompileResponse final :
   std::string* _internal_mutable_constants();
   public:
 
+  // uint64 hash = 1;
+  void clear_hash();
+  uint64_t hash() const;
+  void set_hash(uint64_t value);
+  private:
+  uint64_t _internal_hash() const;
+  void _internal_set_hash(uint64_t value);
+  public:
+
   // .rsh.protocol.Tier tier = 2;
   void clear_tier();
   ::rsh::protocol::Tier tier() const;
@@ -1176,9 +1171,9 @@ class CompileResponse final :
   struct Impl_ {
     ::PROTOBUF_NAMESPACE_ID::internal::HasBits<1> _has_bits_;
     mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
-    ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr hash_;
     ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr code_;
     ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr constants_;
+    uint64_t hash_;
     int tier_;
   };
   union { Impl_ _impl_; };
@@ -1307,25 +1302,11 @@ class Function final :
   // accessors -------------------------------------------------------
 
   enum : int {
-    kPackageHashFieldNumber = 1,
     kNameFieldNumber = 2,
-    kHashFieldNumber = 3,
     kBodyFieldNumber = 4,
+    kPackageHashFieldNumber = 1,
+    kHashFieldNumber = 3,
   };
-  // bytes package_hash = 1;
-  void clear_package_hash();
-  const std::string& package_hash() const;
-  template <typename ArgT0 = const std::string&, typename... ArgT>
-  void set_package_hash(ArgT0&& arg0, ArgT... args);
-  std::string* mutable_package_hash();
-  PROTOBUF_NODISCARD std::string* release_package_hash();
-  void set_allocated_package_hash(std::string* package_hash);
-  private:
-  const std::string& _internal_package_hash() const;
-  inline PROTOBUF_ALWAYS_INLINE void _internal_set_package_hash(const std::string& value);
-  std::string* _internal_mutable_package_hash();
-  public:
-
   // string name = 2;
   void clear_name();
   const std::string& name() const;
@@ -1338,20 +1319,6 @@ class Function final :
   const std::string& _internal_name() const;
   inline PROTOBUF_ALWAYS_INLINE void _internal_set_name(const std::string& value);
   std::string* _internal_mutable_name();
-  public:
-
-  // bytes hash = 3;
-  void clear_hash();
-  const std::string& hash() const;
-  template <typename ArgT0 = const std::string&, typename... ArgT>
-  void set_hash(ArgT0&& arg0, ArgT... args);
-  std::string* mutable_hash();
-  PROTOBUF_NODISCARD std::string* release_hash();
-  void set_allocated_hash(std::string* hash);
-  private:
-  const std::string& _internal_hash() const;
-  inline PROTOBUF_ALWAYS_INLINE void _internal_set_hash(const std::string& value);
-  std::string* _internal_mutable_hash();
   public:
 
   // optional bytes body = 4;
@@ -1372,6 +1339,24 @@ class Function final :
   std::string* _internal_mutable_body();
   public:
 
+  // uint64 package_hash = 1;
+  void clear_package_hash();
+  uint64_t package_hash() const;
+  void set_package_hash(uint64_t value);
+  private:
+  uint64_t _internal_package_hash() const;
+  void _internal_set_package_hash(uint64_t value);
+  public:
+
+  // uint64 hash = 3;
+  void clear_hash();
+  uint64_t hash() const;
+  void set_hash(uint64_t value);
+  private:
+  uint64_t _internal_hash() const;
+  void _internal_set_hash(uint64_t value);
+  public:
+
   // @@protoc_insertion_point(class_scope:rsh.protocol.Function)
  private:
   class _Internal;
@@ -1382,10 +1367,10 @@ class Function final :
   struct Impl_ {
     ::PROTOBUF_NAMESPACE_ID::internal::HasBits<1> _has_bits_;
     mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
-    ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr package_hash_;
     ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr name_;
-    ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr hash_;
     ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr body_;
+    uint64_t package_hash_;
+    uint64_t hash_;
   };
   union { Impl_ _impl_; };
   friend struct ::TableStruct_messages_2eproto;
@@ -1515,18 +1500,13 @@ class FunctionRequest final :
   enum : int {
     kHashFieldNumber = 1,
   };
-  // bytes hash = 1;
+  // uint64 hash = 1;
   void clear_hash();
-  const std::string& hash() const;
-  template <typename ArgT0 = const std::string&, typename... ArgT>
-  void set_hash(ArgT0&& arg0, ArgT... args);
-  std::string* mutable_hash();
-  PROTOBUF_NODISCARD std::string* release_hash();
-  void set_allocated_hash(std::string* hash);
+  uint64_t hash() const;
+  void set_hash(uint64_t value);
   private:
-  const std::string& _internal_hash() const;
-  inline PROTOBUF_ALWAYS_INLINE void _internal_set_hash(const std::string& value);
-  std::string* _internal_mutable_hash();
+  uint64_t _internal_hash() const;
+  void _internal_set_hash(uint64_t value);
   public:
 
   // @@protoc_insertion_point(class_scope:rsh.protocol.FunctionRequest)
@@ -1537,7 +1517,7 @@ class FunctionRequest final :
   typedef void InternalArenaConstructable_;
   typedef void DestructorSkippable_;
   struct Impl_ {
-    ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr hash_;
+    uint64_t hash_;
     mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   };
   union { Impl_ _impl_; };
@@ -1546,14 +1526,14 @@ class FunctionRequest final :
 // -------------------------------------------------------------------
 
 class Environment_ValuesEntry_DoNotUse : public ::PROTOBUF_NAMESPACE_ID::internal::MapEntry<Environment_ValuesEntry_DoNotUse, 
-    std::string, std::string,
+    std::string, uint64_t,
     ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::TYPE_STRING,
-    ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::TYPE_BYTES> {
+    ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::TYPE_UINT64> {
 public:
   typedef ::PROTOBUF_NAMESPACE_ID::internal::MapEntry<Environment_ValuesEntry_DoNotUse, 
-    std::string, std::string,
+    std::string, uint64_t,
     ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::TYPE_STRING,
-    ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::TYPE_BYTES> SuperType;
+    ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::TYPE_UINT64> SuperType;
   Environment_ValuesEntry_DoNotUse();
   explicit PROTOBUF_CONSTEXPR Environment_ValuesEntry_DoNotUse(
       ::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized);
@@ -1697,21 +1677,21 @@ class Environment final :
   enum : int {
     kValuesFieldNumber = 1,
   };
-  // map<string, bytes> values = 1;
+  // map<string, uint64> values = 1;
   int values_size() const;
   private:
   int _internal_values_size() const;
   public:
   void clear_values();
   private:
-  const ::PROTOBUF_NAMESPACE_ID::Map< std::string, std::string >&
+  const ::PROTOBUF_NAMESPACE_ID::Map< std::string, uint64_t >&
       _internal_values() const;
-  ::PROTOBUF_NAMESPACE_ID::Map< std::string, std::string >*
+  ::PROTOBUF_NAMESPACE_ID::Map< std::string, uint64_t >*
       _internal_mutable_values();
   public:
-  const ::PROTOBUF_NAMESPACE_ID::Map< std::string, std::string >&
+  const ::PROTOBUF_NAMESPACE_ID::Map< std::string, uint64_t >&
       values() const;
-  ::PROTOBUF_NAMESPACE_ID::Map< std::string, std::string >*
+  ::PROTOBUF_NAMESPACE_ID::Map< std::string, uint64_t >*
       mutable_values();
 
   // @@protoc_insertion_point(class_scope:rsh.protocol.Environment)
@@ -1724,9 +1704,9 @@ class Environment final :
   struct Impl_ {
     ::PROTOBUF_NAMESPACE_ID::internal::MapField<
         Environment_ValuesEntry_DoNotUse,
-        std::string, std::string,
+        std::string, uint64_t,
         ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::TYPE_STRING,
-        ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::TYPE_BYTES> values_;
+        ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::TYPE_UINT64> values_;
     mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   };
   union { Impl_ _impl_; };
@@ -1857,29 +1837,27 @@ class ValueRequest final :
   enum : int {
     kHashFieldNumber = 1,
   };
-  // repeated bytes hash = 1;
+  // repeated uint64 hash = 1;
   int hash_size() const;
   private:
   int _internal_hash_size() const;
   public:
   void clear_hash();
-  const std::string& hash(int index) const;
-  std::string* mutable_hash(int index);
-  void set_hash(int index, const std::string& value);
-  void set_hash(int index, std::string&& value);
-  void set_hash(int index, const char* value);
-  void set_hash(int index, const void* value, size_t size);
-  std::string* add_hash();
-  void add_hash(const std::string& value);
-  void add_hash(std::string&& value);
-  void add_hash(const char* value);
-  void add_hash(const void* value, size_t size);
-  const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>& hash() const;
-  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>* mutable_hash();
   private:
-  const std::string& _internal_hash(int index) const;
-  std::string* _internal_add_hash();
+  uint64_t _internal_hash(int index) const;
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedField< uint64_t >&
+      _internal_hash() const;
+  void _internal_add_hash(uint64_t value);
+  ::PROTOBUF_NAMESPACE_ID::RepeatedField< uint64_t >*
+      _internal_mutable_hash();
   public:
+  uint64_t hash(int index) const;
+  void set_hash(int index, uint64_t value);
+  void add_hash(uint64_t value);
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedField< uint64_t >&
+      hash() const;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedField< uint64_t >*
+      mutable_hash();
 
   // @@protoc_insertion_point(class_scope:rsh.protocol.ValueRequest)
  private:
@@ -1889,7 +1867,8 @@ class ValueRequest final :
   typedef void InternalArenaConstructable_;
   typedef void DestructorSkippable_;
   struct Impl_ {
-    ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string> hash_;
+    ::PROTOBUF_NAMESPACE_ID::RepeatedField< uint64_t > hash_;
+    mutable std::atomic<int> _hash_cached_byte_size_;
     mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   };
   union { Impl_ _impl_; };
@@ -2018,23 +1997,9 @@ class Value final :
   // accessors -------------------------------------------------------
 
   enum : int {
-    kHashFieldNumber = 1,
     kValueFieldNumber = 2,
+    kHashFieldNumber = 1,
   };
-  // bytes hash = 1;
-  void clear_hash();
-  const std::string& hash() const;
-  template <typename ArgT0 = const std::string&, typename... ArgT>
-  void set_hash(ArgT0&& arg0, ArgT... args);
-  std::string* mutable_hash();
-  PROTOBUF_NODISCARD std::string* release_hash();
-  void set_allocated_hash(std::string* hash);
-  private:
-  const std::string& _internal_hash() const;
-  inline PROTOBUF_ALWAYS_INLINE void _internal_set_hash(const std::string& value);
-  std::string* _internal_mutable_hash();
-  public:
-
   // bytes value = 2;
   void clear_value();
   const std::string& value() const;
@@ -2049,6 +2014,15 @@ class Value final :
   std::string* _internal_mutable_value();
   public:
 
+  // uint64 hash = 1;
+  void clear_hash();
+  uint64_t hash() const;
+  void set_hash(uint64_t value);
+  private:
+  uint64_t _internal_hash() const;
+  void _internal_set_hash(uint64_t value);
+  public:
+
   // @@protoc_insertion_point(class_scope:rsh.protocol.Value)
  private:
   class _Internal;
@@ -2057,8 +2031,8 @@ class Value final :
   typedef void InternalArenaConstructable_;
   typedef void DestructorSkippable_;
   struct Impl_ {
-    ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr hash_;
     ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr value_;
+    uint64_t hash_;
     mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   };
   union { Impl_ _impl_; };
@@ -3311,23 +3285,9 @@ class CallFeedback final :
   // accessors -------------------------------------------------------
 
   enum : int {
-    kCalleeHashFieldNumber = 2,
     kNCallsFieldNumber = 1,
+    kCalleeHashFieldNumber = 2,
   };
-  // bytes callee_hash = 2;
-  void clear_callee_hash();
-  const std::string& callee_hash() const;
-  template <typename ArgT0 = const std::string&, typename... ArgT>
-  void set_callee_hash(ArgT0&& arg0, ArgT... args);
-  std::string* mutable_callee_hash();
-  PROTOBUF_NODISCARD std::string* release_callee_hash();
-  void set_allocated_callee_hash(std::string* callee_hash);
-  private:
-  const std::string& _internal_callee_hash() const;
-  inline PROTOBUF_ALWAYS_INLINE void _internal_set_callee_hash(const std::string& value);
-  std::string* _internal_mutable_callee_hash();
-  public:
-
   // int64 n_calls = 1;
   void clear_n_calls();
   int64_t n_calls() const;
@@ -3335,6 +3295,15 @@ class CallFeedback final :
   private:
   int64_t _internal_n_calls() const;
   void _internal_set_n_calls(int64_t value);
+  public:
+
+  // uint64 callee_hash = 2;
+  void clear_callee_hash();
+  uint64_t callee_hash() const;
+  void set_callee_hash(uint64_t value);
+  private:
+  uint64_t _internal_callee_hash() const;
+  void _internal_set_callee_hash(uint64_t value);
   public:
 
   // @@protoc_insertion_point(class_scope:rsh.protocol.CallFeedback)
@@ -3345,8 +3314,8 @@ class CallFeedback final :
   typedef void InternalArenaConstructable_;
   typedef void DestructorSkippable_;
   struct Impl_ {
-    ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr callee_hash_;
     int64_t n_calls_;
+    uint64_t callee_hash_;
     mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   };
   union { Impl_ _impl_; };
@@ -4431,29 +4400,27 @@ class Package final :
     kVersionFieldNumber = 2,
     kSourceFieldNumber = 5,
   };
-  // repeated bytes function_hashes = 4;
+  // repeated uint64 function_hashes = 4;
   int function_hashes_size() const;
   private:
   int _internal_function_hashes_size() const;
   public:
   void clear_function_hashes();
-  const std::string& function_hashes(int index) const;
-  std::string* mutable_function_hashes(int index);
-  void set_function_hashes(int index, const std::string& value);
-  void set_function_hashes(int index, std::string&& value);
-  void set_function_hashes(int index, const char* value);
-  void set_function_hashes(int index, const void* value, size_t size);
-  std::string* add_function_hashes();
-  void add_function_hashes(const std::string& value);
-  void add_function_hashes(std::string&& value);
-  void add_function_hashes(const char* value);
-  void add_function_hashes(const void* value, size_t size);
-  const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>& function_hashes() const;
-  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>* mutable_function_hashes();
   private:
-  const std::string& _internal_function_hashes(int index) const;
-  std::string* _internal_add_function_hashes();
+  uint64_t _internal_function_hashes(int index) const;
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedField< uint64_t >&
+      _internal_function_hashes() const;
+  void _internal_add_function_hashes(uint64_t value);
+  ::PROTOBUF_NAMESPACE_ID::RepeatedField< uint64_t >*
+      _internal_mutable_function_hashes();
   public:
+  uint64_t function_hashes(int index) const;
+  void set_function_hashes(int index, uint64_t value);
+  void add_function_hashes(uint64_t value);
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedField< uint64_t >&
+      function_hashes() const;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedField< uint64_t >*
+      mutable_function_hashes();
 
   // string name = 1;
   void clear_name();
@@ -4515,7 +4482,8 @@ class Package final :
   struct Impl_ {
     ::PROTOBUF_NAMESPACE_ID::internal::HasBits<1> _has_bits_;
     mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
-    ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string> function_hashes_;
+    ::PROTOBUF_NAMESPACE_ID::RepeatedField< uint64_t > function_hashes_;
+    mutable std::atomic<int> _function_hashes_cached_byte_size_;
     ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr name_;
     ::rsh::protocol::Version* version_;
     ::rsh::protocol::PackageSource* source_;
@@ -4648,18 +4616,13 @@ class PackageRequest final :
   enum : int {
     kHashFieldNumber = 1,
   };
-  // bytes hash = 1;
+  // uint64 hash = 1;
   void clear_hash();
-  const std::string& hash() const;
-  template <typename ArgT0 = const std::string&, typename... ArgT>
-  void set_hash(ArgT0&& arg0, ArgT... args);
-  std::string* mutable_hash();
-  PROTOBUF_NODISCARD std::string* release_hash();
-  void set_allocated_hash(std::string* hash);
+  uint64_t hash() const;
+  void set_hash(uint64_t value);
   private:
-  const std::string& _internal_hash() const;
-  inline PROTOBUF_ALWAYS_INLINE void _internal_set_hash(const std::string& value);
-  std::string* _internal_mutable_hash();
+  uint64_t _internal_hash() const;
+  void _internal_set_hash(uint64_t value);
   public:
 
   // @@protoc_insertion_point(class_scope:rsh.protocol.PackageRequest)
@@ -4670,7 +4633,7 @@ class PackageRequest final :
   typedef void InternalArenaConstructable_;
   typedef void DestructorSkippable_;
   struct Impl_ {
-    ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr hash_;
+    uint64_t hash_;
     mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   };
   union { Impl_ _impl_; };
@@ -5394,54 +5357,24 @@ inline void CompileRequest::set_allocated_environment(::rsh::protocol::Environme
 
 // CompileResponse
 
-// bytes hash = 1;
+// uint64 hash = 1;
 inline void CompileResponse::clear_hash() {
-  _impl_.hash_.ClearToEmpty();
+  _impl_.hash_ = uint64_t{0u};
 }
-inline const std::string& CompileResponse::hash() const {
+inline uint64_t CompileResponse::_internal_hash() const {
+  return _impl_.hash_;
+}
+inline uint64_t CompileResponse::hash() const {
   // @@protoc_insertion_point(field_get:rsh.protocol.CompileResponse.hash)
   return _internal_hash();
 }
-template <typename ArgT0, typename... ArgT>
-inline PROTOBUF_ALWAYS_INLINE
-void CompileResponse::set_hash(ArgT0&& arg0, ArgT... args) {
- 
- _impl_.hash_.SetBytes(static_cast<ArgT0 &&>(arg0), args..., GetArenaForAllocation());
+inline void CompileResponse::_internal_set_hash(uint64_t value) {
+  
+  _impl_.hash_ = value;
+}
+inline void CompileResponse::set_hash(uint64_t value) {
+  _internal_set_hash(value);
   // @@protoc_insertion_point(field_set:rsh.protocol.CompileResponse.hash)
-}
-inline std::string* CompileResponse::mutable_hash() {
-  std::string* _s = _internal_mutable_hash();
-  // @@protoc_insertion_point(field_mutable:rsh.protocol.CompileResponse.hash)
-  return _s;
-}
-inline const std::string& CompileResponse::_internal_hash() const {
-  return _impl_.hash_.Get();
-}
-inline void CompileResponse::_internal_set_hash(const std::string& value) {
-  
-  _impl_.hash_.Set(value, GetArenaForAllocation());
-}
-inline std::string* CompileResponse::_internal_mutable_hash() {
-  
-  return _impl_.hash_.Mutable(GetArenaForAllocation());
-}
-inline std::string* CompileResponse::release_hash() {
-  // @@protoc_insertion_point(field_release:rsh.protocol.CompileResponse.hash)
-  return _impl_.hash_.Release();
-}
-inline void CompileResponse::set_allocated_hash(std::string* hash) {
-  if (hash != nullptr) {
-    
-  } else {
-    
-  }
-  _impl_.hash_.SetAllocated(hash, GetArenaForAllocation());
-#ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
-  if (_impl_.hash_.IsDefault()) {
-    _impl_.hash_.Set("", GetArenaForAllocation());
-  }
-#endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
-  // @@protoc_insertion_point(field_set_allocated:rsh.protocol.CompileResponse.hash)
 }
 
 // .rsh.protocol.Tier tier = 2;
@@ -5604,54 +5537,24 @@ inline void CompileResponse::set_allocated_constants(std::string* constants) {
 
 // Function
 
-// bytes package_hash = 1;
+// uint64 package_hash = 1;
 inline void Function::clear_package_hash() {
-  _impl_.package_hash_.ClearToEmpty();
+  _impl_.package_hash_ = uint64_t{0u};
 }
-inline const std::string& Function::package_hash() const {
+inline uint64_t Function::_internal_package_hash() const {
+  return _impl_.package_hash_;
+}
+inline uint64_t Function::package_hash() const {
   // @@protoc_insertion_point(field_get:rsh.protocol.Function.package_hash)
   return _internal_package_hash();
 }
-template <typename ArgT0, typename... ArgT>
-inline PROTOBUF_ALWAYS_INLINE
-void Function::set_package_hash(ArgT0&& arg0, ArgT... args) {
- 
- _impl_.package_hash_.SetBytes(static_cast<ArgT0 &&>(arg0), args..., GetArenaForAllocation());
+inline void Function::_internal_set_package_hash(uint64_t value) {
+  
+  _impl_.package_hash_ = value;
+}
+inline void Function::set_package_hash(uint64_t value) {
+  _internal_set_package_hash(value);
   // @@protoc_insertion_point(field_set:rsh.protocol.Function.package_hash)
-}
-inline std::string* Function::mutable_package_hash() {
-  std::string* _s = _internal_mutable_package_hash();
-  // @@protoc_insertion_point(field_mutable:rsh.protocol.Function.package_hash)
-  return _s;
-}
-inline const std::string& Function::_internal_package_hash() const {
-  return _impl_.package_hash_.Get();
-}
-inline void Function::_internal_set_package_hash(const std::string& value) {
-  
-  _impl_.package_hash_.Set(value, GetArenaForAllocation());
-}
-inline std::string* Function::_internal_mutable_package_hash() {
-  
-  return _impl_.package_hash_.Mutable(GetArenaForAllocation());
-}
-inline std::string* Function::release_package_hash() {
-  // @@protoc_insertion_point(field_release:rsh.protocol.Function.package_hash)
-  return _impl_.package_hash_.Release();
-}
-inline void Function::set_allocated_package_hash(std::string* package_hash) {
-  if (package_hash != nullptr) {
-    
-  } else {
-    
-  }
-  _impl_.package_hash_.SetAllocated(package_hash, GetArenaForAllocation());
-#ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
-  if (_impl_.package_hash_.IsDefault()) {
-    _impl_.package_hash_.Set("", GetArenaForAllocation());
-  }
-#endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
-  // @@protoc_insertion_point(field_set_allocated:rsh.protocol.Function.package_hash)
 }
 
 // string name = 2;
@@ -5704,54 +5607,24 @@ inline void Function::set_allocated_name(std::string* name) {
   // @@protoc_insertion_point(field_set_allocated:rsh.protocol.Function.name)
 }
 
-// bytes hash = 3;
+// uint64 hash = 3;
 inline void Function::clear_hash() {
-  _impl_.hash_.ClearToEmpty();
+  _impl_.hash_ = uint64_t{0u};
 }
-inline const std::string& Function::hash() const {
+inline uint64_t Function::_internal_hash() const {
+  return _impl_.hash_;
+}
+inline uint64_t Function::hash() const {
   // @@protoc_insertion_point(field_get:rsh.protocol.Function.hash)
   return _internal_hash();
 }
-template <typename ArgT0, typename... ArgT>
-inline PROTOBUF_ALWAYS_INLINE
-void Function::set_hash(ArgT0&& arg0, ArgT... args) {
- 
- _impl_.hash_.SetBytes(static_cast<ArgT0 &&>(arg0), args..., GetArenaForAllocation());
+inline void Function::_internal_set_hash(uint64_t value) {
+  
+  _impl_.hash_ = value;
+}
+inline void Function::set_hash(uint64_t value) {
+  _internal_set_hash(value);
   // @@protoc_insertion_point(field_set:rsh.protocol.Function.hash)
-}
-inline std::string* Function::mutable_hash() {
-  std::string* _s = _internal_mutable_hash();
-  // @@protoc_insertion_point(field_mutable:rsh.protocol.Function.hash)
-  return _s;
-}
-inline const std::string& Function::_internal_hash() const {
-  return _impl_.hash_.Get();
-}
-inline void Function::_internal_set_hash(const std::string& value) {
-  
-  _impl_.hash_.Set(value, GetArenaForAllocation());
-}
-inline std::string* Function::_internal_mutable_hash() {
-  
-  return _impl_.hash_.Mutable(GetArenaForAllocation());
-}
-inline std::string* Function::release_hash() {
-  // @@protoc_insertion_point(field_release:rsh.protocol.Function.hash)
-  return _impl_.hash_.Release();
-}
-inline void Function::set_allocated_hash(std::string* hash) {
-  if (hash != nullptr) {
-    
-  } else {
-    
-  }
-  _impl_.hash_.SetAllocated(hash, GetArenaForAllocation());
-#ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
-  if (_impl_.hash_.IsDefault()) {
-    _impl_.hash_.Set("", GetArenaForAllocation());
-  }
-#endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
-  // @@protoc_insertion_point(field_set_allocated:rsh.protocol.Function.hash)
 }
 
 // optional bytes body = 4;
@@ -5826,54 +5699,24 @@ inline void Function::set_allocated_body(std::string* body) {
 
 // FunctionRequest
 
-// bytes hash = 1;
+// uint64 hash = 1;
 inline void FunctionRequest::clear_hash() {
-  _impl_.hash_.ClearToEmpty();
+  _impl_.hash_ = uint64_t{0u};
 }
-inline const std::string& FunctionRequest::hash() const {
+inline uint64_t FunctionRequest::_internal_hash() const {
+  return _impl_.hash_;
+}
+inline uint64_t FunctionRequest::hash() const {
   // @@protoc_insertion_point(field_get:rsh.protocol.FunctionRequest.hash)
   return _internal_hash();
 }
-template <typename ArgT0, typename... ArgT>
-inline PROTOBUF_ALWAYS_INLINE
-void FunctionRequest::set_hash(ArgT0&& arg0, ArgT... args) {
- 
- _impl_.hash_.SetBytes(static_cast<ArgT0 &&>(arg0), args..., GetArenaForAllocation());
+inline void FunctionRequest::_internal_set_hash(uint64_t value) {
+  
+  _impl_.hash_ = value;
+}
+inline void FunctionRequest::set_hash(uint64_t value) {
+  _internal_set_hash(value);
   // @@protoc_insertion_point(field_set:rsh.protocol.FunctionRequest.hash)
-}
-inline std::string* FunctionRequest::mutable_hash() {
-  std::string* _s = _internal_mutable_hash();
-  // @@protoc_insertion_point(field_mutable:rsh.protocol.FunctionRequest.hash)
-  return _s;
-}
-inline const std::string& FunctionRequest::_internal_hash() const {
-  return _impl_.hash_.Get();
-}
-inline void FunctionRequest::_internal_set_hash(const std::string& value) {
-  
-  _impl_.hash_.Set(value, GetArenaForAllocation());
-}
-inline std::string* FunctionRequest::_internal_mutable_hash() {
-  
-  return _impl_.hash_.Mutable(GetArenaForAllocation());
-}
-inline std::string* FunctionRequest::release_hash() {
-  // @@protoc_insertion_point(field_release:rsh.protocol.FunctionRequest.hash)
-  return _impl_.hash_.Release();
-}
-inline void FunctionRequest::set_allocated_hash(std::string* hash) {
-  if (hash != nullptr) {
-    
-  } else {
-    
-  }
-  _impl_.hash_.SetAllocated(hash, GetArenaForAllocation());
-#ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
-  if (_impl_.hash_.IsDefault()) {
-    _impl_.hash_.Set("", GetArenaForAllocation());
-  }
-#endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
-  // @@protoc_insertion_point(field_set_allocated:rsh.protocol.FunctionRequest.hash)
 }
 
 // -------------------------------------------------------------------
@@ -5882,7 +5725,7 @@ inline void FunctionRequest::set_allocated_hash(std::string* hash) {
 
 // Environment
 
-// map<string, bytes> values = 1;
+// map<string, uint64> values = 1;
 inline int Environment::_internal_values_size() const {
   return _impl_.values_.size();
 }
@@ -5892,20 +5735,20 @@ inline int Environment::values_size() const {
 inline void Environment::clear_values() {
   _impl_.values_.Clear();
 }
-inline const ::PROTOBUF_NAMESPACE_ID::Map< std::string, std::string >&
+inline const ::PROTOBUF_NAMESPACE_ID::Map< std::string, uint64_t >&
 Environment::_internal_values() const {
   return _impl_.values_.GetMap();
 }
-inline const ::PROTOBUF_NAMESPACE_ID::Map< std::string, std::string >&
+inline const ::PROTOBUF_NAMESPACE_ID::Map< std::string, uint64_t >&
 Environment::values() const {
   // @@protoc_insertion_point(field_map:rsh.protocol.Environment.values)
   return _internal_values();
 }
-inline ::PROTOBUF_NAMESPACE_ID::Map< std::string, std::string >*
+inline ::PROTOBUF_NAMESPACE_ID::Map< std::string, uint64_t >*
 Environment::_internal_mutable_values() {
   return _impl_.values_.MutableMap();
 }
-inline ::PROTOBUF_NAMESPACE_ID::Map< std::string, std::string >*
+inline ::PROTOBUF_NAMESPACE_ID::Map< std::string, uint64_t >*
 Environment::mutable_values() {
   // @@protoc_insertion_point(field_mutable_map:rsh.protocol.Environment.values)
   return _internal_mutable_values();
@@ -5915,7 +5758,7 @@ Environment::mutable_values() {
 
 // ValueRequest
 
-// repeated bytes hash = 1;
+// repeated uint64 hash = 1;
 inline int ValueRequest::_internal_hash_size() const {
   return _impl_.hash_.size();
 }
@@ -5925,123 +5768,65 @@ inline int ValueRequest::hash_size() const {
 inline void ValueRequest::clear_hash() {
   _impl_.hash_.Clear();
 }
-inline std::string* ValueRequest::add_hash() {
-  std::string* _s = _internal_add_hash();
-  // @@protoc_insertion_point(field_add_mutable:rsh.protocol.ValueRequest.hash)
-  return _s;
-}
-inline const std::string& ValueRequest::_internal_hash(int index) const {
+inline uint64_t ValueRequest::_internal_hash(int index) const {
   return _impl_.hash_.Get(index);
 }
-inline const std::string& ValueRequest::hash(int index) const {
+inline uint64_t ValueRequest::hash(int index) const {
   // @@protoc_insertion_point(field_get:rsh.protocol.ValueRequest.hash)
   return _internal_hash(index);
 }
-inline std::string* ValueRequest::mutable_hash(int index) {
-  // @@protoc_insertion_point(field_mutable:rsh.protocol.ValueRequest.hash)
-  return _impl_.hash_.Mutable(index);
-}
-inline void ValueRequest::set_hash(int index, const std::string& value) {
-  _impl_.hash_.Mutable(index)->assign(value);
+inline void ValueRequest::set_hash(int index, uint64_t value) {
+  _impl_.hash_.Set(index, value);
   // @@protoc_insertion_point(field_set:rsh.protocol.ValueRequest.hash)
 }
-inline void ValueRequest::set_hash(int index, std::string&& value) {
-  _impl_.hash_.Mutable(index)->assign(std::move(value));
-  // @@protoc_insertion_point(field_set:rsh.protocol.ValueRequest.hash)
+inline void ValueRequest::_internal_add_hash(uint64_t value) {
+  _impl_.hash_.Add(value);
 }
-inline void ValueRequest::set_hash(int index, const char* value) {
-  GOOGLE_DCHECK(value != nullptr);
-  _impl_.hash_.Mutable(index)->assign(value);
-  // @@protoc_insertion_point(field_set_char:rsh.protocol.ValueRequest.hash)
-}
-inline void ValueRequest::set_hash(int index, const void* value, size_t size) {
-  _impl_.hash_.Mutable(index)->assign(
-    reinterpret_cast<const char*>(value), size);
-  // @@protoc_insertion_point(field_set_pointer:rsh.protocol.ValueRequest.hash)
-}
-inline std::string* ValueRequest::_internal_add_hash() {
-  return _impl_.hash_.Add();
-}
-inline void ValueRequest::add_hash(const std::string& value) {
-  _impl_.hash_.Add()->assign(value);
+inline void ValueRequest::add_hash(uint64_t value) {
+  _internal_add_hash(value);
   // @@protoc_insertion_point(field_add:rsh.protocol.ValueRequest.hash)
 }
-inline void ValueRequest::add_hash(std::string&& value) {
-  _impl_.hash_.Add(std::move(value));
-  // @@protoc_insertion_point(field_add:rsh.protocol.ValueRequest.hash)
-}
-inline void ValueRequest::add_hash(const char* value) {
-  GOOGLE_DCHECK(value != nullptr);
-  _impl_.hash_.Add()->assign(value);
-  // @@protoc_insertion_point(field_add_char:rsh.protocol.ValueRequest.hash)
-}
-inline void ValueRequest::add_hash(const void* value, size_t size) {
-  _impl_.hash_.Add()->assign(reinterpret_cast<const char*>(value), size);
-  // @@protoc_insertion_point(field_add_pointer:rsh.protocol.ValueRequest.hash)
-}
-inline const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>&
-ValueRequest::hash() const {
-  // @@protoc_insertion_point(field_list:rsh.protocol.ValueRequest.hash)
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedField< uint64_t >&
+ValueRequest::_internal_hash() const {
   return _impl_.hash_;
 }
-inline ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>*
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedField< uint64_t >&
+ValueRequest::hash() const {
+  // @@protoc_insertion_point(field_list:rsh.protocol.ValueRequest.hash)
+  return _internal_hash();
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedField< uint64_t >*
+ValueRequest::_internal_mutable_hash() {
+  return &_impl_.hash_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedField< uint64_t >*
 ValueRequest::mutable_hash() {
   // @@protoc_insertion_point(field_mutable_list:rsh.protocol.ValueRequest.hash)
-  return &_impl_.hash_;
+  return _internal_mutable_hash();
 }
 
 // -------------------------------------------------------------------
 
 // Value
 
-// bytes hash = 1;
+// uint64 hash = 1;
 inline void Value::clear_hash() {
-  _impl_.hash_.ClearToEmpty();
+  _impl_.hash_ = uint64_t{0u};
 }
-inline const std::string& Value::hash() const {
+inline uint64_t Value::_internal_hash() const {
+  return _impl_.hash_;
+}
+inline uint64_t Value::hash() const {
   // @@protoc_insertion_point(field_get:rsh.protocol.Value.hash)
   return _internal_hash();
 }
-template <typename ArgT0, typename... ArgT>
-inline PROTOBUF_ALWAYS_INLINE
-void Value::set_hash(ArgT0&& arg0, ArgT... args) {
- 
- _impl_.hash_.SetBytes(static_cast<ArgT0 &&>(arg0), args..., GetArenaForAllocation());
+inline void Value::_internal_set_hash(uint64_t value) {
+  
+  _impl_.hash_ = value;
+}
+inline void Value::set_hash(uint64_t value) {
+  _internal_set_hash(value);
   // @@protoc_insertion_point(field_set:rsh.protocol.Value.hash)
-}
-inline std::string* Value::mutable_hash() {
-  std::string* _s = _internal_mutable_hash();
-  // @@protoc_insertion_point(field_mutable:rsh.protocol.Value.hash)
-  return _s;
-}
-inline const std::string& Value::_internal_hash() const {
-  return _impl_.hash_.Get();
-}
-inline void Value::_internal_set_hash(const std::string& value) {
-  
-  _impl_.hash_.Set(value, GetArenaForAllocation());
-}
-inline std::string* Value::_internal_mutable_hash() {
-  
-  return _impl_.hash_.Mutable(GetArenaForAllocation());
-}
-inline std::string* Value::release_hash() {
-  // @@protoc_insertion_point(field_release:rsh.protocol.Value.hash)
-  return _impl_.hash_.Release();
-}
-inline void Value::set_allocated_hash(std::string* hash) {
-  if (hash != nullptr) {
-    
-  } else {
-    
-  }
-  _impl_.hash_.SetAllocated(hash, GetArenaForAllocation());
-#ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
-  if (_impl_.hash_.IsDefault()) {
-    _impl_.hash_.Set("", GetArenaForAllocation());
-  }
-#endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
-  // @@protoc_insertion_point(field_set_allocated:rsh.protocol.Value.hash)
 }
 
 // bytes value = 2;
@@ -6594,54 +6379,24 @@ inline void CallFeedback::set_n_calls(int64_t value) {
   // @@protoc_insertion_point(field_set:rsh.protocol.CallFeedback.n_calls)
 }
 
-// bytes callee_hash = 2;
+// uint64 callee_hash = 2;
 inline void CallFeedback::clear_callee_hash() {
-  _impl_.callee_hash_.ClearToEmpty();
+  _impl_.callee_hash_ = uint64_t{0u};
 }
-inline const std::string& CallFeedback::callee_hash() const {
+inline uint64_t CallFeedback::_internal_callee_hash() const {
+  return _impl_.callee_hash_;
+}
+inline uint64_t CallFeedback::callee_hash() const {
   // @@protoc_insertion_point(field_get:rsh.protocol.CallFeedback.callee_hash)
   return _internal_callee_hash();
 }
-template <typename ArgT0, typename... ArgT>
-inline PROTOBUF_ALWAYS_INLINE
-void CallFeedback::set_callee_hash(ArgT0&& arg0, ArgT... args) {
- 
- _impl_.callee_hash_.SetBytes(static_cast<ArgT0 &&>(arg0), args..., GetArenaForAllocation());
+inline void CallFeedback::_internal_set_callee_hash(uint64_t value) {
+  
+  _impl_.callee_hash_ = value;
+}
+inline void CallFeedback::set_callee_hash(uint64_t value) {
+  _internal_set_callee_hash(value);
   // @@protoc_insertion_point(field_set:rsh.protocol.CallFeedback.callee_hash)
-}
-inline std::string* CallFeedback::mutable_callee_hash() {
-  std::string* _s = _internal_mutable_callee_hash();
-  // @@protoc_insertion_point(field_mutable:rsh.protocol.CallFeedback.callee_hash)
-  return _s;
-}
-inline const std::string& CallFeedback::_internal_callee_hash() const {
-  return _impl_.callee_hash_.Get();
-}
-inline void CallFeedback::_internal_set_callee_hash(const std::string& value) {
-  
-  _impl_.callee_hash_.Set(value, GetArenaForAllocation());
-}
-inline std::string* CallFeedback::_internal_mutable_callee_hash() {
-  
-  return _impl_.callee_hash_.Mutable(GetArenaForAllocation());
-}
-inline std::string* CallFeedback::release_callee_hash() {
-  // @@protoc_insertion_point(field_release:rsh.protocol.CallFeedback.callee_hash)
-  return _impl_.callee_hash_.Release();
-}
-inline void CallFeedback::set_allocated_callee_hash(std::string* callee_hash) {
-  if (callee_hash != nullptr) {
-    
-  } else {
-    
-  }
-  _impl_.callee_hash_.SetAllocated(callee_hash, GetArenaForAllocation());
-#ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
-  if (_impl_.callee_hash_.IsDefault()) {
-    _impl_.callee_hash_.Set("", GetArenaForAllocation());
-  }
-#endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
-  // @@protoc_insertion_point(field_set_allocated:rsh.protocol.CallFeedback.callee_hash)
 }
 
 // -------------------------------------------------------------------
@@ -7423,7 +7178,7 @@ inline void Package::set_allocated_version(::rsh::protocol::Version* version) {
   // @@protoc_insertion_point(field_set_allocated:rsh.protocol.Package.version)
 }
 
-// repeated bytes function_hashes = 4;
+// repeated uint64 function_hashes = 4;
 inline int Package::_internal_function_hashes_size() const {
   return _impl_.function_hashes_.size();
 }
@@ -7433,69 +7188,41 @@ inline int Package::function_hashes_size() const {
 inline void Package::clear_function_hashes() {
   _impl_.function_hashes_.Clear();
 }
-inline std::string* Package::add_function_hashes() {
-  std::string* _s = _internal_add_function_hashes();
-  // @@protoc_insertion_point(field_add_mutable:rsh.protocol.Package.function_hashes)
-  return _s;
-}
-inline const std::string& Package::_internal_function_hashes(int index) const {
+inline uint64_t Package::_internal_function_hashes(int index) const {
   return _impl_.function_hashes_.Get(index);
 }
-inline const std::string& Package::function_hashes(int index) const {
+inline uint64_t Package::function_hashes(int index) const {
   // @@protoc_insertion_point(field_get:rsh.protocol.Package.function_hashes)
   return _internal_function_hashes(index);
 }
-inline std::string* Package::mutable_function_hashes(int index) {
-  // @@protoc_insertion_point(field_mutable:rsh.protocol.Package.function_hashes)
-  return _impl_.function_hashes_.Mutable(index);
-}
-inline void Package::set_function_hashes(int index, const std::string& value) {
-  _impl_.function_hashes_.Mutable(index)->assign(value);
+inline void Package::set_function_hashes(int index, uint64_t value) {
+  _impl_.function_hashes_.Set(index, value);
   // @@protoc_insertion_point(field_set:rsh.protocol.Package.function_hashes)
 }
-inline void Package::set_function_hashes(int index, std::string&& value) {
-  _impl_.function_hashes_.Mutable(index)->assign(std::move(value));
-  // @@protoc_insertion_point(field_set:rsh.protocol.Package.function_hashes)
+inline void Package::_internal_add_function_hashes(uint64_t value) {
+  _impl_.function_hashes_.Add(value);
 }
-inline void Package::set_function_hashes(int index, const char* value) {
-  GOOGLE_DCHECK(value != nullptr);
-  _impl_.function_hashes_.Mutable(index)->assign(value);
-  // @@protoc_insertion_point(field_set_char:rsh.protocol.Package.function_hashes)
-}
-inline void Package::set_function_hashes(int index, const void* value, size_t size) {
-  _impl_.function_hashes_.Mutable(index)->assign(
-    reinterpret_cast<const char*>(value), size);
-  // @@protoc_insertion_point(field_set_pointer:rsh.protocol.Package.function_hashes)
-}
-inline std::string* Package::_internal_add_function_hashes() {
-  return _impl_.function_hashes_.Add();
-}
-inline void Package::add_function_hashes(const std::string& value) {
-  _impl_.function_hashes_.Add()->assign(value);
+inline void Package::add_function_hashes(uint64_t value) {
+  _internal_add_function_hashes(value);
   // @@protoc_insertion_point(field_add:rsh.protocol.Package.function_hashes)
 }
-inline void Package::add_function_hashes(std::string&& value) {
-  _impl_.function_hashes_.Add(std::move(value));
-  // @@protoc_insertion_point(field_add:rsh.protocol.Package.function_hashes)
-}
-inline void Package::add_function_hashes(const char* value) {
-  GOOGLE_DCHECK(value != nullptr);
-  _impl_.function_hashes_.Add()->assign(value);
-  // @@protoc_insertion_point(field_add_char:rsh.protocol.Package.function_hashes)
-}
-inline void Package::add_function_hashes(const void* value, size_t size) {
-  _impl_.function_hashes_.Add()->assign(reinterpret_cast<const char*>(value), size);
-  // @@protoc_insertion_point(field_add_pointer:rsh.protocol.Package.function_hashes)
-}
-inline const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>&
-Package::function_hashes() const {
-  // @@protoc_insertion_point(field_list:rsh.protocol.Package.function_hashes)
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedField< uint64_t >&
+Package::_internal_function_hashes() const {
   return _impl_.function_hashes_;
 }
-inline ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>*
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedField< uint64_t >&
+Package::function_hashes() const {
+  // @@protoc_insertion_point(field_list:rsh.protocol.Package.function_hashes)
+  return _internal_function_hashes();
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedField< uint64_t >*
+Package::_internal_mutable_function_hashes() {
+  return &_impl_.function_hashes_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedField< uint64_t >*
 Package::mutable_function_hashes() {
   // @@protoc_insertion_point(field_mutable_list:rsh.protocol.Package.function_hashes)
-  return &_impl_.function_hashes_;
+  return _internal_mutable_function_hashes();
 }
 
 // optional .rsh.protocol.PackageSource source = 5;
@@ -7592,54 +7319,24 @@ inline void Package::set_allocated_source(::rsh::protocol::PackageSource* source
 
 // PackageRequest
 
-// bytes hash = 1;
+// uint64 hash = 1;
 inline void PackageRequest::clear_hash() {
-  _impl_.hash_.ClearToEmpty();
+  _impl_.hash_ = uint64_t{0u};
 }
-inline const std::string& PackageRequest::hash() const {
+inline uint64_t PackageRequest::_internal_hash() const {
+  return _impl_.hash_;
+}
+inline uint64_t PackageRequest::hash() const {
   // @@protoc_insertion_point(field_get:rsh.protocol.PackageRequest.hash)
   return _internal_hash();
 }
-template <typename ArgT0, typename... ArgT>
-inline PROTOBUF_ALWAYS_INLINE
-void PackageRequest::set_hash(ArgT0&& arg0, ArgT... args) {
- 
- _impl_.hash_.SetBytes(static_cast<ArgT0 &&>(arg0), args..., GetArenaForAllocation());
+inline void PackageRequest::_internal_set_hash(uint64_t value) {
+  
+  _impl_.hash_ = value;
+}
+inline void PackageRequest::set_hash(uint64_t value) {
+  _internal_set_hash(value);
   // @@protoc_insertion_point(field_set:rsh.protocol.PackageRequest.hash)
-}
-inline std::string* PackageRequest::mutable_hash() {
-  std::string* _s = _internal_mutable_hash();
-  // @@protoc_insertion_point(field_mutable:rsh.protocol.PackageRequest.hash)
-  return _s;
-}
-inline const std::string& PackageRequest::_internal_hash() const {
-  return _impl_.hash_.Get();
-}
-inline void PackageRequest::_internal_set_hash(const std::string& value) {
-  
-  _impl_.hash_.Set(value, GetArenaForAllocation());
-}
-inline std::string* PackageRequest::_internal_mutable_hash() {
-  
-  return _impl_.hash_.Mutable(GetArenaForAllocation());
-}
-inline std::string* PackageRequest::release_hash() {
-  // @@protoc_insertion_point(field_release:rsh.protocol.PackageRequest.hash)
-  return _impl_.hash_.Release();
-}
-inline void PackageRequest::set_allocated_hash(std::string* hash) {
-  if (hash != nullptr) {
-    
-  } else {
-    
-  }
-  _impl_.hash_.SetAllocated(hash, GetArenaForAllocation());
-#ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
-  if (_impl_.hash_.IsDefault()) {
-    _impl_.hash_.Set("", GetArenaForAllocation());
-  }
-#endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
-  // @@protoc_insertion_point(field_set_allocated:rsh.protocol.PackageRequest.hash)
 }
 
 #ifdef __GNUC__
