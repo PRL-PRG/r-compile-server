@@ -142,20 +142,32 @@ SEXP compile_fun(SEXP closure, SEXP name, SEXP opt_level_sxp, SEXP tier_sxp) {
     Rf_error("Compilation failed: %s", std::get<std::string>(response).c_str());
     return closure;
   }
+
   auto compiled_fun = std::get<protocol::CompileResponse>(response);
+  if(tier == protocol::Tier::OPTIMIZED) {
+    
 
-  auto fun_ptr = insert_into_jit(compiled_fun);
-  SEXP c_cp = PROTECT(create_constant_pool(fun_ptr, compiled_fun));
-  SEXP body = PROTECT(create_wrapper_body(closure, c_cp));
+    auto fun_ptr = insert_into_jit(compiled_fun);
+    SEXP c_cp = PROTECT(create_constant_pool(fun_ptr, compiled_fun));
+    SEXP body = PROTECT(create_wrapper_body(closure, c_cp));
 
-  // replace the closure body in place
-  SET_BODY(closure, body);
+    // replace the closure body in place
+    SET_BODY(closure, body);
 
-  // FIXME: add logging primitives
-  Rprintf("Compiled fun %s (fun=%p, jit=%p, body=%p)\n", name_str, closure,
+    // FIXME: add logging primitives
+    Rprintf("Compiled fun %s (fun=%p, jit=%p, body=%p)\n", name_str, closure,
           fun_ptr, body);
+    UNPROTECT(2);
 
-  UNPROTECT(2);
+  }
+  else if(tier == protocol::Tier::BASELINE) {
+    auto body = PROTECT(rsh::deserialize(compiled_fun.code()));
+    if(TYPEOF(body) != BCODESXP) {
+      Rf_error("Expected bytecode, got %s", Rf_type2char(TYPEOF(body)));
+    }
+    SET_BODY(closure, body);
+    UNPROTECT(1);
+  }
 
   return closure;
 }
