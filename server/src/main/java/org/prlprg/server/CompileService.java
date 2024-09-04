@@ -104,7 +104,7 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
     logger.info(
         "Received init request with R version "
             + RVersion
-            + "and Rsh version"
+            + "and Rsh version "
             + rshVersion
             + " and platform "
             + platform);

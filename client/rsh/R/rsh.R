@@ -16,10 +16,10 @@ NULL
 
 #' Initialize the Rsh client
 #' 
-#' @param IP address of the server
+#' @param address IP address of the server
 #' @param port port of the server
 #' @export
-init_client <- function(address, port) {
+init_client <- function(address="0.0.0.0", port=8980L) {
   .Call(C_init_client, address, port, installed.packages()[,1])
 }
 
@@ -43,11 +43,11 @@ rsh_jit_disable <- function() {
 #'
 #' @param f closure to be compiled
 #' @export
-rsh_compile <- function(f, name, opt_level = 0L) {
+rsh_compile <- function(f, name, opt_level = 0L, tier = "optimized") {
   if (missing(name)) {
     name <- as.character(substitute(f))
   }
-  invisible(.Call(C_compile_fun, f, name, opt_level))
+  invisible(.Call(C_compile_fun, f, name, opt_level, tier))
 }
 
 #' Compile given closure

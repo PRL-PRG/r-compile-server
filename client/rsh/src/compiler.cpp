@@ -35,11 +35,11 @@ SEXP CALL_FUN = nullptr;
 
 SEXP RSH_JIT_FUN_PTR = Rf_install("RSH_JIT_FUN_PTR");
 
-static protocol::CompileResponse compile_closure(std::string const &name, SEXP closure,
-                                       u32 opt_level = 3) {
+static std::variant<protocol::CompileResponse, std::string> compile_closure(std::string const &name, SEXP closure,
+                                       u32 opt_level = 3, protocol::Tier tier = protocol::Tier::OPTIMIZED) {
   auto closure_bytes = rsh::serialize(closure);
   auto client = rsh::Client::get_client();
-  return client->remote_compile(name, closure_bytes, protocol::Tier::OPTIMIZED, opt_level);
+  return client->remote_compile(name, closure_bytes, tier, opt_level);
 }
 
 static void *insert_into_jit(protocol::CompileResponse const &compiled_fun) {
@@ -112,7 +112,7 @@ static SEXP create_wrapper_body(SEXP closure, SEXP c_cp) {
   return body;
 }
 
-SEXP compile_fun(SEXP closure, SEXP name, SEXP opt_level_sxp) {
+SEXP compile_fun(SEXP closure, SEXP name, SEXP opt_level_sxp, SEXP tier_sxp) {
   if (!RSH_JIT_FUN_PTR) {
     Rf_error("The package was not initialized");
   }
@@ -127,16 +127,22 @@ SEXP compile_fun(SEXP closure, SEXP name, SEXP opt_level_sxp) {
 
   u32 opt_level = INTEGER(opt_level_sxp)[0];
 
+  std::string tier_s = CHAR(STRING_ELT(tier_sxp, 0));
+  protocol::Tier tier = protocol::Tier::OPTIMIZED;
+  if(tier_s == "bytecode") {
+    tier = protocol::Tier::BASELINE;
+  }
+
   const char *closure_name = CHAR(STRING_ELT(name, 0));
   char name_str[strlen(closure_name) + 1 + 16];
   sprintf(name_str, "%s_%p", closure_name, closure);
 
-  auto response = compile_closure(name_str, closure, opt_level);
-  if (false) {// TODO: propagate error from the remote compilation
-    //Rf_error("Compilation failed: %s", response.failure().c_str());
+  auto response = compile_closure(name_str, closure, opt_level, tier);
+  if (!std::holds_alternative<protocol::CompileResponse>(response)) {// TODO: propagate error from the remote compilation
+    Rf_error("Compilation failed: %s", std::get<std::string>(response).c_str());
     return closure;
   }
-  auto compiled_fun = response;
+  auto compiled_fun = std::get<protocol::CompileResponse>(response);
 
   auto fun_ptr = insert_into_jit(compiled_fun);
   SEXP c_cp = PROTECT(create_constant_pool(fun_ptr, compiled_fun));

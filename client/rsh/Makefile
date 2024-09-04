@@ -31,4 +31,4 @@ setup:
 	$(BEAR) -- $(MAKE) clean install
 
 test:
-	LD_PRELOAD=$(LLVM_LIB) ../../external/R/bin/R -f test5.R
+	LD_PRELOAD=$(LLVM_LIB) ../../external/R/bin/R -f test6.R
