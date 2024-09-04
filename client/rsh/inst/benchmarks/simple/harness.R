@@ -1,5 +1,4 @@
-dyn.load(system.file("libs", "rsh.so", package="rsh"), local = FALSE)
-compiler:::enableJIT(0)
+library(rsh)
 
 RBC_OPTS <- list(optimize = 3L)
 RSH_OPTS <- list(optimize = 3L)

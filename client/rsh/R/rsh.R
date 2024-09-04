@@ -1,5 +1,4 @@
 ## usethis namespace: start
-#' @useDynLib rsh, .registration = TRUE, .fixes = "C_"
 #' @importFrom compiler cmpfun
 ## usethis namespace: end
 NULL
@@ -7,9 +6,30 @@ NULL
 # save the original compiler::cmpfun
 .gnur_cmpfun <- compiler::cmpfun
 
-# initialize globals
+# Because of the ORC JIT we need all the native symbols registered globally
+# (as RTLD_GLOBAL) so the ORC linker can find them. Unfortunatelly, R does
+# not provide a way to instruct the namespace loader to load pass the
+# local = FALSE flag to dyn.load. This is a workaround in which we
+# manually load the shared object and register all the symbols in the
+# rsh namespace.
+#
+# Note: this only works as long as there is no useDynLib directive in
+# the NAMESPACE file.
 .onLoad <- function(libname, pkgname) {
-  # TODO: it would be great to make this go away and initialize this in C
+  so <- library.dynam("rsh", pkgname, lib.loc=.libPaths(), local=FALSE)
+  symbols <- getDLLRegisteredRoutines(so, addNames=FALSE)
+  env <- getNamespace(pkgname)
+  lapply(symbols,
+    function(type) {
+      lapply(type,
+        function(sym) {
+          var_name <- paste0("C_", sym$name)
+          env[[var_name]] <- sym
+        }
+      )
+    }
+  )
+
   .Call(C_initialize)
 }
 
