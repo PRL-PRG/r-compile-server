@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <string>
 #include <vector>
+#include <variant>
 #include <zmq.hpp>
 #include <grpc/grpc.h>
 #include <grpcpp/channel.h>
@@ -28,7 +29,7 @@ private:
 public:
   Client(std::shared_ptr<grpc::Channel> channel, std::vector<std::string> installed_packages);
 
-  protocol::CompileResponse remote_compile(std::string const& name, 
+  std::variant<protocol::CompileResponse, std::string> remote_compile(std::string const& name, 
                                 std::vector<uint8_t> const &rds_closure,
                                 protocol::Tier tier,
                                 int32_t optimization_level);

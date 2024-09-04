@@ -47,7 +47,7 @@ Client::Client(std::shared_ptr<grpc::Channel> channel, std::vector<std::string> 
     }
   }
 
-protocol::CompileResponse Client::remote_compile(std::string const& name, 
+std::variant<protocol::CompileResponse, std::string> Client::remote_compile(std::string const& name, 
                               std::vector<uint8_t> const &rds_closure,
                               protocol::Tier tier,
                               int32_t optimization_level) {
@@ -69,7 +69,7 @@ protocol::CompileResponse Client::remote_compile(std::string const& name,
   if(!status.ok()) {
     std::cerr << status.error_code() << ": " << status.error_message()
               << std::endl;
-    exit(1);//TODO: rather return an optional?
+    return status.error_message();
   }
   else {
     return response;
