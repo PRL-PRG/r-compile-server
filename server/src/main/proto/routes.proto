@@ -2,9 +2,9 @@ syntax = "proto3";
 
 option java_package = "org.prlprg.server";
 
-package rsh.protocol;
-
 import "messages.proto";
+
+package rsh.protocol;
 
 // R sends requests to the compile server
 service CompileService {
