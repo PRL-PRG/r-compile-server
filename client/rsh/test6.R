@@ -16,3 +16,8 @@ print(f)
 print(f(5))
 
 stopifnot(f(5) == 52)
+
+# f should be in the compile cache now.
+rsh::rsh_compile(f, tier = "bytecode", opt_level = 3L)
+
+stopifnot(f(5) == 52)
