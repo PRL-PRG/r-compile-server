@@ -42,25 +42,24 @@ static std::variant<protocol::CompileResponse, std::string> compile_closure(std:
   return client->remote_compile(name, closure_bytes, tier, opt_level);
 }
 
-static void *insert_into_jit(protocol::CompileResponse const &compiled_fun) {
+static void *insert_into_jit(const char* name, protocol::CompileResponse const &compiled_fun) {
   auto native_code = compiled_fun.code();
   GJIT->add_object(native_code);
-  // TODO: we should have a map hash to name of the function here
-  auto ptr = GJIT->lookup(compiled_fun.hash().c_str());
+  auto ptr = GJIT->lookup(name);
   if (!ptr) {
     Rf_error("Unable to find the function in the JIT");
   }
   return ptr;
 }
 
-static SEXP create_constant_pool(void *fun_ptr,
+static SEXP create_constant_pool(void *fun_ptr, const char* name, 
                                  protocol::CompileResponse const &compiled_fun) {
   auto pool = PROTECT(Rf_allocVector(VECSXP, 2));
 
   // create an external pointer to the JITed function with a finalizer
   // TODO: we should have a map hash to name of the function here
   auto p = R_MakeExternalPtr(fun_ptr, RSH_JIT_FUN_PTR,
-                             Rf_mkString(compiled_fun.hash().c_str()));
+                             Rf_mkString(name));
   R_RegisterCFinalizerEx(p, &jit_fun_destructor, FALSE);
 
   // slot 0: the pointer to the compiled function
@@ -147,8 +146,8 @@ SEXP compile_fun(SEXP closure, SEXP name, SEXP opt_level_sxp, SEXP tier_sxp) {
   if(tier == protocol::Tier::OPTIMIZED) {
     
 
-    auto fun_ptr = insert_into_jit(compiled_fun);
-    SEXP c_cp = PROTECT(create_constant_pool(fun_ptr, compiled_fun));
+    auto fun_ptr = insert_into_jit(name_str, compiled_fun);
+    SEXP c_cp = PROTECT(create_constant_pool(fun_ptr, name_str, compiled_fun));
     SEXP body = PROTECT(create_wrapper_body(closure, c_cp));
 
     // replace the closure body in place
