@@ -64,7 +64,6 @@ std::variant<protocol::CompileResponse, std::string> Client::remote_compile(std:
   // We replace the body of a function with its compiled version so it would not make 
   //sense to compute its hash again, except if its body has changed.
   auto hash = xxh::xxhash3<64>(rds_closure.data(), rds_closure.size());
-  Rprintf("Hash: %lu ; compiled hash: %lu\n", hash, compiled_functions[name].second);
   if(compiled_functions.find(name) != compiled_functions.end() && compiled_functions[name].second == hash) {
     request.mutable_function()->set_hash(compiled_functions[name].first);
   }

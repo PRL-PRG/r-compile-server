@@ -14,9 +14,9 @@ public class GNURSessionTest {
 
   @Test
   public void testReadPackageDatabase() throws IOException {
-    var r_dir = Path.of("/usr/local/lib/R/");
-    var lib_dir = "/usr/local/lib/R/library/";
-    //    lib_dir = lib_dir.replaceFirst("^~", System.getProperty("user.home"));
+    var r_dir = Path.of("/usr/lib/R/");
+    var lib_dir = "~/R/x86_64-pc-linux-gnu-library/4.4/";
+    lib_dir = lib_dir.replaceFirst("^~", System.getProperty("user.home"));
     var session = new GNURSession(RVersion.LATEST_AWARE, r_dir, Path.of(lib_dir));
 
     session.loadPackage("yaml", "2.3.10");
@@ -28,7 +28,7 @@ public class GNURSessionTest {
 
   @Test
   public void testLoadBase() throws IOException {
-    var p = Path.of("/usr/local/lib/R/");
+    var p = Path.of("/usr/lib/R/");
     var session = new GNURSession(RVersion.LATEST_AWARE, p, null);
     session.loadBase();
 
@@ -38,7 +38,8 @@ public class GNURSessionTest {
   @Test
   public void testVersionMismatch() {
     var r_dir = Path.of("/usr/local/lib/R/");
-    var lib_dir = "/usr/local/lib/R/library/";
+    var lib_dir = "~/R/x86_64-pc-linux-gnu-library/4.4/";
+    lib_dir = lib_dir.replaceFirst("^~", System.getProperty("user.home"));
     var session = new GNURSession(RVersion.LATEST_AWARE, r_dir, Path.of(lib_dir));
 
     Assertions.assertThrows(
@@ -51,7 +52,8 @@ public class GNURSessionTest {
   @Test
   public void testLoadNonInstalledPackage() throws IOException, InterruptedException {
     var r_dir = Path.of("/usr/local/lib/R/");
-    var lib_dir = "/usr/local/lib/R/library/";
+    var lib_dir = "~/R/x86_64-pc-linux-gnu-library/4.4/";
+    lib_dir = lib_dir.replaceFirst("^~", System.getProperty("user.home"));
     var session = new GNURSession(RVersion.LATEST_AWARE, r_dir, Path.of(lib_dir));
 
     // Assuming "nonexistentpkg" is not installed
@@ -64,8 +66,9 @@ public class GNURSessionTest {
 
   @Test
   public void testRetrieveNamespaceAfterLoadingPackage() throws IOException {
-    var r_dir = Path.of("/usr/local/lib/R/");
-    var lib_dir = "/usr/local/lib/R/library/";
+    var r_dir = Path.of("/usr/lib/R/");
+    var lib_dir = "~/R/x86_64-pc-linux-gnu-library/4.4/";
+    lib_dir = lib_dir.replaceFirst("^~", System.getProperty("user.home"));
     var session = new GNURSession(RVersion.LATEST_AWARE, r_dir, Path.of(lib_dir));
 
     session.loadPackage("yaml", "2.3.10");
@@ -78,7 +81,8 @@ public class GNURSessionTest {
   @Test
   public void testMissingDescriptionFile() {
     var r_dir = Path.of("/usr/local/lib/R/");
-    var lib_dir = "/usr/local/lib/R/library/";
+    var lib_dir = "~/R/x86_64-pc-linux-gnu-library/4.4/";
+    lib_dir = lib_dir.replaceFirst("^~", System.getProperty("user.home"));
     var session = new GNURSession(RVersion.LATEST_AWARE, r_dir, Path.of(lib_dir));
 
     // Assuming "pkgwithnomissingdesc" has no DESCRIPTION file
