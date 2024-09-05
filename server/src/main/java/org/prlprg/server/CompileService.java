@@ -17,6 +17,7 @@ import org.prlprg.sexp.BCodeSXP;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
+import org.prlprg.util.Pair;
 
 class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
   private static final Logger logger = Logger.getLogger(CompileServer.class.getName());
@@ -26,7 +27,8 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
   private HashMap<ByteString, SEXP> cache = new HashMap<>();
   // Cache for byte-code, only for functions. We keep the already serialized code in the cache
   // not the Bc (or BcCodeSXP)
-  private HashMap<Long, ByteString> bcCache = new HashMap<>();
+  // Key is (hash, optimisationLevel)
+  private HashMap<Pair<Long, Integer>, ByteString> bcCache = new HashMap<>();
 
   // TODO: cache for native code, which should also include contexts
 
@@ -59,8 +61,8 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
     Messages.CompileResponse.Builder response = Messages.CompileResponse.newBuilder();
 
     // First see if we have the hash in the cache
-    var functionHash = function.getHash();
-    ByteString cached = bcCache.get(functionHash);
+    var bcKey = Pair.of(function.getHash(), optimizationLevel);
+    ByteString cached = bcCache.get(bcKey);
     if (cached != null) {
       logger.info("Found " + function.getName() + " in cache. No recompilation.");
       try {
@@ -69,14 +71,19 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
         throw new RuntimeException("Impossible to serialize the bytecode");
       }
     } else {
-      logger.info("Compile function " + function.getName() + ": not found in cache.");
+      logger.info(
+          "Compile function "
+              + function.getName()
+              + "with optimisation level "
+              + optimizationLevel
+              + ": not found in cache.");
       if (function.hasBody()) {
         try {
           ByteString serializedBc =
               compileClosure(function.getBody(), optimizationLevel, responseObserver);
           response.setCode(serializedBc);
           // Add it to the cache
-          bcCache.put(functionHash, serializedBc);
+          bcCache.put(bcKey, serializedBc);
         } catch (Exception e) {
           // See
           // https://github.com/grpc/grpc-java/blob/master/examples/src/main/java/io/grpc/examples/errorhandling/DetailErrorSample.java

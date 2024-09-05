@@ -21,3 +21,8 @@ stopifnot(f(5) == 52)
 rsh::rsh_compile(f, tier = "bytecode", opt_level = 3L)
 
 stopifnot(f(5) == 52)
+
+# another opt level so it should be recompiled
+rsh::rsh_compile(f, tier = "bytecode", opt_level = 2L)
+
+stopifnot(f(5) == 52)
