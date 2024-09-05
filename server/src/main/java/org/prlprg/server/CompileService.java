@@ -74,7 +74,7 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
       logger.info(
           "Compile function "
               + function.getName()
-              + "with optimisation level "
+              + " with optimisation level "
               + optimizationLevel
               + ": not found in cache.");
       if (function.hasBody()) {

@@ -168,6 +168,10 @@ SEXP compile_fun(SEXP closure, SEXP name, SEXP opt_level_sxp, SEXP tier_sxp) {
     UNPROTECT(1);
   }
 
+  // To be able to see if the body of a closure is the result of a JIT compilation
+  // TODO: don't mark it again if we know that the compile server is sending the same code again.
+  Client::mark_compiled_function(name_str, closure);
+
   return closure;
 }
 
