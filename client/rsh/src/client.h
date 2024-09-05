@@ -11,7 +11,6 @@
 #include <vector>
 #include <variant>
 #include <unordered_map>
-#include <zmq.hpp>
 #include <grpc/grpc.h>
 #include <grpcpp/channel.h>
 
