@@ -10,17 +10,21 @@ NULL
 # initialize globals
 .onLoad <- function(libname, pkgname) {
   # TODO: it would be great to make this go away and initialize this in C
-  .Call(C_initialize, C_call_fun)
+  .Call(C_initialize)
   init_client("0.0.0.0", 8980L)
 }
 
 #' Initialize the Rsh client
-#' 
+#'
 #' @param address IP address of the server
 #' @param port port of the server
 #' @export
 init_client <- function(address="0.0.0.0", port=8980L) {
   .Call(C_init_client, address, port, installed.packages()[,1])
+}
+
+rsh_bc2c_opt_level <- function() {
+  as.integer(Sys.getenv("RSH_BC2C_OPT", unset = "0"))
 }
 
 #' Activate the Rsh JIT
@@ -43,11 +47,11 @@ rsh_jit_disable <- function() {
 #'
 #' @param f closure to be compiled
 #' @export
-rsh_compile <- function(f, name, opt_level = 0L, tier = "optimized") {
+rsh_compile <- function(f, name, opt_level = rsh_bc2c_opt_level(), tier = "optimized") {
   if (missing(name)) {
     name <- as.character(substitute(f))
   }
-  invisible(.Call(C_compile_fun, f, name, opt_level, tier))
+  invisible(.Call(C_compile_fun, f, name, as.integer(opt_level), tier))
 }
 
 #' Compile given closure
@@ -58,12 +62,24 @@ rsh_compile <- function(f, name, opt_level = 0L, tier = "optimized") {
 #' @param options list of options
 #' @return compiled closure
 #' @export
-rsh_cmpfun <- function(f, options=list(optimize=0L)) {
+rsh_cmpfun <- function(f, options) {
+  # FIXME: this does not seem to do what I think it should
   # make a copy - the compiler::cmpfun takes a function and returns
   # a new one with BCSXP body (if possible)
   g <- f
-  # compile the copy
-  rsh_compile(g, as.character(substitute(f)), options$optimize)
+
+  if (missing(options)) {
+    options <- list()
+  }
+
+  if (!is.list(options)) {
+    stop("options must be a list")
+  }
+  options <- utils::modifyList(list(optimize = rsh_bc2c_opt_level()), options)
+  print(options)
+
+  rsh_compile(g, name = as.character(substitute(f)), opt_level = options$optimize)
+
   g
 }
 

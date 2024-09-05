@@ -7,26 +7,16 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class CFile {
-  private String preamble;
   private final List<CFunction> funs = new ArrayList<>();
-
-  public CFunction createFun(String returnType, String name, String parameters) {
-    var fun = new CFunction(returnType, name, parameters);
-    funs.add(fun);
-    return fun;
-  }
-
-  public void setPreamble(String preamble) {
-    this.preamble = preamble;
-  }
+  private final List<CFunction> forwards = new ArrayList<>();
+  private final List<String> includes = new ArrayList<>();
 
   public void writeTo(Writer w) {
     var pw = new PrintWriter(w);
 
-    if (preamble != null) {
-      pw.println(preamble);
-      pw.println();
-    }
+    includes.forEach(x -> pw.println("#include <" + x + ">"));
+    pw.println();
+    forwards.stream().map(CFunction::getDeclaration).forEach(x -> pw.println(x + ";"));
 
     funs.forEach(x -> x.writeTo(pw));
   }
@@ -35,5 +25,16 @@ public class CFile {
     var w = new StringWriter();
     writeTo(new PrintWriter(w));
     return w.toString();
+  }
+
+  public void addFun(CFunction fun, boolean forwardDeclare) {
+    funs.add(fun);
+    if (forwardDeclare) {
+      forwards.add(fun);
+    }
+  }
+
+  public void addInclude(String include) {
+    includes.add(include);
   }
 }

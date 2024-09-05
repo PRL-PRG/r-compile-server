@@ -25,7 +25,7 @@ public class CFunction {
 
   public void writeTo(Writer w) {
     var pw = new PrintWriter(w);
-    pw.format("%s %s(%s) {", returnType, name, parameters);
+    pw.format("%s {", getDeclaration());
     pw.println();
     for (int i = 0; i < sections.size(); i++) {
       sections.get(i).writeTo(w);
@@ -45,5 +45,9 @@ public class CFunction {
     var s = new CCode();
     sections.add(i, s);
     return s;
+  }
+
+  public String getDeclaration() {
+    return String.format("%s %s(%s)", returnType, name, parameters);
   }
 }

@@ -3,11 +3,7 @@ package org.prlprg.bc2c;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import org.jetbrains.annotations.NotNull;
-import org.prlprg.bc.Bc;
-import org.prlprg.bc.BcInstr;
-import org.prlprg.bc.BcLabel;
-import org.prlprg.bc.ConstPool;
+import org.prlprg.bc.*;
 import org.prlprg.sexp.*;
 
 record Constant(int id, SEXP value) {}
@@ -97,34 +93,80 @@ class ByteCodeStack {
   }
 }
 
-// TODO: extract labels and cells into its own classes
+record CompiledClosure(String name, VectorSXP<SEXP> constantPool) {}
+
+class CModule {
+  private final List<CFunction> funs = new ArrayList<>();
+
+  CFunction createFun(String returnType, String name, String args) {
+    var fun = new CFunction(returnType, name, args);
+    funs.add(fun);
+    return fun;
+  }
+
+  CompiledClosure compileClosure(Bc bc) {
+    var bcHash = Math.abs(bc.hashCode());
+    var randomSuffix = UUID.randomUUID().toString().substring(0, 8);
+    var name = "f_" + bcHash + "_" + randomSuffix;
+
+    var compiler = new ClosureCompiler(this, name, bc);
+    var constants = compiler.compile();
+
+    return new CompiledClosure(name, constants);
+  }
+
+  public Iterable<CFunction> funs() {
+    return funs;
+  }
+}
+
 public class BC2CCompiler {
-  protected static final String NAME_ENV = "ENV";
-  protected static final String NAME_CP = "CP";
-  protected static final Value VAL_NULL = new Value("Rsh_NilValue", false);
-  public static final String VAL_TRUE = "VAL_TRUE";
-  public static final String VAL_FALSE = "VAL_FALSE";
+  private final CModule module = new CModule();
+  private final Bc bc;
 
-  protected final String name;
-  protected final Bc bc;
-  protected final Map<Integer, Constant> constants = new LinkedHashMap<>();
-  protected final ByteCodeStack stack = new ByteCodeStack();
-  protected final Set<Integer> labels = new HashSet<>();
-  protected final Set<Integer> cells = new HashSet<>();
+  public BC2CCompiler(Bc bc) {
+    this.bc = bc;
+  }
 
-  protected final CFile file;
+  public CompiledModule finish() {
+    var compiledClosure = module.compileClosure(bc);
+
+    var file = new CFile();
+    file.addInclude("runtime.h");
+    module.funs().forEach(fun -> file.addFun(fun, true));
+
+    return new CompiledModule(file, compiledClosure.name(), compiledClosure.constantPool());
+  }
+}
+
+// TODO: extract labels and cells into its own classes
+class ClosureCompiler {
+  private static final String NAME_ENV = "ENV";
+  private static final String NAME_CP = "CP";
+  private static final Value VAL_NULL = new Value("Rsh_NilValue", false);
+  private static final String VAL_TRUE = "VAL_TRUE";
+  private static final String VAL_FALSE = "VAL_FALSE";
+
+  private final Bc bc;
+  private final Map<Integer, Constant> constants = new LinkedHashMap<>();
+  private final ByteCodeStack stack = new ByteCodeStack();
+  private final Set<Integer> labels = new HashSet<>();
+  private final Set<Integer> cells = new HashSet<>();
+  private int extraConstPoolIdx;
+
+  protected CModule module;
   protected CFunction fun;
   protected CCode body;
 
-  public BC2CCompiler(String name, Bc bc) {
-    this.name = name;
+  public ClosureCompiler(CModule module, String name, Bc bc) {
     this.bc = bc;
-    this.file = new CFile();
-    this.fun = file.createFun("SEXP", name, "SEXP %s, SEXP %s".formatted(NAME_ENV, NAME_CP));
+    this.module = module;
+    this.fun = module.createFun("SEXP", name, "SEXP %s, SEXP %s".formatted(NAME_ENV, NAME_CP));
     this.body = fun.add();
+    this.extraConstPoolIdx = bc.consts().size() + 1;
   }
 
-  public CFile compile() {
+  public VectorSXP<SEXP> compile() {
     beforeCompile();
 
     var code = bc.code();
@@ -133,17 +175,17 @@ public class BC2CCompiler {
     }
 
     afterCompile();
-    return file;
+
+    return SEXPs.vec(constants());
   }
 
-  protected void beforeCompile() {
+  private void beforeCompile() {
     fillLabels();
   }
 
-  protected void afterCompile() {
+  private void afterCompile() {
     compileCells();
     compileRegisters();
-    preamble();
   }
 
   private void fillLabels() {
@@ -154,10 +196,6 @@ public class BC2CCompiler {
     return List.copyOf(constants.values().stream().map(Constant::value).toList());
   }
 
-  private void preamble() {
-    file.setPreamble("#include <Rsh.h>");
-  }
-
   private void compile(BcInstr instr, int instrIdx) {
     body.comment("begin: " + instr);
     if (labels.contains(instrIdx)) {
@@ -166,12 +204,29 @@ public class BC2CCompiler {
 
     switch (instr) {
       case BcInstr.SetVar(var idx) -> compileSetVar(idx);
+      case BcInstr.SetVar2(var idx) -> compileSetVar2(idx);
       case BcInstr.LdConst(var idx) -> compileLd(constantVAL(idx));
       case BcInstr.LdTrue() -> compileLd(VAL_TRUE);
       case BcInstr.LdFalse() -> compileLd(VAL_FALSE);
       case BcInstr.GetVar(var idx) -> compileGetVar(idx);
-      case BcInstr.Add(var idx) -> compileAdd(idx);
-      case BcInstr.Lt(var idx) -> compileLt(idx);
+      case BcInstr.Add(var idx) -> compileArith(idx, "ADD_OP");
+      case BcInstr.Sub(var idx) -> compileArith(idx, "SUB_OP");
+      case BcInstr.Mul(var idx) -> compileArith(idx, "MUL_OP");
+      case BcInstr.Div(var idx) -> compileArith(idx, "DIV_OP");
+      case BcInstr.Expt(var idx) -> compileArith(idx, "POW_OP");
+      case BcInstr.Lt(var idx) -> compileRelop(idx, "LT_OP");
+      case BcInstr.Le(var idx) -> compileRelop(idx, "LE_OP");
+      case BcInstr.Gt(var idx) -> compileRelop(idx, "GT_OP");
+      case BcInstr.Ge(var idx) -> compileRelop(idx, "GE_OP");
+      case BcInstr.Eq(var idx) -> compileRelop(idx, "EQ_OP");
+      case BcInstr.Ne(var idx) -> compileRelop(idx, "NE_OP");
+      case BcInstr.Exp(var idx) -> compileMath1(idx, "EXP_OP");
+      case BcInstr.Sqrt(var idx) -> compileMath1(idx, "SQRT_OP");
+      case BcInstr.UPlus(var idx) -> compileUnary(idx, "UPLUS_OP");
+      case BcInstr.UMinus(var idx) -> compileUnary(idx, "UMINUS_OP");
+      case BcInstr.And(var idx) -> compileLogic(idx, "AND_OP");
+      case BcInstr.Or(var idx) -> compileLogic(idx, "OR_OP");
+      case BcInstr.Not(var idx) -> compileNot(idx);
       case BcInstr.Return() -> compileReturn();
       case BcInstr.Pop() -> pop(1);
       case BcInstr.GetBuiltin(var idx) -> compileGetBuiltin(idx);
@@ -185,7 +240,9 @@ public class BC2CCompiler {
       case BcInstr.Invisible() -> compileInvisible();
       case BcInstr.LdNull() -> compileLdNull();
       case BcInstr.GetFun(var idx) -> compileGetFun(idx);
-      case BcInstr.Eq(var idx) -> compileEq(idx);
+      case BcInstr.MakeClosure(var idx) -> compileMakeClosure(idx);
+      case BcInstr.CheckFun() -> compileCheckFun();
+      case BcInstr.MakeProm(var idx) -> compileMakeProm(idx);
 
       default -> throw new UnsupportedOperationException(instr + ": not supported");
     }
@@ -193,10 +250,30 @@ public class BC2CCompiler {
     body.nl();
   }
 
-  private void compileEq(ConstPool.Idx<LangSXP> idx) {
-    var lhs = stack.curr(-1);
-    var rhs = stack.curr(0);
-    popPush(2, "Rsh_binary(EQ, %s, %s);".formatted(lhs, rhs), true);
+  private void compileMakeProm(ConstPool.Idx<SEXP> idx) {
+    body.line(
+        "Rsh_make_prom(%s, &%s, &%s, %s, %s);"
+            .formatted(stack.curr(-2), stack.curr(-1), stack.curr(0), constantSXP(idx), NAME_ENV));
+  }
+
+  private void compileCheckFun() {
+    body.line("Rsh_check_fun(%s);".formatted(stack.curr(0)));
+    initCallFrame();
+  }
+
+  private void compileMakeClosure(ConstPool.Idx<VecSXP> idx) {
+    var cls = bc.consts().get(idx);
+
+    if (cls.get(1) instanceof BCodeSXP closureBody) {
+      var compiledClosure = module.compileClosure(closureBody.bc());
+      var cpConst = createExtraConstant(compiledClosure.constantPool());
+      push(
+          "Rsh_native_closure(%s, &%s, %s, %s)"
+              .formatted(constantSXP(idx), compiledClosure.name(), constantSXP(cpConst), NAME_ENV),
+          false);
+    } else {
+      throw new UnsupportedOperationException("Unsupported body: " + body);
+    }
   }
 
   private void compileCall(ConstPool.Idx<LangSXP> idx) {
@@ -240,9 +317,9 @@ public class BC2CCompiler {
   private void compileSetTag(ConstPool.Idx<StrOrRegSymSXP> idx) {
     body.line(
         """
-    if (TYPEOF(%s) != SPECIALSXP) {
-      RSH_SET_TAG(%s, %s);
-    }"""
+                        if (TYPEOF(%s) != SPECIALSXP) {
+                          RSH_SET_TAG(%s, %s);
+                        }"""
             .formatted(stack.curr(-2), stack.curr(0), constantVAL(idx)));
   }
 
@@ -301,24 +378,54 @@ public class BC2CCompiler {
             .formatted(constantSXP(idx), stack.curr(0), NAME_ENV, cell(idx)));
   }
 
+  private void compileSetVar2(ConstPool.Idx<RegSymSXP> idx) {
+    body.line("Rsh_set_var2(%s, %s, %s);".formatted(constantSXP(idx), stack.curr(0), NAME_ENV));
+  }
+
   private void compileReturn() {
     pop(1);
     assert stack.isEmpty() : "Stack not empty (%d)".formatted(stack.currIdx(0));
     body.line("return Rsh_return(%s);".formatted(stack.curr(1)));
   }
 
-  private void compileAdd(ConstPool.Idx<LangSXP> idx) {
+  // FIXME: refactor
+  private void compileMath1(ConstPool.Idx<LangSXP> idx, String op) {
     var call = constantSXP(idx);
-    var lhs = stack.curr(-1);
-    var rhs = stack.curr(0);
-    popPush(2, "Rsh_arith(ADD_OP, %s, %s, %s, %s)".formatted(lhs, rhs, call, NAME_ENV), false);
+    var arg = stack.curr(0);
+    popPush(1, "Rsh_math1(%s, %s, %s, %s)".formatted(call, op, arg, NAME_ENV), false);
   }
 
-  private void compileLt(ConstPool.Idx<LangSXP> idx) {
+  private void compileUnary(ConstPool.Idx<LangSXP> idx, String op) {
+    var call = constantSXP(idx);
+    var arg = stack.curr(0);
+    popPush(1, "Rsh_unary(%s, %s, %s, %s)".formatted(call, op, arg, NAME_ENV), false);
+  }
+
+  private void compileNot(ConstPool.Idx<LangSXP> idx) {
+    var call = constantSXP(idx);
+    var arg = stack.curr(0);
+    popPush(1, "Rsh_not(%s, %s, %s)".formatted(call, arg, NAME_ENV), false);
+  }
+
+  private void compileArith(ConstPool.Idx<LangSXP> idx, String op) {
     var call = constantSXP(idx);
     var lhs = stack.curr(-1);
     var rhs = stack.curr(0);
-    popPush(2, "Rsh_relop(LT_OP, %s, %s, %s, %s)".formatted(lhs, rhs, call, NAME_ENV), false);
+    popPush(2, "Rsh_arith(%s, %s, %s, %s, %s)".formatted(call, op, lhs, rhs, NAME_ENV), false);
+  }
+
+  private void compileLogic(ConstPool.Idx<LangSXP> idx, String op) {
+    var call = constantSXP(idx);
+    var lhs = stack.curr(-1);
+    var rhs = stack.curr(0);
+    popPush(2, "Rsh_logic(%s, %s, %s, %s, %s)".formatted(call, op, lhs, rhs, NAME_ENV), false);
+  }
+
+  private void compileRelop(ConstPool.Idx<LangSXP> idx, String op) {
+    var call = constantSXP(idx);
+    var lhs = stack.curr(-1);
+    var rhs = stack.curr(0);
+    popPush(2, "Rsh_relop(%s, %s, %s, %s, %s)".formatted(call, op, lhs, rhs, NAME_ENV), false);
   }
 
   private void compileLd(String constant) {
@@ -359,6 +466,10 @@ public class BC2CCompiler {
 
   private String constantSXP(ConstPool.Idx<? extends SEXP> idx) {
     var c = getConstant(idx);
+    return constantSXP(c);
+  }
+
+  private String constantSXP(Constant c) {
     return "Rsh_const(%s, %d)".formatted(NAME_CP, c.id());
   }
 
@@ -376,13 +487,20 @@ public class BC2CCompiler {
     return "%s(%s, %d)".formatted(f, NAME_CP, c.id());
   }
 
-  @NotNull private Constant getConstant(ConstPool.Idx<? extends SEXP> idx) {
+  private Constant getConstant(ConstPool.Idx<? extends SEXP> idx) {
     return constants.computeIfAbsent(
         idx.idx(),
         ignored -> {
           var next = constants.size();
           return new Constant(next, bc.consts().get(idx));
         });
+  }
+
+  private Constant createExtraConstant(SEXP v) {
+    var next = constants.size();
+    var c = new Constant(next, v);
+    constants.put(extraConstPoolIdx++, c);
+    return c;
   }
 
   private String label(int instrIndex) {

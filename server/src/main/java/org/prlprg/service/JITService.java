@@ -18,18 +18,28 @@ public class JITService {
     this.rsession = rsession;
   }
 
-  public CompiledFunction execute(String name, CloSXP closure, int ccOptimization)
+  public NativeClosure execute(String name, CloSXP closure, int bcOptimization, int ccOptimization)
       throws Exception {
-    logger.fine("Compiling closure: " + name + "\n" + closure + "\n");
+    logger.fine(
+        "Compiling closure: "
+            + name
+            + "\n"
+            + closure
+            + "(bcOpt="
+            + bcOptimization
+            + ", ccOpt="
+            + ccOptimization
+            + ")\n");
 
     var bcCompiler = new BCCompiler(closure, rsession);
+    bcCompiler.setOptimizationLevel(bcOptimization);
     var bc = bcCompiler.compile().get();
-    var bc2cCompiler = new BC2CCompiler(name, bc);
-    var cfile = bc2cCompiler.compile();
+    var bc2cCompiler = new BC2CCompiler(bc);
+    var module = bc2cCompiler.finish();
     // var input = new File("/tmp/jit.c");
     var input = File.createTempFile("cfile", ".c");
     var f = Files.newWriter(input, Charset.defaultCharset());
-    cfile.writeTo(f);
+    module.file().writeTo(f);
     // var output = new File("/tmp/jit.o");
     var output = File.createTempFile("ofile", ".o");
 
@@ -48,6 +58,6 @@ public class JITService {
     //      throw new IOException("Unable to delete file" + input);
     //    }
 
-    return new CompiledFunction(res, bc2cCompiler.constants());
+    return new NativeClosure(res, module.topLevelFunName(), module.constantPool());
   }
 }

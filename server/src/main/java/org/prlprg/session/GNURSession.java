@@ -1,10 +1,12 @@
 package org.prlprg.session;
 
+import com.google.common.collect.ImmutableList;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.logging.Logger;
 import javax.annotation.Nullable;
@@ -12,6 +14,7 @@ import org.prlprg.RVersion;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.server.Messages;
 import org.prlprg.sexp.*;
+import org.prlprg.util.Files;
 
 /**
  * Dummy session used to bootstrap base. Indeed, the RDS reader that reads base package database
@@ -58,6 +61,11 @@ class DummySession implements RSession {
   public NamespaceEnvSXP getNamespace(String name, String version) {
     return null;
   }
+
+  @Override
+  public ImmutableList<String> RFunTab() {
+    return null;
+  }
 }
 
 public class GNURSession implements RSession {
@@ -73,6 +81,8 @@ public class GNURSession implements RSession {
   private @Nullable Set<String> specials = null;
   private @Nullable Set<String> builtinsInternal = null;
   private final HashMap<String, NamespaceEnvSXP> namespaces = new HashMap<>();
+  private @Nullable ImmutableList<String> rFunTab = null;
+  private static final String R_FUN_TAB_FILE = "R_FunTab.txt";
 
   // TODO: need the path to R *and* the path to the installed packages
   public GNURSession(RVersion version, Path r_dir, Path r_libraries) {
@@ -280,5 +290,19 @@ public class GNURSession implements RSession {
       ns = namespaces.get(name + version);
     }
     return ns;
+  }
+
+  @Override
+  public ImmutableList<String> RFunTab() {
+    if (rFunTab == null) {
+      rFunTab =
+          ImmutableList.<String>builder()
+              .addAll(
+                  Files.readLines(
+                      Objects.requireNonNull(
+                          GNURSession.class.getResourceAsStream(R_FUN_TAB_FILE))))
+              .build();
+    }
+    return rFunTab;
   }
 }

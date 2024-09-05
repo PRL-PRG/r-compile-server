@@ -54,6 +54,20 @@ public abstract class RClosureTestsUsingBytecodeCompiler extends RClosureTests {
           // bytecode can be large, so we only want to do it when it is different
           assertEquals(
               gnurBc.toString(), ourBc.toString(), "`compile(read(ast)) == read(R.compile(ast))`");
+
+          System.out.println(gnurBc.toString());
+          System.out.println("----");
+          System.out.println(ourBc.toString());
+          System.out.println("----");
+          var gnurBcCode = gnurBc.bc().code();
+          var ourBcCode = ourBc.bc().code();
+          for (int i = 0; i < gnurBcCode.size(); i++) {
+            if (!gnurBcCode.get(i).equals(ourBcCode.get(i))) {
+              System.out.println("Different bytecode at index " + i);
+              System.out.println("GNU-R: " + gnurBcCode.get(i));
+              System.out.println("Ours: " + ourBcCode.get(i));
+            }
+          }
           fail("Produced bytecode is different, but the toString() representation is the same.");
         }
       } else {

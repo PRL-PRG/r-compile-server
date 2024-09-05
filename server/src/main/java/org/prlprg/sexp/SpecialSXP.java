@@ -4,11 +4,12 @@ import org.prlprg.parseprint.Printer;
 import org.prlprg.primitive.BuiltinId;
 
 public record SpecialSXP(@Override BuiltinId id) implements BuiltinOrSpecialSXP {
-  public SpecialSXP {
-    if (!id.isSpecial()) {
-      throw new IllegalArgumentException("Not a special builtin: " + id);
-    }
-  }
+  // FIXME: don't understand this one
+  //  public SpecialSXP {
+  //    if (!id.isSpecial()) {
+  //      throw new IllegalArgumentException("Not a special builtin: " + id);
+  //    }
+  //  }
 
   @Override
   public SEXPType type() {

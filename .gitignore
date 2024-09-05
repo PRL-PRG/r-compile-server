@@ -14,5 +14,10 @@
 external/R/doc/manual/*.html
 external/R/doc/NEWS.pdf
 
-### clangd ###
+### C ###
 .cache
+.gdb_history
+compile_commands.json
+
+### IntelliJ IDEA ###
+/.idea/uiDesigner.xml
