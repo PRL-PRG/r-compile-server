@@ -1,6 +1,6 @@
-#include "client.h"
+#include "client.hpp"
 #include "xxhash.hpp"
-#include "serialize.h"
+#include "serialize.hpp"
 
 #include <grpc/grpc.h>
 #include <grpcpp/channel.h>
@@ -49,7 +49,7 @@ Client::Client(std::shared_ptr<grpc::Channel> channel, std::vector<std::string> 
     }
   }
 
-std::variant<protocol::CompileResponse, std::string> Client::remote_compile(std::string const& name, 
+std::variant<protocol::CompileResponse, std::string> Client::remote_compile(std::string const& name,
                               std::vector<uint8_t> const &rds_closure,
                               protocol::Tier tier,
                               int32_t optimization_level) {
@@ -61,7 +61,7 @@ std::variant<protocol::CompileResponse, std::string> Client::remote_compile(std:
   request.mutable_function()->set_name(name);
   request.mutable_function()->set_body(rds_closure.data(), rds_closure.size());
 
-  // We replace the body of a function with its compiled version so it would not make 
+  // We replace the body of a function with its compiled version so it would not make
   //sense to compute its hash again, except if its body has changed.
   auto hash = xxh::xxhash3<64>(rds_closure.data(), rds_closure.size());
   if(compiled_functions.find(name) != compiled_functions.end() && compiled_functions[name].second == hash) {
@@ -99,7 +99,7 @@ SEXP Client::make_client(SEXP address, SEXP port, SEXP installed_packages) {
   auto channel = grpc::CreateChannel(address_str, grpc::InsecureChannelCredentials());
   auto client = new Client(channel, packages);
 
-  
+
   SEXP ptr =  PROTECT(R_MakeExternalPtr(client, Rf_install("RSH_CLIENT"), R_NilValue));
   R_RegisterCFinalizerEx(ptr, &Client::remove_client, TRUE);// TRUE because we want to shutdown the client when R quits
 

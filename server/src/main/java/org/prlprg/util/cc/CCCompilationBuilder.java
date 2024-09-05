@@ -12,7 +12,7 @@ public class CCCompilationBuilder {
   public static final Logger LOG = Logger.getLogger(CCCompilationBuilder.class.getName());
 
   // TODO: configurable from environment variable
-  private static final String DEFAULT_COMPILER = "gcc";
+  private static final String DEFAULT_COMPILER = "/usr/bin/gcc";
 
   private final String input;
   private final String output;

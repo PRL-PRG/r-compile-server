@@ -2,12 +2,14 @@ package org.prlprg.util;
 
 import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URL;
 import java.nio.file.FileSystems;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.FileTime;
 import java.util.Collection;
+import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
@@ -134,6 +136,12 @@ public class Files {
   public static void copyURL(URL from, Path to) {
     ThrowingRunnable.run(
         () -> copy(pathFromFileUrl(Objects.requireNonNull(from).toURI().toURL()), to));
+  }
+
+  public static List<String> readLines(InputStream is) {
+    return ThrowingSupplier.get(() -> new java.io.BufferedReader(new java.io.InputStreamReader(is)))
+        .lines()
+        .toList();
   }
 
   // endregion

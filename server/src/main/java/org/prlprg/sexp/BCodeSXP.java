@@ -3,6 +3,7 @@ package org.prlprg.sexp;
 import javax.annotation.concurrent.Immutable;
 import org.prlprg.bc.Bc;
 import org.prlprg.parseprint.Printer;
+import org.prlprg.sexp.parseprint.SEXPPrintOptions;
 
 /** GNU-R compiled code SEXP, such as a promise or closure body. */
 @Immutable
@@ -25,6 +26,6 @@ public sealed interface BCodeSXP extends SEXP {
 record BCodeSXPImpl(Bc bc) implements BCodeSXP {
   @Override
   public String toString() {
-    return Printer.toString(this);
+    return Printer.toString(this, SEXPPrintOptions.FULL);
   }
 }

@@ -21,8 +21,11 @@ Make sure you have `protoc` installed.
 
 ## Java
 
-Just compile the project through your IDE or with maven. The code will be generated in the `target/generated-sources/protobuf/grpc-java` and 
+Run `make` to synchronize the proto to the java project. 
+
+Then just compile the project through maven. The code will be generated in the `target/generated-sources/protobuf/grpc-java` and 
  `target/generated-sources/protobuf/java`  folders. They are both part of the `server` package.
+
 
 ## C++ 
 

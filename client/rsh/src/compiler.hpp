@@ -1,10 +1,10 @@
 #pragma one
 
-#include "Rinternals.h"
+#include <Rinternals.h>
 
 namespace rsh {
 
-SEXP initialize(SEXP);
+SEXP initialize();
 SEXP compile_fun(SEXP closure, SEXP name, SEXP opt_level, SEXP tier);
 SEXP call_fun(SEXP call, SEXP op, SEXP args, SEXP env);
 

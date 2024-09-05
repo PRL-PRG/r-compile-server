@@ -1,12 +1,15 @@
-#include "compiler.h"
-#include "client.h"
+#include "compiler.hpp"
+#include "client.hpp"
 #include "protocol.pb.h"
-#include "rsh.h"
-#include "serialize.h"
+#include "rsh.hpp"
+#include "serialize.hpp"
+#include "util.hpp"
 #include <cstdio>
 #include <cstring>
 
-
+extern "C" {
+#include "bc2c/runtime.h"
+}
 // clang-format off
 static i32 CALL_FUN_BC[] = {
   12,
@@ -52,12 +55,11 @@ static void *insert_into_jit(const char* name, protocol::CompileResponse const &
   return ptr;
 }
 
-static SEXP create_constant_pool(void *fun_ptr, const char* name, 
+static SEXP create_constant_pool(void *fun_ptr, const char* name,
                                  protocol::CompileResponse const &compiled_fun) {
   auto pool = PROTECT(Rf_allocVector(VECSXP, 2));
 
   // create an external pointer to the JITed function with a finalizer
-  // TODO: we should have a map hash to name of the function here
   auto p = R_MakeExternalPtr(fun_ptr, RSH_JIT_FUN_PTR,
                              Rf_mkString(name));
   R_RegisterCFinalizerEx(p, &jit_fun_destructor, FALSE);
@@ -124,7 +126,7 @@ SEXP compile_fun(SEXP closure, SEXP name, SEXP opt_level_sxp, SEXP tier_sxp) {
     Rf_error("Expected a single integer as an optimization level");
   }
 
-  u32 opt_level = INTEGER(opt_level_sxp)[0];
+  u32 opt_level = Rf_asInteger(opt_level_sxp);
 
   std::string tier_s = CHAR(STRING_ELT(tier_sxp, 0));
   protocol::Tier tier = protocol::Tier::OPTIMIZED;
@@ -144,7 +146,7 @@ SEXP compile_fun(SEXP closure, SEXP name, SEXP opt_level_sxp, SEXP tier_sxp) {
 
   auto compiled_fun = std::get<protocol::CompileResponse>(response);
   if(tier == protocol::Tier::OPTIMIZED) {
-    
+
 
     auto fun_ptr = insert_into_jit(name_str, compiled_fun);
     SEXP c_cp = PROTECT(create_constant_pool(fun_ptr, name_str, compiled_fun));
@@ -198,11 +200,14 @@ SEXP call_fun(SEXP call, SEXP op, SEXP args, SEXP env) {
   return res;
 }
 
-SEXP initialize(SEXP call_fun) {
-  // TODO: it would be great if this one can go away,
-  // intializing it in the init method.
-  // I just don't know how.
-  CALL_FUN = call_fun;
+#define RSH_PACKAGE_NAME "rsh"
+
+SEXP initialize() {
+  Rsh_initialize_runtime();
+
+  CALL_FUN = load_symbol_checked("rsh", "C_call_fun");
+  BC2C_CALL_TRAMPOLINE_SXP = load_symbol_checked("rsh", "C_call_trampoline");
+
 
   return R_NilValue;
 }

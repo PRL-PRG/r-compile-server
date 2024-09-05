@@ -2,7 +2,7 @@
 #include "messages.pb.h"
 #include "routes.pb.h"
 #include "routes.grpc.pb.h"
-#include "rsh.h"
+#include "rsh.hpp"
 #include <R.h>
 #include <Rinternals.h>
 #include <Rversion.h>
