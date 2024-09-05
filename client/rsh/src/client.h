@@ -10,6 +10,7 @@
 #include <string>
 #include <vector>
 #include <variant>
+#include <unordered_map>
 #include <zmq.hpp>
 #include <grpc/grpc.h>
 #include <grpcpp/channel.h>
@@ -24,7 +25,6 @@ private:
 
   // For it to be able to access the client instance
   friend SEXP init_client(SEXP address, SEXP port, SEXP installed_packages);
-
 
 public:
   Client(std::shared_ptr<grpc::Channel> channel, std::vector<std::string> installed_packages);
