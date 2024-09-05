@@ -1,5 +1,6 @@
 #include "client.h"
 #include "xxhash.hpp"
+#include "serialize.h"
 
 #include <grpc/grpc.h>
 #include <grpcpp/channel.h>
@@ -60,10 +61,17 @@ std::variant<protocol::CompileResponse, std::string> Client::remote_compile(std:
   request.mutable_function()->set_name(name);
   request.mutable_function()->set_body(rds_closure.data(), rds_closure.size());
 
-  // should be xxh::xxhash3<64>(rds_closure.data(), rds_closure.size())
-  // but it seems that the serialization is not the same. Probably because we also get the environment with it?
-  auto hash = xxh::xxhash3<64>(name);
-  request.mutable_function()->set_hash(hash);
+  // We replace the body of a function with its compiled version so it would not make 
+  //sense to compute its hash again, except if its body has changed.
+  auto hash = xxh::xxhash3<64>(rds_closure.data(), rds_closure.size());
+  Rprintf("Hash: %lu ; compiled hash: %lu\n", hash, compiled_functions[name].second);
+  if(compiled_functions.find(name) != compiled_functions.end() && compiled_functions[name].second == hash) {
+    request.mutable_function()->set_hash(compiled_functions[name].first);
+  }
+  else {
+    request.mutable_function()->set_hash(hash);
+    compiled_functions[name] = std::make_pair(hash, 0);
+  }
 
   grpc::ClientContext context;
   CompileResponse response;
@@ -126,5 +134,11 @@ SEXP init_client(SEXP address, SEXP port, SEXP installed_packages) {
 
   return R_NilValue;
 }
+
+void Client::mark_compiled_function(const std::string& name, SEXP closure) {
+  auto bytes = rsh::serialize(closure);
+  Client::get_client()->compiled_functions[name].second = xxh::xxhash3<64>(bytes);
+}
+
 
 } // namespace rsh

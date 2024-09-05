@@ -26,3 +26,12 @@ stopifnot(f(5) == 52)
 rsh::rsh_compile(f, tier = "bytecode", opt_level = 2L)
 
 stopifnot(f(5) == 52)
+
+f <- function(x) {
+    x + 3
+}
+
+# body changed so it should be recompiled
+rsh::rsh_compile(f, tier = "bytecode", opt_level = 2L)
+
+stopifnot(f(5) == 8)
