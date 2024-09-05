@@ -60,8 +60,9 @@ std::variant<protocol::CompileResponse, std::string> Client::remote_compile(std:
   request.mutable_function()->set_name(name);
   request.mutable_function()->set_body(rds_closure.data(), rds_closure.size());
 
-  
-  auto hash = xxh::xxhash3<64>(rds_closure.data(), rds_closure.size());
+  // should be xxh::xxhash3<64>(rds_closure.data(), rds_closure.size())
+  // but it seems that the serialization is not the same. Probably because we also get the environment with it?
+  auto hash = xxh::xxhash3<64>(name);
   request.mutable_function()->set_hash(hash);
 
   grpc::ClientContext context;

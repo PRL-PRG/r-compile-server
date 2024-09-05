@@ -10,7 +10,6 @@ import java.util.logging.Logger;
 import javax.annotation.Nullable;
 import org.prlprg.RVersion;
 import org.prlprg.bc.BCCompiler;
-import org.prlprg.bc.Bc;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.rds.RDSWriter;
 import org.prlprg.session.GNURSession;
@@ -25,8 +24,9 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
   private @Nullable GNURSession session = null;
   // Cache for all values (including functions)
   private HashMap<ByteString, SEXP> cache = new HashMap<>();
-  // Cache for byte-code, only for functions
-  private HashMap<ByteString, Bc> bcCache = new HashMap<>();
+  // Cache for byte-code, only for functions. We keep the already serialized code in the cache
+  // not the Bc (or BcCodeSXP)
+  private HashMap<Long, ByteString> bcCache = new HashMap<>();
 
   // TODO: cache for native code, which should also include contexts
 
@@ -57,36 +57,43 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
 
     // Compile the code and build response
     Messages.CompileResponse.Builder response = Messages.CompileResponse.newBuilder();
-    // TODO
-    if (function.hasBody()) {
+
+    // First see if we have the hash in the cache
+    var functionHash = function.getHash();
+    ByteString cached = bcCache.get(functionHash);
+    if (cached != null) {
+      logger.info("Found " + function.getName() + " in cache. No recompilation.");
       try {
-        ByteString serializedBc =
-            compileClosure(function.getBody(), optimizationLevel, responseObserver);
-        response.setCode(serializedBc);
+        response.setCode(cached);
       } catch (Exception e) {
-        // See
-        // https://github.com/grpc/grpc-java/blob/master/examples/src/main/java/io/grpc/examples/errorhandling/DetailErrorSample.java
-        // We could have more details using that:
-        // https://github.com/grpc/grpc-java/blob/master/examples/src/main/java/io/grpc/examples/errordetails/ErrorDetailsExample.java
-        responseObserver.onError(
-            Status.INTERNAL
-                .withDescription(
-                    "Cannot compile function " + function.getName() + " ; " + e.getMessage())
-                .asRuntimeException());
+        throw new RuntimeException("Impossible to serialize the bytecode");
       }
     } else {
-      var functionHash = function.getHash();
-      Bc cached = bcCache.get(functionHash);
-      // Also cache the optimization level?
-      if (cached != null) {
-        // TODO:
-        // Serialize BcCode and ConstPool and set them in the response
-      } else {
-        // Ask the client for the body of the function
-
-        // Compile the function
-
-        // Add it to the code cache
+      logger.info("Compile function " + function.getName() + ": not found in cache.");
+      if (function.hasBody()) {
+        try {
+          ByteString serializedBc =
+              compileClosure(function.getBody(), optimizationLevel, responseObserver);
+          response.setCode(serializedBc);
+          // Add it to the cache
+          bcCache.put(functionHash, serializedBc);
+        } catch (Exception e) {
+          // See
+          // https://github.com/grpc/grpc-java/blob/master/examples/src/main/java/io/grpc/examples/errorhandling/DetailErrorSample.java
+          // We could have more details using that:
+          // https://github.com/grpc/grpc-java/blob/master/examples/src/main/java/io/grpc/examples/errordetails/ErrorDetailsExample.java
+          responseObserver.onError(
+              Status.INTERNAL
+                  .withDescription(
+                      "Cannot compile function " + function.getName() + " ; " + e.getMessage())
+                  .asRuntimeException());
+        }
+      } else { // No body
+        // we need to ask the client for the body
+        logger.info(
+            "No body sent with the request for function "
+                + function.getName()
+                + ". Cannot compile.");
       }
     }
 
