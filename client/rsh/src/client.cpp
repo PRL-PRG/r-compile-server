@@ -40,36 +40,33 @@ Client::Client(std::shared_ptr<grpc::Channel> channel, std::vector<std::string> 
     grpc::ClientContext context;
     grpc::Status status = stub_->Init(&context, request, &response);
     if(!status.ok()) {
-      std::cerr << status.error_code() << ": " << status.error_message()
-                << std::endl;
-      exit(1);
+      Rf_error("Failed to connect to the server: %d %s\n", status.error_code(), status.error_message().c_str());
     }
     else {
-      std::cout << "Connected to server" << std::endl;
+      Rprintf("Connected to the server\n");
     }
   }
 
-std::variant<protocol::CompileResponse, std::string> Client::remote_compile(std::string const& name,
-                              std::vector<uint8_t> const &rds_closure,
-                              protocol::Tier tier,
-                              int32_t optimization_level) {
+std::variant<protocol::CompileResponse, std::string> Client::remote_compile(std::vector<uint8_t> const &rds_closure,
+                        CompilerOptions const& options) {
   using namespace protocol;
 
   CompileRequest request;
-  request.set_tier(tier);
-  request.set_optimization_level(optimization_level);
-  request.mutable_function()->set_name(name);
+  request.set_tier(options.tier);
+  request.set_bc_opt(options.bc_opt);
+  request.mutable_function()->set_name(options.name);
+  request.set_cc_opt(options.cc_opt);
   request.mutable_function()->set_body(rds_closure.data(), rds_closure.size());
 
   // We replace the body of a function with its compiled version so it would not make
   //sense to compute its hash again, except if its body has changed.
   auto hash = xxh::xxhash3<64>(rds_closure.data(), rds_closure.size());
-  if(compiled_functions.find(name) != compiled_functions.end() && compiled_functions[name].second == hash) {
-    request.mutable_function()->set_hash(compiled_functions[name].first);
+  if(compiled_functions.find(options.name) != compiled_functions.end() && compiled_functions[options.name].second == hash) {
+    request.mutable_function()->set_hash(compiled_functions[options.name].first);
   }
   else {
     request.mutable_function()->set_hash(hash);
-    compiled_functions[name] = std::make_pair(hash, 0);
+    compiled_functions[options.name] = std::make_pair(hash, 0);
   }
 
   grpc::ClientContext context;

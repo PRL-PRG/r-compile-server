@@ -30,9 +30,10 @@ message InitResponse {}
 message CompileRequest {
   Function function = 2;// Add package version
   optional Tier tier = 4;//if not defined, let the compile server decide
-  optional int32 optimization_level = 5;// if not defined, the server decides
-  optional Context context = 6;
-  optional Environment environment = 7;//The values of all the bindings that statically appear in the function
+  optional int32 cc_opt = 5;// if not defined, the server decides
+  optional int32 bc_opt = 6;// for the bytecode. Native does bytecode first so this is also need when compiling to native
+  optional Context context = 7;
+  optional Environment environment = 8;//The values of all the bindings that statically appear in the function
 }
 
 message CompileResponse {

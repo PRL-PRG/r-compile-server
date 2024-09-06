@@ -1,9 +1,13 @@
 #pragma once
 
 #include "jit.hpp"
-#include <Rinternals.h>
 #include <cstdint>
 #include <vector>
+
+extern "C" {
+// FIXME: can we avoid this
+#include <Rinternals.h>
+}
 
 using u8 = uint8_t;
 using u32 = uint32_t;

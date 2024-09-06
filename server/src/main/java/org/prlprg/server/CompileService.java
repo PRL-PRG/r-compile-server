@@ -46,7 +46,7 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
     // Parse the request
     Messages.Function function = request.getFunction();
     Messages.Tier tier = request.getTier(); // Default is baseline
-    int optimizationLevel = request.getOptimizationLevel(); // default is 0
+    int optimizationLevel = request.getBcOpt(); // default is 0
     Messages.Context context = request.getContext(); // null if not provided
 
     logger.info(

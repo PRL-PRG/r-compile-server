@@ -37,7 +37,7 @@ public class RshCompiler {
           "-Wall",
           "-Wno-unused-but-set-variable",
           "-Wno-comment",
-          "-DRSH");
+          "-DRSH_INLINE");
 
   private final List<String> compilerFlags;
 

@@ -13,11 +13,14 @@
 .Rhistory
 external/R/doc/manual/*.html
 external/R/doc/NEWS.pdf
+..Rcheck
 
 ### C ###
 .cache
 .gdb_history
 compile_commands.json
+*.so
+*.o
 
 ### IntelliJ IDEA ###
 /.idea/uiDesigner.xml

@@ -72,7 +72,8 @@ PROTOBUF_CONSTEXPR CompileRequest::CompileRequest(
   , /*decltype(_impl_.context_)*/nullptr
   , /*decltype(_impl_.environment_)*/nullptr
   , /*decltype(_impl_.tier_)*/0
-  , /*decltype(_impl_.optimization_level_)*/0} {}
+  , /*decltype(_impl_.cc_opt_)*/0
+  , /*decltype(_impl_.bc_opt_)*/0} {}
 struct CompileRequestDefaultTypeInternal {
   PROTOBUF_CONSTEXPR CompileRequestDefaultTypeInternal()
       : _instance(::_pbi::ConstantInitialized{}) {}
@@ -445,12 +446,14 @@ const uint32_t TableStruct_messages_2eproto::offsets[] PROTOBUF_SECTION_VARIABLE
   ~0u,  // no _inlined_string_donated_
   PROTOBUF_FIELD_OFFSET(::rsh::protocol::CompileRequest, _impl_.function_),
   PROTOBUF_FIELD_OFFSET(::rsh::protocol::CompileRequest, _impl_.tier_),
-  PROTOBUF_FIELD_OFFSET(::rsh::protocol::CompileRequest, _impl_.optimization_level_),
+  PROTOBUF_FIELD_OFFSET(::rsh::protocol::CompileRequest, _impl_.cc_opt_),
+  PROTOBUF_FIELD_OFFSET(::rsh::protocol::CompileRequest, _impl_.bc_opt_),
   PROTOBUF_FIELD_OFFSET(::rsh::protocol::CompileRequest, _impl_.context_),
   PROTOBUF_FIELD_OFFSET(::rsh::protocol::CompileRequest, _impl_.environment_),
   ~0u,
   2,
   3,
+  4,
   0,
   1,
   PROTOBUF_FIELD_OFFSET(::rsh::protocol::CompileResponse, _impl_._has_bits_),
@@ -667,30 +670,30 @@ static const ::_pbi::MigrationSchema schemas[] PROTOBUF_SECTION_VARIABLE(protode
   { 0, -1, -1, sizeof(::rsh::protocol::Version)},
   { 9, -1, -1, sizeof(::rsh::protocol::InitRequest)},
   { 19, -1, -1, sizeof(::rsh::protocol::InitResponse)},
-  { 25, 36, -1, sizeof(::rsh::protocol::CompileRequest)},
-  { 41, 51, -1, sizeof(::rsh::protocol::CompileResponse)},
-  { 55, 65, -1, sizeof(::rsh::protocol::Function)},
-  { 69, -1, -1, sizeof(::rsh::protocol::FunctionRequest)},
-  { 76, 84, -1, sizeof(::rsh::protocol::Environment_ValuesEntry_DoNotUse)},
-  { 86, -1, -1, sizeof(::rsh::protocol::Environment)},
-  { 93, -1, -1, sizeof(::rsh::protocol::ValueRequest)},
-  { 100, -1, -1, sizeof(::rsh::protocol::Value)},
-  { 108, -1, -1, sizeof(::rsh::protocol::Values)},
-  { 115, -1, -1, sizeof(::rsh::protocol::Empty)},
-  { 121, -1, -1, sizeof(::rsh::protocol::CallContext)},
-  { 131, 141, -1, sizeof(::rsh::protocol::ArgumentContext)},
-  { 145, -1, -1, sizeof(::rsh::protocol::Context)},
-  { 153, -1, -1, sizeof(::rsh::protocol::ContextRequest)},
-  { 160, -1, -1, sizeof(::rsh::protocol::TestFeedback)},
-  { 167, -1, -1, sizeof(::rsh::protocol::CallFeedback)},
-  { 175, -1, -1, sizeof(::rsh::protocol::ValueFeedback)},
-  { 186, -1, -1, sizeof(::rsh::protocol::TypeFeedback_Feedback)},
-  { 196, 204, -1, sizeof(::rsh::protocol::TypeFeedback_TypesEntry_DoNotUse)},
-  { 206, -1, -1, sizeof(::rsh::protocol::TypeFeedback)},
-  { 213, -1, -1, sizeof(::rsh::protocol::FeedbackRequest)},
-  { 220, -1, -1, sizeof(::rsh::protocol::PackageSource)},
-  { 229, 239, -1, sizeof(::rsh::protocol::Package)},
-  { 243, -1, -1, sizeof(::rsh::protocol::PackageRequest)},
+  { 25, 37, -1, sizeof(::rsh::protocol::CompileRequest)},
+  { 43, 53, -1, sizeof(::rsh::protocol::CompileResponse)},
+  { 57, 67, -1, sizeof(::rsh::protocol::Function)},
+  { 71, -1, -1, sizeof(::rsh::protocol::FunctionRequest)},
+  { 78, 86, -1, sizeof(::rsh::protocol::Environment_ValuesEntry_DoNotUse)},
+  { 88, -1, -1, sizeof(::rsh::protocol::Environment)},
+  { 95, -1, -1, sizeof(::rsh::protocol::ValueRequest)},
+  { 102, -1, -1, sizeof(::rsh::protocol::Value)},
+  { 110, -1, -1, sizeof(::rsh::protocol::Values)},
+  { 117, -1, -1, sizeof(::rsh::protocol::Empty)},
+  { 123, -1, -1, sizeof(::rsh::protocol::CallContext)},
+  { 133, 143, -1, sizeof(::rsh::protocol::ArgumentContext)},
+  { 147, -1, -1, sizeof(::rsh::protocol::Context)},
+  { 155, -1, -1, sizeof(::rsh::protocol::ContextRequest)},
+  { 162, -1, -1, sizeof(::rsh::protocol::TestFeedback)},
+  { 169, -1, -1, sizeof(::rsh::protocol::CallFeedback)},
+  { 177, -1, -1, sizeof(::rsh::protocol::ValueFeedback)},
+  { 188, -1, -1, sizeof(::rsh::protocol::TypeFeedback_Feedback)},
+  { 198, 206, -1, sizeof(::rsh::protocol::TypeFeedback_TypesEntry_DoNotUse)},
+  { 208, -1, -1, sizeof(::rsh::protocol::TypeFeedback)},
+  { 215, -1, -1, sizeof(::rsh::protocol::FeedbackRequest)},
+  { 222, -1, -1, sizeof(::rsh::protocol::PackageSource)},
+  { 231, 241, -1, sizeof(::rsh::protocol::Package)},
+  { 245, -1, -1, sizeof(::rsh::protocol::PackageRequest)},
 };
 
 static const ::_pb::Message* const file_default_instances[] = {
@@ -730,68 +733,68 @@ const char descriptor_table_protodef_messages_2eproto[] PROTOBUF_SECTION_VARIABL
   "\001(\0132\025.rsh.protocol.Version\022(\n\tR_version\030"
   "\002 \001(\0132\025.rsh.protocol.Version\022\020\n\010platform"
   "\030\003 \001(\t\022\024\n\014package_hash\030\004 \003(\014\"\016\n\014InitResp"
-  "onse\"\240\002\n\016CompileRequest\022(\n\010function\030\002 \001("
+  "onse\"\250\002\n\016CompileRequest\022(\n\010function\030\002 \001("
   "\0132\026.rsh.protocol.Function\022%\n\004tier\030\004 \001(\0162"
-  "\022.rsh.protocol.TierH\000\210\001\001\022\037\n\022optimization"
-  "_level\030\005 \001(\005H\001\210\001\001\022+\n\007context\030\006 \001(\0132\025.rsh"
-  ".protocol.ContextH\002\210\001\001\0223\n\013environment\030\007 "
-  "\001(\0132\031.rsh.protocol.EnvironmentH\003\210\001\001B\007\n\005_"
-  "tierB\025\n\023_optimization_levelB\n\n\010_contextB"
-  "\016\n\014_environment\"\203\001\n\017CompileResponse\022\014\n\004h"
-  "ash\030\001 \001(\004\022 \n\004tier\030\002 \001(\0162\022.rsh.protocol.T"
-  "ier\022\021\n\004code\030\003 \001(\014H\000\210\001\001\022\026\n\tconstants\030\004 \001("
-  "\014H\001\210\001\001B\007\n\005_codeB\014\n\n_constants\"X\n\010Functio"
-  "n\022\024\n\014package_hash\030\001 \001(\004\022\014\n\004name\030\002 \001(\t\022\014\n"
-  "\004hash\030\003 \001(\004\022\021\n\004body\030\004 \001(\014H\000\210\001\001B\007\n\005_body\""
-  "\037\n\017FunctionRequest\022\014\n\004hash\030\001 \001(\004\"s\n\013Envi"
-  "ronment\0225\n\006values\030\001 \003(\0132%.rsh.protocol.E"
-  "nvironment.ValuesEntry\032-\n\013ValuesEntry\022\013\n"
-  "\003key\030\001 \001(\t\022\r\n\005value\030\002 \001(\004:\0028\001\"\034\n\014ValueRe"
-  "quest\022\014\n\004hash\030\001 \003(\004\"$\n\005Value\022\014\n\004hash\030\001 \001"
-  "(\004\022\r\n\005value\030\002 \001(\014\"-\n\006Values\022#\n\006values\030\001 "
-  "\003(\0132\023.rsh.protocol.Value\"\007\n\005Empty\"\206\001\n\013Ca"
-  "llContext\022\037\n\027args_statically_matched\030\001 \001"
-  "(\010\022\036\n\026correct_number_of_args\030\002 \001(\010\022\035\n\025co"
-  "rrect_order_of_args\030\003 \001(\010\022\027\n\017no_missing_"
-  "args\030\004 \001(\010\"t\n\017ArgumentContext\022\r\n\005eager\030\001"
-  " \001(\010\022\022\n\nreflection\030\002 \001(\010\022\016\n\006object\030\003 \001(\010"
-  "\022%\n\004type\030\004 \001(\0162\022.rsh.protocol.TypeH\000\210\001\001B"
-  "\007\n\005_type\"s\n\007Context\022/\n\014call_context\030\001 \001("
-  "\0132\031.rsh.protocol.CallContext\0227\n\020argument"
-  "_context\030\002 \003(\0132\035.rsh.protocol.ArgumentCo"
-  "ntext\":\n\016ContextRequest\022(\n\010function\030\001 \001("
-  "\0132\026.rsh.protocol.Function\"\?\n\014TestFeedbac"
-  "k\022/\n\014test_lattice\030\001 \001(\0162\031.rsh.protocol.T"
-  "estLattice\"4\n\014CallFeedback\022\017\n\007n_calls\030\001 "
-  "\001(\003\022\023\n\013callee_hash\030\002 \001(\004\"v\n\rValueFeedbac"
-  "k\022\016\n\006scalar\030\001 \001(\010\022\016\n\006object\030\002 \001(\010\022\033\n\023acc"
-  "essed_attributes\030\003 \001(\010\022\024\n\014vectorizable\030\004"
-  " \001(\010\022\022\n\nis_promise\030\005 \001(\010\"\321\002\n\014TypeFeedbac"
-  "k\0224\n\005types\030\002 \003(\0132%.rsh.protocol.TypeFeed"
-  "back.TypesEntry\032\267\001\n\010Feedback\0223\n\rtest_fee"
-  "dback\030\001 \001(\0132\032.rsh.protocol.TestFeedbackH"
-  "\000\0223\n\rcall_feedback\030\002 \001(\0132\032.rsh.protocol."
-  "CallFeedbackH\000\0225\n\016value_feedback\030\003 \001(\0132\033"
-  ".rsh.protocol.ValueFeedbackH\000B\n\n\010feedbac"
-  "k\032Q\n\nTypesEntry\022\013\n\003key\030\001 \001(\003\0222\n\005value\030\002 "
-  "\001(\0132#.rsh.protocol.TypeFeedback.Feedback"
-  ":\0028\001\";\n\017FeedbackRequest\022(\n\010function\030\001 \001("
-  "\0132\026.rsh.protocol.Function\"C\n\rPackageSour"
-  "ce\022\022\n\010r_mirror\030\002 \001(\tH\000\022\024\n\ngithub_url\030\003 \001"
-  "(\tH\000B\010\n\006source\"\225\001\n\007Package\022\014\n\004name\030\001 \001(\t"
-  "\022&\n\007version\030\002 \001(\0132\025.rsh.protocol.Version"
-  "\022\027\n\017function_hashes\030\004 \003(\004\0220\n\006source\030\005 \001("
-  "\0132\033.rsh.protocol.PackageSourceH\000\210\001\001B\t\n\007_"
-  "source\"\036\n\016PackageRequest\022\014\n\004hash\030\001 \001(\004*#"
-  "\n\004Tier\022\014\n\010BASELINE\020\000\022\r\n\tOPTIMIZED\020\001*@\n\013T"
-  "estLattice\022\010\n\004BOTH\020\000\022\r\n\tONLY_TRUE\020\001\022\016\n\nO"
-  "NLY_FALSE\020\002\022\010\n\004NONE\020\003*&\n\004Type\022\007\n\003ANY\020\000\022\013"
-  "\n\007INTEGER\020\001\022\010\n\004REAL\020\002B\023\n\021org.prlprg.serv"
-  "erb\006proto3"
+  "\022.rsh.protocol.TierH\000\210\001\001\022\023\n\006cc_opt\030\005 \001(\005"
+  "H\001\210\001\001\022\023\n\006bc_opt\030\006 \001(\005H\002\210\001\001\022+\n\007context\030\007 "
+  "\001(\0132\025.rsh.protocol.ContextH\003\210\001\001\0223\n\013envir"
+  "onment\030\010 \001(\0132\031.rsh.protocol.EnvironmentH"
+  "\004\210\001\001B\007\n\005_tierB\t\n\007_cc_optB\t\n\007_bc_optB\n\n\010_"
+  "contextB\016\n\014_environment\"\203\001\n\017CompileRespo"
+  "nse\022\014\n\004hash\030\001 \001(\004\022 \n\004tier\030\002 \001(\0162\022.rsh.pr"
+  "otocol.Tier\022\021\n\004code\030\003 \001(\014H\000\210\001\001\022\026\n\tconsta"
+  "nts\030\004 \001(\014H\001\210\001\001B\007\n\005_codeB\014\n\n_constants\"X\n"
+  "\010Function\022\024\n\014package_hash\030\001 \001(\004\022\014\n\004name\030"
+  "\002 \001(\t\022\014\n\004hash\030\003 \001(\004\022\021\n\004body\030\004 \001(\014H\000\210\001\001B\007"
+  "\n\005_body\"\037\n\017FunctionRequest\022\014\n\004hash\030\001 \001(\004"
+  "\"s\n\013Environment\0225\n\006values\030\001 \003(\0132%.rsh.pr"
+  "otocol.Environment.ValuesEntry\032-\n\013Values"
+  "Entry\022\013\n\003key\030\001 \001(\t\022\r\n\005value\030\002 \001(\004:\0028\001\"\034\n"
+  "\014ValueRequest\022\014\n\004hash\030\001 \003(\004\"$\n\005Value\022\014\n\004"
+  "hash\030\001 \001(\004\022\r\n\005value\030\002 \001(\014\"-\n\006Values\022#\n\006v"
+  "alues\030\001 \003(\0132\023.rsh.protocol.Value\"\007\n\005Empt"
+  "y\"\206\001\n\013CallContext\022\037\n\027args_statically_mat"
+  "ched\030\001 \001(\010\022\036\n\026correct_number_of_args\030\002 \001"
+  "(\010\022\035\n\025correct_order_of_args\030\003 \001(\010\022\027\n\017no_"
+  "missing_args\030\004 \001(\010\"t\n\017ArgumentContext\022\r\n"
+  "\005eager\030\001 \001(\010\022\022\n\nreflection\030\002 \001(\010\022\016\n\006obje"
+  "ct\030\003 \001(\010\022%\n\004type\030\004 \001(\0162\022.rsh.protocol.Ty"
+  "peH\000\210\001\001B\007\n\005_type\"s\n\007Context\022/\n\014call_cont"
+  "ext\030\001 \001(\0132\031.rsh.protocol.CallContext\0227\n\020"
+  "argument_context\030\002 \003(\0132\035.rsh.protocol.Ar"
+  "gumentContext\":\n\016ContextRequest\022(\n\010funct"
+  "ion\030\001 \001(\0132\026.rsh.protocol.Function\"\?\n\014Tes"
+  "tFeedback\022/\n\014test_lattice\030\001 \001(\0162\031.rsh.pr"
+  "otocol.TestLattice\"4\n\014CallFeedback\022\017\n\007n_"
+  "calls\030\001 \001(\003\022\023\n\013callee_hash\030\002 \001(\004\"v\n\rValu"
+  "eFeedback\022\016\n\006scalar\030\001 \001(\010\022\016\n\006object\030\002 \001("
+  "\010\022\033\n\023accessed_attributes\030\003 \001(\010\022\024\n\014vector"
+  "izable\030\004 \001(\010\022\022\n\nis_promise\030\005 \001(\010\"\321\002\n\014Typ"
+  "eFeedback\0224\n\005types\030\002 \003(\0132%.rsh.protocol."
+  "TypeFeedback.TypesEntry\032\267\001\n\010Feedback\0223\n\r"
+  "test_feedback\030\001 \001(\0132\032.rsh.protocol.TestF"
+  "eedbackH\000\0223\n\rcall_feedback\030\002 \001(\0132\032.rsh.p"
+  "rotocol.CallFeedbackH\000\0225\n\016value_feedback"
+  "\030\003 \001(\0132\033.rsh.protocol.ValueFeedbackH\000B\n\n"
+  "\010feedback\032Q\n\nTypesEntry\022\013\n\003key\030\001 \001(\003\0222\n\005"
+  "value\030\002 \001(\0132#.rsh.protocol.TypeFeedback."
+  "Feedback:\0028\001\";\n\017FeedbackRequest\022(\n\010funct"
+  "ion\030\001 \001(\0132\026.rsh.protocol.Function\"C\n\rPac"
+  "kageSource\022\022\n\010r_mirror\030\002 \001(\tH\000\022\024\n\ngithub"
+  "_url\030\003 \001(\tH\000B\010\n\006source\"\225\001\n\007Package\022\014\n\004na"
+  "me\030\001 \001(\t\022&\n\007version\030\002 \001(\0132\025.rsh.protocol"
+  ".Version\022\027\n\017function_hashes\030\004 \003(\004\0220\n\006sou"
+  "rce\030\005 \001(\0132\033.rsh.protocol.PackageSourceH\000"
+  "\210\001\001B\t\n\007_source\"\036\n\016PackageRequest\022\014\n\004hash"
+  "\030\001 \001(\004*#\n\004Tier\022\014\n\010BASELINE\020\000\022\r\n\tOPTIMIZE"
+  "D\020\001*@\n\013TestLattice\022\010\n\004BOTH\020\000\022\r\n\tONLY_TRU"
+  "E\020\001\022\016\n\nONLY_FALSE\020\002\022\010\n\004NONE\020\003*&\n\004Type\022\007\n"
+  "\003ANY\020\000\022\013\n\007INTEGER\020\001\022\010\n\004REAL\020\002B\023\n\021org.prl"
+  "prg.serverb\006proto3"
   ;
 static ::_pbi::once_flag descriptor_table_messages_2eproto_once;
 const ::_pbi::DescriptorTable descriptor_table_messages_2eproto = {
-    false, false, 2530, descriptor_table_protodef_messages_2eproto,
+    false, false, 2538, descriptor_table_protodef_messages_2eproto,
     "messages.proto",
     &descriptor_table_messages_2eproto_once, nullptr, 0, 27,
     schemas, file_default_instances, TableStruct_messages_2eproto::offsets,
@@ -1461,8 +1464,11 @@ class CompileRequest::_Internal {
   static void set_has_tier(HasBits* has_bits) {
     (*has_bits)[0] |= 4u;
   }
-  static void set_has_optimization_level(HasBits* has_bits) {
+  static void set_has_cc_opt(HasBits* has_bits) {
     (*has_bits)[0] |= 8u;
+  }
+  static void set_has_bc_opt(HasBits* has_bits) {
+    (*has_bits)[0] |= 16u;
   }
   static const ::rsh::protocol::Context& context(const CompileRequest* msg);
   static void set_has_context(HasBits* has_bits) {
@@ -1502,7 +1508,8 @@ CompileRequest::CompileRequest(const CompileRequest& from)
     , decltype(_impl_.context_){nullptr}
     , decltype(_impl_.environment_){nullptr}
     , decltype(_impl_.tier_){}
-    , decltype(_impl_.optimization_level_){}};
+    , decltype(_impl_.cc_opt_){}
+    , decltype(_impl_.bc_opt_){}};
 
   _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
   if (from._internal_has_function()) {
@@ -1515,8 +1522,8 @@ CompileRequest::CompileRequest(const CompileRequest& from)
     _this->_impl_.environment_ = new ::rsh::protocol::Environment(*from._impl_.environment_);
   }
   ::memcpy(&_impl_.tier_, &from._impl_.tier_,
-    static_cast<size_t>(reinterpret_cast<char*>(&_impl_.optimization_level_) -
-    reinterpret_cast<char*>(&_impl_.tier_)) + sizeof(_impl_.optimization_level_));
+    static_cast<size_t>(reinterpret_cast<char*>(&_impl_.bc_opt_) -
+    reinterpret_cast<char*>(&_impl_.tier_)) + sizeof(_impl_.bc_opt_));
   // @@protoc_insertion_point(copy_constructor:rsh.protocol.CompileRequest)
 }
 
@@ -1531,7 +1538,8 @@ inline void CompileRequest::SharedCtor(
     , decltype(_impl_.context_){nullptr}
     , decltype(_impl_.environment_){nullptr}
     , decltype(_impl_.tier_){0}
-    , decltype(_impl_.optimization_level_){0}
+    , decltype(_impl_.cc_opt_){0}
+    , decltype(_impl_.bc_opt_){0}
   };
 }
 
@@ -1576,10 +1584,10 @@ void CompileRequest::Clear() {
       _impl_.environment_->Clear();
     }
   }
-  if (cached_has_bits & 0x0000000cu) {
+  if (cached_has_bits & 0x0000001cu) {
     ::memset(&_impl_.tier_, 0, static_cast<size_t>(
-        reinterpret_cast<char*>(&_impl_.optimization_level_) -
-        reinterpret_cast<char*>(&_impl_.tier_)) + sizeof(_impl_.optimization_level_));
+        reinterpret_cast<char*>(&_impl_.bc_opt_) -
+        reinterpret_cast<char*>(&_impl_.tier_)) + sizeof(_impl_.bc_opt_));
   }
   _impl_._has_bits_.Clear();
   _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
@@ -1609,26 +1617,35 @@ const char* CompileRequest::_InternalParse(const char* ptr, ::_pbi::ParseContext
         } else
           goto handle_unusual;
         continue;
-      // optional int32 optimization_level = 5;
+      // optional int32 cc_opt = 5;
       case 5:
         if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 40)) {
-          _Internal::set_has_optimization_level(&has_bits);
-          _impl_.optimization_level_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint32(&ptr);
+          _Internal::set_has_cc_opt(&has_bits);
+          _impl_.cc_opt_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint32(&ptr);
           CHK_(ptr);
         } else
           goto handle_unusual;
         continue;
-      // optional .rsh.protocol.Context context = 6;
+      // optional int32 bc_opt = 6;
       case 6:
-        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 50)) {
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 48)) {
+          _Internal::set_has_bc_opt(&has_bits);
+          _impl_.bc_opt_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint32(&ptr);
+          CHK_(ptr);
+        } else
+          goto handle_unusual;
+        continue;
+      // optional .rsh.protocol.Context context = 7;
+      case 7:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 58)) {
           ptr = ctx->ParseMessage(_internal_mutable_context(), ptr);
           CHK_(ptr);
         } else
           goto handle_unusual;
         continue;
-      // optional .rsh.protocol.Environment environment = 7;
-      case 7:
-        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 58)) {
+      // optional .rsh.protocol.Environment environment = 8;
+      case 8:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 66)) {
           ptr = ctx->ParseMessage(_internal_mutable_environment(), ptr);
           CHK_(ptr);
         } else
@@ -1678,23 +1695,29 @@ uint8_t* CompileRequest::_InternalSerialize(
       4, this->_internal_tier(), target);
   }
 
-  // optional int32 optimization_level = 5;
-  if (_internal_has_optimization_level()) {
+  // optional int32 cc_opt = 5;
+  if (_internal_has_cc_opt()) {
     target = stream->EnsureSpace(target);
-    target = ::_pbi::WireFormatLite::WriteInt32ToArray(5, this->_internal_optimization_level(), target);
+    target = ::_pbi::WireFormatLite::WriteInt32ToArray(5, this->_internal_cc_opt(), target);
   }
 
-  // optional .rsh.protocol.Context context = 6;
+  // optional int32 bc_opt = 6;
+  if (_internal_has_bc_opt()) {
+    target = stream->EnsureSpace(target);
+    target = ::_pbi::WireFormatLite::WriteInt32ToArray(6, this->_internal_bc_opt(), target);
+  }
+
+  // optional .rsh.protocol.Context context = 7;
   if (_internal_has_context()) {
     target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
-      InternalWriteMessage(6, _Internal::context(this),
+      InternalWriteMessage(7, _Internal::context(this),
         _Internal::context(this).GetCachedSize(), target, stream);
   }
 
-  // optional .rsh.protocol.Environment environment = 7;
+  // optional .rsh.protocol.Environment environment = 8;
   if (_internal_has_environment()) {
     target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
-      InternalWriteMessage(7, _Internal::environment(this),
+      InternalWriteMessage(8, _Internal::environment(this),
         _Internal::environment(this).GetCachedSize(), target, stream);
   }
 
@@ -1722,15 +1745,15 @@ size_t CompileRequest::ByteSizeLong() const {
   }
 
   cached_has_bits = _impl_._has_bits_[0];
-  if (cached_has_bits & 0x0000000fu) {
-    // optional .rsh.protocol.Context context = 6;
+  if (cached_has_bits & 0x0000001fu) {
+    // optional .rsh.protocol.Context context = 7;
     if (cached_has_bits & 0x00000001u) {
       total_size += 1 +
         ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(
           *_impl_.context_);
     }
 
-    // optional .rsh.protocol.Environment environment = 7;
+    // optional .rsh.protocol.Environment environment = 8;
     if (cached_has_bits & 0x00000002u) {
       total_size += 1 +
         ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(
@@ -1743,9 +1766,14 @@ size_t CompileRequest::ByteSizeLong() const {
         ::_pbi::WireFormatLite::EnumSize(this->_internal_tier());
     }
 
-    // optional int32 optimization_level = 5;
+    // optional int32 cc_opt = 5;
     if (cached_has_bits & 0x00000008u) {
-      total_size += ::_pbi::WireFormatLite::Int32SizePlusOne(this->_internal_optimization_level());
+      total_size += ::_pbi::WireFormatLite::Int32SizePlusOne(this->_internal_cc_opt());
+    }
+
+    // optional int32 bc_opt = 6;
+    if (cached_has_bits & 0x00000010u) {
+      total_size += ::_pbi::WireFormatLite::Int32SizePlusOne(this->_internal_bc_opt());
     }
 
   }
@@ -1772,7 +1800,7 @@ void CompileRequest::MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const :
         from._internal_function());
   }
   cached_has_bits = from._impl_._has_bits_[0];
-  if (cached_has_bits & 0x0000000fu) {
+  if (cached_has_bits & 0x0000001fu) {
     if (cached_has_bits & 0x00000001u) {
       _this->_internal_mutable_context()->::rsh::protocol::Context::MergeFrom(
           from._internal_context());
@@ -1785,7 +1813,10 @@ void CompileRequest::MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const :
       _this->_impl_.tier_ = from._impl_.tier_;
     }
     if (cached_has_bits & 0x00000008u) {
-      _this->_impl_.optimization_level_ = from._impl_.optimization_level_;
+      _this->_impl_.cc_opt_ = from._impl_.cc_opt_;
+    }
+    if (cached_has_bits & 0x00000010u) {
+      _this->_impl_.bc_opt_ = from._impl_.bc_opt_;
     }
     _this->_impl_._has_bits_[0] |= cached_has_bits;
   }
@@ -1808,8 +1839,8 @@ void CompileRequest::InternalSwap(CompileRequest* other) {
   _internal_metadata_.InternalSwap(&other->_internal_metadata_);
   swap(_impl_._has_bits_[0], other->_impl_._has_bits_[0]);
   ::PROTOBUF_NAMESPACE_ID::internal::memswap<
-      PROTOBUF_FIELD_OFFSET(CompileRequest, _impl_.optimization_level_)
-      + sizeof(CompileRequest::_impl_.optimization_level_)
+      PROTOBUF_FIELD_OFFSET(CompileRequest, _impl_.bc_opt_)
+      + sizeof(CompileRequest::_impl_.bc_opt_)
       - PROTOBUF_FIELD_OFFSET(CompileRequest, _impl_.function_)>(
           reinterpret_cast<char*>(&_impl_.function_),
           reinterpret_cast<char*>(&other->_impl_.function_));

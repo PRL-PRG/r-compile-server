@@ -6,7 +6,8 @@ BEAR := $(shell command -v bear 2> /dev/null)
 
 BASE_DIR = $(realpath $(dir $(abspath $(lastword $(MAKEFILE_LIST))))/../..)
 R_HOME ?= $(BASE_DIR)/external/R
-R := $(R_HOME)/bin/R
+R := $(R_HOME)/bin/R --slave
+LLVM_R := LD_PRELOAD=$(LLVM_LIB) $(R)
 
 .PHONY: all build check document test install setup
 
@@ -21,15 +22,20 @@ clean:
 	-rm -rf src/*.so
 	-find src -name '*.o' -exec rm {} \;
 
-document:
-	$(R) -e 'devtools::document()'
-
-install: export LD_PRELOAD=$(LLVM_LIB)
 install:
-	$(R) CMD INSTALL .
+	$(LLVM_R) CMD INSTALL --install-tests --use-LTO .
 
 setup:
-	$(BEAR) -- $(MAKE) clean install
+	$(R) -e 'install.packages(c("microbenchmark", "tinytests"), repos="https://cloud.r-project.org", Ncpus=4)'
+	$(BEAR) -- $(MAKE) install
 
-test:
-	LD_PRELOAD=$(LLVM_LIB) ../../external/R/bin/R -f test6.R
+test: install
+	$(LLVM_R) -e "tinytest::test_package('rsh')"
+
+BENCH_ITER := 30
+
+benchmark:
+	$(LLVM_R) -f inst/benchmarks/simple/harness.R --args super-while $(BENCH_ITER) 2000000
+
+test6:
+	$(LLVM_R) -f test6.R

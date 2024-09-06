@@ -875,10 +875,11 @@ class CompileRequest final :
 
   enum : int {
     kFunctionFieldNumber = 2,
-    kContextFieldNumber = 6,
-    kEnvironmentFieldNumber = 7,
+    kContextFieldNumber = 7,
+    kEnvironmentFieldNumber = 8,
     kTierFieldNumber = 4,
-    kOptimizationLevelFieldNumber = 5,
+    kCcOptFieldNumber = 5,
+    kBcOptFieldNumber = 6,
   };
   // .rsh.protocol.Function function = 2;
   bool has_function() const;
@@ -898,7 +899,7 @@ class CompileRequest final :
       ::rsh::protocol::Function* function);
   ::rsh::protocol::Function* unsafe_arena_release_function();
 
-  // optional .rsh.protocol.Context context = 6;
+  // optional .rsh.protocol.Context context = 7;
   bool has_context() const;
   private:
   bool _internal_has_context() const;
@@ -916,7 +917,7 @@ class CompileRequest final :
       ::rsh::protocol::Context* context);
   ::rsh::protocol::Context* unsafe_arena_release_context();
 
-  // optional .rsh.protocol.Environment environment = 7;
+  // optional .rsh.protocol.Environment environment = 8;
   bool has_environment() const;
   private:
   bool _internal_has_environment() const;
@@ -947,17 +948,30 @@ class CompileRequest final :
   void _internal_set_tier(::rsh::protocol::Tier value);
   public:
 
-  // optional int32 optimization_level = 5;
-  bool has_optimization_level() const;
+  // optional int32 cc_opt = 5;
+  bool has_cc_opt() const;
   private:
-  bool _internal_has_optimization_level() const;
+  bool _internal_has_cc_opt() const;
   public:
-  void clear_optimization_level();
-  int32_t optimization_level() const;
-  void set_optimization_level(int32_t value);
+  void clear_cc_opt();
+  int32_t cc_opt() const;
+  void set_cc_opt(int32_t value);
   private:
-  int32_t _internal_optimization_level() const;
-  void _internal_set_optimization_level(int32_t value);
+  int32_t _internal_cc_opt() const;
+  void _internal_set_cc_opt(int32_t value);
+  public:
+
+  // optional int32 bc_opt = 6;
+  bool has_bc_opt() const;
+  private:
+  bool _internal_has_bc_opt() const;
+  public:
+  void clear_bc_opt();
+  int32_t bc_opt() const;
+  void set_bc_opt(int32_t value);
+  private:
+  int32_t _internal_bc_opt() const;
+  void _internal_set_bc_opt(int32_t value);
   public:
 
   // @@protoc_insertion_point(class_scope:rsh.protocol.CompileRequest)
@@ -974,7 +988,8 @@ class CompileRequest final :
     ::rsh::protocol::Context* context_;
     ::rsh::protocol::Environment* environment_;
     int tier_;
-    int32_t optimization_level_;
+    int32_t cc_opt_;
+    int32_t bc_opt_;
   };
   union { Impl_ _impl_; };
   friend struct ::TableStruct_messages_2eproto;
@@ -5145,35 +5160,63 @@ inline void CompileRequest::set_tier(::rsh::protocol::Tier value) {
   // @@protoc_insertion_point(field_set:rsh.protocol.CompileRequest.tier)
 }
 
-// optional int32 optimization_level = 5;
-inline bool CompileRequest::_internal_has_optimization_level() const {
+// optional int32 cc_opt = 5;
+inline bool CompileRequest::_internal_has_cc_opt() const {
   bool value = (_impl_._has_bits_[0] & 0x00000008u) != 0;
   return value;
 }
-inline bool CompileRequest::has_optimization_level() const {
-  return _internal_has_optimization_level();
+inline bool CompileRequest::has_cc_opt() const {
+  return _internal_has_cc_opt();
 }
-inline void CompileRequest::clear_optimization_level() {
-  _impl_.optimization_level_ = 0;
+inline void CompileRequest::clear_cc_opt() {
+  _impl_.cc_opt_ = 0;
   _impl_._has_bits_[0] &= ~0x00000008u;
 }
-inline int32_t CompileRequest::_internal_optimization_level() const {
-  return _impl_.optimization_level_;
+inline int32_t CompileRequest::_internal_cc_opt() const {
+  return _impl_.cc_opt_;
 }
-inline int32_t CompileRequest::optimization_level() const {
-  // @@protoc_insertion_point(field_get:rsh.protocol.CompileRequest.optimization_level)
-  return _internal_optimization_level();
+inline int32_t CompileRequest::cc_opt() const {
+  // @@protoc_insertion_point(field_get:rsh.protocol.CompileRequest.cc_opt)
+  return _internal_cc_opt();
 }
-inline void CompileRequest::_internal_set_optimization_level(int32_t value) {
+inline void CompileRequest::_internal_set_cc_opt(int32_t value) {
   _impl_._has_bits_[0] |= 0x00000008u;
-  _impl_.optimization_level_ = value;
+  _impl_.cc_opt_ = value;
 }
-inline void CompileRequest::set_optimization_level(int32_t value) {
-  _internal_set_optimization_level(value);
-  // @@protoc_insertion_point(field_set:rsh.protocol.CompileRequest.optimization_level)
+inline void CompileRequest::set_cc_opt(int32_t value) {
+  _internal_set_cc_opt(value);
+  // @@protoc_insertion_point(field_set:rsh.protocol.CompileRequest.cc_opt)
 }
 
-// optional .rsh.protocol.Context context = 6;
+// optional int32 bc_opt = 6;
+inline bool CompileRequest::_internal_has_bc_opt() const {
+  bool value = (_impl_._has_bits_[0] & 0x00000010u) != 0;
+  return value;
+}
+inline bool CompileRequest::has_bc_opt() const {
+  return _internal_has_bc_opt();
+}
+inline void CompileRequest::clear_bc_opt() {
+  _impl_.bc_opt_ = 0;
+  _impl_._has_bits_[0] &= ~0x00000010u;
+}
+inline int32_t CompileRequest::_internal_bc_opt() const {
+  return _impl_.bc_opt_;
+}
+inline int32_t CompileRequest::bc_opt() const {
+  // @@protoc_insertion_point(field_get:rsh.protocol.CompileRequest.bc_opt)
+  return _internal_bc_opt();
+}
+inline void CompileRequest::_internal_set_bc_opt(int32_t value) {
+  _impl_._has_bits_[0] |= 0x00000010u;
+  _impl_.bc_opt_ = value;
+}
+inline void CompileRequest::set_bc_opt(int32_t value) {
+  _internal_set_bc_opt(value);
+  // @@protoc_insertion_point(field_set:rsh.protocol.CompileRequest.bc_opt)
+}
+
+// optional .rsh.protocol.Context context = 7;
 inline bool CompileRequest::_internal_has_context() const {
   bool value = (_impl_._has_bits_[0] & 0x00000001u) != 0;
   PROTOBUF_ASSUME(!value || _impl_.context_ != nullptr);
@@ -5263,7 +5306,7 @@ inline void CompileRequest::set_allocated_context(::rsh::protocol::Context* cont
   // @@protoc_insertion_point(field_set_allocated:rsh.protocol.CompileRequest.context)
 }
 
-// optional .rsh.protocol.Environment environment = 7;
+// optional .rsh.protocol.Environment environment = 8;
 inline bool CompileRequest::_internal_has_environment() const {
   bool value = (_impl_._has_bits_[0] & 0x00000002u) != 0;
   PROTOBUF_ASSUME(!value || _impl_.environment_ != nullptr);

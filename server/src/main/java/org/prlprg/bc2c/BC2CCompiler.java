@@ -143,6 +143,8 @@ public class BC2CCompiler {
 class ClosureCompiler {
   private static final String NAME_ENV = "ENV";
   private static final String NAME_CP = "CP";
+
+  // FIXME: either all String or all Value
   private static final Value VAL_NULL = new Value("Rsh_NilValue", false);
   private static final String VAL_TRUE = "VAL_TRUE";
   private static final String VAL_FALSE = "VAL_FALSE";
@@ -230,10 +232,13 @@ class ClosureCompiler {
       case BcInstr.Return() -> compileReturn();
       case BcInstr.Pop() -> pop(1);
       case BcInstr.GetBuiltin(var idx) -> compileGetBuiltin(idx);
-      case BcInstr.PushConstArg(var idx) -> compilePushConstArg(idx);
       case BcInstr.CallBuiltin(var idx) -> compileCall(idx);
       case BcInstr.Call(var idx) -> compileCall(idx);
       case BcInstr.PushArg() -> compilePushArg();
+      case BcInstr.PushNullArg() -> compilePushConstArg(VAL_NULL.expr());
+      case BcInstr.PushTrueArg() -> compilePushConstArg(VAL_TRUE);
+      case BcInstr.PushFalseArg() -> compilePushConstArg(VAL_FALSE);
+      case BcInstr.PushConstArg(var idx) -> compilePushConstArg(constantVAL(idx));
       case BcInstr.SetTag(var idx) -> compileSetTag(idx);
       case BcInstr.BrIfNot(var call, var label) -> compileBrIfNot(call, label);
       case BcInstr.Goto(var label) -> compileGoto(label);
@@ -329,6 +334,10 @@ class ClosureCompiler {
     pop(1);
   }
 
+  private void compilePushConstArg(String v) {
+    body.line("RSH_LIST_APPEND(%s, %s, %s);".formatted(stack.curr(-1), stack.curr(0), v));
+  }
+
   private void compileRegisters() {
     var code = stack.registerInitialization();
     if (code.isPresent()) {
@@ -348,11 +357,6 @@ class ClosureCompiler {
             .map("C%d = R_NilValue"::formatted)
             .collect(Collectors.joining(", ", "BCell ", ";"));
     sec.line(line);
-  }
-
-  private void compilePushConstArg(ConstPool.Idx<SEXP> idx) {
-    body.line(
-        "RSH_LIST_APPEND(%s, %s, %s);".formatted(stack.curr(-1), stack.curr(0), constantVAL(idx)));
   }
 
   private void compileGetBuiltin(ConstPool.Idx<RegSymSXP> idx) {
