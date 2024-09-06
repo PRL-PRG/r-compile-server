@@ -1,7 +1,6 @@
 #pragma once
 
 #include "rsh.hpp"
-#include <Rinternals.h>
 #include <string>
 #include <vector>
 

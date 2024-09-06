@@ -1,6 +1,7 @@
 #include "jit.hpp"
 #include "llvm/ExecutionEngine/Orc/DebugObjectManagerPlugin.h"
 #include "llvm/ExecutionEngine/Orc/EPCDebugObjectRegistrar.h"
+// FIXME: define out own error function
 #include <R_ext/Error.h>
 #include <llvm-17/llvm/ExecutionEngine/Orc/Core.h>
 #include <llvm-17/llvm/Object/Binary.h>

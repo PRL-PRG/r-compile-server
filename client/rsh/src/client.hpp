@@ -1,20 +1,13 @@
 #pragma once
+#include "compiler.hpp"
 #include "protocol.pb.h"
-#include "rsh.hpp"
-#include <R.h>
-#include <Rinternals.h>
-#include <cstdint>
-#include <string>
-#include <vector>
-#include <zmq.hpp>
 
 namespace rsh {
 
 using namespace server::protocol;
 
 // TODO: compiler a CLOSXP
-CompileResponse remote_compile(std::string const &name,
-                               std::vector<uint8_t> const &rds_closure,
-                               u32 opt_level);
+CompileResponse remote_compile(std::vector<uint8_t> const &rds_closure,
+                               CompilerOptions const &opts);
 
 } // namespace rsh

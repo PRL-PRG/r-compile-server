@@ -4,7 +4,6 @@
 #include "rsh.hpp"
 #include "serialize.hpp"
 #include "util.hpp"
-#include <cstdio>
 #include <cstring>
 
 extern "C" {
@@ -38,10 +37,9 @@ SEXP CALL_FUN = nullptr;
 
 SEXP RSH_JIT_FUN_PTR = Rf_install("RSH_JIT_FUN_PTR");
 
-static CompileResponse compile_closure(std::string const &name, SEXP closure,
-                                       u32 opt_level = 3) {
+static CompileResponse compile_closure(SEXP closure, CompilerOptions options) {
   auto closure_bytes = rsh::serialize(closure);
-  return rsh::remote_compile(name, closure_bytes, opt_level);
+  return rsh::remote_compile(closure_bytes, options);
 }
 
 static void *insert_into_jit(CompiledFunction const &compiled_fun) {
@@ -112,26 +110,56 @@ static SEXP create_wrapper_body(SEXP closure, SEXP c_cp) {
   return body;
 }
 
-SEXP compile_fun(SEXP closure, SEXP name, SEXP opt_level_sxp) {
+CompilerOptions CompilerOptions::from_list(SEXP listsxp) {
+  if (TYPEOF(listsxp) != VECSXP) {
+    Rf_error("Expected a list of compiler options");
+  }
+
+  SEXP names = Rf_getAttrib(listsxp, R_NamesSymbol);
+  if (TYPEOF(names) != STRSXP) {
+    Rf_error("Expected named elements in the VECSXP.");
+  }
+
+  CompilerOptions opts;
+
+  for (int i = 0; i < XLENGTH(listsxp); i++) {
+    SEXP namesxp = STRING_ELT(names, i);
+    if (namesxp == R_NilValue) {
+      Rf_error("Unnamed element in the compiler option list.");
+    }
+
+    const char *name = CHAR(namesxp);
+
+    if (!strcmp(name, "name")) {
+      opts.name =
+          vec_element_as_string(listsxp, i, "name option must be a string");
+    } else if (!strcmp(name, "bc_opt")) {
+      opts.bc_opt =
+          vec_element_as_int(listsxp, i, "bc_opt option must be an integer");
+    } else if (!strcmp(name, "cc_opt")) {
+      opts.cc_opt =
+          vec_element_as_int(listsxp, i, "cc_opt option must be an integer");
+    } else if (!strcmp(name, "inplace")) {
+      opts.inplace =
+          vec_element_as_bool(listsxp, i, "inplace option must be a logical");
+    } else {
+      Rf_error("Unknown compiler option %s", name);
+    }
+  }
+  return opts;
+}
+
+SEXP compile(SEXP closure, SEXP options) {
   if (!RSH_JIT_FUN_PTR) {
     Rf_error("The package was not initialized");
   }
 
-  if (TYPEOF(name) != STRSXP || XLENGTH(name) != 1) {
-    Rf_error("Expected a single string as a name");
+  if (TYPEOF(options) != VECSXP) {
+    Rf_error("Expected a list of compiler options");
   }
 
-  if (TYPEOF(opt_level_sxp) != INTSXP || XLENGTH(opt_level_sxp) != 1) {
-    Rf_error("Expected a single integer as an optimization level");
-  }
-
-  u32 opt_level = Rf_asInteger(opt_level_sxp);
-
-  const char *closure_name = CHAR(STRING_ELT(name, 0));
-  char name_str[strlen(closure_name) + 1 + 16];
-  sprintf(name_str, "%s_%p", closure_name, closure);
-
-  auto response = compile_closure(name_str, closure, opt_level);
+  auto opts = CompilerOptions::from_list(options);
+  auto response = compile_closure(closure, opts);
   if (!response.has_result()) {
     Rf_error("Compilation failed: %s", response.failure().c_str());
     return closure;
@@ -142,12 +170,21 @@ SEXP compile_fun(SEXP closure, SEXP name, SEXP opt_level_sxp) {
   SEXP c_cp = PROTECT(create_constant_pool(fun_ptr, compiled_fun));
   SEXP body = PROTECT(create_wrapper_body(closure, c_cp));
 
-  // replace the closure body in place
-  SET_BODY(closure, body);
-
-  // FIXME: add logging primitives
-  Rprintf("Compiled fun %s (fun=%p, jit=%p, body=%p)\n", name_str, closure,
-          fun_ptr, body);
+  if (opts.inplace) {
+    SET_BODY(closure, body);
+    // FIXME: add logging primitives
+    Rprintf("Compiled in place fun %s (symbol=%s, fun=%p, jit=%p, body=%p)\n",
+            opts.name.c_str(), compiled_fun.name().c_str(), closure, fun_ptr,
+            body);
+  } else {
+    SEXP orig = closure;
+    closure = Rf_mkCLOSXP(FORMALS(closure), body, CLOENV(closure));
+    // FIXME: add logging primitives
+    Rprintf(
+        "Replaced compiled fun %s -- %p (symbol=%s, fun=%p, jit=%p, body=%p)\n",
+        opts.name.c_str(), orig, compiled_fun.name().c_str(), closure, fun_ptr,
+        body);
+  }
 
   UNPROTECT(2);
 
@@ -177,6 +214,38 @@ SEXP call_fun(SEXP call, SEXP op, SEXP args, SEXP env) {
   return res;
 }
 
+SEXP is_compiled(SEXP closure) {
+  if (TYPEOF(closure) != CLOSXP) {
+    Rf_error("Expected a closure");
+  }
+
+  SEXP body = BODY(closure);
+  if (TYPEOF(body) != BCODESXP) {
+    return Rf_ScalarLogical(FALSE);
+  }
+
+  SEXP cp = BCODE_CONSTS(body);
+  if (XLENGTH(cp) != 6) {
+    return Rf_ScalarLogical(FALSE);
+  }
+
+  SEXP c_cp = VECTOR_ELT(cp, LENGTH(cp) - 2);
+  if (XLENGTH(c_cp) != 2) {
+    return Rf_ScalarLogical(FALSE);
+  }
+
+  if (TYPEOF(VECTOR_ELT(c_cp, 0)) != EXTPTRSXP) {
+    // TODO: check if the pointer is a valid function, i.e. ORC knows about it
+    return Rf_ScalarLogical(FALSE);
+  }
+
+  if (TYPEOF(VECTOR_ELT(c_cp, 1)) != VECSXP) {
+    return Rf_ScalarLogical(FALSE);
+  }
+
+  return Rf_ScalarLogical(TRUE);
+}
+
 #define RSH_PACKAGE_NAME "rsh"
 
 SEXP initialize() {
@@ -184,7 +253,6 @@ SEXP initialize() {
 
   CALL_FUN = load_symbol_checked("rsh", "C_call_fun");
   BC2C_CALL_TRAMPOLINE_SXP = load_symbol_checked("rsh", "C_call_trampoline");
-
 
   return R_NilValue;
 }
