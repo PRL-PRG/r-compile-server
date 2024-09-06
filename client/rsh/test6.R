@@ -10,7 +10,7 @@ f <- function(x) {
 
 print(f)
 
-rsh::rsh_compile(f, tier = "bytecode", opt_level = 3L)
+rsh::rsh_compile(f, list(tier = "bytecode", bc_opt = 3L))
 print(f)
 
 print(f(5))
@@ -18,12 +18,12 @@ print(f(5))
 stopifnot(f(5) == 52)
 
 # f should be in the compile cache now.
-rsh::rsh_compile(f, tier = "bytecode", opt_level = 3L)
+rsh::rsh_compile(f, list(tier = "bytecode", bc_opt = 3L))
 
 stopifnot(f(5) == 52)
 
 # another opt level so it should be recompiled
-rsh::rsh_compile(f, tier = "bytecode", opt_level = 2L)
+rsh::rsh_compile(f, list(tier = "bytecode", bc_opt = 2L))
 
 stopifnot(f(5) == 52)
 
@@ -32,6 +32,6 @@ f <- function(x) {
 }
 
 # body changed so it should be recompiled
-rsh::rsh_compile(f, tier = "bytecode", opt_level = 2L)
+rsh::rsh_compile(f, list(tier = "bytecode", bc_opt = 2L))
 
 stopifnot(f(5) == 8)
