@@ -9,7 +9,8 @@ void R_init_rsh(DllInfo *dll);
 
 static const R_CallMethodDef callMethods[] = {
     {"initialize", (DL_FUNC)&rsh::initialize, 0},
-    {"compile_fun", (DL_FUNC)&rsh::compile_fun, 3},
+    {"compile", (DL_FUNC)&rsh::compile, 2},
+    {"is_compiled", (DL_FUNC)&rsh::is_compiled, 1},
     {NULL, NULL, 0}};
 
 static const R_ExternalMethodDef externalMethods[] = {

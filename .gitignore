@@ -11,6 +11,7 @@
 ### R ###
 .RData
 .Rhistory
+..Rcheck
 
 ### C ###
 .cache

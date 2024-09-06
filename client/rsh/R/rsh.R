@@ -33,10 +33,6 @@ NULL
   .Call(C_initialize)
 }
 
-rsh_bc2c_opt_level <- function() {
-  as.integer(Sys.getenv("RSH_BC2C_OPT", unset = "0"))
-}
-
 #' Activate the Rsh JIT
 #'
 #' @export
@@ -56,12 +52,22 @@ rsh_jit_disable <- function() {
 #' It compiles the given closure and changes it inplace.
 #'
 #' @param f closure to be compiled
+#' @param options list of BC2C compiler options
 #' @export
-rsh_compile <- function(f, name, opt_level = rsh_bc2c_opt_level()) {
-  if (missing(name)) {
-    name <- as.character(substitute(f))
+rsh_compile <- function(f, options) {
+  if (missing(options)) {
+    options <- list()
   }
-  invisible(.Call(C_compile_fun, f, name, as.integer(opt_level)))
+  if (!is.list(options)) {
+    stop("options must be a list")
+  }
+
+  # FIXME: this does not work, we need to find the closure in the an environment
+  if (is.null(options$name)) {
+    options$name <- as.character(substitute(f))
+  }
+
+  invisible(.Call(C_compile, f, options))
 }
 
 #' Compile given closure
@@ -69,28 +75,33 @@ rsh_compile <- function(f, name, opt_level = rsh_bc2c_opt_level()) {
 #' It makes a copy the given closure and compiles it.
 #'
 #' @param f closure to be compiled
-#' @param options list of options
+#' @param options list of GNU R bytecode compiler options
 #' @return compiled closure
 #' @export
 rsh_cmpfun <- function(f, options) {
-  # FIXME: this does not seem to do what I think it should
-  # make a copy - the compiler::cmpfun takes a function and returns
-  # a new one with BCSXP body (if possible)
-  g <- f
+  o <- list()
 
-  if (missing(options)) {
-    options <- list()
+  if (!missing(options) && is.list(options)) {
+    if (!is.null(options$optimize)) {
+      o$cc_opt <- as.integer(options$optimize)
+      o$bc_opt <- o$cc_opt
+    }
   }
 
-  if (!is.list(options)) {
-    stop("options must be a list")
-  }
-  options <- utils::modifyList(list(optimize = rsh_bc2c_opt_level()), options)
-  print(options)
+  # FIXME: this does not work, we need to find the closure in the an environment
+  o$name <- as.character(substitute(f))
+  o$inplace <- FALSE
 
-  rsh_compile(g, name = as.character(substitute(f)), opt_level = options$optimize)
+  rsh_compile(f, o)
+}
 
-  g
+#' Check if the closure is natively compiled
+#'
+#' @param f closure to be checked
+#' @return TRUE if the closure is compiled, FALSE otherwise
+#' @export
+is_compiled <- function(f) {
+  .Call(C_is_compiled, f)
 }
 
 rsh_override_cmpfun <- function(f) {

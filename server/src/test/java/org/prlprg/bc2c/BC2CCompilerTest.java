@@ -1,6 +1,8 @@
 package org.prlprg.bc2c;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.prlprg.primitive.Logical.FALSE;
+import static org.prlprg.primitive.Logical.TRUE;
 
 import java.io.File;
 import java.io.IOException;
@@ -24,113 +26,103 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
 
     @Test
     public void testReturn() throws Exception {
-        verify("42", (RealSXP v) -> assertEquals(42.0, v.asReal(0)));
+        verify("42", assertReal(42.0));
     }
 
     @Test
     public void testSetVar() throws Exception {
-        verify("x <- 42; x", (RealSXP v) -> assertEquals(42.0, v.asReal(0)));
+        verify("x <- 42; x", assertReal(42.0));
     }
 
     @Test
     public void testSetVar2() throws Exception {
-        verify("y <- 42; x <- y; x", (RealSXP v) -> assertEquals(42.0, v.asReal(0)));
+        verify("y <- 42; x <- y; x", assertReal(42.0));
     }
 
     @Test
     public void testAdd() throws Exception {
-        verify("x <- 42; x + 21", (RealSXP v) -> assertEquals(63.0, v.asReal(0)));
+        verify("x <- 42; x + 21", assertReal(63.0));
 
-        verify("x <- 42L; x + 21L", (IntSXP v) -> assertEquals(63, v.asInt(0)));
+        verify("x <- 42L; x + 21L", assertInt(63));
 
-        verify("x <- 42L; x + 21", (RealSXP v) -> assertEquals(63.0, v.asReal(0)));
+        verify("x <- 42L; x + 21", assertReal(63.0));
 
-        verify(
-                "x <- 42; x + c(1, 2)",
-                (RealSXP v) -> {
-                    assertEquals(2, v.size());
-                    assertEquals(43.0, v.asReal(0));
-                    assertEquals(44.0, v.asReal(1));
-                });
+        verify("x <- 42; x + c(1, 2)", assertReal(43.0, 44.0));
 
-        verify(
-                "x <- c(42, 43); x + c(1, 2)",
-                (RealSXP v) -> {
-                    assertEquals(2, v.size());
-                    assertEquals(43.0, v.asReal(0));
-                    assertEquals(45.0, v.asReal(1));
-                });
+        verify("x <- c(42, 43); x + c(1, 2)", assertReal(43.0, 45.0));
+
+//        verify("x <- 42L; x + c(1, 2)", assertReal(43.0, 44.0));
+//
+//        verify("x <- c(42, 43); x + c(1, 2)", assertReal(43.0, 45.0));
     }
 
     @Test
     public void testRealScalarArith() throws Exception {
-        verify("x <- 42; x + 21", (RealSXP v) -> assertEquals(63.0, v.asReal(0)));
-        verify("x <- 42; x - 21", (RealSXP v) -> assertEquals(21.0, v.asReal(0)));
-        verify("x <- 42; x * 2", (RealSXP v) -> assertEquals(84.0, v.asReal(0)));
-        verify("x <- 42; x / 2", (RealSXP v) -> assertEquals(21.0, v.asReal(0)));
-        verify("x <- 42; x ^ 2", (RealSXP v) -> assertEquals(1764.0, v.asReal(0)));
+        verify("x <- 42; x + 21", assertReal(63.0));
+        verify("x <- 42; x - 21", assertReal(21.0));
+        verify("x <- 42; x * 2", assertReal(84.0));
+        verify("x <- 42; x / 2", assertReal(21.0));
+        verify("x <- 42; x ^ 2", assertReal(1764.0));
     }
 
     @Test
     public void testIntScalarArith() throws Exception {
-        verify("x <- 42L; x + 21L", (IntSXP v) -> assertEquals(63, v.asInt(0)));
-        verify("x <- 42L; x - 21L", (IntSXP v) -> assertEquals(21, v.asInt(0)));
-        verify("x <- 42L; x * 2L", (IntSXP v) -> assertEquals(84, v.asInt(0)));
-        verify("x <- 42L; x / 2L", (RealSXP v) -> assertEquals(21.0, v.asReal(0)));
+        verify("x <- 42L; x + 21L", assertInt(63));
+        verify("x <- 42L; x - 21L", assertInt(21));
+        verify("x <- 42L; x * 2L", assertInt(84));
+        verify("x <- 42L; x / 2L", assertReal(21.0));
     }
 
     // TODO: do some property based testing including NA using R as an oracle
 
     @Test
     public void testArithBuiltins() throws Exception {
-        verify("x <- 42; x %% 5", (RealSXP v) -> assertEquals(2.0, v.asReal(0)));
-        verify("x <- 42; x %/% 5", (RealSXP v) -> assertEquals(8.0, v.asReal(0)));
+        verify("x <- 42; x %% 5", assertReal(2.0));
+        verify("x <- 42; x %/% 5", assertReal(8.0));
     }
 
     @Test
     public void testMath1Builtins() throws Exception {
-        verify("sqrt(4)", (RealSXP v) -> assertEquals(2.0, v.asReal(0)));
-        verify("exp(0)", (RealSXP v) -> assertEquals(1.0, v.asReal(0)));
+        verify("sqrt(4)", assertReal(2.0));
+        verify("exp(0)", assertReal(1.0));
     }
 
     @Test
     public void testUnaryBuiltins() throws Exception {
-        verify("x <- 42; +x", (RealSXP v) -> assertEquals(42.0, v.asReal(0)));
-        verify("x <- 42; -x", (RealSXP v) -> assertEquals(-42.0, v.asReal(0)));
-        verify("x <- -42; +x", (RealSXP v) -> assertEquals(-42.0, v.asReal(0)));
-        verify("x <- -42; -x", (RealSXP v) -> assertEquals(42.0, v.asReal(0)));
-        verify("x <- 42L; +x", (IntSXP v) -> assertEquals(42, v.asInt(0)));
-        verify("x <- 42L; -x", (IntSXP v) -> assertEquals(-42, v.asInt(0)));
-        verify("x <- -42L; +x", (IntSXP v) -> assertEquals(-42, v.asInt(0)));
-        verify("x <- -42L; -x", (IntSXP v) -> assertEquals(42, v.asInt(0)));
-        verify(
-                "x <- c(1, -2); -x",
-                (RealSXP v) -> assertArrayEquals(new Double[]{-1.0, 2.0}, v.coerceTo(Double.class)));
+        verify("x <- 42; +x", assertReal(42.0));
+        verify("x <- 42; -x", assertReal(-42.0));
+        verify("x <- -42; +x", assertReal(-42.0));
+        verify("x <- -42; -x", assertReal(42.0));
+        verify("x <- 42L; +x", assertInt(42));
+        verify("x <- 42L; -x", assertInt(-42));
+        verify("x <- -42L; +x", assertInt(-42));
+        verify("x <- -42L; -x", assertInt(42));
+        verify("x <- c(1, -2); -x", assertReal(-1.0, 2.0));
     }
 
     @Test
     public void testScalarCompare() throws Exception {
-        verify("x <- 42; x < 100", (LglSXP v) -> assertEquals(SEXPs.TRUE, v));
-        verify("x <- 42; x > 100", (LglSXP v) -> assertEquals(SEXPs.FALSE, v));
-        verify("x <- 42; x <= 42", (LglSXP v) -> assertEquals(SEXPs.TRUE, v));
-        verify("x <- 42; x >= 42", (LglSXP v) -> assertEquals(SEXPs.TRUE, v));
-        verify("x <- 42; x == 42", (LglSXP v) -> assertEquals(SEXPs.TRUE, v));
-        verify("x <- 42; x == 100", (LglSXP v) -> assertEquals(SEXPs.FALSE, v));
-        verify("x <- 42; x != 42", (LglSXP v) -> assertEquals(SEXPs.FALSE, v));
-        verify("x <- 42; x != 100", (LglSXP v) -> assertEquals(SEXPs.TRUE, v));
+        verify("x <- 42; x < 100", assertLogical(TRUE));
+        verify("x <- 42; x > 100", assertLogical(FALSE));
+        verify("x <- 42; x <= 42", assertLogical(TRUE));
+        verify("x <- 42; x >= 42", assertLogical(TRUE));
+        verify("x <- 42; x == 42", assertLogical(TRUE));
+        verify("x <- 42; x == 100", assertLogical(FALSE));
+        verify("x <- 42; x != 42", assertLogical(FALSE));
+        verify("x <- 42; x != 100", assertLogical(TRUE));
     }
 
     @Test
     public void testBooleanOperators() throws Exception {
-        verify("x <- TRUE; y <- FALSE; x & y", (LglSXP v) -> assertEquals(SEXPs.FALSE, v));
-        verify("x <- TRUE; y <- FALSE; x | y", (LglSXP v) -> assertEquals(SEXPs.TRUE, v));
-        verify("x <- TRUE; !x", (LglSXP v) -> assertEquals(SEXPs.FALSE, v));
-        verify("x <- 42; !!x", (LglSXP v) -> assertEquals(SEXPs.TRUE, v));
+        verify("x <- TRUE; y <- FALSE; x & y", assertLogical(FALSE));
+        verify("x <- TRUE; y <- FALSE; x | y", assertLogical(TRUE));
+        verify("x <- TRUE; !x", assertLogical(FALSE));
+        verify("x <- 42; !!x", assertLogical(TRUE));
         verify(
                 "x <- c(T,F,T,F); y <- c(T,T,F,F); x | y",
                 (LglSXP v) ->
                         assertArrayEquals(
-                                new Logical[]{Logical.TRUE, Logical.TRUE, Logical.TRUE, Logical.FALSE},
+                                new Logical[]{TRUE, TRUE, TRUE, FALSE},
                                 v.coerceTo(Logical.class)));
     }
 
@@ -142,7 +134,17 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
                         f <- function (x) { x + y }
                         f(42)
                         """,
-                (RealSXP v) -> assertEquals(63.0, v.asReal(0)));
+                assertReal(63.0));
+    }
+
+    @Test
+    public void testNonBytecodeClosure() throws Exception {
+        verify(
+                """
+                        f <- function (x) { if (x) { browser() }; 1 }
+                        f(FALSE)
+                        """,
+                assertReal(1.0));
     }
 
     @Test
@@ -163,7 +165,7 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
                         }
                         f(10)(30)
                         """,
-                (RealSXP v) -> assertEquals(66.0, v.asReal(0)));
+                assertReal(66.0));
     }
 
     @Test
@@ -190,34 +192,63 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
                         }
                         s
                         """,
-                (RealSXP v) -> assertEquals(4950.0, v.asReal(0)));
+                assertReal(4950.0));
     }
 
     @Test
     public void testNA() throws Exception {
-        verify("x <- TRUE;  y <- x; is.na(y)", (LglSXP v) -> assertEquals(SEXPs.FALSE, v));
-        verify("x <- FALSE; y <- x; is.na(y)", (LglSXP v) -> assertEquals(SEXPs.FALSE, v));
-        verify("x <- NA;    y <- x; is.na(y)", (LglSXP v) -> assertEquals(SEXPs.TRUE, v));
-        verify("y <- NA_integer_; is.na(y)", (LglSXP v) -> assertEquals(SEXPs.TRUE, v));
+        verify("x <- TRUE;  y <- x; is.na(y)", assertLogical(FALSE));
+        verify("x <- FALSE; y <- x; is.na(y)", assertLogical(FALSE));
+        verify("x <- NA;    y <- x; is.na(y)", assertLogical(TRUE));
+        verify("y <- NA_integer_; is.na(y)", assertLogical(TRUE));
     }
 
     @Test
     public void testPromise() throws Exception {
-        verify("f <- function(x) x + 1;  y <- 2; f(y*2)", (RealSXP v) -> assertEquals(5, v.asInt(0)));
+        verify("f <- function(x) x + 1;  y <- 2; f(y*2)", assertReal(5));
     }
 
     @Test
     public void testIfElse() throws Exception {
-        verify("x <- 2; if (x == 1) 1 else if (x == 2) 2 else 3", assertRealScalar(2.0));
+        verify("x <- 2; if (x == 1) 1 else if (x == 2) 2 else 3", assertReal(2.0));
     }
 
-    private Consumer<SEXP> assertRealScalar(double v) {
+    private Consumer<SEXP> assertLogical(Logical... v) {
+        return (SEXP s) -> {
+            if (s instanceof LglSXP r) {
+                assertEquals(v.length, r.size());
+                for (int i = 0; i < v.length; i++) {
+                    assertEquals(v[i], r.get(i));
+                }
+            } else {
+                fail("Expected a scalar logical, but got: " + s);
+            }
+        };
+    }
+
+
+    private Consumer<SEXP> assertInt(int... v) {
+        return (SEXP s) -> {
+            if (s instanceof IntSXP r) {
+                assertEquals(v.length, r.size());
+                for (int i = 0; i < v.length; i++) {
+                    assertEquals(v[i], r.asInt(i));
+                }
+            } else {
+                fail("Expected a scalar int, but got: " + s);
+            }
+        };
+    }
+
+    private Consumer<SEXP> assertReal(double... v) {
         return (SEXP s) -> {
             if (s instanceof RealSXP r) {
-                assertEquals(1, r.size());
-                assertEquals(v, r.asReal(0));
+                assertEquals(v.length, r.size());
+                for (int i = 0; i < v.length; i++) {
+                    assertEquals(v[i], r.asReal(i));
+                }
             } else {
-                fail("Expected a scalar real value, but got: " + s);
+                fail("Expected a scalar real, but got: " + s);
             }
         };
     }

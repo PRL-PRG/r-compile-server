@@ -70,17 +70,41 @@ SEXP append_elem(SEXP vec, SEXP element) {
   return v;
 }
 
-SEXP load_symbol_checked(const char *package, const char *name) {
+SEXP load_symbol_checked(const char *package, std::string_view name) {
   SEXP p_sxp = Rf_install(package);
-  SEXP s_sxp = Rf_install(name);
+  SEXP s_sxp = Rf_install(name.data());
   static SEXP triple_colon = Rf_install(":::");
   SEXP expr = PROTECT(Rf_lang3(triple_colon, p_sxp, s_sxp));
   SEXP v = Rf_eval(expr, R_GlobalEnv);
   UNPROTECT(1);
 
   if (v == R_UnboundValue) {
-    Rf_error("Variable '%s' not found", name);
+    Rf_error("Variable '%s' not found", name.data());
   }
 
   return v;
+}
+
+std::string vec_element_as_string(SEXP vec, int i, std::string_view msg) {
+  SEXP el = VECTOR_ELT(vec, i);
+  if (TYPEOF(el) != STRSXP || LENGTH(el) != 1) {
+    Rf_error("%s", msg.data());
+  }
+  return CHAR(STRING_ELT(el, 0));
+}
+
+int vec_element_as_int(SEXP vec, int i, std::string_view msg) {
+  SEXP el = VECTOR_ELT(vec, i);
+  if (TYPEOF(el) != INTSXP || LENGTH(el) != 1) {
+    Rf_error("%s", msg.data());
+  }
+  return INTEGER(el)[0];
+}
+
+bool vec_element_as_bool(SEXP vec, int i, std::string_view msg) {
+  SEXP el = VECTOR_ELT(vec, i);
+  if (TYPEOF(el) != LGLSXP || LENGTH(el) != 1) {
+    Rf_error("%s", msg.data());
+  }
+  return LOGICAL(el)[0];
 }

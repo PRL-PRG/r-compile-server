@@ -1,14 +1,16 @@
 #include "client.hpp"
 #include "protocol.pb.h"
+#include <cstdint>
 #include <iostream>
+#include <vector>
+#include <zmq.hpp>
 
 namespace rsh {
 
 using namespace server::protocol;
 
-CompileResponse remote_compile(std::string const &name,
-                               std::vector<uint8_t> const &rds_closure,
-                               u32 opt_level) {
+CompileResponse remote_compile(std::vector<uint8_t> const &rds_closure,
+                               CompilerOptions const &options) {
   zmq::context_t context(1);
   zmq::socket_t socket(context, zmq::socket_type::req);
 
@@ -16,9 +18,9 @@ CompileResponse remote_compile(std::string const &name,
   socket.connect("tcp://localhost:5555");
 
   Request request;
-  request.mutable_compile()->set_name(name);
-  request.mutable_compile()->set_bc_optimization(3);
-  request.mutable_compile()->set_cc_optimization(opt_level);
+  request.mutable_compile()->set_name(options.name);
+  request.mutable_compile()->set_bc_optimization(options.bc_opt);
+  request.mutable_compile()->set_cc_optimization(options.cc_opt);
   request.mutable_compile()->set_closure(rds_closure.data(),
                                          rds_closure.size());
 
