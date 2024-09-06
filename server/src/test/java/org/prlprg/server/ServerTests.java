@@ -79,7 +79,7 @@ public class ServerTests {
         Messages.CompileRequest.newBuilder()
             .setFunction(f)
             .setTier(Messages.Tier.BASELINE)
-            .setOptimizationLevel(0)
+            .setBcOpt(0)
             .setContext(Messages.Context.newBuilder().build())
             .build();
 

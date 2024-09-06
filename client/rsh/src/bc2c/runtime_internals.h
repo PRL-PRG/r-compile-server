@@ -23,7 +23,7 @@
 extern FUNTAB R_FunTab[];
 extern Rboolean R_Visible; /* Value visibility flag */
 
-#ifdef NDEBUG
+#ifdef RSH_INLINE
 #define INLINE inline __attribute__((always_inline))
 #else
 #define INLINE

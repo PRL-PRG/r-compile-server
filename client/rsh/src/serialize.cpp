@@ -1,5 +1,5 @@
 #include "serialize.hpp"
-#include <Rinternals.h>
+#include "rsh.hpp"
 #include <cstring>
 
 namespace rsh {
