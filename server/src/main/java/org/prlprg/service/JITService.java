@@ -9,6 +9,9 @@ import org.prlprg.bc2c.BC2CCompiler;
 import org.prlprg.session.RSession;
 import org.prlprg.sexp.CloSXP;
 
+// TODO: e should rename/refactor all this package and this class (because we also have a
+// CompileService in the server)
+
 public class JITService {
   private final RSession rsession;
 

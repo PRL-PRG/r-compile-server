@@ -12,6 +12,7 @@ import org.prlprg.RVersion;
 import org.prlprg.bc.BCCompiler;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.rds.RDSWriter;
+import org.prlprg.service.JITService;
 import org.prlprg.session.GNURSession;
 import org.prlprg.sexp.BCodeSXP;
 import org.prlprg.sexp.CloSXP;
@@ -29,6 +30,7 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
   // not the Bc (or BcCodeSXP)
   // Key is (hash, optimisationLevel)
   private HashMap<Pair<Long, Integer>, ByteString> bcCache = new HashMap<>();
+  private JITService jitService = null; // TODO: merge it with the compile service
 
   // TODO: cache for native code, which should also include contexts
 
@@ -46,7 +48,6 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
     // Parse the request
     Messages.Function function = request.getFunction();
     Messages.Tier tier = request.getTier(); // Default is baseline
-    int optimizationLevel = request.getBcOpt(); // default is 0
     Messages.Context context = request.getContext(); // null if not provided
 
     logger.info(
@@ -54,53 +55,73 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
             + function.getName()
             + " at tier "
             + tier
-            + " with optimization level "
-            + optimizationLevel);
+            + " with bytecode level "
+            + request.getBcOpt()
+            + " and native optimization level "
+            + request.getCcOpt());
 
     // Compile the code and build response
     Messages.CompileResponse.Builder response = Messages.CompileResponse.newBuilder();
-
-    // First see if we have the hash in the cache
-    var bcKey = Pair.of(function.getHash(), optimizationLevel);
-    ByteString cached = bcCache.get(bcKey);
-    if (cached != null) {
-      logger.info("Found " + function.getName() + " in cache. No recompilation.");
-      try {
-        response.setCode(cached);
-      } catch (Exception e) {
-        throw new RuntimeException("Impossible to serialize the bytecode");
-      }
-    } else {
-      logger.info(
-          "Compile function "
-              + function.getName()
-              + " with optimisation level "
-              + optimizationLevel
-              + ": not found in cache.");
-      if (function.hasBody()) {
+    if (tier.equals(Messages.Tier.BASELINE)) {
+      // First see if we have the hash in the cache
+      var bcKey = Pair.of(function.getHash(), request.getBcOpt());
+      ByteString cached = bcCache.get(bcKey);
+      if (cached != null) {
+        logger.info("Found " + function.getName() + " in cache. No recompilation.");
         try {
-          ByteString serializedBc =
-              compileClosure(function.getBody(), optimizationLevel, responseObserver);
-          response.setCode(serializedBc);
-          // Add it to the cache
-          bcCache.put(bcKey, serializedBc);
+          response.setCode(cached);
         } catch (Exception e) {
-          // See
-          // https://github.com/grpc/grpc-java/blob/master/examples/src/main/java/io/grpc/examples/errorhandling/DetailErrorSample.java
-          // We could have more details using that:
-          // https://github.com/grpc/grpc-java/blob/master/examples/src/main/java/io/grpc/examples/errordetails/ErrorDetailsExample.java
-          responseObserver.onError(
-              Status.INTERNAL
-                  .withDescription(
-                      "Cannot compile function " + function.getName() + " ; " + e.getMessage())
-                  .asRuntimeException());
+          throw new RuntimeException("Impossible to serialize the bytecode");
         }
-      } else { // No body
-        // we need to ask the client for the body
+      } else {
         logger.info(
-            "No body sent with the request for function "
+            "Compile function "
                 + function.getName()
-                + ". Cannot compile.");
+                + " with optimisation level "
+                + request.getBcOpt()
+                + ": not found in cache.");
+        if (function.hasBody()) {
+          try {
+            ByteString serializedBc =
+                compileBcClosure(function.getBody(), request.getBcOpt(), responseObserver);
+            response.setCode(serializedBc);
+            // Add it to the cache
+            bcCache.put(bcKey, serializedBc);
+          } catch (Exception e) {
+            // See
+            // https://github.com/grpc/grpc-java/blob/master/examples/src/main/java/io/grpc/examples/errorhandling/DetailErrorSample.java
+            // We could have more details using that:
+            // https://github.com/grpc/grpc-java/blob/master/examples/src/main/java/io/grpc/examples/errordetails/ErrorDetailsExample.java
+            responseObserver.onError(
+                Status.INTERNAL
+                    .withDescription(
+                        "Cannot compile function " + function.getName() + " ; " + e.getMessage())
+                    .asRuntimeException());
+          }
+        } else { // No body
+          // TODO: we need to ask the client for the body
+          logger.info(
+              "No body sent with the request for function "
+                  + function.getName()
+                  + ". Cannot compile.");
+        }
+      }
+    } else { // OPTIMIZED tier => native
+      try {
+        var closure = (CloSXP) RDSReader.readByteString(session, function.getBody());
+        // TODO: rewrite this here to reuse the bytecode cache
+        // TODO: add a native cache
+        var nativeClosure =
+            jitService.execute(function.getName(), closure, request.getBcOpt(), request.getCcOpt());
+        response.setCode(ByteString.copyFrom(nativeClosure.code()));
+        ByteString constantPool = RDSWriter.writeByteString(nativeClosure.constantPool());
+        response.setConstants(constantPool);
+      } catch (Exception e) {
+        responseObserver.onError(
+            Status.INTERNAL
+                .withDescription(
+                    "Cannot compile function " + function.getName() + " ; " + e.getMessage())
+                .asRuntimeException());
       }
     }
 
@@ -137,6 +158,8 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
     lib_dir = lib_dir.replaceFirst("^~", System.getProperty("user.home"));
     session = new GNURSession(convertVersion(RVersion), r_dir, Path.of(lib_dir));
 
+    jitService = new JITService(session);
+
     // TODO: Look into our cache if we have the packages.
     // Request the packages for those we do not have hashes for.
 
@@ -148,7 +171,7 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
     return new RVersion(version.getMajor(), version.getMinor(), version.getPatch());
   }
 
-  private ByteString compileClosure(
+  private ByteString compileBcClosure(
       ByteString body,
       int optimizationLevel,
       StreamObserver<Messages.CompileResponse> responseObserver) {
