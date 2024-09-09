@@ -145,7 +145,9 @@ public class BC2CCompiler {
 
 // TODO: extract labels and cells into its own classes
 class ClosureCompiler {
+    // FIXME: rename to VAR_RHO
     private static final String NAME_ENV = "ENV";
+    // FIXME: rename to VAR_CCP
     private static final String NAME_CP = "CP";
 
     // FIXME: either all String or all Value
@@ -252,11 +254,16 @@ class ClosureCompiler {
             case BcInstr.MakeClosure(var idx) -> compileMakeClosure(idx);
             case BcInstr.CheckFun() -> compileCheckFun();
             case BcInstr.MakeProm(var idx) -> compileMakeProm(idx);
+            case BcInstr.Dollar(var call, var symbol) -> compilerDollar(call, symbol);
 
             default -> throw new UnsupportedOperationException(instr + ": not supported");
         }
         body.comment("end: " + instr);
         body.nl();
+    }
+
+    private void compilerDollar(ConstPool.Idx<LangSXP> call, ConstPool.Idx<RegSymSXP> symbol) {
+        popPush(1, "Rsh_dollar(%s, %s, %s, %s)".formatted(stack.curr(0), constantSXP(call), constantSXP(symbol), NAME_ENV), false);
     }
 
     private void compileMakeProm(ConstPool.Idx<SEXP> idx) {
@@ -326,7 +333,7 @@ class ClosureCompiler {
     private void compileSetTag(ConstPool.Idx<StrOrRegSymSXP> idx) {
         body.line(
                 """
-                        if (TYPEOF(%s) != SPECIALSXP) {
+                        if (TYPEOF(VAL_SXP(%s)) != SPECIALSXP) {
                           RSH_SET_TAG(%s, %s);
                         }"""
                         .formatted(stack.curr(-2), stack.curr(0), constantVAL(idx)));

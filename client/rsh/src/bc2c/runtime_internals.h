@@ -52,6 +52,9 @@ SEXP do_relop_dflt(SEXP call, SEXP op, SEXP x, SEXP y);
 SEXP do_math1(SEXP call, SEXP op, SEXP args, SEXP env);
 SEXP R_unary(SEXP call, SEXP op, SEXP s1);
 SEXP do_logic(SEXP call, SEXP op, SEXP args, SEXP env);
+int tryDispatch(char *generic, SEXP call, SEXP x, SEXP rho, SEXP *pv);
+SEXP R_subset3_dflt(SEXP x, SEXP input, SEXP call);
+SEXP CreateTag(SEXP x);
 
 #define MAYBE_MISSING_ARGUMENT_ERROR(symbol, keepmiss, rho)                    \
   do {                                                                         \

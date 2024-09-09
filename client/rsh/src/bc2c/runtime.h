@@ -702,12 +702,13 @@ static INLINE Rboolean Rsh_is_true(Value value, SEXP call, SEXP rho) {
     INCREMENT_LINKS(CAR(__elem__));                                            \
   } while (0)
 
-#define RSH_SET_TAG(/* SEXP */ v, /* SEXP */ t)                                \
+#define RSH_SET_TAG(/* Value */ v, /* Value */ t)                              \
   do {                                                                         \
-    SEXP __tag__ = (t);                                                        \
+    SEXP __v__ = VAL_SXP((v));                                                 \
+    SEXP __tag__ = val_as_sexp((t));                                           \
     if (__tag__ != R_NilValue) {                                               \
-      if (v != R_NilValue)                                                     \
-        SET_TAG(v, CreateTag(__tag__));                                        \
+      if (__v__ != R_NilValue)                                                 \
+        SET_TAG(__v__, CreateTag(__tag__));                                    \
     }                                                                          \
   } while (0)
 
@@ -1098,6 +1099,27 @@ static INLINE void Rsh_make_prom(Value fun, Value *args_head, Value *args_tail,
   if (value != Rsh_UnboundValue) {
     RSH_LIST_APPEND(*args_head, *args_tail, value);
   }
+}
+
+static INLINE Value Rsh_dollar(Value x, SEXP call, SEXP symbol, SEXP rho) {
+  SEXP value_sxp;
+
+  SEXP x_sxp = val_as_sexp(x);
+  int dispatched = FALSE;
+
+  if (isObject(x_sxp)) {
+    SEXP ncall = PROTECT(Rf_duplicate(call));
+    SETCAR(CDDR(ncall), Rf_ScalarString(symbol));
+    dispatched = tryDispatch("$", ncall, x_sxp, rho, &value_sxp);
+    UNPROTECT(1);
+  }
+
+  if (!dispatched) {
+    value_sxp = R_subset3_dflt(x_sxp, PRINTNAME(symbol), call);
+  }
+
+  R_Visible = TRUE;
+  return sexp_as_val(value_sxp);
 }
 
 #endif // RUNTIME_H
