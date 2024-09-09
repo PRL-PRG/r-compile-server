@@ -1,24 +1,30 @@
 package org.prlprg.server;
 
+import com.google.common.io.Files;
 import com.google.protobuf.ByteString;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
+import java.io.File;
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.logging.Logger;
 import javax.annotation.Nullable;
 import org.prlprg.RVersion;
 import org.prlprg.bc.BCCompiler;
+import org.prlprg.bc.Bc;
+import org.prlprg.bc2c.BC2CCompiler;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.rds.RDSWriter;
-import org.prlprg.service.JITService;
+import org.prlprg.service.NativeClosure;
+import org.prlprg.service.RshCompiler;
 import org.prlprg.session.GNURSession;
-import org.prlprg.sexp.BCodeSXP;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.util.Pair;
+import org.prlprg.util.Triple;
 
 class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
   private static final Logger logger = Logger.getLogger(CompileServer.class.getName());
@@ -26,13 +32,15 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
   private @Nullable GNURSession session = null;
   // Cache for all values (including functions)
   private HashMap<ByteString, SEXP> cache = new HashMap<>();
+
   // Cache for byte-code, only for functions. We keep the already serialized code in the cache
   // not the Bc (or BcCodeSXP)
   // Key is (hash, optimisationLevel)
-  private HashMap<Pair<Long, Integer>, ByteString> bcCache = new HashMap<>();
-  private JITService jitService = null; // TODO: merge it with the compile service
-
-  // TODO: cache for native code, which should also include contexts
+  private final HashMap<Pair<Long, Integer>, Pair<Bc, ByteString>> bcCache = new HashMap<>();
+  // Cache for native code.
+  // Key is (hash, bcOpt, ccOpt)
+  private final HashMap<Triple<Long, Integer, Integer>, NativeClosure> nativeCache =
+      new HashMap<>();
 
   // Testing externally: grpcurl -plaintext -d '{"function":{"name": "testFunc"}}' 0.0.0.0:8980
   // CompileService.Compile
@@ -62,71 +70,120 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
 
     // Compile the code and build response
     Messages.CompileResponse.Builder response = Messages.CompileResponse.newBuilder();
-    if (tier.equals(Messages.Tier.BASELINE)) {
-      // First see if we have the hash in the cache
-      var bcKey = Pair.of(function.getHash(), request.getBcOpt());
-      ByteString cached = bcCache.get(bcKey);
-      if (cached != null) {
-        logger.info("Found " + function.getName() + " in cache. No recompilation.");
+    response.setTier(tier);
+
+    // Cache requests
+    NativeClosure ccCached = null;
+    var nativeKey = Triple.of(function.getHash(), request.getBcOpt(), request.getCcOpt());
+    if (tier.equals(Messages.Tier.OPTIMIZED)) {
+      ccCached = nativeCache.get(nativeKey);
+      if (ccCached != null) {
+        logger.info("Found " + function.getName() + " in native cache. No recompilation.");
+        response.setCode(ccCached.code());
+        response.setConstants(ccCached.constantPool());
+      }
+    }
+
+    Pair<Bc, ByteString> bcCached = null;
+    // We also have a look whether we have a cached bytecode for the native compilation
+    var bcKey = Pair.of(function.getHash(), request.getBcOpt());
+    if (tier.equals((Messages.Tier.BASELINE)) || ccCached == null) {
+      bcCached = bcCache.get(bcKey);
+      if (bcCached != null) {
+        logger.info("Found " + function.getName() + " in bytecode cache. No recompilation.");
+        response.setCode(bcCached.second());
+      }
+    }
+
+    // We do not have the request version in cache
+    // Compile the body if we have it
+    if (!function.hasBody()) {
+      logger.info(
+          "No body sent with the request for function " + function.getName() + ". Cannot compile.");
+      responseObserver.onError(
+          Status.INVALID_ARGUMENT
+              .withDescription("No body sent with the request for function " + function.getName())
+              .asRuntimeException());
+      // TODO: send a request to the client to get the body
+    } else {
+      if ((tier.equals(Messages.Tier.BASELINE) && bcCached == null)
+          || (tier.equals(Messages.Tier.OPTIMIZED) && ccCached == null)) {
+        logger.info(
+            "Compile function "
+                + function.getName()
+                + " to bytecode with optimisation level "
+                + request.getBcOpt()
+                + ": not found in cache.");
         try {
-          response.setCode(cached);
+          var bc = compileBcClosure(function.getBody(), request.getBcOpt());
+          ByteString serializedBc = RDSWriter.writeByteString(SEXPs.bcode(bc));
+          response.setCode(serializedBc);
+          bcCached = Pair.of(bc, serializedBc); // potentially used for the native compilation also
+          // Add it to the cache
+          bcCache.put(bcKey, bcCached);
         } catch (Exception e) {
-          throw new RuntimeException("Impossible to serialize the bytecode");
+          // See
+          // https://github.com/grpc/grpc-java/blob/master/examples/src/main/java/io/grpc/examples/errorhandling/DetailErrorSample.java
+          // We could have more details using that:
+          // https://github.com/grpc/grpc-java/blob/master/examples/src/main/java/io/grpc/examples/errordetails/ErrorDetailsExample.java
+          responseObserver.onError(
+              Status.INTERNAL
+                  .withDescription(
+                      "Cannot bytecode compile function "
+                          + function.getName()
+                          + " ; "
+                          + e.getMessage())
+                  .asRuntimeException());
         }
-      } else {
+      }
+      if (tier.equals(Messages.Tier.OPTIMIZED) && ccCached == null) { // OPTIMIZED tier => native
         logger.info(
             "Compile function "
                 + function.getName()
                 + " with optimisation level "
                 + request.getBcOpt()
+                + " and native level "
+                + request.getCcOpt()
                 + ": not found in cache.");
-        if (function.hasBody()) {
-          try {
-            ByteString serializedBc =
-                compileBcClosure(function.getBody(), request.getBcOpt(), responseObserver);
-            response.setCode(serializedBc);
-            // Add it to the cache
-            bcCache.put(bcKey, serializedBc);
-          } catch (Exception e) {
-            // See
-            // https://github.com/grpc/grpc-java/blob/master/examples/src/main/java/io/grpc/examples/errorhandling/DetailErrorSample.java
-            // We could have more details using that:
-            // https://github.com/grpc/grpc-java/blob/master/examples/src/main/java/io/grpc/examples/errordetails/ErrorDetailsExample.java
-            responseObserver.onError(
-                Status.INTERNAL
-                    .withDescription(
-                        "Cannot compile function " + function.getName() + " ; " + e.getMessage())
-                    .asRuntimeException());
-          }
-        } else { // No body
-          // TODO: we need to ask the client for the body
-          logger.info(
-              "No body sent with the request for function "
-                  + function.getName()
-                  + ". Cannot compile.");
+        // At this point, we have already the bytecode, whether we got it from the cache or we
+        // compiled it
+        try {
+          assert bcCached != null;
+          var bc2cCompiler = new BC2CCompiler(bcCached.first());
+          var module = bc2cCompiler.finish();
+          var input = File.createTempFile("cfile", ".c");
+          var f = Files.newWriter(input, Charset.defaultCharset());
+          module.file().writeTo(f);
+          var output = File.createTempFile("ofile", ".o");
+
+          RshCompiler.getInstance(request.getCcOpt())
+              .createBuilder(input.getPath(), output.getPath())
+              .flag("-c")
+              .compile();
+
+          var res = Files.asByteSource(output).read();
+          var serializedConstantPool = RDSWriter.writeByteString(module.constantPool());
+
+          ccCached =
+              new NativeClosure(
+                  ByteString.copyFrom(res), module.topLevelFunName(), serializedConstantPool);
+          nativeCache.put(nativeKey, ccCached);
+          response.setCode(ccCached.code());
+          response.setConstants(ccCached.constantPool());
+        } catch (Exception e) {
+          responseObserver.onError(
+              Status.INTERNAL
+                  .withDescription(
+                      "Cannot native compile function "
+                          + function.getName()
+                          + " ; "
+                          + e.getMessage())
+                  .asRuntimeException());
         }
-      }
-    } else { // OPTIMIZED tier => native
-      try {
-        var closure = (CloSXP) RDSReader.readByteString(session, function.getBody());
-        // TODO: rewrite this here to reuse the bytecode cache
-        // TODO: add a native cache
-        var nativeClosure =
-            jitService.execute(function.getName(), closure, request.getBcOpt(), request.getCcOpt());
-        response.setCode(ByteString.copyFrom(nativeClosure.code()));
-        ByteString constantPool = RDSWriter.writeByteString(nativeClosure.constantPool());
-        response.setConstants(constantPool);
-      } catch (Exception e) {
-        responseObserver.onError(
-            Status.INTERNAL
-                .withDescription(
-                    "Cannot compile function " + function.getName() + " ; " + e.getMessage())
-                .asRuntimeException());
       }
     }
 
     // Send the response
-    response.setTier(tier);
     responseObserver.onNext(response.build());
     responseObserver.onCompleted();
   }
@@ -158,8 +215,6 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
     lib_dir = lib_dir.replaceFirst("^~", System.getProperty("user.home"));
     session = new GNURSession(convertVersion(RVersion), r_dir, Path.of(lib_dir));
 
-    jitService = new JITService(session);
-
     // TODO: Look into our cache if we have the packages.
     // Request the packages for those we do not have hashes for.
 
@@ -171,12 +226,8 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
     return new RVersion(version.getMajor(), version.getMinor(), version.getPatch());
   }
 
-  private ByteString compileBcClosure(
-      ByteString body,
-      int optimizationLevel,
-      StreamObserver<Messages.CompileResponse> responseObserver) {
+  private Bc compileBcClosure(ByteString body, int optimizationLevel) {
     SEXP closure = null;
-    ByteString serializedBc = null;
     try {
       assert session != null;
       closure = RDSReader.readByteString(session, body);
@@ -186,21 +237,13 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
     if (closure instanceof CloSXP c) {
       BCCompiler compiler = new BCCompiler(c, session);
       compiler.setOptimizationLevel(optimizationLevel);
-      var res = compiler.compile();
-      if (res.isEmpty()) {
-        throw new RuntimeException("Cannot compile a closure with a browser call");
-      } else {
-        BCodeSXP bc = SEXPs.bcode(res.get());
-
-        try {
-          serializedBc = RDSWriter.writeByteString(bc);
-        } catch (Exception e) {
-          throw new RuntimeException("Impossible to serialize the bytecode");
-        }
+      var bc = compiler.compile();
+      if (bc.isEmpty()) {
+        throw new RuntimeException("Bytecode compilation failed");
       }
+      return bc.get();
     } else {
       throw new RuntimeException("Not a closure");
     }
-    return serializedBc;
   }
 }
