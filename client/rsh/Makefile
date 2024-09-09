@@ -10,25 +10,31 @@ R_HOME ?= $(BASE_DIR)/external/R
 R := $(R_HOME)/bin/R --slave --no-restore
 LLVM_R := LD_PRELOAD=$(LLVM_LIB) $(R)
 
-.PHONY: all build check document test install setup
-
+.PHONY: all
 all: install
 
+.PHONY: build
 build:
 	$(R) CMD build .
 
+.PHONY: clean
 clean:
 	-rm -f rsh*tar.gz
 	-rm -fr rsh.Rcheck
 	-rm -rf src/*.so
 	-find src -name '*.o' -exec rm {} \;
 
+.PHONY: install
 install:
 	$(LLVM_R) CMD INSTALL --install-tests --use-LTO .
 
-setup:
-	$(R) -e 'install.packages(c("microbenchmark", "tinytests"), repos="https://cloud.r-project.org", Ncpus=4)'
-	$(BEAR) -- $(MAKE) install
+.PHONY: dependencies
+dependencies:
+	$(R) -e 'install.packages(c("microbenchmark"), repos="https://cloud.r-project.org", Ncpus=4)'
+
+.PHONY: setup
+setup: dependencies
+	$(BEAR) -- $(MAKE) clean install
 
 TEST_DIR = $(RSH_HOME)/tests
 TEST_R = R_PROFILE_USER=$(TEST_DIR)/Rprofile.site $(LLVM_R) -f
@@ -54,7 +60,21 @@ test:
 
 BENCH_ITER := 30
 
+BENCH_DIR = $(RSH_HOME)/inst/benchmarks
+BENCH_R = R_PROFILE_USER=$(BENCH_DIR)/Rprofile.site $(LLVM_R) -f
+
 .PHONY: benchmark
 benchmark:
-	$(LLVM_R) -f inst/benchmarks/simple/harness.R --args super-while $(BENCH_ITER) 2000000
+	@for file in $$(find $(BENCH_DIR) -mindepth 2 -name "*.R"); do \
+		test=$$(basename $$file); \
+		echo "$(TXT_BOLD)┌──── $$test ...$(TXT_NORM)"; \
+		$(BENCH_R) $(BENCH_DIR)/harness.R --args $${file%.*}; \
+		exit=$$?; \
+		echo -n "$(TXT_BOLD)└──── $$test: "; \
+	  if [ $$exit -eq 0 ]; then \
+			echo "$(TXT_GREEN)OK$(TXT_NORM)"; \
+		else \
+		echo "$(TXT_RED)FAIL$(NO_NORM) $$exit$(TXT_NORM)"; \
+		fi; \
+	done
 
