@@ -213,6 +213,11 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
         verify("x <- 2; if (x == 1) 1 else if (x == 2) 2 else 3", assertReal(2.0));
     }
 
+    @Test
+    public void testDollar() throws Exception {
+        verify("x <- list(a=1, b=2); x$a", assertReal(1.0));
+    }
+
     private Consumer<SEXP> assertLogical(Logical... v) {
         return (SEXP s) -> {
             if (s instanceof LglSXP r) {
