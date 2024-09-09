@@ -11,7 +11,7 @@ R := $(R_HOME)/bin/R --slave --no-restore
 LLVM_R := LD_PRELOAD=$(LLVM_LIB) $(R)
 
 .PHONY: all
-all: install
+all: install test benchmark
 
 .PHONY: build
 build:
