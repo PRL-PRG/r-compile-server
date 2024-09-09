@@ -1,0 +1,6 @@
+options(error = function() {
+  traceback(3)
+  quit(status = 1, save = "no")
+})
+
+# vim: set ft=r:
