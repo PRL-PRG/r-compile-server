@@ -14,9 +14,7 @@ static const R_CallMethodDef callMethods[] = {
     {NULL, NULL, 0}};
 
 static const R_ExternalMethodDef externalMethods[] = {
-    {"call_fun", (DL_FUNC)&rsh::call_fun, -1},
-    {"call_trampoline", (DL_FUNC)&Rsh_call_trampoline, -1},
-    {NULL, NULL, 0}};
+    {"call_trampoline", (DL_FUNC)&Rsh_call_trampoline, -1}, {NULL, NULL, 0}};
 
 void R_init_rsh(DllInfo *dll) {
   R_registerRoutines(dll, NULL, callMethods, NULL, externalMethods);
