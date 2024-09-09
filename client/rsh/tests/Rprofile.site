@@ -1,0 +1,30 @@
+options(error = function() {
+  traceback(3)
+  quit(status = 1, save = "no")
+})
+
+expect_false <- function(expr) {
+  expr <- force(expr)
+  stopifnot(!expr)
+}
+
+expect_true <- function(expr) {
+  expr <- force(expr)
+  stopifnot(expr)
+}
+
+expect_equals <- function(a, b) {
+  a <- force(a)
+  b <- force(b)
+  stopifnot(identical(a, b))
+}
+
+# effectivelly preventing the functions from RSH compilation
+for (x in ls()) {
+  f <- get(x)
+  if (is.function(f)) {
+      assign(x, compiler::cmpfun(f))
+  }
+}
+
+# vim: set ft=r:

@@ -170,20 +170,19 @@ SEXP compile(SEXP closure, SEXP options) {
   SEXP c_cp = PROTECT(create_constant_pool(fun_ptr, compiled_fun));
   SEXP body = PROTECT(create_wrapper_body(closure, c_cp));
 
+  // FIXME: add logging primitives
   if (opts.inplace) {
     SET_BODY(closure, body);
-    // FIXME: add logging primitives
     Rprintf("Compiled in place fun %s (symbol=%s, fun=%p, jit=%p, body=%p)\n",
             opts.name.c_str(), compiled_fun.name().c_str(), closure, fun_ptr,
             body);
   } else {
-    SEXP orig = closure;
+    SEXP orig_closure = closure;
     closure = Rf_mkCLOSXP(FORMALS(closure), body, CLOENV(closure));
-    // FIXME: add logging primitives
-    Rprintf(
-        "Replaced compiled fun %s -- %p (symbol=%s, fun=%p, jit=%p, body=%p)\n",
-        opts.name.c_str(), orig, compiled_fun.name().c_str(), closure, fun_ptr,
-        body);
+    Rprintf("Compiled fun %s (symbol=%s, orig_fun=%p, new_fun=%p, jit=%p, "
+            "body=%p)\n",
+            opts.name.c_str(), compiled_fun.name().c_str(), orig_closure,
+            closure, fun_ptr, body);
   }
 
   UNPROTECT(2);
