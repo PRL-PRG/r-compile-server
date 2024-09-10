@@ -149,7 +149,9 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
         // compiled it
         try {
           assert bcCached != null;
-          var bc2cCompiler = new BC2CCompiler(bcCached.first());
+          // Name should be fully decided by the client?
+          var name = function.getName() + "_" + function.getHash();
+          var bc2cCompiler = new BC2CCompiler(bcCached.first(), name);
           var module = bc2cCompiler.finish();
           var input = File.createTempFile("cfile", ".c");
           var f = Files.newWriter(input, Charset.defaultCharset());
