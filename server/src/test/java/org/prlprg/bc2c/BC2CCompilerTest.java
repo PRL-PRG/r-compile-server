@@ -279,7 +279,8 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
             .orElseThrow(() -> new RuntimeException("Compilation did not produce byte code"));
 
     try {
-      var bc2c = new BC2CCompiler(bc);
+      var name = "f_" + (bc.hashCode() < 0 ? "n" + -bc.hashCode() : bc.hashCode());
+      var bc2c = new BC2CCompiler(bc, name);
       var module = bc2c.finish();
 
       RDSWriter.writeFile(cpFile, module.constantPool());
