@@ -9,5 +9,8 @@
         <module name="r-compile-server" />
       </profile>
     </annotationProcessing>
+    <bytecodeTargetLevel>
+      <module name="code" target="22" />
+    </bytecodeTargetLevel>
   </component>
 </project>
