@@ -95,11 +95,11 @@ extern SEXP R_LOGIC2_OPS[];
 #endif
 
 #define RSH_R_SYMBOLS                                                          \
-  X("[", Rsh_SubsetSym)                                                        \
-  X("[[", Rsh_Subset2Sym)                                                      \
-  X("value", Rsh_ValueSym)                                                     \
-  X("[<-", Rsh_SubassignSym)                                                   \
-  X("[[<-", Rsh_Subassign2Sym)
+  X([, Rsh_SubsetSym)                                                        \
+  X([[, Rsh_Subset2Sym)                                                      \
+  X(value, Rsh_ValueSym)                                                     \
+  X([<-, Rsh_SubassignSym)                                                   \
+  X([[<-, Rsh_Subassign2Sym)
 
 #ifndef RSH_TESTS
 #define X(a, b) extern SEXP b;
@@ -1340,7 +1340,7 @@ static INLINE Value Rsh_vecsubassign(Value x, Value rhs, Value i, SEXP call,
 
   if (VAL_TAG(rhs) && VAL_IS_INT(i) && VAL_TAG(rhs) == TYPEOF(vec)) {
     R_xlen_t idx = VAL_INT(i);
-    if (i > 0 && i <= XLENGTH(vec)) {
+    if (idx > 0 && idx <= XLENGTH(vec)) {
       switch (TYPEOF(vec)) {
       case REALSXP:
         REAL(vec)[idx - 1] = VAL_DBL(rhs);
@@ -1385,6 +1385,14 @@ static INLINE Value Rsh_vecsubassign(Value x, Value rhs, Value i, SEXP call,
   }
   UNPROTECT(1);
   return SXP_TO_VAL(vec);
+}
+
+static INLINE Value Rsh_getintlbuiltin(SEXP symbol) {
+  SEXP value = INTERNAL(symbol);
+  if (TYPEOF(value) != BUILTINSXP) {
+    Rf_error("there is no .Internal function '%s'", CHAR(PRINTNAME(symbol)));
+  }
+  return SXP_TO_VAL(value);
 }
 
 #endif // RUNTIME_H

@@ -245,6 +245,11 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
         verify("x <- c(1,2,3); x[1] <- 2; x", assertReal(2.0, 2.0, 3.0));
     }
 
+    @Test
+    public void testGetIntBuiltin() throws Exception {
+        verify("vector(length=2)", assertLogical(FALSE, FALSE));
+    }
+
     private Consumer<SEXP> assertLogical(Logical... v) {
         return (SEXP s) -> {
             if (s instanceof LglSXP r) {

@@ -45,6 +45,7 @@ JIT_DEF SEXP Rsh_initialize_runtime(void) {
   Rsh_NilValue = SXP_TO_VAL(R_NilValue);
   Rsh_UnboundValue = SXP_TO_VAL(Rsh_UnboundValue);
   LOAD_R_BUILTIN(NOT_OP, "!");
+  // FIXME: move to the Rsh_Symbols defien
   DOTEXTERNAL2_SYM = Rf_install(".External2");
 
 #ifdef RSH_TESTS
