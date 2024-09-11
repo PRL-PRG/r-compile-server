@@ -7,6 +7,10 @@
     UNPROTECT(1);                                                              \
   } while (0)
 
+#define X(a, b) SEXP b;
+RSH_R_SYMBOLS
+#undef X
+
 JIT_DEF SEXP Rsh_initialize_runtime(void) {
 #define X(a, b) LOAD_R_BUILTIN(R_ARITH_OPS[b], #a);
   X_ARITH_OPS
@@ -32,6 +36,10 @@ JIT_DEF SEXP Rsh_initialize_runtime(void) {
 #undef X
 #define X(a, b) R_UNARY_OP_SYMS[b] = Rf_install(#a);
   X_UNARY_OPS
+#undef X
+
+#define X(a, b) b = Rf_install(#a);
+  RSH_R_SYMBOLS
 #undef X
 
   Rsh_NilValue = SXP_TO_VAL(R_NilValue);

@@ -55,6 +55,12 @@ SEXP do_logic(SEXP call, SEXP op, SEXP args, SEXP env);
 int tryDispatch(const char *generic, SEXP call, SEXP x, SEXP rho, SEXP *pv);
 SEXP R_subset3_dflt(SEXP x, SEXP input, SEXP call);
 SEXP CreateTag(SEXP x);
+SEXP do_subset2_dflt(SEXP call, SEXP op, SEXP args, SEXP rho);
+SEXP do_subset_dflt(SEXP call, SEXP op, SEXP args, SEXP rho);
+
+#define FAST_VECELT_OK(vec)                                                    \
+  (ATTRIB(vec) == R_NilValue ||                                                \
+   (TAG(ATTRIB(vec)) == R_DimSymbol && CDR(ATTRIB(vec)) == R_NilValue))
 
 #define MAYBE_MISSING_ARGUMENT_ERROR(symbol, keepmiss, rho)                    \
   do {                                                                         \
