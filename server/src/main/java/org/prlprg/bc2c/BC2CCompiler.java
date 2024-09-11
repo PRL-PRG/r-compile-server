@@ -259,11 +259,40 @@ class ClosureCompiler {
             case BcInstr.StartSubset2N(var call, var after) -> compileStartDispatchN("[[", call, after);
             case BcInstr.VecSubset(var call) -> compileVecSubset(call, false);
             case BcInstr.VecSubset2(var call) -> compileVecSubset(call, true);
+            case BcInstr.StartAssign(var symbol) -> compileStartAssign(symbol);
+            case BcInstr.EndAssign(var symbol) -> compileEndAssign(symbol);
+            case BcInstr.StartSubassignN(var call, var after) -> compileStartAssignDispatchN("[<-", call, after);
+            case BcInstr.StartSubassign2N(var call, var after) -> compileStartAssignDispatchN("[[<-", call, after);
+            case BcInstr.VecSubassign(var call) -> compileVecSubassign(call, false);
+            case BcInstr.VecSubassign2(var call) -> compileVecSubassign(call, true);
 
             default -> throw new UnsupportedOperationException(instr + ": not supported");
         }
         body.comment("end: " + instr);
         body.nl();
+    }
+
+    private void compileVecSubassign(ConstPool.Idx<LangSXP> call, boolean sub2) {
+        popPush(3, "Rsh_vecsubassign(%s, %s, %s, %s, %s, %s)".formatted(stack.curr(-2), stack.curr(-1), stack.curr(0), constantSXP(call), NAME_ENV, sub2 ? "TRUE" : "FALSE"), false);
+    }
+
+    private void compileStartAssignDispatchN(String generic, ConstPool.Idx<LangSXP> call, BcLabel after) {
+        body.line("if (Rsh_start_assign_dispatch_n(\"%s\", &%s, &%s, %s, %s, &%s)) {".formatted(generic, stack.curr(-1), stack.curr(0), constantSXP(call), NAME_ENV, stack.curr(-1)));
+        compileGoto(after);
+        body.line("}");
+    }
+
+    private void compileEndAssign(ConstPool.Idx<RegSymSXP> symbol) {
+        body.line("Rsh_endassign(%s, %s, %s, %s, %s, &%s);".formatted(stack.curr(-2), stack.curr(-1), stack.curr(0), constantSXP(symbol), NAME_ENV, cell(symbol)));
+        pop(2);
+    }
+
+    private void compileStartAssign(ConstPool.Idx<RegSymSXP> symbol) {
+        body.comment("");
+        push(VAL_NULL);
+        push(VAL_NULL);
+        push(VAL_NULL);
+        body.line("Rsh_startassign(%s, %s, &%s, &%s, &%s, &%s, &%s);".formatted(constantSXP(symbol), NAME_ENV, cell(symbol), stack.curr(-3), stack.curr(-2), stack.curr(-1), stack.curr(0)));
     }
 
     private void compileVecSubset(ConstPool.Idx<LangSXP> call, boolean sub2) {
@@ -272,7 +301,7 @@ class ClosureCompiler {
 
     private void compileStartDispatchN(String generic, ConstPool.Idx<LangSXP> call, BcLabel after) {
         body.line("if (Rsh_start_dispatch_n(\"%s\", %s, %s, %s, &%s)) {".formatted(generic, stack.curr(0), constantSXP(call), NAME_ENV, stack.curr(0)));
-        body.line("  goto %s;".formatted(label(after.target())));
+        compileGoto(after);
         body.line("}");
     }
 

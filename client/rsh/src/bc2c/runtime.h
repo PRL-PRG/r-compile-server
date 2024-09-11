@@ -96,7 +96,10 @@ extern SEXP R_LOGIC2_OPS[];
 
 #define RSH_R_SYMBOLS                                                          \
   X("[", Rsh_SubsetSym)                                                        \
-  X("[[", Rsh_Subset2Sym)
+  X("[[", Rsh_Subset2Sym)                                                      \
+  X("value", Rsh_ValueSym)                                                     \
+  X("[<-", Rsh_SubassignSym)                                                   \
+  X("[[<-", Rsh_Subassign2Sym)
 
 #ifndef RSH_TESTS
 #define X(a, b) extern SEXP b;
@@ -104,6 +107,8 @@ RSH_R_SYMBOLS
 #undef X
 #endif
 
+// clang-format off
+//
 // VALUE REPRESENTATION
 // --------------------
 //
@@ -125,20 +130,15 @@ RSH_R_SYMBOLS
 //
 //          63              49 0
 //           v               v v
-//      QNAN
-//      0|1111111111111|00|000000000000000000000000000000000000000000000000
-//      MASK
-//      1|1111111111111|11|000000000000000000000000000000000000000000000000
-//  MASK_INT
-//  0|1111111111111|00|000000000000000000000000000000000000000000000000
-//  MASK_SXP
-//  1|1111111111111|00|000000000000000000000000000000000000000000000000
-//  MASK_LGL
-//  0|1111111111111|11|000000000000000000000000000000000000000000000000
-//      TRUE
-//      0|1111111111111|11|000000000000000000000000000000000000000000000001
-//     FALSE
-//     0|1111111111111|11|000000000000000000000000000000000000000000000000
+//      QNAN 0|1111111111111|00|000000000000000000000000000000000000000000000000
+//      MASK 1|1111111111111|11|000000000000000000000000000000000000000000000000
+//  MASK_INT 0|1111111111111|00|000000000000000000000000000000000000000000000000
+//  MASK_SXP 1|1111111111111|00|000000000000000000000000000000000000000000000000
+//  MASK_LGL 0|1111111111111|11|000000000000000000000000000000000000000000000000
+//      TRUE 0|1111111111111|11|000000000000000000000000000000000000000000000001
+//     FALSE 0|1111111111111|11|000000000000000000000000000000000000000000000000
+//
+// clang-format on
 
 typedef int32_t i32;
 typedef uint64_t u64;
@@ -1154,7 +1154,7 @@ static INLINE Value Rsh_vecsubset(Value x, Value i, SEXP call, SEXP rho,
 
   // TODO: shouldn't this be optimized for REAL as well?
   if (VAL_IS_INT(i) && (sub2 || FAST_VECELT_OK(vec))) {
-    int idx = VAL_INT(i);
+    R_xlen_t idx = VAL_INT(i);
     if (idx > 0 && idx <= XLENGTH(vec)) {
       switch (TYPEOF(vec)) {
       case REALSXP:
@@ -1214,6 +1214,177 @@ static INLINE Value Rsh_vecsubset(Value x, Value i, SEXP call, SEXP rho,
   UNPROTECT(1);
 
   return sexp_as_val(value);
+}
+
+// Operands:
+// - symbol
+// Before stack:
+// - RHS
+// After stack:
+//  - RHS value
+//  - LHS cell
+//  - LHS value
+//  - RHS duplicate value
+static INLINE void Rsh_startassign(SEXP symbol, SEXP rho, BCell *cache,
+                                   Value *rhs, Value *lhs_cell, Value *lhs_val,
+                                   Value *rhs_dup) {
+  if (VAL_IS_SXP(*rhs)) {
+    SEXP saverhs = VAL_SXP(*rhs);
+    FIXUP_RHS_NAMED(saverhs);
+    int refrhs = MAYBE_REFERENCED(saverhs);
+    // FIXME: set flags
+    if (refrhs) {
+      INCREMENT_REFCNT(saverhs);
+    }
+  }
+
+  SEXP cell = bcell_get_cache(symbol, rho, cache);
+  SEXP value = bcell_value(cell);
+  R_varloc_t loc;
+  if (value == R_UnboundValue || TYPEOF(value) == PROMSXP) {
+    value = EnsureLocal(symbol, rho, &loc);
+    if (loc.cell == NULL) {
+      loc.cell = R_NilValue;
+    }
+  } else {
+    loc.cell = cell;
+  }
+  int maybe_in_assign = ASSIGNMENT_PENDING(loc.cell);
+  SET_ASSIGNMENT_PENDING(loc.cell, TRUE);
+  *lhs_cell = SXP_TO_VAL(loc.cell);
+
+  if (maybe_in_assign || MAYBE_SHARED(value)) {
+    value = Rf_shallow_duplicate(value);
+  }
+  *lhs_val = SXP_TO_VAL(value);
+  *rhs_dup = *rhs;
+}
+
+static INLINE void Rsh_endassign(Value rhs_original, Value lhs_cell,
+                                 Value value, SEXP symbol, SEXP rho,
+                                 BCell *cache) {
+  SEXP lhs_cell_sxp = VAL_SXP(lhs_cell);
+  SET_ASSIGNMENT_PENDING(lhs_cell_sxp, FALSE);
+
+  SEXP cell = bcell_get_cache(symbol, rho, cache);
+  SEXP value_sxp = val_as_sexp(value);
+
+  // FIXME: try_unwrap ALTREP
+
+  INCREMENT_NAMED(value_sxp);
+  if (!bcell_set_value(cell, value_sxp)) {
+    Rf_defineVar(symbol, value_sxp, rho);
+  }
+
+  if (VAL_IS_SXP(rhs_original)) {
+    SEXP saverhs = VAL_SXP(rhs_original);
+    INCREMENT_NAMED(saverhs);
+    // FIXME: get flags
+    // int refrhs = GETSTACK_FLAGS(-1);
+    // if (refrhs)
+    //   DECREMENT_REFCNT(saverhs);
+  }
+}
+
+// Operands:
+// - call
+// Before stack:
+// - lhs
+// - rhs
+// After stack (when return true):
+// - result
+// After stack (when return false):
+// - lhs
+// - rhs
+static INLINE Rboolean Rsh_start_assign_dispatch_n(const char *generic,
+                                                   Value *lhs, Value *rhs,
+                                                   SEXP call, SEXP rho,
+                                                   Value *result) {
+  SEXP lhs_sxp = val_as_sexp(*lhs);
+
+  if (isObject(lhs_sxp)) {
+    MARK_ASSIGNMENT_CALL(call);
+    SEXP rhs_sxp = val_as_sexp(*rhs);
+    if (MAYBE_SHARED(lhs_sxp)) {
+      lhs_sxp = Rf_shallow_duplicate(lhs_sxp);
+      *lhs = SXP_TO_VAL(lhs_sxp);
+      ENSURE_NAMED(lhs_sxp);
+    }
+
+    SEXP value = NULL;
+    if (tryAssignDispatch(generic, call, lhs_sxp, rhs_sxp, rho, &value)) {
+      *result = sexp_as_val(value);
+      return TRUE;
+    }
+  }
+
+  return FALSE;
+}
+
+// Operands:
+// - call
+// Before stack:
+// -
+// After stack:
+static INLINE Value Rsh_vecsubassign(Value x, Value rhs, Value i, SEXP call,
+                                     SEXP rho, Rboolean sub2) {
+  SEXP vec = VAL_SXP(x);
+
+  if (MAYBE_SHARED(vec)) {
+    vec = Rf_shallow_duplicate(vec);
+    // FIXME: ???
+    // *x = SXP_TO_VAL(vec);
+  }
+
+  Rboolean set = TRUE;
+
+  if (VAL_TAG(rhs) && VAL_IS_INT(i) && VAL_TAG(rhs) == TYPEOF(vec)) {
+    R_xlen_t idx = VAL_INT(i);
+    if (i > 0 && i <= XLENGTH(vec)) {
+      switch (TYPEOF(vec)) {
+      case REALSXP:
+        REAL(vec)[idx - 1] = VAL_DBL(rhs);
+        break;
+      case INTSXP:
+        INTEGER(vec)[idx - 1] = VAL_INT(rhs);
+        break;
+      case LGLSXP:
+        LOGICAL(vec)[idx - 1] = VAL_INT(rhs);
+        break;
+      default:
+        set = FALSE;
+        break;
+      }
+
+      if (set) {
+        R_Visible = TRUE;
+        SETTER_CLEAR_NAMED(vec);
+        return SXP_TO_VAL(vec);
+      }
+    }
+  }
+
+  //    FIXME:
+  //    R_xlen_t i = bcStackIndex(si) - 1;
+  //    if (i >= 0)
+  // DO_FAST_SETVECELT(sv, srhs, vec,  i, subset2);
+
+  SEXP idx = val_as_sexp(i);
+  SEXP value = val_as_sexp(rhs);
+  SEXP args;
+  args = CONS_NR(value, R_NilValue);
+  SET_TAG(args, Rsh_ValueSym);
+  args = CONS_NR(idx, args);
+  args = CONS_NR(vec, args);
+  PROTECT(args);
+  MARK_ASSIGNMENT_CALL(call);
+  if (sub2) {
+    vec = do_subassign2_dflt(call, Rsh_Subassign2Sym, args, rho);
+  } else {
+    vec = do_subassign_dflt(call, Rsh_SubassignSym, args, rho);
+  }
+  UNPROTECT(1);
+  return SXP_TO_VAL(vec);
 }
 
 #endif // RUNTIME_H

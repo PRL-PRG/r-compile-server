@@ -57,6 +57,22 @@ SEXP R_subset3_dflt(SEXP x, SEXP input, SEXP call);
 SEXP CreateTag(SEXP x);
 SEXP do_subset2_dflt(SEXP call, SEXP op, SEXP args, SEXP rho);
 SEXP do_subset_dflt(SEXP call, SEXP op, SEXP args, SEXP rho);
+SEXP EnsureLocal(SEXP symbol, SEXP rho, R_varloc_t *ploc);
+int tryAssignDispatch(const char *generic, SEXP call, SEXP lhs, SEXP rhs,
+                      SEXP rho, SEXP *pv);
+SEXP do_subassign_dflt(SEXP call, SEXP op, SEXP args, SEXP rho);
+SEXP do_subassign2_dflt(SEXP call, SEXP op, SEXP args, SEXP rho);
+
+/* This macro makes sure the RHS NAMED value is 0 or NAMEDMAX. This is
+   necessary to make sure the RHS value returned by the assignment
+   expression is correct when the RHS value is part of the LHS
+   object. */
+#define FIXUP_RHS_NAMED(r)                                                     \
+  do {                                                                         \
+    SEXP __rhs__ = (r);                                                        \
+    if (NAMED(__rhs__))                                                        \
+      ENSURE_NAMEDMAX(__rhs__);                                                \
+  } while (0)
 
 #define FAST_VECELT_OK(vec)                                                    \
   (ATTRIB(vec) == R_NilValue ||                                                \
