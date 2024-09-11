@@ -216,7 +216,8 @@ class ClosureCompiler {
             case BcInstr.LdConst(var idx) -> compileLd(constantVAL(idx));
             case BcInstr.LdTrue() -> compileLd(VAL_TRUE);
             case BcInstr.LdFalse() -> compileLd(VAL_FALSE);
-            case BcInstr.GetVar(var idx) -> compileGetVar(idx);
+            case BcInstr.GetVar(var idx) -> compileGetVar(idx, false);
+            case BcInstr.GetVarMissOk(var idx) -> compileGetVar(idx, true);
             case BcInstr.Add(var idx) -> compileArith(idx, "ADD_OP");
             case BcInstr.Sub(var idx) -> compileArith(idx, "SUB_OP");
             case BcInstr.Mul(var idx) -> compileArith(idx, "MUL_OP");
@@ -265,11 +266,17 @@ class ClosureCompiler {
             case BcInstr.StartSubassign2N(var call, var after) -> compileStartAssignDispatchN("[[<-", call, after);
             case BcInstr.VecSubassign(var call) -> compileVecSubassign(call, false);
             case BcInstr.VecSubassign2(var call) -> compileVecSubassign(call, true);
+            case BcInstr.GetIntlBuiltin(var symbol) -> compileGetIntlBuiltin(symbol);
 
             default -> throw new UnsupportedOperationException(instr + ": not supported");
         }
         body.comment("end: " + instr);
         body.nl();
+    }
+
+    private void compileGetIntlBuiltin(ConstPool.Idx<RegSymSXP> symbol) {
+        push("Rsh_getintlbuiltin(%s)".formatted(constantSXP(symbol)), false);
+        initCallFrame();
     }
 
     private void compileVecSubassign(ConstPool.Idx<LangSXP> call, boolean sub2) {
@@ -425,9 +432,9 @@ class ClosureCompiler {
         push(VAL_NULL);
     }
 
-    private void compileGetVar(ConstPool.Idx<RegSymSXP> idx) {
+    private void compileGetVar(ConstPool.Idx<RegSymSXP> idx, boolean missOK) {
         push(
-                "Rsh_get_var(%s, %s, FALSE, FALSE, &%s)".formatted(constantSXP(idx), NAME_ENV, cell(idx)),
+                "Rsh_get_var(%s, %s, FALSE, %s, &%s)".formatted(constantSXP(idx), NAME_ENV, missOK ? "TRUE" : "FALSE", cell(idx)),
                 false);
     }
 

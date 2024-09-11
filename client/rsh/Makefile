@@ -62,13 +62,16 @@ BENCH_ITER := 30
 
 BENCH_DIR = $(RSH_HOME)/inst/benchmarks
 BENCH_R = R_PROFILE_USER=$(BENCH_DIR)/Rprofile.site $(LLVM_R) -f
+FILTER ?=
 
 .PHONY: benchmark
 benchmark:
-	@for file in $$(find $(BENCH_DIR) -mindepth 2 -name "*.R"); do \
+	@for file in $$(find $(BENCH_DIR) -mindepth 2 -name "*$(FILTER)*.R"); do \
 		test=$$(basename $$file); \
 		echo "$(TXT_BOLD)┌──── $$test ...$(TXT_NORM)"; \
-		$(BENCH_R) $(BENCH_DIR)/harness.R --args $${file%.*}; \
+		cmd="$(BENCH_R) $(BENCH_DIR)/harness.R --args $${file%.*}"; \
+		echo $$cmd; \
+		eval "$$cmd"; \
 		exit=$$?; \
 		echo -n "$(TXT_BOLD)└──── $$test: "; \
 	  if [ $$exit -eq 0 ]; then \
