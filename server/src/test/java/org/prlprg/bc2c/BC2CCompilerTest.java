@@ -230,6 +230,16 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
         // verify("x <- data.frame(a=1, b=2, row.names=NULL); x['a']", SEXPs.vec(SEXPs.real(1)).withNames("a"));
     }
 
+    @Test
+    public void testSubset2() throws Exception {
+        verify("x <- c(1, 2, 3); x[[2]]", assertReal(2.0));
+        verify("x <- c(1, 2, 3); x[[2L]]", assertReal(2.0));
+        verify("x <- c(1L, 2L, 3L); x[[2L]]", assertInt(2));
+        verify("x <- list(1, 2, 3); x[[3L]]", assertReal(3.0));
+        verify("x <- list('a', 'b'); x[[2]]", SEXPs.string("b"));
+        verify("x <- data.frame(a=1, b=2, row.names=NULL); x[['a']]", SEXPs.real(1));
+    }
+
     private Consumer<SEXP> assertLogical(Logical... v) {
         return (SEXP s) -> {
             if (s instanceof LglSXP r) {
