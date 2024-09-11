@@ -94,6 +94,16 @@ extern SEXP R_UNARY_OP_SYMS[];
 extern SEXP R_LOGIC2_OPS[];
 #endif
 
+#define RSH_R_SYMBOLS                                                          \
+  X("[", Rsh_SubsetSym)                                                        \
+  X("[[", Rsh_Subset2Sym)
+
+#ifndef RSH_TESTS
+#define X(a, b) extern SEXP b;
+RSH_R_SYMBOLS
+#undef X
+#endif
+
 // VALUE REPRESENTATION
 // --------------------
 //
@@ -1120,6 +1130,90 @@ static INLINE Value Rsh_dollar(Value x, SEXP call, SEXP symbol, SEXP rho) {
 
   R_Visible = TRUE;
   return sexp_as_val(value_sxp);
+}
+
+static INLINE Rboolean Rsh_start_dispatch_n(const char *generic, Value value,
+                                            SEXP call, SEXP rho,
+                                            Value *result) {
+  SEXP value_sxp = val_as_sexp(value);
+  if (isObject(value_sxp) &&
+      tryDispatch(generic, call, value_sxp, rho, &value_sxp)) {
+    *result = sexp_as_val(value_sxp);
+    // FIXME: CHECK_SIGINT();
+    return TRUE;
+  }
+
+  return FALSE;
+}
+
+static INLINE Value Rsh_vecsubset(Value x, Value i, SEXP call, SEXP rho,
+                                  Rboolean sub2) {
+  Value res;
+  Rboolean set = TRUE;
+  SEXP vec = val_as_sexp(x);
+
+  // TODO: shouldn't this be optimized for REAL as well?
+  if (VAL_IS_INT(i) && (sub2 || FAST_VECELT_OK(vec))) {
+    int idx = VAL_INT(i);
+    if (idx > 0 && idx <= XLENGTH(vec)) {
+      switch (TYPEOF(vec)) {
+      case REALSXP:
+        res = DBL_TO_VAL(REAL_ELT(vec, idx - 1));
+        break;
+      case INTSXP:
+        res = INT_TO_VAL(INTEGER_ELT(vec, idx - 1));
+        break;
+      case LGLSXP:
+        res = LGL_TO_VAL(LOGICAL_ELT(vec, idx - 1));
+        break;
+      case CPLXSXP:
+        res = SXP_TO_VAL(Rf_ScalarComplex(COMPLEX_ELT(vec, idx - 1)));
+        break;
+      case RAWSXP:
+        res = SXP_TO_VAL(Rf_ScalarRaw(RAW(vec)[idx - 1]));
+        break;
+      case VECSXP: {
+        SEXP elem = VECTOR_ELT(vec, idx - 1);
+        RAISE_NAMED(elem, NAMED(vec));
+        if (sub2) {
+          res = sexp_as_val(elem);
+        } else {
+          SEXP tmp = Rf_allocVector(VECSXP, 1);
+          SET_VECTOR_ELT(tmp, 0, elem);
+          res = SXP_TO_VAL(tmp);
+        }
+        break;
+      }
+      default:
+        set = FALSE;
+        break;
+      }
+
+      if (set) {
+        R_Visible = TRUE;
+        return res;
+      }
+    }
+  }
+
+  // slow path!
+  SEXP args;
+  SEXP value;
+
+  args = CONS_NR(val_as_sexp(i), R_NilValue);
+  args = CONS_NR(vec, args);
+
+  PROTECT(args);
+
+  if (sub2) {
+    value = do_subset2_dflt(call, Rsh_Subset2Sym, args, rho);
+  } else {
+    value = do_subset_dflt(call, Rsh_SubsetSym, args, rho);
+  }
+
+  UNPROTECT(1);
+
+  return sexp_as_val(value);
 }
 
 #endif // RUNTIME_H

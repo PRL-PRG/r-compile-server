@@ -17,6 +17,7 @@ CFLAGS := -I$(RSH_HOME)/client/rsh/src/bc2c \
 		-Winline \
 		-Wno-unused-but-set-variable \
 		-Wno-comments \
+		-Wno-unused-function \
 		-pedantic \
 		-shared \
 		-DRSH_TESTS

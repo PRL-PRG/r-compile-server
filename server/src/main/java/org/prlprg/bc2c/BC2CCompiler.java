@@ -255,11 +255,24 @@ class ClosureCompiler {
             case BcInstr.CheckFun() -> compileCheckFun();
             case BcInstr.MakeProm(var idx) -> compileMakeProm(idx);
             case BcInstr.Dollar(var call, var symbol) -> compilerDollar(call, symbol);
+            case BcInstr.StartSubsetN(var call, var after) -> compileStartSubsetN(call, after);
+            case BcInstr.VecSubset(var call) -> compileVecSubset(call, false);
+            case BcInstr.VecSubset2(var call) -> compileVecSubset(call, true);
 
             default -> throw new UnsupportedOperationException(instr + ": not supported");
         }
         body.comment("end: " + instr);
         body.nl();
+    }
+
+    private void compileVecSubset(ConstPool.Idx<LangSXP> call, boolean sub2) {
+        popPush(2, "Rsh_vecsubset(%s, %s, %s, %s, %s)".formatted(stack.curr(-1), stack.curr(0), constantSXP(call), NAME_ENV, sub2 ? "TRUE" : "FALSE"), false);
+    }
+
+    private void compileStartSubsetN(ConstPool.Idx<LangSXP> call, BcLabel after) {
+        body.line("if (Rsh_start_dispatch_n(\"[\", %s, %s, %s, &%s)) {".formatted(stack.curr(0), constantSXP(call), NAME_ENV, stack.curr(0)));
+        body.line("  goto %s;".formatted(label(after.target())));
+        body.line("}");
     }
 
     private void compilerDollar(ConstPool.Idx<LangSXP> call, ConstPool.Idx<RegSymSXP> symbol) {

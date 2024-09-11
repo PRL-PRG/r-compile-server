@@ -10,6 +10,7 @@ import java.util.Objects;
 import java.util.function.Consumer;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.prlprg.AbstractGNURBasedTest;
@@ -218,6 +219,17 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
         verify("x <- list(a=1, b=2); x$a", assertReal(1.0));
     }
 
+    @Test
+    public void testSubset() throws Exception {
+        verify("x <- c(1, 2, 3); x[2]", assertReal(2.0));
+        verify("x <- c(1, 2, 3); x[2L]", assertReal(2.0));
+        verify("x <- c(1L, 2L, 3L); x[2L]", assertInt(2));
+        verify("x <- list(1, 2, 3); x[3L]", SEXPs.vec(SEXPs.real(3)));
+        verify("x <- list('a', 'b'); x[2]", SEXPs.vec(SEXPs.string("b")));
+        // FIXME: better testing
+        // verify("x <- data.frame(a=1, b=2, row.names=NULL); x['a']", SEXPs.vec(SEXPs.real(1)).withNames("a"));
+    }
+
     private Consumer<SEXP> assertLogical(Logical... v) {
         return (SEXP s) -> {
             if (s instanceof LglSXP r) {
@@ -319,6 +331,10 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
         } catch (Exception e) {
             return new TestArtifact<>(Either.left(e), tempDir);
         }
+    }
+
+    <T extends SEXP> void verify(String code, SEXP expected) throws Exception {
+        verify(code, (T v) -> assertEquals(expected, v));
     }
 
     <T extends SEXP> void verify(String code, Consumer<T> validator) throws Exception {
