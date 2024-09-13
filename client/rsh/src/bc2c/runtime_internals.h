@@ -63,6 +63,11 @@ int tryAssignDispatch(const char *generic, SEXP call, SEXP lhs, SEXP rhs,
 SEXP do_subassign_dflt(SEXP call, SEXP op, SEXP args, SEXP rho);
 SEXP do_subassign2_dflt(SEXP call, SEXP op, SEXP args, SEXP rho);
 
+#define INTEGER_TO_LOGICAL(x)                                                  \
+  ((x) == NA_INTEGER ? NA_LOGICAL : (x) ? TRUE : FALSE)
+#define INTEGER_TO_REAL(x) ((x) == NA_INTEGER ? NA_REAL : (x))
+#define LOGICAL_TO_REAL(x) ((x) == NA_LOGICAL ? NA_REAL : (x))
+
 /* This macro makes sure the RHS NAMED value is 0 or NAMEDMAX. This is
    necessary to make sure the RHS value returned by the assignment
    expression is correct when the RHS value is part of the LHS

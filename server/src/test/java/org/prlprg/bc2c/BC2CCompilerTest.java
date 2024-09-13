@@ -6,6 +6,7 @@ import static org.prlprg.primitive.Logical.TRUE;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Objects;
 import java.util.function.Consumer;
 
@@ -243,6 +244,7 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
     @Test
     public void testSubassign() throws Exception {
         verify("x <- c(1,2,3); x[1] <- 2; x", assertReal(2.0, 2.0, 3.0));
+        verify("x <- list(1,2,3); x[[1]] <- x; x", assertReal(2.0, 2.0, 3.0));
     }
 
     @Test
@@ -258,7 +260,7 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
                     assertEquals(v[i], r.get(i));
                 }
             } else {
-                fail("Expected a scalar logical, but got: " + s);
+                fail("Expected logical(" + Arrays.toString(v) + "), but got: " + s);
             }
         };
     }
@@ -272,7 +274,7 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
                     assertEquals(v[i], r.asInt(i));
                 }
             } else {
-                fail("Expected a scalar int, but got: " + s);
+                fail("Expected int (" + Arrays.toString(v) + "), but got: " + s);
             }
         };
     }
@@ -285,7 +287,7 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
                     assertEquals(v[i], r.asReal(i));
                 }
             } else {
-                fail("Expected a scalar real, but got: " + s);
+                fail("Expected real (" + Arrays.toString(v) + "), but got: " + s);
             }
         };
     }
