@@ -128,8 +128,8 @@ RSH_R_SYMBOLS
 //
 // Our NaN boxing:
 //
-//          63              49 0
-//           v               v v
+//          63              49
+//           v               v
 //      QNAN 0|1111111111111|00|000000000000000000000000000000000000000000000000
 //      MASK 1|1111111111111|11|000000000000000000000000000000000000000000000000
 //  MASK_INT 0|1111111111111|00|000000000000000000000000000000000000000000000000
@@ -137,6 +137,10 @@ RSH_R_SYMBOLS
 //  MASK_LGL 0|1111111111111|11|000000000000000000000000000000000000000000000000
 //      TRUE 0|1111111111111|11|000000000000000000000000000000000000000000000001
 //     FALSE 0|1111111111111|11|000000000000000000000000000000000000000000000000
+//                            ^
+//                            48
+//
+// The 49. bit in SEXP is used to mark MAYBE_REFERENCED
 //
 // clang-format on
 
@@ -215,6 +219,10 @@ static INLINE Value sexp_as_val(SEXP s) {
     return SXP_TO_VAL(s);
   }
 }
+
+#define VAL_MAYBE_REFERENCED(v) ((v) & ((u64)1 << 49))
+#define VAL_SET_MAYBE_REFERENCED(v) ((v) |= ((u64)1 << 49))
+#define VAL_CLEAR_MAYBE_REFERENCED(v) ((v) &= ~((u64)1 << 49))
 
 // BINDING CELLS (bcell) implementation
 // ------------------------------------
@@ -1146,15 +1154,50 @@ static INLINE Rboolean Rsh_start_dispatch_n(const char *generic, Value value,
   return FALSE;
 }
 
+static INLINE R_xlen_t as_index(Value v) {
+  switch (VAL_TAG(v)) {
+  case INTSXP: {
+    int i = VAL_INT(v);
+    if (i != NA_INTEGER) {
+      return i;
+    }
+    break;
+  }
+  case REALSXP: {
+    double i = VAL_DBL(v);
+    if (!ISNAN(i) && i > 0 && i <= R_XLEN_T_MAX) {
+      return (R_xlen_t)i;
+    }
+    break;
+  }
+  case LGLSXP:
+    break;
+  default: {
+    SEXP i = VAL_SXP(v);
+    if (IS_SCALAR(i, INTSXP)) {
+      int j = SCALAR_IVAL(i);
+      if (j != NA_INTEGER) {
+        return j;
+      }
+    } else if (IS_SCALAR(i, REALSXP)) {
+      double j = SCALAR_DVAL(i);
+      if (!ISNAN(j) && j > 0 && j <= R_XLEN_T_MAX) {
+        return (R_xlen_t)j;
+      }
+    }
+  }
+  }
+  return -1;
+}
+
 static INLINE Value Rsh_vecsubset(Value x, Value i, SEXP call, SEXP rho,
                                   Rboolean sub2) {
   Value res;
   Rboolean set = TRUE;
   SEXP vec = val_as_sexp(x);
 
-  // TODO: shouldn't this be optimized for REAL as well?
-  if (VAL_IS_INT(i) && (sub2 || FAST_VECELT_OK(vec))) {
-    R_xlen_t idx = VAL_INT(i);
+  if (sub2 || FAST_VECELT_OK(vec)) {
+    R_xlen_t idx = as_index(i);
     if (idx > 0 && idx <= XLENGTH(vec)) {
       switch (TYPEOF(vec)) {
       case REALSXP:
@@ -1231,10 +1274,12 @@ static INLINE void Rsh_startassign(SEXP symbol, SEXP rho, BCell *cache,
   if (VAL_IS_SXP(*rhs)) {
     SEXP saverhs = VAL_SXP(*rhs);
     FIXUP_RHS_NAMED(saverhs);
-    int refrhs = MAYBE_REFERENCED(saverhs);
-    // FIXME: set flags
-    if (refrhs) {
+
+    if (MAYBE_REFERENCED(saverhs)) {
+      VAL_SET_MAYBE_REFERENCED(*rhs);
       INCREMENT_REFCNT(saverhs);
+    } else {
+      VAL_CLEAR_MAYBE_REFERENCED(*rhs);
     }
   }
 
@@ -1260,9 +1305,8 @@ static INLINE void Rsh_startassign(SEXP symbol, SEXP rho, BCell *cache,
   *rhs_dup = *rhs;
 }
 
-static INLINE void Rsh_endassign(Value rhs_original, Value lhs_cell,
-                                 Value value, SEXP symbol, SEXP rho,
-                                 BCell *cache) {
+static INLINE void Rsh_endassign(Value rhs, Value lhs_cell, Value value,
+                                 SEXP symbol, SEXP rho, BCell *cache) {
   SEXP lhs_cell_sxp = VAL_SXP(lhs_cell);
   SET_ASSIGNMENT_PENDING(lhs_cell_sxp, FALSE);
 
@@ -1276,13 +1320,12 @@ static INLINE void Rsh_endassign(Value rhs_original, Value lhs_cell,
     Rf_defineVar(symbol, value_sxp, rho);
   }
 
-  if (VAL_IS_SXP(rhs_original)) {
-    SEXP saverhs = VAL_SXP(rhs_original);
+  if (VAL_IS_SXP(rhs)) {
+    SEXP saverhs = VAL_SXP(rhs);
     INCREMENT_NAMED(saverhs);
-    // FIXME: get flags
-    // int refrhs = GETSTACK_FLAGS(-1);
-    // if (refrhs)
-    //   DECREMENT_REFCNT(saverhs);
+    if (VAL_MAYBE_REFERENCED(rhs)) {
+      DECREMENT_REFCNT(saverhs);
+    }
   }
 }
 
@@ -1332,12 +1375,13 @@ static INLINE Value Rsh_vecsubassign(Value x, Value rhs, Value i, SEXP call,
 
   if (MAYBE_SHARED(vec)) {
     vec = Rf_shallow_duplicate(vec);
-    // FIXME: ???
+    // FIXME: do we need to replace it on the stack?
     // *x = SXP_TO_VAL(vec);
   }
 
   Rboolean set = TRUE;
 
+  // Fast case 1 - INT index and RHS is scalar of the right type
   if (VAL_TAG(rhs) && VAL_IS_INT(i) && VAL_TAG(rhs) == TYPEOF(vec)) {
     R_xlen_t idx = VAL_INT(i);
     if (idx > 0 && idx <= XLENGTH(vec)) {
@@ -1364,10 +1408,57 @@ static INLINE Value Rsh_vecsubassign(Value x, Value rhs, Value i, SEXP call,
     }
   }
 
-  //    FIXME:
-  //    R_xlen_t i = bcStackIndex(si) - 1;
-  //    if (i >= 0)
-  // DO_FAST_SETVECELT(sv, srhs, vec,  i, subset2);
+  {
+    R_xlen_t idx = as_index(i);
+    if (idx > 0 && idx <= XLENGTH(vec)) {
+      set = TRUE;
+      // Fast case - set from a scalar
+      if (TYPEOF(vec) == REALSXP) {
+        switch (VAL_TAG(rhs)) {
+        case REALSXP:
+          REAL(vec)[i] = VAL_DBL(rhs);
+          break;
+        case INTSXP:
+          REAL(vec)[i] = INTEGER_TO_REAL(VAL_INT(rhs));
+          break;
+        case LGLSXP:
+          REAL(vec)[i] = LOGICAL_TO_REAL(VAL_INT(rhs));
+          break;
+        default:
+          set = FALSE;
+        }
+      } else if (VAL_TAG(rhs) == TYPEOF(vec)) {
+        switch (VAL_TAG(rhs)) {
+        case INTSXP:
+          INTEGER(vec)[i] = VAL_INT(rhs);
+          break;
+        case LGLSXP:
+          LOGICAL(vec)[i] = VAL_INT(rhs);
+          break;
+        default:
+          set = FALSE;
+        }
+      } else {
+        set = FALSE;
+      }
+
+      if (set) {
+        SETTER_CLEAR_NAMED(vec);
+        return SXP_TO_VAL(vec);
+      }
+
+      if (sub2 && TYPEOF(vec) == VECSXP) {
+        SEXP rhs_sxp = val_as_sexp(rhs);
+        if (rhs_sxp != R_NilValue) {
+          if (MAYBE_REFERENCED(rhs_sxp) && VECTOR_ELT(vec, idx) != rhs_sxp) {
+            R_FixupRHS(vec, rhs_sxp);
+          }
+          SET_VECTOR_ELT(vec, idx, rhs_sxp);
+          SETTER_CLEAR_NAMED(vec);
+        }
+      }
+    }
+  }
 
   SEXP idx = val_as_sexp(i);
   SEXP value = val_as_sexp(rhs);
