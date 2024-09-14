@@ -29,6 +29,8 @@ extern Rboolean R_Visible; /* Value visibility flag */
 #define INLINE
 #endif
 
+#define UNUSED __attribute__((unused))
+
 #define R_MSG_NA "NaNs produced"
 
 void forcePromise(SEXP e);
@@ -134,5 +136,28 @@ static INLINE SEXP relop(SEXP call, SEXP op, SEXP opsym, SEXP x, SEXP y,
   }
   return do_relop_dflt(call, op, x, y);
 }
+
+#define RSH_LIST_APPEND(/* Value */ head, /* Value */ tail, /* Value */ value) \
+  do {                                                                         \
+    SEXP __elem__ = CONS(val_as_sexp(value), R_NilValue);                      \
+    if (head == Rsh_NilValue) {                                                \
+      head = SXP_TO_VAL(__elem__);                                             \
+    } else {                                                                   \
+      SETCDR(VAL_SXP(tail), __elem__);                                         \
+    }                                                                          \
+    tail = SXP_TO_VAL(__elem__);                                               \
+    INCREMENT_LINKS(CAR(__elem__));                                            \
+  } while (0)
+
+#define RSH_SET_TAG(/* Value */ v, /* Value */ t)                              \
+  do {                                                                         \
+    SEXP __v__ = VAL_SXP((v));                                                 \
+    SEXP __tag__ = val_as_sexp((t));                                           \
+    if (__tag__ != R_NilValue) {                                               \
+      if (__v__ != R_NilValue)                                                 \
+        SET_TAG(__v__, CreateTag(__tag__));                                    \
+    }                                                                          \
+  } while (0)
+
 //
 #endif
