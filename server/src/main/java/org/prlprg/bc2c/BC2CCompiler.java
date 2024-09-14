@@ -184,6 +184,7 @@ class ClosureCompiler {
             case BcInstr.SetTag(var idx) -> builder.args(constantVAL(idx)).compileStmt();
             case BcInstr.SetVar(var symbol) -> builder.args(constantSXP(symbol), cell(symbol)).compileStmt();
             case BcInstr.GetVar(var symbol) -> builder.args(constantSXP(symbol), cell(symbol)).compileStmt();
+            case BcInstr.GetVarMissOk(var symbol) -> builder.args(constantSXP(symbol), cell(symbol)).compileStmt();
             case BcInstr.StartAssign(var symbol) -> builder.args(constantSXP(symbol), cell(symbol)).compileStmt();
             case BcInstr.EndAssign(var symbol) -> builder.args(constantSXP(symbol), cell(symbol)).compileStmt();
             case BcInstr.GetBuiltin(var idx) -> builder.args("\"" + bc.consts().get(idx).name() + "\"").compileStmt();

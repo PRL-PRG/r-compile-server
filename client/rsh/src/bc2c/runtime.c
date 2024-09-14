@@ -4,7 +4,7 @@
 #error "RSH_TESTS cannot be set"
 #endif
 
-#define X(a, b) NULL,
+#define X(a, b, c) NULL,
 SEXP R_ARITH_OPS[] = {X_ARITH_OPS};
 SEXP R_ARITH_OP_SYMS[] = {X_ARITH_OPS};
 SEXP R_REL_OPS[] = {X_REL_OPS};
@@ -19,7 +19,6 @@ SEXP R_LOGIC2_OPS[] = {X_LOGIC2_OPS};
 Value Rsh_NilValue;
 Value Rsh_UnboundValue;
 SEXP NOT_OP;
-SEXP DOTEXTERNAL2_SYM;
 SEXP BC2C_CALL_TRAMPOLINE_SXP;
 
 #include "runtime_impl.h"
