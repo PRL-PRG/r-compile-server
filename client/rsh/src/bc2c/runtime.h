@@ -1326,7 +1326,7 @@ static INLINE Value Rsh_vec_subset(Value x, Value i, SEXP call, Rboolean sub2,
 
 #define Rsh_VecSubset(x, i, call, rho)                                         \
   *x = Rsh_vec_subset(*x, i, call, FALSE, rho)
-#define Rsh_VecSubset2(x_res, i, call, rho)                                    \
+#define Rsh_VecSubset2(x, i, call, rho)                                        \
   *x = Rsh_vec_subset(*x, i, call, TRUE, rho)
 
 static INLINE void Rsh_StartAssign(Value *rhs, Value *lhs_cell, Value *lhs_val,
