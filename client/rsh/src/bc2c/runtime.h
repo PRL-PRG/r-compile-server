@@ -618,7 +618,7 @@ static INLINE void Rsh_set_var2(SEXP symbol, Value value, SEXP rho) {
   Rf_setVar(symbol, val_as_sexp(value), rho);
 }
 
-static INLINE SEXP Rsh_return(Value v) { return val_as_sexp(v); }
+static INLINE SEXP Rsh_Return(Value v) { return val_as_sexp(v); }
 
 static INLINE SEXP Rsh_builtin_call_args(SEXP args) {
   for (SEXP a = args; a != R_NilValue; a = CDR(a)) {
@@ -648,12 +648,21 @@ static INLINE Value Rsh_getFun(SEXP symbol, SEXP rho) {
   return SXP_TO_VAL(fun);
 }
 
-static INLINE Value Rsh_call(SEXP call, Value fun, Value args, SEXP rho) {
+#define Rsh_CallBuiltin Rsh_Call
+
+#define Rsh_PushArg(h, t, v) RSH_LIST_APPEND(h, t, v)
+#define Rsh_PushConstArg(h, t, v) RSH_LIST_APPEND(*(h), *(t), v)
+#define Rsh_PushNullArg(h, t) RSH_LIST_APPEND(h, t, Rsh_NilValue)
+#define Rsh_PushTrueArg(h, t) RSH_LIST_APPEND(h, t, Rsh_TrueValue)
+#define Rsh_PushFalseArg(h, t) RSH_LIST_APPEND(h, t, Rsh_FalseValue)
+
+static INLINE void Rsh_Call(Value *fun, Value args_head, UNUSED Value args_tail,
+                            SEXP call, SEXP rho) {
   SEXP value = NULL;
   int flag;
 
-  SEXP fun_sxp = VAL_SXP(fun);
-  SEXP args_sxp = VAL_SXP(args);
+  SEXP fun_sxp = VAL_SXP(*fun);
+  SEXP args_sxp = VAL_SXP(args_head);
 
   switch (TYPEOF(fun_sxp)) {
   case BUILTINSXP:
@@ -682,7 +691,7 @@ static INLINE Value Rsh_call(SEXP call, Value fun, Value args, SEXP rho) {
     Rf_error("bad function");
   }
 
-  return sexp_as_val(value);
+  *fun = sexp_as_val(value);
 }
 
 static INLINE Rboolean Rsh_is_true(Value value, SEXP call, SEXP rho) {
@@ -707,28 +716,6 @@ static INLINE Rboolean Rsh_is_true(Value value, SEXP call, SEXP rho) {
   UNPROTECT(1);
   return ans;
 }
-
-#define RSH_LIST_APPEND(/* Value */ head, /* Value */ tail, /* Value */ value) \
-  do {                                                                         \
-    SEXP __elem__ = CONS(val_as_sexp(value), R_NilValue);                      \
-    if (head == Rsh_NilValue) {                                                \
-      head = SXP_TO_VAL(__elem__);                                             \
-    } else {                                                                   \
-      SETCDR(VAL_SXP(tail), __elem__);                                         \
-    }                                                                          \
-    tail = SXP_TO_VAL(__elem__);                                               \
-    INCREMENT_LINKS(CAR(__elem__));                                            \
-  } while (0)
-
-#define RSH_SET_TAG(/* Value */ v, /* Value */ t)                              \
-  do {                                                                         \
-    SEXP __v__ = VAL_SXP((v));                                                 \
-    SEXP __tag__ = val_as_sexp((t));                                           \
-    if (__tag__ != R_NilValue) {                                               \
-      if (__v__ != R_NilValue)                                                 \
-        SET_TAG(__v__, CreateTag(__tag__));                                    \
-    }                                                                          \
-  } while (0)
 
 #define DO_ARITH(op, a, b, r)                                                  \
   do {                                                                         \
@@ -1478,12 +1465,20 @@ static INLINE Value Rsh_vecsubassign(Value x, Value rhs, Value i, SEXP call,
   return SXP_TO_VAL(vec);
 }
 
-static INLINE Value Rsh_getintlbuiltin(SEXP symbol) {
+#define INIT_CALL_FRAME(head, tail)                                            \
+  *(head) = Rsh_NilValue;                                                      \
+  *(tail) = Rsh_NilValue;
+
+static INLINE void Rsh_GetIntlBuiltin(Value *call, Value *args_head,
+                                      Value *args_tail, SEXP symbol) {
   SEXP value = INTERNAL(symbol);
+
   if (TYPEOF(value) != BUILTINSXP) {
     Rf_error("there is no .Internal function '%s'", CHAR(PRINTNAME(symbol)));
   }
-  return SXP_TO_VAL(value);
+
+  *call = SXP_TO_VAL(value);
+  INIT_CALL_FRAME(args_head, args_tail);
 }
 
 #endif // RUNTIME_H
