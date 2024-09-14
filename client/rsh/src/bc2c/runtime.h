@@ -100,7 +100,8 @@ extern SEXP R_LOGIC2_OPS[];
   X([[, Rsh_Subset2Sym)                                                      \
   X(value, Rsh_ValueSym)                                                     \
   X([<-, Rsh_SubassignSym)                                                   \
-  X([[<-, Rsh_Subassign2Sym)
+  X([[<-, Rsh_Subassign2Sym) \
+  X(.External2, Rsh_DotExternal2Sym)
 
 #ifndef RSH_TESTS
 #define X(a, b) extern SEXP b;
@@ -447,7 +448,6 @@ typedef SEXP (*Rsh_closure)(SEXP, SEXP);
 JIT_DECL Value Rsh_NilValue;
 JIT_DECL Value Rsh_UnboundValue;
 JIT_DECL SEXP NOT_OP;
-JIT_DECL SEXP DOTEXTERNAL2_SYM;
 JIT_DECL SEXP BC2C_CALL_TRAMPOLINE_SXP;
 
 #ifdef RSH_TESTS
@@ -1085,7 +1085,7 @@ static INLINE SEXP create_wrapper_body(SEXP closure, SEXP rho, SEXP c_cp) {
 
   // store the original AST (consequently it will not correspond to the AST)
   SET_VECTOR_ELT(cp, i++, VECTOR_ELT(original_cp, 0));
-  SET_VECTOR_ELT(cp, i++, DOTEXTERNAL2_SYM);
+  SET_VECTOR_ELT(cp, i++, Rsh_DotExternal2Sym);
   SET_VECTOR_ELT(cp, i++, BC2C_CALL_TRAMPOLINE_SXP);
   SET_VECTOR_ELT(cp, i++, closure);
   SET_VECTOR_ELT(cp, i++, c_cp);
