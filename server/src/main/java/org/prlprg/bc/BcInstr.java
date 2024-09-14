@@ -39,11 +39,17 @@ public sealed interface BcInstr {
     }
 
     default int pop() {
-        return 0;
+        var stackEffect = getClass().getAnnotation(StackEffect.class);
+        return stackEffect == null ? 0 : stackEffect.pop();
     }
 
     default int push() {
-        return 0;
+        var stackEffect = getClass().getAnnotation(StackEffect.class);
+        return stackEffect == null ? 0 : stackEffect.push();
+    }
+
+    default boolean needsRho() {
+        return getClass().getAnnotation(NeedsRho.class) != null;
     }
 
     default Collection<ConstPool.Idx<? extends SEXP>> args() {
@@ -62,19 +68,11 @@ public sealed interface BcInstr {
         return args;
     }
 
-    default boolean needsRho() {
-        return false;
-    }
-
+    @StackEffect(pop = 1)
     record Return() implements BcInstr {
         @Override
         public BcOp op() {
             return BcOp.RETURN;
-        }
-
-        @Override
-        public int pop() {
-            return 1;
         }
     }
 
@@ -90,6 +88,8 @@ public sealed interface BcInstr {
         }
     }
 
+    @NeedsRho
+    @StackEffect(pop = 1)
     record BrIfNot(ConstPool.Idx<LangSXP> ast, @LabelName("ifFalse") BcLabel dest)
             implements BcInstr {
         @Override
@@ -103,6 +103,7 @@ public sealed interface BcInstr {
         }
     }
 
+    @StackEffect(pop = 1)
     record Pop() implements BcInstr {
         @Override
         public BcOp op() {
@@ -206,6 +207,7 @@ public sealed interface BcInstr {
         }
     }
 
+    @StackEffect(push = 1)
     record LdConst(ConstPool.Idx<SEXP> constant) implements BcInstr {
         @Override
         public BcOp op() {
@@ -213,6 +215,7 @@ public sealed interface BcInstr {
         }
     }
 
+    @StackEffect(push = 1)
     record LdNull() implements BcInstr {
         @Override
         public BcOp op() {
@@ -220,6 +223,7 @@ public sealed interface BcInstr {
         }
     }
 
+    @StackEffect(push = 1)
     record LdTrue() implements BcInstr {
         @Override
         public BcOp op() {
@@ -227,6 +231,7 @@ public sealed interface BcInstr {
         }
     }
 
+    @StackEffect(push = 1)
     record LdFalse() implements BcInstr {
         @Override
         public BcOp op() {
@@ -234,6 +239,8 @@ public sealed interface BcInstr {
         }
     }
 
+    @StackEffect(push = 1)
+    @NeedsRho
     record GetVar(ConstPool.Idx<RegSymSXP> name) implements BcInstr {
         @Override
         public BcOp op() {
@@ -248,6 +255,8 @@ public sealed interface BcInstr {
         }
     }
 
+    @NeedsRho
+    @StackEffect(pop = 1, push = 1)
     record SetVar(ConstPool.Idx<RegSymSXP> name) implements BcInstr {
         @Override
         public BcOp op() {
@@ -255,6 +264,8 @@ public sealed interface BcInstr {
         }
     }
 
+    @NeedsRho
+    @StackEffect(push = 3)
     record GetFun(ConstPool.Idx<RegSymSXP> name) implements BcInstr {
         @Override
         public BcOp op() {
@@ -276,6 +287,7 @@ public sealed interface BcInstr {
         }
     }
 
+    @StackEffect(push = 3)
     record GetBuiltin(ConstPool.Idx<RegSymSXP> name) implements BcInstr {
         @Override
         public BcOp op() {
@@ -283,18 +295,15 @@ public sealed interface BcInstr {
         }
     }
 
+    @StackEffect(push = 3)
     record GetIntlBuiltin(ConstPool.Idx<RegSymSXP> name) implements BcInstr {
         @Override
         public BcOp op() {
             return BcOp.GETINTLBUILTIN;
         }
-
-        @Override
-        public int push() {
-            return 3;
-        }
     }
 
+    @StackEffect(pop = 1, push = 3)
     record CheckFun() implements BcInstr {
         @Override
         public BcOp op() {
@@ -302,7 +311,9 @@ public sealed interface BcInstr {
         }
     }
 
-    /** {@code code} is usually but not always bytecode (see eval.c). */
+    @NeedsRho
+    @StackEffect(pop = 3, push = 3)
+            /** {@code code} is usually but not always bytecode (see eval.c). */
     record MakeProm(ConstPool.Idx<SEXP> code) implements BcInstr {
         @Override
         public BcOp op() {
@@ -317,6 +328,7 @@ public sealed interface BcInstr {
         }
     }
 
+    @StackEffect(pop = 3, push = 3)
     record SetTag(@Nullable ConstPool.Idx<StrOrRegSymSXP> tag) implements BcInstr {
         @Override
         public BcOp op() {
@@ -331,157 +343,75 @@ public sealed interface BcInstr {
         }
     }
 
+    @StackEffect(pop = 3, push = 2)
     record PushArg() implements BcInstr {
         @Override
         public BcOp op() {
             return BcOp.PUSHARG;
         }
-
-        @Override
-        public int pop() {
-            return 3;
-        }
-
-        @Override
-        public int push() {
-            return 2;
-        }
     }
 
+    @StackEffect(pop = 2, push = 2)
     record PushConstArg(ConstPool.Idx<SEXP> constant) implements BcInstr {
         @Override
         public BcOp op() {
             return BcOp.PUSHCONSTARG;
         }
-
-        @Override
-        public int pop() {
-            return 2;
-        }
-
-        @Override
-        public int push() {
-            return 2;
-        }
     }
 
+    @StackEffect(pop = 2, push = 2)
     record PushNullArg() implements BcInstr {
         @Override
         public BcOp op() {
             return BcOp.PUSHNULLARG;
         }
-
-        @Override
-        public int pop() {
-            return 2;
-        }
-
-        @Override
-        public int push() {
-            return 2;
-        }
     }
 
+    @StackEffect(pop = 2, push = 2)
     record PushTrueArg() implements BcInstr {
         @Override
         public BcOp op() {
             return BcOp.PUSHTRUEARG;
         }
-
-        @Override
-        public int pop() {
-            return 2;
-        }
-
-        @Override
-        public int push() {
-            return 2;
-        }
     }
 
+    @StackEffect(pop = 2, push = 2)
     record PushFalseArg() implements BcInstr {
         @Override
         public BcOp op() {
             return BcOp.PUSHFALSEARG;
         }
-
-        @Override
-        public int pop() {
-            return 2;
-        }
-
-        @Override
-        public int push() {
-            return 2;
-        }
     }
 
+    @NeedsRho
+    @StackEffect(pop = 3, push = 1)
     record Call(ConstPool.Idx<LangSXP> ast) implements BcInstr {
         @Override
         public BcOp op() {
             return BcOp.CALL;
         }
-
-        @Override
-        public int pop() {
-            return 3;
-        }
-
-        @Override
-        public int push() {
-            return 1;
-        }
-
-        @Override
-        public boolean needsRho() {
-            return true;
-        }
     }
 
+    @NeedsRho
+    @StackEffect(pop = 3, push = 1)
     record CallBuiltin(ConstPool.Idx<LangSXP> ast) implements BcInstr {
         @Override
         public BcOp op() {
             return BcOp.CALLBUILTIN;
         }
-
-        @Override
-        public int pop() {
-            return 3;
-        }
-
-        @Override
-        public int push() {
-            return 1;
-        }
-
-        @Override
-        public boolean needsRho() {
-            return true;
-        }
     }
 
+    @NeedsRho
+    @StackEffect(pop = 3, push = 1)
     record CallSpecial(ConstPool.Idx<LangSXP> ast) implements BcInstr {
         @Override
         public BcOp op() {
             return BcOp.CALLSPECIAL;
         }
-
-        @Override
-        public int pop() {
-            return 3;
-        }
-
-        @Override
-        public int push() {
-            return 1;
-        }
-
-        @Override
-        public boolean needsRho() {
-            return true;
-        }
     }
 
+    @NeedsRho
+    @StackEffect(push = 1)
     record MakeClosure(ConstPool.Idx<VecSXP> arg) implements BcInstr {
         public ListSXP formals(ConstPool pool) {
             return (ListSXP) pool.get(this.arg).get(0);
@@ -502,6 +432,8 @@ public sealed interface BcInstr {
         }
     }
 
+    @NeedsRho
+    @StackEffect(pop = 1, push = 1)
     record UMinus(ConstPool.Idx<LangSXP> ast) implements BcInstr {
         @Override
         public BcOp op() {
@@ -509,6 +441,8 @@ public sealed interface BcInstr {
         }
     }
 
+    @NeedsRho
+    @StackEffect(pop = 1, push = 1)
     record UPlus(ConstPool.Idx<LangSXP> ast) implements BcInstr {
         @Override
         public BcOp op() {
@@ -516,6 +450,8 @@ public sealed interface BcInstr {
         }
     }
 
+    @NeedsRho
+    @StackEffect(pop = 2, push = 1)
     record Add(ConstPool.Idx<LangSXP> ast) implements BcInstr {
         @Override
         public BcOp op() {
@@ -523,6 +459,8 @@ public sealed interface BcInstr {
         }
     }
 
+    @NeedsRho
+    @StackEffect(pop = 2, push = 1)
     record Sub(ConstPool.Idx<LangSXP> ast) implements BcInstr {
         @Override
         public BcOp op() {
@@ -530,6 +468,8 @@ public sealed interface BcInstr {
         }
     }
 
+    @NeedsRho
+    @StackEffect(pop = 2, push = 1)
     record Mul(ConstPool.Idx<LangSXP> ast) implements BcInstr {
         @Override
         public BcOp op() {
@@ -537,6 +477,8 @@ public sealed interface BcInstr {
         }
     }
 
+    @NeedsRho
+    @StackEffect(pop = 2, push = 1)
     record Div(ConstPool.Idx<LangSXP> ast) implements BcInstr {
         @Override
         public BcOp op() {
@@ -544,6 +486,8 @@ public sealed interface BcInstr {
         }
     }
 
+    @NeedsRho
+    @StackEffect(pop = 2, push = 1)
     record Expt(ConstPool.Idx<LangSXP> ast) implements BcInstr {
         @Override
         public BcOp op() {
@@ -551,6 +495,8 @@ public sealed interface BcInstr {
         }
     }
 
+    @NeedsRho
+    @StackEffect(pop = 1, push = 1)
     record Sqrt(ConstPool.Idx<LangSXP> ast) implements BcInstr {
         @Override
         public BcOp op() {
@@ -558,6 +504,8 @@ public sealed interface BcInstr {
         }
     }
 
+    @NeedsRho
+    @StackEffect(pop = 1, push = 1)
     record Exp(ConstPool.Idx<LangSXP> ast) implements BcInstr {
         @Override
         public BcOp op() {
@@ -565,6 +513,8 @@ public sealed interface BcInstr {
         }
     }
 
+    @NeedsRho
+    @StackEffect(pop = 2, push = 1)
     record Eq(ConstPool.Idx<LangSXP> ast) implements BcInstr {
         @Override
         public BcOp op() {
@@ -572,6 +522,8 @@ public sealed interface BcInstr {
         }
     }
 
+    @NeedsRho
+    @StackEffect(pop = 2, push = 1)
     record Ne(ConstPool.Idx<LangSXP> ast) implements BcInstr {
         @Override
         public BcOp op() {
@@ -579,6 +531,8 @@ public sealed interface BcInstr {
         }
     }
 
+    @NeedsRho
+    @StackEffect(pop = 2, push = 1)
     record Lt(ConstPool.Idx<LangSXP> ast) implements BcInstr {
         @Override
         public BcOp op() {
@@ -586,6 +540,8 @@ public sealed interface BcInstr {
         }
     }
 
+    @NeedsRho
+    @StackEffect(pop = 2, push = 1)
     record Le(ConstPool.Idx<LangSXP> ast) implements BcInstr {
         @Override
         public BcOp op() {
@@ -593,6 +549,8 @@ public sealed interface BcInstr {
         }
     }
 
+    @NeedsRho
+    @StackEffect(pop = 2, push = 1)
     record Ge(ConstPool.Idx<LangSXP> ast) implements BcInstr {
         @Override
         public BcOp op() {
@@ -600,6 +558,8 @@ public sealed interface BcInstr {
         }
     }
 
+    @NeedsRho
+    @StackEffect(pop = 2, push = 1)
     record Gt(ConstPool.Idx<LangSXP> ast) implements BcInstr {
         @Override
         public BcOp op() {
@@ -607,6 +567,8 @@ public sealed interface BcInstr {
         }
     }
 
+    @NeedsRho
+    @StackEffect(pop = 2, push = 1)
     record And(ConstPool.Idx<LangSXP> ast) implements BcInstr {
         @Override
         public BcOp op() {
@@ -614,6 +576,8 @@ public sealed interface BcInstr {
         }
     }
 
+    @NeedsRho
+    @StackEffect(pop = 2, push = 1)
     record Or(ConstPool.Idx<LangSXP> ast) implements BcInstr {
         @Override
         public BcOp op() {
@@ -621,6 +585,8 @@ public sealed interface BcInstr {
         }
     }
 
+    @NeedsRho
+    @StackEffect(pop = 1, push = 1)
     record Not(ConstPool.Idx<LangSXP> ast) implements BcInstr {
         @Override
         public BcOp op() {
@@ -635,6 +601,8 @@ public sealed interface BcInstr {
         }
     }
 
+    @NeedsRho
+    @StackEffect(pop = 1, push = 4)
     record StartAssign(ConstPool.Idx<RegSymSXP> name) implements BcInstr {
         @Override
         public BcOp op() {
@@ -642,6 +610,8 @@ public sealed interface BcInstr {
         }
     }
 
+    @NeedsRho
+    @StackEffect(pop = 3, push = 1)
     record EndAssign(ConstPool.Idx<RegSymSXP> name) implements BcInstr {
         @Override
         public BcOp op() {
@@ -748,6 +718,8 @@ public sealed interface BcInstr {
         }
     }
 
+    @NeedsRho
+    @StackEffect(pop = 1, push = 1)
     record Dollar(ConstPool.Idx<LangSXP> ast, ConstPool.Idx<RegSymSXP> member) implements BcInstr {
         @Override
         public BcOp op() {
@@ -828,10 +800,12 @@ public sealed interface BcInstr {
         }
     }
 
-    // ???: call-idx can be negative? We make TypedIdx null to support this case,
-    // but not sure if
-    // it's possible.
-    // This applies to every other `@Nullable call` in this file.
+    @NeedsRho
+    @StackEffect(pop = 2, push = 1)
+            // XXX: call-idx can be negative? We make TypedIdx null to support this case,
+            // but not sure if
+            // it's possible.
+            // This applies to every other `@Nullable call` in this file.
     record VecSubset(@Nullable ConstPool.Idx<LangSXP> ast) implements BcInstr {
         @Override
         public BcOp op() {
@@ -846,6 +820,8 @@ public sealed interface BcInstr {
         }
     }
 
+    @NeedsRho
+    @StackEffect(pop = 3, push = 1)
     record VecSubassign(@Nullable ConstPool.Idx<LangSXP> ast) implements BcInstr {
         @Override
         public BcOp op() {
@@ -900,6 +876,8 @@ public sealed interface BcInstr {
         }
     }
 
+    @NeedsRho
+    @StackEffect(push = 1)
     record GetVarMissOk(ConstPool.Idx<RegSymSXP> name) implements BcInstr {
         @Override
         public BcOp op() {
@@ -921,11 +899,14 @@ public sealed interface BcInstr {
         }
     }
 
+    @NeedsRho
+    @StackEffect(pop = 1, push = 1)
     record SetVar2(ConstPool.Idx<RegSymSXP> name) implements BcInstr {
         @Override
         public BcOp op() {
             return BcOp.SETVAR2;
         }
+
     }
 
     record StartAssign2(ConstPool.Idx<RegSymSXP> name) implements BcInstr {
@@ -998,6 +979,8 @@ public sealed interface BcInstr {
         }
     }
 
+    @NeedsRho
+    @StackEffect(pop = 1, push = 1)
     record StartSubsetN(ConstPool.Idx<LangSXP> ast, @LabelName("afterSubsetN") BcLabel after)
             implements BcInstr {
         @Override
@@ -1011,6 +994,8 @@ public sealed interface BcInstr {
         }
     }
 
+    @NeedsRho
+    @StackEffect(pop = 2, push = 2)
     record StartSubassignN(ConstPool.Idx<LangSXP> ast, @LabelName("afterSubassignN") BcLabel after)
             implements BcInstr {
         @Override
@@ -1024,6 +1009,8 @@ public sealed interface BcInstr {
         }
     }
 
+    @NeedsRho
+    @StackEffect(pop = 2, push = 1)
     record VecSubset2(@Nullable ConstPool.Idx<LangSXP> ast) implements BcInstr {
         @Override
         public BcOp op() {
@@ -1038,6 +1025,8 @@ public sealed interface BcInstr {
         }
     }
 
+    @NeedsRho
+    @StackEffect(pop = 3, push = 1)
     record VecSubassign2(@Nullable ConstPool.Idx<LangSXP> ast) implements BcInstr {
         @Override
         public BcOp op() {
@@ -1052,6 +1041,8 @@ public sealed interface BcInstr {
         }
     }
 
+    @NeedsRho
+    @StackEffect(pop = 1, push = 1)
     record StartSubset2N(ConstPool.Idx<LangSXP> ast, @LabelName("afterSubset2N") BcLabel after)
             implements BcInstr {
         @Override
@@ -1065,6 +1056,8 @@ public sealed interface BcInstr {
         }
     }
 
+    @NeedsRho
+    @StackEffect(pop = 2, push = 2)
     record StartSubassign2N(ConstPool.Idx<LangSXP> ast, @LabelName("afterSubassign2N") BcLabel after)
             implements BcInstr {
         @Override

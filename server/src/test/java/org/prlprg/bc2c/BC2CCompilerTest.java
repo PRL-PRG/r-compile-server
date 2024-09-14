@@ -11,7 +11,6 @@ import java.util.Objects;
 import java.util.function.Consumer;
 
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.prlprg.AbstractGNURBasedTest;
@@ -32,12 +31,8 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
     }
 
     @Test
-    public void testSetVar() throws Exception {
+    public void testSetAndGetVar() throws Exception {
         verify("x <- 42; x", assertReal(42.0));
-    }
-
-    @Test
-    public void testSetVar2() throws Exception {
         verify("y <- 42; x <- y; x", assertReal(42.0));
     }
 
@@ -53,9 +48,9 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
 
         verify("x <- c(42, 43); x + c(1, 2)", assertReal(43.0, 45.0));
 
-//        verify("x <- 42L; x + c(1, 2)", assertReal(43.0, 44.0));
-//
-//        verify("x <- c(42, 43); x + c(1, 2)", assertReal(43.0, 45.0));
+        verify("x <- 42L; x + c(1, 2)", assertReal(43.0, 44.0));
+
+        verify("x <- c(42, 43); x + c(1, 2)", assertReal(43.0, 45.0));
     }
 
     @Test
@@ -212,7 +207,9 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
 
     @Test
     public void testIfElse() throws Exception {
+        verify("x <- 1; if (x == 1) 1 else if (x == 2) 2 else 3", assertReal(1.0));
         verify("x <- 2; if (x == 1) 1 else if (x == 2) 2 else 3", assertReal(2.0));
+        verify("x <- 3; if (x == 1) 1 else if (x == 2) 2 else 3", assertReal(3.0));
     }
 
     @Test

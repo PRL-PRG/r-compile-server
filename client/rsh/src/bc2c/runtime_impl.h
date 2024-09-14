@@ -12,29 +12,29 @@ RSH_R_SYMBOLS
 #undef X
 
 JIT_DEF SEXP Rsh_initialize_runtime(void) {
-#define X(a, b) LOAD_R_BUILTIN(R_ARITH_OPS[b], #a);
+#define X(a, b, c) LOAD_R_BUILTIN(R_ARITH_OPS[b], #a);
   X_ARITH_OPS
 #undef X
-#define X(a, b) LOAD_R_BUILTIN(R_REL_OPS[b], #a);
+#define X(a, b, c) LOAD_R_BUILTIN(R_REL_OPS[b], #a);
   X_REL_OPS
 #undef X
-#define X(a, b) LOAD_R_BUILTIN(R_MATH1_OPS[b], #a);
+#define X(a, b, c) LOAD_R_BUILTIN(R_MATH1_OPS[b], #a);
   X_MATH1_OPS
 #undef X
-#define X(a, b) LOAD_R_BUILTIN(R_UNARY_OPS[b], #a);
+#define X(a, b, c) LOAD_R_BUILTIN(R_UNARY_OPS[b], #a);
   X_UNARY_OPS
 #undef X
-#define X(a, b) LOAD_R_BUILTIN(R_LOGIC2_OPS[b], #a);
+#define X(a, b, c) LOAD_R_BUILTIN(R_LOGIC2_OPS[b], #a);
   X_LOGIC2_OPS
 #undef X
 
-#define X(a, b) R_ARITH_OP_SYMS[b] = Rf_install(#a);
+#define X(a, b, c) R_ARITH_OP_SYMS[b] = Rf_install(#a);
   X_ARITH_OPS
 #undef X
-#define X(a, b) R_REL_OP_SYMS[b] = Rf_install(#a);
+#define X(a, b, c) R_REL_OP_SYMS[b] = Rf_install(#a);
   X_REL_OPS
 #undef X
-#define X(a, b) R_UNARY_OP_SYMS[b] = Rf_install(#a);
+#define X(a, b, c) R_UNARY_OP_SYMS[b] = Rf_install(#a);
   X_UNARY_OPS
 #undef X
 
