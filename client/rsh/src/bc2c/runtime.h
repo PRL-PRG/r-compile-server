@@ -1555,4 +1555,6 @@ static INLINE void Rsh_SetTag(Value *fun, UNUSED Value *args_head,
   }
 }
 
+static INLINE void Rsh_Invisible() { R_Visible = FALSE; }
+
 #endif // RUNTIME_H
