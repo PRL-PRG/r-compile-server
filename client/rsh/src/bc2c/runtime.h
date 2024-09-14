@@ -1501,11 +1501,13 @@ static INLINE Value Rsh_vec_subassign(Value x, Value rhs, Value i, SEXP call,
       if (sub2 && TYPEOF(vec) == VECSXP) {
         SEXP rhs_sxp = val_as_sexp(rhs);
         if (rhs_sxp != R_NilValue) {
-          if (MAYBE_REFERENCED(rhs_sxp) && VECTOR_ELT(vec, idx) != rhs_sxp) {
+          if (MAYBE_REFERENCED(rhs_sxp) &&
+              VECTOR_ELT(vec, idx - 1) != rhs_sxp) {
             R_FixupRHS(vec, rhs_sxp);
           }
-          SET_VECTOR_ELT(vec, idx, rhs_sxp);
+          SET_VECTOR_ELT(vec, idx - 1, rhs_sxp);
           SETTER_CLEAR_NAMED(vec);
+          return SXP_TO_VAL(vec);
         }
       }
     }
