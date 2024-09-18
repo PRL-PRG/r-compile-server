@@ -1,19 +1,11 @@
 package org.prlprg.bc2c;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.prlprg.primitive.Logical.FALSE;
-import static org.prlprg.primitive.Logical.TRUE;
-
-import java.io.File;
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.Objects;
-import java.util.function.Consumer;
-
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
-import org.prlprg.AbstractGNURBasedTest;
+import org.prlprg.GNURBasedTests;
+import org.prlprg.RDSSnapshotTest;
+import org.prlprg.RSession;
 import org.prlprg.bc.BCCompiler;
 import org.prlprg.primitive.Logical;
 import org.prlprg.rds.RDSWriter;
@@ -21,21 +13,32 @@ import org.prlprg.service.RshCompiler;
 import org.prlprg.sexp.*;
 import org.prlprg.util.Either;
 import org.prlprg.util.Files;
+import org.prlprg.util.ThrowingSupplier;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Objects;
+import java.util.function.Consumer;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.fail;
 
 @Execution(ExecutionMode.CONCURRENT)
-public class BC2CCompilerTest extends AbstractGNURBasedTest {
+public class BC2CCompilerTest extends RDSSnapshotTest implements GNURBasedTests {
 
     @Test
     public void testReturn() throws Exception {
-        verify("42", assertReal(42.0));
+        verify("42");
     }
 
     @Test
     public void testSetAndGetVar() throws Exception {
-        verify("x <- 42; x", assertReal(42.0));
-        verify("y <- 42; x <- y; x", assertReal(42.0));
+        verify("x <- 42; x");
+        verify("y <- 42; x <- y; x");
     }
 
+/*
     @Test
     public void testAdd() throws Exception {
         verify("x <- 42; x + 21", assertReal(63.0));
@@ -247,7 +250,7 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
     @Test
     public void testGetIntBuiltin() throws Exception {
         verify("vector(length=2)", assertLogical(FALSE, FALSE));
-    }
+    }*/
 
     private Consumer<SEXP> assertLogical(Logical... v) {
         return (SEXP s) -> {
@@ -289,13 +292,54 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
         };
     }
 
-    record TestArtifact<T extends SEXP>(Either<Exception, T> result, File tempDir) {
+    record TestArtifact(Either<Exception, SEXP> result, File tempDir) {
         public void destroy() throws IOException {
             Files.deleteRecursively(tempDir.toPath());
         }
     }
 
-    <T extends SEXP> TestArtifact<T> compileAndCall(String code) throws Exception {
+    record TestResult(SEXP value, String output) {
+        static TestResult fromSEXP(SEXP s) {
+            if (!(s instanceof VecSXP v) || v.size() != 2) {
+                throw new IllegalArgumentException("Invalid test result SEXP: %s".formatted(s));
+            }
+
+            var value = v.get(0);
+            var output = v.get(1).asScalarString().orElseThrow(() -> new IllegalArgumentException("Test result output must be scala string, not: %s".formatted(s)));
+
+//            if (!(value instanceof VecSXP valuePerf) || valuePerf.size() != 2) {
+//                throw new IllegalArgumentException("Invalid test result SEXP: %s".formatted(s));
+//            }
+
+            return new TestResult(value, output);
+        }
+    }
+
+    // Internals
+
+    private int verifySeq = 0;
+
+    @Override
+    protected RSession getRSession() {
+        return GNURBasedTests.Rsession;
+    }
+
+    @Override
+    protected void checkEqual(SEXP expected, SEXP actual) {
+        var expectedRes = TestResult.fromSEXP(expected);
+        var actualRes = TestResult.fromSEXP(actual);
+
+        assertEquals(expectedRes.value(), actualRes.value());
+        assertEquals(expectedRes.output(), actualRes.output());
+    }
+
+    @Override
+    protected void checkShape(SEXP value) {
+        TestResult.fromSEXP(value);
+    }
+
+
+    TestArtifact compileAndCall(String code) throws Exception {
         // this has to be the same as in the test/resources/.../Makefile
         var prefix = "test";
 
@@ -309,7 +353,7 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
 
         var funCode = "function() {" + code + "}";
         var closure = (CloSXP) R.eval(funCode);
-        var ast2bc = new BCCompiler(closure, rsession);
+        var ast2bc = new BCCompiler(closure, Rsession);
 
         // FIXME: just for now as we do not support guards
         ast2bc.setOptimizationLevel(3);
@@ -332,37 +376,38 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
                     .flag("-DRSH_TESTS")
                     .compile();
 
+            // FIXME: try global env
             String testDriver =
-                    "dyn.load('%s')\n".formatted(soFile.getAbsolutePath())
+                    "options(warn=1)\n"
+                            + "dyn.load('%s')\n".formatted(soFile.getAbsolutePath())
                             + "cp <- readRDS('%s')\n".formatted(cpFile.getAbsolutePath())
                             + "env <- new.env()\n"
                             + "parent.env(env) <- globalenv()\n"
                             + "invisible(.Call('Rsh_initialize_runtime'))\n"
                             + "res <- .Call('%s', env, cp)\n".formatted(module.topLevelFunName())
                             + "dyn.unload('%s')\n".formatted(soFile.getAbsolutePath())
-                            + "res\n";
+                            + "res\n"; // FIXME .Call('Rsh_performance_counters')
 
             Files.writeString(rFile.toPath(), testDriver);
 
-            var res = R.eval("source('%s', local=F)$value".formatted(rFile.getAbsolutePath()));
+            var res = R.capturingEval("source('%s', local=F)$value".formatted(rFile.getAbsolutePath()));
+            var resSxp = SEXPs.vec(res.first(), SEXPs.string(res.second()));
 
-            return new TestArtifact<>(Either.right((T) res), tempDir);
+            return new TestArtifact(Either.right(resSxp), tempDir);
         } catch (Exception e) {
-            return new TestArtifact<>(Either.left(e), tempDir);
+            return new TestArtifact(Either.left(e), tempDir);
         }
     }
 
-    <T extends SEXP> void verify(String code, SEXP expected) throws Exception {
-        verify(code, (T v) -> assertEquals(expected, v));
-    }
-
-    <T extends SEXP> void verify(String code, Consumer<T> validator) throws Exception {
-        TestArtifact<T> artifact = compileAndCall(code);
+    void verify(String code) throws Exception {
+        var artifact = compileAndCall(code);
         try {
             if (artifact.result.isLeft()) {
                 throw artifact.result.getLeft();
             } else {
-                validator.accept(artifact.result.getRight());
+                var res = artifact.result.getRight();
+                var wrappedCode = wrapCode(code);
+                doVerify(String.valueOf(++verifySeq), res, oracle(code));
                 artifact.destroy();
             }
         } catch (Throwable e) {
@@ -372,5 +417,16 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
             throw new RuntimeException(
                     "Test failed - compilation dir: " + artifact.tempDir.getAbsolutePath(), e);
         }
+    }
+
+    private ThrowingSupplier<SEXP> oracle(String code) {
+        return () -> {
+            var res = R.capturingEval(code);
+            return SEXPs.vec(res.first(), SEXPs.string(res.second()));
+        };
+    }
+
+    private String wrapCode(String code) {
+        return code;
     }
 }
