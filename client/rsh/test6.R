@@ -35,3 +35,8 @@ f <- function(x) {
 rsh::rsh_compile(f, list(tier = "bytecode", bc_opt = 2L))
 
 stopifnot(f(5) == 8)
+
+# Now native compilation
+rsh::rsh_compile(f, list(tier = "native", bc_opt = 3L, cc_opt = 3L))
+
+stopifnot(f(5) == 8)
