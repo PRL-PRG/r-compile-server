@@ -2,14 +2,13 @@ package org.prlprg;
 
 import org.prlprg.rds.RDSReader;
 import org.prlprg.rds.RDSWriter;
-import org.prlprg.rsession.TestRSession;
 import org.prlprg.sexp.SEXP;
 
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Path;
 
-public abstract class RDSSnapshotTest extends SnapshotTest<SEXP> {
+public abstract class RDSSnapshotTest<T> extends SnapshotTest<T> {
 
     @Override
     protected Path getTestPath(String name) {
@@ -18,14 +17,20 @@ public abstract class RDSSnapshotTest extends SnapshotTest<SEXP> {
     }
 
     @Override
-    protected SEXP load(InputStream input) throws Exception {
-        return RDSReader.readStream(getRSession(), input);
+    protected T load(InputStream input) throws Exception {
+        var sxp = RDSReader.readStream(getRSession(), input);
+        return deserialize(sxp);
     }
 
     @Override
-    protected void save(SEXP value, OutputStream output) throws Exception {
-        RDSWriter.writeStream(output, value);
+    protected void save(T value, OutputStream output) throws Exception {
+        var sxp = serialize(value);
+        RDSWriter.writeStream(output, sxp);
     }
 
     protected abstract RSession getRSession();
+
+    protected abstract T deserialize(SEXP value) throws Exception;
+
+    protected abstract SEXP serialize(T value) throws Exception;
 }
