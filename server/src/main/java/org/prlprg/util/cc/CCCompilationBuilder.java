@@ -6,6 +6,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import org.prlprg.util.Files;
 
 // TODO: consider in-memory filesystem
 public class CCCompilationBuilder {
@@ -32,7 +33,8 @@ public class CCCompilationBuilder {
 
   public void compile() throws IOException, InterruptedException, CCompilationException {
     if (LOG.isLoggable(Level.FINE)) {
-      LOG.fine("Compiling input: " + input + ", output: " + output);
+      var lines = Files.readLines(new File(workingDirectory, input)).size();
+      LOG.fine("Compiling input: " + input + " (lines: " + lines + "), output: " + output);
     }
 
     var time = System.currentTimeMillis();

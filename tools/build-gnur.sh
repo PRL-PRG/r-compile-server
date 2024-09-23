@@ -5,13 +5,17 @@ set -Eeuo pipefail
 CURRENT_DIR=$(pwd)
 SCRIPT_DIR=$(cd $(dirname "$0") && pwd)
 BASE_DIR=$(cd "$SCRIPT_DIR/.." && pwd)
-R_DIR="${BASE_DIR}/external/R"
+R_DIR=""
 
 if [ ! -d "$BASE_DIR" ]; then
 	echo "Could not determine absolute dir of $0"
 	echo "Maybe accessed with symlink"
 	exit 1
 fi
+
+function usage() {
+	echo "$0 [-d] <R sources path>"
+}
 
 while [[ $# -gt 0 ]]; do
 	case $1 in
@@ -22,12 +26,28 @@ while [[ $# -gt 0 ]]; do
 		echo "Building a debug version of R"
 		shift
 		;;
-	*)
+	-*)
 		echo "Unknown option $1"
 		exit 1
 		;;
+	*)
+		if [[ -z "$R_DIR" ]]; then
+			R_DIR="$1"
+			shift
+		else
+			echo "Unknown options $@"
+			exit 1
+		fi
+		;;
 	esac
 done
+
+if [[ -z "$R_DIR" ]]; then
+	usage
+	exit 1
+fi
+
+echo "Building in $R_DIR"
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
 	USING_OSX=1

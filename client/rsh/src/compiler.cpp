@@ -33,8 +33,6 @@ void jit_fun_destructor(SEXP fun_ptr) {
 
 namespace rsh {
 
-SEXP CALL_FUN = nullptr;
-
 SEXP RSH_JIT_FUN_PTR = Rf_install("RSH_JIT_FUN_PTR");
 
 static std::variant<protocol::CompileResponse, std::string> compile_closure(SEXP closure, CompilerOptions options) {
@@ -91,7 +89,7 @@ static SEXP create_wrapper_body(SEXP closure, SEXP c_cp) {
   // store the original AST (consequently it will not correspond to the AST)
   SET_VECTOR_ELT(cp, i++, BODY(closure));
   SET_VECTOR_ELT(cp, i++, Rf_install(".External2"));
-  SET_VECTOR_ELT(cp, i++, CALL_FUN);
+  SET_VECTOR_ELT(cp, i++, BC2C_CALL_TRAMPOLINE_SXP);
   SET_VECTOR_ELT(cp, i++, closure);
   SET_VECTOR_ELT(cp, i++, c_cp);
   SET_VECTOR_ELT(cp, i++, expr_index);
@@ -241,29 +239,6 @@ SEXP compile(SEXP closure, SEXP options) {
   return closure;
 }
 
-SEXP call_fun(SEXP call, SEXP op, SEXP args, SEXP env) {
-  SEXP closure = CADR(args);
-  if (TYPEOF(closure) != CLOSXP) {
-    Rf_error("Expected a closure");
-  }
-
-  SEXP body = BODY(closure);
-  if (TYPEOF(body) != BCODESXP) {
-    Rf_error("Expected a compiled closure");
-  }
-
-  SEXP cp = BCODE_CONSTS(body);
-  if (XLENGTH(cp) != 6) {
-    Rf_error("Expected a constant pool with 6 elements");
-  }
-
-  SEXP c_cp = VECTOR_ELT(cp, LENGTH(cp) - 2);
-  auto fun = (JitFun)R_ExternalPtrAddr(VECTOR_ELT(c_cp, 0));
-  SEXP res = fun(env, VECTOR_ELT(c_cp, 1));
-
-  return res;
-}
-
 SEXP is_compiled(SEXP closure) {
   if (TYPEOF(closure) != CLOSXP) {
     Rf_error("Expected a closure");
@@ -301,9 +276,7 @@ SEXP is_compiled(SEXP closure) {
 SEXP initialize() {
   Rsh_initialize_runtime();
 
-  CALL_FUN = load_symbol_checked("rsh", "C_call_fun");
   BC2C_CALL_TRAMPOLINE_SXP = load_symbol_checked("rsh", "C_call_trampoline");
-
 
   return R_NilValue;
 }

@@ -1,6 +1,7 @@
 package org.prlprg.util;
 
 import com.google.errorprone.annotations.CanIgnoreReturnValue;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
@@ -142,6 +143,10 @@ public class Files {
     return ThrowingSupplier.get(() -> new java.io.BufferedReader(new java.io.InputStreamReader(is)))
         .lines()
         .toList();
+  }
+
+  public static List<String> readLines(File f) {
+    return ThrowingSupplier.get(() -> java.nio.file.Files.readAllLines(f.toPath()));
   }
 
   // endregion

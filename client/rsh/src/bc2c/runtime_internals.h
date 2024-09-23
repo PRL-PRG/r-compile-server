@@ -29,6 +29,8 @@ extern Rboolean R_Visible; /* Value visibility flag */
 #define INLINE
 #endif
 
+#define UNUSED __attribute__((unused))
+
 #define R_MSG_NA "NaNs produced"
 
 void forcePromise(SEXP e);
@@ -52,6 +54,36 @@ SEXP do_relop_dflt(SEXP call, SEXP op, SEXP x, SEXP y);
 SEXP do_math1(SEXP call, SEXP op, SEXP args, SEXP env);
 SEXP R_unary(SEXP call, SEXP op, SEXP s1);
 SEXP do_logic(SEXP call, SEXP op, SEXP args, SEXP env);
+int tryDispatch(const char *generic, SEXP call, SEXP x, SEXP rho, SEXP *pv);
+SEXP R_subset3_dflt(SEXP x, SEXP input, SEXP call);
+SEXP CreateTag(SEXP x);
+SEXP do_subset2_dflt(SEXP call, SEXP op, SEXP args, SEXP rho);
+SEXP do_subset_dflt(SEXP call, SEXP op, SEXP args, SEXP rho);
+SEXP EnsureLocal(SEXP symbol, SEXP rho, R_varloc_t *ploc);
+int tryAssignDispatch(const char *generic, SEXP call, SEXP lhs, SEXP rhs,
+                      SEXP rho, SEXP *pv);
+SEXP do_subassign_dflt(SEXP call, SEXP op, SEXP args, SEXP rho);
+SEXP do_subassign2_dflt(SEXP call, SEXP op, SEXP args, SEXP rho);
+
+#define INTEGER_TO_LOGICAL(x)                                                  \
+  ((x) == NA_INTEGER ? NA_LOGICAL : (x) ? TRUE : FALSE)
+#define INTEGER_TO_REAL(x) ((x) == NA_INTEGER ? NA_REAL : (x))
+#define LOGICAL_TO_REAL(x) ((x) == NA_LOGICAL ? NA_REAL : (x))
+
+/* This macro makes sure the RHS NAMED value is 0 or NAMEDMAX. This is
+   necessary to make sure the RHS value returned by the assignment
+   expression is correct when the RHS value is part of the LHS
+   object. */
+#define FIXUP_RHS_NAMED(r)                                                     \
+  do {                                                                         \
+    SEXP __rhs__ = (r);                                                        \
+    if (NAMED(__rhs__))                                                        \
+      ENSURE_NAMEDMAX(__rhs__);                                                \
+  } while (0)
+
+#define FAST_VECELT_OK(vec)                                                    \
+  (ATTRIB(vec) == R_NilValue ||                                                \
+   (TAG(ATTRIB(vec)) == R_DimSymbol && CDR(ATTRIB(vec)) == R_NilValue))
 
 #define MAYBE_MISSING_ARGUMENT_ERROR(symbol, keepmiss, rho)                    \
   do {                                                                         \
@@ -104,5 +136,28 @@ static INLINE SEXP relop(SEXP call, SEXP op, SEXP opsym, SEXP x, SEXP y,
   }
   return do_relop_dflt(call, op, x, y);
 }
+
+#define RSH_LIST_APPEND(/* Value */ head, /* Value */ tail, /* Value */ value) \
+  do {                                                                         \
+    SEXP __elem__ = CONS(val_as_sexp(value), R_NilValue);                      \
+    if (head == Rsh_NilValue) {                                                \
+      head = SXP_TO_VAL(__elem__);                                             \
+    } else {                                                                   \
+      SETCDR(VAL_SXP(tail), __elem__);                                         \
+    }                                                                          \
+    tail = SXP_TO_VAL(__elem__);                                               \
+    INCREMENT_LINKS(CAR(__elem__));                                            \
+  } while (0)
+
+#define RSH_SET_TAG(/* Value */ v, /* Value */ t)                              \
+  do {                                                                         \
+    SEXP __v__ = VAL_SXP((v));                                                 \
+    SEXP __tag__ = val_as_sexp((t));                                           \
+    if (__tag__ != R_NilValue) {                                               \
+      if (__v__ != R_NilValue)                                                 \
+        SET_TAG(__v__, CreateTag(__tag__));                                    \
+    }                                                                          \
+  } while (0)
+
 //
 #endif

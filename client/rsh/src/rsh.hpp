@@ -25,10 +25,6 @@ namespace rsh {
 
 using Bytes = std::vector<u8>;
 
-// This should point to the R ExternalRoutine/NativeSymbolInfo structure
-// that represents the exported C function registered in r_init_rsh
-extern SEXP CALL_FUN;
-
 // A tag to attach to the external pointer
 extern SEXP RSH_JIT_FUN_PTR;
 

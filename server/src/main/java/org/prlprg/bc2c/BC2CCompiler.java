@@ -8,47 +8,31 @@ import org.prlprg.sexp.*;
 
 record Constant(int id, SEXP value) {}
 
-record Value(String expr, boolean protect) {}
-
 class ByteCodeStack {
-  private static final String PROTECT_EXPR = "PROTECT(%s)";
-  private static final String UNPROTECT_EXPR = "UNPROTECT(%d)";
-
   private int max = 0;
-  private final Stack<Integer> protects = new Stack<>();
+  private int top = -1;
 
-  public String push(String expr, boolean protect) {
-    protects.push(0);
-    int curr = protects.size();
-    max = Math.max(max, curr);
-
-    return set(curr - 1, expr, protect);
+  public String push() {
+    top++;
+    max = Math.max(max, top + 1);
+    return "&" + variable();
   }
 
-  public String pop(int n) {
-    var unprotect = 0;
-    for (int i = 0; i < n; i++) {
-      unprotect += protects.pop();
+  public String pop() {
+    if (top < 0) {
+      throw new IllegalArgumentException("Stack underflow: %d".formatted(top));
+    }
+    String v = variable();
+    top--;
+    return v;
+  }
+
+  private String variable() {
+    if (top < 0 || top + 1 > max) {
+      throw new IllegalStateException("Invalid stack state (top: %d, max: %d)".formatted(top, max));
     }
 
-    if (unprotect > 0) {
-      return UNPROTECT_EXPR.formatted(unprotect);
-    } else {
-      return "";
-    }
-  }
-
-  public String curr(int n) {
-    return register(currIdx(n));
-  }
-
-  public int currIdx(int n) {
-    int curr = protects.size() - 1;
-
-    assert curr + n >= 0 && curr + n <= max
-        : "Invalid offset: %d (curr: %d, max: %d)".formatted(n, curr, max);
-
-    return curr + n;
+    return "_" + top;
   }
 
   public int max() {
@@ -56,27 +40,7 @@ class ByteCodeStack {
   }
 
   public boolean isEmpty() {
-    return protects.isEmpty();
-  }
-
-  public String set(int i, String expr, boolean protect) {
-    assert i >= 0 && i <= max : "Invalid index: %d (max: %d)".formatted(i, max);
-
-    if (protect) {
-      expr = protect(i, expr);
-    }
-
-    return "%s = %s;".formatted(register(i), expr);
-  }
-
-  private String protect(int i, String expr) {
-    protects.set(i, protects.get(i) + 1);
-    return PROTECT_EXPR.formatted(expr);
-  }
-
-  protected String register(int idx) {
-    assert idx >= 0;
-    return "_" + idx;
+    return top == -1;
   }
 
   protected Optional<String> registerInitialization() {
@@ -90,6 +54,10 @@ class ByteCodeStack {
             .collect(Collectors.joining(", ", "Value ", ";"));
 
     return Optional.of(line);
+  }
+
+  public int top() {
+    return top;
   }
 }
 
@@ -144,21 +112,19 @@ public class BC2CCompiler {
 
 // TODO: extract labels and cells into its own classes
 class ClosureCompiler {
-  private static final String NAME_ENV = "ENV";
-  private static final String NAME_CP = "CP";
+  /** The name of the variable representing the current environment */
+  private static final String VAR_RHO = "RHO";
 
-  // FIXME: either all String or all Value
-  private static final Value VAL_NULL = new Value("Rsh_NilValue", false);
-  private static final String VAL_TRUE = "VAL_TRUE";
-  private static final String VAL_FALSE = "VAL_FALSE";
+  /** The name of the variable representing the C constant pool */
+  private static final String VAR_CCP = "CCP";
 
   private final Bc bc;
-  private final String name;
-  private final Map<Integer, Constant> constants = new LinkedHashMap<>();
   private final ByteCodeStack stack = new ByteCodeStack();
+  private final Map<Integer, Constant> constants = new LinkedHashMap<>();
   private final Set<Integer> labels = new HashSet<>();
   private final Set<Integer> cells = new HashSet<>();
   private int extraConstPoolIdx;
+  private final String name;
 
   protected CModule module;
   protected CFunction fun;
@@ -168,7 +134,7 @@ class ClosureCompiler {
     this.bc = bc;
     this.name = name;
     this.module = module;
-    this.fun = module.createFun("SEXP", name, "SEXP %s, SEXP %s".formatted(NAME_ENV, NAME_CP));
+    this.fun = module.createFun("SEXP", name, "SEXP %s, SEXP %s".formatted(VAR_RHO, VAR_CCP));
     this.body = fun.add();
     this.extraConstPoolIdx = bc.consts().size() + 1;
   }
@@ -179,6 +145,10 @@ class ClosureCompiler {
     var code = bc.code();
     for (int i = 0; i < code.size(); i++) {
       compile(code.get(i), i);
+    }
+
+    if (!stack.isEmpty()) {
+      throw new IllegalStateException("Stack not empty: %d".formatted(stack.top()));
     }
 
     afterCompile();
@@ -196,151 +166,63 @@ class ClosureCompiler {
   }
 
   private void fillLabels() {
-    bc.code().forEach(x -> x.labels().forEach(l -> labels.add(l.target())));
+    bc.code().forEach(x -> x.label().ifPresent(l -> labels.add(l.target())));
   }
 
   public List<SEXP> constants() {
     return List.copyOf(constants.values().stream().map(Constant::value).toList());
   }
 
-  private void compile(BcInstr instr, int instrIdx) {
-    body.comment("begin: " + instr);
-    if (labels.contains(instrIdx)) {
-      body.line("%s:".formatted(label(instrIdx)));
+  private void compile(BcInstr instr, int pc) {
+    if (labels.contains(pc)) {
+      body.line("%s:".formatted(label(pc)));
     }
 
-    switch (instr) {
-      case BcInstr.SetVar(var idx) -> compileSetVar(idx);
-      case BcInstr.SetVar2(var idx) -> compileSetVar2(idx);
-      case BcInstr.LdConst(var idx) -> compileLd(constantVAL(idx));
-      case BcInstr.LdTrue() -> compileLd(VAL_TRUE);
-      case BcInstr.LdFalse() -> compileLd(VAL_FALSE);
-      case BcInstr.GetVar(var idx) -> compileGetVar(idx);
-      case BcInstr.Add(var idx) -> compileArith(idx, "ADD_OP");
-      case BcInstr.Sub(var idx) -> compileArith(idx, "SUB_OP");
-      case BcInstr.Mul(var idx) -> compileArith(idx, "MUL_OP");
-      case BcInstr.Div(var idx) -> compileArith(idx, "DIV_OP");
-      case BcInstr.Expt(var idx) -> compileArith(idx, "POW_OP");
-      case BcInstr.Lt(var idx) -> compileRelop(idx, "LT_OP");
-      case BcInstr.Le(var idx) -> compileRelop(idx, "LE_OP");
-      case BcInstr.Gt(var idx) -> compileRelop(idx, "GT_OP");
-      case BcInstr.Ge(var idx) -> compileRelop(idx, "GE_OP");
-      case BcInstr.Eq(var idx) -> compileRelop(idx, "EQ_OP");
-      case BcInstr.Ne(var idx) -> compileRelop(idx, "NE_OP");
-      case BcInstr.Exp(var idx) -> compileMath1(idx, "EXP_OP");
-      case BcInstr.Sqrt(var idx) -> compileMath1(idx, "SQRT_OP");
-      case BcInstr.UPlus(var idx) -> compileUnary(idx, "UPLUS_OP");
-      case BcInstr.UMinus(var idx) -> compileUnary(idx, "UMINUS_OP");
-      case BcInstr.And(var idx) -> compileLogic(idx, "AND_OP");
-      case BcInstr.Or(var idx) -> compileLogic(idx, "OR_OP");
-      case BcInstr.Not(var idx) -> compileNot(idx);
-      case BcInstr.Return() -> compileReturn();
-      case BcInstr.Pop() -> pop(1);
-      case BcInstr.GetBuiltin(var idx) -> compileGetBuiltin(idx);
-      case BcInstr.CallBuiltin(var idx) -> compileCall(idx);
-      case BcInstr.Call(var idx) -> compileCall(idx);
-      case BcInstr.PushArg() -> compilePushArg();
-      case BcInstr.PushNullArg() -> compilePushConstArg(VAL_NULL.expr());
-      case BcInstr.PushTrueArg() -> compilePushConstArg(VAL_TRUE);
-      case BcInstr.PushFalseArg() -> compilePushConstArg(VAL_FALSE);
-      case BcInstr.PushConstArg(var idx) -> compilePushConstArg(constantVAL(idx));
-      case BcInstr.SetTag(var idx) -> compileSetTag(idx);
-      case BcInstr.BrIfNot(var call, var label) -> compileBrIfNot(call, label);
-      case BcInstr.Goto(var label) -> compileGoto(label);
-      case BcInstr.Invisible() -> compileInvisible();
-      case BcInstr.LdNull() -> compileLdNull();
-      case BcInstr.GetFun(var idx) -> compileGetFun(idx);
-      case BcInstr.MakeClosure(var idx) -> compileMakeClosure(idx);
-      case BcInstr.CheckFun() -> compileCheckFun();
-      case BcInstr.MakeProm(var idx) -> compileMakeProm(idx);
+    var builder = new InstrBuilder(instr);
+    var code =
+        switch (instr) {
+          case BcInstr.Return() -> "return %s;".formatted(builder.compile());
+          case BcInstr.Goto(var dest) -> "goto %s;".formatted(label(dest));
+          case BcInstr.LdConst(var idx) -> builder.args(constantVAL(idx)).compileStmt();
+          case BcInstr.PushConstArg(var idx) -> builder.args(constantVAL(idx)).compileStmt();
+          case BcInstr.SetTag(var idx) -> builder.args(constantVAL(idx)).compileStmt();
+          case BcInstr.SetVar(var symbol) ->
+              builder.args(constantSXP(symbol), cell(symbol)).compileStmt();
+          case BcInstr.GetVar(var symbol) ->
+              builder.args(constantSXP(symbol), cell(symbol)).compileStmt();
+          case BcInstr.GetVarMissOk(var symbol) ->
+              builder.args(constantSXP(symbol), cell(symbol)).compileStmt();
+          case BcInstr.StartAssign(var symbol) ->
+              builder.args(constantSXP(symbol), cell(symbol)).compileStmt();
+          case BcInstr.EndAssign(var symbol) ->
+              builder.args(constantSXP(symbol), cell(symbol)).compileStmt();
+          case BcInstr.GetBuiltin(var idx) ->
+              builder.args("\"" + bc.consts().get(idx).name() + "\"").compileStmt();
+          case BcInstr.MakeClosure(var idx) -> compileMakeClosure(builder, idx);
+          default -> {
+            if (instr.label().orElse(null) instanceof BcLabel l) {
+              yield "if (%s) {\ngoto %s;\n}".formatted(builder.compile(), label(l));
+            } else {
+              yield builder.compileStmt();
+            }
+          }
+        };
 
-      default -> throw new UnsupportedOperationException(instr + ": not supported");
-    }
-    body.comment("end: " + instr);
-    body.nl();
+    body.line(code);
   }
 
-  private void compileMakeProm(ConstPool.Idx<SEXP> idx) {
-    body.line(
-        "Rsh_make_prom(%s, &%s, &%s, %s, %s);"
-            .formatted(stack.curr(-2), stack.curr(-1), stack.curr(0), constantSXP(idx), NAME_ENV));
-  }
-
-  private void compileCheckFun() {
-    body.line("Rsh_check_fun(%s);".formatted(stack.curr(0)));
-    initCallFrame();
-  }
-
-  private void compileMakeClosure(ConstPool.Idx<VecSXP> idx) {
+  private String compileMakeClosure(InstrBuilder builder, ConstPool.Idx<VecSXP> idx) {
     var cls = bc.consts().get(idx);
 
     if (cls.get(1) instanceof BCodeSXP closureBody) {
-      var compiledClosure = module.compileClosure(closureBody.bc(), name);
+      var compiledClosure = module.compileClosure(closureBody.bc());
       var cpConst = createExtraConstant(compiledClosure.constantPool());
-      push(
-          "Rsh_native_closure(%s, &%s, %s, %s)"
-              .formatted(constantSXP(idx), compiledClosure.name(), constantSXP(cpConst), NAME_ENV),
-          false);
+      return builder
+          .args(constantSXP(idx), "&" + compiledClosure.name(), constantSXP(cpConst))
+          .compileStmt();
     } else {
       throw new UnsupportedOperationException("Unsupported body: " + body);
     }
-  }
-
-  private void compileCall(ConstPool.Idx<LangSXP> idx) {
-    var call = constantSXP(idx);
-    var fun = stack.curr(-2);
-    var args = stack.curr(-1);
-
-    // FIXME: how do we signal back the whether the value needs protection?
-    var c = "Rsh_call(%s, %s, %s, %s)".formatted(call, fun, args, NAME_ENV);
-    // we are going to pop 4 elements from the stack - all the until the beginning of the call frame
-    popPush(3, c, false);
-  }
-
-  private void compileGetFun(ConstPool.Idx<RegSymSXP> idx) {
-    push("Rsh_getFun(%s, %s)".formatted(constantSXP(idx), NAME_ENV), false);
-    initCallFrame();
-  }
-
-  private void compileLdNull() {
-    visible(true);
-    push(VAL_NULL);
-  }
-
-  private void compileInvisible() {
-    visible(false);
-  }
-
-  private void compileGoto(BcLabel label) {
-    body.line("goto %s;".formatted(label(label.target())));
-  }
-
-  private void compileBrIfNot(ConstPool.Idx<LangSXP> call, BcLabel label) {
-    var curr = stack.curr(0);
-    var unprotect = stack.pop(1);
-    body.line(
-        "if (!Rsh_is_true(%s, %s, %s)) { %s; goto %s; }"
-            .formatted(curr, constantSXP(call), NAME_ENV, unprotect, label(label.target())));
-    body.line(unprotect + ";");
-  }
-
-  private void compileSetTag(ConstPool.Idx<StrOrRegSymSXP> idx) {
-    body.line(
-        """
-                        if (TYPEOF(%s) != SPECIALSXP) {
-                          RSH_SET_TAG(%s, %s);
-                        }"""
-            .formatted(stack.curr(-2), stack.curr(0), constantVAL(idx)));
-  }
-
-  private void compilePushArg() {
-    body.line(
-        "RSH_LIST_APPEND(%s, %s, %s);".formatted(stack.curr(-2), stack.curr(-1), stack.curr(0)));
-    pop(1);
-  }
-
-  private void compilePushConstArg(String v) {
-    body.line("RSH_LIST_APPEND(%s, %s, %s);".formatted(stack.curr(-1), stack.curr(0), v));
   }
 
   private void compileRegisters() {
@@ -364,113 +246,58 @@ class ClosureCompiler {
     sec.line(line);
   }
 
-  private void compileGetBuiltin(ConstPool.Idx<RegSymSXP> idx) {
-    var name = bc.consts().get(idx).name();
-    push("Rsh_get_builtin(\"%s\")".formatted(name), false);
-    initCallFrame();
-  }
-
-  private void initCallFrame() {
-    push(VAL_NULL);
-    push(VAL_NULL);
-  }
-
-  private void compileGetVar(ConstPool.Idx<RegSymSXP> idx) {
-    push(
-        "Rsh_get_var(%s, %s, FALSE, FALSE, &%s)".formatted(constantSXP(idx), NAME_ENV, cell(idx)),
-        false);
-  }
-
-  private void compileSetVar(ConstPool.Idx<RegSymSXP> idx) {
-    body.line(
-        "Rsh_set_var(%s, %s, %s, &%s);"
-            .formatted(constantSXP(idx), stack.curr(0), NAME_ENV, cell(idx)));
-  }
-
-  private void compileSetVar2(ConstPool.Idx<RegSymSXP> idx) {
-    body.line("Rsh_set_var2(%s, %s, %s);".formatted(constantSXP(idx), stack.curr(0), NAME_ENV));
-  }
-
-  private void compileReturn() {
-    pop(1);
-    assert stack.isEmpty() : "Stack not empty (%d)".formatted(stack.currIdx(0));
-    body.line("return Rsh_return(%s);".formatted(stack.curr(1)));
-  }
-
-  // FIXME: refactor
-  private void compileMath1(ConstPool.Idx<LangSXP> idx, String op) {
-    var call = constantSXP(idx);
-    var arg = stack.curr(0);
-    popPush(1, "Rsh_math1(%s, %s, %s, %s)".formatted(call, op, arg, NAME_ENV), false);
-  }
-
-  private void compileUnary(ConstPool.Idx<LangSXP> idx, String op) {
-    var call = constantSXP(idx);
-    var arg = stack.curr(0);
-    popPush(1, "Rsh_unary(%s, %s, %s, %s)".formatted(call, op, arg, NAME_ENV), false);
-  }
-
-  private void compileNot(ConstPool.Idx<LangSXP> idx) {
-    var call = constantSXP(idx);
-    var arg = stack.curr(0);
-    popPush(1, "Rsh_not(%s, %s, %s)".formatted(call, arg, NAME_ENV), false);
-  }
-
-  private void compileArith(ConstPool.Idx<LangSXP> idx, String op) {
-    var call = constantSXP(idx);
-    var lhs = stack.curr(-1);
-    var rhs = stack.curr(0);
-    popPush(2, "Rsh_arith(%s, %s, %s, %s, %s)".formatted(call, op, lhs, rhs, NAME_ENV), false);
-  }
-
-  private void compileLogic(ConstPool.Idx<LangSXP> idx, String op) {
-    var call = constantSXP(idx);
-    var lhs = stack.curr(-1);
-    var rhs = stack.curr(0);
-    popPush(2, "Rsh_logic(%s, %s, %s, %s, %s)".formatted(call, op, lhs, rhs, NAME_ENV), false);
-  }
-
-  private void compileRelop(ConstPool.Idx<LangSXP> idx, String op) {
-    var call = constantSXP(idx);
-    var lhs = stack.curr(-1);
-    var rhs = stack.curr(0);
-    popPush(2, "Rsh_relop(%s, %s, %s, %s, %s)".formatted(call, op, lhs, rhs, NAME_ENV), false);
-  }
-
-  private void compileLd(String constant) {
-    push(constant, false);
-  }
-
   // API
 
-  private void pop(int n) {
-    var unprotect = stack.pop(n);
-    if (!unprotect.isEmpty()) {
-      body.line(unprotect + ";");
+  class InstrBuilder {
+    private final BcInstr instr;
+    private final String fun;
+    private List<String> args = new ArrayList<>();
+    private boolean needsRho;
+
+    public InstrBuilder(BcInstr instr) {
+      this.instr = instr;
+      for (var x : instr.args()) {
+        this.args.add(constantSXP(x));
+      }
+      if (instr.needsRho()) {
+        this.needsRho = true;
+      }
+      this.fun = "Rsh_" + instr.getClass().getSimpleName();
     }
-  }
 
-  private String push(String expr, boolean protect) {
-    body.line(stack.push(expr, protect));
-    return stack.curr(0);
-  }
+    public InstrBuilder args(String... args) {
+      this.args = List.of(args);
+      return this;
+    }
 
-  private String push(String expr) {
-    return push(expr, true);
-  }
+    public String compile() {
+      var args = new ArrayList<String>(Math.max(instr.pop(), instr.push()) + this.args.size());
 
-  private void push(Value value) {
-    push(value.expr(), value.protect());
-  }
+      // play the stack effects
+      for (int i = 0; i < instr.pop(); i++) {
+        args.add(0, stack.pop());
+      }
+      for (int i = 0; i < instr.push(); i++) {
+        var e = stack.push();
+        if (args.size() < i + 1) {
+          args.add(e);
+        } else {
+          args.set(i, e);
+        }
+      }
 
-  public void popPush(int n, String expr, boolean protect) {
-    set(stack.currIdx(-n + 1), expr, false);
-    pop(n);
-    push(stack.curr(1), protect);
-  }
+      args.addAll(this.args);
 
-  private void set(int i, String expr, boolean protect) {
-    body.line(stack.set(i, expr, protect));
+      if (needsRho) {
+        args.add(VAR_RHO);
+      }
+
+      return fun + "(" + String.join(", ", args) + ")";
+    }
+
+    public String compileStmt() {
+      return this.compile() + ";";
+    }
   }
 
   private String constantSXP(ConstPool.Idx<? extends SEXP> idx) {
@@ -479,7 +306,7 @@ class ClosureCompiler {
   }
 
   private String constantSXP(Constant c) {
-    return "Rsh_const(%s, %d)".formatted(NAME_CP, c.id());
+    return "Rsh_const(%s, %d)".formatted(VAR_CCP, c.id());
   }
 
   private String constantVAL(ConstPool.Idx<? extends SEXP> idx) {
@@ -493,7 +320,7 @@ class ClosureCompiler {
           case SEXP _ -> "Rsh_const_sxp";
         };
 
-    return "%s(%s, %d)".formatted(f, NAME_CP, c.id());
+    return "%s(%s, %d)".formatted(f, VAR_CCP, c.id());
   }
 
   private Constant getConstant(ConstPool.Idx<? extends SEXP> idx) {
@@ -512,18 +339,18 @@ class ClosureCompiler {
     return c;
   }
 
-  private String label(int instrIndex) {
-    labels.add(instrIndex);
-    return "L%d".formatted(instrIndex);
+  private String label(BcLabel l) {
+    return "L%d".formatted(l.target());
+  }
+
+  private String label(int target) {
+    labels.add(target);
+    return "L%d".formatted(target);
   }
 
   private String cell(ConstPool.Idx<? extends SEXP> idx) {
     var id = getConstant(idx).id();
     cells.add(id);
-    return "C%d".formatted(id);
-  }
-
-  private void visible(boolean visible) {
-    body.line("R_Visible = %s;".formatted(visible ? "TRUE" : "FALSE"));
+    return "&C%d".formatted(id);
   }
 }

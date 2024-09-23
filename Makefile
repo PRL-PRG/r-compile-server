@@ -4,7 +4,7 @@ TOOLS_DIR := $(BASE_DIR)/tools
 
 .PHONY: setup
 setup:
-	$(TOOLS_DIR)/build-gnur.sh
+	$(TOOLS_DIR)/build-gnur.sh $(BASE_DIR)/external/R
 
 .PHONY: setup-git
 setup-git:
