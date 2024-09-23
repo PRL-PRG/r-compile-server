@@ -16,6 +16,14 @@
     return R_NilValue;                                                         \
   }
 
+typedef int32_t i32;
+typedef uint64_t u64;
+typedef uint32_t u32;
+typedef u64 Value;
+
+// LINKING MODEL
+// -------------
+
 // The code linking to this header can run in two modes:
 // 1. as a standalone executable (shared library) that uses just the R runtime
 //    which is used in tests
@@ -32,6 +40,26 @@
 #else
 #define JIT_DECL extern
 #define JIT_DEF
+#endif
+
+// PERFORMANCE COUNTERS
+// --------------------
+
+#ifdef RSH_PC
+typedef struct {
+  // number of times the slow path of Rsh_arith has been taken
+  u32 slow_arith;
+  u32 slow_math1;
+} Rsh_PerfCounters;
+
+#ifndef RSH_TESTS
+// the global performance counters
+JIT_DECL Rsh_PerfCounters Rsh_GPC;
+#endif
+
+#define RSH_PC_INC(m) Rsh_GPC.m++
+#else
+#define RSH_PC_INC(m)
 #endif
 
 #define X_MATH1_OPS                                                            \
@@ -145,11 +173,6 @@ RSH_R_SYMBOLS
 // The 49. bit in SEXP is used to mark MAYBE_REFERENCED
 //
 // clang-format on
-
-typedef int32_t i32;
-typedef uint64_t u64;
-typedef uint32_t u32;
-typedef u64 Value;
 
 // the 13 bits of the NaN boxing
 #define QNAN ((u64)0x7ffc000000000000)
@@ -455,6 +478,8 @@ JIT_DECL SEXP BC2C_CALL_TRAMPOLINE_SXP;
 #else
 JIT_DECL SEXP Rsh_initialize_runtime(void);
 JIT_DECL SEXP Rsh_call_trampoline(SEXP call, SEXP op, SEXP args, SEXP rho);
+JIT_DECL SEXP Rsh_pc_get(void);
+JIT_DECL SEXP Rsh_pc_reset(void);
 #endif
 
 #define BCELL_INLINE(cell, v)                                                  \
@@ -843,6 +868,7 @@ static INLINE Value Rsh_arith(Value lhs, Value rhs, SEXP call, RshArithOp op,
 
   // Slow path!
   Value res;
+  RSH_PC_INC(slow_arith);
   DO_BINARY_BUILTIN(arith2, call, R_ARITH_OPS[op], R_ARITH_OP_SYMS[op], lsh,
                     rhs, rho, &res);
   return res;
@@ -946,6 +972,7 @@ static INLINE Value Rsh_math1(Value arg, SEXP call, RshMath1Op op, SEXP rho) {
     R_Visible = TRUE;
   } else {
     // Slow path!
+    RSH_PC_INC(slow_math1);
     DO_BUILTIN1(do_math1, call, R_MATH1_OPS[op], arg, rho, &res);
   }
 

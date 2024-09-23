@@ -1,31 +1,33 @@
 package org.prlprg.bc2c;
 
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.parallel.Execution;
-import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.prlprg.GNURBasedTests;
 import org.prlprg.RDSSnapshotTest;
 import org.prlprg.RSession;
 import org.prlprg.bc.BCCompiler;
-import org.prlprg.primitive.Logical;
 import org.prlprg.rds.RDSWriter;
 import org.prlprg.service.RshCompiler;
-import org.prlprg.sexp.*;
+import org.prlprg.sexp.CloSXP;
+import org.prlprg.sexp.SEXP;
+import org.prlprg.sexp.SEXPs;
+import org.prlprg.sexp.VecSXP;
 import org.prlprg.util.Either;
 import org.prlprg.util.Files;
+import org.prlprg.util.Pair;
 import org.prlprg.util.ThrowingSupplier;
 
 import java.io.File;
-import java.io.IOException;
-import java.util.Arrays;
 import java.util.Objects;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.fail;
 
-@Execution(ExecutionMode.CONCURRENT)
-public class BC2CCompilerTest extends RDSSnapshotTest implements GNURBasedTests {
+public class BC2CCompilerTest extends RDSSnapshotTest<BC2CCompilerTest.TestResult> implements GNURBasedTests {
+
+    // verify("1 + 1", noSlowPath());
+    // TODO: benchmark for the assignment - we should be faster than R
+    // verify("x <- 1; x", assertReal(2.0));
 
     @Test
     public void testReturn() throws Exception {
@@ -38,55 +40,58 @@ public class BC2CCompilerTest extends RDSSnapshotTest implements GNURBasedTests 
         verify("y <- 42; x <- y; x");
     }
 
-/*
     @Test
     public void testAdd() throws Exception {
-        verify("x <- 42; x + 21", assertReal(63.0));
+        verify("x <- 42; x + 21", fastArith());
 
-        verify("x <- 42L; x + 21L", assertInt(63));
+        verify("x <- 42L; x + 21L", fastArith());
 
-        verify("x <- 42L; x + 21", assertReal(63.0));
+        verify("x <- 42L; x + 21", fastArith());
 
-        verify("x <- 42; x + c(1, 2)", assertReal(43.0, 44.0));
+        verify("x <- 42; x + c(1, 2)");
 
-        verify("x <- c(42, 43); x + c(1, 2)", assertReal(43.0, 45.0));
+        verify("x <- c(42, 43); x + c(1, 2)");
 
-        verify("x <- 42L; x + c(1, 2)", assertReal(43.0, 44.0));
+        verify("x <- 42L; x + c(1, 2)");
 
-        verify("x <- c(42, 43); x + c(1, 2)", assertReal(43.0, 45.0));
+        verify("x <- c(42, 43); x + c(1, 2)");
     }
 
     @Test
     public void testRealScalarArith() throws Exception {
-        verify("x <- 42; x + 21", assertReal(63.0));
-        verify("x <- 42; x - 21", assertReal(21.0));
-        verify("x <- 42; x * 2", assertReal(84.0));
-        verify("x <- 42; x / 2", assertReal(21.0));
-        verify("x <- 42; x ^ 2", assertReal(1764.0));
+        verify("x <- 42; x + 21", fastArith());
+        verify("x <- 42; x - 21", fastArith());
+        verify("x <- 42; x * 2", fastArith());
+        verify("x <- 42; x / 2", fastArith());
+        verify("x <- 42; x ^ 2", fastArith());
     }
 
     @Test
     public void testIntScalarArith() throws Exception {
-        verify("x <- 42L; x + 21L", assertInt(63));
-        verify("x <- 42L; x - 21L", assertInt(21));
-        verify("x <- 42L; x * 2L", assertInt(84));
-        verify("x <- 42L; x / 2L", assertReal(21.0));
+        verify("x <- 42L; x + 21L", fastArith());
+        verify("x <- 42L; x - 21L", fastArith());
+        verify("x <- 42L; x * 2L", fastArith());
+        verify("x <- 42L; x / 2L", fastArith());
     }
 
     // TODO: do some property based testing including NA using R as an oracle
 
     @Test
     public void testArithBuiltins() throws Exception {
-        verify("x <- 42; x %% 5", assertReal(2.0));
-        verify("x <- 42; x %/% 5", assertReal(8.0));
+        verify("x <- 42; x %% 5");
+        verify("x <- 42; x %/% 5");
     }
 
     @Test
     public void testMath1Builtins() throws Exception {
-        verify("sqrt(4)", assertReal(2.0));
-        verify("exp(0)", assertReal(1.0));
+        verify("sqrt(4)", fastMath1());
+        verify("sqrt(4L)", fastMath1());
+        verify("exp(0L)", fastMath1());
+        verify("exp(0)", fastMath1());
+        verify("sqrt(c(4,9))", fastMath1());
     }
 
+/*
     @Test
     public void testUnaryBuiltins() throws Exception {
         verify("x <- 42; +x", assertReal(42.0));
@@ -252,72 +257,25 @@ public class BC2CCompilerTest extends RDSSnapshotTest implements GNURBasedTests 
         verify("vector(length=2)", assertLogical(FALSE, FALSE));
     }*/
 
-    private Consumer<SEXP> assertLogical(Logical... v) {
-        return (SEXP s) -> {
-            if (s instanceof LglSXP r) {
-                assertEquals(v.length, r.size());
-                for (int i = 0; i < v.length; i++) {
-                    assertEquals(v[i], r.get(i));
-                }
-            } else {
-                fail("Expected logical(" + Arrays.toString(v) + "), but got: " + s);
-            }
-        };
-    }
-
-
-    private Consumer<SEXP> assertInt(int... v) {
-        return (SEXP s) -> {
-            if (s instanceof IntSXP r) {
-                assertEquals(v.length, r.size());
-                for (int i = 0; i < v.length; i++) {
-                    assertEquals(v[i], r.asInt(i));
-                }
-            } else {
-                fail("Expected int (" + Arrays.toString(v) + "), but got: " + s);
-            }
-        };
-    }
-
-    private Consumer<SEXP> assertReal(double... v) {
-        return (SEXP s) -> {
-            if (s instanceof RealSXP r) {
-                assertEquals(v.length, r.size());
-                for (int i = 0; i < v.length; i++) {
-                    assertEquals(v[i], r.asReal(i));
-                }
-            } else {
-                fail("Expected real (" + Arrays.toString(v) + "), but got: " + s);
-            }
-        };
-    }
-
-    record TestArtifact(Either<Exception, SEXP> result, File tempDir) {
-        public void destroy() throws IOException {
+    // Internals
+    record TestArtifact(Either<Exception, TestResult> result, File tempDir) {
+        public void destroy() {
             Files.deleteRecursively(tempDir.toPath());
         }
     }
 
-    record TestResult(SEXP value, String output) {
-        static TestResult fromSEXP(SEXP s) {
-            if (!(s instanceof VecSXP v) || v.size() != 2) {
-                throw new IllegalArgumentException("Invalid test result SEXP: %s".formatted(s));
-            }
-
-            var value = v.get(0);
-            var output = v.get(1).asScalarString().orElseThrow(() -> new IllegalArgumentException("Test result output must be scala string, not: %s".formatted(s)));
-
-//            if (!(value instanceof VecSXP valuePerf) || valuePerf.size() != 2) {
-//                throw new IllegalArgumentException("Invalid test result SEXP: %s".formatted(s));
-//            }
-
-            return new TestResult(value, output);
-        }
+    // we do not persist the performance counters
+    public record TestResult(SEXP value, PerformanceCounters pc, String output) {
     }
 
-    // Internals
 
     private int verifySeq = 0;
+
+    @Override
+    protected void checkEqual(TestResult expected, TestResult actual) {
+        assertEquals(expected.value(), actual.value(), "Result is different");
+        assertEquals(expected.output(), actual.output(), "Output is different");
+    }
 
     @Override
     protected RSession getRSession() {
@@ -325,19 +283,31 @@ public class BC2CCompilerTest extends RDSSnapshotTest implements GNURBasedTests 
     }
 
     @Override
-    protected void checkEqual(SEXP expected, SEXP actual) {
-        var expectedRes = TestResult.fromSEXP(expected);
-        var actualRes = TestResult.fromSEXP(actual);
+    protected TestResult deserialize(SEXP sexp) {
+        if (!(sexp instanceof VecSXP v) || v.size() != 2) {
+            throw new IllegalArgumentException("Value must be a vector of size 2, got: " + sexp);
+        }
+        var value = v.get(0);
+        var output = v.get(1).asScalarString().orElseThrow(() -> new IllegalArgumentException("Expected a string output, got: " + v.get(1)));
 
-        assertEquals(expectedRes.value(), actualRes.value());
-        assertEquals(expectedRes.output(), actualRes.output());
+        // the performance counters are not kept in the snapshot
+        return new TestResult(value, PerformanceCounters.EMPTY, output);
+    }
+
+    private Pair<SEXP, PerformanceCounters> splitValueAndPC(SEXP value) {
+        if (!(value instanceof VecSXP v) || v.size() != 2) {
+            throw new IllegalArgumentException("Value first item must be a vector of size 2, got: " + value);
+        }
+        var res = v.get(0);
+        var pc = PerformanceCounters.from(v.get(1));
+
+        return Pair.of(res, pc);
     }
 
     @Override
-    protected void checkShape(SEXP value) {
-        TestResult.fromSEXP(value);
+    protected SEXP serialize(TestResult result) {
+        return SEXPs.vec(result.value(), SEXPs.string(result.output()));
     }
-
 
     TestArtifact compileAndCall(String code) throws Exception {
         // this has to be the same as in the test/resources/.../Makefile
@@ -374,6 +344,7 @@ public class BC2CCompilerTest extends RDSSnapshotTest implements GNURBasedTests 
                     .createBuilder(cFile.getPath(), soFile.getPath())
                     .flag("-shared")
                     .flag("-DRSH_TESTS")
+                    .flag("-DRSH_PC")
                     .compile();
 
             // FIXME: try global env
@@ -385,29 +356,36 @@ public class BC2CCompilerTest extends RDSSnapshotTest implements GNURBasedTests 
                             + "parent.env(env) <- globalenv()\n"
                             + "invisible(.Call('Rsh_initialize_runtime'))\n"
                             + "res <- .Call('%s', env, cp)\n".formatted(module.topLevelFunName())
+                            + "pc <- .Call('Rsh_pc_get')\n"
                             + "dyn.unload('%s')\n".formatted(soFile.getAbsolutePath())
-                            + "res\n"; // FIXME .Call('Rsh_performance_counters')
+                            + "list(res, pc)\n";
 
             Files.writeString(rFile.toPath(), testDriver);
 
-            var res = R.capturingEval("source('%s', local=F)$value".formatted(rFile.getAbsolutePath()));
-            var resSxp = SEXPs.vec(res.first(), SEXPs.string(res.second()));
+            var nestedWithOutput = R.capturingEval("source('%s', local=F)$value".formatted(rFile.getAbsolutePath()));
+            var pair = splitValueAndPC(nestedWithOutput.first());
+            var res = new TestResult(pair.first(), pair.second(), nestedWithOutput.second());
 
-            return new TestArtifact(Either.right(resSxp), tempDir);
+            return new TestArtifact(Either.right(res), tempDir);
         } catch (Exception e) {
             return new TestArtifact(Either.left(e), tempDir);
         }
     }
 
-    void verify(String code) throws Exception {
+    @SafeVarargs
+    final void verify(String code, Consumer<TestResult>... extraChecks) throws Exception {
         var artifact = compileAndCall(code);
         try {
             if (artifact.result.isLeft()) {
                 throw artifact.result.getLeft();
             } else {
                 var res = artifact.result.getRight();
-                var wrappedCode = wrapCode(code);
                 doVerify(String.valueOf(++verifySeq), res, oracle(code));
+
+                for (var check : extraChecks) {
+                    check.accept(res);
+                }
+
                 artifact.destroy();
             }
         } catch (Throwable e) {
@@ -419,14 +397,22 @@ public class BC2CCompilerTest extends RDSSnapshotTest implements GNURBasedTests 
         }
     }
 
-    private ThrowingSupplier<SEXP> oracle(String code) {
+    private ThrowingSupplier<TestResult> oracle(String code) {
         return () -> {
             var res = R.capturingEval(code);
-            return SEXPs.vec(res.first(), SEXPs.string(res.second()));
+            return new TestResult(res.first(), PerformanceCounters.EMPTY, res.second());
         };
     }
 
-    private String wrapCode(String code) {
-        return code;
+    private Consumer<TestResult> fastArith() {
+        return noSlow(PerformanceCounters::slowArith, "Expected fast arithmetics");
+    }
+
+    private Consumer<TestResult> fastMath1() {
+        return noSlow(PerformanceCounters::slowArith, "Expected fast math1");
+    }
+
+    private Consumer<TestResult> noSlow(Function<PerformanceCounters, Integer> metric, String message) {
+        return (r) -> assertEquals(0, metric.apply(r.pc()), message);
     }
 }
