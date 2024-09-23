@@ -77,6 +77,10 @@ rsh_compile <- function(f, options) {
     options$name <- as.character(substitute(f))
   }
 
+  if (is.null(options$inplace)) {
+    options$inplace <- TRUE
+  }
+
   invisible(.Call(C_compile, f, options))
 }
 

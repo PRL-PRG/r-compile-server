@@ -63,8 +63,8 @@ public class GNURByteCodeEncoderFactory {
   /** Converts the arguments of the provided BcInstr to a "raw" format; i.e. an array of integers */
   public int[] args(@NotNull BcInstr instr, ConstPool.Builder cpb) {
     return switch (instr) {
-      case BcInstr.Goto i -> new int[] {labelMapping.extract(i.label())};
-      case BcInstr.BrIfNot i -> new int[] {i.ast().idx(), labelMapping.extract(i.label())};
+      case BcInstr.Goto i -> new int[] {labelMapping.extract(i.dest())};
+      case BcInstr.BrIfNot i -> new int[] {i.ast().idx(), labelMapping.extract(i.dest())};
       case BcInstr.StartLoopCntxt i ->
           new int[] {i.isForLoop() ? 1 : 0, labelMapping.extract(i.end())};
       case BcInstr.EndLoopCntxt i ->

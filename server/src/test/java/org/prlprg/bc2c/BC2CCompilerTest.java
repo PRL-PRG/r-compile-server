@@ -6,6 +6,7 @@ import static org.prlprg.primitive.Logical.TRUE;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Objects;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.Test;
@@ -29,12 +30,8 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
   }
 
   @Test
-  public void testSetVar() throws Exception {
+  public void testSetAndGetVar() throws Exception {
     verify("x <- 42; x", assertReal(42.0));
-  }
-
-  @Test
-  public void testSetVar2() throws Exception {
     verify("y <- 42; x <- y; x", assertReal(42.0));
   }
 
@@ -50,9 +47,9 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
 
     verify("x <- c(42, 43); x + c(1, 2)", assertReal(43.0, 45.0));
 
-    //        verify("x <- 42L; x + c(1, 2)", assertReal(43.0, 44.0));
-    //
-    //        verify("x <- c(42, 43); x + c(1, 2)", assertReal(43.0, 45.0));
+    verify("x <- 42L; x + c(1, 2)", assertReal(43.0, 44.0));
+
+    verify("x <- c(42, 43); x + c(1, 2)", assertReal(43.0, 45.0));
   }
 
   @Test
@@ -207,7 +204,47 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
 
   @Test
   public void testIfElse() throws Exception {
+    verify("x <- 1; if (x == 1) 1 else if (x == 2) 2 else 3", assertReal(1.0));
     verify("x <- 2; if (x == 1) 1 else if (x == 2) 2 else 3", assertReal(2.0));
+    verify("x <- 3; if (x == 1) 1 else if (x == 2) 2 else 3", assertReal(3.0));
+  }
+
+  @Test
+  public void testDollar() throws Exception {
+    verify("x <- list(a=1, b=2); x$a", assertReal(1.0));
+  }
+
+  @Test
+  public void testSubset() throws Exception {
+    verify("x <- c(1, 2, 3); x[2]", assertReal(2.0));
+    verify("x <- c(1, 2, 3); x[2L]", assertReal(2.0));
+    verify("x <- c(1L, 2L, 3L); x[2L]", assertInt(2));
+    verify("x <- list(1, 2, 3); x[3L]", SEXPs.vec(SEXPs.real(3)));
+    verify("x <- list('a', 'b'); x[2]", SEXPs.vec(SEXPs.string("b")));
+    // FIXME: better testing
+    // verify("x <- data.frame(a=1, b=2, row.names=NULL); x['a']",
+    // SEXPs.vec(SEXPs.real(1)).withNames("a"));
+  }
+
+  @Test
+  public void testSubset2() throws Exception {
+    verify("x <- c(1, 2, 3); x[[2]]", assertReal(2.0));
+    verify("x <- c(1, 2, 3); x[[2L]]", assertReal(2.0));
+    verify("x <- c(1L, 2L, 3L); x[[2L]]", assertInt(2));
+    verify("x <- list(1, 2, 3); x[[3L]]", assertReal(3.0));
+    verify("x <- list('a', 'b'); x[[2]]", SEXPs.string("b"));
+    verify("x <- data.frame(a=1, b=2, row.names=NULL); x[['a']]", SEXPs.real(1));
+  }
+
+  @Test
+  public void testSubassign() throws Exception {
+    verify("x <- c(1,2,3); x[1] <- 2; x", assertReal(2.0, 2.0, 3.0));
+    verify("x <- list(1,2,3); x[[1]] <- x; x", assertReal(2.0, 2.0, 3.0));
+  }
+
+  @Test
+  public void testGetIntBuiltin() throws Exception {
+    verify("vector(length=2)", assertLogical(FALSE, FALSE));
   }
 
   private Consumer<SEXP> assertLogical(Logical... v) {
@@ -218,7 +255,7 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
           assertEquals(v[i], r.get(i));
         }
       } else {
-        fail("Expected a scalar logical, but got: " + s);
+        fail("Expected logical(" + Arrays.toString(v) + "), but got: " + s);
       }
     };
   }
@@ -231,7 +268,7 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
           assertEquals(v[i], r.asInt(i));
         }
       } else {
-        fail("Expected a scalar int, but got: " + s);
+        fail("Expected int (" + Arrays.toString(v) + "), but got: " + s);
       }
     };
   }
@@ -244,7 +281,7 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
           assertEquals(v[i], r.asReal(i));
         }
       } else {
-        fail("Expected a scalar real, but got: " + s);
+        fail("Expected real (" + Arrays.toString(v) + "), but got: " + s);
       }
     };
   }
@@ -311,6 +348,10 @@ public class BC2CCompilerTest extends AbstractGNURBasedTest {
     } catch (Exception e) {
       return new TestArtifact<>(Either.left(e), tempDir);
     }
+  }
+
+  <T extends SEXP> void verify(String code, SEXP expected) throws Exception {
+    verify(code, (T v) -> assertEquals(expected, v));
   }
 
   <T extends SEXP> void verify(String code, Consumer<T> validator) throws Exception {

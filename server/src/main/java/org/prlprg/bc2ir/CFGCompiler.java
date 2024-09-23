@@ -211,6 +211,7 @@ public class CFGCompiler {
 
   // region compiler data types
   // - ADTs to organize the compiler data.
+
   /**
    * Stores information about a loop being compiled which is shared between multiple instructions.
    */
@@ -318,6 +319,7 @@ public class CFGCompiler {
 
   // region main compile functions: compile everything
   // ???: Is `LdFunctionEnv` correct for functions? It seems to only be for promises.
+
   /**
    * Create a compiler.
    *
@@ -405,6 +407,7 @@ public class CFGCompiler {
   // endregion main compile functions: compile everything
 
   // region map BBs to labels (+ get)
+
   /**
    * Add and map a basic block to every label referenced by an instruction.
    *
@@ -598,7 +601,7 @@ public class CFGCompiler {
                 "StartFor followed by StartLoopCntxt followed by Goto, expected a label to be immediately after the Goto");
           }
           forBodyBb = bbByLabel.get(bcPos + 3);
-          stepBb = bbAt(stepGoto.label());
+          stepBb = bbAt(stepGoto.dest());
           endBb = bbAt(loopCntxt.end());
         }
 
@@ -1546,6 +1549,7 @@ public class CFGCompiler {
   // endregion main compile functions: compile individual things
 
   // region `moveTo` and phis
+
   /**
    * Move the cursor to the basic block <i>and</i> replace all stack arguments with its phis.
    *
@@ -1678,6 +1682,7 @@ public class CFGCompiler {
   // endregion `moveTo` and phis
 
   // region statement and jump insertions
+
   /** Insert a statement that doesn't produce a value. */
   private void insert(StmtData.Void data) {
     cursor.insert(data);
@@ -1744,6 +1749,7 @@ public class CFGCompiler {
   //   stacks to keep track of data from previous instructions that affects future instructions
   //   (specifically, that data is what's "pushed", when the future instructions use the data it's
   //   read, and when the data no longer affects further future instructions it's popped).
+
   /**
    * Assert that all stacks are empty, unless in a loop.
    *
@@ -2012,6 +2018,7 @@ public class CFGCompiler {
   // endregion inter-instruction data
 
   // region misc
+
   /** Get the {@link SEXP} in the constant pool corresponding to the given index. */
   private <S extends SEXP> S get(ConstPool.Idx<S> idx) {
     return bc.consts().get(idx);

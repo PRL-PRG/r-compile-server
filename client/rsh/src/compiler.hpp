@@ -19,7 +19,6 @@ struct CompilerOptions {
 
 SEXP initialize();
 SEXP compile(SEXP closure, SEXP options);
-SEXP call_fun(SEXP call, SEXP op, SEXP args, SEXP env);
 SEXP is_compiled(SEXP closure);
 
 using JitFun = SEXP (*)(SEXP env, SEXP cp);
