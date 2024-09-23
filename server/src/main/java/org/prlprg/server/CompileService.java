@@ -71,6 +71,7 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
     // Compile the code and build response
     Messages.CompileResponse.Builder response = Messages.CompileResponse.newBuilder();
     response.setTier(tier);
+    response.setHash(function.getHash());
 
     // Cache requests
     NativeClosure ccCached = null;

@@ -183,10 +183,11 @@ SEXP compile(SEXP closure, SEXP options) {
 
   SEXP body = nullptr;
   void * fun_ptr = nullptr;
+  std::string name = opts.name + "_" + std::to_string(compiled_fun.hash()) + "_0";
   // Native or bytecode?
   if(opts.tier == protocol::Tier::OPTIMIZED) {
-    fun_ptr = insert_into_jit(opts.name.c_str(), compiled_fun);
-    SEXP c_cp = PROTECT(create_constant_pool(fun_ptr, opts.name.c_str(), compiled_fun));
+    fun_ptr = insert_into_jit(name.c_str(), compiled_fun);
+    SEXP c_cp = PROTECT(create_constant_pool(fun_ptr, name.c_str(), compiled_fun));
     body = PROTECT(create_wrapper_body(closure, c_cp));
   }
   else if(opts.tier == protocol::Tier::BASELINE) {
