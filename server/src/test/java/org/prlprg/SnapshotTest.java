@@ -66,9 +66,14 @@ public abstract class SnapshotTest<T> {
     }
 
     protected Path getTestPath(String name) {
-        var packageName = currentTestInfo.getTestClass().get().getPackageName();
-        var className = currentTestInfo.getTestClass().get().getSimpleName();
-        var methodName = currentTestInfo.getTestMethod().get().getName();
+        var currentClass =
+                currentTestInfo.getTestClass().orElseThrow(() -> new IllegalStateException("Unable to get the current test class"));
+        var currentMethod =
+                currentTestInfo.getTestMethod().orElseThrow(() -> new IllegalStateException("Unable to get the current test method"));
+
+        var packageName = currentClass.getPackageName();
+        var className = currentClass.getSimpleName();
+        var methodName = currentMethod.getName();
 
         return Path.of(SNAPSHOT_BASE_DIR, packageName.replace(".", "/"), SNAPSHOTS_DIR, className, methodName + name);
     }
