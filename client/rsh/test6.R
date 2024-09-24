@@ -1,8 +1,6 @@
 rsh::rsh_jit_enable()
 rsh::rsh_jit_disable()
 
-rsh::init_client(port=8979L)
-
 f <- function(x) {
   y <- x + 42
   y + x
