@@ -215,7 +215,7 @@ class ClosureCompiler {
     var cls = bc.consts().get(idx);
 
     if (cls.get(1) instanceof BCodeSXP closureBody) {
-      var compiledClosure = module.compileClosure(closureBody.bc());
+      var compiledClosure = module.compileClosure(closureBody.bc(), name);
       var cpConst = createExtraConstant(compiledClosure.constantPool());
       return builder
           .args(constantSXP(idx), "&" + compiledClosure.name(), constantSXP(cpConst))
