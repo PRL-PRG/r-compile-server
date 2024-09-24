@@ -12,6 +12,9 @@ SEXP Rsh_pc_get(void) {
   SEXP names = PROTECT(allocVector(STRSXP, size));
   int i = 0;
   SET_STRING_ELT(names, i++, mkChar("slow_arith"));
+  SET_STRING_ELT(names, i++, mkChar("slow_math1"));
+  SET_STRING_ELT(names, i++, mkChar("slow_unary"));
+  SET_STRING_ELT(names, i++, mkChar("slow_relop"));
   setAttrib(pc, R_NamesSymbol, names);
 
   UNPROTECT(2);
