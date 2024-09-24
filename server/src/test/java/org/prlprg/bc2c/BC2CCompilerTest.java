@@ -91,44 +91,38 @@ public class BC2CCompilerTest extends RDSSnapshotTest<BC2CCompilerTest.TestResul
         verify("sqrt(c(4,9))", fastMath1());
     }
 
-/*
     @Test
     public void testUnaryBuiltins() throws Exception {
-        verify("x <- 42; +x", assertReal(42.0));
-        verify("x <- 42; -x", assertReal(-42.0));
-        verify("x <- -42; +x", assertReal(-42.0));
-        verify("x <- -42; -x", assertReal(42.0));
-        verify("x <- 42L; +x", assertInt(42));
-        verify("x <- 42L; -x", assertInt(-42));
-        verify("x <- -42L; +x", assertInt(-42));
-        verify("x <- -42L; -x", assertInt(42));
-        verify("x <- c(1, -2); -x", assertReal(-1.0, 2.0));
+        verify("x <- 42; +x", fastUnary());
+        verify("x <- 42; -x", fastUnary());
+        verify("x <- -42; +x", fastUnary());
+        verify("x <- -42; -x", fastUnary());
+        verify("x <- 42L; +x", fastUnary());
+        verify("x <- 42L; -x", fastUnary());
+        verify("x <- -42L; +x", fastUnary());
+        verify("x <- -42L; -x", fastUnary());
+        verify("x <- c(1, -2); -x");
     }
 
     @Test
     public void testScalarCompare() throws Exception {
-        verify("x <- 42; x < 100", assertLogical(TRUE));
-        verify("x <- 42; x > 100", assertLogical(FALSE));
-        verify("x <- 42; x <= 42", assertLogical(TRUE));
-        verify("x <- 42; x >= 42", assertLogical(TRUE));
-        verify("x <- 42; x == 42", assertLogical(TRUE));
-        verify("x <- 42; x == 100", assertLogical(FALSE));
-        verify("x <- 42; x != 42", assertLogical(FALSE));
-        verify("x <- 42; x != 100", assertLogical(TRUE));
+        verify("x <- 42; x < 100", fastRelop());
+        verify("x <- 42; x > 100", fastRelop());
+        verify("x <- 42; x <= 42", fastRelop());
+        verify("x <- 42; x >= 42", fastRelop());
+        verify("x <- 42; x == 42", fastRelop());
+        verify("x <- 42; x == 100", fastRelop());
+        verify("x <- 42; x != 42", fastRelop());
+        verify("x <- 42; x != 100", fastRelop());
     }
 
     @Test
     public void testBooleanOperators() throws Exception {
-        verify("x <- TRUE; y <- FALSE; x & y", assertLogical(FALSE));
-        verify("x <- TRUE; y <- FALSE; x | y", assertLogical(TRUE));
-        verify("x <- TRUE; !x", assertLogical(FALSE));
-        verify("x <- 42; !!x", assertLogical(TRUE));
-        verify(
-                "x <- c(T,F,T,F); y <- c(T,T,F,F); x | y",
-                (LglSXP v) ->
-                        assertArrayEquals(
-                                new Logical[]{TRUE, TRUE, TRUE, FALSE},
-                                v.coerceTo(Logical.class)));
+        verify("x <- TRUE; y <- FALSE; x & y");
+        verify("x <- TRUE; y <- FALSE; x | y");
+        verify("x <- TRUE; !x");
+        verify("x <- 42; !!x");
+        verify("x <- c(T,F,T,F); y <- c(T,T,F,F); x | y");
     }
 
     @Test
@@ -139,7 +133,7 @@ public class BC2CCompilerTest extends RDSSnapshotTest<BC2CCompilerTest.TestResul
                         f <- function (x) { x + y }
                         f(42)
                         """,
-                assertReal(63.0));
+                fastArith());
     }
 
     @Test
@@ -148,8 +142,7 @@ public class BC2CCompilerTest extends RDSSnapshotTest<BC2CCompilerTest.TestResul
                 """
                         f <- function (x) { if (x) { browser() }; 1 }
                         f(FALSE)
-                        """,
-                assertReal(1.0));
+                        """);
     }
 
     @Test
@@ -169,19 +162,12 @@ public class BC2CCompilerTest extends RDSSnapshotTest<BC2CCompilerTest.TestResul
                           g(20)
                         }
                         f(10)(30)
-                        """,
-                assertReal(66.0));
+                        """, returns(66.0));
     }
 
     @Test
     public void testCall() throws Exception {
-        verify(
-                "timestamp()",
-                (StrSXP v) -> {
-                    assertEquals(1, v.size());
-                    assertTrue(v.get(0).startsWith("##------"));
-                    assertTrue(v.get(0).endsWith("------##"));
-                });
+        verify("str(42)");
     }
 
     @Test
@@ -197,67 +183,70 @@ public class BC2CCompilerTest extends RDSSnapshotTest<BC2CCompilerTest.TestResul
                         }
                         s
                         """,
-                assertReal(4950.0));
+                returns(4950.0));
     }
 
     @Test
     public void testNA() throws Exception {
-        verify("x <- TRUE;  y <- x; is.na(y)", assertLogical(FALSE));
-        verify("x <- FALSE; y <- x; is.na(y)", assertLogical(FALSE));
-        verify("x <- NA;    y <- x; is.na(y)", assertLogical(TRUE));
-        verify("y <- NA_integer_; is.na(y)", assertLogical(TRUE));
+        verify("x <- TRUE;  y <- x; is.na(y)");
+        verify("x <- FALSE; y <- x; is.na(y)");
+        verify("x <- NA;    y <- x; is.na(y)");
+        verify("y <- NA_integer_; is.na(y)");
     }
 
     @Test
     public void testPromise() throws Exception {
-        verify("f <- function(x) x + 1;  y <- 2; f(y*2)", assertReal(5));
+        verify("f <- function(x) x + 1;  y <- 2; f(y*2)", returns(5.0));
     }
 
     @Test
     public void testIfElse() throws Exception {
-        verify("x <- 1; if (x == 1) 1 else if (x == 2) 2 else 3", assertReal(1.0));
-        verify("x <- 2; if (x == 1) 1 else if (x == 2) 2 else 3", assertReal(2.0));
-        verify("x <- 3; if (x == 1) 1 else if (x == 2) 2 else 3", assertReal(3.0));
+        verify("x <- 1; if (x == 1) 1 else if (x == 2) 2 else 3", returns(1.0));
+        verify("x <- 2; if (x == 1) 1 else if (x == 2) 2 else 3", returns(2.0));
+        verify("x <- 3; if (x == 1) 1 else if (x == 2) 2 else 3", returns(3.0));
     }
 
     @Test
     public void testDollar() throws Exception {
-        verify("x <- list(a=1, b=2); x$a", assertReal(1.0));
+        verify("x <- list(a=1, b=2); x$a", returns(1.0));
+        verify("x <- list(a=2); x$b");
     }
 
     @Test
     public void testSubset() throws Exception {
-        verify("x <- c(1, 2, 3); x[2]", assertReal(2.0));
-        verify("x <- c(1, 2, 3); x[2L]", assertReal(2.0));
-        verify("x <- c(1L, 2L, 3L); x[2L]", assertInt(2));
-        verify("x <- list(1, 2, 3); x[3L]", SEXPs.vec(SEXPs.real(3)));
-        verify("x <- list('a', 'b'); x[2]", SEXPs.vec(SEXPs.string("b")));
-        // FIXME: better testing
-        // verify("x <- data.frame(a=1, b=2, row.names=NULL); x['a']", SEXPs.vec(SEXPs.real(1)).withNames("a"));
+        verify("x <- c(1, 2, 3); x[2]", returns(2.0));
+        verify("x <- c(1, 2, 3); x[2L]", returns(2.0));
+        verify("x <- c(1L, 2L, 3L); x[2L]", returns(2));
+        verify("x <- list(1, 2, 3); x[3L]");
+        verify("x <- list('a', 'b'); x[2]");
+        verify("x <- data.frame(a=1, b=2, row.names=NULL); x['a']");
     }
 
     @Test
     public void testSubset2() throws Exception {
-        verify("x <- c(1, 2, 3); x[[2]]", assertReal(2.0));
-        verify("x <- c(1, 2, 3); x[[2L]]", assertReal(2.0));
-        verify("x <- c(1L, 2L, 3L); x[[2L]]", assertInt(2));
-        verify("x <- list(1, 2, 3); x[[3L]]", assertReal(3.0));
-        verify("x <- list('a', 'b'); x[[2]]", SEXPs.string("b"));
-        verify("x <- data.frame(a=1, b=2, row.names=NULL); x[['a']]", SEXPs.real(1));
+        verify("x <- c(1, 2, 3); x[[2]]");
+        verify("x <- c(1, 2, 3); x[[2L]]");
+        verify("x <- c(1L, 2L, 3L); x[[2L]]");
+        verify("x <- list(1, 2, 3); x[[3L]]");
+        verify("x <- list('a', 'b'); x[[2]]");
+        verify("x <- data.frame(a=1, b=2, row.names=NULL); x[['a']]");
     }
 
     @Test
     public void testSubassign() throws Exception {
-        verify("x <- c(1,2,3); x[1] <- 2; x", assertReal(2.0, 2.0, 3.0));
-        verify("x <- list(1,2,3); x[[1]] <- x; x", assertReal(2.0, 2.0, 3.0));
+        verify("x <- c(1,2,3); x[1] <- 2; x");
+        verify("x <- list(1,2,3); x[[1]] <- x; x");
     }
 
     @Test
     public void testGetIntBuiltin() throws Exception {
-        verify("vector(length=2)", assertLogical(FALSE, FALSE));
-    }*/
+        verify("vector(length=2)");
+    }
 
+    // ----------------------------------------------------------------
     // Internals
+    // ----------------------------------------------------------------
+
     record TestArtifact(Either<Exception, TestResult> result, File tempDir) {
         public void destroy() {
             Files.deleteRecursively(tempDir.toPath());
@@ -267,7 +256,6 @@ public class BC2CCompilerTest extends RDSSnapshotTest<BC2CCompilerTest.TestResul
     // we do not persist the performance counters
     public record TestResult(SEXP value, PerformanceCounters pc, String output) {
     }
-
 
     private int verifySeq = 0;
 
@@ -412,7 +400,23 @@ public class BC2CCompilerTest extends RDSSnapshotTest<BC2CCompilerTest.TestResul
         return noSlow(PerformanceCounters::slowArith, "Expected fast math1");
     }
 
+    private Consumer<TestResult> fastUnary() {
+        return noSlow(PerformanceCounters::slowUnary, "Expected fast math1");
+    }
+
+    private Consumer<TestResult> fastRelop() {
+        return noSlow(PerformanceCounters::slowRelop, "Expected fast relop");
+    }
+
     private Consumer<TestResult> noSlow(Function<PerformanceCounters, Integer> metric, String message) {
         return (r) -> assertEquals(0, metric.apply(r.pc()), message);
+    }
+
+    private Consumer<TestResult> returns(double expected) {
+        return (r) -> assertEquals(expected, r.value().asScalarReal().orElseThrow(), expected);
+    }
+
+    private Consumer<TestResult> returns(int expected) {
+        return (r) -> assertEquals(expected, r.value().asScalarInteger().orElseThrow(), expected);
     }
 }

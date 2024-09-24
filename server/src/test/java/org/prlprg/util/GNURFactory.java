@@ -1,19 +1,19 @@
 package org.prlprg.util;
 
-import static java.lang.String.format;
-import static org.prlprg.AppConfig.R_BIN;
-
-import java.io.*;
-import java.util.UUID;
-import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
-import javax.annotation.Nullable;
-import javax.annotation.concurrent.NotThreadSafe;
-
 import org.prlprg.RSession;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.rds.RDSWriter;
 import org.prlprg.sexp.SEXP;
+
+import javax.annotation.Nullable;
+import javax.annotation.concurrent.NotThreadSafe;
+import java.io.*;
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
+
+import static java.lang.String.format;
+import static org.prlprg.AppConfig.R_BIN;
 
 public class GNURFactory {
     public static GNUR createRestarting(RSession session) {
@@ -157,7 +157,7 @@ class SingleGNURProcess implements GNUR {
 
             var code =
                     format(
-                            "saveRDS(eval(parse(file='%s'), envir=new.env(parent=baseenv())), '%s', version=2, compress=FALSE)",
+                            "saveRDS(eval(parse(file='%s'), envir=new.env(parent=globalenv())), '%s', version=2, compress=FALSE)",
                             sourceFile.getAbsoluteFile(), targetFile.getAbsoluteFile());
 
             var output = run(code);

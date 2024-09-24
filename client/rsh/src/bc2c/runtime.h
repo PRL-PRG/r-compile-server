@@ -49,7 +49,12 @@ typedef u64 Value;
 typedef struct {
   // number of times the slow path of Rsh_arith has been taken
   u32 slow_arith;
+  // number of times the slow path of Rsh_math1 has been taken
   u32 slow_math1;
+  // number of times the slow path of Rsh_unary has been taken
+  u32 slow_unary;
+  // number of times the slow path of Rsh_relop has been taken
+  u32 slow_relop;
 } Rsh_PerfCounters;
 
 #ifndef RSH_TESTS
@@ -909,6 +914,7 @@ static INLINE Value Rsh_relop(Value lhs, Value rhs, SEXP call, RshRelOp op,
   }
 
   // Slow path!
+  RSH_PC_INC(slow_relop);
   DO_BINARY_BUILTIN(relop, call, R_REL_OPS[op], R_REL_OP_SYMS[op], lhs, rhs,
                     rho, &res);
 
@@ -1003,6 +1009,7 @@ static INLINE Value Rsh_unary(Value arg, SEXP call, RshUnaryOp op, SEXP rho) {
     }
   } else {
     // Slow path!
+    RSH_PC_INC(slow_unary);
     res = sexp_as_val(arith1(call, R_UNARY_OPS[op], R_UNARY_OP_SYMS[op],
                              val_as_sexp(arg), rho));
   }
