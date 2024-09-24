@@ -1,12 +1,5 @@
 package org.prlprg.bc;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.fail;
-import static org.prlprg.TestConfig.FAST_TESTS;
-
-import java.io.File;
-import java.io.IOException;
-
 import org.prlprg.RClosureTests;
 import org.prlprg.sexp.BCodeSXP;
 import org.prlprg.sexp.CloSXP;
@@ -14,7 +7,16 @@ import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.util.Files;
 
-/** {@link RClosureTests} but has methods to assert that our bytecode compiler works. */
+import java.io.File;
+import java.io.IOException;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.fail;
+import static org.prlprg.TestConfig.FAST_TESTS;
+
+/**
+ * {@link RClosureTests} but has methods to assert that our bytecode compiler works.
+ */
 public abstract class RClosureTestsUsingBytecodeCompiler extends RClosureTests {
 
     /**
@@ -56,10 +58,6 @@ public abstract class RClosureTestsUsingBytecodeCompiler extends RClosureTests {
                     assertEquals(
                             gnurBc.toString(), ourBc.toString(), "`compile(read(ast)) == read(R.compile(ast))`");
 
-                    System.out.println(gnurBc.toString());
-                    System.out.println("----");
-                    System.out.println(ourBc.toString());
-                    System.out.println("----");
                     var gnurBcCode = gnurBc.bc().code();
                     var ourBcCode = ourBc.bc().code();
                     for (int i = 0; i < gnurBcCode.size(); i++) {
