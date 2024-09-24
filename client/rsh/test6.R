@@ -1,7 +1,7 @@
-dyn.load("../../external/R/library/rsh/libs/rsh.so", local = FALSE)
-
 rsh::rsh_jit_enable()
 rsh::rsh_jit_disable()
+
+rsh::init_client(port=8979L)
 
 f <- function(x) {
   y <- x + 42
