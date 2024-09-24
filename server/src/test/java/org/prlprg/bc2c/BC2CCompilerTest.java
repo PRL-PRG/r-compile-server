@@ -25,10 +25,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class BC2CCompilerTest extends RDSSnapshotTest<BC2CCompilerTest.TestResult> implements GNURBasedTests {
 
-    // verify("1 + 1", noSlowPath());
-    // TODO: benchmark for the assignment - we should be faster than R
-    // verify("x <- 1; x", assertReal(2.0));
-
     @Test
     public void testReturn() throws Exception {
         verify("42");
@@ -254,13 +250,14 @@ public class BC2CCompilerTest extends RDSSnapshotTest<BC2CCompilerTest.TestResul
     }
 
     // we do not persist the performance counters
-    public record TestResult(SEXP value, PerformanceCounters pc, String output) {
+    public record TestResult(String code, SEXP value, PerformanceCounters pc, String output) {
     }
 
     private int verifySeq = 0;
 
     @Override
     protected void checkEqual(TestResult expected, TestResult actual) {
+        assertEquals(expected.code(), actual.code(), "Code is different");
         assertEquals(expected.value(), actual.value(), "Result is different");
         assertEquals(expected.output(), actual.output(), "Output is different");
     }
@@ -272,14 +269,20 @@ public class BC2CCompilerTest extends RDSSnapshotTest<BC2CCompilerTest.TestResul
 
     @Override
     protected TestResult deserialize(SEXP sexp) {
-        if (!(sexp instanceof VecSXP v) || v.size() != 2) {
-            throw new IllegalArgumentException("Value must be a vector of size 2, got: " + sexp);
+        if (!(sexp instanceof VecSXP v) || v.size() != 3) {
+            throw new IllegalArgumentException("Value must be a vector of size 3, got: " + sexp);
         }
-        var value = v.get(0);
-        var output = v.get(1).asScalarString().orElseThrow(() -> new IllegalArgumentException("Expected a string output, got: " + v.get(1)));
+
+        var codeSxp = v.get(0);
+        var code = codeSxp.asScalarString().orElseThrow(() -> new IllegalArgumentException("Expected code as string, got: " + codeSxp));
+
+        var value = v.get(1);
+
+        var outputSxp = v.get(2);
+        var output = outputSxp.asScalarString().orElseThrow(() -> new IllegalArgumentException("Expected a string output, got: " + outputSxp));
 
         // the performance counters are not kept in the snapshot
-        return new TestResult(value, PerformanceCounters.EMPTY, output);
+        return new TestResult(code, value, PerformanceCounters.EMPTY, output);
     }
 
     private Pair<SEXP, PerformanceCounters> splitValueAndPC(SEXP value) {
@@ -294,7 +297,7 @@ public class BC2CCompilerTest extends RDSSnapshotTest<BC2CCompilerTest.TestResul
 
     @Override
     protected SEXP serialize(TestResult result) {
-        return SEXPs.vec(result.value(), SEXPs.string(result.output()));
+        return SEXPs.vec(SEXPs.string(result.code()), result.value(), SEXPs.string(result.output()));
     }
 
     TestArtifact compileAndCall(String code) throws Exception {
@@ -352,7 +355,7 @@ public class BC2CCompilerTest extends RDSSnapshotTest<BC2CCompilerTest.TestResul
 
             var nestedWithOutput = R.capturingEval("source('%s', local=F)$value".formatted(rFile.getAbsolutePath()));
             var pair = splitValueAndPC(nestedWithOutput.first());
-            var res = new TestResult(pair.first(), pair.second(), nestedWithOutput.second());
+            var res = new TestResult(code, pair.first(), pair.second(), nestedWithOutput.second());
 
             return new TestArtifact(Either.right(res), tempDir);
         } catch (Exception e) {
@@ -388,7 +391,7 @@ public class BC2CCompilerTest extends RDSSnapshotTest<BC2CCompilerTest.TestResul
     private ThrowingSupplier<TestResult> oracle(String code) {
         return () -> {
             var res = R.capturingEval(code);
-            return new TestResult(res.first(), PerformanceCounters.EMPTY, res.second());
+            return new TestResult(code, res.first(), PerformanceCounters.EMPTY, res.second());
         };
     }
 
