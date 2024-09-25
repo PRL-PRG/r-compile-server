@@ -3,7 +3,7 @@
     "dockerfile": "./Dockerfile",
     "context": "."
   },
-  features: {
+  "features": {
     "ghcr.io/devcontainers/features/java:1": {
       "installMaven": "true"
     }
