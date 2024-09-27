@@ -42,6 +42,10 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
   private final HashMap<Triple<Long, Integer, Integer>, NativeClosure> nativeCache =
       new HashMap<>();
 
+  private static String genSymbol(Messages.Function function) {
+    return function.getName() + "_" + function.getHash();
+  }
+
   // Testing externally: grpcurl -plaintext -d '{"function":{"name": "testFunc"}}' 0.0.0.0:8980
   // CompileService.Compile
   @Override
@@ -151,7 +155,7 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
         try {
           assert bcCached != null;
           // Name should be fully decided by the client?
-          var name = function.getName() + "_" + function.getHash();
+          var name = genSymbol(function);
           var bc2cCompiler = new BC2CCompiler(bcCached.first(), name);
           var module = bc2cCompiler.finish();
           var input = File.createTempFile("cfile", ".c");
