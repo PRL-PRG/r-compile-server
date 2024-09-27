@@ -160,6 +160,11 @@ CompilerOptions CompilerOptions::from_list(SEXP listsxp) {
   return opts;
 }
 
+
+std::string genSymbol(const std:;string& name, uint64_t hash, int index) {
+  return name + "_" + std::to_string(hash) + "_" + std::to_string(index);
+}
+
 SEXP compile(SEXP closure, SEXP options) {
   if (!RSH_JIT_FUN_PTR) {
     Rf_error("The package was not initialized");
@@ -181,7 +186,7 @@ SEXP compile(SEXP closure, SEXP options) {
 
   SEXP body = nullptr;
   void * fun_ptr = nullptr;
-  std::string name = opts.name + "_" + std::to_string(compiled_fun.hash()) + "_0";
+  std::string name = genSymbol(opts.name, compiled_fun.hash(), 0);
   // Native or bytecode?
   if(opts.tier == protocol::Tier::OPTIMIZED) {
     fun_ptr = insert_into_jit(name.c_str(), compiled_fun);
