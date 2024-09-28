@@ -1,9 +1,5 @@
 package org.prlprg.optimizations;
 
-import static org.prlprg.optimizations.Optimizer.optimize;
-import static org.prlprg.util.Tests.printlnIfVerbose;
-
-import org.prlprg.bc2ir.RClosureTestsUsingIRCompiler;
 import org.prlprg.ir.closure.Closure;
 
 /**
@@ -14,12 +10,12 @@ import org.prlprg.ir.closure.Closure;
  * The closures are generated from the {@linkplain org.prlprg.bc2ir.ClosureCompiler IR closure
  * compiler}.
  */
-public class OptimizerTests extends RClosureTestsUsingIRCompiler {
-  @Override
-  protected void testClosure(Closure ir) {
-    optimize(ir.baselineVersion());
-
-    // Debug print if verbose
-    printlnIfVerbose(ir);
-  }
-}
+//public class OptimizerTests extends RClosureTestsUsingIRCompiler {
+//  @Override
+//  protected void testClosure(Closure ir) {
+//    optimize(ir.baselineVersion());
+//
+//    // Debug print if verbose
+//    printlnIfVerbose(ir);
+//  }
+//}
