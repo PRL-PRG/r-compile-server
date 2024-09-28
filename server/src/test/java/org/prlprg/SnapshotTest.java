@@ -6,16 +6,13 @@ import org.junit.jupiter.api.TestInfo;
 import org.prlprg.util.ThrowingSupplier;
 
 import javax.annotation.Nullable;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Optional;
 
 public abstract class SnapshotTest<T> {
     public static final String SNAPSHOT_BASE_DIR = "src/test/resources";
     public static final String SNAPSHOTS_DIR = "snapshots";
-    private TestInfo currentTestInfo = null;
+    private @Nullable TestInfo currentTestInfo = null;
 
     @BeforeEach
     protected final void setUp(TestInfo testInfo) {
@@ -23,64 +20,64 @@ public abstract class SnapshotTest<T> {
     }
 
     protected void doVerify(String snapshotName, T actual, @Nullable ThrowingSupplier<T> oracle) {
-        var snapshotPath = getTestPath(snapshotName);
-        T expected = null;
+        var expectedOpt = Optional.<T>empty();
+        T expected;
 
-        if (Files.exists(snapshotPath)) {
-            try (var is = Files.newInputStream(snapshotPath)) {
-                expected = load(is);
-            } catch (Exception e) {
-                throw new RuntimeException("Unable to load snapshot for %s (file: %s)".formatted(snapshotName, snapshotPath), e);
-            }
+        try {
+            expectedOpt = load(snapshotName);
+        } catch (Exception e) {
+            throw new RuntimeException("Unable to load snapshot: " + snapshotName, e);
+        }
+
+        if (expectedOpt.isPresent()) {
+            expected = expectedOpt.get();
         } else {
             if (oracle != null) {
                 expected = oracle.get();
                 try {
                     checkShape(expected);
                 } catch (Exception e) {
-                    throw new RuntimeException("Corrupted snapshot file: `" + snapshotPath, e);
+                    throw new RuntimeException("Invalid value computed by test oracle for snapshot: " + snapshotName + " : " + expected, e);
                 }
             } else {
                 expected = actual;
                 try {
                     checkShape(expected);
                 } catch (Exception e) {
-                    throw new RuntimeException("Invalid value for snapshot: `" + snapshotName, e);
+                    throw new RuntimeException("Invalid value for snapshot: " + snapshotName + " : " + expected, e);
                 }
             }
 
             try {
-                Files.createDirectories(snapshotPath.getParent());
-            } catch (IOException e) {
-                throw new RuntimeException("Unable to create snapshot path: " + snapshotPath.getParent(), e);
-            }
-
-            try (var os = Files.newOutputStream(snapshotPath)) {
-                save(expected, os);
+                save(snapshotName, expected);
             } catch (Exception e) {
-                throw new RuntimeException("Unable to save snapshot for %s (file: %s)".formatted(snapshotName, snapshotPath), e);
+                throw new RuntimeException("Unable to save snapshot: " + snapshotName, e);
             }
         }
 
         checkEqual(expected, actual);
     }
 
-    protected Path getTestPath(String name) {
-        var currentClass =
-                currentTestInfo.getTestClass().orElseThrow(() -> new IllegalStateException("Unable to get the current test class"));
-        var currentMethod =
-                currentTestInfo.getTestMethod().orElseThrow(() -> new IllegalStateException("Unable to get the current test method"));
+    protected String getTestName() {
+        return currentTestInfo.getTestMethod().orElseThrow(() -> new IllegalStateException("Unable to get the current test method")).getName();
+    }
+
+    protected Class<?> getTestClass() {
+        return currentTestInfo.getTestClass().orElseThrow(() -> new IllegalStateException("Unable to get the current test class"));
+    }
+
+    protected Path getTestPath() {
+        var currentClass = getTestClass();
 
         var packageName = currentClass.getPackageName();
         var className = currentClass.getSimpleName();
-        var methodName = currentMethod.getName();
 
-        return Path.of(SNAPSHOT_BASE_DIR, packageName.replace(".", "/"), SNAPSHOTS_DIR, className, methodName + name);
+        return Path.of(SNAPSHOT_BASE_DIR, packageName.replace(".", "/"), SNAPSHOTS_DIR, className, getTestName());
     }
 
-    protected abstract T load(InputStream expected) throws Exception;
+    protected abstract Optional<T> load(String snapshotName) throws Exception;
 
-    protected abstract void save(T value, OutputStream expected) throws Exception;
+    protected abstract void save(String snapshotName, T value) throws Exception;
 
     protected abstract void checkEqual(T expected, T actual);
 

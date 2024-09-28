@@ -2,6 +2,7 @@ package org.prlprg.util;
 
 import com.google.errorprone.annotations.CanIgnoreReturnValue;
 
+import javax.annotation.Nullable;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -14,18 +15,17 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
-import javax.annotation.Nullable;
 
 public class Files {
     /**
-     * @param root Directory to list files from
-     * @param glob Filter files by glob applied to the filename. Pass {@code null} to not filter.
-     * @param depth Specify a number > 1 to include files in subdirectories. Specify INT_MAX to
-     *     recurse infinitely.
+     * @param root        Directory to list files from
+     * @param glob        Filter files by glob applied to the filename. Pass {@code null} to not filter.
+     * @param depth       Specify a number > 1 to include files in subdirectories. Specify INT_MAX to
+     *                    recurse infinitely.
      * @param includeDirs Whether to include directories.
-     * @param relativize Whether to relativize the paths to {@code root}.
+     * @param relativize  Whether to relativize the paths to {@code root}.
      * @return The paths of each of the children of {@code root} filtered by the other arguments. It
-     *     doesn't return {@code root} itself.
+     * doesn't return {@code root} itself.
      */
     public static Collection<Path> listDir(
             Path root, @Nullable String glob, int depth, boolean includeDirs, boolean relativize) {
@@ -153,5 +153,13 @@ public class Files {
     // endregion
 
     private Files() {
+    }
+
+    public static Path writeString(String code) {
+        return ThrowingSupplier.get(() -> {
+            var f = File.createTempFile("write-string", "");
+            java.nio.file.Files.writeString(f.toPath(), code);
+            return f.toPath();
+        });
     }
 }
