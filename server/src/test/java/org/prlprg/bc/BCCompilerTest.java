@@ -1,18 +1,15 @@
 package org.prlprg.bc;
 
 import org.junit.jupiter.api.Test;
-import org.prlprg.sexp.*;
-import org.prlprg.util.Files;
-import org.prlprg.util.ThrowingSupplier;
+import org.prlprg.sexp.CloSXP;
+import org.prlprg.sexp.LangSXP;
 
 import static com.google.common.truth.Truth.assertThat;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * Test our {@linkplain BCCompiler bytecode compiler} specifically.
  */
-public class BCCompilerTest extends RClosureTestsUsingBytecodeCompiler<BCCompilerTest.TestResult> {
+public class BCCompilerTest extends AbstractBCCompilerTest implements RClosureTests {
 
     @Test
     public void testMatchCall() {
@@ -54,69 +51,4 @@ public class BCCompilerTest extends RClosureTestsUsingBytecodeCompiler<BCCompile
                 """);
     }
 
-    // Internals
-
-    @Override
-    protected void verify(String name, String code, int optimizationLevel) {
-        var body = compileBody(code, optimizationLevel);
-        var res = new TestResult(code, optimizationLevel, body);
-        doVerify(name, res, oracle(name, code, optimizationLevel));
-    }
-
-    private ThrowingSupplier<TestResult> oracle(String name, String code, int optimizationLevel) {
-        return () -> {
-            System.out.println("Running oracle for " + name);
-            var temp = Files.writeString(code);
-            try {
-                var value = R.eval("compiler::cmpfun(eval(parse('" + temp + "')))");
-                if (!(value instanceof CloSXP closure)) {
-                    throw new IllegalArgumentException("Expected a closure, got: " + value);
-                }
-
-                return new TestResult(code, optimizationLevel, closure.body());
-            } finally {
-                Files.delete(temp);
-            }
-        };
-    }
-
-    public record TestResult(String code, int optimizationLevel, SEXP body) {
-    }
-
-    @Override
-    protected void checkEqual(TestResult expected, TestResult actual) {
-        assertEquals(expected.code(), actual.code(), "Source code mismatch");
-        assertEquals(expected.optimizationLevel(), actual.optimizationLevel(), "Optimization level mismatch");
-
-        if ((expected.body() instanceof BCodeSXP ours) && (actual.body() instanceof BCodeSXP theirs)) {
-            if (!ours.equals(theirs)) {
-
-                // bytecode can be large, so we only want to do it when it is different
-                assertEquals(
-                        theirs.toString(), ours.toString(), "`compile(read(ast)) == read(R.compile(ast))`");
-
-                fail("Produced bytecode is different, but the toString() representation is the same.");
-            }
-        } else {
-            assertEquals(expected.body(), actual.body(), "Bytecode mismatch");
-        }
-    }
-
-    @Override
-    protected SEXP serialize(TestResult value) {
-        return SEXPs.vec(SEXPs.string(value.code()), SEXPs.integer(value.optimizationLevel()), value.body());
-    }
-
-    @Override
-    protected TestResult deserialize(SEXP value) {
-        if (!(value instanceof VecSXP v) || v.size() != 3) {
-            throw new IllegalArgumentException("Expected a vector of length 3, got: " + value);
-        }
-
-        var code = v.get(0).asScalarString().orElseThrow(() -> new IllegalArgumentException("Expected a string"));
-        var optimizationLevel = v.get(1).asScalarInteger().orElseThrow(() -> new IllegalArgumentException("Expected an integer"));
-        var body = v.get(2);
-
-        return new TestResult(code, optimizationLevel, body);
-    }
 }

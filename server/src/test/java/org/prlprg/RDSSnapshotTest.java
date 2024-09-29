@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
+import java.util.zip.GZIPOutputStream;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public abstract class RDSSnapshotTest<T> extends SnapshotTest<T> {
@@ -72,7 +73,9 @@ public abstract class RDSSnapshotTest<T> extends SnapshotTest<T> {
         assert snapshots != null;
         try {
             Files.createDirectories(path.getParent());
-            RDSWriter.writeFile(path.toFile(), snapshots);
+            try (var output = new GZIPOutputStream(Files.newOutputStream(path))) {
+                RDSWriter.writeStream(output, snapshots);
+            }
             snapshots = null;
         } catch (IOException e) {
             throw new RuntimeException("Failed to save snapshot: " + path, e);
