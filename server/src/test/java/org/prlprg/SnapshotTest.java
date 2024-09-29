@@ -59,10 +59,12 @@ public abstract class SnapshotTest<T> {
     }
 
     protected String getTestName() {
+        assert currentTestInfo != null;
         return currentTestInfo.getTestMethod().orElseThrow(() -> new IllegalStateException("Unable to get the current test method")).getName();
     }
 
     protected Class<?> getTestClass() {
+        assert currentTestInfo != null;
         return currentTestInfo.getTestClass().orElseThrow(() -> new IllegalStateException("Unable to get the current test class"));
     }
 
