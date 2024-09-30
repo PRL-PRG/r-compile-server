@@ -17,4 +17,6 @@ if [[ ! -x "$R" ]]; then
 	exit 1
 fi
 
+
+
 $R --slave --vanilla -e "x <- readRDS('$1'); if (is.environment(x)) { ls.str(x); } else { str(x); }"

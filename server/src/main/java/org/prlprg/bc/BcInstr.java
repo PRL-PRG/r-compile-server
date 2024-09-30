@@ -2,10 +2,8 @@ package org.prlprg.bc;
 
 import com.google.common.collect.ImmutableMap;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
-
 import java.util.*;
 import javax.annotation.Nullable;
-
 import org.prlprg.sexp.IntSXP;
 import org.prlprg.sexp.LangSXP;
 import org.prlprg.sexp.ListSXP;
@@ -23,1176 +21,1173 @@ import org.prlprg.sexp.VecSXP;
 @SuppressWarnings("MissingJavadoc")
 @SuppressFBWarnings({"EI_EXPOSE_REP2", "EI_EXPOSE_REP"})
 public sealed interface BcInstr {
-    /** Every instruction class mapped to its {@linkplain Class#getSimpleName() simple name}. */
-    @SuppressWarnings("unchecked")
-    ImmutableMap<String, Class<? extends BcInstr>> CLASSES =
-            Arrays.stream(BcInstr.class.getPermittedSubclasses())
-                    .collect(
-                            ImmutableMap.toImmutableMap(Class::getSimpleName, c -> (Class<? extends BcInstr>) c));
-
-    /** The instruction's operation. */
-    BcOp op();
-
-    /** The instruction's labels. */
-    default Optional<BcLabel> label() {
-        return Optional.empty();
-    }
-
-    default int pop() {
-        var stackEffect = getClass().getAnnotation(StackEffect.class);
-        return stackEffect == null ? 0 : stackEffect.pop();
-    }
-
-    default int push() {
-        var stackEffect = getClass().getAnnotation(StackEffect.class);
-        return stackEffect == null ? 0 : stackEffect.push();
-    }
-
-    default boolean needsRho() {
-        return getClass().getAnnotation(NeedsRho.class) != null;
-    }
-
-    default Collection<ConstPool.Idx<? extends SEXP>> args() {
-        var fields = getClass().getRecordComponents();
-        var args = new ArrayList<ConstPool.Idx<? extends SEXP>>();
-        for (var field : fields) {
-            if (ConstPool.Idx.class.isAssignableFrom(field.getType())) {
-                try {
-                    var value = field.getAccessor().invoke(this);
-                    args.add((ConstPool.Idx<? extends SEXP>) value);
-                } catch (ReflectiveOperationException e) {
-                    throw new RuntimeException(e);
-                }
-            }
-        }
-        return args;
-    }
+  /** Every instruction class mapped to its {@linkplain Class#getSimpleName() simple name}. */
+  @SuppressWarnings("unchecked")
+  ImmutableMap<String, Class<? extends BcInstr>> CLASSES =
+      Arrays.stream(BcInstr.class.getPermittedSubclasses())
+          .collect(
+              ImmutableMap.toImmutableMap(Class::getSimpleName, c -> (Class<? extends BcInstr>) c));
+
+  /** The instruction's operation. */
+  BcOp op();
+
+  /** The instruction's labels. */
+  default Optional<BcLabel> label() {
+    return Optional.empty();
+  }
 
-    @StackEffect(pop = 1)
-    record Return() implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.RETURN;
-        }
-    }
+  default int pop() {
+    var stackEffect = getClass().getAnnotation(StackEffect.class);
+    return stackEffect == null ? 0 : stackEffect.pop();
+  }
 
-    record Goto(@LabelName("") BcLabel dest) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.GOTO;
-        }
+  default int push() {
+    var stackEffect = getClass().getAnnotation(StackEffect.class);
+    return stackEffect == null ? 0 : stackEffect.push();
+  }
 
-        @Override
-        public Optional<BcLabel> label() {
-            return Optional.of(dest);
-        }
-    }
+  default boolean needsRho() {
+    return getClass().getAnnotation(NeedsRho.class) != null;
+  }
 
-    @NeedsRho
-    @StackEffect(pop = 1)
-    record BrIfNot(ConstPool.Idx<LangSXP> ast, @LabelName("ifFalse") BcLabel dest)
-            implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.BRIFNOT;
+  default Collection<ConstPool.Idx<? extends SEXP>> args() {
+    var fields = getClass().getRecordComponents();
+    var args = new ArrayList<ConstPool.Idx<? extends SEXP>>();
+    for (var field : fields) {
+      if (ConstPool.Idx.class.isAssignableFrom(field.getType())) {
+        try {
+          var value = field.getAccessor().invoke(this);
+          args.add((ConstPool.Idx<? extends SEXP>) value);
+        } catch (ReflectiveOperationException e) {
+          throw new RuntimeException(e);
         }
+      }
+    }
+    return args;
+  }
 
-        @Override
-        public Optional<BcLabel> label() {
-            return Optional.of(dest);
-        }
+  @StackEffect(pop = 1)
+  record Return() implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.RETURN;
     }
+  }
 
-    @StackEffect(pop = 1)
-    record Pop() implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.POP;
-        }
+  record Goto(@LabelName("") BcLabel dest) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.GOTO;
     }
 
-    record Dup() implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.DUP;
-        }
+    @Override
+    public Optional<BcLabel> label() {
+      return Optional.of(dest);
     }
+  }
 
-    record PrintValue() implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.PRINTVALUE;
-        }
+  @NeedsRho
+  @StackEffect(pop = 1)
+  record BrIfNot(ConstPool.Idx<LangSXP> ast, @LabelName("ifFalse") BcLabel dest)
+      implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.BRIFNOT;
     }
 
-    record StartLoopCntxt(boolean isForLoop, @LabelName("loopEnd") BcLabel end) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.STARTLOOPCNTXT;
-        }
+    @Override
+    public Optional<BcLabel> label() {
+      return Optional.of(dest);
+    }
+  }
 
-        @Override
-        public Optional<BcLabel> label() {
-            return Optional.of(end);
-        }
+  @StackEffect(pop = 1)
+  record Pop() implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.POP;
     }
+  }
 
-    record EndLoopCntxt(boolean isForLoop) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.ENDLOOPCNTXT;
-        }
+  record Dup() implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.DUP;
     }
+  }
 
-    record DoLoopNext() implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.DOLOOPNEXT;
-        }
+  record PrintValue() implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.PRINTVALUE;
     }
+  }
 
-    record DoLoopBreak() implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.DOLOOPBREAK;
-        }
+  record StartLoopCntxt(boolean isForLoop, @LabelName("loopEnd") BcLabel end) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.STARTLOOPCNTXT;
     }
 
-    record StartFor(
-            ConstPool.Idx<LangSXP> ast,
-            ConstPool.Idx<RegSymSXP> elemName,
-            @LabelName("forStep") BcLabel step)
-            implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.STARTFOR;
-        }
+    @Override
+    public Optional<BcLabel> label() {
+      return Optional.of(end);
+    }
+  }
 
-        @Override
-        public Optional<BcLabel> label() {
-            return Optional.of(step);
-        }
+  record EndLoopCntxt(boolean isForLoop) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.ENDLOOPCNTXT;
     }
+  }
 
-    record StepFor(@LabelName("forBody") BcLabel body) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.STEPFOR;
-        }
+  record DoLoopNext() implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.DOLOOPNEXT;
+    }
+  }
 
-        @Override
-        public Optional<BcLabel> label() {
-            return Optional.of(body);
-        }
+  record DoLoopBreak() implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.DOLOOPBREAK;
     }
+  }
 
-    record EndFor() implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.ENDFOR;
-        }
+  record StartFor(
+      ConstPool.Idx<LangSXP> ast,
+      ConstPool.Idx<RegSymSXP> elemName,
+      @LabelName("forStep") BcLabel step)
+      implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.STARTFOR;
     }
 
-    record SetLoopVal() implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.SETLOOPVAL;
-        }
+    @Override
+    public Optional<BcLabel> label() {
+      return Optional.of(step);
     }
+  }
 
-    record Invisible() implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.INVISIBLE;
-        }
+  record StepFor(@LabelName("forBody") BcLabel body) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.STEPFOR;
     }
 
-    @StackEffect(push = 1)
-    record LdConst(ConstPool.Idx<SEXP> constant) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.LDCONST;
-        }
+    @Override
+    public Optional<BcLabel> label() {
+      return Optional.of(body);
     }
+  }
 
-    @StackEffect(push = 1)
-    record LdNull() implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.LDNULL;
-        }
+  record EndFor() implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.ENDFOR;
     }
+  }
 
-    @StackEffect(push = 1)
-    record LdTrue() implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.LDTRUE;
-        }
+  record SetLoopVal() implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.SETLOOPVAL;
     }
+  }
 
-    @StackEffect(push = 1)
-    record LdFalse() implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.LDFALSE;
-        }
+  record Invisible() implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.INVISIBLE;
     }
+  }
 
-    @StackEffect(push = 1)
-    @NeedsRho
-    record GetVar(ConstPool.Idx<RegSymSXP> name) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.GETVAR;
-        }
+  @StackEffect(push = 1)
+  record LdConst(ConstPool.Idx<SEXP> constant) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.LDCONST;
     }
+  }
 
-    record DdVal(ConstPool.Idx<RegSymSXP> name) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.DDVAL;
-        }
+  @StackEffect(push = 1)
+  record LdNull() implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.LDNULL;
     }
+  }
 
-    @NeedsRho
-    @StackEffect(pop = 1, push = 1)
-    record SetVar(ConstPool.Idx<RegSymSXP> name) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.SETVAR;
-        }
+  @StackEffect(push = 1)
+  record LdTrue() implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.LDTRUE;
     }
+  }
 
-    @NeedsRho
-    @StackEffect(push = 3)
-    record GetFun(ConstPool.Idx<RegSymSXP> name) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.GETFUN;
-        }
+  @StackEffect(push = 1)
+  record LdFalse() implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.LDFALSE;
     }
+  }
 
-    record GetGlobFun(ConstPool.Idx<RegSymSXP> name) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.GETGLOBFUN;
-        }
+  @StackEffect(push = 1)
+  @NeedsRho
+  record GetVar(ConstPool.Idx<RegSymSXP> name) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.GETVAR;
     }
+  }
 
-    record GetSymFun(ConstPool.Idx<RegSymSXP> name) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.GETSYMFUN;
-        }
+  record DdVal(ConstPool.Idx<RegSymSXP> name) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.DDVAL;
     }
+  }
 
-    @StackEffect(push = 3)
-    record GetBuiltin(ConstPool.Idx<RegSymSXP> name) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.GETBUILTIN;
-        }
+  @NeedsRho
+  @StackEffect(pop = 1, push = 1)
+  record SetVar(ConstPool.Idx<RegSymSXP> name) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.SETVAR;
     }
+  }
 
-    @StackEffect(push = 3)
-    record GetIntlBuiltin(ConstPool.Idx<RegSymSXP> name) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.GETINTLBUILTIN;
-        }
+  @NeedsRho
+  @StackEffect(push = 3)
+  record GetFun(ConstPool.Idx<RegSymSXP> name) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.GETFUN;
     }
+  }
 
-    @StackEffect(pop = 1, push = 3)
-    record CheckFun() implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.CHECKFUN;
-        }
+  record GetGlobFun(ConstPool.Idx<RegSymSXP> name) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.GETGLOBFUN;
     }
+  }
 
-    @NeedsRho
-    @StackEffect(pop = 3, push = 3)
-            /** {@code code} is usually but not always bytecode (see eval.c). */
-    record MakeProm(ConstPool.Idx<SEXP> code) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.MAKEPROM;
-        }
+  record GetSymFun(ConstPool.Idx<RegSymSXP> name) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.GETSYMFUN;
     }
+  }
 
-    record DoMissing() implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.DOMISSING;
-        }
+  @StackEffect(push = 3)
+  record GetBuiltin(ConstPool.Idx<RegSymSXP> name) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.GETBUILTIN;
     }
+  }
 
-    @StackEffect(pop = 3, push = 3)
-    record SetTag(@Nullable ConstPool.Idx<StrOrRegSymSXP> tag) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.SETTAG;
-        }
+  @StackEffect(push = 3)
+  record GetIntlBuiltin(ConstPool.Idx<RegSymSXP> name) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.GETINTLBUILTIN;
     }
+  }
 
-    record DoDots() implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.DODOTS;
-        }
+  @StackEffect(pop = 1, push = 3)
+  record CheckFun() implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.CHECKFUN;
     }
+  }
 
-    @StackEffect(pop = 3, push = 2)
-    record PushArg() implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.PUSHARG;
-        }
+  @NeedsRho
+  @StackEffect(pop = 3, push = 3)
+  /** {@code code} is usually but not always bytecode (see eval.c). */
+  record MakeProm(ConstPool.Idx<SEXP> code) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.MAKEPROM;
     }
+  }
 
-    @StackEffect(pop = 2, push = 2)
-    record PushConstArg(ConstPool.Idx<SEXP> constant) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.PUSHCONSTARG;
-        }
+  record DoMissing() implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.DOMISSING;
     }
+  }
 
-    @StackEffect(pop = 2, push = 2)
-    record PushNullArg() implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.PUSHNULLARG;
-        }
+  @StackEffect(pop = 3, push = 3)
+  record SetTag(@Nullable ConstPool.Idx<StrOrRegSymSXP> tag) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.SETTAG;
     }
+  }
 
-    @StackEffect(pop = 2, push = 2)
-    record PushTrueArg() implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.PUSHTRUEARG;
-        }
+  record DoDots() implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.DODOTS;
     }
+  }
 
-    @StackEffect(pop = 2, push = 2)
-    record PushFalseArg() implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.PUSHFALSEARG;
-        }
+  @StackEffect(pop = 3, push = 2)
+  record PushArg() implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.PUSHARG;
     }
+  }
 
-    @NeedsRho
-    @StackEffect(pop = 3, push = 1)
-    record Call(ConstPool.Idx<LangSXP> ast) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.CALL;
-        }
+  @StackEffect(pop = 2, push = 2)
+  record PushConstArg(ConstPool.Idx<SEXP> constant) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.PUSHCONSTARG;
     }
+  }
 
-    @NeedsRho
-    @StackEffect(pop = 3, push = 1)
-    record CallBuiltin(ConstPool.Idx<LangSXP> ast) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.CALLBUILTIN;
-        }
+  @StackEffect(pop = 2, push = 2)
+  record PushNullArg() implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.PUSHNULLARG;
     }
+  }
 
-    @NeedsRho
-    @StackEffect(pop = 3, push = 1)
-    record CallSpecial(ConstPool.Idx<LangSXP> ast) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.CALLSPECIAL;
-        }
+  @StackEffect(pop = 2, push = 2)
+  record PushTrueArg() implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.PUSHTRUEARG;
     }
+  }
 
-    @NeedsRho
-    @StackEffect(push = 1)
-    record MakeClosure(ConstPool.Idx<VecSXP> arg) implements BcInstr {
-        public ListSXP formals(ConstPool pool) {
-            return (ListSXP) pool.get(this.arg).get(0);
-        }
+  @StackEffect(pop = 2, push = 2)
+  record PushFalseArg() implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.PUSHFALSEARG;
+    }
+  }
 
-        public SEXP body(ConstPool pool) {
-            return pool.get(arg).get(1);
-        }
+  @NeedsRho
+  @StackEffect(pop = 3, push = 1)
+  record Call(ConstPool.Idx<LangSXP> ast) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.CALL;
+    }
+  }
 
-        public SEXP srcRef(ConstPool pool) {
-            var formalsBodyAndMaybeSrcRef = pool.get(this.arg);
-            return formalsBodyAndMaybeSrcRef.size() < 3 ? SEXPs.NULL : formalsBodyAndMaybeSrcRef.get(2);
-        }
+  @NeedsRho
+  @StackEffect(pop = 3, push = 1)
+  record CallBuiltin(ConstPool.Idx<LangSXP> ast) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.CALLBUILTIN;
+    }
+  }
 
-        @Override
-        public BcOp op() {
-            return BcOp.MAKECLOSURE;
-        }
+  @NeedsRho
+  @StackEffect(pop = 3, push = 1)
+  record CallSpecial(ConstPool.Idx<LangSXP> ast) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.CALLSPECIAL;
     }
+  }
 
-    @NeedsRho
-    @StackEffect(pop = 1, push = 1)
-    record UMinus(ConstPool.Idx<LangSXP> ast) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.UMINUS;
-        }
+  @NeedsRho
+  @StackEffect(push = 1)
+  record MakeClosure(ConstPool.Idx<VecSXP> arg) implements BcInstr {
+    public ListSXP formals(ConstPool pool) {
+      return (ListSXP) pool.get(this.arg).get(0);
     }
 
-    @NeedsRho
-    @StackEffect(pop = 1, push = 1)
-    record UPlus(ConstPool.Idx<LangSXP> ast) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.UPLUS;
-        }
+    public SEXP body(ConstPool pool) {
+      return pool.get(arg).get(1);
     }
 
-    @NeedsRho
-    @StackEffect(pop = 2, push = 1)
-    record Add(ConstPool.Idx<LangSXP> ast) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.ADD;
-        }
+    public SEXP srcRef(ConstPool pool) {
+      var formalsBodyAndMaybeSrcRef = pool.get(this.arg);
+      return formalsBodyAndMaybeSrcRef.size() < 3 ? SEXPs.NULL : formalsBodyAndMaybeSrcRef.get(2);
     }
 
-    @NeedsRho
-    @StackEffect(pop = 2, push = 1)
-    record Sub(ConstPool.Idx<LangSXP> ast) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.SUB;
-        }
+    @Override
+    public BcOp op() {
+      return BcOp.MAKECLOSURE;
     }
+  }
 
-    @NeedsRho
-    @StackEffect(pop = 2, push = 1)
-    record Mul(ConstPool.Idx<LangSXP> ast) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.MUL;
-        }
+  @NeedsRho
+  @StackEffect(pop = 1, push = 1)
+  record UMinus(ConstPool.Idx<LangSXP> ast) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.UMINUS;
     }
+  }
 
-    @NeedsRho
-    @StackEffect(pop = 2, push = 1)
-    record Div(ConstPool.Idx<LangSXP> ast) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.DIV;
-        }
+  @NeedsRho
+  @StackEffect(pop = 1, push = 1)
+  record UPlus(ConstPool.Idx<LangSXP> ast) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.UPLUS;
     }
+  }
 
-    @NeedsRho
-    @StackEffect(pop = 2, push = 1)
-    record Expt(ConstPool.Idx<LangSXP> ast) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.EXPT;
-        }
+  @NeedsRho
+  @StackEffect(pop = 2, push = 1)
+  record Add(ConstPool.Idx<LangSXP> ast) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.ADD;
     }
+  }
 
-    @NeedsRho
-    @StackEffect(pop = 1, push = 1)
-    record Sqrt(ConstPool.Idx<LangSXP> ast) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.SQRT;
-        }
+  @NeedsRho
+  @StackEffect(pop = 2, push = 1)
+  record Sub(ConstPool.Idx<LangSXP> ast) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.SUB;
     }
+  }
 
-    @NeedsRho
-    @StackEffect(pop = 1, push = 1)
-    record Exp(ConstPool.Idx<LangSXP> ast) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.EXP;
-        }
+  @NeedsRho
+  @StackEffect(pop = 2, push = 1)
+  record Mul(ConstPool.Idx<LangSXP> ast) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.MUL;
     }
+  }
 
-    @NeedsRho
-    @StackEffect(pop = 2, push = 1)
-    record Eq(ConstPool.Idx<LangSXP> ast) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.EQ;
-        }
+  @NeedsRho
+  @StackEffect(pop = 2, push = 1)
+  record Div(ConstPool.Idx<LangSXP> ast) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.DIV;
     }
+  }
 
-    @NeedsRho
-    @StackEffect(pop = 2, push = 1)
-    record Ne(ConstPool.Idx<LangSXP> ast) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.NE;
-        }
+  @NeedsRho
+  @StackEffect(pop = 2, push = 1)
+  record Expt(ConstPool.Idx<LangSXP> ast) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.EXPT;
     }
+  }
 
-    @NeedsRho
-    @StackEffect(pop = 2, push = 1)
-    record Lt(ConstPool.Idx<LangSXP> ast) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.LT;
-        }
+  @NeedsRho
+  @StackEffect(pop = 1, push = 1)
+  record Sqrt(ConstPool.Idx<LangSXP> ast) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.SQRT;
     }
+  }
 
-    @NeedsRho
-    @StackEffect(pop = 2, push = 1)
-    record Le(ConstPool.Idx<LangSXP> ast) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.LE;
-        }
+  @NeedsRho
+  @StackEffect(pop = 1, push = 1)
+  record Exp(ConstPool.Idx<LangSXP> ast) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.EXP;
     }
+  }
 
-    @NeedsRho
-    @StackEffect(pop = 2, push = 1)
-    record Ge(ConstPool.Idx<LangSXP> ast) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.GE;
-        }
+  @NeedsRho
+  @StackEffect(pop = 2, push = 1)
+  record Eq(ConstPool.Idx<LangSXP> ast) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.EQ;
     }
+  }
 
-    @NeedsRho
-    @StackEffect(pop = 2, push = 1)
-    record Gt(ConstPool.Idx<LangSXP> ast) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.GT;
-        }
+  @NeedsRho
+  @StackEffect(pop = 2, push = 1)
+  record Ne(ConstPool.Idx<LangSXP> ast) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.NE;
     }
+  }
 
-    @NeedsRho
-    @StackEffect(pop = 2, push = 1)
-    record And(ConstPool.Idx<LangSXP> ast) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.AND;
-        }
+  @NeedsRho
+  @StackEffect(pop = 2, push = 1)
+  record Lt(ConstPool.Idx<LangSXP> ast) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.LT;
     }
+  }
 
-    @NeedsRho
-    @StackEffect(pop = 2, push = 1)
-    record Or(ConstPool.Idx<LangSXP> ast) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.OR;
-        }
+  @NeedsRho
+  @StackEffect(pop = 2, push = 1)
+  record Le(ConstPool.Idx<LangSXP> ast) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.LE;
     }
+  }
 
-    @NeedsRho
-    @StackEffect(pop = 1, push = 1)
-    record Not(ConstPool.Idx<LangSXP> ast) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.NOT;
-        }
+  @NeedsRho
+  @StackEffect(pop = 2, push = 1)
+  record Ge(ConstPool.Idx<LangSXP> ast) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.GE;
     }
+  }
 
-    record DotsErr() implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.DOTSERR;
-        }
+  @NeedsRho
+  @StackEffect(pop = 2, push = 1)
+  record Gt(ConstPool.Idx<LangSXP> ast) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.GT;
     }
+  }
 
-    @NeedsRho
-    @StackEffect(pop = 1, push = 4)
-    record StartAssign(ConstPool.Idx<RegSymSXP> name) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.STARTASSIGN;
-        }
+  @NeedsRho
+  @StackEffect(pop = 2, push = 1)
+  record And(ConstPool.Idx<LangSXP> ast) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.AND;
     }
+  }
 
-    @NeedsRho
-    @StackEffect(pop = 3, push = 1)
-    record EndAssign(ConstPool.Idx<RegSymSXP> name) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.ENDASSIGN;
-        }
+  @NeedsRho
+  @StackEffect(pop = 2, push = 1)
+  record Or(ConstPool.Idx<LangSXP> ast) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.OR;
     }
+  }
 
-    record StartSubset(ConstPool.Idx<LangSXP> ast, @LabelName("afterSubset") BcLabel after)
-            implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.STARTSUBSET;
-        }
+  @NeedsRho
+  @StackEffect(pop = 1, push = 1)
+  record Not(ConstPool.Idx<LangSXP> ast) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.NOT;
+    }
+  }
 
-        @Override
-        public Optional<BcLabel> label() {
-            return Optional.of(after);
-        }
+  record DotsErr() implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.DOTSERR;
     }
+  }
 
-    record DfltSubset() implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.DFLTSUBSET;
-        }
+  @NeedsRho
+  @StackEffect(pop = 1, push = 4)
+  record StartAssign(ConstPool.Idx<RegSymSXP> name) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.STARTASSIGN;
     }
+  }
 
-    record StartSubassign(ConstPool.Idx<LangSXP> ast, @LabelName("afterSubassign") BcLabel after)
-            implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.STARTSUBASSIGN;
-        }
+  @NeedsRho
+  @StackEffect(pop = 3, push = 1)
+  record EndAssign(ConstPool.Idx<RegSymSXP> name) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.ENDASSIGN;
+    }
+  }
 
-        @Override
-        public Optional<BcLabel> label() {
-            return Optional.of(after);
-        }
+  record StartSubset(ConstPool.Idx<LangSXP> ast, @LabelName("afterSubset") BcLabel after)
+      implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.STARTSUBSET;
     }
 
-    record DfltSubassign() implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.DFLTSUBASSIGN;
-        }
+    @Override
+    public Optional<BcLabel> label() {
+      return Optional.of(after);
     }
+  }
 
-    record StartC(ConstPool.Idx<LangSXP> ast, @LabelName("afterC") BcLabel after) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.STARTC;
-        }
+  record DfltSubset() implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.DFLTSUBSET;
+    }
+  }
 
-        @Override
-        public Optional<BcLabel> label() {
-            return Optional.of(after);
-        }
+  record StartSubassign(ConstPool.Idx<LangSXP> ast, @LabelName("afterSubassign") BcLabel after)
+      implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.STARTSUBASSIGN;
     }
 
-    record DfltC() implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.DFLTC;
-        }
+    @Override
+    public Optional<BcLabel> label() {
+      return Optional.of(after);
     }
+  }
 
-    record StartSubset2(ConstPool.Idx<LangSXP> ast, @LabelName("afterSubset2") BcLabel after)
-            implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.STARTSUBSET2;
-        }
+  record DfltSubassign() implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.DFLTSUBASSIGN;
+    }
+  }
 
-        @Override
-        public Optional<BcLabel> label() {
-            return Optional.of(after);
-        }
+  record StartC(ConstPool.Idx<LangSXP> ast, @LabelName("afterC") BcLabel after) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.STARTC;
     }
 
-    record DfltSubset2() implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.DFLTSUBSET2;
-        }
+    @Override
+    public Optional<BcLabel> label() {
+      return Optional.of(after);
     }
+  }
 
-    record StartSubassign2(ConstPool.Idx<LangSXP> ast, @LabelName("afterSubassign2") BcLabel after)
-            implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.STARTSUBASSIGN2;
-        }
+  record DfltC() implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.DFLTC;
+    }
+  }
 
-        @Override
-        public Optional<BcLabel> label() {
-            return Optional.of(after);
-        }
+  record StartSubset2(ConstPool.Idx<LangSXP> ast, @LabelName("afterSubset2") BcLabel after)
+      implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.STARTSUBSET2;
     }
 
-    record DfltSubassign2() implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.DFLTSUBASSIGN2;
-        }
+    @Override
+    public Optional<BcLabel> label() {
+      return Optional.of(after);
     }
+  }
 
-    @NeedsRho
-    @StackEffect(pop = 1, push = 1)
-    record Dollar(ConstPool.Idx<LangSXP> ast, ConstPool.Idx<RegSymSXP> member) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.DOLLAR;
-        }
+  record DfltSubset2() implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.DFLTSUBSET2;
+    }
+  }
 
+  record StartSubassign2(ConstPool.Idx<LangSXP> ast, @LabelName("afterSubassign2") BcLabel after)
+      implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.STARTSUBASSIGN2;
+    }
 
+    @Override
+    public Optional<BcLabel> label() {
+      return Optional.of(after);
     }
+  }
 
-    record DollarGets(ConstPool.Idx<LangSXP> ast, ConstPool.Idx<RegSymSXP> member)
-            implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.DOLLARGETS;
-        }
+  record DfltSubassign2() implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.DFLTSUBASSIGN2;
     }
+  }
 
-    record IsNull() implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.ISNULL;
-        }
+  @NeedsRho
+  @StackEffect(pop = 1, push = 1)
+  record Dollar(ConstPool.Idx<LangSXP> ast, ConstPool.Idx<RegSymSXP> member) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.DOLLAR;
     }
+  }
 
-    record IsLogical() implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.ISLOGICAL;
-        }
+  record DollarGets(ConstPool.Idx<LangSXP> ast, ConstPool.Idx<RegSymSXP> member)
+      implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.DOLLARGETS;
     }
+  }
 
-    record IsInteger() implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.ISINTEGER;
-        }
+  record IsNull() implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.ISNULL;
     }
+  }
 
-    record IsDouble() implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.ISDOUBLE;
-        }
+  record IsLogical() implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.ISLOGICAL;
     }
+  }
 
-    record IsComplex() implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.ISCOMPLEX;
-        }
+  record IsInteger() implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.ISINTEGER;
     }
+  }
 
-    record IsCharacter() implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.ISCHARACTER;
-        }
+  record IsDouble() implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.ISDOUBLE;
     }
+  }
 
-    record IsSymbol() implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.ISSYMBOL;
-        }
+  record IsComplex() implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.ISCOMPLEX;
     }
+  }
 
-    record IsObject() implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.ISOBJECT;
-        }
+  record IsCharacter() implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.ISCHARACTER;
     }
+  }
 
-    record IsNumeric() implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.ISNUMERIC;
-        }
+  record IsSymbol() implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.ISSYMBOL;
     }
+  }
 
-    @NeedsRho
-    @StackEffect(pop = 2, push = 1)
-            // XXX: call-idx can be negative? We make TypedIdx null to support this case,
-            // but not sure if
-            // it's possible.
-            // This applies to every other `@Nullable call` in this file.
-    record VecSubset(@Nullable ConstPool.Idx<LangSXP> ast) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.VECSUBSET;
-        }
+  record IsObject() implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.ISOBJECT;
     }
+  }
 
-    record MatSubset(@Nullable ConstPool.Idx<LangSXP> ast) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.MATSUBSET;
-        }
+  record IsNumeric() implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.ISNUMERIC;
     }
+  }
 
-    @NeedsRho
-    @StackEffect(pop = 3, push = 1)
-    record VecSubassign(@Nullable ConstPool.Idx<LangSXP> ast) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.VECSUBASSIGN;
-        }
+  @NeedsRho
+  @StackEffect(pop = 2, push = 1)
+  // XXX: call-idx can be negative? We make TypedIdx null to support this case,
+  // but not sure if
+  // it's possible.
+  // This applies to every other `@Nullable call` in this file.
+  record VecSubset(@Nullable ConstPool.Idx<LangSXP> ast) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.VECSUBSET;
     }
+  }
 
-    record MatSubassign(@Nullable ConstPool.Idx<LangSXP> ast) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.MATSUBASSIGN;
-        }
+  record MatSubset(@Nullable ConstPool.Idx<LangSXP> ast) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.MATSUBSET;
     }
+  }
 
-    record And1st(ConstPool.Idx<LangSXP> ast, @LabelName("afterAnd") BcLabel shortCircuit)
-            implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.AND1ST;
-        }
+  @NeedsRho
+  @StackEffect(pop = 3, push = 1)
+  record VecSubassign(@Nullable ConstPool.Idx<LangSXP> ast) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.VECSUBASSIGN;
+    }
+  }
 
-        @Override
-        public Optional<BcLabel> label() {
-            return Optional.of(shortCircuit);
-        }
+  record MatSubassign(@Nullable ConstPool.Idx<LangSXP> ast) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.MATSUBASSIGN;
     }
+  }
 
-    record And2nd(ConstPool.Idx<LangSXP> ast) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.AND2ND;
-        }
+  record And1st(ConstPool.Idx<LangSXP> ast, @LabelName("afterAnd") BcLabel shortCircuit)
+      implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.AND1ST;
     }
 
-    record Or1st(ConstPool.Idx<LangSXP> ast, @LabelName("afterOr") BcLabel shortCircuit)
-            implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.OR1ST;
-        }
+    @Override
+    public Optional<BcLabel> label() {
+      return Optional.of(shortCircuit);
+    }
+  }
 
-        @Override
-        public Optional<BcLabel> label() {
-            return Optional.of(shortCircuit);
-        }
+  record And2nd(ConstPool.Idx<LangSXP> ast) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.AND2ND;
     }
+  }
 
-    record Or2nd(ConstPool.Idx<LangSXP> ast) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.OR2ND;
-        }
+  record Or1st(ConstPool.Idx<LangSXP> ast, @LabelName("afterOr") BcLabel shortCircuit)
+      implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.OR1ST;
     }
 
-    @NeedsRho
-    @StackEffect(push = 1)
-    record GetVarMissOk(ConstPool.Idx<RegSymSXP> name) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.GETVAR_MISSOK;
-        }
+    @Override
+    public Optional<BcLabel> label() {
+      return Optional.of(shortCircuit);
     }
+  }
 
-    record DdValMissOk(ConstPool.Idx<RegSymSXP> name) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.DDVAL_MISSOK;
-        }
+  record Or2nd(ConstPool.Idx<LangSXP> ast) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.OR2ND;
     }
+  }
 
-    record Visible() implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.VISIBLE;
-        }
+  @NeedsRho
+  @StackEffect(push = 1)
+  record GetVarMissOk(ConstPool.Idx<RegSymSXP> name) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.GETVAR_MISSOK;
     }
+  }
 
-    @NeedsRho
-    @StackEffect(pop = 1, push = 1)
-    record SetVar2(ConstPool.Idx<RegSymSXP> name) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.SETVAR2;
-        }
+  record DdValMissOk(ConstPool.Idx<RegSymSXP> name) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.DDVAL_MISSOK;
+    }
+  }
 
+  record Visible() implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.VISIBLE;
     }
+  }
 
-    record StartAssign2(ConstPool.Idx<RegSymSXP> name) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.STARTASSIGN2;
-        }
+  @NeedsRho
+  @StackEffect(pop = 1, push = 1)
+  record SetVar2(ConstPool.Idx<RegSymSXP> name) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.SETVAR2;
     }
+  }
 
-    record EndAssign2(ConstPool.Idx<RegSymSXP> name) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.ENDASSIGN2;
-        }
+  record StartAssign2(ConstPool.Idx<RegSymSXP> name) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.STARTASSIGN2;
     }
+  }
 
-    record SetterCall(ConstPool.Idx<LangSXP> ast, ConstPool.Idx<SEXP> valueExpr) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.SETTER_CALL;
-        }
+  record EndAssign2(ConstPool.Idx<RegSymSXP> name) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.ENDASSIGN2;
     }
+  }
 
-    record GetterCall(ConstPool.Idx<LangSXP> ast) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.GETTER_CALL;
-        }
+  record SetterCall(ConstPool.Idx<LangSXP> ast, ConstPool.Idx<SEXP> valueExpr) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.SETTER_CALL;
     }
+  }
 
-    /** See eval.c for why this isn't just a regular swap instruction. */
-    record SpecialSwap() implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.SWAP;
-        }
+  record GetterCall(ConstPool.Idx<LangSXP> ast) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.GETTER_CALL;
     }
+  }
 
-    record Dup2nd() implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.DUP2ND;
-        }
+  /** See eval.c for why this isn't just a regular swap instruction. */
+  record SpecialSwap() implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.SWAP;
     }
+  }
 
-    /**
-     * The OP_SWITCH instruction.
-     *
-     * @param ast
-     * @param names {@code null} represents {@code NilSXP}
-     * @param chrLabelsIdx {@code null} represents {@code NilSXP}
-     * @param numLabelsIdx {@code null} represents {@code NilSXP}
-     */
-    record Switch(
-            ConstPool.Idx<LangSXP> ast,
-            @Nullable ConstPool.Idx<StrSXP> names,
-            @Nullable ConstPool.Idx<IntSXP> chrLabelsIdx,
-            @Nullable ConstPool.Idx<IntSXP> numLabelsIdx)
-            implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.SWITCH;
-        }
+  record Dup2nd() implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.DUP2ND;
     }
+  }
 
-    record ReturnJmp() implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.RETURNJMP;
-        }
+  /**
+   * The OP_SWITCH instruction.
+   *
+   * @param ast
+   * @param names {@code null} represents {@code NilSXP}
+   * @param chrLabelsIdx {@code null} represents {@code NilSXP}
+   * @param numLabelsIdx {@code null} represents {@code NilSXP}
+   */
+  record Switch(
+      ConstPool.Idx<LangSXP> ast,
+      @Nullable ConstPool.Idx<StrSXP> names,
+      @Nullable ConstPool.Idx<IntSXP> chrLabelsIdx,
+      @Nullable ConstPool.Idx<IntSXP> numLabelsIdx)
+      implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.SWITCH;
     }
+  }
 
-    @NeedsRho
-    @StackEffect(pop = 1, push = 1)
-    record StartSubsetN(ConstPool.Idx<LangSXP> ast, @LabelName("afterSubsetN") BcLabel after)
-            implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.STARTSUBSET_N;
-        }
+  record ReturnJmp() implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.RETURNJMP;
+    }
+  }
 
-        @Override
-        public Optional<BcLabel> label() {
-            return Optional.of(after);
-        }
+  @NeedsRho
+  @StackEffect(pop = 1, push = 1)
+  record StartSubsetN(ConstPool.Idx<LangSXP> ast, @LabelName("afterSubsetN") BcLabel after)
+      implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.STARTSUBSET_N;
     }
 
-    @NeedsRho
-    @StackEffect(pop = 2, push = 2)
-    record StartSubassignN(ConstPool.Idx<LangSXP> ast, @LabelName("afterSubassignN") BcLabel after)
-            implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.STARTSUBASSIGN_N;
-        }
+    @Override
+    public Optional<BcLabel> label() {
+      return Optional.of(after);
+    }
+  }
 
-        @Override
-        public Optional<BcLabel> label() {
-            return Optional.of(after);
-        }
+  @NeedsRho
+  @StackEffect(pop = 2, push = 2)
+  record StartSubassignN(ConstPool.Idx<LangSXP> ast, @LabelName("afterSubassignN") BcLabel after)
+      implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.STARTSUBASSIGN_N;
     }
 
-    @NeedsRho
-    @StackEffect(pop = 2, push = 1)
-    record VecSubset2(@Nullable ConstPool.Idx<LangSXP> ast) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.VECSUBSET2;
-        }
+    @Override
+    public Optional<BcLabel> label() {
+      return Optional.of(after);
     }
+  }
 
-    record MatSubset2(@Nullable ConstPool.Idx<LangSXP> ast) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.MATSUBSET2;
-        }
+  @NeedsRho
+  @StackEffect(pop = 2, push = 1)
+  record VecSubset2(@Nullable ConstPool.Idx<LangSXP> ast) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.VECSUBSET2;
     }
+  }
 
-    @NeedsRho
-    @StackEffect(pop = 3, push = 1)
-    record VecSubassign2(@Nullable ConstPool.Idx<LangSXP> ast) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.VECSUBASSIGN2;
-        }
+  record MatSubset2(@Nullable ConstPool.Idx<LangSXP> ast) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.MATSUBSET2;
     }
+  }
 
-    record MatSubassign2(@Nullable ConstPool.Idx<LangSXP> ast) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.MATSUBASSIGN2;
-        }
+  @NeedsRho
+  @StackEffect(pop = 3, push = 1)
+  record VecSubassign2(@Nullable ConstPool.Idx<LangSXP> ast) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.VECSUBASSIGN2;
     }
+  }
 
-    @NeedsRho
-    @StackEffect(pop = 1, push = 1)
-    record StartSubset2N(ConstPool.Idx<LangSXP> ast, @LabelName("afterSubset2N") BcLabel after)
-            implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.STARTSUBSET2_N;
-        }
+  record MatSubassign2(@Nullable ConstPool.Idx<LangSXP> ast) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.MATSUBASSIGN2;
+    }
+  }
 
-        @Override
-        public Optional<BcLabel> label() {
-            return Optional.of(after);
-        }
+  @NeedsRho
+  @StackEffect(pop = 1, push = 1)
+  record StartSubset2N(ConstPool.Idx<LangSXP> ast, @LabelName("afterSubset2N") BcLabel after)
+      implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.STARTSUBSET2_N;
     }
 
-    @NeedsRho
-    @StackEffect(pop = 2, push = 2)
-    record StartSubassign2N(ConstPool.Idx<LangSXP> ast, @LabelName("afterSubassign2N") BcLabel after)
-            implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.STARTSUBASSIGN2_N;
-        }
+    @Override
+    public Optional<BcLabel> label() {
+      return Optional.of(after);
+    }
+  }
 
-        @Override
-        public Optional<BcLabel> label() {
-            return Optional.of(after);
-        }
+  @NeedsRho
+  @StackEffect(pop = 2, push = 2)
+  record StartSubassign2N(ConstPool.Idx<LangSXP> ast, @LabelName("afterSubassign2N") BcLabel after)
+      implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.STARTSUBASSIGN2_N;
     }
 
-    record SubsetN(@Nullable ConstPool.Idx<LangSXP> ast, int n) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.SUBSET_N;
-        }
+    @Override
+    public Optional<BcLabel> label() {
+      return Optional.of(after);
     }
+  }
 
-    record Subset2N(@Nullable ConstPool.Idx<LangSXP> ast, int n) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.SUBSET2_N;
-        }
+  record SubsetN(@Nullable ConstPool.Idx<LangSXP> ast, int n) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.SUBSET_N;
     }
+  }
 
-    record SubassignN(@Nullable ConstPool.Idx<LangSXP> ast, int n) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.SUBASSIGN_N;
-        }
+  record Subset2N(@Nullable ConstPool.Idx<LangSXP> ast, int n) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.SUBSET2_N;
     }
+  }
 
-    record Subassign2N(@Nullable ConstPool.Idx<LangSXP> ast, int n) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.SUBASSIGN2_N;
-        }
+  record SubassignN(@Nullable ConstPool.Idx<LangSXP> ast, int n) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.SUBASSIGN_N;
     }
+  }
 
-    record Log(ConstPool.Idx<LangSXP> ast) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.LOG;
-        }
+  record Subassign2N(@Nullable ConstPool.Idx<LangSXP> ast, int n) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.SUBASSIGN2_N;
     }
+  }
 
-    record LogBase(ConstPool.Idx<LangSXP> ast) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.LOGBASE;
-        }
+  record Log(ConstPool.Idx<LangSXP> ast) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.LOG;
     }
+  }
 
-    record Math1(ConstPool.Idx<LangSXP> ast, int funId) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.MATH1;
-        }
+  record LogBase(ConstPool.Idx<LangSXP> ast) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.LOGBASE;
     }
+  }
 
-    record DotCall(ConstPool.Idx<LangSXP> ast, int numArgs) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.DOTCALL;
-        }
+  record Math1(ConstPool.Idx<LangSXP> ast, int funId) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.MATH1;
     }
+  }
 
-    record Colon(ConstPool.Idx<LangSXP> ast) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.COLON;
-        }
+  record DotCall(ConstPool.Idx<LangSXP> ast, int numArgs) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.DOTCALL;
     }
+  }
 
-    record SeqAlong(ConstPool.Idx<LangSXP> ast) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.SEQALONG;
-        }
+  record Colon(ConstPool.Idx<LangSXP> ast) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.COLON;
     }
+  }
 
-    record SeqLen(ConstPool.Idx<LangSXP> ast) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.SEQLEN;
-        }
+  record SeqAlong(ConstPool.Idx<LangSXP> ast) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.SEQALONG;
     }
+  }
 
-    record BaseGuard(ConstPool.Idx<LangSXP> expr, @LabelName("baseGuardAfter") BcLabel ifFail)
-            implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.BASEGUARD;
-        }
+  record SeqLen(ConstPool.Idx<LangSXP> ast) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.SEQLEN;
+    }
+  }
 
-        @Override
-        public Optional<BcLabel> label() {
-            return Optional.of(ifFail);
-        }
+  record BaseGuard(ConstPool.Idx<LangSXP> expr, @LabelName("baseGuardAfter") BcLabel ifFail)
+      implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.BASEGUARD;
     }
 
-    record IncLnk() implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.INCLNK;
-        }
+    @Override
+    public Optional<BcLabel> label() {
+      return Optional.of(ifFail);
     }
+  }
 
-    record DecLnk() implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.DECLNK;
-        }
+  record IncLnk() implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.INCLNK;
     }
+  }
 
-    record DeclnkN(int n) implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.DECLNK_N;
-        }
+  record DecLnk() implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.DECLNK;
     }
+  }
 
-    record IncLnkStk() implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.INCLNKSTK;
-        }
+  record DeclnkN(int n) implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.DECLNK_N;
     }
+  }
 
-    record DecLnkStk() implements BcInstr {
-        @Override
-        public BcOp op() {
-            return BcOp.DECLNKSTK;
-        }
+  record IncLnkStk() implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.INCLNKSTK;
+    }
+  }
+
+  record DecLnkStk() implements BcInstr {
+    @Override
+    public BcOp op() {
+      return BcOp.DECLNKSTK;
     }
+  }
 }

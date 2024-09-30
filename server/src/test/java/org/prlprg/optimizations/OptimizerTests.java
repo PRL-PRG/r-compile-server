@@ -1,7 +1,5 @@
 package org.prlprg.optimizations;
 
-import org.prlprg.ir.closure.Closure;
-
 /**
  * Test optimizing the IR.
  *
@@ -10,7 +8,7 @@ import org.prlprg.ir.closure.Closure;
  * The closures are generated from the {@linkplain org.prlprg.bc2ir.ClosureCompiler IR closure
  * compiler}.
  */
-//public class OptimizerTests extends RClosureTestsUsingIRCompiler {
+// public class OptimizerTests extends RClosureTestsUsingIRCompiler {
 //  @Override
 //  protected void testClosure(Closure ir) {
 //    optimize(ir.baselineVersion());
@@ -18,4 +16,4 @@ import org.prlprg.ir.closure.Closure;
 //    // Debug print if verbose
 //    printlnIfVerbose(ir);
 //  }
-//}
+// }
