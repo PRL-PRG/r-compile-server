@@ -26,11 +26,6 @@ private:
 
   // For it to be able to access the client instance
   friend SEXP init_client(SEXP address, SEXP port, SEXP installed_packages);
-
-  // Remember the compiled functions with their hash both when
-  // they are not yet compiled, and when they are.
-  std::unordered_map<std::string, std::pair<uint64_t, uint64_t>> compiled_functions;
-
 public:
   Client(std::shared_ptr<grpc::Channel> channel, std::vector<std::string> installed_packages);
 
@@ -40,7 +35,6 @@ public:
 
   static SEXP make_client(SEXP address, SEXP port, SEXP installed_packages);
   static Client* get_client();
-  static void mark_compiled_function(const std::string& name, SEXP closure);
 };
 
 SEXP init_client(SEXP address, SEXP port, SEXP installed_packages);

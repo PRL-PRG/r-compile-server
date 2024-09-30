@@ -61,13 +61,7 @@ std::variant<protocol::CompileResponse, std::string> Client::remote_compile(std:
   // We replace the body of a function with its compiled version so it would not make
   //sense to compute its hash again, except if its body has changed.
   auto hash = xxh::xxhash3<64>(rds_closure.data(), rds_closure.size());
-  if(compiled_functions.find(options.name) != compiled_functions.end() && compiled_functions[options.name].second == hash) {
-    request.mutable_function()->set_hash(compiled_functions[options.name].first);
-  }
-  else {
-    request.mutable_function()->set_hash(hash);
-    compiled_functions[options.name] = std::make_pair(hash, 0);
-  }
+  request.mutable_function()->set_hash(hash);
 
   grpc::ClientContext context;
   CompileResponse response;
@@ -130,11 +124,5 @@ SEXP init_client(SEXP address, SEXP port, SEXP installed_packages) {
 
   return R_NilValue;
 }
-
-void Client::mark_compiled_function(const std::string& name, SEXP closure) {
-  auto bytes = rsh::serialize(closure);
-  Client::get_client()->compiled_functions[name].second = xxh::xxhash3<64>(bytes);
-}
-
 
 } // namespace rsh
