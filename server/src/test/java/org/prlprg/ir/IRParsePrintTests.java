@@ -1,8 +1,5 @@
 package org.prlprg.ir;
 
-import org.prlprg.ir.closure.Closure;
-import org.prlprg.sexp.SEXP;
-
 /**
  * Test parsing and printing IR.
  *
@@ -12,12 +9,13 @@ import org.prlprg.sexp.SEXP;
  *
  * <p>Implicitly, this also tests parsing and printing {@link SEXP}s (within the IR).
  */
-//public class IRParsePrintTests extends RClosureTestsUsingIRCompiler {
+// public class IRParsePrintTests extends RClosureTestsUsingIRCompiler {
 //  @Override
 //  protected void testClosure(Closure ir) {
 //    // Test round-trip print/parse/print
 //    var irString =
-//        assertDoesNotThrow(() -> Printer.toString(ir, SEXPPrintOptions.FULL), "Failed to print IR");
+//        assertDoesNotThrow(() -> Printer.toString(ir, SEXPPrintOptions.FULL), "Failed to print
+// IR");
 //
 //    Closure ir1;
 //    try {
@@ -48,4 +46,4 @@ import org.prlprg.sexp.SEXP;
 //    // Debug print if verbose
 //    printlnIfVerbose(ir);
 //  }
-//}
+// }

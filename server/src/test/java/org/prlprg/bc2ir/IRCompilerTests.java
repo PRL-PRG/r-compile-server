@@ -1,7 +1,7 @@
 package org.prlprg.bc2ir;
 
-///** Test our {@linkplain ClosureCompiler IR closure compiler} specifically. */
-//public class IRCompilerTests extends RClosureTestsUsingIRCompiler {
+/// ** Test our {@linkplain ClosureCompiler IR closure compiler} specifically. */
+// public class IRCompilerTests extends RClosureTestsUsingIRCompiler {
 //  @Test
 //  public void inlineForReturn() throws Exception {
 //    testClosure(
@@ -23,4 +23,4 @@ package org.prlprg.bc2ir;
 //    // Debug print if verbose
 //    printlnIfVerbose(ir);
 //  }
-//}
+// }
