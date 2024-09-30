@@ -36,7 +36,23 @@ namespace rsh {
 SEXP RSH_JIT_FUN_PTR = Rf_install("RSH_JIT_FUN_PTR");
 
 static std::variant<protocol::CompileResponse, std::string> compile_closure(SEXP closure, CompilerOptions options) {
-  auto closure_bytes = rsh::serialize(closure);
+  // If a function has already been compiled to native code
+  if(Rf_asLogical(is_compiled(closure))) {
+    return "Function already compiled";
+  }
+
+  std::vector<uint8_t> closure_bytes;
+
+  if(IS_BYTECODE(BODY(closure))) {
+    // Build the closure AST to get the correct hash
+    // The AST is the first element in the constant pool of the BCODESXP
+    SEXP body = BODY_EXPR(closure);
+    auto ast_clos = Rf_mkCLOSXP(FORMALS(closure), body, CLOENV(closure));
+    closure_bytes = rsh::serialize(ast_clos);
+  }
+  else {
+   closure_bytes = rsh::serialize(closure);
+  }
   auto client = rsh::Client::get_client();
   return client->remote_compile(closure_bytes, options);
 }
@@ -161,8 +177,8 @@ CompilerOptions CompilerOptions::from_list(SEXP listsxp) {
 }
 
 
-std::string genSymbol(const std:;string& name, uint64_t hash, int index) {
-  return name + "_" + std::to_string(hash) + "_" + std::to_string(index);
+std::string genSymbol(uint64_t hash, int index) {
+  return "gen_" + std::to_string(hash) + "_" + std::to_string(index);
 }
 
 SEXP compile(SEXP closure, SEXP options) {
@@ -186,7 +202,7 @@ SEXP compile(SEXP closure, SEXP options) {
 
   SEXP body = nullptr;
   void * fun_ptr = nullptr;
-  std::string name = genSymbol(opts.name, compiled_fun.hash(), 0);
+  std::string name = genSymbol(compiled_fun.hash(), 0);
   // Native or bytecode?
   if(opts.tier == protocol::Tier::OPTIMIZED) {
     fun_ptr = insert_into_jit(name.c_str(), compiled_fun);
@@ -236,10 +252,7 @@ SEXP compile(SEXP closure, SEXP options) {
   else {
     UNPROTECT(1);
   }
-  // To be able to see if the body of a closure is the result of a JIT compilation
-  // TODO: don't mark it again if we know that the compile server is sending the same code again.
-  // TODO: does it still work when not replacing the body in place?
-  Client::mark_compiled_function(opts.name, closure);
+
 
   return closure;
 }

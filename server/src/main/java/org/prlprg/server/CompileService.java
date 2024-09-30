@@ -43,7 +43,7 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
       new HashMap<>();
 
   private static String genSymbol(Messages.Function function) {
-    return function.getName() + "_" + function.getHash();
+    return "gen_" + function.getHash();
   }
 
   // Testing externally: grpcurl -plaintext -d '{"function":{"name": "testFunc"}}' 0.0.0.0:8980
