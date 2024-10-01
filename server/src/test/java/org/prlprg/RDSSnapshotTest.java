@@ -5,6 +5,7 @@ import java.io.OutputStream;
 import java.nio.file.Path;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.rds.RDSWriter;
+import org.prlprg.session.RSession;
 import org.prlprg.sexp.SEXP;
 
 public abstract class RDSSnapshotTest<T> extends SnapshotTest<T> {

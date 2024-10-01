@@ -2,6 +2,7 @@ package org.prlprg;
 
 import org.junit.jupiter.api.AfterAll;
 import org.prlprg.rsession.TestRSession;
+import org.prlprg.session.RSession;
 import org.prlprg.util.GNUR;
 import org.prlprg.util.GNURFactory;
 
