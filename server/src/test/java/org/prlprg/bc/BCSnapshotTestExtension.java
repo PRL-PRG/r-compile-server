@@ -78,7 +78,7 @@ public class BCSnapshotTestExtension extends SnapshotExtension<BCSnapshotTestExt
 
       @Override
       public void verify(String code, int optimizeLevel) {
-        verify(String.valueOf(seq++), code, optimizeLevel);
+        verify(String.valueOf(++seq), code, optimizeLevel);
       }
 
       @Override
