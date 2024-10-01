@@ -4,11 +4,16 @@ import org.junit.jupiter.api.Test;
 import org.prlprg.RClosureTests;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.LangSXP;
+import org.prlprg.util.GNUR;
 
 import static com.google.common.truth.Truth.assertThat;
 
 /** Test our {@linkplain BCCompiler bytecode compiler} specifically. */
 public class BCCompilerTest extends AbstractBCCompilerTest implements RClosureTests {
+
+    public BCCompilerTest(GNUR R) {
+        super(R);
+    }
 
     @Test
     public void testMatchCall() {

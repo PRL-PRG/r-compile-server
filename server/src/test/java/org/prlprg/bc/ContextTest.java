@@ -1,11 +1,12 @@
 package org.prlprg.bc;
 
 import org.junit.jupiter.api.Test;
-import org.prlprg.GNURTestInstance;
+import org.prlprg.GNURTestSupport;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.NamespaceEnvSXP;
 import org.prlprg.sexp.PromSXP;
 import org.prlprg.sexp.SEXPs;
+import org.prlprg.util.GNUR;
 import org.prlprg.util.Pair;
 
 import java.util.HashSet;
@@ -13,7 +14,15 @@ import java.util.HashSet;
 import static com.google.common.truth.Truth.assertThat;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-public class ContextTest implements GNURTestInstance {
+@GNURTestSupport
+public class ContextTest {
+
+    private final GNUR R;
+
+    public ContextTest(GNUR R) {
+        this.R = R;
+    }
+
     @Test
     public void testFindLocals() {
         var fun =

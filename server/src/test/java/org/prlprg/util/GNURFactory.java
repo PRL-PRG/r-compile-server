@@ -10,14 +10,17 @@ import java.io.*;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import static java.lang.String.format;
 import static org.prlprg.AppConfig.R_BIN;
 
 public class GNURFactory {
+    private static final Logger logger = Logger.getLogger(GNURFactory.class.getName());
+
     public static GNUR createRestarting(RSession session) {
-        System.out.println("Creating restarting GNUR");
-        return new RestartingGNURProcess(() -> spawn(session));
+        return new RestartingGNURProcess(session, () -> spawn(session));
     }
 
     public static GNUR create(RSession session) {
@@ -48,6 +51,7 @@ public class GNURFactory {
                     }
                 } else if (versionStr.startsWith("R Under development (unstable)")) {
                     // OK -- this should be a bundled version
+                    version = "bundled";
                 } else {
                     throw new RuntimeException("R (`" + R_BIN + " --version`) returned unexpected output");
                 }
@@ -55,6 +59,11 @@ public class GNURFactory {
 
             var proc =
                     new ProcessBuilder(R_BIN, "--slave", "--vanilla").redirectErrorStream(true).start();
+
+            if (logger.isLoggable(Level.FINE)) {
+                logger.fine("Started %s version: %s process: %d".formatted(R_BIN, version, proc.pid()));
+            }
+
             return new SingleGNURProcess(session, proc);
         } catch (IOException | SecurityException | UnsupportedOperationException e) {
             throw new RuntimeException("Unable to start R (R_BIN = " + R_BIN + ")", e);
@@ -65,10 +74,12 @@ public class GNURFactory {
 }
 
 class RestartingGNURProcess implements GNUR {
-    private @Nullable GNUR R;
+    private final RSession session;
     private final Supplier<GNUR> factory;
+    private @Nullable GNUR R;
 
-    RestartingGNURProcess(Supplier<GNUR> factory) {
+    RestartingGNURProcess(RSession session, Supplier<GNUR> factory) {
+        this.session = session;
         this.factory = factory;
     }
 
@@ -103,6 +114,11 @@ class RestartingGNURProcess implements GNUR {
             R.close();
         }
     }
+
+    @Override
+    public RSession getSession() {
+        return session;
+    }
 }
 
 @NotThreadSafe
@@ -111,7 +127,6 @@ class SingleGNURProcess implements GNUR {
     private final Process process;
     private final PrintStream in;
     private final BufferedReader out;
-    private final StringBuilder xx = new StringBuilder();
 
     public SingleGNURProcess(RSession session, Process process) {
         this.session = session;
@@ -208,5 +223,10 @@ class SingleGNURProcess implements GNUR {
     @Override
     public void close() {
         process.destroy();
+    }
+
+    @Override
+    public RSession getSession() {
+        return session;
     }
 }
