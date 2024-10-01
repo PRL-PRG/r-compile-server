@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+option java_package = "org.prlprg.server";
+
+import "messages.proto";
+
+package rsh.protocol;
+
+// R sends requests to the compile server
+service CompileService {
+  rpc Compile(CompileRequest) returns (CompileResponse) {}
+  rpc Init(InitRequest) returns (InitResponse) {}
+}
+
+// Used by the compile server to ask questions to R
+// The server part there should be in the C++ code
+service FactService {
+  rpc GetContext(ContextRequest) returns (Context) {}
+  rpc GetTypeFeedback(FeedbackRequest) returns (TypeFeedback) {}
+  rpc GetValues(ValueRequest) returns (Values) {}
+  rpc GetFunction(FunctionRequest) returns (Function) {}
+}

@@ -4,7 +4,6 @@ import static org.prlprg.bc2ir.CFGCompiler.compileCFG;
 import static org.prlprg.ir.analysis.PropertiesComputer.computeClosureVersionProperties;
 import static org.prlprg.ir.analysis.PropertiesComputer.computePromiseProperties;
 
-import org.prlprg.RSession;
 import org.prlprg.bc.BCCompiler;
 import org.prlprg.ir.cfg.CFG;
 import org.prlprg.ir.cfg.IsEnv;
@@ -13,6 +12,7 @@ import org.prlprg.ir.cfg.StaticEnv;
 import org.prlprg.ir.closure.Closure;
 import org.prlprg.ir.closure.ClosureVersion;
 import org.prlprg.ir.closure.Promise;
+import org.prlprg.session.RSession;
 import org.prlprg.sexp.BCodeSXP;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.SEXP;

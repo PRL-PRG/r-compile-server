@@ -1,6 +1,5 @@
 package org.prlprg.service;
 
-import org.prlprg.sexp.SEXP;
-import org.prlprg.sexp.VectorSXP;
+import com.google.protobuf.ByteString;
 
-public record NativeClosure(byte[] code, String name, VectorSXP<SEXP> constantPool) {}
+public record NativeClosure(ByteString code, String name, ByteString constantPool) {}

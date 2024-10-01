@@ -46,7 +46,7 @@ public record RVersion(int major, int minor, int patch, @Nullable String suffix)
     return new RVersion(major, minor, patch, suffix);
   }
 
-  RVersion(int major, int minor, int patch) {
+  public RVersion(int major, int minor, int patch) {
     this(major, minor, patch, null);
   }
 

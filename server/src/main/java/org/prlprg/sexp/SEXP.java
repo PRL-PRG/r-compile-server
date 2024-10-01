@@ -154,6 +154,10 @@ public sealed interface SEXP
     return clazz.isInstance(this) ? Optional.of(clazz.cast(this)) : Optional.empty();
   }
 
+  default boolean isObject() {
+    return attributes() != null && Objects.requireNonNull(attributes()).containsKey("class");
+  }
+
   // region serialization and deserialization
   @ParseMethod
   private static SEXP parse(Parser p, HasSEXPParseContext h) {
@@ -178,8 +182,4 @@ public sealed interface SEXP
   // `toString` is overridden in every subclass to call `Printer.toString(this)`.
 
   // endregion serialization and deserialization
-
-  default boolean isObject() {
-    return attributes() != null && Objects.requireNonNull(attributes()).containsKey("class");
-  }
 }

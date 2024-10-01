@@ -81,3 +81,5 @@ benchmark:
 		fi; \
 	done
 
+test6:
+	$(LLVM_R) -f test6.R

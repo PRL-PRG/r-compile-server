@@ -1,5 +1,11 @@
 package org.prlprg.bc;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.fail;
+import static org.prlprg.TestConfig.FAST_TESTS;
+
+import java.io.File;
+import java.io.IOException;
 import org.prlprg.RClosureTests;
 import org.prlprg.sexp.BCodeSXP;
 import org.prlprg.sexp.CloSXP;
@@ -7,102 +13,93 @@ import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.util.Files;
 
-import java.io.File;
-import java.io.IOException;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.fail;
-import static org.prlprg.TestConfig.FAST_TESTS;
-
-/**
- * {@link RClosureTests} but has methods to assert that our bytecode compiler works.
- */
+/** {@link RClosureTests} but has methods to assert that our bytecode compiler works. */
 public abstract class RClosureTestsUsingBytecodeCompiler extends RClosureTests {
 
-    /**
-     * Parse the function, compile with both GNU-R and out bytecode compiler, assert that the
-     * bytecodes are the same, and return our compiled closure.
-     */
-    protected CloSXP assertBytecode(String funCode, int optimizationLevel) {
-        File temp;
-        try {
-            temp = File.createTempFile("R-snapshot", ".R");
-            Files.writeString(temp.toPath(), funCode);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+  /**
+   * Parse the function, compile with both GNU-R and out bytecode compiler, assert that the
+   * bytecodes are the same, and return our compiled closure.
+   */
+  protected CloSXP assertBytecode(String funCode, int optimizationLevel) {
+    File temp;
+    try {
+      temp = File.createTempFile("R-snapshot", ".R");
+      Files.writeString(temp.toPath(), funCode);
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
 
-        String code =
-                "parse(file = '"
-                        + temp.getAbsolutePath()
-                        + "', keep.source = TRUE)"
-                        + " |> eval()"
-                        + " |> compiler::cmpfun(options = list(optimize="
-                        + optimizationLevel
-                        + "))";
+    String code =
+        "parse(file = '"
+            + temp.getAbsolutePath()
+            + "', keep.source = TRUE)"
+            + " |> eval()"
+            + " |> compiler::cmpfun(options = list(optimize="
+            + optimizationLevel
+            + "))";
 
-        var gnurFun = (CloSXP) R.eval(code);
-        var astFun =
-                SEXPs.closure(gnurFun.parameters(), gnurFun.bodyAST(), gnurFun.env(), gnurFun.attributes());
+    var gnurFun = (CloSXP) R.eval(code);
+    var astFun =
+        SEXPs.closure(gnurFun.parameters(), gnurFun.bodyAST(), gnurFun.env(), gnurFun.attributes());
 
-        // if a function calls browser() it won't be compiled into bytecode
-        SEXP ourBody;
-        if (gnurFun.body() instanceof BCodeSXP gnurBc) {
-            ourBody = compileBody(astFun, optimizationLevel);
+    // if a function calls browser() it won't be compiled into bytecode
+    SEXP ourBody;
+    if (gnurFun.body() instanceof BCodeSXP gnurBc) {
+      ourBody = compileBody(astFun, optimizationLevel);
 
-            if (ourBody instanceof BCodeSXP ourBc) {
-                var eq = gnurBc.equals(ourBc);
+      if (ourBody instanceof BCodeSXP ourBc) {
+        var eq = gnurBc.equals(ourBc);
 
-                if (!eq) {
-                    // bytecode can be large, so we only want to do it when it is different
-                    assertEquals(
-                            gnurBc.toString(), ourBc.toString(), "`compile(read(ast)) == read(R.compile(ast))`");
+        if (!eq) {
+          // bytecode can be large, so we only want to do it when it is different
+          assertEquals(
+              gnurBc.toString(), ourBc.toString(), "`compile(read(ast)) == read(R.compile(ast))`");
 
-                    var gnurBcCode = gnurBc.bc().code();
-                    var ourBcCode = ourBc.bc().code();
-                    for (int i = 0; i < gnurBcCode.size(); i++) {
-                        if (!gnurBcCode.get(i).equals(ourBcCode.get(i))) {
-                            System.out.println("Different bytecode at index " + i);
-                            System.out.println("GNU-R: " + gnurBcCode.get(i));
-                            System.out.println("Ours: " + ourBcCode.get(i));
-                        }
-                    }
-                    fail("Produced bytecode is different, but the toString() representation is the same.");
-                }
-            } else {
-                assertEquals(gnurBc.toString(), ourBody.toString());
+          var gnurBcCode = gnurBc.bc().code();
+          var ourBcCode = ourBc.bc().code();
+          for (int i = 0; i < gnurBcCode.size(); i++) {
+            if (!gnurBcCode.get(i).equals(ourBcCode.get(i))) {
+              System.out.println("Different bytecode at index " + i);
+              System.out.println("GNU-R: " + gnurBcCode.get(i));
+              System.out.println("Ours: " + ourBcCode.get(i));
             }
-        } else {
-            ourBody = compileBody(astFun, optimizationLevel);
-
-            if (ourBody instanceof BCodeSXP ourBc) {
-                assertEquals(astFun.body().toString(), ourBc.toString());
-            } else {
-                assertEquals(astFun.body(), ourBody);
-            }
+          }
+          fail("Produced bytecode is different, but the toString() representation is the same.");
         }
+      } else {
+        assertEquals(gnurBc.toString(), ourBody.toString());
+      }
+    } else {
+      ourBody = compileBody(astFun, optimizationLevel);
 
-        return SEXPs.closure(gnurFun.parameters(), ourBody, gnurFun.env(), gnurFun.attributes());
+      if (ourBody instanceof BCodeSXP ourBc) {
+        assertEquals(astFun.body().toString(), ourBc.toString());
+      } else {
+        assertEquals(astFun.body(), ourBody);
+      }
     }
 
-    /**
-     * Parse the given function, compile with our bytecode compiler, and return the body.
-     *
-     * <p>Note that if the function can't be compiled (uses the browser function), the body will just
-     * be an AST.
-     */
-    protected SEXP compileBody(String fun, int optimizationLevel) {
-        return compileBody((CloSXP) R.eval(fun), optimizationLevel);
-    }
+    return SEXPs.closure(gnurFun.parameters(), ourBody, gnurFun.env(), gnurFun.attributes());
+  }
 
-    private SEXP compileBody(CloSXP fun, int optimizationLevel) {
-        var compiler = new BCCompiler(fun, Rsession);
-        compiler.setOptimizationLevel(optimizationLevel);
-        return compiler.compile().<SEXP>map(SEXPs::bcode).orElse(fun.body());
-    }
+  /**
+   * Parse the given function, compile with our bytecode compiler, and return the body.
+   *
+   * <p>Note that if the function can't be compiled (uses the browser function), the body will just
+   * be an AST.
+   */
+  protected SEXP compileBody(String fun, int optimizationLevel) {
+    return compileBody((CloSXP) R.eval(fun), optimizationLevel);
+  }
 
-    @Override
-    protected double stdlibTestsRatio() {
-        return FAST_TESTS ? 0.5 : 1;
-    }
+  private SEXP compileBody(CloSXP fun, int optimizationLevel) {
+    var compiler = new BCCompiler(fun, Rsession);
+    compiler.setOptimizationLevel(optimizationLevel);
+    return compiler.compile().<SEXP>map(SEXPs::bcode).orElse(fun.body());
+  }
+
+  @Override
+  protected double stdlibTestsRatio() {
+    return FAST_TESTS ? 0.5 : 1;
+  }
 }

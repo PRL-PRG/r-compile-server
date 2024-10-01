@@ -1,5 +1,9 @@
 package org.prlprg;
 
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Arrays;
+import org.prlprg.ir.cfg.CFG;
 import org.prlprg.ir.closure.CodeObject;
 import org.prlprg.util.Strings;
 
@@ -19,6 +23,22 @@ public final class AppConfig extends Config {
   public static final String R_BIN = get("R_BIN", "../external/R/bin/R");
 
   /**
+   * R library paths. There are the paths that the compile server will look libraries for in. We
+   * could call `.libPaths()` in R to get the paths R knows, but we also want to support custom
+   * paths?
+   */
+  public static final ArrayList<Path> R_LIBS = new ArrayList<>();
+
+  static {
+    String defaultRlibs = "~/R/x86_64-pc-linux-gnu-library/4.3/:/usr/lib/R/library";
+    defaultRlibs = defaultRlibs.replaceFirst("^~", System.getProperty("user.home"));
+    String r_libs = get("R_LIBS", defaultRlibs);
+    if (r_libs != null) {
+      R_LIBS.addAll(Arrays.stream(r_libs.split(":")).map(Path::of).toList());
+    }
+  }
+
+  /**
    * Adds extra verification checks.
    *
    * <p><b>Default:</b>: {@link CfgDebugLevel#VERIFY}.
@@ -28,7 +48,7 @@ public final class AppConfig extends Config {
   /**
    * Whether to verify phi inputs' incoming basic block when they are added.
    *
-   * <p>They are always verified during {@linkplain org.prlprg.ir.cfg.CFG#verify()} verification
+   * <p>They are always verified during {@linkplain CFG#verify()} verification
    *
    * <p><b>Default:</b>: true
    */

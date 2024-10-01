@@ -5,12 +5,12 @@ import static org.prlprg.bc2ir.ClosureCompiler.compileBaselineClosure;
 import java.util.HashMap;
 import java.util.Map;
 import javax.annotation.Nullable;
-import org.prlprg.RSession;
 import org.prlprg.bc.Bc;
 import org.prlprg.ir.cfg.CFG;
 import org.prlprg.ir.cfg.StaticEnv;
 import org.prlprg.ir.closure.Closure;
 import org.prlprg.ir.closure.ClosureVersion;
+import org.prlprg.session.RSession;
 import org.prlprg.sexp.CloSXP;
 
 /**

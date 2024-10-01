@@ -74,6 +74,5 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get -y remove --purge $GNUR_BUILD_DEPENDE
 RUN DEBIAN_FRONTEND=noninteractive apt-get -y install --no-install-recommends gfortran
 RUN DEBIAN_FRONTEND=noninteractive apt-get -y autoremove
 
-# [Optional] Uncomment this section to install additional OS packages.
-# RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
-#     && apt-get -y install --no-install-recommends <your-package-list-here>
+RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
+     && apt-get -y install --no-install-recommends protobuf-compiler protobuf-compiler-grpc 

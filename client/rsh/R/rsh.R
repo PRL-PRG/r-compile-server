@@ -31,6 +31,16 @@ NULL
   )
 
   .Call(C_initialize)
+  init_client("0.0.0.0", 8980L)
+}
+
+#' Initialize the Rsh client
+#'
+#' @param address IP address of the server
+#' @param port port of the server
+#' @export
+init_client <- function(address="0.0.0.0", port=8980L) {
+  .Call(C_init_client, address, port, installed.packages()[,1])
 }
 
 #' Activate the Rsh JIT
