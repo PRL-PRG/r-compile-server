@@ -10,13 +10,13 @@ import java.io.ByteArrayOutputStream;
 import java.util.HashMap;
 import java.util.List;
 import org.junit.jupiter.api.Test;
-import org.prlprg.GNURTestSupport;
 import org.prlprg.bc.BCCompiler;
 import org.prlprg.primitive.Complex;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.*;
-import org.prlprg.util.GNUR;
+import org.prlprg.util.gnur.GNUR;
+import org.prlprg.util.gnur.GNURTestSupport;
 
 @GNURTestSupport
 public class RDSWriterTest {

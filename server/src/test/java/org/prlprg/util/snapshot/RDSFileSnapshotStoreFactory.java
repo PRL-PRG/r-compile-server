@@ -19,7 +19,7 @@ public class RDSFileSnapshotStoreFactory<T> extends FileSnapshotStoreFactory<T> 
 
   @Override
   protected SnapshotStore<T> create(Path snapshotPath) {
-    return new SerializingSnapshotStore<>(
+    return new ObjectSnapshotStore<>(
         new RDSSnapshotStore(session, snapshotPath), serialize, deserialize);
   }
 }
