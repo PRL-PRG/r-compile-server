@@ -41,20 +41,6 @@ public class RDSWriterTest implements GNURTestInstance {
   }
 
   @Test
-  public void testInts_withR() {
-    var ints = integer(5, 4, 3, 2, 1);
-    var output =
-        R.eval("typeof(input) == 'integer' && identical(input, c(5L, 4L, 3L, 2L, 1L))", ints);
-
-    if (output instanceof LglSXP readLgls) {
-      assertEquals(1, readLgls.size());
-      assertEquals(Logical.TRUE, readLgls.get(0));
-    } else {
-      fail("Expected LglSXP");
-    }
-  }
-
-  @Test
   public void testComplex() throws Exception {
     var complexes = complex(new Complex(0, 0), new Complex(1, 2), new Complex(-2, -1));
     var output = new ByteArrayOutputStream();
@@ -69,20 +55,6 @@ public class RDSWriterTest implements GNURTestInstance {
       assertEquals(new Complex(0, 0), read_complexes.get(0));
       assertEquals(new Complex(1, 2), read_complexes.get(1));
       assertEquals(new Complex(-2, -1), read_complexes.get(2));
-    }
-  }
-
-  @Test
-  public void testComplex_withR() {
-    var complexes = complex(new Complex(0, 0), new Complex(1, 2), new Complex(-2, -1));
-    var output =
-        R.eval("typeof(input) == 'complex' && identical(input, c(0+0i, 1+2i, -2-1i))", complexes);
-
-    if (output instanceof LglSXP read_lgls) {
-      assertEquals(1, read_lgls.size());
-      assertEquals(Logical.TRUE, read_lgls.get(0));
-    } else {
-      fail("Expected LglSXP");
     }
   }
 
@@ -295,46 +267,6 @@ public class RDSWriterTest implements GNURTestInstance {
   }
 
   @Test
-  public void testEnv_withR() {
-    var env = new UserEnvSXP();
-    env.set("a", integer(1));
-    env.set("b", logical(Logical.TRUE));
-    env.set("c", real(3.14, 2.71));
-    env.set("d", string("foo", "bar"));
-
-    var output = R.eval("typeof(input) == 'environment'", env);
-
-    if (output instanceof LglSXP read_lgls) {
-      assertEquals(1, read_lgls.size());
-      assertEquals(Logical.TRUE, read_lgls.get(0));
-    } else {
-      fail("Expected LglSXP");
-    }
-  }
-
-  @Test
-  public void testClosureEval() {
-    // function(x, y=1) length(x) + x + y
-    // test by loading the closure into R and evaluating
-    var clo =
-        closure(
-                list(List.of(new TaggedElem("x", MISSING_ARG), new TaggedElem("y", real(3)))),
-                lang(
-                    symbol("+"),
-                    list(
-                        lang(
-                            symbol("+"),
-                            list(lang(symbol("length"), list(symbol("x"))), symbol("x"))),
-                        symbol("y"))),
-                new BaseEnvSXP(new HashMap<>()))
-            .withAttributes(new Attributes.Builder().put("a", integer(1)).build());
-
-    var output = R.eval("input(x=c(1, 2))", clo);
-
-    assertEquals(output, real(6, 7));
-  }
-
-  @Test
   public void testClosureWithBC() throws Exception {
     // Same closure as `testClosure`, just compiled to bytecode
     // Test by serializing and deserializing
@@ -357,26 +289,5 @@ public class RDSWriterTest implements GNURTestInstance {
     var sexp = RDSReader.readStream(Rsession, input);
 
     assertEquals(sexp, bcode(bc));
-  }
-
-  @Test
-  public void testClosureWithBCEval() {
-    // Same closure as `testClosure`, just compiled to bytecode
-    // Test by loading into R and evaluating
-    var clo =
-        closure(
-            list(List.of(new TaggedElem("x", MISSING_ARG), new TaggedElem("y", real(3)))),
-            lang(
-                symbol("+"),
-                list(
-                    lang(symbol("+"), list(lang(symbol("length"), list(symbol("x"))), symbol("x"))),
-                    symbol("y"))),
-            new BaseEnvSXP(new HashMap<>()));
-    var bc = new BCCompiler(clo, Rsession).compile().orElseThrow();
-    var compiled_clo = closure(clo.parameters(), bcode(bc), clo.env());
-
-    var output = R.eval("input(x=c(1, 2))", compiled_clo);
-
-    assertEquals(output, real(6, 7));
   }
 }

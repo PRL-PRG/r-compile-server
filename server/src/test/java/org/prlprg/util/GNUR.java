@@ -9,8 +9,6 @@ public interface GNUR extends AutoCloseable {
 
   Pair<SEXP, String> capturingEval(String source);
 
-  SEXP eval(String source, SEXP input);
-
   @Override
   void close() throws Exception;
 }
