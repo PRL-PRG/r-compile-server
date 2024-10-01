@@ -1,7 +1,7 @@
 package org.prlprg.bc2c;
 
 // import org.junit.jupiter.api.Test;
-// import org.prlprg.GNURTestSupport;
+// import org.prlprg.util.gnur.GNURTestSupport;
 // import org.prlprg.RDSSnapshotTest;
 // import org.prlprg.RSession;
 // import org.prlprg.bc.BCCompiler;

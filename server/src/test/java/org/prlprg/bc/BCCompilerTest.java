@@ -4,10 +4,11 @@ import static com.google.common.truth.Truth.assertThat;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.prlprg.GNURTestSupport;
+import org.prlprg.bc.BCSnapshotTestExtension.BCCodeSnapshot;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.LangSXP;
-import org.prlprg.util.GNUR;
+import org.prlprg.util.gnur.GNUR;
+import org.prlprg.util.gnur.GNURTestSupport;
 
 @GNURTestSupport
 @ExtendWith(BCSnapshotTestExtension.class)

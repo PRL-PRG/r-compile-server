@@ -1,4 +1,4 @@
-package org.prlprg;
+package org.prlprg.util.gnur;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;

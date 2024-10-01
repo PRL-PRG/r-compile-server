@@ -6,11 +6,11 @@ import static org.prlprg.sexp.Coercions.isNA;
 
 import java.util.Objects;
 import org.junit.jupiter.api.Test;
-import org.prlprg.GNURTestSupport;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.*;
-import org.prlprg.util.GNUR;
+import org.prlprg.util.gnur.GNUR;
+import org.prlprg.util.gnur.GNURTestSupport;
 
 @GNURTestSupport
 public class RDSReaderTest {

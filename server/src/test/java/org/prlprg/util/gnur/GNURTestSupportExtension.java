@@ -1,12 +1,10 @@
-package org.prlprg;
+package org.prlprg.util.gnur;
 
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.extension.ParameterContext;
 import org.junit.jupiter.api.extension.ParameterResolutionException;
 import org.junit.jupiter.api.extension.ParameterResolver;
 import org.prlprg.rsession.TestRSession;
-import org.prlprg.util.GNUR;
-import org.prlprg.util.GNURFactory;
 
 public class GNURTestSupportExtension implements ParameterResolver {
 

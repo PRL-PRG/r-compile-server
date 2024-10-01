@@ -7,7 +7,10 @@ import java.lang.reflect.Method;
 import org.prlprg.RSession;
 import org.prlprg.rsession.TestRSession;
 import org.prlprg.sexp.*;
-import org.prlprg.util.*;
+import org.prlprg.util.Files;
+import org.prlprg.util.ThrowingSupplier;
+import org.prlprg.util.gnur.GNUR;
+import org.prlprg.util.gnur.GNURFactory;
 import org.prlprg.util.snapshot.RDSFileSnapshotStoreFactory;
 import org.prlprg.util.snapshot.SnapshotExtension;
 
@@ -51,7 +54,6 @@ public class BCSnapshotTestExtension extends SnapshotExtension<BCSnapshotTestExt
 
   @Override
   protected void checkEqual(TestResult expected, TestResult actual) {
-
     assertEquals(expected.code(), actual.code(), "Source code mismatch");
     assertEquals(
         expected.optimizationLevel(), actual.optimizationLevel(), "Optimization level mismatch");
@@ -81,7 +83,7 @@ public class BCSnapshotTestExtension extends SnapshotExtension<BCSnapshotTestExt
 
       @Override
       public void verify(String name, String code, int optimizationLevel) {
-        var body = bcCompileBody(code, BCCompiler.DEFAULT_OPTIMIZATION_LEVEL);
+        var body = bcCompileBody(code, optimizationLevel);
         var res = new TestResult(code, optimizationLevel, body);
         BCSnapshotTestExtension.this.verify(
             testMethod, name, res, oracle(name, code, optimizationLevel));
@@ -94,15 +96,16 @@ public class BCSnapshotTestExtension extends SnapshotExtension<BCSnapshotTestExt
     return BCCodeSnapshot.class;
   }
 
-  protected SEXP bcCompileBody(String fun, int optimizationLevel) {
-    var code = "eval(parse(text = '" + Strings.escape(fun) + "'))";
-    return bcCompileBody((CloSXP) R.eval(code), optimizationLevel);
-  }
-
-  protected SEXP bcCompileBody(CloSXP fun, int optimizationLevel) {
-    var compiler = new BCCompiler(fun, session);
-    compiler.setOptimizationLevel(optimizationLevel);
-    return compiler.compile().<SEXP>map(SEXPs::bcode).orElse(fun.body());
+  protected SEXP bcCompileBody(String code, int optimizationLevel) {
+    var temp = Files.writeString(code);
+    try {
+      CloSXP fun = (CloSXP) R.eval("eval(parse('" + temp + "'))");
+      var compiler = new BCCompiler(fun, R.getSession());
+      compiler.setOptimizationLevel(optimizationLevel);
+      return compiler.compile().<SEXP>map(SEXPs::bcode).orElse(fun.body());
+    } finally {
+      Files.delete(temp);
+    }
   }
 
   protected ThrowingSupplier<TestResult> oracle(String name, String code, int optimizationLevel) {
@@ -125,5 +128,16 @@ public class BCSnapshotTestExtension extends SnapshotExtension<BCSnapshotTestExt
         Files.delete(temp);
       }
     };
+  }
+
+  public interface BCCodeSnapshot {
+
+    default void verify(String code) {
+      verify(code, BCCompiler.DEFAULT_OPTIMIZATION_LEVEL);
+    }
+
+    void verify(String code, int optimizeLevel);
+
+    void verify(String name, String code, int optimizationLevel);
   }
 }

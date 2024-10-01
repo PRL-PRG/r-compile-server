@@ -3,12 +3,12 @@ package org.prlprg.util.snapshot;
 import java.util.Optional;
 import java.util.function.Function;
 
-public class SerializingSnapshotStore<T, R> implements SnapshotStore<T> {
+public class ObjectSnapshotStore<T, R> implements SnapshotStore<T> {
   private final SnapshotStore<R> store;
   private final Function<T, R> serializer;
   private final Function<R, T> deserializer;
 
-  public SerializingSnapshotStore(
+  public ObjectSnapshotStore(
       SnapshotStore<R> store, Function<T, R> serializer, Function<R, T> deserializer) {
     this.store = store;
     this.serializer = serializer;

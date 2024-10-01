@@ -1,4 +1,4 @@
-package org.prlprg.util;
+package org.prlprg.util.gnur;
 
 import static java.lang.String.format;
 import static org.prlprg.AppConfig.R_BIN;
@@ -14,6 +14,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 import org.prlprg.RSession;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.sexp.SEXP;
+import org.prlprg.util.Pair;
 
 public class GNURFactory {
   private static final Logger logger = Logger.getLogger(GNURFactory.class.getName());
