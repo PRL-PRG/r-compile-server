@@ -9,9 +9,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
-import org.prlprg.RSession;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.rds.RDSWriter;
+import org.prlprg.session.RSession;
 import org.prlprg.sexp.SEXP;
 
 public class GNURFactory {

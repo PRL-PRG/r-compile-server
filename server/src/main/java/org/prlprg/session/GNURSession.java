@@ -71,8 +71,8 @@ class DummySession implements RSession {
 public class GNURSession implements RSession {
   private URI cranMirror;
   private org.prlprg.RVersion RVersion;
-  private Path RDir;
-  private Path RLibraries;
+  private final Path RDir;
+  private final Path RLibraries;
 
   private @Nullable BaseEnvSXP baseEnv = null;
   private @Nullable NamespaceEnvSXP baseNamespace = null;
@@ -101,6 +101,13 @@ public class GNURSession implements RSession {
 
   // We should also handle installation of a package from a GitHub repo?
   public void loadPackage(String name, String version) {
+    var pkgPath = RLibraries.resolve(name);
+    var pkgDir = pkgPath.toFile();
+    // Check if package is installed and if not install it
+    if (!pkgDir.exists() || !pkgDir.isDirectory()) {
+      installPackage(name);
+    }
+
     DESCRIPTION description = getDescription(name);
 
     String installedVersion = description.getVersion();
@@ -131,25 +138,31 @@ public class GNURSession implements RSession {
     }
   }
 
+  private void installPackage(String name) {
+    var pkgPath = RLibraries.resolve(name);
+    var pkgDir = pkgPath.toFile();
+
+    var RScript = RDir.resolve("bin/Rscript");
+    try {
+      ProcessBuilder processBuilder =
+          new ProcessBuilder(
+              RScript.toString(),
+              "-e",
+              "install.packages('" + name + "', repos='" + cranMirror + "')");
+      processBuilder.inheritIO();
+      Process process = processBuilder.start();
+      int exitCode = process.waitFor();
+      if (exitCode != 0) {
+        throw new RuntimeException("Failed to install package " + name);
+      }
+    } catch (IOException | InterruptedException e) {
+      throw new RuntimeException("Failed to install package " + name, e);
+    }
+  }
+
   private DESCRIPTION getDescription(String name) {
     var pkgPath = RLibraries.resolve(name);
     var pkgDir = pkgPath.toFile();
-    if (!pkgDir.exists() || !pkgDir.isDirectory()) {
-      // Check if package is installed and if not install it
-      try {
-        ProcessBuilder processBuilder =
-            new ProcessBuilder(
-                "Rscript", "-e", "install.packages('" + name + "', repos='" + cranMirror + "')");
-        processBuilder.inheritIO();
-        Process process = processBuilder.start();
-        int exitCode = process.waitFor();
-        if (exitCode != 0) {
-          throw new RuntimeException("Failed to install package " + name);
-        }
-      } catch (IOException | InterruptedException e) {
-        throw new RuntimeException("Failed to install package " + name, e);
-      }
-    }
 
     Path descriptionFile = pkgPath.resolve("DESCRIPTION");
     DESCRIPTION description;

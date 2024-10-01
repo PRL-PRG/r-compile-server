@@ -58,7 +58,6 @@ public class RshCompiler {
     }
     flags.add("-O" + optimizationLevel);
 
-    // TODO: cache
     return new RshCompiler(flags);
   }
 

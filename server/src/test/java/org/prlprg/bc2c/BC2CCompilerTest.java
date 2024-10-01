@@ -324,7 +324,7 @@ public class BC2CCompilerTest extends RDSSnapshotTest<BC2CCompilerTest.TestResul
 
     var funCode = "function() {" + code + "}";
     var closure = (CloSXP) R.eval(funCode);
-    var ast2bc = new BCCompiler(closure, rsession);
+    var ast2bc = new BCCompiler(closure, Rsession);
 
     // FIXME: just for now as we do not support guards
     ast2bc.setOptimizationLevel(3);
