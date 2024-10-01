@@ -55,10 +55,6 @@ public abstract class RClosureTestsUsingBytecodeCompiler extends RClosureTests {
           assertEquals(
               gnurBc.toString(), ourBc.toString(), "`compile(read(ast)) == read(R.compile(ast))`");
 
-          System.out.println(gnurBc.toString());
-          System.out.println("----");
-          System.out.println(ourBc.toString());
-          System.out.println("----");
           var gnurBcCode = gnurBc.bc().code();
           var ourBcCode = ourBc.bc().code();
           for (int i = 0; i < gnurBcCode.size(); i++) {
@@ -97,7 +93,7 @@ public abstract class RClosureTestsUsingBytecodeCompiler extends RClosureTests {
   }
 
   private SEXP compileBody(CloSXP fun, int optimizationLevel) {
-    var compiler = new BCCompiler(fun, rsession);
+    var compiler = new BCCompiler(fun, Rsession);
     compiler.setOptimizationLevel(optimizationLevel);
     return compiler.compile().<SEXP>map(SEXPs::bcode).orElse(fun.body());
   }

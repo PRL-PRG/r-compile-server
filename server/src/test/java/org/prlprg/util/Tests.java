@@ -11,11 +11,20 @@ import java.net.URL;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Objects;
+import java.util.logging.LogManager;
 import javax.annotation.Nullable;
+import org.junit.jupiter.api.BeforeAll;
 
 public interface Tests {
+  @BeforeAll
+  static void initializeLogging() throws IOException {
+    var config = Tests.class.getResourceAsStream("/logging.properties");
+    LogManager.getLogManager().readConfiguration(config);
+  }
+
   // region resources
   // region resource paths
+
   /**
    * The absolute path of the resource at {@code path}, within the source directory, or {@code null}
    * if the directory isn't available.
@@ -101,6 +110,7 @@ public interface Tests {
   // endregion resource paths
 
   // region resource as streams
+
   /**
    * Reads the resource at {@code path}.
    *
@@ -121,6 +131,7 @@ public interface Tests {
   // endregion resources
 
   // region command-line
+
   /** Run a command. */
   static void cmd(Object... command) {
     var commandStrs = Arrays.stream(command).map(Object::toString).toList();
@@ -141,6 +152,7 @@ public interface Tests {
   // endregion command-line
 
   // region assumptions
+
   /** Abort the test (different than reporting failure) if the values aren't equal. */
   static void assumeEquals(Object expected, Object actual) {
     assumeTrue(expected.equals(actual), () -> "Expected " + expected + ", got " + actual);
@@ -149,6 +161,7 @@ public interface Tests {
   // endregion assumptions
 
   // region logging
+
   /**
    * {@code System.out.println} if {@link org.prlprg.TestConfig#VERBOSE VERBOSE} is set, otherwise
    * no-op.
