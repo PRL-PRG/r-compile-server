@@ -4,12 +4,9 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.logging.Logger;
 import org.prlprg.util.cc.CCCompilationBuilder;
 
 public class RshCompiler {
-  private static final Logger logger = Logger.getLogger(RshCompiler.class.getName());
-
   // TODO: this is just temporary
   //  what we need is to keep this in the resources, versioned by R version
   //  and upon server instantiation, copy it to some temp directory
