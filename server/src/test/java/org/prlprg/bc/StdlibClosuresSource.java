@@ -3,20 +3,13 @@ package org.prlprg.bc;
 import com.google.common.collect.Streams;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.TestInstance;
-import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.StrSXP;
 
+// FIXME: this is ugly! refactor
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-public interface StdlibClosureTests {
-
-  @ParameterizedTest
-  @MethodSource("stdlibFunctionsList")
-  default void stdlibFunctions(String name) throws Exception {
-    verify(name, name, 3);
-  }
+public interface StdlibClosuresSource {
 
   default Stream<Arguments> stdlibFunctionsList() {
     StrSXP base =
@@ -41,6 +34,4 @@ public interface StdlibClosureTests {
   }
 
   SEXP eval(String source);
-
-  void verify(String name, String code, int optimizationLevel) throws Exception;
 }
