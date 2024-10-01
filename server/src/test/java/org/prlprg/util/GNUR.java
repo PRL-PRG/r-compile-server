@@ -4,14 +4,14 @@ import org.prlprg.RSession;
 import org.prlprg.sexp.SEXP;
 
 public interface GNUR extends AutoCloseable {
-    boolean isAlive();
+  boolean isAlive();
 
-    SEXP eval(String source);
+  SEXP eval(String source);
 
-    Pair<SEXP, String> capturingEval(String source);
+  Pair<SEXP, String> capturingEval(String source);
 
-    @Override
-    void close() throws Exception;
+  @Override
+  void close() throws Exception;
 
-    RSession getSession();
+  RSession getSession();
 }

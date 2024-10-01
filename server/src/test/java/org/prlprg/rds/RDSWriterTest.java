@@ -1,5 +1,14 @@
 package org.prlprg.rds;
 
+import static java.lang.Double.NaN;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.fail;
+import static org.prlprg.sexp.SEXPs.*;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.util.HashMap;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.prlprg.GNURTestSupport;
 import org.prlprg.bc.BCCompiler;
@@ -9,295 +18,285 @@ import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.*;
 import org.prlprg.util.GNUR;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.util.HashMap;
-import java.util.List;
-
-import static java.lang.Double.NaN;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.fail;
-import static org.prlprg.sexp.SEXPs.*;
-
 @GNURTestSupport
 public class RDSWriterTest {
 
-    private final GNUR R;
+  private final GNUR R;
 
-    public RDSWriterTest(GNUR R) {
-        this.R = R;
+  public RDSWriterTest(GNUR R) {
+    this.R = R;
+  }
+
+  @Test
+  public void testInts() throws Exception {
+    var ints = integer(5, 4, 3, 2, 1);
+    var output = new ByteArrayOutputStream();
+
+    RDSWriter.writeStream(output, ints);
+
+    var input = new ByteArrayInputStream(output.toByteArray());
+    var sexp = RDSReader.readStream(R.getSession(), input);
+
+    if (sexp instanceof IntSXP read_ints) {
+      assertEquals(5, read_ints.size());
+      assertEquals(5, read_ints.get(0));
+      assertEquals(4, read_ints.get(1));
+      assertEquals(3, read_ints.get(2));
+      assertEquals(2, read_ints.get(3));
+      assertEquals(1, read_ints.get(4));
+    } else {
+      fail("Expected IntSXP");
     }
+  }
 
-    @Test
-    public void testInts() throws Exception {
-        var ints = integer(5, 4, 3, 2, 1);
-        var output = new ByteArrayOutputStream();
+  @Test
+  public void testComplex() throws Exception {
+    var complexes = complex(new Complex(0, 0), new Complex(1, 2), new Complex(-2, -1));
+    var output = new ByteArrayOutputStream();
 
-        RDSWriter.writeStream(output, ints);
+    RDSWriter.writeStream(output, complexes);
 
-        var input = new ByteArrayInputStream(output.toByteArray());
-        var sexp = RDSReader.readStream(R.getSession(), input);
+    var input = new ByteArrayInputStream(output.toByteArray());
+    var sexp = RDSReader.readStream(R.getSession(), input);
 
-        if (sexp instanceof IntSXP read_ints) {
-            assertEquals(5, read_ints.size());
-            assertEquals(5, read_ints.get(0));
-            assertEquals(4, read_ints.get(1));
-            assertEquals(3, read_ints.get(2));
-            assertEquals(2, read_ints.get(3));
-            assertEquals(1, read_ints.get(4));
-        } else {
-            fail("Expected IntSXP");
-        }
+    if (sexp instanceof ComplexSXP read_complexes) {
+      assertEquals(3, read_complexes.size());
+      assertEquals(new Complex(0, 0), read_complexes.get(0));
+      assertEquals(new Complex(1, 2), read_complexes.get(1));
+      assertEquals(new Complex(-2, -1), read_complexes.get(2));
     }
+  }
 
-    @Test
-    public void testComplex() throws Exception {
-        var complexes = complex(new Complex(0, 0), new Complex(1, 2), new Complex(-2, -1));
-        var output = new ByteArrayOutputStream();
+  @Test
+  public void testLang() throws Exception {
+    var lang =
+        lang(
+            symbol("func"),
+            list(List.of(new TaggedElem("arg", integer(1)), new TaggedElem(integer(2)))));
+    var output = new ByteArrayOutputStream();
 
-        RDSWriter.writeStream(output, complexes);
+    RDSWriter.writeStream(output, lang);
 
-        var input = new ByteArrayInputStream(output.toByteArray());
-        var sexp = RDSReader.readStream(R.getSession(), input);
+    var input = new ByteArrayInputStream(output.toByteArray());
+    var sexp = RDSReader.readStream(R.getSession(), input);
 
-        if (sexp instanceof ComplexSXP read_complexes) {
-            assertEquals(3, read_complexes.size());
-            assertEquals(new Complex(0, 0), read_complexes.get(0));
-            assertEquals(new Complex(1, 2), read_complexes.get(1));
-            assertEquals(new Complex(-2, -1), read_complexes.get(2));
-        }
+    if (sexp instanceof LangSXP read_lang) {
+      var name = read_lang.funName();
+      var arg1 = read_lang.args().get(0);
+      var arg2 = read_lang.args().get(1);
+
+      assert name.isPresent();
+
+      assertEquals(name.get(), "func");
+      assertEquals(arg1, new TaggedElem("arg", integer(1)));
+      assertEquals(arg2, new TaggedElem(integer(2)));
     }
+  }
 
-    @Test
-    public void testLang() throws Exception {
-        var lang =
-                lang(
-                        symbol("func"),
-                        list(List.of(new TaggedElem("arg", integer(1)), new TaggedElem(integer(2)))));
-        var output = new ByteArrayOutputStream();
+  @Test
+  public void testVecAttributes() throws Exception {
+    var attrs =
+        new Attributes.Builder().put("a", integer(1)).put("b", logical(Logical.TRUE)).build();
+    var ints = integer(1, attrs);
 
-        RDSWriter.writeStream(output, lang);
+    var output = new ByteArrayOutputStream();
 
-        var input = new ByteArrayInputStream(output.toByteArray());
-        var sexp = RDSReader.readStream(R.getSession(), input);
+    RDSWriter.writeStream(output, ints);
 
-        if (sexp instanceof LangSXP read_lang) {
-            var name = read_lang.funName();
-            var arg1 = read_lang.args().get(0);
-            var arg2 = read_lang.args().get(1);
+    var input = new ByteArrayInputStream(output.toByteArray());
+    var sexp = RDSReader.readStream(R.getSession(), input);
 
-            assert name.isPresent();
-
-            assertEquals(name.get(), "func");
-            assertEquals(arg1, new TaggedElem("arg", integer(1)));
-            assertEquals(arg2, new TaggedElem(integer(2)));
-        }
+    if (sexp instanceof IntSXP read_ints) {
+      assertEquals(1, read_ints.size());
+      assertEquals(1, read_ints.get(0));
+      assertEquals(attrs, read_ints.attributes());
+    } else {
+      fail("Expected IntSXP");
     }
+  }
 
-    @Test
-    public void testVecAttributes() throws Exception {
-        var attrs =
-                new Attributes.Builder().put("a", integer(1)).put("b", logical(Logical.TRUE)).build();
-        var ints = integer(1, attrs);
+  @Test
+  public void testLgls() throws Exception {
+    var lgls = logical(Logical.TRUE, Logical.FALSE, Logical.NA);
+    var output = new ByteArrayOutputStream();
 
-        var output = new ByteArrayOutputStream();
+    RDSWriter.writeStream(output, lgls);
 
-        RDSWriter.writeStream(output, ints);
+    var input = new ByteArrayInputStream(output.toByteArray());
+    var sexp = RDSReader.readStream(R.getSession(), input);
 
-        var input = new ByteArrayInputStream(output.toByteArray());
-        var sexp = RDSReader.readStream(R.getSession(), input);
-
-        if (sexp instanceof IntSXP read_ints) {
-            assertEquals(1, read_ints.size());
-            assertEquals(1, read_ints.get(0));
-            assertEquals(attrs, read_ints.attributes());
-        } else {
-            fail("Expected IntSXP");
-        }
+    if (sexp instanceof LglSXP read_lgls) {
+      assertEquals(3, read_lgls.size());
+      assertEquals(Logical.TRUE, read_lgls.get(0));
+      assertEquals(Logical.FALSE, read_lgls.get(1));
+      assertEquals(Logical.NA, read_lgls.get(2));
+    } else {
+      fail("Expected LglSXP");
     }
+  }
 
-    @Test
-    public void testLgls() throws Exception {
-        var lgls = logical(Logical.TRUE, Logical.FALSE, Logical.NA);
-        var output = new ByteArrayOutputStream();
+  @Test
+  public void testReals() throws Exception {
+    var reals = real(5.2, 4.0, Constants.NA_REAL, 2.0, NaN, 1.0);
+    var output = new ByteArrayOutputStream();
 
-        RDSWriter.writeStream(output, lgls);
+    RDSWriter.writeStream(output, reals);
 
-        var input = new ByteArrayInputStream(output.toByteArray());
-        var sexp = RDSReader.readStream(R.getSession(), input);
+    var input = new ByteArrayInputStream(output.toByteArray());
+    var sexp = RDSReader.readStream(R.getSession(), input);
 
-        if (sexp instanceof LglSXP read_lgls) {
-            assertEquals(3, read_lgls.size());
-            assertEquals(Logical.TRUE, read_lgls.get(0));
-            assertEquals(Logical.FALSE, read_lgls.get(1));
-            assertEquals(Logical.NA, read_lgls.get(2));
-        } else {
-            fail("Expected LglSXP");
-        }
+    if (sexp instanceof RealSXP read_reals) {
+      assertEquals(6, read_reals.size());
+      assertEquals(5.2, read_reals.get(0));
+      assertEquals(4.0, read_reals.get(1));
+      assertEquals(Constants.NA_REAL, read_reals.get(2));
+      assertEquals(2.0, read_reals.get(3));
+      assertEquals(NaN, read_reals.get(4));
+      assertEquals(1.0, read_reals.get(5));
+    } else {
+      fail("Expected RealSXP");
     }
+  }
 
-    @Test
-    public void testReals() throws Exception {
-        var reals = real(5.2, 4.0, Constants.NA_REAL, 2.0, NaN, 1.0);
-        var output = new ByteArrayOutputStream();
+  @Test
+  public void testNull() throws Exception {
+    var output = new ByteArrayOutputStream();
 
-        RDSWriter.writeStream(output, reals);
+    RDSWriter.writeStream(output, NULL);
 
-        var input = new ByteArrayInputStream(output.toByteArray());
-        var sexp = RDSReader.readStream(R.getSession(), input);
+    var input = new ByteArrayInputStream(output.toByteArray());
+    var sexp = RDSReader.readStream(R.getSession(), input);
 
-        if (sexp instanceof RealSXP read_reals) {
-            assertEquals(6, read_reals.size());
-            assertEquals(5.2, read_reals.get(0));
-            assertEquals(4.0, read_reals.get(1));
-            assertEquals(Constants.NA_REAL, read_reals.get(2));
-            assertEquals(2.0, read_reals.get(3));
-            assertEquals(NaN, read_reals.get(4));
-            assertEquals(1.0, read_reals.get(5));
-        } else {
-            fail("Expected RealSXP");
-        }
+    assertEquals(NULL, sexp);
+  }
+
+  @Test
+  public void testVec() throws Exception {
+    var vec = vec(integer(1, 2, 3), logical(Logical.TRUE, Logical.FALSE, Logical.NA));
+    var output = new ByteArrayOutputStream();
+
+    RDSWriter.writeStream(output, vec);
+
+    var input = new ByteArrayInputStream(output.toByteArray());
+    var sexp = RDSReader.readStream(R.getSession(), input);
+
+    if (sexp instanceof VecSXP read_vec) {
+      assertEquals(2, read_vec.size());
+      if (read_vec.get(0) instanceof IntSXP read_ints) {
+        assertEquals(3, read_ints.size());
+        assertEquals(1, read_ints.get(0));
+        assertEquals(2, read_ints.get(1));
+        assertEquals(3, read_ints.get(2));
+      } else {
+        fail("Expected IntSXP for the 1st element of the VecSXP");
+      }
+      if (read_vec.get(1) instanceof LglSXP read_lgls) {
+        assertEquals(3, read_lgls.size());
+        assertEquals(Logical.TRUE, read_lgls.get(0));
+        assertEquals(Logical.FALSE, read_lgls.get(1));
+        assertEquals(Logical.NA, read_lgls.get(2));
+      } else {
+        fail("Expected LglSXP for the 2nd element of the VecSXP");
+      }
+    } else {
+      fail("Expected VecSXP");
     }
+  }
 
-    @Test
-    public void testNull() throws Exception {
-        var output = new ByteArrayOutputStream();
+  @Test
+  public void testList() throws Exception {
+    var elems =
+        new TaggedElem[] {
+          new TaggedElem("a", integer(1)),
+          new TaggedElem("b", logical(Logical.TRUE)),
+          new TaggedElem("c", real(3.14, 2.71))
+        };
+    var list = list(elems, Attributes.NONE);
+    var output = new ByteArrayOutputStream();
 
-        RDSWriter.writeStream(output, NULL);
+    RDSWriter.writeStream(output, list);
 
-        var input = new ByteArrayInputStream(output.toByteArray());
-        var sexp = RDSReader.readStream(R.getSession(), input);
+    var input = new ByteArrayInputStream(output.toByteArray());
+    var sexp = RDSReader.readStream(R.getSession(), input);
 
-        assertEquals(NULL, sexp);
+    if (sexp instanceof ListSXP l) {
+      assertEquals(3, l.size());
+      assertEquals("a", l.get(0).tag());
+      if (l.get(0).value() instanceof IntSXP i) {
+        assertEquals(1, i.get(0));
+      } else {
+        fail("Expected IntSXP for the 1st element of the ListSXP");
+      }
+      assertEquals("b", l.get(1).tag());
+      if (l.get(1).value() instanceof LglSXP lgl) {
+        assertEquals(Logical.TRUE, lgl.get(0));
+      } else {
+        fail("Expected LglSXP for the 2nd element of the ListSXP");
+      }
+      assertEquals("c", l.get(2).tag());
+      if (l.get(2).value() instanceof RealSXP r) {
+        assertEquals(3.14, r.get(0));
+        assertEquals(2.71, r.get(1));
+      } else {
+        fail("Expected RealSXP for the 3rd element of the ListSXP");
+      }
+    } else {
+      fail("Expected ListSXP");
     }
+  }
 
-    @Test
-    public void testVec() throws Exception {
-        var vec = vec(integer(1, 2, 3), logical(Logical.TRUE, Logical.FALSE, Logical.NA));
-        var output = new ByteArrayOutputStream();
+  @Test
+  public void testEnv() throws Exception {
+    var env = new UserEnvSXP();
+    env.set("a", integer(1));
+    env.set("b", logical(Logical.TRUE));
+    env.set("c", real(3.14, 2.71));
+    env.set("d", string("foo", "bar"));
+    env.setAttributes(new Attributes.Builder().put("test", logical(Logical.TRUE)).build());
 
-        RDSWriter.writeStream(output, vec);
+    var output = new ByteArrayOutputStream();
 
-        var input = new ByteArrayInputStream(output.toByteArray());
-        var sexp = RDSReader.readStream(R.getSession(), input);
+    RDSWriter.writeStream(output, env);
 
-        if (sexp instanceof VecSXP read_vec) {
-            assertEquals(2, read_vec.size());
-            if (read_vec.get(0) instanceof IntSXP read_ints) {
-                assertEquals(3, read_ints.size());
-                assertEquals(1, read_ints.get(0));
-                assertEquals(2, read_ints.get(1));
-                assertEquals(3, read_ints.get(2));
-            } else {
-                fail("Expected IntSXP for the 1st element of the VecSXP");
-            }
-            if (read_vec.get(1) instanceof LglSXP read_lgls) {
-                assertEquals(3, read_lgls.size());
-                assertEquals(Logical.TRUE, read_lgls.get(0));
-                assertEquals(Logical.FALSE, read_lgls.get(1));
-                assertEquals(Logical.NA, read_lgls.get(2));
-            } else {
-                fail("Expected LglSXP for the 2nd element of the VecSXP");
-            }
-        } else {
-            fail("Expected VecSXP");
-        }
+    var input = new ByteArrayInputStream(output.toByteArray());
+    var sexp = RDSReader.readStream(R.getSession(), input);
+
+    if (sexp instanceof UserEnvSXP read_env) {
+      assertEquals(4, read_env.size());
+      assertEquals(integer(1), read_env.get("a").orElseThrow());
+      assertEquals(logical(Logical.TRUE), read_env.get("b").orElseThrow());
+      assertEquals(real(3.14, 2.71), read_env.get("c").orElseThrow());
+      assertEquals(string("foo", "bar"), read_env.get("d").orElseThrow());
+      assertEquals(
+          new Attributes.Builder().put("test", logical(Logical.TRUE)).build(),
+          read_env.attributes());
+    } else {
+      fail("Expected UserEnvSXP");
     }
+  }
 
-    @Test
-    public void testList() throws Exception {
-        var elems =
-                new TaggedElem[]{
-                        new TaggedElem("a", integer(1)),
-                        new TaggedElem("b", logical(Logical.TRUE)),
-                        new TaggedElem("c", real(3.14, 2.71))
-                };
-        var list = list(elems, Attributes.NONE);
-        var output = new ByteArrayOutputStream();
+  @Test
+  public void testClosureWithBC() throws Exception {
+    // Same closure as `testClosure`, just compiled to bytecode
+    // Test by serializing and deserializing
+    var clo =
+        closure(
+            list(List.of(new TaggedElem("x", MISSING_ARG), new TaggedElem("y", real(3)))),
+            lang(
+                symbol("+"),
+                list(
+                    lang(symbol("+"), list(lang(symbol("length"), list(symbol("x"))), symbol("x"))),
+                    symbol("y"))),
+            new BaseEnvSXP(new HashMap<>()));
+    var bc = new BCCompiler(clo, R.getSession()).compile().orElseThrow();
 
-        RDSWriter.writeStream(output, list);
+    var output = new ByteArrayOutputStream();
 
-        var input = new ByteArrayInputStream(output.toByteArray());
-        var sexp = RDSReader.readStream(R.getSession(), input);
+    RDSWriter.writeStream(output, bcode(bc));
 
-        if (sexp instanceof ListSXP l) {
-            assertEquals(3, l.size());
-            assertEquals("a", l.get(0).tag());
-            if (l.get(0).value() instanceof IntSXP i) {
-                assertEquals(1, i.get(0));
-            } else {
-                fail("Expected IntSXP for the 1st element of the ListSXP");
-            }
-            assertEquals("b", l.get(1).tag());
-            if (l.get(1).value() instanceof LglSXP lgl) {
-                assertEquals(Logical.TRUE, lgl.get(0));
-            } else {
-                fail("Expected LglSXP for the 2nd element of the ListSXP");
-            }
-            assertEquals("c", l.get(2).tag());
-            if (l.get(2).value() instanceof RealSXP r) {
-                assertEquals(3.14, r.get(0));
-                assertEquals(2.71, r.get(1));
-            } else {
-                fail("Expected RealSXP for the 3rd element of the ListSXP");
-            }
-        } else {
-            fail("Expected ListSXP");
-        }
-    }
+    var input = new ByteArrayInputStream(output.toByteArray());
+    var sexp = RDSReader.readStream(R.getSession(), input);
 
-    @Test
-    public void testEnv() throws Exception {
-        var env = new UserEnvSXP();
-        env.set("a", integer(1));
-        env.set("b", logical(Logical.TRUE));
-        env.set("c", real(3.14, 2.71));
-        env.set("d", string("foo", "bar"));
-        env.setAttributes(new Attributes.Builder().put("test", logical(Logical.TRUE)).build());
-
-        var output = new ByteArrayOutputStream();
-
-        RDSWriter.writeStream(output, env);
-
-        var input = new ByteArrayInputStream(output.toByteArray());
-        var sexp = RDSReader.readStream(R.getSession(), input);
-
-        if (sexp instanceof UserEnvSXP read_env) {
-            assertEquals(4, read_env.size());
-            assertEquals(integer(1), read_env.get("a").orElseThrow());
-            assertEquals(logical(Logical.TRUE), read_env.get("b").orElseThrow());
-            assertEquals(real(3.14, 2.71), read_env.get("c").orElseThrow());
-            assertEquals(string("foo", "bar"), read_env.get("d").orElseThrow());
-            assertEquals(
-                    new Attributes.Builder().put("test", logical(Logical.TRUE)).build(),
-                    read_env.attributes());
-        } else {
-            fail("Expected UserEnvSXP");
-        }
-    }
-
-    @Test
-    public void testClosureWithBC() throws Exception {
-        // Same closure as `testClosure`, just compiled to bytecode
-        // Test by serializing and deserializing
-        var clo =
-                closure(
-                        list(List.of(new TaggedElem("x", MISSING_ARG), new TaggedElem("y", real(3)))),
-                        lang(
-                                symbol("+"),
-                                list(
-                                        lang(symbol("+"), list(lang(symbol("length"), list(symbol("x"))), symbol("x"))),
-                                        symbol("y"))),
-                        new BaseEnvSXP(new HashMap<>()));
-        var bc = new BCCompiler(clo, R.getSession()).compile().orElseThrow();
-
-        var output = new ByteArrayOutputStream();
-
-        RDSWriter.writeStream(output, bcode(bc));
-
-        var input = new ByteArrayInputStream(output.toByteArray());
-        var sexp = RDSReader.readStream(R.getSession(), input);
-
-        assertEquals(sexp, bcode(bc));
-    }
+    assertEquals(sexp, bcode(bc));
+  }
 }
