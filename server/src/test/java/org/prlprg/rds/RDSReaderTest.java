@@ -6,7 +6,7 @@ import static org.prlprg.sexp.Coercions.isNA;
 
 import java.util.Objects;
 import org.junit.jupiter.api.Test;
-import org.prlprg.AbstractGNURBasedTest;
+import org.prlprg.GNURBasedTests;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.BCodeSXP;
@@ -23,7 +23,7 @@ import org.prlprg.sexp.StrSXP;
 import org.prlprg.sexp.TaggedElem;
 import org.prlprg.sexp.VecSXP;
 
-public class RDSReaderTest extends AbstractGNURBasedTest {
+public class RDSReaderTest implements GNURBasedTests {
   @Test
   public void testInts() {
     var sexp = R.eval("c(-.Machine$integer.max, -1L, 0L, NA, 1L, .Machine$integer.max)");

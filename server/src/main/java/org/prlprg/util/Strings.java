@@ -96,5 +96,21 @@ public class Strings {
     return true;
   }
 
+  public static String camelCaseToSnakeCase(String s) {
+    var sb = new StringBuilder();
+    for (var i = 0; i < s.length(); i++) {
+      var c = s.charAt(i);
+      if (Character.isUpperCase(c)) {
+        if (i > 0) {
+          sb.append('_');
+        }
+        sb.append(Character.toLowerCase(c));
+      } else {
+        sb.append(c);
+      }
+    }
+    return sb.toString();
+  }
+
   private Strings() {}
 }
