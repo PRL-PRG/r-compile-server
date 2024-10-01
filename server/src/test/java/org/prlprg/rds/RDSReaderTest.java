@@ -1,10 +1,11 @@
 package org.prlprg.rds;
 
 import org.junit.jupiter.api.Test;
-import org.prlprg.GNURTestInstance;
+import org.prlprg.GNURTestSupport;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.*;
+import org.prlprg.util.GNUR;
 
 import java.util.Objects;
 
@@ -12,7 +13,15 @@ import static com.google.common.truth.Truth.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.prlprg.sexp.Coercions.isNA;
 
-public class RDSReaderTest implements GNURTestInstance {
+@GNURTestSupport
+public class RDSReaderTest {
+
+    private final GNUR R;
+
+    public RDSReaderTest(GNUR R) {
+        this.R = R;
+    }
+
     @Test
     public void testInts() {
         var sexp = R.eval("c(-.Machine$integer.max, -1L, 0L, NA, 1L, .Machine$integer.max)");
