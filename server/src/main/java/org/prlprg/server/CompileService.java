@@ -43,7 +43,10 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
       new HashMap<>();
 
   private static String genSymbol(Messages.Function function) {
-    return "gen_" + function.getHash();
+    // the hash is uint64 (unsigned ) but java does not have unsigned numbers and store it as a long
+    // We first need to convert it to a string and interpret it as an unsigned number
+    // Java uses 2's complement
+    return "gen_" + Long.toUnsignedString(function.getHash());
   }
 
   // Testing externally: grpcurl -plaintext -d '{"function":{"name": "testFunc"}}' 0.0.0.0:8980
@@ -70,6 +73,8 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
     logger.info(
         "Received request to compile function "
             + function.getName()
+            + " with hash "
+            + Long.toUnsignedString(function.getHash())
             + " at tier "
             + tier
             + " with bytecode level "
