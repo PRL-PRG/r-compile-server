@@ -102,7 +102,7 @@ JIT_DEF SEXP Rsh_call_trampoline(SEXP call, SEXP op, SEXP args, SEXP rho) {
 
   SEXP cp = BCODE_CONSTS(body);
   if (XLENGTH(cp) != 6) {
-    Rf_error("Expected a constant pool with 6 elements");
+    Rf_error("Expected a constant pool with 6 elements, got %d", XLENGTH(cp));
   }
 
   SEXP c_cp = VECTOR_ELT(cp, LENGTH(cp) - 2);

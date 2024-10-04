@@ -9,10 +9,10 @@ namespace rsh {
 
 struct CompilerOptions {
   std::string name;
-  int bc_opt;
-  int cc_opt;
+  int bc_opt = 3;
+  int cc_opt = 3;
   bool inplace;
-  protocol::Tier tier;
+  protocol::Tier tier = protocol::Tier::OPTIMIZED;
 
   static CompilerOptions from_list(SEXP listsxp);
 };

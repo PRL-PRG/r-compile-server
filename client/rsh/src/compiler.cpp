@@ -1,6 +1,5 @@
 #include "compiler.hpp"
 #include "client.hpp"
-#include "protocol.pb.h"
 #include "rsh.hpp"
 #include "serialize.hpp"
 #include "util.hpp"
@@ -178,6 +177,7 @@ CompilerOptions CompilerOptions::from_list(SEXP listsxp) {
 
 
 std::string genSymbol(uint64_t hash, int index) {
+  
   return "gen_" + std::to_string(hash) + "_" + std::to_string(index);
 }
 
@@ -201,13 +201,14 @@ SEXP compile(SEXP closure, SEXP options) {
   auto compiled_fun = std::get<protocol::CompileResponse>(response);
 
   SEXP body = nullptr;
+  SEXP c_cp = nullptr;
   void * fun_ptr = nullptr;
   std::string name = genSymbol(compiled_fun.hash(), 0);
   // Native or bytecode?
   if(opts.tier == protocol::Tier::OPTIMIZED) {
     fun_ptr = insert_into_jit(name.c_str(), compiled_fun);
-    SEXP c_cp = PROTECT(create_constant_pool(fun_ptr, name.c_str(), compiled_fun));
-    body = PROTECT(create_wrapper_body(closure, c_cp));
+    c_cp = PROTECT(create_constant_pool(fun_ptr, name.c_str(), compiled_fun));
+    
   }
   else if(opts.tier == protocol::Tier::BASELINE) {
     body = PROTECT(rsh::deserialize(compiled_fun.code()));
@@ -218,6 +219,7 @@ SEXP compile(SEXP closure, SEXP options) {
 
   // Inplace or not (i.e. through through an explicit call to `compile` or through the R JIT)
   if (opts.inplace) {
+    body = PROTECT(create_wrapper_body(closure, c_cp));
     SET_BODY(closure, body);
     // FIXME: add logging primitives
     Rprintf("Compiled in place fun %s (fun=%p, body=%p) ; ",
@@ -231,8 +233,14 @@ SEXP compile(SEXP closure, SEXP options) {
     }
   } else {
     SEXP orig = closure;
-    closure = Rf_mkCLOSXP(FORMALS(closure), body, CLOENV(closure));
-    // FIXME: add logging primitives
+    closure = PROTECT(Rf_mkCLOSXP(FORMALS(closure), R_NilValue, CLOENV(closure)));
+    if(opts.tier == protocol::Tier::OPTIMIZED) {
+      // In that case, the body needs a reference to its body
+      body = PROTECT(create_wrapper_body(closure, c_cp));
+    }
+    SET_BODY(closure, body);
+    // FIXME: add logging primitive
+    UNPROTECT(1);
     Rprintf(
         "Replaced compiled fun %s -- %p (fun=%p, body=%p) ; ",
         opts.name.c_str(), orig, closure,
