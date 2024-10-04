@@ -59,7 +59,12 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
 
     // Parse the request
     Messages.Function function = request.getFunction();
-    Messages.Tier tier = request.getTier(); // Default is baseline
+    Messages.Tier tier = request.getTier(); // Default is optimized
+    if (tier == Messages.Tier.UNRECOGNIZED) {
+      tier = Messages.Tier.OPTIMIZED;
+    }
+    var bcOpt = request.hasBcOpt() ? request.getBcOpt() : 2;
+    var ccOpt = request.hasCcOpt() ? request.getCcOpt() : 2;
     Messages.Context context = request.getContext(); // null if not provided
 
     logger.info(
@@ -68,9 +73,9 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
             + " at tier "
             + tier
             + " with bytecode level "
-            + request.getBcOpt()
+            + (request.hasBcOpt() ? bcOpt : "default 2")
             + " and native optimization level "
-            + request.getCcOpt());
+            + (request.hasCcOpt() ? ccOpt : "default 2"));
 
     // Compile the code and build response
     Messages.CompileResponse.Builder response = Messages.CompileResponse.newBuilder();
@@ -79,7 +84,7 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
 
     // Cache requests
     NativeClosure ccCached = null;
-    var nativeKey = Triple.of(function.getHash(), request.getBcOpt(), request.getCcOpt());
+    var nativeKey = Triple.of(function.getHash(), bcOpt, ccOpt);
     if (tier.equals(Messages.Tier.OPTIMIZED)) {
       ccCached = nativeCache.get(nativeKey);
       if (ccCached != null) {
@@ -91,7 +96,7 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
 
     Pair<Bc, ByteString> bcCached = null;
     // We also have a look whether we have a cached bytecode for the native compilation
-    var bcKey = Pair.of(function.getHash(), request.getBcOpt());
+    var bcKey = Pair.of(function.getHash(), bcOpt);
     if (tier.equals((Messages.Tier.BASELINE)) || ccCached == null) {
       bcCached = bcCache.get(bcKey);
       if (bcCached != null) {
@@ -117,10 +122,10 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
             "Compile function "
                 + function.getName()
                 + " to bytecode with optimisation level "
-                + request.getBcOpt()
+                + bcOpt
                 + ": not found in cache.");
         try {
-          var bc = compileBcClosure(function.getBody(), request.getBcOpt());
+          var bc = compileBcClosure(function.getBody(), bcOpt);
           ByteString serializedBc = RDSWriter.writeByteString(SEXPs.bcode(bc));
           response.setCode(serializedBc);
           bcCached = Pair.of(bc, serializedBc); // potentially used for the native compilation also
@@ -146,9 +151,9 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
             "Compile function "
                 + function.getName()
                 + " with optimisation level "
-                + request.getBcOpt()
+                + bcOpt
                 + " and native level "
-                + request.getCcOpt()
+                + ccOpt
                 + ": not found in cache.");
         // At this point, we have already the bytecode, whether we got it from the cache or we
         // compiled it
@@ -163,7 +168,7 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
           module.file().writeTo(f);
           var output = File.createTempFile("ofile", ".o");
 
-          RshCompiler.getInstance(request.getCcOpt())
+          RshCompiler.getInstance(ccOpt)
               .createBuilder(input.getPath(), output.getPath())
               .flag("-c")
               .compile();

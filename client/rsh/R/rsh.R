@@ -81,6 +81,10 @@ rsh_compile <- function(f, options) {
     options$inplace <- TRUE
   }
 
+  if(is.null(options$tier)) {
+    options$tier <- "optimized"
+  }
+
   invisible(.Call(C_compile, f, options))
 }
 
