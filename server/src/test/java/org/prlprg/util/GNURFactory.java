@@ -100,7 +100,7 @@ class RestartingGNURProcess implements GNUR {
   public SEXP eval(String source, SEXP input) {
     check();
     assert R != null;
-    return R.eval(source);
+    return R.eval(source, input);
   }
 
   @Override
