@@ -91,8 +91,9 @@ SEXP Client::make_client(SEXP address, SEXP port, SEXP installed_packages) {
   auto client = new Client(channel, packages);
 
 
-  SEXP ptr =  PROTECT(R_MakeExternalPtr(client, Rf_install("RSH_CLIENT"), R_NilValue));
-  //R_RegisterCFinalizerEx(ptr, &Client::remove_client, TRUE);// TRUE because we want to shutdown the client when R quits
+  SEXP ptr =  PROTECT(R_MakeExternalPtr(client, RSH_CLIENT_PTR, R_NilValue));
+  // Removed because it was causing a segfault (memory not mapped)
+  //R_RegisterCFinalizerEx(ptr, &Client::remove_client, FALSE);// TRUE because we want to shutdown the client when R quits
 
   UNPROTECT(1);
   return ptr;
@@ -122,7 +123,7 @@ SEXP init_client(SEXP address, SEXP port, SEXP installed_packages) {
 
   Client::CLIENT_INSTANCE = Client::make_client(address, port, installed_packages);
 
-  return R_NilValue;
+  return Client::CLIENT_INSTANCE;
 }
 
 } // namespace rsh

@@ -22,6 +22,7 @@ class Client {
 private:
   std::unique_ptr<protocol::CompileService::Stub> stub_;
   static inline SEXP CLIENT_INSTANCE = nullptr;
+  static inline SEXP RSH_CLIENT_PTR = Rf_install("RSH_CLIENT");
   static void remove_client(SEXP ptr);
 
   // For it to be able to access the client instance

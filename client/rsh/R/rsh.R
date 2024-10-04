@@ -6,6 +6,7 @@ NULL
 # save the original compiler::cmpfun
 .gnur_cmpfun <- compiler::cmpfun
 
+
 # Because of the ORC JIT we need all the native symbols registered globally
 # (as RTLD_GLOBAL) so the ORC linker can find them. Unfortunatelly, R does
 # not provide a way to instruct the namespace loader to load pass the
@@ -31,7 +32,9 @@ NULL
   )
 
   .Call(C_initialize)
-  init_client("0.0.0.0", 8980L)
+
+   # for the client, so that it is not GC-ed
+  env[[".rsh_client"]] <- init_client("0.0.0.0", 8980L)
 }
 
 #' Initialize the Rsh client
@@ -40,7 +43,7 @@ NULL
 #' @param port port of the server
 #' @export
 init_client <- function(address="0.0.0.0", port=8980L) {
-  .Call(C_init_client, address, port, installed.packages()[,1])
+  .rsh_client <- .Call(C_init_client, address, port, installed.packages()[,1])
 }
 
 #' Activate the Rsh JIT
