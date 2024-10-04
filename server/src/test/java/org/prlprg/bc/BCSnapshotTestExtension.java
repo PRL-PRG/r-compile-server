@@ -15,7 +15,6 @@ import org.prlprg.util.snapshot.RDSFileSnapshotStoreFactory;
 import org.prlprg.util.snapshot.SnapshotExtension;
 
 public class BCSnapshotTestExtension extends SnapshotExtension<BCSnapshotTestExtension.TestResult> {
-  private final RSession session;
   private final GNUR R;
 
   public BCSnapshotTestExtension() {
@@ -24,7 +23,6 @@ public class BCSnapshotTestExtension extends SnapshotExtension<BCSnapshotTestExt
 
   public BCSnapshotTestExtension(RSession session) {
     super(new RDSFileSnapshotStoreFactory<>(session, TestResult::toSEXP, TestResult::fromSEXP));
-    this.session = session;
     this.R = GNURFactory.createRestarting(session);
   }
 
@@ -73,7 +71,7 @@ public class BCSnapshotTestExtension extends SnapshotExtension<BCSnapshotTestExt
 
   @Override
   protected Object createSnapshot(Method testMethod) {
-    return new BCCodeSnapshot() {
+    return new BCSnapshot() {
       int seq = 0;
 
       @Override
@@ -93,7 +91,7 @@ public class BCSnapshotTestExtension extends SnapshotExtension<BCSnapshotTestExt
 
   @Override
   protected Class<?> getSnapshotClass() {
-    return BCCodeSnapshot.class;
+    return BCSnapshot.class;
   }
 
   protected SEXP bcCompileBody(String code, int optimizationLevel) {
@@ -130,7 +128,7 @@ public class BCSnapshotTestExtension extends SnapshotExtension<BCSnapshotTestExt
     };
   }
 
-  public interface BCCodeSnapshot {
+  public interface BCSnapshot {
 
     default void verify(String code) {
       verify(code, BCCompiler.DEFAULT_OPTIMIZATION_LEVEL);

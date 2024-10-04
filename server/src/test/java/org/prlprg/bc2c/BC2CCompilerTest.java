@@ -34,17 +34,11 @@ public class BC2CCompilerTest {
   @Test
   public void testAdd(BC2CSnapshot snapshot) {
     snapshot.verify("x <- 42; x + 21", fastArith());
-
     snapshot.verify("x <- 42L; x + 21L", fastArith());
-
     snapshot.verify("x <- 42L; x + 21", fastArith());
-
     snapshot.verify("x <- 42; x + c(1, 2)");
-
     snapshot.verify("x <- c(42, 43); x + c(1, 2)");
-
     snapshot.verify("x <- 42L; x + c(1, 2)");
-
     snapshot.verify("x <- c(42, 43); x + c(1, 2)");
   }
 
@@ -206,12 +200,15 @@ public class BC2CCompilerTest {
 
   @Test
   public void testSubset(BC2CSnapshot snapshot) {
-    snapshot.verify("x <- c(1, 2, 3); x[2]", returns(2.0));
-    snapshot.verify("x <- c(1, 2, 3); x[2L]", returns(2.0));
-    snapshot.verify("x <- c(1L, 2L, 3L); x[2L]", returns(2));
-    snapshot.verify("x <- list(1, 2, 3); x[3L]");
-    snapshot.verify("x <- list('a', 'b'); x[2]");
-    snapshot.verify("x <- data.frame(a=1, b=2, row.names=NULL); x['a']");
+    snapshot.verify("x <- c(1, 2, 3); x[2]", returns(2.0), fastSubset());
+    snapshot.verify("x <- c(1, 2, 3); x[2L]", returns(2.0), fastSubset());
+    snapshot.verify("x <- c(1L, 2L, 3L); x[2L]", returns(2), fastSubset());
+    snapshot.verify("x <- list(1, 2, 3); x[3L]", fastSubset());
+    snapshot.verify("x <- list('a', 'b'); x[2]", fastSubset());
+    snapshot.verify(
+        "x <- data.frame(a=1, b=2, row.names=NULL); x['a']",
+        x -> assertEquals(x.pc().dispatchedSubset(), 1));
+    snapshot.verify("x <- list(a=1, b=2); x['a']");
   }
 
   @Test
@@ -249,6 +246,13 @@ public class BC2CCompilerTest {
 
   private TestResultCheck fastRelop() {
     return noSlow(PerformanceCounters::slowRelop, "Expected fast relop");
+  }
+
+  private TestResultCheck fastSubset() {
+    return (r) -> {
+      assertEquals(0, r.pc().slowSubset(), "Expected fast subset");
+      assertEquals(0, r.pc().dispatchedSubset(), "Expected no dispatched subset");
+    };
   }
 
   private TestResultCheck noSlow(Function<PerformanceCounters, Integer> metric, String message) {

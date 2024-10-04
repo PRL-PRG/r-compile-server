@@ -20,7 +20,8 @@ CFLAGS := -I$(RSH_HOME)/client/rsh/src/bc2c \
 		-Wno-unused-function \
 		-pedantic \
 		-shared \
-		-DRSH_TESTS
+		-DRSH_TESTS \
+		-DRSH_PC
 
 DRIVER := test.R
 SOURCE := test.c

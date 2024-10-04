@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.lang.reflect.Method;
 import java.util.Objects;
 import java.util.function.Consumer;
+import java.util.logging.Logger;
 import org.prlprg.RSession;
 import org.prlprg.bc.BCCompiler;
 import org.prlprg.rds.RDSWriter;
@@ -27,8 +28,11 @@ import org.prlprg.util.snapshot.SnapshotExtension;
 
 public class BC2CSnapshotTestExtension
     extends SnapshotExtension<BC2CSnapshotTestExtension.TestResult> {
+
+  private static final Logger logger = Logger.getLogger(BC2CSnapshotTestExtension.class.getName());
   private final GNUR R;
 
+  @SuppressWarnings("unused")
   public BC2CSnapshotTestExtension() {
     this(new TestRSession());
   }
@@ -88,6 +92,7 @@ public class BC2CSnapshotTestExtension
   protected Object createSnapshot(Method testMethod) {
     return new BC2CSnapshot() {
       int seq = 0;
+      boolean clean = true;
 
       @Override
       public void verify(String code, TestResultCheck... extraChecks) {
@@ -104,16 +109,30 @@ public class BC2CSnapshotTestExtension
               check.accept(res);
             }
 
-            artifact.destroy();
+            if (clean) {
+              artifact.destroy();
+            } else {
+              copyMakefile(artifact.tempDir);
+              logger.info("Compilation dir: " + artifact.tempDir.getAbsolutePath());
+            }
           }
         } catch (Throwable e) {
-          var makeFile = new File(artifact.tempDir, "Makefile");
-
-          Files.copyURL(
-              Objects.requireNonNull(getClass().getResource("Makefile")), makeFile.toPath());
+          copyMakefile(artifact.tempDir);
           throw new RuntimeException(
               "Test failed - compilation dir: " + artifact.tempDir.getAbsolutePath(), e);
         }
+      }
+
+      @Override
+      public void setClean(boolean clean) {
+        this.clean = clean;
+      }
+
+      private void copyMakefile(File tempDir) {
+        var makeFile = new File(tempDir, "Makefile");
+
+        Files.copyURL(
+            Objects.requireNonNull(getClass().getResource("Makefile")), makeFile.toPath());
       }
     };
   }
@@ -215,5 +234,7 @@ public class BC2CSnapshotTestExtension
 
   public interface BC2CSnapshot {
     void verify(String code, TestResultCheck... extraChecks);
+
+    void setClean(boolean clean);
   }
 }

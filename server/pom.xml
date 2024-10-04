@@ -93,7 +93,7 @@
   </dependencies>
   <build>
     <!-- Snapshots aren't test resources, because we have to write to them, so we access them
-                                                 at their actual locations (bundled are overridden on recompile). -->
+                                                         at their actual locations (bundled are overridden on recompile). -->
     <plugins>
       <!-- git-build-hook, install git hooks when you run any maven command so you don't forget -->
       <plugin>
@@ -235,6 +235,10 @@
           <rulesets>
             <ruleset>.pmd-rules.xml</ruleset>
           </rulesets>
+          <excludes>
+            <!-- Exclude generated code -->
+            <exclude>**/org/prlprg/server/protocol/**</exclude>
+          </excludes>
         </configuration>
         <!-- Use pmd 7 which supports Java 21, not whatever is provided by maven-pmd-plugin -->
         <dependencies>
@@ -305,15 +309,40 @@
         <artifactId>maven-javadoc-plugin</artifactId>
         <version>3.7.0</version>
         <!-- `executions` is required to run this on verify -->
-        <executions>
-          <execution>
-            <goals>
-              <goal>javadoc</goal>
-              <goal>test-javadoc</goal>
-            </goals>
-            <phase>verify</phase>
-          </execution>
-        </executions>
+        <!-- disabled for now
+                <executions>
+                  <execution>
+                    <goals>
+                      <goal>javadoc</goal>
+                      <goal>test-javadoc</goal>
+                    </goals>
+                    <phase>verify</phase>
+                  </execution>
+                </executions>
+                -->
+      </plugin>
+      <plugin>
+        <artifactId>maven-assembly-plugin</artifactId>
+        <version>3.7.1</version>
+        <configuration>
+          <archive>
+            <manifest>
+              <mainClass>org.prlprg.server.Main</mainClass>
+            </manifest>
+          </archive>
+          <descriptorRefs>
+            <descriptorRef>jar-with-dependencies</descriptorRef>
+          </descriptorRefs>
+          <executions>
+            <execution>
+              <id>make-assembly</id>
+              <phase>package</phase>
+              <goals>
+                <goal>single</goal>
+              </goals>
+            </execution>
+          </executions>
+        </configuration>
       </plugin>
     </plugins>
   </build>
