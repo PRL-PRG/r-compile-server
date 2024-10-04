@@ -55,6 +55,10 @@ typedef struct {
   u32 slow_unary;
   // number of times the slow path of Rsh_relop has been taken
   u32 slow_relop;
+  // number of times the slow path of Rsh_vec_subset has been taken
+  u32 slow_subset;
+  // number of times the subset operation dispatched
+  u32 dispatched_subset;
 } Rsh_PerfCounters;
 
 #ifndef RSH_TESTS
@@ -1240,6 +1244,7 @@ static INLINE Rboolean Rsh_start_subset_dispatch_n(const char *generic,
   SEXP value_sxp = val_as_sexp(value);
   if (isObject(value_sxp) &&
       tryDispatch(generic, call, value_sxp, rho, &value_sxp)) {
+    RSH_PC_INC(dispatched_subset);
     *res = sexp_as_val(value_sxp);
     // FIXME: CHECK_SIGINT();
     return TRUE;
@@ -1339,6 +1344,7 @@ static INLINE Value Rsh_vec_subset(Value x, Value i, SEXP call, Rboolean sub2,
   }
 
   // slow path!
+  RSH_PC_INC(slow_subset);
   SEXP args;
   SEXP value;
 

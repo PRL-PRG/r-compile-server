@@ -13,16 +13,16 @@ LLVM_R := LD_PRELOAD=$(LLVM_LIB) $(R)
 .PHONY: all
 all: install test benchmark
 
-.PHONY: build
-build:
-	$(R) CMD build .
-
 .PHONY: clean
 clean:
 	-rm -f rsh*tar.gz
 	-rm -fr rsh.Rcheck
 	-rm -rf src/*.so
 	-find src -name '*.o' -exec rm {} \;
+
+.PHONY: build
+install:
+	$(LLVM_R) CMD build .
 
 .PHONY: install
 install:
