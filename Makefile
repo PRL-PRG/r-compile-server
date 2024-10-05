@@ -11,21 +11,21 @@ setup-git:
 	cp -f .githooks/pre-commit.sh .git/hooks/pre-commit
 
 .PHONY: clean
-clean:
-    $(MAKE) -C server clean
-    $(MAKE) -C client clean
+clean: 
+	$(MAKE) -C server clean 
+	$(MAKE) -C client clean
 
 .PHONY: build
 build:
-    $(MAKE) -C server build
-    $(MAKE) -C client build
+	$(MAKE) -C server build
+	$(MAKE) -C client build
 
 .PHONY: test
 test:
-    $(MAKE) -C server test
-    $(MAKE) -C client test
+	$(MAKE) -C server test
+	$(MAKE) -C client test
 
 .PHONY: verify
 verify:
-    $(MAKE) -C server verify
-    $(MAKE) -C client verify
+	$(MAKE) -C server verify
+	$(MAKE) -C client verify
