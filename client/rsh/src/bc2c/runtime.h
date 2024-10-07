@@ -1597,4 +1597,39 @@ static INLINE void Rsh_SetTag(Value *fun, UNUSED Value *args_head,
 
 static INLINE void Rsh_Invisible() { R_Visible = FALSE; }
 
+static INLINE void Rsh_SetterCall(Value *lhs, Value rhs, Value fun,
+                                  Value args_head, Value args_tail, SEXP call,
+                                  SEXP vexpr, SEXP rho) {
+  SEXP lhs_sxp = val_as_sexp(*lhs);
+  SEXP fun_sxp = val_as_sexp(fun);
+  SEXP args = val_as_sexp(args_head);
+
+  SEXP value;
+
+  MARK_ASSIGNMENT_CALL(call);
+  if (MAYBE_SHARED(lhs_sxp)) {
+    lhs_sxp = Rf_shallow_duplicate(lhs_sxp);
+    *lhs = SXP_TO_VAL(lhs_sxp);
+    ENSURE_NAMED(lhs_sxp);
+  }
+
+  switch (TYPEOF(fun_sxp)) {
+  case BUILTINSXP:
+    // push RGS onto arguments with value tag
+    RSH_LIST_APPEND_EX(args_head, args_tail, rhs, FALSE);
+    RSH_SET_TAG(args_tail, SXP_TO_VAL(Rsh_ValueSym));
+    RSH_CALL_ARGS_DECREMENT_LINKS(args);
+    // replace first argument with LHS value
+    SETCAR(args, lhs_sxp);
+    // call the builtin
+    checkForMissings(args, call);
+    value = PRIMFUN(fun_sxp)(call, fun_sxp, args, rho);
+    break;
+  default:
+    Rf_error("bad function");
+  }
+
+  *lhs = sexp_as_val(value);
+}
+
 #endif // RUNTIME_H
