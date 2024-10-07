@@ -12,7 +12,8 @@ public record PerformanceCounters(
     int slowUnary,
     int slowRelop,
     int slowSubset,
-    int dispatchedSubset) {
+    int dispatchedSubset,
+    int dispatchedSubassign) {
   public static PerformanceCounters EMPTY = empty();
 
   public static PerformanceCounters from(SEXP sexp) {

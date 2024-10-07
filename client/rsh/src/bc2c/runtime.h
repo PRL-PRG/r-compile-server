@@ -59,6 +59,8 @@ typedef struct {
   u32 slow_subset;
   // number of times the subset operation dispatched
   u32 dispatched_subset;
+  // number of times the subassign operation dispatched
+  u32 dispatched_subassign;
 } Rsh_PerfCounters;
 
 #ifndef RSH_TESTS
@@ -137,9 +139,9 @@ extern SEXP R_LOGIC2_OPS[];
   X([[, Rsh_Subset2Sym)                                                      \
   X(value, Rsh_ValueSym)                                                     \
   X([<-, Rsh_SubassignSym)                                                   \
-  X([[<-, Rsh_Subassign2Sym) \
-  X(.External2, Rsh_DotExternal2Sym) \
-    X(*tmp*, Rsh_TmpvalSym)
+  X([[<-, Rsh_Subassign2Sym)                                                 \
+  X(.External2, Rsh_DotExternal2Sym)                                         \
+  X(*tmp*, Rsh_TmpvalSym)
 
 #ifndef RSH_TESTS
 #define X(a, b) extern SEXP b;
@@ -1431,9 +1433,15 @@ static INLINE void Rsh_EndAssign(Value *rhs, Value lhs_cell, Value value,
   }
 }
 
-static INLINE Rboolean Rsh_start_assign_dispatch_n(const char *generic,
-                                                   Value *lhs_res, Value *rhs,
-                                                   SEXP call, SEXP rho) {
+#define Rsh_StartSubassignN(lhs, rhs, call, rho)                               \
+  Rsh_start_subassign_dispatch_n("[<-", lhs, rhs, call, rho)
+#define Rsh_StartSubassign2N(lhs, rhs, call, rho)                              \
+  Rsh_start_subassign_dispatch_n("[[<-", lhs, rhs, call, rho)
+
+static INLINE Rboolean Rsh_start_subassign_dispatch_n(const char *generic,
+                                                      Value *lhs_res,
+                                                      Value *rhs, SEXP call,
+                                                      SEXP rho) {
   Value lhs = *lhs_res;
   SEXP lhs_sxp = val_as_sexp(lhs);
 
@@ -1448,6 +1456,7 @@ static INLINE Rboolean Rsh_start_assign_dispatch_n(const char *generic,
 
     SEXP value = NULL;
     if (tryAssignDispatch(generic, call, lhs_sxp, rhs_sxp, rho, &value)) {
+      RSH_PC_INC(dispatched_subassign);
       *lhs_res = sexp_as_val(value);
       return TRUE;
     }
@@ -1455,11 +1464,6 @@ static INLINE Rboolean Rsh_start_assign_dispatch_n(const char *generic,
 
   return FALSE;
 }
-
-#define Rsh_StartSubassignN(lhs, rhs, call, rho)                               \
-  Rsh_start_assign_dispatch_n("[<-", lhs, rhs, call, rho)
-#define Rsh_StartSubassign2N(lhs, rhs, call, rho)                              \
-  Rsh_start_assign_dispatch_n("[[<-", lhs, rhs, call, rho)
 
 static INLINE Value Rsh_vec_subassign(Value x, Value rhs, Value i, SEXP call,
                                       SEXP rho, Rboolean sub2) {
@@ -1662,6 +1666,70 @@ static INLINE void Rsh_SetterCall(Value *lhs, Value rhs, Value fun,
     Rf_error("bad function");
   }
 
+  *lhs = sexp_as_val(value);
+}
+
+// clang-format off
+#define Rsh_StartSubassign(lhs, rhs, call_val, args_head, args_tail, call, rho)  \
+  Rsh_start_subassign_dispatch("[<-", lhs, rhs, call_val, args_head, args_tail, call, rho)
+
+#define Rsh_StartSubassign2(lhs, rhs, call_val, args_head, args_tail, call, rho) \
+  Rsh_start_subassign_dispatch("[[<-", lhs, rhs, call_val, args_head, args_tail, call, rho)
+// clang-format on
+
+static INLINE Rboolean Rsh_start_subassign_dispatch(
+    const char *generic, Value *lhs, Value *rhs, Value *call_val,
+    Value *args_head, Value *args_tail, SEXP call, SEXP rho) {
+  SEXP lhs_sxp = val_as_sexp(*lhs);
+
+  MARK_ASSIGNMENT_CALL(call);
+  if (MAYBE_SHARED(lhs_sxp)) {
+    lhs_sxp = Rf_shallow_duplicate(lhs_sxp);
+    *lhs = SXP_TO_VAL(lhs_sxp);
+    ENSURE_NAMED(lhs_sxp);
+  }
+
+  SEXP value;
+  if (isObject(lhs_sxp) && tryAssignDispatch(generic, call, lhs_sxp,
+                                             val_as_sexp(*rhs), rho, &value)) {
+    RSH_PC_INC(dispatched_subassign);
+    *lhs = sexp_as_val(value);
+    return TRUE;
+  } else {
+    SEXP tag = TAG(CDR(call));
+    *call_val = SXP_TO_VAL(call);
+    INIT_CALL_FRAME(args_head, args_tail);
+    RSH_LIST_APPEND_EX(*args_head, *args_tail, SXP_TO_VAL(lhs_sxp), FALSE);
+    RSH_SET_TAG(*args_tail, SXP_TO_VAL(tag));
+    return FALSE;
+  }
+}
+
+static INLINE void Rsh_DoMissing(Value *call, Value *args_head,
+                                 Value *args_tail) {
+  SEXP call_sxp = VAL_SXP(*call);
+  if (TYPEOF(call_sxp) != SPECIALSXP) {
+    RSH_LIST_APPEND_EX(*args_head, *args_tail, SXP_TO_VAL(R_MissingArg), FALSE);
+  }
+}
+
+#define Rsh_DfltSubassign(lhs, rhs, call_val, args_head, args_tail, rho)       \
+  Rsh_dflt_assign_dispatch(do_subassign_dflt, Rsh_SubassignSym, lhs, rhs,      \
+                           call_val, args_head, args_tail, rho)
+#define Rsh_DfltSubassign2(lhs, rhs, call_val, args_head, args_tail, rho)      \
+  Rsh_dflt_assign_dispatch(do_subassign2_dflt, Rsh_Subassign2Sym, lhs, rhs,    \
+                           call_val, args_head, args_tail, rho)
+
+static INLINE void Rsh_dflt_assign_dispatch(CCODE fun, SEXP symbol, Value *lhs,
+                                            Value rhs, Value call_val,
+                                            Value args_head, Value args_tail,
+                                            SEXP rho) {
+  SEXP call_sxp = val_as_sexp(call_val);
+  SEXP args = val_as_sexp(args_head);
+  RSH_CALL_ARGS_DECREMENT_LINKS(args);
+  MARK_ASSIGNMENT_CALL(call_sxp);
+  RSH_LIST_APPEND_EX(args_head, args_tail, rhs, FALSE);
+  SEXP value = fun(call_sxp, symbol, args, rho);
   *lhs = sexp_as_val(value);
 }
 
