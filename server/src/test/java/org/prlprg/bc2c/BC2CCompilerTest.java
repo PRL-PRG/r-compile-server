@@ -237,6 +237,8 @@ public class BC2CCompilerTest {
     public void testSetterCalls(BC2CSnapshot snapshot) {
         // test SETTER_CALL with builtin
         snapshot.verify("x <- c(1,2,3); names(x) <- c('a', 'b', 'c'); x");
+        // test SETTER_CALL with special
+        snapshot.verify("setClass('C', slots = list(x = 'numeric')); o <- new('C', x = 1); o@x <- 42; str(o)");
     }
 
     private TestResultCheck fastArith() {

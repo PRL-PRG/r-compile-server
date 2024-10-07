@@ -138,7 +138,8 @@ extern SEXP R_LOGIC2_OPS[];
   X(value, Rsh_ValueSym)                                                     \
   X([<-, Rsh_SubassignSym)                                                   \
   X([[<-, Rsh_Subassign2Sym) \
-  X(.External2, Rsh_DotExternal2Sym)
+  X(.External2, Rsh_DotExternal2Sym) \
+    X(*tmp*, Rsh_TmpvalSym)
 
 #ifndef RSH_TESTS
 #define X(a, b) extern SEXP b;
@@ -1625,6 +1626,24 @@ static INLINE void Rsh_SetterCall(Value *lhs, Value rhs, Value fun,
     checkForMissings(args, call);
     value = PRIMFUN(fun_sxp)(call, fun_sxp, args, rho);
     break;
+  case SPECIALSXP: {
+    PROTECT(args = Rf_duplicate(CDR(call)));
+    // insert evaluated promise for LHS as first argument
+    // promise won't be captured so don't track references
+    SEXP prom = R_mkEVPROMISE_NR(Rsh_TmpvalSym, lhs_sxp);
+    SETCAR(args, prom);
+    // set the evalated promise for RHS as the last argument
+    SEXP last = args;
+    while (CDR(last) != R_NilValue) {
+      last = CDR(last);
+    }
+    prom = R_mkEVPROMISE_NR(vexpr, val_as_sexp(rhs));
+    SETCAR(last, prom);
+    // call the special
+    value = PRIMFUN(fun_sxp)(call, fun_sxp, args, rho);
+    UNPROTECT(1);
+    break;
+  }
   default:
     Rf_error("bad function");
   }
