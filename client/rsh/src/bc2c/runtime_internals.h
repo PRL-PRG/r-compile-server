@@ -64,6 +64,7 @@ int tryAssignDispatch(const char *generic, SEXP call, SEXP lhs, SEXP rhs,
                       SEXP rho, SEXP *pv);
 SEXP do_subassign_dflt(SEXP call, SEXP op, SEXP args, SEXP rho);
 SEXP do_subassign2_dflt(SEXP call, SEXP op, SEXP args, SEXP rho);
+SEXP R_mkEVPROMISE_NR(SEXP expr, SEXP val);
 
 #define INTEGER_TO_LOGICAL(x)                                                  \
   ((x) == NA_INTEGER ? NA_LOGICAL : (x) ? TRUE : FALSE)
