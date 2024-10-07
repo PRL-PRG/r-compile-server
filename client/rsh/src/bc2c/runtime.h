@@ -1616,7 +1616,7 @@ static INLINE void Rsh_SetterCall(Value *lhs, Value rhs, Value fun,
 
   switch (TYPEOF(fun_sxp)) {
   case BUILTINSXP:
-    // push RGS onto arguments with value tag
+    // append RHS top arguments with value tag
     RSH_LIST_APPEND_EX(args_head, args_tail, rhs, FALSE);
     RSH_SET_TAG(args_tail, SXP_TO_VAL(Rsh_ValueSym));
     RSH_CALL_ARGS_DECREMENT_LINKS(args);
@@ -1628,11 +1628,12 @@ static INLINE void Rsh_SetterCall(Value *lhs, Value rhs, Value fun,
     break;
   case SPECIALSXP: {
     PROTECT(args = Rf_duplicate(CDR(call)));
-    // insert evaluated promise for LHS as first argument
+    // replace the first argument with evaluated promise containing LHS
     // promise won't be captured so don't track references
+    // that is why we have to use the _NR version of mkEVPROMISE
     SEXP prom = R_mkEVPROMISE_NR(Rsh_TmpvalSym, lhs_sxp);
     SETCAR(args, prom);
-    // set the evalated promise for RHS as the last argument
+    // append the evalated promise for RHS as the last argument
     SEXP last = args;
     while (CDR(last) != R_NilValue) {
       last = CDR(last);
@@ -1642,6 +1643,19 @@ static INLINE void Rsh_SetterCall(Value *lhs, Value rhs, Value fun,
     // call the special
     value = PRIMFUN(fun_sxp)(call, fun_sxp, args, rho);
     UNPROTECT(1);
+    break;
+  }
+  case CLOSXP: {
+    // unlike in SPECIALSXP case, we need to use a RC promise
+    SEXP prom = R_mkEVPROMISE(vexpr, val_as_sexp(rhs));
+    // append RHS to arguments with value tag
+    RSH_LIST_APPEND_EX(args_head, args_tail, SXP_TO_VAL(prom), FALSE);
+    RSH_SET_TAG(args_tail, SXP_TO_VAL(Rsh_ValueSym));
+    // replace first argument with LHS value as *tmp*
+    prom = R_mkEVPROMISE(Rsh_TmpvalSym, lhs_sxp);
+    SETCAR(args, prom);
+    // call the closure
+    value = Rf_applyClosure(call, fun_sxp, args, rho, R_NilValue, TRUE);
     break;
   }
   default:
