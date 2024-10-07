@@ -11,9 +11,20 @@ out <- function(s, indent) {
   cat(s, '\n')
 }
 
+inspect_attributes <- function(v, indent) {
+  as <- attributes(v)
+  if (is.null(as)) {
+    return()
+  }
+
+  out("attributes:", indent)
+  inspect_list_like(as, indent + 1)
+}
+
 inspect.default <- function(v, indent=0) {
   s <- paste0("<", typeof(v), "> ", paste0(format(v), collapse=" "))
   out(s, indent)
+  inspect_attributes(v, indent)
 }
 
 inspect.environment <- function(v, indent=0) {
@@ -26,11 +37,13 @@ inspect.environment <- function(v, indent=0) {
 
   out("<environment>", indent)
   inspect_list_like(as.list(v), indent)
+  inspect_attributes(v, indent)
 }
 
 inspect.list <- function(x, indent=0) {
   out("<list>", indent)
   inspect_list_like(x, indent)
+  inspect_attributes(v, indent)
 }
 
 inspect_list_like <- function(x, indent) {

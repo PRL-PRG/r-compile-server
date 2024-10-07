@@ -137,17 +137,27 @@ static INLINE SEXP relop(SEXP call, SEXP op, SEXP opsym, SEXP x, SEXP y,
   return do_relop_dflt(call, op, x, y);
 }
 
-#define RSH_LIST_APPEND(/* Value */ head, /* Value */ tail, /* Value */ value) \
+#define RSH_LIST_APPEND_EX(/* Value */ head, /* Value */ tail,                 \
+                           /* Value */ value, /* RBoolean */ RC)               \
   do {                                                                         \
-    SEXP __elem__ = CONS(val_as_sexp(value), R_NilValue);                      \
+    SEXP __elem__ = (RC) ? CONS(val_as_sexp(value), R_NilValue)                \
+                         : CONS_NR(val_as_sexp(value), R_NilValue);            \
+                                                                               \
     if (head == Rsh_NilValue) {                                                \
       head = SXP_TO_VAL(__elem__);                                             \
     } else {                                                                   \
       SETCDR(VAL_SXP(tail), __elem__);                                         \
     }                                                                          \
     tail = SXP_TO_VAL(__elem__);                                               \
-    INCREMENT_LINKS(CAR(__elem__));                                            \
+    if (RC) {                                                                  \
+      INCREMENT_NAMED(CAR(__elem__));                                          \
+    } else {                                                                   \
+      INCREMENT_LINKS(CAR(__elem__));                                          \
+    }                                                                          \
   } while (0)
+
+#define RSH_LIST_APPEND(/* Value */ head, /* Value */ tail, /* Value */ value) \
+  RSH_LIST_APPEND_EX(head, tail, value, TRUE)
 
 #define RSH_SET_TAG(/* Value */ v, /* Value */ t)                              \
   do {                                                                         \
@@ -159,5 +169,26 @@ static INLINE SEXP relop(SEXP call, SEXP op, SEXP opsym, SEXP x, SEXP y,
     }                                                                          \
   } while (0)
 
-//
+#define RSH_CALL_ARGS_DECREMENT_LINKS(args)                                    \
+  do {                                                                         \
+    SEXP __a__ = (args);                                                       \
+    while (__a__ != R_NilValue) {                                              \
+      DECREMENT_LINKS(CAR(__a__));                                             \
+      __a__ = CDR(__a__);                                                      \
+    }                                                                          \
+  } while (0)
+
+#define RSH_PUSHCALLARG_EX(args, v, RC)                                        \
+  do {                                                                         \
+    SEXP __cell__ = (RC) ? CONS(v, R_NilValue) : CONS_NR(v, R_NilValue);       \
+    if (GETSTACK(-2) == R_NilValue)                                            \
+      SETSTACK(-2, __cell__);                                                  \
+    else                                                                       \
+      SETCDR(GETSTACK(-1), __cell__);                                          \
+    SETSTACK(-1, __cell__);                                                    \
+    if (RC)                                                                    \
+      INCREMENT_NAMED(CAR(__cell__));                                          \
+    else                                                                       \
+      INCREMENT_LINKS(CAR(__cell__));                                          \
+  } while (0)
 #endif
