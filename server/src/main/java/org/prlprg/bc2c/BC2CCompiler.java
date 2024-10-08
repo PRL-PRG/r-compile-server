@@ -288,7 +288,9 @@ class ClosureCompiler {
                     BcOp.DFLTSUBSET,
                     BcOp.DFLTSUBSET2,
                     BcOp.MATSUBSET,
-                    BcOp.MATSUBSET2
+                    BcOp.MATSUBSET2,
+                    BcOp.MATSUBASSIGN,
+                    BcOp.MATSUBASSIGN2
             );
 
     private void checkSupported(BcInstr instr) {

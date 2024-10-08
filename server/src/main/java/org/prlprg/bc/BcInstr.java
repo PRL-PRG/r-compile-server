@@ -847,6 +847,8 @@ public sealed interface BcInstr {
         }
     }
 
+    @NeedsRho
+    @StackEffect(pop = 4, push = 1)
     record MatSubassign(@Nullable ConstPool.Idx<LangSXP> ast) implements BcInstr {
         @Override
         public BcOp op() {
@@ -1061,6 +1063,8 @@ public sealed interface BcInstr {
         }
     }
 
+    @NeedsRho
+    @StackEffect(pop = 4, push = 1)
     record MatSubassign2(@Nullable ConstPool.Idx<LangSXP> ast) implements BcInstr {
         @Override
         public BcOp op() {
