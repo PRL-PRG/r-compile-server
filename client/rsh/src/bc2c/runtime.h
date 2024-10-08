@@ -1546,25 +1546,23 @@ static INLINE Rboolean Rsh_start_subassign_dispatch_n(const char *generic,
   return FALSE;
 }
 
-#define Rsh_VecSubassign(x, rhs, i, call, rho)                                 \
-  *x = Rsh_vec_subassign(*x, rhs, i, call, rho, FALSE)
-#define Rsh_VecSubassign2(x, rhs, i, call, rho)                                \
-  *x = Rsh_vec_subassign(*x, rhs, i, call, rho, TRUE)
+#define Rsh_VecSubassign(sx, rhs, i, call, rho)                                \
+  Rsh_vec_subassign(sx, rhs, i, call, rho, FALSE)
+#define Rsh_VecSubassign2(sx, rhs, i, call, rho)                               \
+  Rsh_vec_subassign(sx, rhs, i, call, rho, TRUE)
 
-static INLINE Value Rsh_vec_subassign(Value x, Value rhs, Value i, SEXP call,
-                                      SEXP rho, Rboolean sub2) {
-  SEXP vec = VAL_SXP(x);
+static INLINE void Rsh_vec_subassign(Value *sx, Value rhs, Value i, SEXP call,
+                                     SEXP rho, Rboolean sub2) {
+  SEXP vec = val_as_sexp(*sx);
 
   if (MAYBE_SHARED(vec)) {
     vec = Rf_shallow_duplicate(vec);
-    // FIXME: do we need to replace it on the stack?
-    // *x = SXP_TO_VAL(vec);
+    *sx = SXP_TO_VAL(vec);
   }
 
-  Rboolean set = TRUE;
-
-  // Fast case 1 - INT index and RHS is scalar of the right type
+  // Fast case - INT index and RHS is scalar of the right type
   if (VAL_TAG(rhs) && VAL_IS_INT(i) && VAL_TAG(rhs) == TYPEOF(vec)) {
+    Rboolean set = TRUE;
     R_xlen_t idx = VAL_INT(i);
     if (idx > 0 && idx <= XLENGTH(vec)) {
       switch (TYPEOF(vec)) {
@@ -1585,74 +1583,25 @@ static INLINE Value Rsh_vec_subassign(Value x, Value rhs, Value i, SEXP call,
       if (set) {
         R_Visible = TRUE;
         SETTER_CLEAR_NAMED(vec);
-        return SXP_TO_VAL(vec);
+        return;
       }
     }
   }
 
-  {
-    R_xlen_t idx = as_index(i);
-    if (idx > 0 && idx <= XLENGTH(vec)) {
-      set = TRUE;
-      // Fast case - set from a scalar
-      if (TYPEOF(vec) == REALSXP) {
-        switch (VAL_TAG(rhs)) {
-        case REALSXP:
-          REAL(vec)[idx - 1] = VAL_DBL(rhs);
-          break;
-        case INTSXP:
-          REAL(vec)[idx - 1] = INTEGER_TO_REAL(VAL_INT(rhs));
-          break;
-        case LGLSXP:
-          REAL(vec)[idx - 1] = LOGICAL_TO_REAL(VAL_INT(rhs));
-          break;
-        default:
-          set = FALSE;
-        }
-      } else if (VAL_TAG(rhs) == TYPEOF(vec)) {
-        switch (VAL_TAG(rhs)) {
-        case INTSXP:
-          INTEGER(vec)[idx - 1] = VAL_INT(rhs);
-          break;
-        case LGLSXP:
-          LOGICAL(vec)[idx - 1] = VAL_INT(rhs);
-          break;
-        default:
-          set = FALSE;
-        }
-      } else {
-        set = FALSE;
-      }
+  DO_FAST_SETVECELT(vec, as_index(i) - 1, rhs, sub2);
 
-      if (set) {
-        SETTER_CLEAR_NAMED(vec);
-        return SXP_TO_VAL(vec);
-      }
-
-      if (sub2 && TYPEOF(vec) == VECSXP) {
-        SEXP rhs_sxp = val_as_sexp(rhs);
-        if (rhs_sxp != R_NilValue) {
-          if (MAYBE_REFERENCED(rhs_sxp) &&
-              VECTOR_ELT(vec, idx - 1) != rhs_sxp) {
-            R_FixupRHS(vec, rhs_sxp);
-          }
-          SET_VECTOR_ELT(vec, idx - 1, rhs_sxp);
-          SETTER_CLEAR_NAMED(vec);
-          return SXP_TO_VAL(vec);
-        }
-      }
-    }
-  }
-
+  // slow path!
   RSH_PC_INC(slow_subassign);
   SEXP idx = val_as_sexp(i);
   SEXP value = val_as_sexp(rhs);
+
   SEXP args;
   args = CONS_NR(value, R_NilValue);
   SET_TAG(args, Rsh_ValueSym);
   args = CONS_NR(idx, args);
   args = CONS_NR(vec, args);
   PROTECT(args);
+
   MARK_ASSIGNMENT_CALL(call);
   if (sub2) {
     vec = do_subassign2_dflt(call, Rsh_Subassign2Sym, args, rho);
@@ -1660,7 +1609,8 @@ static INLINE Value Rsh_vec_subassign(Value x, Value rhs, Value i, SEXP call,
     vec = do_subassign_dflt(call, Rsh_SubassignSym, args, rho);
   }
   UNPROTECT(1);
-  return SXP_TO_VAL(vec);
+
+  *sx = SXP_TO_VAL(vec);
 }
 
 #define Rsh_MatSubassign(sx, rhs, si, sj, call, rho)                           \
