@@ -195,7 +195,11 @@ class ClosureCompiler {
                             builder.args(constantSXP(symbol), cell(symbol)).compileStmt();
                     case BcInstr.StartAssign(var symbol) ->
                             builder.args(constantSXP(symbol), cell(symbol)).compileStmt();
+                    case BcInstr.StartAssign2(var symbol) ->
+                            builder.args(constantSXP(symbol), cell(symbol)).compileStmt();
                     case BcInstr.EndAssign(var symbol) -> builder.args(constantSXP(symbol), cell(symbol)).compileStmt();
+                    case BcInstr.EndAssign2(var symbol) ->
+                            builder.args(constantSXP(symbol), cell(symbol)).compileStmt();
                     case BcInstr.GetBuiltin(var idx) ->
                             builder.args("\"" + bc.consts().get(idx).name() + "\"").compileStmt();
                     case BcInstr.MakeClosure(var idx) -> compileMakeClosure(builder, idx);
@@ -268,7 +272,9 @@ class ClosureCompiler {
                     BcOp.VECSUBSET2,
                     BcOp.VECSUBSET,
                     BcOp.STARTASSIGN,
+                    BcOp.STARTASSIGN2,
                     BcOp.ENDASSIGN,
+                    BcOp.ENDASSIGN2,
                     BcOp.STARTSUBASSIGN,
                     BcOp.STARTSUBASSIGN2,
                     BcOp.STARTSUBASSIGN_N,

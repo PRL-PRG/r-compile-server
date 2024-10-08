@@ -924,6 +924,8 @@ public sealed interface BcInstr {
         }
     }
 
+    @NeedsRho
+    @StackEffect(pop = 1, push = 4)
     record StartAssign2(ConstPool.Idx<RegSymSXP> name) implements BcInstr {
         @Override
         public BcOp op() {
@@ -931,6 +933,8 @@ public sealed interface BcInstr {
         }
     }
 
+    @NeedsRho
+    @StackEffect(pop = 3, push = 1)
     record EndAssign2(ConstPool.Idx<RegSymSXP> name) implements BcInstr {
         @Override
         public BcOp op() {

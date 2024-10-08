@@ -1439,6 +1439,36 @@ static INLINE void Rsh_StartAssign(Value *rhs, Value *lhs_cell, Value *lhs_val,
   *rhs_dup = *rhs;
 }
 
+// TODO: do we need the cache here?
+static INLINE void Rsh_StartAssign2(Value *rhs, Value *lhs_cell, Value *lhs_val,
+                                    Value *rhs_dup, SEXP symbol, BCell *cache,
+                                    SEXP rho) {
+  SEXP cell = bcell_get_cache(symbol, rho, cache);
+  R_varloc_t loc;
+  if (cell == R_UnboundValue) {
+    loc.cell = R_NilValue;
+  }
+
+  int maybe_in_assign = ASSIGNMENT_PENDING(loc.cell);
+  SET_ASSIGNMENT_PENDING(loc.cell, TRUE);
+  *lhs_cell = SXP_TO_VAL(loc.cell);
+
+  Value value = Rsh_do_get_var(symbol, ENCLOS(rho), FALSE, FALSE, cache);
+  SEXP value_sxp = val_as_sexp(value);
+  if (maybe_in_assign || MAYBE_SHARED(value_sxp)) {
+    value_sxp = Rf_shallow_duplicate(value_sxp);
+  }
+  *lhs_val = SXP_TO_VAL(value_sxp);
+
+  *rhs_dup = *rhs;
+  /* top four stack entries are now
+     RHS value, LHS cell, LHS value, RHS value */
+  if (VAL_IS_SXP(*rhs_dup)) {
+    FIXUP_RHS_NAMED(VAL_SXP(*rhs_dup));
+    INCREMENT_REFCNT(VAL_SXP(*rhs_dup));
+  }
+}
+
 static INLINE void Rsh_EndAssign(Value *rhs, Value lhs_cell, Value value,
                                  SEXP symbol, BCell *cache, SEXP rho) {
   SEXP lhs_cell_sxp = VAL_SXP(lhs_cell);
@@ -1461,6 +1491,24 @@ static INLINE void Rsh_EndAssign(Value *rhs, Value lhs_cell, Value value,
       DECREMENT_REFCNT(saverhs);
     }
   }
+}
+
+static INLINE void Rsh_EndAssign2(Value *rhs, Value lhs_cell, Value value,
+                                  SEXP symbol, BCell *cache, SEXP rho) {
+  SEXP lhs_cell_sxp = VAL_SXP(lhs_cell);
+  SET_ASSIGNMENT_PENDING(lhs_cell_sxp, FALSE);
+
+  SEXP cell = bcell_get_cache(symbol, rho, cache);
+  SEXP value_sxp = val_as_sexp(value);
+
+  INCREMENT_NAMED(value_sxp);
+  if (!bcell_set_value(cell, value_sxp)) {
+    Rf_defineVar(symbol, value_sxp, rho);
+  }
+
+  SEXP rhs_sxp = val_as_sexp(*rhs);
+  INCREMENT_NAMED(rhs_sxp);
+  DECREMENT_REFCNT(rhs_sxp);
 }
 
 #define Rsh_StartSubassignN(lhs, rhs, call, rho)                               \
@@ -1746,16 +1794,16 @@ static INLINE void Rsh_DoMissing(Value *call, Value *args_head,
 }
 
 #define Rsh_DfltSubassign(lhs, rhs, call_val, args_head, args_tail, rho)       \
-  Rsh_dflt_assign_dispatch(do_subassign_dflt, Rsh_SubassignSym, lhs, rhs,      \
-                           call_val, args_head, args_tail, rho)
+  Rsh_dflt_subassign_dispatch(do_subassign_dflt, Rsh_SubassignSym, lhs, rhs,   \
+                              call_val, args_head, args_tail, rho)
 #define Rsh_DfltSubassign2(lhs, rhs, call_val, args_head, args_tail, rho)      \
-  Rsh_dflt_assign_dispatch(do_subassign2_dflt, Rsh_Subassign2Sym, lhs, rhs,    \
-                           call_val, args_head, args_tail, rho)
+  Rsh_dflt_subassign_dispatch(do_subassign2_dflt, Rsh_Subassign2Sym, lhs, rhs, \
+                              call_val, args_head, args_tail, rho)
 
-static INLINE void Rsh_dflt_assign_dispatch(CCODE fun, SEXP symbol, Value *lhs,
-                                            Value rhs, Value call_val,
-                                            Value args_head, Value args_tail,
-                                            SEXP rho) {
+static INLINE void Rsh_dflt_subassign_dispatch(CCODE fun, SEXP symbol,
+                                               Value *lhs, Value rhs,
+                                               Value call_val, Value args_head,
+                                               Value args_tail, SEXP rho) {
   SEXP call_sxp = val_as_sexp(call_val);
   SEXP args = val_as_sexp(args_head);
   RSH_CALL_ARGS_DECREMENT_LINKS(args);
