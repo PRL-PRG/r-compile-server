@@ -200,7 +200,7 @@ public class BC2CCompilerTest {
     }
 
     @Test
-    public void testSubsetN(BC2CSnapshot snapshot) {
+    public void testVecsubsetN(BC2CSnapshot snapshot) {
         snapshot.verify("x <- c(1, 2, 3); x[2]", returns(2.0), fastSubset());
         snapshot.verify("x <- c(1, 2, 3); x[2L]", returns(2.0), fastSubset());
         snapshot.verify("x <- c(1L, 2L, 3L); x[2L]", returns(2), fastSubset());
@@ -213,13 +213,25 @@ public class BC2CCompilerTest {
     }
 
     @Test
-    public void testSubset2N(BC2CSnapshot snapshot) {
+    public void testVecsubset2N(BC2CSnapshot snapshot) {
         snapshot.verify("x <- c(1, 2, 3); x[[2]]");
         snapshot.verify("x <- c(1, 2, 3); x[[2L]]");
         snapshot.verify("x <- c(1L, 2L, 3L); x[[2L]]");
         snapshot.verify("x <- list(1, 2, 3); x[[3L]]");
         snapshot.verify("x <- list('a', 'b'); x[[2]]");
         snapshot.verify("x <- data.frame(a=1, b=2, row.names=NULL); x[['a']]");
+    }
+
+    @Test
+    public void testMatsubset(BC2CSnapshot snapshot) {
+        snapshot.verify("x <- matrix(1L:6L, nrow=2); x[1,2]", returns(3), fastSubset());
+        snapshot.verify("x <- data.frame(a=c(1,2), b=c(3,4)); x[1,2]", returns(3.0));
+    }
+
+    @Test
+    public void testMatsubset2(BC2CSnapshot snapshot) {
+        snapshot.verify("x <- matrix(1L:6L, nrow=2); x[[1,2]]", returns(3), fastSubset());
+        snapshot.verify("x <- data.frame(a=c(1,2), b=c(3,4)); x[[1,2]]", returns(3.0));
     }
 
     @Test

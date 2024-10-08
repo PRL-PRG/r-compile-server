@@ -69,6 +69,17 @@ SEXP R_mkEVPROMISE_NR(SEXP expr, SEXP val);
 // creates a new evaluated promise with reference counting
 SEXP R_mkEVPROMISE(SEXP expr, SEXP val);
 
+static INLINE SEXP Rsh_get_dim_attr(SEXP v) {
+  SEXP attr = ATTRIB(v);
+  SEXP dim =
+      TAG(attr) == R_DimSymbol ? CAR(attr) : Rf_getAttrib(v, R_DimSymbol);
+  if (TYPEOF(dim) == INTSXP && LENGTH(dim) == 2) {
+    return dim;
+  } else {
+    return R_NilValue;
+  }
+}
+
 #define INTEGER_TO_LOGICAL(x)                                                  \
   ((x) == NA_INTEGER ? NA_LOGICAL : (x) ? TRUE : FALSE)
 #define INTEGER_TO_REAL(x) ((x) == NA_INTEGER ? NA_REAL : (x))
