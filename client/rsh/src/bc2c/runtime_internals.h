@@ -96,9 +96,60 @@ static INLINE SEXP Rsh_get_dim_attr(SEXP v) {
       ENSURE_NAMEDMAX(__rhs__);                                                \
   } while (0)
 
-#define FAST_VECELT_OK(vec)                                                    \
+#define FAST_VECELT_OK(/* SEXP */ vec)                                         \
   (ATTRIB(vec) == R_NilValue ||                                                \
    (TAG(ATTRIB(vec)) == R_DimSymbol && CDR(ATTRIB(vec)) == R_NilValue))
+
+#define DO_FAST_VECELT(/* SEXP */ vec, /* R_xlen_t */ i,                       \
+                       /* Rboolean */ subset2, /* Value* */ res)               \
+  do {                                                                         \
+    switch (TYPEOF(vec)) {                                                     \
+    case REALSXP:                                                              \
+      if (i < 0 || XLENGTH(vec) <= i) {                                        \
+        break;                                                                 \
+      }                                                                        \
+      *res = DBL_TO_VAL(REAL_ELT(vec, i));                                     \
+      return;                                                                  \
+    case INTSXP:                                                               \
+      if (i < 0 || XLENGTH(vec) <= i) {                                        \
+        break;                                                                 \
+      }                                                                        \
+      *res = INT_TO_VAL(INTEGER_ELT(vec, i));                                  \
+      return;                                                                  \
+    case LGLSXP:                                                               \
+      if (i < 0 || XLENGTH(vec) <= i) {                                        \
+        break;                                                                 \
+      }                                                                        \
+      *res = LGL_TO_VAL(LOGICAL_ELT(vec, i));                                  \
+      return;                                                                  \
+    case CPLXSXP:                                                              \
+      if (i < 0 || XLENGTH(vec) <= i) {                                        \
+        break;                                                                 \
+      }                                                                        \
+      *res = SXP_TO_VAL(Rf_ScalarComplex(COMPLEX_ELT(vec, i)));                \
+      return;                                                                  \
+    case RAWSXP:                                                               \
+      if (i < 0 || XLENGTH(vec) <= i) {                                        \
+        break;                                                                 \
+      }                                                                        \
+      *res = SXP_TO_VAL(Rf_ScalarRaw(RAW(vec)[i]));                            \
+      return;                                                                  \
+    case VECSXP:                                                               \
+      if (i < 0 || XLENGTH(vec) <= i) {                                        \
+        break;                                                                 \
+      }                                                                        \
+      SEXP elt = VECTOR_ELT(vec, i);                                           \
+      RAISE_NAMED(elt, NAMED(vec));                                            \
+      if (subset2) {                                                           \
+        *res = SXP_TO_VAL(elt);                                                \
+      } else {                                                                 \
+        SEXP v = Rf_allocVector(VECSXP, 1);                                    \
+        SET_VECTOR_ELT(v, 0, elt);                                             \
+        *res = SXP_TO_VAL(v);                                                  \
+      }                                                                        \
+      return;                                                                  \
+    }                                                                          \
+  } while (0)
 
 #define MAYBE_MISSING_ARGUMENT_ERROR(symbol, keepmiss, rho)                    \
   do {                                                                         \
