@@ -239,10 +239,6 @@ public class BC2CCompilerTest {
         snapshot.verify("x <- matrix(1L:6L, nrow=2); x[1,2] <- 42L; x", fastSubassign());
         snapshot.verify("x <- matrix(1L:6L, nrow=2); x[1,2] <- 42; x", x -> assertEquals(x.pc().slowSubassign(), 1));
         snapshot.verify("x <- data.frame(a=c(1,2), b=c(3,4)); x[1,2] <- 42; x", x -> assertEquals(x.pc().dispatchedSubassign(), 1));
-    }
-
-    @Test
-    public void testMatsubassign2(BC2CSnapshot snapshot) {
         snapshot.verify("x <- matrix(1L:6L, nrow=2); x[[1,2]] <- 42L; x", fastSubset());
         snapshot.verify("x <- data.frame(a=c(1,2), b=c(3,4)); x[[1,2]] <- 42; x");
     }
@@ -258,16 +254,16 @@ public class BC2CCompilerTest {
     }
 
     @Test
-    public void testSubAssignN(BC2CSnapshot snapshot) {
-        snapshot.verify("x <- c(1,2,3); x[1] <- 2; x");
-        snapshot.verify("x <- list(1,2,3); x[[1]] <- x; x");
+    public void testVecsubassign(BC2CSnapshot snapshot) {
+        snapshot.verify("x <- c(1,2,3); x[1] <- 2; x", fastSubassign());
         snapshot.verify(
                 "x <- data.frame(a=1, b=2, row.names=NULL); x['a'] <- 42",
                 r -> assertEquals(r.pc().dispatchedSubassign(), 1));
+        snapshot.verify("x <- list(1,2,3); x[[1]] <- x; x", fastSubassign());
     }
 
     @Test
-    public void testSubAssign(BC2CSnapshot snapshot) {
+    public void testDfltSubassign(BC2CSnapshot snapshot) {
         snapshot.verify("x <- c(1,2,3); x[] <- 42; x");
         snapshot.verify("y <- c(1,2,3); y[[x=1]] <- 42; y");
         snapshot.verify(

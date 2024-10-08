@@ -159,21 +159,26 @@ static INLINE SEXP Rsh_get_dim_attr(SEXP v) {
         switch (VAL_TAG(rhs)) {                                                \
         case REALSXP:                                                          \
           REAL(vec)[i] = VAL_DBL(rhs);                                         \
+          SETTER_CLEAR_NAMED(vec);                                             \
           return;                                                              \
         case INTSXP:                                                           \
           REAL(vec)[i] = INTEGER_TO_REAL(VAL_INT(rhs));                        \
+          SETTER_CLEAR_NAMED(vec);                                             \
           return;                                                              \
         case LGLSXP:                                                           \
           REAL(vec)[i] = LOGICAL_TO_REAL(VAL_INT(rhs));                        \
+          SETTER_CLEAR_NAMED(vec);                                             \
           return;                                                              \
         }                                                                      \
       } else if (VAL_TAG(rhs) == TYPEOF(vec)) {                                \
         switch (VAL_TAG(rhs)) {                                                \
         case INTSXP:                                                           \
           INTEGER(vec)[i] = VAL_INT(rhs);                                      \
+          SETTER_CLEAR_NAMED(vec);                                             \
           return;                                                              \
         case LGLSXP:                                                           \
           LOGICAL(vec)[i] = VAL_INT(rhs);                                      \
+          SETTER_CLEAR_NAMED(vec);                                             \
           return;                                                              \
         }                                                                      \
       } else if (subassign2 && TYPEOF(vec) == VECSXP) {                        \
