@@ -235,6 +235,19 @@ public class BC2CCompilerTest {
     }
 
     @Test
+    public void testMatsubassign(BC2CSnapshot snapshot) {
+        snapshot.verify("x <- matrix(1L:6L, nrow=2); x[1,2] <- 42L; x", fastSubassign());
+        snapshot.verify("x <- matrix(1L:6L, nrow=2); x[1,2] <- 42; x", x -> assertEquals(x.pc().slowSubassign(), 1));
+        snapshot.verify("x <- data.frame(a=c(1,2), b=c(3,4)); x[1,2] <- 42; x", x -> assertEquals(x.pc().dispatchedSubassign(), 1));
+    }
+
+    @Test
+    public void testMatsubassign2(BC2CSnapshot snapshot) {
+        snapshot.verify("x <- matrix(1L:6L, nrow=2); x[[1,2]] <- 42L; x", fastSubset());
+        snapshot.verify("x <- data.frame(a=c(1,2), b=c(3,4)); x[[1,2]] <- 42; x");
+    }
+
+    @Test
     public void testSubset(BC2CSnapshot snapshot) {
         snapshot.verify("x <- c(1,2,3); x[]");
     }
@@ -326,6 +339,13 @@ public class BC2CCompilerTest {
         return (r) -> {
             assertEquals(0, r.pc().slowSubset(), "Expected fast subset");
             assertEquals(0, r.pc().dispatchedSubset(), "Expected no dispatched subset");
+        };
+    }
+
+    private TestResultCheck fastSubassign() {
+        return (r) -> {
+            assertEquals(0, r.pc().slowSubassign(), "Expected fast subassign");
+            assertEquals(0, r.pc().dispatchedSubassign(), "Expected no dispatched subassign");
         };
     }
 

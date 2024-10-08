@@ -151,6 +151,45 @@ static INLINE SEXP Rsh_get_dim_attr(SEXP v) {
     }                                                                          \
   } while (0)
 
+#define DO_FAST_SETVECELT(/* SEXP */ vec, /* R_xlen_t */ i, /* Value */ rhs,   \
+                          /* Rboolean */ subassign2)                           \
+  do {                                                                         \
+    if (i >= 0 && XLENGTH(vec) > i) {                                          \
+      if (TYPEOF(vec) == REALSXP) {                                            \
+        switch (VAL_TAG(rhs)) {                                                \
+        case REALSXP:                                                          \
+          REAL(vec)[i] = VAL_DBL(rhs);                                         \
+          return;                                                              \
+        case INTSXP:                                                           \
+          REAL(vec)[i] = INTEGER_TO_REAL(VAL_INT(rhs));                        \
+          return;                                                              \
+        case LGLSXP:                                                           \
+          REAL(vec)[i] = LOGICAL_TO_REAL(VAL_INT(rhs));                        \
+          return;                                                              \
+        }                                                                      \
+      } else if (VAL_TAG(rhs) == TYPEOF(vec)) {                                \
+        switch (VAL_TAG(rhs)) {                                                \
+        case INTSXP:                                                           \
+          INTEGER(vec)[i] = VAL_INT(rhs);                                      \
+          return;                                                              \
+        case LGLSXP:                                                           \
+          LOGICAL(vec)[i] = VAL_INT(rhs);                                      \
+          return;                                                              \
+        }                                                                      \
+      } else if (subassign2 && TYPEOF(vec) == VECSXP) {                        \
+        SEXP rhs_sxp = val_as_sexp(rhs);                                       \
+        if (rhs_sxp != R_NilValue) {                                           \
+          if (MAYBE_REFERENCED(rhs_sxp) && VECTOR_ELT(vec, i) != rhs_sxp) {    \
+            R_FixupRHS(vec, rhs_sxp);                                          \
+          }                                                                    \
+          SET_VECTOR_ELT(vec, i, rhs_sxp);                                     \
+          SETTER_CLEAR_NAMED(vec);                                             \
+          return;                                                              \
+        }                                                                      \
+      }                                                                        \
+    }                                                                          \
+  } while (0)
+
 #define MAYBE_MISSING_ARGUMENT_ERROR(symbol, keepmiss, rho)                    \
   do {                                                                         \
     if (!keepmiss)                                                             \

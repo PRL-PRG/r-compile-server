@@ -55,11 +55,13 @@ typedef struct {
   u32 slow_unary;
   // number of times the slow path of Rsh_relop has been taken
   u32 slow_relop;
-  // number of times the slow path of Rsh_vec_subset has been taken
+  // number of times the slow path of Rsh_*_subset has been taken
   u32 slow_subset;
-  // number of times the subset operation dispatched
+  // number of times the slow path of Rsh_*_subassign has been taken
+  u32 slow_subassign;
+  // number of times the Rsh_*_subset operation dispatched
   u32 dispatched_subset;
-  // number of times the subassign operation dispatched
+  // number of times the Rsh_*_subassign operation dispatched
   u32 dispatched_subassign;
 } Rsh_PerfCounters;
 
@@ -1359,12 +1361,12 @@ static INLINE void Rsh_vec_subset(Value *x, Value i, SEXP call, SEXP rho,
 }
 
 #define Rsh_MatSubset(sx, si, sj, call, rho)                                   \
-  Rsh_math_subset(sx, si, sj, call, rho, FALSE)
+  Rsh_mat_subset(sx, si, sj, call, rho, FALSE)
 #define Rsh_MatSubset2(sx, si, sj, call, rho)                                  \
-  Rsh_math_subset(sx, si, sj, call, rho, TRUE)
+  Rsh_mat_subset(sx, si, sj, call, rho, TRUE)
 
-static INLINE void Rsh_math_subset(Value *sx, Value si, Value sj, SEXP call,
-                                   SEXP rho, Rboolean subset2) {
+static INLINE void Rsh_mat_subset(Value *sx, Value si, Value sj, SEXP call,
+                                  SEXP rho, Rboolean subset2) {
   SEXP mat = val_as_sexp(*sx);
 
   if (subset2 || FAST_VECELT_OK(mat)) {
@@ -1544,6 +1546,11 @@ static INLINE Rboolean Rsh_start_subassign_dispatch_n(const char *generic,
   return FALSE;
 }
 
+#define Rsh_VecSubassign(x, rhs, i, call, rho)                                 \
+  *x = Rsh_vec_subassign(*x, rhs, i, call, rho, FALSE)
+#define Rsh_VecSubassign2(x, rhs, i, call, rho)                                \
+  *x = Rsh_vec_subassign(*x, rhs, i, call, rho, TRUE)
+
 static INLINE Value Rsh_vec_subassign(Value x, Value rhs, Value i, SEXP call,
                                       SEXP rho, Rboolean sub2) {
   SEXP vec = VAL_SXP(x);
@@ -1637,6 +1644,7 @@ static INLINE Value Rsh_vec_subassign(Value x, Value rhs, Value i, SEXP call,
     }
   }
 
+  RSH_PC_INC(slow_subassign);
   SEXP idx = val_as_sexp(i);
   SEXP value = val_as_sexp(rhs);
   SEXP args;
@@ -1655,10 +1663,58 @@ static INLINE Value Rsh_vec_subassign(Value x, Value rhs, Value i, SEXP call,
   return SXP_TO_VAL(vec);
 }
 
-#define Rsh_VecSubassign(x, rhs, i, call, rho)                                 \
-  *x = Rsh_vec_subassign(*x, rhs, i, call, rho, FALSE)
-#define Rsh_VecSubassign2(x, rhs, i, call, rho)                                \
-  *x = Rsh_vec_subassign(*x, rhs, i, call, rho, TRUE)
+#define Rsh_MatSubassign(sx, rhs, si, sj, call, rho)                           \
+  Rsh_mat_subassign(sx, rhs, si, sj, call, rho, FALSE)
+#define Rsh_MatSubassign2(sx, rhs, si, sj, call, rho)                          \
+  Rsh_mat_subassign(sx, rhs, si, sj, call, rho, TRUE)
+
+static INLINE void Rsh_mat_subassign(Value *sx, Value rhs, Value si, Value sj,
+                                     SEXP call, SEXP rho, Rboolean subassign2) {
+  SEXP mat = val_as_sexp(*sx);
+
+  if (MAYBE_SHARED(mat)) {
+    mat = Rf_shallow_duplicate(mat);
+    *sx = SXP_TO_VAL(mat);
+  }
+
+  SEXP dim = Rsh_get_dim_attr(mat);
+
+  if (dim != R_NilValue) {
+    R_xlen_t i = as_index(si);
+    R_xlen_t j = as_index(sj);
+    R_xlen_t nrow = INTEGER(dim)[0];
+    R_xlen_t ncol = INTEGER(dim)[1];
+    if (i > 0 && j > 0 && i <= nrow && j <= ncol) {
+      R_xlen_t k = i - 1 + nrow * (j - 1);
+      DO_FAST_SETVECELT(mat, k, rhs, subassign2);
+    }
+  }
+
+  // slow path!
+  RSH_PC_INC(slow_subassign);
+
+  SEXP value = val_as_sexp(rhs);
+  SEXP idx = val_as_sexp(si);
+  SEXP jdx = val_as_sexp(sj);
+
+  SEXP args;
+  args = CONS_NR(value, R_NilValue);
+  SET_TAG(args, Rsh_ValueSym);
+  args = CONS_NR(jdx, args);
+  args = CONS_NR(idx, args);
+  args = CONS_NR(mat, args);
+  PROTECT(args);
+
+  MARK_ASSIGNMENT_CALL(call);
+  if (subassign2) {
+    mat = do_subassign2_dflt(call, Rsh_Subassign2Sym, args, rho);
+  } else {
+    mat = do_subassign_dflt(call, Rsh_SubassignSym, args, rho);
+  }
+  UNPROTECT(1);
+
+  *sx = SXP_TO_VAL(mat);
+}
 
 static INLINE void Rsh_GetIntlBuiltin(Value *call, Value *args_head,
                                       Value *args_tail, SEXP symbol) {

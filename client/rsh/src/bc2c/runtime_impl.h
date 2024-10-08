@@ -16,6 +16,7 @@ SEXP Rsh_pc_get(void) {
   SET_STRING_ELT(names, i++, mkChar("slow_unary"));
   SET_STRING_ELT(names, i++, mkChar("slow_relop"));
   SET_STRING_ELT(names, i++, mkChar("slow_subset"));
+  SET_STRING_ELT(names, i++, mkChar("slow_subassign"));
   SET_STRING_ELT(names, i++, mkChar("dispatched_subset"));
   SET_STRING_ELT(names, i++, mkChar("dispatched_subassign"));
   setAttrib(pc, R_NamesSymbol, names);
