@@ -1358,6 +1358,50 @@ static INLINE void Rsh_vec_subset(Value *x, Value i, SEXP call, SEXP rho,
   *x = sexp_as_val(value);
 }
 
+#define Rsh_MatSubset(sx, si, sj, call, rho)                                   \
+  Rsh_math_subset(sx, si, sj, call, rho, FALSE)
+#define Rsh_MatSubset2(sx, si, sj, call, rho)                                  \
+  Rsh_math_subset(sx, si, sj, call, rho, TRUE)
+
+static INLINE void Rsh_math_subset(Value *sx, Value si, Value sj, SEXP call,
+                                   SEXP rho, Rboolean subset2) {
+  SEXP mat = val_as_sexp(*sx);
+
+  if (subset2 || FAST_VECELT_OK(mat)) {
+    SEXP dim = Rsh_get_dim_attr(mat);
+    if (dim != R_NilValue) {
+      R_xlen_t i = as_index(si);
+      R_xlen_t j = as_index(sj);
+      R_xlen_t nrow = INTEGER(dim)[0];
+      R_xlen_t ncol = INTEGER(dim)[1];
+      if (i > 0 && j > 0 && i <= nrow && j <= ncol) {
+        R_xlen_t k = i - 1 + nrow * (j - 1);
+        DO_FAST_VECELT(mat, k, subset2, sx);
+      }
+    }
+  }
+
+  // slow path!
+  RSH_PC_INC(slow_subset);
+
+  SEXP idx = val_as_sexp(si);
+  SEXP jdx = val_as_sexp(sj);
+
+  SEXP args;
+  args = CONS_NR(jdx, R_NilValue);
+  args = CONS_NR(idx, args);
+  args = CONS_NR(mat, args);
+  PROTECT(args);
+
+  SEXP value;
+  if (subset2)
+    value = do_subset2_dflt(call, Rsh_Subset2Sym, args, rho);
+  else
+    value = do_subset_dflt(call, Rsh_SubsetSym, args, rho);
+  UNPROTECT(1);
+  *sx = sexp_as_val(value);
+}
+
 static INLINE void Rsh_StartAssign(Value *rhs, Value *lhs_cell, Value *lhs_val,
                                    Value *rhs_dup, SEXP symbol, BCell *cache,
                                    SEXP rho) {
@@ -1786,48 +1830,6 @@ static INLINE void Rsh_dflt_subset_dispatch(CCODE fun, SEXP symbol,
   SEXP value_sxp = fun(call_sxp, symbol, args, rho);
   *value = sexp_as_val(value_sxp);
   R_Visible = TRUE;
-}
-
-#define Rsh_MatSubset(sx, si, sj, call, rho)                                   \
-  Rsh_math_subset(sx, si, sj, call, rho, FALSE)
-#define Rsh_MatSubset2(sx, si, sj, call, rho)                                  \
-  Rsh_math_subset(sx, si, sj, call, rho, TRUE)
-
-static INLINE void Rsh_math_subset(Value *sx, Value si, Value sj, SEXP call,
-                                   SEXP rho, Rboolean subset2) {
-  SEXP mat = val_as_sexp(*sx);
-
-  if (subset2 || FAST_VECELT_OK(mat)) {
-    SEXP dim = Rsh_get_dim_attr(mat);
-    if (dim != R_NilValue) {
-      R_xlen_t i = as_index(si);
-      R_xlen_t j = as_index(sj);
-      R_xlen_t nrow = INTEGER(dim)[0];
-      R_xlen_t ncol = INTEGER(dim)[1];
-      if (i > 0 && j > 0 && i <= nrow && j <= ncol) {
-        R_xlen_t k = i - 1 + nrow * (j - 1);
-        DO_FAST_VECELT(mat, k, subset2, sx);
-      }
-    }
-  }
-
-  // slow path!
-  RSH_PC_INC(slow_subset);
-
-  SEXP idx = val_as_sexp(si);
-  SEXP jdx = val_as_sexp(sj);
-  SEXP args;
-  args = CONS_NR(jdx, R_NilValue);
-  args = CONS_NR(idx, args);
-  args = CONS_NR(mat, args);
-  PROTECT(args);
-  SEXP value;
-  if (subset2)
-    value = do_subset2_dflt(call, Rsh_Subset2Sym, args, rho);
-  else
-    value = do_subset_dflt(call, Rsh_SubsetSym, args, rho);
-  UNPROTECT(1);
-  *sx = sexp_as_val(value);
 }
 
 #endif // RUNTIME_H
