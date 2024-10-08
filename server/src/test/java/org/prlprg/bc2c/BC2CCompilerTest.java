@@ -251,6 +251,34 @@ public class BC2CCompilerTest {
     }
 
     @Test
+    public void testSuperAssign(BC2CSnapshot snapshot) {
+        snapshot.verify("""
+                  x <- c(1,2)
+                  g <- function() {
+                    x <<- 42
+                  }
+                  g()
+                  x
+                """);
+        snapshot.verify("""
+                  x <- c(1,2)
+                  g <- function() {
+                    x[] <<- 42
+                  }
+                  g()
+                  x
+                """);
+        snapshot.verify("""
+                  y <- c(1,2)
+                  g <- function() {
+                    y[[x=1]] <<- 42
+                  }
+                  g()
+                  y
+                """);
+    }
+
+    @Test
     public void testGetIntBuiltin(BC2CSnapshot snapshot) {
         snapshot.verify("vector(length=2)");
     }
