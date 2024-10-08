@@ -1239,27 +1239,57 @@ static INLINE void Rsh_Dollar(Value *x_res, SEXP call, SEXP symbol, SEXP rho) {
   *res = sexp_as_val(value_sxp);
 }
 
+#define Rsh_StartSubsetN(value, call, rho)                                     \
+  Rsh_start_subset_dispatch_n("[", value, call, rho)
+#define Rsh_StartSubset2N(value, call, rho)                                    \
+  Rsh_start_subset_dispatch_n("[[", value, call, rho)
+
 static INLINE Rboolean Rsh_start_subset_dispatch_n(const char *generic,
-                                                   Value *v_res, SEXP call,
+                                                   Value *value, SEXP call,
                                                    SEXP rho) {
-  Value *res = v_res;
-  Value value = *v_res;
-  SEXP value_sxp = val_as_sexp(value);
+  SEXP value_sxp = val_as_sexp(*value);
   if (isObject(value_sxp) &&
       tryDispatch(generic, call, value_sxp, rho, &value_sxp)) {
     RSH_PC_INC(dispatched_subset);
-    *res = sexp_as_val(value_sxp);
-    // FIXME: CHECK_SIGINT();
+    RSH_CHECK_SIGINT();
+    *value = sexp_as_val(value_sxp);
     return TRUE;
   }
 
   return FALSE;
 }
 
-#define Rsh_StartSubsetN(v_res, call, rho)                                     \
-  Rsh_start_subset_dispatch_n("[", v_res, call, rho)
-#define Rsh_StartSubset2N(v_res, call, rho)                                    \
-  Rsh_start_subset_dispatch_n("[[", v_res, call, rho)
+#define Rsh_StartSubset(value, call_val, args_head, args_tail, call, rho)      \
+  Rsh_start_subset_dispatch("[", value, call_val, args_head, args_tail, call,  \
+                            rho)
+#define Rsh_StartSubset2(value, call_val, args_head, args_tail, call, rho)     \
+  Rsh_start_subset_dispatch("[[", value, call_val, args_head, args_tail, call, \
+                            rho)
+
+static INLINE Rboolean Rsh_start_subset_dispatch(const char *generic,
+                                                 Value *value, Value *call_val,
+                                                 Value *args_head,
+                                                 Value *args_tail, SEXP call,
+                                                 SEXP rho) {
+  SEXP value_sxp = val_as_sexp(*value);
+  if (isObject(value_sxp) &&
+      tryDispatch(generic, call, value_sxp, rho, &value_sxp)) {
+    RSH_PC_INC(dispatched_subset);
+    RSH_CHECK_SIGINT();
+    *value = sexp_as_val(value_sxp);
+    return TRUE;
+  } else {
+    SEXP tag = TAG(CDR(call));
+    *call_val = SXP_TO_VAL(call);
+    // FIXME: these is a discrepancy between this code and what GNU-R does:
+    //  In GNUR at this point we push additional R_NilValue onto the stack
+    //  I just don't see why, or regardless why, who does pops it out?
+    INIT_CALL_FRAME(args_head, args_tail);
+    RSH_LIST_APPEND_EX(*args_head, *args_tail, *value, FALSE);
+    RSH_SET_TAG(*args_tail, SXP_TO_VAL(tag));
+    return FALSE;
+  }
+}
 
 static INLINE R_xlen_t as_index(Value v) {
   switch (VAL_TAG(v)) {
@@ -1457,6 +1487,7 @@ static INLINE Rboolean Rsh_start_subassign_dispatch_n(const char *generic,
     SEXP value = NULL;
     if (tryAssignDispatch(generic, call, lhs_sxp, rhs_sxp, rho, &value)) {
       RSH_PC_INC(dispatched_subassign);
+      RSH_CHECK_SIGINT();
       *lhs_res = sexp_as_val(value);
       return TRUE;
     }
@@ -1693,6 +1724,7 @@ static INLINE Rboolean Rsh_start_subassign_dispatch(
   if (isObject(lhs_sxp) && tryAssignDispatch(generic, call, lhs_sxp,
                                              val_as_sexp(*rhs), rho, &value)) {
     RSH_PC_INC(dispatched_subassign);
+    RSH_CHECK_SIGINT();
     *lhs = sexp_as_val(value);
     return TRUE;
   } else {
@@ -1733,4 +1765,22 @@ static INLINE void Rsh_dflt_assign_dispatch(CCODE fun, SEXP symbol, Value *lhs,
   *lhs = sexp_as_val(value);
 }
 
+#define Rsh_DfltSubset(value, call_val, args_head, args_tail, rho)             \
+  Rsh_dflt_subset_dispatch(do_subset_dflt, Rsh_SubassignSym, value, call_val,  \
+                           args_head, args_tail, rho)
+#define Rsh_DfltSubset2(value, call_val, args_head, args_tail, rho)            \
+  Rsh_dflt_subset_dispatch(do_subset2_dflt, Rsh_Subassign2Sym, value,          \
+                           call_val, args_head, args_tail, rho)
+
+static INLINE void Rsh_dflt_subset_dispatch(CCODE fun, SEXP symbol,
+                                            Value *value, Value call_val,
+                                            Value args_head, Value args_tail,
+                                            SEXP rho) {
+  SEXP call_sxp = val_as_sexp(call_val);
+  SEXP args = val_as_sexp(args_head);
+  RSH_CALL_ARGS_DECREMENT_LINKS(args);
+  SEXP value_sxp = fun(call_sxp, symbol, args, rho);
+  *value = sexp_as_val(value_sxp);
+  R_Visible = TRUE;
+}
 #endif // RUNTIME_H

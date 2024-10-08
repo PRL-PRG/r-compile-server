@@ -196,3 +196,6 @@ static INLINE SEXP relop(SEXP call, SEXP op, SEXP opsym, SEXP x, SEXP y,
       INCREMENT_LINKS(CAR(__cell__));                                          \
   } while (0)
 #endif
+
+// FIXME: implement signal checking
+#define RSH_CHECK_SIGINT()
