@@ -1831,4 +1831,98 @@ static INLINE void Rsh_dflt_subset_dispatch(CCODE fun, SEXP symbol,
   *value = sexp_as_val(value_sxp);
   R_Visible = TRUE;
 }
+
+#define DO_FAST_VECELT(/* SEXP */ vec, /* R_xlen_t */ i,                       \
+                       /* Rboolean */ subset2, /* Value* */ res)               \
+  do {                                                                         \
+    switch (TYPEOF(vec)) {                                                     \
+    case REALSXP:                                                              \
+      if (i < 0 || XLENGTH(vec) <= i) {                                        \
+        break;                                                                 \
+      }                                                                        \
+      *res = DBL_TO_VAL(REAL_ELT(vec, i));                                     \
+      return;                                                                  \
+    case INTSXP:                                                               \
+      if (i < 0 || XLENGTH(vec) <= i) {                                        \
+        break;                                                                 \
+      }                                                                        \
+      *res = INT_TO_VAL(INTEGER_ELT(vec, i));                                  \
+      return;                                                                  \
+    case LGLSXP:                                                               \
+      if (i < 0 || XLENGTH(vec) <= i) {                                        \
+        break;                                                                 \
+      }                                                                        \
+      *res = LGL_TO_VAL(LOGICAL_ELT(vec, i));                                  \
+      return;                                                                  \
+    case CPLXSXP:                                                              \
+      if (i < 0 || XLENGTH(vec) <= i) {                                        \
+        break;                                                                 \
+      }                                                                        \
+      *res = SXP_TO_VAL(Rf_ScalarComplex(COMPLEX_ELT(vec, i)));                \
+      return;                                                                  \
+    case RAWSXP:                                                               \
+      if (i < 0 || XLENGTH(vec) <= i) {                                        \
+        break;                                                                 \
+      }                                                                        \
+      *res = SXP_TO_VAL(Rf_ScalarRaw(RAW(vec)[i]));                            \
+      return;                                                                  \
+    case VECSXP:                                                               \
+      if (i < 0 || XLENGTH(vec) <= i) {                                        \
+        break;                                                                 \
+      }                                                                        \
+      SEXP elt = VECTOR_ELT(vec, i);                                           \
+      RAISE_NAMED(elt, NAMED(vec));                                            \
+      if (subset2) {                                                           \
+        *res = SXP_TO_VAL(elt);                                                \
+      } else {                                                                 \
+        SEXP v = Rf_allocVector(VECSXP, 1);                                    \
+        SET_VECTOR_ELT(v, 0, elt);                                             \
+        *res = SXP_TO_VAL(v);                                                  \
+      }                                                                        \
+      return;                                                                  \
+    }                                                                          \
+  } while (0)
+
+#define Rsh_MatSubset(sx, si, sj, call, rho)                                   \
+  Rsh_math_subset(sx, si, sj, call, rho, FALSE)
+#define Rsh_MatSubset2(sx, si, sj, call, rho)                                  \
+  Rsh_math_subset(sx, si, sj, call, rho, TRUE)
+
+static INLINE void Rsh_math_subset(Value *sx, Value si, Value sj, SEXP call,
+                                   SEXP rho, Rboolean subset2) {
+  SEXP mat = val_as_sexp(*sx);
+
+  if (subset2 || FAST_VECELT_OK(mat)) {
+    SEXP dim = Rsh_get_dim_attr(mat);
+    if (dim != R_NilValue) {
+      R_xlen_t i = as_index(si);
+      R_xlen_t j = as_index(sj);
+      R_xlen_t nrow = INTEGER(dim)[0];
+      R_xlen_t ncol = INTEGER(dim)[1];
+      if (i > 0 && j > 0 && i <= nrow && j <= ncol) {
+        R_xlen_t k = i - 1 + nrow * (j - 1);
+        DO_FAST_VECELT(mat, k, subset2, sx);
+      }
+    }
+  }
+
+  // slow path!
+  RSH_PC_INC(slow_subset);
+
+  SEXP idx = val_as_sexp(si);
+  SEXP jdx = val_as_sexp(sj);
+  SEXP args;
+  args = CONS_NR(jdx, R_NilValue);
+  args = CONS_NR(idx, args);
+  args = CONS_NR(mat, args);
+  PROTECT(args);
+  SEXP value;
+  if (subset2)
+    value = do_subset2_dflt(call, Rsh_Subset2Sym, args, rho);
+  else
+    value = do_subset_dflt(call, Rsh_SubsetSym, args, rho);
+  UNPROTECT(1);
+  *sx = sexp_as_val(value);
+}
+
 #endif // RUNTIME_H
