@@ -73,7 +73,25 @@ static INLINE SEXP Rsh_get_dim_attr(SEXP v) {
   SEXP attr = ATTRIB(v);
   SEXP dim =
       TAG(attr) == R_DimSymbol ? CAR(attr) : Rf_getAttrib(v, R_DimSymbol);
-  if (TYPEOF(dim) == INTSXP && LENGTH(dim) == 2) {
+  if (TYPEOF(dim) == INTSXP) {
+    return dim;
+  } else {
+    return R_NilValue;
+  }
+}
+
+static INLINE SEXP Rsh_get_mat_dim_attr(SEXP v) {
+  SEXP dim = Rsh_get_dim_attr(v);
+  if (LENGTH(dim) == 2) {
+    return dim;
+  } else {
+    return R_NilValue;
+  }
+}
+
+static INLINE SEXP Rsh_get_array_dim_attr(SEXP v) {
+  SEXP dim = Rsh_get_dim_attr(v);
+  if (LENGTH(dim) > 0) {
     return dim;
   } else {
     return R_NilValue;

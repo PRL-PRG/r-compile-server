@@ -3,6 +3,7 @@ package org.prlprg.bc2c;
 import org.prlprg.bc.*;
 import org.prlprg.sexp.*;
 
+import javax.annotation.Nullable;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -203,6 +204,10 @@ class ClosureCompiler {
                     case BcInstr.GetBuiltin(var idx) ->
                             builder.args("\"" + bc.consts().get(idx).name() + "\"").compileStmt();
                     case BcInstr.MakeClosure(var idx) -> compileMakeClosure(builder, idx);
+                    case BcInstr.SubsetN(var call, var rank) ->
+                            builder.args(constantSXP(call)).pop(1 + rank).useStackAsArray().compileStmt();
+                    case BcInstr.Subset2N(var call, var rank) ->
+                            builder.args(constantSXP(call)).pop(1 + rank).useStackAsArray().compileStmt();
                     default -> {
                         if (instr.label().orElse(null) instanceof BcLabel l) {
                             yield "if (%s) {\ngoto %s;\n}".formatted(builder.compile(), label(l));
@@ -287,6 +292,8 @@ class ClosureCompiler {
                     BcOp.DFLTSUBASSIGN2,
                     BcOp.DFLTSUBSET,
                     BcOp.DFLTSUBSET2,
+                    BcOp.SUBSET_N,
+                    BcOp.SUBSET2_N,
                     BcOp.MATSUBSET,
                     BcOp.MATSUBSET2,
                     BcOp.MATSUBASSIGN,
@@ -341,6 +348,9 @@ class ClosureCompiler {
         private final String fun;
         private List<String> args = new ArrayList<>();
         private boolean needsRho;
+        private int push;
+        private int pop;
+        private boolean stackAsArray;
 
         public InstrBuilder(BcInstr instr) {
             this.instr = instr;
@@ -351,6 +361,8 @@ class ClosureCompiler {
                 this.needsRho = true;
             }
             this.fun = "Rsh_" + instr.getClass().getSimpleName();
+            this.pop = instr.pop();
+            this.push = instr.push();
         }
 
         public InstrBuilder args(String... args) {
@@ -358,20 +370,31 @@ class ClosureCompiler {
             return this;
         }
 
-        public String compile() {
-            var args = new ArrayList<String>(Math.max(instr.pop(), instr.push()) + this.args.size());
+        public InstrBuilder push(int push) {
+            this.push = push;
+            return this;
+        }
 
-            // play the stack effects
-            for (int i = 0; i < instr.pop(); i++) {
-                args.add(0, stack.pop());
-            }
-            for (int i = 0; i < instr.push(); i++) {
-                var e = stack.push();
-                if (args.size() < i + 1) {
-                    args.add(e);
-                } else {
-                    args.set(i, e);
-                }
+        public InstrBuilder pop(int pop) {
+            this.pop = pop;
+            return this;
+        }
+
+        public String compile() {
+            var args = new ArrayList<String>(Math.max(pop, push) + this.args.size());
+
+            // TODO: maybe it will be better to represent stack as an array from the beginning
+            //  and just keep track of the top of the stack
+            if (stackAsArray) {
+                var top = stack.top();
+                replayStackEffect();
+                var bottom = stack.top();
+                var s = IntStream.range(bottom, top + 1).mapToObj("&_%d"::formatted).collect(Collectors.toList());
+                var arg = "((Value*[]){" + String.join(",", s) + "})";
+                args.add(arg);
+                args.add(String.valueOf(s.size()));
+            } else {
+                args.addAll(replayStackEffect());
             }
 
             args.addAll(this.args);
@@ -383,12 +406,39 @@ class ClosureCompiler {
             return fun + "(" + String.join(", ", args) + ")";
         }
 
+        public List<String> replayStackEffect() {
+            var args = new ArrayList<String>(Math.max(pop, push) + this.args.size());
+            // play the stack effects
+            for (int i = 0; i < pop; i++) {
+                args.addFirst(stack.pop());
+            }
+            for (int i = 0; i < push; i++) {
+                var e = stack.push();
+                if (args.size() < i + 1) {
+                    args.add(e);
+                } else {
+                    args.set(i, e);
+                }
+            }
+
+            return args;
+        }
+
         public String compileStmt() {
             return this.compile() + ";";
         }
+
+        public InstrBuilder useStackAsArray() {
+            this.stackAsArray = true;
+            return this;
+        }
     }
 
-    private String constantSXP(ConstPool.Idx<? extends SEXP> idx) {
+    private String constantSXP(@Nullable ConstPool.Idx<? extends SEXP> idx) {
+        if (idx == null) {
+            return "R_NilValue";
+        }
+
         var c = getConstant(idx);
         return constantSXP(c);
     }
