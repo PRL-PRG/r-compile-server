@@ -346,6 +346,17 @@ public class BC2CCompilerTest {
         snapshot.verify("x <- data.frame(a=1); colnames(x) <- 'b'; x");
     }
 
+    @Test
+    public void testGetterCalls(BC2CSnapshot snapshot) {
+        // test SETTER_CALL with builtin
+        snapshot.verify("x <- 1:3; names(x)[3] <- 'a'; x");
+//        // test SETTER_CALL with special
+//        snapshot.verify(
+//                "setClass('C', slots = list(x = 'numeric')); o <- new('C', x = 1); o@x <- 42; str(o)");
+//        // test SETTER_CALL with closure
+//        snapshot.verify("x <- data.frame(a=1); colnames(x) <- 'b'; x");
+    }
+
     private TestResultCheck fastArith() {
         return noSlow(PerformanceCounters::slowArith, "Expected fast arithmetics");
     }

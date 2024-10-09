@@ -262,6 +262,7 @@ static INLINE Value sexp_as_val(SEXP s) {
 #define VAL_MAYBE_REFERENCED(v) ((v) & ((u64)1 << 49))
 #define VAL_SET_MAYBE_REFERENCED(v) ((v) |= ((u64)1 << 49))
 #define VAL_CLEAR_MAYBE_REFERENCED(v) ((v) &= ~((u64)1 << 49))
+#define VAL_MAYBE_SHARED(v) (VAL_IS_SXP(v) && (REFCNT(VAL_SXP(v)) > 1))
 
 // BINDING CELLS (bcell) implementation
 // ------------------------------------
@@ -1961,6 +1962,60 @@ static INLINE void Rsh_do_subassign_n(Value *stack[], int n, SEXP call,
   UNPROTECT(1);
 
   *sx = sexp_as_val(vec);
+}
+
+static INLINE void Rsh_GetterCall(Value *lhs, Value *fun, Value args_head,
+                                  Value args_tail, SEXP call, SEXP rho) {
+
+  SEXP lhs_sxp = val_as_sexp(*lhs);
+  SEXP fun_sxp = val_as_sexp(*fun);
+  SEXP args = val_as_sexp(args_head);
+
+  SEXP value;
+
+  switch (TYPEOF(fun_sxp)) {
+  case BUILTINSXP:
+    RSH_CALL_ARGS_DECREMENT_LINKS(args);
+    // replace first argument with LHS value
+    SETCAR(args, lhs_sxp);
+    // call the builtin
+    checkForMissings(args, call);
+    value = PRIMFUN(fun_sxp)(call, fun_sxp, args, rho);
+    break;
+  case SPECIALSXP: {
+    /* duplicate arguments and put into stack for GC protection */
+    args = PROTECT(Rf_duplicate(CDR(call)));
+    SEXP prom = R_mkEVPROMISE_NR(Rsh_TmpvalSym, lhs_sxp);
+    SETCAR(args, prom);
+    // call the special
+    value = PRIMFUN(fun_sxp)(call, fun_sxp, args, rho);
+    UNPROTECT(1);
+    break;
+  }
+  case CLOSXP: {
+    // unlike in SPECIALSXP case, we need to use a RC promise
+    SEXP prom = R_mkEVPROMISE(Rsh_TmpvalSym, lhs_sxp);
+    SETCAR(args, prom);
+    // call the closure
+    value = Rf_applyClosure(call, fun_sxp, args, rho, R_NilValue, TRUE);
+    break;
+  }
+  default:
+    Rf_error("bad function");
+  }
+
+  *fun = sexp_as_val(value);
+}
+
+static INLINE void Rsh_SpecialSwap(Value *s3, Value *s2, Value *s1) {
+  if (VAL_MAYBE_REFERENCED(*s1) &&
+      (VAL_MAYBE_SHARED(*s1) || VAL_MAYBE_SHARED(*s3))) {
+    *s1 = SXP_TO_VAL(Rf_shallow_duplicate(VAL_SXP(*s1)));
+  }
+
+  Value tmp = *s1;
+  *s1 = *s2;
+  *s2 = tmp;
 }
 
 #endif // RUNTIME_H

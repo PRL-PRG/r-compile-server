@@ -291,6 +291,8 @@ class ClosureCompiler {
                     BcOp.VECSUBASSIGN2,
                     BcOp.VECSUBASSIGN,
                     BcOp.SETTER_CALL,
+                    BcOp.GETTER_CALL,
+                    BcOp.SWAP,
                     BcOp.DOMISSING,
                     BcOp.DFLTSUBASSIGN,
                     BcOp.DFLTSUBASSIGN2,

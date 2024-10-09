@@ -955,6 +955,8 @@ public sealed interface BcInstr {
         }
     }
 
+    @NeedsRho
+    @StackEffect(pop = 4, push = 2)
     record GetterCall(ConstPool.Idx<LangSXP> ast) implements BcInstr {
         @Override
         public BcOp op() {
@@ -965,6 +967,7 @@ public sealed interface BcInstr {
     /**
      * See eval.c for why this isn't just a regular swap instruction.
      */
+    @StackEffect(pop = 3, push = 3)
     record SpecialSwap() implements BcInstr {
         @Override
         public BcOp op() {
