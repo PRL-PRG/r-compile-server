@@ -208,6 +208,10 @@ class ClosureCompiler {
                             builder.args(constantSXP(call)).pop(1 + rank).useStackAsArray().compileStmt();
                     case BcInstr.Subset2N(var call, var rank) ->
                             builder.args(constantSXP(call)).pop(1 + rank).useStackAsArray().compileStmt();
+                    case BcInstr.SubassignN(var call, var rank) ->
+                            builder.args(constantSXP(call)).pop(2 + rank).useStackAsArray().compileStmt();
+                    case BcInstr.Subassign2N(var call, var rank) ->
+                            builder.args(constantSXP(call)).pop(2 + rank).useStackAsArray().compileStmt();
                     default -> {
                         if (instr.label().orElse(null) instanceof BcLabel l) {
                             yield "if (%s) {\ngoto %s;\n}".formatted(builder.compile(), label(l));
@@ -290,6 +294,8 @@ class ClosureCompiler {
                     BcOp.DOMISSING,
                     BcOp.DFLTSUBASSIGN,
                     BcOp.DFLTSUBASSIGN2,
+                    BcOp.SUBASSIGN_N,
+                    BcOp.SUBASSIGN2_N,
                     BcOp.DFLTSUBSET,
                     BcOp.DFLTSUBSET2,
                     BcOp.SUBSET_N,

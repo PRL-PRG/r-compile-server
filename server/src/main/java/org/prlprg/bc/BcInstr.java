@@ -1140,6 +1140,18 @@ public sealed interface BcInstr {
         }
     }
 
+    ///
+    /// The SUBASSIGN_N instruction.
+    ///
+    /// Stack effect:
+    ///  - pops the vector and a variable number of elements from the stack determined by the value of [[n]] and rhs
+    ///  - pushes the result
+    ///
+    /// @param ast
+    /// @param n
+    ///
+    @NeedsRho
+    @StackEffect(push = 1)
     record SubassignN(@Nullable ConstPool.Idx<LangSXP> ast, int n) implements BcInstr {
         @Override
         public BcOp op() {
@@ -1147,6 +1159,18 @@ public sealed interface BcInstr {
         }
     }
 
+    ///
+    /// The SUBASSIGN2_N instruction.
+    ///
+    /// Stack effect:
+    ///  - pops the vector and a variable number of elements from the stack determined by the value of [[n]] and rhs
+    ///  - pushes the result
+    ///
+    /// @param ast
+    /// @param n
+    ///
+    @NeedsRho
+    @StackEffect(push = 1)
     record Subassign2N(@Nullable ConstPool.Idx<LangSXP> ast, int n) implements BcInstr {
         @Override
         public BcOp op() {

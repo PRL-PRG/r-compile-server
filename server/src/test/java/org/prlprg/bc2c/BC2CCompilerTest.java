@@ -254,21 +254,33 @@ public class BC2CCompilerTest {
     @Test
     public void testSubsetN(BC2CSnapshot snapshot) {
         snapshot.verify("a <- array(1:8, dim=c(2,2,2)); a[1,2,1]", fastSubset());
-        snapshot.verify("a <- structure(array(1:8, dim=c(2,2,2), class='a'); a[1,2,1]", slowSubset());
+        snapshot.verify("a <- structure(array(1:8, dim=c(2,2,2)), class='a'); a[1,2,1]", slowSubset());
     }
 
     @Test
     public void testSubset2N(BC2CSnapshot snapshot) {
         snapshot.verify("a <- array(1:8, dim=c(2,2,2)); a[[1,2,1]]", fastSubset());
-        snapshot.verify("a <- structure(array(1:8, dim=c(2,2,2), class='a'); a[[1,2,1]]", slowSubset());
+        snapshot.verify("a <- array(1:8, dim=c(2,2,2)); a[[1,2,TRUE]]", slowSubset());
+    }
+
+    @Test
+    public void testSubassignN(BC2CSnapshot snapshot) {
+        snapshot.verify("a <- array(1:8, dim=c(2,2,2)); a[1,2,1] <- 42L; a", fastSubassign());
+        snapshot.verify("a <- structure(array(1:8, dim=c(2,2,2)), class='a'); a[1,2,1] <- 42; a", slowSubassign());
+    }
+
+    @Test
+    public void testSubassign2N(BC2CSnapshot snapshot) {
+        snapshot.verify("a <- array(1:8, dim=c(2,2,2)); a[[1,2,1]] <- 42L; a", fastSubassign());
+        snapshot.verify("a <- structure(array(1:8, dim=c(2,2,2)), class='a'); a[[1,2,1]] <- 42; a", slowSubassign());
     }
 
     @Test
     public void testMatsubassign(BC2CSnapshot snapshot) {
         snapshot.verify("x <- matrix(1L:6L, nrow=2); x[1,2] <- 42L; x", fastSubassign());
-        snapshot.verify("x <- matrix(1L:6L, nrow=2); x[1,2] <- 42; x", x -> assertEquals(x.pc().slowSubassign(), 1));
+        snapshot.verify("x <- matrix(1L:6L, nrow=2); x[1,2] <- 42; x", slowSubassign());
         snapshot.verify("x <- data.frame(a=c(1,2), b=c(3,4)); x[1,2] <- 42; x", x -> assertEquals(x.pc().dispatchedSubassign(), 1));
-        snapshot.verify("x <- matrix(1L:6L, nrow=2); x[[1,2]] <- 42L; x", fastSubset());
+        snapshot.verify("x <- matrix(1L:6L, nrow=2); x[[1,2]] <- 42L; x", fastSubassign());
         snapshot.verify("x <- data.frame(a=c(1,2), b=c(3,4)); x[[1,2]] <- 42; x");
     }
 
@@ -360,6 +372,12 @@ public class BC2CCompilerTest {
     private TestResultCheck slowSubset() {
         return (r) -> {
             assertEquals(1, r.pc().slowSubset(), "Expected slow subset");
+        };
+    }
+
+    private TestResultCheck slowSubassign() {
+        return (r) -> {
+            assertEquals(1, r.pc().slowSubassign(), "Expected slow subassign");
         };
     }
 
