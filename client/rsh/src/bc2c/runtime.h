@@ -562,7 +562,7 @@ static INLINE R_xlen_t Rsh_compute_index(SEXP dim, Value *ix[], int rank) {
   }
 
   int *idim = INTEGER(dim);
-  R_xlen_t mul = idim[0];
+  R_xlen_t mul = 1;
   R_xlen_t k = 0;
 
   for (int i = 0; i < rank; i++) {
@@ -572,8 +572,8 @@ static INLINE R_xlen_t Rsh_compute_index(SEXP dim, Value *ix[], int rank) {
       return -1;
     }
 
-    k = k * mul + j;
-    mul = mul * idim[i];
+    k += mul * j;
+    mul *= idim[i];
   }
 
   return k;
@@ -1878,12 +1878,12 @@ static INLINE void Rsh_dflt_subset(CCODE fun, SEXP symbol, Value *value,
 }
 
 #define Rsh_SubsetN(stack, n, call, rho)                                       \
-  Rsh_do_subset((stack), n, call, rho, FALSE)
+  Rsh_do_subset_n((stack), n, call, rho, FALSE)
 #define Rsh_Subset2N(stack, n, call, rho)                                      \
-  Rsh_do_subset((stack), n, call, rho, TRUE)
+  Rsh_do_subset_n((stack), n, call, rho, TRUE)
 
-static INLINE void Rsh_do_subset(Value *stack[], int n, SEXP call, SEXP rho,
-                                 Rboolean subset2) {
+static INLINE void Rsh_do_subset_n(Value *stack[], int n, SEXP call, SEXP rho,
+                                   Rboolean subset2) {
   Value *sx = stack[0];
   Value **ix = stack + 1;
   SEXP vec = val_as_sexp(*sx);
@@ -1915,6 +1915,52 @@ static INLINE void Rsh_do_subset(Value *stack[], int n, SEXP call, SEXP rho,
   UNPROTECT(1);
 
   *sx = sexp_as_val(value);
+}
+
+#define Rsh_SubassignN(stack, n, call, rho)                                    \
+  Rsh_do_subassign_n((stack), n, call, rho, FALSE)
+#define Rsh_Subassign2N(stack, n, call, rho)                                   \
+  Rsh_do_subassign_n((stack), n, call, rho, TRUE)
+
+static INLINE void Rsh_do_subassign_n(Value *stack[], int n, SEXP call,
+                                      SEXP rho, Rboolean subassign2) {
+  Value *sx = stack[0];
+  Value rhs = *stack[1];
+  Value **ix = stack + 2;
+
+  SEXP vec = val_as_sexp(*sx);
+  int rank = n - 2;
+
+  if (MAYBE_SHARED(vec)) {
+    vec = Rf_shallow_duplicate(vec);
+    *sx = SXP_TO_VAL(vec);
+  }
+
+  SEXP dim = Rsh_get_array_dim_attr(vec);
+  if (dim != R_NilValue) {
+    R_xlen_t k = Rsh_compute_index(dim, ix, rank);
+    if (k >= 0) {
+      DO_FAST_SETVECELT(vec, k, rhs, subassign2);
+    }
+  }
+
+  // slow path!
+  RSH_PC_INC(slow_subassign);
+
+  SEXP rhs_sxp = val_as_sexp(rhs);
+  SEXP args = CONS_NR(rhs_sxp, R_NilValue);
+  SET_TAG(args, Rsh_ValueSym);
+  args = PROTECT(CONS_NR(vec, Rsh_append_values_to_args(ix, rank, args)));
+  MARK_ASSIGNMENT_CALL(call);
+  if (subassign2) {
+    vec = do_subassign2_dflt(call, Rsh_Subassign2Sym, args, rho);
+  } else {
+    vec = do_subassign_dflt(call, Rsh_SubassignSym, args, rho);
+  }
+
+  UNPROTECT(1);
+
+  *sx = sexp_as_val(vec);
 }
 
 #endif // RUNTIME_H
