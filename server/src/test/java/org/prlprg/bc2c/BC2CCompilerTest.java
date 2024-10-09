@@ -209,17 +209,24 @@ public class BC2CCompilerTest {
         snapshot.verify(
                 "x <- data.frame(a=1, b=2, row.names=NULL); x['a']",
                 x -> assertEquals(x.pc().dispatchedSubset(), 1));
-        snapshot.verify("x <- list(a=1, b=2); x['a']");
+        snapshot.verify("x <- list(a=1, b=2); x['a']", slowSubset());
+        // FIXME: allow to test errors
+        // snapshot.verify("x <- c(1, 2, 3); x[42]", slowSubset());
+        snapshot.verify("x <- list(a=1, b=2); x['c']", slowSubset());
     }
 
     @Test
     public void testVecsubset2N(BC2CSnapshot snapshot) {
-        snapshot.verify("x <- c(1, 2, 3); x[[2]]");
-        snapshot.verify("x <- c(1, 2, 3); x[[2L]]");
-        snapshot.verify("x <- c(1L, 2L, 3L); x[[2L]]");
-        snapshot.verify("x <- list(1, 2, 3); x[[3L]]");
-        snapshot.verify("x <- list('a', 'b'); x[[2]]");
-        snapshot.verify("x <- data.frame(a=1, b=2, row.names=NULL); x[['a']]");
+        snapshot.verify("x <- c(1, 2, 3); x[[2]]", fastSubset());
+        snapshot.verify("x <- c(1, 2, 3); x[[2L]]", fastSubset());
+        snapshot.verify("x <- c(1L, 2L, 3L); x[[2L]]", fastSubset());
+        snapshot.verify("x <- list(1, 2, 3); x[[3L]]", fastSubset());
+        snapshot.verify("x <- list('a', 'b'); x[[2]]", fastSubset());
+        snapshot.verify("x <- data.frame(a=1, b=2, row.names=NULL); x[['a']]", x -> assertEquals(x.pc().dispatchedSubset(), 1));
+        snapshot.verify("x <- list(a=1, b=2); x[['a']]", slowSubset());
+        // FIXME: allow to test errors
+        // snapshot.verify("x <- c(1, 2, 3); x[[42]]", slowSubset());
+        snapshot.verify("x <- list(a=1, b=2); x[['c']]", slowSubset());
     }
 
     @Test
@@ -235,22 +242,34 @@ public class BC2CCompilerTest {
     }
 
     @Test
+    public void testDfltsubset(BC2CSnapshot snapshot) {
+        snapshot.verify("x <- c(1,2,3); x[]");
+    }
+
+    @Test
+    public void testDfltsubset2(BC2CSnapshot snapshot) {
+        snapshot.verify("a <- c(1,2,3); a[[x=1]]");
+    }
+
+    @Test
+    public void testSubsetN(BC2CSnapshot snapshot) {
+        snapshot.verify("a <- array(1:8, dim=c(2,2,2)); a[1,2,1]", fastSubset());
+        snapshot.verify("a <- structure(array(1:8, dim=c(2,2,2), class='a'); a[1,2,1]", slowSubset());
+    }
+
+    @Test
+    public void testSubset2N(BC2CSnapshot snapshot) {
+        snapshot.verify("a <- array(1:8, dim=c(2,2,2)); a[[1,2,1]]", fastSubset());
+        snapshot.verify("a <- structure(array(1:8, dim=c(2,2,2), class='a'); a[[1,2,1]]", slowSubset());
+    }
+
+    @Test
     public void testMatsubassign(BC2CSnapshot snapshot) {
         snapshot.verify("x <- matrix(1L:6L, nrow=2); x[1,2] <- 42L; x", fastSubassign());
         snapshot.verify("x <- matrix(1L:6L, nrow=2); x[1,2] <- 42; x", x -> assertEquals(x.pc().slowSubassign(), 1));
         snapshot.verify("x <- data.frame(a=c(1,2), b=c(3,4)); x[1,2] <- 42; x", x -> assertEquals(x.pc().dispatchedSubassign(), 1));
         snapshot.verify("x <- matrix(1L:6L, nrow=2); x[[1,2]] <- 42L; x", fastSubset());
         snapshot.verify("x <- data.frame(a=c(1,2), b=c(3,4)); x[[1,2]] <- 42; x");
-    }
-
-    @Test
-    public void testSubset(BC2CSnapshot snapshot) {
-        snapshot.verify("x <- c(1,2,3); x[]");
-    }
-
-    @Test
-    public void testSubset2(BC2CSnapshot snapshot) {
-        snapshot.verify("a <- c(1,2,3); a[[x=1]]");
     }
 
     @Test
@@ -335,6 +354,12 @@ public class BC2CCompilerTest {
         return (r) -> {
             assertEquals(0, r.pc().slowSubset(), "Expected fast subset");
             assertEquals(0, r.pc().dispatchedSubset(), "Expected no dispatched subset");
+        };
+    }
+
+    private TestResultCheck slowSubset() {
+        return (r) -> {
+            assertEquals(1, r.pc().slowSubset(), "Expected slow subset");
         };
     }
 

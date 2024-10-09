@@ -1102,6 +1102,18 @@ public sealed interface BcInstr {
         }
     }
 
+    ///
+    /// The SUBSET_N instruction.
+    ///
+    /// Stack effect:
+    ///  - pops the vector and a variable number of elements from the stack determined by the value of [[n]]
+    ///  - pushes the result
+    ///
+    /// @param ast
+    /// @param n
+    ///
+    @NeedsRho
+    @StackEffect(push = 1)
     record SubsetN(@Nullable ConstPool.Idx<LangSXP> ast, int n) implements BcInstr {
         @Override
         public BcOp op() {
@@ -1109,6 +1121,18 @@ public sealed interface BcInstr {
         }
     }
 
+    ///
+    /// The SUBSET2_N instruction.
+    ///
+    /// Stack effect:
+    ///  - pops the vector and a variable number of elements from the stack determined by the value of [[n]]
+    ///  - pushes the result
+    ///
+    /// @param ast
+    /// @param n
+    ///
+    @NeedsRho
+    @StackEffect(push = 1)
     record Subset2N(@Nullable ConstPool.Idx<LangSXP> ast, int n) implements BcInstr {
         @Override
         public BcOp op() {
