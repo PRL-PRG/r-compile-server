@@ -219,8 +219,11 @@ SEXP compile(SEXP closure, SEXP options) {
 
   // Inplace or not (i.e. through through an explicit call to `compile` or through the R JIT)
   if (opts.inplace) {
-    body = PROTECT(create_wrapper_body(closure, c_cp));
+    if(opts.tier == protocol::Tier::OPTIMIZED) {
+       body = PROTECT(create_wrapper_body(closure, c_cp));
+    }
     SET_BODY(closure, body);
+    UNPROTECT(1);
     // FIXME: add logging primitives
     Rprintf("Compiled in place fun %s (fun=%p, body=%p) ; ",
             opts.name.c_str(), closure,
