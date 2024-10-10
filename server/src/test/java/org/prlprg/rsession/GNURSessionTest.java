@@ -14,6 +14,10 @@ public class GNURSessionTest {
   private static final Path libDir = Path.of("../external/R/library/");
   @TempDir Path tempDir;
 
+  static {
+    System.out.println(new java.io.File("").getAbsolutePath());
+  }
+
   @Test
   public void testReadPackageDatabase() throws IOException {
     var session = new GNURSession(RVersion.LATEST_AWARE, RDir, libDir);

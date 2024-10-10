@@ -171,15 +171,14 @@ public class PackageDatabase {
   /**
    * Create a new package database.
    *
-   * @param libraryPath The path to the library where the package is installed.
+   * @param pkgDir The path to the library where the package is installed.
    * @param packageName The name of the package.
    */
-  public PackageDatabase(RSession session, Path libraryPath, String packageName)
-      throws IOException {
+  public PackageDatabase(RSession session, Path pkgDir, String packageName) throws IOException {
     this.session = session;
     // .libPaths and installed_packages() in R can help to see
     // where packages are installed
-    var basePath = libraryPath.resolve(packageName + "/R");
+    var basePath = pkgDir.resolve(packageName + "/R");
     // Read the index file .rdx
     // we get a list with 3 elements, variables, references and compressed
     // See LazyLoading in https://cran.r-project.org/doc/manuals/r-devel/R-ints.html
