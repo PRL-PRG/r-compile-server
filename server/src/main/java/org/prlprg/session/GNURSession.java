@@ -4,10 +4,7 @@ import com.google.common.collect.ImmutableList;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Path;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.logging.Logger;
 import javax.annotation.Nullable;
 import org.prlprg.RVersion;
@@ -72,7 +69,7 @@ public class GNURSession implements RSession {
   private URI cranMirror;
   private org.prlprg.RVersion RVersion;
   private final Path RDir;
-  private final Path RLibraries;
+  private final List<Path> RLibraries;
 
   private @Nullable BaseEnvSXP baseEnv = null;
   private @Nullable NamespaceEnvSXP baseNamespace = null;
@@ -89,7 +86,7 @@ public class GNURSession implements RSession {
     cranMirror = URI.create("https://cran.r-project.org");
     RVersion = version;
     RDir = r_dir;
-    RLibraries = r_libraries;
+    RLibraries = Arrays.asList(RDir.resolve("library"), r_libraries);
   }
 
   public GNURSession(RVersion version, Path r_dir, Path r_libraries, URI cranMirror) {
@@ -99,13 +96,23 @@ public class GNURSession implements RSession {
 
   public void setCranMirror(URI uri) {}
 
+  private @Nullable Path resolvePaths(String name) {
+    for (var p : RLibraries) {
+      var pkgPath = p.resolve(name);
+      var pkgDir = pkgPath.toFile();
+      if (pkgDir.exists() && pkgDir.isDirectory()) {
+        return pkgPath;
+      }
+    }
+    return null;
+  }
+
   // We should also handle installation of a package from a GitHub repo?
   public void loadPackage(String name, String version) {
-    var pkgPath = RLibraries.resolve(name);
-    var pkgDir = pkgPath.toFile();
-    // Check if package is installed and if not install it
-    if (!pkgDir.exists() || !pkgDir.isDirectory()) {
+    @Nullable var pkgDir = resolvePaths(name);
+    if (pkgDir == null) {
       installPackage(name);
+      pkgDir = resolvePaths(name);
     }
 
     DESCRIPTION description = getDescription(name);
@@ -130,7 +137,8 @@ public class GNURSession implements RSession {
 
     // Load the package
     try {
-      var bindings = readPackageDatabase(this, RLibraries, name);
+      // getParent() because we add the name of the package to the path in readPackageDatabase
+      var bindings = readPackageDatabase(this, pkgDir.getParent(), name);
       var ns = namespaces.get(name + version);
       ns.setBindings(bindings);
     } catch (IOException e) {
@@ -139,8 +147,7 @@ public class GNURSession implements RSession {
   }
 
   private void installPackage(String name) {
-    var pkgPath = RLibraries.resolve(name);
-    var pkgDir = pkgPath.toFile();
+    var pkgDir = resolvePaths(name);
 
     var RScript = RDir.resolve("bin/Rscript");
     try {
@@ -161,17 +168,16 @@ public class GNURSession implements RSession {
   }
 
   private DESCRIPTION getDescription(String name) {
-    var pkgPath = RLibraries.resolve(name);
-    var pkgDir = pkgPath.toFile();
-
-    Path descriptionFile = pkgPath.resolve("DESCRIPTION");
-    DESCRIPTION description;
     try {
+      var pkgDir = resolvePaths(name);
+
+      Path descriptionFile = pkgDir.toAbsolutePath().resolve("DESCRIPTION");
+      DESCRIPTION description;
       description = new DESCRIPTION(descriptionFile);
-    } catch (IOException e) {
+      return description;
+    } catch (Exception e) {
       throw new RuntimeException(e);
     }
-    return description;
   }
 
   private static HashMap<String, SEXP> readPackageDatabase(
