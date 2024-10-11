@@ -80,7 +80,9 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
             + " with bytecode level "
             + (request.hasBcOpt() ? bcOpt : "default 2")
             + " and native optimization level "
-            + (request.hasCcOpt() ? ccOpt : "default 2"));
+            + (request.hasCcOpt() ? ccOpt : "default 2")
+            + " Serialized size = "
+            + request.getSerializedSize());
 
     // Compile the code and build response
     Messages.CompileResponse.Builder response = Messages.CompileResponse.newBuilder();
@@ -201,7 +203,9 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
     }
 
     // Send the response
-    responseObserver.onNext(response.build());
+    var res = response.build();
+    responseObserver.onNext(res);
+    logger.info("Response size : " + res.getSerializedSize());
     responseObserver.onCompleted();
   }
 

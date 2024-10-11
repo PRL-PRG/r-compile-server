@@ -132,3 +132,11 @@ rsh_override_cmpfun <- function(f) {
   lockBinding("cmpfun", compiler_ns)
 }
 
+#' Get the total size of the messages sent 
+#' and received by the server, in bytes
+#' @return integer vector of size 2, the first element is the total size of requests, 
+#' and the second element is the total size of responses
+#' @export 
+rsh_total_size <- function() {
+  .Call(C_get_total_size)
+}

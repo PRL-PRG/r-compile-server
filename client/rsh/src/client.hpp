@@ -25,6 +25,9 @@ private:
   static inline SEXP RSH_CLIENT_PTR = Rf_install("RSH_CLIENT");
   static void remove_client(SEXP ptr);
 
+  size_t total_request_bytes = 0;
+  size_t total_response_bytes = 0;
+
   // For it to be able to access the client instance
   friend SEXP init_client(SEXP address, SEXP port, SEXP installed_packages);
 public:
@@ -34,9 +37,16 @@ public:
                                 std::vector<uint8_t> const &rds_closure,
                                 CompilerOptions const &opts);
 
+  // Total size of requests and responses since the start of the client
+  std::pair<size_t , size_t> get_total_size() const {
+    return {total_request_bytes, total_response_bytes};
+  } 
+
   static SEXP make_client(SEXP address, SEXP port, SEXP installed_packages);
   static Client* get_client();
 };
+
+SEXP get_total_size();
 
 SEXP init_client(SEXP address, SEXP port, SEXP installed_packages);
 
