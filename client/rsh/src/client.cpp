@@ -63,15 +63,20 @@ std::variant<protocol::CompileResponse, std::string> Client::remote_compile(std:
   uint64_t hash = xxh::xxhash3<64>(rds_closure.data(), rds_closure.size());
   request.mutable_function()->set_hash(hash);
 
+  total_request_bytes += request.ByteSizeLong();
+  Rprintf("Sending request, with serialized size %ld\n", request.GetCachedSize());
+
   grpc::ClientContext context;
   CompileResponse response;
   grpc::Status status = stub_->Compile(&context, request, &response);
+  total_response_bytes += response.ByteSizeLong();
   if(!status.ok()) {
     std::cerr << status.error_code() << ": " << status.error_message()
               << std::endl;
     return status.error_message();
   }
   else {
+    Rprintf("Received response, with serialized size %ld\n", response.GetCachedSize());
     return response;
   }
 }
@@ -124,6 +129,21 @@ SEXP init_client(SEXP address, SEXP port, SEXP installed_packages) {
   Client::CLIENT_INSTANCE = Client::make_client(address, port, installed_packages);
 
   return Client::CLIENT_INSTANCE;
+}
+
+SEXP get_total_size() {
+  auto client = Client::get_client();
+  auto [req, res] = client->get_total_size();
+  SEXP out = PROTECT(Rf_allocVector(INTSXP, 2));
+  INTEGER(out)[0] = req;
+  INTEGER(out)[1] = res;
+  // Add names 
+  SEXP names = PROTECT(Rf_allocVector(STRSXP, 2));
+  SET_STRING_ELT(names, 0, Rf_mkChar("request"));
+  SET_STRING_ELT(names, 1, Rf_mkChar("response"));
+  Rf_setAttrib(out, R_NamesSymbol, names);
+  UNPROTECT(2);
+  return out;
 }
 
 } // namespace rsh
