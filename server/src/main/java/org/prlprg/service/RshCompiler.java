@@ -25,7 +25,7 @@ public class RshCompiler {
           "-fno-plt",
           "-fexceptions",
           "-fstack-clash-protection",
-          "-fcf-protection",
+//          "-fcf-protection",
           "-flto=auto",
           "-ffat-lto-objects",
           "-pedantic",

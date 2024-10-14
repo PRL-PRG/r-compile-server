@@ -95,7 +95,7 @@
     <!-- Snapshots aren't test resources, because we have to write to them, so we access them
                                                          at their actual locations (bundled are overridden on recompile). -->
     <plugins>
-      <!-- git-build-hook, install git hooks when you run any maven command so you don't forget -->
+      <!-- git-build-hook, install git hooks when you run any maven command, so you don't forget -->
       <plugin>
         <groupId>com.rudikershaw.gitbuildhook</groupId>
         <artifactId>git-build-hook-maven-plugin</artifactId>
@@ -333,15 +333,15 @@
           <descriptorRefs>
             <descriptorRef>jar-with-dependencies</descriptorRef>
           </descriptorRefs>
-          <executions>
-            <execution>
-              <id>make-assembly</id>
-              <phase>package</phase>
-              <goals>
-                <goal>single</goal>
-              </goals>
-            </execution>
-          </executions>
+<!--          <executions>-->
+<!--            <execution>-->
+<!--              <id>make-assembly</id>-->
+<!--              <phase>package</phase>-->
+<!--              <goals>-->
+<!--                <goal>single</goal>-->
+<!--              </goals>-->
+<!--            </execution>-->
+<!--          </executions>-->
         </configuration>
       </plugin>
     </plugins>
