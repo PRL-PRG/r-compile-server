@@ -3,12 +3,27 @@
     "dockerfile": "./Dockerfile",
     "context": "."
   },
-  features: {
-    "ghcr.io/devcontainers/features/java:1": {
-      "installMaven": "true"
+  "features": {
+    "ghcr.io/devcontainers/features/sshd:1": {}
+  },
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
+  "workspaceFolder": "/workspace",
+  //"postCreateCommand": "make setup",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "vscjava.vscode-java-pack",
+        "llvm-vs-code-extensions.vscode-clangd",
+        "vadimcn.vscode-lldb"
+      ]
     }
   },
-  "containerEnv": {
-    "JAVA_HOME": "/usr/lib/jvm/jdk"
-  }
+  "forwardPorts": [
+    2222
+  ],
+  // the devcontainers-cli does not support forwardPorts yet
+  // cf. https://github.com/devcontainers/cli/issues/186
+  "appPort": [
+    2222
+  ]
 }
