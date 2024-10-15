@@ -9,6 +9,7 @@
 #include <assert.h>
 #include <math.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 #define Rsh_error(msg, ...)                                                    \
   {                                                                            \
@@ -2016,6 +2017,114 @@ static INLINE void Rsh_SpecialSwap(Value *s3, Value *s2, Value *s1) {
   Value tmp = *s1;
   *s1 = *s2;
   *s2 = tmp;
+}
+
+typedef struct {
+  R_xlen_t idx;
+  R_xlen_t len;
+  SEXPTYPE type;
+  SEXP symbol;
+} RshLoopInfo;
+
+static INLINE void Rsh_StartFor(Value *s2, Value *s1, Value *s0, SEXP call,
+                                SEXP symbol, BCell *cell, SEXP rho) {
+  // TODO: compact for loops
+  // TODO: super fast case for the case when iterate over a known sequence
+  //  - this should be in the compiler
+  // TODO: the compiler should turn this into a normal forloop
+
+  SEXP seq = val_as_sexp(*s2);
+
+  if (Rf_inherits(seq, "factor")) {
+    seq = Rf_asCharacterFactor(seq);
+    *s2 = SXP_TO_VAL(seq);
+  }
+
+  // FIXME: BCPROT?
+
+  Rsh_SetVar(s1, symbol, cell, rho);
+
+  RshLoopInfo *info = (RshLoopInfo *)malloc(sizeof(RshLoopInfo));
+  *s1 = (Value)info;
+
+  info->idx = -1;
+
+  if (Rf_isVector(seq)) {
+    info->len = XLENGTH(seq);
+  } else if (Rf_isList(seq) || isNull(seq)) {
+    info->len = Rf_length(seq);
+  } else {
+    Rf_errorcall(call, "invalid for() loop sequence");
+  }
+
+  info->type = TYPEOF(seq);
+  info->symbol = symbol;
+
+  // bump up links count of seq to avoid modification by loop code
+  INCREMENT_LINKS(seq);
+
+  // place initial loop variable value object on stack
+  SEXP value;
+  switch (TYPEOF(seq)) {
+  case LGLSXP:
+  case INTSXP:
+  case REALSXP:
+  case CPLXSXP:
+  case STRSXP:
+  case RAWSXP:
+    value = Rf_allocVector(TYPEOF(seq), 1);
+    INCREMENT_NAMED(value);
+    // FIXME: BCNPUSH_NLNK(value);
+    break;
+  default:
+    value = R_NilValue;
+  }
+  *s0 = SXP_TO_VAL(value);
+
+  /* the seq, binding cell, and value on the stack are now boxed */
+}
+
+#define SET_SCALAR_IVAL(s, v) INTEGER((s))[0] = (v)
+
+static INLINE Rboolean Rsh_StepFor(Value *s2, Value *s1, Value *s0, BCell *cell,
+                                   SEXP rho) {
+  RshLoopInfo *info = (RshLoopInfo *)*s1;
+  R_xlen_t i = ++(info->idx);
+
+  if (i >= info->len) {
+    return FALSE;
+  }
+
+  RSH_CHECK_SIGINT();
+
+  SEXP seq = val_as_sexp(*s2);
+  SEXP value;
+
+  switch (info->type) {
+  case INTSXP: {
+    int v = INTEGER_ELT(seq, i);
+
+    // TODO: update this for all the "fast cases"
+    if (BCELL_TAG_WR(*cell) == INTSXP) {
+      BCELL_IVAL_SET(*cell, v);
+    } else if (BCELL_WRITABLE(*cell)) {
+      BCELL_IVAL_NEW(*cell, v);
+    } else {
+      value = VAL_SXP(*s0);
+      SET_SCALAR_IVAL(value, v);
+      // FIXME: update the variable in rho
+      //  SET_FOR_LOOP_VAR
+      *s0 = SXP_TO_VAL(value);
+    }
+  }
+  }
+  return TRUE;
+}
+
+static INLINE void Rsh_EndFor(Value *s2, Value s1, Value s0, SEXP rho) {
+  RshLoopInfo *info = (RshLoopInfo *)s1;
+  free(info);
+  *s2 = Rsh_NilValue;
 }
 
 #endif // RUNTIME_H
