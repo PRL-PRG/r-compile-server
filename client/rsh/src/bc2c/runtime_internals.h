@@ -64,6 +64,39 @@ int tryAssignDispatch(const char *generic, SEXP call, SEXP lhs, SEXP rhs,
                       SEXP rho, SEXP *pv);
 SEXP do_subassign_dflt(SEXP call, SEXP op, SEXP args, SEXP rho);
 SEXP do_subassign2_dflt(SEXP call, SEXP op, SEXP args, SEXP rho);
+// creates a new evaluated promise without reference counting
+SEXP R_mkEVPROMISE_NR(SEXP expr, SEXP val);
+// creates a new evaluated promise with reference counting
+SEXP R_mkEVPROMISE(SEXP expr, SEXP val);
+
+static INLINE SEXP Rsh_get_dim_attr(SEXP v) {
+  SEXP attr = ATTRIB(v);
+  SEXP dim =
+      TAG(attr) == R_DimSymbol ? CAR(attr) : Rf_getAttrib(v, R_DimSymbol);
+  if (TYPEOF(dim) == INTSXP) {
+    return dim;
+  } else {
+    return R_NilValue;
+  }
+}
+
+static INLINE SEXP Rsh_get_mat_dim_attr(SEXP v) {
+  SEXP dim = Rsh_get_dim_attr(v);
+  if (LENGTH(dim) == 2) {
+    return dim;
+  } else {
+    return R_NilValue;
+  }
+}
+
+static INLINE SEXP Rsh_get_array_dim_attr(SEXP v) {
+  SEXP dim = Rsh_get_dim_attr(v);
+  if (LENGTH(dim) > 0) {
+    return dim;
+  } else {
+    return R_NilValue;
+  }
+}
 
 #define INTEGER_TO_LOGICAL(x)                                                  \
   ((x) == NA_INTEGER ? NA_LOGICAL : (x) ? TRUE : FALSE)
@@ -81,9 +114,104 @@ SEXP do_subassign2_dflt(SEXP call, SEXP op, SEXP args, SEXP rho);
       ENSURE_NAMEDMAX(__rhs__);                                                \
   } while (0)
 
-#define FAST_VECELT_OK(vec)                                                    \
+#define FAST_VECELT_OK(/* SEXP */ vec)                                         \
   (ATTRIB(vec) == R_NilValue ||                                                \
    (TAG(ATTRIB(vec)) == R_DimSymbol && CDR(ATTRIB(vec)) == R_NilValue))
+
+#define DO_FAST_VECELT(/* SEXP */ vec, /* R_xlen_t */ i,                       \
+                       /* Rboolean */ subset2, /* Value* */ res)               \
+  do {                                                                         \
+    switch (TYPEOF(vec)) {                                                     \
+    case REALSXP:                                                              \
+      if (i < 0 || XLENGTH(vec) <= i) {                                        \
+        break;                                                                 \
+      }                                                                        \
+      *res = DBL_TO_VAL(REAL_ELT(vec, i));                                     \
+      return;                                                                  \
+    case INTSXP:                                                               \
+      if (i < 0 || XLENGTH(vec) <= i) {                                        \
+        break;                                                                 \
+      }                                                                        \
+      *res = INT_TO_VAL(INTEGER_ELT(vec, i));                                  \
+      return;                                                                  \
+    case LGLSXP:                                                               \
+      if (i < 0 || XLENGTH(vec) <= i) {                                        \
+        break;                                                                 \
+      }                                                                        \
+      *res = LGL_TO_VAL(LOGICAL_ELT(vec, i));                                  \
+      return;                                                                  \
+    case CPLXSXP:                                                              \
+      if (i < 0 || XLENGTH(vec) <= i) {                                        \
+        break;                                                                 \
+      }                                                                        \
+      *res = SXP_TO_VAL(Rf_ScalarComplex(COMPLEX_ELT(vec, i)));                \
+      return;                                                                  \
+    case RAWSXP:                                                               \
+      if (i < 0 || XLENGTH(vec) <= i) {                                        \
+        break;                                                                 \
+      }                                                                        \
+      *res = SXP_TO_VAL(Rf_ScalarRaw(RAW(vec)[i]));                            \
+      return;                                                                  \
+    case VECSXP:                                                               \
+      if (i < 0 || XLENGTH(vec) <= i) {                                        \
+        break;                                                                 \
+      }                                                                        \
+      SEXP elt = VECTOR_ELT(vec, i);                                           \
+      RAISE_NAMED(elt, NAMED(vec));                                            \
+      if (subset2) {                                                           \
+        *res = SXP_TO_VAL(elt);                                                \
+      } else {                                                                 \
+        SEXP v = Rf_allocVector(VECSXP, 1);                                    \
+        SET_VECTOR_ELT(v, 0, elt);                                             \
+        *res = SXP_TO_VAL(v);                                                  \
+      }                                                                        \
+      return;                                                                  \
+    }                                                                          \
+  } while (0)
+
+#define DO_FAST_SETVECELT(/* SEXP */ vec, /* R_xlen_t */ i, /* Value */ rhs,   \
+                          /* Rboolean */ subassign2)                           \
+  do {                                                                         \
+    if (i >= 0 && XLENGTH(vec) > i) {                                          \
+      if (TYPEOF(vec) == REALSXP) {                                            \
+        switch (VAL_TAG(rhs)) {                                                \
+        case REALSXP:                                                          \
+          REAL(vec)[i] = VAL_DBL(rhs);                                         \
+          SETTER_CLEAR_NAMED(vec);                                             \
+          return;                                                              \
+        case INTSXP:                                                           \
+          REAL(vec)[i] = INTEGER_TO_REAL(VAL_INT(rhs));                        \
+          SETTER_CLEAR_NAMED(vec);                                             \
+          return;                                                              \
+        case LGLSXP:                                                           \
+          REAL(vec)[i] = LOGICAL_TO_REAL(VAL_INT(rhs));                        \
+          SETTER_CLEAR_NAMED(vec);                                             \
+          return;                                                              \
+        }                                                                      \
+      } else if (VAL_TAG(rhs) == TYPEOF(vec)) {                                \
+        switch (VAL_TAG(rhs)) {                                                \
+        case INTSXP:                                                           \
+          INTEGER(vec)[i] = VAL_INT(rhs);                                      \
+          SETTER_CLEAR_NAMED(vec);                                             \
+          return;                                                              \
+        case LGLSXP:                                                           \
+          LOGICAL(vec)[i] = VAL_INT(rhs);                                      \
+          SETTER_CLEAR_NAMED(vec);                                             \
+          return;                                                              \
+        }                                                                      \
+      } else if (subassign2 && TYPEOF(vec) == VECSXP) {                        \
+        SEXP rhs_sxp = val_as_sexp(rhs);                                       \
+        if (rhs_sxp != R_NilValue) {                                           \
+          if (MAYBE_REFERENCED(rhs_sxp) && VECTOR_ELT(vec, i) != rhs_sxp) {    \
+            R_FixupRHS(vec, rhs_sxp);                                          \
+          }                                                                    \
+          SET_VECTOR_ELT(vec, i, rhs_sxp);                                     \
+          SETTER_CLEAR_NAMED(vec);                                             \
+          return;                                                              \
+        }                                                                      \
+      }                                                                        \
+    }                                                                          \
+  } while (0)
 
 #define MAYBE_MISSING_ARGUMENT_ERROR(symbol, keepmiss, rho)                    \
   do {                                                                         \
@@ -137,17 +265,27 @@ static INLINE SEXP relop(SEXP call, SEXP op, SEXP opsym, SEXP x, SEXP y,
   return do_relop_dflt(call, op, x, y);
 }
 
-#define RSH_LIST_APPEND(/* Value */ head, /* Value */ tail, /* Value */ value) \
+#define RSH_LIST_APPEND_EX(/* Value */ head, /* Value */ tail,                 \
+                           /* Value */ value, /* RBoolean */ RC)               \
   do {                                                                         \
-    SEXP __elem__ = CONS(val_as_sexp(value), R_NilValue);                      \
+    SEXP __elem__ = (RC) ? CONS(val_as_sexp(value), R_NilValue)                \
+                         : CONS_NR(val_as_sexp(value), R_NilValue);            \
+                                                                               \
     if (head == Rsh_NilValue) {                                                \
       head = SXP_TO_VAL(__elem__);                                             \
     } else {                                                                   \
       SETCDR(VAL_SXP(tail), __elem__);                                         \
     }                                                                          \
     tail = SXP_TO_VAL(__elem__);                                               \
-    INCREMENT_LINKS(CAR(__elem__));                                            \
+    if (RC) {                                                                  \
+      INCREMENT_NAMED(CAR(__elem__));                                          \
+    } else {                                                                   \
+      INCREMENT_LINKS(CAR(__elem__));                                          \
+    }                                                                          \
   } while (0)
+
+#define RSH_LIST_APPEND(/* Value */ head, /* Value */ tail, /* Value */ value) \
+  RSH_LIST_APPEND_EX(head, tail, value, TRUE)
 
 #define RSH_SET_TAG(/* Value */ v, /* Value */ t)                              \
   do {                                                                         \
@@ -159,5 +297,29 @@ static INLINE SEXP relop(SEXP call, SEXP op, SEXP opsym, SEXP x, SEXP y,
     }                                                                          \
   } while (0)
 
-//
+#define RSH_CALL_ARGS_DECREMENT_LINKS(args)                                    \
+  do {                                                                         \
+    SEXP __a__ = (args);                                                       \
+    while (__a__ != R_NilValue) {                                              \
+      DECREMENT_LINKS(CAR(__a__));                                             \
+      __a__ = CDR(__a__);                                                      \
+    }                                                                          \
+  } while (0)
+
+#define RSH_PUSHCALLARG_EX(args, v, RC)                                        \
+  do {                                                                         \
+    SEXP __cell__ = (RC) ? CONS(v, R_NilValue) : CONS_NR(v, R_NilValue);       \
+    if (GETSTACK(-2) == R_NilValue)                                            \
+      SETSTACK(-2, __cell__);                                                  \
+    else                                                                       \
+      SETCDR(GETSTACK(-1), __cell__);                                          \
+    SETSTACK(-1, __cell__);                                                    \
+    if (RC)                                                                    \
+      INCREMENT_NAMED(CAR(__cell__));                                          \
+    else                                                                       \
+      INCREMENT_LINKS(CAR(__cell__));                                          \
+  } while (0)
 #endif
+
+// FIXME: implement signal checking
+#define RSH_CHECK_SIGINT()
