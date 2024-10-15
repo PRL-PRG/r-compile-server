@@ -33,78 +33,6 @@ public final class HandshakeRequest extends com.google.protobuf.GeneratedMessage
     return this.unknownFields;
   }
 
-  private HandshakeRequest(
-      com.google.protobuf.CodedInputStream input,
-      com.google.protobuf.ExtensionRegistryLite extensionRegistry)
-      throws com.google.protobuf.InvalidProtocolBufferException {
-    this();
-    if (extensionRegistry == null) {
-      throw new java.lang.NullPointerException();
-    }
-    int mutable_bitField0_ = 0;
-    com.google.protobuf.UnknownFieldSet.Builder unknownFields =
-        com.google.protobuf.UnknownFieldSet.newBuilder();
-    try {
-      boolean done = false;
-      while (!done) {
-        int tag = input.readTag();
-        switch (tag) {
-          case 0:
-            done = true;
-            break;
-          case 10:
-            {
-              java.lang.String s = input.readStringRequireUtf8();
-
-              rshVersion_ = s;
-              break;
-            }
-          case 18:
-            {
-              java.lang.String s = input.readStringRequireUtf8();
-
-              rVersion_ = s;
-              break;
-            }
-          case 26:
-            {
-              java.lang.String s = input.readStringRequireUtf8();
-
-              platform_ = s;
-              break;
-            }
-          case 34:
-            {
-              java.lang.String s = input.readStringRequireUtf8();
-              if (!((mutable_bitField0_ & 0x00000001) != 0)) {
-                packages_ = new com.google.protobuf.LazyStringArrayList();
-                mutable_bitField0_ |= 0x00000001;
-              }
-              packages_.add(s);
-              break;
-            }
-          default:
-            {
-              if (!parseUnknownField(input, unknownFields, extensionRegistry, tag)) {
-                done = true;
-              }
-              break;
-            }
-        }
-      }
-    } catch (com.google.protobuf.InvalidProtocolBufferException e) {
-      throw e.setUnfinishedMessage(this);
-    } catch (java.io.IOException e) {
-      throw new com.google.protobuf.InvalidProtocolBufferException(e).setUnfinishedMessage(this);
-    } finally {
-      if (((mutable_bitField0_ & 0x00000001) != 0)) {
-        packages_ = packages_.getUnmodifiableView();
-      }
-      this.unknownFields = unknownFields.build();
-      makeExtensionsImmutable();
-    }
-  }
-
   public static final com.google.protobuf.Descriptors.Descriptor getDescriptor() {
     return org.prlprg.server.protocol.Protocol
         .internal_static_rsh_server_protocol_HandshakeRequest_descriptor;
@@ -121,7 +49,9 @@ public final class HandshakeRequest extends com.google.protobuf.GeneratedMessage
   }
 
   public static final int RSH_VERSION_FIELD_NUMBER = 1;
-  private volatile java.lang.Object rshVersion_;
+
+  @SuppressWarnings("serial")
+  private volatile java.lang.Object rshVersion_ = "";
 
   /**
    * <code>string Rsh_version = 1;</code>
@@ -160,7 +90,9 @@ public final class HandshakeRequest extends com.google.protobuf.GeneratedMessage
   }
 
   public static final int R_VERSION_FIELD_NUMBER = 2;
-  private volatile java.lang.Object rVersion_;
+
+  @SuppressWarnings("serial")
+  private volatile java.lang.Object rVersion_ = "";
 
   /**
    * <code>string R_version = 2;</code>
@@ -199,7 +131,9 @@ public final class HandshakeRequest extends com.google.protobuf.GeneratedMessage
   }
 
   public static final int PLATFORM_FIELD_NUMBER = 3;
-  private volatile java.lang.Object platform_;
+
+  @SuppressWarnings("serial")
+  private volatile java.lang.Object platform_ = "";
 
   /**
    * <code>string platform = 3;</code>
@@ -238,6 +172,8 @@ public final class HandshakeRequest extends com.google.protobuf.GeneratedMessage
   }
 
   public static final int PACKAGES_FIELD_NUMBER = 4;
+
+  @SuppressWarnings("serial")
   private com.google.protobuf.LazyStringList packages_;
 
   /**
@@ -292,19 +228,19 @@ public final class HandshakeRequest extends com.google.protobuf.GeneratedMessage
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output) throws java.io.IOException {
-    if (!getRshVersionBytes().isEmpty()) {
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(rshVersion_)) {
       com.google.protobuf.GeneratedMessageV3.writeString(output, 1, rshVersion_);
     }
-    if (!getRVersionBytes().isEmpty()) {
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(rVersion_)) {
       com.google.protobuf.GeneratedMessageV3.writeString(output, 2, rVersion_);
     }
-    if (!getPlatformBytes().isEmpty()) {
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(platform_)) {
       com.google.protobuf.GeneratedMessageV3.writeString(output, 3, platform_);
     }
     for (int i = 0; i < packages_.size(); i++) {
       com.google.protobuf.GeneratedMessageV3.writeString(output, 4, packages_.getRaw(i));
     }
-    unknownFields.writeTo(output);
+    getUnknownFields().writeTo(output);
   }
 
   @java.lang.Override
@@ -313,13 +249,13 @@ public final class HandshakeRequest extends com.google.protobuf.GeneratedMessage
     if (size != -1) return size;
 
     size = 0;
-    if (!getRshVersionBytes().isEmpty()) {
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(rshVersion_)) {
       size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, rshVersion_);
     }
-    if (!getRVersionBytes().isEmpty()) {
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(rVersion_)) {
       size += com.google.protobuf.GeneratedMessageV3.computeStringSize(2, rVersion_);
     }
-    if (!getPlatformBytes().isEmpty()) {
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(platform_)) {
       size += com.google.protobuf.GeneratedMessageV3.computeStringSize(3, platform_);
     }
     {
@@ -330,7 +266,7 @@ public final class HandshakeRequest extends com.google.protobuf.GeneratedMessage
       size += dataSize;
       size += 1 * getPackagesList().size();
     }
-    size += unknownFields.getSerializedSize();
+    size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
     return size;
   }
@@ -350,7 +286,7 @@ public final class HandshakeRequest extends com.google.protobuf.GeneratedMessage
     if (!getRVersion().equals(other.getRVersion())) return false;
     if (!getPlatform().equals(other.getPlatform())) return false;
     if (!getPackagesList().equals(other.getPackagesList())) return false;
-    if (!unknownFields.equals(other.unknownFields)) return false;
+    if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
 
@@ -371,7 +307,7 @@ public final class HandshakeRequest extends com.google.protobuf.GeneratedMessage
       hash = (37 * hash) + PACKAGES_FIELD_NUMBER;
       hash = (53 * hash) + getPackagesList().hashCode();
     }
-    hash = (29 * hash) + unknownFields.hashCode();
+    hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
     return hash;
   }
@@ -493,30 +429,21 @@ public final class HandshakeRequest extends com.google.protobuf.GeneratedMessage
     }
 
     // Construct using org.prlprg.server.protocol.HandshakeRequest.newBuilder()
-    private Builder() {
-      maybeForceBuilderInitialization();
-    }
+    private Builder() {}
 
     private Builder(com.google.protobuf.GeneratedMessageV3.BuilderParent parent) {
       super(parent);
-      maybeForceBuilderInitialization();
-    }
-
-    private void maybeForceBuilderInitialization() {
-      if (com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders) {}
     }
 
     @java.lang.Override
     public Builder clear() {
       super.clear();
+      bitField0_ = 0;
       rshVersion_ = "";
-
       rVersion_ = "";
-
       platform_ = "";
-
       packages_ = com.google.protobuf.LazyStringArrayList.EMPTY;
-      bitField0_ = (bitField0_ & ~0x00000001);
+      bitField0_ = (bitField0_ & ~0x00000008);
       return this;
     }
 
@@ -544,17 +471,33 @@ public final class HandshakeRequest extends com.google.protobuf.GeneratedMessage
     public org.prlprg.server.protocol.HandshakeRequest buildPartial() {
       org.prlprg.server.protocol.HandshakeRequest result =
           new org.prlprg.server.protocol.HandshakeRequest(this);
-      int from_bitField0_ = bitField0_;
-      result.rshVersion_ = rshVersion_;
-      result.rVersion_ = rVersion_;
-      result.platform_ = platform_;
-      if (((bitField0_ & 0x00000001) != 0)) {
-        packages_ = packages_.getUnmodifiableView();
-        bitField0_ = (bitField0_ & ~0x00000001);
+      buildPartialRepeatedFields(result);
+      if (bitField0_ != 0) {
+        buildPartial0(result);
       }
-      result.packages_ = packages_;
       onBuilt();
       return result;
+    }
+
+    private void buildPartialRepeatedFields(org.prlprg.server.protocol.HandshakeRequest result) {
+      if (((bitField0_ & 0x00000008) != 0)) {
+        packages_ = packages_.getUnmodifiableView();
+        bitField0_ = (bitField0_ & ~0x00000008);
+      }
+      result.packages_ = packages_;
+    }
+
+    private void buildPartial0(org.prlprg.server.protocol.HandshakeRequest result) {
+      int from_bitField0_ = bitField0_;
+      if (((from_bitField0_ & 0x00000001) != 0)) {
+        result.rshVersion_ = rshVersion_;
+      }
+      if (((from_bitField0_ & 0x00000002) != 0)) {
+        result.rVersion_ = rVersion_;
+      }
+      if (((from_bitField0_ & 0x00000004) != 0)) {
+        result.platform_ = platform_;
+      }
     }
 
     @java.lang.Override
@@ -604,27 +547,30 @@ public final class HandshakeRequest extends com.google.protobuf.GeneratedMessage
       if (other == org.prlprg.server.protocol.HandshakeRequest.getDefaultInstance()) return this;
       if (!other.getRshVersion().isEmpty()) {
         rshVersion_ = other.rshVersion_;
+        bitField0_ |= 0x00000001;
         onChanged();
       }
       if (!other.getRVersion().isEmpty()) {
         rVersion_ = other.rVersion_;
+        bitField0_ |= 0x00000002;
         onChanged();
       }
       if (!other.getPlatform().isEmpty()) {
         platform_ = other.platform_;
+        bitField0_ |= 0x00000004;
         onChanged();
       }
       if (!other.packages_.isEmpty()) {
         if (packages_.isEmpty()) {
           packages_ = other.packages_;
-          bitField0_ = (bitField0_ & ~0x00000001);
+          bitField0_ = (bitField0_ & ~0x00000008);
         } else {
           ensurePackagesIsMutable();
           packages_.addAll(other.packages_);
         }
         onChanged();
       }
-      this.mergeUnknownFields(other.unknownFields);
+      this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
       return this;
     }
@@ -639,17 +585,56 @@ public final class HandshakeRequest extends com.google.protobuf.GeneratedMessage
         com.google.protobuf.CodedInputStream input,
         com.google.protobuf.ExtensionRegistryLite extensionRegistry)
         throws java.io.IOException {
-      org.prlprg.server.protocol.HandshakeRequest parsedMessage = null;
+      if (extensionRegistry == null) {
+        throw new java.lang.NullPointerException();
+      }
       try {
-        parsedMessage = PARSER.parsePartialFrom(input, extensionRegistry);
+        boolean done = false;
+        while (!done) {
+          int tag = input.readTag();
+          switch (tag) {
+            case 0:
+              done = true;
+              break;
+            case 10:
+              {
+                rshVersion_ = input.readStringRequireUtf8();
+                bitField0_ |= 0x00000001;
+                break;
+              } // case 10
+            case 18:
+              {
+                rVersion_ = input.readStringRequireUtf8();
+                bitField0_ |= 0x00000002;
+                break;
+              } // case 18
+            case 26:
+              {
+                platform_ = input.readStringRequireUtf8();
+                bitField0_ |= 0x00000004;
+                break;
+              } // case 26
+            case 34:
+              {
+                java.lang.String s = input.readStringRequireUtf8();
+                ensurePackagesIsMutable();
+                packages_.add(s);
+                break;
+              } // case 34
+            default:
+              {
+                if (!super.parseUnknownField(input, extensionRegistry, tag)) {
+                  done = true; // was an endgroup tag
+                }
+                break;
+              } // default:
+          } // switch (tag)
+        } // while (!done)
       } catch (com.google.protobuf.InvalidProtocolBufferException e) {
-        parsedMessage = (org.prlprg.server.protocol.HandshakeRequest) e.getUnfinishedMessage();
         throw e.unwrapIOException();
       } finally {
-        if (parsedMessage != null) {
-          mergeFrom(parsedMessage);
-        }
-      }
+        onChanged();
+      } // finally
       return this;
     }
 
@@ -701,8 +686,8 @@ public final class HandshakeRequest extends com.google.protobuf.GeneratedMessage
       if (value == null) {
         throw new NullPointerException();
       }
-
       rshVersion_ = value;
+      bitField0_ |= 0x00000001;
       onChanged();
       return this;
     }
@@ -713,8 +698,8 @@ public final class HandshakeRequest extends com.google.protobuf.GeneratedMessage
      * @return This builder for chaining.
      */
     public Builder clearRshVersion() {
-
       rshVersion_ = getDefaultInstance().getRshVersion();
+      bitField0_ = (bitField0_ & ~0x00000001);
       onChanged();
       return this;
     }
@@ -730,8 +715,8 @@ public final class HandshakeRequest extends com.google.protobuf.GeneratedMessage
         throw new NullPointerException();
       }
       checkByteStringIsUtf8(value);
-
       rshVersion_ = value;
+      bitField0_ |= 0x00000001;
       onChanged();
       return this;
     }
@@ -782,8 +767,8 @@ public final class HandshakeRequest extends com.google.protobuf.GeneratedMessage
       if (value == null) {
         throw new NullPointerException();
       }
-
       rVersion_ = value;
+      bitField0_ |= 0x00000002;
       onChanged();
       return this;
     }
@@ -794,8 +779,8 @@ public final class HandshakeRequest extends com.google.protobuf.GeneratedMessage
      * @return This builder for chaining.
      */
     public Builder clearRVersion() {
-
       rVersion_ = getDefaultInstance().getRVersion();
+      bitField0_ = (bitField0_ & ~0x00000002);
       onChanged();
       return this;
     }
@@ -811,8 +796,8 @@ public final class HandshakeRequest extends com.google.protobuf.GeneratedMessage
         throw new NullPointerException();
       }
       checkByteStringIsUtf8(value);
-
       rVersion_ = value;
+      bitField0_ |= 0x00000002;
       onChanged();
       return this;
     }
@@ -863,8 +848,8 @@ public final class HandshakeRequest extends com.google.protobuf.GeneratedMessage
       if (value == null) {
         throw new NullPointerException();
       }
-
       platform_ = value;
+      bitField0_ |= 0x00000004;
       onChanged();
       return this;
     }
@@ -875,8 +860,8 @@ public final class HandshakeRequest extends com.google.protobuf.GeneratedMessage
      * @return This builder for chaining.
      */
     public Builder clearPlatform() {
-
       platform_ = getDefaultInstance().getPlatform();
+      bitField0_ = (bitField0_ & ~0x00000004);
       onChanged();
       return this;
     }
@@ -892,8 +877,8 @@ public final class HandshakeRequest extends com.google.protobuf.GeneratedMessage
         throw new NullPointerException();
       }
       checkByteStringIsUtf8(value);
-
       platform_ = value;
+      bitField0_ |= 0x00000004;
       onChanged();
       return this;
     }
@@ -902,9 +887,9 @@ public final class HandshakeRequest extends com.google.protobuf.GeneratedMessage
         com.google.protobuf.LazyStringArrayList.EMPTY;
 
     private void ensurePackagesIsMutable() {
-      if (!((bitField0_ & 0x00000001) != 0)) {
+      if (!((bitField0_ & 0x00000008) != 0)) {
         packages_ = new com.google.protobuf.LazyStringArrayList(packages_);
-        bitField0_ |= 0x00000001;
+        bitField0_ |= 0x00000008;
       }
     }
 
@@ -999,7 +984,7 @@ public final class HandshakeRequest extends com.google.protobuf.GeneratedMessage
      */
     public Builder clearPackages() {
       packages_ = com.google.protobuf.LazyStringArrayList.EMPTY;
-      bitField0_ = (bitField0_ & ~0x00000001);
+      bitField0_ = (bitField0_ & ~0x00000008);
       onChanged();
       return this;
     }
@@ -1053,7 +1038,18 @@ public final class HandshakeRequest extends com.google.protobuf.GeneratedMessage
             com.google.protobuf.CodedInputStream input,
             com.google.protobuf.ExtensionRegistryLite extensionRegistry)
             throws com.google.protobuf.InvalidProtocolBufferException {
-          return new HandshakeRequest(input, extensionRegistry);
+          Builder builder = newBuilder();
+          try {
+            builder.mergeFrom(input, extensionRegistry);
+          } catch (com.google.protobuf.InvalidProtocolBufferException e) {
+            throw e.setUnfinishedMessage(builder.buildPartial());
+          } catch (com.google.protobuf.UninitializedMessageException e) {
+            throw e.asInvalidProtocolBufferException().setUnfinishedMessage(builder.buildPartial());
+          } catch (java.io.IOException e) {
+            throw new com.google.protobuf.InvalidProtocolBufferException(e)
+                .setUnfinishedMessage(builder.buildPartial());
+          }
+          return builder.buildPartial();
         }
       };
 
