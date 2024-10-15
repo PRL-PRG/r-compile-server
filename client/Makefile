@@ -1,4 +1,7 @@
 .PHONY: build
+setup: 
+	$(MAKE) -C rsh setup
+
 install: 
 	$(MAKE) -C rsh build
 

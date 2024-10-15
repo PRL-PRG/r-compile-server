@@ -28,75 +28,6 @@ public final class Request extends com.google.protobuf.GeneratedMessageV3
     return this.unknownFields;
   }
 
-  private Request(
-      com.google.protobuf.CodedInputStream input,
-      com.google.protobuf.ExtensionRegistryLite extensionRegistry)
-      throws com.google.protobuf.InvalidProtocolBufferException {
-    this();
-    if (extensionRegistry == null) {
-      throw new java.lang.NullPointerException();
-    }
-    com.google.protobuf.UnknownFieldSet.Builder unknownFields =
-        com.google.protobuf.UnknownFieldSet.newBuilder();
-    try {
-      boolean done = false;
-      while (!done) {
-        int tag = input.readTag();
-        switch (tag) {
-          case 0:
-            done = true;
-            break;
-          case 10:
-            {
-              org.prlprg.server.protocol.HandshakeRequest.Builder subBuilder = null;
-              if (payloadCase_ == 1) {
-                subBuilder = ((org.prlprg.server.protocol.HandshakeRequest) payload_).toBuilder();
-              }
-              payload_ =
-                  input.readMessage(
-                      org.prlprg.server.protocol.HandshakeRequest.parser(), extensionRegistry);
-              if (subBuilder != null) {
-                subBuilder.mergeFrom((org.prlprg.server.protocol.HandshakeRequest) payload_);
-                payload_ = subBuilder.buildPartial();
-              }
-              payloadCase_ = 1;
-              break;
-            }
-          case 18:
-            {
-              org.prlprg.server.protocol.CompileRequest.Builder subBuilder = null;
-              if (payloadCase_ == 2) {
-                subBuilder = ((org.prlprg.server.protocol.CompileRequest) payload_).toBuilder();
-              }
-              payload_ =
-                  input.readMessage(
-                      org.prlprg.server.protocol.CompileRequest.parser(), extensionRegistry);
-              if (subBuilder != null) {
-                subBuilder.mergeFrom((org.prlprg.server.protocol.CompileRequest) payload_);
-                payload_ = subBuilder.buildPartial();
-              }
-              payloadCase_ = 2;
-              break;
-            }
-          default:
-            {
-              if (!parseUnknownField(input, unknownFields, extensionRegistry, tag)) {
-                done = true;
-              }
-              break;
-            }
-        }
-      }
-    } catch (com.google.protobuf.InvalidProtocolBufferException e) {
-      throw e.setUnfinishedMessage(this);
-    } catch (java.io.IOException e) {
-      throw new com.google.protobuf.InvalidProtocolBufferException(e).setUnfinishedMessage(this);
-    } finally {
-      this.unknownFields = unknownFields.build();
-      makeExtensionsImmutable();
-    }
-  }
-
   public static final com.google.protobuf.Descriptors.Descriptor getDescriptor() {
     return org.prlprg.server.protocol.Protocol
         .internal_static_rsh_server_protocol_Request_descriptor;
@@ -248,7 +179,7 @@ public final class Request extends com.google.protobuf.GeneratedMessageV3
     if (payloadCase_ == 2) {
       output.writeMessage(2, (org.prlprg.server.protocol.CompileRequest) payload_);
     }
-    unknownFields.writeTo(output);
+    getUnknownFields().writeTo(output);
   }
 
   @java.lang.Override
@@ -267,7 +198,7 @@ public final class Request extends com.google.protobuf.GeneratedMessageV3
           com.google.protobuf.CodedOutputStream.computeMessageSize(
               2, (org.prlprg.server.protocol.CompileRequest) payload_);
     }
-    size += unknownFields.getSerializedSize();
+    size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
     return size;
   }
@@ -293,7 +224,7 @@ public final class Request extends com.google.protobuf.GeneratedMessageV3
       case 0:
       default:
     }
-    if (!unknownFields.equals(other.unknownFields)) return false;
+    if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
 
@@ -316,7 +247,7 @@ public final class Request extends com.google.protobuf.GeneratedMessageV3
       case 0:
       default:
     }
-    hash = (29 * hash) + unknownFields.hashCode();
+    hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
     return hash;
   }
@@ -437,22 +368,22 @@ public final class Request extends com.google.protobuf.GeneratedMessageV3
     }
 
     // Construct using org.prlprg.server.protocol.Request.newBuilder()
-    private Builder() {
-      maybeForceBuilderInitialization();
-    }
+    private Builder() {}
 
     private Builder(com.google.protobuf.GeneratedMessageV3.BuilderParent parent) {
       super(parent);
-      maybeForceBuilderInitialization();
-    }
-
-    private void maybeForceBuilderInitialization() {
-      if (com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders) {}
     }
 
     @java.lang.Override
     public Builder clear() {
       super.clear();
+      bitField0_ = 0;
+      if (handshakeBuilder_ != null) {
+        handshakeBuilder_.clear();
+      }
+      if (compileBuilder_ != null) {
+        compileBuilder_.clear();
+      }
       payloadCase_ = 0;
       payload_ = null;
       return this;
@@ -481,23 +412,27 @@ public final class Request extends com.google.protobuf.GeneratedMessageV3
     @java.lang.Override
     public org.prlprg.server.protocol.Request buildPartial() {
       org.prlprg.server.protocol.Request result = new org.prlprg.server.protocol.Request(this);
-      if (payloadCase_ == 1) {
-        if (handshakeBuilder_ == null) {
-          result.payload_ = payload_;
-        } else {
-          result.payload_ = handshakeBuilder_.build();
-        }
+      if (bitField0_ != 0) {
+        buildPartial0(result);
       }
-      if (payloadCase_ == 2) {
-        if (compileBuilder_ == null) {
-          result.payload_ = payload_;
-        } else {
-          result.payload_ = compileBuilder_.build();
-        }
-      }
-      result.payloadCase_ = payloadCase_;
+      buildPartialOneofs(result);
       onBuilt();
       return result;
+    }
+
+    private void buildPartial0(org.prlprg.server.protocol.Request result) {
+      int from_bitField0_ = bitField0_;
+    }
+
+    private void buildPartialOneofs(org.prlprg.server.protocol.Request result) {
+      result.payloadCase_ = payloadCase_;
+      result.payload_ = this.payload_;
+      if (payloadCase_ == 1 && handshakeBuilder_ != null) {
+        result.payload_ = handshakeBuilder_.build();
+      }
+      if (payloadCase_ == 2 && compileBuilder_ != null) {
+        result.payload_ = compileBuilder_.build();
+      }
     }
 
     @java.lang.Override
@@ -561,7 +496,7 @@ public final class Request extends com.google.protobuf.GeneratedMessageV3
             break;
           }
       }
-      this.mergeUnknownFields(other.unknownFields);
+      this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
       return this;
     }
@@ -576,17 +511,43 @@ public final class Request extends com.google.protobuf.GeneratedMessageV3
         com.google.protobuf.CodedInputStream input,
         com.google.protobuf.ExtensionRegistryLite extensionRegistry)
         throws java.io.IOException {
-      org.prlprg.server.protocol.Request parsedMessage = null;
+      if (extensionRegistry == null) {
+        throw new java.lang.NullPointerException();
+      }
       try {
-        parsedMessage = PARSER.parsePartialFrom(input, extensionRegistry);
+        boolean done = false;
+        while (!done) {
+          int tag = input.readTag();
+          switch (tag) {
+            case 0:
+              done = true;
+              break;
+            case 10:
+              {
+                input.readMessage(getHandshakeFieldBuilder().getBuilder(), extensionRegistry);
+                payloadCase_ = 1;
+                break;
+              } // case 10
+            case 18:
+              {
+                input.readMessage(getCompileFieldBuilder().getBuilder(), extensionRegistry);
+                payloadCase_ = 2;
+                break;
+              } // case 18
+            default:
+              {
+                if (!super.parseUnknownField(input, extensionRegistry, tag)) {
+                  done = true; // was an endgroup tag
+                }
+                break;
+              } // default:
+          } // switch (tag)
+        } // while (!done)
       } catch (com.google.protobuf.InvalidProtocolBufferException e) {
-        parsedMessage = (org.prlprg.server.protocol.Request) e.getUnfinishedMessage();
         throw e.unwrapIOException();
       } finally {
-        if (parsedMessage != null) {
-          mergeFrom(parsedMessage);
-        }
-      }
+        onChanged();
+      } // finally
       return this;
     }
 
@@ -603,6 +564,8 @@ public final class Request extends com.google.protobuf.GeneratedMessageV3
       onChanged();
       return this;
     }
+
+    private int bitField0_;
 
     private com.google.protobuf.SingleFieldBuilderV3<
             org.prlprg.server.protocol.HandshakeRequest,
@@ -685,8 +648,9 @@ public final class Request extends com.google.protobuf.GeneratedMessageV3
       } else {
         if (payloadCase_ == 1) {
           handshakeBuilder_.mergeFrom(value);
+        } else {
+          handshakeBuilder_.setMessage(value);
         }
-        handshakeBuilder_.setMessage(value);
       }
       payloadCase_ = 1;
       return this;
@@ -750,7 +714,6 @@ public final class Request extends com.google.protobuf.GeneratedMessageV3
       }
       payloadCase_ = 1;
       onChanged();
-      ;
       return handshakeBuilder_;
     }
 
@@ -834,8 +797,9 @@ public final class Request extends com.google.protobuf.GeneratedMessageV3
       } else {
         if (payloadCase_ == 2) {
           compileBuilder_.mergeFrom(value);
+        } else {
+          compileBuilder_.setMessage(value);
         }
-        compileBuilder_.setMessage(value);
       }
       payloadCase_ = 2;
       return this;
@@ -899,7 +863,6 @@ public final class Request extends com.google.protobuf.GeneratedMessageV3
       }
       payloadCase_ = 2;
       onChanged();
-      ;
       return compileBuilder_;
     }
 
@@ -935,7 +898,18 @@ public final class Request extends com.google.protobuf.GeneratedMessageV3
             com.google.protobuf.CodedInputStream input,
             com.google.protobuf.ExtensionRegistryLite extensionRegistry)
             throws com.google.protobuf.InvalidProtocolBufferException {
-          return new Request(input, extensionRegistry);
+          Builder builder = newBuilder();
+          try {
+            builder.mergeFrom(input, extensionRegistry);
+          } catch (com.google.protobuf.InvalidProtocolBufferException e) {
+            throw e.setUnfinishedMessage(builder.buildPartial());
+          } catch (com.google.protobuf.UninitializedMessageException e) {
+            throw e.asInvalidProtocolBufferException().setUnfinishedMessage(builder.buildPartial());
+          } catch (java.io.IOException e) {
+            throw new com.google.protobuf.InvalidProtocolBufferException(e)
+                .setUnfinishedMessage(builder.buildPartial());
+          }
+          return builder.buildPartial();
         }
       };
 

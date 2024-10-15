@@ -55,7 +55,9 @@ RUN apt install -y \
   software-properties-common \
   xvfb \
   gdb \
-  protobuf-compiler
+  protobuf-compiler \
+  bear \
+  libzmq3-dev
 
 # install LLVM
 RUN curl -fsSL -o /opt/llvm.sh https://apt.llvm.org/llvm.sh \

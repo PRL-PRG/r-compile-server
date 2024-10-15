@@ -21,7 +21,7 @@ clean:
 	-find src -name '*.o' -exec rm {} \;
 
 .PHONY: build
-install:
+build:
 	$(LLVM_R) CMD build .
 
 .PHONY: install
