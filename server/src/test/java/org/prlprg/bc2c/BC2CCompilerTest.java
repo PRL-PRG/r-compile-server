@@ -357,6 +357,20 @@ public class BC2CCompilerTest {
 //        snapshot.verify("x <- data.frame(a=1); colnames(x) <- 'b'; x");
     }
 
+    @Test
+    public void testFor(BC2CSnapshot snapshot) {
+        snapshot.verify(
+                """
+                        s <- 0
+                        for (i in 1:10) {
+                          s <- s + i
+                        }
+                        s
+                        """,
+                returns(55.0));
+    }
+
+
     private TestResultCheck fastArith() {
         return noSlow(PerformanceCounters::slowArith, "Expected fast arithmetics");
     }

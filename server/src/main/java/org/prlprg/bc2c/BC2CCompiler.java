@@ -212,6 +212,17 @@ class ClosureCompiler {
                             builder.args(constantSXP(call)).pop(2 + rank).useStackAsArray().compileStmt();
                     case BcInstr.Subassign2N(var call, var rank) ->
                             builder.args(constantSXP(call)).pop(2 + rank).useStackAsArray().compileStmt();
+                    case BcInstr.StartFor(var ast, var symbol, var label) -> {
+                        var c = builder.args(constantSXP(ast), constantSXP(symbol), cell(symbol)).compileStmt();
+                        yield c + "\ngoto " + label(label) + ";";
+                    }
+                    case BcInstr.StepFor(var label) -> {
+                        if (!(this.bc.code().get(label.target()-1) instanceof BcInstr.StartFor(_, var symbol, _))) {
+                            throw new IllegalStateException("Expected StartFor instruction");
+                        }
+                        yield "if (%s) {\n goto %s;\n}".formatted(
+                                builder.args(cell(symbol)).compile(), label(label));
+                    }
                     default -> {
                         if (instr.label().orElse(null) instanceof BcLabel l) {
                             yield "if (%s) {\ngoto %s;\n}".formatted(builder.compile(), label(l));
@@ -305,7 +316,10 @@ class ClosureCompiler {
                     BcOp.MATSUBSET,
                     BcOp.MATSUBSET2,
                     BcOp.MATSUBASSIGN,
-                    BcOp.MATSUBASSIGN2
+                    BcOp.MATSUBASSIGN2,
+                    BcOp.STARTFOR,
+                    BcOp.STEPFOR,
+                    BcOp.ENDFOR
             );
 
     private void checkSupported(BcInstr instr) {
