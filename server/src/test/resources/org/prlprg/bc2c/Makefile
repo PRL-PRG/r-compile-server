@@ -1,14 +1,13 @@
-RSH_HOME := /home/krikava/r-compile-server/code
+RSH_HOME := /workspace
 R_HOME := $(RSH_HOME)/external/R
 R := $(R_HOME)/bin/R
 CC := gcc
 CFLAGS := -I$(RSH_HOME)/client/rsh/src/bc2c \
 		-I$(R_HOME)/include \
-		-fpic \
+		-fPIC \
 		-fno-plt \
 		-fexceptions \
 		-fstack-clash-protection \
-		-fcf-protection \
 		-flto=auto \
 		-ffat-lto-objects \
 		-Wformat \
