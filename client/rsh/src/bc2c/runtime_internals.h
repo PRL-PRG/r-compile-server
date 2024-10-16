@@ -323,6 +323,7 @@ static INLINE SEXP relop(SEXP call, SEXP op, SEXP opsym, SEXP x, SEXP y,
 
 #define SET_SCALAR_INT(s, v) INTEGER((s))[0] = (v)
 #define SET_SCALAR_REAL(s, v) REAL((s))[0] = (v)
+#define SET_SCALAR_LOGICAL(s, v) LOGICAL((s))[0] = (v)
 
 // FIXME: implement signal checking
 #define RSH_CHECK_SIGINT()

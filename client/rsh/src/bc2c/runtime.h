@@ -2111,8 +2111,6 @@ static INLINE Rboolean Rsh_StepFor(Value *s2, Value *s1, Value *s0, BCell *cell,
   SEXP value;
 
   switch (info->type) {
-  // TODO: INTSXP
-  // TODO: LGLSXP
   case INTSXP: {
     int v = INTEGER_ELT(seq, i);
 
@@ -2125,6 +2123,36 @@ static INLINE Rboolean Rsh_StepFor(Value *s2, Value *s1, Value *s0, BCell *cell,
     } else {
       value = VAL_SXP(*s0);
       SET_SCALAR_INT(value, v);
+    }
+    break;
+  }
+  case REALSXP: {
+    double v = REAL_ELT(seq, i);
+
+    if (BCELL_TAG_WR(*cell) == REALSXP) {
+      BCELL_DVAL_SET(*cell, v);
+      return TRUE;
+    } else if (BCELL_WRITABLE(*cell)) {
+      BCELL_DVAL_NEW(*cell, v);
+      return TRUE;
+    } else {
+      value = VAL_SXP(*s0);
+      SET_SCALAR_REAL(value, v);
+    }
+    break;
+  }
+  case LGLSXP: {
+    int v = LOGICAL_ELT(seq, i);
+
+    if (BCELL_TAG_WR(*cell) == LGLSXP) {
+      BCELL_LVAL_SET(*cell, v);
+      return TRUE;
+    } else if (BCELL_WRITABLE(*cell)) {
+      BCELL_LVAL_NEW(*cell, v);
+      return TRUE;
+    } else {
+      value = VAL_SXP(*s0);
+      SET_SCALAR_LOGICAL(value, v);
     }
     break;
   }
