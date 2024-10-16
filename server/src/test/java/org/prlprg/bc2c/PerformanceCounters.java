@@ -14,7 +14,9 @@ public record PerformanceCounters(
     int slowSubset,
     int slowSubassign,
     int dispatchedSubset,
-    int dispatchedSubassign) {
+    int dispatchedSubassign,
+    int isq,
+    int isqFor) {
   public static PerformanceCounters EMPTY = empty();
 
   public static PerformanceCounters from(SEXP sexp) {

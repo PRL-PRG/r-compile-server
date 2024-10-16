@@ -65,6 +65,10 @@ typedef struct {
   u32 dispatched_subset;
   // number of times the Rsh_*_subassign operation dispatched
   u32 dispatched_subassign;
+  // number of new ISQ values
+  u32 isq;
+  // number of ISQ loops
+  u32 isq_for;
 } Rsh_PerfCounters;
 
 #ifndef RSH_TESTS
@@ -145,7 +149,8 @@ extern SEXP R_LOGIC2_OPS[];
   X([<-, Rsh_SubassignSym)                                                   \
   X([[<-, Rsh_Subassign2Sym)                                                 \
   X(.External2, Rsh_DotExternal2Sym)                                         \
-  X(*tmp*, Rsh_TmpvalSym)
+  X(*tmp*, Rsh_TmpvalSym) \
+  X(:, Rsh_ColonSym)
 
 #ifndef RSH_TESTS
 #define X(a, b) extern SEXP b;
@@ -181,6 +186,7 @@ RSH_R_SYMBOLS
 //  MASK_INT 0|1111111111111|00|000000000000000000000000000000000000000000000000
 //  MASK_SXP 1|1111111111111|00|000000000000000000000000000000000000000000000000
 //  MASK_LGL 0|1111111111111|11|000000000000000000000000000000000000000000000000
+//  MASK_ISQ 1|1111111111111|01|000000000000000000000000000000000000000000000000
 //      TRUE 0|1111111111111|11|000000000000000000000000000000000000000000000001
 //     FALSE 0|1111111111111|11|000000000000000000000000000000000000000000000000
 //                            ^
@@ -197,6 +203,7 @@ RSH_R_SYMBOLS
 #define MASK_INT QNAN
 #define MASK_SXP (SIGN_BIT | QNAN)
 #define MASK_LGL (QNAN | ((u64)3 << 48))
+#define MASK_ISQ (MASK_SXP | ((u64)1 << 48))
 
 #define VAL_TRUE ((Value)(MASK_LGL | 1))
 #define VAL_FALSE ((Value)(MASK_LGL | 0))
@@ -218,8 +225,10 @@ static INLINE double VAL_DBL(Value v) {
 #define VAL_IS_DBL_NOT_NAN(v) VAL_IS_DBL(v) && !ISNAN(VAL_DBL(v))
 #define VAL_IS_LGL(v) (((v) & MASK) == MASK_LGL)
 #define VAL_IS_LGL_NOT_NA(v) (VAL_IS_LGL(v) && VAL_INT(v) != NA_LOGICAL)
+#define VAL_IS_ISQ(v) (((v) & MASK) == MASK_ISQ)
 
 #define SXP_TO_VAL(v) (Value)(MASK_SXP | ((u64)(v)))
+#define ISQ_TO_VAL(v) (Value)(MASK_ISQ | ((u64)(v)))
 // this is to prevent the NA value to change all the bits to 1
 #define INT_TO_VAL(v) (Value)(MASK_INT | ((u64)(u32)(v)))
 #define LGL_TO_VAL(v) (Value)(MASK_LGL | ((u64)(u32)(v)))
@@ -231,9 +240,14 @@ static INLINE Value DBL_TO_VAL(double d) {
   return v;
 }
 
+#define ISQSXP 9999
+
 #define VAL_TAG(v)                                                             \
   ((VAL_IS_DBL(v) ? REALSXP                                                    \
-                  : (VAL_IS_INT(v) ? INTSXP : (VAL_IS_LGL(v) ? LGLSXP : 0))))
+                  : (VAL_IS_INT(v) ? INTSXP                                    \
+                                   : (VAL_IS_LGL(v)   ? LGLSXP                 \
+                                      : VAL_IS_ISQ(v) ? ISQSXP                 \
+                                                      : 0))))
 
 // TODO: can we share this bcell expand?
 static INLINE SEXP val_as_sexp(Value v) {
@@ -244,6 +258,10 @@ static INLINE SEXP val_as_sexp(Value v) {
     return Rf_ScalarInteger(VAL_INT(v));
   case LGLSXP:
     return Rf_ScalarLogical(VAL_INT(v));
+  case ISQSXP: {
+    int *seqinfo = INTEGER(VAL_SXP(v));
+    return R_compact_intrange(seqinfo[0], seqinfo[1]);
+  }
   default:
     return VAL_SXP(v);
   }
@@ -2029,12 +2047,16 @@ typedef struct {
 
 static INLINE void Rsh_StartFor(Value *s2, Value *s1, Value *s0, SEXP call,
                                 SEXP symbol, BCell *cell, SEXP rho) {
-  // TODO: compact for loops
-  // TODO: super fast case for the case when iterate over a known sequence
-  //  - this should be in the compiler
-  // TODO: the compiler should turn this into a normal forloop
+  SEXP seq;
+  Rboolean isq = FALSE;
 
-  SEXP seq = val_as_sexp(*s2);
+  if (VAL_IS_ISQ(*s2)) {
+    isq = TRUE;
+    seq = VAL_SXP(*s2);
+  } else {
+    seq = val_as_sexp(*s2);
+  }
+  *s2 = SXP_TO_VAL(seq);
 
   if (Rf_inherits(seq, "factor")) {
     seq = Rf_asCharacterFactor(seq);
@@ -2048,7 +2070,11 @@ static INLINE void Rsh_StartFor(Value *s2, Value *s1, Value *s0, SEXP call,
 
   info->idx = -1;
 
-  if (Rf_isVector(seq)) {
+  if (isq) {
+    int n1 = INTEGER(seq)[0];
+    int n2 = INTEGER(seq)[1];
+    info->len = n1 <= n2 ? n2 - n1 + 1 : n1 - n2 + 1;
+  } else if (Rf_isVector(seq)) {
     info->len = XLENGTH(seq);
   } else if (Rf_isList(seq) || isNull(seq)) {
     info->len = Rf_length(seq);
@@ -2056,7 +2082,7 @@ static INLINE void Rsh_StartFor(Value *s2, Value *s1, Value *s0, SEXP call,
     Rf_errorcall(call, "invalid for() loop sequence");
   }
 
-  info->type = TYPEOF(seq);
+  info->type = isq ? ISQSXP : TYPEOF(seq);
   info->symbol = symbol;
 
   // bump up links count of seq to avoid modification by loop code
@@ -2110,9 +2136,22 @@ static INLINE Rboolean Rsh_StepFor(Value *s2, Value *s1, Value *s0, BCell *cell,
 
   SEXP value;
 
+  // it is important to use info->type and not TYPEOF(seq)
+  // as it could be the ISQSXP
   switch (info->type) {
-  case INTSXP: {
-    int v = INTEGER_ELT(seq, i);
+  case INTSXP:
+  case ISQSXP: {
+    int v;
+    if (info->type == INTSXP) {
+      v = INTEGER_ELT(seq, i);
+    } else {
+      int *info = INTEGER(seq);
+      int n1 = info[0];
+      int n2 = info[1];
+      int ii = (int)i;
+      v = n1 <= n2 ? n1 + ii : n1 - ii;
+      RSH_PC_INC(isq_for);
+    }
 
     if (BCELL_TAG_WR(*cell) == INTSXP) {
       BCELL_IVAL_SET(*cell, v);
@@ -2189,6 +2228,30 @@ static INLINE void Rsh_EndFor(Value *s2, Value s1, Value s0, SEXP rho) {
   RshLoopInfo *info = (RshLoopInfo *)s1;
   free(info);
   *s2 = Rsh_NilValue;
+}
+
+#define ISQ_NEW(/* int */ x, /* int */ y, /* Value */ res)                     \
+  do {                                                                         \
+    SEXP __v__ = Rf_allocVector(INTSXP, 2);                                    \
+    INTEGER(__v__)[0] = (int)(x);                                              \
+    INTEGER(__v__)[1] = (int)(y);                                              \
+    (res) = ISQ_TO_VAL(__v__);                                                 \
+    RSH_PC_INC(isq);                                                           \
+  } while (0)
+
+static INLINE void Rsh_Colon(Value *s1, Value s0, SEXP call, SEXP rho) {
+  if (VAL_IS_DBL(*s1) && VAL_IS_DBL(s0)) {
+    double rn1 = VAL_DBL(*s1);
+    double rn2 = VAL_DBL(s0);
+    if (R_FINITE(rn1) && R_FINITE(rn2) && INT_MIN <= rn1 && INT_MAX >= rn1 &&
+        INT_MIN <= rn2 && INT_MAX >= rn2 && rn1 == (int)rn1 &&
+        rn2 == (int)rn2) {
+      ISQ_NEW(rn1, rn2, *s1);
+      R_Visible = TRUE;
+    }
+  } else {
+    DO_BUILTIN2(do_colon, call, Rsh_ColonSym, *s1, s0, rho, *s1);
+  }
 }
 
 #endif // RUNTIME_H

@@ -316,7 +316,8 @@ class ClosureCompiler {
           BcOp.MATSUBASSIGN2,
           BcOp.STARTFOR,
           BcOp.STEPFOR,
-          BcOp.ENDFOR);
+          BcOp.ENDFOR,
+          BcOp.COLON);
 
   private void checkSupported(BcInstr instr) {
     if (!SUPPORTED_OPS.contains(instr.op())) {
