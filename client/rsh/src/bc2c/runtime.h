@@ -4,6 +4,7 @@
 // THIS HEADER NEEDS TO BE A C-compatible HEADER
 // IT IS USED BY THE SERVER COMPILER
 
+// MAKE SURE Rinternals.h is not listed!
 #include "R_ext/Boolean.h"
 #include "runtime_internals.h"
 #include <assert.h>
@@ -2042,8 +2043,6 @@ static INLINE void Rsh_StartFor(Value *s2, Value *s1, Value *s0, SEXP call,
 
   // FIXME: BCPROT?
 
-  Rsh_SetVar(s1, symbol, cell, rho);
-
   RshLoopInfo *info = (RshLoopInfo *)malloc(sizeof(RshLoopInfo));
   *s1 = (Value)info;
 
@@ -2072,6 +2071,7 @@ static INLINE void Rsh_StartFor(Value *s2, Value *s1, Value *s0, SEXP call,
   case CPLXSXP:
   case STRSXP:
   case RAWSXP:
+    // FIXME: who will protect this?
     value = Rf_allocVector(TYPEOF(seq), 1);
     INCREMENT_NAMED(value);
     // FIXME: BCNPUSH_NLNK(value);
@@ -2081,13 +2081,24 @@ static INLINE void Rsh_StartFor(Value *s2, Value *s1, Value *s0, SEXP call,
   }
   *s0 = SXP_TO_VAL(value);
 
-  /* the seq, binding cell, and value on the stack are now boxed */
+  Rsh_SetVar(s0, symbol, cell, rho);
+
+  // stack at the end:
+  //         s2 - sequence
+  //         s1 - casted pointer for the RshLoopInfo
+  // top --> s0 - the initial value
 }
 
-#define SET_SCALAR_IVAL(s, v) INTEGER((s))[0] = (v)
+#define SET_FOR_LOOP_VAR(value, cell, symbol, rho)                             \
+  do {                                                                         \
+    if (BCELL_IS_UNBOUND(cell) || !bcell_set_value(cell, value)) {             \
+      Rf_defineVar(symbol, value, rho);                                        \
+    }                                                                          \
+  } while (0)
 
 static INLINE Rboolean Rsh_StepFor(Value *s2, Value *s1, Value *s0, BCell *cell,
                                    SEXP rho) {
+  SEXP seq = val_as_sexp(*s2);
   RshLoopInfo *info = (RshLoopInfo *)*s1;
   R_xlen_t i = ++(info->idx);
 
@@ -2097,27 +2108,37 @@ static INLINE Rboolean Rsh_StepFor(Value *s2, Value *s1, Value *s0, BCell *cell,
 
   RSH_CHECK_SIGINT();
 
-  SEXP seq = val_as_sexp(*s2);
   SEXP value;
 
   switch (info->type) {
+  // TODO: INTSXP
+  // TODO: LGLSXP
   case INTSXP: {
     int v = INTEGER_ELT(seq, i);
 
-    // TODO: update this for all the "fast cases"
     if (BCELL_TAG_WR(*cell) == INTSXP) {
       BCELL_IVAL_SET(*cell, v);
+      return TRUE;
     } else if (BCELL_WRITABLE(*cell)) {
       BCELL_IVAL_NEW(*cell, v);
+      return TRUE;
     } else {
       value = VAL_SXP(*s0);
-      SET_SCALAR_IVAL(value, v);
-      // FIXME: update the variable in rho
-      //  SET_FOR_LOOP_VAR
-      *s0 = SXP_TO_VAL(value);
+      SET_SCALAR_INT(value, v);
     }
+    break;
   }
+    // TODO: CPLXSXP
+    // TODO: RAWSXP
+    // TODO: LISTSXP
+  case STRSXP:
+    value = VAL_SXP(*s0);
+    SET_STRING_ELT(value, 0, STRING_ELT(seq, i));
+    break;
+  default:
+    Rf_error("invalid sequence argument in for loop");
   }
+  SET_FOR_LOOP_VAR(value, *cell, info->symbol, rho);
   return TRUE;
 }
 

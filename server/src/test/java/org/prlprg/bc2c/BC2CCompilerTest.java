@@ -368,6 +368,14 @@ public class BC2CCompilerTest {
                         s
                         """,
                 returns(55.0));
+        snapshot.verify("""
+                x <- ""
+                for (i in letters) {
+                    str(i)
+                    x <- paste0(x, i)
+                }
+                x
+                """);
     }
 
 
