@@ -424,6 +424,7 @@ public class BC2CCompilerTest {
 
   @Test
   public void testNestedFor(BC2CSnapshot snapshot) {
+    // this for loop will not use ISQ as it will be constant folded
     snapshot.verify(
         """
                         s <- 0L
@@ -435,6 +436,32 @@ public class BC2CCompilerTest {
                         s
                         """,
         returns(1100));
+  }
+
+  @Test
+  public void testColon(BC2CSnapshot snapshot) {
+    snapshot.verify("""
+            x <- 1
+            y <- 10
+            x:y
+            """, x -> assertEquals(x.pc().isq(), 1));
+  }
+
+  @Test
+  public void testISQFor(BC2CSnapshot snapshot) {
+    // sequence is INT
+    snapshot.verify(
+            """
+                    n <- 1
+                    m <- 10
+                    s <- 0
+                    for (i in n:m) s <- s + i
+                    s
+                    """,
+            returns(55.0), x-> {
+              assertEquals(x.pc().isq(), 1);
+              assertEquals(x.pc().isqFor(), 10);
+            });
   }
 
   private TestResultCheck fastArith() {

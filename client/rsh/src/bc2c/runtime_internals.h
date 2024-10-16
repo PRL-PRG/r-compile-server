@@ -68,6 +68,8 @@ SEXP do_subassign2_dflt(SEXP call, SEXP op, SEXP args, SEXP rho);
 SEXP R_mkEVPROMISE_NR(SEXP expr, SEXP val);
 // creates a new evaluated promise with reference counting
 SEXP R_mkEVPROMISE(SEXP expr, SEXP val);
+SEXP do_colon(SEXP call, SEXP op, SEXP args, SEXP rho);
+SEXP R_compact_intrange(R_xlen_t n1, R_xlen_t n2);
 
 static INLINE SEXP Rsh_get_dim_attr(SEXP v) {
   SEXP attr = ATTRIB(v);
