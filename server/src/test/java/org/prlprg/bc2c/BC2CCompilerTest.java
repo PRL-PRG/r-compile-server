@@ -359,21 +359,35 @@ public class BC2CCompilerTest {
 
     @Test
     public void testFor(BC2CSnapshot snapshot) {
+        // sequence is INT
         snapshot.verify(
                 """
                         s <- 0
-                        for (i in 1:10) {
-                          s <- s + i
-                        }
+                        for (i in 1:10) s <- s + i
                         s
                         """,
                 returns(55.0));
-        snapshot.verify("""
+        // sequence is REAL
+        snapshot.verify(
+                """
+                        s <- 0
+                        for (i in seq(0,1,.1)) s <- s + i
+                        s
+                        """,
+                returns(5.5));
+        // sequence is LGL
+        snapshot.verify(
+                """
+                        s <- 0L
+                        for (i in c(T,F,T)) s <- s + i
+                        s
+                        """,
+                returns(2));
+        // sequence is STR
+        snapshot.verify(
+                """
                 x <- ""
-                for (i in letters) {
-                    str(i)
-                    x <- paste0(x, i)
-                }
+                for (i in letters)  x <- paste0(x, i)
                 x
                 """);
     }
