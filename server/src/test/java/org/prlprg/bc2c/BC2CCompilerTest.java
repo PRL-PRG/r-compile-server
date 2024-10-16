@@ -390,6 +390,27 @@ public class BC2CCompilerTest {
                 for (i in letters)  x <- paste0(x, i)
                 x
                 """);
+        // sequence is CPL
+        snapshot.verify(
+                """
+                s <- 0
+                for (i in c(0+1i,1+2i))  s <- s + i
+                s
+                """);
+        // sequence is VEC
+        snapshot.verify(
+                """
+                s <- 0
+                for (i in list(1,2,3))  s <- s + i
+                s
+                """);
+        // sequence is RAW
+        snapshot.verify(
+                """
+                s <- 0
+                for (i in as.raw(c(1,2,3)))  s <- s + as.integer(i)
+                s
+                """);
     }
 
 

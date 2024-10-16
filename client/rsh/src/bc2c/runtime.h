@@ -2122,7 +2122,7 @@ static INLINE Rboolean Rsh_StepFor(Value *s2, Value *s1, Value *s0, BCell *cell,
       return TRUE;
     } else {
       value = VAL_SXP(*s0);
-      SET_SCALAR_INT(value, v);
+      SET_SCALAR_IVAL(value, v);
     }
     break;
   }
@@ -2137,7 +2137,7 @@ static INLINE Rboolean Rsh_StepFor(Value *s2, Value *s1, Value *s0, BCell *cell,
       return TRUE;
     } else {
       value = VAL_SXP(*s0);
-      SET_SCALAR_REAL(value, v);
+      SET_SCALAR_DVAL(value, v);
     }
     break;
   }
@@ -2152,20 +2152,35 @@ static INLINE Rboolean Rsh_StepFor(Value *s2, Value *s1, Value *s0, BCell *cell,
       return TRUE;
     } else {
       value = VAL_SXP(*s0);
-      SET_SCALAR_LOGICAL(value, v);
+      SET_SCALAR_LVAL(value, v);
     }
     break;
   }
-    // TODO: CPLXSXP
-    // TODO: RAWSXP
-    // TODO: LISTSXP
+  case CPLXSXP:
+    value = VAL_SXP(*s0);
+    SET_SCALAR_CVAL(value, COMPLEX_ELT(seq, i));
+    break;
   case STRSXP:
     value = VAL_SXP(*s0);
     SET_STRING_ELT(value, 0, STRING_ELT(seq, i));
     break;
+  case RAWSXP:
+    value = VAL_SXP(*s0);
+    SET_SCALAR_BVAL(value, RAW(seq)[i]);
+    break;
+  case EXPRSXP:
+  case VECSXP:
+    value = VECTOR_ELT(seq, i);
+    ENSURE_NAMEDMAX(value);
+    break;
+  case LISTSXP:
+    value = CAR(seq);
+    ENSURE_NAMEDMAX(value);
+    *s2 = SXP_TO_VAL(CDR(seq));
   default:
     Rf_error("invalid sequence argument in for loop");
   }
+
   SET_FOR_LOOP_VAR(value, *cell, info->symbol, rho);
   return TRUE;
 }
