@@ -753,6 +753,7 @@ public sealed interface BcInstr {
     }
   }
 
+  @StackEffect(push = 1, pop = 1)
   record IsNull() implements BcInstr {
     @Override
     public BcOp op() {
@@ -760,6 +761,7 @@ public sealed interface BcInstr {
     }
   }
 
+  @StackEffect(push = 1, pop = 1)
   record IsLogical() implements BcInstr {
     @Override
     public BcOp op() {
