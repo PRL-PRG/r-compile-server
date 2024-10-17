@@ -146,7 +146,8 @@ extern SEXP R_LOGIC2_OPS[];
   X(.External2, Rsh_DotExternal2Sym)                                         \
   X(*tmp*, Rsh_TmpvalSym) \
   X(:, Rsh_ColonSym) \
-  X(seq_along, Rsh_SeqAlongSym)
+  X(seq_along, Rsh_SeqAlongSym) \
+  X(seq_len, Rsh_SeqLenSym)
 
 #ifndef RSH_TESTS
 #define X(a, b) extern SEXP b;
@@ -2261,6 +2262,24 @@ static INLINE void Rsh_SeqAlong(Value *v, SEXP call, SEXP rho) {
     }
   }
   DO_BUILTIN1(do_seq_along, call, Rsh_SeqAlongSym, *v, rho, v);
+}
+
+static INLINE void Rsh_SeqLen(Value *v, SEXP call, SEXP rho) {
+  double len = NAN;
+
+  if (VAL_IS_DBL(*v)) {
+    len = VAL_DBL(*v);
+  } else if (VAL_IS_INT(*v)) {
+    len = VAL_INT(*v);
+  }
+
+  if (len > 0 && len < INT_MAX && len == (int)len) {
+    ISQ_NEW(1, len, *v);
+    R_Visible = TRUE;
+    return;
+  }
+
+  DO_BUILTIN1(do_seq_len, call, Rsh_SeqLenSym, *v, rho, v);
 }
 
 #endif // RUNTIME_H

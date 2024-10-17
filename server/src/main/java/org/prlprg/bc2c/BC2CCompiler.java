@@ -318,7 +318,8 @@ class ClosureCompiler {
           BcOp.STEPFOR,
           BcOp.ENDFOR,
           BcOp.COLON,
-          BcOp.SEQALONG);
+          BcOp.SEQALONG,
+          BcOp.SEQLEN);
 
   private void checkSupported(BcInstr instr) {
     if (!SUPPORTED_OPS.contains(instr.op())) {
