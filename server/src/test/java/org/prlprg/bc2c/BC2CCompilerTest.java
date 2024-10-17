@@ -485,6 +485,15 @@ public class BC2CCompilerTest {
             });
   }
 
+  @Test
+  public void testIs(BC2CSnapshot snapshot) {
+    snapshot.verify("x <- NULL; is.null(x)");
+    snapshot.verify("x <- 1; is.null(x)");
+    snapshot.verify("x <- 1; is.logical(x)");
+    snapshot.verify("x <- T; is.logical(x)");
+    snapshot.verify("x <- c(T, F); is.logical(x)");
+  }
+
   private TestResultCheck fastArith() {
     return noSlow(PerformanceCounters::slowArith, "Expected fast arithmetics");
   }

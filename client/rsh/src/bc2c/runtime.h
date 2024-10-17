@@ -2282,4 +2282,19 @@ static INLINE void Rsh_SeqLen(Value *v, SEXP call, SEXP rho) {
   DO_BUILTIN1(do_seq_len, call, Rsh_SeqLenSym, *v, rho, v);
 }
 
+#define RSH_IS_TEST(v, p)                                                      \
+  do {                                                                         \
+    *(v) = p(val_as_sexp(*(v))) ? VAL_TRUE : VAL_FALSE;                        \
+  } while (0)
+
+#define RSH_IS_TYPE(v, t)                                                      \
+  do {                                                                         \
+    *(v) = VAL_TAG(*(v)) == t || TYPEOF(val_as_sexp(*(v))) == t ? VAL_TRUE     \
+                                                                : VAL_FALSE;   \
+  } while (0)
+
+static INLINE void Rsh_IsNull(Value *v) { RSH_IS_TEST(v, isNull); }
+
+static INLINE void Rsh_IsLogical(Value *v) { RSH_IS_TYPE(v, LGLSXP); }
+
 #endif // RUNTIME_H
