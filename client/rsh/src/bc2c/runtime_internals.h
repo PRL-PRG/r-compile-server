@@ -71,6 +71,7 @@ SEXP R_mkEVPROMISE(SEXP expr, SEXP val);
 SEXP do_colon(SEXP call, SEXP op, SEXP args, SEXP rho);
 SEXP R_compact_intrange(R_xlen_t n1, R_xlen_t n2);
 SEXP do_seq_along(SEXP call, SEXP op, SEXP args, SEXP rho);
+SEXP do_seq_len(SEXP call, SEXP op, SEXP args, SEXP rho);
 
 static INLINE SEXP Rsh_get_dim_attr(SEXP v) {
   SEXP attr = ATTRIB(v);
