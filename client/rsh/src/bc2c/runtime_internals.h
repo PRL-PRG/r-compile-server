@@ -19,6 +19,8 @@
 #define isNull(s) (TYPEOF(s) == NILSXP)
 #undef isObject
 #define isObject(s) (OBJECT(s) != 0)
+#define Rf_isLogical(s) (TYPEOF(s) == LGLSXP)
+#define isNumericOnly(x) (Rf_isNumeric(x) && !Rf_isLogical(x))
 
 extern FUNTAB R_FunTab[];
 extern Rboolean R_Visible; /* Value visibility flag */
