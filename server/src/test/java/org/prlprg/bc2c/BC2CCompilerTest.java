@@ -492,6 +492,15 @@ public class BC2CCompilerTest {
     snapshot.verify("x <- 1; is.logical(x)");
     snapshot.verify("x <- T; is.logical(x)");
     snapshot.verify("x <- c(T, F); is.logical(x)");
+    snapshot.verify("x <- 'a'; is.integer(x)");
+    snapshot.verify("x <- 1L; is.integer(x)");
+    snapshot.verify("x <- c(1L, 2L); is.integer(x)");
+    snapshot.verify("a <- 10; x <- 1:a; is.integer(x)");
+    snapshot.verify("x <- 'a'; is.double(x)");
+    snapshot.verify("x <- 1; is.double(x)");
+    snapshot.verify("x <- c(1, 2); is.double(x)");
+    snapshot.verify("a <- 10; x <- 1:a; is.double(x)");
+    // TODO: missing other is.xxx
   }
 
   private TestResultCheck fastArith() {

@@ -2295,6 +2295,36 @@ static INLINE void Rsh_SeqLen(Value *v, SEXP call, SEXP rho) {
 
 static INLINE void Rsh_IsNull(Value *v) { RSH_IS_TEST(v, isNull); }
 
+static INLINE void Rsh_IsObject(Value *v) { RSH_IS_TEST(v, isObject); }
+
+static INLINE void Rsh_IsNumeric(Value *v) { RSH_IS_TEST(v, isNumericOnly); }
+
 static INLINE void Rsh_IsLogical(Value *v) { RSH_IS_TYPE(v, LGLSXP); }
+
+static INLINE void Rsh_IsDouble(Value *v) { RSH_IS_TYPE(v, REALSXP); }
+
+static INLINE void Rsh_IsComplex(Value *v) { RSH_IS_TYPE(v, CPLXSXP); }
+
+static INLINE void Rsh_IsCharacter(Value *v) { RSH_IS_TYPE(v, STRSXP); }
+
+static INLINE void Rsh_IsSymbol(Value *v) { RSH_IS_TYPE(v, SYMSXP); }
+
+static INLINE void Rsh_IsInteger(Value *v) {
+  switch (VAL_TAG(*v)) {
+  case INTSXP:
+  case ISQSXP:
+    *v = VAL_TRUE;
+    break;
+  case 0: // some SXP
+  {
+    SEXP s = VAL_SXP(*v);
+    *v = (TYPEOF(s) == INTSXP) && !Rf_inherits(s, "factor") ? VAL_TRUE
+                                                            : VAL_FALSE;
+    break;
+  }
+  default:
+    *v = VAL_FALSE;
+  }
+}
 
 #endif // RUNTIME_H

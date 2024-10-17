@@ -769,6 +769,7 @@ public sealed interface BcInstr {
     }
   }
 
+  @StackEffect(push = 1, pop = 1)
   record IsInteger() implements BcInstr {
     @Override
     public BcOp op() {
@@ -776,6 +777,7 @@ public sealed interface BcInstr {
     }
   }
 
+  @StackEffect(push = 1, pop = 1)
   record IsDouble() implements BcInstr {
     @Override
     public BcOp op() {
@@ -783,6 +785,7 @@ public sealed interface BcInstr {
     }
   }
 
+  @StackEffect(push = 1, pop = 1)
   record IsComplex() implements BcInstr {
     @Override
     public BcOp op() {
@@ -790,6 +793,7 @@ public sealed interface BcInstr {
     }
   }
 
+  @StackEffect(push = 1, pop = 1)
   record IsCharacter() implements BcInstr {
     @Override
     public BcOp op() {
@@ -797,6 +801,7 @@ public sealed interface BcInstr {
     }
   }
 
+  @StackEffect(push = 1, pop = 1)
   record IsSymbol() implements BcInstr {
     @Override
     public BcOp op() {
@@ -804,6 +809,7 @@ public sealed interface BcInstr {
     }
   }
 
+  @StackEffect(push = 1, pop = 1)
   record IsObject() implements BcInstr {
     @Override
     public BcOp op() {
@@ -811,6 +817,7 @@ public sealed interface BcInstr {
     }
   }
 
+  @StackEffect(push = 1, pop = 1)
   record IsNumeric() implements BcInstr {
     @Override
     public BcOp op() {
