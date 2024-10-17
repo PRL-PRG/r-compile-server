@@ -8,15 +8,10 @@
 #include "R_ext/Boolean.h"
 #include "runtime_internals.h"
 #include <assert.h>
+#include <limits.h>
 #include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
-
-#define Rsh_error(msg, ...)                                                    \
-  {                                                                            \
-    error(msg, __VA_ARGS__);                                                   \
-    return R_NilValue;                                                         \
-  }
 
 typedef int32_t i32;
 typedef uint64_t u64;
@@ -150,7 +145,8 @@ extern SEXP R_LOGIC2_OPS[];
   X([[<-, Rsh_Subassign2Sym)                                                 \
   X(.External2, Rsh_DotExternal2Sym)                                         \
   X(*tmp*, Rsh_TmpvalSym) \
-  X(:, Rsh_ColonSym)
+  X(:, Rsh_ColonSym) \
+  X(seq_along, Rsh_SeqAlongSym)
 
 #ifndef RSH_TESTS
 #define X(a, b) extern SEXP b;
@@ -1034,24 +1030,25 @@ static INLINE Value Rsh_relop(Value lhs, Value rhs, SEXP call, RshRelOp op,
 X_REL_OPS
 #undef X
 
-// FIXME: refactor the builtin calls
-
 // calls R builtin function do_* with 1 argument
-#define DO_BUILTIN1(fun, call, op, arg, rho, res)                              \
+#define DO_BUILTIN1(/* PRIMFUN */ fun, /* SEXP */ call, /* SEXP */ op,         \
+                    /* Value */ arg, /* SEXP */ rho, /* Value* */ res)         \
   do {                                                                         \
     SEXP __res_sxp__ =                                                         \
         fun((call), (op), CONS_NR(val_as_sexp((arg)), R_NilValue), (rho));     \
-    *res = sexp_as_val(__res_sxp__);                                           \
+    *(res) = sexp_as_val(__res_sxp__);                                         \
     R_Visible = TRUE;                                                          \
   } while (0)
 
 // calls R builtin function do_* with 2 arguments
-#define DO_BUILTIN2(fun, call, op, arg1, arg2, rho, res)                       \
+#define DO_BUILTIN2(/* PRIMFUN */ fun, /* SEXP */ call, /* SEXP */ op,         \
+                    /* Value */ arg1, /* Value */ arg2, /* SEXP */ rho,        \
+                    /* Value* */ res)                                          \
   do {                                                                         \
     SEXP __tmp__ = CONS_NR(val_as_sexp((arg1)),                                \
                            CONS_NR(val_as_sexp((arg2)), R_NilValue));          \
     SEXP __res_sxp__ = fun((call), (op), __tmp__, (rho));                      \
-    res = sexp_as_val(__res_sxp__);                                            \
+    *(res) = sexp_as_val(__res_sxp__);                                         \
     R_Visible = TRUE;                                                          \
   } while (0)
 
@@ -1149,7 +1146,7 @@ static INLINE Value Rsh_logic(Value lhs, Value rhs, SEXP call, RshLogic2Op op,
 
   // TODO: not optimized
   // Slow path!
-  DO_BUILTIN2(do_logic, call, R_LOGIC2_OPS[op], lhs, rhs, rho, res);
+  DO_BUILTIN2(do_logic, call, R_LOGIC2_OPS[op], lhs, rhs, rho, &res);
 
   return res;
 }
@@ -2100,7 +2097,6 @@ static INLINE void Rsh_StartFor(Value *s2, Value *s1, Value *s0, SEXP call,
     // FIXME: who will protect this?
     value = Rf_allocVector(TYPEOF(seq), 1);
     INCREMENT_NAMED(value);
-    // FIXME: BCNPUSH_NLNK(value);
     break;
   default:
     value = R_NilValue;
@@ -2250,8 +2246,21 @@ static INLINE void Rsh_Colon(Value *s1, Value s0, SEXP call, SEXP rho) {
       R_Visible = TRUE;
     }
   } else {
-    DO_BUILTIN2(do_colon, call, Rsh_ColonSym, *s1, s0, rho, *s1);
+    DO_BUILTIN2(do_colon, call, Rsh_ColonSym, *s1, s0, rho, s1);
   }
+}
+
+static INLINE void Rsh_SeqAlong(Value *v, SEXP call, SEXP rho) {
+  SEXP s = val_as_sexp(*v);
+  if (!isObject(s)) {
+    R_xlen_t len = Rf_xlength(s);
+    if (len > 0 && len <= INT_MAX) {
+      ISQ_NEW(1, len, *v);
+      R_Visible = TRUE;
+      return;
+    }
+  }
+  DO_BUILTIN1(do_seq_along, call, Rsh_SeqAlongSym, *v, rho, v);
 }
 
 #endif // RUNTIME_H

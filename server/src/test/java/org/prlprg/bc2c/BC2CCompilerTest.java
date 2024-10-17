@@ -449,7 +449,6 @@ public class BC2CCompilerTest {
 
   @Test
   public void testISQFor(BC2CSnapshot snapshot) {
-    // sequence is INT
     snapshot.verify(
             """
                     n <- 1
@@ -461,6 +460,17 @@ public class BC2CCompilerTest {
             returns(55.0), x-> {
               assertEquals(x.pc().isq(), 1);
               assertEquals(x.pc().isqFor(), 10);
+            });
+    snapshot.verify(
+            """
+                    xs <- list(10, 20, 30)
+                    s <- 0
+                    for (i in seq_along(xs)) s <- s + xs[[i]]
+                    s
+                    """,
+            returns(60.0), x-> {
+              assertEquals(x.pc().isq(), 1);
+              assertEquals(x.pc().isqFor(), 3);
             });
   }
 
