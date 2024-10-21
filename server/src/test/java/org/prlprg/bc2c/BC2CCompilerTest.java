@@ -440,49 +440,54 @@ public class BC2CCompilerTest {
 
   @Test
   public void testColon(BC2CSnapshot snapshot) {
-    snapshot.verify("""
+    snapshot.verify(
+        """
             x <- 1
             y <- 10
             x:y
-            """, x -> assertEquals(x.pc().isq(), 1));
+            """,
+        x -> assertEquals(x.pc().isq(), 1));
   }
 
   @Test
   public void testISQFor(BC2CSnapshot snapshot) {
     snapshot.verify(
-            """ 
+        """
                     n <- 1
                     m <- 10
                     s <- 0
                     for (i in n:m) s <- s + i
                     s
                     """,
-            returns(55.0), x-> {
-              assertEquals(x.pc().isq(), 1);
-              assertEquals(x.pc().isqFor(), 10);
-            });
+        returns(55.0),
+        x -> {
+          assertEquals(x.pc().isq(), 1);
+          assertEquals(x.pc().isqFor(), 10);
+        });
     snapshot.verify(
-            """
+        """
                     xs <- list(10, 20, 30)
                     s <- 0
                     for (i in seq_along(xs)) s <- s + xs[[i]]
                     s
                     """,
-            returns(60.0), x-> {
-              assertEquals(x.pc().isq(), 1);
-              assertEquals(x.pc().isqFor(), 3);
-            });
+        returns(60.0),
+        x -> {
+          assertEquals(x.pc().isq(), 1);
+          assertEquals(x.pc().isqFor(), 3);
+        });
     snapshot.verify(
-            """
+        """
                     xs <- list(11, 21, 31)
                     s <- 0
                     for (i in seq_len(3)) s <- s + xs[[i]]
                     s
                     """,
-            returns(63.0), x-> {
-              assertEquals(x.pc().isq(), 1);
-              assertEquals(x.pc().isqFor(), 3);
-            });
+        returns(63.0),
+        x -> {
+          assertEquals(x.pc().isq(), 1);
+          assertEquals(x.pc().isqFor(), 3);
+        });
   }
 
   @Test
@@ -501,6 +506,63 @@ public class BC2CCompilerTest {
     snapshot.verify("x <- c(1, 2); is.double(x)");
     snapshot.verify("a <- 10; x <- 1:a; is.double(x)");
     // TODO: missing other is.xxx
+  }
+
+  @Test
+  public void testAdhoc(BC2CSnapshot snapshot) {
+    snapshot.setClean(false);
+    //    snapshot.verify("""
+    //            e <- function () {
+    //                seed <- NaN
+    //                }
+    //            """);
+    //
+    //    snapshot.verify("""
+    //                1
+    //            """);
+    //    snapshot.verify("""
+    //                results <- 1
+    //                ball <- function(ball) {
+    //                    results[[1]]
+    //                }
+    //                #ball(1)
+    //                1
+    //            """);
+    //    snapshot.verify("""
+    //            execute <- function (unused) {
+    //                seed <- NaN
+    //
+    //                resetSeed <- function() seed <<- 74755
+    //
+    //                nextRandom <- function() {
+    //                  seed <<- bitwAnd((seed * 1309) + 13849, 65535)
+    //                  return (seed)
+    //                }
+    //
+    //                ballCount <- 100
+    //                bounces   <- 0
+    //                balls     = vector("list", length = ballCount)
+    //                resetSeed()
+    //
+    //                #for (i in 1:ballCount) {
+    //                #    balls[[i]] = c(nextRandom() %% 500, nextRandom() %% 500,\s
+    //                #                         (nextRandom() %% 300) - 150, (nextRandom() %% 300) -
+    // 150)
+    //                #}
+    //
+    //                ball <- function(ball) {
+    //                #    results <- bounce(ball)
+    //                #    if (results[[2]]) bounces <<- bounces + 1
+    //                    results[[1]]
+    //                }
+    //
+    //                #for (i in 1:50) balls <- lapply(balls, ball)
+    //                return (bounces)
+    //
+    //            }
+    //            execute()
+    //
+    //            """);
   }
 
   private TestResultCheck fastArith() {

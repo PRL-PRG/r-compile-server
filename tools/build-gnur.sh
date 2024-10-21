@@ -54,7 +54,7 @@ else
   USING_OSX=0
 fi
 
-if [[ ! -d ${R_DIR}/.git ]]; then
+if [[ ! -f ${R_DIR}/.git ]]; then
   echo "-> update submodules"
   git submodule update --init
 fi

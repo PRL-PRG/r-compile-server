@@ -7,7 +7,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Optional;
 import javax.annotation.Nullable;
-
 import org.prlprg.sexp.*;
 
 /**
@@ -1220,7 +1219,7 @@ public sealed interface BcInstr {
     }
   }
 
-  @StackEffect(push=1, pop=2)
+  @StackEffect(push = 1, pop = 2)
   @NeedsRho
   record Colon(ConstPool.Idx<LangSXP> ast) implements BcInstr {
     @Override

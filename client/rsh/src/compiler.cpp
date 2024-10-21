@@ -50,63 +50,61 @@ static void *insert_into_jit(CompiledFunction const &compiled_fun) {
   return ptr;
 }
 
-static SEXP create_constant_pool(void *fun_ptr,
-                                 CompiledFunction const &compiled_fun) {
-  auto pool = PROTECT(Rf_allocVector(VECSXP, 2));
+// static SEXP create_constant_pool(void *fun_ptr,
+//                                  CompiledFunction const &compiled_fun) {
+//   auto pool = PROTECT(Rf_allocVector(VECSXP, 2));
+//
+//   // create an external pointer to the JITed function with a finalizer
+//   auto p = R_MakeExternalPtr(fun_ptr, RSH_JIT_FUN_PTR,
+//                              Rf_mkString(compiled_fun.name().c_str()));
+//   R_RegisterCFinalizerEx(p, &jit_fun_destructor, FALSE);
+//
+//   // slot 0: the pointer to the compiled function
+//   SET_VECTOR_ELT(pool, 0, p);
+//
+//   // slot 1: the contants used by the compiled function
+//   auto consts_vec = rsh::deserialize(compiled_fun.constants());
+//   SET_VECTOR_ELT(pool, 1, consts_vec);
+//
+//   UNPROTECT(1); // consts
+//
+//   return pool;
+// }
 
-  // create an external pointer to the JITed function with a finalizer
-  auto p = R_MakeExternalPtr(fun_ptr, RSH_JIT_FUN_PTR,
-                             Rf_mkString(compiled_fun.name().c_str()));
-  R_RegisterCFinalizerEx(p, &jit_fun_destructor, FALSE);
-
-  // slot 0: the pointer to the compiled function
-  SET_VECTOR_ELT(pool, 0, p);
-
-  // slot 1: the contants used by the compiled function
-  auto consts_vec = rsh::deserialize(compiled_fun.constants());
-  SET_VECTOR_ELT(pool, 1, consts_vec);
-
-  UNPROTECT(1); // consts
-
-  return pool;
-}
-
-static SEXP create_wrapper_body(SEXP closure, SEXP c_cp) {
-  auto bc_size = sizeof(CALL_FUN_BC) / sizeof(i32);
-
-  auto bc = PROTECT(Rf_allocVector(INTSXP, bc_size));
-  memcpy(INTEGER(bc), CALL_FUN_BC, sizeof(CALL_FUN_BC));
-  bc = R_bcEncode(bc);
-
-  auto expr_index = PROTECT(Rf_allocVector(INTSXP, bc_size));
-  INTEGER(expr_index)[0] = NA_INTEGER;
-  memset(INTEGER(expr_index) + 1, 0, (bc_size - 1) * sizeof(i32));
-
-  auto cp = PROTECT(Rf_allocVector(VECSXP, 6));
-  int i = 0;
-
-  // store the original AST (consequently it will not correspond to the AST)
-  SET_VECTOR_ELT(cp, i++, BODY(closure));
-  SET_VECTOR_ELT(cp, i++, Rf_install(".External2"));
-  SET_VECTOR_ELT(cp, i++, BC2C_CALL_TRAMPOLINE_SXP);
-  SET_VECTOR_ELT(cp, i++, closure);
-  SET_VECTOR_ELT(cp, i++, c_cp);
-  SET_VECTOR_ELT(cp, i++, expr_index);
-
-  // properly name the expression index (the last element of the constant pool)
-  auto cp_names = Rf_allocVector(STRSXP, 6);
-  Rf_setAttrib(cp, R_NamesSymbol, cp_names);
-  for (i = 0; i < 5; i++) {
-    SET_STRING_ELT(cp_names, i, R_BlankString);
-  }
-  SET_STRING_ELT(cp_names, 5, Rf_mkChar("expressionIndex"));
-
-  auto body = Rf_cons(bc, cp);
-  SET_TYPEOF(body, BCODESXP);
-
-  UNPROTECT(3);
-  return body;
-}
+// static SEXP create_wrapper_body(SEXP body, SEXP c_cp) {
+//   auto bc_size = sizeof(CALL_FUN_BC) / sizeof(i32);
+//
+//   auto bc = PROTECT(Rf_allocVector(INTSXP, bc_size));
+//   memcpy(INTEGER(bc), CALL_FUN_BC, sizeof(CALL_FUN_BC));
+//   bc = R_bcEncode(bc);
+//
+//   auto expr_index = PROTECT(Rf_allocVector(INTSXP, bc_size));
+//   INTEGER(expr_index)[0] = NA_INTEGER;
+//   memset(INTEGER(expr_index) + 1, 0, (bc_size - 1) * sizeof(i32));
+//
+//   auto cp = PROTECT(Rf_allocVector(VECSXP, 5));
+//   int i = 0;
+//
+//   // store the original AST (consequently it will not correspond to the AST)
+//   SET_VECTOR_ELT(cp, i++, body);
+//   SET_VECTOR_ELT(cp, i++, Rf_install(".External2"));
+//   SET_VECTOR_ELT(cp, i++, BC2C_CALL_TRAMPOLINE_SXP);
+//   SET_VECTOR_ELT(cp, i++, c_cp);
+//   SET_VECTOR_ELT(cp, i++, expr_index);
+//
+//   // properly name the expression index (the last element of the constant
+//   pool) auto cp_names = Rf_allocVector(STRSXP, 5); Rf_setAttrib(cp,
+//   R_NamesSymbol, cp_names); for (i = 0; i < 4; i++) {
+//     SET_STRING_ELT(cp_names, i, R_BlankString);
+//   }
+//   SET_STRING_ELT(cp_names, 4, Rf_mkChar("expressionIndex"));
+//
+//   auto new_body = Rf_cons(bc, cp);
+//   SET_TYPEOF(new_body, BCODESXP);
+//
+//   UNPROTECT(3);
+//   return new_body;
+// }
 
 CompilerOptions CompilerOptions::from_list(SEXP listsxp) {
   if (TYPEOF(listsxp) != VECSXP) {
@@ -157,6 +155,7 @@ SEXP compile(SEXP closure, SEXP options) {
   }
 
   auto opts = CompilerOptions::from_list(options);
+  opts.cc_opt = 0;
   auto response = compile_closure(closure, opts);
   if (!response.has_result()) {
     Rf_error("Compilation failed: %s", response.failure().c_str());
@@ -165,24 +164,25 @@ SEXP compile(SEXP closure, SEXP options) {
   auto compiled_fun = response.result();
 
   auto fun_ptr = insert_into_jit(compiled_fun);
-  SEXP c_cp = PROTECT(create_constant_pool(fun_ptr, compiled_fun));
+  // create an external pointer to the JITed function with a finalizer
+  auto fun_ptr_sxp = R_MakeExternalPtr(
+      fun_ptr, RSH_JIT_FUN_PTR, Rf_mkString(compiled_fun.name().c_str()));
+  R_RegisterCFinalizerEx(fun_ptr_sxp, &jit_fun_destructor, FALSE);
+
+  auto c_cp = rsh::deserialize(compiled_fun.constants());
 
   // FIXME: add logging primitives
+  SEXP body = PROTECT(create_wrapper_body(BODY(closure), fun_ptr_sxp, c_cp));
+
   if (opts.inplace) {
-    SEXP body = PROTECT(create_wrapper_body(closure, c_cp));
     SET_BODY(closure, body);
-    UNPROTECT(1);
 
     Rprintf("Compiled in place fun %s (symbol=%s, fun=%p, jit=%p, body=%p)\n",
             opts.name.c_str(), compiled_fun.name().c_str(), closure, fun_ptr,
             body);
   } else {
     SEXP orig_closure = closure;
-    closure =
-        PROTECT(Rf_mkCLOSXP(FORMALS(closure), R_NilValue, CLOENV(closure)));
-    SEXP body = PROTECT(create_wrapper_body(closure, c_cp));
-    SET_BODY(closure, body);
-    UNPROTECT(2);
+    closure = Rf_mkCLOSXP(FORMALS(closure), body, CLOENV(closure));
 
     Rprintf("Compiled fun %s (symbol=%s, orig_fun=%p, new_fun=%p, jit=%p, "
             "body=%p)\n",
@@ -190,7 +190,7 @@ SEXP compile(SEXP closure, SEXP options) {
             closure, fun_ptr, body);
   }
 
-  UNPROTECT(1); // c_cp
+  UNPROTECT(1); // c_cp, body
 
   return closure;
 }
@@ -210,17 +210,12 @@ SEXP is_compiled(SEXP closure) {
     return Rf_ScalarLogical(FALSE);
   }
 
-  SEXP c_cp = VECTOR_ELT(cp, LENGTH(cp) - 2);
-  if (XLENGTH(c_cp) != 2) {
-    return Rf_ScalarLogical(FALSE);
-  }
-
-  if (TYPEOF(VECTOR_ELT(c_cp, 0)) != EXTPTRSXP) {
+  if (TYPEOF(VECTOR_ELT(cp, 3)) != EXTPTRSXP) {
     // TODO: check if the pointer is a valid function, i.e. ORC knows about it
     return Rf_ScalarLogical(FALSE);
   }
 
-  if (TYPEOF(VECTOR_ELT(c_cp, 1)) != VECSXP) {
+  if (TYPEOF(VECTOR_ELT(cp, 4)) != VECSXP) {
     return Rf_ScalarLogical(FALSE);
   }
 

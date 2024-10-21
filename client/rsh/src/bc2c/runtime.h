@@ -476,14 +476,10 @@ static INLINE Rboolean bcell_set_value(BCell cell, SEXP value) {
 //
 // Each closure has the same body:
 //
-// .External2(Rsh_call_trampoline, <closure>)
+// .External2(Rsh_call_trampoline, <fun>, <c_cp>)
 //
-// the <closure> is the closure itself.
-// The constant pool of the BCODESXP constants an extra element - extra pool
-// entry, which is  a VECSXP with two elements:
-//
-// [0] the EXTERNALPTR of the compiled C function
-// [1] the C constant pool (c_cp) used by the compiled C function
+// <fun> the EXTERNALPTR of the compiled C function
+// <c_cp> the C constant pool (c_cp) used by the compiled C function
 //
 // The trampoline extracts these two elements from the extra pool entry and
 // calls the function using the environment passed to the .External2 call.
@@ -512,6 +508,7 @@ JIT_DECL SEXP Rsh_initialize_runtime(void);
 JIT_DECL SEXP Rsh_call_trampoline(SEXP call, SEXP op, SEXP args, SEXP rho);
 JIT_DECL SEXP Rsh_pc_get(void);
 JIT_DECL SEXP Rsh_pc_reset(void);
+JIT_DECL SEXP create_wrapper_body(SEXP body, SEXP fun_ptr, SEXP c_cp);
 #endif
 
 #define BCELL_INLINE(cell, v)                                                  \
@@ -1159,91 +1156,6 @@ static INLINE Value Rsh_logic(Value lhs, Value rhs, SEXP call, RshLogic2Op op,
 X_LOGIC2_OPS
 #undef X
 
-#define PUSHCONSTARG_OP 34
-#define BASEGUARD_OP 123
-#define GETBUILTIN_OP 26
-#define CALLBUILTIN_OP 39
-#define RETURN_OP 1
-
-#define BCODE_CODE(x) CAR(x)
-#define BCODE_CONSTS(x) CDR(x)
-#define IS_BYTECODE(x) (TYPEOF(x) == BCODESXP)
-
-static INLINE SEXP create_constant_pool(Rsh_closure fun_ptr, SEXP c_cp) {
-  SEXP pool = PROTECT(Rf_allocVector(VECSXP, 2));
-
-  // this is because ISO C forbids conversion of function pointer to object
-  // pointer type with -Wpedantic
-  _Pragma("GCC diagnostic push");
-  _Pragma("GCC diagnostic ignored \"-Wpedantic\"");
-  SEXP p = R_MakeExternalPtr((void *)fun_ptr, R_NilValue, R_NilValue);
-  _Pragma("GCC diagnostic pop");
-
-  // slot 0: the pointer to the compiled function
-  SET_VECTOR_ELT(pool, 0, p);
-
-  // slot 1: the contants used by the compiled function
-  SET_VECTOR_ELT(pool, 1, c_cp);
-
-  UNPROTECT(1); // consts
-
-  return pool;
-}
-
-static INLINE SEXP create_wrapper_body(SEXP closure, SEXP rho, SEXP c_cp) {
-
-  // clang-format off
-  static i32 CALL_FUN_BC[] = {
-    12,
-    GETBUILTIN_OP,   1,
-    PUSHCONSTARG_OP, 2,
-    PUSHCONSTARG_OP, 3,
-    CALLBUILTIN_OP,  0,
-    RETURN_OP
-  };
-  // clang-format on
-
-  SEXP original_body = BODY(closure);
-  assert(IS_BYTECODE(original_body));
-
-  SEXP original_cp = BCODE_CONSTS(original_body);
-
-  i32 bc_size = sizeof(CALL_FUN_BC) / sizeof(i32);
-
-  SEXP bc = PROTECT(Rf_allocVector(INTSXP, bc_size));
-  memcpy(INTEGER(bc), CALL_FUN_BC, sizeof(CALL_FUN_BC));
-  bc = R_bcEncode(bc);
-
-  SEXP expr_index = PROTECT(Rf_allocVector(INTSXP, bc_size));
-  INTEGER(expr_index)[0] = NA_INTEGER;
-  memset(INTEGER(expr_index) + 1, 0, (bc_size - 1) * sizeof(i32));
-
-  SEXP cp = PROTECT(Rf_allocVector(VECSXP, 6));
-  int i = 0;
-
-  // store the original AST (consequently it will not correspond to the AST)
-  SET_VECTOR_ELT(cp, i++, VECTOR_ELT(original_cp, 0));
-  SET_VECTOR_ELT(cp, i++, Rsh_DotExternal2Sym);
-  SET_VECTOR_ELT(cp, i++, BC2C_CALL_TRAMPOLINE_SXP);
-  SET_VECTOR_ELT(cp, i++, closure);
-  SET_VECTOR_ELT(cp, i++, c_cp);
-  SET_VECTOR_ELT(cp, i++, expr_index);
-
-  // properly name the expression index (the last element of the constant pool)
-  SEXP cp_names = Rf_allocVector(STRSXP, 6);
-  Rf_setAttrib(cp, R_NamesSymbol, cp_names);
-  for (i = 0; i < 5; i++) {
-    SET_STRING_ELT(cp_names, i, R_BlankString);
-  }
-  SET_STRING_ELT(cp_names, 5, Rf_mkChar("expressionIndex"));
-
-  SEXP body = Rf_cons(bc, cp);
-  SET_TYPEOF(body, BCODESXP);
-
-  UNPROTECT(3);
-  return body;
-}
-
 static INLINE void Rsh_MakeClosure(Value *res, SEXP mkclos_arg,
                                    Rsh_closure fun_ptr, SEXP consts, SEXP rho) {
 
@@ -1251,8 +1163,15 @@ static INLINE void Rsh_MakeClosure(Value *res, SEXP mkclos_arg,
   SEXP original_body = VECTOR_ELT(mkclos_arg, 1);
   SEXP closure = PROTECT(Rf_mkCLOSXP(forms, original_body, rho));
 
-  SEXP c_cp = PROTECT(create_constant_pool(fun_ptr, consts));
-  SEXP body = PROTECT(create_wrapper_body(closure, rho, c_cp));
+  // this is because ISO C forbids conversion of function pointer to object
+  // pointer type with -Wpedantic
+  _Pragma("GCC diagnostic push");
+  _Pragma("GCC diagnostic ignored \"-Wpedantic\"");
+  SEXP fun_ptr_sxp =
+      PROTECT(R_MakeExternalPtr((void *)fun_ptr, R_NilValue, R_NilValue));
+  _Pragma("GCC diagnostic pop");
+
+  SEXP body = PROTECT(create_wrapper_body(original_body, fun_ptr_sxp, consts));
   SET_BODY(closure, body);
 
   if (LENGTH(mkclos_arg) > 2) {
