@@ -58,7 +58,7 @@ SEXP R_unary(SEXP call, SEXP op, SEXP s1);
 SEXP do_logic(SEXP call, SEXP op, SEXP args, SEXP env);
 int tryDispatch(const char *generic, SEXP call, SEXP x, SEXP rho, SEXP *pv);
 SEXP R_subset3_dflt(SEXP x, SEXP input, SEXP call);
-SEXP CreateTag(SEXP x);
+SEXP Rf_CreateTag(SEXP x);
 SEXP do_subset2_dflt(SEXP call, SEXP op, SEXP args, SEXP rho);
 SEXP do_subset_dflt(SEXP call, SEXP op, SEXP args, SEXP rho);
 SEXP EnsureLocal(SEXP symbol, SEXP rho, R_varloc_t *ploc);
@@ -299,7 +299,7 @@ static INLINE SEXP relop(SEXP call, SEXP op, SEXP opsym, SEXP x, SEXP y,
     SEXP __tag__ = val_as_sexp((t));                                           \
     if (__tag__ != R_NilValue) {                                               \
       if (__v__ != R_NilValue)                                                 \
-        SET_TAG(__v__, CreateTag(__tag__));                                    \
+        SET_TAG(__v__, Rf_CreateTag(__tag__));                                 \
     }                                                                          \
   } while (0)
 
@@ -332,6 +332,10 @@ static INLINE SEXP relop(SEXP call, SEXP op, SEXP opsym, SEXP x, SEXP y,
 #define SET_SCALAR_LVAL(s, v) LOGICAL((s))[0] = (v)
 #define SET_SCALAR_CVAL(s, v) COMPLEX((s))[0] = (v)
 #define SET_SCALAR_BVAL(s, v) RAW((s))[0] = (v)
+
+#define BCODE_CODE(x) CAR(x)
+#define BCODE_CONSTS(x) CDR(x)
+#define IS_BYTECODE(x) (TYPEOF(x) == BCODESXP)
 
 // FIXME: implement signal checking
 #define RSH_CHECK_SIGINT()

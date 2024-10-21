@@ -48,7 +48,9 @@ test:
 	@for file in $(TEST_DIR)/*.R; do \
 		test=$$(basename $$file); \
 		echo "$(TXT_BOLD)┌──── $$test ...$(TXT_NORM)"; \
-		$(TEST_R) $$file; \
+		cmd="$(TEST_R) $$file;"; \
+		echo $$cmd; \
+		eval "$$cmd"; \
 		exit=$$?; \
 		echo -n "$(TXT_BOLD)└──── $$test: "; \
 	  if [ $$exit -eq 0 ]; then \
