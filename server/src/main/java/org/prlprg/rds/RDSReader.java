@@ -142,8 +142,8 @@ public class RDSReader implements Closeable {
   }
 
   private SEXP readExternalPtr() throws IOException {
-    var prot = readItem();
-    var tag = readItem();
+    /* var prot = */ readItem();
+    /* var tag = */ readItem();
     var ptr = new ExtptrSxp();
     refTable.add(ptr);
     return ptr;
