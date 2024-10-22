@@ -509,60 +509,29 @@ public class BC2CCompilerTest {
   }
 
   @Test
-  public void testAdhoc(BC2CSnapshot snapshot) {
-    snapshot.setClean(false);
+  public void testIf(BC2CSnapshot snapshot) {
     //    snapshot.verify("""
-    //            e <- function () {
-    //                seed <- NaN
-    //                }
+    //            if (T) 1 else 2
+    //            2
     //            """);
-    //
-    //    snapshot.verify("""
-    //                1
-    //            """);
-    //    snapshot.verify("""
-    //                results <- 1
-    //                ball <- function(ball) {
-    //                    results[[1]]
-    //                }
-    //                #ball(1)
-    //                1
-    //            """);
-    //    snapshot.verify("""
-    //            execute <- function (unused) {
-    //                seed <- NaN
-    //
-    //                resetSeed <- function() seed <<- 74755
-    //
-    //                nextRandom <- function() {
-    //                  seed <<- bitwAnd((seed * 1309) + 13849, 65535)
-    //                  return (seed)
-    //                }
-    //
-    //                ballCount <- 100
-    //                bounces   <- 0
-    //                balls     = vector("list", length = ballCount)
-    //                resetSeed()
-    //
-    //                #for (i in 1:ballCount) {
-    //                #    balls[[i]] = c(nextRandom() %% 500, nextRandom() %% 500,\s
-    //                #                         (nextRandom() %% 300) - 150, (nextRandom() %% 300) -
-    // 150)
-    //                #}
-    //
-    //                ball <- function(ball) {
-    //                #    results <- bounce(ball)
-    //                #    if (results[[2]]) bounces <<- bounces + 1
-    //                    results[[1]]
-    //                }
-    //
-    //                #for (i in 1:50) balls <- lapply(balls, ball)
-    //                return (bounces)
-    //
-    //            }
-    //            execute()
-    //
-    //            """);
+    snapshot.verify(
+        """
+            x <- 10
+            if (x > 0) {
+              3
+            }
+            x
+            """);
+    snapshot.verify(
+        """
+            function(x) {
+              if (x > 0) {
+              }
+              1
+            }
+
+            1
+            """);
   }
 
   private TestResultCheck fastArith() {

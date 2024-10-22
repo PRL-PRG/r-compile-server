@@ -155,7 +155,6 @@ SEXP compile(SEXP closure, SEXP options) {
   }
 
   auto opts = CompilerOptions::from_list(options);
-  opts.cc_opt = 0;
   auto response = compile_closure(closure, opts);
   if (!response.has_result()) {
     Rf_error("Compilation failed: %s", response.failure().c_str());

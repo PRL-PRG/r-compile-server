@@ -60,6 +60,13 @@ class ByteCodeStack {
   public int top() {
     return top;
   }
+
+  public void reset(int newTop) {
+    if (newTop < -1) {
+      throw new IllegalArgumentException("Invalid top: %d".formatted(newTop));
+    }
+    this.top = newTop;
+  }
 }
 
 record CompiledClosure(String name, VectorSXP<SEXP> constantPool) {}
@@ -169,9 +176,17 @@ class ClosureCompiler {
     return List.copyOf(constants.values().stream().map(Constant::value).toList());
   }
 
+  // We need to reset the stack top after the then branch has been compiled
+  private final Map<Integer, Integer> ifStackTop = new HashMap<>();
+
   private void compile(BcInstr instr, int pc) {
     if (labels.contains(pc)) {
-      body.line("%s:".formatted(label(pc)));
+      if (ifStackTop.containsKey(pc)) {
+        var top = ifStackTop.remove(pc);
+        stack.reset(top);
+      }
+
+      body.line("%s: /* %d */".formatted(label(pc), stack.top()));
     }
 
     var builder = new InstrBuilder(instr);
@@ -213,12 +228,17 @@ class ClosureCompiler {
             yield c + "\ngoto " + label(label) + ";";
           }
           case BcInstr.StepFor(var label) -> {
-            if (!(this.bc.code().get(label.target() - 1)
+            if (!(this.bc.instr(label.target() - 1)
                 instanceof BcInstr.StartFor(_, var symbol, _))) {
               throw new IllegalStateException("Expected StartFor instruction");
             }
             yield "if (%s) {\n goto %s;\n}"
                 .formatted(builder.args(cell(symbol)).compile(), label(label));
+          }
+          case BcInstr.BrIfNot(_, var elseLabel) -> {
+            var c = "if (%s) {\n goto %s;\n}".formatted(builder.compile(), label(elseLabel));
+            ifStackTop.put(elseLabel.target(), stack.top());
+            yield c;
           }
           default -> {
             if (instr.label().orElse(null) instanceof BcLabel l) {
@@ -374,7 +394,6 @@ class ClosureCompiler {
   // API
 
   class InstrBuilder {
-    private final BcInstr instr;
     private final String fun;
     private List<String> args = new ArrayList<>();
     private boolean needsRho;
@@ -383,7 +402,6 @@ class ClosureCompiler {
     private boolean stackAsArray;
 
     public InstrBuilder(BcInstr instr) {
-      this.instr = instr;
       for (var x : instr.args()) {
         this.args.add(constantSXP(x));
       }
@@ -436,7 +454,7 @@ class ClosureCompiler {
         args.add(VAR_RHO);
       }
 
-      return fun + "(" + String.join(", ", args) + ")";
+      return fun + "(" + String.join(", ", args) + ") /*" + stack.top() + " */";
     }
 
     public List<String> replayStackEffect() {
@@ -481,6 +499,7 @@ class ClosureCompiler {
   }
 
   private String constantVAL(ConstPool.Idx<? extends SEXP> idx) {
+    // FIXME: allow NULL
     var c = getConstant(idx);
 
     var f =
