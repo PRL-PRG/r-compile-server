@@ -44,6 +44,7 @@ NULL
 #' @export
 init_client <- function(address="0.0.0.0", port=8980L) {
   .rsh_client <- .Call(C_init_client, address, port, installed.packages()[,1])
+  .rsh_client
 }
 
 #' Activate the Rsh JIT
