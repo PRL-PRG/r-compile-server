@@ -16,24 +16,25 @@ class ByteCodeStack {
   public String push() {
     top++;
     max = Math.max(max, top + 1);
-    return "&" + variable();
+    return "&" + get(0);
   }
 
   public String pop() {
     if (top < 0) {
       throw new IllegalArgumentException("Stack underflow: %d".formatted(top));
     }
-    String v = variable();
-    top--;
-    return v;
+    var s = get(0);
+    --top;
+    return s;
   }
 
-  private String variable() {
-    if (top < 0 || top + 1 > max) {
-      throw new IllegalStateException("Invalid stack state (top: %d, max: %d)".formatted(top, max));
+  public String get(int i) {
+    var p = top + i;
+    if (p < 0 || p + 1 > max) {
+      throw new IllegalStateException("Invalid stack state (i: %d, max: %d)".formatted(p, max));
     }
 
-    return "_" + top;
+    return "_" + p;
   }
 
   public int max() {
@@ -240,6 +241,14 @@ class ClosureCompiler {
             ifStackTop.put(elseLabel.target(), stack.top());
             yield c;
           }
+          case BcInstr.Dup() -> {
+            stack.push();
+            yield "%s = %s;".formatted(stack.get(-1), stack.get(-2));
+          }
+          case BcInstr.Dup2nd() -> {
+            stack.push();
+            yield "%s = %s;".formatted(stack.get(-1), stack.get(-3));
+          }
           default -> {
             if (instr.label().orElse(null) instanceof BcLabel l) {
               yield "if (%s) {\ngoto %s;\n}".formatted(builder.compile(), label(l));
@@ -262,7 +271,6 @@ class ClosureCompiler {
           BcOp.CHECKFUN,
           BcOp.DIV,
           BcOp.DOLLAR,
-          BcOp.DUP,
           BcOp.EQ,
           BcOp.EXPT,
           BcOp.EXP,
@@ -348,7 +356,9 @@ class ClosureCompiler {
           BcOp.ISINTEGER,
           BcOp.ISNUMERIC,
           BcOp.ISOBJECT,
-          BcOp.ISSYMBOL);
+          BcOp.ISSYMBOL,
+          BcOp.DUP,
+          BcOp.DUP2ND);
 
   private void checkSupported(BcInstr instr) {
     if (!SUPPORTED_OPS.contains(instr.op())) {

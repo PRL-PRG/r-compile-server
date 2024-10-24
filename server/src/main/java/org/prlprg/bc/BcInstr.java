@@ -104,6 +104,7 @@ public sealed interface BcInstr {
     }
   }
 
+  @StackEffect(pop = 1, push = 2)
   record Dup() implements BcInstr {
     @Override
     public BcOp op() {
@@ -981,6 +982,7 @@ public sealed interface BcInstr {
     }
   }
 
+  @StackEffect(pop = 2, push = 3)
   record Dup2nd() implements BcInstr {
     @Override
     public BcOp op() {

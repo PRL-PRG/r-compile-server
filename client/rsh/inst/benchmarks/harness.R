@@ -35,8 +35,9 @@ run <- function(args) {
     }
 
     name <- args[[1]]
+    setwd(dirname(name))
 
-    source(paste0(name, ".R"))
+    source(paste0(basename(name), ".R"))
 
     num_iter <- DEFAULT_NUM_ITER
     bench_param <- formals(execute)[[1]]
