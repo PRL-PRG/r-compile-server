@@ -118,10 +118,10 @@ public class GNURSession implements RSession {
     DESCRIPTION description = getDescription(name);
 
     String installedVersion = description.getVersion();
-    if (!version.equals(installedVersion)) {
-      throw new RuntimeException(
-          "Version mismatch: expected " + version + " but found " + installedVersion);
-    }
+    //    if (!version.equals(installedVersion)) {
+    //      throw new RuntimeException(
+    //          "Version mismatch: expected " + version + " but found " + installedVersion);
+    //    }
 
     // Use suggests and imports as needed
     var suggests = description.getSuggests();
