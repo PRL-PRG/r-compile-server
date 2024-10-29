@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.Optional;
 import java.util.logging.Logger;
 import javax.annotation.Nullable;
 import org.prlprg.RVersion;
@@ -133,11 +134,21 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
                 + ": not found in cache.");
         try {
           var bc = compileBcClosure(function.getBody(), bcOpt);
-          ByteString serializedBc = RDSWriter.writeByteString(SEXPs.bcode(bc));
-          response.setCode(serializedBc);
-          bcCached = Pair.of(bc, serializedBc); // potentially used for the native compilation also
-          // Add it to the cache
-          bcCache.put(bcKey, bcCached);
+          ByteString serializedBc = null;
+          if (bc.isEmpty()) {
+            logger.warning(
+                "Empty bytecode for function "
+                    + function.getName()
+                    + ". Not caching and returning the original body.");
+            // We will keep the code field empty
+          } else {
+            serializedBc = RDSWriter.writeByteString(SEXPs.bcode(bc.get()));
+            response.setCode(serializedBc);
+            bcCached =
+                Pair.of(bc.get(), serializedBc); // potentially used for the native compilation also
+            // Add it to the cache
+            bcCache.put(bcKey, bcCached);
+          }
         } catch (Exception e) {
           // See
           // https://github.com/grpc/grpc-java/blob/master/examples/src/main/java/io/grpc/examples/errorhandling/DetailErrorSample.java
@@ -247,7 +258,7 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
     return new RVersion(version.getMajor(), version.getMinor(), version.getPatch());
   }
 
-  private Bc compileBcClosure(ByteString body, int optimizationLevel) {
+  private Optional<Bc> compileBcClosure(ByteString body, int optimizationLevel) {
     SEXP closure = null;
     try {
       assert session != null;
@@ -258,11 +269,7 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
     if (closure instanceof CloSXP c) {
       BCCompiler compiler = new BCCompiler(c, session);
       compiler.setOptimizationLevel(optimizationLevel);
-      var bc = compiler.compile();
-      if (bc.isEmpty()) {
-        throw new RuntimeException("Bytecode compilation failed");
-      }
-      return bc.get();
+      return compiler.compile();
     } else {
       throw new RuntimeException("Not a closure");
     }
