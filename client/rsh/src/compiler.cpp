@@ -200,9 +200,16 @@ SEXP compile(SEXP closure, SEXP options) {
 
   auto compiled_fun = std::get<protocol::CompileResponse>(response);
 
+  // If the code is empty, we keep the SEXP
+  if(!compiled_fun.has_code() || compiled_fun.code().empty()) {
+    Rf_warning("Empty body returned for function %s. Most likely because of browser in the body", opts.name.c_str());
+    return closure;
+  }
+
   SEXP body = nullptr;
   SEXP c_cp = nullptr;
   void * fun_ptr = nullptr;
+
   std::string name = genSymbol(compiled_fun.hash(), 0);
   // Native or bytecode?
   if(opts.tier == protocol::Tier::OPTIMIZED) {
