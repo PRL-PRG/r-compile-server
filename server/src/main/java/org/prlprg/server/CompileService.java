@@ -3,6 +3,7 @@ package org.prlprg.server;
 import com.google.common.io.Files;
 import com.google.protobuf.ByteString;
 import io.grpc.Status;
+import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
 import java.io.File;
 import java.io.IOException;
@@ -54,7 +55,13 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
   // CompileService.Compile
   @Override
   public void compile(
-      Messages.CompileRequest request, StreamObserver<Messages.CompileResponse> responseObserver) {
+      Messages.CompileRequest request,
+      StreamObserver<Messages.CompileResponse> plainResponseObserver) {
+
+    ServerCallStreamObserver<Messages.CompileResponse> responseObserver =
+        (ServerCallStreamObserver<Messages.CompileResponse>) plainResponseObserver;
+    responseObserver.setCompression(
+        "gzip"); // Or for all responses? In that case, we just need to add an interceptor.
 
     if (session == null) {
       responseObserver.onError(
