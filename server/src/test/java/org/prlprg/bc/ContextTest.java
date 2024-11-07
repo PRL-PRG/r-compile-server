@@ -5,14 +5,23 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.HashSet;
 import org.junit.jupiter.api.Test;
-import org.prlprg.GNURBasedTests;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.NamespaceEnvSXP;
 import org.prlprg.sexp.PromSXP;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.util.Pair;
+import org.prlprg.util.gnur.GNUR;
+import org.prlprg.util.gnur.GNURTestSupport;
 
-public class ContextTest implements GNURBasedTests {
+@GNURTestSupport
+public class ContextTest {
+
+  private final GNUR R;
+
+  public ContextTest(GNUR R) {
+    this.R = R;
+  }
+
   @Test
   public void testFindLocals() {
     var fun =
@@ -135,7 +144,7 @@ public class ContextTest implements GNURBasedTests {
   public void testFrameTypes() {
     var fun = (CloSXP) R.eval("utils::unzip");
     var ctx = Context.functionContext(fun);
-    // FIXME: ugly - can we have some matchers for this?
+
     var identical = ctx.resolve("identical").orElseThrow();
     assertTrue(identical.first() instanceof NamespaceEnvSXP ns && ns.name().equals("base"));
   }

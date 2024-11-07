@@ -33,11 +33,11 @@ public class RshCompiler {
       List.of(
           "-I" + RSH_INCLUDE_PATH,
           "-I" + R_INCLUDE_PATH,
-          "-fpic",
+          "-fPIC",
           "-fno-plt",
           "-fexceptions",
           "-fstack-clash-protection",
-          "-fcf-protection",
+          //          "-fcf-protection",
           "-flto=auto",
           "-ffat-lto-objects",
           "-pedantic",

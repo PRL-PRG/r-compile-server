@@ -152,4 +152,13 @@ public class Files {
   // endregion
 
   private Files() {}
+
+  public static Path writeString(String code) {
+    return ThrowingSupplier.get(
+        () -> {
+          var f = File.createTempFile("write-string", "");
+          java.nio.file.Files.writeString(f.toPath(), code);
+          return f.toPath();
+        });
+  }
 }

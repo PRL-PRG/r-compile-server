@@ -2,17 +2,12 @@ package org.prlprg.bc;
 
 import com.google.common.collect.ImmutableMap;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Optional;
 import javax.annotation.Nullable;
-import org.prlprg.sexp.IntSXP;
-import org.prlprg.sexp.LangSXP;
-import org.prlprg.sexp.ListSXP;
-import org.prlprg.sexp.RegSymSXP;
-import org.prlprg.sexp.SEXP;
-import org.prlprg.sexp.SEXPs;
-import org.prlprg.sexp.StrOrRegSymSXP;
-import org.prlprg.sexp.StrSXP;
-import org.prlprg.sexp.VecSXP;
+import org.prlprg.sexp.*;
 
 /**
  * A single bytecode instruction, consists of an operation and arguments. The operation is
@@ -156,6 +151,8 @@ public sealed interface BcInstr {
     }
   }
 
+  @StackEffect(pop = 1, push = 3)
+  @NeedsRho
   record StartFor(
       ConstPool.Idx<LangSXP> ast,
       ConstPool.Idx<RegSymSXP> elemName,
@@ -172,6 +169,8 @@ public sealed interface BcInstr {
     }
   }
 
+  @StackEffect(pop = 3, push = 3)
+  @NeedsRho
   record StepFor(@LabelName("forBody") BcLabel body) implements BcInstr {
     @Override
     public BcOp op() {
@@ -184,6 +183,8 @@ public sealed interface BcInstr {
     }
   }
 
+  @StackEffect(pop = 3, push = 1)
+  @NeedsRho
   record EndFor() implements BcInstr {
     @Override
     public BcOp op() {
@@ -319,6 +320,8 @@ public sealed interface BcInstr {
     }
   }
 
+  // It accesses the last three elements of the stack: call, args head and args tail
+  @StackEffect(pop = 3, push = 3)
   record DoMissing() implements BcInstr {
     @Override
     public BcOp op() {
@@ -617,6 +620,8 @@ public sealed interface BcInstr {
     }
   }
 
+  @NeedsRho
+  @StackEffect(pop = 1, push = 4)
   record StartSubset(ConstPool.Idx<LangSXP> ast, @LabelName("afterSubset") BcLabel after)
       implements BcInstr {
     @Override
@@ -630,6 +635,8 @@ public sealed interface BcInstr {
     }
   }
 
+  @StackEffect(pop = 4, push = 1)
+  @NeedsRho
   record DfltSubset() implements BcInstr {
     @Override
     public BcOp op() {
@@ -637,6 +644,8 @@ public sealed interface BcInstr {
     }
   }
 
+  @StackEffect(pop = 2, push = 5)
+  @NeedsRho
   record StartSubassign(ConstPool.Idx<LangSXP> ast, @LabelName("afterSubassign") BcLabel after)
       implements BcInstr {
     @Override
@@ -650,6 +659,8 @@ public sealed interface BcInstr {
     }
   }
 
+  @StackEffect(pop = 5, push = 1)
+  @NeedsRho
   record DfltSubassign() implements BcInstr {
     @Override
     public BcOp op() {
@@ -676,6 +687,8 @@ public sealed interface BcInstr {
     }
   }
 
+  @NeedsRho
+  @StackEffect(pop = 1, push = 4)
   record StartSubset2(ConstPool.Idx<LangSXP> ast, @LabelName("afterSubset2") BcLabel after)
       implements BcInstr {
     @Override
@@ -689,6 +702,8 @@ public sealed interface BcInstr {
     }
   }
 
+  @StackEffect(pop = 4, push = 1)
+  @NeedsRho
   record DfltSubset2() implements BcInstr {
     @Override
     public BcOp op() {
@@ -696,6 +711,8 @@ public sealed interface BcInstr {
     }
   }
 
+  @StackEffect(pop = 2, push = 5)
+  @NeedsRho
   record StartSubassign2(ConstPool.Idx<LangSXP> ast, @LabelName("afterSubassign2") BcLabel after)
       implements BcInstr {
     @Override
@@ -709,6 +726,8 @@ public sealed interface BcInstr {
     }
   }
 
+  @StackEffect(pop = 5, push = 1)
+  @NeedsRho
   record DfltSubassign2() implements BcInstr {
     @Override
     public BcOp op() {
@@ -733,6 +752,7 @@ public sealed interface BcInstr {
     }
   }
 
+  @StackEffect(push = 1, pop = 1)
   record IsNull() implements BcInstr {
     @Override
     public BcOp op() {
@@ -740,6 +760,7 @@ public sealed interface BcInstr {
     }
   }
 
+  @StackEffect(push = 1, pop = 1)
   record IsLogical() implements BcInstr {
     @Override
     public BcOp op() {
@@ -747,6 +768,7 @@ public sealed interface BcInstr {
     }
   }
 
+  @StackEffect(push = 1, pop = 1)
   record IsInteger() implements BcInstr {
     @Override
     public BcOp op() {
@@ -754,6 +776,7 @@ public sealed interface BcInstr {
     }
   }
 
+  @StackEffect(push = 1, pop = 1)
   record IsDouble() implements BcInstr {
     @Override
     public BcOp op() {
@@ -761,6 +784,7 @@ public sealed interface BcInstr {
     }
   }
 
+  @StackEffect(push = 1, pop = 1)
   record IsComplex() implements BcInstr {
     @Override
     public BcOp op() {
@@ -768,6 +792,7 @@ public sealed interface BcInstr {
     }
   }
 
+  @StackEffect(push = 1, pop = 1)
   record IsCharacter() implements BcInstr {
     @Override
     public BcOp op() {
@@ -775,6 +800,7 @@ public sealed interface BcInstr {
     }
   }
 
+  @StackEffect(push = 1, pop = 1)
   record IsSymbol() implements BcInstr {
     @Override
     public BcOp op() {
@@ -782,6 +808,7 @@ public sealed interface BcInstr {
     }
   }
 
+  @StackEffect(push = 1, pop = 1)
   record IsObject() implements BcInstr {
     @Override
     public BcOp op() {
@@ -789,6 +816,7 @@ public sealed interface BcInstr {
     }
   }
 
+  @StackEffect(push = 1, pop = 1)
   record IsNumeric() implements BcInstr {
     @Override
     public BcOp op() {
@@ -809,6 +837,8 @@ public sealed interface BcInstr {
     }
   }
 
+  @NeedsRho
+  @StackEffect(pop = 3, push = 1)
   record MatSubset(@Nullable ConstPool.Idx<LangSXP> ast) implements BcInstr {
     @Override
     public BcOp op() {
@@ -825,6 +855,8 @@ public sealed interface BcInstr {
     }
   }
 
+  @NeedsRho
+  @StackEffect(pop = 4, push = 1)
   record MatSubassign(@Nullable ConstPool.Idx<LangSXP> ast) implements BcInstr {
     @Override
     public BcOp op() {
@@ -904,6 +936,8 @@ public sealed interface BcInstr {
     }
   }
 
+  @NeedsRho
+  @StackEffect(pop = 1, push = 4)
   record StartAssign2(ConstPool.Idx<RegSymSXP> name) implements BcInstr {
     @Override
     public BcOp op() {
@@ -911,6 +945,8 @@ public sealed interface BcInstr {
     }
   }
 
+  @NeedsRho
+  @StackEffect(pop = 3, push = 1)
   record EndAssign2(ConstPool.Idx<RegSymSXP> name) implements BcInstr {
     @Override
     public BcOp op() {
@@ -918,6 +954,8 @@ public sealed interface BcInstr {
     }
   }
 
+  @NeedsRho
+  @StackEffect(pop = 5, push = 1)
   record SetterCall(ConstPool.Idx<LangSXP> ast, ConstPool.Idx<SEXP> valueExpr) implements BcInstr {
     @Override
     public BcOp op() {
@@ -925,6 +963,8 @@ public sealed interface BcInstr {
     }
   }
 
+  @NeedsRho
+  @StackEffect(pop = 4, push = 2)
   record GetterCall(ConstPool.Idx<LangSXP> ast) implements BcInstr {
     @Override
     public BcOp op() {
@@ -933,6 +973,7 @@ public sealed interface BcInstr {
   }
 
   /** See eval.c for why this isn't just a regular swap instruction. */
+  @StackEffect(pop = 3, push = 3)
   record SpecialSwap() implements BcInstr {
     @Override
     public BcOp op() {
@@ -1013,6 +1054,8 @@ public sealed interface BcInstr {
     }
   }
 
+  @NeedsRho
+  @StackEffect(pop = 3, push = 1)
   record MatSubset2(@Nullable ConstPool.Idx<LangSXP> ast) implements BcInstr {
     @Override
     public BcOp op() {
@@ -1029,6 +1072,8 @@ public sealed interface BcInstr {
     }
   }
 
+  @NeedsRho
+  @StackEffect(pop = 4, push = 1)
   record MatSubassign2(@Nullable ConstPool.Idx<LangSXP> ast) implements BcInstr {
     @Override
     public BcOp op() {
@@ -1066,6 +1111,19 @@ public sealed interface BcInstr {
     }
   }
 
+  ///
+  /// The SUBSET_N instruction.
+  ///
+  /// Stack effect:
+  ///  - pops the vector and a variable number of elements from the stack determined by the value of
+  // [[n]]
+  ///  - pushes the result
+  ///
+  /// @param ast
+  /// @param n
+  ///
+  @NeedsRho
+  @StackEffect(push = 1)
   record SubsetN(@Nullable ConstPool.Idx<LangSXP> ast, int n) implements BcInstr {
     @Override
     public BcOp op() {
@@ -1073,6 +1131,19 @@ public sealed interface BcInstr {
     }
   }
 
+  ///
+  /// The SUBSET2_N instruction.
+  ///
+  /// Stack effect:
+  ///  - pops the vector and a variable number of elements from the stack determined by the value of
+  // [[n]]
+  ///  - pushes the result
+  ///
+  /// @param ast
+  /// @param n
+  ///
+  @NeedsRho
+  @StackEffect(push = 1)
   record Subset2N(@Nullable ConstPool.Idx<LangSXP> ast, int n) implements BcInstr {
     @Override
     public BcOp op() {
@@ -1080,6 +1151,19 @@ public sealed interface BcInstr {
     }
   }
 
+  ///
+  /// The SUBASSIGN_N instruction.
+  ///
+  /// Stack effect:
+  ///  - pops the vector and a variable number of elements from the stack determined by the value of
+  // [[n]] and rhs
+  ///  - pushes the result
+  ///
+  /// @param ast
+  /// @param n
+  ///
+  @NeedsRho
+  @StackEffect(push = 1)
   record SubassignN(@Nullable ConstPool.Idx<LangSXP> ast, int n) implements BcInstr {
     @Override
     public BcOp op() {
@@ -1087,6 +1171,19 @@ public sealed interface BcInstr {
     }
   }
 
+  ///
+  /// The SUBASSIGN2_N instruction.
+  ///
+  /// Stack effect:
+  ///  - pops the vector and a variable number of elements from the stack determined by the value of
+  // [[n]] and rhs
+  ///  - pushes the result
+  ///
+  /// @param ast
+  /// @param n
+  ///
+  @NeedsRho
+  @StackEffect(push = 1)
   record Subassign2N(@Nullable ConstPool.Idx<LangSXP> ast, int n) implements BcInstr {
     @Override
     public BcOp op() {
@@ -1122,6 +1219,8 @@ public sealed interface BcInstr {
     }
   }
 
+  @StackEffect(push = 1, pop = 2)
+  @NeedsRho
   record Colon(ConstPool.Idx<LangSXP> ast) implements BcInstr {
     @Override
     public BcOp op() {
@@ -1129,6 +1228,8 @@ public sealed interface BcInstr {
     }
   }
 
+  @StackEffect(push = 1, pop = 1)
+  @NeedsRho
   record SeqAlong(ConstPool.Idx<LangSXP> ast) implements BcInstr {
     @Override
     public BcOp op() {
@@ -1136,6 +1237,8 @@ public sealed interface BcInstr {
     }
   }
 
+  @StackEffect(push = 1, pop = 1)
+  @NeedsRho
   record SeqLen(ConstPool.Idx<LangSXP> ast) implements BcInstr {
     @Override
     public BcOp op() {

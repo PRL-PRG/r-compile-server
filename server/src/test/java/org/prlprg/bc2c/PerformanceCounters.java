@@ -6,7 +6,17 @@ import org.prlprg.sexp.IntSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.util.Strings;
 
-public record PerformanceCounters(int slowArith, int slowMath1, int slowUnary, int slowRelop) {
+public record PerformanceCounters(
+    int slowArith,
+    int slowMath1,
+    int slowUnary,
+    int slowRelop,
+    int slowSubset,
+    int slowSubassign,
+    int dispatchedSubset,
+    int dispatchedSubassign,
+    int isq,
+    int isqFor) {
   public static PerformanceCounters EMPTY = empty();
 
   public static PerformanceCounters from(SEXP sexp) {
