@@ -38,6 +38,10 @@ public record Bc(BcCode code, ConstPool consts) {
     return new Builder().build();
   }
 
+  public BcInstr instr(int idx) {
+    return code.get(idx);
+  }
+
   public static class Builder {
     private final BcCode.Builder code;
     private final ConstPool.Builder consts;

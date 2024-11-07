@@ -177,7 +177,7 @@ CompilerOptions CompilerOptions::from_list(SEXP listsxp) {
 
 
 std::string genSymbol(uint64_t hash, int index) {
-  
+
   return "gen_" + std::to_string(hash) + "_" + std::to_string(index);
 }
 
@@ -214,8 +214,12 @@ SEXP compile(SEXP closure, SEXP options) {
   // Native or bytecode?
   if(opts.tier == protocol::Tier::OPTIMIZED) {
     fun_ptr = insert_into_jit(name.c_str(), compiled_fun);
-    c_cp = PROTECT(create_constant_pool(fun_ptr, name.c_str(), compiled_fun));
-    
+    auto fun_ptr_sxp = R_MakeExternalPtr(
+          fun_ptr, RSH_JIT_FUN_PTR, Rf_mkString(compiled_fun.name().c_str()));
+      R_RegisterCFinalizerEx(fun_ptr_sxp, &jit_fun_destructor, FALSE);
+
+    auto c_cp = rsh::deserialize(compiled_fun.constants());
+
   }
   else if(opts.tier == protocol::Tier::BASELINE) {
     body = PROTECT(rsh::deserialize(compiled_fun.code()));
@@ -227,7 +231,7 @@ SEXP compile(SEXP closure, SEXP options) {
   // Inplace or not (i.e. through through an explicit call to `compile` or through the R JIT)
   if (opts.inplace) {
     if(opts.tier == protocol::Tier::OPTIMIZED) {
-       body = PROTECT(create_wrapper_body(closure, c_cp));
+       body = PROTECT(create_wrapper_body(closure, fun_ptr_sxp, c_cp));
     }
     SET_BODY(closure, body);
     UNPROTECT(1);
@@ -243,12 +247,7 @@ SEXP compile(SEXP closure, SEXP options) {
     }
   } else {
     SEXP orig = closure;
-    closure = PROTECT(Rf_mkCLOSXP(FORMALS(closure), R_NilValue, CLOENV(closure)));
-    if(opts.tier == protocol::Tier::OPTIMIZED) {
-      // In that case, the body needs a reference to its body
-      body = PROTECT(create_wrapper_body(closure, c_cp));
-    }
-    SET_BODY(closure, body);
+    closure = PROTECT(Rf_mkCLOSXP(FORMALS(closure), body, CLOENV(closure)));
     // FIXME: add logging primitive
     UNPROTECT(1);
     Rprintf(
@@ -290,17 +289,12 @@ SEXP is_compiled(SEXP closure) {
     return Rf_ScalarLogical(FALSE);
   }
 
-  SEXP c_cp = VECTOR_ELT(cp, LENGTH(cp) - 2);
-  if (XLENGTH(c_cp) != 2) {
-    return Rf_ScalarLogical(FALSE);
-  }
-
-  if (TYPEOF(VECTOR_ELT(c_cp, 0)) != EXTPTRSXP) {
+  if (TYPEOF(VECTOR_ELT(cp, 3)) != EXTPTRSXP) {
     // TODO: check if the pointer is a valid function, i.e. ORC knows about it
     return Rf_ScalarLogical(FALSE);
   }
 
-  if (TYPEOF(VECTOR_ELT(c_cp, 1)) != VECSXP) {
+  if (TYPEOF(VECTOR_ELT(cp, 4)) != VECSXP) {
     return Rf_ScalarLogical(FALSE);
   }
 

@@ -5,18 +5,28 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.prlprg.sexp.SEXPs.*;
 
-import java.io.*;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.util.HashMap;
 import java.util.List;
 import org.junit.jupiter.api.Test;
-import org.prlprg.GNURBasedTests;
 import org.prlprg.bc.BCCompiler;
 import org.prlprg.primitive.Complex;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.*;
+import org.prlprg.util.gnur.GNUR;
+import org.prlprg.util.gnur.GNURTestSupport;
 
-public class RDSWriterTest implements GNURBasedTests {
+@GNURTestSupport
+public class RDSWriterTest {
+
+  private final GNUR R;
+
+  public RDSWriterTest(GNUR R) {
+    this.R = R;
+  }
+
   @Test
   public void testInts() throws Exception {
     var ints = integer(5, 4, 3, 2, 1);
@@ -25,7 +35,7 @@ public class RDSWriterTest implements GNURBasedTests {
     RDSWriter.writeStream(output, ints);
 
     var input = new ByteArrayInputStream(output.toByteArray());
-    var sexp = RDSReader.readStream(Rsession, input);
+    var sexp = RDSReader.readStream(R.getSession(), input);
 
     if (sexp instanceof IntSXP read_ints) {
       assertEquals(5, read_ints.size());
@@ -61,7 +71,7 @@ public class RDSWriterTest implements GNURBasedTests {
     RDSWriter.writeStream(output, complexes);
 
     var input = new ByteArrayInputStream(output.toByteArray());
-    var sexp = RDSReader.readStream(Rsession, input);
+    var sexp = RDSReader.readStream(R.getSession(), input);
 
     if (sexp instanceof ComplexSXP read_complexes) {
       assertEquals(3, read_complexes.size());
@@ -96,7 +106,7 @@ public class RDSWriterTest implements GNURBasedTests {
     RDSWriter.writeStream(output, lang);
 
     var input = new ByteArrayInputStream(output.toByteArray());
-    var sexp = RDSReader.readStream(Rsession, input);
+    var sexp = RDSReader.readStream(R.getSession(), input);
 
     if (sexp instanceof LangSXP read_lang) {
       var name = read_lang.funName();
@@ -122,7 +132,7 @@ public class RDSWriterTest implements GNURBasedTests {
     RDSWriter.writeStream(output, ints);
 
     var input = new ByteArrayInputStream(output.toByteArray());
-    var sexp = RDSReader.readStream(Rsession, input);
+    var sexp = RDSReader.readStream(R.getSession(), input);
 
     if (sexp instanceof IntSXP read_ints) {
       assertEquals(1, read_ints.size());
@@ -141,7 +151,7 @@ public class RDSWriterTest implements GNURBasedTests {
     RDSWriter.writeStream(output, lgls);
 
     var input = new ByteArrayInputStream(output.toByteArray());
-    var sexp = RDSReader.readStream(Rsession, input);
+    var sexp = RDSReader.readStream(R.getSession(), input);
 
     if (sexp instanceof LglSXP read_lgls) {
       assertEquals(3, read_lgls.size());
@@ -161,7 +171,7 @@ public class RDSWriterTest implements GNURBasedTests {
     RDSWriter.writeStream(output, reals);
 
     var input = new ByteArrayInputStream(output.toByteArray());
-    var sexp = RDSReader.readStream(Rsession, input);
+    var sexp = RDSReader.readStream(R.getSession(), input);
 
     if (sexp instanceof RealSXP read_reals) {
       assertEquals(6, read_reals.size());
@@ -183,7 +193,7 @@ public class RDSWriterTest implements GNURBasedTests {
     RDSWriter.writeStream(output, NULL);
 
     var input = new ByteArrayInputStream(output.toByteArray());
-    var sexp = RDSReader.readStream(Rsession, input);
+    var sexp = RDSReader.readStream(R.getSession(), input);
 
     assertEquals(NULL, sexp);
   }
@@ -196,7 +206,7 @@ public class RDSWriterTest implements GNURBasedTests {
     RDSWriter.writeStream(output, vec);
 
     var input = new ByteArrayInputStream(output.toByteArray());
-    var sexp = RDSReader.readStream(Rsession, input);
+    var sexp = RDSReader.readStream(R.getSession(), input);
 
     if (sexp instanceof VecSXP read_vec) {
       assertEquals(2, read_vec.size());
@@ -235,7 +245,7 @@ public class RDSWriterTest implements GNURBasedTests {
     RDSWriter.writeStream(output, list);
 
     var input = new ByteArrayInputStream(output.toByteArray());
-    var sexp = RDSReader.readStream(Rsession, input);
+    var sexp = RDSReader.readStream(R.getSession(), input);
 
     if (sexp instanceof ListSXP l) {
       assertEquals(3, l.size());
@@ -277,7 +287,7 @@ public class RDSWriterTest implements GNURBasedTests {
     RDSWriter.writeStream(output, env);
 
     var input = new ByteArrayInputStream(output.toByteArray());
-    var sexp = RDSReader.readStream(Rsession, input);
+    var sexp = RDSReader.readStream(R.getSession(), input);
 
     if (sexp instanceof UserEnvSXP read_env) {
       assertEquals(4, read_env.size());
@@ -346,14 +356,14 @@ public class RDSWriterTest implements GNURBasedTests {
                     lang(symbol("+"), list(lang(symbol("length"), list(symbol("x"))), symbol("x"))),
                     symbol("y"))),
             new BaseEnvSXP(new HashMap<>()));
-    var bc = new BCCompiler(clo, Rsession).compile().orElseThrow();
+    var bc = new BCCompiler(clo, R.getSession()).compile().orElseThrow();
 
     var output = new ByteArrayOutputStream();
 
     RDSWriter.writeStream(output, bcode(bc));
 
     var input = new ByteArrayInputStream(output.toByteArray());
-    var sexp = RDSReader.readStream(Rsession, input);
+    var sexp = RDSReader.readStream(R.getSession(), input);
 
     assertEquals(sexp, bcode(bc));
   }
@@ -371,7 +381,7 @@ public class RDSWriterTest implements GNURBasedTests {
                     lang(symbol("+"), list(lang(symbol("length"), list(symbol("x"))), symbol("x"))),
                     symbol("y"))),
             new BaseEnvSXP(new HashMap<>()));
-    var bc = new BCCompiler(clo, Rsession).compile().orElseThrow();
+    var bc = new BCCompiler(clo, R.getSession()).compile().orElseThrow();
     var compiled_clo = closure(clo.parameters(), bcode(bc), clo.env());
 
     var output = R.eval("input(x=c(1, 2))", compiled_clo);

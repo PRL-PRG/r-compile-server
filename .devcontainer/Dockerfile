@@ -1,78 +1,67 @@
-# This Dockerfile uses separate build arguments instead of VARIANT
-ARG TARGET_JAVA_VERSION=22.0.2+9
-ARG TARGET_GNUR_VERSION=4.3.2
-ARG TARGET_DEBIAN_VERSION=bookworm
-FROM mcr.microsoft.com/devcontainers/base:$TARGET_DEBIAN_VERSION
+ARG JAVA_VERSION=22
+ARG MAVEN_VERSION=3.9.9
+ARG LLVM_VERSION=17
+ARG BASE_IMAGE=ubuntu-24.04
 
-USER root
-ARG TARGET_JAVA_VERSION
-ARG TARGET_GNUR_VERSION
-ENV JAVA_HOME=/usr/lib/jvm/jdk
-ENV PATH="$JAVA_HOME/bin:$PATH"
-# Default to UTF-8 file.encoding
+FROM mcr.microsoft.com/devcontainers/base:$BASE_IMAGE
+
+# default to UTF-8 file.encoding
 ENV LANG=en_US.UTF-8
 
-# Install OpenJDK (Adoptium / temurin)
-RUN arch="$(dpkg --print-architecture)" \
-  && case "$arch" in \
-		"amd64") \
-			arch1="x64"; \
-			;; \
-		"arm64") \
-			arch1="aarch64"; \
-			;; \
-		*) echo >&2 "error: unsupported architecture: '$arch'"; exit 1 ;; \
-	esac \
-  && jdkUrl="https://github.com/adoptium/temurin22-binaries/releases/download/jdk-$TARGET_JAVA_VERSION/OpenJDK22U-jdk_${arch1}_linux_hotspot_$(echo $TARGET_JAVA_VERSION | tr '+' '_').tar.gz" \
-  && wget --progress=dot:giga -O temurin.tar.gz "$jdkUrl" \
-  && wget --progress=dot:giga -O sha256.txt "$jdkUrl.sha256.txt"
+# this is weird, but without this, the default value would not be used.
+ARG JAVA_VERSION
+ARG MAVEN_VERSION
+ARG LLVM_VERSION
 
-RUN sha256Text=$(cat sha256.txt) \
-  && sha256=$(expr substr "$sha256Text" 1 64) \
-  && echo "$sha256 temurin.tar.gz" | sha256sum --strict --check - \
-  && rm sha256.txt*
+# install OpenJDK
+RUN curl -fsSL https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor | tee /etc/apt/trusted.gpg.d/adoptium.gpg > /dev/null \
+  && echo "deb https://packages.adoptium.net/artifactory/deb $(awk -F= '/^VERSION_CODENAME/{print$2}' /etc/os-release) main" | tee /etc/apt/sources.list.d/adoptium.list \
+  && apt update -y \
+  && apt install -y temurin-$JAVA_VERSION-jdk \
+  && ln -s "$(which java | xargs readlink -f | xargs dirname | xargs dirname)" /opt/java
 
-RUN mkdir -p "$JAVA_HOME"
-RUN tar --extract \
-		--file temurin.tar.gz \
-		--directory "$JAVA_HOME" \
-		--strip-components 1 \
-		--no-same-owner
-RUN rm temurin.tar.gz*
+# install maven
+RUN mkdir -p /opt/maven \
+ && curl -fsSL -o /tmp/apache-maven.tar.gz "https://dlcdn.apache.org/maven/maven-3/$MAVEN_VERSION/binaries/apache-maven-$MAVEN_VERSION-bin.tar.gz" \
+ && tar -xzf /tmp/apache-maven.tar.gz -C /opt/maven --strip-components=1 \
+ && rm -f /tmp/apache-maven.tar.gz
 
-RUN ln -s $JAVA_HOME /docker-java-home
-RUN ln -s $JAVA_HOME /usr/local/openjdk-$(echo $TARGET_JAVA_VERSION | cut -d'-' -f1)
+ENV MAVEN_HOME=/opt/maven
+ENV JAVA_HOME=/opt/java
+ENV PATH="$PATH:$MAVEN_HOME/bin"
 
-# Install GNU-R
-# From https://cran.r-project.org/doc/manuals/r-release/R-admin.html#Essential-and-useful-other-programs-under-a-Unix_002dalike
-ARG GNUR_RUNTIME_DEPENDENCIES="build-essential gfortran"
-ARG GNUR_BUILD_DEPENDENCIES="libreadline-dev zlib1g-dev libbz2-dev liblzma-dev libpcre2-dev"
+# install support for building client:
+# - the bundled R
+# - the rsh R package
+RUN apt install -y \
+  build-essential \
+  gfortran \
+  libreadline-dev \
+  libx11-dev \
+  libxt-dev \
+  libpng-dev \
+  libjpeg-dev \
+  libcairo2-dev \
+  libtiff5-dev \
+  libgtk2.0-dev \
+  libpango1.0-dev \
+  libbz2-dev \
+  liblzma-dev \
+  libicu-dev \
+  libcurl4-openssl-dev \
+  libssl-dev \
+  ca-certificates \
+  zlib1g-dev \
+  software-properties-common \
+  xvfb \
+  gdb \
+  protobuf-compiler \
+  protobuf-compiler protobuf-compiler-grpc \
+  bear \
+  libzmq3-dev
 
-RUN gnurUrl="https://cloud.r-project.org/src/base/R-$(printf %.1s $TARGET_GNUR_VERSION)/R-$TARGET_GNUR_VERSION.tar.gz" \
-  && wget --progress=dot:giga -O gnur.tar.gz "$gnurUrl"
+# install LLVM
+RUN curl -fsSL -o /opt/llvm.sh https://apt.llvm.org/llvm.sh \
+  && chmod +x /opt/llvm.sh \
+  && /opt/llvm.sh "$LLVM_VERSION"
 
-RUN mkdir -p /tmp/gnur
-RUN tar --extract \
-    --file gnur.tar.gz \
-    --directory /tmp/gnur \
-    --strip-components 1 \
-    --no-same-owner
-RUN rm gnur.tar.gz*
-
-RUN DEBIAN_FRONTEND=noninteractive apt-get update
-RUN DEBIAN_FRONTEND=noninteractive apt-get -y install --no-install-recommends $GNUR_BUILD_DEPENDENCIES $GNUR_RUNTIME_DEPENDENCIES
-
-RUN cd /tmp/gnur \
- && ./tools/rsync-recommended \
- && ./configure --prefix=/usr/local --with-x=no \
- && make \
- && make install
-RUN rm -rf /tmp/gnur
-
-RUN DEBIAN_FRONTEND=noninteractive apt-get -y remove --purge $GNUR_BUILD_DEPENDENCIES
-# Fortran is needed at
-RUN DEBIAN_FRONTEND=noninteractive apt-get -y install --no-install-recommends gfortran
-RUN DEBIAN_FRONTEND=noninteractive apt-get -y autoremove
-
-RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
-     && apt-get -y install --no-install-recommends protobuf-compiler protobuf-compiler-grpc 

@@ -6,24 +6,21 @@ import static org.prlprg.sexp.Coercions.isNA;
 
 import java.util.Objects;
 import org.junit.jupiter.api.Test;
-import org.prlprg.GNURBasedTests;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
-import org.prlprg.sexp.BCodeSXP;
-import org.prlprg.sexp.CloSXP;
-import org.prlprg.sexp.ComplexSXP;
-import org.prlprg.sexp.ExprSXP;
-import org.prlprg.sexp.IntSXP;
-import org.prlprg.sexp.LangSXP;
-import org.prlprg.sexp.LglSXP;
-import org.prlprg.sexp.ListSXP;
-import org.prlprg.sexp.RealSXP;
-import org.prlprg.sexp.SEXPs;
-import org.prlprg.sexp.StrSXP;
-import org.prlprg.sexp.TaggedElem;
-import org.prlprg.sexp.VecSXP;
+import org.prlprg.sexp.*;
+import org.prlprg.util.gnur.GNUR;
+import org.prlprg.util.gnur.GNURTestSupport;
 
-public class RDSReaderTest implements GNURBasedTests {
+@GNURTestSupport
+public class RDSReaderTest {
+
+  private final GNUR R;
+
+  public RDSReaderTest(GNUR R) {
+    this.R = R;
+  }
+
   @Test
   public void testInts() {
     var sexp = R.eval("c(-.Machine$integer.max, -1L, 0L, NA, 1L, .Machine$integer.max)");
@@ -126,7 +123,6 @@ public class RDSReaderTest implements GNURBasedTests {
   @Test
   public void testClosure() {
     var sexp = (CloSXP) R.eval("function(x, y=1) 'abc' + x + length(y)");
-    System.out.println(sexp);
 
     var formals = sexp.parameters();
     assertEquals(2, formals.size());
@@ -147,9 +143,7 @@ public class RDSReaderTest implements GNURBasedTests {
     assertEquals(2, formals.size());
     assertEquals(new TaggedElem("x", SEXPs.MISSING_ARG), formals.get(0));
 
-    // TODO: this should really be a snapshot test
     var body = sexp.body();
-    System.out.println(body);
     assertThat(body).isInstanceOf(BCodeSXP.class);
   }
 

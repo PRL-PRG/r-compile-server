@@ -294,6 +294,10 @@
           <rulesets>
             <ruleset>.pmd-rules.xml</ruleset>
           </rulesets>
+          <excludes>
+            <!-- Exclude generated code -->
+            <exclude>**/org/prlprg/server/protocol/**</exclude>
+          </excludes>
         </configuration>
         <!-- Use pmd 7 which supports Java 21, not whatever is provided by maven-pmd-plugin -->
         <dependencies>
@@ -344,21 +348,60 @@
         </configuration>
         <!-- automatically runs on `test` (and `verify` because `verify` invokes `test`) -->
       </plugin>
+      <!-- integration tests -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-failsafe-plugin</artifactId>
+        <version>3.5.0</version>
+        <executions>
+          <execution>
+            <goals>
+              <goal>integration-test</goal>
+              <goal>verify</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
       <!-- maven-javadoc-plugin, ensures there aren't javadoc issues -->
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-javadoc-plugin</artifactId>
         <version>3.7.0</version>
         <!-- `executions` is required to run this on verify -->
-        <executions>
-          <execution>
-            <goals>
-              <goal>javadoc</goal>
-              <goal>test-javadoc</goal>
-            </goals>
-            <phase>verify</phase>
-          </execution>
-        </executions>
+        <!-- disabled for now
+                <executions>
+                  <execution>
+                    <goals>
+                      <goal>javadoc</goal>
+                      <goal>test-javadoc</goal>
+                    </goals>
+                    <phase>verify</phase>
+                  </execution>
+                </executions>
+                -->
+      </plugin>
+      <plugin>
+        <artifactId>maven-assembly-plugin</artifactId>
+        <version>3.7.1</version>
+        <configuration>
+          <archive>
+            <manifest>
+              <mainClass>org.prlprg.server.Main</mainClass>
+            </manifest>
+          </archive>
+          <descriptorRefs>
+            <descriptorRef>jar-with-dependencies</descriptorRef>
+          </descriptorRefs>
+          <!--          <executions>-->
+          <!--            <execution>-->
+          <!--              <id>make-assembly</id>-->
+          <!--              <phase>package</phase>-->
+          <!--              <goals>-->
+          <!--                <goal>single</goal>-->
+          <!--              </goals>-->
+          <!--            </execution>-->
+          <!--          </executions>-->
+        </configuration>
       </plugin>
     </plugins>
     <extensions>

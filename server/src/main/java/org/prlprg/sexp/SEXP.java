@@ -30,6 +30,7 @@ public sealed interface SEXP
         BuiltinOrSpecialSXP,
         CloSXP,
         EnvSXP,
+        ExtptrSxp,
         LangOrListSXP,
         LangSXP,
         ListOrVectorSXP,

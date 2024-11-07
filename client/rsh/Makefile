@@ -13,16 +13,16 @@ LLVM_R := LD_PRELOAD=$(LLVM_LIB) $(R)
 .PHONY: all
 all: install test benchmark
 
-.PHONY: build
-build:
-	$(R) CMD build .
-
 .PHONY: clean
 clean:
 	-rm -f rsh*tar.gz
 	-rm -fr rsh.Rcheck
 	-rm -rf src/*.so
 	-find src -name '*.o' -exec rm {} \;
+
+.PHONY: build
+build:
+	$(LLVM_R) CMD build .
 
 .PHONY: install
 install:
@@ -48,7 +48,9 @@ test:
 	@for file in $(TEST_DIR)/*.R; do \
 		test=$$(basename $$file); \
 		echo "$(TXT_BOLD)┌──── $$test ...$(TXT_NORM)"; \
-		$(TEST_R) $$file; \
+		cmd="$(TEST_R) $$file;"; \
+		echo $$cmd; \
+		eval "$$cmd"; \
 		exit=$$?; \
 		echo -n "$(TXT_BOLD)└──── $$test: "; \
 	  if [ $$exit -eq 0 ]; then \
