@@ -428,13 +428,14 @@ public class BC2CCompilerTest {
     // this for loop will not use ISQ as it will be constant folded
     snapshot.verify(
         """
-                        s <- 0L
-                        for (i in 1:10) {
-    for (j in 1:10) {
-      s <- s + j + i
-    }
-  }s
-                        """,
+  s <- 0L
+  for (i in 1:10) {
+      for (j in 1:10) {
+          s <- s + j + i
+      }
+  }
+  s
+  """,
         returns(1100));
   }
 
@@ -443,8 +444,8 @@ public class BC2CCompilerTest {
     snapshot.verify(
         """
     x <- 1
-      y <- 10
-        x:y
+    y <- 10
+    x:y
       """,
         x -> assertEquals(x.pc().isq(), 1));
   }
@@ -519,19 +520,19 @@ public class BC2CCompilerTest {
             x <- 10
             if (x > 0) {
               3
-    }
-  x
+            }
+            x
             """);
     snapshot.verify(
         """
-            function(x) {
-              if (x > 0) {
-              }
-              1
-            }
+      function(x) {
+        if (x > 0) {
+        }
+        1
+      }
 
-  1
-    """);
+      1
+      """);
   }
 
   private TestResultCheck fastArith() {
