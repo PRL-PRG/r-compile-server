@@ -2,3 +2,6 @@
 	path = external/R
 	url = https://github.com/PRL-PRG/r-compiler-server-gnur
 	ignore = untracked
+[submodule "external/R-debug"]
+	path = external/R-debug
+	url = https://github.com/PRL-PRG/r-compiler-server-gnur
