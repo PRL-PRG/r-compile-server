@@ -243,11 +243,11 @@ class ClosureCompiler {
           }
           case BcInstr.Dup() -> {
             stack.push();
-            yield "%s = %s;".formatted(stack.get(-1), stack.get(-2));
+            yield "%s = %s;".formatted(stack.get(0), stack.get(-2));
           }
           case BcInstr.Dup2nd() -> {
             stack.push();
-            yield "%s = %s;".formatted(stack.get(-1), stack.get(-3));
+            yield "%s = %s;".formatted(stack.get(0), stack.get(-3));
           }
           default -> {
             if (instr.label().orElse(null) instanceof BcLabel l) {

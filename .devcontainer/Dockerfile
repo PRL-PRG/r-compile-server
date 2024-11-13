@@ -57,10 +57,13 @@ RUN apt install -y \
   gdb \
   protobuf-compiler \
   bear \
-  libzmq3-dev
+  libzmq3-dev \
+  rr
 
 # install LLVM
 RUN curl -fsSL -o /opt/llvm.sh https://apt.llvm.org/llvm.sh \
   && chmod +x /opt/llvm.sh \
   && /opt/llvm.sh "$LLVM_VERSION"
 
+# enable rr
+RUN echo 'kernel.perf_event_paranoid = 1' > /etc/sysctl.d/10-rr.conf
