@@ -1423,7 +1423,7 @@ static INLINE void Rsh_StartAssign2(Value *rhs, Value *lhs_cell, Value *lhs_val,
                                     Value *rhs_dup, SEXP symbol, BCell *cache,
                                     SEXP rho) {
   SEXP cell = bcell_get_cache(symbol, rho, cache);
-  R_varloc_t loc;
+  R_varloc_t loc = R_findVarLoc(symbol, rho);
   if (cell == R_UnboundValue) {
     loc.cell = R_NilValue;
   }
