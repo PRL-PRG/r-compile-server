@@ -72,7 +72,7 @@ function build {
   if [[ ! -f Makefile ]]; then
     echo "-> configure"
     if [ $USING_OSX -eq 1 ]; then
-      ./configure --enable-R-shlib --with-internal-tzcode --with-ICU=no || cat config.log
+      ./configure --enable-R-shlib --with-internal-tzcode --with-ICU=no --with-x=no || cat config.log
     else
       ./configure
     fi
