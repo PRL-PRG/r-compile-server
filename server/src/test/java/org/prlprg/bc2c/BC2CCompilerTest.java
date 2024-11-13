@@ -535,7 +535,8 @@ public class BC2CCompilerTest {
   }
 
   @Test
-  public void testAdhoc(BC2CSnapshot snapshot) {
+  public void testSubsetAndComplexAssign(BC2CSnapshot snapshot) {
+    // from bounce benchmark
     snapshot.verify("""
             b <- list()
             b[[1]] <- c(1,2,3)
