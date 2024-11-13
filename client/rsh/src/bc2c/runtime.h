@@ -7,7 +7,6 @@
 // MAKE SURE Rinternals.h is not listed!
 #include "R_ext/Boolean.h"
 #include "runtime_internals.h"
-#include <assert.h>
 #include <limits.h>
 #include <math.h>
 #include <stdint.h>

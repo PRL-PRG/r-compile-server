@@ -4,7 +4,7 @@ TOOLS_DIR := $(BASE_DIR)/tools
 
 .PHONY: setup
 setup:
-	$(MAKE) -C external
+	$(MAKE) -C external setup
 	$(MAKE) -C client setup
 
 .PHONY: setup-git
