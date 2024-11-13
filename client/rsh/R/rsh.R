@@ -62,7 +62,7 @@ rsh_compile <- function(f, options) {
     stop("options must be a list")
   }
 
-  # FIXME: this does not work, we need to find the closure in the an environment
+  # FIXME: this does not work, we need to find the closure in the environment
   if (is.null(options$name)) {
     options$name <- as.character(substitute(f))
   }
@@ -87,8 +87,11 @@ rsh_cmpfun <- function(f, options) {
 
   if (!missing(options) && is.list(options)) {
     if (!is.null(options$optimize)) {
-      o$cc_opt <- as.integer(options$optimize)
-      o$bc_opt <- o$cc_opt
+      o$bc_opt <- as.integer(options$optimize)
+      o$cc_opt <- o$bc_opt
+    }
+    if (!is.null(options$cc_opt)) {
+      o$cc_opt <- as.integer(options$cc_opt)
     }
   }
 

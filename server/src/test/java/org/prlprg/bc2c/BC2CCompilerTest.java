@@ -534,6 +534,18 @@ public class BC2CCompilerTest {
             """);
   }
 
+  @Test
+  public void testAdhoc(BC2CSnapshot snapshot) {
+    snapshot.verify("""
+            b <- list()
+            b[[1]] <- c(1,2,3)
+            names(b[[1]]) <- c("x","y","z")
+            b
+            """);
+  }
+
+  // API
+
   private TestResultCheck fastArith() {
     return noSlow(PerformanceCounters::slowArith, "Expected fast arithmetics");
   }

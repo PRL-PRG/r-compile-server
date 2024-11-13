@@ -1,4 +1,5 @@
 {
+  "name": "r-compile-server",
   "build": {
     "dockerfile": "./Dockerfile",
     "context": "."

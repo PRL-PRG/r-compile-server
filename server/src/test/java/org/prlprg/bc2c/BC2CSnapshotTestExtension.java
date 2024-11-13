@@ -184,7 +184,7 @@ public class BC2CSnapshotTestExtension
 
       Files.writeString(cFile.toPath(), module.file().toString());
 
-      RshCompiler.getInstance(0)
+      RshCompiler.getInstance(3)
           .createBuilder(cFile.getPath(), soFile.getPath())
           .flag("-shared")
           .flag("-DRSH_TESTS")
