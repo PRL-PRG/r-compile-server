@@ -66,63 +66,6 @@ static void *insert_into_jit(const char* name, protocol::CompileResponse const &
   return ptr;
 }
 
-static SEXP create_constant_pool(void *fun_ptr, const char* name,
-                                 protocol::CompileResponse const &compiled_fun) {
-  auto pool = PROTECT(Rf_allocVector(VECSXP, 2));
-
-  // create an external pointer to the JITed function with a finalizer
-  auto p = R_MakeExternalPtr(fun_ptr, RSH_JIT_FUN_PTR,
-                             Rf_mkString(name));
-  R_RegisterCFinalizerEx(p, &jit_fun_destructor, FALSE);
-
-  // slot 0: the pointer to the compiled function
-  SET_VECTOR_ELT(pool, 0, p);
-
-  // slot 1: the contants used by the compiled function
-  auto consts_vec = rsh::deserialize(compiled_fun.constants());
-  SET_VECTOR_ELT(pool, 1, consts_vec);
-
-  UNPROTECT(1); // consts
-
-  return pool;
-}
-
-static SEXP create_wrapper_body(SEXP closure, SEXP c_cp) {
-  auto bc_size = sizeof(CALL_FUN_BC) / sizeof(i32);
-
-  auto bc = PROTECT(Rf_allocVector(INTSXP, bc_size));
-  memcpy(INTEGER(bc), CALL_FUN_BC, sizeof(CALL_FUN_BC));
-  bc = R_bcEncode(bc);
-
-  auto expr_index = PROTECT(Rf_allocVector(INTSXP, bc_size));
-  INTEGER(expr_index)[0] = NA_INTEGER;
-  memset(INTEGER(expr_index) + 1, 0, (bc_size - 1) * sizeof(i32));
-
-  auto cp = PROTECT(Rf_allocVector(VECSXP, 6));
-  int i = 0;
-
-  // store the original AST (consequently it will not correspond to the AST)
-  SET_VECTOR_ELT(cp, i++, BODY(closure));
-  SET_VECTOR_ELT(cp, i++, Rf_install(".External2"));
-  SET_VECTOR_ELT(cp, i++, BC2C_CALL_TRAMPOLINE_SXP);
-  SET_VECTOR_ELT(cp, i++, closure);
-  SET_VECTOR_ELT(cp, i++, c_cp);
-  SET_VECTOR_ELT(cp, i++, expr_index);
-
-  // properly name the expression index (the last element of the constant pool)
-  auto cp_names = Rf_allocVector(STRSXP, 6);
-  Rf_setAttrib(cp, R_NamesSymbol, cp_names);
-  for (i = 0; i < 5; i++) {
-    SET_STRING_ELT(cp_names, i, R_BlankString);
-  }
-  SET_STRING_ELT(cp_names, 5, Rf_mkChar("expressionIndex"));
-
-  auto body = Rf_cons(bc, cp);
-  SET_TYPEOF(body, BCODESXP);
-
-  UNPROTECT(3);
-  return body;
-}
 
 CompilerOptions CompilerOptions::from_list(SEXP listsxp) {
   if (TYPEOF(listsxp) != VECSXP) {
@@ -208,14 +151,15 @@ SEXP compile(SEXP closure, SEXP options) {
 
   SEXP body = nullptr;
   SEXP c_cp = nullptr;
-  void * fun_ptr = nullptr;
+  void* fun_ptr;
+  SEXP fun_ptr_sxp = nullptr;
 
   std::string name = genSymbol(compiled_fun.hash(), 0);
   // Native or bytecode?
   if(opts.tier == protocol::Tier::OPTIMIZED) {
     fun_ptr = insert_into_jit(name.c_str(), compiled_fun);
     auto fun_ptr_sxp = R_MakeExternalPtr(
-          fun_ptr, RSH_JIT_FUN_PTR, Rf_mkString(compiled_fun.name().c_str()));
+          fun_ptr, RSH_JIT_FUN_PTR, Rf_mkString(name.c_str()));
       R_RegisterCFinalizerEx(fun_ptr_sxp, &jit_fun_destructor, FALSE);
 
     auto c_cp = rsh::deserialize(compiled_fun.constants());
