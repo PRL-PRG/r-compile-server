@@ -51,6 +51,11 @@ abstract class AbstractEnvSXP {
     bindings.put(name, value);
   }
 
+  public void setBindings(Map<String, SEXP> bindings) {
+    this.bindings.clear();
+    this.bindings.putAll(bindings);
+  }
+
   @Override
   public String toString() {
     return Printer.toString(this);

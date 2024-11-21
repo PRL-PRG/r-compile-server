@@ -26,7 +26,7 @@ public class TestConfig extends Config {
    *
    * <p>This is <b>unset</b> by default.
    */
-  public static final boolean FAST_TESTS = get("FAST_TESTS", false);
+  public static final boolean FAST_TESTS = get("FAST_TESTS", true);
 
   /**
    * Whether to enable additional logging.

@@ -11,6 +11,8 @@
 ### R ###
 .RData
 .Rhistory
+external/R/doc/manual/*.html
+external/R/doc/NEWS.pdf
 ..Rcheck
 
 ### C ###

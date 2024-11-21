@@ -1,4 +1,4 @@
-package org.prlprg;
+package org.prlprg.session;
 
 import com.google.common.collect.ImmutableList;
 import org.prlprg.sexp.BaseEnvSXP;

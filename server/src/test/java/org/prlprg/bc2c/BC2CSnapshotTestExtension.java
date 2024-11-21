@@ -8,11 +8,11 @@ import java.lang.reflect.Method;
 import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.logging.Logger;
-import org.prlprg.RSession;
 import org.prlprg.bc.BCCompiler;
 import org.prlprg.rds.RDSWriter;
 import org.prlprg.rsession.TestRSession;
 import org.prlprg.service.RshCompiler;
+import org.prlprg.session.RSession;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
@@ -177,7 +177,8 @@ public class BC2CSnapshotTestExtension
             .orElseThrow(() -> new RuntimeException("Compilation did not produce byte code"));
 
     try {
-      var bc2c = new BC2CCompiler(bc);
+      var name = "f_" + (bc.hashCode() < 0 ? "n" + -bc.hashCode() : bc.hashCode());
+      var bc2c = new BC2CCompiler(bc, name);
       var module = bc2c.finish();
 
       RDSWriter.writeFile(cpFile, module.constantPool());

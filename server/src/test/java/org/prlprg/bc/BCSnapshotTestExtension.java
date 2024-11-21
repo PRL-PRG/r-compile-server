@@ -4,8 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import java.lang.reflect.Method;
-import org.prlprg.RSession;
 import org.prlprg.rsession.TestRSession;
+import org.prlprg.session.RSession;
 import org.prlprg.sexp.*;
 import org.prlprg.util.Files;
 import org.prlprg.util.ThrowingSupplier;

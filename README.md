@@ -58,6 +58,8 @@ If the dev container is too slow, you can also setup on the host machine. To do 
   - **Solution:** ensure you have a Java 22 JDK installed, then run `JAVA_HOME=<path to JDK 22> mvn …`
     - e.g. if using IntelliJ on macOS, openJDK 22, set `JAVA_HOME=~/Library/Java/JavaVirtualMachines/openjdk-22/Contents/Home`
     - In the devcontainer, `JAVA_HOME=/usr/lib/jvm/jdk`
+- **Problem:** some R symbols are not visible when JIT-compiling.
+  - **Solution:** make sure that `external/R` is up-to-date with `git submodule update --init --recursive` and check if it is the right branch, `RSH-4-3-2`. 
 
 If you have a different issue than the above, [report it on GitHub](https://github.com/PRL-PRG/r-compile-server/issues/new/choose).
 

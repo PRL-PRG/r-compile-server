@@ -6,6 +6,7 @@ NULL
 # save the original compiler::cmpfun
 .gnur_cmpfun <- compiler::cmpfun
 
+
 # Because of the ORC JIT we need all the native symbols registered globally
 # (as RTLD_GLOBAL) so the ORC linker can find them. Unfortunatelly, R does
 # not provide a way to instruct the namespace loader to load pass the
@@ -31,6 +32,19 @@ NULL
   )
 
   .Call(C_initialize)
+
+   # for the client, so that it is not GC-ed
+  env[[".rsh_client"]] <- init_client("0.0.0.0", 8980L)
+}
+
+#' Initialize the Rsh client
+#'
+#' @param address IP address of the server
+#' @param port port of the server
+#' @export
+init_client <- function(address="0.0.0.0", port=8980L) {
+  .rsh_client <- .Call(C_init_client, address, port, installed.packages()[,1])
+  .rsh_client
 }
 
 #' Activate the Rsh JIT
@@ -69,6 +83,10 @@ rsh_compile <- function(f, options) {
 
   if (is.null(options$inplace)) {
     options$inplace <- TRUE
+  }
+
+  if(is.null(options$tier)) {
+    options$tier <- "optimized"
   }
 
   invisible(.Call(C_compile, f, options))
@@ -118,3 +136,11 @@ rsh_override_cmpfun <- function(f) {
   lockBinding("cmpfun", compiler_ns)
 }
 
+#' Get the total size of the messages sent 
+#' and received by the server, in bytes
+#' @return integer vector of size 2, the first element is the total size of requests, 
+#' and the second element is the total size of responses
+#' @export 
+rsh_total_size <- function() {
+  .Call(C_get_total_size)
+}

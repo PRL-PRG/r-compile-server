@@ -11,8 +11,9 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
-import org.prlprg.RSession;
 import org.prlprg.rds.RDSReader;
+import org.prlprg.rds.RDSWriter;
+import org.prlprg.session.RSession;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.util.Pair;
 
@@ -102,6 +103,13 @@ class RestartingGNURProcess implements GNUR {
   }
 
   @Override
+  public SEXP eval(String source, SEXP input) {
+    check();
+    assert R != null;
+    return R.eval(source, input);
+  }
+
+  @Override
   public Pair<SEXP, String> capturingEval(String source) {
     check();
     assert R != null;
@@ -185,6 +193,26 @@ class SingleGNURProcess implements GNUR {
   @Override
   public SEXP eval(String source) {
     return capturingEval(source).first();
+  }
+
+  /**
+   * Evaluate R source with input SEXP. The SEXP is passed from Java to the R world using RDS.
+   *
+   * @param source
+   * @param input
+   * @return
+   */
+  @Override
+  public SEXP eval(String source, SEXP input) {
+    try {
+      var inputFile = File.createTempFile("RCS-input", ".rds");
+      RDSWriter.writeFile(inputFile, input);
+      String full_source = "input <- readRDS('" + inputFile.getAbsolutePath() + "')\n" + source;
+
+      return eval(full_source);
+    } catch (Exception e) {
+      throw new RuntimeException("Unable to eval R source", e);
+    }
   }
 
   private String waitForCommand(String requestId) {
