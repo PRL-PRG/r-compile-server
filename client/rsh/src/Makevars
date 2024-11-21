@@ -3,17 +3,22 @@ LLVM_CONFIG := llvm-config-17
 LLVM_CPPFLAGS != $(LLVM_CONFIG) --cxxflags
 LLVM_LIBS != $(LLVM_CONFIG) --libs
 
+DEBUGFLAGS := -O0 -ggdb
+
 PB_CPPFLAGS != pkg-config --cflags protobuf
 PB_LIBS != pkg-config --libs protobuf
+GRPC_CPPFLAGS != pkg-config --cflags grpc++
+GRPC_LIBS != pkg-config --libs grpc++
 
 # Both C/C++ flags
-PKG_CPPFLAGS := -DR_NO_REMAP -DSTRICT_R_HEADERS -DUSE_RINTERNALS
+PKG_CPPFLAGS :=  -DR_NO_REMAP -DSTRICT_R_HEADERS -DUSE_RINTERNALS $(DEBUGFLAGS) 
 # C++ flags
-PKG_CXXFLAGS := $(LLVM_CPPFLAGS) $(PB_CPPFLAGS) -fexceptions -I../inst
+PKG_CXXFLAGS := $(LLVM_CPPFLAGS) $(PB_CPPFLAGS) $(GRPC_CPPFLAGS) -fexceptions -I../inst
 # C flags
 PKG_CFLAGS :=
 # Linker flags
-PKG_LIBS := $(LLVM_LIBS) $(PB_LIBS) -lzmq
+PKG_LIBS := $(LLVM_LIBS) $(PB_LIBS) $(GRPC_LIBS) -lzmq $(DEBUGFLAGS) 
+
 
 # Allow sources in subdirectories
 CPP_FILES = $(wildcard *.cpp **/*.cpp)

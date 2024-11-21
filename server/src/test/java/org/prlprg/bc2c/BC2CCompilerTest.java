@@ -274,6 +274,7 @@ public class BC2CCompilerTest {
   @Test
   public void testSubassign2N(BC2CSnapshot snapshot) {
     snapshot.verify("a <- array(1:8, dim=c(2,2,2)); a[[1,2,1]] <- 42L; a", fastSubassign());
+
     snapshot.verify(
         "a <- structure(array(1:8, dim=c(2,2,2)), class='a'); a[[1,2,1]] <- 42; a",
         slowSubassign());
@@ -427,14 +428,14 @@ public class BC2CCompilerTest {
     // this for loop will not use ISQ as it will be constant folded
     snapshot.verify(
         """
-                        s <- 0L
-                        for (i in 1:10) {
-                            for (j in 1:10) {
-                                s <- s + j + i
-                            }
-                        }
-                        s
-                        """,
+  s <- 0L
+  for (i in 1:10) {
+      for (j in 1:10) {
+          s <- s + j + i
+      }
+  }
+  s
+  """,
         returns(1100));
   }
 
@@ -442,10 +443,10 @@ public class BC2CCompilerTest {
   public void testColon(BC2CSnapshot snapshot) {
     snapshot.verify(
         """
-            x <- 1
-            y <- 10
-            x:y
-            """,
+    x <- 1
+    y <- 10
+    x:y
+      """,
         x -> assertEquals(x.pc().isq(), 1));
   }
 
@@ -524,14 +525,14 @@ public class BC2CCompilerTest {
             """);
     snapshot.verify(
         """
-            function(x) {
-              if (x > 0) {
-              }
-              1
-            }
+      function(x) {
+        if (x > 0) {
+        }
+        1
+      }
 
-            1
-            """);
+      1
+      """);
   }
 
   @Test

@@ -144,6 +144,7 @@ public class ContextTest {
   public void testFrameTypes() {
     var fun = (CloSXP) R.eval("utils::unzip");
     var ctx = Context.functionContext(fun);
+
     var identical = ctx.resolve("identical").orElseThrow();
     assertTrue(identical.first() instanceof NamespaceEnvSXP ns && ns.name().equals("base"));
   }

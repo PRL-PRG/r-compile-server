@@ -35,14 +35,6 @@ public final class UserEnvSXP extends AbstractEnvSXP implements EnvSXP, Iterable
         bindings.entrySet().iterator(), e -> new TaggedElem(e.getKey(), e.getValue()));
   }
 
-  public ListSXP frame() {
-    return new ListSXPImpl(
-        bindings.entrySet().stream()
-            .map(e -> new TaggedElem(e.getKey(), e.getValue()))
-            .collect(ImmutableList.toImmutableList()),
-        Attributes.NONE);
-  }
-
   @Override
   public EnvType envType() {
     return EnvType.USER;
@@ -61,5 +53,17 @@ public final class UserEnvSXP extends AbstractEnvSXP implements EnvSXP, Iterable
 
   public void setAttributes(Attributes attributes) {
     this.attributes = attributes;
+  }
+
+  public ListSXP frame() {
+    return SEXPs.list(
+        bindings.entrySet().stream()
+            .map(e -> new TaggedElem(e.getKey(), e.getValue()))
+            .collect(ImmutableList.toImmutableList()));
+  }
+
+  @Override
+  public String toString() {
+    return "<environment: " + hashCode() + ">";
   }
 }

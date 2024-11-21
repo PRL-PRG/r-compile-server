@@ -1,5 +1,6 @@
 package org.prlprg.rds;
 
+import com.google.protobuf.ByteString;
 import java.io.*;
 import java.nio.charset.Charset;
 import java.util.*;
@@ -32,6 +33,12 @@ public class RDSWriter implements Closeable {
     try (var writer = new RDSWriter(output)) {
       writer.write(sexp);
     }
+  }
+
+  public static ByteString writeByteString(SEXP sexp) throws IOException {
+    var output = ByteString.newOutput();
+    RDSWriter.writeStream(output, sexp);
+    return output.toByteString();
   }
 
   /**

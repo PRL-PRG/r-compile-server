@@ -3,6 +3,7 @@ package org.prlprg.rds;
 import static java.util.Objects.requireNonNull;
 
 import com.google.common.collect.ImmutableList;
+import com.google.protobuf.ByteString;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.Closeable;
 import java.io.File;
@@ -11,13 +12,14 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.Charset;
 import java.util.*;
+import java.util.logging.Logger;
 import javax.annotation.Nullable;
-import org.prlprg.RSession;
 import org.prlprg.bc.Bc;
 import org.prlprg.primitive.BuiltinId;
 import org.prlprg.primitive.Complex;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
+import org.prlprg.session.RSession;
 import org.prlprg.sexp.*;
 import org.prlprg.util.IO;
 
@@ -26,16 +28,29 @@ public class RDSReader implements Closeable {
   private final RSession rsession;
   private final RDSInputStream in;
   private final List<SEXP> refTable = new ArrayList<>(128);
+  private static Logger LOGGER = Logger.getLogger(RDSReader.class.getName());
+
+  // User-provided hook for PERSISTSXP
+  // Used for package databases for instance
+  public interface Hook {
+    SEXP hook(SEXP sexp) throws IOException;
+  }
+
+  private Hook hook = null;
 
   // FIXME: this should include the logic from platform.c
   //  or should we individually read the charset property of each SEXP? this will require
   //  verifying which SEXPs we need to write the charset for--just CHARSXP, or also
   //  builtin/special?
-  private final Charset nativeEncoding = Charset.defaultCharset();
+  private Charset nativeEncoding = Charset.defaultCharset();
 
   private RDSReader(RSession session, InputStream in) {
     this.rsession = session;
     this.in = new RDSInputStream(in);
+  }
+
+  private void setHook(Hook hook) {
+    this.hook = hook;
   }
 
   /**
@@ -64,10 +79,21 @@ public class RDSReader implements Closeable {
     }
   }
 
-  private void readHeader() throws IOException {
+  public static SEXP readStream(RSession session, InputStream input, Hook hook) throws IOException {
+    try (var reader = new RDSReader(session, input)) {
+      reader.setHook(hook);
+      return reader.read();
+    }
+  }
 
-    if (in.readByte() != 'X') {
-      throw new RDSException("Unsupported type (possibly compressed)");
+  public static SEXP readByteString(RSession session, ByteString byteString) throws IOException {
+    return RDSReader.readStream(session, byteString.newInput());
+  }
+
+  private void readHeader() throws IOException {
+    var RDSkind = in.readByte();
+    if (RDSkind != 'X') {
+      throw new RDSException("Unsupported type (possibly compressed): " + RDSkind);
     }
     if (in.readByte() != '\n') {
       throw new RDSException("Expected newline");
@@ -75,14 +101,22 @@ public class RDSReader implements Closeable {
 
     // versions
     var formatVersion = in.readInt();
-    if (formatVersion != 2) {
-      // we do not support RDS version 3 because it uses ALTREP
-      throw new RDSException("Unsupported RDS version: " + formatVersion);
+    if (formatVersion > 2) {
+      // we do not completely support RDS version 3 because it uses ALTREP
+      // LOGGER.warning("RDS version: " + formatVersion + "; some features are not supported.");
     }
     // writer version
     in.readInt();
     // minimal reader version
     in.readInt();
+
+    if (formatVersion >= 3) {
+      int encodingLength = in.readInt();
+      if (encodingLength > 0) {
+        var encoding = in.readString(encodingLength, nativeEncoding);
+        nativeEncoding = Charset.forName(encoding);
+      }
+    }
   }
 
   public SEXP read() throws IOException {
@@ -135,7 +169,9 @@ public class RDSReader implements Closeable {
                 throw new RDSException("Unexpected bytecode reference here (not in bytecode)");
             case ATTRLANGSXP, ATTRLISTSXP -> throw new RDSException("Unexpected attr here");
             case UNBOUNDVALUE_SXP -> SEXPs.UNBOUND_VALUE;
-            case GENERICREFSXP, PACKAGESXP, PERSISTSXP, CLASSREFSXP, ALTREPSXP ->
+            case PERSISTSXP -> readPersist(flags);
+            case ALTREPSXP -> readAltRep(flags);
+            case GENERICREFSXP, PACKAGESXP, CLASSREFSXP ->
                 throw new RDSException("Unsupported RDS special type: " + s);
           };
     };
@@ -147,6 +183,28 @@ public class RDSReader implements Closeable {
     var ptr = new ExtptrSxp();
     refTable.add(ptr);
     return ptr;
+  }
+
+  private SEXP readAltRep(Flags flags) throws IOException {
+    // Info: serialized class (looks like it is also the attribute of the altrep object!)
+    // Info is a 3 element list: class name, package name, type
+    var info = (ListSXP) readItem();
+    var state = readItem();
+    var attributes = readAttributes();
+
+    var sexp = new AltRepUnserializer(info, state).unserialize();
+    return sexp.withAttributes(attributes);
+  }
+
+  private SEXP readPersist(Flags flags) throws IOException {
+    var strs = readStringVec();
+    // Call the persistent hook on that strsxp
+    if (hook == null) {
+      throw new RDSException("No hook provided for PERSISTSXP");
+    }
+    var res = hook.hook(strs);
+    refTable.add(res);
+    return res;
   }
 
   private SEXP readComplex(Flags flags) throws IOException {
@@ -590,7 +648,8 @@ public class RDSReader implements Closeable {
 
   private CloSXP readClosure(Flags flags) throws IOException {
     var attributes = readAttributes(flags);
-    if (!(readItem() instanceof EnvSXP env)) {
+    var item = readItem();
+    if (!(item instanceof EnvSXP env)) {
       throw new RDSException("Expected CLOENV to be environment");
     }
     if (!(readItem() instanceof ListSXP formals)) {

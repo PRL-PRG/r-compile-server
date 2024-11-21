@@ -2,7 +2,7 @@ package org.prlprg.util.snapshot;
 
 import java.nio.file.Path;
 import java.util.function.Function;
-import org.prlprg.RSession;
+import org.prlprg.session.RSession;
 import org.prlprg.sexp.SEXP;
 
 public class RDSFileSnapshotStoreFactory<T> extends FileSnapshotStoreFactory<T> {

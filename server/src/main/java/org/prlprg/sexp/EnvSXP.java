@@ -56,6 +56,10 @@ public sealed interface EnvSXP extends SEXP permits StaticEnvSXP, UserEnvSXP {
    */
   int size();
 
+  default boolean isEmpty() {
+    return size() == 0;
+  }
+
   @Override
   default SEXPType type() {
     return SEXPType.ENV;

@@ -1,6 +1,7 @@
 #include <R_ext/Rdynload.h>
 
 #include "compiler.hpp"
+#include "client.hpp"
 
 extern "C" {
 #include "bc2c/runtime.h"
@@ -11,6 +12,8 @@ static const R_CallMethodDef callMethods[] = {
     {"initialize", (DL_FUNC)&rsh::initialize, 0},
     {"compile", (DL_FUNC)&rsh::compile, 2},
     {"is_compiled", (DL_FUNC)&rsh::is_compiled, 1},
+    {"init_client", (DL_FUNC)&rsh::init_client, 3},
+    {"get_total_size", (DL_FUNC)&rsh::get_total_size, 0},
     {NULL, NULL, 0}};
 
 static const R_ExternalMethodDef externalMethods[] = {

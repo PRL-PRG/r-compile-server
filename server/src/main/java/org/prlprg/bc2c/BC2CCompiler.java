@@ -74,6 +74,7 @@ record CompiledClosure(String name, VectorSXP<SEXP> constantPool) {}
 
 class CModule {
   private final List<CFunction> funs = new ArrayList<>();
+  private int funId = 0;
 
   CFunction createFun(String returnType, String name, String args) {
     var fun = new CFunction(returnType, name, args);
@@ -81,11 +82,8 @@ class CModule {
     return fun;
   }
 
-  CompiledClosure compileClosure(Bc bc) {
-    var bcHash = Math.abs(bc.hashCode());
-    var randomSuffix = UUID.randomUUID().toString().substring(0, 8);
-    var name = "f_" + bcHash + "_" + randomSuffix;
-
+  CompiledClosure compileClosure(Bc bc, String baseName) {
+    var name = baseName + "_" + funId++;
     var compiler = new ClosureCompiler(this, name, bc);
     var constants = compiler.compile();
 
@@ -100,13 +98,18 @@ class CModule {
 public class BC2CCompiler {
   private final CModule module = new CModule();
   private final Bc bc;
+  private final String name; // The name is chosen by the client
 
-  public BC2CCompiler(Bc bc) {
+  public BC2CCompiler(Bc bc, String name) {
     this.bc = bc;
+    // We can have other closures to compile in the same Bc
+    // We will need to generate a unique name for each
+    // This is the base name
+    this.name = name;
   }
 
   public CompiledModule finish() {
-    var compiledClosure = module.compileClosure(bc);
+    var compiledClosure = module.compileClosure(bc, name);
 
     var file = new CFile();
     file.addInclude("runtime.h");
@@ -130,6 +133,7 @@ class ClosureCompiler {
   private final Set<Integer> labels = new HashSet<>();
   private final Set<Integer> cells = new HashSet<>();
   private int extraConstPoolIdx;
+  private final String name;
 
   protected CModule module;
   protected CFunction fun;
@@ -137,6 +141,7 @@ class ClosureCompiler {
 
   public ClosureCompiler(CModule module, String name, Bc bc) {
     this.bc = bc;
+    this.name = name;
     this.module = module;
     this.fun = module.createFun("SEXP", name, "SEXP %s, SEXP %s".formatted(VAR_RHO, VAR_CCP));
     this.body = fun.add();
@@ -370,7 +375,7 @@ class ClosureCompiler {
     var cls = bc.consts().get(idx);
 
     if (cls.get(1) instanceof BCodeSXP closureBody) {
-      var compiledClosure = module.compileClosure(closureBody.bc());
+      var compiledClosure = module.compileClosure(closureBody.bc(), name);
       var cpConst = createExtraConstant(compiledClosure.constantPool());
       return builder
           .args(constantSXP(idx), "&" + compiledClosure.name(), constantSXP(cpConst))

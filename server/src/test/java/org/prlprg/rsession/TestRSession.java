@@ -8,8 +8,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import javax.annotation.Nullable;
-import org.prlprg.RSession;
 import org.prlprg.rds.RDSReader;
+import org.prlprg.session.RSession;
+import org.prlprg.sexp.*;
 import org.prlprg.sexp.BaseEnvSXP;
 import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.GlobalEnvSXP;
@@ -53,7 +54,7 @@ public class TestRSession implements RSession {
       var bindings = new HashMap<String, SEXP>(names.size());
       names.forEach(x -> bindings.put(x, SEXPs.UNBOUND_VALUE));
 
-      // 3. Create a temporary baseenv and temporart base namespace
+      // 3. Create a temporary baseenv and temporary base namespace
       baseEnv = new BaseEnvSXP(bindings);
       // the 4.3.2 should correspond to the R version that written the RDS files used in this class
       baseNamespace = new NamespaceEnvSXP("base", "4.3.2", baseEnv, bindings);

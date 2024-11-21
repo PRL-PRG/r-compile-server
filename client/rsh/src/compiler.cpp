@@ -1,6 +1,5 @@
 #include "compiler.hpp"
 #include "client.hpp"
-#include "protocol.pb.h"
 #include "rsh.hpp"
 #include "serialize.hpp"
 #include "util.hpp"
@@ -35,76 +34,38 @@ namespace rsh {
 
 SEXP RSH_JIT_FUN_PTR = Rf_install("RSH_JIT_FUN_PTR");
 
-static CompileResponse compile_closure(SEXP closure, CompilerOptions options) {
-  auto closure_bytes = rsh::serialize(closure);
-  return rsh::remote_compile(closure_bytes, options);
+static std::variant<protocol::CompileResponse, std::string> compile_closure(SEXP closure, CompilerOptions options) {
+  // If a function has already been compiled to native code
+  if(Rf_asLogical(is_compiled(closure))) {
+    return "Function already compiled";
+  }
+
+  std::vector<uint8_t> closure_bytes;
+
+  if(IS_BYTECODE(BODY(closure))) {
+    // Build the closure AST to get the correct hash
+    // The AST is the first element in the constant pool of the BCODESXP
+    SEXP body = BODY_EXPR(closure);
+    auto ast_clos = Rf_mkCLOSXP(FORMALS(closure), body, CLOENV(closure));
+    closure_bytes = rsh::serialize(ast_clos);
+  }
+  else {
+   closure_bytes = rsh::serialize(closure);
+  }
+  auto client = rsh::Client::get_client();
+  return client->remote_compile(closure_bytes, options);
 }
 
-static void *insert_into_jit(CompiledFunction const &compiled_fun) {
-  auto native_code = compiled_fun.native_code();
+static void *insert_into_jit(const char* name, protocol::CompileResponse const &compiled_fun) {
+  auto native_code = compiled_fun.code();
   GJIT->add_object(native_code);
-  auto ptr = GJIT->lookup(compiled_fun.name().c_str());
+  auto ptr = GJIT->lookup(name);
   if (!ptr) {
     Rf_error("Unable to find the function in the JIT");
   }
   return ptr;
 }
 
-// static SEXP create_constant_pool(void *fun_ptr,
-//                                  CompiledFunction const &compiled_fun) {
-//   auto pool = PROTECT(Rf_allocVector(VECSXP, 2));
-//
-//   // create an external pointer to the JITed function with a finalizer
-//   auto p = R_MakeExternalPtr(fun_ptr, RSH_JIT_FUN_PTR,
-//                              Rf_mkString(compiled_fun.name().c_str()));
-//   R_RegisterCFinalizerEx(p, &jit_fun_destructor, FALSE);
-//
-//   // slot 0: the pointer to the compiled function
-//   SET_VECTOR_ELT(pool, 0, p);
-//
-//   // slot 1: the contants used by the compiled function
-//   auto consts_vec = rsh::deserialize(compiled_fun.constants());
-//   SET_VECTOR_ELT(pool, 1, consts_vec);
-//
-//   UNPROTECT(1); // consts
-//
-//   return pool;
-// }
-
-// static SEXP create_wrapper_body(SEXP body, SEXP c_cp) {
-//   auto bc_size = sizeof(CALL_FUN_BC) / sizeof(i32);
-//
-//   auto bc = PROTECT(Rf_allocVector(INTSXP, bc_size));
-//   memcpy(INTEGER(bc), CALL_FUN_BC, sizeof(CALL_FUN_BC));
-//   bc = R_bcEncode(bc);
-//
-//   auto expr_index = PROTECT(Rf_allocVector(INTSXP, bc_size));
-//   INTEGER(expr_index)[0] = NA_INTEGER;
-//   memset(INTEGER(expr_index) + 1, 0, (bc_size - 1) * sizeof(i32));
-//
-//   auto cp = PROTECT(Rf_allocVector(VECSXP, 5));
-//   int i = 0;
-//
-//   // store the original AST (consequently it will not correspond to the AST)
-//   SET_VECTOR_ELT(cp, i++, body);
-//   SET_VECTOR_ELT(cp, i++, Rf_install(".External2"));
-//   SET_VECTOR_ELT(cp, i++, BC2C_CALL_TRAMPOLINE_SXP);
-//   SET_VECTOR_ELT(cp, i++, c_cp);
-//   SET_VECTOR_ELT(cp, i++, expr_index);
-//
-//   // properly name the expression index (the last element of the constant
-//   pool) auto cp_names = Rf_allocVector(STRSXP, 5); Rf_setAttrib(cp,
-//   R_NamesSymbol, cp_names); for (i = 0; i < 4; i++) {
-//     SET_STRING_ELT(cp_names, i, R_BlankString);
-//   }
-//   SET_STRING_ELT(cp_names, 4, Rf_mkChar("expressionIndex"));
-//
-//   auto new_body = Rf_cons(bc, cp);
-//   SET_TYPEOF(new_body, BCODESXP);
-//
-//   UNPROTECT(3);
-//   return new_body;
-// }
 
 CompilerOptions CompilerOptions::from_list(SEXP listsxp) {
   if (TYPEOF(listsxp) != VECSXP) {
@@ -138,11 +99,29 @@ CompilerOptions CompilerOptions::from_list(SEXP listsxp) {
     } else if (!strcmp(name, "inplace")) {
       opts.inplace =
           vec_element_as_bool(listsxp, i, "inplace option must be a logical");
+    }
+    else if(!strcmp(name, "tier")) {
+      SEXP tier_sxp = VECTOR_ELT(listsxp, i);
+      if(TYPEOF(tier_sxp) != STRSXP) {
+        Rf_error("Expected a string for the tier option");
+      }
+      opts.tier = protocol::Tier::OPTIMIZED;
+      std::string tier_s = CHAR(STRING_ELT(tier_sxp, 0));
+      protocol::Tier tier = protocol::Tier::OPTIMIZED;
+      if(tier_s == "bytecode") {
+        opts.tier = protocol::Tier::BASELINE;
+      }
     } else {
       Rf_error("Unknown compiler option %s", name);
     }
   }
   return opts;
+}
+
+
+std::string genSymbol(uint64_t hash, int index) {
+
+  return "gen_" + std::to_string(hash) + "_" + std::to_string(index);
 }
 
 SEXP compile(SEXP closure, SEXP options) {
@@ -155,41 +134,76 @@ SEXP compile(SEXP closure, SEXP options) {
   }
 
   auto opts = CompilerOptions::from_list(options);
+
   auto response = compile_closure(closure, opts);
-  if (!response.has_result()) {
-    Rf_error("Compilation failed: %s", response.failure().c_str());
+  if (!std::holds_alternative<protocol::CompileResponse>(response)) {
+    Rf_error("Compilation failed: %s", std::get<std::string>(response).c_str());
     return closure;
   }
-  auto compiled_fun = response.result();
 
-  auto fun_ptr = insert_into_jit(compiled_fun);
-  // create an external pointer to the JITed function with a finalizer
-  auto fun_ptr_sxp = R_MakeExternalPtr(
-      fun_ptr, RSH_JIT_FUN_PTR, Rf_mkString(compiled_fun.name().c_str()));
-  R_RegisterCFinalizerEx(fun_ptr_sxp, &jit_fun_destructor, FALSE);
+  auto compiled_fun = std::get<protocol::CompileResponse>(response);
 
-  auto c_cp = rsh::deserialize(compiled_fun.constants());
-
-  // FIXME: add logging primitives
-  SEXP body = PROTECT(create_wrapper_body(BODY(closure), fun_ptr_sxp, c_cp));
-
-  if (opts.inplace) {
-    SET_BODY(closure, body);
-
-    Rprintf("Compiled in place fun %s (symbol=%s, fun=%p, jit=%p, body=%p)\n",
-            opts.name.c_str(), compiled_fun.name().c_str(), closure, fun_ptr,
-            body);
-  } else {
-    SEXP orig_closure = closure;
-    closure = Rf_mkCLOSXP(FORMALS(closure), body, CLOENV(closure));
-
-    Rprintf("Compiled fun %s (symbol=%s, orig_fun=%p, new_fun=%p, jit=%p, "
-            "body=%p)\n",
-            opts.name.c_str(), compiled_fun.name().c_str(), orig_closure,
-            closure, fun_ptr, body);
+  // If the code is empty, we keep the SEXP
+  if(!compiled_fun.has_code() || compiled_fun.code().empty()) {
+    Rf_warning("Empty body returned for function %s. Most likely because of browser in the body", opts.name.c_str());
+    return closure;
   }
 
-  UNPROTECT(1); // c_cp, body
+  SEXP body = nullptr;
+  SEXP c_cp = nullptr;
+  void* fun_ptr = nullptr;
+  SEXP fun_ptr_sxp = nullptr;
+
+  std::string name = genSymbol(compiled_fun.hash(), 0);
+  // Native or bytecode?
+  if(opts.tier == protocol::Tier::OPTIMIZED) {
+    fun_ptr = insert_into_jit(name.c_str(), compiled_fun);
+    auto fun_ptr_sxp = R_MakeExternalPtr(
+          fun_ptr, RSH_JIT_FUN_PTR, Rf_mkString(name.c_str()));
+      R_RegisterCFinalizerEx(fun_ptr_sxp, &jit_fun_destructor, FALSE);
+
+    auto c_cp = rsh::deserialize(compiled_fun.constants());
+    body = PROTECT(create_wrapper_body(closure, fun_ptr_sxp, c_cp));//P1
+  }
+  else if(opts.tier == protocol::Tier::BASELINE) {
+    body = PROTECT(rsh::deserialize(compiled_fun.code())); // P2
+    if(TYPEOF(body) != BCODESXP) {
+      Rf_error("Expected bytecode, got %s", Rf_type2char(TYPEOF(body)));
+    }
+  }
+
+  // Inplace or not (i.e. through through an explicit call to `compile` or through the R JIT)
+  if (opts.inplace) {
+    SET_BODY(closure, body);
+    UNPROTECT(1); // For P1 or P2
+    // FIXME: add logging primitives
+    Rprintf("Compiled in place fun %s (fun=%p, body=%p) ; ",
+            opts.name.c_str(), closure,
+            body);
+    if(opts.tier == protocol::Tier::OPTIMIZED) {
+      Rprintf("Jit-compiled: jit=%p\n", fun_ptr);
+    }
+    else {
+      Rprintf("Bytecode-compiled\n");
+    }
+  } else {
+    SEXP orig = closure;
+    closure = PROTECT(Rf_mkCLOSXP(FORMALS(closure), body, CLOENV(closure))); // P3
+    // FIXME: add logging primitive
+    UNPROTECT(1);// P1 or P2
+    Rprintf(
+        "Replaced compiled fun %s -- %p (fun=%p, body=%p) ; ",
+        opts.name.c_str(), orig, closure,
+        body);
+    if(opts.tier == protocol::Tier::OPTIMIZED) {
+      Rprintf("Jit-compiled: jit=%p\n", fun_ptr);
+    }
+    else {
+      Rprintf("Bytecode-compiled\n");
+    }
+  }
+
+  UNPROTECT(1); // P3
 
   return closure;
 }

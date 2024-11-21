@@ -15,6 +15,8 @@
     <maven.compiler.source>22</maven.compiler.source>
     <maven.compiler.target>${maven.compiler.source}</maven.compiler.target>
     <pmdVersion>7.2.0</pmdVersion>
+    <protobuf.version>3.25.3</protobuf.version>
+    <grpc.version>1.64.0</grpc.version>
   </properties>
 
   <dependencyManagement>
@@ -37,11 +39,49 @@
       <artifactId>jeromq</artifactId>
       <version>0.6.0</version>
     </dependency>
-    <!-- serialization/deserialization -->
+    <!-- gRPC, RPC communication -->
+    <dependency>
+      <groupId>io.grpc</groupId>
+      <artifactId>grpc-netty-shaded</artifactId>
+      <version>${grpc.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>io.grpc</groupId>
+      <artifactId>grpc-protobuf</artifactId>
+      <version>${grpc.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>io.grpc</groupId>
+      <artifactId>grpc-stub</artifactId>
+      <version>${grpc.version}</version>
+    </dependency>
     <dependency>
       <groupId>com.google.protobuf</groupId>
       <artifactId>protobuf-java</artifactId>
-      <version>3.25.3</version>
+      <version>${protobuf.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>io.grpc</groupId>
+      <artifactId>grpc-services</artifactId>
+      <version>${grpc.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>io.grpc</groupId>
+      <artifactId>grpc-inprocess</artifactId>
+      <version>${grpc.version}</version>
+    </dependency>
+    <!-- To write unit tests for gRPC when using JUnit 5 -->
+    <dependency>
+      <groupId>com.asarkar.grpc</groupId>
+      <artifactId>grpc-test</artifactId>
+      <version>1.2.2</version>
+    </dependency>
+    <dependency>
+      <!-- necessary for Java 9+ -->
+      <groupId>org.apache.tomcat</groupId>
+      <artifactId>annotations-api</artifactId>
+      <version>6.0.53</version>
+      <scope>provided</scope>
     </dependency>
 
     <!-- Guava, utilities -->
@@ -93,9 +133,28 @@
   </dependencies>
   <build>
     <!-- Snapshots aren't test resources, because we have to write to them, so we access them
-                                                         at their actual locations (bundled are overridden on recompile). -->
+                                     at their actual locations (bundled are overridden on recompile). -->
     <plugins>
-      <!-- git-build-hook, install git hooks when you run any maven command, so you don't forget -->
+      <!-- code gen for protobuf -->
+      <plugin>
+        <groupId>org.xolstice.maven.plugins</groupId>
+        <artifactId>protobuf-maven-plugin</artifactId>
+        <version>0.6.1</version>
+        <configuration>
+          <protocArtifact>com.google.protobuf:protoc:3.25.1:exe:${os.detected.classifier}</protocArtifact>
+          <pluginId>grpc-java</pluginId>
+          <pluginArtifact>io.grpc:protoc-gen-grpc-java:1.64.0:exe:${os.detected.classifier}</pluginArtifact>
+        </configuration>
+        <executions>
+          <execution>
+            <goals>
+              <goal>compile</goal>
+              <goal>compile-custom</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+      <!-- git-build-hook, install git hooks when you run any maven command so you don't forget -->
       <plugin>
         <groupId>com.rudikershaw.gitbuildhook</groupId>
         <artifactId>git-build-hook-maven-plugin</artifactId>
@@ -345,5 +404,13 @@
         </configuration>
       </plugin>
     </plugins>
+    <extensions>
+      <!-- For gRPC/protobuf-->
+      <extension>
+        <groupId>kr.motd.maven</groupId>
+        <artifactId>os-maven-plugin</artifactId>
+        <version>1.7.1</version>
+      </extension>
+    </extensions>
   </build>
 </project>
