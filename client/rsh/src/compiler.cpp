@@ -151,7 +151,7 @@ SEXP compile(SEXP closure, SEXP options) {
 
   SEXP body = nullptr;
   SEXP c_cp = nullptr;
-  void* fun_ptr;
+  void* fun_ptr = nullptr;
   SEXP fun_ptr_sxp = nullptr;
 
   std::string name = genSymbol(compiled_fun.hash(), 0);
@@ -163,10 +163,10 @@ SEXP compile(SEXP closure, SEXP options) {
       R_RegisterCFinalizerEx(fun_ptr_sxp, &jit_fun_destructor, FALSE);
 
     auto c_cp = rsh::deserialize(compiled_fun.constants());
-
+    body = PROTECT(create_wrapper_body(closure, fun_ptr_sxp, c_cp));//P1
   }
   else if(opts.tier == protocol::Tier::BASELINE) {
-    body = PROTECT(rsh::deserialize(compiled_fun.code()));
+    body = PROTECT(rsh::deserialize(compiled_fun.code())); // P2
     if(TYPEOF(body) != BCODESXP) {
       Rf_error("Expected bytecode, got %s", Rf_type2char(TYPEOF(body)));
     }
@@ -174,11 +174,8 @@ SEXP compile(SEXP closure, SEXP options) {
 
   // Inplace or not (i.e. through through an explicit call to `compile` or through the R JIT)
   if (opts.inplace) {
-    if(opts.tier == protocol::Tier::OPTIMIZED) {
-       body = PROTECT(create_wrapper_body(closure, fun_ptr_sxp, c_cp));
-    }
     SET_BODY(closure, body);
-    UNPROTECT(1);
+    UNPROTECT(1); // For P1 or P2
     // FIXME: add logging primitives
     Rprintf("Compiled in place fun %s (fun=%p, body=%p) ; ",
             opts.name.c_str(), closure,
@@ -191,9 +188,9 @@ SEXP compile(SEXP closure, SEXP options) {
     }
   } else {
     SEXP orig = closure;
-    closure = PROTECT(Rf_mkCLOSXP(FORMALS(closure), body, CLOENV(closure)));
+    closure = PROTECT(Rf_mkCLOSXP(FORMALS(closure), body, CLOENV(closure))); // P3
     // FIXME: add logging primitive
-    UNPROTECT(1);
+    UNPROTECT(1);// P1 or P2
     Rprintf(
         "Replaced compiled fun %s -- %p (fun=%p, body=%p) ; ",
         opts.name.c_str(), orig, closure,
@@ -206,14 +203,7 @@ SEXP compile(SEXP closure, SEXP options) {
     }
   }
 
-  // Unprotecting after creating the bodies above.
-  if(opts.tier == protocol::Tier::OPTIMIZED) {
-    UNPROTECT(2);
-  }
-  else {
-    UNPROTECT(1);
-  }
-
+  UNPROTECT(1); // P3
 
   return closure;
 }
