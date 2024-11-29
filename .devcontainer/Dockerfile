@@ -56,7 +56,7 @@ RUN apt install -y \
   xvfb \
   gdb \
   protobuf-compiler \
-  protobuf-compiler protobuf-compiler-grpc \
+  protobuf-compiler-grpc \
   bear \
   libzmq3-dev \
   rr

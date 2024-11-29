@@ -538,7 +538,8 @@ public class BC2CCompilerTest {
   @Test
   public void testSubsetAndComplexAssign(BC2CSnapshot snapshot) {
     // from bounce benchmark
-    snapshot.verify("""
+    snapshot.verify(
+        """
             b <- list()
             b[[1]] <- c(1,2,3)
             names(b[[1]]) <- c("x","y","z")
