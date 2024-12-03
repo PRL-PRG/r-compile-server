@@ -249,9 +249,8 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
 
     // TODO: Lookup to see if we have this version of R installed or not.
     // Hardcoded so far:
-    var r_dir = Path.of("/usr/lib/R/");
-    var lib_dir = "~/R/x86_64-pc-linux-gnu-library/4.3/";
-    lib_dir = lib_dir.replaceFirst("^~", System.getProperty("user.home"));
+    var r_dir = Path.of("/workspace/external/R");
+    var lib_dir = "/workspace/external/R/library";
     session = new GNURSession(convertVersion(RVersion), r_dir, Path.of(lib_dir));
 
     // TODO: Look into our cache if we have the packages.

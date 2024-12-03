@@ -24,3 +24,5 @@ compile_commands.json
 
 ### IntelliJ IDEA ###
 /.idea/uiDesigner.xml
+.idea/modules.xml
+.idea/workspace.iml

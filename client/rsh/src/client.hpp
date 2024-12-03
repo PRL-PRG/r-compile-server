@@ -1,20 +1,20 @@
 #pragma once
-#include "messages.pb.h"
-#include "routes.pb.h"
-#include "routes.grpc.pb.h"
-#include "rsh.hpp"
 #include "compiler.hpp"
+#include "messages.pb.h"
+#include "routes.grpc.pb.h"
+#include "routes.pb.h"
+#include "rsh.hpp"
 
 #include <R.h>
 #include <Rinternals.h>
 #include <Rversion.h>
 #include <cstdint>
-#include <string>
-#include <vector>
-#include <variant>
-#include <unordered_map>
 #include <grpc/grpc.h>
 #include <grpcpp/channel.h>
+#include <string>
+#include <unordered_map>
+#include <variant>
+#include <vector>
 
 namespace rsh {
 
@@ -30,20 +30,22 @@ private:
 
   // For it to be able to access the client instance
   friend SEXP init_client(SEXP address, SEXP port, SEXP installed_packages);
-public:
-  Client(std::shared_ptr<grpc::Channel> channel, std::vector<std::string> installed_packages);
 
-  std::variant<protocol::CompileResponse, std::string> remote_compile(
-                                std::vector<uint8_t> const &rds_closure,
-                                CompilerOptions const &opts);
+public:
+  Client(std::shared_ptr<grpc::Channel> channel,
+         std::vector<std::string> installed_packages);
+
+  std::variant<protocol::CompileResponse, std::string>
+  remote_compile(std::vector<uint8_t> const &rds_closure,
+                 CompilerOptions const &opts);
 
   // Total size of requests and responses since the start of the client
-  std::pair<size_t , size_t> get_total_size() const {
+  std::pair<size_t, size_t> get_total_size() const {
     return {total_request_bytes, total_response_bytes};
-  } 
+  }
 
   static SEXP make_client(SEXP address, SEXP port, SEXP installed_packages);
-  static Client* get_client();
+  static Client *get_client();
 };
 
 SEXP get_total_size();

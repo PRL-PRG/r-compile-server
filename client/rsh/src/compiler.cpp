@@ -34,29 +34,30 @@ namespace rsh {
 
 SEXP RSH_JIT_FUN_PTR = Rf_install("RSH_JIT_FUN_PTR");
 
-static std::variant<protocol::CompileResponse, std::string> compile_closure(SEXP closure, CompilerOptions options) {
+static std::variant<protocol::CompileResponse, std::string>
+compile_closure(SEXP closure, CompilerOptions options) {
   // If a function has already been compiled to native code
-  if(Rf_asLogical(is_compiled(closure))) {
+  if (Rf_asLogical(is_compiled(closure))) {
     return "Function already compiled";
   }
 
   std::vector<uint8_t> closure_bytes;
 
-  if(IS_BYTECODE(BODY(closure))) {
+  if (IS_BYTECODE(BODY(closure))) {
     // Build the closure AST to get the correct hash
     // The AST is the first element in the constant pool of the BCODESXP
     SEXP body = BODY_EXPR(closure);
     auto ast_clos = Rf_mkCLOSXP(FORMALS(closure), body, CLOENV(closure));
     closure_bytes = rsh::serialize(ast_clos);
-  }
-  else {
-   closure_bytes = rsh::serialize(closure);
+  } else {
+    closure_bytes = rsh::serialize(closure);
   }
   auto client = rsh::Client::get_client();
   return client->remote_compile(closure_bytes, options);
 }
 
-static void *insert_into_jit(const char* name, protocol::CompileResponse const &compiled_fun) {
+static void *insert_into_jit(const char *name,
+                             protocol::CompileResponse const &compiled_fun) {
   auto native_code = compiled_fun.code();
   GJIT->add_object(native_code);
   auto ptr = GJIT->lookup(name);
@@ -65,7 +66,6 @@ static void *insert_into_jit(const char* name, protocol::CompileResponse const &
   }
   return ptr;
 }
-
 
 CompilerOptions CompilerOptions::from_list(SEXP listsxp) {
   if (TYPEOF(listsxp) != VECSXP) {
@@ -99,16 +99,15 @@ CompilerOptions CompilerOptions::from_list(SEXP listsxp) {
     } else if (!strcmp(name, "inplace")) {
       opts.inplace =
           vec_element_as_bool(listsxp, i, "inplace option must be a logical");
-    }
-    else if(!strcmp(name, "tier")) {
+    } else if (!strcmp(name, "tier")) {
       SEXP tier_sxp = VECTOR_ELT(listsxp, i);
-      if(TYPEOF(tier_sxp) != STRSXP) {
+      if (TYPEOF(tier_sxp) != STRSXP) {
         Rf_error("Expected a string for the tier option");
       }
       opts.tier = protocol::Tier::OPTIMIZED;
       std::string tier_s = CHAR(STRING_ELT(tier_sxp, 0));
       protocol::Tier tier = protocol::Tier::OPTIMIZED;
-      if(tier_s == "bytecode") {
+      if (tier_s == "bytecode") {
         opts.tier = protocol::Tier::BASELINE;
       }
     } else {
@@ -117,7 +116,6 @@ CompilerOptions CompilerOptions::from_list(SEXP listsxp) {
   }
   return opts;
 }
-
 
 std::string genSymbol(uint64_t hash, int index) {
 
@@ -144,61 +142,59 @@ SEXP compile(SEXP closure, SEXP options) {
   auto compiled_fun = std::get<protocol::CompileResponse>(response);
 
   // If the code is empty, we keep the SEXP
-  if(!compiled_fun.has_code() || compiled_fun.code().empty()) {
-    Rf_warning("Empty body returned for function %s. Most likely because of browser in the body", opts.name.c_str());
+  if (!compiled_fun.has_code() || compiled_fun.code().empty()) {
+    Rf_warning("Empty body returned for function %s. Most likely because of "
+               "browser in the body",
+               opts.name.c_str());
     return closure;
   }
 
   SEXP body = nullptr;
   SEXP c_cp = nullptr;
-  void* fun_ptr = nullptr;
+  void *fun_ptr = nullptr;
   SEXP fun_ptr_sxp = nullptr;
 
   std::string name = genSymbol(compiled_fun.hash(), 0);
   // Native or bytecode?
-  if(opts.tier == protocol::Tier::OPTIMIZED) {
+  if (opts.tier == protocol::Tier::OPTIMIZED) {
     fun_ptr = insert_into_jit(name.c_str(), compiled_fun);
-    auto fun_ptr_sxp = R_MakeExternalPtr(
-          fun_ptr, RSH_JIT_FUN_PTR, Rf_mkString(name.c_str()));
-      R_RegisterCFinalizerEx(fun_ptr_sxp, &jit_fun_destructor, FALSE);
+    auto fun_ptr_sxp =
+        R_MakeExternalPtr(fun_ptr, RSH_JIT_FUN_PTR, Rf_mkString(name.c_str()));
+    R_RegisterCFinalizerEx(fun_ptr_sxp, &jit_fun_destructor, FALSE);
 
     auto c_cp = rsh::deserialize(compiled_fun.constants());
-    body = PROTECT(create_wrapper_body(closure, fun_ptr_sxp, c_cp));//P1
-  }
-  else if(opts.tier == protocol::Tier::BASELINE) {
+    body = PROTECT(create_wrapper_body(closure, fun_ptr_sxp, c_cp)); // P1
+  } else if (opts.tier == protocol::Tier::BASELINE) {
     body = PROTECT(rsh::deserialize(compiled_fun.code())); // P2
-    if(TYPEOF(body) != BCODESXP) {
+    if (TYPEOF(body) != BCODESXP) {
       Rf_error("Expected bytecode, got %s", Rf_type2char(TYPEOF(body)));
     }
   }
 
-  // Inplace or not (i.e. through through an explicit call to `compile` or through the R JIT)
+  // Inplace or not (i.e. through through an explicit call to `compile` or
+  // through the R JIT)
   if (opts.inplace) {
     SET_BODY(closure, body);
     UNPROTECT(1); // For P1 or P2
     // FIXME: add logging primitives
-    Rprintf("Compiled in place fun %s (fun=%p, body=%p) ; ",
-            opts.name.c_str(), closure,
-            body);
-    if(opts.tier == protocol::Tier::OPTIMIZED) {
+    Rprintf("Compiled in place fun %s (fun=%p, body=%p) ; ", opts.name.c_str(),
+            closure, body);
+    if (opts.tier == protocol::Tier::OPTIMIZED) {
       Rprintf("Jit-compiled: jit=%p\n", fun_ptr);
-    }
-    else {
+    } else {
       Rprintf("Bytecode-compiled\n");
     }
   } else {
     SEXP orig = closure;
-    closure = PROTECT(Rf_mkCLOSXP(FORMALS(closure), body, CLOENV(closure))); // P3
+    closure =
+        PROTECT(Rf_mkCLOSXP(FORMALS(closure), body, CLOENV(closure))); // P3
     // FIXME: add logging primitive
-    UNPROTECT(1);// P1 or P2
-    Rprintf(
-        "Replaced compiled fun %s -- %p (fun=%p, body=%p) ; ",
-        opts.name.c_str(), orig, closure,
-        body);
-    if(opts.tier == protocol::Tier::OPTIMIZED) {
+    UNPROTECT(1); // P1 or P2
+    Rprintf("Replaced compiled fun %s -- %p (fun=%p, body=%p) ; ",
+            opts.name.c_str(), orig, closure, body);
+    if (opts.tier == protocol::Tier::OPTIMIZED) {
       Rprintf("Jit-compiled: jit=%p\n", fun_ptr);
-    }
-    else {
+    } else {
       Rprintf("Bytecode-compiled\n");
     }
   }

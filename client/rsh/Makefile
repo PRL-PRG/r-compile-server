@@ -28,12 +28,12 @@ build:
 install:
 	$(LLVM_R) CMD INSTALL --install-tests --use-LTO .
 
-.PHONY: dependencies
-dependencies:
+.PHONY: setup
+setup:
 	$(R) -e 'install.packages(c("microbenchmark"), repos="https://cloud.r-project.org", Ncpus=4)'
 
-.PHONY: setup
-setup: dependencies
+.PHONY: compile_commands.json
+compile_commands.json:
 	$(BEAR) -- $(MAKE) clean install
 
 TEST_DIR = $(RSH_HOME)/tests
@@ -82,6 +82,3 @@ benchmark:
 		echo "$(TXT_RED)FAIL$(NO_NORM) $$exit$(TXT_NORM)"; \
 		fi; \
 	done
-
-test6:
-	$(LLVM_R) -f test6.R
