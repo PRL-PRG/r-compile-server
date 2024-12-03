@@ -1,8 +1,8 @@
 // from some reason the #pragma once directive is not working
 #ifndef RSH_COMPILER_HPP
 #define RSH_COMPILER_HPP
-#include "rsh.hpp"
 #include "messages.pb.h"
+#include "rsh.hpp"
 #include <string>
 
 namespace rsh {

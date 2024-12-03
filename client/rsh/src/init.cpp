@@ -1,7 +1,7 @@
 #include <R_ext/Rdynload.h>
 
-#include "compiler.hpp"
 #include "client.hpp"
+#include "compiler.hpp"
 
 extern "C" {
 #include "bc2c/runtime.h"
