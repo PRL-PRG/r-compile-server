@@ -33,38 +33,38 @@ ENV PATH="$PATH:$MAVEN_HOME/bin"
 # install support for building client:
 # - the bundled R
 # - the rsh R package
-RUN apt install -y \
-  build-essential \
-  gfortran \
-  libreadline-dev \
-  libx11-dev \
-  libxt-dev \
-  libpng-dev \
-  libjpeg-dev \
-  libcairo2-dev \
-  libtiff5-dev \
-  libgtk2.0-dev \
-  libpango1.0-dev \
-  libbz2-dev \
-  liblzma-dev \
-  libicu-dev \
-  libcurl4-openssl-dev \
-  libssl-dev \
-  ca-certificates \
-  zlib1g-dev \
-  software-properties-common \
-  xvfb \
-  gdb \
-  protobuf-compiler \
-  protobuf-compiler-grpc \
-  bear \
-  libzmq3-dev \
-  rr
+RUN apt update -y \
+  && apt install -y \
+    bear \
+    build-essential \
+    ca-certificates \
+    gdb \
+    gfortran \
+    libbz2-dev \
+    libcairo2-dev \
+    libcurl4-openssl-dev \
+    libgrpc++-dev \
+    libgtk2.0-dev \
+    libicu-dev \
+    libjpeg-dev \
+    liblzma-dev \
+    libpango1.0-dev \
+    libpng-dev \
+    libreadline-dev \
+    libssl-dev \
+    libtiff5-dev \
+    libx11-dev \
+    libxt-dev \
+    libxxhash-dev \
+    libzmq3-dev \
+    protobuf-compiler \
+    protobuf-compiler-grpc \
+    rr \
+    software-properties-common \
+    xvfb \
+    zlib1g-dev
 
 # install LLVM
 RUN curl -fsSL -o /opt/llvm.sh https://apt.llvm.org/llvm.sh \
   && chmod +x /opt/llvm.sh \
   && /opt/llvm.sh "$LLVM_VERSION"
-
-# enable rr
-RUN echo 'kernel.perf_event_paranoid = 1' > /etc/sysctl.d/10-rr.conf
