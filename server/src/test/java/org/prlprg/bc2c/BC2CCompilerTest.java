@@ -102,15 +102,6 @@ public class BC2CCompilerTest {
   }
 
   @Test
-  public void testBooleanOperators(BC2CSnapshot snapshot) {
-    snapshot.verify("x <- TRUE; y <- FALSE; x & y");
-    snapshot.verify("x <- TRUE; y <- FALSE; x | y");
-    snapshot.verify("x <- TRUE; !x");
-    snapshot.verify("x <- 42; !!x");
-    snapshot.verify("x <- c(T,F,T,F); y <- c(T,T,F,F); x | y");
-  }
-
-  @Test
   public void testClosure(BC2CSnapshot snapshot) {
     snapshot.verify(
         """
@@ -545,6 +536,60 @@ public class BC2CCompilerTest {
             names(b[[1]]) <- c("x","y","z")
             b
             """);
+  }
+
+  @Test
+  public void testVectorizedBooleanOperations(BC2CSnapshot snapshot) {
+    // TODO test empty vector
+    snapshot.verify("x <- TRUE; y <- FALSE; x & y");
+    snapshot.verify("x <- TRUE; y <- FALSE; x | y");
+    snapshot.verify("x <- c(T,F,T,F,NA,NA,T,F); y <- c(T,T,F,F,T,F,NA,NA); x & y");
+    snapshot.verify("x <- c(T,F,T,F,NA,NA,T,F); y <- c(T,T,F,F,T,F,NA,NA); x & y");
+    snapshot.verify("x <- c(); y <- T; x & y");
+    snapshot.verify("x <- T; y <- c(); x & y");
+    snapshot.verify("x <- TRUE; !x");
+    snapshot.verify("x <- 42; !!x");
+    snapshot.verify("x <- c(T,F,T,F); y <- c(T,T,F,F); x | y");
+  }
+
+  @Test
+  public void testScalarBooleanOperations(BC2CSnapshot snapshot) {
+    snapshot.verify("a <- TRUE; b <- TRUE; a && b");
+    snapshot.verify("a <- TRUE; b <- FALSE; a && b");
+    snapshot.verify("a <- FALSE; b <- TRUE; a && b");
+    snapshot.verify("a <- FALSE; b <- FALSE; a && b");
+    snapshot.verify("a <- NA; b <- FALSE; a && b");
+    snapshot.verify("a <- NA; b <- TRUE; a && b");
+    snapshot.verify("a <- TRUE; b <- NA; a && b");
+    snapshot.verify("a <- FALSE; b <- NA; a && b");
+    snapshot.verify("a <- NA; b <- NA; a && b");
+
+    snapshot.verify("a <- TRUE; b <- TRUE; a || b");
+    snapshot.verify("a <- TRUE; b <- FALSE; a || b");
+    snapshot.verify("a <- FALSE; b <- TRUE; a || b");
+    snapshot.verify("a <- FALSE; b <- FALSE; a || b");
+    snapshot.verify("a <- NA; b <- FALSE; a || b");
+    snapshot.verify("a <- NA; b <- TRUE; a || b");
+    snapshot.verify("a <- TRUE; b <- NA; a || b");
+    snapshot.verify("a <- FALSE; b <- NA; a || b");
+    snapshot.verify("a <- NA; b <- NA; a || b");
+  }
+
+  @Test
+  public void testLog(BC2CSnapshot snapshot) {
+    snapshot.verify("log(1)");
+    snapshot.verify("log(c(1,10,100, NA))");
+    snapshot.verify("log(2, 2)");
+    snapshot.verify("log(c(1,10,100, NA), 2)");
+    snapshot.verify("log(10, 10)");
+    snapshot.verify("log(c(1,10,100, NA), 10)");
+    snapshot.verify("log(5, 5)");
+    snapshot.verify("log(c(1,10,100, NA), 5)");
+  }
+
+  @Test
+  public void testMath1(BC2CSnapshot snapshot) {
+    snapshot.verify("sin(PI)");
   }
 
   // API

@@ -865,6 +865,7 @@ public sealed interface BcInstr {
     }
   }
 
+  @StackEffect(pop=1, push=1)
   record And1st(ConstPool.Idx<LangSXP> ast, @LabelName("afterAnd") BcLabel shortCircuit)
       implements BcInstr {
     @Override
@@ -878,6 +879,7 @@ public sealed interface BcInstr {
     }
   }
 
+  @StackEffect(pop=2, push=1)
   record And2nd(ConstPool.Idx<LangSXP> ast) implements BcInstr {
     @Override
     public BcOp op() {
@@ -885,6 +887,7 @@ public sealed interface BcInstr {
     }
   }
 
+  @StackEffect(pop=1, push=1)
   record Or1st(ConstPool.Idx<LangSXP> ast, @LabelName("afterOr") BcLabel shortCircuit)
       implements BcInstr {
     @Override
@@ -898,6 +901,7 @@ public sealed interface BcInstr {
     }
   }
 
+  @StackEffect(pop=2, push=1)
   record Or2nd(ConstPool.Idx<LangSXP> ast) implements BcInstr {
     @Override
     public BcOp op() {
@@ -1193,6 +1197,8 @@ public sealed interface BcInstr {
     }
   }
 
+  @StackEffect(pop=1, push=1)
+  @NeedsRho
   record Log(ConstPool.Idx<LangSXP> ast) implements BcInstr {
     @Override
     public BcOp op() {
@@ -1200,6 +1206,8 @@ public sealed interface BcInstr {
     }
   }
 
+  @StackEffect(pop=2, push=1)
+  @NeedsRho
   record LogBase(ConstPool.Idx<LangSXP> ast) implements BcInstr {
     @Override
     public BcOp op() {

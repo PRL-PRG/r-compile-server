@@ -75,6 +75,20 @@ SEXP R_compact_intrange(R_xlen_t n1, R_xlen_t n2);
 SEXP do_seq_along(SEXP call, SEXP op, SEXP args, SEXP rho);
 SEXP do_seq_len(SEXP call, SEXP op, SEXP args, SEXP rho);
 R_varloc_t R_findVarLoc(SEXP rho, SEXP symbol);
+SEXP do_log_builtin(SEXP call, SEXP op, SEXP args, SEXP env);
+
+// from arithmetic.h
+static INLINE double R_log(double x) {
+  return x > 0 ? log(x) : x == 0 ? R_NegInf : R_NaN;
+}
+
+static INLINE double R_logbase(double x, double base) {
+  if (base == 10)
+    return x > 0 ? log10(x) : x == 0 ? R_NegInf : R_NaN;
+  if (base == 2)
+    return x > 0 ? log2(x) : x == 0 ? R_NegInf : R_NaN;
+  return R_log(x) / R_log(base);
+}
 
 static INLINE SEXP Rsh_get_dim_attr(SEXP v) {
   SEXP attr = ATTRIB(v);
@@ -330,7 +344,6 @@ static INLINE SEXP relop(SEXP call, SEXP op, SEXP opsym, SEXP x, SEXP y,
 
 #define SET_SCALAR_IVAL(s, v) INTEGER((s))[0] = (v)
 #define SET_SCALAR_DVAL(s, v) REAL((s))[0] = (v)
-#define SET_SCALAR_LVAL(s, v) LOGICAL((s))[0] = (v)
 #define SET_SCALAR_CVAL(s, v) COMPLEX((s))[0] = (v)
 #define SET_SCALAR_BVAL(s, v) RAW((s))[0] = (v)
 

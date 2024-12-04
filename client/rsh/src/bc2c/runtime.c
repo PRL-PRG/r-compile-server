@@ -19,6 +19,7 @@ SEXP R_LOGIC2_OPS[] = {X_LOGIC2_OPS};
 Value Rsh_NilValue;
 Value Rsh_UnboundValue;
 SEXP NOT_OP;
+SEXP LOG_OP;
 SEXP BC2C_CALL_TRAMPOLINE_SXP;
 
 #include "runtime_impl.h"
