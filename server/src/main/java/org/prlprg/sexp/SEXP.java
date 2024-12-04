@@ -94,6 +94,14 @@ public sealed interface SEXP
     return this instanceof CloSXP || this instanceof BuiltinOrSpecialSXP;
   }
 
+  default boolean isBuiltin() {
+    return this instanceof BuiltinSXP;
+  }
+
+  default boolean isSpecial() {
+    return this instanceof SpecialSXP;
+  }
+
   default SEXP withNames(String name) {
     return withNames(SEXPs.string(name));
   }
