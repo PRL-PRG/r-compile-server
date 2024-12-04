@@ -18,7 +18,7 @@ clean:
 	-rm -f rsh*tar.gz
 	-rm -fr rsh.Rcheck
 	-rm -rf src/*.so
-	-find src -name '*.o' -exec rm {} \;
+	-find src -name '*.o' -delete
 
 .PHONY: build
 build:

@@ -1,5 +1,4 @@
 execute <- function(n=500) {
-
   convolve <- function(a, b) # from the extending R manual
   {
       a <- as.double(a)

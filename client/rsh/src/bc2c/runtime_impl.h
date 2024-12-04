@@ -43,7 +43,10 @@ SEXP Rsh_pc_reset() {
     UNPROTECT(1);                                                              \
   } while (0)
 
-#define X(a, b) SEXP b;
+#define X(a, b)                                                                \
+  SEXP b##Sym;                                                                 \
+  SEXP b##Op;
+
 RSH_R_SYMBOLS
 #undef X
 
@@ -85,7 +88,10 @@ JIT_DEF SEXP Rsh_initialize_runtime(void) {
   X_MATH1_EXT_OPS
 #undef X
 
-#define X(a, b) b = Rf_install(#a);
+#define X(a, b)                                                                \
+  b##Sym = Rf_install(#a);                                                     \
+  LOAD_R_BUILTIN(b##Op, #a);
+
   RSH_R_SYMBOLS
 #undef X
 
