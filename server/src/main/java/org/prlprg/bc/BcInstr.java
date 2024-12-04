@@ -1197,6 +1197,8 @@ public sealed interface BcInstr {
     }
   }
 
+  @StackEffect(pop=1, push=1)
+  @NeedsRho
   record Log(ConstPool.Idx<LangSXP> ast) implements BcInstr {
     @Override
     public BcOp op() {
@@ -1204,6 +1206,8 @@ public sealed interface BcInstr {
     }
   }
 
+  @StackEffect(pop=2, push=1)
+  @NeedsRho
   record LogBase(ConstPool.Idx<LangSXP> ast) implements BcInstr {
     @Override
     public BcOp op() {

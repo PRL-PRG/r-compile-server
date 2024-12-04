@@ -575,6 +575,17 @@ public class BC2CCompilerTest {
     snapshot.verify("a <- NA; b <- NA; a || b");
   }
 
+  @Test
+  public void testLog(BC2CSnapshot snapshot) {
+    snapshot.verify("log(1)");
+    snapshot.verify("log(c(1,10,100, NA))");
+    snapshot.verify("log(2, 2)");
+    snapshot.verify("log(c(1,10,100, NA), 2)");
+    snapshot.verify("log(10, 10)");
+    snapshot.verify("log(c(1,10,100, NA), 10)");
+    snapshot.verify("log(5, 5)");
+    snapshot.verify("log(c(1,10,100, NA), 5)");
+  }
   // API
 
   private TestResultCheck fastArith() {
