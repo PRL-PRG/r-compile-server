@@ -589,7 +589,9 @@ public class BC2CCompilerTest {
 
   @Test
   public void testMath1(BC2CSnapshot snapshot) {
-    snapshot.verify("sin(PI)");
+    snapshot.verify("x <- 1; sin(x)", fastMath1());
+    snapshot.verify("x <- 1L; sin(x)");
+    snapshot.verify("x <- c(1,2); sin(x)");
   }
 
   // API

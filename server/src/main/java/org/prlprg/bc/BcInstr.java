@@ -1215,6 +1215,8 @@ public sealed interface BcInstr {
     }
   }
 
+  @StackEffect(pop=1, push=1)
+  @NeedsRho
   record Math1(ConstPool.Idx<LangSXP> ast, int funId) implements BcInstr {
     @Override
     public BcOp op() {

@@ -102,6 +102,35 @@ JIT_DECL Rsh_PerfCounters Rsh_GPC;
   X(&, AND_OP, And)                                                            \
   X(|, OR_OP, Or)
 
+// X(name, idx as in math1, C function name)
+#define X_MATH1_EXT_OPS                                                        \
+  X(floor, 0, floor)                                                           \
+  X(ceiling, 1, ceil)                                                          \
+  X(sign, 2, sign)                                                             \
+  X(expm1, 3, expm1)                                                           \
+  X(log1p, 4, log1p)                                                           \
+  X(cos, 5, cos)                                                               \
+  X(sin, 6, sin)                                                               \
+  X(tan, 7, tan)                                                               \
+  X(acos, 8, acos)                                                             \
+  X(asin, 9, asin)                                                             \
+  X(atan, 10, atan)                                                            \
+  X(cosh, 11, cosh)                                                            \
+  X(sinh, 12, sinh)                                                            \
+  X(tanh, 13, tanh)                                                            \
+  X(acosh, 14, acosh)                                                          \
+  X(asinh, 15, asinh)                                                          \
+  X(atanh, 16, atanh)                                                          \
+  X(lgamma, 17, lgammafn)                                                      \
+  X(gamma, 18, gammafn)                                                        \
+  X(digamma, 19, digamma)                                                      \
+  X(trigamma, 20, trigamma)                                                    \
+  X(cospi, 21, cospi)                                                          \
+  X(sinpi, 22, sinpi)                                                          \
+  X(tanpi, 23, Rtanpi)
+
+typedef double (*Rsh_Math1Fun)(double);
+
 #define X(a, b, c) b,
 typedef enum { X_ARITH_OPS } RshArithOp;
 typedef enum { X_REL_OPS } RshRelOp;
@@ -123,6 +152,9 @@ SEXP R_MATH1_OPS[] = {X_MATH1_OPS};
 SEXP R_UNARY_OPS[] = {X_UNARY_OPS};
 SEXP R_UNARY_OP_SYMS[] = {X_UNARY_OPS};
 SEXP R_LOGIC2_OPS[] = {X_LOGIC2_OPS};
+SEXP R_MATH1_EXT_OPS[] = {X_MATH1_EXT_OPS};
+SEXP R_MATH1_EXT_SYMS[] = {X_MATH1_EXT_OPS};
+Rsh_Math1Fun R_MATH1_EXT_FUNS[] = {X_MATH1_EXT_OPS};
 #undef X
 #else
 extern SEXP R_ARITH_OPS[];
@@ -134,6 +166,10 @@ extern SEXP R_MATH1_OPS[];
 extern SEXP R_UNARY_OPS[];
 extern SEXP R_UNARY_OP_SYMS[];
 extern SEXP R_LOGIC2_OPS[];
+
+extern SEXP R_MATH1_EXT_OPS[];
+extern SEXP R_MATH1_EXT_SYMS[];
+extern Rsh_Math1Fun R_MATH1_EXT_FUNS[];
 #endif
 
 #define RSH_R_SYMBOLS                                                          \
@@ -143,10 +179,11 @@ extern SEXP R_LOGIC2_OPS[];
   X([<-, Rsh_SubassignSym)                                                   \
   X([[<-, Rsh_Subassign2Sym)                                                 \
   X(.External2, Rsh_DotExternal2Sym)                                         \
-  X(*tmp*, Rsh_TmpvalSym) \
-  X(:, Rsh_ColonSym) \
-  X(seq_along, Rsh_SeqAlongSym) \
-  X(seq_len, Rsh_SeqLenSym)
+  X(*tmp*, Rsh_TmpvalSym)                                                    \
+  X(:, Rsh_ColonSym)                                                         \
+  X(seq_along, Rsh_SeqAlongSym)                                              \
+  X(seq_len, Rsh_SeqLenSym)                                                  \
+  X(log, Rsh_LogSym)
 
 #ifndef RSH_TESTS
 #define X(a, b) extern SEXP b;
@@ -2313,18 +2350,24 @@ static INLINE void Rsh_Log(Value *val, SEXP call, SEXP rho) {
   if (VAL_IS_DBL(*val)) {
     double d = VAL_DBL(*val);
     double r = R_log(d);
-    if (ISNAN(r) && ISNAN(d)) {
-      r = d;
-    } else {
-      Rf_warningcall(call, R_MSG_NA);
+    if (ISNAN(r)) {
+      if (ISNAN(d)) {
+        r = d;
+      } else {
+        Rf_warningcall(call, R_MSG_NA);
+      }
     }
     R_Visible = TRUE;
     *val = DBL_TO_VAL(r);
-  } else {
-    SEXP args = CONS_NR(val_as_sexp(*val), R_NilValue);
-    R_Visible = TRUE;
-    *val = SXP_TO_VAL(do_log_builtin(call, LOG_OP, args, rho));
+    return;
   }
+
+  // slow path
+  SEXP args = CONS_NR(val_as_sexp(*val), R_NilValue);
+  *val = SXP_TO_VAL(args); // to protect (FIXME: does this actually work?)
+  R_Visible = TRUE;
+  *val = SXP_TO_VAL(do_log_builtin(call, LOG_OP, args, rho));
+  RSH_PC_INC(slow_math1);
 }
 
 static INLINE void Rsh_LogBase(Value *val, Value base, SEXP call, SEXP rho) {
@@ -2343,22 +2386,49 @@ static INLINE void Rsh_LogBase(Value *val, Value base, SEXP call, SEXP rho) {
     }
     R_Visible = TRUE;
     *val = DBL_TO_VAL(r);
+    return;
+  }
+
+  // slow path
+  SEXP args = CONS_NR(val_as_sexp(base), R_NilValue);
+  args = CONS_NR(val_as_sexp(*val), args);
+  *val = SXP_TO_VAL(args); // to protect (FIXME: does this actually work?)
+  R_Visible = TRUE;
+  *val = SXP_TO_VAL(do_log_builtin(call, LOG_OP, args, rho));
+  RSH_PC_INC(slow_math1);
+}
+
+static INLINE Rsh_Math1Fun Rsh_get_math1_fun(int i, SEXP call) {
+  if (CAR(call) != R_MATH1_EXT_SYMS[i]) {
+    Rf_error("math1 compiler/interpreter mismatch");
   } else {
-    SEXP args = CONS_NR(val_as_sexp(base), R_NilValue);
-    args = CONS_NR(val_as_sexp(*val), args);
-    R_Visible = TRUE;
-    *val = SXP_TO_VAL(do_log_builtin(call, LOG_OP, args, rho));
+    return R_MATH1_EXT_FUNS[i];
   }
 }
 
-static INLINE void Rsh_Math1(Value *v, SEXP call, int op, SEXO rho) {
-  if (VAL_IS_DBL(v)) {
-
-    double (*fun)(double) = getMath1Fun(GETOP(), call);
-
+static INLINE void Rsh_Math1(Value *v, SEXP call, int op, SEXP rho) {
+  if (VAL_IS_DBL(*v)) {
+    Rsh_Math1Fun fun = Rsh_get_math1_fun(op, call);
+    double d = VAL_DBL(*v);
+    double r = fun(d);
+    if (ISNAN(r)) {
+      if (ISNAN(d)) {
+        r = d;
+      } else {
+        Rf_warningcall(call, R_MSG_NA);
+      }
+    }
+    R_Visible = TRUE;
+    *v = DBL_TO_VAL(r);
     return;
   }
+
   // slow path
+  SEXP args = CONS_NR(val_as_sexp(*v), R_NilValue);
+  *v = SXP_TO_VAL(args); // to protect (FIXME: does this actually work?)
+  R_Visible = TRUE;
+  *v = sexp_as_val(do_math1(call, R_MATH1_EXT_OPS[op], args, rho));
+  RSH_PC_INC(slow_math1);
 }
 
 #endif // RUNTIME_H
