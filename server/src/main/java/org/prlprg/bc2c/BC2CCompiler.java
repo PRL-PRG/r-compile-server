@@ -254,6 +254,9 @@ class ClosureCompiler {
             stack.push();
             yield "%s = %s;".formatted(stack.get(0), stack.get(-2));
           }
+          case BcInstr.Math1(var call, var op) ->
+            builder.args(constantSXP(call), String.valueOf(op)).compileStmt();
+
           default -> {
             if (instr.label().orElse(null) instanceof BcLabel l) {
               yield "if (%s) {\ngoto %s;\n}".formatted(builder.compile(), label(l));
@@ -369,7 +372,8 @@ class ClosureCompiler {
           BcOp.OR1ST,
           BcOp.OR2ND,
           BcOp.LOG,
-          BcOp.LOGBASE);
+          BcOp.LOGBASE,
+          BcOp.MATH1);
 
   private void checkSupported(BcInstr instr) {
     if (!SUPPORTED_OPS.contains(instr.op())) {
