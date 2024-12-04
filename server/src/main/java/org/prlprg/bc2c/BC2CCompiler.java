@@ -363,7 +363,11 @@ class ClosureCompiler {
           BcOp.ISOBJECT,
           BcOp.ISSYMBOL,
           BcOp.DUP,
-          BcOp.DUP2ND);
+          BcOp.DUP2ND,
+          BcOp.AND1ST,
+          BcOp.AND2ND,
+          BcOp.OR1ST,
+          BcOp.OR2ND);
 
   private void checkSupported(BcInstr instr) {
     if (!SUPPORTED_OPS.contains(instr.op())) {

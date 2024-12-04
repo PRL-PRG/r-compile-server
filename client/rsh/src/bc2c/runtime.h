@@ -2245,4 +2245,68 @@ static INLINE void Rsh_IsInteger(Value *v) {
   }
 }
 
+static inline Value fixup_scalar_logical(Value v, SEXP call, const char *arg,
+                                         const char *op) {
+  if (VAL_IS_LGL(v)) {
+    return v;
+  }
+
+  SEXP sxp = val_as_sexp(v);
+  if (IS_SIMPLE_SCALAR(sxp, LGLSXP)) {
+    return SXP_TO_VAL(SCALAR_LVAL(sxp));
+  } else {
+    if (!Rf_isNumber(sxp)) {
+      Rf_errorcall(call, "invalid %s type in 'x %s y'", arg, op);
+    }
+    return SXP_TO_VAL(Rf_ScalarLogical(Rf_asLogical2(sxp, 1, call)));
+  }
+}
+
+static INLINE Rboolean Rsh_And1st(Value *v, SEXP call) {
+  *v = fixup_scalar_logical(*v, call, "'x'", "&&");
+  R_Visible = TRUE;
+  return *v == VAL_FALSE;
+}
+
+static INLINE void Rsh_And2nd(Value *v2, Value v1, SEXP call) {
+  // v2 is the result of Rsh_And1St
+  Value v1l = fixup_scalar_logical(v1, call, "'y'", "&&");
+  R_Visible = TRUE;
+  // Note: ‘NA’ is a valid logical object.  Where a component of ‘x’ or ‘y’
+  //       is ‘NA’, the result will be ‘NA’ if the outcome is ambiguous.  In
+  //       other words ‘NA & TRUE’ evaluates to ‘NA’, but ‘NA & FALSE’
+  //       evaluates to ‘FALSE’.  See the examples below.
+  //
+  // Therefore:
+  // The first argument is TRUE or NA.
+  // If the second argument is not TRUE then its value is the result.
+  // If the second argument is TRUE, then the first argument's value is the
+  // result.
+  if (VAL_INT(v1l) == FALSE || VAL_INT(v1l) == NA_LOGICAL) {
+    *v2 = v1;
+  }
+  R_Visible = TRUE;
+}
+
+static INLINE Rboolean Rsh_Or1st(Value *v, SEXP call) {
+  *v = fixup_scalar_logical(*v, call, "'x'", "||");
+  R_Visible = TRUE;
+  return *v != VAL_FALSE && VAL_INT(*v) != NA_LOGICAL;
+}
+
+static INLINE void Rsh_Or2nd(Value *v2, Value v1, SEXP call) {
+  // v2 is the result of Rsh_And1St
+  Value v1l = fixup_scalar_logical(v1, call, "'y'", "||");
+  R_Visible = TRUE;
+  // Therefore:
+  // The first argument is FALSE or NA.
+  // If the second argument is not FALSE then its value is the result.
+  // If the second argument is FALSE, then the first argument's value is the
+  // result.
+  if (VAL_INT(v1l) != FALSE) {
+    *v2 = v1;
+  }
+  R_Visible = TRUE;
+}
+
 #endif // RUNTIME_H
