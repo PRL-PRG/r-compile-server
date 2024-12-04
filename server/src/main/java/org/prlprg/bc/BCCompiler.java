@@ -16,7 +16,6 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 import javax.annotation.Nullable;
-import org.prlprg.bc.BcInstr.*;
 import org.prlprg.bc.BcInstr.Add;
 import org.prlprg.bc.BcInstr.And;
 import org.prlprg.bc.BcInstr.And1st;

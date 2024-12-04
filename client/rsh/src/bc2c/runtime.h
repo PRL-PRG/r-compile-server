@@ -498,6 +498,7 @@ typedef SEXP (*Rsh_closure)(SEXP, SEXP);
 JIT_DECL Value Rsh_NilValue;
 JIT_DECL Value Rsh_UnboundValue;
 JIT_DECL SEXP NOT_OP;
+JIT_DECL SEXP LOG_OP;
 JIT_DECL SEXP BC2C_CALL_TRAMPOLINE_SXP;
 
 #ifdef RSH_TESTS
@@ -2243,6 +2244,121 @@ static INLINE void Rsh_IsInteger(Value *v) {
   default:
     *v = VAL_FALSE;
   }
+}
+
+static inline Value fixup_scalar_logical(Value v, SEXP call, const char *arg,
+                                         const char *op) {
+  if (VAL_IS_LGL(v)) {
+    return v;
+  }
+
+  SEXP sxp = val_as_sexp(v);
+  if (IS_SIMPLE_SCALAR(sxp, LGLSXP)) {
+    return SXP_TO_VAL(SCALAR_LVAL(sxp));
+  } else {
+    if (!Rf_isNumber(sxp)) {
+      Rf_errorcall(call, "invalid %s type in 'x %s y'", arg, op);
+    }
+    return SXP_TO_VAL(Rf_ScalarLogical(Rf_asLogical2(sxp, 1, call)));
+  }
+}
+
+static INLINE Rboolean Rsh_And1st(Value *v, SEXP call) {
+  *v = fixup_scalar_logical(*v, call, "'x'", "&&");
+  R_Visible = TRUE;
+  return *v == VAL_FALSE;
+}
+
+static INLINE void Rsh_And2nd(Value *v2, Value v1, SEXP call) {
+  // v2 is the result of Rsh_And1St
+  Value v1l = fixup_scalar_logical(v1, call, "'y'", "&&");
+  R_Visible = TRUE;
+  // Note: ‘NA’ is a valid logical object.  Where a component of ‘x’ or ‘y’
+  //       is ‘NA’, the result will be ‘NA’ if the outcome is ambiguous.  In
+  //       other words ‘NA & TRUE’ evaluates to ‘NA’, but ‘NA & FALSE’
+  //       evaluates to ‘FALSE’.  See the examples below.
+  //
+  // Therefore:
+  // The first argument is TRUE or NA.
+  // If the second argument is not TRUE then its value is the result.
+  // If the second argument is TRUE, then the first argument's value is the
+  // result.
+  if (VAL_INT(v1l) == FALSE || VAL_INT(v1l) == NA_LOGICAL) {
+    *v2 = v1;
+  }
+  R_Visible = TRUE;
+}
+
+static INLINE Rboolean Rsh_Or1st(Value *v, SEXP call) {
+  *v = fixup_scalar_logical(*v, call, "'x'", "||");
+  R_Visible = TRUE;
+  return *v != VAL_FALSE && VAL_INT(*v) != NA_LOGICAL;
+}
+
+static INLINE void Rsh_Or2nd(Value *v2, Value v1, SEXP call) {
+  // v2 is the result of Rsh_And1St
+  Value v1l = fixup_scalar_logical(v1, call, "'y'", "||");
+  R_Visible = TRUE;
+  // The first argument is FALSE or NA.
+  // If the second argument is not FALSE then its value is the result.
+  // If the second argument is FALSE, then the first argument's value is the
+  // result.
+  if (VAL_INT(v1l) != FALSE) {
+    *v2 = v1;
+  }
+  R_Visible = TRUE;
+}
+
+static INLINE void Rsh_Log(Value *val, SEXP call, SEXP rho) {
+  if (VAL_IS_DBL(*val)) {
+    double d = VAL_DBL(*val);
+    double r = R_log(d);
+    if (ISNAN(r) && ISNAN(d)) {
+      r = d;
+    } else {
+      Rf_warningcall(call, R_MSG_NA);
+    }
+    R_Visible = TRUE;
+    *val = DBL_TO_VAL(r);
+  } else {
+    SEXP args = CONS_NR(val_as_sexp(*val), R_NilValue);
+    R_Visible = TRUE;
+    *val = SXP_TO_VAL(do_log_builtin(call, LOG_OP, args, rho));
+  }
+}
+
+static INLINE void Rsh_LogBase(Value *val, Value base, SEXP call, SEXP rho) {
+  if (VAL_IS_DBL(*val) && VAL_IS_DBL(base)) {
+    double d = VAL_DBL(*val);
+    double b = VAL_DBL(base);
+    double r = R_logbase(d, b);
+    if (ISNAN(r)) {
+      if (ISNAN(d)) {
+        r = d;
+      } else if (ISNAN(b)) {
+        r = b;
+      } else {
+        Rf_warningcall(call, R_MSG_NA);
+      }
+    }
+    R_Visible = TRUE;
+    *val = DBL_TO_VAL(r);
+  } else {
+    SEXP args = CONS_NR(val_as_sexp(base), R_NilValue);
+    args = CONS_NR(val_as_sexp(*val), args);
+    R_Visible = TRUE;
+    *val = SXP_TO_VAL(do_log_builtin(call, LOG_OP, args, rho));
+  }
+}
+
+static INLINE void Rsh_Math1(Value *v, SEXP call, int op, SEXO rho) {
+  if (VAL_IS_DBL(v)) {
+
+    double (*fun)(double) = getMath1Fun(GETOP(), call);
+
+    return;
+  }
+  // slow path
 }
 
 #endif // RUNTIME_H

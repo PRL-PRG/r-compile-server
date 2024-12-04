@@ -35,6 +35,7 @@ SEXP Rsh_pc_reset() {
 }
 #endif
 
+// TODO: is the preserving needed?
 #define LOAD_R_BUILTIN(target, name)                                           \
   do {                                                                         \
     target = PROTECT(R_Primitive(name));                                       \
@@ -85,6 +86,7 @@ JIT_DEF SEXP Rsh_initialize_runtime(void) {
   Rsh_NilValue = SXP_TO_VAL(R_NilValue);
   Rsh_UnboundValue = SXP_TO_VAL(Rsh_UnboundValue);
   LOAD_R_BUILTIN(NOT_OP, "!");
+  LOAD_R_BUILTIN(LOG_OP, "log");
 
 #ifdef RSH_TESTS
   BC2C_CALL_TRAMPOLINE_SXP = Rf_mkString("Rsh_call_trampoline");
