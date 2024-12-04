@@ -152,6 +152,7 @@ SEXP R_MATH1_OPS[] = {X_MATH1_OPS};
 SEXP R_UNARY_OPS[] = {X_UNARY_OPS};
 SEXP R_UNARY_OP_SYMS[] = {X_UNARY_OPS};
 SEXP R_LOGIC2_OPS[] = {X_LOGIC2_OPS};
+
 SEXP R_MATH1_EXT_OPS[] = {X_MATH1_EXT_OPS};
 SEXP R_MATH1_EXT_SYMS[] = {X_MATH1_EXT_OPS};
 Rsh_Math1Fun R_MATH1_EXT_FUNS[] = {X_MATH1_EXT_OPS};
@@ -173,20 +174,23 @@ extern Rsh_Math1Fun R_MATH1_EXT_FUNS[];
 #endif
 
 #define RSH_R_SYMBOLS                                                          \
-  X([, Rsh_SubsetSym)                                                        \
-  X([[, Rsh_Subset2Sym)                                                      \
-  X(value, Rsh_ValueSym)                                                     \
-  X([<-, Rsh_SubassignSym)                                                   \
-  X([[<-, Rsh_Subassign2Sym)                                                 \
-  X(.External2, Rsh_DotExternal2Sym)                                         \
-  X(*tmp*, Rsh_TmpvalSym)                                                    \
-  X(:, Rsh_ColonSym)                                                         \
-  X(seq_along, Rsh_SeqAlongSym)                                              \
-  X(seq_len, Rsh_SeqLenSym)                                                  \
-  X(log, Rsh_LogSym)
+  X([, Rsh_Subset)                                                        \
+  X([[, Rsh_Subset2)                                                      \
+  X(value, Rsh_Value)                                                     \
+  X([<-, Rsh_Subassign)                                                   \
+  X([[<-, Rsh_Subassign2)                                                 \
+  X(.External2, Rsh_DotExternal2)                                         \
+  X(*tmp*, Rsh_Tmpval)                                                    \
+  X(:, Rsh_Colon)                                                         \
+  X(seq_along, Rsh_SeqAlong)                                              \
+  X(seq_len, Rsh_SeqLen)                                                  \
+  X(log, Rsh_Log)
 
 #ifndef RSH_TESTS
-#define X(a, b) extern SEXP b;
+#define X(a, b)                                                                \
+  extern SEXP b##Sym;                                                          \
+  extern SEXP b##Op;
+
 RSH_R_SYMBOLS
 #undef X
 #endif
@@ -2202,9 +2206,11 @@ static INLINE void Rsh_Colon(Value *s1, Value s0, SEXP call, SEXP rho) {
       ISQ_NEW(rn1, rn2, *s1);
       R_Visible = TRUE;
     }
-  } else {
-    DO_BUILTIN2(do_colon, call, Rsh_ColonSym, *s1, s0, rho, s1);
+    return;
   }
+
+  // slow path!
+  DO_BUILTIN2(do_colon, call, Rsh_ColonOp, *s1, s0, rho, s1);
 }
 
 static INLINE void Rsh_SeqAlong(Value *v, SEXP call, SEXP rho) {
@@ -2303,7 +2309,7 @@ static inline Value fixup_scalar_logical(Value v, SEXP call, const char *arg,
 static INLINE Rboolean Rsh_And1st(Value *v, SEXP call) {
   *v = fixup_scalar_logical(*v, call, "'x'", "&&");
   R_Visible = TRUE;
-  return *v == VAL_FALSE;
+  return *v == VAL_FALSE ? TRUE : FALSE;
 }
 
 static INLINE void Rsh_And2nd(Value *v2, Value v1, SEXP call) {
@@ -2329,7 +2335,7 @@ static INLINE void Rsh_And2nd(Value *v2, Value v1, SEXP call) {
 static INLINE Rboolean Rsh_Or1st(Value *v, SEXP call) {
   *v = fixup_scalar_logical(*v, call, "'x'", "||");
   R_Visible = TRUE;
-  return *v != VAL_FALSE && VAL_INT(*v) != NA_LOGICAL;
+  return (*v != VAL_FALSE && VAL_INT(*v) != NA_LOGICAL) ? TRUE : FALSE;
 }
 
 static INLINE void Rsh_Or2nd(Value *v2, Value v1, SEXP call) {
