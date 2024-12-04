@@ -1,17 +1,20 @@
 package org.prlprg.session;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import org.prlprg.RVersion;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.server.Messages;
 import org.prlprg.sexp.*;
 import org.prlprg.util.Files;
+import org.prlprg.util.IO;
 
 /**
  * Dummy session used to bootstrap base. Indeed, the RDS reader that reads base package database
@@ -70,6 +73,9 @@ public class GNURSession implements RSession {
   private org.prlprg.RVersion RVersion;
   private final Path RDir;
   private final List<Path> RLibraries;
+  private static final String BUILTINS_SYMBOLS_RDS_FILE = "builtins.RDS";
+  private static final String SPECIALS_SYMBOLS_RDS_FILE = "specials.RDS";
+  private static final String BUILTINS_INTERNAL_SYMBOLS_RDS_FILE = "builtins-internal.RDS";
 
   private @Nullable BaseEnvSXP baseEnv = null;
   private @Nullable NamespaceEnvSXP baseNamespace = null;
@@ -255,6 +261,17 @@ public class GNURSession implements RSession {
     var baseLibPath = RDir.resolve("library");
     try {
       var objs = GNURSession.readPackageDatabase(session, baseLibPath, "base");
+      // The rdx does not contain builtins and specials so we need to load them separately
+      var builtinSxps =
+          builtins().stream().collect(Collectors.toMap((name) -> name, SEXPs::builtin));
+      var specialSxps =
+          specials().stream().collect(Collectors.toMap((name) -> name, SEXPs::special));
+      var builtinsInternalSxps =
+          builtinsInternal().stream().collect(Collectors.toMap((name) -> name, SEXPs::builtin));
+      objs.putAll(builtinSxps);
+      objs.putAll(specialSxps);
+      objs.putAll(builtinsInternalSxps);
+
       baseEnv = new BaseEnvSXP(objs);
       globalEnv = new GlobalEnvSXP(baseEnv);
       baseNamespace = new NamespaceEnvSXP("base", RVersion.toString(), globalEnv, objs);
@@ -287,23 +304,83 @@ public class GNURSession implements RSession {
     return globalEnv;
   }
 
-  @Override
-  public boolean isBuiltin(String name) {
-    return false;
+  public synchronized Set<String> builtins() {
+    if (builtins == null) {
+      try {
+        var names =
+            (StrSXP)
+                RDSReader.readStream(
+                    this,
+                    IO.maybeDecompress(
+                        Objects.requireNonNull(
+                            GNURSession.class.getResourceAsStream(BUILTINS_SYMBOLS_RDS_FILE))));
+        builtins = ImmutableSet.copyOf(names);
+      } catch (Exception e) {
+        throw new RuntimeException("Failed to load builtins", e);
+      }
+    }
+
+    return builtins;
+  }
+
+  public synchronized Set<String> specials() {
+    if (specials == null) {
+      try {
+        var names =
+            (StrSXP)
+                RDSReader.readStream(
+                    this,
+                    IO.maybeDecompress(
+                        Objects.requireNonNull(
+                            GNURSession.class.getResourceAsStream(SPECIALS_SYMBOLS_RDS_FILE))));
+        specials = ImmutableSet.copyOf(names);
+      } catch (Exception e) {
+        throw new RuntimeException("Failed to load specials", e);
+      }
+    }
+
+    return specials;
+  }
+
+  public synchronized Set<String> builtinsInternal() {
+    if (builtinsInternal == null) {
+      try {
+        var names =
+            (StrSXP)
+                RDSReader.readStream(
+                    this,
+                    IO.maybeDecompress(
+                        Objects.requireNonNull(
+                            GNURSession.class.getResourceAsStream(
+                                BUILTINS_INTERNAL_SYMBOLS_RDS_FILE))));
+        builtinsInternal = ImmutableSet.copyOf(names);
+      } catch (Exception e) {
+        throw new RuntimeException("Failed to load internal specials", e);
+      }
+    }
+
+    return builtinsInternal;
   }
 
   @Override
+  public boolean isBuiltin(String name) {
+    return builtins().contains(name);
+  }
+
   public boolean isSpecial(String name) {
-    return false;
+    return specials().contains(name);
   }
 
   @Override
   public boolean isBuiltinInternal(String name) {
-    return false;
+    return builtinsInternal().contains(name);
   }
 
   @Override
   public NamespaceEnvSXP getNamespace(String name, String version) {
+    if (name.equals("base")) {
+      return baseNamespace();
+    }
     var ns = namespaces.get(name + version);
     if (ns == null) {
       loadPackage(name, version);
