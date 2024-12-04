@@ -586,6 +586,12 @@ public class BC2CCompilerTest {
     snapshot.verify("log(5, 5)");
     snapshot.verify("log(c(1,10,100, NA), 5)");
   }
+
+  @Test
+  public void testMath1(BC2CSnapshot snapshot) {
+    snapshot.verify("sin(PI)");
+  }
+
   // API
 
   private TestResultCheck fastArith() {

@@ -2351,4 +2351,14 @@ static INLINE void Rsh_LogBase(Value *val, Value base, SEXP call, SEXP rho) {
   }
 }
 
+static INLINE void Rsh_Math1(Value *v, SEXP call, int op, SEXO rho) {
+  if (VAL_IS_DBL(v)) {
+
+    double (*fun)(double) = getMath1Fun(GETOP(), call);
+
+    return;
+  }
+  // slow path
+}
+
 #endif // RUNTIME_H
