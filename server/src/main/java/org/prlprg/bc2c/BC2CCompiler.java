@@ -16,7 +16,7 @@ class ByteCodeStack {
   public String push() {
     top++;
     max = Math.max(max, top + 1);
-    return "&" + get(0);
+    return get(0);
   }
 
   public String pop() {
@@ -25,7 +25,7 @@ class ByteCodeStack {
     }
     var s = get(0);
     --top;
-    return s;
+    return "*" + s;
   }
 
   public String get(int i) {
@@ -50,12 +50,12 @@ class ByteCodeStack {
       return Optional.empty();
     }
 
-    var line =
-        IntStream.range(0, max)
-            .mapToObj("_%d"::formatted)
-            .collect(Collectors.joining(", ", "Value ", ";"));
+    var builder = new StringBuilder();
+    for (int i = 0; i < max; i++) {
+      builder.append("INIT_VAL(_").append(i).append(");\n");
+    }
 
-    return Optional.of(line);
+    return Optional.of(builder.toString());
   }
 
   public int top() {
@@ -201,9 +201,17 @@ class ClosureCompiler {
         switch (instr) {
           case BcInstr.Return() -> "return %s;".formatted(builder.compile());
           case BcInstr.Goto(var dest) -> "goto %s;".formatted(label(dest));
-          case BcInstr.LdConst(var idx) -> builder.args(constantVAL(idx)).compileStmt();
-          case BcInstr.PushConstArg(var idx) -> builder.args(constantVAL(idx)).compileStmt();
-          case BcInstr.SetTag(var idx) -> builder.args(constantVAL(idx)).compileStmt();
+          case BcInstr.LdConst(var idx) -> {
+            var c = getConstant(idx);
+            yield builder.fun(switch (c.value()) {
+              case IntSXP v when v.size() == 1 -> "Rsh_LdConstInt";
+              case RealSXP v when v.size() == 1 -> "Rsh_LdConstDbl";
+              case LglSXP v when v.size() == 1 -> "Rsh_LdConstLgl";
+              case SEXP _ -> "Rsh_LdConst";
+            })
+            .args("Rsh_const(%s, %d)".formatted(VAR_CCP, c.id()))
+            .compileStmt();
+          }
           case BcInstr.SetVar(var symbol) ->
               builder.args(constantSXP(symbol), cell(symbol)).compileStmt();
           case BcInstr.GetVar(var symbol) ->
@@ -419,7 +427,7 @@ class ClosureCompiler {
   // API
 
   class InstrBuilder {
-    private final String fun;
+    private String fun;
     private List<String> args = new ArrayList<>();
     private boolean needsRho;
     private int push;
@@ -436,6 +444,11 @@ class ClosureCompiler {
       this.fun = "Rsh_" + instr.getClass().getSimpleName();
       this.pop = instr.pop();
       this.push = instr.push();
+    }
+
+    public InstrBuilder fun(String fun) {
+      this.fun = fun;
+      return this;
     }
 
     public InstrBuilder args(String... args) {
@@ -521,21 +534,6 @@ class ClosureCompiler {
 
   private String constantSXP(Constant c) {
     return "Rsh_const(%s, %d)".formatted(VAR_CCP, c.id());
-  }
-
-  private String constantVAL(ConstPool.Idx<? extends SEXP> idx) {
-    // FIXME: allow NULL
-    var c = getConstant(idx);
-
-    var f =
-        switch (c.value()) {
-          case IntSXP v when v.size() == 1 -> "Rsh_const_int";
-          case RealSXP v when v.size() == 1 -> "Rsh_const_dbl";
-          case LglSXP v when v.size() == 1 -> "Rsh_const_lgl";
-          case SEXP _ -> "Rsh_const_sxp";
-        };
-
-    return "%s(%s, %d)".formatted(f, VAR_CCP, c.id());
   }
 
   private Constant getConstant(ConstPool.Idx<? extends SEXP> idx) {

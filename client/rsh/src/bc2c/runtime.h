@@ -194,112 +194,101 @@ RSH_R_SYMBOLS
 #undef X
 #endif
 
-// clang-format off
-//
 // VALUE REPRESENTATION
 // --------------------
-//
-// IEEE 754 double-precision float:
-//
-// 1 Sign bit
-// | 11 Exponent bits
-// | |          52 Mantissa bits
-// | |          |
-// S[Exponent-][Mantissa------------------------------------------]
-//
-// Our QNAN - 13 bits:
-//   NaN bits
-//  +---------+ v Intel’s QNaN Floating-Point Indefinite
-// -1111111111111--------------------------------------------------
-//             ^ NaN type (1 - quiet (QNAN), 0 - signalling)
-//
-// Our NaN boxing:
-//
-//          63              49
-//           v               v
-//      QNAN 0|1111111111111|00|000000000000000000000000000000000000000000000000
-//      MASK 1|1111111111111|11|000000000000000000000000000000000000000000000000
-//  MASK_INT 0|1111111111111|00|000000000000000000000000000000000000000000000000
-//  MASK_SXP 1|1111111111111|00|000000000000000000000000000000000000000000000000
-//  MASK_LGL 0|1111111111111|11|000000000000000000000000000000000000000000000000
-//  MASK_ISQ 1|1111111111111|01|000000000000000000000000000000000000000000000000
-//      TRUE 0|1111111111111|11|000000000000000000000000000000000000000000000001
-//     FALSE 0|1111111111111|11|000000000000000000000000000000000000000000000000
-//                            ^
-//                            48
-//
-// The 49. bit in SEXP is used to mark MAYBE_REFERENCED
-//
-// clang-format on
 
-typedef u64 Value;
+typedef R_bcstack_t Value;
 
-// the 13 bits of the NaN boxing
-#define QNAN ((u64)0x7ffc000000000000)
-#define SIGN_BIT ((u64)1 << 63)
-#define MASK ((SIGN_BIT | QNAN | ((u64)3 << 48)))
-#define MASK_INT QNAN
-#define MASK_SXP (SIGN_BIT | QNAN)
-#define MASK_LGL (QNAN | ((u64)3 << 48))
-#define MASK_ISQ (MASK_SXP | ((u64)1 << 48))
+// Accessors
 
-// Fixed values
+#ifdef ASSERTS
+#define RSH_CHK_VAL_TYPE(v, t)                                                 \
+  if ((v).tag != (t))                                                          \
+    Rf_error("Expected unboxed: %d, got: %d", (t), (v).tag);
+#else
+#define RSH_CHK_VAL_TYPE(v, t)
+#endif
 
-#define VAL_TRUE ((Value)(MASK_LGL | 1))
-#define VAL_FALSE ((Value)(MASK_LGL | 0))
-
-// Unchecked accessors
-
-#define VAL_INT(v) (int)(v)
-#define VAL_SXP(v) (SEXP)((v) & (((u64)1 << 48) - 1))
+static INLINE int VAL_INT(Value v) {
+  RSH_CHK_VAL_TYPE(v, INTSXP);
+  return (v).u.ival;
+}
 
 static INLINE double VAL_DBL(Value v) {
-  double d;
-  // type punning
-  memcpy(&d, &v, sizeof(double));
-  return d;
+  RSH_CHK_VAL_TYPE(v, REALSXP);
+  return (v).u.dval;
+}
+
+static INLINE SEXP VAL_SXP(Value v) {
+#ifdef ASSERTS
+  if ((v).tag != 0) {
+    Rf_error("Expected a SEXP, got unboxed: %d", (v).tag);
+  }
+#endif
+  return (v).u.sxpval;
 }
 
 // Type checkers
 
-#define VAL_IS_INT(v) (((v) & MASK) == MASK_INT)
+#define VAL_IS_INT(v) ((v).tag == INTSXP)
 #define VAL_IS_INT_NOT_NA(v) (VAL_IS_INT(v) && VAL_INT(v) != NA_INTEGER)
-#define VAL_IS_SXP(v) (((v) & MASK) == MASK_SXP)
-#define VAL_IS_DBL(v) (((v) & QNAN) != QNAN)
+#define VAL_IS_DBL(v) ((v).tag == REALSXP)
 #define VAL_IS_DBL_NOT_NAN(v) VAL_IS_DBL(v) && !ISNAN(VAL_DBL(v))
-#define VAL_IS_LGL(v) (((v) & MASK) == MASK_LGL)
+#define VAL_IS_LGL(v) ((v).tag == LGLSXP)
 #define VAL_IS_LGL_NOT_NA(v) (VAL_IS_LGL(v) && VAL_INT(v) != NA_LOGICAL)
-#define VAL_IS_ISQ(v) (((v) & MASK) == MASK_ISQ)
+#define VAL_IS_SXP(v) ((v).tag == 0)
+#define VAL_IS_ISQ(v) ((v).tag == ISQSXP)
 
 // Unchecked constructors
 
-#define SXP_TO_VAL(v) (Value)(MASK_SXP | ((u64)(v)))
-#define ISQ_TO_VAL(v) (Value)(MASK_ISQ | ((u64)(v)))
-// this is to prevent the NA value to change all the bits to 1
-#define INT_TO_VAL(v) (Value)(MASK_INT | ((u64)(u32)(v)))
-#define LGL_TO_VAL(v) (Value)(MASK_LGL | ((u64)(u32)(v)))
+#define SET_INT_VAL(target, value)                                             \
+  do {                                                                         \
+    (target).tag = INTSXP;                                                     \
+    (target).u.ival = (value);                                                 \
+  } while (0);
 
-static INLINE Value DBL_TO_VAL(double d) {
-  Value v;
-  // type punning
-  memcpy(&v, &d, sizeof(double));
-  return v;
-}
+#define SET_DBL_VAL(target, value)                                             \
+  do {                                                                         \
+    (target).tag = REALSXP;                                                    \
+    (target).u.dval = (value);                                                 \
+  } while (0);
+
+#define SET_LGL_VAL(target, value)                                             \
+  do {                                                                         \
+    (target).tag = LGLSXP;                                                     \
+    (target).u.ival = (value);                                                 \
+  } while (0);
+
+#define SET_SXP_VAL(target, value)                                             \
+  do {                                                                         \
+    (target).tag = 0;                                                          \
+    (target).u.sxpval = (value);                                               \
+  } while (0);
+
+#define SET_VAL(target, sexp)                                                  \
+  {                                                                            \
+    if (IS_SCALAR(sexp, REALSXP)) {                                            \
+      SET_DBL_VAL(target, REAL(sexp)[0]);                                      \
+    } else if (IS_SCALAR(sexp, INTSXP)) {                                      \
+      SET_INT_VAL(target, INTEGER(sexp)[0]);                                   \
+    } else if (IS_SCALAR(sexp, LGLSXP)) {                                      \
+      SET_LGL_VAL(target, INTEGER(sexp)[0]);                                   \
+    } else {                                                                   \
+      SET_SXP_VAL(target, sexp);                                               \
+    }                                                                          \
+  }
 
 #define ISQSXP 9999
 
-#define VAL_TAG(v)                                                             \
-  ((VAL_IS_DBL(v) ? REALSXP                                                    \
-                  : (VAL_IS_INT(v) ? INTSXP                                    \
-                                   : (VAL_IS_LGL(v)   ? LGLSXP                 \
-                                      : VAL_IS_ISQ(v) ? ISQSXP                 \
-                                                      : 0))))
+// FIXME: remove
+#define VAL_TAG(v) ((v).tag)
 
 // Checked accessors
 
 // TODO: can we share this bcell expand?
+// TODO: rename
 static INLINE SEXP val_as_sexp(Value v) {
-  switch (VAL_TAG(v)) {
+  switch (v.tag) {
   case REALSXP:
     return Rf_ScalarReal(VAL_DBL(v));
   case INTSXP:
@@ -315,24 +304,16 @@ static INLINE SEXP val_as_sexp(Value v) {
   }
 }
 
-static INLINE Value sexp_as_val(SEXP s) {
-  if (IS_SCALAR(s, REALSXP)) {
-    return DBL_TO_VAL(REAL(s)[0]);
-  } else if (IS_SCALAR(s, INTSXP)) {
-    return INT_TO_VAL(INTEGER(s)[0]);
-  } else if (IS_SCALAR(s, LGLSXP)) {
-    return LGL_TO_VAL(INTEGER(s)[0]);
-  } else {
-    return SXP_TO_VAL(s);
-  }
-}
-
-// Flags
-
-#define VAL_MAYBE_REFERENCED(v) ((v) & ((u64)1 << 49))
-#define VAL_SET_MAYBE_REFERENCED(v) ((v) |= ((u64)1 << 49))
-#define VAL_CLEAR_MAYBE_REFERENCED(v) ((v) &= ~((u64)1 << 49))
-#define VAL_MAYBE_SHARED(v) (VAL_IS_SXP(v) && (REFCNT(VAL_SXP(v)) > 1))
+#define INIT_VAL(v)                                                            \
+  Value *v = R_BCNodeStackTop;                                                 \
+  do {                                                                         \
+    R_bcstack_t *__ntop__ = R_BCNodeStackTop + 1;                              \
+    if (__ntop__ > R_BCNodeStackEnd) {                                         \
+      nodeStackOverflow();                                                     \
+    }                                                                          \
+    SET_SXP_VAL(*v, R_NilValue);                                               \
+    R_BCNodeStackTop = __ntop__;                                               \
+  } while (0);
 
 // BINDING CELLS (bcell) implementation
 // ------------------------------------
@@ -513,11 +494,8 @@ static INLINE Rboolean bcell_set_value(BCell cell, SEXP value) {
 
 // CONSTANTS
 
+// FIXME: use the SCALA_ macros
 #define Rsh_const(env, idx) ((SEXP *)STDVEC_DATAPTR((env)))[(idx)]
-#define Rsh_const_sxp(env, idx) SXP_TO_VAL(Rsh_const(env, idx))
-#define Rsh_const_dbl(env, idx) DBL_TO_VAL(REAL(Rsh_const(env, idx))[0])
-#define Rsh_const_int(env, idx) INT_TO_VAL(INTEGER(Rsh_const(env, idx))[0])
-#define Rsh_const_lgl(env, idx) LGL_TO_VAL(INTEGER(Rsh_const(env, idx))[0])
 
 // CLOSURE REPRESENTATION
 // ----------------------
@@ -549,8 +527,8 @@ typedef SEXP (*Rsh_closure)(SEXP, SEXP);
 // RUNTIME CONSTANTS
 // -----------------
 
-JIT_DECL Value Rsh_NilValue;
-JIT_DECL Value Rsh_UnboundValue;
+JIT_DECL Value *Rsh_NilValue;
+JIT_DECL Value *Rsh_UnboundValue;
 JIT_DECL SEXP NOT_OP;
 JIT_DECL SEXP LOG_OP;
 JIT_DECL SEXP BC2C_CALL_TRAMPOLINE_SXP;
@@ -568,15 +546,21 @@ JIT_DECL SEXP create_wrapper_body(SEXP body, SEXP fun_ptr, SEXP c_cp);
 #define BCELL_INLINE(cell, v)                                                  \
   do {                                                                         \
     if (BCELL_WRITABLE(cell)) {                                                \
-      switch (VAL_TAG(v)) {                                                    \
+      switch (TYPEOF(v)) {                                                     \
       case REALSXP:                                                            \
-        BCELL_DVAL_NEW(cell, VAL_DBL(v));                                      \
+        if (XLENGTH((v)) == 1) {                                               \
+          BCELL_DVAL_NEW(cell, REAL(v)[0]);                                    \
+        }                                                                      \
         break;                                                                 \
       case INTSXP:                                                             \
-        BCELL_IVAL_NEW(cell, VAL_INT(v));                                      \
+        if (XLENGTH((v)) == 1) {                                               \
+          BCELL_IVAL_NEW(cell, INTEGER(v)[0]);                                 \
+        }                                                                      \
         break;                                                                 \
       case LGLSXP:                                                             \
-        BCELL_LVAL_NEW(cell, VAL_INT(v));                                      \
+        if (XLENGTH((v)) == 1) {                                               \
+          BCELL_LVAL_NEW(cell, INTEGER(v)[0]);                                 \
+        }                                                                      \
         break;                                                                 \
       }                                                                        \
     }                                                                          \
@@ -586,8 +570,8 @@ JIT_DECL SEXP create_wrapper_body(SEXP body, SEXP fun_ptr, SEXP c_cp);
 // ---------
 
 #define INIT_CALL_FRAME(head, tail)                                            \
-  *(head) = Rsh_NilValue;                                                      \
-  *(tail) = Rsh_NilValue;
+  SET_SXP_VAL(*head, R_NilValue);                                              \
+  SET_SXP_VAL(*tail, R_NilValue);
 
 static INLINE R_xlen_t as_index(Value v) {
   switch (VAL_TAG(v)) {
@@ -670,8 +654,8 @@ static INLINE SEXP Rsh_append_values_to_args(Value *vals[], int n, SEXP args) {
 
 #define Rsh_Pop(x)
 
-static INLINE Value Rsh_do_get_var(SEXP symbol, SEXP rho, Rboolean dd,
-                                   Rboolean keepmiss, BCell *cache) {
+static INLINE SEXP Rsh_do_get_var(SEXP symbol, SEXP rho, Rboolean dd,
+                                  Rboolean keepmiss, BCell *cache) {
   SEXP value;
   Rboolean has_cell = FALSE;
 
@@ -711,12 +695,11 @@ static INLINE Value Rsh_do_get_var(SEXP symbol, SEXP rho, Rboolean dd,
     ENSURE_NAMEDMAX(value);
   }
 
-  Value v = sexp_as_val(value);
   if (has_cell) {
-    BCELL_INLINE(*cache, v);
+    BCELL_INLINE(*cache, value);
   }
 
-  return v;
+  return value;
 }
 
 #define Rsh_GetVar(res, symbol, cell, rho)                                     \
@@ -728,13 +711,13 @@ static INLINE void Rsh_get_var(Value *res, SEXP symbol, BCell *cell, SEXP rho,
                                Rboolean dd, Rboolean keepmiss) {
   switch (BCELL_TAG(*cell)) {
   case REALSXP:
-    *res = DBL_TO_VAL(BCELL_DVAL(*cell));
+    SET_DBL_VAL(*res, BCELL_DVAL(*cell));
     return;
   case INTSXP:
-    *res = INT_TO_VAL(BCELL_IVAL(*cell));
+    SET_INT_VAL(*res, BCELL_IVAL(*cell));
     return;
   case LGLSXP:
-    *res = LGL_TO_VAL(BCELL_IVAL(*cell));
+    SET_LGL_VAL(*res, BCELL_IVAL(*cell));
     return;
   }
 
@@ -759,19 +742,19 @@ static INLINE void Rsh_get_var(Value *res, SEXP symbol, BCell *cell, SEXP rho,
   case STRSXP:
   case VECSXP:
   case RAWSXP:
-    *res = SXP_TO_VAL(value);
+    SET_SXP_VAL(*res, value);
     return;
   case SYMSXP:
   case PROMSXP:
     break;
   default:
     if (*cell != R_NilValue && !IS_ACTIVE_BINDING(*cell)) {
-      *res = SXP_TO_VAL(value);
+      SET_SXP_VAL(*res, value);
       return;
     }
   }
 
-  *res = Rsh_do_get_var(symbol, rho, dd, keepmiss, cell);
+  SET_VAL(*res, Rsh_do_get_var(symbol, rho, dd, keepmiss, cell));
 }
 
 static INLINE void Rsh_SetVar(Value *v, SEXP symbol, BCell *cell, SEXP rho) {
@@ -812,7 +795,7 @@ static INLINE void Rsh_SetVar(Value *v, SEXP symbol, BCell *cell, SEXP rho) {
     Rf_defineVar(symbol, value_sxp, rho);
     UNPROTECT(1);
     bcell_get_cache(symbol, rho, cell);
-    BCELL_INLINE(*cell, value);
+    BCELL_INLINE(*cell, value_sxp);
   }
 }
 
@@ -844,7 +827,7 @@ static INLINE SEXP Rsh_closure_call_args(SEXP args) {
 
 static INLINE void Rsh_GetBuiltin(Value *call, Value *args_head,
                                   Value *args_tail, const char *name) {
-  *call = SXP_TO_VAL(R_Primitive(name));
+  SET_SXP_VAL(*call, R_Primitive(name));
   INIT_CALL_FRAME(args_head, args_tail);
 }
 
@@ -852,24 +835,42 @@ static INLINE void Rsh_GetFun(Value *fun, Value *args_head, Value *args_tail,
                               SEXP symbol, SEXP rho) {
   // TODO: optimize with bcell
   SEXP fun_sxp = Rf_findFun(symbol, rho);
-  *fun = SXP_TO_VAL(fun_sxp);
+  SET_SXP_VAL(*fun, fun_sxp);
   INIT_CALL_FRAME(args_head, args_tail);
 }
 
 #define Rsh_CallBuiltin Rsh_Call
 
-#define Rsh_PushArg(h, t, v) RSH_LIST_APPEND(*(h), *(t), v)
-#define Rsh_PushConstArg(h, t, v) RSH_LIST_APPEND(*(h), *(t), v)
-#define Rsh_PushNullArg(h, t) Rsh_PushConstArg(h, t, Rsh_NilValue)
-#define Rsh_PushTrueArg(h, t) Rsh_PushConstArg(h, t, VAL_TRUE)
-#define Rsh_PushFalseArg(h, t) Rsh_PushConstArg(h, t, VAL_FALSE)
+#define Rsh_PushArg(h, t, v) RSH_LIST_APPEND(h, t, v)
+#define Rsh_PushConstArg(h, t, v) RSH_LIST_APPEND(h, t, v)
+#define Rsh_PushNullArg(h, t) Rsh_PushConstArg(h, t, R_NilValue)
+#define Rsh_PushTrueArg(h, t) Rsh_PushConstArg(h, t, R_TrueValue)
+#define Rsh_PushFalseArg(h, t) Rsh_PushConstArg(h, t, R_FalseValue)
 
-#define Rsh_LdTrue(d) Rsh_LdConst(d, VAL_TRUE)
-#define Rsh_LdFalse(d) Rsh_LdConst(d, VAL_FALSE)
-#define Rsh_LdNull(d) Rsh_LdConst(d, Rsh_NilValue)
-#define Rsh_LdConst(d, v)                                                      \
-  R_Visible = TRUE;                                                            \
-  *(d) = (v)
+#define Rsh_LdTrue(d) SET_LGL_VAL(*d, TRUE)
+#define Rsh_LdFalse(d) SET_LGL_VAL(*d, FALSE)
+#define Rsh_LdNull(d) SET_SXP_VAL(*d, R_NilValue)
+
+#define Rsh_LdConstInt(d, s)                                                   \
+  do {                                                                         \
+    R_Visible = TRUE;                                                          \
+    SET_INT_VAL(*d, SCALAR_IVAL(s));                                           \
+  } while (0);
+#define Rsh_LdConstDbl(d, s)                                                   \
+  do {                                                                         \
+    R_Visible = TRUE;                                                          \
+    SET_DBL_VAL(*d, SCALAR_DVAL(s));                                           \
+  } while (0);
+#define Rsh_LdConstLgl(d, s)                                                   \
+  do {                                                                         \
+    R_Visible = TRUE;                                                          \
+    SET_LGL_VAL(*d, SCALAR_LVAL(s));                                           \
+  } while (0);
+#define Rsh_LdConst(d, s)                                                      \
+  do {                                                                         \
+    R_Visible = TRUE;                                                          \
+    SET_SXP_VAL(*d, s);                                                        \
+  } while (0);
 
 static INLINE void Rsh_Call(Value *fun, Value args_head, UNUSED Value args_tail,
                             SEXP call, SEXP rho) {
@@ -906,7 +907,7 @@ static INLINE void Rsh_Call(Value *fun, Value args_head, UNUSED Value args_tail,
     Rf_error("bad function");
   }
 
-  *fun = sexp_as_val(value);
+  SET_VAL(*fun, value);
 }
 
 static INLINE Rboolean Rsh_BrIfNot(Value value, SEXP call, SEXP rho) {
@@ -980,7 +981,7 @@ static INLINE Rboolean Rsh_BrIfNot(Value value, SEXP call, SEXP rho) {
       __res__ = (a) >= (b);                                                    \
       break;                                                                   \
     }                                                                          \
-    *(r) = LGL_TO_VAL(__res__);                                                \
+    SET_LGL_VAL(*(r), __res__);                                                \
   } while (0)
 
 // calls R internal function which takes two arguments
@@ -989,21 +990,23 @@ static INLINE Rboolean Rsh_BrIfNot(Value value, SEXP call, SEXP rho) {
   do {                                                                         \
     SEXP __res_sxp__ = fun((call), (op), (opSym), val_as_sexp((lhs)),          \
                            val_as_sexp((rhs)), (rho));                         \
-    *(res) = sexp_as_val(__res_sxp__);                                         \
+    SET_VAL(*(res), __res_sxp__);                                              \
   } while (0)
 
-static INLINE Value Rsh_arith(Value lhs, Value rhs, SEXP call, RshArithOp op,
-                              SEXP rho) {
+static INLINE void Rsh_arith(Value *res, Value lhs, Value rhs, SEXP call,
+                             RshArithOp op, SEXP rho) {
   double res_dbl = 0;
 
   if (VAL_IS_DBL(lhs)) {
     double lhs_dbl = VAL_DBL(lhs);
     if (VAL_IS_DBL(rhs)) {
       DO_ARITH(op, lhs_dbl, VAL_DBL(rhs), &res_dbl);
-      return DBL_TO_VAL(res_dbl);
+      SET_DBL_VAL(*res, res_dbl);
+      return;
     } else if (VAL_IS_INT_NOT_NA(rhs)) {
       DO_ARITH(op, lhs_dbl, VAL_INT(rhs), &res_dbl);
-      return DBL_TO_VAL(res_dbl);
+      SET_DBL_VAL(*res, res_dbl);
+      return;
     }
   }
 
@@ -1012,46 +1015,45 @@ static INLINE Value Rsh_arith(Value lhs, Value rhs, SEXP call, RshArithOp op,
 
     if (VAL_IS_DBL(rhs)) {
       DO_ARITH(op, lhs_int, VAL_DBL(rhs), &res_dbl);
-      return DBL_TO_VAL(res_dbl);
+      SET_DBL_VAL(*res, res_dbl);
+      return;
     } else if (VAL_IS_INT_NOT_NA(rhs)) {
       if (op == DIV_OP || op == EXPT_OP) {
         DO_ARITH(op, (double)lhs_int, (double)VAL_INT(rhs), &res_dbl);
-        return DBL_TO_VAL(res_dbl);
+        SET_DBL_VAL(*res, res_dbl);
+        return;
       } else {
         int res_int = 0;
         DO_ARITH(op, lhs_int, VAL_INT(rhs), &res_int);
-        return INT_TO_VAL(res_int);
+        SET_INT_VAL(*res, res_int);
+        return;
       }
     }
   }
 
   // Slow path!
-  Value res;
   RSH_PC_INC(slow_arith);
   DO_BINARY_BUILTIN(arith2, call, R_ARITH_OPS[op], R_ARITH_OP_SYMS[op], lsh,
-                    rhs, rho, &res);
-  return res;
+                    rhs, rho, res);
 }
 
 #define X(a, b, c)                                                             \
   static INLINE void Rsh_##c(Value *lhs_res, Value rhs, SEXP call, SEXP rho) { \
-    *lhs_res = Rsh_arith(*lhs_res, rhs, call, b, rho);                         \
+    Rsh_arith(lhs_res, *lhs_res, rhs, call, b, rho);                           \
   }
 X_ARITH_OPS
 #undef X
 
-static INLINE Value Rsh_relop(Value lhs, Value rhs, SEXP call, RshRelOp op,
-                              SEXP rho) {
-  Value res;
-
+static INLINE void Rsh_relop(Value *res, Value lhs, Value rhs, SEXP call,
+                             RshRelOp op, SEXP rho) {
   if (VAL_IS_DBL_NOT_NAN(lhs)) {
     double lhs_dbl = VAL_DBL(lhs);
     if (VAL_IS_DBL_NOT_NAN(rhs)) {
-      DO_RELOP(op, lhs_dbl, VAL_DBL(rhs), &res);
-      return res;
+      DO_RELOP(op, lhs_dbl, VAL_DBL(rhs), res);
+      return;
     } else if (VAL_IS_INT_NOT_NA(rhs)) {
-      DO_RELOP(op, lhs_dbl, VAL_INT(rhs), &res);
-      return res;
+      DO_RELOP(op, lhs_dbl, VAL_INT(rhs), res);
+      return;
     }
   }
 
@@ -1059,25 +1061,23 @@ static INLINE Value Rsh_relop(Value lhs, Value rhs, SEXP call, RshRelOp op,
     int lhs_int = VAL_INT(lhs);
 
     if (VAL_IS_DBL_NOT_NAN(rhs)) {
-      DO_RELOP(op, lhs_int, VAL_DBL(rhs), &res);
-      return res;
+      DO_RELOP(op, lhs_int, VAL_DBL(rhs), res);
+      return;
     } else if (VAL_IS_INT_NOT_NA(rhs)) {
-      DO_RELOP(op, lhs_int, VAL_INT(rhs), &res);
-      return res;
+      DO_RELOP(op, lhs_int, VAL_INT(rhs), res);
+      return;
     }
   }
 
   // Slow path!
   RSH_PC_INC(slow_relop);
   DO_BINARY_BUILTIN(relop, call, R_REL_OPS[op], R_REL_OP_SYMS[op], lhs, rhs,
-                    rho, &res);
-
-  return res;
+                    rho, res);
 }
 
 #define X(a, b, c)                                                             \
   static INLINE void Rsh_##c(Value *lhs_res, Value rhs, SEXP call, SEXP rho) { \
-    *lhs_res = Rsh_relop(*lhs_res, rhs, call, b, rho);                         \
+    Rsh_relop(lhs_res, *lhs_res, rhs, call, b, rho);                           \
   }
 X_REL_OPS
 #undef X
@@ -1088,7 +1088,7 @@ X_REL_OPS
   do {                                                                         \
     SEXP __res_sxp__ =                                                         \
         fun((call), (op), CONS_NR(val_as_sexp((arg)), R_NilValue), (rho));     \
-    *(res) = sexp_as_val(__res_sxp__);                                         \
+    SET_VAL(*(res), __res_sxp__);                                              \
     R_Visible = TRUE;                                                          \
   } while (0)
 
@@ -1100,13 +1100,12 @@ X_REL_OPS
     SEXP __tmp__ = CONS_NR(val_as_sexp((arg1)),                                \
                            CONS_NR(val_as_sexp((arg2)), R_NilValue));          \
     SEXP __res_sxp__ = fun((call), (op), __tmp__, (rho));                      \
-    *(res) = sexp_as_val(__res_sxp__);                                         \
+    SET_VAL(*(res), __res_sxp__);                                              \
     R_Visible = TRUE;                                                          \
   } while (0)
 
-static INLINE Value Rsh_math1(Value arg, SEXP call, RshMath1Op op, SEXP rho) {
-  Value res;
-
+static INLINE void Rsh_math1(Value *res, Value arg, SEXP call, RshMath1Op op,
+                             SEXP rho) {
   if (VAL_IS_DBL(arg)) {
     double d = VAL_DBL(arg);
     d = op == SQRT_OP ? sqrt(d) : exp(d);
@@ -1119,7 +1118,7 @@ static INLINE Value Rsh_math1(Value arg, SEXP call, RshMath1Op op, SEXP rho) {
       }
     }
 
-    res = DBL_TO_VAL(d);
+    SET_DBL_VAL(*res, d);
     R_Visible = TRUE;
   } else if (VAL_IS_INT_NOT_NA(arg)) {
     double d = (double)VAL_INT(arg);
@@ -1129,53 +1128,50 @@ static INLINE Value Rsh_math1(Value arg, SEXP call, RshMath1Op op, SEXP rho) {
       Rf_warningcall(call, R_MSG_NA);
     }
 
-    res = DBL_TO_VAL(d);
+    SET_DBL_VAL(*res, d);
     R_Visible = TRUE;
   } else {
     // Slow path!
     RSH_PC_INC(slow_math1);
-    DO_BUILTIN1(do_math1, call, R_MATH1_OPS[op], arg, rho, &res);
+    DO_BUILTIN1(do_math1, call, R_MATH1_OPS[op], arg, rho, res);
   }
-
-  return res;
 }
 
 #define X(a, b, c)                                                             \
   static INLINE void Rsh_##c(Value *v, SEXP call, SEXP rho) {                  \
-    *v = Rsh_math1(*v, call, b, rho);                                          \
+    Rsh_math1(v, *v, call, b, rho);                                            \
   }
 X_MATH1_OPS
 #undef X
 
-static INLINE Value Rsh_unary(Value arg, SEXP call, RshUnaryOp op, SEXP rho) {
-  Value res = arg;
-
+static INLINE void Rsh_unary(Value *res, Value arg, SEXP call, RshUnaryOp op,
+                             SEXP rho) {
   if (VAL_IS_DBL(arg)) {
     if (op == UMINUS_OP) {
       double d = VAL_DBL(arg);
       double e = -d;
-      res = DBL_TO_VAL(e);
+      SET_DBL_VAL(*res, e);
     }
   } else if (VAL_IS_INT_NOT_NA(arg)) {
     if (op == UMINUS_OP) {
       int i = VAL_INT(arg);
       int j = -i;
-      res = INT_TO_VAL(VAL_INT(j));
+      SET_INT_VAL(*res, j);
     }
   } else {
     // Slow path!
     RSH_PC_INC(slow_unary);
-    res = sexp_as_val(arith1(call, R_UNARY_OPS[op], R_UNARY_OP_SYMS[op],
-                             val_as_sexp(arg), rho));
+    SEXP s = arith1(call, R_UNARY_OPS[op], R_UNARY_OP_SYMS[op],
+                    val_as_sexp(arg), rho);
+    SET_VAL(*res, s);
   }
 
   R_Visible = TRUE;
-  return res;
 }
 
 #define X(a, b, c)                                                             \
   static INLINE void Rsh_##c(Value *v, SEXP call, SEXP rho) {                  \
-    *v = Rsh_unary(*v, call, b, rho);                                          \
+    Rsh_unary(v, *v, call, b, rho);                                            \
   }
 X_UNARY_OPS
 #undef X
@@ -1185,27 +1181,23 @@ static INLINE void Rsh_Not(Value *arg_res, SEXP call, SEXP rho) {
   Value arg = *arg_res;
 
   if (VAL_IS_LGL_NOT_NA(arg) || VAL_IS_INT_NOT_NA(arg)) {
-    *res = LGL_TO_VAL(!VAL_INT(arg));
+    SET_LGL_VAL(*res, !VAL_INT(arg));
   } else {
     // Slow path!
     DO_BUILTIN1(do_logic, call, NOT_OP, arg, rho, res);
   }
 }
 
-static INLINE Value Rsh_logic(Value lhs, Value rhs, SEXP call, RshLogic2Op op,
-                              SEXP rho) {
-  Value res;
-
+static INLINE void Rsh_logic(Value *res, Value lhs, Value rhs, SEXP call,
+                             RshLogic2Op op, SEXP rho) {
   // TODO: not optimized
   // Slow path!
-  DO_BUILTIN2(do_logic, call, R_LOGIC2_OPS[op], lhs, rhs, rho, &res);
-
-  return res;
+  DO_BUILTIN2(do_logic, call, R_LOGIC2_OPS[op], lhs, rhs, rho, res);
 }
 
 #define X(a, b, c)                                                             \
   static INLINE void Rsh_##c(Value *lhs_res, Value rhs, SEXP call, SEXP rho) { \
-    *lhs_res = Rsh_logic(*lhs_res, rhs, call, b, rho);                         \
+    Rsh_logic(lhs_res, *lhs_res, rhs, call, b, rho);                           \
   }
 X_LOGIC2_OPS
 #undef X
@@ -1237,7 +1229,7 @@ static INLINE void Rsh_MakeClosure(Value *res, SEXP mkclos_arg,
   R_Visible = TRUE;
 
   UNPROTECT(3);
-  *res = SXP_TO_VAL(closure);
+  SET_SXP_VAL(*res, closure);
 }
 
 static INLINE void Rsh_CheckFun(Value *fun, Value *args_head,
@@ -1259,30 +1251,27 @@ static INLINE void Rsh_CheckFun(Value *fun, Value *args_head,
 
 static INLINE void Rsh_MakeProm(Value *fun, Value *args_head, Value *args_tail,
                                 SEXP code, SEXP rho) {
-  Value value;
-
   switch (TYPEOF(VAL_SXP(*fun))) {
-  case CLOSXP:
-    value = SXP_TO_VAL(Rf_mkPROMISE(code, rho));
+  case CLOSXP: {
+    SEXP value = Rf_mkPROMISE(code, rho);
+    RSH_LIST_APPEND_EX(args_head, args_tail, value, TRUE);
     break;
+  }
   case BUILTINSXP:
     if (TYPEOF(code) == BCODESXP) {
-      value = sexp_as_val(bcEval(code, rho));
+      SEXP value = bcEval(code, rho);
+      RSH_LIST_APPEND_EX(args_head, args_tail, value, TRUE);
     } else {
       /* uncommon but possible, the compiler may decide not
          to compile an argument expression */
-      value = sexp_as_val(Rf_eval(code, rho));
+      SEXP value = Rf_eval(code, rho);
+      RSH_LIST_APPEND_EX(args_head, args_tail, value, TRUE);
     }
     break;
   case SPECIALSXP:
-    value = Rsh_UnboundValue;
     break;
   default:
     Rf_error("bad function");
-  }
-
-  if (value != Rsh_UnboundValue) {
-    RSH_LIST_APPEND(*args_head, *args_tail, value);
   }
 }
 
@@ -1306,7 +1295,7 @@ static INLINE void Rsh_Dollar(Value *x_res, SEXP call, SEXP symbol, SEXP rho) {
   }
 
   R_Visible = TRUE;
-  *res = sexp_as_val(value_sxp);
+  SET_VAL(*res, value_sxp);
 }
 
 #define Rsh_StartSubsetN(value, call, rho)                                     \
@@ -1322,7 +1311,7 @@ static INLINE Rboolean Rsh_start_subset_dispatch_n(const char *generic,
       tryDispatch(generic, call, value_sxp, rho, &value_sxp)) {
     RSH_PC_INC(dispatched_subset);
     RSH_CHECK_SIGINT();
-    *value = sexp_as_val(value_sxp);
+    SET_VAL(*value, value_sxp);
     return TRUE;
   }
 
@@ -1346,17 +1335,17 @@ static INLINE Rboolean Rsh_start_subset_dispatch(const char *generic,
       tryDispatch(generic, call, value_sxp, rho, &value_sxp)) {
     RSH_PC_INC(dispatched_subset);
     RSH_CHECK_SIGINT();
-    *value = sexp_as_val(value_sxp);
+    SET_VAL(*value, value_sxp);
     return TRUE;
   } else {
     SEXP tag = TAG(CDR(call));
-    *call_val = SXP_TO_VAL(call);
+    SET_SXP_VAL(*call_val, call);
     // FIXME: these is a discrepancy between this code and what GNU-R does:
     //  In GNUR at this point we push additional R_NilValue onto the stack
     //  I just don't see why, or regardless why, who does pops it out?
     INIT_CALL_FRAME(args_head, args_tail);
-    RSH_LIST_APPEND_EX(*args_head, *args_tail, *value, FALSE);
-    RSH_SET_TAG(*args_tail, SXP_TO_VAL(tag));
+    RSH_LIST_APPEND_EX(args_head, args_tail, val_as_sexp(*value), FALSE);
+    RSH_SET_TAG(*args_tail, tag);
     return FALSE;
   }
 }
@@ -1389,7 +1378,7 @@ static INLINE void Rsh_vec_subset(Value *x, Value i, SEXP call, SEXP rho,
 
   UNPROTECT(1);
 
-  *x = sexp_as_val(value);
+  SET_VAL(*x, value);
 }
 
 #define Rsh_MatSubset(sx, si, sj, call, rho)                                   \
@@ -1433,21 +1422,22 @@ static INLINE void Rsh_mat_subset(Value *sx, Value si, Value sj, SEXP call,
   else
     value = do_subset_dflt(call, Rsh_SubsetSym, args, rho);
   UNPROTECT(1);
-  *sx = sexp_as_val(value);
+  SET_VAL(*sx, value);
 }
 
 static INLINE void Rsh_StartAssign(Value *rhs, Value *lhs_cell, Value *lhs_val,
                                    Value *rhs_dup, SEXP symbol, BCell *cache,
                                    SEXP rho) {
+  // FIXME: INCLNK_stack_commit
+
   if (VAL_IS_SXP(*rhs)) {
     SEXP saverhs = VAL_SXP(*rhs);
     FIXUP_RHS_NAMED(saverhs);
 
-    if (MAYBE_REFERENCED(saverhs)) {
-      VAL_SET_MAYBE_REFERENCED(*rhs);
+    int refrhs = MAYBE_REFERENCED(saverhs);
+    rhs->flags = refrhs;
+    if (refrhs) {
       INCREMENT_REFCNT(saverhs);
-    } else {
-      VAL_CLEAR_MAYBE_REFERENCED(*rhs);
     }
   }
 
@@ -1464,12 +1454,12 @@ static INLINE void Rsh_StartAssign(Value *rhs, Value *lhs_cell, Value *lhs_val,
   }
   int maybe_in_assign = ASSIGNMENT_PENDING(loc.cell);
   SET_ASSIGNMENT_PENDING(loc.cell, TRUE);
-  *lhs_cell = SXP_TO_VAL(loc.cell);
+  SET_SXP_VAL(*lhs_cell, loc.cell);
 
   if (maybe_in_assign || MAYBE_SHARED(value)) {
     value = Rf_shallow_duplicate(value);
   }
-  *lhs_val = SXP_TO_VAL(value);
+  SET_SXP_VAL(*lhs_val, value);
   *rhs_dup = *rhs;
 }
 
@@ -1485,14 +1475,13 @@ static INLINE void Rsh_StartAssign2(Value *rhs, Value *lhs_cell, Value *lhs_val,
 
   int maybe_in_assign = ASSIGNMENT_PENDING(loc.cell);
   SET_ASSIGNMENT_PENDING(loc.cell, TRUE);
-  *lhs_cell = SXP_TO_VAL(loc.cell);
+  SET_SXP_VAL(*lhs_cell, loc.cell);
 
-  Value value = Rsh_do_get_var(symbol, ENCLOS(rho), FALSE, FALSE, cache);
-  SEXP value_sxp = val_as_sexp(value);
+  SEXP value_sxp = Rsh_do_get_var(symbol, ENCLOS(rho), FALSE, FALSE, cache);
   if (maybe_in_assign || MAYBE_SHARED(value_sxp)) {
     value_sxp = Rf_shallow_duplicate(value_sxp);
   }
-  *lhs_val = SXP_TO_VAL(value_sxp);
+  SET_SXP_VAL(*lhs_val, value_sxp);
 
   *rhs_dup = *rhs;
   /* top four stack entries are now
@@ -1521,7 +1510,7 @@ static INLINE void Rsh_EndAssign(Value *rhs, Value lhs_cell, Value value,
   if (VAL_IS_SXP(*rhs)) {
     SEXP saverhs = VAL_SXP(*rhs);
     INCREMENT_NAMED(saverhs);
-    if (VAL_MAYBE_REFERENCED(*rhs)) {
+    if (rhs->flags) {
       DECREMENT_REFCNT(saverhs);
     }
   }
@@ -1562,7 +1551,7 @@ static INLINE Rboolean Rsh_start_subassign_dispatch_n(const char *generic,
     SEXP rhs_sxp = val_as_sexp(*rhs);
     if (MAYBE_SHARED(lhs_sxp)) {
       lhs_sxp = Rf_shallow_duplicate(lhs_sxp);
-      *lhs_res = SXP_TO_VAL(lhs_sxp);
+      SET_SXP_VAL(*lhs_res, lhs_sxp);
       ENSURE_NAMED(lhs_sxp);
     }
 
@@ -1570,7 +1559,7 @@ static INLINE Rboolean Rsh_start_subassign_dispatch_n(const char *generic,
     if (tryAssignDispatch(generic, call, lhs_sxp, rhs_sxp, rho, &value)) {
       RSH_PC_INC(dispatched_subassign);
       RSH_CHECK_SIGINT();
-      *lhs_res = sexp_as_val(value);
+      SET_SXP_VAL(*lhs_res, value);
       return TRUE;
     }
   }
@@ -1589,7 +1578,7 @@ static INLINE void Rsh_vec_subassign(Value *sx, Value rhs, Value i, SEXP call,
 
   if (MAYBE_SHARED(vec)) {
     vec = Rf_shallow_duplicate(vec);
-    *sx = SXP_TO_VAL(vec);
+    SET_SXP_VAL(*sx, vec);
   }
 
   // Fast case - INT index and RHS is scalar of the right type
@@ -1642,7 +1631,7 @@ static INLINE void Rsh_vec_subassign(Value *sx, Value rhs, Value i, SEXP call,
   }
   UNPROTECT(1);
 
-  *sx = SXP_TO_VAL(vec);
+  SET_SXP_VAL(*sx, vec);
 }
 
 #define Rsh_MatSubassign(sx, rhs, si, sj, call, rho)                           \
@@ -1656,7 +1645,7 @@ static INLINE void Rsh_mat_subassign(Value *sx, Value rhs, Value si, Value sj,
 
   if (MAYBE_SHARED(mat)) {
     mat = Rf_shallow_duplicate(mat);
-    *sx = SXP_TO_VAL(mat);
+    SET_SXP_VAL(*sx, mat);
   }
 
   SEXP dim = Rsh_get_mat_dim_attr(mat);
@@ -1695,7 +1684,7 @@ static INLINE void Rsh_mat_subassign(Value *sx, Value rhs, Value si, Value sj,
   }
   UNPROTECT(1);
 
-  *sx = SXP_TO_VAL(mat);
+  SET_SXP_VAL(*sx, mat);
 }
 
 static INLINE void Rsh_GetIntlBuiltin(Value *call, Value *args_head,
@@ -1706,12 +1695,12 @@ static INLINE void Rsh_GetIntlBuiltin(Value *call, Value *args_head,
     Rf_error("there is no .Internal function '%s'", CHAR(PRINTNAME(symbol)));
   }
 
-  *call = SXP_TO_VAL(value);
+  SET_SXP_VAL(*call, value);
   INIT_CALL_FRAME(args_head, args_tail);
 }
 
 static INLINE void Rsh_SetTag(Value *fun, UNUSED Value *args_head,
-                              Value *args_tail, Value tag) {
+                              Value *args_tail, SEXP tag) {
   if (TYPEOF(VAL_SXP(*fun)) != SPECIALSXP) {
     RSH_SET_TAG(*args_tail, tag);
   }
@@ -1731,15 +1720,15 @@ static INLINE void Rsh_SetterCall(Value *lhs, Value rhs, Value fun,
   MARK_ASSIGNMENT_CALL(call);
   if (MAYBE_SHARED(lhs_sxp)) {
     lhs_sxp = Rf_shallow_duplicate(lhs_sxp);
-    *lhs = SXP_TO_VAL(lhs_sxp);
+    SET_SXP_VAL(*lhs, lhs_sxp);
     ENSURE_NAMED(lhs_sxp);
   }
 
   switch (TYPEOF(fun_sxp)) {
   case BUILTINSXP:
     // append RHS top arguments with value tag
-    RSH_LIST_APPEND_EX(args_head, args_tail, rhs, FALSE);
-    RSH_SET_TAG(args_tail, SXP_TO_VAL(Rsh_ValueSym));
+    RSH_LIST_APPEND_EX(&args_head, &args_tail, val_as_sexp(rhs), FALSE);
+    RSH_SET_TAG(args_tail, R_valueSym);
     RSH_CALL_ARGS_DECREMENT_LINKS(args);
     // replace first argument with LHS value
     SETCAR(args, lhs_sxp);
@@ -1770,8 +1759,8 @@ static INLINE void Rsh_SetterCall(Value *lhs, Value rhs, Value fun,
     // unlike in SPECIALSXP case, we need to use a RC promise
     SEXP prom = R_mkEVPROMISE(vexpr, val_as_sexp(rhs));
     // append RHS to arguments with value tag
-    RSH_LIST_APPEND_EX(args_head, args_tail, SXP_TO_VAL(prom), FALSE);
-    RSH_SET_TAG(args_tail, SXP_TO_VAL(Rsh_ValueSym));
+    RSH_LIST_APPEND_EX(&args_head, &args_tail, prom, FALSE);
+    RSH_SET_TAG(args_tail, R_valueSym);
     // replace first argument with LHS value as *tmp*
     prom = R_mkEVPROMISE(Rsh_TmpvalSym, lhs_sxp);
     SETCAR(args, prom);
@@ -1783,7 +1772,7 @@ static INLINE void Rsh_SetterCall(Value *lhs, Value rhs, Value fun,
     Rf_error("bad function");
   }
 
-  *lhs = sexp_as_val(value);
+  SET_SXP_VAL(*lhs, value);
 }
 
 // clang-format off
@@ -1802,7 +1791,7 @@ static INLINE Rboolean Rsh_start_subassign_dispatch(
   MARK_ASSIGNMENT_CALL(call);
   if (MAYBE_SHARED(lhs_sxp)) {
     lhs_sxp = Rf_shallow_duplicate(lhs_sxp);
-    *lhs = SXP_TO_VAL(lhs_sxp);
+    SET_SXP_VAL(*lhs, lhs_sxp);
     ENSURE_NAMED(lhs_sxp);
   }
 
@@ -1811,14 +1800,14 @@ static INLINE Rboolean Rsh_start_subassign_dispatch(
                                              val_as_sexp(*rhs), rho, &value)) {
     RSH_PC_INC(dispatched_subassign);
     RSH_CHECK_SIGINT();
-    *lhs = sexp_as_val(value);
+    SET_SXP_VAL(*lhs, value);
     return TRUE;
   } else {
     SEXP tag = TAG(CDR(call));
-    *call_val = SXP_TO_VAL(call);
+    SET_SXP_VAL(*call_val, call);
     INIT_CALL_FRAME(args_head, args_tail);
-    RSH_LIST_APPEND_EX(*args_head, *args_tail, SXP_TO_VAL(lhs_sxp), FALSE);
-    RSH_SET_TAG(*args_tail, SXP_TO_VAL(tag));
+    RSH_LIST_APPEND_EX(args_head, args_tail, lhs_sxp, FALSE);
+    RSH_SET_TAG(*args_tail, tag);
     return FALSE;
   }
 }
@@ -1827,7 +1816,7 @@ static INLINE void Rsh_DoMissing(Value *call, Value *args_head,
                                  Value *args_tail) {
   SEXP call_sxp = VAL_SXP(*call);
   if (TYPEOF(call_sxp) != SPECIALSXP) {
-    RSH_LIST_APPEND_EX(*args_head, *args_tail, SXP_TO_VAL(R_MissingArg), FALSE);
+    RSH_LIST_APPEND_EX(args_head, args_tail, R_MissingArg, FALSE);
   }
 }
 
@@ -1846,9 +1835,9 @@ static INLINE void Rsh_dflt_subassign_dispatch(CCODE fun, SEXP symbol,
   SEXP args = val_as_sexp(args_head);
   RSH_CALL_ARGS_DECREMENT_LINKS(args);
   MARK_ASSIGNMENT_CALL(call_sxp);
-  RSH_LIST_APPEND_EX(args_head, args_tail, rhs, FALSE);
+  RSH_LIST_APPEND_EX(&args_head, &args_tail, val_as_sexp(rhs), FALSE);
   SEXP value = fun(call_sxp, symbol, args, rho);
-  *lhs = sexp_as_val(value);
+  SET_VAL(*lhs, value);
 }
 
 #define Rsh_DfltSubset(value, call_val, args_head, args_tail, rho)             \
@@ -1865,7 +1854,7 @@ static INLINE void Rsh_dflt_subset(CCODE fun, SEXP symbol, Value *value,
   SEXP args = val_as_sexp(args_head);
   RSH_CALL_ARGS_DECREMENT_LINKS(args);
   SEXP value_sxp = fun(call_sxp, symbol, args, rho);
-  *value = sexp_as_val(value_sxp);
+  SET_VAL(*value, value_sxp);
   R_Visible = TRUE;
 }
 
@@ -1906,7 +1895,7 @@ static INLINE void Rsh_do_subset_n(Value *stack[], int n, SEXP call, SEXP rho,
 
   UNPROTECT(1);
 
-  *sx = sexp_as_val(value);
+  SET_VAL(*sx, value);
 }
 
 #define Rsh_SubassignN(stack, n, call, rho)                                    \
@@ -1925,7 +1914,7 @@ static INLINE void Rsh_do_subassign_n(Value *stack[], int n, SEXP call,
 
   if (MAYBE_SHARED(vec)) {
     vec = Rf_shallow_duplicate(vec);
-    *sx = SXP_TO_VAL(vec);
+    SET_SXP_VAL(*sx, vec);
   }
 
   SEXP dim = Rsh_get_array_dim_attr(vec);
@@ -1952,7 +1941,7 @@ static INLINE void Rsh_do_subassign_n(Value *stack[], int n, SEXP call,
 
   UNPROTECT(1);
 
-  *sx = sexp_as_val(vec);
+  SET_VAL(*sx, vec);
 }
 
 static INLINE void Rsh_GetterCall(Value *lhs, Value *fun, Value args_head,
@@ -1995,13 +1984,17 @@ static INLINE void Rsh_GetterCall(Value *lhs, Value *fun, Value args_head,
     Rf_error("bad function");
   }
 
-  *fun = sexp_as_val(value);
+  SET_VAL(*fun, value);
 }
 
 static INLINE void Rsh_SpecialSwap(Value *s3, Value *s2, Value *s1) {
+
+#define VAL_MAYBE_REFERENCED(v) (VAL_IS_SXP(v) && MAYBE_REFERENCED(VAL_SXP(v)))
+#define VAL_MAYBE_SHARED(v) (VAL_IS_SXP(v) && MAYBE_SHARED(VAL_SXP(v)))
+
   if (VAL_MAYBE_REFERENCED(*s1) &&
       (VAL_MAYBE_SHARED(*s1) || VAL_MAYBE_SHARED(*s3))) {
-    *s1 = SXP_TO_VAL(Rf_shallow_duplicate(VAL_SXP(*s1)));
+    SET_SXP_VAL(*s1, Rf_shallow_duplicate(VAL_SXP(*s1)));
   }
 
   Value tmp = *s1;
@@ -2027,17 +2020,18 @@ static INLINE void Rsh_StartFor(Value *s2, Value *s1, Value *s0, SEXP call,
   } else {
     seq = val_as_sexp(*s2);
   }
-  *s2 = SXP_TO_VAL(seq);
+  SET_SXP_VAL(*s2, seq);
 
   if (Rf_inherits(seq, "factor")) {
     seq = Rf_asCharacterFactor(seq);
-    *s2 = SXP_TO_VAL(seq);
+    SET_SXP_VAL(*s2, seq);
   }
 
   // FIXME: BCPROT?
 
-  RshLoopInfo *info = (RshLoopInfo *)malloc(sizeof(RshLoopInfo));
-  *s1 = (Value)info;
+  SEXP info_sxp = Rf_allocVector(RAWSXP, sizeof(RshLoopInfo));
+  RshLoopInfo *info = (RshLoopInfo *)RAW0(info_sxp);
+  SET_SXP_VAL(*s1, info_sxp);
 
   info->idx = -1;
 
@@ -2075,7 +2069,7 @@ static INLINE void Rsh_StartFor(Value *s2, Value *s1, Value *s0, SEXP call,
   default:
     value = R_NilValue;
   }
-  *s0 = SXP_TO_VAL(value);
+  SET_SXP_VAL(*s0, value);
 
   Rsh_SetVar(s0, symbol, cell, rho);
 
@@ -2095,7 +2089,7 @@ static INLINE void Rsh_StartFor(Value *s2, Value *s1, Value *s0, SEXP call,
 static INLINE Rboolean Rsh_StepFor(Value *s2, Value *s1, Value *s0, BCell *cell,
                                    SEXP rho) {
   SEXP seq = val_as_sexp(*s2);
-  RshLoopInfo *info = (RshLoopInfo *)*s1;
+  RshLoopInfo *info = (RshLoopInfo *)VAL_SXP(*s1);
   R_xlen_t i = ++(info->idx);
 
   if (i >= info->len) {
@@ -2185,7 +2179,7 @@ static INLINE Rboolean Rsh_StepFor(Value *s2, Value *s1, Value *s0, BCell *cell,
   case LISTSXP:
     value = CAR(seq);
     ENSURE_NAMEDMAX(value);
-    *s2 = SXP_TO_VAL(CDR(seq));
+    SET_SXP_VAL(*s2, CDR(seq));
   default:
     Rf_error("invalid sequence argument in for loop");
   }
@@ -2195,17 +2189,18 @@ static INLINE Rboolean Rsh_StepFor(Value *s2, Value *s1, Value *s0, BCell *cell,
 }
 
 static INLINE void Rsh_EndFor(Value *s2, Value s1, Value s0, SEXP rho) {
-  RshLoopInfo *info = (RshLoopInfo *)s1;
+  RshLoopInfo *info = (RshLoopInfo *)VAL_SXP(s1);
   free(info);
-  *s2 = Rsh_NilValue;
+  SET_SXP_VAL(*s2, R_NilValue);
 }
 
-#define ISQ_NEW(/* int */ x, /* int */ y, /* Value */ res)                     \
+#define ISQ_NEW(/* int */ x, /* int */ y, /* Value* */ res)                    \
   do {                                                                         \
     SEXP __v__ = Rf_allocVector(INTSXP, 2);                                    \
     INTEGER(__v__)[0] = (int)(x);                                              \
     INTEGER(__v__)[1] = (int)(y);                                              \
-    (res) = ISQ_TO_VAL(__v__);                                                 \
+    SET_SXP_VAL(*res, __v__);                                                  \
+    res->tag = ISQSXP;                                                         \
     RSH_PC_INC(isq);                                                           \
   } while (0)
 
@@ -2216,7 +2211,7 @@ static INLINE void Rsh_Colon(Value *s1, Value s0, SEXP call, SEXP rho) {
     if (R_FINITE(rn1) && R_FINITE(rn2) && INT_MIN <= rn1 && INT_MAX >= rn1 &&
         INT_MIN <= rn2 && INT_MAX >= rn2 && rn1 == (int)rn1 &&
         rn2 == (int)rn2) {
-      ISQ_NEW(rn1, rn2, *s1);
+      ISQ_NEW(rn1, rn2, s1);
       R_Visible = TRUE;
     }
     return;
@@ -2231,7 +2226,7 @@ static INLINE void Rsh_SeqAlong(Value *v, SEXP call, SEXP rho) {
   if (!isObject(s)) {
     R_xlen_t len = Rf_xlength(s);
     if (len > 0 && len <= INT_MAX) {
-      ISQ_NEW(1, len, *v);
+      ISQ_NEW(1, len, v);
       R_Visible = TRUE;
       return;
     }
@@ -2249,7 +2244,7 @@ static INLINE void Rsh_SeqLen(Value *v, SEXP call, SEXP rho) {
   }
 
   if (len > 0 && len < INT_MAX && len == (int)len) {
-    ISQ_NEW(1, len, *v);
+    ISQ_NEW(1, len, v);
     R_Visible = TRUE;
     return;
   }
@@ -2259,13 +2254,12 @@ static INLINE void Rsh_SeqLen(Value *v, SEXP call, SEXP rho) {
 
 #define RSH_IS_TEST(v, p)                                                      \
   do {                                                                         \
-    *(v) = p(val_as_sexp(*(v))) ? VAL_TRUE : VAL_FALSE;                        \
+    SET_LGL_VAL(*v, p(val_as_sexp(*(v))));                                     \
   } while (0)
 
 #define RSH_IS_TYPE(v, t)                                                      \
   do {                                                                         \
-    *(v) = VAL_TAG(*(v)) == t || TYPEOF(val_as_sexp(*(v))) == t ? VAL_TRUE     \
-                                                                : VAL_FALSE;   \
+    SET_LGL_VAL(*v, VAL_TAG(*(v)) == t || TYPEOF(val_as_sexp(*(v))) == t);     \
   } while (0)
 
 static INLINE void Rsh_IsNull(Value *v) { RSH_IS_TEST(v, isNull); }
@@ -2288,46 +2282,48 @@ static INLINE void Rsh_IsInteger(Value *v) {
   switch (VAL_TAG(*v)) {
   case INTSXP:
   case ISQSXP:
-    *v = VAL_TRUE;
+    SET_LGL_VAL(*v, TRUE);
     break;
-  case 0: // some SXP
+  case 0: // some SEXP
   {
     SEXP s = VAL_SXP(*v);
-    *v = (TYPEOF(s) == INTSXP) && !Rf_inherits(s, "factor") ? VAL_TRUE
-                                                            : VAL_FALSE;
+    SET_LGL_VAL(*v, (TYPEOF(s) == INTSXP) && !Rf_inherits(s, "factor"));
     break;
   }
   default:
-    *v = VAL_FALSE;
+    SET_LGL_VAL(*v, FALSE);
   }
 }
 
-static inline Value fixup_scalar_logical(Value v, SEXP call, const char *arg,
-                                         const char *op) {
-  if (VAL_IS_LGL(v)) {
-    return v;
+static inline void fixup_scalar_logical(Value *v, SEXP call, const char *arg,
+                                        const char *op) {
+  if (VAL_IS_LGL(*v)) {
+    return;
   }
 
-  SEXP sxp = val_as_sexp(v);
-  if (IS_SIMPLE_SCALAR(sxp, LGLSXP)) {
-    return SXP_TO_VAL(SCALAR_LVAL(sxp));
+  // FIXME: does it make sense to optimize LGL / DBL?
+
+  SEXP s = val_as_sexp(*v);
+  if (IS_SIMPLE_SCALAR(s, LGLSXP)) {
+    SET_LGL_VAL(*v, SCALAR_LVAL(s));
   } else {
-    if (!Rf_isNumber(sxp)) {
+    if (!Rf_isNumber(s)) {
       Rf_errorcall(call, "invalid %s type in 'x %s y'", arg, op);
     }
-    return SXP_TO_VAL(Rf_ScalarLogical(Rf_asLogical2(sxp, 1, call)));
+
+    SET_LGL_VAL(*v, Rf_asLogical2(s, 1, call));
   }
 }
 
 static INLINE Rboolean Rsh_And1st(Value *v, SEXP call) {
-  *v = fixup_scalar_logical(*v, call, "'x'", "&&");
+  fixup_scalar_logical(v, call, "'x'", "&&");
   R_Visible = TRUE;
-  return *v == VAL_FALSE ? TRUE : FALSE;
+  return VAL_INT(*v) == FALSE;
 }
 
 static INLINE void Rsh_And2nd(Value *v2, Value v1, SEXP call) {
   // v2 is the result of Rsh_And1St
-  Value v1l = fixup_scalar_logical(v1, call, "'y'", "&&");
+  fixup_scalar_logical(&v1, call, "'y'", "&&");
   R_Visible = TRUE;
   // Note: ‘NA’ is a valid logical object.  Where a component of ‘x’ or ‘y’
   //       is ‘NA’, the result will be ‘NA’ if the outcome is ambiguous.  In
@@ -2339,27 +2335,27 @@ static INLINE void Rsh_And2nd(Value *v2, Value v1, SEXP call) {
   // If the second argument is not TRUE then its value is the result.
   // If the second argument is TRUE, then the first argument's value is the
   // result.
-  if (VAL_INT(v1l) == FALSE || VAL_INT(v1l) == NA_LOGICAL) {
+  if (VAL_INT(v1) == FALSE || VAL_INT(v1) == NA_LOGICAL) {
     *v2 = v1;
   }
   R_Visible = TRUE;
 }
 
 static INLINE Rboolean Rsh_Or1st(Value *v, SEXP call) {
-  *v = fixup_scalar_logical(*v, call, "'x'", "||");
+  fixup_scalar_logical(v, call, "'x'", "||");
   R_Visible = TRUE;
-  return (*v != VAL_FALSE && VAL_INT(*v) != NA_LOGICAL) ? TRUE : FALSE;
+  return VAL_INT(*v) != FALSE && VAL_INT(*v) != NA_LOGICAL;
 }
 
 static INLINE void Rsh_Or2nd(Value *v2, Value v1, SEXP call) {
   // v2 is the result of Rsh_And1St
-  Value v1l = fixup_scalar_logical(v1, call, "'y'", "||");
+  fixup_scalar_logical(&v1, call, "'y'", "||");
   R_Visible = TRUE;
   // The first argument is FALSE or NA.
   // If the second argument is not FALSE then its value is the result.
   // If the second argument is FALSE, then the first argument's value is the
   // result.
-  if (VAL_INT(v1l) != FALSE) {
+  if (VAL_INT(v1) != FALSE) {
     *v2 = v1;
   }
   R_Visible = TRUE;
@@ -2377,15 +2373,15 @@ static INLINE void Rsh_Log(Value *val, SEXP call, SEXP rho) {
       }
     }
     R_Visible = TRUE;
-    *val = DBL_TO_VAL(r);
+    SET_DBL_VAL(*val, r);
     return;
   }
 
   // slow path
   SEXP args = CONS_NR(val_as_sexp(*val), R_NilValue);
-  *val = SXP_TO_VAL(args); // to protect (FIXME: does this actually work?)
+  SET_SXP_VAL(*val, args); // to protect
   R_Visible = TRUE;
-  *val = SXP_TO_VAL(do_log_builtin(call, LOG_OP, args, rho));
+  SET_SXP_VAL(*val, do_log_builtin(call, LOG_OP, args, rho));
   RSH_PC_INC(slow_math1);
 }
 
@@ -2404,16 +2400,16 @@ static INLINE void Rsh_LogBase(Value *val, Value base, SEXP call, SEXP rho) {
       }
     }
     R_Visible = TRUE;
-    *val = DBL_TO_VAL(r);
+    SET_DBL_VAL(*val, r);
     return;
   }
 
   // slow path
   SEXP args = CONS_NR(val_as_sexp(base), R_NilValue);
   args = CONS_NR(val_as_sexp(*val), args);
-  *val = SXP_TO_VAL(args); // to protect (FIXME: does this actually work?)
+  SET_SXP_VAL(*val, args); // to protect
   R_Visible = TRUE;
-  *val = SXP_TO_VAL(do_log_builtin(call, LOG_OP, args, rho));
+  SET_SXP_VAL(*val, do_log_builtin(call, LOG_OP, args, rho));
   RSH_PC_INC(slow_math1);
 }
 
@@ -2438,15 +2434,15 @@ static INLINE void Rsh_Math1(Value *v, SEXP call, int op, SEXP rho) {
       }
     }
     R_Visible = TRUE;
-    *v = DBL_TO_VAL(r);
+    SET_DBL_VAL(*v, r);
     return;
   }
 
   // slow path
   SEXP args = CONS_NR(val_as_sexp(*v), R_NilValue);
-  *v = SXP_TO_VAL(args); // to protect (FIXME: does this actually work?)
+  SET_SXP_VAL(*v, args); // to protect
   R_Visible = TRUE;
-  *v = sexp_as_val(do_math1(call, R_MATH1_EXT_OPS[op], args, rho));
+  SET_VAL(*v, do_math1(call, R_MATH1_EXT_OPS[op], args, rho));
   RSH_PC_INC(slow_math1);
 }
 
