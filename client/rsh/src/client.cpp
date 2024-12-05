@@ -85,6 +85,20 @@ Client::remote_compile(std::vector<uint8_t> const &rds_closure,
   }
 }
 
+void Client::clear_cache() {
+  using namespace protocol;
+  ClearCacheRequest request;
+  ClearCacheResponse response;
+  grpc::ClientContext context;
+  grpc::Status status = stub_->ClearCache(&context, request, &response);
+  if (!status.ok()) {
+    Rf_error("Failed to clear the cache: %d %s\n", status.error_code(),
+             status.error_message().c_str());
+  } else {
+    Rprintf("Cache cleared\n");
+  }
+}
+
 SEXP Client::make_client(SEXP address, SEXP port, SEXP installed_packages) {
   auto addr = CHAR(STRING_ELT(address, 0));
   auto p = INTEGER(port)[0];
@@ -153,6 +167,12 @@ SEXP get_total_size() {
   Rf_setAttrib(out, R_NamesSymbol, names);
   UNPROTECT(2);
   return out;
+}
+
+SEXP clear_cache() {
+  auto client = Client::get_client();
+  client->clear_cache();
+  return R_NilValue;
 }
 
 } // namespace rsh

@@ -206,6 +206,31 @@ struct EmptyDefaultTypeInternal {
   };
 };
 PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 EmptyDefaultTypeInternal _Empty_default_instance_;
+PROTOBUF_CONSTEXPR ClearCacheRequest::ClearCacheRequest(
+    ::_pbi::ConstantInitialized): _impl_{
+    /*decltype(_impl_.hashes_)*/{}
+  , /*decltype(_impl_._hashes_cached_byte_size_)*/{0}
+  , /*decltype(_impl_._cached_size_)*/{}} {}
+struct ClearCacheRequestDefaultTypeInternal {
+  PROTOBUF_CONSTEXPR ClearCacheRequestDefaultTypeInternal()
+      : _instance(::_pbi::ConstantInitialized{}) {}
+  ~ClearCacheRequestDefaultTypeInternal() {}
+  union {
+    ClearCacheRequest _instance;
+  };
+};
+PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 ClearCacheRequestDefaultTypeInternal _ClearCacheRequest_default_instance_;
+PROTOBUF_CONSTEXPR ClearCacheResponse::ClearCacheResponse(
+    ::_pbi::ConstantInitialized) {}
+struct ClearCacheResponseDefaultTypeInternal {
+  PROTOBUF_CONSTEXPR ClearCacheResponseDefaultTypeInternal()
+      : _instance(::_pbi::ConstantInitialized{}) {}
+  ~ClearCacheResponseDefaultTypeInternal() {}
+  union {
+    ClearCacheResponse _instance;
+  };
+};
+PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 ClearCacheResponseDefaultTypeInternal _ClearCacheResponse_default_instance_;
 PROTOBUF_CONSTEXPR CallContext::CallContext(
     ::_pbi::ConstantInitialized): _impl_{
     /*decltype(_impl_.args_statically_matched_)*/false
@@ -408,7 +433,7 @@ struct PackageRequestDefaultTypeInternal {
 PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 PackageRequestDefaultTypeInternal _PackageRequest_default_instance_;
 }  // namespace protocol
 }  // namespace rsh
-static ::_pb::Metadata file_level_metadata_messages_2eproto[27];
+static ::_pb::Metadata file_level_metadata_messages_2eproto[29];
 static const ::_pb::EnumDescriptor* file_level_enum_descriptors_messages_2eproto[3];
 static constexpr ::_pb::ServiceDescriptor const** file_level_service_descriptors_messages_2eproto = nullptr;
 
@@ -532,6 +557,19 @@ const uint32_t TableStruct_messages_2eproto::offsets[] PROTOBUF_SECTION_VARIABLE
   PROTOBUF_FIELD_OFFSET(::rsh::protocol::Values, _impl_.values_),
   ~0u,  // no _has_bits_
   PROTOBUF_FIELD_OFFSET(::rsh::protocol::Empty, _internal_metadata_),
+  ~0u,  // no _extensions_
+  ~0u,  // no _oneof_case_
+  ~0u,  // no _weak_field_map_
+  ~0u,  // no _inlined_string_donated_
+  ~0u,  // no _has_bits_
+  PROTOBUF_FIELD_OFFSET(::rsh::protocol::ClearCacheRequest, _internal_metadata_),
+  ~0u,  // no _extensions_
+  ~0u,  // no _oneof_case_
+  ~0u,  // no _weak_field_map_
+  ~0u,  // no _inlined_string_donated_
+  PROTOBUF_FIELD_OFFSET(::rsh::protocol::ClearCacheRequest, _impl_.hashes_),
+  ~0u,  // no _has_bits_
+  PROTOBUF_FIELD_OFFSET(::rsh::protocol::ClearCacheResponse, _internal_metadata_),
   ~0u,  // no _extensions_
   ~0u,  // no _oneof_case_
   ~0u,  // no _weak_field_map_
@@ -680,20 +718,22 @@ static const ::_pbi::MigrationSchema schemas[] PROTOBUF_SECTION_VARIABLE(protode
   { 102, -1, -1, sizeof(::rsh::protocol::Value)},
   { 110, -1, -1, sizeof(::rsh::protocol::Values)},
   { 117, -1, -1, sizeof(::rsh::protocol::Empty)},
-  { 123, -1, -1, sizeof(::rsh::protocol::CallContext)},
-  { 133, 143, -1, sizeof(::rsh::protocol::ArgumentContext)},
-  { 147, -1, -1, sizeof(::rsh::protocol::Context)},
-  { 155, -1, -1, sizeof(::rsh::protocol::ContextRequest)},
-  { 162, -1, -1, sizeof(::rsh::protocol::TestFeedback)},
-  { 169, -1, -1, sizeof(::rsh::protocol::CallFeedback)},
-  { 177, -1, -1, sizeof(::rsh::protocol::ValueFeedback)},
-  { 188, -1, -1, sizeof(::rsh::protocol::TypeFeedback_Feedback)},
-  { 198, 206, -1, sizeof(::rsh::protocol::TypeFeedback_TypesEntry_DoNotUse)},
-  { 208, -1, -1, sizeof(::rsh::protocol::TypeFeedback)},
-  { 215, -1, -1, sizeof(::rsh::protocol::FeedbackRequest)},
-  { 222, -1, -1, sizeof(::rsh::protocol::PackageSource)},
-  { 231, 241, -1, sizeof(::rsh::protocol::Package)},
-  { 245, -1, -1, sizeof(::rsh::protocol::PackageRequest)},
+  { 123, -1, -1, sizeof(::rsh::protocol::ClearCacheRequest)},
+  { 130, -1, -1, sizeof(::rsh::protocol::ClearCacheResponse)},
+  { 136, -1, -1, sizeof(::rsh::protocol::CallContext)},
+  { 146, 156, -1, sizeof(::rsh::protocol::ArgumentContext)},
+  { 160, -1, -1, sizeof(::rsh::protocol::Context)},
+  { 168, -1, -1, sizeof(::rsh::protocol::ContextRequest)},
+  { 175, -1, -1, sizeof(::rsh::protocol::TestFeedback)},
+  { 182, -1, -1, sizeof(::rsh::protocol::CallFeedback)},
+  { 190, -1, -1, sizeof(::rsh::protocol::ValueFeedback)},
+  { 201, -1, -1, sizeof(::rsh::protocol::TypeFeedback_Feedback)},
+  { 211, 219, -1, sizeof(::rsh::protocol::TypeFeedback_TypesEntry_DoNotUse)},
+  { 221, -1, -1, sizeof(::rsh::protocol::TypeFeedback)},
+  { 228, -1, -1, sizeof(::rsh::protocol::FeedbackRequest)},
+  { 235, -1, -1, sizeof(::rsh::protocol::PackageSource)},
+  { 244, 254, -1, sizeof(::rsh::protocol::Package)},
+  { 258, -1, -1, sizeof(::rsh::protocol::PackageRequest)},
 };
 
 static const ::_pb::Message* const file_default_instances[] = {
@@ -710,6 +750,8 @@ static const ::_pb::Message* const file_default_instances[] = {
   &::rsh::protocol::_Value_default_instance_._instance,
   &::rsh::protocol::_Values_default_instance_._instance,
   &::rsh::protocol::_Empty_default_instance_._instance,
+  &::rsh::protocol::_ClearCacheRequest_default_instance_._instance,
+  &::rsh::protocol::_ClearCacheResponse_default_instance_._instance,
   &::rsh::protocol::_CallContext_default_instance_._instance,
   &::rsh::protocol::_ArgumentContext_default_instance_._instance,
   &::rsh::protocol::_Context_default_instance_._instance,
@@ -753,50 +795,51 @@ const char descriptor_table_protodef_messages_2eproto[] PROTOBUF_SECTION_VARIABL
   "\014ValueRequest\022\014\n\004hash\030\001 \003(\004\"$\n\005Value\022\014\n\004"
   "hash\030\001 \001(\004\022\r\n\005value\030\002 \001(\014\"-\n\006Values\022#\n\006v"
   "alues\030\001 \003(\0132\023.rsh.protocol.Value\"\007\n\005Empt"
-  "y\"\206\001\n\013CallContext\022\037\n\027args_statically_mat"
-  "ched\030\001 \001(\010\022\036\n\026correct_number_of_args\030\002 \001"
-  "(\010\022\035\n\025correct_order_of_args\030\003 \001(\010\022\027\n\017no_"
-  "missing_args\030\004 \001(\010\"t\n\017ArgumentContext\022\r\n"
-  "\005eager\030\001 \001(\010\022\022\n\nreflection\030\002 \001(\010\022\016\n\006obje"
-  "ct\030\003 \001(\010\022%\n\004type\030\004 \001(\0162\022.rsh.protocol.Ty"
-  "peH\000\210\001\001B\007\n\005_type\"s\n\007Context\022/\n\014call_cont"
-  "ext\030\001 \001(\0132\031.rsh.protocol.CallContext\0227\n\020"
-  "argument_context\030\002 \003(\0132\035.rsh.protocol.Ar"
-  "gumentContext\":\n\016ContextRequest\022(\n\010funct"
-  "ion\030\001 \001(\0132\026.rsh.protocol.Function\"\?\n\014Tes"
-  "tFeedback\022/\n\014test_lattice\030\001 \001(\0162\031.rsh.pr"
-  "otocol.TestLattice\"4\n\014CallFeedback\022\017\n\007n_"
-  "calls\030\001 \001(\003\022\023\n\013callee_hash\030\002 \001(\004\"v\n\rValu"
-  "eFeedback\022\016\n\006scalar\030\001 \001(\010\022\016\n\006object\030\002 \001("
-  "\010\022\033\n\023accessed_attributes\030\003 \001(\010\022\024\n\014vector"
-  "izable\030\004 \001(\010\022\022\n\nis_promise\030\005 \001(\010\"\321\002\n\014Typ"
-  "eFeedback\0224\n\005types\030\002 \003(\0132%.rsh.protocol."
-  "TypeFeedback.TypesEntry\032\267\001\n\010Feedback\0223\n\r"
-  "test_feedback\030\001 \001(\0132\032.rsh.protocol.TestF"
-  "eedbackH\000\0223\n\rcall_feedback\030\002 \001(\0132\032.rsh.p"
-  "rotocol.CallFeedbackH\000\0225\n\016value_feedback"
-  "\030\003 \001(\0132\033.rsh.protocol.ValueFeedbackH\000B\n\n"
-  "\010feedback\032Q\n\nTypesEntry\022\013\n\003key\030\001 \001(\003\0222\n\005"
-  "value\030\002 \001(\0132#.rsh.protocol.TypeFeedback."
-  "Feedback:\0028\001\";\n\017FeedbackRequest\022(\n\010funct"
-  "ion\030\001 \001(\0132\026.rsh.protocol.Function\"C\n\rPac"
-  "kageSource\022\022\n\010r_mirror\030\002 \001(\tH\000\022\024\n\ngithub"
-  "_url\030\003 \001(\tH\000B\010\n\006source\"\225\001\n\007Package\022\014\n\004na"
-  "me\030\001 \001(\t\022&\n\007version\030\002 \001(\0132\025.rsh.protocol"
-  ".Version\022\027\n\017function_hashes\030\004 \003(\004\0220\n\006sou"
-  "rce\030\005 \001(\0132\033.rsh.protocol.PackageSourceH\000"
-  "\210\001\001B\t\n\007_source\"\036\n\016PackageRequest\022\014\n\004hash"
-  "\030\001 \001(\004*#\n\004Tier\022\014\n\010BASELINE\020\000\022\r\n\tOPTIMIZE"
-  "D\020\001*@\n\013TestLattice\022\010\n\004BOTH\020\000\022\r\n\tONLY_TRU"
-  "E\020\001\022\016\n\nONLY_FALSE\020\002\022\010\n\004NONE\020\003*&\n\004Type\022\007\n"
-  "\003ANY\020\000\022\013\n\007INTEGER\020\001\022\010\n\004REAL\020\002B\023\n\021org.prl"
-  "prg.serverb\006proto3"
+  "y\"#\n\021ClearCacheRequest\022\016\n\006hashes\030\001 \003(\004\"\024"
+  "\n\022ClearCacheResponse\"\206\001\n\013CallContext\022\037\n\027"
+  "args_statically_matched\030\001 \001(\010\022\036\n\026correct"
+  "_number_of_args\030\002 \001(\010\022\035\n\025correct_order_o"
+  "f_args\030\003 \001(\010\022\027\n\017no_missing_args\030\004 \001(\010\"t\n"
+  "\017ArgumentContext\022\r\n\005eager\030\001 \001(\010\022\022\n\nrefle"
+  "ction\030\002 \001(\010\022\016\n\006object\030\003 \001(\010\022%\n\004type\030\004 \001("
+  "\0162\022.rsh.protocol.TypeH\000\210\001\001B\007\n\005_type\"s\n\007C"
+  "ontext\022/\n\014call_context\030\001 \001(\0132\031.rsh.proto"
+  "col.CallContext\0227\n\020argument_context\030\002 \003("
+  "\0132\035.rsh.protocol.ArgumentContext\":\n\016Cont"
+  "extRequest\022(\n\010function\030\001 \001(\0132\026.rsh.proto"
+  "col.Function\"\?\n\014TestFeedback\022/\n\014test_lat"
+  "tice\030\001 \001(\0162\031.rsh.protocol.TestLattice\"4\n"
+  "\014CallFeedback\022\017\n\007n_calls\030\001 \001(\003\022\023\n\013callee"
+  "_hash\030\002 \001(\004\"v\n\rValueFeedback\022\016\n\006scalar\030\001"
+  " \001(\010\022\016\n\006object\030\002 \001(\010\022\033\n\023accessed_attribu"
+  "tes\030\003 \001(\010\022\024\n\014vectorizable\030\004 \001(\010\022\022\n\nis_pr"
+  "omise\030\005 \001(\010\"\321\002\n\014TypeFeedback\0224\n\005types\030\002 "
+  "\003(\0132%.rsh.protocol.TypeFeedback.TypesEnt"
+  "ry\032\267\001\n\010Feedback\0223\n\rtest_feedback\030\001 \001(\0132\032"
+  ".rsh.protocol.TestFeedbackH\000\0223\n\rcall_fee"
+  "dback\030\002 \001(\0132\032.rsh.protocol.CallFeedbackH"
+  "\000\0225\n\016value_feedback\030\003 \001(\0132\033.rsh.protocol"
+  ".ValueFeedbackH\000B\n\n\010feedback\032Q\n\nTypesEnt"
+  "ry\022\013\n\003key\030\001 \001(\003\0222\n\005value\030\002 \001(\0132#.rsh.pro"
+  "tocol.TypeFeedback.Feedback:\0028\001\";\n\017Feedb"
+  "ackRequest\022(\n\010function\030\001 \001(\0132\026.rsh.proto"
+  "col.Function\"C\n\rPackageSource\022\022\n\010r_mirro"
+  "r\030\002 \001(\tH\000\022\024\n\ngithub_url\030\003 \001(\tH\000B\010\n\006sourc"
+  "e\"\225\001\n\007Package\022\014\n\004name\030\001 \001(\t\022&\n\007version\030\002"
+  " \001(\0132\025.rsh.protocol.Version\022\027\n\017function_"
+  "hashes\030\004 \003(\004\0220\n\006source\030\005 \001(\0132\033.rsh.proto"
+  "col.PackageSourceH\000\210\001\001B\t\n\007_source\"\036\n\016Pac"
+  "kageRequest\022\014\n\004hash\030\001 \001(\004*#\n\004Tier\022\014\n\010BAS"
+  "ELINE\020\000\022\r\n\tOPTIMIZED\020\001*@\n\013TestLattice\022\010\n"
+  "\004BOTH\020\000\022\r\n\tONLY_TRUE\020\001\022\016\n\nONLY_FALSE\020\002\022\010"
+  "\n\004NONE\020\003*&\n\004Type\022\007\n\003ANY\020\000\022\013\n\007INTEGER\020\001\022\010"
+  "\n\004REAL\020\002B\023\n\021org.prlprg.serverb\006proto3"
   ;
 static ::_pbi::once_flag descriptor_table_messages_2eproto_once;
 const ::_pbi::DescriptorTable descriptor_table_messages_2eproto = {
-    false, false, 2538, descriptor_table_protodef_messages_2eproto,
+    false, false, 2597, descriptor_table_protodef_messages_2eproto,
     "messages.proto",
-    &descriptor_table_messages_2eproto_once, nullptr, 0, 27,
+    &descriptor_table_messages_2eproto_once, nullptr, 0, 29,
     schemas, file_default_instances, TableStruct_messages_2eproto::offsets,
     file_level_metadata_messages_2eproto, file_level_enum_descriptors_messages_2eproto,
     file_level_service_descriptors_messages_2eproto,
@@ -3558,6 +3601,239 @@ const ::PROTOBUF_NAMESPACE_ID::Message::ClassData*Empty::GetClassData() const { 
 
 // ===================================================================
 
+class ClearCacheRequest::_Internal {
+ public:
+};
+
+ClearCacheRequest::ClearCacheRequest(::PROTOBUF_NAMESPACE_ID::Arena* arena,
+                         bool is_message_owned)
+  : ::PROTOBUF_NAMESPACE_ID::Message(arena, is_message_owned) {
+  SharedCtor(arena, is_message_owned);
+  // @@protoc_insertion_point(arena_constructor:rsh.protocol.ClearCacheRequest)
+}
+ClearCacheRequest::ClearCacheRequest(const ClearCacheRequest& from)
+  : ::PROTOBUF_NAMESPACE_ID::Message() {
+  ClearCacheRequest* const _this = this; (void)_this;
+  new (&_impl_) Impl_{
+      decltype(_impl_.hashes_){from._impl_.hashes_}
+    , /*decltype(_impl_._hashes_cached_byte_size_)*/{0}
+    , /*decltype(_impl_._cached_size_)*/{}};
+
+  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+  // @@protoc_insertion_point(copy_constructor:rsh.protocol.ClearCacheRequest)
+}
+
+inline void ClearCacheRequest::SharedCtor(
+    ::_pb::Arena* arena, bool is_message_owned) {
+  (void)arena;
+  (void)is_message_owned;
+  new (&_impl_) Impl_{
+      decltype(_impl_.hashes_){arena}
+    , /*decltype(_impl_._hashes_cached_byte_size_)*/{0}
+    , /*decltype(_impl_._cached_size_)*/{}
+  };
+}
+
+ClearCacheRequest::~ClearCacheRequest() {
+  // @@protoc_insertion_point(destructor:rsh.protocol.ClearCacheRequest)
+  if (auto *arena = _internal_metadata_.DeleteReturnArena<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>()) {
+  (void)arena;
+    return;
+  }
+  SharedDtor();
+}
+
+inline void ClearCacheRequest::SharedDtor() {
+  GOOGLE_DCHECK(GetArenaForAllocation() == nullptr);
+  _impl_.hashes_.~RepeatedField();
+}
+
+void ClearCacheRequest::SetCachedSize(int size) const {
+  _impl_._cached_size_.Set(size);
+}
+
+void ClearCacheRequest::Clear() {
+// @@protoc_insertion_point(message_clear_start:rsh.protocol.ClearCacheRequest)
+  uint32_t cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  _impl_.hashes_.Clear();
+  _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+}
+
+const char* ClearCacheRequest::_InternalParse(const char* ptr, ::_pbi::ParseContext* ctx) {
+#define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
+  while (!ctx->Done(&ptr)) {
+    uint32_t tag;
+    ptr = ::_pbi::ReadTag(ptr, &tag);
+    switch (tag >> 3) {
+      // repeated uint64 hashes = 1;
+      case 1:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 10)) {
+          ptr = ::PROTOBUF_NAMESPACE_ID::internal::PackedUInt64Parser(_internal_mutable_hashes(), ptr, ctx);
+          CHK_(ptr);
+        } else if (static_cast<uint8_t>(tag) == 8) {
+          _internal_add_hashes(::PROTOBUF_NAMESPACE_ID::internal::ReadVarint64(&ptr));
+          CHK_(ptr);
+        } else
+          goto handle_unusual;
+        continue;
+      default:
+        goto handle_unusual;
+    }  // switch
+  handle_unusual:
+    if ((tag == 0) || ((tag & 7) == 4)) {
+      CHK_(ptr);
+      ctx->SetLastTag(tag);
+      goto message_done;
+    }
+    ptr = UnknownFieldParse(
+        tag,
+        _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(),
+        ptr, ctx);
+    CHK_(ptr != nullptr);
+  }  // while
+message_done:
+  return ptr;
+failure:
+  ptr = nullptr;
+  goto message_done;
+#undef CHK_
+}
+
+uint8_t* ClearCacheRequest::_InternalSerialize(
+    uint8_t* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
+  // @@protoc_insertion_point(serialize_to_array_start:rsh.protocol.ClearCacheRequest)
+  uint32_t cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  // repeated uint64 hashes = 1;
+  {
+    int byte_size = _impl_._hashes_cached_byte_size_.load(std::memory_order_relaxed);
+    if (byte_size > 0) {
+      target = stream->WriteUInt64Packed(
+          1, _internal_hashes(), byte_size, target);
+    }
+  }
+
+  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
+    target = ::_pbi::WireFormat::InternalSerializeUnknownFieldsToArray(
+        _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
+  }
+  // @@protoc_insertion_point(serialize_to_array_end:rsh.protocol.ClearCacheRequest)
+  return target;
+}
+
+size_t ClearCacheRequest::ByteSizeLong() const {
+// @@protoc_insertion_point(message_byte_size_start:rsh.protocol.ClearCacheRequest)
+  size_t total_size = 0;
+
+  uint32_t cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  // repeated uint64 hashes = 1;
+  {
+    size_t data_size = ::_pbi::WireFormatLite::
+      UInt64Size(this->_impl_.hashes_);
+    if (data_size > 0) {
+      total_size += 1 +
+        ::_pbi::WireFormatLite::Int32Size(static_cast<int32_t>(data_size));
+    }
+    int cached_size = ::_pbi::ToCachedSize(data_size);
+    _impl_._hashes_cached_byte_size_.store(cached_size,
+                                    std::memory_order_relaxed);
+    total_size += data_size;
+  }
+
+  return MaybeComputeUnknownFieldsSize(total_size, &_impl_._cached_size_);
+}
+
+const ::PROTOBUF_NAMESPACE_ID::Message::ClassData ClearCacheRequest::_class_data_ = {
+    ::PROTOBUF_NAMESPACE_ID::Message::CopyWithSourceCheck,
+    ClearCacheRequest::MergeImpl
+};
+const ::PROTOBUF_NAMESPACE_ID::Message::ClassData*ClearCacheRequest::GetClassData() const { return &_class_data_; }
+
+
+void ClearCacheRequest::MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::PROTOBUF_NAMESPACE_ID::Message& from_msg) {
+  auto* const _this = static_cast<ClearCacheRequest*>(&to_msg);
+  auto& from = static_cast<const ClearCacheRequest&>(from_msg);
+  // @@protoc_insertion_point(class_specific_merge_from_start:rsh.protocol.ClearCacheRequest)
+  GOOGLE_DCHECK_NE(&from, _this);
+  uint32_t cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  _this->_impl_.hashes_.MergeFrom(from._impl_.hashes_);
+  _this->_internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+}
+
+void ClearCacheRequest::CopyFrom(const ClearCacheRequest& from) {
+// @@protoc_insertion_point(class_specific_copy_from_start:rsh.protocol.ClearCacheRequest)
+  if (&from == this) return;
+  Clear();
+  MergeFrom(from);
+}
+
+bool ClearCacheRequest::IsInitialized() const {
+  return true;
+}
+
+void ClearCacheRequest::InternalSwap(ClearCacheRequest* other) {
+  using std::swap;
+  _internal_metadata_.InternalSwap(&other->_internal_metadata_);
+  _impl_.hashes_.InternalSwap(&other->_impl_.hashes_);
+}
+
+::PROTOBUF_NAMESPACE_ID::Metadata ClearCacheRequest::GetMetadata() const {
+  return ::_pbi::AssignDescriptors(
+      &descriptor_table_messages_2eproto_getter, &descriptor_table_messages_2eproto_once,
+      file_level_metadata_messages_2eproto[13]);
+}
+
+// ===================================================================
+
+class ClearCacheResponse::_Internal {
+ public:
+};
+
+ClearCacheResponse::ClearCacheResponse(::PROTOBUF_NAMESPACE_ID::Arena* arena,
+                         bool is_message_owned)
+  : ::PROTOBUF_NAMESPACE_ID::internal::ZeroFieldsBase(arena, is_message_owned) {
+  // @@protoc_insertion_point(arena_constructor:rsh.protocol.ClearCacheResponse)
+}
+ClearCacheResponse::ClearCacheResponse(const ClearCacheResponse& from)
+  : ::PROTOBUF_NAMESPACE_ID::internal::ZeroFieldsBase() {
+  ClearCacheResponse* const _this = this; (void)_this;
+  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+  // @@protoc_insertion_point(copy_constructor:rsh.protocol.ClearCacheResponse)
+}
+
+
+
+
+
+const ::PROTOBUF_NAMESPACE_ID::Message::ClassData ClearCacheResponse::_class_data_ = {
+    ::PROTOBUF_NAMESPACE_ID::internal::ZeroFieldsBase::CopyImpl,
+    ::PROTOBUF_NAMESPACE_ID::internal::ZeroFieldsBase::MergeImpl,
+};
+const ::PROTOBUF_NAMESPACE_ID::Message::ClassData*ClearCacheResponse::GetClassData() const { return &_class_data_; }
+
+
+
+
+
+
+
+::PROTOBUF_NAMESPACE_ID::Metadata ClearCacheResponse::GetMetadata() const {
+  return ::_pbi::AssignDescriptors(
+      &descriptor_table_messages_2eproto_getter, &descriptor_table_messages_2eproto_once,
+      file_level_metadata_messages_2eproto[14]);
+}
+
+// ===================================================================
+
 class CallContext::_Internal {
  public:
 };
@@ -3812,7 +4088,7 @@ void CallContext::InternalSwap(CallContext* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata CallContext::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_messages_2eproto_getter, &descriptor_table_messages_2eproto_once,
-      file_level_metadata_messages_2eproto[13]);
+      file_level_metadata_messages_2eproto[15]);
 }
 
 // ===================================================================
@@ -4086,7 +4362,7 @@ void ArgumentContext::InternalSwap(ArgumentContext* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata ArgumentContext::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_messages_2eproto_getter, &descriptor_table_messages_2eproto_once,
-      file_level_metadata_messages_2eproto[14]);
+      file_level_metadata_messages_2eproto[16]);
 }
 
 // ===================================================================
@@ -4313,7 +4589,7 @@ void Context::InternalSwap(Context* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata Context::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_messages_2eproto_getter, &descriptor_table_messages_2eproto_once,
-      file_level_metadata_messages_2eproto[15]);
+      file_level_metadata_messages_2eproto[17]);
 }
 
 // ===================================================================
@@ -4506,7 +4782,7 @@ void ContextRequest::InternalSwap(ContextRequest* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata ContextRequest::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_messages_2eproto_getter, &descriptor_table_messages_2eproto_once,
-      file_level_metadata_messages_2eproto[16]);
+      file_level_metadata_messages_2eproto[18]);
 }
 
 // ===================================================================
@@ -4687,7 +4963,7 @@ void TestFeedback::InternalSwap(TestFeedback* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata TestFeedback::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_messages_2eproto_getter, &descriptor_table_messages_2eproto_once,
-      file_level_metadata_messages_2eproto[17]);
+      file_level_metadata_messages_2eproto[19]);
 }
 
 // ===================================================================
@@ -4898,7 +5174,7 @@ void CallFeedback::InternalSwap(CallFeedback* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata CallFeedback::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_messages_2eproto_getter, &descriptor_table_messages_2eproto_once,
-      file_level_metadata_messages_2eproto[18]);
+      file_level_metadata_messages_2eproto[20]);
 }
 
 // ===================================================================
@@ -5181,7 +5457,7 @@ void ValueFeedback::InternalSwap(ValueFeedback* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata ValueFeedback::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_messages_2eproto_getter, &descriptor_table_messages_2eproto_once,
-      file_level_metadata_messages_2eproto[19]);
+      file_level_metadata_messages_2eproto[21]);
 }
 
 // ===================================================================
@@ -5544,7 +5820,7 @@ void TypeFeedback_Feedback::InternalSwap(TypeFeedback_Feedback* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata TypeFeedback_Feedback::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_messages_2eproto_getter, &descriptor_table_messages_2eproto_once,
-      file_level_metadata_messages_2eproto[20]);
+      file_level_metadata_messages_2eproto[22]);
 }
 
 // ===================================================================
@@ -5558,7 +5834,7 @@ void TypeFeedback_TypesEntry_DoNotUse::MergeFrom(const TypeFeedback_TypesEntry_D
 ::PROTOBUF_NAMESPACE_ID::Metadata TypeFeedback_TypesEntry_DoNotUse::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_messages_2eproto_getter, &descriptor_table_messages_2eproto_once,
-      file_level_metadata_messages_2eproto[21]);
+      file_level_metadata_messages_2eproto[23]);
 }
 
 // ===================================================================
@@ -5764,7 +6040,7 @@ void TypeFeedback::InternalSwap(TypeFeedback* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata TypeFeedback::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_messages_2eproto_getter, &descriptor_table_messages_2eproto_once,
-      file_level_metadata_messages_2eproto[22]);
+      file_level_metadata_messages_2eproto[24]);
 }
 
 // ===================================================================
@@ -5957,7 +6233,7 @@ void FeedbackRequest::InternalSwap(FeedbackRequest* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata FeedbackRequest::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_messages_2eproto_getter, &descriptor_table_messages_2eproto_once,
-      file_level_metadata_messages_2eproto[23]);
+      file_level_metadata_messages_2eproto[25]);
 }
 
 // ===================================================================
@@ -6224,7 +6500,7 @@ void PackageSource::InternalSwap(PackageSource* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata PackageSource::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_messages_2eproto_getter, &descriptor_table_messages_2eproto_once,
-      file_level_metadata_messages_2eproto[24]);
+      file_level_metadata_messages_2eproto[26]);
 }
 
 // ===================================================================
@@ -6569,7 +6845,7 @@ void Package::InternalSwap(Package* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata Package::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_messages_2eproto_getter, &descriptor_table_messages_2eproto_once,
-      file_level_metadata_messages_2eproto[25]);
+      file_level_metadata_messages_2eproto[27]);
 }
 
 // ===================================================================
@@ -6747,7 +7023,7 @@ void PackageRequest::InternalSwap(PackageRequest* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata PackageRequest::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_messages_2eproto_getter, &descriptor_table_messages_2eproto_once,
-      file_level_metadata_messages_2eproto[26]);
+      file_level_metadata_messages_2eproto[28]);
 }
 
 // @@protoc_insertion_point(namespace_scope)
@@ -6805,6 +7081,14 @@ Arena::CreateMaybeMessage< ::rsh::protocol::Values >(Arena* arena) {
 template<> PROTOBUF_NOINLINE ::rsh::protocol::Empty*
 Arena::CreateMaybeMessage< ::rsh::protocol::Empty >(Arena* arena) {
   return Arena::CreateMessageInternal< ::rsh::protocol::Empty >(arena);
+}
+template<> PROTOBUF_NOINLINE ::rsh::protocol::ClearCacheRequest*
+Arena::CreateMaybeMessage< ::rsh::protocol::ClearCacheRequest >(Arena* arena) {
+  return Arena::CreateMessageInternal< ::rsh::protocol::ClearCacheRequest >(arena);
+}
+template<> PROTOBUF_NOINLINE ::rsh::protocol::ClearCacheResponse*
+Arena::CreateMaybeMessage< ::rsh::protocol::ClearCacheResponse >(Arena* arena) {
+  return Arena::CreateMessageInternal< ::rsh::protocol::ClearCacheResponse >(arena);
 }
 template<> PROTOBUF_NOINLINE ::rsh::protocol::CallContext*
 Arena::CreateMaybeMessage< ::rsh::protocol::CallContext >(Arena* arena) {

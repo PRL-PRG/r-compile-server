@@ -60,6 +60,12 @@ extern CallContextDefaultTypeInternal _CallContext_default_instance_;
 class CallFeedback;
 struct CallFeedbackDefaultTypeInternal;
 extern CallFeedbackDefaultTypeInternal _CallFeedback_default_instance_;
+class ClearCacheRequest;
+struct ClearCacheRequestDefaultTypeInternal;
+extern ClearCacheRequestDefaultTypeInternal _ClearCacheRequest_default_instance_;
+class ClearCacheResponse;
+struct ClearCacheResponseDefaultTypeInternal;
+extern ClearCacheResponseDefaultTypeInternal _ClearCacheResponse_default_instance_;
 class CompileRequest;
 struct CompileRequestDefaultTypeInternal;
 extern CompileRequestDefaultTypeInternal _CompileRequest_default_instance_;
@@ -138,6 +144,8 @@ PROTOBUF_NAMESPACE_OPEN
 template<> ::rsh::protocol::ArgumentContext* Arena::CreateMaybeMessage<::rsh::protocol::ArgumentContext>(Arena*);
 template<> ::rsh::protocol::CallContext* Arena::CreateMaybeMessage<::rsh::protocol::CallContext>(Arena*);
 template<> ::rsh::protocol::CallFeedback* Arena::CreateMaybeMessage<::rsh::protocol::CallFeedback>(Arena*);
+template<> ::rsh::protocol::ClearCacheRequest* Arena::CreateMaybeMessage<::rsh::protocol::ClearCacheRequest>(Arena*);
+template<> ::rsh::protocol::ClearCacheResponse* Arena::CreateMaybeMessage<::rsh::protocol::ClearCacheResponse>(Arena*);
 template<> ::rsh::protocol::CompileRequest* Arena::CreateMaybeMessage<::rsh::protocol::CompileRequest>(Arena*);
 template<> ::rsh::protocol::CompileResponse* Arena::CreateMaybeMessage<::rsh::protocol::CompileResponse>(Arena*);
 template<> ::rsh::protocol::Context* Arena::CreateMaybeMessage<::rsh::protocol::Context>(Arena*);
@@ -2330,6 +2338,286 @@ class Empty final :
 };
 // -------------------------------------------------------------------
 
+class ClearCacheRequest final :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:rsh.protocol.ClearCacheRequest) */ {
+ public:
+  inline ClearCacheRequest() : ClearCacheRequest(nullptr) {}
+  ~ClearCacheRequest() override;
+  explicit PROTOBUF_CONSTEXPR ClearCacheRequest(::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized);
+
+  ClearCacheRequest(const ClearCacheRequest& from);
+  ClearCacheRequest(ClearCacheRequest&& from) noexcept
+    : ClearCacheRequest() {
+    *this = ::std::move(from);
+  }
+
+  inline ClearCacheRequest& operator=(const ClearCacheRequest& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline ClearCacheRequest& operator=(ClearCacheRequest&& from) noexcept {
+    if (this == &from) return *this;
+    if (GetOwningArena() == from.GetOwningArena()
+  #ifdef PROTOBUF_FORCE_COPY_IN_MOVE
+        && GetOwningArena() != nullptr
+  #endif  // !PROTOBUF_FORCE_COPY_IN_MOVE
+    ) {
+      InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return default_instance().GetMetadata().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return default_instance().GetMetadata().reflection;
+  }
+  static const ClearCacheRequest& default_instance() {
+    return *internal_default_instance();
+  }
+  static inline const ClearCacheRequest* internal_default_instance() {
+    return reinterpret_cast<const ClearCacheRequest*>(
+               &_ClearCacheRequest_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    13;
+
+  friend void swap(ClearCacheRequest& a, ClearCacheRequest& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(ClearCacheRequest* other) {
+    if (other == this) return;
+  #ifdef PROTOBUF_FORCE_COPY_IN_SWAP
+    if (GetOwningArena() != nullptr &&
+        GetOwningArena() == other->GetOwningArena()) {
+   #else  // PROTOBUF_FORCE_COPY_IN_SWAP
+    if (GetOwningArena() == other->GetOwningArena()) {
+  #endif  // !PROTOBUF_FORCE_COPY_IN_SWAP
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(ClearCacheRequest* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetOwningArena() == other->GetOwningArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  ClearCacheRequest* New(::PROTOBUF_NAMESPACE_ID::Arena* arena = nullptr) const final {
+    return CreateMaybeMessage<ClearCacheRequest>(arena);
+  }
+  using ::PROTOBUF_NAMESPACE_ID::Message::CopyFrom;
+  void CopyFrom(const ClearCacheRequest& from);
+  using ::PROTOBUF_NAMESPACE_ID::Message::MergeFrom;
+  void MergeFrom( const ClearCacheRequest& from) {
+    ClearCacheRequest::MergeImpl(*this, from);
+  }
+  private:
+  static void MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::PROTOBUF_NAMESPACE_ID::Message& from_msg);
+  public:
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  uint8_t* _InternalSerialize(
+      uint8_t* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _impl_._cached_size_.Get(); }
+
+  private:
+  void SharedCtor(::PROTOBUF_NAMESPACE_ID::Arena* arena, bool is_message_owned);
+  void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(ClearCacheRequest* other);
+
+  private:
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "rsh.protocol.ClearCacheRequest";
+  }
+  protected:
+  explicit ClearCacheRequest(::PROTOBUF_NAMESPACE_ID::Arena* arena,
+                       bool is_message_owned = false);
+  public:
+
+  static const ClassData _class_data_;
+  const ::PROTOBUF_NAMESPACE_ID::Message::ClassData*GetClassData() const final;
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kHashesFieldNumber = 1,
+  };
+  // repeated uint64 hashes = 1;
+  int hashes_size() const;
+  private:
+  int _internal_hashes_size() const;
+  public:
+  void clear_hashes();
+  private:
+  uint64_t _internal_hashes(int index) const;
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedField< uint64_t >&
+      _internal_hashes() const;
+  void _internal_add_hashes(uint64_t value);
+  ::PROTOBUF_NAMESPACE_ID::RepeatedField< uint64_t >*
+      _internal_mutable_hashes();
+  public:
+  uint64_t hashes(int index) const;
+  void set_hashes(int index, uint64_t value);
+  void add_hashes(uint64_t value);
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedField< uint64_t >&
+      hashes() const;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedField< uint64_t >*
+      mutable_hashes();
+
+  // @@protoc_insertion_point(class_scope:rsh.protocol.ClearCacheRequest)
+ private:
+  class _Internal;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  struct Impl_ {
+    ::PROTOBUF_NAMESPACE_ID::RepeatedField< uint64_t > hashes_;
+    mutable std::atomic<int> _hashes_cached_byte_size_;
+    mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+  };
+  union { Impl_ _impl_; };
+  friend struct ::TableStruct_messages_2eproto;
+};
+// -------------------------------------------------------------------
+
+class ClearCacheResponse final :
+    public ::PROTOBUF_NAMESPACE_ID::internal::ZeroFieldsBase /* @@protoc_insertion_point(class_definition:rsh.protocol.ClearCacheResponse) */ {
+ public:
+  inline ClearCacheResponse() : ClearCacheResponse(nullptr) {}
+  explicit PROTOBUF_CONSTEXPR ClearCacheResponse(::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized);
+
+  ClearCacheResponse(const ClearCacheResponse& from);
+  ClearCacheResponse(ClearCacheResponse&& from) noexcept
+    : ClearCacheResponse() {
+    *this = ::std::move(from);
+  }
+
+  inline ClearCacheResponse& operator=(const ClearCacheResponse& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline ClearCacheResponse& operator=(ClearCacheResponse&& from) noexcept {
+    if (this == &from) return *this;
+    if (GetOwningArena() == from.GetOwningArena()
+  #ifdef PROTOBUF_FORCE_COPY_IN_MOVE
+        && GetOwningArena() != nullptr
+  #endif  // !PROTOBUF_FORCE_COPY_IN_MOVE
+    ) {
+      InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return default_instance().GetMetadata().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return default_instance().GetMetadata().reflection;
+  }
+  static const ClearCacheResponse& default_instance() {
+    return *internal_default_instance();
+  }
+  static inline const ClearCacheResponse* internal_default_instance() {
+    return reinterpret_cast<const ClearCacheResponse*>(
+               &_ClearCacheResponse_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    14;
+
+  friend void swap(ClearCacheResponse& a, ClearCacheResponse& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(ClearCacheResponse* other) {
+    if (other == this) return;
+  #ifdef PROTOBUF_FORCE_COPY_IN_SWAP
+    if (GetOwningArena() != nullptr &&
+        GetOwningArena() == other->GetOwningArena()) {
+   #else  // PROTOBUF_FORCE_COPY_IN_SWAP
+    if (GetOwningArena() == other->GetOwningArena()) {
+  #endif  // !PROTOBUF_FORCE_COPY_IN_SWAP
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(ClearCacheResponse* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetOwningArena() == other->GetOwningArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  ClearCacheResponse* New(::PROTOBUF_NAMESPACE_ID::Arena* arena = nullptr) const final {
+    return CreateMaybeMessage<ClearCacheResponse>(arena);
+  }
+  using ::PROTOBUF_NAMESPACE_ID::internal::ZeroFieldsBase::CopyFrom;
+  inline void CopyFrom(const ClearCacheResponse& from) {
+    ::PROTOBUF_NAMESPACE_ID::internal::ZeroFieldsBase::CopyImpl(*this, from);
+  }
+  using ::PROTOBUF_NAMESPACE_ID::internal::ZeroFieldsBase::MergeFrom;
+  void MergeFrom(const ClearCacheResponse& from) {
+    ::PROTOBUF_NAMESPACE_ID::internal::ZeroFieldsBase::MergeImpl(*this, from);
+  }
+  public:
+
+  private:
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "rsh.protocol.ClearCacheResponse";
+  }
+  protected:
+  explicit ClearCacheResponse(::PROTOBUF_NAMESPACE_ID::Arena* arena,
+                       bool is_message_owned = false);
+  public:
+
+  static const ClassData _class_data_;
+  const ::PROTOBUF_NAMESPACE_ID::Message::ClassData*GetClassData() const final;
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  // @@protoc_insertion_point(class_scope:rsh.protocol.ClearCacheResponse)
+ private:
+  class _Internal;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  struct Impl_ {
+  };
+  friend struct ::TableStruct_messages_2eproto;
+};
+// -------------------------------------------------------------------
+
 class CallContext final :
     public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:rsh.protocol.CallContext) */ {
  public:
@@ -2378,7 +2666,7 @@ class CallContext final :
                &_CallContext_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    13;
+    15;
 
   friend void swap(CallContext& a, CallContext& b) {
     a.Swap(&b);
@@ -2559,7 +2847,7 @@ class ArgumentContext final :
                &_ArgumentContext_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    14;
+    16;
 
   friend void swap(ArgumentContext& a, ArgumentContext& b) {
     a.Swap(&b);
@@ -2745,7 +3033,7 @@ class Context final :
                &_Context_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    15;
+    17;
 
   friend void swap(Context& a, Context& b) {
     a.Swap(&b);
@@ -2922,7 +3210,7 @@ class ContextRequest final :
                &_ContextRequest_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    16;
+    18;
 
   friend void swap(ContextRequest& a, ContextRequest& b) {
     a.Swap(&b);
@@ -3079,7 +3367,7 @@ class TestFeedback final :
                &_TestFeedback_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    17;
+    19;
 
   friend void swap(TestFeedback& a, TestFeedback& b) {
     a.Swap(&b);
@@ -3227,7 +3515,7 @@ class CallFeedback final :
                &_CallFeedback_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    18;
+    20;
 
   friend void swap(CallFeedback& a, CallFeedback& b) {
     a.Swap(&b);
@@ -3386,7 +3674,7 @@ class ValueFeedback final :
                &_ValueFeedback_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    19;
+    21;
 
   friend void swap(ValueFeedback& a, ValueFeedback& b) {
     a.Swap(&b);
@@ -3585,7 +3873,7 @@ class TypeFeedback_Feedback final :
                &_TypeFeedback_Feedback_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    20;
+    22;
 
   friend void swap(TypeFeedback_Feedback& a, TypeFeedback_Feedback& b) {
     a.Swap(&b);
@@ -3820,7 +4108,7 @@ class TypeFeedback final :
                &_TypeFeedback_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    22;
+    24;
 
   friend void swap(TypeFeedback& a, TypeFeedback& b) {
     a.Swap(&b);
@@ -3984,7 +4272,7 @@ class FeedbackRequest final :
                &_FeedbackRequest_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    23;
+    25;
 
   friend void swap(FeedbackRequest& a, FeedbackRequest& b) {
     a.Swap(&b);
@@ -4147,7 +4435,7 @@ class PackageSource final :
                &_PackageSource_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    24;
+    26;
 
   friend void swap(PackageSource& a, PackageSource& b) {
     a.Swap(&b);
@@ -4337,7 +4625,7 @@ class Package final :
                &_Package_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    25;
+    27;
 
   friend void swap(Package& a, Package& b) {
     a.Swap(&b);
@@ -4556,7 +4844,7 @@ class PackageRequest final :
                &_PackageRequest_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    26;
+    28;
 
   friend void swap(PackageRequest& a, PackageRequest& b) {
     a.Swap(&b);
@@ -5969,6 +6257,61 @@ Values::values() const {
 // -------------------------------------------------------------------
 
 // Empty
+
+// -------------------------------------------------------------------
+
+// ClearCacheRequest
+
+// repeated uint64 hashes = 1;
+inline int ClearCacheRequest::_internal_hashes_size() const {
+  return _impl_.hashes_.size();
+}
+inline int ClearCacheRequest::hashes_size() const {
+  return _internal_hashes_size();
+}
+inline void ClearCacheRequest::clear_hashes() {
+  _impl_.hashes_.Clear();
+}
+inline uint64_t ClearCacheRequest::_internal_hashes(int index) const {
+  return _impl_.hashes_.Get(index);
+}
+inline uint64_t ClearCacheRequest::hashes(int index) const {
+  // @@protoc_insertion_point(field_get:rsh.protocol.ClearCacheRequest.hashes)
+  return _internal_hashes(index);
+}
+inline void ClearCacheRequest::set_hashes(int index, uint64_t value) {
+  _impl_.hashes_.Set(index, value);
+  // @@protoc_insertion_point(field_set:rsh.protocol.ClearCacheRequest.hashes)
+}
+inline void ClearCacheRequest::_internal_add_hashes(uint64_t value) {
+  _impl_.hashes_.Add(value);
+}
+inline void ClearCacheRequest::add_hashes(uint64_t value) {
+  _internal_add_hashes(value);
+  // @@protoc_insertion_point(field_add:rsh.protocol.ClearCacheRequest.hashes)
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedField< uint64_t >&
+ClearCacheRequest::_internal_hashes() const {
+  return _impl_.hashes_;
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedField< uint64_t >&
+ClearCacheRequest::hashes() const {
+  // @@protoc_insertion_point(field_list:rsh.protocol.ClearCacheRequest.hashes)
+  return _internal_hashes();
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedField< uint64_t >*
+ClearCacheRequest::_internal_mutable_hashes() {
+  return &_impl_.hashes_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedField< uint64_t >*
+ClearCacheRequest::mutable_hashes() {
+  // @@protoc_insertion_point(field_mutable_list:rsh.protocol.ClearCacheRequest.hashes)
+  return _internal_mutable_hashes();
+}
+
+// -------------------------------------------------------------------
+
+// ClearCacheResponse
 
 // -------------------------------------------------------------------
 
@@ -7385,6 +7728,10 @@ inline void PackageRequest::set_hash(uint64_t value) {
 #ifdef __GNUC__
   #pragma GCC diagnostic pop
 #endif  // __GNUC__
+// -------------------------------------------------------------------
+
+// -------------------------------------------------------------------
+
 // -------------------------------------------------------------------
 
 // -------------------------------------------------------------------

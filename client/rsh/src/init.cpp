@@ -14,6 +14,7 @@ static const R_CallMethodDef callMethods[] = {
     {"is_compiled", (DL_FUNC)&rsh::is_compiled, 1},
     {"init_client", (DL_FUNC)&rsh::init_client, 3},
     {"get_total_size", (DL_FUNC)&rsh::get_total_size, 0},
+    {"clear_cache", (DL_FUNC)&rsh::clear_cache, 0},
     {NULL, NULL, 0}};
 
 static const R_ExternalMethodDef externalMethods[] = {

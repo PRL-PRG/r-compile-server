@@ -32,26 +32,28 @@ static constexpr ::_pb::Message* const* file_default_instances = nullptr;
 
 const char descriptor_table_protodef_routes_2eproto[] PROTOBUF_SECTION_VARIABLE(protodesc_cold) =
   "\n\014routes.proto\022\014rsh.protocol\032\016messages.p"
-  "roto2\233\001\n\016CompileService\022H\n\007Compile\022\034.rsh"
+  "roto2\356\001\n\016CompileService\022H\n\007Compile\022\034.rsh"
   ".protocol.CompileRequest\032\035.rsh.protocol."
   "CompileResponse\"\000\022\?\n\004Init\022\031.rsh.protocol"
   ".InitRequest\032\032.rsh.protocol.InitResponse"
-  "\"\0002\253\002\n\013FactService\022C\n\nGetContext\022\034.rsh.p"
-  "rotocol.ContextRequest\032\025.rsh.protocol.Co"
-  "ntext\"\000\022N\n\017GetTypeFeedback\022\035.rsh.protoco"
-  "l.FeedbackRequest\032\032.rsh.protocol.TypeFee"
-  "dback\"\000\022\?\n\tGetValues\022\032.rsh.protocol.Valu"
-  "eRequest\032\024.rsh.protocol.Values\"\000\022F\n\013GetF"
-  "unction\022\035.rsh.protocol.FunctionRequest\032\026"
-  ".rsh.protocol.Function\"\000B\023\n\021org.prlprg.s"
-  "erverb\006proto3"
+  "\"\000\022Q\n\nClearCache\022\037.rsh.protocol.ClearCac"
+  "heRequest\032 .rsh.protocol.ClearCacheRespo"
+  "nse\"\0002\253\002\n\013FactService\022C\n\nGetContext\022\034.rs"
+  "h.protocol.ContextRequest\032\025.rsh.protocol"
+  ".Context\"\000\022N\n\017GetTypeFeedback\022\035.rsh.prot"
+  "ocol.FeedbackRequest\032\032.rsh.protocol.Type"
+  "Feedback\"\000\022\?\n\tGetValues\022\032.rsh.protocol.V"
+  "alueRequest\032\024.rsh.protocol.Values\"\000\022F\n\013G"
+  "etFunction\022\035.rsh.protocol.FunctionReques"
+  "t\032\026.rsh.protocol.Function\"\000B\023\n\021org.prlpr"
+  "g.serverb\006proto3"
   ;
 static const ::_pbi::DescriptorTable* const descriptor_table_routes_2eproto_deps[1] = {
   &::descriptor_table_messages_2eproto,
 };
 static ::_pbi::once_flag descriptor_table_routes_2eproto_once;
 const ::_pbi::DescriptorTable descriptor_table_routes_2eproto = {
-    false, false, 533, descriptor_table_protodef_routes_2eproto,
+    false, false, 616, descriptor_table_protodef_routes_2eproto,
     "routes.proto",
     &descriptor_table_routes_2eproto_once, descriptor_table_routes_2eproto_deps, 1, 0,
     schemas, file_default_instances, TableStruct_routes_2eproto::offsets,
