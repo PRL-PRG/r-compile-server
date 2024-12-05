@@ -1,0 +1,17 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ character[0x56166344e7c0]                                                    │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;Eager0,NonRefl0,!Obj0,SimpleReal0    │
+│ Properties:  Eager, !Reflection, ForceOrd: 0                                 │
+├────── PIR Version After Optimizations
+character[0x56166344e7c0]
+BB0
+  goto BB1
+BB1   <- [0]
+  real$~-         %1.0  = LdArg                    0
+  real$-          %1.1  = Force<lazy>              %1.0,    <(int|real)$->
+  str-            %1.2  = CallSafeBuiltin    vwed  vector("character", %1.1) 
+  void                    Return             l     %1.2
+
+│ character[0x56166344e7c0]                                                    │
+└──────────────────────────────────────────────────────────────────────────────┘

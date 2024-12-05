@@ -1,0 +1,78 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ %||%[0x5649867ee9f0]                                                         │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch                                      │
+│ Properties:  ForceOrd: 0                                                     │
+├────── Final PIR Version
+%||%[0x5649867ee9f0]
+BB0
+  val?^           %0.0  = LdArg                    1
+  val?^           %0.1  = LdArg                    0
+  env             e0.2  = (MkEnv)            l     L=%0.1, R=%0.0, parent=<env 0x564983f9a8c8>, context 1
+  val?            %0.3  = Force!<lazy>       !vL   %0.1, e0.2   <nil->
+  lgl$-           %0.4  = Is                       %0.3, NULL
+  lgl$#-          %0.5  = IsType                   %0.3 isA val?-
+  void                    Branch                   %0.5 -> BB9 (if true) | BB10 (if false)
+BB9   <- [0]
+  lgl$#-          %9.0  = IsEnvStub          R     , e0.2
+  void                    Branch                   %9.0 -> BB11 (if true) | BB12 (if false)
+BB10   <- [0]
+  void                    Nop                !     
+  val?            %10.1 = %0.3
+  dr              %10.2 = Typecheck@0x5649867797a8[Type#0]
+  goto BB8
+BB11   <- [9]
+  lgl$#-          %11.0 = CheckTrueFalse     e     %0.4
+  void                    Branch                   %11.0 -> BB5 (if true) | BB3 (if false)
+BB12   <- [9]
+  void                    Nop                !     
+  env             e12.1 = e0.2
+  dr              %12.2 = EnvStubMaterialized@0x5649867797a8[Call#unknown]
+  goto BB8
+BB8   <- [10, 12]
+  val?^ | miss    %8.0  = Phi                      %10.1:BB10, e12.1:BB12
+  val?^ | miss    %8.1  = %8.0
+  dr              %8.2  = Phi                      %10.2:BB10, %12.2:BB12
+  dr              %8.3  = %8.2
+  fs              %8.4  = FrameState         R     0x56498383f840+9: [%0.3], env=e0.2
+  void                    Deopt              !v    %8.4, %8.3, %8.1   !
+BB5   <- [11]
+  void                    Visible            v     
+  val?            %5.1  = Force!<lazy>       !L    %0.0, e0.2   <int$->
+  lgl$#-          %5.2  = IsType                   %5.1 isA int$-
+  void                    Branch                   %5.2 -> BB13 (if true) | BB14 (if false)
+BB3   <- [11]
+  void                    Visible            v     
+  val?            %3.1  = %0.3
+  goto BB4
+BB13   <- [5]
+  lgl$#-          %13.0 = IsEnvStub          R     , e0.2
+  void                    Branch                   %13.0 -> BB15 (if true) | BB16 (if false)
+BB14   <- [5]
+  void                    Nop                !     
+  val?            %14.1 = %5.1
+  dr              %14.2 = Typecheck@0x5649867797a8[Type#2]
+  goto BB6
+BB4   <- [3, 15]
+  val?            %4.0  = Phi                      %3.1:BB3, %15.1:BB15
+  val?            %4.1  = %4.0
+  void                    Return             l     %4.1
+BB15   <- [13]
+  void                    Nop                !     
+  val?            %15.1 = %5.1
+  goto BB4
+BB16   <- [13]
+  void                    Nop                !     
+  env             e16.1 = e0.2
+  dr              %16.2 = EnvStubMaterialized@0x5649867797a8[Call#unknown]
+  goto BB6
+BB6   <- [14, 16]
+  val?^ | miss    %6.0  = Phi                      %14.1:BB14, e16.1:BB16
+  val?^ | miss    %6.1  = %6.0
+  dr              %6.2  = Phi                      %14.2:BB14, %16.2:BB16
+  dr              %6.3  = %6.2
+  fs              %6.4  = FrameState         R     0x56498383f840+53: [%5.1], env=e0.2
+  void                    Deopt              !v    %6.4, %6.3, %6.1   !
+
+│ %||%[0x5649867ee9f0]                                                         │
+└──────────────────────────────────────────────────────────────────────────────┘

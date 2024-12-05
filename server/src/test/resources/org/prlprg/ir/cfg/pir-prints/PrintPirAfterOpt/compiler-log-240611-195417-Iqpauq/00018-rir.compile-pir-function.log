@@ -1,0 +1,57 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ rir.compile[0x55abb4797190]                                                  │
+│ Context: CorrOrd,!TMany                                                      │
+│ Properties:  Eager                                                           │
+├────── PIR Version After Optimizations
+rir.compile[0x55abb4797190]
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = MkEnv              l     parent=R_GlobalEnv, context 1
+  cls             %1.1  = MkCls                    rir.compile>id@0, e1.0
+  void                    StVar              lW    id, %1.1, e1.0
+  void                    StVar              lW    i, 1L, e1.0
+  void                    StVar              lW    x, 33, e1.0
+  goto BB2
+BB2   <- [1, 6]
+  val?            %2.0  = Phi                      33:BB1, %6.0:BB6
+  int$-           %2.1  = Phi                      2L:BB1, %4.1:BB6
+  cp              %2.2  = Checkpoint                -> BB3 (default) | BB9 (if assume failed)
+BB3   <- [2]
+  lgl$-           %3.0  = Neq                d     11L, %2.1, elided
+  lgl$#-          %3.1  = Identical                %3.0, false
+  void                    Branch                   %3.1 -> BB8 (if true) | BB4 (if false)
+BB9   <- [2]
+  fs              %9.0  = FrameState         R     0x55abb484c660+251: [1L, 11L, %2.1], env=e1.0
+  void                    Deopt              !v    %9.0   !
+BB8   <- [3]
+  val             %8.0  = ChkMissing         e     %2.0   <val?_>
+  void                    Visible            v     
+  lgl$#-          %8.2  = IsType                   %8.0 isA val+
+  void                    Assume             D     %8.2, %2.2 (Typecheck@0x55abb3bd40e8[Type#12])
+  val+            %8.4  = CastType           d     dn %8.0   <val?_>
+  (real|complex)+ %8.5  = Add                vwed  %8.4, 40, elided   <val?_>
+  void                    Return             l     %8.5
+BB4   <- [3]
+  void                    StVar              lW    i, %2.1, e1.0
+  int$-           %4.1  = Add                d     %2.1, 1L, elided
+  real$-          %4.2  = Mod                d     %2.1, 2, elided   <val?_>
+  lgl$-           %4.3  = Eq                 d     %4.2, 0, elided   <val?_>
+  lgl$#-          %4.4  = CheckTrueFalse     e     %4.3
+  void                    Branch                   %4.4 -> BB7 (if true) | BB5 (if false)
+BB7   <- [4]
+  (cls|spec|blt)  %7.0  = LdFun              !v    id, e1.0
+  val?            %7.1  = Call               !v    %7.0(2) e1.0   <val?_>
+  goto BB6
+BB5   <- [4]
+  (cls|spec|blt)  %5.0  = LdFun              !v    id, e1.0
+  val?            %5.1  = Call               !v    %5.0(33) e1.0   <val?_>
+  goto BB6
+BB6   <- [5, 7]
+  val?            %6.0  = Phi                      %5.1:BB5, %7.1:BB7
+  void                    StVar              lW    x, %6.0, e1.0
+  goto BB2
+
+│ rir.compile[0x55abb4797190]                                                  │
+└──────────────────────────────────────────────────────────────────────────────┘

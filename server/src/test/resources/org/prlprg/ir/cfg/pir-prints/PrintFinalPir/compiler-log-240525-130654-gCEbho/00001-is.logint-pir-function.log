@@ -1,0 +1,30 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ is.logint[0x55f3fe657730]                                                    │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;NonRefl0,!Obj0,SimpleInt0            │
+│ Properties:                                                                  │
+├────── Final PIR Version
+is.logint[0x55f3fe657730]
+BB0
+  val?^           %0.0  = LdArg                    0
+  val?^ | miss    %0.1  = LdVar              eR    is.integer, ?
+  lgl$#-          %0.2  = Identical                <blt is.integer>, %0.1   <true>
+  void                    Branch                   %0.2 -> BB6 (if true) | BB7 (if false)
+BB6   <- [0]
+  int$-           %6.0  = Force!<lazy>       !vr   %0.0,    <int$->
+  val?^ | miss    %6.1  = LdVar              eRd   is.object, ?
+  lgl$#-          %6.2  = Identical                <blt is.object>, %6.1   <true>
+  void                    Branch                   %6.2 -> BB8 (if true) | BB9 (if false)
+BB7   <- [0]
+  env             e7.0  = (MkEnv)            l     .=%0.0, parent=?, context 1
+  fs              %7.1  = FrameState         R     0x55f3fe72be10+17: [<blt is.integer>, %0.2], env=e7.0
+  void                    Deopt              !v    %7.1, DeadBranchReached@0x55f3fdcc7e68[Test#0], %0.2   !
+BB8   <- [6]
+  void                    Return             l     true
+BB9   <- [6]
+  env             e9.0  = (MkEnv)            l     .=%0.0, parent=?, context 1
+  fs              %9.1  = FrameState         R     0x55f3fe72be10+69: [<blt is.integer>, %6.0], env=e9.0
+  void                    Deopt              !v    %9.1, DeadBranchReached@0x55f3fdcc7e68[Test#2], %6.2   !
+
+│ is.logint[0x55f3fe657730]                                                    │
+└──────────────────────────────────────────────────────────────────────────────┘

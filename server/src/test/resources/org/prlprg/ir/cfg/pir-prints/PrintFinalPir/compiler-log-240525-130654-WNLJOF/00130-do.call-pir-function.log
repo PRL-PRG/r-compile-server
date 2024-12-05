@@ -1,0 +1,80 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ do.call[0x55fa0d57fa40]                                                      │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;Eager0,NonRefl0,!Obj0 miss: 2        │
+│ Properties:  ForceOrd: 1                                                     │
+├────── Final PIR Version
+do.call[0x55fa0d57fa40]
+BB0
+  val?^           %0.0  = LdArg                    1
+  val?~+          %0.1  = LdArg                    0
+  env             e0.2  = MkEnv              l     what=%0.1, args=%0.0, quote(miss)=false, envir(miss)=missingArg, parent=R_BaseNamespace, context 1
+  prom-           %0.3  = MkArg                    unboundValue, do.call[0x55fa0d57fa40]_p1, e0.2
+  val?^ | miss    %0.4  = CastType                 up %0.3
+  void                    StArg              lW    envir, %0.4, e0.2
+  val?            %0.6  = Force!<lazy>       !v    %0.0, e0.2   <vec->
+  lgl$-           %0.7  = Is                       %0.6, list
+  lgl$#-          %0.8  = IsType                   %0.6 isA val?-
+  void                    Branch                   %0.8 -> BB10 (if true) | BB11 (if false)
+BB10   <- [0]
+  lgl$-           %10.0 = Not                d     %0.7, elided
+  lgl$#-          %10.1 = CheckTrueFalse     e     %10.0
+  void                    Branch                   %10.1 -> BB8 (if true) | BB3 (if false)
+BB11   <- [0]
+  fs              %11.0 = FrameState         R     0x55fa0cc49540+9: [%0.6], env=e0.2
+  void                    Deopt              !v    %11.0, Typecheck@0x55fa0cc36440[Type#1], %0.6   !
+BB8   <- [10]
+  (cls|spec|blt)  %8.0  = LdFun              !v    stop, e0.2
+  val?            %8.1  = Call               !v    %8.0("second argument must be a list") e0.2
+  goto BB4
+BB3   <- [10]
+  void                    Nop                !     
+  goto BB4
+BB4   <- [3, 8]
+  val?^ | miss    %4.0  = LdVar              eR    quote, e0.2
+  val?            %4.1  = Force!<lazy>       !v    %4.0, e0.2   <lgl$->
+  lgl$#-          %4.2  = CheckTrueFalse     we    %4.1
+  void                    Branch                   %4.2 -> BB7 (if true) | BB5 (if false)
+BB7   <- [4]
+  (cls|spec|blt)  %7.0  = LdFun              !v    lapply, e0.2
+  prom-           %7.1  = MkArg                    unboundValue, do.call[0x55fa0d57fa40]_p2, e0.2
+  prom-           %7.2  = MkArg                    unboundValue, do.call[0x55fa0d57fa40]_p3, e0.2
+  val?            %7.3  = Call               !v    %7.0(%7.1, %7.2) e0.2   <val?_>
+  void                    StVar              lW    args, %7.3, e0.2
+  goto BB6
+BB5   <- [4]
+  void                    Nop                !     
+  goto BB6
+BB6   <- [5, 7]
+  val?^ | miss    %6.0  = LdVar              eR    what, e0.2
+  val?            %6.1  = Force!<lazy>       !v    %6.0, e0.2   <str$->
+  val?^ | miss    %6.2  = LdVar              eR    args, e0.2
+  val?            %6.3  = Force!<wrapped>    !v    %6.2, e0.2   <vec->
+  val?^ | miss    %6.4  = LdVar              eR    envir, e0.2
+  void                    Visible            v     
+  val?            %6.6  = Force!<lazy>       !     %6.4, e0.2   <env->
+  val?            %6.7  = CallBuiltin        !     do.call(%6.1, %6.3, %6.6) e0.2
+  void                    Return             l     %6.7
+Prom 1:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  (cls|spec|blt)  %0.1  = LdFun              !     parent.frame, <0x55fa0ae68170>, e0.0
+  val?            %0.2  = Call               !     %0.1() e0.0   <env->
+  void                    Return             l     %0.2
+Prom 2:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    args, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 3:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    enquote, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+
+│ do.call[0x55fa0d57fa40]                                                      │
+└──────────────────────────────────────────────────────────────────────────────┘

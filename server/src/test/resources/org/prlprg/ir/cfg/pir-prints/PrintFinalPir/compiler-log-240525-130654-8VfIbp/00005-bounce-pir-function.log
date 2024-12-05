@@ -1,0 +1,202 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ bounce[0x555ea2353c50]                                                       │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;Eager0,NonRefl0                      │
+│ Properties:  Eager, ForceOrd: 0                                              │
+├────── Final PIR Version
+bounce[0x555ea2353c50]
+BB0
+  val?^           %0.0  = LdArg                    0
+  val?            %0.1  = Force!                   %0.0,    <real->
+  lgl$#-          %0.2  = IsType                   %0.1 isA val+   <true>
+  lgl$#-          %0.3  = IsType                   %0.1 isA real-
+  void                    Branch                   %0.2 -> BB26 (if true) | BB27 (if false)
+BB26   <- [0]
+  void                    Branch                   %0.3 -> BB28 (if true) | BB29 (if false)
+BB27   <- [0]
+  void                    Nop                !     
+  lgl$#-          %27.1 = %0.2
+  dr              %27.2 = DeadBranchReached@0x555ea1a66d28[Test#0]
+  goto BB25
+BB28   <- [26]
+  real-           %28.0 = CastType           d     dn %0.1
+  real$-          %28.1 = Extract1_1D        wed   %28.0, 1, elided   <real$->
+  real$-          %28.2 = Extract1_1D        wed   %28.0, 3, elided   <real$->
+  real$-          %28.3 = Add                d     %28.1, %28.2, elided   <real$->
+  real-           %28.4 = Subassign1_1D      wed   %28.3, %28.0, 1, elided   <real->
+  real$-          %28.5 = Extract1_1D        wed   %28.4, 2, elided   <real$->
+  real$-          %28.6 = Extract1_1D        wed   %28.4, 4, elided   <real$->
+  real$-          %28.7 = Add                d     %28.5, %28.6, elided   <real$->
+  real-           %28.8 = Subassign1_1D      wed   %28.7, %28.4, 2, elided   <real->
+  real$-          %28.9 = Extract1_1D        wed   %28.8, 1, elided   <real$->
+  lgl$-           %28.10 = Gt                 d     %28.9, 500, elided   <lgl$->
+  lgl$#-          %28.11 = CheckTrueFalse     e     %28.10
+  void                    Branch                   %28.11 -> BB22 (if true) | BB3 (if false)
+BB29   <- [26]
+  void                    Nop                !     
+  val?            %29.1 = %0.1
+  dr              %29.2 = Typecheck@0x555ea1a66d28[Type#0]
+  goto BB25
+BB25   <- [27, 29]
+  val?^ | miss    %25.0 = Phi                      %27.1:BB27, %29.1:BB29
+  val?^ | miss    %25.1 = %25.0
+  dr              %25.2 = Phi                      %27.2:BB27, %29.2:BB29
+  dr              %25.3 = %25.2
+  env             e25.4 = (MkEnv)            l     bounced=false, yLimit=500, xLimit=500, ball=%0.0, parent=R_GlobalEnv, context 1
+  fs              %25.5 = FrameState         R     0x555ea23459e0+54: [%0.1], env=e25.4
+  void                    Deopt              !v    %25.5, %25.3, %25.1
+BB22   <- [28]
+  real-           %22.0 = Subassign1_1D      wed   500, %28.8, 1, elided   <real->
+  val?^ | miss    %22.1 = LdVar              eRd   abs, R_GlobalEnv
+  lgl$#-          %22.2 = Identical                <blt abs>, %22.1   <true>
+  void                    Branch                   %22.2 -> BB30 (if true) | BB31 (if false)
+BB3   <- [28]
+  void                    Nop                !     
+  lgl$#-          %3.1  = false
+  real-           %3.2  = %28.8
+  goto BB4
+BB30   <- [22]
+  real$-          %30.0 = Extract1_1D        wed   %22.0, 3, elided   <real$->
+  real$-          %30.1 = CallSafeBuiltin    wed   abs(%30.0)    <real$->
+  real$-          %30.2 = Sub                d     0, %30.1, elided   <real$->
+  real-           %30.3 = Subassign1_1D      wed   %30.2, %22.0, 3, elided
+  lgl$#-          %30.4 = true
+  real-           %30.5 = %30.3
+  goto BB4
+BB31   <- [22]
+  env             e31.0 = (MkEnv)            l     bounced=false, yLimit=500, xLimit=500, ball=%22.0, parent=R_GlobalEnv, context 1
+  fs              %31.1 = FrameState         R     0x555ea23459e0+504: [], env=e31.0
+  void                    Deopt              !v    %31.1, DeadBranchReached@0x555ea1a66d28[Test#5], %22.2
+BB4   <- [3, 30]
+  lgl$#-          %4.0  = Phi                      %30.4:BB30, %3.1:BB3
+  lgl$#-          %4.1  = %4.0
+  real-           %4.2  = Phi                      %30.5:BB30, %3.2:BB3   <real->
+  real-           %4.3  = %4.2
+  real$-          %4.4  = Extract1_1D        wed   %4.3, 1, elided   <real$->
+  lgl$-           %4.5  = Lt                 d     %4.4, 0, elided   <lgl$->
+  lgl$#-          %4.6  = CheckTrueFalse     e     %4.5
+  void                    Branch                   %4.6 -> BB19 (if true) | BB5 (if false)
+BB19   <- [4]
+  real-           %19.0 = Subassign1_1D      wed   0, %4.3, 1, elided   <real->
+  val?^ | miss    %19.1 = LdVar              eRd   abs, R_GlobalEnv
+  lgl$#-          %19.2 = Identical                <blt abs>, %19.1   <true>
+  void                    Branch                   %19.2 -> BB32 (if true) | BB33 (if false)
+BB5   <- [4]
+  void                    Nop                !     
+  real-           %5.1  = %4.3
+  lgl$#-          %5.2  = %4.1
+  lgl$#-          %5.3  = %4.1
+  lgl$#-          %5.4  = %4.1
+  lgl$#-          %5.5  = %4.1
+  goto BB6
+BB32   <- [19]
+  real$-          %32.0 = Extract1_1D        wed   %19.0, 3, elided   <real$->
+  real$-          %32.1 = CallSafeBuiltin    wed   abs(%32.0)    <real$->
+  real-           %32.2 = Subassign1_1D      wed   %32.1, %19.0, 3, elided
+  real-           %32.3 = %32.2
+  lgl$#-          %32.4 = true
+  lgl$#-          %32.5 = true
+  lgl$#-          %32.6 = true
+  lgl$#-          %32.7 = true
+  goto BB6
+BB33   <- [19]
+  env             e33.0 = (MkEnv)            l     bounced=%4.1, yLimit=500, xLimit=500, ball=%19.0, parent=R_GlobalEnv, context 1
+  fs              %33.1 = FrameState         R     0x555ea23459e0+829: [], env=e33.0
+  void                    Deopt              !v    %33.1, DeadBranchReached@0x555ea1a66d28[Test#9], %19.2
+BB6   <- [5, 32]
+  real-           %6.0  = Phi                      %32.3:BB32, %5.1:BB5
+  real-           %6.1  = %6.0
+  lgl$#-          %6.2  = Phi                      %32.4:BB32, %5.2:BB5
+  lgl$#-          %6.3  = %6.2
+  lgl$#-          %6.4  = Phi                      %32.5:BB32, %5.3:BB5
+  lgl$#-          %6.5  = %6.4
+  lgl$#-          %6.6  = Phi                      %32.6:BB32, %5.4:BB5
+  lgl$#-          %6.7  = %6.6
+  lgl$#-          %6.8  = Phi                      %32.7:BB32, %5.5:BB5
+  lgl$#-          %6.9  = %6.8
+  real$-          %6.10 = Extract1_1D        wed   %6.1, 2, elided   <real$->
+  lgl$-           %6.11 = Gt                 d     %6.10, 500, elided   <lgl$->
+  lgl$#-          %6.12 = CheckTrueFalse     e     %6.11
+  void                    Branch                   %6.12 -> BB16 (if true) | BB7 (if false)
+BB16   <- [6]
+  real-           %16.0 = Subassign1_1D      wed   500, %6.1, 2, elided   <real->
+  val?^ | miss    %16.1 = LdVar              eRd   abs, R_GlobalEnv
+  lgl$#-          %16.2 = Identical                <blt abs>, %16.1   <true>
+  void                    Branch                   %16.2 -> BB34 (if true) | BB35 (if false)
+BB7   <- [6]
+  void                    Nop                !     
+  real-           %7.1  = %6.1
+  lgl$#-          %7.2  = %6.3
+  lgl$#-          %7.3  = %6.5
+  lgl$#-          %7.4  = %6.9
+  goto BB8
+BB34   <- [16]
+  real$-          %34.0 = Extract1_1D        wed   %16.0, 4, elided   <real$->
+  real$-          %34.1 = CallSafeBuiltin    wed   abs(%34.0)    <real$->
+  real$-          %34.2 = Sub                d     0, %34.1, elided   <real$->
+  real-           %34.3 = Subassign1_1D      wed   %34.2, %16.0, 4, elided
+  real-           %34.4 = %34.3
+  lgl$#-          %34.5 = true
+  lgl$#-          %34.6 = true
+  lgl$#-          %34.7 = true
+  goto BB8
+BB35   <- [16]
+  env             e35.0 = (MkEnv)            l     bounced=%6.7, yLimit=500, xLimit=500, ball=%16.0, parent=R_GlobalEnv, context 1
+  fs              %35.1 = FrameState         R     0x555ea23459e0+1158: [], env=e35.0
+  void                    Deopt              !v    %35.1, DeadBranchReached@0x555ea1a66d28[Test#13], %16.2
+BB8   <- [7, 34]
+  real-           %8.0  = Phi                      %34.4:BB34, %7.1:BB7
+  real-           %8.1  = %8.0
+  lgl$#-          %8.2  = Phi                      %34.5:BB34, %7.2:BB7
+  lgl$#-          %8.3  = %8.2
+  lgl$#-          %8.4  = Phi                      %34.6:BB34, %7.3:BB7
+  lgl$#-          %8.5  = %8.4
+  lgl$#-          %8.6  = Phi                      %34.7:BB34, %7.4:BB7
+  lgl$#-          %8.7  = %8.6
+  real$-          %8.8  = Extract1_1D        wed   %8.1, 2, elided   <real$->
+  lgl$-           %8.9  = Lt                 d     %8.8, 0, elided   <lgl$->
+  lgl$#-          %8.10 = CheckTrueFalse     e     %8.9
+  void                    Branch                   %8.10 -> BB13 (if true) | BB9 (if false)
+BB13   <- [8]
+  real-           %13.0 = Subassign1_1D      wed   0, %8.1, 2, elided   <real->
+  val?^ | miss    %13.1 = LdVar              eRd   abs, R_GlobalEnv
+  lgl$#-          %13.2 = Identical                <blt abs>, %13.1   <true>
+  void                    Branch                   %13.2 -> BB36 (if true) | BB37 (if false)
+BB9   <- [8]
+  void                    Nop                !     
+  real-           %9.1  = %8.1
+  lgl$#-          %9.2  = %8.3
+  lgl$#-          %9.3  = %8.7
+  goto BB10
+BB36   <- [13]
+  real$-          %36.0 = Extract1_1D        wed   %13.0, 4, elided   <real$->
+  real$-          %36.1 = CallSafeBuiltin    wed   abs(%36.0)    <real$->
+  real-           %36.2 = Subassign1_1D      wed   %36.1, %13.0, 4, elided
+  real-           %36.3 = %36.2
+  lgl$#-          %36.4 = true
+  lgl$#-          %36.5 = true
+  goto BB10
+BB37   <- [13]
+  env             e37.0 = (MkEnv)            l     bounced=%8.5, yLimit=500, xLimit=500, ball=%13.0, parent=R_GlobalEnv, context 1
+  fs              %37.1 = FrameState         R     0x555ea23459e0+1483: [], env=e37.0
+  void                    Deopt              !v    %37.1, DeadBranchReached@0x555ea1a66d28[Test#17], %13.2
+BB10   <- [9, 36]
+  real-           %10.0 = Phi                      %36.3:BB36, %9.1:BB9
+  real-           %10.1 = %10.0
+  lgl$#-          %10.2 = Phi                      %36.4:BB36, %9.2:BB9
+  lgl$#-          %10.3 = %10.2
+  lgl$#-          %10.4 = Phi                      %36.5:BB36, %9.3:BB9
+  lgl$#-          %10.5 = %10.4
+  val?^ | miss    %10.6 = LdVar              eRd   list, R_GlobalEnv
+  lgl$#-          %10.7 = Identical                <blt list>, %10.6   <true>
+  void                    Branch                   %10.7 -> BB38 (if true) | BB39 (if false)
+BB38   <- [10]
+  val+            %38.0 = CallSafeBuiltin    vwed  list(%10.1, %10.5)    <vec->
+  void                    Return             l     %38.0
+BB39   <- [10]
+  env             e39.0 = (MkEnv)            l     bounced=%10.3, yLimit=500, xLimit=500, ball=%10.1, parent=R_GlobalEnv, context 1
+  fs              %39.1 = FrameState         R     0x555ea23459e0+1679: [], env=e39.0
+  void                    Deopt              !v    %39.1, DeadBranchReached@0x555ea1a66d28[Test#20], %10.7
+
+│ bounce[0x555ea2353c50]                                                       │
+└──────────────────────────────────────────────────────────────────────────────┘

@@ -1,0 +1,76 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ rir.compile[0x55abb46091c0]                                                  │
+│ Context: CorrOrd,!TMany                                                      │
+│ Properties:  Eager                                                           │
+├────── PIR Version After Optimizations
+rir.compile[0x55abb46091c0]
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = MkEnv              l     parent=R_GlobalEnv, context 1
+  cls             %1.1  = MkCls                    rir.compile>id@15, e1.0
+  void                    StVar              lW    id, %1.1, e1.0
+  void                    StVar              lW    i, 1, e1.0
+  void                    StVar              lW    x, 33, e1.0
+  goto BB2
+BB2   <- [8, 1]
+  val?^ | miss    %2.0  = LdVar              eR    i, e1.0
+  val?            %2.1  = Force!             !v    %2.0, e1.0   <val?_>
+  lgl$#-          %2.2  = IsType                   %2.1 isA val?+
+  cp              %2.3  = Checkpoint                -> BB3 (default) | BB13 (if assume failed)
+BB3   <- [2]
+  void                    Assume             D     %2.2, %2.3 (Typecheck@0x55abb3abdd08[Type#9])
+  val?+           %3.1  = CastType           d     dn %2.1   <val?_>
+  (real|complex)+ %3.2  = Add                wed   %3.1, 1, elided   <val?_>
+  void                    StVar              lW    i, %3.2, e1.0
+  (real|complex)+ %3.4  = Mod                wed   %3.2, 2, elided   <val?_>
+  lgl             %3.5  = Eq                 wed   %3.4, 0, elided   <val?_>
+  lgl$#-          %3.6  = CheckTrueFalse     we    %3.5
+  void                    Branch                   %3.6 -> BB12 (if true) | BB4 (if false)
+BB13   <- [2]
+  fs              %13.0 = FrameState         R     0x55abb45d9d50+263: [%2.1], env=e1.0
+  void                    Deopt              !v    %13.0   !
+BB12   <- [3]
+  (cls|spec|blt)  %12.0 = LdFun              !v    id, e1.0
+  val?            %12.1 = Call               !v    %12.0(2) e1.0   <val?_>
+  goto BB5
+BB4   <- [3]
+  (cls|spec|blt)  %4.0  = LdFun              !v    id, e1.0
+  val?            %4.1  = Call               !v    %4.0(33) e1.0   <val?_>
+  goto BB5
+BB5   <- [4, 12]
+  val?            %5.0  = Phi                      %4.1:BB4, %12.1:BB12
+  void                    StVar              lW    x, %5.0, e1.0
+  val?^ | miss    %5.2  = LdVar              eR    i, e1.0
+  val?            %5.3  = Force!             !v    %5.2, e1.0   <val?_>
+  lgl$#-          %5.4  = IsType                   %5.3 isA val?+
+  cp              %5.5  = Checkpoint                -> BB7 (default) | BB6 (if assume failed)
+BB7   <- [5]
+  void                    Assume             D     %5.4, %5.5 (Typecheck@0x55abb3abdd08[Type#16])
+  val?+           %7.1  = CastType           d     dn %5.3   <val?_>
+  lgl             %7.2  = Eq                 wed   %7.1, 10, elided   <val?_>
+  lgl$#-          %7.3  = CheckTrueFalse     we    %7.2
+  void                    Branch                   %7.3 -> BB9 (if true) | BB8 (if false)
+BB6   <- [5]
+  fs              %6.0  = FrameState         R     0x55abb45d9d50+430: [%5.3], env=e1.0
+  void                    Deopt              !v    %6.0   !
+BB9   <- [7]
+  val?^ | miss    %9.0  = LdVar              eR    x, e1.0
+  val?            %9.1  = Force!             !v    %9.0, e1.0   <val?_>
+  lgl$#-          %9.2  = IsType                   %9.1 isA val?+
+  cp              %9.3  = Checkpoint                -> BB11 (default) | BB10 (if assume failed)
+BB8   <- [7]
+  goto BB2
+BB11   <- [9]
+  void                    Visible            v     
+  void                    Assume             D     %9.2, %9.3 (Typecheck@0x55abb3abdd08[Type#18])
+  val?+           %11.2 = CastType           d     dn %9.1   <val?_>
+  (real|complex)+ %11.3 = Add                vwed  %11.2, 40, elided   <val?_>
+  void                    Return             l     %11.3
+BB10   <- [9]
+  fs              %10.0 = FrameState         R     0x55abb45d9d50+482: [%9.1], env=e1.0
+  void                    Deopt              !v    %10.0   !
+
+│ rir.compile[0x55abb46091c0]                                                  │
+└──────────────────────────────────────────────────────────────────────────────┘

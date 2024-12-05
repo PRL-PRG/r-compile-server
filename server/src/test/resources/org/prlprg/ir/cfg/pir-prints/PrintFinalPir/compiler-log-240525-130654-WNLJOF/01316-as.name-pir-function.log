@@ -1,0 +1,15 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ as.name[0x55fa122d7e10]                                                      │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;NonRefl0,!Obj0                       │
+│ Properties:  Eager, !Reflection, ForceOrd: 0                                 │
+├────── Final PIR Version
+as.name[0x55fa122d7e10]
+BB0
+  val?^           %0.0  = LdArg                    0
+  val+            %0.1  = Force!<lazy>       !vr   %0.0,    <str$->
+  val             %0.2  = CallSafeBuiltin    vwed  as.vector(%0.1, "symbol") 
+  void                    Return             l     %0.2
+
+│ as.name[0x55fa122d7e10]                                                      │
+└──────────────────────────────────────────────────────────────────────────────┘

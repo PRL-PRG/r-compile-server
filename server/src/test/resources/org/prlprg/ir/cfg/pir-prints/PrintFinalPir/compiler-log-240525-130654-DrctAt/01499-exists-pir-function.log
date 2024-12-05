@@ -1,0 +1,104 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ exists[0x5638c5e6ae80]                                                       │
+│ Context: CorrOrd,!TMany,Argmatch;Eager0,Eager1,Eager3,Eager4,Eager5,NonRefl0,NonRefl1,NonRefl3,NonRefl4,NonRefl5,!Obj0,!Obj5│
+│ Properties:  ForceOrd: 0                                                     │
+├────── Final PIR Version
+exists[0x5638c5e6ae80]
+BB0
+  val?~+          %0.0  = LdArg                    5
+  val?~ | miss    %0.1  = LdArg                    4
+  val?~ | miss    %0.2  = LdArg                    3
+  val?^ | miss    %0.3  = LdArg                    2
+  val?~ | miss    %0.4  = LdArg                    1
+  val?^ | miss    %0.5  = LdArg                    0
+  lgl$#-          %0.6  = Identical                %0.4, missingArg
+  lgl$#-          %0.7  = Identical                %0.3, missingArg
+  env             e0.8  = MkEnv              l     x=%0.5, where=%0.4, envir=%0.3, frame=%0.2, mode=%0.1, inherits=%0.0, parent=R_BaseNamespace, context 1
+  void                    Branch                   %0.6 -> BB2 (if true) | BB10 (if false)
+BB2   <- [0]
+  prom-           %2.0  = MkArg                    unboundValue, exists[0x5638c5e6ae80]_p0 (!refl), 
+  val?^ | miss    %2.1  = CastType                 up %2.0
+  void                    StArg              lW    where, %2.1, e0.8
+  goto BB3
+BB10   <- [0]
+  void                    Nop                !     
+  goto BB3
+BB3   <- [2, 10]
+  void                    Branch                   %0.7 -> BB9 (if true) | BB4 (if false)
+BB9   <- [3]
+  prom-           %9.0  = MkArg                    unboundValue, exists[0x5638c5e6ae80]_p2, e0.8
+  val?^ | miss    %9.1  = CastType                 up %9.0
+  void                    StArg              lW    envir, %9.1, e0.8
+  val?^ | miss    %9.3  = %9.1
+  goto BB5
+BB4   <- [3]
+  void                    Nop                !     
+  val?^ | miss    %4.1  = %0.3
+  goto BB5
+BB5   <- [4, 9]
+  val?^ | miss    %5.0  = Phi                      %9.3:BB9, %4.1:BB4
+  val?^ | miss    %5.1  = %5.0
+  lgl$#-          %5.2  = Identical                %0.1, missingArg
+  void                    Branch                   %5.2 -> BB8 (if true) | BB6 (if false)
+BB8   <- [5]
+  void                    StArg              lW    mode, "any", e0.8
+  goto BB7
+BB6   <- [5]
+  void                    Nop                !     
+  goto BB7
+BB7   <- [6, 8]
+  val?^           %7.0  = ChkMissing         e     %0.5
+  val+            %7.1  = Force!<lazy>       !vr   %7.0,    <str$+>
+  val?^           %7.2  = ChkMissing         e     %5.1
+  val?            %7.3  = Force!<lazy>       !v    %7.2, e0.8   <env+>
+  val?^ | miss    %7.4  = LdVar              eR    mode, e0.8
+  val?            %7.5  = Force!<lazy>       !v    %7.4, e0.8   <str$->
+  val?^ | miss    %7.6  = LdVar              eR    inherits, e0.8
+  val?            %7.7  = Force!<lazy>       !v    %7.6, e0.8   <lgl$->
+  val?            %7.8  = CallBuiltin        !     exists(%7.1, %7.3, %7.5, %7.7) e0.8
+  void                    Return             l     %7.8
+Prom 0:
+BB0
+  void                    Visible            v     
+  void                    Return             l     -1
+Prom 2:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  lgl$-           %0.1  = Missing            eR    frame, e0.0
+  void                    Visible            v     
+  lgl$#-          %0.3  = CheckTrueFalse     e     %0.1
+  void                    Branch                   %0.3 -> BB2 (if true) | BB4 (if false)
+BB2   <- [0]
+  (cls|spec|blt)  %2.0  = LdFun              !     as.environment, <0x5638b9a79b70>, e0.0
+  prom-           %2.1  = MkArg                    unboundValue, exists[0x5638c5e6ae80]_p4, e0.0
+  val?            %2.2  = Call               !     %2.0(%2.1) e0.0   <env+>
+  val?            %2.3  = %2.2
+  goto BB3
+BB4   <- [0]
+  (cls|spec|blt)  %4.0  = LdFun              !     sys.frame, e0.0
+  prom-           %4.1  = MkArg                    unboundValue, exists[0x5638c5e6ae80]_p3, e0.0
+  val?            %4.2  = Call               !     %4.0(%4.1) e0.0   <val?_>
+  val?            %4.3  = %4.2
+  goto BB3
+BB3   <- [2, 4]
+  val?            %3.0  = Phi                      %4.3:BB4, %2.3:BB2
+  val?            %3.1  = %3.0
+  void                    Return             l     %3.1
+Prom 3:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    frame, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 4:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    where, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force<lazy>        !     %0.1, e0.0   <(int|env)->
+  void                    Return             l     %0.3
+
+│ exists[0x5638c5e6ae80]                                                       │
+└──────────────────────────────────────────────────────────────────────────────┘

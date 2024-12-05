@@ -1,0 +1,14 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ sys.parent[0x55de2ab148d0]                                                   │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch miss: 1                              │
+│ Properties:  Eager                                                           │
+├────── Final PIR Version
+sys.parent[0x55de2ab148d0]
+BB0
+  env             e0.0  = MkEnv              l     n(miss)=1L, parent=R_BaseNamespace, context 1
+  val?            %0.1  = CallBuiltin        !     sys.parent(1L) e0.0
+  void                    Return             l     %0.1
+
+│ sys.parent[0x55de2ab148d0]                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘

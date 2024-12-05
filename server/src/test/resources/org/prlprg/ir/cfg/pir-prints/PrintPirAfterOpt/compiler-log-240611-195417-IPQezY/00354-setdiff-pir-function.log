@@ -1,0 +1,178 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ setdiff[0x55cca9420350]                                                      │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;NonRefl0,NonRefl1,!Obj0,!Obj1        │
+│ Properties:  ForceOrd: 0                                                     │
+├────── PIR Version After Optimizations
+setdiff[0x55cca9420350]
+BB0
+  goto BB1
+BB1   <- [0]
+  val?^           %1.0  = LdArg                    1
+  val?^           %1.1  = LdArg                    0
+  env             e1.2  = MkEnv              l     x=%1.1, y=%1.0, parent=R_BaseNamespace, context 1
+  val+            %1.3  = Force!<lazy>       !vr   %1.1,    <str->
+  lgl$#-          %1.4  = IsType                   %1.3 isA val?-
+  cp              %1.5  = Checkpoint                -> BB2 (default) | BB16 (if assume failed)
+BB2   <- [1]
+  void                    Assume             D     %1.4, %1.5 (Typecheck@0x55ccaad70d18[Type#0])
+  val-            %2.1  = CastType           d     dn %1.3   <str->
+  val             %2.2  = CallSafeBuiltin    wed   as.vector(%2.1, "any")    <str->
+  void                    StVar              lW    x, %2.2, e1.2
+  val+            %2.4  = Force!<lazy>       !vr   %1.0,    <str->
+  lgl$#-          %2.5  = IsType                   %2.4 isA val?-
+  cp              %2.6  = Checkpoint                -> BB4 (default) | BB3 (if assume failed)
+BB16   <- [1]
+  prom-           %16.0 = MkArg                    unboundValue, setdiff[0x55cca9420350]_p0 (!refl), e1.2
+  val?^           %16.1 = CastType                 up %16.0
+  fs              %16.2 = FrameState         R     0x55cca94650a0+32: [], env=e1.2
+  env             e16.3 = (MkEnv)            l     mode(miss)="any", x=%16.1, parent=R_BaseNamespace, context 0
+  fs              %16.4 = FrameState         R     0x55ccaa93ec00+9: [], env=e16.3, next=%16.2
+  fs              %16.5 = FrameState         R     0x55cca7ae5da0+5(pr): [%1.3], env=e1.2, next=%16.4
+  void                    Deopt              !v    %16.5
+BB4   <- [2]
+  void                    Assume             D     %2.5, %2.6 (Typecheck@0x55ccaad70d18[Type#0])
+  val-            %4.1  = CastType           d     dn %2.4   <str->
+  val             %4.2  = CallSafeBuiltin    wed   as.vector(%4.1, "any")    <str->
+  void                    StVar              lW    y, %4.2, e1.2
+  cp              %4.4  = Checkpoint                -> BB6 (default) | BB5 (if assume failed)
+BB3   <- [2]
+  prom-           %3.0  = MkArg                    unboundValue, setdiff[0x55cca9420350]_p1 (!refl), e1.2
+  val?^           %3.1  = CastType                 up %3.0
+  fs              %3.2  = FrameState         R     0x55cca94650a0+78: [], env=e1.2
+  env             e3.3  = (MkEnv)            l     mode(miss)="any", x=%3.1, parent=R_BaseNamespace, context 0
+  fs              %3.4  = FrameState         R     0x55ccaa93ec00+9: [], env=e3.3, next=%3.2
+  fs              %3.5  = FrameState         R     0x55cca756a4f0+5(pr): [%2.4], env=e1.2, next=%3.4
+  void                    Deopt              !v    %3.5
+BB6   <- [4]
+  lgl$#-          %6.0  = IsType                   %2.2 isA val-
+  void                    Assume             D     %6.0, %4.4 (Typecheck@0x55ccaad70e78[Type#1])
+  val-            %6.2  = CastType           d     dn %2.2   <str->
+  (int|real)$-    %6.3  = CallSafeBuiltin    wed   length(%6.2)    <int$->
+  lgl$-           %6.4  = AsLogical                %6.3
+  lgl$#-          %6.5  = Identical                %6.4, true
+  void                    Branch                   %6.5 -> BB15 (if true) | BB7 (if false)
+BB5   <- [4]
+  fs              %5.0  = FrameState         R     0x55cca94650a0+92: [], env=e1.2
+  void                    Deopt              !v    %5.0
+BB15   <- [6]
+  goto BB8
+BB7   <- [6]
+  prom-           %7.0  = MkArg                    unboundValue, setdiff[0x55cca9420350]_p19 (!refl), e1.2
+  val?^ | miss    %7.1  = CastType                 up %7.0
+  val?            %7.2  = Force              !vr   %7.1, 
+  val?            %7.3  = CallBuiltin        !v    length(%7.2) e1.2   <int$->
+  lgl$-           %7.4  = AsLogical          e     %7.3
+  lgl$-           %7.5  = LOr                      %6.4, %7.4
+  goto BB8
+BB8   <- [7, 15]
+  lgl$-           %8.0  = Phi                      %7.5:BB7, %6.4:BB15
+  lgl$#-          %8.1  = CheckTrueFalse     e     %8.0
+  void                    Branch                   %8.1 -> BB11 (if true) | BB9 (if false)
+BB11   <- [8]
+  val?^ | miss    %11.0 = LdVar              eR    x, e1.2
+  val?            %11.1 = Force<value>       !v    %11.0, e1.2   <str->
+  lgl$#-          %11.2 = IsType                   %11.1 isA val+   <true>
+  void                    Branch                   %11.2 -> BB14 (if true) | BB12 (if false)
+BB9   <- [8]
+  val?^ | miss    %9.0  = LdVar              eR    x, e1.2
+  void                    Visible            v     
+  val?            %9.2  = Force!<value>      !     %9.0, e1.2   <str->
+  goto BB10
+BB14   <- [11]
+  (cls|spec|blt)  %14.0 = LdFun              !v    match, <0x55cca8f30fa0>, e1.2
+  prom-           %14.1 = MkArg                    unboundValue, setdiff[0x55cca9420350]_p20, e1.2
+  prom-           %14.2 = MkArg                    unboundValue, setdiff[0x55cca9420350]_p21, e1.2
+  val?            %14.3 = Call               !v    %14.0(%14.1, %14.2, 0L) e1.2   <int->
+  val?            %14.4 = Eq                 !v    %14.3, 0L, e1.2   <lgl->
+  goto BB13
+BB12   <- [11]
+  prom-           %12.0 = MkArg                    unboundValue, setdiff[0x55cca9420350]_p22, e1.2
+  goto BB13
+BB10   <- [9, 13]
+  val?            %10.0 = Phi                      %9.2:BB9, %13.1:BB13
+  val?            %10.1 = StaticCall         !     unique[0x55ccadf58720](%10.0) { 0 } e1.2   <str->
+  void                    Return             l     %10.1
+BB13   <- [14, 12]
+  val?            %13.0 = Phi                      %14.4:BB14, %12.0:BB12
+  val?            %13.1 = Extract1_1D        !v    %11.1, %13.0, e1.2   <str->
+  void                    Visible            v     
+  goto BB10
+Prom 0:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    x, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<lazy>        !     %1.1, e1.0   <str->
+  void                    Return             l     %1.3
+Prom 1:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    y, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<lazy>        !     %1.1, e1.0   <str->
+  void                    Return             l     %1.3
+Prom 19:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    y, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<value>       !     %1.1, e1.0   <str->
+  void                    Return             l     %1.3
+Prom 20:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    x, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<value>       !     %1.1, e1.0   <str->
+  void                    Return             l     %1.3
+Prom 21:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    y, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<value>       !     %1.1, e1.0   <str->
+  void                    Return             l     %1.3
+Prom 22:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  (cls|spec|blt)  %1.1  = LdFun              !v    match, e1.0
+  prom-           %1.2  = MkArg                    unboundValue, setdiff[0x55cca9420350]_p23, e1.0
+  prom-           %1.3  = MkArg                    unboundValue, setdiff[0x55cca9420350]_p24, e1.0
+  val?            %1.4  = Call               !v    %1.1(%1.2, %1.3, 0L) e1.0   <val?_>
+  void                    Visible            v     
+  val?            %1.6  = Eq                 !     %1.4, 0L, e1.0   <val?_>
+  void                    Return             l     %1.6
+Prom 23:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    x, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force              !     %1.1, e1.0   <val?_>
+  void                    Return             l     %1.3
+Prom 24:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    y, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force              !     %1.1, e1.0   <val?_>
+  void                    Return             l     %1.3
+
+│ setdiff[0x55cca9420350]                                                      │
+└──────────────────────────────────────────────────────────────────────────────┘

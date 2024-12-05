@@ -1,0 +1,168 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ mode[0x5558daf9cf30]                                                         │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;NonRefl0,!Obj0                       │
+│ Properties:  Eager, ForceOrd: 0                                              │
+├────── PIR Version After Optimizations
+mode[0x5558daf9cf30]
+BB0
+  goto BB1
+BB1   <- [0]
+  val?^           %1.0  = LdArg                    0
+  env             e1.1  = MkEnv              l     x=%1.0, parent=R_BaseNamespace, context 1
+  val+            %1.2  = Force!<lazy>       !vr   %1.0,    <val?+>
+  lgl$#-          %1.3  = CallSafeBuiltin    wed   is.expression(%1.2)    <lgl$->
+  cp              %1.4  = Checkpoint                -> BB2 (default) | BB29 (if assume failed)
+BB2   <- [1]
+  void                    Branch                   %1.3 -> BB28 (if true) | BB3 (if false)
+BB29   <- [1]
+  fs              %29.0 = FrameState         R     0x5558d884d470+91: [%1.3], env=e1.1
+  void                    Deopt              !v    %29.0
+BB28   <- [2]
+  void                    Visible            v     
+  goto BB14
+BB3   <- [2]
+  lgl$#-          %3.0  = IsType                   %1.0 isA val?~+
+  void                    Assume             D     %3.0, %1.4 (Typecheck@0x5558dd7f1af8[Type#4])
+  lgl$#-          %3.2  = CallSafeBuiltin    wed   is.call(%1.2)    <lgl$->
+  void                    Branch                   %3.2 -> BB19 (if true) | BB4 (if false)
+BB14   <- [28, 27, 13]
+  str$-           %14.0 = Phi                      %13.0:BB13, "call":BB27, "expression":BB28
+  void                    Return             l     %14.0
+BB19   <- [3]
+  prom-           %19.0 = MkArg                    unboundValue, mode[0x5558daf9cf30]_p1, e1.1
+  val?            %19.1 = StaticCall         !v    deparse[0x5558dad3eae0](%19.0) e1.1   <str$->
+  lgl$#-          %19.2 = IsType                   %19.1 isA val+   <true>
+  lgl$#-          %19.3 = IsType                   %19.1 isA val?-
+  cp              %19.4 = Checkpoint                -> BB21 (default) | BB20 (if assume failed)
+BB4   <- [3]
+  lgl$#-          %4.0  = CallSafeBuiltin    wed   is.symbol(%1.2)    <lgl$->
+  void                    Branch                   %4.0 -> BB18 (if true) | BB5 (if false)
+BB21   <- [19]
+  void                    Assume             D     %19.2, %19.4 (DeadBranchReached@0x5558dd7f1af8[Test#3])
+  void                    Assume             D     %19.3, %19.4 (Typecheck@0x5558dd7f1af8[Type#8])
+  val?-           %21.2 = CastType           d     dn %19.1   <str$->
+  val?            %21.3 = Extract1_1D        wed   %21.2, 1L, elided   <str$->
+  lgl$-           %21.4 = Is                       %21.3, logical
+  lgl$-           %21.5 = Is                       %21.3, integer
+  lgl$-           %21.6 = Is                       %21.3, double
+  lgl$-           %21.7 = Is                       %21.3, complex
+  lgl$-           %21.8 = Is                       %21.3, character   <true>
+  lgl$-           %21.9 = Is                       %21.3, raw
+  lgl$-           %21.10 = Is                       %21.3, list
+  lgl$-           %21.11 = Is                       %21.3, expression
+  lgl$-           %21.12 = LOr                      %21.11, %21.10
+  lgl$-           %21.13 = LOr                      %21.12, %21.9
+  lgl$-           %21.14 = LOr                      %21.13, %21.8
+  lgl$-           %21.15 = LOr                      %21.14, %21.7
+  lgl$-           %21.16 = LOr                      %21.15, %21.6
+  lgl$-           %21.17 = LOr                      %21.16, %21.5
+  lgl$-           %21.18 = LOr                      %21.17, %21.4   <true>
+  lgl$#-          %21.19 = Identical                %21.18, true
+  int$-           %21.20 = Length                   %21.3
+  lgl$-           %21.21 = Is                       %21.3, Factor   <false>
+  lgl$#-          %21.22 = Identical                %21.21, false
+  lgl$#-          %21.23 = Identical                %21.8, true
+  lgl$#-          %21.24 = IsType                   %21.3 isA val?-
+  cp              %21.25 = Checkpoint                -> BB23 (default) | BB22 (if assume failed)
+BB20   <- [19]
+  fs              %20.0 = FrameState         R     0x5558d884d470+253: [%19.1], env=e1.1
+  void                    Deopt              !v    %20.0   !
+BB18   <- [4]
+  void                    Visible            v     
+  goto BB13
+BB5   <- [4]
+  str$-           %5.0  = CallSafeBuiltin    wed   typeof(%1.2)    <str$->
+  int$-           %5.1  = Length                   %5.0
+  void                    StVar              lW    tx, %5.0, e1.1
+  cp              %5.3  = Checkpoint                -> BB7 (default) | BB6 (if assume failed)
+BB23   <- [21]
+  void                    Assume             D     %21.19, %21.25 (DeadBranchReached@0x5558dd7f1af8[Test#4])
+  lgl$-           %23.1 = Eq                 d     %21.20, 1L, elided   <true>
+  lgl$#-          %23.2 = Identical                %23.1, true
+  void                    Assume             D     %23.2, %21.25 (DeadBranchReached@0x5558dd7f1af8[Test#5])
+  void                    Assume             D     %21.22, %21.25 (DeadBranchReached@0x5558dd7f1af8[Test#6])
+  void                    Assume             D     %21.23, %21.25 (DeadBranchReached@0x5558dd7f1af8[Test#7])
+  void                    Assume             D     %21.24, %21.25 (Typecheck@0x5558dd7f1af8[Type#9])
+  val?-           %23.7 = CastType           d     dn %21.3   <str$->
+  lgl-            %23.8 = CallSafeBuiltin    wed   is.na(%23.7) 
+  lgl$#-          %23.9 = CheckTrueFalse     we    %23.8   <false>
+  cp              %23.10 = Checkpoint                -> BB25 (default) | BB24 (if assume failed)
+BB22   <- [21]
+  fs              %22.0 = FrameState         R     0x5558d884d470+296: [%21.3], env=e1.1
+  void                    Deopt              !v    %22.0   !
+BB13   <- [18, 12]
+  str$-           %13.0 = Phi                      %12.0:BB12, "name":BB18
+  goto BB14
+BB7   <- [5]
+  lgl$-           %7.0  = Eq                 d     %5.1, 1L, elided   <true>
+  lgl$#-          %7.1  = Identical                %7.0, true
+  void                    Assume             D     %7.1, %5.3 (DeadBranchReached@0x5558dd7f1af8[Test#14])
+  lgl$-           %7.3  = CallSafeBuiltin    wed   is.na(%5.0) 
+  cp              %7.4  = Checkpoint                -> BB9 (default) | BB8 (if assume failed)
+BB6   <- [5]
+  fs              %6.0  = FrameState         R     0x5558d884d470+708: [%5.0], env=e1.1
+  void                    Deopt              !v    %6.0
+BB25   <- [23]
+  void                    AssumeNot          D     %23.9, %23.10 (DeadBranchReached@0x5558dd7f1af8[Test#10])
+  lgl-            %25.1 = Eq                 wed   %23.7, (, elided
+  lgl$#-          %25.2 = CheckTrueFalse     we    %25.1   <false>
+  cp              %25.3 = Checkpoint                -> BB27 (default) | BB26 (if assume failed)
+BB24   <- [23]
+  fs              %24.0 = FrameState         R     0x5558d884d470+488: [%23.7, %23.9], env=e1.1
+  void                    Deopt              !v    %24.0   !
+BB9   <- [7]
+  lgl$#-          %9.0  = CheckTrueFalse     e     %7.3   <false>
+  void                    AssumeNot          D     %9.0, %7.4 (DeadBranchReached@0x5558dd7f1af8[Test#23])
+  lgl$-           %9.2  = Eq                 d     %5.0, double, elided
+  lgl$#-          %9.3  = CheckTrueFalse     e     %9.2
+  void                    Branch                   %9.3 -> BB17 (if true) | BB10 (if false)
+BB8   <- [7]
+  fs              %8.0  = FrameState         R     0x5558d884d470+965: [%5.0, %7.3], env=e1.1
+  void                    Deopt              !v    %8.0
+BB27   <- [25]
+  void                    AssumeNot          D     %25.2, %25.3 (DeadBranchReached@0x5558dd7f1af8[Test#11])
+  void                    Visible            v     
+  goto BB14
+BB26   <- [25]
+  fs              %26.0 = FrameState         R     0x5558d884d470+512: [%23.7, %25.2], env=e1.1
+  void                    Deopt              !v    %26.0   !
+BB17   <- [9]
+  goto BB16
+BB10   <- [9]
+  lgl$-           %10.0 = Eq                 d     %5.0, integer, elided
+  lgl$#-          %10.1 = CheckTrueFalse     e     %10.0
+  void                    Branch                   %10.1 -> BB15 (if true) | BB11 (if false)
+BB16   <- [15, 17]
+  void                    Visible            v     
+  goto BB12
+BB15   <- [10]
+  goto BB16
+BB11   <- [10]
+  lgl$-           %11.0 = Eq                 d     %5.0, closure, elided
+  lgl$#-          %11.1 = CheckTrueFalse     e     %11.0   <false>
+  void                    AssumeNot          D     %11.1, %7.4 (DeadBranchReached@0x5558dd7f1af8[Test#26])
+  lgl$-           %11.3 = Eq                 d     %5.0, builtin, elided
+  lgl$#-          %11.4 = CheckTrueFalse     e     %11.3   <false>
+  void                    AssumeNot          D     %11.4, %7.4 (DeadBranchReached@0x5558dd7f1af8[Test#27])
+  lgl$-           %11.6 = Eq                 d     %5.0, special, elided
+  lgl$#-          %11.7 = CheckTrueFalse     e     %11.6   <false>
+  void                    AssumeNot          D     %11.7, %7.4 (DeadBranchReached@0x5558dd7f1af8[Test#28])
+  void                    Visible            v     
+  goto BB12
+BB12   <- [11, 16]
+  str$-           %12.0 = Phi                      %5.0:BB11, "numeric":BB16
+  goto BB13
+Prom 1:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    x, e1.0
+  val?            %1.2  = Force<wrapped>     !v    %1.1, e1.0   <code->
+  val?            %1.3  = Extract2_1D        !v    %1.2, 1L, e1.0   <sym->
+  void                    Visible            v     
+  void                    Return             l     %1.3
+
+│ mode[0x5558daf9cf30]                                                         │
+└──────────────────────────────────────────────────────────────────────────────┘

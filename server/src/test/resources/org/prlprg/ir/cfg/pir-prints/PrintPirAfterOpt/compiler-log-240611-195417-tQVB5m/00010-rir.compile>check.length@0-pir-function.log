@@ -1,0 +1,15 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ rir.compile>check.length@0[0x5587cf556080]                                   │
+│ Context: CorrOrd,!TMany                                                      │
+│ Properties:  !Reflection                                                     │
+├────── PIR Version After Optimizations
+rir.compile>check.length@0[0x5587cf556080]
+BB0
+  goto BB1
+BB1   <- [0]
+  void                    Visible            v     
+  void                    Return             l     nil
+
+│ rir.compile>check.length@0[0x5587cf556080]                                   │
+└──────────────────────────────────────────────────────────────────────────────┘

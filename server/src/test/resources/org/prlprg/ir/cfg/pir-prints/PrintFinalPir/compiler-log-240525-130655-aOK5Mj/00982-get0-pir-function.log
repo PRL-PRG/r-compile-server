@@ -1,0 +1,34 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ get0[0x55bbe3fb9430]                                                         │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;Eager2,Eager3,NonRefl2,NonRefl3,!Obj2,!Obj3 miss: 1│
+│ Properties:  ForceOrd: 0                                                     │
+├────── Final PIR Version
+get0[0x55bbe3fb9430]
+BB0
+  val?~+          %0.0  = LdArg                    3
+  val?~+          %0.1  = LdArg                    2
+  val?^           %0.2  = LdArg                    1
+  val?^           %0.3  = LdArg                    0
+  env             e0.4  = MkEnv              l     x=%0.3, envir=%0.2, mode=%0.1, inherits=%0.0, ifnotfound(miss)=nil, parent=R_BaseNamespace, context 1
+  val?            %0.5  = Force!<lazy>       !v    %0.3, e0.4   <str$+>
+  lgl$#-          %0.6  = IsType                   %0.5 isA val?+
+  void                    Branch                   %0.6 -> BB4 (if true) | BB5 (if false)
+BB4   <- [0]
+  val?+           %4.0  = CastType           d     dn %0.5   <str$+>
+  val?^ | miss    %4.1  = LdVar              eR    envir, e0.4
+  val?            %4.2  = Force!<lazy>       !v    %4.1, e0.4   <env+>
+  val?^ | miss    %4.3  = LdVar              eR    mode, e0.4
+  val?            %4.4  = Force!<lazy>       !v    %4.3, e0.4   <str$->
+  val?^ | miss    %4.5  = LdVar              eR    inherits, e0.4
+  val?            %4.6  = Force!<lazy>       !v    %4.5, e0.4   <lgl$->
+  val?^ | miss    %4.7  = LdVar              eR    ifnotfound, e0.4
+  val?            %4.8  = Force!<lazy>       !v    %4.7, e0.4   <(nil|vec)+>
+  val?            %4.9  = CallBuiltin        !     get0(%4.0, %4.2, %4.4, %4.6, %4.8) e0.4
+  void                    Return             l     %4.9
+BB5   <- [0]
+  fs              %5.0  = FrameState         R     0x55bbe41f45b0+9: [%0.5], env=e0.4
+  void                    Deopt              !v    %5.0, Typecheck@0x55bbe4074700[Type#1], %0.5   !
+
+│ get0[0x55bbe3fb9430]                                                         │
+└──────────────────────────────────────────────────────────────────────────────┘
