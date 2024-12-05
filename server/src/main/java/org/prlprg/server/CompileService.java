@@ -32,8 +32,6 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
   private static final Logger logger = Logger.getLogger(CompileServer.class.getName());
 
   private @Nullable GNURSession session = null;
-  // Cache for all values (including functions)
-  private HashMap<ByteString, SEXP> cache = new HashMap<>();
 
   // Cache for byte-code, only for functions. We keep the already serialized code in the cache
   // not the Bc (or BcCodeSXP)
@@ -260,6 +258,28 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
     // Request the packages for those we do not have hashes for.
 
     responseObserver.onNext(Messages.InitResponse.newBuilder().build());
+    responseObserver.onCompleted();
+  }
+
+  @Override
+  public void clearCache(
+      Messages.ClearCacheRequest request,
+      StreamObserver<Messages.ClearCacheResponse> responseObserver) {
+    logger.info("Clearing cache");
+
+    var hashes = request.getHashesList();
+    // If no specific hashes, we clean the entire cache
+    if (hashes.isEmpty()) {
+      bcCache.clear();
+      nativeCache.clear();
+    } else {
+      for (var hash : hashes) {
+        logger.info("Clearing cache entry for hash " + hash);
+        bcCache.entrySet().removeIf(entry -> entry.getKey().first().equals(hash));
+        nativeCache.entrySet().removeIf(entry -> entry.getKey().first().equals(hash));
+      }
+    }
+    responseObserver.onNext(Messages.ClearCacheResponse.newBuilder().build());
     responseObserver.onCompleted();
   }
 

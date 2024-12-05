@@ -10,6 +10,7 @@ package rsh.protocol;
 service CompileService {
   rpc Compile(CompileRequest) returns (CompileResponse) {}
   rpc Init(InitRequest) returns (InitResponse) {}
+  rpc ClearCache(ClearCacheRequest) returns (ClearCacheResponse) {}
 }
 
 // Used by the compile server to ask questions to R
