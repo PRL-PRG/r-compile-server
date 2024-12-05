@@ -255,7 +255,7 @@ class ClosureCompiler {
             yield "%s = %s;".formatted(stack.get(0), stack.get(-2));
           }
           case BcInstr.Math1(var call, var op) ->
-            builder.args(constantSXP(call), String.valueOf(op)).compileStmt();
+              builder.args(constantSXP(call), String.valueOf(op)).compileStmt();
 
           default -> {
             if (instr.label().orElse(null) instanceof BcLabel l) {

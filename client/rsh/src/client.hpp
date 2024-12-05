@@ -44,6 +44,9 @@ public:
     return {total_request_bytes, total_response_bytes};
   }
 
+  void clear_cache();
+  // TODO: also support the clearing of a list of specific functions (already implemented in the server)
+
   static SEXP make_client(SEXP address, SEXP port, SEXP installed_packages);
   static Client *get_client();
 };
@@ -51,5 +54,6 @@ public:
 SEXP get_total_size();
 
 SEXP init_client(SEXP address, SEXP port, SEXP installed_packages);
+SEXP clear_cache();
 
 } // namespace rsh

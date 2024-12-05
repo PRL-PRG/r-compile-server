@@ -25,6 +25,7 @@ namespace protocol {
 static const char* CompileService_method_names[] = {
   "/rsh.protocol.CompileService/Compile",
   "/rsh.protocol.CompileService/Init",
+  "/rsh.protocol.CompileService/ClearCache",
 };
 
 std::unique_ptr< CompileService::Stub> CompileService::NewStub(const std::shared_ptr< ::grpc::ChannelInterface>& channel, const ::grpc::StubOptions& options) {
@@ -36,6 +37,7 @@ std::unique_ptr< CompileService::Stub> CompileService::NewStub(const std::shared
 CompileService::Stub::Stub(const std::shared_ptr< ::grpc::ChannelInterface>& channel, const ::grpc::StubOptions& options)
   : channel_(channel), rpcmethod_Compile_(CompileService_method_names[0], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
   , rpcmethod_Init_(CompileService_method_names[1], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_ClearCache_(CompileService_method_names[2], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
   {}
 
 ::grpc::Status CompileService::Stub::Compile(::grpc::ClientContext* context, const ::rsh::protocol::CompileRequest& request, ::rsh::protocol::CompileResponse* response) {
@@ -84,6 +86,29 @@ void CompileService::Stub::async::Init(::grpc::ClientContext* context, const ::r
   return result;
 }
 
+::grpc::Status CompileService::Stub::ClearCache(::grpc::ClientContext* context, const ::rsh::protocol::ClearCacheRequest& request, ::rsh::protocol::ClearCacheResponse* response) {
+  return ::grpc::internal::BlockingUnaryCall< ::rsh::protocol::ClearCacheRequest, ::rsh::protocol::ClearCacheResponse, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(channel_.get(), rpcmethod_ClearCache_, context, request, response);
+}
+
+void CompileService::Stub::async::ClearCache(::grpc::ClientContext* context, const ::rsh::protocol::ClearCacheRequest* request, ::rsh::protocol::ClearCacheResponse* response, std::function<void(::grpc::Status)> f) {
+  ::grpc::internal::CallbackUnaryCall< ::rsh::protocol::ClearCacheRequest, ::rsh::protocol::ClearCacheResponse, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(stub_->channel_.get(), stub_->rpcmethod_ClearCache_, context, request, response, std::move(f));
+}
+
+void CompileService::Stub::async::ClearCache(::grpc::ClientContext* context, const ::rsh::protocol::ClearCacheRequest* request, ::rsh::protocol::ClearCacheResponse* response, ::grpc::ClientUnaryReactor* reactor) {
+  ::grpc::internal::ClientCallbackUnaryFactory::Create< ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(stub_->channel_.get(), stub_->rpcmethod_ClearCache_, context, request, response, reactor);
+}
+
+::grpc::ClientAsyncResponseReader< ::rsh::protocol::ClearCacheResponse>* CompileService::Stub::PrepareAsyncClearCacheRaw(::grpc::ClientContext* context, const ::rsh::protocol::ClearCacheRequest& request, ::grpc::CompletionQueue* cq) {
+  return ::grpc::internal::ClientAsyncResponseReaderHelper::Create< ::rsh::protocol::ClearCacheResponse, ::rsh::protocol::ClearCacheRequest, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(channel_.get(), cq, rpcmethod_ClearCache_, context, request);
+}
+
+::grpc::ClientAsyncResponseReader< ::rsh::protocol::ClearCacheResponse>* CompileService::Stub::AsyncClearCacheRaw(::grpc::ClientContext* context, const ::rsh::protocol::ClearCacheRequest& request, ::grpc::CompletionQueue* cq) {
+  auto* result =
+    this->PrepareAsyncClearCacheRaw(context, request, cq);
+  result->StartCall();
+  return result;
+}
+
 CompileService::Service::Service() {
   AddMethod(new ::grpc::internal::RpcServiceMethod(
       CompileService_method_names[0],
@@ -105,6 +130,16 @@ CompileService::Service::Service() {
              ::rsh::protocol::InitResponse* resp) {
                return service->Init(ctx, req, resp);
              }, this)));
+  AddMethod(new ::grpc::internal::RpcServiceMethod(
+      CompileService_method_names[2],
+      ::grpc::internal::RpcMethod::NORMAL_RPC,
+      new ::grpc::internal::RpcMethodHandler< CompileService::Service, ::rsh::protocol::ClearCacheRequest, ::rsh::protocol::ClearCacheResponse, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
+          [](CompileService::Service* service,
+             ::grpc::ServerContext* ctx,
+             const ::rsh::protocol::ClearCacheRequest* req,
+             ::rsh::protocol::ClearCacheResponse* resp) {
+               return service->ClearCache(ctx, req, resp);
+             }, this)));
 }
 
 CompileService::Service::~Service() {
@@ -118,6 +153,13 @@ CompileService::Service::~Service() {
 }
 
 ::grpc::Status CompileService::Service::Init(::grpc::ServerContext* context, const ::rsh::protocol::InitRequest* request, ::rsh::protocol::InitResponse* response) {
+  (void) context;
+  (void) request;
+  (void) response;
+  return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+}
+
+::grpc::Status CompileService::Service::ClearCache(::grpc::ServerContext* context, const ::rsh::protocol::ClearCacheRequest* request, ::rsh::protocol::ClearCacheResponse* response) {
   (void) context;
   (void) request;
   (void) response;

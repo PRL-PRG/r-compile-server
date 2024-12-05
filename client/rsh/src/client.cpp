@@ -85,6 +85,20 @@ Client::remote_compile(std::vector<uint8_t> const &rds_closure,
   }
 }
 
+void Client::clear_cache() {
+  using namespace protocol;
+  ClearCacheRequest request;
+  ClearCacheResponse response;
+  grpc::ClientContext context;
+  grpc::Status status = stub_->ClearCache(&context, request, &response);
+  if (!status.ok()) {
+    Rf_error("Failed to clear the cache: %d %s\n", status.error_code(),
+             status.error_message().c_str());
+  } else {
+    Rprintf("Cache cleared\n");
+  }
+}
+
 SEXP Client::make_client(SEXP address, SEXP port, SEXP installed_packages) {
   auto addr = CHAR(STRING_ELT(address, 0));
   auto p = INTEGER(port)[0];
@@ -96,8 +110,12 @@ SEXP Client::make_client(SEXP address, SEXP port, SEXP installed_packages) {
     packages.push_back(CHAR(STRING_ELT(installed_packages, i)));
   }
 
+  // We need to increase the maximum response size (4 MB by default)
+  auto channel_args = grpc::ChannelArguments();
+  channel_args.SetMaxReceiveMessageSize(1024 * 1024 * 10);
+  channel_args.SetMaxSendMessageSize(1024 * 1024 * 10);
   auto channel =
-      grpc::CreateChannel(address_str, grpc::InsecureChannelCredentials());
+      grpc::CreateCustomChannel(address_str, grpc::InsecureChannelCredentials(), channel_args);
   auto client = new Client(channel, packages);
 
   SEXP ptr = PROTECT(R_MakeExternalPtr(client, RSH_CLIENT_PTR, R_NilValue));
@@ -149,6 +167,12 @@ SEXP get_total_size() {
   Rf_setAttrib(out, R_NamesSymbol, names);
   UNPROTECT(2);
   return out;
+}
+
+SEXP clear_cache() {
+  auto client = Client::get_client();
+  client->clear_cache();
+  return R_NilValue;
 }
 
 } // namespace rsh

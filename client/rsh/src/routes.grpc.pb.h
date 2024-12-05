@@ -51,6 +51,13 @@ class CompileService final {
     std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::rsh::protocol::InitResponse>> PrepareAsyncInit(::grpc::ClientContext* context, const ::rsh::protocol::InitRequest& request, ::grpc::CompletionQueue* cq) {
       return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::rsh::protocol::InitResponse>>(PrepareAsyncInitRaw(context, request, cq));
     }
+    virtual ::grpc::Status ClearCache(::grpc::ClientContext* context, const ::rsh::protocol::ClearCacheRequest& request, ::rsh::protocol::ClearCacheResponse* response) = 0;
+    std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::rsh::protocol::ClearCacheResponse>> AsyncClearCache(::grpc::ClientContext* context, const ::rsh::protocol::ClearCacheRequest& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::rsh::protocol::ClearCacheResponse>>(AsyncClearCacheRaw(context, request, cq));
+    }
+    std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::rsh::protocol::ClearCacheResponse>> PrepareAsyncClearCache(::grpc::ClientContext* context, const ::rsh::protocol::ClearCacheRequest& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::rsh::protocol::ClearCacheResponse>>(PrepareAsyncClearCacheRaw(context, request, cq));
+    }
     class async_interface {
      public:
       virtual ~async_interface() {}
@@ -58,6 +65,8 @@ class CompileService final {
       virtual void Compile(::grpc::ClientContext* context, const ::rsh::protocol::CompileRequest* request, ::rsh::protocol::CompileResponse* response, ::grpc::ClientUnaryReactor* reactor) = 0;
       virtual void Init(::grpc::ClientContext* context, const ::rsh::protocol::InitRequest* request, ::rsh::protocol::InitResponse* response, std::function<void(::grpc::Status)>) = 0;
       virtual void Init(::grpc::ClientContext* context, const ::rsh::protocol::InitRequest* request, ::rsh::protocol::InitResponse* response, ::grpc::ClientUnaryReactor* reactor) = 0;
+      virtual void ClearCache(::grpc::ClientContext* context, const ::rsh::protocol::ClearCacheRequest* request, ::rsh::protocol::ClearCacheResponse* response, std::function<void(::grpc::Status)>) = 0;
+      virtual void ClearCache(::grpc::ClientContext* context, const ::rsh::protocol::ClearCacheRequest* request, ::rsh::protocol::ClearCacheResponse* response, ::grpc::ClientUnaryReactor* reactor) = 0;
     };
     typedef class async_interface experimental_async_interface;
     virtual class async_interface* async() { return nullptr; }
@@ -67,6 +76,8 @@ class CompileService final {
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::rsh::protocol::CompileResponse>* PrepareAsyncCompileRaw(::grpc::ClientContext* context, const ::rsh::protocol::CompileRequest& request, ::grpc::CompletionQueue* cq) = 0;
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::rsh::protocol::InitResponse>* AsyncInitRaw(::grpc::ClientContext* context, const ::rsh::protocol::InitRequest& request, ::grpc::CompletionQueue* cq) = 0;
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::rsh::protocol::InitResponse>* PrepareAsyncInitRaw(::grpc::ClientContext* context, const ::rsh::protocol::InitRequest& request, ::grpc::CompletionQueue* cq) = 0;
+    virtual ::grpc::ClientAsyncResponseReaderInterface< ::rsh::protocol::ClearCacheResponse>* AsyncClearCacheRaw(::grpc::ClientContext* context, const ::rsh::protocol::ClearCacheRequest& request, ::grpc::CompletionQueue* cq) = 0;
+    virtual ::grpc::ClientAsyncResponseReaderInterface< ::rsh::protocol::ClearCacheResponse>* PrepareAsyncClearCacheRaw(::grpc::ClientContext* context, const ::rsh::protocol::ClearCacheRequest& request, ::grpc::CompletionQueue* cq) = 0;
   };
   class Stub final : public StubInterface {
    public:
@@ -85,6 +96,13 @@ class CompileService final {
     std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::rsh::protocol::InitResponse>> PrepareAsyncInit(::grpc::ClientContext* context, const ::rsh::protocol::InitRequest& request, ::grpc::CompletionQueue* cq) {
       return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::rsh::protocol::InitResponse>>(PrepareAsyncInitRaw(context, request, cq));
     }
+    ::grpc::Status ClearCache(::grpc::ClientContext* context, const ::rsh::protocol::ClearCacheRequest& request, ::rsh::protocol::ClearCacheResponse* response) override;
+    std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::rsh::protocol::ClearCacheResponse>> AsyncClearCache(::grpc::ClientContext* context, const ::rsh::protocol::ClearCacheRequest& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::rsh::protocol::ClearCacheResponse>>(AsyncClearCacheRaw(context, request, cq));
+    }
+    std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::rsh::protocol::ClearCacheResponse>> PrepareAsyncClearCache(::grpc::ClientContext* context, const ::rsh::protocol::ClearCacheRequest& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::rsh::protocol::ClearCacheResponse>>(PrepareAsyncClearCacheRaw(context, request, cq));
+    }
     class async final :
       public StubInterface::async_interface {
      public:
@@ -92,6 +110,8 @@ class CompileService final {
       void Compile(::grpc::ClientContext* context, const ::rsh::protocol::CompileRequest* request, ::rsh::protocol::CompileResponse* response, ::grpc::ClientUnaryReactor* reactor) override;
       void Init(::grpc::ClientContext* context, const ::rsh::protocol::InitRequest* request, ::rsh::protocol::InitResponse* response, std::function<void(::grpc::Status)>) override;
       void Init(::grpc::ClientContext* context, const ::rsh::protocol::InitRequest* request, ::rsh::protocol::InitResponse* response, ::grpc::ClientUnaryReactor* reactor) override;
+      void ClearCache(::grpc::ClientContext* context, const ::rsh::protocol::ClearCacheRequest* request, ::rsh::protocol::ClearCacheResponse* response, std::function<void(::grpc::Status)>) override;
+      void ClearCache(::grpc::ClientContext* context, const ::rsh::protocol::ClearCacheRequest* request, ::rsh::protocol::ClearCacheResponse* response, ::grpc::ClientUnaryReactor* reactor) override;
      private:
       friend class Stub;
       explicit async(Stub* stub): stub_(stub) { }
@@ -107,8 +127,11 @@ class CompileService final {
     ::grpc::ClientAsyncResponseReader< ::rsh::protocol::CompileResponse>* PrepareAsyncCompileRaw(::grpc::ClientContext* context, const ::rsh::protocol::CompileRequest& request, ::grpc::CompletionQueue* cq) override;
     ::grpc::ClientAsyncResponseReader< ::rsh::protocol::InitResponse>* AsyncInitRaw(::grpc::ClientContext* context, const ::rsh::protocol::InitRequest& request, ::grpc::CompletionQueue* cq) override;
     ::grpc::ClientAsyncResponseReader< ::rsh::protocol::InitResponse>* PrepareAsyncInitRaw(::grpc::ClientContext* context, const ::rsh::protocol::InitRequest& request, ::grpc::CompletionQueue* cq) override;
+    ::grpc::ClientAsyncResponseReader< ::rsh::protocol::ClearCacheResponse>* AsyncClearCacheRaw(::grpc::ClientContext* context, const ::rsh::protocol::ClearCacheRequest& request, ::grpc::CompletionQueue* cq) override;
+    ::grpc::ClientAsyncResponseReader< ::rsh::protocol::ClearCacheResponse>* PrepareAsyncClearCacheRaw(::grpc::ClientContext* context, const ::rsh::protocol::ClearCacheRequest& request, ::grpc::CompletionQueue* cq) override;
     const ::grpc::internal::RpcMethod rpcmethod_Compile_;
     const ::grpc::internal::RpcMethod rpcmethod_Init_;
+    const ::grpc::internal::RpcMethod rpcmethod_ClearCache_;
   };
   static std::unique_ptr<Stub> NewStub(const std::shared_ptr< ::grpc::ChannelInterface>& channel, const ::grpc::StubOptions& options = ::grpc::StubOptions());
 
@@ -118,6 +141,7 @@ class CompileService final {
     virtual ~Service();
     virtual ::grpc::Status Compile(::grpc::ServerContext* context, const ::rsh::protocol::CompileRequest* request, ::rsh::protocol::CompileResponse* response);
     virtual ::grpc::Status Init(::grpc::ServerContext* context, const ::rsh::protocol::InitRequest* request, ::rsh::protocol::InitResponse* response);
+    virtual ::grpc::Status ClearCache(::grpc::ServerContext* context, const ::rsh::protocol::ClearCacheRequest* request, ::rsh::protocol::ClearCacheResponse* response);
   };
   template <class BaseClass>
   class WithAsyncMethod_Compile : public BaseClass {
@@ -159,7 +183,27 @@ class CompileService final {
       ::grpc::Service::RequestAsyncUnary(1, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
-  typedef WithAsyncMethod_Compile<WithAsyncMethod_Init<Service > > AsyncService;
+  template <class BaseClass>
+  class WithAsyncMethod_ClearCache : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithAsyncMethod_ClearCache() {
+      ::grpc::Service::MarkMethodAsync(2);
+    }
+    ~WithAsyncMethod_ClearCache() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status ClearCache(::grpc::ServerContext* /*context*/, const ::rsh::protocol::ClearCacheRequest* /*request*/, ::rsh::protocol::ClearCacheResponse* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    void RequestClearCache(::grpc::ServerContext* context, ::rsh::protocol::ClearCacheRequest* request, ::grpc::ServerAsyncResponseWriter< ::rsh::protocol::ClearCacheResponse>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
+      ::grpc::Service::RequestAsyncUnary(2, context, request, response, new_call_cq, notification_cq, tag);
+    }
+  };
+  typedef WithAsyncMethod_Compile<WithAsyncMethod_Init<WithAsyncMethod_ClearCache<Service > > > AsyncService;
   template <class BaseClass>
   class WithCallbackMethod_Compile : public BaseClass {
    private:
@@ -214,7 +258,34 @@ class CompileService final {
     virtual ::grpc::ServerUnaryReactor* Init(
       ::grpc::CallbackServerContext* /*context*/, const ::rsh::protocol::InitRequest* /*request*/, ::rsh::protocol::InitResponse* /*response*/)  { return nullptr; }
   };
-  typedef WithCallbackMethod_Compile<WithCallbackMethod_Init<Service > > CallbackService;
+  template <class BaseClass>
+  class WithCallbackMethod_ClearCache : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithCallbackMethod_ClearCache() {
+      ::grpc::Service::MarkMethodCallback(2,
+          new ::grpc::internal::CallbackUnaryHandler< ::rsh::protocol::ClearCacheRequest, ::rsh::protocol::ClearCacheResponse>(
+            [this](
+                   ::grpc::CallbackServerContext* context, const ::rsh::protocol::ClearCacheRequest* request, ::rsh::protocol::ClearCacheResponse* response) { return this->ClearCache(context, request, response); }));}
+    void SetMessageAllocatorFor_ClearCache(
+        ::grpc::MessageAllocator< ::rsh::protocol::ClearCacheRequest, ::rsh::protocol::ClearCacheResponse>* allocator) {
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(2);
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::rsh::protocol::ClearCacheRequest, ::rsh::protocol::ClearCacheResponse>*>(handler)
+              ->SetMessageAllocator(allocator);
+    }
+    ~WithCallbackMethod_ClearCache() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status ClearCache(::grpc::ServerContext* /*context*/, const ::rsh::protocol::ClearCacheRequest* /*request*/, ::rsh::protocol::ClearCacheResponse* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    virtual ::grpc::ServerUnaryReactor* ClearCache(
+      ::grpc::CallbackServerContext* /*context*/, const ::rsh::protocol::ClearCacheRequest* /*request*/, ::rsh::protocol::ClearCacheResponse* /*response*/)  { return nullptr; }
+  };
+  typedef WithCallbackMethod_Compile<WithCallbackMethod_Init<WithCallbackMethod_ClearCache<Service > > > CallbackService;
   typedef CallbackService ExperimentalCallbackService;
   template <class BaseClass>
   class WithGenericMethod_Compile : public BaseClass {
@@ -246,6 +317,23 @@ class CompileService final {
     }
     // disable synchronous version of this method
     ::grpc::Status Init(::grpc::ServerContext* /*context*/, const ::rsh::protocol::InitRequest* /*request*/, ::rsh::protocol::InitResponse* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+  };
+  template <class BaseClass>
+  class WithGenericMethod_ClearCache : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithGenericMethod_ClearCache() {
+      ::grpc::Service::MarkMethodGeneric(2);
+    }
+    ~WithGenericMethod_ClearCache() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status ClearCache(::grpc::ServerContext* /*context*/, const ::rsh::protocol::ClearCacheRequest* /*request*/, ::rsh::protocol::ClearCacheResponse* /*response*/) override {
       abort();
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
@@ -291,6 +379,26 @@ class CompileService final {
     }
   };
   template <class BaseClass>
+  class WithRawMethod_ClearCache : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithRawMethod_ClearCache() {
+      ::grpc::Service::MarkMethodRaw(2);
+    }
+    ~WithRawMethod_ClearCache() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status ClearCache(::grpc::ServerContext* /*context*/, const ::rsh::protocol::ClearCacheRequest* /*request*/, ::rsh::protocol::ClearCacheResponse* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    void RequestClearCache(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
+      ::grpc::Service::RequestAsyncUnary(2, context, request, response, new_call_cq, notification_cq, tag);
+    }
+  };
+  template <class BaseClass>
   class WithRawCallbackMethod_Compile : public BaseClass {
    private:
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
@@ -332,6 +440,28 @@ class CompileService final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     virtual ::grpc::ServerUnaryReactor* Init(
+      ::grpc::CallbackServerContext* /*context*/, const ::grpc::ByteBuffer* /*request*/, ::grpc::ByteBuffer* /*response*/)  { return nullptr; }
+  };
+  template <class BaseClass>
+  class WithRawCallbackMethod_ClearCache : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithRawCallbackMethod_ClearCache() {
+      ::grpc::Service::MarkMethodRawCallback(2,
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+            [this](
+                   ::grpc::CallbackServerContext* context, const ::grpc::ByteBuffer* request, ::grpc::ByteBuffer* response) { return this->ClearCache(context, request, response); }));
+    }
+    ~WithRawCallbackMethod_ClearCache() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status ClearCache(::grpc::ServerContext* /*context*/, const ::rsh::protocol::ClearCacheRequest* /*request*/, ::rsh::protocol::ClearCacheResponse* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    virtual ::grpc::ServerUnaryReactor* ClearCache(
       ::grpc::CallbackServerContext* /*context*/, const ::grpc::ByteBuffer* /*request*/, ::grpc::ByteBuffer* /*response*/)  { return nullptr; }
   };
   template <class BaseClass>
@@ -388,9 +518,36 @@ class CompileService final {
     // replace default version of method with streamed unary
     virtual ::grpc::Status StreamedInit(::grpc::ServerContext* context, ::grpc::ServerUnaryStreamer< ::rsh::protocol::InitRequest,::rsh::protocol::InitResponse>* server_unary_streamer) = 0;
   };
-  typedef WithStreamedUnaryMethod_Compile<WithStreamedUnaryMethod_Init<Service > > StreamedUnaryService;
+  template <class BaseClass>
+  class WithStreamedUnaryMethod_ClearCache : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithStreamedUnaryMethod_ClearCache() {
+      ::grpc::Service::MarkMethodStreamed(2,
+        new ::grpc::internal::StreamedUnaryHandler<
+          ::rsh::protocol::ClearCacheRequest, ::rsh::protocol::ClearCacheResponse>(
+            [this](::grpc::ServerContext* context,
+                   ::grpc::ServerUnaryStreamer<
+                     ::rsh::protocol::ClearCacheRequest, ::rsh::protocol::ClearCacheResponse>* streamer) {
+                       return this->StreamedClearCache(context,
+                         streamer);
+                  }));
+    }
+    ~WithStreamedUnaryMethod_ClearCache() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable regular version of this method
+    ::grpc::Status ClearCache(::grpc::ServerContext* /*context*/, const ::rsh::protocol::ClearCacheRequest* /*request*/, ::rsh::protocol::ClearCacheResponse* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    // replace default version of method with streamed unary
+    virtual ::grpc::Status StreamedClearCache(::grpc::ServerContext* context, ::grpc::ServerUnaryStreamer< ::rsh::protocol::ClearCacheRequest,::rsh::protocol::ClearCacheResponse>* server_unary_streamer) = 0;
+  };
+  typedef WithStreamedUnaryMethod_Compile<WithStreamedUnaryMethod_Init<WithStreamedUnaryMethod_ClearCache<Service > > > StreamedUnaryService;
   typedef Service SplitStreamedService;
-  typedef WithStreamedUnaryMethod_Compile<WithStreamedUnaryMethod_Init<Service > > StreamedService;
+  typedef WithStreamedUnaryMethod_Compile<WithStreamedUnaryMethod_Init<WithStreamedUnaryMethod_ClearCache<Service > > > StreamedService;
 };
 
 // Used by the compile server to ask questions to R
