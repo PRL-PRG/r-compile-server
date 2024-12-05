@@ -80,6 +80,14 @@ enum Tier {
   OPTIMIZED = 1; // native code
 }
 
+// Cache handling 
+
+message ClearCacheRequest {
+  repeated uint64 hashes = 1;
+}
+
+message ClearCacheResponse {}
+
 // Context
 
 message CallContext {

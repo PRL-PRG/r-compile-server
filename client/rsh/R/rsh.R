@@ -144,3 +144,9 @@ rsh_override_cmpfun <- function(f) {
 rsh_total_size <- function() {
   .Call(C_get_total_size)
 }
+
+#' Clear both the bytecode cache and the native cache of the Rsh server
+#' @export
+rsh_clear_cache <- function() {
+  .Call(C_clear_cache)
+}
