@@ -1,0 +1,7 @@
+export(rsh_cmpfun)
+export(rsh_compile)
+export(init_client)
+export(rsh_jit_disable)
+export(rsh_jit_enable)
+export(is_compiled)
+importFrom(compiler,cmpfun)

@@ -1,0 +1,33 @@
+LLVM_CONFIG := llvm-config-17
+
+LLVM_CPPFLAGS != $(LLVM_CONFIG) --cxxflags
+LLVM_LIBS != $(LLVM_CONFIG) --libs
+
+PB_CPPFLAGS != pkg-config --cflags protobuf
+PB_LIBS != pkg-config --libs protobuf
+GRPC_CPPFLAGS != pkg-config --cflags grpc++
+GRPC_LIBS != pkg-config --libs grpc++
+XXHASH_CFLAGS != pkg-config --cflags libxxhash
+XXHASH_LIBS != pkg-config --libs libxxhash
+
+# Both C/C++ flags
+PKG_CPPFLAGS := -DR_NO_REMAP -DSTRICT_R_HEADERS -DUSE_RINTERNALS
+# C++ flags
+PKG_CXXFLAGS := $(LLVM_CPPFLAGS) $(PB_CPPFLAGS) $(GRPC_CPPFLAGS) $(XXHASH_CFLAGS) -fexceptions
+# C flags
+PKG_CFLAGS :=
+# Linker flags
+PKG_LIBS := $(LLVM_LIBS) $(PB_LIBS) $(GRPC_LIBS) $(XXHASH_LIBS)
+
+# Allow sources in subdirectories
+CPP_FILES = $(wildcard *.cpp **/*.cpp)
+CC_FILES = $(wildcard *.cc **/*.cc)
+C_FILES = $(wildcard *.c **/*.c)
+
+OBJECTS = $(CPP_FILES:.cpp=.o) $(CC_FILES:.cc=.o) $(C_FILES:.c=.o)
+
+# Add rules for dependency generation
+# %.d: %.cpp
+# 	@$(CXX) $(PKG_CXXFLAGS) -MM -MT $@ -MT $(<:.cpp=.o) $< > $@
+
+# vim: set ft=make:
