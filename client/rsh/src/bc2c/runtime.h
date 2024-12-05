@@ -15,7 +15,6 @@
 typedef int32_t i32;
 typedef uint64_t u64;
 typedef uint32_t u32;
-typedef u64 Value;
 
 // LINKING MODEL
 // -------------
@@ -233,6 +232,8 @@ RSH_R_SYMBOLS
 //
 // clang-format on
 
+typedef u64 Value;
+
 // the 13 bits of the NaN boxing
 #define QNAN ((u64)0x7ffc000000000000)
 #define SIGN_BIT ((u64)1 << 63)
@@ -242,8 +243,12 @@ RSH_R_SYMBOLS
 #define MASK_LGL (QNAN | ((u64)3 << 48))
 #define MASK_ISQ (MASK_SXP | ((u64)1 << 48))
 
+// Fixed values
+
 #define VAL_TRUE ((Value)(MASK_LGL | 1))
 #define VAL_FALSE ((Value)(MASK_LGL | 0))
+
+// Unchecked accessors
 
 #define VAL_INT(v) (int)(v)
 #define VAL_SXP(v) (SEXP)((v) & (((u64)1 << 48) - 1))
@@ -255,6 +260,8 @@ static INLINE double VAL_DBL(Value v) {
   return d;
 }
 
+// Type checkers
+
 #define VAL_IS_INT(v) (((v) & MASK) == MASK_INT)
 #define VAL_IS_INT_NOT_NA(v) (VAL_IS_INT(v) && VAL_INT(v) != NA_INTEGER)
 #define VAL_IS_SXP(v) (((v) & MASK) == MASK_SXP)
@@ -263,6 +270,8 @@ static INLINE double VAL_DBL(Value v) {
 #define VAL_IS_LGL(v) (((v) & MASK) == MASK_LGL)
 #define VAL_IS_LGL_NOT_NA(v) (VAL_IS_LGL(v) && VAL_INT(v) != NA_LOGICAL)
 #define VAL_IS_ISQ(v) (((v) & MASK) == MASK_ISQ)
+
+// Unchecked constructors
 
 #define SXP_TO_VAL(v) (Value)(MASK_SXP | ((u64)(v)))
 #define ISQ_TO_VAL(v) (Value)(MASK_ISQ | ((u64)(v)))
@@ -285,6 +294,8 @@ static INLINE Value DBL_TO_VAL(double d) {
                                    : (VAL_IS_LGL(v)   ? LGLSXP                 \
                                       : VAL_IS_ISQ(v) ? ISQSXP                 \
                                                       : 0))))
+
+// Checked accessors
 
 // TODO: can we share this bcell expand?
 static INLINE SEXP val_as_sexp(Value v) {
@@ -315,6 +326,8 @@ static INLINE Value sexp_as_val(SEXP s) {
     return SXP_TO_VAL(s);
   }
 }
+
+// Flags
 
 #define VAL_MAYBE_REFERENCED(v) ((v) & ((u64)1 << 49))
 #define VAL_SET_MAYBE_REFERENCED(v) ((v) |= ((u64)1 << 49))
