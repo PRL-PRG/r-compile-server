@@ -11,30 +11,30 @@ record Constant(int id, SEXP value) {}
 
 class ByteCodeStack {
   private int max = 0;
-  private int top = -1;
+  private int top = 0;
 
   public String push() {
     top++;
-    max = Math.max(max, top + 1);
-    return get(0);
+    max = Math.max(max, top);
+    return get(top);
   }
 
   public String pop() {
     if (top < 0) {
       throw new IllegalArgumentException("Stack underflow: %d".formatted(top));
     }
-    var s = get(0);
     --top;
+    var s = get(top);
     return "*" + s;
   }
 
   public String get(int i) {
-    var p = top + i;
+    var p = top - i;
     if (p < 0 || p + 1 > max) {
       throw new IllegalStateException("Invalid stack state (i: %d, max: %d)".formatted(p, max));
     }
 
-    return "_" + p;
+    return "GET_VAL(" + p + ")";
   }
 
   public int max() {
@@ -46,16 +46,16 @@ class ByteCodeStack {
   }
 
   protected Optional<String> registerInitialization() {
-    if (max == 0) {
+//    if (max == 0) {
       return Optional.empty();
-    }
-
-    var builder = new StringBuilder();
-    for (int i = 0; i < max; i++) {
-      builder.append("INIT_VAL(_").append(i).append(");\n");
-    }
-
-    return Optional.of(builder.toString());
+//    }
+//
+//    var builder = new StringBuilder();
+//    for (int i = 0; i < max; i++) {
+//      builder.append("INIT_VAL(_").append(i).append(");\n");
+//    }
+//
+//    return Optional.of(builder.toString());
   }
 
   public int top() {
@@ -156,9 +156,9 @@ class ClosureCompiler {
       compile(code.get(i), i);
     }
 
-    if (!stack.isEmpty()) {
-      throw new IllegalStateException("Stack not empty: %d".formatted(stack.top()));
-    }
+//    if (!stack.isEmpty()) {
+//      throw new IllegalStateException("Stack not empty: %d".formatted(stack.top()));
+//    }
 
     afterCompile();
 
@@ -192,7 +192,7 @@ class ClosureCompiler {
         stack.reset(top);
       }
 
-      body.line("%s: /* %d */".formatted(label(pc), stack.top()));
+      body.line("%s: ".formatted(label(pc), stack.top()));
     }
 
     var builder = new InstrBuilder(instr);
@@ -229,14 +229,18 @@ class ClosureCompiler {
           case BcInstr.GetBuiltin(var idx) ->
               builder.args("\"" + bc.consts().get(idx).name() + "\"").compileStmt();
           case BcInstr.MakeClosure(var idx) -> compileMakeClosure(builder, idx);
+
+          // FIXME: this can be all done using the default branch - except for the rank
+          //  the builder should be smarter and include also other types such as int
           case BcInstr.SubsetN(var call, var rank) ->
-              builder.args(constantSXP(call)).pop(1 + rank).useStackAsArray().compileStmt();
+              builder.args(String.valueOf(rank), constantSXP(call)).pop(rank+1).useStackAsArray().compileStmt();
           case BcInstr.Subset2N(var call, var rank) ->
-              builder.args(constantSXP(call)).pop(1 + rank).useStackAsArray().compileStmt();
+              builder.args(String.valueOf(rank), constantSXP(call)).pop(rank+1).useStackAsArray().compileStmt();
           case BcInstr.SubassignN(var call, var rank) ->
-              builder.args(constantSXP(call)).pop(2 + rank).useStackAsArray().compileStmt();
+              builder.args(String.valueOf(rank), constantSXP(call)).pop(rank+1).useStackAsArray().compileStmt();
           case BcInstr.Subassign2N(var call, var rank) ->
-              builder.args(constantSXP(call)).pop(2 + rank).useStackAsArray().compileStmt();
+              builder.args(String.valueOf(rank), constantSXP(call)).pop(rank+1).useStackAsArray().compileStmt();
+
           case BcInstr.StartFor(var ast, var symbol, var label) -> {
             var c = builder.args(constantSXP(ast), constantSXP(symbol), cell(symbol)).compileStmt();
             yield c + "\ngoto " + label(label) + ";";
@@ -254,19 +258,12 @@ class ClosureCompiler {
             ifStackTop.put(elseLabel.target(), stack.top());
             yield c;
           }
-          case BcInstr.Dup() -> {
-            stack.push();
-            yield "%s = %s;".formatted(stack.get(0), stack.get(-1));
-          }
-          case BcInstr.Dup2nd() -> {
-            stack.push();
-            yield "%s = %s;".formatted(stack.get(0), stack.get(-2));
-          }
           case BcInstr.Math1(var call, var op) ->
               builder.args(constantSXP(call), String.valueOf(op)).compileStmt();
 
           default -> {
             if (instr.label().orElse(null) instanceof BcLabel l) {
+              // FIXME: need to pop!
               yield "if (%s) {\ngoto %s;\n}".formatted(builder.compile(), label(l));
             } else {
               yield builder.compileStmt();
@@ -274,7 +271,9 @@ class ClosureCompiler {
           }
         };
 
+    builder.beforeCompile().forEach(body::line);
     body.line(code);
+    builder.afterCompile().forEach(body::line);
   }
 
   private static final Set<BcOp> SUPPORTED_OPS =
@@ -469,19 +468,8 @@ class ClosureCompiler {
     public String compile() {
       var args = new ArrayList<String>(Math.max(pop, push) + this.args.size());
 
-      // TODO: maybe it will be better to represent stack as an array from the beginning
-      //  and just keep track of the top of the stack
       if (stackAsArray) {
-        var top = stack.top();
-        replayStackEffect();
-        var bottom = stack.top();
-        var s =
-            IntStream.range(bottom, top + 1)
-                .mapToObj("&_%d"::formatted)
-                .collect(Collectors.toList());
-        var arg = "((Value*[]){" + String.join(",", s) + "})";
-        args.add(arg);
-        args.add(String.valueOf(s.size()));
+        args.add("GET_VAL(0)");
       } else {
         args.addAll(replayStackEffect());
       }
@@ -492,22 +480,19 @@ class ClosureCompiler {
         args.add(VAR_RHO);
       }
 
-      return fun + "(" + String.join(", ", args) + ") /*" + stack.top() + " */";
+      return fun + "(" + String.join(", ", args) + ")";
     }
 
     public List<String> replayStackEffect() {
       var args = new ArrayList<String>(Math.max(pop, push) + this.args.size());
-      // play the stack effects
-      for (int i = 0; i < pop; i++) {
-        args.addFirst(stack.pop());
-      }
-      for (int i = 0; i < push; i++) {
-        var e = stack.push();
-        if (args.size() < i + 1) {
-          args.add(e);
-        } else {
-          args.set(i, e);
+      var max = Math.max(pop, push);
+
+      for (int i = 0; i < max; i++) {
+        var a = "GET_VAL(%d)".formatted(max - i);
+        if (i >= push) {
+          a = "*" + a;
         }
+        args.add(a);
       }
 
       return args;
@@ -520,6 +505,24 @@ class ClosureCompiler {
     public InstrBuilder useStackAsArray() {
       this.stackAsArray = true;
       return this;
+    }
+
+    public List<String> beforeCompile() {
+      int n = push - pop;
+      if (n > 0) {
+        return List.of("PUSH_VAL(%d);".formatted(n));
+      } else {
+        return List.of();
+      }
+    }
+
+    public List<String> afterCompile() {
+      int n = pop - push;
+      if (n > 0) {
+        return List.of("POP_VAL(%d);".formatted(n));
+      } else {
+        return List.of();
+      }
     }
   }
 
