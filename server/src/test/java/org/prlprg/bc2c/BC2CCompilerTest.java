@@ -600,7 +600,32 @@ public class BC2CCompilerTest {
     snapshot.verify("x <- c(1,2); sin(x)");
   }
 
-//  @Test
+  @Test
+  public void testB(BC2CSnapshot snapshot){
+    // TODO: add support for GC torture
+    snapshot.verify("""
+            f <- function(n) {
+              s <- 0
+            #  for (i in 1:n) {
+                for (j in 1:n) {
+                  s <- s + 1
+                }
+            #  }
+              s
+            }
+            
+            n <- 10000
+            s <- 0
+            for (i in 1:n) {
+              for (j in 1:n) {
+                s <- s + f(n)
+              }
+            }
+            s
+            """);
+  }
+
+  @Test
   public void testAdhoc(BC2CSnapshot snapshot) {
     snapshot.verify(
         """
@@ -616,9 +641,11 @@ public class BC2CCompilerTest {
                    sinsun <- sin(sunangle)
                    cossun <- cos(sunangle)
 
+                   j <- 1
+                   anglei <- anglebreaks[1]
                    for (i in 1:nrow(height.map)) {
-                       for (j in 1:ncol(height.map)) {
-                           for (anglei in anglebreaks) {
+                   #    for (j in 1:ncol(height.map)) {
+                   #        for (anglei in anglebreaks) {
                                for (k in 1:maxdistance) {
                                    # xcoord <- i + sin(sunangle) * k
                                    xcoord <- i + sinsun * k
@@ -642,8 +669,8 @@ public class BC2CCompilerTest {
                                        break
                                    }
                                }
-                           }
-                       }
+                   #        }
+                   #    }
                    }
 
                    shadow
@@ -678,7 +705,7 @@ public class BC2CCompilerTest {
                    s = s+sum(bench_rays(height.map = volcano, sun.angle = i))
                  }
                }
-               # print(s)
+               print(s)
                s
             """);
   }
