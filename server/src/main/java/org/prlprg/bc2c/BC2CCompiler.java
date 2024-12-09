@@ -237,9 +237,9 @@ class ClosureCompiler {
           case BcInstr.Subset2N(var call, var rank) ->
               builder.args(String.valueOf(rank), constantSXP(call)).pop(rank+1).useStackAsArray().compileStmt();
           case BcInstr.SubassignN(var call, var rank) ->
-              builder.args(String.valueOf(rank), constantSXP(call)).pop(rank+1).useStackAsArray().compileStmt();
+              builder.args(String.valueOf(rank), constantSXP(call)).pop(rank+2).useStackAsArray().compileStmt();
           case BcInstr.Subassign2N(var call, var rank) ->
-              builder.args(String.valueOf(rank), constantSXP(call)).pop(rank+1).useStackAsArray().compileStmt();
+              builder.args(String.valueOf(rank), constantSXP(call)).pop(rank+2).useStackAsArray().compileStmt();
 
           case BcInstr.StartFor(var ast, var symbol, var label) -> {
             var c = builder.args(constantSXP(ast), constantSXP(symbol), cell(symbol)).compileStmt();

@@ -195,7 +195,8 @@ static INLINE SEXP Rsh_get_array_dim_attr(SEXP v) {
     }                                                                          \
   } while (0)
 
-#define DO_FAST_SETVECELT(/* SEXP */ vec, /* R_xlen_t */ i, /* Value */ rhs,   \
+#define DO_FAST_SETVECELT(/* Value* */ target, /* SEXP */ vec,                 \
+                          /* R_xlen_t */ i, /* Value */ rhs,                   \
                           /* Rboolean */ subassign2)                           \
   do {                                                                         \
     if (i >= 0 && XLENGTH(vec) > i) {                                          \
@@ -203,14 +204,17 @@ static INLINE SEXP Rsh_get_array_dim_attr(SEXP v) {
         switch (VAL_TAG(rhs)) {                                                \
         case REALSXP:                                                          \
           REAL(vec)[i] = VAL_DBL(rhs);                                         \
+          SET_SXP_VAL(target, vec);                                            \
           SETTER_CLEAR_NAMED(vec);                                             \
           return;                                                              \
         case INTSXP:                                                           \
           REAL(vec)[i] = INTEGER_TO_REAL(VAL_INT(rhs));                        \
+          SET_SXP_VAL(target, vec);                                            \
           SETTER_CLEAR_NAMED(vec);                                             \
           return;                                                              \
         case LGLSXP:                                                           \
           REAL(vec)[i] = LOGICAL_TO_REAL(VAL_INT(rhs));                        \
+          SET_SXP_VAL(target, vec);                                            \
           SETTER_CLEAR_NAMED(vec);                                             \
           return;                                                              \
         }                                                                      \
@@ -218,10 +222,12 @@ static INLINE SEXP Rsh_get_array_dim_attr(SEXP v) {
         switch (VAL_TAG(rhs)) {                                                \
         case INTSXP:                                                           \
           INTEGER(vec)[i] = VAL_INT(rhs);                                      \
+          SET_SXP_VAL(target, vec);                                            \
           SETTER_CLEAR_NAMED(vec);                                             \
           return;                                                              \
         case LGLSXP:                                                           \
           LOGICAL(vec)[i] = VAL_INT(rhs);                                      \
+          SET_SXP_VAL(target, vec);                                            \
           SETTER_CLEAR_NAMED(vec);                                             \
           return;                                                              \
         }                                                                      \
@@ -232,6 +238,7 @@ static INLINE SEXP Rsh_get_array_dim_attr(SEXP v) {
             R_FixupRHS(vec, rhs_sxp);                                          \
           }                                                                    \
           SET_VECTOR_ELT(vec, i, rhs_sxp);                                     \
+          SET_SXP_VAL(target, vec);                                            \
           SETTER_CLEAR_NAMED(vec);                                             \
           return;                                                              \
         }                                                                      \

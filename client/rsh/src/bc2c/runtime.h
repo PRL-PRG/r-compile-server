@@ -506,7 +506,7 @@ static INLINE Rboolean bcell_set_value(BCell cell, SEXP value) {
 
 // CONSTANTS
 
-// FIXME: use the SCALA_ macros
+// FIXME: use the SCALAR_ macros
 #define Rsh_const(env, idx) ((SEXP *)STDVEC_DATAPTR((env)))[(idx)]
 
 // CLOSURE REPRESENTATION
@@ -1622,7 +1622,7 @@ static INLINE void Rsh_vec_subassign(Value *sx, Value rhs, Value i, SEXP call,
     }
   }
 
-  DO_FAST_SETVECELT(vec, as_index(i) - 1, rhs, sub2);
+  DO_FAST_SETVECELT(sx, vec, as_index(i) - 1, rhs, sub2);
 
   // slow path!
   RSH_PC_INC(slow_subassign);
@@ -1670,7 +1670,7 @@ static INLINE void Rsh_mat_subassign(Value *sx, Value rhs, Value si, Value sj,
     R_xlen_t ncol = INTEGER(dim)[1];
     if (i > 0 && j > 0 && i <= nrow && j <= ncol) {
       R_xlen_t k = i - 1 + nrow * (j - 1);
-      DO_FAST_SETVECELT(mat, k, rhs, subassign2);
+      DO_FAST_SETVECELT(sx, mat, k, rhs, subassign2);
     }
   }
 
@@ -1813,7 +1813,7 @@ static INLINE Rboolean Rsh_start_subassign_dispatch(
                                              val_as_sexp(*rhs), rho, &value)) {
     RSH_PC_INC(dispatched_subassign);
     RSH_CHECK_SIGINT();
-    SET_SXP_VAL(lhs, value);
+    SET_SXP_VAL(args_tail, value);
     return TRUE;
   } else {
     SEXP tag = TAG(CDR(call));
@@ -1918,6 +1918,7 @@ static INLINE void Rsh_do_subset_n(Value *stack, int rank, SEXP call, SEXP rho,
 static INLINE void Rsh_do_subassign_n(Value *stack, int rank, SEXP call,
                                       SEXP rho, Rboolean subassign2) {
   Value *sx = stack - rank - 2;
+  Value *sv = stack - rank - 2;
   Value *rhs = stack - rank - 1;
   Value *ix = stack - rank;
 
@@ -1932,7 +1933,7 @@ static INLINE void Rsh_do_subassign_n(Value *stack, int rank, SEXP call,
   if (dim != R_NilValue) {
     R_xlen_t k = Rsh_compute_index(dim, ix, rank);
     if (k >= 0) {
-      DO_FAST_SETVECELT(vec, k, *rhs, subassign2);
+      DO_FAST_SETVECELT(sv, vec, k, *rhs, subassign2);
     }
   }
 
@@ -1952,7 +1953,7 @@ static INLINE void Rsh_do_subassign_n(Value *stack, int rank, SEXP call,
 
   UNPROTECT(1);
 
-  SET_VAL(sx, vec);
+  SET_SXP_VAL(sv, vec);
 }
 
 static INLINE void Rsh_GetterCall(Value *lhs, Value *fun, Value args_head,

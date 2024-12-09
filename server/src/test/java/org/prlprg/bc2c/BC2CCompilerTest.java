@@ -286,7 +286,7 @@ public class BC2CCompilerTest {
   public void testVecsubassign(BC2CSnapshot snapshot) {
     snapshot.verify("x <- c(1,2,3); x[1] <- 2; x", fastSubassign());
     snapshot.verify(
-        "x <- data.frame(a=1, b=2, row.names=NULL); x['a'] <- 42",
+        "x <- data.frame(a=1, b=2, row.names=NULL); x['a'] <- 42; x",
         r -> assertEquals(r.pc().dispatchedSubassign(), 1));
     snapshot.verify("x <- list(1,2,3); x[[1]] <- x; x", fastSubassign());
   }
@@ -296,7 +296,7 @@ public class BC2CCompilerTest {
     snapshot.verify("x <- c(1,2,3); x[] <- 42; x");
     snapshot.verify("y <- c(1,2,3); y[[x=1]] <- 42; y");
     snapshot.verify(
-        "x <- data.frame(a=1, b=2, row.names=NULL); x[] <- 42",
+        "x <- data.frame(a=1, b=2, row.names=NULL); x[] <- 42; x",
         r -> assertEquals(r.pc().dispatchedSubassign(), 1));
   }
 
