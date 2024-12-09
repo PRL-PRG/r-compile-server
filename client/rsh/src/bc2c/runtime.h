@@ -5,7 +5,6 @@
 // IT IS USED BY THE SERVER COMPILER
 
 // MAKE SURE Rinternals.h is not listed!
-#include "R_ext/Boolean.h"
 #include "runtime_internals.h"
 #include <limits.h>
 #include <math.h>
@@ -2254,15 +2253,21 @@ static INLINE void Rsh_SeqLen(Value *v, SEXP call, SEXP rho) {
 
 #define RSH_IS_TEST(v, p)                                                      \
   do {                                                                         \
-    SET_LGL_VAL(*v, p(val_as_sexp(*(v))));                                     \
+    Value __v__ = *(v);                                                        \
+    SET_LGL_VAL(__v__, p(val_as_sexp(__v__)));                                 \
   } while (0)
 
 #define RSH_IS_TYPE(v, t)                                                      \
   do {                                                                         \
-    SET_LGL_VAL(*v, VAL_TAG(*(v)) == t || TYPEOF(val_as_sexp(*(v))) == t);     \
+    Value *__v__ = v;                                                          \
+    int __tag__ = VAL_TAG(*__v__);                                             \
+    int __type__ = (t);                                                        \
+    SET_LGL_VAL(*__v__,                                                        \
+                __tag__ == __type__ ||                                         \
+                    (__tag__ == 0 && TYPEOF(VAL_SXP(*__v__)) == __type__));    \
   } while (0)
 
-static INLINE void Rsh_IsNull(Value *v) { RSH_IS_TEST(v, isNull); }
+static INLINE void Rsh_IsNull(Value *v) { RSH_IS_TYPE(v, NILSXP); }
 
 static INLINE void Rsh_IsObject(Value *v) { RSH_IS_TEST(v, isObject); }
 
@@ -2318,7 +2323,7 @@ static inline void fixup_scalar_logical(Value *v, SEXP call, const char *arg,
 static INLINE Rboolean Rsh_And1st(Value *v, SEXP call) {
   fixup_scalar_logical(v, call, "'x'", "&&");
   R_Visible = TRUE;
-  return VAL_INT(*v) == FALSE;
+  return VAL_INT(*v) == FALSE ? TRUE : FALSE;
 }
 
 static INLINE void Rsh_And2nd(Value *v2, Value v1, SEXP call) {
@@ -2344,7 +2349,8 @@ static INLINE void Rsh_And2nd(Value *v2, Value v1, SEXP call) {
 static INLINE Rboolean Rsh_Or1st(Value *v, SEXP call) {
   fixup_scalar_logical(v, call, "'x'", "||");
   R_Visible = TRUE;
-  return VAL_INT(*v) != FALSE && VAL_INT(*v) != NA_LOGICAL;
+  int r = VAL_INT(*v) != FALSE && VAL_INT(*v) != NA_LOGICAL;
+  return r ? TRUE : FALSE;
 }
 
 static INLINE void Rsh_Or2nd(Value *v2, Value v1, SEXP call) {
