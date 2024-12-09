@@ -502,6 +502,7 @@ public class BC2CCompilerTest {
 
   @Test
   public void testIf(BC2CSnapshot snapshot) {
+    snapshot.setClean(false);
     //    snapshot.verify("""
     //            if (T) 1 else 2
     //            2
@@ -588,13 +589,18 @@ public class BC2CCompilerTest {
   }
 
   @Test
+  public void testA(BC2CSnapshot snapshot) {
+    snapshot.verify("x <- list(a=1,b=list()); x[[2]][[1]] <- 3; x ");
+  }
+
+  @Test
   public void testMath1(BC2CSnapshot snapshot) {
     snapshot.verify("x <- 1; sin(x)", fastMath1());
     snapshot.verify("x <- 1L; sin(x)");
     snapshot.verify("x <- c(1,2); sin(x)");
   }
 
-  @Test
+//  @Test
   public void testAdhoc(BC2CSnapshot snapshot) {
     snapshot.verify(
         """

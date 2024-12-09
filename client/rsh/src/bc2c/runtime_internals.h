@@ -26,6 +26,8 @@ extern FUNTAB R_FunTab[];
 extern Rboolean R_Visible; /* Value visibility flag */
 extern SEXP R_valueSym;
 extern R_bcstack_t *R_BCNodeStackTop, *R_BCNodeStackEnd;
+extern SEXP R_TrueValue;
+extern SEXP R_FalseValue;
 
 #ifdef RSH_INLINE
 #define INLINE inline __attribute__((always_inline))
@@ -150,31 +152,31 @@ static INLINE SEXP Rsh_get_array_dim_attr(SEXP v) {
       if (i < 0 || XLENGTH(vec) <= i) {                                        \
         break;                                                                 \
       }                                                                        \
-      SET_DBL_VAL(*res, REAL_ELT(vec, i));                                     \
+      SET_DBL_VAL(res, REAL_ELT(vec, i));                                      \
       return;                                                                  \
     case INTSXP:                                                               \
       if (i < 0 || XLENGTH(vec) <= i) {                                        \
         break;                                                                 \
       }                                                                        \
-      SET_INT_VAL(*res, INTEGER_ELT(vec, i));                                  \
+      SET_INT_VAL(res, INTEGER_ELT(vec, i));                                   \
       return;                                                                  \
     case LGLSXP:                                                               \
       if (i < 0 || XLENGTH(vec) <= i) {                                        \
         break;                                                                 \
       }                                                                        \
-      SET_LGL_VAL(*res, LOGICAL_ELT(vec, i));                                  \
+      SET_LGL_VAL(res, LOGICAL_ELT(vec, i));                                   \
       return;                                                                  \
     case CPLXSXP:                                                              \
       if (i < 0 || XLENGTH(vec) <= i) {                                        \
         break;                                                                 \
       }                                                                        \
-      SET_SXP_VAL(*res, Rf_ScalarComplex(COMPLEX_ELT(vec, i)));                \
+      SET_SXP_VAL(res, Rf_ScalarComplex(COMPLEX_ELT(vec, i)));                 \
       return;                                                                  \
     case RAWSXP:                                                               \
       if (i < 0 || XLENGTH(vec) <= i) {                                        \
         break;                                                                 \
       }                                                                        \
-      SET_SXP_VAL(*res, Rf_ScalarRaw(RAW(vec)[i]));                            \
+      SET_SXP_VAL(res, Rf_ScalarRaw(RAW(vec)[i]));                             \
       return;                                                                  \
     case VECSXP:                                                               \
       if (i < 0 || XLENGTH(vec) <= i) {                                        \
@@ -183,11 +185,11 @@ static INLINE SEXP Rsh_get_array_dim_attr(SEXP v) {
       SEXP elt = VECTOR_ELT(vec, i);                                           \
       RAISE_NAMED(elt, NAMED(vec));                                            \
       if (subset2) {                                                           \
-        SET_SXP_VAL(*res, elt);                                                \
+        SET_SXP_VAL(res, elt);                                                 \
       } else {                                                                 \
         SEXP v = Rf_allocVector(VECSXP, 1);                                    \
         SET_VECTOR_ELT(v, 0, elt);                                             \
-        SET_SXP_VAL(*res, v);                                                  \
+        SET_SXP_VAL(res, v);                                                   \
       }                                                                        \
       return;                                                                  \
     }                                                                          \
@@ -296,11 +298,11 @@ static INLINE SEXP relop(SEXP call, SEXP op, SEXP opsym, SEXP x, SEXP y,
         (RC) ? CONS((value), R_NilValue) : CONS_NR(value, R_NilValue);         \
                                                                                \
     if (VAL_SXP(*head) == R_NilValue) {                                        \
-      SET_SXP_VAL(*(head), __elem__);                                          \
+      SET_SXP_VAL(head, __elem__);                                             \
     } else {                                                                   \
       SETCDR(VAL_SXP(*(tail)), __elem__);                                      \
     }                                                                          \
-    SET_SXP_VAL(*(tail), __elem__);                                            \
+    SET_SXP_VAL(tail, __elem__);                                               \
     if (RC) {                                                                  \
       INCREMENT_NAMED(CAR(__elem__));                                          \
     } else {                                                                   \
@@ -309,7 +311,7 @@ static INLINE SEXP relop(SEXP call, SEXP op, SEXP opsym, SEXP x, SEXP y,
   } while (0)
 
 #define RSH_LIST_APPEND(/* Value* */ head, /* Value* */ tail,                  \
-                        /* Value */ value)                                     \
+                        /* SEXP */ value)                                      \
   RSH_LIST_APPEND_EX(head, tail, value, TRUE)
 
 #define RSH_SET_TAG(/* Value */ v, /* SEXP */ t)                               \
