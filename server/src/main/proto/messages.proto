@@ -1,0 +1,184 @@
+syntax = "proto3";
+
+option java_package = "org.prlprg.server";
+
+package rsh.protocol;
+
+// Error handling
+// grpc already has a way to handle errors
+// Status message: https://grpc.github.io/grpc-java/javadoc/io/grpc/Status.html
+
+// Init
+message Version {
+  int32 major = 1;
+  int32 minor = 2;
+  int32 patch = 3;
+}
+
+message InitRequest {
+  Version Rsh_version = 1;// version of the compile server
+  Version R_version = 2;
+  string platform = 3;//amd64, etc TODO: use an enum for the allowed platforms?
+  repeated bytes package_hash = 4;//Packages which are initially part of the environment (in addition to base)
+}
+
+message InitResponse {}
+
+
+// Basic messages
+
+message CompileRequest {
+  Function function = 2;// Add package version
+  optional Tier tier = 4;//if not defined, let the compile server decide
+  optional int32 cc_opt = 5;// if not defined, the server decides
+  optional int32 bc_opt = 6;// for the bytecode. Native does bytecode first so this is also need when compiling to native
+  optional Context context = 7;
+  optional Environment environment = 8;//The values of all the bindings that statically appear in the function
+}
+
+message CompileResponse {
+  uint64 hash = 1;
+  Tier tier = 2;
+  optional bytes code = 3;
+  optional bytes constants = 4;
+}
+
+
+message Function {
+  uint64 package_hash = 1;
+  string name = 2; //What if it is a closure passed to a HOF?
+  uint64 hash = 3;
+  optional bytes body = 4;
+  // what about the function parameters?
+}
+
+message FunctionRequest {
+  uint64 hash = 1;
+}
+
+message Environment {
+  map<string, uint64> values = 1;//Name of the variable to a hash of the value
+}
+
+
+message ValueRequest {
+  repeated uint64 hash = 1;// We can batch and ask for several values
+}
+
+message Value {
+  uint64 hash = 1;
+  bytes value = 2;
+}
+message Values {
+  repeated Value values = 1;
+}
+
+message Empty {}
+
+enum Tier {
+  BASELINE = 0;// bytecode
+  OPTIMIZED = 1; // native code
+}
+
+// Cache handling 
+
+message ClearCacheRequest {
+  repeated uint64 hashes = 1;
+}
+
+message ClearCacheResponse {}
+
+// Context
+
+message CallContext {
+  bool args_statically_matched = 1;
+  bool correct_number_of_args = 2;
+  bool correct_order_of_args = 3;
+  bool no_missing_args = 4;
+}
+
+message ArgumentContext {
+  bool eager = 1;
+  bool reflection = 2;
+  bool object = 3;
+  optional Type type = 4;
+}
+
+message Context {
+  CallContext call_context = 1;
+  repeated ArgumentContext argument_context = 2;
+}
+
+message ContextRequest {
+  Function function = 1;
+}
+
+
+// Feedback
+
+enum TestLattice {
+  BOTH = 0;
+  ONLY_TRUE = 1;
+  ONLY_FALSE = 2;
+  NONE = 3;
+}
+
+enum Type {
+  ANY = 0;
+  INTEGER = 1;
+  REAL = 2;// Add more types
+}
+
+message TestFeedback {
+  TestLattice test_lattice = 1;
+}
+
+message CallFeedback {
+  int64 n_calls = 1;
+  uint64 callee_hash = 2;
+}
+
+message ValueFeedback {
+  bool scalar = 1;
+  bool object = 2;
+  bool accessed_attributes = 3;
+  bool vectorizable = 4;
+  bool is_promise = 5;
+}
+
+message TypeFeedback {
+  message Feedback {
+    oneof feedback {
+      TestFeedback test_feedback = 1;
+      CallFeedback call_feedback = 2;
+      ValueFeedback value_feedback = 3;
+    }
+  }
+  map<int64, Feedback> types = 2;//Offset in the bytecode to the feedback
+}
+
+message FeedbackRequest {
+  Function function = 1;
+}
+
+// Packages
+
+
+message PackageSource {
+  oneof source {
+    string r_mirror = 2;
+    string github_url = 3;
+  }
+}
+
+message Package {
+  string name = 1;
+  Version version = 2;
+  repeated uint64 function_hashes = 4;
+  // What about package data? Maybe just the sysdata?
+  optional PackageSource source = 5;//If none, it is a base package or a local package
+}
+
+message PackageRequest {
+  uint64 hash = 1;
+}
