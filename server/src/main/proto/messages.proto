@@ -34,6 +34,7 @@ message CompileRequest {
   optional int32 bc_opt = 6;// for the bytecode. Native does bytecode first so this is also need when compiling to native
   optional Context context = 7;
   optional Environment environment = 8;//The values of all the bindings that statically appear in the function
+  bool no_cache = 9;//If true, the server will not cache the result
 }
 
 message CompileResponse {

@@ -73,7 +73,8 @@ PROTOBUF_CONSTEXPR CompileRequest::CompileRequest(
   , /*decltype(_impl_.environment_)*/nullptr
   , /*decltype(_impl_.tier_)*/0
   , /*decltype(_impl_.cc_opt_)*/0
-  , /*decltype(_impl_.bc_opt_)*/0} {}
+  , /*decltype(_impl_.bc_opt_)*/0
+  , /*decltype(_impl_.no_cache_)*/false} {}
 struct CompileRequestDefaultTypeInternal {
   PROTOBUF_CONSTEXPR CompileRequestDefaultTypeInternal()
       : _instance(::_pbi::ConstantInitialized{}) {}
@@ -475,12 +476,14 @@ const uint32_t TableStruct_messages_2eproto::offsets[] PROTOBUF_SECTION_VARIABLE
   PROTOBUF_FIELD_OFFSET(::rsh::protocol::CompileRequest, _impl_.bc_opt_),
   PROTOBUF_FIELD_OFFSET(::rsh::protocol::CompileRequest, _impl_.context_),
   PROTOBUF_FIELD_OFFSET(::rsh::protocol::CompileRequest, _impl_.environment_),
+  PROTOBUF_FIELD_OFFSET(::rsh::protocol::CompileRequest, _impl_.no_cache_),
   ~0u,
   2,
   3,
   4,
   0,
   1,
+  ~0u,
   PROTOBUF_FIELD_OFFSET(::rsh::protocol::CompileResponse, _impl_._has_bits_),
   PROTOBUF_FIELD_OFFSET(::rsh::protocol::CompileResponse, _internal_metadata_),
   ~0u,  // no _extensions_
@@ -708,32 +711,32 @@ static const ::_pbi::MigrationSchema schemas[] PROTOBUF_SECTION_VARIABLE(protode
   { 0, -1, -1, sizeof(::rsh::protocol::Version)},
   { 9, -1, -1, sizeof(::rsh::protocol::InitRequest)},
   { 19, -1, -1, sizeof(::rsh::protocol::InitResponse)},
-  { 25, 37, -1, sizeof(::rsh::protocol::CompileRequest)},
-  { 43, 53, -1, sizeof(::rsh::protocol::CompileResponse)},
-  { 57, 67, -1, sizeof(::rsh::protocol::Function)},
-  { 71, -1, -1, sizeof(::rsh::protocol::FunctionRequest)},
-  { 78, 86, -1, sizeof(::rsh::protocol::Environment_ValuesEntry_DoNotUse)},
-  { 88, -1, -1, sizeof(::rsh::protocol::Environment)},
-  { 95, -1, -1, sizeof(::rsh::protocol::ValueRequest)},
-  { 102, -1, -1, sizeof(::rsh::protocol::Value)},
-  { 110, -1, -1, sizeof(::rsh::protocol::Values)},
-  { 117, -1, -1, sizeof(::rsh::protocol::Empty)},
-  { 123, -1, -1, sizeof(::rsh::protocol::ClearCacheRequest)},
-  { 130, -1, -1, sizeof(::rsh::protocol::ClearCacheResponse)},
-  { 136, -1, -1, sizeof(::rsh::protocol::CallContext)},
-  { 146, 156, -1, sizeof(::rsh::protocol::ArgumentContext)},
-  { 160, -1, -1, sizeof(::rsh::protocol::Context)},
-  { 168, -1, -1, sizeof(::rsh::protocol::ContextRequest)},
-  { 175, -1, -1, sizeof(::rsh::protocol::TestFeedback)},
-  { 182, -1, -1, sizeof(::rsh::protocol::CallFeedback)},
-  { 190, -1, -1, sizeof(::rsh::protocol::ValueFeedback)},
-  { 201, -1, -1, sizeof(::rsh::protocol::TypeFeedback_Feedback)},
-  { 211, 219, -1, sizeof(::rsh::protocol::TypeFeedback_TypesEntry_DoNotUse)},
-  { 221, -1, -1, sizeof(::rsh::protocol::TypeFeedback)},
-  { 228, -1, -1, sizeof(::rsh::protocol::FeedbackRequest)},
-  { 235, -1, -1, sizeof(::rsh::protocol::PackageSource)},
-  { 244, 254, -1, sizeof(::rsh::protocol::Package)},
-  { 258, -1, -1, sizeof(::rsh::protocol::PackageRequest)},
+  { 25, 38, -1, sizeof(::rsh::protocol::CompileRequest)},
+  { 45, 55, -1, sizeof(::rsh::protocol::CompileResponse)},
+  { 59, 69, -1, sizeof(::rsh::protocol::Function)},
+  { 73, -1, -1, sizeof(::rsh::protocol::FunctionRequest)},
+  { 80, 88, -1, sizeof(::rsh::protocol::Environment_ValuesEntry_DoNotUse)},
+  { 90, -1, -1, sizeof(::rsh::protocol::Environment)},
+  { 97, -1, -1, sizeof(::rsh::protocol::ValueRequest)},
+  { 104, -1, -1, sizeof(::rsh::protocol::Value)},
+  { 112, -1, -1, sizeof(::rsh::protocol::Values)},
+  { 119, -1, -1, sizeof(::rsh::protocol::Empty)},
+  { 125, -1, -1, sizeof(::rsh::protocol::ClearCacheRequest)},
+  { 132, -1, -1, sizeof(::rsh::protocol::ClearCacheResponse)},
+  { 138, -1, -1, sizeof(::rsh::protocol::CallContext)},
+  { 148, 158, -1, sizeof(::rsh::protocol::ArgumentContext)},
+  { 162, -1, -1, sizeof(::rsh::protocol::Context)},
+  { 170, -1, -1, sizeof(::rsh::protocol::ContextRequest)},
+  { 177, -1, -1, sizeof(::rsh::protocol::TestFeedback)},
+  { 184, -1, -1, sizeof(::rsh::protocol::CallFeedback)},
+  { 192, -1, -1, sizeof(::rsh::protocol::ValueFeedback)},
+  { 203, -1, -1, sizeof(::rsh::protocol::TypeFeedback_Feedback)},
+  { 213, 221, -1, sizeof(::rsh::protocol::TypeFeedback_TypesEntry_DoNotUse)},
+  { 223, -1, -1, sizeof(::rsh::protocol::TypeFeedback)},
+  { 230, -1, -1, sizeof(::rsh::protocol::FeedbackRequest)},
+  { 237, -1, -1, sizeof(::rsh::protocol::PackageSource)},
+  { 246, 256, -1, sizeof(::rsh::protocol::Package)},
+  { 260, -1, -1, sizeof(::rsh::protocol::PackageRequest)},
 };
 
 static const ::_pb::Message* const file_default_instances[] = {
@@ -775,69 +778,70 @@ const char descriptor_table_protodef_messages_2eproto[] PROTOBUF_SECTION_VARIABL
   "\001(\0132\025.rsh.protocol.Version\022(\n\tR_version\030"
   "\002 \001(\0132\025.rsh.protocol.Version\022\020\n\010platform"
   "\030\003 \001(\t\022\024\n\014package_hash\030\004 \003(\014\"\016\n\014InitResp"
-  "onse\"\250\002\n\016CompileRequest\022(\n\010function\030\002 \001("
+  "onse\"\272\002\n\016CompileRequest\022(\n\010function\030\002 \001("
   "\0132\026.rsh.protocol.Function\022%\n\004tier\030\004 \001(\0162"
   "\022.rsh.protocol.TierH\000\210\001\001\022\023\n\006cc_opt\030\005 \001(\005"
   "H\001\210\001\001\022\023\n\006bc_opt\030\006 \001(\005H\002\210\001\001\022+\n\007context\030\007 "
   "\001(\0132\025.rsh.protocol.ContextH\003\210\001\001\0223\n\013envir"
   "onment\030\010 \001(\0132\031.rsh.protocol.EnvironmentH"
-  "\004\210\001\001B\007\n\005_tierB\t\n\007_cc_optB\t\n\007_bc_optB\n\n\010_"
-  "contextB\016\n\014_environment\"\203\001\n\017CompileRespo"
-  "nse\022\014\n\004hash\030\001 \001(\004\022 \n\004tier\030\002 \001(\0162\022.rsh.pr"
-  "otocol.Tier\022\021\n\004code\030\003 \001(\014H\000\210\001\001\022\026\n\tconsta"
-  "nts\030\004 \001(\014H\001\210\001\001B\007\n\005_codeB\014\n\n_constants\"X\n"
-  "\010Function\022\024\n\014package_hash\030\001 \001(\004\022\014\n\004name\030"
-  "\002 \001(\t\022\014\n\004hash\030\003 \001(\004\022\021\n\004body\030\004 \001(\014H\000\210\001\001B\007"
-  "\n\005_body\"\037\n\017FunctionRequest\022\014\n\004hash\030\001 \001(\004"
-  "\"s\n\013Environment\0225\n\006values\030\001 \003(\0132%.rsh.pr"
-  "otocol.Environment.ValuesEntry\032-\n\013Values"
-  "Entry\022\013\n\003key\030\001 \001(\t\022\r\n\005value\030\002 \001(\004:\0028\001\"\034\n"
-  "\014ValueRequest\022\014\n\004hash\030\001 \003(\004\"$\n\005Value\022\014\n\004"
-  "hash\030\001 \001(\004\022\r\n\005value\030\002 \001(\014\"-\n\006Values\022#\n\006v"
-  "alues\030\001 \003(\0132\023.rsh.protocol.Value\"\007\n\005Empt"
-  "y\"#\n\021ClearCacheRequest\022\016\n\006hashes\030\001 \003(\004\"\024"
-  "\n\022ClearCacheResponse\"\206\001\n\013CallContext\022\037\n\027"
-  "args_statically_matched\030\001 \001(\010\022\036\n\026correct"
-  "_number_of_args\030\002 \001(\010\022\035\n\025correct_order_o"
-  "f_args\030\003 \001(\010\022\027\n\017no_missing_args\030\004 \001(\010\"t\n"
-  "\017ArgumentContext\022\r\n\005eager\030\001 \001(\010\022\022\n\nrefle"
-  "ction\030\002 \001(\010\022\016\n\006object\030\003 \001(\010\022%\n\004type\030\004 \001("
-  "\0162\022.rsh.protocol.TypeH\000\210\001\001B\007\n\005_type\"s\n\007C"
-  "ontext\022/\n\014call_context\030\001 \001(\0132\031.rsh.proto"
-  "col.CallContext\0227\n\020argument_context\030\002 \003("
-  "\0132\035.rsh.protocol.ArgumentContext\":\n\016Cont"
-  "extRequest\022(\n\010function\030\001 \001(\0132\026.rsh.proto"
-  "col.Function\"\?\n\014TestFeedback\022/\n\014test_lat"
-  "tice\030\001 \001(\0162\031.rsh.protocol.TestLattice\"4\n"
-  "\014CallFeedback\022\017\n\007n_calls\030\001 \001(\003\022\023\n\013callee"
-  "_hash\030\002 \001(\004\"v\n\rValueFeedback\022\016\n\006scalar\030\001"
-  " \001(\010\022\016\n\006object\030\002 \001(\010\022\033\n\023accessed_attribu"
-  "tes\030\003 \001(\010\022\024\n\014vectorizable\030\004 \001(\010\022\022\n\nis_pr"
-  "omise\030\005 \001(\010\"\321\002\n\014TypeFeedback\0224\n\005types\030\002 "
-  "\003(\0132%.rsh.protocol.TypeFeedback.TypesEnt"
-  "ry\032\267\001\n\010Feedback\0223\n\rtest_feedback\030\001 \001(\0132\032"
-  ".rsh.protocol.TestFeedbackH\000\0223\n\rcall_fee"
-  "dback\030\002 \001(\0132\032.rsh.protocol.CallFeedbackH"
-  "\000\0225\n\016value_feedback\030\003 \001(\0132\033.rsh.protocol"
-  ".ValueFeedbackH\000B\n\n\010feedback\032Q\n\nTypesEnt"
-  "ry\022\013\n\003key\030\001 \001(\003\0222\n\005value\030\002 \001(\0132#.rsh.pro"
-  "tocol.TypeFeedback.Feedback:\0028\001\";\n\017Feedb"
-  "ackRequest\022(\n\010function\030\001 \001(\0132\026.rsh.proto"
-  "col.Function\"C\n\rPackageSource\022\022\n\010r_mirro"
-  "r\030\002 \001(\tH\000\022\024\n\ngithub_url\030\003 \001(\tH\000B\010\n\006sourc"
-  "e\"\225\001\n\007Package\022\014\n\004name\030\001 \001(\t\022&\n\007version\030\002"
-  " \001(\0132\025.rsh.protocol.Version\022\027\n\017function_"
-  "hashes\030\004 \003(\004\0220\n\006source\030\005 \001(\0132\033.rsh.proto"
-  "col.PackageSourceH\000\210\001\001B\t\n\007_source\"\036\n\016Pac"
-  "kageRequest\022\014\n\004hash\030\001 \001(\004*#\n\004Tier\022\014\n\010BAS"
-  "ELINE\020\000\022\r\n\tOPTIMIZED\020\001*@\n\013TestLattice\022\010\n"
-  "\004BOTH\020\000\022\r\n\tONLY_TRUE\020\001\022\016\n\nONLY_FALSE\020\002\022\010"
-  "\n\004NONE\020\003*&\n\004Type\022\007\n\003ANY\020\000\022\013\n\007INTEGER\020\001\022\010"
-  "\n\004REAL\020\002B\023\n\021org.prlprg.serverb\006proto3"
+  "\004\210\001\001\022\020\n\010no_cache\030\t \001(\010B\007\n\005_tierB\t\n\007_cc_o"
+  "ptB\t\n\007_bc_optB\n\n\010_contextB\016\n\014_environmen"
+  "t\"\203\001\n\017CompileResponse\022\014\n\004hash\030\001 \001(\004\022 \n\004t"
+  "ier\030\002 \001(\0162\022.rsh.protocol.Tier\022\021\n\004code\030\003 "
+  "\001(\014H\000\210\001\001\022\026\n\tconstants\030\004 \001(\014H\001\210\001\001B\007\n\005_cod"
+  "eB\014\n\n_constants\"X\n\010Function\022\024\n\014package_h"
+  "ash\030\001 \001(\004\022\014\n\004name\030\002 \001(\t\022\014\n\004hash\030\003 \001(\004\022\021\n"
+  "\004body\030\004 \001(\014H\000\210\001\001B\007\n\005_body\"\037\n\017FunctionReq"
+  "uest\022\014\n\004hash\030\001 \001(\004\"s\n\013Environment\0225\n\006val"
+  "ues\030\001 \003(\0132%.rsh.protocol.Environment.Val"
+  "uesEntry\032-\n\013ValuesEntry\022\013\n\003key\030\001 \001(\t\022\r\n\005"
+  "value\030\002 \001(\004:\0028\001\"\034\n\014ValueRequest\022\014\n\004hash\030"
+  "\001 \003(\004\"$\n\005Value\022\014\n\004hash\030\001 \001(\004\022\r\n\005value\030\002 "
+  "\001(\014\"-\n\006Values\022#\n\006values\030\001 \003(\0132\023.rsh.prot"
+  "ocol.Value\"\007\n\005Empty\"#\n\021ClearCacheRequest"
+  "\022\016\n\006hashes\030\001 \003(\004\"\024\n\022ClearCacheResponse\"\206"
+  "\001\n\013CallContext\022\037\n\027args_statically_matche"
+  "d\030\001 \001(\010\022\036\n\026correct_number_of_args\030\002 \001(\010\022"
+  "\035\n\025correct_order_of_args\030\003 \001(\010\022\027\n\017no_mis"
+  "sing_args\030\004 \001(\010\"t\n\017ArgumentContext\022\r\n\005ea"
+  "ger\030\001 \001(\010\022\022\n\nreflection\030\002 \001(\010\022\016\n\006object\030"
+  "\003 \001(\010\022%\n\004type\030\004 \001(\0162\022.rsh.protocol.TypeH"
+  "\000\210\001\001B\007\n\005_type\"s\n\007Context\022/\n\014call_context"
+  "\030\001 \001(\0132\031.rsh.protocol.CallContext\0227\n\020arg"
+  "ument_context\030\002 \003(\0132\035.rsh.protocol.Argum"
+  "entContext\":\n\016ContextRequest\022(\n\010function"
+  "\030\001 \001(\0132\026.rsh.protocol.Function\"\?\n\014TestFe"
+  "edback\022/\n\014test_lattice\030\001 \001(\0162\031.rsh.proto"
+  "col.TestLattice\"4\n\014CallFeedback\022\017\n\007n_cal"
+  "ls\030\001 \001(\003\022\023\n\013callee_hash\030\002 \001(\004\"v\n\rValueFe"
+  "edback\022\016\n\006scalar\030\001 \001(\010\022\016\n\006object\030\002 \001(\010\022\033"
+  "\n\023accessed_attributes\030\003 \001(\010\022\024\n\014vectoriza"
+  "ble\030\004 \001(\010\022\022\n\nis_promise\030\005 \001(\010\"\321\002\n\014TypeFe"
+  "edback\0224\n\005types\030\002 \003(\0132%.rsh.protocol.Typ"
+  "eFeedback.TypesEntry\032\267\001\n\010Feedback\0223\n\rtes"
+  "t_feedback\030\001 \001(\0132\032.rsh.protocol.TestFeed"
+  "backH\000\0223\n\rcall_feedback\030\002 \001(\0132\032.rsh.prot"
+  "ocol.CallFeedbackH\000\0225\n\016value_feedback\030\003 "
+  "\001(\0132\033.rsh.protocol.ValueFeedbackH\000B\n\n\010fe"
+  "edback\032Q\n\nTypesEntry\022\013\n\003key\030\001 \001(\003\0222\n\005val"
+  "ue\030\002 \001(\0132#.rsh.protocol.TypeFeedback.Fee"
+  "dback:\0028\001\";\n\017FeedbackRequest\022(\n\010function"
+  "\030\001 \001(\0132\026.rsh.protocol.Function\"C\n\rPackag"
+  "eSource\022\022\n\010r_mirror\030\002 \001(\tH\000\022\024\n\ngithub_ur"
+  "l\030\003 \001(\tH\000B\010\n\006source\"\225\001\n\007Package\022\014\n\004name\030"
+  "\001 \001(\t\022&\n\007version\030\002 \001(\0132\025.rsh.protocol.Ve"
+  "rsion\022\027\n\017function_hashes\030\004 \003(\004\0220\n\006source"
+  "\030\005 \001(\0132\033.rsh.protocol.PackageSourceH\000\210\001\001"
+  "B\t\n\007_source\"\036\n\016PackageRequest\022\014\n\004hash\030\001 "
+  "\001(\004*#\n\004Tier\022\014\n\010BASELINE\020\000\022\r\n\tOPTIMIZED\020\001"
+  "*@\n\013TestLattice\022\010\n\004BOTH\020\000\022\r\n\tONLY_TRUE\020\001"
+  "\022\016\n\nONLY_FALSE\020\002\022\010\n\004NONE\020\003*&\n\004Type\022\007\n\003AN"
+  "Y\020\000\022\013\n\007INTEGER\020\001\022\010\n\004REAL\020\002B\023\n\021org.prlprg"
+  ".serverb\006proto3"
   ;
 static ::_pbi::once_flag descriptor_table_messages_2eproto_once;
 const ::_pbi::DescriptorTable descriptor_table_messages_2eproto = {
-    false, false, 2597, descriptor_table_protodef_messages_2eproto,
+    false, false, 2615, descriptor_table_protodef_messages_2eproto,
     "messages.proto",
     &descriptor_table_messages_2eproto_once, nullptr, 0, 29,
     schemas, file_default_instances, TableStruct_messages_2eproto::offsets,
@@ -1552,7 +1556,8 @@ CompileRequest::CompileRequest(const CompileRequest& from)
     , decltype(_impl_.environment_){nullptr}
     , decltype(_impl_.tier_){}
     , decltype(_impl_.cc_opt_){}
-    , decltype(_impl_.bc_opt_){}};
+    , decltype(_impl_.bc_opt_){}
+    , decltype(_impl_.no_cache_){}};
 
   _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
   if (from._internal_has_function()) {
@@ -1565,8 +1570,8 @@ CompileRequest::CompileRequest(const CompileRequest& from)
     _this->_impl_.environment_ = new ::rsh::protocol::Environment(*from._impl_.environment_);
   }
   ::memcpy(&_impl_.tier_, &from._impl_.tier_,
-    static_cast<size_t>(reinterpret_cast<char*>(&_impl_.bc_opt_) -
-    reinterpret_cast<char*>(&_impl_.tier_)) + sizeof(_impl_.bc_opt_));
+    static_cast<size_t>(reinterpret_cast<char*>(&_impl_.no_cache_) -
+    reinterpret_cast<char*>(&_impl_.tier_)) + sizeof(_impl_.no_cache_));
   // @@protoc_insertion_point(copy_constructor:rsh.protocol.CompileRequest)
 }
 
@@ -1583,6 +1588,7 @@ inline void CompileRequest::SharedCtor(
     , decltype(_impl_.tier_){0}
     , decltype(_impl_.cc_opt_){0}
     , decltype(_impl_.bc_opt_){0}
+    , decltype(_impl_.no_cache_){false}
   };
 }
 
@@ -1632,6 +1638,7 @@ void CompileRequest::Clear() {
         reinterpret_cast<char*>(&_impl_.bc_opt_) -
         reinterpret_cast<char*>(&_impl_.tier_)) + sizeof(_impl_.bc_opt_));
   }
+  _impl_.no_cache_ = false;
   _impl_._has_bits_.Clear();
   _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
 }
@@ -1690,6 +1697,14 @@ const char* CompileRequest::_InternalParse(const char* ptr, ::_pbi::ParseContext
       case 8:
         if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 66)) {
           ptr = ctx->ParseMessage(_internal_mutable_environment(), ptr);
+          CHK_(ptr);
+        } else
+          goto handle_unusual;
+        continue;
+      // bool no_cache = 9;
+      case 9:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 72)) {
+          _impl_.no_cache_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint64(&ptr);
           CHK_(ptr);
         } else
           goto handle_unusual;
@@ -1764,6 +1779,12 @@ uint8_t* CompileRequest::_InternalSerialize(
         _Internal::environment(this).GetCachedSize(), target, stream);
   }
 
+  // bool no_cache = 9;
+  if (this->_internal_no_cache() != 0) {
+    target = stream->EnsureSpace(target);
+    target = ::_pbi::WireFormatLite::WriteBoolToArray(9, this->_internal_no_cache(), target);
+  }
+
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
     target = ::_pbi::WireFormat::InternalSerializeUnknownFieldsToArray(
         _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
@@ -1820,6 +1841,11 @@ size_t CompileRequest::ByteSizeLong() const {
     }
 
   }
+  // bool no_cache = 9;
+  if (this->_internal_no_cache() != 0) {
+    total_size += 1 + 1;
+  }
+
   return MaybeComputeUnknownFieldsSize(total_size, &_impl_._cached_size_);
 }
 
@@ -1863,6 +1889,9 @@ void CompileRequest::MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const :
     }
     _this->_impl_._has_bits_[0] |= cached_has_bits;
   }
+  if (from._internal_no_cache() != 0) {
+    _this->_internal_set_no_cache(from._internal_no_cache());
+  }
   _this->_internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
 }
 
@@ -1882,8 +1911,8 @@ void CompileRequest::InternalSwap(CompileRequest* other) {
   _internal_metadata_.InternalSwap(&other->_internal_metadata_);
   swap(_impl_._has_bits_[0], other->_impl_._has_bits_[0]);
   ::PROTOBUF_NAMESPACE_ID::internal::memswap<
-      PROTOBUF_FIELD_OFFSET(CompileRequest, _impl_.bc_opt_)
-      + sizeof(CompileRequest::_impl_.bc_opt_)
+      PROTOBUF_FIELD_OFFSET(CompileRequest, _impl_.no_cache_)
+      + sizeof(CompileRequest::_impl_.no_cache_)
       - PROTOBUF_FIELD_OFFSET(CompileRequest, _impl_.function_)>(
           reinterpret_cast<char*>(&_impl_.function_),
           reinterpret_cast<char*>(&other->_impl_.function_));
