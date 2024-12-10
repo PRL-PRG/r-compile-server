@@ -1,0 +1,7 @@
+perf.data
+*.so
+*.gch
+*.o
+.RData
+.Rhistory
+.cache/

@@ -1,0 +1,112 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ isTRUE[0x5638bf3f9d90]                                                       │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch                                      │
+│ Properties:  Eager, ForceOrd: 0                                              │
+├────── Final PIR Version
+isTRUE[0x5638bf3f9d90]
+BB0
+  val?^           %0.0  = LdArg                    0
+  env             e0.1  = (MkEnv)            l     x=%0.0, parent=R_BaseNamespace, context 1
+  val?            %0.2  = Force!<lazy>       !vL   %0.0, e0.1   <val?>
+  lgl$#-          %0.3  = IsEnvStub          R     , e0.1
+  void                    Branch                   %0.3 -> BB19 (if true) | BB20 (if false)
+BB19   <- [0]
+  val+            %19.0 = CallSafeBuiltin    vwed  is.logical(%0.2)    <lgl$->
+  lgl$#-          %19.1 = IsType                   %19.0 isA lgl$-
+  void                    Branch                   %19.1 -> BB21 (if true) | BB22 (if false)
+BB20   <- [0]
+  fs              %20.0 = FrameState         R     0x5638b9ebe6d0+69: [<blt is.logical>, %0.2], env=e0.1
+  void                    Deopt              !v    %20.0, EnvStubMaterialized@0x5638bafefcc8[Call#unknown], e0.1   !
+BB21   <- [19]
+  lgl$-           %21.0 = CastType           d     dn %19.0
+  lgl$-           %21.1 = AsLogical                %21.0
+  lgl$#-          %21.2 = Identical                %21.1, false
+  void                    Branch                   %21.2 -> BB17 (if true) | BB5 (if false)
+BB22   <- [19]
+  void                    Nop                !     
+  val+            %22.1 = %19.0
+  dr              %22.2 = Typecheck@0x5638bafefcc8[Type#2]
+  goto BB3
+BB17   <- [21]
+  void                    Nop                !     
+  lgl$-           %17.1 = %21.1
+  goto BB8
+BB5   <- [21]
+  lgl$#-          %5.0  = IsType                   %0.2 isA lgl-
+  void                    Branch                   %5.0 -> BB23 (if true) | BB24 (if false)
+BB3   <- [22, 24]
+  val?^ | miss    %3.0  = Phi                      %22.1:BB22, %24.1:BB24
+  val?^ | miss    %3.1  = %3.0
+  dr              %3.2  = Phi                      %22.2:BB22, %24.2:BB24
+  dr              %3.3  = %3.2
+  fs              %3.4  = FrameState         R     0x5638b9ebe6d0+91: [%19.0], env=e0.1
+  void                    Deopt              !v    %3.4, %3.3, %3.1   !
+BB8   <- [17, 27]
+  lgl$-           %8.0  = Phi                      %27.5:BB27, %17.1:BB17
+  lgl$-           %8.1  = %8.0
+  lgl$-           %8.2  = AsLogical                %8.1
+  lgl$#-          %8.3  = Identical                %8.2, false
+  void                    Branch                   %8.3 -> BB16 (if true) | BB11 (if false)
+BB23   <- [5]
+  lgl-            %23.0 = CastType           d     dn %0.2
+  (int|real)$-    %23.1 = CallSafeBuiltin    wed   length(%23.0)    <int$->
+  lgl$#-          %23.2 = IsType                   %23.1 isA int$-
+  void                    Branch                   %23.2 -> BB27 (if true) | BB28 (if false)
+BB24   <- [5]
+  void                    Nop                !     
+  val?            %24.1 = %0.2
+  dr              %24.2 = Typecheck@0x5638bafefcc8[Type#4]
+  goto BB3
+BB16   <- [8]
+  void                    Nop                !     
+  lgl$-           %16.1 = %8.2
+  goto BB12
+BB11   <- [8]
+  lgl$#-          %11.0 = IsType                   %0.2 isA lgl$-
+  void                    Branch                   %11.0 -> BB25 (if true) | BB26 (if false)
+BB27   <- [23]
+  int$-           %27.0 = CastType           d     dn %23.1
+  void                    Visible            v     
+  lgl$-           %27.2 = Eq                 vd    %27.0, 1L, elided   <lgl$->
+  lgl$-           %27.3 = AsLogical                %27.2
+  lgl$-           %27.4 = LAnd                     %21.1, %27.3
+  lgl$-           %27.5 = %27.4
+  goto BB8
+BB28   <- [23]
+  fs              %28.0 = FrameState         R     0x5638b9ebe6d0+194: [%21.1, %23.1], env=e0.1
+  void                    Deopt              !v    %28.0, Typecheck@0x5638bafefcc8[Type#5], %23.1   !
+BB12   <- [16, 25]
+  lgl$-           %12.0 = Phi                      %25.5:BB25, %16.1:BB16
+  lgl$-           %12.1 = %12.0
+  lgl$-           %12.2 = AsLogical                %12.1
+  lgl$#-          %12.3 = Identical                %12.2, false
+  void                    Branch                   %12.3 -> BB15 (if true) | BB13 (if false)
+BB25   <- [11]
+  lgl$-           %25.0 = CastType           d     dn %0.2
+  lgl$-           %25.1 = CallSafeBuiltin    vwed  is.na(%25.0)    <lgl$->
+  lgl$-           %25.2 = Not                vd    %25.1, elided
+  lgl$-           %25.3 = AsLogical                %25.2
+  lgl$-           %25.4 = LAnd                     %8.2, %25.3
+  lgl$-           %25.5 = %25.4
+  goto BB12
+BB26   <- [11]
+  fs              %26.0 = FrameState         R     0x5638b9ebe6d0+213: [%8.1], env=e0.1
+  void                    Deopt              !v    %26.0, Typecheck@0x5638bafefcc8[Type#8], %0.2   !
+BB15   <- [12]
+  void                    Nop                !     
+  lgl$-           %15.1 = %12.2
+  goto BB14
+BB13   <- [12]
+  void                    Visible            v     
+  lgl$-           %13.1 = AsLogical          e     %0.2
+  lgl$-           %13.2 = LAnd                     %12.2, %13.1
+  lgl$-           %13.3 = %13.2
+  goto BB14
+BB14   <- [15, 13]
+  lgl$-           %14.0 = Phi                      %13.3:BB13, %15.1:BB15
+  lgl$-           %14.1 = %14.0
+  void                    Return             l     %14.1
+
+│ isTRUE[0x5638bf3f9d90]                                                       │
+└──────────────────────────────────────────────────────────────────────────────┘

@@ -2,6 +2,24 @@
 
 ## Setup (development)
 
+### Clone the repository
+
+```sh
+git clone --recursive git@github.com:PRL-PRG/r-compile-server.git
+```
+
+or
+
+```sh
+git clone --recursive https://github.com/PRL-PRG/r-compile-server.git
+```
+
+This shall clone also the submodules. If you forgot to clone the submodules, you can run
+
+```sh
+git submodule update --init --recursive
+```
+
 ### From dev container
 
 To quickly get started with development, you can use the project's [Dev Container](https://containers.dev/). We strongly recommend using IntelliJ.
@@ -21,12 +39,12 @@ If the dev container is too slow, you can also setup on the host machine. To do 
 - **Java 22 and Maven 3**
   - IntelliJ will automatically install these. If not, you can download a Java 22 binary from https://adoptium.net/temurin/releases/?version=22, and Maven from https://maven.apache.org/download.cgi.
   - If you are using IntelliJ, navigate to "Project Structure > Project" and make sure the **SDK* is set to **a JDK of version 22** (e.g. "openjdk-22"). If not, click the dropdown and "Download JDK", then select any JDK of version 22.
-- **GNU-R 4.3.2:** https://cloud.r-project.org/src/base/R-4/R-4.3.2.tar.gz
-  - It has to be *exactly* 4.3.2 in order for bytecode tests to pass, because they check against precompiled bytecode.
 
 ## Commands
 
-- Run `make setup` to install Git Hooks. The commit hook formats, the pre-push hook runs tests and static analyses.
+- Run `make setup` to initialize the dependencies
+  - It installs GNU-R in `external/R`.
+- Run `make setup-git` to install Git Hooks. The commit hook formats, the pre-push hook runs tests and static analyses.
 - Build with `make` or `mvn package`
 - Test (no static analyses) with `make test` or `mvn test`
 - Test and static anaylses with `make check` or `mvn verify`
@@ -40,6 +58,8 @@ If the dev container is too slow, you can also setup on the host machine. To do 
   - **Solution:** ensure you have a Java 22 JDK installed, then run `JAVA_HOME=<path to JDK 22> mvn …`
     - e.g. if using IntelliJ on macOS, openJDK 22, set `JAVA_HOME=~/Library/Java/JavaVirtualMachines/openjdk-22/Contents/Home`
     - In the devcontainer, `JAVA_HOME=/usr/lib/jvm/jdk`
+- **Problem:** some R symbols are not visible when JIT-compiling.
+  - **Solution:** make sure that `external/R` is up-to-date with `git submodule update --init --recursive` and check if it is the right branch, `RSH-4-3-2`. 
 
 If you have a different issue than the above, [report it on GitHub](https://github.com/PRL-PRG/r-compile-server/issues/new/choose).
 

@@ -1,0 +1,21 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ rev[0x561985610f30]                                                          │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;Eager0,NonRefl0                      │
+│ Properties:                                                                  │
+├────── Final PIR Version
+rev[0x561985610f30]
+BB0
+  val?~           %0.0  = LdArg                    0
+  env             e0.1  = (MkEnv)            l     x=%0.0, parent=R_BaseNamespace, context 1
+  val?            %0.2  = Call               !L    <spec UseMethod>("rev") e0.1   <val?_>
+  lgl$#-          %0.3  = IsEnvStub          R     , e0.1
+  void                    Branch                   %0.3 -> BB4 (if true) | BB5 (if false)
+BB4   <- [0]
+  void                    Return             l     %0.2
+BB5   <- [0]
+  fs              %5.0  = FrameState         R     0x561984f4ddd0+32: [%0.2], env=e0.1
+  void                    Deopt              !v    %5.0, EnvStubMaterialized@0x561983a27688[Call#unknown], e0.1   !
+
+│ rev[0x561985610f30]                                                          │
+└──────────────────────────────────────────────────────────────────────────────┘

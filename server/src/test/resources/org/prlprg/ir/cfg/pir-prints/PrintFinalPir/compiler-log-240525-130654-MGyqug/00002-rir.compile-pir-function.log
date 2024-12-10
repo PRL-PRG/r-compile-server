@@ -1,0 +1,21 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ rir.compile[0x55b543985da0]                                                  │
+│ Context: CorrOrd,!TMany                                                      │
+│ Properties:  Eager                                                           │
+├────── Final PIR Version
+rir.compile[0x55b543985da0]
+BB0
+  env             e0.0  = (MkEnv)            l     parent=R_GlobalEnv, context 1
+  (cls|spec|blt)  %0.1  = LdFun              !     g, R_GlobalEnv
+  val?            %0.2  = Call               !L    %0.1() e0.0   <val?_>
+  lgl$#-          %0.3  = IsEnvStub          R     , e0.0
+  void                    Branch                   %0.3 -> BB4 (if true) | BB5 (if false)
+BB4   <- [0]
+  void                    Return             l     %0.2
+BB5   <- [0]
+  fs              %5.0  = FrameState         R     0x55b5439d40b0+27: [%0.2], env=e0.0
+  void                    Deopt              !v    %5.0, EnvStubMaterialized@0x55b543000c88[Call#unknown], e0.0   !
+
+│ rir.compile[0x55b543985da0]                                                  │
+└──────────────────────────────────────────────────────────────────────────────┘

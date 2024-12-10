@@ -1,0 +1,42 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ ncol[0x55bbeff7b140]                                                         │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch                                      │
+│ Properties:  Eager, ForceOrd: 0                                              │
+├────── Final PIR Version
+ncol[0x55bbeff7b140]
+BB0
+  val?^           %0.0  = LdArg                    0
+  env             e0.1  = MkEnv              l     x=%0.0, parent=R_BaseNamespace, context 1
+  val?            %0.2  = Force!<lazy>       !v    %0.0, e0.1   <val?>
+  val?            %0.3  = CallBuiltin        !v    dim(%0.2) e0.1   <int->
+  lgl$#-          %0.4  = IsType                   %0.3 isA val+   <true>
+  lgl$#-          %0.5  = IsType                   %0.3 isA int-
+  void                    Branch                   %0.4 -> BB4 (if true) | BB5 (if false)
+BB4   <- [0]
+  void                    Branch                   %0.5 -> BB6 (if true) | BB7 (if false)
+BB5   <- [0]
+  void                    Nop                !     
+  lgl$#-          %5.1  = %0.4
+  dr              %5.2  = DeadBranchReached@0x55bbe30b3ee8[Test#1]
+  goto BB3
+BB6   <- [4]
+  int-            %6.0  = CastType           d     dn %0.3
+  int$-           %6.1  = Extract1_1D        wed   %6.0, 2L, elided   <int$->
+  void                    Visible            v     
+  void                    Return             l     %6.1
+BB7   <- [4]
+  void                    Nop                !     
+  val?            %7.1  = %0.3
+  dr              %7.2  = Typecheck@0x55bbe30b3ee8[Type#2]
+  goto BB3
+BB3   <- [5, 7]
+  val?^ | miss    %3.0  = Phi                      %5.1:BB5, %7.1:BB7
+  val?^ | miss    %3.1  = %3.0
+  dr              %3.2  = Phi                      %5.2:BB5, %7.2:BB7
+  dr              %3.3  = %3.2
+  fs              %3.4  = FrameState         R     0x55bbe45ee540+91: [%0.3], env=e0.1
+  void                    Deopt              !v    %3.4, %3.3, %3.1   !
+
+│ ncol[0x55bbeff7b140]                                                         │
+└──────────────────────────────────────────────────────────────────────────────┘

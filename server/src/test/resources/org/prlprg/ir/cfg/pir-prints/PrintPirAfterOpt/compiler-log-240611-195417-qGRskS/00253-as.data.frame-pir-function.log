@@ -1,0 +1,64 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ as.data.frame[0x5616643ce890]                                                │
+│ Context: CorrOrd,!TMany,Argmatch;Eager1,Eager2,Eager3,NonRefl0,NonRefl1,NonRefl2,NonRefl3,!Obj3│
+│ Properties:  ForceOrd: 0                                                     │
+├────── PIR Version After Optimizations
+as.data.frame[0x5616643ce890]
+BB0
+  goto BB1
+BB1   <- [0]
+  dots+           %1.0  = LdArg                    3
+  val?~ | miss    %1.1  = LdArg                    2
+  val?~ | miss    %1.2  = LdArg                    1
+  val?^ | miss    %1.3  = LdArg                    0
+  lgl$#-          %1.4  = Identical                %1.2, missingArg
+  lgl$#-          %1.5  = Identical                %1.1, missingArg
+  env             e1.6  = (MkEnv)            l     x=%1.3, row.names=%1.2, optional=%1.1, ...=%1.0, parent=R_BaseNamespace, context 1
+  void                    Branch                   %1.4 -> BB2 (if true) | BB13 (if false)
+BB2   <- [1]
+  void                    StArg              lWd   row.names, nil, e1.6
+  goto BB3
+BB13   <- [1]
+  goto BB3
+BB3   <- [2, 13]
+  void                    Branch                   %1.5 -> BB12 (if true) | BB4 (if false)
+BB12   <- [3]
+  void                    StArg              lWd   optional, false, e1.6
+  goto BB5
+BB4   <- [3]
+  goto BB5
+BB5   <- [4, 12]
+  val?^           %5.0  = ChkMissing         e     %1.3
+  void                    Visible            v     
+  val?            %5.2  = Force!<lazy>       !rL   %5.0,    <val?+>
+  lgl$-           %5.3  = Is                       %5.2, NULL
+  lgl$#-          %5.4  = IsType                   %5.2 isA val?+
+  cp              %5.5  = Checkpoint                -> BB7 (default) | BB6 (if assume failed)
+BB7   <- [5]
+  void                    Assume             D     %5.4, %5.5 (Typecheck@0x561663830840[Type#0])
+  lgl$#-          %7.1  = IsEnvStub          R     , e1.6
+  void                    Assume             D     %7.1, %5.5 (EnvStubMaterialized@0x561663830840[Call#unknown])
+  lgl$#-          %7.3  = CheckTrueFalse     e     %5.3
+  void                    Branch                   %7.3 -> BB11 (if true) | BB8 (if false)
+BB6   <- [5]
+  fs              %6.0  = FrameState         R     0x561663452260+9: [%5.2], env=e1.6
+  void                    Deopt              !v    %6.0
+BB11   <- [7]
+  env             e11.0 = MaterializeEnv           , e1.6   <@?>
+  (cls|spec|blt)  %11.1 = LdFun              !v    as.data.frame, e11.0
+  fs              %11.2 = FrameState         R     0x561663452260+35: [%11.1], env=e11.0
+  void                    Deopt              !v    %11.2, DeadCall@0x561663830840[Call#0], %11.1
+BB8   <- [7]
+  val?            %8.0  = Call               !L    <spec UseMethod>("as.data.frame") e1.6   <val?_>
+  cp              %8.1  = Checkpoint                -> BB10 (default) | BB9 (if assume failed)
+BB10   <- [8]
+  lgl$#-          %10.0 = IsEnvStub          R     , e1.6
+  void                    Assume             D     %10.0, %8.1 (EnvStubMaterialized@0x561663830840[Call#unknown])
+  void                    Return             l     %8.0
+BB9   <- [8]
+  fs              %9.0  = FrameState         R     0x561663452260+100: [%8.0], env=e1.6
+  void                    Deopt              !v    %9.0
+
+│ as.data.frame[0x5616643ce890]                                                │
+└──────────────────────────────────────────────────────────────────────────────┘

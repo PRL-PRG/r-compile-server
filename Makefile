@@ -1,23 +1,32 @@
-# Maven commands
-# ---
-build:
-	mvn $(MVN_ARGS) package
+# Saner makefile
+BASE_DIR := $(realpath $(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
+TOOLS_DIR := $(BASE_DIR)/tools
 
-format:
-	mvn $(MVN_ARGS) spotless:apply
-
-# `test` only runs unit tests
-test:
-	mvn $(MVN_ARGS) test
-
-# `verify` runs both tests and static analyses
-verify:
-	mvn $(MVN_ARGS) verify
-
-clean:
-	mvn $(MVN_ARGS) clean
-# ---
-
-# Install pre-commit and pre-push hooks
+.PHONY: setup
 setup:
+	$(MAKE) -C external setup
+	$(MAKE) -C client setup
+
+.PHONY: setup-git
+setup-git:
 	cp -f .githooks/pre-commit.sh .git/hooks/pre-commit
+
+.PHONY: clean
+clean: 
+	$(MAKE) -C server clean 
+	$(MAKE) -C client clean
+
+.PHONY: build
+build:
+	$(MAKE) -C server build
+	$(MAKE) -C client build
+
+.PHONY: test
+test:
+	$(MAKE) -C server test
+	$(MAKE) -C client test
+
+.PHONY: verify
+verify:
+	$(MAKE) -C server verify
+	$(MAKE) -C client verify

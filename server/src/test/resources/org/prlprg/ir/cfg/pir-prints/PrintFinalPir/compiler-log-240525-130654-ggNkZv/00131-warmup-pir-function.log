@@ -1,0 +1,51 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ warmup[0x559b85428000]                                                       │
+│ Context: CorrOrd,!TMany                                                      │
+│ Properties:  Eager, ForceOrd: 0                                              │
+├────── Final PIR Version
+warmup[0x559b85428000]
+BB0
+  val?^ | miss    %0.0  = LdArg                    0
+  env             e0.1  = MkEnv              l     f=%0.0, parent=R_GlobalEnv, context 1
+  val?            %0.2  = Force!             !     %0.0, e0.1
+  (cls|spec|blt)  %0.3  = LdFun              !     f, e0.1
+  prom-           %0.4  = MkArg                    unboundValue, warmup[0x559b85428000]_p0, e0.1
+  prom-           %0.5  = MkArg                    unboundValue, warmup[0x559b85428000]_p1, e0.1
+  val?            %0.6  = Call               !     %0.3(%0.4, %0.5) e0.1
+  (cls|spec|blt)  %0.7  = LdFun              !     f, e0.1
+  prom-           %0.8  = MkArg                    unboundValue, warmup[0x559b85428000]_p2, e0.1
+  prom-           %0.9  = MkArg                    unboundValue, warmup[0x559b85428000]_p3, e0.1
+  val?            %0.10 = Call               !     %0.7(%0.8, %0.9) e0.1   <val?_>
+  void                    Return             l     %0.10
+Prom 0:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    a, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 1:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    b, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 2:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    a, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+Prom 3:
+BB0
+  env             e0.0  = LdFunctionEnv            
+  val?^ | miss    %0.1  = LdVar              eR    b, e0.0
+  void                    Visible            v     
+  val?            %0.3  = Force              !     %0.1, e0.0   <val?_>
+  void                    Return             l     %0.3
+
+│ warmup[0x559b85428000]                                                       │
+└──────────────────────────────────────────────────────────────────────────────┘

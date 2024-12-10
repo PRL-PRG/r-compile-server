@@ -1,0 +1,25 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ inherits[0x55d000145a70]                                                     │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;Eager1,NonRefl0,NonRefl1,!Obj0,!Obj1 miss: 1│
+│ Properties:  ForceOrd: 0                                                     │
+├────── Final PIR Version
+inherits[0x55d000145a70]
+BB0
+  val?~+          %0.0  = LdArg                    1
+  val?^           %0.1  = LdArg                    0
+  val+            %0.2  = Force!<lazy>       !vr   %0.1,    <(lgl|str)->
+  val+            %0.3  = Force!<value>            %0.0,    <str$->
+  lgl$#-          %0.4  = IsType                   %0.3 isA val?-
+  void                    Branch                   %0.4 -> BB4 (if true) | BB5 (if false)
+BB4   <- [0]
+  val-            %4.0  = CastType           d     dn %0.3   <str$->
+  val+            %4.1  = CallSafeBuiltin    vwed  inherits(%0.2, %4.0, false) 
+  void                    Return             l     %4.1
+BB5   <- [0]
+  env             e5.0  = (MkEnv)            l     which(miss)=false, what=%0.0, x=%0.1, parent=R_BaseNamespace, context 1
+  fs              %5.1  = FrameState         R     0x55d0000889e0+9: [%0.2], env=e5.0
+  void                    Deopt              !v    %5.1, Typecheck@0x55d00007d130[Type#1], %0.3
+
+│ inherits[0x55d000145a70]                                                     │
+└──────────────────────────────────────────────────────────────────────────────┘

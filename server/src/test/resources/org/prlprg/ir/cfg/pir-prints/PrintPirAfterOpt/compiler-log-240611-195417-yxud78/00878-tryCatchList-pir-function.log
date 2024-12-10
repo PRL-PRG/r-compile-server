@@ -1,0 +1,122 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ tryCatchList[0x5558d550e210]                                                 │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch                                      │
+│ Properties:                                                                  │
+├────── PIR Version After Optimizations
+tryCatchList[0x5558d550e210]
+BB0
+  goto BB1
+BB1   <- [0]
+  val?^           %1.0  = LdArg                    3
+  val?^           %1.1  = LdArg                    2
+  val?^           %1.2  = LdArg                    1
+  val?^           %1.3  = LdArg                    0
+  cp              %1.4  = Checkpoint                -> BB2 (default) | BB14 (if assume failed)
+BB2   <- [1]
+  val?^ | miss    %2.0  = LdVar              eR    length, ?
+  lgl$#-          %2.1  = Identical                <blt length>, %2.0   <true>
+  void                    Assume             D     %2.1, %1.4 (DeadBranchReached@0x5558d52265c0[Test#0])
+  env             e2.3  = MkEnv              l     expr=%1.3, names=%1.2, parentenv=%1.1, handlers=%1.0, parent=?, context 1
+  val?            %2.4  = Force!<lazy>       !v    %1.2, e2.3   <str$->
+  lgl$#-          %2.5  = IsType                   %2.4 isA val?-
+  cp              %2.6  = Checkpoint                -> BB4 (default) | BB3 (if assume failed)
+BB14   <- [1]
+  env             e14.0 = (MkEnv)            l     expr=%1.3, names=%1.2, parentenv=%1.1, handlers=%1.0, parent=?, context 1
+  fs              %14.1 = FrameState         R     0x5558d5236cd0+0: [], env=e14.0
+  void                    Deopt              !v    %14.1
+BB4   <- [2]
+  void                    Assume             D     %2.5, %2.6 (Typecheck@0x5558d52265c0[Type#1])
+  val?-           %4.1  = CastType           d     dn %2.4   <str$->
+  (int|real)$-    %4.2  = CallSafeBuiltin    wed   length(%4.1)    <int$->
+  lgl$#-          %4.3  = IsType                   %4.2 isA int$-
+  cp              %4.4  = Checkpoint                -> BB6 (default) | BB5 (if assume failed)
+BB3   <- [2]
+  fs              %3.0  = FrameState         R     0x5558d5236cd0+69: [<blt length>, %2.4], env=e2.3
+  void                    Deopt              !v    %3.0   !
+BB6   <- [4]
+  void                    Assume             D     %4.3, %4.4 (Typecheck@0x5558d52265c0[Type#2])
+  int$-           %6.1  = CastType           d     dn %4.2
+  void                    StVar              lW    nh, %6.1, e2.3
+  cp              %6.3  = Checkpoint                -> BB8 (default) | BB7 (if assume failed)
+BB5   <- [4]
+  fs              %5.0  = FrameState         R     0x5558d5236cd0+91: [%4.2], env=e2.3
+  void                    Deopt              !v    %5.0   !
+BB8   <- [6]
+  lgl$-           %8.0  = Gt                 d     %6.1, 1L, elided   <lgl$->
+  lgl$#-          %8.1  = CheckTrueFalse     e     %8.0
+  void                    Branch                   %8.1 -> BB13 (if true) | BB9 (if false)
+BB7   <- [6]
+  fs              %7.0  = FrameState         R     0x5558d5236cd0+105: [], env=e2.3
+  void                    Deopt              !v    %7.0   !
+BB13   <- [8]
+  (cls|spec|blt)  %13.0 = LdFun              !v    tryCatchOne, e2.3
+  fs              %13.1 = FrameState         R     0x5558d5236cd0+250: [%13.0], env=e2.3
+  void                    Deopt              !v    %13.1, DeadCall@0x5558d52265c0[Call#2], %13.0   !
+BB9   <- [8]
+  void                    Visible            v     
+  lgl$-           %9.1  = Eq                 vd    %6.1, 1L, elided   <lgl$->
+  lgl$#-          %9.2  = CheckTrueFalse     e     %9.1
+  void                    Branch                   %9.2 -> BB12 (if true) | BB10 (if false)
+BB12   <- [9]
+  val?^ | miss    %12.0 = LdVar              eR    tryCatchOne, e2.3
+  (cls|spec|blt)  %12.1 = CastType                 dn %12.0
+  val+            %12.2 = CallSafeBuiltin          bodyCode(%12.1) 
+  lgl$#-          %12.3 = Identical                %12.2, <(rir::DispatchTable*)0x5558d5238bd0>
+  void                    Assume             D     %12.3, %6.3 (CallTarget@0x5558d52265c0[Call#1])
+  val?            %12.5 = Force!             d     %12.0, 
+  prom-           %12.6 = MkArg                    unboundValue, tryCatchList[0x5558d550e210]_p0, e2.3
+  prom-           %12.7 = MkArg                    unboundValue, tryCatchList[0x5558d550e210]_p1, e2.3
+  prom-           %12.8 = MkArg                    unboundValue, tryCatchList[0x5558d550e210]_p2, e2.3
+  prom-           %12.9 = MkArg                    unboundValue, tryCatchList[0x5558d550e210]_p3, e2.3
+  (cls|spec|blt)  %12.10 = ChkFunction        e     %12.5
+  val?            %12.11 = StaticCall         !     tryCatchOne[0x5558d9eb35d0](%12.6, %12.7, %12.8, %12.9) from %12.10 e2.3   <val?>
+  goto BB11
+BB10   <- [9]
+  val?^ | miss    %10.0 = LdVar              eR    expr, e2.3
+  void                    Visible            v     
+  val?            %10.2 = Force!             !     %10.0, e2.3   <val?_>
+  goto BB11
+BB11   <- [10, 12]
+  val?            %11.0 = Phi                      %10.2:BB10, %12.11:BB12
+  void                    Return             l     %11.0
+Prom 0:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    expr, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<lazy>        !     %1.1, e1.0   <val?>
+  void                    Return             l     %1.3
+Prom 1:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    names, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<wrapped>     !     %1.1, e1.0   <str$->
+  void                    Return             l     %1.3
+Prom 2:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    parentenv, e1.0
+  void                    Visible            v     
+  val?            %1.3  = Force<lazy>        !     %1.1, e1.0   <env->
+  void                    Return             l     %1.3
+Prom 3:
+BB0
+  goto BB1
+BB1   <- [0]
+  env             e1.0  = LdFunctionEnv            
+  val?^ | miss    %1.1  = LdVar              eR    handlers, e1.0
+  val?            %1.2  = Force<lazy>        !v    %1.1, e1.0   <vec$+>
+  val?            %1.3  = Extract2_1D        !v    %1.2, 1L, e1.0   <cls->
+  void                    Visible            v     
+  void                    Return             l     %1.3
+
+│ tryCatchList[0x5558d550e210]                                                 │
+└──────────────────────────────────────────────────────────────────────────────┘

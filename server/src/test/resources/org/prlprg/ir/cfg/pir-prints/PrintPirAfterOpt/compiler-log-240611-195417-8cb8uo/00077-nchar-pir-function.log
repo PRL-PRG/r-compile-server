@@ -1,0 +1,38 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ nchar[0x55b0cb39b850]                                                        │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch;Eager1,Eager2,NonRefl1,NonRefl2,!Obj1,!Obj2 miss: 1│
+│ Properties:  ForceOrd: 0                                                     │
+├────── PIR Version After Optimizations
+nchar[0x55b0cb39b850]
+BB0
+  goto BB1
+BB1   <- [0]
+  val?~+          %1.0  = LdArg                    2
+  val?~+          %1.1  = LdArg                    1
+  val?^           %1.2  = LdArg                    0
+  env             e1.3  = (MkEnv)            l     x=%1.2, type=%1.1, allowNA=%1.0, keepNA(miss)=na-lgl, parent=R_BaseNamespace, context 1
+  val?            %1.4  = Force!<lazy>       !vL   %1.2, e1.3   <str->
+  lgl$#-          %1.5  = IsType                   %1.4 isA val?-
+  val?+           %1.6  = Force!<lazy>             %1.1,    <str$->
+  val?+           %1.7  = Force!<lazy>             %1.0,    <lgl$->
+  lgl$#-          %1.8  = IsType                   %1.7 isA lgl$-
+  lgl$#-          %1.9  = IsType                   %1.6 isA val?-
+  cp              %1.10 = Checkpoint                -> BB2 (default) | BB3 (if assume failed)
+BB2   <- [1]
+  void                    Assume             D     %1.5, %1.10 (Typecheck@0x55b0cb73d530[Type#0])
+  val?-           %2.1  = CastType           d     dn %1.4   <str->
+  lgl$#-          %2.2  = IsEnvStub          R     , e1.3
+  void                    Assume             D     %2.2, %1.10 (EnvStubMaterialized@0x55b0cb73d530[Call#unknown])
+  void                    Assume             D     %1.8, %1.10 (Typecheck@0x55b0cb73d530[Type#2])
+  lgl$-           %2.5  = CastType           d     dn %1.7
+  void                    Assume             D     %1.9, %1.10 (Typecheck@0x55b0cb73d530[Type#1])
+  val?-           %2.7  = CastType           d     dn %1.6   <str$->
+  val+            %2.8  = CallSafeBuiltin    vwed  nchar(%2.1, %2.7, %2.5, na-lgl) 
+  void                    Return             l     %2.8
+BB3   <- [1]
+  fs              %3.0  = FrameState         R     0x55b0cb295dc0+9: [%1.4], env=e1.3
+  void                    Deopt              !v    %3.0   !
+
+│ nchar[0x55b0cb39b850]                                                        │
+└──────────────────────────────────────────────────────────────────────────────┘

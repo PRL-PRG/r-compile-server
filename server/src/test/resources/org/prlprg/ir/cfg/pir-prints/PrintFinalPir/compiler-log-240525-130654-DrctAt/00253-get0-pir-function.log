@@ -1,0 +1,32 @@
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ get0[0x5638bbb5dc00]                                                         │
+│ Context: !ExpMi,CorrOrd,!TMany,Argmatch miss: 3                              │
+│ Properties:  ForceOrd: 0                                                     │
+├────── Final PIR Version
+get0[0x5638bbb5dc00]
+BB0
+  val?^           %0.0  = LdArg                    1
+  val?^           %0.1  = LdArg                    0
+  env             e0.2  = MkEnv              l     x=%0.1, envir=%0.0, mode(miss)="any", inherits(miss)=true, ifnotfound(miss)=nil, parent=R_BaseNamespace, context 1
+  val?            %0.3  = Force!<lazy>       !v    %0.1, e0.2   <str$+>
+  lgl$#-          %0.4  = IsType                   %0.3 isA val?+
+  void                    Branch                   %0.4 -> BB4 (if true) | BB5 (if false)
+BB4   <- [0]
+  val?+           %4.0  = CastType           d     dn %0.3   <str$+>
+  val?^ | miss    %4.1  = LdVar              eR    envir, e0.2
+  val?            %4.2  = Force!<lazy>       !v    %4.1, e0.2   <env+>
+  val?^ | miss    %4.3  = LdVar              eR    mode, e0.2
+  val?            %4.4  = Force!<lazy>       !v    %4.3, e0.2   <str$->
+  val?^ | miss    %4.5  = LdVar              eR    inherits, e0.2
+  val?            %4.6  = Force!<lazy>       !v    %4.5, e0.2   <lgl$->
+  val?^ | miss    %4.7  = LdVar              eR    ifnotfound, e0.2
+  val?            %4.8  = Force!<lazy>       !v    %4.7, e0.2   <(nil|vec)+>
+  val?            %4.9  = CallBuiltin        !     get0(%4.0, %4.2, %4.4, %4.6, %4.8) e0.2
+  void                    Return             l     %4.9
+BB5   <- [0]
+  fs              %5.0  = FrameState         R     0x5638bbd39410+9: [%0.3], env=e0.2
+  void                    Deopt              !v    %5.0, Typecheck@0x5638bc375010[Type#1], %0.3   !
+
+│ get0[0x5638bbb5dc00]                                                         │
+└──────────────────────────────────────────────────────────────────────────────┘
