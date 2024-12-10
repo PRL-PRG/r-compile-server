@@ -90,6 +90,10 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
             + " Serialized size = "
             + request.getSerializedSize());
 
+    if (request.getNoCache()) {
+      logger.info("This closure will not be cached (but it might vae already been).");
+    }
+
     // Compile the code and build response
     Messages.CompileResponse.Builder response = Messages.CompileResponse.newBuilder();
     response.setTier(tier);
@@ -97,6 +101,8 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
 
     // Cache requests
     NativeClosure ccCached = null;
+    Pair<Bc, ByteString> bcCached = null;
+
     var nativeKey = Triple.of(function.getHash(), bcOpt, ccOpt);
     if (tier.equals(Messages.Tier.OPTIMIZED)) {
       ccCached = nativeCache.get(nativeKey);
@@ -107,7 +113,6 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
       }
     }
 
-    Pair<Bc, ByteString> bcCached = null;
     // We also have a look whether we have a cached bytecode for the native compilation
     var bcKey = Pair.of(function.getHash(), bcOpt);
     if (tier.equals((Messages.Tier.BASELINE)) || ccCached == null) {
@@ -146,7 +151,7 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
                     + function.getName()
                     + ". Not caching and returning the original body.");
             // We will keep the code field empty
-          } else {
+          } else if (!request.getNoCache()) { // We do not cache if the client does not want to
             serializedBc = RDSWriter.writeByteString(SEXPs.bcode(bc.get()));
             response.setCode(serializedBc);
             bcCached =
@@ -202,7 +207,10 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
           ccCached =
               new NativeClosure(
                   ByteString.copyFrom(res), module.topLevelFunName(), serializedConstantPool);
-          nativeCache.put(nativeKey, ccCached);
+
+          if (!request.getNoCache()) {
+            nativeCache.put(nativeKey, ccCached);
+          }
           response.setCode(ccCached.code());
           response.setConstants(ccCached.constantPool());
         } catch (Exception e) {

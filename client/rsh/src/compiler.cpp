@@ -99,6 +99,9 @@ CompilerOptions CompilerOptions::from_list(SEXP listsxp) {
     } else if (!strcmp(name, "inplace")) {
       opts.inplace =
           vec_element_as_bool(listsxp, i, "inplace option must be a logical");
+    } else if (!strcmp(name, "cache")) {
+      opts.cache =
+          vec_element_as_bool(listsxp, i, "cache option must be a logical");
     } else if (!strcmp(name, "tier")) {
       SEXP tier_sxp = VECTOR_ELT(listsxp, i);
       if (TYPEOF(tier_sxp) != STRSXP) {

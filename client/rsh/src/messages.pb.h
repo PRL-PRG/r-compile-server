@@ -888,6 +888,7 @@ class CompileRequest final :
     kTierFieldNumber = 4,
     kCcOptFieldNumber = 5,
     kBcOptFieldNumber = 6,
+    kNoCacheFieldNumber = 9,
   };
   // .rsh.protocol.Function function = 2;
   bool has_function() const;
@@ -982,6 +983,15 @@ class CompileRequest final :
   void _internal_set_bc_opt(int32_t value);
   public:
 
+  // bool no_cache = 9;
+  void clear_no_cache();
+  bool no_cache() const;
+  void set_no_cache(bool value);
+  private:
+  bool _internal_no_cache() const;
+  void _internal_set_no_cache(bool value);
+  public:
+
   // @@protoc_insertion_point(class_scope:rsh.protocol.CompileRequest)
  private:
   class _Internal;
@@ -998,6 +1008,7 @@ class CompileRequest final :
     int tier_;
     int32_t cc_opt_;
     int32_t bc_opt_;
+    bool no_cache_;
   };
   union { Impl_ _impl_; };
   friend struct ::TableStruct_messages_2eproto;
@@ -5682,6 +5693,26 @@ inline void CompileRequest::set_allocated_environment(::rsh::protocol::Environme
   }
   _impl_.environment_ = environment;
   // @@protoc_insertion_point(field_set_allocated:rsh.protocol.CompileRequest.environment)
+}
+
+// bool no_cache = 9;
+inline void CompileRequest::clear_no_cache() {
+  _impl_.no_cache_ = false;
+}
+inline bool CompileRequest::_internal_no_cache() const {
+  return _impl_.no_cache_;
+}
+inline bool CompileRequest::no_cache() const {
+  // @@protoc_insertion_point(field_get:rsh.protocol.CompileRequest.no_cache)
+  return _internal_no_cache();
+}
+inline void CompileRequest::_internal_set_no_cache(bool value) {
+  
+  _impl_.no_cache_ = value;
+}
+inline void CompileRequest::set_no_cache(bool value) {
+  _internal_set_no_cache(value);
+  // @@protoc_insertion_point(field_set:rsh.protocol.CompileRequest.no_cache)
 }
 
 // -------------------------------------------------------------------
