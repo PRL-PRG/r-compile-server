@@ -6,6 +6,7 @@
 
 // MAKE SURE Rinternals.h is not listed!
 #include "runtime_internals.h"
+#include <assert.h>
 #include <limits.h>
 #include <math.h>
 #include <stdint.h>
@@ -2287,9 +2288,8 @@ static INLINE void Rsh_SeqLen(Value *v, SEXP call, SEXP rho) {
     Value *__v__ = v;                                                          \
     int __tag__ = VAL_TAG(*__v__);                                             \
     int __type__ = (t);                                                        \
-    SET_LGL_VAL(__v__,                                                         \
-                __tag__ == __type__ ||                                         \
-                    (__tag__ == 0 && TYPEOF(VAL_SXP(*__v__)) == __type__));    \
+    SET_LGL_VAL(__v__, __tag__ == 0 ? (TYPEOF(VAL_SXP(*__v__)) == __type__)    \
+                                    : __tag__ == __type__);                    \
   } while (0)
 
 static INLINE void Rsh_IsNull(Value *v) { RSH_IS_TYPE(v, NILSXP); }
@@ -2479,5 +2479,50 @@ static INLINE void Rsh_Math1(Value *v, SEXP call, int op, SEXP rho) {
 
 #define Rsh_Dup(a, b) *(b) = *(a)
 #define Rsh_Dup2nd(a, b, c) *(c) = *(a)
+
+static INLINE void Rsh_DoDots(Value *call, Value *args_head, Value *args_tail,
+                              SEXP rho) {
+  SEXPTYPE ftype = TYPEOF(VAL_SXP(*call));
+  if (ftype == SPECIALSXP) {
+    return;
+  }
+
+  SEXP h = R_findVar(R_DotsSymbol, rho);
+  // FIXME: the h == R_NilValue -- does it make sense? eval.c:8028
+  if (TYPEOF(h) == DOTSXP || h == R_NilValue) {
+    PROTECT(h);
+    for (; h != R_NilValue; h = CDR(h)) {
+      SEXP val;
+      if (ftype == BUILTINSXP) {
+        val = Rf_eval(CAR(h), rho);
+      } else if (CAR(h) == R_MissingArg) {
+        val = CAR(h);
+      } else {
+        val = Rf_mkPROMISE(CAR(h), rho);
+      }
+      RSH_LIST_APPEND(args_head, args_tail, val);
+      RSH_SET_TAG(*args_tail, TAG(h));
+    }
+    UNPROTECT(1); /* h */
+  } else if (h != R_MissingArg) {
+    Rf_error("'...' used in an incorrect context");
+  }
+}
+
+static INLINE void Rsh_CallSpecial(Value *value, SEXP call, SEXP rho) {
+  SEXP symbol = CAR(call);
+  SEXP fun = getPrimitive(symbol, SPECIALSXP);
+
+  const void *vmax = vmaxget();
+  int flag = PRIMPRINT(fun);
+  // FIXME: create a macro for the Rboolean -> bool conversion for C++
+  R_Visible = (flag != 1) ? TRUE : FALSE;
+  SEXP v = PRIMFUN(fun)(call, fun, markSpecialArgs(CDR(call)), rho);
+  if (flag < 2) {
+    R_Visible = (flag != 1) ? TRUE : FALSE;
+  }
+  vmaxset(vmax);
+  SET_VAL(value, v);
+}
 
 #endif // RUNTIME_H

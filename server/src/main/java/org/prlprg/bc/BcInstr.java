@@ -338,6 +338,8 @@ public sealed interface BcInstr {
     }
   }
 
+  @StackEffect(pop=3, push=3)
+  @NeedsRho
   record DoDots() implements BcInstr {
     @Override
     public BcOp op() {
@@ -404,7 +406,7 @@ public sealed interface BcInstr {
   }
 
   @NeedsRho
-  @StackEffect(pop = 3, push = 1)
+  @StackEffect(push = 1)
   record CallSpecial(ConstPool.Idx<LangSXP> ast) implements BcInstr {
     @Override
     public BcOp op() {

@@ -385,7 +385,8 @@ class ClosureCompiler {
           BcOp.OR2ND,
           BcOp.LOG,
           BcOp.LOGBASE,
-          BcOp.MATH1);
+          BcOp.MATH1,
+          BcOp.DODOTS);
 
   private void checkSupported(BcInstr instr) {
     if (!SUPPORTED_OPS.contains(instr.op())) {

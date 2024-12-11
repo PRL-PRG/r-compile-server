@@ -112,10 +112,10 @@ SEXP Client::make_client(SEXP address, SEXP port, SEXP installed_packages) {
 
   // We need to increase the maximum response size (4 MB by default)
   auto channel_args = grpc::ChannelArguments();
-  channel_args.SetMaxReceiveMessageSize(1024 * 1024 * 10);
-  channel_args.SetMaxSendMessageSize(1024 * 1024 * 10);
-  auto channel =
-      grpc::CreateCustomChannel(address_str, grpc::InsecureChannelCredentials(), channel_args);
+  channel_args.SetMaxReceiveMessageSize(1024 * 1024 * 50);
+  channel_args.SetMaxSendMessageSize(1024 * 1024 * 50);
+  auto channel = grpc::CreateCustomChannel(
+      address_str, grpc::InsecureChannelCredentials(), channel_args);
   auto client = new Client(channel, packages);
 
   SEXP ptr = PROTECT(R_MakeExternalPtr(client, RSH_CLIENT_PTR, R_NilValue));

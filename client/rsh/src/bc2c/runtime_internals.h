@@ -81,6 +81,8 @@ SEXP do_seq_len(SEXP call, SEXP op, SEXP args, SEXP rho);
 R_varloc_t R_findVarLoc(SEXP rho, SEXP symbol);
 SEXP do_log_builtin(SEXP call, SEXP op, SEXP args, SEXP env);
 NORET void nodeStackOverflow(void);
+SEXP R_findVar(SEXP symbol, SEXP rho);
+SEXP getPrimitive(SEXP symbol, SEXPTYPE type);
 
 // from arithmetic.h
 static INLINE double R_log(double x) {
