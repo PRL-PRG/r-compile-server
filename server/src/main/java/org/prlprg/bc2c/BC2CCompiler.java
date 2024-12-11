@@ -199,12 +199,14 @@ class ClosureCompiler {
           // FIXME: do not POP after return
           // FIXME: extract constants
           case BcInstr.Return() -> """
-              Value __ret__ = *GET_VAL(1);
-              POP_VAL(1);
-              if (__top__ != R_BCNodeStackTop) {
-                Rf_error("Stack not empty after compilation: %ld", R_BCNodeStackTop - __top__);
-              }
-              return Rsh_Return(__ret__);
+              do {
+                Value __ret__ = *GET_VAL(1);
+                POP_VAL(1);
+                if (__top__ != R_BCNodeStackTop) {
+                  Rf_error("Stack not empty after compilation: %ld", R_BCNodeStackTop - __top__);
+                }
+                return Rsh_Return(__ret__);
+              } while(0);
             """;
           case BcInstr.Goto(var dest) -> "goto %s;".formatted(label(dest));
           case BcInstr.LdConst(var idx) -> {
@@ -256,7 +258,6 @@ class ClosureCompiler {
                 instanceof BcInstr.StartFor(_, var symbol, _))) {
               throw new IllegalStateException("Expected StartFor instruction");
             }
-            // FIXME: pops?
             yield "if (%s) {\n goto %s;\n}"
                 .formatted(builder.args(cell(symbol)).compile(), label(label));
           }
@@ -265,12 +266,7 @@ class ClosureCompiler {
 
           default -> {
             if (instr.label().orElse(null) instanceof BcLabel l) {
-              var pops = String.join("\n", builder.afterCompile());
-              if (!pops.isEmpty()) {
-                pops = "\n" + pops;
-              }
-
-              yield "if (%s) {%s\ngoto %s;\n}".formatted(builder.compile(), pops, label(l));
+              yield "if (%s) {\ngoto %s;\n}".formatted(builder.compile(), label(l));
             } else {
               yield builder.compileStmt();
             }
@@ -279,7 +275,10 @@ class ClosureCompiler {
 
     builder.beforeCompile().forEach(body::line);
     body.line(code);
-    builder.afterCompile().forEach(body::line);
+    if (!(instr instanceof BcInstr.BrIfNot)) {
+      // FIXME: temporary
+      builder.afterCompile().forEach(body::line);
+    }
   }
 
   private static final Set<BcOp> SUPPORTED_OPS =

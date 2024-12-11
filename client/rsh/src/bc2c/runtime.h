@@ -926,11 +926,15 @@ static INLINE void Rsh_Call(Value *fun, Value args_head, UNUSED Value args_tail,
 }
 
 static INLINE Rboolean Rsh_BrIfNot(Value value, SEXP call, SEXP rho) {
+  // FIXME: temporary POP_VAL
   if (VAL_IS_LGL_NOT_NA(value)) {
+    POP_VAL(1);
     return (Rboolean)!VAL_INT(value);
   } else if (VAL_IS_INT_NOT_NA(value)) {
+    POP_VAL(1);
     return (Rboolean)(VAL_INT(value) == 0);
   } else if (VAL_IS_DBL_NOT_NAN(value)) {
+    POP_VAL(1);
     return (Rboolean)(VAL_DBL(value) == 0.0);
   }
 
@@ -939,6 +943,7 @@ static INLINE Rboolean Rsh_BrIfNot(Value value, SEXP call, SEXP rho) {
   if (IS_SCALAR(value_sxp, LGLSXP)) {
     Rboolean lval = (Rboolean)LOGICAL0(value_sxp)[0];
     if (lval != NA_LOGICAL) {
+      POP_VAL(1);
       return (Rboolean)!lval;
     }
   }
@@ -946,6 +951,7 @@ static INLINE Rboolean Rsh_BrIfNot(Value value, SEXP call, SEXP rho) {
   PROTECT(value_sxp);
   Rboolean ans = asLogicalNoNA(value_sxp, call, rho);
   UNPROTECT(1);
+  POP_VAL(1);
   return (Rboolean)!ans;
 }
 
@@ -1351,6 +1357,8 @@ static INLINE Rboolean Rsh_start_subset_dispatch(const char *generic,
     RSH_PC_INC(dispatched_subset);
     RSH_CHECK_SIGINT();
     SET_VAL(value, value_sxp);
+    // FIXME: temporary stack
+    POP_VAL(3);
     return TRUE;
   } else {
     SEXP tag = TAG(CDR(call));
@@ -1573,6 +1581,8 @@ static INLINE Rboolean Rsh_start_subassign_dispatch_n(const char *generic,
       RSH_PC_INC(dispatched_subassign);
       RSH_CHECK_SIGINT();
       SET_SXP_VAL(lhs, value);
+      // FIXME: temporary
+      POP_VAL(1);
       return TRUE;
     }
   }
@@ -1814,6 +1824,8 @@ static INLINE Rboolean Rsh_start_subassign_dispatch(
     RSH_PC_INC(dispatched_subassign);
     RSH_CHECK_SIGINT();
     SET_SXP_VAL(lhs, value);
+    // FIXME: temporary
+    POP_VAL(4);
     return TRUE;
   } else {
     SEXP tag = TAG(CDR(call));
