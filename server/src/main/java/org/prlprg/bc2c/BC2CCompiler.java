@@ -172,6 +172,11 @@ class ClosureCompiler {
   private void afterCompile() {
     compileCells();
     compileRegisters();
+    compileStackGuard();
+  }
+
+  private void compileStackGuard() {
+    fun.insertAbove(body).line("Value *__top__ = R_BCNodeStackTop;");
   }
 
   private void fillLabels() {
@@ -182,24 +187,25 @@ class ClosureCompiler {
     return List.copyOf(constants.values().stream().map(Constant::value).toList());
   }
 
-  // We need to reset the stack top after the then branch has been compiled
-  private final Map<Integer, Integer> ifStackTop = new HashMap<>();
-
   private void compile(BcInstr instr, int pc) {
     if (labels.contains(pc)) {
-      if (ifStackTop.containsKey(pc)) {
-        var top = ifStackTop.remove(pc);
-        stack.reset(top);
-      }
-
-      body.line("%s: ".formatted(label(pc), stack.top()));
+      body.line("%s:".formatted(label(pc)));
     }
 
     var builder = new InstrBuilder(instr);
     checkSupported(instr);
     var code =
         switch (instr) {
-          case BcInstr.Return() -> "return %s;".formatted(builder.compile());
+          // FIXME: do not POP after return
+          // FIXME: extract constants
+          case BcInstr.Return() -> """
+              Value __ret__ = *GET_VAL(1);
+              POP_VAL(1);
+              if (__top__ != R_BCNodeStackTop) {
+                Rf_error("Stack not empty after compilation: %ld", R_BCNodeStackTop - __top__);
+              }
+              return Rsh_Return(__ret__);
+            """;
           case BcInstr.Goto(var dest) -> "goto %s;".formatted(label(dest));
           case BcInstr.LdConst(var idx) -> {
             var c = getConstant(idx);
@@ -250,21 +256,21 @@ class ClosureCompiler {
                 instanceof BcInstr.StartFor(_, var symbol, _))) {
               throw new IllegalStateException("Expected StartFor instruction");
             }
+            // FIXME: pops?
             yield "if (%s) {\n goto %s;\n}"
                 .formatted(builder.args(cell(symbol)).compile(), label(label));
-          }
-          case BcInstr.BrIfNot(_, var elseLabel) -> {
-            var c = "if (%s) {\n goto %s;\n}".formatted(builder.compile(), label(elseLabel));
-            ifStackTop.put(elseLabel.target(), stack.top());
-            yield c;
           }
           case BcInstr.Math1(var call, var op) ->
               builder.args(constantSXP(call), String.valueOf(op)).compileStmt();
 
           default -> {
             if (instr.label().orElse(null) instanceof BcLabel l) {
-              // FIXME: need to pop!
-              yield "if (%s) {\ngoto %s;\n}".formatted(builder.compile(), label(l));
+              var pops = String.join("\n", builder.afterCompile());
+              if (!pops.isEmpty()) {
+                pops = "\n" + pops;
+              }
+
+              yield "if (%s) {%s\ngoto %s;\n}".formatted(builder.compile(), pops, label(l));
             } else {
               yield builder.compileStmt();
             }

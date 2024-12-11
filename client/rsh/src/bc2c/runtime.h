@@ -1572,7 +1572,7 @@ static INLINE Rboolean Rsh_start_subassign_dispatch_n(const char *generic,
     if (tryAssignDispatch(generic, call, lhs_sxp, rhs_sxp, rho, &value)) {
       RSH_PC_INC(dispatched_subassign);
       RSH_CHECK_SIGINT();
-      SET_SXP_VAL(rhs, value);
+      SET_SXP_VAL(lhs, value);
       return TRUE;
     }
   }
@@ -1813,7 +1813,7 @@ static INLINE Rboolean Rsh_start_subassign_dispatch(
                                              val_as_sexp(*rhs), rho, &value)) {
     RSH_PC_INC(dispatched_subassign);
     RSH_CHECK_SIGINT();
-    SET_SXP_VAL(args_tail, value);
+    SET_SXP_VAL(lhs, value);
     return TRUE;
   } else {
     SEXP tag = TAG(CDR(call));
