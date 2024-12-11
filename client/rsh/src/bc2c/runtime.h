@@ -2101,7 +2101,7 @@ static INLINE void Rsh_StartFor(Value *s2, Value *s1, Value *s0, SEXP call,
 
 static INLINE Rboolean Rsh_StepFor(Value *s2, Value *s1, Value *s0, BCell *cell,
                                    SEXP rho) {
-  SEXP seq = val_as_sexp(*s2);
+  SEXP seq = VAL_SXP(*s2);
   RshLoopInfo *info = (RshLoopInfo *)RAW0(VAL_SXP(*s1));
   R_xlen_t i = ++(info->idx);
 
