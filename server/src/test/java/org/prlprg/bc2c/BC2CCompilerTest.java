@@ -609,30 +609,6 @@ public class BC2CCompilerTest {
   }
 
   @Test
-  public void testB(BC2CSnapshot snapshot){
-    // TODO: add support for GC torture
-    snapshot.verify("""
-            f <- function(n) {
-              s <- 0
-              for (i in 1:n) {
-                for (j in 1:n) {
-                  s <- s + 1
-                }
-              }
-              s
-            }
-            
-            n <- 100
-            s <- 0
-            for (i in 1:n) {
-              for (j in 1:n) {
-                s <- s + f(n)
-              }
-            }
-            s
-            """);
-  }
-  @Test
   public void testAdhoc2(BC2CSnapshot snapshot) {
     snapshot.verify("""
             

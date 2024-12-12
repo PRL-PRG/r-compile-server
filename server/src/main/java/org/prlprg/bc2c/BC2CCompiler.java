@@ -432,7 +432,10 @@ class ClosureCompiler {
     sec.line("PUSH_VAL(__ncells__);");
     int i = 0;
     for (var c : cells) {
-      sec.line("BCell* C%d = &(R_BCNodeStackTop - __ncells__ + %d)->u.sxpval;".formatted(c, i));
+      var idx = cells.size() - i;
+      sec.line("BCell* C%d = &(R_BCNodeStackTop - %d)->u.sxpval;".formatted(c,idx ));
+      sec.line("(R_BCNodeStackTop - %d)->tag = 0;".formatted(idx));
+      sec.line("(R_BCNodeStackTop - %d)->flags = 0;".formatted(idx));
       sec.line("*C%d = R_NilValue;".formatted(c));
       i++;
     }
