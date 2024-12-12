@@ -205,6 +205,7 @@ class ClosureCompiler {
                 if (__top__ != R_BCNodeStackTop) {
                   Rf_error("Stack not empty after compilation: %ld", R_BCNodeStackTop - __top__);
                 }
+                POP_VAL(__ncells__);
                 return Rsh_Return(__ret__);
               } while(0);
             """;
@@ -422,11 +423,19 @@ class ClosureCompiler {
     }
 
     var sec = fun.insertAbove(body);
-    var line =
-        cells.stream()
-            .map("C%d = R_NilValue"::formatted)
-            .collect(Collectors.joining(", ", "BCell ", ";"));
-    sec.line(line);
+//    var line =
+//        cells.stream()
+//            .map("C%d = R_BCNodeStackTop++"::formatted)
+//            .collect(Collectors.joining(", ", "BCell ", ";"));
+//    sec.line(line);
+    sec.line("int __ncells__ = %d;".formatted(cells.size()));
+    sec.line("PUSH_VAL(__ncells__);");
+    int i = 0;
+    for (var c : cells) {
+      sec.line("BCell* C%d = &(R_BCNodeStackTop - __ncells__ + %d)->u.sxpval;".formatted(c, i));
+      sec.line("*C%d = R_NilValue;".formatted(c));
+      i++;
+    }
   }
 
   // API
@@ -573,6 +582,6 @@ class ClosureCompiler {
   private String cell(ConstPool.Idx<? extends SEXP> idx) {
     var id = getConstant(idx).id();
     cells.add(id);
-    return "&C%d".formatted(id);
+    return "C%d".formatted(id);
   }
 }

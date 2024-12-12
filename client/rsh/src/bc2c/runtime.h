@@ -696,13 +696,13 @@ static INLINE SEXP Rsh_do_get_var(SEXP symbol, SEXP rho, Rboolean dd,
   } else if (value == R_MissingArg) {
     MAYBE_MISSING_ARGUMENT_ERROR(symbol, keepmiss, rho);
   } else if (TYPEOF(value) == PROMSXP) {
-    if (PROMISE_IS_EVALUATED(value))
+    if (PROMISE_IS_EVALUATED(value)) {
       value = PRVALUE(value);
-    else {
+    } else {
       /**** R_isMissing is inefficient */
-      if (keepmiss && R_isMissing(symbol, rho))
+      if (keepmiss && R_isMissing(symbol, rho)) {
         value = R_MissingArg;
-      else {
+      } else {
         forcePromise(value);
         value = PRVALUE(value);
       }
