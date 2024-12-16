@@ -25,7 +25,7 @@
 extern FUNTAB R_FunTab[];
 extern Rboolean R_Visible; /* Value visibility flag */
 extern SEXP R_valueSym;
-extern R_bcstack_t *R_BCNodeStackTop, *R_BCNodeStackEnd;
+extern R_bcstack_t *R_BCNodeStackTop, *R_BCNodeStackEnd, *R_BCProtTop;
 extern SEXP R_TrueValue;
 extern SEXP R_FalseValue;
 

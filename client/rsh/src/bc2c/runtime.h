@@ -673,7 +673,7 @@ static INLINE SEXP Rsh_append_values_to_args(Value *vals, int n, SEXP args) {
 static INLINE SEXP Rsh_do_get_var(SEXP symbol, SEXP rho, Rboolean dd,
                                   Rboolean keepmiss, BCell *cache) {
   SEXP value = R_UnboundValue;
-  Rboolean has_cell = FALSE;
+  int has_cell = 0;
 
   if (dd) {
     value = ddfindVar(symbol, rho);
@@ -707,6 +707,10 @@ static INLINE SEXP Rsh_do_get_var(SEXP symbol, SEXP rho, Rboolean dd,
         value = R_MissingArg;
       } else {
         forcePromise(value);
+        // FIXME: this is pretty inefficient
+        // the PRVALUE will likely call the R_expand_promise_value
+        // which will expand a tagged SEXP only to later optimized into a Value
+        // again
         value = PRVALUE(value);
       }
     }
