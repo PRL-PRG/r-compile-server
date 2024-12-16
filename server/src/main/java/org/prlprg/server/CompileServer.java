@@ -8,7 +8,7 @@ import io.grpc.protobuf.services.ProtoReflectionService;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
-class CompileServer {
+public class CompileServer {
   private static final Logger logger = Logger.getLogger(CompileServer.class.getName());
 
   private final int port;
