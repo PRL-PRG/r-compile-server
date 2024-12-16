@@ -5,7 +5,9 @@ import io.grpc.ServerBuilder;
 import io.grpc.health.v1.HealthCheckResponse;
 import io.grpc.protobuf.services.HealthStatusManager;
 import io.grpc.protobuf.services.ProtoReflectionService;
+import java.io.IOException;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.LogManager;
 import java.util.logging.Logger;
 
 public class CompileServer {
@@ -14,6 +16,14 @@ public class CompileServer {
   private final int port;
   private final Server server;
   private HealthStatusManager health;
+
+  static {
+    try (var is = CompileServer.class.getResourceAsStream("/logging.properties")) {
+      LogManager.getLogManager().readConfiguration(is);
+    } catch (IOException e) {
+        throw new RuntimeException("Unable to load logging.properties", e);
+    }
+  }
 
   public CompileServer(int port) {
     this.port = port;
