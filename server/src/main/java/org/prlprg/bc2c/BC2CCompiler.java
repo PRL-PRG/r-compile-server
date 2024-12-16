@@ -418,22 +418,19 @@ class ClosureCompiler {
   }
 
   private void compileCells() {
+    var sec = fun.insertAbove(body);
+
     if (cells.isEmpty()) {
+      sec.line("int __ncells__ = 0;");
       return;
     }
 
-    var sec = fun.insertAbove(body);
-//    var line =
-//        cells.stream()
-//            .map("C%d = R_BCNodeStackTop++"::formatted)
-//            .collect(Collectors.joining(", ", "BCell ", ";"));
-//    sec.line(line);
     sec.line("int __ncells__ = %d;".formatted(cells.size()));
     sec.line("PUSH_VAL(__ncells__);");
     int i = 0;
     for (var c : cells) {
       var idx = cells.size() - i;
-      sec.line("BCell* C%d = &(R_BCNodeStackTop - %d)->u.sxpval;".formatted(c,idx ));
+      sec.line("BCell* C%d = &(R_BCNodeStackTop - %d)->u.sxpval;".formatted(c, idx));
       sec.line("(R_BCNodeStackTop - %d)->tag = 0;".formatted(idx));
       sec.line("(R_BCNodeStackTop - %d)->flags = 0;".formatted(idx));
       sec.line("*C%d = R_NilValue;".formatted(c));
