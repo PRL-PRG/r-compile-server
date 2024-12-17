@@ -1001,7 +1001,7 @@ static INLINE Rboolean Rsh_BrIfNot(Value value, SEXP call, SEXP rho) {
       *(r) = (a) / (b);                                                        \
       break;                                                                   \
     case EXPT_OP:                                                              \
-      *(r) = (a) == 2.0 ? (a) * (a) : R_pow((a), (b));                         \
+      *(r) = (b) == 2.0 ? (a) * (a) : R_pow((a), (b));                         \
       break;                                                                   \
     }                                                                          \
   } while (0)
