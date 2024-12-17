@@ -30,6 +30,6 @@ execute <- function(n=150000L) {
         close(f)
     }
 
-    file <- paste("fasta/fasta", n, ".txt", sep="")
+    file <- paste("../fasta/fasta", n, ".txt", sep="")
     reversecomplement(file)
 }
