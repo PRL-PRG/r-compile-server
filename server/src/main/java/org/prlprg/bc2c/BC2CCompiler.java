@@ -1,8 +1,6 @@
 package org.prlprg.bc2c;
 
 import java.util.*;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 import javax.annotation.Nullable;
 import org.prlprg.bc.*;
 import org.prlprg.sexp.*;
@@ -46,16 +44,16 @@ class ByteCodeStack {
   }
 
   protected Optional<String> registerInitialization() {
-//    if (max == 0) {
-      return Optional.empty();
-//    }
-//
-//    var builder = new StringBuilder();
-//    for (int i = 0; i < max; i++) {
-//      builder.append("INIT_VAL(_").append(i).append(");\n");
-//    }
-//
-//    return Optional.of(builder.toString());
+    //    if (max == 0) {
+    return Optional.empty();
+    //    }
+    //
+    //    var builder = new StringBuilder();
+    //    for (int i = 0; i < max; i++) {
+    //      builder.append("INIT_VAL(_").append(i).append(");\n");
+    //    }
+    //
+    //    return Optional.of(builder.toString());
   }
 
   public int top() {
@@ -156,9 +154,9 @@ class ClosureCompiler {
       compile(code.get(i), i);
     }
 
-//    if (!stack.isEmpty()) {
-//      throw new IllegalStateException("Stack not empty: %d".formatted(stack.top()));
-//    }
+    //    if (!stack.isEmpty()) {
+    //      throw new IllegalStateException("Stack not empty: %d".formatted(stack.top()));
+    //    }
 
     afterCompile();
 
@@ -196,11 +194,12 @@ class ClosureCompiler {
     checkSupported(instr);
     var code =
         switch (instr) {
-          // FIXME: do not POP after return
-          // FIXME: extract constants
-          // FIXME: better stack handling - we do not need __ncells__, just store __top__
-          // FIXME: what shall happen if an error occurs?
-          case BcInstr.Return() -> """
+            // FIXME: do not POP after return
+            // FIXME: extract constants
+            // FIXME: better stack handling - we do not need __ncells__, just store __top__
+            // FIXME: what shall happen if an error occurs?
+          case BcInstr.Return() ->
+              """
               do {
                 Value __ret__ = *GET_VAL(1);
                 POP_VAL(1);
@@ -212,14 +211,16 @@ class ClosureCompiler {
           case BcInstr.Goto(var dest) -> "goto %s;".formatted(label(dest));
           case BcInstr.LdConst(var idx) -> {
             var c = getConstant(idx);
-            yield builder.fun(switch (c.value()) {
-              case IntSXP v when v.size() == 1 -> "Rsh_LdConstInt";
-              case RealSXP v when v.size() == 1 -> "Rsh_LdConstDbl";
-              case LglSXP v when v.size() == 1 -> "Rsh_LdConstLgl";
-              case SEXP _ -> "Rsh_LdConst";
-            })
-            .args("Rsh_const(%s, %d)".formatted(VAR_CCP, c.id()))
-            .compileStmt();
+            yield builder
+                .fun(
+                    switch (c.value()) {
+                      case IntSXP v when v.size() == 1 -> "Rsh_LdConstInt";
+                      case RealSXP v when v.size() == 1 -> "Rsh_LdConstDbl";
+                      case LglSXP v when v.size() == 1 -> "Rsh_LdConstLgl";
+                      case SEXP _ -> "Rsh_LdConst";
+                    })
+                .args("Rsh_const(%s, %d)".formatted(VAR_CCP, c.id()))
+                .compileStmt();
           }
           case BcInstr.SetVar(var symbol) ->
               builder.args(constantSXP(symbol), cell(symbol)).compileStmt();
@@ -229,26 +230,38 @@ class ClosureCompiler {
               builder.args(constantSXP(symbol), cell(symbol)).compileStmt();
           case BcInstr.StartAssign(var symbol) ->
               builder.args(constantSXP(symbol), cell(symbol)).compileStmt();
-          case BcInstr.StartAssign2(var symbol) ->
-              builder.args(constantSXP(symbol), cell(symbol)).compileStmt();
           case BcInstr.EndAssign(var symbol) ->
-              builder.args(constantSXP(symbol), cell(symbol)).compileStmt();
-          case BcInstr.EndAssign2(var symbol) ->
               builder.args(constantSXP(symbol), cell(symbol)).compileStmt();
           case BcInstr.GetBuiltin(var idx) ->
               builder.args("\"" + bc.consts().get(idx).name() + "\"").compileStmt();
           case BcInstr.MakeClosure(var idx) -> compileMakeClosure(builder, idx);
 
-          // FIXME: this can be all done using the default branch - except for the rank
-          //  the builder should be smarter and include also other types such as int
+            // FIXME: this can be all done using the default branch - except for the rank
+            //  the builder should be smarter and include also other types such as int
           case BcInstr.SubsetN(var call, var rank) ->
-              builder.args(String.valueOf(rank), constantSXP(call)).pop(rank+1).useStackAsArray().compileStmt();
+              builder
+                  .args(String.valueOf(rank), constantSXP(call))
+                  .pop(rank + 1)
+                  .useStackAsArray()
+                  .compileStmt();
           case BcInstr.Subset2N(var call, var rank) ->
-              builder.args(String.valueOf(rank), constantSXP(call)).pop(rank+1).useStackAsArray().compileStmt();
+              builder
+                  .args(String.valueOf(rank), constantSXP(call))
+                  .pop(rank + 1)
+                  .useStackAsArray()
+                  .compileStmt();
           case BcInstr.SubassignN(var call, var rank) ->
-              builder.args(String.valueOf(rank), constantSXP(call)).pop(rank+2).useStackAsArray().compileStmt();
+              builder
+                  .args(String.valueOf(rank), constantSXP(call))
+                  .pop(rank + 2)
+                  .useStackAsArray()
+                  .compileStmt();
           case BcInstr.Subassign2N(var call, var rank) ->
-              builder.args(String.valueOf(rank), constantSXP(call)).pop(rank+2).useStackAsArray().compileStmt();
+              builder
+                  .args(String.valueOf(rank), constantSXP(call))
+                  .pop(rank + 2)
+                  .useStackAsArray()
+                  .compileStmt();
 
           case BcInstr.StartFor(var ast, var symbol, var label) -> {
             var c = builder.args(constantSXP(ast), constantSXP(symbol), cell(symbol)).compileStmt();

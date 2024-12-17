@@ -338,7 +338,7 @@ public sealed interface BcInstr {
     }
   }
 
-  @StackEffect(pop=3, push=3)
+  @StackEffect(pop = 3, push = 3)
   @NeedsRho
   record DoDots() implements BcInstr {
     @Override

@@ -1533,12 +1533,16 @@ static INLINE void Rsh_StartAssign2(Value *rhs, Value *lhs_cell, Value *lhs_val,
   SET_SXP_VAL(lhs_val, value_sxp);
 
   *rhs_dup = *rhs;
-  /* top four stack entries are now
-     RHS value, LHS cell, LHS value, RHS value */
   if (VAL_IS_SXP(*rhs_dup)) {
     FIXUP_RHS_NAMED(VAL_SXP(*rhs_dup));
     INCREMENT_REFCNT(VAL_SXP(*rhs_dup));
   }
+  // stack at the end:
+  //         s3 - RHS value
+  //         s2 - LHS cell
+  //         s1 - LHS value
+  //         s0 - RHS value
+  // top -->
 }
 
 static INLINE void Rsh_EndAssign(Value *rhs, Value lhs_cell, Value value,
@@ -1566,21 +1570,25 @@ static INLINE void Rsh_EndAssign(Value *rhs, Value lhs_cell, Value value,
 }
 
 static INLINE void Rsh_EndAssign2(Value *rhs, Value lhs_cell, Value value,
-                                  SEXP symbol, BCell *cache, SEXP rho) {
+                                  SEXP symbol, SEXP rho) {
   SEXP lhs_cell_sxp = VAL_SXP(lhs_cell);
   SET_ASSIGNMENT_PENDING(lhs_cell_sxp, FALSE);
 
-  bcell_cache(symbol, rho, cache);
   SEXP value_sxp = val_as_sexp(value);
-
   INCREMENT_NAMED(value_sxp);
-  if (!bcell_set_value(*cache, value_sxp)) {
-    Rf_defineVar(symbol, value_sxp, rho);
-  }
 
-  SEXP rhs_sxp = val_as_sexp(*rhs);
-  INCREMENT_NAMED(rhs_sxp);
-  DECREMENT_REFCNT(rhs_sxp);
+  // FIXME: this is not what GNUR does, but
+  // it feels logical. We have the binding cell so
+  // why cannot we update it directly?
+  BCELL_SET(lhs_cell_sxp, value_sxp);
+  // instead this is what GNUR does:
+  // Rf_setVar(symbol, value_sxp, ENCLOS(rho));
+
+  if (VAL_IS_SXP(*rhs)) {
+    SEXP rhs_sxp = VAL_SXP(*rhs);
+    INCREMENT_NAMED(rhs_sxp);
+    DECREMENT_REFCNT(rhs_sxp);
+  }
 }
 
 #define Rsh_StartSubassignN(lhs, rhs, call, rho)                               \
@@ -1859,6 +1867,13 @@ static INLINE Rboolean Rsh_start_subassign_dispatch(
     INIT_CALL_FRAME(args_head, args_tail);
     RSH_LIST_APPEND_EX(args_head, args_tail, lhs_sxp, FALSE);
     RSH_SET_TAG(*args_tail, tag);
+    // stack at the end:
+    //         s4 - lhs
+    //         s3 - rhs
+    //         s2 - call
+    //         s1 - args head
+    //         s0 - args tail
+    // top -->
     return FALSE;
   }
 }
@@ -1882,6 +1897,13 @@ static INLINE void Rsh_dflt_subassign_dispatch(CCODE fun, SEXP symbol,
                                                Value *lhs, Value rhs,
                                                Value call_val, Value args_head,
                                                Value args_tail, SEXP rho) {
+  // stack at the beginning:
+  //         s4 - lhs
+  //         s3 - rhs
+  //         s2 - call
+  //         s1 - args head
+  //         s0 - args tail
+  // top -->
   SEXP call_sxp = val_as_sexp(call_val);
   SEXP args = val_as_sexp(args_head);
   RSH_CALL_ARGS_DECREMENT_LINKS(args);
