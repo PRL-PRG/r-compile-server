@@ -239,7 +239,8 @@ static INLINE SEXP VAL_SXP(Value v) {
 #define VAL_IS_SXP(v) ((v).tag == 0)
 #define VAL_IS_ISQ(v) ((v).tag == ISQSXP)
 
-// Unchecked constructors
+// FIXME: check type!
+// FIXME: set flags?
 
 #define SET_INT_VAL(target, value)                                             \
   do {                                                                         \
@@ -269,22 +270,32 @@ static INLINE SEXP VAL_SXP(Value v) {
     __node__->u.sxpval = (value);                                              \
   } while (0);
 
-#define SET_VAL(target, sexp)                                                  \
-  {                                                                            \
-    if (IS_SCALAR(sexp, REALSXP)) {                                            \
-      SET_DBL_VAL(target, REAL(sexp)[0]);                                      \
-    } else if (IS_SCALAR(sexp, INTSXP)) {                                      \
-      SET_INT_VAL(target, INTEGER(sexp)[0]);                                   \
-    } else if (IS_SCALAR(sexp, LGLSXP)) {                                      \
-      SET_LGL_VAL(target, INTEGER(sexp)[0]);                                   \
+// FIXME: is this enough or so we need to check of the obj flag?
+#define SET_VAL(target, value)                                                 \
+  do {                                                                         \
+    SEXP __v__ = (value);                                                      \
+    Value *__n__ = (target);                                                   \
+    if (__v__->sxpinfo.scalar && ATTRIB(__v__) == R_NilValue) {                \
+      switch (TYPEOF(__v__)) {                                                 \
+      case REALSXP:                                                            \
+        SET_DBL_VAL(__n__, REAL(__v__)[0]);                                    \
+        break;                                                                 \
+      case INTSXP:                                                             \
+        SET_INT_VAL(__n__, INTEGER(__v__)[0]);                                 \
+        break;                                                                 \
+      case LGLSXP:                                                             \
+        SET_LGL_VAL(__n__, INTEGER(__v__)[0]);                                 \
+        break;                                                                 \
+      default:                                                                 \
+        SET_SXP_VAL(__n__, __v__);                                             \
+      }                                                                        \
     } else {                                                                   \
-      SET_SXP_VAL(target, sexp);                                               \
+      SET_SXP_VAL(__n__, __v__);                                               \
     }                                                                          \
-  }
+  } while (0)
 
 #define ISQSXP 9999
 
-// FIXME: remove
 #define VAL_TAG(v) ((v).tag)
 
 // Checked accessors
@@ -554,22 +565,19 @@ JIT_DECL SEXP create_wrapper_body(SEXP body, SEXP fun_ptr, SEXP c_cp);
 
 #define BCELL_INLINE(cell, v)                                                  \
   do {                                                                         \
-    if (BCELL_WRITABLE(cell)) {                                                \
-      switch (TYPEOF(v)) {                                                     \
+    BCell __cell__ = (cell);                                                   \
+    SEXP __v__ = (v);                                                          \
+    if (BCELL_WRITABLE(__cell__) && __v__->sxpinfo.scalar &&                   \
+        ATTRIB(__v__) == R_NilValue) {                                         \
+      switch (TYPEOF(__v__)) {                                                 \
       case REALSXP:                                                            \
-        if (XLENGTH((v)) == 1) {                                               \
-          BCELL_DVAL_NEW(cell, REAL(v)[0]);                                    \
-        }                                                                      \
+        BCELL_DVAL_NEW(__cell__, REAL(__v__)[0]);                              \
         break;                                                                 \
       case INTSXP:                                                             \
-        if (XLENGTH((v)) == 1) {                                               \
-          BCELL_IVAL_NEW(cell, INTEGER(v)[0]);                                 \
-        }                                                                      \
+        BCELL_IVAL_NEW(__cell__, INTEGER(__v__)[0]);                           \
         break;                                                                 \
       case LGLSXP:                                                             \
-        if (XLENGTH((v)) == 1) {                                               \
-          BCELL_LVAL_NEW(cell, INTEGER(v)[0]);                                 \
-        }                                                                      \
+        BCELL_LVAL_NEW(__cell__, INTEGER(__v__)[0]);                           \
         break;                                                                 \
       }                                                                        \
     }                                                                          \
