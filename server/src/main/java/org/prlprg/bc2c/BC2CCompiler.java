@@ -198,13 +198,13 @@ class ClosureCompiler {
         switch (instr) {
           // FIXME: do not POP after return
           // FIXME: extract constants
+          // FIXME: better stack handling - we do not need __ncells__, just store __top__
+          // FIXME: what shall happen if an error occurs?
           case BcInstr.Return() -> """
               do {
                 Value __ret__ = *GET_VAL(1);
                 POP_VAL(1);
-                if (__top__ != R_BCNodeStackTop) {
-                  Rf_error("Stack not empty after compilation: %ld", R_BCNodeStackTop - __top__);
-                }
+                R_BCNodeStackTop = __top__;
                 POP_VAL(__ncells__);
                 return Rsh_Return(__ret__);
               } while(0);

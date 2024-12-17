@@ -2127,7 +2127,8 @@ static INLINE void Rsh_StartFor(Value *s2, Value *s1, Value *s0, SEXP call,
   // stack at the end:
   //         s2 - sequence
   //         s1 - casted pointer for the RshLoopInfo
-  // top --> s0 - the initial value
+  //         s0 - the initial value
+  // top -->
 }
 
 #define SET_FOR_LOOP_VAR(value, cell, symbol, rho)                             \
