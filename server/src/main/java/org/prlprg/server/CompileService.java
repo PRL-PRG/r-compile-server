@@ -213,7 +213,9 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
                       "Cannot native compile function "
                           + function.getName()
                           + " ; "
-                          + e.getMessage())
+                          // we truncate the message, as it can get quite big  with compilation
+                          // errors, and anyway, gRPC has a max header size of 8KB
+                          + e.getMessage().substring(0, 7000))
                   .asRuntimeException());
         }
       }

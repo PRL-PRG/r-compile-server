@@ -23,5 +23,5 @@ clean:
 	mvn $(MVN_ARGS) clean
 
 .PHONY: run
-run: 
+run:
 	R_HOME="$(R_HOME)" mvn compile exec:java

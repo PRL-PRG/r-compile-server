@@ -21,7 +21,7 @@ public class CompileServer {
     try (var is = CompileServer.class.getResourceAsStream("/logging.properties")) {
       LogManager.getLogManager().readConfiguration(is);
     } catch (IOException e) {
-        throw new RuntimeException("Unable to load logging.properties", e);
+      throw new RuntimeException("Unable to load logging.properties", e);
     }
   }
 

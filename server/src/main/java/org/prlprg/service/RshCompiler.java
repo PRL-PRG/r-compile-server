@@ -47,7 +47,7 @@ public class RshCompiler {
           "-Wno-unused-but-set-variable",
           "-Wno-comment",
           "-Wno-unused-function" // (or INLINE)
-          //"-DRSH_INLINE"
+          // "-DRSH_INLINE"
           );
 
   private final List<String> compilerFlags;

@@ -610,24 +610,25 @@ public class BC2CCompilerTest {
 
   @Test
   public void testAdhoc2(BC2CSnapshot snapshot) {
-    snapshot.verify("""
-            
+    snapshot.verify(
+        """
+
               normWeights <- function(x) x/mean(x)
-            
+
               kcca <- function(x, k, iter.max)
               {
                   x <- as.matrix(x)
                   k <- as.integer(k)
                   cluster <- integer(nrow(x))
-            
+
                   # takes some time
                   centers <- kmeanspp(na.omit(unique(x)), k)
-            
+
                   for(iter in 1:iter.max){
                       clustold <- cluster
                       # takes some time
                       distmat <- distEuclidean(x, centers)
-            
+
                       cluster <- kmeansCluster(x, distmat=distmat)
                       centers <- kmeansAllcent(x, cluster=cluster, k=k)
                       ## NAs in centers are empty clusters
@@ -636,15 +637,15 @@ public class BC2CCompilerTest {
                       changes <- sum(cluster!=clustold)
                       if(changes==0) break
                   }
-            
+
                   centers <- centers[complete.cases(centers),,drop=FALSE]
                   r <- summarizeCenters(x, centers)
                   append(r, list(iter = iter))
               }
-            
+
               kmeansCluster <- function(x, centers, n=1, distmat=NULL)
               {
-            
+
                   if(is.null(distmat))
                       distmat <- z@dist(x, centers)
                   if(n==1){
@@ -660,7 +661,7 @@ public class BC2CCompilerTest {
                   }
                   return(z)
               }
-            
+
               kmeansAllcent <- function(x, cluster, k=max(cluster, na.rm=TRUE))
               {
                   centers <- matrix(NA, nrow=k, ncol=ncol(x))
@@ -671,7 +672,7 @@ public class BC2CCompilerTest {
                   }
                   centers
               }
-            
+
               kmeanspp <- function(x, k)
               {
                   centers <- matrix(0, nrow=k, ncol=ncol(x))
@@ -702,11 +703,11 @@ public class BC2CCompilerTest {
                   totaldist <- sum(distEuclidean(x, matrix(xcent,nrow=1)))
                   clusinfo <- clusinfo(cluster[[1]], cldist)
                   sse <- sum(cldist[,1]**2)
-            
+
                   list(xcent = xcent, totaldist = totaldist, clusinfo = clusinfo,
                       cldist = cldist, sse = sse)
               }
-            
+
               clusinfo <- function(cluster, cldist)
             ### cluster: vector of cluster memberships
             ### cldist: matrix with 1 or 2 columns
@@ -715,18 +716,18 @@ public class BC2CCompilerTest {
                   clusinfo <-
                       data.frame(size=size,
                                 av_dist = as.vector(tapply(cldist[,1], cluster, sum))/size)
-            
+
                   clusinfo <- cbind(clusinfo,
                                     max_dist = as.vector(tapply(cldist[,1], cluster, max)),
                                     separation = as.vector(tapply(cldist[,2], cluster, min)))
                   clusinfo
               }
-            
+
               computeClusterSim <- function(distmat, cluster)
               {
                   K <- max(cluster[[1]])
                   z <- matrix(0, ncol=K, nrow=K)
-            
+
                   for(k in 1:K){
                       ok1 <- cluster[[1]]==k
                       if(any(ok1)){
@@ -745,7 +746,7 @@ public class BC2CCompilerTest {
                   diag(z) <- 1
                   z
               }
-            
+
               list2object = function(from, to){
                   n = names(from)
                   s = slotNames(to)
@@ -756,23 +757,23 @@ public class BC2CCompilerTest {
                   names(from) = s[p]
                   do.call("new", c(from, Class=to))
               }
-            
+
             ## Assign each observation to the cluster minimizing the sum
             ## of distances to all group members.
               minSumClusters <- function(cluster, group, distmat)
               {
                   G <- levels(group)
                   x <- matrix(0, ncol=ncol(distmat), nrow=length(G))
-            
+
                   for(n in 1:length(G)){
                       x[n,] <- colSums(distmat[group==G[n],,drop=FALSE])
                   }
-            
+
                   m <- max.col(-x)
                   names(m) <- G
                   z <- m[group]
                   names(z) <- NULL
-            
+
                   if(is.list(cluster))
                   {
                       ## get second best
@@ -785,7 +786,7 @@ public class BC2CCompilerTest {
                   }
                   z
               }
-            
+
               distEuclidean <- function(x, centers)
               {
                   if(ncol(x)!=ncol(centers))
@@ -797,14 +798,14 @@ public class BC2CCompilerTest {
                   }
                   z
               }
-            
+
             # ---------------------------------------------------
-            
+
             k = 5
               fname <- "/tmp/aloi-8d.csv.gz"
               alldata <- read.csv(gzfile(fname), header=F, sep=" ")
               data <- alldata[,1:8]
-            
+
               set.seed(42)
               km <- kcca(data, k=k, iter.max=10000)
               km
@@ -826,7 +827,7 @@ public class BC2CCompilerTest {
                       maxdistance <- floor(sqrt(ncol(height.map)^2 + nrow(height.map)^2))
                       sinsun <- sin(sunangle)
                       cossun <- cos(sunangle)
-                
+
                       for (i in 1:nrow(height.map)) {
                           for (j in 1:ncol(height.map)) {
                               for (anglei in anglebreaks) {
@@ -835,19 +836,19 @@ public class BC2CCompilerTest {
                                       xcoord <- i + sinsun * k
                                       # ycoord <- j + cos(sunangle) * k
                                       ycoord <- j + cossun * k
-                
+
                                       if (xcoord > nrow(height.map) ||
                                           ycoord > ncol(height.map) ||
                                           xcoord < 0 || ycoord < 0) break
-                
+
                                       # tanangheight <- height.map[i, j] + tan(anglei) * k
                                       tanangheight <- height.map[i, j] + anglei * k
-                
+
                                       if (all(c(height.map[ceiling(xcoord), ceiling(ycoord)],
                                                 height.map[floor(xcoord),   ceiling(ycoord)],
                                                 height.map[ceiling(xcoord), floor(ycoord)],
                                                 height.map[floor(xcoord),   floor(ycoord)]) < tanangheight)) next
-                
+
                                       if (tanangheight < bilinear(height.map, xcoord, ycoord)) {
                                           shadow[i, j] <- shadow[i, j] - 1 / length(anglebreaks)
                                           break
@@ -856,10 +857,10 @@ public class BC2CCompilerTest {
                               }
                           }
                       }
-                
+
                       shadow
                   }
-                
+
                   bilinear <- function(data, x0, y0) {
                       i <- max(1, floor(x0))
                       j <- max(1, floor(y0))
@@ -879,9 +880,9 @@ public class BC2CCompilerTest {
                       }
                       result
                   }
-                
+
                 points <- rep(181L, 10) # 181 takes the longest to compute
-                
+
                 n = 1
                 s = 0
                 for (j in 1:n) {
