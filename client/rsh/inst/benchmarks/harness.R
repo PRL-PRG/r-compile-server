@@ -4,23 +4,26 @@ RBC_OPTS <- list(optimize = 3L)
 RSH_OPTS <- list(optimize = 3L)
 DEFAULT_NUM_ITER <- 15L
 
-wrap_with_verify <- function(f, expected) {
+wrap_with_verify <- function(f, expected, expected_output) {
   f <- force(f)
   function(x) {
-    actual <- f(x)
+    output <- capture.output(actual <- f(x))
     if (!identical(actual, expected)) {
       stop("Benchmark failed with incorrect result, expected: ", expected, ", actual: ", actual)
+    }
+    if (!identical(output, expected_output)) {
+      stop("Benchmark failed with incorrect output, expected: ", expected_output, ", actual: ", output)
     }
   }
 }
 
 benchmark <- function(num_iter, bench_param) {
-  result <- execute(bench_param)
+  output <- capture.output(result <- execute(bench_param))
 
   rbc <- compiler::cmpfun(execute, options=RBC_OPTS)
-  rbc <- wrap_with_verify(rbc, result)
+  rbc <- wrap_with_verify(rbc, result, output)
   rsh <- rsh:::rsh_cmpfun(execute, options=RSH_OPTS)
-  rsh <- wrap_with_verify(rsh, result)
+  rsh <- wrap_with_verify(rsh, result, output)
 
   microbenchmark::microbenchmark(
     rbc(bench_param),

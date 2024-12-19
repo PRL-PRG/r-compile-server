@@ -11,6 +11,7 @@ import java.nio.charset.Charset;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Optional;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.annotation.Nullable;
 import org.prlprg.RVersion;
@@ -220,7 +221,9 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
                       "Cannot native compile function "
                           + function.getName()
                           + " ; "
-                          + e.getMessage())
+                          // we truncate the message, as it can get quite big  with compilation
+                          // errors, and anyway, gRPC has a max header size of 8KB
+                          + e.getMessage().substring(0, 7000))
                   .asRuntimeException());
         }
       }
@@ -256,11 +259,16 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
     // TODO: Lookup to see if we have this version of R installed or not.
     // Hardcoded so far:
     // TODO: detect where R is installed
-    // var base_dir = Path.of("/workspace/");
-    var base_dir = Path.of(".");
-    var r_dir = base_dir.resolve("external/R");
-    var lib_dir = base_dir.resolve("external/R/library");
-    session = new GNURSession(convertVersion(RVersion), r_dir, lib_dir);
+    var rHomeEnv = System.getenv("R_HOME");
+    if (rHomeEnv == null) {
+      rHomeEnv = "external/R";
+    }
+    var rHomePath = Path.of(rHomeEnv);
+    var rLibraryPath = rHomePath.resolve("external/R/library");
+    if (logger.isLoggable(Level.FINE)) {
+      logger.fine("Creating an R session using R from `" + rHomePath.toAbsolutePath() + "'");
+    }
+    session = new GNURSession(convertVersion(RVersion), rHomePath, rLibraryPath);
 
     // TODO: Look into our cache if we have the packages.
     // Request the packages for those we do not have hashes for.
