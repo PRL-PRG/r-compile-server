@@ -100,8 +100,6 @@ JIT_DEF SEXP Rsh_initialize_runtime(void) {
   X_MATH1_EXT_OPS
 #undef X
 
-  Rsh_NilValue = SXP_TO_VAL(R_NilValue);
-  Rsh_UnboundValue = SXP_TO_VAL(Rsh_UnboundValue);
   LOAD_R_BUILTIN(NOT_OP, "!");
   LOAD_R_BUILTIN(LOG_OP, "log");
 

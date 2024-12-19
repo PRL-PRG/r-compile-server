@@ -20,8 +20,7 @@ SEXP R_MATH1_EXT_SYMS[] = {X_MATH1_EXT_OPS};
 Rsh_Math1Fun R_MATH1_EXT_FUNS[] = {X_MATH1_EXT_OPS};
 #undef X
 
-Value Rsh_NilValue;
-Value Rsh_UnboundValue;
+// FIXME: remove
 SEXP NOT_OP;
 SEXP LOG_OP;
 SEXP BC2C_CALL_TRAMPOLINE_SXP;
