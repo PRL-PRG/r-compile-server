@@ -12,6 +12,7 @@ struct CompilerOptions {
   int bc_opt = 3;
   int cc_opt = 3;
   bool inplace;
+  bool cache = true;
   protocol::Tier tier = protocol::Tier::OPTIMIZED;
 
   static CompilerOptions from_list(SEXP listsxp);

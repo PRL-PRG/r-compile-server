@@ -58,6 +58,7 @@ Client::remote_compile(std::vector<uint8_t> const &rds_closure,
   request.set_bc_opt(options.bc_opt);
   request.mutable_function()->set_name(options.name);
   request.set_cc_opt(options.cc_opt);
+  request.set_no_cache(!options.cache);
   request.mutable_function()->set_body(rds_closure.data(), rds_closure.size());
 
   // We replace the body of a function with its compiled version so it would not
