@@ -8,7 +8,6 @@
   // the embedded R uses absolute paths
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
   "workspaceFolder": "/workspace",
-  "postCreateCommand": "make setup",
   "customizations": {
     "vscode": {
       "extensions": [
