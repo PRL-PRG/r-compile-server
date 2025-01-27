@@ -131,7 +131,7 @@ jobs:
         with:
           cacheFrom:  ${{ needs.build-devcontainer.outputs.imageName }}
           push: never
-          runCmd: ls /workspace/ ; ls /workspace/external/R; cd client/rsh; make install
+          runCmd: ls -R /workspace/ ; cd client/rsh; make install
       - uses: actions/download-artifact@v4
         with:
           name: snapshot
