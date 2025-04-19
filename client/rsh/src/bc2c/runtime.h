@@ -2342,7 +2342,7 @@ static INLINE void Rsh_IsInteger(Value *v) {
   }
 }
 
-static inline void fixup_scalar_logical(Value *v, SEXP call, const char *arg,
+static INLINE void fixup_scalar_logical(Value *v, SEXP call, const char *arg,
                                         const char *op) {
   if (VAL_IS_LGL(*v)) {
     return;
