@@ -16,6 +16,14 @@ typedef int32_t i32;
 typedef uint64_t u64;
 typedef uint32_t u32;
 
+// For copy-and-patch. Possibly for Rsh as well.
+// To allow patching of internal symbols without unnecessary indirection
+#ifdef RCP
+#define EXTERN_ATTRIBUTES  __attribute__((section(".data"), visibility("hidden")))
+#else
+#define EXTERN_ATTRIBUTES
+#endif
+
 // LINKING MODEL
 // -------------
 
@@ -33,16 +41,8 @@ typedef uint32_t u32;
 #define JIT_DECL
 #define JIT_DEF
 #else
-#define JIT_DECL extern
+#define JIT_DECL EXTERN_ATTRIBUTES extern
 #define JIT_DEF
-#endif
-
-// For copy-and-patch. Possibly for Rsh as well.
-// To allow patching of internal symbols without unnecessary indirection
-#ifdef RCP
-#define EXTERN_ATTRIBUTES  __attribute__((section(".data"), visibility("hidden")))
-#else
-#define EXTERN_ATTRIBUTES
 #endif
 
 // PERFORMANCE COUNTERS
