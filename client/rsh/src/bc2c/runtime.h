@@ -325,7 +325,7 @@ static INLINE SEXP val_as_sexp(Value v) {
       nodeStackOverflow();                                                     \
     }                                                                          \
     while (__n__-- > 0) {                                                      \
-      SET_SXP_VAL(R_BCNodeStackTop++, R_NilValue);                             \
+      (R_BCNodeStackTop++)->tag = INTSXP;  /*anything not collected by GC*/    \
     }                                                                          \
   } while (0)
 
