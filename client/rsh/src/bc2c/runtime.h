@@ -37,6 +37,14 @@ typedef uint32_t u32;
 #define JIT_DEF
 #endif
 
+// For copy-and-patch. Possibly for Rsh as well.
+// To allow patching of internal symbols without unnecessary indirection
+#ifdef RCP
+#define EXTERN_ATTRIBUTES  __attribute__((section(".data"), visibility("hidden")))
+#else
+#define EXTERN_ATTRIBUTES
+#endif
+
 // PERFORMANCE COUNTERS
 // --------------------
 
@@ -157,19 +165,19 @@ SEXP R_MATH1_EXT_SYMS[] = {X_MATH1_EXT_OPS};
 Rsh_Math1Fun R_MATH1_EXT_FUNS[] = {X_MATH1_EXT_OPS};
 #undef X
 #else
-extern SEXP R_ARITH_OPS[];
-extern SEXP R_ARITH_OP_SYMS[];
-extern SEXP R_REL_OPS[];
-extern SEXP R_REL_OP_SYMS[];
+EXTERN_ATTRIBUTES extern SEXP R_ARITH_OPS[];
+EXTERN_ATTRIBUTES extern SEXP R_ARITH_OP_SYMS[];
+EXTERN_ATTRIBUTES extern SEXP R_REL_OPS[];
+EXTERN_ATTRIBUTES extern SEXP R_REL_OP_SYMS[];
 
-extern SEXP R_MATH1_OPS[];
-extern SEXP R_UNARY_OPS[];
-extern SEXP R_UNARY_OP_SYMS[];
-extern SEXP R_LOGIC2_OPS[];
+EXTERN_ATTRIBUTES extern SEXP R_MATH1_OPS[];
+EXTERN_ATTRIBUTES extern SEXP R_UNARY_OPS[];
+EXTERN_ATTRIBUTES extern SEXP R_UNARY_OP_SYMS[];
+EXTERN_ATTRIBUTES extern SEXP R_LOGIC2_OPS[];
 
-extern SEXP R_MATH1_EXT_OPS[];
-extern SEXP R_MATH1_EXT_SYMS[];
-extern Rsh_Math1Fun R_MATH1_EXT_FUNS[];
+EXTERN_ATTRIBUTES extern SEXP R_MATH1_EXT_OPS[];
+EXTERN_ATTRIBUTES extern SEXP R_MATH1_EXT_SYMS[];
+EXTERN_ATTRIBUTES extern Rsh_Math1Fun R_MATH1_EXT_FUNS[];
 #endif
 
 #define RSH_R_SYMBOLS                                                          \
@@ -187,8 +195,8 @@ extern Rsh_Math1Fun R_MATH1_EXT_FUNS[];
 
 #ifndef RSH_TESTS
 #define X(a, b)                                                                \
-  extern SEXP b##Sym;                                                          \
-  extern SEXP b##Op;
+  EXTERN_ATTRIBUTES extern SEXP b##Sym EXTERN_ATTRIBUTES;                                                          \
+  EXTERN_ATTRIBUTES extern SEXP b##Op EXTERN_ATTRIBUTES;
 
 RSH_R_SYMBOLS
 #undef X
