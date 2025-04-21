@@ -321,7 +321,7 @@ static INLINE SEXP val_as_sexp(Value v) {
 #define PUSH_VAL(n)                                                            \
   do {                                                                         \
     int __n__ = (n);                                                           \
-    if (R_BCNodeStackTop + __n__ > R_BCNodeStackEnd) {                         \
+    if (__builtin_expect(R_BCNodeStackTop + __n__ > R_BCNodeStackEnd, 0)) {    \
       nodeStackOverflow();                                                     \
     }                                                                          \
     while (__n__-- > 0) {                                                      \
