@@ -319,8 +319,21 @@ RCP_OP(CALLSPECIAL) {
   RETURN;
 }
 
-//todo
-//RCP_OP(MAKECLOSURE)
+static INLINE void Rcp_MakeClosure(Value *res, SEXP mkclos_arg, SEXP rho) {
+  SEXP forms = VECTOR_ELT(mkclos_arg, 0);
+  SEXP rcp_body = VECTOR_ELT(mkclos_arg, 1);
+  SEXP closure = Rf_mkCLOSXP(forms, rcp_body, rho);
+
+  R_Visible = TRUE;
+
+  SET_SXP_VAL(res, closure);
+}
+
+RCP_OP(MAKECLOSURE) {
+  PUSH_VAL(1);
+  Rcp_MakeClosure(GET_VAL(1), GETCONST_IMM(0), rho);
+  RETURN;
+}
 
 RCP_OP(UMINUS) {
   Rsh_UMinus(GET_VAL(1), GETCONST_IMM(0), rho);

@@ -82,7 +82,7 @@
   X(log, Rsh_Log)
 
 // Rsh TODO: is the preserving needed?
-SEXP LOAD_R_BUILTIN(const char* name)
+static SEXP LOAD_R_BUILTIN(const char* name)
 {
     SEXP result = PROTECT(R_Primitive(name));
     R_PreserveObject(result);
@@ -90,7 +90,7 @@ SEXP LOAD_R_BUILTIN(const char* name)
     return result;
 }
 
-void* precompiled_functions[200];
+void* precompiled_functions[126];
 static void prepare()
 {
     int i = 0;
@@ -164,8 +164,10 @@ static void prepare()
     precompiled_functions[i++] = LOAD_R_BUILTIN("log");
 
     assert(i <= sizeof(precompiled_functions) / sizeof(*precompiled_functions));
-    printf("%d\n", i);
+    //printf("%d\n", i);
 }
+
+static SEXP copy_patch_bc(SEXP bcode);
 
 #include "stencils/stencils.h"
 
@@ -325,7 +327,7 @@ static void patch(uint8_t* inst, size_t body_size, const Stencil* stencil, const
     memcpy(&inst[hole->offset], &ptr, hole->size);
 }
 
-void print_byte_array(const unsigned char * arr, size_t len) {
+static void print_byte_array(const unsigned char * arr, size_t len) {
   for (size_t i = 0; i < len; i++)
   {
     fprintf(stderr, "0x%02X, ", arr[i]); // Print each byte in hex format
@@ -338,7 +340,7 @@ typedef struct {
     uintptr_t end;
 } MemoryRegion;
 
-void* find_free_space_near(void* target_ptr, size_t size) {
+static void* find_free_space_near(void* target_ptr, size_t size) {
     uintptr_t target = (uintptr_t)target_ptr;
     FILE *maps = fopen("/proc/self/maps", "r");
     if (!maps) {
@@ -377,7 +379,7 @@ void* find_free_space_near(void* target_ptr, size_t size) {
     return (void*)best_addr;
 }
 
-const Stencil* get_stencil(int opcode, const int * imms, const SEXP* r_constpool)
+static const Stencil* get_stencil(int opcode, const int * imms, const SEXP* r_constpool)
 {
     switch(opcode)
     {
@@ -421,7 +423,7 @@ const Stencil* get_stencil(int opcode, const int * imms, const SEXP* r_constpool
     return NULL;
 }
 
-rcp_exec_ptrs compile_bc(int bytecode[], int bytecode_size, SEXP* r_constpool, int r_constpool_size)
+static rcp_exec_ptrs compile_bc(int bytecode[], int bytecode_size, SEXP* r_constpool, int r_constpool_size)
 {
     rcp_exec_ptrs res;
     size_t insts_size = _RCP_INIT.body_size;
@@ -435,7 +437,7 @@ rcp_exec_ptrs compile_bc(int bytecode[], int bytecode_size, SEXP* r_constpool, i
     {
         const Stencil* stencil = get_stencil(bytecode[i], &bytecode[i+1], r_constpool);
         //fprintf(stderr, "Opcode: %s\n", OPCODES[bytecode[i]]);
-        if(stencil->body_size == 0)
+        if(stencil == NULL || stencil->body_size == 0)
         {
             error("Opcode not implemented: %s\n", OPCODES[bytecode[i]]);
         }
@@ -538,6 +540,28 @@ rcp_exec_ptrs compile_bc(int bytecode[], int bytecode_size, SEXP* r_constpool, i
     {
         fprintf(stderr, "Copy-patching opcode: %s\n", OPCODES[bytecode[i]]);
 
+        if(bytecode[i] == MAKECLOSURE_OP)
+        {
+            SEXP fb = r_constpool[bytecode[i+1]];
+            SEXP body = VECTOR_ELT(fb, 1);
+
+            if(TYPEOF(body) == BCODESXP)
+            {
+                fprintf(stderr, "Compiling closure\n");
+                //r_constpool[bytecode[i+1]] = Rf_duplicate(r_constpool[bytecode[i+1]]); // TODO Is this needed?
+                SEXP res = copy_patch_bc(body);
+                SET_VECTOR_ELT(fb, 1, res);
+            }
+            else if(IS_RCP_PTR(body))
+            {
+                fprintf(stderr, "Using precompiled closure\n");
+            }
+            else
+            {
+                error("Invalid closure type: %d\n", TYPEOF(body));
+            }
+        }
+
         const Stencil* stencil = get_stencil(bytecode[i], &bytecode[i+1], r_constpool);
 
         memcpy(&executable[executable_pos], stencil->body, stencil->body_size);
@@ -558,7 +582,7 @@ rcp_exec_ptrs compile_bc(int bytecode[], int bytecode_size, SEXP* r_constpool, i
     return res;
 }
 
-SEXP compile_to_bc(SEXP f, SEXP options)
+static SEXP compile_to_bc(SEXP f, SEXP options)
 {
     // Ensure the compiler package is loaded
     SEXP compiler_package, compile_fun, call, result;
@@ -591,7 +615,7 @@ SEXP compile_to_bc(SEXP f, SEXP options)
     return result;
 }
 
-void bytecode_info(const int* bytecode, int bytecode_size, const SEXP* consts, int const_size)
+static void bytecode_info(const int* bytecode, int bytecode_size, const SEXP* consts, int const_size)
 {
     printf("Constant pool size: %d\n", const_size);
     printf("Bytecode size: %d\n", bytecode_size);
@@ -617,23 +641,24 @@ void bytecode_info(const int* bytecode, int bytecode_size, const SEXP* consts, i
     printf("Instructions in bytecode: %d\n", instructions);
 }
 
-SEXP cmpfun(SEXP f, SEXP options) {
-    prepare();
-    SEXP compiled = PROTECT(compile_to_bc(f, options));
-    SEXP const_list = BCODE_CONSTS(BODY(compiled));
-    SEXP code = PROTECT(R_bcDecode(BCODE_CODE(BODY(compiled))));
+static SEXP copy_patch_bc(SEXP bcode)
+{
+    SEXP bcode_code = BCODE_CODE(bcode);
+    SEXP bcode_consts = BCODE_CONSTS(bcode);
 
-    //Rf_PrintValue(code);
-    //Rf_PrintValue(*consts);
+    //PrintValue(bcode_code);
+    //PrintValue(bcode_consts);
 
-    SEXP* consts = DATAPTR(const_list);
+    SEXP code = PROTECT(R_bcDecode(bcode_code));
+
     int* bytecode = INTEGER(code) + 1;
-
-    //uint32_t bytecode[] = { LDCONST_OP, 0, LDCONST_OP, 1, ADD_OP, 2, RETURN_OP };
     int bytecode_size = LENGTH(code) - 1;
 
-    bytecode_info(bytecode, bytecode_size, consts, LENGTH(const_list));
-    rcp_exec_ptrs res = compile_bc(bytecode, bytecode_size, consts, LENGTH(const_list));
+    SEXP* consts = DATAPTR(bcode_consts);
+    int consts_size = LENGTH(bcode_consts);
+
+    bytecode_info(bytecode, bytecode_size, consts, consts_size);
+    rcp_exec_ptrs res = compile_bc(bytecode, bytecode_size, consts, consts_size);
     UNPROTECT(1);
 
     //print_byte_array((uint8_t*)res.eval, res.memory_high_size - ((uint8_t*)res.eval - (uint8_t*)res.memory_high));
@@ -643,11 +668,18 @@ SEXP cmpfun(SEXP f, SEXP options) {
     SEXP tag = PROTECT(install(RCP_PTRTAG));
     SEXP ptr = R_MakeExternalPtr(res_ptr, tag, R_NilValue);
     UNPROTECT(1);
-    
+    R_RegisterCFinalizerEx(ptr, &R_RcpFree, TRUE);
+    return ptr;
+}
+
+SEXP cmpfun(SEXP f, SEXP options)
+{
+    prepare();
+
+    SEXP compiled = PROTECT(compile_to_bc(f, options));
+    SEXP ptr = copy_patch_bc(BODY(compiled));
     SET_BODY(compiled, ptr);
     UNPROTECT(1);
-
-    R_RegisterCFinalizerEx(ptr, &R_RcpFree, TRUE);
     
     return compiled;
 }
