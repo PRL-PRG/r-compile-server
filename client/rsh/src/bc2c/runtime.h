@@ -275,7 +275,6 @@ static INLINE SEXP VAL_SXP(Value v) {
   do {                                                                         \
     SEXP __v__ = (value);                                                      \
     Value *__n__ = (target);                                                   \
-    // FIXME: shall we use IS_SCALAR?
     if (__v__->sxpinfo.scalar && ATTRIB(__v__) == R_NilValue) {                \
       switch (TYPEOF(__v__)) {                                                 \
       case REALSXP:                                                            \
