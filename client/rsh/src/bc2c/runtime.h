@@ -247,7 +247,8 @@ static INLINE SEXP VAL_SXP(Value v) {
 #define VAL_IS_SXP(v) ((v).tag == 0)
 #define VAL_IS_ISQ(v) ((v).tag == ISQSXP)
 
-// Unchecked constructors
+// FIXME: check type!
+// FIXME: set flags?
 
 #define SET_INT_VAL(target, value)                                             \
   do {                                                                         \
@@ -277,22 +278,32 @@ static INLINE SEXP VAL_SXP(Value v) {
     __node__->u.sxpval = (value);                                              \
   } while (0);
 
-#define SET_VAL(target, sexp)                                                  \
-  {                                                                            \
-    if (IS_SCALAR(sexp, REALSXP)) {                                            \
-      SET_DBL_VAL(target, REAL(sexp)[0]);                                      \
-    } else if (IS_SCALAR(sexp, INTSXP)) {                                      \
-      SET_INT_VAL(target, INTEGER(sexp)[0]);                                   \
-    } else if (IS_SCALAR(sexp, LGLSXP)) {                                      \
-      SET_LGL_VAL(target, INTEGER(sexp)[0]);                                   \
+// FIXME: is this enough or so we need to check of the obj flag?
+#define SET_VAL(target, value)                                                 \
+  do {                                                                         \
+    SEXP __v__ = (value);                                                      \
+    Value *__n__ = (target);                                                   \
+    if (__v__->sxpinfo.scalar && ATTRIB(__v__) == R_NilValue) {                \
+      switch (TYPEOF(__v__)) {                                                 \
+      case REALSXP:                                                            \
+        SET_DBL_VAL(__n__, REAL(__v__)[0]);                                    \
+        break;                                                                 \
+      case INTSXP:                                                             \
+        SET_INT_VAL(__n__, INTEGER(__v__)[0]);                                 \
+        break;                                                                 \
+      case LGLSXP:                                                             \
+        SET_LGL_VAL(__n__, INTEGER(__v__)[0]);                                 \
+        break;                                                                 \
+      default:                                                                 \
+        SET_SXP_VAL(__n__, __v__);                                             \
+      }                                                                        \
     } else {                                                                   \
-      SET_SXP_VAL(target, sexp);                                               \
+      SET_SXP_VAL(__n__, __v__);                                               \
     }                                                                          \
-  }
+  } while (0)
 
 #define ISQSXP 9999
 
-// FIXME: remove
 #define VAL_TAG(v) ((v).tag)
 
 // Checked accessors
@@ -562,22 +573,19 @@ JIT_DECL SEXP create_wrapper_body(SEXP body, SEXP fun_ptr, SEXP c_cp);
 
 #define BCELL_INLINE(cell, v)                                                  \
   do {                                                                         \
-    if (BCELL_WRITABLE(cell)) {                                                \
-      switch (TYPEOF(v)) {                                                     \
+    BCell __cell__ = (cell);                                                   \
+    SEXP __v__ = (v);                                                          \
+    if (BCELL_WRITABLE(__cell__) && __v__->sxpinfo.scalar &&                   \
+        ATTRIB(__v__) == R_NilValue) {                                         \
+      switch (TYPEOF(__v__)) {                                                 \
       case REALSXP:                                                            \
-        if (XLENGTH((v)) == 1) {                                               \
-          BCELL_DVAL_NEW(cell, REAL(v)[0]);                                    \
-        }                                                                      \
+        BCELL_DVAL_NEW(__cell__, REAL(__v__)[0]);                              \
         break;                                                                 \
       case INTSXP:                                                             \
-        if (XLENGTH((v)) == 1) {                                               \
-          BCELL_IVAL_NEW(cell, INTEGER(v)[0]);                                 \
-        }                                                                      \
+        BCELL_IVAL_NEW(__cell__, INTEGER(__v__)[0]);                           \
         break;                                                                 \
       case LGLSXP:                                                             \
-        if (XLENGTH((v)) == 1) {                                               \
-          BCELL_LVAL_NEW(cell, INTEGER(v)[0]);                                 \
-        }                                                                      \
+        BCELL_LVAL_NEW(__cell__, INTEGER(__v__)[0]);                           \
         break;                                                                 \
       }                                                                        \
     }                                                                          \
@@ -1001,7 +1009,7 @@ static INLINE Rboolean Rsh_BrIfNot(Value value, SEXP call, SEXP rho) {
       *(r) = (a) / (b);                                                        \
       break;                                                                   \
     case EXPT_OP:                                                              \
-      *(r) = (a) == 2.0 ? (a) * (a) : R_pow((a), (b));                         \
+      *(r) = (b) == 2.0 ? (a) * (a) : R_pow((a), (b));                         \
       break;                                                                   \
     }                                                                          \
   } while (0)
@@ -1533,12 +1541,16 @@ static INLINE void Rsh_StartAssign2(Value *rhs, Value *lhs_cell, Value *lhs_val,
   SET_SXP_VAL(lhs_val, value_sxp);
 
   *rhs_dup = *rhs;
-  /* top four stack entries are now
-     RHS value, LHS cell, LHS value, RHS value */
   if (VAL_IS_SXP(*rhs_dup)) {
     FIXUP_RHS_NAMED(VAL_SXP(*rhs_dup));
     INCREMENT_REFCNT(VAL_SXP(*rhs_dup));
   }
+  // stack at the end:
+  //         s3 - RHS value
+  //         s2 - LHS cell
+  //         s1 - LHS value
+  //         s0 - RHS value
+  // top -->
 }
 
 static INLINE void Rsh_EndAssign(Value *rhs, Value lhs_cell, Value value,
@@ -1566,21 +1578,25 @@ static INLINE void Rsh_EndAssign(Value *rhs, Value lhs_cell, Value value,
 }
 
 static INLINE void Rsh_EndAssign2(Value *rhs, Value lhs_cell, Value value,
-                                  SEXP symbol, BCell *cache, SEXP rho) {
+                                  SEXP symbol, SEXP rho) {
   SEXP lhs_cell_sxp = VAL_SXP(lhs_cell);
   SET_ASSIGNMENT_PENDING(lhs_cell_sxp, FALSE);
 
-  bcell_cache(symbol, rho, cache);
   SEXP value_sxp = val_as_sexp(value);
-
   INCREMENT_NAMED(value_sxp);
-  if (!bcell_set_value(*cache, value_sxp)) {
-    Rf_defineVar(symbol, value_sxp, rho);
-  }
 
-  SEXP rhs_sxp = val_as_sexp(*rhs);
-  INCREMENT_NAMED(rhs_sxp);
-  DECREMENT_REFCNT(rhs_sxp);
+  // FIXME: this is not what GNUR does, but
+  // it feels logical. We have the binding cell so
+  // why cannot we update it directly?
+  BCELL_SET(lhs_cell_sxp, value_sxp);
+  // instead this is what GNUR does:
+  // Rf_setVar(symbol, value_sxp, ENCLOS(rho));
+
+  if (VAL_IS_SXP(*rhs)) {
+    SEXP rhs_sxp = VAL_SXP(*rhs);
+    INCREMENT_NAMED(rhs_sxp);
+    DECREMENT_REFCNT(rhs_sxp);
+  }
 }
 
 #define Rsh_StartSubassignN(lhs, rhs, call, rho)                               \
@@ -1859,6 +1875,13 @@ static INLINE Rboolean Rsh_start_subassign_dispatch(
     INIT_CALL_FRAME(args_head, args_tail);
     RSH_LIST_APPEND_EX(args_head, args_tail, lhs_sxp, FALSE);
     RSH_SET_TAG(*args_tail, tag);
+    // stack at the end:
+    //         s4 - lhs
+    //         s3 - rhs
+    //         s2 - call
+    //         s1 - args head
+    //         s0 - args tail
+    // top -->
     return FALSE;
   }
 }
@@ -1882,6 +1905,13 @@ static INLINE void Rsh_dflt_subassign_dispatch(CCODE fun, SEXP symbol,
                                                Value *lhs, Value rhs,
                                                Value call_val, Value args_head,
                                                Value args_tail, SEXP rho) {
+  // stack at the beginning:
+  //         s4 - lhs
+  //         s3 - rhs
+  //         s2 - call
+  //         s1 - args head
+  //         s0 - args tail
+  // top -->
   SEXP call_sxp = val_as_sexp(call_val);
   SEXP args = val_as_sexp(args_head);
   RSH_CALL_ARGS_DECREMENT_LINKS(args);
@@ -2127,7 +2157,8 @@ static INLINE void Rsh_StartFor(Value *s2, Value *s1, Value *s0, SEXP call,
   // stack at the end:
   //         s2 - sequence
   //         s1 - casted pointer for the RshLoopInfo
-  // top --> s0 - the initial value
+  //         s0 - the initial value
+  // top -->
 }
 
 #define SET_FOR_LOOP_VAR(value, cell, symbol, rho)                             \
