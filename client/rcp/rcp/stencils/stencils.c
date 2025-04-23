@@ -352,13 +352,13 @@ RCP_OP(ADD) {
 }
 
 RCP_OP(SUB) {
-  Rsh_Add(GET_VAL(2), *GET_VAL(1), GETCONST_IMM(0), rho);
+  Rsh_Sub(GET_VAL(2), *GET_VAL(1), GETCONST_IMM(0), rho);
   POP_VAL(1);
   RETURN;
 }
 
 RCP_OP(MUL) {
-  Rsh_Add(GET_VAL(2), *GET_VAL(1), GETCONST_IMM(0), rho);
+  Rsh_Mul(GET_VAL(2), *GET_VAL(1), GETCONST_IMM(0), rho);
   POP_VAL(1);
   RETURN;
 }
