@@ -333,7 +333,7 @@ void process_relocation(StencilMutable* const stencil, long reloc_count, arelent
       if(starts_with((*rel->sym_ptr_ptr)->name, "_RCP_"))
       {
         const char* descr = &((*rel->sym_ptr_ptr)->name)[5];
-        if(strcmp(descr, "TAIL_CALL") == 0)
+        if(strcmp(descr, "GOTO_NEXT") == 0)
         {
           if(rel->address - rel->addend == stencil->body_size && stencil->body[rel->address-1] == 0xE9 /*JMP*/) // This is the last instruction, no need to relocate; just delete it
           {
@@ -681,6 +681,23 @@ void analyze_object_file(const char * filename) {
   bfd_close(abfd);
 }
 
+void print_sizes()
+{
+  int64_t total_size = 0;
+  size_t count = 0;
+  for (uint8_t i = 0; i < sizeof(OPCODES) / sizeof(*OPCODES); ++i)
+  {
+    if(stencils[i].body_size != 0)
+    {
+      total_size += stencils[i].body_size;
+      count++;
+    }
+  }
+  fprintf(stderr, "Total size of stencils: %zu bytes\n", total_size);
+  fprintf(stderr, "Average size of stencils: %lf bytes\n", ((double)total_size)/count);
+
+}
+
 int main(int argc, char ** argv) {
   if (argc < 2) {
     fprintf(stderr, "Usage: %s <object file>\n", argv[0]);
@@ -693,6 +710,8 @@ int main(int argc, char ** argv) {
   export_to_files();
 
   //cleanup();
+
+  print_sizes();
 
   return 0;
 }

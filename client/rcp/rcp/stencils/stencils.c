@@ -22,9 +22,9 @@
   #define NO_CALLEE_SAVED_REGISTERS
 #endif
 
-#define RCP_OP(op) NO_CALLEE_SAVED_REGISTERS __attribute__((nonnull)) __attribute__ ((noinline)) SEXP _RCP_##op##_OP (SEXP rho)
+#define RCP_OP(op) NO_CALLEE_SAVED_REGISTERS __attribute__ ((noinline)) SEXP _RCP_##op##_OP (SEXP rho)
 
-extern NO_CALLEE_SAVED_REGISTERS SEXP _RCP_TAIL_CALL(SEXP rho);
+extern NO_CALLEE_SAVED_REGISTERS SEXP _RCP_GOTO_NEXT(SEXP rho);
 extern NO_CALLEE_SAVED_REGISTERS SEXP _RCP_GOTO_IMM0(SEXP rho);
 extern NO_CALLEE_SAVED_REGISTERS SEXP _RCP_GOTO_IMM1(SEXP rho);
 extern NO_CALLEE_SAVED_REGISTERS SEXP _RCP_GOTO_IMM2(SEXP rho);
@@ -59,7 +59,7 @@ EXTERN_ATTRIBUTES extern BCell _RCP_CONSTCELL_AT_LABEL_IMM3;
 
 //__attribute__((musttail))
 //[[gnu::musttail]] 
-#define RETURN return _RCP_TAIL_CALL(rho)
+#define RETURN return _RCP_GOTO_NEXT(rho)
 #define GOTO_IMM(i) return _RCP_GOTO_IMM##i(rho)
 
 #define GET_IMM(index) (unsigned)_RCP_IMM##index
