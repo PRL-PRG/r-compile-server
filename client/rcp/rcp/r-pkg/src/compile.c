@@ -199,7 +199,7 @@ static int fits_in_int8(int64_t value) {
     return value >= INT8_MIN && value <= INT8_MAX;
 }
 
-static void patch(uint8_t* inst, size_t body_size, const Stencil* stencil, const Hole* hole, int* imms, uintptr_t* immpool, size_t* immpool_size, const uint8_t* ro_low, const uint8_t* ro_near, SEXP * constpool, SEXP * bcells, SEXP * precompiled, uint8_t* executable, size_t * executable_lookup, int bytecode[])
+static void patch(uint8_t* inst, size_t body_size, const Stencil* stencil, const Hole* hole, int* imms, uintptr_t* immpool, size_t* immpool_size, const uint8_t* ro_low, const uint8_t* ro_near, SEXP * constpool, SEXP * bcells, SEXP * precompiled, uint8_t* executable, size_t * executable_lookup, int bytecode[], SEXP* rho)
 {
     ptrdiff_t ptr;
 
@@ -221,6 +221,11 @@ static void patch(uint8_t* inst, size_t body_size, const Stencil* stencil, const
         {
             //fprintf(stderr, "goto imm %zu, points to code at index %d, which translates to %zu bytes\n", hole->val.imm_pos, imms[hole->val.imm_pos]-1, executable_lookup[imms[hole->val.imm_pos]-1]);
             ptr = (ptrdiff_t)&executable[executable_lookup[imms[hole->val.imm_pos]-1]];
+            used_indirection = 1;
+        } break;
+        case RELOC_RHO:
+        {
+            ptr = (ptrdiff_t)rho;
             used_indirection = 1;
         } break;
         case RELOC_RCP_RAW_IMM:
@@ -476,7 +481,7 @@ static rcp_exec_ptrs compile_bc(int bytecode[], int bytecode_size, SEXP* r_const
         i += imms_cnt[bytecode[i]];
     }
 
-    size_t total_size = insts_size + imms_capacity*sizeof(uintptr_t) + r_constpool_size*sizeof(*r_constpool) + r_constpool_size*sizeof(SEXP) + sizeof(precompiled_functions) + sizeof(rodata);
+    size_t total_size = sizeof(SEXP) + insts_size + imms_capacity*sizeof(uintptr_t) + r_constpool_size*sizeof(*r_constpool) + r_constpool_size*sizeof(SEXP) + sizeof(precompiled_functions) + sizeof(rodata);
 
     void* mem = find_free_space_near(&Rf_ScalarInteger, total_size);
 
@@ -488,14 +493,16 @@ static rcp_exec_ptrs compile_bc(int bytecode[], int bytecode_size, SEXP* r_const
     res.memory_high = memory;
     res.memory_high_size = total_size;
 
-    SEXP* constpool =      (SEXP*) &memory[0];
-    SEXP* bcells =         (SEXP*) &memory[r_constpool_size * sizeof(*r_constpool)];
-    SEXP* precompiled =    (SEXP*) &memory[r_constpool_size * sizeof(*r_constpool) + r_constpool_size * sizeof(*bcells)];
-    uintptr_t* imms = (uintptr_t*) &memory[r_constpool_size * sizeof(*r_constpool) + r_constpool_size * sizeof(*bcells) + sizeof(precompiled_functions)];
-    uint8_t* ro_near =  (uint8_t*) &memory[r_constpool_size * sizeof(*r_constpool) + r_constpool_size * sizeof(*bcells) + sizeof(precompiled_functions) + imms_capacity * sizeof(*imms)];
-    uint8_t* executable =          &memory[r_constpool_size * sizeof(*r_constpool) + r_constpool_size * sizeof(*bcells) + sizeof(precompiled_functions) + sizeof(rodata) + imms_capacity * sizeof(*imms)];
+    SEXP* rho =            (SEXP*) &memory[0];
+    SEXP* constpool =      (SEXP*) &memory[sizeof(*rho)];
+    SEXP* bcells =         (SEXP*) &memory[sizeof(*rho) + r_constpool_size * sizeof(*r_constpool)];
+    SEXP* precompiled =    (SEXP*) &memory[sizeof(*rho) + r_constpool_size * sizeof(*r_constpool) + r_constpool_size * sizeof(*bcells)];
+    uintptr_t* imms = (uintptr_t*) &memory[sizeof(*rho) + r_constpool_size * sizeof(*r_constpool) + r_constpool_size * sizeof(*bcells) + sizeof(precompiled_functions)];
+    uint8_t* ro_near =  (uint8_t*) &memory[sizeof(*rho) + r_constpool_size * sizeof(*r_constpool) + r_constpool_size * sizeof(*bcells) + sizeof(precompiled_functions) + imms_capacity * sizeof(*imms)];
+    uint8_t* executable =          &memory[sizeof(*rho) + r_constpool_size * sizeof(*r_constpool) + r_constpool_size * sizeof(*bcells) + sizeof(precompiled_functions) + sizeof(rodata) + imms_capacity * sizeof(*imms)];
 
     res.eval = (void*)executable;
+    res.rho = rho;
 
 
     uint8_t* ro_low = mmap(mem, sizeof(rodata), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_32BIT, -1, 0);
@@ -504,12 +511,8 @@ static rcp_exec_ptrs compile_bc(int bytecode[], int bytecode_size, SEXP* r_const
     memcpy(ro_near, rodata, sizeof(rodata));
 
     for (int i = 0; i < r_constpool_size; ++i)
-    {
         bcells[i] = R_NilValue;
-        //bcells[i].tag = 0;
-        //bcells[i].flags = 0;
-        //bcells[i].u.sxpval = R_NilValue;
-    }
+    *rho = R_NilValue;
 
     memcpy(precompiled, precompiled_functions, sizeof(precompiled_functions));
     
@@ -532,7 +535,7 @@ static rcp_exec_ptrs compile_bc(int bytecode[], int bytecode_size, SEXP* r_const
     memcpy(&executable[executable_pos], _RCP_INIT.body, _RCP_INIT.body_size);
     for (size_t j = 0; j < _RCP_INIT.holes_size; ++j)
     {
-        patch(&executable[executable_pos], _RCP_INIT.body_size, &_RCP_INIT, &_RCP_INIT.holes[j], NULL, NULL, 0, ro_low, ro_near, constpool, bcells, precompiled, executable, inst_start, bytecode);
+        patch(&executable[executable_pos], _RCP_INIT.body_size, &_RCP_INIT, &_RCP_INIT.holes[j], NULL, NULL, 0, ro_low, ro_near, constpool, bcells, precompiled, executable, inst_start, bytecode, rho);
     }
     executable_pos +=  _RCP_INIT.body_size;
 
@@ -568,7 +571,7 @@ static rcp_exec_ptrs compile_bc(int bytecode[], int bytecode_size, SEXP* r_const
 
         for (size_t j = 0; j < stencil->holes_size; ++j)
         {
-            patch(&executable[executable_pos], stencil->body_size, stencil, &stencil->holes[j], &bytecode[i+1], imms, &imms_size, ro_low, ro_near, constpool, bcells, precompiled, executable, inst_start, bytecode);
+            patch(&executable[executable_pos], stencil->body_size, stencil, &stencil->holes[j], &bytecode[i+1], imms, &imms_size, ro_low, ro_near, constpool, bcells, precompiled, executable, inst_start, bytecode, rho);
         }
 
         //print_byte_array(&executable[executable_pos], stencils[bytecode[i]].body_size);

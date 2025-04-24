@@ -4,6 +4,7 @@
 
 typedef enum {
     RELOC_RUNTIME_SYMBOL,
+    RELOC_RHO,
     RELOC_RODATA,
     RELOC_RCP_NEXTOP,
     RELOC_RCP_GOTO_IMM,

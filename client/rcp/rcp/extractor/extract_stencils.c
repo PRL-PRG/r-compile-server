@@ -377,7 +377,11 @@ void process_relocation(StencilMutable* const stencil, long reloc_count, arelent
         {
           const char* descr = &((*rel->sym_ptr_ptr)->name)[5];
           
-          if(starts_with(descr, "IMM"))
+          if(strcmp(descr, "RHO") == 0)
+          {
+            stencil->holes[i].kind = RELOC_RHO;
+          }
+          else if(starts_with(descr, "IMM"))
           {
             int pos = atoi(&descr[3]);
             if(pos < 0 || pos > 3)
