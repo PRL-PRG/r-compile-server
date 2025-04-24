@@ -666,7 +666,7 @@ static SEXP copy_patch_bc(SEXP bcode)
     memcpy(res_ptr, &res, sizeof(rcp_exec_ptrs));
 
     SEXP tag = PROTECT(install(RCP_PTRTAG));
-    SEXP ptr = R_MakeExternalPtr(res_ptr, tag, R_NilValue);
+    SEXP ptr = R_MakeExternalPtr(res_ptr, tag, bcode_consts);
     UNPROTECT(1);
     R_RegisterCFinalizerEx(ptr, &R_RcpFree, TRUE);
     return ptr;
