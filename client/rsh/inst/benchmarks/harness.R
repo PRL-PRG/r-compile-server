@@ -26,9 +26,12 @@ benchmark <- function(num_iter, bench_param) {
   rsh <- wrap_with_verify(rsh, result, output)
 
   microbenchmark::microbenchmark(
-    rbc(bench_param),
-    rsh(bench_param),
-    times = num_iter
+    RBC=rbc(bench_param),
+    RSH=rsh(bench_param),
+
+    times = num_iter,
+    unit="seconds",
+    control=list(order="block", warnup=3L)
   )
 }
 
@@ -53,7 +56,10 @@ run <- function(args) {
         bench_param <- strtoi(args[[3]])
     }
 
-    benchmark(num_iter, bench_param);
+    res <- benchmark(num_iter, bench_param);
+    print(res)
+    res <- cbind(res, name=basename(name), bench_param={if(missing(bench_param)) NA else bench_param})
+    write.csv(res, paste0(name, ".csv"), row.names = FALSE)
 }
 
 printUsage <- function() {
