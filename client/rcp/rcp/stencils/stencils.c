@@ -101,13 +101,14 @@ RCP_OP(BRIFNOT) {
 }
 
 RCP_OP(POP) {
+  Rsh_Pop(*GET_VAL(1));
   POP_VAL(1);
   RETURN;
 }
 
 RCP_OP(DUP) {
   PUSH_VAL(1);
-  *GET_VAL(1) = *GET_VAL(2);
+  Rsh_Dup(GET_VAL(2), GET_VAL(1));
   RETURN;
 }
 
