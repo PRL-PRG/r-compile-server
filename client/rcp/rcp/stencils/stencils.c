@@ -78,10 +78,10 @@ SEXP _RCP_INIT (SEXP rho) {
   RETURN;
 }
 
-RCP_OP(BCMISMATCH) {
+/*RCP_OP(BCMISMATCH) {
   error("byte code version mismatch");
   RETURN;
-}
+}*/
 
 RCP_OP(RETURN) {
   SEXP res = Rsh_Return(*GET_VAL(1));
@@ -112,11 +112,11 @@ RCP_OP(DUP) {
   RETURN;
 }
 
-RCP_OP(PRINTVALUE) {
+/*RCP_OP(PRINTVALUE) {
   PrintValue(val_as_sexp(*GET_VAL(1)));
   POP_VAL(1);
   RETURN;
-}
+}*/
 
 //RCP_OP(STARTLOOPCNTXT)
 
@@ -623,10 +623,10 @@ RCP_OP(GETVAR_MISSOK) {
 
 //RCP_OP(DDVAL_MISSOK)
 
-RCP_OP(VISIBLE) {
+/*RCP_OP(VISIBLE) {
   R_Visible = TRUE;
   RETURN;
-}
+}*/
 
 RCP_OP(SETVAR2) {
   Rsh_SetVar2(GET_VAL(1), GETCONST_IMM(0), rho);
