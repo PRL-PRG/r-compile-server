@@ -13,6 +13,12 @@
 #include "rcp_common.h"
 #include "runtime_internals.h"
 
+//#define DEBUG_MODE 1
+#ifdef DEBUG_MODE
+    #define DEBUG_PRINT(...) fprintf(stderr, __VA_ARGS__)
+#else
+    #define DEBUG_PRINT(...) // No-op
+#endif
 
 #define X_MATH1_OPS                                                            \
   X(sqrt, SQRT_OP, Sqrt)                                                       \
@@ -163,8 +169,8 @@ static void prepare()
     precompiled_functions[i++] = LOAD_R_BUILTIN("!");
     precompiled_functions[i++] = LOAD_R_BUILTIN("log");
 
+    //DEBUG_PRINT("precompiled_functions size: %d\n", i);
     assert(i <= sizeof(precompiled_functions) / sizeof(*precompiled_functions));
-    //printf("%d\n", i);
 }
 
 static SEXP copy_patch_bc(SEXP bcode);
@@ -219,7 +225,7 @@ static void patch(uint8_t* inst, size_t body_size, const Stencil* stencil, const
         } break;
         case RELOC_RCP_GOTO_IMM:
         {
-            //fprintf(stderr, "goto imm %zu, points to code at index %d, which translates to %zu bytes\n", hole->val.imm_pos, imms[hole->val.imm_pos]-1, executable_lookup[imms[hole->val.imm_pos]-1]);
+            //DEBUG_PRINT("goto imm %zu, points to code at index %d, which translates to %zu bytes\n", hole->val.imm_pos, imms[hole->val.imm_pos]-1, executable_lookup[imms[hole->val.imm_pos]-1]);
             ptr = (ptrdiff_t)&executable[executable_lookup[imms[hole->val.imm_pos]-1]];
             used_indirection = 1;
         } break;
@@ -241,14 +247,14 @@ static void patch(uint8_t* inst, size_t body_size, const Stencil* stencil, const
         case RELOC_RCP_CONSTCELL_AT_IMM:
         {
             int bcell_index = imms[hole->val.imm_pos];
-            //printf("bcell_index: %d\n", bcell_index);
+            //DEBUG_PRINT("bcell_index: %d\n", bcell_index);
             ptr = (ptrdiff_t)&bcells[bcell_index];
             used_indirection = 1;
         } break;
         case RELOC_RCP_CONSTCELL_AT_LABEL_IMM:
         {
             int bcell_index = bytecode[imms[hole->val.imm_pos] - 3];
-            //printf("bcell_index: %d\n", bcell_index);
+            //DEBUG_PRINT("bcell_index: %d\n", bcell_index);
             ptr = (ptrdiff_t)&bcells[bcell_index];
             used_indirection = 1;
         } break;
@@ -277,7 +283,7 @@ static void patch(uint8_t* inst, size_t body_size, const Stencil* stencil, const
             
             //ptr = (ptrdiff_t)const_pool_add(immpool, immpool_size, (uintptr_t)CHAR(PRINTNAME(symbol)));
             used_indirection = 0;
-            //fprintf(stderr, "%s\n", CHAR(PRINTNAME(fun))) ; // Extract the name of the function
+            //DEBUG_PRINT("%s\n", CHAR(PRINTNAME(fun))) ; // Extract the name of the function
         } break;
         default:
         {
@@ -291,12 +297,12 @@ static void patch(uint8_t* inst, size_t body_size, const Stencil* stencil, const
     for (; indirection_correction > 0; --indirection_correction)
     {
         ptr = *(uintptr_t*)ptr;
-        fprintf(stderr, "dereferencing pointer\n");
+        DEBUG_PRINT("dereferencing pointer\n");
     }
     for (; indirection_correction < 0; ++indirection_correction)
     {
         ptr = (ptrdiff_t)const_pool_add(immpool, immpool_size, (uintptr_t)ptr);
-        fprintf(stderr, "creating a pointer\n");
+        DEBUG_PRINT("creating a pointer\n");
     }
 
     ptr += hole->addend;
@@ -328,16 +334,16 @@ static void patch(uint8_t* inst, size_t body_size, const Stencil* stencil, const
         return;
     }
 
-    //fprintf(stderr, "0x%zx\n", ptr);
+    //DEBUG_PRINT("0x%zx\n", ptr);
     memcpy(&inst[hole->offset], &ptr, hole->size);
 }
 
 static void print_byte_array(const unsigned char * arr, size_t len) {
   for (size_t i = 0; i < len; i++)
   {
-    fprintf(stderr, "0x%02X, ", arr[i]); // Print each byte in hex format
+    DEBUG_PRINT("0x%02X, ", arr[i]); // Print each byte in hex format
   }
-  fprintf(stderr, "\n");
+  DEBUG_PRINT("\n");
 }
 
 typedef struct {
@@ -390,7 +396,7 @@ static const Stencil* get_stencil(int opcode, const int * imms, const SEXP* r_co
     {
         case MATH1_OP:
         {
-            fprintf(stderr, "Using specialized version of MATH1_OP\n");
+            DEBUG_PRINT("Using specialized version of MATH1_OP\n");
             switch(imms[1])
             {
                 #define X(a, b, c) case b: return &_RCP_MATH1_##b##_OP;
@@ -408,16 +414,16 @@ static const Stencil* get_stencil(int opcode, const int * imms, const SEXP* r_co
             switch(TYPEOF(r_constpool[imms[0]]))
             {
                 case REALSXP:
-                    fprintf(stderr, "Using specialized version of LDCONST_OP: REAL\n");
+                    DEBUG_PRINT("Using specialized version of LDCONST_OP: REAL\n");
                     return &_RCP_LDCONST_DBL_OP;
                 case INTSXP:
-                    fprintf(stderr, "Using specialized version of LDCONST_OP: INT\n");
+                    DEBUG_PRINT("Using specialized version of LDCONST_OP: INT\n");
                     return &_RCP_LDCONST_INT_OP;
                 case LGLSXP:
-                    fprintf(stderr, "Using specialized version of LDCONST_OP: LGL\n");
+                    DEBUG_PRINT("Using specialized version of LDCONST_OP: LGL\n");
                     return &_RCP_LDCONST_LGL_OP;
                 default:
-                    fprintf(stderr, "Using specialized version of LDCONST_OP: SEXP\n");
+                    DEBUG_PRINT("Using specialized version of LDCONST_OP: SEXP\n");
                     return &_RCP_LDCONST_SEXP_OP;
             }
         } break;
@@ -441,7 +447,7 @@ static rcp_exec_ptrs compile_bc(int bytecode[], int bytecode_size, SEXP* r_const
     for (int i = 0; i < bytecode_size; ++i)
     {
         const Stencil* stencil = get_stencil(bytecode[i], &bytecode[i+1], r_constpool);
-        //fprintf(stderr, "Opcode: %s\n", OPCODES[bytecode[i]]);
+        //DEBUG_PRINT("Opcode: %s\n", OPCODES[bytecode[i]]);
         if(stencil == NULL || stencil->body_size == 0)
         {
             error("Opcode not implemented: %s\n", OPCODES[bytecode[i]]);
@@ -541,7 +547,7 @@ static rcp_exec_ptrs compile_bc(int bytecode[], int bytecode_size, SEXP* r_const
 
     for (int i = 0; i < bytecode_size; ++i)
     {
-        fprintf(stderr, "Copy-patching opcode: %s\n", OPCODES[bytecode[i]]);
+        DEBUG_PRINT("Copy-patching opcode: %s\n", OPCODES[bytecode[i]]);
 
         if(bytecode[i] == MAKECLOSURE_OP)
         {
@@ -550,14 +556,14 @@ static rcp_exec_ptrs compile_bc(int bytecode[], int bytecode_size, SEXP* r_const
 
             if(TYPEOF(body) == BCODESXP)
             {
-                fprintf(stderr, "Compiling closure\n");
+                DEBUG_PRINT("Compiling closure\n");
                 //r_constpool[bytecode[i+1]] = Rf_duplicate(r_constpool[bytecode[i+1]]); // TODO Is this needed?
                 SEXP res = copy_patch_bc(body);
                 SET_VECTOR_ELT(fb, 1, res);
             }
             else if(IS_RCP_PTR(body))
             {
-                fprintf(stderr, "Using precompiled closure\n");
+                DEBUG_PRINT("Using precompiled closure\n");
             }
             else
             {
@@ -620,28 +626,28 @@ static SEXP compile_to_bc(SEXP f, SEXP options)
 
 static void bytecode_info(const int* bytecode, int bytecode_size, const SEXP* consts, int const_size)
 {
-    printf("Constant pool size: %d\n", const_size);
-    printf("Bytecode size: %d\n", bytecode_size);
+    DEBUG_PRINT("Constant pool size: %d\n", const_size);
+    DEBUG_PRINT("Bytecode size: %d\n", bytecode_size);
 
     int instructions = 0;
     for (int i = 0; i < bytecode_size; ++i)
     {
-        fprintf(stderr, "%d:\tOpcode: %d = %s\n", i, bytecode[i], OPCODES[bytecode[i]]);
+        DEBUG_PRINT("%d:\tOpcode: %d = %s\n", i, bytecode[i], OPCODES[bytecode[i]]);
         for (size_t j = 0; j < imms_cnt[bytecode[i]]; j++)
         {
-            fprintf(stderr, "\tIMM: %d\n", bytecode[i+1+j]);
+            DEBUG_PRINT("\tIMM: %d\n", bytecode[i+1+j]);
         }
         /*
         if (bytecode[i] == STARTFOR_OP)
         {
-            fprintf(stderr, "%d\n", TYPEOF(consts[bytecode[i+1+j]]));
+            DEBUG_PRINT(stderr, "%d\n", TYPEOF(consts[bytecode[i+1+j]]));
             Rf_PrintValue(consts[bytecode[i+1+j]]);
         }*/
         instructions++;
         i += imms_cnt[bytecode[i]];
     }
 
-    printf("Instructions in bytecode: %d\n", instructions);
+    DEBUG_PRINT("Instructions in bytecode: %d\n", instructions);
 }
 
 static SEXP copy_patch_bc(SEXP bcode)
@@ -660,7 +666,7 @@ static SEXP copy_patch_bc(SEXP bcode)
     SEXP* consts = DATAPTR(bcode_consts);
     int consts_size = LENGTH(bcode_consts);
 
-    bytecode_info(bytecode, bytecode_size, consts, consts_size);
+    //bytecode_info(bytecode, bytecode_size, consts, consts_size);
     rcp_exec_ptrs res = compile_bc(bytecode, bytecode_size, consts, consts_size);
     UNPROTECT(1);
 
@@ -675,7 +681,7 @@ static SEXP copy_patch_bc(SEXP bcode)
     return ptr;
 }
 
-SEXP cmpfun(SEXP f, SEXP options)
+SEXP rcp_cmpfun(SEXP f, SEXP options)
 {
     prepare();
 

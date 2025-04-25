@@ -34,8 +34,37 @@ install: $(R_PACKAGE)
 	@echo "Installing package..."
 	@cd build && sudo ../../external/R/bin/R CMD INSTALL rcp_0.0.0.9000.tar.gz
 
-# Target to run all executables in sequence
-build: install
+
+
+BENCH_ITER := 30
+
+RSH_HOME = ../external/r-compile-server/client/rsh
+R_HOME ?= ../external/R
+R := $(R_HOME)/bin/R --slave --no-restore
+LLVM_R := $(R) #LD_PRELOAD=$(LLVM_LIB) $(R)
+BENCH_DIR = $(RSH_HOME)/inst/benchmarks
+HARNESS_BIN = harness.R
+BENCH_R = R_PROFILE_USER=$(BENCH_DIR)/Rprofile.site $(LLVM_R) -f
+FILTER ?=
+
+
+
+.PHONY: benchmark
+benchmark:
+	@for file in $$(find $(BENCH_DIR) -mindepth 2 -name "*$(FILTER)*.R"); do \
+		test=$$(basename $$file); \
+		echo "$(TXT_BOLD)┌──── $$test ...$(TXT_NORM)"; \
+		cmd="$(BENCH_R) $(HARNESS_BIN) --args $${file%.*}"; \
+		echo $$cmd; \
+		eval "$$cmd"; \
+		exit=$$?; \
+		echo -n "$(TXT_BOLD)└──── $$test: "; \
+	  if [ $$exit -eq 0 ]; then \
+			echo "$(TXT_GREEN)OK$(TXT_NORM)"; \
+		else \
+		echo "$(TXT_RED)FAIL$(NO_NORM) $$exit$(TXT_NORM)"; \
+		fi; \
+	done
 
 # Clean target (optional, if needed)
 clean:

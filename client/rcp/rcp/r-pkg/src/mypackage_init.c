@@ -3,11 +3,11 @@
 #include <R_ext/Rdynload.h>
 
 // Declare the function
-SEXP cmpfun(SEXP fun, SEXP options);
+SEXP rcp_cmpfun(SEXP fun, SEXP options);
 
 // Register the function
 static const R_CallMethodDef CallEntries[] = {
-    {"cmpfun", (DL_FUNC) &cmpfun, 2},
+    {"rcp_cmpfun", (DL_FUNC) &rcp_cmpfun, 2},
     {NULL, NULL, 0}
 };
 

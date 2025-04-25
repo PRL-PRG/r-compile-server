@@ -1,2 +1,2 @@
 useDynLib(rcp, .registration = TRUE)
-export(cmpfun)
+export(rcp_cmpfun)
