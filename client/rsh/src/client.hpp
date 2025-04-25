@@ -27,13 +27,17 @@ private:
 
   size_t total_request_bytes = 0;
   size_t total_response_bytes = 0;
+  
 
   // For it to be able to access the client instance
   friend SEXP init_client(SEXP address, SEXP port, SEXP installed_packages);
 
+  bool connected = false;// already sent successfully the init message
+  void connect();// send the init message. Will be automaticalled if the client is not yet "connected"
+
 public:
   Client(std::shared_ptr<grpc::Channel> channel,
-         std::vector<std::string> installed_packages);
+         std::vector<std::string> installed_packages, bool autoconnect=false);
 
   std::variant<protocol::CompileResponse, std::string>
   remote_compile(std::vector<uint8_t> const &rds_closure,
