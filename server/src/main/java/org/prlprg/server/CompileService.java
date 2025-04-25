@@ -144,7 +144,9 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
                 + bcOpt
                 + ": not found in cache.");
         try {
+
           var bc = compileBcClosure(function.getBody(), bcOpt);
+
           ByteString serializedBc = null;
           if (bc.isEmpty()) {
             logger.warning(
@@ -189,6 +191,7 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
         try {
           assert bcCached != null;
           // Name should be fully decided by the client?
+          var time = System.currentTimeMillis();
           var name = genSymbol(function);
           var bc2cCompiler = new BC2CCompiler(bcCached.first(), name);
           var module = bc2cCompiler.finish();
@@ -201,6 +204,8 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
               .createBuilder(input.getPath(), output.getPath())
               .flag("-c")
               .compile();
+          time = System.currentTimeMillis() - time;
+          logger.info("Finished native compilation in " + time + " ms");
 
           var res = Files.asByteSource(output).read();
           var serializedConstantPool = RDSWriter.writeByteString(module.constantPool());
@@ -312,9 +317,14 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
       throw new RuntimeException(e);
     }
     if (closure instanceof CloSXP c) {
+      var time = System.nanoTime();
       BCCompiler compiler = new BCCompiler(c, session);
       compiler.setOptimizationLevel(optimizationLevel);
-      return compiler.compile();
+      var res = compiler.compile();
+      time = System.nanoTime() - time;
+      double time_ms = time / 1_000_000.0;
+      logger.info("Finished bytecode compilation in " + time_ms + " ms");
+      return res;
     } else {
       throw new RuntimeException("Not a closure");
     }
