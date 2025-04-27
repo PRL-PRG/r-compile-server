@@ -205,6 +205,37 @@ static int fits_in_int8(int64_t value) {
     return value >= INT8_MIN && value <= INT8_MAX;
 }
 
+static uint8_t reloc_indirection(RELOC_KIND kind)
+{
+    switch (kind)
+    {
+        case RELOC_RUNTIME_SYMBOL: 
+            return 1;
+        case RELOC_RCP_NEXTOP:
+            return 0;
+        case RELOC_RCP_GOTO_IMM:
+            return 0;
+        case RELOC_RHO:
+            return 1;
+        case RELOC_RCP_RAW_IMM:
+            return 0;
+        case RELOC_RCP_CONST_AT_IMM:
+            return 0;
+        case RELOC_RCP_CONSTCELL_AT_IMM:
+            return 1;
+        case RELOC_RCP_CONSTCELL_AT_LABEL_IMM:
+            return 1;
+        case RELOC_RODATA:
+            return 1;
+        case RELOC_RCP_PRECOMPILED:
+            return 1;
+        case RELOC_RCP_CONST_STR_AT_IMM:
+            return 0;
+        default:
+            __builtin_unreachable();
+    }
+}
+
 static void patch(uint8_t* inst, size_t body_size, const Stencil* stencil, const Hole* hole, int* imms, uintptr_t* immpool, size_t* immpool_size, const uint8_t* ro_low, const uint8_t* ro_near, SEXP * constpool, SEXP * bcells, SEXP * precompiled, uint8_t* executable, size_t * executable_lookup, int bytecode[], SEXP* rho)
 {
     ptrdiff_t ptr;
@@ -216,47 +247,38 @@ static void patch(uint8_t* inst, size_t body_size, const Stencil* stencil, const
         case RELOC_RUNTIME_SYMBOL: 
         {
             ptr = (ptrdiff_t)hole->val.symbol;
-            used_indirection = 1;
         } break;
         case RELOC_RCP_NEXTOP:
         {
             ptr = body_size - hole->offset;
-            used_indirection = 1;
         } break;
         case RELOC_RCP_GOTO_IMM:
         {
-            //DEBUG_PRINT("goto imm %zu, points to code at index %d, which translates to %zu bytes\n", hole->val.imm_pos, imms[hole->val.imm_pos]-1, executable_lookup[imms[hole->val.imm_pos]-1]);
             ptr = (ptrdiff_t)&executable[executable_lookup[imms[hole->val.imm_pos]-1]];
-            used_indirection = 1;
         } break;
         case RELOC_RHO:
         {
             ptr = (ptrdiff_t)rho;
-            used_indirection = 1;
         } break;
         case RELOC_RCP_RAW_IMM:
         {
             ptr = imms[hole->val.imm_pos];
-            used_indirection = 0;
         } break;
         case RELOC_RCP_CONST_AT_IMM:
         {
-            ptr = (ptrdiff_t)&constpool[imms[hole->val.imm_pos]];
-            used_indirection = 1;
+            ptr = (ptrdiff_t)constpool[imms[hole->val.imm_pos]];
         } break;
         case RELOC_RCP_CONSTCELL_AT_IMM:
         {
             int bcell_index = imms[hole->val.imm_pos];
             //DEBUG_PRINT("bcell_index: %d\n", bcell_index);
             ptr = (ptrdiff_t)&bcells[bcell_index];
-            used_indirection = 1;
         } break;
         case RELOC_RCP_CONSTCELL_AT_LABEL_IMM:
         {
             int bcell_index = bytecode[imms[hole->val.imm_pos] - 3];
             //DEBUG_PRINT("bcell_index: %d\n", bcell_index);
             ptr = (ptrdiff_t)&bcells[bcell_index];
-            used_indirection = 1;
         } break;
         case RELOC_RODATA:
         {
@@ -265,24 +287,18 @@ static void patch(uint8_t* inst, size_t body_size, const Stencil* stencil, const
                 ptr = (ptrdiff_t)ro_near;
             else
                 ptr = (ptrdiff_t)ro_low;
-
-            used_indirection = 1;
         } break;
         case RELOC_RCP_PRECOMPILED:
         {
             ptr = (ptrdiff_t)precompiled;
-            used_indirection = 1;
         } break;
         case RELOC_RCP_CONST_STR_AT_IMM:
         {
             SEXP symbol = constpool[imms[hole->val.imm_pos]];
-            ptr = (ptrdiff_t)CHAR(PRINTNAME(symbol));
-
             if (TYPEOF(symbol) != SYMSXP) 
                 error("The const referenced is not a symbol.");
             
-            //ptr = (ptrdiff_t)const_pool_add(immpool, immpool_size, (uintptr_t)CHAR(PRINTNAME(symbol)));
-            used_indirection = 0;
+            ptr = (ptrdiff_t)CHAR(PRINTNAME(symbol));
             //DEBUG_PRINT("%s\n", CHAR(PRINTNAME(fun))) ; // Extract the name of the function
         } break;
         default:
@@ -292,7 +308,7 @@ static void patch(uint8_t* inst, size_t body_size, const Stencil* stencil, const
         } break;
     }
 
-    int indirection_correction = used_indirection - hole->indirection_level;
+    int indirection_correction = reloc_indirection(hole->kind) - hole->indirection_level;
 
     for (; indirection_correction > 0; --indirection_correction)
     {
@@ -448,7 +464,7 @@ static const Stencil* get_stencil(int opcode, const int * imms, const SEXP* r_co
     return NULL;
 }
 
-static rcp_exec_ptrs compile_bc(int bytecode[], int bytecode_size, SEXP* r_constpool, int r_constpool_size)
+static rcp_exec_ptrs compile_bc(int bytecode[], int bytecode_size, SEXP* constpool, int constpool_size)
 {
     rcp_exec_ptrs res;
     size_t insts_size = _RCP_INIT.body_size;
@@ -460,7 +476,7 @@ static rcp_exec_ptrs compile_bc(int bytecode[], int bytecode_size, SEXP* r_const
 
     for (int i = 0; i < bytecode_size; ++i)
     {
-        const Stencil* stencil = get_stencil(bytecode[i], &bytecode[i+1], r_constpool);
+        const Stencil* stencil = get_stencil(bytecode[i], &bytecode[i+1], constpool);
         //DEBUG_PRINT("Opcode: %s\n", OPCODES[bytecode[i]]);
         if(stencil == NULL || stencil->body_size == 0)
         {
@@ -472,38 +488,20 @@ static rcp_exec_ptrs compile_bc(int bytecode[], int bytecode_size, SEXP* r_const
 
         for (size_t j = 0; j < stencil->holes_size; ++j)
         {
-            int indirection_level = 0;
-
-            switch(stencil->holes[j].kind)
-            {
-                case RELOC_RUNTIME_SYMBOL:
-                case RELOC_RODATA:
-                case RELOC_RCP_NEXTOP:
-                case RELOC_RCP_GOTO_IMM:
-                case RELOC_RCP_PRECOMPILED:
-                case RELOC_RCP_CONST_AT_IMM:
-                case RELOC_RCP_CONSTCELL_AT_IMM:
-                case RELOC_RCP_CONSTCELL_AT_LABEL_IMM:
-                    indirection_level = 1;
-                    break;
-                case RELOC_RCP_CONST_STR_AT_IMM:
-                case RELOC_RCP_RAW_IMM:
-                    indirection_level = 0;
-                    break;
-            }
+            int indirection_level = reloc_indirection(stencil->holes[j].kind);
 
             if(stencil->holes[j].indirection_level > indirection_level)
-            {
                 imms_capacity += stencil->holes[j].indirection_level-indirection_level;
-            }
         }
 
         i += imms_cnt[bytecode[i]];
     }
 
+    DEBUG_PRINT("imms_capacity: %zu\n", imms_capacity);
+
     size_t rodata_size = align_to_higher(sizeof(rodata), sizeof(void*));
 
-    size_t total_size = rodata_size + sizeof(SEXP) + insts_size + imms_capacity*sizeof(uintptr_t) + r_constpool_size*sizeof(*r_constpool) + r_constpool_size*sizeof(SEXP) + sizeof(precompiled_functions);
+    size_t total_size = rodata_size + sizeof(SEXP) + insts_size + imms_capacity*sizeof(uintptr_t) + constpool_size*sizeof(SEXP) + sizeof(precompiled_functions);
 
     void* mem = find_free_space_near(&Rf_ScalarInteger, total_size);
 
@@ -519,11 +517,10 @@ static rcp_exec_ptrs compile_bc(int bytecode[], int bytecode_size, SEXP* r_const
 
     uint8_t* ro_near =  (uint8_t*) &memory[0];
     SEXP* rho =            (SEXP*) &memory[rodata_size];
-    SEXP* constpool =      (SEXP*) &memory[rodata_size + sizeof(*rho)];
-    SEXP* bcells =         (SEXP*) &memory[rodata_size + sizeof(*rho) + r_constpool_size * sizeof(*r_constpool)];
-    SEXP* precompiled =    (SEXP*) &memory[rodata_size + sizeof(*rho) + r_constpool_size * sizeof(*r_constpool) + r_constpool_size * sizeof(*bcells)];
-    uintptr_t* imms = (uintptr_t*) &memory[rodata_size + sizeof(*rho) + r_constpool_size * sizeof(*r_constpool) + r_constpool_size * sizeof(*bcells) + sizeof(precompiled_functions)];
-    uint8_t* executable =          &memory[rodata_size + sizeof(*rho) + r_constpool_size * sizeof(*r_constpool) + r_constpool_size * sizeof(*bcells) + sizeof(precompiled_functions) + imms_capacity * sizeof(*imms)];
+    SEXP* bcells =         (SEXP*) &memory[rodata_size + sizeof(*rho)];
+    SEXP* precompiled =    (SEXP*) &memory[rodata_size + sizeof(*rho) + constpool_size * sizeof(*bcells)];
+    uintptr_t* imms = (uintptr_t*) &memory[rodata_size + sizeof(*rho) + constpool_size * sizeof(*bcells) + sizeof(precompiled_functions)];
+    uint8_t* executable =          &memory[rodata_size + sizeof(*rho) + constpool_size * sizeof(*bcells) + sizeof(precompiled_functions) + imms_capacity * sizeof(*imms)];
 
     res.eval = (void*)executable;
     res.rho = rho;
@@ -534,7 +531,7 @@ static rcp_exec_ptrs compile_bc(int bytecode[], int bytecode_size, SEXP* r_const
 
     memcpy(ro_near, rodata, sizeof(rodata));
 
-    for (int i = 0; i < r_constpool_size; ++i)
+    for (int i = 0; i < constpool_size; ++i)
         bcells[i] = R_NilValue;
     *rho = R_NilValue;
 
@@ -545,13 +542,8 @@ static rcp_exec_ptrs compile_bc(int bytecode[], int bytecode_size, SEXP* r_const
     res.memory_low_size = sizeof(rodata);
 
     res.bcells = bcells;
-    res.bcells_size = r_constpool_size;
+    res.bcells_size = constpool_size;
 
-    for(int i = 0; i < r_constpool_size; ++i)
-    {
-        constpool[i] = r_constpool[i];//duplicate(r_constpool[i]);
-        //R_PreserveObject(constpool[i]);
-    }
 
     // start to copy-patch
 
@@ -569,13 +561,13 @@ static rcp_exec_ptrs compile_bc(int bytecode[], int bytecode_size, SEXP* r_const
 
         if(bytecode[i] == MAKECLOSURE_OP)
         {
-            SEXP fb = r_constpool[bytecode[i+1]];
+            SEXP fb = constpool[bytecode[i+1]];
             SEXP body = VECTOR_ELT(fb, 1);
 
             if(TYPEOF(body) == BCODESXP)
             {
                 DEBUG_PRINT("**********\nCompiling closure\n");
-                //r_constpool[bytecode[i+1]] = Rf_duplicate(r_constpool[bytecode[i+1]]); // TODO Is this needed?
+                //constpool[bytecode[i+1]] = Rf_duplicate(constpool[bytecode[i+1]]); // TODO Is this needed?
                 SEXP res = copy_patch_bc(body);
                 SET_VECTOR_ELT(fb, 1, res);
             }
@@ -590,7 +582,7 @@ static rcp_exec_ptrs compile_bc(int bytecode[], int bytecode_size, SEXP* r_const
             DEBUG_PRINT("**********\nClosure compiled\n");
         }
 
-        const Stencil* stencil = get_stencil(bytecode[i], &bytecode[i+1], r_constpool);
+        const Stencil* stencil = get_stencil(bytecode[i], &bytecode[i+1], constpool);
 
         memcpy(&executable[executable_pos], stencil->body, stencil->body_size);
 
