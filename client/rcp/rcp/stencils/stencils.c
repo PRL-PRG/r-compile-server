@@ -1,5 +1,6 @@
 #define RSH_INLINE
 #define RCP
+//#define ASSERTS
 
 #include <runtime.h>
 
@@ -270,7 +271,6 @@ RCP_OP(DODOTS) {
   RETURN;
 }
 
-//todo specialize?
 RCP_OP(PUSHARG)
 {
   Rsh_PushArg(GET_VAL(3), GET_VAL(2), *GET_VAL(1));
