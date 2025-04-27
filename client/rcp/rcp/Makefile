@@ -8,6 +8,10 @@ STENCILS_OBJ = build/stencils.o
 EXTRACTOR_BIN = build/extract_stencils
 EXTRACTED_DIR = build/extracted
 R_PACKAGE = build/rcp_0.0.0.9000.tar.gz
+R_PACKAGE_SOURCE = $(shell find r-pkg/*)
+RSH_HOME = ../external/r-compile-server/client/rsh
+R_HOME ?= ../external/R
+R_LIB = $(R_HOME)/library/rcp/libs/rcp.so
 
 $(STENCILS_OBJ): stencils/stencils.c
 	@echo "Building stencils..."
@@ -19,27 +23,26 @@ $(EXTRACTOR_BIN): extractor/extract_stencils.c
 	@mkdir -p build
 	@$(CC) extractor/extract_stencils.c -o $(EXTRACTOR_BIN) -lbfd -Og -g -fsanitize=address -march=native
 
-$(EXTRACTED_DIR): $(STENCILS_OBJ) $(EXTRACTOR_BIN)
+$(R_PACKAGE): $(STENCILS_OBJ) $(EXTRACTOR_BIN)# $(R_PACKAGE_SOURCE)
 	@echo "Extracting stencils..."
 	@cd build && mkdir -p extracted && cd extracted && ../extract_stencils ../stencils.o
-
-$(R_PACKAGE): $(EXTRACTED_DIR)
 	@echo "Creating package..."
 	@rm -f r-pkg/src/stencils
 	@ln -sfn ../../build/extracted r-pkg/src/stencils
 	@cd build && ../../external/R/bin/R CMD build ../r-pkg
 	@rm -f r-pkg/src/stencils
 
-install: $(R_PACKAGE)
+$(R_LIB): $(R_PACKAGE)
 	@echo "Installing package..."
 	@cd build && sudo ../../external/R/bin/R CMD INSTALL rcp_0.0.0.9000.tar.gz
 
+.PHONY: install
+install: $(R_LIB)
 
 
 BENCH_ITER := 30
 
-RSH_HOME = ../external/r-compile-server/client/rsh
-R_HOME ?= ../external/R
+
 R := $(R_HOME)/bin/R --slave --no-restore
 LLVM_R := $(R) #LD_PRELOAD=$(LLVM_LIB) $(R)
 BENCH_DIR = $(RSH_HOME)/inst/benchmarks
@@ -47,10 +50,12 @@ HARNESS_BIN = harness.R
 BENCH_R = R_PROFILE_USER=$(BENCH_DIR)/Rprofile.site $(LLVM_R) -f
 FILTER ?=
 
-
+.PHONY: run
+run: install
+	@$(R_HOME)/bin/R
 
 .PHONY: benchmark
-benchmark:
+benchmark: install
 	@for file in $$(find $(BENCH_DIR) -mindepth 2 -name "*$(FILTER)*.R"); do \
 		test=$$(basename $$file); \
 		echo "$(TXT_BOLD)┌──── $$test ...$(TXT_NORM)"; \
@@ -66,7 +71,7 @@ benchmark:
 		fi; \
 	done
 
-# Clean target (optional, if needed)
+.PHONY: clean
 clean:
 	@echo "Cleaning up..."
 	@rm -f r-pkg/src/stencils
