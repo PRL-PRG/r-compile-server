@@ -555,6 +555,9 @@ void process_sections(bfd * abfd, asection * section, void * data) {
 
       if(section -> flags & SEC_CODE)
       {
+        if (section->alignment_power > 0)
+          fprintf(stderr, "WARNING: Stencil requires alignment to 2^%u, but this is not supported\n", section->alignment_power);
+
         StencilMutable* stencil = NULL;
         int opcode = get_opcode(sym -> name + 6);
         if (opcode != -1)
@@ -612,6 +615,7 @@ void process_sections(bfd * abfd, asection * section, void * data) {
         {
           rodata_size = size;
           rodata = buffer;
+          //fprintf(stderr, "Allign rodata to 2^%u\n", section->alignment_power);
         }
         else
         {

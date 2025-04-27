@@ -351,6 +351,14 @@ typedef struct {
     uintptr_t end;
 } MemoryRegion;
 
+
+static size_t align_to_higher(size_t size, size_t alignment) {
+    if (alignment == 0) {
+        return size; // No alignment needed
+    }
+    return (size + alignment - 1) & ~(alignment - 1);
+}
+
 static void* find_free_space_near(void* target_ptr, size_t size) {
     uintptr_t target = (uintptr_t)target_ptr;
     FILE *maps = fopen("/proc/self/maps", "r");
@@ -411,21 +419,27 @@ static const Stencil* get_stencil(int opcode, const int * imms, const SEXP* r_co
         } break;
         case LDCONST_OP:
         {
-            switch(TYPEOF(r_constpool[imms[0]]))
+            SEXP constant = r_constpool[imms[0]];
+            if (constant->sxpinfo.scalar && ATTRIB(constant) == R_NilValue)
             {
-                case REALSXP:
-                    DEBUG_PRINT("Using specialized version of LDCONST_OP: REAL\n");
-                    return &_RCP_LDCONST_DBL_OP;
-                case INTSXP:
-                    DEBUG_PRINT("Using specialized version of LDCONST_OP: INT\n");
-                    return &_RCP_LDCONST_INT_OP;
-                case LGLSXP:
-                    DEBUG_PRINT("Using specialized version of LDCONST_OP: LGL\n");
-                    return &_RCP_LDCONST_LGL_OP;
-                default:
-                    DEBUG_PRINT("Using specialized version of LDCONST_OP: SEXP\n");
-                    return &_RCP_LDCONST_SEXP_OP;
+                switch(TYPEOF(constant))
+                {
+                    case REALSXP:
+                        DEBUG_PRINT("Using specialized version of LDCONST_OP: REAL\n");
+                        return &_RCP_LDCONST_DBL_OP;
+                    case INTSXP:
+                        DEBUG_PRINT("Using specialized version of LDCONST_OP: INT\n");
+                        return &_RCP_LDCONST_INT_OP;
+                    case LGLSXP:
+                        DEBUG_PRINT("Using specialized version of LDCONST_OP: LGL\n");
+                        return &_RCP_LDCONST_LGL_OP;
+                    default:
+                        break;
+                }
             }
+            DEBUG_PRINT("Using specialized version of LDCONST_OP: SEXP\n");
+            return &_RCP_LDCONST_SEXP_OP;
+
         } break;
 
         default:
@@ -487,7 +501,9 @@ static rcp_exec_ptrs compile_bc(int bytecode[], int bytecode_size, SEXP* r_const
         i += imms_cnt[bytecode[i]];
     }
 
-    size_t total_size = sizeof(SEXP) + insts_size + imms_capacity*sizeof(uintptr_t) + r_constpool_size*sizeof(*r_constpool) + r_constpool_size*sizeof(SEXP) + sizeof(precompiled_functions) + sizeof(rodata);
+    size_t rodata_size = align_to_higher(sizeof(rodata), sizeof(void*));
+
+    size_t total_size = rodata_size + sizeof(SEXP) + insts_size + imms_capacity*sizeof(uintptr_t) + r_constpool_size*sizeof(*r_constpool) + r_constpool_size*sizeof(SEXP) + sizeof(precompiled_functions);
 
     void* mem = find_free_space_near(&Rf_ScalarInteger, total_size);
 
@@ -496,16 +512,18 @@ static rcp_exec_ptrs compile_bc(int bytecode[], int bytecode_size, SEXP* r_const
     if (memory == MAP_FAILED)
         exit(1);
 
+    __builtin_assume_aligned (memory, sysconf(_SC_PAGESIZE)); // memory is aligned to page size
+
     res.memory_high = memory;
     res.memory_high_size = total_size;
 
-    SEXP* rho =            (SEXP*) &memory[0];
-    SEXP* constpool =      (SEXP*) &memory[sizeof(*rho)];
-    SEXP* bcells =         (SEXP*) &memory[sizeof(*rho) + r_constpool_size * sizeof(*r_constpool)];
-    SEXP* precompiled =    (SEXP*) &memory[sizeof(*rho) + r_constpool_size * sizeof(*r_constpool) + r_constpool_size * sizeof(*bcells)];
-    uintptr_t* imms = (uintptr_t*) &memory[sizeof(*rho) + r_constpool_size * sizeof(*r_constpool) + r_constpool_size * sizeof(*bcells) + sizeof(precompiled_functions)];
-    uint8_t* ro_near =  (uint8_t*) &memory[sizeof(*rho) + r_constpool_size * sizeof(*r_constpool) + r_constpool_size * sizeof(*bcells) + sizeof(precompiled_functions) + imms_capacity * sizeof(*imms)];
-    uint8_t* executable =          &memory[sizeof(*rho) + r_constpool_size * sizeof(*r_constpool) + r_constpool_size * sizeof(*bcells) + sizeof(precompiled_functions) + sizeof(rodata) + imms_capacity * sizeof(*imms)];
+    uint8_t* ro_near =  (uint8_t*) &memory[0];
+    SEXP* rho =            (SEXP*) &memory[rodata_size];
+    SEXP* constpool =      (SEXP*) &memory[rodata_size + sizeof(*rho)];
+    SEXP* bcells =         (SEXP*) &memory[rodata_size + sizeof(*rho) + r_constpool_size * sizeof(*r_constpool)];
+    SEXP* precompiled =    (SEXP*) &memory[rodata_size + sizeof(*rho) + r_constpool_size * sizeof(*r_constpool) + r_constpool_size * sizeof(*bcells)];
+    uintptr_t* imms = (uintptr_t*) &memory[rodata_size + sizeof(*rho) + r_constpool_size * sizeof(*r_constpool) + r_constpool_size * sizeof(*bcells) + sizeof(precompiled_functions)];
+    uint8_t* executable =          &memory[rodata_size + sizeof(*rho) + r_constpool_size * sizeof(*r_constpool) + r_constpool_size * sizeof(*bcells) + sizeof(precompiled_functions) + imms_capacity * sizeof(*imms)];
 
     res.eval = (void*)executable;
     res.rho = rho;
@@ -556,7 +574,7 @@ static rcp_exec_ptrs compile_bc(int bytecode[], int bytecode_size, SEXP* r_const
 
             if(TYPEOF(body) == BCODESXP)
             {
-                DEBUG_PRINT("Compiling closure\n");
+                DEBUG_PRINT("**********\nCompiling closure\n");
                 //r_constpool[bytecode[i+1]] = Rf_duplicate(r_constpool[bytecode[i+1]]); // TODO Is this needed?
                 SEXP res = copy_patch_bc(body);
                 SET_VECTOR_ELT(fb, 1, res);
@@ -569,6 +587,7 @@ static rcp_exec_ptrs compile_bc(int bytecode[], int bytecode_size, SEXP* r_const
             {
                 error("Invalid closure type: %d\n", TYPEOF(body));
             }
+            DEBUG_PRINT("**********\nClosure compiled\n");
         }
 
         const Stencil* stencil = get_stencil(bytecode[i], &bytecode[i+1], r_constpool);
@@ -666,7 +685,7 @@ static SEXP copy_patch_bc(SEXP bcode)
     SEXP* consts = DATAPTR(bcode_consts);
     int consts_size = LENGTH(bcode_consts);
 
-    //bytecode_info(bytecode, bytecode_size, consts, consts_size);
+    bytecode_info(bytecode, bytecode_size, consts, consts_size);
     rcp_exec_ptrs res = compile_bc(bytecode, bytecode_size, consts, consts_size);
     UNPROTECT(1);
 
