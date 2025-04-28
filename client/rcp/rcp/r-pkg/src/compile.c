@@ -236,7 +236,7 @@ static uint8_t reloc_indirection(RELOC_KIND kind)
     }
 }
 
-static void patch(uint8_t* inst, size_t body_size, const Stencil* stencil, const Hole* hole, int* imms, uintptr_t* immpool, size_t* immpool_size, const uint8_t* ro_low, const uint8_t* ro_near, SEXP * constpool, SEXP * bcells, SEXP * precompiled, uint8_t* executable, size_t * executable_lookup, int bytecode[], SEXP* rho)
+static void patch(uint8_t* inst, size_t body_size, const Stencil* stencil, const Hole* hole, int* imms, uintptr_t* immpool, size_t* immpool_size, const uint8_t* ro_low, const uint8_t* ro_near, SEXP * constpool, SEXP * bcells, SEXP * precompiled, uint8_t* executable, size_t * executable_lookup, int bytecode[], SEXP* rho, const int* bcell_lookup)
 {
     ptrdiff_t ptr;
 
@@ -272,13 +272,13 @@ static void patch(uint8_t* inst, size_t body_size, const Stencil* stencil, const
         {
             int bcell_index = imms[hole->val.imm_pos];
             //DEBUG_PRINT("bcell_index: %d\n", bcell_index);
-            ptr = (ptrdiff_t)&bcells[bcell_index];
+            ptr = (ptrdiff_t)&bcells[bcell_lookup[bcell_index]];
         } break;
         case RELOC_RCP_CONSTCELL_AT_LABEL_IMM:
         {
             int bcell_index = bytecode[imms[hole->val.imm_pos] - 3];
             //DEBUG_PRINT("bcell_index: %d\n", bcell_index);
-            ptr = (ptrdiff_t)&bcells[bcell_index];
+            ptr = (ptrdiff_t)&bcells[bcell_lookup[bcell_index]];
         } break;
         case RELOC_RODATA:
         {
@@ -472,11 +472,14 @@ static rcp_exec_ptrs compile_bc(int bytecode[], int bytecode_size, SEXP* constpo
     size_t imms_size = 0;
 
     size_t* inst_start = calloc(bytecode_size, sizeof(size_t));
+
+    int* used_bcells = calloc(constpool_size, sizeof(int));
     //size_t* inst_imm_start = calloc(bytecode_size, sizeof(size_t));
 
     for (int i = 0; i < bytecode_size; ++i)
     {
-        const Stencil* stencil = get_stencil(bytecode[i], &bytecode[i+1], constpool);
+        const int* imms = &bytecode[i+1];
+        const Stencil* stencil = get_stencil(bytecode[i], imms, constpool);
         //DEBUG_PRINT("Opcode: %s\n", OPCODES[bytecode[i]]);
         if(stencil == NULL || stencil->body_size == 0)
         {
@@ -488,20 +491,51 @@ static rcp_exec_ptrs compile_bc(int bytecode[], int bytecode_size, SEXP* constpo
 
         for (size_t j = 0; j < stencil->holes_size; ++j)
         {
-            int indirection_level = reloc_indirection(stencil->holes[j].kind);
+            const Hole* hole = &stencil->holes[j];
+            int indirection_level = reloc_indirection(hole->kind);
 
-            if(stencil->holes[j].indirection_level > indirection_level)
-                imms_capacity += stencil->holes[j].indirection_level-indirection_level;
+            if(hole->indirection_level > indirection_level)
+                imms_capacity += hole->indirection_level-indirection_level;
+
+            switch(hole->kind)
+            {
+                case RELOC_RCP_CONSTCELL_AT_IMM:
+                {
+                    int bcell_index = imms[hole->val.imm_pos];
+                    //DEBUG_PRINT("bcell_index: %d\n", bcell_index);
+                    used_bcells[bcell_index]++;
+                } break;
+                case RELOC_RCP_CONSTCELL_AT_LABEL_IMM:
+                {
+                    int bcell_index = bytecode[imms[hole->val.imm_pos] - 3];
+                    //DEBUG_PRINT("bcell_index: %d\n", bcell_index);
+                    used_bcells[bcell_index]++;
+                } break;
+            }
         }
 
         i += imms_cnt[bytecode[i]];
     }
-
     DEBUG_PRINT("imms_capacity: %zu\n", imms_capacity);
+
+    int bcells_size = 0;
+    for (int i = 0; i < constpool_size; ++i)
+    {
+        if(used_bcells[i] != 0)
+            bcells_size++;
+    }
+
+    DEBUG_PRINT("BCells used for this closure: %d\n", bcells_size);
+        
+    for (int i = 0, index = 0; i < constpool_size; ++i)
+    {
+        if(used_bcells[i] != 0)
+            used_bcells[i] = index++;
+    }
 
     size_t rodata_size = align_to_higher(sizeof(rodata), sizeof(void*));
 
-    size_t total_size = rodata_size + sizeof(SEXP) + insts_size + imms_capacity*sizeof(uintptr_t) + constpool_size*sizeof(SEXP) + sizeof(precompiled_functions);
+    size_t total_size = rodata_size + sizeof(SEXP) + insts_size + imms_capacity*sizeof(uintptr_t) + bcells_size*sizeof(SEXP) + sizeof(precompiled_functions);
 
     void* mem = find_free_space_near(&Rf_ScalarInteger, total_size);
 
@@ -518,9 +552,9 @@ static rcp_exec_ptrs compile_bc(int bytecode[], int bytecode_size, SEXP* constpo
     uint8_t* ro_near =  (uint8_t*) &memory[0];
     SEXP* rho =            (SEXP*) &memory[rodata_size];
     SEXP* bcells =         (SEXP*) &memory[rodata_size + sizeof(*rho)];
-    SEXP* precompiled =    (SEXP*) &memory[rodata_size + sizeof(*rho) + constpool_size * sizeof(*bcells)];
-    uintptr_t* imms = (uintptr_t*) &memory[rodata_size + sizeof(*rho) + constpool_size * sizeof(*bcells) + sizeof(precompiled_functions)];
-    uint8_t* executable =          &memory[rodata_size + sizeof(*rho) + constpool_size * sizeof(*bcells) + sizeof(precompiled_functions) + imms_capacity * sizeof(*imms)];
+    SEXP* precompiled =    (SEXP*) &memory[rodata_size + sizeof(*rho) + bcells_size * sizeof(*bcells)];
+    uintptr_t* imms = (uintptr_t*) &memory[rodata_size + sizeof(*rho) + bcells_size * sizeof(*bcells) + sizeof(precompiled_functions)];
+    uint8_t* executable =          &memory[rodata_size + sizeof(*rho) + bcells_size * sizeof(*bcells) + sizeof(precompiled_functions) + imms_capacity * sizeof(*imms)];
 
     res.eval = (void*)executable;
     res.rho = rho;
@@ -531,7 +565,7 @@ static rcp_exec_ptrs compile_bc(int bytecode[], int bytecode_size, SEXP* constpo
 
     memcpy(ro_near, rodata, sizeof(rodata));
 
-    for (int i = 0; i < constpool_size; ++i)
+    for (int i = 0; i < bcells_size; ++i)
         bcells[i] = R_NilValue;
     *rho = R_NilValue;
 
@@ -542,7 +576,7 @@ static rcp_exec_ptrs compile_bc(int bytecode[], int bytecode_size, SEXP* constpo
     res.memory_low_size = sizeof(rodata);
 
     res.bcells = bcells;
-    res.bcells_size = constpool_size;
+    res.bcells_size = bcells_size;
 
 
     // start to copy-patch
@@ -551,7 +585,7 @@ static rcp_exec_ptrs compile_bc(int bytecode[], int bytecode_size, SEXP* constpo
     memcpy(&executable[executable_pos], _RCP_INIT.body, _RCP_INIT.body_size);
     for (size_t j = 0; j < _RCP_INIT.holes_size; ++j)
     {
-        patch(&executable[executable_pos], _RCP_INIT.body_size, &_RCP_INIT, &_RCP_INIT.holes[j], NULL, NULL, 0, ro_low, ro_near, constpool, bcells, precompiled, executable, inst_start, bytecode, rho);
+        patch(&executable[executable_pos], _RCP_INIT.body_size, &_RCP_INIT, &_RCP_INIT.holes[j], NULL, NULL, 0, ro_low, ro_near, constpool, bcells, precompiled, executable, inst_start, bytecode, rho, used_bcells);
     }
     executable_pos +=  _RCP_INIT.body_size;
 
@@ -588,7 +622,7 @@ static rcp_exec_ptrs compile_bc(int bytecode[], int bytecode_size, SEXP* constpo
 
         for (size_t j = 0; j < stencil->holes_size; ++j)
         {
-            patch(&executable[executable_pos], stencil->body_size, stencil, &stencil->holes[j], &bytecode[i+1], imms, &imms_size, ro_low, ro_near, constpool, bcells, precompiled, executable, inst_start, bytecode, rho);
+            patch(&executable[executable_pos], stencil->body_size, stencil, &stencil->holes[j], &bytecode[i+1], imms, &imms_size, ro_low, ro_near, constpool, bcells, precompiled, executable, inst_start, bytecode, rho, used_bcells);
         }
 
         //print_byte_array(&executable[executable_pos], stencils[bytecode[i]].body_size);
