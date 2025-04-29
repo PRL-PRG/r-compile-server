@@ -7,47 +7,55 @@ on: # rebuild any PRs and main branch changes
       - benchmarking
 
 jobs:
-  build-devcontainer:
+  build-image:
+    name: Build and Push Docker Image
     runs-on: ubuntu-latest
-    outputs:
-      imageName: ${{ steps.imageName.outputs.imageName }}
+    permissions:
+      contents: read
+      packages: write
     steps:
-      - name: Checkout (GitHub)
+      - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v2 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Cache Docker layers
+        uses: actions/cache@v3
+        with:
+          # Adjust the cache path as needed
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-docker-${{ hashFiles('.devcontainer/Dockerfile') }}
+          restore-keys: |
+            ${{ runner.os }}-docker-
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v2
         with:
           registry: ghcr.io
-          username: ${{ github.repository_owner }}
+          username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: set lower case owner name
-        id: imageName
-        run: |
-            echo "OWNER_LC=${OWNER,,}" >>${GITHUB_ENV}
-            echo "imageName=ghcr.io/${OWNER,,}/r-compile-server" >>${GITHUB_OUTPUT}
-        env:
-            OWNER: '${{ github.repository_owner }}'
-
-      - name: Pre-build dev container image
-        uses: devcontainers/ci@v0.3
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v4
         with:
-          imageName: ghcr.io/${{ env.OWNER_LC }}/r-compile-server
-          cacheFrom: ghcr.io/${{ env.OWNER_LC }}/r-compile-server
-          push: always
+          context: .devcontainer
+          push: true
+          # Use the defined Docker image variable
+          tags: |
+            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:${{ github.sha }}
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache,new=true
 
   artifact:
     runs-on: ubuntu-latest
-    needs: build-devcontainer
+    needs: build-image
+    container: ghcr.io/${{ github.repository }}:latest
     steps:
       - uses: actions/checkout@v3
       - name: Build artifact
-        uses: devcontainers/ci@v0.3
-        with:
-          cacheFrom:  ${{ needs.build-devcontainer.outputs.imageName }}
-          push: never
-          runCmd: cd server ; mvn --batch-mode --update-snapshots -DskipTests package
+        run: cd server ; mvn --batch-mode --update-snapshots -DskipTests package
       - run: mkdir staging && cp target/*.jar staging
         working-directory: server
       - name: Cache local Maven repository
@@ -70,7 +78,8 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
-    needs: build-devcontainer
+    needs: build-image 
+    container: ghcr.io/${{ github.repository }}:latest
     steps:
 
       - name: Checkout (GitHub)
@@ -86,61 +95,32 @@ jobs:
     
       # See https://github.com/devcontainers/ci/blob/main/docs/github-action.md
       - name: Run tests in the dev container task
-        uses: devcontainers/ci@v0.3
-        with:
-          cacheFrom:  ${{ needs.build-devcontainer.outputs.imageName }}
-          push: never
-          runCmd: cd server; mvn --batch-mode --update-snapshots test
+        run: cd server; mvn --batch-mode --update-snapshots test
 
   verify:
     runs-on: ubuntu-latest
-    needs: build-devcontainer
+    needs: build-image
+    container: ghcr.io/${{ github.repository }}:latest
     steps:
 
       - name: Checkout (GitHub)
-        uses: actions/checkout@v3
-
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v2 
-        with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-    
+        uses: actions/checkout@v3 
       - name: Run linters in the container task
-        uses: devcontainers/ci@v0.3
-        with:
-          cacheFrom:  ${{ needs.build-devcontainer.outputs.imageName }}
-          push: never
-          runCmd: cd server; mvn --batch-mode --update-snapshots verify
+        run: cd server; mvn --batch-mode --update-snapshots verify
 
   test-client:
     runs-on: ubuntu-latest
+    container: ghcr.io/${{ github.repository }}:latest
     needs: artifact
     steps:
       - uses: actions/checkout@v3
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v2 
-        with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
       - name: build client 
-        uses: devcontainers/ci@v0.3
-        with:
-          cacheFrom:  ${{ needs.build-devcontainer.outputs.imageName }}
-          push: never
-          runCmd: ls -R /workspace/external; cd client/rsh; make install
+        run: ls -R /workspace/external; cd client/rsh; make install
       - uses: actions/download-artifact@v4
         with:
           name: snapshot
           path: artifact
       - name: start server 
-        uses: devcontainers/ci@v0.3
-        with:
-          cacheFrom:  ${{ needs.build-devcontainer.outputs.imageName }}
-          push: never
-          runCmd: cd artifact; java -cp r-compile-server-0.1-SNAPSHOT.jar org.prlprg.server.CompileServer
+        run: cd artifact; java -cp r-compile-server-0.1-SNAPSHOT.jar org.prlprg.server.CompileServer
         
       #TODO: run the client tests
