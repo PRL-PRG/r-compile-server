@@ -40,7 +40,7 @@ $(R_LIB): $(R_PACKAGE)
 install: $(R_LIB)
 
 
-BENCH_ITER := 30
+BENCH_ITER ?= 30
 
 
 R := $(R_HOME)/bin/R --slave --no-restore
@@ -59,7 +59,7 @@ benchmark: install
 	@for file in $$(find $(BENCH_DIR) -mindepth 2 -name "*$(FILTER)*.R"); do \
 		test=$$(basename $$file); \
 		echo "$(TXT_BOLD)┌──── $$test ...$(TXT_NORM)"; \
-		cmd="$(BENCH_R) $(HARNESS_BIN) --args $${file%.*}"; \
+		cmd="$(BENCH_R) $(HARNESS_BIN) --args $${file%.*} $(BENCH_ITER)"; \
 		echo $$cmd; \
 		eval "$$cmd"; \
 		exit=$$?; \
@@ -70,6 +70,9 @@ benchmark: install
 		echo "$(TXT_RED)FAIL$(NO_NORM) $$exit$(TXT_NORM)"; \
 		fi; \
 	done
+
+test: install
+
 
 .PHONY: clean
 clean:
