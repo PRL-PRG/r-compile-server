@@ -36,6 +36,14 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: set lower case owner name
+        id: imageName
+        run: |
+            echo "OWNER_LC=${OWNER,,}" >>${GITHUB_ENV}
+            echo "imageName=ghcr.io/${OWNER,,}/r-compile-server" >>${GITHUB_OUTPUT}
+        env:
+            OWNER: '${{ github.repository_owner }}'
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v4
         with:
@@ -43,15 +51,15 @@ jobs:
           push: true
           # Use the defined Docker image variable
           tags: |
-            ghcr.io/${{ github.repository }}:latest
-            ghcr.io/${{ github.repository }}:${{ github.sha }}
+            ghcr.io/${{  env.OWNER_LC }}/${{ github.event.repository.name }}:latest
+            ghcr.io/${{ env.OWNER_LC }}/${{ github.event.repository.name }}:${{ github.sha }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache,new=true
 
   artifact:
     runs-on: ubuntu-latest
     needs: build-image
-    container: ghcr.io/${{ github.repository }}:latest
+    container: ${{ needs.build-image.outputs.imageName }}:latest
     steps:
       - uses: actions/checkout@v3
       - name: Build artifact
@@ -79,7 +87,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     needs: build-image 
-    container: ghcr.io/${{ github.repository }}:latest
+    container: ${{ needs.build-image.outputs.imageName }}:latest
     steps:
 
       - name: Checkout (GitHub)
@@ -110,7 +118,7 @@ jobs:
 
   test-client:
     runs-on: ubuntu-latest
-    container: ghcr.io/${{ github.repository }}:latest
+    container: ${{ needs.build-image.outputs.imageName }}:latest
     needs: artifact
     steps:
       - uses: actions/checkout@v3
