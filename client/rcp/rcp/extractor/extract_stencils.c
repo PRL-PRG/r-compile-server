@@ -594,7 +594,7 @@ void process_sections(bfd * abfd, asection * section, void * data) {
 
     if (bfd_get_section_contents(abfd, section, buffer, 0, size))
     {
-      fprintf(stderr, "%x\t%s\n", section -> flags, section -> symbol -> name);
+      //fprintf(stderr, "%x\t%s\n", section -> flags, section -> symbol -> name);
 
       if(section -> flags & SEC_CODE)
       {

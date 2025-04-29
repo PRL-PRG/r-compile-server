@@ -9,6 +9,7 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #include <assert.h>
+#include <time.h> // Include for time measurement
 
 #include "rcp_common.h"
 #include "runtime_internals.h"
@@ -362,12 +363,6 @@ static void print_byte_array(const unsigned char * arr, size_t len) {
   DEBUG_PRINT("\n");
 }
 
-typedef struct {
-    uintptr_t start;
-    uintptr_t end;
-} MemoryRegion;
-
-
 static size_t align_to_higher(size_t size, size_t alignment) {
     if (alignment == 0) {
         return size; // No alignment needed
@@ -383,8 +378,8 @@ static void* find_free_space_near(void* target_ptr, size_t size) {
         return NULL;
     }
 
-    MemoryRegion prev = {0, 0};
-    ptrdiff_t best_diff = PTRDIFF_MAX;//(ptrdiff_t)-1;
+    uintptr_t prev_start = 0, prev_end = 0;
+    ptrdiff_t best_diff = PTRDIFF_MAX;
     uintptr_t best_addr = 0;
 
     char line[256];
@@ -393,10 +388,10 @@ static void* find_free_space_near(void* target_ptr, size_t size) {
         if (sscanf(line, "%lx-%lx", &start, &end) != 2) continue;
 
         // Check for gap between previous and current region
-        if (prev.end && (start > prev.end)) {
-            size_t gap = start - prev.end;
+        if (prev_end && (start > prev_end)) {
+            size_t gap = start - prev_end;
             if (gap >= size) {
-                uintptr_t candidate = prev.end;
+                uintptr_t candidate = prev_end;
                 ptrdiff_t diff = (candidate > target) ? (candidate - target) : (target - candidate);
                 if (diff < best_diff) {
                     best_diff = diff;
@@ -405,8 +400,8 @@ static void* find_free_space_near(void* target_ptr, size_t size) {
             }
         }
 
-        prev.start = start;
-        prev.end = end;
+        prev_start = start;
+        prev_end = end;
     }
 
     fclose(maps);
@@ -464,7 +459,7 @@ static const Stencil* get_stencil(int opcode, const int * imms, const SEXP* r_co
     return NULL;
 }
 
-static rcp_exec_ptrs compile_bc(int bytecode[], int bytecode_size, SEXP* constpool, int constpool_size)
+static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP* constpool, int constpool_size)
 {
     rcp_exec_ptrs res;
     size_t insts_size = _RCP_INIT.body_size;
@@ -472,9 +467,7 @@ static rcp_exec_ptrs compile_bc(int bytecode[], int bytecode_size, SEXP* constpo
     size_t imms_size = 0;
 
     size_t* inst_start = calloc(bytecode_size, sizeof(size_t));
-
     int* used_bcells = calloc(constpool_size, sizeof(int));
-    //size_t* inst_imm_start = calloc(bytecode_size, sizeof(size_t));
 
     for (int i = 0; i < bytecode_size; ++i)
     {
@@ -483,6 +476,8 @@ static rcp_exec_ptrs compile_bc(int bytecode[], int bytecode_size, SEXP* constpo
         //DEBUG_PRINT("Opcode: %s\n", OPCODES[bytecode[i]]);
         if(stencil == NULL || stencil->body_size == 0)
         {
+            free(inst_start);
+            free(used_bcells);
             error("Opcode not implemented: %s\n", OPCODES[bytecode[i]]);
         }
 
@@ -516,6 +511,8 @@ static rcp_exec_ptrs compile_bc(int bytecode[], int bytecode_size, SEXP* constpo
 
         i += imms_cnt[bytecode[i]];
     }
+    
+    fprintf(stderr, "Binary size: %zu\n", insts_size);
     DEBUG_PRINT("imms_capacity: %zu\n", imms_capacity);
 
     int bcells_size = 0;
@@ -537,10 +534,10 @@ static rcp_exec_ptrs compile_bc(int bytecode[], int bytecode_size, SEXP* constpo
 
     size_t total_size = rodata_size + sizeof(SEXP) + insts_size + imms_capacity*sizeof(uintptr_t) + bcells_size*sizeof(SEXP) + sizeof(precompiled_functions);
 
-    void* mem = find_free_space_near(&Rf_ScalarInteger, total_size);
+    void* mem_address = find_free_space_near(&Rf_ScalarInteger, total_size);
 
 
-    uint8_t* memory = mmap(mem, total_size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    uint8_t* memory = mmap(mem_address, total_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if (memory == MAP_FAILED)
         exit(1);
 
@@ -560,7 +557,7 @@ static rcp_exec_ptrs compile_bc(int bytecode[], int bytecode_size, SEXP* constpo
     res.rho = rho;
 
 
-    uint8_t* ro_low = mmap(mem, sizeof(rodata), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_32BIT, -1, 0);
+    uint8_t* ro_low = mmap(NULL, sizeof(rodata), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_32BIT, -1, 0);
     memcpy(ro_low, rodata, sizeof(rodata));
 
     memcpy(ro_near, rodata, sizeof(rodata));
@@ -631,14 +628,24 @@ static rcp_exec_ptrs compile_bc(int bytecode[], int bytecode_size, SEXP* constpo
 
         i += imms_cnt[bytecode[i]];
     }
+    free(used_bcells);
     free(inst_start);
+
+    if (mprotect(memory, total_size, PROT_READ | PROT_WRITE | PROT_EXEC) != 0) {
+        perror("mprotect failed");
+        exit(1);
+    }
+
+    if (mprotect(ro_low, sizeof(rodata), PROT_READ) != 0) {
+        perror("mprotect failed");
+        exit(1);
+    }
 
     return res;
 }
 
 static SEXP compile_to_bc(SEXP f, SEXP options)
 {
-    // Ensure the compiler package is loaded
     SEXP compiler_package, compile_fun, call, result;
 
     // Load the compiler namespace
@@ -654,8 +661,6 @@ static SEXP compile_to_bc(SEXP f, SEXP options)
         error("Could not find compiler::cmpfun function.");
     }
     PROTECT(compile_fun);
-
-    //vecsxp, tag=optimize, val=3
 
     // Create the function call: compile(f)
     call = Rf_lang3(compile_fun, f, options);
@@ -700,9 +705,6 @@ static SEXP copy_patch_bc(SEXP bcode)
     SEXP bcode_code = BCODE_CODE(bcode);
     SEXP bcode_consts = BCODE_CONSTS(bcode);
 
-    //PrintValue(bcode_code);
-    //PrintValue(bcode_consts);
-
     SEXP code = PROTECT(R_bcDecode(bcode_code));
 
     int* bytecode = INTEGER(code) + 1;
@@ -712,28 +714,40 @@ static SEXP copy_patch_bc(SEXP bcode)
     int consts_size = LENGTH(bcode_consts);
 
     bytecode_info(bytecode, bytecode_size, consts, consts_size);
-    rcp_exec_ptrs res = compile_bc(bytecode, bytecode_size, consts, consts_size);
-    UNPROTECT(1);
+    rcp_exec_ptrs res = copy_patch_internal(bytecode, bytecode_size, consts, consts_size);
+    UNPROTECT(1); // code
 
-    //print_byte_array((uint8_t*)res.eval, res.memory_high_size - ((uint8_t*)res.eval - (uint8_t*)res.memory_high));
     rcp_exec_ptrs* res_ptr = malloc(sizeof(rcp_exec_ptrs));
-    memcpy(res_ptr, &res, sizeof(rcp_exec_ptrs));
+    *res_ptr = res;
 
     SEXP tag = PROTECT(install(RCP_PTRTAG));
     SEXP ptr = R_MakeExternalPtr(res_ptr, tag, bcode_consts);
-    UNPROTECT(1);
+    UNPROTECT(1);// tag
+    PROTECT(ptr);
     R_RegisterCFinalizerEx(ptr, &R_RcpFree, TRUE);
+    UNPROTECT(1); // ptr
     return ptr;
 }
 
 SEXP rcp_cmpfun(SEXP f, SEXP options)
 {
+    struct timespec start, mid, end;
     prepare();
 
+    if (TYPEOF(f) != CLOSXP)
+        error("The first argument must be a closure.");
+
+    clock_gettime(CLOCK_MONOTONIC, &start); // Start time measurement
     SEXP compiled = PROTECT(compile_to_bc(f, options));
+    clock_gettime(CLOCK_MONOTONIC, &mid); // End time measurement
     SEXP ptr = copy_patch_bc(BODY(compiled));
     SET_BODY(compiled, ptr);
+    clock_gettime(CLOCK_MONOTONIC, &end); // End time measurement
     UNPROTECT(1);
+
+    double elapsed_time = (end.tv_sec - start.tv_sec) * 1000.0 + (end.tv_nsec - start.tv_nsec) / 1000000.0;
+    double elapsed_time_mid = (mid.tv_sec - start.tv_sec) * 1000.0 + (mid.tv_nsec - start.tv_nsec) / 1000000.0;
+    fprintf(stderr, "Copy-patched in %.3f ms (%.3f for bytecode compilation + %.3f for copy-patch)\n", elapsed_time, elapsed_time_mid, elapsed_time - elapsed_time_mid);
     
     return compiled;
 }

@@ -765,19 +765,21 @@ RCP_OP(LOGBASE) {
   POP_VAL(1);
   RETURN;
 }
-/*
+
+// MATH1 generic version
 RCP_OP(MATH1) {
   Rsh_Math1(GET_VAL(1), GETCONST_IMM(0), GET_IMM(1), GET_RHO());
   RETURN;
 }
-*/
+
+// MATH1 specializations
 #define X(a, b, c) \
   RCP_OP(MATH1_##b) { \
     Rsh_Math1(GET_VAL(1), GETCONST_IMM(0), b, GET_RHO()); \
     RETURN; \
   }
 
-  X_MATH1_EXT_OPS
+X_MATH1_EXT_OPS
 
 #undef X
 
