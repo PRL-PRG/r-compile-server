@@ -39,7 +39,6 @@ R_X86_64_TPOFF32
 uint8_t* rodata;
 size_t rodata_size = 0;
 
-//StencilMutable init_stencil;
 StencilMutable stencils[sizeof(OPCODES) / sizeof( * OPCODES)] = { 0 };
 
 
@@ -446,130 +445,105 @@ static void process_relocation(StencilMutable *stencil, Hole *hole, const arelen
   // fprintf(stederr, "  Offset: 0x%08lx,  Addend: 0x%08lx, Symbol: %s, Type: %d\n", rel->address, rel->addend, *rel->sym_ptr_ptr->name, rel->howto->type);
 }
 
-static void process_relocations(StencilMutable* const stencil, long reloc_count, arelent ** relocs)
+static void process_relocations(StencilMutable *const stencil, long reloc_count, arelent **relocs)
 {
   stencil->holes = malloc(reloc_count * sizeof(Hole));
   stencil->holes_size = 0;
 
   for (long i = 0; i < reloc_count; i++)
   {
-    const arelent * rel = relocs[i];
-    if (!(rel -> sym_ptr_ptr && * rel -> sym_ptr_ptr) || !rel->howto->name)
-    {
+    const arelent *rel = relocs[i];
+    if (rel->sym_ptr_ptr && *rel->sym_ptr_ptr && rel->howto->name)
+      process_relocation(stencil, &stencil->holes[i], rel);
+    else
       fprintf(stderr, "Missing relocation symbol!\n");
-      continue;
-    }
-
-    process_relocation(stencil, &stencil->holes[i], rel);
   }
 }
 
-
-static void process_sections(bfd * abfd, asection * section, void * data) {
-  uint8_t opcode;
-
+static void process_sections(bfd *abfd, asection *section, void *data)
+{
   bfd_size_type size = bfd_section_size(section);
-  if (size > 0) {
-    asymbol * sym = section -> symbol;
-    bfd_byte * buffer = (bfd_byte * ) malloc(size);
-    if (!buffer)
-      return;
+  if (size == 0)
+    return;
 
-    if (bfd_get_section_contents(abfd, section, buffer, 0, size))
+  const asymbol *sym = section->symbol;
+  bfd_byte *buffer = (bfd_byte *)malloc(size);
+
+  if (!bfd_get_section_contents(abfd, section, buffer, 0, size))
+  {
+    fprintf(stderr, "Failed to read section contents\n");
+    free(buffer);
+    return;
+  }
+
+  // fprintf(stderr, "%x\t%s\n", section -> flags, section -> symbol -> name);
+
+  /* Get relocations */
+  long reloc_size = bfd_get_reloc_upper_bound(abfd, section);
+  if (reloc_size <= 0)
+    return;
+
+  /* Read symbol table */
+  long symtab_size = bfd_get_symtab_upper_bound(abfd);
+  if (symtab_size <= 0)
+    return;
+
+  asymbol **symbol_table = (asymbol **)malloc(symtab_size);
+
+  bfd_canonicalize_symtab(abfd, symbol_table);
+
+  arelent **relocs = (arelent **)malloc(reloc_size);
+  long reloc_count = bfd_canonicalize_reloc(abfd, section, relocs, symbol_table);
+
+  if (section->flags & SEC_CODE)
+  {
+    if (section->alignment_power > 0)
+      fprintf(stderr, "WARNING: Stencil requires alignment to 2^%u, but this is not supported\n", section->alignment_power);
+
+    StencilMutable *stencil;
+    int opcode = get_opcode(sym->name + 6);
+    if (opcode != -1)
     {
-      //fprintf(stderr, "%x\t%s\n", section -> flags, section -> symbol -> name);
+      stencil = &stencils[opcode];
+    }
+    else
+    {
+      extraStencilLast->name = strdup(sym->name + 6);
+      extraStencilLast->stencil = malloc(sizeof(StencilMutable));
+      stencil = extraStencilLast->stencil;
+      extraStencilLast->next = malloc(sizeof(NamedStencil));
+      extraStencilLast->next->next = NULL;
+      extraStencilLast = extraStencilLast->next;
+    }
 
-      if(section -> flags & SEC_CODE)
-      {
-        if (section->alignment_power > 0)
-          fprintf(stderr, "WARNING: Stencil requires alignment to 2^%u, but this is not supported\n", section->alignment_power);
+    stencil->body_size = size;
+    stencil->body = buffer;
 
-        StencilMutable* stencil = NULL;
-        int opcode = get_opcode(sym -> name + 6);
-        if (opcode != -1)
-        {
-          stencil = &stencils[opcode];
-        }
-        else
-        {
-          extraStencilLast->name = strdup(sym->name + 6);
-          extraStencilLast->stencil = malloc(sizeof(StencilMutable));
-          stencil = extraStencilLast->stencil;
-          extraStencilLast->next = malloc(sizeof(NamedStencil));
-          extraStencilLast->next->next = NULL;
-          extraStencilLast = extraStencilLast->next;
-        }
+    process_relocations(stencil, reloc_count, relocs);
 
-        stencil->body_size = size;
-        stencil->body = buffer;
+  }
+  else if ((section->flags & SEC_READONLY) && (section->flags & BSF_KEEP))
+  {
+    if (strcmp(sym->name, ".rodata") == 0)
+    {
+      rodata_size = size;
+      rodata = buffer;
+      // fprintf(stderr, "Allign rodata to 2^%u\n", section->alignment_power);
 
-        /* Get relocations */
-        long reloc_size = bfd_get_reloc_upper_bound(abfd, section);
-        if (reloc_size <= 0)
-          return;
-
-        /* Read symbol table */
-        long symtab_size;
-        asymbol ** symbol_table = NULL;
-        symtab_size = bfd_get_symtab_upper_bound(abfd);
-        if (symtab_size > 0)
-        {
-          symbol_table = (asymbol ** ) malloc(symtab_size);
-          if (symbol_table)
-            bfd_canonicalize_symtab(abfd, symbol_table);
-        }
-        arelent ** relocs = (arelent ** ) malloc(reloc_size);
-        long reloc_count = bfd_canonicalize_reloc(abfd, section, relocs, symbol_table);
-
-        process_relocations(stencil, reloc_count, relocs);
-
-        free(relocs);
-
-        free(symbol_table);
-      }
-      else if((section -> flags & SEC_READONLY) && (section -> flags & BSF_KEEP))
-      {
-        if(strcmp(sym->name, ".rodata") == 0)
-        {
-          rodata_size = size;
-          rodata = buffer;
-          //fprintf(stderr, "Allign rodata to 2^%u\n", section->alignment_power);
-        }
-        else
-        {
-          fprintf(stderr, "Section/Function %s could not be matched to a valid R opcode\n", sym -> name);
-          free(buffer);
-          return;
-        }
-
-        /* Get relocations */
-        long reloc_size = bfd_get_reloc_upper_bound(abfd, section);
-        if (reloc_size <= 0)
-          return;
-
-        /* Read symbol table */
-        long symtab_size;
-        asymbol ** symbol_table = NULL;
-        symtab_size = bfd_get_symtab_upper_bound(abfd);
-        if (symtab_size > 0)
-        {
-          symbol_table = (asymbol ** ) malloc(symtab_size);
-          if (symbol_table)
-            bfd_canonicalize_symtab(abfd, symbol_table);
-        }
-        arelent ** relocs = (arelent ** ) malloc(reloc_size);
-        long reloc_count = bfd_canonicalize_reloc(abfd, section, relocs, symbol_table);
-        if(reloc_count > 0)
-          fprintf(stderr, "There are some relocations in the section of %s, this is not yet supported!\n", sym -> name);
-
-        free(relocs);
-        free(symbol_table);
-      }
-      else
-        free(buffer);
-
+      if (reloc_count > 0)
+        fprintf(stderr, "There are some relocations in the section of %s, this is not supported!\n", sym->name);
+    }
+    else
+    {
+      fprintf(stderr, "Section/Function %s could not be matched to a valid R opcode\n", sym->name);
+      free(buffer);
     }
   }
+  else
+    free(buffer);
+    
+  free(relocs);
+  free(symbol_table);
 }
 
 static void free_stencil(StencilMutable* stencil)
@@ -614,7 +588,7 @@ static void cleanup()
   }
 }
 
-void analyze_object_file(const char * filename) {
+static void analyze_object_file(const char * filename) {
   bfd * abfd = bfd_openr(filename, NULL);
   if (!abfd) {
     fprintf(stderr, "Failed to open file: %s\n", filename);
