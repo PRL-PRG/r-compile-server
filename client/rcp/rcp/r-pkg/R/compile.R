@@ -6,5 +6,5 @@
 #' @return A compiled function.
 #' @export
 rcp_cmpfun <- function(f, options = NULL) {
-  .Call("rcp_cmpfun", f, options, PACKAGE = "rcp")
+  .Call("C_rcp_cmpfun", f, options, PACKAGE = "rcp")
 }
