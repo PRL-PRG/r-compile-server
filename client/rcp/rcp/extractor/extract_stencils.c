@@ -43,7 +43,7 @@ StencilMutable stencils[sizeof(OPCODES) / sizeof( * OPCODES)] = { 0 };
 
 
 typedef struct NamedStencil {
-  const char * name;
+  char * name;
   StencilMutable * stencil;
   struct NamedStencil * next;
 } NamedStencil;
@@ -53,7 +53,7 @@ NamedStencil* extraStencilLast = &extraStencilFirst;
 
 
 // Function to check if str starts with prefix
-int starts_with(const char *str, const char *prefix) {
+static int starts_with(const char *str, const char *prefix) {
   while (*prefix) {
       if (*str != *prefix) {
           return 0;
@@ -64,7 +64,7 @@ int starts_with(const char *str, const char *prefix) {
   return 1;
 }
 
-int get_opcode(const char * str) {
+static int get_opcode(const char * str) {
   if(!starts_with(str, "_RCP_"))
   {
     return -1;
@@ -80,7 +80,7 @@ int get_opcode(const char * str) {
   return -1;
 }
 
-void print_byte_array(FILE *file, const unsigned char * arr, size_t len) {
+static void print_byte_array(FILE *file, const unsigned char * arr, size_t len) {
   for (size_t i = 0; i < len; i++)
   {
     fprintf(file, "0x%02X, ", arr[i]); // Print each byte in hex format
@@ -88,7 +88,7 @@ void print_byte_array(FILE *file, const unsigned char * arr, size_t len) {
 }
 
 
-void export_body(FILE *file, const StencilMutable* stencil, const char* opcode_name)
+static void export_body(FILE *file, const StencilMutable* stencil, const char* opcode_name)
 {
   //if(stencils[opcode].holes_size != 0)
   
@@ -125,7 +125,7 @@ void export_body(FILE *file, const StencilMutable* stencil, const char* opcode_n
 
 
 
-void export_to_files()
+static void export_to_files()
 {
   for (uint8_t i = 0; i < sizeof(OPCODES) / sizeof(*OPCODES); ++i)
   {
@@ -209,7 +209,7 @@ void export_to_files()
   fclose(file);
 }
 
-int get_imm_name(const char* name)
+static int get_imm_name(const char* name)
 {
   if(starts_with(name, "_IMM"))
     return atoi(&name[4]);
@@ -217,7 +217,7 @@ int get_imm_name(const char* name)
     return -1;
 }
 
-void replace_mov(uint8_t* mov_address)
+static void replace_mov(uint8_t* mov_address)
 {
   // Extract register from ModR/M byte
   uint8_t reg_index = (mov_address[1] >> 3) & 0x07;
@@ -241,7 +241,7 @@ void replace_mov(uint8_t* mov_address)
   X(seq_len, Rsh_SeqLen)                                                  \
   X(log, Rsh_Log)
 
-int rsh_symbol_id(const char * name)
+static int rsh_symbol_id(const char * name)
 {
   int counter = 0;
   if (strcmp(name, "R_ARITH_OPS") == 0)
@@ -307,7 +307,7 @@ int rsh_symbol_id(const char * name)
   return -1;
 }
 
-void process_relocation(StencilMutable* const stencil, long reloc_count, arelent ** relocs)
+static void process_relocation(StencilMutable* const stencil, long reloc_count, arelent ** relocs)
 {
   stencil->holes = malloc(reloc_count * sizeof(Hole));
   stencil->holes_size = 0;
@@ -580,9 +580,7 @@ void process_relocation(StencilMutable* const stencil, long reloc_count, arelent
 }
 
 
-void process_sections(bfd * abfd, asection * section, void * data) {
-  //if (!(section -> flags & SEC_CODE))
-   // return;
+static void process_sections(bfd * abfd, asection * section, void * data) {
   uint8_t opcode;
 
   bfd_size_type size = bfd_section_size(section);
@@ -615,7 +613,6 @@ void process_sections(bfd * abfd, asection * section, void * data) {
           extraStencilLast->next = malloc(sizeof(NamedStencil));
           extraStencilLast->next->next = NULL;
           extraStencilLast = extraStencilLast->next;
-          // TODO free
         }
 
         stencil->body_size = size;
@@ -647,14 +644,7 @@ void process_sections(bfd * abfd, asection * section, void * data) {
       }
       else if((section -> flags & SEC_READONLY) && (section -> flags & BSF_KEEP))
       {
-        /*
-        int opcode = get_opcode(sym -> name + 8);
-        if (opcode != -1)
-        {
-          stencils[opcode].ro_size = size;
-          stencils[opcode].ro = buffer;
-        }
-        else */if(strcmp(sym->name, ".rodata") == 0)//".rodata.str1.1"
+        if(strcmp(sym->name, ".rodata") == 0)
         {
           rodata_size = size;
           rodata = buffer;
@@ -685,10 +675,7 @@ void process_sections(bfd * abfd, asection * section, void * data) {
         arelent ** relocs = (arelent ** ) malloc(reloc_size);
         long reloc_count = bfd_canonicalize_reloc(abfd, section, relocs, symbol_table);
         if(reloc_count > 0)
-        {
           fprintf(stderr, "There are some relocations in the section of %s, this is not yet supported!\n", sym -> name);
-
-        }
 
         free(relocs);
         free(symbol_table);
@@ -700,18 +687,45 @@ void process_sections(bfd * abfd, asection * section, void * data) {
   }
 }
 
-void cleanup()
+static void free_stencil(StencilMutable* stencil)
+{
+  for (size_t j = 0; j < stencil->holes_size; ++j)
+  {
+    if(stencil->holes[j].kind == 0)
+      free(stencil->holes[j].val.symbol_name);
+  }
+  free(stencil->holes);
+  stencil->holes = NULL;
+  free(stencil->body);
+  stencil->body = NULL;
+}
+
+static void cleanup()
 {
   for (uint8_t i = 0; i < sizeof(OPCODES) / sizeof( * OPCODES); ++i)
   {
-    for (size_t j = 0; j < stencils[i].holes_size; ++j)
-    {
-      if(stencils[i].holes[j].kind == 0)
-        free(stencils[i].holes[j].val.symbol_name);
-    }
-    free(stencils[i].holes);
-    free(stencils[i].body);
-    //free(stencils[i].ro);
+    free_stencil(&stencils[i]);
+    stencils[i];
+  }
+
+  NamedStencil* current = &extraStencilFirst;
+
+  do
+  {
+    free(current->name);
+    free_stencil(current->stencil);
+    free(current->stencil);
+
+    current = current -> next;
+  }
+  while (current -> next != NULL);
+
+  current = extraStencilFirst.next;
+  while(current -> next != NULL)
+  {
+    NamedStencil* next = current->next;
+    free(current);
+    current = next;
   }
 }
 
@@ -732,7 +746,7 @@ void analyze_object_file(const char * filename) {
   bfd_close(abfd);
 }
 
-void print_sizes()
+static void print_sizes()
 {
   int64_t total_size = 0;
   size_t count = 0;
@@ -760,9 +774,9 @@ int main(int argc, char ** argv) {
   //export_body();
   export_to_files();
 
-  //cleanup();
-
   print_sizes();
+
+  cleanup();
 
   return 0;
 }
