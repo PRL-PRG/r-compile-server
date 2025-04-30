@@ -3,7 +3,9 @@
 #include <R_ext/Rdynload.h>
 
 // Declare the function
-SEXP rcp_cmpfun(SEXP fun, SEXP options);
+extern SEXP rcp_cmpfun(SEXP fun, SEXP options);
+extern void rcp_init();
+extern void rcp_destr();
 
 // Register the function
 static const R_CallMethodDef CallEntries[] = {
@@ -12,7 +14,13 @@ static const R_CallMethodDef CallEntries[] = {
 };
 
 // Initialization function
-void R_init_mypackage(DllInfo *dll) {
+void R_init_rcp(DllInfo *dll) {
     R_registerRoutines(dll, NULL, CallEntries, NULL, NULL);
     R_useDynamicSymbols(dll, FALSE);
+    rcp_init();
+}
+
+// Unloading function
+void R_unload_rcp(DllInfo *dll) {
+    rcp_destr();
 }

@@ -97,6 +97,9 @@ static SEXP LOAD_R_BUILTIN(const char* name)
     return result;
 }
 
+uint8_t* ro_low = NULL;
+size_t* shared_mem_ref_count = NULL;
+
 void* precompiled_functions[126];
 static void prepare()
 {
@@ -543,8 +546,8 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
 
     __builtin_assume_aligned (memory, sysconf(_SC_PAGESIZE)); // memory is aligned to page size
 
-    res.memory_high = memory;
-    res.memory_high_size = total_size;
+    res.memory_private = memory;
+    res.memory_private_size = total_size;
 
     uint8_t* ro_near =  (uint8_t*) &memory[0];
     SEXP* rho =            (SEXP*) &memory[rodata_size];
@@ -557,9 +560,6 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
     res.rho = rho;
 
 
-    uint8_t* ro_low = mmap(NULL, sizeof(rodata), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_32BIT, -1, 0);
-    memcpy(ro_low, rodata, sizeof(rodata));
-
     memcpy(ro_near, rodata, sizeof(rodata));
 
     for (int i = 0; i < bcells_size; ++i)
@@ -569,8 +569,9 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
     memcpy(precompiled, precompiled_functions, sizeof(precompiled_functions));
     
 
-    res.memory_low = ro_low;
-    res.memory_low_size = sizeof(rodata);
+    res.memory_shared = ro_low;
+    res.memory_shared_size = sizeof(rodata);
+    res.memory_shared_refcount = shared_mem_ref_count;
 
     res.bcells = bcells;
     res.bcells_size = bcells_size;
@@ -632,11 +633,6 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
     free(inst_start);
 
     if (mprotect(memory, total_size, PROT_READ | PROT_WRITE | PROT_EXEC) != 0) {
-        perror("mprotect failed");
-        exit(1);
-    }
-
-    if (mprotect(ro_low, sizeof(rodata), PROT_READ) != 0) {
         perror("mprotect failed");
         exit(1);
     }
@@ -717,6 +713,8 @@ static SEXP copy_patch_bc(SEXP bcode)
     rcp_exec_ptrs res = copy_patch_internal(bytecode, bytecode_size, consts, consts_size);
     UNPROTECT(1); // code
 
+    (res.memory_shared_refcount)++;
+
     rcp_exec_ptrs* res_ptr = malloc(sizeof(rcp_exec_ptrs));
     *res_ptr = res;
 
@@ -729,10 +727,40 @@ static SEXP copy_patch_bc(SEXP bcode)
     return ptr;
 }
 
+SEXP rcp_init()
+{
+    prepare();
+
+    ro_low = mmap(NULL, sizeof(rodata), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_32BIT, -1, 0);
+    if (ro_low == MAP_FAILED)
+        exit(1);
+
+    __builtin_assume_aligned (ro_low, sysconf(_SC_PAGESIZE)); // memory is aligned to page size
+    memcpy(ro_low, rodata, sizeof(rodata));
+
+    if (mprotect(ro_low, sizeof(rodata), PROT_READ) != 0) {
+        perror("mprotect failed");
+        exit(1);
+    }
+
+    shared_mem_ref_count = malloc(sizeof(*shared_mem_ref_count));
+    *shared_mem_ref_count = 1;
+}
+
+SEXP rcp_destr()
+{
+    if(--(*shared_mem_ref_count) == 0)
+    {
+        munmap(ro_low, sizeof(rodata));
+        ro_low = NULL;
+        free(shared_mem_ref_count);
+        shared_mem_ref_count = NULL;
+    }
+}
+
 SEXP rcp_cmpfun(SEXP f, SEXP options)
 {
     struct timespec start, mid, end;
-    prepare();
 
     if (TYPEOF(f) != CLOSXP)
         error("The first argument must be a closure.");
