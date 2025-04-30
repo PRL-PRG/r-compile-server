@@ -13,10 +13,12 @@ RSH_HOME = ../external/r-compile-server/client/rsh
 R_HOME ?= ../external/R
 R_LIB = $(R_HOME)/library/rcp/libs/rcp.so
 
+MCMODEL ?= large
+
 $(STENCILS_OBJ): stencils/stencils.c
 	@echo "Building stencils..."
 	@mkdir -p build
-	@$(CC) stencils/stencils.c -o $(STENCILS_OBJ) -c -ffunction-sections -fno-stack-protector -fcf-protection=none -fno-asynchronous-unwind-tables -Os -march=native -fno-pic -mcmodel=medium -fno-merge-constants -fno-jump-tables -I../external/R/include  -I../external/r-compile-server/client/rsh/src/bc2c
+	@$(CC) stencils/stencils.c -o $(STENCILS_OBJ) -c -ffunction-sections -fno-stack-protector -fcf-protection=none -fno-asynchronous-unwind-tables -Os -march=native -fno-pic -mcmodel=$(MCMODEL) -fno-merge-constants -fno-jump-tables -I../external/R/include  -I../external/r-compile-server/client/rsh/src/bc2c
 
 $(EXTRACTOR_BIN): extractor/extract_stencils.c
 	@echo "Building extractor..."

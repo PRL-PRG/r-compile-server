@@ -390,7 +390,6 @@ static void process_relocation(StencilMutable *stencil, Hole *hole, const arelen
       else
       {
         hole->kind = RELOC_RCP_NEXTOP;
-        hole->is_pc_relative = 0;
         hole->indirection_level = 0;
       }
     }

@@ -240,7 +240,7 @@ static uint8_t reloc_indirection(RELOC_KIND kind)
     }
 }
 
-static void patch(uint8_t* inst, size_t body_size, const Stencil* stencil, const Hole* hole, int* imms, uintptr_t* immpool, size_t* immpool_size, const uint8_t* ro_low, const uint8_t* ro_near, SEXP * constpool, SEXP * bcells, SEXP * precompiled, uint8_t* executable, size_t * executable_lookup, int bytecode[], SEXP* rho, const int* bcell_lookup)
+static void patch(uint8_t* inst, const Stencil* stencil, const Hole* hole, int* imms, uintptr_t* immpool, size_t* immpool_size, const uint8_t* ro_low, const uint8_t* ro_near, SEXP * constpool, SEXP * bcells, SEXP * precompiled, uint8_t* executable, size_t * executable_lookup, int bytecode[], SEXP* rho, const int* bcell_lookup, int nextop)
 {
     ptrdiff_t ptr;
 
@@ -254,7 +254,7 @@ static void patch(uint8_t* inst, size_t body_size, const Stencil* stencil, const
         } break;
         case RELOC_RCP_NEXTOP:
         {
-            ptr = body_size - hole->offset;
+            ptr = (ptrdiff_t)&executable[executable_lookup[nextop]];
         } break;
         case RELOC_RCP_GOTO_IMM:
         {
@@ -583,7 +583,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
     memcpy(&executable[executable_pos], _RCP_INIT.body, _RCP_INIT.body_size);
     for (size_t j = 0; j < _RCP_INIT.holes_size; ++j)
     {
-        patch(&executable[executable_pos], _RCP_INIT.body_size, &_RCP_INIT, &_RCP_INIT.holes[j], NULL, NULL, 0, ro_low, ro_near, constpool, bcells, precompiled, executable, inst_start, bytecode, rho, used_bcells);
+        patch(&executable[executable_pos], &_RCP_INIT, &_RCP_INIT.holes[j], NULL, NULL, 0, ro_low, ro_near, constpool, bcells, precompiled, executable, inst_start, bytecode, rho, used_bcells, 0);
     }
     executable_pos +=  _RCP_INIT.body_size;
 
@@ -620,7 +620,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
 
         for (size_t j = 0; j < stencil->holes_size; ++j)
         {
-            patch(&executable[executable_pos], stencil->body_size, stencil, &stencil->holes[j], &bytecode[i+1], imms, &imms_size, ro_low, ro_near, constpool, bcells, precompiled, executable, inst_start, bytecode, rho, used_bcells);
+            patch(&executable[executable_pos], stencil, &stencil->holes[j], &bytecode[i+1], imms, &imms_size, ro_low, ro_near, constpool, bcells, precompiled, executable, inst_start, bytecode, rho, used_bcells, i + imms_cnt[bytecode[i]] + 1);
         }
 
         //print_byte_array(&executable[executable_pos], stencils[bytecode[i]].body_size);
