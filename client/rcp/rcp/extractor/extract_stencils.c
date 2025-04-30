@@ -307,7 +307,266 @@ static int rsh_symbol_id(const char * name)
   return -1;
 }
 
-static void process_relocation(StencilMutable* const stencil, long reloc_count, arelent ** relocs)
+static void process_relocation(StencilMutable* stencil, Hole* hole, const arelent * rel)
+{
+  hole->offset = rel->address;
+  hole->addend = rel->addend;
+    
+  if(strcmp(rel->howto->name, "R_X86_64_PLT32") == 0)
+  {
+    hole->indirection_level = 1;
+    hole->is_pc_relative = 1;
+    hole->size = 4;
+
+    if(starts_with((*rel->sym_ptr_ptr)->name, "_RCP_"))
+    {
+      const char* descr = &((*rel->sym_ptr_ptr)->name)[5];
+      if(strcmp(descr, "GOTO_NEXT") == 0)
+      {
+        if(rel->address - rel->addend == stencil->body_size && stencil->body[rel->address-1] == 0xE9 /*JMP*/) // This is the last instruction, no need to relocate; just delete it
+        {
+          stencil->body_size = rel->address - 1;
+          return; // No relocation from this
+        }
+        else
+        {
+          hole->kind = RELOC_RCP_NEXTOP;
+          hole->is_pc_relative = 0;
+          hole->indirection_level = 0;
+        }
+      }
+      else if(starts_with(descr, "GOTO_IMM"))
+      {
+        int pos = atoi(&descr[8]);
+        if(pos < 0 || pos > 3)
+        {
+          fprintf(stderr, "Unsupported immediate index\n");
+          return;
+        }
+        hole->kind = RELOC_RCP_GOTO_IMM;
+        hole->val.imm_pos = pos;
+        hole->indirection_level = 0;
+      }
+      else
+      {
+        fprintf(stderr, "Unsupported relocation symbol: %s\n", (*rel->sym_ptr_ptr)->name);
+      }
+    }
+    else
+    {
+      hole->kind = RELOC_RUNTIME_SYMBOL;
+      hole->val.symbol_name = strdup((*rel->sym_ptr_ptr)->name);
+    }
+  }
+  else if(strcmp(rel->howto->name, "R_X86_64_PC32") == 0)
+  {
+      hole->size = 4;
+      hole->is_pc_relative = 1;
+      hole->indirection_level = 1;
+      if(starts_with((*rel->sym_ptr_ptr)->name, "_RCP_"))
+      {
+        const char* descr = &((*rel->sym_ptr_ptr)->name)[5];
+        
+        if(strcmp(descr, "RHO") == 0)
+        {
+          hole->kind = RELOC_RHO;
+        }
+        else if(starts_with(descr, "IMM"))
+        {
+          int pos = atoi(&descr[3]);
+          if(pos < 0 || pos > 3)
+          {
+            fprintf(stderr, "Unsupported immediate index\n");
+            return;
+          }
+          if (stencil->body[rel->address-2] == 0x8B && (stencil->body[rel->address-1] & 0xC7) == 0x05) // MOV hack
+          {
+            replace_mov(&stencil->body[rel->address-2]);
+            hole->indirection_level = 0;
+            hole->is_pc_relative = 0;
+          }
+
+          hole->kind = RELOC_RCP_RAW_IMM;
+          hole->val.imm_pos = pos;
+        }
+        else
+        if(starts_with(descr, "CONSTANT_AT_IMM"))
+        {
+          int pos = atoi(&descr[15]);
+          if(pos < 0 || pos > 3)
+          {
+            fprintf(stderr, "Unsupported immediate index\n");
+            return;
+          }
+          hole->kind = RELOC_RCP_CONST_AT_IMM;
+          hole->val.imm_pos = pos;
+          hole->indirection_level = 0;
+        }
+        else if(starts_with(descr, "CONSTCELL_AT_IMM"))
+        {
+          int pos = atoi(&descr[16]);
+          if(pos < 0 || pos > 3)
+          {
+            fprintf(stderr, "Unsupported immediate index\n");
+            return;
+          }
+          hole->kind = RELOC_RCP_CONSTCELL_AT_IMM;
+          hole->val.imm_pos = pos;
+        }
+        else if(starts_with(descr, "CONSTCELL_AT_LABEL_IMM0"))
+        {
+          int pos = atoi(&descr[16]);
+          if(pos < 0 || pos > 3)
+          {
+            fprintf(stderr, "Unsupported immediate index\n");
+            return;
+          }
+          hole->kind = RELOC_RCP_CONSTCELL_AT_LABEL_IMM;
+          hole->val.imm_pos = pos;
+        }
+        else if(strcmp(descr, "PRECOMPILED") == 0)
+        {
+          hole->kind = RELOC_RCP_PRECOMPILED;
+        }
+        else if(starts_with(descr, "CONSTANT_STR_AT_IMM"))
+        {
+          int pos = atoi(&descr[19]);
+          if(pos < 0 || pos > 3)
+          {
+            fprintf(stderr, "Unsupported immediate index\n");
+            return;
+          }
+          hole->kind = RELOC_RCP_CONST_STR_AT_IMM;
+          hole->val.imm_pos = pos;
+        }
+        else
+        {
+          fprintf(stderr, "Unsupported relocation symbol: %s\n", (*rel->sym_ptr_ptr)->name);
+          //todo no use
+          hole->val.symbol_name = strdup((*rel->sym_ptr_ptr)->name);
+          hole->kind = RELOC_RUNTIME_SYMBOL;
+        }
+      }
+      else if(strcmp((*rel->sym_ptr_ptr)->name, ".rodata") == 0)
+      {
+        hole->kind = RELOC_RODATA;
+        hole->is_pc_relative = 1;
+      }
+      else
+      {
+        int id = rsh_symbol_id((*rel->sym_ptr_ptr)->name);
+        if(id != -1)
+        {
+          hole->kind = RELOC_RCP_PRECOMPILED;
+          hole->addend += id*sizeof(void*);
+        }
+        else
+        {
+          hole->val.symbol_name = strdup((*rel->sym_ptr_ptr)->name);
+          hole->kind = RELOC_RUNTIME_SYMBOL;
+          hole->is_pc_relative = 1;
+        }
+      }
+   }
+    else if(strcmp(rel->howto->name, "R_X86_64_32") == 0 || strcmp(rel->howto->name, "R_X86_64_32S") == 0 || strcmp(rel->howto->name, "R_X86_64_64") == 0)
+    {
+      hole->is_pc_relative = 0;
+      hole->indirection_level = 1;
+
+      if(starts_with((*rel->sym_ptr_ptr)->name, "_RCP_"))
+      {
+        const char* descr = &((*rel->sym_ptr_ptr)->name)[5];
+        if(starts_with(descr, "CONSTANT_AT_IMM"))
+        {
+          int pos = atoi(&descr[15]);
+          if(pos < 0 || pos > 3)
+          {
+            fprintf(stderr, "Unsupported immediate index\n");
+            return;
+          }
+          hole->kind = RELOC_RCP_CONST_AT_IMM;
+          hole->val.imm_pos = pos;
+          hole->indirection_level = 0;
+        }
+        else if(starts_with(descr, "IMM"))
+        {
+          int pos = atoi(&descr[3]);
+          if(pos < 0 || pos > 3)
+          {
+            fprintf(stderr, "Unsupported immediate index\n");
+            return;
+          }
+          hole->kind = RELOC_RCP_RAW_IMM;
+          hole->val.imm_pos = pos;
+          hole->indirection_level = 0;
+        }
+        else if(starts_with(descr, "CONSTANT_STR_AT_IMM"))
+        {
+          int pos = atoi(&descr[19]);
+          if(pos < 0 || pos > 3)
+          {
+            fprintf(stderr, "Unsupported immediate index\n");
+            return;
+          }
+          hole->kind = RELOC_RCP_CONST_STR_AT_IMM;
+          hole->val.imm_pos = pos;
+          hole->indirection_level = 0;
+        }
+      } else
+      //fprintf(stderr, "%s\n", (*rel->sym_ptr_ptr)->name);
+      if(strcmp((*rel->sym_ptr_ptr)->name, ".rodata") == 0)
+      {
+        hole->kind = RELOC_RODATA;
+      }
+      //else if(starts_with((*rel->sym_ptr_ptr)->name, ".rodata"))
+      //{
+      //  hole->kind = RELOC_RODATA_FUNCTION;
+      //}
+      else
+      {
+        int id = rsh_symbol_id((*rel->sym_ptr_ptr)->name);
+        if(id != -1)
+        {
+          hole->kind = RELOC_RCP_PRECOMPILED;
+          hole->addend += id*sizeof(void*);
+        }
+        else
+        {
+          hole->kind = RELOC_RUNTIME_SYMBOL;
+          hole->val.symbol_name = strdup((*rel->sym_ptr_ptr)->name);
+        }
+      }
+
+      if(strcmp(rel->howto->name, "R_X86_64_64") == 0)
+        hole->size = 8;
+      else
+        hole->size = 4;
+    }
+    else if(strcmp(rel->howto->name, "R_X86_64_REX_GOTPCRELX") == 0)
+    {
+      if(starts_with((*rel->sym_ptr_ptr)->name, "_RCP_"))
+      {
+        fprintf(stderr, "Internal RCP relocations must be done using the small model: %s\n", (*rel->sym_ptr_ptr)->name);
+        //continue;
+      }
+      hole->val.symbol_name = strdup((*rel->sym_ptr_ptr)->name);
+      hole->kind = RELOC_RUNTIME_SYMBOL;
+      hole->is_pc_relative = 1;
+      hole->indirection_level = 2;
+      hole->size = 4;
+    }
+    else
+    {
+      fprintf(stderr, "Unsupported relocation type: %d: %s (relocating: %s)\n", rel->howto->type,  rel->howto->name, (*rel->sym_ptr_ptr)->name);
+      return;
+    }
+
+    stencil->holes_size++;
+
+  //printf("  Offset: 0x%08lx,  Addend: 0x%08lx, Symbol: %s, Type: %d\n", rel->address, rel->addend, *rel->sym_ptr_ptr->name, rel->howto->type);
+}
+
+static void process_relocations(StencilMutable* const stencil, long reloc_count, arelent ** relocs)
 {
   stencil->holes = malloc(reloc_count * sizeof(Hole));
   stencil->holes_size = 0;
@@ -321,261 +580,7 @@ static void process_relocation(StencilMutable* const stencil, long reloc_count, 
       continue;
     }
 
-    stencil->holes[i].offset = rel->address;
-    stencil->holes[i].addend = rel->addend;
-      
-    if(strcmp(rel->howto->name, "R_X86_64_PLT32") == 0)
-    {
-      stencil->holes[i].indirection_level = 1;
-      stencil->holes[i].is_pc_relative = 1;
-      stencil->holes[i].size = 4;
-
-      if(starts_with((*rel->sym_ptr_ptr)->name, "_RCP_"))
-      {
-        const char* descr = &((*rel->sym_ptr_ptr)->name)[5];
-        if(strcmp(descr, "GOTO_NEXT") == 0)
-        {
-          if(rel->address - rel->addend == stencil->body_size && stencil->body[rel->address-1] == 0xE9 /*JMP*/) // This is the last instruction, no need to relocate; just delete it
-          {
-            stencil->body_size = rel->address - 1;
-            continue; // No relocation from this
-          }
-          else
-          {
-            stencil->holes[i].kind = RELOC_RCP_NEXTOP;
-            stencil->holes[i].is_pc_relative = 0;
-            stencil->holes[i].indirection_level = 0;
-          }
-        }
-        else if(starts_with(descr, "GOTO_IMM"))
-        {
-          int pos = atoi(&descr[8]);
-          if(pos < 0 || pos > 3)
-          {
-            fprintf(stderr, "Unsupported immediate index\n");
-            continue;
-          }
-          stencil->holes[i].kind = RELOC_RCP_GOTO_IMM;
-          stencil->holes[i].val.imm_pos = pos;
-          stencil->holes[i].indirection_level = 0;
-        }
-        else
-        {
-          fprintf(stderr, "Unsupported relocation symbol: %s\n", (*rel->sym_ptr_ptr)->name);
-        }
-      }
-      else
-      {
-        stencil->holes[i].kind = RELOC_RUNTIME_SYMBOL;
-        stencil->holes[i].val.symbol_name = strdup((*rel->sym_ptr_ptr)->name);
-      }
-    }
-    else if(strcmp(rel->howto->name, "R_X86_64_PC32") == 0)
-    {
-        stencil->holes[i].size = 4;
-        stencil->holes[i].is_pc_relative = 1;
-        stencil->holes[i].indirection_level = 1;
-        if(starts_with((*rel->sym_ptr_ptr)->name, "_RCP_"))
-        {
-          const char* descr = &((*rel->sym_ptr_ptr)->name)[5];
-          
-          if(strcmp(descr, "RHO") == 0)
-          {
-            stencil->holes[i].kind = RELOC_RHO;
-          }
-          else if(starts_with(descr, "IMM"))
-          {
-            int pos = atoi(&descr[3]);
-            if(pos < 0 || pos > 3)
-            {
-              fprintf(stderr, "Unsupported immediate index\n");
-              continue;
-            }
-            if (stencil->body[rel->address-2] == 0x8B && (stencil->body[rel->address-1] & 0xC7) == 0x05) // MOV hack
-            {
-              replace_mov(&stencil->body[rel->address-2]);
-              stencil->holes[i].indirection_level = 0;
-              stencil->holes[i].is_pc_relative = 0;
-            }
-
-            stencil->holes[i].kind = RELOC_RCP_RAW_IMM;
-            stencil->holes[i].val.imm_pos = pos;
-          }
-          else
-          if(starts_with(descr, "CONSTANT_AT_IMM"))
-          {
-            int pos = atoi(&descr[15]);
-            if(pos < 0 || pos > 3)
-            {
-              fprintf(stderr, "Unsupported immediate index\n");
-              continue;
-            }
-            stencil->holes[i].kind = RELOC_RCP_CONST_AT_IMM;
-            stencil->holes[i].val.imm_pos = pos;
-            stencil->holes[i].indirection_level = 0;
-          }
-          else if(starts_with(descr, "CONSTCELL_AT_IMM"))
-          {
-            int pos = atoi(&descr[16]);
-            if(pos < 0 || pos > 3)
-            {
-              fprintf(stderr, "Unsupported immediate index\n");
-              continue;
-            }
-            stencil->holes[i].kind = RELOC_RCP_CONSTCELL_AT_IMM;
-            stencil->holes[i].val.imm_pos = pos;
-          }
-          else if(starts_with(descr, "CONSTCELL_AT_LABEL_IMM0"))
-          {
-            int pos = atoi(&descr[16]);
-            if(pos < 0 || pos > 3)
-            {
-              fprintf(stderr, "Unsupported immediate index\n");
-              continue;
-            }
-            stencil->holes[i].kind = RELOC_RCP_CONSTCELL_AT_LABEL_IMM;
-            stencil->holes[i].val.imm_pos = pos;
-          }
-          else if(strcmp(descr, "PRECOMPILED") == 0)
-          {
-            stencil->holes[i].kind = RELOC_RCP_PRECOMPILED;
-          }
-          else if(starts_with(descr, "CONSTANT_STR_AT_IMM"))
-          {
-            int pos = atoi(&descr[19]);
-            if(pos < 0 || pos > 3)
-            {
-              fprintf(stderr, "Unsupported immediate index\n");
-              continue;
-            }
-            stencil->holes[i].kind = RELOC_RCP_CONST_STR_AT_IMM;
-            stencil->holes[i].val.imm_pos = pos;
-          }
-          else
-          {
-            fprintf(stderr, "Unsupported relocation symbol: %s\n", (*rel->sym_ptr_ptr)->name);
-            //todo no use
-            stencil->holes[i].val.symbol_name = strdup((*rel->sym_ptr_ptr)->name);
-            stencil->holes[i].kind = RELOC_RUNTIME_SYMBOL;
-          }
-        }
-        else if(strcmp((*rel->sym_ptr_ptr)->name, ".rodata") == 0)
-        {
-          stencil->holes[i].kind = RELOC_RODATA;
-          stencil->holes[i].is_pc_relative = 1;
-        }
-        else
-        {
-          int id = rsh_symbol_id((*rel->sym_ptr_ptr)->name);
-          if(id != -1)
-          {
-            stencil->holes[i].kind = RELOC_RCP_PRECOMPILED;
-            stencil->holes[i].addend += id*sizeof(void*);
-          }
-          else
-          {
-            stencil->holes[i].val.symbol_name = strdup((*rel->sym_ptr_ptr)->name);
-            stencil->holes[i].kind = RELOC_RUNTIME_SYMBOL;
-            stencil->holes[i].is_pc_relative = 1;
-          }
-        }
-     }
-      else if(strcmp(rel->howto->name, "R_X86_64_32") == 0 || strcmp(rel->howto->name, "R_X86_64_32S") == 0 || strcmp(rel->howto->name, "R_X86_64_64") == 0)
-      {
-        stencil->holes[i].is_pc_relative = 0;
-        stencil->holes[i].indirection_level = 1;
-
-        if(starts_with((*rel->sym_ptr_ptr)->name, "_RCP_"))
-        {
-          const char* descr = &((*rel->sym_ptr_ptr)->name)[5];
-          if(starts_with(descr, "CONSTANT_AT_IMM"))
-          {
-            int pos = atoi(&descr[15]);
-            if(pos < 0 || pos > 3)
-            {
-              fprintf(stderr, "Unsupported immediate index\n");
-              continue;
-            }
-            stencil->holes[i].kind = RELOC_RCP_CONST_AT_IMM;
-            stencil->holes[i].val.imm_pos = pos;
-            stencil->holes[i].indirection_level = 0;
-          }
-          else if(starts_with(descr, "IMM"))
-          {
-            int pos = atoi(&descr[3]);
-            if(pos < 0 || pos > 3)
-            {
-              fprintf(stderr, "Unsupported immediate index\n");
-              continue;
-            }
-            stencil->holes[i].kind = RELOC_RCP_RAW_IMM;
-            stencil->holes[i].val.imm_pos = pos;
-            stencil->holes[i].indirection_level = 0;
-          }
-          else if(starts_with(descr, "CONSTANT_STR_AT_IMM"))
-          {
-            int pos = atoi(&descr[19]);
-            if(pos < 0 || pos > 3)
-            {
-              fprintf(stderr, "Unsupported immediate index\n");
-              continue;
-            }
-            stencil->holes[i].kind = RELOC_RCP_CONST_STR_AT_IMM;
-            stencil->holes[i].val.imm_pos = pos;
-            stencil->holes[i].indirection_level = 0;
-          }
-        } else
-        //fprintf(stderr, "%s\n", (*rel->sym_ptr_ptr)->name);
-        if(strcmp((*rel->sym_ptr_ptr)->name, ".rodata") == 0)
-        {
-          stencil->holes[i].kind = RELOC_RODATA;
-        }
-        //else if(starts_with((*rel->sym_ptr_ptr)->name, ".rodata"))
-        //{
-        //  stencil->holes[i].kind = RELOC_RODATA_FUNCTION;
-        //}
-        else
-        {
-          int id = rsh_symbol_id((*rel->sym_ptr_ptr)->name);
-          if(id != -1)
-          {
-            stencil->holes[i].kind = RELOC_RCP_PRECOMPILED;
-            stencil->holes[i].addend += id*sizeof(void*);
-          }
-          else
-          {
-            stencil->holes[i].kind = RELOC_RUNTIME_SYMBOL;
-            stencil->holes[i].val.symbol_name = strdup((*rel->sym_ptr_ptr)->name);
-          }
-        }
-
-        if(strcmp(rel->howto->name, "R_X86_64_64") == 0)
-          stencil->holes[i].size = 8;
-        else
-          stencil->holes[i].size = 4;
-      }
-      else if(strcmp(rel->howto->name, "R_X86_64_REX_GOTPCRELX") == 0)
-      {
-        if(starts_with((*rel->sym_ptr_ptr)->name, "_RCP_"))
-        {
-          fprintf(stderr, "Internal RCP relocations must be done using the small model: %s\n", (*rel->sym_ptr_ptr)->name);
-          //continue;
-        }
-        stencil->holes[i].val.symbol_name = strdup((*rel->sym_ptr_ptr)->name);
-        stencil->holes[i].kind = RELOC_RUNTIME_SYMBOL;
-        stencil->holes[i].is_pc_relative = 1;
-        stencil->holes[i].indirection_level = 2;
-        stencil->holes[i].size = 4;
-      }
-      else
-      {
-        fprintf(stderr, "Unsupported relocation type: %d: %s (relocating: %s)\n", rel->howto->type,  rel->howto->name, (*rel->sym_ptr_ptr)->name);
-        continue;
-      }
-
-      stencil->holes_size++;
-
-    //printf("  Offset: 0x%08lx,  Addend: 0x%08lx, Symbol: %s, Type: %d\n", rel->address, rel->addend, *rel->sym_ptr_ptr->name, rel->howto->type);
+    process_relocation(stencil, &stencil->holes[i], rel);
   }
 }
 
@@ -636,7 +641,7 @@ static void process_sections(bfd * abfd, asection * section, void * data) {
         arelent ** relocs = (arelent ** ) malloc(reloc_size);
         long reloc_count = bfd_canonicalize_reloc(abfd, section, relocs, symbol_table);
 
-        process_relocation(stencil, reloc_count, relocs);
+        process_relocations(stencil, reloc_count, relocs);
 
         free(relocs);
 
