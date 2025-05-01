@@ -229,32 +229,32 @@ static uint8_t reloc_indirection(RELOC_KIND kind)
     {
         case RELOC_RUNTIME_SYMBOL: 
             return 1;
+        case RELOC_RHO:
+            return 1;
+        case RELOC_RODATA:
+            return 1;
         case RELOC_RCP_NEXTOP:
             return 0;
         case RELOC_RCP_GOTO_IMM:
             return 0;
-        case RELOC_RHO:
+        case RELOC_RCP_PRECOMPILED:
             return 1;
         case RELOC_RCP_RAW_IMM:
             return 0;
         case RELOC_RCP_CONST_AT_IMM:
             return 0;
+        case RELOC_RCP_CONST_STR_AT_IMM:
+            return 0;
         case RELOC_RCP_CONSTCELL_AT_IMM:
             return 1;
         case RELOC_RCP_CONSTCELL_AT_LABEL_IMM:
             return 1;
-        case RELOC_RODATA:
-            return 1;
-        case RELOC_RCP_PRECOMPILED:
-            return 1;
-        case RELOC_RCP_CONST_STR_AT_IMM:
-            return 0;
         default:
             __builtin_unreachable();
     }
 }
 
-static void patch(uint8_t* inst, const Stencil* stencil, const Hole* hole, int* imms, const uint8_t* mem_shared, const uint8_t* ro_near, SEXP * constpool, SEXP * bcells, SEXP * precompiled, uint8_t* executable, size_t * executable_lookup, int bytecode[], SEXP* rho, const int* bcell_lookup, int nextop)
+static void patch(uint8_t* inst, const Hole* hole, int* imms, uint8_t* ro_low, uint8_t* ro_near, SEXP * constpool, SEXP * bcells, SEXP * precompiled, uint8_t* executable, size_t * executable_lookup, int bytecode[], SEXP* rho, const int* bcell_lookup, int nextop)
 {
     ptrdiff_t ptr;
 
@@ -266,6 +266,18 @@ static void patch(uint8_t* inst, const Stencil* stencil, const Hole* hole, int* 
         {
             ptr = (ptrdiff_t)hole->val.symbol;
         } break;
+        case RELOC_RHO:
+        {
+            ptr = (ptrdiff_t)rho;
+        } break;
+        case RELOC_RODATA:
+        {
+            // Point to different memory regions to allow efficient x86 relative addressing
+            if(hole->is_pc_relative)
+                ptr = (ptrdiff_t)ro_near;
+            else
+                ptr = (ptrdiff_t)ro_low;
+        } break;
         case RELOC_RCP_NEXTOP:
         {
             ptr = (ptrdiff_t)&executable[executable_lookup[nextop]];
@@ -274,9 +286,9 @@ static void patch(uint8_t* inst, const Stencil* stencil, const Hole* hole, int* 
         {
             ptr = (ptrdiff_t)&executable[executable_lookup[imms[hole->val.imm_pos]-1]];
         } break;
-        case RELOC_RHO:
+        case RELOC_RCP_PRECOMPILED:
         {
-            ptr = (ptrdiff_t)rho;
+            ptr = (ptrdiff_t)precompiled;
         } break;
         case RELOC_RCP_RAW_IMM:
         {
@@ -286,30 +298,6 @@ static void patch(uint8_t* inst, const Stencil* stencil, const Hole* hole, int* 
         {
             ptr = (ptrdiff_t)constpool[imms[hole->val.imm_pos]];
         } break;
-        case RELOC_RCP_CONSTCELL_AT_IMM:
-        {
-            int bcell_index = imms[hole->val.imm_pos];
-            //DEBUG_PRINT("bcell_index: %d\n", bcell_index);
-            ptr = (ptrdiff_t)&bcells[bcell_lookup[bcell_index]];
-        } break;
-        case RELOC_RCP_CONSTCELL_AT_LABEL_IMM:
-        {
-            int bcell_index = bytecode[imms[hole->val.imm_pos] - 3];
-            //DEBUG_PRINT("bcell_index: %d\n", bcell_index);
-            ptr = (ptrdiff_t)&bcells[bcell_lookup[bcell_index]];
-        } break;
-        case RELOC_RODATA:
-        {
-            // Point to different memory regions to allow efficient x86 relative addressing
-            if(hole->is_pc_relative)
-                ptr = (ptrdiff_t)ro_near;
-            else
-                ptr = (ptrdiff_t)mem_shared;
-        } break;
-        case RELOC_RCP_PRECOMPILED:
-        {
-            ptr = (ptrdiff_t)precompiled;
-        } break;
         case RELOC_RCP_CONST_STR_AT_IMM:
         {
             SEXP symbol = constpool[imms[hole->val.imm_pos]];
@@ -317,7 +305,16 @@ static void patch(uint8_t* inst, const Stencil* stencil, const Hole* hole, int* 
                 error("The const referenced is not a symbol.");
             
             ptr = (ptrdiff_t)CHAR(PRINTNAME(symbol));
-            //DEBUG_PRINT("%s\n", CHAR(PRINTNAME(fun))) ; // Extract the name of the function
+        } break;
+        case RELOC_RCP_CONSTCELL_AT_IMM:
+        {
+            int bcell_index = imms[hole->val.imm_pos];
+            ptr = (ptrdiff_t)&bcells[bcell_lookup[bcell_index]];
+        } break;
+        case RELOC_RCP_CONSTCELL_AT_LABEL_IMM:
+        {
+            int bcell_index = bytecode[imms[hole->val.imm_pos] - 3];
+            ptr = (ptrdiff_t)&bcells[bcell_lookup[bcell_index]];
         } break;
         default:
         {
@@ -338,7 +335,9 @@ static void patch(uint8_t* inst, const Stencil* stencil, const Hole* hole, int* 
     if(hole->is_pc_relative)
         ptr -= (ptrdiff_t)&inst[hole->offset];
 
-    int fits = 1;
+    //DEBUG_PRINT("0x%zx\n", ptr);
+
+    int fits;
     switch (hole->size)
     {
     case 1:
@@ -363,16 +362,7 @@ static void patch(uint8_t* inst, const Stencil* stencil, const Hole* hole, int* 
         return;
     }
 
-    //DEBUG_PRINT("0x%zx\n", ptr);
     memcpy(&inst[hole->offset], &ptr, hole->size);
-}
-
-static void print_byte_array(const unsigned char * arr, size_t len) {
-  for (size_t i = 0; i < len; i++)
-  {
-    DEBUG_PRINT("0x%02X, ", arr[i]); // Print each byte in hex format
-  }
-  DEBUG_PRINT("\n");
 }
 
 static size_t align_to_higher(size_t size, size_t alignment) {
@@ -462,7 +452,6 @@ static const Stencil* get_stencil(int opcode, const int * imms, const SEXP* r_co
             }
             DEBUG_PRINT("Using specialized version of LDCONST_OP: SEXP\n");
             return &_RCP_LDCONST_SEXP_OP;
-
         } break;
 
         default:
@@ -562,13 +551,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
     res.eval = (void*)executable;
     res.rho = rho;
 
-
     memcpy(ro_near, rodata, sizeof(rodata));
-
-    for (int i = 0; i < bcells_size; ++i)
-        bcells[i] = R_NilValue;
-    *rho = R_NilValue;
-
     memcpy(precompiled, precompiled_functions, sizeof(precompiled_functions));
     
 
@@ -585,7 +568,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
     size_t executable_pos = 0;
     memcpy(&executable[executable_pos], _RCP_INIT.body, _RCP_INIT.body_size);
     for (size_t j = 0; j < _RCP_INIT.holes_size; ++j)
-        patch(&executable[executable_pos], &_RCP_INIT, &_RCP_INIT.holes[j], NULL, mem_shared, ro_near, constpool, bcells, precompiled, executable, inst_start, bytecode, rho, used_bcells, 0);
+        patch(&executable[executable_pos], &_RCP_INIT.holes[j], NULL, mem_shared, ro_near, constpool, bcells, precompiled, executable, inst_start, bytecode, rho, used_bcells, 0);
 
     executable_pos += _RCP_INIT.body_size;
 
@@ -621,7 +604,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
         memcpy(&executable[executable_pos], stencil->body, stencil->body_size);
 
         for (size_t j = 0; j < stencil->holes_size; ++j)
-            patch(&executable[executable_pos], stencil, &stencil->holes[j], &bytecode[i+1], mem_shared, ro_near, constpool, bcells, precompiled, executable, inst_start, bytecode, rho, used_bcells, i + imms_cnt[bytecode[i]] + 1);
+            patch(&executable[executable_pos], &stencil->holes[j], &bytecode[i+1], mem_shared, ro_near, constpool, bcells, precompiled, executable, inst_start, bytecode, rho, used_bcells, i + imms_cnt[bytecode[i]] + 1);
 
         executable_pos += stencil->body_size;
 
@@ -635,6 +618,10 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
         perror("mprotect failed");
         exit(1);
     }
+    
+    for (int i = 0; i < bcells_size; ++i)
+        bcells[i] = R_NilValue;
+    *rho = R_NilValue;
 
     stats->total_size += total_size;
     stats->executable_size += insts_size;
