@@ -97,11 +97,8 @@ static SEXP LOAD_R_BUILTIN(const char* name)
     return result;
 }
 
-uint8_t* ro_low = NULL;
-size_t* shared_mem_ref_count = NULL;
-
 void* precompiled_functions[126];
-static void prepare()
+static void prepare_precompiled()
 {
     int i = 0;
 
@@ -177,9 +174,38 @@ static void prepare()
     assert(i <= sizeof(precompiled_functions) / sizeof(*precompiled_functions));
 }
 
-static SEXP copy_patch_bc(SEXP bcode);
-
 #include "stencils/stencils.h"
+
+uint8_t *mem_shared = NULL;
+size_t *mem_shared_ref_count = NULL;
+static void prepare_rodata()
+{
+    mem_shared = mmap(NULL, sizeof(rodata), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_32BIT, -1, 0);
+    if (mem_shared == MAP_FAILED)
+        exit(1);
+
+    memcpy(mem_shared, rodata, sizeof(rodata));
+
+    if (mprotect(mem_shared, sizeof(rodata), PROT_READ) != 0)
+    {
+        perror("mprotect failed");
+        exit(1);
+    }
+
+    mem_shared_ref_count = malloc(sizeof(*mem_shared_ref_count));
+    *mem_shared_ref_count = 1;
+}
+
+
+typedef struct 
+{
+    size_t total_size;
+    size_t executable_size;
+} CompilationStats;
+
+
+static SEXP copy_patch_bc(SEXP bcode, CompilationStats* stats);
+
 
 static int fits_in_int64(int64_t value) {
     return value >= INT64_MIN && value <= INT64_MAX;
@@ -228,7 +254,7 @@ static uint8_t reloc_indirection(RELOC_KIND kind)
     }
 }
 
-static void patch(uint8_t* inst, const Stencil* stencil, const Hole* hole, int* imms, const uint8_t* ro_low, const uint8_t* ro_near, SEXP * constpool, SEXP * bcells, SEXP * precompiled, uint8_t* executable, size_t * executable_lookup, int bytecode[], SEXP* rho, const int* bcell_lookup, int nextop)
+static void patch(uint8_t* inst, const Stencil* stencil, const Hole* hole, int* imms, const uint8_t* mem_shared, const uint8_t* ro_near, SEXP * constpool, SEXP * bcells, SEXP * precompiled, uint8_t* executable, size_t * executable_lookup, int bytecode[], SEXP* rho, const int* bcell_lookup, int nextop)
 {
     ptrdiff_t ptr;
 
@@ -278,7 +304,7 @@ static void patch(uint8_t* inst, const Stencil* stencil, const Hole* hole, int* 
             if(hole->is_pc_relative)
                 ptr = (ptrdiff_t)ro_near;
             else
-                ptr = (ptrdiff_t)ro_low;
+                ptr = (ptrdiff_t)mem_shared;
         } break;
         case RELOC_RCP_PRECOMPILED:
         {
@@ -445,7 +471,7 @@ static const Stencil* get_stencil(int opcode, const int * imms, const SEXP* r_co
     return NULL;
 }
 
-static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP* constpool, int constpool_size)
+static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP* constpool, int constpool_size, CompilationStats* stats)
 {
     rcp_exec_ptrs res;
     size_t insts_size = _RCP_INIT.body_size;
@@ -497,8 +523,6 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
 
         i += imms_cnt[bytecode[i]];
     }
-    
-    fprintf(stderr, "Binary size: %zu\n", insts_size);
 
     int bcells_size = 0;
     for (int i = 0; i < constpool_size; ++i)
@@ -526,8 +550,6 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
     if (memory == MAP_FAILED)
         exit(1);
 
-    __builtin_assume_aligned (memory, sysconf(_SC_PAGESIZE)); // memory is aligned to page size
-
     res.memory_private = memory;
     res.memory_private_size = total_size;
 
@@ -550,9 +572,9 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
     memcpy(precompiled, precompiled_functions, sizeof(precompiled_functions));
     
 
-    res.memory_shared = ro_low;
+    res.memory_shared = mem_shared;
     res.memory_shared_size = sizeof(rodata);
-    res.memory_shared_refcount = shared_mem_ref_count;
+    res.memory_shared_refcount = mem_shared_ref_count;
 
     res.bcells = bcells;
     res.bcells_size = bcells_size;
@@ -563,10 +585,9 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
     size_t executable_pos = 0;
     memcpy(&executable[executable_pos], _RCP_INIT.body, _RCP_INIT.body_size);
     for (size_t j = 0; j < _RCP_INIT.holes_size; ++j)
-    {
-        patch(&executable[executable_pos], &_RCP_INIT, &_RCP_INIT.holes[j], NULL, ro_low, ro_near, constpool, bcells, precompiled, executable, inst_start, bytecode, rho, used_bcells, 0);
-    }
-    executable_pos +=  _RCP_INIT.body_size;
+        patch(&executable[executable_pos], &_RCP_INIT, &_RCP_INIT.holes[j], NULL, mem_shared, ro_near, constpool, bcells, precompiled, executable, inst_start, bytecode, rho, used_bcells, 0);
+
+    executable_pos += _RCP_INIT.body_size;
 
     for (int i = 0; i < bytecode_size; ++i)
     {
@@ -581,7 +602,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
             {
                 DEBUG_PRINT("**********\nCompiling closure\n");
                 //constpool[bytecode[i+1]] = Rf_duplicate(constpool[bytecode[i+1]]); // TODO Is this needed?
-                SEXP res = copy_patch_bc(body);
+                SEXP res = copy_patch_bc(body, stats);
                 SET_VECTOR_ELT(fb, 1, res);
             }
             else if(IS_RCP_PTR(body))
@@ -600,16 +621,13 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
         memcpy(&executable[executable_pos], stencil->body, stencil->body_size);
 
         for (size_t j = 0; j < stencil->holes_size; ++j)
-        {
-            patch(&executable[executable_pos], stencil, &stencil->holes[j], &bytecode[i+1], ro_low, ro_near, constpool, bcells, precompiled, executable, inst_start, bytecode, rho, used_bcells, i + imms_cnt[bytecode[i]] + 1);
-        }
-
-        //print_byte_array(&executable[executable_pos], stencils[bytecode[i]].body_size);
+            patch(&executable[executable_pos], stencil, &stencil->holes[j], &bytecode[i+1], mem_shared, ro_near, constpool, bcells, precompiled, executable, inst_start, bytecode, rho, used_bcells, i + imms_cnt[bytecode[i]] + 1);
 
         executable_pos += stencil->body_size;
 
         i += imms_cnt[bytecode[i]];
     }
+
     free(used_bcells);
     free(inst_start);
 
@@ -617,6 +635,9 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
         perror("mprotect failed");
         exit(1);
     }
+
+    stats->total_size += total_size;
+    stats->executable_size += insts_size;
 
     return res;
 }
@@ -664,12 +685,6 @@ static void bytecode_info(const int* bytecode, int bytecode_size, const SEXP* co
         {
             DEBUG_PRINT("\tIMM: %d\n", bytecode[i+1+j]);
         }
-        /*
-        if (bytecode[i] == STARTFOR_OP)
-        {
-            DEBUG_PRINT(stderr, "%d\n", TYPEOF(consts[bytecode[i+1+j]]));
-            Rf_PrintValue(consts[bytecode[i+1+j]]);
-        }*/
         instructions++;
         i += imms_cnt[bytecode[i]];
     }
@@ -677,7 +692,7 @@ static void bytecode_info(const int* bytecode, int bytecode_size, const SEXP* co
     DEBUG_PRINT("Instructions in bytecode: %d\n", instructions);
 }
 
-static SEXP copy_patch_bc(SEXP bcode)
+static SEXP copy_patch_bc(SEXP bcode, CompilationStats* stats)
 {
     SEXP bcode_code = BCODE_CODE(bcode);
     SEXP bcode_consts = BCODE_CONSTS(bcode);
@@ -691,7 +706,7 @@ static SEXP copy_patch_bc(SEXP bcode)
     int consts_size = LENGTH(bcode_consts);
 
     bytecode_info(bytecode, bytecode_size, consts, consts_size);
-    rcp_exec_ptrs res = copy_patch_internal(bytecode, bytecode_size, consts, consts_size);
+    rcp_exec_ptrs res = copy_patch_internal(bytecode, bytecode_size, consts, consts_size, stats);
     UNPROTECT(1); // code
 
     (res.memory_shared_refcount)++;
@@ -710,32 +725,19 @@ static SEXP copy_patch_bc(SEXP bcode)
 
 SEXP rcp_init()
 {
-    prepare();
+    prepare_precompiled();
 
-    ro_low = mmap(NULL, sizeof(rodata), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_32BIT, -1, 0);
-    if (ro_low == MAP_FAILED)
-        exit(1);
-
-    __builtin_assume_aligned (ro_low, sysconf(_SC_PAGESIZE)); // memory is aligned to page size
-    memcpy(ro_low, rodata, sizeof(rodata));
-
-    if (mprotect(ro_low, sizeof(rodata), PROT_READ) != 0) {
-        perror("mprotect failed");
-        exit(1);
-    }
-
-    shared_mem_ref_count = malloc(sizeof(*shared_mem_ref_count));
-    *shared_mem_ref_count = 1;
+    prepare_rodata();
 }
 
 SEXP rcp_destr()
 {
-    if(--(*shared_mem_ref_count) == 0)
+    if(--(*mem_shared_ref_count) == 0)
     {
-        munmap(ro_low, sizeof(rodata));
-        ro_low = NULL;
-        free(shared_mem_ref_count);
-        shared_mem_ref_count = NULL;
+        munmap(mem_shared, sizeof(rodata));
+        mem_shared = NULL;
+        free(mem_shared_ref_count);
+        mem_shared_ref_count = NULL;
     }
 }
 
@@ -746,16 +748,20 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
     if (TYPEOF(f) != CLOSXP)
         error("The first argument must be a closure.");
 
-    clock_gettime(CLOCK_MONOTONIC, &start); // Start time measurement
+    CompilationStats stats = {0, 0};
+
+    clock_gettime(CLOCK_MONOTONIC, &start);
     SEXP compiled = PROTECT(compile_to_bc(f, options));
-    clock_gettime(CLOCK_MONOTONIC, &mid); // End time measurement
-    SEXP ptr = copy_patch_bc(BODY(compiled));
+    clock_gettime(CLOCK_MONOTONIC, &mid);
+    SEXP ptr = copy_patch_bc(BODY(compiled), &stats);
     SET_BODY(compiled, ptr);
-    clock_gettime(CLOCK_MONOTONIC, &end); // End time measurement
+    clock_gettime(CLOCK_MONOTONIC, &end);
     UNPROTECT(1);
 
     double elapsed_time = (end.tv_sec - start.tv_sec) * 1000.0 + (end.tv_nsec - start.tv_nsec) / 1000000.0;
     double elapsed_time_mid = (mid.tv_sec - start.tv_sec) * 1000.0 + (mid.tv_nsec - start.tv_nsec) / 1000000.0;
+
+    fprintf(stderr, "Total size: %zu (executable size: %zu)\n", stats.total_size, stats.executable_size);
     fprintf(stderr, "Copy-patched in %.3f ms (%.3f for bytecode compilation + %.3f for copy-patch)\n", elapsed_time, elapsed_time_mid, elapsed_time - elapsed_time_mid);
     
     return compiled;

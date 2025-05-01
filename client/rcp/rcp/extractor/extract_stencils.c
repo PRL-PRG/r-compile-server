@@ -101,8 +101,6 @@ static void print_byte_array(FILE *file, const unsigned char * arr, size_t len) 
 
 static void export_body(FILE *file, const StencilMutable* stencil, const char* opcode_name)
 {
-  //if(stencils[opcode].holes_size != 0)
-  
   fprintf(file, "const Hole _%s_HOLES[] = {\n", opcode_name);
   for (size_t j = 0; j < stencil->holes_size; ++j)
   {
@@ -201,14 +199,9 @@ static void export_to_files()
   for (uint8_t i = 0; i < sizeof(OPCODES) / sizeof(*OPCODES); ++i)
   {
     if(stencils[i].body_size != 0)
-    {
-      //fprintf(file, "{%zu, _%s_BODY, %zu, _%s_HOLES, %zu, _%s_RO}, // %s\n", stencils[i].body_size, OPCODES[i], stencils[i].holes_size, OPCODES[i], stencils[i].ro_size, OPCODES[i], OPCODES[i]);
       fprintf(file, "{%zu, _%s_BODY, %zu, _%s_HOLES}, // %s\n", stencils[i].body_size, OPCODES[i], stencils[i].holes_size, OPCODES[i], OPCODES[i]);
-    }
     else
-    {
       fprintf(file, "{0, NULL, 0, NULL}, // %s\n", OPCODES[i]);
-    }
   }
 
   fprintf(file, "};\n");
