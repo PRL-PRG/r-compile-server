@@ -43,12 +43,12 @@ StencilMutable stencils[sizeof(OPCODES) / sizeof( * OPCODES)] = { 0 };
 
 
 typedef struct NamedStencil {
-  char * name;
-  StencilMutable * stencil;
+  char name[32];
+  StencilMutable stencil;
   struct NamedStencil * next;
 } NamedStencil;
 
-NamedStencil extraStencilFirst = { NULL, NULL, NULL };
+NamedStencil extraStencilFirst = { "", {}, NULL };
 NamedStencil* extraStencilLast = &extraStencilFirst;
 
 
@@ -124,11 +124,6 @@ static void export_body(FILE *file, const StencilMutable* stencil, const char* o
     fprintf(file, " },\n");
   }
   fprintf(file, "};\n\n");
-  /*
-  fprintf(file, "const uint8_t _%s_RO[] = {\n", opcode_name);
-  print_byte_array(file, stencil->ro, stencil->ro_size);
-  fprintf(file, "\n};\n\n");
-  */
   fprintf(file, "const uint8_t _%s_BODY[] = {\n", opcode_name);
   print_byte_array(file, stencil->body, stencil->body_size);
   fprintf(file, "\n};\n\n");
@@ -160,7 +155,7 @@ static void export_to_files()
       strcat(filename, ".h");
 
       FILE *file = fopen(filename, "wt"); 
-      export_body(file, current->stencil, current->name);
+      export_body(file, &current->stencil, current->name);
       fclose(file);
 
       current = current -> next;
@@ -195,7 +190,7 @@ static void export_to_files()
 
     while (current -> next != NULL)
     {
-      fprintf(file, "const Stencil %s = { %zu, _%s_BODY, %zu, _%s_HOLES};\n", current->name, current->stencil->body_size, current->name, current->stencil->holes_size, current->name);//, %zu, _%s_RO
+      fprintf(file, "const Stencil %s = { %zu, _%s_BODY, %zu, _%s_HOLES};\n", current->name, current->stencil.body_size, current->name, current->stencil.holes_size, current->name);//, %zu, _%s_RO
 
       current = current -> next;
     }
@@ -508,9 +503,8 @@ static void process_sections(bfd *abfd, asection *section, void *data)
     }
     else
     {
-      extraStencilLast->name = strdup(sym->name + 6);
-      extraStencilLast->stencil = malloc(sizeof(StencilMutable));
-      stencil = extraStencilLast->stencil;
+      strcpy(extraStencilLast->name, sym->name + 6);
+      stencil = &extraStencilLast->stencil;
       extraStencilLast->next = malloc(sizeof(NamedStencil));
       extraStencilLast->next->next = NULL;
       extraStencilLast = extraStencilLast->next;
@@ -561,6 +555,7 @@ static void free_stencil(StencilMutable* stencil)
 
 static void cleanup()
 {
+  // Free the stencils array
   for (uint8_t i = 0; i < sizeof(OPCODES) / sizeof( * OPCODES); ++i)
   {
     free_stencil(&stencils[i]);
@@ -571,10 +566,7 @@ static void cleanup()
 
   do
   {
-    free(current->name);
-    free_stencil(current->stencil);
-    free(current->stencil);
-
+    free_stencil(&current->stencil);
     current = current -> next;
   }
   while (current -> next != NULL);
