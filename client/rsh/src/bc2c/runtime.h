@@ -177,7 +177,9 @@ EXTERN_ATTRIBUTES extern SEXP R_LOGIC2_OPS[];
 
 EXTERN_ATTRIBUTES extern SEXP R_MATH1_EXT_OPS[];
 EXTERN_ATTRIBUTES extern SEXP R_MATH1_EXT_SYMS[];
-EXTERN_ATTRIBUTES extern Rsh_Math1Fun R_MATH1_EXT_FUNS[];
+#ifndef RCP
+extern Rsh_Math1Fun R_MATH1_EXT_FUNS[];
+#endif
 #endif
 
 #define RSH_R_SYMBOLS                                                          \
