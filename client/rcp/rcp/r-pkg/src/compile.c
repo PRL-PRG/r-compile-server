@@ -181,18 +181,6 @@ static SEXP copy_patch_bc(SEXP bcode);
 
 #include "stencils/stencils.h"
 
-static uintptr_t* const_pool_add(uintptr_t* constpool, size_t* constpool_size, uintptr_t value)
-{
-    for (size_t i = 0; i < *constpool_size; ++i)
-    {
-        if(constpool[i] == value)
-            return &constpool[i];
-    }
-    //If it got here, the value is not in constpool and we need to add it
-    constpool[*constpool_size] = value;
-    return &constpool[(*constpool_size)++];
-}
-
 static int fits_in_int64(int64_t value) {
     return value >= INT64_MIN && value <= INT64_MAX;
 }
@@ -240,7 +228,7 @@ static uint8_t reloc_indirection(RELOC_KIND kind)
     }
 }
 
-static void patch(uint8_t* inst, const Stencil* stencil, const Hole* hole, int* imms, uintptr_t* immpool, size_t* immpool_size, const uint8_t* ro_low, const uint8_t* ro_near, SEXP * constpool, SEXP * bcells, SEXP * precompiled, uint8_t* executable, size_t * executable_lookup, int bytecode[], SEXP* rho, const int* bcell_lookup, int nextop)
+static void patch(uint8_t* inst, const Stencil* stencil, const Hole* hole, int* imms, const uint8_t* ro_low, const uint8_t* ro_near, SEXP * constpool, SEXP * bcells, SEXP * precompiled, uint8_t* executable, size_t * executable_lookup, int bytecode[], SEXP* rho, const int* bcell_lookup, int nextop)
 {
     ptrdiff_t ptr;
 
@@ -318,11 +306,6 @@ static void patch(uint8_t* inst, const Stencil* stencil, const Hole* hole, int* 
     {
         ptr = *(uintptr_t*)ptr;
         DEBUG_PRINT("dereferencing pointer\n");
-    }
-    for (; indirection_correction < 0; ++indirection_correction)
-    {
-        ptr = (ptrdiff_t)const_pool_add(immpool, immpool_size, (uintptr_t)ptr);
-        DEBUG_PRINT("creating a pointer\n");
     }
 
     ptr += hole->addend;
@@ -466,8 +449,6 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
 {
     rcp_exec_ptrs res;
     size_t insts_size = _RCP_INIT.body_size;
-    size_t imms_capacity = 0;
-    size_t imms_size = 0;
 
     size_t* inst_start = calloc(bytecode_size, sizeof(size_t));
     int* used_bcells = calloc(constpool_size, sizeof(int));
@@ -493,7 +474,9 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
             int indirection_level = reloc_indirection(hole->kind);
 
             if(hole->indirection_level > indirection_level)
-                imms_capacity += hole->indirection_level-indirection_level;
+            {
+                error("Unsupported patch symbol indirection level. Stencils need to be compiled with position dependent code (no-pic) switch.");
+            }
 
             switch(hole->kind)
             {
@@ -516,7 +499,6 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
     }
     
     fprintf(stderr, "Binary size: %zu\n", insts_size);
-    DEBUG_PRINT("imms_capacity: %zu\n", imms_capacity);
 
     int bcells_size = 0;
     for (int i = 0; i < constpool_size; ++i)
@@ -535,7 +517,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
 
     size_t rodata_size = align_to_higher(sizeof(rodata), sizeof(void*));
 
-    size_t total_size = rodata_size + sizeof(SEXP) + insts_size + imms_capacity*sizeof(uintptr_t) + bcells_size*sizeof(SEXP) + sizeof(precompiled_functions);
+    size_t total_size = rodata_size + sizeof(SEXP) + insts_size + bcells_size*sizeof(SEXP) + sizeof(precompiled_functions);
 
     void* mem_address = find_free_space_near(&Rf_ScalarInteger, total_size);
 
@@ -553,8 +535,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
     SEXP* rho =            (SEXP*) &memory[rodata_size];
     SEXP* bcells =         (SEXP*) &memory[rodata_size + sizeof(*rho)];
     SEXP* precompiled =    (SEXP*) &memory[rodata_size + sizeof(*rho) + bcells_size * sizeof(*bcells)];
-    uintptr_t* imms = (uintptr_t*) &memory[rodata_size + sizeof(*rho) + bcells_size * sizeof(*bcells) + sizeof(precompiled_functions)];
-    uint8_t* executable =          &memory[rodata_size + sizeof(*rho) + bcells_size * sizeof(*bcells) + sizeof(precompiled_functions) + imms_capacity * sizeof(*imms)];
+    uint8_t* executable =          &memory[rodata_size + sizeof(*rho) + bcells_size * sizeof(*bcells) + sizeof(precompiled_functions)];
 
     res.eval = (void*)executable;
     res.rho = rho;
@@ -583,7 +564,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
     memcpy(&executable[executable_pos], _RCP_INIT.body, _RCP_INIT.body_size);
     for (size_t j = 0; j < _RCP_INIT.holes_size; ++j)
     {
-        patch(&executable[executable_pos], &_RCP_INIT, &_RCP_INIT.holes[j], NULL, NULL, 0, ro_low, ro_near, constpool, bcells, precompiled, executable, inst_start, bytecode, rho, used_bcells, 0);
+        patch(&executable[executable_pos], &_RCP_INIT, &_RCP_INIT.holes[j], NULL, ro_low, ro_near, constpool, bcells, precompiled, executable, inst_start, bytecode, rho, used_bcells, 0);
     }
     executable_pos +=  _RCP_INIT.body_size;
 
@@ -620,7 +601,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
 
         for (size_t j = 0; j < stencil->holes_size; ++j)
         {
-            patch(&executable[executable_pos], stencil, &stencil->holes[j], &bytecode[i+1], imms, &imms_size, ro_low, ro_near, constpool, bcells, precompiled, executable, inst_start, bytecode, rho, used_bcells, i + imms_cnt[bytecode[i]] + 1);
+            patch(&executable[executable_pos], stencil, &stencil->holes[j], &bytecode[i+1], ro_low, ro_near, constpool, bcells, precompiled, executable, inst_start, bytecode, rho, used_bcells, i + imms_cnt[bytecode[i]] + 1);
         }
 
         //print_byte_array(&executable[executable_pos], stencils[bytecode[i]].body_size);
