@@ -739,7 +739,7 @@ SEXP rcp_destr()
     }
 }
 
-SEXP rcp_cmpfun(SEXP f, SEXP options)
+SEXP C_rcp_cmpfun(SEXP f, SEXP options)
 {
     struct timespec start, mid, end;
 
