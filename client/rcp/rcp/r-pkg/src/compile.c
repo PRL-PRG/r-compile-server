@@ -97,7 +97,7 @@ static SEXP LOAD_R_BUILTIN(const char* name)
     return result;
 }
 
-void* precompiled_functions[126];
+void* precompiled_functions[102];
 static void prepare_precompiled()
 {
     int i = 0;
@@ -152,10 +152,10 @@ static void prepare_precompiled()
     X_MATH1_EXT_OPS
     #undef X
 
-    //R_MATH1_EXT_FUNS
-    #define X(a, b, c) precompiled_functions[i++] = &c;
-    X_MATH1_EXT_OPS
-    #undef X
+    ////R_MATH1_EXT_FUNS
+    //#define X(a, b, c) precompiled_functions[i++] = &c;
+    //X_MATH1_EXT_OPS
+    //#undef X
 
     //R_MATH1_EXT_SYMS
     #define X(a, b) precompiled_functions[i++] = Rf_install(#a);

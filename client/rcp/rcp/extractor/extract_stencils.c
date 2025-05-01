@@ -265,9 +265,9 @@ static int rsh_symbol_id(const char * name)
     return counter;
   counter += 24;
 
-  if (strcmp(name, "R_MATH1_EXT_FUNS") == 0)
-    return counter;
-  counter += 24;
+  //if (strcmp(name, "R_MATH1_EXT_FUNS") == 0)
+  //  return counter;
+  //counter += 24;
 
   #define X(a, b) if (strcmp(name, #b"Sym") == 0) return counter; counter += 1;
   RSH_R_SYMBOLS
@@ -602,6 +602,15 @@ static void print_sizes()
       count++;
     }
   }
+  NamedStencil* current = &extraStencilFirst;
+  do
+  {
+    total_size += current->stencil.body_size;
+    count++;
+    current = current -> next;
+  }
+  while (current -> next != NULL);
+
   fprintf(stderr, "Total size of stencils: %zu bytes\n", total_size);
   fprintf(stderr, "Average size of stencils: %lf bytes\n", ((double)total_size)/count);
 

@@ -2,6 +2,45 @@
 #define RCP
 //#define ASSERTS
 
+/*************MATH1 specialization*****************/
+#include <Rmath.h>
+#define X_MATH1_EXT_OPS                                                        \
+  X(floor, 0, floor)                                                           \
+  X(ceiling, 1, ceil)                                                          \
+  X(sign, 2, sign)                                                             \
+  X(expm1, 3, expm1)                                                           \
+  X(log1p, 4, log1p)                                                           \
+  X(cos, 5, cos)                                                               \
+  X(sin, 6, sin)                                                               \
+  X(tan, 7, tan)                                                               \
+  X(acos, 8, acos)                                                             \
+  X(asin, 9, asin)                                                             \
+  X(atan, 10, atan)                                                            \
+  X(cosh, 11, cosh)                                                            \
+  X(sinh, 12, sinh)                                                            \
+  X(tanh, 13, tanh)                                                            \
+  X(acosh, 14, acosh)                                                          \
+  X(asinh, 15, asinh)                                                          \
+  X(atanh, 16, atanh)                                                          \
+  X(lgamma, 17, lgammafn)                                                      \
+  X(gamma, 18, gammafn)                                                        \
+  X(digamma, 19, digamma)                                                      \
+  X(trigamma, 20, trigamma)                                                    \
+  X(cospi, 21, cospi)                                                          \
+  X(sinpi, 22, sinpi)                                                          \
+  X(tanpi, 23, Rtanpi)
+
+typedef double (*Rsh_Math1Fun)(double);
+
+#define X(a, b, c) &c,
+static Rsh_Math1Fun R_MATH1_EXT_FUNS[] = {
+  X_MATH1_EXT_OPS
+};
+#undef X
+#undef X_MATH1_EXT_OPS
+/**************************************************/
+
+
 #include <runtime.h>
 
 /*
@@ -156,12 +195,12 @@ RCP_OP(INVISIBLE) {
 }
 
 // Generic version
-RCP_OP(LDCONST) {
-  PUSH_VAL(1);
-  R_Visible = TRUE;
-  SET_VAL(GET_VAL(1), GETCONST_IMM(0));
-  RETURN;
-}
+//RCP_OP(LDCONST) {
+//  PUSH_VAL(1);
+//  R_Visible = TRUE;
+//  SET_VAL(GET_VAL(1), GETCONST_IMM(0));
+//  RETURN;
+//}
 
 // Specialized versions
 RCP_OP(LDCONST_INT) {
@@ -767,10 +806,10 @@ RCP_OP(LOGBASE) {
 }
 
 // MATH1 generic version
-RCP_OP(MATH1) {
-  Rsh_Math1(GET_VAL(1), GETCONST_IMM(0), GET_IMM(1), GET_RHO());
-  RETURN;
-}
+//RCP_OP(MATH1) {
+//  Rsh_Math1(GET_VAL(1), GETCONST_IMM(0), GET_IMM(1), GET_RHO());
+//  RETURN;
+//}
 
 // MATH1 specializations
 #define X(a, b, c) \
