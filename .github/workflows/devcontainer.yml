@@ -68,9 +68,8 @@ jobs:
           submodules: recursive
       - name: Build R from source
         run: |
+          make setup
           cd external/R
-          ./configure --enable-R-shlib --without-recommended-packages
-          make -j$(nproc)
           echo "R_HOME=$(pwd)" >> $GITHUB_ENV
           echo "R_BINARY=$(pwd)/bin/R" >> $GITHUB_ENV
       - name: Test R installation
