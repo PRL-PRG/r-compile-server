@@ -1,7 +1,7 @@
 # Saner makefile
 MAKEFLAGS += --no-builtin-rules
 
-LLVM_LIB := $(shell llvm-config-17 --libfiles)
+LLVM_LIB := $(shell /opt/homebrew/opt/llvm@17/bin/llvm-config --libfiles)
 BEAR := $(shell command -v bear 2> /dev/null)
 
 BASE_DIR = $(realpath $(dir $(abspath $(lastword $(MAKEFILE_LIST))))/../..)

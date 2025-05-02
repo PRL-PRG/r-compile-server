@@ -1123,7 +1123,8 @@ public sealed interface BcInstr {
   /// The SUBSET_N instruction.
   ///
   /// Stack effect:
-  ///  - pops the vector and a variable number of elements from the stack determined by the value of
+  ///  - pops the vector and a variable number of elements from the stack determined by the value
+  // of
   // [[n]]
   ///  - pushes the result
   ///
@@ -1143,7 +1144,8 @@ public sealed interface BcInstr {
   /// The SUBSET2_N instruction.
   ///
   /// Stack effect:
-  ///  - pops the vector and a variable number of elements from the stack determined by the value of
+  ///  - pops the vector and a variable number of elements from the stack determined by the value
+  // of
   // [[n]]
   ///  - pushes the result
   ///
@@ -1163,7 +1165,8 @@ public sealed interface BcInstr {
   /// The SUBASSIGN_N instruction.
   ///
   /// Stack effect:
-  ///  - pops the vector and a variable number of elements from the stack determined by the value of
+  ///  - pops the vector and a variable number of elements from the stack determined by the value
+  // of
   // [[n]] and rhs
   ///  - pushes the result
   ///
@@ -1183,7 +1186,8 @@ public sealed interface BcInstr {
   /// The SUBASSIGN2_N instruction.
   ///
   /// Stack effect:
-  ///  - pops the vector and a variable number of elements from the stack determined by the value of
+  ///  - pops the vector and a variable number of elements from the stack determined by the value
+  // of
   // [[n]] and rhs
   ///  - pushes the result
   ///

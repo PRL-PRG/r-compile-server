@@ -18,6 +18,7 @@ import org.prlprg.sexp.BuiltinOrSpecialSXP;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.EmptyEnvSXP;
 import org.prlprg.sexp.EnvSXP;
+import org.prlprg.sexp.ExtptrSxp;
 import org.prlprg.sexp.LangSXP;
 import org.prlprg.sexp.ListSXP;
 import org.prlprg.sexp.NamespaceEnvSXP;
@@ -321,6 +322,11 @@ public class SEXPPrintContext implements HasSEXPPrintContext {
           p.print(sexp.id());
           printGeneralEnd(p);
         });
+  }
+
+  @PrintMethod
+  private void print(ExtptrSxp sexp, Printer p) {
+    p.writer().write("<extptr>");
   }
 
   @PrintMethod
