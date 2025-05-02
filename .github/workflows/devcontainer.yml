@@ -93,16 +93,7 @@ jobs:
     steps:
 
       - name: Checkout (GitHub)
-        uses: actions/checkout@v3
-
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v2 
-        with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-    
+        uses: actions/checkout@v3    
       # See https://github.com/devcontainers/ci/blob/main/docs/github-action.md
       - name: Run tests in the dev container task
         run: cd server; mvn --batch-mode --update-snapshots test
@@ -110,7 +101,7 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     needs: build-image
-    container: ghcr.io/${{ github.repository }}:latest
+    container: ${{ needs.build-image.outputs.imageName }}:latest
     steps:
 
       - name: Checkout (GitHub)
