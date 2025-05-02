@@ -112,7 +112,7 @@ jobs:
   test-client:
     runs-on: ubuntu-latest
     container: ${{ needs.build-image.outputs.imageName }}:latest
-    needs: artifact
+    needs: [artifact, build-image]
     steps:
       - uses: actions/checkout@v3
       - name: build client 
