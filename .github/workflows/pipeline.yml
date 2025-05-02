@@ -94,13 +94,16 @@ jobs:
 
       - name: Checkout (GitHub)
         uses: actions/checkout@v3    
-        with:
-          submodules: recursive
       # See https://github.com/devcontainers/ci/blob/main/docs/github-action.md
       - uses: actions/download-artifact@v4
-      - run: ls external/R;ls external/R/bin
+      - run: ls /worspace/external/R;ls /workspace/external/R/bin
       - name: Run tests in the dev container task
         run: cd server; mvn --batch-mode --update-snapshots test
+        env:
+          # Set the R_HOME environment variable to the path of the R installation
+          R_HOME: /workspace/external/R
+          # Set the PATH environment variable to include the R binary directory
+          R_BIN: /workspace/external/R/bin/R
 
 
   verify:
