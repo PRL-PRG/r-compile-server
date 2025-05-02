@@ -512,7 +512,10 @@ public class RDSReader implements Closeable {
     if (length == -1) {
       out = Constants.NA_STRING;
     } else {
-      assert encoding != null;
+      // assert encoding != null;
+      if (encoding == null) {
+        encoding = Charset.defaultCharset();
+      }
       out = in.readString(length, encoding);
     }
 
