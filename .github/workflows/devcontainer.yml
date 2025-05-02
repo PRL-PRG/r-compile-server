@@ -10,6 +10,8 @@ jobs:
   build-image:
     name: Build and Push Docker Image
     runs-on: ubuntu-latest
+    outputs:
+      imageName: ${{ steps.step5.outputs.imageName }}
     permissions:
       contents: read
       packages: write
