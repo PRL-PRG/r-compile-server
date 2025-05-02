@@ -58,29 +58,6 @@ jobs:
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache,new=true
 
-  build-r:
-    runs-on: ubuntu-latest
-    needs: build-image
-    container: ${{ needs.build-image.outputs.imageName }}:latest
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          submodules: recursive
-      - name: Build R from source
-        run: |
-          make setup
-          cd external/R
-          echo "R_HOME=$(pwd)" >> $GITHUB_ENV
-          echo "R_BINARY=$(pwd)/bin/R" >> $GITHUB_ENV
-      - name: Test R installation
-        run: |
-          ${{ env.R_BINARY }} --version
-      - name: Upload built R as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: r-installation
-          path: external/R
-
   artifact:
     runs-on: ubuntu-latest
     needs: build-image
@@ -111,7 +88,7 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
-    needs: [build-image, build-r]
+    needs: build-image
     container: ${{ needs.build-image.outputs.imageName }}:latest
     steps:
 
@@ -121,18 +98,10 @@ jobs:
           submodules: recursive
       # See https://github.com/devcontainers/ci/blob/main/docs/github-action.md
       - uses: actions/download-artifact@v4
-        with:
-          name: r-installation
-          path: r-installation
-      - name: Set up R environment
-        run: |
-          echo "R_HOME=$(pwd)/r-installation" >> $GITHUB_ENV
-          echo "PATH=$(pwd)/r-installation/bin:$PATH" >> $GITHUB_ENV
+      - run: ls external/R;ls external/R/bin
       - name: Run tests in the dev container task
         run: cd server; mvn --batch-mode --update-snapshots test
-        env:
-          R_HOME: ${{ env.R_HOME }}
-          PATH: ${{ env.PATH }}
+
 
   verify:
     runs-on: ubuntu-latest
