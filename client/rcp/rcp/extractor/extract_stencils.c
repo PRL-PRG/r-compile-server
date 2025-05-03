@@ -34,19 +34,20 @@ typedef enum
   R_X86_64_TPOFF32
 } X86_64_RELOC_KIND;
 
-uint8_t *rodata;
-size_t rodata_size = 0;
-
-StencilMutable stencils[sizeof(OPCODES) / sizeof(*OPCODES)] = {0};
-
 typedef struct NamedStencil {
   char name[32];
   StencilMutable stencil;
   struct NamedStencil * next;
 } NamedStencil;
 
-NamedStencil extraStencilFirst = {"", {}, NULL};
-NamedStencil *extraStencilLast = &extraStencilFirst;
+typedef struct
+{
+  uint8_t *rodata;
+  size_t rodata_size;
+  StencilMutable stencils_opcodes[sizeof(OPCODES) / sizeof(*OPCODES)];
+  NamedStencil stencil_extra_first;
+  NamedStencil *stencil_extra_last;
+} Stencils;
 
 // Function to check if str starts with prefix
 static int starts_with(const char *str, const char *prefix)
@@ -120,21 +121,21 @@ static void export_body(FILE *file, const StencilMutable *stencil, const char *o
   fprintf(file, "\n};\n\n");
 }
 
-static void export_to_files()
+static void export_to_files(const Stencils *stencils)
 {
   for (uint8_t i = 0; i < sizeof(OPCODES) / sizeof(*OPCODES); ++i)
   {
-    if (stencils[i].body_size != 0)
+    if (stencils->stencils_opcodes[i].body_size != 0)
     {
       char filename[32];
       strcpy(filename, OPCODES[i]);
       strcat(filename, ".h");
       FILE *file = fopen(filename, "wt");
-      export_body(file, &stencils[i], OPCODES[i]);
+      export_body(file, &stencils->stencils_opcodes[i], OPCODES[i]);
       fclose(file);
     }
   }
-  for (NamedStencil *current = &extraStencilFirst; current->next != NULL; current = current->next)
+  for (const NamedStencil *current = &stencils->stencil_extra_first; current->next != NULL; current = current->next)
   {
     char filename[64];
     strcpy(filename, current->name);
@@ -147,28 +148,28 @@ static void export_to_files()
 
   FILE *file = fopen("stencils.h", "wt");
 
-  for (NamedStencil *current = &extraStencilFirst; current->next != NULL; current = current->next)
+  for (const NamedStencil *current = &stencils->stencil_extra_first; current->next != NULL; current = current->next)
     fprintf(file, "#include \"%s.h\"\n", current->name);
 
   for (uint8_t i = 0; i < sizeof(OPCODES) / sizeof(*OPCODES); ++i)
   {
-    if (stencils[i].body_size != 0)
+    if (stencils->stencils_opcodes[i].body_size != 0)
       fprintf(file, "#include \"%s.h\"\n", OPCODES[i]);
   }
 
   fprintf(file, "uint8_t rodata[] = { ");
-  print_byte_array(file, rodata, rodata_size);
+  print_byte_array(file, stencils->rodata, stencils->rodata_size);
   fprintf(file, "};\n");
 
-  for (NamedStencil *current = &extraStencilFirst; current->next != NULL; current = current->next)
+  for (const NamedStencil *current = &stencils->stencil_extra_first; current->next != NULL; current = current->next)
     fprintf(file, "const Stencil %s = { %zu, _%s_BODY, %zu, _%s_HOLES};\n", current->name, current->stencil.body_size, current->name, current->stencil.holes_size, current->name);
 
   fprintf(file, "\nconst Stencil stencils[%zu] = {\n", sizeof(OPCODES) / sizeof(*OPCODES));
 
   for (uint8_t i = 0; i < sizeof(OPCODES) / sizeof(*OPCODES); ++i)
   {
-    if (stencils[i].body_size != 0)
-      fprintf(file, "{%zu, _%s_BODY, %zu, _%s_HOLES}, // %s\n", stencils[i].body_size, OPCODES[i], stencils[i].holes_size, OPCODES[i], OPCODES[i]);
+    if (stencils->stencils_opcodes[i].body_size != 0)
+      fprintf(file, "{%zu, _%s_BODY, %zu, _%s_HOLES}, // %s\n", stencils->stencils_opcodes[i].body_size, OPCODES[i], stencils->stencils_opcodes[i].holes_size, OPCODES[i], OPCODES[i]);
     else
       fprintf(file, "{0, NULL, 0, NULL}, // %s\n", OPCODES[i]);
   }
@@ -423,6 +424,8 @@ static void process_relocations(StencilMutable *const stencil, long reloc_count,
 
 static void process_sections(bfd *abfd, asection *section, void *data)
 {
+  Stencils *stencils = (Stencils *)data;
+
   bfd_size_type size = bfd_section_size(section);
   if (size == 0)
     return;
@@ -465,15 +468,15 @@ static void process_sections(bfd *abfd, asection *section, void *data)
     int opcode = get_opcode(sym->name + 6);
     if (opcode != -1)
     {
-      stencil = &stencils[opcode];
+      stencil = &stencils->stencils_opcodes[opcode];
     }
     else
     {
-      strcpy(extraStencilLast->name, sym->name + 6);
-      stencil = &extraStencilLast->stencil;
-      extraStencilLast->next = malloc(sizeof(NamedStencil));
-      extraStencilLast->next->next = NULL;
-      extraStencilLast = extraStencilLast->next;
+      strcpy(stencils->stencil_extra_last->name, sym->name + 6);
+      stencil = &stencils->stencil_extra_last->stencil;
+      stencils->stencil_extra_last->next = malloc(sizeof(NamedStencil));
+      stencils->stencil_extra_last->next->next = NULL;
+      stencils->stencil_extra_last = stencils->stencil_extra_last->next;
     }
 
     stencil->body_size = size;
@@ -485,8 +488,8 @@ static void process_sections(bfd *abfd, asection *section, void *data)
   {
     if (strcmp(sym->name, ".rodata") == 0)
     {
-      rodata_size = size;
-      rodata = buffer;
+      stencils->rodata_size = size;
+      stencils->rodata = buffer;
       //fprintf(stderr, "Allign rodata to 2^%u\n", section->alignment_power);
 
       if (reloc_count > 0)
@@ -518,16 +521,18 @@ static void free_stencil(StencilMutable *stencil)
   stencil->body = NULL;
 }
 
-static void cleanup()
+static void cleanup(Stencils *stencils)
 {
+  free(stencils->rodata);
+  stencils->rodata = NULL;
+
   // Free the stencils array
   for (uint8_t i = 0; i < sizeof(OPCODES) / sizeof(*OPCODES); ++i)
   {
-    free_stencil(&stencils[i]);
-    stencils[i];
+    free_stencil(&stencils->stencils_opcodes[i]);
   }
 
-  NamedStencil *current = &extraStencilFirst;
+  NamedStencil *current = &stencils->stencil_extra_first;
 
   do
   {
@@ -535,16 +540,18 @@ static void cleanup()
     current = current->next;
   } while (current->next != NULL);
 
-  current = extraStencilFirst.next;
-  while (current->next != NULL)
+  current = stencils->stencil_extra_first.next;
+  while (current != NULL)
   {
     NamedStencil *next = current->next;
     free(current);
     current = next;
   }
+
+  stencils->stencil_extra_first.next = NULL;
 }
 
-static void analyze_object_file(const char *filename)
+static void analyze_object_file(const char *filename, Stencils *stencils)
 {
   bfd *abfd = bfd_openr(filename, NULL);
   if (!abfd)
@@ -560,23 +567,23 @@ static void analyze_object_file(const char *filename)
     return;
   }
 
-  bfd_map_over_sections(abfd, process_sections, NULL);
+  bfd_map_over_sections(abfd, process_sections, stencils);
   bfd_close(abfd);
 }
 
-static void print_sizes()
+static void print_sizes(Stencils *stencils)
 {
   int64_t total_size = 0;
   size_t count = 0;
   for (uint8_t i = 0; i < sizeof(OPCODES) / sizeof(*OPCODES); ++i)
   {
-    if (stencils[i].body_size != 0)
+    if (stencils->stencils_opcodes[i].body_size != 0)
     {
-      total_size += stencils[i].body_size;
+      total_size += stencils->stencils_opcodes[i].body_size;
       count++;
     }
   }
-  NamedStencil *current = &extraStencilFirst;
+  NamedStencil *current = &stencils->stencil_extra_first;
   do
   {
     total_size += current->stencil.body_size;
@@ -596,14 +603,23 @@ int main(int argc, char **argv)
     return 1;
   }
   bfd_init();
-  analyze_object_file(argv[1]);
+
+  Stencils stencils = {
+    .rodata = NULL,
+    .rodata_size = 0,
+    .stencils_opcodes = {0},
+    .stencil_extra_first = {"", {}, NULL},
+    .stencil_extra_last = &stencils.stencil_extra_first
+  };
+
+  analyze_object_file(argv[1], &stencils);
 
   //export_body();
-  export_to_files();
+  export_to_files(&stencils);
 
-  print_sizes();
+  print_sizes(&stencils);
 
-  cleanup();
+  cleanup(&stencils);
 
   return 0;
 }

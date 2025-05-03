@@ -23,7 +23,7 @@ $(STENCILS_OBJ): stencils/stencils.c
 $(EXTRACTOR_BIN): extractor/extract_stencils.c
 	@echo "Building extractor..."
 	@mkdir -p build
-	@$(CC) extractor/extract_stencils.c -o $(EXTRACTOR_BIN) -lbfd -Og -g -fsanitize=address -march=native
+	@$(CC) extractor/extract_stencils.c -o $(EXTRACTOR_BIN) -lbfd -O3 -march=native -flto
 
 $(R_PACKAGE): $(STENCILS_OBJ) $(EXTRACTOR_BIN)# $(R_PACKAGE_SOURCE)
 	@echo "Extracting stencils..."
