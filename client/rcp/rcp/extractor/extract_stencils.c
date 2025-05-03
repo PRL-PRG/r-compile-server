@@ -6,41 +6,38 @@
 #include <stddef.h>
 #include <assert.h>
 
-typedef enum {
-R_X86_64_NONE = 0,
-R_X86_64_64,
-R_X86_64_PC32,
-R_X86_64_GOT32,
-R_X86_64_PLT32,
-R_X86_64_COPY,
-R_X86_64_GLOB_DAT,
-R_X86_64_JUMP_SLOT,
-R_X86_64_RELATIVE,
-R_X86_64_GOTPCREL,
-R_X86_64_32,
-R_X86_64_32S,
-R_X86_64_16,
-R_X86_64_PC16,
-R_X86_64_8,
-R_X86_64_PC8,
-R_X86_64_DPTMOD64,
-R_X86_64_DTPOFF64,
-R_X86_64_TPOFF64,
-R_X86_64_TLSGD,
-R_X86_64_TLSLD,
-R_X86_64_DTPOFF32,
-R_X86_64_GOTTPOFF,
-R_X86_64_TPOFF32
+typedef enum
+{
+  R_X86_64_NONE = 0,
+  R_X86_64_64,
+  R_X86_64_PC32,
+  R_X86_64_GOT32,
+  R_X86_64_PLT32,
+  R_X86_64_COPY,
+  R_X86_64_GLOB_DAT,
+  R_X86_64_JUMP_SLOT,
+  R_X86_64_RELATIVE,
+  R_X86_64_GOTPCREL,
+  R_X86_64_32,
+  R_X86_64_32S,
+  R_X86_64_16,
+  R_X86_64_PC16,
+  R_X86_64_8,
+  R_X86_64_PC8,
+  R_X86_64_DPTMOD64,
+  R_X86_64_DTPOFF64,
+  R_X86_64_TPOFF64,
+  R_X86_64_TLSGD,
+  R_X86_64_TLSLD,
+  R_X86_64_DTPOFF32,
+  R_X86_64_GOTTPOFF,
+  R_X86_64_TPOFF32
 } X86_64_RELOC_KIND;
 
-
-
-
-uint8_t* rodata;
+uint8_t *rodata;
 size_t rodata_size = 0;
 
-StencilMutable stencils[sizeof(OPCODES) / sizeof( * OPCODES)] = { 0 };
-
+StencilMutable stencils[sizeof(OPCODES) / sizeof(*OPCODES)] = {0};
 
 typedef struct NamedStencil {
   char name[32];
@@ -48,76 +45,72 @@ typedef struct NamedStencil {
   struct NamedStencil * next;
 } NamedStencil;
 
-NamedStencil extraStencilFirst = { "", {}, NULL };
-NamedStencil* extraStencilLast = &extraStencilFirst;
-
+NamedStencil extraStencilFirst = {"", {}, NULL};
+NamedStencil *extraStencilLast = &extraStencilFirst;
 
 // Function to check if str starts with prefix
-static int starts_with(const char *str, const char *prefix) {
-  while (*prefix) {
-      if (*str != *prefix) {
-          return 0;
-      }
-      str++;
-      prefix++;
+static int starts_with(const char *str, const char *prefix)
+{
+  while (*prefix)
+  {
+    if (*str != *prefix)
+      return 0;
+    str++;
+    prefix++;
   }
   return 1;
 }
 
-static const char* remove_prefix(const char *str, const char *prefix) {
-  while (*prefix) {
-      if (*str != *prefix) {
-          return NULL;
-      }
-      str++;
-      prefix++;
+static const char *remove_prefix(const char *str, const char *prefix)
+{
+  while (*prefix)
+  {
+    if (*str != *prefix)
+      return NULL;
+    str++;
+    prefix++;
   }
   return str;
 }
 
-static int get_opcode(const char * str) {
-  if(!starts_with(str, "_RCP_"))
-  {
+static int get_opcode(const char *str)
+{
+  if (!starts_with(str, "_RCP_"))
     return -1;
-  }
 
   str += 5;
 
-  for (int i = 0; i < sizeof(OPCODES) / sizeof( * OPCODES); ++i)
-  {
+  for (int i = 0; i < sizeof(OPCODES) / sizeof(*OPCODES); ++i)
     if (strcmp(str, OPCODES[i]) == 0)
       return i;
-  }
   return -1;
 }
 
-static void print_byte_array(FILE *file, const unsigned char * arr, size_t len) {
+static void print_byte_array(FILE *file, const unsigned char *arr, size_t len)
+{
   for (size_t i = 0; i < len; i++)
-  {
     fprintf(file, "0x%02X, ", arr[i]); // Print each byte in hex format
-  }
 }
 
-
-static void export_body(FILE *file, const StencilMutable* stencil, const char* opcode_name)
+static void export_body(FILE *file, const StencilMutable *stencil, const char *opcode_name)
 {
   fprintf(file, "const Hole _%s_HOLES[] = {\n", opcode_name);
   for (size_t j = 0; j < stencil->holes_size; ++j)
   {
     fprintf(file, "{ .offset = 0x%lX, .addend = %ld, .size = %hu, .kind = %u, .is_pc_relative = %u, .indirection_level = %u", stencil->holes[j].offset, stencil->holes[j].addend, stencil->holes[j].size, stencil->holes[j].kind, stencil->holes[j].is_pc_relative, stencil->holes[j].indirection_level);
-    switch(stencil->holes[j].kind)
+    switch (stencil->holes[j].kind)
     {
-      case RELOC_RUNTIME_SYMBOL:
-        fprintf(file, ", .val.symbol = &%s", stencil->holes[j].val.symbol_name);
-        break;
-      case RELOC_RCP_GOTO_IMM:
-      case RELOC_RCP_RAW_IMM:
-      case RELOC_RCP_CONST_AT_IMM:
-      case RELOC_RCP_CONSTCELL_AT_IMM:
-      case RELOC_RCP_CONST_STR_AT_IMM:
-      case RELOC_RCP_CONSTCELL_AT_LABEL_IMM:
-        fprintf(file, ", .val.imm_pos = %zu", stencil->holes[j].val.imm_pos);
-        break;
+    case RELOC_RUNTIME_SYMBOL:
+      fprintf(file, ", .val.symbol = &%s", stencil->holes[j].val.symbol_name);
+      break;
+    case RELOC_RCP_GOTO_IMM:
+    case RELOC_RCP_RAW_IMM:
+    case RELOC_RCP_CONST_AT_IMM:
+    case RELOC_RCP_CONSTCELL_AT_IMM:
+    case RELOC_RCP_CONST_STR_AT_IMM:
+    case RELOC_RCP_CONSTCELL_AT_LABEL_IMM:
+      fprintf(file, ", .val.imm_pos = %zu", stencil->holes[j].val.imm_pos);
+      break;
     }
     fprintf(file, " },\n");
   }
@@ -127,55 +120,39 @@ static void export_body(FILE *file, const StencilMutable* stencil, const char* o
   fprintf(file, "\n};\n\n");
 }
 
-
-
 static void export_to_files()
 {
   for (uint8_t i = 0; i < sizeof(OPCODES) / sizeof(*OPCODES); ++i)
   {
-    if(stencils[i].body_size != 0)
+    if (stencils[i].body_size != 0)
     {
       char filename[32];
       strcpy(filename, OPCODES[i]);
       strcat(filename, ".h");
-      FILE *file = fopen(filename, "wt"); 
+      FILE *file = fopen(filename, "wt");
       export_body(file, &stencils[i], OPCODES[i]);
       fclose(file);
     }
   }
+  for (NamedStencil *current = &extraStencilFirst; current->next != NULL; current = current->next)
   {
-    NamedStencil* current = &extraStencilFirst;
+    char filename[64];
+    strcpy(filename, current->name);
+    strcat(filename, ".h");
 
-    while (current -> next != NULL)
-    {
-      char filename[64];
-      strcpy(filename, current->name);
-      strcat(filename, ".h");
-
-      FILE *file = fopen(filename, "wt"); 
-      export_body(file, &current->stencil, current->name);
-      fclose(file);
-
-      current = current -> next;
-    }
+    FILE *file = fopen(filename, "wt");
+    export_body(file, &current->stencil, current->name);
+    fclose(file);
   }
 
-  FILE *file = fopen("stencils.h", "wt"); 
+  FILE *file = fopen("stencils.h", "wt");
 
-  {
-    NamedStencil* current = &extraStencilFirst;
-
-    while (current -> next != NULL)
-    {
-      fprintf(file, "#include \"%s.h\"\n", current->name);
-
-      current = current -> next;
-    }
-  }
+  for (NamedStencil *current = &extraStencilFirst; current->next != NULL; current = current->next)
+    fprintf(file, "#include \"%s.h\"\n", current->name);
 
   for (uint8_t i = 0; i < sizeof(OPCODES) / sizeof(*OPCODES); ++i)
   {
-    if(stencils[i].body_size != 0)
+    if (stencils[i].body_size != 0)
       fprintf(file, "#include \"%s.h\"\n", OPCODES[i]);
   }
 
@@ -183,22 +160,14 @@ static void export_to_files()
   print_byte_array(file, rodata, rodata_size);
   fprintf(file, "};\n");
 
-  {
-    NamedStencil* current = &extraStencilFirst;
+  for (NamedStencil *current = &extraStencilFirst; current->next != NULL; current = current->next)
+    fprintf(file, "const Stencil %s = { %zu, _%s_BODY, %zu, _%s_HOLES};\n", current->name, current->stencil.body_size, current->name, current->stencil.holes_size, current->name);
 
-    while (current -> next != NULL)
-    {
-      fprintf(file, "const Stencil %s = { %zu, _%s_BODY, %zu, _%s_HOLES};\n", current->name, current->stencil.body_size, current->name, current->stencil.holes_size, current->name);//, %zu, _%s_RO
-
-      current = current -> next;
-    }
-  }
-
-  fprintf(file, "\nconst Stencil stencils[%zu] = {\n", sizeof(OPCODES) / sizeof( * OPCODES));
+  fprintf(file, "\nconst Stencil stencils[%zu] = {\n", sizeof(OPCODES) / sizeof(*OPCODES));
 
   for (uint8_t i = 0; i < sizeof(OPCODES) / sizeof(*OPCODES); ++i)
   {
-    if(stencils[i].body_size != 0)
+    if (stencils[i].body_size != 0)
       fprintf(file, "{%zu, _%s_BODY, %zu, _%s_HOLES}, // %s\n", stencils[i].body_size, OPCODES[i], stencils[i].holes_size, OPCODES[i], OPCODES[i]);
     else
       fprintf(file, "{0, NULL, 0, NULL}, // %s\n", OPCODES[i]);
@@ -207,7 +176,6 @@ static void export_to_files()
   fprintf(file, "};\n");
   fclose(file);
 }
-
 
 #define RSH_R_SYMBOLS                                                          \
   X([, Rsh_Subset)                                                        \
@@ -222,7 +190,7 @@ static void export_to_files()
   X(seq_len, Rsh_SeqLen)                                                  \
   X(log, Rsh_Log)
 
-static int rsh_symbol_id(const char * name)
+static int rsh_symbol_id(const char *name)
 {
   int counter = 0;
   if (strcmp(name, "R_ARITH_OPS") == 0)
@@ -240,25 +208,25 @@ static int rsh_symbol_id(const char * name)
   if (strcmp(name, "R_REL_OP_SYMS") == 0)
     return counter;
   counter += 6;
-  
+
   if (strcmp(name, "R_MATH1_OPS") == 0)
-    return counter; 
+    return counter;
   counter += 2;
 
   if (strcmp(name, "R_UNARY_OPS") == 0)
-    return counter; 
+    return counter;
   counter += 2;
 
   if (strcmp(name, "R_UNARY_OP_SYMS") == 0)
-    return counter; 
+    return counter;
   counter += 2;
 
   if (strcmp(name, "R_LOGIC2_OPS") == 0)
-    return counter; 
+    return counter;
   counter += 2;
 
   if (strcmp(name, "R_MATH1_EXT_OPS") == 0)
-    return counter; 
+    return counter;
   counter += 24;
 
   if (strcmp(name, "R_MATH1_EXT_SYMS") == 0)
@@ -294,55 +262,60 @@ static void process_relocation(StencilMutable *stencil, Hole *hole, const arelen
   hole->is_pc_relative = rel->howto->pc_relative;
   hole->size = rel->howto->size;
 
-  switch(rel->howto->type)
+  switch (rel->howto->type)
   {
-    case R_X86_64_PLT32:
-    {
-      assert(strcmp(rel->howto->name, "R_X86_64_PLT32") == 0);
-      assert(rel->howto->pc_relative == 1);
-      assert(rel->howto->size == 4);
-      hole->indirection_level = 1;
-    } break;
-    case R_X86_64_PC32:
-    {
-      assert(strcmp(rel->howto->name, "R_X86_64_PC32") == 0);
-      assert(rel->howto->pc_relative == 1);
-      assert(rel->howto->size == 4);
-      hole->indirection_level = 1;
-    } break;
-    case R_X86_64_32:
-    case R_X86_64_32S:
-    {
-      assert(strcmp(rel->howto->name, "R_X86_64_32") == 0 || strcmp(rel->howto->name, "R_X86_64_32S") == 0);
-      assert(rel->howto->pc_relative == 0);
-      assert(rel->howto->size == 4);
-      hole->indirection_level = 1;
-    } break;
-    case R_X86_64_64:
-    {
-      assert(strcmp(rel->howto->name, "R_X86_64_64") == 0);
-      assert(rel->howto->pc_relative == 0);
-      assert(rel->howto->size == 8);
-      hole->indirection_level = 1;
-    } break;
-    /*case R_X86_64_REX_GOTPCRELX:
-    {
-      assert(strcmp(rel->howto->name, "R_X86_64_REX_GOTPCRELX") == 0);
-      assert(rel->howto->pc_relative == 1);
-      hole->size = 4;
-      hole->indirection_level = 2;
-    } break;*/
-    default:
-    {
-      fprintf(stderr, "Unsupported relocation type: %d: %s (relocating: %s)\n", rel->howto->type, rel->howto->name, (*rel->sym_ptr_ptr)->name);
-      return;
-    } break;
+  case R_X86_64_PLT32:
+  {
+    assert(strcmp(rel->howto->name, "R_X86_64_PLT32") == 0);
+    assert(rel->howto->pc_relative == 1);
+    assert(rel->howto->size == 4);
+    hole->indirection_level = 1;
+  }
+  break;
+  case R_X86_64_PC32:
+  {
+    assert(strcmp(rel->howto->name, "R_X86_64_PC32") == 0);
+    assert(rel->howto->pc_relative == 1);
+    assert(rel->howto->size == 4);
+    hole->indirection_level = 1;
+  }
+  break;
+  case R_X86_64_32:
+  case R_X86_64_32S:
+  {
+    assert(strcmp(rel->howto->name, "R_X86_64_32") == 0 || strcmp(rel->howto->name, "R_X86_64_32S") == 0);
+    assert(rel->howto->pc_relative == 0);
+    assert(rel->howto->size == 4);
+    hole->indirection_level = 1;
+  }
+  break;
+  case R_X86_64_64:
+  {
+    assert(strcmp(rel->howto->name, "R_X86_64_64") == 0);
+    assert(rel->howto->pc_relative == 0);
+    assert(rel->howto->size == 8);
+    hole->indirection_level = 1;
+  }
+  break;
+  //case R_X86_64_REX_GOTPCRELX: // not tested
+  //{
+  //  assert(strcmp(rel->howto->name, "R_X86_64_REX_GOTPCRELX") == 0);
+  //  assert(rel->howto->pc_relative == 1);
+  //  hole->size = 4;
+  //  hole->indirection_level = 2;
+  //} break;
+  default:
+  {
+    fprintf(stderr, "Unsupported relocation type: %d: %s (relocating: %s)\n", rel->howto->type, rel->howto->name, (*rel->sym_ptr_ptr)->name);
+    return;
+  }
+  break;
   }
 
   if (starts_with((*rel->sym_ptr_ptr)->name, "_RCP_"))
   {
-    const char* descr = &((*rel->sym_ptr_ptr)->name)[5];
-    const char* descr_imm = NULL;
+    const char *descr = &((*rel->sym_ptr_ptr)->name)[5];
+    const char *descr_imm = NULL;
 
     if (descr_imm = remove_prefix(descr, "CONSTANT_AT_IMM"))
     {
@@ -401,10 +374,10 @@ static void process_relocation(StencilMutable *stencil, Hole *hole, const arelen
       hole->val.symbol_name = strdup((*rel->sym_ptr_ptr)->name);
     }
 
-    if(descr_imm != NULL)
+    if (descr_imm != NULL)
     {
       int pos = atoi(descr_imm);
-      if(pos < 0 || pos > 3)
+      if (pos < 0 || pos > 3)
         fprintf(stderr, "Invalid immediate position: %d\n", pos);
       hole->val.imm_pos = pos;
     }
@@ -430,7 +403,7 @@ static void process_relocation(StencilMutable *stencil, Hole *hole, const arelen
 
   stencil->holes_size++;
 
-  // fprintf(stederr, "  Offset: 0x%08lx,  Addend: 0x%08lx, Symbol: %s, Type: %d\n", rel->address, rel->addend, *rel->sym_ptr_ptr->name, rel->howto->type);
+  //fprintf(stederr, "  Offset: 0x%08lx,  Addend: 0x%08lx, Symbol: %s, Type: %d\n", rel->address, rel->addend, *rel->sym_ptr_ptr->name, rel->howto->type);
 }
 
 static void process_relocations(StencilMutable *const stencil, long reloc_count, arelent **relocs)
@@ -464,7 +437,7 @@ static void process_sections(bfd *abfd, asection *section, void *data)
     return;
   }
 
-  // fprintf(stderr, "%x\t%s\n", section -> flags, section -> symbol -> name);
+  //fprintf(stderr, "%x\t%s\n", section -> flags, section -> symbol -> name);
 
   /* Get relocations */
   long reloc_size = bfd_get_reloc_upper_bound(abfd, section);
@@ -507,7 +480,6 @@ static void process_sections(bfd *abfd, asection *section, void *data)
     stencil->body = buffer;
 
     process_relocations(stencil, reloc_count, relocs);
-
   }
   else if ((section->flags & SEC_READONLY) && (section->flags & BSF_KEEP))
   {
@@ -515,7 +487,7 @@ static void process_sections(bfd *abfd, asection *section, void *data)
     {
       rodata_size = size;
       rodata = buffer;
-      // fprintf(stderr, "Allign rodata to 2^%u\n", section->alignment_power);
+      //fprintf(stderr, "Allign rodata to 2^%u\n", section->alignment_power);
 
       if (reloc_count > 0)
         fprintf(stderr, "There are some relocations in the section of %s, this is not supported!\n", sym->name);
@@ -528,16 +500,16 @@ static void process_sections(bfd *abfd, asection *section, void *data)
   }
   else
     free(buffer);
-    
+
   free(relocs);
   free(symbol_table);
 }
 
-static void free_stencil(StencilMutable* stencil)
+static void free_stencil(StencilMutable *stencil)
 {
   for (size_t j = 0; j < stencil->holes_size; ++j)
   {
-    if(stencil->holes[j].kind == 0)
+    if (stencil->holes[j].kind == 0)
       free(stencil->holes[j].val.symbol_name);
   }
   free(stencil->holes);
@@ -549,38 +521,40 @@ static void free_stencil(StencilMutable* stencil)
 static void cleanup()
 {
   // Free the stencils array
-  for (uint8_t i = 0; i < sizeof(OPCODES) / sizeof( * OPCODES); ++i)
+  for (uint8_t i = 0; i < sizeof(OPCODES) / sizeof(*OPCODES); ++i)
   {
     free_stencil(&stencils[i]);
     stencils[i];
   }
 
-  NamedStencil* current = &extraStencilFirst;
+  NamedStencil *current = &extraStencilFirst;
 
   do
   {
     free_stencil(&current->stencil);
-    current = current -> next;
-  }
-  while (current -> next != NULL);
+    current = current->next;
+  } while (current->next != NULL);
 
   current = extraStencilFirst.next;
-  while(current -> next != NULL)
+  while (current->next != NULL)
   {
-    NamedStencil* next = current->next;
+    NamedStencil *next = current->next;
     free(current);
     current = next;
   }
 }
 
-static void analyze_object_file(const char * filename) {
-  bfd * abfd = bfd_openr(filename, NULL);
-  if (!abfd) {
+static void analyze_object_file(const char *filename)
+{
+  bfd *abfd = bfd_openr(filename, NULL);
+  if (!abfd)
+  {
     fprintf(stderr, "Failed to open file: %s\n", filename);
     return;
   }
 
-  if (!bfd_check_format(abfd, bfd_object)) {
+  if (!bfd_check_format(abfd, bfd_object))
+  {
     fprintf(stderr, "Invalid object file format.\n");
     bfd_close(abfd);
     return;
@@ -596,28 +570,28 @@ static void print_sizes()
   size_t count = 0;
   for (uint8_t i = 0; i < sizeof(OPCODES) / sizeof(*OPCODES); ++i)
   {
-    if(stencils[i].body_size != 0)
+    if (stencils[i].body_size != 0)
     {
       total_size += stencils[i].body_size;
       count++;
     }
   }
-  NamedStencil* current = &extraStencilFirst;
+  NamedStencil *current = &extraStencilFirst;
   do
   {
     total_size += current->stencil.body_size;
     count++;
-    current = current -> next;
-  }
-  while (current -> next != NULL);
+    current = current->next;
+  } while (current->next != NULL);
 
   fprintf(stderr, "Total size of stencils: %zu bytes\n", total_size);
-  fprintf(stderr, "Average size of stencils: %lf bytes\n", ((double)total_size)/count);
-
+  fprintf(stderr, "Average size of stencils: %lf bytes\n", ((double)total_size) / count);
 }
 
-int main(int argc, char ** argv) {
-  if (argc < 2) {
+int main(int argc, char **argv)
+{
+  if (argc < 2)
+  {
     fprintf(stderr, "Usage: %s <object file>\n", argv[0]);
     return 1;
   }
