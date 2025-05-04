@@ -226,16 +226,16 @@ static uint8_t reloc_indirection(RELOC_KIND kind)
     {
     case RELOC_RUNTIME_SYMBOL:
         return 1;
-    case RELOC_RHO:
-        return 1;
     case RELOC_RODATA:
         return 1;
-    case RELOC_RCP_NEXTOP:
-        return 0;
-    case RELOC_RCP_GOTO_IMM:
-        return 0;
     case RELOC_RCP_PRECOMPILED:
         return 1;
+    case RELOC_RHO:
+        return 1;
+    case RELOC_RCP_EXEC_NEXT:
+        return 0;
+    case RELOC_RCP_EXEC_IMM:
+        return 0;
     case RELOC_RCP_RAW_IMM:
         return 0;
     case RELOC_RCP_CONST_AT_IMM:
@@ -275,11 +275,6 @@ static void patch(uint8_t *dst, const Hole *hole, int *imms, int nextop, const P
         ptr = (ptrdiff_t)hole->val.symbol;
     }
     break;
-    case RELOC_RHO:
-    {
-        ptr = (ptrdiff_t)ctx->rho;
-    }
-    break;
     case RELOC_RODATA:
     {
         // Point to different memory regions to allow efficient x86 relative addressing
@@ -289,19 +284,24 @@ static void patch(uint8_t *dst, const Hole *hole, int *imms, int nextop, const P
             ptr = (ptrdiff_t)ctx->ro_low;
     }
     break;
-    case RELOC_RCP_NEXTOP:
+    case RELOC_RCP_PRECOMPILED:
+    {
+        ptr = (ptrdiff_t)ctx->precompiled;
+    }
+    break;
+    case RELOC_RHO:
+    {
+        ptr = (ptrdiff_t)ctx->rho;
+    }
+    break;
+    case RELOC_RCP_EXEC_NEXT:
     {
         ptr = (ptrdiff_t)&ctx->executable[ctx->executable_lookup[nextop]];
     }
     break;
-    case RELOC_RCP_GOTO_IMM:
+    case RELOC_RCP_EXEC_IMM:
     {
         ptr = (ptrdiff_t)&ctx->executable[ctx->executable_lookup[imms[hole->val.imm_pos] - 1]];
-    }
-    break;
-    case RELOC_RCP_PRECOMPILED:
-    {
-        ptr = (ptrdiff_t)ctx->precompiled;
     }
     break;
     case RELOC_RCP_RAW_IMM:

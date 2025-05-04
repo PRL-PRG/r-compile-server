@@ -98,23 +98,29 @@ static void export_body(FILE *file, const StencilMutable *stencil, const char *o
   fprintf(file, "const Hole _%s_HOLES[] = {\n", opcode_name);
   for (size_t j = 0; j < stencil->holes_size; ++j)
   {
-    fprintf(file, "{ .offset = 0x%lX, .addend = %ld, .size = %hu, .kind = %u, .is_pc_relative = %u, .indirection_level = %u", stencil->holes[j].offset, stencil->holes[j].addend, stencil->holes[j].size, stencil->holes[j].kind, stencil->holes[j].is_pc_relative, stencil->holes[j].indirection_level);
-    switch (stencil->holes[j].kind)
+    const Hole *hole = &stencil->holes[j];
+
+    fprintf(file, "{ .offset = 0x%lX, .addend = %ld, .size = %hu, .kind = %u, .is_pc_relative = %u, .indirection_level = %u",
+            hole->offset, hole->addend, hole->size, hole->kind, hole->is_pc_relative, hole->indirection_level);
+
+    switch (hole->kind)
     {
     case RELOC_RUNTIME_SYMBOL:
-      fprintf(file, ", .val.symbol = &%s", stencil->holes[j].val.symbol_name);
+      fprintf(file, ", .val.symbol = &%s", hole->val.symbol_name);
       break;
-    case RELOC_RCP_GOTO_IMM:
+    case RELOC_RCP_EXEC_IMM:
     case RELOC_RCP_RAW_IMM:
     case RELOC_RCP_CONST_AT_IMM:
-    case RELOC_RCP_CONSTCELL_AT_IMM:
     case RELOC_RCP_CONST_STR_AT_IMM:
+    case RELOC_RCP_CONSTCELL_AT_IMM:
     case RELOC_RCP_CONSTCELL_AT_LABEL_IMM:
-      fprintf(file, ", .val.imm_pos = %zu", stencil->holes[j].val.imm_pos);
+      fprintf(file, ", .val.imm_pos = %zu", hole->val.imm_pos);
       break;
     }
+
     fprintf(file, " },\n");
   }
+
   fprintf(file, "};\n\n");
   fprintf(file, "const uint8_t _%s_BODY[] = {\n", opcode_name);
   print_byte_array(file, stencil->body, stencil->body_size);
@@ -166,7 +172,7 @@ static void export_to_files(const Stencils *stencils)
 
   fprintf(file, "\nconst Stencil stencils[%zu] = {\n", sizeof(OPCODES) / sizeof(*OPCODES));
 
-  for (uint8_t i = 0; i < sizeof(OPCODES) / sizeof(*OPCODES); ++i)
+  for (int i = 0; i < sizeof(OPCODES) / sizeof(*OPCODES); ++i)
   {
     if (stencils->stencils_opcodes[i].body_size != 0)
       fprintf(file, "{%zu, _%s_BODY, %zu, _%s_HOLES}, // %s\n", stencils->stencils_opcodes[i].body_size, OPCODES[i], stencils->stencils_opcodes[i].holes_size, OPCODES[i], OPCODES[i]);
@@ -318,17 +324,17 @@ static void process_relocation(StencilMutable *stencil, Hole *hole, const arelen
     const char *descr = &((*rel->sym_ptr_ptr)->name)[5];
     const char *descr_imm = NULL;
 
-    if (descr_imm = remove_prefix(descr, "CONSTANT_AT_IMM"))
+    if (descr_imm = remove_prefix(descr, "CONST_AT_IMM"))
     {
       hole->kind = RELOC_RCP_CONST_AT_IMM;
       hole->indirection_level = 0; // Tricked into patching immediate value
     }
-    else if (descr_imm = remove_prefix(descr, "IMM"))
+    else if (descr_imm = remove_prefix(descr, "RAW_IMM"))
     {
       hole->kind = RELOC_RCP_RAW_IMM;
       hole->indirection_level = 0; // Tricked into patching immediate value
     }
-    else if (descr_imm = remove_prefix(descr, "CONSTANT_STR_AT_IMM"))
+    else if (descr_imm = remove_prefix(descr, "CONST_STR_AT_IMM"))
     {
       hole->kind = RELOC_RCP_CONST_STR_AT_IMM;
       hole->indirection_level = 0; // Tricked into patching immediate value
@@ -341,31 +347,28 @@ static void process_relocation(StencilMutable *stencil, Hole *hole, const arelen
     {
       hole->kind = RELOC_RCP_CONSTCELL_AT_LABEL_IMM;
     }
-    else if (strcmp(descr, "GOTO_NEXT") == 0)
+    else if (strcmp(descr, "EXEC_NEXT") == 0)
     {
-      if (rel->address - rel->addend == stencil->body_size && stencil->body[rel->address - 1] == 0xE9 /*JMP*/) // This is the last instruction, no need to relocate; just delete it
+      if (rel->address - rel->addend == stencil->body_size && stencil->body[rel->address - 1] == 0xE9 /*JMP*/)
       {
+        // This is the last instruction; safe to just delete
         stencil->body_size = rel->address - 1;
         return; // No relocation from this
       }
       else
       {
-        hole->kind = RELOC_RCP_NEXTOP;
+        hole->kind = RELOC_RCP_EXEC_NEXT;
         hole->indirection_level = 0;
       }
     }
-    else if (descr_imm = remove_prefix(descr, "GOTO_IMM"))
+    else if (descr_imm = remove_prefix(descr, "EXEC_IMM"))
     {
-      hole->kind = RELOC_RCP_GOTO_IMM;
+      hole->kind = RELOC_RCP_EXEC_IMM;
       hole->indirection_level = 0;
     }
     else if (strcmp(descr, "RHO") == 0)
     {
       hole->kind = RELOC_RHO;
-    }
-    else if (strcmp(descr, "PRECOMPILED") == 0)
-    {
-      hole->kind = RELOC_RCP_PRECOMPILED;
     }
     else
     {
@@ -430,17 +433,17 @@ static void process_sections(bfd *abfd, asection *section, void *data)
   if (size == 0)
     return;
 
-  const asymbol *sym = section->symbol;
-  bfd_byte *buffer = (bfd_byte *)malloc(size);
+  const char *symbol = section->symbol->name;
+  bfd_byte *body = (bfd_byte *)malloc(size * sizeof(bfd_byte));
 
-  if (!bfd_get_section_contents(abfd, section, buffer, 0, size))
+  if (!bfd_get_section_contents(abfd, section, body, 0, size))
   {
     fprintf(stderr, "Failed to read section contents\n");
-    free(buffer);
+    free(body);
     return;
   }
 
-  //fprintf(stderr, "%x\t%s\n", section -> flags, section -> symbol -> name);
+  //fprintf(stderr, "%x\t%s\n", section -> flags, symbol);
 
   /* Get relocations */
   long reloc_size = bfd_get_reloc_upper_bound(abfd, section);
@@ -465,14 +468,14 @@ static void process_sections(bfd *abfd, asection *section, void *data)
       fprintf(stderr, "WARNING: Stencil requires alignment to 2^%u, but this is not supported\n", section->alignment_power);
 
     StencilMutable *stencil;
-    int opcode = get_opcode(sym->name + 6);
+    int opcode = get_opcode(&symbol[6]);
     if (opcode != -1)
     {
       stencil = &stencils->stencils_opcodes[opcode];
     }
     else
     {
-      strcpy(stencils->stencil_extra_last->name, sym->name + 6);
+      strcpy(stencils->stencil_extra_last->name, &symbol[6]);
       stencil = &stencils->stencil_extra_last->stencil;
       stencils->stencil_extra_last->next = malloc(sizeof(NamedStencil));
       stencils->stencil_extra_last->next->next = NULL;
@@ -480,29 +483,29 @@ static void process_sections(bfd *abfd, asection *section, void *data)
     }
 
     stencil->body_size = size;
-    stencil->body = buffer;
+    stencil->body = body;
 
     process_relocations(stencil, reloc_count, relocs);
   }
   else if ((section->flags & SEC_READONLY) && (section->flags & BSF_KEEP))
   {
-    if (strcmp(sym->name, ".rodata") == 0)
+    if (strcmp(symbol, ".rodata") == 0)
     {
       stencils->rodata_size = size;
-      stencils->rodata = buffer;
+      stencils->rodata = body;
       //fprintf(stderr, "Allign rodata to 2^%u\n", section->alignment_power);
 
       if (reloc_count > 0)
-        fprintf(stderr, "There are some relocations in the section of %s, this is not supported!\n", sym->name);
+        fprintf(stderr, "There are some relocations in the section of %s, this is not supported!\n", symbol);
     }
     else
     {
-      fprintf(stderr, "Section/Function %s could not be matched to a valid R opcode\n", sym->name);
-      free(buffer);
+      fprintf(stderr, "Section/Function %s could not be matched to a valid R opcode\n", symbol);
+      free(body);
     }
   }
   else
-    free(buffer);
+    free(body);
 
   free(relocs);
   free(symbol_table);

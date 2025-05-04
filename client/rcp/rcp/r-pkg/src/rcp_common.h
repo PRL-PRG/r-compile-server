@@ -3,46 +3,46 @@
 #include <stddef.h>
 
 typedef enum {
-    RELOC_RUNTIME_SYMBOL,
-    RELOC_RHO,
-    RELOC_RODATA,
-    RELOC_RCP_NEXTOP,
-    RELOC_RCP_GOTO_IMM,
-    RELOC_RCP_PRECOMPILED,
-    RELOC_RCP_RAW_IMM,
-    RELOC_RCP_CONST_AT_IMM,
-    RELOC_RCP_CONST_STR_AT_IMM,
-    RELOC_RCP_CONSTCELL_AT_IMM,
-    RELOC_RCP_CONSTCELL_AT_LABEL_IMM
-  } RELOC_KIND;
+  RELOC_RUNTIME_SYMBOL,
+  RELOC_RODATA,
+  RELOC_RCP_PRECOMPILED,
+  RELOC_RHO,
+  RELOC_RCP_EXEC_NEXT,
+  RELOC_RCP_EXEC_IMM,
+  RELOC_RCP_RAW_IMM,
+  RELOC_RCP_CONST_AT_IMM,
+  RELOC_RCP_CONST_STR_AT_IMM,
+  RELOC_RCP_CONSTCELL_AT_IMM,
+  RELOC_RCP_CONSTCELL_AT_LABEL_IMM
+} RELOC_KIND;
 
 typedef struct {
-    union Value {
-      const void* symbol;
-      char* symbol_name;
-      size_t imm_pos;
-    } val;
-    uintptr_t offset;
-    ptrdiff_t addend;
-    RELOC_KIND kind;
-    uint8_t size;
-    uint8_t is_pc_relative;
-    uint8_t indirection_level;
-  } Hole; 
+  union Value {
+    const void* symbol;
+    char* symbol_name;
+    size_t imm_pos;
+  } val;
+  uintptr_t offset;
+  ptrdiff_t addend;
+  RELOC_KIND kind;
+  uint8_t size;
+  uint8_t is_pc_relative;
+  uint8_t indirection_level;
+} Hole; 
 
 typedef struct {
-    size_t body_size;
-    const uint8_t * body;
-    size_t holes_size;
-    const Hole * holes;
-  } Stencil;
+  size_t body_size;
+  const uint8_t * body;
+  size_t holes_size;
+  const Hole * holes;
+} Stencil;
 
 typedef struct {
-    size_t body_size;
-    uint8_t * body;
-    size_t holes_size;
-    Hole * holes;
-  } StencilMutable;
+  size_t body_size;
+  uint8_t * body;
+  size_t holes_size;
+  Hole * holes;
+} StencilMutable;
 
 typedef enum {
 BCMISMATCH_OP = 0,
