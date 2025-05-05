@@ -465,7 +465,7 @@ static void process_sections(bfd *abfd, asection *section, void *data)
   if (section->flags & SEC_CODE)
   {
     if (section->alignment_power > 0)
-      fprintf(stderr, "WARNING: Stencil requires alignment to 2^%u, but this is not supported\n", section->alignment_power);
+      fprintf(stderr, "WARNING: Stencil %s requires alignment to 2^%u, but this is not supported\n", section->name, section->alignment_power);
 
     StencilMutable *stencil;
     int opcode = get_opcode(&symbol[6]);
