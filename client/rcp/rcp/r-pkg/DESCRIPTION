@@ -1,11 +1,10 @@
 Package: rcp
-Title: What the Package Does (One Line, Title Case)
-Version: 0.0.0.9000
+Title: Copy-and-Patch JIT compiler for R
+Version: 1.0.0.0000
 Authors@R: 
-    person("First", "Last", , "first.last@example.com", role = c("aut", "cre"))
-Description: What the package does (one paragraph).
-License: `use_mit_license()`, `use_gpl3_license()` or friends to pick a
-    license
+    person("Matěj", "Kocourek", , "kocoumat@fit.cvut.cz", role = c("aut", "cre"))
+Description: Copy-and-Patch JIT compiler for R
+License: GPL-3
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.0.0
