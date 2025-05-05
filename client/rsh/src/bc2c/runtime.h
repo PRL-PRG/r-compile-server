@@ -329,16 +329,24 @@ static INLINE SEXP val_as_sexp(Value v) {
   }
 }
 
-// FIXME: we do not need to set it to R_NilValue
+#ifndef NO_STACK_OVERFLOW_CHECK
+#define CHECK_OVERFLOW(__n__)                                                  \
+  do {                                                                         \
+    if (__builtin_expect(R_BCNodeStackTop + __n__ > R_BCNodeStackEnd, 0)) {    \
+      nodeStackOverflow();                                                     \
+    }                                                                          \
+  } while (0)
+#else
+#define CHECK_OVERFLOW(__n__)
+#endif
+
 //  it would not be bad to set it to some sentinel when in ASSERT
 #define PUSH_VAL(n)                                                            \
   do {                                                                         \
     int __n__ = (n);                                                           \
-    if (__builtin_expect(R_BCNodeStackTop + __n__ > R_BCNodeStackEnd, 0)) {    \
-      nodeStackOverflow();                                                     \
-    }                                                                          \
+    CHECK_OVERFLOW(__n__);                                                     \
     while (__n__-- > 0) {                                                      \
-      (R_BCNodeStackTop++)->tag = INTSXP;  /*anything not collected by GC*/    \
+      SET_SXP_VAL(R_BCNodeStackTop++, R_NilValue);                            \
     }                                                                          \
   } while (0)
 
