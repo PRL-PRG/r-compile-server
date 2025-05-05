@@ -4,21 +4,23 @@ CC = gcc-14
 default: install
 
 # Object files and executables
-STENCILS_OBJ = build/stencils.o
-EXTRACTOR_BIN = build/extract_stencils
-EXTRACTED_DIR = build/extracted
-R_PACKAGE = build/rcp_0.0.0.9000.tar.gz
-R_PACKAGE_SOURCE = $(shell find r-pkg/*)
-RSH_HOME = ../external/r-compile-server/client/rsh
-R_HOME ?= ../external/R
+ROOT_DIR := $(realpath .)
+STENCILS_OBJ = $(ROOT_DIR)/build/stencils.o
+EXTRACTOR_BIN = $(ROOT_DIR)/build/extract_stencils
+EXTRACTED_DIR = $(ROOT_DIR)/build/extracted
+R_PACKAGE = $(ROOT_DIR)/build/rcp_0.0.0.9000.tar.gz
+R_PACKAGE_SOURCE = $(shell find $(ROOT_DIR)/r-pkg/*)
+RSH_HOME = $(ROOT_DIR)/../external/r-compile-server/client/rsh
+R_HOME ?= $(ROOT_DIR)/../external/R
 R_LIB = $(R_HOME)/library/rcp/libs/rcp.so
 
 MCMODEL ?= large
+C_FLAGS_ADDITIONAL ?=
 
 $(STENCILS_OBJ): stencils/stencils.c
 	@echo "Building stencils..."
 	@mkdir -p build
-	@$(CC) stencils/stencils.c -o $(STENCILS_OBJ) -c -ffunction-sections -fno-stack-protector -fcf-protection=none -fno-asynchronous-unwind-tables -Os -march=native -fno-pic -mcmodel=$(MCMODEL) -fno-merge-constants -fno-jump-tables -I../external/R/include  -I../external/r-compile-server/client/rsh/src/bc2c
+	@$(CC) stencils/stencils.c -o $(STENCILS_OBJ) $(C_FLAGS_ADDITIONAL) -fno-align-functions -fno-align-jumps -fno-align-labels -fno-align-loops -c -ffunction-sections -fno-stack-protector -fcf-protection=none -fno-asynchronous-unwind-tables -Os -march=native -fno-pic -mcmodel=$(MCMODEL) -fno-merge-constants -fno-jump-tables -I../external/R/include  -I../external/r-compile-server/client/rsh/src/bc2c
 
 $(EXTRACTOR_BIN): extractor/extract_stencils.c
 	@echo "Building extractor..."

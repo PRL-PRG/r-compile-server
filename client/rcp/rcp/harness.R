@@ -31,7 +31,7 @@ benchmark <- function(num_iter, bench_param) {
 
     times = num_iter,
     unit="seconds",
-    control=list(order="block", warnup=3L)
+    control=list(order="block", warmup=5L)
   )
 }
 
