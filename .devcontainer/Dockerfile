@@ -75,5 +75,3 @@ RUN mkdir -p /workspace/external/R
 RUN cd /workspace/external ; bash ../tools/build-gnur-in-docker.sh R
 RUN ls -l /workspace/external/R # To be sure R has been installed
 RUN ls -l /workspace/external/R/bin
-
-WORKDIR /workspace
