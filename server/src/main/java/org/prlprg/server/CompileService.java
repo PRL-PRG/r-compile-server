@@ -269,7 +269,7 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
       rHomeEnv = "external/R";
     }
     var rHomePath = Path.of(rHomeEnv);
-    var rLibraryPath = rHomePath.resolve("external/R/library");
+    var rLibraryPath = rHomePath.resolve("library");
     if (logger.isLoggable(Level.FINE)) {
       logger.fine("Creating an R session using R from `" + rHomePath.toAbsolutePath() + "'");
     }
