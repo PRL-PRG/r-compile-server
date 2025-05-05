@@ -92,7 +92,7 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
             + request.getSerializedSize());
 
     if (request.getNoCache()) {
-      logger.info("This closure will not be cached (but it might vae already been).");
+      logger.info("This closure will not be cached (but it might have already been).");
     }
 
     // Compile the code and build response
