@@ -11,7 +11,8 @@
 namespace rsh {
 
 Client::Client(std::shared_ptr<grpc::Channel> channel,
-               std::vector<std::string> installed_packages)
+               std::vector<std::string> installed_packages,
+               bool autoconnect)
     : stub_(protocol::CompileService::NewStub(channel)) {
   using namespace protocol;
   InitRequest request;
@@ -37,14 +38,23 @@ Client::Client(std::shared_ptr<grpc::Channel> channel,
     request.add_package_hash(package);
   }
 
+  if(autoconnect) {
+    connect();
+  }
+}
+
+void Client::connect() {
+  using namespace protocol;
+  InitRequest request;
   InitResponse response;
   grpc::ClientContext context;
-  grpc::Status status = stub_->Init(&context, request, &response);
+  auto status =  stub_->Init(&context, request, &response);
   if (!status.ok()) {
-    Rf_error("Failed to connect to the server: %d %s\n", status.error_code(),
-             status.error_message().c_str());
-  } else {
-    Rprintf("Connected to the server\n");
+      Rf_error("Failed to connect to the server: %d %s\n", status.error_code(),
+              status.error_message().c_str());
+    } else {
+      connected = true;
+      Rprintf("Connected to the server\n");
   }
 }
 
@@ -52,6 +62,10 @@ std::variant<protocol::CompileResponse, std::string>
 Client::remote_compile(std::vector<uint8_t> const &rds_closure,
                        CompilerOptions const &options) {
   using namespace protocol;
+
+  if(!connected) {
+    connect();
+  }
 
   CompileRequest request;
   request.set_tier(options.tier);
@@ -88,6 +102,11 @@ Client::remote_compile(std::vector<uint8_t> const &rds_closure,
 
 void Client::clear_cache() {
   using namespace protocol;
+
+  if(!connected) {
+    connect();
+  }
+
   ClearCacheRequest request;
   ClearCacheResponse response;
   grpc::ClientContext context;
@@ -117,7 +136,7 @@ SEXP Client::make_client(SEXP address, SEXP port, SEXP installed_packages) {
   channel_args.SetMaxSendMessageSize(1024 * 1024 * 10);
   auto channel = grpc::CreateCustomChannel(
       address_str, grpc::InsecureChannelCredentials(), channel_args);
-  auto client = new Client(channel, packages);
+  auto client = new Client(channel, packages, false);
 
   SEXP ptr = PROTECT(R_MakeExternalPtr(client, RSH_CLIENT_PTR, R_NilValue));
   // Removed because it was causing a segfault (memory not mapped)
@@ -145,8 +164,10 @@ Client *Client::get_client() {
 }
 
 SEXP init_client(SEXP address, SEXP port, SEXP installed_packages) {
+  bool do_not_fail = false;
   if (Client::CLIENT_INSTANCE != nullptr) {
     Rf_warning("Client already initialized, replacing it");
+    do_not_fail = true;
   }
 
   Client::CLIENT_INSTANCE =
