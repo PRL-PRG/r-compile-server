@@ -40,19 +40,8 @@ static Rsh_Math1Fun R_MATH1_EXT_FUNS[] = {
 #undef X_MATH1_EXT_OPS
 /**************************************************/
 
-
+//#define NO_STACK_OVERFLOW_CHECK
 #include <runtime.h>
-
-/*
-#undef PUSH_VAL
-#define PUSH_VAL(n)                                                            \
-  do {                                                                         \
-    int __n__ = (n);                                                           \
-    while (__n__-- > 0) {                                                      \
-      (R_BCNodeStackTop++)->tag = -1;                                          \
-    }                                                                          \
-  } while (0)
-*/
 
 
 #if __GNUC__ >= 14
