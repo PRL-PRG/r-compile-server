@@ -12,15 +12,17 @@ public class RshCompiler {
 
   // Make it work whether we run it  from the server directory or from the root of the project
   private static Path baseDirectory = Paths.get("").toAbsolutePath();
-  private static Path RPath = Paths.get("R");
+  private static final Path RPath;
 
   static {
-    R_path = System.getenv("R_HOME");
+    var rPath = System.getenv("R_HOME");
     if (baseDirectory.endsWith("server")) {
       baseDirectory = baseDirectory.getParent();
     }
-    if (R_path == null) {
-      R_path = baseDirectory.resolve("external/R").normalize().toAbsolutePath();
+    if (rPath == null) {
+      RPath = baseDirectory.resolve("external/R").normalize().toAbsolutePath();
+    } else {
+      RPath = Paths.get(rPath).normalize().toAbsolutePath();
     }
   }
 
@@ -30,8 +32,7 @@ public class RshCompiler {
   //  and precompile the header file (if needed)
   private static final Path RSH_INCLUDE_PATH =
       baseDirectory.resolve("client/rsh/src/bc2c").normalize().toAbsolutePath();
-  private static final Path R_INCLUDE_PATH =
-      baseDirectory.resolve("include").normalize().toAbsolutePath();
+  private static final Path R_INCLUDE_PATH = RPath.resolve("include").normalize().toAbsolutePath();
 
   // TODO: which ones are needed?
   private static final List<String> COMMON_COMPILER_FLAGS =
