@@ -58,8 +58,8 @@ public class BCCompilerBenchmarkTest implements StdlibClosuresSource {
             .toList();
 
     // Warmup the JVM
-    for (int i = 0; i < 10; i++) {
-      var compiler = new BCCompiler(funs.get(i), R.getSession());
+    for (var fun : funs) {
+      var compiler = new BCCompiler(fun, R.getSession());
       compiler.setOptimizationLevel(3);
       compiler.compile();
     }
