@@ -31,7 +31,7 @@ public class BCCompilerBenchmarkTest implements StdlibClosuresSource {
         (VecSXP)
             eval(
                 """
-                    pkgs <- c("base", "utils", "compiler")
+                    pkgs <- c("base", "utils", "compiler", "tools", "stats")
                     orig <- do.call(c, sapply(pkgs, \\(name) {
                         namespace <- getNamespace(name)
                         names <- ls(namespace, all.names = TRUE)
@@ -56,6 +56,13 @@ public class BCCompilerBenchmarkTest implements StdlibClosuresSource {
                   }
                 })
             .toList();
+
+    // Warmup the JVM
+    for (int i = 0; i < 10; i++) {
+      var compiler = new BCCompiler(funs.get(i), R.getSession());
+      compiler.setOptimizationLevel(3);
+      compiler.compile();
+    }
 
     var start = System.currentTimeMillis();
     for (var fun : funs) {
