@@ -199,6 +199,7 @@ static void prepare_rodata()
 typedef struct {
     size_t total_size;
     size_t executable_size;
+    size_t count_opcodes;
 } CompilationStats;
 
 static SEXP copy_patch_bc(SEXP bcode, CompilationStats *stats);
@@ -523,6 +524,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
             break;
             }
         }
+        stats->count_opcodes++;
 
         i += imms_cnt[bytecode[i]];
     }
@@ -772,7 +774,17 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
     double elapsed_time = (end.tv_sec - start.tv_sec) * 1000.0 + (end.tv_nsec - start.tv_nsec) / 1000000.0;
     double elapsed_time_mid = (mid.tv_sec - start.tv_sec) * 1000.0 + (mid.tv_nsec - start.tv_nsec) / 1000000.0;
 
-    fprintf(stderr, "Total size: %zu (executable size: %zu)\n", stats.total_size, stats.executable_size);
+    fprintf(stderr,
+        "Data size:\t%zu B\n"
+        "Executable size:\t%zu B\n"
+        "Opcodes count:\t%zu\n"
+        "Average opcode patched size:\t%.1f B\n",
+        stats.total_size - stats.executable_size,
+        stats.executable_size,
+        stats.count_opcodes,
+        (double)(stats.executable_size) / stats.count_opcodes
+    );
+
     fprintf(stderr, "Copy-patched in %.3f ms (%.3f for bytecode compilation + %.3f for copy-patch)\n", elapsed_time, elapsed_time_mid, elapsed_time - elapsed_time_mid);
 
     return compiled;
