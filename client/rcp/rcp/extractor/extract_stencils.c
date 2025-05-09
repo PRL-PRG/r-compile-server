@@ -127,6 +127,7 @@ static void export_body(FILE *file, const StencilMutable *stencil, const char *o
   fprintf(file, "\n};\n\n");
 }
 
+// Create all the header files for the stencils
 static void export_to_files(const Stencils *stencils)
 {
   for (uint8_t i = 0; i < sizeof(OPCODES) / sizeof(*OPCODES); ++i)
@@ -197,6 +198,7 @@ static void export_to_files(const Stencils *stencils)
   X(seq_len, Rsh_SeqLen)                                                  \
   X(log, Rsh_Log)
 
+// Identify the Rsh internal symbols to relocate them in a special way
 static int rsh_symbol_id(const char *name)
 {
   int counter = 0;
@@ -261,6 +263,7 @@ static int rsh_symbol_id(const char *name)
 
   return -1;
 }
+
 
 static void process_relocation(StencilMutable *stencil, Hole *hole, const arelent *rel)
 {

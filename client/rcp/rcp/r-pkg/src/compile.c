@@ -424,6 +424,7 @@ static void *find_free_space_near(void *target_ptr, size_t size)
 
 static const Stencil *get_stencil(int opcode, const int *imms, const SEXP *r_constpool)
 {
+    // For speciailized stencils
     switch(opcode)
     {
         case MATH1_OP:
@@ -481,6 +482,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
     size_t *inst_start = calloc(bytecode_size, sizeof(size_t));
     int *used_bcells = calloc(constpool_size, sizeof(int));
 
+    // First pass to calculate the sizes
     for (int i = 0; i < bytecode_size; ++i)
     {
         const int *imms = &bytecode[i + 1];
@@ -529,6 +531,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
         i += imms_cnt[bytecode[i]];
     }
 
+    // Create bcell lookup table
     int bcells_size = 0;
     for (int i = 0; i < constpool_size; ++i)
     {
@@ -544,6 +547,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
             used_bcells[i] = index++;
     }
 
+    // Allocate memory
     size_t rodata_size = align_to_higher(sizeof(rodata), sizeof(void *));
 
     size_t total_size = rodata_size + sizeof(SEXP) + insts_size + bcells_size * sizeof(SEXP) + sizeof(precompiled_functions);
@@ -557,6 +561,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
     res.memory_private = memory;
     res.memory_private_size = total_size;
 
+    // Split memory into sections
     uint8_t *ro_near = (uint8_t *)&memory[0];
     SEXP *rho = (SEXP *)&memory[rodata_size];
     SEXP *bcells = (SEXP *)&memory[rodata_size + sizeof(*rho)];
@@ -576,8 +581,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
     res.bcells = bcells;
     res.bcells_size = bcells_size;
 
-    // start to copy-patch
-
+    // Context for patching, passed to the patch function
     PatchContext ctx = {
         .ro_low = mem_shared,
         .ro_near = ro_near,
@@ -590,6 +594,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
         .rho = rho,
         .bcell_lookup = used_bcells};
 
+    // Start to copy-patch
     size_t executable_pos = 0;
     memcpy(&executable[executable_pos], _RCP_INIT.body, _RCP_INIT.body_size);
     for (size_t j = 0; j < _RCP_INIT.holes_size; ++j)
@@ -628,6 +633,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
 
         memcpy(&executable[executable_pos], stencil->body, stencil->body_size);
 
+        // Patch the holes
         for (size_t j = 0; j < stencil->holes_size; ++j)
             patch(&executable[executable_pos], &stencil->holes[j], &bytecode[i + 1], i + imms_cnt[bytecode[i]] + 1, &ctx);
 
