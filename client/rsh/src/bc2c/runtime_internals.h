@@ -29,8 +29,9 @@ extern R_bcstack_t *R_BCNodeStackTop, *R_BCNodeStackEnd, *R_BCProtTop;
 extern SEXP R_TrueValue;
 extern SEXP R_FalseValue;
 
+#define ALWAYS_INLINE inline __attribute__((always_inline))
 #ifdef RSH_INLINE
-#define INLINE inline __attribute__((always_inline))
+#define INLINE ALWAYS_INLINE
 #else
 #define INLINE
 #endif

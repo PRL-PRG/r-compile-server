@@ -651,7 +651,18 @@ public class BC2CCompilerTest {
   }
 
   @Test
-  public void testAdhoc(BC2CSnapshot snapshot) {}
+  public void testAdhoc(BC2CSnapshot snapshot) {
+    snapshot.setClean(false);
+    snapshot.verify("""
+        execute <- function(n=1000000) {
+          x <- 1:n
+          f <- function(x) x + 1.5
+          lapply(x, f)
+        }
+
+        execute()
+        """);
+  }
 
   // API
 

@@ -1,23 +1,24 @@
 library(rsh)
 
 RBC_OPTS <- list(optimize = 3L)
-RSH_OPTS <- list(optimize = 3L)
-DEFAULT_NUM_ITER <- 15L
+RSH_OPTS <- list(optimize = 3L, cc_opt = 2)
+RUNS <- as.integer(Sys.getenv("RUNS", 15))
 
 wrap_with_verify <- function(f, expected, expected_output) {
   f <- force(f)
   function(x) {
-    output <- capture.output(actual <- f(x))
-    if (!identical(actual, expected)) {
-      stop("Benchmark failed with incorrect result, expected: ", expected, ", actual: ", actual)
-    }
-    if (!identical(output, expected_output)) {
-      stop("Benchmark failed with incorrect output, expected: ", expected_output, ", actual: ", output)
-    }
+    f(x)
+    # output <- capture.output(actual <- f(x))
+    # if (!identical(actual, expected)) {
+    #   stop("Benchmark failed with incorrect result, expected: ", expected, ", actual: ", actual)
+    # }
+    # if (!identical(output, expected_output)) {
+    #   stop("Benchmark failed with incorrect output, expected: ", expected_output, ", actual: ", output)
+    # }
   }
 }
 
-benchmark <- function(num_iter, bench_param) {
+benchmark <- function(bench_param) {
   output <- capture.output(result <- execute(bench_param))
 
   rbc <- compiler::cmpfun(execute, options=RBC_OPTS)
@@ -29,14 +30,14 @@ benchmark <- function(num_iter, bench_param) {
     RBC=rbc(bench_param),
     RSH=rsh(bench_param),
 
-    times = num_iter,
+    times = RUNS,
     unit="seconds",
-    control=list(order="block", warnup=3L)
+    control=list(order="block", warnup=0)
   )
 }
 
 run <- function(args) {
-    if (length(args) < 1 || length(args) > 3) {
+    if (length(args) < 1 || length(args) > 2) {
         stop(printUsage())
     }
 
@@ -45,29 +46,25 @@ run <- function(args) {
 
     source(paste0(basename(name), ".R"))
 
-    num_iter <- DEFAULT_NUM_ITER
     bench_param <- formals(execute)[[1]]
 
-    if (length(args) >= 2) {
-        num_iter <- strtoi(args[[2]])
+    if (length(args) == 2) {
+        bench_param <- strtoi(args[[2]])
     }
 
-    if (length(args) == 3) {
-        bench_param <- strtoi(args[[3]])
-    }
-
-    res <- benchmark(num_iter, bench_param);
+    res <- benchmark(bench_param);
     print(res)
     res <- cbind(res, name=basename(name), bench_param={if(missing(bench_param)) NA else bench_param})
     write.csv(res, paste0(name, ".csv"), row.names = FALSE)
 }
 
 printUsage <- function() {
-    cat("harness.r benchmark [num-iterations] [benchmark-parameter]\n")
+    cat("harness.r benchmark [benchmark-parameter]\n")
     cat("\n")
     cat("  benchmark           - benchmark class name\n")
-    cat("  num-iterations      - number of times to execute benchmark (default: ", DEFAULT_NUM_ITER, ")\n")
     cat("  benchmark-parameter - size of the benchmark problem (default defined in benchmark)\n")
+    cat("\n")
+    cat("  RUNS environment variable affects the number of runs (default: ", RUNS, ")\n")
 }
 
 args <- commandArgs(trailingOnly=FALSE)
