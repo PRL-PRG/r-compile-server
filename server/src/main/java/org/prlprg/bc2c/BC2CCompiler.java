@@ -232,8 +232,6 @@ class ClosureCompiler {
               builder.args(constantSXP(symbol), cell(symbol)).compileStmt();
           case BcInstr.EndAssign(var symbol) ->
               builder.args(constantSXP(symbol), cell(symbol)).compileStmt();
-          case BcInstr.GetBuiltin(var idx) ->
-              builder.args("\"" + bc.consts().get(idx).name() + "\"").compileStmt();
           case BcInstr.MakeClosure(var idx) -> compileMakeClosure(builder, idx);
 
             // FIXME: this can be all done using the default branch - except for the rank

@@ -320,9 +320,8 @@ static INLINE SEXP relop(SEXP call, SEXP op, SEXP opsym, SEXP x, SEXP y,
     }                                                                          \
   } while (0)
 
-#define RSH_LIST_APPEND(/* Value* */ head, /* Value* */ tail,                  \
-                        /* SEXP */ value)                                      \
-  RSH_LIST_APPEND_EX(head, tail, value, TRUE)
+#define RSH_PUSH_ARG(/* Value* */ head, /* Value* */ tail, /* SEXP */ value)   \
+  RSH_LIST_APPEND_EX(head, tail, value, FALSE)
 
 #define RSH_SET_TAG(/* Value */ v, /* SEXP */ t)                               \
   do {                                                                         \
@@ -331,6 +330,14 @@ static INLINE SEXP relop(SEXP call, SEXP op, SEXP opsym, SEXP x, SEXP y,
     if (__tag__ != R_NilValue) {                                               \
       if (__v__ != R_NilValue)                                                 \
         SET_TAG(__v__, Rf_CreateTag(__tag__));                                 \
+    }                                                                          \
+  } while (0)
+
+#define RSH_SET_TAG_SYMBOL(/* Value */ v, /* SEXP */ t)                        \
+  do {                                                                         \
+    SEXP __v__ = VAL_SXP((v));                                                 \
+    if (__v__ != R_NilValue) {                                                 \
+      SET_TAG(__v__, t);                                                       \
     }                                                                          \
   } while (0)
 
