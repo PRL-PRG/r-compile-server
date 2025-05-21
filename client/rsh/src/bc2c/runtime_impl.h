@@ -6,7 +6,7 @@
 static Rsh_PerfCounters Rsh_GPC;
 
 SEXP Rsh_pc_get(void) {
-  u32 size = sizeof(Rsh_PerfCounters) / sizeof(int);
+  u32 size = sizeof(Rsh_PerfCounters) / sizeof(u32);
   SEXP pc = PROTECT(Rf_allocVector(INTSXP, size));
 
   memcpy(INTEGER(pc), &Rsh_GPC, sizeof(Rsh_PerfCounters));
@@ -23,6 +23,7 @@ SEXP Rsh_pc_get(void) {
   SET_STRING_ELT(names, i++, mkChar("dispatched_subassign"));
   SET_STRING_ELT(names, i++, mkChar("isq"));
   SET_STRING_ELT(names, i++, mkChar("isq_for"));
+  SET_STRING_ELT(names, i++, mkChar("r_primitive"));
   setAttrib(pc, R_NamesSymbol, names);
 
   UNPROTECT(2);
