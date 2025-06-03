@@ -4,6 +4,8 @@
 // THIS HEADER NEEDS TO BE A C-compatible HEADER
 // IT IS USED BY THE SERVER COMPILER
 
+#define RSH
+
 // MAKE SURE Rinternals.h is not listed!
 #include "runtime_internals.h"
 #include <assert.h>
@@ -70,6 +72,8 @@ typedef struct {
   u32 isq;
   // number of ISQ loops
   u32 isq_for;
+  // number of times R_Primitive was called
+  u32 r_primitive;
 } Rsh_PerfCounters;
 
 #ifndef RSH_TESTS
@@ -312,7 +316,7 @@ static INLINE SEXP VAL_SXP(Value v) {
 
 // TODO: can we share this bcell expand?
 // TODO: rename
-static INLINE SEXP val_as_sexp(Value v) {
+static ALWAYS_INLINE SEXP val_as_sexp(Value v) {
   switch (v.tag) {
   case REALSXP:
     return Rf_ScalarReal(VAL_DBL(v));
@@ -489,7 +493,8 @@ static INLINE BCell bcell_get(SEXP symbol, SEXP rho) {
   }
 }
 
-static INLINE void bcell_cache(SEXP symbol, SEXP rho, BCell *const cache) {
+static ALWAYS_INLINE void bcell_cache(SEXP symbol, SEXP rho,
+                                      BCell *const cache) {
   if (TAG(*cache) == symbol && !BCELL_IS_UNBOUND(*cache)) {
     return;
   } else {
@@ -515,7 +520,7 @@ static INLINE SEXP bcell_value(SEXP cell) {
   }
 }
 
-static INLINE Rboolean bcell_set_value(BCell cell, SEXP value) {
+static ALWAYS_INLINE Rboolean bcell_set_value(BCell cell, SEXP value) {
   if (cell != R_NilValue && !BINDING_IS_LOCKED(cell) &&
       !IS_ACTIVE_BINDING(cell)) {
     if (BNDCELL_TAG(cell) || CAR(cell) != value) {
@@ -560,8 +565,6 @@ static INLINE Rboolean bcell_set_value(BCell cell, SEXP value) {
 // where rho is the environment created for the call of the function (passed
 // from .External2), and c_cp the C constant pool.
 
-typedef SEXP (*Rsh_closure)(SEXP, SEXP);
-
 // RUNTIME CONSTANTS
 // -----------------
 
@@ -578,7 +581,7 @@ JIT_DECL SEXP Rsh_initialize_runtime(void);
 JIT_DECL SEXP Rsh_call_trampoline(SEXP call, SEXP op, SEXP args, SEXP rho);
 JIT_DECL SEXP Rsh_pc_get(void);
 JIT_DECL SEXP Rsh_pc_reset(void);
-JIT_DECL SEXP create_wrapper_body(SEXP body, SEXP fun_ptr, SEXP c_cp);
+JIT_DECL SEXP create_wrapper_body(SEXP body, Rsh_closure fun_ptr, SEXP c_cp);
 #endif
 
 #define BCELL_INLINE(cell, v)                                                  \
@@ -888,8 +891,23 @@ static INLINE SEXP Rsh_closure_call_args(SEXP args) {
 }
 
 static INLINE void Rsh_GetBuiltin(Value *call, Value *args_head,
-                                  Value *args_tail, const char *name) {
-  SET_SXP_VAL(call, R_Primitive(name));
+                                  Value *args_tail, SEXP symbol) {
+  SEXP value = SYMVALUE(symbol);
+
+  if (TYPEOF(value) == PROMSXP && !PROMISE_IS_EVALUATED(value)) {
+    forcePromise(value);
+    value = PRVALUE(value);
+  }
+
+  if (TYPEOF(value) != BUILTINSXP) {
+    value = R_Primitive(CHAR(PRINTNAME(symbol)));
+    if (TYPEOF(value) != BUILTINSXP) {
+      Rf_error("\"%s\" is not a BUILTIN function", CHAR(PRINTNAME(symbol)));
+    }
+    RSH_PC_INC(r_primitive);
+  }
+
+  SET_SXP_VAL(call, value);
   INIT_CALL_FRAME(args_head, args_tail);
 }
 
@@ -903,8 +921,8 @@ static INLINE void Rsh_GetFun(Value *fun, Value *args_head, Value *args_tail,
 
 #define Rsh_CallBuiltin Rsh_Call
 
-#define Rsh_PushArg(h, t, v) RSH_LIST_APPEND(h, t, val_as_sexp(v))
-#define Rsh_PushConstArg(h, t, v) RSH_LIST_APPEND(h, t, v)
+#define Rsh_PushArg(h, t, v) RSH_PUSH_ARG(h, t, val_as_sexp(v))
+#define Rsh_PushConstArg(h, t, v) RSH_PUSH_ARG(h, t, v)
 #define Rsh_PushNullArg(h, t) Rsh_PushConstArg(h, t, R_NilValue)
 #define Rsh_PushTrueArg(h, t) Rsh_PushConstArg(h, t, R_TrueValue)
 #define Rsh_PushFalseArg(h, t) Rsh_PushConstArg(h, t, R_FalseValue)
@@ -1271,22 +1289,14 @@ X_LOGIC2_OPS
 #undef X
 
 static INLINE void Rsh_MakeClosure(Value *res, SEXP mkclos_arg,
-                                   Rsh_closure fun_ptr, SEXP consts, SEXP rho) {
+                                   Rsh_closure fun_ptr, SEXP c_cp, SEXP rho) {
 
   SEXP forms = VECTOR_ELT(mkclos_arg, 0);
   SEXP original_body = VECTOR_ELT(mkclos_arg, 1);
-  SEXP closure = PROTECT(Rf_mkCLOSXP(forms, original_body, rho));
-
-  // this is because ISO C forbids conversion of function pointer to object
-  // pointer type with -Wpedantic
-  _Pragma("GCC diagnostic push");
-  _Pragma("GCC diagnostic ignored \"-Wpedantic\"");
-  SEXP fun_ptr_sxp =
-      PROTECT(R_MakeExternalPtr((void *)fun_ptr, R_NilValue, R_NilValue));
-  _Pragma("GCC diagnostic pop");
-
-  SEXP body = PROTECT(create_wrapper_body(original_body, fun_ptr_sxp, consts));
-  SET_BODY(closure, body);
+  // SEXP body = PROTECT(create_wrapper_body(original_body, fun_ptr, consts));
+  SEXP body =
+      PROTECT(R_MakeExternalPtr((void *)fun_ptr, Rsh_ClosureBodyTag, c_cp));
+  SEXP closure = PROTECT(Rf_mkCLOSXP(forms, body, rho));
 
   if (LENGTH(mkclos_arg) > 2) {
     SEXP srcref = VECTOR_ELT(mkclos_arg, 2);
@@ -1296,7 +1306,7 @@ static INLINE void Rsh_MakeClosure(Value *res, SEXP mkclos_arg,
   }
   R_Visible = TRUE;
 
-  UNPROTECT(3);
+  UNPROTECT(2); // body + closure
   SET_SXP_VAL(res, closure);
 }
 
@@ -1322,18 +1332,18 @@ static INLINE void Rsh_MakeProm(Value *fun, Value *args_head, Value *args_tail,
   switch (TYPEOF(VAL_SXP(*fun))) {
   case CLOSXP: {
     SEXP value = Rf_mkPROMISE(code, rho);
-    RSH_LIST_APPEND_EX(args_head, args_tail, value, TRUE);
+    RSH_PUSH_ARG(args_head, args_tail, value);
     break;
   }
   case BUILTINSXP:
     if (TYPEOF(code) == BCODESXP) {
       SEXP value = bcEval(code, rho);
-      RSH_LIST_APPEND_EX(args_head, args_tail, value, TRUE);
+      RSH_PUSH_ARG(args_head, args_tail, value);
     } else {
       /* uncommon but possible, the compiler may decide not
          to compile an argument expression */
       SEXP value = Rf_eval(code, rho);
-      RSH_LIST_APPEND_EX(args_head, args_tail, value, TRUE);
+      RSH_PUSH_ARG(args_head, args_tail, value);
     }
     break;
   case SPECIALSXP:
@@ -1414,7 +1424,7 @@ static INLINE Rboolean Rsh_start_subset_dispatch(const char *generic,
     //  In GNUR at this point we push additional R_NilValue onto the stack
     //  I just don't see why, or regardless why, who does pops it out?
     INIT_CALL_FRAME(args_head, args_tail);
-    RSH_LIST_APPEND_EX(args_head, args_tail, val_as_sexp(*value), FALSE);
+    RSH_PUSH_ARG(args_head, args_tail, val_as_sexp(*value));
     RSH_SET_TAG(*args_tail, tag);
     return FALSE;
   }
@@ -1802,8 +1812,8 @@ static INLINE void Rsh_SetterCall(Value *lhs, Value rhs, Value fun,
   switch (TYPEOF(fun_sxp)) {
   case BUILTINSXP:
     // append RHS top arguments with value tag
-    RSH_LIST_APPEND_EX(&args_head, &args_tail, val_as_sexp(rhs), FALSE);
-    RSH_SET_TAG(args_tail, R_valueSym);
+    RSH_PUSH_ARG(&args_head, &args_tail, val_as_sexp(rhs));
+    RSH_SET_TAG_SYMBOL(args_tail, R_valueSym);
     RSH_CALL_ARGS_DECREMENT_LINKS(args);
     // replace first argument with LHS value
     SETCAR(args, lhs_sxp);
@@ -1834,9 +1844,10 @@ static INLINE void Rsh_SetterCall(Value *lhs, Value rhs, Value fun,
     // unlike in SPECIALSXP case, we need to use a RC promise
     SEXP prom = R_mkEVPROMISE(vexpr, val_as_sexp(rhs));
     // append RHS to arguments with value tag
-    RSH_LIST_APPEND_EX(&args_head, &args_tail, prom, FALSE);
-    RSH_SET_TAG(args_tail, R_valueSym);
+    RSH_PUSH_ARG(&args_head, &args_tail, prom);
+    RSH_SET_TAG_SYMBOL(args_tail, R_valueSym);
     // replace first argument with LHS value as *tmp*
+    args = Rsh_closure_call_args(args);
     prom = R_mkEVPROMISE(Rsh_TmpvalSym, lhs_sxp);
     SETCAR(args, prom);
     // call the closure
@@ -1883,7 +1894,7 @@ static INLINE Rboolean Rsh_start_subassign_dispatch(
     SEXP tag = TAG(CDR(call));
     SET_SXP_VAL(call_val, call);
     INIT_CALL_FRAME(args_head, args_tail);
-    RSH_LIST_APPEND_EX(args_head, args_tail, lhs_sxp, FALSE);
+    RSH_PUSH_ARG(args_head, args_tail, lhs_sxp);
     RSH_SET_TAG(*args_tail, tag);
     // stack at the end:
     //         s4 - lhs
@@ -1900,7 +1911,7 @@ static INLINE void Rsh_DoMissing(Value *call, Value *args_head,
                                  Value *args_tail) {
   SEXP call_sxp = VAL_SXP(*call);
   if (TYPEOF(call_sxp) != SPECIALSXP) {
-    RSH_LIST_APPEND_EX(args_head, args_tail, R_MissingArg, FALSE);
+    RSH_PUSH_ARG(args_head, args_tail, R_MissingArg);
   }
 }
 
@@ -1926,7 +1937,7 @@ static INLINE void Rsh_dflt_subassign_dispatch(CCODE fun, SEXP symbol,
   SEXP args = val_as_sexp(args_head);
   RSH_CALL_ARGS_DECREMENT_LINKS(args);
   MARK_ASSIGNMENT_CALL(call_sxp);
-  RSH_LIST_APPEND_EX(&args_head, &args_tail, val_as_sexp(rhs), FALSE);
+  RSH_PUSH_ARG(&args_head, &args_tail, val_as_sexp(rhs));
   SEXP value = fun(call_sxp, symbol, args, rho);
   SET_VAL(lhs, value);
 }
@@ -2191,26 +2202,35 @@ static INLINE Rboolean Rsh_StepFor(Value *s2, Value *s1, Value *s0, BCell *cell,
   RSH_CHECK_SIGINT();
 
   SEXP value;
+  SEXP c = *cell;
 
   // it is important to use info->type and not TYPEOF(seq)
   // as it could be the ISQSXP
   switch (info->type) {
-  case INTSXP:
-  case ISQSXP: {
-    int v;
-    if (info->type == INTSXP) {
-      v = INTEGER_ELT(seq, i);
-    } else {
-      int *info = INTEGER(seq);
-      int n1 = info[0];
-      int n2 = info[1];
-      int ii = (int)i;
-      v = n1 <= n2 ? n1 + ii : n1 - ii;
-      RSH_PC_INC(isq_for);
-    }
-
+  case INTSXP: {
+    int v = INTEGER_ELT(seq, i);
     if (BCELL_TAG_WR(*cell) == INTSXP) {
       BCELL_IVAL_SET(*cell, v);
+      return TRUE;
+    } else if (BCELL_WRITABLE(*cell)) {
+      BCELL_IVAL_NEW(*cell, v);
+      return TRUE;
+    } else {
+      value = VAL_SXP(*s0);
+      SET_SCALAR_IVAL(value, v);
+    }
+    break;
+  }
+  case ISQSXP: {
+    int *info = INTEGER(seq);
+    int n1 = info[0];
+    int n2 = info[1];
+    int ii = (int)i;
+    int v = n1 <= n2 ? n1 + ii : n1 - ii;
+    RSH_PC_INC(isq_for);
+
+    if (BCELL_TAG_WR(c) == INTSXP) {
+      BCELL_IVAL_SET(c, v);
       return TRUE;
     } else if (BCELL_WRITABLE(*cell)) {
       BCELL_IVAL_NEW(*cell, v);
@@ -2566,7 +2586,7 @@ static INLINE void Rsh_DoDots(Value *call, Value *args_head, Value *args_tail,
       } else {
         val = Rf_mkPROMISE(CAR(h), rho);
       }
-      RSH_LIST_APPEND(args_head, args_tail, val);
+      RSH_PUSH_ARG(args_head, args_tail, val);
       RSH_SET_TAG(*args_tail, TAG(h));
     }
     UNPROTECT(1); /* h */

@@ -25,8 +25,5 @@ namespace rsh {
 
 using Bytes = std::vector<u8>;
 
-// A tag to attach to the external pointer
-extern SEXP RSH_JIT_FUN_PTR;
-
 extern JIT *JIT;
 }; // namespace rsh
