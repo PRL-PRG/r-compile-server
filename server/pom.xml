@@ -132,6 +132,16 @@
     </dependency>
   </dependencies>
   <build>
+    <resources>
+      <resource>
+        <directory>src/main/resources</directory>
+        <excludes>
+          <exclude>**/*.proto</exclude>
+        </excludes>
+      </resource>
+      <!-- If you had a separate resources entry pointing at src/main/proto, just remove it entirely. -->
+    </resources>
+
     <!-- Snapshots aren't test resources, because we have to write to them, so we access them
                                      at their actual locations (bundled are overridden on recompile). -->
     <plugins>
@@ -144,6 +154,15 @@
           <protocArtifact>com.google.protobuf:protoc:3.25.1:exe:${os.detected.classifier}</protocArtifact>
           <pluginId>grpc-java</pluginId>
           <pluginArtifact>io.grpc:protoc-gen-grpc-java:1.64.0:exe:${os.detected.classifier}</pluginArtifact>
+
+          <!-- turn on timestamp-based staleness checking -->
+          <checkStaleness>true</checkStaleness>
+          <!-- (optional) minimum age in ms before considering a file stale;
+              useful when building over NFS or other slow file systems -->
+          <staleMillis>10000</staleMillis>
+
+          <!-- do not attach .proto files as resources, otherwise, compilation takes ages -->
+          <attachProtoSources>false</attachProtoSources>
         </configuration>
         <executions>
           <execution>
@@ -279,6 +298,16 @@
             </goals>
           </execution>
         </executions>
+      </plugin>
+      <!-- Enable incremental compilation -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.13.0</version>
+        <configuration>
+          <!-- enable the compiler’s incremental mode -->
+          <useIncrementalCompilation>false</useIncrementalCompilation>
+        </configuration>
       </plugin>
       <!-- pmd (and cpd), static analysis on syntax -->
       <plugin>

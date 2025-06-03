@@ -32,8 +32,6 @@ void jit_fun_destructor(SEXP fun_ptr) {
 
 namespace rsh {
 
-SEXP RSH_JIT_FUN_PTR = Rf_install("RSH_JIT_FUN_PTR");
-
 static std::variant<protocol::CompileResponse, std::string>
 compile_closure(SEXP closure, CompilerOptions options) {
   // If a function has already been compiled to native code
@@ -126,10 +124,6 @@ std::string genSymbol(uint64_t hash, int index) {
 }
 
 SEXP compile(SEXP closure, SEXP options) {
-  if (!RSH_JIT_FUN_PTR) {
-    Rf_error("The package was not initialized");
-  }
-
   if (TYPEOF(options) != VECSXP) {
     Rf_error("Expected a list of compiler options");
   }
@@ -161,12 +155,13 @@ SEXP compile(SEXP closure, SEXP options) {
   // Native or bytecode?
   if (opts.tier == protocol::Tier::OPTIMIZED) {
     fun_ptr = insert_into_jit(name.c_str(), compiled_fun);
-    auto fun_ptr_sxp =
-        R_MakeExternalPtr(fun_ptr, RSH_JIT_FUN_PTR, Rf_mkString(name.c_str()));
-    R_RegisterCFinalizerEx(fun_ptr_sxp, &jit_fun_destructor, FALSE);
+    // FIXME: update the finalizer
+    // R_RegisterCFinalizerEx(fun_ptr_sxp, &jit_fun_destructor, FALSE);
 
     auto c_cp = rsh::deserialize(compiled_fun.constants());
-    body = PROTECT(create_wrapper_body(closure, fun_ptr_sxp, c_cp)); // P1
+    body =
+        PROTECT(R_MakeExternalPtr((void *)fun_ptr, Rsh_ClosureBodyTag, c_cp));
+    // PROTECT(create_wrapper_body(closure, (Rsh_closure)fun_ptr, c_cp)); // P1
   } else if (opts.tier == protocol::Tier::BASELINE) {
     body = PROTECT(rsh::deserialize(compiled_fun.code())); // P2
     if (TYPEOF(body) != BCODESXP) {
