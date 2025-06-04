@@ -1,8 +1,8 @@
 #!/usr/bin/env Rscript
 
 do_result <- function(args) {
-  if (length(args) != 1) {
-    stop("Usage: result <input file>")
+  if (!(length(args) %in% c(1, 2))) {
+    stop("Usage: result <input file> [<output_file>]")
   }
 
   input_dir <- args[1]
@@ -24,9 +24,14 @@ do_result <- function(args) {
       speedup = RBC / RSH
     )
 
-  D_sp %>%
-    arrange(speedup) %>%
-    print(n=Inf)
+  res <- D_sp %>%
+    arrange(speedup)
+
+  if (length(args) == 2) {
+    write_csv(res, args[2])
+  }
+
+  print(res, n=Inf)
 }
 
 do_save <- function(args) {
