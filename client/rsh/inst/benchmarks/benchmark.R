@@ -1,15 +1,24 @@
 #!/usr/bin/env Rscript
 
+DEFAULT_WARMUP <- 5
+DEFAULT_RESULT_FILE <- "result.csv"
+
 do_result <- function(args) {
-  if (!(length(args) %in% c(1, 2))) {
-    stop("Usage: result <input file> [<output_file>]")
+  if (length(args) < 1 || length(args) > 3) {
+    stop("Usage: result <input file> [<warmup>] [<output file>]")
   }
 
   input_dir <- args[1]
   D_raw <- read_csv(input_dir)
 
+  warmup <- DEFAULT_WARMUP
+  if (length(args) > 1) {
+    warmup <- as.integer(args[2])
+  }
+
   D <- D_raw %>%
     group_by(suite, name, expr) %>%
+    slice(-(1:warmup)) %>%
     summarise(
       n = n(),
       min = min(time),
@@ -27,9 +36,11 @@ do_result <- function(args) {
   res <- D_sp %>%
     arrange(speedup)
 
-  if (length(args) == 2) {
-    write_csv(res, args[2])
+  result_file <- DEFAULT_RESULT_FILE
+  if (length(args) == 3) {
+    result_file <- args[3]
   }
+  write_csv(res, result_file)
 
   print(res, n=Inf)
 }
