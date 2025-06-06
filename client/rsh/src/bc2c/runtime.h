@@ -64,6 +64,8 @@ typedef struct {
   u32 isq;
   // number of ISQ loops
   u32 isq_for;
+  // number of times R_Primitive was called
+  u32 r_primitive;
 } Rsh_PerfCounters;
 
 #ifndef RSH_TESTS
@@ -871,8 +873,23 @@ static INLINE SEXP Rsh_closure_call_args(SEXP args) {
 }
 
 static INLINE void Rsh_GetBuiltin(Value *call, Value *args_head,
-                                  Value *args_tail, const char *name) {
-  SET_SXP_VAL(call, R_Primitive(name));
+                                  Value *args_tail, SEXP symbol) {
+  SEXP value = SYMVALUE(symbol);
+
+  if (TYPEOF(value) == PROMSXP && !PROMISE_IS_EVALUATED(value)) {
+    forcePromise(value);
+    value = PRVALUE(value);
+  }
+
+  if (TYPEOF(value) != BUILTINSXP) {
+    value = R_Primitive(CHAR(PRINTNAME(symbol)));
+    if (TYPEOF(value) != BUILTINSXP) {
+      Rf_error("\"%s\" is not a BUILTIN function", CHAR(PRINTNAME(symbol)));
+    }
+    RSH_PC_INC(r_primitive);
+  }
+
+  SET_SXP_VAL(call, value);
   INIT_CALL_FRAME(args_head, args_tail);
 }
 
@@ -886,8 +903,8 @@ static INLINE void Rsh_GetFun(Value *fun, Value *args_head, Value *args_tail,
 
 #define Rsh_CallBuiltin Rsh_Call
 
-#define Rsh_PushArg(h, t, v) RSH_LIST_APPEND(h, t, val_as_sexp(v))
-#define Rsh_PushConstArg(h, t, v) RSH_LIST_APPEND(h, t, v)
+#define Rsh_PushArg(h, t, v) RSH_PUSH_ARG(h, t, val_as_sexp(v))
+#define Rsh_PushConstArg(h, t, v) RSH_PUSH_ARG(h, t, v)
 #define Rsh_PushNullArg(h, t) Rsh_PushConstArg(h, t, R_NilValue)
 #define Rsh_PushTrueArg(h, t) Rsh_PushConstArg(h, t, R_TrueValue)
 #define Rsh_PushFalseArg(h, t) Rsh_PushConstArg(h, t, R_FalseValue)
@@ -1297,18 +1314,18 @@ static INLINE void Rsh_MakeProm(Value *fun, Value *args_head, Value *args_tail,
   switch (TYPEOF(VAL_SXP(*fun))) {
   case CLOSXP: {
     SEXP value = Rf_mkPROMISE(code, rho);
-    RSH_LIST_APPEND_EX(args_head, args_tail, value, TRUE);
+    RSH_PUSH_ARG(args_head, args_tail, value);
     break;
   }
   case BUILTINSXP:
     if (TYPEOF(code) == BCODESXP) {
       SEXP value = bcEval(code, rho);
-      RSH_LIST_APPEND_EX(args_head, args_tail, value, TRUE);
+      RSH_PUSH_ARG(args_head, args_tail, value);
     } else {
       /* uncommon but possible, the compiler may decide not
          to compile an argument expression */
       SEXP value = Rf_eval(code, rho);
-      RSH_LIST_APPEND_EX(args_head, args_tail, value, TRUE);
+      RSH_PUSH_ARG(args_head, args_tail, value);
     }
     break;
   case SPECIALSXP:
@@ -1389,7 +1406,7 @@ static INLINE Rboolean Rsh_start_subset_dispatch(const char *generic,
     //  In GNUR at this point we push additional R_NilValue onto the stack
     //  I just don't see why, or regardless why, who does pops it out?
     INIT_CALL_FRAME(args_head, args_tail);
-    RSH_LIST_APPEND_EX(args_head, args_tail, val_as_sexp(*value), FALSE);
+    RSH_PUSH_ARG(args_head, args_tail, val_as_sexp(*value));
     RSH_SET_TAG(*args_tail, tag);
     return FALSE;
   }
@@ -1777,8 +1794,8 @@ static INLINE void Rsh_SetterCall(Value *lhs, Value rhs, Value fun,
   switch (TYPEOF(fun_sxp)) {
   case BUILTINSXP:
     // append RHS top arguments with value tag
-    RSH_LIST_APPEND_EX(&args_head, &args_tail, val_as_sexp(rhs), FALSE);
-    RSH_SET_TAG(args_tail, R_valueSym);
+    RSH_PUSH_ARG(&args_head, &args_tail, val_as_sexp(rhs));
+    RSH_SET_TAG_SYMBOL(args_tail, R_valueSym);
     RSH_CALL_ARGS_DECREMENT_LINKS(args);
     // replace first argument with LHS value
     SETCAR(args, lhs_sxp);
@@ -1809,9 +1826,10 @@ static INLINE void Rsh_SetterCall(Value *lhs, Value rhs, Value fun,
     // unlike in SPECIALSXP case, we need to use a RC promise
     SEXP prom = R_mkEVPROMISE(vexpr, val_as_sexp(rhs));
     // append RHS to arguments with value tag
-    RSH_LIST_APPEND_EX(&args_head, &args_tail, prom, FALSE);
-    RSH_SET_TAG(args_tail, R_valueSym);
+    RSH_PUSH_ARG(&args_head, &args_tail, prom);
+    RSH_SET_TAG_SYMBOL(args_tail, R_valueSym);
     // replace first argument with LHS value as *tmp*
+    args = Rsh_closure_call_args(args);
     prom = R_mkEVPROMISE(Rsh_TmpvalSym, lhs_sxp);
     SETCAR(args, prom);
     // call the closure
@@ -1858,7 +1876,7 @@ static INLINE Rboolean Rsh_start_subassign_dispatch(
     SEXP tag = TAG(CDR(call));
     SET_SXP_VAL(call_val, call);
     INIT_CALL_FRAME(args_head, args_tail);
-    RSH_LIST_APPEND_EX(args_head, args_tail, lhs_sxp, FALSE);
+    RSH_PUSH_ARG(args_head, args_tail, lhs_sxp);
     RSH_SET_TAG(*args_tail, tag);
     // stack at the end:
     //         s4 - lhs
@@ -1875,7 +1893,7 @@ static INLINE void Rsh_DoMissing(Value *call, Value *args_head,
                                  Value *args_tail) {
   SEXP call_sxp = VAL_SXP(*call);
   if (TYPEOF(call_sxp) != SPECIALSXP) {
-    RSH_LIST_APPEND_EX(args_head, args_tail, R_MissingArg, FALSE);
+    RSH_PUSH_ARG(args_head, args_tail, R_MissingArg);
   }
 }
 
@@ -1901,7 +1919,7 @@ static INLINE void Rsh_dflt_subassign_dispatch(CCODE fun, SEXP symbol,
   SEXP args = val_as_sexp(args_head);
   RSH_CALL_ARGS_DECREMENT_LINKS(args);
   MARK_ASSIGNMENT_CALL(call_sxp);
-  RSH_LIST_APPEND_EX(&args_head, &args_tail, val_as_sexp(rhs), FALSE);
+  RSH_PUSH_ARG(&args_head, &args_tail, val_as_sexp(rhs));
   SEXP value = fun(call_sxp, symbol, args, rho);
   SET_VAL(lhs, value);
 }
@@ -2550,7 +2568,7 @@ static INLINE void Rsh_DoDots(Value *call, Value *args_head, Value *args_tail,
       } else {
         val = Rf_mkPROMISE(CAR(h), rho);
       }
-      RSH_LIST_APPEND(args_head, args_tail, val);
+      RSH_PUSH_ARG(args_head, args_tail, val);
       RSH_SET_TAG(*args_tail, TAG(h));
     }
     UNPROTECT(1); /* h */
