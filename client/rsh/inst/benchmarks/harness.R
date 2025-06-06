@@ -7,14 +7,13 @@ RUNS <- as.integer(Sys.getenv("RUNS", 15))
 wrap_with_verify <- function(f, expected, expected_output) {
   f <- force(f)
   function(x) {
-    f(x)
-    # output <- capture.output(actual <- f(x))
-    # if (!identical(actual, expected)) {
-    #   stop("Benchmark failed with incorrect result, expected: ", expected, ", actual: ", actual)
-    # }
-    # if (!identical(output, expected_output)) {
-    #   stop("Benchmark failed with incorrect output, expected: ", expected_output, ", actual: ", output)
-    # }
+    output <- capture.output(actual <- f(x))
+    if (!identical(actual, expected)) {
+      stop("Benchmark failed with incorrect result, expected: ", expected, ", actual: ", actual)
+    }
+    if (!identical(output, expected_output)) {
+      stop("Benchmark failed with incorrect output, expected: ", expected_output, ", actual: ", output)
+    }
   }
 }
 
