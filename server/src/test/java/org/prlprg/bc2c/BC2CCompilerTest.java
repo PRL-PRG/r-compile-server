@@ -653,7 +653,8 @@ public class BC2CCompilerTest {
   @Test
   public void testAdhoc(BC2CSnapshot snapshot) {
     snapshot.setClean(false);
-    snapshot.verify("""
+    snapshot.verify(
+        """
         execute <- function(n=1000000) {
           x <- 1:n
           f <- function(x) x + 1.5
