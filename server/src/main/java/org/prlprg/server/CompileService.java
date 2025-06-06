@@ -59,8 +59,8 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
 
     ServerCallStreamObserver<Messages.CompileResponse> responseObserver =
         (ServerCallStreamObserver<Messages.CompileResponse>) plainResponseObserver;
-    responseObserver.setCompression(
-        "gzip"); // Or for all responses? In that case, we just need to add an interceptor.
+    responseObserver.setCompression("gzip"); // Or for all responses? In that case, we just need to
+    // add an interceptor.
 
     if (session == null) {
       responseObserver.onError(
@@ -92,7 +92,7 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
             + request.getSerializedSize());
 
     if (request.getNoCache()) {
-      logger.info("This closure will not be cached (but it might have already been).");
+      logger.info("This closure will not be cached and no lookups in the cache will be performed.");
     }
 
     // Compile the code and build response
@@ -102,25 +102,28 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
 
     // Cache requests
     NativeClosure ccCached = null;
-
-    var nativeKey = Triple.of(function.getHash(), bcOpt, ccOpt);
-    if (tier.equals(Messages.Tier.OPTIMIZED)) {
-      ccCached = nativeCache.get(nativeKey);
-      if (ccCached != null) {
-        logger.info("Found " + function.getName() + " in native cache. No recompilation.");
-        response.setCode(ccCached.code());
-        response.setConstants(ccCached.constantPool());
-      }
-    }
-
     Pair<Bc, ByteString> bcCached = null;
-    // We also have a look whether we have a cached bytecode for the native compilation
+    var nativeKey = Triple.of(function.getHash(), bcOpt, ccOpt);
     var bcKey = Pair.of(function.getHash(), bcOpt);
-    if (tier.equals((Messages.Tier.BASELINE)) || ccCached == null) {
-      bcCached = bcCache.get(bcKey);
-      if (bcCached != null) {
-        logger.info("Found " + function.getName() + " in bytecode cache. No recompilation.");
-        response.setCode(bcCached.second());
+
+    if (!request.getNoCache()) {
+      if (tier.equals(Messages.Tier.OPTIMIZED)) {
+        ccCached = nativeCache.get(nativeKey);
+        if (ccCached != null) {
+          logger.info("Found " + function.getName() + " in native cache. No recompilation.");
+          response.setCode(ccCached.code());
+          response.setConstants(ccCached.constantPool());
+        }
+      }
+
+      // We also have a look whether we have a cached bytecode for the native compilation
+
+      if (tier.equals((Messages.Tier.BASELINE)) || ccCached == null) {
+        bcCached = bcCache.get(bcKey);
+        if (bcCached != null) {
+          logger.info("Found " + function.getName() + " in bytecode cache. No recompilation.");
+          response.setCode(bcCached.second());
+        }
       }
     }
 
@@ -155,8 +158,8 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
           } else if (!request.getNoCache()) { // We do not cache if the client does not want to
             serializedBc = RDSWriter.writeByteString(SEXPs.bcode(bc.get()));
             response.setCode(serializedBc);
-            bcCached =
-                Pair.of(bc.get(), serializedBc); // potentially used for the native compilation also
+            bcCached = Pair.of(bc.get(), serializedBc); // potentially used for the native
+            // compilation also
             // Add it to the cache
             bcCache.put(bcKey, bcCached);
           }
@@ -221,7 +224,7 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
                       "Cannot native compile function "
                           + function.getName()
                           + " ; "
-                          // we truncate the message, as it can get quite big  with compilation
+                          // we truncate the message, as it can get quite big with compilation
                           // errors, and anyway, gRPC has a max header size of 8KB
                           + e.getMessage().substring(0, 7000))
                   .asRuntimeException());
