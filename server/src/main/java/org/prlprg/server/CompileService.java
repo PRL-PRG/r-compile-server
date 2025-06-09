@@ -129,7 +129,7 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
     }
 
     // If we found something in the bc cache but not native, we compile to native
-    // If we found something in the native cache, we just go finish the response 
+    // If we found something in the native cache, we just go finish the response
     // If nothing was found in the cache, we compile the function to bytecode, then to native
 
     // Compile the body if we have it
@@ -169,7 +169,7 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
               // Add it to the cache
               bcCache.put(bcKey, bcCached);
             }
-        }
+          }
         } catch (Exception e) {
           // See
           // https://github.com/grpc/grpc-java/blob/master/examples/src/main/java/io/grpc/examples/errorhandling/DetailErrorSample.java
