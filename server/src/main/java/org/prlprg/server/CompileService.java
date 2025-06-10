@@ -218,6 +218,7 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
           response.setCode(ccCached.code());
           response.setConstants(ccCached.constantPool());
         } catch (Exception e) {
+          var msg = e.getMessage();
           responseObserver.onError(
               Status.INTERNAL
                   .withDescription(
@@ -226,7 +227,7 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
                           + " ; "
                           // we truncate the message, as it can get quite big with compilation
                           // errors, and anyway, gRPC has a max header size of 8KB
-                          + e.getMessage().substring(0, 7000))
+                          + msg.substring(0, Math.min(msg.length(), 7000)))
                   .asRuntimeException());
         }
       }
