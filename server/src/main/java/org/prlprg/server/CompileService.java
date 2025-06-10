@@ -103,6 +103,7 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
     // Cache requests
     NativeClosure ccCached = null;
     Pair<Bc, ByteString> bcCached = null;
+    Bc bc = null;
     var nativeKey = Triple.of(function.getHash(), bcOpt, ccOpt);
     var bcKey = Pair.of(function.getHash(), bcOpt);
 
@@ -127,7 +128,10 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
       }
     }
 
-    // We do not have the request version in cache
+    // If we found something in the bc cache but not native, we compile to native
+    // If we found something in the native cache, we just go finish the response 
+    // If nothing was found in the cache, we compile the function to bytecode, then to native
+
     // Compile the body if we have it
     if (!function.hasBody()) {
       logger.info(
@@ -147,22 +151,25 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
                 + bcOpt
                 + ": not found in cache.");
         try {
-          var bc = compileBcClosure(function.getBody(), bcOpt);
+          var bcRes = compileBcClosure(function.getBody(), bcOpt);
           ByteString serializedBc = null;
-          if (bc.isEmpty()) {
+          if (bcRes.isEmpty()) {
             logger.warning(
                 "Empty bytecode for function "
                     + function.getName()
                     + ". Not caching and returning the original body.");
             // We will keep the code field empty
-          } else if (!request.getNoCache()) { // We do not cache if the client does not want to
-            serializedBc = RDSWriter.writeByteString(SEXPs.bcode(bc.get()));
-            response.setCode(serializedBc);
-            bcCached = Pair.of(bc.get(), serializedBc); // potentially used for the native
-            // compilation also
-            // Add it to the cache
-            bcCache.put(bcKey, bcCached);
-          }
+          } else {
+            bc = bcRes.get();
+            if (!request.getNoCache()) { // We do not cache if the client does not want to
+              serializedBc = RDSWriter.writeByteString(SEXPs.bcode(bc));
+              response.setCode(serializedBc);
+              bcCached = Pair.of(bc, serializedBc); // potentially used for the native
+              // compilation also
+              // Add it to the cache
+              bcCache.put(bcKey, bcCached);
+            }
+        }
         } catch (Exception e) {
           // See
           // https://github.com/grpc/grpc-java/blob/master/examples/src/main/java/io/grpc/examples/errorhandling/DetailErrorSample.java
@@ -190,10 +197,10 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
         // At this point, we have already the bytecode, whether we got it from the cache or we
         // compiled it
         try {
-          assert bcCached != null;
+          assert bc != null;
           // Name should be fully decided by the client?
           var name = genSymbol(function);
-          var bc2cCompiler = new BC2CCompiler(bcCached.first(), name);
+          var bc2cCompiler = new BC2CCompiler(bc, name);
           var module = bc2cCompiler.finish();
           var input = File.createTempFile("cfile", ".c");
           var f = Files.newWriter(input, Charset.defaultCharset());
