@@ -275,7 +275,6 @@ class ClosureCompiler {
           }
           case BcInstr.Math1(var call, var op) ->
               builder.args(constantSXP(call), String.valueOf(op)).compileStmt();
-
           default -> {
             if (instr.label().orElse(null) instanceof BcLabel l) {
               yield "if (%s) {\ngoto %s;\n}".formatted(builder.compile(), label(l));
@@ -303,6 +302,7 @@ class ClosureCompiler {
           BcOp.CHECKFUN,
           BcOp.DIV,
           BcOp.DOLLAR,
+          BcOp.DOLLARGETS,
           BcOp.EQ,
           BcOp.EXPT,
           BcOp.EXP,
@@ -313,6 +313,7 @@ class ClosureCompiler {
           BcOp.GOTO,
           BcOp.GT,
           BcOp.INVISIBLE,
+          BcOp.VISIBLE,
           BcOp.LDCONST,
           BcOp.LDFALSE,
           BcOp.LDNULL,

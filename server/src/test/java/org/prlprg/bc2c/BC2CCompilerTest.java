@@ -604,6 +604,16 @@ public class BC2CCompilerTest {
   }
 
   @Test
+  public void testDotCall(BC2CSnapshot snapshot) {
+    snapshot.verify("x <- 1:5; sum(x)", fastArith());
+    snapshot.verify("x <- 1:5; sum(x, na.rm=TRUE)", fastArith());
+    snapshot.verify("x <- 1:5; sum(x, na.rm=FALSE)", fastArith());
+    snapshot.verify("x <- 1:5; sum(x, na.rm=TRUE, trim=0.1)", fastArith());
+    snapshot.verify("x <- 1:5; sum(x, na.rm=FALSE, trim=0.1)", fastArith());
+    snapshot.verify("x <- 1:5; .Call('sum', x)", returns(15.0));
+  }
+
+  @Test
   public void testDoDots(BC2CSnapshot snapshot) {
     snapshot.verify("f <- function(...) { list(...) }; f(1,2)");
   }
@@ -632,6 +642,23 @@ public class BC2CCompilerTest {
             }
 
             f()
+            """);
+  }
+
+  @Test
+  public void testDollarGets(BC2CSnapshot snapshot) {
+    snapshot.verify(
+        """
+            x <- list(a = 1, b = 2)
+            class(x) <- "myobject"
+
+            `$<-.myobject` <- function(x, name, value) {
+              x[[name]] <- value * 100
+              x
+            }
+
+            x$a <- 42
+            x
             """);
   }
 

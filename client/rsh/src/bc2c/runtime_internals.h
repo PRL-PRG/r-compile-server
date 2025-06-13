@@ -63,6 +63,7 @@ SEXP R_unary(SEXP call, SEXP op, SEXP s1);
 SEXP do_logic(SEXP call, SEXP op, SEXP args, SEXP env);
 int tryDispatch(const char *generic, SEXP call, SEXP x, SEXP rho, SEXP *pv);
 SEXP R_subset3_dflt(SEXP x, SEXP input, SEXP call);
+SEXP R_subassign3_dflt(SEXP call, SEXP x, SEXP nlist, SEXP val);
 SEXP Rf_CreateTag(SEXP x);
 SEXP do_subset2_dflt(SEXP call, SEXP op, SEXP args, SEXP rho);
 SEXP do_subset_dflt(SEXP call, SEXP op, SEXP args, SEXP rho);
