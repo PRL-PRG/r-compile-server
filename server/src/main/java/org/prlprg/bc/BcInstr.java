@@ -747,6 +747,8 @@ public sealed interface BcInstr {
     }
   }
 
+  @NeedsRho
+  @StackEffect(pop = 2, push = 1)
   record DollarGets(ConstPool.Idx<LangSXP> ast, ConstPool.Idx<RegSymSXP> member)
       implements BcInstr {
     @Override

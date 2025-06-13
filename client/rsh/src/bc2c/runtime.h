@@ -1357,7 +1357,34 @@ static INLINE void Rsh_Dollar(Value *x_res, SEXP call, SEXP symbol, SEXP rho) {
   R_Visible = TRUE;
   SET_VAL(res, value_sxp);
 }
+static INLINE void Rsh_DollarGets(Value *x_res, Value rhs, SEXP call, SEXP symbol, SEXP rho) {
+    SEXP value_sxp;
+    SEXP x_sxp = val_as_sexp(*x_res);
+    SEXP rhs_sxp = val_as_sexp(rhs);
+    int dispatched = FALSE;
+    
+    MARK_ASSIGNMENT_CALL(call);
 
+    if (MAYBE_SHARED(x_sxp)) {
+        x_sxp = shallow_duplicate(x_sxp);
+        SET_VAL(x_res, x_sxp);
+        ENSURE_NAMED(x_sxp);
+    }
+
+    if (isObject(x_sxp)) {
+        SEXP ncall = PROTECT(Rf_duplicate(call));
+        SETCAR(CDDR(ncall), Rf_ScalarString(PRINTNAME(symbol)));
+        SETCAR(CDDDR(ncall), rhs_sxp);
+        dispatched = tryDispatch("$<-", ncall, x_sxp, rho, &value_sxp);
+        UNPROTECT(1);
+    }
+
+    if (!dispatched) {
+        value_sxp = R_subassign3_dflt(call, x_sxp, symbol, rhs_sxp);
+    }
+    SET_VAL(x_res, value_sxp);
+    R_Visible = TRUE;
+}
 #define Rsh_StartSubsetN(value, call, rho)                                     \
   Rsh_start_subset_dispatch_n("[", value, call, rho)
 #define Rsh_StartSubset2N(value, call, rho)                                    \
@@ -1774,6 +1801,7 @@ static INLINE void Rsh_SetTag(Value *fun, UNUSED Value *args_head,
 }
 
 static INLINE void Rsh_Invisible() { R_Visible = FALSE; }
+static INLINE void Rsh_Visible() { R_Visible = TRUE; }
 
 static INLINE void Rsh_SetterCall(Value *lhs, Value rhs, Value fun,
                                   Value args_head, Value args_tail, SEXP call,
