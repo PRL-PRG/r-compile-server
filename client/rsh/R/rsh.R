@@ -110,7 +110,6 @@ rsh_cmpfun <- function(f, options) {
   if (!missing(options) && is.list(options)) {
     if (!is.null(options$optimize)) {
       o$bc_opt <- as.integer(options$optimize)
-      o$cc_opt <- o$bc_opt
     }
     if (!is.null(options$cc_opt)) {
       o$cc_opt <- as.integer(options$cc_opt)

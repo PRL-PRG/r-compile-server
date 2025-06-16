@@ -608,291 +608,115 @@ public class BC2CCompilerTest {
     snapshot.verify("f <- function(...) { list(...) }; f(1,2)");
   }
 
+  //  @Test
+  //  public void testForWithBreak(BC2CSnapshot snapshot) {
+  //    snapshot.verify("""
+  //            f <- function() {
+  //              for (i in 1:10) {
+  //                  break()
+  //              }
+  //            }
+  //
+  //            f()
+  //            """);
+  //  }
+
+  @Test
+  public void testForWithReturn(BC2CSnapshot snapshot) {
+    snapshot.verify(
+        """
+            f <- function() {
+              for (i in 1:10) {
+                  return(i)
+              }
+            }
+
+            f()
+            """);
+  }
+
+  // TODO: test for errors - and stack pointers
+  //  - try with R BC interpreter
+  //  - a tryCatch / just an error in a call called from REPL
+
   @Test
   public void testAdhoc2(BC2CSnapshot snapshot) {
     snapshot.verify(
         """
-
-              normWeights <- function(x) x/mean(x)
-
-              kcca <- function(x, k, iter.max)
-              {
-                  x <- as.matrix(x)
-                  k <- as.integer(k)
-                  cluster <- integer(nrow(x))
-
-                  # takes some time
-                  centers <- kmeanspp(na.omit(unique(x)), k)
-
-                  for(iter in 1:iter.max){
-                      clustold <- cluster
-                      # takes some time
-                      distmat <- distEuclidean(x, centers)
-
-                      cluster <- kmeansCluster(x, distmat=distmat)
-                      centers <- kmeansAllcent(x, cluster=cluster, k=k)
-                      ## NAs in centers are empty clusters
-                      centers <- centers[complete.cases(centers),,drop=FALSE]
-                      k <- nrow(centers)
-                      changes <- sum(cluster!=clustold)
-                      if(changes==0) break
-                  }
-
-                  centers <- centers[complete.cases(centers),,drop=FALSE]
-                  r <- summarizeCenters(x, centers)
-                  append(r, list(iter = iter))
-              }
-
-              kmeansCluster <- function(x, centers, n=1, distmat=NULL)
-              {
-
-                  if(is.null(distmat))
-                      distmat <- z@dist(x, centers)
-                  if(n==1){
-                      return(max.col(-distmat))
-                  }
-                  else{
-                      r <- t(matrix(apply(distmat, 1,
-                                          rank, ties.method="random"),
-                                    nrow=ncol(distmat)))
-                      z <- list()
-                      for(k in 1:n)
-                          z[[k]] <- apply(r, 1, function(x) which(x==k))
-                  }
-                  return(z)
-              }
-
-              kmeansAllcent <- function(x, cluster, k=max(cluster, na.rm=TRUE))
-              {
-                  centers <- matrix(NA, nrow=k, ncol=ncol(x))
-                  for(n in 1:k){
-                      if(sum(cluster==n, na.rm=TRUE)>0){
-                          centers[n,] <- colMeans(x[cluster==n,,drop=FALSE])
-                      }
-                  }
-                  centers
-              }
-
-              kmeanspp <- function(x, k)
-              {
-                  centers <- matrix(0, nrow=k, ncol=ncol(x))
-                  centers[1,] <- x[sample(1:nrow(x), 1), , drop=FALSE]
-                  d <- distEuclidean(x, centers[1L,,drop=FALSE])^2
-                  for(l in 2:k){
-                      centers[l,] <- x[sample(1:nrow(x), 1, prob=d), , drop=FALSE]
-                      d <- pmin(d, distEuclidean(x, centers[l,,drop=FALSE])^2)
-                  }
-                  centers
-              }
-              summarizeCenters <- function(x, centers)
-              {
-                  distmat <- distEuclidean(x, centers)
-                  cluster <- kmeansCluster(n=2, distmat=distmat)
-                  if(ncol(distmat)>1){
-                      ## at least 2 clusters
-                      cldist <- cbind(distmat[cbind(1:nrow(x), cluster[[1]])],
-                                      distmat[cbind(1:nrow(x), cluster[[2]])])
-                      clsim <- computeClusterSim(distmat,cluster)
-                  }
-                  else{
-                      ## only one cluster
-                      cldist <- distmat
-                      clsim <- as.matrix(1)
-                  }
-                  xcent <- colMeans(x)
-                  totaldist <- sum(distEuclidean(x, matrix(xcent,nrow=1)))
-                  clusinfo <- clusinfo(cluster[[1]], cldist)
-                  sse <- sum(cldist[,1]**2)
-
-                  list(xcent = xcent, totaldist = totaldist, clusinfo = clusinfo,
-                      cldist = cldist, sse = sse)
-              }
-
-              clusinfo <- function(cluster, cldist)
-            ### cluster: vector of cluster memberships
-            ### cldist: matrix with 1 or 2 columns
-              {
-                  size <- as.vector(table(cluster))
-                  clusinfo <-
-                      data.frame(size=size,
-                                av_dist = as.vector(tapply(cldist[,1], cluster, sum))/size)
-
-                  clusinfo <- cbind(clusinfo,
-                                    max_dist = as.vector(tapply(cldist[,1], cluster, max)),
-                                    separation = as.vector(tapply(cldist[,2], cluster, min)))
-                  clusinfo
-              }
-
-              computeClusterSim <- function(distmat, cluster)
-              {
-                  K <- max(cluster[[1]])
-                  z <- matrix(0, ncol=K, nrow=K)
-
-                  for(k in 1:K){
-                      ok1 <- cluster[[1]]==k
-                      if(any(ok1)){
-                          for(n in 1:K){
-                              if(k!=n){
-                                  ok2 <- ok1 & cluster[[2]]==n
-                                  if(any(ok2)){
-                                      z[k,n] <- 2*sum(distmat[ok2,k]/
-                                                      (distmat[ok2,k]+distmat[ok2,n]))
-                                  }
-                              }
-                          }
-                          z[k,] <- z[k,]/sum(ok1)
-                      }
-                  }
-                  diag(z) <- 1
-                  z
-              }
-
-              list2object = function(from, to){
-                  n = names(from)
-                  s = slotNames(to)
-                  p = pmatch(n, s)
-                  if(any(is.na(p)))
-                      stop(paste("\\nInvalid slot name(s) for class",
-                                to, ":", paste(n[is.na(p)], collapse=" ")))
-                  names(from) = s[p]
-                  do.call("new", c(from, Class=to))
-              }
-
-            ## Assign each observation to the cluster minimizing the sum
-            ## of distances to all group members.
-              minSumClusters <- function(cluster, group, distmat)
-              {
-                  G <- levels(group)
-                  x <- matrix(0, ncol=ncol(distmat), nrow=length(G))
-
-                  for(n in 1:length(G)){
-                      x[n,] <- colSums(distmat[group==G[n],,drop=FALSE])
-                  }
-
-                  m <- max.col(-x)
-                  names(m) <- G
-                  z <- m[group]
-                  names(z) <- NULL
-
-                  if(is.list(cluster))
-                  {
-                      ## get second best
-                      x[cbind(1:nrow(x), m)] <- Inf
-                      m <- max.col(-x)
-                      names(m) <- G
-                      z1 <- m[group]
-                      names(z1) <- NULL
-                      z <- list(z, z1)
-                  }
-                  z
-              }
-
-              distEuclidean <- function(x, centers)
-              {
-                  if(ncol(x)!=ncol(centers))
-                      stop(sQuote("x")," and ",sQuote("centers"),
-                          " must have the same number of columns")
-                  z <- matrix(0, nrow=nrow(x), ncol=nrow(centers))
-                  for(k in 1:nrow(centers)){
-                      z[,k] <- sqrt( colSums((t(x) - centers[k,])^2) )
-                  }
-                  z
-              }
-
-            # ---------------------------------------------------
-
-            k = 5
-              fname <- "/tmp/aloi-8d.csv.gz"
-              alldata <- read.csv(gzfile(fname), header=F, sep=" ")
-              data <- alldata[,1:8]
-
-              set.seed(42)
-              km <- kcca(data, k=k, iter.max=10000)
-              km
+            min_depth <- 4L
+            max_depth <- 6L
+            depth <- 4L
+            as.integer(2^(max_depth - depth + min_depth))
             """);
   }
 
   @Test
   public void testAdhoc(BC2CSnapshot snapshot) {
+    snapshot.setClean(false);
     snapshot.verify(
         """
-                  bench_rays <- function(height.map = volcano, sun.angle = 45) {
-                      shadow <- matrix(1, ncol = ncol(height.map), nrow = nrow(height.map))
-                      sunangle <- sun.angle / 180 * pi
-                      angle <- -90 / 180 * pi
-                      diffangle <- 90 / 180 * pi
-                      numberangles <- 25
-                      # anglebreaks <- seq(angle, diffangle, length.out = numberangles)
-                      anglebreaks <- sapply(seq(angle, diffangle, length.out = numberangles), tan)
-                      maxdistance <- floor(sqrt(ncol(height.map)^2 + nrow(height.map)^2))
-                      sinsun <- sin(sunangle)
-                      cossun <- cos(sunangle)
+lim <- 2
+iter <- 50
 
-                      for (i in 1:nrow(height.map)) {
-                          for (j in 1:ncol(height.map)) {
-                              for (anglei in anglebreaks) {
-                                  for (k in 1:maxdistance) {
-                                      # xcoord <- i + sin(sunangle) * k
-                                      xcoord <- i + sinsun * k
-                                      # ycoord <- j + cos(sunangle) * k
-                                      ycoord <- j + cossun * k
+execute <- function(size=300L) {
+    sum = 0
+    byteAcc = 0
+    bitNum  = 0
 
-                                      if (xcoord > nrow(height.map) ||
-                                          ycoord > ncol(height.map) ||
-                                          xcoord < 0 || ycoord < 0) break
+    y = 0
 
-                                      # tanangheight <- height.map[i, j] + tan(anglei) * k
-                                      tanangheight <- height.map[i, j] + anglei * k
+    while (y < size) {
+      ci = (2.0 * y / size) - 1.0
+      x = 0
 
-                                      if (all(c(height.map[ceiling(xcoord), ceiling(ycoord)],
-                                                height.map[floor(xcoord),   ceiling(ycoord)],
-                                                height.map[ceiling(xcoord), floor(ycoord)],
-                                                height.map[floor(xcoord),   floor(ycoord)]) < tanangheight)) next
+      while (x < size) {
+        zr   = 0.0
+        zrzr = 0.0
+        zi   = 0.0
+        zizi = 0.0
+        cr = (2.0 * x / size) - 1.5
 
-                                      if (tanangheight < bilinear(height.map, xcoord, ycoord)) {
-                                          shadow[i, j] <- shadow[i, j] - 1 / length(anglebreaks)
-                                          break
-                                      }
-                                  }
-                              }
-                          }
-                      }
+        z = 0
+        notDone = TRUE
+        escape = 0
+        while (notDone && (z < 50)) {
+          zr = zrzr - zizi + cr
+          zi = 2.0 * zr * zi + ci
 
-                      shadow
-                  }
+          # preserve recalculation
+          zrzr = zr * zr
+          zizi = zi * zi
 
-                  bilinear <- function(data, x0, y0) {
-                      i <- max(1, floor(x0))
-                      j <- max(1, floor(y0))
-                      XT <- (x0 - i)
-                      YT <- (y0 - j)
-                      result <- (1 - YT) * (1 - XT) * data[i, j]
-                      nx <- nrow(data)
-                      ny <- ncol(data)
-                      if (i + 1 <= nx) {
-                          result <- result + (1 - YT) * XT * data[i + 1, j]
-                      }
-                      if (j + 1 <= ny) {
-                          result <- result + YT * (1 - XT) * data[i, j + 1]
-                      }
-                      if (i + 1 <= nx && j + 1 <= ny) {
-                          result <- result + YT * XT * data[i + 1, j + 1]
-                      }
-                      result
-                  }
+          if ((zrzr + zizi) > 4.0) {
+            notDone = FALSE
+            escape  = 1
+          }
+          z = z + 1
+        }
 
-                points <- rep(181L, 10) # 181 takes the longest to compute
+        byteAcc = bitwShiftL(byteAcc, 1) + escape
 
-                n = 1
-                s = 0
-                for (j in 1:n) {
-                  for (i in points) {
-                    s = s+sum(bench_rays(height.map = volcano, sun.angle = i))
-                  }
-                }
-                # print(s)
-                s
-             """);
+        bitNum = bitNum + 1
+
+        if (bitNum == 8) {
+          sum = bitwXor(sum, byteAcc)
+          byteAcc = 0
+          bitNum  = 0
+        } else if (x == (size - 1)) {
+          byteAcc = bitwShiftL(byteAcc, 8 - bitNum)
+          sum = bitwXor(sum, byteAcc)
+          byteAcc = 0
+          bitNum  = 0
+        }
+        x = x + 1
+      }
+      y = y + 1
+    }
+    return (sum);
+}
+
+execute()
+        """);
   }
 
   // API

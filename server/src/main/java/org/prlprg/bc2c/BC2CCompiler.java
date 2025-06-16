@@ -196,14 +196,14 @@ class ClosureCompiler {
         switch (instr) {
             // FIXME: do not POP after return
             // FIXME: extract constants
+            // FIXME: better stack handling - we do not need __ncells__, just store __top__
+            // FIXME: what shall happen if an error occurs?
           case BcInstr.Return() ->
               """
               do {
                 Value __ret__ = *GET_VAL(1);
                 POP_VAL(1);
-                if (__top__ != R_BCNodeStackTop) {
-                  Rf_error("Stack not empty after compilation: %ld", R_BCNodeStackTop - __top__);
-                }
+                R_BCNodeStackTop = __top__;
                 POP_VAL(__ncells__);
                 return Rsh_Return(__ret__);
               } while(0);
@@ -230,14 +230,8 @@ class ClosureCompiler {
               builder.args(constantSXP(symbol), cell(symbol)).compileStmt();
           case BcInstr.StartAssign(var symbol) ->
               builder.args(constantSXP(symbol), cell(symbol)).compileStmt();
-          case BcInstr.StartAssign2(var symbol) ->
-              builder.args(constantSXP(symbol), cell(symbol)).compileStmt();
           case BcInstr.EndAssign(var symbol) ->
               builder.args(constantSXP(symbol), cell(symbol)).compileStmt();
-          case BcInstr.EndAssign2(var symbol) ->
-              builder.args(constantSXP(symbol), cell(symbol)).compileStmt();
-          case BcInstr.GetBuiltin(var idx) ->
-              builder.args("\"" + bc.consts().get(idx).name() + "\"").compileStmt();
           case BcInstr.MakeClosure(var idx) -> compileMakeClosure(builder, idx);
 
             // FIXME: this can be all done using the default branch - except for the rank

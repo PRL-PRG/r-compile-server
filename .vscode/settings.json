@@ -74,5 +74,17 @@
         "text_encoding": "cpp",
         "expected": "cpp",
         "*.def": "cpp"
-    }
+    },
+    "r.rpath.linux": "${workspaceFolder}/external/R/bin/R",
+    "r.rterm.linux": "${workspaceFolder}/external/R/bin/R",
+    "java.server.launchMode": "Standard",
+    "java.configuration.detectJdksAtStart": false,
+    "java.configuration.runtimes": [
+        {
+            "name": "JavaSE-22",
+            "path": "/usr/lib/jvm/temurin-22-jdk-amd64",
+            "default": true,
+        }
+    ],
+    "java.jdt.ls.java.home": "/usr/lib/jvm/temurin-22-jdk-amd64"
 }

@@ -44,15 +44,13 @@ public class RshCompiler {
           "-fexceptions",
           "-fstack-clash-protection",
           //          "-fcf-protection",
-          "-flto=auto",
-          "-ffat-lto-objects",
           "-pedantic",
           "-Wformat",
           "-Werror=format-security",
           "-Wall",
           "-Wno-unused-but-set-variable",
           "-Wno-comment",
-          "-Wno-unused-function" // (or INLINE)
+          "-Wno-unused-function" // , // (or INLINE)
           // "-DRSH_INLINE"
           );
 
