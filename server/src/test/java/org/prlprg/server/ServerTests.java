@@ -92,6 +92,54 @@ public class ServerTests {
     assertNotNull(response[0].getCode());
   }
 
+  // TODO: factorize this test and the testCompile above
+  @Test
+  void testCompileNoCache(Resources resources) throws Exception {
+    assert server != null;
+    resources.register(server, Duration.ofSeconds(3));
+    assert channel != null;
+    resources.register(channel, Duration.ofSeconds(3));
+
+    // Init compile server
+    var initRequest =
+        Messages.InitRequest.newBuilder()
+            .setRVersion(Messages.Version.newBuilder().setMajor(4).setMinor(3).setPatch(2).build())
+            .setRshVersion(Messages.Version.newBuilder().build())
+            .setPlatform("amd64")
+            .build();
+    assert blockingStub != null;
+    assertDoesNotThrow(
+        () -> {
+          Messages.InitResponse initResponse = blockingStub.init(initRequest);
+        });
+
+    // Compile identify function
+    var function =
+        SEXPs.closure(
+            SEXPs.list(new TaggedElem("x", SEXPs.symbol("x"))), SEXPs.symbol("x"), SEXPs.EMPTY_ENV);
+    var f =
+        Messages.Function.newBuilder()
+            .setName("testFunc")
+            .setBody(RDSWriter.writeByteString(function))
+            .build();
+    var compileRequest =
+        Messages.CompileRequest.newBuilder()
+            .setFunction(f)
+            .setTier(Messages.Tier.BASELINE)
+            .setBcOpt(0)
+            .setNoCache(true)
+            .setContext(Messages.Context.newBuilder().build())
+            .build();
+
+    final Messages.CompileResponse[] response = new Messages.CompileResponse[1];
+    assertDoesNotThrow(
+        () -> {
+          assert blockingStub != null;
+          response[0] = blockingStub.compile(compileRequest);
+        });
+    assertNotNull(response[0].getCode());
+  }
+
   @Test
   void testInit(Resources resources) throws Exception {
     assert server != null;
