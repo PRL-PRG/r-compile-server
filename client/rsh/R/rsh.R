@@ -105,22 +105,21 @@ rsh_compile <- function(f, options) {
 #' @return compiled closure
 #' @export
 rsh_cmpfun <- function(f, options) {
-  o <- list()
+  if (missing(options)) {
+    options <- list()
+  }
+  stopifnot(is.list(options))
 
-  if (!missing(options) && is.list(options)) {
-    if (!is.null(options$optimize)) {
-      o$bc_opt <- as.integer(options$optimize)
-    }
-    if (!is.null(options$cc_opt)) {
-      o$cc_opt <- as.integer(options$cc_opt)
-    }
+  if (!is.null(options$optimize)) {
+    options$bc_opt <- as.integer(options$optimize)
+    options$optimize <- NULL
   }
 
   # FIXME: this does not work, we need to find the closure in the an environment
-  o$name <- as.character(substitute(f))
-  o$inplace <- FALSE
+  options$name <- as.character(substitute(f))
+  options$inplace <- FALSE
 
-  rsh_compile(f, o)
+  rsh_compile(f, options)
 }
 
 #' Check if the closure is natively compiled

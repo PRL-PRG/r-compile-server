@@ -15,6 +15,10 @@ format:
 test:
 	R_BIN=$(R) mvn $(MVN_ARGS) test
 
+.PHONY: test-bc2c-adhoc
+test-bc2c-adhoc:
+	mvn -Dtest='BC2CCompilerTest#testAdhoc' test
+
 # `verify` runs both tests and static analyses
 verify:
 	R_BIN=$(R) mvn $(MVN_ARGS) verify
