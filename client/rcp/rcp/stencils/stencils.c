@@ -258,7 +258,7 @@ RCP_OP(GETFUN) {
 RCP_OP(GETBUILTIN) {
   PUSH_VAL(3);
 
-  Rsh_GetBuiltin(GET_VAL(3), GET_VAL(2), GET_VAL(1), GETCONST_STR_IMM(0));//todo more efficient symbol install
+  Rsh_GetBuiltin(GET_VAL(3), GET_VAL(2), GET_VAL(1), GETCONST_IMM(0));
   NEXT;
 }
 
