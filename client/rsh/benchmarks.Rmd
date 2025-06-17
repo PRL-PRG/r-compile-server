@@ -1,0 +1,152 @@
+---
+title: "RSH benchmark results"
+output: html_notebook
+params:
+  warmup: 5
+  A: "benchmark-results/baseline/benchmarks.csv"
+  B: "benchmark-results/20250610-160212-c8a52ba1/benchmarks.csv"
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup}
+library(tidyverse)
+library(lubridate)
+library(boot)
+```
+
+```{r}
+geom_mean <- function(xs) {
+  exp(mean(log(xs)))
+}
+
+speedup_plot <- function(D) {
+  ggplot(D, aes(x = reorder(name, speedup), y = speedup)) +
+  geom_col(fill = "lightgray") +
+  geom_errorbar(aes(ymin = ci_low, ymax = ci_high), width = .25) +
+  geom_hline(yintercept = 1, linewidth = .25, color = "red", linetype = "dashed") +
+  coord_flip() +
+  labs(
+    x        = "Benchmark",
+    y        = "Speedup A / B",
+    title    = "Speedup",
+    subtitle = "with 95 % confidence interval"
+  ) +
+  theme_minimal(base_size = 12) +
+  annotate(
+    "label",
+    x     = 5,       
+    y     = Inf,       
+    label = str_c(
+      "A: ",params$A,  " \n",
+      "B: ", params$B
+    ),
+    hjust = 1.05,      
+    vjust = 1.05,      
+    size  = 3,         
+    fill  = "white",   
+    label.size = 0.2   
+  )
+}
+```
+
+
+```{r load data}
+read_benchmark<- function(path, expr) {
+  E <- expr
+  read_csv(path, show_col_types = F) %>%
+    group_by(name) %>% 
+    mutate(run_id = row_number(), time=time/1e9) %>%
+    ungroup() %>% 
+    filter(run_id > params$warmup) %>%
+    mutate(expr=E) %>% 
+    rename(VM=expr)
+}
+
+D_A <- read_benchmark(params$A, "A") 
+D_B <- read_benchmark(params$B, "B")
+D <- bind_rows(D_A, D_B)
+```
+
+```{r speedup plot with 95% CI using Δ-method standard error}
+PD <- 
+  D %>% 
+  group_by(name, VM) %>%
+  summarise(
+    mt = mean(time),
+    sd = sd(time),
+    n = n(),
+  ) %>%
+  pivot_wider(
+    names_from  = VM,
+    values_from = c(mt, sd, n),
+    names_sep = "_"
+  ) %>% 
+  mutate(
+    speedup = mt_A / mt_B,                         
+    se = speedup * sqrt((sd_A^2 / (n_A * mt_A^2)) + (sd_B^2 / (n_B * mt_B^2))),
+    ci_low = speedup - 1.96 * se,                                 
+    ci_high = speedup + 1.96 * se
+  )
+
+speedup_plot(PD) + labs(
+  subtitle = "95% CI computed using Δ-method standard error"
+)
+```
+
+```{r geom mean}
+PD <- D %>%
+  group_by(name, VM) %>%
+  summarise(
+    mean_log = mean(log(time)),
+    sd_log = sd(log(time)),
+    n = n(),
+    mt = exp(mean_log)
+  ) %>%
+  pivot_wider(
+    names_from = VM,
+    values_from = c(mt, mean_log, sd_log, n),
+    names_sep = "_"
+  ) %>%
+  mutate(
+    speedup = mt_A / mt_B,
+    se_diff_log = sqrt((sd_log_A^2 / n_A) + (sd_log_B^2 / n_B)),
+    ci_low_log = (mean_log_A - mean_log_B) - 1.96 * se_diff_log,
+    ci_high_log = (mean_log_A - mean_log_B) + 1.96 * se_diff_log,
+    ci_low = exp(ci_low_log),
+    ci_high = exp(ci_high_log)
+  )
+
+speedup_plot(PD) +
+  labs(subtitle=str_c("with geometrical mean"))
+
+PD %>% 
+  select(name, speedup) %>% 
+  arrange(desc(speedup)) %>% 
+  knitr::kable()
+```
+
+```{r bootstrap}
+speedup <- function(data, indices) {
+  d <- data[indices, ]
+  A <- geom_mean(filter(d, VM == "A")$time)
+  B <- geom_mean(filter(d, VM == "B")$time)
+  A / B
+}
+
+R <- 1000
+PD <- D %>%
+  group_by(name) %>%
+  do({
+    boot_result <- boot(data = ., statistic = speedup, R = R)
+    ci <- boot.ci(boot_result, type = "bca")
+    data.frame(
+      speedup = boot_result$t0,
+      ci_low = ci$bca[4],
+      ci_high = ci$bca[5]
+    )
+  })
+
+speedup_plot(PD) +
+  labs(subtitle=str_c("with bootstrapping (R=", R, ")"))
+```
