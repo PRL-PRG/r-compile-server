@@ -323,16 +323,25 @@ static ALWAYS_INLINE SEXP val_as_sexp(Value v) {
   }
 }
 
+#ifndef NDEBUG
+#define CHECK_OVERFLOW(__n__) \
+  do { \
+    if (R_BCNodeStackTop + __n__ > R_BCNodeStackEnd) { \
+      nodeStackOverflow(); \
+    } \
+  } while (0)
+#else
+#define CHECK_OVERFLOW(__n__)
+#endif
+
 // FIXME: we do not need to set it to R_NilValue
 //  it would not be bad to set it to some sentinel when in ASSERT
 #define PUSH_VAL(n)                                                            \
   do {                                                                         \
     int __n__ = (n);                                                           \
-    if (R_BCNodeStackTop + __n__ > R_BCNodeStackEnd) {                         \
-      nodeStackOverflow();                                                     \
-    }                                                                          \
+    CHECK_OVERFLOW(__n__); \
     while (__n__-- > 0) {                                                      \
-      SET_SXP_VAL(R_BCNodeStackTop++, R_NilValue);                             \
+      (R_BCNodeStackTop++)->tag = INTSXP; \
     }                                                                          \
   } while (0)
 
