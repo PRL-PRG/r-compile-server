@@ -750,7 +750,7 @@ static INLINE SEXP Rsh_do_get_var(SEXP symbol, SEXP rho, Rboolean dd,
 #define Rsh_GetVarMissOk(res, symbol, cell, rho)                               \
   Rsh_get_var(res, symbol, cell, rho, FALSE, TRUE)
 
-static INLINE void Rsh_get_var(Value *res, SEXP symbol, BCell *cell, SEXP rho,
+static ALWAYS_INLINE void Rsh_get_var(Value *res, SEXP symbol, BCell *cell, SEXP rho,
                                Rboolean dd, Rboolean keepmiss) {
   switch (BCELL_TAG(*cell)) {
   case REALSXP:
@@ -813,7 +813,7 @@ static INLINE void Rsh_get_var(Value *res, SEXP symbol, BCell *cell, SEXP rho,
   SET_VAL(res, Rsh_do_get_var(symbol, rho, dd, keepmiss, cell));
 }
 
-static INLINE void Rsh_SetVar(Value *v, SEXP symbol, BCell *cell, SEXP rho) {
+static ALWAYS_INLINE void Rsh_SetVar(Value *v, SEXP symbol, BCell *cell, SEXP rho) {
   Value value = *v;
   int tag = VAL_TAG(value);
 
@@ -1070,7 +1070,7 @@ static INLINE Rboolean Rsh_BrIfNot(Value value, SEXP call, SEXP rho) {
     SET_VAL(res, __res_sxp__);                                                 \
   } while (0)
 
-static INLINE void Rsh_arith(Value *res, Value lhs, Value rhs, SEXP call,
+static ALWAYS_INLINE void Rsh_arith(Value *res, Value lhs, Value rhs, SEXP call,
                              RshArithOp op, SEXP rho) {
   double res_dbl = 0;
 
@@ -1115,13 +1115,13 @@ static INLINE void Rsh_arith(Value *res, Value lhs, Value rhs, SEXP call,
 }
 
 #define X(a, b, c)                                                             \
-  static INLINE void Rsh_##c(Value *lhs_res, Value rhs, SEXP call, SEXP rho) { \
+  static ALWAYS_INLINE void Rsh_##c(Value *lhs_res, Value rhs, SEXP call, SEXP rho) { \
     Rsh_arith(lhs_res, *lhs_res, rhs, call, b, rho);                           \
   }
 X_ARITH_OPS
 #undef X
 
-static INLINE void Rsh_relop(Value *res, Value lhs, Value rhs, SEXP call,
+static ALWAYS_INLINE void Rsh_relop(Value *res, Value lhs, Value rhs, SEXP call,
                              RshRelOp op, SEXP rho) {
   if (VAL_IS_DBL_NOT_NAN(lhs)) {
     double lhs_dbl = VAL_DBL(lhs);
@@ -1153,7 +1153,7 @@ static INLINE void Rsh_relop(Value *res, Value lhs, Value rhs, SEXP call,
 }
 
 #define X(a, b, c)                                                             \
-  static INLINE void Rsh_##c(Value *lhs_res, Value rhs, SEXP call, SEXP rho) { \
+  static ALWAYS_INLINE void Rsh_##c(Value *lhs_res, Value rhs, SEXP call, SEXP rho) { \
     Rsh_relop(lhs_res, *lhs_res, rhs, call, b, rho);                           \
   }
 X_REL_OPS
