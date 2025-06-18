@@ -324,11 +324,11 @@ static ALWAYS_INLINE SEXP val_as_sexp(Value v) {
 }
 
 #ifndef NDEBUG
-#define CHECK_OVERFLOW(__n__) \
-  do { \
-    if (R_BCNodeStackTop + __n__ > R_BCNodeStackEnd) { \
-      nodeStackOverflow(); \
-    } \
+#define CHECK_OVERFLOW(__n__)                                                  \
+  do {                                                                         \
+    if (R_BCNodeStackTop + __n__ > R_BCNodeStackEnd) {                         \
+      nodeStackOverflow();                                                     \
+    }                                                                          \
   } while (0)
 #else
 #define CHECK_OVERFLOW(__n__)
@@ -339,9 +339,9 @@ static ALWAYS_INLINE SEXP val_as_sexp(Value v) {
 #define PUSH_VAL(n)                                                            \
   do {                                                                         \
     int __n__ = (n);                                                           \
-    CHECK_OVERFLOW(__n__); \
+    CHECK_OVERFLOW(__n__);                                                     \
     while (__n__-- > 0) {                                                      \
-      (R_BCNodeStackTop++)->tag = INTSXP; \
+      (R_BCNodeStackTop++)->tag = INTSXP;                                      \
     }                                                                          \
   } while (0)
 
@@ -750,8 +750,9 @@ static INLINE SEXP Rsh_do_get_var(SEXP symbol, SEXP rho, Rboolean dd,
 #define Rsh_GetVarMissOk(res, symbol, cell, rho)                               \
   Rsh_get_var(res, symbol, cell, rho, FALSE, TRUE)
 
-static ALWAYS_INLINE void Rsh_get_var(Value *res, SEXP symbol, BCell *cell, SEXP rho,
-                               Rboolean dd, Rboolean keepmiss) {
+static ALWAYS_INLINE void Rsh_get_var(Value *res, SEXP symbol, BCell *cell,
+                                      SEXP rho, Rboolean dd,
+                                      Rboolean keepmiss) {
   switch (BCELL_TAG(*cell)) {
   case REALSXP:
     SET_DBL_VAL(res, BCELL_DVAL(*cell));
@@ -813,7 +814,8 @@ static ALWAYS_INLINE void Rsh_get_var(Value *res, SEXP symbol, BCell *cell, SEXP
   SET_VAL(res, Rsh_do_get_var(symbol, rho, dd, keepmiss, cell));
 }
 
-static ALWAYS_INLINE void Rsh_SetVar(Value *v, SEXP symbol, BCell *cell, SEXP rho) {
+static ALWAYS_INLINE void Rsh_SetVar(Value *v, SEXP symbol, BCell *cell,
+                                     SEXP rho) {
   Value value = *v;
   int tag = VAL_TAG(value);
 
@@ -972,6 +974,36 @@ static INLINE void Rsh_Call(Value *fun, Value args_head, UNUSED Value args_tail,
     break;
   case CLOSXP:
     args_sxp = Rsh_closure_call_args(args_sxp);
+    SEXP body = BODY(fun_sxp);
+
+    // inline our call
+    if (TYPEOF(body) == EXTPTRSXP && RSH_IS_CLOSURE_BODY(body)) {
+      // TODO: R_GlobalContext->callflag != CTXT_GENERIC
+
+      SEXP newrho =
+          make_applyClosure_env(call, fun_sxp, args_sxp, rho, R_NilValue);
+      PROTECT(newrho);
+      RCNTXT ctx;
+      Rf_begincontext(&ctx, CTXT_RETURN, call, newrho, rho, args_sxp, fun_sxp);
+      R_Visible = TRUE;
+
+      // FIXME: the same code is in the eval.c
+      SEXP c_cp = R_ExternalPtrProtected(body);
+      if (TYPEOF(c_cp) != VECSXP) {
+        Rf_error("Expected a vector, got: %d", TYPEOF(c_cp));
+      }
+
+      // seems like unnecesary complicated casting, but otherwise C complains
+      // cf. https://stackoverflow.com/a/19487645
+      Rsh_closure fun;
+      *(void **)(&fun) = R_ExternalPtrAddr(body);
+      value = fun(newrho, c_cp);
+      UNPROTECT(1);
+      Rf_endcontext(&ctx);
+      break;
+    }
+
+    // slow path
     value = Rf_applyClosure(call, fun_sxp, args_sxp, rho, R_NilValue, TRUE);
     break;
   default:
@@ -1071,7 +1103,7 @@ static INLINE Rboolean Rsh_BrIfNot(Value value, SEXP call, SEXP rho) {
   } while (0)
 
 static ALWAYS_INLINE void Rsh_arith(Value *res, Value lhs, Value rhs, SEXP call,
-                             RshArithOp op, SEXP rho) {
+                                    RshArithOp op, SEXP rho) {
   double res_dbl = 0;
 
   if (VAL_IS_DBL(lhs)) {
@@ -1115,14 +1147,15 @@ static ALWAYS_INLINE void Rsh_arith(Value *res, Value lhs, Value rhs, SEXP call,
 }
 
 #define X(a, b, c)                                                             \
-  static ALWAYS_INLINE void Rsh_##c(Value *lhs_res, Value rhs, SEXP call, SEXP rho) { \
+  static ALWAYS_INLINE void Rsh_##c(Value *lhs_res, Value rhs, SEXP call,      \
+                                    SEXP rho) {                                \
     Rsh_arith(lhs_res, *lhs_res, rhs, call, b, rho);                           \
   }
 X_ARITH_OPS
 #undef X
 
 static ALWAYS_INLINE void Rsh_relop(Value *res, Value lhs, Value rhs, SEXP call,
-                             RshRelOp op, SEXP rho) {
+                                    RshRelOp op, SEXP rho) {
   if (VAL_IS_DBL_NOT_NAN(lhs)) {
     double lhs_dbl = VAL_DBL(lhs);
     if (VAL_IS_DBL_NOT_NAN(rhs)) {
@@ -1153,7 +1186,8 @@ static ALWAYS_INLINE void Rsh_relop(Value *res, Value lhs, Value rhs, SEXP call,
 }
 
 #define X(a, b, c)                                                             \
-  static ALWAYS_INLINE void Rsh_##c(Value *lhs_res, Value rhs, SEXP call, SEXP rho) { \
+  static ALWAYS_INLINE void Rsh_##c(Value *lhs_res, Value rhs, SEXP call,      \
+                                    SEXP rho) {                                \
     Rsh_relop(lhs_res, *lhs_res, rhs, call, b, rho);                           \
   }
 X_REL_OPS
