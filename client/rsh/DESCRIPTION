@@ -12,3 +12,4 @@ NeedsCompilation: yes
 SystemRequirements: C++17
 Author: Filip Krikava [aut]
 Maintainer: Filip Krikava <krikava@gmail.com>
+Suggests: microbenchmark, tidyverse, glue, crayon
