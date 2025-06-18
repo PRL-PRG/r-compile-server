@@ -21,7 +21,16 @@ source rebench/bin/activate
 To run the benchmark:
 
 ```bash
-rebench rebench.conf
+./run.sh rebench.conf Benchmarks path/to/rsh_client path/to/gnur e:EXECUTOR <other rebench args>
 ```
+
+For instance, to run the benchmarks for Rsh:
+
+```bash 
+./run.sh rebench.conf Benchmarks ../client ../server ../external/R/  "e:RSH"
+```
+
+`EXECUTOR` is one of `GNUR-R`, `RSH` or `all`. If you have more than 1 rebench argument (including `e`), 
+quote all the arguments together.
 
 Of course, you need to have both the server and the client compiled to be able to run the benchmarks.
