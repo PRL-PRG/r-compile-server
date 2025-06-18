@@ -1,4 +1,5 @@
 #!/usr/bin/env Rscript
+set.seed(1)
 
 BC_OPTS <- list(optimize = 3L)
 RSH_OPTS <- list(optimize = 3L, cache = FALSE)
