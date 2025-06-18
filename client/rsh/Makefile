@@ -10,6 +10,9 @@ R_HOME ?= $(BASE_DIR)/external/R
 R := $(R_HOME)/bin/R --slave --no-restore
 LLVM_R := LD_PRELOAD=$(LLVM_LIB) $(R)
 
+CRAN_MIRROR ?= https://cloud.r-project.org
+PKG_INSTALL_TASKS ?= 4
+
 .PHONY: all
 all: install test benchmark
 
@@ -29,8 +32,17 @@ install:
 	$(LLVM_R) CMD INSTALL --install-tests --use-LTO .
 
 .PHONY: setup
+.ONESHELL:
 setup:
-	$(R) -e 'install.packages(c("microbenchmark"), repos="https://cloud.r-project.org", Ncpus=4)'
+	$(R) <<-'EOF'
+	d <- read.dcf("$(RSH_HOME)/DESCRIPTION");
+	pkgs <- strsplit(gsub("\n", " ", d[1,"Suggests"]), ",\\s*")[[1]];
+	pkgs <- gsub(" \\(.*\\)", "", pkgs);
+	to_install <- setdiff(pkgs, rownames(installed.packages()));
+	if (length(to_install)) {
+	  install.packages(to_install, Ncpus=$(PKG_INSTALL_TASKS), repos="$(CRAN_MIRROR)")
+	}
+	EOF
 
 .PHONY: compile_commands.json
 compile_commands.json:
