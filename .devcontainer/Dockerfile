@@ -68,3 +68,10 @@ RUN apt update -y \
 RUN curl -fsSL -o /opt/llvm.sh https://apt.llvm.org/llvm.sh \
   && chmod +x /opt/llvm.sh \
   && /opt/llvm.sh "$LLVM_VERSION"
+
+# Install R
+COPY ./build-gnur-in-docker.sh /workspace/tools/build-gnur-in-docker.sh
+RUN mkdir -p /workspace/external/R
+RUN cd /workspace/external ; bash ../tools/build-gnur-in-docker.sh R
+RUN ls -l /workspace/external/R # To be sure R has been installed
+RUN ls -l /workspace/external/R/bin

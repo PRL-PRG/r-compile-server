@@ -2,6 +2,7 @@ package org.prlprg.rsession;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Objects;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -9,9 +10,15 @@ import org.prlprg.RVersion;
 import org.prlprg.session.GNURSession;
 
 public class GNURSessionTest {
-  private static final Path RDir = Path.of("../external/R/");
+  private static final Path RDir;
+
+  static {
+    var rHome = System.getenv("R_HOME");
+    RDir = Path.of(Objects.requireNonNullElse(rHome, "../external/R/"));
+  }
+
   // TODO: rather create a temporary library directory for the tests?
-  private static final Path libDir = Path.of("../external/R/library/");
+  private static final Path libDir = RDir.resolve("library");
   @TempDir Path tempDir;
 
   static {
