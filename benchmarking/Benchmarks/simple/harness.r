@@ -41,7 +41,7 @@ run <- function(args) {
     benchmarkParameter <- strtoi(args[[3]])
 
     source(file.path(".", paste(name, ".r", sep="")))
-    
+    try(rsh::rsh_jit_enable(), silent=TRUE)
     total <- as.numeric(doRuns(name, numIterations, benchmarkParameter));
     cat(name, ": ",
         "iterations=", numIterations, "; ",

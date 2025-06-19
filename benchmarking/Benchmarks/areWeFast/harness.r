@@ -46,7 +46,7 @@ run <- function(args) {
   }
 
   source(paste(paste("./", tolower(name), sep = ""), ".r", sep = ""))
-  
+  try(rsh::rsh_jit_enable(), silent=TRUE)
   total = as.numeric(doRuns(name, numIterations, innerIterations));
   cat(paste(paste(name, ": iterations=", sep=""), numIterations, sep=""))
   cat(paste("; average:", round(total / numIterations)))
