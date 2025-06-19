@@ -25,6 +25,7 @@ doRuns <- function(name, iterations, benchmarkParameter, innerIterations) {
     class(name) <- tolower(name)
     for (i in 1:iterations) {
         startTime <- Sys.time()
+        
         if (!innerBenchmarkLoop(name, benchmarkParameter, innerIterations)) {
             stop("Benchmark failed with incorrect result")
         }
@@ -47,7 +48,7 @@ run <- function(args) {
     innerIterations <- if (length(args) > 3) strtoi(args[[4]]) else 1
 
     source(file.path(".", paste(tolower(name), ".r", sep="")))
-    
+    try(rsh::rsh_jit_enable(), silent=TRUE)
     total <- as.numeric(doRuns(name, numIterations, benchmarkParameter, innerIterations));
     cat(name, ": ",
         "iterations=", numIterations, "; ",

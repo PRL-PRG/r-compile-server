@@ -84,16 +84,16 @@ fi
 sed -i.bak "s+%%BENCHMARKS_PATH%%+$BENCHS_PATH+" rebench.conf
 
 # start the compile server
-if [[ ! -z $RSH_SERVER ]]; then
-  mvn -f $RSH_SERVER exec:java > "rsh-server-$(date -d "today" +"%Y%m%d%H%M").log" 2>&1 &
-  RSH_PID=$!
-  echo "Rsh compile server started in background"
-  sleep 5
-fi
+# if [[ ! -z $RSH_SERVER ]]; then
+#   mvn -f $RSH_SERVER exec:java > "rsh-server-$(date -d "today" +"%Y%m%d%H%M").log" 2>&1 &
+#   RSH_PID=$!
+#   echo "Rsh compile server started in background"
+#   sleep 5
+# fi
 
 echo "Running benchmarks with rebench"
 
-rebench rebench.conf $1
+rebench rebench.conf -v $1
 RES=$?
 
 popd

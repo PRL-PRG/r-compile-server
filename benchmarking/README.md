@@ -27,7 +27,7 @@ To run the benchmark:
 For instance, to run the benchmarks for Rsh:
 
 ```bash 
-./run.sh rebench.conf Benchmarks ../client ../server ../external/R/  "e:RSH"
+./run.sh rebench.conf Benchmarks ../client ../server ../external/R/  "e:RSH e:GNU-R"
 ```
 
 `EXECUTOR` is one of `GNUR-R`, `RSH` or `all`. If you have more than 1 rebench argument (including `e`), 
