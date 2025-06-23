@@ -8,7 +8,7 @@ execute <- function (unused) {
       return (seed)
     }
 
-    ballCount <- 100
+    ballCount <- 1000
     bounces   <- 0
     balls     = vector("list", length = ballCount)
     resetSeed()

@@ -11,8 +11,7 @@
 namespace rsh {
 
 Client::Client(std::shared_ptr<grpc::Channel> channel,
-               std::vector<std::string> installed_packages,
-               bool autoconnect)
+               std::vector<std::string> installed_packages, bool autoconnect)
     : stub_(protocol::CompileService::NewStub(channel)) {
   using namespace protocol;
   InitRequest request;
@@ -38,7 +37,7 @@ Client::Client(std::shared_ptr<grpc::Channel> channel,
     request.add_package_hash(package);
   }
 
-  if(autoconnect) {
+  if (autoconnect) {
     connect();
   }
 }
@@ -48,13 +47,13 @@ void Client::connect() {
   InitRequest request;
   InitResponse response;
   grpc::ClientContext context;
-  auto status =  stub_->Init(&context, request, &response);
+  auto status = stub_->Init(&context, request, &response);
   if (!status.ok()) {
-      Rf_error("Failed to connect to the server: %d %s\n", status.error_code(),
-              status.error_message().c_str());
-    } else {
-      connected = true;
-      Rprintf("Connected to the server\n");
+    Rf_error("Failed to connect to the server: %d %s\n", status.error_code(),
+             status.error_message().c_str());
+  } else {
+    connected = true;
+    Rprintf("Connected to the server\n");
   }
 }
 
@@ -63,7 +62,7 @@ Client::remote_compile(std::vector<uint8_t> const &rds_closure,
                        CompilerOptions const &options) {
   using namespace protocol;
 
-  if(!connected) {
+  if (!connected) {
     connect();
   }
 
@@ -103,7 +102,7 @@ Client::remote_compile(std::vector<uint8_t> const &rds_closure,
 void Client::clear_cache() {
   using namespace protocol;
 
-  if(!connected) {
+  if (!connected) {
     connect();
   }
 
