@@ -59,8 +59,8 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
 
     ServerCallStreamObserver<Messages.CompileResponse> responseObserver =
         (ServerCallStreamObserver<Messages.CompileResponse>) plainResponseObserver;
-    responseObserver.setCompression(
-        "gzip"); // Or for all responses? In that case, we just need to add an interceptor.
+    responseObserver.setCompression("gzip"); // Or for all responses? In that case, we just need to
+    // add an interceptor.
 
     if (session == null) {
       responseObserver.onError(
@@ -92,7 +92,7 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
             + request.getSerializedSize());
 
     if (request.getNoCache()) {
-      logger.info("This closure will not be cached (but it might have already been).");
+      logger.info("This closure will not be cached and no lookups in the cache will be performed.");
     }
 
     // Compile the code and build response
@@ -102,29 +102,36 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
 
     // Cache requests
     NativeClosure ccCached = null;
-
-    var nativeKey = Triple.of(function.getHash(), bcOpt, ccOpt);
-    if (tier.equals(Messages.Tier.OPTIMIZED)) {
-      ccCached = nativeCache.get(nativeKey);
-      if (ccCached != null) {
-        logger.info("Found " + function.getName() + " in native cache. No recompilation.");
-        response.setCode(ccCached.code());
-        response.setConstants(ccCached.constantPool());
-      }
-    }
-
     Pair<Bc, ByteString> bcCached = null;
-    // We also have a look whether we have a cached bytecode for the native compilation
+    Bc bc = null;
+    var nativeKey = Triple.of(function.getHash(), bcOpt, ccOpt);
     var bcKey = Pair.of(function.getHash(), bcOpt);
-    if (tier.equals((Messages.Tier.BASELINE)) || ccCached == null) {
-      bcCached = bcCache.get(bcKey);
-      if (bcCached != null) {
-        logger.info("Found " + function.getName() + " in bytecode cache. No recompilation.");
-        response.setCode(bcCached.second());
+
+    if (!request.getNoCache()) {
+      if (tier.equals(Messages.Tier.OPTIMIZED)) {
+        ccCached = nativeCache.get(nativeKey);
+        if (ccCached != null) {
+          logger.info("Found " + function.getName() + " in native cache. No recompilation.");
+          response.setCode(ccCached.code());
+          response.setConstants(ccCached.constantPool());
+        }
+      }
+
+      // We also have a look whether we have a cached bytecode for the native compilation
+
+      if (tier.equals((Messages.Tier.BASELINE)) || ccCached == null) {
+        bcCached = bcCache.get(bcKey);
+        if (bcCached != null) {
+          logger.info("Found " + function.getName() + " in bytecode cache. No recompilation.");
+          response.setCode(bcCached.second());
+        }
       }
     }
 
-    // We do not have the request version in cache
+    // If we found something in the bc cache but not native, we compile to native
+    // If we found something in the native cache, we just go finish the response 
+    // If nothing was found in the cache, we compile the function to bytecode, then to native
+
     // Compile the body if we have it
     if (!function.hasBody()) {
       logger.info(
@@ -144,22 +151,25 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
                 + bcOpt
                 + ": not found in cache.");
         try {
-          var bc = compileBcClosure(function.getBody(), bcOpt);
+          var bcRes = compileBcClosure(function.getBody(), bcOpt);
           ByteString serializedBc = null;
-          if (bc.isEmpty()) {
+          if (bcRes.isEmpty()) {
             logger.warning(
                 "Empty bytecode for function "
                     + function.getName()
                     + ". Not caching and returning the original body.");
             // We will keep the code field empty
-          } else if (!request.getNoCache()) { // We do not cache if the client does not want to
-            serializedBc = RDSWriter.writeByteString(SEXPs.bcode(bc.get()));
-            response.setCode(serializedBc);
-            bcCached =
-                Pair.of(bc.get(), serializedBc); // potentially used for the native compilation also
-            // Add it to the cache
-            bcCache.put(bcKey, bcCached);
-          }
+          } else {
+            bc = bcRes.get();
+            if (!request.getNoCache()) { // We do not cache if the client does not want to
+              serializedBc = RDSWriter.writeByteString(SEXPs.bcode(bc));
+              response.setCode(serializedBc);
+              bcCached = Pair.of(bc, serializedBc); // potentially used for the native
+              // compilation also
+              // Add it to the cache
+              bcCache.put(bcKey, bcCached);
+            }
+        }
         } catch (Exception e) {
           // See
           // https://github.com/grpc/grpc-java/blob/master/examples/src/main/java/io/grpc/examples/errorhandling/DetailErrorSample.java
@@ -187,10 +197,10 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
         // At this point, we have already the bytecode, whether we got it from the cache or we
         // compiled it
         try {
-          assert bcCached != null;
+          assert bc != null;
           // Name should be fully decided by the client?
           var name = genSymbol(function);
-          var bc2cCompiler = new BC2CCompiler(bcCached.first(), name);
+          var bc2cCompiler = new BC2CCompiler(bc, name);
           var module = bc2cCompiler.finish();
           var input = File.createTempFile("cfile", ".c");
           var f = Files.newWriter(input, Charset.defaultCharset());
@@ -215,15 +225,16 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
           response.setCode(ccCached.code());
           response.setConstants(ccCached.constantPool());
         } catch (Exception e) {
+          var msg = e.getMessage();
           responseObserver.onError(
               Status.INTERNAL
                   .withDescription(
                       "Cannot native compile function "
                           + function.getName()
                           + " ; "
-                          // we truncate the message, as it can get quite big  with compilation
+                          // we truncate the message, as it can get quite big with compilation
                           // errors, and anyway, gRPC has a max header size of 8KB
-                          + e.getMessage().substring(0, 7000))
+                          + msg.substring(0, Math.min(msg.length(), 7000)))
                   .asRuntimeException());
         }
       }

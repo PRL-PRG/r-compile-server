@@ -5,7 +5,7 @@
 # Contributed by Leo Osvald
 # ------------------------------------------------------------------
 
-execute <- function(n=2000) {
+execute <- function(n=3000) {
     gen_freq <- function(seq, frame) {
         frame <- frame - 1L
         ns <- nchar(seq) - frame
