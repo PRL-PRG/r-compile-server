@@ -1095,7 +1095,7 @@ static INLINE Rboolean Rsh_BrIfNot(Value value, SEXP call, SEXP rho) {
 
 // calls R internal function which takes two arguments
 // it is like a second level builtin - called itself from do_* functions
-#define DO_BINARY_BUILTIN(fun, call, op, opSym, lsh, rhs, rho, res)            \
+#define DO_BINARY_BUILTIN(fun, call, op, opSym, lhs, rhs, rho, res)            \
   do {                                                                         \
     SEXP __res_sxp__ = fun((call), (op), (opSym), val_as_sexp((lhs)),          \
                            val_as_sexp((rhs)), (rho));                         \
@@ -1142,7 +1142,7 @@ static ALWAYS_INLINE void Rsh_arith(Value *res, Value lhs, Value rhs, SEXP call,
 
   // Slow path!
   RSH_PC_INC(slow_arith);
-  DO_BINARY_BUILTIN(arith2, call, R_ARITH_OPS[op], R_ARITH_OP_SYMS[op], lsh,
+  DO_BINARY_BUILTIN(arith2, call, R_ARITH_OPS[op], R_ARITH_OP_SYMS[op], lhs,
                     rhs, rho, res);
 }
 
@@ -1350,6 +1350,29 @@ static INLINE void Rsh_CheckFun(Value *fun, Value *args_head,
   }
 
   INIT_CALL_FRAME(args_head, args_tail);
+}
+
+static INLINE void Rsh_MakeProm2(Value *fun, Value *args_head, Value *args_tail,
+                                 Rsh_closure fun_ptr, SEXP c_cp, SEXP rho) {
+  switch (TYPEOF(VAL_SXP(*fun))) {
+  case CLOSXP: {
+    SEXP code =
+        PROTECT(R_MakeExternalPtr((void *)fun_ptr, Rsh_ClosureBodyTag, c_cp));
+    SEXP value = Rf_mkPROMISE(code, rho);
+    RSH_PUSH_ARG(args_head, args_tail, value);
+    UNPROTECT(1);
+    break;
+  }
+  case BUILTINSXP: {
+    SEXP value = fun_ptr(rho, c_cp);
+    RSH_PUSH_ARG(args_head, args_tail, value);
+    break;
+  }
+  case SPECIALSXP:
+    break;
+  default:
+    Rf_error("bad function");
+  }
 }
 
 static INLINE void Rsh_MakeProm(Value *fun, Value *args_head, Value *args_tail,
