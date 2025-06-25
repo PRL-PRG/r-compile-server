@@ -635,6 +635,22 @@ public class BC2CCompilerTest {
             """);
   }
 
+  @Test
+  public void testPromiseCompilation(BC2CSnapshot snapshot) {
+    snapshot.setClean(false);
+    snapshot.verify(
+            """
+                f <- function(x) {
+                  print(x)
+                }
+    
+                f({
+                  x <- 1
+                  x + 2
+                })
+                """);
+  }
+
   // TODO: test for errors - and stack pointers
   //  - try with R BC interpreter
   //  - a tryCatch / just an error in a call called from REPL
@@ -655,92 +671,107 @@ public class BC2CCompilerTest {
     snapshot.setClean(false);
     snapshot.verify(
         """
-execute <- function(n=2000) {
-    gen_freq <- function(seq, frame) {
-        frame <- frame - 1L
-        ns <- nchar(seq) - frame
-        n <- 0L
-        cap <- 16L
-        freqs <- integer(cap)
-        for (i in 1:ns) {
-            subseq = substr(seq, i, i + frame)
-            cnt <- attr(freqs, subseq)
-            if (is.null(cnt)) {
-                cnt <- 0L
-                # ensure O(N) resizing (instead of O(N^2))
-                n <- n + 1L
-                freqs[[cap <- if (cap < n) 2L * cap else cap]] <- 0L
-            }
-            attr(freqs, subseq) <- cnt + 1L
-        }
-        return(freqs)
+execute <- function(n=25000) {
+    pi <- 3.141592653589793
+    solar_mass <- 4 * pi * pi
+    days_per_year <- 365.24
+    n_bodies <- 5
+
+    body_x <- c(
+        0,
+        4.84143144246472090e+00, # jupiter
+        8.34336671824457987e+00, # saturn
+        1.28943695621391310e+01, # uranus
+        1.53796971148509165e+01 # neptune
+    )
+    body_y <- c(
+        0,
+        -1.16032004402742839e+00, # jupiter
+        4.12479856412430479e+00, # saturn
+        -1.51111514016986312e+01, # uranus
+        -2.59193146099879641e+01 # neptune
+    )
+    body_z <- c(
+        0,
+        -1.03622044471123109e-01, # jupiter
+        -4.03523417114321381e-01, # saturn
+        -2.23307578892655734e-01, # uranus
+        1.79258772950371181e-01 # neptune
+    )
+
+    body_vx <- c(
+        0,
+        1.66007664274403694e-03 * days_per_year, # jupiter
+        -2.76742510726862411e-03 * days_per_year, # saturn
+        2.96460137564761618e-03 * days_per_year, # uranus
+        2.68067772490389322e-03 * days_per_year # neptune
+    )
+    body_vy <- c(
+        0,
+        7.69901118419740425e-03 * days_per_year, # jupiter
+        4.99852801234917238e-03 * days_per_year, # saturn
+        2.37847173959480950e-03 * days_per_year, # uranus
+        1.62824170038242295e-03 * days_per_year # neptune
+    )
+    body_vz <- c(
+        0,
+        -6.90460016972063023e-05 * days_per_year, # jupiter
+        2.30417297573763929e-05 * days_per_year, # saturn
+        -2.96589568540237556e-05 * days_per_year, # uranus
+        -9.51592254519715870e-05 * days_per_year # neptune
+    )
+
+    body_mass <- c(
+        solar_mass,
+        9.54791938424326609e-04 * solar_mass, # jupiter
+        2.85885980666130812e-04 * solar_mass, # saturn
+        4.36624404335156298e-05 * solar_mass, # uranus
+        5.15138902046611451e-05 * solar_mass # neptune
+    )
+
+    offset_momentum <- function() {
+        body_vx[[1]] <<- -sum(body_vx * body_mass) / solar_mass
+        body_vy[[1]] <<- -sum(body_vy * body_mass) / solar_mass
+        body_vz[[1]] <<- -sum(body_vz * body_mass) / solar_mass
     }
 
-    sort_seq <- function(seq, len) {
-        cnt_map <- gen_freq(seq, len)
-        #print(cnt_map)
-        attrs <- attributes(cnt_map)
-        fs <- unlist(attrs, use.names=FALSE)
-        seqs <- toupper(paste(names(attrs)))
-        inds <- order(-fs, seqs)
-        cat(paste(seqs[inds], 100 * fs[inds] / sum(fs), collapse="\n"),
-            "\n")
+    advance <- function(dt) {
+        dxx <- outer(body_x, body_x, "-")
+        dyy <- outer(body_y, body_y, "-")
+        dzz <- outer(body_z, body_z, "-")
+        distance <- sqrt(dxx * dxx + dyy * dyy + dzz * dzz)
+        mag <- dt / (distance * distance * distance)
+        diag(mag) <- 0
+        body_vx <<- body_vx - as.vector((dxx * mag) %*% body_mass)
+        body_vy <<- body_vy - as.vector((dyy * mag) %*% body_mass)
+        body_vz <<- body_vz - as.vector((dzz * mag) %*% body_mass)
+        body_x <<- body_x + dt * body_vx
+        body_y <<- body_y + dt * body_vy
+        body_z <<- body_z + dt * body_vz
     }
 
-    find_seq <- function(seq, s) {
-        cnt_map <- gen_freq(seq, nchar(s))
-        if (!is.null(cnt <- attr(cnt_map, s)))
-            return(cnt)
-        return(0L)
+    energy <- function() {
+        dxx <- outer(body_x, body_x, "-")
+        dyy <- outer(body_y, body_y, "-")
+        dzz <- outer(body_z, body_z, "-")
+        distance <- sqrt(dxx * dxx + dyy * dyy + dzz * dzz)
+        q <- (body_mass %o% body_mass) / distance
+        return(sum(0.5 * body_mass *
+                  (body_vx * body_vx + body_vy * body_vy + body_vz * body_vz)) -
+              sum(q[upper.tri(q)]))
     }
 
-    knucleotide_brute_2 <- function(args) {
-        in_filename = args[[1]]
-        f <- file(in_filename, "r")
-        while (length(line <- readLines(f, n=1, warn=FALSE))) {
-            first_char <- substr(line, 1L, 1L)
-            if (first_char == '>' || first_char == ';')
-                if (substr(line, 2L, 3L) == 'TH')
-                    break
-        }
-
-        n <- 0L
-        cap <- 8L
-        str_buf <- character(cap)
-        while (length(line <- scan(f, what="", nmax=1, quiet=TRUE))) {
-            first_char <- substr(line, 1L, 1L)
-            if (first_char == '>' || first_char == ';')
-                break
-            n <- n + 1L
-            str_buf[[cap <- if (cap < n) 2L * cap else cap]] <- ""
-            str_buf[[n]] <- line
-        }
-        length(str_buf) <- n
-        close(f)
-        seq <- paste(str_buf, collapse="")
-
-        for (frame in 1:2)
-            sort_seq(seq, frame)
-        for (s in c("GGT", "GGTA", "GGTATT", "GGTATTTTAATT", "GGTATTTTAATTTATAGT"))
-            cat(find_seq(seq, tolower(s)), sep="\t", s, "\n")
+    nbody <- function(args) {
+        n = if (length(args)) as.integer(args[[1]]) else 1000L
+        options(digits=9)
+        offset_momentum()
+        cat(energy(), "\n")
+        for (i in 1:n)
+            advance(0.01)
+        cat(energy(), "\n")
     }
 
-    paste. <- function (..., digits=16, sep=" ", collapse=NULL) {
-        args <- list(...)
-        if (length(args) == 0)
-            if (length(collapse) == 0) character(0)
-            else ""
-        else {
-            for(i in seq(along=args))
-                if(is.numeric(args[[i]])) 
-                    args[[i]] <- as.character(round(args[[i]], digits))
-                else args[[i]] <- as.character(args[[i]])
-            .Internal(paste(args, sep, collapse))
-        }
-    }
-
-    file <- paste("/workspace/client/rsh/inst/benchmarks/shootout/fasta/fasta", n, ".txt", sep="")
-    knucleotide_brute_2(file)
+    nbody(n)
 }
 execute()
         """);

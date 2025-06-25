@@ -233,6 +233,14 @@ class ClosureCompiler {
           case BcInstr.EndAssign(var symbol) ->
               builder.args(constantSXP(symbol), cell(symbol)).compileStmt();
           case BcInstr.MakeClosure(var idx) -> compileMakeClosure(builder, idx);
+          case BcInstr.MakeProm(var idx) ->  {
+            var prom = bc.consts().get(idx);
+            if (prom instanceof BCodeSXP c) {
+              yield compileMakePromise(builder, c);
+            } else {
+              yield builder.compileStmt();
+            }
+          }
 
             // FIXME: this can be all done using the default branch - except for the rank
             //  the builder should be smarter and include also other types such as int
@@ -404,6 +412,15 @@ class ClosureCompiler {
     if (!SUPPORTED_OPS.contains(instr.op())) {
       throw new UnsupportedOperationException("Unsupported instruction: " + instr);
     }
+  }
+
+  private String compileMakePromise(InstrBuilder builder, BCodeSXP bc) {
+      var compiledClosure = module.compileClosure(bc.bc(), "p_" + name);
+      var cpConst = createExtraConstant(compiledClosure.constantPool());
+      return builder
+              .fun("Rsh_MakeProm2")
+              .args("&" + compiledClosure.name(), constantSXP(cpConst))
+              .compileStmt();
   }
 
   private String compileMakeClosure(InstrBuilder builder, ConstPool.Idx<VecSXP> idx) {
