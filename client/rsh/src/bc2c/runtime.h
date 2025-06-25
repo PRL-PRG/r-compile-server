@@ -972,7 +972,7 @@ static INLINE void Rsh_Call(Value *fun, Value args_head, UNUSED Value args_tail,
       R_Visible = (Rboolean)(flag != 1);
     }
     break;
-  case CLOSXP:
+  case CLOSXP: {
     args_sxp = Rsh_closure_call_args(args_sxp);
     SEXP body = BODY(fun_sxp);
 
@@ -1006,6 +1006,7 @@ static INLINE void Rsh_Call(Value *fun, Value args_head, UNUSED Value args_tail,
     // slow path
     value = Rf_applyClosure(call, fun_sxp, args_sxp, rho, R_NilValue, TRUE);
     break;
+  }
   default:
     Rf_error("bad function");
   }

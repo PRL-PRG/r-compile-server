@@ -97,7 +97,7 @@ benchmark:
 		echo "$(TXT_RED)FAIL$(NO_NORM) $$exit$(TXT_NORM)"; \
 		fi; \
 	done
-	$(LLVM_R) -f $(BENCH_DIR)/benchmark.R --args save $(BENCH_OUT_DIR)/benchmarks.csv $(BENCH_OUT_DIR)
+	$(R) -f $(BENCH_DIR)/benchmark.R --args save $(BENCH_OUT_DIR)/benchmarks.csv $(BENCH_OUT_DIR)
 
 .PHONY: benchmark-baseline
 benchmark-baseline: 
