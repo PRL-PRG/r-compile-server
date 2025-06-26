@@ -374,6 +374,12 @@ typedef union {
   int ival;
 } BCellVal;
 
+#define DEFINE_BCELL(name)                                                     \
+  R_BCNodeStackTop->tag = 0;                                                   \
+  R_BCNodeStackTop->flags = 0;                                                 \
+  R_BCNodeStackTop->u.sxpval = R_NilValue;                                     \
+  BCell *name = &(R_BCNodeStackTop++)->u.sxpval;
+
 #define BCELL_IS_UNBOUND(v) (BCELL_TAG(v) == 0 && CAR0(v) == R_UnboundValue)
 #define BCELL_TAG(cell) ((cell)->sxpinfo.extra)
 #define BCELL_TAG_SET(cell, tag) BCELL_TAG(cell) = tag
@@ -534,27 +540,10 @@ static ALWAYS_INLINE Rboolean bcell_set_value(BCell cell, SEXP value) {
 // CLOSURE REPRESENTATION
 // ----------------------
 //
-// Closure (CLOSXP) whose budy is a BCODESXP are compiled into C functions.
+// Closure (CLOSXP) whose body is a BCODESXP are compiled into C functions.
 // At runtime, these closures are represented as regular R closures with
-// BCODESXP body containing code that calls a trampoline functions which in turn
-// calls the compiled C function.
-//
-// Each closure has the same body:
-//
-// .External2(Rsh_call_trampoline, <fun>, <c_cp>)
-//
-// <fun> the EXTERNALPTR of the compiled C function
-// <c_cp> the C constant pool (c_cp) used by the compiled C function
-//
-// The trampoline extracts these two elements from the extra pool entry and
-// calls the function using the environment passed to the .External2 call.
-//
-// The C functions have the following signature (Rsh_closure):
-//
-// SEXP compiled_function(SEXP rho, SEXP c_cp)
-//
-// where rho is the environment created for the call of the function (passed
-// from .External2), and c_cp the C constant pool.
+// EXTPTRSXP body containing a pointer to the compiled C function. The
+// protected object of this EXTPTRSXP is the C constant pool.
 
 // RUNTIME CONSTANTS
 // -----------------
@@ -563,16 +552,13 @@ JIT_DECL Value *Rsh_NilValue;
 JIT_DECL Value *Rsh_UnboundValue;
 JIT_DECL SEXP NOT_OP;
 JIT_DECL SEXP LOG_OP;
-JIT_DECL SEXP BC2C_CALL_TRAMPOLINE_SXP;
 
 #ifdef RSH_TESTS
 #include "runtime_impl.h"
 #else
 JIT_DECL SEXP Rsh_initialize_runtime(void);
-JIT_DECL SEXP Rsh_call_trampoline(SEXP call, SEXP op, SEXP args, SEXP rho);
 JIT_DECL SEXP Rsh_pc_get(void);
 JIT_DECL SEXP Rsh_pc_reset(void);
-JIT_DECL SEXP create_wrapper_body(SEXP body, Rsh_closure fun_ptr, SEXP c_cp);
 #endif
 
 #define BCELL_INLINE(cell, v)                                                  \
@@ -972,7 +958,7 @@ static INLINE void Rsh_Call(Value *fun, Value args_head, UNUSED Value args_tail,
       R_Visible = (Rboolean)(flag != 1);
     }
     break;
-  case CLOSXP:
+  case CLOSXP: {
     args_sxp = Rsh_closure_call_args(args_sxp);
     SEXP body = BODY(fun_sxp);
 
@@ -1006,6 +992,7 @@ static INLINE void Rsh_Call(Value *fun, Value args_head, UNUSED Value args_tail,
     // slow path
     value = Rf_applyClosure(call, fun_sxp, args_sxp, rho, R_NilValue, TRUE);
     break;
+  }
   default:
     Rf_error("bad function");
   }
@@ -1317,10 +1304,9 @@ static INLINE void Rsh_MakeClosure(Value *res, SEXP mkclos_arg,
                                    Rsh_closure fun_ptr, SEXP c_cp, SEXP rho) {
 
   SEXP forms = VECTOR_ELT(mkclos_arg, 0);
-  SEXP original_body = VECTOR_ELT(mkclos_arg, 1);
-  // SEXP body = PROTECT(create_wrapper_body(original_body, fun_ptr, consts));
-  SEXP body =
-      PROTECT(R_MakeExternalPtr((void *)fun_ptr, Rsh_ClosureBodyTag, c_cp));
+  // SEXP original_body = VECTOR_ELT(mkclos_arg, 1);
+  SEXP body = PROTECT(
+      R_MakeExternalPtr(*(void **)(&fun_ptr), Rsh_ClosureBodyTag, c_cp));
   SEXP closure = PROTECT(Rf_mkCLOSXP(forms, body, rho));
 
   if (LENGTH(mkclos_arg) > 2) {
@@ -1356,8 +1342,8 @@ static INLINE void Rsh_MakeProm2(Value *fun, Value *args_head, Value *args_tail,
                                  Rsh_closure fun_ptr, SEXP c_cp, SEXP rho) {
   switch (TYPEOF(VAL_SXP(*fun))) {
   case CLOSXP: {
-    SEXP code =
-        PROTECT(R_MakeExternalPtr((void *)fun_ptr, Rsh_ClosureBodyTag, c_cp));
+    SEXP code = PROTECT(
+        R_MakeExternalPtr(*(void **)&fun_ptr, Rsh_ClosureBodyTag, c_cp));
     SEXP value = Rf_mkPROMISE(code, rho);
     RSH_PUSH_ARG(args_head, args_tail, value);
     UNPROTECT(1);
@@ -1411,7 +1397,7 @@ static INLINE void Rsh_Dollar(Value *x_res, SEXP call, SEXP symbol, SEXP rho) {
 
   if (isObject(x_sxp)) {
     SEXP ncall = PROTECT(Rf_duplicate(call));
-    SETCAR(CDDR(ncall), Rf_ScalarString(symbol));
+    SETCAR(CDDR(ncall), Rf_ScalarString(PRINTNAME(symbol)));
     dispatched = tryDispatch("$", ncall, x_sxp, rho, &value_sxp);
     UNPROTECT(1);
   }
@@ -1840,6 +1826,8 @@ static INLINE void Rsh_SetTag(Value *fun, UNUSED Value *args_head,
 }
 
 static INLINE void Rsh_Invisible() { R_Visible = FALSE; }
+
+static INLINE void Rsh_Visible() { R_Visible = TRUE; }
 
 static INLINE void Rsh_SetterCall(Value *lhs, Value rhs, Value fun,
                                   Value args_head, Value args_tail, SEXP call,
