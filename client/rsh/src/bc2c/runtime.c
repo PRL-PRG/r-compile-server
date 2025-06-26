@@ -23,6 +23,5 @@ Rsh_Math1Fun R_MATH1_EXT_FUNS[] = {X_MATH1_EXT_OPS};
 // FIXME: remove
 SEXP NOT_OP;
 SEXP LOG_OP;
-SEXP BC2C_CALL_TRAMPOLINE_SXP;
 
 #include "runtime_impl.h"

@@ -125,6 +125,9 @@ class ClosureCompiler {
   /** The name of the variable representing the C constant pool */
   private static final String VAR_CCP = "CCP";
 
+  private static final String VAR_STACK_SAVE = "STACK_SAVE";
+  private static final String VAR_RET = "RET";
+
   private final Bc bc;
   private final ByteCodeStack stack = new ByteCodeStack();
   private final Map<Integer, Constant> constants = new LinkedHashMap<>();
@@ -135,6 +138,7 @@ class ClosureCompiler {
 
   protected CModule module;
   protected CFunction fun;
+  protected CCode prologue;
   protected CCode body;
 
   public ClosureCompiler(CModule module, String name, Bc bc) {
@@ -142,6 +146,7 @@ class ClosureCompiler {
     this.name = name;
     this.module = module;
     this.fun = module.createFun("SEXP", name, "SEXP %s, SEXP %s".formatted(VAR_RHO, VAR_CCP));
+    this.prologue = fun.add();
     this.body = fun.add();
     this.extraConstPoolIdx = bc.consts().size() + 1;
   }
@@ -164,17 +169,13 @@ class ClosureCompiler {
   }
 
   private void beforeCompile() {
+    prologue.line("R_bcstack_t *" + VAR_STACK_SAVE + " = R_BCNodeStackTop;");
     fillLabels();
   }
 
   private void afterCompile() {
     compileCells();
     compileRegisters();
-    compileStackGuard();
-  }
-
-  private void compileStackGuard() {
-    fun.insertAbove(body).line("Value *__top__ = R_BCNodeStackTop;");
   }
 
   private void fillLabels() {
@@ -194,20 +195,14 @@ class ClosureCompiler {
     checkSupported(instr);
     var code =
         switch (instr) {
-            // FIXME: do not POP after return
-            // FIXME: extract constants
-            // FIXME: better stack handling - we do not need __ncells__, just store __top__
-            // FIXME: what shall happen if an error occurs?
           case BcInstr.Return() ->
               """
               do {
-                Value __ret__ = *GET_VAL(1);
-                POP_VAL(1);
-                R_BCNodeStackTop = __top__;
-                POP_VAL(__ncells__);
-                return Rsh_Return(__ret__);
+                Value %s = *GET_VAL(1);
+                R_BCNodeStackTop = %s;
+                return Rsh_Return(%s);
               } while(0);
-            """;
+            """.formatted(VAR_RET, VAR_STACK_SAVE, VAR_RET);
           case BcInstr.Goto(var dest) -> "goto %s;".formatted(label(dest));
           case BcInstr.LdConst(var idx) -> {
             var c = getConstant(idx);
@@ -321,7 +316,7 @@ class ClosureCompiler {
           BcOp.GOTO,
           BcOp.GT,
           BcOp.INVISIBLE,
-          BcOp.LDCONST,
+          BcOp.VISIBLE,
           BcOp.LDFALSE,
           BcOp.LDNULL,
           BcOp.LDTRUE,
@@ -446,23 +441,13 @@ class ClosureCompiler {
   }
 
   private void compileCells() {
-    var sec = fun.insertAbove(body);
-
     if (cells.isEmpty()) {
-      sec.line("int __ncells__ = 0;");
       return;
     }
 
-    sec.line("int __ncells__ = %d;".formatted(cells.size()));
-    sec.line("PUSH_VAL(__ncells__);");
-    int i = 0;
-    for (var c : cells) {
-      var idx = cells.size() - i;
-      sec.line("BCell* C%d = &(R_BCNodeStackTop - %d)->u.sxpval;".formatted(c, idx));
-      sec.line("(R_BCNodeStackTop - %d)->tag = 0;".formatted(idx));
-      sec.line("(R_BCNodeStackTop - %d)->flags = 0;".formatted(idx));
-      sec.line("*C%d = R_NilValue;".formatted(c));
-      i++;
+    prologue.line("CHECK_OVERFLOW(%d);".formatted(cells.size()));
+    for (var cell : cells) {
+      prologue.line("DEFINE_BCELL(C%d);".formatted(cell));
     }
   }
 

@@ -234,8 +234,6 @@ SEXP is_compiled(SEXP closure) {
 SEXP initialize() {
   Rsh_initialize_runtime();
 
-  BC2C_CALL_TRAMPOLINE_SXP = load_symbol_checked("rsh", "C_call_trampoline");
-
   return R_NilValue;
 }
 
