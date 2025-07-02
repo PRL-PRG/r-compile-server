@@ -59,6 +59,9 @@ SEXP CONS_NR(SEXP car, SEXP cdr);
 SEXP R_binary(SEXP call, SEXP op, SEXP x, SEXP y);
 SEXP do_relop_dflt(SEXP call, SEXP op, SEXP x, SEXP y);
 SEXP do_math1(SEXP call, SEXP op, SEXP args, SEXP env);
+DL_FUNC R_dotCallFn(SEXP op, SEXP call, int nargs);
+SEXP R_doDotCall(DL_FUNC fun, int nargs, SEXP *cargs, SEXP call);
+SEXP do_dotcall(SEXP call, SEXP op, SEXP args, SEXP env);
 SEXP R_unary(SEXP call, SEXP op, SEXP s1);
 SEXP do_logic(SEXP call, SEXP op, SEXP args, SEXP env);
 int tryDispatch(const char *generic, SEXP call, SEXP x, SEXP rho, SEXP *pv);
@@ -301,6 +304,12 @@ static INLINE SEXP relop(SEXP call, SEXP op, SEXP opsym, SEXP x, SEXP y,
   }
   return do_relop_dflt(call, op, x, y);
 }
+
+// from: eval.c
+/*static R_INLINE void INCLNK_stack(R_bcstack_t *top)
+{
+    R_BCProtTop = top;
+}*/
 
 #define RSH_LIST_APPEND_EX(/* Value* */ head, /* Value* */ tail,               \
                            /* SEXP */ value, /* RBoolean */ RC)                \

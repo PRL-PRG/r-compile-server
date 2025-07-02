@@ -228,6 +228,10 @@ class ClosureCompiler {
               builder.args(constantSXP(symbol), cell(symbol)).compileStmt();
           case BcInstr.GetVarMissOk(var symbol) ->
               builder.args(constantSXP(symbol), cell(symbol)).compileStmt();
+          case BcInstr.DdVal(var symbol) ->
+              builder.args(constantSXP(symbol), cell(symbol)).compileStmt();
+          case BcInstr.DdValMissOk(var symbol) ->
+              builder.args(constantSXP(symbol), cell(symbol)).compileStmt();
           case BcInstr.StartAssign(var symbol) ->
               builder.args(constantSXP(symbol), cell(symbol)).compileStmt();
           case BcInstr.EndAssign(var symbol) ->
@@ -275,6 +279,13 @@ class ClosureCompiler {
           }
           case BcInstr.Math1(var call, var op) ->
               builder.args(constantSXP(call), String.valueOf(op)).compileStmt();
+          case BcInstr.DotCall(var call, var numArgs) ->
+              builder
+                  .args(String.valueOf(numArgs), constantSXP(call))
+                  .pop(numArgs + 1)
+                  .push(numArgs + 1)
+                  .useStackAsArray()
+                  .compileStmt();
           default -> {
             if (instr.label().orElse(null) instanceof BcLabel l) {
               yield "if (%s) {\ngoto %s;\n}".formatted(builder.compile(), label(l));
@@ -309,6 +320,7 @@ class ClosureCompiler {
           BcOp.GETBUILTIN,
           BcOp.GETFUN,
           BcOp.GETVAR,
+          BcOp.DDVAL,
           BcOp.GE,
           BcOp.GOTO,
           BcOp.GT,
@@ -343,6 +355,7 @@ class ClosureCompiler {
           BcOp.ADD,
           BcOp.GETINTLBUILTIN,
           BcOp.GETVAR_MISSOK,
+          BcOp.DDVAL_MISSOK,
           BcOp.STARTSUBSET,
           BcOp.STARTSUBSET2,
           BcOp.STARTSUBSET2_N,
@@ -399,6 +412,7 @@ class ClosureCompiler {
           BcOp.LOG,
           BcOp.LOGBASE,
           BcOp.MATH1,
+          BcOp.DOTCALL,
           BcOp.DODOTS);
 
   private void checkSupported(BcInstr instr) {

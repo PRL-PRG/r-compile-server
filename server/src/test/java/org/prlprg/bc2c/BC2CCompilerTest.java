@@ -7,6 +7,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.prlprg.bc2c.BC2CSnapshotTestExtension.BC2CSnapshot;
 import org.prlprg.bc2c.BC2CSnapshotTestExtension.TestResultCheck;
+import org.prlprg.sexp.SEXP;
+import org.prlprg.sexp.SEXPs;
 import org.prlprg.util.gnur.GNUR;
 import org.prlprg.util.gnur.GNURTestSupport;
 
@@ -29,6 +31,14 @@ public class BC2CCompilerTest {
   public void testSetAndGetVar(BC2CSnapshot snapshot) {
     snapshot.verify("x <- 42; x");
     snapshot.verify("y <- 42; x <- y; x");
+  }
+
+  @Test
+  public void testDdVal(BC2CSnapshot snapshot) {
+    snapshot.setClean(false);
+    snapshot.verify(
+        "e <- new.env(parent = emptyenv()); e$x <- 42; " + "get('x', envir = e, inherits = FALSE)");
+    snapshot.verify("f <- function(...) print(..1); f(42)", returns(42.0));
   }
 
   @Test
@@ -605,12 +615,8 @@ public class BC2CCompilerTest {
 
   @Test
   public void testDotCall(BC2CSnapshot snapshot) {
-    snapshot.verify("x <- 1:5; sum(x)", fastArith());
-    snapshot.verify("x <- 1:5; sum(x, na.rm=TRUE)", fastArith());
-    snapshot.verify("x <- 1:5; sum(x, na.rm=FALSE)", fastArith());
-    snapshot.verify("x <- 1:5; sum(x, na.rm=TRUE, trim=0.1)", fastArith());
-    snapshot.verify("x <- 1:5; sum(x, na.rm=FALSE, trim=0.1)", fastArith());
-    snapshot.verify("x <- 1:5; .Call('sum', x)", returns(15.0));
+    snapshot.verify(".Call(tools:::C_nonASCII, 'Ř')", returns(SEXPs.TRUE));
+    snapshot.verify(".Call(tools:::C_check_nonASCII, 'Ř', TRUE)", returns(SEXPs.TRUE));
   }
 
   @Test
@@ -800,7 +806,7 @@ execute()
             expected,
             r.value()
                 .asScalarReal()
-                .orElseThrow(() -> new IllegalStateException("Expected integer, got: " + r.value()))
+                .orElseThrow(() -> new IllegalStateException("Expected double, got: " + r.value()))
                 .doubleValue());
   }
 
@@ -812,5 +818,9 @@ execute()
                 .asScalarInteger()
                 .orElseThrow(() -> new IllegalStateException("Expected integer, got: " + r.value()))
                 .intValue());
+  }
+
+  private TestResultCheck returns(SEXP expected) {
+    return (r) -> assertEquals(expected, r.value());
   }
 }

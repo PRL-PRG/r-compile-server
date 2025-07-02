@@ -1,4 +1,4 @@
-RSH_HOME := /workspace
+RSH_HOME := /mnt/data-1/vinho/r-compile-server
 R_HOME := $(RSH_HOME)/external/R
 R := $(R_HOME)/bin/R
 CC := gcc

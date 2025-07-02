@@ -740,6 +740,10 @@ static INLINE SEXP Rsh_do_get_var(SEXP symbol, SEXP rho, Rboolean dd,
   Rsh_get_var(res, symbol, cell, rho, FALSE, FALSE)
 #define Rsh_GetVarMissOk(res, symbol, cell, rho)                               \
   Rsh_get_var(res, symbol, cell, rho, FALSE, TRUE)
+#define Rsh_DdVal(res, symbol, cell, rho)                               \
+  Rsh_get_var(res, symbol, cell, rho, TRUE, FALSE)
+#define Rsh_DdValMissOk(res, symbol, cell, rho)                               \
+  Rsh_get_var(res, symbol, cell, rho, TRUE, TRUE)
 
 static INLINE void Rsh_get_var(Value *res, SEXP symbol, BCell *cell, SEXP rho,
                                Rboolean dd, Rboolean keepmiss) {
@@ -756,7 +760,7 @@ static INLINE void Rsh_get_var(Value *res, SEXP symbol, BCell *cell, SEXP rho,
   }
 
   SEXP value = BCELL_VAL(*cell);
-  if (value != R_UnboundValue) {
+  if (value != R_UnboundValue && !dd) {
     int type = TYPEOF(value);
 
     if (type == PROMSXP) {
@@ -1366,7 +1370,7 @@ static INLINE void Rsh_DollarGets(Value *x_res, Value rhs, SEXP call, SEXP symbo
     MARK_ASSIGNMENT_CALL(call);
 
     if (MAYBE_SHARED(x_sxp)) {
-        x_sxp = shallow_duplicate(x_sxp);
+        x_sxp = Rf_shallow_duplicate(x_sxp);
         SET_VAL(x_res, x_sxp);
         ENSURE_NAMED(x_sxp);
     }
@@ -2573,6 +2577,37 @@ static INLINE void Rsh_Math1(Value *v, SEXP call, int op, SEXP rho) {
   RSH_PC_INC(slow_math1);
 }
 
+static INLINE void Rsh_DotCall(Value *stack, int nargs, SEXP call, SEXP rho) {
+    Value *inFunc = stack - nargs - 1;
+    SEXP op = val_as_sexp(*inFunc);
+    int DotCall_Max = 16;
+
+    DL_FUNC ofun = R_dotCallFn(op, call, nargs);
+
+    if (ofun && nargs <= DotCall_Max) {
+	    SEXP cargs[DotCall_Max];					
+	    for (int i = 0; i < nargs; i++){
+      cargs[i] = val_as_sexp(inFunc[i+1]);
+      }
+
+	    SEXP val = R_doDotCall(ofun, nargs, cargs, call);
+
+	    SET_VAL(inFunc+nargs, val);
+	    R_Visible = TRUE;
+      return;
+    }
+  SEXP args = R_NilValue;
+  for (int i = 0; i < nargs; i++) {
+      args = CONS_NR(val_as_sexp(inFunc[i+1]), args);
+  }
+  SEXP sym = CADR(call);
+  SEXP opPrim = getPrimitive(sym, BUILTINSXP);
+  SEXP val = do_dotcall(call, opPrim, args, rho);
+  SET_VAL(inFunc+nargs, val);
+  R_Visible = TRUE;
+  return;
+}
+
 #define Rsh_Dup(a, b) *(b) = *(a)
 #define Rsh_Dup2nd(a, b, c) *(c) = *(a)
 
@@ -2621,4 +2656,9 @@ static INLINE void Rsh_CallSpecial(Value *value, SEXP call, SEXP rho) {
   SET_VAL(value, v);
 }
 
+/*static INLINE void Rsh_IncLnkStk(Value *stack){
+  int offset = (int)(R_BCProtTop - stack);
+  INCLNK_stack(R_BCNodeStackTop);
+  SET_VAL(stack, offset);
+}*/
 #endif // RUNTIME_H
