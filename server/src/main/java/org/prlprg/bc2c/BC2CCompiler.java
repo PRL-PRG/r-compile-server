@@ -9,6 +9,9 @@ import org.prlprg.sexp.*;
 record Constant(int id, SEXP value) {
 }
 
+record BCell(int id, String name) {
+}
+
 class ByteCodeStack {
     private int max = 0;
     private int top = 0;
@@ -73,6 +76,15 @@ class CModule {
         return new CompiledClosure(name, constants);
     }
 
+    CompiledClosure compilePromise(Bc bc, String baseName) {
+        var name = baseName + "_P_" + funId++;
+        var compiler = new ClosureCompiler(this, name, bc);
+//        compiler.setUseCells(false);
+        var constants = compiler.compile();
+
+        return new CompiledClosure(name, constants);
+    }
+
     public List<CFunction> funs() {
         return funs;
     }
@@ -120,11 +132,12 @@ class ClosureCompiler {
     private final ByteCodeStack stack = new ByteCodeStack();
     private final Map<Integer, Constant> constants = new LinkedHashMap<>();
     private final Set<Integer> labels = new HashSet<>();
-    private final Set<Integer> cells = new HashSet<>();
+    private final Set<BCell> cells = new HashSet<>();
     private final Map<Integer, Integer> branchStackState = new HashMap<>();
     private int extraConstPoolIdx;
     private final String name;
-    private boolean debug = false;
+    private boolean debug = true;
+    private boolean useCells = true;
 
     protected CModule module;
     protected CFunction fun;
@@ -163,14 +176,19 @@ class ClosureCompiler {
         return SEXPs.vec(constants());
     }
 
+    private int stackSpace() {
+        return stack.max();
+    }
+
     private void beforeCompile() {
-        prologue.line("R_bcstack_t *" + VAR_STACK_SAVE + " = R_BCNodeStackTop;");
         fillLabels();
     }
 
     private void afterCompile() {
+        prologue.line("int %s = %d;".formatted(VAR_STACK_SAVE, stackSpace()));
+        prologue.line("static SEXP LAST_RHO = NULL;");
         if (!cells.isEmpty() || !stack.isEmpty()) {
-            prologue.line("CHECK_OVERFLOW(%d);".formatted(cells.size() + stack.max()));
+            prologue.line("CHECK_OVERFLOW(%d);".formatted(stackSpace()));
         }
 
         compileCells();
@@ -212,8 +230,10 @@ class ClosureCompiler {
                                         })
                                 .compileStmt();
                     }
-                    case BcInstr.SetVar(var symbol) -> builder.addArgs(cell(symbol)).compileStmt();
-                    case BcInstr.GetVar(var symbol) -> builder.addArgs(cell(symbol)).compileStmt();
+                    case BcInstr.SetVar(var symbol) ->
+                            builder.addArgs(cell(symbol)).debug("symbol: '%s'".formatted(symbolName(symbol))).compileStmt();
+                    case BcInstr.GetVar(var symbol) ->
+                            builder.addArgs(cell(symbol)).debug("symbol: '%s'".formatted(symbolName(symbol))).compileStmt();
                     case BcInstr.GetVarMissOk(var symbol) -> builder.addArgs(cell(symbol)).compileStmt();
                     case BcInstr.StartAssign(var symbol) -> builder.addArgs(cell(symbol)).compileStmt();
                     case BcInstr.EndAssign(var symbol) -> builder.addArgs(cell(symbol)).compileStmt();
@@ -271,7 +291,7 @@ class ClosureCompiler {
     }
 
     private String compileMakePromise(InstrCallBuilder builder, BCodeSXP bc) {
-        var compiledClosure = module.compileClosure(bc.bc(), "p_" + name);
+        var compiledClosure = module.compilePromise(bc.bc(), name);
         var cpConst = createExtraConstant(compiledClosure.constantPool());
         return builder
                 .fun("Rsh_MakeProm2")
@@ -324,6 +344,11 @@ class ClosureCompiler {
         for (int i = 1; i <= stack.max(); i++) {
             prologue.line("DEFINE_VAL(%s);".formatted(stack.get(i)));
         }
+        prologue.line("""
+                  if (LAST_RHO != RHO) {
+                    LAST_RHO = RHO;
+                  }
+                """);
     }
 
     private void compileCells() {
@@ -333,8 +358,16 @@ class ClosureCompiler {
 
         prologue.comment("CELLS");
         for (var cell : cells) {
-            prologue.line("DEFINE_BCELL(C%d);".formatted(cell));
+            var line = "DEFINE_BCELL2(C%d);".formatted(cell.id());
+            if (debug) {
+                line += " // symbol: '%s'".formatted(cell.name());
+            }
+            prologue.line(line);
         }
+    }
+
+    public void setUseCells(boolean useCells) {
+        this.useCells = useCells;
     }
 
     // API
@@ -344,6 +377,7 @@ class ClosureCompiler {
         private int pop = 0;
         private boolean needsRho = false;
         private List<String> args = new ArrayList<>();
+        private List<String> debugMessages = new ArrayList<>();
 
         public InstrCallBuilder(BcInstr instr) {
             fun = "Rsh_" + instr.getClass().getSimpleName();
@@ -404,13 +438,21 @@ class ClosureCompiler {
 
             var line = fun + "(" + String.join(", ", xs) + ")";
             if (debug) {
-                line += " /* stack: " + stack.top() + " */ ";
+                debugMessages.add("stack: " + stack.top());
+            }
+            if (debug && !debugMessages.isEmpty()) {
+                line += " /* " + String.join(", ", debugMessages) + " */";
             }
             return line;
         }
 
         public String compileStmt() {
             return this.compile() + ";";
+        }
+
+        public InstrCallBuilder debug(String message) {
+            this.debugMessages.add(message);
+            return this;
         }
     }
 
@@ -453,9 +495,22 @@ class ClosureCompiler {
     }
 
     private String cell(ConstPool.Idx<? extends SEXP> idx) {
+        if (!useCells) {
+            return "NULL";
+        }
+
         var id = getConstant(idx).id();
-        cells.add(id);
-        return "C%d".formatted(id);
+        cells.add(new BCell(id, symbolName(idx)));
+        return "&C%d".formatted(id);
+    }
+
+    private String symbolName(ConstPool.Idx<? extends SEXP> idx) {
+        var sym = bc.consts().get(idx);
+        if (sym instanceof RegSymSXP s) {
+            return s.name();
+        } else {
+            throw new IllegalArgumentException("Expected a symbol or code, got: " + sym);
+        }
     }
 
     private static final Set<BcOp> SUPPORTED_OPS =

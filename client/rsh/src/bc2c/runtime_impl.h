@@ -24,6 +24,8 @@ SEXP Rsh_pc_get(void) {
   SET_STRING_ELT(names, i++, mkChar("isq"));
   SET_STRING_ELT(names, i++, mkChar("isq_for"));
   SET_STRING_ELT(names, i++, mkChar("r_primitive"));
+  SET_STRING_ELT(names, i++, mkChar("getvar"));
+  SET_STRING_ELT(names, i++, mkChar("slow_getvar"));
   setAttrib(pc, R_NamesSymbol, names);
 
   UNPROTECT(2);
