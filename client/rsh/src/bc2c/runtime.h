@@ -66,6 +66,10 @@ typedef struct {
   u32 isq_for;
   // number of times R_Primitive was called
   u32 r_primitive;
+  // number of times OP_GETVAR was called
+  u32 getvar;
+  // number of times variable was resolved in environment
+  u32 slow_getvar;
 } Rsh_PerfCounters;
 
 #ifndef RSH_TESTS
@@ -380,6 +384,12 @@ typedef union {
   R_BCNodeStackTop->u.sxpval = R_NilValue;                                     \
   BCell *name = &(R_BCNodeStackTop++)->u.sxpval;
 
+#define DEFINE_BCELL2(name)                                                    \
+  static BCell name = NULL;                                                    \
+  if (LAST_RHO != RHO) {                                                       \
+    name = R_NilValue;                                                         \
+  }
+
 #define DEFINE_VAL(name)                                                       \
   R_BCNodeStackTop->tag = INTSXP;                                              \
   R_BCNodeStackTop->flags = 0;                                                 \
@@ -388,7 +398,7 @@ typedef union {
 #define BCELL_IS_UNBOUND(v) (BCELL_TAG(v) == 0 && CAR0(v) == R_UnboundValue)
 #define BCELL_TAG(cell) ((cell)->sxpinfo.extra)
 #define BCELL_TAG_SET(cell, tag) BCELL_TAG(cell) = tag
-#define BCELL_VAL(cell) ((cell) != R_NilValue ? CAR(cell) : R_UnboundValue)
+#define BCELL_VAL(cell) ((cell) != R_NilValue ? CAR0(cell) : R_UnboundValue)
 #define BCELL_DVAL(v) ((BCellVal *)&CAR0(v))->dval
 #define BCELL_IVAL(v) ((BCellVal *)&CAR0(v))->ival
 #define BCELL_LVAL(v) ((BCellVal *)&CAR0(v))->ival
@@ -490,7 +500,8 @@ static INLINE BCell bcell_get(SEXP symbol, SEXP rho) {
     return R_NilValue;
   }
 
-  R_varloc_t loc = R_findVarLocInFrame(rho, symbol);
+  // R_varloc_t loc = R_findVarLocInFrame(rho, symbol);
+  R_varloc_t loc = R_findVarLoc(symbol, rho);
   SEXP cell = loc.cell;
 
   return cell == NULL ? R_NilValue : cell;
@@ -690,8 +701,9 @@ static INLINE SEXP Rsh_append_values_to_args(Value const *vals, int n,
 // FIXME: rename cache to cell
 // FIXME: cannot it be simpler: if cache then get value from cache, if not
 // initialize the cache. if cannot be initialized, get value
-static INLINE void Rsh_do_get_var(Value *res, SEXP symbol, Rboolean dd,
-                                  Rboolean keepmiss, SEXP rho) {
+static INLINE void Rsh_do_get_var(Value *res, SEXP symbol, BCell *cell,
+                                  Rboolean dd, Rboolean keepmiss, SEXP rho) {
+  RSH_PC_INC(slow_getvar);
 
   SEXP value = Rf_findVar(symbol, rho);
 
@@ -715,6 +727,10 @@ static INLINE void Rsh_do_get_var(Value *res, SEXP symbol, Rboolean dd,
     ENSURE_NAMEDMAX(value);
   }
 
+  if (cell != NULL) {
+    bcell_ensure_cache(symbol, cell, rho);
+  }
+
   SET_VAL(res, value);
 }
 
@@ -726,65 +742,69 @@ static INLINE void Rsh_do_get_var(Value *res, SEXP symbol, Rboolean dd,
 static ALWAYS_INLINE void Rsh_get_var(Value *res, SEXP symbol, BCell *cell,
                                       Rboolean dd, Rboolean keepmiss,
                                       SEXP rho) {
-  switch (BCELL_TAG(*cell)) {
-  case REALSXP:
-    SET_DBL_VAL(res, BCELL_DVAL(*cell));
-    return;
-  case INTSXP:
-    SET_INT_VAL(res, BCELL_IVAL(*cell));
-    return;
-  case LGLSXP:
-    SET_LGL_VAL(res, BCELL_IVAL(*cell));
-    return;
-  }
+  RSH_PC_INC(getvar);
 
-  SEXP value = BCELL_VAL(*cell);
-  if (value != R_UnboundValue) {
-    int type = TYPEOF(value);
+  if (cell) {
+    switch (BCELL_TAG(*cell)) {
+    case REALSXP:
+      SET_DBL_VAL(res, BCELL_DVAL(*cell));
+      return;
+    case INTSXP:
+      SET_INT_VAL(res, BCELL_IVAL(*cell));
+      return;
+    case LGLSXP:
+      SET_LGL_VAL(res, BCELL_IVAL(*cell));
+      return;
+    }
 
-    if (type == PROMSXP) {
-      if (PROMISE_IS_EVALUATED(value)) {
-        switch (PROMISE_TAG(value)) {
-        case REALSXP:
-          SET_DBL_VAL(res, PROMISE_DVAL(value));
+    SEXP value = BCELL_VAL(*cell);
+    if (value != R_UnboundValue) {
+      int type = TYPEOF(value);
+
+      if (type == PROMSXP) {
+        if (PROMISE_IS_EVALUATED(value)) {
+          switch (PROMISE_TAG(value)) {
+          case REALSXP:
+            SET_DBL_VAL(res, PROMISE_DVAL(value));
+            return;
+          case INTSXP:
+            SET_INT_VAL(res, PROMISE_IVAL(value));
+            return;
+          case LGLSXP:
+            SET_LGL_VAL(res, PROMISE_LVAL(value));
+            return;
+          default:
+            value = PRVALUE(value);
+            type = TYPEOF(value);
+          }
+        }
+      }
+
+      /* try fast handling of some types; for these the */
+      /* cell won't be R_NilValue or an active binding */
+      switch (type) {
+      case REALSXP:
+      case INTSXP:
+      case LGLSXP:
+      case CPLXSXP:
+      case STRSXP:
+      case VECSXP:
+      case RAWSXP:
+        SET_SXP_VAL(res, value);
+        return;
+      case SYMSXP:
+      case PROMSXP:
+        break;
+      default:
+        if (*cell != R_NilValue && !IS_ACTIVE_BINDING(*cell)) {
+          SET_SXP_VAL(res, value);
           return;
-        case INTSXP:
-          SET_INT_VAL(res, PROMISE_IVAL(value));
-          return;
-        case LGLSXP:
-          SET_LGL_VAL(res, PROMISE_LVAL(value));
-          return;
-        default:
-          value = PRVALUE(value);
-          type = TYPEOF(value);
         }
       }
     }
-
-    /* try fast handling of some types; for these the */
-    /* cell won't be R_NilValue or an active binding */
-    switch (type) {
-    case REALSXP:
-    case INTSXP:
-    case LGLSXP:
-    case CPLXSXP:
-    case STRSXP:
-    case VECSXP:
-    case RAWSXP:
-      SET_SXP_VAL(res, value);
-      return;
-    case SYMSXP:
-    case PROMSXP:
-      break;
-    default:
-      if (*cell != R_NilValue && !IS_ACTIVE_BINDING(*cell)) {
-        SET_SXP_VAL(res, value);
-        return;
-      }
-    }
   }
 
-  Rsh_do_get_var(res, symbol, dd, keepmiss, rho);
+  Rsh_do_get_var(res, symbol, cell, dd, keepmiss, rho);
 }
 
 static ALWAYS_INLINE void Rsh_SetVar(Value *r0, SEXP symbol, BCell *cell,
@@ -838,7 +858,7 @@ static INLINE void Rsh_SetVar2(Value *r0, SEXP symbol, SEXP rho) {
 #define Rsh_Return(r0, saved_stack_top)                                        \
   do {                                                                         \
     Value __ret__ = *(r0);                                                     \
-    R_BCNodeStackTop = (saved_stack_top);                                      \
+    R_BCNodeStackTop -= (saved_stack_top);                                     \
     return val_as_sexp(__ret__);                                               \
   } while (0);
 
@@ -1581,7 +1601,7 @@ static INLINE void Rsh_StartAssign2(Value *rhs, Value *lhs_cell, Value *lhs_val,
   SET_ASSIGNMENT_PENDING(loc.cell, TRUE);
   SET_SXP_VAL(lhs_cell, loc.cell);
 
-  Rsh_do_get_var(lhs_val, symbol, FALSE, FALSE, ENCLOS(rho));
+  Rsh_do_get_var(lhs_val, symbol, NULL, FALSE, FALSE, ENCLOS(rho));
   SEXP value_sxp = val_as_sexp(*lhs_val);
   if (maybe_in_assign || MAYBE_SHARED(value_sxp)) {
     value_sxp = Rf_shallow_duplicate(value_sxp);
