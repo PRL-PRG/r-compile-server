@@ -1,5 +1,5 @@
 RSH_HOME := /workspace
-R_HOME := $(RSH_HOME)/external/R
+R_HOME ?= $(RSH_HOME)/external/R
 R := $(R_HOME)/bin/R
 CC := gcc
 CFLAGS := -I$(RSH_HOME)/client/rsh/src/bc2c \
@@ -8,8 +8,6 @@ CFLAGS := -I$(RSH_HOME)/client/rsh/src/bc2c \
 		-fno-plt \
 		-fexceptions \
 		-fstack-clash-protection \
-		-flto=auto \
-		-ffat-lto-objects \
 		-Wformat \
 		-Werror=format-security \
 		-Wall \
