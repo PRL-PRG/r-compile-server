@@ -5,7 +5,7 @@ DEFAULT_WARMUP <- 5
 DEFAULT_RESULT_FILE <- "result.csv"
 
 geom_mean <- function(xs) {
-  exp(mean(log(xs)))
+  exp(mean(log(na.omit(xs))))
 }
 
 load_package <- function(pkg) {
@@ -53,7 +53,9 @@ do_compare <- function(args) {
   
   categorize <- Vectorize(function(x) {
       d <- x - 1
-      if (abs(d) <= SAME_TRESHOLD) {
+      if (is.na(d)) {
+        NA_character_
+      } else if (abs(d) <= SAME_TRESHOLD) {
         "same"
       } else if (d > 0) {
         "faster"
@@ -75,7 +77,8 @@ do_compare <- function(args) {
           categorize(speedup),
           "same"   ~ same(speedup_s),
           "faster" ~ faster(speedup_s),
-          "slower" ~ slower(speedup_s)
+          "slower" ~ slower(speedup_s),
+          .default = NA
         )
       )  %>% 
       glue_data("\t- {speedup_s}x {mt} ± {sd} ({min} ... {max}): {VM}") %>% 
@@ -113,13 +116,22 @@ do_compare <- function(args) {
     str_c(collapse = "\n") %>% 
     cat("\n")
   
+  overall_summ <- summ %>%
+    group_by(VM) %>%
+    summarise(
+       gmean=geom_mean(speedup),
+       min=min(speedup),
+       max=max(speedup)
+    )
+
   summ %>% 
     filter(!str_starts(VM, "bc")) %>%
     mutate(speedup=categorize(speedup)) %>%
     count(VM, speedup) %>%
     pivot_wider(names_from=speedup, values_from=n) %>%
-    arrange(desc(faster)) %>%
-    knitr::kable()
+    left_join(overall_summ, by="VM") %>%
+    arrange(desc(gmean)) %>%
+    knitr::kable(digits=2)
 }
 
 do_save <- function(args) {
