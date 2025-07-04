@@ -9,7 +9,10 @@ import org.prlprg.sexp.*;
 record Constant(int id, SEXP value) {
 }
 
-record BCell(int id, String name) {
+record BCell(int id, String name, int uses) {
+    public BCell uses(int newUses) {
+        return new BCell(id, name, newUses);
+    }
 }
 
 class ByteCodeStack {
@@ -128,11 +131,13 @@ class ClosureCompiler {
 
     private static final String VAR_STACK_SAVE = "STACK_SAVE";
 
+    private static final String BCELL_PREFIX = "C";
+
     private final Bc bc;
     private final ByteCodeStack stack = new ByteCodeStack();
     private final Map<Integer, Constant> constants = new LinkedHashMap<>();
     private final Set<Integer> labels = new HashSet<>();
-    private final Set<BCell> cells = new HashSet<>();
+    private final Map<Integer, BCell> cells = new HashMap<>();
     private final Map<Integer, Integer> branchStackState = new HashMap<>();
     private int extraConstPoolIdx;
     private final String name;
@@ -181,7 +186,7 @@ class ClosureCompiler {
     }
 
     private void beforeCompile() {
-        fillLabels();
+        analyseCode();
     }
 
     private void afterCompile() {
@@ -194,8 +199,18 @@ class ClosureCompiler {
         compileRegisters();
     }
 
-    private void fillLabels() {
-        bc.code().forEach(x -> x.label().ifPresent(l -> labels.add(l.target())));
+    private void analyseCode() {
+        var code = bc.code();
+        for (int i = 0; i < code.size(); i++) {
+            var instr = code.get(i);
+            instr.label().ifPresent(l -> labels.add(l.target()));
+            instr.bindingCell().ifPresent(s -> {
+                var inc = instr.op() == BcOp.STARTFOR ? 2 : 1;
+                cells.merge(s.idx(), new BCell(s.idx(), symbolName(s), inc), (o, _) ->
+                        o.uses(o.uses() + inc)
+                );
+            });
+        }
     }
 
     public List<SEXP> constants() {
@@ -203,6 +218,8 @@ class ClosureCompiler {
     }
 
     private void compile(BcInstr instr, int pc) {
+        checkSupported(instr);
+
         if (labels.contains(pc)) {
             body.line("%s:".formatted(label(pc)));
             Integer state = branchStackState.remove(pc);
@@ -212,7 +229,7 @@ class ClosureCompiler {
         }
 
         var builder = new InstrCallBuilder(instr);
-        checkSupported(instr);
+
         var code =
                 switch (instr) {
                     case BcInstr.Return() -> builder.addArgs(VAR_STACK_SAVE).compileStmt();
@@ -229,13 +246,6 @@ class ClosureCompiler {
                                         })
                                 .compileStmt();
                     }
-                    case BcInstr.SetVar(var symbol) ->
-                            builder.addArgs(cell(symbol)).debug("symbol: '%s'".formatted(symbolName(symbol))).compileStmt();
-                    case BcInstr.GetVar(var symbol) ->
-                            builder.addArgs(cell(symbol)).debug("symbol: '%s'".formatted(symbolName(symbol))).compileStmt();
-                    case BcInstr.GetVarMissOk(var symbol) -> builder.addArgs(cell(symbol)).compileStmt();
-                    case BcInstr.StartAssign(var symbol) -> builder.addArgs(cell(symbol)).compileStmt();
-                    case BcInstr.EndAssign(var symbol) -> builder.addArgs(cell(symbol)).compileStmt();
                     case BcInstr.MakeClosure(var idx) -> compileMakeClosure(builder, idx);
                     case BcInstr.MakeProm(var idx) -> {
                         var prom = bc.consts().get(idx);
@@ -250,7 +260,8 @@ class ClosureCompiler {
                     case BcInstr.SubassignN(var call, var rank) -> compileSubassignN(builder, call, rank);
                     case BcInstr.Subassign2N(var call, var rank) -> compileSubassignN(builder, call, rank);
                     case BcInstr.StartFor(var _, var symbol, var label) -> {
-                        var c = builder.addArgs(cell(symbol)).compileStmt();
+                        var cell = cells.get(symbol.idx());
+                        var c = builder.cell(cell).compileStmt();
                         yield c + "\ngoto " + label(label) + ";";
                     }
                     case BcInstr.StepFor(var label) -> {
@@ -258,8 +269,10 @@ class ClosureCompiler {
                                 instanceof BcInstr.StartFor(_, var symbol, _))) {
                             throw new IllegalStateException("Expected StartFor instruction");
                         }
+                        var cell = cells.get(symbol.idx());
+                        assert cell != null;
                         yield "if (%s) {\n goto %s;\n}"
-                                .formatted(builder.addArgs(cell(symbol)).compile(), label(label));
+                                .formatted(builder.cell(cell).compile(), label(label));
                     }
                     case BcInstr.Math1(var _, var op) -> builder.addArgs(String.valueOf(op)).compileStmt();
                     default -> {
@@ -346,15 +359,18 @@ class ClosureCompiler {
     }
 
     private void compileCells() {
-        if (cells.isEmpty()) {
+        if (cells.isEmpty() || !useCells) {
             return;
         }
 
         prologue.comment("CELLS");
-        for (var cell : cells) {
-            var line = "DEFINE_BCELL2(C%d);".formatted(cell.id());
+        for (var cell : cells.values()) {
+            if (cell.uses() <= 1) {
+                continue; // skip unused cells
+            }
+            var line = "DEFINE_BCELL2(%s%d);".formatted(BCELL_PREFIX, cell.id());
             if (debug) {
-                line += " // symbol: '%s'".formatted(cell.name());
+                line += " // symbol: '%s' (used: %d)".formatted(cell.name(), cell.uses());
             }
             prologue.line(line);
         }
@@ -370,6 +386,8 @@ class ClosureCompiler {
         private int push = 0;
         private int pop = 0;
         private boolean needsRho = false;
+        private boolean needsCell = false;
+        private BCell cell = null;
         private List<String> args = new ArrayList<>();
         private final List<String> debugMessages = new ArrayList<>();
 
@@ -382,6 +400,13 @@ class ClosureCompiler {
             for (var x : instr.args()) {
                 args.add(constantSXP(x));
             }
+
+            instr.bindingCell().ifPresent(s -> {
+                needsCell = true;
+                if (useCells) {
+                    cell = cells.get(s.idx());
+                }
+            });
         }
 
         public InstrCallBuilder fun(String fun) {
@@ -399,6 +424,12 @@ class ClosureCompiler {
             return this;
         }
 
+        public InstrCallBuilder cell(BCell cell) {
+            this.cell = cell;
+            this.needsCell = true;
+            return this;
+        }
+
         public InstrCallBuilder args(String... args) {
             this.args = new ArrayList<>(args.length);
             this.args.addAll(Arrays.asList(args));
@@ -412,7 +443,7 @@ class ClosureCompiler {
 
         public String compile() {
             var n = Math.max(pop, push);
-            var xs = new String[n + args.size() + (needsRho ? 1 : 0)];
+            var xs = new String[n + args.size() + (needsRho ? 1 : 0) + (cell != null ? 1 : 0)];
 
             for (int i = pop; i > 0; i--) {
                 xs[i - 1] = stack.pop();
@@ -422,21 +453,33 @@ class ClosureCompiler {
                 xs[i] = stack.push();
             }
 
-            for (int i = 0; i < args.size(); i++) {
-                xs[n + i] = args.get(i);
+            for (String arg : args) {
+                xs[n++] = arg;
+            }
+
+            if (needsCell) {
+                if (cell != null && cell.uses() > 1) {
+                    xs[n++] = "&C" + cell.id();
+                    debugMessages.add("symbol: '%s'".formatted(cell.name()));
+                } else {
+                    xs[n++] = "NULL";
+                }
             }
 
             if (needsRho) {
-                xs[xs.length - 1] = VAR_RHO;
+                xs[n++] = VAR_RHO;
             }
 
             var line = fun + "(" + String.join(", ", xs) + ")";
+
             if (debug) {
                 debugMessages.add("stack: " + stack.top());
             }
+
             if (debug && !debugMessages.isEmpty()) {
                 line += " /* " + String.join(", ", debugMessages) + " */";
             }
+
             return line;
         }
 
@@ -486,16 +529,6 @@ class ClosureCompiler {
     private String label(int target) {
         labels.add(target);
         return "L%d".formatted(target);
-    }
-
-    private String cell(ConstPool.Idx<? extends SEXP> idx) {
-        if (!useCells) {
-            return "NULL";
-        }
-
-        var id = getConstant(idx).id();
-        cells.add(new BCell(id, symbolName(idx)));
-        return "&C%d".formatted(id);
     }
 
     private String symbolName(ConstPool.Idx<? extends SEXP> idx) {

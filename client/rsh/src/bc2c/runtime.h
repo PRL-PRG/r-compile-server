@@ -506,17 +506,17 @@ static INLINE BCell bcell_get(SEXP symbol, SEXP rho) {
 // Ensures that the symbol from rho is bound in the given cache
 // as long as the symbol in rho is bindable. If not, it sets the cache to
 // R_NilValue
-static ALWAYS_INLINE void bcell_ensure_cache(SEXP symbol, BCell *const cache,
+static ALWAYS_INLINE void bcell_ensure_cache(SEXP symbol, BCell *const cell,
                                              SEXP rho) {
-  if (TAG(*cache) == symbol) {
-    assert(!BCELL_IS_UNBOUND(*cache));
+  if (TAG(*cell) == symbol) {
+    assert(!BCELL_IS_UNBOUND(*cell));
 
     return;
   }
 
   SEXP ncell = bcell_get(symbol, rho);
   if (ncell != R_NilValue) {
-    *cache = ncell;
+    *cell = ncell;
   }
 }
 
@@ -808,41 +808,50 @@ static ALWAYS_INLINE void Rsh_SetVar(Value *r0, SEXP symbol, BCell *cell,
   Value value = *r0;
   int tag = VAL_TAG(value);
 
-  if (tag == BCELL_TAG_WR(*cell)) {
-    switch (tag) {
-    case REALSXP:
-      BCELL_DVAL_SET(*cell, VAL_DBL(value));
-      return;
-    case INTSXP:
-      BCELL_IVAL_SET(*cell, VAL_INT(value));
-      return;
-    case LGLSXP:
-      BCELL_LVAL_SET(*cell, VAL_INT(value));
-      return;
+  if (cell != NULL) {
+    if (tag == BCELL_TAG_WR(*cell)) {
+      switch (tag) {
+      case REALSXP:
+        BCELL_DVAL_SET(*cell, VAL_DBL(value));
+        return;
+      case INTSXP:
+        BCELL_IVAL_SET(*cell, VAL_INT(value));
+        return;
+      case LGLSXP:
+        BCELL_LVAL_SET(*cell, VAL_INT(value));
+        return;
+      }
+    } else if (BCELL_WRITABLE(*cell)) {
+      switch (tag) {
+      case REALSXP:
+        BCELL_DVAL_NEW(*cell, VAL_DBL(value));
+        return;
+      case INTSXP:
+        BCELL_IVAL_NEW(*cell, VAL_INT(value));
+        return;
+      case LGLSXP:
+        BCELL_LVAL_NEW(*cell, VAL_INT(value));
+        return;
+      }
     }
-  } else if (BCELL_WRITABLE(*cell)) {
-    switch (tag) {
-    case REALSXP:
-      BCELL_DVAL_NEW(*cell, VAL_DBL(value));
-      return;
-    case INTSXP:
-      BCELL_IVAL_NEW(*cell, VAL_INT(value));
-      return;
-    case LGLSXP:
-      BCELL_LVAL_NEW(*cell, VAL_INT(value));
-      return;
+
+    SEXP value_sxp = val_as_sexp(value);
+    INCREMENT_NAMED(sexp_value);
+
+    if (!bcell_set_value(*cell, value_sxp)) {
+      PROTECT(value_sxp);
+      Rf_defineVar(symbol, value_sxp, rho);
+      UNPROTECT(1);
+      bcell_ensure_cache(symbol, cell, rho);
+      BCELL_INLINE(*cell, value_sxp);
     }
-  }
-
-  SEXP value_sxp = val_as_sexp(value);
-  INCREMENT_NAMED(sexp_value);
-
-  if (!bcell_set_value(*cell, value_sxp)) {
-    PROTECT(value_sxp);
+  } else {
+    SEXP value_sxp = val_as_sexp(value);
+    INCREMENT_NAMED(sexp_value);
+    // FIXME: does it have to be proected?
+    // PROTECT(value_sxp);
     Rf_defineVar(symbol, value_sxp, rho);
-    UNPROTECT(1);
-    bcell_ensure_cache(symbol, cell, rho);
-    BCELL_INLINE(*cell, value_sxp);
+    // UNPROTECT(1);
   }
 }
 
