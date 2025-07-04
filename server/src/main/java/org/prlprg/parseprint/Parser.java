@@ -172,7 +172,7 @@ public class Parser {
    * <ul>
    *   <li>If the type has no generic parameters, will invoke {@link #parse(Class)}.
    *   <li>If the type is a known collection type, will attempt to parse a list using {@link
-   *       #parseList(Type, SkipWhitespace)}, then wrap in the correct type.
+   *       #parseList(String, String, Type, SkipWhitespace)}, then wrap in the correct type.
    *   <li>Otherwise, throws {@link UnsupportedOperationException} (must add to this method to
    *       support more types).
    * </ul>
@@ -187,7 +187,7 @@ public class Parser {
             && KNOWN_COLLECTION_TYPES.containsKey(collClass)) {
           var constructor = Objects.requireNonNull(KNOWN_COLLECTION_TYPES.get(collClass));
           assert t.getActualTypeArguments().length == 1;
-          var asList = parseList(t.getActualTypeArguments()[0], skipWhitespaceIfList);
+          var asList = parseList("[", "]", t.getActualTypeArguments()[0], skipWhitespaceIfList);
           yield constructor.apply(asList);
         } else if (t.getRawType() instanceof Class<?> clazz) {
           yield parse(clazz);
@@ -210,7 +210,7 @@ public class Parser {
                       "can't parse generic array of non-class, non-parameterized-class type "
                           + elemType);
             };
-        var asList = parseList(elemType, skipWhitespaceIfList);
+        var asList = parseList("[", "]", elemType, skipWhitespaceIfList);
         var array = Array.newInstance(elemClass, asList.size());
         for (int i = 0; i < asList.size(); i++) {
           Array.set(array, i, asList.get(i));
@@ -300,26 +300,28 @@ public class Parser {
    * @throws UnsupportedOperationException if there's not {@link ParseMethod} registered for {@code
    *     elementClass}.
    * @see #parse(Class)
-   * @see #parseList(Supplier, SkipWhitespace)
+   * @see #parseList(String, String, Supplier, SkipWhitespace)
    */
-  public <T> ImmutableList<T> parseList(Class<T> elementClass, SkipWhitespace skipWhitespace) {
-    return parseList(() -> parse(elementClass), skipWhitespace);
+  public <T> ImmutableList<T> parseList(String opener, String closer, Class<T> elementClass) {
+    return parseList(opener, closer, () -> parse(elementClass), SkipWhitespace.ALL);
   }
 
   /**
    * Parse a collection of the form {@code [a,b,...]}.
    *
-   * <p>This is a version of {@link #parseList(Class, SkipWhitespace)} which takes {@link Type}
+   * <p>This is a version of {@link #parseList(String, String, Class)} which takes {@link Type}
    * instead, so it can parse nested lists. The current {@linkplain Scanner#skipsWhitespace()
    * whitespace policy} will be used to scan delimiters both in the outer list and in {@code
    * elementType} if it's itself generic.
    *
    * @throws UnsupportedOperationException if the element type can't be parsed.
    * @see #parse(Type, SkipWhitespace)
-   * @see #parseList(Supplier, SkipWhitespace)
+   * @see #parseList(String, String, Supplier, SkipWhitespace)
    */
-  public ImmutableList<?> parseList(Type elementType, SkipWhitespace skipWhitespace) {
-    return parseList(() -> parse(elementType, skipWhitespace), skipWhitespace);
+  public ImmutableList<?> parseList(
+      String opener, String closer, Type elementType, SkipWhitespace skipWhitespace) {
+    return parseList(
+        opener, closer, () -> parse(elementType, SkipWhitespace.ALL), SkipWhitespace.ALL);
   }
 
   /**
@@ -328,17 +330,18 @@ public class Parser {
    * <p>The current {@linkplain Scanner#skipsWhitespace() whitespace policy} will be set throughout
    * the parse, including when elements are parsed.
    *
-   * @see #parseList(Class, SkipWhitespace)
-   * @see #parseList(Type, SkipWhitespace)
+   * @see #parseList(String, String, Class)
+   * @see #parseList(String, String, Type, SkipWhitespace)
    */
-  public <T> ImmutableList<T> parseList(Supplier<T> parseElement, SkipWhitespace skipWhitespace) {
+  public <T> ImmutableList<T> parseList(
+      String opener, String closer, Supplier<T> parseElement, SkipWhitespace skipWhitespace) {
     var list = ImmutableList.<T>builder();
     scanner.runWithWhitespacePolicy(
         skipWhitespace,
         () -> {
-          scanner.assertAndSkip('[');
+          scanner.assertAndSkip(opener);
           boolean first = true;
-          while (!scanner.trySkip(']')) {
+          while (!scanner.trySkip(closer)) {
             if (first) {
               first = false;
             } else {

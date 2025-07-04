@@ -1,4 +1,4 @@
-package org.prlprg.fir.cfg.instruction;
+package org.prlprg.fir.instruction;
 
 import com.google.common.collect.Streams;
 import java.util.Collection;
@@ -7,7 +7,7 @@ import java.util.stream.Stream;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.UnmodifiableView;
 
-public record Branch(Expression cond, Target ifTrue, Target ifFalse) implements Jump {
+public record If(Expression cond, Target ifTrue, Target ifFalse) implements Jump {
   @Override
   public @NotNull String toString() {
     return "if " + cond + "then" + ifTrue + " else " + ifFalse;
@@ -19,7 +19,7 @@ public record Branch(Expression cond, Target ifTrue, Target ifFalse) implements 
   }
 
   @Override
-  public @UnmodifiableView Collection<Expression> children() {
+  public @UnmodifiableView Collection<Expression> immediateChildren() {
     return Streams.concat(Stream.of(cond), ifTrue.phiArgs().stream(), ifFalse.phiArgs().stream())
         .toList();
   }

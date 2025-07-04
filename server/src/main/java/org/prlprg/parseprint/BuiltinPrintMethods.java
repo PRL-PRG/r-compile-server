@@ -114,7 +114,7 @@ public final class BuiltinPrintMethods {
 
   @PrintMethod
   private static void printCollection(Iterable<?> data, Printer p) {
-    p.printAsList(data, true);
+    p.printAsList("[", "]", data);
   }
 
   private BuiltinPrintMethods() {}
