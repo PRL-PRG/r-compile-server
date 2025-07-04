@@ -862,7 +862,7 @@ static INLINE void Rsh_SetVar2(Value *r0, SEXP symbol, SEXP rho) {
 
 #define Rsh_Return(r0, saved_stack_top)                                        \
   do {                                                                         \
-    Value __ret__ = *(r0);                                                     \
+    Value __ret__ = (r0);                                                      \
     R_BCNodeStackTop -= (saved_stack_top);                                     \
     return val_as_sexp(__ret__);                                               \
   } while (0);
@@ -917,7 +917,7 @@ static INLINE void Rsh_GetFun(Value *fun, Value *args_head, Value *args_tail,
 
 #define Rsh_CallBuiltin Rsh_Call
 
-#define Rsh_PushArg(h, t, v) RSH_PUSH_ARG(h, t, val_as_sexp(*v))
+#define Rsh_PushArg(h, t, v) RSH_PUSH_ARG(h, t, val_as_sexp(v))
 #define Rsh_PushConstArg(h, t, v) RSH_PUSH_ARG(h, t, v)
 #define Rsh_PushNullArg(h, t) Rsh_PushConstArg(h, t, R_NilValue)
 #define Rsh_PushTrueArg(h, t) Rsh_PushConstArg(h, t, R_TrueValue)
@@ -948,10 +948,10 @@ static INLINE void Rsh_GetFun(Value *fun, Value *args_head, Value *args_tail,
     SET_SXP_VAL(d, s);                                                         \
   } while (0);
 
-static INLINE void Rsh_Call(Value *r2, Value const *r1, UNUSED Value const *r0,
-                            SEXP call, SEXP rho) {
+static INLINE void Rsh_Call(Value *r2, Value r1, UNUSED Value r0, SEXP call,
+                            SEXP rho) {
   SEXP fun_sxp = VAL_SXP(*r2);
-  SEXP args_sxp = VAL_SXP(*r1);
+  SEXP args_sxp = VAL_SXP(r1);
   SEXP value = NULL;
   int flag;
 
@@ -1014,9 +1014,7 @@ static INLINE void Rsh_Call(Value *r2, Value const *r1, UNUSED Value const *r0,
   SET_VAL(r2, value);
 }
 
-static INLINE Rboolean Rsh_BrIfNot(Value const *r0, SEXP call, SEXP rho) {
-  Value value = *r0;
-
+static INLINE Rboolean Rsh_BrIfNot(Value value, SEXP call, SEXP rho) {
   if (VAL_IS_LGL_NOT_NA(value)) {
     return (Rboolean)!VAL_INT(value);
   } else if (VAL_IS_INT_NOT_NA(value)) {
@@ -1144,9 +1142,9 @@ static ALWAYS_INLINE void Rsh_arith(Value *res, Value lhs, Value rhs, SEXP call,
 }
 
 #define X(a, b, c)                                                             \
-  static ALWAYS_INLINE void Rsh_##c(Value *r1, Value *const r0, SEXP call,     \
+  static ALWAYS_INLINE void Rsh_##c(Value *r1, Value r0, SEXP call,            \
                                     SEXP rho) {                                \
-    Rsh_arith(r1, *r1, *r0, call, b, rho);                                     \
+    Rsh_arith(r1, *r1, r0, call, b, rho);                                      \
   }
 X_ARITH_OPS
 #undef X
@@ -1183,9 +1181,9 @@ static ALWAYS_INLINE void Rsh_relop(Value *res, Value lhs, Value rhs, SEXP call,
 }
 
 #define X(a, b, c)                                                             \
-  static ALWAYS_INLINE void Rsh_##c(Value *r1, Value const *r0, SEXP call,     \
+  static ALWAYS_INLINE void Rsh_##c(Value *r1, Value r0, SEXP call,            \
                                     SEXP rho) {                                \
-    Rsh_relop(r1, *r1, *r0, call, b, rho);                                     \
+    Rsh_relop(r1, *r1, r0, call, b, rho);                                      \
   }
 X_REL_OPS
 #undef X
@@ -1304,9 +1302,8 @@ static INLINE void Rsh_logic(Value *res, Value lhs, Value rhs, SEXP call,
 }
 
 #define X(a, b, c)                                                             \
-  static INLINE void Rsh_##c(Value *r1, Value const *r0, SEXP call,            \
-                             SEXP rho) {                                       \
-    Rsh_logic(r1, *r1, *r0, call, b, rho);                                     \
+  static INLINE void Rsh_##c(Value *r1, Value r0, SEXP call, SEXP rho) {       \
+    Rsh_logic(r1, *r1, r0, call, b, rho);                                      \
   }
 X_LOGIC2_OPS
 #undef X
@@ -1480,10 +1477,10 @@ static INLINE Rboolean Rsh_start_subset_dispatch(const char *generic,
 #define Rsh_VecSubset2(vec, i, call, rho)                                      \
   Rsh_vec_subset(vec, i, call, TRUE, rho)
 
-static INLINE void Rsh_vec_subset(Value *r1, Value const *r0, SEXP call,
+static INLINE void Rsh_vec_subset(Value *r1, Value r0, SEXP call,
                                   Rboolean subset2, SEXP rho) {
   SEXP vec = val_as_sexp(*r1);
-  Value i = *r0;
+  Value i = r0;
   R_xlen_t index = as_index(i) - 1;
 
   if (subset2 || FAST_VECELT_OK(vec)) {
@@ -1514,11 +1511,11 @@ static INLINE void Rsh_vec_subset(Value *r1, Value const *r0, SEXP call,
 #define Rsh_MatSubset2(sx, si, sj, call, rho)                                  \
   Rsh_mat_subset(sx, si, sj, call, TRUE, rho)
 
-static INLINE void Rsh_mat_subset(Value *r2, Value const *r1, Value const *r0,
-                                  SEXP call, Rboolean subset2, SEXP rho) {
+static INLINE void Rsh_mat_subset(Value *r2, Value r1, Value r0, SEXP call,
+                                  Rboolean subset2, SEXP rho) {
   Value *sx = r2;
-  Value si = *r1;
-  Value sj = *r0;
+  Value si = r1;
+  Value sj = r0;
 
   SEXP mat = val_as_sexp(*sx);
 
@@ -1625,11 +1622,11 @@ static INLINE void Rsh_StartAssign2(Value *rhs, Value *lhs_cell, Value *lhs_val,
   // top -->
 }
 
-static INLINE void Rsh_EndAssign(Value *r2, Value const *r1, Value const *r0,
-                                 SEXP symbol, BCell *cache, SEXP rho) {
+static INLINE void Rsh_EndAssign(Value *r2, Value r1, Value r0, SEXP symbol,
+                                 BCell *cache, SEXP rho) {
   Value *rhs = r2;
-  SEXP lhs_cell_sxp = VAL_SXP(*r1);
-  Value value = *r0;
+  SEXP lhs_cell_sxp = VAL_SXP(r1);
+  Value value = r0;
 
   SET_ASSIGNMENT_PENDING(lhs_cell_sxp, FALSE);
 
@@ -1652,11 +1649,11 @@ static INLINE void Rsh_EndAssign(Value *r2, Value const *r1, Value const *r0,
   }
 }
 
-static INLINE void Rsh_EndAssign2(Value *r2, Value const *r1, Value const *r0,
-                                  SEXP symbol, SEXP rho) {
+static INLINE void Rsh_EndAssign2(Value *r2, Value r1, Value r0, SEXP symbol,
+                                  SEXP rho) {
   Value *rhs = r2;
-  SEXP lhs_cell_sxp = VAL_SXP(*r1);
-  Value value = *r0;
+  SEXP lhs_cell_sxp = VAL_SXP(r1);
+  Value value = r0;
 
   SET_ASSIGNMENT_PENDING(lhs_cell_sxp, FALSE);
 
@@ -1715,12 +1712,11 @@ static INLINE Rboolean Rsh_start_subassign_dispatch_n(const char *generic,
 #define Rsh_VecSubassign2(sx, rhs, i, call, rho)                               \
   Rsh_vec_subassign(sx, rhs, i, call, TRUE, rho)
 
-static INLINE void Rsh_vec_subassign(Value *r2, Value const *r1,
-                                     Value const *r0, SEXP call, Rboolean sub2,
-                                     SEXP rho) {
+static INLINE void Rsh_vec_subassign(Value *r2, Value r1, Value r0, SEXP call,
+                                     Rboolean sub2, SEXP rho) {
   Value *sx = r2;
-  Value rhs = *r1;
-  Value i = *r0;
+  Value rhs = r1;
+  Value i = r0;
 
   SEXP vec = val_as_sexp(*sx);
 
@@ -1787,13 +1783,12 @@ static INLINE void Rsh_vec_subassign(Value *r2, Value const *r1,
 #define Rsh_MatSubassign2(sx, rhs, si, sj, call, rho)                          \
   Rsh_mat_subassign(sx, rhs, si, sj, call, TRUE, rho)
 
-static INLINE void Rsh_mat_subassign(Value *r3, Value const *r2,
-                                     Value const *r1, Value const *r0,
+static INLINE void Rsh_mat_subassign(Value *r3, Value r2, Value r1, Value r0,
                                      SEXP call, Rboolean subassign2, SEXP rho) {
   Value *sx = r3;
-  Value rhs = *r2;
-  Value si = *r1;
-  Value sj = *r0;
+  Value rhs = r2;
+  Value si = r1;
+  Value sj = r0;
   SEXP mat = val_as_sexp(*sx);
 
   if (MAYBE_SHARED(mat)) {
@@ -1863,14 +1858,13 @@ static INLINE void Rsh_Invisible() { R_Visible = FALSE; }
 
 static INLINE void Rsh_Visible() { R_Visible = TRUE; }
 
-static INLINE void Rsh_SetterCall(Value *r4, Value const *r3, Value const *r2,
-                                  Value const *r1, Value const *r0, SEXP call,
-                                  SEXP vexpr, SEXP rho) {
+static INLINE void Rsh_SetterCall(Value *r4, Value r3, Value r2, Value r1,
+                                  Value r0, SEXP call, SEXP vexpr, SEXP rho) {
   Value *lhs = r4;
-  Value rhs = *r3;
-  Value fun = *r2;
-  Value args_head = *r1;
-  Value args_tail = *r0;
+  Value rhs = r3;
+  Value fun = r2;
+  Value args_head = r1;
+  Value args_tail = r0;
 
   SEXP lhs_sxp = val_as_sexp(*lhs);
   SEXP fun_sxp = val_as_sexp(fun);
@@ -1946,7 +1940,7 @@ static INLINE void Rsh_SetterCall(Value *r4, Value const *r3, Value const *r2,
 // clang-format on
 
 static INLINE Rboolean Rsh_start_subassign_dispatch(
-    const char *generic, Value *lhs, Value const *rhs, Value *call_val,
+    const char *generic, Value *lhs, Value *rhs, Value *call_val,
     Value *args_head, Value *args_tail, SEXP call, SEXP rho) {
   SEXP lhs_sxp = val_as_sexp(*lhs);
 
@@ -1963,7 +1957,6 @@ static INLINE Rboolean Rsh_start_subassign_dispatch(
     RSH_PC_INC(dispatched_subassign);
     RSH_CHECK_SIGINT();
     SET_SXP_VAL(lhs, value);
-    // FIXME: temporary
     POP_VAL(4);
     return TRUE;
   } else {
@@ -1999,14 +1992,13 @@ static INLINE void Rsh_DoMissing(Value *call, Value *args_head,
                               call_val, args_head, args_tail, rho)
 
 static INLINE void Rsh_dflt_subassign_dispatch(CCODE fun, SEXP symbol,
-                                               Value *r4, Value const *r3,
-                                               Value const *r2, Value const *r1,
-                                               Value const *r0, SEXP rho) {
+                                               Value *r4, Value r3, Value r2,
+                                               Value r1, Value r0, SEXP rho) {
   // Value lhs = *r4;
-  Value rhs = *r3;
-  Value call = *r2;
-  Value args_head = *r1;
-  Value args_tail = *r0;
+  Value rhs = r3;
+  Value call = r2;
+  Value args_head = r1;
+  Value args_tail = r0;
 
   SEXP call_sxp = val_as_sexp(call);
   SEXP args = val_as_sexp(args_head);
@@ -2025,24 +2017,23 @@ static INLINE void Rsh_dflt_subassign_dispatch(CCODE fun, SEXP symbol,
                   args_head, args_tail, rho)
 
 static INLINE void Rsh_dflt_subset(CCODE fun, SEXP symbol, Value *value,
-                                   Value const *call_val,
-                                   Value const *args_head,
-                                   UNUSED Value const *args_tail, SEXP rho) {
-  SEXP call_sxp = val_as_sexp(*call_val);
-  SEXP args = val_as_sexp(*args_head);
+                                   Value call_val, Value args_head,
+                                   UNUSED Value args_tail, SEXP rho) {
+  SEXP call_sxp = val_as_sexp(call_val);
+  SEXP args = val_as_sexp(args_head);
   RSH_CALL_ARGS_DECREMENT_LINKS(args);
   SEXP value_sxp = fun(call_sxp, symbol, args, rho);
   SET_VAL(value, value_sxp);
   R_Visible = TRUE;
 }
 
-#define Rsh_SubsetN(sx, ix, n, call, rho)                                      \
-  Rsh_do_subset_n((sx), (ix), (n), call, FALSE, rho)
-#define Rsh_Subset2N(sx, ix, n, call, rho)                                     \
-  Rsh_do_subset_n((sx), (ix), (n), call, TRUE, rho)
+#define Rsh_SubsetN(sx, n, call, rho) Rsh_do_subset_n(sx, n, call, FALSE, rho)
+#define Rsh_Subset2N(sx, n, call, rho) Rsh_do_subset_n(sx, n, call, TRUE, rho)
 
-static INLINE void Rsh_do_subset_n(Value *sx, Value const *ix, int rank,
-                                   SEXP call, Rboolean subset2, SEXP rho) {
+static INLINE void Rsh_do_subset_n(Value *stack, int rank, SEXP call,
+                                   Rboolean subset2, SEXP rho) {
+  Value *sx = stack - rank;
+  Value *ix = stack - rank + 1;
   SEXP vec = val_as_sexp(*sx);
 
   if (subset2 || FAST_VECELT_OK(vec)) {
@@ -2073,18 +2064,17 @@ static INLINE void Rsh_do_subset_n(Value *sx, Value const *ix, int rank,
   SET_VAL(sx, value);
 }
 
-#define Rsh_SubassignN(r2, r1, r0, n, call, rho)                               \
-  Rsh_do_subassign_n(r2, r1, r0, n, call, FALSE, rho)
-#define Rsh_Subassign2N(r2, r1, r0, n, call, rho)                              \
-  Rsh_do_subassign_n(r2, r1, r0, n, call, TRUE, rho)
+#define Rsh_SubassignN(stack, n, call, rho)                                    \
+  Rsh_do_subassign_n(stack, n, call, FALSE, rho)
+#define Rsh_Subassign2N(stack, n, call, rho)                                   \
+  Rsh_do_subassign_n(stack, n, call, TRUE, rho)
 
-static INLINE void Rsh_do_subassign_n(Value *r2, Value const *r1,
-                                      Value const *r0, int rank, SEXP call,
+static INLINE void Rsh_do_subassign_n(Value *stack, int rank, SEXP call,
                                       Rboolean subassign2, SEXP rho) {
-  Value *sx = r2;
-  Value *sv = r2;
-  Value rhs = *r1;
-  Value const *ix = r0;
+  Value *sx = stack - rank - 1;
+  Value *sv = stack - rank - 1;
+  Value *rhs = stack - rank;
+  Value *ix = stack - rank + 1;
 
   SEXP vec = val_as_sexp(*sx);
 
@@ -2097,14 +2087,14 @@ static INLINE void Rsh_do_subassign_n(Value *r2, Value const *r1,
   if (dim != R_NilValue) {
     R_xlen_t k = Rsh_compute_index(dim, ix, rank);
     if (k >= 0) {
-      DO_FAST_SETVECELT(sv, vec, k, rhs, subassign2);
+      DO_FAST_SETVECELT(sv, vec, k, *rhs, subassign2);
     }
   }
 
   // slow path!
   RSH_PC_INC(slow_subassign);
 
-  SEXP rhs_sxp = val_as_sexp(rhs);
+  SEXP rhs_sxp = val_as_sexp(*rhs);
   SEXP args = CONS_NR(rhs_sxp, R_NilValue);
   SET_TAG(args, Rsh_ValueSym);
   args = PROTECT(CONS_NR(vec, Rsh_append_values_to_args(ix, rank, args)));
@@ -2120,14 +2110,12 @@ static INLINE void Rsh_do_subassign_n(Value *r2, Value const *r1,
   SET_SXP_VAL(sv, vec);
 }
 
-static INLINE void Rsh_GetterCall(Value *lhs, Value *fun,
-                                  Value const *args_head,
-                                  UNUSED Value const *args_tail, SEXP call,
-                                  SEXP rho) {
+static INLINE void Rsh_GetterCall(Value *lhs, Value *fun, Value args_head,
+                                  UNUSED Value args_tail, SEXP call, SEXP rho) {
 
   SEXP lhs_sxp = val_as_sexp(*lhs);
   SEXP fun_sxp = val_as_sexp(*fun);
-  SEXP args = val_as_sexp(*args_head);
+  SEXP args = val_as_sexp(args_head);
 
   SEXP value;
 
@@ -2353,8 +2341,8 @@ static INLINE Rboolean Rsh_StepFor(Value *s2, Value *s1, Value *s0, BCell *cell,
   return TRUE;
 }
 
-static INLINE void Rsh_EndFor(Value *s2, UNUSED Value const *s1,
-                              UNUSED Value const *s0, SEXP rho) {
+static INLINE void Rsh_EndFor(Value *s2, UNUSED Value s1, UNUSED Value s0,
+                              SEXP rho) {
   // FIXME: missing stack protection stuff
   SET_SXP_VAL(s2, R_NilValue);
 }
@@ -2369,10 +2357,10 @@ static INLINE void Rsh_EndFor(Value *s2, UNUSED Value const *s1,
     RSH_PC_INC(isq);                                                           \
   } while (0)
 
-static INLINE void Rsh_Colon(Value *s1, Value const *s0, SEXP call, SEXP rho) {
-  if (VAL_IS_DBL(*s1) && VAL_IS_DBL(*s0)) {
+static INLINE void Rsh_Colon(Value *s1, Value s0, SEXP call, SEXP rho) {
+  if (VAL_IS_DBL(*s1) && VAL_IS_DBL(s0)) {
     double rn1 = VAL_DBL(*s1);
-    double rn2 = VAL_DBL(*s0);
+    double rn2 = VAL_DBL(s0);
     if (R_FINITE(rn1) && R_FINITE(rn2) && INT_MIN <= rn1 && INT_MAX >= rn1 &&
         INT_MIN <= rn2 && INT_MAX >= rn2 && rn1 == (int)rn1 &&
         rn2 == (int)rn2) {
@@ -2383,7 +2371,7 @@ static INLINE void Rsh_Colon(Value *s1, Value const *s0, SEXP call, SEXP rho) {
   }
 
   // slow path!
-  DO_BUILTIN2(do_colon, call, Rsh_ColonOp, *s1, *s0, rho, s1);
+  DO_BUILTIN2(do_colon, call, Rsh_ColonOp, *s1, s0, rho, s1);
 }
 
 static INLINE void Rsh_SeqAlong(Value *v, SEXP call, SEXP rho) {
@@ -2491,8 +2479,8 @@ static INLINE Rboolean Rsh_And1st(Value *r0, SEXP call) {
   return VAL_INT(*r0) == FALSE ? TRUE : FALSE;
 }
 
-static INLINE void Rsh_And2nd(Value *r1, Value const *r0, SEXP call) {
-  Value v = *r0;
+static INLINE void Rsh_And2nd(Value *r1, Value r0, SEXP call) {
+  Value v = r0;
   // r1 is the result of Rsh_And1St
   fixup_scalar_logical(&v, call, "'y'", "&&");
   R_Visible = TRUE;
@@ -2519,8 +2507,8 @@ static INLINE Rboolean Rsh_Or1st(Value *v, SEXP call) {
   return r ? TRUE : FALSE;
 }
 
-static INLINE void Rsh_Or2nd(Value *r1, Value const *r0, SEXP call) {
-  Value v = *r0;
+static INLINE void Rsh_Or2nd(Value *r1, Value r0, SEXP call) {
+  Value v = r0;
   // r1 is the result of Rsh_And1St
   fixup_scalar_logical(&v, call, "'y'", "||");
   R_Visible = TRUE;
@@ -2558,11 +2546,10 @@ static INLINE void Rsh_Log(Value *val, SEXP call, SEXP rho) {
   RSH_PC_INC(slow_math1);
 }
 
-static INLINE void Rsh_LogBase(Value *r1, Value const *r0, SEXP call,
-                               SEXP rho) {
+static INLINE void Rsh_LogBase(Value *r1, Value r0, SEXP call, SEXP rho) {
   Value *res = r1;
   Value val = *r1;
-  Value base = *r0;
+  Value base = r0;
 
   if (VAL_IS_DBL(val) && VAL_IS_DBL(base)) {
     double d = VAL_DBL(val);
