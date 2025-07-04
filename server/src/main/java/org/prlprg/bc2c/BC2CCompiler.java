@@ -31,7 +31,7 @@ class ByteCodeStack {
         }
         var s = get(top);
         --top;
-        return s;
+        return "*" + s;
     }
 
     public String get(int i) {
@@ -117,7 +117,6 @@ public class BC2CCompiler {
     }
 }
 
-// TODO: extract labels and cells into its own classes
 class ClosureCompiler {
     /**
      * The name of the variable representing the current environment
@@ -271,13 +270,13 @@ class ClosureCompiler {
                         }
                         var cell = cells.get(symbol.idx());
                         assert cell != null;
-                        yield "if (%s) {\n goto %s;\n}"
+                        yield "if (%s) {\n\tgoto %s;\n}"
                                 .formatted(builder.cell(cell).compile(), label(label));
                     }
                     case BcInstr.Math1(var _, var op) -> builder.addArgs(String.valueOf(op)).compileStmt();
                     default -> {
                         if (instr.label().orElse(null) instanceof BcLabel l) {
-                            yield "if (%s) {\ngoto %s;\n}".formatted(builder.compile(), label(l));
+                            yield "if (%s) {\n\tgoto %s;\n}".formatted(builder.compile(), label(l));
                         } else {
                             yield builder.compileStmt();
                         }
@@ -312,11 +311,10 @@ class ClosureCompiler {
     }
 
     private String compileSubsetN(InstrCallBuilder builder, ConstPool.Idx<? extends SEXP> call, int rank) {
-        var sx = stack.top() - rank;
         var line = builder
                 .push(0)
                 .pop(0)
-                .args(stack.get(sx), stack.get(sx + 1), String.valueOf(rank), constantSXP(call))
+                .args(stack.get(stack.top()), String.valueOf(rank), constantSXP(call))
                 .compileStmt();
         // manually apply the instruction stack effect
         for (int i = 0; i < rank + 1; i++) stack.pop();
@@ -325,11 +323,10 @@ class ClosureCompiler {
     }
 
     private String compileSubassignN(InstrCallBuilder builder, ConstPool.Idx<? extends SEXP> call, int rank) {
-        var sx = stack.top() - rank - 1;
         var line = builder
                 .push(0)
                 .pop(0)
-                .args(stack.get(sx), stack.get(sx + 1), stack.get(sx + 2), String.valueOf(rank), constantSXP(call))
+                .args(stack.get(stack.top()), String.valueOf(rank), constantSXP(call))
                 .compileStmt();
         // manually apply the instruction stack effect
         for (int i = 0; i < rank + 2; i++) stack.pop();
@@ -474,9 +471,6 @@ class ClosureCompiler {
 
             if (debug) {
                 debugMessages.add("stack: " + stack.top());
-            }
-
-            if (debug && !debugMessages.isEmpty()) {
                 line += " /* " + String.join(", ", debugMessages) + " */";
             }
 
