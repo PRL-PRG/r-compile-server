@@ -1,4 +1,4 @@
-package org.prlprg.fir.cfg.instruction;
+package org.prlprg.fir.instruction;
 
 import java.util.Collection;
 import java.util.List;
@@ -17,7 +17,7 @@ public record Goto(Target target) implements Jump {
   }
 
   @Override
-  public @UnmodifiableView Collection<Expression> children() {
+  public @UnmodifiableView Collection<Expression> immediateChildren() {
     return target.phiArgs();
   }
 }

@@ -1,4 +1,4 @@
-package org.prlprg.fir.cfg.observer;
+package org.prlprg.fir.observer;
 
 import com.google.common.collect.ImmutableList;
 

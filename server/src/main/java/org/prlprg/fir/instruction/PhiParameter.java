@@ -1,4 +1,4 @@
-package org.prlprg.fir.cfg.instruction;
+package org.prlprg.fir.instruction;
 
 import org.prlprg.fir.cfg.variable.Register;
 

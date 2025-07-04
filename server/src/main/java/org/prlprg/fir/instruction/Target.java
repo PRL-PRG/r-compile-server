@@ -1,4 +1,4 @@
-package org.prlprg.fir.cfg.instruction;
+package org.prlprg.fir.instruction;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableList;

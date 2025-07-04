@@ -1,6 +1,5 @@
 package org.prlprg.fir.cfg;
 
-import com.google.common.base.Joiner;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -11,6 +10,10 @@ import java.util.Set;
 import java.util.function.Supplier;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.cfg.observer.CFGObserver;
+import org.prlprg.parseprint.ParseMethod;
+import org.prlprg.parseprint.Parser;
+import org.prlprg.parseprint.PrintMethod;
+import org.prlprg.parseprint.Printer;
 
 /// FIŘ [control-flow-graph](https://en.wikipedia.org/wiki/Control-flow_graph).
 public final class CFG {
@@ -112,6 +115,35 @@ public final class CFG {
 
   @Override
   public String toString() {
-    return Joiner.on('\n').join(bbs());
+    return Printer.toString(this);
+  }
+
+  @PrintMethod
+  private void print(Printer p) {
+    for (var bb : bbs.values()) {
+      p.print(bb);
+    }
+  }
+
+  @ParseMethod
+  private CFG(Parser p) {
+    var s = p.scanner();
+
+    BB entry = null;
+    var p1 = p.withContext(new BB.ParseContext(this, p.context()));
+    while (!s.isAtEof() && !s.nextCharIs('}')) {
+      var bb = p1.parse(BB.class);
+      if (entry == null) {
+        entry = bb;
+      }
+      if (bbs.put(bb.label(), bb) != null) {
+        throw new IllegalArgumentException(
+            "Basic block with label '" + bb.label() + "' already exists.");
+      }
+    }
+    if (entry == null) {
+      throw new IllegalArgumentException("CFG must have at least one basic block.");
+    }
+    this.entry = entry;
   }
 }

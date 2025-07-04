@@ -1,0 +1,37 @@
+package org.prlprg.fir.instruction;
+
+import java.util.Collection;
+import org.jetbrains.annotations.UnmodifiableView;
+import org.prlprg.parseprint.ParseMethod;
+import org.prlprg.parseprint.Parser;
+
+public sealed interface Jump extends Instruction permits If, Goto, Return, Unreachable {
+  @UnmodifiableView
+  Collection<Target> targets();
+
+  @ParseMethod
+  private static Jump parse(Parser p) {
+    var s = p.scanner();
+    var k = s.readJavaIdentifierOrKeyword();
+    return switch (k) {
+      case "if" -> {
+        var cond = p.parse(Expression.class);
+        s.assertAndSkip("then");
+        var ifTrue = p.parse(Target.class);
+        s.assertAndSkip("else");
+        var ifFalse = p.parse(Target.class);
+        yield new If(cond, ifTrue, ifFalse);
+      }
+      case "goto" -> {
+        var target = p.parse(Target.class);
+        yield new Goto(target);
+      }
+      case "return" -> {
+        var ret = p.parse(Expression.class);
+        yield new Return(ret);
+      }
+      case "unreachable" -> p.parse(Unreachable.class);
+      default -> throw s.fail("`if`, `goto`, `return` or `unreachable`", k);
+    };
+  }
+}

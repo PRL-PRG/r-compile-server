@@ -1,6 +1,5 @@
 package org.prlprg.fir.cfg;
 
-import com.google.common.base.Joiner;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -8,12 +7,18 @@ import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.cfg.instruction.Expression;
+import org.prlprg.fir.cfg.instruction.Instruction;
 import org.prlprg.fir.cfg.instruction.Jump;
 import org.prlprg.fir.cfg.instruction.PhiParameter;
 import org.prlprg.fir.cfg.instruction.Unreachable;
 import org.prlprg.fir.cfg.variable.Register;
+import org.prlprg.parseprint.ParseMethod;
+import org.prlprg.parseprint.Parser;
+import org.prlprg.parseprint.PrintMethod;
+import org.prlprg.parseprint.Printer;
 import org.prlprg.util.SmallBinarySet;
 
 public final class BB {
@@ -60,12 +65,12 @@ public final class BB {
   }
 
   public PhiParameter addParameter(String name) {
-    return this.cfg.record(
+    return cfg.record(
         "BB#addParameter",
         List.of(this, name),
         () -> {
           var param = new PhiParameter(new Register(name));
-          if (!this.params.add(param)) {
+          if (!params.add(param)) {
             throw new IllegalArgumentException(
                 "Parameter " + name + " already exists in BB " + label);
           }
@@ -74,11 +79,11 @@ public final class BB {
   }
 
   public void remove(PhiParameter param) {
-    this.cfg.record(
+    cfg.record(
         "BB#removeParameter",
         List.of(this, param),
         () -> {
-          if (!this.params.remove(param)) {
+          if (!params.remove(param)) {
             throw new IllegalArgumentException(
                 "Parameter " + param + " does not exist in BB " + label);
           }
@@ -87,35 +92,35 @@ public final class BB {
   }
 
   public void pushStatement(Expression statement) {
-    this.cfg.record(
+    cfg.record(
         "BB#pushStatement",
         List.of(this, statement),
         () -> {
-          this.statements.add(statement);
+          statements.add(statement);
           return null;
         });
   }
 
   public void insertStatement(int index, Expression statement) {
-    this.cfg.record(
+    cfg.record(
         "BB#insertStatement",
         List.of(this, index, statement),
         () -> {
-          if (index < 0 || index > this.statements.size()) {
+          if (index < 0 || index > statements.size()) {
             throw new IndexOutOfBoundsException(
                 "Index " + index + " is out of bounds for BB " + label);
           }
-          this.statements.add(index, statement);
+          statements.add(index, statement);
           return null;
         });
   }
 
   public void removeStatement(Expression statement) {
-    this.cfg.record(
+    cfg.record(
         "BB#removeStatement",
         List.of(this, statement),
         () -> {
-          if (!this.statements.remove(statement)) {
+          if (!statements.remove(statement)) {
             throw new IllegalArgumentException(
                 "Statement " + statement + " does not exist in BB " + label);
           }
@@ -124,28 +129,26 @@ public final class BB {
   }
 
   public void setJump(Jump jump) {
-    this.cfg.record(
+    cfg.record(
         "BB#setJump",
         List.of(this, jump),
         () -> {
-          for (var target : jump.targets()) {
+          for (var target : this.jump.targets()) {
             var removed = target.label().predecessors.remove(this);
-            assert removed
-                : "BB " + this.label + " was not a predecessor of target " + target.label();
+            assert removed : "BB " + label + " was not a predecessor of target " + target.label();
           }
-          if (jump.targets().isEmpty()) {
-            var removed = this.cfg.exits.remove(this);
-            assert removed : "BB " + this.label + " was not an exit of the CFG";
+          if (this.jump.targets().isEmpty()) {
+            var removed = cfg.exits.remove(this);
+            assert removed : "BB " + label + " was not an exit of the CFG";
           }
           this.jump = jump;
-          for (var target : jump.targets()) {
+          for (var target : this.jump.targets()) {
             var added = target.label().predecessors.add(this);
-            assert added
-                : "BB " + this.label + " was already a predecessor of target " + target.label();
+            assert added : "BB " + label + " was already a predecessor of target " + target.label();
           }
-          if (jump.targets().isEmpty()) {
-            var added = this.cfg.exits.add(this);
-            assert added : "BB " + this.label + " was already an exit of the CFG";
+          if (this.jump.targets().isEmpty()) {
+            var added = cfg.exits.add(this);
+            assert added : "BB " + label + " was already an exit of the CFG";
           }
           return null;
         });
@@ -153,12 +156,63 @@ public final class BB {
 
   @Override
   public String toString() {
-    var sb = new StringBuilder();
-    sb.append(label).append("(").append(Joiner.on(", ").join(params)).append("):");
-    for (var statement : statements) {
-      sb.append("\n  ").append(statement);
+    return Printer.toString(this);
+  }
+
+  @PrintMethod
+  private void print(Printer p) {
+    var w = p.writer();
+
+    p.print(label);
+    p.printAsList("(", ")", params);
+    w.write(":");
+    w.runIndented(
+        () -> {
+          w.write('\n');
+          for (var statement : statements) {
+            p.print(statement);
+            w.write(";\n");
+          }
+          p.print(jump);
+          w.write(";");
+        });
+    w.write('\n');
+  }
+
+  record ParseContext(CFG cfg, @Nullable Object inner) {}
+
+  @ParseMethod
+  private BB(Parser p1, ParseContext ctx) {
+    var p = p1.withContext(ctx.inner);
+    var s = p.scanner();
+
+    cfg = ctx.cfg;
+    label = s.readJavaIdentifierOrKeyword();
+    var params = p.parseList("(", ")", PhiParameter.class);
+    for (var param : params) {
+      if (!this.params.add(param)) {
+        throw new IllegalArgumentException("Parameter " + param + " already exists in BB " + label);
+      }
     }
-    sb.append("\n  ").append(jump);
-    return sb.toString();
+    s.assertAndSkip(':');
+
+    Instruction instr;
+    do {
+      instr = p.parse(Instruction.class);
+      switch (instr) {
+        case Expression expr -> statements.add(expr);
+        case Jump jmp -> jump = jmp;
+      }
+      s.assertAndSkip(';');
+    } while (!(instr instanceof Jump));
+
+    for (var target : jump.targets()) {
+      var added = target.label().predecessors.add(this);
+      assert added : "BB " + label + " was already a predecessor of target " + target.label();
+    }
+    if (jump.targets().isEmpty()) {
+      var added = cfg.exits.add(this);
+      assert added : "BB " + label + " was already an exit of the CFG";
+    }
   }
 }
