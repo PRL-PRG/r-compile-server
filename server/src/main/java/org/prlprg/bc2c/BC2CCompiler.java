@@ -186,7 +186,6 @@ class ClosureCompiler {
 
     private void afterCompile() {
         prologue.line("int %s = %d;".formatted(VAR_STACK_SAVE, stackSpace()));
-        prologue.line("static SEXP LAST_RHO = NULL;");
         if (!cells.isEmpty() || !stack.isEmpty()) {
             prologue.line("CHECK_OVERFLOW(%d);".formatted(stackSpace()));
         }
@@ -344,11 +343,6 @@ class ClosureCompiler {
         for (int i = 1; i <= stack.max(); i++) {
             prologue.line("DEFINE_VAL(%s);".formatted(stack.get(i)));
         }
-        prologue.line("""
-                  if (LAST_RHO != RHO) {
-                    LAST_RHO = RHO;
-                  }
-                """);
     }
 
     private void compileCells() {
@@ -377,7 +371,7 @@ class ClosureCompiler {
         private int pop = 0;
         private boolean needsRho = false;
         private List<String> args = new ArrayList<>();
-        private List<String> debugMessages = new ArrayList<>();
+        private final List<String> debugMessages = new ArrayList<>();
 
         public InstrCallBuilder(BcInstr instr) {
             fun = "Rsh_" + instr.getClass().getSimpleName();
