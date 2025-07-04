@@ -1,4 +1,4 @@
-package org.prlprg.fir.cfg.variable;
+package org.prlprg.fir.variable;
 
 import java.util.Collection;
 import java.util.List;
@@ -9,7 +9,7 @@ public sealed interface Variable extends Expression permits NamedVariable, Regis
   String name();
 
   @Override
-  default @UnmodifiableView Collection<Expression> children() {
+  default @UnmodifiableView Collection<Expression> immediateChildren() {
     return List.of();
   }
 }

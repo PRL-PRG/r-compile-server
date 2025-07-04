@@ -1,4 +1,4 @@
-package org.prlprg.fir.cfg.variable;
+package org.prlprg.fir.variable;
 
 import org.jetbrains.annotations.NotNull;
 
