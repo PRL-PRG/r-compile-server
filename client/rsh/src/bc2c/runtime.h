@@ -384,11 +384,7 @@ typedef union {
   R_BCNodeStackTop->u.sxpval = R_NilValue;                                     \
   BCell *name = &(R_BCNodeStackTop++)->u.sxpval;
 
-#define DEFINE_BCELL2(name)                                                    \
-  static BCell name = NULL;                                                    \
-  if (LAST_RHO != RHO) {                                                       \
-    name = R_NilValue;                                                         \
-  }
+#define DEFINE_BCELL2(name) BCell name = R_NilValue;
 
 #define DEFINE_VAL(name)                                                       \
   R_BCNodeStackTop->tag = INTSXP;                                              \
