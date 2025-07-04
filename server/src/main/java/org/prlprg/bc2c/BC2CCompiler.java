@@ -201,15 +201,32 @@ class ClosureCompiler {
 
     private void analyseCode() {
         var code = bc.code();
+        var hasLoop = false;
+
         for (int i = 0; i < code.size(); i++) {
             var instr = code.get(i);
+
+            switch (instr) {
+                case BcInstr.Goto(var label) -> {
+                    hasLoop |= label.target() < i;
+                }
+                case BcInstr.StartFor(var _, var symbol, var label) -> {
+                    hasLoop = true;
+                }
+                default -> {
+                }
+            }
+
             instr.label().ifPresent(l -> labels.add(l.target()));
             instr.bindingCell().ifPresent(s -> {
-                var inc = instr.op() == BcOp.STARTFOR ? 2 : 1;
-                cells.merge(s.idx(), new BCell(s.idx(), symbolName(s), inc), (o, _) ->
-                        o.uses(o.uses() + inc)
+                cells.merge(s.idx(), new BCell(s.idx(), symbolName(s), 1), (o, _) ->
+                        o.uses(o.uses() + 1)
                 );
             });
+        }
+
+        if (hasLoop) {
+            cells.replaceAll((_, o) -> o.uses(o.uses() + 1));
         }
     }
 
