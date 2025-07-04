@@ -3,8 +3,6 @@ package org.prlprg.sexp.parseprint;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import org.prlprg.ir.cfg.CFG;
-import org.prlprg.ir.closure.Closure;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.primitive.Complex;
@@ -36,8 +34,8 @@ import org.prlprg.sexp.VectorSXP;
  * Maps potentially-recursive {@link SEXP}s to integers to they can be serialized.
  *
  * <p>If you print multiple {@link SEXP}s with the same context, the references will be shared
- * across the prints. This is useful e.g. when printing {@link CFG} or {@link Closure}, since they
- * may contain many references to the same large {@link StaticEnvSXP}.
+ * across the prints. This is useful e.g. when printing IR, since it may contain many references to
+ * the same large {@link StaticEnvSXP}.
  *
  * <p><b>Implementation note:</b> all of the logic for printing {@link SEXP}s, {@link Attributes},
  * and {@link TaggedElem}s (all data-types in {@link org.prlprg.sexp}) is implemented in this class.
