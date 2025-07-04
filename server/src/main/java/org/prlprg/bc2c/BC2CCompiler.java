@@ -142,6 +142,7 @@ class ClosureCompiler {
     private final String name;
     private boolean debug = true;
     private boolean useCells = true;
+    private boolean compilePromises = true;
 
     protected CModule module;
     protected CFunction fun;
@@ -248,7 +249,7 @@ class ClosureCompiler {
                     case BcInstr.MakeClosure(var idx) -> compileMakeClosure(builder, idx);
                     case BcInstr.MakeProm(var idx) -> {
                         var prom = bc.consts().get(idx);
-                        if (prom instanceof BCodeSXP c) {
+                        if (prom instanceof BCodeSXP c && compilePromises) {
                             yield compileMakePromise(builder, c);
                         } else {
                             yield builder.compileStmt();
