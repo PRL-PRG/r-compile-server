@@ -3,8 +3,6 @@ package org.prlprg;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
-import org.prlprg.ir.cfg.CFG;
-import org.prlprg.ir.closure.CodeObject;
 import org.prlprg.util.Strings;
 
 /**
@@ -46,15 +44,6 @@ public final class AppConfig extends Config {
   public static final CfgDebugLevel CFG_DEBUG_LEVEL = get("CFG_DEBUG_LEVEL", CfgDebugLevel.VERIFY);
 
   /**
-   * Whether to verify phi inputs' incoming basic block when they are added.
-   *
-   * <p>They are always verified during {@linkplain CFG#verify()} verification
-   *
-   * <p><b>Default:</b>: true
-   */
-  public static final boolean EAGERLY_VERIFY_PHI_INPUTS = get("EAGERLY_VERIFY_PHI_INPUTS", true);
-
-  /**
    * Maximum number of characters vectors will print in `toString` before being truncated.
    *
    * <p><b>Default:</b>: 1000
@@ -91,7 +80,7 @@ public final class AppConfig extends Config {
     PHASE,
     /** Log every optimization pass. */
     PASS,
-    /** Log every optimization pass <i>and</i> every inner {@link CodeObject} it's applied to. */
+    /** Log as much as possible. */
     ALL,
   }
 }
