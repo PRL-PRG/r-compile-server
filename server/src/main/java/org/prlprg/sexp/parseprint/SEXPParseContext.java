@@ -6,8 +6,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import org.prlprg.bc.Bc;
-import org.prlprg.ir.cfg.CFG;
-import org.prlprg.ir.closure.Closure;
 import org.prlprg.parseprint.ParseException;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
@@ -40,8 +38,8 @@ import org.prlprg.util.UnreachableError;
  * Maps potentially-recursive {@link SEXP}s to integers so they can be deserialized.
  *
  * <p>If you parse multiple {@link SEXP}s with the same context, the references will be shared
- * across the parses. This is useful e.g. when parsing {@link CFG} or {@link Closure}, since they
- * may contain many references to the same large {@link StaticEnvSXP}.
+ * across the parses. This is useful e.g. when parsing IR, since it may contain many references to
+ * the same large {@link StaticEnvSXP}.
  *
  * <p><b>Implementation note:</b> all of the logic for parsing {@link SEXP}s, {@link Attributes},
  * and {@link TaggedElem}s (all data-types in {@link org.prlprg.sexp}) is implemented in this class.
