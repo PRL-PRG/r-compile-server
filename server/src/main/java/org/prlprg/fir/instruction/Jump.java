@@ -2,6 +2,7 @@ package org.prlprg.fir.instruction;
 
 import java.util.Collection;
 import org.jetbrains.annotations.UnmodifiableView;
+import org.prlprg.fir.phi.Target;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 

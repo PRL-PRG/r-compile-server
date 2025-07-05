@@ -1,3 +1,4 @@
+/** Observers can record IR mutations. */
 @ParametersAreNonnullByDefault
 @FieldsAreNonNullByDefault
 @ReturnTypesAreNonNullByDefault

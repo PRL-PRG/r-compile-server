@@ -1,7 +1,8 @@
+/** Immutable data structures. Types, kinds, effects, and ownership/concreteness. */
 @ParametersAreNonnullByDefault
 @FieldsAreNonNullByDefault
 @ReturnTypesAreNonNullByDefault
-package org.prlprg.fir.closure;
+package org.prlprg.fir.type;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 import org.prlprg.util.FieldsAreNonNullByDefault;
