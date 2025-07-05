@@ -1,3 +1,4 @@
+/** Mutable data structures. Abstraction, CFG, and basic block. */
 @ParametersAreNonnullByDefault
 @FieldsAreNonNullByDefault
 @ReturnTypesAreNonNullByDefault

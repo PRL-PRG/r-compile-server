@@ -1,9 +1,9 @@
-package org.prlprg.fir.instruction;
+package org.prlprg.fir.phi;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableList;
-import org.jetbrains.annotations.NotNull;
 import org.prlprg.fir.cfg.BB;
+import org.prlprg.fir.instruction.Expression;
 
 public record Target(BB label, ImmutableList<Expression> phiArgs) {
   public Target(BB label, Expression... phiArgs) {
@@ -11,7 +11,7 @@ public record Target(BB label, ImmutableList<Expression> phiArgs) {
   }
 
   @Override
-  public @NotNull String toString() {
+  public String toString() {
     return label + "(" + Joiner.on(", ").join(phiArgs) + ")";
   }
 }

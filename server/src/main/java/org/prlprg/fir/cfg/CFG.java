@@ -7,9 +7,9 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Supplier;
+import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
-import org.prlprg.fir.cfg.observer.CFGObserver;
+import org.prlprg.fir.module.Module;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
@@ -18,10 +18,9 @@ import org.prlprg.parseprint.Printer;
 /// FIŘ [control-flow-graph](https://en.wikipedia.org/wiki/Control-flow_graph).
 public final class CFG {
   private static final String DEFAULT_LABEL_PREFIX = "L";
-  private static final String DEFAULT_REG_NAME_PREFIX = "r";
 
-  // Observers
-  private final Set<CFGObserver> observers = new LinkedHashSet<>();
+  // Backlink
+  private final Abstraction scope;
 
   // Data
   private final Map<String, BB> bbs = new LinkedHashMap<>();
@@ -30,16 +29,26 @@ public final class CFG {
   private final BB entry;
   final Set<BB> exits = new LinkedHashSet<>();
   private final int nextLabelDisambiguator = 0;
-  private final int nextRegNameDisambiguator = 0;
 
   // private @Nullable DomTree domTree;
   // private @Nullable DefUses defUses;
   // private @Nullable Loops loops;
 
-  public CFG() {
-    entry = new BB(this, "entry");
+  CFG(Abstraction scope) {
+    this.scope = scope;
+
+    // Create an empty entry block
+    entry = new BB(this, "ENTRY");
     bbs.put(entry.label(), entry);
     exits.add(entry);
+  }
+
+  public Abstraction scope() {
+    return scope;
+  }
+
+  public Module module() {
+    return scope.module();
   }
 
   public BB entry() {
@@ -58,59 +67,37 @@ public final class CFG {
     return DEFAULT_LABEL_PREFIX + nextLabelDisambiguator;
   }
 
-  public String nextRegName() {
-    return DEFAULT_REG_NAME_PREFIX + nextRegNameDisambiguator;
-  }
-
-  public void addObserver(CFGObserver observer) {
-    observers.add(observer);
-  }
-
-  public void removeObserver(CFGObserver observer) {
-    observers.remove(observer);
-  }
-
   public BB addBB() {
     return this.addBB(this.nextLabel());
   }
 
   public BB addBB(String label) {
-    return this.record(
-        "addBB(String)",
-        List.of(label),
-        () -> {
-          if (bbs.containsKey(label)) {
-            throw new IllegalArgumentException(
-                "Basic block with label '" + label + "' already exists.");
-          }
-          var bb = new BB(this, label);
-          bbs.put(bb.label(), bb);
-          return bb;
-        });
+    return module()
+        .record(
+            "CFG#addBB(String)",
+            List.of(this, label),
+            () -> {
+              if (bbs.containsKey(label)) {
+                throw new IllegalArgumentException(
+                    "Basic block with label '" + label + "' already exists.");
+              }
+              var bb = new BB(this, label);
+              bbs.put(bb.label(), bb);
+              return bb;
+            });
   }
 
-  public void remove(BB bb) {
-    this.record(
-        "remove(BB)",
-        List.of(bb),
-        () -> {
-          if (!bbs.remove(bb.label(), bb)) {
-            throw new IllegalArgumentException(
-                "Basic block with label '" + bb.label() + "' does not exist.");
-          }
-          return null;
-        });
-  }
-
-  public <T> T record(String func, List<Object> args, Supplier<T> action) {
-    for (var observer : observers) {
-      observer.before(func, args);
-    }
-    var returnValue = action.get();
-    for (var observer : observers) {
-      observer.after(returnValue);
-    }
-    return returnValue;
+  public void removeBB(BB bb) {
+    module()
+        .record(
+            "CFG#removeBB(BB)",
+            List.of(this, bb),
+            () -> {
+              if (!bbs.remove(bb.label(), bb)) {
+                throw new IllegalArgumentException("Basic block '" + bb + "' does not exist.");
+              }
+              return null;
+            });
   }
 
   @Override
@@ -125,14 +112,19 @@ public final class CFG {
     }
   }
 
+  record ParseContext(Abstraction scope, @Nullable Object inner) {}
+
   @ParseMethod
-  private CFG(Parser p) {
+  private CFG(Parser p1, ParseContext ctx) {
+    scope = ctx.scope;
+    var p = p1.withContext(ctx.inner);
+
     var s = p.scanner();
 
     BB entry = null;
-    var p1 = p.withContext(new BB.ParseContext(this, p.context()));
+    var p2 = p.withContext(new BB.ParseContext(this, p.context()));
     while (!s.isAtEof() && !s.nextCharIs('}')) {
-      var bb = p1.parse(BB.class);
+      var bb = p2.parse(BB.class);
       if (entry == null) {
         entry = bb;
       }

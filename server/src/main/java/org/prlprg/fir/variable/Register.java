@@ -1,7 +1,5 @@
 package org.prlprg.fir.variable;
 
-import org.jetbrains.annotations.NotNull;
-
 public record Register(@Override String name) implements Variable {
   public Register {
     if (!name.startsWith("r")) {
@@ -10,7 +8,7 @@ public record Register(@Override String name) implements Variable {
   }
 
   @Override
-  public @NotNull String toString() {
+  public String toString() {
     return name;
   }
 }
