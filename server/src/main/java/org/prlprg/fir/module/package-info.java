@@ -1,8 +1,8 @@
-/** Mutable data structures. Abstraction, CFG, and basic block. */
+/** Mutable data structures. Module and function. */
 @ParametersAreNonnullByDefault
 @FieldsAreNonNullByDefault
 @ReturnTypesAreNonNullByDefault
-package org.prlprg.fir.cfg;
+package org.prlprg.fir.module;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 import org.prlprg.util.FieldsAreNonNullByDefault;

@@ -1,8 +1,8 @@
-/** Mutable data structures. Abstraction, CFG, and basic block. */
+/** Immutable data structures. Bindings (variable declarations): abstraction parameter and local. */
 @ParametersAreNonnullByDefault
 @FieldsAreNonNullByDefault
 @ReturnTypesAreNonNullByDefault
-package org.prlprg.fir.cfg;
+package org.prlprg.fir.binding;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 import org.prlprg.util.FieldsAreNonNullByDefault;

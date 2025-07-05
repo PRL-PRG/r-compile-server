@@ -3,27 +3,22 @@ package org.prlprg.fir.instruction;
 import java.util.Collection;
 import java.util.List;
 import org.jetbrains.annotations.UnmodifiableView;
-import org.prlprg.fir.phi.Target;
+import org.prlprg.fir.variable.Register;
 import org.prlprg.fir.variable.Variable;
 
-public record Return(Expression value) implements Jump {
+public record Use(Register variable) implements Expression {
   @Override
   public String toString() {
-    return "return " + value;
-  }
-
-  @Override
-  public @UnmodifiableView Collection<Target> targets() {
-    return List.of();
+    return "use " + variable;
   }
 
   @Override
   public @UnmodifiableView Collection<Expression> immediateChildren() {
-    return List.of(value);
+    return List.of();
   }
 
   @Override
   public @UnmodifiableView Collection<Variable> immediateVariables() {
-    return List.of();
+    return List.of(variable);
   }
 }

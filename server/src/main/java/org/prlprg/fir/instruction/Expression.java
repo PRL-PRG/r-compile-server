@@ -1,22 +1,25 @@
 package org.prlprg.fir.instruction;
 
-import org.prlprg.fir.cfg.expression.Dup;
-import org.prlprg.fir.cfg.expression.Force;
-import org.prlprg.fir.cfg.expression.MaybeForce;
-import org.prlprg.fir.cfg.expression.MkVector;
-import org.prlprg.fir.cfg.expression.SubscriptRead;
-import org.prlprg.fir.cfg.expression.SubscriptWrite;
-import org.prlprg.fir.cfg.expression.SuperRead;
-import org.prlprg.fir.cfg.expression.SuperWrite;
-import org.prlprg.fir.cfg.expression.Use;
-import org.prlprg.fir.cfg.expression.Write;
-import org.prlprg.fir.cfg.variable.NamedVariable;
-import org.prlprg.fir.cfg.variable.Register;
+import org.prlprg.fir.variable.NamedVariable;
+import org.prlprg.fir.variable.Register;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.primitive.Names;
 
-public non-sealed interface Expression extends Instruction {
+public sealed interface Expression extends Instruction
+    permits Dup,
+        Force,
+        MaybeForce,
+        MkVector,
+        Read,
+        ReflectiveRead,
+        ReflectiveWrite,
+        SubscriptRead,
+        SubscriptWrite,
+        SuperRead,
+        SuperWrite,
+        Use,
+        Write {
   @ParseMethod
   private static Expression parse(Parser p) {
     var s = p.scanner();
@@ -92,7 +95,7 @@ public non-sealed interface Expression extends Instruction {
         var value = p.parse(Expression.class);
         return new Write(variable, value);
       } else {
-        return variable;
+        return new Read(variable);
       }
     }
 

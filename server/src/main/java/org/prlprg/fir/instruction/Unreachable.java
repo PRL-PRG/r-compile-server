@@ -2,12 +2,13 @@ package org.prlprg.fir.instruction;
 
 import java.util.Collection;
 import java.util.List;
-import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.UnmodifiableView;
+import org.prlprg.fir.phi.Target;
+import org.prlprg.fir.variable.Variable;
 
 public record Unreachable() implements Jump {
   @Override
-  public @NotNull String toString() {
+  public String toString() {
     return "unreachable";
   }
 
@@ -18,6 +19,11 @@ public record Unreachable() implements Jump {
 
   @Override
   public @UnmodifiableView Collection<Expression> immediateChildren() {
+    return List.of();
+  }
+
+  @Override
+  public @UnmodifiableView Collection<Variable> immediateVariables() {
     return List.of();
   }
 }
