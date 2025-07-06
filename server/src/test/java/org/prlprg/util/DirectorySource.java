@@ -11,7 +11,6 @@ import java.lang.annotation.Target;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.stream.Stream;
-import javax.annotation.Nullable;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.ArgumentsProvider;
@@ -25,7 +24,7 @@ import org.junit.jupiter.params.support.AnnotationConsumer;
 @ArgumentsSource(DirectoryArgumentsProvider.class)
 public @interface DirectorySource {
   /** Filter files by glob applied to the filename. Default is to not filter. */
-  @Nullable String glob();
+  String glob() default "";
 
   /** Whether to include directories. Default is to not. */
   boolean includeDirs() default false;
@@ -58,7 +57,7 @@ public @interface DirectorySource {
 
 class DirectoryArgumentsProvider implements ArgumentsProvider, AnnotationConsumer<DirectorySource> {
   private boolean accepted = false;
-  private @Nullable String glob;
+  private String glob = "";
   private boolean includeDirs;
   private boolean relativize;
   private int depth;

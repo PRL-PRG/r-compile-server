@@ -21,7 +21,7 @@ public sealed interface Instruction permits Expression, Jump {
     if (s.nextCharsAre("if ")
         || s.nextCharsAre("goto ")
         || s.nextCharsAre("return ")
-        || s.nextCharsAre("unreachable;")) {
+        || s.nextCharsAre("...")) {
       return p.parse(Jump.class);
     } else {
       return p.parse(Expression.class);

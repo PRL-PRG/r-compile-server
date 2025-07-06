@@ -10,6 +10,7 @@ import java.util.Map;
 import java.util.Set;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
+import org.prlprg.fir.CommentParser;
 import org.prlprg.fir.instruction.Expression;
 import org.prlprg.fir.instruction.Instruction;
 import org.prlprg.fir.instruction.Jump;
@@ -24,6 +25,9 @@ import org.prlprg.parseprint.Printer;
 import org.prlprg.util.SmallBinarySet;
 
 public final class BB {
+  static final String ENTRY_LABEL = "ENTRY";
+  static final String DEFAULT_LABEL_PREFIX = "L";
+
   // Backlink
   private final CFG owner;
 
@@ -180,12 +184,18 @@ public final class BB {
   private void print(Printer p) {
     var w = p.writer();
 
-    p.print(label);
-    p.printAsList("(", ")", parameters.values());
-    w.write(":");
+    if (!label.equals(ENTRY_LABEL)) {
+      p.print(label);
+      p.printAsList("(", ")", parameters.values());
+      w.write(":");
+    }
+
     w.runIndented(
         () -> {
-          w.write('\n');
+          if (!label.equals(ENTRY_LABEL)) {
+            w.write('\n');
+          }
+
           for (var statement : statements) {
             p.print(statement);
             w.write(";\n");
@@ -193,10 +203,11 @@ public final class BB {
           p.print(jump);
           w.write(";");
         });
+
     w.write('\n');
   }
 
-  record ParseContext(CFG owner, @Nullable Object inner) {}
+  record ParseContext(boolean isEntry, CFG owner, @Nullable Object inner) {}
 
   @ParseMethod
   private BB(Parser p1, ParseContext ctx) {
@@ -205,18 +216,24 @@ public final class BB {
 
     var s = p.scanner();
 
-    label = s.readJavaIdentifierOrKeyword();
-    var params = p.parseList("(", ")", PhiParameter.class);
-    for (var param : params) {
-      if (this.parameters.put(param.variable(), param) != null) {
-        throw new IllegalArgumentException(
-            "Parameter " + param + " already exists in BB '" + label + "'.");
+    if (ctx.isEntry) {
+      label = ENTRY_LABEL;
+    } else {
+      CommentParser.skipComments(s);
+      label = s.readJavaIdentifierOrKeyword();
+      var params = p.parseList("(", ")", PhiParameter.class);
+      for (var param : params) {
+        if (this.parameters.put(param.variable(), param) != null) {
+          throw new IllegalArgumentException(
+              "Parameter " + param + " already exists in BB '" + label + "'.");
+        }
       }
+      s.assertAndSkip(':');
     }
-    s.assertAndSkip(':');
 
     Instruction instr;
     do {
+      CommentParser.skipComments(s);
       instr = p.parse(Instruction.class);
       switch (instr) {
         case Expression expr -> statements.add(expr);
