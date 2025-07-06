@@ -4,11 +4,14 @@ import java.util.Collection;
 import java.util.List;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.variable.Variable;
+import org.prlprg.sexp.SEXP;
 
-public record Placeholder() implements Expression {
+/// Currently any {@link SEXP} can be a literal, but we may want to make this more specific
+/// (e.g. only scalars).
+public record Literal(SEXP sexp) implements Expression {
   @Override
   public String toString() {
-    return "_";
+    return sexp.toString();
   }
 
   @Override

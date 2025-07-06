@@ -8,25 +8,25 @@ fun main {
         r2 = contextual.*<*s?,*s? -> Is!>(r_shared, r1_shared);
         r3 = contextual.*<v(I)o!,*s? -> Is!>(use r_owned, r_shared);
         r4 = contextual.*<v(I)o!,*s? -> Is!>(use r1_owned, r1_shared);
-        [r1, r2, r3, r4]
+        return [r1, r2, r3, r4];
     }
 }
 
 fun contextual {
     (r:*s?, r1:*s?):Is!-{ |
-        1
+        return 1;
     }
     (r:*s?, r1:v(I)s!):Is!-{ |
-        2
+        return 2;
     }
     (r:v(I)o!, r1:*s?):Is!-{ |
-        3
+        return 3;
     }
     (r:v(I)o!, r1:v(I)s!):Is!-{ |
-        4
+        return 4;
     }
 }
 
 fun print {
-    (r:*s?):Vs!-{ | ... }
+    (r:*s?):Vs!-{ | ...; }
 }

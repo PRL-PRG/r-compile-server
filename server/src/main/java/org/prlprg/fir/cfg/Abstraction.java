@@ -26,8 +26,8 @@ public class Abstraction {
 
   // Data
   private final ImmutableList<Parameter> params;
-  private Type returnType = Type.ANY;
-  private Effects returnEffects = Effects.ANY;
+  private Type returnType;
+  private Effects returnEffects;
   private final Map<Variable, Local> locals = new LinkedHashMap<>();
   private final CFG cfg;
 
@@ -39,6 +39,8 @@ public class Abstraction {
     }
     this.module = module;
     this.params = params;
+    returnType = Type.ANY;
+    returnEffects = Effects.ANY;
     cfg = new CFG(this);
   }
 
@@ -125,6 +127,10 @@ public class Abstraction {
     p.printSeparated(", ", params);
     w.write(')');
 
+    w.write(':');
+    p.print(returnType);
+    p.print(returnEffects);
+
     w.write("{ ");
     p.printSeparated(", ", locals.values());
     w.write(" |\n");
@@ -148,6 +154,10 @@ public class Abstraction {
       throw new IllegalArgumentException("Parameters have duplicates: " + params);
     }
 
+    s.assertAndSkip(':');
+    returnType = p.parse(Type.class);
+    returnEffects = p.parse(Effects.class);
+
     s.assertAndSkip('{');
     if (!s.nextCharIs('|')) {
       do {
@@ -156,7 +166,7 @@ public class Abstraction {
           throw new IllegalArgumentException(
               "Local " + local + " already exists in the abstraction.");
         }
-      } while (s.nextCharIs(','));
+      } while (s.trySkip(','));
     }
     s.assertAndSkip('|');
 

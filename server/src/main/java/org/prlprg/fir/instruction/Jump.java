@@ -13,6 +13,11 @@ public sealed interface Jump extends Instruction permits If, Goto, Return, Unrea
   @ParseMethod
   private static Jump parse(Parser p) {
     var s = p.scanner();
+
+    if (s.trySkip("...")) {
+      return new Unreachable();
+    }
+
     var k = s.readJavaIdentifierOrKeyword();
     return switch (k) {
       case "if" -> {
@@ -31,8 +36,7 @@ public sealed interface Jump extends Instruction permits If, Goto, Return, Unrea
         var ret = p.parse(Expression.class);
         yield new Return(ret);
       }
-      case "unreachable" -> p.parse(Unreachable.class);
-      default -> throw s.fail("`if`, `goto`, `return` or `unreachable`", k);
+      default -> throw s.fail("`if`, `goto`, `return` or `...`", k);
     };
   }
 }

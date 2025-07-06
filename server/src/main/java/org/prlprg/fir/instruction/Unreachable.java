@@ -9,7 +9,7 @@ import org.prlprg.fir.variable.Variable;
 public record Unreachable() implements Jump {
   @Override
   public String toString() {
-    return "unreachable";
+    return "...";
   }
 
   @Override

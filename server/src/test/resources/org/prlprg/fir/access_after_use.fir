@@ -3,6 +3,6 @@ fun main {
         r = [1, 2, 3];
         # error: accessed after `use`
         use r;
-        r[0]
+        return r[0];
     }
 }
