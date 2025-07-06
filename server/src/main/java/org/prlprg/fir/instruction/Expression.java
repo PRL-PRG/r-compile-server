@@ -1,5 +1,6 @@
 package org.prlprg.fir.instruction;
 
+import org.prlprg.fir.type.Type;
 import org.prlprg.fir.variable.NamedVariable;
 import org.prlprg.fir.variable.Register;
 import org.prlprg.parseprint.ParseMethod;
@@ -7,10 +8,12 @@ import org.prlprg.parseprint.Parser;
 import org.prlprg.primitive.Names;
 
 public sealed interface Expression extends Instruction
-    permits Dup,
+    permits Cast,
+        Dup,
         Force,
         MaybeForce,
         MkVector,
+        Placeholder,
         Read,
         ReflectiveRead,
         ReflectiveWrite,
@@ -43,6 +46,9 @@ public sealed interface Expression extends Instruction
         } else {
           result = new SubscriptRead(result, subscript);
         }
+      } else if (s.trySkip(" as ")) {
+        var type = p.parse(Type.class);
+        result = new Cast(result, type);
       } else {
         break;
       }
@@ -53,6 +59,10 @@ public sealed interface Expression extends Instruction
 
   private static Expression parseHead(Parser p) {
     var s = p.scanner();
+
+    if (s.trySkip("...")) {
+      return new Placeholder();
+    }
 
     if (s.nextCharIs('[')) {
       var elements = p.parseList("[", "]", Expression.class);
