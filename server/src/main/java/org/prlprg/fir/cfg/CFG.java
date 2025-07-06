@@ -17,8 +17,6 @@ import org.prlprg.parseprint.Printer;
 
 /// FIŘ [control-flow-graph](https://en.wikipedia.org/wiki/Control-flow_graph).
 public final class CFG {
-  private static final String DEFAULT_LABEL_PREFIX = "L";
-
   // Backlink
   private final Abstraction scope;
 
@@ -60,7 +58,7 @@ public final class CFG {
   }
 
   public String nextLabel() {
-    return DEFAULT_LABEL_PREFIX + nextLabelDisambiguator;
+    return BB.DEFAULT_LABEL_PREFIX + nextLabelDisambiguator;
   }
 
   public BB addBB() {
@@ -121,10 +119,11 @@ public final class CFG {
     var s = p.scanner();
 
     BB entry = null;
-    var p2 = p.withContext(new BB.ParseContext(this, p.context()));
     while (!s.isAtEof() && !s.nextCharIs('}')) {
+      var p2 = p.withContext(new BB.ParseContext(entry == null, this, p.context()));
       var bb = p2.parse(BB.class);
       if (entry == null) {
+        assert bb.label().equals(BB.ENTRY_LABEL);
         entry = bb;
       }
       if (bbs.put(bb.label(), bb) != null) {

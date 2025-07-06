@@ -255,7 +255,7 @@ public class Parser {
     throw new UnsupportedOperationException(
         "no parse method for "
             + clazz
-            + " or any superclasses, and "
+            + " (or any superclasses) with "
             + (context == null ? "no context" : "context " + context.getClass()));
   }
 

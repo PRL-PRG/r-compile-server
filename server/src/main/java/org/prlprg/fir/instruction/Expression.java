@@ -3,14 +3,17 @@ package org.prlprg.fir.instruction;
 import org.prlprg.fir.type.Type;
 import org.prlprg.fir.variable.NamedVariable;
 import org.prlprg.fir.variable.Register;
+import org.prlprg.fir.variable.Variable;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.primitive.Names;
+import org.prlprg.sexp.SEXP;
 
 public sealed interface Expression extends Instruction
     permits Cast,
         Dup,
         Force,
+        Literal,
         MaybeForce,
         MkVector,
         Placeholder,
@@ -46,7 +49,7 @@ public sealed interface Expression extends Instruction
         } else {
           result = new SubscriptRead(result, subscript);
         }
-      } else if (s.trySkip(" as ")) {
+      } else if (s.trySkip("as ")) {
         var type = p.parse(Type.class);
         result = new Cast(result, type);
       } else {
@@ -60,7 +63,7 @@ public sealed interface Expression extends Instruction
   private static Expression parseHead(Parser p) {
     var s = p.scanner();
 
-    if (s.trySkip("...")) {
+    if (s.trySkip('_')) {
       return new Placeholder();
     }
 
@@ -94,13 +97,17 @@ public sealed interface Expression extends Instruction
     }
 
     if (s.trySkip("dup ")) {
-      var value = p.parse(Dup.class);
+      var value = p.parse(Expression.class);
       return new Dup(value);
     }
 
+    if (s.nextCharSatisfies(Character::isDigit) || s.nextCharIs('-') || s.nextCharIs('\"')) {
+      var value = p.parse(SEXP.class);
+      return new Literal(value);
+    }
+
     if (Names.isValidStartChar(s.peekChar())) {
-      var ident = Names.read(s, false);
-      var variable = ident.startsWith("r") ? new Register(ident) : new NamedVariable(ident);
+      var variable = p.parse(Variable.class);
       if (s.trySkip('=')) {
         var value = p.parse(Expression.class);
         return new Write(variable, value);

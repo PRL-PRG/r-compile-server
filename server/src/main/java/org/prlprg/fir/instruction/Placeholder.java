@@ -8,7 +8,7 @@ import org.prlprg.fir.variable.Variable;
 public record Placeholder() implements Expression {
   @Override
   public String toString() {
-    return "...";
+    return "_";
   }
 
   @Override

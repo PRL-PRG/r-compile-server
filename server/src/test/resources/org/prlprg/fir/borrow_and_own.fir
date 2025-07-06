@@ -4,6 +4,6 @@ fun main {
         ry = dup r2;
         rx[0] = 1;
         ry[2] = 3;
-        use ry
+        return use ry;
     }
 }

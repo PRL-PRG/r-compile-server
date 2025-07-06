@@ -7,6 +7,7 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
+import org.prlprg.fir.CommentParser;
 import org.prlprg.fir.cfg.Abstraction;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
@@ -119,8 +120,10 @@ public class Function {
     name = Names.read(s, true);
     s.assertAndSkip('{');
 
+    var p2 = p.withContext(new Abstraction.ParseContext(owner, p.context()));
     while (!s.trySkip('}')) {
-      versions.add(p.parse(Abstraction.class));
+      CommentParser.skipComments(s);
+      versions.add(p2.parse(Abstraction.class));
     }
   }
 }

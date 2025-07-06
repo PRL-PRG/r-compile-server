@@ -12,40 +12,39 @@ import java.nio.file.attribute.FileTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
-import javax.annotation.Nullable;
 
 public class Files {
   /**
    * @param root Directory to list files from
-   * @param glob Filter files by glob applied to the filename. Pass {@code null} to not filter.
+   * @param glob Filter files by glob applied to the filename. Pass {@code ""} to not filter.
    * @param depth Specify a number > 1 to include files in subdirectories. Specify INT_MAX to
    *     recurse infinitely.
    * @param includeDirs Whether to include directories.
    * @param relativize Whether to relativize the paths to {@code root}.
    * @return The paths of each of the children of {@code root} filtered by the other arguments. It
-   *     doesn't return {@code root} itself.
+   *     doesn't return {@code root} itself. The children are ordered lexicographically.
    */
   public static Collection<Path> listDir(
-      Path root, @Nullable String glob, int depth, boolean includeDirs, boolean relativize) {
+      Path root, String glob, int depth, boolean includeDirs, boolean relativize) {
     if (!isDirectory(root)) {
       throw new IllegalArgumentException("Not a directory: " + root);
     }
 
-    var globMatcher = glob == null ? null : FileSystems.getDefault().getPathMatcher("glob:" + glob);
+    var globMatcher =
+        glob.isEmpty() ? null : FileSystems.getDefault().getPathMatcher("glob:" + glob);
 
     try (var filesHandle = java.nio.file.Files.walk(root, depth)) {
       var files = filesHandle.filter(file -> !file.equals(root));
       if (!includeDirs) {
         files = files.filter(Files::isRegularFile);
       }
-      if (glob != null) {
+      if (!glob.isEmpty()) {
         files = files.filter(p -> globMatcher.matches(p.getFileName()));
       }
       if (relativize) {
         files = files.map(root::relativize);
       }
-      return files.collect(Collectors.toList());
+      return files.sorted().toList();
     } catch (IOException e) {
       throw new RuntimeException("Failed to list files in " + root, e);
     }
