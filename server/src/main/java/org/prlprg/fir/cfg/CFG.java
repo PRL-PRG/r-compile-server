@@ -28,11 +28,7 @@ public final class CFG {
   // Cache
   private final BB entry;
   final Set<BB> exits = new LinkedHashSet<>();
-  private final int nextLabelDisambiguator = 0;
-
-  // private @Nullable DomTree domTree;
-  // private @Nullable DefUses defUses;
-  // private @Nullable Loops loops;
+  private int nextLabelDisambiguator = 0;
 
   CFG(Abstraction scope) {
     this.scope = scope;
@@ -83,6 +79,9 @@ public final class CFG {
               }
               var bb = new BB(this, label);
               bbs.put(bb.label(), bb);
+              while (bbs.containsKey(nextLabel())) {
+                nextLabelDisambiguator++;
+              }
               return bb;
             });
   }
@@ -131,6 +130,9 @@ public final class CFG {
       if (bbs.put(bb.label(), bb) != null) {
         throw new IllegalArgumentException(
             "Basic block with label '" + bb.label() + "' already exists.");
+      }
+      while (bbs.containsKey(nextLabel())) {
+        nextLabelDisambiguator++;
       }
     }
     if (entry == null) {

@@ -7,6 +7,9 @@ import org.prlprg.parseprint.Printer;
 import org.prlprg.parseprint.SkipWhitespace;
 
 public record Effects(boolean reflect) implements Comparable<Effects> {
+  public static final Effects ANY = new Effects(true);
+  public static final Effects NONE = new Effects(false);
+
   /// Comparison is subtyping arbitrarily extended to be totally ordered.
   @Override
   public int compareTo(Effects o) {
