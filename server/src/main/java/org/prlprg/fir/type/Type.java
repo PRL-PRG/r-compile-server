@@ -8,6 +8,8 @@ import org.prlprg.parseprint.SkipWhitespace;
 
 public record Type(Kind kind, Ownership ownership, Concreteness concreteness)
     implements Comparable<Type> {
+  public static final Type ANY = new Type(new Kind.Any(), Ownership.SHARED, Concreteness.MAYBE);
+
   @Override
   public int compareTo(Type o) {
     int cmp = kind.compareTo(o.kind);

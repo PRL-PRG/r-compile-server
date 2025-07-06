@@ -12,19 +12,22 @@ import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.binding.Local;
 import org.prlprg.fir.binding.Parameter;
 import org.prlprg.fir.module.Module;
+import org.prlprg.fir.type.Effects;
+import org.prlprg.fir.type.Type;
 import org.prlprg.fir.variable.Variable;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 
-// TODO: Argument types, return type and effects
 public class Abstraction {
   // Backlink
   private final Module module;
 
   // Data
   private final ImmutableList<Parameter> params;
+  private Type returnType = Type.ANY;
+  private Effects returnEffects = Effects.ANY;
   private final Map<Variable, Local> locals = new LinkedHashMap<>();
   private final CFG cfg;
 
@@ -45,6 +48,34 @@ public class Abstraction {
 
   public @Unmodifiable List<Parameter> params() {
     return params;
+  }
+
+  public Type returnType() {
+    return returnType;
+  }
+
+  public void setReturnType(Type returnType) {
+    module.record(
+        "Abstraction#setReturnType",
+        List.of(this, returnType),
+        () -> {
+          this.returnType = returnType;
+          return null;
+        });
+  }
+
+  public Effects returnEffects() {
+    return returnEffects;
+  }
+
+  public void setReturnEffects(Effects returnEffects) {
+    module.record(
+        "Abstraction#setReturnEffects",
+        List.of(this, returnEffects),
+        () -> {
+          this.returnEffects = returnEffects;
+          return null;
+        });
   }
 
   public @UnmodifiableView Collection<Local> locals() {
