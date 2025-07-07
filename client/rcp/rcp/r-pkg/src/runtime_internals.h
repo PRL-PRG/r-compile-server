@@ -27,10 +27,12 @@ extern Rboolean R_Visible; /* Value visibility flag */
 extern SEXP R_valueSym;
 extern R_bcstack_t *R_BCNodeStackTop, *R_BCNodeStackEnd, *R_BCProtTop;
 extern SEXP R_TrueValue;
+extern SEXP R_LogicalNAValue;
 extern SEXP R_FalseValue;
 
+#define ALWAYS_INLINE inline __attribute__((always_inline))
 #ifdef RSH_INLINE
-#define INLINE inline __attribute__((always_inline))
+#define INLINE ALWAYS_INLINE
 #else
 #define INLINE
 #endif
@@ -83,6 +85,14 @@ SEXP do_log_builtin(SEXP call, SEXP op, SEXP args, SEXP env);
 NORET void nodeStackOverflow(void);
 SEXP R_findVar(SEXP symbol, SEXP rho);
 SEXP getPrimitive(SEXP symbol, SEXPTYPE type);
+
+SEXP make_applyClosure_env(SEXP call, SEXP op, SEXP arglist, SEXP rho,
+                           SEXP suppliedvars);
+void Rf_begincontext(RCNTXT *cptr, int flags, SEXP syscall, SEXP env, SEXP sysp,
+                     SEXP promargs, SEXP callfun);
+void Rf_endcontext(RCNTXT *cptr);
+
+SEXP rcpEval(SEXP body, SEXP rho);
 
 // from arithmetic.h
 static INLINE double R_log(double x) {
@@ -319,9 +329,8 @@ static INLINE SEXP relop(SEXP call, SEXP op, SEXP opsym, SEXP x, SEXP y,
     }                                                                          \
   } while (0)
 
-#define RSH_LIST_APPEND(/* Value* */ head, /* Value* */ tail,                  \
-                        /* SEXP */ value)                                      \
-  RSH_LIST_APPEND_EX(head, tail, value, TRUE)
+#define RSH_PUSH_ARG(/* Value* */ head, /* Value* */ tail, /* SEXP */ value)   \
+  RSH_LIST_APPEND_EX(head, tail, value, FALSE)
 
 #define RSH_SET_TAG(/* Value */ v, /* SEXP */ t)                               \
   do {                                                                         \
@@ -330,6 +339,14 @@ static INLINE SEXP relop(SEXP call, SEXP op, SEXP opsym, SEXP x, SEXP y,
     if (__tag__ != R_NilValue) {                                               \
       if (__v__ != R_NilValue)                                                 \
         SET_TAG(__v__, Rf_CreateTag(__tag__));                                 \
+    }                                                                          \
+  } while (0)
+
+#define RSH_SET_TAG_SYMBOL(/* Value */ v, /* SEXP */ t)                        \
+  do {                                                                         \
+    SEXP __v__ = VAL_SXP((v));                                                 \
+    if (__v__ != R_NilValue) {                                                 \
+      SET_TAG(__v__, t);                                                       \
     }                                                                          \
   } while (0)
 

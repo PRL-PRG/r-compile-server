@@ -618,7 +618,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
                 SEXP res = copy_patch_bc(body, stats);
                 SET_VECTOR_ELT(fb, 1, res);
             }
-            else if (IS_RCP_PTR(body))
+            else if (TYPEOF(body) == EXTPTRSXP && RSH_IS_CLOSURE_BODY(body))
             {
                 DEBUG_PRINT("Using precompiled closure\n");
             }
@@ -733,9 +733,7 @@ static SEXP copy_patch_bc(SEXP bcode, CompilationStats *stats)
     rcp_exec_ptrs *res_ptr = malloc(sizeof(rcp_exec_ptrs));
     *res_ptr = res;
 
-    SEXP tag = PROTECT(install(RCP_PTRTAG));
-    SEXP ptr = R_MakeExternalPtr(res_ptr, tag, bcode_consts);
-    UNPROTECT(1); // tag
+    SEXP ptr = R_MakeExternalPtr(res_ptr, Rsh_ClosureBodyTag, bcode_consts);
     PROTECT(ptr);
     R_RegisterCFinalizerEx(ptr, &R_RcpFree, TRUE);
     UNPROTECT(1); // ptr
