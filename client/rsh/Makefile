@@ -68,7 +68,7 @@ FILTER ?=
 
 .PHONY: benchmark
 benchmark:
-	@for file in $$(find $(BENCH_DIR) -mindepth 2 -name "*$(FILTER)*.R"); do \
+	@for file in $$(find $(BENCH_DIR)/SpeedTest -mindepth 1 -name "*$(FILTER)*.R"); do \
 		test=$$(basename $$file); \
 		echo "$(TXT_BOLD)┌──── $$test ...$(TXT_NORM)"; \
 		cmd="$(BENCH_R) $(BENCH_DIR)/harness.R --args $${file%.*}"; \

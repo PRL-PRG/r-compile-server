@@ -1349,7 +1349,7 @@ static INLINE void Rsh_Dollar(Value *x_res, SEXP call, SEXP symbol, SEXP rho) {
 
   if (isObject(x_sxp)) {
     SEXP ncall = PROTECT(Rf_duplicate(call));
-    SETCAR(CDDR(ncall), Rf_ScalarString(symbol));
+    SETCAR(CDDR(ncall), Rf_ScalarString(PRINTNAME(symbol)));
     dispatched = tryDispatch("$", ncall, x_sxp, rho, &value_sxp);
     UNPROTECT(1);
   }
