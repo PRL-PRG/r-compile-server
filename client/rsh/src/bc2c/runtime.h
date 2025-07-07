@@ -998,17 +998,7 @@ static INLINE void Rsh_Call(Value *fun, Value args_head, UNUSED Value args_tail,
       Rf_begincontext(&ctx, CTXT_RETURN, call, newrho, rho, args_sxp, fun_sxp);
       R_Visible = TRUE;
 
-      // FIXME: the same code is in the eval.c
-      SEXP c_cp = R_ExternalPtrProtected(body);
-      if (TYPEOF(c_cp) != VECSXP) {
-        Rf_error("Expected a vector, got: %d", TYPEOF(c_cp));
-      }
-
-      // seems like unnecesary complicated casting, but otherwise C complains
-      // cf. https://stackoverflow.com/a/19487645
-      Rsh_closure fun;
-      *(void **)(&fun) = R_ExternalPtrAddr(body);
-      value = fun(newrho, c_cp);
+      value = rcpEval(body, newrho);
       UNPROTECT(1);
       Rf_endcontext(&ctx);
       break;
