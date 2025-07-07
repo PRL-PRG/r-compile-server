@@ -11,7 +11,7 @@ public sealed interface Variable permits NamedVariable, Register {
   private static Variable parse(Parser p) {
     var s = p.scanner();
 
-    var ident = Names.read(s, false);
+    var ident = s.nextCharIs('`') ? Names.read(s, false) : s.readJavaIdentifierOrKeyword();
     return ident.startsWith("r") ? new Register(ident) : new NamedVariable(ident);
   }
 }

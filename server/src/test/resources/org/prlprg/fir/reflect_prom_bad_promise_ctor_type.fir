@@ -5,7 +5,7 @@ fun main {
         r1 = prom<Is!->{ 42 };
         # error: actual is `+`
         r1 = prom<Is!->{
-            $r1.x = [3, 4, 5];
+            r1$x = [3, 4, 5];
             42
         };
         f.*(r1);

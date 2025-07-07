@@ -19,6 +19,10 @@ public sealed interface Either<L, R> permits Left, Right {
   L getLeft();
 
   R getRight();
+
+  <T> T destruct(
+      java.util.function.Function<? super L, ? extends T> ifLeft,
+      java.util.function.Function<? super R, ? extends T> ifRight);
 }
 
 record Left<L, R>(L left) implements Either<L, R> {
@@ -41,6 +45,13 @@ record Left<L, R>(L left) implements Either<L, R> {
   public R getRight() {
     throw new NoSuchElementException("This either contains left value");
   }
+
+  @Override
+  public <T> T destruct(
+      java.util.function.Function<? super L, ? extends T> ifLeft,
+      java.util.function.Function<? super R, ? extends T> ifRight) {
+    return ifLeft.apply(left);
+  }
 }
 
 record Right<L, R>(R right) implements Either<L, R> {
@@ -62,5 +73,12 @@ record Right<L, R>(R right) implements Either<L, R> {
   @Override
   public R getRight() {
     return right;
+  }
+
+  @Override
+  public <T> T destruct(
+      java.util.function.Function<? super L, ? extends T> ifLeft,
+      java.util.function.Function<? super R, ? extends T> ifRight) {
+    return ifRight.apply(right);
   }
 }

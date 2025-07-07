@@ -18,6 +18,7 @@ import org.prlprg.fir.instruction.Unreachable;
 import org.prlprg.fir.module.Module;
 import org.prlprg.fir.phi.PhiParameter;
 import org.prlprg.fir.variable.Register;
+import org.prlprg.parseprint.DeferredCallbacks;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
@@ -207,7 +208,8 @@ public final class BB {
     w.write('\n');
   }
 
-  record ParseContext(boolean isEntry, CFG owner, @Nullable Object inner) {}
+  public record ParseContext(
+      boolean isEntry, CFG owner, DeferredCallbacks<Module> oostModule, @Nullable Object inner) {}
 
   @ParseMethod
   private BB(Parser p1, ParseContext ctx) {
@@ -231,10 +233,11 @@ public final class BB {
       s.assertAndSkip(':');
     }
 
+    var p2 = p.withContext(new Expression.ParseContext(owner.scope(), ctx.oostModule, p.context()));
     Instruction instr;
     do {
       CommentParser.skipComments(s);
-      instr = p.parse(Instruction.class);
+      instr = p2.parse(Instruction.class);
       switch (instr) {
         case Expression expr -> statements.add(expr);
         case Jump jmp -> jump = jmp;

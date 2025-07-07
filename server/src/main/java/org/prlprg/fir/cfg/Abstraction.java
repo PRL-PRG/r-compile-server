@@ -15,6 +15,7 @@ import org.prlprg.fir.module.Module;
 import org.prlprg.fir.type.Effects;
 import org.prlprg.fir.type.Type;
 import org.prlprg.fir.variable.Variable;
+import org.prlprg.parseprint.DeferredCallbacks;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
@@ -138,7 +139,8 @@ public class Abstraction {
     w.write("}");
   }
 
-  public record ParseContext(Module module, @Nullable Object inner) {}
+  public record ParseContext(
+      Module module, DeferredCallbacks<Module> postModule, @Nullable Object inner) {}
 
   @ParseMethod
   private Abstraction(Parser p1, ParseContext ctx) {
@@ -170,7 +172,7 @@ public class Abstraction {
     }
     s.assertAndSkip('|');
 
-    var p2 = p.withContext(new CFG.ParseContext(this, p.context()));
+    var p2 = p.withContext(new CFG.ParseContext(this, ctx.postModule, p.context()));
     cfg = p2.parse(CFG.class);
 
     s.assertAndSkip('}');

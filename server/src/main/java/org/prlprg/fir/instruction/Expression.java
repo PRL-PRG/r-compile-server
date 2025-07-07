@@ -1,22 +1,38 @@
 package org.prlprg.fir.instruction;
 
+import java.util.Optional;
+import javax.annotation.Nullable;
+import org.prlprg.fir.callee.DispatchCallee;
+import org.prlprg.fir.callee.DynamicCallee;
+import org.prlprg.fir.callee.InlineCallee;
+import org.prlprg.fir.callee.StaticCallee;
+import org.prlprg.fir.cfg.Abstraction;
+import org.prlprg.fir.cfg.Abstraction.ParseContext;
+import org.prlprg.fir.cfg.CFG;
+import org.prlprg.fir.module.Module;
+import org.prlprg.fir.type.Effects;
+import org.prlprg.fir.type.Signature;
 import org.prlprg.fir.type.Type;
 import org.prlprg.fir.variable.NamedVariable;
 import org.prlprg.fir.variable.Register;
 import org.prlprg.fir.variable.Variable;
+import org.prlprg.parseprint.DeferredCallbacks;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.primitive.Names;
 import org.prlprg.sexp.SEXP;
+import org.prlprg.util.Either;
 
 public sealed interface Expression extends Instruction
-    permits Cast,
+    permits Call,
+        Cast,
         Dup,
         Force,
         Literal,
         MaybeForce,
         MkVector,
         Placeholder,
+        Promise,
         Read,
         ReflectiveRead,
         ReflectiveWrite,
@@ -26,25 +42,29 @@ public sealed interface Expression extends Instruction
         SuperWrite,
         Use,
         Write {
-  @ParseMethod
-  private static Expression parse(Parser p) {
-    var s = p.scanner();
+  record ParseContext(
+      Abstraction scope, DeferredCallbacks<Module> postModule, @Nullable Object inner) {}
 
-    var result = parseHead(p);
+  @ParseMethod
+  private static Expression parse(Parser p1, ParseContext ctx) {
+    var p = p1.withContext(ctx.inner);
+    var s = p1.scanner();
+
+    var result = parseHead(p1, ctx);
     while (true) {
       if (s.trySkip('$')) {
         var variable = p.parse(NamedVariable.class);
         if (s.trySkip('=')) {
-          var value = p.parse(Expression.class);
+          var value = p1.parse(Expression.class);
           result = new SuperWrite(variable, value);
         } else {
           result = new SuperRead(variable);
         }
       } else if (s.trySkip('[')) {
-        var subscript = p.parse(Expression.class);
+        var subscript = p1.parse(Expression.class);
         s.assertAndSkip(']');
         if (s.trySkip('=')) {
-          var value = p.parse(Expression.class);
+          var value = p1.parse(Expression.class);
           result = new SubscriptWrite(result, subscript, value);
         } else {
           result = new SubscriptRead(result, subscript);
@@ -60,34 +80,67 @@ public sealed interface Expression extends Instruction
     return result;
   }
 
-  private static Expression parseHead(Parser p) {
+  private static Expression parseHead(Parser p1, ParseContext ctx) {
+    var scope = ctx.scope;
+    var module = scope.module();
+    var postModule = ctx.postModule;
+    var p = p1.withContext(ctx.inner);
+
     var s = p.scanner();
 
     if (s.trySkip('_')) {
       return new Placeholder();
     }
 
+    if (s.nextCharIs('(')) {
+      var p2 = p.withContext(new Abstraction.ParseContext(module, postModule, ctx.inner));
+      var inlinee = p2.parse(Abstraction.class);
+      s.assertAndSkip("->");
+      var arguments = p1.parseList("(", ")", Expression.class);
+      return new Call(new InlineCallee(inlinee), arguments);
+    }
+
     if (s.nextCharIs('[')) {
-      var elements = p.parseList("[", "]", Expression.class);
+      var elements = p1.parseList("[", "]", Expression.class);
       return new MkVector(elements);
     }
 
     if (s.trySkip('^')) {
       var variable = p.parse(NamedVariable.class);
       if (s.trySkip('=')) {
-        var value = p.parse(Expression.class);
+        var value = p1.parse(Expression.class);
         return new SuperWrite(variable, value);
       }
       return new SuperRead(variable);
     }
 
+    if (s.trySkip("prom<")) {
+      var valueType = p.parse(Type.class);
+      var effects = p.parse(Effects.class);
+      s.assertAndSkip('>');
+
+      s.assertAndSkip('{');
+      var p2 = p.withContext(new CFG.ParseContext(scope, postModule, ctx.inner));
+      var code = p2.parse(CFG.class);
+      s.assertAndSkip('}');
+
+      return new Promise(valueType, effects, code);
+    }
+
+    if (s.trySkip("dyn<")) {
+      var variable = p.parse(NamedVariable.class);
+      s.assertAndSkip('>');
+      var arguments = p1.parseList("(", ")", Expression.class);
+      return new Call(new DynamicCallee(variable), arguments);
+    }
+
     if (s.trySkip("force ")) {
-      var value = p.parse(Expression.class);
+      var value = p1.parse(Expression.class);
       return new Force(value);
     }
 
     if (s.trySkip("force? ")) {
-      var value = p.parse(Expression.class);
+      var value = p1.parse(Expression.class);
       return new MaybeForce(value);
     }
 
@@ -97,7 +150,7 @@ public sealed interface Expression extends Instruction
     }
 
     if (s.trySkip("dup ")) {
-      var value = p.parse(Expression.class);
+      var value = p1.parse(Expression.class);
       return new Dup(value);
     }
 
@@ -108,8 +161,46 @@ public sealed interface Expression extends Instruction
 
     if (Names.isValidStartChar(s.peekChar())) {
       var variable = p.parse(Variable.class);
-      if (s.trySkip('=')) {
-        var value = p.parse(Expression.class);
+
+      if (s.trySkip('.')) {
+        // Static or dispatch call
+        var functionName = variable.name();
+        Either<Optional<Signature>, Integer> version;
+        if (s.trySkip('*')) {
+          if (s.trySkip('<')) {
+            var signature = p.parse(Signature.class);
+            s.assertAndSkip('>');
+            version = Either.left(Optional.of(signature));
+          } else {
+            version = Either.left(Optional.empty());
+          }
+        } else {
+          version = Either.right(s.readUInt());
+        }
+        var arguments = p1.parseList("(", ")", Expression.class);
+
+        @SuppressWarnings("DataFlowIssue")
+        var result = new Call(null, arguments);
+
+        postModule.add(
+            m -> {
+              assert m == module;
+
+              var function = m.function(functionName);
+              if (function == null) {
+                throw s.fail("Callee references a function that wasn't defined: " + functionName);
+              }
+              var callee =
+                  version.destruct(
+                      signature -> new DispatchCallee(function, signature.orElse(null)),
+                      index -> new StaticCallee(function, function.version(index)));
+
+              result.unsafeSetCallee(callee);
+            });
+
+        return result;
+      } else if (s.trySkip('=')) {
+        var value = p1.parse(Expression.class);
         return new Write(variable, value);
       } else {
         return new Read(variable);

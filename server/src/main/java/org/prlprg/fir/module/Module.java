@@ -8,8 +8,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
+import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.observer.Observer;
+import org.prlprg.parseprint.DeferredCallbacks;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
@@ -23,6 +25,10 @@ public class Module {
 
   public @UnmodifiableView Collection<Function> functions() {
     return Collections.unmodifiableCollection(functions.values());
+  }
+
+  public @Nullable Function function(String name) {
+    return functions.get(name);
   }
 
   public Function addFunction(String name) {
@@ -93,7 +99,9 @@ public class Module {
     var s = p.scanner();
     var module = new Module();
 
-    var p1 = p.withContext(new Function.ParseContext(module, p.context()));
+    var postModule = new DeferredCallbacks<Module>();
+
+    var p1 = p.withContext(new Function.ParseContext(module, postModule, p.context()));
     while (!s.isAtEof() && !s.nextCharIs('}')) {
       var function = p1.parse(Function.class);
       if (module.functions.put(function.name(), function) != null) {
@@ -101,6 +109,8 @@ public class Module {
             "Function with name '" + function.name() + "' already exists.");
       }
     }
+
+    postModule.run(module);
 
     return module;
   }
