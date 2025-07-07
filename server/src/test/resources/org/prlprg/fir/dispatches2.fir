@@ -1,7 +1,7 @@
 fun f {
     (r:p(Is!-)s!):Vs!+{ |
-        g.*($r.x);
-        return g.*($r.y);
+        g.*(r$x);
+        return g.*(r$y);
     }
 }
 

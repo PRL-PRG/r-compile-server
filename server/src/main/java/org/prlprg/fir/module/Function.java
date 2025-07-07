@@ -9,6 +9,7 @@ import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.CommentParser;
 import org.prlprg.fir.cfg.Abstraction;
+import org.prlprg.parseprint.DeferredCallbacks;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
@@ -54,6 +55,21 @@ public class Function {
 
   public @UnmodifiableView Collection<Abstraction> versions() {
     return Collections.unmodifiableCollection(versions);
+  }
+
+  /// @throws IllegalArgumentException if the version is not found
+  public int indexOfVersion(Abstraction version) {
+    if (!versions.contains(version)) {
+      throw new IllegalArgumentException("Version not found: " + version);
+    }
+    return versions.headSet(version).size();
+  }
+
+  public Abstraction version(int index) {
+    if (index < 0 || index >= versions.size()) {
+      throw new IndexOutOfBoundsException("Index out of bounds: " + index);
+    }
+    return versions.stream().skip(index).findFirst().orElseThrow();
   }
 
   public void addVersion(Abstraction version) {
@@ -107,7 +123,8 @@ public class Function {
     w.write("\n}");
   }
 
-  record ParseContext(Module owner, @Nullable Object inner) {}
+  public record ParseContext(
+      Module owner, DeferredCallbacks<Module> postModule, @Nullable Object inner) {}
 
   @ParseMethod
   private Function(Parser p1, ParseContext ctx) {
@@ -120,7 +137,7 @@ public class Function {
     name = Names.read(s, true);
     s.assertAndSkip('{');
 
-    var p2 = p.withContext(new Abstraction.ParseContext(owner, p.context()));
+    var p2 = p.withContext(new Abstraction.ParseContext(owner, ctx.postModule, p.context()));
     while (!s.trySkip('}')) {
       CommentParser.skipComments(s);
       versions.add(p2.parse(Abstraction.class));
