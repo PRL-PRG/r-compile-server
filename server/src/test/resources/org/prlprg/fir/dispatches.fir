@@ -1,16 +1,16 @@
 fun main {
     (rx:Is!):v(I)f!-{ |
-        f.*(prom<Is!->{ rx }, prom<Is!->{ 0 });
+        f.*(prom<Is!->{ return rx; }, prom<Is!->{ return 0; });
 
-        f.1(prom<Is!->{ rx }, prom<Is!->{ 4 });
-        f.2(rx, prom<Is!->{ 5 });
-        f.3(prom<Is!->{ rx }, 6);
+        f.1(prom<Is!->{ return rx; }, prom<Is!->{ return 4; });
+        f.2(rx, prom<Is!->{ return 5; });
+        f.3(prom<Is!->{ return rx; }, 6);
         return f.4(rx, 7);
     }
 }
 
 fun f {
-    (ra:*s?, rb:*s?):v(I)f!-{ r0:p(Is!-)s!, r1:p(Is!-)s!;
+    (ra:*s?, rb:*s?):v(I)f!-{ r0:p(Is!-)s!, r1:p(Is!-)s! |
         r0 = ra as p(Is!-)s!;
         r1 = rb as p(Is!-)s!;
         return [force r0, force r1];

@@ -10,6 +10,7 @@ import java.util.Set;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.module.Module;
+import org.prlprg.parseprint.DeferredCallbacks;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
@@ -109,7 +110,8 @@ public final class CFG {
     }
   }
 
-  record ParseContext(Abstraction scope, @Nullable Object inner) {}
+  public record ParseContext(
+      Abstraction scope, DeferredCallbacks<Module> postModule, @Nullable Object inner) {}
 
   @ParseMethod
   private CFG(Parser p1, ParseContext ctx) {
@@ -120,7 +122,7 @@ public final class CFG {
 
     BB entry = null;
     while (!s.isAtEof() && !s.nextCharIs('}')) {
-      var p2 = p.withContext(new BB.ParseContext(entry == null, this, p.context()));
+      var p2 = p.withContext(new BB.ParseContext(entry == null, this, ctx.postModule, p.context()));
       var bb = p2.parse(BB.class);
       if (entry == null) {
         assert bb.label().equals(BB.ENTRY_LABEL);
