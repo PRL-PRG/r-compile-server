@@ -34,6 +34,8 @@ public class FirParseAndPrintTest {
     var module = Parser.fromString(originalFirContent, Module.class);
     var printedFirContent = Printer.toString(module);
 
+    System.err.println(printedFirContent);
+
     var reparsedModule = Parser.fromString(printedFirContent, Module.class);
     var reprintedFirContent = Printer.toString(reparsedModule);
 

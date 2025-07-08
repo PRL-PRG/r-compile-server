@@ -5,11 +5,19 @@ import java.util.List;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.phi.Target;
 import org.prlprg.fir.variable.Variable;
+import org.prlprg.parseprint.PrintMethod;
+import org.prlprg.parseprint.Printer;
 
 public record Return(Expression value) implements Jump {
   @Override
   public String toString() {
-    return "return " + value;
+    return Printer.toString(this);
+  }
+
+  @PrintMethod
+  private void print(Printer p) {
+    p.writer().write("return ");
+    p.print(value);
   }
 
   @Override

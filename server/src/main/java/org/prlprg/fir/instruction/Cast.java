@@ -5,11 +5,20 @@ import java.util.List;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.type.Type;
 import org.prlprg.fir.variable.Variable;
+import org.prlprg.parseprint.PrintMethod;
+import org.prlprg.parseprint.Printer;
 
 public record Cast(Expression value, Type type) implements Expression {
   @Override
   public String toString() {
-    return value + " as " + type;
+    return Printer.toString(this);
+  }
+
+  @PrintMethod
+  private void print(Printer p) {
+    p.print(value);
+    p.writer().write(" as ");
+    p.print(type);
   }
 
   @Override

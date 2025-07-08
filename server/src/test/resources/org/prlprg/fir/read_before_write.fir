@@ -1,6 +1,6 @@
 fun main {
-    (){ r:Is!;
+    ():Is!-{ r:Is! |
         # error: read before write
-        r
-    }:Is!-
+        return r;
+    }
 }
