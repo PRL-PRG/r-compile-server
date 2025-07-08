@@ -1,18 +1,18 @@
 fun main {
-    (){ x:*s?;
+    ():v(I)s!+{ x:*s? |
         x = [0, 1, 2];
-        f.*(prom<Is!->{ 4 })
-    }:v(I)s!+
+        return f.*(prom<Is!->{ return 4; });
+    }
 }
 
 fun f {
-    (r:p(Is!-)s!){ |
-        g.*(prom<Is!->{ 2 })
-    }:v(I)s!+
+    (r:p(Is!-)s!):v(I)s!+{ |
+        return g.*(prom<Is!->{ return 2; });
+    }
 }
 
 fun g {
-    (r:p(Is!-)s!){ |
-        r$x = [3, 4, 5]
-    }:v(I)s!+
+    (r:p(Is!-)s!):v(I)s!+{ |
+        return r$x = [3, 4, 5];
+    }
 }

@@ -4,6 +4,8 @@ import java.util.Collection;
 import java.util.List;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.variable.Variable;
+import org.prlprg.parseprint.PrintMethod;
+import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.SEXP;
 
 /// Currently any {@link SEXP} can be a literal, but we may want to make this more specific
@@ -11,7 +13,12 @@ import org.prlprg.sexp.SEXP;
 public record Literal(SEXP sexp) implements Expression {
   @Override
   public String toString() {
-    return sexp.toString();
+    return Printer.toString(this);
+  }
+
+  @PrintMethod
+  private void print(Printer p) {
+    p.writer().write(sexp.toString());
   }
 
   @Override

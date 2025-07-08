@@ -1,6 +1,6 @@
 fun main {
-    (){ r:Is!;
+    ():Is!-{ r:Is! |
         r = 0;
-        r
-    }:Is!-
+        return r;
+    }
 }

@@ -1,23 +1,23 @@
 fun main {
-    (){ r0:Is!, r1:Is!, r2:Is!, r3:Vs!, r4:Vs!;
+    ():Vs!-{ r0:Is!, r1:Is!, r2:Is!, r3:Vs!, r4:Vs! |
         r0 = upcast.*(1);  # nil
-        r0 = upcast.*(prom<Is!->{ 1 });  # nil!
-        r2 = upcast.*(prom<Is!->{ 1 });  # not nil
+        r0 = upcast.*(prom<Is!->{ return 1; });  # nil!
+        r2 = upcast.*(prom<Is!->{ return 1; });  # not nil
         r3 = downcast.*(r2);
-        r4 = downcast.*(r0)
-    }:Vs!-
+        return r4 = downcast.*(r0);
+    }
 }
 
 fun upcast {
-    (r:*s?){ r0:p(Is!-)s!;
+    (r:*s?):Is!-{ r0:p(Is!-)s! |
         r0 = r as p(Is!-)s!;
-        force r0
-    }:Is!-
+        return force r0;
+    }
 }
 
 fun downcast {
-    (r:Is!){ r0:Vs!;
+    (r:Is!):Vs!-{ r0:Vs! |
         r0 = r as Vs!;
-        r0
-    }:Vs!-
+        return r0;
+    }
 }
