@@ -1,6 +1,6 @@
 fun main {
-    (){ |
-        # error: stupid cast (one must be a subtype): casting `v(I)f!` to `Is!`
-        [1, 2, 3] as Is!
-    }:Is!-
+    # error: stupid cast (one must be a subtype): casting `v(I)f!` to `Is!`
+    ():Is!-{ |
+        return [1, 2, 3] as Is!;
+    }
 }

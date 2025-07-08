@@ -1,22 +1,22 @@
 fun main {
-    (){ x:Is?, r:p(Is!-)s!;
+    ():Is!-{ x:Is?, r:p(Is!-)s! |
         x = 0;
         r = prom<Is!->{
             x = inc.1(x as Is!);
-            x as Is!
+            return x as Is!;
         };
-        force_twice.*(r)
-    }:Is!-
+        return force_twice.*(r);
+    }
 }
 
 fun force_twice {
-    (r:p(Is!-)s!){ |
+    (r:p(Is!-)s!):Is!-{ |
         force r;
-        force r
-    }:Is!-
+        return force r;
+    }
 }
 
 fun inc {
-    (r:*s?){ | ... }:Is!-
-    (r:Vs!){ | ... }:Is!-
+    (r:*s?):Is!-{ | ...; }
+    (r:Vs!):Is!-{ | ...; }
 }

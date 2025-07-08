@@ -189,6 +189,8 @@ public final class BB {
       p.print(label);
       p.printAsList("(", ")", parameters.values());
       w.write(":");
+    } else {
+      w.write("  ");
     }
 
     w.runIndented(
