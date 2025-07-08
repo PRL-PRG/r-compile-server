@@ -15,11 +15,11 @@ import org.prlprg.fir.module.Module;
 import org.prlprg.fir.type.Effects;
 import org.prlprg.fir.type.Type;
 import org.prlprg.fir.variable.Variable;
-import org.prlprg.parseprint.DeferredCallbacks;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
+import org.prlprg.util.DeferredCallbacks;
 
 public class Abstraction {
   // Backlink

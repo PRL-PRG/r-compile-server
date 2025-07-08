@@ -10,11 +10,11 @@ import java.util.Set;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.module.Module;
-import org.prlprg.parseprint.DeferredCallbacks;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
+import org.prlprg.util.DeferredCallbacks;
 
 /// FIŘ [control-flow-graph](https://en.wikipedia.org/wiki/Control-flow_graph).
 public final class CFG {
