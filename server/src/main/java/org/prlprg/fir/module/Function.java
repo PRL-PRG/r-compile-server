@@ -9,12 +9,12 @@ import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.CommentParser;
 import org.prlprg.fir.cfg.Abstraction;
-import org.prlprg.parseprint.DeferredCallbacks;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.primitive.Names;
+import org.prlprg.util.DeferredCallbacks;
 
 public class Function {
   // Backlink

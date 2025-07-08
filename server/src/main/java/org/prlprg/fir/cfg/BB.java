@@ -18,11 +18,11 @@ import org.prlprg.fir.instruction.Unreachable;
 import org.prlprg.fir.module.Module;
 import org.prlprg.fir.phi.PhiParameter;
 import org.prlprg.fir.variable.Register;
-import org.prlprg.parseprint.DeferredCallbacks;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
+import org.prlprg.util.DeferredCallbacks;
 import org.prlprg.util.SmallBinarySet;
 
 public final class BB {
@@ -129,17 +129,48 @@ public final class BB {
             });
   }
 
-  public void removeStatement(Expression statement) {
+  public void insertStatements(int index, List<Expression> statements) {
     module()
         .record(
-            "BB#removeStatement",
-            List.of(this, statement),
+            "BB#insertStatements",
+            List.of(this, index, statements),
             () -> {
-              if (!statements.remove(statement)) {
-                throw new IllegalArgumentException(
-                    "Statement " + statement + " does not exist in BB '" + label + "'.");
+              if (index < 0 || index > this.statements.size()) {
+                throw new IndexOutOfBoundsException(
+                    "Index " + index + " is out of bounds for BB '" + label + "'.");
               }
+              this.statements.addAll(index, statements);
               return null;
+            });
+  }
+
+  public Expression removeStatementAt(int index) {
+    return module()
+        .record(
+            "BB#removeStatementAt",
+            List.of(this, index),
+            () -> {
+              if (index < 0 || index >= statements.size()) {
+                throw new IndexOutOfBoundsException(
+                    "Index " + index + " is out of bounds for BB '" + label + "'.");
+              }
+              return statements.remove(index);
+            });
+  }
+
+  public Expression replaceStatementAt(int index, Expression statement) {
+    return module()
+        .record(
+            "BB#replaceStatementAt",
+            List.of(this, index, statement),
+            () -> {
+              if (index < 0 || index >= statements.size()) {
+                throw new IndexOutOfBoundsException(
+                    "Index " + index + " is out of bounds for BB '" + label + "'.");
+              }
+              var old = statements.get(index);
+              statements.set(index, statement);
+              return old;
             });
   }
 

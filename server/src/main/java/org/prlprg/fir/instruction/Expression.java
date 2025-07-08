@@ -7,7 +7,6 @@ import org.prlprg.fir.callee.DynamicCallee;
 import org.prlprg.fir.callee.InlineCallee;
 import org.prlprg.fir.callee.StaticCallee;
 import org.prlprg.fir.cfg.Abstraction;
-import org.prlprg.fir.cfg.Abstraction.ParseContext;
 import org.prlprg.fir.cfg.CFG;
 import org.prlprg.fir.module.Module;
 import org.prlprg.fir.type.Effects;
@@ -16,11 +15,11 @@ import org.prlprg.fir.type.Type;
 import org.prlprg.fir.variable.NamedVariable;
 import org.prlprg.fir.variable.Register;
 import org.prlprg.fir.variable.Variable;
-import org.prlprg.parseprint.DeferredCallbacks;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.primitive.Names;
 import org.prlprg.sexp.SEXP;
+import org.prlprg.util.DeferredCallbacks;
 import org.prlprg.util.Either;
 
 public sealed interface Expression extends Instruction
