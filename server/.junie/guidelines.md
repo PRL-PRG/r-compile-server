@@ -8,11 +8,12 @@
 2. **Immutability**: Prefer immutable data structures when possible. In general, small OR simple data-structures should be immutable, large AND complex data-structures should be mutable.
 3. **Types**: Don't specify types when unnecessary. Use `var` whenever possible.
 4. **Comments**: Use comments to explain why something is done, not what is done. Avoid redundant comments that restate the code. Avoid trivial comments.
-5. **Code Formatting**: Follow Google's Java style guide.
+5. **Fields**: Don't prefix fields with `this.` in functions unless necessary due to name shadowing.
+6**Code Formatting**: Follow Google's Java style guide.
 
 ### Documentation
 
-1. **Javadoc**: All public classes, methods, and fields should have Javadoc comments unless they're trivial. Like with comments, Javadoc shouldn't state the obvious.
+1. **Javadoc**: All public classes, methods, and fields should have Javadoc comments unless they're trivial. Like with comments, Javadoc shouldn't state the obvious. Use Java 23+ Markdown Javadoc.
 2. **Package Documentation**: Each package should have a package-info.java file with a brief description.
 
 ### Code Organization

@@ -1,4 +1,4 @@
-package org.prlprg.parseprint;
+package org.prlprg.util;
 
 import java.util.ArrayList;
 import java.util.List;
