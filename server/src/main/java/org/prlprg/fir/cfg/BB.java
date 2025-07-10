@@ -59,7 +59,7 @@ public final class BB {
     return label;
   }
 
-  public @UnmodifiableView Collection<PhiParameter> params() {
+  public @UnmodifiableView Collection<PhiParameter> phiParameters() {
     return Collections.unmodifiableCollection(parameters.values());
   }
 

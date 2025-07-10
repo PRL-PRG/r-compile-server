@@ -1,26 +1,37 @@
 package org.prlprg.bc2fir;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
+import java.util.function.Supplier;
 import javax.annotation.Nullable;
 import org.prlprg.bc.Bc;
 import org.prlprg.bc.BcInstr;
 import org.prlprg.bc.BcLabel;
+import org.prlprg.bc.ConstPool;
+import org.prlprg.bc.LabelName;
 import org.prlprg.fir.cfg.BB;
 import org.prlprg.fir.cfg.CFG;
 import org.prlprg.fir.cfg.cursor.CFGCursor;
 import org.prlprg.fir.instruction.Expression;
 import org.prlprg.fir.instruction.Goto;
+import org.prlprg.fir.instruction.If;
 import org.prlprg.fir.instruction.Literal;
+import org.prlprg.fir.instruction.Read;
+import org.prlprg.fir.instruction.Return;
 import org.prlprg.fir.instruction.Unreachable;
+import org.prlprg.fir.instruction.Write;
+import org.prlprg.fir.phi.PhiParameter;
 import org.prlprg.primitive.BuiltinId;
 import org.prlprg.sexp.LangSXP;
 import org.prlprg.sexp.RegSymSXP;
+import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
+import org.prlprg.util.Reflection;
+import org.prlprg.util.Strings;
 
 /// Stores state to compile a promise or closure's code from GNU-R bytecode into FIŘ.
 ///
@@ -36,9 +47,7 @@ public class CFGCompiler {
 
   // region compiler data types
   // - ADTs to organize the compiler data.
-  /**
-   * Stores information about a loop being compiled which is shared between multiple instructions.
-   */
+  /// Stores information about a loop being compiled which is shared between multiple instructions.
   private record Loop(LoopType type, @Nullable BB forBody, BB next, BB end) {}
 
   /** Whether a loop is a GNU-R "while" or "for" loop. */
@@ -47,17 +56,12 @@ public class CFGCompiler {
     FOR
   }
 
-  /**
-   * A pending complex assignment (between {@link StartAssign} and {@link EndAssign}, or {@link
-   * StartAssign2} and {@link EndAssign2}).
-   */
+  /// A pending complex assignment.
   private record ComplexAssign(boolean isSuper, RegSymSXP name, Expression originalRhs) {}
 
-  /**
-   * A call currently being built.
-   *
-   * <p>The function is set on construction, but the argument stack is built after.
-   */
+  /// A call currently being built.
+  ///
+  /// The function is set on construction, but the argument stack is built after.
   private static class Call {
     private final Fun fun;
     private final List<Arg> args = new ArrayList<>();
@@ -72,10 +76,8 @@ public class CFGCompiler {
       record Builtin(BuiltinId id) implements Fun {}
     }
 
-    /**
-     * Stores information about a call argument: a {@link Expression} node and optional
-     * name.
-     */
+    /// Stores information about a call argument: a [Expression] node and optional
+    /// name.
     private record Arg(Expression value, @Nullable String name) {
       static Arg missing() {
         // TODO(jakob): Either make it parse, or use a different expression to represent missing.
@@ -93,13 +95,11 @@ public class CFGCompiler {
     }
   }
 
-  /**
-   * Stores information about a dispatch function being compiled which is shared between multiple
-   * instructions.
-   */
+  /// Stores information about a dispatch function being compiled which is shared between multiple
+  /// instructions.
   private record Dispatch(Type type, LangSXP ast, BB after) {
 
-    /** The dispatch function (e.g. "[", "[<-", "c"). */
+    /// The dispatch function (e.g. "[", "[<-", "c").
     private enum Type {
       C(BuiltinId.C, false, false),
       SUBSET(BuiltinId.SUBSET, false, false),
@@ -129,7 +129,7 @@ public class CFGCompiler {
   // - Some of it is constant through the compilation, some changes as instructions are compiled.
   private final CFG cfg;
   private final Bc bc;
-  private final Map<Integer, BB> bbByLabel;
+  private final Map<Integer, BB> bbByLabel = new HashMap<>();
   private final Set<BB> bbsWithPhis = new HashSet<>();
   private int bcPos = 0;
   private boolean isInUnreachableBytecode = false;
@@ -153,22 +153,15 @@ public class CFGCompiler {
     this.cfg = cfg;
     this.bc = bc;
 
-    bbByLabel = createBasicBlocksAtLabels();
-
     cursor = new CFGCursor(cfg);
 
     doCompile();
   }
 
-  private Map<Integer, BB> createBasicBlocksAtLabels() {
-    return bc.code().stream().flatMap(instr -> instr.label().stream())
-        .collect(Collectors.toMap(
-            BcLabel::target, l -> cfg.addBB("L" + l), (a, b) -> a)
-        );
-  }
-
-  //  /** Actually compile {@code bc} into {@code cfg}. */
+  /// Actually compile `bc` into `cfg`.
   private void doCompile() {
+    addBcLabelBBs();
+
     try {
       var code = bc.code();
 
@@ -181,7 +174,8 @@ public class CFGCompiler {
           if (cursor.bb().jump() instanceof Unreachable) {
             // We need to insert a jump because in the bytecode it just falls through, but there's
             // no such thing as fallthrough in IR.
-            cursor.replace(new Goto(nextBb));
+            cursor.replace(new Goto(target(nextBb)));
+            ensurePhiParameters();
           }
           if (nextBb.predecessors().isEmpty() && !bbsWithPhis.contains(nextBb)) {
             // This happens after a compiled `repeat`, so the following bytecode is unreachable and
@@ -211,21 +205,25 @@ public class CFGCompiler {
   // endregion main compile functions: compile everything
 
   // region map BBs to labels (+ get)
-  /**
-   * Add and map a basic block to every label referenced by an instruction.
-   *
-   * <p>A jump to a label in bytecode compiles to a jump to the mapped basic block in IR. Some
-   * bytecode instructions compile into more jumps and basic blocks, but those basic blocks only
-   * contain, and jumps only go to, IR compiled from that instruction and from future instructions.
-   * The only scenario we need to insert a jump into IR from previously-compiled instructions, is
-   * when we insert a jump to a label; we exploit this and insert basic blocks for all of the labels
-   * before compiling the instructions, so that we know ahead-of-time which block every
-   * instruction's compiled IR belongs to.
-   *
-   * <p>This properly handles the case where multiple instructions have the same label, by not
-   * inserting a new block when it encounters again a label that it already inserted a block for
-   * (although maybe this can't happen in bytecode so we don't need to handle it...).
-   */
+  private void addBcLabelBBs() {
+    for (var instr : bc.code()) {
+      addBcLabelBBs(instr);
+    }
+  }
+
+  /// Add and map a basic block to every label referenced by an instruction.
+  ///
+  /// A jump to a label in bytecode compiles to a jump to the mapped basic block in IR. Some
+  /// bytecode instructions compile into more jumps and basic blocks, but those basic blocks only
+  /// contain, and jumps only go to, IR compiled from that instruction and from future instructions.
+  /// The only scenario we need to insert a jump into IR from previously-compiled instructions, is
+  /// when we insert a jump to a label; we exploit this and insert basic blocks for all the labels
+  /// before compiling the instructions, so that we know ahead-of-time which block every
+  /// instruction's compiled IR belongs to.
+  ///
+  /// This properly handles the case where multiple instructions have the same label, by not
+  /// inserting a new block when it encounters again a label that it already inserted a block for
+  /// (although maybe this can't happen in bytecode so we don't need to handle it...).
   private void addBcLabelBBs(BcInstr instr) {
     if (!(instr instanceof Record r)) {
       throw new AssertionError("bytecode instructions should all be java records");
@@ -238,13 +236,13 @@ public class CFGCompiler {
       if (chrLabels != null) {
         for (var i = 0; i < chrLabels.size(); i++) {
           var labelPos = chrLabels.get(i);
-          ensureBbAt(new BcLabel(labelPos), "switchChr" + i);
+          ensureBbAt(new BcLabel(labelPos), "SWITCH_CHR" + i);
         }
       }
       if (numLabels != null) {
         for (var i = 0; i < numLabels.size(); i++) {
           var labelPos = numLabels.get(i);
-          ensureBbAt(new BcLabel(labelPos), "switchNum" + i);
+          ensureBbAt(new BcLabel(labelPos), "SWITCH_NUM" + i);
         }
       }
       return;
@@ -265,46 +263,38 @@ public class CFGCompiler {
     }
   }
 
-  /**
-   * Adds a basic block and maps it to the given label, if a basic block for the given label doesn't
-   * already exist (otherwise no-op).
-   */
+  /// Adds a basic block and maps it to the given label, if a basic block for the given label doesn't
+  /// already exist (otherwise no-op).
   private void ensureBbAt(BcLabel label, String name) {
     int pos = label.target();
     if (!bbByLabel.containsKey(pos)) {
-      bbByLabel.put(pos, cfg.addBB(name));
+      bbByLabel.put(pos, cfg.addBB());
     }
   }
 
-  /**
-   * Returns the basic block corresponding to the given label
-   *
-   * <p>Specifically, this returns the block inserted by {@link #ensureBbAt(BcLabel, String)}, which
-   * should've been compiled before we started "actually" compiling the bytecode instructions, and
-   * this is called while actually compiling the instructions.
-   */
+  /// Returns the basic block corresponding to the given label
+  ///
+  /// Specifically, this returns the block inserted by [#ensureBbAt(BcLabel,String)], which
+  /// should've been compiled before we started "actually" compiling the bytecode instructions, and
+  /// this is called while actually compiling the instructions.
   private BB bbAt(BcLabel label) {
     int pos = label.target();
     assert bbByLabel.containsKey(pos) : "no BB at position " + pos;
     return bbByLabel.get(pos);
   }
 
-  /**
-   * Whether there is a label pointing immediately after the current bytecode instruction.
-   *
-   * <p>Specifically, returns whether there is a BB in {@code bbByLabel} mapped to the position
-   * immediately after.
-   */
+  /// Whether there is a label pointing immediately after the current bytecode instruction.
+  ///
+  /// Specifically, returns whether there is a BB in `bbByLabel` mapped to the position
+  /// immediately after.
   private boolean hasBbAfterCurrent() {
     return bbByLabel.containsKey(bcPos + 1);
   }
 
-  /**
-   * Gets the basic block immediately after the current bytecode instruction.
-   *
-   * <p>Specifically, returns the BB in {@code bbByLabel} mapped to the position immediately after,
-   * creating it if this mapping doesn't exist.
-   */
+  /// Gets the basic block immediately after the current bytecode instruction.
+  ///
+  /// Specifically, returns the BB in `bbByLabel` mapped to the position immediately after,
+  /// creating it if this mapping doesn't exist.
   private BB bbAfterCurrent() {
     return bbByLabel.computeIfAbsent(bcPos + 1, _ -> cfg.addBB());
   }
@@ -315,32 +305,30 @@ public class CFGCompiler {
   private void addBcInstrIrInstrs(BcInstr instr) {
     switch (instr) {
       case BcInstr.Return() -> {
-        var retVal = pop(Expression.class);
-        assertStacksForReturn();
-        cursor.addJump(new JumpData.Return(retVal));
+        var retVal = pop();
+        assertStackForReturn();
+        setJump(new Return(retVal));
         setInUnreachableBytecode();
       }
       case BcInstr.Goto(var label) -> {
         var bb = bbAt(label);
-        cursor.addJump(new JumpData.Goto(bb));
+        setJump(new Goto(target(bb)));
         addPhiInputsForStack(bb);
         setInUnreachableBytecode();
       }
       case BcInstr.BrIfNot(var ast, var label) -> {
         var bb = bbAt(label);
-        cursor.addJump(new JumpData.Branch(get(ast), pop(Expression.class), bbAfterCurrent(), bb));
+        setJump(new If(pop(), target(bbAfterCurrent()), target(bb)));
         addPhiInputsForStack(bb);
       }
-      case BcInstr.Pop() -> pop(Node.class);
+      case BcInstr.Pop() -> pop();
       case BcInstr.Dup() -> {
-        var value = pop(Node.class);
+        var value = pop();
         push(value);
         push(value);
       }
       case BcInstr.PrintValue() ->
-          pushInsert(
-              new StmtData.CallBuiltin(
-                  null, BuiltinId.PRINT_VALUE, ImmutableList.of(pop(Node<? extends SEXP>.class)), env));
+          push(builtinCall(BuiltinId.PRINT_VALUE, List.of(pop())));
       case BcInstr.StartLoopCntxt(var isForLoop, var end) -> {
         // REACH: Complicated loop contexts.
         // Currently we only handle simple cases like PIR, where `next` and `break` aren't in
@@ -406,14 +394,14 @@ public class CFGCompiler {
         }
 
         // For loop init
-        var seq = cursor.insert(new StmtData.ToForSeq(pop(Expression.class)));
+        var seq = cursor.insert(new StmtData.ToForSeq(pop()));
         var length = cursor.insert(new StmtData.Length(seq));
         var init = Constant.intSxp(0);
-        cursor.addJump(new JumpData.Goto(stepBb));
+        setJump(new Goto(target(stepBb)));
 
         // For loop step
         moveTo(stepBb);
-        var index = stepBb.addPhi(Expression.class);
+        var index = stepBb.addPhi();
         index.rename("index");
         index.setInput(initBb, init);
         // Increment the index
@@ -423,7 +411,7 @@ public class CFGCompiler {
         // Compare the index to the length
         var cond = cursor.insert(new StmtData.Lt(get(ast), length, index1));
         // Jump to `end` if it's greater (remember, GNU-R indexing is one-based)
-        cursor.addJump(new JumpData.Branch(get(ast), cond, endBb, forBodyBb));
+        setJump(new JumpData.Branch(get(ast), cond, endBb, forBodyBb));
 
         // For loop body
         moveTo(forBodyBb);
@@ -446,11 +434,11 @@ public class CFGCompiler {
       case BcInstr.DoLoopNext() -> {
         // The bytecode compilers don't actually generate these instructions, are they deprecated?
         // Regardless, we can still support them.
-        if (isPromise && !inLocalLoop()) {
+        if (isPromise() && !inLocalLoop()) {
           throw failUnsupported("`next` or `break` in promise (complex loop context)");
         }
         var stepBb = topLoop().next;
-        cursor.addJump(new JumpData.Goto(stepBb));
+        setJump(new Goto(target(stepBb)));
         addPhiInputsForStack(stepBb);
 
         setInUnreachableBytecode();
@@ -458,11 +446,11 @@ public class CFGCompiler {
       case BcInstr.DoLoopBreak() -> {
         // The bytecode compilers don't actually generate these instructions, are they deprecated?
         // Regardless, we can still support them.
-        if (isPromise && !inLocalLoop()) {
+        if (isPromise() && !inLocalLoop()) {
           throw failUnsupported("`next` or `break` in promise (complex loop context)");
         }
         var endBb = topLoop().end;
-        cursor.addJump(new JumpData.Goto(endBb));
+        setJump(new Goto(target(endBb)));
         addPhiInputsForStack(endBb);
 
         setInUnreachableBytecode();
@@ -498,25 +486,25 @@ public class CFGCompiler {
       case BcInstr.SetLoopVal() -> {
         // This one is weird. It doesn't get inserted by the Java compiler anywhere.
         // However it has a simple (unhelpful) implementation, so even if unused, we'll support it.
-        pop(Expression.class);
-        pop(Expression.class);
+        pop();
+        pop();
         push(new Constant(SEXPs.NULL));
       }
-      case BcInstr.Invisible() -> insert(new StmtData.Invisible());
+      case BcInstr.Invisible() -> insertVoid(new StmtData.Invisible());
       case BcInstr.LdConst(var constant) -> push(new Constant(get(constant)));
       case BcInstr.LdNull() -> push(new Constant(SEXPs.NULL));
       case BcInstr.LdTrue() -> push(new Constant(SEXPs.TRUE));
       case BcInstr.LdFalse() -> push(new Constant(SEXPs.FALSE));
       case BcInstr.GetVar(var name) -> {
-        pushInsert(name, new StmtData.LdVar(get(name), false, env));
-        pushInsert(new StmtData.Force(pop(Expression.class), compileFrameState(), env));
+        push(name, new StmtData.LdVar(get(name), false, env));
+        push(new StmtData.Force(pop(), compileFrameState(), env));
       }
       case BcInstr.DdVal(var name) -> {
         var ddIndex = get(name).ddNum();
-        pushInsert(name, new StmtData.LdDdVal(ddIndex, false, env));
-        pushInsert(new StmtData.Force(pop(Expression.class), compileFrameState(), env));
+        push(name, new StmtData.LdDdVal(ddIndex, false, env));
+        push(new StmtData.Force(pop(), compileFrameState(), env));
       }
-      case BcInstr.SetVar(var name) -> insert(new StmtData.StVar(get(name), top(Node<? extends SEXP>.class), env));
+      case BcInstr.SetVar(var name) -> insertVoid(new StmtData.StVar(get(name), top(), env));
       case BcInstr.GetFun(var name) -> pushCallFunInsert(name, new StmtData.LdFun(get(name), env));
       case BcInstr.GetGlobFun(var name) ->
           pushCallFunInsert(name, new StmtData.LdFun(get(name), StaticEnv.GLOBAL));
@@ -525,7 +513,7 @@ public class CFGCompiler {
       case BcInstr.GetSymFun(var name) -> pushCall(BuiltinId.referencedBy(get(name)));
       case BcInstr.GetBuiltin(var name) -> pushCall(BuiltinId.referencedBy(get(name)));
       case BcInstr.GetIntlBuiltin(var name) -> pushCall(BuiltinId.referencedBy(get(name)));
-      case BcInstr.CheckFun() -> pushCallFunInsert(new StmtData.ChkFun(pop(Node<? extends SEXP>.class)));
+      case BcInstr.CheckFun() -> pushCallFunInsert(new StmtData.ChkFun(pop()));
       case BcInstr.MakeProm(var code) -> {
         // REACH: Could cache compiled promise CFGs (env will always be different) in the module...
         // TODO: infer name
@@ -547,7 +535,7 @@ public class CFGCompiler {
         }
       }
       case BcInstr.DoDots() -> pushCallArgInsert("...", new StmtData.LdDots(env));
-      case BcInstr.PushArg() -> pushCallArg(pop(Expression.class));
+      case BcInstr.PushArg() -> pushCallArg(pop());
       case BcInstr.PushConstArg(var constant) -> pushCallArg(new Constant(get(constant)));
       case BcInstr.PushNullArg() -> pushCallArg(new Constant(SEXPs.NULL));
       case BcInstr.PushTrueArg() -> pushCallArg(new Constant(SEXPs.TRUE));
@@ -567,7 +555,7 @@ public class CFGCompiler {
             ast.args().stream()
                 .map(arg -> (Expression) new Constant(arg.value()))
                 .collect(ImmutableList.toImmutableList());
-        pushInsert(new StmtData.CallBuiltin(ast, builtin, args, env));
+        push(new StmtData.CallBuiltin(ast, builtin, args, env));
       }
       case BcInstr.MakeClosure(var arg) -> {
         var fb = get(arg);
@@ -591,35 +579,35 @@ public class CFGCompiler {
           throw failUnsupported("Closure with unsupported body", e);
         }
 
-        pushInsert(new StmtData.MkCls(closure));
+        push(new StmtData.MkCls(closure));
       }
-      case BcInstr.UMinus(var ast) -> pushInsert(mkUnop(ast, StmtData.UMinus::new));
-      case BcInstr.UPlus(var ast) -> pushInsert(mkUnop(ast, StmtData.UPlus::new));
-      case BcInstr.Sqrt(var ast) -> pushInsert(mkUnop(ast, StmtData.Sqrt::new));
-      case BcInstr.Add(var ast) -> pushInsert(mkBinop(ast, StmtData.Add::new));
-      case BcInstr.Sub(var ast) -> pushInsert(mkBinop(ast, StmtData.Sub::new));
-      case BcInstr.Mul(var ast) -> pushInsert(mkBinop(ast, StmtData.Mul::new));
-      case BcInstr.Div(var ast) -> pushInsert(mkBinop(ast, StmtData.Div::new));
-      case BcInstr.Expt(var ast) -> pushInsert(mkBinop(ast, StmtData.Pow::new));
-      case BcInstr.Exp(var ast) -> pushInsert(mkUnop(ast, StmtData.Exp::new));
-      case BcInstr.Eq(var ast) -> pushInsert(mkBinop(ast, StmtData.Eq::new));
-      case BcInstr.Ne(var ast) -> pushInsert(mkBinop(ast, StmtData.Neq::new));
-      case BcInstr.Lt(var ast) -> pushInsert(mkBinop(ast, StmtData.Lt::new));
-      case BcInstr.Le(var ast) -> pushInsert(mkBinop(ast, StmtData.Lte::new));
-      case BcInstr.Ge(var ast) -> pushInsert(mkBinop(ast, StmtData.Gte::new));
-      case BcInstr.Gt(var ast) -> pushInsert(mkBinop(ast, StmtData.Gt::new));
-      case BcInstr.And(var ast) -> pushInsert(mkBinop(ast, StmtData.LAnd::new));
-      case BcInstr.Or(var ast) -> pushInsert(mkBinop(ast, StmtData.LOr::new));
-      case BcInstr.Not(var ast) -> pushInsert(mkUnop(ast, StmtData.Not::new));
-      case BcInstr.DotsErr() -> insert(new StmtData.Error("'...' used in an incorrect context"));
+      case BcInstr.UMinus(var ast) -> push(mkUnop(ast, StmtData.UMinus::new));
+      case BcInstr.UPlus(var ast) -> push(mkUnop(ast, StmtData.UPlus::new));
+      case BcInstr.Sqrt(var ast) -> push(mkUnop(ast, StmtData.Sqrt::new));
+      case BcInstr.Add(var ast) -> push(mkBinop(ast, StmtData.Add::new));
+      case BcInstr.Sub(var ast) -> push(mkBinop(ast, StmtData.Sub::new));
+      case BcInstr.Mul(var ast) -> push(mkBinop(ast, StmtData.Mul::new));
+      case BcInstr.Div(var ast) -> push(mkBinop(ast, StmtData.Div::new));
+      case BcInstr.Expt(var ast) -> push(mkBinop(ast, StmtData.Pow::new));
+      case BcInstr.Exp(var ast) -> push(mkUnop(ast, StmtData.Exp::new));
+      case BcInstr.Eq(var ast) -> push(mkBinop(ast, StmtData.Eq::new));
+      case BcInstr.Ne(var ast) -> push(mkBinop(ast, StmtData.Neq::new));
+      case BcInstr.Lt(var ast) -> push(mkBinop(ast, StmtData.Lt::new));
+      case BcInstr.Le(var ast) -> push(mkBinop(ast, StmtData.Lte::new));
+      case BcInstr.Ge(var ast) -> push(mkBinop(ast, StmtData.Gte::new));
+      case BcInstr.Gt(var ast) -> push(mkBinop(ast, StmtData.Gt::new));
+      case BcInstr.And(var ast) -> push(mkBinop(ast, StmtData.LAnd::new));
+      case BcInstr.Or(var ast) -> push(mkBinop(ast, StmtData.LOr::new));
+      case BcInstr.Not(var ast) -> push(mkUnop(ast, StmtData.Not::new));
+      case BcInstr.DotsErr() -> insertVoid(new StmtData.Error("'...' used in an incorrect context"));
       case BcInstr.StartAssign(var name) -> {
         var lhs = cursor.insert(get(name).name(), new StmtData.LdVar(get(name), false, env));
-        var rhs = top(Expression.class);
+        var rhs = top();
         pushComplexAssign(false, get(name), lhs, rhs);
       }
       case BcInstr.EndAssign(var name) -> {
         var lhs = popComplexAssign(false, get(name));
-        insert(new StmtData.StVar(get(name), lhs, env));
+        insertVoid(new StmtData.StVar(get(name), lhs, env));
       }
       case BcInstr.StartSubset(var ast, var after) ->
           compileStartDispatch(Dispatch.Type.SUBSET, ast, after);
@@ -709,7 +697,7 @@ public class CFGCompiler {
       case BcInstr.Dollar(var ast, var member) -> {
         var after = cfg.addBB("afterDollar");
 
-        var target = top(Expression.class);
+        var target = top();
         compileGeneralDispatchCommon(BuiltinId.DOLLAR, false, get(ast), target, null, after);
 
         var call = popCall();
@@ -717,22 +705,22 @@ public class CFGCompiler {
           throw fail("Dollar: expected a call to $");
         }
 
-        pop(Expression.class);
-        pushInsert(
+        pop();
+        push(
             new StmtData.CallBuiltin(
                 get(ast),
                 BuiltinId.DOLLAR,
                 ImmutableList.of(target, new Constant(get(member))),
                 env));
-        cursor.addJump(new JumpData.Goto(after));
+        setJump(new Goto(target(after)));
 
         moveTo(after);
       }
       case BcInstr.DollarGets(var ast, var member) -> {
         var after = cfg.addBB("afterDollarGets");
 
-        var rhs = pop(Expression.class);
-        var target = top(Expression.class);
+        var rhs = pop();
+        var target = top();
         compileGeneralDispatchCommon(BuiltinId.DOLLAR_GETS, false, get(ast), target, rhs, after);
 
         var call = popCall();
@@ -740,27 +728,27 @@ public class CFGCompiler {
           throw fail("Dollar: expected a call to $");
         }
 
-        pop(Expression.class);
-        pushInsert(
+        pop();
+        push(
             new StmtData.CallBuiltin(
                 get(ast),
                 BuiltinId.DOLLAR_GETS,
                 ImmutableList.of(target, new Constant(get(member)), rhs),
                 env));
-        cursor.addJump(new JumpData.Goto(after));
+        setJump(new Goto(target(after)));
 
         moveTo(after);
       }
       case BcInstr.IsNull() ->
-          pushInsert(new StmtData.Eq(null, pop(Expression.class), new Constant(SEXPs.NULL)));
-      case BcInstr.IsLogical() -> pushInsert(new StmtData.GnuRIs(IsTypeCheck.LGL, pop(Node<? extends SEXP>.class)));
-      case BcInstr.IsInteger() -> pushInsert(new StmtData.GnuRIs(IsTypeCheck.INT, pop(Node<? extends SEXP>.class)));
-      case BcInstr.IsDouble() -> pushInsert(new StmtData.GnuRIs(IsTypeCheck.REAL, pop(Node<? extends SEXP>.class)));
-      case BcInstr.IsComplex() -> pushInsert(new StmtData.GnuRIs(IsTypeCheck.CPLX, pop(Node<? extends SEXP>.class)));
-      case BcInstr.IsCharacter() -> pushInsert(new StmtData.GnuRIs(IsTypeCheck.STR, pop(Node<? extends SEXP>.class)));
-      case BcInstr.IsSymbol() -> pushInsert(new StmtData.GnuRIs(IsTypeCheck.SYM, pop(Node<? extends SEXP>.class)));
-      case BcInstr.IsObject() -> pushInsert(new StmtData.GnuRIs(IsTypeCheck.NON_OBJECT, pop(Node<? extends SEXP>.class)));
-      case BcInstr.IsNumeric() -> pushInsert(new StmtData.GnuRIs(IsTypeCheck.NUM, pop(Node<? extends SEXP>.class)));
+          push(new StmtData.Eq(null, pop(), new Constant(SEXPs.NULL)));
+      case BcInstr.IsLogical() -> push(new StmtData.GnuRIs(IsTypeCheck.LGL, pop()));
+      case BcInstr.IsInteger() -> push(new StmtData.GnuRIs(IsTypeCheck.INT, pop()));
+      case BcInstr.IsDouble() -> push(new StmtData.GnuRIs(IsTypeCheck.REAL, pop()));
+      case BcInstr.IsComplex() -> push(new StmtData.GnuRIs(IsTypeCheck.CPLX, pop()));
+      case BcInstr.IsCharacter() -> push(new StmtData.GnuRIs(IsTypeCheck.STR, pop()));
+      case BcInstr.IsSymbol() -> push(new StmtData.GnuRIs(IsTypeCheck.SYM, pop()));
+      case BcInstr.IsObject() -> push(new StmtData.GnuRIs(IsTypeCheck.NON_OBJECT, pop()));
+      case BcInstr.IsNumeric() -> push(new StmtData.GnuRIs(IsTypeCheck.NUM, pop()));
       case BcInstr.VecSubset(var _) ->
           compileDefaultDispatchN(
               Dispatch.Type.SUBSETN,
@@ -787,57 +775,57 @@ public class CFGCompiler {
                       ast, args.getFirst(), args.get(1), args.get(2), args.get(3), env));
       case BcInstr.And1st(var ast, var shortCircuit) -> {
         var shortCircuitBb = bbAt(shortCircuit);
-        pushInsert(new StmtData.AsLogical(pop(Expression.class)));
-        cursor.addJump(
-            new JumpData.Branch(get(ast), top(Expression.class), bbAfterCurrent(), shortCircuitBb));
+        push(new StmtData.AsLogical(pop()));
+        setJump(
+            new JumpData.Branch(get(ast), top(), bbAfterCurrent(), shortCircuitBb));
         addPhiInputsForStack(shortCircuitBb);
       }
       case BcInstr.And2nd(var ast) -> {
-        pushInsert(new StmtData.AsLogical(pop(Expression.class)));
-        pushInsert(mkBinop(ast, StmtData.LAnd::new));
-        cursor.addJump(new JumpData.Goto(bbAfterCurrent()));
+        push(new StmtData.AsLogical(pop()));
+        push(mkBinop(ast, StmtData.LAnd::new));
+        setJump(new Goto(target(bbAfterCurrent())));
       }
       case BcInstr.Or1st(var ast, var shortCircuit) -> {
         var shortCircuitBb = bbAt(shortCircuit);
-        pushInsert(new StmtData.AsLogical(pop(Expression.class)));
-        cursor.addJump(
-            new JumpData.Branch(get(ast), top(Expression.class), shortCircuitBb, bbAfterCurrent()));
+        push(new StmtData.AsLogical(pop()));
+        setJump(
+            new JumpData.Branch(get(ast), top(), shortCircuitBb, bbAfterCurrent()));
         addPhiInputsForStack(shortCircuitBb);
       }
       case BcInstr.Or2nd(var ast) -> {
-        pushInsert(new StmtData.AsLogical(pop(Expression.class)));
-        pushInsert(mkBinop(ast, StmtData.LOr::new));
-        cursor.addJump(new JumpData.Goto(bbAfterCurrent()));
+        push(new StmtData.AsLogical(pop()));
+        push(mkBinop(ast, StmtData.LOr::new));
+        setJump(new Goto(target(bbAfterCurrent())));
       }
       case BcInstr.GetVarMissOk(var name) -> {
-        pushInsert(name, new StmtData.LdVar(get(name), true, env));
-        pushInsert(new StmtData.Force(pop(Expression.class), compileFrameState(), env));
+        push(name, new StmtData.LdVar(get(name), true, env));
+        push(new StmtData.Force(pop(), compileFrameState(), env));
       }
       case BcInstr.DdValMissOk(var name) -> {
         var ddIndex = get(name).ddNum();
-        pushInsert(name, new StmtData.LdDdVal(ddIndex, true, env));
-        pushInsert(new StmtData.Force(pop(Expression.class), compileFrameState(), env));
+        push(name, new StmtData.LdDdVal(ddIndex, true, env));
+        push(new StmtData.Force(pop(), compileFrameState(), env));
       }
-      case BcInstr.Visible() -> insert(new StmtData.Visible());
-      case BcInstr.SetVar2(var name) -> insert(new StmtData.StVarSuper(get(name), top(Node<? extends SEXP>.class), env));
+      case BcInstr.Visible() -> insertVoid(new StmtData.Visible());
+      case BcInstr.SetVar2(var name) -> insertVoid(new StmtData.StVarSuper(get(name), top(), env));
       case BcInstr.StartAssign2(var name) -> {
         // GNU-R has "cells" and stores the assign on the main stack.
         // But we don't have cells, and since we're compiling, we can store the assignment on its
         // own stack.
         var lhs = cursor.insert(get(name).name(), new StmtData.LdVarSuper(get(name), env));
-        var rhs = top(Expression.class);
+        var rhs = top();
         pushComplexAssign(true, get(name), lhs, rhs);
       }
       case BcInstr.EndAssign2(var name) -> {
         var lhs = popComplexAssign(true, get(name));
-        insert(new StmtData.StVarSuper(get(name), lhs, env));
+        insertVoid(new StmtData.StVarSuper(get(name), lhs, env));
       }
       case BcInstr.SetterCall(var ast, var _) -> {
         // GNU-R has to wrap these call args in evaluated promises depending on the call type,
         // but presumably this is something we abstract. This is also what `valueExpr` is for,
         // which is why it's unused.
-        var rhs = pop(Expression.class);
-        var lhs = pop(Expression.class);
+        var rhs = pop();
+        var lhs = pop();
         prependCallArg(lhs);
         pushCallArg(rhs);
         compileCall(ast);
@@ -845,25 +833,26 @@ public class CFGCompiler {
       case BcInstr.GetterCall(var ast) -> {
         // GNU-R has to wrap this call arg in an evaluated promise depending on the call type,
         // but presumably this is something we abstract.
-        prependCallArg(top(Expression.class));
+        prependCallArg(top());
         compileCall(ast);
       }
       case BcInstr.SpecialSwap() -> {
-        var value = pop(Node.class);
-        var value2 = pop(Node.class);
+        var value = pop();
+        var value2 = pop();
         push(value);
         push(value2);
       }
       case BcInstr.Dup2nd() -> {
-        var value = pop(Node.class);
-        var value2 = top(Node.class);
+        var value = pop();
+        var value2 = top();
         push(value);
         push(value2);
       }
       case BcInstr.ReturnJmp() -> {
-        var retVal = pop(Expression.class);
-        assertStacksForReturn();
-        cursor.addJump(new JumpData.NonLocalReturn(retVal, env));
+        var retVal = pop();
+        assertStackForReturn();
+        // ???: non-local return?
+        setJump(new Return(retVal));
         setInUnreachableBytecode();
       }
       case BcInstr.Switch(var ast, var namesIdx, var chrLabelsIdx, var numLabelsIdx) -> {
@@ -871,31 +860,31 @@ public class CFGCompiler {
         var chrLabels = chrLabelsIdx == null ? null : get(chrLabelsIdx);
         var numLabels = numLabelsIdx == null ? null : get(numLabelsIdx);
 
-        var value = pop(Expression.class);
+        var value = pop();
 
         var isVector = cursor.insert(new GnuRIs(IsTypeCheck.SCALAR, value));
         var isVectorBb = cfg.addBB();
         var isNotVectorBb = cfg.addBB("failNotVector");
-        cursor.addJump(new JumpData.Branch(isVector, isVectorBb, isNotVectorBb));
+        setJump(new JumpData.Branch(isVector, isVectorBb, isNotVectorBb));
 
         // Has one predecessor (no phis) so we can call `cursor.moveToStart` instead of `moveTo`.
         cursor.moveToStart(isNotVectorBb);
         cursor.insert(new StmtData.Error("EXPR must be a length 1 vector"));
-        cursor.addJump(new JumpData.Unreachable());
+        setJump(new JumpData.Unreachable());
 
         // Has one predecessor (no phis) so we can call `cursor.moveToStart` instead of `moveTo`.
         cursor.moveToStart(isVectorBb);
         var isFactor = cursor.insert(new GnuRIs(IsTypeCheck.FACTOR, value));
         var isFactorBb = cfg.addBB();
         var isNotFactorBb = cfg.addBB("warnNotFactor");
-        cursor.addJump(new JumpData.Branch(isFactor, isFactorBb, isNotFactorBb));
+        setJump(new JumpData.Branch(isFactor, isFactorBb, isNotFactorBb));
 
         // Has one predecessor (no phis) so we can call `cursor.moveToStart` instead of `moveTo`.
         cursor.moveToStart(isNotFactorBb);
         cursor.insert(
             new StmtData.Warning(
                 "EXPR is a \"factor\", treated as integer.\n Consider using 'switch(as.character( * ), ...)' instead."));
-        cursor.addJump(new JumpData.Goto(isFactorBb));
+        setJump(new Goto(target(isFactorBb)));
 
         // Has two predecessors, but the second defines no values (means no phis), so we can call
         // `cursor.moveToStart` instead of `moveTo`.
@@ -903,30 +892,30 @@ public class CFGCompiler {
         var isString = cursor.insert(new GnuRIs(IsTypeCheck.STR, value));
         var stringBb = cfg.addBB("switchString");
         var asIntegerBb = cfg.addBB("switchAsInteger");
-        cursor.addJump(new JumpData.Branch(isString, stringBb, asIntegerBb));
+        setJump(new JumpData.Branch(isString, stringBb, asIntegerBb));
 
         // Has one predecessor (no phis) so we can call `cursor.moveToStart` instead of `moveTo`.
         cursor.moveToStart(stringBb);
         if (names == null) {
           if (numLabels == null) {
             cursor.insert(new StmtData.Error("bad numeric 'switch' offsets"));
-            cursor.addJump(new JumpData.Unreachable());
+            setJump(new JumpData.Unreachable());
           } else if (numLabels.isScalar()) {
             cursor.insert(new StmtData.Warning("'switch' with no alternatives"));
-            cursor.addJump(new JumpData.Goto(bbAt(new BcLabel(numLabels.get(0)))));
+            setJump(new Goto(target(bbAt(new BcLabel(numLabels.get(0))))));
           } else {
             cursor.insert(
                 new StmtData.Error(
                     "numeric EXPR required for 'switch' without named alternatives"));
-            cursor.addJump(new JumpData.Unreachable());
+            setJump(new JumpData.Unreachable());
           }
         } else {
           if (chrLabels == null) {
             cursor.insert(new StmtData.Error("bad character 'switch' offsets"));
-            cursor.addJump(new JumpData.Unreachable());
+            setJump(new JumpData.Unreachable());
           } else if (names.size() != chrLabels.size()) {
             cursor.insert(new StmtData.Error("bad 'switch' names"));
-            cursor.addJump(new JumpData.Unreachable());
+            setJump(new JumpData.Unreachable());
           } else {
             for (var i = 0; i < chrLabels.size() - 1; i++) {
               var name = names.get(i);
@@ -938,7 +927,7 @@ public class CFGCompiler {
             }
             // `switch` just goes to the last label regardless of whether it matches.
             var lastBb = bbAt(new BcLabel(chrLabels.last()));
-            cursor.addJump(new JumpData.Goto(lastBb));
+            setJump(new Goto(target(lastBb)));
             addPhiInputsForStack(lastBb);
           }
         }
@@ -947,10 +936,10 @@ public class CFGCompiler {
         cursor.moveToStart(asIntegerBb);
         if (numLabels == null) {
           cursor.insert(new StmtData.Error("bad numeric 'switch' offsets"));
-          cursor.addJump(new JumpData.Unreachable());
+          setJump(new JumpData.Unreachable());
         } else if (numLabels.isScalar()) {
           cursor.insert(new StmtData.Warning("'switch' with no alternatives"));
-          cursor.addJump(new JumpData.Goto(bbAt(new BcLabel(numLabels.get(0)))));
+          setJump(new Goto(target(bbAt(new BcLabel(numLabels.get(0))))));
         } else {
           var asInteger = cursor.insert(new StmtData.AsSwitchIdx(value));
           for (var i = 0; i < numLabels.size() - 1; i++) {
@@ -962,7 +951,7 @@ public class CFGCompiler {
           }
           // `switch` just goes to the last label regardless of whether it matches.
           var lastBb = bbAt(new BcLabel(numLabels.last()));
-          cursor.addJump(new JumpData.Goto(lastBb));
+          setJump(new Goto(target(lastBb)));
           addPhiInputsForStack(lastBb);
         }
 
@@ -1006,10 +995,10 @@ public class CFGCompiler {
       case BcInstr.Subset2N(var _, var n) -> compileDefaultDispatchN(Dispatch.Type.SUBSET2N, n + 1);
       case BcInstr.SubassignN(var _, var n) -> compileDefaultDispatchN(Dispatch.Type.SUBASSIGNN, n + 2);
       case BcInstr.Subassign2N(var _, var n) -> compileDefaultDispatchN(Dispatch.Type.SUBASSIGN2N, n + 2);
-      case BcInstr.Log(var ast) -> pushInsert(mkUnop(ast, StmtData.Log::new));
-      case BcInstr.LogBase(var ast) -> pushInsert(mkBinop(ast, StmtData.LogBase::new));
+      case BcInstr.Log(var ast) -> push(mkUnop(ast, StmtData.Log::new));
+      case BcInstr.LogBase(var ast) -> push(mkBinop(ast, StmtData.LogBase::new));
       case BcInstr.Math1(var ast, var funId) ->
-          pushInsert(new StmtData.Math1(get(ast), funId, pop(Expression.class)));
+          push(new StmtData.Math1(get(ast), funId, pop()));
       case BcInstr.DotCall(var ast, var numArgs) -> {
         if (stack.size() < numArgs + 1) {
           throw fail("stack underflow");
@@ -1018,17 +1007,17 @@ public class CFGCompiler {
         var args = funAndArgs.stream().map(a -> (Expression) a).collect(ImmutableList.toImmutableList());
         funAndArgs.clear();
 
-        pushInsert(new StmtData.CallBuiltin(get(ast), BuiltinId.DOT_CALL, args, env));
+        push(new StmtData.CallBuiltin(get(ast), BuiltinId.DOT_CALL, args, env));
       }
-      case BcInstr.Colon(var ast) -> pushInsert(mkBinop(ast, StmtData.Colon::new));
+      case BcInstr.Colon(var ast) -> push(mkBinop(ast, StmtData.Colon::new));
       case BcInstr.SeqAlong(var ast) ->
-          pushInsert(
+          push(
               new StmtData.CallBuiltin(
-                  get(ast), BuiltinId.SEQ_ALONG, ImmutableList.of(pop(Node<? extends SEXP>.class)), env));
+                  get(ast), BuiltinId.SEQ_ALONG, ImmutableList.of(pop()), env));
       case BcInstr.SeqLen(var ast) ->
-          pushInsert(
+          push(
               new StmtData.CallBuiltin(
-                  get(ast), BuiltinId.SEQ_LEN, ImmutableList.of(pop(Node<? extends SEXP>.class)), env));
+                  get(ast), BuiltinId.SEQ_LEN, ImmutableList.of(pop()), env));
       case BcInstr.BaseGuard(var exprIdx, var after) -> {
         // PIR apparently just ignores the guards (`rir2pir.cpp:341`), but we can handle here.
         var expr = get(exprIdx);
@@ -1040,7 +1029,7 @@ public class CFGCompiler {
         var safeBb = cfg.addBB("baseGuardSafe");
         var fallbackBb = cfg.addBB("baseGuardFail");
         var afterBb = bbAt(after);
-        cursor.addJump(new JumpData.Branch(guard, safeBb, fallbackBb));
+        setJump(new JumpData.Branch(guard, safeBb, fallbackBb));
 
         // Has one predecessor (no phis) so we can call `cursor.moveToStart` instead of `moveTo`.
         cursor.moveToStart(fallbackBb);
@@ -1056,13 +1045,13 @@ public class CFGCompiler {
                 .map(v -> (Expression) new Constant(v))
                 .collect(ImmutableList.toImmutableList());
         var fs = compileFrameState();
-        pushInsert(
+        push(
             argNames.stream().anyMatch(Optional::isPresent)
                 ? new StmtData.NamedCall(expr, sym, argNames, args, env, fs)
                 : new StmtData.NamelessCall(expr, sym, args, env, fs));
-        cursor.addJump(new JumpData.Goto(afterBb));
+        setJump(new Goto(target(afterBb)));
         addPhiInputsForStack(afterBb);
-        pop(Expression.class); // the `CallBuiltin` pushed above.
+        pop(); // the `CallBuiltin` pushed above.
 
         // Has one predecessor (no phis) so we can call `cursor.moveToStart` instead of `moveTo`.
         cursor.moveToStart(safeBb);
@@ -1073,21 +1062,21 @@ public class CFGCompiler {
 
   @FunctionalInterface
   private interface MkUnopFn {
-    StmtData.Expression_ make(@Nullable LangSXP ast, Expression value);
+    StmtData.Expression make(@Nullable LangSXP ast, Expression value);
   }
 
   @FunctionalInterface
   private interface MkBinopFn {
-    StmtData.Expression_ make(@Nullable LangSXP ast, Expression lhs, Node<? extends SEXP> rhs);
+    StmtData.Expression make(@Nullable LangSXP ast, Expression lhs, Expression rhs);
   }
 
-  private StmtData.Expression_ mkUnop(ConstPool.Idx<LangSXP> ast, MkUnopFn unop) {
-    return unop.make(get(ast), pop(Expression.class));
+  private StmtData.Expression mkUnop(ConstPool.Idx<LangSXP> ast, MkUnopFn unop) {
+    return unop.make(get(ast), pop());
   }
 
-  private StmtData.Expression_ mkBinop(ConstPool.Idx<LangSXP> ast, MkBinopFn binop) {
-    var rhs = pop(Expression.class);
-    var lhs = pop(Expression.class);
+  private StmtData.Expression mkBinop(ConstPool.Idx<LangSXP> ast, MkBinopFn binop) {
+    var rhs = pop();
+    var lhs = pop();
     return binop.make(get(ast), lhs, rhs);
   }
 
@@ -1106,7 +1095,7 @@ public class CFGCompiler {
             // so `loop.end` will only consist of a `Goto` to the "real" end BB. This is allowed,
             // and this long inverted AND-chain checks if it's the case.
             && !(loop.end.stmts().isEmpty()
-                && loop.end.controlFlow() instanceof JumpData.Goto(var loopEndGoto)
+                && loop.end.controlFlow() instanceof Goto(target(var loopEndGot)o)
                 && loopEndGoto == cursor.bb()))
         || cursor.stmtIdx() != 0) {
       throw fail("compileEndLoop: expected to be at start of end BB " + loop.end.id());
@@ -1118,8 +1107,8 @@ public class CFGCompiler {
   }
 
   private void compileStartDispatch(Dispatch.Type type, LangSXP ast, BB after) {
-    var rhs = type.hasRhs ? pop(Expression.class) : null;
-    var target = top(Expression.class);
+    var rhs = type.hasRhs ? pop() : null;
+    var target = top();
     compileGeneralDispatchCommon(type.builtin, type.isNForm, ast, target, rhs, after);
     if (rhs != null) {
       push(rhs);
@@ -1136,23 +1125,23 @@ public class CFGCompiler {
   }
 
   private void compileGeneralDispatchCommon(
-      BuiltinId fun, boolean isNForm, LangSXP ast, Expression target, @Nullable Node<? extends SEXP> rhs, BB after) {
+      BuiltinId fun, boolean isNForm, LangSXP ast, Expression target, @Nullable Expression rhs, BB after) {
     var isNotObject = cursor.insert(new StmtData.GnuRIs(IsTypeCheck.NON_OBJECT, target));
     var nonObjectBb = cfg.addBB("dispatchNonObject");
     var objectBb = cfg.addBB("dispatchObject");
-    cursor.addJump(new JumpData.Branch(isNotObject, nonObjectBb, objectBb));
+    setJump(new JumpData.Branch(isNotObject, nonObjectBb, objectBb));
 
     // Has one predecessor (no phis) so we can call `cursor.moveToStart` instead of `moveTo`.
     cursor.moveToStart(objectBb);
-    var target1 = pop(Expression.class);
+    var target1 = pop();
     assert target == target1
         : "`compileGeneralDispatchCommon` only called with top-of-stack as `target`";
     var dispatch = cursor.insert(new StmtData.TryDispatchBuiltin_(ast, fun, target, rhs, env));
     cursor.insert(next -> new JumpData.Branch(dispatch.dispatched(), next, nonObjectBb));
     push(dispatch.value());
-    cursor.addJump(new JumpData.Goto(after));
+    setJump(new Goto(target(after)));
     addPhiInputsForStack(after);
-    pop(Expression.class); // the `CallBuiltin` pushed above.
+    pop(); // the `CallBuiltin` pushed above.
 
     // Has one predecessor (no phis) so we can call `cursor.moveToStart` instead of `moveTo`.
     cursor.moveToStart(nonObjectBb);
@@ -1167,17 +1156,17 @@ public class CFGCompiler {
       Dispatch.Type type,
       int minNumArgs,
       int maxNumArgs,
-      BiFunction<LangSXP, List<Expression>, StmtData.Expression_> dispatchInstrData) {
+      BiFunction<LangSXP, List<Expression>, StmtData.Expression> dispatchInstrData) {
     assert !type.isNForm : "use compileDefaultDispatchN for `...N` bytecodes";
 
     if (type.hasRhs) {
-      pushCallArg(pop(Expression.class));
+      pushCallArg(pop());
     }
 
     var dispatch = popDispatch(type);
     var call = popCall();
 
-    pop(Expression.class);
+    pop();
 
     var argValues = Lists.map(call.args, Call.Arg::value);
     if (call.args.stream()
@@ -1186,15 +1175,15 @@ public class CFGCompiler {
         || call.args.size() < minNumArgs
         || call.args.size() > maxNumArgs) {
       // Slowcase, for when we don't have a specialized instruction.
-      pushInsert(
+      push(
           new StmtData.CallSafeBuiltin(
               dispatch.ast, type.builtin, ImmutableList.copyOf(argValues)));
     } else {
       // Instead of compiling a call, insert our specialized instruction with the call arguments.
-      pushInsert(dispatchInstrData.apply(dispatch.ast, argValues));
+      push(dispatchInstrData.apply(dispatch.ast, argValues));
     }
 
-    cursor.addJump(new JumpData.Goto(bbAfterCurrent()));
+    setJump(new Goto(target(bbAfterCurrent())));
     if (bbAfterCurrent() != dispatch.after) {
       throw fail("expected to be immediately before `after` BB " + dispatch.after.id());
     }
@@ -1207,7 +1196,7 @@ public class CFGCompiler {
   private void compileDefaultDispatchN(
       Dispatch.Type type,
       int numArgs,
-      @Nullable BiFunction<LangSXP, List<Expression>, StmtData.Expression_> dispatchInstrData) {
+      @Nullable BiFunction<LangSXP, List<Expression>, StmtData.Expression> dispatchInstrData) {
     assert type.isNForm : "use compileDefaultDispatch for non-`...N` bytecodes";
 
     var dispatch = popDispatch(type);
@@ -1233,9 +1222,9 @@ public class CFGCompiler {
             ? new StmtData.CallSafeBuiltin(dispatch.ast, type.builtin, ImmutableList.copyOf(args))
             : dispatchInstrData.apply(dispatch.ast, args);
     args.clear();
-    pushInsert(result);
+    push(result);
 
-    cursor.addJump(new JumpData.Goto(bbAfterCurrent()));
+    setJump(new Goto(target(bbAfterCurrent())));
     if (bbAfterCurrent() != dispatch.after) {
       throw fail("expected to be immediately before `after` BB " + dispatch.after.id());
     }
@@ -1287,7 +1276,7 @@ public class CFGCompiler {
         && n.args().getFirst().equals(Constant.strSxp("empty alternative in numeric switch"))
         && hasBbAfterCurrent()
         && bbAfterCurrent().phis().size() == stack.size() - 1) {
-      pop(Expression.class);
+      pop();
     }
   }
 
@@ -1299,72 +1288,65 @@ public class CFGCompiler {
   // endregion main compile functions: compile individual things
 
   // region `moveTo` and phis
-  /**
-   * Move the cursor to the basic block <i>and</i> replace all stack arguments with its phis.
-   *
-   * <p>Replacing the stack with phis is part of converting a stack-based bytecode to SSA-based IR.
-   * Since actual interpretation we may encounter this block from different predecessors, it needs
-   * phi nodes in order to preserve the SSA invariant "each variable is assigned exactly once".
-   * Although the block may have only one predecessor, in which case phi nodes are unnecessary, we
-   * start by assigning phi nodes to every block, and then the single-input phis in a cleanup phase
-   * later.
-   *
-   * <p>If the current block is a predecessor to the given block, the given block's stack will have
-   * a phi for each stack node in the current block, and one of the inputs will be said node (see
-   * {@link #addPhiInputsForStack(BB)}). We call {@link #addPhiInputsForStack(BB)} here for
-   * convenience, although it makes this method have 2 functions (add phis if the next block is a
-   * successor, and move to it). Otherwise, we don't know what its stack will look like from the
-   * current block, but we can rely on the invariant that it already had phis added from a different
-   * block, so we use the phis that were already added (if it didn't have phis added from a
-   * different block, we throw {@link AssertionError}).
-   */
+  /// Move the cursor to the basic block _and_ replace all stack arguments with its phi parameters.
+  ///
+  /// Replacing the stack with phis is part of converting a stack-based bytecode to SSA-based IR.
+  /// Since actual interpretation we may encounter this block from different predecessors, it needs
+  /// phi nodes in order to preserve the SSA invariant "each variable is assigned exactly once".
+  /// Although the block may have only one predecessor, in which case phi nodes are unnecessary, we
+  /// start by assigning phi nodes to every block, and then the single-input phis in a cleanup phase
+  /// later.
+  ///
+  /// If the current block is a predecessor to the given block, the given block's stack will have
+  /// a phi for each stack node in the current block, and one of the inputs will be said node (see
+  /// [#addPhiInputsForStack(BB)]). We call [#addPhiInputsForStack(BB)] here for
+  /// convenience, although it makes this method have 2 functions (add phis if the next block is a
+  /// successor, and move to it). Otherwise, we don't know what its stack will look like from the
+  /// current block, but we can rely on the invariant that it already had phis added from a different
+  /// block, so we use the phis that were already added (if it didn't have phis added from a
+  /// different block, we throw [AssertionError]).
   private void moveTo(BB bb) {
     // First ensure the block has phis, and add inputs from this block if necessary.
     if (bb.predecessors().contains(cursor.bb())) {
       // Make sure this block has phis representing the arguments currently on the stack, then
-      // replace
-      // the stack with those phis (this is how to convert a stack-based bytecode to an SSA-form
-      // IR).
+      // replace the stack with those phis (this is how to convert a stack-based bytecode to an
+      // SSA-form IR).
       addPhiInputsForStack(bb);
     } else {
       // This won't work unless we've already added phis from another BB
       assert bbsWithPhis.contains(bb)
           : "tried to move to BB "
-              + bb.id()
+              + bb.label()
               + " which isn't a successor and didn't have phis added yet, so we don't know what its stack looks like";
     }
 
     // Then replace the stack with those phis.
     stack.clear();
-    stack.addAll(bb.phis());
+    bb.phiParameters().stream().map(PhiParameter::asExpression).forEachOrdered(stack::add);
 
     // Finally, actually move the cursor to the BB.
     cursor.moveToStart(bb);
   }
 
-  /**
-   * Add inputs to the given block's phis for the stack at the current block.
-   *
-   * <p>The currently block is required to be one of the given block's predecessors. This needs to
-   * be called for every jump to a block returned by {@link #bbAt(BcLabel)} in order to uphold the
-   * SSA invariant "each variable is assigned exactly once"; see {@link #moveTo(BB)} for more
-   * explanation.
-   */
+  /// Add inputs to the given block's phis for the stack at the current block.
+  ///
+  /// The currently block is required to be one of the given block's predecessors. This needs to
+  /// be called for every jump to a block returned by [#bbAt(BcLabel)] in order to uphold the
+  /// SSA invariant "each variable is assigned exactly once"; see [#moveTo(BB)] for more
+  /// explanation.
   private void addPhiInputsForStack(BB bb) {
     addPhiInputsForStack(bb, cursor.bb());
   }
 
-  /**
-   * Add inputs to the given block's phis for the stack at {@code incoming}.
-   *
-   * <p>This is the same as {@link #addPhiInputsForStack(BB)} except uses {@code incoming} instead
-   * of the current block.
-   */
+  /// Add inputs to the given block's phis for the stack at `incoming`.
+  ///
+  /// This is the same as [#addPhiInputsForStack(BB)] except uses `incoming` instead
+  /// of the current block.
   private void addPhiInputsForStack(BB bb, BB incoming) {
     // Ensure the BB has phis for each stack value.
     if (bbsWithPhis.add(bb)) {
       // Add phis for all of the nodes on the stack.
-      for (var node : stack) {
+      for (var expr : stack) {
         bb.addPhi(node.getClass());
       }
     } else {
@@ -1431,63 +1413,19 @@ public class CFGCompiler {
   // endregion `moveTo` and phis
 
   // region statement and jump insertions
-  /** Insert a statement that doesn't produce a value. */
-  private void insert(StmtData.Void data) {
-    cursor.insert(data);
-  }
-
-  /**
-   * Insert a statement that produces a value, and push it onto the "virtual stack" via {@link
-   * #push(Node)}.
-   *
-   * <p>Most bytecode instructions that produce values, such as operations, are compiled into IR
-   * instructions that are added this way.
-   */
-  private void pushInsert(StmtData.Expression_ data) {
-    push(cursor.insert(data));
-  }
-
-  /** {@link #pushInsert(Expression_)} but gives the instruction the name of the symbol. */
-  private void pushInsert(ConstPool.Idx<RegSymSXP> name, StmtData.Expression_ data) {
-    push(cursor.insert(get(name).name(), data));
-  }
-
-  /**
-   * Insert a statement that produces a value, and begin a call with it as the function via {@link
-   * #pushCall(Expression)}.
-   */
-  private void pushCallFunInsert(StmtData.Expression_ data) {
-    pushCall(cursor.insert(data));
-  }
-
-  /** {@link #pushCallFunInsert(Expression_)} but gives the instruction the name of the symbol. */
-  private void pushCallFunInsert(ConstPool.Idx<RegSymSXP> name, StmtData.Expression_ data) {
-    pushCall(cursor.insert(get(name).name(), data));
-  }
-
-  /**
-   * Insert a statement that produces a value, and add it to the current call arguments via {@link
-   * #pushCallArg(Expression)}.
-   */
-  private void pushCallArgInsert(StmtData.Expression_ data) {
-    pushCallArg(cursor.insert(data));
-  }
-
-  /** {@link #pushCallArgInsert(Expression_)} but gives the instruction a name. */
-  private void pushCallArgInsert(String name, StmtData.Expression_ data) {
-    pushCallArg(cursor.insert(name, data));
+  /// Insert a statement.
+  private void insert(Expression statement) {
+    cursor.insert(statement);
   }
 
   // endregion statement and jump insertions
 
   // region inter-instruction data
 
-  /**
-   * Mark the following bytecode until the next label as unreachable.
-   *
-   * <p>This means we skip generating IR, since it may underflow the stack (and because we'd
-   * optimize out that IR later anyways).
-   */
+  /// Mark the following bytecode until the next label as unreachable.
+  ///
+  /// This means we skip generating IR, since it may underflow the stack (and because we'd
+  /// optimize out that IR later anyways).
   private void setInUnreachableBytecode() {
     assert !isInUnreachableBytecode : "already set in unreachable bytecode";
     isInUnreachableBytecode = true;
@@ -1497,27 +1435,25 @@ public class CFGCompiler {
   //   stacks to keep track of data from previous instructions that affects future instructions
   //   (specifically, that data is what's "pushed", when the future instructions use the data it's
   //   read, and when the data no longer affects further future instructions it's popped).
-  /**
-   * Assert that all stacks are empty, unless in a loop.
-   *
-   * <p>If we return in a loop, the loop stack won't be empty. Additionally, if we return in a for
-   * loop, the node stack will contain the loop index.
-   *
-   * <p>Otherwise, the bytecode compiler pops everything before returning, so the stack should be
-   * empty. And especially so when we implicitly return at the end of a function.
-   */
-  private void assertStacksForReturn() {
+  /// Assert that all stacks are empty, unless in a loop.
+  ///
+  /// If we return in a loop, the loop stack won't be empty. Additionally, if we return in a for
+  /// loop, the node stack will contain the loop index.
+  ///
+  /// Otherwise, the bytecode compiler pops everything before returning, so the stack should be
+  /// empty. And especially so when we implicitly return at the end of a function.
+  private void assertStackForReturn() {
     if (loopStack.isEmpty()) {
       assertStacksAreEmpty();
     }
   }
 
-  /** Assert that all stacks are empty, for when the function has ended. */
+  /// Assert that all stacks are empty, for when the function has ended.
   private void assertStacksAreEmpty() {
     require(
         stack.isEmpty(),
         () ->
-            "stack isn't empty at end of function: [" + Strings.join(", ", Node::id, stack) + "]");
+            "stack isn't empty at end of function: [" + Strings.join(", ", stack) + "]");
     require(
         loopStack.isEmpty(),
         () -> "loop stack isn't empty at end of function: [" + Strings.join(", ", loopStack) + "]");
@@ -1538,114 +1474,101 @@ public class CFGCompiler {
                 + "]");
   }
 
-  /**
-   * Push a node onto the "virtual stack" so that the next call to {@link #pop(Class)} or {@link
-   * #top(Class)} will return it.
-   *
-   * <p>The bytecode is stack-based and IR is SSA-form. To convert properly, when the compiler
-   * encounters {@code BcInstr.Ld...} and other instructions that push real values onto the
-   * interpreter stack, it pushes the node that stores their abstract value ({@link Node}) onto the
-   * "virtual stack"; and when the compiler encounters {@link BcInstr.Pop} and other instructions
-   * that read/pop real values from the interpreter stack, it reads/pops the corresponding abstract
-   * values from the "virtual stack" and passes them as arguments to the IR instructions those
-   * bytecode instructions that pop values compile into.
-   *
-   * <p>Also, stack nodes are replaced by phi nodes whenever the compiler moves to a new basic
-   * block: see {@link #moveTo(BB)} for details.
-   */
-  private void push(Node value) {
+  /// Push a node onto the "virtual stack" so that the next call to [#pop(Class)] or 
+  /// [#top(Class)] will return it.
+  /// 
+  /// The bytecode is stack-based and IR is SSA-form. To convert properly, when the compiler
+  /// encounters `BcInstr.Ld...` and other instructions that push real values onto the
+  /// interpreter stack, it pushes the node that stores their abstract value ([Node]) onto the
+  /// "virtual stack"; and when the compiler encounters [BcInstr.Pop] and other instructions
+  /// that read/pop real values from the interpreter stack, it reads/pops the corresponding abstract
+  /// values from the "virtual stack" and passes them as arguments to the IR instructions those
+  /// bytecode instructions that pop values compile into.
+  /// 
+  /// Also, stack nodes are replaced by phi nodes whenever the compiler moves to a new basic
+  /// block: see [#moveTo(BB)] for details.
+  private void push(Expression value) {
     stack.add(value);
   }
 
-  /**
-   * Pop a node from the "virtual stack" that was pushed by the last call to {@link #push(Node)}.
-   *
-   * <p>The bytecode is stack-based and IR is SSA-form, see {@link #push(Node)} for more
-   * explanation.
-   */
-  private <N extends Node> N pop(Class<N> clazz) {
+  /// Pop a node from the "virtual stack" that was pushed by the last call to [#push(Expression)].
+  /// 
+  /// The bytecode is stack-based and IR is SSA-form, see [#push(Expression)] for more
+  /// explanation.
+  private Expression pop() {
     require(!stack.isEmpty(), () -> "node stack underflow");
-    return clazz.cast(stack.removeLast());
+    return stack.removeLast();
   }
 
-  /**
-   * Get the node on the top of the "virtual stack" that was pushed by the last call to {@link
-   * #push(Node)}, without popping.
-   *
-   * <p>The bytecode is stack-based and IR is SSA-form, see {@link #push(Node)} for more
-   * explanation.
-   */
-  private <N extends Node> N top(Class<N> clazz) {
+  /// Get the node on the top of the "virtual stack" that was pushed by the last call to 
+  /// [#push(Expression)], without popping.
+  /// 
+  /// The bytecode is stack-based and IR is SSA-form, see [#push(Expression)] for more
+  /// explanation.
+  private Expression top() {
     require(!stack.isEmpty(), () -> "no node on stack");
-    return clazz.cast(stack.getLast());
+
+    if (!(stack.getLast() instanceof Read) && !(stack.getLast() instanceof Literal)) {
+      var local = cfg.scope().addLocal();
+      insert(new Write(local.variable(), pop()));
+      push(new Read(local.variable()));
+    }
+
+    return stack.getLast();
   }
 
-  /**
-   * Add data that will be referenced by later for loop instructions (via {@link #topLoop()} and
-   * {@link #popLoop()}.
-   */
+  /// Add data that will be referenced by later for loop instructions (via [#topLoop()] and
+  /// [#popLoop()].
   private void pushWhileOrRepeatLoop(BB next, BB end) {
     loopStack.add(new Loop(LoopType.WHILE_OR_REPEAT, null, next, end));
   }
 
-  /**
-   * Add data that will be referenced by later for loop instructions (via {@link #topLoop()} and
-   * {@link #popLoop()}.
-   */
+  /// Add data that will be referenced by later for loop instructions (via [#topLoop()] and
+  /// [#popLoop()].
   private void pushForLoop(BB forBody, BB step, BB end) {
     loopStack.add(new Loop(LoopType.FOR, forBody, step, end));
   }
 
-  /**
-   * Whether we're currently compiling a loop i.e. there's a loop on the loop stack.
-   *
-   * <p>"Local" because promises and `eval` are weird and can reference the loop of the environment
-   * they are provided, which is a long-jump in GNU-R. We don't currently support compiling this.
-   */
+  /// Whether we're currently compiling a loop i.e. there's a loop on the loop stack.
+  /// 
+  /// "Local" because promises and `eval` are weird and can reference the loop of the environment
+  /// they are provided, which is a long-jump in GNU-R. We don't currently support compiling this.
   private boolean inLocalLoop() {
     return !loopStack.isEmpty();
   }
 
-  /**
-   * Reference data from a previously-compiled for loop instruction (the latest {@link
-   * #pushWhileOrRepeatLoop(BB, BB)} or {@link #pushForLoop(BB, BB, BB)}).
-   */
+  /// Reference data from a previously-compiled for loop instruction (the latest 
+  /// [#pushWhileOrRepeatLoop(BB,BB)] or [#pushForLoop(BB,BB,BB)]).
   private Loop topLoop() {
     require(!loopStack.isEmpty(), () -> "no for loop on stack");
     return loopStack.getLast();
   }
 
-  /**
-   * Reference data from a previously-compiled for loop instruction (the latest {@link
-   * #pushWhileOrRepeatLoop(BB, BB)} or {@link #pushForLoop(BB, BB, BB)}), and remove it.
-   */
+  /// Reference data from a previously-compiled for loop instruction (the latest 
+  /// [#pushWhileOrRepeatLoop(BB,BB)] or [#pushForLoop(BB,BB,BB)]), and remove it.
   private Loop popLoop() {
     require(!loopStack.isEmpty(), () -> "for loop stack underflow");
     return loopStack.removeLast();
   }
 
-  /**
-   * Add data for {@code StartAssign(2)?} that will be referenced by {@code EndAssign(2)?} (via
-   * {@link #popComplexAssign(boolean, RegSymSXP)}).
-   *
-   * <p>GNU-R stores the complex assign values on the main stack, but we also store them on their
-   * own stack for understandability at the cost of negligible performance (same with calls). GNU-R
-   * also stores a "cell" for the lhs value, which has a flag to determine if its in an assignment,
-   * for ref-counting purposes. TODO how we handle ref-counting because it will probably be much
-   * different, but we will probably abstract it so that we don't have to do anything here even in
-   * the future.
-   */
+  /// Add data for `StartAssign(2)?` that will be referenced by `EndAssign(2)?` (via
+  /// [#popComplexAssign(boolean,RegSymSXP)]).
+  /// 
+  /// GNU-R stores the complex assign values on the main stack, but we also store them on their
+  /// own stack for understandability at the cost of negligible performance (same with calls). GNU-R
+  /// also stores a "cell" for the lhs value, which has a flag to determine if its in an assignment,
+  /// for ref-counting purposes. TODO how we handle ref-counting because it will probably be much
+  /// different, but we will probably abstract it so that we don't have to do anything here even in
+  /// the future.
   private void pushComplexAssign(boolean isSuper, RegSymSXP name, Expression lhs, Expression rhs) {
     complexAssignStack.add(new ComplexAssign(isSuper, name, rhs));
     push(lhs);
     push(rhs);
   }
 
-  /**
-   * Get the current complex assign (the one that was pushed by the last call to {@link
-   * #pushComplexAssign(boolean, RegSymSXP, Expression, Expression)}), assert that the given {@code isSuper}
-   * and {@code name} match its own, and remove it from the stack.
-   */
+  /// Get the current complex assign (the one that was pushed by the last call to 
+  /// [#pushComplexAssign(boolean,RegSymSXP,Expression,Expression)]), assert that the given `isSuper`
+  /// and `name` match its own, and remove it from the stack.
   private Expression popComplexAssign(boolean isSuper, RegSymSXP name) {
     require(!complexAssignStack.isEmpty(), () -> "complex assign stack underflow");
     var assign = complexAssignStack.removeLast();
@@ -1670,30 +1593,26 @@ public class CFGCompiler {
               + " assign");
     }
 
-    return pop(Expression.class);
+    return pop();
   }
 
-  /** Begin a new call of the given function (abstract value). */
+  /// Begin a new call of the given function (abstract value). 
   private void pushCall(Expression fun) {
     callStack.add(new Call(new Call.Fun.Value(fun)));
   }
 
-  /** Begin a new call of the given function (statically known builtin). */
+  /// Begin a new call of the given function (statically known builtin). 
   private void pushCall(BuiltinId fun) {
     callStack.add(new Call(new Call.Fun.Builtin(fun)));
   }
 
-  /**
-   * Get the current call (the one that was pushed by the last call to {@link #pushCall(Node<? extends SEXP>)}).
-   */
+  /// Get the current call (the one that was pushed by the last call to [<?>][#pushCall(NodeextendsSEXP)]).
   private Call topCall() {
     require(!callStack.isEmpty(), () -> "no call on stack");
     return callStack.getLast();
   }
 
-  /**
-   * Pop the current call (the one that was pushed by the last call to {@link #pushCall(Node<? extends SEXP>)}).
-   */
+  /// Pop the current call (the one that was pushed by the last call to [<?>][#pushCall(NodeextendsSEXP)]).
   private Call popCall() {
     require(!callStack.isEmpty(), () -> "call stack underflow");
     return callStack.removeLast();
@@ -1702,8 +1621,8 @@ public class CFGCompiler {
   /**
    * Prepend a value to the current call stack ({@link #topCall()}).
    *
-   * <p>This is required for {@link GetterCall} and {@link SetterCall}, since the {@code lhs} of the
-   * complex assignment is prepended in the GNU-R. See also {@link #pushCallArg(Node<? extends SEXP>)}, which
+   * <p>This is required for {@link BcInstr.GetterCall} and {@link BcInstr.SetterCall}, since the {@code lhs} of the
+   * complex assignment is prepended in the GNU-R. See also {@link #pushCallArg(Expression)}, which
    * appends the argument.
    */
   private void prependCallArg(Expression value) {
@@ -1749,10 +1668,8 @@ public class CFGCompiler {
     dispatchStack.add(new Dispatch(type, ast, after));
   }
 
-  /**
-   * Reference data from a previously-compiled "start dispatch" bytecode instruction (via {@link
-   * #pushDispatch(Dispatch.Type, LangSXP, BB)}), and pop it.
-   */
+  /// Reference data from a previously-compiled "start dispatch" bytecode instruction (via 
+  /// [#pushDispatch(Dispatch.Type,LangSXP,BB)]), and pop it.
   private Dispatch popDispatch(Dispatch.Type type) {
     require(!dispatchStack.isEmpty(), () -> "dispatch stack underflow");
     var dispatch = dispatchStack.removeLast();
@@ -1765,7 +1682,7 @@ public class CFGCompiler {
   // endregion inter-instruction data
 
   // region misc
-  /** Get the {@link SEXP} in the constant pool corresponding to the given index. */
+  /// Get the [SEXP] in the constant pool corresponding to the given index. 
   private <S extends SEXP> S get(ConstPool.Idx<S> idx) {
     return bc.consts().get(idx);
   }
