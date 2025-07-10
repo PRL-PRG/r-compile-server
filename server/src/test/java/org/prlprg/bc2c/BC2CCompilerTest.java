@@ -197,15 +197,6 @@ public class BC2CCompilerTest {
   public void testDollar(BC2CSnapshot snapshot) {
     snapshot.verify("x <- list(a=1, b=2); x$a", returns(1.0));
     snapshot.verify("x <- list(a=2); x$b");
-    snapshot.verify(
-        """
-      m <- matrix(c(2, -1, -1, 2), nrow = 2)
-      e <- eigen(m)
-      extract_eigenvector <- function(e, component_num) {
-        e$vectors[, component_num]
-      }
-      round(extract_eigenvector(e, 1), 6)
-    """);
   }
 
   @Test

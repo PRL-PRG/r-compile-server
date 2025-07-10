@@ -73,8 +73,7 @@
         "variant": "cpp",
         "text_encoding": "cpp",
         "expected": "cpp",
-        "*.def": "cpp",
-        "locale": "c"
+        "*.def": "cpp"
     },
     "r.rpath.linux": "${workspaceFolder}/external/R/bin/R",
     "r.rterm.linux": "${workspaceFolder}/external/R/bin/R",
