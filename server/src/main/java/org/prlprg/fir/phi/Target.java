@@ -5,13 +5,13 @@ import com.google.common.collect.ImmutableList;
 import org.prlprg.fir.cfg.BB;
 import org.prlprg.fir.instruction.Expression;
 
-public record Target(BB label, ImmutableList<Expression> phiArgs) {
+public record Target(BB bb, ImmutableList<Expression> phiArgs) {
   public Target(BB label, Expression... phiArgs) {
     this(label, ImmutableList.copyOf(phiArgs));
   }
 
   @Override
   public String toString() {
-    return label + "(" + Joiner.on(", ").join(phiArgs) + ")";
+    return bb + "(" + Joiner.on(", ").join(phiArgs) + ")";
   }
 }

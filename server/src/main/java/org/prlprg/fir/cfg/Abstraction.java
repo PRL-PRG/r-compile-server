@@ -106,10 +106,10 @@ public class Abstraction {
     return Collections.unmodifiableCollection(locals.values());
   }
 
-  public Local addLocal() {
-    var local = new Local(nextLocalRegister(), Type.ANY);
-    this.addLocal(local);
-    return local;
+  public Register addLocal() {
+    var variable = nextLocalRegister();
+    this.addLocal(new Local(variable, Type.ANY));
+    return variable;
   }
 
   public void addLocal(Local local) {
