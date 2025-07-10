@@ -9,7 +9,7 @@
 3. **Types**: Don't specify types when unnecessary. Use `var` whenever possible.
 4. **Comments**: Use comments to explain why something is done, not what is done. Avoid redundant comments that restate the code. Avoid trivial comments.
 5. **Fields**: Don't prefix fields with `this.` in functions unless necessary due to name shadowing.
-6**Code Formatting**: Follow Google's Java style guide.
+   6**Code Formatting**: Follow Google's Java style guide.
 
 ### Documentation
 

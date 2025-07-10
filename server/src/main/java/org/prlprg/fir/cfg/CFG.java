@@ -42,6 +42,10 @@ public final class CFG {
     return scope;
   }
 
+  public boolean isPromise() {
+    return scope.cfg() != this;
+  }
+
   public Module module() {
     return scope.module();
   }
