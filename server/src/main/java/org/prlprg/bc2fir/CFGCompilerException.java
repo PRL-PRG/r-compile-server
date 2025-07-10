@@ -2,9 +2,9 @@ package org.prlprg.bc2fir;
 
 import javax.annotation.Nullable;
 import org.prlprg.bc.Bc;
-import org.prlprg.ir.cfg.BB;
-import org.prlprg.ir.cfg.CFG;
-import org.prlprg.ir.cfg.builder.CFGCursor;
+import org.prlprg.fir.cfg.BB;
+import org.prlprg.fir.cfg.CFG;
+import org.prlprg.fir.cfg.cursor.CFGCursor;
 
 /**
  * Exception thrown when {@link CFGCompiler} fails to compile a {@link Bc} into a {@link CFG}.
@@ -13,7 +13,7 @@ import org.prlprg.ir.cfg.builder.CFGCursor;
  * instructions), there's a bug in the {@link CFGCompiler}, or the {@link Bc} contains an
  * unsupported instruction (in which case this is a {@link CFGCompilerUnsupportedBcException}).
  */
-public final class CFGCompilerException extends RuntimeException {
+public class CFGCompilerException extends RuntimeException {
   private final Bc bc;
   private final int bcPos;
   private final CFGCursor irPos;
@@ -50,9 +50,9 @@ public final class CFGCompilerException extends RuntimeException {
         + "\nAt BC instruction "
         + bcPos
         + ", IR BB "
-        + irPos.bb().id()
-        + " statement "
-        + irPos.stmtIdx()
+        + irPos.bb().label()
+        + " instruction "
+        + irPos.instructionIndex()
         + " in:\n\n"
         + irPos.cfg()
         + "\n\n"

@@ -1,6 +1,7 @@
 package org.prlprg.fir.cfg;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -14,6 +15,7 @@ import org.prlprg.fir.binding.Parameter;
 import org.prlprg.fir.module.Module;
 import org.prlprg.fir.type.Effects;
 import org.prlprg.fir.type.Type;
+import org.prlprg.fir.variable.Register;
 import org.prlprg.fir.variable.Variable;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
@@ -22,6 +24,8 @@ import org.prlprg.parseprint.Printer;
 import org.prlprg.util.DeferredCallbacks;
 
 public class Abstraction {
+  static final String DEFAULT_LOCAL_PREFIX = "r";
+
   // Backlink
   private final Module module;
 
@@ -32,17 +36,34 @@ public class Abstraction {
   private final Map<Variable, Local> locals = new LinkedHashMap<>();
   private final CFG cfg;
 
-  public Abstraction(Module module, ImmutableList<Parameter> params) {
-    if (params.stream()
-        .anyMatch(
-            p -> params.stream().filter(p1 -> p.variable().equals(p1.variable())).count() > 1)) {
-      throw new IllegalArgumentException("Parameters have duplicates: " + params);
-    }
+  // Cached
+  private final ImmutableMap<Variable, Parameter> varToParam;
+  private int nextLocalDisambiguator = 0;
+
+  public Abstraction(Module module, List<Parameter> params) {
     this.module = module;
-    this.params = params;
+    this.params = ImmutableList.copyOf(params);
+
+    varToParam = computeVarToParam(params);
     returnType = Type.ANY;
     returnEffects = Effects.ANY;
     cfg = new CFG(this);
+
+    while (contains(nextLocalRegister())) {
+      nextLocalDisambiguator++;
+    }
+  }
+
+  private static ImmutableMap<Variable, Parameter> computeVarToParam(List<Parameter> params) {
+    return params.stream()
+        .collect(
+            ImmutableMap.toImmutableMap(
+                Parameter::variable,
+                p -> p,
+                (p1, p2) -> {
+                  throw new IllegalArgumentException(
+                      "Duplicate parameter variable: " + p1.variable() + " and " + p2.variable());
+                }));
   }
 
   public Module module() {
@@ -85,6 +106,12 @@ public class Abstraction {
     return Collections.unmodifiableCollection(locals.values());
   }
 
+  public Local addLocal() {
+    var local = new Local(nextLocalRegister(), Type.ANY);
+    this.addLocal(local);
+    return local;
+  }
+
   public void addLocal(Local local) {
     module.record(
         "Abstraction#addLocal",
@@ -93,6 +120,9 @@ public class Abstraction {
           if (locals.put(local.variable(), local) != null) {
             throw new IllegalArgumentException(
                 "Local " + local + " already exists in the abstraction.");
+          }
+          while (contains(nextLocalRegister())) {
+            nextLocalDisambiguator++;
           }
           return null;
         });
@@ -113,6 +143,14 @@ public class Abstraction {
 
   public CFG cfg() {
     return cfg;
+  }
+
+  public boolean contains(Variable variable) {
+    return varToParam.containsKey(variable) || locals.containsKey(variable);
+  }
+
+  public Register nextLocalRegister() {
+    return new Register(DEFAULT_LOCAL_PREFIX + nextLocalDisambiguator);
   }
 
   @Override
@@ -150,11 +188,7 @@ public class Abstraction {
     var s = p.scanner();
 
     params = p.parseList("(", ")", Parameter.class);
-    if (params.stream()
-        .anyMatch(
-            p2 -> params.stream().filter(p3 -> p2.variable().equals(p3.variable())).count() > 1)) {
-      throw new IllegalArgumentException("Parameters have duplicates: " + params);
-    }
+    varToParam = computeVarToParam(params);
 
     s.assertAndSkip(':');
     returnType = p.parse(Type.class);
