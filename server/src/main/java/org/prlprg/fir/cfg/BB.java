@@ -17,6 +17,7 @@ import org.prlprg.fir.instruction.Jump;
 import org.prlprg.fir.instruction.Unreachable;
 import org.prlprg.fir.module.Module;
 import org.prlprg.fir.phi.PhiParameter;
+import org.prlprg.fir.type.Type;
 import org.prlprg.fir.variable.Register;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
@@ -73,6 +74,12 @@ public final class BB {
 
   public @UnmodifiableView Collection<BB> predecessors() {
     return Collections.unmodifiableCollection(predecessors);
+  }
+
+  public Register addParameter() {
+    var variable = owner.scope().addLocal();
+    addParameter(new PhiParameter(variable, Type.ANY));
+    return variable;
   }
 
   public void addParameter(PhiParameter parameter) {
@@ -181,9 +188,9 @@ public final class BB {
             List.of(this, jump),
             () -> {
               for (var target : this.jump.targets()) {
-                var removed = target.label().predecessors.remove(this);
+                var removed = target.bb().predecessors.remove(this);
                 assert removed
-                    : "BB " + label + " was not a predecessor of target '" + target.label() + "'.";
+                    : "BB " + label + " was not a predecessor of target '" + target.bb() + "'.";
               }
               if (this.jump.targets().isEmpty()) {
                 var removed = owner.exits.remove(this);
@@ -191,13 +198,9 @@ public final class BB {
               }
               this.jump = jump;
               for (var target : this.jump.targets()) {
-                var added = target.label().predecessors.add(this);
+                var added = target.bb().predecessors.add(this);
                 assert added
-                    : "BB "
-                        + label
-                        + " was already a predecessor of target '"
-                        + target.label()
-                        + "'.";
+                    : "BB " + label + " was already a predecessor of target '" + target.bb() + "'.";
               }
               if (this.jump.targets().isEmpty()) {
                 var added = owner.exits.add(this);
@@ -279,9 +282,8 @@ public final class BB {
     } while (!(instr instanceof Jump));
 
     for (var target : jump.targets()) {
-      var added = target.label().predecessors.add(this);
-      assert added
-          : "BB " + label + " was already a predecessor of target '" + target.label() + "'.";
+      var added = target.bb().predecessors.add(this);
+      assert added : "BB " + label + " was already a predecessor of target '" + target.bb() + "'.";
     }
     if (jump.targets().isEmpty()) {
       var added = owner.exits.add(this);
