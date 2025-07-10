@@ -1,6 +1,6 @@
 package org.prlprg.bc2fir;
 
-import com.google.common.collect.ImmutableList;
+import java.util.List;
 import org.prlprg.fir.binding.Parameter;
 import org.prlprg.fir.cfg.Abstraction;
 import org.prlprg.fir.module.Function;
@@ -15,14 +15,14 @@ import org.prlprg.sexp.ListSXP;
 public final class ClosureCompiler {
   /// Compile the closure, add it to the module, and return it.
   public static Function compile(Module module, String name, CloSXP closure) {
-    if (!(closure.body() instanceof BCodeSXP bc)) {
+    if (!(closure.body() instanceof BCodeSXP bcSxp)) {
       throw new ClosureCompilerUnsupportedException(
           "AST closure must be converted into bytecode first", closure);
     }
 
     var output = module.addFunction(name);
     var baseline = createBaseline(output, closure.parameters());
-    CFGCompiler.compileCFG(baseline.cfg(), bc);
+    CFGCompiler.compile(baseline.cfg(), bcSxp.bc());
     return output;
   }
 
@@ -32,9 +32,7 @@ public final class ClosureCompiler {
     return baseline;
   }
 
-  private static ImmutableList<Parameter> defaultParams(ListSXP params) {
-    return params.stream()
-        .map(p -> new Parameter(new Register("r" + p.tag()), Type.ANY))
-        .collect(ImmutableList.toImmutableList());
+  private static List<Parameter> defaultParams(ListSXP params) {
+    return params.stream().map(p -> new Parameter(new Register("r" + p.tag()), Type.ANY)).toList();
   }
 }
