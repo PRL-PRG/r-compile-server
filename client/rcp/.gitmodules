@@ -1,6 +1,8 @@
-[submodule "external/R"]
-	path = external/R
-	url = git@github.com:kocoumat/r-rcp.git
 [submodule "external/r-compile-server"]
 	path = external/r-compile-server
-	url = git@github.com:kocoumat/r-compile-server.git
+	url = git@github.com:PRL-PRG/r-compile-server.git
+	branch = rcp
+[submodule "external/R"]
+	path = external/R
+	url = git@github.com:PRL-PRG/r-compiler-server-gnur.git
+	branch = RCP-4-3-2
