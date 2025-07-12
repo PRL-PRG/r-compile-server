@@ -10,8 +10,8 @@ EXTRACTOR_BIN = $(ROOT_DIR)/build/extract_stencils
 EXTRACTED_DIR = $(ROOT_DIR)/build/extracted
 R_PACKAGE = $(ROOT_DIR)/build/rcp_1.0.0.0000.tar.gz
 R_PACKAGE_SOURCE = $(shell find $(ROOT_DIR)/r-pkg/*)
-RSH_HOME = $(ROOT_DIR)/../external/r-compile-server/client/rsh
-R_HOME ?= $(ROOT_DIR)/../external/R
+RSH_HOME = $(ROOT_DIR)/../external/rsh/client/rsh
+R_HOME ?= $(ROOT_DIR)/../external/rsh/external/R
 R_LIB = $(R_HOME)/library/rcp/libs/rcp.so
 
 MCMODEL ?= large
@@ -20,7 +20,7 @@ C_FLAGS_ADDITIONAL ?=
 $(STENCILS_OBJ): stencils/stencils.c
 	@echo "Building stencils..."
 	mkdir -p build
-	$(CC) stencils/stencils.c -o $(STENCILS_OBJ) $(C_FLAGS_ADDITIONAL) -c -ffunction-sections -fno-stack-protector -fcf-protection=none -fno-asynchronous-unwind-tables -Os -march=native -fno-pic -mcmodel=$(MCMODEL) -fno-merge-constants -fno-jump-tables -I../external/R/include  -I../external/r-compile-server/client/rsh/src/bc2c
+	$(CC) stencils/stencils.c -o $(STENCILS_OBJ) $(C_FLAGS_ADDITIONAL) -c -ffunction-sections -fno-stack-protector -fcf-protection=none -fno-asynchronous-unwind-tables -Os -march=native -fno-pic -mcmodel=$(MCMODEL) -fno-merge-constants -fno-jump-tables -I$(R_HOME)/include -I$(RSH_HOME)/src/bc2c
 # -fno-align-functions -fno-align-jumps -fno-align-labels -fno-align-loops
 
 $(EXTRACTOR_BIN): extractor/extract_stencils.c
@@ -34,12 +34,12 @@ $(R_PACKAGE): $(STENCILS_OBJ) $(EXTRACTOR_BIN)# $(R_PACKAGE_SOURCE)
 	@echo "Creating package..."
 	rm -f r-pkg/src/stencils
 	ln -sfn ../../build/extracted r-pkg/src/stencils
-	cd build && ../../external/R/bin/R CMD build ../r-pkg
+	cd build && $(R_HOME)/bin/R CMD build ../r-pkg
 	rm -f r-pkg/src/stencils
 
 $(R_LIB): $(R_PACKAGE)
 	@echo "Installing package..."
-	cd build && ../../external/R/bin/R CMD INSTALL rcp_1.0.0.0000.tar.gz
+	cd build && $(R_HOME)/bin/R CMD INSTALL rcp_1.0.0.0000.tar.gz
 
 .PHONY: install
 install: $(R_LIB)
