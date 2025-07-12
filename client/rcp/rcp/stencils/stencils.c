@@ -347,11 +347,19 @@ RCP_OP(CALLSPECIAL) {
   NEXT;
 }
 
-static INLINE void Rcp_MakeClosure(Value *res, SEXP mkclos_arg, SEXP GET_RHO()) {
+static INLINE void Rcp_MakeClosure(Value *res, SEXP mkclos_arg, SEXP rho) {
   SEXP forms = VECTOR_ELT(mkclos_arg, 0);
   SEXP rcp_body = VECTOR_ELT(mkclos_arg, 1);
-  SEXP closure = Rf_mkCLOSXP(forms, rcp_body, GET_RHO());
+  SEXP closure = Rf_mkCLOSXP(forms, rcp_body, rho);
 
+  if (LENGTH(mkclos_arg) > 2) {
+    PROTECT(closure);
+    SEXP srcref = VECTOR_ELT(mkclos_arg, 2);
+    if (TYPEOF(srcref) != NILSXP)
+      // FIXME: expose R_SrcrefSymbol
+      Rf_setAttrib(closure, Rf_install("srcref"), srcref);
+    UNPROTECT(1); /* closure */
+  }
   R_Visible = TRUE;
 
   SET_SXP_VAL(res, closure);
