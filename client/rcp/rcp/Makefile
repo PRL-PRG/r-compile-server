@@ -5,10 +5,11 @@ default: install
 
 # Object files and executables
 ROOT_DIR := $(realpath .)
-STENCILS_OBJ = $(ROOT_DIR)/build/stencils.o
-EXTRACTOR_BIN = $(ROOT_DIR)/build/extract_stencils
-EXTRACTED_DIR = $(ROOT_DIR)/build/extracted
-R_PACKAGE = $(ROOT_DIR)/build/rcp_1.0.0.0000.tar.gz
+BUILD_DIR := $(ROOT_DIR)/build
+STENCILS_OBJ = $(BUILD_DIR)/stencils.o
+EXTRACTOR_BIN = $(BUILD_DIR)/extract_stencils
+EXTRACTED_DIR = $(BUILD_DIR)/extracted
+R_PACKAGE = $(BUILD_DIR)/rcp_1.0.0.0000.tar.gz
 R_PACKAGE_SOURCE = $(shell find $(ROOT_DIR)/r-pkg/*)
 RSH_HOME = $(ROOT_DIR)/../external/rsh/client/rsh
 R_HOME ?= $(ROOT_DIR)/../external/rsh/external/R
@@ -25,17 +26,21 @@ $(STENCILS_OBJ): stencils/stencils.c
 
 $(EXTRACTOR_BIN): extractor/extract_stencils.c
 	@echo "Building extractor..."
-	mkdir -p build
+	mkdir -p $(BUILD_DIR)
 	$(CC) extractor/extract_stencils.c -o $(EXTRACTOR_BIN) -lbfd -O3 -march=native -flto
 
 $(R_PACKAGE): $(STENCILS_OBJ) $(EXTRACTOR_BIN)# $(R_PACKAGE_SOURCE)
 	@echo "Extracting stencils..."
-	cd build && mkdir -p extracted && cd extracted && ../extract_stencils ../stencils.o
+	cd $(BUILD_DIR) && mkdir -p extracted && cd extracted && ../extract_stencils ../stencils.o
 	@echo "Creating package..."
-	rm -f r-pkg/src/stencils
-	ln -sfn ../../build/extracted r-pkg/src/stencils
-	cd build && $(R_HOME)/bin/R CMD build ../r-pkg
-	rm -f r-pkg/src/stencils
+	rm -f $(ROOT_DIR)/r-pkg/src/stencils
+	ln -sfn $(EXTRACTED_DIR) $(ROOT_DIR)/r-pkg/src/stencils
+	ln -s $(RSH_HOME)/src/bc2c/runtime_internals.h $(ROOT_DIR)/r-pkg/src/runtime_internals.h
+	ln -s $(ROOT_DIR)/rcp_common.h $(ROOT_DIR)/r-pkg/src/rcp_common.h
+	cd $(BUILD_DIR) && $(R_HOME)/bin/R CMD build ../r-pkg
+	rm -f $(ROOT_DIR)/r-pkg/src/rcp_common.h
+	rm -f $(ROOT_DIR)/r-pkg/src/runtime_internals.h
+	rm -f $(ROOT_DIR)/r-pkg/src/stencils
 
 $(R_LIB): $(R_PACKAGE)
 	@echo "Installing package..."
@@ -87,5 +92,7 @@ test: install
 .PHONY: clean
 clean:
 	@echo "Cleaning up..."
-	@rm -f r-pkg/src/stencils
-	@rm -fr build
+	@rm -f $(ROOT_DIR)/r-pkg/src/rcp_common.h
+	@rm -f $(ROOT_DIR)/r-pkg/src/runtime_internals.h
+	@rm -f $(ROOT_DIR)/r-pkg/src/stencils
+	@rm -fr $(BUILD_DIR)
