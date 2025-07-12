@@ -4,8 +4,8 @@
 
 // Declare the function
 extern SEXP C_rcp_cmpfun(SEXP fun, SEXP options);
-extern void rcp_init();
-extern void rcp_destr();
+extern void rcp_init(void);
+extern void rcp_destr(void);
 
 // Register the function
 static const R_CallMethodDef CallEntries[] = {

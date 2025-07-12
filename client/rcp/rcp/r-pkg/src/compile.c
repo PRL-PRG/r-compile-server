@@ -524,6 +524,8 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
                 used_bcells[bcell_index]++;
             }
             break;
+            default:
+            break;
             }
         }
         stats->count_opcodes++;
@@ -740,14 +742,14 @@ static SEXP copy_patch_bc(SEXP bcode, CompilationStats *stats)
     return ptr;
 }
 
-SEXP rcp_init()
+void rcp_init(void)
 {
     prepare_precompiled();
 
     prepare_rodata();
 }
 
-SEXP rcp_destr()
+void rcp_destr(void)
 {
     if (--(*mem_shared_ref_count) == 0)
     {
