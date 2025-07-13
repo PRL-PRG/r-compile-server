@@ -1,5 +1,6 @@
 #!/usr/bin/env Rscript
 set.seed(1)
+options(rcp.cmpfun.stats = TRUE)
 
 BC_OPTS <- list(optimize = 3L)
 RSH_OPTS <- list(optimize = 3L, cache = FALSE)
@@ -23,6 +24,7 @@ wrap_with_verify <- function(f, expected, expected_output) {
 benchmark <- function(options) {
   output <- capture.output(result <- execute(options$param))
   b <- list()
+  rsh_stats <- NULL
 
   if ("bc" %in% options$type) {
     bc <- compiler::cmpfun(execute, options=BC_OPTS)
@@ -32,6 +34,9 @@ benchmark <- function(options) {
 
   if ("rsh" %in% options$type) {
     rsh <- rcp:::rcp_cmpfun(execute, options=c(RSH_OPTS, options$compiler_options))
+    rsh_stats <- attr(rsh, "stats")
+    attr(rsh, "stats") <- NULL
+
     rsh <- wrap_with_verify(rsh, result, output)
     b$rsh <- quote(rsh(options$param))
   }
@@ -40,7 +45,9 @@ benchmark <- function(options) {
   b$unit <- "seconds"
   b$control <- list(order="block")
 
-  do.call(microbenchmark::microbenchmark, b)
+  res <- do.call(microbenchmark::microbenchmark, b)
+  attr(res, "extras") <- rsh_stats
+  res
 }
 
 run <- function(o) {
@@ -54,6 +61,7 @@ run <- function(o) {
     }
 
     res <- benchmark(o);
+    extras <- attr(res, "extras")
 
     print(res)
     
@@ -66,6 +74,10 @@ run <- function(o) {
         timestamp=as.integer(Sys.time()),
         compiler_options=paste0(names(o$compiler_options), "=", o$compiler_options, collapse=" ")
     )
+
+    if (!is.null(extras)) {
+      res <- cbind(res, as.list(extras))
+    }
 
     if (!is.na(o$output_dir)) {
         if (!dir.exists(o$output_dir)) {
