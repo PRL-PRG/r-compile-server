@@ -495,22 +495,17 @@ static INLINE BCell bcell_get(SEXP symbol, SEXP rho) {
   }
 }
 
-// Ensures that the symbol from rho is bound in the given cache
-// as long as the symbol in rho is bindable. If not, it sets the cache to
-// R_NilValue
 static ALWAYS_INLINE void bcell_ensure_cache(SEXP symbol, SEXP rho,
-                                             BCell *const cell) {
-  if (TAG(*cell) == symbol) {
-    assert(!BCELL_IS_UNBOUND(*cell));
-
+                                             BCell *const cache) {
+  if (TAG(*cache) == symbol && !BCELL_IS_UNBOUND(*cache)) {
     return;
-  }
-
-  SEXP ncell = bcell_get(symbol, rho);
-  if (ncell != R_NilValue) {
-    *cell = ncell;
-  } else if (*cell != R_NilValue && BCELL_IS_UNBOUND(*cell)) {
-    *cell = R_NilValue;
+  } else {
+    SEXP ncell = bcell_get(symbol, rho);
+    if (ncell != R_NilValue) {
+      *cache = ncell;
+    } else if (*cache != R_NilValue && BCELL_IS_UNBOUND(*cache)) {
+      *cache = R_NilValue;
+    }
   }
 }
 
@@ -551,6 +546,7 @@ static ALWAYS_INLINE Rboolean bcell_set_value(BCell cell, SEXP value) {
   if (cell != R_NilValue && !BINDING_IS_LOCKED(cell) &&
       !IS_ACTIVE_BINDING(cell)) {
     if (BNDCELL_TAG(cell) || CAR(cell) != value) {
+      BCELL_SET(cell, value);
       if (MISSING(cell)) {
         SET_MISSING(cell, 0);
       } else {
@@ -707,28 +703,26 @@ static INLINE SEXP Rsh_append_values_to_args(Value *vals, int n, SEXP args) {
 // if the cache == NULL or there is nothing in the cache, looks it in rho
 // and if it does find it in rho and cache != NULL it updates the cache
 // FIXME: rename cache to cell
-static INLINE SEXP Rsh_do_get_var(SEXP symbol, SEXP rho, Rboolean dd,
-                                  Rboolean keepmiss, BCell *cache) {
+static INLINE void Rsh_do_get_var(Value *res, SEXP symbol, BCell *cell,
+                                  Rboolean dd, Rboolean keepmiss, SEXP rho) {
+  RSH_PC_INC(slow_getvar);
+
   SEXP value = R_UnboundValue;
   int has_cell = 0;
 
   if (dd) {
-    value = ddfindVar(symbol, rho);
+    value = Rf_ddfindVar(symbol, rho);
   } else {
-    if (cache != NULL) {
-      bcell_ensure_cache(symbol, rho, cache);
-      value = bcell_value(*cache);
+    if (cell != NULL) {
+      bcell_ensure_cache(symbol, rho, cell);
+      value = bcell_value(*cell);
     }
 
     if (value == R_UnboundValue) {
       value = Rf_findVar(symbol, rho);
     } else {
-      has_cell = cache != NULL;
+      has_cell = cell != NULL;
     }
-  }
-
-  if (!keepmiss && TYPEOF(value) == PROMSXP && !PROMISE_IS_EVALUATED(value)) {
-    forcePromise(value);
   }
 
   if (value == R_UnboundValue) {
@@ -741,7 +735,8 @@ static INLINE SEXP Rsh_do_get_var(SEXP symbol, SEXP rho, Rboolean dd,
     } else {
       /**** R_isMissing is inefficient */
       if (keepmiss && R_isMissing(symbol, rho)) {
-        value = R_MissingArg;
+        SET_VAL(res, R_MissingArg);
+        return;
       } else {
         forcePromise(value);
         // FIXME: this is pretty inefficient
@@ -751,15 +746,15 @@ static INLINE SEXP Rsh_do_get_var(SEXP symbol, SEXP rho, Rboolean dd,
         value = PRVALUE(value);
       }
     }
+
+    if (has_cell) {
+      BCELL_INLINE(*cell, value);
+    }
   } else {
     ENSURE_NAMEDMAX(value);
   }
 
-  if (has_cell) {
-    BCELL_INLINE(*cache, value);
-  }
-
-  return value;
+  SET_VAL(res, value);
 }
 
 #define Rsh_GetVar(res, symbol, cell, rho)                                     \
@@ -770,6 +765,18 @@ static INLINE SEXP Rsh_do_get_var(SEXP symbol, SEXP rho, Rboolean dd,
 static ALWAYS_INLINE void Rsh_get_var(Value *res, SEXP symbol, BCell *cell,
                                       SEXP rho, Rboolean dd,
                                       Rboolean keepmiss) {
+  switch (BCELL_TAG(*cell)) {
+  case REALSXP:
+    SET_DBL_VAL(res, BCELL_DVAL(*cell));
+    return;
+  case INTSXP:
+    SET_INT_VAL(res, BCELL_IVAL(*cell));
+    return;
+  case LGLSXP:
+    SET_LGL_VAL(res, BCELL_IVAL(*cell));
+    return;
+  }
+
   switch (BCELL_TAG(*cell)) {
   case REALSXP:
     SET_DBL_VAL(res, BCELL_DVAL(*cell));
@@ -828,7 +835,7 @@ static ALWAYS_INLINE void Rsh_get_var(Value *res, SEXP symbol, BCell *cell,
     }
   }
 
-  SET_VAL(res, Rsh_do_get_var(symbol, rho, dd, keepmiss, cell));
+  Rsh_do_get_var(res, symbol, cell, dd, keepmiss, rho);
 }
 
 static ALWAYS_INLINE void Rsh_SetVar(Value *v, SEXP symbol, BCell *cell,
@@ -1586,7 +1593,8 @@ static INLINE void Rsh_StartAssign2(Value *rhs, Value *lhs_cell, Value *lhs_val,
   SET_ASSIGNMENT_PENDING(loc.cell, TRUE);
   SET_SXP_VAL(lhs_cell, loc.cell);
 
-  SEXP value_sxp = Rsh_do_get_var(symbol, ENCLOS(rho), FALSE, FALSE, NULL);
+  Rsh_do_get_var(lhs_val, symbol, NULL, FALSE, FALSE, ENCLOS(rho));
+  SEXP value_sxp = val_as_sexp(*lhs_val);
   if (maybe_in_assign || MAYBE_SHARED(value_sxp)) {
     value_sxp = Rf_shallow_duplicate(value_sxp);
   }
