@@ -39,12 +39,11 @@ do_compare <- function(args) {
       ) %>%
       slice(-(1:warmup))
     
-    if (ncol(df) != 9) {
-      warning("File does not have 8 columns: ", f)
-      NULL
-    } else {
-      df
+    if (ncol(df) < 9) {
+      warning("File does not have at least 9 columns: ", f)
     }
+
+    df
   })
 
   slower <- Vectorize(red $ bold)
@@ -136,12 +135,10 @@ do_save <- function(args) {
 
   map_dfr(files, function(file) {
     df <- read_csv(file, show_col_types = FALSE)
-    if (ncol(df) != 8) {
-      warning("File does not have 8 columns: ", file)
-      NULL
-    } else {
-      df
+    if (ncol(df) < 9) {
+      warning("File does not have at least 9 columns: ", file)
     }
+    df
   }) %>%
   write_csv(output_file)
 
