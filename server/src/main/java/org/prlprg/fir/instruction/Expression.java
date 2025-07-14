@@ -25,6 +25,7 @@ import org.prlprg.util.Either;
 public sealed interface Expression extends Instruction
     permits Call,
         Cast,
+        Closure,
         Dup,
         Force,
         Literal,
@@ -113,6 +114,29 @@ public sealed interface Expression extends Instruction
       return new SuperRead(variable);
     }
 
+    if (s.trySkip("clos(")) {
+      var functionName = p.parse(String.class);
+      s.assertAndSkip(')');
+
+      // We must defer setting the function in case it's a forward reference.
+      @SuppressWarnings("DataFlowIssue")
+      var result = new Closure(null);
+
+      postModule.add(
+          m -> {
+            assert m == module;
+
+            var function = m.lookupFunction(functionName);
+            if (function == null) {
+              throw s.fail("Callee references a function that wasn't defined: " + functionName);
+            }
+
+            result.unsafeSetCode(function);
+          });
+
+      return result;
+    }
+
     if (s.trySkip("prom<")) {
       var valueType = p.parse(Type.class);
       var effects = p.parse(Effects.class);
@@ -178,6 +202,7 @@ public sealed interface Expression extends Instruction
         }
         var arguments = p1.parseList("(", ")", Expression.class);
 
+        // We must defer setting the function in case it's a forward reference.
         @SuppressWarnings("DataFlowIssue")
         var result = new Call(null, arguments);
 
@@ -185,7 +210,7 @@ public sealed interface Expression extends Instruction
             m -> {
               assert m == module;
 
-              var function = m.function(functionName);
+              var function = m.lookupFunction(functionName);
               if (function == null) {
                 throw s.fail("Callee references a function that wasn't defined: " + functionName);
               }

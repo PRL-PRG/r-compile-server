@@ -1,6 +1,6 @@
 package org.prlprg.fir.callee;
 
-import org.jetbrains.annotations.Nullable;
+import javax.annotation.Nullable;
 import org.prlprg.fir.module.Function;
 import org.prlprg.fir.type.Signature;
 import org.prlprg.parseprint.PrintMethod;

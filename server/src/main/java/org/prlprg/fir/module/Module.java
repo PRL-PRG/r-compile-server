@@ -1,5 +1,8 @@
 package org.prlprg.fir.module;
 
+import static org.prlprg.fir.GlobalModules.BUILTINS;
+import static org.prlprg.fir.GlobalModules.INTRINSICS;
+
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -8,7 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
-import org.jetbrains.annotations.Nullable;
+import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.observer.Observer;
 import org.prlprg.parseprint.ParseMethod;
@@ -23,11 +26,25 @@ public class Module {
   // Data
   private final Map<String, Function> functions = new LinkedHashMap<>();
 
-  public @UnmodifiableView Collection<Function> functions() {
+  public @UnmodifiableView Collection<Function> localFunctions() {
     return Collections.unmodifiableCollection(functions.values());
   }
 
-  public @Nullable Function function(String name) {
+  /// Lookup a function in this module or enclosing modules (the intrinsic and builtin modules).
+  public @Nullable Function lookupFunction(String name) {
+    var f = functions.get(name);
+    if (f != null) {
+      return f;
+    }
+    f = BUILTINS.localFunction(name);
+    if (f != null) {
+      return f;
+    }
+    return INTRINSICS.localFunction(name);
+  }
+
+  /// Lookup a function in this module.
+  public @Nullable Function localFunction(String name) {
     return functions.get(name);
   }
 

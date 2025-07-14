@@ -1,5 +1,8 @@
 package org.prlprg.bc2fir;
 
+import static org.prlprg.fir.GlobalModules.BUILTINS;
+import static org.prlprg.fir.GlobalModules.INTRINSICS;
+
 import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -15,17 +18,21 @@ import org.prlprg.bc.BcInstr;
 import org.prlprg.bc.BcLabel;
 import org.prlprg.bc.ConstPool;
 import org.prlprg.bc.LabelName;
+import org.prlprg.fir.callee.DispatchCallee;
 import org.prlprg.fir.callee.StaticCallee;
+import org.prlprg.fir.cfg.Abstraction;
 import org.prlprg.fir.cfg.BB;
 import org.prlprg.fir.cfg.CFG;
 import org.prlprg.fir.cfg.cursor.CFGCursor;
 import org.prlprg.fir.instruction.Cast;
+import org.prlprg.fir.instruction.Closure;
 import org.prlprg.fir.instruction.Expression;
 import org.prlprg.fir.instruction.Force;
 import org.prlprg.fir.instruction.Goto;
 import org.prlprg.fir.instruction.If;
 import org.prlprg.fir.instruction.Jump;
 import org.prlprg.fir.instruction.Literal;
+import org.prlprg.fir.instruction.Promise;
 import org.prlprg.fir.instruction.Read;
 import org.prlprg.fir.instruction.Return;
 import org.prlprg.fir.instruction.Unreachable;
@@ -33,10 +40,14 @@ import org.prlprg.fir.instruction.Write;
 import org.prlprg.fir.module.Module;
 import org.prlprg.fir.phi.PhiParameter;
 import org.prlprg.fir.phi.Target;
+import org.prlprg.fir.type.Effects;
+import org.prlprg.fir.type.Type;
 import org.prlprg.fir.variable.NamedVariable;
 import org.prlprg.primitive.BuiltinId;
-import org.prlprg.rshruntime.BcPosition;
+import org.prlprg.sexp.Attributes;
+import org.prlprg.sexp.BCodeSXP;
 import org.prlprg.sexp.LangSXP;
+import org.prlprg.sexp.ListSXP;
 import org.prlprg.sexp.RegSymSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
@@ -247,13 +258,13 @@ public class CFGCompiler {
       if (chrLabels != null) {
         for (var i = 0; i < chrLabels.size(); i++) {
           var labelPos = chrLabels.get(i);
-          ensureBbAt(new BcLabel(labelPos), "SWITCH_CHR" + i);
+          ensureBbAt(new BcLabel(labelPos));
         }
       }
       if (numLabels != null) {
         for (var i = 0; i < numLabels.size(); i++) {
           var labelPos = numLabels.get(i);
-          ensureBbAt(new BcLabel(labelPos), "SWITCH_NUM" + i);
+          ensureBbAt(new BcLabel(labelPos));
         }
       }
       return;
@@ -269,7 +280,7 @@ public class CFGCompiler {
           : "BcLabel fields should be annotated with @LabelName";
 
       if (clazz == BcLabel.class && value != null) {
-        ensureBbAt((BcLabel) value, labelName.value());
+        ensureBbAt((BcLabel) value);
       }
     }
   }
@@ -277,7 +288,7 @@ public class CFGCompiler {
   /// Adds a basic block and maps it to the given label, if a basic block for the given label
   // doesn't
   /// already exist (otherwise no-op).
-  private void ensureBbAt(BcLabel label, String name) {
+  private void ensureBbAt(BcLabel label) {
     int pos = label.target();
     if (!bbByLabel.containsKey(pos)) {
       bbByLabel.put(pos, cfg.addBB());
@@ -286,10 +297,11 @@ public class CFGCompiler {
 
   /// Returns the basic block corresponding to the given label
   ///
-  /// Specifically, this returns the block inserted by [#ensureBbAt(BcLabel,String)], which
-  /// should've been compiled before we started "actually" compiling the bytecode instructions,
-  // and
-  /// this is called while actually compiling the instructions.
+  /// Specifically, this returns the block inserted by [#ensureBbAt(BcLabel)], which should've
+  // been
+  /// compiled before we started "actually" compiling the bytecode instructions, and this is
+  // called
+  /// while actually compiling the instructions.
   private BB bbAt(BcLabel label) {
     int pos = label.target();
     assert bbByLabel.containsKey(pos) : "no BB at position " + pos;
@@ -329,7 +341,7 @@ public class CFGCompiler {
         addPhiInputsForStack(bb);
         setInUnreachableBytecode();
       }
-      case BcInstr.BrIfNot(var ast, var label) -> {
+      case BcInstr.BrIfNot(var _, var label) -> {
         var bb = bbAt(label);
         setJump(new If(pop(), target(bbAfterCurrent()), target(bb)));
         addPhiInputsForStack(bb);
@@ -340,7 +352,7 @@ public class CFGCompiler {
         push(value);
         push(value);
       }
-      case BcInstr.PrintValue() -> push(builtin(BuiltinId.PRINT_VALUE, pop()));
+      case BcInstr.PrintValue() -> push(builtin("print", pop()));
       case BcInstr.StartLoopCntxt(var isForLoop, var end) -> {
         // REACH: Complicated loop contexts.
         // Currently we only handle simple cases like PIR, where `next` and `break` aren't in
@@ -374,7 +386,7 @@ public class CFGCompiler {
           compileEndLoop(LoopType.WHILE_OR_REPEAT);
         }
       }
-      case BcInstr.StartFor(var ast, var elemName, var step) -> {
+      case BcInstr.StartFor(var _, var elemName, var step) -> {
         // This takes advantage of invariants expected between `StartFor/StepFor/EndFor` and just
         // compiles the entire for loop logic (everything other than the loop forBody). We then do a
         // weak sanity check that the bytecode upholds these invariants by including `StepFor` in
@@ -382,7 +394,6 @@ public class CFGCompiler {
         // other ways and simply not be noticed.
         var loopCntxt = bc.code().get(bcPos + 1) instanceof BcInstr.StartLoopCntxt l ? l : null;
 
-        var initBb = cursor.bb();
         BB forBodyBb;
         BB stepBb;
         BB endBb;
@@ -407,7 +418,7 @@ public class CFGCompiler {
 
         // For loop init
         var seq = intrinsic("toForSeq", pop());
-        var length = intrinsic("length", seq);
+        var length = intrinsic("length", 0, seq);
         var init = new Literal(SEXPs.integer(0));
         var index = cfg.scope().addLocal();
         cursor.insert(new Write(index, init));
@@ -417,17 +428,17 @@ public class CFGCompiler {
         // For loop step
         moveTo(stepBb);
         // Increment the index
-        var index1 = intrinsic("inc", pop());
+        var index1 = intrinsic("inc", 0, pop());
         push(index1);
         // Compare the index to the length
-        var cond = intrinsic("lt", length, index1);
+        var cond = intrinsic("lt", 0, length, index1);
         // Jump to `end` if it's greater (remember, GNU-R indexing is one-based)
         setJump(new If(cond, target(endBb), target(forBodyBb)));
 
         // For loop body
         moveTo(forBodyBb);
         // Extract element at index
-        var elem = intrinsic("extract2_1D", seq, index1);
+        var elem = intrinsic("extract2_1D", 0, seq, index1);
         // Store in the element variable
         cursor.insert(new Write(getVar(elemName), elem));
         // Now we compile the rest of the body...
@@ -501,7 +512,7 @@ public class CFGCompiler {
         pop();
         push(new Literal(SEXPs.NULL));
       }
-      case BcInstr.Invisible() -> insert(intrinsic("invisible"));
+      case BcInstr.Invisible() -> insert(intrinsic("invisible", 0));
       case BcInstr.LdConst(var constant) -> push(new Literal(get(constant)));
       case BcInstr.LdNull() -> push(new Literal(SEXPs.NULL));
       case BcInstr.LdTrue() -> push(new Literal(SEXPs.TRUE));
@@ -516,26 +527,24 @@ public class CFGCompiler {
         push(new Force(pop()));
       }
       case BcInstr.SetVar(var name) -> insert(new Write(getVar(name), top()));
-        // TODO 🔽
-      case BcInstr.GetFun(var name) -> push(name, new StmtData.LdFun(get(name)));
-      case BcInstr.GetGlobFun(var name) ->
-          pushCallFunInsert(name, new StmtData.LdFun(get(name), StaticEnv.GLOBAL));
+      case BcInstr.GetFun(var name) -> push(loadFun(getVar(name), false));
+      case BcInstr.GetGlobFun(var name) -> pushCall(loadFun(getVar(name), true));
         // ???: GNU-R calls `SYMVALUE` and `INTERNAL` to implement these, but we don't store that in
         //  our `RegSymSxp` data-structure. So the next three implementations may be incorrect.
       case BcInstr.GetSymFun(var name) -> pushCall(BuiltinId.referencedBy(get(name)));
       case BcInstr.GetBuiltin(var name) -> pushCall(BuiltinId.referencedBy(get(name)));
       case BcInstr.GetIntlBuiltin(var name) -> pushCall(BuiltinId.referencedBy(get(name)));
-      case BcInstr.CheckFun() -> pushCallFunInsert(new StmtData.ChkFun(pop()));
+      case BcInstr.CheckFun() -> pushCall(checkFun(pop()));
       case BcInstr.MakeProm(var code) -> {
-        // REACH: Could cache compiled promise CFGs (env will always be different) in the module...
-        // TODO: infer name
-        Promise promise;
-        try {
-          promise = compilePromise("", get(code), module);
-        } catch (ClosureCompilerUnsupportedException e) {
-          throw failUnsupported("Promise with unsupported body", e);
+        if (!(this.get(code) instanceof BCodeSXP bcSxp)) {
+          throw failUnsupported("Promise with non-bytecode body at index " + code);
         }
-        pushCallArgInsert(new StmtData.MkProm(promise));
+        var bc = bcSxp.bc();
+
+        var cfg = new CFG(scope());
+        compile(cfg, bc);
+
+        pushCallArg(new Promise(Type.ANY, Effects.ANY, cfg));
       }
       case BcInstr.DoMissing() -> pushMissingCallArg();
       case BcInstr.SetTag(var tag) -> {
@@ -546,28 +555,28 @@ public class CFGCompiler {
                   .orElseThrow(() -> fail("SetTag: tag must be a regular symbol or string")));
         }
       }
-      case BcInstr.DoDots() -> pushCallArgInsert("...", new StmtData.LdDots(env));
+      case BcInstr.DoDots() -> pushCallArg(new Read(NamedVariable.DOTS));
       case BcInstr.PushArg() -> pushCallArg(pop());
-      case BcInstr.PushConstArg(var constant) -> pushCallArg(new Constant(get(constant)));
-      case BcInstr.PushNullArg() -> pushCallArg(new Constant(SEXPs.NULL));
-      case BcInstr.PushTrueArg() -> pushCallArg(new Constant(SEXPs.TRUE));
-      case BcInstr.PushFalseArg() -> pushCallArg(new Constant(SEXPs.FALSE));
-      case BcInstr.BcInstr.Call(var ast) -> compileCall(ast);
+      case BcInstr.PushConstArg(var constant) -> pushCallArg(new Literal(get(constant)));
+      case BcInstr.PushNullArg() -> pushCallArg(new Literal(SEXPs.NULL));
+      case BcInstr.PushTrueArg() -> pushCallArg(new Literal(SEXPs.TRUE));
+      case BcInstr.PushFalseArg() -> pushCallArg(new Literal(SEXPs.FALSE));
+      case BcInstr.Call(var ast) -> compileCall(ast);
       case BcInstr.CallBuiltin(var ast) -> compileCall(ast);
       case BcInstr.CallSpecial(var astId) -> {
         var ast = get(astId);
         if (!(ast.fun() instanceof RegSymSXP builtinSymbol)) {
           throw fail("CallSpecial: expected a symbol (builtin id) function");
         }
-        var builtin = BuiltinId.referencedBy(builtinSymbol);
+        var builtinName = builtinSymbol.name();
         // Note that some of these are constant symbols and language objects, they should be treated
         // like `eval`. We also assume builtins never use names.
         // GNU-R just passes `CDR(call)` to the builtin.
         var args =
             ast.args().stream()
-                .map(arg -> (Expression) new Constant(arg.value()))
-                .collect(ImmutableList.toImmutableList());
-        push(new StmtData.CallBuiltin(ast, builtin, args));
+                .map(arg -> (Expression) new Literal(arg.value()))
+                .toArray(Expression[]::new);
+        push(builtin(builtinName, args));
       }
       case BcInstr.MakeClosure(var arg) -> {
         var fb = get(arg);
@@ -578,41 +587,34 @@ public class CFGCompiler {
             SEXPs.closure(
                 forms, body, SEXPs.EMPTY_ENV, ast == null ? null : Attributes.srcref(ast));
 
-        // Note that we don't use `module.getOrCompile` because the inner closure will probably have
-        // a unique environment, so we don't even bother trying to cache it outside of the outer
-        // closure.
-        // Also, we intentionally only compile the baseline version because the inner closure will
-        // be optimized along with the outer closure.
-        // TODO: infer name
-        Closure closure;
-        try {
-          closure = compileBaselineClosure("", cloSxp, module);
-        } catch (ClosureCompilerUnsupportedException e) {
-          throw failUnsupported("Closure with unsupported body", e);
-        }
+        // TODO: infer name. Eventually, we also must handle name conflicts.
+        var generatedName = "inner" + module().localFunctions().size();
 
-        push(new StmtData.MkCls(closure));
+        var code = ClosureCompiler.compile(module(), generatedName, cloSxp);
+
+        push(new Closure(code));
       }
-      case BcInstr.UMinus(var ast) -> push(mkUnop(ast, StmtData.UMinus::new));
-      case BcInstr.UPlus(var ast) -> push(mkUnop(ast, StmtData.UPlus::new));
-      case BcInstr.Sqrt(var ast) -> push(mkUnop(ast, StmtData.Sqrt::new));
-      case BcInstr.Add(var ast) -> push(mkBinop(ast, StmtData.Add::new));
-      case BcInstr.Sub(var ast) -> push(mkBinop(ast, StmtData.Sub::new));
-      case BcInstr.Mul(var ast) -> push(mkBinop(ast, StmtData.Mul::new));
-      case BcInstr.Div(var ast) -> push(mkBinop(ast, StmtData.Div::new));
-      case BcInstr.Expt(var ast) -> push(mkBinop(ast, StmtData.Pow::new));
-      case BcInstr.Exp(var ast) -> push(mkUnop(ast, StmtData.Exp::new));
-      case BcInstr.Eq(var ast) -> push(mkBinop(ast, StmtData.Eq::new));
-      case BcInstr.Ne(var ast) -> push(mkBinop(ast, StmtData.Neq::new));
-      case BcInstr.Lt(var ast) -> push(mkBinop(ast, StmtData.Lt::new));
-      case BcInstr.Le(var ast) -> push(mkBinop(ast, StmtData.Lte::new));
-      case BcInstr.Ge(var ast) -> push(mkBinop(ast, StmtData.Gte::new));
-      case BcInstr.Gt(var ast) -> push(mkBinop(ast, StmtData.Gt::new));
-      case BcInstr.And(var ast) -> push(mkBinop(ast, StmtData.LAnd::new));
-      case BcInstr.Or(var ast) -> push(mkBinop(ast, StmtData.LOr::new));
-      case BcInstr.Not(var ast) -> push(mkUnop(ast, StmtData.Not::new));
+      case BcInstr.UMinus(var _) -> push(mkUnop("-"));
+      case BcInstr.UPlus(var _) -> push(mkUnop("+"));
+      case BcInstr.Sqrt(var _) -> push(mkUnop("sqrt"));
+      case BcInstr.Add(var _) -> push(mkBinop("+"));
+      case BcInstr.Sub(var _) -> push(mkBinop("-"));
+      case BcInstr.Mul(var _) -> push(mkBinop("*"));
+      case BcInstr.Div(var _) -> push(mkBinop("/"));
+      case BcInstr.Expt(var _) -> push(mkBinop("expt"));
+      case BcInstr.Exp(var _) -> push(mkUnop("exp"));
+      case BcInstr.Eq(var _) -> push(mkBinop("=="));
+      case BcInstr.Ne(var _) -> push(mkBinop("!="));
+      case BcInstr.Lt(var _) -> push(mkBinop("<"));
+      case BcInstr.Le(var _) -> push(mkBinop("<="));
+      case BcInstr.Ge(var _) -> push(mkBinop(">="));
+      case BcInstr.Gt(var _) -> push(mkBinop(">"));
+      case BcInstr.And(var _) -> push(mkBinop("&&"));
+      case BcInstr.Or(var _) -> push(mkBinop("||"));
+      case BcInstr.Not(var _) -> push(mkUnop("!"));
       case BcInstr.DotsErr() ->
-          insertVoid(new StmtData.Error("'...' used in an incorrect context"));
+          insert(builtin("stop", new Literal(SEXPs.string("'...' used in an incorrect context"))));
+        // TODO 🔽
       case BcInstr.StartAssign(var name) -> {
         var lhs = cursor.insert(get(name).name(), new StmtData.LdVar(get(name), false));
         var rhs = top();
@@ -791,7 +793,7 @@ public class CFGCompiler {
       }
       case BcInstr.And2nd(var ast) -> {
         push(new StmtData.AsLogical(pop()));
-        push(mkBinop(ast, StmtData.LAnd::new));
+        push(mkBinop(StmtData.LAnd::new));
         setJump(new Goto(target(bbAfterCurrent())));
       }
       case BcInstr.Or1st(var ast, var shortCircuit) -> {
@@ -802,7 +804,7 @@ public class CFGCompiler {
       }
       case BcInstr.Or2nd(var ast) -> {
         push(new StmtData.AsLogical(pop()));
-        push(mkBinop(ast, StmtData.LOr::new));
+        push(mkBinop(StmtData.LOr::new));
         setJump(new Goto(target(bbAfterCurrent())));
       }
       case BcInstr.GetVarMissOk(var name) -> {
@@ -1005,8 +1007,8 @@ public class CFGCompiler {
           compileDefaultDispatchN(Dispatch.Type.SUBASSIGNN, n + 2);
       case BcInstr.Subassign2N(var _, var n) ->
           compileDefaultDispatchN(Dispatch.Type.SUBASSIGN2N, n + 2);
-      case BcInstr.Log(var ast) -> push(mkUnop(ast, StmtData.Log::new));
-      case BcInstr.LogBase(var ast) -> push(mkBinop(ast, StmtData.LogBase::new));
+      case BcInstr.Log(var ast) -> push(mkUnop(StmtData.Log::new));
+      case BcInstr.LogBase(var ast) -> push(mkBinop(StmtData.LogBase::new));
       case BcInstr.Math1(var ast, var funId) -> push(new StmtData.Math1(funId, pop()));
       case BcInstr.DotCall(var ast, var numArgs) -> {
         if (stack.size() < numArgs + 1) {
@@ -1019,7 +1021,7 @@ public class CFGCompiler {
 
         push(new StmtData.CallBuiltin(BuiltinId.DOT_CALL, args));
       }
-      case BcInstr.Colon(var ast) -> push(mkBinop(ast, StmtData.Colon::new));
+      case BcInstr.Colon(var ast) -> push(mkBinop(StmtData.Colon::new));
       case BcInstr.SeqAlong(var ast) ->
           push(new StmtData.CallBuiltin(BuiltinId.SEQ_ALONG, ImmutableList.of(pop())));
       case BcInstr.SeqLen(var ast) ->
@@ -1070,24 +1072,14 @@ public class CFGCompiler {
     }
   }
 
-  @FunctionalInterface
-  private interface MkUnopFn {
-    StmtData.Expression make(@Nullable LangSXP ast, Expression value);
+  private Expression mkUnop(String builtinName) {
+    return builtin(builtinName, pop());
   }
 
-  @FunctionalInterface
-  private interface MkBinopFn {
-    StmtData.Expression make(@Nullable LangSXP ast, Expression lhs, Expression rhs);
-  }
-
-  private StmtData.Expression mkUnop(ConstPool.Idx<LangSXP> ast, MkUnopFn unop) {
-    return unop.make(pop());
-  }
-
-  private StmtData.Expression mkBinop(ConstPool.Idx<LangSXP> ast, MkBinopFn binop) {
+  private Expression mkBinop(String builtinName) {
     var rhs = pop();
     var lhs = pop();
-    return binop.make(lhs, rhs);
+    return builtin(builtinName, lhs, rhs);
   }
 
   /**
@@ -1722,22 +1714,53 @@ public class CFGCompiler {
   // endregion inter-instruction data
 
   // region expression constructors
-  private Expression builtin(BuiltinId builtin, Expression... args) {
-    return intrinsic("blt_" + builtin.name(), args);
+  private Expression builtin(String name, Expression... args) {
+    return builtin(name, -1, args);
+  }
+
+  private Expression builtin(String name, int versionIndex, Expression... args) {
+    var function = BUILTINS.localFunction(name);
+    assert function != null : "missing builtin " + name;
+    var callee =
+        versionIndex == -1
+            ? new DispatchCallee(function, null)
+            : new StaticCallee(function, function.version(versionIndex));
+    return new org.prlprg.fir.instruction.Call(callee, ImmutableList.copyOf(args));
   }
 
   private Expression intrinsic(String name, Expression... args) {
-    // TODO: Add intrinsic callee, not `StaticCallee`.
-    var function = module().function(name);
-    assert function != null : "missing builtin";
-    var version = function.version(0);
-    return new org.prlprg.fir.instruction.Call(
-        new StaticCallee(function, version), ImmutableList.copyOf(args));
+    return intrinsic(name, -1, args);
+  }
+
+  private Expression intrinsic(String name, int versionIndex, Expression... args) {
+    var function = INTRINSICS.localFunction(name);
+    assert function != null : "missing intrinsic " + name;
+    var callee =
+        versionIndex == -1
+            ? new DispatchCallee(function, null)
+            : new StaticCallee(function, function.version(versionIndex));
+    return new org.prlprg.fir.instruction.Call(callee, ImmutableList.copyOf(args));
+  }
+
+  /// Stub for loaded function, which can fallback to an intrinsic but usually gets caught and
+  /// turned into [DynamicCallee].
+  private Expression loadFun(NamedVariable name, boolean isGlobal) {
+    return intrinsic("loadFun", 0, new Read(name), new Literal(SEXPs.logical(isGlobal)));
+  }
+
+  /// Stub for function guard (TODO what does [#BcInstr.CheckFun] do again?), which can fallback to
+  /// an intrinsic but usually gets caught and turned into [DynamicCallee].
+  private Expression checkFun(Expression fun) {
+    return intrinsic("checkFun", 0, fun);
   }
 
   // endregion expression constructors
 
   // region misc
+  private Abstraction scope() {
+    return cfg.scope();
+  }
+
   private Module module() {
     return cfg.module();
   }

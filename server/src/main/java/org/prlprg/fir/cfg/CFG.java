@@ -29,7 +29,7 @@ public final class CFG {
   final Set<BB> exits = new LinkedHashSet<>();
   private int nextLabelDisambiguator = 0;
 
-  CFG(Abstraction scope) {
+  public CFG(Abstraction scope) {
     this.scope = scope;
 
     // Create an empty entry block

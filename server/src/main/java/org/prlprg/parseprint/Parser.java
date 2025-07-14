@@ -16,6 +16,7 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -26,6 +27,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
 import org.prlprg.util.Classes;
+import org.prlprg.util.Files;
 import org.prlprg.util.InvalidAnnotationError;
 import org.prlprg.util.UnreachableError;
 
@@ -76,12 +78,50 @@ public class Parser {
    */
   public static <T> T fromString(String s, Class<T> clazz, @Nullable Object context) {
     var p = new Parser(s).withContext(context);
-    var obj = p.parse(clazz);
-    p.scanner.skipWhitespace(true);
-    if (!p.scanner.isAtEof()) {
-      throw new ParseException(p.scanner.position(), "input not entirely parsed");
+    return p.parseEntire(clazz);
+  }
+
+  /**
+   * Creates a {@link Parser} to only parse an object of the given class from the resource at the
+   * given path.
+   *
+   * <p>The path is relative to the class's package, and the resource must be a text file. The
+   * entire file is parsed into the object.
+   *
+   * @throws ParseException if the object failed to parse.
+   * @throws ParseException if the input wasn't entirely parsed, excluding trailing whitespace.
+   */
+  public static <T> T fromResource(Path resourcePath, Class<T> clazz) {
+    return fromResource(resourcePath, clazz, null);
+  }
+
+  /**
+   * Creates a {@link Parser} to only parse an object of the given class from the resource at the
+   * given path.
+   *
+   * <p>The path is relative to the class's package, and the resource must be a text file. The
+   * entire file is parsed into the object.
+   *
+   * @throws ParseException if the object failed to parse.
+   * @throws ParseException if the input wasn't entirely parsed, excluding trailing whitespace.
+   */
+  public static <T> T fromResource(Path resourcePath, Class<T> clazz, @Nullable Object context) {
+    var resourceUrl = clazz.getResource(resourcePath.toString());
+    if (resourceUrl == null) {
+      throw new IllegalArgumentException(
+          "Resource not found in " + clazz.getPackageName() + ": " + resourcePath);
     }
-    return obj;
+    var resourceFile = Files.pathFromFileUrl(resourceUrl).toFile();
+
+    Parser p;
+    try {
+      p = new Parser(resourceFile).withContext(context);
+    } catch (FileNotFoundException e) {
+      throw new IllegalArgumentException(
+          "Resource not found in " + clazz.getPackageName() + ": " + resourcePath, e);
+    }
+
+    return p.parseEntire(clazz);
   }
 
   private Parser(Scanner scanner, @Nullable Object context) {
@@ -351,6 +391,16 @@ public class Parser {
           }
         });
     return list.build();
+  }
+
+  /** Parse an object, then throw {@link ParseException} if there's any non-whitespace input. */
+  public <T> T parseEntire(Class<T> clazz) {
+    var obj = parse(clazz);
+    scanner.skipWhitespace(true);
+    if (!scanner.isAtEof()) {
+      throw new ParseException(scanner.position(), "input not entirely parsed");
+    }
+    return obj;
   }
 
   // endregion parse non-terminals

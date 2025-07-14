@@ -71,6 +71,10 @@ public final class SEXPs {
     return new ScalarRealSXP(data);
   }
 
+  public static LglSXP logical(boolean data) {
+    return data ? TRUE : FALSE;
+  }
+
   public static LglSXP logical(Logical data) {
     return switch (data) {
       case TRUE -> TRUE;
