@@ -707,27 +707,28 @@ static INLINE SEXP Rsh_append_values_to_args(Value *vals, int n, SEXP args) {
 // if the cache == NULL or there is nothing in the cache, looks it in rho
 // and if it does find it in rho and cache != NULL it updates the cache
 // FIXME: rename cache to cell
-// FIXME: cannot it be simpler: if cache then get value from cache, if not
-// initialize the cache. if cannot be initialized, get value
-static INLINE void Rsh_do_get_var(Value *res, SEXP symbol, BCell *cell,
-                                  Rboolean dd, Rboolean keepmiss, SEXP rho) {
-  RSH_PC_INC(slow_getvar);
+static INLINE SEXP Rsh_do_get_var(SEXP symbol, SEXP rho, Rboolean dd,
+                                  Rboolean keepmiss, BCell *cache) {
+  SEXP value = R_UnboundValue;
+  int has_cell = 0;
 
-  SEXP value;
   if (dd) {
-    value = Rf_ddfindVar(symbol, rho);
-    SET_VAL(res, value);
-    return;
-  }
+    value = ddfindVar(symbol, rho);
+  } else {
+    if (cache != NULL) {
+      bcell_ensure_cache(symbol, rho, cache);
+      value = bcell_value(*cache);
+    }
 
-  if (cell != NULL) {
-    bcell_ensure_cache(symbol, rho, cell);
-    value = bcell_value(*cell);
     if (value == R_UnboundValue) {
       value = Rf_findVar(symbol, rho);
+    } else {
+      has_cell = cache != NULL;
     }
-  } else {
-    value = Rf_findVar(symbol, rho);
+  }
+
+  if (!keepmiss && TYPEOF(value) == PROMSXP && !PROMISE_IS_EVALUATED(value)) {
+    forcePromise(value);
   }
 
   if (value == R_UnboundValue) {
@@ -740,19 +741,25 @@ static INLINE void Rsh_do_get_var(Value *res, SEXP symbol, BCell *cell,
     } else {
       /**** R_isMissing is inefficient */
       if (keepmiss && R_isMissing(symbol, rho)) {
-        SET_VAL(res, R_MissingArg);
-        return;
+        value = R_MissingArg;
       } else {
         forcePromise(value);
+        // FIXME: this is pretty inefficient
+        // the PRVALUE will likely call the R_expand_promise_value
+        // which will expand a tagged SEXP only to later optimized into a Value
+        // again
         value = PRVALUE(value);
       }
     }
-    BCELL_INLINE(*cell, value);
   } else {
     ENSURE_NAMEDMAX(value);
   }
 
-  SET_VAL(res, value);
+  if (has_cell) {
+    BCELL_INLINE(*cache, value);
+  }
+
+  return value;
 }
 
 #define Rsh_GetVar(res, symbol, cell, rho)                                     \
@@ -763,69 +770,65 @@ static INLINE void Rsh_do_get_var(Value *res, SEXP symbol, BCell *cell,
 static ALWAYS_INLINE void Rsh_get_var(Value *res, SEXP symbol, BCell *cell,
                                       SEXP rho, Rboolean dd,
                                       Rboolean keepmiss) {
-  RSH_PC_INC(getvar);
+  switch (BCELL_TAG(*cell)) {
+  case REALSXP:
+    SET_DBL_VAL(res, BCELL_DVAL(*cell));
+    return;
+  case INTSXP:
+    SET_INT_VAL(res, BCELL_IVAL(*cell));
+    return;
+  case LGLSXP:
+    SET_LGL_VAL(res, BCELL_IVAL(*cell));
+    return;
+  }
 
-  if (cell) {
-    switch (BCELL_TAG(*cell)) {
-    case REALSXP:
-      SET_DBL_VAL(res, BCELL_DVAL(*cell));
-      return;
-    case INTSXP:
-      SET_INT_VAL(res, BCELL_IVAL(*cell));
-      return;
-    case LGLSXP:
-      SET_LGL_VAL(res, BCELL_IVAL(*cell));
-      return;
-    }
+  SEXP value = BCELL_VAL(*cell);
+  if (value != R_UnboundValue) {
+    int type = TYPEOF(value);
 
-    SEXP value = BCELL_VAL(*cell);
-    if (value != R_UnboundValue) {
-      int type = TYPEOF(value);
-
-      if (type == PROMSXP) {
-        if (PROMISE_IS_EVALUATED(value)) {
-          switch (PROMISE_TAG(value)) {
-          case REALSXP:
-            SET_DBL_VAL(res, PROMISE_DVAL(value));
-            return;
-          case INTSXP:
-            SET_INT_VAL(res, PROMISE_IVAL(value));
-            return;
-          case LGLSXP:
-            SET_LGL_VAL(res, PROMISE_LVAL(value));
-            return;
-          default:
-            value = PRVALUE(value);
-            type = TYPEOF(value);
-          }
+    if (type == PROMSXP) {
+      if (PROMISE_IS_EVALUATED(value)) {
+        switch (PROMISE_TAG(value)) {
+        case REALSXP:
+          SET_DBL_VAL(res, PROMISE_DVAL(value));
+          return;
+        case INTSXP:
+          SET_INT_VAL(res, PROMISE_IVAL(value));
+          return;
+        case LGLSXP:
+          SET_LGL_VAL(res, PROMISE_LVAL(value));
+          return;
+        default:
+          value = PRVALUE(value);
+          type = TYPEOF(value);
         }
       }
+    }
 
-      /* try fast handling of some types; for these the */
-      /* cell won't be R_NilValue or an active binding */
-      switch (type) {
-      case REALSXP:
-      case INTSXP:
-      case LGLSXP:
-      case CPLXSXP:
-      case STRSXP:
-      case VECSXP:
-      case RAWSXP:
+    /* try fast handling of some types; for these the */
+    /* cell won't be R_NilValue or an active binding */
+    switch (type) {
+    case REALSXP:
+    case INTSXP:
+    case LGLSXP:
+    case CPLXSXP:
+    case STRSXP:
+    case VECSXP:
+    case RAWSXP:
+      SET_SXP_VAL(res, value);
+      return;
+    case SYMSXP:
+    case PROMSXP:
+      break;
+    default:
+      if (*cell != R_NilValue && !IS_ACTIVE_BINDING(*cell)) {
         SET_SXP_VAL(res, value);
         return;
-      case SYMSXP:
-      case PROMSXP:
-        break;
-      default:
-        if (*cell != R_NilValue && !IS_ACTIVE_BINDING(*cell)) {
-          SET_SXP_VAL(res, value);
-          return;
-        }
       }
     }
   }
 
-  Rsh_do_get_var(res, symbol, cell, dd, keepmiss, rho);
+  SET_VAL(res, Rsh_do_get_var(symbol, rho, dd, keepmiss, cell));
 }
 
 static ALWAYS_INLINE void Rsh_SetVar(Value *v, SEXP symbol, BCell *cell,
@@ -1583,8 +1586,7 @@ static INLINE void Rsh_StartAssign2(Value *rhs, Value *lhs_cell, Value *lhs_val,
   SET_ASSIGNMENT_PENDING(loc.cell, TRUE);
   SET_SXP_VAL(lhs_cell, loc.cell);
 
-  Rsh_do_get_var(lhs_val, symbol, NULL, FALSE, FALSE, ENCLOS(rho));
-  SEXP value_sxp = val_as_sexp(*lhs_val);
+  SEXP value_sxp = Rsh_do_get_var(symbol, ENCLOS(rho), FALSE, FALSE, NULL);
   if (maybe_in_assign || MAYBE_SHARED(value_sxp)) {
     value_sxp = Rf_shallow_duplicate(value_sxp);
   }
