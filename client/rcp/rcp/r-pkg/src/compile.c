@@ -1,3 +1,4 @@
+#include <stddef.h>
 #define USE_RINTERNALS
 #define RSH
 
@@ -760,6 +761,17 @@ SEXP rcp_destr()
     }
 }
 
+enum { STATS_COUNT = 5 };
+static const char *stats_names[STATS_COUNT] = {
+    "total_size",
+    "executable_size",
+    "opcodes_count",
+    "elapsed_time",
+    "elapsed_time_mid"
+};
+
+static double stats_values[STATS_COUNT];
+
 SEXP C_rcp_cmpfun(SEXP f, SEXP options)
 {
     struct timespec start, mid, end;
@@ -783,32 +795,27 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
     // Check if R option "rcp.cmpfun.stats" is set to TRUE
     SEXP stats_option = Rf_GetOption1(Rf_install("rcp.cmpfun.stats"));
     int attach_stats = (stats_option != R_NilValue && LOGICAL(stats_option)[0] == TRUE);
-    
+
     if (attach_stats) {
-        
-        // Create a named double vector with stats
-        SEXP stats_vec = PROTECT(Rf_allocVector(REALSXP, 6));
-        SEXP names = PROTECT(Rf_allocVector(STRSXP, 6));
-        
-        int i = 0;
-        REAL(stats_vec)[i++] = (double)stats.total_size;
-        REAL(stats_vec)[i++] = (double)stats.executable_size;
-        REAL(stats_vec)[i++] = (double)stats.count_opcodes;
-        REAL(stats_vec)[i++] = elapsed_time;
-        REAL(stats_vec)[i++] = elapsed_time_mid;
-        
-        i = 0;
-        SET_STRING_ELT(names, i++, Rf_mkChar("total_size"));
-        SET_STRING_ELT(names, i++, Rf_mkChar("executable_size"));
-        SET_STRING_ELT(names, i++, Rf_mkChar("opcodes_count"));
-        SET_STRING_ELT(names, i++, Rf_mkChar("elapsed_time"));
-        SET_STRING_ELT(names, i++, Rf_mkChar("elapsed_time_mid"));
-        
+        stats_values[0] = (double)stats.total_size;
+        stats_values[1] = (double)stats.executable_size;
+        stats_values[2] = (double)stats.count_opcodes;
+        stats_values[3] = elapsed_time;
+        stats_values[4] = elapsed_time_mid;
+
+        SEXP stats_vec = PROTECT(Rf_allocVector(REALSXP, STATS_COUNT));
+        SEXP names     = PROTECT(Rf_allocVector(STRSXP, STATS_COUNT));
+
+        for (size_t i = 0; i < STATS_COUNT; ++i) {
+            REAL(stats_vec)[i] = stats_values[i];
+            SET_STRING_ELT(names, i, Rf_mkChar(stats_names[i]));
+        }
+
         Rf_setAttrib(stats_vec, R_NamesSymbol, names);
         Rf_setAttrib(compiled, Rf_install("stats"), stats_vec);
-        
+
         UNPROTECT(2); // stats_vec, names
-    } else {        
+    } else {
         fprintf(stderr,
             "Data size:\t%.0f B\n"
             "Executable size:\t%zu B\n"
