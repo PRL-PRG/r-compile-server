@@ -509,6 +509,8 @@ static ALWAYS_INLINE void bcell_ensure_cache(SEXP symbol, SEXP rho,
   SEXP ncell = bcell_get(symbol, rho);
   if (ncell != R_NilValue) {
     *cell = ncell;
+  } else if (*cell != R_NilValue && BCELL_IS_UNBOUND(*cell)) {
+    *cell = R_NilValue;
   }
 }
 
@@ -549,9 +551,10 @@ static ALWAYS_INLINE Rboolean bcell_set_value(BCell cell, SEXP value) {
   if (cell != R_NilValue && !BINDING_IS_LOCKED(cell) &&
       !IS_ACTIVE_BINDING(cell)) {
     if (BNDCELL_TAG(cell) || CAR(cell) != value) {
-      BCELL_INLINE(cell, value);
       if (MISSING(cell)) {
         SET_MISSING(cell, 0);
+      } else {
+        BCELL_INLINE(cell, value);
       }
     }
     return TRUE;
