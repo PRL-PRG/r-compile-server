@@ -124,7 +124,7 @@ public final class BuiltinParseMethods {
         assert isNullable
                 || Arrays.stream(components[i].getAnnotations())
                     .noneMatch(a -> a.getClass().getSimpleName().equals("Nullable"))
-            : "record has `@Nullable` annotation that isn't `javax.annotations.Nullable`";
+            : "record has `@Nullable` annotation that isn't `javax.annotation.Nullable`";
         if (isOptional && isNullable) {
           throw new UnsupportedOperationException("Can't parse `@Nullable Optional<...>`");
         }

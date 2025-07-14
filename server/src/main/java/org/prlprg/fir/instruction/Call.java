@@ -4,7 +4,7 @@ import com.google.common.collect.ImmutableList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
-import org.jetbrains.annotations.Nullable;
+import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.callee.Callee;
 import org.prlprg.fir.callee.DynamicCallee;
@@ -21,7 +21,7 @@ public final class Call implements Expression {
     this.arguments = arguments;
   }
 
-  /// Only called when parsing, since the callee may be a function that's parsed later, and we
+  /// Only called when parsing, since the callee may be in a function that's parsed later, and we
   /// represent it via direct reference.
   void unsafeSetCallee(Callee callee) {
     if (this.callee != null) {
