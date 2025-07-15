@@ -44,8 +44,8 @@ public final class BBSplitMerge {
               cfg.track(newJump);
 
               cfg.record(
-                  new CFGEdit.SplitBB(self, newBB, false, index), new CFGEdit.MergeBBs(self, newBB, false));
-              return newBB; */
+                  new CFGEdit.SplitBB(self, newBB, false, index), new CFGEdit.MergeBBs(self, newBB, false)); */
+              return newBB;
             });
   }
 }

@@ -19,11 +19,14 @@ import org.prlprg.bc.BcLabel;
 import org.prlprg.bc.ConstPool;
 import org.prlprg.bc.LabelName;
 import org.prlprg.fir.callee.DispatchCallee;
+import org.prlprg.fir.callee.DynamicCallee;
 import org.prlprg.fir.callee.StaticCallee;
 import org.prlprg.fir.cfg.Abstraction;
 import org.prlprg.fir.cfg.BB;
 import org.prlprg.fir.cfg.CFG;
 import org.prlprg.fir.cfg.cursor.CFGCursor;
+import org.prlprg.fir.cfg.cursor.JumpInsertion;
+import org.prlprg.fir.instruction.Call;
 import org.prlprg.fir.instruction.Cast;
 import org.prlprg.fir.instruction.Closure;
 import org.prlprg.fir.instruction.Expression;
@@ -35,6 +38,8 @@ import org.prlprg.fir.instruction.Literal;
 import org.prlprg.fir.instruction.Promise;
 import org.prlprg.fir.instruction.Read;
 import org.prlprg.fir.instruction.Return;
+import org.prlprg.fir.instruction.SuperRead;
+import org.prlprg.fir.instruction.SuperWrite;
 import org.prlprg.fir.instruction.Unreachable;
 import org.prlprg.fir.instruction.Write;
 import org.prlprg.fir.module.Module;
@@ -46,11 +51,12 @@ import org.prlprg.fir.variable.NamedVariable;
 import org.prlprg.primitive.BuiltinId;
 import org.prlprg.sexp.Attributes;
 import org.prlprg.sexp.BCodeSXP;
-import org.prlprg.sexp.LangSXP;
 import org.prlprg.sexp.ListSXP;
 import org.prlprg.sexp.RegSymSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
+import org.prlprg.util.Lists;
+import org.prlprg.util.NotImplementedError;
 import org.prlprg.util.Reflection;
 import org.prlprg.util.Strings;
 
@@ -92,7 +98,7 @@ public class CFGCompiler {
     }
 
     sealed interface Fun {
-      record Value(Expression fun) implements Fun {}
+      record Variable(NamedVariable fun) implements Fun {}
 
       record Builtin(BuiltinId id) implements Fun {}
     }
@@ -118,7 +124,7 @@ public class CFGCompiler {
 
   /// Stores information about a dispatch function being compiled which is shared between multiple
   /// instructions.
-  private record Dispatch(Type type, LangSXP ast, BB after) {
+  private record Dispatch(Type type, BB after) {
 
     /// The dispatch function (e.g. "[", "[<-", "c").
     private enum Type {
@@ -196,7 +202,7 @@ public class CFGCompiler {
           if (cursor.bb().jump() instanceof Unreachable) {
             // We need to insert a jump because in the bytecode it just falls through, but there's
             // no such thing as fallthrough in IR.
-            setJump(new Goto(target(nextBb)));
+            setJump(goto_(nextBb));
           }
           if (nextBb.predecessors().isEmpty() && !bbsWithPhis.contains(nextBb)) {
             // This happens after a compiled `repeat`, so the following bytecode is unreachable and
@@ -308,14 +314,6 @@ public class CFGCompiler {
     return bbByLabel.get(pos);
   }
 
-  /// Whether there is a label pointing immediately after the current bytecode instruction.
-  ///
-  /// Specifically, returns whether there is a BB in `bbByLabel` mapped to the position
-  /// immediately after.
-  private boolean hasBbAfterCurrent() {
-    return bbByLabel.containsKey(bcPos + 1);
-  }
-
   /// Gets the basic block immediately after the current bytecode instruction.
   ///
   /// Specifically, returns the BB in `bbByLabel` mapped to the position immediately after,
@@ -337,13 +335,13 @@ public class CFGCompiler {
       }
       case BcInstr.Goto(var label) -> {
         var bb = bbAt(label);
-        setJump(new Goto(target(bb)));
+        setJump(goto_(bb));
         addPhiInputsForStack(bb);
         setInUnreachableBytecode();
       }
       case BcInstr.BrIfNot(var _, var label) -> {
         var bb = bbAt(label);
-        setJump(new If(pop(), target(bbAfterCurrent()), target(bb)));
+        setJump(branch(pop(), bbAfterCurrent(), bb));
         addPhiInputsForStack(bb);
       }
       case BcInstr.Pop() -> pop();
@@ -400,7 +398,7 @@ public class CFGCompiler {
         if (loopCntxt == null) {
           forBodyBb = bbAfterCurrent();
           stepBb = bbAt(step);
-          endBb = cfg.addBB("endFor");
+          endBb = cfg.addBB();
         } else {
           var stepGoto = bc.code().get(bcPos + 2) instanceof BcInstr.Goto g ? g : null;
           if (stepGoto == null) {
@@ -421,9 +419,9 @@ public class CFGCompiler {
         var length = intrinsic("length", 0, seq);
         var init = new Literal(SEXPs.integer(0));
         var index = cfg.scope().addLocal();
-        cursor.insert(new Write(index, init));
+        insert(new Write(index, init));
         push(new Read(index));
-        setJump(new Goto(target(stepBb)));
+        setJump(goto_(stepBb));
 
         // For loop step
         moveTo(stepBb);
@@ -433,14 +431,14 @@ public class CFGCompiler {
         // Compare the index to the length
         var cond = intrinsic("lt", 0, length, index1);
         // Jump to `end` if it's greater (remember, GNU-R indexing is one-based)
-        setJump(new If(cond, target(endBb), target(forBodyBb)));
+        setJump(branch(cond, endBb, forBodyBb));
 
         // For loop body
         moveTo(forBodyBb);
         // Extract element at index
         var elem = intrinsic("extract2_1D", 0, seq, index1);
         // Store in the element variable
-        cursor.insert(new Write(getVar(elemName), elem));
+        insert(new Write(getVar(elemName), elem));
         // Now we compile the rest of the body...
         // When we encounter `StepFor`, we know that the body is over. Note that we may no longer be
         // in `forBodyBb`: that is just the first BB in the for body, there may be more.
@@ -460,7 +458,7 @@ public class CFGCompiler {
           throw failUnsupported("`next` or `break` in promise (complex loop context)");
         }
         var stepBb = topLoop().next;
-        setJump(new Goto(target(stepBb)));
+        setJump(goto_(stepBb));
         addPhiInputsForStack(stepBb);
 
         setInUnreachableBytecode();
@@ -472,7 +470,7 @@ public class CFGCompiler {
           throw failUnsupported("`next` or `break` in promise (complex loop context)");
         }
         var endBb = topLoop().end;
-        setJump(new Goto(target(endBb)));
+        setJump(goto_(endBb));
         addPhiInputsForStack(endBb);
 
         setInUnreachableBytecode();
@@ -522,19 +520,24 @@ public class CFGCompiler {
         push(new Force(pop()));
       }
       case BcInstr.DdVal(var name) -> {
-        var ddIndex = new NamedVariable("`.." + get(name).ddNum() + "`");
+        var ddIndex = NamedVariable.ddNum(get(name).ddNum());
         push(new Read(ddIndex));
         push(new Force(pop()));
       }
       case BcInstr.SetVar(var name) -> insert(new Write(getVar(name), top()));
-      case BcInstr.GetFun(var name) -> push(loadFun(getVar(name), false));
-      case BcInstr.GetGlobFun(var name) -> pushCall(loadFun(getVar(name), true));
+      case BcInstr.GetFun(var name) -> push(loadFun(getVar(name), Env.LOCAL));
+      case BcInstr.GetGlobFun(var name) -> pushCall(getVar(name));
         // ???: GNU-R calls `SYMVALUE` and `INTERNAL` to implement these, but we don't store that in
         //  our `RegSymSxp` data-structure. So the next three implementations may be incorrect.
       case BcInstr.GetSymFun(var name) -> pushCall(BuiltinId.referencedBy(get(name)));
       case BcInstr.GetBuiltin(var name) -> pushCall(BuiltinId.referencedBy(get(name)));
       case BcInstr.GetIntlBuiltin(var name) -> pushCall(BuiltinId.referencedBy(get(name)));
-      case BcInstr.CheckFun() -> pushCall(checkFun(pop()));
+      case BcInstr.CheckFun() -> {
+        var funVar = new NamedVariable("`*tmp*`");
+        insert(new Write(funVar, pop()));
+        insert(checkFun(new Read(funVar)));
+        pushCall(funVar);
+      }
       case BcInstr.MakeProm(var code) -> {
         if (!(this.get(code) instanceof BCodeSXP bcSxp)) {
           throw failUnsupported("Promise with non-bytecode body at index " + code);
@@ -561,8 +564,7 @@ public class CFGCompiler {
       case BcInstr.PushNullArg() -> pushCallArg(new Literal(SEXPs.NULL));
       case BcInstr.PushTrueArg() -> pushCallArg(new Literal(SEXPs.TRUE));
       case BcInstr.PushFalseArg() -> pushCallArg(new Literal(SEXPs.FALSE));
-      case BcInstr.Call(var ast) -> compileCall(ast);
-      case BcInstr.CallBuiltin(var ast) -> compileCall(ast);
+      case BcInstr.Call(var _), BcInstr.CallBuiltin(var _) -> compileCall();
       case BcInstr.CallSpecial(var astId) -> {
         var ast = get(astId);
         if (!(ast.fun() instanceof RegSymSXP builtinSymbol)) {
@@ -612,103 +614,32 @@ public class CFGCompiler {
       case BcInstr.And(var _) -> push(mkBinop("&&"));
       case BcInstr.Or(var _) -> push(mkBinop("||"));
       case BcInstr.Not(var _) -> push(mkUnop("!"));
-      case BcInstr.DotsErr() ->
-          insert(builtin("stop", new Literal(SEXPs.string("'...' used in an incorrect context"))));
-        // TODO 🔽
+      case BcInstr.DotsErr() -> insert(stop("'...' used in an incorrect context"));
       case BcInstr.StartAssign(var name) -> {
-        var lhs = cursor.insert(get(name).name(), new StmtData.LdVar(get(name), false));
+        var lhs = new Read(getVar(name));
         var rhs = top();
         pushComplexAssign(false, get(name), lhs, rhs);
       }
       case BcInstr.EndAssign(var name) -> {
         var lhs = popComplexAssign(false, get(name));
-        insertVoid(new Write(getVar(name), lhs));
+        insert(new Write(getVar(name), lhs));
       }
-      case BcInstr.StartSubset(var ast, var after) ->
-          compileStartDispatch(Dispatch.Type.SUBSET, ast, after);
-      case BcInstr.DfltSubset() ->
-          compileDefaultDispatch(
-              Dispatch.Type.SUBSET,
-              2,
-              4,
-              (ast, args) ->
-                  switch (args.size()) {
-                    case 2 -> new StmtData.Extract1_1D(ast, args.get(0), args.get(1));
-                    case 3 -> new StmtData.Extract1_2D(ast, args.get(0), args.get(1), args.get(2));
-                    case 4 ->
-                        new StmtData.Extract1_3D(
-                            ast, args.get(0), args.get(1), args.get(2), args.get(3));
-                    default ->
-                        throw new UnreachableError("index should've been range-checked above");
-                  });
-      case BcInstr.StartSubassign(var ast, var after) ->
-          compileStartDispatch(Dispatch.Type.SUBASSIGN, ast, after);
-      case BcInstr.DfltSubassign() ->
-          compileDefaultDispatch(
-              Dispatch.Type.SUBASSIGN,
-              3,
-              5,
-              (ast, args) ->
-                  switch (args.size()) {
-                    case 3 ->
-                        new StmtData.Subassign1_1D(ast, args.get(0), args.get(1), args.get(2));
-                    case 4 ->
-                        new StmtData.Subassign1_2D(
-                            ast, args.get(0), args.get(1), args.get(2), args.get(3));
-                    case 5 ->
-                        new StmtData.Subassign1_3D(
-                            ast,
-                            args.get(0),
-                            args.get(1),
-                            args.get(2),
-                            args.get(3),
-                            args.get(4),
-                            env);
-                    default ->
-                        throw new UnreachableError("index should've been range-checked above");
-                  });
-      case BcInstr.StartC(var ast, var after) -> compileStartDispatch(Dispatch.Type.C, ast, after);
-      case BcInstr.DfltC() ->
-          compileDefaultDispatch(
-              Dispatch.Type.C,
-              0,
-              0,
-              (_, _) -> {
-                throw new UnreachableError("There isn't a specialized PIR instruction for C");
-              });
-      case BcInstr.StartSubset2(var ast, var after) ->
-          compileStartDispatch(Dispatch.Type.SUBSET2, ast, after);
-      case BcInstr.DfltSubset2() ->
-          compileDefaultDispatch(
-              Dispatch.Type.SUBSET2,
-              2,
-              3,
-              (ast, args) ->
-                  switch (args.size()) {
-                    case 2 -> new StmtData.Extract2_1D(ast, args.get(0), args.get(1));
-                    case 3 -> new StmtData.Extract2_2D(ast, args.get(0), args.get(1), args.get(2));
-                    default ->
-                        throw new UnreachableError("index should've been range-checked above");
-                  });
-      case BcInstr.StartSubassign2(var ast, var after) ->
-          compileStartDispatch(Dispatch.Type.SUBASSIGN2, ast, after);
-      case BcInstr.DfltSubassign2() ->
-          compileDefaultDispatch(
-              Dispatch.Type.SUBASSIGN2,
-              3,
-              4,
-              (ast, args) ->
-                  switch (args.size()) {
-                    case 3 ->
-                        new StmtData.Subassign2_1D(ast, args.get(0), args.get(1), args.get(2));
-                    case 4 ->
-                        new StmtData.Subassign2_2D(
-                            ast, args.get(0), args.get(1), args.get(2), args.get(3));
-                    default ->
-                        throw new UnreachableError("index should've been range-checked above");
-                  });
-      case BcInstr.Dollar(var ast, var member) -> {
-        var after = cfg.addBB("afterDollar");
+      case BcInstr.StartSubset(var _, var after) ->
+          compileStartDispatch(Dispatch.Type.SUBSET, after);
+      case BcInstr.DfltSubset() -> compileDefaultDispatch(Dispatch.Type.SUBSET);
+      case BcInstr.StartSubassign(var _, var after) ->
+          compileStartDispatch(Dispatch.Type.SUBASSIGN, after);
+      case BcInstr.DfltSubassign() -> compileDefaultDispatch(Dispatch.Type.SUBASSIGN);
+      case BcInstr.StartC(var _, var after) -> compileStartDispatch(Dispatch.Type.C, after);
+      case BcInstr.DfltC() -> compileDefaultDispatch(Dispatch.Type.C);
+      case BcInstr.StartSubset2(var _, var after) ->
+          compileStartDispatch(Dispatch.Type.SUBSET2, after);
+      case BcInstr.DfltSubset2() -> compileDefaultDispatch(Dispatch.Type.SUBSET2);
+      case BcInstr.StartSubassign2(var _, var after) ->
+          compileStartDispatch(Dispatch.Type.SUBASSIGN2, after);
+      case BcInstr.DfltSubassign2() -> compileDefaultDispatch(Dispatch.Type.SUBASSIGN2);
+      case BcInstr.Dollar(var _, var member) -> {
+        var after = cfg.addBB();
 
         var target = top();
         compileGeneralDispatchCommon(BuiltinId.DOLLAR, false, target, null, after);
@@ -719,18 +650,13 @@ public class CFGCompiler {
         }
 
         pop();
-        push(
-            new StmtData.CallBuiltin(
-                get(ast),
-                BuiltinId.DOLLAR,
-                ImmutableList.of(target, new Constant(get(member))),
-                env));
-        setJump(new Goto(target(after)));
+        push(builtin("$", target, new Literal(get(member))));
+        setJump(goto_(after));
 
         moveTo(after);
       }
-      case BcInstr.DollarGets(var ast, var member) -> {
-        var after = cfg.addBB("afterDollarGets");
+      case BcInstr.DollarGets(var _, var member) -> {
+        var after = cfg.addBB();
 
         var rhs = pop();
         var target = top();
@@ -742,95 +668,70 @@ public class CFGCompiler {
         }
 
         pop();
-        push(
-            new StmtData.CallBuiltin(
-                get(ast),
-                BuiltinId.DOLLAR_GETS,
-                ImmutableList.of(target, new Constant(get(member)), rhs),
-                env));
-        setJump(new Goto(target(after)));
+        push(builtin("$<-", target, new Literal(get(member)), rhs));
+        setJump(goto_(after));
 
         moveTo(after);
       }
-      case BcInstr.IsNull() -> push(new StmtData.Eq(null, pop(), new Constant(SEXPs.NULL)));
-      case BcInstr.IsLogical() -> push(new StmtData.GnuRIs(IsTypeCheck.LGL, pop()));
-      case BcInstr.IsInteger() -> push(new StmtData.GnuRIs(IsTypeCheck.INT, pop()));
-      case BcInstr.IsDouble() -> push(new StmtData.GnuRIs(IsTypeCheck.REAL, pop()));
-      case BcInstr.IsComplex() -> push(new StmtData.GnuRIs(IsTypeCheck.CPLX, pop()));
-      case BcInstr.IsCharacter() -> push(new StmtData.GnuRIs(IsTypeCheck.STR, pop()));
-      case BcInstr.IsSymbol() -> push(new StmtData.GnuRIs(IsTypeCheck.SYM, pop()));
-      case BcInstr.IsObject() -> push(new StmtData.GnuRIs(IsTypeCheck.NON_OBJECT, pop()));
-      case BcInstr.IsNumeric() -> push(new StmtData.GnuRIs(IsTypeCheck.NUM, pop()));
-      case BcInstr.VecSubset(var _) ->
-          compileDefaultDispatchN(
-              Dispatch.Type.SUBSETN,
-              2,
-              (ast, args) -> new StmtData.Extract2_1D(ast, args.getFirst(), args.get(1)));
-      case BcInstr.MatSubset(var _) ->
-          compileDefaultDispatchN(
-              Dispatch.Type.SUBSETN,
-              3,
-              (ast, args) ->
-                  new StmtData.Extract2_2D(ast, args.getFirst(), args.get(1), args.get(2)));
-      case BcInstr.VecSubassign(var _) ->
-          compileDefaultDispatchN(
-              Dispatch.Type.SUBASSIGNN,
-              3,
-              (ast, args) ->
-                  new StmtData.Subassign2_1D(ast, args.getFirst(), args.get(1), args.get(2)));
-      case BcInstr.MatSubassign(var _) ->
-          compileDefaultDispatchN(
-              Dispatch.Type.SUBASSIGNN,
-              4,
-              (ast, args) ->
-                  new StmtData.Subassign2_2D(
-                      ast, args.getFirst(), args.get(1), args.get(2), args.get(3)));
-      case BcInstr.And1st(var ast, var shortCircuit) -> {
+      case BcInstr.IsNull() -> push(builtin("==", pop(), new Literal(SEXPs.NULL)));
+      case BcInstr.IsLogical() -> push(builtin("is.logical", pop()));
+      case BcInstr.IsInteger() -> push(builtin("is.integer", pop()));
+      case BcInstr.IsDouble() -> push(builtin("is.real", pop()));
+      case BcInstr.IsComplex() -> push(builtin("is.complex", pop()));
+      case BcInstr.IsCharacter() -> push(builtin("is.string", pop()));
+      case BcInstr.IsSymbol() -> push(builtin("is.symbol", pop()));
+      case BcInstr.IsObject() -> push(builtin("is.object", pop()));
+      case BcInstr.IsNumeric() -> push(builtin("is.numeric", pop()));
+      case BcInstr.VecSubset(var _) -> compileDefaultDispatchN(Dispatch.Type.SUBSETN, 2);
+      case BcInstr.MatSubset(var _) -> compileDefaultDispatchN(Dispatch.Type.SUBSETN, 3);
+      case BcInstr.VecSubassign(var _) -> compileDefaultDispatchN(Dispatch.Type.SUBASSIGNN, 3);
+      case BcInstr.MatSubassign(var _) -> compileDefaultDispatchN(Dispatch.Type.SUBASSIGNN, 4);
+      case BcInstr.And1st(var _, var shortCircuit) -> {
         var shortCircuitBb = bbAt(shortCircuit);
-        push(new StmtData.AsLogical(pop()));
-        setJump(new JumpData.Branch(top(), bbAfterCurrent(), shortCircuitBb));
+        push(builtin("as.logical", pop()));
+        setJump(branch(top(), bbAfterCurrent(), shortCircuitBb));
         addPhiInputsForStack(shortCircuitBb);
       }
-      case BcInstr.And2nd(var ast) -> {
-        push(new StmtData.AsLogical(pop()));
-        push(mkBinop(StmtData.LAnd::new));
-        setJump(new Goto(target(bbAfterCurrent())));
+      case BcInstr.And2nd(var _) -> {
+        push(builtin("as.logical", pop()));
+        push(mkBinop("&&"));
+        setJump(goto_(bbAfterCurrent()));
       }
-      case BcInstr.Or1st(var ast, var shortCircuit) -> {
+      case BcInstr.Or1st(var _, var shortCircuit) -> {
         var shortCircuitBb = bbAt(shortCircuit);
-        push(new StmtData.AsLogical(pop()));
-        setJump(new JumpData.Branch(top(), shortCircuitBb, bbAfterCurrent()));
+        push(builtin("as.logical", pop()));
+        setJump(branch(top(), shortCircuitBb, bbAfterCurrent()));
         addPhiInputsForStack(shortCircuitBb);
       }
-      case BcInstr.Or2nd(var ast) -> {
-        push(new StmtData.AsLogical(pop()));
-        push(mkBinop(StmtData.LOr::new));
-        setJump(new Goto(target(bbAfterCurrent())));
+      case BcInstr.Or2nd(var _) -> {
+        push(builtin("as.logical", pop()));
+        push(mkBinop("||"));
+        setJump(goto_(bbAfterCurrent()));
       }
       case BcInstr.GetVarMissOk(var name) -> {
-        push(name, new StmtData.LdVar(get(name), true));
-        push(new StmtData.Force(pop(), compileFrameState()));
+        push(new Read(getVar(name)));
+        push(new Force(pop()));
       }
       case BcInstr.DdValMissOk(var name) -> {
         var ddIndex = get(name).ddNum();
-        push(name, new StmtData.LdDdVal(ddIndex, true));
-        push(new StmtData.Force(pop(), compileFrameState()));
+        push(new Read(NamedVariable.ddNum(ddIndex)));
+        push(new Force(pop()));
       }
-      case BcInstr.Visible() -> insertVoid(new StmtData.Visible());
-      case BcInstr.SetVar2(var name) -> insertVoid(new WriteSuper(get(name), top()));
+      case BcInstr.Visible() -> insert(intrinsic("visible", 0));
+      case BcInstr.SetVar2(var name) -> insert(new SuperWrite(getVar(name), top()));
       case BcInstr.StartAssign2(var name) -> {
         // GNU-R has "cells" and stores the assign on the main stack.
         // But we don't have cells, and since we're compiling, we can store the assignment on its
         // own stack.
-        var lhs = cursor.insert(get(name).name(), new StmtData.LdVarSuper(get(name)));
+        var lhs = new SuperRead(getVar(name));
         var rhs = top();
         pushComplexAssign(true, get(name), lhs, rhs);
       }
       case BcInstr.EndAssign2(var name) -> {
         var lhs = popComplexAssign(true, get(name));
-        insertVoid(new WriteSuper(get(name), lhs));
+        insert(new SuperWrite(getVar(name), lhs));
       }
-      case BcInstr.SetterCall(var ast, var _) -> {
+      case BcInstr.SetterCall(var _, var _) -> {
         // GNU-R has to wrap these call args in evaluated promises depending on the call type,
         // but presumably this is something we abstract. This is also what `valueExpr` is for,
         // which is why it's unused.
@@ -838,13 +739,13 @@ public class CFGCompiler {
         var lhs = pop();
         prependCallArg(lhs);
         pushCallArg(rhs);
-        compileCall(ast);
+        compileCall();
       }
-      case BcInstr.GetterCall(var ast) -> {
+      case BcInstr.GetterCall(var _) -> {
         // GNU-R has to wrap this call arg in an evaluated promise depending on the call type,
         // but presumably this is something we abstract.
         prependCallArg(top());
-        compileCall(ast);
+        compileCall();
       }
       case BcInstr.SpecialSwap() -> {
         var value = pop();
@@ -865,79 +766,76 @@ public class CFGCompiler {
         setJump(new Return(retVal));
         setInUnreachableBytecode();
       }
-      case BcInstr.Switch(var ast, var namesIdx, var chrLabelsIdx, var numLabelsIdx) -> {
+      case BcInstr.Switch(var _, var namesIdx, var chrLabelsIdx, var numLabelsIdx) -> {
         var names = namesIdx == null ? null : get(namesIdx);
         var chrLabels = chrLabelsIdx == null ? null : get(chrLabelsIdx);
         var numLabels = numLabelsIdx == null ? null : get(numLabelsIdx);
 
         var value = pop();
 
-        var isVector = cursor.insert(new GnuRIs(IsTypeCheck.SCALAR, value));
+        var isVector = builtin("is.vector", value);
         var isVectorBb = cfg.addBB();
-        var isNotVectorBb = cfg.addBB("failNotVector");
-        setJump(new JumpData.Branch(isVector, isVectorBb, isNotVectorBb));
+        var isNotVectorBb = cfg.addBB();
+        setJump(branch(isVector, isVectorBb, isNotVectorBb));
 
         // Has one predecessor (no phis) so we can call `cursor.moveToStart` instead of `moveTo`.
         cursor.moveToStart(isNotVectorBb);
-        cursor.insert(new StmtData.Error("EXPR must be a length 1 vector"));
-        setJump(new JumpData.Unreachable());
+        insert(builtin("error", new Literal(SEXPs.string("EXPR must be a length 1 vector"))));
+        setJump(new Unreachable());
 
         // Has one predecessor (no phis) so we can call `cursor.moveToStart` instead of `moveTo`.
         cursor.moveToStart(isVectorBb);
-        var isFactor = cursor.insert(new GnuRIs(IsTypeCheck.FACTOR, value));
+        var isFactor = builtin("is.factor", value);
         var isFactorBb = cfg.addBB();
-        var isNotFactorBb = cfg.addBB("warnNotFactor");
-        setJump(new JumpData.Branch(isFactor, isFactorBb, isNotFactorBb));
+        var isNotFactorBb = cfg.addBB();
+        setJump(branch(isFactor, isFactorBb, isNotFactorBb));
 
         // Has one predecessor (no phis) so we can call `cursor.moveToStart` instead of `moveTo`.
         cursor.moveToStart(isNotFactorBb);
-        cursor.insert(
-            new StmtData.Warning(
+        insert(
+            warning(
                 "EXPR is a \"factor\", treated as integer.\n Consider using 'switch(as.character( * ), ...)' instead."));
-        setJump(new Goto(target(isFactorBb)));
+        setJump(goto_(isFactorBb));
 
         // Has two predecessors, but the second defines no values (means no phis), so we can call
         // `cursor.moveToStart` instead of `moveTo`.
         cursor.moveToStart(isFactorBb);
-        var isString = cursor.insert(new GnuRIs(IsTypeCheck.STR, value));
-        var stringBb = cfg.addBB("switchString");
-        var asIntegerBb = cfg.addBB("switchAsInteger");
-        setJump(new JumpData.Branch(isString, stringBb, asIntegerBb));
+        var isString = builtin("is.string", value);
+        var stringBb = cfg.addBB();
+        var asIntegerBb = cfg.addBB();
+        setJump(branch(isString, stringBb, asIntegerBb));
 
         // Has one predecessor (no phis) so we can call `cursor.moveToStart` instead of `moveTo`.
         cursor.moveToStart(stringBb);
         if (names == null) {
           if (numLabels == null) {
-            cursor.insert(new StmtData.Error("bad numeric 'switch' offsets"));
-            setJump(new JumpData.Unreachable());
+            insert(stop("bad numeric 'switch' offsets"));
+            setJump(new Unreachable());
           } else if (numLabels.isScalar()) {
-            cursor.insert(new StmtData.Warning("'switch' with no alternatives"));
-            setJump(new Goto(target(bbAt(new BcLabel(numLabels.get(0))))));
+            insert(warning("'switch' with no alternatives"));
+            setJump(goto_(new BcLabel(numLabels.get(0))));
           } else {
-            cursor.insert(
-                new StmtData.Error(
-                    "numeric EXPR required for 'switch' without named alternatives"));
-            setJump(new JumpData.Unreachable());
+            insert(stop("numeric EXPR required for 'switch' without named alternatives"));
+            setJump(new Unreachable());
           }
         } else {
           if (chrLabels == null) {
-            cursor.insert(new StmtData.Error("bad character 'switch' offsets"));
-            setJump(new JumpData.Unreachable());
+            insert(stop("bad character 'switch' offsets"));
+            setJump(new Unreachable());
           } else if (names.size() != chrLabels.size()) {
-            cursor.insert(new StmtData.Error("bad 'switch' names"));
-            setJump(new JumpData.Unreachable());
+            insert(stop("bad 'switch' names"));
+            setJump(new Unreachable());
           } else {
             for (var i = 0; i < chrLabels.size() - 1; i++) {
               var name = names.get(i);
               var ifMatch = bbAt(new BcLabel(chrLabels.get(i)));
-              var cond = cursor.insert(new StmtData.Eq(value, Constant.strSxp(name)));
-              var prev = cursor.bb();
-              cursor.insert(next -> new JumpData.Branch(cond, ifMatch, next));
-              addPhiInputsForStack(ifMatch, prev);
+              var cond = builtin("==", value, new Literal(SEXPs.string(name)));
+              insert(next -> branch(cond, ifMatch, next));
+              addPhiInputsForStack(ifMatch);
             }
             // `switch` just goes to the last label regardless of whether it matches.
             var lastBb = bbAt(new BcLabel(chrLabels.last()));
-            setJump(new Goto(target(lastBb)));
+            setJump(goto_(lastBb));
             addPhiInputsForStack(lastBb);
           }
         }
@@ -945,23 +843,22 @@ public class CFGCompiler {
         // Has one predecessor (no phis) so we can call `cursor.moveToStart` instead of `moveTo`.
         cursor.moveToStart(asIntegerBb);
         if (numLabels == null) {
-          cursor.insert(new StmtData.Error("bad numeric 'switch' offsets"));
-          setJump(new JumpData.Unreachable());
+          insert(stop("bad numeric 'switch' offsets"));
+          setJump(new Unreachable());
         } else if (numLabels.isScalar()) {
-          cursor.insert(new StmtData.Warning("'switch' with no alternatives"));
-          setJump(new Goto(target(bbAt(new BcLabel(numLabels.get(0))))));
+          insert(warning("'switch' with no alternatives"));
+          setJump(goto_(new BcLabel(numLabels.get(0))));
         } else {
-          var asInteger = cursor.insert(new StmtData.AsSwitchIdx(value));
+          var asInteger = intrinsic("as.switchIdx", value);
           for (var i = 0; i < numLabels.size() - 1; i++) {
             var ifMatch = bbAt(new BcLabel(numLabels.get(i)));
-            var cond = cursor.insert(new StmtData.Eq(asInteger, Constant.intSxp(i)));
-            var prev = cursor.bb();
-            cursor.insert(next -> new JumpData.Branch(cond, ifMatch, next));
-            addPhiInputsForStack(ifMatch, prev);
+            var cond = builtin("==", asInteger, new Literal(SEXPs.integer(i)));
+            insert(next -> branch(cond, ifMatch, next));
+            addPhiInputsForStack(ifMatch);
           }
           // `switch` just goes to the last label regardless of whether it matches.
           var lastBb = bbAt(new BcLabel(numLabels.last()));
-          setJump(new Goto(target(lastBb)));
+          setJump(goto_(lastBb));
           addPhiInputsForStack(lastBb);
         }
 
@@ -969,75 +866,59 @@ public class CFGCompiler {
         // there's a label immediately after (which is probably guaranteed).
         setInUnreachableBytecode();
       }
-      case BcInstr.StartSubsetN(var ast, var after) ->
-          compileStartDispatch(Dispatch.Type.SUBSETN, ast, after);
-      case BcInstr.StartSubassignN(var ast, var after) ->
-          compileStartDispatch(Dispatch.Type.SUBASSIGNN, ast, after);
-      case BcInstr.VecSubset2(var _) ->
-          compileDefaultDispatchN(
-              Dispatch.Type.SUBSET2N,
-              2,
-              (ast, args) -> new StmtData.Extract2_1D(ast, args.getFirst(), args.get(1)));
-      case BcInstr.MatSubset2(var _) ->
-          compileDefaultDispatchN(
-              Dispatch.Type.SUBSET2N,
-              3,
-              (ast, args) ->
-                  new StmtData.Extract2_2D(ast, args.getFirst(), args.get(1), args.get(2)));
-      case BcInstr.VecSubassign2(var _) ->
-          compileDefaultDispatchN(
-              Dispatch.Type.SUBASSIGN2N,
-              3,
-              (ast, args) ->
-                  new StmtData.Subassign2_1D(ast, args.getFirst(), args.get(1), args.get(2)));
-      case BcInstr.MatSubassign2(var _) ->
-          compileDefaultDispatchN(
-              Dispatch.Type.SUBASSIGN2N,
-              4,
-              (ast, args) ->
-                  new StmtData.Subassign2_2D(
-                      ast, args.getFirst(), args.get(1), args.get(2), args.get(3)));
-      case BcInstr.StartSubset2N(var ast, var after) ->
-          compileStartDispatch(Dispatch.Type.SUBSET2N, ast, after);
-      case BcInstr.StartSubassign2N(var ast, var after) ->
-          compileStartDispatch(Dispatch.Type.SUBASSIGN2N, ast, after);
+      case BcInstr.StartSubsetN(var _, var after) ->
+          compileStartDispatch(Dispatch.Type.SUBSETN, after);
+      case BcInstr.StartSubassignN(var _, var after) ->
+          compileStartDispatch(Dispatch.Type.SUBASSIGNN, after);
+      case BcInstr.VecSubset2(var _) -> compileDefaultDispatchN(Dispatch.Type.SUBSET2N, 2);
+      case BcInstr.MatSubset2(var _) -> compileDefaultDispatchN(Dispatch.Type.SUBSET2N, 3);
+      case BcInstr.VecSubassign2(var _) -> compileDefaultDispatchN(Dispatch.Type.SUBASSIGN2N, 3);
+      case BcInstr.MatSubassign2(var _) -> compileDefaultDispatchN(Dispatch.Type.SUBASSIGN2N, 4);
+      case BcInstr.StartSubset2N(var _, var after) ->
+          compileStartDispatch(Dispatch.Type.SUBSET2N, after);
+      case BcInstr.StartSubassign2N(var _, var after) ->
+          compileStartDispatch(Dispatch.Type.SUBASSIGN2N, after);
       case BcInstr.SubsetN(var _, var n) -> compileDefaultDispatchN(Dispatch.Type.SUBSETN, n + 1);
       case BcInstr.Subset2N(var _, var n) -> compileDefaultDispatchN(Dispatch.Type.SUBSET2N, n + 1);
       case BcInstr.SubassignN(var _, var n) ->
           compileDefaultDispatchN(Dispatch.Type.SUBASSIGNN, n + 2);
       case BcInstr.Subassign2N(var _, var n) ->
           compileDefaultDispatchN(Dispatch.Type.SUBASSIGN2N, n + 2);
-      case BcInstr.Log(var ast) -> push(mkUnop(StmtData.Log::new));
-      case BcInstr.LogBase(var ast) -> push(mkBinop(StmtData.LogBase::new));
-      case BcInstr.Math1(var ast, var funId) -> push(new StmtData.Math1(funId, pop()));
-      case BcInstr.DotCall(var ast, var numArgs) -> {
+      case BcInstr.Log(var _) -> push(mkUnop("log"));
+      case BcInstr.LogBase(var _) -> push(mkBinop("log"));
+      case BcInstr.Math1(var _, var funId) ->
+          push(
+              mkUnop(
+                  switch (funId) {
+                    case 0 -> "TODO";
+                    case 1 -> "also TODO";
+                    default -> throw new NotImplementedError("unhandled math function: " + funId);
+                  }));
+      case BcInstr.DotCall(var _, var numArgs) -> {
         if (stack.size() < numArgs + 1) {
           throw fail("stack underflow");
         }
         var funAndArgs = stack.subList(stack.size() - numArgs - 1, stack.size());
-        var args =
-            funAndArgs.stream().map(a -> (Expression) a).collect(ImmutableList.toImmutableList());
+        var args = funAndArgs.toArray(Expression[]::new);
         funAndArgs.clear();
 
-        push(new StmtData.CallBuiltin(BuiltinId.DOT_CALL, args));
+        push(builtin(".Call", args));
       }
-      case BcInstr.Colon(var ast) -> push(mkBinop(StmtData.Colon::new));
-      case BcInstr.SeqAlong(var ast) ->
-          push(new StmtData.CallBuiltin(BuiltinId.SEQ_ALONG, ImmutableList.of(pop())));
-      case BcInstr.SeqLen(var ast) ->
-          push(new StmtData.CallBuiltin(BuiltinId.SEQ_LEN, ImmutableList.of(pop())));
+      case BcInstr.Colon(var _) -> push(mkBinop(":"));
+      case BcInstr.SeqAlong(var _) -> push(builtin("seq_along", pop()));
+      case BcInstr.SeqLen(var _) -> push(builtin("seq_len", pop()));
       case BcInstr.BaseGuard(var exprIdx, var after) -> {
         // PIR apparently just ignores the guards (`rir2pir.cpp:341`), but we can handle here.
         var expr = get(exprIdx);
-        var fun = (RegSymSXP) expr.fun();
-        var sym = cursor.insert(fun.name(), new StmtData.LdFun(fun));
-        var base = cursor.insert("base." + fun.name(), new StmtData.LdFun(fun, StaticEnv.BASE));
-        var guard = cursor.insert(new StmtData.Eq(expr, sym, base));
+        var fun = new NamedVariable(((RegSymSXP) expr.fun()).name());
+        var sym = loadFun(fun, Env.LOCAL);
+        var base = loadFun(fun, Env.BASE);
+        var guard = builtin("==", sym, base);
 
-        var safeBb = cfg.addBB("baseGuardSafe");
-        var fallbackBb = cfg.addBB("baseGuardFail");
+        var safeBb = cfg.addBB();
+        var fallbackBb = cfg.addBB();
         var afterBb = bbAt(after);
-        setJump(new JumpData.Branch(guard, safeBb, fallbackBb));
+        setJump(branch(guard, safeBb, fallbackBb));
 
         // Has one predecessor (no phis) so we can call `cursor.moveToStart` instead of `moveTo`.
         cursor.moveToStart(fallbackBb);
@@ -1046,18 +927,14 @@ public class CFGCompiler {
         // expecting them to be `eval`ed, like in `CallSpecial`.
         var argNames =
             expr.args().names().stream()
-                .map(Optional::ofNullable)
+                .map(n -> n.isEmpty() ? "" : n)
                 .collect(ImmutableList.toImmutableList());
         var args =
             expr.args().values().stream()
-                .map(v -> (Expression) new Constant(v))
+                .map(v -> (Expression) new Literal(v))
                 .collect(ImmutableList.toImmutableList());
-        var fs = compileFrameState();
-        push(
-            argNames.stream().anyMatch(Optional::isPresent)
-                ? new StmtData.NamedCall(expr, sym, argNames, args, fs)
-                : new StmtData.NamelessCall(expr, sym, args, fs));
-        setJump(new Goto(target(afterBb)));
+        push(new org.prlprg.fir.instruction.Call(new DynamicCallee(fun, argNames), args));
+        setJump(goto_(afterBb));
         addPhiInputsForStack(afterBb);
         pop(); // the `CallBuiltin` pushed above.
 
@@ -1104,49 +981,49 @@ public class CFGCompiler {
     }
   }
 
-  private void compileStartDispatch(Dispatch.Type type, ConstPool.Idx<LangSXP> ast, BcLabel after) {
+  private void compileStartDispatch(Dispatch.Type type, BcLabel after) {
     compileStartDispatch(type, bbAt(after));
   }
 
-  private void compileStartDispatch(Dispatch.Type type, LangSXP ast, BB after) {
+  private void compileStartDispatch(Dispatch.Type type, BB after) {
     var rhs = type.hasRhs ? pop() : null;
     var target = top();
-    compileGeneralDispatchCommon(type.builtin, type.isNForm, ast, target, rhs, after);
+    compileGeneralDispatchCommon(type.builtin, type.isNForm, target, rhs, after);
     if (rhs != null) {
       push(rhs);
     }
 
     if (!type.isNForm) {
       pushCallArg(target);
-      if (!ast.args().isEmpty() && ast.argName(0) != null) {
-        setNameOfLastCallArg(Objects.requireNonNull(ast.argName(0)).name());
-      }
     }
 
-    pushDispatch(type, ast, after);
+    pushDispatch(type, after);
   }
 
   private void compileGeneralDispatchCommon(
-      BuiltinId fun,
-      boolean isNForm,
-      LangSXP ast,
-      Expression target,
-      @Nullable Expression rhs,
-      BB after) {
-    var isNotObject = cursor.insert(new StmtData.GnuRIs(IsTypeCheck.NON_OBJECT, target));
-    var nonObjectBb = cfg.addBB("dispatchNonObject");
-    var objectBb = cfg.addBB("dispatchObject");
-    setJump(new JumpData.Branch(isNotObject, nonObjectBb, objectBb));
+      BuiltinId fun, boolean isNForm, Expression target, @Nullable Expression rhs, BB after) {
+    // ???: Maybe avoid compiling optimized dispatch code, since we can optimize it ourselves.
+    var isObject = builtin("is.object", target);
+    var objectBb = cfg.addBB();
+    var nonObjectBb = cfg.addBB();
+    setJump(branch(isObject, objectBb, nonObjectBb));
 
     // Has one predecessor (no phis) so we can call `cursor.moveToStart` instead of `moveTo`.
     cursor.moveToStart(objectBb);
     var target1 = pop();
     assert target == target1
         : "`compileGeneralDispatchCommon` only called with top-of-stack as `target`";
-    var dispatch = cursor.insert(new StmtData.TryDispatchBuiltin_(ast, fun, target, rhs));
-    cursor.insert(next -> new JumpData.Branch(dispatch.dispatched(), next, nonObjectBb));
-    push(dispatch.value());
-    setJump(new Goto(target(after)));
+
+    var dispatchExpr =
+        intrinsic("tryDispatchBuiltin", new Literal(SEXPs.string(fun.name())), target, rhs);
+    var dispatchReg = scope().addLocal();
+    insert(new Write(dispatchReg, dispatchExpr));
+    var dispatched = intrinsic("getTryDispatchBuiltinDispatched", new Read(dispatchReg));
+    var dispatchValue = intrinsic("getTryDispatchBuiltinValue", new Read(dispatchReg));
+
+    insert(next -> branch(dispatched, next, nonObjectBb));
+    push(dispatchValue);
+    setJump(goto_(after));
     addPhiInputsForStack(after);
     pop(); // the `CallBuiltin` pushed above.
 
@@ -1159,11 +1036,7 @@ public class CFGCompiler {
     }
   }
 
-  private void compileDefaultDispatch(
-      Dispatch.Type type,
-      int minNumArgs,
-      int maxNumArgs,
-      BiFunction<LangSXP, List<Expression>, StmtData.Expression> dispatchInstrData) {
+  private void compileDefaultDispatch(Dispatch.Type type) {
     assert !type.isNForm : "use compileDefaultDispatchN for `...N` bytecodes";
 
     if (type.hasRhs) {
@@ -1175,88 +1048,50 @@ public class CFGCompiler {
 
     pop();
 
-    var argValues = Lists.map(call.args, Call.Arg::value);
-    if (call.args.stream().anyMatch(arg -> arg.name() != null || arg.value == Constant.DOTS)
-        || call.args.size() < minNumArgs
-        || call.args.size() > maxNumArgs) {
-      // Slowcase, for when we don't have a specialized instruction.
-      push(
-          new StmtData.CallSafeBuiltin(
-              dispatch.ast, type.builtin, ImmutableList.copyOf(argValues)));
-    } else {
-      // Instead of compiling a call, insert our specialized instruction with the call arguments.
-      push(dispatchInstrData.apply(dispatch.ast, argValues));
-    }
+    var argValues = Lists.map(call.args, Call.Arg::value).toArray(Expression[]::new);
+    push(builtin(type.builtin.name(), argValues));
 
-    setJump(new Goto(target(bbAfterCurrent())));
+    setJump(goto_(bbAfterCurrent()));
     if (bbAfterCurrent() != dispatch.after) {
       throw fail("expected to be immediately before `after` BB " + dispatch.after.label());
     }
   }
 
   private void compileDefaultDispatchN(Dispatch.Type type, int numArgs) {
-    compileDefaultDispatchN(type, numArgs, null);
-  }
-
-  private void compileDefaultDispatchN(
-      Dispatch.Type type,
-      int numArgs,
-      @Nullable BiFunction<LangSXP, List<Expression>, StmtData.Expression> dispatchInstrData) {
     assert type.isNForm : "use compileDefaultDispatch for non-`...N` bytecodes";
 
     var dispatch = popDispatch(type);
-    var uncastedArgs = stack.subList(stack.size() - numArgs, stack.size());
-    for (var arg : uncastedArgs) {
-      if (!(arg instanceof Expression)) {
-        throw fail(
-            "expected Expression on stack for `compileDefaultDispatchN("
-                + type
-                + ", "
-                + numArgs
-                + ", ...)`");
-      }
-    }
-    @SuppressWarnings("unchecked")
-    var args = (List<Expression>) (List<?>) uncastedArgs;
+    var argsList = stack.subList(stack.size() - numArgs, stack.size());
+    var args = argsList.toArray(Expression[]::new);
+    argsList.clear();
 
-    // Unlike `compileDefaultDispatch`, there's no call, instead we take the args from the stack.
+    // Unlike `compileDefaultDispatch`, there's no `Call`, instead we take the args from the stack.
     // Like `compileDefaultDispatch`, there's either a specialized instruction or a fallback call,
     // although in this the number of arguments is known.
-    var result =
-        dispatchInstrData == null
-            ? new StmtData.CallSafeBuiltin(dispatch.ast, type.builtin, ImmutableList.copyOf(args))
-            : dispatchInstrData.apply(dispatch.ast, args);
-    args.clear();
-    push(result);
+    push(builtin(type.builtin.name(), args));
 
-    setJump(new Goto(target(bbAfterCurrent())));
+    setJump(goto_(bbAfterCurrent()));
     if (bbAfterCurrent() != dispatch.after) {
       throw fail("expected to be immediately before `after` BB " + dispatch.after.label());
     }
   }
 
-  private void compileCall(ConstPool.Idx<LangSXP> ast) {
-    compileCall(popCall(), get(ast));
+  private void compileCall() {
+    compileCall(popCall());
   }
 
-  private void compileCall(Call call, LangSXP ast) {
+  private void compileCall(Call call) {
     var names =
         call.args.stream()
-            .map(arg -> Optional.ofNullable(arg.name))
+            .map(arg -> arg.name == null ? "" : arg.name)
             .collect(ImmutableList.toImmutableList());
     var args = call.args.stream().map(arg -> arg.value).collect(ImmutableList.toImmutableList());
-    var isNamed = call.args.stream().anyMatch(arg -> arg.name() != null);
     var callInstr =
-        cursor.insert(
-            switch (call.fun) {
-              case Call.Fun.Value(var fun) ->
-                  isNamed
-                      ? new StmtData.NamedCall(ast, fun, names, args, compileFrameState())
-                      : new NamelessCall(ast, fun, args, compileFrameState());
-              case Call.Fun.Builtin(var fun) ->
-                  // Even if `isNamed` is true, R just ignores the names.
-                  new StmtData.CallBuiltin(ast, fun, args);
-            });
+        switch (call.fun) {
+          case Call.Fun.Variable(var fun) ->
+              new org.prlprg.fir.instruction.Call(new DynamicCallee(fun, names), args);
+          case Call.Fun.Builtin(var fun) -> builtin(fun.name(), args.toArray(Expression[]::new));
+        };
     push(callInstr);
 
     // Special-case due to weird and possibly buggy (GNU-R) bytecode compiler behavior:
@@ -1273,21 +1108,15 @@ public class CFGCompiler {
     // \* If `stop` is overridden in the function, the bytecode compiler will use the overridden
     // call, which is different than the AST interpreter which errors regardless. This and the fact
     // that the stack now has an extra value until the function returns, are why it may be a bug.
-    if (callInstr.data() instanceof StmtData.NamelessCall n
-        && n.fun() instanceof Stmt f
-        && f.data() instanceof StmtData.LdFun(var name, var _)
-        && name.name().equals("stop")
-        && n.args().size() == 1
-        && n.args().getFirst().equals(Constant.strSxp("empty alternative in numeric switch"))
-        && hasBbAfterCurrent()
-        && bbAfterCurrent().phis().size() == stack.size() - 1) {
+    if (callInstr instanceof org.prlprg.fir.instruction.Call c
+        && c.callee() instanceof DynamicCallee ca
+        && ca.variable().name().equals("stop")
+        && c.arguments().size() == 1
+        && c.arguments()
+            .getFirst()
+            .equals(new Literal(SEXPs.string("empty alternative in numeric switch")))) {
       pop();
     }
-  }
-
-  private FrameState compileFrameState() {
-    return cursor.insert(
-        new FrameState_(new BcPosition(bcPos), cfg.isPromise, ImmutableList.copyOf(stack)));
   }
 
   // endregion main compile functions: compile individual things
@@ -1349,24 +1178,16 @@ public class CFGCompiler {
   /// SSA invariant "each variable is assigned exactly once"; see [#moveTo(BB)] for more
   /// explanation.
   private void addPhiInputsForStack(BB bb) {
-    addPhiInputsForStack(bb, cursor.bb());
-  }
-
-  /// Add inputs to the given block's phis for the stack at `incoming`.
-  ///
-  /// This is the same as [#addPhiInputsForStack(BB)] except uses `incoming` instead
-  /// of the current block.
-  private void addPhiInputsForStack(BB bb, BB incoming) {
     // Ensure the BB has phis for each stack value.
     if (bbsWithPhis.add(bb)) {
       // Add phis for all of the nodes on the stack.
-      for (var expr : stack) {
-        bb.addPhi(node.getClass());
+      for (var _ : stack) {
+        bb.addParameter();
       }
     } else {
       // Already added phis,
       // but sanity-check that they're still same type and amount as the nodes on the stack.
-      var phis = bb.phis().iterator();
+      var phis = bb.phiParameters().iterator();
       for (var i = 0; i < stack.size(); i++) {
         if (!phis.hasNext()) {
           throw fail(
@@ -1377,24 +1198,10 @@ public class CFGCompiler {
                   + " but got "
                   + i
                   + "\nIncoming stack: ["
-                  + Strings.join(", ", Node::id, stack)
+                  + Strings.join(", ", stack)
                   + "]");
         }
-        var phi = phis.next();
-        if (!phi.nodeClass().isInstance(stack.get(i))) {
-          throw fail(
-              "BB stack mismatch: "
-                  + bb.label()
-                  + " has a phi of type "
-                  + phi.getClass()
-                  + " at index "
-                  + i
-                  + " but expected "
-                  + stack.get(i).getClass()
-                  + "\nIncoming stack: ["
-                  + Strings.join(", ", Node::id, stack)
-                  + "]");
-        }
+        phis.next();
       }
       if (phis.hasNext()) {
         var i = stack.size();
@@ -1410,17 +1217,9 @@ public class CFGCompiler {
                 + " but got "
                 + i
                 + "\nIncoming stack: ["
-                + Strings.join(", ", Node::id, stack)
+                + Strings.join(", ", stack)
                 + "]");
       }
-    }
-
-    // Add an input to each phi, for the corresponding stack value and the current BB.
-    var phis = bb.phis().iterator();
-    for (var node : stack) {
-      @SuppressWarnings("unchecked")
-      var phi = (Phi<Node>) phis.next();
-      phi.setInput(incoming, node);
     }
   }
 
@@ -1430,6 +1229,10 @@ public class CFGCompiler {
   /// Insert a statement.
   private void insert(Expression statement) {
     cursor.insert(statement);
+  }
+
+  private void insert(JumpInsertion jump) {
+    cursor.insert(jump);
   }
 
   private void setJump(Jump jump) {
@@ -1627,8 +1430,8 @@ public class CFGCompiler {
   }
 
   /// Begin a new call of the given function (abstract value).
-  private void pushCall(Expression fun) {
-    callStack.add(new Call(new Call.Fun.Value(fun)));
+  private void pushCall(NamedVariable fun) {
+    callStack.add(new Call(new Call.Fun.Variable(fun)));
   }
 
   /// Begin a new call of the given function (statically known builtin).
@@ -1696,8 +1499,8 @@ public class CFGCompiler {
    * Add data for a "start dispatch" bytecode instruction that will be referenced by later "default
    * dispatch" instruction (via {@link #popDispatch(Dispatch.Type)}.
    */
-  private void pushDispatch(Dispatch.Type type, LangSXP ast, BB after) {
-    dispatchStack.add(new Dispatch(type, ast, after));
+  private void pushDispatch(Dispatch.Type type, BB after) {
+    dispatchStack.add(new Dispatch(type, after));
   }
 
   /// Reference data from a previously-compiled "start dispatch" bytecode instruction (via
@@ -1715,16 +1518,9 @@ public class CFGCompiler {
 
   // region expression constructors
   private Expression builtin(String name, Expression... args) {
-    return builtin(name, -1, args);
-  }
-
-  private Expression builtin(String name, int versionIndex, Expression... args) {
     var function = BUILTINS.localFunction(name);
     assert function != null : "missing builtin " + name;
-    var callee =
-        versionIndex == -1
-            ? new DispatchCallee(function, null)
-            : new StaticCallee(function, function.version(versionIndex));
+    var callee = new DispatchCallee(function, null);
     return new org.prlprg.fir.instruction.Call(callee, ImmutableList.copyOf(args));
   }
 
@@ -1742,16 +1538,44 @@ public class CFGCompiler {
     return new org.prlprg.fir.instruction.Call(callee, ImmutableList.copyOf(args));
   }
 
+  /// An expression that raises an error with the given message.
+  private Expression stop(String message) {
+    return builtin("stop", new Literal(SEXPs.string(message)));
+  }
+
+  /// An expression that raises a warning with the given message.
+  private Expression warning(String message) {
+    return builtin("warning", new Literal(SEXPs.string(message)));
+  }
+
+  enum Env {
+    LOCAL,
+    GLOBAL,
+    BASE
+  }
+
   /// Stub for loaded function, which can fallback to an intrinsic but usually gets caught and
   /// turned into [DynamicCallee].
-  private Expression loadFun(NamedVariable name, boolean isGlobal) {
-    return intrinsic("loadFun", 0, new Read(name), new Literal(SEXPs.logical(isGlobal)));
+  private Expression loadFun(NamedVariable name, Env env) {
+    return intrinsic("loadFun", 0, new Read(name), new Literal(SEXPs.integer(env.ordinal())));
   }
 
   /// Stub for function guard (TODO what does [#BcInstr.CheckFun] do again?), which can fallback to
   /// an intrinsic but usually gets caught and turned into [DynamicCallee].
   private Expression checkFun(Expression fun) {
     return intrinsic("checkFun", 0, fun);
+  }
+
+  private Jump goto_(BB bb) {
+    return new Goto(target(bb));
+  }
+
+  private Jump goto_(BcLabel label) {
+    return goto_(bbAt(label));
+  }
+
+  private Jump branch(Expression condition, BB trueBb, BB falseBb) {
+    return new If(condition, target(trueBb), target(falseBb));
   }
 
   // endregion expression constructors
@@ -1783,12 +1607,7 @@ public class CFGCompiler {
   }
 
   private CFGCompilerUnsupportedBcException failUnsupported(String message) {
-    return failUnsupported(message, null);
-  }
-
-  private CFGCompilerUnsupportedBcException failUnsupported(
-      String message, @Nullable ClosureCompilerUnsupportedException cause) {
-    return new CFGCompilerUnsupportedBcException(message, bc, bcPos, cursor, cause);
+    return new CFGCompilerUnsupportedBcException(message, bc, bcPos, cursor, null);
   }
 
   private CFGCompilerException fail(String message) {

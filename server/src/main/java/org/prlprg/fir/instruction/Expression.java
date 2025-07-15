@@ -1,5 +1,6 @@
 package org.prlprg.fir.instruction;
 
+import com.google.common.collect.ImmutableList;
 import java.util.Optional;
 import javax.annotation.Nullable;
 import org.prlprg.fir.callee.DispatchCallee;
@@ -152,9 +153,11 @@ public sealed interface Expression extends Instruction
 
     if (s.trySkip("dyn<")) {
       var variable = p.parse(NamedVariable.class);
+      var argumentNames =
+          s.nextCharIs('[') ? p.parseList("[", "]", String.class) : ImmutableList.<String>of();
       s.assertAndSkip('>');
       var arguments = p1.parseList("(", ")", Expression.class);
-      return new Call(new DynamicCallee(variable), arguments);
+      return new Call(new DynamicCallee(variable, argumentNames), arguments);
     }
 
     if (s.trySkip("force ")) {
