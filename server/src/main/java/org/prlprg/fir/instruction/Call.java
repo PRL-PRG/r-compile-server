@@ -37,7 +37,7 @@ public final class Call implements Expression {
 
   @Override
   public @UnmodifiableView Collection<Variable> immediateVariables() {
-    return (callee instanceof DynamicCallee(var variable)) ? List.of(variable) : List.of();
+    return (callee instanceof DynamicCallee(var variable, var _)) ? List.of(variable) : List.of();
   }
 
   public Callee callee() {
@@ -73,7 +73,7 @@ public final class Call implements Expression {
 
   @PrintMethod
   private void print(Printer p) {
-    p.print(callee);
+    p.print(callee());
     p.printAsList("(", ")", arguments);
   }
 }

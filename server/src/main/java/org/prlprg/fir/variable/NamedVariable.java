@@ -6,6 +6,10 @@ import org.prlprg.parseprint.Printer;
 public record NamedVariable(@Override String name) implements Variable {
   public static final NamedVariable DOTS = new NamedVariable("`...`");
 
+  public static NamedVariable ddNum(int index) {
+    return new NamedVariable("`.." + index + "`");
+  }
+
   public NamedVariable {
     if (name.startsWith("r")) {
       throw new IllegalArgumentException("Named variable must not start with 'r': " + name);
