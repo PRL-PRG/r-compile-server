@@ -735,8 +735,7 @@ static INLINE void Rsh_do_get_var(Value *res, SEXP symbol, BCell *cell,
     } else {
       /**** R_isMissing is inefficient */
       if (keepmiss && R_isMissing(symbol, rho)) {
-        SET_VAL(res, R_MissingArg);
-        return;
+        value = R_MissingArg;
       } else {
         forcePromise(value);
         // FIXME: this is pretty inefficient
@@ -746,12 +745,12 @@ static INLINE void Rsh_do_get_var(Value *res, SEXP symbol, BCell *cell,
         value = PRVALUE(value);
       }
     }
-
-    if (has_cell) {
-      BCELL_INLINE(*cell, value);
-    }
   } else {
     ENSURE_NAMEDMAX(value);
+  }
+
+  if (has_cell) {
+    BCELL_INLINE(*cell, value);
   }
 
   SET_VAL(res, value);
@@ -765,18 +764,6 @@ static INLINE void Rsh_do_get_var(Value *res, SEXP symbol, BCell *cell,
 static ALWAYS_INLINE void Rsh_get_var(Value *res, SEXP symbol, BCell *cell,
                                       SEXP rho, Rboolean dd,
                                       Rboolean keepmiss) {
-  switch (BCELL_TAG(*cell)) {
-  case REALSXP:
-    SET_DBL_VAL(res, BCELL_DVAL(*cell));
-    return;
-  case INTSXP:
-    SET_INT_VAL(res, BCELL_IVAL(*cell));
-    return;
-  case LGLSXP:
-    SET_LGL_VAL(res, BCELL_IVAL(*cell));
-    return;
-  }
-
   switch (BCELL_TAG(*cell)) {
   case REALSXP:
     SET_DBL_VAL(res, BCELL_DVAL(*cell));
@@ -2308,6 +2295,7 @@ static INLINE Rboolean Rsh_StepFor(Value *s2, Value *s1, Value *s0, BCell *cell,
     value = CAR(seq);
     ENSURE_NAMEDMAX(value);
     SET_SXP_VAL(s2, CDR(seq));
+    break;
   default:
     Rf_error("invalid sequence argument in for loop");
   }
