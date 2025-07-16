@@ -59,12 +59,12 @@ class DummySession implements RSession {
 
   @Override
   public NamespaceEnvSXP getNamespace(String name, String version) {
-    return null;
+    throw new UnsupportedOperationException();
   }
 
   @Override
   public ImmutableList<String> RFunTab() {
-    return null;
+    throw new UnsupportedOperationException();
   }
 }
 
@@ -306,18 +306,7 @@ public class GNURSession implements RSession {
 
   public synchronized Set<String> builtins() {
     if (builtins == null) {
-      try {
-        var names =
-            (StrSXP)
-                RDSReader.readStream(
-                    this,
-                    IO.maybeDecompress(
-                        Objects.requireNonNull(
-                            GNURSession.class.getResourceAsStream(BUILTINS_SYMBOLS_RDS_FILE))));
-        builtins = ImmutableSet.copyOf(names);
-      } catch (Exception e) {
-        throw new RuntimeException("Failed to load builtins", e);
-      }
+      builtins = readNamesFromRds(BUILTINS_SYMBOLS_RDS_FILE);
     }
 
     return builtins;
@@ -325,18 +314,7 @@ public class GNURSession implements RSession {
 
   public synchronized Set<String> specials() {
     if (specials == null) {
-      try {
-        var names =
-            (StrSXP)
-                RDSReader.readStream(
-                    this,
-                    IO.maybeDecompress(
-                        Objects.requireNonNull(
-                            GNURSession.class.getResourceAsStream(SPECIALS_SYMBOLS_RDS_FILE))));
-        specials = ImmutableSet.copyOf(names);
-      } catch (Exception e) {
-        throw new RuntimeException("Failed to load specials", e);
-      }
+      specials = readNamesFromRds(SPECIALS_SYMBOLS_RDS_FILE);
     }
 
     return specials;
@@ -344,22 +322,42 @@ public class GNURSession implements RSession {
 
   public synchronized Set<String> builtinsInternal() {
     if (builtinsInternal == null) {
-      try {
-        var names =
-            (StrSXP)
-                RDSReader.readStream(
-                    this,
-                    IO.maybeDecompress(
-                        Objects.requireNonNull(
-                            GNURSession.class.getResourceAsStream(
-                                BUILTINS_INTERNAL_SYMBOLS_RDS_FILE))));
-        builtinsInternal = ImmutableSet.copyOf(names);
-      } catch (Exception e) {
-        throw new RuntimeException("Failed to load internal specials", e);
-      }
+      builtinsInternal = readNamesFromRds(BUILTINS_INTERNAL_SYMBOLS_RDS_FILE);
     }
 
     return builtinsInternal;
+  }
+
+  public static ImmutableSet<String> getBuiltins() {
+    return readNamesFromRds(BUILTINS_SYMBOLS_RDS_FILE);
+  }
+
+  private static ImmutableSet<String> readNamesFromRds(String fileName) {
+    try {
+      var names =
+          (StrSXP)
+              RDSReader.readStream(
+                  new DummySession(),
+                  IO.maybeDecompress(
+                      Objects.requireNonNull(GNURSession.class.getResourceAsStream(fileName))));
+      return ImmutableSet.copyOf(names);
+    } catch (Exception e) {
+      throw new RuntimeException("Failed to load names from " + fileName, e);
+    }
+  }
+
+  @Override
+  public synchronized ImmutableList<String> RFunTab() {
+    if (rFunTab == null) {
+      rFunTab =
+          ImmutableList.<String>builder()
+              .addAll(
+                  Files.readLines(
+                      Objects.requireNonNull(
+                          GNURSession.class.getResourceAsStream(R_FUN_TAB_FILE))))
+              .build();
+    }
+    return rFunTab;
   }
 
   @Override
@@ -388,19 +386,5 @@ public class GNURSession implements RSession {
       ns = namespaces.get(name + version);
     }
     return ns;
-  }
-
-  @Override
-  public ImmutableList<String> RFunTab() {
-    if (rFunTab == null) {
-      rFunTab =
-          ImmutableList.<String>builder()
-              .addAll(
-                  Files.readLines(
-                      Objects.requireNonNull(
-                          GNURSession.class.getResourceAsStream(R_FUN_TAB_FILE))))
-              .build();
-    }
-    return rFunTab;
   }
 }
