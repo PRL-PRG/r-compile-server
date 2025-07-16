@@ -7,11 +7,10 @@ suppressPackageStartupMessages(library(tidyr))
 BC_OPTS <- list(optimize = 3L)
 
 bc_profile <- function(o) {
-    output <- capture.output(result <- execute(o$param))
-
     bc <- compiler::cmpfun(execute, options=BC_OPTS)
 
-    compiler::bcprof(bc, o$verbose)
+    p <- o$param
+    compiler::bcprof(bc(p), o$verbose)
 }
 
 
