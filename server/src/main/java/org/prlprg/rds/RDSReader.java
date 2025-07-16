@@ -11,6 +11,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.logging.Logger;
 import javax.annotation.Nullable;
@@ -512,7 +513,7 @@ public class RDSReader implements Closeable {
     if (length == -1) {
       out = Constants.NA_STRING;
     } else {
-      // TODO: can this actually happen?
+      // Sometimes R strings have no defined encoding.
       if (encoding == null) {
         encoding = nativeEncoding;
       }
