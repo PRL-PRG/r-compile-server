@@ -14,6 +14,8 @@ import javax.annotation.concurrent.NotThreadSafe;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.rds.RDSWriter;
 import org.prlprg.session.RSession;
+import org.prlprg.sexp.EnvSXP;
+import org.prlprg.sexp.GlobalEnvSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.util.Pair;
 
@@ -117,6 +119,13 @@ class RestartingGNURProcess implements GNUR {
   }
 
   @Override
+  public EnvSXP evalEnvironment(String source) {
+    check();
+    assert R != null;
+    return R.evalEnvironment(source);
+  }
+
+  @Override
   public void close() throws Exception {
     if (R != null) {
       R.close();
@@ -213,6 +222,11 @@ class SingleGNURProcess implements GNUR {
     } catch (Exception e) {
       throw new RuntimeException("Unable to eval R source", e);
     }
+  }
+
+  @Override
+  public EnvSXP evalEnvironment(String source) {
+    return (GlobalEnvSXP) eval(source + "\nglobalenv()");
   }
 
   private String waitForCommand(String requestId) {

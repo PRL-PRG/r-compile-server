@@ -4,33 +4,60 @@ import com.google.common.collect.Streams;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.params.provider.Arguments;
+import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.StrSXP;
+import org.prlprg.sexp.VecSXP;
 
 // FIXME: this is ugly! refactor
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public interface StdlibClosuresSource {
+  private static String stdlibFunctionNamesSource() {
+    return """
+        list_functions <- function(name) {
+            namespace <- getNamespace(name)
+            p <- function(x) {
+              f <- get(x, envir=namespace)
+              is.function(f) && identical(environment(f), namespace)
+            }
+            Filter(p, ls(namespace, all.names = TRUE))
+        }
 
-  default Stream<Arguments> stdlibFunctionsList() {
-    StrSXP base =
-        (StrSXP)
-            eval(
-                """
-                                        list_functions <- function(name) {
-                                            namespace <- getNamespace(name)
-                                            p <- function(x) {
-                                              f <- get(x, envir=namespace)
-                                              is.function(f) && identical(environment(f), namespace)
-                                            }
-                                            Filter(p, ls(namespace, all.names = TRUE))
-                                        }
+        pkgs <- c("base", "tools", "utils", "graphics", "methods", "stats")
+        do.call(c, sapply(pkgs, function(x) paste0(x, ":::`", list_functions(x), "`")))
+        """;
+  }
 
-                                        pkgs <- c("base", "tools", "utils", "graphics", "methods", "stats")
-                                        funs <- sapply(pkgs, function(x) paste0(x, ":::`", list_functions(x), "`"))
-                                        do.call(c, funs)
-                                        """);
+  private static String stdlibFunctionNamesAndValuesSource() {
+    var functionNames = "names <- {" + stdlibFunctionNamesSource() + "}";
+    var getValuesFromNames =
+        """
+        lapply(names, function(name) {
+            namespaceName <- sub(":::`.*`", "", name)
+            functionName <- sub(".*:::`(.*)`", "\\\\1", name)
+            namespace <- getNamespace(namespaceName)
+            fun <- get(functionName, envir=namespace)
+            list(name, fun)
+        })
+        """;
+    return functionNames + "\n" + getValuesFromNames;
+  }
 
-    return Streams.stream(base.iterator()).map(Arguments::of);
+  default Stream<Arguments> stdlibFunctionNames() {
+    var sexp = (StrSXP) eval(stdlibFunctionNamesSource());
+
+    return Streams.stream(sexp.iterator()).map(Arguments::of);
+  }
+
+  default Stream<Arguments> stdlibFunctionNamesAndValues() {
+    var sexp = (VecSXP) eval(stdlibFunctionNamesAndValuesSource());
+
+    return Streams.stream(sexp.iterator())
+        .map(
+            arguments -> {
+              var list = (VecSXP) arguments;
+              return Arguments.of(((StrSXP) list.get(0)).get(0), (CloSXP) list.get(1));
+            });
   }
 
   SEXP eval(String source);

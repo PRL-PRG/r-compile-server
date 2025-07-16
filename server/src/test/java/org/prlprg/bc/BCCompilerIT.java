@@ -25,7 +25,7 @@ public class BCCompilerIT implements StdlibClosuresSource {
   }
 
   @ParameterizedTest
-  @MethodSource("stdlibFunctionsList")
+  @MethodSource("stdlibFunctionNames")
   public void testStdlibFunctions(String name, BCSnapshotTestExtension.BCSnapshot snapshot) {
     snapshot.verify(name, name, 3);
   }
