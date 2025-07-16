@@ -74,7 +74,9 @@ public class CompileServer {
   }
 
   public static void main(String[] args) throws Exception {
-    CompileServer server = new CompileServer(8980);
+    String portEnv = System.getenv("RSH_PORT");
+    int port = portEnv != null ? Integer.parseInt(portEnv) : 8980;
+    CompileServer server = new CompileServer(port);
     server.start();
     server.blockUntilShutdown();
   }

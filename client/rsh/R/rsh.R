@@ -34,7 +34,8 @@ NULL
   .Call(C_initialize)
 
    # for the client, so that it is not GC-ed
-  env[[".rsh_client"]] <- init_client("0.0.0.0", 8980L)
+  port <- as.integer(Sys.getenv("RSH_PORT", unset = "8980"))
+  env[[".rsh_client"]] <- init_client("0.0.0.0", port)
 }
 
 #' Initialize the Rsh client

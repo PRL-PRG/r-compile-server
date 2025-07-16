@@ -49,6 +49,7 @@ If the dev container is too slow, you can also setup on the host machine. To do 
 - Test (no static analyses) with `make test` or `mvn test`
 - Test and static anaylses with `make check` or `mvn verify`
 - Format with `make format` or `mvn spotless:apply`. This requires to have `npm` installed.
+- `make run` in the `server` directory will run the server on port 8980 by default. You can change the port by setting the `RSH_PORT` environment variable, e.g. `RSH_PORT=8981 make run`.
 
 ## Troubleshooting
 
