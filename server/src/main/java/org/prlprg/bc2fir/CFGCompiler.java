@@ -29,11 +29,11 @@ import org.prlprg.fir.cfg.cursor.JumpInsertion;
 import org.prlprg.fir.instruction.Cast;
 import org.prlprg.fir.instruction.Closure;
 import org.prlprg.fir.instruction.Expression;
-import org.prlprg.fir.instruction.Force;
 import org.prlprg.fir.instruction.Goto;
 import org.prlprg.fir.instruction.If;
 import org.prlprg.fir.instruction.Jump;
 import org.prlprg.fir.instruction.Literal;
+import org.prlprg.fir.instruction.MaybeForce;
 import org.prlprg.fir.instruction.Promise;
 import org.prlprg.fir.instruction.Read;
 import org.prlprg.fir.instruction.Return;
@@ -516,12 +516,12 @@ public class CFGCompiler {
       case BcInstr.LdFalse() -> push(new Literal(SEXPs.FALSE));
       case BcInstr.GetVar(var name) -> {
         push(new Read(getVar(name)));
-        push(new Force(pop()));
+        push(new MaybeForce(pop()));
       }
       case BcInstr.DdVal(var name) -> {
         var ddIndex = NamedVariable.ddNum(get(name).ddNum());
         push(new Read(ddIndex));
-        push(new Force(pop()));
+        push(new MaybeForce(pop()));
       }
       case BcInstr.SetVar(var name) -> insert(new Write(getVar(name), top()));
       case BcInstr.GetFun(var name) -> push(loadFun(getVar(name), Env.LOCAL));
@@ -709,12 +709,12 @@ public class CFGCompiler {
       }
       case BcInstr.GetVarMissOk(var name) -> {
         push(new Read(getVar(name)));
-        push(new Force(pop()));
+        push(new MaybeForce(pop()));
       }
       case BcInstr.DdValMissOk(var name) -> {
         var ddIndex = get(name).ddNum();
         push(new Read(NamedVariable.ddNum(ddIndex)));
-        push(new Force(pop()));
+        push(new MaybeForce(pop()));
       }
       case BcInstr.Visible() -> insert(intrinsic("visible", 0));
       case BcInstr.SetVar2(var name) -> insert(new SuperWrite(getVar(name), top()));
