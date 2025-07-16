@@ -21,6 +21,34 @@
 #define DEBUG_PRINT(...) // No-op
 #endif
 
+#define MAX2(a, b) ((a) > (b) ? (a) : (b))
+#define MAX3(a, b, c) MAX2(MAX2(a, b), c)
+#define MAX4(a, b, c, d) MAX2(MAX3(a, b, c), d)
+#define MAX5(a, b, c, d, e) MAX2(MAX4(a, b, c, d), e)
+#define MAX6(a, b, c, d, e, f) MAX2(MAX5(a, b, c, d, e), f)
+#define MAX7(a, b, c, d, e, f, g) MAX2(MAX6(a, b, c, d, e, f), g)
+#define MAX8(a, b, c, d, e, f, g, h) MAX2(MAX7(a, b, c, d, e, f, g), h)
+#define MAX9(a, b, c, d, e, f, g, h, i) MAX2(MAX8(a, b, c, d, e, f, g, h), i)
+#define MAX10(a, b, c, d, e, f, g, h, i, j) MAX2(MAX9(a, b, c, d, e, f, g, h, i), j)
+#define MAX11(a, b, c, d, e, f, g, h, i, j, k) MAX2(MAX10(a, b, c, d, e, f, g, h, i, j), k)
+
+static int fits_in(int64_t value, int size)
+{
+    switch (size)
+    {
+    case 1:
+        return value >= INT8_MIN && value <= INT8_MAX;
+    case 2:
+        return value >= INT16_MIN && value <= INT16_MAX;
+    case 4:
+        return value >= INT32_MIN && value <= INT32_MAX;
+    case 8:
+        return value >= INT64_MIN && value <= INT64_MAX;
+    default:
+        return 0;
+    }
+}
+
 #define X_MATH1_OPS                                                            \
   X(sqrt, SQRT_OP, Sqrt)                                                       \
   X(exp, EXP_OP, Exp)
@@ -197,6 +225,95 @@ static void prepare_rodata()
 }
 
 typedef struct {
+  int cached_type;
+  uint8_t *dst;
+  uint8_t *src[11];
+  uint16_t sizes[11];
+  uint8_t data[10 * (sizeof(uint8_t) + sizeof(int32_t)) /*JMPS*/
+#define X(a, b)                          \
+  + sizeof(__RCP_STEPFOR_##a##_OP_BODY) 
+  X_STEPFOR_TYPES
+#undef X
+  ];
+} StepFor_specialized;
+
+#define stepfor_max_size MAX11( \
+        sizeof(__RCP_STEPFOR_0_OP_BODY), \
+        sizeof(__RCP_STEPFOR_1_OP_BODY), \
+        sizeof(__RCP_STEPFOR_2_OP_BODY), \
+        sizeof(__RCP_STEPFOR_3_OP_BODY), \
+        sizeof(__RCP_STEPFOR_4_OP_BODY), \
+        sizeof(__RCP_STEPFOR_5_OP_BODY), \
+        sizeof(__RCP_STEPFOR_6_OP_BODY), \
+        sizeof(__RCP_STEPFOR_7_OP_BODY), \
+        sizeof(__RCP_STEPFOR_8_OP_BODY), \
+        sizeof(__RCP_STEPFOR_9_OP_BODY), \
+        sizeof(__RCP_STEPFOR_10_OP_BODY))
+
+void prepare_variant_one(uint16_t *size, uint8_t **offset, uint8_t *mem, size_t *pos, const Stencil* stencil)
+{
+    *size = stencil->body_size;
+    
+    *offset = *pos;
+    memcpy(&mem[*pos], stencil->body, stencil->body_size);
+    *pos += stencil->body_size;
+
+    int32_t offset_comparison = stepfor_max_size - stencil->body_size;
+
+    // Different variants of StepFor (can) have different sizes, we need to ensure that all will finish executing at the same memory address.
+    // This can be done by filling the gap with NOPs (0x90) for very small differences
+    if (offset_comparison <= 2)
+    {
+        DEBUG_PRINT("StepFor correction: NOP\n");
+        size_t gap_fill = stepfor_max_size - stencil->body_size;
+        memset(&mem[*pos], 0x90, gap_fill); // NOPs to fill the gap
+        *pos += gap_fill;
+        *size += gap_fill; // Adjust size to include the NOPs
+    }
+    // If the offset fits in 1 byte, we can use a short jump (0xEB)
+    else if (fits_in(offset_comparison - 2, 1))
+    {
+        DEBUG_PRINT("StepFor correction: Short jump\n");
+        uint8_t jmp = 0xEB; // JMP instruction
+        memcpy(&mem[*pos], &jmp, sizeof(jmp));
+        *pos += sizeof(jmp);
+
+        int8_t offset = (int8_t)(offset_comparison - 2);
+        memcpy(&mem[*pos], &offset, sizeof(offset));
+        *pos += sizeof(offset);
+        *size += sizeof(jmp) + sizeof(offset); // Adjust size to include the JMP instruction
+    }
+    // If it doesn't, we need to use a near jump (0xE9)
+    else
+    {
+        DEBUG_PRINT("StepFor correction: Near jump\n");
+        uint8_t jmp = 0xE9; // JMP instruction
+        memcpy(&mem[*pos], &jmp, sizeof(jmp));
+        *pos += sizeof(jmp);
+
+        int32_t offset = offset_comparison - 5;
+        memcpy(&mem[*pos], &offset, sizeof(offset));
+        *pos += sizeof(offset);
+        *size += sizeof(jmp) + sizeof(offset); // Adjust size to include the JMP instruction
+    }
+}
+
+
+StepFor_specialized stepfor_data;
+
+void prepare_stepfor()
+{
+    stepfor_data.cached_type = -1; // Initialize to an invalid type
+    stepfor_data.dst = NULL;
+    size_t pos = 0;
+
+#define X(a, b) \
+    prepare_variant_one(&stepfor_data.sizes[a], &stepfor_data.src[a], stepfor_data.data, &pos, &_RCP_STEPFOR_##a##_OP);
+X_STEPFOR_TYPES
+#undef X
+}
+
+typedef struct {
     size_t total_size;
     size_t executable_size;
     size_t count_opcodes;
@@ -204,22 +321,6 @@ typedef struct {
 
 static SEXP copy_patch_bc(SEXP bcode, CompilationStats *stats);
 
-static int fits_in(int64_t value, int size)
-{
-    switch (size)
-    {
-    case 1:
-        return value >= INT8_MIN && value <= INT8_MAX;
-    case 2:
-        return value >= INT16_MIN && value <= INT16_MAX;
-    case 4:
-        return value >= INT32_MIN && value <= INT32_MAX;
-    case 8:
-        return value >= INT64_MIN && value <= INT64_MAX;
-    default:
-        return 0;
-    }
-}
 
 static uint8_t reloc_indirection(RELOC_KIND kind)
 {
@@ -247,6 +348,8 @@ static uint8_t reloc_indirection(RELOC_KIND kind)
         return 1;
     case RELOC_RCP_CONSTCELL_AT_LABEL_IMM:
         return 1;
+    case RELOC_RCP_PATCHED_VARIANTS:
+        return 1;
     default:
         __builtin_unreachable();
     }
@@ -265,7 +368,7 @@ typedef struct {
     const int *bcell_lookup;
 } PatchContext;
 
-static void patch(uint8_t *dst, const Hole *hole, int *imms, int nextop, const PatchContext *ctx)
+static void patch(uint8_t *dst, uint8_t *loc, const Hole *hole, int *imms, int nextop, void* variants, const PatchContext *ctx)
 {
     ptrdiff_t ptr;
 
@@ -336,6 +439,11 @@ static void patch(uint8_t *dst, const Hole *hole, int *imms, int nextop, const P
         ptr = (ptrdiff_t)&ctx->bcells[ctx->bcell_lookup[bcell_index]];
     }
     break;
+    case RELOC_RCP_PATCHED_VARIANTS:
+    {
+        ptr = (ptrdiff_t)variants;
+    }
+    break;
     default:
     {
         error("Unsupported relocation kind: %d\n", hole->kind);
@@ -354,7 +462,7 @@ static void patch(uint8_t *dst, const Hole *hole, int *imms, int nextop, const P
 
     ptr += hole->addend;
     if (hole->is_pc_relative)
-        ptr -= (ptrdiff_t)&dst[hole->offset];
+        ptr -= (ptrdiff_t)&loc[hole->offset];
 
     // DEBUG_PRINT("0x%zx\n", ptr);
 
@@ -467,6 +575,21 @@ static const Stencil *get_stencil(int opcode, const int *imms, const SEXP *r_con
             return &_RCP_LDCONST_SEXP_OP;
         }
         break;
+        case STEPFOR_OP:
+        {
+            // Fake StepFor stencil to allocate correct memory size
+            static Hole res_hole = {
+                .kind = RELOC_RCP_CONSTCELL_AT_LABEL_IMM,
+                .indirection_level = 1
+            };
+            static Stencil res = {
+                .body_size = stepfor_max_size,
+                .holes_size = 1,
+                .holes = &res_hole
+            };
+            return &res;
+        }
+        break;
 
         default:
             return &stencils[opcode];
@@ -474,10 +597,12 @@ static const Stencil *get_stencil(int opcode, const int *imms, const SEXP *r_con
         return NULL;
 }
 
+
 static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP *constpool, int constpool_size, CompilationStats *stats)
 {
     rcp_exec_ptrs res;
     size_t insts_size = _RCP_INIT.body_size;
+    size_t for_count = 0;
 
     size_t *inst_start = calloc(bytecode_size, sizeof(size_t));
     int *used_bcells = calloc(constpool_size, sizeof(int));
@@ -494,6 +619,9 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
             free(used_bcells);
             error("Opcode not implemented: %s\n", OPCODES[bytecode[i]]);
         }
+
+        if(bytecode[i] == STARTFOR_OP)
+            for_count++;
 
         inst_start[i] = insts_size;
         insts_size += stencil->body_size;
@@ -533,6 +661,8 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
         i += imms_cnt[bytecode[i]];
     }
 
+    DEBUG_PRINT("For loops used for this closure: %d\n", for_count);
+
     // Create bcell lookup table
     int bcells_size = 0;
     for (int i = 0; i < constpool_size; ++i)
@@ -552,7 +682,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
     // Allocate memory
     size_t rodata_size = align_to_higher(sizeof(rodata), sizeof(void *));
 
-    size_t total_size = rodata_size + sizeof(SEXP) + insts_size + bcells_size * sizeof(SEXP) + sizeof(precompiled_functions);
+    size_t total_size = rodata_size + sizeof(SEXP) + insts_size + bcells_size * sizeof(SEXP) + sizeof(precompiled_functions) + (for_count * sizeof(StepFor_specialized));
 
     void *mem_address = find_free_space_near(&Rf_ScalarInteger, total_size);
 
@@ -568,7 +698,8 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
     SEXP *rho = (SEXP *)&memory[rodata_size];
     SEXP *bcells = (SEXP *)&memory[rodata_size + sizeof(*rho)];
     SEXP *precompiled = (SEXP *)&memory[rodata_size + sizeof(*rho) + bcells_size * sizeof(*bcells)];
-    uint8_t *executable = &memory[rodata_size + sizeof(*rho) + bcells_size * sizeof(*bcells) + sizeof(precompiled_functions)];
+    StepFor_specialized* stepfor_storage = (StepFor_specialized*)&memory[rodata_size + sizeof(*rho) + bcells_size * sizeof(*bcells) + sizeof(precompiled_functions)];
+    uint8_t *executable = &memory[rodata_size + sizeof(*rho) + bcells_size * sizeof(*bcells) + sizeof(precompiled_functions) + (for_count * sizeof(StepFor_specialized))];
 
     res.eval = (void *)executable;
     res.rho = rho;
@@ -600,15 +731,21 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
     size_t executable_pos = 0;
     memcpy(&executable[executable_pos], _RCP_INIT.body, _RCP_INIT.body_size);
     for (size_t j = 0; j < _RCP_INIT.holes_size; ++j)
-        patch(&executable[executable_pos], &_RCP_INIT.holes[j], NULL, 0, &ctx);
+        patch(&executable[executable_pos], &executable[executable_pos], &_RCP_INIT.holes[j], NULL, 0, NULL, &ctx);
 
     executable_pos += _RCP_INIT.body_size;
 
-    for (int i = 0; i < bytecode_size; ++i)
+    StepFor_specialized *stepfor_mem = stepfor_storage - 1;
+
+    for (int i = 0; i < bytecode_size; i += imms_cnt[bytecode[i]] + 1)
     {
         DEBUG_PRINT("Copy-patching opcode: %s\n", OPCODES[bytecode[i]]);
 
-        if (bytecode[i] == MAKECLOSURE_OP)
+        const Stencil *stencil = get_stencil(bytecode[i], &bytecode[i + 1], constpool);
+
+        switch (bytecode[i])
+        {
+        case MAKECLOSURE_OP:
         {
             SEXP fb = constpool[bytecode[i + 1]];
             SEXP body = VECTOR_ELT(fb, 1);
@@ -630,18 +767,47 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
             }
             DEBUG_PRINT("**********\nClosure compiled\n");
         }
+        break;
+        case STARTFOR_OP:
+        {
+            stepfor_mem++;
+            //printf("Using specialized StepFor at %p\n", stepfor_mem);
+            *stepfor_mem = stepfor_data; // Copy the specialized StepFor data
 
-        const Stencil *stencil = get_stencil(bytecode[i], &bytecode[i + 1], constpool);
+            int stepfor_bc = bytecode[i + 1 + 2]-1;
+            uint8_t *stepfor_code = &executable[inst_start[stepfor_bc]];
+
+            // Set the destination pointer to point to where the stepfor code should be copied to
+            stepfor_mem->dst = stepfor_code;
+
+            // Set the source pointers to point to the specialized StepFor bodies
+            for (size_t i = 0; i < sizeof(stepfor_mem->src)/sizeof(*stepfor_mem->src); i++)
+                stepfor_mem->src[i] += (ptrdiff_t)stepfor_mem->data;
+                
+            DEBUG_PRINT("PATCHING CORRESPONDING STEPFOR_OP at %d, ptr pointing to %p\n", stepfor_bc, stepfor_code);
+#define X(a, b)                                                           \
+            for (size_t j = 0; j < _RCP_STEPFOR_##a##_OP.holes_size; ++j) \
+                patch(stepfor_mem->src[a], stepfor_mem->dst, &_RCP_STEPFOR_##a##_OP.holes[j], &bytecode[stepfor_bc + 1], stepfor_bc + imms_cnt[bytecode[stepfor_bc]] + 1, NULL, &ctx);
+X_STEPFOR_TYPES
+#undef X
+        }
+        break;
+        case STEPFOR_OP:
+
+            // Stepfor was already handled above
+            executable_pos += stencil->body_size;
+            continue;
+        default:
+            break;
+        }
 
         memcpy(&executable[executable_pos], stencil->body, stencil->body_size);
 
         // Patch the holes
         for (size_t j = 0; j < stencil->holes_size; ++j)
-            patch(&executable[executable_pos], &stencil->holes[j], &bytecode[i + 1], i + imms_cnt[bytecode[i]] + 1, &ctx);
+            patch(&executable[executable_pos], &executable[executable_pos], &stencil->holes[j], &bytecode[i + 1], i + imms_cnt[bytecode[i]] + 1, stepfor_mem, &ctx);
 
         executable_pos += stencil->body_size;
-
-        i += imms_cnt[bytecode[i]];
     }
 
     free(used_bcells);
@@ -747,6 +913,8 @@ void rcp_init(void)
     prepare_precompiled();
 
     prepare_rodata();
+
+    prepare_stepfor();
 }
 
 void rcp_destr(void)

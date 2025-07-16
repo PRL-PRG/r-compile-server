@@ -13,7 +13,8 @@ typedef enum {
   RELOC_RCP_CONST_AT_IMM,
   RELOC_RCP_CONST_STR_AT_IMM,
   RELOC_RCP_CONSTCELL_AT_IMM,
-  RELOC_RCP_CONSTCELL_AT_LABEL_IMM
+  RELOC_RCP_CONSTCELL_AT_LABEL_IMM,
+  RELOC_RCP_PATCHED_VARIANTS
 } RELOC_KIND;
 
 typedef struct {
@@ -43,6 +44,20 @@ typedef struct {
   size_t holes_size;
   Hole * holes;
 } StencilMutable;
+
+#define X_STEPFOR_TYPES                                                     \
+  X(0, 0)                                                                   \
+  X(1, INTSXP)                                                              \
+  X(2, ISQSXP)                                                              \
+  X(3, REALSXP)                                                             \
+  X(4, LGLSXP)                                                              \
+  X(5, CPLXSXP)                                                             \
+  X(6, STRSXP)                                                              \
+  X(7, RAWSXP)                                                              \
+  X(8, EXPRSXP)                                                             \
+  X(9, VECSXP)                                                              \
+  X(10, LISTSXP)                                                            \
+
 
 typedef enum {
 BCMISMATCH_OP = 0,

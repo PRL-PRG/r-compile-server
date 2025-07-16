@@ -99,6 +99,9 @@ EXTERN_ATTRIBUTES extern BCell _RCP_CONSTCELL_AT_LABEL_IMM2;
 EXTERN_ATTRIBUTES extern BCell _RCP_CONSTCELL_AT_LABEL_IMM3;
 #define GETCONSTCELL_LABEL_IMM(i) &_RCP_CONSTCELL_AT_LABEL_IMM##i
 
+extern const void* const _RCP_PATCHED_VARIANTS[];
+#define GETVARIANTS() (const void*)&_RCP_PATCHED_VARIANTS
+
 
 /**************************************************************************/
 
@@ -155,10 +158,43 @@ RCP_OP(DUP) {
 
 //RCP_OP(DOLOOPBREAK)
 
+typedef struct {
+  int cached_type;
+  uint8_t *dst;
+  uint8_t *src[11];
+  uint16_t sizes[11];
+  uint8_t data[];
+} StepFor_specialized;
+
 RCP_OP(STARTFOR) {
   PUSH_VAL(2);
 
   Rsh_StartFor(GET_VAL(3), GET_VAL(2), GET_VAL(1), GETCONST_IMM(0), GETCONST_IMM(1), GETCONSTCELL_IMM(1), GET_RHO());
+
+  StepFor_specialized *stepfor_mem = (StepFor_specialized *)GETVARIANTS();
+
+  RshLoopInfo *info = (RshLoopInfo *)RAW0(VAL_SXP(*GET_VAL(2)));
+
+  int i;
+  switch (info->type)
+  {
+#define X(a, b) \
+  case b:       \
+    i = a;      \
+    break;
+    X_STEPFOR_TYPES
+#undef X
+  default:
+    i = 0;
+    break;
+  }
+
+  // Copy the specialized StepFor code if it is not already cached
+  if (__builtin_expect(stepfor_mem->cached_type != i, FALSE))
+  {
+    memcpy(stepfor_mem->dst, stepfor_mem->src[i], stepfor_mem->sizes[i]);
+    stepfor_mem->cached_type = i;
+  }
 
   GOTO_IMM(2);
 }
@@ -169,6 +205,16 @@ RCP_OP(STEPFOR) {
   else
     NEXT;
 }
+
+#define X(a, b) \
+RCP_OP(STEPFOR_##a) { \
+  if(Rsh_StepFor_Specialized_##a(GET_VAL(3), GET_VAL(2), GET_VAL(1), GETCONSTCELL_LABEL_IMM(0), GET_RHO())) \
+    GOTO_IMM(0); \
+  else \
+    NEXT; \
+}
+X_STEPFOR_TYPES
+#undef X
 
 RCP_OP(ENDFOR) {
   Rsh_EndFor(GET_VAL(3), *GET_VAL(2), *GET_VAL(1), GET_RHO());

@@ -116,6 +116,8 @@ static void export_body(FILE *file, const StencilMutable *stencil, const char *o
     case RELOC_RCP_CONSTCELL_AT_LABEL_IMM:
       fprintf(file, ", .val.imm_pos = %zu", hole->val.imm_pos);
       break;
+    default:
+      break;
     }
 
     fprintf(file, " },\n");
@@ -372,6 +374,10 @@ static void process_relocation(StencilMutable *stencil, Hole *hole, const arelen
     else if (strcmp(descr, "RHO") == 0)
     {
       hole->kind = RELOC_RHO;
+    }
+    else if (strcmp(descr, "PATCHED_VARIANTS") == 0)
+    {
+      hole->kind = RELOC_RCP_PATCHED_VARIANTS;
     }
     else
     {
