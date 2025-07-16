@@ -180,7 +180,14 @@ public sealed interface Expression extends Instruction
       return new Dup(value);
     }
 
-    if (s.nextCharSatisfies(Character::isDigit) || s.nextCharIs('-') || s.nextCharIs('\"')) {
+    if (s.nextCharsAre("NULL")
+        || s.nextCharsAre("TRUE")
+        || s.nextCharsAre("FALSE")
+        || s.nextCharsAre("NA_")
+        || s.nextCharsAre("NaN")
+        || s.nextCharSatisfies(Character::isDigit)
+        || s.nextCharIs('-')
+        || s.nextCharIs('\"')) {
       var value = p.parse(SEXP.class);
       return new Literal(value);
     }

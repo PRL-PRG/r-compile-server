@@ -172,7 +172,7 @@ public class CFGCompiler {
   /// Compile everything.
   private CFGCompiler(CFG cfg, Bc bc) {
     if (cfg.bbs().size() != 1
-        || cfg.entry().statements().isEmpty()
+        || !cfg.entry().statements().isEmpty()
         || !(cfg.entry().jump() instanceof Unreachable)) {
       throw new IllegalArgumentException("CFG must be empty");
     }

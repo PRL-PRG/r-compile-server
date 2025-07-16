@@ -4,10 +4,10 @@ import com.google.common.collect.Streams;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.params.provider.Arguments;
-import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.StrSXP;
 import org.prlprg.sexp.VecSXP;
+import org.prlprg.util.Strings;
 
 // FIXME: this is ugly! refactor
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -28,7 +28,7 @@ public interface StdlibClosuresSource {
         """;
   }
 
-  private static String stdlibFunctionNamesAndValuesSource() {
+  private static String stdlibFunctionNameSexpAndCodesSource() {
     var functionNames = "names <- {" + stdlibFunctionNamesSource() + "}";
     var getValuesFromNames =
         """
@@ -37,7 +37,8 @@ public interface StdlibClosuresSource {
             functionName <- sub(".*:::`(.*)`", "\\\\1", name)
             namespace <- getNamespace(namespaceName)
             fun <- get(functionName, envir=namespace)
-            list(name, fun)
+            funCode <- deparse(fun)
+            list(name, fun, funCode)
         })
         """;
     return functionNames + "\n" + getValuesFromNames;
@@ -49,14 +50,17 @@ public interface StdlibClosuresSource {
     return Streams.stream(sexp.iterator()).map(Arguments::of);
   }
 
-  default Stream<Arguments> stdlibFunctionNamesAndValues() {
-    var sexp = (VecSXP) eval(stdlibFunctionNamesAndValuesSource());
+  default Stream<Arguments> stdlibFunctionNameSexpsAndCodes() {
+    var sexp = (VecSXP) eval(stdlibFunctionNameSexpAndCodesSource());
 
     return Streams.stream(sexp.iterator())
         .map(
             arguments -> {
               var list = (VecSXP) arguments;
-              return Arguments.of(((StrSXP) list.get(0)).get(0), (CloSXP) list.get(1));
+              return Arguments.of(
+                  ((StrSXP) list.get(0)).get(0),
+                  list.get(1),
+                  ((StrSXP) list.get(2)).stream().collect(Strings.joining("\n")));
             });
   }
 

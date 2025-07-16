@@ -9,7 +9,7 @@ import org.prlprg.session.RSession;
 import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
-import org.prlprg.sexp.VecSXP;
+import org.prlprg.sexp.StrSXP;
 import org.prlprg.util.snapshot.RDSFileSnapshotStoreFactory;
 import org.prlprg.util.snapshot.SnapshotExtension;
 
@@ -24,39 +24,27 @@ public class BC2FirSnapshotTestExtension
     super(new RDSFileSnapshotStoreFactory<>(session, TestResult::toSEXP, TestResult::fromSEXP));
   }
 
-  public record TestResult(EnvSXP rModuleEnv, String firCode) {
+  public record TestResult(String rCodeInput, String firCodeOutput) {
     public SEXP toSEXP() {
-      return SEXPs.vec(rModuleEnv, SEXPs.string(firCode));
+      return SEXPs.string(rCodeInput, firCodeOutput);
     }
 
     public static TestResult fromSEXP(SEXP sexp) {
-      if (!(sexp instanceof VecSXP v) || v.size() != 2) {
-        throw new IllegalArgumentException("Value must be a vector of size 2, got: " + sexp);
+      if (!(sexp instanceof StrSXP v) || v.size() != 2) {
+        throw new IllegalArgumentException("Value must be a string vector of size 2, got: " + sexp);
       }
 
-      var rModuleEnv =
-          v.get(0)
-              .as(EnvSXP.class)
-              .orElseThrow(
-                  () ->
-                      new IllegalArgumentException(
-                          "Expected first element to be an environment (R module)"));
-      var firOutput =
-          v.get(1)
-              .asScalarString()
-              .orElseThrow(
-                  () ->
-                      new IllegalArgumentException(
-                          "Expected second element to be a string (FIŘ output)"));
+      var rCode = v.get(0);
+      var firCode = v.get(1);
 
-      return new TestResult(rModuleEnv, firOutput);
+      return new TestResult(rCode, firCode);
     }
   }
 
   @Override
   protected void checkEqual(TestResult expected, TestResult actual) {
-    assertEquals(expected.rModuleEnv(), actual.rModuleEnv(), "Input (R module) is different");
-    assertEquals(expected.firCode(), actual.firCode(), "Output (FIŘ code) is different");
+    assertEquals(expected.rCodeInput, actual.firCodeOutput, "Input (R code) is different");
+    assertEquals(expected.firCodeOutput, actual.firCodeOutput, "Output (FIŘ code) is different");
   }
 
   @Override
@@ -65,10 +53,10 @@ public class BC2FirSnapshotTestExtension
       int seq = 0;
 
       @Override
-      public void verify(EnvSXP rModuleEnv) {
+      public void verify(String rModuleCode, EnvSXP rModuleEnv) {
         var firModule = compile(rModuleEnv);
         var firOutput = firModule.toString();
-        var res = new TestResult(rModuleEnv, firOutput);
+        var res = new TestResult(rModuleCode, firOutput);
 
         BC2FirSnapshotTestExtension.this.verify(testMethod, String.valueOf(++seq), res, null);
       }
@@ -81,6 +69,6 @@ public class BC2FirSnapshotTestExtension
   }
 
   public interface BC2FirSnapshot {
-    void verify(EnvSXP rModuleEnv);
+    void verify(String rModuleCode, EnvSXP rModuleEnv);
   }
 }

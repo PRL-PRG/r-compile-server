@@ -1,5 +1,6 @@
 package org.prlprg.fir.cfg;
 
+import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -162,6 +163,23 @@ public final class BB {
                     "Index " + index + " is out of bounds for BB '" + label + "'.");
               }
               return statements.remove(index);
+            });
+  }
+
+  public ImmutableList<Expression> removeStatementsAt(int index, int count) {
+    return module()
+        .record(
+            "BB#removeStatementsAt",
+            List.of(this, index, count),
+            () -> {
+              if (index < 0 || index + count > statements.size()) {
+                throw new IndexOutOfBoundsException(
+                    "End index " + (index + count) + " is out of bounds for BB '" + label + "'.");
+              }
+              var subList = statements.subList(index, index + count);
+              var removed = ImmutableList.copyOf(subList);
+              subList.clear();
+              return removed;
             });
   }
 

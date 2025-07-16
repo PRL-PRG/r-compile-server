@@ -5,6 +5,7 @@ import static org.prlprg.bc2fir.BC2FirCompilerUtils.compile;
 
 import org.intellij.lang.annotations.Language;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.prlprg.bc.StdlibClosuresSource;
@@ -17,6 +18,7 @@ import org.prlprg.sexp.UserEnvSXP;
 import org.prlprg.util.gnur.GNUR;
 import org.prlprg.util.gnur.GNURTestSupport;
 
+@ExtendWith(BC2FirSnapshotTestExtension.class)
 @GNURTestSupport
 public class BC2FirCompilerTest implements StdlibClosuresSource {
   private final GNUR R;
@@ -65,12 +67,14 @@ public class BC2FirCompilerTest implements StdlibClosuresSource {
   }
 
   @ParameterizedTest
-  @MethodSource("stdlibFunctionNamesAndValues")
-  public void snapshotTestStdlibFunctions(String name, CloSXP function, BC2FirSnapshot snapshot) {
+  @MethodSource("stdlibFunctionNameSexpsAndCodes")
+  public void snapshotTestStdlibFunctions(
+      String name, CloSXP function, String functionCode, BC2FirSnapshot snapshot) {
     var envOfFunction = new UserEnvSXP();
     envOfFunction.set(name, function);
+    var envOfFunctionCode = name + " <- " + functionCode;
 
-    snapshot.verify(envOfFunction);
+    snapshot.verify(envOfFunctionCode, envOfFunction);
   }
 
   private void testInline(@Language("R") String rInput, String firOutput) {

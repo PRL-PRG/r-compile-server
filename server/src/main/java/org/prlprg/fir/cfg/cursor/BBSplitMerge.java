@@ -2,6 +2,8 @@ package org.prlprg.fir.cfg.cursor;
 
 import java.util.List;
 import org.prlprg.fir.cfg.BB;
+import org.prlprg.fir.instruction.Goto;
+import org.prlprg.fir.phi.Target;
 
 public final class BBSplitMerge {
   public static BB splitNewSuccessor(BB self, int index) {
@@ -20,31 +22,13 @@ public final class BBSplitMerge {
 
               var newBB = self.owner().addBB(successorLabel);
 
-              // TODO: refactor for block arguments instead of phis.
-              /* for (var succ : self.jump().targets()) {
-                assert succ.predecessors.contains(self)
-                    : "BB has successor whose predecessors set doesn't contain it";
-                succ.predecessors.remove(self);
-                succ.predecessors.add(newBB);
-                for (var phi : succ.phis) {
-                  phi.unsafeReplaceIncomingBB(self, newBB);
-                }
-              }
+              var newBBStatements = self.removeStatementsAt(index, self.statements().size());
+              newBB.insertStatements(newBB.statements().size(), newBBStatements);
 
-              // Don't call `insert` or `addJump`, since self is intrinsic.
-              newBB.stmts.addAll(stmts.subList(index, stmts.size()));
-              newBB.jump = jump;
-              if (newBB.jump != null) {
-                newBB.jump.unsafeSetBB(newBB);
-              }
-              stmts.subList(index, stmts.size()).clear();
-              jump = null;
-              var newJump = new Jump(cfg, new JumpData.Goto(newBB));
-              setJump(newJump);
-              cfg.track(newJump);
+              var newBBJump = self.jump();
+              self.setJump(new Goto(new Target(newBB)));
+              newBB.setJump(newBBJump);
 
-              cfg.record(
-                  new CFGEdit.SplitBB(self, newBB, false, index), new CFGEdit.MergeBBs(self, newBB, false)); */
               return newBB;
             });
   }
