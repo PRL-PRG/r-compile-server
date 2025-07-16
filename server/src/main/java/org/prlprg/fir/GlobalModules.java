@@ -3,6 +3,7 @@ package org.prlprg.fir;
 import java.nio.file.Path;
 import org.prlprg.fir.module.Module;
 import org.prlprg.parseprint.Parser;
+import org.prlprg.session.GNURSession;
 
 public final class GlobalModules {
   /// Module containing GNU-R builtins.
@@ -12,6 +13,17 @@ public final class GlobalModules {
       Parser.fromResource(Path.of("intrinsics.fir"), Module.class);
 
   static {
+    // Add GNU-R builtins that we don't have explicit versions for.
+    // TODO: Also `getSpecials`?
+    for (var bltName : GNURSession.getBuiltins()) {
+      if (BUILTINS.localFunction(bltName) != null) {
+        // Already defined.
+        continue;
+      }
+      BUILTINS.addFunction(bltName);
+    }
+
+    // Ensure intrinsic names don't conflict with builtins.
     for (var function : INTRINSICS.localFunctions()) {
       assert !BUILTINS.localFunctions().contains(function)
           : "intrinsic function is also a builtin, it must be renamed: " + function.name();

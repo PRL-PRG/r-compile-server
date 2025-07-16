@@ -26,7 +26,6 @@ import org.prlprg.fir.cfg.BB;
 import org.prlprg.fir.cfg.CFG;
 import org.prlprg.fir.cfg.cursor.CFGCursor;
 import org.prlprg.fir.cfg.cursor.JumpInsertion;
-import org.prlprg.fir.instruction.Call;
 import org.prlprg.fir.instruction.Cast;
 import org.prlprg.fir.instruction.Closure;
 import org.prlprg.fir.instruction.Expression;
@@ -416,7 +415,7 @@ public class CFGCompiler {
 
         // For loop init
         var seq = intrinsic("toForSeq", pop());
-        var length = intrinsic("length", 0, seq);
+        var length = builtin("length", 0, seq);
         var init = new Literal(SEXPs.integer(0));
         var index = cfg.scope().addLocal();
         insert(new Write(index, init));
@@ -426,17 +425,17 @@ public class CFGCompiler {
         // For loop step
         moveTo(stepBb);
         // Increment the index
-        var index1 = intrinsic("inc", 0, pop());
+        var index1 = builtin("+", 0, pop(), new Literal(SEXPs.integer(1)));
         push(index1);
         // Compare the index to the length
-        var cond = intrinsic("lt", 0, length, index1);
+        var cond = builtin("<", 0, length, index1);
         // Jump to `end` if it's greater (remember, GNU-R indexing is one-based)
         setJump(branch(cond, endBb, forBodyBb));
 
         // For loop body
         moveTo(forBodyBb);
         // Extract element at index
-        var elem = intrinsic("extract2_1D", 0, seq, index1);
+        var elem = builtin("[[<-", 0, seq, index1);
         // Store in the element variable
         insert(new Write(getVar(elemName), elem));
         // Now we compile the rest of the body...
@@ -849,7 +848,7 @@ public class CFGCompiler {
           insert(warning("'switch' with no alternatives"));
           setJump(goto_(new BcLabel(numLabels.get(0))));
         } else {
-          var asInteger = intrinsic("as.switchIdx", value);
+          var asInteger = intrinsic("asSwitchIdx", value);
           for (var i = 0; i < numLabels.size() - 1; i++) {
             var ifMatch = bbAt(new BcLabel(numLabels.get(i)));
             var cond = builtin("==", asInteger, new Literal(SEXPs.integer(i)));
@@ -1504,7 +1503,7 @@ public class CFGCompiler {
   }
 
   /// Reference data from a previously-compiled "start dispatch" bytecode instruction (via
-  /// [#pushDispatch(Dispatch.Type,LangSXP,BB)]), and pop it.
+  /// [#pushDispatch(Dispatch.Type,BB)]), and pop it.
   private Dispatch popDispatch(Dispatch.Type type) {
     require(!dispatchStack.isEmpty(), () -> "dispatch stack underflow");
     var dispatch = dispatchStack.removeLast();
@@ -1518,9 +1517,16 @@ public class CFGCompiler {
 
   // region expression constructors
   private Expression builtin(String name, Expression... args) {
+    return builtin(name, -1, args);
+  }
+
+  private Expression builtin(String name, int versionIndex, Expression... args) {
     var function = BUILTINS.localFunction(name);
     assert function != null : "missing builtin " + name;
-    var callee = new DispatchCallee(function, null);
+    var callee =
+        versionIndex == -1
+            ? new DispatchCallee(function, null)
+            : new StaticCallee(function, function.version(versionIndex));
     return new org.prlprg.fir.instruction.Call(callee, ImmutableList.copyOf(args));
   }
 
