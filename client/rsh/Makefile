@@ -10,6 +10,7 @@ R_HOME ?= $(BASE_DIR)/external/R
 R := $(R_HOME)/bin/R --slave --no-restore
 LLVM_R := LD_PRELOAD=$(LLVM_LIB) $(R)
 
+
 CRAN_MIRROR ?= https://cloud.r-project.org
 PKG_INSTALL_TASKS ?= 4
 
@@ -113,3 +114,23 @@ benchmark:
 benchmark-baseline: 
 	$(MAKE) benchmark OPTS=--bc BENCH_NAME=baseline
 
+BC_PROF_HOME ?= $(realpath $(BASE_DIR)/../bc-prof-gnu-r)
+BC_PROF_R := $(BC_PROF_HOME)/bin/R --slave --no-restore
+BC_PROF_OUT_DIR := $(shell echo "$$(pwd)/bcprof-results")
+
+.PHONY: bytecode-profile 
+bytecode-profile:
+	find $(BENCH_DIR) -mindepth 2 -name "*.R" | while read file; do \
+		test=$$(basename $$file); \
+		echo "$(TXT_BOLD)┌──── $$test ...$(TXT_NORM)"; \
+		cmd="$(BC_PROF_R) -f $(BENCH_DIR)/bc-prof-harness.R --args --output-dir $(BC_PROF_OUT_DIR)  $${file%.*}"; \
+		echo $$cmd; \
+		eval "$$cmd"; \
+		exit=$$?; \
+		echo -n "$(TXT_BOLD)└──── $$test: "; \
+		if [ $$exit -eq 0 ]; then \
+			echo "$(TXT_GREEN)OK$(TXT_NORM) (output in $(BC_PROF_OUT_DIR)/$${test%.*}.csv)"; \
+		else \
+			echo "$(TXT_RED)FAIL$(NO_NORM) $$exit$(TXT_NORM)"; \
+		fi; \
+	done
