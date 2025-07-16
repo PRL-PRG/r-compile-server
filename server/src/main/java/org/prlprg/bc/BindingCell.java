@@ -6,5 +6,4 @@ import java.lang.annotation.Target;
 
 @Target(value = ElementType.RECORD_COMPONENT)
 @Retention(value = java.lang.annotation.RetentionPolicy.RUNTIME)
-public @interface BindingCell {
-}
+public @interface BindingCell {}

@@ -142,6 +142,8 @@ SEXP Client::make_client(SEXP address, SEXP port, SEXP installed_packages) {
   // R_RegisterCFinalizerEx(ptr, &Client::remove_client, FALSE);// TRUE because
   // we want to shutdown the client when R quits
 
+  Rprintf("Client to connect to %s:%d\n", addr, p);
+
   UNPROTECT(1);
   return ptr;
 }
