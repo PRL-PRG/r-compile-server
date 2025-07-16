@@ -849,12 +849,13 @@ RCP_OP(LOGBASE) {
 }
 
 // MATH1 generic version
-//RCP_OP(MATH1) {
-//  Rsh_Math1(GET_VAL(1), GETCONST_IMM(0), GET_IMM(1), GET_RHO());
-//  NEXT;
-//}
+RCP_OP(MATH1) {
+  Rsh_Math1(GET_VAL(1), GETCONST_IMM(0), GET_IMM(1), GET_RHO());
+  NEXT;
+}
 
 // MATH1 specializations
+#ifdef MATH1_SPECIALIZE
 #define X(a, b, c) \
   RCP_OP(MATH1_##b) { \
     Rsh_Math1(GET_VAL(1), GETCONST_IMM(0), b, GET_RHO()); \
@@ -864,6 +865,7 @@ RCP_OP(LOGBASE) {
 X_MATH1_EXT_OPS
 
 #undef X
+#endif
 
 //RCP_OP(DOTCALL)
 

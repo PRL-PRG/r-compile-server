@@ -244,9 +244,11 @@ static int rsh_symbol_id(const char *name)
     return counter;
   counter += 24;
 
-  //if (strcmp(name, "R_MATH1_EXT_FUNS") == 0)
-  //  return counter;
-  //counter += 24;
+#ifndef MATH1_SPECIALIZE
+  if (strcmp(name, "R_MATH1_EXT_FUNS") == 0)
+    return counter;
+  counter += 24;
+#endif
 
   #define X(a, b) if (strcmp(name, #b"Sym") == 0) return counter; counter += 1;
   RSH_R_SYMBOLS

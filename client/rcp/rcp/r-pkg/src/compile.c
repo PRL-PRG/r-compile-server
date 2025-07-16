@@ -14,6 +14,8 @@
 #include "rcp_common.h"
 #include "runtime_internals.h"
 
+//#define MATH1_SPECIALIZE
+
 // #define DEBUG_MODE 1
 #ifdef DEBUG_MODE
 #define DEBUG_PRINT(...) fprintf(stderr, __VA_ARGS__)
@@ -125,7 +127,15 @@ static SEXP LOAD_R_BUILTIN(const char *name)
     return result;
 }
 
-void *precompiled_functions[102];
+
+void *precompiled_functions[
+#ifdef MATH1_SPECIALIZE
+    102
+#else
+    126
+#endif
+];
+
 static void prepare_precompiled()
 {
     int i = 0;
@@ -180,10 +190,12 @@ static void prepare_precompiled()
     X_MATH1_EXT_OPS
     #undef X
 
-    ////R_MATH1_EXT_FUNS
-    //#define X(a, b, c) precompiled_functions[i++] = &c;
-    //X_MATH1_EXT_OPS
-    //#undef X
+#ifndef MATH1_SPECIALIZE
+    //R_MATH1_EXT_FUNS
+    #define X(a, b, c) precompiled_functions[i++] = &c;
+    X_MATH1_EXT_OPS
+    #undef X
+#endif
 
     //R_MATH1_EXT_SYMS
     #define X(a, b) precompiled_functions[i++] = Rf_install(#a);
@@ -198,8 +210,8 @@ static void prepare_precompiled()
     precompiled_functions[i++] = LOAD_R_BUILTIN("!");
     precompiled_functions[i++] = LOAD_R_BUILTIN("log");
 
-    //DEBUG_PRINT("precompiled_functions size: %d\n", i);
-    assert(i <= sizeof(precompiled_functions) / sizeof(*precompiled_functions));
+    //printf("precompiled_functions size: %d\n", i);
+    assert(i <= (sizeof(precompiled_functions) / sizeof(*precompiled_functions)));
 }
 
 #include "stencils/stencils.h"
@@ -535,6 +547,7 @@ static const Stencil *get_stencil(int opcode, const int *imms, const SEXP *r_con
     // For speciailized stencils
     switch(opcode)
     {
+#ifdef MATH1_SPECIALIZE
         case MATH1_OP:
         {
             DEBUG_PRINT("Using specialized version of MATH1_OP\n");
@@ -551,6 +564,7 @@ static const Stencil *get_stencil(int opcode, const int *imms, const SEXP *r_con
             }
         }
         break;
+#endif
         case LDCONST_OP:
         {
             SEXP constant = r_constpool[imms[0]];

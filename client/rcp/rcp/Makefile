@@ -15,7 +15,7 @@ RSH_HOME = $(ROOT_DIR)/../external/rsh/client/rsh
 R_HOME ?= $(ROOT_DIR)/../external/rsh/external/R
 R_LIB = $(R_HOME)/library/rcp/libs/rcp.so
 
-MCMODEL ?= large
+MCMODEL ?= medium
 C_FLAGS_ADDITIONAL ?=
 
 $(STENCILS_OBJ): stencils/stencils.c
