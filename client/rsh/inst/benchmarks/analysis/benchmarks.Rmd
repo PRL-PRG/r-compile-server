@@ -1,0 +1,88 @@
+---
+title: "Benchmarks Analysis"
+output: html_document
+date: 2025-07-17
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(readr)
+
+
+here::i_am("rsh/inst/benchmarks/analysis/benchmarks.Rmd")
+
+library(here)
+
+geom_mean <- function(xs) {
+  exp(mean(log(na.omit(xs))))
+}
+
+DEFAULT_WARMUP <- 5
+```
+
+```{r load-data}
+# Load the benchmark data
+bench_rsh <- read_csv(here("rsh", "benchmark-results", "20250716-193400-e53c63d7", "benchmarks.csv"), col_types = cols(timestamp = col_datetime())) |>
+    rename(VM=expr)
+bench_bc <- read_csv(here("rsh", "benchmark-results", "baseline", "benchmarks.csv"), col_types = cols(timestamp = col_datetime())) |>
+    rename(VM=expr)
+bc_profiles <- read_csv(here("rsh", "bcprof-results", "merged_output.csv"), col_types = cols(timestamp = col_datetime()))
+```
+
+
+# Speedups
+
+```{r compute-speedup}
+compute_mean <- function(bench) bench |>
+  group_by(VM, name) |>
+  slice(-(1:DEFAULT_WARMUP)) |># remove warmup
+  summarize(
+    mean_time = geom_mean(time / 1e6)
+  )
+
+speedups <- compute_mean(bench_rsh) |> 
+    left_join(compute_mean(bench_bc), by = c("name"), suffix = c("_rsh", "_bc")) |>
+    group_by(name) |>
+    summarize(
+      speedup = mean_time_bc / mean_time_rsh
+    ) 
+
+speedups
+```
+
+```{r summary-speedup}
+speedups |>
+    summarize(
+        mean = geom_mean(speedup),
+        median = median(speedup),
+        min = min(speedup),
+        max = max(speedup),
+        sd = sd(speedup)
+    ) 
+```
+
+# Bytecode profiler 
+
+```{r bytecode}
+df <- select(bc_profiles, -param, -commit, -timestamp) |> 
+    left_join(speedups, by = "name") 
+  
+```
+
+# PCA 
+
+```{r pca}
+pca <- prcomp(select(df, -name), center = TRUE, scale = TRUE)
+summary(pca)
+```
+
+```{r pca-loadings}
+pca$rotation
+```
+
+```{r pca-plot}
+biplot(pca, scale = 0, cex = 0.5, expand=3, xlim= c(-70, 40), ylim = c(-20, 70)) 
+```
