@@ -265,7 +265,7 @@ typedef struct {
         sizeof(__RCP_STEPFOR_9_OP_BODY), \
         sizeof(__RCP_STEPFOR_10_OP_BODY))
 
-void prepare_variant_one(uint16_t *size, uint8_t **offset, uint8_t *mem, size_t *pos, const Stencil* stencil)
+void prepare_variant_one(uint16_t *size, ptrdiff_t *offset, uint8_t *mem, size_t *pos, const Stencil* stencil)
 {
     *size = stencil->body_size;
     
@@ -323,7 +323,7 @@ void prepare_stepfor()
     size_t pos = 0;
 
 #define X(a, b) \
-    prepare_variant_one(&stepfor_data.sizes[a], &stepfor_data.src[a], stepfor_data.data, &pos, &_RCP_STEPFOR_##a##_OP);
+    prepare_variant_one(&stepfor_data.sizes[a], (ptrdiff_t*)&stepfor_data.src[a], stepfor_data.data, &pos, &_RCP_STEPFOR_##a##_OP);
 X_STEPFOR_TYPES
 #undef X
 }
