@@ -388,7 +388,7 @@ typedef union {
 #define BCELL_IS_UNBOUND(v) (BCELL_TAG(v) == 0 && CAR0(v) == R_UnboundValue)
 #define BCELL_TAG(cell) ((cell)->sxpinfo.extra)
 #define BCELL_TAG_SET(cell, tag) BCELL_TAG(cell) = tag
-#define BCELL_VAL(cell) ((cell) != R_NilValue ? CAR(cell) : R_UnboundValue)
+#define BCELL_VAL(cell) ((cell) != R_NilValue ? CAR0(cell) : R_UnboundValue)
 #define BCELL_DVAL(v) ((BCellVal *)&CAR0(v))->dval
 #define BCELL_IVAL(v) ((BCellVal *)&CAR0(v))->ival
 #define BCELL_LVAL(v) ((BCellVal *)&CAR0(v))->ival
@@ -495,8 +495,8 @@ static INLINE BCell bcell_get(SEXP symbol, SEXP rho) {
   }
 }
 
-static ALWAYS_INLINE void bcell_cache(SEXP symbol, SEXP rho,
-                                      BCell *const cache) {
+static ALWAYS_INLINE void bcell_ensure_cache(SEXP symbol, SEXP rho,
+                                             BCell *const cache) {
   if (TAG(*cache) == symbol && !BCELL_IS_UNBOUND(*cache)) {
     return;
   } else {
@@ -522,6 +522,26 @@ static INLINE SEXP bcell_value(SEXP cell) {
   }
 }
 
+#define BCELL_INLINE(cell, v)                                                  \
+  do {                                                                         \
+    BCell __cell__ = (cell);                                                   \
+    SEXP __v__ = (v);                                                          \
+    if (BCELL_WRITABLE(__cell__) && __v__->sxpinfo.scalar &&                   \
+        ATTRIB(__v__) == R_NilValue) {                                         \
+      switch (TYPEOF(__v__)) {                                                 \
+      case REALSXP:                                                            \
+        BCELL_DVAL_NEW(__cell__, REAL(__v__)[0]);                              \
+        break;                                                                 \
+      case INTSXP:                                                             \
+        BCELL_IVAL_NEW(__cell__, INTEGER(__v__)[0]);                           \
+        break;                                                                 \
+      case LGLSXP:                                                             \
+        BCELL_LVAL_NEW(__cell__, INTEGER(__v__)[0]);                           \
+        break;                                                                 \
+      }                                                                        \
+    }                                                                          \
+  } while (0)
+
 static ALWAYS_INLINE Rboolean bcell_set_value(BCell cell, SEXP value) {
   if (cell != R_NilValue && !BINDING_IS_LOCKED(cell) &&
       !IS_ACTIVE_BINDING(cell)) {
@@ -529,6 +549,8 @@ static ALWAYS_INLINE Rboolean bcell_set_value(BCell cell, SEXP value) {
       BCELL_SET(cell, value);
       if (MISSING(cell)) {
         SET_MISSING(cell, 0);
+      } else {
+        BCELL_INLINE(cell, value);
       }
     }
     return TRUE;
@@ -585,26 +607,6 @@ JIT_DECL SEXP Rsh_pc_get(void);
 JIT_DECL SEXP Rsh_pc_reset(void);
 JIT_DECL SEXP create_wrapper_body(SEXP body, Rsh_closure fun_ptr, SEXP c_cp);
 #endif
-
-#define BCELL_INLINE(cell, v)                                                  \
-  do {                                                                         \
-    BCell __cell__ = (cell);                                                   \
-    SEXP __v__ = (v);                                                          \
-    if (BCELL_WRITABLE(__cell__) && __v__->sxpinfo.scalar &&                   \
-        ATTRIB(__v__) == R_NilValue) {                                         \
-      switch (TYPEOF(__v__)) {                                                 \
-      case REALSXP:                                                            \
-        BCELL_DVAL_NEW(__cell__, REAL(__v__)[0]);                              \
-        break;                                                                 \
-      case INTSXP:                                                             \
-        BCELL_IVAL_NEW(__cell__, INTEGER(__v__)[0]);                           \
-        break;                                                                 \
-      case LGLSXP:                                                             \
-        BCELL_LVAL_NEW(__cell__, INTEGER(__v__)[0]);                           \
-        break;                                                                 \
-      }                                                                        \
-    }                                                                          \
-  } while (0)
 
 // UTILITIES
 // ---------
@@ -701,28 +703,26 @@ static INLINE SEXP Rsh_append_values_to_args(Value *vals, int n, SEXP args) {
 // if the cache == NULL or there is nothing in the cache, looks it in rho
 // and if it does find it in rho and cache != NULL it updates the cache
 // FIXME: rename cache to cell
-static INLINE SEXP Rsh_do_get_var(SEXP symbol, SEXP rho, Rboolean dd,
-                                  Rboolean keepmiss, BCell *cache) {
+static INLINE void Rsh_do_get_var(Value *res, SEXP symbol, BCell *cell,
+                                  Rboolean dd, Rboolean keepmiss, SEXP rho) {
+  RSH_PC_INC(slow_getvar);
+
   SEXP value = R_UnboundValue;
   int has_cell = 0;
 
   if (dd) {
-    value = ddfindVar(symbol, rho);
+    value = Rf_ddfindVar(symbol, rho);
   } else {
-    if (cache != NULL) {
-      bcell_cache(symbol, rho, cache);
-      value = bcell_value(*cache);
+    if (cell != NULL) {
+      bcell_ensure_cache(symbol, rho, cell);
+      value = bcell_value(*cell);
     }
 
     if (value == R_UnboundValue) {
       value = Rf_findVar(symbol, rho);
     } else {
-      has_cell = cache != NULL;
+      has_cell = cell != NULL;
     }
-  }
-
-  if (!keepmiss && TYPEOF(value) == PROMSXP && !PROMISE_IS_EVALUATED(value)) {
-    forcePromise(value);
   }
 
   if (value == R_UnboundValue) {
@@ -750,10 +750,10 @@ static INLINE SEXP Rsh_do_get_var(SEXP symbol, SEXP rho, Rboolean dd,
   }
 
   if (has_cell) {
-    BCELL_INLINE(*cache, value);
+    BCELL_INLINE(*cell, value);
   }
 
-  return value;
+  SET_VAL(res, value);
 }
 
 #define Rsh_GetVar(res, symbol, cell, rho)                                     \
@@ -822,7 +822,7 @@ static ALWAYS_INLINE void Rsh_get_var(Value *res, SEXP symbol, BCell *cell,
     }
   }
 
-  SET_VAL(res, Rsh_do_get_var(symbol, rho, dd, keepmiss, cell));
+  Rsh_do_get_var(res, symbol, cell, dd, keepmiss, rho);
 }
 
 static ALWAYS_INLINE void Rsh_SetVar(Value *v, SEXP symbol, BCell *cell,
@@ -863,7 +863,7 @@ static ALWAYS_INLINE void Rsh_SetVar(Value *v, SEXP symbol, BCell *cell,
     PROTECT(value_sxp);
     Rf_defineVar(symbol, value_sxp, rho);
     UNPROTECT(1);
-    bcell_cache(symbol, rho, cell);
+    bcell_ensure_cache(symbol, rho, cell);
     BCELL_INLINE(*cell, value_sxp);
   }
 }
@@ -1547,7 +1547,7 @@ static INLINE void Rsh_StartAssign(Value *rhs, Value *lhs_cell, Value *lhs_val,
     }
   }
 
-  bcell_cache(symbol, rho, cache);
+  bcell_ensure_cache(symbol, rho, cache);
   SEXP value = bcell_value(*cache);
   R_varloc_t loc;
   if (value == R_UnboundValue || TYPEOF(value) == PROMSXP) {
@@ -1580,7 +1580,8 @@ static INLINE void Rsh_StartAssign2(Value *rhs, Value *lhs_cell, Value *lhs_val,
   SET_ASSIGNMENT_PENDING(loc.cell, TRUE);
   SET_SXP_VAL(lhs_cell, loc.cell);
 
-  SEXP value_sxp = Rsh_do_get_var(symbol, ENCLOS(rho), FALSE, FALSE, NULL);
+  Rsh_do_get_var(lhs_val, symbol, NULL, FALSE, FALSE, ENCLOS(rho));
+  SEXP value_sxp = val_as_sexp(*lhs_val);
   if (maybe_in_assign || MAYBE_SHARED(value_sxp)) {
     value_sxp = Rf_shallow_duplicate(value_sxp);
   }
@@ -1604,7 +1605,7 @@ static INLINE void Rsh_EndAssign(Value *rhs, Value lhs_cell, Value value,
   SEXP lhs_cell_sxp = VAL_SXP(lhs_cell);
   SET_ASSIGNMENT_PENDING(lhs_cell_sxp, FALSE);
 
-  bcell_cache(symbol, rho, cache);
+  bcell_ensure_cache(symbol, rho, cache);
   SEXP value_sxp = val_as_sexp(value);
 
   // FIXME: try_unwrap ALTREP
@@ -2215,114 +2216,90 @@ static INLINE void Rsh_StartFor(Value *s2, Value *s1, Value *s0, SEXP call,
     }                                                                          \
   } while (0)
 
+#define FAST_STEP_NEXT(cell, value, v, s, ctype, rtype, btype)                 \
+  do {                                                                         \
+    SEXP __c__ = *(cell);                                                      \
+    ctype __v__ = (v);                                                         \
+    if (!BINDING_IS_LOCKED(__c__)) {                                           \
+      if (BCELL_TAG(__c__) == rtype) {                                         \
+        BCELL_##btype##_SET(__c__, __v__);                                     \
+      } else if (!IS_ACTIVE_BINDING(__c__)) {                                  \
+        BCELL_##btype##_NEW(__c__, __v__);                                     \
+      }                                                                        \
+      return TRUE;                                                             \
+    } else {                                                                   \
+      value = VAL_SXP(*(s));                                                   \
+      SET_SCALAR_##btype((value), __v__);                                      \
+    }                                                                          \
+  } while (0)
+
 #define Rsh_StepFor_Specialized(s2, s1, s0, cell, rho, type)                   \
   do {                                                                         \
-    SEXP seq = VAL_SXP(*s2);                                                   \
-    RshLoopInfo *info = (RshLoopInfo *)RAW0(VAL_SXP(*s1));                     \
-    R_xlen_t i = ++(info->idx);                                                \
+  SEXP seq = VAL_SXP(*s2);                                                     \
+  RshLoopInfo *info = (RshLoopInfo *)RAW0(VAL_SXP(*s1));                       \
+  R_xlen_t i = ++(info->idx);                                                  \
                                                                                \
-    if (i >= info->len) {                                                      \
-      return FALSE;                                                            \
-    }                                                                          \
+  if (i >= info->len) {                                                        \
+    return FALSE;                                                              \
+  }                                                                            \
                                                                                \
-    RSH_CHECK_SIGINT();                                                        \
+  RSH_CHECK_SIGINT();                                                          \
                                                                                \
-    SEXP value;                                                                \
-    SEXP c = *cell;                                                            \
+  SEXP value;                                                                  \
+  switch (type) {                                                              \
+  case INTSXP: {                                                               \
+    int v = INTEGER_ELT(seq, i);                                               \
+    FAST_STEP_NEXT(cell, value, v, s0, int, INTSXP, IVAL);                     \
+    break;                                                                     \
+  }                                                                            \
+  case ISQSXP: {                                                               \
+    int *info = INTEGER(seq);                                                  \
+    int n1 = info[0];                                                          \
+    int n2 = info[1];                                                          \
+    int ii = (int)i;                                                           \
+    int v = n1 <= n2 ? n1 + ii : n1 - ii;                                      \
+    RSH_PC_INC(isq_for);                                                       \
+    FAST_STEP_NEXT(cell, value, v, s0, int, INTSXP, IVAL);                     \
+    break;                                                                     \
+  }                                                                            \
+  case REALSXP: {                                                              \
+    double v = REAL_ELT(seq, i);                                               \
+    FAST_STEP_NEXT(cell, value, v, s0, double, REALSXP, DVAL);                 \
+    break;                                                                     \
+  }                                                                            \
+  case LGLSXP: {                                                               \
+    int v = LOGICAL_ELT(seq, i);                                               \
+    FAST_STEP_NEXT(cell, value, v, s0, int, LGLSXP, LVAL);                     \
+    break;                                                                     \
+  }                                                                            \
+  case CPLXSXP:                                                                \
+    value = VAL_SXP(*s0);                                                      \
+    SET_SCALAR_CVAL(value, COMPLEX_ELT(seq, i));                               \
+    break;                                                                     \
+  case STRSXP:                                                                 \
+    value = VAL_SXP(*s0);                                                      \
+    SET_STRING_ELT(value, 0, STRING_ELT(seq, i));                              \
+    break;                                                                     \
+  case RAWSXP:                                                                 \
+    value = VAL_SXP(*s0);                                                      \
+    SET_SCALAR_BVAL(value, RAW(seq)[i]);                                       \
+    break;                                                                     \
+  case EXPRSXP:                                                                \
+  case VECSXP:                                                                 \
+    value = VECTOR_ELT(seq, i);                                                \
+    ENSURE_NAMEDMAX(value);                                                    \
+    break;                                                                     \
+  case LISTSXP:                                                                \
+    value = CAR(seq);                                                          \
+    ENSURE_NAMEDMAX(value);                                                    \
+    SET_SXP_VAL(s2, CDR(seq));                                                 \
+    break;                                                                     \
+  default:                                                                     \
+    Rf_error("invalid sequence argument in for loop");                         \
+  }                                                                            \
                                                                                \
-    switch (type) {                                                            \
-    case INTSXP: {                                                             \
-      int v = INTEGER_ELT(seq, i);                                             \
-      if (BCELL_TAG_WR(*cell) == INTSXP) {                                     \
-        BCELL_IVAL_SET(*cell, v);                                              \
-        return TRUE;                                                           \
-      } else if (BCELL_WRITABLE(*cell)) {                                      \
-        BCELL_IVAL_NEW(*cell, v);                                              \
-        return TRUE;                                                           \
-      } else {                                                                 \
-        value = VAL_SXP(*s0);                                                  \
-        SET_SCALAR_IVAL(value, v);                                             \
-      }                                                                        \
-      break;                                                                   \
-    }                                                                          \
-    case ISQSXP: {                                                             \
-      int *info = INTEGER(seq);                                                \
-      int n1 = info[0];                                                        \
-      int n2 = info[1];                                                        \
-      int ii = (int)i;                                                         \
-      int v = n1 <= n2 ? n1 + ii : n1 - ii;                                    \
-      RSH_PC_INC(isq_for);                                                     \
-                                                                               \
-      if (BCELL_TAG_WR(c) == INTSXP) {                                         \
-        BCELL_IVAL_SET(c, v);                                                  \
-        return TRUE;                                                           \
-      } else if (BCELL_WRITABLE(*cell)) {                                      \
-        BCELL_IVAL_NEW(*cell, v);                                              \
-        return TRUE;                                                           \
-      } else {                                                                 \
-        value = VAL_SXP(*s0);                                                  \
-        SET_SCALAR_IVAL(value, v);                                             \
-      }                                                                        \
-      break;                                                                   \
-    }                                                                          \
-    case REALSXP: {                                                            \
-      double v = REAL_ELT(seq, i);                                             \
-                                                                               \
-      if (BCELL_TAG_WR(*cell) == REALSXP) {                                    \
-        BCELL_DVAL_SET(*cell, v);                                              \
-        return TRUE;                                                           \
-      } else if (BCELL_WRITABLE(*cell)) {                                      \
-        BCELL_DVAL_NEW(*cell, v);                                              \
-        return TRUE;                                                           \
-      } else {                                                                 \
-        value = VAL_SXP(*s0);                                                  \
-        SET_SCALAR_DVAL(value, v);                                             \
-      }                                                                        \
-      break;                                                                   \
-    }                                                                          \
-    case LGLSXP: {                                                             \
-      int v = LOGICAL_ELT(seq, i);                                             \
-                                                                               \
-      if (BCELL_TAG_WR(*cell) == LGLSXP) {                                     \
-        BCELL_LVAL_SET(*cell, v);                                              \
-        return TRUE;                                                           \
-      } else if (BCELL_WRITABLE(*cell)) {                                      \
-        BCELL_LVAL_NEW(*cell, v);                                              \
-        return TRUE;                                                           \
-      } else {                                                                 \
-        value = VAL_SXP(*s0);                                                  \
-        SET_SCALAR_LVAL(value, v);                                             \
-      }                                                                        \
-      break;                                                                   \
-    }                                                                          \
-    case CPLXSXP:                                                              \
-      value = VAL_SXP(*s0);                                                    \
-      SET_SCALAR_CVAL(value, COMPLEX_ELT(seq, i));                             \
-      break;                                                                   \
-    case STRSXP:                                                               \
-      value = VAL_SXP(*s0);                                                    \
-      SET_STRING_ELT(value, 0, STRING_ELT(seq, i));                            \
-      break;                                                                   \
-    case RAWSXP:                                                               \
-      value = VAL_SXP(*s0);                                                    \
-      SET_SCALAR_BVAL(value, RAW(seq)[i]);                                     \
-      break;                                                                   \
-    case EXPRSXP:                                                              \
-    case VECSXP:                                                               \
-      value = VECTOR_ELT(seq, i);                                              \
-      ENSURE_NAMEDMAX(value);                                                  \
-      break;                                                                   \
-    case LISTSXP:                                                              \
-      value = CAR(seq);                                                        \
-      ENSURE_NAMEDMAX(value);                                                  \
-      SET_SXP_VAL(s2, CDR(seq));                                               \
-      break;                                                                   \
-    default:                                                                   \
-      Rf_error("invalid sequence argument in for loop");                       \
-    }                                                                          \
-                                                                               \
-    SET_FOR_LOOP_VAR(value, *cell, info->symbol, rho);                         \
-    return TRUE;                                                               \
+  SET_FOR_LOOP_VAR(value, *cell, info->symbol, rho);                           \
+  return TRUE;                                                                 \
   } while (0)
 
 static INLINE Rboolean Rsh_StepFor(Value *s2, Value *s1, Value *s0, BCell *cell,
@@ -2332,18 +2309,18 @@ static INLINE Rboolean Rsh_StepFor(Value *s2, Value *s1, Value *s0, BCell *cell,
   Rsh_StepFor_Specialized(s2, s1, s0, cell, rho, info->type);
 }
 
-#define X_STEPFOR_TYPES                                                     \
-  X(0, 0)                                                                   \
-  X(1, INTSXP)                                                              \
-  X(2, ISQSXP)                                                              \
-  X(3, REALSXP)                                                             \
-  X(4, LGLSXP)                                                              \
-  X(5, CPLXSXP)                                                             \
-  X(6, STRSXP)                                                              \
-  X(7, RAWSXP)                                                              \
-  X(8, EXPRSXP)                                                             \
-  X(9, VECSXP)                                                              \
-  X(10, LISTSXP)                                                            \
+#define X_STEPFOR_TYPES                                                        \
+  X(0, 0)                                                                      \
+  X(1, INTSXP)                                                                 \
+  X(2, ISQSXP)                                                                 \
+  X(3, REALSXP)                                                                \
+  X(4, LGLSXP)                                                                 \
+  X(5, CPLXSXP)                                                                \
+  X(6, STRSXP)                                                                 \
+  X(7, RAWSXP)                                                                 \
+  X(8, EXPRSXP)                                                                \
+  X(9, VECSXP)                                                                 \
+  X(10, LISTSXP)                                                               \
 
 
 #define X(a, b) \
