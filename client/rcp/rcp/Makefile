@@ -15,19 +15,19 @@ RSH_HOME = $(ROOT_DIR)/../external/rsh/client/rsh
 R_HOME ?= $(ROOT_DIR)/../external/rsh/external/R
 R_LIB = $(R_HOME)/library/rcp/libs/rcp.so
 
-MCMODEL ?= medium
+MCMODEL ?= large
 C_FLAGS_ADDITIONAL ?=
 
 $(STENCILS_OBJ): stencils/stencils.c
 	@echo "Building stencils..."
 	mkdir -p build
-	$(CC) stencils/stencils.c -o $(STENCILS_OBJ) $(C_FLAGS_ADDITIONAL) -c -ffunction-sections -fno-stack-protector -fcf-protection=none -fno-asynchronous-unwind-tables -Os -march=native -fno-pic -mcmodel=$(MCMODEL) -fno-merge-constants -fno-jump-tables -I$(R_HOME)/include -I$(RSH_HOME)/src/bc2c
+	$(CC) stencils/stencils.c -o $(STENCILS_OBJ) $(C_FLAGS_ADDITIONAL) -c -ffunction-sections -fno-stack-protector -fcf-protection=none -fno-asynchronous-unwind-tables -Os -march=native -fno-pic -mcmodel=$(MCMODEL) -fno-merge-constants -fno-jump-tables -I$(R_HOME)/include -I$(RSH_HOME)/src/bc2c -DMATH1_SPECIALIZE -DSTEPFOR_SPECIALIZE
 # -fno-align-functions -fno-align-jumps -fno-align-labels -fno-align-loops
 
 $(EXTRACTOR_BIN): extractor/extract_stencils.c
 	@echo "Building extractor..."
 	mkdir -p $(BUILD_DIR)
-	$(CC) extractor/extract_stencils.c -o $(EXTRACTOR_BIN) -lbfd -O3 -march=native -flto
+	$(CC) extractor/extract_stencils.c -o $(EXTRACTOR_BIN) -lbfd -O3 -march=native -flto -DMATH1_SPECIALIZE
 
 $(R_PACKAGE): $(STENCILS_OBJ) $(EXTRACTOR_BIN)# $(R_PACKAGE_SOURCE)
 	@echo "Extracting stencils..."
@@ -68,7 +68,7 @@ run: install
 	@$(R_HOME)/bin/R
 
 .PHONY: benchmark
-benchmark:
+benchmark: install
 	@for file in $$(find $(BENCH_DIR) -mindepth 2 -name "*$(FILTER)*.R"); do \
 		test=$$(basename $$file); \
 		echo "$(TXT_BOLD)┌──── $$test ...$(TXT_NORM)"; \

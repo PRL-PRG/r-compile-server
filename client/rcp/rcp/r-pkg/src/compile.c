@@ -15,9 +15,7 @@
 #include "rcp_common.h"
 #include "runtime_internals.h"
 
-//#define MATH1_SPECIALIZE
 
-// #define DEBUG_MODE 1
 #ifdef DEBUG_MODE
 #define DEBUG_PRINT(...) fprintf(stderr, __VA_ARGS__)
 #else
@@ -252,6 +250,7 @@ typedef struct {
   ];
 } StepFor_specialized;
 
+#ifdef STEPFOR_SPECIALIZE
 #define stepfor_max_size MAX11( \
         sizeof(__RCP_STEPFOR_0_OP_BODY), \
         sizeof(__RCP_STEPFOR_1_OP_BODY), \
@@ -327,6 +326,7 @@ void prepare_stepfor()
 X_STEPFOR_TYPES
 #undef X
 }
+#endif
 
 typedef struct {
     size_t total_size;
@@ -454,11 +454,13 @@ static void patch(uint8_t *dst, uint8_t *loc, const Hole *hole, int *imms, int n
         ptr = (ptrdiff_t)&ctx->bcells[ctx->bcell_lookup[bcell_index]];
     }
     break;
+#ifdef STEPFOR_SPECIALIZE
     case RELOC_RCP_PATCHED_VARIANTS:
     {
         ptr = (ptrdiff_t)variants;
     }
     break;
+#endif
     default:
     {
         error("Unsupported relocation kind: %d\n", hole->kind);
@@ -592,6 +594,7 @@ static const Stencil *get_stencil(int opcode, const int *imms, const SEXP *r_con
             return &_RCP_LDCONST_SEXP_OP;
         }
         break;
+#ifdef STEPFOR_SPECIALIZE
         case STEPFOR_OP:
         {
             // Fake StepFor stencil to allocate correct memory size
@@ -607,7 +610,7 @@ static const Stencil *get_stencil(int opcode, const int *imms, const SEXP *r_con
             return &res;
         }
         break;
-
+#endif
         default:
             return &stencils[opcode];
         }
@@ -636,9 +639,11 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
             free(used_bcells);
             error("Opcode not implemented: %s\n", OPCODES[bytecode[i]]);
         }
-
+        
+#ifdef STEPFOR_SPECIALIZE
         if(bytecode[i] == STARTFOR_OP)
             for_count++;
+#endif
 
         inst_start[i] = insts_size;
         insts_size += stencil->body_size;
@@ -785,6 +790,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
             DEBUG_PRINT("**********\nClosure compiled\n");
         }
         break;
+#ifdef STEPFOR_SPECIALIZE
         case STARTFOR_OP:
         {
             stepfor_mem++;
@@ -814,6 +820,7 @@ X_STEPFOR_TYPES
             // Stepfor was already handled above
             executable_pos += stencil->body_size;
             continue;
+#endif
         default:
             break;
         }
@@ -931,7 +938,9 @@ void rcp_init(void)
 
     prepare_rodata();
 
+#ifdef STEPFOR_SPECIALIZE
     prepare_stepfor();
+#endif
 }
 
 void rcp_destr(void)

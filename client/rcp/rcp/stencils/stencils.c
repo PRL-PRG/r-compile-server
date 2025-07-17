@@ -158,6 +158,7 @@ RCP_OP(DUP) {
 
 //RCP_OP(DOLOOPBREAK)
 
+#ifdef STEPFOR_SPECIALIZE
 typedef struct {
   int cached_type;
   uint8_t *dst;
@@ -165,12 +166,14 @@ typedef struct {
   uint16_t sizes[11];
   uint8_t data[];
 } StepFor_specialized;
+#endif
 
 RCP_OP(STARTFOR) {
   PUSH_VAL(2);
 
   Rsh_StartFor(GET_VAL(3), GET_VAL(2), GET_VAL(1), GETCONST_IMM(0), GETCONST_IMM(1), GETCONSTCELL_IMM(1), GET_RHO());
 
+#ifdef STEPFOR_SPECIALIZE
   StepFor_specialized *stepfor_mem = (StepFor_specialized *)GETVARIANTS();
 
   RshLoopInfo *info = (RshLoopInfo *)RAW0(VAL_SXP(*GET_VAL(2)));
@@ -195,6 +198,7 @@ RCP_OP(STARTFOR) {
     memcpy(stepfor_mem->dst, stepfor_mem->src[i], stepfor_mem->sizes[i]);
     stepfor_mem->cached_type = i;
   }
+#endif
 
   GOTO_IMM(2);
 }
