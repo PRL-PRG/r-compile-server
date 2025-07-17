@@ -42,7 +42,7 @@ compute_mean <- function(bench) bench |>
   group_by(VM, name) |>
   slice(-(1:DEFAULT_WARMUP)) |># remove warmup
   summarize(
-    mean_time = geom_mean(time / 1e6)
+    mean_time = mean(time / 1e6)
   )
 
 speedups <- compute_mean(bench_rsh) |> 
@@ -70,7 +70,8 @@ speedups |>
 
 ```{r bytecode}
 df <- select(bc_profiles, -param, -commit, -timestamp) |> 
-    left_join(speedups, by = "name") 
+    left_join(speedups, by = "name") |>
+    relocate(speedup, .after = name)
 knitr::kable(df, digits = 2, caption = "Bytecode profiler results with speedups") 
 ```
 
@@ -104,7 +105,7 @@ opcode_hits |> rowwise(opcode) |>
   ungroup() |>
   mutate(pct = hits / sum(hits) * 100) |>
   arrange(desc(hits)) |>
-  mutate(cum_pct = cumsum(pct)) |>
+  mutate(cpct = cumsum(pct)) |>
   knitr::kable(digits = 2, caption = "Geometric mean of opcode percentages")
 ``` 
 
@@ -131,4 +132,54 @@ pca_fm <- PCA(select(df, name, speedup, matches("^[A-Z0-9_]+$", ignore.case=FALS
 #plot.PCA(pca_fm, axes=c(1, 2), choix="var", habillage=1, cex=0.7)
 # https://stackoverflow.com/questions/59865922/visualizing-pca-with-large-number-of-variables-in-r-using-ggbiplot
 fviz_pca_biplot(pca_fm, repel = TRUE, select.var = list(contrib = 5))
+```
+
+# Random forests
+
+```{r random-forest}
+library(randomForest)
+library(caret)
+set.seed(42)
+```
+
+```{r datasets}
+ind <- sample(2, nrow(df), replace = TRUE, prob = c(0.7, 0.3))
+features <- select(df, -name)
+train <- features[ind == 1, ]
+test <- features[ind == 2, ]
+```
+
+```{r rf-model}
+rf_model <- randomForest(speedup ~ ., data = train, importance = TRUE, ntree = 1000)
+rf_model
+```
+
+```{r importance}
+imp <- as.data.frame(importance(rf_model)) |>
+  arrange(desc(`%IncMSE`))
+imp
+```
+
+```{r importance-plot,  fig.width=12, fig.height=12}
+ImpData <- as.data.frame(importance(rf_model))
+ImpData$Var.Names <- row.names(ImpData)
+
+ggplot(ImpData, aes(x=Var.Names, y=`%IncMSE`)) +
+  geom_segment( aes(x=Var.Names, xend=Var.Names, y=0, yend=`%IncMSE`), color="skyblue") +
+  geom_point(aes(size = IncNodePurity), color="blue", alpha=0.6) +
+  expand_limits(x= c(-1, length(levels(ImpData$Var.Names)) + 2)) + 
+  theme_light() +
+  coord_flip() +
+  theme(
+    legend.position="bottom",
+    panel.grid.major.y = element_blank(),
+    panel.border = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.text.y = element_text(size = 8), # Adjust the size of the axis text
+
+  )
+```
+
+```{r rf-error}
+plot(rf_model)
 ```
