@@ -1,3 +1,4 @@
+#include <stddef.h>
 #define USE_RINTERNALS
 #define RSH
 
@@ -22,6 +23,8 @@
 #else
 #define DEBUG_PRINT(...) // No-op
 #endif
+
+void __assert_fail(const char * assertion, const char * file, unsigned int line, const char * function);
 
 #define MAX2(a, b) ((a) > (b) ? (a) : (b))
 #define MAX3(a, b, c) MAX2(MAX2(a, b), c)
@@ -942,6 +945,17 @@ void rcp_destr(void)
     }
 }
 
+enum { STATS_COUNT = 5 };
+static const char *stats_names[STATS_COUNT] = {
+    "total_size",
+    "executable_size",
+    "opcodes_count",
+    "elapsed_time",
+    "elapsed_time_mid"
+};
+
+static double stats_values[STATS_COUNT];
+
 SEXP C_rcp_cmpfun(SEXP f, SEXP options)
 {
     struct timespec start, mid, end;
@@ -962,18 +976,43 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
     double elapsed_time = (end.tv_sec - start.tv_sec) * 1000.0 + (end.tv_nsec - start.tv_nsec) / 1000000.0;
     double elapsed_time_mid = (mid.tv_sec - start.tv_sec) * 1000.0 + (mid.tv_nsec - start.tv_nsec) / 1000000.0;
 
-    fprintf(stderr,
-        "Data size:\t%zu B\n"
-        "Executable size:\t%zu B\n"
-        "Opcodes count:\t%zu\n"
-        "Average opcode patched size:\t%.1f B\n",
-        stats.total_size - stats.executable_size,
-        stats.executable_size,
-        stats.count_opcodes,
-        (double)(stats.executable_size) / stats.count_opcodes
-    );
+    // Check if R option "rcp.cmpfun.stats" is set to TRUE
+    SEXP stats_option = Rf_GetOption1(Rf_install("rcp.cmpfun.stats"));
+    int attach_stats = (stats_option != R_NilValue && LOGICAL(stats_option)[0] == TRUE);
 
-    fprintf(stderr, "Copy-patched in %.3f ms (%.3f for bytecode compilation + %.3f for copy-patch)\n", elapsed_time, elapsed_time_mid, elapsed_time - elapsed_time_mid);
+    if (attach_stats) {
+        stats_values[0] = (double)stats.total_size;
+        stats_values[1] = (double)stats.executable_size;
+        stats_values[2] = (double)stats.count_opcodes;
+        stats_values[3] = elapsed_time;
+        stats_values[4] = elapsed_time_mid;
+
+        SEXP stats_vec = PROTECT(Rf_allocVector(REALSXP, STATS_COUNT));
+        SEXP names     = PROTECT(Rf_allocVector(STRSXP, STATS_COUNT));
+
+        for (size_t i = 0; i < STATS_COUNT; ++i) {
+            REAL(stats_vec)[i] = stats_values[i];
+            SET_STRING_ELT(names, i, Rf_mkChar(stats_names[i]));
+        }
+
+        Rf_setAttrib(stats_vec, R_NamesSymbol, names);
+        Rf_setAttrib(compiled, Rf_install("stats"), stats_vec);
+
+        UNPROTECT(2); // stats_vec, names
+    } else {
+        fprintf(stderr,
+            "Data size:\t%.0f B\n"
+            "Executable size:\t%zu B\n"
+            "Opcodes count:\t%zu\n"
+            "Average opcode patched size:\t%.1f B\n",
+            (double)(stats.total_size - stats.executable_size),
+            stats.executable_size,
+            stats.count_opcodes,
+            (double)(stats.executable_size) / stats.count_opcodes
+        );
+
+        fprintf(stderr, "Copy-patched in %.3f ms (%.3f for bytecode compilation + %.3f for copy-patch)\n", elapsed_time, elapsed_time_mid, elapsed_time - elapsed_time_mid);
+    }
 
     return compiled;
 }
