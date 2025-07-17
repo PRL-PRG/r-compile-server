@@ -38,7 +38,7 @@ folder_path <- args[1]
 tibbles <- load_csvs_into_tibbles(folder_path)
 
 df <- bind_rows(tibbles) |>
-    mutate(across(matches("^[A-Z0-9_]+$"), ~ replace_na(., 0)))
+    mutate(across(matches("^[A-Z0-9_]+$", ignore.case=FALSE), ~ replace_na(., 0)))
     # uppercase columns happen to be opcodes. All NA hits must be 0 instead
 
 

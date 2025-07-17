@@ -10,6 +10,8 @@ library(ggplot2)
 library(dplyr)
 library(tidyr)
 library(readr)
+library(FactoMineR)
+library(factoextra)
 
 
 here::i_am("rsh/inst/benchmarks/analysis/benchmarks.Rmd")
@@ -69,8 +71,42 @@ speedups |>
 ```{r bytecode}
 df <- select(bc_profiles, -param, -commit, -timestamp) |> 
     left_join(speedups, by = "name") 
-  
+knitr::kable(df, digits = 2, caption = "Bytecode profiler results with speedups") 
 ```
+
+
+```{r ranking-opcodes}
+calculate_percentages <- function(data) {
+  # Select only numeric columns
+  numeric_cols <- select(data, -opcode)
+
+  # Calculate total for each numeric column
+  totals <- colSums(numeric_cols, na.rm = TRUE)
+
+  # Calculate percentages
+  data %>%
+    mutate(across(-opcode, ~ .x / totals[cur_column()] * 100, .names = "{.col}_pct"))
+}
+
+opcode_hits <- select(df, name, matches("^[A-Z0-9_]+$", ignore.case=FALSE)) |>
+  pivot_longer(-name, names_to = "opcode", values_to = "hits") |> 
+  pivot_wider(names_from = "name", values_from = "hits", values_fill = 0) 
+opcode_pcts <- calculate_percentages(opcode_hits)
+opcode_pcts |> select(opcode, ends_with("_pct")) |>
+  knitr::kable(digits = 2, caption = "Opcode hits percentages")
+```
+
+
+Get the geometric mean of opcode percentages: 
+```{r opcode-geometric-mean}
+opcode_hits |> rowwise(opcode) |>
+  summarize(hits = sum(across(everything()))) |>
+  ungroup() |>
+  mutate(pct = hits / sum(hits) * 100) |>
+  arrange(desc(hits)) |>
+  mutate(cum_pct = cumsum(pct)) |>
+  knitr::kable(digits = 2, caption = "Geometric mean of opcode percentages")
+``` 
 
 # PCA 
 
@@ -85,4 +121,14 @@ pca$rotation
 
 ```{r pca-plot}
 biplot(pca, scale = 0, cex = 0.5, expand=3, xlim= c(-70, 40), ylim = c(-20, 70)) 
+```
+
+Using FactorMineR:
+
+```{r pca-facto}
+pca_fm <- PCA(select(df, name, speedup, matches("^[A-Z0-9_]+$", ignore.case=FALSE)), 
+  scale.unit=TRUE, ncp=5, quanti.sup=2, quali.sup=1, graph = FALSE)
+#plot.PCA(pca_fm, axes=c(1, 2), choix="var", habillage=1, cex=0.7)
+# https://stackoverflow.com/questions/59865922/visualizing-pca-with-large-number-of-variables-in-r-using-ggbiplot
+fviz_pca_biplot(pca_fm, repel = TRUE, select.var = list(contrib = 5))
 ```
