@@ -120,13 +120,13 @@ summary(pca)
 pca$rotation
 ```
 
-```{r pca-plot}
+```{r pca-plot, fig.width=12, fig.height=12}
 biplot(pca, scale = 0, cex = 0.5, expand=3, xlim= c(-70, 40), ylim = c(-20, 70)) 
 ```
 
 Using FactorMineR:
 
-```{r pca-facto}
+```{r pca-facto, fig.width=12, fig.height=12}
 pca_fm <- PCA(select(df, name, speedup, matches("^[A-Z0-9_]+$", ignore.case=FALSE)), 
   scale.unit=TRUE, ncp=5, quanti.sup=2, quali.sup=1, graph = FALSE)
 #plot.PCA(pca_fm, axes=c(1, 2), choix="var", habillage=1, cex=0.7)

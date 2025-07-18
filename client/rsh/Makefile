@@ -134,3 +134,24 @@ bytecode-profile:
 			echo "$(TXT_RED)FAIL$(NO_NORM) $$exit$(TXT_NORM)"; \
 		fi; \
 	done
+
+export TIME_R :=$(realpath $(BASE_DIR)/../timeR/bin/R)
+TIME_R_OUT_DIR := $(shell echo "$$(pwd)/timeR-results")
+EXT_TIME_R := R_PROFILE_USER=$(BENCH_DIR)/Rprofile.site R
+
+.PHONY: timeR-profile 
+timeR-profile:
+	find $(BENCH_DIR) -mindepth 2 -name "*.R" | while read file; do \
+		test=$$(basename $$file); \
+		echo "$(TXT_BOLD)┌──── $$test ...$(TXT_NORM)"; \
+		cmd="$(EXT_TIME_R) -f $(BENCH_DIR)/timer-harness.R --args --output-dir $(TIME_R_OUT_DIR)  $${file%.*}"; \
+		echo $$cmd; \
+		eval "$$cmd"; \
+		exit=$$?; \
+		echo -n "$(TXT_BOLD)└──── $$test: "; \
+		if [ $$exit -eq 0 ]; then \
+			echo "$(TXT_GREEN)OK$(TXT_NORM) (output in $(TIME_R_OUT_DIR)/$${test%.*}.csv)"; \
+		else \
+			echo "$(TXT_RED)FAIL$(NO_NORM) $$exit$(TXT_NORM)"; \
+		fi; \
+	done
