@@ -1,11 +1,11 @@
 fun main {
-    (r:p(Is!-)s!):Vs!+{ |
-        return modify.*(prom<Vs!+>{ return read.*(r); });
+    (reg r:p(I -)) -+> V { |
+        return modify.*(prom<V +>{ return read.*(r); });
     }
 }
 
 fun modify {
-    (r:p(Vs!+)s!):Vs!+{ |
+    (reg r:p(V +)) -+> V { |
         r$y = 1;
         r$x = [10, 20, 30];
         return r$y = force r;
@@ -13,9 +13,9 @@ fun modify {
 }
 
 fun read {
-    (r:p(Vs!+)s!):v(I)f!+{ rx:v(I)s!, ry:Is!, r1:v(I)o! |
-        rx = r$x as v(I)s!;
-        ry = r$y as Is!;
+    (reg r:p(V +)) -+> v(I)f { reg rx:v(I), reg ry:I, reg r1:v(I)o |
+        rx = r$x as v(I);
+        ry = r$y as I;
         r1 = [rx[0], ry];
         return use r1;
     }

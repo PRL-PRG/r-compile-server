@@ -1,7 +1,7 @@
 fun main {
     # error: actual is `+`
-    ():Is!-{ r:p(Is!+)s! |
-        r = prom<Is!+>{ return 1; };
+    () --> I { reg r:p(I +) |
+        r = prom<I +>{ return 1; };
         return force r;
     }
 }

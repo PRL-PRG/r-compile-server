@@ -1,18 +1,18 @@
 fun f {
-    (r:p(Is!-)s!):Vs!+{ |
+    (reg r:p(I -)) -+> V { |
         g.*(r$x);
         return g.*(r$y);
     }
 }
 
 fun g {
-    (r:*s?):Vs!+{ |
+    (reg r:*) -+> V { |
         # Slow case with variables, no optimizations due to `force r` causing reflection
         40;
         41;
         return 42;
     }
-    (r:Is!):Is!-{ |
+    (reg r:I) --> I { |
         # Fast case with registers, optimizations
         40;
         41;

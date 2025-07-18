@@ -1,12 +1,12 @@
 fun `+` {
-  (r:Is!, r1:Is!):Is!- { | ...; }
+  (reg r:I, reg r1:I)-->I { | ...; }
 }
 
 fun `<` {
-  (r:Is!, r1:Is!):Ls!- { | ...; }
+  (reg r:I, reg r1:I)-->L { | ...; }
 }
 
 fun length {
   # TODO: Add "forSeq" type, and change the parameter to it. Currently it's unsound.
-  (r:Vs!):Is!- { | ...; }
+  (reg r:V)-->I { | ...; }
 }

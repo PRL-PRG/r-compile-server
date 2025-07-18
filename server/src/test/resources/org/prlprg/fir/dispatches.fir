@@ -1,30 +1,30 @@
 fun main {
-    (rx:Is!):v(I)f!-{ |
-        f.*(prom<Is!->{ return rx; }, prom<Is!->{ return 0; });
+    (reg rx:I) --> v(I)f { |
+        f.*(prom<I ->{ return rx; }, prom<I ->{ return 0; });
 
-        f.1(prom<Is!->{ return rx; }, prom<Is!->{ return 4; });
-        f.2(rx, prom<Is!->{ return 5; });
-        f.3(prom<Is!->{ return rx; }, 6);
+        f.1(prom<I ->{ return rx; }, prom<I ->{ return 4; });
+        f.2(rx, prom<I ->{ return 5; });
+        f.3(prom<I ->{ return rx; }, 6);
         return f.4(rx, 7);
     }
 }
 
 fun f {
-    (ra:*s?, rb:*s?):v(I)f!-{ r0:p(Is!-)s!, r1:p(Is!-)s! |
-        r0 = ra as p(Is!-)s!;
-        r1 = rb as p(Is!-)s!;
+    (reg ra:*, reg rb:*) --> v(I)f { reg r0:p(I -), reg r1:p(I -) |
+        r0 = ra as p(I-);
+        r1 = rb as p(I-);
         return [force r0, force r1];
     }
-    (ra:p(Is!-)s!, rb:p(Is!-)s!):v(I)f!-{ |
+    (reg ra:p(I -), reg rb:p(I -)) --> v(I)f { |
         return [force ra, force rb];
     }
-    (ra:Is!, rb:p(Is!-)s!):v(I)f!-{ |
+    (reg ra:I, reg rb:p(I -)) --> v(I)f { |
         return [ra, force rb];
     }
-    (ra:p(Is!-)s!, rb:Is!):v(I)f!-{ |
+    (reg ra:p(I -), reg rb:I) --> v(I)f { |
         return [force ra, rb];
     }
-    (ra:Is!, rb:Is!):v(I)f!-{ |
+    (reg ra:I, reg rb:I) --> v(I)f { |
         return [ra, rb];
     }
 }

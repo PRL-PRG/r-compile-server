@@ -1,23 +1,23 @@
 fun main {
-    ():Is!-{ |
+    () --> I { |
         return g.1(0);
     }
 }
 
 fun g {
-    ():Is!-{ |
+    () --> I { |
         return 0;
     }
-    (r0:Is!):Is!-{ |
+    (reg r0:I) --> I { |
         return 1;
     }
-    (r0:Is!, r1:Is!):Is!-{ |
+    (reg r0:I, reg r1:I) --> I { |
         return 2;
     }
-    (r0:Is!, r1:Is!, r2:Is!):Is!-{ |
+    (reg r0:I, reg r1:I, reg r2:I) --> I { |
         return 3;
     }
-    (r0:Is!, r1:Is!, r2:Is!, r3:Is!):Is!-{ |
+    (reg r0:I, reg r1:I, reg r2:I, reg r3:I) --> I { |
         return 3;
     }
 }

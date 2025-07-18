@@ -1,9 +1,9 @@
 fun f {
-    (rx:Is!, ry:p(Is!-)s!, rz:v(I)s!):v(I)f!-{ x:Is?, y:Is?, z:Is?, ret:v(I)o! |
+    (reg rx:I, reg ry:p(I -), reg rz:v(I)) --> v(I)f { var x:I?, var y:I?, var z:I?, reg ret:v(I)o |
         x = rx;
         y = force ry;
         z = rz[0];
-        ret = [x as Is!, y as Is!, z as Is!];
+        ret = [x as I, y as I, z as I];
         ret[rz[1]] = 4;
         return use ret;
     }

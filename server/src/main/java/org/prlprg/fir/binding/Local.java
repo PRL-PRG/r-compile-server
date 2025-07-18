@@ -14,12 +14,6 @@ public record Local(@Override Variable variable, @Override Type type) implements
 
   @ParseMethod
   private static Local parse(Parser p) {
-    var s = p.scanner();
-
-    var reg = p.parse(Variable.class);
-    s.assertAndSkip(':');
-    var type = p.parse(Type.class);
-
-    return new Local(reg, type);
+    return Bindings.parse(p, Local::new);
   }
 }

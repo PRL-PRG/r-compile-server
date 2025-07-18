@@ -21,10 +21,11 @@ public record Signature(ImmutableList<Type> parameterTypes, Type returnType, Eff
     if (!parameterTypes.isEmpty()) {
       w.write(' ');
     }
-    w.write("-> ");
 
-    p.print(returnType);
+    w.write('-');
     p.print(effects);
+    w.write("> ");
+    p.print(returnType);
   }
 
   @ParseMethod
@@ -32,15 +33,16 @@ public record Signature(ImmutableList<Type> parameterTypes, Type returnType, Eff
     var s = p.scanner();
 
     var parameterTypes = ImmutableList.<Type>builder();
-    if (!s.trySkip("->")) {
+    if (!s.nextCharIs('-')) {
       do {
         parameterTypes.add(p.parse(Type.class));
       } while (s.trySkip(","));
-      s.assertAndSkip("->");
     }
 
-    var returnType = p.parse(Type.class);
+    s.assertAndSkip('-');
     var effects = p.parse(Effects.class);
+    s.assertAndSkip('>');
+    var returnType = p.parse(Type.class);
 
     return new Signature(parameterTypes.build(), returnType, effects);
   }

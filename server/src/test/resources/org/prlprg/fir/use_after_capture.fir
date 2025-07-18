@@ -1,8 +1,8 @@
 fun main {
-    ():v(I)f!-{ r:v(I)o! |
+    () --> v(I)f { reg r:v(I)o |
         r = [1, 2, 3];
         # error: `use`d after capture
-        prom<Is!->{ return r[0]; };
+        prom<I ->{ return r[0]; };
         return use r;
     }
 }

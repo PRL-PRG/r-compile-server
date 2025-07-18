@@ -166,9 +166,10 @@ public class Abstraction {
     p.printSeparated(", ", params);
     w.write(')');
 
-    w.write(':');
-    p.print(returnType);
+    w.write('-');
     p.print(returnEffects);
+    w.write('>');
+    p.print(returnType);
 
     w.write("{ ");
     p.printSeparated(", ", locals.values());
@@ -190,9 +191,10 @@ public class Abstraction {
     params = p.parseList("(", ")", Parameter.class);
     varToParam = computeVarToParam(params);
 
-    s.assertAndSkip(':');
-    returnType = p.parse(Type.class);
+    s.assertAndSkip('-');
     returnEffects = p.parse(Effects.class);
+    s.assertAndSkip('>');
+    returnType = p.parse(Type.class);
 
     s.assertAndSkip('{');
     if (!s.nextCharIs('|')) {
