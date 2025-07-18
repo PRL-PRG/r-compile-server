@@ -1,27 +1,27 @@
 fun main {
-    ():Vs!-{ |
+    () --> V { |
         return recursive.0(123, 0);
     }
 }
 
 fun recursive {
-    (rm:Is!, rn:Is!):Is!-{ result:Is! |
-        result = if0.1(rm, prom<Is!->{ return rn; }, prom<Is!->{ return recursive.0(dec.1(rm), add.1(rm, rn)); });
+    (reg rm:I, reg rn:I) --> I { reg result:I |
+        result = if0.1(rm, prom<I ->{ return rn; }, prom<I ->{ return recursive.0(dec.1(rm), add.1(rm, rn)); });
         return result;
     }
 }
 
 fun if0 {
-    (rcond:*s?, rtrue:*s?, rfalse:*s?):Vs!-{ | ...; }
-    (rcond:Vs!, rtrue:p(Is!-)s!, rfalse:p(Is!-)s!):Is!-{ | ...; }
+    (reg rcond:*, reg rtrue:*, reg rfalse:*) --> V { | ...; }
+    (reg rcond:V, reg rtrue:p(I -), reg rfalse:p(I -)) --> I { | ...; }
 }
 
 fun dec {
-    (r:*s?):Is!-{ | ...; }
-    (r:Vs!):Is!-{ | ...; }
+    (reg r:*) --> I { | ...; }
+    (reg r:V) --> I { | ...; }
 }
 
 fun add {
-    (r0:*s?, r1:*s?):Is!-{ | ...; }
-    (r0:Vs!, r1:Vs!):Is!-{ | ...; }
+    (reg r0:*, reg r1:*) --> I { | ...; }
+    (reg r0:V, reg r1:V) --> I { | ...; }
 }

@@ -1,22 +1,22 @@
 fun main {
-    ():Is!-{ x:Is?, r:p(Is!-)s! |
+    () --> I { var x:I?, reg r:p(I -) |
         x = 0;
-        r = prom<Is!->{
-            x = inc.1(x as Is!);
-            return x as Is!;
+        r = prom<I ->{
+            x = inc.1(x as I);
+            return x as I;
         };
         return force_twice.*(r);
     }
 }
 
 fun force_twice {
-    (r:p(Is!-)s!):Is!-{ |
+    (reg r:p(I -)) --> I { |
         force r;
         return force r;
     }
 }
 
 fun inc {
-    (r:*s?):Is!-{ | ...; }
-    (r:Vs!):Is!-{ | ...; }
+    (reg r:*) --> I { | ...; }
+    (reg r:V) --> I { | ...; }
 }

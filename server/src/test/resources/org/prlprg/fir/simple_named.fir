@@ -1,6 +1,6 @@
 fun main {
-    ():Is!-{ x:Is? |
+    () --> I { var x:I? |
         x = 0;
-        return x as Is!;
+        return x as I;
     }
 }

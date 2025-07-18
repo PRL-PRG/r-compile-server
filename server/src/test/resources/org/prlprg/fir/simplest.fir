@@ -1,5 +1,5 @@
 fun main {
-    ():Is!-{ |
+    () --> I { |
         return 0;
     }
 }

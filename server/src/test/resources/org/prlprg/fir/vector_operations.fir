@@ -1,5 +1,5 @@
 fun vector_ops {
-    ():v(I)f!-{ r:v(I)o!, r0:Is! |
+    () --> v(I)f { reg r:v(I)o, reg r0:I |
         r = [1, 2, 3, 4, 5];
         r0 = r[2];
         r[0] = r0;
@@ -9,6 +9,6 @@ fun vector_ops {
 }
 
 fun inc {
-    (r:*s?):Is!-{ | ...; }
-    (r:Vs!):Is!-{ | ...; }
+    (reg r:*) --> I { | ...; }
+    (reg r:V) --> I { | ...; }
 }

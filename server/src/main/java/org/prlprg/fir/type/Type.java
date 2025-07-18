@@ -29,8 +29,14 @@ public record Type(Kind kind, Ownership ownership, Concreteness concreteness)
   @PrintMethod
   private void print(Printer p) {
     p.print(kind);
-    p.print(ownership);
-    p.print(concreteness);
+    if (ownership != Ownership.SHARED) {
+      p.print(ownership);
+    }
+    // For `Kind.Any`, concreteness is implicit iff `MAYBE`.
+    // For other kinds, concreteness is implicit iff `DEFINITELY`.
+    if ((kind instanceof Kind.Any) == (concreteness == Concreteness.DEFINITELY)) {
+      p.print(concreteness);
+    }
   }
 
   @ParseMethod(SkipWhitespace.NONE)
@@ -39,8 +45,14 @@ public record Type(Kind kind, Ownership ownership, Concreteness concreteness)
     s.skipWhitespace(true);
 
     var kind = p.parse(Kind.class);
-    var ownership = p.parse(Ownership.class);
-    var concreteness = p.parse(Concreteness.class);
+    var ownership =
+        (s.nextCharIs('f') || s.nextCharIs('o') || s.nextCharIs('b') || s.nextCharIs('s'))
+            ? p.parse(Ownership.class)
+            : Ownership.SHARED;
+    var concreteness =
+        (s.nextCharIs('?') || s.nextCharIs(':'))
+            ? p.parse(Concreteness.class)
+            : ((kind instanceof Kind.Any) ? Concreteness.MAYBE : Concreteness.DEFINITELY);
 
     return new Type(kind, ownership, concreteness);
   }

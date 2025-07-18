@@ -14,12 +14,13 @@ public record Parameter(@Override Register variable, @Override Type type) implem
 
   @ParseMethod
   private static Parameter parse(Parser p) {
-    var s = p.scanner();
-
-    var reg = p.parse(Register.class);
-    s.assertAndSkip(':');
-    var type = p.parse(Type.class);
-
-    return new Parameter(reg, type);
+    return Bindings.parse(
+        p,
+        (var, type) -> {
+          if (!(var instanceof Register reg)) {
+            throw p.scanner().fail("parameters must be registers");
+          }
+          return new Parameter(reg, type);
+        });
   }
 }

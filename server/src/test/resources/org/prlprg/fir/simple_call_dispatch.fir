@@ -1,11 +1,11 @@
 fun main {
-    ():Is!-{ |
+    () --> I { |
         return g.*();
     }
 }
 
 fun g {
-    ():Is!-{ |
+    () --> I { |
         return 1;
     }
 }

@@ -1,9 +1,9 @@
-fun loadFun { (r:Ss!, rEnvType:Is!):Vs!+ { | ...; } }
-fun checkFun { (r:Vs!):Vs!- { | ...; } }
-fun toForSeq { (r:*s?):Vs!+ { | ...; } }
-fun invisible { ():Vs!- { | ...; } }
-fun visible { ():Vs!- { | ...; } }
-fun asSwitchIdx { (r:*s?):Vs!+ { | ...; } }
-fun tryDispatchBuiltin { (rBuiltin:Ss!, rTarget:*s!, rArgs:Vs!):Vs!+ { | ...; } }
-fun getTryDispatchBuiltinDispatched { (r:Vs!):Vs!- { | ...; } }
-fun getTryDispatchBuiltinValue { (r:Vs!):Vs!- { | ...; } }
+fun loadFun { (reg r:S, reg rEnvType:I)-+>V { | ...; } }
+fun checkFun { (reg r:V)-->V { | ...; } }
+fun toForSeq { (reg r:*)-+>V { | ...; } }
+fun invisible { ()-->V { | ...; } }
+fun visible { ()-->V { | ...; } }
+fun asSwitchIdx { (reg r:*)-+>V { | ...; } }
+fun tryDispatchBuiltin { (reg rBuiltin:S, reg rTarget:*s, reg rArgs:V)-+>V { | ...; } }
+fun getTryDispatchBuiltinDispatched { (reg r:V)-->V { | ...; } }
+fun getTryDispatchBuiltinValue { (reg r:V)-->V { | ...; } }

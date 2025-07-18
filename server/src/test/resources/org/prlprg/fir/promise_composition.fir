@@ -1,9 +1,9 @@
 fun main {
-    ():v(I)s!-{ r1:p(Is!-)s!, r2:p(Is!-)s!, r:v(I)o! |
-        r1 = prom<Is!->{ return 100; };
-        r2 = prom<Is!->{ return 200; };
+    () --> v(I) { reg r1:p(I -), reg r2:p(I -), reg r:v(I)o |
+        r1 = prom<I ->{ return 100; };
+        r2 = prom<I ->{ return 200; };
 
-        return force prom<v(I)s!->{
+        return force prom<v(I) ->{
             r = [force r1, force r2, 300];
             return use r;
         };

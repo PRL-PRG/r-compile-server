@@ -1,18 +1,18 @@
 fun main {
-    ():v(I)s!+{ x:*s? |
+    () -+> v(I) { var x:* |
         x = [0, 1, 2];
-        return f.*(prom<Vs!->{ return x as Vs!; });
+        return f.*(prom<V ->{ return x as V; });
     }
 }
 
 fun f {
-    (r:p(Vs!-)s!):v(I)s!+{ |
+    (reg r:p(V -)) -+> v(I) { |
         return g.*(r);
     }
 }
 
 fun g {
-    (r:p(Vs!-)s!):v(I)s!+{ |
+    (reg r:p(V -)) -+> v(I) { |
         return r$x = [3, 4, 5];
     }
 }

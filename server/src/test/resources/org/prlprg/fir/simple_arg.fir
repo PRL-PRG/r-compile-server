@@ -1,5 +1,5 @@
 fun main {
-    (r:Is!):Is!-{ |
+    (reg r:I) --> I { |
         return r;
     }
 }
