@@ -20,5 +20,5 @@ execute <- function(power = 20L) {
     R <- matexp(A,power)
     if (R[length(R)] < 0) s <- 1
   }
-  return(list(check=s, result=sum(R)))
+  list(s,sum(R))
 }

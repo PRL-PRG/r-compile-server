@@ -11,10 +11,8 @@ execute <- function(size = 50000L) {
   b <- "ABCDEFG.IJKLMNOPQ.STUVWXYZ"
   c <- "........IJ........S....................................................."
   
-  r1 <- r2 <- NULL
-  for (i in 1:size) {
-    r1 <- count(a,b)
-    r2 <- count(a,c)
-  }
-  return(c(r1, r2))
+  for (i in 1:50000) r1 <- count(a,b)
+  for (i in 1:50000) r2 <- count(a,c)
+
+  list(r1,r2)
 }

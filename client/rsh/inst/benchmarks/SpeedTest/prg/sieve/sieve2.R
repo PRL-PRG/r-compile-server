@@ -11,13 +11,7 @@ execute <- function(size = 1000L) {
     (1:n)[!composite]
   }
 
-  if (size < 1000000) {
-    res <- NULL
-    for (i in 1:10000) res <- sieve(size)
-    return(res)
-  } else if (size >= 1000000) {
-    res <- NULL
-    for (i in 1:10) res <- sieve(size)
-    return(res[c(1:10, (length(res)-9):length(res))])
-  }
+  for (i in 1:10000) ra <- sieve(size)
+  for (i in 1:10) rb <- sieve(size*1000)
+  list(ra, rb[c(1:10,(length(rb)-9):length(rb))])
 }

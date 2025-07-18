@@ -1,10 +1,10 @@
 execute <- function(power = 30L) {
   matexp <- function(A, last_pow) {
     S <- diag(nrow(A))
-    if (last_pow > 0) {
+    if (last_pow > 0) { 
       T <- A
-      if (last_pow > 1) {
-        for (pow in 2:last_pow) {
+      if (last_pow > 1) { 
+        for (pow in 2:last_pow) { 
           S <- S + T
           T <- (A %*% T) * (1/pow)
         }
@@ -20,5 +20,5 @@ execute <- function(power = 30L) {
     R <- matexp(A,power)
     if (R[length(R)] < 0) s <- 1
   }
-  return(list(check=s, result=round(R,2)))
+  list(s, round(R,2))
 }

@@ -34,5 +34,5 @@ execute <- function(size = 20L) {
   
   res <- NULL
   for (i in 1:500) res <- unlist(near(M,V,P,8^2,proj_M))
-  res
+  return(res)
 }

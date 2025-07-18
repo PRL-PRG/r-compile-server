@@ -13,15 +13,13 @@ execute <- function(size = 1000L) {
     s
   }
 
-  s1 <- rep(c("abc.defg.hijklm","x.y.z",".","pqrstuvwxyz"), size)
+  s1 <- rep(c("abc.defg.hijklm","x.y.z",".","pqrstuvwxyz"),size)
   s2 <- paste("x",1:(size*100),"y")
   s3 <- rep(c("a...b","..c..","....","x.y"), size)
   
-  r1 <- NULL
   for (i in 1:30) r1 <- replace(s1, ".", "ABCDEFG")
   r2 <- replace(paste("x",1:100000,"y"), "4", "ABCDEFGHIJK")
-  r3 <- NULL
-  for (i in 1:30) r3 <- replace(s3, ".", "ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+  for (i in 1:30) r3 <- replace(s3,".","ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
-  list(r1 = r1[1], r2 = r2[50], r3 = r3[1])
+  list(r1[1:20], r2[1:50], r3[1:20])
 }

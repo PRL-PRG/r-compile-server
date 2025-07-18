@@ -21,23 +21,22 @@ execute <- function(size = 50000L) {
     if (runif(1) < exp(current_U-proposed_U+current_K-proposed_K)) q else current_q
   }
 
-  set.seed(1)
-  
-  if (size <= 50000) {
-    epsilon = 0.8
-    L = 10
-    n = size
-  } else {
-    epsilon = 1.1
-    L = 1
-    n = size
+  test_HMC = function (epsilon,L,n,seed=1){
+    set.seed(seed)
+
+    U = function (q) q^2/2 + sin(q)
+    grad_U = function (q) q + cos(q)
+    
+    q = numeric(n+1)
+    for (i in 1:n)
+    { q[i+1] = HMC(U,grad_U,epsilon,L,q[i])
+    }
+
+    list (median=median(q), mean=mean(q), sd=sd(q))
   }
-  
-  U = function(q) q^2/2 + sin(q)
-  grad_U = function(q) q + cos(q)
-  
-  q = numeric(n+1)
-  for (i in 1:n) q[i+1] = HMC(U, grad_U, epsilon, L, q[i])
-  
-  list(median=median(q), mean=mean(q), sd=sd(q))
+
+  r1 <- test_HMC(0.8,10,size)
+  r2 <- test_HMC(1.1,1,(size*2))
+
+  list(r1,r2)
 }

@@ -33,5 +33,5 @@ execute <- function(size = 1000L) {
   V <- matrix(rnorm(size*5*p_dim), size, 5*p_dim)
   
   res <- near(M,V,P,425^2,proj_M)
-  unlist(res)
+  list(c(mean(res$count),mean(res$count==0)), res$dist[c(1,500)])
 }

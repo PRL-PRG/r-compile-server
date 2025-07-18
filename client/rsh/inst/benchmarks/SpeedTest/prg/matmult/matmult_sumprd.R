@@ -36,9 +36,6 @@ for (i in 1:r) V[[i]] <- matmult(A0,B0)
 for (i in 1:r) V[[i]] <- matmult(A1,B1)
 for (i in 1:(r/50)) V[[i]] <- matmult(A2,B2)
 for (i in 1:(r/50)) V[[i]] <- matmult(A3,B3)
-for (i in 1:length(V))
-  { 
-    if (!identical(V[[i]],R)) return(FALSE)
-  }
+for (i in 1:length(V)) {if (!identical(V[[i]],R)) return(FALSE)}
   return(TRUE)
 }

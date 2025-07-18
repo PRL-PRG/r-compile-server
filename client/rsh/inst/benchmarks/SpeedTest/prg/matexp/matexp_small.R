@@ -15,10 +15,14 @@ execute <- function(power = 10L) {
   }
 
   A <- matrix(seq(0,1,length=7^2), 7, 7)
-  s <- 0
+  s1 <- s2 <- 0
   for (i in 1:50000) {
-    R <- matexp(A,power)
-    if (R[length(R)] < 0) s <- 1
+    R1 <- matexp(A,power)
+    if (R1[length(R1)] < 0) s <- 1
   }
-  return(list(check=s, result=R))
+  for (i in 1:50000) {
+    R2 <- matexp(A,(power*2))
+    if (R2[length(R2)] < 0) s <- 1
+  }
+  list(s1,s2,R1,R2)
 }

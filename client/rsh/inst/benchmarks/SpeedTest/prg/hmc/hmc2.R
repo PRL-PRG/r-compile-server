@@ -21,25 +21,24 @@ execute <- function(size = 25000L) {
     if (runif(1) < exp(current_U-proposed_U+current_K-proposed_K)) q else current_q
   }
 
-  set.seed(1)
-  
-  if (size <= 25000) {
-    epsilon = 0.8
-    L = 10
-    n = size
-  } else {
-    epsilon = 1.1
-    L = 1
-    n = size
+  test_HMC = function (epsilon,L,n,seed=1)
+  {
+    set.seed(seed)
+
+    s1 = 2; s2 = 3; r = 0.9
+    inv_cov = solve(matrix(c(s1^2,s1*s2*r,s1*s2*r,s2^2),2,2))
+    U = function (q) t(q) %*% inv_cov %*% q / 2
+    grad_U = function (q) inv_cov %*% q
+    
+    q = matrix(0,n+1,2)
+    for (i in 1:n)
+    { q[i+1,] = HMC(U,grad_U,epsilon,L,q[i,])
+    }
+
+    list (mean=apply(q,2,mean), sd=apply(q,2,sd), cor=cor(q[,1],q[,2]))
   }
-  
-  s1 = 2; s2 = 3; r = 0.9
-  inv_cov = solve(matrix(c(s1^2,s1*s2*r,s1*s2*r,s2^2),2,2))
-  U = function(q) t(q) %*% inv_cov %*% q / 2
-  grad_U = function(q) inv_cov %*% q
-  
-  q = matrix(0,n+1,2)
-  for (i in 1:n) q[i+1,] = HMC(U, grad_U, epsilon, L, q[i,])
-  
-  list(mean=apply(q,2,mean), sd=apply(q,2,sd), cor=cor(q[,1],q[,2]))
+  r1 <- test_HMC(0.8,10,size)
+  r2 <- test_HMC(1.1,1,(size*2))
+
+  list(r1,r2)
 }
