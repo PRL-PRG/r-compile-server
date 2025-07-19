@@ -12,7 +12,8 @@ library(tidyr)
 library(readr)
 library(FactoMineR)
 library(factoextra)
-
+library(Rtsne)
+library(cluster)
 
 here::i_am("rsh/inst/benchmarks/analysis/benchmarks.Rmd")
 
@@ -33,6 +34,11 @@ bench_bc <- read_csv(here("rsh", "benchmark-results", "baseline", "benchmarks.cs
     rename(VM=expr)
 bc_profiles <- read_csv(here("rsh", "bcprof-results", "merged_output.csv"), col_types = cols(timestamp = col_datetime()))
 ```
+
+
+# Description of the benchmarks
+
+There are `r nrow(bench_rsh)` benchmarks in the RSH results and `r nrow(bench_bc)` in the baseline results.
 
 
 # Speedups
@@ -97,6 +103,7 @@ opcode_pcts |> select(opcode, ends_with("_pct")) |>
   knitr::kable(digits = 2, caption = "Opcode hits percentages")
 ```
 
+There are `r nrow(opcode_hits)` opcodes in the benchmarks.
 
 Get the geometric mean of opcode percentages: 
 ```{r opcode-geometric-mean}
@@ -109,7 +116,98 @@ opcode_hits |> rowwise(opcode) |>
   knitr::kable(digits = 2, caption = "Geometric mean of opcode percentages")
 ``` 
 
-# PCA 
+What are the most 10 frequent opcodes per benchmark?
+
+```{r top-opcodes}
+top_opcodes <- opcode_hits |>
+  pivot_longer(
+    cols = -opcode,
+    names_to = "benchmark",
+    values_to = "hits"
+  ) |>
+  group_by(benchmark) |>
+  slice_max(order_by = hits, n = 10, with_ties = FALSE) |>
+  ungroup() |>
+  distinct(opcode)
+top_opcodes |> 
+  knitr::kable(digits = 2, caption = "Top 10 opcodes per benchmark")
+```
+
+# Clustering benchmarks using the opcode hits 
+
+```{r clustering_prep}
+clustering_data <- opcode_hits |>
+  tibble::column_to_rownames("opcode") |> 
+  as.matrix() |> t()
+clustering_data_scaled <- scale(clustering_data)
+```
+
+Finding the best number of clusters:
+
+- elbow method:
+
+```{r elbow, fig.width=12, fig.height=12}
+fviz_nbclust(clustering_data_scaled, kmeans, method = "wss") +
+  labs(title = "Elbow Method for Optimal k")
+```
+
+- silhouette method:
+
+```{r silhouette, fig.width=12, fig.height=12}
+fviz_nbclust(clustering_data_scaled, kmeans, method = "silhouette") +
+  labs(title = "Silhouette Method for Optimal k")
+```
+
+- Gap statistic: 
+
+```{r gap_stat, fig.width=12, fig.height=12}
+gap_stat <- clusGap(clustering_data_scaled, FUN = kmeans, nstart = 25,
+                    K.max = 10, B = 50)
+fviz_gap_stat(gap_stat)
+```
+
+
+```{r choose-k}
+k <- 10
+```
+
+## Hierachical clustering 
+
+```{r hclust, fig.width=12, fig.height=12}
+dist_matrix <- dist(clustering_data_scaled, method = "euclidean")
+hc <- hclust(dist_matrix, method = "ward.D2")
+plot(hc, labels = rownames(clustering_data_scaled), main = "Hierarchical Clustering Dendrogram", cex = 0.7)
+
+clusters <- cutree(hc, k = k)
+cluster_df <- data.frame(
+  benchmark = rownames(clustering_data_scaled),
+  cluster = clusters
+)
+print(cluster_df)
+```
+
+## K-means
+
+The benchmark was designed into 4 different sets. Can we retrieve them using k-means?
+
+
+```{r kmeans, fig.width=12, fig.height=12}
+set.seed(42)
+kmeans_result <- kmeans(clustering_data_scaled, centers = k)
+df$cluster <- kmeans_result$cluster
+fviz_cluster(kmeans_result, data = clustering_data_scaled)
+```
+
+## Rtsne 
+
+```{r rtsne, fig.width=12, fig.height=12}
+set.seed(123)
+tsne <- Rtsne(clustering_data_scaled, perplexity = 3)
+plot(tsne$Y, col = kmeans_result$cluster, pch = 19)
+text(tsne$Y, labels = rownames(clustering_data_scaled), pos = 3, cex = 0.8)
+```
+
+# PCA on opcodes
 
 ```{r pca}
 pca <- prcomp(select(df, -name), center = TRUE, scale = TRUE)
