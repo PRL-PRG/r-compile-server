@@ -14,6 +14,8 @@ library(FactoMineR)
 library(factoextra)
 library(Rtsne)
 library(cluster)
+library(dbscan)
+library(purrr)
 
 here::i_am("rsh/inst/benchmarks/analysis/benchmarks.Rmd")
 
@@ -29,9 +31,9 @@ DEFAULT_WARMUP <- 5
 ```{r load-data}
 # Load the benchmark data
 bench_rsh <- read_csv(here("rsh", "benchmark-results", "20250716-193400-e53c63d7", "benchmarks.csv"), col_types = cols(timestamp = col_datetime())) |>
-    rename(VM=expr)
+  rename(VM = expr)
 bench_bc <- read_csv(here("rsh", "benchmark-results", "baseline", "benchmarks.csv"), col_types = cols(timestamp = col_datetime())) |>
-    rename(VM=expr)
+  rename(VM = expr)
 bc_profiles <- read_csv(here("rsh", "bcprof-results", "merged_output.csv"), col_types = cols(timestamp = col_datetime()))
 ```
 
@@ -44,41 +46,43 @@ There are `r nrow(bench_rsh)` benchmarks in the RSH results and `r nrow(bench_bc
 # Speedups
 
 ```{r compute-speedup}
-compute_mean <- function(bench) bench |>
-  group_by(VM, name) |>
-  slice(-(1:DEFAULT_WARMUP)) |># remove warmup
-  summarize(
-    mean_time = mean(time / 1e6)
-  )
-
-speedups <- compute_mean(bench_rsh) |> 
-    left_join(compute_mean(bench_bc), by = c("name"), suffix = c("_rsh", "_bc")) |>
-    group_by(name) |>
+compute_mean <- function(bench) {
+  bench |>
+    group_by(VM, name) |>
+    slice(-(1:DEFAULT_WARMUP)) |> # remove warmup
     summarize(
-      speedup = mean_time_bc / mean_time_rsh
-    ) 
+      mean_time = mean(time / 1e6)
+    )
+}
+
+speedups <- compute_mean(bench_rsh) |>
+  left_join(compute_mean(bench_bc), by = c("name"), suffix = c("_rsh", "_bc")) |>
+  group_by(name) |>
+  summarize(
+    speedup = mean_time_bc / mean_time_rsh
+  )
 
 speedups
 ```
 
 ```{r summary-speedup}
 speedups |>
-    summarize(
-        mean = geom_mean(speedup),
-        median = median(speedup),
-        min = min(speedup),
-        max = max(speedup),
-        sd = sd(speedup)
-    ) 
+  summarize(
+    mean = geom_mean(speedup),
+    median = median(speedup),
+    min = min(speedup),
+    max = max(speedup),
+    sd = sd(speedup)
+  )
 ```
 
 # Bytecode profiler 
 
 ```{r bytecode}
-df <- select(bc_profiles, -param, -commit, -timestamp) |> 
-    left_join(speedups, by = "name") |>
-    relocate(speedup, .after = name)
-knitr::kable(df, digits = 2, caption = "Bytecode profiler results with speedups") 
+df <- select(bc_profiles, -param, -commit, -timestamp) |>
+  left_join(speedups, by = "name") |>
+  relocate(speedup, .after = name)
+knitr::kable(df, digits = 2, caption = "Bytecode profiler results with speedups")
 ```
 
 
@@ -95,11 +99,12 @@ calculate_percentages <- function(data) {
     mutate(across(-opcode, ~ .x / totals[cur_column()] * 100, .names = "{.col}_pct"))
 }
 
-opcode_hits <- select(df, name, matches("^[A-Z0-9_]+$", ignore.case=FALSE)) |>
-  pivot_longer(-name, names_to = "opcode", values_to = "hits") |> 
-  pivot_wider(names_from = "name", values_from = "hits", values_fill = 0) 
+opcode_hits <- select(df, name, matches("^[A-Z0-9_]+$", ignore.case = FALSE)) |>
+  pivot_longer(-name, names_to = "opcode", values_to = "hits") |>
+  pivot_wider(names_from = "name", values_from = "hits", values_fill = 0)
 opcode_pcts <- calculate_percentages(opcode_hits)
-opcode_pcts |> select(opcode, ends_with("_pct")) |>
+opcode_pcts |>
+  select(opcode, ends_with("_pct")) |>
   knitr::kable(digits = 2, caption = "Opcode hits percentages")
 ```
 
@@ -107,7 +112,8 @@ There are `r nrow(opcode_hits)` opcodes in the benchmarks.
 
 Get the geometric mean of opcode percentages: 
 ```{r opcode-geometric-mean}
-opcode_hits |> rowwise(opcode) |>
+opcode_hits |>
+  rowwise(opcode) |>
   summarize(hits = sum(across(everything()))) |>
   ungroup() |>
   mutate(pct = hits / sum(hits) * 100) |>
@@ -129,16 +135,120 @@ top_opcodes <- opcode_hits |>
   slice_max(order_by = hits, n = 10, with_ties = FALSE) |>
   ungroup() |>
   distinct(opcode)
-top_opcodes |> 
+top_opcodes |>
   knitr::kable(digits = 2, caption = "Top 10 opcodes per benchmark")
+```
+
+## Collating opcodes into categories 
+
+```{r opcode-categories}
+opcode_category <- local({
+  category_map <- c(
+    # Arithmetic
+    "ADD" = "Arithmetic",
+    "SUB" = "Arithmetic",
+    "MUL" = "Arithmetic",
+    "DIV" = "Arithmetic",
+    "UMINUS" = "Arithmetic",
+    "EXP" = "Arithmetic",
+    "EXPT" = "Arithmetic",
+    "SQRT" = "Arithmetic",
+    "LOGBASE" = "Arithmetic",
+    # Booleans
+    "AND" = "Logical",
+    "OR" = "Logical",
+    "NOT" = "Logical",
+    "AND1ST" = "Logical",
+    "AND2ND" = "Logical",
+    "OR1ST" = "Logical",
+    "OR2ND" = "Logical",
+    # Comparions
+    "EQ" = "Comparison",
+    "NE" = "Comparison",
+    "LT" = "Comparison",
+    "LE" = "Comparison",
+    "GT" = "Comparison",
+    "GE" = "Comparison",
+    "EQ" = "Comparison",
+    "NE" = "Comparison",
+    "LT" = "Comparison",
+    "LE" = "Comparison",
+    "GT" = "Comparison",
+    "GE" = "Comparison",
+    # "Native" code
+    "DOTCALL" = "External",
+    "CALLBUILTIN" = "BuiltinSpecial",
+    "CALLSPECIAL" = "BuiltinSpecial",
+    # Type checking
+    "ISNULL" = "TypeChecking", "ISOBJECT" = "TypeChecking", "ISCHARACTER" = "TypeChecking",
+    "ISLOGICAL" = "TypeChecking", "ISINTEGER" = "TypeChecking", "ISCOMPLEX" = "TypeChecking",
+    "ISSYMBOL" = "TypeChecking",
+    # Stack manipulation
+    "POP" = "Stack",
+    "SWAP" = "Stack",
+    "DUP2ND" = "Stack",
+    "PUSHCONSTARG" = "Stack",
+    "PUSHTRUEARG" = "Stack",
+    "PUSHFALSEARG" = "Stack",
+    "PUSHNULLARG" = "Stack",
+    "PUSHARG" = "Stack",
+
+    # Variable lookup
+    "GETVAR" = "Lookup",
+    "GETVAR_MISSOK" = "Lookup",
+    "GETFUN" = "Lookup",
+    "GETBUILTIN" = "Lookup",
+    "GETINTLBUILTIN" = "Lookup",
+
+    # Variable assignment
+    "SETVAR" = "Assignment",
+    "SETVAR2" = "Assignment",
+
+    # Complex assigments
+    "GETTERCAL" = "ComplexAssignment",
+    "SETTERCAL" = "ComplexAssignment",
+    "STARTASSIGN" = "ComplexAssignment",
+    "ENDASSIGN" = "ComplexAssignment",
+    "STARTASSIGN2" = "ComplexAssignment",
+    "ENDASSIGN2" = "ComplexAssignment",
+    "STARTSUBASSIGN" = "ComplexAssignment",
+    "STARTSUBASSIGN_N" = "ComplexAssignment",
+    "STARTSUBASSIGN2_N" = "ComplexAssignment",
+    "VECSUBASSIGN" = "ComplexAssignment",
+    "VECSUBASSIGN2" = "ComplexAssignment",
+    "MATSUBASSIGN" = "ComplexAssignment",
+    "MATSUBASSIGN2" = "ComplexAssignment",
+    "DFLTSUBASSIGN" = "ComplexAssignment",
+
+    # Function calls
+    "CALL" = "FunctionCall"
+  )
+
+  function(opcode) {
+    res <- unname(category_map[opcode])
+    if (is.na(res)) {
+      return("Other")
+    }
+    return(res)
+  }
+})
+```
+
+```{r opcode-categories-apply}
+opcode_hits |>
+  mutate(category = map_chr(opcode, opcode_category)) |>
+  group_by(category) |>
+  summarize(across(-opcode, sum, na.rm = TRUE), .groups = "drop") |>
+  knitr::kable(digits = 2, caption = "Opcode categories")
 ```
 
 # Clustering benchmarks using the opcode hits 
 
 ```{r clustering_prep}
 clustering_data <- opcode_hits |>
-  tibble::column_to_rownames("opcode") |> 
-  as.matrix() |> t()
+  tibble::column_to_rownames("opcode") |>
+  as.matrix() |>
+  t()
 clustering_data_scaled <- scale(clustering_data)
 ```
 
@@ -161,8 +271,10 @@ fviz_nbclust(clustering_data_scaled, kmeans, method = "silhouette") +
 - Gap statistic: 
 
 ```{r gap_stat, fig.width=12, fig.height=12}
-gap_stat <- clusGap(clustering_data_scaled, FUN = kmeans, nstart = 25,
-                    K.max = 10, B = 50)
+gap_stat <- clusGap(clustering_data_scaled,
+  FUN = kmeans, nstart = 25,
+  K.max = 10, B = 50
+)
 fviz_gap_stat(gap_stat)
 ```
 
@@ -207,6 +319,17 @@ plot(tsne$Y, col = kmeans_result$cluster, pch = 19)
 text(tsne$Y, labels = rownames(clustering_data_scaled), pos = 3, cex = 0.8)
 ```
 
+## Gaussian Mixture Model: mclust
+
+```{r mclust, fig.width=12, fig.height=12}
+# Breaks the notebook!
+# library(mclust)
+# gmm <- Mclust(clustering_data_scaled)
+
+# plot(gmm, what = "classification")
+# summary(gmm)
+```
+
 # PCA on opcodes
 
 ```{r pca}
@@ -219,15 +342,16 @@ pca$rotation
 ```
 
 ```{r pca-plot, fig.width=12, fig.height=12}
-biplot(pca, scale = 0, cex = 0.5, expand=3, xlim= c(-70, 40), ylim = c(-20, 70)) 
+biplot(pca, scale = 0, cex = 0.5, expand = 3, xlim = c(-70, 40), ylim = c(-20, 70))
 ```
 
 Using FactorMineR:
 
 ```{r pca-facto, fig.width=12, fig.height=12}
-pca_fm <- PCA(select(df, name, speedup, matches("^[A-Z0-9_]+$", ignore.case=FALSE)), 
-  scale.unit=TRUE, ncp=5, quanti.sup=2, quali.sup=1, graph = FALSE)
-#plot.PCA(pca_fm, axes=c(1, 2), choix="var", habillage=1, cex=0.7)
+pca_fm <- PCA(select(df, name, speedup, matches("^[A-Z0-9_]+$", ignore.case = FALSE)),
+  scale.unit = TRUE, ncp = 5, quanti.sup = 2, quali.sup = 1, graph = FALSE
+)
+# plot.PCA(pca_fm, axes=c(1, 2), choix="var", habillage=1, cex=0.7)
 # https://stackoverflow.com/questions/59865922/visualizing-pca-with-large-number-of-variables-in-r-using-ggbiplot
 fviz_pca_biplot(pca_fm, repel = TRUE, select.var = list(contrib = 5))
 ```
@@ -262,19 +386,18 @@ imp
 ImpData <- as.data.frame(importance(rf_model))
 ImpData$Var.Names <- row.names(ImpData)
 
-ggplot(ImpData, aes(x=Var.Names, y=`%IncMSE`)) +
-  geom_segment( aes(x=Var.Names, xend=Var.Names, y=0, yend=`%IncMSE`), color="skyblue") +
-  geom_point(aes(size = IncNodePurity), color="blue", alpha=0.6) +
-  expand_limits(x= c(-1, length(levels(ImpData$Var.Names)) + 2)) + 
+ggplot(ImpData, aes(x = Var.Names, y = `%IncMSE`)) +
+  geom_segment(aes(x = Var.Names, xend = Var.Names, y = 0, yend = `%IncMSE`), color = "skyblue") +
+  geom_point(aes(size = IncNodePurity), color = "blue", alpha = 0.6) +
+  expand_limits(x = c(-1, length(levels(ImpData$Var.Names)) + 2)) +
   theme_light() +
   coord_flip() +
   theme(
-    legend.position="bottom",
+    legend.position = "bottom",
     panel.grid.major.y = element_blank(),
     panel.border = element_blank(),
     axis.ticks.y = element_blank(),
     axis.text.y = element_text(size = 8), # Adjust the size of the axis text
-
   )
 ```
 
