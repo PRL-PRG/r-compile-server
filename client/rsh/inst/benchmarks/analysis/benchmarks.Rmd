@@ -16,6 +16,7 @@ library(Rtsne)
 library(cluster)
 library(dbscan)
 library(purrr)
+library(stringr)
 
 here::i_am("rsh/inst/benchmarks/analysis/benchmarks.Rmd")
 
@@ -35,6 +36,7 @@ bench_rsh <- read_csv(here("rsh", "benchmark-results", "20250716-193400-e53c63d7
 bench_bc <- read_csv(here("rsh", "benchmark-results", "baseline", "benchmarks.csv"), col_types = cols(timestamp = col_datetime())) |>
   rename(VM = expr)
 bc_profiles <- read_csv(here("rsh", "bcprof-results", "merged_output.csv"), col_types = cols(timestamp = col_datetime()))
+timer_profiles <- read_csv(here("rsh", "timeR-results", "timer_merged_output.csv"), col_types = cols(TraceDate = col_datetime()))
 ```
 
 
@@ -252,7 +254,7 @@ opcode_category <- local({
     "CALL" = "FunctionCall",
 
 
-    # Control flow 
+    # Control flow
     "GOTO" = "Control",
     "BRIFNOT" = "Control",
     "RETURN" = "Control",
@@ -262,29 +264,28 @@ opcode_category <- local({
     "ENDFOR" = "Control",
     "SWITCH" = "Control",
 
-    # Sequence 
+    # Sequence
     "COLON" = "Sequence",
     "SEQALONG" = "Sequence",
     "SEQLEN" = "Sequence",
 
-    # Dots 
+    # Dots
     "DDVAL" = "Dots",
     "DODOTS" = "Dots",
     "DOMISSING" = "Dots",
 
-    # Guard 
+    # Guard
     "BASEGUARD" = "Guard",
 
     # Visibility
     "VISIBLE" = "Visibility",
     "INVISIBLE" = "Visibility"
-
   )
 
   function(opcode) {
     res <- unname(category_map[opcode])
     if (is.na(res)) {
-      #print(paste("Unknown opcode:", opcode))
+      # print(paste("Unknown opcode:", opcode))
       return(opcode)
     }
     return(res)
@@ -296,7 +297,7 @@ opcode_category <- local({
 categories_hits <- opcode_hits |>
   mutate(category = map_chr(opcode, opcode_category)) |>
   group_by(category) |>
-  summarize(across(-opcode, sum, na.rm = TRUE), .groups = "drop") 
+  summarize(across(-opcode, sum, na.rm = TRUE), .groups = "drop")
 
 categories_hits |>
   knitr::kable(digits = 2, caption = "Opcode categories")
@@ -312,6 +313,28 @@ categories_top |>
   arrange(desc(total_hits)) |>
   mutate(pct = total_hits / sum(total_hits) * 100, cpct = cumsum(pct)) |>
   knitr::kable(digits = 2, caption = "Total hits per category")
+```
+
+# TimeR profiles 
+
+```{r timer-profiles}
+timer_profiles <- select(timer_profiles, -TraceDate, -Workdir)
+timer_profiles |>
+  rename(name = file) |>
+  left_join(speedups, by = "name") |>
+  relocate(speedup, .after = name) |>
+  knitr::kable(digits = 2, caption = "TimeR profiles with speedups")
+```
+
+Are there any columns with `NA`?
+
+```{r na-columns}
+colnames(timer_profiles)[colSums(is.na(timer_profiles)) > 0]
+```
+
+Fill in `NA` values with 0:
+```{r fill-na}
+timer_profiles[is.na(timer_profiles)] <- 0
 ```
 
 # Clustering benchmarks using the opcode hits 
@@ -437,6 +460,9 @@ set.seed(42)
 ```
 
 ```{r datasets}
+# Replace all columns names in df starting with <.Primitive>:something with
+# <.Primitive>something, using stringr::str_replace
+df <- df |> left_join(timer_profiles, by = c("name" = "file"))
 ind <- sample(2, nrow(df), replace = TRUE, prob = c(0.7, 0.3))
 features <- select(df, -name)
 train <- features[ind == 1, ]
@@ -444,7 +470,9 @@ test <- features[ind == 2, ]
 ```
 
 ```{r rf-model}
-rf_model <- randomForest(speedup ~ ., data = train, importance = TRUE, ntree = 1000)
+x <- train[, setdiff(names(train), "speedup")]
+y <- train[["speedup"]]
+rf_model <- randomForest(x = x, y = y, data = train, importance = TRUE, ntree = 10000)
 rf_model
 ```
 

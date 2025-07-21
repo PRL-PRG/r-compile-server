@@ -58,11 +58,6 @@ parse_timer_raw_csv <- function(file) {
         }
     }
     
-    #browser()
-
-    # Builtins and special sum 
-    # builtins_specials <- lines[(labels[2] + 1):(labels[3] - 1)] 
-    # vals <- read_csv(paste(builtins_specials, collapse = "\n"), col_names = TRUE, show_col_types = FALSE)
 
     for(i in 2:length(labels)) {
         section <- lines[(labels[i]):(ifelse(i == length(labels), length(lines), labels[i + 1] - 1))]
@@ -86,6 +81,23 @@ parse_timer_raw_csv <- function(file) {
         mutate(file = tools::file_path_sans_ext(basename(file)), .before = 1) 
 }
 
+parse_profiles <- function(folder_path) {
+    if (!dir.exists(folder_path)) {
+        stop("The specified folder does not exist.")
+    }
+
+    files <- list.files(path = folder_path, pattern = "\\.csv$", full.names = TRUE)
+    files <- files[!basename(files) %in% "timer_merged_output.csv"]
+
+    if (length(files) == 0) {
+        stop("No timeR profile files found in the specified folder.")
+    }
+
+    profiles <- map_dfr(files, parse_timer_raw_csv)
+
+    return(profiles)
+}
+
 if(!interactive()) {
     args <- commandArgs(trailingOnly=TRUE)
 
@@ -95,5 +107,10 @@ if(!interactive()) {
 
     folder_path <- args[1]
 
-    # TODO
+    profiles <- parse_profiles(folder_path)
+
+    output_file <- file.path(folder_path, "timer_merged_output.csv")
+
+    write_csv(profiles, output_file)
+    message(paste0("Merged timer profiles saved to: ", output_file))
 }
