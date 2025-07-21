@@ -40,25 +40,47 @@ parse_timer_raw_csv <- function(file) {
         }
     }
 
+ 
+
     # Overhead 
-    parts <- str_split(lines[[labels[1]]], "\\s", n = 2)[[1]]
+    parts <- str_split(lines[[labels[1] + 1]], "\\s", n = 3)[[1]]
     if (length(parts) == 3) {
         res$small_overhead <- parts[2]
         res$medium_overhead <- parts[3]
     }
 
     # Total times
-    times <- lines[(labels[1] + 1):(labels[2] - 1)] 
+    times <- lines[(labels[1] + 2):(labels[2] - 1)] 
     for(l in times) {
         parts <- str_split(l, "\\s", n = 2)[[1]]
         if (length(parts) == 2) {
             res[[parts[1]]] <- parts[2]
         }
     }
+    
+    #browser()
 
     # Builtins and special sum 
     # builtins_specials <- lines[(labels[2] + 1):(labels[3] - 1)] 
     # vals <- read_csv(paste(builtins_specials, collapse = "\n"), col_names = TRUE, show_col_types = FALSE)
+
+    for(i in 2:length(labels)) {
+        section <- lines[(labels[i]):(ifelse(i == length(labels), length(lines), labels[i + 1] - 1))]
+        if (length(section) > 0) {
+            # Read the CSV section
+            vals <- read_tsv(paste(section, collapse = "\n"), col_names = TRUE, show_col_types = FALSE)
+
+            for(j in seq.int(nrow(vals))) {
+                r <- vals[j,]
+                timer_name <- r[["#!LABEL"]]
+                if(is.na(timer_name) || str_detect(timer_name, fixed("library"))) {
+                    next
+                }
+                res[[paste0(timer_name, "_self")]] <- r[["self"]]
+                res[[paste0(timer_name, "_calls")]] <- r[["calls"]]
+            }
+        }
+    }
 
     as_tibble(res) |>
         mutate(file = tools::file_path_sans_ext(basename(file)), .before = 1) 
