@@ -144,6 +144,11 @@ top_opcodes |>
 ```{r opcode-categories}
 opcode_category <- local({
   category_map <- c(
+    # Constants
+    "LDCONST" = "Constant",
+    "LDFALSE" = "Constant",
+    "LDTRUE" = "Constant",
+    "LDNULL" = "Constant",
     # Arithmetic
     "ADD" = "Arithmetic",
     "SUB" = "Arithmetic",
@@ -154,6 +159,9 @@ opcode_category <- local({
     "EXPT" = "Arithmetic",
     "SQRT" = "Arithmetic",
     "LOGBASE" = "Arithmetic",
+    "MATH1" = "Arithmetic",
+
+
     # Booleans
     "AND" = "Logical",
     "OR" = "Logical",
@@ -183,6 +191,8 @@ opcode_category <- local({
     "ISNULL" = "TypeChecking", "ISOBJECT" = "TypeChecking", "ISCHARACTER" = "TypeChecking",
     "ISLOGICAL" = "TypeChecking", "ISINTEGER" = "TypeChecking", "ISCOMPLEX" = "TypeChecking",
     "ISSYMBOL" = "TypeChecking",
+    "CHECKFUN" = "TypeChecking",
+
     # Stack manipulation
     "POP" = "Stack",
     "SWAP" = "Stack",
@@ -199,6 +209,7 @@ opcode_category <- local({
     "GETFUN" = "Lookup",
     "GETBUILTIN" = "Lookup",
     "GETINTLBUILTIN" = "Lookup",
+    "DOLLAR" = "Lookup",
 
     # Variable assignment
     "SETVAR" = "Assignment",
@@ -219,15 +230,61 @@ opcode_category <- local({
     "MATSUBASSIGN" = "ComplexAssignment",
     "MATSUBASSIGN2" = "ComplexAssignment",
     "DFLTSUBASSIGN" = "ComplexAssignment",
+    "DOLLARGETSUB" = "ComplexAssignment",
+    "GETTER_CALL" = "ComplexAssignment",
+    "SETTER_CALL" = "ComplexAssignment",
+    "DOLLARGETS" = "ComplexAssignment",
+
+    # Subsetting
+    "VECSUBSET" = "Subsetting",
+    "VECSUBSET2" = "Subsetting",
+    "MATSUBSET" = "Subsetting",
+    "MATSUBSET2" = "Subsetting",
+    "DFLTSUBSET" = "Subsetting",
+    "DFLTSUBSET2" = "Subsetting",
+    "STARTSUBSET" = "Subsetting",
+    "STARTSUBSET2" = "Subsetting",
+    "STARTSUBSET_N" = "Subsetting",
+    "STARTSUBSET2_N" = "Subsetting",
+
 
     # Function calls
-    "CALL" = "FunctionCall"
+    "CALL" = "FunctionCall",
+
+
+    # Control flow 
+    "GOTO" = "Control",
+    "BRIFNOT" = "Control",
+    "RETURN" = "Control",
+    "RETURNJMP" = "Control",
+    "STEPFOR" = "Control",
+    "STARTFOR" = "Control",
+    "ENDFOR" = "Control",
+    "SWITCH" = "Control",
+
+    # Sequence 
+    "COLON" = "Sequence",
+    "SEQALONG" = "Sequence",
+    "SEQLEN" = "Sequence",
+
+    # Dots 
+    "DDVAL" = "Dots",
+    "DODOTS" = "Dots",
+    "DOMISSING" = "Dots",
+
+    # Guard 
+    "BASEGUARD" = "Guard",
+
+    # Visibility
+    "VISIBLE" = "Visibility",
+    "INVISIBLE" = "Visibility"
   )
 
   function(opcode) {
     res <- unname(category_map[opcode])
     if (is.na(res)) {
-      return("Other")
+      print(paste("Unknown opcode:", opcode))
+      return(opcode)
     }
     return(res)
   }
