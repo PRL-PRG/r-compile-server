@@ -278,12 +278,13 @@ opcode_category <- local({
     # Visibility
     "VISIBLE" = "Visibility",
     "INVISIBLE" = "Visibility"
+
   )
 
   function(opcode) {
     res <- unname(category_map[opcode])
     if (is.na(res)) {
-      print(paste("Unknown opcode:", opcode))
+      #print(paste("Unknown opcode:", opcode))
       return(opcode)
     }
     return(res)
@@ -292,11 +293,25 @@ opcode_category <- local({
 ```
 
 ```{r opcode-categories-apply}
-opcode_hits |>
+categories_hits <- opcode_hits |>
   mutate(category = map_chr(opcode, opcode_category)) |>
   group_by(category) |>
-  summarize(across(-opcode, sum, na.rm = TRUE), .groups = "drop") |>
+  summarize(across(-opcode, sum, na.rm = TRUE), .groups = "drop") 
+
+categories_hits |>
   knitr::kable(digits = 2, caption = "Opcode categories")
+```
+
+Now, we look at the most used categories for all benchmarks:
+```{r categories-top}
+categories_top <- categories_hits |>
+  pivot_longer(-category, names_to = "benchmark", values_to = "hits")
+categories_top |>
+  group_by(category) |>
+  summarize(total_hits = sum(hits, na.rm = TRUE)) |>
+  arrange(desc(total_hits)) |>
+  mutate(pct = total_hits / sum(total_hits) * 100, cpct = cumsum(pct)) |>
+  knitr::kable(digits = 2, caption = "Total hits per category")
 ```
 
 # Clustering benchmarks using the opcode hits 
