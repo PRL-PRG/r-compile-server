@@ -133,3 +133,28 @@ timer_profiles |>
     theme_minimal() +
     theme(legend.position = "bottom")
 ```
+
+Now, let's do a linear regression to see how the native code percentage affects the speedup.
+
+```{r linear-regression}
+lm_model <- lm(log1p(speedup) ~ bultin_special_pct + external_native_pct, data = timer_profiles)
+summary(lm_model)
+```
+
+```{r lm-plot, fig.width=12, fig.height=8}
+timer_profiles |>
+  ggplot(aes(x = bultin_special_pct, y = log1p(speedup))) +
+  geom_point(aes(color = "Builtin & Special")) +
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  geom_point(aes(x = external_native_pct, y = log1p(speedup), color = "External Native")) +
+  geom_smooth(aes(x = external_native_pct, y = log1p(speedup)), method = "lm", se = FALSE, color = "red") +
+  scale_color_manual(name = NULL, values = c("Builtin & Special" = "blue", "External Native" = "red")) +
+  labs(title = "Linear Regression of Speedup on Native Code Percentage",
+       x = "Native Code Percentage (%)",
+       y = "Log1p Speedup (×)") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+The order of magnitude of builtin and special has a statistically significant effect 
+on the speedup ($p = 0.0318$), while the external native code percentage does not.
