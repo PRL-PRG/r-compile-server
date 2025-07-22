@@ -90,7 +90,7 @@ timer_profiles[is.na(timer_profiles)] <- 0
 
 ```{r native-code-share}
 timer_profiles <- timer_profiles |>
-  mutate(bultin_special_pct = (BuiltinSum_self + SpecialSum_self) / TotalRuntime * 100,
+  mutate(builtin_special_pct = (BuiltinSum_self + SpecialSum_self) / TotalRuntime * 100,
          external_native_pct = (dotExternalFull_self + dotExternal_self +
                                 RdoDotCall_self + doDotCall_self + 
                                 dotCFull_self + dotC_self + 
@@ -100,16 +100,16 @@ timer_profiles <- left_join(timer_profiles, speedups, by = "name")  |>
   relocate(speedup, .after = name)
 
 timer_profiles |> 
-    select(name, bultin_special_pct, external_native_pct, speedup) |>
+    select(name, builtin_special_pct, external_native_pct, speedup) |>
     knitr::kable(digits = 2, caption = "TimeR profiles with speedups")
 ```
 
 ```{r timer-profiles-plot, fig.width=12, fig.height=16}
 timer_profiles |>
-    select(name, bultin_special_pct, external_native_pct, speedup) |>
-    pivot_longer(cols = c(bultin_special_pct, external_native_pct), 
+    select(name, builtin_special_pct, external_native_pct, speedup) |>
+    pivot_longer(cols = c(builtin_special_pct, external_native_pct), 
                  names_to = "type", values_to = "percentage") |>
-    mutate(type = factor(type, levels = c("bultin_special_pct", "external_native_pct"),
+    mutate(type = factor(type, levels = c("builtin_special_pct", "external_native_pct"),
                         labels = c("Builtin & Special", "External Native"))) |>
     # Order by total native code percentage
     mutate(name = fct_reorder(name, percentage, .fun = sum, .desc = TRUE)) |>
@@ -120,9 +120,14 @@ timer_profiles |>
                aes(x = name, y = log1p(speedup) * 30, color = "Speedup"), 
                size = 3) +
     geom_hline(yintercept = log1p(1) * 30, linetype = "dashed", color = "red") +
+    geom_hline(yintercept = log1p(5) * 30, linetype = "dashed") +
     scale_y_continuous(
       name = "Percentage (%)",
-      sec.axis = sec_axis(~ exp(. / 30) - 1, name = "Speedup (×)")
+      sec.axis = sec_axis(~ exp(. / 30) - 1,
+       name = "Speedup (×)",
+       breaks = c(0, 1, 5, 10), 
+       labels = c("0x", "1x", "5x", "10x")
+       )
     ) +
     scale_color_manual(name = NULL, values = c("Speedup" = "red")) +
     #scale_fill_brewer(palette = "Blues") +
@@ -137,13 +142,13 @@ timer_profiles |>
 Now, let's do a linear regression to see how the native code percentage affects the speedup.
 
 ```{r linear-regression}
-lm_model <- lm(log1p(speedup) ~ bultin_special_pct + external_native_pct, data = timer_profiles)
+lm_model <- lm(log1p(speedup) ~ builtin_special_pct + external_native_pct, data = timer_profiles)
 summary(lm_model)
 ```
 
 ```{r lm-plot, fig.width=12, fig.height=8}
 timer_profiles |>
-  ggplot(aes(x = bultin_special_pct, y = log1p(speedup))) +
+  ggplot(aes(x = builtin_special_pct, y = log1p(speedup))) +
   geom_point(aes(color = "Builtin & Special")) +
   geom_smooth(method = "lm", se = FALSE, color = "blue") +
   geom_point(aes(x = external_native_pct, y = log1p(speedup), color = "External Native")) +
