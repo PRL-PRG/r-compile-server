@@ -318,12 +318,7 @@ categories_top |>
 # TimeR profiles 
 
 ```{r timer-profiles}
-timer_profiles <- select(timer_profiles, -TraceDate, -Workdir)
-timer_profiles |>
-  rename(name = file) |>
-  left_join(speedups, by = "name") |>
-  relocate(speedup, .after = name) |>
-  knitr::kable(digits = 2, caption = "TimeR profiles with speedups")
+timer_profiles <- select(timer_profiles, -TraceDate, -Workdir) |> rename(name = file)
 ```
 
 Are there any columns with `NA`?
@@ -335,6 +330,26 @@ colnames(timer_profiles)[colSums(is.na(timer_profiles)) > 0]
 Fill in `NA` values with 0:
 ```{r fill-na}
 timer_profiles[is.na(timer_profiles)] <- 0
+```
+
+## Share of native code
+
+```{r native-code-share}
+timer_profiles <- timer_profiles |>
+  mutate(bultin_special_pct = (BuiltinSum_self + SpecialSum_self) / TotalRuntime * 100,
+         external_native_pct = (dotExternalFull_self + dotExternal_self +
+                                RdoDotCall_self + doDotCall_self + 
+                                dotCFull_self + dotC_self + 
+                                dotFortranFull_self + dotFortran_self) / TotalRuntime * 100,
+        .after = name)
+
+```
+
+```{r timer-profiles-summary}
+timer_profiles |>
+  left_join(speedups, by = "name") |>
+  relocate(speedup, .after = name) |>
+  knitr::kable(digits = 2, caption = "TimeR profiles with speedups")
 ```
 
 # Clustering benchmarks using the opcode hits 
@@ -462,7 +477,7 @@ set.seed(42)
 ```{r datasets}
 # Replace all columns names in df starting with <.Primitive>:something with
 # <.Primitive>something, using stringr::str_replace
-df <- df |> left_join(timer_profiles, by = c("name" = "file"))
+df <- df |> left_join(timer_profiles, by = "name") |> remove(TimerUnit)
 ind <- sample(2, nrow(df), replace = TRUE, prob = c(0.7, 0.3))
 features <- select(df, -name)
 train <- features[ind == 1, ]
@@ -472,7 +487,7 @@ test <- features[ind == 2, ]
 ```{r rf-model}
 x <- train[, setdiff(names(train), "speedup")]
 y <- train[["speedup"]]
-rf_model <- randomForest(x = x, y = y, data = train, importance = TRUE, ntree = 10000)
+rf_model <- randomForest(x = x, y = y, data = train, importance = TRUE, ntree = 10000, nodesize=100)
 rf_model
 ```
 
@@ -482,7 +497,7 @@ imp <- as.data.frame(importance(rf_model)) |>
 imp
 ```
 
-```{r importance-plot,  fig.width=12, fig.height=12}
+```{r importance-plot,  fig.width=12, fig.height=24}
 ImpData <- as.data.frame(importance(rf_model))
 ImpData$Var.Names <- row.names(ImpData)
 
@@ -503,4 +518,21 @@ ggplot(ImpData, aes(x = Var.Names, y = `%IncMSE`)) +
 
 ```{r rf-error}
 plot(rf_model)
+```
+
+# Boosted regression trees 
+
+```{r boosted-regression-trees}
+library(xgboost)
+xgb_train <- xgb.DMatrix(data = as.matrix(scale(x)), label = y)
+
+xgb_model <- xgboost(
+  data = xgb_train,
+  nrounds = 1000,
+  objective = "reg:squaredlogerror",
+  #eval_metric = "rmse",
+  verbose = 1,
+  max_depth = 10,
+  sunsample=0.9
+)
 ```
