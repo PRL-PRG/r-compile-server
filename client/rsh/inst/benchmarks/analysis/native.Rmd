@@ -1,0 +1,135 @@
+---
+title: "Benchmarks Analysis: native code"
+output: html_document
+date: 2025-07-22
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(readr)
+library(purrr)
+library(stringr)
+library(forcats)
+
+here::i_am("rsh/inst/benchmarks/analysis/benchmarks.Rmd")
+
+library(here)
+
+geom_mean <- function(xs) {
+  exp(mean(log(na.omit(xs))))
+}
+
+DEFAULT_WARMUP <- 5
+```
+
+```{r load-data}
+# Load the benchmark data
+bench_rsh <- read_csv(here("rsh", "benchmark-results", "20250716-193400-e53c63d7", "benchmarks.csv"), col_types = cols(timestamp = col_datetime())) |>
+  rename(VM = expr)
+bench_bc <- read_csv(here("rsh", "benchmark-results", "baseline", "benchmarks.csv"), col_types = cols(timestamp = col_datetime())) |>
+  rename(VM = expr)
+bc_profiles <- read_csv(here("rsh", "bcprof-results", "merged_output.csv"), col_types = cols(timestamp = col_datetime()))
+timer_profiles <- read_csv(here("rsh", "timeR-results", "timer_merged_output.csv"), col_types = cols(TraceDate = col_datetime()))
+```
+
+# Speedups
+
+```{r compute-speedup}
+compute_mean <- function(bench) {
+  bench |>
+    group_by(VM, name) |>
+    slice(-(1:DEFAULT_WARMUP)) |> # remove warmup
+    summarize(
+      mean_time = mean(time / 1e6)
+    )
+}
+
+speedups <- compute_mean(bench_rsh) |>
+  left_join(compute_mean(bench_bc), by = c("name"), suffix = c("_rsh", "_bc")) |>
+  group_by(name) |>
+  summarize(
+    speedup = mean_time_bc / mean_time_rsh
+  )
+
+speedups
+```
+
+```{r summary-speedup}
+speedups |>
+  summarize(
+    mean = geom_mean(speedup),
+    median = median(speedup),
+    min = min(speedup),
+    max = max(speedup),
+    sd = sd(speedup)
+  )
+```
+
+# TimeR profiles 
+
+```{r timer-profiles}
+timer_profiles <- select(timer_profiles, -TraceDate, -Workdir) |> rename(name = file)
+```
+
+Are there any columns with `NA`?
+
+```{r na-columns}
+colnames(timer_profiles)[colSums(is.na(timer_profiles)) > 0]
+```
+
+Fill in `NA` values with 0:
+```{r fill-na}
+timer_profiles[is.na(timer_profiles)] <- 0
+```
+
+## Share of native code
+
+```{r native-code-share}
+timer_profiles <- timer_profiles |>
+  mutate(bultin_special_pct = (BuiltinSum_self + SpecialSum_self) / TotalRuntime * 100,
+         external_native_pct = (dotExternalFull_self + dotExternal_self +
+                                RdoDotCall_self + doDotCall_self + 
+                                dotCFull_self + dotC_self + 
+                                dotFortranFull_self + dotFortran_self) / TotalRuntime * 100,
+        .after = name)
+timer_profiles <- left_join(timer_profiles, speedups, by = "name")  |>
+  relocate(speedup, .after = name)
+
+timer_profiles |> 
+    select(name, bultin_special_pct, external_native_pct, speedup) |>
+    knitr::kable(digits = 2, caption = "TimeR profiles with speedups")
+```
+
+```{r timer-profiles-plot, fig.width=12, fig.height=16}
+timer_profiles |>
+    select(name, bultin_special_pct, external_native_pct, speedup) |>
+    pivot_longer(cols = c(bultin_special_pct, external_native_pct), 
+                 names_to = "type", values_to = "percentage") |>
+    mutate(type = factor(type, levels = c("bultin_special_pct", "external_native_pct"),
+                        labels = c("Builtin & Special", "External Native"))) |>
+    # Order by total native code percentage
+    mutate(name = fct_reorder(name, percentage, .fun = sum, .desc = TRUE)) |>
+    ggplot(aes(x = name, y = percentage)) +
+    geom_col(aes(fill = type), position = "stack") +
+    # Add speedup as points on a secondary axis
+    geom_point(data = timer_profiles, 
+               aes(x = name, y = log1p(speedup) * 30, color = "Speedup"), 
+               size = 3) +
+    geom_hline(yintercept = log1p(1) * 30, linetype = "dashed", color = "red") +
+    scale_y_continuous(
+      name = "Percentage (%)",
+      sec.axis = sec_axis(~ exp(. / 30) - 1, name = "Speedup (×)")
+    ) +
+    scale_color_manual(name = NULL, values = c("Speedup" = "red")) +
+    #scale_fill_brewer(palette = "Blues") +
+    scale_fill_manual(values = c("Builtin & Special" = "#deebf7", "External Native" = "#08519c")) +
+    coord_flip() +
+    labs(title = "Native Code Percentage and Speedup by Benchmark",
+         x = "Benchmark Name") +
+    theme_minimal() +
+    theme(legend.position = "bottom")
+```
