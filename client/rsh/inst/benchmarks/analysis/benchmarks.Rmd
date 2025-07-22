@@ -17,6 +17,7 @@ library(cluster)
 library(dbscan)
 library(purrr)
 library(stringr)
+library(forcats)
 
 here::i_am("rsh/inst/benchmarks/analysis/benchmarks.Rmd")
 
@@ -315,6 +316,56 @@ categories_top |>
   knitr::kable(digits = 2, caption = "Total hits per category")
 ```
 
+## Number of opcodes  
+
+```{r opcode-count, fig.width=12, fig.height=16}
+# plot a bar plot of the number of static, executed opcodes, and ratio per benchmark
+bc_profile_with_speedups <- left_join(bc_profiles, speedups, by = "name") |>
+  select(name, nb_static_opcodes, nb_executed_opcodes, speedup) |>
+  mutate(ratio = nb_executed_opcodes / nb_static_opcodes)
+bc_profile_with_speedups |>
+  pivot_longer(
+    cols = c(nb_static_opcodes, nb_executed_opcodes),
+    names_to = "type", values_to = "value"
+  ) |>
+  mutate(type = factor(type,
+    levels = c("nb_static_opcodes", "nb_executed_opcodes"),
+    labels = c("Static Opcodes", "Executed Opcodes")
+  )) |>
+  # Order by ratio
+  mutate(name = fct_reorder(name, value, .fun = sum, .desc = TRUE)) |>
+  ggplot(aes(x = name, y = value, fill = type)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  # Add speedup as points on a secondary axis
+  geom_point(
+    data = bc_profile_with_speedups,
+    aes(x = name, y = speedup, color = "Speedup"),
+    size = 3,
+    inherit.aes = FALSE
+  ) +
+  geom_hline(yintercept = 1, linetype = "dashed", color = "red") +
+  geom_hline(yintercept = 5, linetype = "dashed") +
+  scale_y_log10(
+    name = "Count (log)",
+    sec.axis = sec_axis(~.,
+      name = "Speedup (×)",
+      breaks = c(0, 1, 5, 10),
+      labels = c("0x", "1x", "5x", "10x")
+    )
+  ) +
+  scale_color_manual(name = NULL, values = c("Speedup" = "red")) +
+  labs(x = "Benchmark") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+And now, a linear regression on the number of executed , static, and ratio of opcodes to see how they affect the speedup:
+
+```{r opcode-regression}
+lm_opcode <- lm(log1p(speedup) ~ nb_static_opcodes + nb_executed_opcodes + ratio, data = bc_profile_with_speedups)
+summary(lm_opcode)
+```
+
 # TimeR profiles 
 
 ```{r timer-profiles}
@@ -336,13 +387,14 @@ timer_profiles[is.na(timer_profiles)] <- 0
 
 ```{r native-code-share}
 timer_profiles <- timer_profiles |>
-  mutate(bultin_special_pct = (BuiltinSum_self + SpecialSum_self) / TotalRuntime * 100,
-         external_native_pct = (dotExternalFull_self + dotExternal_self +
-                                RdoDotCall_self + doDotCall_self + 
-                                dotCFull_self + dotC_self + 
-                                dotFortranFull_self + dotFortran_self) / TotalRuntime * 100,
-        .after = name)
-
+  mutate(
+    bultin_special_pct = (BuiltinSum_self + SpecialSum_self) / TotalRuntime * 100,
+    external_native_pct = (dotExternalFull_self + dotExternal_self +
+      RdoDotCall_self + doDotCall_self +
+      dotCFull_self + dotC_self +
+      dotFortranFull_self + dotFortran_self) / TotalRuntime * 100,
+    .after = name
+  )
 ```
 
 ```{r timer-profiles-summary}
@@ -477,7 +529,9 @@ set.seed(42)
 ```{r datasets}
 # Replace all columns names in df starting with <.Primitive>:something with
 # <.Primitive>something, using stringr::str_replace
-df <- df |> left_join(timer_profiles, by = "name") |> remove(TimerUnit)
+df <- df |>
+  left_join(timer_profiles, by = "name") |>
+  select(-TimerUnit)
 ind <- sample(2, nrow(df), replace = TRUE, prob = c(0.7, 0.3))
 features <- select(df, -name)
 train <- features[ind == 1, ]
@@ -487,7 +541,7 @@ test <- features[ind == 2, ]
 ```{r rf-model}
 x <- train[, setdiff(names(train), "speedup")]
 y <- train[["speedup"]]
-rf_model <- randomForest(x = x, y = y, data = train, importance = TRUE, ntree = 10000, nodesize=100)
+rf_model <- randomForest(x = x, y = y, data = train, importance = TRUE, ntree = 10000, nodesize = 100)
 rf_model
 ```
 
@@ -530,9 +584,9 @@ xgb_model <- xgboost(
   data = xgb_train,
   nrounds = 1000,
   objective = "reg:squaredlogerror",
-  #eval_metric = "rmse",
+  # eval_metric = "rmse",
   verbose = 1,
   max_depth = 10,
-  sunsample=0.9
+  sunsample = 0.9
 )
 ```
