@@ -13,7 +13,10 @@ import org.prlprg.bc2fir.BC2FirSnapshotTestExtension.BC2FirSnapshot;
 import org.prlprg.fir.module.Module;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.sexp.CloSXP;
+import org.prlprg.sexp.ListSXP;
 import org.prlprg.sexp.SEXP;
+import org.prlprg.sexp.SEXPs;
+import org.prlprg.sexp.TaggedElem;
 import org.prlprg.sexp.UserEnvSXP;
 import org.prlprg.util.gnur.GNUR;
 import org.prlprg.util.gnur.GNURTestSupport;
@@ -39,10 +42,11 @@ public class BC2FirCompilerTest implements StdlibClosuresSource {
             f <- function(x) x
             """,
         """
-            fun f {
-              (reg r:*) -+> * { var x:* |
-                x = r;
-                return force? x;
+            fun f{
+              (reg rx:*) -+> *{ var x:*, reg r0:* |
+                x = rx;
+                r0 = force? x;
+                return r0;
               }
             }
             """);
@@ -57,10 +61,12 @@ public class BC2FirCompilerTest implements StdlibClosuresSource {
             }
             """,
         """
-            fun f {
-              (reg r:*) -+> * { var x:* |
-                x = r;
-                return `+`(prom<V +>{ return force? x; }, 1);
+            fun f{
+              (reg rx:*) -+> *{ var x:*, reg r0:*, reg r1:* |
+                x = rx;
+                r0 = force? x;
+                r1 = `+`(r0, 1.0);
+                return r1;
               }
             }
             """);
@@ -79,7 +85,7 @@ public class BC2FirCompilerTest implements StdlibClosuresSource {
 
   private void testInline(@Language("R") String rInput, String firOutput) {
     var rModuleEnv = R.evalEnvironment(rInput);
-    var actualFirModule = compile(rModuleEnv);
+    var actualFirModule = compile(rModuleEnv, R.getSession());
 
     var expectedFirModule = Parser.fromString(firOutput, Module.class);
     assertEquals(

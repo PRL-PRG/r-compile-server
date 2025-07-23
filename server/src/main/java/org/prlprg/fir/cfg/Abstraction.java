@@ -150,7 +150,7 @@ public class Abstraction {
   }
 
   public Register nextLocalRegister() {
-    return new Register(DEFAULT_LOCAL_PREFIX + nextLocalDisambiguator);
+    return Variable.register(DEFAULT_LOCAL_PREFIX + nextLocalDisambiguator);
   }
 
   @Override
@@ -166,9 +166,9 @@ public class Abstraction {
     p.printSeparated(", ", params);
     w.write(')');
 
-    w.write('-');
+    w.write(" -");
     p.print(returnEffects);
-    w.write('>');
+    w.write("> ");
     p.print(returnType);
 
     w.write("{ ");

@@ -16,6 +16,7 @@ import org.prlprg.rds.RDSWriter;
 import org.prlprg.session.RSession;
 import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.GlobalEnvSXP;
+import org.prlprg.sexp.ListSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.util.Pair;
 
@@ -226,7 +227,7 @@ class SingleGNURProcess implements GNUR {
 
   @Override
   public EnvSXP evalEnvironment(String source) {
-    return (GlobalEnvSXP) eval(source + "\nglobalenv()");
+    return (EnvSXP) eval(source + "\nenvironment()");
   }
 
   private String waitForCommand(String requestId) {
