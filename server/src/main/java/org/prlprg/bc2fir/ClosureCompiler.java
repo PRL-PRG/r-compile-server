@@ -1,15 +1,24 @@
 package org.prlprg.bc2fir;
 
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import org.prlprg.fir.binding.Local;
 import org.prlprg.fir.binding.Parameter;
 import org.prlprg.fir.cfg.Abstraction;
+import org.prlprg.fir.cfg.cursor.CFGCursor;
+import org.prlprg.fir.instruction.Read;
+import org.prlprg.fir.instruction.Write;
 import org.prlprg.fir.module.Function;
 import org.prlprg.fir.module.Module;
 import org.prlprg.fir.type.Type;
+import org.prlprg.fir.variable.NamedVariable;
 import org.prlprg.fir.variable.Register;
+import org.prlprg.fir.variable.Variable;
 import org.prlprg.sexp.BCodeSXP;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.ListSXP;
+import org.prlprg.sexp.SymSXP;
 
 /// Compiles {@linkplain CloSXP R closures} into {@linkplain Function FIŘ functions}.
 public final class ClosureCompiler {
@@ -26,13 +35,28 @@ public final class ClosureCompiler {
     return output;
   }
 
+  /// TODO: Add a third parameter to this method, `arguments`, which specifies the positional and
+  /// named arguments. Then we'll compile a baseline which accepts those arguments, and assigns
+  /// default values when necessary (uses `params.get(i).value()`).
   private static Abstraction createBaseline(Function output, ListSXP params) {
-    var baseline = new Abstraction(output.owner(), defaultParams(params));
+    var compiledParams = defaultParams(params);
+    var baseline = new Abstraction(output.owner(), compiledParams);
     output.addVersion(baseline);
+
+    var baselineCursor = new CFGCursor(baseline.cfg());
+    for (var i = 0; i < compiledParams.size(); i++) {
+      var paramName = Objects.requireNonNull(params.get(i).tag(), "functions we compile can never have parameters without names, right? Maybe we must handle this case");
+      var paramNamedVar = Variable.named(paramName);
+      var paramReg = compiledParams.get(i).variable();
+
+      baseline.addLocal(new Local(paramNamedVar, Type.ANY));
+      baselineCursor.insert(new Write(paramNamedVar, new Read(paramReg)));
+    }
+
     return baseline;
   }
 
   private static List<Parameter> defaultParams(ListSXP params) {
-    return params.stream().map(p -> new Parameter(new Register("r" + p.tag()), Type.ANY)).toList();
+    return params.stream().map(p -> new Parameter(Variable.register("r" + p.tag()), Type.ANY)).toList();
   }
 }

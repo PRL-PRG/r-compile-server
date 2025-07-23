@@ -47,6 +47,7 @@ import org.prlprg.fir.phi.Target;
 import org.prlprg.fir.type.Effects;
 import org.prlprg.fir.type.Type;
 import org.prlprg.fir.variable.NamedVariable;
+import org.prlprg.fir.variable.Variable;
 import org.prlprg.primitive.BuiltinId;
 import org.prlprg.sexp.Attributes;
 import org.prlprg.sexp.BCodeSXP;
@@ -65,8 +66,6 @@ import org.prlprg.util.Strings;
 /// variables. Instead, it's a class and those commonly-passed variables are fields.
 public class CFGCompiler {
   /// Compile the given bytecode into the given control-flow-graph.
-  ///
-  /// @throws IllegalArgumentException if the control-flow-graph isn't empty.
   public static void compile(CFG cfg, Bc bc) {
     new CFGCompiler(cfg, bc);
   }
@@ -171,16 +170,15 @@ public class CFGCompiler {
   // region main compile functions: compile everything
   /// Compile everything.
   private CFGCompiler(CFG cfg, Bc bc) {
-    if (cfg.bbs().size() != 1
-        || !cfg.entry().statements().isEmpty()
-        || !(cfg.entry().jump() instanceof Unreachable)) {
-      throw new IllegalArgumentException("CFG must be empty");
+    if (cfg.bbs().size() != 1 || !(cfg.entry().jump() instanceof Unreachable)) {
+      throw new IllegalArgumentException("CFG must be empty, except assigning parameters to named variables");
     }
 
     this.cfg = cfg;
     this.bc = bc;
 
     cursor = new CFGCursor(cfg);
+    cursor.moveToLocalEnd();
 
     doCompile();
   }
@@ -532,7 +530,7 @@ public class CFGCompiler {
       case BcInstr.GetBuiltin(var name) -> pushCall(BuiltinId.referencedBy(get(name)));
       case BcInstr.GetIntlBuiltin(var name) -> pushCall(BuiltinId.referencedBy(get(name)));
       case BcInstr.CheckFun() -> {
-        var funVar = new NamedVariable("`*tmp*`");
+        var funVar = Variable.named("*tmp*");
         insert(new Write(funVar, pop()));
         insert(checkFun(new Read(funVar)));
         pushCall(funVar);
@@ -909,7 +907,7 @@ public class CFGCompiler {
       case BcInstr.BaseGuard(var exprIdx, var after) -> {
         // PIR apparently just ignores the guards (`rir2pir.cpp:341`), but we can handle here.
         var expr = get(exprIdx);
-        var fun = new NamedVariable(((RegSymSXP) expr.fun()).name());
+        var fun = Variable.named(((RegSymSXP) expr.fun()).name());
         var sym = loadFun(fun, Env.LOCAL);
         var base = loadFun(fun, Env.BASE);
         var guard = builtin("==", sym, base);
@@ -1603,7 +1601,7 @@ public class CFGCompiler {
   /// Get the [SEXP] in the constant pool corresponding to the given index,
   /// then cast it into a variable.
   private NamedVariable getVar(ConstPool.Idx<RegSymSXP> idx) {
-    return new NamedVariable(get(idx).name());
+    return Variable.named(get(idx).name());
   }
 
   private void require(boolean condition, Supplier<String> message) {

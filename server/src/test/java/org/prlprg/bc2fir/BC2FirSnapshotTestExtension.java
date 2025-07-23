@@ -7,6 +7,7 @@ import java.lang.reflect.Method;
 import org.prlprg.rsession.TestRSession;
 import org.prlprg.session.RSession;
 import org.prlprg.sexp.EnvSXP;
+import org.prlprg.sexp.ListSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.sexp.StrSXP;
@@ -15,6 +16,8 @@ import org.prlprg.util.snapshot.SnapshotExtension;
 
 public class BC2FirSnapshotTestExtension
     extends SnapshotExtension<BC2FirSnapshotTestExtension.TestResult> {
+  private final RSession session;
+
   @SuppressWarnings("unused")
   public BC2FirSnapshotTestExtension() {
     this(new TestRSession());
@@ -22,6 +25,7 @@ public class BC2FirSnapshotTestExtension
 
   public BC2FirSnapshotTestExtension(RSession session) {
     super(new RDSFileSnapshotStoreFactory<>(session, TestResult::toSEXP, TestResult::fromSEXP));
+    this.session = session;
   }
 
   public record TestResult(String rCodeInput, String firCodeOutput) {
@@ -54,7 +58,7 @@ public class BC2FirSnapshotTestExtension
 
       @Override
       public void verify(String rModuleCode, EnvSXP rModuleEnv) {
-        var firModule = compile(rModuleEnv);
+        var firModule = compile(rModuleEnv, session);
         var firOutput = firModule.toString();
         var res = new TestResult(rModuleCode, firOutput);
 

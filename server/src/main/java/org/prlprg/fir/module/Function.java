@@ -15,6 +15,7 @@ import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.primitive.Names;
 import org.prlprg.util.DeferredCallbacks;
+import org.prlprg.util.Strings;
 
 public class Function {
   // Backlink
@@ -41,8 +42,12 @@ public class Function {
           });
 
   Function(Module owner, String name) {
+    if (name.isEmpty()) {
+      throw new IllegalArgumentException("Illegal function name (function names must not be empty): " + name);
+    }
+
     this.owner = owner;
-    this.name = name;
+    this.name = Strings.isValidJavaIdentifierOrKeyword(name) || name.startsWith("`") ? name : Printer.use(p -> p.writer().writeQuoted('`', name));
   }
 
   public Module owner() {
@@ -111,7 +116,7 @@ public class Function {
     var w = p.writer();
 
     w.write("fun ");
-    Names.write(w, name);
+    w.write(name);
     w.write('{');
     w.runIndented(
         () -> {
@@ -134,7 +139,7 @@ public class Function {
     var s = p.scanner();
 
     s.assertAndSkip("fun ");
-    name = Names.read(s, true);
+    name = s.nextCharIs('`') ? Names.read(s, false) : s.readJavaIdentifierOrKeyword();
     s.assertAndSkip('{');
 
     var p2 = p.withContext(new Abstraction.ParseContext(owner, ctx.postModule, p.context()));
