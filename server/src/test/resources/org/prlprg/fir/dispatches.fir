@@ -1,6 +1,6 @@
 fun main {
     (reg rx:I) --> v(I)f { |
-        f.*(prom<I ->{ return rx; }, prom<I ->{ return 0; });
+        f(prom<I ->{ return rx; }, prom<I ->{ return 0; });
 
         f.1(prom<I ->{ return rx; }, prom<I ->{ return 4; });
         f.2(rx, prom<I ->{ return 5; });

@@ -7,7 +7,7 @@ fun main {
             r1$x = [3, 4, 5];
             return 42;
         };
-        f.*(r1);
+        f(r1);
         return x as v(I);
     }
 }

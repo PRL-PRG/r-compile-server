@@ -5,7 +5,7 @@ fun main {
             x = inc.1(x as I);
             return x as I;
         };
-        return force_twice.*(r);
+        return force_twice(r);
     }
 }
 

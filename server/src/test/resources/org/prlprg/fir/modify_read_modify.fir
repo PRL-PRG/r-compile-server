@@ -1,6 +1,6 @@
 fun main {
     (reg r:p(I -)) -+> V { |
-        return modify.*(prom<V +>{ return read.*(r); });
+        return modify(prom<V +>{ return read(r); });
     }
 }
 

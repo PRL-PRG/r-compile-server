@@ -8,7 +8,7 @@ fun main {
             return 42;
         };
         # error: can't assign `p(I+)` to `p(I-)`
-        f.*(r1);
+        f(r1);
         return x as v(I);
     }
 }

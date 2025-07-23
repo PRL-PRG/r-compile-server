@@ -17,7 +17,6 @@ public record DispatchCallee(Function function, @Nullable Signature signature) i
     var w = p.writer();
 
     w.write(function.name());
-    w.write(".*");
     if (signature != null) {
       w.write('<');
       p.print(signature);

@@ -1,14 +1,14 @@
 fun main {
     () -+> v(I) { var x:* |
         x = [0, 1, 2];
-        return f.*(prom<V ->{ return x as V; });
+        return f(prom<V ->{ return x as V; });
     }
 }
 
 fun f {
     # error: actual is `+`
     (reg r:p(V -)) --> v(I) { |
-        return g.*(r);
+        return g(r);
     }
 }
 
