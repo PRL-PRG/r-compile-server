@@ -1,6 +1,6 @@
 fun main {
     () --> I { |
-        return g.*();
+        return g();
     }
 }
 

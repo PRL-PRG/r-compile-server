@@ -4,10 +4,10 @@ fun main {
         r1_shared = [1, 2, 3];
         r_owned = [4, 5];
         r1_owned = [6, 7];
-        r1 = contextual.*<*,* --> I>(r_shared, r_shared);
-        r2 = contextual.*<*,* --> I>(r_shared, r1_shared);
-        r3 = contextual.*<v(I)o,* --> I>(use r_owned, r_shared);
-        r4 = contextual.*<v(I)o,* --> I>(use r1_owned, r1_shared);
+        r1 = contextual<*,* --> I>(r_shared, r_shared);
+        r2 = contextual<*,* --> I>(r_shared, r1_shared);
+        r3 = contextual<v(I)o,* --> I>(use r_owned, r_shared);
+        r4 = contextual<v(I)o,* --> I>(use r1_owned, r1_shared);
         return [r1, r2, r3, r4];
     }
 }

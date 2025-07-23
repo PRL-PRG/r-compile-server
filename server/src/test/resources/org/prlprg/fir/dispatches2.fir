@@ -1,7 +1,7 @@
 fun f {
     (reg r:p(I -)) -+> V { |
-        g.*(r$x);
-        return g.*(r$y);
+        g(r$x);
+        return g(r$y);
     }
 }
 

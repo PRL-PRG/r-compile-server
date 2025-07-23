@@ -195,20 +195,18 @@ public sealed interface Expression extends Instruction
     if (Names.isValidStartChar(s.peekChar())) {
       var variable = p.parse(Variable.class);
 
-      if (s.trySkip('.')) {
+      if (s.nextCharIs('.') || s.nextCharIs('<') || s.nextCharIs('(')) {
         // Static or dispatch call
         var functionName = variable.name();
         Either<Optional<Signature>, Integer> version;
-        if (s.trySkip('*')) {
-          if (s.trySkip('<')) {
-            var signature = p.parse(Signature.class);
-            s.assertAndSkip('>');
-            version = Either.left(Optional.of(signature));
-          } else {
-            version = Either.left(Optional.empty());
-          }
-        } else {
+        if (s.trySkip('.')) {
           version = Either.right(s.readUInt());
+        } else if (s.trySkip('<')) {
+          var signature = p.parse(Signature.class);
+          s.assertAndSkip('>');
+          version = Either.left(Optional.of(signature));
+        } else {
+          version = Either.left(Optional.empty());
         }
         var arguments = p1.parseList("(", ")", Expression.class);
 

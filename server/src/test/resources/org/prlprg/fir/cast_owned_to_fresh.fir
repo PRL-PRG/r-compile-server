@@ -1,7 +1,7 @@
 fun main {
     () --> v(I)f { reg rv:v(I)o |
         rv = [1, 2, 3];
-        cast.*(rv);
+        cast(rv);
         return use rv;
     }
 }

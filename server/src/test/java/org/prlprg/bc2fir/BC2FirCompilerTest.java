@@ -40,7 +40,7 @@ public class BC2FirCompilerTest implements StdlibClosuresSource {
             """,
         """
             fun f {
-              (r:*s?):*s!+ { x:*s? |
+              (reg r:*) -+> * { var x:* |
                 x = r;
                 return force? x;
               }
@@ -58,9 +58,9 @@ public class BC2FirCompilerTest implements StdlibClosuresSource {
             """,
         """
             fun f {
-              (r:*s?):*s!+ { x:*s? |
+              (reg r:*) -+> * { var x:* |
                 x = r;
-                return `+`.*(prom<Vs!+>{ return force? x; }, 1);
+                return `+`(prom<V +>{ return force? x; }, 1);
               }
             }
             """);
