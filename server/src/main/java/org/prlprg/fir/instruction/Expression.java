@@ -2,14 +2,12 @@ package org.prlprg.fir.instruction;
 
 import com.google.common.collect.ImmutableList;
 import java.util.Optional;
-import javax.annotation.Nullable;
 import org.prlprg.fir.callee.DispatchCallee;
 import org.prlprg.fir.callee.DynamicCallee;
 import org.prlprg.fir.callee.InlineCallee;
 import org.prlprg.fir.callee.StaticCallee;
 import org.prlprg.fir.cfg.Abstraction;
 import org.prlprg.fir.cfg.CFG;
-import org.prlprg.fir.module.Module;
 import org.prlprg.fir.type.Effects;
 import org.prlprg.fir.type.Signature;
 import org.prlprg.fir.type.Type;
@@ -18,9 +16,7 @@ import org.prlprg.fir.variable.Register;
 import org.prlprg.fir.variable.Variable;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
-import org.prlprg.primitive.Names;
 import org.prlprg.sexp.SEXP;
-import org.prlprg.util.DeferredCallbacks;
 import org.prlprg.util.Either;
 
 public sealed interface Expression extends Instruction
@@ -43,12 +39,9 @@ public sealed interface Expression extends Instruction
         SuperWrite,
         Use,
         Write {
-  record ParseContext(
-      Abstraction scope, DeferredCallbacks<Module> postModule, @Nullable Object inner) {}
-
   @ParseMethod
   private static Expression parse(Parser p1, ParseContext ctx) {
-    var p = p1.withContext(ctx.inner);
+    var p = p1.withContext(ctx.inner());
     var s = p1.scanner();
 
     var result = parseHead(p1, ctx);
@@ -82,10 +75,11 @@ public sealed interface Expression extends Instruction
   }
 
   private static Expression parseHead(Parser p1, ParseContext ctx) {
-    var scope = ctx.scope;
+    var cfg = ctx.cfg();
+    var scope = cfg.scope();
     var module = scope.module();
-    var postModule = ctx.postModule;
-    var p = p1.withContext(ctx.inner);
+    var postModule = ctx.postModule();
+    var p = p1.withContext(ctx.inner());
 
     var s = p.scanner();
 
@@ -94,7 +88,7 @@ public sealed interface Expression extends Instruction
     }
 
     if (s.nextCharIs('(')) {
-      var p2 = p.withContext(new Abstraction.ParseContext(module, postModule, ctx.inner));
+      var p2 = p.withContext(new Abstraction.ParseContext(module, postModule, ctx.inner()));
       var inlinee = p2.parse(Abstraction.class);
       s.assertAndSkip("->");
       var arguments = p1.parseList("(", ")", Expression.class);
@@ -144,7 +138,7 @@ public sealed interface Expression extends Instruction
       s.assertAndSkip('>');
 
       s.assertAndSkip('{');
-      var p2 = p.withContext(new CFG.ParseContext(scope, postModule, ctx.inner));
+      var p2 = p.withContext(new CFG.ParseContext(scope, postModule, ctx.inner()));
       var code = p2.parse(CFG.class);
       s.assertAndSkip('}');
 
@@ -192,8 +186,8 @@ public sealed interface Expression extends Instruction
       return new Literal(value);
     }
 
-    if (Names.isValidStartChar(s.peekChar())) {
-      var variable = p.parse(Variable.class);
+    if (s.nextCharSatisfies(c -> c == '`' || Character.isJavaIdentifierStart(c))) {
+      var variable = p.withContext(new Variable.ParseContext(scope)).parse(Variable.class);
 
       if (s.nextCharIs('.') || s.nextCharIs('<') || s.nextCharIs('(')) {
         // Static or dispatch call

@@ -43,11 +43,12 @@ public class Function {
 
   Function(Module owner, String name) {
     if (name.isEmpty()) {
-      throw new IllegalArgumentException("Illegal function name (function names must not be empty): " + name);
+      throw new IllegalArgumentException(
+          "Illegal function name (function names must not be empty): " + name);
     }
 
     this.owner = owner;
-    this.name = Strings.isValidJavaIdentifierOrKeyword(name) || name.startsWith("`") ? name : Printer.use(p -> p.writer().writeQuoted('`', name));
+    this.name = name;
   }
 
   public Module owner() {
@@ -116,15 +117,13 @@ public class Function {
     var w = p.writer();
 
     w.write("fun ");
-    w.write(name);
+    if (!Strings.isValidJavaIdentifierOrKeyword(name)) {
+      w.writeQuoted('`', name);
+    } else {
+      w.write(name);
+    }
     w.write('{');
-    w.runIndented(
-        () -> {
-          for (var version : versions) {
-            w.write('\n');
-            p.print(version);
-          }
-        });
+    w.runIndented(() -> p.printSeparated("\n", versions));
     w.write("\n}");
   }
 
@@ -139,7 +138,7 @@ public class Function {
     var s = p.scanner();
 
     s.assertAndSkip("fun ");
-    name = s.nextCharIs('`') ? Names.read(s, false) : s.readJavaIdentifierOrKeyword();
+    name = s.nextCharIs('`') ? Names.read(s, true) : s.readJavaIdentifierOrKeyword();
     s.assertAndSkip('{');
 
     var p2 = p.withContext(new Abstraction.ParseContext(owner, ctx.postModule, p.context()));

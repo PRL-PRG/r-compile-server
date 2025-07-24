@@ -11,7 +11,11 @@ public sealed interface Jump extends Instruction permits If, Goto, Return, Unrea
   Collection<Target> targets();
 
   @ParseMethod
-  private static Jump parse(Parser p) {
+  private static Jump parse(Parser p1, Instruction.ParseContext ctx) {
+    var postCfg = ctx.postCfg();
+    var p = p1.withContext(ctx.inner());
+    var p2 = p.withContext(new Target.ParseContext(postCfg, ctx));
+
     var s = p.scanner();
 
     if (s.trySkip("...")) {
@@ -23,20 +27,20 @@ public sealed interface Jump extends Instruction permits If, Goto, Return, Unrea
       case "if" -> {
         var cond = p.parse(Expression.class);
         s.assertAndSkip("then");
-        var ifTrue = p.parse(Target.class);
+        var ifTrue = p2.parse(Target.class);
         s.assertAndSkip("else");
-        var ifFalse = p.parse(Target.class);
+        var ifFalse = p2.parse(Target.class);
         yield new If(cond, ifTrue, ifFalse);
       }
       case "goto" -> {
-        var target = p.parse(Target.class);
+        var target = p2.parse(Target.class);
         yield new Goto(target);
       }
       case "return" -> {
         var ret = p.parse(Expression.class);
         yield new Return(ret);
       }
-      default -> throw s.fail("`if`, `goto`, `return` or `...`", k);
+      default -> throw s.fail("'if', 'goto', 'return' or '...'", k);
     };
   }
 }

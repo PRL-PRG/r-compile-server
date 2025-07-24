@@ -5,6 +5,7 @@ import org.prlprg.fir.module.Function;
 import org.prlprg.fir.type.Signature;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
+import org.prlprg.util.Strings;
 
 public record DispatchCallee(Function function, @Nullable Signature signature) implements Callee {
   @Override
@@ -16,7 +17,11 @@ public record DispatchCallee(Function function, @Nullable Signature signature) i
   private void print(Printer p) {
     var w = p.writer();
 
-    w.write(function.name());
+    if (Strings.isValidJavaIdentifierOrKeyword(function.name())) {
+      w.write(function.name());
+    } else {
+      w.writeQuoted('`', function.name());
+    }
     if (signature != null) {
       w.write('<');
       p.print(signature);

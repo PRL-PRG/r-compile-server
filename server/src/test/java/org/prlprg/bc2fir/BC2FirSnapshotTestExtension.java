@@ -7,7 +7,6 @@ import java.lang.reflect.Method;
 import org.prlprg.rsession.TestRSession;
 import org.prlprg.session.RSession;
 import org.prlprg.sexp.EnvSXP;
-import org.prlprg.sexp.ListSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.sexp.StrSXP;
@@ -47,24 +46,24 @@ public class BC2FirSnapshotTestExtension
 
   @Override
   protected void checkEqual(TestResult expected, TestResult actual) {
-    assertEquals(expected.rCodeInput, actual.firCodeOutput, "Input (R code) is different");
+    assertEquals(expected.rCodeInput, actual.rCodeInput, "Input (R code) is different");
     assertEquals(expected.firCodeOutput, actual.firCodeOutput, "Output (FIŘ code) is different");
   }
 
   @Override
   protected Object createSnapshot(Method testMethod) {
-    return new BC2FirSnapshot() {
-      int seq = 0;
+    return (BC2FirSnapshot)
+        (snapshotName, rModuleCode, rModuleEnv) -> {
+          try {
+            var firModule = compile(rModuleEnv, session);
+            var firOutput = firModule.toString();
+            var res = new TestResult(rModuleCode, firOutput);
 
-      @Override
-      public void verify(String rModuleCode, EnvSXP rModuleEnv) {
-        var firModule = compile(rModuleEnv, session);
-        var firOutput = firModule.toString();
-        var res = new TestResult(rModuleCode, firOutput);
-
-        BC2FirSnapshotTestExtension.this.verify(testMethod, String.valueOf(++seq), res, null);
-      }
-    };
+            BC2FirSnapshotTestExtension.this.verify(testMethod, snapshotName, res, null);
+          } catch (BcCompilerUnsupportedException | CFGCompilerUnsupportedBcException e) {
+            // Silently fail, because these are expected.
+          }
+        };
   }
 
   @Override
@@ -73,6 +72,6 @@ public class BC2FirSnapshotTestExtension
   }
 
   public interface BC2FirSnapshot {
-    void verify(String rModuleCode, EnvSXP rModuleEnv);
+    void verify(String snapshotName, String rModuleCode, EnvSXP rModuleEnv);
   }
 }

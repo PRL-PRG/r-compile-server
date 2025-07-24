@@ -33,18 +33,18 @@ public class Abstraction {
   private final ImmutableList<Parameter> params;
   private Type returnType;
   private Effects returnEffects;
-  private final Map<Variable, Local> locals = new LinkedHashMap<>();
+  private final Map<String, Local> locals = new LinkedHashMap<>();
   private final CFG cfg;
 
   // Cached
-  private final ImmutableMap<Variable, Parameter> varToParam;
+  private final ImmutableMap<String, Parameter> nameToParam;
   private int nextLocalDisambiguator = 0;
 
   public Abstraction(Module module, List<Parameter> params) {
     this.module = module;
     this.params = ImmutableList.copyOf(params);
 
-    varToParam = computeVarToParam(params);
+    nameToParam = computeNameToParam(params);
     returnType = Type.ANY;
     returnEffects = Effects.ANY;
     cfg = new CFG(this);
@@ -54,11 +54,11 @@ public class Abstraction {
     }
   }
 
-  private static ImmutableMap<Variable, Parameter> computeVarToParam(List<Parameter> params) {
+  private static ImmutableMap<String, Parameter> computeNameToParam(List<Parameter> params) {
     return params.stream()
         .collect(
             ImmutableMap.toImmutableMap(
-                Parameter::variable,
+                p -> p.variable().name(),
                 p -> p,
                 (p1, p2) -> {
                   throw new IllegalArgumentException(
@@ -117,7 +117,7 @@ public class Abstraction {
         "Abstraction#addLocal",
         List.of(this, local),
         () -> {
-          if (locals.put(local.variable(), local) != null) {
+          if (locals.put(local.variable().name(), local) != null) {
             throw new IllegalArgumentException(
                 "Local " + local + " already exists in the abstraction.");
           }
@@ -133,7 +133,7 @@ public class Abstraction {
         "Abstraction#removeLocal",
         List.of(this, local),
         () -> {
-          if (!locals.remove(local.variable(), local)) {
+          if (!locals.remove(local.variable().name(), local)) {
             throw new IllegalArgumentException(
                 "Local " + local + " does not exist in the abstraction.");
           }
@@ -146,7 +146,28 @@ public class Abstraction {
   }
 
   public boolean contains(Variable variable) {
-    return varToParam.containsKey(variable) || locals.containsKey(variable);
+    return contains(variable.name());
+  }
+
+  public boolean contains(String variableName) {
+    return nameToParam.containsKey(variableName) || locals.containsKey(variableName);
+  }
+
+  /// Get the variable with this name in the scope, if present.
+  ///
+  /// This method's main purpose is to distinguish between [Register] and
+  /// [org.prlprg.fir.variable.NamedVariable NamedVariable]. If you just want to check whether a
+  /// variable with the name exists, use [#contains(String)].
+  public @Nullable Variable lookup(String variableName) {
+    var param = nameToParam.get(variableName);
+    if (param != null) {
+      return param.variable();
+    }
+    var local = locals.get(variableName);
+    if (local != null) {
+      return local.variable();
+    }
+    return null;
   }
 
   public Register nextLocalRegister() {
@@ -189,7 +210,7 @@ public class Abstraction {
     var s = p.scanner();
 
     params = p.parseList("(", ")", Parameter.class);
-    varToParam = computeVarToParam(params);
+    nameToParam = computeNameToParam(params);
 
     s.assertAndSkip('-');
     returnEffects = p.parse(Effects.class);
@@ -200,7 +221,7 @@ public class Abstraction {
     if (!s.nextCharIs('|')) {
       do {
         var local = p.parse(Local.class);
-        if (locals.put(local.variable(), local) != null) {
+        if (locals.put(local.variable().name(), local) != null) {
           throw new IllegalArgumentException(
               "Local " + local + " already exists in the abstraction.");
         }
