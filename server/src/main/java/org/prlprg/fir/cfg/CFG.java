@@ -62,6 +62,10 @@ public final class CFG {
     return Collections.unmodifiableCollection(bbs.values());
   }
 
+  public @Nullable BB bb(String label) {
+    return bbs.get(label);
+  }
+
   public String nextLabel() {
     return BB.DEFAULT_LABEL_PREFIX + nextLabelDisambiguator;
   }
@@ -124,9 +128,13 @@ public final class CFG {
 
     var s = p.scanner();
 
+    var postCfg = new DeferredCallbacks<CFG>();
+
     BB entry = null;
     while (!s.isAtEof() && !s.nextCharIs('}')) {
-      var p2 = p.withContext(new BB.ParseContext(entry == null, this, ctx.postModule, p.context()));
+      var p2 =
+          p.withContext(
+              new BB.ParseContext(entry == null, this, postCfg, ctx.postModule, p.context()));
       var bb = p2.parse(BB.class);
       if (entry == null) {
         assert bb.label().equals(BB.ENTRY_LABEL);
@@ -144,5 +152,7 @@ public final class CFG {
       throw new IllegalArgumentException("CFG must have at least one basic block.");
     }
     this.entry = entry;
+
+    postCfg.run(this);
   }
 }

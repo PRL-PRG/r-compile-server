@@ -2,7 +2,6 @@ package org.prlprg.bc2fir;
 
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 import org.prlprg.fir.binding.Local;
 import org.prlprg.fir.binding.Parameter;
 import org.prlprg.fir.cfg.Abstraction;
@@ -12,13 +11,10 @@ import org.prlprg.fir.instruction.Write;
 import org.prlprg.fir.module.Function;
 import org.prlprg.fir.module.Module;
 import org.prlprg.fir.type.Type;
-import org.prlprg.fir.variable.NamedVariable;
-import org.prlprg.fir.variable.Register;
 import org.prlprg.fir.variable.Variable;
 import org.prlprg.sexp.BCodeSXP;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.ListSXP;
-import org.prlprg.sexp.SymSXP;
 
 /// Compiles {@linkplain CloSXP R closures} into {@linkplain Function FIŘ functions}.
 public final class ClosureCompiler {
@@ -45,7 +41,10 @@ public final class ClosureCompiler {
 
     var baselineCursor = new CFGCursor(baseline.cfg());
     for (var i = 0; i < compiledParams.size(); i++) {
-      var paramName = Objects.requireNonNull(params.get(i).tag(), "functions we compile can never have parameters without names, right? Maybe we must handle this case");
+      var paramName =
+          Objects.requireNonNull(
+              params.get(i).tag(),
+              "functions we compile can never have parameters without names, right? Maybe we must handle this case");
       var paramNamedVar = Variable.named(paramName);
       var paramReg = compiledParams.get(i).variable();
 
@@ -57,6 +56,10 @@ public final class ClosureCompiler {
   }
 
   private static List<Parameter> defaultParams(ListSXP params) {
-    return params.stream().map(p -> new Parameter(Variable.register("r" + p.tag()), Type.ANY)).toList();
+    // TODO: Prevent register name from conflicting with other parameters parameters or locals
+    //  (including those defined later, so we can't just check `params`).
+    return params.stream()
+        .map(p -> new Parameter(Variable.register("r" + p.tag()), Type.ANY))
+        .toList();
   }
 }

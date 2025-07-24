@@ -236,8 +236,11 @@ public class BCCompiler {
    *
    * <p>NOTE that the order is important (and has to be the same as in R)! The MATH1_OP takes an
    * index into an array of math functions.
+   *
+   * <p>TODO: May want to move this somewhere else, because it's also used by {@link
+   * org.prlprg.bc2fir.CFGCompiler}.
    */
-  private static final List<String> MATH1_FUNS =
+  public static final List<String> MATH1_FUNS =
       List.of(
           "floor",
           "ceiling",

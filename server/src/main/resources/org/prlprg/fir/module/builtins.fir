@@ -1,12 +1,16 @@
 fun `+` {
-  (reg r:I, reg r1:I)-->I { | ...; }
+  (reg lhs:I, reg rhs:I)-->I { | ...; }
 }
 
 fun `<` {
-  (reg r:I, reg r1:I)-->L { | ...; }
+  (reg lhs:I, reg rhs:I)-->L { | ...; }
 }
 
 fun length {
   # TODO: Add "forSeq" type, and change the parameter to it. Currently it's unsound.
-  (reg r:V)-->I { | ...; }
+  (reg v:V)-->I { | ...; }
+}
+
+fun `[[<-` {
+  (reg lhs:V, reg rhs:I)-->V { | ...; }
 }

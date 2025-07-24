@@ -1,5 +1,6 @@
 package org.prlprg.bc2fir;
 
+import static org.prlprg.bc.BCCompiler.MATH1_FUNS;
 import static org.prlprg.fir.GlobalModules.BUILTINS;
 import static org.prlprg.fir.GlobalModules.INTRINSICS;
 
@@ -48,7 +49,6 @@ import org.prlprg.fir.type.Effects;
 import org.prlprg.fir.type.Type;
 import org.prlprg.fir.variable.NamedVariable;
 import org.prlprg.fir.variable.Variable;
-import org.prlprg.primitive.BuiltinId;
 import org.prlprg.sexp.Attributes;
 import org.prlprg.sexp.BCodeSXP;
 import org.prlprg.sexp.ListSXP;
@@ -56,7 +56,6 @@ import org.prlprg.sexp.RegSymSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.util.Lists;
-import org.prlprg.util.NotImplementedError;
 import org.prlprg.util.Reflection;
 import org.prlprg.util.Strings;
 
@@ -96,9 +95,9 @@ public class CFGCompiler {
     }
 
     sealed interface Fun {
-      record Variable(NamedVariable fun) implements Fun {}
+      record Variable(NamedVariable name) implements Fun {}
 
-      record Builtin(BuiltinId id) implements Fun {}
+      record Builtin(CFGCompiler.Builtin builtin) implements Fun {}
     }
 
     /// Stores information about a call argument: a [Expression] node and optional
@@ -126,27 +125,29 @@ public class CFGCompiler {
 
     /// The dispatch function (e.g. "[", "[<-", "c").
     private enum Type {
-      C(BuiltinId.C, false, false),
-      SUBSET(BuiltinId.SUBSET, false, false),
-      SUBASSIGN(BuiltinId.SUBASSIGN, true, false),
-      SUBSET2(BuiltinId.SUBSET2, false, false),
-      SUBASSIGN2(BuiltinId.SUBASSIGN2, true, false),
-      SUBSETN(BuiltinId.SUBSETN, false, true),
-      SUBASSIGNN(BuiltinId.SUBASSIGNN, true, true),
-      SUBSET2N(BuiltinId.SUBSET2N, false, true),
-      SUBASSIGN2N(BuiltinId.SUBASSIGN2N, true, true);
+      C("c", false, false),
+      SUBSET("[", false, false),
+      SUBASSIGN("[<-", true, false),
+      SUBSET2("[[", false, false),
+      SUBASSIGN2("[[<-", true, false),
+      SUBSETN("[", false, true),
+      SUBASSIGNN("[<-", true, true),
+      SUBSET2N("[[", false, true),
+      SUBASSIGN2N("[[<-", true, true);
 
-      private final BuiltinId builtin;
+      private final Builtin builtin;
       private final boolean hasRhs;
       private final boolean isNForm;
 
-      Type(BuiltinId builtin, boolean hasRhs, boolean isNForm) {
-        this.builtin = builtin;
+      Type(String builtinName, boolean hasRhs, boolean isNForm) {
+        this.builtin = new Builtin(builtinName);
         this.hasRhs = hasRhs;
         this.isNForm = isNForm;
       }
     }
   }
+
+  private record Builtin(String name) {}
 
   // endregion compiler data types
 
@@ -171,7 +172,8 @@ public class CFGCompiler {
   /// Compile everything.
   private CFGCompiler(CFG cfg, Bc bc) {
     if (cfg.bbs().size() != 1 || !(cfg.entry().jump() instanceof Unreachable)) {
-      throw new IllegalArgumentException("CFG must be empty, except assigning parameters to named variables");
+      throw new IllegalArgumentException(
+          "CFG must be empty, except assigning parameters to named variables");
     }
 
     this.cfg = cfg;
@@ -289,8 +291,7 @@ public class CFGCompiler {
   }
 
   /// Adds a basic block and maps it to the given label, if a basic block for the given label
-  // doesn't
-  /// already exist (otherwise no-op).
+  /// doesn't already exist (otherwise no-op).
   private void ensureBbAt(BcLabel label) {
     int pos = label.target();
     if (!bbByLabel.containsKey(pos)) {
@@ -452,7 +453,7 @@ public class CFGCompiler {
         // The bytecode compilers don't actually generate these instructions, are they deprecated?
         // Regardless, we can still support them.
         if (cfg.isPromise() && !inLocalLoop()) {
-          throw failUnsupported("`next` or `break` in promise (complex loop context)");
+          throw failUnsupported("'next' or 'break' in promise (complex loop context)");
         }
         var stepBb = topLoop().next;
         setJump(goto_(stepBb));
@@ -464,7 +465,7 @@ public class CFGCompiler {
         // The bytecode compilers don't actually generate these instructions, are they deprecated?
         // Regardless, we can still support them.
         if (cfg.isPromise() && !inLocalLoop()) {
-          throw failUnsupported("`next` or `break` in promise (complex loop context)");
+          throw failUnsupported("'next' or 'break' in promise (complex loop context)");
         }
         var endBb = topLoop().end;
         setJump(goto_(endBb));
@@ -522,13 +523,14 @@ public class CFGCompiler {
         push(new MaybeForce(pop()));
       }
       case BcInstr.SetVar(var name) -> insert(new Write(getVar(name), top()));
-      case BcInstr.GetFun(var name) -> push(loadFun(getVar(name), Env.LOCAL));
+      case BcInstr.GetFun(var name) -> pushCall(getVar(name));
+        // TODO: Ensure function lookup is global.
       case BcInstr.GetGlobFun(var name) -> pushCall(getVar(name));
         // ???: GNU-R calls `SYMVALUE` and `INTERNAL` to implement these, but we don't store that in
         //  our `RegSymSxp` data-structure. So the next three implementations may be incorrect.
-      case BcInstr.GetSymFun(var name) -> pushCall(BuiltinId.referencedBy(get(name)));
-      case BcInstr.GetBuiltin(var name) -> pushCall(BuiltinId.referencedBy(get(name)));
-      case BcInstr.GetIntlBuiltin(var name) -> pushCall(BuiltinId.referencedBy(get(name)));
+      case BcInstr.GetSymFun(var name) -> pushCall(new Builtin(get(name).name()));
+      case BcInstr.GetBuiltin(var name) -> pushCall(new Builtin(get(name).name()));
+      case BcInstr.GetIntlBuiltin(var name) -> pushCall(new Builtin(get(name).name()));
       case BcInstr.CheckFun() -> {
         var funVar = Variable.named("*tmp*");
         insert(new Write(funVar, pop()));
@@ -600,7 +602,7 @@ public class CFGCompiler {
       case BcInstr.Sub(var _) -> push(mkBinop("-"));
       case BcInstr.Mul(var _) -> push(mkBinop("*"));
       case BcInstr.Div(var _) -> push(mkBinop("/"));
-      case BcInstr.Expt(var _) -> push(mkBinop("expt"));
+      case BcInstr.Expt(var _) -> push(mkBinop("^"));
       case BcInstr.Exp(var _) -> push(mkUnop("exp"));
       case BcInstr.Eq(var _) -> push(mkBinop("=="));
       case BcInstr.Ne(var _) -> push(mkBinop("!="));
@@ -639,10 +641,10 @@ public class CFGCompiler {
         var after = cfg.addBB();
 
         var target = top();
-        compileGeneralDispatchCommon(BuiltinId.DOLLAR, false, target, null, after);
+        compileGeneralDispatchCommon(new Builtin("$"), false, target, null, after);
 
         var call = popCall();
-        if (!call.fun.equals(new Call.Fun.Builtin(BuiltinId.DOLLAR))) {
+        if (!call.fun.equals(new Call.Fun.Builtin(new Builtin("$")))) {
           throw fail("Dollar: expected a call to $");
         }
 
@@ -657,10 +659,10 @@ public class CFGCompiler {
 
         var rhs = pop();
         var target = top();
-        compileGeneralDispatchCommon(BuiltinId.DOLLAR_GETS, false, target, rhs, after);
+        compileGeneralDispatchCommon(new Builtin("$<-"), false, target, rhs, after);
 
         var call = popCall();
-        if (!call.fun.equals(new Call.Fun.Builtin(BuiltinId.DOLLAR_GETS))) {
+        if (!call.fun.equals(new Call.Fun.Builtin(new Builtin("$<-")))) {
           throw fail("Dollar: expected a call to $");
         }
 
@@ -673,9 +675,9 @@ public class CFGCompiler {
       case BcInstr.IsNull() -> push(builtin("==", pop(), new Literal(SEXPs.NULL)));
       case BcInstr.IsLogical() -> push(builtin("is.logical", pop()));
       case BcInstr.IsInteger() -> push(builtin("is.integer", pop()));
-      case BcInstr.IsDouble() -> push(builtin("is.real", pop()));
+      case BcInstr.IsDouble() -> push(builtin("is.double", pop()));
       case BcInstr.IsComplex() -> push(builtin("is.complex", pop()));
-      case BcInstr.IsCharacter() -> push(builtin("is.string", pop()));
+      case BcInstr.IsCharacter() -> push(builtin("is.character", pop()));
       case BcInstr.IsSymbol() -> push(builtin("is.symbol", pop()));
       case BcInstr.IsObject() -> push(builtin("is.object", pop()));
       case BcInstr.IsNumeric() -> push(builtin("is.numeric", pop()));
@@ -770,19 +772,19 @@ public class CFGCompiler {
 
         var value = pop();
 
-        var isVector = builtin("is.vector", value);
+        var isVector = builtin("is.vector", value, new Literal(SEXPs.string("any")));
         var isVectorBb = cfg.addBB();
         var isNotVectorBb = cfg.addBB();
         setJump(branch(isVector, isVectorBb, isNotVectorBb));
 
         // Has one predecessor (no phis) so we can call `cursor.moveToStart` instead of `moveTo`.
         cursor.moveToStart(isNotVectorBb);
-        insert(builtin("error", new Literal(SEXPs.string("EXPR must be a length 1 vector"))));
+        insert(stop("EXPR must be a length 1 vector"));
         setJump(new Unreachable());
 
         // Has one predecessor (no phis) so we can call `cursor.moveToStart` instead of `moveTo`.
         cursor.moveToStart(isVectorBb);
-        var isFactor = builtin("is.factor", value);
+        var isFactor = builtin("inherits", value, new Literal(SEXPs.string("factor")));
         var isFactorBb = cfg.addBB();
         var isNotFactorBb = cfg.addBB();
         setJump(branch(isFactor, isFactorBb, isNotFactorBb));
@@ -797,7 +799,7 @@ public class CFGCompiler {
         // Has two predecessors, but the second defines no values (means no phis), so we can call
         // `cursor.moveToStart` instead of `moveTo`.
         cursor.moveToStart(isFactorBb);
-        var isString = builtin("is.string", value);
+        var isString = builtin("is.character", value);
         var stringBb = cfg.addBB();
         var asIntegerBb = cfg.addBB();
         setJump(branch(isString, stringBb, asIntegerBb));
@@ -883,14 +885,7 @@ public class CFGCompiler {
           compileDefaultDispatchN(Dispatch.Type.SUBASSIGN2N, n + 2);
       case BcInstr.Log(var _) -> push(mkUnop("log"));
       case BcInstr.LogBase(var _) -> push(mkBinop("log"));
-      case BcInstr.Math1(var _, var funId) ->
-          push(
-              mkUnop(
-                  switch (funId) {
-                    case 0 -> "TODO";
-                    case 1 -> "also TODO";
-                    default -> throw new NotImplementedError("unhandled math function: " + funId);
-                  }));
+      case BcInstr.Math1(var _, var funId) -> push(mkUnop(MATH1_FUNS.get(funId)));
       case BcInstr.DotCall(var _, var numArgs) -> {
         if (stack.size() < numArgs + 1) {
           throw fail("stack underflow");
@@ -998,7 +993,7 @@ public class CFGCompiler {
   }
 
   private void compileGeneralDispatchCommon(
-      BuiltinId fun, boolean isNForm, Expression target, @Nullable Expression rhs, BB after) {
+      Builtin fun, boolean isNForm, Expression target, @Nullable Expression rhs, BB after) {
     // ???: Maybe avoid compiling optimized dispatch code, since we can optimize it ourselves.
     var isObject = builtin("is.object", target);
     var objectBb = cfg.addBB();
@@ -1009,10 +1004,13 @@ public class CFGCompiler {
     cursor.moveToStart(objectBb);
     var target1 = pop();
     assert target == target1
-        : "`compileGeneralDispatchCommon` only called with top-of-stack as `target`";
+        : "'compileGeneralDispatchCommon' only called with top-of-stack as 'target'";
 
+    var funNameSexp = new Literal(SEXPs.string(fun.name()));
     var dispatchExpr =
-        intrinsic("tryDispatchBuiltin", new Literal(SEXPs.string(fun.name())), target, rhs);
+        rhs == null
+            ? intrinsic("tryDispatchBuiltin", funNameSexp, target)
+            : intrinsic("tryDispatchBuiltin", funNameSexp, target, rhs);
     var dispatchReg = scope().addLocal();
     insert(new Write(dispatchReg, dispatchExpr));
     var dispatched = intrinsic("getTryDispatchBuiltinDispatched", new Read(dispatchReg));
@@ -1085,9 +1083,10 @@ public class CFGCompiler {
     var args = call.args.stream().map(arg -> arg.value).collect(ImmutableList.toImmutableList());
     var callInstr =
         switch (call.fun) {
-          case Call.Fun.Variable(var fun) ->
-              new org.prlprg.fir.instruction.Call(new DynamicCallee(fun, names), args);
-          case Call.Fun.Builtin(var fun) -> builtin(fun.name(), args.toArray(Expression[]::new));
+          case Call.Fun.Variable(var funName) ->
+              new org.prlprg.fir.instruction.Call(new DynamicCallee(funName, names), args);
+          case Call.Fun.Builtin(var builtin) ->
+              builtin(builtin.name, args.toArray(Expression[]::new));
         };
     push(callInstr);
 
@@ -1111,7 +1110,8 @@ public class CFGCompiler {
         && c.arguments().size() == 1
         && c.arguments()
             .getFirst()
-            .equals(new Literal(SEXPs.string("empty alternative in numeric switch")))) {
+            .equals(new Literal(SEXPs.string("empty alternative in numeric switch")))
+        && !(bc.code().get(bcPos + 1) instanceof BcInstr.Return)) {
       pop();
     }
   }
@@ -1432,7 +1432,7 @@ public class CFGCompiler {
   }
 
   /// Begin a new call of the given function (statically known builtin).
-  private void pushCall(BuiltinId fun) {
+  private void pushCall(Builtin fun) {
     callStack.add(new Call(new Call.Fun.Builtin(fun)));
   }
 

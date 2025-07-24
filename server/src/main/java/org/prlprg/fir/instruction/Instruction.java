@@ -1,10 +1,14 @@
 package org.prlprg.fir.instruction;
 
 import java.util.Collection;
+import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
+import org.prlprg.fir.cfg.CFG;
+import org.prlprg.fir.module.Module;
 import org.prlprg.fir.variable.Variable;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
+import org.prlprg.util.DeferredCallbacks;
 
 public sealed interface Instruction permits Expression, Jump {
   /// "Immediate" here means "not recursive".
@@ -14,6 +18,12 @@ public sealed interface Instruction permits Expression, Jump {
   /// "Immediate" here means "not in children".
   @UnmodifiableView
   Collection<Variable> immediateVariables();
+
+  record ParseContext(
+      CFG cfg,
+      DeferredCallbacks<CFG> postCfg,
+      DeferredCallbacks<Module> postModule,
+      @Nullable Object inner) {}
 
   @ParseMethod
   private static Instruction parse(Parser p) {

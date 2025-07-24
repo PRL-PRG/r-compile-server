@@ -1,10 +1,9 @@
 package org.prlprg.fir.variable;
 
 import java.util.Objects;
-import org.prlprg.parseprint.PrintMethod;
+import org.prlprg.parseprint.ParseMethod;
+import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.Printer;
-import org.prlprg.primitive.Names;
-import org.prlprg.util.Strings;
 
 public final class Register implements Variable {
   private final String name;
@@ -15,12 +14,7 @@ public final class Register implements Variable {
 
   @Override
   public String toString() {
-    return name;
-  }
-
-  @PrintMethod
-  private void print(Printer p) {
-    p.writer().write(name);
+    return Printer.toString(this);
   }
 
   @Override
@@ -45,4 +39,9 @@ public final class Register implements Variable {
     return Objects.hash(name);
   }
 
+  @ParseMethod
+  private static Register parse(Parser p) {
+    var ident = p.scanner().readJavaIdentifierOrKeyword();
+    return Variable.register(ident);
+  }
 }

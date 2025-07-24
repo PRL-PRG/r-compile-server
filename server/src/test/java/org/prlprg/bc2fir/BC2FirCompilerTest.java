@@ -13,10 +13,7 @@ import org.prlprg.bc2fir.BC2FirSnapshotTestExtension.BC2FirSnapshot;
 import org.prlprg.fir.module.Module;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.sexp.CloSXP;
-import org.prlprg.sexp.ListSXP;
 import org.prlprg.sexp.SEXP;
-import org.prlprg.sexp.SEXPs;
-import org.prlprg.sexp.TaggedElem;
 import org.prlprg.sexp.UserEnvSXP;
 import org.prlprg.util.gnur.GNUR;
 import org.prlprg.util.gnur.GNURTestSupport;
@@ -80,7 +77,7 @@ public class BC2FirCompilerTest implements StdlibClosuresSource {
     envOfFunction.set(name, function);
     var envOfFunctionCode = name + " <- " + functionCode;
 
-    snapshot.verify(envOfFunctionCode, envOfFunction);
+    snapshot.verify(name, envOfFunctionCode, envOfFunction);
   }
 
   private void testInline(@Language("R") String rInput, String firOutput) {

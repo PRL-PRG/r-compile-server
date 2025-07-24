@@ -14,8 +14,7 @@ public final class GlobalModules {
 
   static {
     // Add GNU-R builtins that we don't have explicit versions for.
-    // TODO: Also `getSpecials`?
-    for (var bltName : GNURSession.getBuiltins()) {
+    for (var bltName : GNURSession.getAllBuiltins()) {
       if (BUILTINS.localFunction(bltName) != null) {
         // Already defined.
         continue;

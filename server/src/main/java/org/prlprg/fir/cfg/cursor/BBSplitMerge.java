@@ -22,8 +22,9 @@ public final class BBSplitMerge {
 
               var newBB = self.owner().addBB(successorLabel);
 
-              var newBBStatements = self.removeStatementsAt(index, self.statements().size());
-              newBB.insertStatements(newBB.statements().size(), newBBStatements);
+              var newBBStatements =
+                  self.removeStatementsAt(index, self.statements().size() - index);
+              newBB.insertStatements(0, newBBStatements);
 
               var newBBJump = self.jump();
               self.setJump(new Goto(new Target(newBB)));

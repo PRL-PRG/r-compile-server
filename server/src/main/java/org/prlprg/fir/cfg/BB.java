@@ -26,6 +26,7 @@ import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.util.DeferredCallbacks;
 import org.prlprg.util.SmallBinarySet;
+import org.prlprg.util.Strings;
 
 public final class BB {
   static final String ENTRY_LABEL = "ENTRY";
@@ -45,8 +46,15 @@ public final class BB {
       new SmallBinarySet<>(4, Comparator.comparing(bb -> bb.label));
 
   BB(CFG owner, String label) {
+    if (!Strings.isValidJavaIdentifierOrKeyword(label)) {
+      throw new IllegalArgumentException("BB labels must be valid Java identifiers: " + label);
+    }
+
     this.owner = owner;
     this.label = label;
+
+    // Since the jump is `Unreachable`, this is an exit.
+    owner.exits.add(this);
   }
 
   public CFG owner() {
@@ -263,7 +271,11 @@ public final class BB {
   }
 
   public record ParseContext(
-      boolean isEntry, CFG owner, DeferredCallbacks<Module> oostModule, @Nullable Object inner) {}
+      boolean isEntry,
+      CFG owner,
+      DeferredCallbacks<CFG> postOwner,
+      DeferredCallbacks<Module> oostModule,
+      @Nullable Object inner) {}
 
   @ParseMethod
   private BB(Parser p1, ParseContext ctx) {
@@ -287,7 +299,9 @@ public final class BB {
       s.assertAndSkip(':');
     }
 
-    var p2 = p.withContext(new Expression.ParseContext(owner.scope(), ctx.oostModule, p.context()));
+    var p2 =
+        p.withContext(
+            new Instruction.ParseContext(owner, ctx.postOwner, ctx.oostModule, p.context()));
     Instruction instr;
     do {
       CommentParser.skipComments(s);

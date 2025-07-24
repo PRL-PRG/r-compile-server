@@ -15,8 +15,6 @@ import org.prlprg.rds.RDSReader;
 import org.prlprg.rds.RDSWriter;
 import org.prlprg.session.RSession;
 import org.prlprg.sexp.EnvSXP;
-import org.prlprg.sexp.GlobalEnvSXP;
-import org.prlprg.sexp.ListSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.util.Pair;
 
