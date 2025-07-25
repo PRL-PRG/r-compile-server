@@ -1,7 +1,7 @@
 package org.prlprg.bc2fir;
 
 import org.prlprg.bc.BCCompiler;
-import org.prlprg.fir.module.Module;
+import org.prlprg.fir.ir.module.Module;
 import org.prlprg.session.RSession;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.EnvSXP;

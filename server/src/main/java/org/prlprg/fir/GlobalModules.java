@@ -1,7 +1,7 @@
 package org.prlprg.fir;
 
 import java.nio.file.Path;
-import org.prlprg.fir.module.Module;
+import org.prlprg.fir.ir.module.Module;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.session.GNURSession;
 

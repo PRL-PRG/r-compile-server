@@ -10,7 +10,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.prlprg.bc.StdlibClosuresSource;
 import org.prlprg.bc2fir.BC2FirSnapshotTestExtension.BC2FirSnapshot;
-import org.prlprg.fir.module.Module;
+import org.prlprg.fir.ir.module.Module;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.SEXP;
