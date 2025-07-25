@@ -2,9 +2,9 @@ package org.prlprg.bc2fir;
 
 import java.util.List;
 import java.util.Objects;
+import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.binding.Local;
 import org.prlprg.fir.ir.binding.Parameter;
-import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
 import org.prlprg.fir.ir.instruction.Read;
 import org.prlprg.fir.ir.instruction.Write;
