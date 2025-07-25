@@ -2,11 +2,11 @@ package org.prlprg.fir.ir.instruction;
 
 import com.google.common.collect.ImmutableList;
 import java.util.Optional;
+import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.callee.DispatchCallee;
 import org.prlprg.fir.ir.callee.DynamicCallee;
 import org.prlprg.fir.ir.callee.InlineCallee;
 import org.prlprg.fir.ir.callee.StaticCallee;
-import org.prlprg.fir.ir.cfg.Abstraction;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Signature;

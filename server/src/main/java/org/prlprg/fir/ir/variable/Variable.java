@@ -1,6 +1,6 @@
 package org.prlprg.fir.ir.variable;
 
-import org.prlprg.fir.ir.cfg.Abstraction;
+import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;

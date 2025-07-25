@@ -19,7 +19,7 @@ import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.util.DeferredCallbacks;
 
-public class Module {
+public final class Module {
   // Observers
   private final Set<Observer> observers = new LinkedHashSet<>();
 

@@ -20,7 +20,7 @@ import org.prlprg.fir.ir.instruction.Unreachable;
  * <p>Note that the cursor won't update its block or index if external edits are applied to the
  * graph while it's alive.
  */
-public class CFGCursor {
+public final class CFGCursor {
   private final CFG cfg;
   private BB bb;
   private int instructionIndex;
@@ -109,6 +109,15 @@ public class CFGCursor {
     }
 
     this.instructionIndex = instructionIndex;
+  }
+
+  /** Moves to the next instruction in the current block. */
+  public void advance() {
+    if (instructionIndex < bb.statements().size()) {
+      instructionIndex++;
+    } else {
+      throw new IllegalStateException("can't move to next instruction at end of block " + bb);
+    }
   }
 
   /** Moves to the start (before first statement) of the current block. */
@@ -253,5 +262,20 @@ public class CFGCursor {
         ? bb.statements().get(instructionIndex)
         : bb.jump();
   }
+
+  /** Whether the cursor is at the end of the current block. */
+  public boolean isAtLocalEnd() {
+    return instructionIndex == bb.statements().size();
+  }
+
   // endregion access
+
+  public CFGCursor copy() {
+    return new CFGCursor(bb, instructionIndex);
+  }
+
+  @Override
+  public String toString() {
+    return "At BB " + bb.label() + ", instruction " + instructionIndex + " in:\n\n" + cfg;
+  }
 }

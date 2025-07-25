@@ -49,13 +49,9 @@ public class CFGCompilerException extends RuntimeException {
     return super.getMessage()
         + "\nAt BC instruction "
         + bcPos
-        + ", IR BB "
-        + irPos.bb().label()
-        + " instruction "
-        + irPos.instructionIndex()
         + " in:\n\n"
-        + irPos.cfg()
+        + bc
         + "\n\n"
-        + bc;
+        + irPos;
   }
 }

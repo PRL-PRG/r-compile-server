@@ -8,7 +8,8 @@ import java.util.TreeSet;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.ir.CommentParser;
-import org.prlprg.fir.ir.cfg.Abstraction;
+import org.prlprg.fir.ir.abstraction.Abstraction;
+import org.prlprg.fir.ir.binding.Parameter;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
@@ -17,7 +18,7 @@ import org.prlprg.primitive.Names;
 import org.prlprg.util.DeferredCallbacks;
 import org.prlprg.util.Strings;
 
-public class Function {
+public final class Function {
   // Backlink
   private final Module owner;
 
@@ -63,6 +64,10 @@ public class Function {
     return Collections.unmodifiableCollection(versions);
   }
 
+  public boolean containsVersion(Abstraction version) {
+    return versions.contains(version);
+  }
+
   /// @throws IllegalArgumentException if the version is not found
   public int indexOfVersion(Abstraction version) {
     if (!versions.contains(version)) {
@@ -78,20 +83,14 @@ public class Function {
     return versions.stream().skip(index).findFirst().orElseThrow();
   }
 
-  public void addVersion(Abstraction version) {
-    owner.record(
+  public Abstraction addVersion(List<Parameter> params) {
+    return owner.record(
         "Function#addVersion",
-        List.of(this, version),
+        List.of(this, params),
         () -> {
-          if (versions.contains(version)) {
-            throw new IllegalArgumentException("Version already exists: " + version);
-          }
-          if (version.module() != owner) {
-            throw new IllegalArgumentException(
-                "Version must belong to the same module as the function: " + version);
-          }
-          versions.add(version);
-          return null;
+          var newVersion = new Abstraction(owner, params);
+          versions.add(newVersion);
+          return newVersion;
         });
   }
 
