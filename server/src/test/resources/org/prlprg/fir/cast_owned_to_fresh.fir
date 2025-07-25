@@ -7,7 +7,7 @@ fun main {
 }
 
 fun cast {
-    (reg r:v(I)b) --> I { reg rvec:v(I)o |
+    (reg r:v(I)b) --> I { reg v:v(I)o |
         # error: stupid cast (one must be a subtype): casting `v(I)b` to `v(I)o`
         # error: can't assign `v(I)o` to `v(I)o`
         rvec = r as v(I)o;

@@ -26,7 +26,7 @@ public sealed interface Instruction permits Expression, Jump {
       @Nullable Object inner) {}
 
   @ParseMethod
-  private static Instruction parse(Parser p) {
+  private static Instruction parse(Parser p, ParseContext _ctx) {
     var s = p.scanner();
     if (s.nextCharsAre("if ")
         || s.nextCharsAre("goto ")
