@@ -25,7 +25,7 @@ public sealed interface Jump extends Instruction permits If, Goto, Return, Unrea
     var k = s.readJavaIdentifierOrKeyword();
     return switch (k) {
       case "if" -> {
-        var cond = p.parse(Expression.class);
+        var cond = p1.parse(Expression.class);
         s.assertAndSkip("then");
         var ifTrue = p2.parse(Target.class);
         s.assertAndSkip("else");
@@ -37,7 +37,7 @@ public sealed interface Jump extends Instruction permits If, Goto, Return, Unrea
         yield new Goto(target);
       }
       case "return" -> {
-        var ret = p.parse(Expression.class);
+        var ret = p1.parse(Expression.class);
         yield new Return(ret);
       }
       default -> throw s.fail("'if', 'goto', 'return' or '...'", k);
