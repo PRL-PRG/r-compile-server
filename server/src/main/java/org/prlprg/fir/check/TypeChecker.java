@@ -108,8 +108,13 @@ public final class TypeChecker {
         types.put(binding.variable().name(), binding.type());
 
         cfg.checkWellFormed(binding.type());
-        if (binding.variable() instanceof NamedVariable && binding.type().concreteness() == Concreteness.DEFINITE) {
-          cfg.report("Named variables can't have definite types: " + binding.variable() + ":" + binding.type());
+        if (binding.variable() instanceof NamedVariable
+            && binding.type().concreteness() == Concreteness.DEFINITE) {
+          cfg.report(
+              "Named variables can't have definite types: "
+                  + binding.variable()
+                  + ":"
+                  + binding.type());
         }
       }
       cfg.checkWellFormed(abstraction.returnType());
@@ -184,25 +189,34 @@ public final class TypeChecker {
       @Nullable Type run(Expression expression) {
         return switch (expression) {
           case Call call -> {
-            var argumentTypes = call.arguments().stream()
-                .map(this::run)
-                .toList();
+            var argumentTypes = call.arguments().stream().map(this::run).toList();
 
-            java.util.function.Function<Abstraction, Type> finish = callee -> {
-              if (callee.parameters().size() != argumentTypes.size()) {
-                report("Call expects " + callee.parameters().size() + " arguments, but has "
-                    + argumentTypes.size() + ": " + expression);
-              }
+            java.util.function.Function<Abstraction, Type> finish =
+                callee -> {
+                  if (callee.parameters().size() != argumentTypes.size()) {
+                    report(
+                        "Call expects "
+                            + callee.parameters().size()
+                            + " arguments, but has "
+                            + argumentTypes.size()
+                            + ": "
+                            + expression);
+                  }
 
-              for (int i = 0; i < Math.min(callee.parameters().size(), argumentTypes.size()); i++) {
-                var param = callee.parameters().get(i);
-                var argType = argumentTypes.get(i);
-                checkMatches(argType, param.type(), "Type mismatch in argument " + i + " of " + expression);
-              }
+                  for (int i = 0;
+                      i < Math.min(callee.parameters().size(), argumentTypes.size());
+                      i++) {
+                    var param = callee.parameters().get(i);
+                    var argType = argumentTypes.get(i);
+                    checkMatches(
+                        argType,
+                        param.type(),
+                        "Type mismatch in argument " + i + " of " + expression);
+                  }
 
-              effects = effects.union(callee.returnEffects());
-              return callee.returnType();
-            };
+                  effects = effects.union(callee.returnEffects());
+                  return callee.returnType();
+                };
 
             yield switch (call.callee()) {
               case StaticCallee(var _, var version) -> finish.apply(version);
@@ -214,9 +228,12 @@ public final class TypeChecker {
                 var calleeType = lookup(calleeVariable);
                 // Concreteness is [MAYBE], we only care about the kind.
                 if (calleeType != null && !(calleeType.kind() instanceof Kind.Closure)) {
-                  report("Dynamic call target must be a closure, got " + calleeVariable + " {: "
-                      + calleeType
-                      + "}");
+                  report(
+                      "Dynamic call target must be a closure, got "
+                          + calleeVariable
+                          + " {: "
+                          + calleeType
+                          + "}");
                 }
 
                 if (argumentNames.size() > argumentTypes.size()) {
@@ -236,7 +253,9 @@ public final class TypeChecker {
             var valueType = run(value);
             checkWellFormed(castType);
 
-            if (valueType != null && !valueType.isSubtypeOf(castType) && !castType.isSubtypeOf(valueType)) {
+            if (valueType != null
+                && !valueType.isSubtypeOf(castType)
+                && !castType.isSubtypeOf(valueType)) {
               report(
                   "Stupid cast: "
                       + value
@@ -302,7 +321,8 @@ public final class TypeChecker {
             for (var i = 0; i < elements.size(); i++) {
               var element = elements.get(i);
               var type = run(element);
-              checkSubtype(type, Type.INTEGER, "Type mismatch in element " + i + " of vector " + expression);
+              checkSubtype(
+                  type, Type.INTEGER, "Type mismatch in element " + i + " of vector " + expression);
             }
 
             yield Type.INT_VECTOR;
@@ -319,7 +339,8 @@ public final class TypeChecker {
             var actualInnerType = promiseAnalysis.returnType;
 
             checkSubtype(actualInnerType, expectedInnerType, "Type mismatch in " + expression);
-            checkSubEffects(promiseAnalysis.effects, expectedEffects, "Effects mismatch in " + expression);
+            checkSubEffects(
+                promiseAnalysis.effects, expectedEffects, "Effects mismatch in " + expression);
 
             flow.compose(promiseAnalysis.flow.inPromise());
             yield Type.promise(expectedInnerType, expectedEffects);
@@ -347,7 +368,12 @@ public final class TypeChecker {
           case ReflectiveRead(var promise, var _) -> {
             var promiseType = run(promise);
             if (promiseType != null && !promiseType.isDefinitely(Kind.Promise.class)) {
-              report("Reflective read target must be a promise, got " + promise + " {:" + promiseType + "}");
+              report(
+                  "Reflective read target must be a promise, got "
+                      + promise
+                      + " {:"
+                      + promiseType
+                      + "}");
             }
 
             effects = Effects.ANY;
@@ -356,7 +382,12 @@ public final class TypeChecker {
           case ReflectiveWrite(var promise, var _, var value) -> {
             var promiseType = run(promise);
             if (promiseType != null && !promiseType.isDefinitely(Kind.Promise.class)) {
-              report("Reflective write target must be a promise, got " + promise + " {:" + promiseType + "}");
+              report(
+                  "Reflective write target must be a promise, got "
+                      + promise
+                      + " {:"
+                      + promiseType
+                      + "}");
             }
 
             var valueType = run(value);
@@ -369,12 +400,19 @@ public final class TypeChecker {
             var indexType = run(index);
 
             if (targetType != null && !targetType.isDefinitely(Kind.PrimitiveVector.class)) {
-              report("Subscript read target must be a vector, got " + target + " {:" + targetType + "}");
+              report(
+                  "Subscript read target must be a vector, got "
+                      + target
+                      + " {:"
+                      + targetType
+                      + "}");
             }
 
             checkSubtype(indexType, Type.INTEGER, "Subscript index must be integer");
 
-            yield targetType != null && targetType.kind() instanceof Kind.PrimitiveVector(var kind) ? Type.primitiveScalar(kind) : null;
+            yield targetType != null && targetType.kind() instanceof Kind.PrimitiveVector(var kind)
+                ? Type.primitiveScalar(kind)
+                : null;
           }
           case SubscriptWrite(var target, var index, var value) -> {
             var targetType = run(target);
@@ -383,20 +421,45 @@ public final class TypeChecker {
 
             if (targetType != null) {
               if (!targetType.isDefinitely(Kind.PrimitiveVector.class)) {
-                report("Subscript write target must be a vector, got " + target + " {:" + targetType + "}");
+                report(
+                    "Subscript write target must be a vector, got "
+                        + target
+                        + " {:"
+                        + targetType
+                        + "}");
               }
               if (targetType.ownership() != Ownership.OWNED) {
-                report("Subscript write target must be owned, got " + target + " {:" + targetType + "}");
+                report(
+                    "Subscript write target must be owned, got "
+                        + target
+                        + " {:"
+                        + targetType
+                        + "}");
               }
             }
 
             checkSubtype(indexType, Type.INTEGER, "Subscript index must be integer");
 
             if (valueType != null && !valueType.isDefinitely(Kind.PrimitiveScalar.class)) {
-              report("Subscript write value must be a primitive scalar, got " + value + " {:" + valueType + "}");
+              report(
+                  "Subscript write value must be a primitive scalar, got "
+                      + value
+                      + " {:"
+                      + valueType
+                      + "}");
             }
-            if (targetType != null && targetType.kind() instanceof Kind.PrimitiveVector(var targetKind) && valueType != null && valueType.kind() instanceof Kind.PrimitiveScalar(var valueKind) && valueKind != targetKind) {
-              report("Subscript write kind mismatch (in " + expression + "): expected " + targetKind + ", got " + valueKind);
+            if (targetType != null
+                && targetType.kind() instanceof Kind.PrimitiveVector(var targetKind)
+                && valueType != null
+                && valueType.kind() instanceof Kind.PrimitiveScalar(var valueKind)
+                && valueKind != targetKind) {
+              report(
+                  "Subscript write kind mismatch (in "
+                      + expression
+                      + "): expected "
+                      + targetKind
+                      + ", got "
+                      + valueKind);
             }
 
             yield valueType == null ? null : valueType.withOwnership(Ownership.SHARED);
@@ -472,7 +535,10 @@ public final class TypeChecker {
             // Ignore ownership mismatches, because we check ownership against the expected return
             // type. Ignoring lets us return fresh and shared values from a closure version whose
             // explicit return type is shared, and that is sound.
-            returnType = returnType == null ? type : type == null ? returnType : returnType.union(type, () -> {});
+            returnType =
+                returnType == null
+                    ? type
+                    : type == null ? returnType : returnType.union(type, () -> {});
             returnFlow.merge(flow);
           }
           case Goto(var _) -> {}
