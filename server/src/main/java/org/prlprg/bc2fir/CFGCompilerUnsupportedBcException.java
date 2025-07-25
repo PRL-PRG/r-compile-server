@@ -2,7 +2,7 @@ package org.prlprg.bc2fir;
 
 import javax.annotation.Nullable;
 import org.prlprg.bc.Bc;
-import org.prlprg.fir.cfg.cursor.CFGCursor;
+import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
 
 /**
  * {@link CFGCompilerException} thrown when encountering an unsupported bytecode instruction, e.g.

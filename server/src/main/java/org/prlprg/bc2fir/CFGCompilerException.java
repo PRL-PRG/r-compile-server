@@ -2,9 +2,9 @@ package org.prlprg.bc2fir;
 
 import javax.annotation.Nullable;
 import org.prlprg.bc.Bc;
-import org.prlprg.fir.cfg.BB;
-import org.prlprg.fir.cfg.CFG;
-import org.prlprg.fir.cfg.cursor.CFGCursor;
+import org.prlprg.fir.ir.cfg.BB;
+import org.prlprg.fir.ir.cfg.CFG;
+import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
 
 /**
  * Exception thrown when {@link CFGCompiler} fails to compile a {@link Bc} into a {@link CFG}.

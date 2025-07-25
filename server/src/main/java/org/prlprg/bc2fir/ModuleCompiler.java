@@ -1,7 +1,6 @@
 package org.prlprg.bc2fir;
 
-import org.prlprg.bc.*;
-import org.prlprg.fir.module.Module;
+import org.prlprg.fir.ir.module.Module;
 import org.prlprg.sexp.CloSXP;
 
 /// Compile GNU-R bytecode functions into a FIŘ module.

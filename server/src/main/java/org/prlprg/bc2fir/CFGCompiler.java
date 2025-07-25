@@ -19,36 +19,36 @@ import org.prlprg.bc.BcInstr;
 import org.prlprg.bc.BcLabel;
 import org.prlprg.bc.ConstPool;
 import org.prlprg.bc.LabelName;
-import org.prlprg.fir.callee.DispatchCallee;
-import org.prlprg.fir.callee.DynamicCallee;
-import org.prlprg.fir.callee.StaticCallee;
-import org.prlprg.fir.cfg.Abstraction;
-import org.prlprg.fir.cfg.BB;
-import org.prlprg.fir.cfg.CFG;
-import org.prlprg.fir.cfg.cursor.CFGCursor;
-import org.prlprg.fir.cfg.cursor.JumpInsertion;
-import org.prlprg.fir.instruction.Cast;
-import org.prlprg.fir.instruction.Closure;
-import org.prlprg.fir.instruction.Expression;
-import org.prlprg.fir.instruction.Goto;
-import org.prlprg.fir.instruction.If;
-import org.prlprg.fir.instruction.Jump;
-import org.prlprg.fir.instruction.Literal;
-import org.prlprg.fir.instruction.MaybeForce;
-import org.prlprg.fir.instruction.Promise;
-import org.prlprg.fir.instruction.Read;
-import org.prlprg.fir.instruction.Return;
-import org.prlprg.fir.instruction.SuperRead;
-import org.prlprg.fir.instruction.SuperWrite;
-import org.prlprg.fir.instruction.Unreachable;
-import org.prlprg.fir.instruction.Write;
-import org.prlprg.fir.module.Module;
-import org.prlprg.fir.phi.PhiParameter;
-import org.prlprg.fir.phi.Target;
-import org.prlprg.fir.type.Effects;
-import org.prlprg.fir.type.Type;
-import org.prlprg.fir.variable.NamedVariable;
-import org.prlprg.fir.variable.Variable;
+import org.prlprg.fir.ir.callee.DispatchCallee;
+import org.prlprg.fir.ir.callee.DynamicCallee;
+import org.prlprg.fir.ir.callee.StaticCallee;
+import org.prlprg.fir.ir.cfg.Abstraction;
+import org.prlprg.fir.ir.cfg.BB;
+import org.prlprg.fir.ir.cfg.CFG;
+import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
+import org.prlprg.fir.ir.cfg.cursor.JumpInsertion;
+import org.prlprg.fir.ir.instruction.Cast;
+import org.prlprg.fir.ir.instruction.Closure;
+import org.prlprg.fir.ir.instruction.Expression;
+import org.prlprg.fir.ir.instruction.Goto;
+import org.prlprg.fir.ir.instruction.If;
+import org.prlprg.fir.ir.instruction.Jump;
+import org.prlprg.fir.ir.instruction.Literal;
+import org.prlprg.fir.ir.instruction.MaybeForce;
+import org.prlprg.fir.ir.instruction.Promise;
+import org.prlprg.fir.ir.instruction.Read;
+import org.prlprg.fir.ir.instruction.Return;
+import org.prlprg.fir.ir.instruction.SuperRead;
+import org.prlprg.fir.ir.instruction.SuperWrite;
+import org.prlprg.fir.ir.instruction.Unreachable;
+import org.prlprg.fir.ir.instruction.Write;
+import org.prlprg.fir.ir.module.Module;
+import org.prlprg.fir.ir.phi.PhiParameter;
+import org.prlprg.fir.ir.phi.Target;
+import org.prlprg.fir.ir.type.Effects;
+import org.prlprg.fir.ir.type.Type;
+import org.prlprg.fir.ir.variable.NamedVariable;
+import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.sexp.Attributes;
 import org.prlprg.sexp.BCodeSXP;
 import org.prlprg.sexp.ListSXP;
@@ -925,7 +925,7 @@ public class CFGCompiler {
             expr.args().values().stream()
                 .map(v -> (Expression) new Literal(v))
                 .collect(ImmutableList.toImmutableList());
-        push(new org.prlprg.fir.instruction.Call(new DynamicCallee(fun, argNames), args));
+        push(new org.prlprg.fir.ir.instruction.Call(new DynamicCallee(fun, argNames), args));
         setJump(goto_(afterBb));
         addPhiInputsForStack(afterBb);
         pop(); // the `CallBuiltin` pushed above.
@@ -1084,7 +1084,7 @@ public class CFGCompiler {
     var callInstr =
         switch (call.fun) {
           case Call.Fun.Variable(var funName) ->
-              new org.prlprg.fir.instruction.Call(new DynamicCallee(funName, names), args);
+              new org.prlprg.fir.ir.instruction.Call(new DynamicCallee(funName, names), args);
           case Call.Fun.Builtin(var builtin) ->
               builtin(builtin.name, args.toArray(Expression[]::new));
         };
@@ -1104,7 +1104,7 @@ public class CFGCompiler {
     // \* If `stop` is overridden in the function, the bytecode compiler will use the overridden
     // call, which is different than the AST interpreter which errors regardless. This and the fact
     // that the stack now has an extra value until the function returns, are why it may be a bug.
-    if (callInstr instanceof org.prlprg.fir.instruction.Call c
+    if (callInstr instanceof org.prlprg.fir.ir.instruction.Call c
         && c.callee() instanceof DynamicCallee ca
         && ca.variable().name().equals("stop")
         && c.arguments().size() == 1
@@ -1525,7 +1525,7 @@ public class CFGCompiler {
         versionIndex == -1
             ? new DispatchCallee(function, null)
             : new StaticCallee(function, function.version(versionIndex));
-    return new org.prlprg.fir.instruction.Call(callee, ImmutableList.copyOf(args));
+    return new org.prlprg.fir.ir.instruction.Call(callee, ImmutableList.copyOf(args));
   }
 
   private Expression intrinsic(String name, Expression... args) {
@@ -1539,7 +1539,7 @@ public class CFGCompiler {
         versionIndex == -1
             ? new DispatchCallee(function, null)
             : new StaticCallee(function, function.version(versionIndex));
-    return new org.prlprg.fir.instruction.Call(callee, ImmutableList.copyOf(args));
+    return new org.prlprg.fir.ir.instruction.Call(callee, ImmutableList.copyOf(args));
   }
 
   /// An expression that raises an error with the given message.
