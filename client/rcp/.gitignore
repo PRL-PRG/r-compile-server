@@ -1,3 +1,8 @@
 .vscode/
 
 rcp/build/
+rcp/.cache/clangd/index
+rcp/.RData
+rcp/.Rhistory
+rcp/.gdb_history
+rcp/benchmark-results

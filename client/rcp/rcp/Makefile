@@ -60,7 +60,7 @@ R := $(R_HOME)/bin/R --slave --no-restore
 LLVM_R := $(R) #LD_PRELOAD=$(LLVM_LIB) $(R)
 BENCH_DIR = $(RSH_HOME)/inst/benchmarks
 HARNESS_BIN = harness.R
-BENCH_R = R_PROFILE_USER=$(BENCH_DIR)/Rprofile.site $(LLVM_R) -f
+BENCH_R = $(LLVM_R) -f
 FILTER ?=
 
 .PHONY: run
@@ -69,16 +69,18 @@ run: install
 
 .PHONY: benchmark
 benchmark: install
+	mkdir -p $(BENCH_OUT_DIR)
 	@for file in $$(find $(BENCH_DIR) -mindepth 2 -name "*$(FILTER)*.R"); do \
 		test=$$(basename $$file); \
+		test=$${test%.*}; \
 		echo "$(TXT_BOLD)┌──── $$test ...$(TXT_NORM)"; \
 		cmd="$(BENCH_R) $(HARNESS_BIN) --args --output-dir $(BENCH_OUT_DIR) $(OPTS) $${file%.*}"; \
 		echo $$cmd; \
-		eval "$$cmd"; \
+		eval "/usr/bin/time -v -o \"$(BENCH_OUT_DIR)/$$test.time\" $$cmd"; \
 		exit=$$?; \
 		echo -n "$(TXT_BOLD)└──── $$test: "; \
 	  if [ $$exit -eq 0 ]; then \
-			echo "$(TXT_GREEN)OK$(TXT_NORM) (output in $(BENCH_OUT_DIR)/$${test%.*}.csv)"; \
+			echo "$(TXT_GREEN)OK$(TXT_NORM) (output in $(BENCH_OUT_DIR)/$$test.csv)"; \
 		else \
 		echo "$(TXT_RED)FAIL$(NO_NORM) $$exit$(TXT_NORM)"; \
 		fi; \
