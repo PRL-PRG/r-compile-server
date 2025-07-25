@@ -10,6 +10,7 @@ import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.ir.CommentParser;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.binding.Parameter;
+import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
@@ -29,13 +30,13 @@ public final class Function {
           (Abstraction a, Abstraction b) -> {
             // Sort by parameter types (largest type first), then by number of parameters, then by
             // hash.
-            for (var i = 0; i < Math.min(a.params().size(), b.params().size()); i++) {
-              var cmp = b.params().get(i).type().compareTo(a.params().get(i).type());
+            for (var i = 0; i < Math.min(a.parameters().size(), b.parameters().size()); i++) {
+              var cmp = b.parameters().get(i).type().compareTo(a.parameters().get(i).type());
               if (cmp != 0) {
                 return cmp;
               }
             }
-            var cmp = Integer.compare(a.params().size(), b.params().size());
+            var cmp = Integer.compare(a.parameters().size(), b.parameters().size());
             if (cmp != 0) {
               return cmp;
             }
@@ -81,6 +82,22 @@ public final class Function {
       throw new IndexOutOfBoundsException("Index out of bounds: " + index);
     }
     return versions.stream().skip(index).findFirst().orElseThrow();
+  }
+
+  /// Gets the worst version we could dispatch to whose signature satisfies the provided one.
+  ///
+  /// Returns `null` if there are no known versions we can dispatch to.
+  public @Nullable Abstraction worstGuess(@Nullable Signature signature) {
+    if (signature == null) {
+      return versions.isEmpty() ? null : versions.first();
+    }
+
+    for (var version : versions) {
+      if (version.signature().satisfies(signature)) {
+        return version;
+      }
+    }
+    return null;
   }
 
   public Abstraction addVersion(List<Parameter> params) {

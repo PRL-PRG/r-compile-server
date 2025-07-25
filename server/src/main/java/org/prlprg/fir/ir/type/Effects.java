@@ -16,6 +16,14 @@ public record Effects(boolean reflect) implements Comparable<Effects> {
     return Boolean.compare(reflect, o.reflect);
   }
 
+  public boolean isSubsetOf(Effects expected) {
+    return !reflect || expected.reflect;
+  }
+
+  public Effects union(Effects other) {
+    return new Effects(reflect || other.reflect);
+  }
+
   @Override
   public String toString() {
     return Printer.toString(this);

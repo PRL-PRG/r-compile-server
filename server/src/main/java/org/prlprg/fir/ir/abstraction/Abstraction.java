@@ -15,6 +15,7 @@ import org.prlprg.fir.ir.binding.Parameter;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.type.Effects;
+import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.fir.ir.variable.Variable;
@@ -32,7 +33,7 @@ public final class Abstraction {
   private final Module module;
 
   // Data
-  private final ImmutableList<Parameter> params;
+  private final ImmutableList<Parameter> parameters;
   private Type returnType;
   private Effects returnEffects;
   private final Map<String, Local> locals = new LinkedHashMap<>();
@@ -42,11 +43,11 @@ public final class Abstraction {
   private final ImmutableMap<String, Parameter> nameToParam;
   private int nextLocalDisambiguator = 0;
 
-  public Abstraction(Module module, List<Parameter> params) {
+  public Abstraction(Module module, List<Parameter> parameters) {
     this.module = module;
-    this.params = ImmutableList.copyOf(params);
+    this.parameters = ImmutableList.copyOf(parameters);
 
-    nameToParam = computeNameToParam(params);
+    nameToParam = computeNameToParam(parameters);
     returnType = Type.ANY;
     returnEffects = Effects.ANY;
     cfg = new CFG(this);
@@ -72,8 +73,8 @@ public final class Abstraction {
     return module;
   }
 
-  public @Unmodifiable List<Parameter> params() {
-    return params;
+  public @Unmodifiable List<Parameter> parameters() {
+    return parameters;
   }
 
   public Type returnType() {
@@ -177,6 +178,13 @@ public final class Abstraction {
     return Variable.register(DEFAULT_LOCAL_PREFIX + nextLocalDisambiguator);
   }
 
+  public Signature signature() {
+    return new Signature(
+        parameters.stream().map(Parameter::type).collect(ImmutableList.toImmutableList()),
+        returnType,
+        returnEffects);
+  }
+
   @Override
   public String toString() {
     return Printer.toString(this);
@@ -187,7 +195,7 @@ public final class Abstraction {
     var w = p.writer();
 
     w.write('(');
-    p.printSeparated(", ", params);
+    p.printSeparated(", ", parameters);
     w.write(')');
 
     w.write(" -");
@@ -212,8 +220,8 @@ public final class Abstraction {
 
     var s = p.scanner();
 
-    params = p.parseList("(", ")", Parameter.class);
-    nameToParam = computeNameToParam(params);
+    parameters = p.parseList("(", ")", Parameter.class);
+    nameToParam = computeNameToParam(parameters);
 
     s.assertAndSkip('-');
     returnEffects = p.parse(Effects.class);
