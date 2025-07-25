@@ -35,11 +35,42 @@ public sealed interface Kind extends Comparable<Kind> {
     }
   }
 
+  record Closure() implements Kind {
+    @Override
+    public String toString() {
+      return Printer.toString(this);
+    }
+  }
+
   record Promise(Type value, Effects effects) implements Kind {
     @Override
     public String toString() {
       return Printer.toString(this);
     }
+  }
+
+  default boolean isSubtypeOf(Kind other) {
+    return switch (other) {
+      case Any() -> true;
+      case AnyValue() -> !(this instanceof Any) && !(this instanceof Promise);
+      case PrimitiveScalar(var _), PrimitiveVector(var _), Closure() -> this == other;
+      case Promise(var otherValue, var otherEffects) ->
+          this instanceof Promise(var value, var effects)
+              && value.isSubtypeOf(otherValue)
+              && effects.isSubsetOf(otherEffects);
+    };
+  }
+
+  default Kind union(Kind other, Runnable onOwnershipMismatch) {
+    return switch (other) {
+      case Any() -> other;
+      case AnyValue() -> this instanceof Any || this instanceof Promise ? new Any() : other;
+      case PrimitiveScalar(var _), PrimitiveVector(var _), Closure() -> this == other ? this : union(new AnyValue(), onOwnershipMismatch);
+      case Promise(var otherValue, var otherEffects) ->
+          this instanceof Promise(var value, var effects)
+              ? new Promise(value.union(otherValue, onOwnershipMismatch), effects.union(otherEffects))
+              : new Any();
+    };
   }
 
   /// Comparison is subtyping arbitrarily extended to be totally ordered.
@@ -65,9 +96,15 @@ public sealed interface Kind extends Comparable<Kind> {
             case PrimitiveVector(var otherPrimitive) -> primitive.compareTo(otherPrimitive);
             default -> -1;
           };
-      case Promise(var value, var effects) ->
+      case Closure() ->
           switch (o) {
             case Any(), AnyValue(), PrimitiveScalar(_), PrimitiveVector(_) -> 1;
+            case Closure() -> 0;
+            default -> -1;
+          };
+      case Promise(var value, var effects) ->
+          switch (o) {
+            case Any(), AnyValue(), PrimitiveScalar(_), PrimitiveVector(_), Closure() -> 1;
             case Promise(var otherValue, var otherEffects) -> {
               int cmp = value.compareTo(otherValue);
               if (cmp != 0) yield cmp;
@@ -90,6 +127,7 @@ public sealed interface Kind extends Comparable<Kind> {
         p.print(primitive);
         w.write(')');
       }
+      case Closure() -> w.write("cls");
       case Promise(var type, var effects) -> {
         w.write("p(");
         p.print(type);
@@ -113,6 +151,8 @@ public sealed interface Kind extends Comparable<Kind> {
       var primitive = p.parse(PrimitiveKind.class);
       s.assertAndSkip(')');
       return new PrimitiveVector(primitive);
+    } else if (s.trySkip("cls")) {
+      return new Closure();
     } else if (s.trySkip('p')) {
       s.assertAndSkip('(');
       var type = p.parse(Type.class);

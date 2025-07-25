@@ -6,8 +6,18 @@ import org.prlprg.parseprint.Printer;
 import org.prlprg.parseprint.SkipWhitespace;
 
 public enum Concreteness {
-  DEFINITELY,
+  DEFINITE,
   MAYBE;
+
+  /// Whether this is definite or the expected concreteness is maybe.
+  public boolean isSubsetOf(Concreteness expected) {
+    return this == DEFINITE || expected == MAYBE;
+  }
+
+  /// Maybe if either is maybe.
+  public Concreteness union(Concreteness other) {
+    return this == DEFINITE && other == DEFINITE ? DEFINITE : MAYBE;
+  }
 
   @Override
   public String toString() {
@@ -19,7 +29,7 @@ public enum Concreteness {
     var w = p.writer();
 
     switch (this) {
-      case DEFINITELY -> w.write("!");
+      case DEFINITE -> w.write("!");
       case MAYBE -> w.write("?");
     }
   }
@@ -29,7 +39,7 @@ public enum Concreteness {
     var s = p.scanner();
 
     if (s.trySkip('!')) {
-      return DEFINITELY;
+      return DEFINITE;
     } else if (s.trySkip('?')) {
       return MAYBE;
     } else {

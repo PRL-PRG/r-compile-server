@@ -1,29 +1,98 @@
 package org.prlprg.fir.ir.type;
 
+import org.prlprg.fir.ir.instruction.Expression;
+import org.prlprg.fir.ir.type.Kind.AnyValue;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.parseprint.SkipWhitespace;
+import org.prlprg.sexp.SEXP;
+import org.prlprg.util.NotImplementedError;
 
 public record Type(Kind kind, Ownership ownership, Concreteness concreteness)
     implements Comparable<Type> {
   public static final Type ANY = new Type(new Kind.Any(), Ownership.SHARED, Concreteness.MAYBE);
-  public static final Type INTEGER =
+  public static final Type ANY_VALUE = new Type(new Kind.AnyValue(), Ownership.SHARED, Concreteness.DEFINITE);
+  public static final Type INTEGER = primitiveScalar(PrimitiveKind.INTEGER);
+  public static final Type INT_VECTOR = primitiveVector(PrimitiveKind.INTEGER);
+  public static final Type BOOLEAN = primitiveScalar(PrimitiveKind.LOGICAL);
+  public static final Type CLOSURE =
       new Type(
-          new Kind.PrimitiveScalar(PrimitiveKind.INTEGER),
+          new Kind.Closure(),
           Ownership.SHARED,
-          Concreteness.DEFINITELY);
-  public static final Type INT_VECTOR =
-      new Type(
-          new Kind.PrimitiveVector(PrimitiveKind.INTEGER),
-          Ownership.SHARED,
-          Concreteness.DEFINITELY);
-  public static final Type BOOLEAN =
-      new Type(
-          new Kind.PrimitiveScalar(PrimitiveKind.LOGICAL),
-          Ownership.SHARED,
-          Concreteness.DEFINITELY);
+          Concreteness.DEFINITE);
+
+  public static Type primitiveScalar(PrimitiveKind kind) {
+    return new Type(new Kind.PrimitiveScalar(kind), Ownership.SHARED, Concreteness.DEFINITE);
+  }
+
+  public static Type primitiveVector(PrimitiveKind kind) {
+    return new Type(new Kind.PrimitiveVector(kind), Ownership.SHARED, Concreteness.DEFINITE);
+  }
+
+  public static Type promise(Type innerType, Effects effects) {
+    return new Type(new Kind.Promise(innerType, effects), Ownership.SHARED, Concreteness.DEFINITE);
+  }
+
+  public static Type of(SEXP sexp) {
+    throw new NotImplementedError();
+  }
+
+  public Type withOwnership(Ownership newOwnership) {
+    if (ownership == newOwnership) {
+      return this;
+    }
+    return new Type(kind, newOwnership, concreteness);
+  }
+
+  public Type withConcreteness(Concreteness newConcreteness) {
+    if (concreteness == newConcreteness) {
+      return this;
+    }
+    return new Type(kind, ownership, newConcreteness);
+  }
+
+  public boolean isDefinitely(Class<? extends Kind> kind) {
+    return kind == Kind.Any.class ||
+        ((kind == AnyValue.class ? !(this.kind instanceof Kind.Promise) : this.kind.getClass() == kind)
+          && concreteness == Concreteness.DEFINITE);
+  }
+
+  public boolean isWellFormed() {
+    return false;
+  }
+
+  public boolean isSubtypeOf(Type other) {
+    return kind.isSubtypeOf(other.kind)
+        && ownership == other.ownership && concreteness.isSubsetOf(other.concreteness);
+  }
+
+  public boolean matches(Type expected) {
+    return withOwnership(Ownership.FRESH)
+        .isSubtypeOf(expected.withOwnership(Ownership.FRESH))
+        && switch (expected.ownership) {
+      case FRESH -> throw new IllegalArgumentException("Parameters can't be fresh: " + expected);
+      case OWNED -> ownership == Ownership.FRESH;
+      case BORROWED -> true;
+      case SHARED -> ownership == Ownership.FRESH || ownership == Ownership.SHARED;
+    };
+  }
+
+  public boolean canAssignTo(Type expected) {
+    return matches(expected) && expected.ownership != Ownership.BORROWED;
+  }
+
+  public Type union(Type other, Runnable onOwnershipMismatch) {
+    if (ownership != other.ownership) {
+      onOwnershipMismatch.run();
+    }
+
+    return new Type(
+        kind.union(other.kind, onOwnershipMismatch),
+        ownership,
+        concreteness.union(other.concreteness)););
+  }
 
   @Override
   public int compareTo(Type o) {
@@ -49,7 +118,7 @@ public record Type(Kind kind, Ownership ownership, Concreteness concreteness)
     }
     // For `Kind.Any`, concreteness is implicit iff `MAYBE`.
     // For other kinds, concreteness is implicit iff `DEFINITELY`.
-    if ((kind instanceof Kind.Any) == (concreteness == Concreteness.DEFINITELY)) {
+    if ((kind instanceof Kind.Any) == (concreteness == Concreteness.DEFINITE)) {
       p.print(concreteness);
     }
   }
@@ -67,7 +136,7 @@ public record Type(Kind kind, Ownership ownership, Concreteness concreteness)
     var concreteness =
         (s.nextCharIs('?') || s.nextCharIs(':'))
             ? p.parse(Concreteness.class)
-            : ((kind instanceof Kind.Any) ? Concreteness.MAYBE : Concreteness.DEFINITELY);
+            : ((kind instanceof Kind.Any) ? Concreteness.MAYBE : Concreteness.DEFINITE);
 
     return new Type(kind, ownership, concreteness);
   }
