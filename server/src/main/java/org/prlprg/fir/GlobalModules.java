@@ -7,10 +7,11 @@ import org.prlprg.session.GNURSession;
 
 public final class GlobalModules {
   /// Module containing GNU-R builtins.
-  public static final Module BUILTINS = Parser.fromResource(Path.of("builtins.fir"), Module.class);
+  public static final Module BUILTINS =
+      Parser.fromResource(Path.of("../../builtins.fir"), Module.class);
   /// Module containing intrinsic functions (non-builtins that are used in the IR, e.g. "inc").
   public static final Module INTRINSICS =
-      Parser.fromResource(Path.of("intrinsics.fir"), Module.class);
+      Parser.fromResource(Path.of("../../intrinsics.fir"), Module.class);
 
   static {
     // Add GNU-R builtins that we don't have explicit versions for.
