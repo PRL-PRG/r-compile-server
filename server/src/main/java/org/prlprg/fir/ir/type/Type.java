@@ -1,27 +1,36 @@
 package org.prlprg.fir.ir.type;
 
-import org.prlprg.fir.ir.instruction.Expression;
 import org.prlprg.fir.ir.type.Kind.AnyValue;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.parseprint.SkipWhitespace;
+import org.prlprg.sexp.BuiltinOrSpecialSXP;
+import org.prlprg.sexp.CloSXP;
+import org.prlprg.sexp.IntSXP;
+import org.prlprg.sexp.LglSXP;
+import org.prlprg.sexp.PromSXP;
+import org.prlprg.sexp.RealSXP;
 import org.prlprg.sexp.SEXP;
-import org.prlprg.util.NotImplementedError;
+import org.prlprg.sexp.StrSXP;
 
 public record Type(Kind kind, Ownership ownership, Concreteness concreteness)
     implements Comparable<Type> {
   public static final Type ANY = new Type(new Kind.Any(), Ownership.SHARED, Concreteness.MAYBE);
-  public static final Type ANY_VALUE = new Type(new Kind.AnyValue(), Ownership.SHARED, Concreteness.DEFINITE);
+  public static final Type ANY_VALUE =
+      new Type(new Kind.AnyValue(), Ownership.SHARED, Concreteness.DEFINITE);
   public static final Type INTEGER = primitiveScalar(PrimitiveKind.INTEGER);
+  public static final Type LOGICAL = primitiveScalar(PrimitiveKind.LOGICAL);
+  public static final Type REAL = primitiveScalar(PrimitiveKind.REAL);
+  public static final Type STRING = primitiveScalar(PrimitiveKind.STRING);
   public static final Type INT_VECTOR = primitiveVector(PrimitiveKind.INTEGER);
-  public static final Type BOOLEAN = primitiveScalar(PrimitiveKind.LOGICAL);
+  public static final Type LOGICAL_VECTOR = primitiveVector(PrimitiveKind.LOGICAL);
+  public static final Type REAL_VECTOR = primitiveVector(PrimitiveKind.REAL);
+  public static final Type STRING_VECTOR = primitiveVector(PrimitiveKind.STRING);
   public static final Type CLOSURE =
-      new Type(
-          new Kind.Closure(),
-          Ownership.SHARED,
-          Concreteness.DEFINITE);
+      new Type(new Kind.Closure(), Ownership.SHARED, Concreteness.DEFINITE);
+  public static final Type BOOLEAN = LOGICAL;
 
   public static Type primitiveScalar(PrimitiveKind kind) {
     return new Type(new Kind.PrimitiveScalar(kind), Ownership.SHARED, Concreteness.DEFINITE);
@@ -36,7 +45,18 @@ public record Type(Kind kind, Ownership ownership, Concreteness concreteness)
   }
 
   public static Type of(SEXP sexp) {
-    throw new NotImplementedError();
+    return switch (sexp) {
+      case IntSXP i when !sexp.hasAttributes() -> i.isScalar() ? INTEGER : INT_VECTOR;
+      case LglSXP l when !sexp.hasAttributes() -> l.isScalar() ? LOGICAL : LOGICAL_VECTOR;
+      case RealSXP r when !sexp.hasAttributes() -> r.isScalar() ? REAL : REAL_VECTOR;
+      case StrSXP s when !sexp.hasAttributes() -> s.isScalar() ? STRING : STRING_VECTOR;
+      case CloSXP _, BuiltinOrSpecialSXP _ -> CLOSURE;
+      case PromSXP p ->
+          promise(
+              p.boundVal() == null ? ANY_VALUE : of(p.boundVal()),
+              p.isLazy() ? Effects.ANY : Effects.NONE);
+      default -> ANY_VALUE;
+    };
   }
 
   public Type withOwnership(Ownership newOwnership) {
@@ -54,29 +74,33 @@ public record Type(Kind kind, Ownership ownership, Concreteness concreteness)
   }
 
   public boolean isDefinitely(Class<? extends Kind> kind) {
-    return kind == Kind.Any.class ||
-        ((kind == AnyValue.class ? !(this.kind instanceof Kind.Promise) : this.kind.getClass() == kind)
-          && concreteness == Concreteness.DEFINITE);
+    return kind == Kind.Any.class
+        || ((kind == AnyValue.class
+                ? !(this.kind instanceof Kind.Promise)
+                : this.kind.getClass() == kind)
+            && concreteness == Concreteness.DEFINITE);
   }
 
   public boolean isWellFormed() {
-    return false;
+    return !(kind instanceof Kind.Any && concreteness == Concreteness.DEFINITE)
+        && !(kind instanceof Kind.PrimitiveVector && ownership != Ownership.SHARED);
   }
 
   public boolean isSubtypeOf(Type other) {
     return kind.isSubtypeOf(other.kind)
-        && ownership == other.ownership && concreteness.isSubsetOf(other.concreteness);
+        && ownership == other.ownership
+        && concreteness.isSubsetOf(other.concreteness);
   }
 
   public boolean matches(Type expected) {
-    return withOwnership(Ownership.FRESH)
-        .isSubtypeOf(expected.withOwnership(Ownership.FRESH))
+    return withOwnership(Ownership.FRESH).isSubtypeOf(expected.withOwnership(Ownership.FRESH))
         && switch (expected.ownership) {
-      case FRESH -> throw new IllegalArgumentException("Parameters can't be fresh: " + expected);
-      case OWNED -> ownership == Ownership.FRESH;
-      case BORROWED -> true;
-      case SHARED -> ownership == Ownership.FRESH || ownership == Ownership.SHARED;
-    };
+          case FRESH ->
+              throw new IllegalArgumentException("Parameters can't be fresh: " + expected);
+          case OWNED -> ownership == Ownership.FRESH;
+          case BORROWED -> true;
+          case SHARED -> ownership == Ownership.FRESH || ownership == Ownership.SHARED;
+        };
   }
 
   public boolean canAssignTo(Type expected) {
@@ -91,7 +115,7 @@ public record Type(Kind kind, Ownership ownership, Concreteness concreteness)
     return new Type(
         kind.union(other.kind, onOwnershipMismatch),
         ownership,
-        concreteness.union(other.concreteness)););
+        concreteness.union(other.concreteness));
   }
 
   @Override

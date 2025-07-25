@@ -65,10 +65,12 @@ public sealed interface Kind extends Comparable<Kind> {
     return switch (other) {
       case Any() -> other;
       case AnyValue() -> this instanceof Any || this instanceof Promise ? new Any() : other;
-      case PrimitiveScalar(var _), PrimitiveVector(var _), Closure() -> this == other ? this : union(new AnyValue(), onOwnershipMismatch);
+      case PrimitiveScalar(var _), PrimitiveVector(var _), Closure() ->
+          this == other ? this : union(new AnyValue(), onOwnershipMismatch);
       case Promise(var otherValue, var otherEffects) ->
           this instanceof Promise(var value, var effects)
-              ? new Promise(value.union(otherValue, onOwnershipMismatch), effects.union(otherEffects))
+              ? new Promise(
+                  value.union(otherValue, onOwnershipMismatch), effects.union(otherEffects))
               : new Any();
     };
   }
